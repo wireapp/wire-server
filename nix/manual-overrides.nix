@@ -2,9 +2,10 @@
 # FUTUREWORK: Figure out a way to detect if some of these packages are not
 # actually marked broken, so we can cleanup this file on every nixpkgs bump.
 hself: hsuper: {
-  aeson = (hlib.doJailbreak hsuper.aeson_2_1_2_1);
+  aeson = (hlib.doJailbreak hsuper.aeson_2_2_0_0);
   binary-parsers = hlib.markUnbroken (hlib.doJailbreak hsuper.binary-parsers);
   bytestring-arbitrary = hlib.markUnbroken (hlib.doJailbreak hsuper.bytestring-arbitrary);
+  bytestring-conversion = hlib.markUnbroken hsuper.bytestring-conversion;
   cql = hlib.markUnbroken hsuper.cql;
   hashtables = hsuper.hashtables_1_3;
   invertible = hlib.markUnbroken hsuper.invertible;
@@ -14,13 +15,15 @@ hself: hsuper: {
   polysemy = hlib.doJailbreak hsuper.polysemy;
   polysemy-check = hlib.markUnbroken (hlib.doJailbreak hsuper.polysemy-check);
   polysemy-plugin = hlib.doJailbreak hsuper.polysemy-plugin;
+  prometheus = hlib.markUnbroken hsuper.prometheus;
   quickcheck-state-machine = hlib.dontCheck hsuper.quickcheck-state-machine;
-  servant-foreign = hlib.doJailbreak hsuper.servant-foreign;
+  servant-foreign = hlib.markUnbroken hsuper.servant-foreign;
   servant-multipart = hlib.doJailbreak hsuper.servant-multipart;
   servant-swagger-ui = hlib.doJailbreak hsuper.servant-swagger-ui;
   servant-swagger-ui-core = hlib.doJailbreak hsuper.servant-swagger-ui-core;
   sodium-crypto-sign = hlib.addPkgconfigDepend hsuper.sodium-crypto-sign libsodium.dev;
   swagger2 = hlib.doJailbreak hsuper.swagger2;
+  template = hlib.markUnbroken hsuper.template;
   text-icu-translit = hlib.markUnbroken (hlib.dontCheck hsuper.text-icu-translit);
   text-short = hlib.dontCheck hsuper.text-short;
   type-errors = hlib.dontCheck hsuper.type-errors;
