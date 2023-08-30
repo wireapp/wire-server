@@ -101,7 +101,7 @@ data EmailWithSource = EmailWithSource
 -- Identity means that there is a value in that position, and it needs to be considered.
 --
 -- NOTE(fisx): we're using dot syntax for records these days, so ambiguous field names are ok!
-data UAuthIdF a b c = UAuthIdF
+data UAuthIdF a b c d = UAuthIdF
   { samlId :: a SAML.UserRef,
     scimExternalId :: b Text,
     email :: c EmailWithSource,
@@ -113,26 +113,29 @@ data UAuthIdF a b c = UAuthIdF
     -- without an externalId, but never an externalId without a teamId?
     -- Similarly, what if we are dealing with a SAML only record? My gut feeling is that this
     -- should probably be a `b TeamId` to tie to to the same existance type as scimExternalId
-    teamId :: TeamId
+    -- NOTE(owen): I've updated this to play nicely with the `UserIdentityComponents` instance
+    -- Since the TeamId isn't coming in over the wire there, we need to look it up after the
+    -- fact and pull it from the spar database, looking it up via the ID
+    teamId :: d TeamId
   }
   deriving (Generic)
 
 deriving via
-  (GenericUniform (UAuthIdF a b c))
+  (GenericUniform (UAuthIdF a b c d))
   instance
-    (Arbitrary (a SAML.UserRef), Arbitrary (b Text), Arbitrary (c EmailWithSource)) =>
-    Arbitrary (UAuthIdF a b c)
+    (Arbitrary (a SAML.UserRef), Arbitrary (b Text), Arbitrary (c EmailWithSource), Arbitrary (d TeamId)) =>
+    Arbitrary (UAuthIdF a b c d)
 
 deriving instance
-  (Eq (a SAML.UserRef), Eq (b Text), Eq (c EmailWithSource)) =>
-  Eq (UAuthIdF a b c)
+  (Eq (a SAML.UserRef), Eq (b Text), Eq (c EmailWithSource), Eq (d TeamId)) =>
+  Eq (UAuthIdF a b c d)
 
 deriving instance
-  (Show (a SAML.UserRef), Show (b Text), Show (c EmailWithSource)) =>
-  Show (UAuthIdF a b c)
+  (Show (a SAML.UserRef), Show (b Text), Show (c EmailWithSource), Show (d TeamId)) =>
+  Show (UAuthIdF a b c d)
 
 -- | In brig, we don't really care about these values and never have to validate them.  We
 -- just get them from spar, and write them to the database and later communicate them back to
 -- spar or to team-management or to clients.  So in order to keep things from getting out of
 -- hand, we decide the presence of all fields at run time.
-type PartialUAuthId = UAuthIdF Maybe Maybe Maybe
+type PartialUAuthId = UAuthIdF Maybe Maybe Maybe Maybe

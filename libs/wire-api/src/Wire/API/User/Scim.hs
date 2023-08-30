@@ -84,7 +84,6 @@ import Web.Scim.Schema.Schema qualified as Scim
 import Web.Scim.Schema.User qualified as Scim
 import Web.Scim.Schema.User qualified as Scim.User
 import Wire.API.Team.Role (Role)
-import Wire.API.User.Identity (Email)
 import Wire.API.User.Profile as BT
 import Wire.API.User.RichInfo qualified as RI
 import Wire.API.User.Saml ()
@@ -558,11 +557,11 @@ $(singDecideInstance ''UAuthIdTag)
 -- are 8 (2^3) options of Const and Identity.
 {- ORMOLU_DISABLE -}
 type family ValidUAuthIdF (f :: UAuthIdTag) where
-  ValidUAuthIdF 'UAScimSamlEmail     = UAuthIdF Identity Identity Identity
-  ValidUAuthIdF 'UAScimSamlNoEmail   = UAuthIdF Identity Identity Konst
-  ValidUAuthIdF 'UAScimEmailNoSaml   = UAuthIdF Konst    Identity Identity
-  ValidUAuthIdF 'UASamlEmailNoScim   = UAuthIdF Identity Konst    Identity
-  ValidUAuthIdF 'UASamlNoScimNoEmail = UAuthIdF Identity Konst    Konst
+  ValidUAuthIdF 'UAScimSamlEmail     = UAuthIdF Identity Identity Identity Identity
+  ValidUAuthIdF 'UAScimSamlNoEmail   = UAuthIdF Identity Identity Konst    Identity
+  ValidUAuthIdF 'UAScimEmailNoSaml   = UAuthIdF Konst    Identity Identity Identity
+  ValidUAuthIdF 'UASamlEmailNoScim   = UAuthIdF Identity Konst    Identity Identity
+  ValidUAuthIdF 'UASamlNoScimNoEmail = UAuthIdF Identity Konst    Konst    Identity
 {- ORMOLU_ENABLE -}
 
 -- TODO?

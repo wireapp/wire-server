@@ -40,9 +40,7 @@ module Wire.API.User.Identity
     Phone (..),
     parsePhone,
     isValidPhone,
-
-    -- * UserSSOId
-    UserSSOId (..),
+    UAuthIdF (..),
     emailFromSAML,
     emailToSAML,
     emailToSAMLNameID,
@@ -53,7 +51,7 @@ module Wire.API.User.Identity
 where
 
 import Control.Applicative (optional)
-import Control.Lens (dimap, ix, over, view, (.~), (?~), (^.))
+import Control.Lens (dimap, over, (.~), (?~), (^.))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Aeson qualified as A
 import Data.Aeson.Types qualified as A
@@ -128,7 +126,11 @@ maybeUserIdentityObjectSchema =
 --     type UAuthIdFunctor a b c = UAuthIdF (a SAML.UserRef) (b Text) (c EmailWithSource)
 --     type family ValidUAuthIdF (f :: UAuthIdTag) where
 --       ValidUAuthIdF 'UAScimSamlEmail     = UAuthIdFunctor Identity Identity Identity
-type UserIdentityComponents = (Maybe Email, Maybe Phone, Maybe Text, Maybe Text, Maybe Text)
+type ExternalId {- Is this actually and external ID? -} = Text
+
+type Unknown = Text
+
+type UserIdentityComponents = (Maybe Email, Maybe Phone, Maybe ExternalId, Maybe Unknown, Maybe TeamId)
 
 userIdentityComponentsObjectSchema :: ObjectSchema SwaggerDoc UserIdentityComponents
 userIdentityComponentsObjectSchema =
@@ -136,34 +138,44 @@ userIdentityComponentsObjectSchema =
     <$> fst5 .= maybe_ (optField "email" schema)
     <*> snd5 .= maybe_ (optField "phone" schema)
     <*> thd5 .= maybe_ (optField "sso_id" genericToSchema)
-    <*> _
-    <*> _
+    -- TODO: (owen) check what these two fields are expected to be
+    <*> frh5 .= maybe_ (optField "team_id" schema)
+    <*> fif5 .= maybe_ (optField "" schema)
   where
     fst5 (a, _, _, _, _) = a
     snd5 (_, a, _, _, _) = a
     thd5 (_, _, a, _, _) = a
+    frh5 (_, _, _, a, _) = a
+    fif5 (_, _, _, _, a) = a
 
 maybeUserIdentityFromComponents :: UserIdentityComponents -> Maybe UserIdentity
 maybeUserIdentityFromComponents = \case
-  (maybeEmail, maybePhone, Just ssoid, _, _) -> Just $ UAuthIdentity $ UAuthIdF _ (pure ssoid) (flip EmailWithSource _ <$> maybeEmail) _ -- maybePhone
+  -- TODO: Check that this is actually from SCIM email field
+  (maybeEmail, _, Just ssoid, _, teamId) ->
+    Just $
+      UAuthIdentity $
+        UAuthIdF Nothing (pure ssoid) (flip EmailWithSource EmailFromScimEmailsField <$> maybeEmail) teamId
   (Just email, Just phone, Nothing, _, _) -> Just $ FullIdentity email phone
   (Just email, Nothing, Nothing, _, _) -> Just $ EmailIdentity email
   (Nothing, Just phone, Nothing, _, _) -> Just $ PhoneIdentity phone
   (Nothing, Nothing, Nothing, _, _) -> Nothing
 
 maybeUserIdentityToComponents :: Maybe UserIdentity -> UserIdentityComponents
-maybeUserIdentityToComponents Nothing = (Nothing, Nothing, Nothing, _, _)
-maybeUserIdentityToComponents (Just (FullIdentity email phone)) = (Just email, Just phone, Nothing, _, _)
-maybeUserIdentityToComponents (Just (EmailIdentity email)) = (Just email, Nothing, Nothing, _, _)
-maybeUserIdentityToComponents (Just (PhoneIdentity phone)) = (Nothing, Just phone, Nothing, _, _)
-maybeUserIdentityToComponents (Just (UAuthIdentity uaid)) = (ewsEmail <$> uaid.email, Nothing, uaid.scimExternalId, _, _)
+maybeUserIdentityToComponents Nothing = (Nothing, Nothing, Nothing, Nothing, Nothing)
+maybeUserIdentityToComponents (Just (FullIdentity email phone)) = (Just email, Just phone, Nothing, Nothing, Nothing)
+maybeUserIdentityToComponents (Just (EmailIdentity email)) = (Just email, Nothing, Nothing, Nothing, Nothing)
+maybeUserIdentityToComponents (Just (PhoneIdentity phone)) = (Nothing, Just phone, Nothing, Nothing, Nothing)
+maybeUserIdentityToComponents (Just (UAuthIdentity uaid)) = (ewsEmail <$> uaid.email, Nothing, uaid.scimExternalId, Nothing, uaid.teamId)
 
 newIdentity :: Maybe Email -> Maybe Phone -> Maybe LegacyUserSSOId -> Maybe UserIdentity
-newIdentity email phone (Just sso) =
+newIdentity email _ (Just sso) =
   Just $!
     UAuthIdentity $
       sso.fromLegacyUserSSOId
-        { email = flip EmailWithSource _ <$> email
+        { -- TODO: Check that this is actually from SCIM email field
+          -- Additionally, check that we need to use the email from the
+          -- function parameter, rather than `sso.fromLegacyUserSSOId.email`
+          email = flip EmailWithSource EmailFromScimEmailsField <$> email
         }
 -- UAuthIdF _ sso  _ -- phone
 newIdentity Nothing Nothing Nothing = Nothing
@@ -183,8 +195,8 @@ phoneIdentity (PhoneIdentity phone) = Just phone
 phoneIdentity (EmailIdentity _) = Nothing
 phoneIdentity (UAuthIdentity _) = Nothing
 
-ssoIdentity :: UserIdentity -> Maybe LegacyUserSSOId
-ssoIdentity (UAuthIdentity uaid) = pure $ LegacyUserSSOId uaid
+ssoIdentity :: UserIdentity -> Maybe PartialUAuthId
+ssoIdentity (UAuthIdentity uaid) = pure uaid
 ssoIdentity _ = Nothing
 
 -- |
@@ -336,8 +348,8 @@ instance FromJSON LegacyUserSSOId where
     msubject <- lenientlyParseSAMLNameID =<< (obj A..:? "subject")
     meid <- obj A..:? "scim_external_id"
     case (mtenant, msubject, meid) of
-      (Just tenant, Just subject, Nothing) -> pure $ LegacyUserSSOId $ UAuthIdF (pure $ SAML.UserRef tenant subject) Nothing Nothing _
-      (Nothing, Nothing, Just eid) -> pure $ LegacyUserSSOId $ UAuthIdF Nothing eid Nothing _
+      (Just tenant, Just subject, Nothing) -> pure $ LegacyUserSSOId $ UAuthIdF (pure $ SAML.UserRef tenant subject) Nothing Nothing Nothing
+      (Nothing, Nothing, Just eid) -> pure $ LegacyUserSSOId $ UAuthIdF Nothing eid Nothing Nothing
       _ -> fail "either need tenant and subject, or scim_external_id, but not both"
 
 lenientlyParseSAMLIssuer :: Maybe LText -> A.Parser (Maybe SAML.Issuer)

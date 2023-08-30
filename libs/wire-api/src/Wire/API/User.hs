@@ -209,10 +209,12 @@ import Wire.API.Team (BindingNewTeam, bindingNewTeamObjectSchema)
 import Wire.API.Team.Role
 import Wire.API.User.Activation (ActivationCode, ActivationKey)
 import Wire.API.User.Auth (CookieLabel)
-import Wire.API.User.Identity
+import Wire.API.User.Identity hiding (scimExternalId)
 import Wire.API.User.Password
 import Wire.API.User.Profile
 import Wire.API.User.RichInfo
+import Wire.API.User.Types (PartialUAuthId)
+import Wire.API.User.Types qualified as T
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
 --------------------------------------------------------------------------------
@@ -733,7 +735,7 @@ userEmail = emailIdentity <=< userIdentity
 userPhone :: User -> Maybe Phone
 userPhone = phoneIdentity <=< userIdentity
 
-userSSOId :: User -> Maybe UserSSOId
+userSSOId :: User -> Maybe PartialUAuthId
 userSSOId = ssoIdentity <=< userIdentity
 
 userSCIMExternalId :: User -> Maybe Text
@@ -741,23 +743,25 @@ userSCIMExternalId usr = scimExternalId (userManagedBy usr) =<< userSSOId usr
 
 -- FUTUREWORK: this is only ignoring case in the email format, and emails should be
 -- handled case-insensitively.  https://wearezeta.atlassian.net/browse/SQSERVICES-909
-scimExternalId :: ManagedBy -> UserSSOId -> Maybe Text
-scimExternalId _ (UserScimExternalId extId) = Just extId
-scimExternalId ManagedByScim (UserSSOId (SAML.UserRef _ nameIdXML)) = Just . CI.original . SAML.unsafeShowNameID $ nameIdXML
-scimExternalId ManagedByWire (UserSSOId _) = Nothing
+scimExternalId :: ManagedBy -> PartialUAuthId -> Maybe Text
+scimExternalId _ (UAuthIdF _ (Just extId) _ _) = Just extId
+scimExternalId ManagedByScim (UAuthIdF (Just (SAML.UserRef _ nameIdXML)) _ _ _) = Just . CI.original . SAML.unsafeShowNameID $ nameIdXML
+scimExternalId ManagedByWire (UAuthIdF {}) = Nothing
+-- TODO: Check that this makes sense.
+scimExternalId _ _ = Nothing
 
-ssoIssuerAndNameId :: UserSSOId -> Maybe (Text, Text)
-ssoIssuerAndNameId (UserSSOId (SAML.UserRef (SAML.Issuer uri) nameIdXML)) = Just (fromUri uri, fromNameId nameIdXML)
+ssoIssuerAndNameId :: PartialUAuthId -> Maybe (Text, Text)
+ssoIssuerAndNameId (UAuthIdF (Just (SAML.UserRef (SAML.Issuer uri) nameIdXML)) _ _ _) = Just (fromUri uri, fromNameId nameIdXML)
   where
     fromUri = cs . toLazyByteString . serializeURIRef
     fromNameId = CI.original . SAML.unsafeShowNameID
-ssoIssuerAndNameId (UserScimExternalId _) = Nothing
+ssoIssuerAndNameId (UAuthIdF {}) = Nothing
 
 userIssuer :: User -> Maybe SAML.Issuer
 userIssuer user = userSSOId user >>= fromSSOId
   where
-    fromSSOId :: UserSSOId -> Maybe SAML.Issuer
-    fromSSOId (UserSSOId (SAML.UserRef issuer _)) = Just issuer
+    fromSSOId :: PartialUAuthId -> Maybe SAML.Issuer
+    fromSSOId (UAuthIdF (Just (SAML.UserRef issuer _)) _ _ _) = Just issuer
     fromSSOId _ = Nothing
 
 connectedProfile :: User -> UserLegalHoldStatus -> UserProfile
@@ -1000,7 +1004,7 @@ errFromEither (Right e) = CreateUserSparRegistrationError e
 
 data NewUserSpar = NewUserSpar
   { newUserSparUUID :: UUID,
-    newUserSparSSOId :: UserSSOId,
+    newUserSparSSOId :: PartialUAuthId,
     newUserSparDisplayName :: Name,
     newUserSparTeamId :: TeamId,
     newUserSparManagedBy :: ManagedBy,
@@ -1040,7 +1044,7 @@ newUserFromSpar new =
   NewUser
     { newUserDisplayName = newUserSparDisplayName new,
       newUserUUID = Just $ newUserSparUUID new,
-      newUserIdentity = Just $ SSOIdentity (newUserSparSSOId new) Nothing Nothing,
+      newUserIdentity = Just $ UAuthIdentity $ newUserSparSSOId new,
       newUserPict = Nothing,
       newUserAssets = [],
       newUserAccentId = Nothing,
@@ -1106,7 +1110,7 @@ data NewUserRaw = NewUserRaw
     newUserRawUUID :: Maybe UUID,
     newUserRawEmail :: Maybe Email,
     newUserRawPhone :: Maybe Phone,
-    newUserRawSSOId :: Maybe UserSSOId,
+    newUserRawSSOId :: Maybe PartialUAuthId,
     -- | DEPRECATED
     newUserRawPict :: Maybe Pict,
     newUserRawAssets :: [Asset],
@@ -1207,7 +1211,7 @@ newUserFromRaw NewUserRaw {..} = do
         (isJust newUserRawPassword)
         (isJust newUserRawSSOId)
         (newUserRawInvitationCode, newUserRawTeamCode, newUserRawTeam, newUserRawTeamId)
-  let identity = maybeUserIdentityFromComponents (newUserRawEmail, newUserRawPhone, newUserRawSSOId)
+  let identity = maybeUserIdentityFromComponents (newUserRawEmail, newUserRawPhone, T.scimExternalId =<< newUserRawSSOId, _, _)
   expiresIn <-
     case (newUserRawExpiresIn, identity) of
       (Just _, Just _) -> fail "Only users without an identity can expire"
@@ -1254,7 +1258,7 @@ instance Arbitrary NewUser where
       genUserOrigin newUserIdentity = do
         teamid <- arbitrary
         let hasSSOId = case newUserIdentity of
-              Just SSOIdentity {} -> True
+              Just UAuthIdentity {} -> True
               _ -> False
             ssoOrigin = Just (NewUserOriginTeamUser (NewTeamMemberSSO teamid))
             isSsoOrigin (Just (NewUserOriginTeamUser (NewTeamMemberSSO _))) = True
@@ -1264,7 +1268,7 @@ instance Arbitrary NewUser where
           else arbitrary `QC.suchThat` (not . isSsoOrigin)
       genUserPassword newUserIdentity newUserOrigin = do
         let hasSSOId = case newUserIdentity of
-              Just SSOIdentity {} -> True
+              Just UAuthIdentity {} -> True
               _ -> False
             isTeamUser = case newUserOrigin of
               Just (NewUserOriginTeamUser _) -> True
@@ -1289,7 +1293,7 @@ newUserEmail = emailIdentity <=< newUserIdentity
 newUserPhone :: NewUser -> Maybe Phone
 newUserPhone = phoneIdentity <=< newUserIdentity
 
-newUserSSOId :: NewUser -> Maybe UserSSOId
+newUserSSOId :: NewUser -> Maybe PartialUAuthId
 newUserSSOId = ssoIdentity <=< newUserIdentity
 
 --------------------------------------------------------------------------------
