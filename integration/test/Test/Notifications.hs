@@ -61,3 +61,22 @@ testLastNotification = do
 
   lastNotif <- getLastNotification user "c" >>= getJSON 200
   lastNotif %. "payload" `shouldMatch` [object ["client" .= "c"]]
+
+testInvalidNotification :: HasCallStack => App ()
+testInvalidNotification = do
+  user <- randomUserId OwnDomain
+  let client = "deadbeef"
+
+  -- test uuid v4 as "since"
+  do
+    notifId <- randomId
+    void $
+      getNotifications user client def {since = Just notifId}
+        >>= getJSON 400
+
+  -- test arbitrary uuid v1 as "since"
+  do
+    notifId <- randomUUIDv1
+    void $
+      getNotifications user client def {since = Just notifId}
+        >>= getJSON 404
