@@ -5,7 +5,9 @@
       "type": "string"
     },
     "ASCII": {
-      "example": "aGVsbG8",
+      "description": "Stable conversation identifier",
+      "maxLength": 20,
+      "minLength": 20,
       "type": "string"
     },
     "Access": {
@@ -126,6 +128,63 @@
           "$ref": "#/definitions/UserSSOId"
         }
       },
+      "type": "object"
+    },
+    "AddBot": {
+      "properties": {
+        "locale": {
+          "$ref": "#/definitions/Locale"
+        },
+        "provider": {
+          "$ref": "#/definitions/UUID"
+        },
+        "service": {
+          "$ref": "#/definitions/UUID"
+        }
+      },
+      "required": [
+        "provider",
+        "service"
+      ],
+      "type": "object"
+    },
+    "AddBotResponse": {
+      "properties": {
+        "accent_id": {
+          "format": "int32",
+          "maximum": 2147483647,
+          "minimum": -2147483648,
+          "type": "integer"
+        },
+        "assets": {
+          "items": {
+            "$ref": "#/definitions/UserAsset"
+          },
+          "type": "array"
+        },
+        "client": {
+          "$ref": "#/definitions/ClientId"
+        },
+        "event": {
+          "$ref": "#/definitions/Event"
+        },
+        "id": {
+          "$ref": "#/definitions/UUID"
+        },
+        "name": {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "client",
+        "name",
+        "accent_id",
+        "assets",
+        "event"
+      ],
       "type": "object"
     },
     "AllFeatureConfigs": {
@@ -563,6 +622,36 @@
       "type": "object"
     },
     "Body": {},
+    "BotUserView": {
+      "properties": {
+        "accent_id": {
+          "format": "int32",
+          "maximum": 2147483647,
+          "minimum": -2147483648,
+          "type": "integer"
+        },
+        "handle": {
+          "$ref": "#/definitions/Handle"
+        },
+        "id": {
+          "$ref": "#/definitions/UUID"
+        },
+        "name": {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        "team": {
+          "$ref": "#/definitions/UUID"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "accent_id"
+      ],
+      "type": "object"
+    },
     "CheckHandles": {
       "properties": {
         "handles": {
@@ -586,7 +675,7 @@
       "type": "object"
     },
     "CipherSuiteTag": {
-      "description": "Index number of ciphersuite. See https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol.html#table-5",
+      "description": "The cipher suite of the corresponding MLS group",
       "maximum": 65535,
       "minimum": 0,
       "type": "integer"
@@ -704,7 +793,6 @@
       "type": "string"
     },
     "ClientId": {
-      "description": "Client ID",
       "type": "string"
     },
     "ClientMismatch": {
@@ -1635,7 +1723,6 @@
       "type": "object"
     },
     "Email": {
-      "description": "Email of the invitee",
       "type": "string"
     },
     "EmailUpdate": {
@@ -2091,6 +2178,7 @@
       "type": "object"
     },
     "HttpsUrl": {
+      "description": "Full URI (containing key/code) to join a conversation",
       "example": "https://example.com",
       "type": "string"
     },
@@ -2449,7 +2537,6 @@
       "type": "object"
     },
     "Locale": {
-      "description": "Locale to use for the invitation.",
       "type": "string"
     },
     "LocaleUpdate": {
@@ -2595,27 +2682,6 @@
       ],
       "type": "object"
     },
-    "MLSConfig.WithStatusNoLock": {
-      "properties": {
-        "config": {
-          "$ref": "#/definitions/MLSConfig"
-        },
-        "status": {
-          "$ref": "#/definitions/FeatureStatus"
-        },
-        "ttl": {
-          "example": "unlimited",
-          "maximum": 18446744073709552000,
-          "minimum": 0,
-          "type": "integer"
-        }
-      },
-      "required": [
-        "status",
-        "config"
-      ],
-      "type": "object"
-    },
     "MLSPublicKeys": {
       "additionalProperties": {
         "example": "ZXhhbXBsZQo=",
@@ -2635,6 +2701,7 @@
       "type": "string"
     },
     "Member": {
+      "description": "The user ID of the requestor",
       "properties": {
         "conversation_role": {
           "$ref": "#/definitions/RoleName"
@@ -2812,27 +2879,6 @@
       "required": [
         "status",
         "lockStatus",
-        "config"
-      ],
-      "type": "object"
-    },
-    "MlsE2EIdConfig.WithStatusNoLock": {
-      "properties": {
-        "config": {
-          "$ref": "#/definitions/MlsE2EIdConfig"
-        },
-        "status": {
-          "$ref": "#/definitions/FeatureStatus"
-        },
-        "ttl": {
-          "example": "unlimited",
-          "maximum": 18446744073709552000,
-          "minimum": 0,
-          "type": "integer"
-        }
-      },
-      "required": [
-        "status",
         "config"
       ],
       "type": "object"
@@ -3303,21 +3349,7 @@
       ],
       "type": "object"
     },
-    "Object": {
-      "additionalProperties": true,
-      "description": "A single notification event",
-      "properties": {
-        "type": {
-          "description": "Event type",
-          "type": "string"
-        }
-      },
-      "title": "Event",
-      "type": "object"
-    },
-    "OpaquePublicGroupState": {
-      "description": "This object can only be parsed in TLS format. Please refer to the MLS specification for details."
-    },
+    "Object": {},
     "OtherMember": {
       "properties": {
         "conversation_role": {
@@ -3865,6 +3897,17 @@
       ],
       "type": "string"
     },
+    "RemoveBotResponse": {
+      "properties": {
+        "event": {
+          "$ref": "#/definitions/Event"
+        }
+      },
+      "required": [
+        "event"
+      ],
+      "type": "object"
+    },
     "RemoveCookies": {
       "description": "Data required to remove cookies",
       "properties": {
@@ -4389,20 +4432,6 @@
       },
       "type": "object"
     },
-    "SupportedProtocolUpdate": {
-      "properties": {
-        "supported_protocols": {
-          "items": {
-            "$ref": "#/definitions/BaseProtocol"
-          },
-          "type": "array"
-        }
-      },
-      "required": [
-        "supported_protocols"
-      ],
-      "type": "object"
-    },
     "SystemSettings": {
       "properties": {
         "setEnableMls": {
@@ -4763,7 +4792,6 @@
       "type": "string"
     },
     "UUID": {
-      "description": "The OAuth client's ID",
       "example": "99db9768-04e3-4b5d-9268-831b6a25c4ab",
       "format": "uuid",
       "type": "string"
@@ -4786,6 +4814,20 @@
       "required": [
         "user",
         "permissions"
+      ],
+      "type": "object"
+    },
+    "UpdateBotPrekeys": {
+      "properties": {
+        "prekeys": {
+          "items": {
+            "$ref": "#/definitions/Prekey"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "prekeys"
       ],
       "type": "object"
     },
@@ -5013,7 +5055,7 @@
       "type": "object"
     },
     "UserLegalHoldStatus": {
-      "description": "The state of Legal Hold compliance for the member",
+      "description": "states whether a user is under legal hold, or whether legal hold is pending approval.",
       "enum": [
         "enabled",
         "pending",
@@ -6651,6 +6693,240 @@
         "summary": "Download an asset"
       }
     },
+    "/bot/client": {
+      "get": {
+        "description": " [<a href=\"https://docs.wire.com/developer/developer/servant.html#named-and-internal-route-ids\">internal route ID:</a> \"bot-get-client\"]\n\n",
+        "produces": [
+          "application/json;charset=utf-8",
+          "application/json"
+        ],
+        "responses": {
+          "200": {
+            "description": "Client found",
+            "schema": {
+              "$ref": "#/definitions/Client"
+            }
+          },
+          "403": {
+            "description": "Access denied. (label: `access-denied`)",
+            "schema": {
+              "example": {
+                "code": 403,
+                "label": "access-denied",
+                "message": "Access denied."
+              },
+              "properties": {
+                "code": {
+                  "enum": [
+                    403
+                  ],
+                  "type": "integer"
+                },
+                "label": {
+                  "enum": [
+                    "access-denied"
+                  ],
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "code",
+                "label",
+                "message"
+              ],
+              "type": "object"
+            }
+          },
+          "404": {
+            "description": "Client not found (label: `client-not-found`)\n\nClient not found (label: `client-not-found`)",
+            "schema": {
+              "example": {
+                "code": 404,
+                "label": "client-not-found",
+                "message": "Client not found"
+              },
+              "properties": {
+                "code": {
+                  "enum": [
+                    404
+                  ],
+                  "type": "integer"
+                },
+                "label": {
+                  "enum": [
+                    "client-not-found"
+                  ],
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "code",
+                "label",
+                "message"
+              ],
+              "type": "object"
+            }
+          }
+        },
+        "summary": "Get client for bot"
+      }
+    },
+    "/bot/client/prekeys": {
+      "get": {
+        "description": " [<a href=\"https://docs.wire.com/developer/developer/servant.html#named-and-internal-route-ids\">internal route ID:</a> \"bot-list-prekeys\"]\n\n",
+        "produces": [
+          "application/json;charset=utf-8"
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "items": {
+                "maximum": 65535,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "type": "array"
+            }
+          },
+          "403": {
+            "description": "Access denied. (label: `access-denied`)",
+            "schema": {
+              "example": {
+                "code": 403,
+                "label": "access-denied",
+                "message": "Access denied."
+              },
+              "properties": {
+                "code": {
+                  "enum": [
+                    403
+                  ],
+                  "type": "integer"
+                },
+                "label": {
+                  "enum": [
+                    "access-denied"
+                  ],
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "code",
+                "label",
+                "message"
+              ],
+              "type": "object"
+            }
+          }
+        },
+        "summary": "List prekeys for bot"
+      },
+      "post": {
+        "consumes": [
+          "application/json;charset=utf-8"
+        ],
+        "description": " [<a href=\"https://docs.wire.com/developer/developer/servant.html#named-and-internal-route-ids\">internal route ID:</a> \"bot-update-prekeys\"]\n\n",
+        "parameters": [
+          {
+            "in": "body",
+            "name": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/UpdateBotPrekeys"
+            }
+          }
+        ],
+        "produces": [
+          "application/json;charset=utf-8",
+          "application/json"
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          },
+          "400": {
+            "description": "Invalid `body`"
+          },
+          "403": {
+            "description": "Access denied. (label: `access-denied`)",
+            "schema": {
+              "example": {
+                "code": 403,
+                "label": "access-denied",
+                "message": "Access denied."
+              },
+              "properties": {
+                "code": {
+                  "enum": [
+                    403
+                  ],
+                  "type": "integer"
+                },
+                "label": {
+                  "enum": [
+                    "access-denied"
+                  ],
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "code",
+                "label",
+                "message"
+              ],
+              "type": "object"
+            }
+          },
+          "404": {
+            "description": "Client not found (label: `client-not-found`)",
+            "schema": {
+              "example": {
+                "code": 404,
+                "label": "client-not-found",
+                "message": "Client not found"
+              },
+              "properties": {
+                "code": {
+                  "enum": [
+                    404
+                  ],
+                  "type": "integer"
+                },
+                "label": {
+                  "enum": [
+                    "client-not-found"
+                  ],
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "code",
+                "label",
+                "message"
+              ],
+              "type": "object"
+            }
+          }
+        },
+        "summary": "Update prekeys for bot"
+      }
+    },
     "/bot/messages": {
       "post": {
         "consumes": [
@@ -6777,6 +7053,333 @@
             "get-user-clients"
           ]
         ]
+      }
+    },
+    "/bot/self": {
+      "delete": {
+        "description": " [<a href=\"https://docs.wire.com/developer/developer/servant.html#named-and-internal-route-ids\">internal route ID:</a> \"bot-delete-self\"]\n\n",
+        "produces": [
+          "application/json;charset=utf-8",
+          "application/json"
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          },
+          "403": {
+            "description": "The targeted user is not a bot. (label: `invalid-bot`)\n\nAccess denied. (label: `access-denied`)",
+            "schema": {
+              "example": {
+                "code": 403,
+                "label": "invalid-bot",
+                "message": "The targeted user is not a bot."
+              },
+              "properties": {
+                "code": {
+                  "enum": [
+                    403
+                  ],
+                  "type": "integer"
+                },
+                "label": {
+                  "enum": [
+                    "invalid-bot",
+                    "access-denied"
+                  ],
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "code",
+                "label",
+                "message"
+              ],
+              "type": "object"
+            }
+          }
+        },
+        "summary": "Delete self"
+      },
+      "get": {
+        "description": " [<a href=\"https://docs.wire.com/developer/developer/servant.html#named-and-internal-route-ids\">internal route ID:</a> \"bot-get-self\"]\n\n",
+        "produces": [
+          "application/json;charset=utf-8"
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/UserProfile"
+            }
+          },
+          "403": {
+            "description": "Access denied. (label: `access-denied`)",
+            "schema": {
+              "example": {
+                "code": 403,
+                "label": "access-denied",
+                "message": "Access denied."
+              },
+              "properties": {
+                "code": {
+                  "enum": [
+                    403
+                  ],
+                  "type": "integer"
+                },
+                "label": {
+                  "enum": [
+                    "access-denied"
+                  ],
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "code",
+                "label",
+                "message"
+              ],
+              "type": "object"
+            }
+          },
+          "404": {
+            "description": "User not found (label: `not-found`)",
+            "schema": {
+              "example": {
+                "code": 404,
+                "label": "not-found",
+                "message": "User not found"
+              },
+              "properties": {
+                "code": {
+                  "enum": [
+                    404
+                  ],
+                  "type": "integer"
+                },
+                "label": {
+                  "enum": [
+                    "not-found"
+                  ],
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "code",
+                "label",
+                "message"
+              ],
+              "type": "object"
+            }
+          }
+        },
+        "summary": "Get self"
+      }
+    },
+    "/bot/users": {
+      "get": {
+        "description": " [<a href=\"https://docs.wire.com/developer/developer/servant.html#named-and-internal-route-ids\">internal route ID:</a> \"bot-list-users\"]\n\n",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "ids",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "produces": [
+          "application/json;charset=utf-8"
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "items": {
+                "$ref": "#/definitions/BotUserView"
+              },
+              "type": "array"
+            }
+          },
+          "400": {
+            "description": "Invalid `ids`"
+          },
+          "403": {
+            "description": "Access denied. (label: `access-denied`)",
+            "schema": {
+              "example": {
+                "code": 403,
+                "label": "access-denied",
+                "message": "Access denied."
+              },
+              "properties": {
+                "code": {
+                  "enum": [
+                    403
+                  ],
+                  "type": "integer"
+                },
+                "label": {
+                  "enum": [
+                    "access-denied"
+                  ],
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "code",
+                "label",
+                "message"
+              ],
+              "type": "object"
+            }
+          }
+        },
+        "summary": "List users"
+      }
+    },
+    "/bot/users/prekeys": {
+      "post": {
+        "consumes": [
+          "application/json;charset=utf-8"
+        ],
+        "description": " [<a href=\"https://docs.wire.com/developer/developer/servant.html#named-and-internal-route-ids\">internal route ID:</a> \"bot-claim-users-prekeys\"]\n\n",
+        "parameters": [
+          {
+            "in": "body",
+            "name": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/UserClients"
+            }
+          }
+        ],
+        "produces": [
+          "application/json;charset=utf-8"
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/UserClientPrekeyMap"
+            }
+          },
+          "400": {
+            "description": "Invalid `body`"
+          },
+          "403": {
+            "description": "Failed to connect to a user or to invite a user to a group because somebody is under legalhold and somebody else has not granted consent (label: `missing-legalhold-consent`)\n\nToo many clients (label: `too-many-clients`)\n\nAccess denied. (label: `access-denied`)",
+            "schema": {
+              "example": {
+                "code": 403,
+                "label": "missing-legalhold-consent",
+                "message": "Failed to connect to a user or to invite a user to a group because somebody is under legalhold and somebody else has not granted consent"
+              },
+              "properties": {
+                "code": {
+                  "enum": [
+                    403
+                  ],
+                  "type": "integer"
+                },
+                "label": {
+                  "enum": [
+                    "missing-legalhold-consent",
+                    "too-many-clients",
+                    "access-denied"
+                  ],
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "code",
+                "label",
+                "message"
+              ],
+              "type": "object"
+            }
+          }
+        },
+        "summary": "Claim users prekeys"
+      }
+    },
+    "/bot/users/{User ID}/clients": {
+      "get": {
+        "description": " [<a href=\"https://docs.wire.com/developer/developer/servant.html#named-and-internal-route-ids\">internal route ID:</a> \"bot-get-user-clients\"]\n\n",
+        "parameters": [
+          {
+            "format": "uuid",
+            "in": "path",
+            "name": "User ID",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "produces": [
+          "application/json;charset=utf-8"
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "items": {
+                "$ref": "#/definitions/PubClient"
+              },
+              "type": "array"
+            }
+          },
+          "400": {
+            "description": "Invalid `User ID`"
+          },
+          "403": {
+            "description": "Access denied. (label: `access-denied`)",
+            "schema": {
+              "example": {
+                "code": 403,
+                "label": "access-denied",
+                "message": "Access denied."
+              },
+              "properties": {
+                "code": {
+                  "enum": [
+                    403
+                  ],
+                  "type": "integer"
+                },
+                "label": {
+                  "enum": [
+                    "access-denied"
+                  ],
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "code",
+                "label",
+                "message"
+              ],
+              "type": "object"
+            }
+          }
+        },
+        "summary": "Get user clients"
       }
     },
     "/broadcast/otr/messages": {
@@ -8242,57 +8845,6 @@
         "summary": "Get all conversation IDs."
       }
     },
-    "/conversations/mls-self": {
-      "get": {
-        "description": " [<a href=\"https://docs.wire.com/developer/developer/servant.html#named-and-internal-route-ids\">internal route ID:</a> \"get-mls-self-conversation\"]\n\n",
-        "produces": [
-          "application/json;charset=utf-8",
-          "application/json"
-        ],
-        "responses": {
-          "200": {
-            "description": "The MLS self-conversation",
-            "schema": {
-              "$ref": "#/definitions/Conversation"
-            }
-          },
-          "400": {
-            "description": "MLS is not configured on this backend. See docs.wire.com for instructions on how to enable it (label: `mls-not-enabled`)",
-            "schema": {
-              "example": {
-                "code": 400,
-                "label": "mls-not-enabled",
-                "message": "MLS is not configured on this backend. See docs.wire.com for instructions on how to enable it"
-              },
-              "properties": {
-                "code": {
-                  "enum": [
-                    400
-                  ],
-                  "type": "integer"
-                },
-                "label": {
-                  "enum": [
-                    "mls-not-enabled"
-                  ],
-                  "type": "string"
-                },
-                "message": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "code",
-                "label",
-                "message"
-              ],
-              "type": "object"
-            }
-          }
-        },
-        "summary": "Get the user's MLS self-conversation"
-      }
-    },
     "/conversations/one2one": {
       "post": {
         "consumes": [
@@ -8479,6 +9031,157 @@
           }
         },
         "summary": "Create a self-conversation"
+      }
+    },
+    "/conversations/{Conversation ID}/bots": {
+      "post": {
+        "consumes": [
+          "application/json;charset=utf-8"
+        ],
+        "description": " [<a href=\"https://docs.wire.com/developer/developer/servant.html#named-and-internal-route-ids\">internal route ID:</a> \"add-bot\"]\n\n",
+        "parameters": [
+          {
+            "format": "uuid",
+            "in": "path",
+            "name": "Conversation ID",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "in": "body",
+            "name": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/AddBot"
+            }
+          }
+        ],
+        "produces": [
+          "application/json;charset=utf-8",
+          "application/json"
+        ],
+        "responses": {
+          "201": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/AddBotResponse"
+            }
+          },
+          "400": {
+            "description": "Invalid `body` or `Conversation ID`"
+          },
+          "403": {
+            "description": "The desired service is currently disabled. (label: `service-disabled`)\n\nMaximum number of members per conversation reached. (label: `too-many-members`)\n\nThe operation is not allowed in this conversation. (label: `invalid-conversation`)\n\nAccess denied. (label: `access-denied`)",
+            "schema": {
+              "example": {
+                "code": 403,
+                "label": "service-disabled",
+                "message": "The desired service is currently disabled."
+              },
+              "properties": {
+                "code": {
+                  "enum": [
+                    403
+                  ],
+                  "type": "integer"
+                },
+                "label": {
+                  "enum": [
+                    "service-disabled",
+                    "too-many-members",
+                    "invalid-conversation",
+                    "access-denied"
+                  ],
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "code",
+                "label",
+                "message"
+              ],
+              "type": "object"
+            }
+          }
+        },
+        "summary": "Add bot"
+      }
+    },
+    "/conversations/{Conversation ID}/bots/{Bot ID}": {
+      "delete": {
+        "description": " [<a href=\"https://docs.wire.com/developer/developer/servant.html#named-and-internal-route-ids\">internal route ID:</a> \"remove-bot\"]\n\n",
+        "parameters": [
+          {
+            "format": "uuid",
+            "in": "path",
+            "name": "Conversation ID",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "format": "uuid",
+            "in": "path",
+            "name": "Bot ID",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "produces": [
+          "application/json;charset=utf-8",
+          "application/json"
+        ],
+        "responses": {
+          "200": {
+            "description": "User found",
+            "schema": {
+              "$ref": "#/definitions/RemoveBotResponse"
+            }
+          },
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "Invalid `Bot ID` or `Conversation ID`"
+          },
+          "403": {
+            "description": "The operation is not allowed in this conversation. (label: `invalid-conversation`)\n\nAccess denied. (label: `access-denied`)",
+            "schema": {
+              "example": {
+                "code": 403,
+                "label": "invalid-conversation",
+                "message": "The operation is not allowed in this conversation."
+              },
+              "properties": {
+                "code": {
+                  "enum": [
+                    403
+                  ],
+                  "type": "integer"
+                },
+                "label": {
+                  "enum": [
+                    "invalid-conversation",
+                    "access-denied"
+                  ],
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "code",
+                "label",
+                "message"
+              ],
+              "type": "object"
+            }
+          }
+        },
+        "summary": "Remove bot"
       }
     },
     "/conversations/{cnv_domain}/{cnv}": {
@@ -8713,81 +9416,6 @@
           [
             "galley",
             "on-mls-message-sent"
-          ]
-        ]
-      }
-    },
-    "/conversations/{cnv_domain}/{cnv}/groupinfo": {
-      "get": {
-        "description": " [<a href=\"https://docs.wire.com/developer/developer/servant.html#named-and-internal-route-ids\">internal route ID:</a> \"get-group-info\"]\n\n",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "cnv_domain",
-            "required": true,
-            "type": "string"
-          },
-          {
-            "format": "uuid",
-            "in": "path",
-            "name": "cnv",
-            "required": true,
-            "type": "string"
-          }
-        ],
-        "produces": [
-          "message/mls"
-        ],
-        "responses": {
-          "200": {
-            "description": "The group information",
-            "schema": {
-              "$ref": "#/definitions/OpaquePublicGroupState"
-            }
-          },
-          "400": {
-            "description": "Invalid `cnv` or `cnv_domain`\n\nMLS is not configured on this backend. See docs.wire.com for instructions on how to enable it (label: `mls-not-enabled`)"
-          },
-          "404": {
-            "description": "The conversation has no group information (label: `mls-missing-group-info`)\n\nConversation not found (label: `no-conversation`)",
-            "schema": {
-              "example": {
-                "code": 404,
-                "label": "mls-missing-group-info",
-                "message": "The conversation has no group information"
-              },
-              "properties": {
-                "code": {
-                  "enum": [
-                    404
-                  ],
-                  "type": "integer"
-                },
-                "label": {
-                  "enum": [
-                    "mls-missing-group-info",
-                    "no-conversation"
-                  ],
-                  "type": "string"
-                },
-                "message": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "code",
-                "label",
-                "message"
-              ],
-              "type": "object"
-            }
-          }
-        },
-        "summary": "Get MLS group information",
-        "x-wire-makes-federated-call-to": [
-          [
-            "galley",
-            "query-group-info"
           ]
         ]
       }
@@ -14738,37 +15366,6 @@
         "summary": "Change your phone number."
       }
     },
-    "/self/supported-protocols": {
-      "put": {
-        "consumes": [
-          "application/json;charset=utf-8"
-        ],
-        "description": " [<a href=\"https://docs.wire.com/developer/developer/servant.html#named-and-internal-route-ids\">internal route ID:</a> \"change-supported-protocols\"]\n\n",
-        "parameters": [
-          {
-            "in": "body",
-            "name": "body",
-            "required": true,
-            "schema": {
-              "$ref": "#/definitions/SupportedProtocolUpdate"
-            }
-          }
-        ],
-        "produces": [
-          "application/json;charset=utf-8",
-          "application/json"
-        ],
-        "responses": {
-          "200": {
-            "description": "Supported protocols changed"
-          },
-          "400": {
-            "description": "Invalid `body`"
-          }
-        },
-        "summary": "Change your supported protocols"
-      }
-    },
     "/sso/finalize-login": {
       "post": {
         "description": "DEPRECATED!  use /sso/metadata/:tid instead!  Details: https://docs.wire.com/understand/single-sign-on/trouble-shooting.html#can-i-use-the-same-sso-login-code-for-multiple-teams",
@@ -17220,408 +17817,6 @@
             "on-mls-message-sent"
           ]
         ]
-      }
-    },
-    "/teams/{tid}/features/mls": {
-      "get": {
-        "description": " [<a href=\"https://docs.wire.com/developer/developer/servant.html#named-and-internal-route-ids\">internal route ID:</a> (\"get\", MLSConfig)]\n\n",
-        "parameters": [
-          {
-            "format": "uuid",
-            "in": "path",
-            "name": "tid",
-            "required": true,
-            "type": "string"
-          }
-        ],
-        "produces": [
-          "application/json;charset=utf-8"
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "schema": {
-              "$ref": "#/definitions/MLSConfig.WithStatus"
-            }
-          },
-          "400": {
-            "description": "Invalid `tid`"
-          },
-          "403": {
-            "description": "Requesting user is not a team member (label: `no-team-member`)\n\nInsufficient permissions (label: `operation-denied`)",
-            "schema": {
-              "example": {
-                "code": 403,
-                "label": "no-team-member",
-                "message": "Requesting user is not a team member"
-              },
-              "properties": {
-                "code": {
-                  "enum": [
-                    403
-                  ],
-                  "type": "integer"
-                },
-                "label": {
-                  "enum": [
-                    "no-team-member",
-                    "operation-denied"
-                  ],
-                  "type": "string"
-                },
-                "message": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "code",
-                "label",
-                "message"
-              ],
-              "type": "object"
-            }
-          },
-          "404": {
-            "description": "Team not found (label: `no-team`)",
-            "schema": {
-              "example": {
-                "code": 404,
-                "label": "no-team",
-                "message": "Team not found"
-              },
-              "properties": {
-                "code": {
-                  "enum": [
-                    404
-                  ],
-                  "type": "integer"
-                },
-                "label": {
-                  "enum": [
-                    "no-team"
-                  ],
-                  "type": "string"
-                },
-                "message": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "code",
-                "label",
-                "message"
-              ],
-              "type": "object"
-            }
-          }
-        },
-        "summary": "Get config for mls"
-      },
-      "put": {
-        "consumes": [
-          "application/json;charset=utf-8"
-        ],
-        "description": " [<a href=\"https://docs.wire.com/developer/developer/servant.html#named-and-internal-route-ids\">internal route ID:</a> (\"put\", MLSConfig)]\n\n",
-        "parameters": [
-          {
-            "format": "uuid",
-            "in": "path",
-            "name": "tid",
-            "required": true,
-            "type": "string"
-          },
-          {
-            "in": "body",
-            "name": "body",
-            "required": true,
-            "schema": {
-              "$ref": "#/definitions/MLSConfig.WithStatusNoLock"
-            }
-          }
-        ],
-        "produces": [
-          "application/json;charset=utf-8"
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "schema": {
-              "$ref": "#/definitions/MLSConfig.WithStatus"
-            }
-          },
-          "400": {
-            "description": "Invalid `body` or `tid`"
-          },
-          "403": {
-            "description": "Requesting user is not a team member (label: `no-team-member`)\n\nInsufficient permissions (label: `operation-denied`)",
-            "schema": {
-              "example": {
-                "code": 403,
-                "label": "no-team-member",
-                "message": "Requesting user is not a team member"
-              },
-              "properties": {
-                "code": {
-                  "enum": [
-                    403
-                  ],
-                  "type": "integer"
-                },
-                "label": {
-                  "enum": [
-                    "no-team-member",
-                    "operation-denied"
-                  ],
-                  "type": "string"
-                },
-                "message": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "code",
-                "label",
-                "message"
-              ],
-              "type": "object"
-            }
-          },
-          "404": {
-            "description": "Team not found (label: `no-team`)",
-            "schema": {
-              "example": {
-                "code": 404,
-                "label": "no-team",
-                "message": "Team not found"
-              },
-              "properties": {
-                "code": {
-                  "enum": [
-                    404
-                  ],
-                  "type": "integer"
-                },
-                "label": {
-                  "enum": [
-                    "no-team"
-                  ],
-                  "type": "string"
-                },
-                "message": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "code",
-                "label",
-                "message"
-              ],
-              "type": "object"
-            }
-          }
-        },
-        "summary": "Put config for mls"
-      }
-    },
-    "/teams/{tid}/features/mlsE2EId": {
-      "get": {
-        "description": " [<a href=\"https://docs.wire.com/developer/developer/servant.html#named-and-internal-route-ids\">internal route ID:</a> (\"get\", MlsE2EIdConfig)]\n\n",
-        "parameters": [
-          {
-            "format": "uuid",
-            "in": "path",
-            "name": "tid",
-            "required": true,
-            "type": "string"
-          }
-        ],
-        "produces": [
-          "application/json;charset=utf-8"
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "schema": {
-              "$ref": "#/definitions/MlsE2EIdConfig.WithStatus"
-            }
-          },
-          "400": {
-            "description": "Invalid `tid`"
-          },
-          "403": {
-            "description": "Requesting user is not a team member (label: `no-team-member`)\n\nInsufficient permissions (label: `operation-denied`)",
-            "schema": {
-              "example": {
-                "code": 403,
-                "label": "no-team-member",
-                "message": "Requesting user is not a team member"
-              },
-              "properties": {
-                "code": {
-                  "enum": [
-                    403
-                  ],
-                  "type": "integer"
-                },
-                "label": {
-                  "enum": [
-                    "no-team-member",
-                    "operation-denied"
-                  ],
-                  "type": "string"
-                },
-                "message": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "code",
-                "label",
-                "message"
-              ],
-              "type": "object"
-            }
-          },
-          "404": {
-            "description": "Team not found (label: `no-team`)",
-            "schema": {
-              "example": {
-                "code": 404,
-                "label": "no-team",
-                "message": "Team not found"
-              },
-              "properties": {
-                "code": {
-                  "enum": [
-                    404
-                  ],
-                  "type": "integer"
-                },
-                "label": {
-                  "enum": [
-                    "no-team"
-                  ],
-                  "type": "string"
-                },
-                "message": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "code",
-                "label",
-                "message"
-              ],
-              "type": "object"
-            }
-          }
-        },
-        "summary": "Get config for mlsE2EId"
-      },
-      "put": {
-        "consumes": [
-          "application/json;charset=utf-8"
-        ],
-        "description": " [<a href=\"https://docs.wire.com/developer/developer/servant.html#named-and-internal-route-ids\">internal route ID:</a> (\"put\", MlsE2EIdConfig)]\n\n",
-        "parameters": [
-          {
-            "format": "uuid",
-            "in": "path",
-            "name": "tid",
-            "required": true,
-            "type": "string"
-          },
-          {
-            "in": "body",
-            "name": "body",
-            "required": true,
-            "schema": {
-              "$ref": "#/definitions/MlsE2EIdConfig.WithStatusNoLock"
-            }
-          }
-        ],
-        "produces": [
-          "application/json;charset=utf-8"
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "schema": {
-              "$ref": "#/definitions/MlsE2EIdConfig.WithStatus"
-            }
-          },
-          "400": {
-            "description": "Invalid `body` or `tid`"
-          },
-          "403": {
-            "description": "Requesting user is not a team member (label: `no-team-member`)\n\nInsufficient permissions (label: `operation-denied`)",
-            "schema": {
-              "example": {
-                "code": 403,
-                "label": "no-team-member",
-                "message": "Requesting user is not a team member"
-              },
-              "properties": {
-                "code": {
-                  "enum": [
-                    403
-                  ],
-                  "type": "integer"
-                },
-                "label": {
-                  "enum": [
-                    "no-team-member",
-                    "operation-denied"
-                  ],
-                  "type": "string"
-                },
-                "message": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "code",
-                "label",
-                "message"
-              ],
-              "type": "object"
-            }
-          },
-          "404": {
-            "description": "Team not found (label: `no-team`)",
-            "schema": {
-              "example": {
-                "code": 404,
-                "label": "no-team",
-                "message": "Team not found"
-              },
-              "properties": {
-                "code": {
-                  "enum": [
-                    404
-                  ],
-                  "type": "integer"
-                },
-                "label": {
-                  "enum": [
-                    "no-team"
-                  ],
-                  "type": "string"
-                },
-                "message": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "code",
-                "label",
-                "message"
-              ],
-              "type": "object"
-            }
-          }
-        },
-        "summary": "Put config for mlsE2EId"
       }
     },
     "/teams/{tid}/features/outlookCalIntegration": {
@@ -21442,47 +21637,6 @@
             "claim-prekey"
           ]
         ]
-      }
-    },
-    "/users/{uid_domain}/{uid}/supported-protocols": {
-      "get": {
-        "description": " [<a href=\"https://docs.wire.com/developer/developer/servant.html#named-and-internal-route-ids\">internal route ID:</a> \"get-supported-protocols\"]\n\n",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "uid_domain",
-            "required": true,
-            "type": "string"
-          },
-          {
-            "description": "User Id",
-            "format": "uuid",
-            "in": "path",
-            "name": "uid",
-            "required": true,
-            "type": "string"
-          }
-        ],
-        "produces": [
-          "application/json;charset=utf-8",
-          "application/json"
-        ],
-        "responses": {
-          "200": {
-            "description": "Protocols supported by the user",
-            "schema": {
-              "items": {
-                "$ref": "#/definitions/BaseProtocol"
-              },
-              "type": "array",
-              "uniqueItems": true
-            }
-          },
-          "400": {
-            "description": "Invalid `uid` or `uid_domain`"
-          }
-        },
-        "summary": "Get a user's supported protocols"
       }
     },
     "/users/{uid}/email": {

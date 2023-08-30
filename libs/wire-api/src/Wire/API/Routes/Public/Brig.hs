@@ -273,6 +273,7 @@ type UserAPI =
     :<|> Named
            "get-supported-protocols"
            ( Summary "Get a user's supported protocols"
+               :> From 'V5
                :> ZLocalUser
                :> "users"
                :> QualifiedCaptureUserId "uid"
@@ -415,6 +416,7 @@ type SelfAPI =
     :<|> Named
            "change-supported-protocols"
            ( Summary "Change your supported protocols"
+               :> From 'V5
                :> ZLocalUser
                :> ZConn
                :> "self"
