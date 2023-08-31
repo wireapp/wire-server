@@ -29,6 +29,24 @@ import SetupHelpers
 import Testlib.Prelude
 import Testlib.ResourcePool
 
+testRoleUpdateWithRemotesOk :: HasCallStack => App ()
+testRoleUpdateWithRemotesOk = do
+  [bob, charlie, alice] <- createAndConnectUsers [OwnDomain, OwnDomain, OtherDomain]
+  [bobClient, charlieClient] <-
+    forM [bob, charlie] $ \usr ->
+      objId $ bindResponse (addClient usr def) $ getJSON 201
+  conv <-
+    postConversation bob (defProteus {qualifiedUsers = [charlie, alice]})
+      >>= getJSON 201
+  adminRole <- make "wire_admin"
+  void $ updateRole bob charlie adminRole conv >>= getBody 200
+
+  forBob <- awaitNotification bob bobClient noValue 5 isMemberUpdateNotif
+  forCharlie <- awaitNotification charlie charlieClient noValue 5 isMemberUpdateNotif
+  forM_ [forBob, forCharlie] $ \notif -> do
+    notif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
+    notif %. "payload.0.qualified_from" `shouldMatch` objQidObject bob
+
 testRoleUpdateWithRemotesUnreachable :: HasCallStack => App ()
 testRoleUpdateWithRemotesUnreachable = do
   resourcePool <- asks resourcePool
