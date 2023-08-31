@@ -750,25 +750,31 @@ leaveConversationSuccess = do
 
   (_, federatedRequests) <-
     WS.bracketR2 c alice bob $ \(wsAlice, wsBob) -> do
-      withTempMockFederator' ("get-not-fully-connected-backends" ~> NonConnectedBackends mempty <|> mock <|> mockReply EmptyResponse) $ do
-        g <- viewGalley
-        let leaveRequest = FedGalley.LeaveConversationRequest convId (qUnqualified qChad)
-        respBS <-
-          post
-            ( g
-                . paths ["federation", "leave-conversation"]
-                . content "application/json"
-                . header "Wire-Origin-Domain" (toByteString' remoteDomain1)
-                . json leaveRequest
-            )
-            <!! const 200 === statusCode
-        parsedResp :: LeaveConversationResponse <- responseJsonError respBS
-        liftIO $ do
-          parsedResp.response @?= Right mempty
-          void . WS.assertMatch (3 # Second) wsAlice $
-            wsAssertMembersLeave qconvId qChad [qChad]
-          void . WS.assertMatch (3 # Second) wsBob $
-            wsAssertMembersLeave qconvId qChad [qChad]
+      withTempMockFederator'
+        ( "get-not-fully-connected-backends" ~>
+            NonConnectedBackends mempty
+              <|> mock
+              <|> mockReply EmptyResponse
+        )
+        $ do
+          g <- viewGalley
+          let leaveRequest = FedGalley.LeaveConversationRequest convId (qUnqualified qChad)
+          respBS <-
+            post
+              ( g
+                  . paths ["federation", "leave-conversation"]
+                  . content "application/json"
+                  . header "Wire-Origin-Domain" (toByteString' remoteDomain1)
+                  . json leaveRequest
+              )
+              <!! const 200 === statusCode
+          parsedResp :: LeaveConversationResponse <- responseJsonError respBS
+          liftIO $ do
+            parsedResp.response @?= Right mempty
+            void . WS.assertMatch (3 # Second) wsAlice $
+              wsAssertMembersLeave qconvId qChad [qChad]
+            void . WS.assertMatch (3 # Second) wsBob $
+              wsAssertMembersLeave qconvId qChad [qChad]
 
   liftIO $ fedRequestsForDomain remoteDomain1 Galley federatedRequests @?= []
   let [remote2GalleyFederatedRequest] = fedRequestsForDomain remoteDomain2 Galley federatedRequests
