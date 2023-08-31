@@ -58,7 +58,7 @@ conversationAPI =
     <@> mkNamedAPI @"join-conversation-by-id-unqualified" (callsFed joinConversationById)
     <@> mkNamedAPI @"join-conversation-by-code-unqualified" (callsFed joinConversationByReusableCode)
     <@> mkNamedAPI @"code-check" checkReusableCode
-    <@> mkNamedAPI @"create-conversation-code-unqualified@v3" (addCodeUnqualified Nothing Nothing)
+    <@> mkNamedAPI @"create-conversation-code-unqualified@v3" (addCodeUnqualified Nothing)
     <@> mkNamedAPI @"create-conversation-code-unqualified" addCodeUnqualifiedWithReqBody
     <@> mkNamedAPI @"get-conversation-guest-links-status" getConversationGuestLinksStatus
     <@> mkNamedAPI @"remove-code-unqualified" rmCodeUnqualified

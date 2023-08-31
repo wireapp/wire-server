@@ -675,6 +675,7 @@ type ConversationAPI =
                :> CanThrow 'GuestLinksDisabled
                :> CanThrow 'CreateConversationCodeConflict
                :> ZUser
+               :> ZHostOpt
                :> ZOptConn
                :> "conversations"
                :> Capture' '[Description "Conversation ID"] "cnv" ConvId

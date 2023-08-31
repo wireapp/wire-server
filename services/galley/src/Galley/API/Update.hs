@@ -504,7 +504,7 @@ addCodeUnqualifiedWithReqBody ::
   ConvId ->
   CreateConversationCodeRequest ->
   Sem r AddCodeResult
-addCodeUnqualifiedWithReqBody usr mbZHost mZcon cnv req = addCodeUnqualified (Just req) mbZHost usr mZcon cnv
+addCodeUnqualifiedWithReqBody usr mbZHost mZcon cnv req = addCodeUnqualified (Just req) usr mbZHost mZcon cnv
 
 addCodeUnqualified ::
   forall r.
@@ -523,12 +523,12 @@ addCodeUnqualified ::
     Member TeamFeatureStore r
   ) =>
   Maybe CreateConversationCodeRequest ->
-  Maybe Text ->
   UserId ->
+  Maybe ZHostValue ->
   Maybe ConnId ->
   ConvId ->
   Sem r AddCodeResult
-addCodeUnqualified mReq mbZHost usr mZcon cnv = do
+addCodeUnqualified mReq usr mbZHost mZcon cnv = do
   lusr <- qualifyLocal usr
   lcnv <- qualifyLocal cnv
   addCode lusr mbZHost mZcon lcnv mReq
@@ -549,7 +549,7 @@ addCode ::
     Member (Embed IO) r
   ) =>
   Local UserId ->
-  Maybe Text ->
+  Maybe ZHostValue ->
   Maybe ConnId ->
   Local ConvId ->
   Maybe CreateConversationCodeRequest ->
