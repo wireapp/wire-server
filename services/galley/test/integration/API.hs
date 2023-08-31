@@ -218,7 +218,6 @@ tests s =
           test s "remote conversation member update (otr hidden)" putRemoteConvMemberHiddenOk,
           test s "remote conversation member update (everything)" putRemoteConvMemberAllOk,
           test s "conversation receipt mode update" putReceiptModeOk,
-          test s "conversation receipt mode update with unavailable remote members" putReceiptModeWithRemotesUnavailable,
           test s "remote conversation receipt mode update" putRemoteReceiptModeOk,
           test s "leave connect conversation" leaveConnectConversation,
           test s "post conversations/:cnv/otr/message: message delivery and missing clients" postCryptoMessageVerifyMsgSentAndRejectIfMissingClient,
@@ -3985,48 +3984,6 @@ putRemoteReceiptModeOk = do
 
     WS.assertMatch_ (5 # Second) wsAdam $ \n -> do
       liftIO $ wsAssertConvReceiptModeUpdate qconv qalice newReceiptMode n
-
-putReceiptModeWithRemotesUnavailable :: TestM ()
-putReceiptModeWithRemotesUnavailable = do
-  c <- view tsCannon
-  let remoteDomain = Domain "alice.example.com"
-  qalice <- Qualified <$> randomId <*> pure remoteDomain
-  qbob <- randomQualifiedUser
-  let bob = qUnqualified qbob
-
-  connectWithRemoteUser bob qalice
-
-  resp <-
-    postConvWithRemoteUsers
-      bob
-      Nothing
-      defNewProteusConv {newConvQualifiedUsers = [qalice]}
-  let qconv = decodeQualifiedConvId resp
-
-  WS.bracketR c bob $ \wsB -> do
-    (_, requests) <-
-      withTempMockFederator' (throw $ MockErrorResponse HTTP.status503 "Down for maintenance") $
-        putQualifiedReceiptMode bob qconv (ReceiptMode 43) !!! const 200 === statusCode
-
-    req <- assertOne requests
-    liftIO $ do
-      frTargetDomain req @?= remoteDomain
-      frComponent req @?= Galley
-      frRPC req @?= "on-conversation-updated"
-      Right cu <- pure . eitherDecode @ConversationUpdate . frBody $ req
-      cu.cuConvId @?= qUnqualified qconv
-      cu.cuAction
-        @?= SomeConversationAction (sing @'ConversationReceiptModeUpdateTag) (ConversationReceiptModeUpdate (ReceiptMode 43))
-
-    void . liftIO . WS.assertMatch (5 # Second) wsB $ \n -> do
-      let e = List1.head (WS.unpackPayload n)
-      ntfTransient n @?= False
-      evtConv e @?= qconv
-      evtType e @?= ConvReceiptModeUpdate
-      evtFrom e @?= qbob
-      evtData e
-        @?= EdConvReceiptModeUpdate
-          (ConversationReceiptModeUpdate (ReceiptMode 43))
 
 postTypingIndicatorsV2 :: TestM ()
 postTypingIndicatorsV2 = do

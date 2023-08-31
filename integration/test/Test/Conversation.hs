@@ -454,3 +454,23 @@ testReceiptModeWithRemotesOk = do
   notif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
   notif %. "payload.0.qualified_from" `shouldMatch` objQidObject alice
   notif %. "payload.0.data.receipt_mode" `shouldMatch` mode43
+
+testReceiptModeWithRemotesUnreachable :: HasCallStack => App ()
+testReceiptModeWithRemotesUnreachable = do
+  resourcePool <- asks resourcePool
+  ownDomain <- asString OwnDomain
+  alice <- randomUser ownDomain def
+  client <- objId $ bindResponse (addClient alice def) $ getJSON 201
+  runCodensity (acquireResources 1 resourcePool) $ \[dynBackend] -> do
+    conv <-
+      runCodensity (startDynamicBackend dynBackend mempty) $ \_ -> do
+        bob <- randomUser dynBackend.berDomain def
+        connectUsers alice bob
+        postConversation alice (defProteus {qualifiedUsers = [bob]})
+          >>= getJSON 201
+    let mode43 :: Int32 = 43
+    void $ updateReceiptMode alice conv mode43 >>= getBody 200
+    notif <- awaitNotification alice client noValue 5 isReceiptModeUpdateNotif
+    notif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
+    notif %. "payload.0.qualified_from" `shouldMatch` objQidObject alice
+    notif %. "payload.0.data.receipt_mode" `shouldMatch` mode43
