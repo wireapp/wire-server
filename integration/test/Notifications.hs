@@ -79,3 +79,7 @@ isConvNameChangeNotif name n = (&&) <$> fieldType <*> fieldName
 
 isMemberUpdateNotif :: (HasCallStack, MakesValue n) => n -> App Bool
 isMemberUpdateNotif n = fieldEquals n "payload.0.type" "conversation.member-update"
+
+isReceiptModeUpdateNotif :: (HasCallStack, MakesValue n) => n -> App Bool
+isReceiptModeUpdateNotif n =
+  fieldEquals n "payload.0.type" "conversation.receipt-mode-update"

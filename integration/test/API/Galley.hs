@@ -301,3 +301,20 @@ updateRole caller target role qcnv = do
       ( joinHttpPath ["conversations", cnvDomain, cnvId, "members", tarDomain, tarId]
       )
   submit "PUT" (req & addJSONObject ["conversation_role" .= roleReq])
+
+updateReceiptMode ::
+  ( HasCallStack,
+    MakesValue user,
+    MakesValue conv,
+    MakesValue mode
+  ) =>
+  user ->
+  conv ->
+  mode ->
+  App Response
+updateReceiptMode user qcnv mode = do
+  (cnvDomain, cnvId) <- objQid qcnv
+  modeReq <- make mode
+  let path = joinHttpPath ["conversations", cnvDomain, cnvId, "receipt-mode"]
+  req <- baseRequest user Galley Versioned path
+  submit "PUT" (req & addJSONObject ["receipt_mode" .= modeReq])

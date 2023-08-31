@@ -440,3 +440,17 @@ testSynchroniseUserRemovalNotification = do
       nameNotif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
       leaveNotif <- awaitNotification charlie client noValue 2 isConvLeaveNotif
       leaveNotif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
+
+testReceiptModeWithRemotesOk :: HasCallStack => App ()
+testReceiptModeWithRemotesOk = do
+  [alice, bob] <- createAndConnectUsers [OwnDomain, OtherDomain]
+  client <- objId $ bindResponse (addClient alice def) $ getJSON 201
+  conv <-
+    postConversation alice (defProteus {qualifiedUsers = [bob]})
+      >>= getJSON 201
+  let mode43 :: Int32 = 43
+  void $ updateReceiptMode alice conv mode43 >>= getBody 200
+  notif <- awaitNotification alice client noValue 5 isReceiptModeUpdateNotif
+  notif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
+  notif %. "payload.0.qualified_from" `shouldMatch` objQidObject alice
+  notif %. "payload.0.data.receipt_mode" `shouldMatch` mode43
