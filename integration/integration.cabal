@@ -110,6 +110,7 @@ library
     Test.Federator
     Test.Notifications
     Test.Presence
+    Test.Roles
     Test.User
     Testlib.App
     Testlib.Assertions

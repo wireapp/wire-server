@@ -76,3 +76,6 @@ isConvNameChangeNotif name n = (&&) <$> fieldType <*> fieldName
   where
     fieldType = fieldEquals n "payload.0.type" "conversation.rename"
     fieldName = fieldEquals n "payload.0.data.name" (asString name)
+
+isMemberUpdateNotif :: (HasCallStack, MakesValue n) => n -> App Bool
+isMemberUpdateNotif n = fieldEquals n "payload.0.type" "conversation.member-update"

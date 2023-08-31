@@ -276,3 +276,28 @@ changeConversationName user qcnv name = do
   nameReq <- make name
   req <- baseRequest user Galley Versioned path
   submit "PUT" (req & addJSONObject ["name" .= nameReq])
+
+updateRole ::
+  ( HasCallStack,
+    MakesValue callerUser,
+    MakesValue targetUser,
+    MakesValue roleUpdate,
+    MakesValue qcnv
+  ) =>
+  callerUser ->
+  targetUser ->
+  roleUpdate ->
+  qcnv ->
+  App Response
+updateRole caller target role qcnv = do
+  (cnvDomain, cnvId) <- objQid qcnv
+  (tarDomain, tarId) <- objQid target
+  roleReq <- make role
+  req <-
+    baseRequest
+      caller
+      Galley
+      Versioned
+      ( joinHttpPath ["conversations", cnvDomain, cnvId, "members", tarDomain, tarId]
+      )
+  submit "PUT" (req & addJSONObject ["conversation_role" .= roleReq])
