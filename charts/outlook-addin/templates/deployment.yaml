@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: {{ include "outlook.fullname" . }}
-          image: { { .Values.containerImage } }
+          image: {{ .Values.containerImage }}
           ports:
             - name: http
               containerPort: 80
@@ -30,6 +30,8 @@ spec:
               value: "{{ .Values.wireApiBaseUrl }}"
             - name: WIRE_AUTHORIZATION_ENDPOINT
               value: "{{ .Values.wireAuthorizationEndpoint }}"
+            - name: SUPPORT_URL
+              value: "{{ .Values.supportUrl }}"
           livenessProbe:
             httpGet:
               path: /

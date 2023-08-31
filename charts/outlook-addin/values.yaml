@@ -5,6 +5,7 @@ config:
 #host: "outlook.example.com"
 #wireApiBaseUrl: "https://nginz-https.example.com"
 #wireAuthorizationEndpoint: "https://webapp.example.com/auth"
+#supportUrl: ""
 #tls:
 #  issuerRef:
 #    name: letsencrypt-http01
