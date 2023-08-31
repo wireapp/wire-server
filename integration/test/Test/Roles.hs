@@ -40,6 +40,10 @@ testRoleUpdateWithRemotesOk = do
       >>= getJSON 201
   adminRole <- make "wire_admin"
   void $ updateRole bob charlie adminRole conv >>= getBody 200
+  bindResponse (getConversation bob conv) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "members.others.0.qualified_id" `shouldMatch` objQidObject charlie
+    resp.json %. "members.others.0.conversation_role" `shouldMatch` "wire_admin"
 
   forBob <- awaitNotification bob bobClient noValue 5 isMemberUpdateNotif
   forCharlie <- awaitNotification charlie charlieClient noValue 5 isMemberUpdateNotif

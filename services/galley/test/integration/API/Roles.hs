@@ -55,7 +55,6 @@ tests s =
     [ test s "conversation roles admin (and downgrade)" handleConversationRoleAdmin,
       test s "conversation roles member (and upgrade)" handleConversationRoleMember,
       test s "conversation access update with remote users present" accessUpdateWithRemotes,
-      test s "conversation role update of remote member" roleUpdateRemoteMember,
       test s "get all conversation roles" testAllConversationRoles,
       test s "access role update with v2" testAccessRoleUpdateV2,
       test s "test access roles of new conversations" testConversationAccessRole
@@ -156,74 +155,6 @@ handleConversationRoleMember = do
     void . liftIO . WS.assertMatchN (5 # Second) [wsA, wsB, wsC] $ do
       wsAssertMemberUpdateWithRole qcid qalice bob roleNameWireAdmin
   wireAdminChecks cid bob alice chuck
-
-roleUpdateRemoteMember :: TestM ()
-roleUpdateRemoteMember = do
-  c <- view tsCannon
-  let remoteDomain = Domain "alice.example.com"
-  qalice <- Qualified <$> randomId <*> pure remoteDomain
-  qbob <- randomQualifiedUser
-  qcharlie <- Qualified <$> randomId <*> pure remoteDomain
-  let bob = qUnqualified qbob
-
-  traverse_ (connectWithRemoteUser bob) [qalice, qcharlie]
-  resp <-
-    postConvWithRemoteUsers
-      bob
-      Nothing
-      defNewProteusConv {newConvQualifiedUsers = [qalice, qcharlie]}
-  let qconv = decodeQualifiedConvId resp
-
-  WS.bracketR c bob $ \wsB -> do
-    (_, requests) <-
-      withTempMockFederator' (mockReply EmptyResponse) $
-        putOtherMemberQualified
-          bob
-          qcharlie
-          (OtherMemberUpdate (Just roleNameWireMember))
-          qconv
-          !!! const 200 === statusCode
-
-    req <- assertOne requests
-    let mu =
-          MemberUpdateData
-            { misTarget = qcharlie,
-              misOtrMutedStatus = Nothing,
-              misOtrMutedRef = Nothing,
-              misOtrArchived = Nothing,
-              misOtrArchivedRef = Nothing,
-              misHidden = Nothing,
-              misHiddenRef = Nothing,
-              misConvRoleName = Just roleNameWireMember
-            }
-    liftIO $ do
-      frTargetDomain req @?= remoteDomain
-      frComponent req @?= Galley
-      frRPC req @?= "on-conversation-updated"
-      Right cu <- pure . eitherDecode . frBody $ req
-      F.cuConvId cu @?= qUnqualified qconv
-      F.cuAction cu
-        @?= SomeConversationAction (sing @'ConversationMemberUpdateTag) (ConversationMemberUpdate qcharlie (OtherMemberUpdate (Just roleNameWireMember)))
-      sort (F.cuAlreadyPresentUsers cu) @?= sort [qUnqualified qalice, qUnqualified qcharlie]
-
-    liftIO . WS.assertMatch_ (5 # Second) wsB $ \n -> do
-      let e = List1.head (WS.unpackPayload n)
-      ntfTransient n @?= False
-      evtConv e @?= qconv
-      evtType e @?= MemberStateUpdate
-      evtFrom e @?= qbob
-      evtData e @?= EdMemberUpdate mu
-
-  conv <- responseJsonError =<< getConvQualified bob qconv <!! const 200 === statusCode
-  let charlieAsMember = find (\m -> omQualifiedId m == qcharlie) (cmOthers (cnvMembers conv))
-  liftIO $
-    charlieAsMember
-      @=? Just
-        OtherMember
-          { omQualifiedId = qcharlie,
-            omService = Nothing,
-            omConvRoleName = roleNameWireMember
-          }
 
 accessUpdateWithRemotes :: TestM ()
 accessUpdateWithRemotes = do
