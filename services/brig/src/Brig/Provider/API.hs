@@ -23,6 +23,23 @@ module Brig.Provider.API
 
     -- * Event handlers
     finishDeleteService,
+
+    -- * Extras
+    guardSecondFactorDisabled,
+    addService,
+    listServices,
+    getService,
+    updateService,
+    updateServiceConn,
+    deleteService,
+    listServiceProfiles,
+    getServiceProfile,
+    searchServiceProfilesH,
+    searchServiceProfiles,
+    getServiceTagList,
+    searchTeamServiceProfiles,
+    updateServiceWhitelist,
+    UpdateServiceWhitelistResp (..),
   )
 where
 
@@ -81,7 +98,7 @@ import GHC.TypeNats
 import Imports
 import Network.HTTP.Types.Status
 import Network.Wai (Response)
-import Network.Wai.Predicate (accept, def, opt, query)
+import Network.Wai.Predicate (accept, query)
 import Network.Wai.Routing
 import Network.Wai.Utilities.Error ((!>>))
 import Network.Wai.Utilities.Error qualified as Wai
@@ -206,45 +223,10 @@ routesPublic = do
       .&> zauth ZAuthProvider
       .&> zauthProviderId
 
-  post "/provider/services" (continue addServiceH) $
-    accept "application" "json"
-      .&> zauth ZAuthProvider
-      .&> zauthProviderId
-        .&. jsonRequest @Public.NewService
-
-  get "/provider/services" (continue listServicesH) $
-    accept "application" "json"
-      .&> zauth ZAuthProvider
-      .&> zauthProviderId
-
-  get "/provider/services/:sid" (continue getServiceH) $
-    accept "application" "json"
-      .&> zauth ZAuthProvider
-      .&> zauthProviderId
-        .&. capture "sid"
-
-  put "/provider/services/:sid" (continue updateServiceH) $
-    zauth ZAuthProvider
-      .&> zauthProviderId
-        .&. capture "sid"
-        .&. jsonRequest @Public.UpdateService
-
-  put "/provider/services/:sid/connection" (continue updateServiceConnH) $
-    zauth ZAuthProvider
-      .&> zauthProviderId
-        .&. capture "sid"
-        .&. jsonRequest @Public.UpdateServiceConn
-
   -- TODO
   --     post "/provider/services/:sid/token" (continue genServiceTokenH) $
   --         accept "application" "json"
   --         .&. zauthProvider
-
-  delete "/provider/services/:sid" (continue deleteServiceH) $
-    zauth ZAuthProvider
-      .&> zauthProviderId
-        .&. capture "sid"
-        .&. jsonRequest @Public.DeleteService
 
   -- User API ----------------------------------------------------------------
 
@@ -252,44 +234,6 @@ routesPublic = do
     accept "application" "json"
       .&> zauth ZAuthAccess
       .&> capture "pid"
-
-  get "/providers/:pid/services" (continue listServiceProfilesH) $
-    accept "application" "json"
-      .&> zauth ZAuthAccess
-      .&> capture "pid"
-
-  get "/providers/:pid/services/:sid" (continue getServiceProfileH) $
-    accept "application" "json"
-      .&> zauth ZAuthAccess
-      .&> capture "pid"
-        .&. capture "sid"
-
-  get "/services" (continue searchServiceProfilesH) $
-    accept "application" "json"
-      .&> zauth ZAuthAccess
-      .&> opt (query "tags")
-        .&. opt (query "start")
-        .&. def (unsafeRange 20) (query "size")
-
-  get "/services/tags" (continue getServiceTagListH) $
-    accept "application" "json"
-      .&> zauth ZAuthAccess
-
-  get "/teams/:tid/services/whitelisted" (continue searchTeamServiceProfilesH) $
-    accept "application" "json"
-      .&> zauthUserId
-        .&. capture "tid"
-        .&. opt (query "prefix")
-        .&. def True (query "filter_disabled")
-        .&. def (unsafeRange 20) (query "size")
-
-  post "/teams/:tid/services/whitelist" (continue updateServiceWhitelistH) $
-    accept "application" "json"
-      .&> zauth ZAuthAccess
-      .&> zauthUserId
-        .&. zauthConnId
-        .&. capture "tid"
-        .&. jsonRequest @Public.UpdateServiceWhitelist
 
 routesInternal :: Member GalleyProvider r => Routes a (Handler r) ()
 routesInternal = do
@@ -519,11 +463,6 @@ updateAccountPassword pid upd = do
     throwStd newPasswordMustDiffer
   wrapClientE $ DB.updateAccountPassword pid (newPassword upd)
 
-addServiceH :: Member GalleyProvider r => ProviderId ::: JsonRequest Public.NewService -> (Handler r) Response
-addServiceH (pid ::: req) = do
-  guardSecondFactorDisabled Nothing
-  setStatus status201 . json <$> (addService pid =<< parseJsonBody req)
-
 addService :: ProviderId -> Public.NewService -> (Handler r) Public.NewServiceResponse
 addService pid new = do
   _ <- wrapClientE (DB.lookupAccount pid) >>= maybeInvalidProvider
@@ -540,27 +479,12 @@ addService pid new = do
   let rstoken = maybe (Just token) (const Nothing) (newServiceToken new)
   pure $ Public.NewServiceResponse sid rstoken
 
-listServicesH :: Member GalleyProvider r => ProviderId -> (Handler r) Response
-listServicesH pid = do
-  guardSecondFactorDisabled Nothing
-  json <$> listServices pid
-
 listServices :: ProviderId -> (Handler r) [Public.Service]
 listServices = wrapClientE . DB.listServices
-
-getServiceH :: Member GalleyProvider r => ProviderId ::: ServiceId -> (Handler r) Response
-getServiceH (pid ::: sid) = do
-  guardSecondFactorDisabled Nothing
-  json <$> getService pid sid
 
 getService :: ProviderId -> ServiceId -> (Handler r) Public.Service
 getService pid sid =
   wrapClientE (DB.lookupService pid sid) >>= maybeServiceNotFound
-
-updateServiceH :: Member GalleyProvider r => ProviderId ::: ServiceId ::: JsonRequest Public.UpdateService -> (Handler r) Response
-updateServiceH (pid ::: sid ::: req) = do
-  guardSecondFactorDisabled Nothing
-  empty <$ (updateService pid sid =<< parseJsonBody req)
 
 updateService :: ProviderId -> ServiceId -> Public.UpdateService -> (Handler r) ()
 updateService pid sid upd = do
@@ -589,11 +513,6 @@ updateService pid sid upd = do
       newAssets
       tagsChange
       (serviceEnabled svc)
-
-updateServiceConnH :: Member GalleyProvider r => ProviderId ::: ServiceId ::: JsonRequest Public.UpdateServiceConn -> (Handler r) Response
-updateServiceConnH (pid ::: sid ::: req) = do
-  guardSecondFactorDisabled Nothing
-  empty <$ (updateServiceConn pid sid =<< parseJsonBody req)
 
 updateServiceConn :: ProviderId -> ServiceId -> Public.UpdateServiceConn -> (Handler r) ()
 updateServiceConn pid sid upd = do
@@ -628,18 +547,6 @@ updateServiceConn pid sid upd = do
         if sconEnabled scon
           then DB.deleteServiceIndexes pid sid name tags
           else DB.insertServiceIndexes pid sid name tags
-
--- TODO: Send informational email to provider.
-
--- | Member GalleyProvider r => The endpoint that is called to delete a service.
---
--- Since deleting a service can be costly, it just marks the service as
--- disabled and then creates an event that will, when processed, actually
--- delete the service. See 'finishDeleteService'.
-deleteServiceH :: Member GalleyProvider r => ProviderId ::: ServiceId ::: JsonRequest Public.DeleteService -> (Handler r) Response
-deleteServiceH (pid ::: sid ::: req) = do
-  guardSecondFactorDisabled Nothing
-  setStatus status202 empty <$ (deleteService pid sid =<< parseJsonBody req)
 
 -- | The endpoint that is called to delete a service.
 --
@@ -734,18 +641,8 @@ getProviderProfile :: ProviderId -> (Handler r) Public.ProviderProfile
 getProviderProfile pid =
   wrapClientE (DB.lookupAccountProfile pid) >>= maybeProviderNotFound
 
-listServiceProfilesH :: Member GalleyProvider r => ProviderId -> (Handler r) Response
-listServiceProfilesH pid = do
-  guardSecondFactorDisabled Nothing
-  json <$> listServiceProfiles pid
-
 listServiceProfiles :: ProviderId -> (Handler r) [Public.ServiceProfile]
 listServiceProfiles = wrapClientE . DB.listServiceProfiles
-
-getServiceProfileH :: Member GalleyProvider r => ProviderId ::: ServiceId -> (Handler r) Response
-getServiceProfileH (pid ::: sid) = do
-  guardSecondFactorDisabled Nothing
-  json <$> getServiceProfile pid sid
 
 getServiceProfile :: ProviderId -> ServiceId -> (Handler r) Public.ServiceProfile
 getServiceProfile pid sid =
@@ -769,14 +666,6 @@ searchServiceProfiles (Just tags) start size = do
 searchServiceProfiles Nothing Nothing _ = do
   throwStd $ badRequest "At least `tags` or `start` must be provided."
 
-searchTeamServiceProfilesH ::
-  Member GalleyProvider r =>
-  UserId ::: TeamId ::: Maybe (Range 1 128 Text) ::: Bool ::: Range 10 100 Int32 ->
-  (Handler r) Response
-searchTeamServiceProfilesH (uid ::: tid ::: prefix ::: filterDisabled ::: size) = do
-  guardSecondFactorDisabled (Just uid)
-  json <$> searchTeamServiceProfiles uid tid prefix filterDisabled size
-
 -- NB: unlike 'searchServiceProfiles', we don't filter by service provider here
 searchTeamServiceProfiles ::
   UserId ->
@@ -795,28 +684,10 @@ searchTeamServiceProfiles uid tid prefix filterDisabled size = do
   -- Get search results
   wrapClientE $ DB.paginateServiceWhitelist tid prefix filterDisabled (fromRange size)
 
-getServiceTagListH :: Member GalleyProvider r => () -> (Handler r) Response
-getServiceTagListH () = do
-  guardSecondFactorDisabled Nothing
-  json <$> getServiceTagList ()
-
 getServiceTagList :: () -> Monad m => m Public.ServiceTagList
 getServiceTagList () = pure (Public.ServiceTagList allTags)
   where
     allTags = [(minBound :: Public.ServiceTag) ..]
-
-updateServiceWhitelistH :: Member GalleyProvider r => UserId ::: ConnId ::: TeamId ::: JsonRequest Public.UpdateServiceWhitelist -> (Handler r) Response
-updateServiceWhitelistH (uid ::: con ::: tid ::: req) = do
-  guardSecondFactorDisabled (Just uid)
-  resp <- updateServiceWhitelist uid con tid =<< parseJsonBody req
-  let status = case resp of
-        UpdateServiceWhitelistRespChanged -> status200
-        UpdateServiceWhitelistRespUnchanged -> status204
-  pure $ setStatus status empty
-
-data UpdateServiceWhitelistResp
-  = UpdateServiceWhitelistRespChanged
-  | UpdateServiceWhitelistRespUnchanged
 
 updateServiceWhitelist :: Member GalleyProvider r => UserId -> ConnId -> TeamId -> Public.UpdateServiceWhitelist -> (Handler r) UpdateServiceWhitelistResp
 updateServiceWhitelist uid con tid upd = do
