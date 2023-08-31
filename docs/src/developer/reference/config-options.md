@@ -668,7 +668,7 @@ handled by a separate Kubernetes ingress. This is useful to obfuscate the
 relationship of clients to each other, as an attacker on TCP/IP-level could only
 see domains and IPs that do not obviously relate to each other.
 Each of these backend domains represents a virtual backend. N.B. these backend
-domains are *DNS domains* only, not to be confused of the "backend domain" term used for federation (see {ref}`configure-federation`). In single-ingress setups the backend dns domain and federation backend domain is usually be the same, but this is not true for multi-ingress setups.
+domains are *DNS domains* only, not to be confused of the "backend domain" term used for federation (see {ref}`configure-federation`). In single-ingress setups the backend DNS domain and federation backend domain is usually be the same, but this is not true for multi-ingress setups.
 
 
 For a multi-ingress setup multiple services need to be configured:
@@ -756,7 +756,7 @@ https://mermaid.live/edit#pako:eNrdVbFu2zAQ_ZUDJ7ewDdhtUkBDgBRB0CHIYCNL4eVEnmWiM
 
 ### Galley
 
-For conversation invite links to be correct in a multi-ingress setup `settings.multiIngress` needs to be configured as map from `Z-Host` to the conversation uri prefix.  This setting is a `Z-Host` depended version of `settings.conversationCodeURI`. In fact `settings.multiIngress` and `settings.conversationCodeURI` are mutually exclusive.
+For conversation invite links to be correct in a multi-ingress setup `settings.multiIngress` needs to be configured as map from `Z-Host` to the conversation URI prefix.  This setting is a `Z-Host` depended version of `settings.conversationCodeURI`. In fact `settings.multiIngress` and `settings.conversationCodeURI` are mutually exclusive.
 
 Example:
 
