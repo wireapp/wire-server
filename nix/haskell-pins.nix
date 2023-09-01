@@ -204,6 +204,13 @@ let
         sha256 = "sha256-htEIJY+LmIMACVZrflU60+X42/g14NxUyFM7VJs4E6w=";
       };
     };
+    cql = {
+      src = fetchgit {
+        url = "https://gitlab.com/wireapp/forks/cql.git";
+        rev = "abbd2739969d17a909800f282d10d42a254c4e3b";
+        sha256 = "sha256-2MYwZKiTdwgjJdLNvECi7gtcIo+3H4z1nYzen5x0lgU=";
+      };
+    };
   };
   hackagePins = {
     # Major re-write upstream, we should get rid of this dependency rather than
