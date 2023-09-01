@@ -193,7 +193,6 @@ tests s =
           test s "delete conversations/:domain/:cnv/members/:domain/:usr - fail, self conv" deleteMembersQualifiedFailSelf,
           test s "delete conversations/:domain:/cnv/members/:domain/:usr - fail, 1:1 conv" deleteMembersQualifiedFailO2O,
           test s "delete conversations/:domain/:cnv/members/:domain/:usr - local conv with all locals" deleteMembersConvLocalQualifiedOk,
-          test s "delete conversations/:domain/:cnv/members/:domain/:usr - local conv with locals and remote, delete local" deleteLocalMemberConvLocalQualifiedOk,
           test s "delete conversations/:domain/:cnv/members/:domain/:usr - local conv with locals and remote, delete remote" deleteRemoteMemberConvLocalQualifiedOk,
           test s "delete conversations/:domain/:cnv/members/:domain/:usr - local conv with locals and remote, delete unavailable remote" deleteUnavailableRemoteMemberConvLocalQualifiedOk,
           test s "delete conversations/:domain/:cnv/members/:domain/:usr - remote conv, leave conv" leaveRemoteConvQualifiedOk,
@@ -3117,50 +3116,6 @@ deleteMembersConvLocalQualifiedOk = do
   deleteMemberQualified alice qEve qconv !!! const 204 === statusCode
   deleteMemberQualified alice qAlice qconv !!! const 200 === statusCode
   deleteMemberQualified alice qAlice qconv !!! const 404 === statusCode
-
--- Creates a conversation with three users. Alice and Bob are on the local
--- domain, while Eve is on a remote domain. It uses a qualified endpoint for
--- removing Bob from the conversation:
---
--- DELETE /conversations/:domain/:cnv/members/:domain/:usr
-deleteLocalMemberConvLocalQualifiedOk :: TestM ()
-deleteLocalMemberConvLocalQualifiedOk = do
-  localDomain <- viewFederationDomain
-  [alice, bob] <- randomUsers 2
-  eve <- randomId
-  let [qAlice, qBob] = (`Qualified` localDomain) <$> [alice, bob]
-      remoteDomain = Domain "far-away.example.com"
-      qEve = Qualified eve remoteDomain
-
-  connectUsers alice (singleton bob)
-  connectWithRemoteUser alice qEve
-  convId <-
-    decodeConvId
-      <$> postConvWithRemoteUsers
-        alice
-        Nothing
-        defNewProteusConv {newConvQualifiedUsers = [qBob, qEve]}
-  let qconvId = Qualified convId localDomain
-
-  let mockReturnEve =
-        mockedFederatedBrigResponse [(qEve, "Eve")]
-          <|> mockReply EmptyResponse
-  (respDel, fedRequests) <-
-    withTempMockFederator' mockReturnEve $
-      deleteMemberQualified alice qBob qconvId
-  let [galleyFederatedRequest] = fedRequestsForDomain remoteDomain Galley fedRequests
-  assertRemoveUpdate galleyFederatedRequest qconvId qAlice [qUnqualified qEve] qBob
-
-  liftIO $ do
-    statusCode respDel @?= 200
-    case responseJsonEither respDel of
-      Left err -> assertFailure err
-      Right e -> assertLeaveEvent qconvId qAlice [qBob] e
-
-  -- Now that Bob is gone, try removing him once again
-  deleteMemberQualified alice qBob qconvId !!! do
-    const 204 === statusCode
-    const Nothing === responseBody
 
 -- Creates a conversation with five users. Alice and Bob are on the local
 -- domain. Chad and Dee are on far-away-1.example.com. Eve is on

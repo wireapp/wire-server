@@ -486,3 +486,20 @@ testReceiptModeWithRemotesUnreachable = do
     notif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
     notif %. "payload.0.qualified_from" `shouldMatch` objQidObject alice
     notif %. "payload.0.data.receipt_mode" `shouldMatch` mode43
+
+testDeleteLocalMember :: HasCallStack => App ()
+testDeleteLocalMember = do
+  [alice, alex, bob] <- createAndConnectUsers [OwnDomain, OwnDomain, OtherDomain]
+  conv <-
+    postConversation alice (defProteus {qualifiedUsers = [alex, bob]})
+      >>= getJSON 201
+  bindResponse (removeMember alice conv alex) $ \resp -> do
+    r <- getJSON 200 resp
+    r %. "type" `shouldMatch` "conversation.member-leave"
+    r %. "qualified_conversation" `shouldMatch` objQidObject conv
+    r %. "qualified_from" `shouldMatch` objQidObject alice
+    r %. "data.qualified_user_ids.0" `shouldMatch` objQidObject alex
+  -- Now that Alex is gone, try removing her once again
+  bindResponse (removeMember alice conv alex) $ \r -> do
+    r.status `shouldMatchInt` 204
+    r.jsonBody `shouldMatch` (Nothing @Aeson.Value)
