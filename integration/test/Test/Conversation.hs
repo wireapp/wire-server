@@ -520,3 +520,31 @@ testDeleteRemoteMember = do
   bindResponse (removeMember alice conv bob) $ \r -> do
     r.status `shouldMatchInt` 204
     r.jsonBody `shouldMatch` (Nothing @Aeson.Value)
+
+testDeleteRemoteMemberRemoteUnreachable :: HasCallStack => App ()
+testDeleteRemoteMemberRemoteUnreachable = do
+  resourcePool <- asks resourcePool
+  [alice, bob, bart] <- createAndConnectUsers [OwnDomain, OtherDomain, OtherDomain]
+  aliceClient <- objId $ bindResponse (addClient alice def) $ getJSON 201
+  bartClient <- objId $ bindResponse (addClient bart def) $ getJSON 201
+  conv <- runCodensity (acquireResources 1 resourcePool) $ \[dynBackend] ->
+    runCodensity (startDynamicBackend dynBackend mempty) $ \_ -> do
+      charlie <- randomUser dynBackend.berDomain def
+      connectUsers alice charlie
+      postConversation
+        alice
+        (defProteus {qualifiedUsers = [bob, bart, charlie]})
+        >>= getJSON 201
+  void $ removeMember alice conv bob >>= getBody 200
+  let assertNotifications :: (HasCallStack, MakesValue user) => user -> String -> App ()
+      assertNotifications user client = do
+        leaveNotif <- awaitNotification user client noValue 2 isConvLeaveNotif
+        leaveNotif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
+        leaveNotif %. "payload.0.qualified_from" `shouldMatch` objQidObject alice
+        leaveNotif %. "payload.0.data.qualified_user_ids.0" `shouldMatch` objQidObject bob
+  assertNotifications alice aliceClient
+  assertNotifications bart bartClient
+  -- Now that Bob is gone, try removing him once again
+  bindResponse (removeMember alice conv bob) $ \r -> do
+    r.status `shouldMatchInt` 204
+    r.jsonBody `shouldMatch` (Nothing @Aeson.Value)

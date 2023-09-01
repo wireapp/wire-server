@@ -193,7 +193,6 @@ tests s =
           test s "delete conversations/:domain/:cnv/members/:domain/:usr - fail, self conv" deleteMembersQualifiedFailSelf,
           test s "delete conversations/:domain:/cnv/members/:domain/:usr - fail, 1:1 conv" deleteMembersQualifiedFailO2O,
           test s "delete conversations/:domain/:cnv/members/:domain/:usr - local conv with all locals" deleteMembersConvLocalQualifiedOk,
-          test s "delete conversations/:domain/:cnv/members/:domain/:usr - local conv with locals and remote, delete unavailable remote" deleteUnavailableRemoteMemberConvLocalQualifiedOk,
           test s "delete conversations/:domain/:cnv/members/:domain/:usr - remote conv, leave conv" leaveRemoteConvQualifiedOk,
           test s "delete conversations/:domain/:cnv/members/:domain/:usr - remote conv, leave conv, non-existent" leaveNonExistentRemoteConv,
           test s "delete conversations/:domain/:cnv/members/:domain/:usr - remote conv, leave conv, denied" leaveRemoteConvDenied,
@@ -3115,79 +3114,6 @@ deleteMembersConvLocalQualifiedOk = do
   deleteMemberQualified alice qEve qconv !!! const 204 === statusCode
   deleteMemberQualified alice qAlice qconv !!! const 200 === statusCode
   deleteMemberQualified alice qAlice qconv !!! const 404 === statusCode
-
--- Creates a conversation with five users. Alice and Bob are on the local
--- domain. Chad and Dee are on far-away-1.example.com. Eve is on
--- far-away-2.example.com. It uses a qualified endpoint to remove Chad from the
--- conversation. The federator for far-away-2.example.com isn't availabe:
---
--- DELETE /conversations/:domain/:cnv/members/:domain/:usr
-deleteUnavailableRemoteMemberConvLocalQualifiedOk :: TestM ()
-deleteUnavailableRemoteMemberConvLocalQualifiedOk = do
-  localDomain <- viewFederationDomain
-  [alice, bob] <- randomUsers 2
-  let [qAlice, qBob] = (`Qualified` localDomain) <$> [alice, bob]
-      remoteDomain1 = Domain "far-away-1.example.com"
-      remoteDomain2 = Domain "far-away-2.example.com"
-  qChad <- (`Qualified` remoteDomain1) <$> randomId
-  qDee <- (`Qualified` remoteDomain1) <$> randomId
-  qEve <- (`Qualified` remoteDomain2) <$> randomId
-  connectUsers alice (singleton bob)
-  mapM_ (connectWithRemoteUser alice) [qChad, qDee, qEve]
-
-  let mockedGetUsers remote2Response = do
-        guardRPC "get-users-by-ids"
-        d <- frTargetDomain <$> getRequest
-        asum
-          [ guard (d == remoteDomain1)
-              *> mockReply [mkProfile qChad (Name "Chad"), mkProfile qDee (Name "Dee")],
-            guard (d == remoteDomain2)
-              *> remote2Response
-          ]
-      mockedCreateConvGetUsers =
-        mockedGetUsers (mockReply [mkProfile qEve (Name "Eve")])
-      mockedRemMemGetUsers =
-        mockedGetUsers (throw (MockErrorResponse HTTP.status503 "Down for maintenance."))
-      mockedOther = do
-        d <- frTargetDomain <$> getRequest
-        asum
-          [ guard (d == remoteDomain1)
-              *> mockReply EmptyResponse,
-            guard (d == remoteDomain2)
-              *> asum
-                [ guardRPC "on-conversation-created" *> mockReply EmptyResponse,
-                  guardRPC "on-conversation-updated" *> mockReply EmptyResponse,
-                  throw $ MockErrorResponse HTTP.status503 "Down for maintenance."
-                ]
-          ]
-  convId <-
-    fmap decodeConvId $
-      postConvWithRemoteUsersGeneric
-        (mockedCreateConvGetUsers <|> mockedOther)
-        alice
-        Nothing
-        defNewProteusConv {newConvQualifiedUsers = [qBob, qChad, qDee, qEve]}
-        <!! const 201 === statusCode
-  let qconvId = Qualified convId localDomain
-
-  (respDel, federatedRequests) <-
-    withTempMockFederator' (mockedRemMemGetUsers <|> mockedOther) $
-      deleteMemberQualified alice qChad qconvId
-  liftIO $ do
-    statusCode respDel @?= 200
-    case responseJsonEither respDel of
-      Left err -> assertFailure err
-      Right e -> assertLeaveEvent qconvId qAlice [qChad] e
-
-  let [remote1GalleyFederatedRequest] = fedRequestsForDomain remoteDomain1 Galley federatedRequests
-      [remote2GalleyFederatedRequest] = fedRequestsForDomain remoteDomain2 Galley federatedRequests
-  assertRemoveUpdate remote1GalleyFederatedRequest qconvId qAlice [qUnqualified qChad, qUnqualified qDee] qChad
-  assertRemoveUpdate remote2GalleyFederatedRequest qconvId qAlice [qUnqualified qEve] qChad
-
-  -- Now that Chad is gone, try removing him once again
-  deleteMemberQualified alice qChad qconvId !!! do
-    const 204 === statusCode
-    const Nothing === responseBody
 
 -- Alice, a local user, leaves a remote conversation. Bob's domain is the same
 -- as that of the conversation. The test uses the following endpoint:
