@@ -503,3 +503,20 @@ testDeleteLocalMember = do
   bindResponse (removeMember alice conv alex) $ \r -> do
     r.status `shouldMatchInt` 204
     r.jsonBody `shouldMatch` (Nothing @Aeson.Value)
+
+testDeleteRemoteMember :: HasCallStack => App ()
+testDeleteRemoteMember = do
+  [alice, alex, bob] <- createAndConnectUsers [OwnDomain, OwnDomain, OtherDomain]
+  conv <-
+    postConversation alice (defProteus {qualifiedUsers = [alex, bob]})
+      >>= getJSON 201
+  bindResponse (removeMember alice conv bob) $ \resp -> do
+    r <- getJSON 200 resp
+    r %. "type" `shouldMatch` "conversation.member-leave"
+    r %. "qualified_conversation" `shouldMatch` objQidObject conv
+    r %. "qualified_from" `shouldMatch` objQidObject alice
+    r %. "data.qualified_user_ids.0" `shouldMatch` objQidObject bob
+  -- Now that Bob is gone, try removing him once again
+  bindResponse (removeMember alice conv bob) $ \r -> do
+    r.status `shouldMatchInt` 204
+    r.jsonBody `shouldMatch` (Nothing @Aeson.Value)
