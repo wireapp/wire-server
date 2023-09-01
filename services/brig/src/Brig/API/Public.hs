@@ -296,7 +296,6 @@ servantSitemap =
   where
     providerAPI :: ServerT ProviderAPI (Handler r)
     providerAPI =
-      -- TODO: complete this
       Named @"post-provider-services" addServiceH
         :<|> Named @"get-provider-services" listServicesH
         :<|> Named @"get-provider-services-by-service-id" getServiceH
