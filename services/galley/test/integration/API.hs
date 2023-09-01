@@ -204,7 +204,6 @@ tests s =
           test s "rename conversation (deprecated endpoint)" putConvDeprecatedRenameOk,
           test s "rename conversation" putConvRenameOk,
           test s "rename qualified conversation" putQualifiedConvRenameOk,
-          test s "rename qualified conversation with remote members" putQualifiedConvRenameWithRemotesOk,
           test s "rename qualified conversation failure" putQualifiedConvRenameFailure,
           test s "other member update role" putOtherMemberOk,
           test s "qualified other member update role" putQualifiedOtherMemberOk,
@@ -3451,46 +3450,6 @@ putQualifiedConvRenameOk = do
   WS.bracketR2 c alice bob $ \(wsA, wsB) -> do
     void $ putQualifiedConversationName bob qconv "gossip++" !!! const 200 === statusCode
     void . liftIO . WS.assertMatchN (5 # Second) [wsA, wsB] $ \n -> do
-      let e = List1.head (WS.unpackPayload n)
-      ntfTransient n @?= False
-      evtConv e @?= qconv
-      evtType e @?= ConvRename
-      evtFrom e @?= qbob
-      evtData e @?= EdConvRename (ConversationRename "gossip++")
-
-putQualifiedConvRenameWithRemotesOk :: TestM ()
-putQualifiedConvRenameWithRemotesOk = do
-  c <- view tsCannon
-  let remoteDomain = Domain "alice.example.com"
-  qalice <- Qualified <$> randomId <*> pure remoteDomain
-  qbob <- randomQualifiedUser
-  let bob = qUnqualified qbob
-
-  connectWithRemoteUser bob qalice
-
-  resp <-
-    postConvWithRemoteUsers
-      bob
-      Nothing
-      defNewProteusConv {newConvQualifiedUsers = [qalice]}
-      <!! const 201 === statusCode
-  let qconv = decodeQualifiedConvId resp
-
-  WS.bracketR c bob $ \wsB -> do
-    (_, requests) <-
-      withTempMockFederator' (mockReply EmptyResponse) $
-        putQualifiedConversationName bob qconv "gossip++" !!! const 200 === statusCode
-
-    req <- assertOne requests
-    liftIO $ do
-      frTargetDomain req @?= remoteDomain
-      frComponent req @?= Galley
-      frRPC req @?= "on-conversation-updated"
-      Right cu <- pure . eitherDecode @ConversationUpdate . frBody $ req
-      cu.cuConvId @?= qUnqualified qconv
-      cu.cuAction @?= SomeConversationAction (sing @'ConversationRenameTag) (ConversationRename "gossip++")
-
-    void . liftIO . WS.assertMatch (5 # Second) wsB $ \n -> do
       let e = List1.head (WS.unpackPayload n)
       ntfTransient n @?= False
       evtConv e @?= qconv

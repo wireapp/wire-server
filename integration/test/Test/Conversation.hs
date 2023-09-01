@@ -441,6 +441,18 @@ testSynchroniseUserRemovalNotification = do
       leaveNotif <- awaitNotification charlie client noValue 2 isConvLeaveNotif
       leaveNotif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
 
+testConvRenaming :: HasCallStack => App ()
+testConvRenaming = do
+  [alice, bob] <- createAndConnectUsers [OwnDomain, OtherDomain]
+  client <- objId $ bindResponse (addClient alice def) $ getJSON 201
+  conv <-
+    postConversation alice (defProteus {qualifiedUsers = [bob]})
+      >>= getJSON 201
+  let newConvName = "The new conversation name"
+  void $ changeConversationName alice conv newConvName >>= getBody 200
+  nameNotif <- awaitNotification alice client noValue 2 $ isConvNameChangeNotif newConvName
+  nameNotif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
+
 testReceiptModeWithRemotesOk :: HasCallStack => App ()
 testReceiptModeWithRemotesOk = do
   [alice, bob] <- createAndConnectUsers [OwnDomain, OtherDomain]
