@@ -13,8 +13,7 @@ testDefederationRemoteNotifications :: HasCallStack => App ()
 testDefederationRemoteNotifications = do
   let remoteDomain = "example.example.com"
   -- Setup federation between OtherDomain and the remote domain
-  bindResponse (createFedConn OtherDomain $ object ["domain" .= remoteDomain, "search_policy" .= "full_search"]) $ \resp ->
-    resp.status `shouldMatchInt` 200
+  void $ createFedConn OtherDomain (FedConn remoteDomain "full_search")
 
   -- Setup a remote user we can get notifications for.
   user <- randomUser OtherDomain def
