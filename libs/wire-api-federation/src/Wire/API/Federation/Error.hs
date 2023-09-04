@@ -87,7 +87,6 @@ import Data.Domain (Domain (..))
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
 import Data.Text.Lazy qualified as LT
-import Data.Text.Lazy qualified as TL
 import Imports
 import Network.HTTP.Types.Status
 import Network.HTTP.Types.Status qualified as HTTP
@@ -261,7 +260,7 @@ federationRemoteResponseError domain path status resp =
         unexpectedFederationResponseStatus
         "federation-remote-error"
         ( "A remote federator ("
-            <> TL.fromStrict domain._domainText
+            <> LT.fromStrict domain._domainText
             <> ") failed with status code "
             <> LT.pack (show (HTTP.statusCode status))
         )
