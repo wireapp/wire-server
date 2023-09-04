@@ -59,10 +59,6 @@ tests =
         ]
     ]
 
-interpretMetricsEmpty :: Sem (Metrics ': r) a -> Sem r a
-interpretMetricsEmpty = interpret $ \case
-  OutgoingCounterIncr _ -> pure ()
-
 federatedRequestSuccess :: TestTree
 federatedRequestSuccess =
   testCase "should successfully return success response" $ do
@@ -91,6 +87,12 @@ federatedRequestSuccess =
                   responseHttpVersion = HTTP.http20,
                   responseBody = source ["\"bar\""]
                 }
+
+    let assertMetrics :: Member (Embed IO) r => Sem (Metrics ': r) a -> Sem r a
+        assertMetrics = interpret $ \case
+          OutgoingCounterIncr td -> embed @IO $ td @?= targetDomain
+          IncomingCounterIncr _ -> embed @IO $ assertFailure "Should not increment incoming counter"
+
     res <-
       runM
         . interpretCall
@@ -99,7 +101,7 @@ federatedRequestSuccess =
         . discardTinyLogs
         . runInputConst settings
         . runInputConst (FederationDomainConfigs AllowDynamic [FederationDomainConfig (Domain "target.example.com") FullSearch] 10)
-        . interpretMetricsEmpty
+        . assertMetrics
         $ callOutward targetDomain Brig (RPC "get-user-by-handle") request
     Wai.responseStatus res @?= HTTP.status200
     body <- Wai.lazyResponseBody res
@@ -132,6 +134,9 @@ federatedRequestFailureAllowList =
                   responseHttpVersion = HTTP.http20,
                   responseBody = source ["\"bar\""]
                 }
+    let interpretMetricsEmpty = interpret $ \case
+          OutgoingCounterIncr _ -> pure ()
+          IncomingCounterIncr _ -> pure ()
 
     eith <-
       runM

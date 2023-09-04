@@ -37,7 +37,8 @@ import Wire.API.Federation.Component
 import Wire.API.Routes.FederationDomainConfig (FederationDomainConfigs)
 
 data FederatorMetrics = FederatorMetrics
-  { outgoingRequests :: Vector Text Counter
+  { outgoingRequests :: Vector Text Counter,
+    incomingRequests :: Vector Text Counter
   }
 
 data Env = Env

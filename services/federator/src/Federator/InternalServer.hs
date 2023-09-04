@@ -108,7 +108,6 @@ callOutward ::
   Wai.Request ->
   Sem r Wai.Response
 callOutward targetDomain component (RPC path) req = do
-  outgoingCounterIncr targetDomain
   -- only POST is supported
   when (Wai.requestMethod req /= HTTP.methodPost) $
     throw InvalidRoute
@@ -116,6 +115,7 @@ callOutward targetDomain component (RPC path) req = do
   unless (BS.null . Wai.rawQueryString $ req) $
     throw InvalidRoute
   ensureCanFederateWith targetDomain
+  outgoingCounterIncr targetDomain
   body <- embed $ Wai.lazyRequestBody req
   debug $
     Log.msg (Log.val "Federator outward call")

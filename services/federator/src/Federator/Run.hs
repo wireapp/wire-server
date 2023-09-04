@@ -112,11 +112,18 @@ mkFederatorMetrics :: IO FederatorMetrics
 mkFederatorMetrics =
   FederatorMetrics
     <$> register
-      ( vector "targetDomain" $
+      ( vector "target_domain" $
           counter $
             Prometheus.Info
               "com_wire_federator_outgoing_requests"
               "Number of outgoing requests"
+      )
+    <*> register
+      ( vector "origin_domain" $
+          counter $
+            Prometheus.Info
+              "com_wire_federator_incoming_requests"
+              "Number of incoming requests"
       )
 
 closeEnv :: Env -> IO ()

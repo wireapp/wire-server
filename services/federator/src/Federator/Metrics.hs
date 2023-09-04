@@ -22,6 +22,7 @@ module Federator.Metrics
   ( Metrics (..),
     interpretMetrics,
     outgoingCounterIncr,
+    incomingCounterIncr,
   )
 where
 
@@ -35,6 +36,7 @@ import Prometheus
 
 data Metrics m a where
   OutgoingCounterIncr :: Domain -> Metrics m ()
+  IncomingCounterIncr :: Domain -> Metrics m ()
 
 makeSem ''Metrics
 
@@ -48,3 +50,6 @@ interpretMetrics = interpret $ \case
   OutgoingCounterIncr targetDomain -> do
     m <- inputs (view federatorMetrics)
     liftIO $ withLabel m.outgoingRequests (domainText targetDomain) incCounter
+  IncomingCounterIncr originDomain -> do
+    m <- inputs (view federatorMetrics)
+    liftIO $ withLabel m.incomingRequests (domainText originDomain) incCounter
