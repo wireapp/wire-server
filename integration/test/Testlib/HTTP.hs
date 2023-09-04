@@ -25,6 +25,7 @@ import Network.URI (URI (..), URIAuth (..), parseURI)
 import Testlib.Assertions
 import Testlib.Env
 import Testlib.JSON
+import Testlib.Service
 import Testlib.Types
 import Prelude
 
@@ -69,15 +70,13 @@ addHeader :: String -> String -> HTTP.Request -> HTTP.Request
 addHeader name value req =
   req {HTTP.requestHeaders = (CI.mk . C8.pack $ name, C8.pack value) : HTTP.requestHeaders req}
 
+setCookie :: String -> HTTP.Request -> HTTP.Request
+setCookie c r =
+  addHeader "Cookie" (cs c) r
+
 addQueryParams :: [(String, String)] -> HTTP.Request -> HTTP.Request
 addQueryParams params req =
   HTTP.setQueryString (map (\(k, v) -> (cs k, Just (cs v))) params) req
-
-zType :: String -> HTTP.Request -> HTTP.Request
-zType = addHeader "Z-Type"
-
-zHost :: String -> HTTP.Request -> HTTP.Request
-zHost = addHeader "Z-Host"
 
 contentTypeJSON :: HTTP.Request -> HTTP.Request
 contentTypeJSON = addHeader "Content-Type" "application/json"
@@ -150,6 +149,12 @@ zConnection = addHeader "Z-Connection"
 
 zClient :: String -> HTTP.Request -> HTTP.Request
 zClient = addHeader "Z-Client"
+
+zType :: String -> HTTP.Request -> HTTP.Request
+zType = addHeader "Z-Type"
+
+zHost :: String -> HTTP.Request -> HTTP.Request
+zHost = addHeader "Z-Host"
 
 submit :: String -> HTTP.Request -> App Response
 submit method req0 = do

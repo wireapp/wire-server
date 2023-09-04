@@ -10,6 +10,7 @@ import Data.Aeson.Types qualified as Aeson
 import Data.Default
 import Data.Function
 import Data.List qualified as List
+import Data.UUID.V1 (nextUUID)
 import Data.UUID.V4 (nextRandom)
 import GHC.Stack
 import Testlib.Prelude
@@ -83,8 +84,10 @@ resetFedConns owndom = do
     Internal.deleteFedConn' owndom `mapM_` rdoms
 
 randomId :: HasCallStack => App String
-randomId = do
-  liftIO (show <$> nextRandom)
+randomId = liftIO (show <$> nextRandom)
+
+randomUUIDv1 :: HasCallStack => App String
+randomUUIDv1 = liftIO (show . fromJust <$> nextUUID)
 
 randomUserId :: (HasCallStack, MakesValue domain) => domain -> App Value
 randomUserId domain = do
@@ -106,7 +109,7 @@ addFullSearchFor domains val =
 fullSearchWithAll :: ServiceOverrides
 fullSearchWithAll =
   def
-    { dbBrig = \val -> do
+    { brigCfg = \val -> do
         ownDomain <- asString =<< val %. "optSettings.setFederationDomain"
         env <- ask
         let remoteDomains = List.delete ownDomain $ [env.domain1, env.domain2] <> env.dynamicDomains
@@ -120,9 +123,9 @@ withFederatingBackendsAllowDynamic n k = do
           >=> removeField "optSettings.setFederationDomainConfigs"
           >=> setField "optSettings.setFederationDomainConfigsUpdateFreq" (Aeson.Number 1)
   startDynamicBackends
-    [ def {dbBrig = setFederationConfig},
-      def {dbBrig = setFederationConfig},
-      def {dbBrig = setFederationConfig}
+    [ def {brigCfg = setFederationConfig},
+      def {brigCfg = setFederationConfig},
+      def {brigCfg = setFederationConfig}
     ]
     $ \dynDomains -> do
       domains@[domainA, domainB, domainC] <- pure dynDomains

@@ -30,7 +30,7 @@ testNotificationsForOfflineBackends = do
   -- We call it 'downBackend' because it is down for the most of this test
   -- except for setup and assertions. Perhaps there is a better name.
   runCodensity (acquireResources 1 resourcePool) $ \[downBackend] -> do
-    (downUser1, downClient1, downUser2, upBackendConv, downBackendConv) <- runCodensity (startDynamicBackend downBackend mempty mempty) $ \_ -> do
+    (downUser1, downClient1, downUser2, upBackendConv, downBackendConv) <- runCodensity (startDynamicBackend downBackend mempty) $ \_ -> do
       downUser1 <- randomUser downBackend.berDomain def
       downUser2 <- randomUser downBackend.berDomain def
       downClient1 <- objId $ bindResponse (API.addClient downUser1 def) $ getJSON 201
@@ -103,7 +103,7 @@ testNotificationsForOfflineBackends = do
       delUserDeletedNotif <- nPayload $ awaitNotification otherUser otherClient (Just newMsgNotif) 1 isDeleteUserNotif
       objQid delUserDeletedNotif `shouldMatch` objQid delUser
 
-    runCodensity (startDynamicBackend downBackend mempty mempty) $ \_ -> do
+    runCodensity (startDynamicBackend downBackend mempty) $ \_ -> do
       newMsgNotif <- awaitNotification downUser1 downClient1 noValue 5 isNewMessageNotif
       newMsgNotif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject upBackendConv
       newMsgNotif %. "payload.0.data.text" `shouldMatchBase64` "success message for down user"

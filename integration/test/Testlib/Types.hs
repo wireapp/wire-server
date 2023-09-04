@@ -14,7 +14,6 @@ import Data.ByteString.Char8 qualified as C8
 import Data.ByteString.Lazy qualified as L
 import Data.CaseInsensitive qualified as CI
 import Data.Default
-import Data.Function ((&))
 import Data.Functor
 import Data.Hex
 import Data.IORef
@@ -29,6 +28,7 @@ import Network.HTTP.Types qualified as HTTP
 import Network.URI
 import Testlib.Env
 import Testlib.Printing
+import Testlib.Service
 import UnliftIO (MonadUnliftIO)
 import Prelude
 
@@ -127,7 +127,7 @@ appToIOKleisli k = do
   env <- ask
   pure $ \a -> runAppWithEnv env (k a)
 
-getServiceMap :: String -> App ServiceMap
+getServiceMap :: HasCallStack => String -> App ServiceMap
 getServiceMap fedDomain = do
   env <- ask
   assertJust ("Could not find service map for federation domain: " <> fedDomain) (Map.lookup fedDomain (env.serviceMap))
@@ -192,15 +192,16 @@ modifyFailure modifyAssertion action = do
     )
 
 data ServiceOverrides = ServiceOverrides
-  { dbBrig :: Value -> App Value,
-    dbCannon :: Value -> App Value,
-    dbCargohold :: Value -> App Value,
-    dbGalley :: Value -> App Value,
-    dbGundeck :: Value -> App Value,
-    dbNginz :: Value -> App Value,
-    dbSpar :: Value -> App Value,
-    dbBackgroundWorker :: Value -> App Value,
-    dbStern :: Value -> App Value
+  { brigCfg :: Value -> App Value,
+    cannonCfg :: Value -> App Value,
+    cargoholdCfg :: Value -> App Value,
+    galleyCfg :: Value -> App Value,
+    gundeckCfg :: Value -> App Value,
+    nginzCfg :: Value -> App Value,
+    sparCfg :: Value -> App Value,
+    backgroundWorkerCfg :: Value -> App Value,
+    sternCfg :: Value -> App Value,
+    federatorInternalCfg :: Value -> App Value
   }
 
 instance Default ServiceOverrides where
@@ -209,15 +210,16 @@ instance Default ServiceOverrides where
 instance Semigroup ServiceOverrides where
   a <> b =
     ServiceOverrides
-      { dbBrig = dbBrig a >=> dbBrig b,
-        dbCannon = dbCannon a >=> dbCannon b,
-        dbCargohold = dbCargohold a >=> dbCargohold b,
-        dbGalley = dbGalley a >=> dbGalley b,
-        dbGundeck = dbGundeck a >=> dbGundeck b,
-        dbNginz = dbNginz a >=> dbNginz b,
-        dbSpar = dbSpar a >=> dbSpar b,
-        dbBackgroundWorker = dbBackgroundWorker a >=> dbBackgroundWorker b,
-        dbStern = dbStern a >=> dbStern b
+      { brigCfg = brigCfg a >=> brigCfg b,
+        cannonCfg = cannonCfg a >=> cannonCfg b,
+        cargoholdCfg = cargoholdCfg a >=> cargoholdCfg b,
+        galleyCfg = galleyCfg a >=> galleyCfg b,
+        gundeckCfg = gundeckCfg a >=> gundeckCfg b,
+        nginzCfg = nginzCfg a >=> nginzCfg b,
+        sparCfg = sparCfg a >=> sparCfg b,
+        backgroundWorkerCfg = backgroundWorkerCfg a >=> backgroundWorkerCfg b,
+        sternCfg = sternCfg a >=> sternCfg b,
+        federatorInternalCfg = federatorInternalCfg a >=> federatorInternalCfg b
       }
 
 instance Monoid ServiceOverrides where
@@ -226,42 +228,27 @@ instance Monoid ServiceOverrides where
 defaultServiceOverrides :: ServiceOverrides
 defaultServiceOverrides =
   ServiceOverrides
-    { dbBrig = pure,
-      dbCannon = pure,
-      dbCargohold = pure,
-      dbGalley = pure,
-      dbGundeck = pure,
-      dbNginz = pure,
-      dbSpar = pure,
-      dbBackgroundWorker = pure,
-      dbStern = pure
+    { brigCfg = pure,
+      cannonCfg = pure,
+      cargoholdCfg = pure,
+      galleyCfg = pure,
+      gundeckCfg = pure,
+      nginzCfg = pure,
+      sparCfg = pure,
+      backgroundWorkerCfg = pure,
+      sternCfg = pure,
+      federatorInternalCfg = pure
     }
 
-defaultServiceOverridesToMap :: Map.Map Service (Value -> App Value)
-defaultServiceOverridesToMap = ([minBound .. maxBound] <&> (,pure)) & Map.fromList
-
--- | Overrides the service configurations with the given overrides.
--- e.g.
--- `let overrides =
---    def
---      { dbBrig =
---          setField "optSettings.setFederationStrategy" "allowDynamic"
---            >=> removeField "optSettings.setFederationDomainConfigs"
---      }
---  withOverrides overrides defaultServiceOverridesToMap`
-withOverrides :: ServiceOverrides -> Map.Map Service (Value -> App Value) -> Map.Map Service (Value -> App Value)
-withOverrides overrides =
-  Map.mapWithKey
-    ( \svr f ->
-        case svr of
-          Brig -> f >=> overrides.dbBrig
-          Cannon -> f >=> overrides.dbCannon
-          Cargohold -> f >=> overrides.dbCargohold
-          Galley -> f >=> overrides.dbGalley
-          Gundeck -> f >=> overrides.dbGundeck
-          Nginz -> f >=> overrides.dbNginz
-          Spar -> f >=> overrides.dbSpar
-          BackgroundWorker -> f >=> overrides.dbBackgroundWorker
-          Stern -> f >=> overrides.dbStern
-          FederatorInternal -> f
-    )
+lookupConfigOverride :: ServiceOverrides -> Service -> (Value -> App Value)
+lookupConfigOverride overrides = \case
+  Brig -> overrides.brigCfg
+  Cannon -> overrides.cannonCfg
+  Cargohold -> overrides.cargoholdCfg
+  Galley -> overrides.galleyCfg
+  Gundeck -> overrides.gundeckCfg
+  Nginz -> overrides.nginzCfg
+  Spar -> overrides.sparCfg
+  BackgroundWorker -> overrides.backgroundWorkerCfg
+  Stern -> overrides.sternCfg
+  FederatorInternal -> overrides.federatorInternalCfg

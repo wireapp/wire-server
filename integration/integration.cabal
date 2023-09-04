@@ -118,7 +118,9 @@ library
     Testlib.HTTP
     Testlib.JSON
     Testlib.ModService
+    Testlib.One2One
     Testlib.Options
+    Testlib.Ports
     Testlib.Prekeys
     Testlib.Prelude
     Testlib.Printing
@@ -126,6 +128,7 @@ library
     Testlib.ResourcePool
     Testlib.Run
     Testlib.RunServices
+    Testlib.Service
     Testlib.Types
 
   build-depends:
@@ -140,8 +143,10 @@ library
     , bytestring-conversion
     , case-insensitive
     , containers
+    , cryptonite
     , data-default
     , directory
+    , errors
     , exceptions
     , extra
     , filepath
@@ -151,6 +156,7 @@ library
     , kan-extensions
     , lens
     , lens-aeson
+    , memory
     , mime
     , monad-control
     , mtl
