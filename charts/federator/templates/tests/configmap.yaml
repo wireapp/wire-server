@@ -27,4 +27,4 @@ data:
       port: 443
     originDomain: federation-test-helper.{{ .Release.Namespace }}.svc.cluster.local
     backendTwo:
-      originDomain: federation-test-helper.{{ .Release.Namespace }}-fed2.svc.cluster.local
+      originDomain: federation-test-helper-backend2.{{ .Release.Namespace }}.svc.cluster.local
