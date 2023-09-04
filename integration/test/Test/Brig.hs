@@ -30,7 +30,7 @@ testCrudFederationRemotes :: HasCallStack => App ()
 testCrudFederationRemotes = do
   otherDomain <- asString OtherDomain
   withModifiedBackend def $ \ownDomain -> do
-    void $ Internal.createFedConn ownDomain "full_search"
+    void $ Internal.createFedConn ownDomain (Internal.FedConn otherDomain "full_search")
     let parseFedConns :: HasCallStack => Response -> App [Value]
         parseFedConns resp =
           -- Pick out the list of federation domain configs
@@ -46,22 +46,12 @@ testCrudFederationRemotes = do
             res2 <- parseFedConns =<< Internal.readFedConns ownDomain
             sort res2 `shouldMatch` sort want
 
-        addFail :: HasCallStack => MakesValue fedConn => fedConn -> App ()
-        addFail fedConn = do
-          bindResponse (Internal.createFedConn' ownDomain fedConn) $ \res -> do
-            addFailureContext ("res = " <> show res) $ res.status `shouldMatchInt` 533
-
         deleteOnce :: (Ord fedConn, ToJSON fedConn, MakesValue fedConn) => String -> [fedConn] -> App ()
         deleteOnce domain want = do
           bindResponse (Internal.deleteFedConn ownDomain domain) $ \res -> do
             addFailureContext ("res = " <> show res) $ res.status `shouldMatchInt` 200
             res2 <- parseFedConns =<< Internal.readFedConns ownDomain
             sort res2 `shouldMatch` sort want
-
-        deleteFail :: HasCallStack => String -> App ()
-        deleteFail del = do
-          bindResponse (Internal.deleteFedConn' ownDomain del) $ \res -> do
-            addFailureContext ("res = " <> show res) $ res.status `shouldMatchInt` 533
 
         updateOnce :: (MakesValue fedConn, Ord fedConn2, ToJSON fedConn2, MakesValue fedConn2, HasCallStack) => String -> fedConn -> [fedConn2] -> App ()
         updateOnce domain fedConn want = do
@@ -80,33 +70,28 @@ testCrudFederationRemotes = do
 
     let remote1, remote1', remote1'' :: Internal.FedConn
         remote1 = Internal.FedConn dom1 "no_search"
-        remote1' = remote1 {Internal.searchStrategy = "full_search"}
-        remote1'' = remote1 {Internal.domain = dom2}
-
-        cfgRemotesExpect :: Internal.FedConn
-        cfgRemotesExpect = Internal.FedConn (cs otherDomain) "full_search"
+        remote1' = Internal.FedConn dom1 "full_search"
+        remote1'' = Internal.FedConn dom2 "exact_handle_search"
 
     remote1J <- make remote1
     remote1J' <- make remote1'
+    remote1J'' <- make remote1''
 
     resetFedConns ownDomain
-    cfgRemotes <- parseFedConns =<< Internal.readFedConns ownDomain
-    cfgRemotes `shouldMatch` [cfgRemotesExpect]
-    -- entries present in the config file can be idempotently added if identical, but cannot be
-    -- updated, deleted or updated.
-    addOnce cfgRemotesExpect [cfgRemotesExpect]
-    addFail (cfgRemotesExpect {Internal.searchStrategy = "no_search"})
-    deleteFail (Internal.domain cfgRemotesExpect)
-    updateFail (Internal.domain cfgRemotesExpect) (cfgRemotesExpect {Internal.searchStrategy = "no_search"})
     -- create
-    addOnce remote1 $ (remote1J : cfgRemotes)
-    addOnce remote1 $ (remote1J : cfgRemotes) -- idempotency
+    addOnce remote1 [remote1J]
+    addOnce remote1 [remote1J] -- idempotency
+    addOnce remote1'' [remote1J, remote1J'']
     -- update
-    updateOnce (Internal.domain remote1) remote1' (remote1J' : cfgRemotes)
-    updateFail (Internal.domain remote1) remote1''
+    updateOnce (Internal.domain remote1) remote1' [remote1J', remote1J'']
+    updateOnce (Internal.domain remote1) remote1' [remote1J', remote1J''] -- idempotency
+    updateFail (Internal.domain remote1) remote1'' -- existing entries can't change domain
     -- delete
-    deleteOnce (Internal.domain remote1) cfgRemotes
-    deleteOnce (Internal.domain remote1) cfgRemotes -- idempotency
+    deleteOnce (Internal.domain remote1) [remote1J'']
+    deleteOnce (Internal.domain remote1) [remote1J''] -- idempotency
+    -- reset
+    resetFedConns ownDomain
+    deleteOnce (Internal.domain remote1) ([] :: [Internal.FedConn])
 
 testCrudOAuthClient :: HasCallStack => App ()
 testCrudOAuthClient = do

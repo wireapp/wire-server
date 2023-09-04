@@ -79,7 +79,7 @@ resetFedConns owndom = do
     rdoms :: [String] <- do
       rawlist <- resp.json %. "remotes" & asList
       (asString . (%. "domain")) `mapM` rawlist
-    Internal.deleteFedConn' owndom `mapM_` rdoms
+    Internal.deleteFedConn owndom `mapM_` rdoms
 
 randomId :: HasCallStack => App String
 randomId = do
@@ -106,9 +106,3 @@ withFederatingBackendsAllowDynamic n k = do
       sequence_ [Internal.createFedConn x (Internal.FedConn y "full_search") | x <- domains, y <- domains, x /= y]
       liftIO $ threadDelay (n * 1000 * 1000) -- wait for federation status to be updated
       k (domainA, domainB, domainC)
-
-setSearchPolicy :: (MakesValue dom, MakesValue policy) => dom -> policy -> App ()
-setSearchPolicy dom policy = _ dom policy
-
-allowFullSearch :: MakesValue dom => dom -> App ()
-allowFullSearch dom = setSearchPolicy dom "full_search"
