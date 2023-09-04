@@ -107,10 +107,10 @@ data:
         host: stern.{{ .Release.Namespace }}-fed2.svc.cluster.local
         port: 8080
 
-      originDomain: federation-test-helper.{{ .Release.Namespace }}.svc.cluster.local
+      originDomain: federation-test-helper.{{ .Release.Namespace }}-fed2.svc.cluster.local
 
       backendTwo:
-        originDomain: federation-test-helper.{{ .Release.Namespace }}-fed2.svc.cluster.local
+        originDomain: federation-test-helper-backend2.{{ .Release.Namespace }}-fed2.svc.cluster.local
 
     dynamicBackends:
       {{- range $name, $dynamicBackend := .Values.config.dynamicBackends }}
