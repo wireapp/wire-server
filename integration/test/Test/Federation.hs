@@ -124,8 +124,3 @@ testNotificationsForOfflineBackends = do
 
       delUserDeletedNotif <- nPayload $ awaitNotification downUser1 downClient1 (Just newMsgNotif) 1 isDeleteUserNotif
       objQid delUserDeletedNotif `shouldMatch` objQid delUser
-
-allPreds :: (Applicative f) => [a -> f Bool] -> a -> f Bool
-allPreds [] _ = pure True
-allPreds [p] x = p x
-allPreds (p1 : ps) x = (&&) <$> p1 x <*> allPreds ps x
