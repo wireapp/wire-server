@@ -43,10 +43,6 @@ import Wire.API.Federation.API.Cargohold
 import Wire.API.Federation.Domain
 import Wire.API.User
 
--- FUTUREWORK(federation): move these tests to brig-integration (benefit: avoid duplicating all of the brig helper code)
--- FUTUREWORK(fisx): better yet, reorganize integration tests (or at least the helpers) so
--- they don't spread out over the different sevices.
-
 -- | This module contains tests for the interface between federator and brig.  The tests call
 -- federator directly, circumnventing ingress:
 --
