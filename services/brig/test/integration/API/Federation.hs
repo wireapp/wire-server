@@ -65,12 +65,12 @@ tests m opts brig cannon fedBrigClient =
       [ test m "POST /federation/search-users : Found" (testSearchSuccess opts brig),
         test m "POST /federation/search-users : Found (fulltext)" (testFulltextSearchSuccess opts brig),
         test m "POST /federation/search-users : Found (multiple users)" (testFulltextSearchMultipleUsers opts brig),
-        test m "POST /federation/search-users : NotFound" (testSearchNotFound opts),
-        test m "POST /federation/search-users : Empty Input - NotFound" (testSearchNotFoundEmpty opts),
+        test m "POST /federation/search-users : NotFound" (testSearchNotFound opts brig),
+        test m "POST /federation/search-users : Empty Input - NotFound" (testSearchNotFoundEmpty opts brig),
         test m "POST /federation/search-users : configured restrictions" (testSearchRestrictions opts brig),
         test m "POST /federation/get-user-by-handle : configured restrictions" (testGetUserByHandleRestrictions opts brig),
         test m "POST /federation/get-user-by-handle : Found" (testGetUserByHandleSuccess opts brig),
-        test m "POST /federation/get-user-by-handle : NotFound" (testGetUserByHandleNotFound opts),
+        test m "POST /federation/get-user-by-handle : NotFound" (testGetUserByHandleNotFound opts brig),
         test m "POST /federation/get-users-by-ids : 200 all found" (testGetUsersByIdsSuccess brig fedBrigClient),
         test m "POST /federation/get-users-by-ids : 200 partially found" (testGetUsersByIdsPartial brig fedBrigClient),
         test m "POST /federation/get-users-by-ids : 200 none found" (testGetUsersByIdsNoneFound fedBrigClient),
@@ -83,13 +83,14 @@ tests m opts brig cannon fedBrigClient =
         test m "POST /federation/api-version : 200" (testAPIVersion brig fedBrigClient)
       ]
 
-setSearchPolicy :: Domain -> FederatedUserSearchPolicy -> WaiTest.Session ()
-setSearchPolicy domain policy = do
-  put (path "/i/federation/remotes" . Bilge.json (FD.FederationDomainConfig domain policy))
+setSearchPolicy :: Brig -> Domain -> FederatedUserSearchPolicy -> WaiTest.Session ()
+setSearchPolicy brig domain policy = do
+  let req = brig . path "/i/federation/remotes" . Bilge.json (FD.FederationDomainConfig domain policy)
+  post req
     !!! const 200 === statusCode
 
-allowFullSearch :: Domain -> WaiTest.Session ()
-allowFullSearch domain = setSearchPolicy domain FullSearch
+allowFullSearch :: Brig -> Domain -> WaiTest.Session ()
+allowFullSearch brig domain = setSearchPolicy brig domain FullSearch
 
 testSearchSuccess :: Opt.Opts -> Brig -> Http ()
 testSearchSuccess opts brig = do
@@ -100,7 +101,7 @@ testSearchSuccess opts brig = do
   let domain = Domain "example.com"
 
   searchResponse <- withSettingsOverrides opts $ do
-    allowFullSearch domain
+    allowFullSearch brig domain
     runWaiTestFedClient domain $
       createWaiTestFedClient @"search-users" @'Brig $
         SearchRequest (fromHandle handle)
@@ -118,7 +119,7 @@ testFulltextSearchSuccess opts brig = do
   let domain = Domain "example.com"
 
   searchResponse <- withSettingsOverrides opts $ do
-    allowFullSearch domain
+    allowFullSearch brig domain
     runWaiTestFedClient domain $
       createWaiTestFedClient @"search-users" @'Brig $
         SearchRequest (fromName $ userDisplayName user)
@@ -146,7 +147,7 @@ testFulltextSearchMultipleUsers opts brig = do
   let domain = Domain "example.com"
 
   searchResponse <- withSettingsOverrides opts $ do
-    allowFullSearch domain
+    allowFullSearch brig domain
     runWaiTestFedClient domain $
       createWaiTestFedClient @"search-users" @'Brig $
         SearchRequest (fromHandle handle)
@@ -155,24 +156,24 @@ testFulltextSearchMultipleUsers opts brig = do
     let contacts = contactQualifiedId <$> S.contacts searchResponse
     assertEqual "should find both users" (sort [quid, userQualifiedId identityThief]) (sort contacts)
 
-testSearchNotFound :: Opt.Opts -> Http ()
-testSearchNotFound opts = do
+testSearchNotFound :: Opt.Opts -> Brig -> Http ()
+testSearchNotFound opts brig = do
   let domain = Domain "example.com"
 
   searchResponse <- withSettingsOverrides opts $ do
-    allowFullSearch domain
+    allowFullSearch brig domain
     runWaiTestFedClient domain $
       createWaiTestFedClient @"search-users" @'Brig $
         SearchRequest "this-handle-should-not-exist"
 
   liftIO $ assertEqual "should return empty array of users" [] (S.contacts searchResponse)
 
-testSearchNotFoundEmpty :: Opt.Opts -> Http ()
-testSearchNotFoundEmpty opts = do
+testSearchNotFoundEmpty :: Opt.Opts -> Brig -> Http ()
+testSearchNotFoundEmpty opts brig = do
   let domain = Domain "example.com"
 
   searchResponse <- withSettingsOverrides opts $ do
-    allowFullSearch domain
+    allowFullSearch brig domain
     runWaiTestFedClient domain $
       createWaiTestFedClient @"search-users" @'Brig $
         SearchRequest "this-handle-should-not-exist"
@@ -207,9 +208,9 @@ testSearchRestrictions opts brig = do
           assertEqual "Unexpected search result" expectedSearchPolicy (S.searchPolicy searchResponse)
 
   withSettingsOverrides opts $ do
-    setSearchPolicy domainNoSearch NoSearch
-    setSearchPolicy domainExactHandle ExactHandleSearch
-    setSearchPolicy domainFullSearch FullSearch
+    setSearchPolicy brig domainNoSearch NoSearch
+    setSearchPolicy brig domainExactHandle ExactHandleSearch
+    setSearchPolicy brig domainFullSearch FullSearch
 
     expectSearch domainNoSearch (Left handle) Nothing NoSearch
     expectSearch domainExactHandle (Left handle) (Just quid) ExactHandleSearch
@@ -237,9 +238,9 @@ testGetUserByHandleRestrictions opts brig = do
         liftIO $ assertEqual "Unexpected search result" expectedUser (profileQualifiedId <$> maybeUserProfile)
 
   withSettingsOverrides opts $ do
-    setSearchPolicy domainNoSearch NoSearch
-    setSearchPolicy domainExactHandle ExactHandleSearch
-    setSearchPolicy domainFullSearch FullSearch
+    setSearchPolicy brig domainNoSearch NoSearch
+    setSearchPolicy brig domainExactHandle ExactHandleSearch
+    setSearchPolicy brig domainFullSearch FullSearch
 
     expectSearch domainNoSearch Nothing
     expectSearch domainExactHandle (Just quid)
@@ -253,7 +254,7 @@ testGetUserByHandleSuccess opts brig = do
   let domain = Domain "example.com"
 
   maybeProfile <- withSettingsOverrides opts $ do
-    allowFullSearch domain
+    allowFullSearch brig domain
     runWaiTestFedClient domain $
       createWaiTestFedClient @"get-user-by-handle" @'Brig $
         handle
@@ -265,13 +266,13 @@ testGetUserByHandleSuccess opts brig = do
         assertEqual "should return correct user Id" quid (profileQualifiedId profile)
         assertEqual "should not have email address" Nothing (profileEmail profile)
 
-testGetUserByHandleNotFound :: Opt.Opts -> Http ()
-testGetUserByHandleNotFound opts = do
+testGetUserByHandleNotFound :: Opt.Opts -> Brig -> Http ()
+testGetUserByHandleNotFound opts brig = do
   hdl <- randomHandle
   let domain = Domain "example.com"
 
   maybeProfile <- withSettingsOverrides opts $ do
-    allowFullSearch domain
+    allowFullSearch brig domain
     runWaiTestFedClient domain $
       createWaiTestFedClient @"get-user-by-handle" @'Brig $
         Handle hdl
