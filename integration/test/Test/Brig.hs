@@ -29,15 +29,8 @@ testSearchContactForExternalUsers = do
 testCrudFederationRemotes :: HasCallStack => App ()
 testCrudFederationRemotes = do
   otherDomain <- asString OtherDomain
-  let -- TODO
-      overrides =
-        def
-          { brigCfg =
-              setField
-                "optSettings.setFederationDomainConfigs"
-                [object ["domain" .= otherDomain, "search_policy" .= "full_search"]]
-          }
-  withModifiedBackend overrides $ \ownDomain -> do
+  withModifiedBackend def $ \ownDomain -> do
+    void $ Internal.createFedConn ownDomain "full_search"
     let parseFedConns :: HasCallStack => Response -> App [Value]
         parseFedConns resp =
           -- Pick out the list of federation domain configs
