@@ -106,7 +106,7 @@ spec env = do
               (Aeson.fromEncoding (Aeson.toEncoding hdl))
         liftToCodensity . embed $ case r of
           Right _ -> expectationFailure "Expected client certificate error, got response"
-          Left (RemoteError _ _ _) ->
+          Left (RemoteError {}) ->
             expectationFailure "Expected client certificate error, got remote error"
           Left (RemoteErrorResponse _ _ status _) -> status `shouldBe` HTTP.status400
 
