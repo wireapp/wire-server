@@ -398,7 +398,7 @@ logErrorMsg (Wai.Error c l m md) =
     . maybe id logErrorData md
     . msg (val "\"" +++ m +++ val "\"")
   where
-    logErrorData (Wai.FederationErrorData d p) =
+    logErrorData (Wai.FederationErrorData d p _) =
       field "domain" (domainText d)
         . field "path" p
 

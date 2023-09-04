@@ -32,6 +32,7 @@ import Data.Binary.Builder
 import Data.ByteString.Lazy qualified as LBS
 import Data.Domain
 import Data.Text qualified as Text
+import Data.Text.Encoding (decodeUtf8)
 import Data.Text.Encoding qualified as Text
 import Data.Text.Encoding.Error qualified as Text
 import Federator.Discovery
@@ -63,9 +64,14 @@ data RemoteError
   deriving (Show)
 
 instance AsWai RemoteError where
-  toWai (RemoteError _ e) = federationRemoteHTTP2Error e
-  toWai (RemoteErrorResponse _ status _) =
-    federationRemoteResponseError status
+  toWai (RemoteError target e) =
+    let domain = Domain . decodeUtf8 $ target.srvTargetDomain
+        path = _ target
+     in federationRemoteHTTP2Error domain path e
+  toWai (RemoteErrorResponse target status resp) =
+    let domain = Domain . decodeUtf8 $ target.srvTargetDomain
+        path = _ target
+     in federationRemoteResponseError domain path status resp
 
   waiErrorDescription (RemoteError tgt e) =
     "Error while connecting to "

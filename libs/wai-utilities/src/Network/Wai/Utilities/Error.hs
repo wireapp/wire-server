@@ -50,12 +50,13 @@ instance Exception Error
 
 data ErrorData = FederationErrorData
   { federrDomain :: !Domain,
-    federrPath :: !Text
+    federrPath :: !Text,
+    federrResp :: !(Maybe LByteString)
   }
   deriving (Eq, Show, Typeable)
 
 instance ToJSON ErrorData where
-  toJSON (FederationErrorData d p) =
+  toJSON (FederationErrorData d p _) =
     object
       [ "type" .= ("federation" :: Text),
         "domain" .= d,
@@ -67,6 +68,7 @@ instance FromJSON ErrorData where
     FederationErrorData
       <$> o .: "domain"
       <*> o .: "path"
+      <*> pure Nothing
 
 -- | Assumes UTF-8 encoding.
 byteStringError :: Status -> LByteString -> LByteString -> Error
