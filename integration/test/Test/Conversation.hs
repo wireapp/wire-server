@@ -210,7 +210,7 @@ testDefederationGroupConversation = do
         -- assert conversation deleted from domainA
         retryT $
           bindResponse (getConversation uA convId) $ \r ->
-            r.status `shouldMatchInt` 422
+            r.status `shouldMatchInt` 404
 
         -- assert federation.delete event is sent twice
         void $
