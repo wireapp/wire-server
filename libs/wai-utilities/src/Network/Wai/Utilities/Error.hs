@@ -31,7 +31,7 @@ import Control.Error
 import Data.Aeson hiding (Error)
 import Data.Aeson.Types (Pair)
 import Data.Domain
-import Data.Text.Lazy.Encoding (decodeUtf8)
+import Data.Text.Lazy.Encoding (decodeUtf8, encodeUtf8)
 import Imports
 import Network.HTTP.Types
 
@@ -56,11 +56,12 @@ data ErrorData = FederationErrorData
   deriving (Eq, Show, Typeable)
 
 instance ToJSON ErrorData where
-  toJSON (FederationErrorData d p _) =
+  toJSON (FederationErrorData d p b) =
     object
       [ "type" .= ("federation" :: Text),
         "domain" .= d,
-        "path" .= p
+        "path" .= p,
+        "response" .= fmap decodeUtf8 b
       ]
 
 instance FromJSON ErrorData where
@@ -68,7 +69,7 @@ instance FromJSON ErrorData where
     FederationErrorData
       <$> o .: "domain"
       <*> o .: "path"
-      <*> pure Nothing
+      <*> (fmap encodeUtf8 <$> (o .: "response"))
 
 -- | Assumes UTF-8 encoding.
 byteStringError :: Status -> LByteString -> LByteString -> Error

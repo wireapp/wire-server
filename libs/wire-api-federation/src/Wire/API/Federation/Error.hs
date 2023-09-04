@@ -215,28 +215,28 @@ federationRemoteHTTP2Error domain path FederatorClientNoStatusCode =
           unexpectedFederationResponseStatus
           "federation-http2-error"
           "No status code in HTTP2 response"
-   in err {Wai.errorData = pure $ Wai.FederationErrorData domain path}
+   in err {Wai.errorData = pure $ Wai.FederationErrorData domain path Nothing}
 federationRemoteHTTP2Error domain path (FederatorClientHTTP2Exception e) =
   let err =
         Wai.mkError
           unexpectedFederationResponseStatus
           "federation-http2-error"
           (LT.pack (displayException e))
-   in err {Wai.errorData = pure $ Wai.FederationErrorData domain path}
+   in err {Wai.errorData = pure $ Wai.FederationErrorData domain path Nothing}
 federationRemoteHTTP2Error domain path (FederatorClientTLSException e) =
   let err =
         Wai.mkError
           (HTTP.mkStatus 525 "SSL Handshake Failure")
           "federation-tls-error"
           (LT.pack (displayException e))
-   in err {Wai.errorData = pure $ Wai.FederationErrorData domain path}
+   in err {Wai.errorData = pure $ Wai.FederationErrorData domain path Nothing}
 federationRemoteHTTP2Error domain path (FederatorClientConnectionError e) =
   let err =
         Wai.mkError
           federatorConnectionRefusedStatus
           "federation-connection-refused"
           (LT.pack (displayException e))
-   in err {Wai.errorData = pure $ Wai.FederationErrorData domain path}
+   in err {Wai.errorData = pure $ Wai.FederationErrorData domain path Nothing}
 
 federationClientHTTP2Error :: FederatorClientHTTP2Error -> Wai.Error
 federationClientHTTP2Error (FederatorClientConnectionError e) =
@@ -253,7 +253,7 @@ federationClientHTTP2Error e =
 federationRemoteResponseError :: Domain -> Text -> HTTP.Status -> LByteString -> Wai.Error
 federationRemoteResponseError domain path status resp =
   err
-    { Wai.errorData = pure $ Wai.FederationErrorData domain path
+    { Wai.errorData = pure $ Wai.FederationErrorData domain path $ pure resp
     }
   where
     err =
