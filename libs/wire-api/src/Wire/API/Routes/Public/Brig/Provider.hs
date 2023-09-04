@@ -76,3 +76,19 @@ type ProviderAPI =
                      ]
                     ProviderTokenCookie
            )
+    :<|> Named
+           "provider-password-reset"
+           ( Summary "Begin a password reset"
+               :> CanThrow 'AccessDenied
+               :> CanThrow 'BadCredentials
+               :> CanThrow 'InvalidPasswordResetKey
+               :> CanThrow 'InvalidPasswordResetCode
+               :> CanThrow 'PasswordResetInProgress
+               :> CanThrow 'PasswordResetInProgress
+               :> CanThrow 'ResetPasswordMustDiffer
+               :> CanThrow 'VerificationCodeThrottled
+               :> "provider"
+               :> "password-reset"
+               :> ReqBody '[JSON] PasswordReset
+               :> MultiVerb1 'POST '[JSON] (RespondEmpty 201 "")
+           )

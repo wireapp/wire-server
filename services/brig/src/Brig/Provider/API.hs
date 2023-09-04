@@ -152,6 +152,7 @@ providerAPI =
   Named @"provider-register" newAccount
     :<|> Named @"provider-activate" activateAccountKey
     :<|> Named @"provider-login" login
+    :<|> Named @"provider-password-reset" beginPasswordReset
 
 routesPublic ::
   ( Member GalleyProvider r
@@ -159,10 +160,6 @@ routesPublic ::
   Routes () (Handler r) ()
 routesPublic = do
   -- Public API (Unauthenticated) --------------------------------------------
-
-  post "/provider/password-reset" (continue beginPasswordResetH) $
-    accept "application" "json"
-      .&> jsonRequest @Public.PasswordReset
 
   post "/provider/password-reset/complete" (continue completePasswordResetH) $
     accept "application" "json"
@@ -378,13 +375,9 @@ login l = do
   s <- view settings
   pure $ ProviderTokenCookie (ProviderToken token) (not (setCookieInsecure s))
 
-beginPasswordResetH :: Member GalleyProvider r => JsonRequest Public.PasswordReset -> (Handler r) Response
-beginPasswordResetH req = do
-  guardSecondFactorDisabled Nothing
-  setStatus status201 empty <$ (beginPasswordReset =<< parseJsonBody req)
-
-beginPasswordReset :: Public.PasswordReset -> (Handler r) ()
+beginPasswordReset :: Member GalleyProvider r => Public.PasswordReset -> (Handler r) ()
 beginPasswordReset (Public.PasswordReset target) = do
+  guardSecondFactorDisabled Nothing
   pid <- wrapClientE (DB.lookupKey (mkEmailKey target)) >>= maybeBadCredentials
   gen <- Code.mkGen (Code.ForEmail target)
   pending <- lift . wrapClient $ Code.lookup (Code.genKey gen) Code.PasswordReset
