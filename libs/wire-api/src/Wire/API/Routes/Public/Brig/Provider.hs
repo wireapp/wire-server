@@ -25,7 +25,6 @@ import Servant.Swagger.Internal.Orphans ()
 import Wire.API.Error (CanThrow)
 import Wire.API.Error.Brig
 import Wire.API.Provider
-import Wire.API.Routes.API (ServiceAPI (..))
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named (Named (..))
 import Wire.API.User.Auth
@@ -77,8 +76,3 @@ type ProviderAPI =
                      ]
                     ProviderTokenCookie
            )
-
-data ProviderAPITag
-
-instance ServiceAPI ProviderAPITag v where
-  type ServiceAPIRoutes ProviderAPITag = ProviderAPI
