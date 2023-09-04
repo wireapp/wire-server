@@ -288,7 +288,7 @@ startBackend resource overrides services = do
         env <- ask
         case env.servicesCwdBase of
           Nothing -> startNginzK8s domain serviceMap
-          Just _ -> startNginzLocal domain resource.berNginzSslPort resource.berNginzSslPort serviceMap
+          Just _ -> startNginzLocal domain resource.berNginzHttp2Port resource.berNginzSslPort serviceMap
       srv -> do
         readServiceConfig srv
           >>= updateServiceMapInConfig srv

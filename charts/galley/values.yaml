@@ -34,6 +34,20 @@ config:
     exposeInvitationURLsTeamAllowlist: []
     maxConvSize: 500
     intraListing: true
+    # Either `conversationCodeURI` or `multiIngress` must be set
+    #
+    # `conversationCodeURI` is the URI prefix for conversation invitation links
+    # It should be of form https://{ACCOUNT_PAGES}/conversation-join/
+    conversationCodeURI: null
+    #
+    # `multiIngress` is a `Z-Host` depended setting of conversationCodeURI.
+    # Use this only if you want to expose the instance on mutliple ingresses.
+    # If set it must a map from `Z-Host` to URI prefix
+    # Example:
+    # multiIngress: 
+    #    example.com: https://accounts.example.com/conversation-join/
+    #    example.net: https://accounts.example.net/conversation-join/
+    multiIngress: null
     # Disable one ore more API versions. Please make sure the configuration value is the same in all these charts:
     # brig, cannon, cargohold, galley, gundeck, proxy, spar.
     # disabledAPIVersions: [ v3 ]
