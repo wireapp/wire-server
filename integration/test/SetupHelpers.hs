@@ -9,6 +9,7 @@ import Data.Aeson hiding ((.=))
 import Data.Aeson.Types qualified as Aeson
 import Data.Default
 import Data.Function
+import Data.UUID.V1 (nextUUID)
 import Data.UUID.V4 (nextRandom)
 import GHC.Stack
 import Testlib.Prelude
@@ -82,8 +83,10 @@ resetFedConns owndom = do
     Internal.deleteFedConn owndom `mapM_` rdoms
 
 randomId :: HasCallStack => App String
-randomId = do
-  liftIO (show <$> nextRandom)
+randomId = liftIO (show <$> nextRandom)
+
+randomUUIDv1 :: HasCallStack => App String
+randomUUIDv1 = liftIO (show . fromJust <$> nextUUID)
 
 randomUserId :: (HasCallStack, MakesValue domain) => domain -> App Value
 randomUserId domain = do

@@ -80,11 +80,26 @@ data BrigError
   | NotificationNotFound
   | PendingInvitationNotFound
   | ConflictingInvitations
+  | AccessDenied
+  | InvalidConversation
+  | TooManyConversationMembers
+  | ServiceDisabled
+  | InvalidBot
 
 instance KnownError (MapError e) => IsSwaggerError (e :: BrigError) where
   addToSwagger = addStaticErrorToSwagger @(MapError e)
 
+type instance MapError 'ServiceDisabled = 'StaticError 403 "service-disabled" "The desired service is currently disabled."
+
+type instance MapError 'InvalidBot = 'StaticError 403 "invalid-bot" "The targeted user is not a bot."
+
 type instance MapError 'UserNotFound = 'StaticError 404 "not-found" "User not found"
+
+type instance MapError 'InvalidConversation = 'StaticError 403 "invalid-conversation" "The operation is not allowed in this conversation."
+
+type instance MapError 'TooManyConversationMembers = 'StaticError 403 "too-many-members" "Maximum number of members per conversation reached."
+
+type instance MapError 'AccessDenied = 'StaticError 403 "access-denied" "Access denied."
 
 type instance MapError 'InvalidUser = 'StaticError 400 "invalid-user" "Invalid user"
 

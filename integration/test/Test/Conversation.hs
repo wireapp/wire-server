@@ -11,6 +11,7 @@ import API.Gundeck (getNotifications)
 import Control.Applicative
 import Control.Concurrent (threadDelay)
 import Data.Aeson qualified as Aeson
+import Data.Text qualified as T
 import GHC.Stack
 import SetupHelpers
 import Testlib.One2One (generateRemoteAndConvIdWithDomain)
@@ -451,3 +452,69 @@ testGetOneOnOneConvInStatusSentFromRemote = do
     filter ((==) d2ConvId) qConvIds `shouldMatch` [d2ConvId]
   resp <- getConversation d1User d2ConvId
   resp.status `shouldMatchInt` 200
+
+testMultiIngressGuestLinks :: HasCallStack => App ()
+testMultiIngressGuestLinks = do
+  do
+    configuredURI <- readServiceConfig Galley & (%. "settings.conversationCodeURI") & asText
+
+    (user, _) <- createTeam OwnDomain
+    conv <- postConversation user (allowGuests defProteus) >>= getJSON 201
+
+    bindResponse (postConversationCode user conv Nothing Nothing) $ \resp -> do
+      res <- getJSON 201 resp
+      res %. "type" `shouldMatch` "conversation.code-update"
+      guestLink <- res %. "data.uri" & asText
+      assertBool "guestlink incorrect" $ configuredURI `T.isPrefixOf` guestLink
+
+    bindResponse (getConversationCode user conv Nothing) $ \resp -> do
+      res <- getJSON 200 resp
+      guestLink <- res %. "uri" & asText
+      assertBool "guestlink incorrect" $ configuredURI `T.isPrefixOf` guestLink
+
+    bindResponse (getConversationCode user conv (Just "red.example.com")) $ \resp -> do
+      res <- getJSON 200 resp
+      guestLink <- res %. "uri" & asText
+      assertBool "guestlink incorrect" $ configuredURI `T.isPrefixOf` guestLink
+
+  withModifiedBackend
+    ( def
+        { galleyCfg = \conf ->
+            conf
+              & setField "settings.conversationCodeURI" Null
+              & setField
+                "settings.multiIngress"
+                ( object
+                    [ "red.example.com" .= "https://red.example.com",
+                      "blue.example.com" .= "https://blue.example.com"
+                    ]
+                )
+        }
+    )
+    $ \domain -> do
+      (user, _) <- createTeam domain
+      conv <- postConversation user (allowGuests defProteus) >>= getJSON 201
+
+      bindResponse (postConversationCode user conv Nothing (Just "red.example.com")) $ \resp -> do
+        res <- getJSON 201 resp
+        res %. "type" `shouldMatch` "conversation.code-update"
+        guestLink <- res %. "data.uri" & asText
+        assertBool "guestlink incorrect" $ (fromString "https://red.example.com") `T.isPrefixOf` guestLink
+
+      bindResponse (getConversationCode user conv (Just "red.example.com")) $ \resp -> do
+        res <- getJSON 200 resp
+        guestLink <- res %. "uri" & asText
+        assertBool "guestlink incorrect" $ (fromString "https://red.example.com") `T.isPrefixOf` guestLink
+
+      bindResponse (getConversationCode user conv (Just "blue.example.com")) $ \resp -> do
+        res <- getJSON 200 resp
+        guestLink <- res %. "uri" & asText
+        assertBool "guestlink incorrect" $ (fromString "https://blue.example.com") `T.isPrefixOf` guestLink
+
+      bindResponse (getConversationCode user conv Nothing) $ \resp -> do
+        res <- getJSON 403 resp
+        res %. "label" `shouldMatch` "access-denied"
+
+      bindResponse (getConversationCode user conv (Just "unknown.example.com")) $ \resp -> do
+        res <- getJSON 403 resp
+        res %. "label" `shouldMatch` "access-denied"
