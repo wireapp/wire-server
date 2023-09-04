@@ -126,15 +126,15 @@ runMigration expectedVersion = do
     then do
       Log.info $
         Log.msg (Log.val "Migration necessary.")
-          . Log.field "expectedVersion" ver
+          . Log.field "expectedVersion" expectedVersion
           . Log.field "foundVersion" foundVersion
       Search.reindexAllIfSameOrNewer
-      persistVersion ver
+      persistVersion expectedVersion
     else do
       Log.info $
         Log.msg (Log.val "No migration necessary.")
-          . Log.field "expectedVersion" vmax
-          . Log.field "foundVersion" ver
+          . Log.field "expectedVersion" expectedVersion
+          . Log.field "foundVersion" foundVersion
 
 persistVersion :: (MonadThrow m, MonadIO m) => MigrationVersion -> MigrationActionT m ()
 persistVersion v =
