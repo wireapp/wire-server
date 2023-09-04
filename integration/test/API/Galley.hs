@@ -5,6 +5,7 @@ module API.Galley where
 import Control.Lens hiding ((.=))
 import Control.Monad.Reader
 import Data.Aeson qualified as Aeson
+import Data.Aeson.Types qualified as Aeson
 import Data.ByteString.Lazy qualified as LBS
 import Data.ProtoLens qualified as Proto
 import Data.ProtoLens.Labels ()
@@ -318,3 +319,18 @@ updateReceiptMode user qcnv mode = do
   let path = joinHttpPath ["conversations", cnvDomain, cnvId, "receipt-mode"]
   req <- baseRequest user Galley Versioned path
   submit "PUT" (req & addJSONObject ["receipt_mode" .= modeReq])
+
+updateAccess ::
+  ( HasCallStack,
+    MakesValue user,
+    MakesValue conv
+  ) =>
+  user ->
+  conv ->
+  [Aeson.Pair] ->
+  App Response
+updateAccess user qcnv update = do
+  (cnvDomain, cnvId) <- objQid qcnv
+  let path = joinHttpPath ["conversations", cnvDomain, cnvId, "access"]
+  req <- baseRequest user Galley Versioned path
+  submit "PUT" (req & addJSONObject update)

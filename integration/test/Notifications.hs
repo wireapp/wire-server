@@ -65,11 +65,14 @@ isMemberJoinNotif n = fieldEquals n "payload.0.type" "conversation.member-join"
 isConvLeaveNotif :: MakesValue a => a -> App Bool
 isConvLeaveNotif n = fieldEquals n "payload.0.type" "conversation.member-leave"
 
-isNotifConv :: (MakesValue conv, MakesValue a) => conv -> a -> App Bool
+isNotifConv :: (MakesValue conv, MakesValue a, HasCallStack) => conv -> a -> App Bool
 isNotifConv conv n = fieldEquals n "payload.0.qualified_conversation" (objQidObject conv)
 
-isNotifForUser :: (MakesValue user, MakesValue a) => user -> a -> App Bool
+isNotifForUser :: (MakesValue user, MakesValue a, HasCallStack) => user -> a -> App Bool
 isNotifForUser user n = fieldEquals n "payload.0.data.qualified_user_ids.0" (objQidObject user)
+
+isNotifFromUser :: (MakesValue user, MakesValue a, HasCallStack) => user -> a -> App Bool
+isNotifFromUser user n = fieldEquals n "payload.0.qualified_from" (objQidObject user)
 
 isConvNameChangeNotif :: (HasCallStack, MakesValue a, MakesValue c) => c -> a -> App Bool
 isConvNameChangeNotif name n = (&&) <$> fieldType <*> fieldName
