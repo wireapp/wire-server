@@ -29,6 +29,7 @@ import Data.Proxy
 import Federator.Env
 import Federator.Error.ServerError
 import Federator.Health qualified as Health
+import Federator.Metrics (Metrics, outgoingCounterIncr)
 import Federator.RPC
 import Federator.Remote
 import Federator.Response
@@ -75,7 +76,8 @@ server ::
     Member (Embed IO) r,
     Member (Error ValidationError) r,
     Member (Error ServerError) r,
-    Member (Input FederationDomainConfigs) r
+    Member (Input FederationDomainConfigs) r,
+    Member Metrics r
   ) =>
   Manager ->
   Word16 ->
@@ -93,7 +95,8 @@ callOutward ::
     Member (Embed IO) r,
     Member (Error ValidationError) r,
     Member (Error ServerError) r,
-    Member (Input FederationDomainConfigs) r
+    Member (Input FederationDomainConfigs) r,
+    Member Metrics r
   ) =>
   Domain ->
   Component ->
@@ -101,6 +104,7 @@ callOutward ::
   Wai.Request ->
   Sem r Wai.Response
 callOutward targetDomain component (RPC path) req = do
+  outgoingCounterIncr targetDomain
   -- only POST is supported
   when (Wai.requestMethod req /= HTTP.methodPost) $
     throw InvalidRoute
