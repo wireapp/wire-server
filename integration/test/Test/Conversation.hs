@@ -355,7 +355,7 @@ testMultiIngressGuestLinks = do
   do
     configuredURI <- readServiceConfig Galley & (%. "settings.conversationCodeURI") & asText
 
-    (user, _) <- createTeam OwnDomain
+    (user, _, _) <- createTeam OwnDomain 1
     conv <- postConversation user (allowGuests defProteus) >>= getJSON 201
 
     bindResponse (postConversationCode user conv Nothing Nothing) $ \resp -> do
@@ -389,7 +389,7 @@ testMultiIngressGuestLinks = do
         }
     )
     $ \domain -> do
-      (user, _) <- createTeam domain
+      (user, _, _) <- createTeam domain 1
       conv <- postConversation user (allowGuests defProteus) >>= getJSON 201
 
       bindResponse (postConversationCode user conv Nothing (Just "red.example.com")) $ \resp -> do
