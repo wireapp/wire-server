@@ -108,6 +108,7 @@ library
     Test.Demo
     Test.Federation
     Test.Federator
+    Test.MessageTimer
     Test.Notifications
     Test.Presence
     Test.Roles
@@ -147,6 +148,7 @@ library
     , cql-io
     , cryptonite
     , data-default
+    , data-timeout
     , directory
     , errors
     , exceptions

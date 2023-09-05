@@ -19,6 +19,7 @@
 , cql-io
 , cryptonite
 , data-default
+, data-timeout
 , directory
 , errors
 , exceptions
@@ -86,6 +87,7 @@ mkDerivation {
     cql-io
     cryptonite
     data-default
+    data-timeout
     directory
     errors
     exceptions

@@ -86,3 +86,7 @@ isMemberUpdateNotif n = fieldEquals n "payload.0.type" "conversation.member-upda
 isReceiptModeUpdateNotif :: (HasCallStack, MakesValue n) => n -> App Bool
 isReceiptModeUpdateNotif n =
   fieldEquals n "payload.0.type" "conversation.receipt-mode-update"
+
+isConvMsgTimerUpdateNotif :: (HasCallStack, MakesValue n) => n -> App Bool
+isConvMsgTimerUpdateNotif n =
+  fieldEquals n "payload.0.type" "conversation.message-timer-update"

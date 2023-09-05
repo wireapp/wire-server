@@ -334,3 +334,19 @@ updateAccess user qcnv update = do
   let path = joinHttpPath ["conversations", cnvDomain, cnvId, "access"]
   req <- baseRequest user Galley Versioned path
   submit "PUT" (req & addJSONObject update)
+
+updateMessageTimer ::
+  ( HasCallStack,
+    MakesValue user,
+    MakesValue conv
+  ) =>
+  user ->
+  conv ->
+  Word64 ->
+  App Response
+updateMessageTimer user qcnv update = do
+  (cnvDomain, cnvId) <- objQid qcnv
+  updateReq <- make update
+  let path = joinHttpPath ["conversations", cnvDomain, cnvId, "message-timer"]
+  req <- baseRequest user Galley Versioned path
+  submit "PUT" (addJSONObject ["message_timer" .= updateReq] req)
