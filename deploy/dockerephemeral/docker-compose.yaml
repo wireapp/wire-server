@@ -191,6 +191,8 @@ services:
       - "127.0.0.1:9042:9042"
     networks:
       - demo_wire
+    volumes:
+      - ./scylla.yaml:/etc/scylla/scylla.yaml
 
   rabbitmq:
     container_name: rabbitmq
