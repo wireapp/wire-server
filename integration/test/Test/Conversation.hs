@@ -604,3 +604,29 @@ testDeleteTeamConversationWithRemoteMembers = do
         notif %. "payload.0.qualified_from" `shouldMatch` objQidObject alice
   assertNotifications alice aliceClient
   assertNotifications bob bobClient
+
+testDeleteTeamConversationWithUnreachableRemoteMembers :: HasCallStack => App ()
+testDeleteTeamConversationWithUnreachableRemoteMembers = do
+  resourcePool <- asks resourcePool
+  (alice, team, _) <- createTeam OwnDomain 1
+  aliceClient <- objId $ bindResponse (addClient alice def) $ getJSON 201
+  conv <- postConversation alice (defProteus {team = Just team}) >>= getJSON 201
+
+  let assertNotification :: (HasCallStack, MakesValue user) => user -> String -> App ()
+      assertNotification user client = do
+        notif <- awaitNotification user client noValue 2 isConvDeleteNotif
+        notif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
+        notif %. "payload.0.qualified_from" `shouldMatch` objQidObject alice
+
+  runCodensity (acquireResources 1 resourcePool) $ \[dynBackend] -> do
+    (bob, bobClient) <- runCodensity (startDynamicBackend dynBackend mempty) $ \_ -> do
+      bob <- randomUser dynBackend.berDomain def
+      bobClient <- objId $ bindResponse (addClient bob def) $ getJSON 201
+      connectUsers alice bob
+      mem <- bob %. "qualified_id"
+      void $ addMembers alice conv [mem] >>= getBody 200
+      pure (bob, bobClient)
+    void $ deleteTeamConversation team conv alice >>= getBody 200
+    assertNotification alice aliceClient
+    void $ runCodensity (startDynamicBackend dynBackend mempty) $ \_ ->
+      assertNotification bob bobClient

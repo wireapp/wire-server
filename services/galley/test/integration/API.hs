@@ -51,7 +51,6 @@ import Data.ByteString qualified as BS
 import Data.ByteString.Conversion
 import Data.Code qualified as Code
 import Data.Domain
-import Data.Either.Extra (eitherToMaybe)
 import Data.Id
 import Data.Json.Util (toBase64Text, toUTCTimeMillis)
 import Data.List.NonEmpty (NonEmpty (..))
@@ -176,7 +175,6 @@ tests s =
           test s "generate guest link forbidden when no guest or non-team-member access role" generateGuestLinkFailIfNoNonTeamMemberOrNoGuestAccess,
           test s "fail to add members when not connected" postMembersFail,
           test s "fail to add too many members" postTooManyMembersFail,
-          test s "delete conversation with unavailable remote members" testDeleteTeamConversationWithUnavailableRemoteMembers,
           test s "get conversations/:domain/:cnv - local" testGetQualifiedLocalConv,
           test s "get conversations/:domain/:cnv - local, not found" testGetQualifiedLocalConvNotFound,
           test s "get conversations/:domain/:cnv - local, not participating" testGetQualifiedLocalConvNotParticipating,
@@ -2409,42 +2407,6 @@ leaveConnectConversation = do
   let c = maybe (error "invalid connect conversation") (qUnqualified . cnvQualifiedId) (responseJsonUnsafe bdy)
   qc <- Qualified c <$> viewFederationDomain
   deleteMemberQualified alice qalice qc !!! const 403 === statusCode
-
-testDeleteTeamConversationWithUnavailableRemoteMembers :: TestM ()
-testDeleteTeamConversationWithUnavailableRemoteMembers = do
-  (alice, tid) <- createBindingTeam
-  localDomain <- viewFederationDomain
-  let qalice = Qualified alice localDomain
-
-  bobId <- randomId
-  let remoteDomain = Domain "far-away.example.com"
-      remoteBob = Qualified bobId remoteDomain
-
-  convId <- decodeConvId <$> postTeamConv tid alice [] (Just "remote gossip") [] Nothing Nothing
-  let qconvId = Qualified convId localDomain
-
-  connectWithRemoteUser alice remoteBob
-
-  let mock =
-        getNotFullyConnectedBackendsMock
-          <|>
-          -- Mock an unavailable federation server for the deletion call
-          (guardRPC "on-conversation-updated" *> throw (MockErrorResponse HTTP.status503 "Down for maintenance."))
-          <|> (guardRPC "delete-team-conversation" *> throw (MockErrorResponse HTTP.status503 "Down for maintenance."))
-  (_, received) <- withTempMockFederator' mock $ do
-    postQualifiedMembers alice (remoteBob :| []) qconvId
-      !!! const 200 === statusCode
-
-    deleteTeamConv tid convId alice
-      !!! const 200 === statusCode
-  liftIO $ do
-    let convUpdates = mapMaybe (eitherToMaybe . parseFedRequest) received
-    convUpdate <- case filter ((== SomeConversationAction (sing @'ConversationDeleteTag) ()) . cuAction) convUpdates of
-      [] -> assertFailure "No ConversationUpdate requests received"
-      [convDelete] -> pure convDelete
-      _ -> assertFailure "Multiple ConversationUpdate requests received"
-    cuAlreadyPresentUsers convUpdate @?= [bobId]
-    cuOrigUserId convUpdate @?= qalice
 
 testGetQualifiedLocalConv :: TestM ()
 testGetQualifiedLocalConv = do
