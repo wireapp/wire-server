@@ -289,7 +289,7 @@ testDefederationOneOnOne = do
         -- assert conversation deleted eventually
         retryT $
           bindResponse (getConversation user convId) $ \r ->
-            r.status `shouldMatchInt` 422
+            r.status `shouldMatchInt` 404
 
         -- assert federation.delete event is sent twice
         void $ awaitNMatches 2 3 (\n -> nPayload n %. "type" `isEqual` "federation.delete") ws
