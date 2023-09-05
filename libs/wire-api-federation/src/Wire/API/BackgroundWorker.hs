@@ -81,8 +81,8 @@ enqueue :: Q.Channel -> Domain -> Domain -> Q.DeliveryMode -> FedQueueClient c (
 enqueue channel originDomain targetDomain deliveryMode (FedQueueClient action) =
   runReaderT action FedQueueEnv {..}
 
-routingKey :: Text -> Text
-routingKey t = "backend-notifications." <> t
+backendNotificationQueueName :: Domain -> Text
+backendNotificationQueueName (Domain t) = "backend-notifications." <> t
 
 -- | Shared values for both brig and background worker so they are
 -- kept in sync about what types they are expecting and where
@@ -94,8 +94,8 @@ defederationQueue = "delete-federation"
 
 -- | Create a queue under routingKey (`backend-notifications`).  If you want to do something
 -- else use `ensureQueue`.
-ensureBackendNotificationsQueue :: Q.Channel -> Text -> IO ()
-ensureBackendNotificationsQueue chan = ensureQueue chan . routingKey
+ensureBackendNotificationsQueue :: Q.Channel -> Domain -> IO ()
+ensureBackendNotificationsQueue chan = ensureQueue chan . backendNotificationQueueName
 
 -- | If you ever change this function and modify
 -- queue parameters, know that it will start failing in the
@@ -174,8 +174,8 @@ instance (KnownComponent c) => RunClient (FedQueueClient c) where
         -- Empty string means default exchange
         exchange = ""
     liftIO $ do
-      ensureBackendNotificationsQueue env.channel env.targetDomain._domainText
-      void $ Q.publishMsg env.channel exchange (routingKey env.targetDomain._domainText) msg
+      ensureBackendNotificationsQueue env.channel env.targetDomain
+      void $ Q.publishMsg env.channel exchange (backendNotificationQueueName env.targetDomain) msg
     pure $
       Response
         { responseHttpVersion = http20,

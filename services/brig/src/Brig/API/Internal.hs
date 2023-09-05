@@ -305,7 +305,7 @@ deleteFederationRemote dom = do
     -- clean up their conversations and notify clients.
     -- Just to be safe!
     for_ (filter (/= dom) remoteDomains) $ \remoteDomain -> do
-      ensureBackendNotificationsQueue chan' $ domainText remoteDomain
+      ensureBackendNotificationsQueue chan' $ remoteDomain
       liftIO
         $ enqueue chan' ownDomain remoteDomain Q.Persistent
           . void
@@ -314,7 +314,7 @@ deleteFederationRemote dom = do
     -- This will also drop all of the messages in the queue
     -- as we will no longer be able to communicate with this
     -- domain.
-    num <- Q.deleteQueue chan' . routingKey $ domainText dom
+    num <- Q.deleteQueue chan' $ backendNotificationQueueName dom
     Lg.info (env ^. applog) $ Log.msg @String "Dropped Notifications" . Log.field "domain" (domainText dom) . Log.field "count" (show num)
 
 -- | Remove one-on-one conversations for the given remote domain. This is called from Galley as
