@@ -10,9 +10,7 @@ import Data.Yaml qualified as Yaml
 import GHC.Exception
 import GHC.Stack (HasCallStack)
 import System.FilePath
-import Testlib.Env
 import Testlib.JSON
-import Testlib.Service
 import Testlib.Types
 import Prelude
 

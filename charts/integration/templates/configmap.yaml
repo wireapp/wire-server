@@ -57,6 +57,10 @@ data:
 
     originDomain: federation-test-helper.{{ .Release.Namespace }}.svc.cluster.local
 
+    rabbitmq:
+      host: rabbitmq
+      adminPort: 15672
+
     backendTwo:
 
       brig:
@@ -115,3 +119,5 @@ data:
         domain: {{ $dynamicBackend.federatorExternalHostPrefix }}.{{ $.Release.Namespace }}.svc.cluster.local
         federatorExternalPort: {{ $dynamicBackend.federatorExternalPort }}
       {{- end }}
+    cassandra:
+{{ toYaml .Values.config.cassandra | indent 6}}

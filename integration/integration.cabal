@@ -129,7 +129,6 @@ library
     Testlib.ResourcePool
     Testlib.Run
     Testlib.RunServices
-    Testlib.Service
     Testlib.Types
 
   build-depends:
@@ -149,6 +148,7 @@ library
     , directory
     , errors
     , exceptions
+    , extended
     , extra
     , filepath
     , hex

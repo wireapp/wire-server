@@ -310,7 +310,8 @@ newMockRabbitMqAdmin isBroken queues = do
 mockApi :: MockRabbitMqAdmin -> AdminAPI (AsServerT Servant.Handler)
 mockApi mockAdmin =
   AdminAPI
-    { listQueuesByVHost = mockListQueuesByVHost mockAdmin
+    { listQueuesByVHost = mockListQueuesByVHost mockAdmin,
+      deleteQueue = mockListDeleteQueue mockAdmin
     }
 
 mockListQueuesByVHost :: MockRabbitMqAdmin -> Text -> Servant.Handler [Queue]
@@ -319,6 +320,10 @@ mockListQueuesByVHost MockRabbitMqAdmin {..} vhost = do
   readTVarIO broken >>= \case
     True -> throwError $ Servant.err500
     False -> pure $ map (\n -> Queue n vhost) queues
+
+mockListDeleteQueue :: MockRabbitMqAdmin -> Text -> Text -> Servant.Handler NoContent
+mockListDeleteQueue _ _ _ = do
+  pure NoContent
 
 mockRabbitMqAdminApp :: MockRabbitMqAdmin -> Application
 mockRabbitMqAdminApp mockAdmin = genericServe (mockApi mockAdmin)
