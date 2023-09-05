@@ -110,6 +110,8 @@ testValidatesCertificateSuccess =
       testCase "when hostname=localhost. and certificate-for=localhost" $
         withMockServer certForLocalhost $ \port -> do
           tlsSettings <- mkTLSSettingsOrThrow settings
+          res <- readFile "/etc/resolv.conf"
+          putStrLn res
           runCodensity (mkTestCall tlsSettings "localhost." port) assertNoRemoteError,
       -- It is not very clear how to handle this, this test just exists to
       -- document what we do.
