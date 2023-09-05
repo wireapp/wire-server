@@ -44,7 +44,6 @@ import Imports
 import Servant.API
 import Servant.Client
 import Servant.OpenApi
-import Servant.OpenApi (HasOpenApi (toOpenApi))
 import Servant.Server
 import Test.QuickCheck (Arbitrary)
 import TransitiveAnns.Types

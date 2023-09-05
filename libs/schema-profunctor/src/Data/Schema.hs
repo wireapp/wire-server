@@ -857,6 +857,7 @@ class ToSchema a where
 -- Newtype wrappers for deriving via
 
 newtype Schema a = Schema {getSchema :: a}
+  deriving (Generic)
 
 schemaToSwagger :: forall a. ToSchema a => Proxy a -> Declare S.NamedSchema
 schemaToSwagger _ = runDeclare (schemaDoc (schema @a))

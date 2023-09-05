@@ -66,7 +66,6 @@ import Polysemy
 import Polysemy.Error
 import Servant
 import Servant.OpenApi
-import Servant.OpenApi (HasOpenApi (toOpenApi))
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named (Named)
 import Wire.API.Routes.Version

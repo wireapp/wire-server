@@ -81,6 +81,7 @@ import Imports
 -- | A newtype wrapper which gives ToSchema instances with modified options.
 -- 't' has to have an instance of the 'SwaggerOptions' class.
 newtype CustomSwagger t a = CustomSwagger {unCustomSwagger :: a}
+  deriving (Generic, Typeable)
 
 class SwaggerOptions xs where
   swaggerOptions :: SchemaOptions
@@ -94,16 +95,17 @@ instance (StringModifier f, SwaggerOptions xs) => SwaggerOptions (FieldLabelModi
 instance (StringModifier f, SwaggerOptions xs) => SwaggerOptions (ConstructorTagModifier f ': xs) where
   swaggerOptions = (swaggerOptions @xs) {constructorTagModifier = getStringModifier @f}
 
-instance
+type Constraints t a =
   ( SwaggerOptions t,
     Typeable t,
     Typeable a,
+    ToSchema a,
     Generic a,
     GToSchema (Rep a),
     TypeHasSimpleShape a "genericDeclareNamedSchemaUnrestricted"
-  ) =>
-  ToSchema (CustomSwagger t a)
-  where
+  )
+
+instance (Constraints t a) => ToSchema (CustomSwagger t a) where
   declareNamedSchema _ = genericDeclareNamedSchema (swaggerOptions @t) (Proxy @a)
 
 -- ** Specify __what__ to modify

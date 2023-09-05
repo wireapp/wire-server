@@ -77,7 +77,9 @@ import Data.ByteString.Char8 (unpack)
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (toStrict)
 import Data.IP (IP (IPv4, IPv6), toIPv4, toIPv6b)
+import Data.OpenApi (declareNamedSchema)
 import Data.OpenApi qualified as S
+import Data.Proxy
 import Data.Range
 import Data.Schema
 import Data.Text qualified as Text
@@ -311,11 +313,8 @@ deriving via
     (ToSchema (Fingerprint a)) =>
     FromJSON (Fingerprint a)
 
-deriving via
-  (Schema (Fingerprint a))
-  instance
-    (Typeable a, ToSchema (Fingerprint a)) =>
-    S.ToSchema (Fingerprint a)
+instance Typeable a => S.ToSchema (Fingerprint a) where
+  declareNamedSchema _ = declareNamedSchema $ Proxy @(Schema (Fingerprint a))
 
 instance ToSchema (Fingerprint Rsa) where
   schema =
