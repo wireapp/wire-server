@@ -1,6 +1,4 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
--- Required for `instance MimeRender PlainText ()`
-{-# OPTIONS_GHC -Wno-orphans #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -52,12 +50,6 @@ import Wire.API.MLS.Servant
 import Wire.API.MakesFederatedCall
 import Wire.API.OAuth
 import Wire.API.Properties
-  ( PropertyKey,
-    PropertyKeysAndValues,
-    RawPropertyValue,
-  )
-import Wire.API.Provider.Service qualified as Public
-import Wire.API.Provider.Service.Tag qualified as Public
 import Wire.API.Routes.API
 import Wire.API.Routes.Bearer
 import Wire.API.Routes.Cookies
@@ -102,8 +94,6 @@ type BrigAPI =
     :<|> SystemSettingsAPI
     :<|> OAuthAPI
     :<|> BotAPI
-    :<|> ProviderAPI
-    :<|> ServicesAPI
 
 data BrigAPITag
 
@@ -294,112 +284,6 @@ type UserAPI =
                     'GET
                     '[JSON]
                     (Respond 200 "Protocols supported by the user" (Set BaseProtocolTag))
-           )
-
-type ProviderAPI =
-  Named
-    "post-provider-services"
-    ( Summary ""
-        :> Description ""
-        :> ZProvider
-        :> "provider"
-        :> "services"
-        :> ReqBody '[JSON] Public.NewService
-        :> MultiVerb1 'POST '[JSON] (Respond 201 "" Public.NewServiceResponse)
-    )
-    :<|> Named
-           "get-provider-services"
-           ( Summary ""
-               :> Description ""
-               :> ZProvider
-               :> "provider"
-               :> "services"
-               :> Get '[JSON] [Public.Service]
-           )
-    :<|> Named
-           "get-provider-services-by-service-id"
-           ( Summary ""
-               :> Description ""
-               :> ZProvider
-               :> "provider"
-               :> "services"
-               :> Capture "service-id" ServiceId
-               :> Get '[JSON] Public.Service
-           )
-    :<|> Named
-           "put-provider-services-by-service-id"
-           ( Summary ""
-               :> Description ""
-               :> ZProvider
-               :> "provider"
-               :> "services"
-               :> Capture "service-id" ServiceId
-               :> ReqBody '[JSON] Public.UpdateService
-               :> Put '[PlainText] ()
-           )
-    :<|> Named
-           "put-provider-services-connection-by-service-id"
-           ( Summary ""
-               :> Description ""
-               :> ZProvider
-               :> "provider"
-               :> "services"
-               :> Capture "service-id" ServiceId
-               :> "connection"
-               :> ReqBody '[JSON] Public.UpdateServiceConn
-               :> Put '[PlainText] ()
-           )
-    :<|> Named
-           "delete-provider-services-by-service-id"
-           ( Summary ""
-               :> Description ""
-               :> ZProvider
-               :> "provider"
-               :> "services"
-               :> Capture "service-id" ServiceId
-               :> ReqBody '[JSON] Public.DeleteService
-               :> MultiVerb1 'DELETE '[PlainText] (RespondEmpty 202 "")
-           )
-    :<|> Named
-           "get-provider-services-by-provider-id"
-           ( Summary ""
-               :> Description ""
-               :> ZAccess
-               :> "providers"
-               :> Capture "provider-id" ProviderId
-               :> "services"
-               :> Get '[JSON] [Public.ServiceProfile]
-           )
-    :<|> Named
-           "get-provider-services-by-provider-id-and-service-id"
-           ( Summary ""
-               :> Description ""
-               :> ZAccess
-               :> "providers"
-               :> Capture "provider-id" ProviderId
-               :> "services"
-               :> Capture "service-id" ServiceId
-               :> Get '[JSON] Public.ServiceProfile
-           )
-
-type ServicesAPI =
-  Named
-    "get-services"
-    ( Summary ""
-        :> Description ""
-        :> ZAccess
-        :> "services"
-        :> QueryParam "tags" (Public.QueryAnyTags 1 3)
-        :> QueryParam "start" Text
-        :> QueryParam "size" (Range 10 100 Int32) -- Default to 20
-        :> Get '[JSON] Public.ServiceProfilePage
-    )
-    :<|> Named
-           "get-services-tags"
-           ( Summary ""
-               :> Description ""
-               :> ZAccess
-               :> Get '[JSON] Public.ServiceTagList
            )
 
 type SelfAPI =
@@ -1642,39 +1526,6 @@ type TeamsAPI =
                     '[JSON]
                     (Respond 200 "Number of team members" TeamSize)
            )
-    :<|> Named
-           "get-whitelisted-services-by-team-id"
-           ( Summary ""
-               :> Description ""
-               :> ZAccess
-               :> "teams"
-               :> Capture "team-id" TeamId
-               :> "services"
-               :> "whitelisted"
-               :> QueryParam "prefix" (Range 1 128 Text)
-               -- Default to True
-               :> QueryParam "filter_disabled" Bool
-               -- Default to 20
-               :> QueryParam "size" (Range 10 100 Int32)
-               :> Get '[JSON] Public.ServiceProfilePage
-           )
-    :<|> Named
-           "post-team-whitelist-by-team-id"
-           ( Summary ""
-               :> Description ""
-               :> ZAccess
-               :> ZConn
-               :> "teams"
-               :> Capture "team-id" TeamId
-               :> "services"
-               :> "whitelist"
-               :> ReqBody '[JSON] Public.UpdateServiceWhitelist
-               :> MultiVerb 'POST '[PlainText] '[RespondEmpty 200 "UpdateServiceWhitelistRespChanged", RespondEmpty 204 "UpdateServiceWhitelistRespUnchanged"] Public.UpdateServiceWhitelistResp
-           )
-
--- Plaintext doesn't ship a renderer for (), so we have an orphan for it
-instance MimeRender PlainText () where
-  mimeRender _ () = ""
 
 type SystemSettingsAPI =
   Named
