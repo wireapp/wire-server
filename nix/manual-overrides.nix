@@ -20,7 +20,6 @@ hself: hsuper: {
   servant-swagger-ui = hlib.doJailbreak hsuper.servant-swagger-ui;
   servant-swagger-ui-core = hlib.doJailbreak hsuper.servant-swagger-ui-core;
   sodium-crypto-sign = hlib.addPkgconfigDepend hsuper.sodium-crypto-sign libsodium.dev;
-  swagger2 = hlib.doJailbreak hsuper.swagger2;
   text-icu-translit = hlib.markUnbroken (hlib.dontCheck hsuper.text-icu-translit);
   text-short = hlib.dontCheck hsuper.text-short;
   type-errors = hlib.dontCheck hsuper.type-errors;

@@ -22,8 +22,8 @@ import Data.ByteString.Char8 as B8
 import Data.CaseInsensitive qualified as CI
 import Data.HashMap.Strict.InsOrd qualified as InsOrdHashMap
 import Data.Metrics.Servant
+import Data.OpenApi qualified as S
 import Data.Proxy
-import Data.Swagger qualified as S
 import Data.Text qualified as Text
 import GHC.TypeLits
 import Imports
@@ -33,10 +33,11 @@ import Network.Wai
 import Servant.API
 import Servant.API.ContentTypes
 import Servant.API.Status
+import Servant.OpenApi (HasOpenApi (toOpenApi))
+import Servant.OpenApi as S
+import Servant.OpenApi.Internal as S
 import Servant.Server hiding (respond)
 import Servant.Server.Internal
-import Servant.Swagger as S
-import Servant.Swagger.Internal as S
 import Wire.API.Routes.Version
 
 -- FUTUREWORK: make it possible to generate headers at runtime
@@ -91,9 +92,9 @@ type instance
 
 instance
   (Accept ctype, KnownNat status, KnownSymbol desc, SwaggerMethod method) =>
-  HasSwagger (LowLevelStream method status headers desc ctype)
+  HasOpenApi (LowLevelStream method status headers desc ctype)
   where
-  toSwagger _ =
+  toOpenApi _ =
     mempty
       & S.paths
         . at "/"

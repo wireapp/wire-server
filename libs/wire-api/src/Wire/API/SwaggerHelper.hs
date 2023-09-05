@@ -19,8 +19,8 @@ module Wire.API.SwaggerHelper where
 
 import Control.Lens
 import Data.Containers.ListUtils (nubOrd)
-import Data.Swagger hiding (Contact, Header, Schema, ToSchema)
-import Data.Swagger qualified as S
+import Data.OpenApi hiding (Contact, Header, Schema, ToSchema)
+import Data.OpenApi qualified as S
 import Imports hiding (head)
 
 cleanupSwagger :: Swagger -> Swagger

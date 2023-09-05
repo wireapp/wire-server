@@ -31,11 +31,11 @@ import Data.ByteString.Lazy (toStrict)
 import Data.Either.Combinators (mapLeft)
 import Data.HashMap.Strict qualified as HM
 import Data.Id as Id
+import Data.OpenApi (ToParamSchema (..))
+import Data.OpenApi qualified as S
 import Data.Range
 import Data.Schema
 import Data.Set qualified as Set
-import Data.Swagger (ToParamSchema (..))
-import Data.Swagger qualified as S
 import Data.Text qualified as T
 import Data.Text.Ascii
 import Data.Text.Encoding qualified as TE
@@ -45,7 +45,7 @@ import GHC.TypeLits (Nat, symbolVal)
 import Imports hiding (exp, head)
 import Prelude.Singletons (Show_)
 import Servant hiding (Handler, JSON, Tagged, addHeader, respond)
-import Servant.Swagger.Internal.Orphans ()
+import Servant.OpenApi.Internal.Orphans ()
 import Test.QuickCheck (Arbitrary (..))
 import URI.ByteString
 import URI.ByteString.QQ qualified as URI.QQ

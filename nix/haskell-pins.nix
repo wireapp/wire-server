@@ -133,13 +133,6 @@ let
         sha256 = "sha256-g2lbKt3+hToVFQvaHOa9dg4HqAL7YgReo8fy7wQavmY=";
       };
     };
-    swagger2 = {
-      src = fetchgit {
-        url = "https://github.com/GetShopTV/swagger2";
-        rev = "d79deca03b714cdd4531217831a8305068b2e8f9";
-        sha256 = "sha256-R3p0L0TgM0Bspe5z6vauwdPq9TmEWpMC53DBkMtCEoE=";
-      };
-    };
     # MR: https://gitlab.com/twittner/cql-io/-/merge_requests/20
     cql-io = {
       src = fetchgit {

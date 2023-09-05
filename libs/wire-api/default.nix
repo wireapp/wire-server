@@ -61,6 +61,7 @@
 , metrics-wai
 , mime
 , mtl
+, openapi3
 , pem
 , polysemy
 , pretty
@@ -81,13 +82,12 @@
 , servant-client-core
 , servant-conduit
 , servant-multipart
+, servant-openapi3
 , servant-server
-, servant-swagger
 , singletons
 , singletons-base
 , singletons-th
 , sop-core
-, swagger2
 , tagged
 , tasty
 , tasty-hspec
@@ -167,6 +167,7 @@ mkDerivation {
     metrics-wai
     mime
     mtl
+    openapi3
     pem
     polysemy
     proto-lens
@@ -185,13 +186,12 @@ mkDerivation {
     servant-client-core
     servant-conduit
     servant-multipart
+    servant-openapi3
     servant-server
-    servant-swagger
     singletons
     singletons-base
     singletons-th
     sop-core
-    swagger2
     tagged
     text
     time
@@ -239,6 +239,7 @@ mkDerivation {
     lens
     memory
     metrics-wai
+    openapi3
     pem
     pretty
     process
@@ -247,7 +248,6 @@ mkDerivation {
     schema-profunctor
     servant
     servant-server
-    swagger2
     tasty
     tasty-hspec
     tasty-hunit

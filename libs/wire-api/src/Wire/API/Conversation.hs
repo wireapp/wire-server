@@ -96,12 +96,12 @@ import Data.List.NonEmpty (NonEmpty)
 import Data.List1
 import Data.Map qualified as Map
 import Data.Misc
+import Data.OpenApi qualified as S
 import Data.Qualified
 import Data.Range (Range, fromRange, rangedSchema)
 import Data.SOP
 import Data.Schema
 import Data.Set qualified as Set
-import Data.Swagger qualified as S
 import Data.UUID qualified as UUID
 import Data.UUID.V5 qualified as UUIDV5
 import Imports

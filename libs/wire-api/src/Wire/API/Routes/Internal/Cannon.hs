@@ -2,10 +2,10 @@ module Wire.API.Routes.Internal.Cannon where
 
 import Control.Lens ((.~))
 import Data.Id
-import Data.Swagger (HasInfo (info), HasTitle (title), Swagger)
+import Data.OpenApi (HasInfo (info), HasTitle (title), Swagger)
 import Imports
 import Servant
-import Servant.Swagger (HasSwagger (toSwagger))
+import Servant.OpenApi (HasOpenApi (toOpenApi))
 import Wire.API.Error
 import Wire.API.Error.Cannon
 import Wire.API.Internal.BulkPush

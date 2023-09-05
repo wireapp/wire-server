@@ -49,9 +49,9 @@ import Data.ByteString qualified as B
 import Data.ByteString.Lazy qualified as LBS
 import Data.Id
 import Data.Json.Util
+import Data.OpenApi qualified as S
 import Data.Qualified
 import Data.Schema
-import Data.Swagger qualified as S
 import Imports hiding (cs)
 import Test.QuickCheck
 import Web.HttpApiData

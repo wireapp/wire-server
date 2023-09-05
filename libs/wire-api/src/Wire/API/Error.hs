@@ -51,10 +51,10 @@ import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Aeson qualified as A
 import Data.Kind
 import Data.Metrics.Servant
+import Data.OpenApi qualified as S
 import Data.Proxy
 import Data.SOP
 import Data.Schema
-import Data.Swagger qualified as S
 import Data.Text qualified as Text
 import Data.Text.Lazy qualified as LT
 import GHC.TypeLits
@@ -65,7 +65,8 @@ import Network.Wai.Utilities.JSONResponse
 import Polysemy
 import Polysemy.Error
 import Servant
-import Servant.Swagger
+import Servant.OpenApi
+import Servant.OpenApi (HasOpenApi (toOpenApi))
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named (Named)
 import Wire.API.Routes.Version
@@ -185,23 +186,23 @@ instance (HasServer api ctx) => HasServer (CanThrowMany es :> api) ctx where
   hoistServerWithContext _ = hoistServerWithContext (Proxy @api)
 
 instance
-  (HasSwagger api, IsSwaggerError e) =>
-  HasSwagger (CanThrow e :> api)
+  (HasOpenApi api, IsSwaggerError e) =>
+  HasOpenApi (CanThrow e :> api)
   where
-  toSwagger _ = addToSwagger @e (toSwagger (Proxy @api))
+  toOpenApi _ = addToOpenApi @e (toOpenApi (Proxy @api))
 
 type instance
   SpecialiseToVersion v (CanThrowMany es :> api) =
     CanThrowMany es :> SpecialiseToVersion v api
 
-instance HasSwagger api => HasSwagger (CanThrowMany '() :> api) where
-  toSwagger _ = toSwagger (Proxy @api)
+instance HasOpenApi api => HasOpenApi (CanThrowMany '() :> api) where
+  toOpenApi _ = toOpenApi (Proxy @api)
 
 instance
-  (HasSwagger (CanThrowMany es :> api), IsSwaggerError e) =>
-  HasSwagger (CanThrowMany '(e, es) :> api)
+  (HasOpenApi (CanThrowMany es :> api), IsSwaggerError e) =>
+  HasOpenApi (CanThrowMany '(e, es) :> api)
   where
-  toSwagger _ = addToSwagger @e (toSwagger (Proxy @(CanThrowMany es :> api)))
+  toOpenApi _ = addToOpenApi @e (toOpenApi (Proxy @(CanThrowMany es :> api)))
 
 type family DeclaredErrorEffects api :: EffectRow where
   DeclaredErrorEffects (CanThrow e :> api) = (ErrorEffect e ': DeclaredErrorEffects api)

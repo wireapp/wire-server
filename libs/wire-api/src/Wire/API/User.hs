@@ -177,13 +177,13 @@ import Data.Json.Util (UTCTimeMillis, (#))
 import Data.LegalHold (UserLegalHoldStatus)
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.Misc (PlainTextPassword6, PlainTextPassword8)
+import Data.OpenApi qualified as S
 import Data.Qualified
 import Data.Range
 import Data.SOP
 import Data.Schema
 import Data.Schema qualified as Schema
 import Data.Set qualified as Set
-import Data.Swagger qualified as S
 import Data.Text qualified as T
 import Data.Text.Ascii
 import Data.Text.Encoding qualified as T

@@ -59,8 +59,8 @@ import Data.Id (ScimTokenId, TeamId, UserId)
 import Data.Json.Util ((#))
 import Data.Map qualified as Map
 import Data.Misc (PlainTextPassword6)
+import Data.OpenApi hiding (Operation)
 import Data.Proxy
-import Data.Swagger hiding (Operation)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Clock (UTCTime)
 import Imports

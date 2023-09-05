@@ -74,11 +74,11 @@ import Data.ByteString.Conversion
 import Data.ByteString.Lazy qualified as LBS
 import Data.Id
 import Data.Json.Util (UTCTimeMillis (fromUTCTimeMillis), toUTCTimeMillis)
+import Data.OpenApi qualified as S
 import Data.Proxy
 import Data.Qualified
 import Data.SOP
 import Data.Schema
-import Data.Swagger qualified as S
 import Data.Text qualified as T
 import Data.Text.Ascii (AsciiBase64Url)
 import Data.Text.Encoding qualified as T

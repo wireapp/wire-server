@@ -26,10 +26,10 @@ where
 import Control.Lens ((?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Kind
+import Data.OpenApi qualified as S
 import Data.Proxy
 import Data.Range
 import Data.Schema
-import Data.Swagger qualified as S
 import Data.Text qualified as Text
 import GHC.TypeLits
 import Imports

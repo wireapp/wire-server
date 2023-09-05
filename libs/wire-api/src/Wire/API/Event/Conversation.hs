@@ -71,10 +71,10 @@ import Data.Aeson qualified as A
 import Data.Aeson.KeyMap qualified as KeyMap
 import Data.Id
 import Data.Json.Util
+import Data.OpenApi qualified as S
 import Data.Qualified
 import Data.SOP
 import Data.Schema
-import Data.Swagger qualified as S
 import Data.Time
 import Imports
 import Test.QuickCheck qualified as QC

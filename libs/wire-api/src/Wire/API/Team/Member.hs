@@ -74,10 +74,10 @@ import Data.Json.Util
 import Data.Kind
 import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
 import Data.Misc (PlainTextPassword6)
+import Data.OpenApi (ToParamSchema (..))
+import Data.OpenApi.Schema qualified as S
 import Data.Proxy
 import Data.Schema
-import Data.Swagger (ToParamSchema (..))
-import Data.Swagger.Schema qualified as S
 import GHC.TypeLits
 import Imports
 import Wire.API.Routes.MultiTablePaging (MultiTablePage (..))

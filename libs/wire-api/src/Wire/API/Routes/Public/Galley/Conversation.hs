@@ -24,7 +24,7 @@ import Data.Range
 import Data.SOP (I (..), NS (..))
 import Imports hiding (head)
 import Servant hiding (WithStatus)
-import Servant.Swagger.Internal.Orphans ()
+import Servant.OpenApi.Internal.Orphans ()
 import Wire.API.Conversation
 import Wire.API.Conversation.Code
 import Wire.API.Conversation.Role

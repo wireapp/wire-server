@@ -31,14 +31,14 @@ where
 
 import Data.Domain
 import Data.Kind
+import Data.OpenApi qualified as S
 import Data.Proxy
-import Data.Swagger qualified as S
 import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.Internal
 import Servant hiding (Union)
-import Servant.Swagger
+import Servant.OpenApi
 import Wire.API.Error
 import Wire.API.Routes.Named
 import Wire.API.Routes.Version
@@ -47,8 +47,8 @@ class ServiceAPI service (v :: Version) where
   type ServiceAPIRoutes service
   type SpecialisedAPIRoutes v service :: Type
   type SpecialisedAPIRoutes v service = SpecialiseToVersion v (ServiceAPIRoutes service)
-  serviceSwagger :: HasSwagger (SpecialisedAPIRoutes v service) => S.Swagger
-  serviceSwagger = toSwagger (Proxy @(SpecialisedAPIRoutes v service))
+  serviceSwagger :: HasOpenApi (SpecialisedAPIRoutes v service) => S.Swagger
+  serviceSwagger = toOpenApi (Proxy @(SpecialisedAPIRoutes v service))
 
 instance ServiceAPI VersionAPITag v where
   type ServiceAPIRoutes VersionAPITag = VersionAPI

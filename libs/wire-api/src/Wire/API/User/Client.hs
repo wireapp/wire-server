@@ -83,11 +83,11 @@ import Data.Id
 import Data.Json.Util
 import Data.Map.Strict qualified as Map
 import Data.Misc (Latitude (..), Location, Longitude (..), PlainTextPassword6, latitude, location, longitude)
+import Data.OpenApi hiding (Schema, ToSchema, schema)
+import Data.OpenApi qualified as Swagger
 import Data.Qualified
 import Data.Schema
 import Data.Set qualified as Set
-import Data.Swagger hiding (Schema, ToSchema, schema)
-import Data.Swagger qualified as Swagger
 import Data.Text.Encoding qualified as Text.E
 import Data.Time.Clock
 import Data.UUID (toASCIIBytes)

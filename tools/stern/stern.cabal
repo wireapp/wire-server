@@ -91,13 +91,13 @@ library
     , lens                   >=4.4
     , metrics-wai            >=0.3
     , mtl                    >=2.1
+    , openapi3               >=3.2     && <3.2.3
     , schema-profunctor
     , servant
+    , servant-openapi3
     , servant-server
-    , servant-swagger
     , servant-swagger-ui
     , split                  >=0.2
-    , swagger2
     , text                   >=1.1
     , tinylog                >=0.10
     , transformers           >=0.3
@@ -110,6 +110,7 @@ library
     , wire-api               >=0.1
     , yaml
 
+  -- openapi3 version 3.2.3 is marked as broken in nix
   default-language:   GHC2021
 
 executable stern

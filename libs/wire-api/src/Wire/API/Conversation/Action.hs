@@ -38,10 +38,10 @@ import Data.Aeson.KeyMap qualified as A
 import Data.Id
 import Data.Kind
 import Data.List.NonEmpty qualified as NonEmptyList
+import Data.OpenApi qualified as S
 import Data.Qualified (Qualified)
 import Data.Schema hiding (tag)
 import Data.Singletons.TH
-import Data.Swagger qualified as S
 import Data.Time.Clock
 import Imports
 import Wire.API.Conversation

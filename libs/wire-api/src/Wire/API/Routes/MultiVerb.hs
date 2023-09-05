@@ -60,12 +60,14 @@ import Data.HashMap.Strict.InsOrd (InsOrdHashMap)
 import Data.HashMap.Strict.InsOrd qualified as InsOrdHashMap
 import Data.Kind
 import Data.Metrics.Servant
+import Data.OpenApi hiding (HasServer, Response, contentType)
+import Data.OpenApi qualified as S hiding (HasServer, Response, contentType)
+import Data.OpenApi.Declare qualified as S
+import Data.OpenApi.Lens qualified as S
 import Data.Proxy
 import Data.SOP
 import Data.Sequence (Seq, (<|), pattern (:<|))
 import Data.Sequence qualified as Seq
-import Data.Swagger qualified as S
-import Data.Swagger.Declare qualified as S
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Data.Typeable
@@ -82,10 +84,10 @@ import Servant.API.ContentTypes
 import Servant.API.Status (KnownStatus (..))
 import Servant.Client
 import Servant.Client.Core hiding (addHeader)
+import Servant.OpenApi as S
+import Servant.OpenApi.Internal as S
 import Servant.Server
 import Servant.Server.Internal
-import Servant.Swagger as S
-import Servant.Swagger.Internal as S
 import Servant.Types.SourceT
 
 type Declare = S.Declare (S.Definitions S.Schema)
@@ -150,7 +152,7 @@ instance MonadPlus UnrenderResult where
   mplus m@(UnrenderSuccess _) _ = m
 
 class IsSwaggerResponse a where
-  responseSwagger :: Declare S.Response
+  responseSwagger :: Declare S.Responses
 
 type family ResponseType a :: Type
 
@@ -191,7 +193,7 @@ instance (AllMimeRender cs a, AllMimeUnrender cs a, KnownStatus s) => IsResponse
       Nothing -> empty
       Just f -> either UnrenderError UnrenderSuccess (f (responseBody output))
 
-simpleResponseSwagger :: forall a desc. (S.ToSchema a, KnownSymbol desc) => Declare S.Response
+simpleResponseSwagger :: forall a desc. (S.ToSchema a, KnownSymbol desc) => Declare S.Responses
 simpleResponseSwagger = do
   ref <- S.declareSchemaRef (Proxy @a)
   pure $
@@ -423,7 +425,7 @@ instance
       (responseSwagger @r)
 
 class IsSwaggerResponseList as where
-  responseListSwagger :: Declare (InsOrdHashMap S.HttpStatusCode S.Response)
+  responseListSwagger :: Declare (InsOrdHashMap S.HttpStatusCode S.Responses)
 
 type family ResponseTypes (as :: [Type]) where
   ResponseTypes '[] = '[]
@@ -473,7 +475,7 @@ instance
       <$> responseSwagger @a
       <*> responseListSwagger @as
 
-combineResponseSwagger :: S.Response -> S.Response -> S.Response
+combineResponseSwagger :: S.Responses -> S.Responses -> S.Responses
 combineResponseSwagger r1 r2 =
   r1
     & S.description <>~ ("\n\n" <> r2 ^. S.description)
@@ -698,44 +700,44 @@ instance
   fromUnion (S (S x)) = case x of {}
 
 instance
-  (SwaggerMethod method, IsSwaggerResponseList as) =>
-  S.HasSwagger (MultiVerb method '() as r)
+  (OpenApiMethod method, IsSwaggerResponseList as) =>
+  S.HasOpenApi (MultiVerb method '() as r)
   where
-  toSwagger _ =
+  toOpenApi _ =
     mempty
-      & S.definitions <>~ defs
+      & S.components . S.schemas <>~ defs
       & S.paths
         . at "/"
         ?~ ( mempty
                & method
                  ?~ ( mempty
-                        & S.responses . S.responses .~ fmap S.Inline responses
+                        & S.responses . S.responses .~ fmap S.Inline resps
                     )
            )
     where
-      method = S.swaggerMethod (Proxy @method)
-      (defs, responses) = S.runDeclare (responseListSwagger @as) mempty
+      method = S.openApiMethod (Proxy @method)
+      (defs, resps) = S.runDeclare (responseListSwagger @as) mempty
 
 instance
-  (SwaggerMethod method, IsSwaggerResponseList as, AllMime cs) =>
-  S.HasSwagger (MultiVerb method (cs :: [Type]) as r)
+  (OpenApiMethod method, IsSwaggerResponseList as, AllMime cs) =>
+  S.HasOpenApi (MultiVerb method (cs :: [Type]) as r)
   where
-  toSwagger _ =
+  toOpenApi _ =
     mempty
-      & S.definitions <>~ defs
+      & S.components . S.schemas <>~ defs
       & S.paths
         . at "/"
         ?~ ( mempty
                & method
                  ?~ ( mempty
                         & S.produces ?~ S.MimeList (nubOrd cs)
-                        & S.responses . S.responses .~ fmap S.Inline responses
+                        & S.responses . S.responses .~ fmap S.Inline resps
                     )
            )
     where
-      method = S.swaggerMethod (Proxy @method)
+      method = S.openApiMethod (Proxy @method)
       cs = allMime (Proxy @cs)
-      (defs, responses) = S.runDeclare (responseListSwagger @as) mempty
+      (defs, resps) = S.runDeclare (responseListSwagger @as) mempty
 
 class Typeable a => IsWaiBody a where
   responseToWai :: ResponseF a -> Wai.Response

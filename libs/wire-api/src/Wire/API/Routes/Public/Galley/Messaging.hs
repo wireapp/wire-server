@@ -22,7 +22,7 @@ import Data.SOP
 import Generics.SOP qualified as GSOP
 import Imports
 import Servant hiding (WithStatus)
-import Servant.Swagger.Internal.Orphans ()
+import Servant.OpenApi.Internal.Orphans ()
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as BrigError
 import Wire.API.Error.Galley

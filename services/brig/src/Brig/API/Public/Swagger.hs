@@ -18,8 +18,8 @@ import Data.Aeson qualified as A
 import Data.FileEmbed
 import Data.HashMap.Strict.InsOrd qualified as HM
 import Data.HashSet.InsOrd qualified as InsOrdSet
-import Data.Swagger qualified as S
-import Data.Swagger.Declare qualified as S
+import Data.OpenApi qualified as S
+import Data.OpenApi.Declare qualified as S
 import Data.Text qualified as T
 import FileEmbedLzma
 import GHC.TypeLits
@@ -27,7 +27,7 @@ import Imports hiding (head)
 import Language.Haskell.TH
 import Network.Socket
 import Servant
-import Servant.Swagger.Internal.Orphans ()
+import Servant.OpenApi.Internal.Orphans ()
 import Servant.Swagger.UI
 import Wire.API.Event.Conversation qualified
 import Wire.API.Event.FeatureConfig qualified

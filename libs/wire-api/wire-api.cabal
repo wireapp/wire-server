@@ -270,6 +270,7 @@ library
     , metrics-wai
     , mime                       >=0.4
     , mtl
+    , openapi3                   >=3.2     && <3.2.3
     , pem                        >=0.2
     , polysemy
     , proto-lens
@@ -288,13 +289,12 @@ library
     , servant-client-core
     , servant-conduit
     , servant-multipart
+    , servant-openapi3
     , servant-server
-    , servant-swagger
     , singletons
     , singletons-base
     , singletons-th
     , sop-core
-    , swagger2
     , tagged
     , text                       >=0.11
     , time                       >=1.4
@@ -748,12 +748,12 @@ test-suite wire-api-tests
     , imports
     , memory
     , metrics-wai
+    , openapi3                 >=3.2     && <3.2.3
     , process
     , QuickCheck
     , schema-profunctor
     , servant
     , servant-server
-    , swagger2
     , tasty
     , tasty-hspec
     , tasty-hunit

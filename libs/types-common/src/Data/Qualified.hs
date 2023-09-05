@@ -55,8 +55,8 @@ import Data.Domain (Domain)
 import Data.Handle (Handle (..))
 import Data.Id
 import Data.Map qualified as Map
+import Data.OpenApi qualified as S
 import Data.Schema
-import Data.Swagger qualified as S
 import Imports hiding (local)
 import Test.QuickCheck (Arbitrary (arbitrary))
 
@@ -198,7 +198,7 @@ instance KnownIdTag t => ToJSON (Qualified (Id t)) where
 instance KnownIdTag t => FromJSON (Qualified (Id t)) where
   parseJSON = schemaParseJSON
 
-instance KnownIdTag t => S.ToSchema (Qualified (Id t)) where
+instance (Typeable t, KnownIdTag t) => S.ToSchema (Qualified (Id t)) where
   declareNamedSchema = schemaToSwagger
 
 instance ToJSON (Qualified Handle) where

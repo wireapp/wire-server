@@ -24,9 +24,9 @@ import Data.Aeson (FromJSON, ToJSON (toJSON))
 import Data.Domain (Domain)
 import Data.Id (UserId)
 import Data.Map qualified as Map
+import Data.OpenApi (HasDescription (description), HasExample (example), NamedSchema (..), ToSchema (..), declareSchema, toSchema)
 import Data.Proxy (Proxy (..))
 import Data.Set qualified as Set
-import Data.Swagger (HasDescription (description), HasExample (example), NamedSchema (..), ToSchema (..), declareSchema, toSchema)
 import Data.Text qualified as Text
 import Data.Typeable (typeRep)
 import Imports

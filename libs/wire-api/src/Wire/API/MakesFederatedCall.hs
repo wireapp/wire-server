@@ -35,16 +35,17 @@ import Data.Aeson
 import Data.Constraint
 import Data.Kind
 import Data.Metrics.Servant
+import Data.OpenApi.Operation (addExtensions)
 import Data.Proxy
 import Data.Schema
-import Data.Swagger.Operation (addExtensions)
 import Data.Text qualified as T
 import GHC.TypeLits
 import Imports
 import Servant.API
 import Servant.Client
+import Servant.OpenApi
+import Servant.OpenApi (HasOpenApi (toOpenApi))
 import Servant.Server
-import Servant.Swagger
 import Test.QuickCheck (Arbitrary)
 import TransitiveAnns.Types
 import Unsafe.Coerce (unsafeCoerce)
@@ -158,9 +159,9 @@ type instance
 
 -- | 'MakesFederatedCall' annotates the swagger documentation with an extension
 -- tag @x-wire-makes-federated-calls-to@.
-instance (HasSwagger api, KnownSymbol name, KnownSymbol (ShowComponent comp)) => HasSwagger (MakesFederatedCall comp name :> api :: Type) where
-  toSwagger _ =
-    toSwagger (Proxy @api)
+instance (HasOpenApi api, KnownSymbol name, KnownSymbol (ShowComponent comp)) => HasOpenApi (MakesFederatedCall comp name :> api :: Type) where
+  toOpenApi _ =
+    toOpenApi (Proxy @api)
       & addExtensions
         mergeJSONArray
         [ ( "wire-makes-federated-call-to",

@@ -28,18 +28,18 @@ import Data.Handle
 import Data.Id as Id
 import Data.Misc (IpAddr)
 import Data.Nonce (Nonce)
+import Data.OpenApi hiding (Contact, Header, Schema, ToSchema)
+import Data.OpenApi qualified as S
 import Data.Qualified (Qualified (..))
 import Data.Range
 import Data.SOP
 import Data.Schema as Schema
-import Data.Swagger hiding (Contact, Header, Schema, ToSchema)
-import Data.Swagger qualified as S
 import Generics.SOP qualified as GSOP
 import Imports hiding (head)
 import Network.Wai.Utilities
 import Servant (JSON)
 import Servant hiding (Handler, JSON, addHeader, respond)
-import Servant.Swagger.Internal.Orphans ()
+import Servant.OpenApi.Internal.Orphans ()
 import Wire.API.Call.Config (RTCConfiguration)
 import Wire.API.Connection hiding (MissingLegalholdConsent)
 import Wire.API.Error

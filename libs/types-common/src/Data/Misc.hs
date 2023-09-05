@@ -77,9 +77,9 @@ import Data.ByteString.Char8 (unpack)
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (toStrict)
 import Data.IP (IP (IPv4, IPv6), toIPv4, toIPv6b)
+import Data.OpenApi qualified as S
 import Data.Range
 import Data.Schema
-import Data.Swagger qualified as S
 import Data.Text qualified as Text
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import GHC.TypeLits (Nat)
@@ -100,7 +100,7 @@ newtype IpAddr = IpAddr {ipAddr :: IP}
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema IpAddr)
 
 instance S.ToParamSchema IpAddr where
-  toParamSchema _ = mempty & S.type_ ?~ S.SwaggerString
+  toParamSchema _ = mempty & S.type_ ?~ S.OpenApiString
 
 instance FromHttpApiData IpAddr where
   parseQueryParam p = first Text.pack (runParser parser (encodeUtf8 p))
@@ -314,7 +314,7 @@ deriving via
 deriving via
   (Schema (Fingerprint a))
   instance
-    (ToSchema (Fingerprint a)) =>
+    (Typeable a, ToSchema (Fingerprint a)) =>
     S.ToSchema (Fingerprint a)
 
 instance ToSchema (Fingerprint Rsa) where
@@ -378,7 +378,7 @@ deriving via (Schema (PlainTextPassword' tag)) instance ToSchema (PlainTextPassw
 
 deriving via (Schema (PlainTextPassword' tag)) instance ToSchema (PlainTextPassword' tag) => ToJSON (PlainTextPassword' tag)
 
-deriving via (Schema (PlainTextPassword' tag)) instance ToSchema (PlainTextPassword' tag) => S.ToSchema (PlainTextPassword' tag)
+deriving via (Schema (PlainTextPassword' tag)) instance (KnownNat tag, ToSchema (PlainTextPassword' tag)) => S.ToSchema (PlainTextPassword' tag)
 
 instance Show (PlainTextPassword' minLen) where
   show _ = "PlainTextPassword' <hidden>"

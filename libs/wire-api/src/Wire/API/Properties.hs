@@ -30,7 +30,7 @@ import Data.Aeson (FromJSON (..), ToJSON (..), Value)
 import Data.Aeson qualified as A
 import Data.ByteString.Conversion
 import Data.Hashable (Hashable)
-import Data.Swagger qualified as S
+import Data.OpenApi qualified as S
 import Data.Text.Ascii
 import Imports
 import Servant

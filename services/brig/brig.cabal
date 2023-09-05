@@ -257,6 +257,7 @@ library
     , mwc-random
     , network                    >=2.4
     , network-conduit-tls
+    , openapi3                   >=3.2     && <3.2.3
     , optparse-applicative       >=0.11
     , polysemy
     , polysemy-plugin
@@ -273,15 +274,14 @@ library
     , schema-profunctor
     , scientific                 >=0.3.4
     , servant
+    , servant-openapi3
     , servant-server
-    , servant-swagger
     , servant-swagger-ui
     , sodium-crypto-sign         >=0.1
     , split                      >=0.2
     , ssl-util
     , statistics                 >=0.13
     , stomp-queue                >=0.3
-    , swagger2
     , template                   >=0.2
     , template-haskell
     , text                       >=0.11

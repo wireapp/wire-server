@@ -618,15 +618,15 @@ test-suite spec
     , metrics-wai
     , mtl
     , network-uri
+    , openapi3               >=3.2  && <3.2.3
     , polysemy
     , polysemy-plugin
     , polysemy-wire-zoo
     , QuickCheck
     , saml2-web-sso          >=0.19
     , servant
-    , servant-swagger
+    , servant-openapi3
     , spar
-    , swagger2
     , time
     , tinylog
     , types-common

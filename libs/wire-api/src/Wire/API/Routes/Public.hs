@@ -44,18 +44,18 @@ import Data.HashMap.Strict.InsOrd qualified as InsOrdHashMap
 import Data.Id as Id
 import Data.Kind
 import Data.Metrics.Servant
+import Data.OpenApi hiding (Header)
 import Data.Qualified
-import Data.Swagger hiding (Header)
 import GHC.Base (Symbol)
 import GHC.TypeLits (KnownSymbol)
 import Imports hiding (All, head)
 import Network.Wai qualified as Wai
 import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.API.Modifiers
+import Servant.OpenApi (HasOpenApi (toOpenApi))
 import Servant.Server.Internal.Delayed
 import Servant.Server.Internal.DelayedIO
 import Servant.Server.Internal.Router (Router)
-import Servant.Swagger (HasSwagger (toSwagger))
 import Wire.API.OAuth qualified as OAuth
 import Wire.API.Routes.Version
 
@@ -223,8 +223,8 @@ type ZHostValue = Text
 type ZOptHostHeader =
   Header' '[Servant.Optional, Strict] "Z-Host" ZHostValue
 
-instance HasSwagger api => HasSwagger (ZHostOpt :> api) where
-  toSwagger _ = toSwagger (Proxy @api)
+instance HasOpenApi api => HasOpenApi (ZHostOpt :> api) where
+  toOpenApi _ = toOpenApi (Proxy @api)
 
 type instance SpecialiseToVersion v (ZHostOpt :> api) = ZHostOpt :> SpecialiseToVersion v api
 
@@ -244,11 +244,11 @@ type instance
   SpecialiseToVersion v (ZAuthServant t opts :> api) =
     ZAuthServant t opts :> SpecialiseToVersion v api
 
-instance HasSwagger api => HasSwagger (ZAuthServant 'ZAuthUser _opts :> api) where
-  toSwagger _ = addZAuthSwagger (toSwagger (Proxy @api))
+instance HasOpenApi api => HasOpenApi (ZAuthServant 'ZAuthUser _opts :> api) where
+  toOpenApi _ = addZAuthSwagger (toSwagger (Proxy @api))
 
-instance HasSwagger api => HasSwagger (ZAuthServant 'ZLocalAuthUser opts :> api) where
-  toSwagger _ = addZAuthSwagger (toSwagger (Proxy @api))
+instance HasOpenApi api => HasOpenApi (ZAuthServant 'ZLocalAuthUser opts :> api) where
+  toOpenApi _ = addZAuthSwagger (toSwagger (Proxy @api))
 
 instance HasLink endpoint => HasLink (ZAuthServant usr opts :> endpoint) where
   type MkLink (ZAuthServant _ _ :> endpoint) a = MkLink endpoint a
@@ -256,10 +256,10 @@ instance HasLink endpoint => HasLink (ZAuthServant usr opts :> endpoint) where
 
 instance
   {-# OVERLAPPABLE #-}
-  HasSwagger api =>
-  HasSwagger (ZAuthServant ztype _opts :> api)
+  HasOpenApi api =>
+  HasOpenApi (ZAuthServant ztype _opts :> api)
   where
-  toSwagger _ = toSwagger (Proxy @api)
+  toOpenApi _ = toOpenApi (Proxy @api)
 
 instance
   ( HasContextEntry (ctx .++ DefaultErrorFormatters) ErrorFormatters,
@@ -331,10 +331,10 @@ type instance
     DescriptionOAuthScope scope :> SpecialiseToVersion v api
 
 instance
-  (HasSwagger api, OAuth.IsOAuthScope scope) =>
-  HasSwagger (DescriptionOAuthScope scope :> api)
+  (HasOpenApi api, OAuth.IsOAuthScope scope) =>
+  HasOpenApi (DescriptionOAuthScope scope :> api)
   where
-  toSwagger _ = addScopeDescription @scope (toSwagger (Proxy @api))
+  toOpenApi _ = addScopeDescription @scope (toOpenApi (Proxy @api))
 
 addScopeDescription :: forall scope. OAuth.IsOAuthScope scope => Swagger -> Swagger
 addScopeDescription = allOperations . description %~ Just . (<> "\nOAuth scope: `" <> cs (toByteString (OAuth.toOAuthScope @scope)) <> "`") . fold

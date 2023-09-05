@@ -22,7 +22,7 @@ import Data.Binary
 import Data.Binary.Get
 import Data.Binary.Put
 import Data.ByteString.Lazy qualified as LBS
-import Data.Swagger qualified as S
+import Data.OpenApi qualified as S
 import Imports
 import Test.QuickCheck hiding (label)
 import Wire.API.MLS.CipherSuite

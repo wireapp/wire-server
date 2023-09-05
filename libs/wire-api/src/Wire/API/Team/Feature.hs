@@ -98,10 +98,10 @@ import Data.Either.Extra (maybeToEither)
 import Data.Id
 import Data.Kind
 import Data.Misc (HttpsUrl)
+import Data.OpenApi qualified as S
 import Data.Proxy
 import Data.Schema
 import Data.Scientific (toBoundedInteger)
-import Data.Swagger qualified as S
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
 import Data.Text.Lazy qualified as TL

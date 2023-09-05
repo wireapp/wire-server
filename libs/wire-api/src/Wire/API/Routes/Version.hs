@@ -52,9 +52,9 @@ import Data.Binary.Builder qualified as Builder
 import Data.ByteString.Conversion (ToByteString (builder), toByteString')
 import Data.ByteString.Lazy qualified as LBS
 import Data.Domain
+import Data.OpenApi qualified as S
 import Data.Schema
 import Data.Singletons.Base.TH
-import Data.Swagger qualified as S
 import Data.Text qualified as Text
 import Data.Text.Encoding as Text
 import GHC.TypeLits

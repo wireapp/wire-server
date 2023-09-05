@@ -20,7 +20,7 @@ module Test.Brig.Roundtrip where
 import Data.Aeson (FromJSON, ToJSON, parseJSON, toJSON)
 import Data.Aeson.Types (parseEither)
 import Data.ByteString.Conversion
-import Data.Swagger (ToSchema, validatePrettyToJSON)
+import Data.OpenApi (ToSchema, validatePrettyToJSON)
 import Imports
 import Test.Tasty (TestTree)
 import Test.Tasty.QuickCheck (Arbitrary, counterexample, testProperty, (.&&.), (===))

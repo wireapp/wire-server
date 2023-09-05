@@ -30,10 +30,10 @@ import Data.Aeson
 import Data.Aeson.TH
 import Data.ByteString.Conversion
 import Data.Json.Util
+import Data.OpenApi qualified as Swagger
 import Data.Proxy
 import Data.Range
 import Data.Schema qualified as S
-import Data.Swagger qualified as Swagger
 import Galley.Types.Teams
 import Imports
 import Servant.API

@@ -22,9 +22,9 @@ module Data.CommaSeparatedList where
 import Control.Lens ((?~))
 import Data.Bifunctor qualified as Bifunctor
 import Data.ByteString.Conversion (FromByteString, List, fromList, parser, runParser)
+import Data.OpenApi
 import Data.Proxy (Proxy (..))
 import Data.Range (Bounds, Range)
-import Data.Swagger (CollectionFormat (CollectionCSV), SwaggerItems (SwaggerItemsPrimitive), SwaggerType (SwaggerString), ToParamSchema (..), items, type_)
 import Data.Text qualified as Text
 import Data.Text.Encoding (encodeUtf8)
 import Imports
@@ -40,10 +40,10 @@ instance FromByteString (List a) => FromHttpApiData (CommaSeparatedList a) where
     CommaSeparatedList . fromList <$> Bifunctor.first Text.pack (runParser parser $ encodeUtf8 t)
 
 instance ToParamSchema (CommaSeparatedList a) where
-  toParamSchema _ = mempty & type_ ?~ SwaggerString
+  toParamSchema _ = mempty & type_ ?~ OpenApiString
 
 -- | TODO: is this obsoleted by the instances in "Data.Range"?
 instance (ToParamSchema a, ToParamSchema (Range n m [a])) => ToParamSchema (Range n m (CommaSeparatedList a)) where
   toParamSchema _ =
     toParamSchema (Proxy @(Range n m [a]))
-      & items ?~ SwaggerItemsPrimitive (Just CollectionCSV) (toParamSchema (Proxy @a))
+      & items ?~ OpenApiItemsArray [Inline $ toParamSchema (Proxy @a)]

@@ -71,11 +71,11 @@ import Data.ByteString.Lazy qualified as L
 import Data.Char qualified as Char
 import Data.Default (Default (..))
 import Data.Hashable (Hashable)
+import Data.OpenApi qualified as S
+import Data.OpenApi.Internal.ParamSchema (ToParamSchema (..))
 import Data.ProtocolBuffers.Internal
 import Data.Proxy
 import Data.Schema
-import Data.Swagger qualified as S
-import Data.Swagger.Internal.ParamSchema (ToParamSchema (..))
 import Data.Text qualified as T
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Text.Lazy (toStrict)

@@ -76,9 +76,9 @@ import Data.ByteString.Conversion
 import Data.Code qualified as Code
 import Data.Id (TeamId, UserId)
 import Data.Misc (PlainTextPassword6)
+import Data.OpenApi qualified as S
 import Data.Range
 import Data.Schema
-import Data.Swagger qualified as S
 import Data.Text.Encoding qualified as T
 import Imports
 import Test.QuickCheck.Gen (suchThat)

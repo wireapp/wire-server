@@ -32,14 +32,14 @@ import Data.Aeson qualified as A
 import Data.Handle
 import Data.Id
 import Data.Kind
+import Data.OpenApi qualified as S
 import Data.Schema qualified as Schema
-import Data.Swagger qualified as S
 import Imports hiding (head)
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities
 import Servant hiding (Handler, WithStatus (..), addHeader, respond)
-import Servant.Swagger (HasSwagger (toSwagger))
-import Servant.Swagger.Internal.Orphans ()
+import Servant.OpenApi (HasOpenApi (toOpenApi))
+import Servant.OpenApi.Internal.Orphans ()
 import Servant.Swagger.UI
 import Stern.Types
 import Wire.API.CustomBackend

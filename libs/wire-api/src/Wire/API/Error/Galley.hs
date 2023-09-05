@@ -37,11 +37,11 @@ import Control.Lens ((%~), (.~), (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Containers.ListUtils
 import Data.Domain
+import Data.OpenApi qualified as S
 import Data.Proxy
 import Data.Qualified
 import Data.Schema
 import Data.Singletons.TH (genSingletons)
-import Data.Swagger qualified as S
 import Data.Tagged
 import GHC.TypeLits
 import Imports

@@ -18,10 +18,10 @@
 module Wire.API.Routes.Internal.Cargohold where
 
 import Control.Lens
-import Data.Swagger
+import Data.OpenApi
 import Imports
 import Servant
-import Servant.Swagger
+import Servant.OpenApi
 import Wire.API.Routes.MultiVerb
 
 type InternalAPI =

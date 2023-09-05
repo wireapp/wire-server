@@ -27,7 +27,7 @@ import Data.Aeson as A
 import Data.Aeson.Types qualified as A
 import Data.HashMap.Strict.InsOrd qualified as HM
 import Data.Map qualified as M
-import Data.Swagger
+import Data.OpenApi
   ( PathItem,
     Swagger,
     _operationExtensions,

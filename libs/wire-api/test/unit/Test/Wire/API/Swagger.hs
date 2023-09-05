@@ -18,7 +18,7 @@
 module Test.Wire.API.Swagger (tests) where
 
 import Data.Aeson (ToJSON)
-import Data.Swagger (ToSchema, validatePrettyToJSON)
+import Data.OpenApi (ToSchema, validatePrettyToJSON)
 import Imports
 import Test.Tasty qualified as T
 import Test.Tasty.QuickCheck (Arbitrary, counterexample, testProperty)

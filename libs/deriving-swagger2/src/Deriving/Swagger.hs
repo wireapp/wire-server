@@ -22,10 +22,10 @@ module Deriving.Swagger where
 import Data.Char qualified as Char
 import Data.Kind (Constraint)
 import Data.List.Extra (stripSuffix)
+import Data.OpenApi (SchemaOptions, ToSchema (..), constructorTagModifier, defaultSchemaOptions, fieldLabelModifier, genericDeclareNamedSchema)
+import Data.OpenApi.Internal.Schema (GToSchema)
+import Data.OpenApi.Internal.TypeShape (TypeHasSimpleShape)
 import Data.Proxy (Proxy (..))
-import Data.Swagger (SchemaOptions, ToSchema (..), constructorTagModifier, defaultSchemaOptions, fieldLabelModifier, genericDeclareNamedSchema)
-import Data.Swagger.Internal.Schema (GToSchema)
-import Data.Swagger.Internal.TypeShape (TypeHasSimpleShape)
 import GHC.Generics (Generic (Rep))
 import GHC.TypeLits (ErrorMessage (Text), KnownSymbol, Symbol, TypeError, symbolVal)
 import Imports
@@ -96,6 +96,8 @@ instance (StringModifier f, SwaggerOptions xs) => SwaggerOptions (ConstructorTag
 
 instance
   ( SwaggerOptions t,
+    Typeable t,
+    Typeable a,
     Generic a,
     GToSchema (Rep a),
     TypeHasSimpleShape a "genericDeclareNamedSchemaUnrestricted"

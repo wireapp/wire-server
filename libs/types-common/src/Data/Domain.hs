@@ -31,8 +31,8 @@ import Data.ByteString qualified as BS
 import Data.ByteString.Builder qualified as Builder
 import Data.ByteString.Char8 qualified as BS.Char8
 import Data.ByteString.Conversion
+import Data.OpenApi qualified as S
 import Data.Schema
-import Data.Swagger qualified as S
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text.E
 import Imports hiding (isAlphaNum)

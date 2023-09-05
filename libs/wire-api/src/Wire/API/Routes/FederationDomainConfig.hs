@@ -26,8 +26,8 @@ where
 import Control.Lens ((?~))
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Domain (Domain)
+import Data.OpenApi qualified as S
 import Data.Schema
-import Data.Swagger qualified as S
 import GHC.Generics
 import Imports
 import Wire.API.User.Search (FederatedUserSearchPolicy)

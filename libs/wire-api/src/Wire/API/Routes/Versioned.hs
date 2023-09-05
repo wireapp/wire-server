@@ -20,15 +20,15 @@ module Wire.API.Routes.Versioned where
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Kind
 import Data.Metrics.Servant
+import Data.OpenApi qualified as S
 import Data.Schema
 import Data.Singletons
-import Data.Swagger qualified as S
 import GHC.TypeLits
 import Imports
 import Servant
 import Servant.API.ContentTypes
-import Servant.Swagger
-import Servant.Swagger.Internal
+import Servant.OpenApi
+import Servant.OpenApi.Internal
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Version
 
@@ -63,12 +63,12 @@ type instance
 
 instance
   ( S.ToSchema (Versioned v a),
-    HasSwagger api,
+    HasOpenApi api,
     AllAccept cts
   ) =>
-  HasSwagger (VersionedReqBody v cts a :> api)
+  HasOpenApi (VersionedReqBody v cts a :> api)
   where
-  toSwagger _ = toSwagger (Proxy @(ReqBody cts (Versioned v a) :> api))
+  toOpenApi _ = toOpenApi (Proxy @(ReqBody cts (Versioned v a) :> api))
 
 --------------------------------------------------------------------------------
 -- Versioned responses
