@@ -129,7 +129,7 @@ testHandleLookup originDomain brig brigTwo = do
   -- Get result from brig two for comparison
   let domain = qDomain $ userQualifiedId userBrigTwo
   allowFullSearch brigTwo originDomain
-  resultViaBrigTwo <- getUserInfoFromHandle brigTwo domain handle -- this crashes with 404 handle not found.  with "no such end-point" on v4, and with "no handle" on v1
+  resultViaBrigTwo <- getUserInfoFromHandle brigTwo domain handle
 
   -- query the local-namespace brig for a user sitting on the other backend
   -- (which will exercise the network traffic via two federators to the remote brig)
