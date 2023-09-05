@@ -93,14 +93,14 @@ testNotificationsForOfflineBackends = do
         isDelUserLeaveUpConvNotif = allPreds [isConvLeaveNotif, isNotifConv upBackendConv, isNotifForUser delUser]
 
     do
-      newMsgNotif <- awaitNotification otherUser otherClient noValue 1 isNewMessageNotif
+      newMsgNotif <- awaitNotification otherUser otherClient noValue 2 isNewMessageNotif
       newMsgNotif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject upBackendConv
       newMsgNotif %. "payload.0.data.text" `shouldMatchBase64` "success message for other user"
 
-      void $ awaitNotification otherUser otherClient (Just newMsgNotif) 1 isOtherUser2LeaveUpConvNotif
-      void $ awaitNotification otherUser otherClient (Just newMsgNotif) 1 isDelUserLeaveUpConvNotif
+      void $ awaitNotification otherUser otherClient (Just newMsgNotif) 2 isOtherUser2LeaveUpConvNotif
+      void $ awaitNotification otherUser otherClient (Just newMsgNotif) 2 isDelUserLeaveUpConvNotif
 
-      delUserDeletedNotif <- nPayload $ awaitNotification otherUser otherClient (Just newMsgNotif) 1 isDeleteUserNotif
+      delUserDeletedNotif <- nPayload $ awaitNotification otherUser otherClient (Just newMsgNotif) 2 isDeleteUserNotif
       objQid delUserDeletedNotif `shouldMatch` objQid delUser
 
     runCodensity (startDynamicBackend downBackend mempty) $ \_ -> do
