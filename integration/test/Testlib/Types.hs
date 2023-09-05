@@ -111,8 +111,7 @@ data IntegrationConfig = IntegrationConfig
   { backendOne :: BackendConfig,
     backendTwo :: BackendConfig,
     dynamicBackends :: Map String DynamicBackendConfig,
-    rabbitmq :: RabbitMQConfig,
-    cassandra :: HostPort
+    rabbitmq :: RabbitMQConfig
   }
   deriving (Show, Generic)
 
@@ -124,7 +123,6 @@ instance FromJSON IntegrationConfig where
         <*> o .: fromString "backendTwo"
         <*> o .: fromString "dynamicBackends"
         <*> o .: fromString "rabbitmq"
-        <*> o .: fromString "cassandra"
 
 data ServiceMap = ServiceMap
   { brig :: HostPort,
