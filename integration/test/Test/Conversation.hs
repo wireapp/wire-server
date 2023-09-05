@@ -630,3 +630,28 @@ testDeleteTeamConversationWithUnreachableRemoteMembers = do
     assertNotification alice aliceClient
     void $ runCodensity (startDynamicBackend dynBackend mempty) $ \_ ->
       assertNotification bob bobClient
+
+testLeaveConversationSuccess :: HasCallStack => App ()
+testLeaveConversationSuccess = do
+  [alice, bob, chad, dee] <-
+    createAndConnectUsers [OwnDomain, OwnDomain, OtherDomain, OtherDomain]
+  [aClient, bClient] <- forM [alice, bob] $ \user ->
+    objId $ bindResponse (addClient user def) $ getJSON 201
+  let overrides =
+        def {brigCfg = setField "optSettings.setFederationStrategy" "allowAll"}
+  startDynamicBackends [overrides] $ \[dynDomain] -> do
+    eve <- randomUser dynDomain def
+    eClient <- objId $ bindResponse (addClient eve def) $ getJSON 201
+    connectUsers alice eve
+    conv <-
+      postConversation
+        alice
+        ( defProteus
+            { qualifiedUsers = [bob, chad, dee, eve]
+            }
+        )
+        >>= getJSON 201
+    void $ removeMember chad conv chad >>= getBody 200
+    assertLeaveNotification chad conv alice aClient chad
+    assertLeaveNotification chad conv bob bClient chad
+    assertLeaveNotification chad conv eve eClient chad

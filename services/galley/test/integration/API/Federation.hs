@@ -83,7 +83,6 @@ tests s =
       test s "POST /federation/on-conversation-updated : Notify local user about receipt mode update" notifyReceiptMode,
       test s "POST /federation/on-conversation-updated : Notify local user about access update" notifyAccess,
       test s "POST /federation/on-conversation-updated : Notify local users about a deleted conversation" notifyDeletedConversation,
-      test s "POST /federation/leave-conversation : Success" leaveConversationSuccess,
       test s "POST /federation/leave-conversation : Non-existent" leaveConversationNonExistent,
       test s "POST /federation/leave-conversation : Invalid type" leaveConversationInvalidType,
       test s "POST /federation/on-message-sent : Receive a message from another backend" onMessageSent,
@@ -710,75 +709,6 @@ addRemoteUser = do
         wsAssertMemberJoinWithRole qconv qbob [qeve, qdee] roleNameWireMember
       WS.assertNoEvent (1 # Second) [wsC]
       WS.assertNoEvent (1 # Second) [wsF]
-
-leaveConversationSuccess :: TestM ()
-leaveConversationSuccess = do
-  localDomain <- viewFederationDomain
-  c <- view tsCannon
-  [alice, bob] <- randomUsers 2
-  let qBob = Qualified bob localDomain
-      remoteDomain1 = Domain "far-away-1.example.com"
-      remoteDomain2 = Domain "far-away-2.example.com"
-  qChad <- (`Qualified` remoteDomain1) <$> randomId
-  qDee <- (`Qualified` remoteDomain1) <$> randomId
-  qEve <- (`Qualified` remoteDomain2) <$> randomId
-  connectUsers alice (singleton bob)
-  connectWithRemoteUser alice qChad
-  connectWithRemoteUser alice qDee
-  connectWithRemoteUser alice qEve
-
-  let mock = do
-        guardRPC "get-users-by-ids"
-        d <- frTargetDomain <$> getRequest
-        asum
-          [ guard (d == remoteDomain1)
-              *> mockReply [mkProfile qChad (Name "Chad"), mkProfile qDee (Name "Dee")],
-            guard (d == remoteDomain2)
-              *> mockReply [mkProfile qEve (Name "Eve")]
-          ]
-
-  convId <-
-    decodeConvId
-      <$> postConvWithRemoteUsersGeneric
-        (mock <|> mockReply EmptyResponse)
-        alice
-        Nothing
-        defNewProteusConv
-          { newConvQualifiedUsers = [qBob, qChad, qDee, qEve]
-          }
-  let qconvId = Qualified convId localDomain
-
-  (_, federatedRequests) <-
-    WS.bracketR2 c alice bob $ \(wsAlice, wsBob) -> do
-      withTempMockFederator'
-        ( "get-not-fully-connected-backends" ~>
-            NonConnectedBackends mempty
-              <|> mock
-              <|> mockReply EmptyResponse
-        )
-        $ do
-          g <- viewGalley
-          let leaveRequest = FedGalley.LeaveConversationRequest convId (qUnqualified qChad)
-          respBS <-
-            post
-              ( g
-                  . paths ["federation", "leave-conversation"]
-                  . content "application/json"
-                  . header "Wire-Origin-Domain" (toByteString' remoteDomain1)
-                  . json leaveRequest
-              )
-              <!! const 200 === statusCode
-          parsedResp :: LeaveConversationResponse <- responseJsonError respBS
-          liftIO $ do
-            parsedResp.response @?= Right mempty
-            void . WS.assertMatch (3 # Second) wsAlice $
-              wsAssertMembersLeave qconvId qChad [qChad]
-            void . WS.assertMatch (3 # Second) wsBob $
-              wsAssertMembersLeave qconvId qChad [qChad]
-
-  liftIO $ fedRequestsForDomain remoteDomain1 Galley federatedRequests @?= []
-  let [remote2GalleyFederatedRequest] = fedRequestsForDomain remoteDomain2 Galley federatedRequests
-  assertLeaveUpdate remote2GalleyFederatedRequest qconvId qChad [qUnqualified qEve]
 
 leaveConversationNonExistent :: TestM ()
 leaveConversationNonExistent = do
