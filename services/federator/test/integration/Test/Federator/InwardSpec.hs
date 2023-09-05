@@ -28,6 +28,7 @@ import Data.Aeson.Types qualified as Aeson
 import Data.ByteString qualified as BS
 import Data.ByteString.Conversion (toByteString')
 import Data.ByteString.Lazy qualified as LBS
+import Data.Domain
 import Data.Handle
 import Data.LegalHold (UserLegalHoldStatus (UserLegalHoldNoConsent))
 import Data.Text.Encoding
@@ -41,7 +42,9 @@ import Test.QuickCheck (arbitrary, generate)
 import Util.Options (Endpoint (Endpoint))
 import Wire.API.Federation.API.Cargohold
 import Wire.API.Federation.Domain
+import Wire.API.Routes.FederationDomainConfig (FederationDomainConfig (..))
 import Wire.API.User
+import Wire.API.User.Search (FederatedUserSearchPolicy (FullSearch))
 
 -- | This module contains tests for the interface between federator and brig.  The tests call
 -- federator directly, circumnventing ingress:
@@ -71,11 +74,12 @@ spec env =
         _ <- putHandle brig (userId user) hdl
 
         let expectedProfile = (publicProfile user UserLegalHoldNoConsent) {profileHandle = Just (Handle hdl)}
-        backendTwoDomain <- toByteString' <$> asks (._teTstOpts.backendTwo.originDomain)
+        backendTwoDomain <- asks (._teTstOpts.backendTwo.originDomain)
+        post (brig . path "/i/federation/remotes" . Bilge.json (FederationDomainConfig (Domain backendTwoDomain) FullSearch)) !!! const 200 === statusCode
         bdy <-
           responseJsonError
             -- Explicitly make the call from a domain outside of Federator's own domain
-            =<< inwardCallWithOriginDomain backendTwoDomain "/federation/brig/get-user-by-handle" (encode hdl)
+            =<< inwardCallWithOriginDomain (toByteString' backendTwoDomain) "/federation/brig/get-user-by-handle" (encode hdl)
               <!! const 200 === statusCode
         liftIO $ bdy `shouldBe` expectedProfile
 
