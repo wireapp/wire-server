@@ -21,11 +21,14 @@ module Test.MessageTimer where
 
 import API.Brig
 import API.Galley
+import Control.Monad.Codensity
+import Control.Monad.Reader
 import Data.Timeout
 import GHC.Stack
 import Notifications
 import SetupHelpers
 import Testlib.Prelude
+import Testlib.ResourcePool
 
 testMessageTimerChangeWithRemotes :: HasCallStack => App ()
 testMessageTimerChangeWithRemotes = do
@@ -36,5 +39,22 @@ testMessageTimerChangeWithRemotes = do
       update :: Word64 = t #> MilliSecond
    in void $ updateMessageTimer alice conv update >>= getBody 200
   notif <- awaitNotification bob client noValue 2 isConvMsgTimerUpdateNotif
+  notif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
+  notif %. "payload.0.qualified_from" `shouldMatch` objQidObject alice
+
+testMessageTimerChangeWithUnreachableRemotes :: HasCallStack => App ()
+testMessageTimerChangeWithUnreachableRemotes = do
+  resourcePool <- asks resourcePool
+  alice <- randomUser OwnDomain def
+  client <- objId $ bindResponse (addClient alice def) $ getJSON 201
+  conv <- runCodensity (acquireResources 1 resourcePool) $ \[dynBackend] ->
+    runCodensity (startDynamicBackend dynBackend mempty) $ \_ -> do
+      bob <- randomUser dynBackend.berDomain def
+      connectUsers alice bob
+      postConversation alice (defProteus {qualifiedUsers = [bob]}) >>= getJSON 201
+  let t = 1 # Second
+      update :: Word64 = t #> MilliSecond
+   in void $ updateMessageTimer alice conv update >>= getBody 200
+  notif <- awaitNotification alice client noValue 2 isConvMsgTimerUpdateNotif
   notif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
   notif %. "payload.0.qualified_from" `shouldMatch` objQidObject alice
