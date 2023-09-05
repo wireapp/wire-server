@@ -100,6 +100,7 @@ library
     Notifications
     RunAllTests
     SetupHelpers
+    Test.AccessUpdate
     Test.AssetDownload
     Test.B2B
     Test.Brig

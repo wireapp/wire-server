@@ -233,7 +233,6 @@ tests s =
           test s "join code-access conversation - password" postJoinCodeConvWithPassword,
           test s "convert invite to code-access conversation" postConvertCodeConv,
           test s "convert code to team-access conversation" postConvertTeamConv,
-          test s "local and remote guests are removed when access changes remotes unavailable" testAccessUpdateGuestRemovedRemotesUnavailable,
           test s "team member can't join via guest link if access role removed" testTeamMemberCantJoinViaGuestLinkIfAccessRoleRemoved,
           test s "cannot join private conversation" postJoinConvFail,
           test s "revoke guest links for team conversation" testJoinTeamConvGuestLinksDisabled,
@@ -1619,90 +1618,6 @@ postConvertTeamConv = do
     postJoinCodeConv mallory j !!! const 403 === statusCode
     -- team members (dave) can still join
     postJoinCodeConv dave j !!! const 200 === statusCode
-
-testAccessUpdateGuestRemovedRemotesUnavailable :: TestM ()
-testAccessUpdateGuestRemovedRemotesUnavailable = do
-  -- alice, bob are in a team
-  (tid, alice, [bob]) <- createBindingTeamWithQualifiedMembers 2
-
-  -- charlie is a local guest
-  charlie <- randomQualifiedUser
-  connectUsers (qUnqualified alice) (pure (qUnqualified charlie))
-
-  -- dee is a remote guest
-  let remoteDomain = Domain "far-away.example.com"
-  dee <- Qualified <$> randomId <*> pure remoteDomain
-
-  connectWithRemoteUser (qUnqualified alice) dee
-
-  -- they are all in a local conversation
-  conv <-
-    responseJsonError
-      =<< postConvWithRemoteUsers
-        (qUnqualified alice)
-        Nothing
-        defNewProteusConv
-          { newConvQualifiedUsers = [bob, charlie, dee],
-            newConvTeam = Just (ConvTeamInfo tid)
-          }
-        <!! const 201 === statusCode
-
-  c <- view tsCannon
-  WS.bracketRN c (map qUnqualified [alice, bob, charlie]) $ \[wsA, wsB, wsC] -> do
-    -- conversation access role changes to team only
-    (_, reqs) <- withTempMockFederator' (throw $ MockErrorResponse HTTP.status503 "Down for maintenance") $ do
-      -- This request should still succeed even with an unresponsive federation member.
-      putQualifiedAccessUpdate
-        (qUnqualified alice)
-        (cnvQualifiedId conv)
-        (ConversationAccessData mempty (Set.fromList [TeamMemberAccessRole]))
-        !!! const 200 === statusCode
-      -- charlie and dee are kicked out
-      --
-      -- note that removing users happens asynchronously, so this check should
-      -- happen while the mock federator is still available
-      WS.assertMatchN_ (5 # Second) [wsA, wsB, wsC] $
-        wsAssertMembersLeave (cnvQualifiedId conv) alice [charlie]
-      WS.assertMatchN_ (5 # Second) [wsA, wsB, wsC] $
-        wsAssertMembersLeave (cnvQualifiedId conv) alice [dee]
-
-    let compareLists [] ys = [] @?= ys
-        compareLists (x : xs) ys = case break (== x) ys of
-          (ys1, _ : ys2) -> compareLists xs (ys1 <> ys2)
-          _ -> assertFailure $ "Could not find " <> show x <> " in " <> show ys
-    liftIO $
-      compareLists
-        ( map
-            ( \fr -> do
-                cu <- eitherDecode @ConversationUpdate (frBody fr)
-                pure (cu.cuOrigUserId, cu.cuAction)
-            )
-            ( filter
-                ( \fr ->
-                    frComponent fr == Galley
-                      && frRPC fr == "on-conversation-updated"
-                )
-                reqs
-            )
-        )
-        [ Right (alice, SomeConversationAction (sing @'ConversationRemoveMembersTag) (pure charlie)),
-          Right (alice, SomeConversationAction (sing @'ConversationRemoveMembersTag) (pure dee)),
-          Right
-            ( alice,
-              SomeConversationAction
-                (sing @'ConversationAccessDataTag)
-                ConversationAccessData
-                  { cupAccess = mempty,
-                    cupAccessRoles = Set.fromList [TeamMemberAccessRole]
-                  }
-            )
-        ]
-  -- only alice and bob remain
-  conv2 <-
-    responseJsonError
-      =<< getConvQualified (qUnqualified alice) (cnvQualifiedId conv)
-        <!! const 200 === statusCode
-  liftIO $ map omQualifiedId (cmOthers (cnvMembers conv2)) @?= [bob]
 
 testTeamMemberCantJoinViaGuestLinkIfAccessRoleRemoved :: TestM ()
 testTeamMemberCantJoinViaGuestLinkIfAccessRoleRemoved = do
