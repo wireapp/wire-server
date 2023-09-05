@@ -25,7 +25,6 @@ import Network.URI (URI (..), URIAuth (..), parseURI)
 import Testlib.Assertions
 import Testlib.Env
 import Testlib.JSON
-import Testlib.Service
 import Testlib.Types
 import Prelude
 

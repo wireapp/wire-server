@@ -1,13 +1,16 @@
+{-
+NOTE: Don't import any other Testlib modules here. Use this module to break dependency cycles.
+-}
 module Testlib.Types where
 
+import Control.Concurrent (QSemN)
 import Control.Exception as E
 import Control.Monad.Base
 import Control.Monad.Catch
 import Control.Monad.Reader
 import Control.Monad.Trans.Control
-import Data.Aeson (Value)
+import Data.Aeson
 import Data.Aeson qualified as Aeson
-import Data.Aeson.Encode.Pretty qualified as Aeson
 import Data.ByteString (ByteString)
 import Data.ByteString qualified as BS
 import Data.ByteString.Char8 qualified as C8
@@ -15,22 +18,166 @@ import Data.ByteString.Lazy qualified as L
 import Data.CaseInsensitive qualified as CI
 import Data.Default
 import Data.Functor
-import Data.Hex
 import Data.IORef
 import Data.List
+import Data.Map
 import Data.Map qualified as Map
+import Data.Set qualified as Set
+import Data.String
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
+import Data.Word
+import GHC.Generics (Generic)
 import GHC.Records
 import GHC.Stack
 import Network.HTTP.Client qualified as HTTP
 import Network.HTTP.Types qualified as HTTP
 import Network.URI
-import Testlib.Env
-import Testlib.Printing
-import Testlib.Service
 import UnliftIO (MonadUnliftIO)
 import Prelude
+
+data ResourcePool a = ResourcePool
+  { sem :: QSemN,
+    resources :: IORef (Set.Set a),
+    onAcquire :: a -> IO ()
+  }
+
+data BackendResource = BackendResource
+  { berName :: BackendName,
+    berBrigKeyspace :: String,
+    berGalleyKeyspace :: String,
+    berSparKeyspace :: String,
+    berGundeckKeyspace :: String,
+    berElasticsearchIndex :: String,
+    berFederatorInternal :: Word16,
+    berFederatorExternal :: Word16,
+    berDomain :: String,
+    berAwsUserJournalQueue :: String,
+    berAwsPrekeyTable :: String,
+    berAwsS3Bucket :: String,
+    berAwsQueueName :: String,
+    berBrigInternalEvents :: String,
+    berEmailSMSSesQueue :: String,
+    berEmailSMSEmailSender :: String,
+    berGalleyJournal :: String,
+    berVHost :: String,
+    berNginzSslPort :: Word16,
+    berNginzHttp2Port :: Word16,
+    berInternalServicePorts :: forall a. Num a => Service -> a
+  }
+
+instance Eq BackendResource where
+  a == b = a.berName == b.berName
+
+instance Ord BackendResource where
+  a `compare` b = a.berName `compare` b.berName
+
+data DynamicBackendConfig = DynamicBackendConfig
+  { domain :: String,
+    federatorExternalPort :: Word16
+  }
+  deriving (Show, Generic)
+
+instance FromJSON DynamicBackendConfig
+
+data RabbitMQConfig = RabbitMQConfig
+  { host :: String,
+    adminPort :: Word16
+  }
+  deriving (Show)
+
+instance FromJSON RabbitMQConfig where
+  parseJSON =
+    withObject "RabbitMQConfig" $ \ob ->
+      RabbitMQConfig
+        <$> ob .: fromString "host"
+        <*> ob .: fromString "adminPort"
+
+-- | Initialised once per testsuite.
+data GlobalEnv = GlobalEnv
+  { gServiceMap :: Map String ServiceMap,
+    gDomain1 :: String,
+    gDomain2 :: String,
+    gDynamicDomains :: [String],
+    gDefaultAPIVersion :: Int,
+    gManager :: HTTP.Manager,
+    gServicesCwdBase :: Maybe FilePath,
+    gRemovalKeyPath :: FilePath,
+    gBackendResourcePool :: ResourcePool BackendResource,
+    gRabbitMQConfig :: RabbitMQConfig
+  }
+
+data IntegrationConfig = IntegrationConfig
+  { backendOne :: BackendConfig,
+    backendTwo :: BackendConfig,
+    dynamicBackends :: Map String DynamicBackendConfig,
+    rabbitmq :: RabbitMQConfig
+  }
+  deriving (Show, Generic)
+
+instance FromJSON IntegrationConfig where
+  parseJSON =
+    withObject "IntegrationConfig" $ \o ->
+      IntegrationConfig
+        <$> parseJSON (Object o)
+        <*> o .: fromString "backendTwo"
+        <*> o .: fromString "dynamicBackends"
+        <*> o .: fromString "rabbitmq"
+
+data ServiceMap = ServiceMap
+  { brig :: HostPort,
+    backgroundWorker :: HostPort,
+    cannon :: HostPort,
+    cargohold :: HostPort,
+    federatorInternal :: HostPort,
+    federatorExternal :: HostPort,
+    galley :: HostPort,
+    gundeck :: HostPort,
+    nginz :: HostPort,
+    spar :: HostPort,
+    proxy :: HostPort,
+    stern :: HostPort
+  }
+  deriving (Show, Generic)
+
+instance FromJSON ServiceMap
+
+data BackendConfig = BackendConfig
+  { beServiceMap :: ServiceMap,
+    originDomain :: String
+  }
+  deriving (Show, Generic)
+
+instance FromJSON BackendConfig where
+  parseJSON v =
+    BackendConfig
+      <$> parseJSON v
+      <*> withObject "BackendConfig" (\ob -> ob .: fromString "originDomain") v
+
+data HostPort = HostPort
+  { host :: String,
+    port :: Word16
+  }
+  deriving (Show, Generic)
+
+instance FromJSON HostPort
+
+-- | Initialised once per test.
+data Env = Env
+  { serviceMap :: Map String ServiceMap,
+    domain1 :: String,
+    domain2 :: String,
+    dynamicDomains :: [String],
+    defaultAPIVersion :: Int,
+    manager :: HTTP.Manager,
+    servicesCwdBase :: Maybe FilePath,
+    removalKeyPath :: FilePath,
+    prekeys :: IORef [(Int, String)],
+    lastPrekeys :: IORef [String],
+    mls :: IORef MLSState,
+    resourcePool :: ResourcePool BackendResource,
+    rabbitMQConfig :: RabbitMQConfig
+  }
 
 data Response = Response
   { jsonBody :: Maybe Aeson.Value,
@@ -43,6 +190,25 @@ data Response = Response
 
 instance HasField "json" Response (App Aeson.Value) where
   getField response = maybe (assertFailure "Response has no json body") pure response.jsonBody
+
+data ClientIdentity = ClientIdentity
+  { domain :: String,
+    user :: String,
+    client :: String
+  }
+  deriving (Show, Eq, Ord)
+
+data MLSState = MLSState
+  { baseDir :: FilePath,
+    members :: Set.Set ClientIdentity,
+    -- | users expected to receive a welcome message after the next commit
+    newMembers :: Set.Set ClientIdentity,
+    groupId :: Maybe String,
+    convId :: Maybe Value,
+    clientGroupState :: Map ClientIdentity ByteString,
+    epoch :: Word64
+  }
+  deriving (Show)
 
 showRequest :: HTTP.Request -> String
 showRequest r =
@@ -61,30 +227,6 @@ getRequestBody req = case HTTP.requestBody req of
   HTTP.RequestBodyLBS lbs -> pure (L.toStrict lbs)
   HTTP.RequestBodyBS bs -> pure bs
   _ -> Nothing
-
-prettyResponse :: Response -> String
-prettyResponse r =
-  unlines $
-    concat
-      [ pure $ colored yellow "request: \n" <> showRequest r.request,
-        pure $ colored yellow "request headers: \n" <> showHeaders (HTTP.requestHeaders r.request),
-        case getRequestBody r.request of
-          Nothing -> []
-          Just b ->
-            [ colored yellow "request body:",
-              T.unpack . T.decodeUtf8 $ case Aeson.decode (L.fromStrict b) of
-                Just v -> L.toStrict (Aeson.encodePretty (v :: Aeson.Value))
-                Nothing -> hex b
-            ],
-        pure $ colored blue "response status: " <> show r.status,
-        pure $ colored blue "response body:",
-        pure $
-          ( T.unpack . T.decodeUtf8 $
-              case r.jsonBody of
-                Just b -> L.toStrict (Aeson.encodePretty b)
-                Nothing -> r.body
-          )
-      ]
 
 data AssertionFailure = AssertionFailure
   { callstack :: CallStack,
@@ -252,3 +394,49 @@ lookupConfigOverride overrides = \case
   BackgroundWorker -> overrides.backgroundWorkerCfg
   Stern -> overrides.sternCfg
   FederatorInternal -> overrides.federatorInternalCfg
+
+data Service = Brig | Galley | Cannon | Gundeck | Cargohold | Nginz | Spar | BackgroundWorker | Stern | FederatorInternal
+  deriving
+    ( Show,
+      Eq,
+      Ord,
+      Enum,
+      Bounded
+    )
+
+serviceName :: Service -> String
+serviceName = \case
+  Brig -> "brig"
+  Galley -> "galley"
+  Cannon -> "cannon"
+  Gundeck -> "gundeck"
+  Cargohold -> "cargohold"
+  Nginz -> "nginz"
+  Spar -> "spar"
+  BackgroundWorker -> "backgroundWorker"
+  Stern -> "stern"
+  FederatorInternal -> "federator"
+
+-- | Converts the service name to kebab-case.
+configName :: Service -> String
+configName = \case
+  Brig -> "brig"
+  Galley -> "galley"
+  Cannon -> "cannon"
+  Gundeck -> "gundeck"
+  Cargohold -> "cargohold"
+  Nginz -> "nginz"
+  Spar -> "spar"
+  BackgroundWorker -> "background-worker"
+  Stern -> "stern"
+  FederatorInternal -> "federator"
+
+data BackendName
+  = BackendA
+  | BackendB
+  | -- | The index of dynamic backends begin with 1
+    DynamicBackend Int
+  deriving (Show, Eq, Ord)
+
+allServices :: [Service]
+allServices = [minBound .. maxBound]
