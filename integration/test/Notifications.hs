@@ -90,3 +90,7 @@ isReceiptModeUpdateNotif n =
 isConvMsgTimerUpdateNotif :: (HasCallStack, MakesValue n) => n -> App Bool
 isConvMsgTimerUpdateNotif n =
   fieldEquals n "payload.0.type" "conversation.message-timer-update"
+
+isConvAccessUpdateNotif :: (HasCallStack, MakesValue n) => n -> App Bool
+isConvAccessUpdateNotif n =
+  fieldEquals n "payload.0.type" "conversation.access-update"

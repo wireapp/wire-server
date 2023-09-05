@@ -23,14 +23,10 @@ import Bilge.Assert
 import Control.Lens (view)
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion (toByteString')
-import Data.Domain
 import Data.Id
 import Data.List1
-import Data.List1 qualified as List1
 import Data.Qualified
 import Data.Set qualified as Set
-import Data.Singletons
-import Federator.MockServer
 import Imports
 import Network.Wai.Utilities.Error
 import Test.Tasty
@@ -40,13 +36,7 @@ import Test.Tasty.HUnit
 import TestHelpers
 import TestSetup
 import Wire.API.Conversation
-import Wire.API.Conversation.Action
 import Wire.API.Conversation.Role
-import Wire.API.Event.Conversation
-import Wire.API.Federation.API.Common
-import Wire.API.Federation.API.Galley qualified as F
-import Wire.API.Federation.Component
-import Wire.API.Internal.Notification (Notification (..))
 
 tests :: IO TestSetup -> TestTree
 tests s =
@@ -54,7 +44,6 @@ tests s =
     "Conversation roles"
     [ test s "conversation roles admin (and downgrade)" handleConversationRoleAdmin,
       test s "conversation roles member (and upgrade)" handleConversationRoleMember,
-      test s "conversation access update with remote users present" accessUpdateWithRemotes,
       test s "get all conversation roles" testAllConversationRoles,
       test s "access role update with v2" testAccessRoleUpdateV2,
       test s "test access roles of new conversations" testConversationAccessRole
@@ -155,50 +144,6 @@ handleConversationRoleMember = do
     void . liftIO . WS.assertMatchN (5 # Second) [wsA, wsB, wsC] $ do
       wsAssertMemberUpdateWithRole qcid qalice bob roleNameWireAdmin
   wireAdminChecks cid bob alice chuck
-
-accessUpdateWithRemotes :: TestM ()
-accessUpdateWithRemotes = do
-  c <- view tsCannon
-  let remoteDomain = Domain "alice.example.com"
-  qalice <- Qualified <$> randomId <*> pure remoteDomain
-  qbob <- randomQualifiedUser
-  qcharlie <- randomQualifiedUser
-  let bob = qUnqualified qbob
-      charlie = qUnqualified qcharlie
-
-  connectUsers bob (singleton charlie)
-  connectWithRemoteUser bob qalice
-  resp <-
-    postConvWithRemoteUsers
-      bob
-      Nothing
-      defNewProteusConv {newConvQualifiedUsers = [qalice, qcharlie]}
-  let qconv = decodeQualifiedConvId resp
-
-  let access = ConversationAccessData (Set.singleton CodeAccess) (Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole, GuestAccessRole, ServiceAccessRole])
-  WS.bracketR2 c bob charlie $ \(wsB, wsC) -> do
-    (_, requests) <-
-      withTempMockFederator' (mockReply EmptyResponse) $
-        putQualifiedAccessUpdate bob qconv access
-          !!! const 200 === statusCode
-
-    req <- assertOne requests
-    liftIO $ do
-      frTargetDomain req @?= remoteDomain
-      frComponent req @?= Galley
-      frRPC req @?= "on-conversation-updated"
-      Right cu <- pure . eitherDecode . frBody $ req
-      F.cuConvId cu @?= qUnqualified qconv
-      F.cuAction cu @?= SomeConversationAction (sing @'ConversationAccessDataTag) access
-      F.cuAlreadyPresentUsers cu @?= [qUnqualified qalice]
-
-    liftIO . WS.assertMatchN_ (5 # Second) [wsB, wsC] $ \n -> do
-      let e = List1.head (WS.unpackPayload n)
-      ntfTransient n @?= False
-      evtConv e @?= qconv
-      evtType e @?= ConvAccessUpdate
-      evtFrom e @?= qbob
-      evtData e @?= EdConvAccessUpdate access
 
 -- | Given an admin, another admin and a member run all
 --   the necessary checks targeting the admin
