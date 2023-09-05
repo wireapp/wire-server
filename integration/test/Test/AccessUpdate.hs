@@ -56,10 +56,10 @@ testAccessUpdateGuestRemoved = do
   let update = ["access" .= ([] :: [String]), "access_role" .= ["team_member"]]
   void $ updateAccess alice conv update >>= getJSON 200
 
-  mapM_ (assertKickNotification alice conv alice aliceClient) [charlie, dee]
-  mapM_ (assertKickNotification alice conv bob bobClient) [charlie, dee]
-  mapM_ (assertKickNotification alice conv charlie charlieClient) [charlie, dee]
-  mapM_ (assertKickNotification alice conv dee deeClient) [charlie, dee]
+  mapM_ (assertLeaveNotification alice conv alice aliceClient) [charlie, dee]
+  mapM_ (assertLeaveNotification alice conv bob bobClient) [charlie, dee]
+  mapM_ (assertLeaveNotification alice conv charlie charlieClient) [charlie, dee]
+  mapM_ (assertLeaveNotification alice conv dee deeClient) [charlie, dee]
 
   bindResponse (getConversation alice conv) $ \res -> do
     res.status `shouldMatchInt` 200
@@ -95,44 +95,13 @@ testAccessUpdateGuestRemovedUnreachableRemotes = do
   let update = ["access" .= ([] :: [String]), "access_role" .= ["team_member"]]
   void $ updateAccess alice conv update >>= getJSON 200
 
-  mapM_ (assertKickNotification alice conv alice aliceClient) [charlie, dee]
-  mapM_ (assertKickNotification alice conv bob bobClient) [charlie, dee]
-  mapM_ (assertKickNotification alice conv charlie charlieClient) [charlie, dee]
+  mapM_ (assertLeaveNotification alice conv alice aliceClient) [charlie, dee]
+  mapM_ (assertLeaveNotification alice conv bob bobClient) [charlie, dee]
+  mapM_ (assertLeaveNotification alice conv charlie charlieClient) [charlie, dee]
 
   bindResponse (getConversation alice conv) $ \res -> do
     res.status `shouldMatchInt` 200
     res.json %. "members.others.0.qualified_id" `shouldMatch` objQidObject bob
-
---------------------------------------------------------------------------------
--- Utilities
-
-assertKickNotification ::
-  ( HasCallStack,
-    MakesValue fromUser,
-    MakesValue conv,
-    MakesValue user,
-    MakesValue kickedUser
-  ) =>
-  fromUser ->
-  conv ->
-  user ->
-  String ->
-  kickedUser ->
-  App ()
-assertKickNotification fromUser conv user client kickedUser =
-  void $
-    awaitNotification
-      user
-      client
-      noValue
-      2
-      ( allPreds
-          [ isConvLeaveNotif,
-            isNotifConv conv,
-            isNotifForUser kickedUser,
-            isNotifFromUser fromUser
-          ]
-      )
 
 testAccessUpdateWithRemotes :: HasCallStack => App ()
 testAccessUpdateWithRemotes = do

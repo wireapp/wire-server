@@ -97,3 +97,31 @@ isConvAccessUpdateNotif n =
 
 isConvDeleteNotif :: MakesValue a => a -> App Bool
 isConvDeleteNotif n = fieldEquals n "payload.0.type" "conversation.delete"
+
+assertLeaveNotification ::
+  ( HasCallStack,
+    MakesValue fromUser,
+    MakesValue conv,
+    MakesValue user,
+    MakesValue kickedUser
+  ) =>
+  fromUser ->
+  conv ->
+  user ->
+  String ->
+  kickedUser ->
+  App ()
+assertLeaveNotification fromUser conv user client leaver =
+  void $
+    awaitNotification
+      user
+      client
+      noValue
+      2
+      ( allPreds
+          [ isConvLeaveNotif,
+            isNotifConv conv,
+            isNotifForUser leaver,
+            isNotifFromUser fromUser
+          ]
+      )
