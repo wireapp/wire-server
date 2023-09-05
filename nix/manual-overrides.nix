@@ -5,7 +5,8 @@ hself: hsuper: {
   aeson = (hlib.doJailbreak hsuper.aeson_2_1_2_1);
   binary-parsers = hlib.markUnbroken (hlib.doJailbreak hsuper.binary-parsers);
   bytestring-arbitrary = hlib.markUnbroken (hlib.doJailbreak hsuper.bytestring-arbitrary);
-  cql = hlib.markUnbroken hsuper.cql;
+  # Upstream merge-request https://gitlab.com/twittner/cql/-/merge_requests/11
+  cql = hlib.appendPatch (hlib.markUnbroken hsuper.cql) ./pkgs/cql/0001-Include-table-and-column-names-in-parsing-error-mess.patch;
   hashtables = hsuper.hashtables_1_3;
   invertible = hlib.markUnbroken hsuper.invertible;
   lens-datetime = hlib.markUnbroken (hlib.doJailbreak hsuper.lens-datetime);
@@ -31,6 +32,7 @@ hself: hsuper: {
   hsaml2 = hlib.dontCheck hsuper.hsaml2;
   saml2-web-sso = hlib.dontCheck hsuper.saml2-web-sso;
   http2 = hlib.dontCheck hsuper.http2;
+
 
   # Disable tests because they need network access to a running cassandra
   #

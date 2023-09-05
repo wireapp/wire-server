@@ -1,0 +1,145 @@
+From abbd2739969d17a909800f282d10d42a254c4e3b Mon Sep 17 00:00:00 2001
+From: Stefan Matting <stefan@wire.com>
+Date: Fri, 1 Sep 2023 13:26:29 +0200
+Subject: [PATCH] Include table and column names in parsing error message
+
+---
+ src/Database/CQL/Protocol/Response.hs | 11 +----------
+ src/Database/CQL/Protocol/Tuple.hs    | 19 ++++++++++++++-----
+ src/Database/CQL/Protocol/Tuple/TH.hs |  7 ++++---
+ src/Database/CQL/Protocol/Types.hs    |  8 ++++++++
+ 4 files changed, 27 insertions(+), 18 deletions(-)
+
+diff --git a/src/Database/CQL/Protocol/Response.hs b/src/Database/CQL/Protocol/Response.hs
+index a1960b8..5087f8f 100644
+--- a/src/Database/CQL/Protocol/Response.hs
++++ b/src/Database/CQL/Protocol/Response.hs
+@@ -222,15 +222,6 @@ data MetaData = MetaData
+     , primaryKeyIndices :: [Int32]
+     } deriving (Show)
+ 
+--- | The column specification. Part of 'MetaData' unless 'skipMetaData' in
+--- 'QueryParams' was True.
+-data ColumnSpec = ColumnSpec
+-    { keyspace   :: !Keyspace
+-    , table      :: !Table
+-    , columnName :: !Text
+-    , columnType :: !ColumnType
+-    } deriving (Show)
+-
+ decodeResult :: forall k a b. (Tuple a, Tuple b) => Version -> Get (Result k a b)
+ decodeResult v = decodeInt >>= go
+   where
+@@ -250,7 +241,7 @@ decodeResult v = decodeInt >>= go
+         let message   = "expected: " ++ show expected ++ ", but got " ++ show ctypes
+         unless (null expected) $
+             fail $ "column-type error: " ++ message
+-        RowsResult m <$> replicateM (fromIntegral n) (tuple v ctypes)
++        RowsResult m <$> replicateM (fromIntegral n) (tuple v (columnSpecs m))
+     go 0x3 = SetKeyspaceResult <$> decodeKeyspace
+     go 0x4 = if v == V4
+                 then PreparedResult <$> decodeQueryId <*> decodePreparedV4 <*> decodeMetaData
+diff --git a/src/Database/CQL/Protocol/Tuple.hs b/src/Database/CQL/Protocol/Tuple.hs
+index d699ca9..709f857 100644
+--- a/src/Database/CQL/Protocol/Tuple.hs
++++ b/src/Database/CQL/Protocol/Tuple.hs
+@@ -1,6 +1,8 @@
+ {-# LANGUAGE CPP                 #-}
+ {-# LANGUAGE ScopedTypeVariables #-}
+ {-# LANGUAGE TemplateHaskell     #-}
++{-# LANGUAGE OverloadedStrings   #-}
++{-# LANGUAGE InstanceSigs #-}
+ 
+ -- | A tuple represents the types of multiple cassandra columns. It is used
+ -- to check that column-types match.
+@@ -27,6 +29,7 @@ import Database.CQL.Protocol.Class
+ import Database.CQL.Protocol.Codec (putValue, getValue)
+ import Database.CQL.Protocol.Tuple.TH
+ import Database.CQL.Protocol.Types
++import qualified Data.Text as T
+ import Prelude
+ 
+ import qualified Data.Vector as Vec
+@@ -62,7 +65,7 @@ columnTypes = types
+ class PrivateTuple a where
+     count :: Tagged a Int
+     check :: Tagged a ([ColumnType] -> [ColumnType])
+-    tuple :: Version -> [ColumnType] -> Get a
++    tuple :: Version -> [ColumnSpec] -> Get a
+     store :: Version -> Putter a
+ 
+ class PrivateTuple a => Tuple a
+@@ -80,7 +83,9 @@ instance Tuple ()
+ instance Cql a => PrivateTuple (Identity a) where
+     count     = Tagged 1
+     check     = Tagged $ typecheck [untag (ctype :: Tagged a ColumnType)]
+-    tuple v _ = Identity <$> element v ctype
++    store :: Cql a => Version -> Putter (Identity a)
++    tuple :: Cql a => Version -> [ColumnSpec] -> Get (Identity a)
++    tuple v cs = label "Identity" $ Identity <$> element v cs 0 ctype
+     store v (Identity a) = do
+         put (1 :: Word16)
+         putValue v (toCql a)
+@@ -90,7 +95,8 @@ instance Cql a => Tuple (Identity a)
+ instance PrivateTuple Row where
+     count     = Tagged (-1)
+     check     = Tagged $ const []
+-    tuple v t = Row t . Vec.fromList <$> mapM (getValue v . MaybeColumn) t
++    tuple :: Version -> [ColumnSpec] -> Get Row
++    tuple v cs = Row (map columnType cs) . Vec.fromList <$> mapM (getValue v . MaybeColumn . columnType) cs
+     store v r = do
+         put (fromIntegral (rowLength r) :: Word16)
+         Vec.mapM_ (putValue v) (values r)
+@@ -99,8 +105,11 @@ instance Tuple Row
+ 
+ -- Implementation helpers ---------------------------------------------------
+ 
+-element :: Cql a => Version -> Tagged a ColumnType -> Get a
+-element v t = getValue v (untag t) >>= either fail return . fromCql
++element :: Cql a => Version -> [ColumnSpec] -> Int -> Tagged a ColumnType -> Get a
++element v cols i t = 
++    let col = cols !! i
++        context = T.unpack ("Reading column \"" <> columnName col <> "\" of table \"" <> unKeyspace (keyspace col) <> "." <> unTable (table col) <> "\"")
++    in label context $ getValue v (untag t) >>= either fail return . fromCql
+ 
+ typecheck :: [ColumnType] -> [ColumnType] -> [ColumnType]
+ typecheck rr cc = if checkAll (===) rr cc then [] else rr
+diff --git a/src/Database/CQL/Protocol/Tuple/TH.hs b/src/Database/CQL/Protocol/Tuple/TH.hs
+index 8f51c4e..312199c 100644
+--- a/src/Database/CQL/Protocol/Tuple/TH.hs
++++ b/src/Database/CQL/Protocol/Tuple/TH.hs
+@@ -55,10 +55,11 @@ taggedDecl ident names = Clause [] (NormalB body) []
+ tupleDecl :: Int -> Q Clause
+ tupleDecl n = do
+     let v = mkName "v"
+-    Clause [VarP v, WildP] (NormalB $ body v) <$> comb
++    let cs = mkName "cs"
++    Clause [VarP v, VarP cs] (NormalB $ body v cs) <$> comb
+   where
+-    body v = UInfixE (var "combine") (var "<$>") (foldl1 star (elts v))
+-    elts v = replicate n (var "element" $$ VarE v $$ var "ctype")
++    body v cs = UInfixE (var "combine") (var "<$>") (foldl1 star (elts v cs))
++    elts v cs = flip map [0..n-1] (\i -> var "element" $$ VarE v $$ VarE cs $$ LitE (IntegerL (fromIntegral i)) $$ var "ctype")
+     star   = flip UInfixE (var "<*>")
+     comb   = do
+         names <- replicateM n (newName "x")
+diff --git a/src/Database/CQL/Protocol/Types.hs b/src/Database/CQL/Protocol/Types.hs
+index 56efabb..b02b5c3 100644
+--- a/src/Database/CQL/Protocol/Types.hs
++++ b/src/Database/CQL/Protocol/Types.hs
+@@ -233,3 +233,11 @@ data W
+ -- | Type tag for schema queries, i.e. 'QueryString S a b'.
+ data S
+ 
++-- | The column specification. Part of 'MetaData' unless 'skipMetaData' in
++-- 'QueryParams' was True.
++data ColumnSpec = ColumnSpec
++    { keyspace   :: !Keyspace
++    , table      :: !Table
++    , columnName :: !Text
++    , columnType :: !ColumnType
++    } deriving (Show)
+\ No newline at end of file
+-- 
+2.41.0
+
