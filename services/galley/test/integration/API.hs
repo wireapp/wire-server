@@ -106,7 +106,6 @@ import Wire.API.Routes.Version
 import Wire.API.Routes.Versioned
 import Wire.API.Team.Feature qualified as Public
 import Wire.API.Team.Member qualified as Teams
-import Wire.API.User
 import Wire.API.User.Client
 import Wire.API.UserMap (UserMap (..))
 
@@ -177,7 +176,6 @@ tests s =
           test s "generate guest link forbidden when no guest or non-team-member access role" generateGuestLinkFailIfNoNonTeamMemberOrNoGuestAccess,
           test s "fail to add members when not connected" postMembersFail,
           test s "fail to add too many members" postTooManyMembersFail,
-          test s "add remote members" testAddRemoteMember,
           test s "delete conversation with remote members" testDeleteTeamConversationWithRemoteMembers,
           test s "delete conversation with unavailable remote members" testDeleteTeamConversationWithUnavailableRemoteMembers,
           test s "get conversations/:domain/:cnv - local" testGetQualifiedLocalConv,
@@ -2412,50 +2410,6 @@ leaveConnectConversation = do
   let c = maybe (error "invalid connect conversation") (qUnqualified . cnvQualifiedId) (responseJsonUnsafe bdy)
   qc <- Qualified c <$> viewFederationDomain
   deleteMemberQualified alice qalice qc !!! const 403 === statusCode
-
-testAddRemoteMember :: TestM ()
-testAddRemoteMember = do
-  qalice <- randomQualifiedUser
-  let alice = qUnqualified qalice
-  let localDomain = qDomain qalice
-  bobId <- randomId
-  let remoteDomain = Domain "far-away.example.com"
-      remoteBob = Qualified bobId remoteDomain
-  convId <- decodeConvId <$> postConv alice [] (Just "remote gossip") [] Nothing Nothing
-  let qconvId = Qualified convId localDomain
-
-  postQualifiedMembers alice (remoteBob :| []) qconvId !!! do
-    const 403 === statusCode
-    const (Right (Just "not-connected")) === fmap (view (at "label")) . responseJsonEither @Object
-
-  connectWithRemoteUser alice remoteBob
-
-  (resp, reqs) <-
-    withTempMockFederator' (respond remoteBob) $
-      postQualifiedMembers alice (remoteBob :| []) qconvId
-        <!! const 200 === statusCode
-  liftIO $ do
-    map frTargetDomain reqs @?= [remoteDomain, remoteDomain]
-    map frRPC reqs @?= ["get-not-fully-connected-backends", "on-conversation-updated"]
-
-  let e = responseJsonUnsafe resp
-  let bobMember = SimpleMember remoteBob roleNameWireAdmin
-  liftIO $ do
-    evtConv e @?= qconvId
-    evtType e @?= MemberJoin
-    evtData e @?= EdMembersJoin (SimpleMembers [bobMember])
-    evtFrom e @?= qalice
-  conv <- responseJsonUnsafeWithMsg "conversation" <$> getConvQualified alice qconvId
-  liftIO $ do
-    let actual = cmOthers $ cnvMembers conv
-    let expected = [OtherMember remoteBob Nothing roleNameWireAdmin]
-    assertEqual "other members should include remoteBob" expected actual
-  where
-    respond :: Qualified UserId -> Mock LByteString
-    respond bob =
-      asum
-        [ getNotFullyConnectedBackendsMock <|> guardComponent Brig *> mockReply [mkProfile bob (Name "bob")]
-        ]
 
 testDeleteTeamConversationWithRemoteMembers :: TestM ()
 testDeleteTeamConversationWithRemoteMembers = do

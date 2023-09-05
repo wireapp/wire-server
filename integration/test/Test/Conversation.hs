@@ -235,6 +235,26 @@ testAddMembersNonFullyConnectedProteus = do
       resp.status `shouldMatchInt` 409
       resp.json %. "non_federating_backends" `shouldMatchSet` [domainB, domainC]
 
+testAddMember :: HasCallStack => App ()
+testAddMember = do
+  alice <- randomUser OwnDomain def
+  -- create conversation with no users
+  cid <- postConversation alice defProteus >>= getJSON 201
+  bob <- randomUser OwnDomain def
+  mem <- bob %. "qualified_id"
+  bindResponse (addMembers alice cid [mem]) $ \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "not-connected"
+  connectUsers alice bob
+  bindResponse (addMembers alice cid [mem]) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "type" `shouldMatch` "conversation.member-join"
+    resp.json %. "qualified_from" `shouldMatch` objQidObject alice
+    resp.json %. "qualified_conversation" `shouldMatch` objQidObject cid
+    users <- resp.json %. "data.users" >>= asList
+    addedUsers <- forM users (%. "qualified_id")
+    addedUsers `shouldMatchSet` [mem]
+
 testConvWithUnreachableRemoteUsers :: HasCallStack => App ()
 testConvWithUnreachableRemoteUsers = do
   let overrides =
