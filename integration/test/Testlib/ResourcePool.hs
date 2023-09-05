@@ -14,28 +14,26 @@ import Control.Concurrent
 import Control.Monad.Catch
 import Control.Monad.Codensity
 import Control.Monad.IO.Class
-import Data.Aeson
+import Data.Foldable (for_)
 import Data.Function ((&))
 import Data.Functor
 import Data.IORef
 import Data.Set qualified as Set
 import Data.String
+import Data.Text qualified as T
 import Data.Tuple
-import Data.Word
-import GHC.Generics
 import GHC.Stack (HasCallStack)
+import Network.AMQP.Extended
+import Network.RabbitMqAdmin
 import System.IO
 import Testlib.Ports qualified as Ports
-import Testlib.Service
+import Testlib.Types
 import Prelude
 
-data ResourcePool a = ResourcePool
-  { sem :: QSemN,
-    resources :: IORef (Set.Set a)
-  }
-
 acquireResources :: forall m a. (Ord a, MonadIO m, MonadMask m, HasCallStack) => Int -> ResourcePool a -> Codensity m [a]
-acquireResources n pool = Codensity $ \f -> bracket acquire release (f . Set.toList)
+acquireResources n pool = Codensity $ \f -> bracket acquire release $ \s -> do
+  liftIO $ mapM_ pool.onAcquire s
+  f $ Set.toList s
   where
     release :: Set.Set a -> m ()
     release s =
@@ -48,50 +46,27 @@ acquireResources n pool = Codensity $ \f -> bracket acquire release (f . Set.toL
       waitQSemN pool.sem n
       atomicModifyIORef pool.resources $ swap . Set.splitAt n
 
-createBackendResourcePool :: [DynamicBackendConfig] -> IO (ResourcePool BackendResource)
-createBackendResourcePool dynConfs =
+createBackendResourcePool :: [DynamicBackendConfig] -> RabbitMQConfig -> IO (ResourcePool BackendResource)
+createBackendResourcePool dynConfs rabbitmq =
   let resources = backendResources dynConfs
    in ResourcePool
         <$> newQSemN (length dynConfs)
         <*> newIORef resources
+        <*> pure (deleteAllRabbitMQQueues rabbitmq)
 
-data BackendResource = BackendResource
-  { berName :: BackendName,
-    berBrigKeyspace :: String,
-    berGalleyKeyspace :: String,
-    berSparKeyspace :: String,
-    berGundeckKeyspace :: String,
-    berElasticsearchIndex :: String,
-    berFederatorInternal :: Word16,
-    berFederatorExternal :: Word16,
-    berDomain :: String,
-    berAwsUserJournalQueue :: String,
-    berAwsPrekeyTable :: String,
-    berAwsS3Bucket :: String,
-    berAwsQueueName :: String,
-    berBrigInternalEvents :: String,
-    berEmailSMSSesQueue :: String,
-    berEmailSMSEmailSender :: String,
-    berGalleyJournal :: String,
-    berVHost :: String,
-    berNginzSslPort :: Word16,
-    berNginzHttp2Port :: Word16,
-    berInternalServicePorts :: forall a. Num a => Service -> a
-  }
-
-instance Eq BackendResource where
-  a == b = a.berName == b.berName
-
-instance Ord BackendResource where
-  a `compare` b = a.berName `compare` b.berName
-
-data DynamicBackendConfig = DynamicBackendConfig
-  { domain :: String,
-    federatorExternalPort :: Word16
-  }
-  deriving (Show, Generic)
-
-instance FromJSON DynamicBackendConfig
+deleteAllRabbitMQQueues :: RabbitMQConfig -> BackendResource -> IO ()
+deleteAllRabbitMQQueues rc resource = do
+  let opts =
+        RabbitMqAdminOpts
+          { host = rc.host,
+            port = 0,
+            adminPort = fromIntegral rc.adminPort,
+            vHost = T.pack resource.berVHost
+          }
+  client <- mkRabbitMqAdminClientEnv opts
+  queues <- listQueuesByVHost client (T.pack resource.berVHost)
+  for_ queues $ \queue ->
+    deleteQueue client (T.pack resource.berVHost) queue.name
 
 backendResources :: [DynamicBackendConfig] -> Set.Set BackendResource
 backendResources dynConfs =

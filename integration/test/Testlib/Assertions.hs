@@ -4,14 +4,21 @@ module Testlib.Assertions where
 
 import Control.Exception as E
 import Control.Monad.Reader
+import Data.Aeson qualified as Aeson
+import Data.Aeson.Encode.Pretty qualified as Aeson
 import Data.ByteString.Base64 qualified as B64
+import Data.ByteString.Lazy qualified as BS
 import Data.Char
 import Data.Foldable
+import Data.Hex
 import Data.List
 import Data.Map qualified as Map
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
+import Data.Text.Lazy qualified as TL
+import Data.Text.Lazy.Encoding qualified as TL
 import GHC.Stack as Stack
+import Network.HTTP.Client qualified as HTTP
 import System.FilePath
 import Testlib.JSON
 import Testlib.Printing
@@ -241,3 +248,27 @@ getLineNumber lineNo s =
   case drop (lineNo - 1) (lines s) of
     [] -> Nothing
     (l : _) -> pure l
+
+prettyResponse :: Response -> String
+prettyResponse r =
+  unlines $
+    concat
+      [ pure $ colored yellow "request: \n" <> showRequest r.request,
+        pure $ colored yellow "request headers: \n" <> showHeaders (HTTP.requestHeaders r.request),
+        case getRequestBody r.request of
+          Nothing -> []
+          Just b ->
+            [ colored yellow "request body:",
+              Text.unpack . Text.decodeUtf8 $ case Aeson.decode (BS.fromStrict b) of
+                Just v -> BS.toStrict (Aeson.encodePretty (v :: Aeson.Value))
+                Nothing -> hex b
+            ],
+        pure $ colored blue "response status: " <> show r.status,
+        pure $ colored blue "response body:",
+        pure $
+          ( TL.unpack . TL.decodeUtf8 $
+              case r.jsonBody of
+                Just b -> (Aeson.encodePretty b)
+                Nothing -> BS.fromStrict r.body
+          )
+      ]

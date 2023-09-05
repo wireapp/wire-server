@@ -20,7 +20,6 @@ import Data.String
 import Data.Text qualified as T
 import Data.Vector ((!?))
 import GHC.Stack
-import Testlib.Env
 import Testlib.Types
 import Prelude
 
