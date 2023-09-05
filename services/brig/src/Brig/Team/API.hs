@@ -37,7 +37,6 @@ import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import Brig.Email qualified as Email
 import Brig.Options (setMaxTeamSize, setTeamInvitationTimeout)
 import Brig.Phone qualified as Phone
-import Brig.Provider.API (guardSecondFactorDisabled, searchTeamServiceProfiles, updateServiceWhitelist)
 import Brig.Team.DB qualified as DB
 import Brig.Team.Email
 import Brig.Team.Types (ShowOrHideInvitationUrl (..))
@@ -65,7 +64,6 @@ import System.Logger.Class qualified as Log
 import Util.Logging (logFunction, logTeam)
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
-import Wire.API.Provider.Service (ServiceProfilePage, UpdateServiceWhitelist, UpdateServiceWhitelistResp (..))
 import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public.Brig
@@ -93,8 +91,6 @@ servantAPI =
     :<|> Named @"get-team-invitation-info" getInvitationByCode
     :<|> Named @"head-team-invitations" headInvitationByEmail
     :<|> Named @"get-team-size" teamSizePublic
-    :<|> Named @"get-whitelisted-services-by-team-id" searchTeamServiceProfilesH
-    :<|> Named @"post-team-whitelist-by-team-id" updateServiceWhitelistH
 
 routesInternal ::
   ( Member BlacklistStore r,
@@ -127,26 +123,6 @@ routesInternal = do
   post "/i/teams/:tid/invitations" (continue createInvitationViaScimH) $
     accept "application" "json"
       .&. jsonRequest @NewUserScimInvitation
-
-searchTeamServiceProfilesH ::
-  Member GalleyProvider r =>
-  UserId ->
-  TeamId ->
-  Maybe (Range 1 128 Text) ->
-  Maybe Bool ->
-  Maybe (Range 10 100 Int32) ->
-  (Handler r) ServiceProfilePage
-searchTeamServiceProfilesH uid tid prefix filterDisabled' size' = do
-  guardSecondFactorDisabled (Just uid)
-  searchTeamServiceProfiles uid tid prefix filterDisabled size
-  where
-    size = fromMaybe (unsafeRange 20) size'
-    filterDisabled = fromMaybe True filterDisabled'
-
-updateServiceWhitelistH :: Member GalleyProvider r => UserId -> ConnId -> TeamId -> UpdateServiceWhitelist -> (Handler r) UpdateServiceWhitelistResp
-updateServiceWhitelistH uid con tid req = do
-  guardSecondFactorDisabled (Just uid)
-  updateServiceWhitelist uid con tid req
 
 teamSizePublic :: Member GalleyProvider r => UserId -> TeamId -> (Handler r) TeamSize
 teamSizePublic uid tid = do

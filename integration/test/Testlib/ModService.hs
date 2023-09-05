@@ -42,12 +42,10 @@ import System.Posix (killProcess, signalProcess)
 import System.Process (CreateProcess (..), ProcessHandle, StdStream (..), createProcess, getPid, proc, terminateProcess, waitForProcess)
 import System.Timeout (timeout)
 import Testlib.App
-import Testlib.Env
 import Testlib.HTTP
 import Testlib.JSON
 import Testlib.Printing
 import Testlib.ResourcePool
-import Testlib.Service
 import Testlib.Types
 import Text.RawString.QQ
 import Prelude
