@@ -23,7 +23,6 @@ import API.User.Util
 import Bilge
 import Bilge.Assert ((!!!), (<!!), (===))
 import Brig.API.Client (pubClient)
-import Brig.Options qualified as BrigOpts
 import Control.Arrow ((&&&))
 import Control.Lens hiding ((#))
 import Data.Aeson qualified as Aeson
@@ -79,7 +78,7 @@ import Wire.API.User.Client.Prekey
 --
 -- See https://wearezeta.atlassian.net/browse/SQCORE-914
 spec ::
-  BrigOpts.Opts ->
+  Domain ->
   Manager ->
   Brig ->
   Galley ->
@@ -91,11 +90,11 @@ spec ::
   CargoHold ->
   Cannon ->
   IO TestTree
-spec _brigOpts mg brig galley cargohold cannon _federator brigTwo galleyTwo cargoholdTwo cannonTwo =
+spec originDomain mg brig galley cargohold cannon _federator brigTwo galleyTwo cargoholdTwo cannonTwo =
   pure $
     testGroup
       "federation-end2end-user"
-      [ test mg "lookup user by qualified handle on remote backend" $ testHandleLookup brig brigTwo,
+      [ test mg "lookup user by qualified handle on remote backend" $ testHandleLookup originDomain brig brigTwo,
         test mg "search users on remote backend" $ testSearchUsers brig brigTwo,
         test mg "get users by ids on multiple backends" $ testGetUsersById brig brigTwo,
         test mg "claim client prekey" $ testClaimPrekeySuccess brig brigTwo,
@@ -122,13 +121,14 @@ spec _brigOpts mg brig galley cargohold cannon _federator brigTwo galleyTwo carg
 -- | brig |  http2  |federator| http2  |federator|   http   | brig |
 -- |      +-------->+         +------->+         +--------->+      |
 -- +------+         +-+-------+        +---------+          +------+
-testHandleLookup :: Brig -> Brig -> Http ()
-testHandleLookup brig brigTwo = do
+testHandleLookup :: Domain -> Brig -> Brig -> Http ()
+testHandleLookup originDomain brig brigTwo = do
   -- Create a user on the "other side" using an internal brig endpoint from a
   -- second brig instance in backendTwo (in another namespace in kubernetes)
   (handle, userBrigTwo) <- createUserWithHandle brigTwo
   -- Get result from brig two for comparison
   let domain = qDomain $ userQualifiedId userBrigTwo
+  allowFullSearch brigTwo originDomain
   resultViaBrigTwo <- getUserInfoFromHandle brigTwo domain handle -- this crashes with 404 handle not found.  with "no such end-point" on v4, and with "no handle" on v1
 
   -- query the local-namespace brig for a user sitting on the other backend

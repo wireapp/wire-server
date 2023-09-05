@@ -46,6 +46,7 @@ import Cassandra.Util (defInitCassandra)
 import Control.Lens
 import Data.Aeson
 import Data.ByteString.Char8 qualified as B8
+import Data.Domain
 import Data.Metrics.Test (pathsConsistencyCheck)
 import Data.Metrics.WaiRoute (treeToPaths)
 import Data.Text.Encoding (encodeUtf8)
@@ -106,6 +107,7 @@ data Config = Config
     -- external provider
     provider :: Provider.Config,
     -- for federation
+    originDomain :: Domain,
     backendTwo :: BackendConf
   }
   deriving (Show, Generic)
@@ -155,7 +157,7 @@ runTests iConf brigOpts otherArgs = do
   createIndex <- Index.Create.spec brigOpts
   browseTeam <- TeamUserSearch.tests brigOpts mg g b
   userPendingActivation <- UserPendingActivation.tests brigOpts mg db b g s
-  federationEnd2End <- Federation.End2end.spec brigOpts mg b g ch c f brigTwo galleyTwo ch2 cannonTwo
+  federationEnd2End <- Federation.End2end.spec iConf.originDomain mg b g ch c f brigTwo galleyTwo ch2 cannonTwo
   federationEndpoints <- API.Federation.tests mg brigOpts b c fedBrigClient
   internalApi <- API.Internal.tests brigOpts mg db b (brig iConf) gd g
 

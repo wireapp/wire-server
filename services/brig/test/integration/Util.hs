@@ -108,6 +108,7 @@ import Wire.API.Conversation.Role (roleNameWireAdmin)
 import Wire.API.Federation.API
 import Wire.API.Federation.Domain
 import Wire.API.Internal.Notification
+import Wire.API.Routes.FederationDomainConfig qualified as FD
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.Team.Member hiding (userId)
 import Wire.API.User hiding (AccountStatus (..))
@@ -118,6 +119,7 @@ import Wire.API.User.Auth.LegalHold
 import Wire.API.User.Auth.Sso
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
+import Wire.API.User.Search
 import Wire.API.VersionInfo
 
 type Brig = Request -> Request
@@ -1338,3 +1340,14 @@ assertElem :: (HasCallStack, Eq a, Show a) => String -> a -> [a] -> Assertion
 assertElem msg x xs =
   unless (x `elem` xs) $
     assertFailure (msg <> "\nExpected to find: \n" <> show x <> "\nin:\n" <> show xs)
+
+--------------------------
+
+setSearchPolicy :: (MonadHttp m, MonadCatch m, MonadIO m) => Brig -> Domain -> FederatedUserSearchPolicy -> m ()
+setSearchPolicy brig domain policy = do
+  let req = brig . path "/i/federation/remotes" . Bilge.json (FD.FederationDomainConfig domain policy)
+  post req
+    !!! const 200 === statusCode
+
+allowFullSearch :: (MonadHttp m, MonadCatch m, MonadIO m) => Brig -> Domain -> m ()
+allowFullSearch brig domain = setSearchPolicy brig domain FullSearch

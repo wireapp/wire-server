@@ -49,7 +49,6 @@ import Wire.API.Federation.API.Brig qualified as FedBrig
 import Wire.API.Federation.API.Brig qualified as S
 import Wire.API.Federation.Component
 import Wire.API.Federation.Version
-import Wire.API.Routes.FederationDomainConfig as FD
 import Wire.API.User
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
@@ -82,15 +81,6 @@ tests m opts brig cannon fedBrigClient =
         test m "POST /federation/on-user-deleted-connections : 200" (testRemoteUserGetsDeleted opts brig cannon fedBrigClient),
         test m "POST /federation/api-version : 200" (testAPIVersion brig fedBrigClient)
       ]
-
-setSearchPolicy :: Brig -> Domain -> FederatedUserSearchPolicy -> WaiTest.Session ()
-setSearchPolicy brig domain policy = do
-  let req = brig . path "/i/federation/remotes" . Bilge.json (FD.FederationDomainConfig domain policy)
-  post req
-    !!! const 200 === statusCode
-
-allowFullSearch :: Brig -> Domain -> WaiTest.Session ()
-allowFullSearch brig domain = setSearchPolicy brig domain FullSearch
 
 testSearchSuccess :: Opt.Opts -> Brig -> Http ()
 testSearchSuccess opts brig = do
