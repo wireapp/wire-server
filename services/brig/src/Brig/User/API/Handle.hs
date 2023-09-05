@@ -50,7 +50,9 @@ getHandleInfo ::
   Qualified Handle ->
   (Handler r) (Maybe Public.UserProfile)
 getHandleInfo self handle = do
+  Log.err $ Log.msg (Log.val . cs $ show (self, handle))
   lself <- qualifyLocal self
+  Log.err $ Log.msg (Log.val . cs $ show lself)
   foldQualified
     lself
     (getLocalHandleInfo lself . tUnqualified)
@@ -59,6 +61,7 @@ getHandleInfo self handle = do
 
 getRemoteHandleInfo :: Remote Handle -> (Handler r) (Maybe Public.UserProfile)
 getRemoteHandleInfo handle = do
+  Log.err $ Log.msg (Log.val (cs $ "getRemoteHandleInfo: " <> show handle))
   lift . Log.info $
     Log.msg (Log.val "getHandleInfo - remote lookup")
       . Log.field "domain" (show (tDomain handle))

@@ -26,7 +26,7 @@ import Brig.App
 import Control.Lens
 import Control.Monad
 import Control.Monad.Catch (MonadMask, throwM)
-import Control.Monad.Trans.Except (ExceptT (..), throwE)
+import Control.Monad.Trans.Except (ExceptT (..), runExceptT, throwE)
 import Control.Retry
 import Control.Timeout
 import Data.Domain
@@ -58,7 +58,9 @@ getUserHandleInfo ::
   ExceptT FederationError m (Maybe UserProfile)
 getUserHandleInfo (tUntagged -> Qualified handle domain) = do
   lift $ Log.info $ Log.msg $ T.pack "Brig-federation: handle lookup call on remote backend"
-  runBrigFederatorClient domain $ fedClient @'Brig @"get-user-by-handle" handle
+  x <- runExceptT (runBrigFederatorClient domain $ fedClient @'Brig @"get-user-by-handle" handle)
+  lift $ Log.err $ Log.msg $ cs @_ @ByteString ("F.getUserHandleInfo: " <> show x)
+  either throwE pure x
 
 getUsersByIds ::
   ( MonadReader Env m,
