@@ -51,8 +51,6 @@ mkGlobalEnv cfgFile = do
   manager <- HTTP.newManager HTTP.defaultManagerSettings
   resourcePool <-
     createBackendResourcePool
-      intConfig.cassandra.host
-      intConfig.cassandra.port
       (Map.elems intConfig.dynamicBackends)
       intConfig.rabbitmq
   pure

@@ -22,7 +22,6 @@ import Data.Set qualified as Set
 import Data.String
 import Data.Text qualified as T
 import Data.Tuple
-import Data.Word
 import GHC.Stack (HasCallStack)
 import Network.AMQP.Extended
 import Network.RabbitMqAdmin
@@ -47,8 +46,8 @@ acquireResources n pool = Codensity $ \f -> bracket acquire release $ \s -> do
       waitQSemN pool.sem n
       atomicModifyIORef pool.resources $ swap . Set.splitAt n
 
-createBackendResourcePool :: String -> Word16 -> [DynamicBackendConfig] -> RabbitMQConfig -> IO (ResourcePool BackendResource)
-createBackendResourcePool _cassandraHost _cassandraPort dynConfs rabbitmq =
+createBackendResourcePool :: [DynamicBackendConfig] -> RabbitMQConfig -> IO (ResourcePool BackendResource)
+createBackendResourcePool dynConfs rabbitmq =
   let resources = backendResources dynConfs
    in ResourcePool
         <$> newQSemN (length dynConfs)
