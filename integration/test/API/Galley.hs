@@ -81,6 +81,21 @@ postConversation user cc = do
   ccv <- make cc
   submit "POST" $ req & addJSON ccv
 
+deleteTeamConversation ::
+  ( HasCallStack,
+    MakesValue user,
+    MakesValue conv
+  ) =>
+  String ->
+  conv ->
+  user ->
+  App Response
+deleteTeamConversation tid qcnv user = do
+  cnv <- snd <$> objQid qcnv
+  let path = joinHttpPath ["teams", tid, "conversations", cnv]
+  req <- baseRequest user Galley Versioned path
+  submit "DELETE" req
+
 putConversationProtocol ::
   ( HasCallStack,
     MakesValue user,

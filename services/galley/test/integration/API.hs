@@ -176,7 +176,6 @@ tests s =
           test s "generate guest link forbidden when no guest or non-team-member access role" generateGuestLinkFailIfNoNonTeamMemberOrNoGuestAccess,
           test s "fail to add members when not connected" postMembersFail,
           test s "fail to add too many members" postTooManyMembersFail,
-          test s "delete conversation with remote members" testDeleteTeamConversationWithRemoteMembers,
           test s "delete conversation with unavailable remote members" testDeleteTeamConversationWithUnavailableRemoteMembers,
           test s "get conversations/:domain/:cnv - local" testGetQualifiedLocalConv,
           test s "get conversations/:domain/:cnv - local, not found" testGetQualifiedLocalConvNotFound,
@@ -2410,38 +2409,6 @@ leaveConnectConversation = do
   let c = maybe (error "invalid connect conversation") (qUnqualified . cnvQualifiedId) (responseJsonUnsafe bdy)
   qc <- Qualified c <$> viewFederationDomain
   deleteMemberQualified alice qalice qc !!! const 403 === statusCode
-
-testDeleteTeamConversationWithRemoteMembers :: TestM ()
-testDeleteTeamConversationWithRemoteMembers = do
-  (alice, tid) <- createBindingTeam
-  localDomain <- viewFederationDomain
-  let qalice = Qualified alice localDomain
-
-  bobId <- randomId
-  let remoteDomain = Domain "far-away.example.com"
-      remoteBob = Qualified bobId remoteDomain
-
-  convId <- decodeConvId <$> postTeamConv tid alice [] (Just "remote gossip") [] Nothing Nothing
-  let qconvId = Qualified convId localDomain
-
-  connectWithRemoteUser alice remoteBob
-
-  let mock = getNotFullyConnectedBackendsMock <|> "api-version" ~> EmptyResponse
-  (_, received) <- withTempMockFederator' mock $ do
-    postQualifiedMembers alice (remoteBob :| []) qconvId
-      !!! const 200 === statusCode
-
-    deleteTeamConv tid convId alice
-      !!! const 200 === statusCode
-
-  liftIO $ do
-    let convUpdates = mapMaybe (eitherToMaybe . parseFedRequest) received
-    convUpdate <- case filter ((== SomeConversationAction (sing @'ConversationDeleteTag) ()) . cuAction) convUpdates of
-      [] -> assertFailure "No ConversationUpdate requests received"
-      [convDelete] -> pure convDelete
-      _ -> assertFailure "Multiple ConversationUpdate requests received"
-    cuAlreadyPresentUsers convUpdate @?= [bobId]
-    cuOrigUserId convUpdate @?= qalice
 
 testDeleteTeamConversationWithUnavailableRemoteMembers :: TestM ()
 testDeleteTeamConversationWithUnavailableRemoteMembers = do

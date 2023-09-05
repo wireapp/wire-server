@@ -585,3 +585,22 @@ testDeleteRemoteMemberRemoteUnreachable = do
   bindResponse (removeMember alice conv bob) $ \r -> do
     r.status `shouldMatchInt` 204
     r.jsonBody `shouldMatch` (Nothing @Aeson.Value)
+
+testDeleteTeamConversationWithRemoteMembers :: HasCallStack => App ()
+testDeleteTeamConversationWithRemoteMembers = do
+  (alice, team, _) <- createTeam OwnDomain 1
+  aliceClient <- objId $ bindResponse (addClient alice def) $ getJSON 201
+  conv <- postConversation alice (defProteus {team = Just team}) >>= getJSON 201
+  bob <- randomUser OtherDomain def
+  bobClient <- objId $ bindResponse (addClient bob def) $ getJSON 201
+  connectUsers alice bob
+  mem <- bob %. "qualified_id"
+  void $ addMembers alice conv [mem] >>= getBody 200
+  void $ deleteTeamConversation team conv alice >>= getBody 200
+  let assertNotifications :: (HasCallStack, MakesValue user) => user -> String -> App ()
+      assertNotifications user client = do
+        notif <- awaitNotification user client noValue 2 isConvDeleteNotif
+        notif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
+        notif %. "payload.0.qualified_from" `shouldMatch` objQidObject alice
+  assertNotifications alice aliceClient
+  assertNotifications bob bobClient
