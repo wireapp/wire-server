@@ -1,0 +1,1 @@
+${code} é o seu código de verificação do ${brand}
