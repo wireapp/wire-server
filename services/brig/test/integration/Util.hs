@@ -1341,8 +1341,6 @@ assertElem msg x xs =
   unless (x `elem` xs) $
     assertFailure (msg <> "\nExpected to find: \n" <> show x <> "\nin:\n" <> show xs)
 
---------------------------
-
 setSearchPolicy :: (MonadHttp m, MonadCatch m, MonadIO m) => Brig -> Domain -> FederatedUserSearchPolicy -> m ()
 setSearchPolicy brig domain policy = do
   let req = brig . path "/i/federation/remotes" . Bilge.json (FD.FederationDomainConfig domain policy)
