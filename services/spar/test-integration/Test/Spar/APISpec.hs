@@ -1109,7 +1109,7 @@ specCRUDIdentityProvider = do
                   --
                   -- FUTUREWORK: deprecate POST!
                   if updateNotReplace
-                    then callIdpUpdate' (env ^. teSpar) (Just owner1) (idp1 ^. SAML.idpId) (fromJust $ idPMetadataToInfo idpmeta2)
+                    then callIdpUpdate' (env ^. teSpar) (Just owner1) (idp1 ^. SAML.idpId) (idPMetadataToInfo idpmeta2)
                     else callIdpCreateReplace (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just owner1) idpmeta2 (idp1 ^. SAML.idpId)
 
           idp1' <- call $ callIdpGet (env ^. teSpar) (Just owner1) (idp1 ^. SAML.idpId)
