@@ -1107,7 +1107,7 @@ specCRUDIdentityProvider = do
                   -- and PUT (updating the existing IdP's metadata).  The reason for having two
                   -- ways to do this has been lost in history, but we're testing both here.
                   --
-                  -- FUTUREWORK: deprecate POST?
+                  -- FUTUREWORK: deprecate POST!
                   if updateNotReplace
                     then callIdpUpdate' (env ^. teSpar) (Just owner1) (idp1 ^. SAML.idpId) (fromJust $ idPMetadataToInfo idpmeta2)
                     else callIdpCreateReplace (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just owner1) idpmeta2 (idp1 ^. SAML.idpId)
@@ -1115,25 +1115,25 @@ specCRUDIdentityProvider = do
           idp1' <- call $ callIdpGet (env ^. teSpar) (Just owner1) (idp1 ^. SAML.idpId)
           idp2' <- call $ callIdpGet (env ^. teSpar) (Just owner1) (idp2 ^. SAML.idpId)
           liftIO $ do
-            idp1'
-              `shouldBe` ( idp1
-                             & if updateNotReplace
-                               then
-                                 (idpMetadata . edIssuer .~ (idp2' ^. idpMetadata . edIssuer))
-                                   . (idpExtraInfo . oldIssuers .~ [idp1 ^. idpMetadata . edIssuer])
-                               else idpExtraInfo . replacedBy .~ idp1' ^. idpExtraInfo . replacedBy
-                         )
+            let updateIdp1 = updateCurrentIssuer . updateOldIssuers
+                  where
+                    updateCurrentIssuer = idpMetadata . edIssuer .~ (idp2' ^. idpMetadata . edIssuer)
+                    updateOldIssuers = idpExtraInfo . oldIssuers .~ [idp1 ^. idpMetadata . edIssuer]
+                replaceIdp1 =
+                  idpExtraInfo . replacedBy .~ idp1' ^. idpExtraInfo . replacedBy
+             in idp1' `shouldBe` (idp1 & if updateNotReplace then updateIdp1 else replaceIdp1)
+
             idp2' `shouldBe` idp2
             idp1 ^. idpMetadata . SAML.edIssuer `shouldBe` (idpmeta1 ^. SAML.edIssuer)
             idp2 ^. idpMetadata . SAML.edIssuer `shouldBe` issuer2
+
             if updateNotReplace
               then idp2 ^. idpId `shouldBe` idp1 ^. idpId
               else idp2 ^. idpId `shouldNotBe` idp1 ^. idpId
+
             idp2 ^. idpExtraInfo . oldIssuers `shouldBe` [idpmeta1 ^. edIssuer]
-            idp1' ^. idpExtraInfo . replacedBy
-              `shouldBe` if updateNotReplace
-                then Nothing
-                else Just (idp2 ^. idpId)
+            idp1' ^. idpExtraInfo . replacedBy `shouldBe` if updateNotReplace then Nothing else Just (idp2 ^. idpId)
+
             -- erase everything that is supposed to be different between idp1, idp2, and make
             -- sure the result is equal.
             let erase :: IdP -> IdP
@@ -1143,7 +1143,7 @@ specCRUDIdentityProvider = do
                     . (idpExtraInfo . oldIssuers .~ (idp1 ^. idpExtraInfo . oldIssuers))
                     . (idpExtraInfo . replacedBy .~ (idp1 ^. idpExtraInfo . replacedBy))
                     . (idpExtraInfo . handle .~ (idp1 ^. idpExtraInfo . handle))
-            erase idp1 `shouldBe` erase idp2
+             in erase idp1 `shouldBe` erase idp2
 
           checkScimSearch `mapM_` mbScimStuff
 
