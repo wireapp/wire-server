@@ -266,7 +266,7 @@ deriving via (Schema (WithStatus cfg)) instance (ToSchema (WithStatus cfg)) => T
 
 deriving via (Schema (WithStatus cfg)) instance (ToSchema (WithStatus cfg)) => FromJSON (WithStatus cfg)
 
-deriving via (Schema (WithStatus cfg)) instance (ToSchema (WithStatus cfg)) => S.ToSchema (WithStatus cfg)
+deriving via (Schema (WithStatus cfg)) instance (ToSchema (WithStatus cfg), Typeable cfg) => S.ToSchema (WithStatus cfg)
 
 instance (ToSchema cfg, IsFeatureConfig cfg) => ToSchema (WithStatus cfg) where
   schema =
@@ -296,7 +296,7 @@ deriving via (Schema (WithStatusPatch cfg)) instance (ToSchema (WithStatusPatch 
 
 deriving via (Schema (WithStatusPatch cfg)) instance (ToSchema (WithStatusPatch cfg)) => FromJSON (WithStatusPatch cfg)
 
-deriving via (Schema (WithStatusPatch cfg)) instance (ToSchema (WithStatusPatch cfg)) => S.ToSchema (WithStatusPatch cfg)
+deriving via (Schema (WithStatusPatch cfg)) instance (ToSchema (WithStatusPatch cfg), Typeable cfg) => S.ToSchema (WithStatusPatch cfg)
 
 wsPatch :: Maybe FeatureStatus -> Maybe LockStatus -> Maybe cfg -> Maybe FeatureTTL -> WithStatusPatch cfg
 wsPatch = WithStatusBase
@@ -1043,8 +1043,8 @@ data FeatureStatus
 instance S.ToParamSchema FeatureStatus where
   toParamSchema _ =
     mempty
-      { S._paramSchemaType = Just S.SwaggerString,
-        S._paramSchemaEnum = Just (A.String . toQueryParam <$> [(minBound :: FeatureStatus) ..])
+      { S._schemaType = Just S.OpenApiString,
+        S._schemaEnum = Just (A.String . toQueryParam <$> [(minBound :: FeatureStatus) ..])
       }
 
 instance FromHttpApiData FeatureStatus where

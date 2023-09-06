@@ -29,7 +29,7 @@ type InternalAPI =
     :> "status"
     :> MultiVerb 'GET '() '[RespondEmpty 200 "OK"] ()
 
-swaggerDoc :: Swagger
+swaggerDoc :: OpenApi
 swaggerDoc =
-  toSwagger (Proxy @InternalAPI)
+  toOpenApi (Proxy @InternalAPI)
     & info . title .~ "Wire-Server internal cargohold API"

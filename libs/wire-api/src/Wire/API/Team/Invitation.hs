@@ -130,7 +130,7 @@ newtype InvitationLocation = InvitationLocation
 instance S.ToParamSchema InvitationLocation where
   toParamSchema _ =
     mempty
-      & S.type_ ?~ S.SwaggerString
+      & S.type_ ?~ S.OpenApiString
       & S.format ?~ "url"
 
 instance FromHttpApiData InvitationLocation where

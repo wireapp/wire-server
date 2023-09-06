@@ -93,7 +93,7 @@ instance ToSchema Role where
 instance S.ToParamSchema Role where
   toParamSchema _ =
     mempty
-      & S.type_ ?~ S.SwaggerString
+      & S.type_ ?~ S.OpenApiString
       & S.enum_ ?~ fmap roleName [minBound .. maxBound]
 
 instance FromHttpApiData Role where

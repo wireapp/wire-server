@@ -257,7 +257,7 @@ library
     , mwc-random
     , network                    >=2.4
     , network-conduit-tls
-    , openapi3                   >=3.2     && <3.2.3
+    , openapi3
     , optparse-applicative       >=0.11
     , polysemy
     , polysemy-plugin

@@ -23,19 +23,21 @@ import Data.OpenApi hiding (Contact, Header, Schema, ToSchema)
 import Data.OpenApi qualified as S
 import Imports hiding (head)
 
-cleanupSwagger :: Swagger -> Swagger
+cleanupSwagger :: OpenApi -> OpenApi
 cleanupSwagger =
   (S.security %~ nub)
     -- sanitise definitions
-    . (S.definitions . traverse %~ sanitise)
+    . (S.components . S.schemas . traverse %~ sanitise)
     -- sanitise general responses
-    . (S.responses . traverse . S.schema . _Just . S._Inline %~ sanitise)
+    . (S.components . S.responses . traverse . S.content . traverse . S.schema . _Just . S._Inline %~ sanitise)
     -- sanitise all responses of all paths
     . ( S.allOperations
           . S.responses
           . S.responses
           . traverse
           . S._Inline
+          . S.content
+          . traverse
           . S.schema
           . _Just
           . S._Inline

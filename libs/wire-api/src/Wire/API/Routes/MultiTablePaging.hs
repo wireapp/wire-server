@@ -77,7 +77,10 @@ deriving via
 deriving via
   Schema (GetMultiTablePageRequest name tables max def)
   instance
-    RequestSchemaConstraint name tables max def => S.ToSchema (GetMultiTablePageRequest name tables max def)
+    ( Typeable tables,
+      RequestSchemaConstraint name tables max def
+    ) =>
+    S.ToSchema (GetMultiTablePageRequest name tables max def)
 
 instance RequestSchemaConstraint name tables max def => ToSchema (GetMultiTablePageRequest name tables max def) where
   schema =
@@ -126,7 +129,7 @@ deriving via
 deriving via
   (Schema (MultiTablePage name resultsKey tables a))
   instance
-    PageSchemaConstraints name resultsKey tables a =>
+    (Typeable tables, Typeable a, PageSchemaConstraints name resultsKey tables a) =>
     S.ToSchema (MultiTablePage name resultsKey tables a)
 
 instance

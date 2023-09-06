@@ -56,7 +56,7 @@ instance Functor QualifiedUserMap where
 instance Arbitrary a => Arbitrary (QualifiedUserMap a) where
   arbitrary = QualifiedUserMap <$> mapOf' arbitrary arbitrary
 
-instance (Typeable a, ToSchema a, ToJSON a, Arbitrary a) => ToSchema (UserMap (Set a)) where
+instance (ToSchema a, ToJSON a, Arbitrary a) => ToSchema (UserMap (Set a)) where
   declareNamedSchema _ = do
     mapSch <- declareSchema (Proxy @(Map UserId (Set a)))
     let valueTypeName = Text.pack $ show $ typeRep $ Proxy @a

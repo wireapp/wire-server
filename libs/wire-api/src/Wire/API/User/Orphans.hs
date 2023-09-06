@@ -94,7 +94,7 @@ instance ToSchema (SAML.FormRedirect SAML.AuthnRequest) where
     pure $
       NamedSchema (Just "FormRedirect") $
         mempty
-          & type_ ?~ SwaggerObject
+          & type_ ?~ OpenApiObject
           & properties . at "uri" ?~ Inline (toSchema (Proxy @Text))
           & properties . at "xml" ?~ authnReqSchema
 

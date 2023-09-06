@@ -107,9 +107,9 @@ instance ToHttpApiData WireIdPAPIVersion where
 instance ToParamSchema WireIdPAPIVersion where
   toParamSchema Proxy =
     mempty
-      { _paramSchemaDefault = Just "v2",
-        _paramSchemaType = Just SwaggerString,
-        _paramSchemaEnum = Just (String . toQueryParam <$> [(minBound :: WireIdPAPIVersion) ..])
+      { _schemaDefault = Just "v2",
+        _schemaType = Just OpenApiString,
+        _schemaEnum = Just (String . toQueryParam <$> [(minBound :: WireIdPAPIVersion) ..])
       }
 
 instance Cql.Cql WireIdPAPIVersion where
@@ -198,7 +198,7 @@ instance ToSchema IdPMetadataInfo where
           & properties .~ properties_
           & minProperties ?~ 1
           & maxProperties ?~ 1
-          & type_ ?~ SwaggerObject
+          & type_ ?~ OpenApiObject
     where
       properties_ :: InsOrdHashMap Text (Referenced Schema)
       properties_ =

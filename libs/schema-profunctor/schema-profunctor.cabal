@@ -69,7 +69,7 @@ library
     , containers
     , imports
     , lens
-    , openapi3      >=3.2.0   && <3.2.3
+    , openapi3
     , profunctors
     , text
     , transformers
@@ -135,11 +135,11 @@ test-suite schemas-tests
   build-depends:
       aeson
     , aeson-qq
-    , base                       >=4   && <5
+    , base                       >=4 && <5
     , imports
     , insert-ordered-containers
     , lens
-    , openapi3                   >=3.2 && <3.2.3
+    , openapi3
     , schema-profunctor
     , tasty
     , tasty-hunit

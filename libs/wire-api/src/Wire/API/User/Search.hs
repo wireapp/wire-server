@@ -228,7 +228,7 @@ data TeamUserSearchSortBy
 instance S.ToParamSchema TeamUserSearchSortBy where
   toParamSchema _ =
     mempty
-      & S.type_ ?~ S.SwaggerString
+      & S.type_ ?~ S.OpenApiString
       & S.enum_ ?~ fmap teamUserSearchSortByName [minBound .. maxBound]
 
 instance ToByteString TeamUserSearchSortBy where
@@ -264,7 +264,7 @@ data TeamUserSearchSortOrder
 instance S.ToParamSchema TeamUserSearchSortOrder where
   toParamSchema _ =
     mempty
-      & S.type_ ?~ S.SwaggerString
+      & S.type_ ?~ S.OpenApiString
       & S.enum_ ?~ fmap teamUserSearchSortOrderName [minBound .. maxBound]
 
 instance ToByteString TeamUserSearchSortOrder where

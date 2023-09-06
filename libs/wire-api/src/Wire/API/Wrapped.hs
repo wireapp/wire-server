@@ -48,7 +48,7 @@ instance (ToSchema a, KnownSymbol name) => ToSchema (Wrapped name a) where
     pure $
       NamedSchema Nothing $
         mempty
-          & type_ ?~ SwaggerObject
+          & type_ ?~ OpenApiObject
           & properties .~ InsOrdHashMap.singleton (Text.pack (symbolVal (Proxy @name))) wrappedSchema
 
 instance (Arbitrary a, KnownSymbol name) => Arbitrary (Wrapped name a) where

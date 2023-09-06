@@ -6,6 +6,7 @@ hself: hsuper: {
   binary-parsers = hlib.markUnbroken (hlib.doJailbreak hsuper.binary-parsers);
   bytestring-arbitrary = hlib.markUnbroken (hlib.doJailbreak hsuper.bytestring-arbitrary);
   cql = hlib.markUnbroken hsuper.cql;
+  openapi3 = hlib.markUnbroken (hlib.dontCheck hsuper.openapi3);
   hashtables = hsuper.hashtables_1_3;
   invertible = hlib.markUnbroken hsuper.invertible;
   lens-datetime = hlib.markUnbroken (hlib.doJailbreak hsuper.lens-datetime);

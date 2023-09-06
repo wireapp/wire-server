@@ -46,7 +46,7 @@ import Data.CommaSeparatedList
 import Data.Domain (Domain)
 import Data.Handle (Handle)
 import Data.Id as Id
-import Data.OpenApi (HasInfo (info), HasTitle (title), Swagger)
+import Data.OpenApi (HasInfo (info), HasTitle (title), OpenApi)
 import Data.OpenApi qualified as S
 import Data.Qualified (Qualified)
 import Data.Schema hiding (swaggerDoc)
@@ -798,7 +798,7 @@ type FederationRemotesAPIDeleteDescription =
   "**WARNING!** If you remove a remote connection, all users from that remote will be removed from local conversations, and all \
   \group conversations hosted by that remote will be removed from the local backend. This cannot be reverted! "
 
-swaggerDoc :: Swagger
+swaggerDoc :: OpenApi
 swaggerDoc =
-  toSwagger (Proxy @API)
+  toOpenApi (Proxy @API)
     & info . title .~ "Wire-Server internal brig API"

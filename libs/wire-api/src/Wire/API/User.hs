@@ -1819,7 +1819,7 @@ instance S.ToSchema ListUsersQuery where
     pure $
       S.NamedSchema (Just "ListUsersQuery") $
         mempty
-          & S.type_ ?~ S.SwaggerObject
+          & S.type_ ?~ S.OpenApiObject
           & S.description ?~ "exactly one of qualified_ids or qualified_handles must be provided."
           & S.properties .~ InsOrdHashMap.fromList [("qualified_ids", uids), ("qualified_handles", handles)]
           & S.example ?~ toJSON (ListUsersByIds [Qualified (Id UUID.nil) (Domain "example.com")])
@@ -1954,8 +1954,8 @@ instance FromByteString VerificationAction where
 instance S.ToParamSchema VerificationAction where
   toParamSchema _ =
     mempty
-      { S._paramSchemaType = Just S.SwaggerString,
-        S._paramSchemaEnum = Just (A.String . toQueryParam <$> [(minBound :: VerificationAction) ..])
+      { S._schemaType = Just S.OpenApiString,
+        S._schemaEnum = Just (A.String . toQueryParam <$> [(minBound :: VerificationAction) ..])
       }
 
 instance FromHttpApiData VerificationAction where

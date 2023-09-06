@@ -618,7 +618,7 @@ test-suite spec
     , metrics-wai
     , mtl
     , network-uri
-    , openapi3               >=3.2  && <3.2.3
+    , openapi3
     , polysemy
     , polysemy-plugin
     , polysemy-wire-zoo

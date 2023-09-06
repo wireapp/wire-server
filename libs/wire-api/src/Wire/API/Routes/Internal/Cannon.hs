@@ -2,7 +2,7 @@ module Wire.API.Routes.Internal.Cannon where
 
 import Control.Lens ((.~))
 import Data.Id
-import Data.OpenApi (HasInfo (info), HasTitle (title), Swagger)
+import Data.OpenApi (HasInfo (info), HasTitle (title), OpenApi)
 import Imports
 import Servant
 import Servant.OpenApi (HasOpenApi (toOpenApi))
@@ -59,7 +59,7 @@ type API =
                   )
        )
 
-swaggerDoc :: Swagger
+swaggerDoc :: OpenApi
 swaggerDoc =
-  toSwagger (Proxy @API)
+  toOpenApi (Proxy @API)
     & info . title .~ "Wire-Server internal cannon API"

@@ -326,7 +326,7 @@ instance S.ToSchema UserSSOId where
     pure $
       S.NamedSchema (Just "UserSSOId") $
         mempty
-          & S.type_ ?~ S.SwaggerObject
+          & S.type_ ?~ S.OpenApiObject
           & S.properties
             .~ [ ("tenant", tenantSchema),
                  ("subject", subjectSchema),

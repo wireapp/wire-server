@@ -21,7 +21,7 @@ import Control.Lens
 import Control.Monad.Trans.Resource
 import Data.HashMap.Strict.InsOrd
 import Data.Metrics.Servant
-import Data.OpenApi
+import Data.OpenApi hiding (HasServer)
 import Data.Proxy
 import Imports
 import Network.Wai.Handler.WebSockets
@@ -82,7 +82,7 @@ instance HasOpenApi WebSocketPending where
                     )
            )
     where
-      resps :: InsOrdHashMap HttpStatusCode (Referenced Data.Swagger.Response)
+      resps :: InsOrdHashMap HttpStatusCode (Referenced Data.OpenApi.Response)
       resps =
         mempty
           & at 101 ?~ Inline (mempty & description .~ "Connection upgraded.")

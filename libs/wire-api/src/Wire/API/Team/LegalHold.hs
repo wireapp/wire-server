@@ -240,11 +240,11 @@ instance ToSchema LegalholdProtectee where
         pure $
           S.NamedSchema (Just "LegalholdProtectee") $
             mempty
-              & S.type_ ?~ S.SwaggerObject
+              & S.type_ ?~ S.OpenApiObject
               & S.properties . at "tag"
                 ?~ S.Inline
                   ( mempty
-                      & S.type_ ?~ S.SwaggerString
+                      & S.type_ ?~ S.OpenApiString
                       & S.enum_
                         ?~ [ A.toJSON ("ProtectedUser" :: String),
                              A.toJSON ("UnprotectedBot" :: String),

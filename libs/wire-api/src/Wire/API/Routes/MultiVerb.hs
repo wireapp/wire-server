@@ -54,16 +54,14 @@ import Control.Lens hiding (Context, (<|))
 import Data.ByteString.Builder
 import Data.ByteString.Lazy qualified as LBS
 import Data.CaseInsensitive qualified as CI
-import Data.Containers.ListUtils
 import Data.Either.Combinators (leftToMaybe)
 import Data.HashMap.Strict.InsOrd (InsOrdHashMap)
 import Data.HashMap.Strict.InsOrd qualified as InsOrdHashMap
 import Data.Kind
 import Data.Metrics.Servant
 import Data.OpenApi hiding (HasServer, Response, contentType)
-import Data.OpenApi qualified as S hiding (HasServer, Response, contentType)
+import Data.OpenApi qualified as S
 import Data.OpenApi.Declare qualified as S
-import Data.OpenApi.Lens qualified as S
 import Data.Proxy
 import Data.SOP
 import Data.Sequence (Seq, (<|), pattern (:<|))
@@ -152,7 +150,7 @@ instance MonadPlus UnrenderResult where
   mplus m@(UnrenderSuccess _) _ = m
 
 class IsSwaggerResponse a where
-  responseSwagger :: Declare S.Responses
+  responseSwagger :: Declare S.Response
 
 type family ResponseType a :: Type
 
@@ -193,13 +191,13 @@ instance (AllMimeRender cs a, AllMimeUnrender cs a, KnownStatus s) => IsResponse
       Nothing -> empty
       Just f -> either UnrenderError UnrenderSuccess (f (responseBody output))
 
-simpleResponseSwagger :: forall a desc. (S.ToSchema a, KnownSymbol desc) => Declare S.Responses
+simpleResponseSwagger :: forall a desc. (S.ToSchema a, KnownSymbol desc) => Declare S.Response
 simpleResponseSwagger = do
   ref <- S.declareSchemaRef (Proxy @a)
   pure $
     mempty
       & S.description .~ Text.pack (symbolVal (Proxy @desc))
-      & S.schema ?~ ref
+      & S.content . traverse . S.schema ?~ ref
 
 instance
   (KnownSymbol desc, S.ToSchema a) =>
@@ -350,8 +348,8 @@ instance
   -- FUTUREWORK: should we concatenate all the matching headers instead of just
   -- taking the first one?
   extractHeaders hs = do
-    let name = headerName @name
-        (hs0, hs1) = Seq.partition (\(h, _) -> h == name) hs
+    let name' = headerName @name
+        (hs0, hs1) = Seq.partition (\(h, _) -> h == name') hs
     x <- case hs0 of
       Seq.Empty -> empty
       ((_, h) :<| _) -> either (const empty) pure (parseHeader h)
@@ -380,11 +378,11 @@ instance
   (KnownSymbol name, KnownSymbol desc, S.ToParamSchema a) =>
   ToResponseHeader (DescHeader name desc a)
   where
-  toResponseHeader _ = (name, S.Header (Just desc) sch)
+  toResponseHeader _ = (name', S.Header (Just desc) Nothing Nothing Nothing Nothing Nothing mempty sch)
     where
-      name = Text.pack (symbolVal (Proxy @name))
+      name' = Text.pack (symbolVal (Proxy @name))
       desc = Text.pack (symbolVal (Proxy @desc))
-      sch = S.toParamSchema (Proxy @a)
+      sch = pure $ Inline $ S.toParamSchema (Proxy @a)
 
 instance ToResponseHeader h => ToResponseHeader (OptHeader h) where
   toResponseHeader _ = toResponseHeader (Proxy @h)
@@ -421,11 +419,11 @@ instance
   where
   responseSwagger =
     fmap
-      (S.headers .~ toAllResponseHeaders (Proxy @hs))
+      (S.headers .~ fmap S.Inline (toAllResponseHeaders (Proxy @hs)))
       (responseSwagger @r)
 
 class IsSwaggerResponseList as where
-  responseListSwagger :: Declare (InsOrdHashMap S.HttpStatusCode S.Responses)
+  responseListSwagger :: Declare (InsOrdHashMap S.HttpStatusCode S.Response)
 
 type family ResponseTypes (as :: [Type]) where
   ResponseTypes '[] = '[]
@@ -468,18 +466,26 @@ instance
   ) =>
   IsSwaggerResponseList (a ': as)
   where
-  responseListSwagger =
-    InsOrdHashMap.insertWith
-      combineResponseSwagger
-      (fromIntegral (natVal (Proxy @(ResponseStatus a))))
-      <$> responseSwagger @a
-      <*> responseListSwagger @as
+  responseListSwagger = do
+    resp <- responseSwagger @a
+    respList <- responseListSwagger @as
+    pure $
+      InsOrdHashMap.insertWith
+        combineResponseSwagger
+        (fromIntegral (natVal (Proxy @(ResponseStatus a))))
+        resp
+        respList
 
-combineResponseSwagger :: S.Responses -> S.Responses -> S.Responses
+combineResponseSwagger :: S.Response -> S.Response -> S.Response
 combineResponseSwagger r1 r2 =
   r1
     & S.description <>~ ("\n\n" <> r2 ^. S.description)
-    & S.schema . _Just . S._Inline %~ flip combineSwaggerSchema (r2 ^. S.schema . _Just . S._Inline)
+    & S.content
+      . traverse
+      . S.schema
+      . _Just
+      . S._Inline
+      %~ flip combineSwaggerSchema (r2 ^. S.content . traverse . S.schema . _Just . S._Inline)
 
 combineSwaggerSchema :: S.Schema -> S.Schema -> S.Schema
 combineSwaggerSchema s1 s2
@@ -710,13 +716,13 @@ instance
         . at "/"
         ?~ ( mempty
                & method
-                 ?~ ( mempty
-                        & S.responses . S.responses .~ fmap S.Inline resps
+                 ?~ ( mempty & (S.responses @S.Operation @S.Responses) . S.responses .~ refResps
                     )
            )
     where
       method = S.openApiMethod (Proxy @method)
       (defs, resps) = S.runDeclare (responseListSwagger @as) mempty
+      refResps = S.Inline <$> resps
 
 instance
   (OpenApiMethod method, IsSwaggerResponseList as, AllMime cs) =>
@@ -730,14 +736,14 @@ instance
         ?~ ( mempty
                & method
                  ?~ ( mempty
-                        & S.produces ?~ S.MimeList (nubOrd cs)
-                        & S.responses . S.responses .~ fmap S.Inline resps
+                        & S.responses . S.responses .~ refResps
                     )
            )
     where
       method = S.openApiMethod (Proxy @method)
-      cs = allMime (Proxy @cs)
+      _cs = allMime (Proxy @cs)
       (defs, resps) = S.runDeclare (responseListSwagger @as) mempty
+      refResps = S.Inline <$> resps
 
 class Typeable a => IsWaiBody a where
   responseToWai :: ResponseF a -> Wai.Response

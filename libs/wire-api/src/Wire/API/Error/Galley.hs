@@ -139,8 +139,8 @@ data GalleyError
 
 $(genSingletons [''GalleyError])
 
-instance KnownError (MapError e) => IsSwaggerError (e :: GalleyError) where
-  addToSwagger = addStaticErrorToSwagger @(MapError e)
+instance (Typeable (MapError e), KnownError (MapError e)) => IsSwaggerError (e :: GalleyError) where
+  addToOpenApi = addStaticErrorToSwagger @(MapError e)
 
 instance KnownError (MapError e) => APIError (Tagged (e :: GalleyError) ()) where
   toResponse _ = toResponse $ dynError @(MapError e)
@@ -324,7 +324,7 @@ type instance MapError 'VerificationCodeAuthFailed = 'StaticError 403 "code-auth
 type instance MapError 'VerificationCodeRequired = 'StaticError 403 "code-authentication-required" "Verification code required"
 
 instance IsSwaggerError AuthenticationError where
-  addToSwagger =
+  addToOpenApi =
     addStaticErrorToSwagger @(MapError 'ReAuthFailed)
       . addStaticErrorToSwagger @(MapError 'VerificationCodeAuthFailed)
       . addStaticErrorToSwagger @(MapError 'VerificationCodeRequired)
@@ -351,7 +351,7 @@ data TeamFeatureError
 
 instance IsSwaggerError TeamFeatureError where
   -- Do not display in Swagger
-  addToSwagger = id
+  addToOpenApi = id
 
 type instance MapError 'AppLockInactivityTimeoutTooLow = 'StaticError 400 "inactivity-timeout-too-low" "Applock inactivity timeout must be at least 30 seconds"
 
@@ -398,7 +398,7 @@ type instance ErrorEffect MLSProposalFailure = Error MLSProposalFailure
 
 -- Proposal failures are only reported generically in Swagger
 instance IsSwaggerError MLSProposalFailure where
-  addToSwagger = S.allOperations . S.description %~ Just . (<> desc) . fold
+  addToOpenApi = S.allOperations . S.description %~ Just . (<> desc) . fold
     where
       desc =
         "\n\n**Note**: this endpoint can execute proposals, and therefore \
@@ -449,11 +449,11 @@ instance ToSchema NonFederatingBackends where
         nonFederatingBackendsFromList
 
 instance IsSwaggerError NonFederatingBackends where
-  addToSwagger =
+  addToOpenApi =
     addErrorResponseToSwagger (HTTP.statusCode nonFederatingBackendsStatus) $
       mempty
         & S.description .~ "Adding members to the conversation is not possible because the backends involved do not form a fully connected graph"
-        & S.schema ?~ S.Inline (S.toSchema (Proxy @NonFederatingBackends))
+        & S.content . traverse . S.schema ?~ S.Inline (S.toSchema (Proxy @NonFederatingBackends))
 
 type instance ErrorEffect NonFederatingBackends = Error NonFederatingBackends
 
@@ -486,11 +486,11 @@ instance ToSchema UnreachableBackends where
         <$> (.backends) .= field "unreachable_backends" (array schema)
 
 instance IsSwaggerError UnreachableBackends where
-  addToSwagger =
+  addToOpenApi =
     addErrorResponseToSwagger (HTTP.statusCode unreachableBackendsStatus) $
       mempty
         & S.description .~ "Some domains are unreachable"
-        & S.schema ?~ S.Inline (S.toSchema (Proxy @UnreachableBackends))
+        & S.content . traverse . S.schema ?~ S.Inline (S.toSchema (Proxy @UnreachableBackends))
 
 type instance ErrorEffect UnreachableBackends = Error UnreachableBackends
 

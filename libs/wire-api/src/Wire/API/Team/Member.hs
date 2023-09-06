@@ -132,7 +132,7 @@ deriving via
 deriving via
   (Schema (TeamMember' tag))
   instance
-    (ToSchema (TeamMember' tag)) =>
+    (ToSchema (TeamMember' tag), Typeable tag) =>
     S.ToSchema (TeamMember' tag)
 
 mkTeamMember ::
@@ -256,7 +256,7 @@ deriving via
 deriving via
   (Schema (TeamMemberList' tag))
   instance
-    ToSchema (TeamMemberList' tag) =>
+    (ToSchema (TeamMemberList' tag), Typeable tag) =>
     S.ToSchema (TeamMemberList' tag)
 
 newTeamMemberList :: [TeamMember] -> ListType -> TeamMemberList
@@ -348,7 +348,7 @@ deriving via
 deriving via
   (Schema (NewTeamMember' tag))
   instance
-    (ToSchema (NewTeamMember' tag)) =>
+    (ToSchema (NewTeamMember' tag), Typeable tag) =>
     S.ToSchema (NewTeamMember' tag)
 
 deriving via (GenericUniform NewTeamMember) instance Arbitrary NewTeamMember

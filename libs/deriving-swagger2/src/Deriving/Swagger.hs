@@ -1,3 +1,5 @@
+{-# LANGUAGE RankNTypes #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -22,9 +24,8 @@ module Deriving.Swagger where
 import Data.Char qualified as Char
 import Data.Kind (Constraint)
 import Data.List.Extra (stripSuffix)
-import Data.OpenApi (SchemaOptions, ToSchema (..), constructorTagModifier, defaultSchemaOptions, fieldLabelModifier, genericDeclareNamedSchema)
 import Data.OpenApi.Internal.Schema (GToSchema)
-import Data.OpenApi.Internal.TypeShape (TypeHasSimpleShape)
+import Data.OpenApi.Schema
 import Data.Proxy (Proxy (..))
 import GHC.Generics (Generic (Rep))
 import GHC.TypeLits (ErrorMessage (Text), KnownSymbol, Symbol, TypeError, symbolVal)
@@ -95,17 +96,7 @@ instance (StringModifier f, SwaggerOptions xs) => SwaggerOptions (FieldLabelModi
 instance (StringModifier f, SwaggerOptions xs) => SwaggerOptions (ConstructorTagModifier f ': xs) where
   swaggerOptions = (swaggerOptions @xs) {constructorTagModifier = getStringModifier @f}
 
-type Constraints t a =
-  ( SwaggerOptions t,
-    Typeable t,
-    Typeable a,
-    ToSchema a,
-    Generic a,
-    GToSchema (Rep a),
-    TypeHasSimpleShape a "genericDeclareNamedSchemaUnrestricted"
-  )
-
-instance (Constraints t a) => ToSchema (CustomSwagger t a) where
+instance (SwaggerOptions t, Generic a, Typeable a, GToSchema (Rep a), Typeable (CustomSwagger t a)) => ToSchema (CustomSwagger t a) where
   declareNamedSchema _ = genericDeclareNamedSchema (swaggerOptions @t) (Proxy @a)
 
 -- ** Specify __what__ to modify

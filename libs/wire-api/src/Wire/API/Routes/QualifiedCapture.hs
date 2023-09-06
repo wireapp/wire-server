@@ -24,7 +24,7 @@ where
 import Data.Domain
 import Data.Kind
 import Data.Metrics.Servant
-import Data.OpenApi
+import Data.OpenApi hiding (HasServer, value)
 import Data.Qualified
 import GHC.TypeLits
 import Imports
@@ -56,8 +56,7 @@ type instance
     QualifiedCapture' mods capture a :> SpecialiseToVersion v api
 
 instance
-  ( Typeable a,
-    ToParamSchema a,
+  ( ToParamSchema a,
     HasOpenApi api,
     KnownSymbol capture,
     KnownSymbol (AppendSymbol capture "_domain"),

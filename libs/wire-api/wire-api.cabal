@@ -270,7 +270,7 @@ library
     , metrics-wai
     , mime                       >=0.4
     , mtl
-    , openapi3                   >=3.2     && <3.2.3
+    , openapi3
     , pem                        >=0.2
     , polysemy
     , proto-lens
@@ -748,7 +748,7 @@ test-suite wire-api-tests
     , imports
     , memory
     , metrics-wai
-    , openapi3                 >=3.2     && <3.2.3
+    , openapi3
     , process
     , QuickCheck
     , schema-profunctor

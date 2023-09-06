@@ -43,7 +43,7 @@ instance S.ToSchema PropertyKeysAndValues where
   declareNamedSchema _ =
     pure $
       S.NamedSchema (Just "PropertyKeysAndValues") $
-        mempty & S.type_ ?~ S.SwaggerObject
+        mempty & S.type_ ?~ S.OpenApiObject
 
 newtype PropertyKey = PropertyKey
   {propertyKeyName :: AsciiPrintable}
@@ -64,7 +64,7 @@ newtype PropertyKey = PropertyKey
 instance S.ToParamSchema PropertyKey where
   toParamSchema _ =
     mempty
-      & S.type_ ?~ S.SwaggerString
+      & S.type_ ?~ S.OpenApiString
       & S.format ?~ "printable"
 
 -- | A raw, unparsed property value.

@@ -83,8 +83,8 @@ import Data.Id
 import Data.Json.Util
 import Data.Map.Strict qualified as Map
 import Data.Misc (Latitude (..), Location, Longitude (..), PlainTextPassword6, latitude, location, longitude)
-import Data.OpenApi hiding (Schema, ToSchema, schema)
-import Data.OpenApi qualified as Swagger
+import Data.OpenApi hiding (Schema, ToSchema, nullable, schema)
+import Data.OpenApi qualified as Swagger hiding (nullable)
 import Data.Qualified
 import Data.Schema
 import Data.Set qualified as Set
@@ -368,7 +368,7 @@ instance Swagger.ToSchema UserClientsFull where
     pure $
       NamedSchema (Just "UserClientsFull") $
         mempty
-          & type_ ?~ SwaggerObject
+          & type_ ?~ OpenApiObject
           & description ?~ "Dictionary object of `Client` objects indexed by `UserId`."
           & example ?~ "{\"1355c55a-0ac8-11ee-97ee-db1a6351f093\": <Client object>, ...}"
 

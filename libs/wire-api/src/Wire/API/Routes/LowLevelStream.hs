@@ -17,7 +17,7 @@
 
 module Wire.API.Routes.LowLevelStream where
 
-import Control.Lens (at, (.~), (?~))
+import Control.Lens (at, (.~), (?~), _Just)
 import Data.ByteString.Char8 as B8
 import Data.CaseInsensitive qualified as CI
 import Data.HashMap.Strict.InsOrd qualified as InsOrdHashMap
@@ -33,7 +33,6 @@ import Network.Wai
 import Servant.API
 import Servant.API.ContentTypes
 import Servant.API.Status
-import Servant.OpenApi (HasOpenApi (toOpenApi))
 import Servant.OpenApi as S
 import Servant.OpenApi.Internal as S
 import Servant.Server hiding (respond)
@@ -91,7 +90,7 @@ type instance
     LowLevelStream m s h d t
 
 instance
-  (Accept ctype, KnownNat status, KnownSymbol desc, SwaggerMethod method) =>
+  (S.ToSchema ctype, Accept ctype, KnownNat status, KnownSymbol desc, OpenApiMethod method) =>
   HasOpenApi (LowLevelStream method status headers desc ctype)
   where
   toOpenApi _ =
@@ -101,17 +100,20 @@ instance
         ?~ ( mempty
                & method
                  ?~ ( mempty
-                        & S.produces ?~ S.MimeList [contentType (Proxy @ctype)]
                         & S.responses . S.responses .~ fmap S.Inline responses
                     )
            )
     where
-      method = S.swaggerMethod (Proxy @method)
+      method = S.openApiMethod (Proxy @method)
       responses =
         InsOrdHashMap.singleton
           (fromIntegral (natVal (Proxy @status)))
           $ mempty
             & S.description .~ Text.pack (symbolVal (Proxy @desc))
+            & S.content
+              .~ InsOrdHashMap.singleton
+                (contentType $ Proxy @ctype)
+                (mempty & S.schema . _Just . S._Inline .~ S.toSchema (Proxy @ctype))
 
 instance RoutesToPaths (LowLevelStream method status headers desc ctype) where
   getRoutes = []

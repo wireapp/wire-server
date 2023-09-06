@@ -211,15 +211,15 @@ type family DeclaredErrorEffects api :: EffectRow where
   DeclaredErrorEffects (Named n api) = DeclaredErrorEffects api
   DeclaredErrorEffects api = '[]
 
-errorResponseSwagger :: forall e. KnownError e => S.Response
+errorResponseSwagger :: forall e. (Typeable e, KnownError e) => S.Response
 errorResponseSwagger =
   mempty
     & S.description .~ (eMessage err <> " (label: `" <> eLabel err <> "`)")
-    & S.schema ?~ S.Inline (S.toSchema (Proxy @(SStaticError e)))
+    & S.content . traverse . S.schema ?~ S.Inline (S.toSchema (Proxy @(SStaticError e)))
   where
     err = dynError @e
 
-addErrorResponseToSwagger :: Int -> S.Response -> S.Swagger -> S.Swagger
+addErrorResponseToSwagger :: Int -> S.Response -> S.OpenApi -> S.OpenApi
 addErrorResponseToSwagger code resp =
   S.allOperations
     . S.responses
@@ -233,7 +233,7 @@ addErrorResponseToSwagger code resp =
     addRef (Just (S.Inline resp1)) = S.Inline (combineResponseSwagger resp1 resp)
     addRef (Just r@(S.Ref _)) = r
 
-addStaticErrorToSwagger :: forall e. KnownError e => S.Swagger -> S.Swagger
+addStaticErrorToSwagger :: forall e. (Typeable e, KnownError e) => S.OpenApi -> S.OpenApi
 addStaticErrorToSwagger =
   addErrorResponseToSwagger
     (fromIntegral (eCode (dynError @e)))
@@ -244,7 +244,7 @@ type family MapError (e :: k) :: StaticError
 type family ErrorEffect (e :: k) :: Effect
 
 class IsSwaggerError e where
-  addToSwagger :: S.Swagger -> S.Swagger
+  addToOpenApi :: S.OpenApi -> S.OpenApi
 
 -- | An effect for a static error type with no data.
 type ErrorS e = Error (Tagged e ())
@@ -323,7 +323,7 @@ instance KnownError (MapError e) => AsConstructor '[] (ErrorResponse e) where
   toConstructor _ = Nil
   fromConstructor _ = dynError @(MapError e)
 
-instance KnownError (MapError e) => IsSwaggerResponse (ErrorResponse e) where
+instance (KnownError (MapError e), Typeable (MapError e)) => IsSwaggerResponse (ErrorResponse e) where
   responseSwagger = pure $ errorResponseSwagger @(MapError e)
 
 instance

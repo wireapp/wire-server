@@ -47,7 +47,7 @@ class ServiceAPI service (v :: Version) where
   type ServiceAPIRoutes service
   type SpecialisedAPIRoutes v service :: Type
   type SpecialisedAPIRoutes v service = SpecialiseToVersion v (ServiceAPIRoutes service)
-  serviceSwagger :: HasOpenApi (SpecialisedAPIRoutes v service) => S.Swagger
+  serviceSwagger :: HasOpenApi (SpecialisedAPIRoutes v service) => S.OpenApi
   serviceSwagger = toOpenApi (Proxy @(SpecialisedAPIRoutes v service))
 
 instance ServiceAPI VersionAPITag v where

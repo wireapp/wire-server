@@ -44,7 +44,8 @@ import Data.HashMap.Strict.InsOrd qualified as InsOrdHashMap
 import Data.Id as Id
 import Data.Kind
 import Data.Metrics.Servant
-import Data.OpenApi hiding (Header)
+import Data.OpenApi hiding (HasServer, Header, Server)
+import Data.OpenApi qualified as S
 import Data.Qualified
 import GHC.Base (Symbol)
 import GHC.TypeLits (KnownSymbol)
@@ -228,10 +229,10 @@ instance HasOpenApi api => HasOpenApi (ZHostOpt :> api) where
 
 type instance SpecialiseToVersion v (ZHostOpt :> api) = ZHostOpt :> SpecialiseToVersion v api
 
-addZAuthSwagger :: Swagger -> Swagger
+addZAuthSwagger :: OpenApi -> OpenApi
 addZAuthSwagger s =
   s
-    & securityDefinitions <>~ SecurityDefinitions (InsOrdHashMap.singleton "ZAuth" secScheme)
+    & S.components . S.securitySchemes <>~ SecurityDefinitions (InsOrdHashMap.singleton "ZAuth" secScheme)
     & security <>~ [SecurityRequirement $ InsOrdHashMap.singleton "ZAuth" []]
   where
     secScheme =
@@ -245,10 +246,10 @@ type instance
     ZAuthServant t opts :> SpecialiseToVersion v api
 
 instance HasOpenApi api => HasOpenApi (ZAuthServant 'ZAuthUser _opts :> api) where
-  toOpenApi _ = addZAuthSwagger (toSwagger (Proxy @api))
+  toOpenApi _ = addZAuthSwagger (toOpenApi (Proxy @api))
 
 instance HasOpenApi api => HasOpenApi (ZAuthServant 'ZLocalAuthUser opts :> api) where
-  toOpenApi _ = addZAuthSwagger (toSwagger (Proxy @api))
+  toOpenApi _ = addZAuthSwagger (toOpenApi (Proxy @api))
 
 instance HasLink endpoint => HasLink (ZAuthServant usr opts :> endpoint) where
   type MkLink (ZAuthServant _ _ :> endpoint) a = MkLink endpoint a
@@ -301,8 +302,8 @@ instance
       checkType :: Maybe ByteString -> Wai.Request -> DelayedIO ()
       checkType token req =
         case (token, lookup "Z-Type" (Wai.requestHeaders req)) of
-          (Just t, value)
-            | value /= Just t ->
+          (Just t, v)
+            | v /= Just t ->
                 delayedFail
                   ServerError
                     { errHTTPCode = 403,
@@ -321,7 +322,7 @@ instance RoutesToPaths api => RoutesToPaths (ZHostOpt :> api) where
   getRoutes = getRoutes @api
 
 -- FUTUREWORK: Make a PR to the servant-swagger package with this instance
-instance ToSchema a => ToSchema (Headers ls a) where
+instance (Typeable ls, ToSchema a) => ToSchema (Headers ls a) where
   declareNamedSchema _ = declareNamedSchema (Proxy @a)
 
 data DescriptionOAuthScope (scope :: OAuth.OAuthScope)
@@ -336,7 +337,7 @@ instance
   where
   toOpenApi _ = addScopeDescription @scope (toOpenApi (Proxy @api))
 
-addScopeDescription :: forall scope. OAuth.IsOAuthScope scope => Swagger -> Swagger
+addScopeDescription :: forall scope. OAuth.IsOAuthScope scope => OpenApi -> OpenApi
 addScopeDescription = allOperations . description %~ Just . (<> "\nOAuth scope: `" <> cs (toByteString (OAuth.toOAuthScope @scope)) <> "`") . fold
 
 instance (HasServer api ctx) => HasServer (DescriptionOAuthScope scope :> api) ctx where

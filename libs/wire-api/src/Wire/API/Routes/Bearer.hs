@@ -21,7 +21,7 @@ import Control.Lens ((<>~))
 import Data.ByteString qualified as BS
 import Data.HashMap.Strict.InsOrd qualified as InsOrdHashMap
 import Data.Metrics.Servant
-import Data.OpenApi hiding (Header)
+import Data.OpenApi hiding (HasServer, Header)
 import Data.Text.Encoding qualified as T
 import Imports
 import Servant

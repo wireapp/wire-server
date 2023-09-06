@@ -156,7 +156,7 @@ test-suite brig-types-tests
     , brig-types
     , bytestring-conversion  >=0.3.1
     , imports
-    , openapi3               >=3.2     && <3.2.3
+    , openapi3
     , QuickCheck             >=2.9
     , tasty
     , tasty-hunit

@@ -191,4 +191,4 @@ data SparAPITag
 instance ServiceAPI SparAPITag v where
   type ServiceAPIRoutes SparAPITag = SparAPI
   type SpecialisedAPIRoutes v SparAPITag = SparAPI
-  serviceSwagger = toSwagger (Proxy @SparAPI)
+  serviceSwagger = toOpenApi (Proxy @SparAPI)

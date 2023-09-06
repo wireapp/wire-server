@@ -35,10 +35,8 @@ import Data.Aeson
 import Data.Constraint
 import Data.Kind
 import Data.Metrics.Servant
-import Data.OpenApi.Operation (addExtensions)
 import Data.Proxy
 import Data.Schema
-import Data.Text qualified as T
 import GHC.TypeLits
 import Imports
 import Servant.API
@@ -161,21 +159,26 @@ type instance
 instance (HasOpenApi api, KnownSymbol name, KnownSymbol (ShowComponent comp)) => HasOpenApi (MakesFederatedCall comp name :> api :: Type) where
   toOpenApi _ =
     toOpenApi (Proxy @api)
-      & addExtensions
-        mergeJSONArray
-        [ ( "wire-makes-federated-call-to",
-            Array
-              [ Array
-                  [ String $ T.pack $ symbolVal $ Proxy @(ShowComponent comp),
-                    String $ T.pack $ symbolVal $ Proxy @name
-                  ]
-              ]
-          )
-        ]
 
-mergeJSONArray :: Value -> Value -> Value
-mergeJSONArray (Array x) (Array y) = Array $ x <> y
-mergeJSONArray _ _ = error "impossible! bug in construction of federated calls JSON"
+--       TODO & FUTUREWORK: openapi3 doesn't use an underlying aeson Value
+--          structure to build up the schema. To enable extensions, we will need
+--          to update the structures in openapi3 to include an extensions field,
+--          likely holding a Value type.
+--       & addExtensions
+--         mergeJSONArray
+--         [ ( "wire-makes-federated-call-to",
+--             Array
+--               [ Array
+--                   [ String $ T.pack $ symbolVal $ Proxy @(ShowComponent comp),
+--                     String $ T.pack $ symbolVal $ Proxy @name
+--                   ]
+--               ]
+--           )
+--         ]
+--
+-- mergeJSONArray :: Value -> Value -> Value
+-- mergeJSONArray (Array x) (Array y) = Array $ x <> y
+-- mergeJSONArray _ _ = error "impossible! bug in construction of federated calls JSON"
 
 instance HasClient m api => HasClient m (MakesFederatedCall comp name :> api :: Type) where
   type Client m (MakesFederatedCall comp name :> api) = Client m api

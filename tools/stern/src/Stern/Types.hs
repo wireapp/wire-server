@@ -127,7 +127,7 @@ instance Swagger.ToSchema ConsentLog where
   declareNamedSchema _ =
     pure . Swagger.NamedSchema (Just "ConsentLog") $
       mempty
-        & Swagger.type_ ?~ Swagger.SwaggerObject
+        & Swagger.type_ ?~ Swagger.OpenApiObject
         & Swagger.description ?~ "(object structure is not specified in this schema)"
 
 newtype ConsentValue = ConsentValue
@@ -152,7 +152,7 @@ instance Swagger.ToSchema ConsentLogAndMarketo where
   declareNamedSchema _ =
     pure . Swagger.NamedSchema (Just "ConsentLogAndMarketo") $
       mempty
-        & Swagger.type_ ?~ Swagger.SwaggerObject
+        & Swagger.type_ ?~ Swagger.OpenApiObject
         & Swagger.description ?~ "(object structure is not specified in this schema)"
 
 newtype UserMetaInfo = UserMetaInfo
@@ -164,7 +164,7 @@ instance Swagger.ToSchema UserMetaInfo where
   declareNamedSchema _ =
     pure . Swagger.NamedSchema (Just "UserMetaInfo") $
       mempty
-        & Swagger.type_ ?~ Swagger.SwaggerObject
+        & Swagger.type_ ?~ Swagger.OpenApiObject
         & Swagger.description ?~ "(object structure is not specified in this schema)"
 
 newtype InvoiceId = InvoiceId {unInvoiceId :: Text}
