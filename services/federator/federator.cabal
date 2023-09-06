@@ -43,6 +43,7 @@ library
     Federator.ExternalServer
     Federator.Health
     Federator.InternalServer
+    Federator.Metrics
     Federator.MockServer
     Federator.Monitor
     Federator.Monitor.Internal
@@ -134,6 +135,7 @@ library
     , pem
     , polysemy
     , polysemy-wire-zoo
+    , prometheus-client
     , servant
     , servant-client-core
     , servant-server
