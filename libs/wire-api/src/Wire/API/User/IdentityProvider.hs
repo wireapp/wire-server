@@ -170,9 +170,11 @@ instance ToJSON IdPMetadataInfo where
   toJSON (IdPMetadataValue _ x) =
     object ["value" .= SAML.encode x]
 
--- | (Returning 'Nothing' would be an internal error.)
-idPMetadataToInfo :: SAML.IdPMetadata -> Maybe IdPMetadataInfo
-idPMetadataToInfo = parseMaybe parseJSON . toJSON . IdPMetadataValue undefined
+idPMetadataToInfo :: SAML.IdPMetadata -> IdPMetadataInfo
+idPMetadataToInfo =
+  -- 'undefined' is fine because `instance toJSON IdPMetadataValue` ignores it.  'fromJust' is
+  -- ok as long as 'parseJSON . toJSON' always yields a value and not 'Nothing'.
+  fromJust . parseMaybe parseJSON . toJSON . IdPMetadataValue undefined
 
 -- Swagger instances
 
