@@ -31,7 +31,6 @@ import Brig.API.Client qualified as API
 import Brig.API.Connection qualified as API
 import Brig.API.Error
 import Brig.API.Handler
-import Brig.API.MLS.KeyPackages
 import Brig.API.OAuth (oauthAPI)
 import Brig.API.Properties qualified as API
 import Brig.API.Public.Swagger
@@ -185,26 +184,11 @@ versionedSwaggerDocsAPI (Just (VersionNumber V5)) =
       & S.info . S.title .~ "Wire-Server API"
       & S.info . S.description ?~ $(embedText =<< makeRelativeToProject "docs/swagger.md")
       & cleanupSwagger
-versionedSwaggerDocsAPI (Just (VersionNumber V4)) =
-  swaggerSchemaUIServer $
-    ( serviceSwagger @VersionAPITag @'V4
-        <> serviceSwagger @BrigAPITag @'V4
-        <> serviceSwagger @GalleyAPITag @'V4
-        <> serviceSwagger @SparAPITag @'V4
-        <> serviceSwagger @CargoholdAPITag @'V4
-        <> serviceSwagger @CannonAPITag @'V4
-        <> serviceSwagger @GundeckAPITag @'V4
-        <> serviceSwagger @ProxyAPITag @'V4
-        <> serviceSwagger @OAuthAPITag @'V4
-        <> serviceSwagger @BotAPITag @'V4
-    )
-      & S.info . S.title .~ "Wire-Server API"
-      & S.info . S.description ?~ $(embedText =<< makeRelativeToProject "docs/swagger.md")
-      & cleanupSwagger
 versionedSwaggerDocsAPI (Just (VersionNumber V0)) = swaggerPregenUIServer $(pregenSwagger V0)
 versionedSwaggerDocsAPI (Just (VersionNumber V1)) = swaggerPregenUIServer $(pregenSwagger V1)
 versionedSwaggerDocsAPI (Just (VersionNumber V2)) = swaggerPregenUIServer $(pregenSwagger V2)
 versionedSwaggerDocsAPI (Just (VersionNumber V3)) = swaggerPregenUIServer $(pregenSwagger V3)
+versionedSwaggerDocsAPI (Just (VersionNumber V4)) = swaggerPregenUIServer $(pregenSwagger V4)
 versionedSwaggerDocsAPI Nothing = allroutes (throwError listAllVersionsResp)
   where
     allroutes ::
@@ -279,7 +263,6 @@ servantSitemap =
     :<|> userClientAPI
     :<|> connectionAPI
     :<|> propertiesAPI
-    :<|> mlsAPI
     :<|> userHandleAPI
     :<|> searchAPI
     :<|> authAPI
@@ -385,12 +368,6 @@ servantSitemap =
           :<|> Named @"list-property-keys" listPropertyKeys
       )
         :<|> Named @"list-properties" listPropertyKeysAndValues
-
-    mlsAPI :: ServerT MLSAPI (Handler r)
-    mlsAPI =
-      Named @"mls-key-packages-upload" uploadKeyPackages
-        :<|> Named @"mls-key-packages-claim" (callsFed (exposeAnnotations claimKeyPackages))
-        :<|> Named @"mls-key-packages-count" countKeyPackages
 
     userHandleAPI :: ServerT UserHandleAPI (Handler r)
     userHandleAPI =
