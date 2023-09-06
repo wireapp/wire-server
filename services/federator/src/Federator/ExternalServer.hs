@@ -14,6 +14,7 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 module Federator.ExternalServer
   ( callInward,
@@ -122,9 +123,17 @@ data API mode = API
 instance HasClient m api => HasClient m (ClientCertificate :> api) where
   type Client m (ClientCertificate :> api) = Client m api
 
-instance HasClient m api => HasClient m (Endpath :> api)
+  clientWithRoute pm _ req = clientWithRoute pm (Proxy @(ClientCertificate :> api)) req
+  hoistClientMonad pm _ f c = hoistClientMonad pm (Proxy @(ClientCertificate :> api)) f c
 
-instance ToHttpApiData RPC
+instance HasClient m api => HasClient m (Endpath :> api) where
+  type Client m (Endpath :> api) = Client m api
+
+  clientWithRoute pm _ req = clientWithRoute pm (Proxy @(Endpath :> api)) req
+  hoistClientMonad pm _ f c = hoistClientMonad pm (Proxy @(Endpath :> api)) f c
+
+instance ToHttpApiData RPC where
+  toQueryParam (RPC a) = a
 
 theClient :: RunClient m => API (AsClientT m)
 theClient = genericClient
