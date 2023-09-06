@@ -1,0 +1,2 @@
+- Extending the information returned in errors for Federator. Paths and response bodies, if available, are included in error logs.
+- Prometheus metrics for outgoing and incoming federation requests added.
