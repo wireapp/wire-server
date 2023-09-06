@@ -1061,8 +1061,8 @@ specCRUDIdentityProvider = do
         [ (h, u, e)
           | h <- [False, True], -- are users scim provisioned or via team management invitations?
             u <- [False, True], -- do we use update-by-put or update-by-post?  (see below)
-            e <- [False, True], -- is the externalId an email address?  (if not, it's a uuidv4, and the email address is stored in `emails`)
             (h, u) /= (True, False), -- scim doesn't not work with more than one idp (https://wearezeta.atlassian.net/browse/WPB-689)
+            e <- [False, True], -- is the externalId an email address?  (if not, it's a uuidv4, and the email address is stored in `emails`)
             (u, u, e) /= (True, True, False) -- TODO: this combination fails, see https://github.com/wireapp/wire-server/pull/3563)
         ]
       $ \(haveScim, updateNotReplace, externalIdIsEmail) -> do
@@ -1123,12 +1123,7 @@ specCRUDIdentityProvider = do
                                    . (idpExtraInfo . oldIssuers .~ [idp1 ^. idpMetadata . edIssuer])
                                else idpExtraInfo . replacedBy .~ idp1' ^. idpExtraInfo . replacedBy
                          )
-            idp2'
-              `shouldBe` ( idp2
-                             & if updateNotReplace
-                               then id
-                               else id
-                         )
+            idp2' `shouldBe` idp2
             idp1 ^. idpMetadata . SAML.edIssuer `shouldBe` (idpmeta1 ^. SAML.edIssuer)
             idp2 ^. idpMetadata . SAML.edIssuer `shouldBe` issuer2
             if updateNotReplace
