@@ -1,0 +1,1 @@
+Change default search policy for `"allowAll"` to `"full_search"`.  (Reminder: `"allowAll"` is for testing only, and not supported for production use!)
