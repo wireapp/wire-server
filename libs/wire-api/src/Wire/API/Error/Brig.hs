@@ -85,9 +85,18 @@ data BrigError
   | TooManyConversationMembers
   | ServiceDisabled
   | InvalidBot
+  | InvalidServiceKey
+  | ServiceNotFound
+  | ProviderNotFound
 
 instance KnownError (MapError e) => IsSwaggerError (e :: BrigError) where
   addToSwagger = addStaticErrorToSwagger @(MapError e)
+
+type instance MapError 'ProviderNotFound = 'StaticError 403 "invalid-provider" "The provider does not exist."
+
+type instance MapError 'ServiceNotFound = 'StaticError 404 "not-found" "Service not found."
+
+type instance MapError 'InvalidServiceKey = 'StaticError 400 "invalid-service-key" "Invalid service key."
 
 type instance MapError 'ServiceDisabled = 'StaticError 403 "service-disabled" "The desired service is currently disabled."
 

@@ -358,6 +358,12 @@ testAddGetService config db brig = do
     assertEqual "assets" (serviceAssets svc) (serviceProfileAssets svp)
     assertEqual "tags" (serviceTags svc) (serviceProfileTags svp)
     assertBool "enabled" (not (serviceProfileEnabled svp))
+  services :: [Service] <- responseJsonError =<< getServices brig pid <!! const 200 === statusCode
+  liftIO $ do
+    assertBool "list of all services should not be empty" (not (null services))
+  providerServices :: [ServiceProfile] <- responseJsonError =<< getProviderServices brig uid pid <!! const 200 === statusCode
+  liftIO $ do
+    assertBool "list of provider services should not be empty" (not (null providerServices))
 
 -- TODO: Check that disabled services can not be found via tag search?
 --       Need to generate a unique service name for that.
@@ -1258,6 +1264,22 @@ getService brig pid sid =
       . paths ["provider", "services", toByteString' sid]
       . header "Z-Type" "provider"
       . header "Z-Provider" (toByteString' pid)
+
+getServices :: Brig -> ProviderId -> Http ResponseLBS
+getServices brig pid =
+  get $
+    brig
+      . path "/provider/services"
+      . header "Z-Type" "provider"
+      . header "Z-Provider" (toByteString' pid)
+
+getProviderServices :: Brig -> UserId -> ProviderId -> Http ResponseLBS
+getProviderServices brig uid pid =
+  get $
+    brig
+      . paths ["providers", toByteString' pid, "services"]
+      . header "Z-Type" "access"
+      . header "Z-User" (toByteString' uid)
 
 getServiceProfile ::
   Brig ->
