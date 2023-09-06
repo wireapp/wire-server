@@ -122,6 +122,7 @@
 , streaming-commons
 , swagger2
 , tasty
+, tasty-ant-xml
 , tasty-cannon
 , tasty-hunit
 , tasty-quickcheck
@@ -354,6 +355,7 @@ mkDerivation {
     spar
     streaming-commons
     tasty
+    tasty-ant-xml
     tasty-cannon
     tasty-hunit
     temporary

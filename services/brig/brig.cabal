@@ -595,6 +595,7 @@ executable brig-integration
     , spar
     , streaming-commons
     , tasty                  >=1.0
+    , tasty-ant-xml
     , tasty-cannon           >=0.3.4
     , tasty-hunit            >=0.2
     , temporary              >=1.2.1

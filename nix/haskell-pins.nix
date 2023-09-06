@@ -204,6 +204,14 @@ let
         sha256 = "sha256-htEIJY+LmIMACVZrflU60+X42/g14NxUyFM7VJs4E6w=";
       };
     };
+    # PR: https://github.com/ocharles/tasty-ant-xml/pull/32
+    tasty-ant-xml = {
+      src = fetchgit {
+        url = "https://github.com/akshaymankar/tasty-ant-xml";
+        rev = "34ff294d805e62e73678dccc0be9d3da13540fbe";
+        sha256 = "sha256-+rHcS+BwEFsXqPAHX/KZDIgv9zfk1dZl0LlZJ57Com4=";
+      };
+    };
   };
   hackagePins = {
     # Major re-write upstream, we should get rid of this dependency rather than
