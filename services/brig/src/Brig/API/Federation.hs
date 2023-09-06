@@ -242,8 +242,4 @@ lookupSearchPolicy :: Domain -> (Handler r) FederatedUserSearchPolicy
 lookupSearchPolicy domain = do
   domainConfigs <- getFederationRemotes
   let mConfig = find ((== domain) . FD.domain) (domainConfigs.remotes)
-      defaultPolicy = case domainConfigs.strategy of
-        AllowNone -> NoSearch
-        AllowDynamic -> NoSearch
-        AllowAll -> FullSearch
-  pure $ maybe defaultPolicy FD.cfgSearchPolicy mConfig
+  pure $ maybe NoSearch FD.cfgSearchPolicy mConfig
