@@ -1063,7 +1063,6 @@ specCRUDIdentityProvider = do
             u <- [False, True], -- do we use update-by-put or update-by-post?  (see below)
             (h, u) /= (True, False), -- scim doesn't not work with more than one idp (https://wearezeta.atlassian.net/browse/WPB-689)
             e <- [False, True], -- is the externalId an email address?  (if not, it's a uuidv4, and the email address is stored in `emails`)
-            (u, u, e) /= (True, True, False) -- TODO: this combination fails, see https://github.com/wireapp/wire-server/pull/3563)
         ]
       $ \(haveScim, updateNotReplace, externalIdIsEmail) -> do
         it ("creates new idp, setting old_issuer; sets replaced_by in old idp; scim user search still works " <> show (haveScim, updateNotReplace, externalIdIsEmail)) $ do
