@@ -42,7 +42,6 @@ import Test.QuickCheck (arbitrary, generate)
 import Util.Options (Endpoint (Endpoint))
 import Wire.API.Federation.API.Cargohold
 import Wire.API.Federation.Domain
-import Wire.API.Routes.FederationDomainConfig
 import Wire.API.User
 import Wire.API.User.Search (FederatedUserSearchPolicy (..))
 
