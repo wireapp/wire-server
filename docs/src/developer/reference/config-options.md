@@ -765,3 +765,34 @@ multiIngress:
    red.example.com: https://accounts.red.example.com/conversation-join/
    green.example.com: https://accounts.green.example.net/conversation-join/
 ```
+
+### Webapp
+
+In order to completely hide the root domain to the webapp, some environment variable need to be set. They will allow the webapp hostname to be used to generate the API endpoint, team settings links, account page links and CSP headers. 
+
+To enable dynamic hostname replacement, first set this variable:
+
+```
+ENABLE_DYNAMIC_HOSTNAME="true"
+```
+
+Then any other variable that will contain the string `[[hostname]]` will then be replaced by the hostname of the running webapp. (eg. if a webapp is running on `webapp.red.example.com` then any occurence of `[[hostname]]` in the config will be replaced by `red.example.com`). 
+
+You may then add this `[[hostname]]` in any environment variable
+
+```
+APP_BASE:                                         https://[[hostname]]
+BACKEND_REST:                                     https://nginz-https.[[hostname]]
+BACKEND_WS:                                       wss://nginz-ssl.[[hostname]]
+CSP_EXTRA_CONNECT_SRC:                            https://*.[[hostname]], wss://*.[[hostname]]
+CSP_EXTRA_DEFAULT_SRC:                            https://*.[[hostname]]
+CSP_EXTRA_FONT_SRC:                               https://*.[[hostname]]
+CSP_EXTRA_FRAME_SRC:                              https://*.[[hostname]]
+CSP_EXTRA_IMG_SRC:                                https://*.[[hostname]]
+CSP_EXTRA_MANIFEST_SRC:                           https://*.[[hostname]]
+CSP_EXTRA_MEDIA_SRC:                              https://*.[[hostname]]
+CSP_EXTRA_PREFETCH_SRC:                           https://*.[[hostname]]
+CSP_EXTRA_SCRIPT_SRC:                             https://*.[[hostname]]
+CSP_EXTRA_STYLE_SRC:                              https://*.[[hostname]]
+CSP_EXTRA_WORKER_SRC:                             https://*.[[hostname]]
+```
