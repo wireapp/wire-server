@@ -41,6 +41,7 @@
 , pem
 , polysemy
 , polysemy-wire-zoo
+, prometheus-client
 , QuickCheck
 , random
 , servant
@@ -105,6 +106,7 @@ mkDerivation {
     pem
     polysemy
     polysemy-wire-zoo
+    prometheus-client
     servant
     servant-client-core
     servant-server

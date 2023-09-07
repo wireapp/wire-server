@@ -90,6 +90,7 @@ library
     API.BrigInternal
     API.Cargohold
     API.Common
+    API.Federator
     API.Galley
     API.GalleyInternal
     API.Gundeck

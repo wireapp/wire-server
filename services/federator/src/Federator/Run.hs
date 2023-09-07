@@ -47,6 +47,7 @@ import Federator.Options as Opt
 import Imports
 import Network.DNS qualified as DNS
 import Network.HTTP.Client qualified as HTTP
+import Prometheus
 import System.Logger qualified as Log
 import System.Logger.Extended qualified as LogExt
 import Util.Options
@@ -104,7 +105,26 @@ newEnv o _dnsResolver _applog _domainConfigs = do
   _httpManager <- initHttpManager
   sslContext <- mkTLSSettingsOrThrow _runSettings
   _http2Manager <- newIORef =<< mkHttp2Manager sslContext
+  _federatorMetrics <- mkFederatorMetrics
   pure Env {..}
+
+mkFederatorMetrics :: IO FederatorMetrics
+mkFederatorMetrics =
+  FederatorMetrics
+    <$> register
+      ( vector "target_domain" $
+          counter $
+            Prometheus.Info
+              "com_wire_federator_outgoing_requests"
+              "Number of outgoing requests"
+      )
+    <*> register
+      ( vector "origin_domain" $
+          counter $
+            Prometheus.Info
+              "com_wire_federator_incoming_requests"
+              "Number of incoming requests"
+      )
 
 closeEnv :: Env -> IO ()
 closeEnv e = do
