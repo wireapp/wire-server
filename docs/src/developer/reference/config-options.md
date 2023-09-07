@@ -768,7 +768,15 @@ multiIngress:
 
 ### Webapp
 
-In order to completely hide the root domain to the webapp, some environment variables need to be set. They will allow the webapp hostname to be used to generate the API endpoint, team settings links, account page links and CSP headers. 
+The webapp runs its own web server (a NodeJS server) to serve static files and the webapp config (based on environment variables). 
+In an multi-ingress configuration, a single webapp instance will be deployed and be accessible from multiple domains (say `webapp.red.example.com` and `webapp.green.example.com`). 
+When the webapp is loaded from one of those domains it first does a request to the web server to get the config (that will give it, for example, the backend endpoint that it should hit). 
+
+Because of the single instance nature of the webapp, by default the configuration is static and the root url to the backend API can be set there (say `nginz-https.root.example.com`). 
+In order to completely hide this root domain to the webapp, an environment variable can be set to allow the webapp hostname to be used to generate the API endpoint, team settings links, account page links and CSP headers.
+
+The "hostname" is the result of the domain name minus the `webapp.` part of it. 
+So querying the webapp on `webapp.red.example.com` will resolve to `red.example.com`.
 
 To enable dynamic hostname replacement, first set this variable:
 
