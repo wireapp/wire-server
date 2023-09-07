@@ -489,6 +489,7 @@ executable galley-integration
     , streaming-commons
     , tagged
     , tasty                  >=0.8
+    , tasty-ant-xml
     , tasty-cannon           >=0.3.2
     , tasty-hunit            >=0.9
     , temporary
