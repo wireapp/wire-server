@@ -49,15 +49,18 @@ let
       '';
     };
 
+  sources = import ./sources.nix;
+  pkgsCargo = import sources.nixpkgs-cargo {};
 in
 
 self: super: {
+
   cryptobox = self.callPackage ./pkgs/cryptobox { };
   zauth = self.callPackage ./pkgs/zauth { };
   mls-test-cli = self.callPackage ./pkgs/mls-test-cli { };
 
   # Named like this so cabal2nix can find it
-  rusty_jwt_tools_ffi = self.callPackage ./pkgs/rusty_jwt_tools_ffi { };
+  rusty_jwt_tools_ffi = self.callPackage ./pkgs/rusty_jwt_tools_ffi { rustPlatform = pkgsCargo.rustPlatform; };
 
   nginxModules = super.nginxModules // {
     zauth = {
