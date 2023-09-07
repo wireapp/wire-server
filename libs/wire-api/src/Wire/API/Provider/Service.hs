@@ -571,7 +571,7 @@ data UpdateServiceWhitelist = UpdateServiceWhitelist
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UpdateServiceWhitelist)
-  deriving (S.ToSchema) via (Schema UpdateServiceWhitelist)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema UpdateServiceWhitelist)
 
 instance ToSchema UpdateServiceWhitelist where
   schema =
@@ -580,21 +580,6 @@ instance ToSchema UpdateServiceWhitelist where
         <$> updateServiceWhitelistProvider .= field "provider" schema
         <*> updateServiceWhitelistService .= field "id" schema
         <*> updateServiceWhitelistStatus .= field "whitelisted" schema
-
-instance ToJSON UpdateServiceWhitelist where
-  toJSON u =
-    A.object
-      [ "provider" A..= updateServiceWhitelistProvider u,
-        "id" A..= updateServiceWhitelistService u,
-        "whitelisted" A..= updateServiceWhitelistStatus u
-      ]
-
-instance FromJSON UpdateServiceWhitelist where
-  parseJSON = A.withObject "UpdateServiceWhitelist" $ \o ->
-    UpdateServiceWhitelist
-      <$> o A..: "provider"
-      <*> o A..: "id"
-      <*> o A..: "whitelisted"
 
 data UpdateServiceWhitelistResp
   = UpdateServiceWhitelistRespChanged
