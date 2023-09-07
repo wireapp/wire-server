@@ -24,7 +24,6 @@ import Bilge hiding (head)
 import Bilge.Assert
 import Brig.Options qualified as Opt
 import Control.Arrow (Arrow (first), (&&&))
-import Control.Lens ((?~))
 import Data.Aeson
 import Data.Domain (Domain (Domain))
 import Data.Handle (Handle (..))
