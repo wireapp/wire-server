@@ -212,6 +212,14 @@ let
         sha256 = "sha256-+rHcS+BwEFsXqPAHX/KZDIgv9zfk1dZl0LlZJ57Com4=";
       };
     };
+    # PR: https://github.com/freckle/hspec-junit-formatter/pull/24
+    hspec-junit-formatter = {
+      src = fetchgit {
+        url = "https://github.com/akshaymankar/hspec-junit-formatter";
+        rev = "acec31822cc4f90489d9940bad23b3fd6d1d7c75";
+        sha256 = "sha256-4xGW3KHQKbTL+6+Q/gzfaMBP+J0npUe7tP5ZCQCB5+s=";
+      };
+    };
   };
   hackagePins = {
     # Major re-write upstream, we should get rid of this dependency rather than
