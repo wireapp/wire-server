@@ -768,7 +768,7 @@ multiIngress:
 
 ### Webapp
 
-In order to completely hide the root domain to the webapp, some environment variable need to be set. They will allow the webapp hostname to be used to generate the API endpoint, team settings links, account page links and CSP headers. 
+In order to completely hide the root domain to the webapp, some environment variables need to be set. They will allow the webapp hostname to be used to generate the API endpoint, team settings links, account page links and CSP headers. 
 
 To enable dynamic hostname replacement, first set this variable:
 
@@ -776,9 +776,11 @@ To enable dynamic hostname replacement, first set this variable:
 ENABLE_DYNAMIC_HOSTNAME="true"
 ```
 
-Then any other variable that will contain the string `[[hostname]]` will then be replaced by the hostname of the running webapp. (eg. if a webapp is running on `webapp.red.example.com` then any occurence of `[[hostname]]` in the config will be replaced by `red.example.com`). 
+Then, any other variable that will contain the string `[[hostname]]` will be replaced by the hostname of the running webapp. (eg. if a webapp is running on `webapp.red.example.com` then any occurrence of `[[hostname]]` in the config will be replaced by `red.example.com`). 
 
-You may then add this `[[hostname]]` in any environment variable
+You may use the template variable `[[hostname]]` in any environment variable to not provide (reveal) actual domain names.
+
+For example:
 
 ```
 APP_BASE:                                         https://[[hostname]]
