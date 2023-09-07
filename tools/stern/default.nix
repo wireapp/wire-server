@@ -40,6 +40,7 @@
 , swagger2
 , tagged
 , tasty
+, tasty-ant-xml
 , tasty-hunit
 , text
 , tinylog
@@ -119,6 +120,7 @@ mkDerivation {
     schema-profunctor
     tagged
     tasty
+    tasty-ant-xml
     tasty-hunit
     text
     tinylog
