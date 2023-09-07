@@ -134,3 +134,12 @@ namedClient ::
   (HasEndpoint api endpoint name, HasClient m endpoint) =>
   Client m endpoint
 namedClient = clientIn (Proxy @endpoint) (Proxy @m)
+
+---------------------------------------------
+-- Utility to add a combinator to a Named API
+
+type family x ::> api
+
+type instance
+  x ::> (Named name api) =
+    Named name (x :> api)

@@ -18,7 +18,6 @@
 module Galley.API.Public.Conversation where
 
 import Galley.API.Create
-import Galley.API.MLS.GroupInfo
 import Galley.API.MLS.Types
 import Galley.API.Query
 import Galley.API.Update
@@ -35,7 +34,6 @@ conversationAPI =
     <@> mkNamedAPI @"get-conversation@v2" (callsFed (exposeAnnotations getConversation))
     <@> mkNamedAPI @"get-conversation" (callsFed (exposeAnnotations getConversation))
     <@> mkNamedAPI @"get-conversation-roles" getConversationRoles
-    <@> mkNamedAPI @"get-group-info" (callsFed (exposeAnnotations getGroupInfo))
     <@> mkNamedAPI @"list-conversation-ids-unqualified" conversationIdsPageFromUnqualified
     <@> mkNamedAPI @"list-conversation-ids-v2" (conversationIdsPageFromV2 DoNotListGlobalSelf)
     <@> mkNamedAPI @"list-conversation-ids" conversationIdsPageFrom
@@ -49,7 +47,6 @@ conversationAPI =
     <@> mkNamedAPI @"create-group-conversation" (callsFed (exposeAnnotations createGroupConversation))
     <@> mkNamedAPI @"create-self-conversation@v2" createProteusSelfConversation
     <@> mkNamedAPI @"create-self-conversation" createProteusSelfConversation
-    <@> mkNamedAPI @"get-mls-self-conversation" getMLSSelfConversationWithError
     <@> mkNamedAPI @"create-one-to-one-conversation@v2" (callsFed createOne2OneConversation)
     <@> mkNamedAPI @"create-one-to-one-conversation" (callsFed createOne2OneConversation)
     <@> mkNamedAPI @"add-members-to-conversation-unqualified" (callsFed addMembersUnqualified)

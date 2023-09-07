@@ -12,6 +12,9 @@ build-type:         Simple
 extra-source-files:
   docs/swagger-v0.json
   docs/swagger-v1.json
+  docs/swagger-v2.json
+  docs/swagger-v3.json
+  docs/swagger-v4.json
   docs/swagger.md
 
 library
