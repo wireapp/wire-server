@@ -17,7 +17,7 @@
 
 module Test.Federator.IngressSpec where
 
-import Control.Lens (view)
+import Control.Lens (to, view, (^.))
 import Control.Monad.Catch (throwM)
 import Control.Monad.Codensity
 import Data.Aeson qualified as Aeson
@@ -46,6 +46,7 @@ import Wire.API.Federation.Client
 import Wire.API.Federation.Component
 import Wire.API.Federation.Domain
 import Wire.API.User
+import Wire.API.User.Search (FederatedUserSearchPolicy (..))
 import Wire.Network.DNS.SRV
 
 -- | This module contains tests for the interface between federator and ingress.  Ingress is
@@ -56,6 +57,13 @@ spec env = do
     it "should be accessible using http2 and forward to the local brig" $
       runTestFederator env $ do
         brig <- view teBrig <$> ask
+        let domain =
+              -- FUTUREWORK: we need to come up with a more
+              -- parallelisable way to test this.  as of now, this
+              -- comes from the
+              env ^. teTstOpts . to originDomain
+        setSearchPolicyFor brig (Domain domain) FullSearch
+
         user <- randomUser brig
         hdl <- randomHandle
         _ <- putHandle brig (userId user) hdl

@@ -35,6 +35,7 @@ import Data.Aeson
 import Data.Aeson.TH
 import Data.Aeson.Types qualified as Aeson
 import Data.ByteString.Char8 qualified as C8
+import Data.Domain
 import Data.Id
 import Data.Misc
 import Data.Text qualified as Text
@@ -55,8 +56,10 @@ import Test.Federator.JSON
 import Test.Tasty.HUnit
 import Util.Options (Endpoint)
 import Util.Options qualified as O
+import Wire.API.Routes.FederationDomainConfig (FederationDomainConfig (..))
 import Wire.API.User
 import Wire.API.User.Auth
+import Wire.API.User.Search (FederatedUserSearchPolicy)
 
 type BrigReq = Request -> Request
 
@@ -347,3 +350,11 @@ assertNoError =
   runError >=> \case
     Left err -> embed @IO . assertFailure $ "Unexpected error: " <> show err
     Right x -> pure x
+
+setSearchPolicyFor :: BrigReq -> Domain -> FederatedUserSearchPolicy -> (Functor m, MonadHttp m) => m ()
+setSearchPolicyFor brig domain policy =
+  void $
+    post $
+      brig
+        . paths ["/i/federation/remotes"]
+        . Bilge.json (FederationDomainConfig domain policy)

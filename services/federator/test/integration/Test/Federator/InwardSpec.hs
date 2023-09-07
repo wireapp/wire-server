@@ -22,12 +22,13 @@ module Test.Federator.InwardSpec where
 
 import Bilge
 import Bilge.Assert
-import Control.Lens (view)
+import Control.Lens (to, view, (^.))
 import Data.Aeson
 import Data.Aeson.Types qualified as Aeson
 import Data.ByteString qualified as BS
 import Data.ByteString.Conversion (toByteString')
 import Data.ByteString.Lazy qualified as LBS
+import Data.Domain
 import Data.Handle
 import Data.LegalHold (UserLegalHoldStatus (UserLegalHoldNoConsent))
 import Data.Text.Encoding
@@ -41,7 +42,9 @@ import Test.QuickCheck (arbitrary, generate)
 import Util.Options (Endpoint (Endpoint))
 import Wire.API.Federation.API.Cargohold
 import Wire.API.Federation.Domain
+import Wire.API.Routes.FederationDomainConfig
 import Wire.API.User
+import Wire.API.User.Search (FederatedUserSearchPolicy (..))
 
 -- FUTUREWORK(federation): move these tests to brig-integration (benefit: avoid duplicating all of the brig helper code)
 -- FUTUREWORK(fisx): better yet, reorganize integration tests (or at least the helpers) so
@@ -70,6 +73,13 @@ spec env =
     it "should be able to call brig" $
       runTestFederator env $ do
         brig <- view teBrig <$> ask
+        let domain =
+              -- FUTUREWORK: we need to come up with a more
+              -- parallelisable way to test this.  as of now, this
+              -- comes from the
+              env ^. teTstOpts . to originDomain
+        setSearchPolicyFor brig (Domain domain) ExactHandleSearch
+
         user <- randomUser brig
         hdl <- randomHandle
         _ <- putHandle brig (userId user) hdl
@@ -77,7 +87,7 @@ spec env =
         let expectedProfile = (publicProfile user UserLegalHoldNoConsent) {profileHandle = Just (Handle hdl)}
         bdy <-
           responseJsonError
-            =<< inwardCall "/federation/brig/get-user-by-handle" (encode hdl)
+            =<< inwardCallWithOriginDomain (cs domain) "/federation/brig/get-user-by-handle" (encode hdl)
               <!! const 200 === statusCode
         liftIO $ bdy `shouldBe` expectedProfile
 
