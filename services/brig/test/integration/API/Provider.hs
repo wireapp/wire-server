@@ -97,11 +97,12 @@ import Wire.API.Team.Feature (featureNameBS)
 import Wire.API.Team.Feature qualified as Public
 import Wire.API.Team.Permission
 import Wire.API.User as User hiding (EmailUpdate, PasswordChange, mkName)
+import Wire.API.User.Auth (CookieType (..))
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
 
-tests :: Domain -> Config -> Manager -> DB.ClientState -> Brig -> Cannon -> Galley -> IO TestTree
-tests dom conf p db b c g = do
+tests :: Domain -> Config -> Manager -> DB.ClientState -> Brig -> Cannon -> Galley -> Nginz -> IO TestTree
+tests dom conf p db b c g n = do
   pure $
     testGroup
       "provider"
@@ -139,7 +140,8 @@ tests dom conf p db b c g = do
             test p "de-whitelisted bots are removed" $
               testWhitelistKickout dom conf db b g c,
             test p "de-whitelisting works with deleted conversations" $
-              testDeWhitelistDeletedConv conf db b g c
+              testDeWhitelistDeletedConv conf db b g c,
+            test p "whitelist via nginz" $ testWhitelistNginz conf db b n
           ],
         testGroup
           "bot"
@@ -1756,6 +1758,36 @@ disableService brig pid sid = do
   updateServiceConn brig pid sid upd
     !!! const 200 === statusCode
 
+whitelistServiceNginz ::
+  HasCallStack =>
+  Nginz ->
+  -- | Team owner
+  User ->
+  -- | Team
+  TeamId ->
+  ProviderId ->
+  ServiceId ->
+  Http ()
+whitelistServiceNginz nginz user tid pid sid =
+  updateServiceWhitelistNginz nginz user tid (UpdateServiceWhitelist pid sid True) !!! const 200 === statusCode
+
+updateServiceWhitelistNginz ::
+  Nginz ->
+  User ->
+  TeamId ->
+  UpdateServiceWhitelist ->
+  Http ResponseLBS
+updateServiceWhitelistNginz nginz user tid upd = do
+  let Just email = userEmail user
+  rs <- login nginz (defEmailLogin email) PersistentCookie <!! const 200 === statusCode
+  let t = decodeToken rs
+  post $
+    nginz
+      . paths ["teams", toByteString' tid, "services", "whitelist"]
+      . header "Authorization" ("Bearer " <> toByteString' t)
+      . contentJson
+      . body (RequestBodyLBS (encode upd))
+
 whitelistService ::
   HasCallStack =>
   Brig ->
@@ -2312,6 +2344,14 @@ prepareBotUsersTeam brig galley sref = do
   -- Create conversation
   cid <- Team.createTeamConv galley tid uid1 [uid2] Nothing
   pure (u1, u2, h, tid, cid, pid, sid)
+
+testWhitelistNginz :: Config -> DB.ClientState -> Brig -> Nginz -> Http ()
+testWhitelistNginz config db brig nginz = withTestService config db brig defServiceApp $ \sref _ -> do
+  let pid = sref ^. serviceRefProvider
+  let sid = sref ^. serviceRefId
+  (admin, tid) <- Team.createUserWithTeam brig
+  adminUser <- selfUser <$> getSelfProfile brig admin
+  whitelistServiceNginz nginz adminUser tid pid sid
 
 addBotConv ::
   HasCallStack =>
