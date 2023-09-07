@@ -769,7 +769,7 @@ multiIngress:
 ### Webapp
 
 The webapp runs its own web server (a NodeJS server) to serve static files and the webapp config (based on environment variables). 
-In an multi-ingress configuration, a single webapp instance will be deployed and be accessible from multiple domains (say `webapp.red.example.com` and `webapp.green.example.com`). 
+In a multi-ingress configuration, a single webapp instance will be deployed and be accessible from multiple domains (say `webapp.red.example.com` and `webapp.green.example.com`). 
 When the webapp is loaded from one of those domains it first does a request to the web server to get the config (that will give it, for example, the backend endpoint that it should hit). 
 
 Because of the single instance nature of the webapp, by default the configuration is static and the root url to the backend API can be set there (say `nginz-https.root.example.com`). 
