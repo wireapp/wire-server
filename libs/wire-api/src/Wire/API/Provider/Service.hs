@@ -47,6 +47,7 @@ module Wire.API.Provider.Service
 
     -- * UpdateServiceWhitelist
     UpdateServiceWhitelist (..),
+    UpdateServiceWhitelistResp (..),
   )
 where
 
@@ -64,13 +65,15 @@ import Data.Misc (HttpsUrl (..), PlainTextPassword6)
 import Data.OpenApi qualified as S
 import Data.PEM (PEM, pemParseBS, pemWriteLBS)
 import Data.Proxy
-import Data.Range (Range)
+import Data.Range (Range, fromRange, rangedSchema)
+import Data.SOP
 import Data.Schema
 import Data.Text qualified as Text
 import Data.Text.Ascii
 import Data.Text.Encoding qualified as Text
 import Imports
 import Wire.API.Provider.Service.Tag (ServiceTag (..))
+import Wire.API.Routes.MultiVerb
 import Wire.API.User.Profile (Asset, Name)
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
@@ -205,6 +208,22 @@ data Service = Service
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform Service)
+  deriving (S.ToSchema) via (Schema Service)
+
+instance ToSchema Service where
+  schema =
+    object "Service" $
+      Service
+        <$> serviceId .= field "id" schema
+        <*> serviceName .= field "name" schema
+        <*> serviceSummary .= field "summary" schema
+        <*> serviceDescr .= field "description" schema
+        <*> serviceUrl .= field "base_url" schema
+        <*> serviceTokens .= field "auth_tokens" schema
+        <*> serviceKeys .= field "public_keys" schema
+        <*> serviceAssets .= field "assets" (array schema)
+        <*> serviceTags .= field "tags" (set schema)
+        <*> serviceEnabled .= field "enabled" schema
 
 instance ToJSON Service where
   toJSON s =
@@ -265,6 +284,7 @@ data ServiceProfile = ServiceProfile
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ServiceProfile)
+  deriving (S.ToSchema) via (Schema ServiceProfile)
 
 instance ToJSON ServiceProfile where
   toJSON s =
@@ -291,6 +311,19 @@ instance FromJSON ServiceProfile where
       <*> o A..: "tags"
       <*> o A..: "enabled"
 
+instance ToSchema ServiceProfile where
+  schema =
+    object "ServiceProfile" $
+      ServiceProfile
+        <$> serviceProfileId .= field "id" schema
+        <*> serviceProfileProvider .= field "provider" schema
+        <*> serviceProfileName .= field "name" schema
+        <*> serviceProfileSummary .= field "summary" schema
+        <*> serviceProfileDescr .= field "description" schema
+        <*> serviceProfileAssets .= field "assets" (array schema)
+        <*> serviceProfileTags .= field "tags" (set schema)
+        <*> serviceProfileEnabled .= field "enabled" schema
+
 --------------------------------------------------------------------------------
 -- ServiceProfilePage
 
@@ -300,6 +333,7 @@ data ServiceProfilePage = ServiceProfilePage
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ServiceProfilePage)
+  deriving (S.ToSchema) via (Schema ServiceProfilePage)
 
 instance ToJSON ServiceProfilePage where
   toJSON p =
@@ -313,6 +347,13 @@ instance FromJSON ServiceProfilePage where
     ServiceProfilePage
       <$> o A..: "has_more"
       <*> o A..: "services"
+
+instance ToSchema ServiceProfilePage where
+  schema =
+    object "ServiceProfile" $
+      ServiceProfilePage
+        <$> serviceProfilePageHasMore .= field "has_more" schema
+        <*> serviceProfilePageResults .= field "services" (array schema)
 
 --------------------------------------------------------------------------------
 -- NewService
@@ -330,6 +371,20 @@ data NewService = NewService
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform NewService)
+  deriving (S.ToSchema) via (Schema NewService)
+
+instance ToSchema NewService where
+  schema =
+    object "NewService" $
+      NewService
+        <$> newServiceName .= field "name" schema
+        <*> newServiceSummary .= field "summary" schema
+        <*> newServiceDescr .= field "description" schema
+        <*> newServiceUrl .= field "base_url" schema
+        <*> newServiceKey .= field "public_key" schema
+        <*> newServiceToken .= maybe_ (optField "auth_token" schema)
+        <*> newServiceAssets .= field "assets" (array schema)
+        <*> newServiceTags .= field "tags" (fromRange .= rangedSchema (set schema))
 
 instance ToJSON NewService where
   toJSON s =
@@ -366,6 +421,14 @@ data NewServiceResponse = NewServiceResponse
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform NewServiceResponse)
+  deriving (S.ToSchema) via (Schema NewServiceResponse)
+
+instance ToSchema NewServiceResponse where
+  schema =
+    object "NewServiceResponse" $
+      NewServiceResponse
+        <$> rsNewServiceId .= field "id" schema
+        <*> rsNewServiceToken .= maybe_ (optField "auth_token" schema)
 
 instance ToJSON NewServiceResponse where
   toJSON r =
@@ -393,6 +456,17 @@ data UpdateService = UpdateService
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UpdateService)
+  deriving (S.ToSchema) via (Schema UpdateService)
+
+instance ToSchema UpdateService where
+  schema =
+    object "UpdateService" $
+      UpdateService
+        <$> updateServiceName .= maybe_ (optField "name" schema)
+        <*> updateServiceSummary .= maybe_ (optField "summary" schema)
+        <*> updateServiceDescr .= maybe_ (optField "description" schema)
+        <*> updateServiceAssets .= maybe_ (optField "assets" $ array schema)
+        <*> updateServiceTags .= maybe_ (optField "tags" (fromRange .= rangedSchema (set schema)))
 
 instance ToJSON UpdateService where
   toJSON u =
@@ -427,6 +501,17 @@ data UpdateServiceConn = UpdateServiceConn
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UpdateServiceConn)
+  deriving (S.ToSchema) via (Schema UpdateServiceConn)
+
+instance ToSchema UpdateServiceConn where
+  schema =
+    object "UpdateServiceConn" $
+      UpdateServiceConn
+        <$> updateServiceConnPassword .= field "password" schema
+        <*> updateServiceConnUrl .= maybe_ (optField "base_url" schema)
+        <*> updateServiceConnKeys .= maybe_ (optField "public_keys" (fromRange .= rangedSchema (array schema)))
+        <*> updateServiceConnTokens .= maybe_ (optField "auth_tokens" (fromRange .= rangedSchema (array schema)))
+        <*> updateServiceConnEnabled .= maybe_ (optField "enabled" schema)
 
 mkUpdateServiceConn :: PlainTextPassword6 -> UpdateServiceConn
 mkUpdateServiceConn pw = UpdateServiceConn pw Nothing Nothing Nothing Nothing
@@ -458,6 +543,13 @@ newtype DeleteService = DeleteService
   {deleteServicePassword :: PlainTextPassword6}
   deriving stock (Eq, Show)
   deriving newtype (Arbitrary)
+  deriving (S.ToSchema) via (Schema DeleteService)
+
+instance ToSchema DeleteService where
+  schema =
+    object "DeleteService" $
+      DeleteService
+        <$> deleteServicePassword .= field "password" schema
 
 instance ToJSON DeleteService where
   toJSON d =
@@ -479,6 +571,15 @@ data UpdateServiceWhitelist = UpdateServiceWhitelist
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UpdateServiceWhitelist)
+  deriving (S.ToSchema) via (Schema UpdateServiceWhitelist)
+
+instance ToSchema UpdateServiceWhitelist where
+  schema =
+    object "UpdateServiceWhitelist" $
+      UpdateServiceWhitelist
+        <$> updateServiceWhitelistProvider .= field "provider" schema
+        <*> updateServiceWhitelistService .= field "id" schema
+        <*> updateServiceWhitelistStatus .= field "whitelisted" schema
 
 instance ToJSON UpdateServiceWhitelist where
   toJSON u =
@@ -494,3 +595,15 @@ instance FromJSON UpdateServiceWhitelist where
       <$> o A..: "provider"
       <*> o A..: "id"
       <*> o A..: "whitelisted"
+
+data UpdateServiceWhitelistResp
+  = UpdateServiceWhitelistRespChanged
+  | UpdateServiceWhitelistRespUnchanged
+
+-- basically the same as the instance for CheckBlacklistResponse
+instance AsUnion '[RespondEmpty 200 "UpdateServiceWhitelistRespChanged", RespondEmpty 204 "UpdateServiceWhitelistRespUnchanged"] UpdateServiceWhitelistResp where
+  toUnion UpdateServiceWhitelistRespChanged = Z (I ())
+  toUnion UpdateServiceWhitelistRespUnchanged = S (Z (I ()))
+  fromUnion (Z (I ())) = UpdateServiceWhitelistRespChanged
+  fromUnion (S (Z (I ()))) = UpdateServiceWhitelistRespUnchanged
+  fromUnion (S (S x)) = case x of {}

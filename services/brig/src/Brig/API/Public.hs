@@ -91,6 +91,7 @@ import Data.Nonce (Nonce, randomNonce)
 import Data.OpenApi qualified as S
 import Data.Qualified
 import Data.Range
+import Data.Schema ()
 import Data.Text qualified as Text
 import Data.Text.Ascii qualified as Ascii
 import Data.Text.Lazy (pack)
@@ -114,6 +115,8 @@ import Wire.API.Error.Brig qualified as E
 import Wire.API.Federation.API
 import Wire.API.Federation.Error
 import Wire.API.Properties qualified as Public
+import Wire.API.Provider.Service qualified as Public
+import Wire.API.Provider.Service.Tag qualified as Public
 import Wire.API.Routes.API
 import Wire.API.Routes.Internal.Brig qualified as BrigInternalAPI
 import Wire.API.Routes.Internal.Cannon qualified as CannonInternalAPI
@@ -288,7 +291,23 @@ servantSitemap =
     :<|> systemSettingsAPI
     :<|> oauthAPI
     :<|> botAPI
+    :<|> providerAPI
+    :<|> servicesAPI
   where
+    providerAPI :: ServerT ProviderAPI (Handler r)
+    providerAPI =
+      Named @"post-provider-services" addServiceH
+        :<|> Named @"get-provider-services" listServicesH
+        :<|> Named @"get-provider-services-by-service-id" getServiceH
+        :<|> Named @"put-provider-services-by-service-id" updateServiceH
+        :<|> Named @"put-provider-services-connection-by-service-id" updateServiceConnH
+        :<|> Named @"delete-provider-services-by-service-id" deleteServiceH
+        :<|> Named @"get-provider-services-by-provider-id" listServiceProfilesH
+        :<|> Named @"get-provider-services-by-provider-id-and-service-id" getServiceProfileH
+    servicesAPI :: ServerT ServicesAPI (Handler r)
+    servicesAPI =
+      Named @"get-services" searchServiceProfilesH
+        :<|> Named @"get-services-tags" getServiceTagListH
     userAPI :: ServerT UserAPI (Handler r)
     userAPI =
       Named @"get-user-unqualified" (callsFed (exposeAnnotations getUserUnqualifiedH))
@@ -1120,6 +1139,75 @@ updateUserEmail zuserId emailOwnerId (Public.EmailUpdate email) = do
           teamId <- hoistMaybe maybeTeamId
           teamMember <- MaybeT $ lift $ liftSem $ GalleyProvider.getTeamMember zuserId teamId
           pure $ teamMember `hasPermission` ChangeTeamMemberProfiles
+
+-- ProviderAPI
+addServiceH ::
+  Member GalleyProvider r =>
+  ProviderId ->
+  Public.NewService ->
+  (Handler r) Public.NewServiceResponse
+addServiceH pid req = do
+  Provider.guardSecondFactorDisabled Nothing
+  Provider.addService pid req
+
+listServicesH :: Member GalleyProvider r => ProviderId -> (Handler r) [Public.Service]
+listServicesH pid = do
+  Provider.guardSecondFactorDisabled Nothing
+  Provider.listServices pid
+
+getServiceH :: Member GalleyProvider r => ProviderId -> ServiceId -> (Handler r) Public.Service
+getServiceH pid sid = do
+  Provider.guardSecondFactorDisabled Nothing
+  Provider.getService pid sid
+
+updateServiceH :: Member GalleyProvider r => ProviderId -> ServiceId -> Public.UpdateService -> (Handler r) ()
+updateServiceH pid sid req = do
+  Provider.guardSecondFactorDisabled Nothing
+  void $ Provider.updateService pid sid req
+
+updateServiceConnH :: Member GalleyProvider r => ProviderId -> ServiceId -> Public.UpdateServiceConn -> (Handler r) ()
+updateServiceConnH pid sid req = do
+  Provider.guardSecondFactorDisabled Nothing
+  void $ Provider.updateServiceConn pid sid req
+
+-- TODO: Send informational email to provider.
+
+-- | Member GalleyProvider r => The endpoint that is called to delete a service.
+--
+-- Since deleting a service can be costly, it just marks the service as
+-- disabled and then creates an event that will, when processed, actually
+-- delete the service. See 'finishDeleteService'.
+deleteServiceH :: Member GalleyProvider r => ProviderId -> ServiceId -> Public.DeleteService -> (Handler r) ()
+deleteServiceH pid sid req = do
+  Provider.guardSecondFactorDisabled Nothing
+  void $ Provider.deleteService pid sid req
+
+listServiceProfilesH :: Member GalleyProvider r => UserId -> ProviderId -> (Handler r) [Public.ServiceProfile]
+listServiceProfilesH _ pid = do
+  Provider.guardSecondFactorDisabled Nothing
+  Provider.listServiceProfiles pid
+
+getServiceProfileH :: Member GalleyProvider r => UserId -> ProviderId -> ServiceId -> (Handler r) Public.ServiceProfile
+getServiceProfileH _ pid sid = do
+  Provider.guardSecondFactorDisabled Nothing
+  Provider.getServiceProfile pid sid
+
+-- ServicesAPI
+searchServiceProfilesH ::
+  Member GalleyProvider r =>
+  UserId ->
+  Maybe (Public.QueryAnyTags 1 3) ->
+  Maybe Text ->
+  Maybe (Range 10 100 Int32) -> -- Default to 20
+  (Handler r) Public.ServiceProfilePage
+searchServiceProfilesH _ qt start size = do
+  Provider.guardSecondFactorDisabled Nothing
+  Provider.searchServiceProfiles qt start $ fromMaybe (unsafeRange 20) size
+
+getServiceTagListH :: Member GalleyProvider r => UserId -> (Handler r) Public.ServiceTagList
+getServiceTagListH _ = do
+  Provider.guardSecondFactorDisabled Nothing
+  Provider.getServiceTagList ()
 
 -- activation
 
