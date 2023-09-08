@@ -236,7 +236,7 @@ versionedSwaggerDocsAPI Nothing = allroutes (throwError listAllVersionsResp)
 internalEndpointsSwaggerDocsAPI ::
   String ->
   PortNumber ->
-  S.Swagger ->
+  S.OpenApi ->
   Servant.Server (VersionedSwaggerDocsAPIBase service)
 internalEndpointsSwaggerDocsAPI service examplePort swagger (Just (VersionNumber V5)) =
   swaggerSchemaUIServer $

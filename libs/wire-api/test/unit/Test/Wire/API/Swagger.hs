@@ -56,7 +56,7 @@ tests =
       testToJSON @(Wrapped.Wrapped "some_user" User.User)
     ]
 
-testToJSON :: forall a. (Arbitrary a, Typeable a, ToJSON a, ToSchema a, Show a) => T.TestTree
+testToJSON :: forall a. (Arbitrary a, ToJSON a, ToSchema a, Show a) => T.TestTree
 testToJSON = testProperty msg trip
   where
     msg = show (typeRep @a)

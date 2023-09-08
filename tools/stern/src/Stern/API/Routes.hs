@@ -455,7 +455,7 @@ type SwaggerDocsAPI = SwaggerSchemaUI "swagger-ui" "swagger.json"
 swaggerDocs :: Servant.Server SwaggerDocsAPI
 swaggerDocs =
   swaggerSchemaUIServer $
-    toSwagger (Proxy @SternAPI)
+    toOpenApi (Proxy @SternAPI)
       & S.info . S.title .~ "Stern API"
       & cleanupSwagger
 

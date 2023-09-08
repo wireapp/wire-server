@@ -17,6 +17,11 @@
 
 module Wire.API.Routes.CSV where
 
+import Control.Lens
+import Data.OpenApi qualified as O
+import Data.OpenApi.Internal.Schema
+import Data.OpenApi.Schema
+import Imports
 import Network.HTTP.Media.MediaType
 import Servant.API
 
@@ -24,3 +29,11 @@ data CSV
 
 instance Accept CSV where
   contentType _ = "text" // "csv"
+
+instance ToSchema CSV where
+  declareNamedSchema _ =
+    plain $
+      mempty
+        & O.title ?~ "CSV"
+        & O.type_ ?~ O.OpenApiString
+        & O.format ?~ "text/csv"

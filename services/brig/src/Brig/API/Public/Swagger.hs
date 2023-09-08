@@ -68,16 +68,14 @@ swaggerPregenUIServer =
     . fromMaybe A.Null
     . A.decode
 
-adjustSwaggerForInternalEndpoint :: String -> PortNumber -> S.Swagger -> S.Swagger
+adjustSwaggerForInternalEndpoint :: String -> PortNumber -> S.OpenApi -> S.OpenApi
 adjustSwaggerForInternalEndpoint service examplePort swagger =
   swagger
     & S.info . S.title .~ T.pack ("Wire-Server internal API (" ++ service ++ ")")
     & S.info . S.description ?~ renderedDescription
-    & S.host ?~ S.Host "localhost" (Just examplePort)
     & S.allOperations . S.tags <>~ tag
     -- Enforce HTTP as the services themselves don't understand HTTPS
-    & S.schemes ?~ [S.Http]
-    & S.allOperations . S.schemes ?~ [S.Http]
+    & S.servers .~ [S.Server ("http://localhost:" <> T.pack (show examplePort)) Nothing mempty]
   where
     tag :: InsOrdSet.InsOrdHashSet S.TagName
     tag = InsOrdSet.singleton @S.TagName (T.pack service)
@@ -102,7 +100,7 @@ adjustSwaggerForInternalEndpoint service examplePort swagger =
 emptySwagger :: Servant.Server (ServiceSwaggerDocsAPIBase a)
 emptySwagger =
   swaggerSchemaUIServer $
-    mempty @S.Swagger
+    mempty @S.OpenApi
       & S.info . S.description
         ?~ "There is no Swagger documentation for this version. Please refer to v3 or later."
 

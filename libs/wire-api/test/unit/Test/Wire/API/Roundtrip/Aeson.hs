@@ -355,7 +355,7 @@ testRoundTrip = testProperty msg trip
 
 testRoundTripWithSwagger ::
   forall a.
-  (Arbitrary a, Typeable a, ToJSON a, FromJSON a, ToSchema a, Eq a, Show a) =>
+  (Arbitrary a, ToJSON a, FromJSON a, ToSchema a, Eq a, Show a) =>
   T.TestTree
 testRoundTripWithSwagger = testProperty msg (trip .&&. scm)
   where

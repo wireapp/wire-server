@@ -23,23 +23,13 @@ module Main
 where
 
 import Control.Exception (assert)
-import Data.Aeson as A
-import Data.Aeson.Types qualified as A
+import Control.Lens
 import Data.HashMap.Strict.InsOrd qualified as HM
+import Data.HashSet.InsOrd (InsOrdHashSet)
 import Data.Map qualified as M
 import Data.OpenApi
-  ( PathItem,
-    Swagger,
-    _operationExtensions,
-    _pathItemDelete,
-    _pathItemGet,
-    _pathItemHead,
-    _pathItemOptions,
-    _pathItemPatch,
-    _pathItemPost,
-    _pathItemPut,
-    _swaggerPaths,
-  )
+import Data.OpenApi.Lens qualified as S
+import Data.Text qualified as T
 import Imports
 import Language.Dot as D
 import Wire.API.Routes.API
@@ -65,7 +55,7 @@ calls = assert (calls' == nub calls') calls'
   where
     calls' = mconcat $ parse <$> swaggers
 
-swaggers :: [Swagger]
+swaggers :: [OpenApi]
 swaggers =
   [ -- TODO: introduce allSwaggerDocs in wire-api that collects these for all
     -- services, use that in /services/brig/src/Brig/API/Public.hs instead of
@@ -101,37 +91,63 @@ data MakesCallTo = MakesCallTo
 
 ------------------------------
 
-parse :: Swagger -> [MakesCallTo]
-parse =
+parse :: OpenApi -> [MakesCallTo]
+parse oapi =
   mconcat
-    . fmap parseOperationExtensions
+    . fmap (parseOperationExtensions allTags)
     . mconcat
     . fmap flattenPathItems
     . HM.toList
-    . _swaggerPaths
+    $ oapi ^. S.paths
+  where
+    allTags = oapi ^. S.tags
+
+-- Simple aliases to help track which field is what
+type RPC = String
+
+type Component = String
 
 -- | extract path, method, and operation extensions
-flattenPathItems :: (FilePath, PathItem) -> [((FilePath, String), HM.InsOrdHashMap Text Value)]
+flattenPathItems :: (FilePath, PathItem) -> [((FilePath, String), InsOrdHashSet TagName)]
 flattenPathItems (path, item) =
   filter ((/= mempty) . snd) $
     catMaybes
-      [ ((path, "get"),) . _operationExtensions <$> _pathItemGet item,
-        ((path, "put"),) . _operationExtensions <$> _pathItemPut item,
-        ((path, "post"),) . _operationExtensions <$> _pathItemPost item,
-        ((path, "delete"),) . _operationExtensions <$> _pathItemDelete item,
-        ((path, "options"),) . _operationExtensions <$> _pathItemOptions item,
-        ((path, "head"),) . _operationExtensions <$> _pathItemHead item,
-        ((path, "patch"),) . _operationExtensions <$> _pathItemPatch item
+      [ ((path, "get"),) . view S.tags <$> _pathItemGet item,
+        ((path, "put"),) . view S.tags <$> _pathItemPut item,
+        ((path, "post"),) . view S.tags <$> _pathItemPost item,
+        ((path, "delete"),) . view S.tags <$> _pathItemDelete item,
+        ((path, "options"),) . view S.tags <$> _pathItemOptions item,
+        ((path, "head"),) . view S.tags <$> _pathItemHead item,
+        ((path, "patch"),) . view S.tags <$> _pathItemPatch item
       ]
 
-parseOperationExtensions :: ((FilePath, String), HM.InsOrdHashMap Text Value) -> [MakesCallTo]
-parseOperationExtensions ((path, method), hm) = uncurry (MakesCallTo path method) <$> findCallsFedInfo hm
+parseOperationExtensions :: InsOrdHashSet Tag -> ((FilePath, String), InsOrdHashSet TagName) -> [MakesCallTo]
+parseOperationExtensions allTags ((path, method), hm) =
+  uncurry (MakesCallTo path method) <$> findCallsFedInfo allTags hm
 
-findCallsFedInfo :: HM.InsOrdHashMap Text Value -> [(String, String)]
-findCallsFedInfo hm = case A.parse parseJSON <$> HM.lookup "wire-makes-federated-call-to" hm of
-  Just (A.Success (fedcalls :: [(String, String)])) -> fedcalls
-  Just bad -> error $ "invalid extension `wire-makes-federated-call-to`: expected `[(comp, name), ...]`, got " <> show bad
-  Nothing -> []
+-- Given a set of tags, and a set of tag names for an operation,
+-- parse out the RPC calls and their components
+findCallsFedInfo :: InsOrdHashSet Tag -> InsOrdHashSet TagName -> [(Component, RPC)]
+findCallsFedInfo allTags = mapMaybe extractStrings . toList
+  where
+    magicPrefix :: Text
+    magicPrefix = "wire-makes-federated-call-to-"
+    extractStrings :: TagName -> Maybe (Component, RPC)
+    extractStrings tagName =
+      tag >>= \t ->
+        (,)
+          -- Extract the name and description, and drop everything that is empty
+          -- This gives us the component name, and as a route may call the same component
+          -- multiple times, it has to go into the description so it isn't dropped by the set.
+          <$> fmap T.unpack t._tagDescription
+          -- Strip off the magic string from the tag names, and drop empty results
+          -- This also implicitly filters for results that start with the prefix.
+          -- This gives us the RPC name, as that will be unique for each route, and it
+          -- doesn't matter if it is set multiple times and dropped in the set, as it
+          -- still describes that Fed call is made.
+          <*> fmap T.unpack (T.stripPrefix magicPrefix t._tagName)
+      where
+        tag = find (\t -> t._tagName == tagName) allTags
 
 ------------------------------
 
@@ -158,7 +174,7 @@ mkDotGraph inbound = Graph StrictGraph DirectedGraph Nothing (mods <> nodes <> e
     itemSourceNode (MakesCallTo path method _ _) = method <> " " <> path
 
     itemTargetNode :: MakesCallTo -> String
-    itemTargetNode (MakesCallTo _ _ comp name) = "[" <> comp <> "]:" <> name
+    itemTargetNode (MakesCallTo _ _ comp rpcName) = "[" <> comp <> "]:" <> rpcName
 
     callingNodes :: Map String Integer
     callingNodes =

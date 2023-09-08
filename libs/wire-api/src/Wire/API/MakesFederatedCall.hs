@@ -31,12 +31,17 @@ module Wire.API.MakesFederatedCall
   )
 where
 
+import Control.Lens ((%~), (<>~), _Just)
 import Data.Aeson
 import Data.Constraint
+import Data.HashSet.InsOrd (singleton)
 import Data.Kind
 import Data.Metrics.Servant
+import Data.OpenApi qualified as S
+import Data.OpenApi.Lens qualified as S
 import Data.Proxy
 import Data.Schema
+import Data.Text qualified as T
 import GHC.TypeLits
 import Imports
 import Servant.API
@@ -159,26 +164,38 @@ type instance
 instance (HasOpenApi api, KnownSymbol name, KnownSymbol (ShowComponent comp)) => HasOpenApi (MakesFederatedCall comp name :> api :: Type) where
   toOpenApi _ =
     toOpenApi (Proxy @api)
+      -- Since extensions aren't in the openapi3 library yet,
+      -- and the PRs for their support seem be going no where quickly, I'm using
+      -- tags instead. https://github.com/biocad/openapi3/pull/43
+      -- Basically, this is similar to the old system, except we don't have nested JSON to
+      -- work with. So I'm using the magic string and sticking the call name on the end
+      -- and sticking the component in the description. This ordering is important as we
+      -- can't have duplicate tag names on an object.
 
---       TODO & FUTUREWORK: openapi3 doesn't use an underlying aeson Value
---          structure to build up the schema. To enable extensions, we will need
---          to update the structures in openapi3 to include an extensions field,
---          likely holding a Value type.
---       & addExtensions
---         mergeJSONArray
---         [ ( "wire-makes-federated-call-to",
---             Array
---               [ Array
---                   [ String $ T.pack $ symbolVal $ Proxy @(ShowComponent comp),
---                     String $ T.pack $ symbolVal $ Proxy @name
---                   ]
---               ]
---           )
---         ]
---
--- mergeJSONArray :: Value -> Value -> Value
--- mergeJSONArray (Array x) (Array y) = Array $ x <> y
--- mergeJSONArray _ _ = error "impossible! bug in construction of federated calls JSON"
+      -- Set the tags at the top of OpenApi object
+      & S.tags
+        <>~ singleton
+          ( S.Tag
+              name
+              (pure $ T.pack (symbolVal $ Proxy @(ShowComponent comp)))
+              Nothing
+          )
+      -- Set the tags on the specific path we're looking at
+      -- This is where the tag is actually registered on the path
+      -- so it can be picked up by fedcalls.
+      & S.paths . traverse %~ \pathItem ->
+        pathItem
+          & S.get . _Just . S.tags <>~ setName
+          & S.put . _Just . S.tags <>~ setName
+          & S.post . _Just . S.tags <>~ setName
+          & S.delete . _Just . S.tags <>~ setName
+          & S.options . _Just . S.tags <>~ setName
+          & S.head_ . _Just . S.tags <>~ setName
+          & S.patch . _Just . S.tags <>~ setName
+          & S.trace . _Just . S.tags <>~ setName
+    where
+      name = "wire-makes-federated-call-to-" <> T.pack (symbolVal $ Proxy @name)
+      setName = singleton name
 
 instance HasClient m api => HasClient m (MakesFederatedCall comp name :> api :: Type) where
   type Client m (MakesFederatedCall comp name :> api) = Client m api
