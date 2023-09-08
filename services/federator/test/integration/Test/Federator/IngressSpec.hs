@@ -46,6 +46,7 @@ import Wire.API.Federation.Client
 import Wire.API.Federation.Component
 import Wire.API.Federation.Domain
 import Wire.API.User
+import Wire.API.User.Search qualified as Search
 import Wire.Network.DNS.SRV
 
 -- | This module contains tests for the interface between federator and ingress.  Ingress is
@@ -59,6 +60,9 @@ spec env = do
         user <- randomUser brig
         hdl <- randomHandle
         _ <- putHandle brig (userId user) hdl
+
+        backendTwoDomain <- asks (._teTstOpts.backendTwo.originDomain)
+        setSearchPolicyFor brig (Domain backendTwoDomain) Search.FullSearch
 
         let expectedProfile = (publicProfile user UserLegalHoldNoConsent) {profileHandle = Just (Handle hdl)}
         runTestSem $ do
