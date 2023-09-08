@@ -20,7 +20,6 @@ module Wire.API.Routes.CSV where
 import Control.Lens
 import Data.OpenApi qualified as O
 import Data.OpenApi.Internal.Schema
-import Data.OpenApi.Schema
 import Imports
 import Network.HTTP.Media.MediaType
 import Servant.API

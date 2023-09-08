@@ -25,6 +25,7 @@ import Data.Char qualified as Char
 import Data.Kind (Constraint)
 import Data.List.Extra (stripSuffix)
 import Data.OpenApi.Internal.Schema (GToSchema)
+import Data.OpenApi.Internal.TypeShape
 import Data.OpenApi.Schema
 import Data.Proxy (Proxy (..))
 import GHC.Generics (Generic (Rep))
@@ -96,7 +97,7 @@ instance (StringModifier f, SwaggerOptions xs) => SwaggerOptions (FieldLabelModi
 instance (StringModifier f, SwaggerOptions xs) => SwaggerOptions (ConstructorTagModifier f ': xs) where
   swaggerOptions = (swaggerOptions @xs) {constructorTagModifier = getStringModifier @f}
 
-instance (SwaggerOptions t, Generic a, Typeable a, GToSchema (Rep a), Typeable (CustomSwagger t a)) => ToSchema (CustomSwagger t a) where
+instance (SwaggerOptions t, Generic a, Typeable a, GToSchema (Rep a), Typeable (CustomSwagger t a), TypeHasSimpleShape a "genericDeclareNamedSchemaUnrestricted") => ToSchema (CustomSwagger t a) where
   declareNamedSchema _ = genericDeclareNamedSchema (swaggerOptions @t) (Proxy @a)
 
 -- ** Specify __what__ to modify

@@ -38,7 +38,6 @@ import Data.HashSet.InsOrd (singleton)
 import Data.Kind
 import Data.Metrics.Servant
 import Data.OpenApi qualified as S
-import Data.OpenApi.Lens qualified as S
 import Data.Proxy
 import Data.Schema
 import Data.Text qualified as T

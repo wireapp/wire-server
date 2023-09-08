@@ -466,15 +466,12 @@ instance
   ) =>
   IsSwaggerResponseList (a ': as)
   where
-  responseListSwagger = do
-    resp <- responseSwagger @a
-    respList <- responseListSwagger @as
-    pure $
-      InsOrdHashMap.insertWith
-        combineResponseSwagger
-        (fromIntegral (natVal (Proxy @(ResponseStatus a))))
-        resp
-        respList
+  responseListSwagger =
+    InsOrdHashMap.insertWith
+      combineResponseSwagger
+      (fromIntegral (natVal (Proxy @(ResponseStatus a))))
+      <$> responseSwagger @a
+      <*> responseListSwagger @as
 
 combineResponseSwagger :: S.Response -> S.Response -> S.Response
 combineResponseSwagger r1 r2 =
@@ -716,7 +713,8 @@ instance
         . at "/"
         ?~ ( mempty
                & method
-                 ?~ ( mempty & (S.responses @S.Operation @S.Responses) . S.responses .~ refResps
+                 ?~ ( mempty
+                        & S.responses . S.responses .~ refResps
                     )
            )
     where
