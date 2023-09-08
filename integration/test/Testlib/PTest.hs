@@ -1,7 +1,6 @@
 module Testlib.PTest where
 
 import Testlib.App
-import Testlib.Env
 import Testlib.Types
 import Prelude
 

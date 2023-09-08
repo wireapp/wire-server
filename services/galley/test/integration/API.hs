@@ -82,6 +82,7 @@ import Test.Tasty.Cannon qualified as WS
 import Test.Tasty.HUnit
 import TestHelpers
 import TestSetup
+import Util.Options (Endpoint (Endpoint))
 import Wire.API.Connection
 import Wire.API.Conversation
 import Wire.API.Conversation qualified as C
@@ -188,6 +189,7 @@ tests s =
           test s "post conversations/list/v2" testBulkGetQualifiedConvs,
           test s "add remote members on invalid domain" testAddRemoteMemberInvalidDomain,
           test s "add remote members when federation isn't enabled" testAddRemoteMemberFederationDisabled,
+          test s "add remote members when federator is unavailable" testAddRemoteMemberFederationUnavailable,
           test s "delete conversations/:domain/:cnv/members/:domain/:usr - fail, self conv" deleteMembersQualifiedFailSelf,
           test s "delete conversations/:domain:/cnv/members/:domain/:usr - fail, 1:1 conv" deleteMembersQualifiedFailO2O,
           test s "delete conversations/:domain/:cnv/members/:domain/:usr - local conv with all locals" deleteMembersConvLocalQualifiedOk,
@@ -2968,6 +2970,30 @@ testAddRemoteMemberFederationDisabled = do
       const (Right "federation-not-enabled") === fmap label . responseJsonEither
 
   -- the member is not actually added to the conversation
+  conv <- responseJsonError =<< getConvQualified alice qconvId <!! const 200 === statusCode
+  liftIO $ map omQualifiedId (cmOthers (cnvMembers conv)) @?= []
+
+testAddRemoteMemberFederationUnavailable :: TestM ()
+testAddRemoteMemberFederationUnavailable = do
+  alice <- randomUser
+  let domain = Domain "some-remote-backend.example.com"
+  remoteBob <- flip Qualified domain <$> randomId
+  qconvId <- decodeQualifiedConvId <$> postConv alice [] (Just "remote gossip") [] Nothing Nothing
+  connectWithRemoteUser alice remoteBob
+
+  -- federator endpoint being configured in brig and/or galley, but not being
+  -- available (i.e. no service listing on that IP/port) can happen due to a
+  -- misconfiguration of federator. That should give an unreachable_backends error.
+  -- Port 1 should always be wrong hopefully.
+  let federatorUnavailable = federator ?~ Endpoint "127.0.0.1" 1
+  withSettingsOverrides federatorUnavailable $ do
+    e :: UnreachableBackends <-
+      responseJsonError
+        =<< postQualifiedMembers alice (remoteBob :| []) qconvId <!! do
+          const 533 === statusCode
+    liftIO $ e.backends @?= [domain]
+
+  -- since on member add the check of connection between remote backends will fail, the member is not actually added to the conversation
   conv <- responseJsonError =<< getConvQualified alice qconvId <!! const 200 === statusCode
   liftIO $ map omQualifiedId (cmOthers (cnvMembers conv)) @?= []
 

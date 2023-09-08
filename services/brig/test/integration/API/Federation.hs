@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wno-deferred-out-of-scope-variables #-}
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -73,7 +72,7 @@ tests m opts brig cannon fedBrigClient =
         test m "POST /federation/search-users : Found (multiple users)" (testFulltextSearchMultipleUsers opts brig),
         test m "POST /federation/search-users : NotFound" (testSearchNotFound opts),
         test m "POST /federation/search-users : Empty Input - NotFound" (testSearchNotFoundEmpty opts),
-        flakyTest m "POST /federation/search-users : configured restrictions" (testSearchRestrictions opts brig),
+        test m "POST /federation/search-users : configured restrictions" (testSearchRestrictions opts brig),
         test m "POST /federation/get-user-by-handle : configured restrictions" (testGetUserByHandleRestrictions opts brig),
         test m "POST /federation/get-user-by-handle : Found" (testGetUserByHandleSuccess opts brig),
         test m "POST /federation/get-user-by-handle : NotFound" (testGetUserByHandleNotFound opts),
@@ -85,7 +84,7 @@ tests m opts brig cannon fedBrigClient =
         test m "POST /federation/claim-multi-prekey-bundle : 200" (testClaimMultiPrekeyBundleSuccess brig fedBrigClient),
         test m "POST /federation/get-user-clients : 200" (testGetUserClients brig fedBrigClient),
         test m "POST /federation/get-user-clients : Not Found" (testGetUserClientsNotFound fedBrigClient),
-        flakyTest m "POST /federation/on-user-deleted-connections : 200" (testRemoteUserGetsDeleted opts brig cannon fedBrigClient),
+        test m "POST /federation/on-user-deleted-connections : 200" (testRemoteUserGetsDeleted opts brig cannon fedBrigClient),
         test m "POST /federation/api-version : 200" (testAPIVersion brig fedBrigClient)
       ]
 
@@ -121,11 +120,11 @@ testFulltextSearchSuccess opts brig = do
   searchResponse <- withSettingsOverrides (allowFullSearch domain opts) $ do
     runWaiTestFedClient domain $
       createWaiTestFedClient @"search-users" @'Brig $
-        SearchRequest ((fromName . userDisplayName) user)
+        SearchRequest (fromName $ userDisplayName user)
 
   liftIO $ do
     let contacts = contactQualifiedId <$> S.contacts searchResponse
-    assertEqual "should return the user id" [quid] contacts
+    assertElem "should return the user id" quid contacts
 
 testFulltextSearchMultipleUsers :: Opt.Opts -> Brig -> Http ()
 testFulltextSearchMultipleUsers opts brig = do
@@ -195,22 +194,30 @@ testSearchRestrictions opts brig = do
                  FD.FederationDomainConfig domainFullSearch FullSearch
                ]
 
-  let expectSearch :: HasCallStack => Domain -> Text -> [Qualified UserId] -> FederatedUserSearchPolicy -> WaiTest.Session ()
-      expectSearch domain squery expectedUsers expectedSearchPolicy = do
+  let expectSearch :: HasCallStack => Domain -> Either Handle Name -> Maybe (Qualified UserId) -> FederatedUserSearchPolicy -> WaiTest.Session ()
+      expectSearch domain handleOrName mExpectedUser expectedSearchPolicy = do
+        let squery = either fromHandle fromName handleOrName
         searchResponse <-
           runWaiTestFedClient domain $
             createWaiTestFedClient @"search-users" @'Brig (SearchRequest squery)
-        liftIO $ assertEqual "Unexpected search result" expectedUsers (contactQualifiedId <$> S.contacts searchResponse)
-        liftIO $ assertEqual "Unexpected search result" expectedSearchPolicy (S.searchPolicy searchResponse)
+        liftIO $ do
+          case (mExpectedUser, handleOrName) of
+            (Just expectedUser, Right _) ->
+              assertElem "Unexpected search result" expectedUser (contactQualifiedId <$> S.contacts searchResponse)
+            (Nothing, Right _) ->
+              assertEqual "Unexpected search result" [] (contactQualifiedId <$> S.contacts searchResponse)
+            _ ->
+              assertEqual "Unexpected search result" (maybeToList mExpectedUser) (contactQualifiedId <$> S.contacts searchResponse)
+          assertEqual "Unexpected search result" expectedSearchPolicy (S.searchPolicy searchResponse)
 
   withSettingsOverrides opts' $ do
-    expectSearch domainNoSearch (fromHandle handle) [] NoSearch
-    expectSearch domainExactHandle (fromHandle handle) [quid] ExactHandleSearch
-    expectSearch domainExactHandle (fromName (userDisplayName user)) [] ExactHandleSearch
-    expectSearch domainFullSearch (fromHandle handle) [quid] FullSearch
-    expectSearch domainFullSearch (fromName (userDisplayName user)) [quid] FullSearch
-    expectSearch domainUnconfigured (fromHandle handle) [] NoSearch
-    expectSearch domainUnconfigured (fromName (userDisplayName user)) [] NoSearch
+    expectSearch domainNoSearch (Left handle) Nothing NoSearch
+    expectSearch domainExactHandle (Left handle) (Just quid) ExactHandleSearch
+    expectSearch domainExactHandle (Right (userDisplayName user)) Nothing ExactHandleSearch
+    expectSearch domainFullSearch (Left handle) (Just quid) FullSearch
+    expectSearch domainFullSearch (Right (userDisplayName user)) (Just quid) FullSearch
+    expectSearch domainUnconfigured (Left handle) Nothing NoSearch
+    expectSearch domainUnconfigured (Right (userDisplayName user)) Nothing NoSearch
 
 testGetUserByHandleRestrictions :: Opt.Opts -> Brig -> Http ()
 testGetUserByHandleRestrictions opts brig = do

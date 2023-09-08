@@ -57,6 +57,7 @@ import Wire.API.Routes.Cookies
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
+import Wire.API.Routes.Public.Brig.Bot (BotAPI)
 import Wire.API.Routes.Public.Brig.OAuth (OAuthAPI)
 import Wire.API.Routes.Public.Util
 import Wire.API.Routes.QualifiedCapture
@@ -85,7 +86,7 @@ type BrigAPI =
     :<|> UserClientAPI
     :<|> ConnectionAPI
     :<|> PropertiesAPI
-    :<|> MLSAPI
+    :<|> MLSKeyPackageAPI
     :<|> UserHandleAPI
     :<|> SearchAPI
     :<|> AuthAPI
@@ -93,6 +94,7 @@ type BrigAPI =
     :<|> TeamsAPI
     :<|> SystemSettingsAPI
     :<|> OAuthAPI
+    :<|> BotAPI
 
 data BrigAPITag
 
@@ -275,6 +277,7 @@ type UserAPI =
     :<|> Named
            "get-supported-protocols"
            ( Summary "Get a user's supported protocols"
+               :> From 'V5
                :> ZLocalUser
                :> "users"
                :> QualifiedCaptureUserId "uid"
@@ -417,6 +420,7 @@ type SelfAPI =
     :<|> Named
            "change-supported-protocols"
            ( Summary "Change your supported protocols"
+               :> From 'V5
                :> ZLocalUser
                :> ZConn
                :> "self"
@@ -1279,8 +1283,6 @@ type SearchAPI =
              '[Respond 200 "Search results" (SearchResult TeamContact)]
              (SearchResult TeamContact)
     )
-
-type MLSAPI = LiftNamed ("mls" :> MLSKeyPackageAPI)
 
 type AuthAPI =
   Named

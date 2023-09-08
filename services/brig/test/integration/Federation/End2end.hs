@@ -45,13 +45,13 @@ import Data.Text qualified as T
 import Federation.Util
 import Imports hiding (cs)
 import System.FilePath
+import System.IO.Temp
 import System.Logger qualified as Log
 import System.Process
 import Test.Tasty
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
 import Test.Tasty.Cannon qualified as WS
 import Test.Tasty.HUnit
-import UnliftIO.Temporary
 import Util
 import Util.Options (Endpoint)
 import Wire.API.Asset

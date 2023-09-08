@@ -154,5 +154,8 @@ instance
   where
   getRoutes = getRoutes @route <> getRoutes @routes
 
+instance RoutesToPaths EmptyAPI where
+  getRoutes = mempty
+
 instance RoutesToPaths Raw where
   getRoutes = []

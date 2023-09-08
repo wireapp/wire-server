@@ -20,6 +20,7 @@
 
 module Wire.API.Notification
   ( NotificationId,
+    isValidNotificationId,
     RawNotificationId (..),
     Event,
 
@@ -41,6 +42,7 @@ import Control.Lens (makeLenses, (.~))
 import Control.Lens.Operators ((?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Aeson.Types qualified as Aeson
+import Data.Bits
 import Data.HashMap.Strict.InsOrd qualified as InsOrdHashMap
 import Data.Id
 import Data.Json.Util
@@ -50,6 +52,7 @@ import Data.Schema
 import Data.Swagger (ToParamSchema (..))
 import Data.Swagger qualified as S
 import Data.Time.Clock (UTCTime)
+import Data.UUID qualified as UUID
 import Imports
 import Servant
 import Wire.API.Routes.MultiVerb
@@ -79,6 +82,12 @@ eventSchema = mkSchema sdoc Aeson.parseJSON (Just . Aeson.toJSON)
                 S.Inline (S.toSchema (Proxy @Text) & S.description ?~ "Event type")
               )
             ]
+
+isValidNotificationId :: NotificationId -> Bool
+isValidNotificationId (Id uuid) =
+  -- check that the version bits are set to 1
+  case UUID.toWords uuid of
+    (_, w, _, _) -> (w `shiftR` 12) .&. 0xf == 1
 
 --------------------------------------------------------------------------------
 -- QueuedNotification

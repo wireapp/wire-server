@@ -56,6 +56,7 @@ import Brig.Effects.PasswordResetStore (PasswordResetStore)
 import Brig.Effects.PublicKeyBundle (PublicKeyBundle)
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import Brig.Options hiding (internalEvents, sesQueue)
+import Brig.Provider.API (botAPI)
 import Brig.Provider.API qualified as Provider
 import Brig.Team.API qualified as Team
 import Brig.Team.Email qualified as Team
@@ -182,25 +183,11 @@ versionedSwaggerDocsAPI (Just (VersionNumber V5)) =
       & S.info . S.title .~ "Wire-Server API"
       & S.info . S.description ?~ $(embedText =<< makeRelativeToProject "docs/swagger.md")
       & cleanupSwagger
-versionedSwaggerDocsAPI (Just (VersionNumber V4)) =
-  swaggerSchemaUIServer $
-    ( serviceSwagger @VersionAPITag @'V4
-        <> serviceSwagger @BrigAPITag @'V4
-        <> serviceSwagger @GalleyAPITag @'V4
-        <> serviceSwagger @SparAPITag @'V4
-        <> serviceSwagger @CargoholdAPITag @'V4
-        <> serviceSwagger @CannonAPITag @'V4
-        <> serviceSwagger @GundeckAPITag @'V4
-        <> serviceSwagger @ProxyAPITag @'V4
-        <> serviceSwagger @OAuthAPITag @'V4
-    )
-      & S.info . S.title .~ "Wire-Server API"
-      & S.info . S.description ?~ $(embedText =<< makeRelativeToProject "docs/swagger.md")
-      & cleanupSwagger
 versionedSwaggerDocsAPI (Just (VersionNumber V0)) = swaggerPregenUIServer $(pregenSwagger V0)
 versionedSwaggerDocsAPI (Just (VersionNumber V1)) = swaggerPregenUIServer $(pregenSwagger V1)
 versionedSwaggerDocsAPI (Just (VersionNumber V2)) = swaggerPregenUIServer $(pregenSwagger V2)
 versionedSwaggerDocsAPI (Just (VersionNumber V3)) = swaggerPregenUIServer $(pregenSwagger V3)
+versionedSwaggerDocsAPI (Just (VersionNumber V4)) = swaggerPregenUIServer $(pregenSwagger V4)
 versionedSwaggerDocsAPI Nothing = allroutes (throwError listAllVersionsResp)
   where
     allroutes ::
@@ -283,6 +270,7 @@ servantSitemap =
     :<|> Team.servantAPI
     :<|> systemSettingsAPI
     :<|> oauthAPI
+    :<|> botAPI
   where
     userAPI :: ServerT UserAPI (Handler r)
     userAPI =
@@ -381,7 +369,7 @@ servantSitemap =
       )
         :<|> Named @"list-properties" listPropertyKeysAndValues
 
-    mlsAPI :: ServerT MLSAPI (Handler r)
+    mlsAPI :: ServerT MLSKeyPackageAPI (Handler r)
     mlsAPI =
       Named @"mls-key-packages-upload" uploadKeyPackages
         :<|> Named @"mls-key-packages-claim" claimKeyPackages
@@ -425,8 +413,7 @@ servantSitemap =
 -- - MemberLeave event to members for all conversations the user was in (via galley)
 
 sitemap ::
-  ( Member (Concurrency 'Unsafe) r,
-    Member GalleyProvider r
+  ( Member GalleyProvider r
   ) =>
   Routes () (Handler r) ()
 sitemap = do
