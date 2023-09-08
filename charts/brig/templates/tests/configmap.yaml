@@ -58,6 +58,8 @@ data:
       cert: /etc/wire/integration-secrets/provider-publiccert.pem
       botHost: https://brig-integration
 
+    originDomain: 612c6a18-4e3e-11ee-a205-97507f092421.example.com
+
     backendTwo:
       brig:
         host: brig.{{ .Release.Namespace }}-fed2.svc.cluster.local
