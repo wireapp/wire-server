@@ -106,9 +106,9 @@ spec env = do
               (Aeson.fromEncoding (Aeson.toEncoding hdl))
         liftToCodensity . embed $ case r of
           Right _ -> expectationFailure "Expected client certificate error, got response"
-          Left (RemoteError _ _) ->
+          Left (RemoteError {}) ->
             expectationFailure "Expected client certificate error, got remote error"
-          Left (RemoteErrorResponse _ status _) -> status `shouldBe` HTTP.status400
+          Left (RemoteErrorResponse _ _ status _) -> status `shouldBe` HTTP.status400
 
 -- FUTUREWORK: ORMOLU_DISABLE
 -- @END

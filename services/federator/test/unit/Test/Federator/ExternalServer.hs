@@ -27,6 +27,7 @@ import Data.Text.Encoding qualified as Text
 import Federator.Discovery
 import Federator.Error.ServerError (ServerError (..))
 import Federator.ExternalServer
+import Federator.Metrics
 import Federator.Options
 import Federator.Response
 import Federator.Service (Service (..), ServiceStreaming)
@@ -69,6 +70,11 @@ tests =
       testInvalidPaths,
       testMethod
     ]
+
+interpretMetricsEmpty :: Sem (Metrics ': r) a -> Sem r a
+interpretMetricsEmpty = interpret $ \case
+  OutgoingCounterIncr _ -> pure ()
+  IncomingCounterIncr _ -> pure ()
 
 exampleRequest :: FilePath -> ByteString -> IO Wai.Request
 exampleRequest certFile path = do
@@ -113,8 +119,15 @@ requestBrigSuccess =
         "test/resources/unit/localhost.example.com.pem"
         "/federation/brig/get-user-by-handle"
     Right cert <- decodeCertificate <$> BS.readFile "test/resources/unit/localhost.example.com.pem"
+
+    let assertMetrics :: Member (Embed IO) r => Sem (Metrics ': r) a -> Sem r a
+        assertMetrics = interpret $ \case
+          OutgoingCounterIncr _ -> embed @IO $ assertFailure "Should not increment outgoing counter"
+          IncomingCounterIncr od -> embed @IO $ od @?= aValidDomain
+
     (actualCalls, res) <-
       runM
+        . assertMetrics
         . runOutputList
         . mockService HTTP.ok200
         . assertNoError @ValidationError
@@ -142,6 +155,7 @@ requestBrigFailure =
 
     (actualCalls, res) <-
       runM
+        . interpretMetricsEmpty
         . runOutputList
         . mockService HTTP.notFound404
         . assertNoError @ValidationError
@@ -172,6 +186,7 @@ requestGalleySuccess =
     runM $ do
       (actualCalls, res) <-
         runOutputList
+          . interpretMetricsEmpty
           . mockService HTTP.ok200
           . assertNoError @ValidationError
           . assertNoError @DiscoveryFailure
@@ -318,7 +333,8 @@ testMethod =
 testInterpretter ::
   IORef [Call] ->
   Sem
-    '[ Input FederationDomainConfigs,
+    '[ Metrics,
+       Input FederationDomainConfigs,
        Input RunSettings,
        DiscoverFederator,
        Error DiscoveryFailure,
@@ -341,6 +357,7 @@ testInterpretter serviceCallsRef =
     . mockDiscoveryTrivial
     . runInputConst noClientCertSettings
     . runInputConst scaffoldingFederationDomainConfigs
+    . interpretMetricsEmpty
 
 exampleDomain :: Text
 exampleDomain = "localhost.example.com"
