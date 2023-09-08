@@ -87,3 +87,5 @@ data:
       federatorExternal:
         host: federator.{{ .Release.Namespace }}-fed2.svc.cluster.local
         port: 8081
+
+      originDomain: 6da818ea-4e26-11ee-9422-9b252c5bbf2b.example.com
