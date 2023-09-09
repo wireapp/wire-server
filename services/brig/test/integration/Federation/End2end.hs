@@ -122,13 +122,14 @@ testHandleLookup originDomain brig brigTwo = do
   -- second brig instance in backendTwo (in another namespace in kubernetes)
   (handle, userBrigTwo) <- createUserWithHandle brigTwo
   -- Get result from brig two for comparison
-  let domain = qDomain $ userQualifiedId userBrigTwo
+  let backendTwoDomain = qDomain $ userQualifiedId userBrigTwo
   allowFullSearch brigTwo originDomain
-  resultViaBrigTwo <- getUserInfoFromHandle brigTwo domain handle
+  resultViaBrigTwo <- getUserInfoFromHandle brigTwo backendTwoDomain handle
 
   -- query the local-namespace brig for a user sitting on the other backend
   -- (which will exercise the network traffic via two federators to the remote brig)
-  resultViaBrigOne <- getUserInfoFromHandle brig domain handle
+  allowFullSearch brig backendTwoDomain
+  resultViaBrigOne <- getUserInfoFromHandle brig backendTwoDomain  handle
 
   liftIO $ assertEqual "remote handle lookup via federator should work in the happy case" (profileQualifiedId resultViaBrigOne) (userQualifiedId userBrigTwo)
   liftIO $ assertEqual "querying brig1 or brig2 about the same user should give same result" resultViaBrigTwo resultViaBrigOne
