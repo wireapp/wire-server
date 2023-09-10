@@ -129,7 +129,7 @@ testHandleLookup originDomain brig brigTwo = do
   -- query the local-namespace brig for a user sitting on the other backend
   -- (which will exercise the network traffic via two federators to the remote brig)
   allowFullSearch brig backendTwoDomain
-  resultViaBrigOne <- getUserInfoFromHandle brig backendTwoDomain  handle
+  resultViaBrigOne <- getUserInfoFromHandle brig backendTwoDomain handle
 
   liftIO $ assertEqual "remote handle lookup via federator should work in the happy case" (profileQualifiedId resultViaBrigOne) (userQualifiedId userBrigTwo)
   liftIO $ assertEqual "querying brig1 or brig2 about the same user should give same result" resultViaBrigTwo resultViaBrigOne
