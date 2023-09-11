@@ -24,11 +24,19 @@ main :: IO ()
 main = hspec $ do
   describe "generateDpopToken FFI when passing valid inputs" $ do
     it "should return an access token" $ do
+      -- FUTUREWORK(leif): fix this test, we need new valid test data,
+      -- this test exists mainly for debugging purposes
+      -- a functionality test is also coverd in the integration tests in services/brig/test/integration/API/User/Client.hs (`testCreateAccessToken`)
+      pending
       actual <- runExceptT $ generateDpopToken proof uid cid domain nonce uri method maxSkewSecs expires now pem
       print actual
       isRight actual `shouldBe` True
   describe "generateDpopToken FFI when passing a wrong nonce value" $ do
     it "should return BackendNonceMismatchError" $ do
+      -- FUTUREWORK(leif): fix this test, we need new valid test data,
+      -- this test exists mainly for debugging purposes
+      -- a functionality test is also coverd in the integration tests in services/brig/test/integration/API/User/Client.hs (`testCreateAccessToken`)
+      pending
       actual <- runExceptT $ generateDpopToken proof uid cid domain (Nonce "foobar") uri method maxSkewSecs expires now pem
       actual `shouldBe` Left BackendNonceMismatchError
   describe "toResult" $ do
@@ -73,16 +81,16 @@ main = hspec $ do
       toResult Nothing Nothing `shouldBe` Left UnknownError
   where
     token = ""
-    proof = Proof "eyJhbGciOiJFZERTQSIsInR5cCI6ImRwb3Arand0IiwiandrIjp7Imt0eSI6Ik9LUCIsImNydiI6IkVkMjU1MTkiLCJ4IjoidUhNR0paWllUbU9zOEdiaTdaRUJLT255TnJYYnJzNTI1dE1QQUZoYjBzbyJ9fQ.eyJpYXQiOjE2Nzg4MDUyNTgsImV4cCI6MjA4ODc3MzI1OCwibmJmIjoxNjc4ODA1MjU4LCJzdWIiOiJpbTp3aXJlYXBwPVpHSmlNRGRsT1RRM1pESTVOREU0TUdFM09UQmhOVGN6WkdWbU16VmtaRFUvN2M2MzExYTFjNDNjMmJhNkB3aXJlLmNvbSIsImp0aSI6ImQyOWFkYTQ2LTBjMzYtNGNiMS05OTVlLWFlMWNiYTY5M2IzNCIsIm5vbmNlIjoiYzB0RWNtOUNUME00TXpKU04zRjRkMEZIV0V4TGIxUm5aMDQ1U3psSFduTSIsImh0bSI6IlBPU1QiLCJodHUiOiJodHRwczovL3dpcmUuZXhhbXBsZS5jb20vY2xpZW50cy84OTYzMDI3MDY5ODc3MTAzNTI2L2FjY2Vzcy10b2tlbiIsImNoYWwiOiJaa3hVV25GWU1HbHFUVVpVU1hnNFdHdHBOa3h1WWpWU09XRnlVRU5hVGxnIn0.8p0lvdOPjJ8ogjjLP6QtOo216qD9ujP7y9vSOhdYb-O8ikmW09N00gjCf0iGT-ZkxBT-LfDE3eQx27tWQ3JPBQ"
-    uid = UserId "dbb07e94-7d29-4180-a790-a573def35dd5"
-    cid = ClientId 8963027069877103526
+    proof = Proof "eyJhbGciOiJFZERTQSIsInR5cCI6ImRwb3Arand0IiwiandrIjp7Imt0eSI6Ik9LUCIsImNydiI6IkVkMjU1MTkiLCJ4IjoidXE2c1hXcDdUM1E3YlNtUFd3eFNlRHJoUHFid1RfcTd4SFBQeGpGT0g5VSJ9fQ.eyJpYXQiOjE2OTQxMTc0MjgsImV4cCI6MTY5NDcyMjIyOCwibmJmIjoxNjk0MTE3NDIzLCJzdWIiOiJpbTp3aXJlYXBwPUlHOVl2enVXUUlLVWFSazEyRjVDSVEvOGUxODk2MjZlYWUwMTExZEBlbG5hLndpcmUubGluayIsImp0aSI6ImM0OGZmOTAyLTc5OGEtNDNjYi04YTk2LTE3NzM0NTgxNjIyMCIsIm5vbmNlIjoiR0FxNG5SajlSWVNzUnhoOVh1MWFtQSIsImh0bSI6IlBPU1QiLCJodHUiOiJodHRwczovL2VsbmEud2lyZS5saW5rL2NsaWVudHMvOGUxODk2MjZlYWUwMTExZC9hY2Nlc3MtdG9rZW4iLCJjaGFsIjoiMkxLbEFWMjR2VGtIMHlaaFdacEZrT01mSEE1d3lGQkgifQ.FW5i40CvndSSo3wQdA1DMUkGRmxk86cORAllwC2PCejVuk7TsdZuIKuJZFVa1VTJKWwNCPqPZ05Gsxxeh1DiDA"
+    uid = UserId "206f58bf-3b96-4082-9469-1935d85e4221"
+    cid = ClientId 10239098846720299293
     domain = Domain "wire.com"
-    nonce = Nonce "c0tEcm9CT0M4MzJSN3F4d0FHWExLb1RnZ045SzlHWnM"
-    uri = Uri "https://wire.example.com/clients/8963027069877103526/access-token"
+    nonce = Nonce "GAq4nRj9RYSsRxh9Xu1amA"
+    uri = Uri "https://elna.wire.link/clients/10239098846720299293/access-token"
     method = POST
     maxSkewSecs = MaxSkewSecs 5
-    now = NowEpoch 5435234232
-    expires = ExpiryEpoch $ 2136351646
+    now = NowEpoch 360
+    expires = ExpiryEpoch 2136351646
     pem =
       PemBundle $
         "-----BEGIN PRIVATE KEY-----\n\
