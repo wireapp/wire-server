@@ -123,19 +123,15 @@ testHandleLookup originDomain brig brigTwo = do
   (handle, userBrigTwo) <- createUserWithHandle brigTwo
   -- Get result from brig two for comparison
   let backendTwoDomain = qDomain $ userQualifiedId userBrigTwo
-  allowFullSearch brigTwo originDomain
-  allowFullSearch brig backendTwoDomain
-  allowFullSearch brigTwo backendTwoDomain
-  allowFullSearch brig originDomain
-  -- TODO: ?!
-  resultViaBrigTwo <- getUserInfoFromHandle brigTwo backendTwoDomain handle
+  mbResultViaBrigTwo <- getUserInfoFromHandle' brigTwo backendTwoDomain handle
 
   -- query the local-namespace brig for a user sitting on the other backend
   -- (which will exercise the network traffic via two federators to the remote brig)
-  resultViaBrigOne <- getUserInfoFromHandle brig backendTwoDomain handle
+  allowFullSearch brigTwo originDomain
+  mbResultViaBrigOne <- getUserInfoFromHandle' brig backendTwoDomain handle
 
-  liftIO $ assertEqual "remote handle lookup via federator should work in the happy case" (profileQualifiedId resultViaBrigOne) (userQualifiedId userBrigTwo)
-  liftIO $ assertEqual "querying brig1 or brig2 about the same user should give same result" resultViaBrigTwo resultViaBrigOne
+  liftIO $ assertEqual "remote handle lookup via federator should work in the happy case" (profileQualifiedId <$> mbResultViaBrigOne) (Just $ userQualifiedId userBrigTwo)
+  liftIO $ assertEqual "querying brig1 or brig2 about the same user should give same result" mbResultViaBrigTwo mbResultViaBrigOne
 
 testSearchUsers :: Brig -> Brig -> Http ()
 testSearchUsers brig brigTwo = do

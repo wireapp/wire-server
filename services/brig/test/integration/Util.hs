@@ -649,6 +649,26 @@ getUserInfoFromHandle brig domain handle = do
           . expect2xx
       )
 
+getUserInfoFromHandle' ::
+  (MonadIO m, MonadCatch m, MonadHttp m, HasCallStack) =>
+  Brig ->
+  Domain ->
+  Handle ->
+  m (Maybe UserProfile)
+getUserInfoFromHandle' brig domain handle = do
+  u <- randomId
+  resp <-
+    get
+      ( apiVersion "v1"
+          . brig
+          . paths ["users", "by-handle", toByteString' (domainText domain), toByteString' handle]
+          . zUser u
+      )
+  case HTTP.statusCode $ responseStatus resp of
+    200 -> responseJsonError resp
+    404 -> pure Nothing
+    bad -> error $ "unexpected: " <> show bad
+
 addClient ::
   (MonadHttp m, HasCallStack) =>
   Brig ->
