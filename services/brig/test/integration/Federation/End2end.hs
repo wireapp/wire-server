@@ -58,6 +58,7 @@ import Wire.API.Routes.MultiTablePaging
 import Wire.API.User hiding (assetKey)
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
+import Wire.API.User.Search (FederatedUserSearchPolicy (FullSearch))
 
 -- NOTE: These federation tests require deploying two sets of (some) services
 -- This might be best left to a kubernetes setup.
@@ -91,7 +92,7 @@ spec originDomain mg brig galley cargohold cannon _federator brigTwo galleyTwo c
     testGroup
       "federation-end2end-user"
       [ test mg "lookup user by qualified handle on remote backend" $ testHandleLookup originDomain brig brigTwo,
-        test mg "search users on remote backend" $ testSearchUsers brig brigTwo,
+        test mg "search users on remote backend" $ testSearchUsers originDomain brig brigTwo,
         test mg "get users by ids on multiple backends" $ testGetUsersById brig brigTwo,
         test mg "claim client prekey" $ testClaimPrekeySuccess brig brigTwo,
         test mg "claim prekey bundle" $ testClaimPrekeyBundleSuccess brig brigTwo,
@@ -133,8 +134,8 @@ testHandleLookup originDomain brig brigTwo = do
   liftIO $ assertEqual "remote handle lookup via federator should work in the happy case" (profileQualifiedId <$> mbResultViaBrigOne) (Just $ userQualifiedId userBrigTwo)
   liftIO $ assertEqual "querying brig1 or brig2 about the same user should give same result" mbResultViaBrigTwo mbResultViaBrigOne
 
-testSearchUsers :: Brig -> Brig -> Http ()
-testSearchUsers brig brigTwo = do
+testSearchUsers :: Domain -> Brig -> Brig -> Http ()
+testSearchUsers originDomain brig brigTwo = do
   -- Create a user on the "other side" using an internal brig endpoint from a
   -- second brig instance in backendTwo (in another namespace in kubernetes)
   (handle, userBrigTwo) <- createUserWithHandle brigTwo
@@ -142,13 +143,14 @@ testSearchUsers brig brigTwo = do
   searcher <- userId <$> randomUser brig
   let expectedUserId = userQualifiedId userBrigTwo
       searchTerm = fromHandle handle
-      domain = qDomain expectedUserId
+      domainTwo = qDomain expectedUserId
   liftIO $ putStrLn "search for user on brigTwo (directly)..."
-  assertCanFindWithDomain brigTwo searcher expectedUserId searchTerm domain
+  assertCanFindWithDomain brigTwo searcher expectedUserId searchTerm domainTwo
 
   -- exercises multi-backend network traffic
   liftIO $ putStrLn "search for user on brigOne via federators to remote brig..."
-  assertCanFindWithDomain brig searcher expectedUserId searchTerm domain
+  setSearchPolicy brigTwo originDomain FullSearch
+  assertCanFindWithDomain brig searcher expectedUserId searchTerm domainTwo
 
 testGetUsersById :: Brig -> Brig -> Http ()
 testGetUsersById brig1 brig2 = do
