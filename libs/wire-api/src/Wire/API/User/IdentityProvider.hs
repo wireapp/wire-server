@@ -24,6 +24,7 @@ import Control.Lens (makeLenses, (.~), (?~))
 import Control.Monad.Except
 import Data.Aeson
 import Data.Aeson.TH
+import Data.Aeson.Types (parseMaybe)
 import Data.Attoparsec.ByteString qualified as AP
 import Data.Binary.Builder qualified as BSB
 import Data.ByteString.Conversion qualified as BSC
@@ -168,6 +169,12 @@ instance FromJSON IdPMetadataInfo where
 instance ToJSON IdPMetadataInfo where
   toJSON (IdPMetadataValue _ x) =
     object ["value" .= SAML.encode x]
+
+idPMetadataToInfo :: SAML.IdPMetadata -> IdPMetadataInfo
+idPMetadataToInfo =
+  -- 'undefined' is fine because `instance toJSON IdPMetadataValue` ignores it.  'fromJust' is
+  -- ok as long as 'parseJSON . toJSON' always yields a value and not 'Nothing'.
+  fromJust . parseMaybe parseJSON . toJSON . IdPMetadataValue undefined
 
 -- Swagger instances
 

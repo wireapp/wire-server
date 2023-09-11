@@ -765,3 +765,44 @@ multiIngress:
    red.example.com: https://accounts.red.example.com/conversation-join/
    green.example.com: https://accounts.green.example.net/conversation-join/
 ```
+
+### Webapp
+
+The webapp runs its own web server (a NodeJS server) to serve static files and the webapp config (based on environment variables). 
+In a multi-ingress configuration, a single webapp instance will be deployed and be accessible from multiple domains (say `webapp.red.example.com` and `webapp.green.example.com`). 
+When the webapp is loaded from one of those domains it first does a request to the web server to get the config (that will give it, for example, the backend endpoint that it should hit). 
+
+Because of the single instance nature of the webapp, by default the configuration is static and the root url to the backend API can be set there (say `nginz-https.root.example.com`). 
+In order to completely hide this root domain to the webapp, an environment variable can be set to allow the webapp hostname to be used to generate the API endpoint, team settings links, account page links and CSP headers.
+
+The "hostname" is the result of the domain name minus the `webapp.` part of it. 
+So querying the webapp on `webapp.red.example.com` will resolve to `red.example.com`.
+
+To enable dynamic hostname replacement, first set this variable:
+
+```
+ENABLE_DYNAMIC_HOSTNAME="true"
+```
+
+Then, any other variable that will contain the string `[[hostname]]` will be replaced by the hostname of the running webapp. (eg. if a webapp is running on `webapp.red.example.com` then any occurrence of `[[hostname]]` in the config will be replaced by `red.example.com`). 
+
+You may use the template variable `[[hostname]]` in any environment variable to not provide (reveal) actual domain names.
+
+For example:
+
+```
+APP_BASE:                                         https://[[hostname]]
+BACKEND_REST:                                     https://nginz-https.[[hostname]]
+BACKEND_WS:                                       wss://nginz-ssl.[[hostname]]
+CSP_EXTRA_CONNECT_SRC:                            https://*.[[hostname]], wss://*.[[hostname]]
+CSP_EXTRA_DEFAULT_SRC:                            https://*.[[hostname]]
+CSP_EXTRA_FONT_SRC:                               https://*.[[hostname]]
+CSP_EXTRA_FRAME_SRC:                              https://*.[[hostname]]
+CSP_EXTRA_IMG_SRC:                                https://*.[[hostname]]
+CSP_EXTRA_MANIFEST_SRC:                           https://*.[[hostname]]
+CSP_EXTRA_MEDIA_SRC:                              https://*.[[hostname]]
+CSP_EXTRA_PREFETCH_SRC:                           https://*.[[hostname]]
+CSP_EXTRA_SCRIPT_SRC:                             https://*.[[hostname]]
+CSP_EXTRA_STYLE_SRC:                              https://*.[[hostname]]
+CSP_EXTRA_WORKER_SRC:                             https://*.[[hostname]]
+```

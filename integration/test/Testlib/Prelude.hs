@@ -8,7 +8,6 @@ module Testlib.Prelude
     module Testlib.HTTP,
     module Testlib.JSON,
     module Testlib.PTest,
-    module Testlib.Service,
     module Data.Aeson,
     module Prelude,
     module Control.Applicative,
@@ -121,7 +120,6 @@ import Testlib.HTTP
 import Testlib.JSON
 import Testlib.ModService
 import Testlib.PTest
-import Testlib.Service
 import Testlib.Types
 import UnliftIO.Exception
 import Prelude

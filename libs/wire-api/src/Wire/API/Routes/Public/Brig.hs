@@ -1,6 +1,4 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
--- Required for `instance MimeRender PlainText ()`
-{-# OPTIONS_GHC -Wno-orphans #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -47,17 +45,9 @@ import Wire.API.Connection hiding (MissingLegalholdConsent)
 import Wire.API.Error
 import Wire.API.Error.Brig
 import Wire.API.Error.Empty
-import Wire.API.MLS.KeyPackage
-import Wire.API.MLS.Servant
 import Wire.API.MakesFederatedCall
 import Wire.API.OAuth
 import Wire.API.Properties
-  ( PropertyKey,
-    PropertyKeysAndValues,
-    RawPropertyValue,
-  )
-import Wire.API.Provider.Service qualified as Public
-import Wire.API.Provider.Service.Tag qualified as Public
 import Wire.API.Routes.API
 import Wire.API.Routes.Bearer
 import Wire.API.Routes.Cookies
@@ -93,7 +83,6 @@ type BrigAPI =
     :<|> UserClientAPI
     :<|> ConnectionAPI
     :<|> PropertiesAPI
-    :<|> MLSAPI
     :<|> UserHandleAPI
     :<|> SearchAPI
     :<|> AuthAPI
@@ -102,8 +91,6 @@ type BrigAPI =
     :<|> SystemSettingsAPI
     :<|> OAuthAPI
     :<|> BotAPI
-    :<|> ProviderAPI
-    :<|> ServicesAPI
 
 data BrigAPITag
 
@@ -286,6 +273,7 @@ type UserAPI =
     :<|> Named
            "get-supported-protocols"
            ( Summary "Get a user's supported protocols"
+               :> From 'V5
                :> ZLocalUser
                :> "users"
                :> QualifiedCaptureUserId "uid"
@@ -294,112 +282,6 @@ type UserAPI =
                     'GET
                     '[JSON]
                     (Respond 200 "Protocols supported by the user" (Set BaseProtocolTag))
-           )
-
-type ProviderAPI =
-  Named
-    "post-provider-services"
-    ( Summary ""
-        :> Description ""
-        :> ZProvider
-        :> "provider"
-        :> "services"
-        :> ReqBody '[JSON] Public.NewService
-        :> MultiVerb1 'POST '[JSON] (Respond 201 "" Public.NewServiceResponse)
-    )
-    :<|> Named
-           "get-provider-services"
-           ( Summary ""
-               :> Description ""
-               :> ZProvider
-               :> "provider"
-               :> "services"
-               :> Get '[JSON] [Public.Service]
-           )
-    :<|> Named
-           "get-provider-services-by-service-id"
-           ( Summary ""
-               :> Description ""
-               :> ZProvider
-               :> "provider"
-               :> "services"
-               :> Capture "service-id" ServiceId
-               :> Get '[JSON] Public.Service
-           )
-    :<|> Named
-           "put-provider-services-by-service-id"
-           ( Summary ""
-               :> Description ""
-               :> ZProvider
-               :> "provider"
-               :> "services"
-               :> Capture "service-id" ServiceId
-               :> ReqBody '[JSON] Public.UpdateService
-               :> Put '[PlainText] ()
-           )
-    :<|> Named
-           "put-provider-services-connection-by-service-id"
-           ( Summary ""
-               :> Description ""
-               :> ZProvider
-               :> "provider"
-               :> "services"
-               :> Capture "service-id" ServiceId
-               :> "connection"
-               :> ReqBody '[JSON] Public.UpdateServiceConn
-               :> Put '[PlainText] ()
-           )
-    :<|> Named
-           "delete-provider-services-by-service-id"
-           ( Summary ""
-               :> Description ""
-               :> ZProvider
-               :> "provider"
-               :> "services"
-               :> Capture "service-id" ServiceId
-               :> ReqBody '[JSON] Public.DeleteService
-               :> MultiVerb1 'DELETE '[PlainText] (RespondEmpty 202 "")
-           )
-    :<|> Named
-           "get-provider-services-by-provider-id"
-           ( Summary ""
-               :> Description ""
-               :> ZAccess
-               :> "providers"
-               :> Capture "provider-id" ProviderId
-               :> "services"
-               :> Get '[JSON] [Public.ServiceProfile]
-           )
-    :<|> Named
-           "get-provider-services-by-provider-id-and-service-id"
-           ( Summary ""
-               :> Description ""
-               :> ZAccess
-               :> "providers"
-               :> Capture "provider-id" ProviderId
-               :> "services"
-               :> Capture "service-id" ServiceId
-               :> Get '[JSON] Public.ServiceProfile
-           )
-
-type ServicesAPI =
-  Named
-    "get-services"
-    ( Summary ""
-        :> Description ""
-        :> ZAccess
-        :> "services"
-        :> QueryParam "tags" (Public.QueryAnyTags 1 3)
-        :> QueryParam "start" Text
-        :> QueryParam "size" (Range 10 100 Int32) -- Default to 20
-        :> Get '[JSON] Public.ServiceProfilePage
-    )
-    :<|> Named
-           "get-services-tags"
-           ( Summary ""
-               :> Description ""
-               :> ZAccess
-               :> Get '[JSON] Public.ServiceTagList
            )
 
 type SelfAPI =
@@ -534,6 +416,7 @@ type SelfAPI =
     :<|> Named
            "change-supported-protocols"
            ( Summary "Change your supported protocols"
+               :> From 'V5
                :> ZLocalUser
                :> ZConn
                :> "self"
@@ -1216,6 +1099,8 @@ type ConnectionAPI =
                :> Get '[Servant.JSON] (SearchResult Contact)
            )
 
+-- Properties API -----------------------------------------------------
+
 type PropertiesAPI =
   LiftNamed
     ( ZUser
@@ -1275,49 +1160,6 @@ type PropertiesAPI =
                :> "properties-values"
                :> Get '[JSON] PropertyKeysAndValues
            )
-
--- Properties API -----------------------------------------------------
-
-type MLSKeyPackageAPI =
-  "key-packages"
-    :> ( Named
-           "mls-key-packages-upload"
-           ( "self"
-               :> Summary "Upload a fresh batch of key packages"
-               :> Description "The request body should be a json object containing a list of base64-encoded key packages."
-               :> ZLocalUser
-               :> CanThrow 'MLSProtocolError
-               :> CanThrow 'MLSIdentityMismatch
-               :> CaptureClientId "client"
-               :> ReqBody '[JSON] KeyPackageUpload
-               :> MultiVerb 'POST '[JSON, MLS] '[RespondEmpty 201 "Key packages uploaded"] ()
-           )
-           :<|> Named
-                  "mls-key-packages-claim"
-                  ( "claim"
-                      :> Summary "Claim one key package for each client of the given user"
-                      :> MakesFederatedCall 'Brig "claim-key-packages"
-                      :> ZLocalUser
-                      :> QualifiedCaptureUserId "user"
-                      :> QueryParam'
-                           [ Optional,
-                             Strict,
-                             Description "Do not claim a key package for the given own client"
-                           ]
-                           "skip_own"
-                           ClientId
-                      :> MultiVerb1 'POST '[JSON] (Respond 200 "Claimed key packages" KeyPackageBundle)
-                  )
-           :<|> Named
-                  "mls-key-packages-count"
-                  ( "self"
-                      :> ZLocalUser
-                      :> CaptureClientId "client"
-                      :> "count"
-                      :> Summary "Return the number of unused key packages for the given client"
-                      :> MultiVerb1 'GET '[JSON] (Respond 200 "Number of key packages" KeyPackageCount)
-                  )
-       )
 
 -- Search API -----------------------------------------------------
 
@@ -1379,8 +1221,6 @@ type SearchAPI =
              '[Respond 200 "Search results" (SearchResult TeamContact)]
              (SearchResult TeamContact)
     )
-
-type MLSAPI = LiftNamed ("mls" :> MLSKeyPackageAPI)
 
 type AuthAPI =
   Named
@@ -1642,39 +1482,6 @@ type TeamsAPI =
                     '[JSON]
                     (Respond 200 "Number of team members" TeamSize)
            )
-    :<|> Named
-           "get-whitelisted-services-by-team-id"
-           ( Summary ""
-               :> Description ""
-               :> ZAccess
-               :> "teams"
-               :> Capture "team-id" TeamId
-               :> "services"
-               :> "whitelisted"
-               :> QueryParam "prefix" (Range 1 128 Text)
-               -- Default to True
-               :> QueryParam "filter_disabled" Bool
-               -- Default to 20
-               :> QueryParam "size" (Range 10 100 Int32)
-               :> Get '[JSON] Public.ServiceProfilePage
-           )
-    :<|> Named
-           "post-team-whitelist-by-team-id"
-           ( Summary ""
-               :> Description ""
-               :> ZAccess
-               :> ZConn
-               :> "teams"
-               :> Capture "team-id" TeamId
-               :> "services"
-               :> "whitelist"
-               :> ReqBody '[JSON] Public.UpdateServiceWhitelist
-               :> MultiVerb 'POST '[PlainText] '[RespondEmpty 200 "UpdateServiceWhitelistRespChanged", RespondEmpty 204 "UpdateServiceWhitelistRespUnchanged"] Public.UpdateServiceWhitelistResp
-           )
-
--- Plaintext doesn't ship a renderer for (), so we have an orphan for it
-instance MimeRender PlainText () where
-  mimeRender _ () = ""
 
 type SystemSettingsAPI =
   Named

@@ -152,7 +152,7 @@ numRangedSchemaDocModifier n m = S.schema %~ ((S.minimum_ ?~ fromIntegral n) . (
 
 instance S.HasSchema d S.Schema => HasRangedSchemaDocModifier d [a] where rangedSchemaDocModifier _ = listRangedSchemaDocModifier
 
--- Sets are effectively lists, so we can reuse that code.
+-- Sets are similar to lists, so use that as our defininition
 instance S.HasSchema d S.Schema => HasRangedSchemaDocModifier d (Set a) where rangedSchemaDocModifier _ = listRangedSchemaDocModifier
 
 instance S.HasSchema d S.Schema => HasRangedSchemaDocModifier d Text where rangedSchemaDocModifier _ = stringRangedSchemaDocModifier

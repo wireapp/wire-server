@@ -20,6 +20,7 @@
 , directory
 , errors
 , exceptions
+, extended
 , extra
 , filepath
 , gitignoreSource
@@ -84,6 +85,7 @@ mkDerivation {
     directory
     errors
     exceptions
+    extended
     extra
     filepath
     hex

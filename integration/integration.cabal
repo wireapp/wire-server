@@ -90,6 +90,7 @@ library
     API.BrigInternal
     API.Cargohold
     API.Common
+    API.Federator
     API.Galley
     API.GalleyInternal
     API.Gundeck
@@ -128,7 +129,6 @@ library
     Testlib.ResourcePool
     Testlib.Run
     Testlib.RunServices
-    Testlib.Service
     Testlib.Types
 
   build-depends:
@@ -148,6 +148,7 @@ library
     , directory
     , errors
     , exceptions
+    , extended
     , extra
     , filepath
     , hex
