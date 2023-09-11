@@ -95,7 +95,7 @@ endif
 #
 # If you want to pass arguments to the test-suite call cabal-run-integration.sh directly.
 .PHONY: ci-fast
-ci-fast: c db-migrate
+ci-fast: c db-migrate cqlsh_clear_federation_remotes
 ifeq ("$(package)", "all")
 	./hack/bin/cabal-run-integration.sh all
 	./hack/bin/cabal-run-integration.sh integration
@@ -269,6 +269,18 @@ cqlsh:
 	$(eval CASSANDRA_CONTAINER := $(shell docker ps | grep '/cassandra:' | perl -ne '/^(\S+)\s/ && print $$1'))
 	@echo "make sure you have ./deploy/dockerephemeral/run.sh running in another window!"
 	docker exec -it $(CASSANDRA_CONTAINER) /usr/bin/cqlsh
+
+.PHONY: cqlsh_clear_federation_remotes
+cqlsh_clear_federation_remotes:
+	$(eval CASSANDRA_CONTAINER := $(shell docker ps | grep '/cassandra:' | perl -ne '/^(\S+)\s/ && print $$1'))
+	@echo "make sure you have ./deploy/dockerephemeral/run.sh running in another window!"
+	for ts in brig_test{,2} brig_dyn1_test brig_dyn2_test brig_dyn3_test; do echo "truncate $ts.federation_remotes if exists" ; done
+	echo "truncate brig_test.federation_remotes; \
+	      truncate brig_test2.federation_remotes; \
+	      truncate brig_test_dyn_1.federation_remotes; \
+	      truncate brig_test_dyn_2.federation_remotes; \
+	      truncate brig_test_dyn_3.federation_remotes;" | \
+	  docker exec -i $(CASSANDRA_CONTAINER) /usr/bin/cqlsh
 
 .PHONY: db-reset-package
 db-reset-package:
