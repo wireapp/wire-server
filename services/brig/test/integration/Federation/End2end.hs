@@ -131,8 +131,8 @@ testHandleLookup originDomain brig brigTwo = do
   allowFullSearch brigTwo originDomain
   mbResultViaBrigOne <- getUserInfoFromHandle' brig backendTwoDomain handle
 
-  liftIO $ assertEqual "remote handle lookup via federator should work in the happy case" (profileQualifiedId <$> mbResultViaBrigOne) (Just $ userQualifiedId userBrigTwo)
-  liftIO $ assertEqual "querying brig1 or brig2 about the same user should give same result" mbResultViaBrigTwo mbResultViaBrigOne
+  liftIO $ assertEqual "remote handle lookup via federator should work in the happy case" (Just $ userQualifiedId userBrigTwo) (profileQualifiedId <$> mbResultViaBrigOne)
+  liftIO $ assertEqual "querying brig1 or brig2 about the same user should give same result" mbResultViaBrigOne mbResultViaBrigTwo
 
 testSearchUsers :: Domain -> Brig -> Brig -> Http ()
 testSearchUsers originDomain brig brigTwo = do
