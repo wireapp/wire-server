@@ -166,6 +166,7 @@ library
     Wire.API.Routes.Named
     Wire.API.Routes.Public
     Wire.API.Routes.Public.Brig
+    Wire.API.Routes.Public.Brig.Bot
     Wire.API.Routes.Public.Brig.OAuth
     Wire.API.Routes.Public.Cannon
     Wire.API.Routes.Public.Cargohold

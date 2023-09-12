@@ -40,6 +40,7 @@ import Federator.Discovery
 import Federator.Env
 import Federator.Error.ServerError
 import Federator.Health qualified as Health
+import Federator.Metrics
 import Federator.RPC
 import Federator.Response
 import Federator.Service
@@ -103,7 +104,8 @@ server ::
     Member (Error ValidationError) r,
     Member (Error DiscoveryFailure) r,
     Member (Error ServerError) r,
-    Member (Input FederationDomainConfigs) r
+    Member (Input FederationDomainConfigs) r,
+    Member Metrics r
   ) =>
   Manager ->
   Word16 ->
@@ -125,7 +127,8 @@ callInward ::
     Member (Error ValidationError) r,
     Member (Error DiscoveryFailure) r,
     Member (Error ServerError) r,
-    Member (Input FederationDomainConfigs) r
+    Member (Input FederationDomainConfigs) r,
+    Member Metrics r
   ) =>
   Component ->
   RPC ->
@@ -134,6 +137,7 @@ callInward ::
   Wai.Request ->
   Sem r Wai.Response
 callInward component (RPC rpc) originDomain (CertHeader cert) wreq = do
+  incomingCounterIncr originDomain
   -- only POST is supported
   when (Wai.requestMethod wreq /= HTTP.methodPost) $
     throw InvalidRoute

@@ -888,7 +888,7 @@ class ToGalleyRuntimeError (effs :: EffectRow) r where
     Sem r a
 
 instance ToGalleyRuntimeError '[] r where
-  mapToGalleyError = id
+  mapToGalleyError = Imports.id
 
 instance
   forall (err :: GalleyError) effs r.

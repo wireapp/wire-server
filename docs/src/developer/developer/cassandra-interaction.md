@@ -51,26 +51,13 @@ data you inserted, even if one replica of cassandra that holds that partition ke
 middle.
 
 The replication factor is specified when creating or migrating schemas, which is done in the
-`cassandra-migrations` subchart of the `wire-server` chart:
-
-```{grepinclude} ../charts/cassandra-migrations/values.yaml host name and replication
----
-lines-after: 6
-language: yaml
----
-```
+`cassandra-migrations` subchart of the `wire-server` chart: [See link](https://github.com/wireapp/wire-server/blob/develop/charts/cassandra-migrations/values.yaml#L10)
 
 The number of cassandra nodes in use is specified on the infrastructure level (k8ssandra on
 kubernetes, or the inventory list when using ansible-cassandra)
 
 Quorum consistency (or, in our case, `LocalQuorum` consistency) is specified in our code. Random
-example:
-
-```{grepinclude} ../services/brig/src/Brig/Data/User.hs userEmailUpdate \(params
----
-language: Haskell
----
-```
+example: [See link](https://github.com/wireapp/wire-server/blob/develop/services/brig/src/Brig/Data/User.hs#L637)
 
 Note that `Quorum` and `LocalQuorum` behave exactly the same in the context of a single datacentre
 (each datacentre can have multiple racks or availability zones). We switched from `Quorum` to

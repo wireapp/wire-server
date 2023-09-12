@@ -131,7 +131,7 @@ let
       tests
     ];
   manualOverrides = import ./manual-overrides.nix (with pkgs; {
-    inherit hlib libsodium protobuf mls-test-cli;
+    inherit hlib libsodium protobuf mls-test-cli fetchpatch;
   });
 
   executables = hself: hsuper:

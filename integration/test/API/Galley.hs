@@ -45,6 +45,13 @@ defProteus =
 defMLS :: CreateConv
 defMLS = defProteus {protocol = "mls"}
 
+allowGuests :: CreateConv -> CreateConv
+allowGuests cc =
+  cc
+    { access = Just ["code"],
+      accessRole = Just ["team_member", "guest"]
+    }
+
 instance MakesValue CreateConv where
   make cc = do
     quids <- for (cc.qualifiedUsers) objQidObject
@@ -302,3 +309,36 @@ removeMember remover qcnv removed = do
   (removedDomain, removedId) <- objQid removed
   req <- baseRequest remover Galley Versioned (joinHttpPath ["conversations", convDomain, convId, "members", removedDomain, removedId])
   submit "DELETE" req
+
+postConversationCode ::
+  (HasCallStack, MakesValue user, MakesValue conv) =>
+  user ->
+  conv ->
+  Maybe String ->
+  Maybe String ->
+  App Response
+postConversationCode user conv mbpassword mbZHost = do
+  convId <- objId conv
+  req <- baseRequest user Galley Versioned (joinHttpPath ["conversations", convId, "code"])
+  submit
+    "POST"
+    ( req
+        & addJSONObject ["password" .= pw | pw <- maybeToList mbpassword]
+        & maybe id zHost mbZHost
+    )
+
+getConversationCode ::
+  (HasCallStack, MakesValue user, MakesValue conv) =>
+  user ->
+  conv ->
+  Maybe String ->
+  App Response
+getConversationCode user conv mbZHost = do
+  convId <- objId conv
+  req <- baseRequest user Galley Versioned (joinHttpPath ["conversations", convId, "code"])
+  submit
+    "GET"
+    ( req
+        & addQueryParams [("cnv", convId)]
+        & maybe id zHost mbZHost
+    )
