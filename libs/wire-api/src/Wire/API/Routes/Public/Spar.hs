@@ -20,19 +20,19 @@ module Wire.API.Routes.Public.Spar where
 import Data.Id
 import Data.Proxy
 import Data.Range
-import Data.Swagger (Swagger)
 import Imports
-import qualified SAML2.WebSSO as SAML
+import SAML2.WebSSO qualified as SAML
 import Servant
 import Servant.API.Extended
 import Servant.Multipart
-import Servant.Swagger (toSwagger)
-import qualified URI.ByteString as URI
+import Servant.Swagger
+import URI.ByteString qualified as URI
 import Web.Scim.Capabilities.MetaSchema as Scim.Meta
 import Web.Scim.Class.Auth as Scim.Auth
 import Web.Scim.Class.User as Scim.User
 import Wire.API.Error
 import Wire.API.Error.Brig
+import Wire.API.Routes.API
 import Wire.API.Routes.Internal.Spar
 import Wire.API.Routes.Public
 import Wire.API.SwaggerServant
@@ -45,7 +45,7 @@ import Wire.API.User.Scim
 
 -- FUTUREWORK: use https://hackage.haskell.org/package/servant-0.14.1/docs/Servant-API-Generic.html?
 
-type API =
+type SparAPI =
   "sso" :> APISSO
     :<|> "identity-providers" :> APIIDP
     :<|> "scim" :> APIScim
@@ -186,5 +186,9 @@ type APIScimTokenDelete =
 type APIScimTokenList =
   Get '[JSON] ScimTokenList
 
-swaggerDoc :: Swagger
-swaggerDoc = toSwagger (Proxy @API)
+data SparAPITag
+
+instance ServiceAPI SparAPITag v where
+  type ServiceAPIRoutes SparAPITag = SparAPI
+  type SpecialisedAPIRoutes v SparAPITag = SparAPI
+  serviceSwagger = toSwagger (Proxy @SparAPI)

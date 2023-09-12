@@ -26,9 +26,9 @@ where
 import Brig.API.Error (throwStd)
 import Brig.API.Handler (Handler)
 import Brig.App
-import qualified Brig.Options as Opt
+import Brig.Options qualified as Opt
 import Cassandra hiding (Set)
-import qualified Cassandra as C
+import Cassandra qualified as C
 import Control.Error (assertMay, failWith, failWithM)
 import Control.Lens (view, (?~), (^?))
 import Control.Monad.Except
@@ -37,7 +37,7 @@ import Data.ByteString.Conversion
 import Data.Domain
 import Data.Id
 import Data.Misc
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.Text.Ascii
 import Data.Time
 import Imports hiding (exp)
@@ -47,13 +47,13 @@ import Servant hiding (Handler, Tagged)
 import Wire.API.Error
 import Wire.API.OAuth as OAuth
 import Wire.API.Password (Password, mkSafePassword)
-import qualified Wire.API.Routes.Internal.Brig.OAuth as I
+import Wire.API.Routes.Internal.Brig.OAuth qualified as I
 import Wire.API.Routes.Named (Named (..))
 import Wire.API.Routes.Public.Brig.OAuth
 import Wire.Sem.Jwk
-import qualified Wire.Sem.Jwk as Jwk
+import Wire.Sem.Jwk qualified as Jwk
 import Wire.Sem.Now (Now)
-import qualified Wire.Sem.Now as Now
+import Wire.Sem.Now qualified as Now
 
 --------------------------------------------------------------------------------
 -- API Internal
@@ -313,7 +313,7 @@ updateOAuthClient' :: (MonadClient m) => OAuthClientId -> OAuthApplicationName -
 updateOAuthClient' cid name uri = retry x5 . write q $ params LocalQuorum (name, uri, cid)
   where
     q :: PrepQuery W (OAuthApplicationName, RedirectUrl, OAuthClientId) ()
-    q = "UPDATE oauth_client SET name = ?, redirect_uri = ? WHERE id = ?"
+    q = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE oauth_client SET name = ?, redirect_uri = ? WHERE id = ?"
 
 insertOAuthClient :: (MonadClient m) => OAuthClientId -> OAuthApplicationName -> RedirectUrl -> Password -> m ()
 insertOAuthClient cid name uri pw = retry x5 . write q $ params LocalQuorum (cid, name, uri, pw)

@@ -1,7 +1,7 @@
 module API.BrigInternal where
 
 import API.Common
-import qualified Data.Aeson as Aeson
+import Data.Aeson qualified as Aeson
 import Data.Function
 import Data.Maybe
 import Testlib.Prelude
@@ -110,6 +110,14 @@ deleteFedConn' owndom dom = do
   req <- rawBaseRequest owndom Brig Unversioned ("/i/federation/remotes/" <> dom)
   submit "DELETE" req
 
+deleteAllFedConns :: (HasCallStack, MakesValue dom) => dom -> App ()
+deleteAllFedConns dom = do
+  readFedConns dom >>= \resp ->
+    resp.json %. "remotes"
+      & asList
+      >>= traverse (\v -> v %. "domain" & asString)
+      >>= mapM_ (deleteFedConn dom)
+
 registerOAuthClient :: (HasCallStack, MakesValue user, MakesValue name, MakesValue url) => user -> name -> url -> App Response
 registerOAuthClient user name url = do
   req <- baseRequest user Brig Unversioned "i/oauth/clients"
@@ -141,4 +149,15 @@ refreshIndex :: (HasCallStack, MakesValue domain) => domain -> App ()
 refreshIndex domain = do
   req <- baseRequest domain Brig Unversioned "i/index/refresh"
   res <- submit "POST" req
+  res.status `shouldMatchInt` 200
+
+connectWithRemoteUser :: (MakesValue userFrom, MakesValue userTo) => userFrom -> userTo -> App ()
+connectWithRemoteUser userFrom userTo = do
+  userFromId <- objId userFrom
+  qUserTo <- make userTo
+  let body = ["tag" .= "CreateConnectionForTest", "user" .= userFromId, "other" .= qUserTo]
+  req <-
+    baseRequest userFrom Brig Unversioned $
+      joinHttpPath ["i", "connections", "connection-update"]
+  res <- submit "PUT" (req & addJSONObject body)
   res.status `shouldMatchInt` 200

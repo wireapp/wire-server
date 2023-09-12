@@ -25,10 +25,10 @@ where
 import API.User.Util
 import Bilge hiding (accept, timeout)
 import Bilge.Assert
-import qualified Brig.Options as Opt
-import qualified Cassandra as DB
+import Brig.Options qualified as Opt
+import Cassandra qualified as DB
 import Data.Aeson as A
-import qualified Data.Aeson.KeyMap as KeyMap
+import Data.Aeson.KeyMap qualified as KeyMap
 import Data.Misc
 import Imports hiding (cs)
 import Test.Tasty hiding (Timeout)

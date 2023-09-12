@@ -26,22 +26,22 @@ import Control.Arrow
 import Control.Lens
 import Data.Id
 import Data.List.Split (chunksOf)
-import qualified Galley.Cassandra.Queries as Cql
+import Galley.Cassandra.Queries qualified as Cql
 import Galley.Cassandra.Store
 import Galley.Effects.ClientStore (ClientStore (..))
 import Galley.Env
 import Galley.Monad
 import Galley.Options
 import Galley.Types.Clients (Clients)
-import qualified Galley.Types.Clients as Clients
+import Galley.Types.Clients qualified as Clients
 import Imports
 import Polysemy
 import Polysemy.Input
-import qualified UnliftIO
+import UnliftIO qualified
 
 updateClient :: Bool -> UserId -> ClientId -> Client ()
 updateClient add usr cls = do
-  let q = if add then Cql.addMemberClient else Cql.rmMemberClient
+  let q = if add then Cql.upsertMemberAddClient else Cql.upsertMemberRmClient
   retry x5 $ write (q cls) (params LocalQuorum (Identity usr))
 
 -- Do, at most, 16 parallel lookups of up to 128 users each
@@ -69,4 +69,4 @@ interpretClientStoreToCassandra = interpret $ \case
   CreateClient uid cid -> embedClient $ updateClient True uid cid
   DeleteClient uid cid -> embedClient $ updateClient False uid cid
   DeleteClients uid -> embedClient $ eraseClients uid
-  UseIntraClientListing -> embedApp . view $ options . optSettings . setIntraListing
+  UseIntraClientListing -> embedApp . view $ options . settings . intraListing

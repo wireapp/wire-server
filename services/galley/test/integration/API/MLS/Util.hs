@@ -29,29 +29,29 @@ import Control.Error.Util
 import Control.Lens (preview, to, view, (.~), (^..))
 import Control.Monad.Catch
 import Control.Monad.State (StateT, evalStateT)
-import qualified Control.Monad.State as State
+import Control.Monad.State qualified as State
 import Control.Monad.Trans.Maybe
 import Crypto.PubKey.Ed25519
 import Data.Aeson.Lens
-import qualified Data.ByteArray as BA
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Base64.URL as B64U
+import Data.ByteArray qualified as BA
+import Data.ByteString qualified as BS
+import Data.ByteString.Base64.URL qualified as B64U
 import Data.ByteString.Conversion
-import qualified Data.ByteString.Lazy as LBS
+import Data.ByteString.Lazy qualified as LBS
 import Data.Domain
 import Data.Hex
 import Data.Id
 import Data.Json.Util hiding ((#))
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Qualified
-import qualified Data.Set as Set
-import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
+import Data.Set qualified as Set
+import Data.Text qualified as T
+import Data.Text.Encoding qualified as T
 import Data.Time.Clock (getCurrentTime)
-import qualified Data.Tuple.Extra as Tuple
+import Data.Tuple.Extra qualified as Tuple
 import Galley.Keys
 import Galley.Options
-import qualified Galley.Options as Opts
+import Galley.Options qualified as Opts
 import Imports hiding (getSymbolicLinkTarget)
 import System.Directory (getSymbolicLinkTarget)
 import System.FilePath
@@ -59,7 +59,7 @@ import System.IO.Temp
 import System.Posix hiding (createDirectory)
 import System.Process
 import Test.QuickCheck (arbitrary, generate)
-import qualified Test.Tasty.Cannon as WS
+import Test.Tasty.Cannon qualified as WS
 import Test.Tasty.HUnit
 import TestHelpers
 import TestSetup
@@ -69,7 +69,6 @@ import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role (roleNameWireMember)
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API.Galley
-import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.CommitBundle
 import Wire.API.MLS.Credential
 import Wire.API.MLS.GroupInfoBundle
@@ -84,9 +83,9 @@ import Wire.API.User.Client.Prekey
 
 cid2Str :: ClientIdentity -> String
 cid2Str cid =
-  show (ciUser cid)
+  show cid.ciUser
     <> ":"
-    <> T.unpack (client . ciClient $ cid)
+    <> T.unpack cid.ciClient.client
     <> "@"
     <> T.unpack (domainText (ciDomain cid))
 
@@ -95,10 +94,10 @@ mapRemoteKeyPackageRef ::
   (Request -> Request) ->
   KeyPackageBundle ->
   m ()
-mapRemoteKeyPackageRef brig bundle =
+mapRemoteKeyPackageRef brigCall bundle =
   void $
     put
-      ( brig
+      ( brigCall
           . paths ["i", "mls", "key-package-refs"]
           . json bundle
       )
@@ -114,9 +113,9 @@ postMessage ::
   ByteString ->
   m ResponseLBS
 postMessage sender msg = do
-  galley <- viewGalley
+  galleyCall <- viewGalley
   post
-    ( galley
+    ( galleyCall
         . paths ["mls", "messages"]
         . zUser (ciUser sender)
         . zClient (ciClient sender)
@@ -135,9 +134,9 @@ postCommitBundle ::
   ByteString ->
   m ResponseLBS
 postCommitBundle sender bundle = do
-  galley <- viewGalley
+  galleyCall <- viewGalley
   post
-    ( galley
+    ( galleyCall
         . paths ["mls", "commit-bundles"]
         . zUser (ciUser sender)
         . zClient (ciClient sender)
@@ -157,9 +156,9 @@ postWelcome ::
   ByteString ->
   m ResponseLBS
 postWelcome uid welcome = do
-  galley <- view tsUnversionedGalley
+  galleyCall <- view tsUnversionedGalley
   post
-    ( galley
+    ( galleyCall
         . paths ["v2", "mls", "welcome"]
         . zUser uid
         . zConn "conn"
@@ -191,7 +190,7 @@ mkAppAckProposalMessage gid epoch ref mrs priv pub = do
 
 saveRemovalKey :: FilePath -> TestM ()
 saveRemovalKey fp = do
-  keys <- fromJust <$> view (tsGConf . optSettings . setMlsPrivateKeyPaths)
+  keys <- fromJust <$> view (tsGConf . settings . mlsPrivateKeyPaths)
   keysByPurpose <- liftIO $ loadAllMLSKeys keys
   let (_, pub) = fromJust (mlsKeyPair_ed25519 (keysByPurpose RemovalPurpose))
   liftIO $ BS.writeFile fp (BA.convert pub)
@@ -294,10 +293,10 @@ createLocalMLSClient (tUntagged -> qusr) = do
 
   -- set public key
   pkey <- mlscli qcid ["public-key"] Nothing
-  brig <- viewBrig
+  brigCall <- viewBrig
   let update = defUpdateClient {updateClientMLSPublicKeys = Map.singleton Ed25519 pkey}
   put
-    ( brig
+    ( brigCall
         . paths ["clients", toByteString' . ciClient $ qcid]
         . zUser (ciUser qcid)
         . json update
@@ -326,9 +325,9 @@ uploadNewKeyPackage qcid = do
   (kp, _) <- generateKeyPackage qcid
 
   -- upload key package
-  brig <- viewBrig
+  brigCall <- viewBrig
   post
-    ( brig
+    ( brigCall
         . paths ["mls", "key-packages", "self", toByteString' . ciClient $ qcid]
         . zUser (ciUser qcid)
         . json (KeyPackageUpload [kp])
@@ -481,10 +480,10 @@ keyPackageFile qcid ref =
 
 claimLocalKeyPackages :: HasCallStack => ClientIdentity -> Local UserId -> MLSTest KeyPackageBundle
 claimLocalKeyPackages qcid lusr = do
-  brig <- viewBrig
+  brigCall <- viewBrig
   responseJsonError
     =<< post
-      ( brig
+      ( brigCall
           . paths ["mls", "key-packages", "claim", toByteString' (tDomain lusr), toByteString' (tUnqualified lusr)]
           . zUser (ciUser qcid)
       )
@@ -504,7 +503,7 @@ getUserClients qusr = do
 -- | Generate one key package for each client of a remote user
 claimRemoteKeyPackages :: HasCallStack => Remote UserId -> MLSTest KeyPackageBundle
 claimRemoteKeyPackages (tUntagged -> qusr) = do
-  brig <- viewBrig
+  brigCall <- viewBrig
   clients <- getUserClients qusr
   bundle <- fmap (KeyPackageBundle . Set.fromList) $
     for clients $ \cid -> do
@@ -516,7 +515,7 @@ claimRemoteKeyPackages (tUntagged -> qusr) = do
             kpbeRef = ref,
             kpbeKeyPackage = KeyPackageData (rmRaw kp)
           }
-  mapRemoteKeyPackageRef brig bundle
+  mapRemoteKeyPackageRef brigCall bundle
   pure bundle
 
 -- | Claim key package for a local user, or generate and map key packages for remote ones.
@@ -958,28 +957,6 @@ clientKeyPair cid = do
           & BS.pack
   pure $ BS.splitAt 32 s
 
-receiveNewRemoteConv ::
-  (MonadReader TestSetup m, MonadIO m) =>
-  Qualified ConvId ->
-  GroupId ->
-  m ()
-receiveNewRemoteConv conv gid = do
-  client <- view tsFedGalleyClient
-  let nrc =
-        NewRemoteConversation (qUnqualified conv) $
-          ProtocolMLS
-            ( ConversationMLSData
-                gid
-                (Epoch 1)
-                MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
-            )
-  void $
-    runFedClient
-      @"on-new-remote-conversation"
-      client
-      (qDomain conv)
-      nrc
-
 receiveOnConvUpdated ::
   (MonadReader TestSetup m, MonadIO m) =>
   Qualified ConvId ->
@@ -1020,9 +997,9 @@ getGroupInfo ::
   Qualified ConvId ->
   m ResponseLBS
 getGroupInfo sender qcnv = do
-  galley <- viewGalley
+  galleyCall <- viewGalley
   get
-    ( galley
+    ( galleyCall
         . paths
           [ "conversations",
             toByteString' (qDomain qcnv),
@@ -1048,4 +1025,4 @@ getSelfConv u = do
 withMLSDisabled :: HasSettingsOverrides m => m a -> m a
 withMLSDisabled = withSettingsOverrides noMLS
   where
-    noMLS = Opts.optSettings . Opts.setMlsPrivateKeyPaths .~ Nothing
+    noMLS = Opts.settings . Opts.mlsPrivateKeyPaths .~ Nothing

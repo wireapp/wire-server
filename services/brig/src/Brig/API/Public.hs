@@ -27,73 +27,73 @@ module Brig.API.Public
 where
 
 import Brig.API.Auth
-import qualified Brig.API.Client as API
-import qualified Brig.API.Connection as API
+import Brig.API.Client qualified as API
+import Brig.API.Connection qualified as API
 import Brig.API.Error
 import Brig.API.Handler
-import Brig.API.MLS.KeyPackages
 import Brig.API.OAuth (oauthAPI)
-import qualified Brig.API.Properties as API
+import Brig.API.Properties qualified as API
 import Brig.API.Public.Swagger
 import Brig.API.Types
-import qualified Brig.API.User as API
+import Brig.API.User qualified as API
 import Brig.API.Util
-import qualified Brig.API.Util as API
+import Brig.API.Util qualified as API
 import Brig.App
-import qualified Brig.Calling.API as Calling
-import qualified Brig.Code as Code
-import qualified Brig.Data.Connection as Data
+import Brig.Calling.API qualified as Calling
+import Brig.Code qualified as Code
+import Brig.Data.Connection qualified as Data
 import Brig.Data.Nonce as Nonce
-import qualified Brig.Data.User as Data
-import qualified Brig.Data.UserKey as UserKey
+import Brig.Data.User qualified as Data
+import Brig.Data.UserKey qualified as UserKey
 import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
 import Brig.Effects.BlacklistStore (BlacklistStore)
 import Brig.Effects.CodeStore (CodeStore)
 import Brig.Effects.GalleyProvider (GalleyProvider)
-import qualified Brig.Effects.GalleyProvider as GalleyProvider
+import Brig.Effects.GalleyProvider qualified as GalleyProvider
 import Brig.Effects.JwtTools (JwtTools)
 import Brig.Effects.PasswordResetStore (PasswordResetStore)
 import Brig.Effects.PublicKeyBundle (PublicKeyBundle)
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import Brig.Options hiding (internalEvents, sesQueue)
-import qualified Brig.Provider.API as Provider
-import qualified Brig.Team.API as Team
-import qualified Brig.Team.Email as Team
+import Brig.Provider.API (botAPI)
+import Brig.Provider.API qualified as Provider
+import Brig.Team.API qualified as Team
+import Brig.Team.Email qualified as Team
 import Brig.Types.Activation (ActivationPair)
 import Brig.Types.Intra (UserAccount (UserAccount, accountUser))
 import Brig.Types.User (HavePendingInvitations (..))
-import qualified Brig.User.API.Handle as Handle
+import Brig.User.API.Handle qualified as Handle
 import Brig.User.API.Search (teamUserSearch)
-import qualified Brig.User.API.Search as Search
-import qualified Brig.User.Auth.Cookie as Auth
+import Brig.User.API.Search qualified as Search
+import Brig.User.Auth.Cookie qualified as Auth
 import Brig.User.Email
 import Brig.User.Phone
-import qualified Cassandra as C
-import qualified Cassandra as Data
+import Cassandra qualified as C
+import Cassandra qualified as Data
 import Control.Error hiding (bool)
 import Control.Lens (view, (.~), (?~), (^.))
 import Control.Monad.Catch (throwM)
 import Control.Monad.Except
 import Data.Aeson hiding (json)
 import Data.Bifunctor
-import qualified Data.ByteString.Lazy as Lazy
-import qualified Data.ByteString.Lazy.Char8 as LBS
+import Data.ByteString.Lazy qualified as Lazy
+import Data.ByteString.Lazy.Char8 qualified as LBS
 import Data.CommaSeparatedList
 import Data.Domain
 import Data.FileEmbed
 import Data.Handle (Handle, parseHandle)
 import Data.Id as Id
 import Data.List.NonEmpty (nonEmpty)
-import qualified Data.Map.Strict as Map
+import Data.Map.Strict qualified as Map
 import Data.Misc (IpAddr (..))
 import Data.Nonce (Nonce, randomNonce)
 import Data.Qualified
 import Data.Range
-import qualified Data.Swagger as S
-import qualified Data.Text as Text
-import qualified Data.Text.Ascii as Ascii
+import Data.Swagger qualified as S
+import Data.Text qualified as Text
+import Data.Text.Ascii qualified as Ascii
 import Data.Text.Lazy (pack)
-import qualified Data.ZAuth.Token as ZAuth
+import Data.ZAuth.Token qualified as ZAuth
 import FileEmbedLzma
 import Galley.Types.Teams (HiddenPerm (..), hasPermission)
 import Imports hiding (head)
@@ -102,50 +102,52 @@ import Network.Wai.Routing
 import Network.Wai.Utilities as Utilities
 import Polysemy
 import Servant hiding (Handler, JSON, addHeader, respond)
-import qualified Servant
+import Servant qualified
 import Servant.Swagger.Internal.Orphans ()
 import Servant.Swagger.UI
-import qualified System.Logger.Class as Log
+import System.Logger.Class qualified as Log
 import Util.Logging (logFunction, logHandle, logTeam, logUser)
-import qualified Wire.API.Connection as Public
+import Wire.API.Connection qualified as Public
 import Wire.API.Error
-import qualified Wire.API.Error.Brig as E
+import Wire.API.Error.Brig qualified as E
 import Wire.API.Federation.API
 import Wire.API.Federation.Error
-import qualified Wire.API.Properties as Public
-import qualified Wire.API.Routes.Internal.Brig as BrigInternalAPI
-import qualified Wire.API.Routes.Internal.Cannon as CannonInternalAPI
-import qualified Wire.API.Routes.Internal.Cargohold as CargoholdInternalAPI
-import qualified Wire.API.Routes.Internal.Galley as GalleyInternalAPI
-import qualified Wire.API.Routes.Internal.Spar as SparInternalAPI
-import qualified Wire.API.Routes.MultiTablePaging as Public
+import Wire.API.Properties qualified as Public
+import Wire.API.Routes.API
+import Wire.API.Routes.Internal.Brig qualified as BrigInternalAPI
+import Wire.API.Routes.Internal.Cannon qualified as CannonInternalAPI
+import Wire.API.Routes.Internal.Cargohold qualified as CargoholdInternalAPI
+import Wire.API.Routes.Internal.Galley qualified as GalleyInternalAPI
+import Wire.API.Routes.Internal.Spar qualified as SparInternalAPI
+import Wire.API.Routes.MultiTablePaging qualified as Public
 import Wire.API.Routes.Named (Named (Named))
 import Wire.API.Routes.Public.Brig
-import qualified Wire.API.Routes.Public.Brig.OAuth as OAuth
-import qualified Wire.API.Routes.Public.Cannon as CannonAPI
-import qualified Wire.API.Routes.Public.Cargohold as CargoholdAPI
-import qualified Wire.API.Routes.Public.Galley as GalleyAPI
-import qualified Wire.API.Routes.Public.Gundeck as GundeckAPI
-import qualified Wire.API.Routes.Public.Proxy as ProxyAPI
-import qualified Wire.API.Routes.Public.Spar as SparAPI
-import qualified Wire.API.Routes.Public.Util as Public
+import Wire.API.Routes.Public.Brig.Bot
+import Wire.API.Routes.Public.Brig.OAuth
+import Wire.API.Routes.Public.Cannon
+import Wire.API.Routes.Public.Cargohold
+import Wire.API.Routes.Public.Galley
+import Wire.API.Routes.Public.Gundeck
+import Wire.API.Routes.Public.Proxy
+import Wire.API.Routes.Public.Spar
+import Wire.API.Routes.Public.Util qualified as Public
 import Wire.API.Routes.Version
 import Wire.API.SwaggerHelper (cleanupSwagger)
 import Wire.API.SystemSettings
-import qualified Wire.API.Team as Public
+import Wire.API.Team qualified as Public
 import Wire.API.Team.LegalHold (LegalholdProtectee (..))
 import Wire.API.User (RegisterError (RegisterErrorAllowlistError))
-import qualified Wire.API.User as Public
-import qualified Wire.API.User.Activation as Public
-import qualified Wire.API.User.Auth as Public
-import qualified Wire.API.User.Client as Public
+import Wire.API.User qualified as Public
+import Wire.API.User.Activation qualified as Public
+import Wire.API.User.Auth qualified as Public
+import Wire.API.User.Client qualified as Public
 import Wire.API.User.Client.DPoPAccessToken
-import qualified Wire.API.User.Client.Prekey as Public
-import qualified Wire.API.User.Handle as Public
-import qualified Wire.API.User.Password as Public
-import qualified Wire.API.User.RichInfo as Public
-import qualified Wire.API.UserMap as Public
-import qualified Wire.API.Wrapped as Public
+import Wire.API.User.Client.Prekey qualified as Public
+import Wire.API.User.Handle qualified as Public
+import Wire.API.User.Password qualified as Public
+import Wire.API.User.RichInfo qualified as Public
+import Wire.API.UserMap qualified as Public
+import Wire.API.Wrapped qualified as Public
 import Wire.Sem.Concurrency
 import Wire.Sem.Jwk (Jwk)
 import Wire.Sem.Now (Now)
@@ -166,17 +168,18 @@ docsAPI =
 --
 -- Dual to `internalEndpointsSwaggerDocsAPI`.
 versionedSwaggerDocsAPI :: Servant.Server VersionedSwaggerDocsAPI
-versionedSwaggerDocsAPI (Just (VersionNumber V4)) =
+versionedSwaggerDocsAPI (Just (VersionNumber V5)) =
   swaggerSchemaUIServer $
-    ( brigSwagger
-        <> versionSwagger
-        <> GalleyAPI.swaggerDoc
-        <> SparAPI.swaggerDoc
-        <> CargoholdAPI.swaggerDoc
-        <> CannonAPI.swaggerDoc
-        <> GundeckAPI.swaggerDoc
-        <> ProxyAPI.swaggerDoc
-        <> OAuth.swaggerDoc
+    ( serviceSwagger @VersionAPITag @'V5
+        <> serviceSwagger @BrigAPITag @'V5
+        <> serviceSwagger @GalleyAPITag @'V5
+        <> serviceSwagger @SparAPITag @'V5
+        <> serviceSwagger @CargoholdAPITag @'V5
+        <> serviceSwagger @CannonAPITag @'V5
+        <> serviceSwagger @GundeckAPITag @'V5
+        <> serviceSwagger @ProxyAPITag @'V5
+        <> serviceSwagger @OAuthAPITag @'V5
+        <> serviceSwagger @BotAPITag @'V5
     )
       & S.info . S.title .~ "Wire-Server API"
       & S.info . S.description ?~ $(embedText =<< makeRelativeToProject "docs/swagger.md")
@@ -185,6 +188,7 @@ versionedSwaggerDocsAPI (Just (VersionNumber V0)) = swaggerPregenUIServer $(preg
 versionedSwaggerDocsAPI (Just (VersionNumber V1)) = swaggerPregenUIServer $(pregenSwagger V1)
 versionedSwaggerDocsAPI (Just (VersionNumber V2)) = swaggerPregenUIServer $(pregenSwagger V2)
 versionedSwaggerDocsAPI (Just (VersionNumber V3)) = swaggerPregenUIServer $(pregenSwagger V3)
+versionedSwaggerDocsAPI (Just (VersionNumber V4)) = swaggerPregenUIServer $(pregenSwagger V4)
 versionedSwaggerDocsAPI Nothing = allroutes (throwError listAllVersionsResp)
   where
     allroutes ::
@@ -218,6 +222,11 @@ internalEndpointsSwaggerDocsAPI ::
   PortNumber ->
   S.Swagger ->
   Servant.Server (VersionedSwaggerDocsAPIBase service)
+internalEndpointsSwaggerDocsAPI service examplePort swagger (Just (VersionNumber V5)) =
+  swaggerSchemaUIServer $
+    swagger
+      & adjustSwaggerForInternalEndpoint service examplePort
+      & cleanupSwagger
 internalEndpointsSwaggerDocsAPI service examplePort swagger (Just (VersionNumber V4)) =
   swaggerSchemaUIServer $
     swagger
@@ -254,7 +263,6 @@ servantSitemap =
     :<|> userClientAPI
     :<|> connectionAPI
     :<|> propertiesAPI
-    :<|> mlsAPI
     :<|> userHandleAPI
     :<|> searchAPI
     :<|> authAPI
@@ -262,6 +270,7 @@ servantSitemap =
     :<|> Team.servantAPI
     :<|> systemSettingsAPI
     :<|> oauthAPI
+    :<|> botAPI
   where
     userAPI :: ServerT UserAPI (Handler r)
     userAPI =
@@ -360,12 +369,6 @@ servantSitemap =
       )
         :<|> Named @"list-properties" listPropertyKeysAndValues
 
-    mlsAPI :: ServerT MLSAPI (Handler r)
-    mlsAPI =
-      Named @"mls-key-packages-upload" uploadKeyPackages
-        :<|> Named @"mls-key-packages-claim" (callsFed (exposeAnnotations claimKeyPackages))
-        :<|> Named @"mls-key-packages-count" countKeyPackages
-
     userHandleAPI :: ServerT UserHandleAPI (Handler r)
     userHandleAPI =
       Named @"check-user-handles" checkHandles
@@ -403,8 +406,7 @@ servantSitemap =
 -- - MemberLeave event to members for all conversations the user was in (via galley)
 
 sitemap ::
-  ( Member (Concurrency 'Unsafe) r,
-    Member GalleyProvider r
+  ( Member GalleyProvider r
   ) =>
   Routes () (Handler r) ()
 sitemap = do

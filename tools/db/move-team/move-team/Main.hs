@@ -35,7 +35,7 @@ import Imports
 import Options as O
 import Options.Applicative
 import System.Environment (withArgs)
-import qualified System.Logger as Log
+import System.Logger qualified as Log
 import System.Process (system)
 import Types
 import Work

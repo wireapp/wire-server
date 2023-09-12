@@ -23,75 +23,77 @@ module Galley.Run
 where
 
 import AWS.Util (readAuthExpiration)
-import qualified Amazonka as AWS
+import Amazonka qualified as AWS
 import Bilge.Request (requestIdName)
 import Cassandra (runClient, shutdown)
 import Cassandra.Schema (versionCheck)
-import qualified Control.Concurrent.Async as Async
+import Control.Concurrent.Async qualified as Async
 import Control.Exception (finally)
 import Control.Lens (view, (.~), (^.))
 import Control.Monad.Codensity
-import qualified Data.Aeson as Aeson
+import Data.Aeson qualified as Aeson
 import Data.Default
 import Data.Id
 import Data.Metrics (Metrics)
 import Data.Metrics.AWS (gaugeTokenRemaing)
-import qualified Data.Metrics.Middleware as M
+import Data.Metrics.Middleware qualified as M
 import Data.Metrics.Servant (servantPlusWAIPrometheusMiddleware)
 import Data.Misc (portNumber)
+import Data.Singletons
 import Data.Text (unpack)
-import qualified Galley.API as API
-import Galley.API.Federation (FederationAPI, federationSitemap)
+import Galley.API qualified as API
+import Galley.API.Federation
 import Galley.API.Internal
 import Galley.App
-import qualified Galley.App as App
+import Galley.App qualified as App
 import Galley.Aws (awsEnv)
 import Galley.Cassandra
 import Galley.Monad
 import Galley.Options
-import qualified Galley.Queue as Q
+import Galley.Queue qualified as Q
 import Imports
-import qualified Network.HTTP.Media.RenderHeader as HTTPMedia
-import qualified Network.HTTP.Types as HTTP
+import Network.HTTP.Media.RenderHeader qualified as HTTPMedia
+import Network.HTTP.Types qualified as HTTP
 import Network.Wai
-import qualified Network.Wai.Middleware.Gunzip as GZip
-import qualified Network.Wai.Middleware.Gzip as GZip
+import Network.Wai.Middleware.Gunzip qualified as GZip
+import Network.Wai.Middleware.Gzip qualified as GZip
 import Network.Wai.Utilities.Server
 import Servant hiding (route)
-import qualified System.Logger as Log
+import System.Logger qualified as Log
 import System.Logger.Extended (mkLogger)
 import Util.Options
 import Wire.API.Routes.API
-import qualified Wire.API.Routes.Public.Galley as GalleyAPI
+import Wire.API.Routes.Public.Galley
 import Wire.API.Routes.Version.Wai
 
 run :: Opts -> IO ()
 run opts = lowerCodensity $ do
   (app, env) <- mkApp opts
-  settings <-
+  settings' <-
     lift $
       newSettings $
         defaultServer
-          (unpack $ opts ^. optGalley . epHost)
-          (portNumber $ fromIntegral $ opts ^. optGalley . epPort)
+          (unpack $ opts ^. galley . host)
+          (portNumber $ fromIntegral $ opts ^. galley . port)
           (env ^. App.applog)
           (env ^. monitor)
 
   forM_ (env ^. aEnv) $ \aws ->
     void $ Codensity $ Async.withAsync $ collectAuthMetrics (env ^. monitor) (aws ^. awsEnv)
+
   void $ Codensity $ Async.withAsync $ runApp env deleteLoop
   void $ Codensity $ Async.withAsync $ runApp env refreshMetrics
-  lift $ finally (runSettingsWithShutdown settings app Nothing) (closeApp env)
+  lift $ finally (runSettingsWithShutdown settings' app Nothing) (closeApp env)
 
 mkApp :: Opts -> Codensity IO (Application, Env)
 mkApp opts =
   do
-    logger <- lift $ mkLogger (opts ^. optLogLevel) (opts ^. optLogNetStrings) (opts ^. optLogFormat)
+    logger <- lift $ mkLogger (opts ^. logLevel) (opts ^. logNetStrings) (opts ^. logFormat)
     metrics <- lift $ M.metrics
     env <- lift $ App.createEnv metrics opts logger
     lift $ runClient (env ^. cstate) $ versionCheck schemaVersion
     let middlewares =
-          versionMiddleware (opts ^. optSettings . setDisabledAPIVersions . traverse)
+          versionMiddleware (opts ^. settings . disabledAPIVersions . traverse)
             . servantPlusWAIPrometheusMiddleware API.sitemap (Proxy @CombinedAPI)
             . GZip.gunzip
             . GZip.gzip GZip.def
@@ -109,7 +111,7 @@ mkApp opts =
       let e = reqId .~ lookupReqId r $ e0
        in Servant.serveWithContext
             (Proxy @CombinedAPI)
-            ( view (options . optSettings . setFederationDomain) e
+            ( view (options . settings . federationDomain) e
                 :. customFormatters
                 :. Servant.EmptyContext
             )
@@ -149,7 +151,7 @@ bodyParserErrorFormatter' _ _ errMsg =
     }
 
 type CombinedAPI =
-  GalleyAPI.ServantAPI
+  GalleyAPI
     :<|> InternalAPI
     :<|> FederationAPI
     :<|> Servant.Raw
@@ -163,7 +165,7 @@ refreshMetrics = do
     M.gaugeSet (fromIntegral n) (M.path "galley.deletequeue.len") m
     threadDelay 1000000
 
-collectAuthMetrics :: MonadIO m => Metrics -> AWS.Env -> m ()
+collectAuthMetrics :: (MonadIO m) => Metrics -> AWS.Env -> m ()
 collectAuthMetrics m env = do
   liftIO $
     forever $ do

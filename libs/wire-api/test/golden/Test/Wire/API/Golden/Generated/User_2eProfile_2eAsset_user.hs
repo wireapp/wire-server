@@ -18,11 +18,11 @@
 module Test.Wire.API.Golden.Generated.User_2eProfile_2eAsset_user where
 
 import Data.Id (Id (Id))
-import qualified Data.UUID as UUID (fromString)
+import Data.UUID qualified as UUID (fromString)
 import Imports (Maybe (Just, Nothing), fromJust)
 import Wire.API.Asset
 import Wire.API.User (Asset (ImageAsset), AssetSize (AssetComplete, AssetPreview))
-import qualified Wire.API.User.Profile as User.Profile (Asset)
+import Wire.API.User.Profile qualified as User.Profile (Asset)
 
 testObject_User_2eProfile_2eAsset_user_1 :: User.Profile.Asset
 testObject_User_2eProfile_2eAsset_user_1 = ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) Nothing

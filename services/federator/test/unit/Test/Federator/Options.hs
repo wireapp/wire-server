@@ -23,9 +23,9 @@ module Test.Federator.Options where
 
 import Control.Exception (try)
 import Data.Aeson (FromJSON)
-import qualified Data.ByteString.Char8 as B8
+import Data.ByteString.Char8 qualified as B8
 import Data.String.Interpolate as QQ
-import qualified Data.Yaml as Yaml
+import Data.Yaml qualified as Yaml
 import Federator.Options
 import Federator.Run
 import Imports

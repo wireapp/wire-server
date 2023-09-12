@@ -21,22 +21,22 @@ module Test.Federator.Client (tests) where
 import Control.Exception hiding (handle)
 import Control.Monad.Codensity
 import Control.Monad.Except
-import qualified Data.Aeson as Aeson
+import Data.Aeson qualified as Aeson
 import Data.Bifunctor (first)
-import qualified Data.ByteString as BS
+import Data.ByteString qualified as BS
 import Data.ByteString.Builder (Builder, byteString, toLazyByteString)
-import qualified Data.ByteString.Lazy as LBS
+import Data.ByteString.Lazy qualified as LBS
 import Data.Domain
 import Data.Proxy
-import qualified Data.Text.Encoding as Text
+import Data.Text.Encoding qualified as Text
 import Federator.MockServer
 import HTTP2.Client.Manager (defaultHttp2Manager, withHTTP2Request)
 import Imports
 import Network.HTTP.Media
 import Network.HTTP.Types as HTTP
-import qualified Network.HTTP2.Client as HTTP2
-import qualified Network.Wai as Wai
-import qualified Network.Wai.Utilities.Error as Wai
+import Network.HTTP2.Client qualified as HTTP2
+import Network.Wai qualified as Wai
+import Network.Wai.Utilities.Error qualified as Wai
 import Network.Wai.Utilities.MockServer
 import Servant.API
 import Servant.Client hiding ((//))
@@ -45,7 +45,7 @@ import Servant.Types.SourceT
 import Test.QuickCheck (arbitrary, generate)
 import Test.Tasty
 import Test.Tasty.HUnit
-import Util.Options
+import Util.Options (Endpoint (Endpoint))
 import Wire.API.Federation.API
 import Wire.API.Federation.Client
 import Wire.API.Federation.Error

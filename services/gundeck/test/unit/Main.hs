@@ -22,18 +22,18 @@ where
 
 import Data.Metrics.Test (pathsConsistencyCheck)
 import Data.Metrics.WaiRoute (treeToPaths)
-import qualified DelayQueue
-import qualified Gundeck.API
+import DelayQueue qualified
+import Gundeck.API qualified
 import Imports
-import qualified Json
-import qualified Native
+import Json qualified
+import Native qualified
 import Network.Wai.Utilities.Server (compile)
 import OpenSSL (withOpenSSL)
-import qualified ParseExistsError
-import qualified Push
+import ParseExistsError qualified
+import Push qualified
 import Test.Tasty
 import Test.Tasty.HUnit
-import qualified ThreadBudget
+import ThreadBudget qualified
 
 main :: IO ()
 main =

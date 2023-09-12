@@ -24,7 +24,7 @@ import Imports hiding (head)
 import Network.Wai.Predicate (true)
 import Network.Wai.Routing (Routes, continue, get, head)
 import Network.Wai.Utilities (empty)
-import qualified Proxy.API.Public as Public
+import Proxy.API.Public qualified as Public
 import Proxy.Env (Env)
 import Proxy.Proxy (Proxy)
 

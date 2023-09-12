@@ -46,7 +46,7 @@ Create a file named `init.json` and set `customWebAppURL` and optionally `proxyS
 {
   "customWebAppURL": "https://app.custom-wire.com",
   "env": "CUSTOM",
-  "proxyServerURL": "http://127.0.0.1:3128",
+  "proxyServerURL": "http://127.0.0.1:3128"
 }
 ```
 

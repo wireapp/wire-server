@@ -19,12 +19,12 @@
 
 module Wire.Network.DNS.Effect where
 
-import qualified Data.IP as IP
+import Data.IP qualified as IP
 import Imports
 import Network.DNS (Domain, Resolver)
-import qualified Network.DNS as DNS
+import Network.DNS qualified as DNS
 import Polysemy
-import qualified Wire.Network.DNS.SRV as SRV
+import Wire.Network.DNS.SRV qualified as SRV
 
 data DNSLookup m a where
   LookupSRV :: Domain -> DNSLookup m SRV.SrvResponse

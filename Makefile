@@ -35,7 +35,7 @@ EXE_SCHEMA := ./dist/$(package)-schema
 # Additionally, if stack is being used with nix, environment variables do not
 # make it into the shell where hspec is run, to tackle that this variable is
 # also exported in stack-deps.nix.
-export HSPEC_OPTIONS = --fail-on-focused
+export HSPEC_OPTIONS ?= --fail-on-focused
 
 default: install
 
@@ -67,7 +67,7 @@ clean-hint:
 	@echo -e "\n\n\n>>> PSA: if you get errors that are hard to explain,"
 	@echo -e ">>> try 'git submodule update --init --recursive' and 'make full-clean' and run your command again."
 	@echo -e ">>> see https://github.com/wireapp/wire-server/blob/develop/docs/developer/building.md#linker-errors-while-compiling"
-	@echo -e ">>> to never have to remember submodules again, try `git config --global submodule.recurse true`"
+	@echo -e ">>> to never have to remember submodules again, try 'git config --global submodule.recurse true'"
 	@echo -e "\n\n\n"
 
 .PHONY: cabal.project.local
@@ -94,13 +94,23 @@ endif
 # TASTY_PATTERN=".."  make ci package=brig
 #
 # If you want to pass arguments to the test-suite call cabal-run-integration.sh directly.
-.PHONY: ci
-ci: c db-migrate
+.PHONY: ci-fast
+ci-fast: c db-migrate
 ifeq ("$(package)", "all")
 	./hack/bin/cabal-run-integration.sh all
 	./hack/bin/cabal-run-integration.sh integration
 endif
 	./hack/bin/cabal-run-integration.sh $(package)
+
+# variant of `make ci-fast` that compiles the entire project even if `package` is specified.
+.PHONY: ci-safe
+ci-safe:
+	make c package=all
+	make ci-fast
+
+.PHONY: ci
+ci:
+	@echo -en "\n\n\nplease choose between goals ci-fast and ci-safe.\n\n\n"
 
 # Compile and run services
 # Usage: make crun `OR` make crun package=galley

@@ -32,7 +32,7 @@ module Spar.API
     api,
 
     -- * API types
-    API,
+    SparAPI,
 
     -- ** Individual API pieces
     APIAuthReqPrecheck,
@@ -46,7 +46,6 @@ module Spar.API
 where
 
 import Brig.Types.Intra
-import Brig.Types.User (HavePendingInvitations (NoPendingInvitations))
 import Cassandra as Cas
 import Control.Lens
 import Control.Monad.Except
@@ -114,7 +113,7 @@ import qualified Wire.Sem.Random as Random
 app :: Env -> Application
 app ctx =
   SAML.setHttpCachePolicy $
-    serve (Proxy @API) (hoistServer (Proxy @API) (runSparToHandler ctx) (api $ sparCtxOpts ctx) :: Server API)
+    serve (Proxy @SparAPI) (hoistServer (Proxy @SparAPI) (runSparToHandler ctx) (api $ sparCtxOpts ctx) :: Server SparAPI)
 
 api ::
   ( Member GalleyAccess r,
@@ -145,7 +144,7 @@ api ::
     Member (Logger (Msg -> Msg)) r
   ) =>
   Opts ->
-  ServerT API (Sem r)
+  ServerT SparAPI (Sem r)
 api opts =
   apiSSO opts
     :<|> apiIDP
@@ -257,9 +256,9 @@ authreq authreqttl msucc merr idpid = do
   form@(SAML.FormRedirect _ ((^. SAML.rqID) -> reqid)) <- do
     idp :: IdP <- IdPConfigStore.getConfig idpid
     let mbtid :: Maybe TeamId
-        mbtid = case fromMaybe defWireIdPAPIVersion (idp ^. SAML.idpExtraInfo . wiApiVersion) of
+        mbtid = case fromMaybe defWireIdPAPIVersion (idp ^. SAML.idpExtraInfo . apiVersion) of
           WireIdPAPIV1 -> Nothing
-          WireIdPAPIV2 -> Just $ idp ^. SAML.idpExtraInfo . wiTeam
+          WireIdPAPIV2 -> Just $ idp ^. SAML.idpExtraInfo . team
     SAML2.authReq authreqttl (SamlProtocolSettings.spIssuer mbtid) idpid
   VerdictFormatStore.store authreqttl reqid vformat
   pure form
@@ -371,7 +370,7 @@ idpGetAll ::
   Sem r IdPList
 idpGetAll zusr = withDebugLog "idpGetAll" (const Nothing) $ do
   teamid <- Brig.getZUsrCheckPerm zusr ReadIdp
-  _idplProviders <- IdPConfigStore.getConfigsByTeam teamid
+  _providers <- IdPConfigStore.getConfigsByTeam teamid
   pure IdPList {..}
 
 -- | Delete empty IdPs, or if @"purge=true"@ in the HTTP query, delete all users
@@ -400,18 +399,18 @@ idpDelete ::
   Sem r NoContent
 idpDelete mbzusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (const Nothing) $ do
   idp <- IdPConfigStore.getConfig idpid
-  (zusr, team) <- authorizeIdP mbzusr idp
+  (zusr, teamId) <- authorizeIdP mbzusr idp
   let issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
   whenM (idpDoesAuthSelf idp zusr) $ throwSparSem SparIdPCannotDeleteOwnIdp
-  SAMLUserStore.getAllByIssuerPaginated issuer >>= assertEmptyOrPurge team
+  SAMLUserStore.getAllByIssuerPaginated issuer >>= assertEmptyOrPurge teamId
   updateOldIssuers idp
   updateReplacingIdP idp
   -- Delete tokens associated with given IdP (we rely on the fact that
   -- each IdP has exactly one team so we can look up all tokens
   -- associated with the team and then filter them)
-  tokens <- ScimTokenStore.lookupByTeam team
+  tokens <- ScimTokenStore.lookupByTeam teamId
   for_ tokens $ \ScimTokenInfo {..} ->
-    when (stiIdP == Just idpid) $ ScimTokenStore.delete team stiId
+    when (stiIdP == Just idpid) $ ScimTokenStore.delete teamId stiId
   -- Delete IdP config
   do
     IdPConfigStore.deleteConfig idp
@@ -419,11 +418,11 @@ idpDelete mbzusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (co
   pure NoContent
   where
     assertEmptyOrPurge :: TeamId -> Cas.Page (SAML.UserRef, UserId) -> Sem r ()
-    assertEmptyOrPurge team page = do
+    assertEmptyOrPurge teamId page = do
       forM_ (Cas.result page) $ \(uref, uid) -> do
         mAccount <- BrigAccess.getAccount NoPendingInvitations uid
         let mUserTeam = userTeam . accountUser =<< mAccount
-        when (mUserTeam == Just team) $ do
+        when (mUserTeam == Just teamId) $ do
           if purge
             then do
               SAMLUserStore.delete uid uref
@@ -431,7 +430,7 @@ idpDelete mbzusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (co
             else do
               throwSparSem SparIdPHasBoundUsers
       when (Cas.hasMore page) $
-        SAMLUserStore.nextPage page >>= assertEmptyOrPurge team
+        SAMLUserStore.nextPage page >>= assertEmptyOrPurge teamId
 
     updateOldIssuers :: IdP -> Sem r ()
     updateOldIssuers _ = pure ()
@@ -443,11 +442,11 @@ idpDelete mbzusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (co
     -- leave old issuers dangling for now.
 
     updateReplacingIdP :: IdP -> Sem r ()
-    updateReplacingIdP idp = forM_ (idp ^. SAML.idpExtraInfo . wiOldIssuers) $ \oldIssuer -> do
+    updateReplacingIdP idp = forM_ (idp ^. SAML.idpExtraInfo . oldIssuers) $ \oldIssuer -> do
       iid <-
-        view SAML.idpId <$> case fromMaybe defWireIdPAPIVersion $ idp ^. SAML.idpExtraInfo . wiApiVersion of
+        view SAML.idpId <$> case fromMaybe defWireIdPAPIVersion $ idp ^. SAML.idpExtraInfo . apiVersion of
           WireIdPAPIV1 -> IdPConfigStore.getIdPByIssuerV1 oldIssuer
-          WireIdPAPIV2 -> IdPConfigStore.getIdPByIssuerV2 oldIssuer (idp ^. SAML.idpExtraInfo . wiTeam)
+          WireIdPAPIV2 -> IdPConfigStore.getIdPByIssuerV2 oldIssuer (idp ^. SAML.idpExtraInfo . team)
       IdPConfigStore.clearReplacedBy $ Replaced iid
 
     idpDoesAuthSelf :: IdP -> UserId -> Sem r Bool
@@ -498,8 +497,9 @@ idpCreateXML zusr raw idpmeta mReplaces (fromMaybe defWireIdPAPIVersion -> apive
   teamid <- Brig.getZUsrCheckPerm zusr CreateUpdateDeleteIdp
   GalleyAccess.assertSSOEnabled teamid
   assertNoScimOrNoIdP teamid
-  handle <- maybe (IdPConfigStore.newHandle teamid) (pure . IdPHandle . fromRange) mHandle
-  idp <- validateNewIdP apiversion idpmeta teamid mReplaces handle
+  idp <-
+    maybe (IdPConfigStore.newHandle teamid) (pure . IdPHandle . fromRange) mHandle
+      >>= validateNewIdP apiversion idpmeta teamid mReplaces
   IdPRawMetadataStore.store (idp ^. SAML.idpId) raw
   IdPConfigStore.insertConfig idp
   forM_ mReplaces $ \replaces ->
@@ -559,21 +559,21 @@ validateNewIdP ::
   Maybe SAML.IdPId ->
   IdPHandle ->
   m IdP
-validateNewIdP apiversion _idpMetadata teamId mReplaces handle = withDebugLog "validateNewIdP" (Just . show . (^. SAML.idpId)) $ do
+validateNewIdP apiversion _idpMetadata teamId mReplaces idHandle = withDebugLog "validateNewIdP" (Just . show . (^. SAML.idpId)) $ do
   _idpId <- SAML.IdPId <$> Random.uuid
-  oldIssuers :: [SAML.Issuer] <- case mReplaces of
+  oldIssuersList :: [SAML.Issuer] <- case mReplaces of
     Nothing -> pure []
     Just replaces -> do
       idp <- IdPConfigStore.getConfig replaces
-      pure $ (idp ^. SAML.idpMetadata . SAML.edIssuer) : (idp ^. SAML.idpExtraInfo . wiOldIssuers)
+      pure $ (idp ^. SAML.idpMetadata . SAML.edIssuer) : (idp ^. SAML.idpExtraInfo . oldIssuers)
   let requri = _idpMetadata ^. SAML.edRequestURI
-      _idpExtraInfo = WireIdP teamId (Just apiversion) oldIssuers Nothing handle
+      _idpExtraInfo = WireIdP teamId (Just apiversion) oldIssuersList Nothing idHandle
   enforceHttps requri
   mbIdp <- case apiversion of
     WireIdPAPIV1 -> IdPConfigStore.getIdPByIssuerV1Maybe (_idpMetadata ^. SAML.edIssuer)
     WireIdPAPIV2 -> IdPConfigStore.getIdPByIssuerV2Maybe (_idpMetadata ^. SAML.edIssuer) teamId
   Logger.log Logger.Debug $ show (apiversion, _idpMetadata, teamId, mReplaces)
-  Logger.log Logger.Debug $ show (_idpId, oldIssuers, mbIdp)
+  Logger.log Logger.Debug $ show (_idpId, oldIssuersList, mbIdp)
 
   let failWithIdPClash :: m ()
       failWithIdPClash = throwSparSem . SparNewIdPAlreadyInUse $ case apiversion of
@@ -626,7 +626,7 @@ idpUpdateXML zusr raw idpmeta idpid mHandle = withDebugLog "idpUpdateXML" (Just 
   GalleyAccess.assertSSOEnabled teamid
   IdPRawMetadataStore.store (idp ^. SAML.idpId) raw
   let idp' :: IdP = case mHandle of
-        Just idpHandle -> idp & (SAML.idpExtraInfo . wiHandle) .~ IdPHandle (fromRange idpHandle)
+        Just idpHandle -> idp & (SAML.idpExtraInfo . handle) .~ IdPHandle (fromRange idpHandle)
         Nothing -> idp
   -- (if raw metadata is stored and then spar goes out, raw metadata won't match the
   -- structured idp config.  since this will lead to a 5xx response, the client is expected to
@@ -634,10 +634,10 @@ idpUpdateXML zusr raw idpmeta idpid mHandle = withDebugLog "idpUpdateXML" (Just 
   IdPConfigStore.insertConfig idp'
   -- if the IdP issuer is updated, the old issuer must be removed explicitly.
   -- if this step is ommitted (due to a crash) resending the update request should fix the inconsistent state.
-  let mbteamid = case fromMaybe defWireIdPAPIVersion $ idp' ^. SAML.idpExtraInfo . wiApiVersion of
+  let mbteamid = case fromMaybe defWireIdPAPIVersion $ idp' ^. SAML.idpExtraInfo . apiVersion of
         WireIdPAPIV1 -> Nothing
         WireIdPAPIV2 -> Just teamid
-  forM_ (idp' ^. SAML.idpExtraInfo . wiOldIssuers) (flip IdPConfigStore.deleteIssuer mbteamid)
+  forM_ (idp' ^. SAML.idpExtraInfo . oldIssuers) (flip IdPConfigStore.deleteIssuer mbteamid)
   pure idp'
 
 -- | Check that: idp id is valid; calling user is admin in that idp's home team; team id in
@@ -661,7 +661,7 @@ validateIdPUpdate ::
 validateIdPUpdate zusr _idpMetadata _idpId = withDebugLog "validateIdPUpdate" (Just . show . (_2 %~ (^. SAML.idpId))) $ do
   previousIdP <- IdPConfigStore.getConfig _idpId
   (_, teamId) <- authorizeIdP zusr previousIdP
-  unless (previousIdP ^. SAML.idpExtraInfo . wiTeam == teamId) $
+  unless (previousIdP ^. SAML.idpExtraInfo . team == teamId) $
     throw errUnknownIdP
   _idpExtraInfo <- do
     let previousIssuer = previousIdP ^. SAML.idpMetadata . SAML.edIssuer
@@ -672,7 +672,7 @@ validateIdPUpdate zusr _idpMetadata _idpId = withDebugLog "validateIdPUpdate" (J
         pure $ previousIdP ^. SAML.idpExtraInfo
       else do
         idpIssuerInUse <-
-          ( case fromMaybe defWireIdPAPIVersion $ previousIdP ^. SAML.idpExtraInfo . wiApiVersion of
+          ( case fromMaybe defWireIdPAPIVersion $ previousIdP ^. SAML.idpExtraInfo . apiVersion of
               WireIdPAPIV1 -> IdPConfigStore.getIdPByIssuerV1Maybe newIssuer
               WireIdPAPIV2 -> IdPConfigStore.getIdPByIssuerV2Maybe newIssuer teamId
             )
@@ -682,7 +682,7 @@ validateIdPUpdate zusr _idpMetadata _idpId = withDebugLog "validateIdPUpdate" (J
                 )
         if idpIssuerInUse
           then throwSparSem SparIdPIssuerInUse
-          else pure $ previousIdP ^. SAML.idpExtraInfo & wiOldIssuers %~ nub . (previousIssuer :)
+          else pure $ previousIdP ^. SAML.idpExtraInfo & oldIssuers %~ nub . (previousIssuer :)
 
   let requri = _idpMetadata ^. SAML.edRequestURI
   enforceHttps requri
@@ -713,7 +713,7 @@ authorizeIdP ::
   Sem r (UserId, TeamId)
 authorizeIdP Nothing _ = throw (SAML.CustomError $ SparNoPermission (cs $ show CreateUpdateDeleteIdp))
 authorizeIdP (Just zusr) idp = do
-  let teamid = idp ^. SAML.idpExtraInfo . wiTeam
+  let teamid = idp ^. SAML.idpExtraInfo . team
   GalleyAccess.assertHasPermission teamid CreateUpdateDeleteIdp zusr
   pure (zusr, teamid)
 
@@ -737,8 +737,8 @@ internalDeleteTeam ::
   ) =>
   TeamId ->
   Sem r NoContent
-internalDeleteTeam team = do
-  deleteTeam team
+internalDeleteTeam teamId = do
+  deleteTeam teamId
   pure NoContent
 
 internalPutSsoSettings ::

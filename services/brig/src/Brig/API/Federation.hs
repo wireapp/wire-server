@@ -19,25 +19,26 @@
 
 module Brig.API.Federation (federationSitemap, FederationAPI) where
 
-import qualified Brig.API.Client as API
+import Brig.API.Client qualified as API
 import Brig.API.Connection.Remote (performRemoteAction)
 import Brig.API.Error
 import Brig.API.Handler (Handler)
 import Brig.API.Internal hiding (getMLSClients)
-import qualified Brig.API.Internal as Internal
+import Brig.API.Internal qualified as Internal
 import Brig.API.MLS.KeyPackages
 import Brig.API.MLS.Util
-import qualified Brig.API.User as API
-import Brig.API.Util (lookupSearchPolicy)
+import Brig.API.User qualified as API
 import Brig.App
-import qualified Brig.Data.Connection as Data
-import qualified Brig.Data.User as Data
+import Brig.Data.Connection qualified as Data
+import Brig.Data.User qualified as Data
 import Brig.Effects.GalleyProvider (GalleyProvider)
 import Brig.IO.Intra (notify)
+import Brig.Options
 import Brig.Types.User.Event
 import Brig.User.API.Handle
-import qualified Brig.User.Search.SearchIndex as Q
+import Brig.User.Search.SearchIndex qualified as Q
 import Control.Error.Util
+import Control.Lens ((^.))
 import Control.Monad.Trans.Except
 import Data.Domain
 import Data.Handle (Handle (..), parseHandle)
@@ -47,7 +48,7 @@ import Data.List1
 import Data.Qualified
 import Data.Range
 import Data.Set (fromList, (\\))
-import qualified Gundeck.Types.Push as Push
+import Gundeck.Types.Push qualified as Push
 import Imports hiding ((\\))
 import Network.Wai.Utilities.Error ((!>>))
 import Polysemy
@@ -59,7 +60,7 @@ import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.Version
 import Wire.API.MLS.KeyPackage
-import Wire.API.Routes.FederationDomainConfig
+import Wire.API.Routes.FederationDomainConfig as FD
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Named
 import Wire.API.Team.LegalHold (LegalholdProtectee (LegalholdPlusFederationNotImplemented))
@@ -96,18 +97,22 @@ federationSitemap =
 -- with the subset of those we aren't connected to.
 getFederationStatus :: Domain -> DomainSet -> Handler r NonConnectedBackends
 getFederationStatus _ request = do
-  fedDomains <- fromList . fmap (.domain) . (.remotes) <$> getFederationRemotes
-  pure $ NonConnectedBackends (request.dsDomains \\ fedDomains)
+  cfg <- ask
+  case setFederationStrategy (cfg ^. settings) of
+    Just AllowAll -> pure $ NonConnectedBackends mempty
+    _ -> do
+      fedDomains <- fromList . fmap (.domain) . (.remotes) <$> getFederationRemotes
+      pure $ NonConnectedBackends (request.domains \\ fedDomains)
 
 sendConnectionAction :: Domain -> NewConnectionRequest -> Handler r NewConnectionResponse
 sendConnectionAction originDomain NewConnectionRequest {..} = do
-  active <- lift $ wrapClient $ Data.isActivated ncrTo
+  active <- lift $ wrapClient $ Data.isActivated to
   if active
     then do
-      self <- qualifyLocal ncrTo
-      let other = toRemoteUnsafe originDomain ncrFrom
+      self <- qualifyLocal to
+      let other = toRemoteUnsafe originDomain from
       mconnection <- lift . wrapClient $ Data.lookupConnection self (tUntagged other)
-      maction <- lift $ performRemoteAction self other mconnection ncrAction
+      maction <- lift $ performRemoteAction self other mconnection action
       pure $ NewConnectionResponseOk maction
     else pure NewConnectionResponseUserNotActivated
 
@@ -161,8 +166,8 @@ fedClaimKeyPackages :: Domain -> ClaimKeyPackageRequest -> Handler r (Maybe KeyP
 fedClaimKeyPackages domain ckpr =
   isMLSEnabled >>= \case
     True -> do
-      ltarget <- qualifyLocal (ckprTarget ckpr)
-      let rusr = toRemoteUnsafe domain (ckprClaimant ckpr)
+      ltarget <- qualifyLocal ckpr.target
+      let rusr = toRemoteUnsafe domain ckpr.claimant
       lift . fmap hush . runExceptT $
         claimLocalKeyPackages (tUntagged rusr) Nothing ltarget
     False -> pure Nothing
@@ -177,7 +182,7 @@ searchUsers ::
   SearchRequest ->
   ExceptT Error (AppT r) SearchResponse
 searchUsers domain (SearchRequest searchTerm) = do
-  searchPolicy <- lift $ lookupSearchPolicy domain
+  searchPolicy <- lookupSearchPolicy domain
 
   let searches = case searchPolicy of
         NoSearch -> []
@@ -215,12 +220,12 @@ getUserClients _ (GetUserClients uids) = API.lookupLocalPubClientsBulk uids !>> 
 
 getMLSClients :: Domain -> MLSClientsRequest -> Handler r (Set ClientInfo)
 getMLSClients _domain mcr = do
-  Internal.getMLSClients (mcrUserId mcr) (mcrSignatureScheme mcr)
+  Internal.getMLSClients mcr.userId mcr.signatureScheme
 
 onUserDeleted :: Domain -> UserDeletedConnectionsNotification -> (Handler r) EmptyResponse
 onUserDeleted origDomain udcn = lift $ do
-  let deletedUser = toRemoteUnsafe origDomain (udcnUser udcn)
-      connections = udcnConnections udcn
+  let deletedUser = toRemoteUnsafe origDomain udcn.user
+      connections = udcn.connections
       event = pure . UserEvent $ UserDeleted (tUntagged deletedUser)
   acceptedLocals <-
     map csv2From
@@ -231,3 +236,10 @@ onUserDeleted origDomain udcn = lift $ do
       notify event (tUnqualified deletedUser) Push.RouteDirect Nothing (pure recipients)
   wrapClient $ Data.deleteRemoteConnections deletedUser connections
   pure EmptyResponse
+
+-- | If domain is not configured fall back to `NoSearch`
+lookupSearchPolicy :: Domain -> (Handler r) FederatedUserSearchPolicy
+lookupSearchPolicy domain = do
+  domainConfigs <- getFederationRemotes
+  let mConfig = find ((== domain) . FD.domain) (domainConfigs.remotes)
+  pure $ maybe NoSearch FD.cfgSearchPolicy mConfig

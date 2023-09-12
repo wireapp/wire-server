@@ -64,12 +64,12 @@ module Data.Metrics
   )
 where
 
-import qualified Data.HashMap.Strict as HM
+import Data.HashMap.Strict qualified as HM
 import Data.Hashable
-import qualified Data.Map.Strict as M
-import qualified Data.Text as T
+import Data.Map.Strict qualified as M
+import Data.Text qualified as T
 import Imports hiding (lookup, union)
-import qualified Prometheus as P
+import Prometheus qualified as P
 
 -- | Internal Counter type
 newtype Counter = Counter P.Counter

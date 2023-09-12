@@ -24,58 +24,59 @@ module API.Provider
   )
 where
 
-import qualified API.Team.Util as Team
+import API.Team.Util qualified as Team
 import Bilge hiding (accept, head, timeout)
 import Bilge.Assert
-import qualified Brig.Code as Code
-import qualified Cassandra as DB
+import Brig.Code qualified as Code
+import Cassandra qualified as DB
 import Control.Arrow ((&&&))
-import qualified Control.Concurrent.Async as Async
+import Control.Concurrent.Async qualified as Async
 import Control.Concurrent.Chan
 import Control.Concurrent.Timeout (threadDelay, timeout)
 import Control.Lens ((^.))
 import Control.Monad.Catch
 import Data.Aeson
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Char8 as C8
+import Data.ByteString qualified as BS
+import Data.ByteString.Char8 qualified as C8
 import Data.ByteString.Conversion
-import qualified Data.ByteString.Lazy.Char8 as LC8
+import Data.ByteString.Lazy.Char8 qualified as LC8
 import Data.Domain
 import Data.Handle (Handle (Handle))
-import qualified Data.HashMap.Strict as HashMap
+import Data.HashMap.Strict qualified as HashMap
 import Data.Id hiding (client)
 import Data.Json.Util (toBase64Text)
 import Data.List1 (List1)
-import qualified Data.List1 as List1
+import Data.List1 qualified as List1
+import Data.Map qualified as Map
 import Data.Misc
 import Data.PEM
 import Data.Qualified
 import Data.Range
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.Streaming.Network (bindRandomPortTCP)
-import qualified Data.Text as Text
-import qualified Data.Text.Ascii as Ascii
+import Data.Text qualified as Text
+import Data.Text.Ascii qualified as Ascii
 import Data.Text.Encoding (encodeUtf8)
-import qualified Data.Text.Encoding as Text
+import Data.Text.Encoding qualified as Text
 import Data.Time.Clock
 import Data.Timeout (TimedOut (..), Timeout, TimeoutUnit (..), (#))
-import qualified Data.UUID as UUID
-import qualified Data.ZAuth.Token as ZAuth
+import Data.UUID qualified as UUID
+import Data.ZAuth.Token qualified as ZAuth
 import Imports hiding (threadDelay)
 import Network.HTTP.Types.Status (status200, status201, status400)
 import Network.Socket
-import qualified Network.Socket as Socket
+import Network.Socket qualified as Socket
 import Network.Wai (Application, responseLBS, strictRequestBody)
-import qualified Network.Wai.Handler.Warp as Warp
-import qualified Network.Wai.Handler.Warp.Internal as Warp
-import qualified Network.Wai.Handler.WarpTLS as Warp
-import qualified Network.Wai.Route as Wai
-import qualified Network.Wai.Utilities.Error as Error
+import Network.Wai.Handler.Warp qualified as Warp
+import Network.Wai.Handler.Warp.Internal qualified as Warp
+import Network.Wai.Handler.WarpTLS qualified as Warp
+import Network.Wai.Route qualified as Wai
+import Network.Wai.Utilities.Error qualified as Error
 import OpenSSL.PEM (writePublicKey)
 import OpenSSL.RSA (generateRSAKey')
 import System.IO.Temp (withSystemTempFile)
 import Test.Tasty hiding (Timeout)
-import qualified Test.Tasty.Cannon as WS
+import Test.Tasty.Cannon qualified as WS
 import Test.Tasty.HUnit
 import Util
 import Web.Cookie (SetCookie (..), parseSetCookie)
@@ -88,12 +89,12 @@ import Wire.API.Conversation.Role
 import Wire.API.Event.Conversation
 import Wire.API.Internal.Notification
 import Wire.API.Provider
-import qualified Wire.API.Provider.Bot as Ext
-import qualified Wire.API.Provider.External as Ext
+import Wire.API.Provider.Bot qualified as Ext
+import Wire.API.Provider.External qualified as Ext
 import Wire.API.Provider.Service
 import Wire.API.Provider.Service.Tag
 import Wire.API.Team.Feature (featureNameBS)
-import qualified Wire.API.Team.Feature as Public
+import Wire.API.Team.Feature qualified as Public
 import Wire.API.Team.Permission
 import Wire.API.User as User hiding (EmailUpdate, PasswordChange, mkName)
 import Wire.API.User.Client
@@ -145,7 +146,10 @@ tests dom conf p db b c g = do
           [ test p "add-remove" $ testAddRemoveBot conf db b g c,
             test p "message" $ testMessageBot conf db b g c,
             test p "bad fingerprint" $ testBadFingerprint conf db b g c,
-            test p "add bot forbidden" $ testAddBotForbidden conf db b g
+            test p "add bot forbidden" $ testAddBotForbidden conf db b g,
+            test p "claim user prekeys" $ testClaimUserPrekeys conf db b g,
+            test p "list user profiles" $ testListUserProfiles conf db b g,
+            test p "get user clients" $ testGetUserClients conf db b g
           ],
         testGroup
           "bot-teams"
@@ -559,6 +563,57 @@ testAddBotForbidden config db brig galley = withTestService config db brig defSe
   addBot brig uid1 pid sid cid !!! do
     const 403 === statusCode
     const (Just "invalid-conversation") === fmap Error.label . responseJsonMaybe
+
+testClaimUserPrekeys :: Config -> DB.ClientState -> Brig -> Galley -> Http ()
+testClaimUserPrekeys config db brig galley = withTestService config db brig defServiceApp $ \sref _ -> do
+  (pid, sid, u1, _u2, _h) <- prepareUsers sref brig
+  cid <- do
+    rs <- createConv galley u1.userId [] <!! const 201 === statusCode
+    let Just cnv = responseJsonMaybe rs
+    let cid = qUnqualified . cnvQualifiedId $ cnv
+    pure cid
+  addBotResponse :: AddBotResponse <- responseJsonError =<< addBot brig u1.userId pid sid cid <!! const 201 === statusCode
+  let bid = addBotResponse.rsAddBotId
+  let new = defNewClient TemporaryClientType (take 1 somePrekeys) (Imports.head someLastPrekeys)
+  c :: Client <- responseJsonError =<< addClient brig u1.userId new
+
+  let userClients = UserClients $ Map.fromList [(u1.userId, Set.fromList [c.clientId])]
+  actual <- responseJsonError =<< claimUsersPrekeys brig bid userClients <!! const 200 === statusCode
+
+  let expected =
+        UserClientPrekeyMap $
+          UserClientMap $
+            Map.fromList [(u1.userId, Map.fromList [(c.clientId, Just (Imports.head somePrekeys))])]
+
+  liftIO $ assertEqual "claim prekeys" expected actual
+
+testListUserProfiles :: Config -> DB.ClientState -> Brig -> Galley -> Http ()
+testListUserProfiles config db brig galley = withTestService config db brig defServiceApp $ \sref _ -> do
+  (pid, sid, u1, u2, _h) <- prepareUsers sref brig
+  cid <- do
+    rs <- createConv galley u1.userId [] <!! const 201 === statusCode
+    let Just cnv = responseJsonMaybe rs
+    let cid = qUnqualified . cnvQualifiedId $ cnv
+    pure cid
+  addBotResponse :: AddBotResponse <- responseJsonError =<< addBot brig u1.userId pid sid cid <!! const 201 === statusCode
+  let bid = addBotResponse.rsAddBotId
+  resp :: [Ext.BotUserView] <- responseJsonError =<< listUserProfiles brig bid [u1.userId, u2.userId] <!! const 200 === statusCode
+  liftIO $ Set.fromList (fmap (.botUserViewId) resp) @?= Set.fromList [u1.userId, u2.userId]
+
+testGetUserClients :: Config -> DB.ClientState -> Brig -> Galley -> Http ()
+testGetUserClients config db brig galley = withTestService config db brig defServiceApp $ \sref _ -> do
+  (pid, sid, u1, _u2, _h) <- prepareUsers sref brig
+  cid <- do
+    rs <- createConv galley u1.userId [] <!! const 201 === statusCode
+    let Just cnv = responseJsonMaybe rs
+    let cid = qUnqualified . cnvQualifiedId $ cnv
+    pure cid
+  addBotResponse :: AddBotResponse <- responseJsonError =<< addBot brig u1.userId pid sid cid <!! const 201 === statusCode
+  let bid = addBotResponse.rsAddBotId
+  let new = defNewClient TemporaryClientType (take 1 somePrekeys) (Imports.head someLastPrekeys)
+  expected :: Client <- responseJsonError =<< addClient brig u1.userId new
+  [actual] :: [PubClient] <- responseJsonError =<< getUserClients brig bid u1.userId <!! const 200 === statusCode
+  liftIO $ actual.pubClientId @?= expected.clientId
 
 testAddBotBlocked :: Config -> DB.ClientState -> Brig -> Galley -> Http ()
 testAddBotBlocked config db brig galley = withTestService config db brig defServiceApp $ \sref _buf -> do
@@ -1504,6 +1559,68 @@ enabled2ndFaForTeamInternal galley tid = do
     )
     !!! const 200 === statusCode
 
+getBotSelf :: Brig -> BotId -> Http ResponseLBS
+getBotSelf brig bid =
+  get $
+    brig
+      . path "/bot/self"
+      . header "Z-Type" "bot"
+      . header "Z-Bot" (toByteString' bid)
+
+getBotClient :: Brig -> BotId -> Http ResponseLBS
+getBotClient brig bid =
+  get $
+    brig
+      . path "/bot/client"
+      . header "Z-Type" "bot"
+      . header "Z-Bot" (toByteString' bid)
+      . contentJson
+
+getBotPreKeyIds :: Brig -> BotId -> Http ResponseLBS
+getBotPreKeyIds brig bid =
+  get $
+    brig
+      . path "/bot/client/prekeys"
+      . header "Z-Type" "bot"
+      . header "Z-Bot" (toByteString' bid)
+
+updateBotPrekeys :: Brig -> BotId -> [Prekey] -> Http ResponseLBS
+updateBotPrekeys brig bid prekeys =
+  post $
+    brig
+      . path "/bot/client/prekeys"
+      . header "Z-Type" "bot"
+      . header "Z-Bot" (toByteString' bid)
+      . contentJson
+      . body (RequestBodyLBS (encode (UpdateBotPrekeys prekeys)))
+
+claimUsersPrekeys :: Brig -> BotId -> UserClients -> Http ResponseLBS
+claimUsersPrekeys brig bid ucs =
+  post $
+    brig
+      . path "/bot/users/prekeys"
+      . header "Z-Type" "bot"
+      . header "Z-Bot" (toByteString' bid)
+      . contentJson
+      . body (RequestBodyLBS (encode ucs))
+
+listUserProfiles :: Brig -> BotId -> [UserId] -> Http ResponseLBS
+listUserProfiles brig bid uids =
+  get $
+    brig
+      . path "/bot/users"
+      . header "Z-Type" "bot"
+      . header "Z-Bot" (toByteString' bid)
+      . queryItem "ids" (C8.intercalate "," $ toByteString' <$> uids)
+
+getUserClients :: Brig -> BotId -> UserId -> Http ResponseLBS
+getUserClients brig bid uid =
+  get $
+    brig
+      . paths ["bot", "users", toByteString' uid, "clients"]
+      . header "Z-Type" "bot"
+      . header "Z-Bot" (toByteString' bid)
+
 --------------------------------------------------------------------------------
 -- DB Operations
 
@@ -1545,7 +1662,7 @@ testRegisterProvider db' brig = do
         getProviderActivationCodeInternal brig email
           <!! const 200 === statusCode
       let Just pair = responseJsonMaybe _rs :: Maybe Code.KeyValuePair
-      activateProvider brig (Code.kcKey pair) (Code.kcCode pair)
+      activateProvider brig (Code.key pair) (Code.code pair)
         !!! const 200 === statusCode
   -- Login succeeds after activation (due to auto-approval)
   loginProvider brig email defProviderPassword
@@ -2036,9 +2153,17 @@ testAddRemoveBotUtil localDomain pid sid cid u1 u2 h sref buf brig galley cannon
     let Just rs = responseJsonMaybe _rs
         bid = rsAddBotId rs
         qbuid = Qualified (botUserId bid) localDomain
+    getBotSelf brig bid !!! const 200 === statusCode
+    (randomId >>= getBotSelf brig . BotId) !!! const 404 === statusCode
+    botClient :: Client <- responseJsonError =<< getBotClient brig bid <!! const 200 === statusCode
+    liftIO $ assertEqual "bot client" rs.rsAddBotClient botClient.clientId
+    (randomId >>= getBotClient brig . BotId) !!! const 404 === statusCode
     bot <- svcAssertBotCreated buf bid cid
-    liftIO $ assertEqual "bot client" (rsAddBotClient rs) (testBotClient bot)
+    liftIO $ assertEqual "bot client" rs.rsAddBotClient bot.testBotClient
     liftIO $ assertEqual "bot event" MemberJoin (evtType (rsAddBotEvent rs))
+    -- just check that these endpoints works
+    getBotPreKeyIds brig bid !!! const 200 === statusCode
+    updateBotPrekeys brig bid bot.testBotPrekeys !!! const 200 === statusCode
     -- Member join event for both users
     forM_ [ws1, ws2] $ \ws -> wsAssertMemberJoin ws qcid quid1 [qbuid]
     -- Member join event for the bot
@@ -2068,7 +2193,7 @@ testAddRemoveBotUtil localDomain pid sid cid u1 u2 h sref buf brig galley cannon
     assertEqual "colour" defaultAccentId (profileAccentId bp)
     assertEqual "assets" defServiceAssets (profileAssets bp)
   -- Check that the bot client exists and has prekeys
-  let isBotPrekey = (`elem` testBotPrekeys bot) . prekeyData
+  let isBotPrekey = (`elem` bot.testBotPrekeys) . prekeyData
   getPreKey brig buid buid (rsAddBotClient rs) !!! do
     const 200 === statusCode
     const (Just True) === fmap isBotPrekey . responseJsonMaybe

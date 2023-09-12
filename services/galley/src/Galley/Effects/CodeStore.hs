@@ -53,6 +53,6 @@ data CodeStore m a where
   DeleteCode :: Key -> Scope -> CodeStore m ()
   MakeKey :: ConvId -> CodeStore m Key
   GenerateCode :: ConvId -> Scope -> Timeout -> CodeStore m Code
-  GetConversationCodeURI :: CodeStore m HttpsUrl
+  GetConversationCodeURI :: Maybe Text -> CodeStore m (Maybe HttpsUrl)
 
 makeSem ''CodeStore

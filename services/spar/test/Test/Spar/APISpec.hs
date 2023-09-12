@@ -37,9 +37,9 @@ import Wire.API.User.Saml (SsoSettings)
 spec :: Spec
 spec = do
   -- Note: SCIM types are not validated because their content-type is 'SCIM'.
-  validateEveryToJSON (Proxy @API.API)
+  validateEveryToJSON (Proxy @API.SparAPI)
   it "api consistency" $ do
-    pathsConsistencyCheck (routesToPaths @API.API) `shouldBe` mempty
+    pathsConsistencyCheck (routesToPaths @API.SparAPI) `shouldBe` mempty
   it "roundtrip: IdPMetadataInfo" . property $ \(val :: IdPMetadataInfo) -> do
     let withoutRaw (IdPMetadataValue _ x) = x
     (withoutRaw <$> (Aeson.eitherDecode . Aeson.encode) val) `shouldBe` Right (withoutRaw val)

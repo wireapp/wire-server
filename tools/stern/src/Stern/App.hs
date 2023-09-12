@@ -23,7 +23,7 @@
 
 module Stern.App where
 
-import qualified Bilge
+import Bilge qualified
 import Bilge.RPC (HasRequestId (..))
 import Control.Error
 import Control.Lens (makeLenses, set, view, (^.))
@@ -34,23 +34,23 @@ import Control.Monad.Trans.Class
 import Data.ByteString.Conversion (toByteString')
 import Data.Default (def)
 import Data.Id (UserId)
-import qualified Data.Metrics.Middleware as Metrics
+import Data.Metrics.Middleware qualified as Metrics
 import Data.Text.Encoding (encodeUtf8)
 import Data.UUID (toString)
-import qualified Data.UUID.V4 as UUID
+import Data.UUID.V4 qualified as UUID
 import Imports
 import Network.HTTP.Client (responseTimeoutMicro)
 import Network.Wai (Request, ResponseReceived)
 import Network.Wai.Routing (Continue)
 import Network.Wai.Utilities (Error (..), lookupRequestId)
-import qualified Network.Wai.Utilities.Error as WaiError
+import Network.Wai.Utilities.Error qualified as WaiError
 import Network.Wai.Utilities.Response (json, setStatus)
-import qualified Network.Wai.Utilities.Server as Server
+import Network.Wai.Utilities.Server qualified as Server
 import Stern.Options as O
-import qualified System.Logger as Log
+import System.Logger qualified as Log
 import System.Logger.Class hiding (Error, info)
-import qualified System.Logger.Class as LC
-import qualified System.Logger.Extended as Log
+import System.Logger.Class qualified as LC
+import System.Logger.Extended qualified as Log
 import Util.Options
 
 data Env = Env
@@ -74,7 +74,7 @@ newEnv o = do
   Env (mkRequest $ O.brig o) (mkRequest $ O.galley o) (mkRequest $ O.gundeck o) (mkRequest $ O.ibis o) (mkRequest $ O.galeb o) l mt def
     <$> newManager
   where
-    mkRequest s = Bilge.host (encodeUtf8 (s ^. epHost)) . Bilge.port (s ^. epPort) $ Bilge.empty
+    mkRequest s = Bilge.host (encodeUtf8 (s ^. host)) . Bilge.port (s ^. port) $ Bilge.empty
     newManager = Bilge.newManager (Bilge.defaultManagerSettings {Bilge.managerResponseTimeout = responseTimeoutMicro 10000000})
 
 -- Monads

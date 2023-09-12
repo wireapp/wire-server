@@ -33,7 +33,7 @@ import Gundeck.Push.Native.Types
 import Gundeck.Types hiding (token)
 import Imports hiding (lookup)
 import System.Logger.Class (MonadLogger, field, msg, val, (~~))
-import qualified System.Logger.Class as Log
+import System.Logger.Class qualified as Log
 
 lookup :: (MonadClient m, MonadLogger m) => UserId -> Consistency -> m [Address]
 lookup u c = foldM mk [] =<< retry x1 (query q (params c (Identity u)))
@@ -52,7 +52,7 @@ updateArn :: MonadClient m => UserId -> Transport -> AppName -> Token -> Endpoin
 updateArn uid transport app token arn = retry x5 $ write q (params LocalQuorum (arn, uid, transport, app, token))
   where
     q :: PrepQuery W (EndpointArn, UserId, Transport, AppName, Token) ()
-    q = "update user_push set arn = ? where usr = ? and transport = ? and app = ? and ptoken = ?"
+    q = {- `IF EXISTS`, but that requires benchmarking -} "update user_push set arn = ? where usr = ? and transport = ? and app = ? and ptoken = ?"
 
 delete :: MonadClient m => UserId -> Transport -> AppName -> Token -> m ()
 delete u t a p = retry x5 $ write q (params LocalQuorum (u, t, a, p))

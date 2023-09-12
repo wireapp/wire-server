@@ -32,11 +32,10 @@ import Data.Domain
 import Data.Id
 import Data.Json.Util
 import Data.Qualified
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Federator.MockServer
 import Imports
 import Wire.API.Error.Galley
-import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
@@ -45,9 +44,7 @@ import Wire.API.User.Client
 receiveCommitMock :: [ClientIdentity] -> Mock LByteString
 receiveCommitMock clients =
   asum
-    [ "on-conversation-updated" ~> (),
-      "on-new-remote-conversation" ~> EmptyResponse,
-      "get-mls-clients" ~>
+    [ "get-mls-clients" ~>
         Set.fromList
           ( map (flip ClientInfo True . ciClient) clients
           )
@@ -91,7 +88,7 @@ claimKeyPackagesMock kpb = "claim-key-packages" ~> kpb
 queryGroupStateMock :: ByteString -> Qualified UserId -> Mock LByteString
 queryGroupStateMock gs qusr = do
   guardRPC "query-group-info"
-  uid <- ggireqSender <$> getRequestBody
+  uid <- (\(a :: GetGroupInfoRequest) -> a.sender) <$> getRequestBody
   mockReply $
     if uid == qUnqualified qusr
       then GetGroupInfoResponseState (Base64ByteString gs)

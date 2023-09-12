@@ -43,11 +43,11 @@ import Data.ByteString.Conversion (toByteString')
 import Data.Domain (Domain)
 import Data.Id
 import Data.Json.Util
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Map.Lens (toMapOf)
 import Data.Qualified
 import Data.Range
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.Set.Lens
 import Data.Time.Clock (UTCTime)
 import Galley.API.LegalHold.Conflicts
@@ -56,20 +56,22 @@ import Galley.API.Util
 import Galley.Data.Conversation
 import Galley.Data.Services
 import Galley.Effects
+import Galley.Effects.BackendNotificationQueueAccess
 import Galley.Effects.BrigAccess
 import Galley.Effects.ClientStore
 import Galley.Effects.ConversationStore
 import Galley.Effects.FederatorAccess
 import Galley.Effects.TeamStore
 import Galley.Options
-import qualified Galley.Types.Clients as Clients
+import Galley.Types.Clients qualified as Clients
 import Galley.Types.Conversations.Members
 import Imports hiding (forkIO)
+import Network.AMQP qualified as Q
 import Polysemy hiding (send)
 import Polysemy.Error
 import Polysemy.Input
-import qualified Polysemy.TinyLog as P
-import qualified System.Logger.Class as Log
+import Polysemy.TinyLog qualified as P
+import System.Logger.Class qualified as Log
 import Wire.API.Conversation.Protocol
 import Wire.API.Error
 import Wire.API.Error.Galley
@@ -134,18 +136,19 @@ mkQualifiedUserClientsByDomain =
     byUser :: RecipientSet -> Map UserId (Set ClientId)
     byUser = foldr (\(u, c) -> Map.insertWith (<>) u (Set.singleton c)) mempty
 
-mkMessageSendingStatus :: UTCTimeMillis -> QualifiedMismatch -> QualifiedUserClients -> MessageSendingStatus
-mkMessageSendingStatus time mismatch failures =
+mkMessageSendingStatus :: UTCTimeMillis -> QualifiedMismatch -> MessageSendingStatus
+mkMessageSendingStatus time mismatch =
   MessageSendingStatus
     { mssTime = time,
       mssMissingClients = qmMissing mismatch,
       mssRedundantClients = qmRedundant mismatch,
       mssDeletedClients = qmDeleted mismatch,
-      mssFailedToSend = failures
+      mssFailedToSend = mempty,
+      mssFailedToConfirmClients = mempty
     }
 
 clientMismatchStrategyApply :: ClientMismatchStrategy -> QualifiedRecipientSet -> QualifiedRecipientSet
-clientMismatchStrategyApply MismatchReportAll = id
+clientMismatchStrategyApply MismatchReportAll = Imports.id
 clientMismatchStrategyApply MismatchIgnoreAll = const mempty
 clientMismatchStrategyApply (MismatchReportOnly users) =
   Set.filter (\(d, u, _) -> Set.member (Qualified u d) users)
@@ -157,18 +160,18 @@ clientMismatchStrategyApply (MismatchIgnoreOnly users) =
 --                +-----------------------------------+
 --                |                                   |
 --    +---------->|                 +-----------------+--------------------+
---    |           |                 |                 |                    | <------+
---    |           |                 |                 |   Deleted Clients  |        |
---    |           |                 |                 |                    |        |
--- Expected       |                 |                 |                    |   Recipients
--- Clients        |  Missing        | Valid           |       Extra        |
---                |  Clients        | Clients         +-------Clients------+----------+
---                |                 |                 |                    |          |
---                |                 |                 |                    |          |
---                |                 |                 |       Redundant Clients     <------- Sender Client
---                |                 |                 |                    |          |
---                |                 |                 |                    |          |
---                |                 |                 |                    |          |
+--    |           |                 |                 |                    | <----------+
+--    |           |                 |                 |   Deleted Clients  |            |
+--    |           |                 |                 |   (clients of users from conv   |
+-- Expected       |                 |                 |   that have been deleted)       |   Recipients
+-- Clients        |  Missing        | Valid           |       Extra        |                (from the request)
+-- (actually in   |  Clients        | Clients         +-------Clients------+----------+
+-- conversation)  |                 | (these will     |                    |          |
+--                |                 | actually receive|                    |          |
+--                |                 | the msg)        |       Redundant Clients     <------- Sender Client
+--                |                 |                 |       (clients that are not   |
+--                |                 |                 |       part of conv for        |
+--                |                 |                 |       whatever reason + sender)
 --                |                 +--------------------------------------+----------+
 --                |                                   |
 --                +-----------------------------------+
@@ -187,7 +190,7 @@ checkMessageClients ::
   ClientMismatchStrategy ->
   (Bool, Map (Domain, UserId, ClientId) ByteString, QualifiedMismatch)
 checkMessageClients sender participantMap recipientMap mismatchStrat =
-  let participants = setOf ((itraversed <. folded) . withIndex . to (\((d, u), c) -> (d, u, c))) participantMap
+  let participants = setOf ((itraversed <. folded) . withIndex . Control.Lens.to (\((d, u), c) -> (d, u, c))) participantMap
       expected = Set.delete sender participants
       expectedUsers :: Set (Domain, UserId) = Map.keysSet participantMap
 
@@ -202,7 +205,7 @@ checkMessageClients sender participantMap recipientMap mismatchStrat =
           . Set.filter (\(d, u, _) -> Set.member (d, u) expectedUsers)
           $ extra
       -- The clients which are extra but not deleted, must belong to users which
-      -- are not in the convesation and hence considered redundant.
+      -- are not in the conversation and hence considered redundant.
       redundant = Set.difference extra deleted
       -- The clients which are both recipients and expected are considered valid.
       valid = Set.intersection recipients expected
@@ -239,12 +242,12 @@ postRemoteOtrMessage ::
 postRemoteOtrMessage sender conv rawMsg = do
   let msr =
         ProteusMessageSendRequest
-          { pmsrConvId = tUnqualified conv,
-            pmsrSender = qUnqualified sender,
-            pmsrRawMessage = Base64ByteString rawMsg
+          { convId = tUnqualified conv,
+            sender = qUnqualified sender,
+            rawMessage = Base64ByteString rawMsg
           }
       rpc = fedClient @'Galley @"send-message" msr
-  msResponse <$> runFederated conv rpc
+  (.response) <$> runFederated conv rpc
 
 postBroadcast ::
   ( Member BrigAccess r,
@@ -284,7 +287,7 @@ postBroadcast lusr con msg = runError $ do
   -- is used and length `report_missing` < limit since we cannot fetch larger teams than
   -- that.
   tMembers <-
-    fmap (view userId) <$> case qualifiedNewOtrClientMismatchStrategy msg of
+    fmap (view Wire.API.Team.Member.userId) <$> case qualifiedNewOtrClientMismatchStrategy msg of
       -- Note: remote ids are not in a local team
       MismatchReportOnly qus ->
         maybeFetchLimitedTeamMemberList
@@ -313,7 +316,7 @@ postBroadcast lusr con msg = runError $ do
           qualifiedLocalClients
           (flattenMap $ qualifiedNewOtrRecipients msg)
           (qualifiedNewOtrClientMismatchStrategy msg)
-      otrResult = mkMessageSendingStatus (toUTCTimeMillis now) mismatch mempty
+      otrResult = mkMessageSendingStatus (toUTCTimeMillis now) mismatch
   unless sendMessage $ do
     let lhProtectee = qualifiedUserToProtectee (tDomain lusr) User (tUntagged lusr)
         missingClients = qmMissing mismatch
@@ -367,6 +370,7 @@ postQualifiedOtrMessage ::
     Member ClientStore r,
     Member ConversationStore r,
     Member FederatorAccess r,
+    Member BackendNotificationQueueAccess r,
     Member GundeckAccess r,
     Member ExternalAccess r,
     Member (Input Opts) r,
@@ -407,7 +411,7 @@ postQualifiedOtrMessage senderType sender mconn lcnv msg =
             Set.fromList $
               map (tUntagged . qualifyAs lcnv) localMemberIds
                 <> map (tUntagged . rmId) (convRemoteMembers conv)
-      isInternal <- view (optSettings . setIntraListing) <$> input
+      isInternal <- view (settings . intraListing) <$> input
 
       -- check if the sender is part of the conversation
       unless (Set.member sender members) $
@@ -425,20 +429,20 @@ postQualifiedOtrMessage senderType sender mconn lcnv msg =
               $ localClients
 
       -- get remote clients
-      qualifiedRemoteClients <- getRemoteClients (convRemoteMembers conv)
-      let qualifiedClients = qualifiedLocalClients <> qualifiedRemoteClients'
-          -- concatenating maps is correct here, because their sets of keys are disjoint
+      qualifiedRemoteClients :: [Either (Remote [UserId], FederationError) (Map (Domain, UserId) (Set ClientId))] <-
+        getRemoteClients (convRemoteMembers conv)
+      let -- concatenating maps is correct here, because their sets of keys are disjoint
           qualifiedRemoteClients' = mconcat $ rights qualifiedRemoteClients
-          -- Collect the list of users and their domains that we weren't able to fetch clients for.
-          failedToSendFetchingClients :: QualifiedUserClients
-          failedToSendFetchingClients =
-            QualifiedUserClients . mconcat $ extractUserMap . fst <$> lefts qualifiedRemoteClients
-            where
-              extractUserMap :: Remote [UserId] -> Map Domain (Map UserId (Set ClientId))
-              extractUserMap l = Map.singleton domain $ Map.fromList $ (,mempty) <$> users
-                where
-                  domain = qDomain $ tUntagged l
-                  users = tUnqualified l
+          -- Try to get the client IDs for the users that we failed to fetch clients for from the recipient list.
+          -- Partition the list of users into those that we were able to find clients for and those that we weren't.
+          (unconfirmedKnownClients, unconfirmedUnknownClients) =
+            partition
+              (not . all Set.null)
+              (matchUnconfirmedClientsWithRecipients (fst <$> lefts qualifiedRemoteClients))
+          qualifiedClients =
+            qualifiedLocalClients
+              <> qualifiedRemoteClients'
+              <> Map.fromList unconfirmedKnownClients
       -- check if the sender client exists (as one of the clients in the conversation)
       unless
         ( Set.member
@@ -453,7 +457,7 @@ postQualifiedOtrMessage senderType sender mconn lcnv msg =
               qualifiedClients
               (flattenMap $ qualifiedNewOtrRecipients msg)
               (qualifiedNewOtrClientMismatchStrategy msg)
-          otrResult = mkMessageSendingStatus nowMillis mismatch mempty
+          otrResult = mkMessageSendingStatus nowMillis mismatch
       unless sendMessage $ do
         let lhProtectee = qualifiedUserToProtectee localDomain senderType sender
             missingClients = qmMissing mismatch
@@ -480,24 +484,20 @@ postQualifiedOtrMessage senderType sender mconn lcnv msg =
           redundant' = toDomUserClient $ qualifiedUserClients $ mssRedundantClients otrResult
           -- List of users that we couldn't fetch clients for. Used to get their "redundant"
           -- clients for reporting as failedToSend.
-          failed' = toDomUserClient $ qualifiedUserClients failedToSendFetchingClients
-          -- failedToSendFetchingClients doesn't contain client IDs, so those need to be excluded
+          failed' = toDomUserClient $ toDomMap unconfirmedUnknownClients
+          -- failedToConfirmRemoteClients doesn't contain client IDs, so those need to be excluded
           -- from the filter search. We have to focus on only the domain and user. These clients
           -- should be listed in the failedToSend field however, as tracking these clients is an
           -- important part of the proteus protocol.
           predicate (d, (u, _)) = any (\(d', (u', _)) -> d == d' && u == u') failed'
           -- Failed users/clients aren't redundant
           (failed, redundant) = partition predicate redundant'
+          collectedFailedToSend = collectFailedToSend [qualifiedUserClients failedToSend, toDomMap unconfirmedUnknownClients, fromDomUserClient failed]
       pure
         otrResult
-          { mssFailedToSend =
-              QualifiedUserClients $
-                collectFailedToSend
-                  [ qualifiedUserClients failedToSend,
-                    qualifiedUserClients failedToSendFetchingClients,
-                    fromDomUserClient failed
-                  ],
-            mssRedundantClients = QualifiedUserClients $ fromDomUserClient redundant
+          { mssFailedToSend = QualifiedUserClients collectedFailedToSend,
+            mssRedundantClients = QualifiedUserClients $ fromDomUserClient redundant,
+            mssFailedToConfirmClients = QualifiedUserClients $ collectFailedToSend $ [toDomMap unconfirmedKnownClients, collectedFailedToSend]
           }
   where
     -- Get the triples for domains, users, and clients so we can easily filter
@@ -506,6 +506,7 @@ postQualifiedOtrMessage senderType sender mconn lcnv msg =
     toDomUserClient m = do
       (d, m') <- Map.assocs m
       (d,) <$> Map.assocs m'
+
     -- Rebuild the map, concatenating results along the way.
     fromDomUserClient :: [(Domain, (UserId, Set ClientId))] -> Map Domain (Map UserId (Set ClientId))
     fromDomUserClient = foldr buildUserClientMap mempty
@@ -513,6 +514,26 @@ postQualifiedOtrMessage senderType sender mconn lcnv msg =
         buildUserClientMap :: (Domain, (UserId, Set ClientId)) -> Map Domain (Map UserId (Set ClientId)) -> Map Domain (Map UserId (Set ClientId))
         buildUserClientMap (d, (u, c)) m = Map.alter (pure . Map.alter (pure . Set.union c . fromMaybe mempty) u . fromMaybe mempty) d m
 
+    toDomMap :: [((Domain, UserId), Set ClientId)] -> Map Domain (Map UserId (Set ClientId))
+    toDomMap = fromDomUserClient . fmap (\((d, u), s) -> (d, (u, s)))
+
+    matchUnconfirmedClientsWithRecipients :: [Remote [UserId]] -> [((Domain, UserId), Set ClientId)]
+    matchUnconfirmedClientsWithRecipients remotes = do
+      remoteUsers@(qDomain . tUntagged -> domain) <- remotes
+      user <- tUnqualified remoteUsers
+      pure ((domain, user), tryFindClientIds domain user)
+
+    tryFindClientIds :: Domain -> UserId -> Set ClientId
+    tryFindClientIds domain uid = do
+      Set.fromList $
+        Map.keys $
+          Map.findWithDefault mempty uid $
+            Map.findWithDefault mempty domain $
+              qualifiedUserClientMap $
+                qualifiedOtrRecipientsMap $
+                  qualifiedNewOtrRecipients msg
+
+-- FUTUREWORK: This is just a workaround and would not be needed if we had a proper monoid/semigroup instance for Map where the values have a monoid instance.
 collectFailedToSend ::
   Foldable f =>
   f (Map Domain (Map UserId (Set ClientId))) ->
@@ -528,7 +549,7 @@ sendMessages ::
   forall r.
   ( Member GundeckAccess r,
     Member ExternalAccess r,
-    Member FederatorAccess r,
+    Member BackendNotificationQueueAccess r,
     Member P.TinyLog r
   ) =>
   UTCTime ->
@@ -613,7 +634,7 @@ sendLocalMessages loc now sender senderClient mconn qcnv botMap metadata localMe
 -- failure, the empty set is returned.
 sendRemoteMessages ::
   forall r x.
-  ( Member FederatorAccess r,
+  ( Member BackendNotificationQueueAccess r,
     Member P.TinyLog r
   ) =>
   Remote x ->
@@ -632,18 +653,18 @@ sendRemoteMessages domain now sender senderClient lcnv metadata messages = (hand
           (Map.assocs messages)
       rm =
         RemoteMessage
-          { rmTime = now,
-            rmData = mmData metadata,
-            rmSender = sender,
-            rmSenderClient = senderClient,
-            rmConversation = tUnqualified lcnv,
-            rmPriority = mmNativePriority metadata,
-            rmPush = mmNativePush metadata,
-            rmTransient = mmTransient metadata,
-            rmRecipients = UserClientMap rcpts
+          { time = now,
+            _data = mmData metadata,
+            sender = sender,
+            senderClient = senderClient,
+            conversation = tUnqualified lcnv,
+            priority = mmNativePriority metadata,
+            push = mmNativePush metadata,
+            transient = mmTransient metadata,
+            recipients = UserClientMap rcpts
           }
-  let rpc = fedClient @'Galley @"on-message-sent" rm
-  runFederatedEither domain rpc
+  let rpc = void $ fedQueueClient @'Galley @"on-message-sent" rm
+  enqueueNotification domain Q.Persistent rpc
   where
     handle :: Either FederationError a -> Sem r (Set (UserId, ClientId))
     handle (Right _) = pure mempty
@@ -695,7 +716,7 @@ class Unqualify a b where
   unqualify :: Domain -> a -> b
 
 instance Unqualify a a where
-  unqualify _ = id
+  unqualify _ = Imports.id
 
 instance Unqualify MessageSendingStatus ClientMismatch where
   unqualify domain status =

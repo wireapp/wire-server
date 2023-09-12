@@ -27,15 +27,15 @@ import Data.Id
 import Data.Range
 import Galley.Effects
 import Galley.Effects.BrigAccess
-import qualified Galley.Effects.LegalHoldStore as LegalHoldData
-import qualified Galley.Effects.TeamFeatureStore as TeamFeatures
+import Galley.Effects.LegalHoldStore qualified as LegalHoldData
+import Galley.Effects.TeamFeatureStore qualified as TeamFeatures
 import Galley.Effects.TeamStore
 import Galley.Types.Teams as Team
 import Imports
 import Polysemy
 import Wire.API.Error
 import Wire.API.Error.Galley
-import qualified Wire.API.Team.Feature as Public
+import Wire.API.Team.Feature qualified as Public
 import Wire.API.Team.Size
 
 assertLegalHoldEnabledForTeam ::

@@ -25,53 +25,53 @@ module API.User.Auth
 where
 
 import API.Team.Util
-import qualified API.User.Util as Util
+import API.User.Util qualified as Util
 import Bilge hiding (body)
-import qualified Bilge as Http
+import Bilge qualified as Http
 import Bilge.Assert hiding (assert)
-import qualified Brig.Code as Code
-import qualified Brig.Options as Opts
+import Brig.Code qualified as Code
+import Brig.Options qualified as Opts
 import Brig.User.Auth.Cookie (revokeAllCookies)
 import Brig.ZAuth (ZAuth, runZAuth)
-import qualified Brig.ZAuth as ZAuth
+import Brig.ZAuth qualified as ZAuth
 import Cassandra hiding (Value)
-import qualified Cassandra as DB
+import Cassandra qualified as DB
 import Control.Arrow ((&&&))
 import Control.Lens (set, (^.))
 import Control.Monad.Catch (MonadCatch)
 import Control.Retry
 import Data.Aeson as Aeson hiding (json)
-import qualified Data.ByteString as BS
+import Data.ByteString qualified as BS
 import Data.ByteString.Conversion
-import qualified Data.ByteString.Lazy as Lazy
+import Data.ByteString.Lazy qualified as Lazy
 import Data.Handle (Handle (Handle))
 import Data.Id
 import Data.Misc (PlainTextPassword6, plainTextPassword6, plainTextPassword6Unsafe)
 import Data.Proxy
 import Data.Qualified
 import Data.Range (unsafeRange)
-import qualified Data.Text as Text
+import Data.Text qualified as Text
 import Data.Text.Ascii (AsciiChars (validate))
 import Data.Text.IO (hPutStrLn)
-import qualified Data.Text.Lazy as Lazy
+import Data.Text.Lazy qualified as Lazy
 import Data.Time.Clock
-import qualified Data.UUID.V4 as UUID
-import qualified Data.ZAuth.Token as ZAuth
+import Data.UUID.V4 qualified as UUID
+import Data.ZAuth.Token qualified as ZAuth
 import Imports hiding (cs)
 import Network.HTTP.Client (equivCookie)
-import qualified Network.Wai.Utilities.Error as Error
+import Network.Wai.Utilities.Error qualified as Error
 import Test.Tasty
 import Test.Tasty.HUnit
-import qualified Test.Tasty.HUnit as HUnit
+import Test.Tasty.HUnit qualified as HUnit
 import UnliftIO.Async hiding (wait)
 import Util
 import Wire.API.Conversation (Conversation (..))
 import Wire.API.Password (Password, mkSafePassword)
-import qualified Wire.API.Team.Feature as Public
+import Wire.API.Team.Feature qualified as Public
 import Wire.API.User
-import qualified Wire.API.User as Public
+import Wire.API.User qualified as Public
 import Wire.API.User.Auth
-import qualified Wire.API.User.Auth as Auth
+import Wire.API.User.Auth qualified as Auth
 import Wire.API.User.Auth.LegalHold
 import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Auth.Sso
@@ -202,17 +202,20 @@ testLoginWith6CharPassword brig db = do
         (PasswordLogin (PasswordLoginData (LoginByEmail email) pw Nothing Nothing))
         PersistentCookie
         !!! const expectedStatusCode === statusCode
+
     -- Since 8 char passwords are required, when setting a password via the API,
     -- we need to write this directly to the db, to be able to test this
     writeDirectlyToDB :: UserId -> PlainTextPassword6 -> Http ()
     writeDirectlyToDB uid pw =
       liftIO (runClient db (updatePassword uid pw >> revokeAllCookies uid))
+
     updatePassword :: MonadClient m => UserId -> PlainTextPassword6 -> m ()
     updatePassword u t = do
       p <- liftIO $ mkSafePassword t
       retry x5 $ write userPasswordUpdate (params LocalQuorum (p, u))
+
     userPasswordUpdate :: PrepQuery W (Password, UserId) ()
-    userPasswordUpdate = "UPDATE user SET password = ? WHERE id = ?"
+    userPasswordUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET password = ? WHERE id = ?"
 
 --------------------------------------------------------------------------------
 -- ZAuth test environment for generating arbitrary tokens.
@@ -387,7 +390,7 @@ testPhoneLogin brig = do
 
 testHandleLogin :: Brig -> Http ()
 testHandleLogin brig = do
-  usr <- userId <$> randomUser brig
+  usr <- (.userId) <$> randomUser brig
   hdl <- randomHandle
   let update = RequestBodyLBS . encode $ HandleUpdate hdl
   put (brig . path "/self/handle" . contentJson . zUser usr . zConn "c" . Http.body update)
@@ -622,8 +625,10 @@ testThrottleLogins conf b = do
   -- Login exactly that amount of times, as fast as possible
   pooledForConcurrentlyN_ 8 [1 .. l] $ \_ ->
     login b (defEmailLogin e) SessionCookie
-  -- Login once more. This should fail!
-  x <-
+  -- Login once more. This should fail!  The `recoverAll` is because sometimes it doesn't,
+  -- Even though that may have been due to the config line `setUserCookieThrottle.retryAfter: 1`.
+  -- `3` should be more robust.
+  x <- recoverAll (exponentialBackoff 8000 <> limitRetries 3) . const $ do
     login b (defEmailLogin e) SessionCookie
       <!! const 429 === statusCode
   -- After the amount of time specified in "Retry-After", though,
@@ -698,7 +703,7 @@ testLimitRetries conf brig = do
 testRegularUserLegalHoldLogin :: Brig -> Http ()
 testRegularUserLegalHoldLogin brig = do
   -- Create a regular user
-  uid <- userId <$> randomUser brig
+  uid <- (.userId) <$> randomUser brig
   -- fail if user is not a team user
   legalHoldLogin brig (LegalHoldLogin uid (Just defPassword) Nothing) PersistentCookie !!! do
     const 403 === statusCode
@@ -783,7 +788,7 @@ testLegalHoldLogout brig galley = do
 testEmailSsoLogin :: Brig -> Http ()
 testEmailSsoLogin brig = do
   -- Create a user
-  uid <- userId <$> randomUser brig
+  uid <- (.userId) <$> randomUser brig
   now <- liftIO getCurrentTime
   -- Login and do some checks
   _rs <-
@@ -798,7 +803,7 @@ testEmailSsoLogin brig = do
 testSuspendedSsoLogin :: Brig -> Http ()
 testSuspendedSsoLogin brig = do
   -- Create a user and immediately suspend them
-  uid <- userId <$> randomUser brig
+  uid <- (.userId) <$> randomUser brig
   setStatus brig uid Suspended
   -- Try to login and see if we fail
   ssoLogin brig (SsoLogin uid Nothing) PersistentCookie !!! do
@@ -828,7 +833,7 @@ testInvalidCookie z b = do
     const 403 === statusCode
     const (Just "Invalid user token") =~= responseBody
   -- Expired
-  user <- userId <$> randomUser b
+  user <- (.userId) <$> randomUser b
   let f = set (ZAuth.userTTL (Proxy @u)) 0
   t <- toByteString' <$> runZAuth z (ZAuth.localSettings f (ZAuth.newUserToken @u user Nothing))
   liftIO $ threadDelay 1000000
@@ -840,7 +845,7 @@ testInvalidCookie z b = do
 
 testInvalidToken :: ZAuth.Env -> Brig -> Http ()
 testInvalidToken z b = do
-  user <- userId <$> randomUser b
+  user <- (.userId) <$> randomUser b
   t <- toByteString' <$> runZAuth z (ZAuth.newUserToken @ZAuth.User user Nothing)
 
   -- Syntactically invalid
@@ -1416,7 +1421,7 @@ testLogout b = do
 
 testReauthentication :: Brig -> Http ()
 testReauthentication b = do
-  u <- userId <$> randomUser b
+  u <- (.userId) <$> randomUser b
   let js = Http.body . RequestBodyLBS . encode $ object ["foo" .= ("bar" :: Text)]
   get (b . paths ["/i/users", toByteString' u, "reauthenticate"] . contentJson . js) !!! do
     const 403 === statusCode

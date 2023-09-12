@@ -5,7 +5,7 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: check-cluster-job
-  namespace: databases
+  namespace: {{ .Release.Namespace }}
 spec:
   template:
     spec:

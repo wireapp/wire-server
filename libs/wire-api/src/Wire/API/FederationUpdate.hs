@@ -2,21 +2,26 @@ module Wire.API.FederationUpdate
   ( syncFedDomainConfigs,
     SyncFedDomainConfigsCallback (..),
     emptySyncFedDomainConfigsCallback,
+    deleteFederationRemoteGalley,
+    fetch,
   )
 where
 
 import Control.Concurrent.Async
 import Control.Exception
-import qualified Control.Retry as R
-import qualified Data.Set as Set
+import Control.Retry qualified as R
+import Data.Domain
+import Data.Set qualified as Set
 import Data.Text
+import Data.Typeable (cast)
 import Imports
-import Network.HTTP.Client
-import Servant.Client
-import qualified System.Logger as L
+import Network.HTTP.Client (defaultManagerSettings, newManager)
+import Servant.Client (BaseUrl (BaseUrl), ClientEnv (ClientEnv), ClientError, ClientM, Scheme (Http), runClientM)
+import Servant.Client.Internal.HttpClient (defaultMakeClientRequest)
+import System.Logger qualified as L
 import Util.Options
 import Wire.API.Routes.FederationDomainConfig
-import qualified Wire.API.Routes.Internal.Brig as IAPI
+import Wire.API.Routes.Internal.Brig qualified as IAPI
 import Wire.API.Routes.Named (namedClient)
 
 -- | 'FedUpdateCallback' is not called if a new settings cannot be fetched, or if they are
@@ -28,6 +33,9 @@ syncFedDomainConfigs (Endpoint h p) log' cb = do
   ioref <- newIORef =<< initialize log' clientEnv
   updateDomainsThread <- async $ loop log' clientEnv cb ioref
   pure (ioref, updateDomainsThread)
+
+deleteFedRemoteGalley :: Domain -> ClientM ()
+deleteFedRemoteGalley dom = namedClient @IAPI.API @"delete-federation-remote-from-galley" dom
 
 -- | Initial function for getting the set of domains from brig, and an update interval
 initialize :: L.Logger -> ClientEnv -> IO FederationDomainConfigs
@@ -48,12 +56,21 @@ initialize logger clientEnv =
         Just c -> pure c
         Nothing -> throwIO $ ErrorCall "*** Failed to reach brig for federation setup, giving up!"
 
+deleteFederationRemoteGalley :: Domain -> ClientEnv -> IO (Either ClientError ())
+deleteFederationRemoteGalley dom = runClientM $ deleteFedRemoteGalley dom
+
 loop :: L.Logger -> ClientEnv -> SyncFedDomainConfigsCallback -> IORef FederationDomainConfigs -> IO ()
 loop logger clientEnv (SyncFedDomainConfigsCallback callback) env = forever $
   catch go $ \(e :: SomeException) -> do
     -- log synchronous exceptions
     case fromException e of
-      Just (SomeAsyncException _) -> pure ()
+      -- Rethrow async exceptions so that we can kill this thread with the `async` tools
+      -- The use of cast here comes from https://hackage.haskell.org/package/base-4.18.0.0/docs/src/GHC.IO.Exception.html#asyncExceptionFromException
+      -- But I only want to check for AsyncCancelled while leaving non-async exception
+      -- logging in place.
+      Just (SomeAsyncException e') -> case cast e' of
+        Just AsyncCancelled -> throwIO e
+        Nothing -> pure ()
       Nothing ->
         L.log logger L.Error $
           L.msg (L.val "Federation domain sync thread died, restarting domain synchronization.")

@@ -31,19 +31,19 @@ import Conduit (mapC)
 import Control.Lens (view, _2, _3, _5)
 import Data.Aeson
 import Data.Conduit
-import qualified Data.Conduit.Combinators as C
+import Data.Conduit.Combinators qualified as C
 import Data.Conduit.Internal (zipSources)
-import qualified Data.Conduit.List as CL
+import Data.Conduit.List qualified as CL
 import Data.Id
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.UUID
 import Galley.Cassandra.Instances ()
 import Imports
 import Schema
 import System.Exit (ExitCode (ExitFailure, ExitSuccess), exitWith)
 import System.FilePath ((</>))
-import qualified System.IO as IO
-import qualified System.Logger as Log
+import System.IO qualified as IO
+import System.Logger qualified as Log
 import System.Process (system)
 import Types
 import Wire.API.User

@@ -37,6 +37,7 @@ library
     Wire.API.Error.Gundeck
     Wire.API.Event.Conversation
     Wire.API.Event.FeatureConfig
+    Wire.API.Event.Federation
     Wire.API.Event.Team
     Wire.API.FederationStatus
     Wire.API.FederationUpdate
@@ -102,6 +103,7 @@ library
     Wire.API.Routes.Named
     Wire.API.Routes.Public
     Wire.API.Routes.Public.Brig
+    Wire.API.Routes.Public.Brig.Bot
     Wire.API.Routes.Public.Brig.OAuth
     Wire.API.Routes.Public.Cannon
     Wire.API.Routes.Public.Cargohold
@@ -137,6 +139,7 @@ library
     Wire.API.Team.Invitation
     Wire.API.Team.LegalHold
     Wire.API.Team.LegalHold.External
+    Wire.API.Team.LegalHold.Internal
     Wire.API.Team.Member
     Wire.API.Team.Permission
     Wire.API.Team.Role
@@ -312,7 +315,7 @@ library
     , x509
     , zauth
 
-  default-language:   Haskell2010
+  default-language:   GHC2021
 
 test-suite wire-api-golden-tests
   type:               exitcode-stdio-1.0
@@ -473,7 +476,6 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Generated.RichField_user
     Test.Wire.API.Golden.Generated.RichInfo_user
     Test.Wire.API.Golden.Generated.RichInfoAssocList_user
-    Test.Wire.API.Golden.Generated.RichInfoMapAndList_user
     Test.Wire.API.Golden.Generated.RmClient_user
     Test.Wire.API.Golden.Generated.Role_team
     Test.Wire.API.Golden.Generated.RoleName_user
@@ -645,7 +647,7 @@ test-suite wire-api-golden-tests
     , wire-api
     , wire-message-proto-lens
 
-  default-language:   Haskell2010
+  default-language:   GHC2021
 
 test-suite wire-api-tests
   type:               exitcode-stdio-1.0
@@ -740,7 +742,6 @@ test-suite wire-api-tests
     , either
     , filepath
     , hex
-    , hscim
     , hspec
     , hspec-wai
     , http-types
@@ -766,4 +767,4 @@ test-suite wire-api-tests
     , wire-api
     , wire-message-proto-lens
 
-  default-language:   Haskell2010
+  default-language:   GHC2021

@@ -25,6 +25,7 @@ module Galley.Effects.ExternalAccess
   )
 where
 
+import Data.Aeson
 import Data.Id
 import Galley.Data.Services
 import Imports
@@ -32,7 +33,7 @@ import Polysemy
 import Wire.API.Event.Conversation
 
 data ExternalAccess m a where
-  DeliverAsync :: Foldable f => f (BotMember, Event) -> ExternalAccess m ()
+  DeliverAsync :: (ToJSON e, Foldable f) => f (BotMember, e) -> ExternalAccess m ()
   DeliverAndDeleteAsync :: Foldable f => ConvId -> f (BotMember, Event) -> ExternalAccess m ()
 
 makeSem ''ExternalAccess

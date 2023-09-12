@@ -35,7 +35,6 @@ module Wire.API.Conversation
     cnvReceiptMode,
     cnvAccessRoles,
     CreateGroupConversation (..),
-    CreateConversationRejected (..),
     ConversationCoverView (..),
     ConversationList (..),
     ListConversations (..),
@@ -88,24 +87,23 @@ where
 import Control.Applicative
 import Control.Lens ((?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
-import qualified Data.Aeson as A
-import qualified Data.Aeson.Types as A
-import qualified Data.ByteString.Lazy as LBS
+import Data.Aeson qualified as A
+import Data.ByteString.Lazy qualified as LBS
 import Data.Domain
 import Data.Id
 import Data.List.Extra (disjointOrd)
 import Data.List.NonEmpty (NonEmpty)
 import Data.List1
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Misc
 import Data.Qualified
 import Data.Range (Range, fromRange, rangedSchema)
 import Data.SOP
 import Data.Schema
-import qualified Data.Set as Set
-import qualified Data.Swagger as S
-import qualified Data.UUID as UUID
-import qualified Data.UUID.V5 as UUIDV5
+import Data.Set qualified as Set
+import Data.Swagger qualified as S
+import Data.UUID qualified as UUID
+import Data.UUID.V5 qualified as UUIDV5
 import Imports
 import Servant.API
 import System.Random (randomRIO)
@@ -314,28 +312,6 @@ instance ToSchema CreateGroupConversation where
         (\(d, s) -> flip Qualified d <$> Set.toList s) =<< Map.assocs m
       fromFlatList :: Ord a => [Qualified a] -> Map Domain (Set a)
       fromFlatList = fmap Set.fromList . indexQualified
-
-newtype CreateConversationRejected = CreateConversationRejected
-  { nonFederatingBackends :: (Domain, Domain)
-  }
-  deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform CreateConversationRejected)
-  deriving (ToJSON, FromJSON, S.ToSchema) via Schema CreateConversationRejected
-
-instance ToSchema CreateConversationRejected where
-  schema =
-    objectWithDocModifier
-      "CreateConversationRejected"
-      (description ?~ "A rejected conversation creation object including a pair of remote backends that do not federate with each other")
-      $ CreateConversationRejected
-        <$> (fromTuple . nonFederatingBackends) .= field "non_federating_backends" (array schema `withParser` validate)
-    where
-      fromTuple :: (Domain, Domain) -> [Domain]
-      fromTuple (d, d1) = [d, d1]
-
-      validate :: [Domain] -> A.Parser (Domain, Domain)
-      validate [d, d1] = pure (d, d1)
-      validate _ = fail "expected exactly two domains"
 
 -- | Limited view of a 'Conversation'. Is used to inform users with an invite
 -- link about the conversation.

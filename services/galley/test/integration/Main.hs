@@ -20,12 +20,13 @@ module Main
   )
 where
 
-import qualified API
-import qualified API.SQS as SQS
-import Bilge hiding (body, header)
+import API qualified
+import API.SQS qualified as SQS
+import Bilge hiding (body, header, host, port)
+import Bilge qualified
 import Cassandra.Util
 import Control.Lens
-import qualified Data.ByteString.Char8 as BS
+import Data.ByteString.Char8 qualified as BS
 import Data.ByteString.Conversion
 import Data.Metrics.Test (pathsConsistencyCheck)
 import Data.Metrics.WaiRoute (treeToPaths)
@@ -34,24 +35,27 @@ import Data.Tagged
 import Data.Text (pack)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Yaml (decodeFileEither)
+import Federation
 import Galley.API (sitemap)
-import qualified Galley.Aws as Aws
-import Galley.Options
+import Galley.Aws qualified as Aws
+import Galley.Options hiding (endpoint)
+import Galley.Options qualified as O
 import Imports hiding (local)
 import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.TLS (tlsManagerSettings)
 import Network.Wai.Utilities.Server (compile)
 import OpenSSL (withOpenSSL)
 import Options.Applicative
-import qualified System.Logger.Class as Logger
+import System.Logger.Class qualified as Logger
 import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.Options
+import TestHelpers (test)
 import TestSetup
 import Util.Options
 import Util.Options.Common
 import Util.Test
-import qualified Util.Test.SQS as SQS
+import Util.Test.SQS qualified as SQS
 
 newtype ServiceConfigFile = ServiceConfigFile String
   deriving (Eq, Ord, Typeable)
@@ -93,38 +97,46 @@ main = withOpenSSL $ runTests go
               "inconsistent sitemap"
               mempty
               (pathsConsistencyCheck . treeToPaths . compile $ Galley.API.sitemap),
-          API.tests setup
+          API.tests setup,
+          testGroup
+            "Federation Domains"
+            [ test setup "No-Op" updateFedDomainsTestNoop',
+              test setup "Add Remote" updateFedDomainsTestAddRemote',
+              test setup "Remove Remote From Local" updateFedDomainsTestRemoveRemoteFromLocal',
+              test setup "Remove Local From Remote" updateFedDomainsTestRemoveLocalFromRemote'
+            ],
+          test setup "isConvMemberL" isConvMemberLTests
         ]
     getOpts gFile iFile = do
       m <- newManager tlsManagerSettings {managerResponseTimeout = responseTimeoutMicro 300000000}
-      let local p = Endpoint {_epHost = "127.0.0.1", _epPort = p}
+      let local p = Endpoint {_host = "127.0.0.1", _port = p}
       gConf <- handleParseError =<< decodeFileEither gFile
       iConf <- handleParseError =<< decodeFileEither iFile
       -- FUTUREWORK: we don't support process env setup any more, so both gconf and iConf
       -- must be 'Just'.  the following code could be simplified a lot, but this should
       -- probably happen after (or at least while) unifying the integration test suites into
       -- a single library.
-      galleyEndpoint <- optOrEnv galley iConf (local . read) "GALLEY_WEB_PORT"
+      galleyEndpoint <- optOrEnv (.galley) iConf (local . read) "GALLEY_WEB_PORT"
       let g = mkRequest galleyEndpoint
-      b <- mkRequest <$> optOrEnv brig iConf (local . read) "BRIG_WEB_PORT"
-      c <- mkRequest <$> optOrEnv cannon iConf (local . read) "CANNON_WEB_PORT"
+      b <- mkRequest <$> optOrEnv (.brig) iConf (local . read) "BRIG_WEB_PORT"
+      c <- mkRequest <$> optOrEnv (.cannon) iConf (local . read) "CANNON_WEB_PORT"
       -- unset this env variable in galley's config to disable testing SQS team events
-      q <- join <$> optOrEnvSafe queueName gConf (Just . pack) "GALLEY_SQS_TEAM_EVENTS"
-      e <- join <$> optOrEnvSafe endpoint gConf (fromByteString . BS.pack) "GALLEY_SQS_ENDPOINT"
+      q <- join <$> optOrEnvSafe queueName' gConf (Just . pack) "GALLEY_SQS_TEAM_EVENTS"
+      e <- join <$> optOrEnvSafe endpoint' gConf (fromByteString . BS.pack) "GALLEY_SQS_ENDPOINT"
       convMaxSize <- optOrEnv maxSize gConf read "CONV_MAX_SIZE"
       awsEnv <- initAwsEnv e q
       -- Initialize cassandra
-      let ch = fromJust gConf ^. optCassandra . casEndpoint . epHost
-      let cp = fromJust gConf ^. optCassandra . casEndpoint . epPort
-      let ck = fromJust gConf ^. optCassandra . casKeyspace
+      let ch = fromJust gConf ^. cassandra . endpoint . host
+      let cp = fromJust gConf ^. cassandra . endpoint . port
+      let ck = fromJust gConf ^. cassandra . keyspace
       lg <- Logger.new Logger.defSettings
       db <- defInitCassandra ck ch cp lg
       teamEventWatcher <- sequence $ SQS.watchSQSQueue <$> ((^. Aws.awsEnv) <$> awsEnv) <*> q
       pure $ TestSetup (fromJust gConf) (fromJust iConf) m g b c awsEnv convMaxSize db (FedClient m galleyEndpoint) teamEventWatcher
-    queueName = fmap (view awsQueueName) . view optJournal
-    endpoint = fmap (view awsEndpoint) . view optJournal
-    maxSize = view (optSettings . setMaxConvSize)
+    queueName' = fmap (view queueName) . view journal
+    endpoint' = fmap (view O.endpoint) . view journal
+    maxSize = view (settings . maxConvSize)
     initAwsEnv (Just e) (Just q) = Just <$> SQS.mkAWSEnv (JournalOpts q e)
     initAwsEnv _ _ = pure Nothing
     releaseOpts _ = pure ()
-    mkRequest (Endpoint h p) = host (encodeUtf8 h) . port p
+    mkRequest (Endpoint h p) = Bilge.host (encodeUtf8 h) . Bilge.port p

@@ -21,20 +21,20 @@ module API.User
   )
 where
 
-import qualified API.User.Account
-import qualified API.User.Auth
-import qualified API.User.Client
-import qualified API.User.Connection
-import qualified API.User.Handles
-import qualified API.User.PasswordReset
-import qualified API.User.Property
-import qualified API.User.RichInfo
+import API.User.Account qualified
+import API.User.Auth qualified
+import API.User.Client qualified
+import API.User.Connection qualified
+import API.User.Handles qualified
+import API.User.PasswordReset qualified
+import API.User.Property qualified
+import API.User.RichInfo qualified
 import API.User.Util
 import Bilge hiding (accept, timeout)
-import qualified Brig.AWS as AWS
-import qualified Brig.Options as Opt
-import qualified Brig.ZAuth as ZAuth
-import qualified Cassandra as DB
+import Brig.AWS qualified as AWS
+import Brig.Options qualified as Opt
+import Brig.ZAuth qualified as ZAuth
+import Cassandra qualified as DB
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Imports
 import Test.Tasty hiding (Timeout)

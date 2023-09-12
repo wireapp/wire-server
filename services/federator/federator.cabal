@@ -33,6 +33,7 @@ extra-source-files:
   test/resources/unit/unit-ca.pem
 
 library
+  -- cabal-fmt: expand src
   exposed-modules:
     Federator.App
     Federator.Discovery
@@ -40,13 +41,16 @@ library
     Federator.Error
     Federator.Error.ServerError
     Federator.ExternalServer
+    Federator.Health
     Federator.InternalServer
+    Federator.Metrics
     Federator.MockServer
     Federator.Monitor
     Federator.Monitor.Internal
     Federator.Options
     Federator.Remote
     Federator.Response
+    Federator.RPC
     Federator.Run
     Federator.Service
     Federator.Validation
@@ -131,8 +135,10 @@ library
     , pem
     , polysemy
     , polysemy-wire-zoo
+    , prometheus-client
     , servant
     , servant-client-core
+    , servant-server
     , text
     , tinylog
     , transformers
@@ -146,7 +152,7 @@ library
     , x509
     , x509-validation
 
-  default-language:   Haskell2010
+  default-language:   GHC2021
 
 executable federator
   main-is:            Main.hs
@@ -207,7 +213,7 @@ executable federator
     , imports
     , types-common
 
-  default-language:   Haskell2010
+  default-language:   GHC2021
 
 executable federator-integration
   main-is:            Main.hs
@@ -287,7 +293,6 @@ executable federator-integration
     , imports
     , kan-extensions
     , lens
-    , mtl
     , optparse-applicative
     , polysemy
     , QuickCheck
@@ -302,7 +307,7 @@ executable federator-integration
     , wire-api-federation
     , yaml
 
-  default-language:   Haskell2010
+  default-language:   GHC2021
 
 test-suite federator-tests
   type:               exitcode-stdio-1.0
@@ -393,11 +398,13 @@ test-suite federator-tests
     , servant
     , servant-client
     , servant-client-core
+    , servant-server
     , tasty
     , tasty-hunit
     , tasty-quickcheck
     , temporary
     , text
+    , tinylog
     , transformers
     , types-common
     , unix
@@ -411,4 +418,4 @@ test-suite federator-tests
     , x509-validation
     , yaml
 
-  default-language:   Haskell2010
+  default-language:   GHC2021

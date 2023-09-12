@@ -26,13 +26,13 @@ module Work where
 import Cassandra
 import Data.Conduit
 import Data.Conduit.Internal (zipSources)
-import qualified Data.Conduit.List as C
+import Data.Conduit.List qualified as C
 import Data.Id
 import Data.Misc
 import Galley.Cassandra.Instances ()
 import Imports
 import System.Logger (Logger)
-import qualified System.Logger as Log
+import System.Logger qualified as Log
 import UnliftIO.Async (pooledMapConcurrentlyN)
 import Wire.API.Team.Feature
 import Wire.API.User
@@ -67,5 +67,6 @@ writeSsoFlags = mapM_ (`setSSOTeamConfig` FeatureStatusEnabled)
     setSSOTeamConfig :: MonadClient m => TeamId -> FeatureStatus -> m ()
     setSSOTeamConfig tid ssoTeamConfigStatus = do
       retry x5 $ write updateSSOTeamConfig (params LocalQuorum (ssoTeamConfigStatus, tid))
+
     updateSSOTeamConfig :: PrepQuery W (FeatureStatus, TeamId) ()
-    updateSSOTeamConfig = "update team_features set sso_status = ? where team_id = ?"
+    updateSSOTeamConfig = {- `IF EXISTS`, but that requires benchmarking -} "update team_features set sso_status = ? where team_id = ?"

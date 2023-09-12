@@ -23,14 +23,14 @@ where
 import Data.Id
 import Data.Range
 import Data.UUID as UUID
-import qualified Data.UUID.Util as UUID
+import Data.UUID.Util qualified as UUID
 import Gundeck.Monad
-import qualified Gundeck.Notification as Notification
-import qualified Gundeck.Notification.Data as Data
-import qualified Gundeck.Push as Push
+import Gundeck.Notification qualified as Notification
+import Gundeck.Notification.Data qualified as Data
+import Gundeck.Push qualified as Push
 import Imports
 import Servant (HasServer (..), (:<|>) (..))
-import qualified Wire.API.Notification as Public
+import Wire.API.Notification qualified as Public
 import Wire.API.Routes.Named (Named (Named))
 import Wire.API.Routes.Public.Gundeck
 

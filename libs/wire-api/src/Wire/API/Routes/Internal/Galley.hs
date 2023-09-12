@@ -24,7 +24,7 @@ import Data.Swagger (Swagger, info, title)
 import GHC.TypeLits (AppendSymbol)
 import Imports hiding (head)
 import Servant hiding (JSON, WithStatus)
-import qualified Servant hiding (WithStatus)
+import Servant qualified hiding (WithStatus)
 import Servant.Swagger
 import Wire.API.ApplyMods
 import Wire.API.Conversation.Role
@@ -65,8 +65,7 @@ type LegalHoldFeatureStatusChangeErrors =
 
 type LegalHoldFeaturesStatusChangeFederatedCalls =
   '[ MakesFederatedCall 'Galley "on-conversation-updated",
-     MakesFederatedCall 'Galley "on-mls-message-sent",
-     MakesFederatedCall 'Galley "on-new-remote-conversation"
+     MakesFederatedCall 'Galley "on-mls-message-sent"
    ]
 
 type IFeatureAPI =
@@ -197,11 +196,13 @@ type InternalAPIBase =
     :<|> Named
            "connect"
            ( Summary "Create a connect conversation (deprecated)"
+               :> MakesFederatedCall 'Brig "api-version"
                :> MakesFederatedCall 'Galley "on-conversation-created"
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> CanThrow 'ConvNotFound
                :> CanThrow 'InvalidOperation
                :> CanThrow 'NotConnected
+               :> CanThrow UnreachableBackends
                :> ZLocalUser
                :> ZOptConn
                :> "conversations"
@@ -294,6 +295,7 @@ type ITeamsAPIBase =
              "unchecked-add-team-member"
              ( CanThrow 'TooManyTeamMembers
                  :> CanThrow 'TooManyTeamMembersOnTeamWithLegalhold
+                 :> CanThrow 'TooManyTeamAdmins
                  :> ReqBody '[Servant.JSON] NewTeamMember
                  :> MultiVerb1 'POST '[Servant.JSON] (RespondEmpty 200 "OK")
              )
@@ -320,6 +322,7 @@ type ITeamsAPIBase =
                         :> CanThrow 'InvalidPermissions
                         :> CanThrow 'TeamNotFound
                         :> CanThrow 'TeamMemberNotFound
+                        :> CanThrow 'TooManyTeamAdmins
                         :> CanThrow 'NotATeamMember
                         :> CanThrow OperationDenied
                         :> ReqBody '[Servant.JSON] NewTeamMember
@@ -416,6 +419,7 @@ type IFederationAPI =
   Named
     "get-federation-status"
     ( Summary "Get the federation status (only needed for integration/QA tests at the time of writing it)"
+        :> CanThrow UnreachableBackends
         :> ZLocalUser
         :> "federation-status"
         :> ReqBody '[Servant.JSON] RemoteDomains

@@ -28,12 +28,13 @@ import Brig.Types.Intra
 import Control.Applicative
 import Control.Lens hiding ((.=))
 import Data.Aeson (ToJSON, Value)
+import Data.Aeson qualified as A
 import Data.ByteString.Conversion
 import Data.Handle
 import Data.Id
 import Data.Range (unsafeRange)
 import Data.Schema
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import GHC.TypeLits
 import Imports
 import Stern.API.Routes (UserConnectionGroups (..))
@@ -45,12 +46,12 @@ import Util
 import Wire.API.OAuth (OAuthApplicationName (OAuthApplicationName), OAuthClientConfig (..), OAuthClientCredentials (..))
 import Wire.API.Properties (PropertyKey)
 import Wire.API.Routes.Internal.Brig.Connection
-import qualified Wire.API.Routes.Internal.Brig.EJPD as EJPD
+import Wire.API.Routes.Internal.Brig.EJPD qualified as EJPD
 import Wire.API.Routes.Internal.Galley.TeamsIntra (tdStatus)
-import qualified Wire.API.Routes.Internal.Galley.TeamsIntra as Team
+import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
 import Wire.API.Team (teamId)
 import Wire.API.Team.Feature
-import qualified Wire.API.Team.Feature as Public
+import Wire.API.Team.Feature qualified as Public
 import Wire.API.Team.SearchVisibility
 import Wire.API.User
 import Wire.API.User.Search
@@ -95,6 +96,7 @@ tests s =
       test s "GET /teams/:id" testGetTeamInfo,
       test s "GET i/user/meta-info?id=..." testGetUserMetaInfo,
       test s "/teams/:tid/search-visibility" testSearchVisibility,
+      test s "/sso-domain-redirect" testRudSsoDomainRedirect,
       test s "i/oauth/clients" testCrudOAuthClient
       -- The following endpoints can not be tested because they require ibis:
       -- - `GET /teams/:tid/billing`
@@ -102,6 +104,34 @@ tests s =
       -- - `PUT /teams/:tid/billing`
       -- - `POST /teams/:tid/billing`
     ]
+
+testRudSsoDomainRedirect :: TestM ()
+testRudSsoDomainRedirect = do
+  testGet 1 Nothing
+  putSsoDomainRedirect sampleDomain sampleConfig sampleWelcome
+  testGet 2 (Just $ A.object ["config_json_url" A..= sampleConfig, "webapp_welcome_url" A..= sampleWelcome])
+  putSsoDomainRedirect sampleDomain sampleConfig' sampleWelcome'
+  testGet 3 (Just $ A.object ["config_json_url" A..= sampleConfig', "webapp_welcome_url" A..= sampleWelcome'])
+  deleteSsoDomainRedirect sampleDomain
+  testGet 4 Nothing
+  where
+    sampleDomain :: ByteString
+    sampleDomain = "57119282-3071-11ee-aebe-a32e317d3fb5.example.com"
+
+    sampleConfig :: Text
+    sampleConfig = "https://config.57119282-3071-11ee-aebe-a32e317d3fb5.example.com/config.json"
+
+    sampleWelcome :: Text
+    sampleWelcome = "https://app.57119282-3071-11ee-aebe-a32e317d3fb5.example.com/welcome.html"
+
+    sampleConfig' :: Text
+    sampleConfig' = "https://s3.57119282-3071-11ee-aebe-a32e317d3fb5.example.com/new-wire-config.json"
+
+    sampleWelcome' :: Text
+    sampleWelcome' = "https://new-app.57119282-3071-11ee-aebe-a32e317d3fb5.example.com/new"
+
+    testGet :: Int -> Maybe Value -> TestM ()
+    testGet (show -> msg) expectedEntry = liftIO . (assertEqual msg expectedEntry) =<< getSsoDomainRedirect sampleDomain
 
 testCrudOAuthClient :: TestM ()
 testCrudOAuthClient = do
@@ -644,6 +674,33 @@ putUserProperty :: UserId -> PropertyKey -> Value -> TestM ()
 putUserProperty uid k v = do
   b <- view tsBrig
   void $ put (b . paths ["properties", toByteString' k] . json v . zUser uid . zConn "123" . expect2xx)
+
+getSsoDomainRedirect :: ByteString -> TestM (Maybe Value)
+getSsoDomainRedirect domain = do
+  s <- view tsStern
+  r <- get (s . path "sso-domain-redirect" . query [("domain", Just domain)] . expect2xx)
+  pure $ responseJsonUnsafe r
+
+putSsoDomainRedirect :: ByteString -> Text -> Text -> TestM ()
+putSsoDomainRedirect domain (cs -> configurl) (cs -> welcomeurl) = do
+  s <- view tsStern
+  r <-
+    put
+      ( s
+          . path "sso-domain-redirect"
+          . query
+            [ ("domain", Just domain),
+              ("configurl", Just configurl),
+              ("welcomeurl", Just welcomeurl)
+            ]
+          . expect2xx
+      )
+  pure $ responseJsonUnsafe r
+
+deleteSsoDomainRedirect :: ByteString -> TestM ()
+deleteSsoDomainRedirect domain = do
+  s <- view tsStern
+  void $ delete (s . path "sso-domain-redirect" . query [("domain", Just domain)] . expect2xx)
 
 registerOAuthClient :: OAuthClientConfig -> TestM OAuthClientCredentials
 registerOAuthClient cfg = do

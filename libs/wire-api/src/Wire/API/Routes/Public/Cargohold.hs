@@ -22,16 +22,15 @@ import Data.Kind
 import Data.Metrics.Servant
 import Data.Qualified
 import Data.SOP
-import qualified Data.Swagger as Swagger
 import Imports
 import Servant
-import Servant.Swagger.Internal
 import Servant.Swagger.Internal.Orphans ()
 import URI.ByteString
 import Wire.API.Asset
 import Wire.API.Error
 import Wire.API.Error.Cargohold
 import Wire.API.MakesFederatedCall
+import Wire.API.Routes.API
 import Wire.API.Routes.AssetBody
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Public
@@ -56,8 +55,9 @@ type instance ApplyPrincipalPath 'BotPrincipalTag api = ZBot :> "bot" :> "assets
 
 type instance ApplyPrincipalPath 'ProviderPrincipalTag api = ZProvider :> "provider" :> "assets" :> api
 
-instance HasSwagger (ApplyPrincipalPath tag api) => HasSwagger (tag :> api) where
-  toSwagger _ = toSwagger (Proxy @(ApplyPrincipalPath tag api))
+type instance
+  SpecialiseToVersion v ((tag :: PrincipalTag) :> api) =
+    SpecialiseToVersion v (ApplyPrincipalPath tag api)
 
 instance HasServer (ApplyPrincipalPath tag api) ctx => HasServer (tag :> api) ctx where
   type ServerT (tag :> api) m = ServerT (ApplyPrincipalPath tag api) m
@@ -90,7 +90,7 @@ type GetAsset =
     '[ErrorResponse 'AssetNotFound, AssetRedirect]
     (Maybe (AssetLocation Absolute))
 
-type ServantAPI =
+type CargoholdAPI =
   ( Summary "Renew an asset token"
       :> Until 'V2
       :> CanThrow 'AssetNotFound
@@ -315,5 +315,7 @@ type MainAPI =
                   ()
          )
 
-swaggerDoc :: Swagger.Swagger
-swaggerDoc = toSwagger (Proxy @ServantAPI)
+data CargoholdAPITag
+
+instance ServiceAPI CargoholdAPITag v where
+  type ServiceAPIRoutes CargoholdAPITag = CargoholdAPI

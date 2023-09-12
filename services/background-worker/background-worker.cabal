@@ -17,9 +17,11 @@ library
     Wire.BackgroundWorker.Env
     Wire.BackgroundWorker.Health
     Wire.BackgroundWorker.Options
+    Wire.BackgroundWorker.Util
+    Wire.Defederation
 
   hs-source-dirs:     src
-  default-language:   Haskell2010
+  default-language:   GHC2021
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
@@ -28,12 +30,19 @@ library
   build-depends:
       aeson
     , amqp
+    , async
+    , base
+    , bilge
+    , bytestring-conversion
     , containers
     , exceptions
     , extended
     , HsOpenSSL
+    , http-client
+    , http-types
     , http2-manager
     , imports
+    , lens
     , metrics-core
     , metrics-wai
     , monad-control
@@ -47,6 +56,7 @@ library
     , types-common
     , unliftio
     , wai-utilities
+    , wire-api
     , wire-api-federation
 
   default-extensions:
@@ -101,7 +111,7 @@ executable background-worker
     , types-common
 
   hs-source-dirs:     exec
-  default-language:   Haskell2010
+  default-language:   GHC2021
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
@@ -151,7 +161,7 @@ executable background-worker
     ViewPatterns
 
 test-suite background-worker-test
-  default-language:   Haskell2010
+  default-language:   GHC2021
   type:               exitcode-stdio-1.0
   hs-source-dirs:     test
   main-is:            Main.hs
@@ -165,6 +175,8 @@ test-suite background-worker-test
   other-modules:
     Main
     Test.Wire.BackendNotificationPusherSpec
+    Test.Wire.DefederationSpec
+    Test.Wire.Util
 
   build-depends:
       aeson
@@ -176,8 +188,10 @@ test-suite background-worker-test
     , extended
     , federator
     , hspec
+    , http-client
     , http-media
     , http-types
+    , HUnit
     , imports
     , prometheus-client
     , QuickCheck

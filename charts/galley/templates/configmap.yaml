@@ -59,9 +59,15 @@ data:
       {{- if .settings.exposeInvitationURLsTeamAllowlist }}
       exposeInvitationURLsTeamAllowlist: {{ .settings.exposeInvitationURLsTeamAllowlist }}
       {{- end }}
+      {{- if .settings.conversationCodeURI }}
       conversationCodeURI: {{ .settings.conversationCodeURI | quote }}
-      {{- if .settings.enableIndexedBillingTeamMembers }}
-      enableIndexedBillingTeamMembers: {{ .settings.enableIndexedBillingTeamMembers }}
+      {{- else if .settings.multiIngress }}
+      multiIngress: {{- toYaml .settings.multiIngress | nindent 8 }}
+      {{- else }}
+      {{ fail "Either settings.conversationCodeURI or settings.multiIngress have to be set"}}
+      {{- end }}
+      {{- if (and .settings.conversationCodeURI .settings.multiIngress) }}
+      {{ fail "settings.conversationCodeURI and settings.multiIngress are mutually exclusive" }}
       {{- end }}
       federationDomain: {{ .settings.federationDomain }}
       {{- if $.Values.secrets.mlsPrivateKeys }}

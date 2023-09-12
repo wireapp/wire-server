@@ -28,16 +28,16 @@ where
 import Cassandra as C
 import Control.Error (MaybeT (..))
 import Control.Lens ((^.), _1)
-import qualified Data.Aeson as JSON
-import qualified Data.ByteString.Lazy as BSL
+import Data.Aeson qualified as JSON
+import Data.ByteString.Lazy qualified as BSL
 import Data.Id
-import qualified Data.List.NonEmpty as NonEmpty
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.List1 (List1, toNonEmpty)
 import Data.Range (Range, fromRange)
 import Data.Sequence (Seq, ViewL ((:<)))
-import qualified Data.Sequence as Seq
+import Data.Sequence qualified as Seq
 import Gundeck.Env
-import Gundeck.Options (NotificationTTL (..), optSettings, setInternalPageSize, setMaxPayloadLoadSize)
+import Gundeck.Options (NotificationTTL (..), internalPageSize, maxPayloadLoadSize, settings)
 import Gundeck.Push.Native.Serialise ()
 import Imports hiding (cs)
 import UnliftIO (pooledForConcurrentlyN_)
@@ -119,7 +119,7 @@ fetchId u n c = runMaybeT $ do
 
 fetchLast :: (MonadReader Env m, MonadClient m) => UserId -> Maybe ClientId -> m (Maybe QueuedNotification)
 fetchLast u c = do
-  pageSize <- fromMaybe 100 <$> asks (^. options . optSettings . setInternalPageSize)
+  pageSize <- fromMaybe 100 <$> asks (^. options . settings . internalPageSize)
   go (Page True [] (firstPage pageSize))
   where
     go page = case result page of
@@ -219,12 +219,12 @@ mkResultPage size more ns =
 
 fetch :: (MonadReader Env m, MonadClient m, MonadUnliftIO m) => UserId -> Maybe ClientId -> Maybe NotificationId -> Range 100 10000 Int32 -> m ResultPage
 fetch u c Nothing (fromIntegral . fromRange -> size) = do
-  pageSize <- fromMaybe 100 <$> asks (^. options . optSettings . setInternalPageSize)
+  pageSize <- fromMaybe 100 <$> asks (^. options . settings . internalPageSize)
   let page1 = retry x1 $ paginate cqlStart (paramsP LocalQuorum (Identity u) pageSize)
   -- We always need to look for one more than requested in order to correctly
   -- report whether there are more results.
-  maxPayloadLoadSize <- fromMaybe (5 * 1024 * 1024) <$> asks (^. options . optSettings . setMaxPayloadLoadSize)
-  (ns, more) <- collect c Seq.empty True (size + 1) maxPayloadLoadSize page1
+  maxPayloadSize <- fromMaybe (5 * 1024 * 1024) <$> asks (^. options . settings . maxPayloadLoadSize)
+  (ns, more) <- collect c Seq.empty True (size + 1) maxPayloadSize page1
   -- Drop the extra element at the end if present
   pure $! mkResultPage size more ns
   where
@@ -235,7 +235,7 @@ fetch u c Nothing (fromIntegral . fromRange -> size) = do
       \WHERE user = ? \
       \ORDER BY id ASC"
 fetch u c (Just since) (fromIntegral . fromRange -> size) = do
-  pageSize <- fromMaybe 100 <$> asks (^. options . optSettings . setInternalPageSize)
+  pageSize <- fromMaybe 100 <$> asks (^. options . settings . internalPageSize)
   let page1 =
         retry x1 $
           paginate cqlSince (paramsP LocalQuorum (u, TimeUuid (toUUID since)) pageSize)
@@ -243,8 +243,8 @@ fetch u c (Just since) (fromIntegral . fromRange -> size) = do
   -- notification corresponding to the `since` argument itself. The second is
   -- to get an accurate `hasMore`, just like in the case above.
 
-  maxPayloadLoadSize <- fromMaybe (5 * 1024 * 1024) <$> asks (^. options . optSettings . setMaxPayloadLoadSize)
-  (ns, more) <- collect c Seq.empty True (size + 2) maxPayloadLoadSize page1
+  maxPayloadSize <- fromMaybe (5 * 1024 * 1024) <$> asks (^. options . settings . maxPayloadLoadSize)
+  (ns, more) <- collect c Seq.empty True (size + 2) maxPayloadSize page1
   -- Remove notification corresponding to the `since` argument, and record if it is found.
   let (ns', sinceFound) = case Seq.viewl ns of
         x :< xs | since == x ^. queuedNotificationId -> (xs, True)

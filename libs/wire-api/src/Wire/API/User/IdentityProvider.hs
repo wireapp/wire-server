@@ -19,26 +19,28 @@
 
 module Wire.API.User.IdentityProvider where
 
-import qualified Cassandra as Cql
+import Cassandra qualified as Cql
 import Control.Lens (makeLenses, (.~), (?~))
 import Control.Monad.Except
 import Data.Aeson
 import Data.Aeson.TH
-import qualified Data.Attoparsec.ByteString as AP
-import qualified Data.Binary.Builder as BSB
-import qualified Data.ByteString.Conversion as BSC
+import Data.Aeson.Types (parseMaybe)
+import Data.Attoparsec.ByteString qualified as AP
+import Data.Binary.Builder qualified as BSB
+import Data.ByteString.Conversion qualified as BSC
 import Data.HashMap.Strict.InsOrd (InsOrdHashMap)
-import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
+import Data.HashMap.Strict.InsOrd qualified as InsOrdHashMap
 import Data.Id (TeamId)
 import Data.Proxy (Proxy (Proxy))
 import Data.Swagger
 import Imports
 import Network.HTTP.Media ((//))
 import SAML2.WebSSO (IdPConfig)
-import qualified SAML2.WebSSO as SAML
+import SAML2.WebSSO qualified as SAML
 import SAML2.WebSSO.Types.TH (deriveJSONOptions)
 import Servant.API as Servant hiding (MkLink, URI (..))
 import Wire.API.User.Orphans (samlSchemaOptions)
+import Wire.API.Util.Aeson (defaultOptsDropChar)
 import Wire.Arbitrary (Arbitrary, GenericUniform (GenericUniform))
 
 -- | The identity provider type used in Spar.
@@ -48,17 +50,17 @@ newtype IdPHandle = IdPHandle {unIdPHandle :: Text}
   deriving (Eq, Ord, Show, FromJSON, ToJSON, ToSchema, Arbitrary, Generic)
 
 data WireIdP = WireIdP
-  { _wiTeam :: TeamId,
+  { _team :: TeamId,
     -- | list of issuer names that this idp has replaced, most recent first.  this is used
     -- for finding users that are still stored under the old issuer, see
     -- 'findUserWithOldIssuer', 'moveUserToNewIssuer'.
-    _wiApiVersion :: Maybe WireIdPAPIVersion,
-    _wiOldIssuers :: [SAML.Issuer],
+    _apiVersion :: Maybe WireIdPAPIVersion,
+    _oldIssuers :: [SAML.Issuer],
     -- | the issuer that has replaced this one.  this is set iff a new issuer is created
     -- with the @"replaces"@ query parameter, and it is used to decide whether users not
     -- existing on this IdP can be auto-provisioned (if 'isJust', they can't).
-    _wiReplacedBy :: Maybe SAML.IdPId,
-    _wiHandle :: IdPHandle
+    _replacedBy :: Maybe SAML.IdPId,
+    _handle :: IdPHandle
   }
   deriving (Eq, Show, Generic)
 
@@ -80,7 +82,9 @@ defWireIdPAPIVersion = WireIdPAPIV1
 makeLenses ''WireIdP
 
 deriveJSON deriveJSONOptions ''WireIdPAPIVersion
-deriveJSON deriveJSONOptions ''WireIdP
+
+-- Changing the encoder since we've dropped the field prefixes
+deriveJSON (defaultOptsDropChar '_') ''WireIdP
 
 instance BSC.ToByteString WireIdPAPIVersion where
   builder =
@@ -124,13 +128,14 @@ instance Cql.Cql WireIdPAPIVersion where
 -- | A list of 'IdP's, returned by some endpoints. Wrapped into an object to
 -- allow extensibility later on.
 data IdPList = IdPList
-  { _idplProviders :: [IdP]
+  { _providers :: [IdP]
   }
   deriving (Eq, Show, Generic)
 
 makeLenses ''IdPList
 
-deriveJSON deriveJSONOptions ''IdPList
+-- Same as WireIdP, we want the lenses, so we have to drop a prefix
+deriveJSON (defaultOptsDropChar '_') ''IdPList
 
 -- | JSON-encoded information about metadata: @{"value": <xml>}@.  (Here we could also
 -- implement @{"uri": <url>, "cert": <pinned_pubkey>}@.  check both the certificate we get
@@ -165,16 +170,27 @@ instance ToJSON IdPMetadataInfo where
   toJSON (IdPMetadataValue _ x) =
     object ["value" .= SAML.encode x]
 
+idPMetadataToInfo :: SAML.IdPMetadata -> IdPMetadataInfo
+idPMetadataToInfo =
+  -- 'undefined' is fine because `instance toJSON IdPMetadataValue` ignores it.  'fromJust' is
+  -- ok as long as 'parseJSON . toJSON' always yields a value and not 'Nothing'.
+  fromJust . parseMaybe parseJSON . toJSON . IdPMetadataValue undefined
+
 -- Swagger instances
 
+-- Same as WireIdP, check there for why this has different handling
 instance ToSchema IdPList where
-  declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
+  declareNamedSchema = genericDeclareNamedSchema $ fromAesonOptions $ defaultOptsDropChar '_'
 
 instance ToSchema WireIdPAPIVersion where
   declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
 
 instance ToSchema WireIdP where
-  declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
+  -- We don't want to use `samlSchemaOptions`, as it pulls from saml2-web-sso json options which
+  -- as a `dropWhile not . isUpper` modifier. All we need is to drop the underscore prefix and
+  -- keep the rest of the default processing. This isn't strictly in line with WPB-3798's requirements
+  -- but it is close, and maintains the lens template haskell.
+  declareNamedSchema = genericDeclareNamedSchema $ fromAesonOptions $ defaultOptsDropChar '_'
 
 -- TODO: would be nice to add an example here, but that only works for json?
 

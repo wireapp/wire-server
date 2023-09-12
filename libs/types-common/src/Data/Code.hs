@@ -26,7 +26,7 @@
 module Data.Code where
 
 import Cassandra hiding (Value)
-import qualified Data.Aeson as A
+import Data.Aeson qualified as A
 import Data.Aeson.TH
 import Data.Bifunctor (Bifunctor (first))
 import Data.ByteString.Conversion
@@ -34,7 +34,7 @@ import Data.Json.Util
 import Data.Proxy (Proxy (Proxy))
 import Data.Range
 import Data.Schema
-import qualified Data.Swagger as S
+import Data.Swagger qualified as S
 import Data.Swagger.ParamSchema
 import Data.Text (pack)
 import Data.Text.Ascii
@@ -119,8 +119,8 @@ deriving instance Cql Value
 -- (but without a type, using plain fields). This will make it easier to re-use a key/value
 -- pair in the API, keeping "code" in the JSON for backwards compatibility
 data KeyValuePair = KeyValuePair
-  { kcKey :: !Key,
-    kcCode :: !Value
+  { key :: !Key,
+    code :: !Value
   }
   deriving (Eq, Generic, Show)
 

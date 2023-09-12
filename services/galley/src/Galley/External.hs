@@ -21,6 +21,7 @@ import Bilge.Request
 import Bilge.Retry (httpHandlers)
 import Control.Lens
 import Control.Retry
+import Data.Aeson (ToJSON)
 import Data.ByteString.Conversion.To
 import Data.Id
 import Data.Misc
@@ -33,13 +34,13 @@ import Galley.Intra.User
 import Galley.Monad
 import Galley.Types.Bot.Service (Service, serviceEnabled, serviceFingerprints, serviceToken, serviceUrl)
 import Imports
-import qualified Network.HTTP.Client as Http
+import Network.HTTP.Client qualified as Http
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status (status410)
 import Polysemy
 import Polysemy.Input
 import Ssl.Util (withVerifiedSslConnection)
-import qualified System.Logger.Class as Log
+import System.Logger.Class qualified as Log
 import System.Logger.Message (field, msg, val, (~~))
 import URI.ByteString
 import UnliftIO (Async, async, waitCatch)
@@ -59,7 +60,7 @@ interpretExternalAccess = interpret $ \case
 -- | Like deliver, but ignore orphaned bots and return immediately.
 --
 -- FUTUREWORK: Check if this can be removed.
-deliverAsync :: [(BotMember, Event)] -> App ()
+deliverAsync :: ToJSON e => [(BotMember, e)] -> App ()
 deliverAsync = void . forkIO . void . deliver
 
 -- | Like deliver, but remove orphaned bots and return immediately.
@@ -70,10 +71,10 @@ deliverAndDeleteAsync cnv pushes = void . forkIO $ do
 
 -- Internal -------------------------------------------------------------------
 
-deliver :: [(BotMember, Event)] -> App [BotMember]
+deliver :: forall e. ToJSON e => [(BotMember, e)] -> App [BotMember]
 deliver pp = mapM (async . exec) pp >>= foldM eval [] . zip (map fst pp)
   where
-    exec :: (BotMember, Event) -> App Bool
+    exec :: (BotMember, e) -> App Bool
     exec (b, e) =
       lookupService (botMemService b) >>= \case
         Nothing -> pure False
@@ -117,7 +118,9 @@ deliver pp = mapM (async . exec) pp >>= foldM eval [] . zip (map fst pp)
               ~~ msg (val "External delivery failure")
           pure gone
 
-deliver1 :: Service -> BotMember -> Event -> App ()
+-- Internal -------------------------------------------------------------------
+
+deliver1 :: ToJSON e => Service -> BotMember -> e -> App ()
 deliver1 s bm e
   | s ^. serviceEnabled = do
       let t = toByteString' (s ^. serviceToken)

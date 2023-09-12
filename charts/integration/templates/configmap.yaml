@@ -51,7 +51,15 @@ data:
       host: backgroundWorker.{{ .Release.Namespace }}.svc.cluster.local
       port: 8080
 
+    stern:
+      host: stern.{{ .Release.Namespace }}.svc.cluster.local
+      port: 8080
+
     originDomain: federation-test-helper.{{ .Release.Namespace }}.svc.cluster.local
+
+    rabbitmq:
+      host: rabbitmq
+      adminPort: 15672
 
     backendTwo:
 
@@ -99,4 +107,17 @@ data:
         host: backgroundWorker.{{ .Release.Namespace }}-fed2.svc.cluster.local
         port: 8080
 
+      stern:
+        host: stern.{{ .Release.Namespace }}-fed2.svc.cluster.local
+        port: 8080
+
       originDomain: federation-test-helper.{{ .Release.Namespace }}-fed2.svc.cluster.local
+
+    dynamicBackends:
+      {{- range $name, $dynamicBackend := .Values.config.dynamicBackends }}
+      {{ $name }}:
+        domain: {{ $dynamicBackend.federatorExternalHostPrefix }}.{{ $.Release.Namespace }}.svc.cluster.local
+        federatorExternalPort: {{ $dynamicBackend.federatorExternalPort }}
+      {{- end }}
+    cassandra:
+{{ toYaml .Values.config.cassandra | indent 6}}

@@ -75,7 +75,7 @@ insertConfig iw =
     . M.filter
       ( \iw' ->
           (iw' ^. SAML.idpMetadata . SAML.edIssuer /= iw ^. SAML.idpMetadata . SAML.edIssuer)
-            || (iw' ^. SAML.idpExtraInfo . IP.wiTeam /= iw ^. SAML.idpExtraInfo . IP.wiTeam)
+            || (iw' ^. SAML.idpExtraInfo . IP.team /= iw ^. SAML.idpExtraInfo . IP.team)
       )
 
 getConfig :: SAML.IdPId -> TypedState -> IP.IdP
@@ -106,14 +106,14 @@ getIdByIssuerWithTeamMaybe iss team mp =
     fl :: IP.IdP -> Bool
     fl idp =
       idp ^. SAML.idpMetadata . SAML.edIssuer == iss
-        && idp ^. SAML.idpExtraInfo . IP.wiTeam == team
+        && idp ^. SAML.idpExtraInfo . IP.team == team
 
 getConfigsByTeam :: TeamId -> TypedState -> [IP.IdP]
 getConfigsByTeam team =
   filter fl . M.elems
   where
     fl :: IP.IdP -> Bool
-    fl idp = idp ^. SAML.idpExtraInfo . IP.wiTeam == team
+    fl idp = idp ^. SAML.idpExtraInfo . IP.team == team
 
 deleteConfig :: IP.IdP -> TypedState -> TypedState
 deleteConfig idp =
@@ -126,7 +126,7 @@ updateReplacedBy :: Maybe SAML.IdPId -> SAML.IdPId -> IP.IdP -> IP.IdP
 updateReplacedBy mbReplacing replaced idp =
   idp
     & if idp ^. SAML.idpId == replaced
-      then SAML.idpExtraInfo . IP.wiReplacedBy .~ mbReplacing
+      then SAML.idpExtraInfo . IP.replacedBy .~ mbReplacing
       else id
 
 deleteIssuer :: SAML.Issuer -> TypedState -> TypedState

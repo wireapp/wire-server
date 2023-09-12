@@ -24,6 +24,8 @@ module Gundeck.Aws
     mkEnv,
     Amazon,
     execute,
+    Gundeck.Aws.region,
+    Gundeck.Aws.account,
 
     -- * Errors
     Error (..),
@@ -55,12 +57,12 @@ module Gundeck.Aws
 where
 
 import Amazonka (AWSRequest, AWSResponse, serviceError_abbrev, serviceError_code, serviceError_message, serviceError_status)
-import qualified Amazonka as AWS
-import qualified Amazonka.Data.Text as AWS
-import qualified Amazonka.SNS as SNS
-import qualified Amazonka.SNS.Lens as SNS
-import qualified Amazonka.SQS as SQS
-import qualified Amazonka.SQS.Lens as SQS
+import Amazonka qualified as AWS
+import Amazonka.Data.Text qualified as AWS
+import Amazonka.SNS qualified as SNS
+import Amazonka.SNS.Lens qualified as SNS
+import Amazonka.SQS qualified as SQS
+import Amazonka.SQS.Lens qualified as SQS
 import Amazonka.SQS.Types
 import Control.Error hiding (err, isRight)
 import Control.Lens hiding ((.=))
@@ -70,23 +72,24 @@ import Control.Retry
 import Data.Aeson (decodeStrict)
 import Data.Attoparsec.Text
 import Data.ByteString.Builder
-import qualified Data.HashMap.Strict as Map
+import Data.HashMap.Strict qualified as Map
 import Data.Id
-import qualified Data.Set as Set
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
-import qualified Data.Text.Lazy as LT
+import Data.Set qualified as Set
+import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
+import Data.Text.Lazy qualified as LT
 import Gundeck.Aws.Arn
 import Gundeck.Aws.Sns
 import Gundeck.Instances ()
-import Gundeck.Options
+import Gundeck.Options (Opts)
+import Gundeck.Options qualified as O
 import Gundeck.Types.Push hiding (token)
-import qualified Gundeck.Types.Push as Push
+import Gundeck.Types.Push qualified as Push
 import Imports
 import Network.HTTP.Client
 import Network.HTTP.Types
-import qualified Network.TLS as TLS
-import qualified System.Logger as Logger
+import Network.TLS qualified as TLS
+import System.Logger qualified as Logger
 import System.Logger.Class
 import UnliftIO.Async
 import UnliftIO.Exception
@@ -152,10 +155,10 @@ mkEnv lgr opts mgr = do
   e <-
     mkAwsEnv
       g
-      (mkEndpoint SQS.defaultService (opts ^. optAws . awsSqsEndpoint))
-      (mkEndpoint SNS.defaultService (opts ^. optAws . awsSnsEndpoint))
-  q <- getQueueUrl e (opts ^. optAws . awsQueueName)
-  pure (Env e g q (opts ^. optAws . awsRegion) (opts ^. optAws . awsAccount))
+      (mkEndpoint SQS.defaultService (opts ^. O.aws . O.sqsEndpoint))
+      (mkEndpoint SNS.defaultService (opts ^. O.aws . O.snsEndpoint))
+  q <- getQueueUrl e (opts ^. O.aws . O.queueName)
+  pure (Env e g q (opts ^. O.aws . O.region) (opts ^. O.aws . O.account))
   where
     mkEndpoint svc e = AWS.setEndpoint (e ^. awsSecure) (e ^. awsHost) (e ^. awsPort) svc
     mkAwsEnv g sqs sns = do
@@ -166,7 +169,7 @@ mkEnv lgr opts mgr = do
       pure $
         baseEnv
           { AWS.logger = awsLogger g,
-            AWS.region = opts ^. optAws . awsRegion,
+            AWS.region = opts ^. O.aws . O.region,
             AWS.retryCheck = retryCheck,
             AWS.manager = mgr
           }
@@ -291,7 +294,7 @@ createEndpoint :: UserId -> Push.Transport -> ArnEnv -> AppName -> Push.Token ->
 createEndpoint u tr arnEnv app token = do
   env <- ask
   let top = mkAppTopic arnEnv tr app
-  let arn = mkSnsArn (env ^. region) (env ^. account) top
+  let arn = mkSnsArn env._region env._account top
   let tkn = Push.tokenText token
   let req =
         SNS.newCreatePlatformEndpoint (toText arn) tkn

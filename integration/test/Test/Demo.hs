@@ -1,13 +1,11 @@
 -- | This module is meant to show how Testlib can be used
 module Test.Demo where
 
-import qualified API.Brig as Public
-import qualified API.BrigInternal as Internal
-import qualified API.GalleyInternal as Internal
-import qualified API.Nginz as Nginz
-import Control.Monad.Codensity
+import API.Brig qualified as Public
+import API.BrigInternal qualified as Internal
+import API.GalleyInternal qualified as Internal
+import API.Nginz qualified as Nginz
 import Control.Monad.Cont
-import qualified Data.Map as Map
 import GHC.Stack
 import SetupHelpers
 import Testlib.Prelude
@@ -34,11 +32,10 @@ testDeleteUnknownClient = do
 
 testModifiedBrig :: HasCallStack => App ()
 testModifiedBrig = do
-  withModifiedService
-    Brig
-    (setField "optSettings.setFederationDomain" "overridden.example.com")
-    $ \_domain -> do
-      bindResponse (Public.getAPIVersion OwnDomain)
+  withModifiedBackend
+    (def {brigCfg = setField "optSettings.setFederationDomain" "overridden.example.com"})
+    $ \domain -> do
+      bindResponse (Public.getAPIVersion domain)
       $ \resp -> do
         resp.status `shouldMatchInt` 200
         (resp.json %. "domain") `shouldMatch` "overridden.example.com"
@@ -47,54 +44,56 @@ testModifiedGalley :: HasCallStack => App ()
 testModifiedGalley = do
   (_user, tid) <- createTeam OwnDomain
 
-  let getFeatureStatus = do
-        bindResponse (Internal.getTeamFeature "searchVisibility" tid) $ \res -> do
+  let getFeatureStatus :: (MakesValue domain) => domain -> String -> App Value
+      getFeatureStatus domain team = do
+        bindResponse (Internal.getTeamFeature domain "searchVisibility" team) $ \res -> do
           res.status `shouldMatchInt` 200
           res.json %. "status"
 
-  do
-    getFeatureStatus `shouldMatch` "disabled"
+  getFeatureStatus OwnDomain tid `shouldMatch` "disabled"
 
-  withModifiedService
-    Galley
-    (setField "settings.featureFlags.teamSearchVisibility" "enabled-by-default")
-    $ \_ -> getFeatureStatus `shouldMatch` "enabled"
+  withModifiedBackend
+    def {galleyCfg = setField "settings.featureFlags.teamSearchVisibility" "enabled-by-default"}
+    $ \domain -> do
+      (_user, tid') <- createTeam domain
+      getFeatureStatus domain tid' `shouldMatch` "enabled"
 
 testModifiedCannon :: HasCallStack => App ()
 testModifiedCannon = do
-  withModifiedService Cannon pure $ \_ -> pure ()
+  withModifiedBackend def $ \_ -> pure ()
 
 testModifiedGundeck :: HasCallStack => App ()
 testModifiedGundeck = do
-  withModifiedService Gundeck pure $ \_ -> pure ()
+  withModifiedBackend def $ \_ -> pure ()
 
 testModifiedCargohold :: HasCallStack => App ()
 testModifiedCargohold = do
-  withModifiedService Cargohold pure $ \_ -> pure ()
+  withModifiedBackend def $ \_ -> pure ()
 
 testModifiedSpar :: HasCallStack => App ()
 testModifiedSpar = do
-  withModifiedService Spar pure $ \_ -> pure ()
+  withModifiedBackend def $ \_ -> pure ()
 
 testModifiedServices :: HasCallStack => App ()
 testModifiedServices = do
   let serviceMap =
-        Map.fromList
-          [ (Brig, setField "optSettings.setFederationDomain" "overridden.example.com"),
-            (Galley, setField "settings.featureFlags.teamSearchVisibility" "enabled-by-default")
-          ]
-  runCodensity (withModifiedServices serviceMap) $ \_domain -> do
-    (_user, tid) <- createTeam OwnDomain
-    bindResponse (Internal.getTeamFeature "searchVisibility" tid) $ \res -> do
+        def
+          { brigCfg = setField "optSettings.setFederationDomain" "overridden.example.com",
+            galleyCfg = setField "settings.featureFlags.teamSearchVisibility" "enabled-by-default"
+          }
+
+  withModifiedBackend serviceMap $ \domain -> do
+    (_user, tid) <- createTeam domain
+    bindResponse (Internal.getTeamFeature domain "searchVisibility" tid) $ \res -> do
       res.status `shouldMatchInt` 200
       res.json %. "status" `shouldMatch` "enabled"
 
-    bindResponse (Public.getAPIVersion OwnDomain) $
+    bindResponse (Public.getAPIVersion domain) $
       \resp -> do
         resp.status `shouldMatchInt` 200
         (resp.json %. "domain") `shouldMatch` "overridden.example.com"
 
-    bindResponse (Nginz.getSystemSettingsUnAuthorized OwnDomain) $
+    bindResponse (Nginz.getSystemSettingsUnAuthorized domain) $
       \resp -> do
         resp.status `shouldMatchInt` 200
         resp.json %. "setRestrictUserCreation" `shouldMatch` False
@@ -207,8 +206,8 @@ testUnrace :: App ()
 testUnrace = do
   {-
   -- the following would retry for ~30s and only then fail
-  unrace $ do
+  retryT $ do
     True `shouldMatch` True
     True `shouldMatch` False
   -}
-  unrace $ True `shouldMatch` True
+  retryT $ True `shouldMatch` True

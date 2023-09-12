@@ -21,22 +21,22 @@ module Brig.Index.Migrations
 where
 
 import Brig.Index.Migrations.Types
-import qualified Brig.Index.Options as Opts
-import qualified Brig.User.Search.Index as Search
-import qualified Cassandra as C
-import qualified Cassandra.Settings as C
+import Brig.Index.Options qualified as Opts
+import Brig.User.Search.Index qualified as Search
+import Cassandra qualified as C
+import Cassandra.Settings qualified as C
 import Control.Lens (view, (^.))
 import Control.Monad.Catch (MonadThrow, catchAll, finally, throwM)
 import Data.Aeson (Value, object, (.=))
-import qualified Data.Metrics as Metrics
-import qualified Data.Text as Text
-import qualified Database.Bloodhound as ES
+import Data.Metrics qualified as Metrics
+import Data.Text qualified as Text
+import Database.Bloodhound qualified as ES
 import Imports
-import qualified Network.HTTP.Client as HTTP
+import Network.HTTP.Client qualified as HTTP
 import System.Logger.Class (Logger)
-import qualified System.Logger.Class as Log
+import System.Logger.Class qualified as Log
 import System.Logger.Extended (runWithLogger)
-import qualified Util.Options as Options
+import Util.Options qualified as Options
 
 migrate :: Logger -> Opts.ElasticSettings -> Opts.CassandraSettings -> Options.Endpoint -> IO ()
 migrate l es cas galleyEndpoint = do
@@ -120,21 +120,21 @@ failIfIndexAbsent targetIndex =
 
 -- | Runs only the migrations which need to run
 runMigration :: MigrationVersion -> MigrationActionT IO ()
-runMigration ver = do
-  vmax <- latestMigrationVersion
-  if ver > vmax
+runMigration expectedVersion = do
+  foundVersion <- latestMigrationVersion
+  if expectedVersion > foundVersion
     then do
       Log.info $
         Log.msg (Log.val "Migration necessary.")
-          . Log.field "expectedVersion" vmax
-          . Log.field "foundVersion" ver
+          . Log.field "expectedVersion" expectedVersion
+          . Log.field "foundVersion" foundVersion
       Search.reindexAllIfSameOrNewer
-      persistVersion ver
+      persistVersion expectedVersion
     else do
       Log.info $
         Log.msg (Log.val "No migration necessary.")
-          . Log.field "expectedVersion" vmax
-          . Log.field "foundVersion" ver
+          . Log.field "expectedVersion" expectedVersion
+          . Log.field "foundVersion" foundVersion
 
 persistVersion :: (MonadThrow m, MonadIO m) => MigrationVersion -> MigrationActionT m ()
 persistVersion v =
@@ -148,6 +148,7 @@ persistVersion v =
                 . Log.field "migrationVersion" v
           else throwM $ PersistVersionFailed v $ show persistResponse
 
+-- | Which version is the table space currently running on?
 latestMigrationVersion :: (MonadThrow m, MonadIO m) => MigrationActionT m MigrationVersion
 latestMigrationVersion = do
   resp <- ES.parseEsResponse =<< ES.searchByIndex indexName (ES.mkSearch Nothing Nothing)

@@ -32,25 +32,25 @@ import Control.Monad.Catch (MonadMask, MonadThrow, catch, throwM, try)
 import Control.Retry
 import Data.Aeson (eitherDecode, encode)
 import Data.ByteString.Conversion
-import qualified Data.ByteString.Lazy as L
+import Data.ByteString.Lazy qualified as L
 import Data.Id
 import Data.List1
-import qualified Data.Map as Map
-import qualified Data.Metrics as Metrics
+import Data.Map qualified as Map
+import Data.Metrics qualified as Metrics
 import Data.Misc (Milliseconds (..))
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.Time.Clock.POSIX
 import Gundeck.Monad
-import qualified Gundeck.Presence.Data as Presence
+import Gundeck.Presence.Data qualified as Presence
 import Gundeck.Types.Presence
 import Gundeck.Util
 import Imports hiding (cs)
 import Network.HTTP.Client (HttpExceptionContent (..))
-import qualified Network.HTTP.Client.Internal as Http
+import Network.HTTP.Client.Internal qualified as Http
 import Network.HTTP.Types (StdMethod (POST), status200, status410)
-import qualified Network.URI as URI
+import Network.URI qualified as URI
 import System.Logger.Class (val, (+++), (~~))
-import qualified System.Logger.Class as Log
+import System.Logger.Class qualified as Log
 import UnliftIO (handleAny, mapConcurrently)
 import Wire.API.Internal.BulkPush
 import Wire.API.Internal.Notification

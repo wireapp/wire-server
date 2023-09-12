@@ -1,54 +1,47 @@
-{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# LANGUAGE OverloadedStrings #-}
 
-{-# HLINT ignore "Use tuple-section" #-}
 module Testlib.ModService
-  ( withModifiedService,
-    withModifiedServices,
+  ( withModifiedBackend,
     startDynamicBackend,
     startDynamicBackends,
     traverseConcurrentlyCodensity,
   )
 where
 
-import Control.Applicative ((<|>))
 import Control.Concurrent
 import Control.Concurrent.Async
 import Control.Exception (finally)
-import qualified Control.Exception as E
+import Control.Exception qualified as E
 import Control.Monad.Catch (catch, throwM)
 import Control.Monad.Codensity
 import Control.Monad.Extra
 import Control.Monad.Reader
 import Control.Retry (fibonacciBackoff, limitRetriesByCumulativeDelay, retrying)
 import Data.Aeson hiding ((.=))
-import Data.Attoparsec.ByteString.Char8
-import Data.Either.Extra (eitherToMaybe)
+import Data.Default
 import Data.Foldable
 import Data.Function
 import Data.Functor
-import qualified Data.Map.Strict as Map
+import Data.Map.Strict qualified as Map
 import Data.Maybe
 import Data.Monoid
+import Data.String
 import Data.String.Conversions (cs)
-import Data.Text hiding (elem, head, map, zip)
-import qualified Data.Text.IO as Text
+import Data.Text qualified as Text
+import Data.Text.IO qualified as Text
 import Data.Traversable
 import Data.Word (Word16)
-import qualified Data.Yaml as Yaml
+import Data.Yaml qualified as Yaml
 import GHC.Stack
-import qualified Network.HTTP.Client as HTTP
-import qualified Network.Socket as N
+import Network.HTTP.Client qualified as HTTP
 import System.Directory (copyFile, createDirectoryIfMissing, doesDirectoryExist, doesFileExist, listDirectory, removeDirectoryRecursive, removeFile)
-import System.Environment (getEnv)
 import System.FilePath
 import System.IO
-import qualified System.IO.Error as Error
 import System.IO.Temp (createTempDirectory, writeTempFile)
-import System.Posix (getEnvironment, killProcess, signalProcess)
+import System.Posix (killProcess, signalProcess)
 import System.Process (CreateProcess (..), ProcessHandle, StdStream (..), createProcess, getPid, proc, terminateProcess, waitForProcess)
 import System.Timeout (timeout)
 import Testlib.App
-import Testlib.Env
 import Testlib.HTTP
 import Testlib.JSON
 import Testlib.Printing
@@ -57,13 +50,9 @@ import Testlib.Types
 import Text.RawString.QQ
 import Prelude
 
-withModifiedService ::
-  Service ->
-  -- | function that edits the config
-  (Value -> App Value) ->
-  (String -> App a) ->
-  App a
-withModifiedService srv modConfig = runCodensity $ withModifiedServices (Map.singleton srv modConfig)
+withModifiedBackend :: HasCallStack => ServiceOverrides -> (HasCallStack => String -> App a) -> App a
+withModifiedBackend overrides k =
+  startDynamicBackends [overrides] (\domains -> k (head domains))
 
 copyDirectoryRecursively :: FilePath -> FilePath -> IO ()
 copyDirectoryRecursively from to = do
@@ -84,8 +73,8 @@ copyDirectoryRecursively from to = do
 -- continuation, the main continuation is run in an environment that
 -- accumulates all the individual environment changes.
 traverseConcurrentlyCodensity ::
-  (a -> Codensity App (Env -> Env)) ->
-  ([a] -> Codensity App (Env -> Env))
+  (HasCallStack => a -> Codensity App (Env -> Env)) ->
+  (HasCallStack => [a] -> Codensity App (Env -> Env))
 traverseConcurrentlyCodensity f args = do
   -- Create variables for synchronisation of the various threads:
   --  * @result@ is used to store the environment change, or possibly an exception
@@ -139,161 +128,115 @@ traverseConcurrentlyCodensity f args = do
     liftIO $ traverse_ wait asyncs
     pure result
 
-startDynamicBackends :: [ServiceOverrides] -> ([String] -> App a) -> App a
-startDynamicBackends beOverrides = runCodensity $ do
-  when (Prelude.length beOverrides > 3) $ lift $ failApp "Too many backends. Currently only 3 are supported."
-  pool <- asks (.resourcePool)
-  resources <- acquireResources (Prelude.length beOverrides) pool
-  void $ traverseConcurrentlyCodensity (\(res, overrides) -> startDynamicBackend res mempty overrides) (zip resources beOverrides)
-  pure $ map (.berDomain) resources
-
-startDynamicBackend :: BackendResource -> Map.Map Service Word16 -> ServiceOverrides -> Codensity App (Env -> Env)
-startDynamicBackend resource staticPorts beOverrides = do
-  defDomain <- asks (.domain1)
-  let services =
-        withOverrides beOverrides $
-          Map.mapWithKey
-            ( \srv conf ->
-                conf
-                  >=> setKeyspace srv
-                  >=> setEsIndex srv
-                  >=> setFederationSettings srv
-                  >=> setAwsAdnQueuesConfigs srv
-                  >=> setField "logLevel" "Warn"
-            )
-            defaultServiceOverridesToMap
-  startBackend
-    resource.berDomain
-    staticPorts
-    (Just resource.berNginzSslPort)
-    (Just setFederatorConfig)
-    services
-    ( \ports sm -> do
-        let templateBackend = fromMaybe (error "no default domain found in backends") $ sm & Map.lookup defDomain
-         in Map.insert resource.berDomain (setFederatorPorts resource $ updateServiceMap ports templateBackend) sm
+startDynamicBackends :: HasCallStack => [ServiceOverrides] -> (HasCallStack => [String] -> App a) -> App a
+startDynamicBackends beOverrides k =
+  runCodensity
+    ( do
+        when (Prelude.length beOverrides > 3) $ lift $ failApp "Too many backends. Currently only 3 are supported."
+        pool <- asks (.resourcePool)
+        resources <- acquireResources (Prelude.length beOverrides) pool
+        void $ traverseConcurrentlyCodensity (uncurry startDynamicBackend) (zip resources beOverrides)
+        pure $ map (.berDomain) resources
     )
+    k
+
+startDynamicBackend :: HasCallStack => BackendResource -> ServiceOverrides -> Codensity App (Env -> Env)
+startDynamicBackend resource beOverrides = do
+  let overrides =
+        mconcat
+          [ setKeyspace,
+            setEsIndex,
+            setFederationSettings,
+            setAwsConfigs,
+            setLogLevel,
+            beOverrides
+          ]
+  startBackend resource overrides allServices
   where
-    setAwsAdnQueuesConfigs :: Service -> Value -> App Value
-    setAwsAdnQueuesConfigs = \case
-      Brig ->
-        setField "aws.userJournalQueue" resource.berAwsUserJournalQueue
-          >=> setField "aws.prekeyTable" resource.berAwsPrekeyTable
-          >=> setField "internalEvents.queueName" resource.berBrigInternalEvents
-          >=> setField "emailSMS.email.sesQueue" resource.berEmailSMSSesQueue
-          >=> setField "emailSMS.general.emailSender" resource.berEmailSMSEmailSender
-          >=> setField "rabbitmq.vHost" resource.berVHost
-      Cargohold -> setField "aws.s3Bucket" resource.berAwsS3Bucket
-      Gundeck -> setField "aws.queueName" resource.berAwsQueueName
-      Galley ->
-        setField "journal.queueName" resource.berGalleyJournal
-          >=> setField "rabbitmq.vHost" resource.berVHost
-      _ -> pure
+    setAwsConfigs :: ServiceOverrides
+    setAwsConfigs =
+      def
+        { brigCfg =
+            setField "aws.userJournalQueue" resource.berAwsUserJournalQueue
+              >=> setField "aws.prekeyTable" resource.berAwsPrekeyTable
+              >=> setField "internalEvents.queueName" resource.berBrigInternalEvents
+              >=> setField "emailSMS.email.sesQueue" resource.berEmailSMSSesQueue
+              >=> setField "emailSMS.general.emailSender" resource.berEmailSMSEmailSender,
+          cargoholdCfg = setField "aws.s3Bucket" resource.berAwsS3Bucket,
+          gundeckCfg = setField "aws.queueName" resource.berAwsQueueName,
+          galleyCfg = setField "journal.queueName" resource.berGalleyJournal
+        }
 
-    setFederationSettings :: Service -> Value -> App Value
+    setFederationSettings :: ServiceOverrides
     setFederationSettings =
-      \case
-        Brig ->
-          setField "optSettings.setFederationDomain" resource.berDomain
-            >=> setField
-              "optSettings.setFederationDomainConfigs"
-              [object ["domain" .= resource.berDomain, "search_policy" .= "full_search"]]
-            >=> setField "federatorInternal.port" resource.berFederatorInternal
-        Cargohold ->
-          setField "settings.federationDomain" resource.berDomain
-            >=> setField "federator.port" resource.berFederatorInternal
-        Galley ->
-          setField "settings.federationDomain" resource.berDomain
-            >=> setField "settings.featureFlags.classifiedDomains.config.domains" [resource.berDomain]
-            >=> setField "federator.port" resource.berFederatorInternal
-        Gundeck -> setField "settings.federationDomain" resource.berDomain
-        BackgroundWorker ->
-          setField "federatorInternal.port" resource.berFederatorInternal
-            >=> setField "rabbitmq.vHost" resource.berVHost
-        _ -> pure
+      def
+        { brigCfg =
+            setField "optSettings.setFederationDomain" resource.berDomain
+              >=> setField "optSettings.setFederationDomainConfigs" ([] :: [Value])
+              >=> setField "federatorInternal.port" resource.berFederatorInternal
+              >=> setField "federatorInternal.host" ("127.0.0.1" :: String)
+              >=> setField "rabbitmq.vHost" resource.berVHost,
+          cargoholdCfg =
+            setField "settings.federationDomain" resource.berDomain
+              >=> setField "federator.host" ("127.0.0.1" :: String)
+              >=> setField "federator.port" resource.berFederatorInternal,
+          galleyCfg =
+            setField "settings.federationDomain" resource.berDomain
+              >=> setField "settings.featureFlags.classifiedDomains.config.domains" [resource.berDomain]
+              >=> setField "federator.host" ("127.0.0.1" :: String)
+              >=> setField "federator.port" resource.berFederatorInternal
+              >=> setField "rabbitmq.vHost" resource.berVHost,
+          gundeckCfg = setField "settings.federationDomain" resource.berDomain,
+          backgroundWorkerCfg =
+            setField "federatorInternal.port" resource.berFederatorInternal
+              >=> setField "federatorInternal.host" ("127.0.0.1" :: String)
+              >=> setField "rabbitmq.vHost" resource.berVHost,
+          federatorInternalCfg =
+            setField "federatorInternal.port" resource.berFederatorInternal
+              >=> setField "federatorExternal.port" resource.berFederatorExternal
+              >=> setField "optSettings.setFederationDomain" resource.berDomain
+        }
 
-    setFederatorConfig :: Value -> App Value
-    setFederatorConfig =
-      setField "federatorInternal.port" resource.berFederatorInternal
-        >=> setField "federatorExternal.port" resource.berFederatorExternal
-        >=> setField "optSettings.setFederationDomain" resource.berDomain
+    setKeyspace :: ServiceOverrides
+    setKeyspace =
+      def
+        { galleyCfg = setField "cassandra.keyspace" resource.berGalleyKeyspace,
+          brigCfg = setField "cassandra.keyspace" resource.berBrigKeyspace,
+          sparCfg = setField "cassandra.keyspace" resource.berSparKeyspace,
+          gundeckCfg = setField "cassandra.keyspace" resource.berGundeckKeyspace
+        }
 
-    setKeyspace :: Service -> Value -> App Value
-    setKeyspace = \case
-      Galley -> setField "cassandra.keyspace" resource.berGalleyKeyspace
-      Brig -> setField "cassandra.keyspace" resource.berBrigKeyspace
-      Spar -> setField "cassandra.keyspace" resource.berSparKeyspace
-      Gundeck -> setField "cassandra.keyspace" resource.berGundeckKeyspace
-      -- other services do not have a DB
-      _ -> pure
+    setEsIndex :: ServiceOverrides
+    setEsIndex =
+      def
+        { brigCfg = setField "elasticsearch.index" resource.berElasticsearchIndex
+        }
 
-    setEsIndex :: Service -> Value -> App Value
-    setEsIndex = \case
-      Brig -> setField "elasticsearch.index" resource.berElasticsearchIndex
-      -- other services do not have an ES index
-      _ -> pure
-
-setFederatorPorts :: BackendResource -> ServiceMap -> ServiceMap
-setFederatorPorts resource sm =
-  sm
-    { federatorInternal = sm.federatorInternal {host = "127.0.0.1", port = resource.berFederatorInternal},
-      federatorExternal = sm.federatorExternal {host = "127.0.0.1", port = resource.berFederatorExternal}
-    }
-
-withModifiedServices :: Map.Map Service (Value -> App Value) -> Codensity App String
-withModifiedServices services = do
-  domain <- lift $ asks (.domain1)
-  void $
-    startBackend domain mempty Nothing Nothing services (\ports -> Map.adjust (updateServiceMap ports) domain)
-  pure domain
-
-updateServiceMap :: Map.Map Service Word16 -> ServiceMap -> ServiceMap
-updateServiceMap ports serviceMap =
-  Map.foldrWithKey
-    ( \srv newPort sm ->
-        case srv of
-          Brig -> sm {brig = sm.brig {host = "127.0.0.1", port = newPort}}
-          Galley -> sm {galley = sm.galley {host = "127.0.0.1", port = newPort}}
-          Cannon -> sm {cannon = sm.cannon {host = "127.0.0.1", port = newPort}}
-          Gundeck -> sm {gundeck = sm.gundeck {host = "127.0.0.1", port = newPort}}
-          Cargohold -> sm {cargohold = sm.cargohold {host = "127.0.0.1", port = newPort}}
-          Nginz -> sm {nginz = sm.nginz {host = "127.0.0.1", port = newPort}}
-          Spar -> sm {spar = sm.spar {host = "127.0.0.1", port = newPort}}
-          BackgroundWorker -> sm {backgroundWorker = sm.backgroundWorker {host = "127.0.0.1", port = newPort}}
-    )
-    serviceMap
-    ports
+    setLogLevel :: ServiceOverrides
+    setLogLevel =
+      def
+        { sparCfg = setField "saml.logLevel" ("Warn" :: String),
+          brigCfg = setField "logLevel" ("Warn" :: String),
+          cannonCfg = setField "logLevel" ("Warn" :: String),
+          cargoholdCfg = setField "logLevel" ("Warn" :: String),
+          galleyCfg = setField "logLevel" ("Warn" :: String),
+          gundeckCfg = setField "logLevel" ("Warn" :: String),
+          nginzCfg = setField "logLevel" ("Warn" :: String),
+          backgroundWorkerCfg = setField "logLevel" ("Warn" :: String),
+          sternCfg = setField "logLevel" ("Warn" :: String),
+          federatorInternalCfg = setField "logLevel" ("Warn" :: String)
+        }
 
 startBackend ::
   HasCallStack =>
-  String ->
-  Map.Map Service Word16 ->
-  Maybe Word16 ->
-  Maybe (Value -> App Value) ->
-  Map.Map Service (Value -> App Value) ->
-  (Map.Map Service Word16 -> Map.Map String ServiceMap -> Map.Map String ServiceMap) ->
+  BackendResource ->
+  ServiceOverrides ->
+  [Service] ->
   Codensity App (Env -> Env)
-startBackend domain staticPorts nginzSslPort mFederatorOverrides services modifyBackends = do
-  -- We already close sockets before starting any services that want to bind to
-  -- it, because if done later some services might already connect to the
-  -- dummy sockets (e.g. federator connecting to nginz) and blocking the ports
-  -- from being bindable
-  ports <-
-    Map.traverseWithKey
-      ( \srv _ ->
-          case Map.lookup srv staticPorts of
-            Just port -> pure port
-            Nothing -> do
-              (port, sock) <- liftIO openFreePort
-              liftIO $ N.close sock
-              pure (fromIntegral port)
-      )
-      services
-  nginzHttp2Port <- liftIO $ do
-    (port, sock) <- openFreePort
-    N.close sock
-    pure (fromIntegral port)
+startBackend resource overrides services = do
+  let domain = resource.berDomain
 
-  let updateServiceMapInConfig :: Maybe Service -> Value -> App Value
+  let updateServiceMapInConfig :: Service -> Value -> App Value
       updateServiceMapInConfig forSrv config =
         foldlM
           ( \c (srv, port) -> do
@@ -309,7 +252,7 @@ startBackend domain staticPorts nginzSslPort mFederatorOverrides services modify
                         )
                     )
               case (srv, forSrv) of
-                (Spar, Just Spar) -> do
+                (Spar, Spar) -> do
                   overridden
                     -- FUTUREWORK: override "saml.spAppUri" and "saml.spSsoUri" with correct port, too?
                     & setField "saml.spHost" ("127.0.0.1" :: String)
@@ -317,61 +260,63 @@ startBackend domain staticPorts nginzSslPort mFederatorOverrides services modify
                 _ -> pure overridden
           )
           config
-          (Map.assocs ports)
+          [(srv, berInternalServicePorts resource srv :: Int) | srv <- services]
 
-  -- close all sockets before starting the services
-  stopInstances <- lift $ do
-    fedInstance <-
-      case mFederatorOverrides of
-        Nothing -> pure []
-        Just override ->
-          readServiceConfig' "federator"
-            >>= updateServiceMapInConfig Nothing
-            >>= override
-            >>= startProcess' domain "federator"
-            <&> (: [])
+  let serviceMap =
+        let g srv = HostPort "127.0.0.1" (berInternalServicePorts resource srv)
+         in ServiceMap
+              { brig = g Brig,
+                backgroundWorker = g BackgroundWorker,
+                cannon = g Cannon,
+                cargohold = g Cargohold,
+                federatorInternal = g FederatorInternal,
+                federatorExternal = HostPort "127.0.0.1" resource.berFederatorExternal,
+                galley = g Galley,
+                gundeck = g Gundeck,
+                nginz = g Nginz,
+                spar = g Spar,
+                -- FUTUREWORK: Set to g Proxy, when we add Proxy to spawned services
+                proxy = HostPort "127.0.0.1" 9087,
+                stern = g Stern
+              }
 
-    otherInstances <- for (Map.assocs services) $ \case
-      (Nginz, _) -> do
+  instances <- lift $ do
+    for services $ \case
+      Nginz -> do
         env <- ask
-        sm <- maybe (failApp "the impossible in withServices happened") pure (Map.lookup domain (modifyBackends (fromIntegral <$> ports) env.serviceMap))
-        port <- maybe (failApp "the impossible in withServices happened") (pure . fromIntegral) (Map.lookup Nginz ports)
-        startNginz domain port nginzHttp2Port nginzSslPort sm
-      (srv, modifyConfig) -> do
+        case env.servicesCwdBase of
+          Nothing -> startNginzK8s domain serviceMap
+          Just _ -> startNginzLocal domain resource.berNginzHttp2Port resource.berNginzSslPort serviceMap
+      srv -> do
         readServiceConfig srv
-          >>= updateServiceMapInConfig (Just srv)
-          >>= modifyConfig
+          >>= updateServiceMapInConfig srv
+          >>= lookupConfigOverride overrides srv
           >>= startProcess domain srv
 
-    let instances = fedInstance <> otherInstances
+  let stopInstances = liftIO $ do
+        -- Running waitForProcess would hang for 30 seconds when the test suite
+        -- is run from within ghci, so we don't wait here.
+        for_ instances $ \(ph, path) -> do
+          terminateProcess ph
+          timeout 50000 (waitForProcess ph) >>= \case
+            Just _ -> pure ()
+            Nothing -> do
+              timeout 100000 (waitForProcess ph) >>= \case
+                Just _ -> pure ()
+                Nothing -> do
+                  mPid <- getPid ph
+                  for_ mPid (signalProcess killProcess)
+                  void $ waitForProcess ph
+          whenM (doesFileExist path) $ removeFile path
+          whenM (doesDirectoryExist path) $ removeDirectoryRecursive path
 
-    let stopInstances = liftIO $ do
-          -- Running waitForProcess would hang for 30 seconds when the test suite
-          -- is run from within ghci, so we don't wait here.
-          for_ instances $ \(ph, path) -> do
-            terminateProcess ph
-            timeout 50000 (waitForProcess ph) >>= \case
-              Just _ -> pure ()
-              Nothing -> do
-                timeout 100000 (waitForProcess ph) >>= \case
-                  Just _ -> pure ()
-                  Nothing -> do
-                    mPid <- getPid ph
-                    for_ mPid (signalProcess killProcess)
-                    void $ waitForProcess ph
-            whenM (doesFileExist path) $ removeFile path
-            whenM (doesDirectoryExist path) $ removeDirectoryRecursive path
-
-    pure stopInstances
-
-  let modifyEnv env =
-        env {serviceMap = modifyBackends (fromIntegral <$> ports) env.serviceMap}
+  let modifyEnv env = env {serviceMap = Map.insert resource.berDomain serviceMap env.serviceMap}
 
   Codensity $ \action -> local modifyEnv $ do
     waitForService <- appToIOKleisli (waitUntilServiceUp domain)
     ioAction <- appToIO (action ())
     liftIO $
-      (mapConcurrently_ waitForService (Map.keys ports) >> ioAction)
+      (mapConcurrently_ waitForService services >> ioAction)
         `finally` stopInstances
 
   pure modifyEnv
@@ -394,20 +339,6 @@ processColors =
 
 startProcess' :: String -> String -> Value -> App (ProcessHandle, FilePath)
 startProcess' domain execName config = do
-  processEnv <- liftIO $ do
-    environment <- getEnvironment
-    rabbitMqUserName <- getEnv "RABBITMQ_USERNAME"
-    rabbitMqPassword <- getEnv "RABBITMQ_PASSWORD"
-    pure
-      ( environment
-          <> [ ("AWS_REGION", "eu-west-1"),
-               ("AWS_ACCESS_KEY_ID", "dummykey"),
-               ("AWS_SECRET_ACCESS_KEY", "dummysecret"),
-               ("RABBITMQ_USERNAME", rabbitMqUserName),
-               ("RABBITMQ_PASSWORD", rabbitMqPassword)
-             ]
-      )
-
   tempFile <- liftIO $ writeTempFile "/tmp" (execName <> "-" <> domain <> "-" <> ".yaml") (cs $ Yaml.encode config)
 
   (cwd, exe) <-
@@ -416,7 +347,7 @@ startProcess' domain execName config = do
       Just dir ->
         (Just (dir </> execName), "../../dist" </> execName)
 
-  (_, Just stdoutHdl, Just stderrHdl, ph) <- liftIO $ createProcess (proc exe ["-c", tempFile]) {cwd = cwd, env = Just processEnv, std_out = CreatePipe, std_err = CreatePipe}
+  (_, Just stdoutHdl, Just stderrHdl, ph) <- liftIO $ createProcess (proc exe ["-c", tempFile]) {cwd = cwd, std_out = CreatePipe, std_err = CreatePipe}
   let prefix = "[" <> execName <> "@" <> domain <> "] "
   let colorize = fromMaybe id (lookup execName processColors)
   void $ liftIO $ forkIO $ logToConsole colorize prefix stdoutHdl
@@ -453,31 +384,31 @@ waitUntilServiceUp domain = \case
     unless isUp $
       failApp ("Time out for service " <> show srv <> " to come up")
 
--- | Open a TCP socket on a random free port. This is like 'warp''s
---   openFreePort.
---
---   Since 0.0.0.1
-openFreePort :: IO (Int, N.Socket)
-openFreePort =
-  E.bracketOnError (N.socket N.AF_INET N.Stream N.defaultProtocol) N.close $
-    \sock -> do
-      N.bind sock $ N.SockAddrInet 0 $ N.tupleToHostAddress (127, 0, 0, 1)
-      N.getSocketName sock >>= \case
-        N.SockAddrInet port _ -> do
-          pure (fromIntegral port, sock)
-        addr ->
-          E.throwIO $
-            Error.mkIOError
-              Error.userErrorType
-              ( "openFreePort was unable to create socket with a SockAddrInet. "
-                  <> "Got "
-                  <> show addr
-              )
-              Nothing
-              Nothing
+startNginzK8s :: String -> ServiceMap -> App (ProcessHandle, FilePath)
+startNginzK8s domain sm = do
+  tmpDir <- liftIO $ createTempDirectory "/tmp" ("nginz" <> "-" <> domain)
+  liftIO $
+    copyDirectoryRecursively "/etc/wire/nginz/" tmpDir
 
-startNginz :: String -> Word16 -> Word16 -> Maybe Word16 -> ServiceMap -> App (ProcessHandle, FilePath)
-startNginz domain localPort http2Port mSslPort sm = do
+  let nginxConfFile = tmpDir </> "conf" </> "nginx.conf"
+      upstreamsCfg = tmpDir </> "upstreams.conf"
+  liftIO $ do
+    conf <- Text.readFile nginxConfFile
+    Text.writeFile nginxConfFile $
+      ( conf
+          & Text.replace "access_log /dev/stdout" "access_log /dev/null"
+          -- TODO: Get these ports out of config
+          & Text.replace ("listen 8080;\n    listen 8081 proxy_protocol;") (cs $ "listen " <> show sm.nginz.port <> ";")
+          & Text.replace ("listen 8082;") (cs $ "listen unix:" <> (tmpDir </> "metrics-socket") <> ";")
+          & Text.replace ("/var/run/nginz.pid") (cs $ tmpDir </> "nginz.pid")
+          & Text.replace ("/etc/wire/nginz/upstreams/upstreams.conf") (cs upstreamsCfg)
+      )
+  createUpstreamsCfg upstreamsCfg sm
+  ph <- startNginz domain nginxConfFile "/"
+  pure (ph, tmpDir)
+
+startNginzLocal :: String -> Word16 -> Word16 -> ServiceMap -> App (ProcessHandle, FilePath)
+startNginzLocal domain http2Port sslPort sm = do
   -- Create a whole temporary directory and copy all nginx's config files.
   -- This is necessary because nginx assumes local imports are relative to
   -- the location of the main configuration file.
@@ -499,51 +430,59 @@ startNginz domain localPort http2Port mSslPort sm = do
     conf <- Text.readFile nginxConfFile
     Text.writeFile nginxConfFile $
       ( conf
-          & replace (cs "access_log /dev/stdout") (cs "access_log /dev/null")
+          & Text.replace "access_log /dev/stdout" "access_log /dev/null"
       )
-
-  conf <- Prelude.lines <$> liftIO (readFile integrationConfFile)
-  let sslPortParser = do
-        _ <- string (cs "listen")
-        _ <- many1 space
-        p <- many1 digit
-        _ <- many1 space
-        _ <- string (cs "ssl")
-        _ <- many1 space
-        _ <- string (cs "http2")
-        _ <- many1 space
-        _ <- char ';'
-        pure (read p :: Word16)
-
-  let mParsedPort =
-        mapMaybe (eitherToMaybe . parseOnly sslPortParser . cs) conf
-          & (\case [] -> Nothing; (p : _) -> Just p)
-
-  sslPort <- maybe (failApp "could not determine nginz's ssl port") pure (mSslPort <|> mParsedPort)
 
   -- override port configuration
   let portConfigTemplate =
-        cs $
-          [r|listen {localPort};
+        [r|listen {localPort};
 listen {http2_port} http2;
 listen {ssl_port} ssl http2;
 listen [::]:{ssl_port} ssl http2;
 |]
   let portConfig =
         portConfigTemplate
-          & replace (cs "{localPort}") (cs $ show localPort)
-          & replace (cs "{http2_port}") (cs $ show http2Port)
-          & replace (cs "{ssl_port}") (cs $ show sslPort)
+          & Text.replace "{localPort}" (cs $ show (sm.nginz.port))
+          & Text.replace "{http2_port}" (cs $ show http2Port)
+          & Text.replace "{ssl_port}" (cs $ show sslPort)
 
   liftIO $ whenM (doesFileExist integrationConfFile) $ removeFile integrationConfFile
   liftIO $ writeFile integrationConfFile (cs portConfig)
 
   -- override upstreams
   let upstreamsCfg = tmpDir </> "conf" </> "nginz" </> "upstreams"
-  liftIO $ whenM (doesFileExist $ upstreamsCfg) $ removeFile upstreamsCfg
+  createUpstreamsCfg upstreamsCfg sm
+  let upstreamFederatorTemplate =
+        [r|upstream {name} {
+server 127.0.0.1:{port} max_fails=3 weight=1;
+}|]
+  liftIO $
+    appendFile
+      upstreamsCfg
+      ( cs $
+          upstreamFederatorTemplate
+            & Text.replace "{name}" "federator_external"
+            & Text.replace "{port}" (cs $ show sm.federatorExternal.port)
+      )
+
+  -- override pid configuration
+  let pidConfigFile = tmpDir </> "conf" </> "nginz" </> "pid.conf"
+  let pid = tmpDir </> "conf" </> "nginz" </> "nginz.pid"
+  liftIO $ do
+    whenM (doesFileExist $ pidConfigFile) $ removeFile pidConfigFile
+    writeFile pidConfigFile (cs $ "pid " <> pid <> ";")
+
+  -- start service
+  ph <- startNginz domain nginxConfFile tmpDir
+
+  -- return handle and nginx tmp dir path
+  pure (ph, tmpDir)
+
+createUpstreamsCfg :: String -> ServiceMap -> App ()
+createUpstreamsCfg upstreamsCfg sm = do
+  liftIO $ whenM (doesFileExist upstreamsCfg) $ removeFile upstreamsCfg
   let upstreamTemplate =
-        cs $
-          [r|upstream {name} {
+        [r|upstream {name} {
 least_conn;
 keepalive 32;
 server 127.0.0.1:{port} max_fails=3 weight=1;
@@ -564,38 +503,18 @@ server 127.0.0.1:{port} max_fails=3 weight=1;
         (srv, p) -> do
           let upstream =
                 upstreamTemplate
-                  & replace (cs "{name}") (cs $ srv)
-                  & replace (cs "{port}") (cs $ show p)
+                  & Text.replace "{name}" (cs $ srv)
+                  & Text.replace "{port}" (cs $ show p)
           liftIO $ appendFile upstreamsCfg (cs upstream)
     )
-  let upstreamFederatorTemplate =
-        cs $
-          [r|upstream {name} {
-server 127.0.0.1:{port} max_fails=3 weight=1;
-}|]
-  liftIO $
-    appendFile
-      upstreamsCfg
-      ( cs $
-          upstreamFederatorTemplate
-            & replace (cs "{name}") (cs "federator_external")
-            & replace (cs "{port}") (cs $ show sm.federatorExternal.port)
-      )
 
-  -- override pid configuration
-  let pidConfigFile = tmpDir </> "conf" </> "nginz" </> "pid.conf"
-  let pid = tmpDir </> "conf" </> "nginz" </> "nginz.pid"
-  liftIO $ do
-    whenM (doesFileExist $ pidConfigFile) $ removeFile pidConfigFile
-    writeFile pidConfigFile (cs $ "pid " <> pid <> ";")
-
-  -- start service
-
+startNginz :: String -> FilePath -> FilePath -> App ProcessHandle
+startNginz domain conf workingDir = do
   (_, Just stdoutHdl, Just stderrHdl, ph) <-
     liftIO $
       createProcess
-        (proc "nginx" ["-c", tmpDir </> "conf" </> "nginz" </> "nginx.conf", "-p", tmpDir, "-g", "daemon off;", "-e", "/dev/stdout"])
-          { cwd = Just $ cs tmpDir,
+        (proc "nginx" ["-c", conf, "-g", "daemon off;", "-e", "/dev/stdout"])
+          { cwd = Just workingDir,
             std_out = CreatePipe,
             std_err = CreatePipe
           }
@@ -606,4 +525,4 @@ server 127.0.0.1:{port} max_fails=3 weight=1;
   void $ liftIO $ forkIO $ logToConsole colorize prefix stderrHdl
 
   -- return handle and nginx tmp dir path
-  pure (ph, tmpDir)
+  pure ph

@@ -22,7 +22,7 @@ import Data.Kind
 import Data.Metrics.Servant
 import Data.Schema
 import Data.Singletons
-import qualified Data.Swagger as S
+import Data.Swagger qualified as S
 import GHC.TypeLits
 import Imports
 import Servant
@@ -56,6 +56,10 @@ instance
       p = Proxy :: Proxy (ReqBody cts (Versioned v a) :> api)
 
   route _p ctx d = route (Proxy :: Proxy (ReqBody cts (Versioned v a) :> api)) ctx (fmap (. unVersioned) d)
+
+type instance
+  SpecialiseToVersion w (VersionedReqBody v cts a :> api) =
+    VersionedReqBody v cts a :> SpecialiseToVersion w api
 
 instance
   ( S.ToSchema (Versioned v a),

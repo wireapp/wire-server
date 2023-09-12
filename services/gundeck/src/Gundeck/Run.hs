@@ -19,7 +19,7 @@
 module Gundeck.Run where
 
 import AWS.Util (readAuthExpiration)
-import qualified Amazonka as AWS
+import Amazonka qualified as AWS
 import Cassandra (runClient, shutdown)
 import Cassandra.Schema (versionCheck)
 import Control.Error (ExceptT (ExceptT))
@@ -32,25 +32,25 @@ import Data.Metrics.Middleware (metrics)
 import Data.Metrics.Middleware.Prometheus (waiPrometheusMiddleware)
 import Data.Proxy (Proxy (Proxy))
 import Data.Text (unpack)
-import qualified Database.Redis as Redis
+import Database.Redis qualified as Redis
 import Gundeck.API (sitemap)
 import Gundeck.API.Public (servantSitemap)
-import qualified Gundeck.Aws as Aws
+import Gundeck.Aws qualified as Aws
 import Gundeck.Env
-import qualified Gundeck.Env as Env
+import Gundeck.Env qualified as Env
 import Gundeck.Monad
-import Gundeck.Options
+import Gundeck.Options hiding (host, port)
 import Gundeck.React
 import Gundeck.ThreadBudget
 import Imports hiding (head)
 import Network.Wai as Wai
-import qualified Network.Wai.Middleware.Gunzip as GZip
-import qualified Network.Wai.Middleware.Gzip as GZip
+import Network.Wai.Middleware.Gunzip qualified as GZip
+import Network.Wai.Middleware.Gzip qualified as GZip
 import Network.Wai.Utilities.Server hiding (serverPort)
 import Servant (Handler (Handler), (:<|>) (..))
-import qualified Servant
-import qualified System.Logger as Log
-import qualified UnliftIO.Async as Async
+import Servant qualified
+import System.Logger qualified as Log
+import UnliftIO.Async qualified as Async
 import Util.Options
 import Wire.API.Routes.Public.Gundeck (GundeckAPI)
 import Wire.API.Routes.Version.Wai
@@ -62,8 +62,8 @@ run o = do
   runClient (e ^. cstate) $
     versionCheck schemaVersion
   let l = e ^. applog
-  s <- newSettings $ defaultServer (unpack $ o ^. optGundeck . epHost) (o ^. optGundeck . epPort) l m
-  let throttleMillis = fromMaybe defSqsThrottleMillis $ o ^. (optSettings . setSqsThrottleMillis)
+  s <- newSettings $ defaultServer (unpack $ o ^. gundeck . host) (o ^. gundeck . port) l m
+  let throttleMillis = fromMaybe defSqsThrottleMillis $ o ^. (settings . sqsThrottleMillis)
 
   lst <- Async.async $ Aws.execute (e ^. awsEnv) (Aws.listen throttleMillis (runDirect e . onEvent))
   wtbs <- forM (e ^. threadBudgetState) $ \tbs -> Async.async $ runDirect e $ watchThreadBudgetState m tbs 10
@@ -81,7 +81,7 @@ run o = do
   where
     middleware :: Env -> Wai.Middleware
     middleware e =
-      versionMiddleware (fold (o ^. optSettings . setDisabledAPIVersions))
+      versionMiddleware (fold (o ^. settings . disabledAPIVersions))
         . waiPrometheusMiddleware sitemap
         . GZip.gunzip
         . GZip.gzip GZip.def

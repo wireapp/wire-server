@@ -1,6 +1,16 @@
+{-# LANGUAGE OverloadedLabels #-}
+
 module API.Galley where
 
-import qualified Data.Aeson as Aeson
+import Control.Lens hiding ((.=))
+import Control.Monad.Reader
+import Data.Aeson qualified as Aeson
+import Data.ByteString.Lazy qualified as LBS
+import Data.ProtoLens qualified as Proto
+import Data.ProtoLens.Labels ()
+import Data.UUID qualified as UUID
+import Numeric.Lens
+import Proto.Otr as Proto
 import Testlib.Prelude
 
 data CreateConv = CreateConv
@@ -31,6 +41,13 @@ defProteus =
 
 defMLS :: CreateConv
 defMLS = defProteus {protocol = "mls"}
+
+allowGuests :: CreateConv -> CreateConv
+allowGuests cc =
+  cc
+    { access = Just ["code"],
+      accessRole = Just ["team_member", "guest"]
+    }
 
 instance MakesValue CreateConv where
   make cc = do
@@ -152,6 +169,40 @@ postMLSCommitBundle cid msg = do
   req <- baseRequest cid Galley Versioned "/mls/commit-bundles"
   submit "POST" (addMLS msg req)
 
+postProteusMessage :: (HasCallStack, MakesValue user, MakesValue conv) => user -> conv -> QualifiedNewOtrMessage -> App Response
+postProteusMessage user conv msgs = do
+  convDomain <- objDomain conv
+  convId <- objId conv
+  let bytes = Proto.encodeMessage msgs
+  req <- baseRequest user Galley Versioned ("/conversations/" <> convDomain <> "/" <> convId <> "/proteus/messages")
+  submit "POST" (addProtobuf bytes req)
+
+mkProteusRecipient :: (HasCallStack, MakesValue user, MakesValue client) => user -> client -> String -> App Proto.QualifiedUserEntry
+mkProteusRecipient user client = mkProteusRecipients user [(user, [client])]
+
+mkProteusRecipients :: (HasCallStack, MakesValue domain, MakesValue user, MakesValue client) => domain -> [(user, [client])] -> String -> App Proto.QualifiedUserEntry
+mkProteusRecipients dom userClients msg = do
+  userDomain <- asString =<< objDomain dom
+  userEntries <- mapM mkUserEntry userClients
+  pure $
+    Proto.defMessage
+      & #domain .~ fromString userDomain
+      & #entries .~ userEntries
+  where
+    mkUserEntry (user, clients) = do
+      userId <- LBS.toStrict . UUID.toByteString . fromJust . UUID.fromString <$> objId user
+      clientEntries <- mapM mkClientEntry clients
+      pure $
+        Proto.defMessage
+          & #user . #uuid .~ userId
+          & #clients .~ clientEntries
+    mkClientEntry client = do
+      clientId <- (^?! hex) <$> objId client
+      pure $
+        Proto.defMessage
+          & #client . #client .~ clientId
+          & #text .~ fromString msg
+
 getGroupInfo ::
   (HasCallStack, MakesValue user, MakesValue conv) =>
   user ->
@@ -165,3 +216,50 @@ getGroupInfo user conv = do
         Just sub -> ["conversations", convDomain, convId, "subconversations", sub, "groupinfo"]
   req <- baseRequest user Galley Versioned path
   submit "GET" req
+
+addMembers :: (HasCallStack, MakesValue user, MakesValue conv) => user -> conv -> [Value] -> App Response
+addMembers usr qcnv newMembers = do
+  (convDomain, convId) <- objQid qcnv
+  qUsers <- mapM objQidObject newMembers
+  req <- baseRequest usr Galley Versioned (joinHttpPath ["conversations", convDomain, convId, "members"])
+  submit "POST" (req & addJSONObject ["qualified_users" .= qUsers])
+
+removeMember :: (HasCallStack, MakesValue remover, MakesValue conv, MakesValue removed) => remover -> conv -> removed -> App Response
+removeMember remover qcnv removed = do
+  (convDomain, convId) <- objQid qcnv
+  (removedDomain, removedId) <- objQid removed
+  req <- baseRequest remover Galley Versioned (joinHttpPath ["conversations", convDomain, convId, "members", removedDomain, removedId])
+  submit "DELETE" req
+
+postConversationCode ::
+  (HasCallStack, MakesValue user, MakesValue conv) =>
+  user ->
+  conv ->
+  Maybe String ->
+  Maybe String ->
+  App Response
+postConversationCode user conv mbpassword mbZHost = do
+  convId <- objId conv
+  req <- baseRequest user Galley Versioned (joinHttpPath ["conversations", convId, "code"])
+  submit
+    "POST"
+    ( req
+        & addJSONObject ["password" .= pw | pw <- maybeToList mbpassword]
+        & maybe id zHost mbZHost
+    )
+
+getConversationCode ::
+  (HasCallStack, MakesValue user, MakesValue conv) =>
+  user ->
+  conv ->
+  Maybe String ->
+  App Response
+getConversationCode user conv mbZHost = do
+  convId <- objId conv
+  req <- baseRequest user Galley Versioned (joinHttpPath ["conversations", convId, "code"])
+  submit
+    "GET"
+    ( req
+        & addQueryParams [("cnv", convId)]
+        & maybe id zHost mbZHost
+    )

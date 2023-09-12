@@ -24,17 +24,17 @@ import Bilge
 import Bilge.Assert
 import Control.Lens (view)
 import Data.Aeson
-import qualified Data.Aeson.Types as Aeson
-import qualified Data.ByteString as BS
+import Data.Aeson.Types qualified as Aeson
+import Data.ByteString qualified as BS
 import Data.ByteString.Conversion (toByteString')
-import qualified Data.ByteString.Lazy as LBS
+import Data.ByteString.Lazy qualified as LBS
 import Data.Handle
 import Data.LegalHold (UserLegalHoldStatus (UserLegalHoldNoConsent))
 import Data.Text.Encoding
-import Federator.Options
+import Federator.Options hiding (federatorExternal)
 import Imports
-import qualified Network.HTTP.Types as HTTP
-import qualified Network.Wai.Utilities.Error as E
+import Network.HTTP.Types qualified as HTTP
+import Network.Wai.Utilities.Error qualified as E
 import Test.Federator.Util
 import Test.Hspec
 import Test.QuickCheck (arbitrary, generate)
@@ -112,13 +112,13 @@ spec env =
       runTestFederator env $ do
         let o = object ["name" .= ("fakeNewUser" :: Text)]
         inwardCall "/federation/brig/../i/users" (encode o)
-          !!! const 403 === statusCode
+          !!! const 404 === statusCode
 
     it "should only accept /federation/ paths" $
       runTestFederator env $ do
         let o = object ["name" .= ("fakeNewUser" :: Text)]
         inwardCall "/i/users" (encode o)
-          !!! const 403 === statusCode
+          !!! const 404 === statusCode
 
     -- @SF.Federation @TSFI.RESTfulAPI @S2 @S3 @S7
     --
@@ -126,13 +126,13 @@ spec env =
     -- and "IngressSpec".
     it "rejectRequestsWithoutClientCertInward" $
       runTestFederator env $ do
-        originDomain <- cfgOriginDomain <$> view teTstOpts
+        originDomain <- originDomain <$> view teTstOpts
         hdl <- randomHandle
         inwardCallWithHeaders
           "federation/brig/get-user-by-handle"
           [(originDomainHeaderName, toByteString' originDomain)]
           (encode hdl)
-          !!! const 403 === statusCode
+          !!! const 400 === statusCode
 
 -- TODO: ORMOLU_DISABLE
 -- @END
@@ -145,7 +145,7 @@ inwardCallWithHeaders ::
   LBS.ByteString ->
   m (Response (Maybe LByteString))
 inwardCallWithHeaders requestPath hh payload = do
-  Endpoint fedHost fedPort <- cfgFederatorExternal <$> view teTstOpts
+  Endpoint fedHost fedPort <- federatorExternal <$> view teTstOpts
   post
     ( host (encodeUtf8 fedHost)
         . port fedPort
@@ -160,7 +160,7 @@ inwardCall ::
   LBS.ByteString ->
   m (Response (Maybe LByteString))
 inwardCall requestPath payload = do
-  originDomain :: Text <- cfgOriginDomain <$> view teTstOpts
+  originDomain :: Text <- originDomain <$> view teTstOpts
   inwardCallWithOriginDomain (toByteString' originDomain) requestPath payload
 
 inwardCallWithOriginDomain ::
@@ -170,7 +170,7 @@ inwardCallWithOriginDomain ::
   LBS.ByteString ->
   m (Response (Maybe LByteString))
 inwardCallWithOriginDomain originDomain requestPath payload = do
-  Endpoint fedHost fedPort <- cfgFederatorExternal <$> view teTstOpts
+  Endpoint fedHost fedPort <- federatorExternal <$> view teTstOpts
   clientCertFilename <- clientCertificate . optSettings . view teOpts <$> ask
   clientCert <- liftIO $ BS.readFile clientCertFilename
   post

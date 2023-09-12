@@ -1,15 +1,15 @@
 module Util where
 
-import qualified Bilge
+import Bilge qualified
 import Control.Concurrent (forkFinally)
 import Control.Concurrent.Async (race_)
-import qualified Control.Exception as E
+import Control.Exception qualified as E
 import Control.Lens
 import Control.Monad.Catch
 import Control.Monad.Codensity
-import qualified Data.ByteString as S
+import Data.ByteString qualified as S
 import Data.Metrics.Middleware (metrics)
-import qualified Data.Text as Text
+import Data.Text qualified as Text
 import Gundeck.Env (createEnv)
 import Gundeck.Options
 import Gundeck.Run (mkApp)
@@ -51,8 +51,8 @@ runRedisProxy redisHost redisPort proxyPort = do
 
 -- | Running a TCP server with an accepted socket and its peer name.
 runTCPServer :: Maybe HostName -> ServiceName -> (Socket -> IO a) -> IO b
-runTCPServer mhost port server = withSocketsDo $ do
-  addr <- resolve Stream mhost port True
+runTCPServer mhost port' server = withSocketsDo $ do
+  addr <- resolve Stream mhost port' True
   clientThreads <- newTVarIO []
   E.bracket (open addr) (cleanupClients clientThreads) (loop clientThreads)
   where
@@ -70,8 +70,8 @@ runTCPServer mhost port server = withSocketsDo $ do
       mapM_ killThread =<< readTVarIO clientThreads
 
 resolve :: SocketType -> Maybe HostName -> ServiceName -> Bool -> IO AddrInfo
-resolve socketType mhost port passive =
-  head <$> getAddrInfo (Just hints) mhost (Just port)
+resolve socketType mhost port' passive =
+  head <$> getAddrInfo (Just hints) mhost (Just port')
   where
     hints =
       defaultHints

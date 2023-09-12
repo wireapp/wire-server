@@ -35,37 +35,36 @@ module Galley.Intra.User
   )
 where
 
-import Bilge hiding (getHeader, options, statusCode)
+import Bilge hiding (getHeader, host, options, port, statusCode)
 import Bilge.RPC
-import Brig.Types.Connection (UpdateConnectionsInternal, cUsers)
-import qualified Brig.Types.Intra as Brig
+import Brig.Types.Intra qualified as Brig
 import Control.Error hiding (bool, isRight)
 import Control.Lens (view, (^.))
 import Control.Monad.Catch
 import Data.ByteString.Char8 (pack)
-import qualified Data.ByteString.Char8 as BSC
+import Data.ByteString.Char8 qualified as BSC
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Qualified
-import qualified Data.Text.Lazy as Lazy
+import Data.Text.Lazy qualified as Lazy
 import Galley.API.Error
 import Galley.Env
 import Galley.Intra.Util
 import Galley.Monad
 import Imports
 import Network.HTTP.Client (HttpExceptionContent (..))
-import qualified Network.HTTP.Client.Internal as Http
+import Network.HTTP.Client.Internal qualified as Http
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
-import qualified Network.Wai.Utilities.Error as Wai
-import qualified Servant.Client as Client
+import Network.Wai.Utilities.Error qualified as Wai
+import Servant.Client qualified as Client
 import Util.Options
 import Wire.API.Connection
 import Wire.API.Error.Galley
-import qualified Wire.API.Routes.Internal.Brig as IAPI
+import Wire.API.Routes.Internal.Brig qualified as IAPI
 import Wire.API.Routes.Internal.Brig.Connection
-import qualified Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Multi
+import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti qualified as Multi
 import Wire.API.Routes.Named
 import Wire.API.Team.Feature
 import Wire.API.User
@@ -236,7 +235,7 @@ getRichInfoMultiUser = chunkify $ \uids -> do
         . paths ["/i/users/rich-info"]
         . queryItem "ids" (toByteString' (List uids))
         . expect2xx
-  parseResponse (mkError status502 "server-error") resp
+  parseResponse (mkError status502 "server-error: could not parse response to `GET brig:/i/users/rich-info`") resp
 
 getAccountConferenceCallingConfigClient :: HasCallStack => UserId -> App (WithStatusNoLock ConferenceCallingConfig)
 getAccountConferenceCallingConfigClient uid =
@@ -254,7 +253,7 @@ runHereClientM action = do
   mgr <- view manager
   brigep <- view brig
   let env = Client.mkClientEnv mgr baseurl
-      baseurl = Client.BaseUrl Client.Http (cs $ brigep ^. epHost) (fromIntegral $ brigep ^. epPort) ""
+      baseurl = Client.BaseUrl Client.Http (cs $ brigep ^. host) (fromIntegral $ brigep ^. port) ""
   liftIO $ Client.runClientM action env
 
 handleServantResp ::

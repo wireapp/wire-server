@@ -1,6 +1,0 @@
-list unavailable backends as JSON on federation-unreachable-domains-error
-- extend `federation-unreachable-domains-error` by `FederationErrorData`
-- add `domains` field in `FederationErrorData`, containing the list of failing
-  domains
-- deprecate `domain` field in `FederationErrorData` which now contains the first
-  element of `domains`

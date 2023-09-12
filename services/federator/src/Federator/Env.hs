@@ -28,12 +28,18 @@ import Federator.Options (RunSettings)
 import HTTP2.Client.Manager
 import Imports
 import Network.DNS.Resolver (Resolver)
-import qualified Network.HTTP.Client as HTTP
+import Network.HTTP.Client qualified as HTTP
 import OpenSSL.Session (SSLContext)
-import qualified System.Logger.Class as LC
+import Prometheus
+import System.Logger.Class qualified as LC
 import Util.Options
 import Wire.API.Federation.Component
 import Wire.API.Routes.FederationDomainConfig (FederationDomainConfigs)
+
+data FederatorMetrics = FederatorMetrics
+  { outgoingRequests :: Vector Text Counter,
+    incomingRequests :: Vector Text Counter
+  }
 
 data Env = Env
   { _metrics :: Metrics,
@@ -43,8 +49,11 @@ data Env = Env
     _runSettings :: RunSettings,
     _domainConfigs :: IORef FederationDomainConfigs,
     _service :: Component -> Endpoint,
+    _externalPort :: Word16,
+    _internalPort :: Word16,
     _httpManager :: HTTP.Manager,
-    _http2Manager :: IORef Http2Manager
+    _http2Manager :: IORef Http2Manager,
+    _federatorMetrics :: FederatorMetrics
   }
 
 makeLenses ''Env

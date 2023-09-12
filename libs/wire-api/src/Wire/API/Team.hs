@@ -70,16 +70,16 @@ where
 import Control.Lens (makeLenses, (?~))
 import Data.Aeson (FromJSON, ToJSON, Value (..))
 import Data.Aeson.Types (Parser)
-import qualified Data.Attoparsec.ByteString as Atto (Parser, string)
+import Data.Attoparsec.ByteString qualified as Atto (Parser, string)
 import Data.Attoparsec.Combinator (choice)
 import Data.ByteString.Conversion
-import qualified Data.Code as Code
+import Data.Code qualified as Code
 import Data.Id (TeamId, UserId)
 import Data.Misc (PlainTextPassword6)
 import Data.Range
 import Data.Schema
-import qualified Data.Swagger as S
-import qualified Data.Text.Encoding as T
+import Data.Swagger qualified as S
+import Data.Text.Encoding qualified as T
 import Imports
 import Test.QuickCheck.Gen (suchThat)
 import Wire.API.Asset (AssetKey)

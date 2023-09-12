@@ -30,10 +30,18 @@ module Galley.Effects.MemberStore
     -- * Read members
     getLocalMember,
     getLocalMembers,
+    getAllLocalMembers,
     getRemoteMember,
     getRemoteMembers,
     checkLocalMemberRemoteConv,
     selectRemoteMembers,
+    getRemoteMembersByDomain,
+    getRemoteMembersByConvAndDomain,
+    getLocalMembersByDomain,
+
+    -- * Conversation checks
+    selectConvIdsByRemoteDomain,
+    checkConvForRemoteDomain,
 
     -- * Update members
     setSelfMember,
@@ -45,9 +53,11 @@ module Galley.Effects.MemberStore
     -- * Delete members
     deleteMembers,
     deleteMembersInRemoteConversation,
+    removeRemoteDomain,
   )
 where
 
+import Data.Domain
 import Data.Id
 import Data.Qualified
 import Galley.Data.Services
@@ -62,11 +72,12 @@ import Wire.API.MLS.KeyPackage
 import Wire.API.Provider.Service
 
 data MemberStore m a where
-  CreateMembers :: ToUserRole u => ConvId -> UserList u -> MemberStore m ([LocalMember], [RemoteMember])
+  CreateMembers :: (ToUserRole u) => ConvId -> UserList u -> MemberStore m ([LocalMember], [RemoteMember])
   CreateMembersInRemoteConversation :: Remote ConvId -> [UserId] -> MemberStore m ()
   CreateBotMember :: ServiceRef -> BotId -> ConvId -> MemberStore m BotMember
   GetLocalMember :: ConvId -> UserId -> MemberStore m (Maybe LocalMember)
   GetLocalMembers :: ConvId -> MemberStore m [LocalMember]
+  GetAllLocalMembers :: MemberStore m [LocalMember]
   GetRemoteMember :: ConvId -> Remote UserId -> MemberStore m (Maybe RemoteMember)
   GetRemoteMembers :: ConvId -> MemberStore m [RemoteMember]
   CheckLocalMemberRemoteConv :: UserId -> Remote ConvId -> MemberStore m Bool
@@ -80,9 +91,15 @@ data MemberStore m a where
   LookupMLSClients ::
     GroupId ->
     MemberStore m (Map (Qualified UserId) (Set (ClientId, KeyPackageRef)))
+  GetRemoteMembersByDomain :: Domain -> MemberStore m [(ConvId, RemoteMember)]
+  GetRemoteMembersByConvAndDomain :: ConvId -> Domain -> MemberStore m [RemoteMember]
+  GetLocalMembersByDomain :: Domain -> MemberStore m [(ConvId, UserId)]
+  RemoveRemoteDomain :: ConvId -> Domain -> MemberStore m ()
+  SelectConvIdsByRemoteDomain :: Domain -> MemberStore m [ConvId]
+  CheckConvForRemoteDomain :: ConvId -> Domain -> MemberStore m (Maybe ConvId)
 
 makeSem ''MemberStore
 
 -- | Add a member to a local conversation, as an admin.
-createMember :: Member MemberStore r => Local ConvId -> Local UserId -> Sem r [LocalMember]
+createMember :: (Member MemberStore r) => Local ConvId -> Local UserId -> Sem r [LocalMember]
 createMember c u = fst <$> createMembers (tUnqualified c) (UserList [tUnqualified u] [])

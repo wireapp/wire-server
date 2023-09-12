@@ -27,15 +27,15 @@ import Brig.Allowlists (AllowlistEmailDomains (..), AllowlistPhonePrefixes (..))
 import Brig.Queue.Types (Queue (..))
 import Brig.SMTP (SMTPConnType (..))
 import Brig.User.Auth.Cookie.Limit
-import qualified Brig.ZAuth as ZAuth
+import Brig.ZAuth qualified as ZAuth
 import Control.Applicative
-import qualified Control.Lens as Lens
+import Control.Lens qualified as Lens
 import Data.Aeson (defaultOptions, fieldLabelModifier, genericParseJSON, withText)
-import qualified Data.Aeson as A
-import qualified Data.Aeson as Aeson
+import Data.Aeson qualified as A
+import Data.Aeson qualified as Aeson
 import Data.Aeson.Types (typeMismatch)
-import qualified Data.Char as Char
-import qualified Data.Code as Code
+import Data.Char qualified as Char
+import Data.Code qualified as Code
 import Data.Domain (Domain (..))
 import Data.Id
 import Data.LanguageCodes (ISO639_1 (EN))
@@ -44,20 +44,20 @@ import Data.Nonce
 import Data.Range
 import Data.Schema
 import Data.Scientific (toBoundedInteger)
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
+import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
 import Data.Time.Clock (DiffTime, NominalDiffTime, secondsToDiffTime)
 import Data.Yaml (FromJSON (..), ToJSON (..), (.:), (.:?))
-import qualified Data.Yaml as Y
+import Data.Yaml qualified as Y
 import Galley.Types.Teams (unImplicitLockStatus)
 import Imports
 import Network.AMQP.Extended
-import qualified Network.DNS as DNS
+import Network.DNS qualified as DNS
 import System.Logger.Extended (Level, LogFormat)
 import Util.Options
 import Wire.API.Routes.FederationDomainConfig
 import Wire.API.Routes.Version
-import qualified Wire.API.Team.Feature as Public
+import Wire.API.Team.Feature qualified as Public
 import Wire.API.User
 import Wire.Arbitrary (Arbitrary, arbitrary)
 

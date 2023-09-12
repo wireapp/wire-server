@@ -32,7 +32,7 @@ import Galley.App
 import Wire.API.Routes.API
 import Wire.API.Routes.Public.Galley
 
-servantSitemap :: API ServantAPI GalleyEffects
+servantSitemap :: API GalleyAPI GalleyEffects
 servantSitemap =
   conversationAPI
     <@> teamConversationAPI

@@ -15,9 +15,12 @@
 , Cabal
 , case-insensitive
 , containers
+, cryptonite
 , data-default
 , directory
+, errors
 , exceptions
+, extended
 , extra
 , filepath
 , gitignoreSource
@@ -25,7 +28,10 @@
 , http-client
 , http-types
 , kan-extensions
+, lens
+, lens-aeson
 , lib
+, memory
 , mime
 , monad-control
 , mtl
@@ -33,6 +39,7 @@
 , network-uri
 , optparse-applicative
 , process
+, proto-lens
 , random
 , raw-strings-qq
 , retry
@@ -51,6 +58,7 @@
 , uuid
 , vector
 , websockets
+, wire-message-proto-lens
 , yaml
 }:
 mkDerivation {
@@ -72,15 +80,21 @@ mkDerivation {
     bytestring-conversion
     case-insensitive
     containers
+    cryptonite
     data-default
     directory
+    errors
     exceptions
+    extended
     extra
     filepath
     hex
     http-client
     http-types
     kan-extensions
+    lens
+    lens-aeson
+    memory
     mime
     monad-control
     mtl
@@ -88,6 +102,7 @@ mkDerivation {
     network-uri
     optparse-applicative
     process
+    proto-lens
     random
     raw-strings-qq
     retry
@@ -106,6 +121,7 @@ mkDerivation {
     uuid
     vector
     websockets
+    wire-message-proto-lens
     yaml
   ];
   license = lib.licenses.agpl3Only;

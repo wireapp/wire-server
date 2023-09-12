@@ -11,24 +11,24 @@ import API.Util
 import Bilge hiding (accept, head, timeout, trace)
 import Bilge.Assert
 import Brig.Types.Test.Arbitrary ()
-import qualified Brig.Types.User.Event as Ev
-import qualified Control.Concurrent.Async as Async
+import Brig.Types.User.Event qualified as Ev
+import Control.Concurrent.Async qualified as Async
 import Control.Concurrent.Chan
 import Control.Concurrent.Timeout hiding (threadDelay)
 import Control.Exception (asyncExceptionFromException)
 import Control.Lens hiding ((#))
 import Control.Monad.Catch
 import Control.Retry (RetryPolicy, RetryStatus, exponentialBackoff, limitRetries, retrying)
-import qualified Data.Aeson as Aeson
+import Data.Aeson qualified as Aeson
 import Data.Aeson.Types (FromJSON, withObject, (.:))
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Char8 as BS
+import Data.ByteString qualified as BS
+import Data.ByteString.Char8 qualified as BS
 import Data.ByteString.Conversion
 import Data.CallStack
 import Data.Id
 import Data.LegalHold
-import qualified Data.List.NonEmpty as NonEmpty
-import qualified Data.List1 as List1
+import Data.List.NonEmpty qualified as NonEmpty
+import Data.List1 qualified as List1
 import Data.Misc (PlainTextPassword6)
 import Data.PEM
 import Data.Streaming.Network (bindRandomPortTCP)
@@ -39,14 +39,14 @@ import Galley.Types.Teams
 import Imports
 import Network.HTTP.Types.Status (status200, status400, status404)
 import Network.Socket (Socket)
-import qualified Network.Socket as Socket
+import Network.Socket qualified as Socket
 import Network.Wai as Wai
-import qualified Network.Wai.Handler.Warp as Warp
-import qualified Network.Wai.Handler.Warp.Internal as Warp
-import qualified Network.Wai.Handler.WarpTLS as Warp
-import qualified Network.Wai.Utilities.Response as Wai
+import Network.Wai.Handler.Warp qualified as Warp
+import Network.Wai.Handler.Warp.Internal qualified as Warp
+import Network.Wai.Handler.WarpTLS qualified as Warp
+import Network.Wai.Utilities.Response qualified as Wai
 import Test.QuickCheck.Instances ()
-import qualified Test.Tasty.Cannon as WS
+import Test.Tasty.Cannon qualified as WS
 import Test.Tasty.HUnit
 import Test.Tasty.Options
 import Test.Tasty.Providers
@@ -55,10 +55,10 @@ import Test.Tasty.Runners
 import TestSetup
 import Wire.API.Internal.Notification (ntfPayload)
 import Wire.API.Provider.Service
-import qualified Wire.API.Team.Feature as Public
+import Wire.API.Team.Feature qualified as Public
 import Wire.API.Team.LegalHold
 import Wire.API.Team.LegalHold.External
-import qualified Wire.API.Team.Member as Team
+import Wire.API.Team.Member qualified as Team
 import Wire.API.User (UserProfile (..))
 import Wire.API.User.Client
 
@@ -584,8 +584,8 @@ assertMatchChan c match = go []
 
 getLHWhitelistedTeam :: HasCallStack => TeamId -> TestM ResponseLBS
 getLHWhitelistedTeam tid = do
-  galley <- viewGalley
-  getLHWhitelistedTeam' galley tid
+  galleyCall <- viewGalley
+  getLHWhitelistedTeam' galleyCall tid
 
 getLHWhitelistedTeam' :: (HasCallStack, MonadHttp m) => GalleyR -> TeamId -> m ResponseLBS
 getLHWhitelistedTeam' g tid = do
@@ -596,8 +596,8 @@ getLHWhitelistedTeam' g tid = do
 
 putLHWhitelistTeam :: HasCallStack => TeamId -> TestM ResponseLBS
 putLHWhitelistTeam tid = do
-  galley <- viewGalley
-  putLHWhitelistTeam' galley tid
+  galleyCall <- viewGalley
+  putLHWhitelistTeam' galleyCall tid
 
 putLHWhitelistTeam' :: (HasCallStack, MonadHttp m) => GalleyR -> TeamId -> m ResponseLBS
 putLHWhitelistTeam' g tid = do
@@ -608,8 +608,8 @@ putLHWhitelistTeam' g tid = do
 
 _deleteLHWhitelistTeam :: HasCallStack => TeamId -> TestM ResponseLBS
 _deleteLHWhitelistTeam tid = do
-  galley <- viewGalley
-  deleteLHWhitelistTeam' galley tid
+  galleyCall <- viewGalley
+  deleteLHWhitelistTeam' galleyCall tid
 
 deleteLHWhitelistTeam' :: (HasCallStack, MonadHttp m) => GalleyR -> TeamId -> m ResponseLBS
 deleteLHWhitelistTeam' g tid = do
@@ -642,7 +642,7 @@ instance IsTest LHTest where
   run :: OptionSet -> LHTest -> (Progress -> IO ()) -> IO Result
   run _ (LHTest expectedFlag setupAction testAction) _ = do
     setup <- setupAction
-    let featureLegalHold = setup ^. tsGConf . optSettings . setFeatureFlags . flagLegalHold
+    let featureLegalHold = setup ^. tsGConf . settings . featureFlags . flagLegalHold
     if featureLegalHold == expectedFlag
       then do
         hunitResult <- try $ void . flip runReaderT setup . runTestM $ testAction

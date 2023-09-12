@@ -38,41 +38,41 @@ import Control.Lens (view, (.~), (^.))
 import Control.Monad.Catch
 import Data.Aeson as Aeson (Object)
 import Data.Id
-import qualified Data.List.Extra as List
+import Data.List.Extra qualified as List
 import Data.List1 (List1, list1)
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Range
-import qualified Data.Sequence as Seq
-import qualified Data.Set as Set
-import qualified Data.Text as Text
-import qualified Data.UUID as UUID
+import Data.Sequence qualified as Seq
+import Data.Set qualified as Set
+import Data.Text qualified as Text
+import Data.UUID qualified as UUID
 import Gundeck.Aws (endpointUsers)
-import qualified Gundeck.Aws as Aws
+import Gundeck.Aws qualified as Aws
 import Gundeck.Aws.Arn
 import Gundeck.Env
 import Gundeck.Monad
-import qualified Gundeck.Notification.Data as Data
+import Gundeck.Notification.Data qualified as Data
 import Gundeck.Options
-import qualified Gundeck.Presence.Data as Presence
-import qualified Gundeck.Push.Data as Data
-import qualified Gundeck.Push.Native as Native
+import Gundeck.Presence.Data qualified as Presence
+import Gundeck.Push.Data qualified as Data
+import Gundeck.Push.Native qualified as Native
 import Gundeck.Push.Native.Types
-import qualified Gundeck.Push.Websocket as Web
+import Gundeck.Push.Websocket qualified as Web
 import Gundeck.ThreadBudget
 import Gundeck.Types
-import qualified Gundeck.Types.Presence as Presence
+import Gundeck.Types.Presence qualified as Presence
 import Gundeck.Util
 import Imports hiding (cs)
 import Network.HTTP.Types
 import Network.Wai.Utilities
 import System.Logger.Class (msg, val, (+++), (.=), (~~))
-import qualified System.Logger.Class as Log
+import System.Logger.Class qualified as Log
 import Wire.API.Internal.Notification
-import qualified Wire.API.Push.Token as Public
+import Wire.API.Push.Token qualified as Public
 
 push :: [Push] -> Gundeck ()
 push ps = do
-  bulk :: Bool <- view (options . optSettings . setBulkPush)
+  bulk :: Bool <- view (options . settings . bulkPush)
   rs <-
     if bulk
       then (Right <$> pushAll ps) `catch` (pure . Left . Seq.singleton)
@@ -95,7 +95,7 @@ class MonadThrow m => MonadPushAll m where
   mpaRunWithBudget :: Int -> a -> m a -> m a
 
 instance MonadPushAll Gundeck where
-  mpaNotificationTTL = view (options . optSettings . setNotificationTTL)
+  mpaNotificationTTL = view (options . settings . notificationTTL)
   mpaMkNotificationId = mkNotificationId
   mpaListAllPresences = runWithDefaultRedis . Presence.listAll
   mpaBulkPush = Web.bulkPush
@@ -126,7 +126,7 @@ class Monad m => MonadMapAsync m where
   mntgtPerPushConcurrency :: m (Maybe Int)
 
 instance MonadMapAsync Gundeck where
-  mntgtPerPushConcurrency = view (options . optSettings . setPerNativePushConcurrency)
+  mntgtPerPushConcurrency = view (options . settings . perNativePushConcurrency)
   mntgtMapAsync f l = do
     perPushConcurrency <- mntgtPerPushConcurrency
     case perPushConcurrency of
@@ -451,9 +451,9 @@ addToken uid cid newtok = mpaRunWithBudget 1 (Left Public.AddTokenErrorNoBudget)
       let trp = t ^. tokenTransport
       let app = t ^. tokenApp
       let tok = t ^. token
-      env <- view (options . optAws . awsArnEnv)
-      aws <- view awsEnv
-      ept <- Aws.execute aws (Aws.createEndpoint uid trp env app tok)
+      env <- view (options . aws . arnEnv)
+      aws' <- view awsEnv
+      ept <- Aws.execute aws' (Aws.createEndpoint uid trp env app tok)
       case ept of
         Left (Aws.EndpointInUse arn) -> do
           Log.info $ "arn" .= toText arn ~~ msg (val "ARN in use")
@@ -483,8 +483,8 @@ addToken uid cid newtok = mpaRunWithBudget 1 (Left Public.AddTokenErrorNoBudget)
       when (n >= 3) $ do
         Log.err $ msg (val "AWS SNS inconsistency w.r.t. " +++ toText arn)
         throwM (mkError status500 "server-error" "Server Error")
-      aws <- view awsEnv
-      ept <- Aws.execute aws (Aws.lookupEndpoint arn)
+      aws' <- view awsEnv
+      ept <- Aws.execute aws' (Aws.lookupEndpoint arn)
       case ept of
         Nothing -> create (n + 1) t
         Just ep ->

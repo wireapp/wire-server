@@ -26,9 +26,10 @@ module Wire.API.Conversation.Bot
   )
 where
 
-import Data.Aeson
+import Data.Aeson qualified as A
 import Data.Id
-import Data.Json.Util ((#))
+import Data.Schema
+import Data.Swagger qualified as S
 import Imports
 import Wire.API.Event.Conversation (Event)
 import Wire.API.User.Client.Prekey (Prekey)
@@ -46,21 +47,15 @@ data AddBot = AddBot
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform AddBot)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema AddBot
 
-instance ToJSON AddBot where
-  toJSON n =
-    object $
-      "provider" .= addBotProvider n
-        # "service" .= addBotService n
-        # "locale" .= addBotLocale n
-        # []
-
-instance FromJSON AddBot where
-  parseJSON = withObject "NewBot" $ \o ->
-    AddBot
-      <$> o .: "provider"
-      <*> o .: "service"
-      <*> o .:? "locale"
+instance ToSchema AddBot where
+  schema =
+    object "AddBot" $
+      AddBot
+        <$> addBotProvider .= field "provider" schema
+        <*> addBotService .= field "service" schema
+        <*> addBotLocale .= maybe_ (optField "locale" schema)
 
 data AddBotResponse = AddBotResponse
   { rsAddBotId :: BotId,
@@ -72,27 +67,18 @@ data AddBotResponse = AddBotResponse
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform AddBotResponse)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema AddBotResponse
 
-instance ToJSON AddBotResponse where
-  toJSON r =
-    object
-      [ "id" .= rsAddBotId r,
-        "client" .= rsAddBotClient r,
-        "name" .= rsAddBotName r,
-        "accent_id" .= rsAddBotColour r,
-        "assets" .= rsAddBotAssets r,
-        "event" .= rsAddBotEvent r
-      ]
-
-instance FromJSON AddBotResponse where
-  parseJSON = withObject "AddBotResponse" $ \o ->
-    AddBotResponse
-      <$> o .: "id"
-      <*> o .: "client"
-      <*> o .: "name"
-      <*> o .: "accent_id"
-      <*> o .: "assets"
-      <*> o .: "event"
+instance ToSchema AddBotResponse where
+  schema =
+    object "AddBotResponse" $
+      AddBotResponse
+        <$> rsAddBotId .= field "id" schema
+        <*> rsAddBotClient .= field "client" schema
+        <*> rsAddBotName .= field "name" schema
+        <*> rsAddBotColour .= field "accent_id" schema
+        <*> rsAddBotAssets .= field "assets" (array schema)
+        <*> rsAddBotEvent .= field "event" schema
 
 --------------------------------------------------------------------------------
 -- RemoveBot
@@ -104,16 +90,13 @@ newtype RemoveBotResponse = RemoveBotResponse
   }
   deriving stock (Eq, Show)
   deriving newtype (Arbitrary)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema RemoveBotResponse
 
-instance ToJSON RemoveBotResponse where
-  toJSON r =
-    object
-      [ "event" .= rsRemoveBotEvent r
-      ]
-
-instance FromJSON RemoveBotResponse where
-  parseJSON = withObject "RemoveBotResponse" $ \o ->
-    RemoveBotResponse <$> o .: "event"
+instance ToSchema RemoveBotResponse where
+  schema =
+    object "RemoveBotResponse" $
+      RemoveBotResponse
+        <$> rsRemoveBotEvent .= field "event" schema
 
 --------------------------------------------------------------------------------
 -- UpdateBotPrekeys
@@ -123,13 +106,10 @@ newtype UpdateBotPrekeys = UpdateBotPrekeys
   }
   deriving stock (Eq, Show)
   deriving newtype (Arbitrary)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema UpdateBotPrekeys
 
-instance ToJSON UpdateBotPrekeys where
-  toJSON u =
-    object
-      [ "prekeys" .= updateBotPrekeyList u
-      ]
-
-instance FromJSON UpdateBotPrekeys where
-  parseJSON = withObject "UpdateBotPrekeys" $ \o ->
-    UpdateBotPrekeys <$> o .: "prekeys"
+instance ToSchema UpdateBotPrekeys where
+  schema =
+    object "UpdateBotPrekeys" $
+      UpdateBotPrekeys
+        <$> updateBotPrekeyList .= field "prekeys" (array schema)

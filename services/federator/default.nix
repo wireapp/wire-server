@@ -41,11 +41,13 @@
 , pem
 , polysemy
 , polysemy-wire-zoo
+, prometheus-client
 , QuickCheck
 , random
 , servant
 , servant-client
 , servant-client-core
+, servant-server
 , tasty
 , tasty-hunit
 , tasty-quickcheck
@@ -104,8 +106,10 @@ mkDerivation {
     pem
     polysemy
     polysemy-wire-zoo
+    prometheus-client
     servant
     servant-client-core
+    servant-server
     text
     tinylog
     transformers
@@ -138,7 +142,6 @@ mkDerivation {
     imports
     kan-extensions
     lens
-    mtl
     optparse-applicative
     polysemy
     QuickCheck
@@ -177,11 +180,13 @@ mkDerivation {
     servant
     servant-client
     servant-client-core
+    servant-server
     tasty
     tasty-hunit
     tasty-quickcheck
     temporary
     text
+    tinylog
     transformers
     types-common
     unix

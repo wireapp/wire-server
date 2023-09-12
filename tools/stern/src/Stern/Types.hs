@@ -32,8 +32,8 @@ import Data.ByteString.Conversion
 import Data.Json.Util
 import Data.Proxy
 import Data.Range
-import qualified Data.Schema as S
-import qualified Data.Swagger as Swagger
+import Data.Schema qualified as S
+import Data.Swagger qualified as Swagger
 import Galley.Types.Teams
 import Imports
 import Servant.API
@@ -141,8 +141,8 @@ newtype MarketoResult = MarketoResult
   deriving (Eq, Show, ToJSON, FromJSON)
 
 data ConsentLogAndMarketo = ConsentLogAndMarketo
-  { clamConsentLog :: ConsentLog,
-    clamMarketo :: MarketoResult
+  { consentLog :: ConsentLog,
+    marketo :: MarketoResult
   }
   deriving (Eq, Show)
 

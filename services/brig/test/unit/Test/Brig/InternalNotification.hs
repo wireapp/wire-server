@@ -18,7 +18,7 @@
 module Test.Brig.InternalNotification where
 
 import Brig.InternalEvent.Types (InternalNotification (..))
-import qualified Data.Aeson as A
+import Data.Aeson qualified as A
 import Data.ByteString.Lazy as BSL
 import Data.Id (client)
 import Imports

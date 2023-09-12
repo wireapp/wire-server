@@ -57,32 +57,32 @@ where
 import Cassandra hiding (S)
 import Control.Lens ((?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
-import qualified Data.Aeson as A
-import qualified Data.Aeson.Encoding as A
-import qualified Data.Aeson.Key as Key
-import qualified Data.Aeson.Types as A
+import Data.Aeson qualified as A
+import Data.Aeson.Encoding qualified as A
+import Data.Aeson.Key qualified as Key
+import Data.Aeson.Types qualified as A
 import Data.Attoparsec.ByteString ((<?>))
-import qualified Data.Attoparsec.ByteString.Char8 as Atto
+import Data.Attoparsec.ByteString.Char8 qualified as Atto
 import Data.Bifunctor (first)
 import Data.Binary
 import Data.ByteString.Builder (byteString)
 import Data.ByteString.Conversion
-import qualified Data.ByteString.Lazy as L
-import qualified Data.Char as Char
+import Data.ByteString.Lazy qualified as L
+import Data.Char qualified as Char
 import Data.Default (Default (..))
 import Data.Hashable (Hashable)
 import Data.ProtocolBuffers.Internal
 import Data.Proxy
 import Data.Schema
-import qualified Data.Swagger as S
+import Data.Swagger qualified as S
 import Data.Swagger.Internal.ParamSchema (ToParamSchema (..))
-import qualified Data.Text as T
+import Data.Text qualified as T
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Text.Lazy (toStrict)
 import Data.Text.Lazy.Builder
 import Data.Text.Lazy.Builder.Int
 import Data.UUID (UUID)
-import qualified Data.UUID as UUID
+import Data.UUID qualified as UUID
 import Data.UUID.V4
 import Imports
 import Servant (FromHttpApiData (..), ToHttpApiData (..))
@@ -354,10 +354,11 @@ newtype BotId = BotId
       FromHttpApiData,
       Hashable,
       NFData,
-      FromJSON,
-      ToJSON,
-      Generic
+      Generic,
+      ToParamSchema
     )
+  deriving newtype (ToSchema)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema BotId
 
 instance Show BotId where
   show = show . botUserId

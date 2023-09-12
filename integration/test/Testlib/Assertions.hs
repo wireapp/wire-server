@@ -4,12 +4,21 @@ module Testlib.Assertions where
 
 import Control.Exception as E
 import Control.Monad.Reader
-import Data.Aeson (Value)
+import Data.Aeson qualified as Aeson
+import Data.Aeson.Encode.Pretty qualified as Aeson
+import Data.ByteString.Base64 qualified as B64
+import Data.ByteString.Lazy qualified as BS
 import Data.Char
 import Data.Foldable
+import Data.Hex
 import Data.List
-import qualified Data.Map as Map
+import Data.Map qualified as Map
+import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
+import Data.Text.Lazy qualified as TL
+import Data.Text.Lazy.Encoding qualified as TL
 import GHC.Stack as Stack
+import Network.HTTP.Client qualified as HTTP
 import System.FilePath
 import Testlib.JSON
 import Testlib.Printing
@@ -49,6 +58,17 @@ a `shouldMatch` b = do
     pb <- prettyJSON xb
     assertFailure $ "Actual:\n" <> pa <> "\nExpected:\n" <> pb
 
+shouldMatchBase64 ::
+  (MakesValue a, MakesValue b, HasCallStack) =>
+  -- | The actual value, in base64
+  a ->
+  -- | The expected value, in plain text
+  b ->
+  App ()
+a `shouldMatchBase64` b = do
+  xa <- Text.decodeUtf8 . B64.decodeLenient . Text.encodeUtf8 . Text.pack <$> asString a
+  xa `shouldMatch` b
+
 shouldNotMatch ::
   (MakesValue a, MakesValue b, HasCallStack) =>
   -- | The actual value
@@ -72,7 +92,7 @@ a `shouldNotMatch` b = do
 
   when (xa == xb) $ do
     pa <- prettyJSON xa
-    assertFailure $ "Expected different value but got twice:\n" <> pa
+    assertFailure $ "Expected different value but got this:\n" <> pa
 
 -- | Specialized variant of `shouldMatch` to avoid the need for type annotations.
 shouldMatchInt ::
@@ -107,6 +127,19 @@ shouldMatchSet a b = do
   lb <- fmap sort (asList b)
   la `shouldMatch` lb
 
+shouldMatchOneOf ::
+  (MakesValue a, MakesValue b, HasCallStack) =>
+  a ->
+  b ->
+  App ()
+shouldMatchOneOf a b = do
+  lb <- asList b
+  xa <- make a
+  unless (xa `elem` lb) $ do
+    pa <- prettyJSON a
+    pb <- prettyJSON b
+    assertFailure $ "Expected:\n" <> pa <> "\n to match at least one of:\n" <> pb
+
 shouldContainString ::
   HasCallStack =>
   -- | The actual value
@@ -117,22 +150,6 @@ shouldContainString ::
 super `shouldContainString` sub = do
   unless (sub `isInfixOf` super) $ do
     assertFailure $ "String:\n" <> show super <> "\nDoes not contain:\n" <> show sub
-
-liftP2 ::
-  (MakesValue a, MakesValue b, HasCallStack) =>
-  (Value -> Value -> c) ->
-  a ->
-  b ->
-  App c
-liftP2 f a b = do
-  f <$> make a <*> make b
-
-isEqual ::
-  (MakesValue a, MakesValue b, HasCallStack) =>
-  a ->
-  b ->
-  App Bool
-isEqual = liftP2 (==)
 
 printFailureDetails :: AssertionFailure -> IO String
 printFailureDetails (AssertionFailure stack mbResponse msg) = do
@@ -231,3 +248,27 @@ getLineNumber lineNo s =
   case drop (lineNo - 1) (lines s) of
     [] -> Nothing
     (l : _) -> pure l
+
+prettyResponse :: Response -> String
+prettyResponse r =
+  unlines $
+    concat
+      [ pure $ colored yellow "request: \n" <> showRequest r.request,
+        pure $ colored yellow "request headers: \n" <> showHeaders (HTTP.requestHeaders r.request),
+        case getRequestBody r.request of
+          Nothing -> []
+          Just b ->
+            [ colored yellow "request body:",
+              Text.unpack . Text.decodeUtf8 $ case Aeson.decode (BS.fromStrict b) of
+                Just v -> BS.toStrict (Aeson.encodePretty (v :: Aeson.Value))
+                Nothing -> hex b
+            ],
+        pure $ colored blue "response status: " <> show r.status,
+        pure $ colored blue "response body:",
+        pure $
+          ( TL.unpack . TL.decodeUtf8 $
+              case r.jsonBody of
+                Just b -> (Aeson.encodePretty b)
+                Nothing -> BS.fromStrict r.body
+          )
+      ]

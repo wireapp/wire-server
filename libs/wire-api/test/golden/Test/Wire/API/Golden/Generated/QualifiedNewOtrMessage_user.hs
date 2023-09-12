@@ -19,10 +19,10 @@ module Test.Wire.API.Golden.Generated.QualifiedNewOtrMessage_user where
 
 import Data.Domain
 import Data.Id (ClientId (..), Id (..))
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Qualified
-import qualified Data.Set as Set
-import qualified Data.UUID as UUID
+import Data.Set qualified as Set
+import Data.UUID qualified as UUID
 import Imports
 import Wire.API.Message
 import Wire.API.User.Client

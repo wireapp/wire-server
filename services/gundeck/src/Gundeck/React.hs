@@ -25,27 +25,27 @@ where
 import Control.Lens (view, (.~), (^.))
 import Data.ByteString.Conversion
 import Data.Id (ClientId, UserId)
-import qualified Data.List as List
+import Data.List qualified as List
 import Data.List1
-import qualified Data.Set as Set
-import qualified Data.Text as Text
+import Data.Set qualified as Set
+import Data.Text qualified as Text
 import Gundeck.Aws (SNSEndpoint, endpointEnabled, endpointToken, endpointUsers)
-import qualified Gundeck.Aws as Aws
+import Gundeck.Aws qualified as Aws
 import Gundeck.Aws.Arn
 import Gundeck.Aws.Sns
 import Gundeck.Env
 import Gundeck.Instances ()
 import Gundeck.Monad
-import qualified Gundeck.Notification.Data as Stream
-import Gundeck.Options (optSettings, setNotificationTTL)
-import qualified Gundeck.Push.Data as Push
+import Gundeck.Notification.Data qualified as Stream
+import Gundeck.Options (notificationTTL, settings)
+import Gundeck.Push.Data qualified as Push
 import Gundeck.Push.Native.Types
-import qualified Gundeck.Push.Websocket as Web
+import Gundeck.Push.Websocket qualified as Web
 import Gundeck.Types
 import Gundeck.Util
 import Imports
 import System.Logger.Class (Msg, msg, val, (+++), (.=), (~~))
-import qualified System.Logger.Class as Log
+import System.Logger.Class qualified as Log
 import Wire.API.Internal.Notification
 
 onEvent :: Event -> Gundeck ()
@@ -162,7 +162,7 @@ deleteToken u ev tk cl = do
       n = Notification i False p
       r = singleton (target u & targetClients .~ [cl])
   void $ Web.push n r (Just u) Nothing Set.empty
-  Stream.add i r p =<< view (options . optSettings . setNotificationTTL)
+  Stream.add i r p =<< view (options . settings . notificationTTL)
   Push.delete u (t ^. tokenTransport) (t ^. tokenApp) tk
 
 mkPushToken :: Event -> Token -> ClientId -> PushToken

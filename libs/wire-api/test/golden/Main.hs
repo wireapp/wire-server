@@ -22,10 +22,10 @@ where
 
 import Imports
 import Test.Tasty
-import qualified Test.Wire.API.Golden.FromJSON as Golden.FromJSON
-import qualified Test.Wire.API.Golden.Generated as Golden.Generated
-import qualified Test.Wire.API.Golden.Manual as Golden.Manual
-import qualified Test.Wire.API.Golden.Protobuf as Golden.Protobuf
+import Test.Wire.API.Golden.FromJSON qualified as Golden.FromJSON
+import Test.Wire.API.Golden.Generated qualified as Golden.Generated
+import Test.Wire.API.Golden.Manual qualified as Golden.Manual
+import Test.Wire.API.Golden.Protobuf qualified as Golden.Protobuf
 
 main :: IO ()
 main =

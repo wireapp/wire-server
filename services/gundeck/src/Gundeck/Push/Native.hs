@@ -29,22 +29,22 @@ import Data.ByteString.Conversion.To
 import Data.Id
 import Data.List1
 import Data.Metrics (counterIncr, path)
-import qualified Data.Set as Set
-import qualified Data.Text as Text
-import qualified Data.UUID as UUID
-import qualified Gundeck.Aws as Aws
+import Data.Set qualified as Set
+import Data.Text qualified as Text
+import Data.UUID qualified as UUID
+import Gundeck.Aws qualified as Aws
 import Gundeck.Env
 import Gundeck.Monad
-import qualified Gundeck.Notification.Data as Stream
+import Gundeck.Notification.Data qualified as Stream
 import Gundeck.Options
-import qualified Gundeck.Push.Data as Data
+import Gundeck.Push.Data qualified as Data
 import Gundeck.Push.Native.Serialise
 import Gundeck.Push.Native.Types as Types
 import Gundeck.Types
 import Gundeck.Util
 import Imports
 import System.Logger.Class (MonadLogger, field, msg, val, (.=), (~~))
-import qualified System.Logger.Class as Log
+import System.Logger.Class qualified as Log
 import UnliftIO (handleAny, mapConcurrently, pooledMapConcurrentlyN_)
 import Wire.API.Internal.Notification
 
@@ -52,7 +52,7 @@ push :: NativePush -> [Address] -> Gundeck ()
 push _ [] = pure ()
 push m [a] = push1 m a
 push m addrs = do
-  perPushConcurrency <- view (options . optSettings . setPerNativePushConcurrency)
+  perPushConcurrency <- view (options . settings . perNativePushConcurrency)
   case perPushConcurrency of
     -- send all at once
     Nothing -> void $ mapConcurrently (push1 m) addrs
@@ -123,9 +123,9 @@ push1 = push1' 0
           let trp = t ^. tokenTransport
           let app = t ^. tokenApp
           let tok = t ^. token
-          env <- view (options . optAws . awsArnEnv)
-          aws <- view awsEnv
-          ept <- Aws.execute aws (Aws.createEndpoint uid trp env app tok)
+          env <- view (options . aws . arnEnv)
+          aws' <- view awsEnv
+          ept <- Aws.execute aws' (Aws.createEndpoint uid trp env app tok)
           case ept of
             Left (Aws.EndpointInUse arn) ->
               Log.info $ "arn" .= toText arn ~~ msg (val "ARN in use")
@@ -157,7 +157,7 @@ push1 = push1' 0
           let r = singleton (target (a ^. addrUser) & targetClients .~ [c])
           let t = a ^. addrPushToken
           let p = singletonPayload (PushRemove t)
-          Stream.add i r p =<< view (options . optSettings . setNotificationTTL)
+          Stream.add i r p =<< view (options . settings . notificationTTL)
 
 publish :: NativePush -> Address -> Aws.Amazon Result
 publish m a = flip catches pushException $ do
@@ -194,7 +194,7 @@ publish m a = flip catches pushException $ do
 -- migrated to the token and endpoint of the new address.
 deleteTokens :: [Address] -> Maybe Address -> Gundeck ()
 deleteTokens tokens new = do
-  aws <- view awsEnv
+  aws' <- view awsEnv
   forM_ tokens $ \a -> do
     Log.info $
       field "user" (UUID.toASCIIBytes (toUUID (a ^. addrUser)))
@@ -202,30 +202,30 @@ deleteTokens tokens new = do
         ~~ field "arn" (toText (a ^. addrEndpoint))
         ~~ msg (val "Deleting push token")
     Data.delete (a ^. addrUser) (a ^. addrTransport) (a ^. addrApp) (a ^. addrToken)
-    ept <- Aws.execute aws (Aws.lookupEndpoint (a ^. addrEndpoint))
+    ept <- Aws.execute aws' (Aws.lookupEndpoint (a ^. addrEndpoint))
     for_ ept $ \ep ->
       let us = Set.delete (a ^. addrUser) (ep ^. Aws.endpointUsers)
        in if Set.null us
-            then delete aws a
+            then delete aws' a
             else case new of
-              Nothing -> update aws a us
+              Nothing -> update aws' a us
               Just a' -> do
                 mapM_ (migrate a a') us
-                update aws a' (ep ^. Aws.endpointUsers)
-                delete aws a
+                update aws' a' (ep ^. Aws.endpointUsers)
+                delete aws' a
   where
-    delete aws a = do
+    delete aws' a = do
       Log.info $
         field "user" (UUID.toASCIIBytes (toUUID (a ^. addrUser)))
           ~~ field "arn" (toText (a ^. addrEndpoint))
           ~~ msg (val "Deleting SNS endpoint")
-      Aws.execute aws (Aws.deleteEndpoint (a ^. addrEndpoint))
-    update aws a us = do
+      Aws.execute aws' (Aws.deleteEndpoint (a ^. addrEndpoint))
+    update aws' a us = do
       Log.info $
         field "user" (UUID.toASCIIBytes (toUUID (a ^. addrUser)))
           ~~ field "arn" (toText (a ^. addrEndpoint))
           ~~ msg (val "Updating SNS endpoint")
-      Aws.execute aws (Aws.updateEndpoint us (a ^. addrToken) (a ^. addrEndpoint))
+      Aws.execute aws' (Aws.updateEndpoint us (a ^. addrToken) (a ^. addrEndpoint))
     migrate a a' u = do
       let oldArn = a ^. addrEndpoint
       let oldTok = a ^. addrToken

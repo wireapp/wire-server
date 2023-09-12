@@ -17,7 +17,7 @@
 
 module Main where
 
-import qualified ParseSchema
+import ParseSchema qualified
 import Prelude
 
 main :: IO ()

@@ -18,14 +18,15 @@
 module Wire.API.Routes.Bearer where
 
 import Control.Lens ((<>~))
-import qualified Data.ByteString as BS
-import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
+import Data.ByteString qualified as BS
+import Data.HashMap.Strict.InsOrd qualified as InsOrdHashMap
 import Data.Metrics.Servant
 import Data.Swagger hiding (Header)
-import qualified Data.Text.Encoding as T
+import Data.Text.Encoding qualified as T
 import Imports
 import Servant
 import Servant.Swagger
+import Wire.API.Routes.Version
 
 newtype Bearer a = Bearer {unBearer :: a}
 
@@ -41,6 +42,10 @@ type BearerQueryParam =
   QueryParam'
     [Lenient, Description "Access token"]
     "access_token"
+
+type instance
+  SpecialiseToVersion v (Bearer a :> api) =
+    Bearer a :> SpecialiseToVersion v api
 
 instance HasSwagger api => HasSwagger (Bearer a :> api) where
   toSwagger _ =

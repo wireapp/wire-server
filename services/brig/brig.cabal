@@ -12,6 +12,9 @@ build-type:         Simple
 extra-source-files:
   docs/swagger-v0.json
   docs/swagger-v1.json
+  docs/swagger-v2.json
+  docs/swagger-v3.json
+  docs/swagger-v4.json
   docs/swagger.md
 
 library
@@ -311,7 +314,7 @@ library
     , yaml                       >=0.8.22
     , zauth                      >=0.10.3
 
-  default-language:   Haskell2010
+  default-language:   GHC2021
 
 executable brig
   main-is:            exec/Main.hs
@@ -372,7 +375,7 @@ executable brig
     , imports
     , types-common
 
-  default-language:   Haskell2010
+  default-language:   GHC2021
 
 executable brig-index
   main-is:            index/src/Main.hs
@@ -432,7 +435,7 @@ executable brig-index
     , optparse-applicative
     , tinylog
 
-  default-language:   Haskell2010
+  default-language:   GHC2021
 
 executable brig-integration
   main-is:            Main.hs
@@ -533,7 +536,6 @@ executable brig-integration
     , attoparsec
     , base
     , base16-bytestring
-    , base64-bytestring
     , bilge
     , bloodhound
     , brig
@@ -619,7 +621,7 @@ executable brig-integration
     , yaml
     , zauth
 
-  default-language:   Haskell2010
+  default-language:   GHC2021
 
 executable brig-schema
   main-is:            Main.hs
@@ -662,6 +664,8 @@ executable brig-schema
     V75_AddOAuthCodeChallenge
     V76_AddSupportedProtocols
     V77_FederationRemotes
+    V78_ClientLastActive
+    V79_ConnectionRemoteIndex
     V_FUTUREWORK
 
   hs-source-dirs:     schema/src
@@ -721,7 +725,7 @@ executable brig-schema
     , raw-strings-qq  >=1.0
     , types-common
 
-  default-language:   Haskell2010
+  default-language:   GHC2021
 
 test-suite brig-tests
   type:               exitcode-stdio-1.0
@@ -815,4 +819,4 @@ test-suite brig-tests
     , uuid
     , wire-api
 
-  default-language:   Haskell2010
+  default-language:   GHC2021

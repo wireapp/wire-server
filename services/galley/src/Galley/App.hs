@@ -21,8 +21,8 @@ module Galley.App
   ( -- * Environment
     Env,
     reqId,
-    monitor,
     options,
+    monitor,
     applog,
     manager,
     federator,
@@ -44,22 +44,22 @@ module Galley.App
   )
 where
 
-import Bilge hiding (Request, header, options, statusCode, statusMessage)
+import Bilge hiding (Request, header, host, options, port, statusCode, statusMessage)
 import Cassandra hiding (Set)
-import qualified Cassandra as C
-import qualified Cassandra.Settings as C
+import Cassandra qualified as C
+import Cassandra.Settings qualified as C
 import Control.Error hiding (err)
 import Control.Lens hiding ((.=))
-import Data.ByteString.Conversion (toByteString')
 import Data.Default (def)
-import qualified Data.List.NonEmpty as NE
+import Data.List.NonEmpty qualified as NE
 import Data.Metrics.Middleware
+import Data.Misc
 import Data.Qualified
 import Data.Range
 import Data.Text (unpack)
 import Data.Time.Clock
 import Galley.API.Error
-import qualified Galley.Aws as Aws
+import Galley.Aws qualified as Aws
 import Galley.Cassandra.Client
 import Galley.Cassandra.Code
 import Galley.Cassandra.Conversation
@@ -82,33 +82,34 @@ import Galley.Intra.BackendNotificationQueue
 import Galley.Intra.Effects
 import Galley.Intra.Federator
 import Galley.Keys
-import Galley.Options
+import Galley.Options hiding (brig, endpoint, federator)
+import Galley.Options qualified as O
 import Galley.Queue
-import qualified Galley.Queue as Q
-import qualified Galley.Types.Teams as Teams
+import Galley.Queue qualified as Q
+import Galley.Types.Teams qualified as Teams
 import HTTP2.Client.Manager (Http2Manager, http2ManagerWithSSLCtx)
 import Imports hiding (forkIO)
-import Network.AMQP.Extended
+import Network.AMQP.Extended (mkRabbitMqChannelMVar)
 import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.OpenSSL
-import qualified Network.Wai.Utilities.Error as Wai
+import Network.Wai.Utilities.JSONResponse
 import OpenSSL.Session as Ssl
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.Internal (Append)
 import Polysemy.Resource
-import qualified Polysemy.TinyLog as P
-import qualified Servant
+import Polysemy.TinyLog qualified as P
+import Servant qualified
 import Ssl.Util
-import qualified System.Logger as Log
-import System.Logger.Class
-import qualified System.Logger.Extended as Logger
-import qualified UnliftIO.Exception as UnliftIO
+import System.Logger qualified as Log
+import System.Logger.Class (Logger)
+import System.Logger.Extended qualified as Logger
+import UnliftIO.Exception qualified as UnliftIO
 import Util.Options
 import Wire.API.Error
 import Wire.API.Federation.Error
-import qualified Wire.Sem.Logger
+import Wire.Sem.Logger qualified
 
 -- Effects needed by the interpretation of other effects
 type GalleyEffects0 =
@@ -120,7 +121,7 @@ type GalleyEffects0 =
      -- having to declare it every single time, and simply handle it here
      Error FederationError,
      Embed IO,
-     Error Wai.Error,
+     Error JSONResponse,
      Resource,
      Final IO
    ]
@@ -128,65 +129,58 @@ type GalleyEffects0 =
 type GalleyEffects = Append GalleyEffects1 GalleyEffects0
 
 -- Define some invariants for the options used
-validateOptions :: Logger -> Opts -> IO ()
-validateOptions l o = do
-  let settings = view optSettings o
+validateOptions :: Opts -> IO (Either HttpsUrl (Map Text HttpsUrl))
+validateOptions o = do
+  let settings' = view settings o
       optFanoutLimit = fromIntegral . fromRange $ currentFanoutLimit o
-  when
-    ( isJust (o ^. optJournal)
-        && settings ^. setMaxTeamSize > optFanoutLimit
-        && not (settings ^. setEnableIndexedBillingTeamMembers . to (fromMaybe False))
-    )
-    $ Logger.warn
-      l
-      ( msg
-          . val
-          $ "You're journaling events for teams larger than "
-            <> toByteString' optFanoutLimit
-            <> " may have some admin user ids missing. \
-               \ This is fine for testing purposes but NOT for production use!!"
-      )
-  when (settings ^. setMaxConvSize > fromIntegral optFanoutLimit) $
+  when (settings' ^. maxConvSize > fromIntegral optFanoutLimit) $
     error "setMaxConvSize cannot be > setTruncationLimit"
-  when (settings ^. setMaxTeamSize < optFanoutLimit) $
+  when (settings' ^. maxTeamSize < optFanoutLimit) $
     error "setMaxTeamSize cannot be < setTruncationLimit"
-  case (o ^. optFederator, o ^. optRabbitmq) of
+  case (o ^. O.federator, o ^. rabbitmq) of
     (Nothing, Just _) -> error "RabbitMQ config is specified and federator is not, please specify both or none"
     (Just _, Nothing) -> error "Federator is specified and RabbitMQ config is not, please specify both or none"
     _ -> pure ()
+  let errMsg = "Either conversationCodeURI or multiIngress needs to be set."
+  case (settings' ^. conversationCodeURI, settings' ^. multiIngress) of
+    (Nothing, Nothing) -> error errMsg
+    (Nothing, Just mi) -> pure (Right mi)
+    (Just uri, Nothing) -> pure (Left uri)
+    (Just _, Just _) -> error errMsg
 
 createEnv :: Metrics -> Opts -> Logger -> IO Env
 createEnv m o l = do
   cass <- initCassandra o l
   mgr <- initHttpManager o
   h2mgr <- initHttp2Manager
-  validateOptions l o
-  Env def m o l mgr h2mgr (o ^. optFederator) (o ^. optBrig) cass
+  codeURIcfg <- validateOptions o
+  Env def m o l mgr h2mgr (o ^. O.federator) (o ^. O.brig) cass
     <$> Q.new 16000
     <*> initExtEnv
-    <*> maybe (pure Nothing) (fmap Just . Aws.mkEnv l mgr) (o ^. optJournal)
-    <*> loadAllMLSKeys (fold (o ^. optSettings . setMlsPrivateKeyPaths))
-    <*> traverse (mkRabbitMqChannelMVar l) (o ^. optRabbitmq)
+    <*> maybe (pure Nothing) (fmap Just . Aws.mkEnv l mgr) (o ^. journal)
+    <*> loadAllMLSKeys (fold (o ^. settings . mlsPrivateKeyPaths))
+    <*> traverse (mkRabbitMqChannelMVar l) (o ^. rabbitmq)
+    <*> pure codeURIcfg
 
 initCassandra :: Opts -> Logger -> IO ClientState
 initCassandra o l = do
   c <-
     maybe
-      (C.initialContactsPlain (o ^. optCassandra . casEndpoint . epHost))
+      (C.initialContactsPlain (o ^. cassandra . endpoint . host))
       (C.initialContactsDisco "cassandra_galley" . unpack)
-      (o ^. optDiscoUrl)
+      (o ^. discoUrl)
   C.init
     . C.setLogger (C.mkLogger (Logger.clone (Just "cassandra.galley") l))
     . C.setContacts (NE.head c) (NE.tail c)
-    . C.setPortNumber (fromIntegral $ o ^. optCassandra . casEndpoint . epPort)
-    . C.setKeyspace (Keyspace $ o ^. optCassandra . casKeyspace)
+    . C.setPortNumber (fromIntegral $ o ^. cassandra . endpoint . port)
+    . C.setKeyspace (Keyspace $ o ^. cassandra . keyspace)
     . C.setMaxConnections 4
     . C.setMaxStreams 128
     . C.setPoolStripes 4
     . C.setSendTimeout 3
     . C.setResponseTimeout 10
     . C.setProtocolVersion C.V4
-    . C.setPolicy (C.dcFilterPolicyIfConfigured l (o ^. optCassandra . casFilterNodesByDatacentre))
+    . C.setPolicy (C.dcFilterPolicyIfConfigured l (o ^. cassandra . filterNodesByDatacentre))
     $ C.defSettings
 
 initHttpManager :: Opts -> IO Manager
@@ -201,8 +195,8 @@ initHttpManager o = do
   newManager
     (opensslManagerSettings (pure ctx))
       { managerResponseTimeout = responseTimeoutMicro 10000000,
-        managerConnCount = o ^. optSettings . setHttpPoolSize,
-        managerIdleConnectionCount = 3 * (o ^. optSettings . setHttpPoolSize)
+        managerConnCount = o ^. settings . httpPoolSize,
+        managerIdleConnectionCount = 3 * (o ^. settings . httpPoolSize)
       }
 
 initHttp2Manager :: IO Http2Manager
@@ -243,25 +237,25 @@ evalGalleyToIO env action = do
 toServantHandler :: Env -> Sem GalleyEffects a -> Servant.Handler a
 toServantHandler env = liftIO . evalGalleyToIO env
 
-evalGalley :: Env -> Sem GalleyEffects a -> ExceptT Wai.Error IO a
+evalGalley :: Env -> Sem GalleyEffects a -> ExceptT JSONResponse IO a
 evalGalley e =
   ExceptT
     . runFinal @IO
     . resourceToIOFinal
     . runError
     . embedToFinal @IO
-    . mapError toWai
-    . mapError toWai
-    . mapError toWai
+    . mapError toResponse
+    . mapError toResponse
+    . mapError toResponse
     . runInputConst e
     . runInputConst (e ^. cstate)
-    . mapError toWai -- DynError
+    . mapError toResponse -- DynError
     . interpretTinyLog e
     . interpretQueue (e ^. deleteQueue)
     . runInputSem (embed getCurrentTime) -- FUTUREWORK: could we take the time only once instead?
     . interpretWaiRoutes
     . runInputConst (e ^. options)
-    . runInputConst (toLocalUnsafe (e ^. options . optSettings . setFederationDomain) ())
+    . runInputConst (toLocalUnsafe (e ^. options . settings . federationDomain) ())
     . interpretInternalTeamListToCassandra
     . interpretTeamListToCassandra
     . interpretLegacyConversationListToCassandra
@@ -287,7 +281,8 @@ evalGalley e =
     . interpretFederatorAccess
     . interpretExternalAccess
     . interpretGundeckAccess
+    . interpretDefederationNotifications
     . interpretSparAccess
     . interpretBrigAccess
   where
-    lh = view (options . optSettings . setFeatureFlags . Teams.flagLegalHold) e
+    lh = view (options . settings . featureFlags . Teams.flagLegalHold) e

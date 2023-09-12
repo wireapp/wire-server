@@ -24,14 +24,14 @@ import Control.Arrow ((&&&))
 import Control.Lens (Prism', at, ix, makePrisms, nullOf, prism', (?~), (^.), _1)
 import Data.Aeson (FromJSON (..), Result (..), ToJSON (..), Value (..), decode, encode, fromJSON)
 import Data.Aeson.QQ
-import qualified Data.Aeson.Types as A
-import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
+import Data.Aeson.Types qualified as A
+import Data.HashMap.Strict.InsOrd qualified as InsOrdHashMap
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Proxy
 import Data.Schema hiding (getName)
-import qualified Data.Swagger as S
-import qualified Data.Swagger.Declare as S
-import qualified Data.Text as Text
+import Data.Swagger qualified as S
+import Data.Swagger.Declare qualified as S
+import Data.Text qualified as Text
 import Imports
 import Test.Tasty
 import Test.Tasty.HUnit

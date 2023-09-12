@@ -4,24 +4,26 @@
 
 module Test.Wire.BackendNotificationPusherSpec where
 
+import Control.Concurrent.Chan
 import Control.Exception
 import Control.Monad.Trans.Except
-import qualified Data.Aeson as Aeson
-import qualified Data.ByteString.Builder as Builder
-import qualified Data.ByteString.Lazy as LBS
+import Data.Aeson qualified as Aeson
+import Data.ByteString.Builder qualified as Builder
+import Data.ByteString.Lazy qualified as LBS
 import Data.Domain
 import Data.Range
-import qualified Data.Sequence as Seq
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
+import Data.Sequence qualified as Seq
+import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
 import Federator.MockServer
 import Imports
-import qualified Network.AMQP as Q
+import Network.AMQP qualified as Q
+import Network.HTTP.Client (defaultManagerSettings, newManager, responseTimeoutNone)
 import Network.HTTP.Media
 import Network.HTTP.Types
 import Network.RabbitMqAdmin
-import qualified Network.Wai as Wai
-import qualified Network.Wai.Internal as Wai
+import Network.Wai qualified as Wai
+import Network.Wai.Internal qualified as Wai
 import Prometheus
 import Servant hiding (respond)
 import Servant.Client
@@ -29,9 +31,10 @@ import Servant.Client.Core
 import Servant.Client.Internal.HttpClient (mkFailureResponse)
 import Servant.Server.Generic
 import Servant.Types.SourceT
-import qualified System.Logger as Logger
+import System.Logger.Class qualified as Logger
 import Test.Hspec
 import Test.QuickCheck
+import Test.Wire.Util
 import UnliftIO.Async
 import Util.Options
 import Wire.API.Federation.API
@@ -39,32 +42,11 @@ import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.BackendNotifications
 import Wire.API.RawJson
+import Wire.API.Routes.FederationDomainConfig
 import Wire.BackendNotificationPusher
 import Wire.BackgroundWorker.Env
 import Wire.BackgroundWorker.Options
-
-testEnv :: IO Env
-testEnv = do
-  http2Manager <- initHttp2Manager
-  logger <- Logger.new Logger.defSettings
-  statuses <- newIORef mempty
-  backendNotificationMetrics <- mkBackendNotificationMetrics
-  let federatorInternal = Endpoint "localhost" 0
-      rabbitmqAdminClient = undefined
-      rabbitmqVHost = undefined
-      metrics = undefined
-      backendNotificationPusher = BackendNotificationPusherOpts 1
-  pure Env {..}
-
-runTestAppT :: AppT IO a -> Int -> IO a
-runTestAppT app port = do
-  baseEnv <- testEnv
-  runTestAppTWithEnv baseEnv app port
-
-runTestAppTWithEnv :: Env -> AppT IO a -> Int -> IO a
-runTestAppTWithEnv Env {..} app port = do
-  let env = Env {federatorInternal = Endpoint "localhost" (fromIntegral port), ..}
-  runAppT env app
+import Wire.BackgroundWorker.Util
 
 spec :: Spec
 spec = do
@@ -90,10 +72,10 @@ spec = do
               { Q.msgBody = Aeson.encode notif,
                 Q.msgContentType = Just "application/json"
               }
-
+      runningFlag <- newMVar ()
       (env, fedReqs) <-
         withTempMockFederator [] returnSuccess . runTestAppT $ do
-          void $ pushNotification targetDomain (msg, envelope)
+          wait =<< pushNotification runningFlag targetDomain (msg, envelope)
           ask
 
       readIORef envelope.acks `shouldReturn` 1
@@ -110,6 +92,44 @@ spec = do
       getVectorWith env.backendNotificationMetrics.pushedCounter getCounter
         `shouldReturn` [(domainText targetDomain, 1)]
 
+    it "should push on-connection-removed notifications" $ do
+      let returnSuccess _ = pure ("application/json", Aeson.encode EmptyResponse)
+      let origDomain = Domain "origin.example.com"
+          targetDomain = Domain "target.example.com"
+          defederatedDomain = Domain "defederated.example.com"
+      let notif =
+            BackendNotification
+              { targetComponent = Galley,
+                ownDomain = origDomain,
+                path = "/on-connection-removed",
+                body = RawJson $ Aeson.encode defederatedDomain
+              }
+      envelope <- newMockEnvelope
+      let msg =
+            Q.newMsg
+              { Q.msgBody = Aeson.encode notif,
+                Q.msgContentType = Just "application/json"
+              }
+      runningFlag <- newMVar ()
+      (env, fedReqs) <-
+        withTempMockFederator [] returnSuccess . runTestAppT $ do
+          wait =<< pushNotification runningFlag targetDomain (msg, envelope)
+          ask
+
+      readIORef envelope.acks `shouldReturn` 1
+      readIORef envelope.rejections `shouldReturn` []
+      fedReqs
+        `shouldBe` [ FederatedRequest
+                       { frTargetDomain = targetDomain,
+                         frOriginDomain = origDomain,
+                         frComponent = Galley,
+                         frRPC = "on-connection-removed",
+                         frBody = Aeson.encode defederatedDomain
+                       }
+                   ]
+      getVectorWith env.backendNotificationMetrics.pushedCounter getCounter
+        `shouldReturn` [(domainText targetDomain, 1)]
+
     it "should reject invalid notifications" $ do
       let returnSuccess _ = pure ("application/json", Aeson.encode EmptyResponse)
       envelope <- newMockEnvelope
@@ -118,9 +138,10 @@ spec = do
               { Q.msgBody = "unparseable notification",
                 Q.msgContentType = Just "application/json"
               }
+      runningFlag <- newMVar ()
       (env, fedReqs) <-
         withTempMockFederator [] returnSuccess . runTestAppT $ do
-          void $ pushNotification (Domain "target.example.com") (msg, envelope)
+          wait =<< pushNotification runningFlag (Domain "target.example.com") (msg, envelope)
           ask
 
       readIORef envelope.acks `shouldReturn` 0
@@ -155,11 +176,11 @@ spec = do
               { Q.msgBody = Aeson.encode notif,
                 Q.msgContentType = Just "application/json"
               }
-
+      runningFlag <- newMVar ()
       env <- testEnv
       pushThread <-
         async $ withTempMockFederator [] mockRemote . runTestAppTWithEnv env $ do
-          pushNotification targetDomain (msg, envelope)
+          wait =<< pushNotification runningFlag targetDomain (msg, envelope)
 
       -- Wait for two calls, so we can be sure that the metric about stuck
       -- queues has been updated
@@ -198,13 +219,21 @@ spec = do
             "backend-notifications.not-a-domain"
           ]
       logger <- Logger.new Logger.defSettings
-      let federatorInternal = undefined
+      httpManager <- newManager defaultManagerSettings
+      remoteDomains <- newIORef defFederationDomainConfigs
+      remoteDomainsChan <- newChan
+      notificationChannel <- newEmptyMVar
+      let federatorInternal = Endpoint "localhost" 8097
           http2Manager = undefined
           statuses = undefined
           metrics = undefined
-          backendNotificationPusher = BackendNotificationPusherOpts 1
           rabbitmqAdminClient = mockRabbitMqAdminClient mockAdmin
           rabbitmqVHost = "test-vhost"
+          defederationTimeout = responseTimeoutNone
+          galley = Endpoint "localhost" 8085
+          brig = Endpoint "localhost" 8082
+          backendNotificationsConfig = BackendNotificationsConfig 1000 500000
+
       backendNotificationMetrics <- mkBackendNotificationMetrics
       domains <- runAppT Env {..} getRemoteDomains
       domains `shouldBe` map Domain ["foo.example", "bar.example", "baz.example"]
@@ -213,13 +242,20 @@ spec = do
     it "should retry fetching domains if a request fails" $ do
       mockAdmin <- newMockRabbitMqAdmin True ["backend-notifications.foo.example"]
       logger <- Logger.new Logger.defSettings
-      let federatorInternal = undefined
+      httpManager <- newManager defaultManagerSettings
+      remoteDomains <- newIORef defFederationDomainConfigs
+      remoteDomainsChan <- newChan
+      notificationChannel <- newEmptyMVar
+      let federatorInternal = Endpoint "localhost" 8097
           http2Manager = undefined
           statuses = undefined
           metrics = undefined
-          backendNotificationPusher = BackendNotificationPusherOpts 1
           rabbitmqAdminClient = mockRabbitMqAdminClient mockAdmin
           rabbitmqVHost = "test-vhost"
+          defederationTimeout = responseTimeoutNone
+          galley = Endpoint "localhost" 8085
+          brig = Endpoint "localhost" 8082
+          backendNotificationsConfig = BackendNotificationsConfig 1000 500000
       backendNotificationMetrics <- mkBackendNotificationMetrics
       domainsThread <- async $ runAppT Env {..} getRemoteDomains
 
@@ -239,7 +275,7 @@ spec = do
       calls `shouldSatisfy` (\c -> length c >= 2)
       mapM_ (\vhost -> vhost `shouldBe` rabbitmqVHost) calls
 
-untilM :: Monad m => m Bool -> m ()
+untilM :: (Monad m) => m Bool -> m ()
 untilM action = do
   b <- action
   unless b $ untilM action
@@ -274,7 +310,8 @@ newMockRabbitMqAdmin isBroken queues = do
 mockApi :: MockRabbitMqAdmin -> AdminAPI (AsServerT Servant.Handler)
 mockApi mockAdmin =
   AdminAPI
-    { listQueuesByVHost = mockListQueuesByVHost mockAdmin
+    { listQueuesByVHost = mockListQueuesByVHost mockAdmin,
+      deleteQueue = mockListDeleteQueue mockAdmin
     }
 
 mockListQueuesByVHost :: MockRabbitMqAdmin -> Text -> Servant.Handler [Queue]
@@ -284,6 +321,10 @@ mockListQueuesByVHost MockRabbitMqAdmin {..} vhost = do
     True -> throwError $ Servant.err500
     False -> pure $ map (\n -> Queue n vhost) queues
 
+mockListDeleteQueue :: MockRabbitMqAdmin -> Text -> Text -> Servant.Handler NoContent
+mockListDeleteQueue _ _ _ = do
+  pure NoContent
+
 mockRabbitMqAdminApp :: MockRabbitMqAdmin -> Application
 mockRabbitMqAdminApp mockAdmin = genericServe (mockApi mockAdmin)
 
@@ -291,7 +332,7 @@ mockRabbitMqAdminClient :: forall api. (api ~ ToServant AdminAPI AsApi) => MockR
 mockRabbitMqAdminClient mockAdmin = fromServant $ hoistClient (Proxy @api) (flip runReaderT (mockRabbitMqAdminApp mockAdmin) . runWaiClient) (waiClient @api)
 
 -- | Create servant client for an API, this can be run using 'hoistClient'.
-waiClient :: forall api. HasClient WaiClient api => Client WaiClient api
+waiClient :: forall api. (HasClient WaiClient api) => Client WaiClient api
 waiClient = clientIn (Proxy @api) (Proxy @WaiClient)
 
 -- | Runs a servant client by directly calling a wai application, instead of
@@ -345,7 +386,7 @@ instance RunClient WaiClient where
   throwClientError :: ClientError -> WaiClient a
   throwClientError = liftIO . throwIO
 
-waiResponseToServant :: MonadIO m => Wai.Response -> m Response
+waiResponseToServant :: (MonadIO m) => Wai.Response -> m Response
 waiResponseToServant res = do
   let (status, hdrs, contBody) = Wai.responseToStream res
   body <- liftIO $ contBody $ \streamingBody -> do

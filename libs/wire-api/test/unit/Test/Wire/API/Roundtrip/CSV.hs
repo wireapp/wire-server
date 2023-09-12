@@ -19,12 +19,12 @@ module Test.Wire.API.Roundtrip.CSV where
 
 import Control.Arrow ((>>>))
 import Data.Csv
-import qualified Data.Vector as V
+import Data.Vector qualified as V
 import Imports
-import qualified Test.Tasty as T
+import Test.Tasty qualified as T
 import Test.Tasty.QuickCheck (Arbitrary, counterexample, testProperty, (===))
 import Type.Reflection (typeRep)
-import qualified Wire.API.Team.Export as Team.Export
+import Wire.API.Team.Export qualified as Team.Export
 
 tests :: T.TestTree
 tests =

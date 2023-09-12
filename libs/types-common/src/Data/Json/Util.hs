@@ -49,27 +49,27 @@ module Data.Json.Util
   )
 where
 
-import qualified Cassandra as CQL
+import Cassandra qualified as CQL
 import Control.Lens hiding ((#), (.=))
 import Data.Aeson (FromJSON (..), ToJSON (..))
-import qualified Data.Aeson as A
-import qualified Data.Aeson.Types as A
-import qualified Data.Attoparsec.Text as Atto
-import qualified Data.Attoparsec.Time as Atto
-import qualified Data.ByteString.Base64 as B64
-import qualified Data.ByteString.Base64.URL as B64U
-import qualified Data.ByteString.Builder as BB
-import qualified Data.ByteString.Conversion as BS
-import qualified Data.ByteString.Lazy as L
+import Data.Aeson qualified as A
+import Data.Aeson.Types qualified as A
+import Data.Attoparsec.Text qualified as Atto
+import Data.Attoparsec.Time qualified as Atto
+import Data.ByteString.Base64 qualified as B64
+import Data.ByteString.Base64.URL qualified as B64U
+import Data.ByteString.Builder qualified as BB
+import Data.ByteString.Conversion qualified as BS
+import Data.ByteString.Lazy qualified as L
 import Data.Fixed
 import Data.Schema
-import qualified Data.Swagger as S
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
-import qualified Data.Text.Encoding.Error as Text
+import Data.Swagger qualified as S
+import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
+import Data.Text.Encoding.Error qualified as Text
 import Data.Time.Clock
 import Data.Time.Format (formatTime, parseTimeM)
-import qualified Data.Time.Lens as TL
+import Data.Time.Lens qualified as TL
 import Data.Time.Locale.Compat (defaultTimeLocale)
 import Imports
 import Servant
@@ -172,20 +172,16 @@ instance ToSchema A.Object where
 -- toJSONFieldName
 
 -- | Convenient helper to convert field names to use as JSON fields.
--- it removes the prefix (assumed to be anything before an uppercase
--- character) and converts the rest to underscore
+-- it converts the field names to snake_case.
 --
 -- Example:
--- newtype TeamName = TeamName { tnTeamName :: Text }
--- deriveJSON toJSONFieldName ''tnTeamName
+-- newtype TeamName = TeamName { teamName :: Text }
+-- deriveJSON toJSONFieldName ''teamName
 --
 -- would generate {To/From}JSON instances where
 -- the field name is "team_name"
 toJSONFieldName :: A.Options
-toJSONFieldName = A.defaultOptions {A.fieldLabelModifier = A.camelTo2 '_' . dropPrefix}
-  where
-    dropPrefix :: String -> String
-    dropPrefix = dropWhile (not . isUpper)
+toJSONFieldName = A.defaultOptions {A.fieldLabelModifier = A.camelTo2 '_'}
 
 --------------------------------------------------------------------------------
 

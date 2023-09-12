@@ -50,27 +50,27 @@ where
 import Brig.API.Types
 import Brig.API.Util
 import Brig.App
-import qualified Brig.Data.Client as Data
+import Brig.Data.Client qualified as Data
 import Brig.Data.Nonce as Nonce
-import qualified Brig.Data.User as Data
+import Brig.Data.User qualified as Data
 import Brig.Effects.GalleyProvider (GalleyProvider)
-import qualified Brig.Effects.GalleyProvider as GalleyProvider
+import Brig.Effects.GalleyProvider qualified as GalleyProvider
 import Brig.Effects.JwtTools (JwtTools)
-import qualified Brig.Effects.JwtTools as JwtTools
+import Brig.Effects.JwtTools qualified as JwtTools
 import Brig.Effects.PublicKeyBundle (PublicKeyBundle)
-import qualified Brig.Effects.PublicKeyBundle as PublicKeyBundle
+import Brig.Effects.PublicKeyBundle qualified as PublicKeyBundle
 import Brig.Federation.Client (getUserClients)
-import qualified Brig.Federation.Client as Federation
+import Brig.Federation.Client qualified as Federation
 import Brig.IO.Intra (guardLegalhold)
-import qualified Brig.IO.Intra as Intra
-import qualified Brig.InternalEvent.Types as Internal
-import qualified Brig.Options as Opt
-import qualified Brig.Queue as Queue
+import Brig.IO.Intra qualified as Intra
+import Brig.InternalEvent.Types qualified as Internal
+import Brig.Options qualified as Opt
+import Brig.Queue qualified as Queue
 import Brig.Types.Intra
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
 import Brig.Types.User.Event
-import qualified Brig.User.Auth as UserAuth
-import qualified Brig.User.Auth.Cookie as Auth
+import Brig.User.Auth qualified as UserAuth
+import Brig.User.Auth.Cookie qualified as Auth
 import Brig.User.Email
 import Cassandra (MonadClient)
 import Control.Error
@@ -82,25 +82,25 @@ import Data.IP (IP)
 import Data.Id (ClientId, ConnId, UserId)
 import Data.List.Split (chunksOf)
 import Data.Map.Strict (traverseWithKey)
-import qualified Data.Map.Strict as Map
+import Data.Map.Strict qualified as Map
 import Data.Misc (PlainTextPassword6)
 import Data.Qualified
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Imports
 import Network.HTTP.Types.Method (StdMethod)
 import Network.Wai.Utilities
 import Polysemy (Member)
 import Servant (Link, ToHttpApiData (toUrlPiece))
 import System.Logger.Class (field, msg, val, (~~))
-import qualified System.Logger.Class as Log
+import System.Logger.Class qualified as Log
 import Wire.API.Federation.API.Brig (GetUserClients (GetUserClients))
 import Wire.API.Federation.Error
 import Wire.API.MLS.Credential (ClientIdentity (..))
 import Wire.API.MLS.Epoch (addToEpoch)
-import qualified Wire.API.Message as Message
+import Wire.API.Message qualified as Message
 import Wire.API.Team.LegalHold (LegalholdProtectee (..))
 import Wire.API.User
-import qualified Wire.API.User as Code
+import Wire.API.User qualified as Code
 import Wire.API.User.Client
 import Wire.API.User.Client.DPoPAccessToken
 import Wire.API.User.Client.Prekey

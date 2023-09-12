@@ -20,7 +20,7 @@ module Main
   )
 where
 
-import qualified API
+import API qualified
 import Bilge hiding (body, header)
 import Data.Aeson
 import Data.Proxy
@@ -32,11 +32,11 @@ import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.TLS
 import OpenSSL (withOpenSSL)
 import Options.Applicative
-import qualified System.Logger as Logger
+import System.Logger qualified as Logger
 import Test.Tasty
 import Test.Tasty.Options
 import TestSetup
-import Util.Options
+import Util.Options (Endpoint (Endpoint))
 import Util.Test
 
 data IntegrationConfig = IntegrationConfig

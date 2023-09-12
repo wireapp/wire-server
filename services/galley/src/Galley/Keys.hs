@@ -28,8 +28,8 @@ import Data.ASN1.BinaryEncoding
 import Data.ASN1.Encoding
 import Data.ASN1.Types
 import Data.Bifunctor
-import qualified Data.ByteString.Lazy as LBS
-import qualified Data.Map as Map
+import Data.ByteString.Lazy qualified as LBS
+import Data.Map qualified as Map
 import Data.PEM
 import Data.X509
 import Imports

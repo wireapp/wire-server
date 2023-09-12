@@ -23,11 +23,11 @@ where
 
 import Data.Id
 import Data.Qualified
-import qualified Galley.API.Query as Query
-import qualified Galley.API.Teams.Features as Features
+import Galley.API.Query qualified as Query
+import Galley.API.Teams.Features qualified as Features
 import Galley.App
 import Galley.Effects
-import qualified Galley.Effects as E
+import Galley.Effects qualified as E
 import Galley.Options
 import Imports hiding (head)
 import Network.Wai
@@ -41,7 +41,7 @@ import Polysemy.Internal
 import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
-import qualified Wire.API.Event.Team as Public ()
+import Wire.API.Event.Team qualified as Public ()
 import Wire.API.Routes.API
 
 -- These are all the errors that can be thrown by wai-routing handlers.

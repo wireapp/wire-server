@@ -22,13 +22,20 @@ module Testlib.Cannon
   ( WebSocket (..),
     WSConnect (..),
     ToWSConnect (..),
+    AwaitResult (..),
     withWebSocket,
     withWebSockets,
     awaitNMatchesResult,
     awaitNMatches,
     awaitMatch,
+    awaitAtLeastNMatchesResult,
+    awaitAtLeastNMatches,
+    awaitNToMMatchesResult,
+    awaitNToMMatches,
+    assertAwaitResult,
     nPayload,
     printAwaitResult,
+    printAwaitAtLeastResult,
   )
 where
 
@@ -38,7 +45,7 @@ import Control.Concurrent.STM.TChan
 import Control.Exception (throwIO)
 import Control.Monad
 import Control.Monad.Catch hiding (bracket)
-import qualified Control.Monad.Catch as Catch
+import Control.Monad.Catch qualified as Catch
 import Control.Monad.IO.Class
 import Control.Monad.STM
 import Data.Aeson (Value (..), decodeStrict')
@@ -50,9 +57,9 @@ import Data.Maybe
 import Data.Traversable
 import Data.Word
 import GHC.Stack
-import qualified Network.HTTP.Client as HTTP
-import qualified Network.HTTP.Client as Http
-import qualified Network.WebSockets as WS
+import Network.HTTP.Client qualified as HTTP
+import Network.HTTP.Client qualified as Http
+import Network.WebSockets qualified as WS
 import System.Random (randomIO)
 import System.Timeout (timeout)
 import Testlib.App
@@ -177,7 +184,7 @@ run wsConnect app = do
     baseRequest domain Cannon Unversioned $
       "/i/presences/" <> wsConnect.user <> "/" <> connId
 
-  waitForPresence <- appToIO $ unrace $ do
+  waitForPresence <- appToIO $ retryT $ do
     response <- submit "HEAD" presenceRequest
     status response `shouldMatchInt` 200
   let waitForException = do
@@ -225,6 +232,14 @@ data AwaitResult = AwaitResult
     nonMatches :: [Value]
   }
 
+data AwaitAtLeastResult = AwaitAtLeastResult
+  { success :: Bool,
+    nMatchesExpectedMin :: Int,
+    nMatchesExpectedMax :: Maybe Int,
+    matches :: [Value],
+    nonMatches :: [Value]
+  }
+
 prettyAwaitResult :: AwaitResult -> App String
 prettyAwaitResult r = do
   matchesS <- for r.matches prettyJSON
@@ -240,8 +255,28 @@ prettyAwaitResult r = do
             ]
         )
 
+prettyAwaitAtLeastResult :: AwaitAtLeastResult -> App String
+prettyAwaitAtLeastResult r = do
+  matchesS <- for r.matches prettyJSON
+  nonMatchesS <- for r.nonMatches prettyJSON
+  pure $
+    "AwaitAtLeastResult\n"
+      <> indent
+        4
+        ( unlines
+            [ "min expected:" <> show r.nMatchesExpectedMin,
+              "max expected:" <> show r.nMatchesExpectedMax,
+              "success: " <> show (r.success),
+              "matches:\n" <> unlines matchesS,
+              "non-matches:\n" <> unlines nonMatchesS
+            ]
+        )
+
 printAwaitResult :: AwaitResult -> App ()
 printAwaitResult = prettyAwaitResult >=> liftIO . putStrLn
+
+printAwaitAtLeastResult :: AwaitAtLeastResult -> App ()
+printAwaitAtLeastResult = prettyAwaitAtLeastResult >=> liftIO . putStrLn
 
 awaitAnyEvent :: MonadIO m => Int -> WebSocket -> m (Maybe Value)
 awaitAnyEvent tSecs = liftIO . timeout (tSecs * 1000 * 1000) . atomically . readTChan . wsChan
@@ -249,8 +284,8 @@ awaitAnyEvent tSecs = liftIO . timeout (tSecs * 1000 * 1000) . atomically . read
 -- | 'await' an expected number of notification events on the websocket that
 -- satisfy the provided predicate. If there isn't any new event (matching or
 -- non-matching) for a 'tSecs' seconds then AwaitResult is a failure. This
--- funciton will never terminate if there is a constant stream of events
--- received. When this functions retruns it will push any non-matching
+-- function will never terminate if there is a constant stream of events
+-- received. When this functions returns it will push any non-matching
 -- events back to the websocket.
 awaitNMatchesResult ::
   HasCallStack =>
@@ -293,6 +328,74 @@ awaitNMatchesResult nExpected tSecs checkMatch ws = go nExpected [] []
               }
     refill = mapM_ (liftIO . atomically . writeTChan (wsChan ws))
 
+awaitAtLeastNMatchesResult ::
+  HasCallStack =>
+  -- | Minimum number of matches
+  Int ->
+  -- | Timeout in seconds
+  Int ->
+  -- | Selection function. Exceptions are *not* caught.
+  (Value -> App Bool) ->
+  WebSocket ->
+  App AwaitAtLeastResult
+awaitAtLeastNMatchesResult nExpected tSecs checkMatch ws = go 0 [] []
+  where
+    go nSeen nonMatches matches = do
+      mEvent <- awaitAnyEvent tSecs ws
+      case mEvent of
+        Just event ->
+          do
+            isMatch <- checkMatch event
+            if isMatch
+              then go (nSeen + 1) nonMatches (event : matches)
+              else go nSeen (event : nonMatches) matches
+        Nothing -> do
+          refill nonMatches
+          pure $
+            AwaitAtLeastResult
+              { success = nSeen >= nExpected,
+                nMatchesExpectedMin = nExpected,
+                nMatchesExpectedMax = Nothing,
+                matches = reverse matches,
+                nonMatches = reverse nonMatches
+              }
+    refill = mapM_ (liftIO . atomically . writeTChan (wsChan ws))
+
+awaitNToMMatchesResult ::
+  HasCallStack =>
+  -- | Minimum number of matches
+  Int ->
+  -- | Maximum number of matches
+  Int ->
+  -- | Timeout in seconds
+  Int ->
+  -- | Selection function. Exceptions are *not* caught.
+  (Value -> App Bool) ->
+  WebSocket ->
+  App AwaitAtLeastResult
+awaitNToMMatchesResult nMin nMax tSecs checkMatch ws = go 0 [] []
+  where
+    go nSeen nonMatches matches = do
+      mEvent <- awaitAnyEvent tSecs ws
+      case mEvent of
+        Just event ->
+          do
+            isMatch <- checkMatch event
+            if isMatch
+              then go (nSeen + 1) nonMatches (event : matches)
+              else go nSeen (event : nonMatches) matches
+        Nothing -> do
+          refill nonMatches
+          pure $
+            AwaitAtLeastResult
+              { success = nMin <= nSeen && nSeen <= nMax,
+                nMatchesExpectedMin = nMin,
+                nMatchesExpectedMax = pure nMax,
+                matches = reverse matches,
+                nonMatches = reverse nonMatches
+              }
+    refill = mapM_ (liftIO . atomically . writeTChan (wsChan ws))
+
 awaitNMatches ::
   HasCallStack =>
   -- | Number of matches
@@ -305,11 +408,55 @@ awaitNMatches ::
   App [Value]
 awaitNMatches nExpected tSecs checkMatch ws = do
   res <- awaitNMatchesResult nExpected tSecs checkMatch ws
+  assertAwaitResult res
+
+assertAwaitResult :: HasCallStack => AwaitResult -> App [Value]
+assertAwaitResult res = do
+  if res.success
+    then pure res.matches
+    else do
+      let msgHeader = "Expected " <> show res.nMatchesExpected <> " matching events, but got " <> show (length res.matches) <> "."
+      details <- ("Details:\n" <>) <$> prettyAwaitResult res
+      assertFailure $ unlines [msgHeader, details]
+
+awaitAtLeastNMatches ::
+  HasCallStack =>
+  -- | Minumum number of matches
+  Int ->
+  -- | Timeout in seconds
+  Int ->
+  -- | Selection function. Should not throw any exceptions
+  (Value -> App Bool) ->
+  WebSocket ->
+  App [Value]
+awaitAtLeastNMatches nExpected tSecs checkMatch ws = do
+  res <- awaitAtLeastNMatchesResult nExpected tSecs checkMatch ws
   if res.success
     then pure res.matches
     else do
       let msgHeader = "Expected " <> show nExpected <> " matching events, but got " <> show (length res.matches) <> "."
-      details <- ("Details:\n" <>) <$> prettyAwaitResult res
+      details <- ("Details:\n" <>) <$> prettyAwaitAtLeastResult res
+      assertFailure $ unlines [msgHeader, details]
+
+awaitNToMMatches ::
+  HasCallStack =>
+  -- | Minimum Number of matches
+  Int ->
+  -- | Maximum Number of matches
+  Int ->
+  -- | Timeout in seconds
+  Int ->
+  -- | Selection function. Should not throw any exceptions
+  (Value -> App Bool) ->
+  WebSocket ->
+  App [Value]
+awaitNToMMatches nMin nMax tSecs checkMatch ws = do
+  res <- awaitNToMMatchesResult nMin nMax tSecs checkMatch ws
+  if res.success
+    then pure res.matches
+    else do
+      let msgHeader = "Expected between" <> show nMin <> " to " <> show nMax <> " matching events, but got " <> show (length res.matches) <> "."
+      details <- ("Details:\n" <>) <$> prettyAwaitAtLeastResult res
       assertFailure $ unlines [msgHeader, details]
 
 awaitMatch ::

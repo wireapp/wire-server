@@ -21,20 +21,20 @@ module Work where
 
 import Brig.Data.Instances ()
 import Cassandra hiding (Set)
-import qualified Cassandra as Cas
-import qualified Cassandra.Settings as Cas
+import Cassandra qualified as Cas
+import Cassandra.Settings qualified as Cas
 import Conduit
 import Control.Lens
 import Control.Monad.Except
-import qualified Data.Conduit.Combinators as C
+import Data.Conduit.Combinators qualified as C
 import Data.Handle (Handle)
 import Data.Id
-import qualified Data.Map.Strict as Map
-import qualified Data.Text as T
+import Data.Map.Strict qualified as Map
+import Data.Text qualified as T
 import Imports
 import Options
 import Options.Applicative hiding (action)
-import qualified System.Logger as Log
+import System.Logger qualified as Log
 import Types
 
 -- | The table user_handle grouped by user
@@ -142,7 +142,7 @@ executeAction env = \case
           params LocalQuorum (handle, uid)
       where
         updateHandle :: PrepQuery W (Handle, UserId) ()
-        updateHandle = "UPDATE user SET handle = ? WHERE id = ?"
+        updateHandle = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET handle = ? WHERE id = ?"
 
     removeHandle :: Env -> Handle -> IO ()
     removeHandle Env {..} handle =

@@ -10,20 +10,20 @@ import Control.Monad.Catch
 import Control.Monad.Cont
 import Control.Monad.Reader
 import Control.Monad.Trans.Maybe
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Base64 as Base64
-import qualified Data.ByteString.Char8 as B8
+import Data.ByteString qualified as BS
+import Data.ByteString.Base64 qualified as Base64
+import Data.ByteString.Char8 qualified as B8
 import Data.Default
 import Data.Foldable
 import Data.Function
 import Data.Hex
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Maybe
-import qualified Data.Set as Set
-import qualified Data.Text.Encoding as T
+import Data.Set qualified as Set
+import Data.Text.Encoding qualified as T
 import Data.Traversable
-import qualified Data.UUID as UUID
-import qualified Data.UUID.V4 as UUIDV4
+import Data.UUID qualified as UUID
+import Data.UUID.V4 qualified as UUIDV4
 import GHC.Stack
 import System.Directory
 import System.Exit
@@ -34,7 +34,6 @@ import System.Posix.Files
 import System.Process
 import Testlib.App
 import Testlib.Assertions
-import Testlib.Env
 import Testlib.HTTP
 import Testlib.JSON
 import Testlib.Prelude

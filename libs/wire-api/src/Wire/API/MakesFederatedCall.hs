@@ -38,7 +38,7 @@ import Data.Metrics.Servant
 import Data.Proxy
 import Data.Schema
 import Data.Swagger.Operation (addExtensions)
-import qualified Data.Text as T
+import Data.Text qualified as T
 import GHC.TypeLits
 import Imports
 import Servant.API
@@ -48,6 +48,7 @@ import Servant.Swagger
 import Test.QuickCheck (Arbitrary)
 import TransitiveAnns.Types
 import Unsafe.Coerce (unsafeCoerce)
+import Wire.API.Routes.Version
 import Wire.Arbitrary (GenericUniform (..))
 
 -- | This function exists only to provide a convenient place for the
@@ -89,6 +90,20 @@ instance ToSchema Component where
           element "galley" Galley,
           element "cargohold" Cargohold
         ]
+
+instance FromHttpApiData Component where
+  parseUrlPiece :: Text -> Either Text Component
+  parseUrlPiece = \case
+    "brig" -> Right Brig
+    "galley" -> Right Galley
+    "cargohold" -> Right Cargohold
+    c -> Left $ "Invalid component: " <> c
+
+instance ToHttpApiData Component where
+  toUrlPiece = \case
+    Brig -> "brig"
+    Galley -> "galley"
+    Cargohold -> "cargohold"
 
 -- | A typeclass corresponding to calls to federated services. This class has
 -- no methods, and exists only to automatically propagate information up to
@@ -136,6 +151,10 @@ type family ShowComponent (x :: Component) = (res :: Symbol) | res -> x where
   ShowComponent 'Brig = "brig"
   ShowComponent 'Galley = "galley"
   ShowComponent 'Cargohold = "cargohold"
+
+type instance
+  SpecialiseToVersion v (MakesFederatedCall comp name :> api) =
+    MakesFederatedCall comp name :> SpecialiseToVersion v api
 
 -- | 'MakesFederatedCall' annotates the swagger documentation with an extension
 -- tag @x-wire-makes-federated-calls-to@.

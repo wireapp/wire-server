@@ -20,8 +20,8 @@ module Common where
 import Cassandra
 import Conduit
 import Data.Aeson
-import qualified Data.ByteString.Lazy as LBS
-import qualified Data.Conduit.Combinators as C
+import Data.ByteString.Lazy qualified as LBS
+import Data.Conduit.Combinators qualified as C
 import Imports
 import System.IO
 

@@ -24,9 +24,9 @@ where
 
 import Control.Exception (assert)
 import Data.Aeson as A
-import qualified Data.Aeson.Types as A
-import qualified Data.HashMap.Strict.InsOrd as HM
-import qualified Data.Map as M
+import Data.Aeson.Types qualified as A
+import Data.HashMap.Strict.InsOrd qualified as HM
+import Data.Map qualified as M
 import Data.Swagger
   ( PathItem,
     Swagger,
@@ -42,17 +42,16 @@ import Data.Swagger
   )
 import Imports
 import Language.Dot as D
-import qualified Wire.API.Routes.Internal.Brig as BrigIRoutes
-import qualified Wire.API.Routes.Public.Brig as BrigRoutes
-import qualified Wire.API.Routes.Public.Cannon as CannonRoutes
-import qualified Wire.API.Routes.Public.Cargohold as CargoholdRoutes
-import qualified Wire.API.Routes.Public.Galley as GalleyRoutes
-import qualified Wire.API.Routes.Public.Gundeck as GundeckRoutes
-import qualified Wire.API.Routes.Public.Proxy as ProxyRoutes
--- import qualified Wire.API.Routes.Internal.Cannon as CannonIRoutes
--- import qualified Wire.API.Routes.Internal.Cargohold as CargoholdIRoutes
--- import qualified Wire.API.Routes.Internal.LegalHold as LegalHoldIRoutes
-import qualified Wire.API.Routes.Public.Spar as SparRoutes
+import Wire.API.Routes.API
+import Wire.API.Routes.Internal.Brig qualified as BrigIRoutes
+import Wire.API.Routes.Public.Brig
+import Wire.API.Routes.Public.Cannon
+import Wire.API.Routes.Public.Cargohold
+import Wire.API.Routes.Public.Galley
+import Wire.API.Routes.Public.Gundeck
+import Wire.API.Routes.Public.Proxy
+import Wire.API.Routes.Public.Spar
+import Wire.API.Routes.Version
 
 ------------------------------
 
@@ -72,13 +71,13 @@ swaggers =
     -- services, use that in /services/brig/src/Brig/API/Public.hs instead of
     -- doing it by hand.
 
-    BrigRoutes.brigSwagger, -- TODO: s/brigSwagger/swaggerDoc/ like everybody else!
-    CannonRoutes.swaggerDoc,
-    CargoholdRoutes.swaggerDoc,
-    GalleyRoutes.swaggerDoc,
-    GundeckRoutes.swaggerDoc,
-    ProxyRoutes.swaggerDoc,
-    SparRoutes.swaggerDoc,
+    serviceSwagger @BrigAPITag @'V5,
+    serviceSwagger @CannonAPITag @'V5,
+    serviceSwagger @CargoholdAPITag @'V5,
+    serviceSwagger @GalleyAPITag @'V5,
+    serviceSwagger @GundeckAPITag @'V5,
+    serviceSwagger @ProxyAPITag @'V5,
+    serviceSwagger @SparAPITag @'V5,
     -- TODO: collect all internal apis somewhere else (brig?), and expose them
     -- via an internal swagger api end-point.
 

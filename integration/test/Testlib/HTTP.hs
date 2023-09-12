@@ -1,13 +1,13 @@
 module Testlib.HTTP where
 
-import qualified Control.Exception as E
+import Control.Exception qualified as E
 import Control.Monad.Reader
-import qualified Data.Aeson as Aeson
-import qualified Data.Aeson.Types as Aeson
+import Data.Aeson qualified as Aeson
+import Data.Aeson.Types qualified as Aeson
 import Data.ByteString (ByteString)
-import qualified Data.ByteString.Char8 as C8
-import qualified Data.ByteString.Lazy as L
-import qualified Data.CaseInsensitive as CI
+import Data.ByteString.Char8 qualified as C8
+import Data.ByteString.Lazy qualified as L
+import Data.CaseInsensitive qualified as CI
 import Data.Function
 import Data.Functor ((<&>))
 import Data.List
@@ -15,12 +15,12 @@ import Data.List.Split (splitOn)
 import Data.Maybe
 import Data.String
 import Data.String.Conversions (cs)
-import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
+import Data.Text qualified as T
+import Data.Text.Encoding qualified as T
 import GHC.Stack
-import qualified Network.HTTP.Client as HTTP
+import Network.HTTP.Client qualified as HTTP
 import Network.HTTP.Types (hLocation)
-import qualified Network.HTTP.Types as HTTP
+import Network.HTTP.Types qualified as HTTP
 import Network.URI (URI (..), URIAuth (..), parseURI)
 import Testlib.Assertions
 import Testlib.Env
@@ -52,25 +52,30 @@ addBody body contentType req =
 addMLS :: ByteString -> HTTP.Request -> HTTP.Request
 addMLS bytes req =
   req
-    { HTTP.requestBody = HTTP.RequestBodyLBS (L.fromStrict bytes),
+    { HTTP.requestBody = HTTP.RequestBodyBS bytes,
       HTTP.requestHeaders =
         (fromString "Content-Type", fromString "message/mls")
           : HTTP.requestHeaders req
+    }
+
+addProtobuf :: ByteString -> HTTP.Request -> HTTP.Request
+addProtobuf bytes req =
+  req
+    { HTTP.requestBody = HTTP.RequestBodyBS bytes,
+      HTTP.requestHeaders = (fromString "Content-Type", fromString "application/x-protobuf") : HTTP.requestHeaders req
     }
 
 addHeader :: String -> String -> HTTP.Request -> HTTP.Request
 addHeader name value req =
   req {HTTP.requestHeaders = (CI.mk . C8.pack $ name, C8.pack value) : HTTP.requestHeaders req}
 
+setCookie :: String -> HTTP.Request -> HTTP.Request
+setCookie c r =
+  addHeader "Cookie" (cs c) r
+
 addQueryParams :: [(String, String)] -> HTTP.Request -> HTTP.Request
 addQueryParams params req =
   HTTP.setQueryString (map (\(k, v) -> (cs k, Just (cs v))) params) req
-
-zType :: String -> HTTP.Request -> HTTP.Request
-zType = addHeader "Z-Type"
-
-zHost :: String -> HTTP.Request -> HTTP.Request
-zHost = addHeader "Z-Host"
 
 contentTypeJSON :: HTTP.Request -> HTTP.Request
 contentTypeJSON = addHeader "Content-Type" "application/json"
@@ -82,18 +87,21 @@ withResponse :: HasCallStack => Response -> (Response -> App a) -> App a
 withResponse r k = onFailureAddResponse r (k r)
 
 -- | Check response status code, then return body.
-getBody :: Int -> Response -> App ByteString
+getBody :: HasCallStack => Int -> Response -> App ByteString
 getBody status resp = withResponse resp $ \r -> do
   r.status `shouldMatch` status
   pure r.body
 
 -- | Check response status code, then return JSON body.
-getJSON :: Int -> Response -> App Aeson.Value
+getJSON :: HasCallStack => Int -> Response -> App Aeson.Value
 getJSON status resp = withResponse resp $ \r -> do
   r.status `shouldMatch` status
   r.json
 
-onFailureAddResponse :: Response -> App a -> App a
+assertSuccess :: HasCallStack => Response -> App ()
+assertSuccess resp = withResponse resp $ \r -> r.status `shouldMatchRange` (200, 299)
+
+onFailureAddResponse :: HasCallStack => Response -> App a -> App a
 onFailureAddResponse r m = App $ do
   e <- ask
   liftIO $ E.catch (runAppWithEnv e m) $ \(AssertionFailure stack _ msg) -> do
@@ -140,6 +148,12 @@ zConnection = addHeader "Z-Connection"
 
 zClient :: String -> HTTP.Request -> HTTP.Request
 zClient = addHeader "Z-Client"
+
+zType :: String -> HTTP.Request -> HTTP.Request
+zType = addHeader "Z-Type"
+
+zHost :: String -> HTTP.Request -> HTTP.Request
+zHost = addHeader "Z-Host"
 
 submit :: String -> HTTP.Request -> App Response
 submit method req0 = do

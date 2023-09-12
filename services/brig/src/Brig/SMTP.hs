@@ -30,7 +30,7 @@ module Brig.SMTP
   )
 where
 
-import qualified Control.Exception as CE (throw)
+import Control.Exception qualified as CE (throw)
 import Control.Lens
 import Control.Monad.Catch
 import Control.Timeout (timeout)
@@ -40,11 +40,11 @@ import Data.Pool
 import Data.Text (unpack)
 import Data.Time.Units
 import Imports
-import qualified Network.HaskellNet.SMTP as SMTP
-import qualified Network.HaskellNet.SMTP.SSL as SMTP
+import Network.HaskellNet.SMTP qualified as SMTP
+import Network.HaskellNet.SMTP.SSL qualified as SMTP
 import Network.Mail.Mime
 import Network.Socket (PortNumber)
-import qualified System.Logger as Logger
+import System.Logger qualified as Logger
 import System.Logger.Class hiding (create)
 
 newtype Username = Username Text

@@ -26,21 +26,22 @@ module Federator.Remote
   )
 where
 
-import qualified Control.Exception as E
+import Control.Exception qualified as E
 import Control.Monad.Codensity
 import Data.Binary.Builder
-import qualified Data.ByteString.Lazy as LBS
+import Data.ByteString.Lazy qualified as LBS
 import Data.Domain
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
-import qualified Data.Text.Encoding.Error as Text
+import Data.Text qualified as Text
+import Data.Text.Encoding (decodeUtf8)
+import Data.Text.Encoding qualified as Text
+import Data.Text.Encoding.Error qualified as Text
 import Federator.Discovery
 import Federator.Error
 import HTTP2.Client.Manager (Http2Manager)
-import qualified HTTP2.Client.Manager as H2Manager
+import HTTP2.Client.Manager qualified as H2Manager
 import Imports
-import qualified Network.HTTP.Types as HTTP
-import qualified Network.HTTP2.Client as HTTP2
+import Network.HTTP.Types qualified as HTTP
+import Network.HTTP2.Client qualified as HTTP2
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
@@ -55,26 +56,33 @@ import Wire.Network.DNS.SRV
 data RemoteError
   = -- | This means that an error occurred while trying to make a request to a
     -- remote federator.
-    RemoteError SrvTarget FederatorClientHTTP2Error
+    RemoteError SrvTarget Text FederatorClientHTTP2Error
   | -- | This means that a request to a remote federator returned an error
     -- response. The error response could be due to an error in the remote
     -- federator itself, or in the services it proxied to.
-    RemoteErrorResponse SrvTarget HTTP.Status LByteString
+    RemoteErrorResponse SrvTarget Text HTTP.Status LByteString
   deriving (Show)
 
 instance AsWai RemoteError where
-  toWai (RemoteError _ e) = federationRemoteHTTP2Error e
-  toWai (RemoteErrorResponse _ status _) =
-    federationRemoteResponseError status
+  toWai (RemoteError target path e) =
+    let domain = Domain . decodeUtf8 $ target.srvTargetDomain
+     in federationRemoteHTTP2Error domain path e
+  toWai (RemoteErrorResponse target path status resp) =
+    let domain = Domain . decodeUtf8 $ target.srvTargetDomain
+     in federationRemoteResponseError domain path status resp
 
-  waiErrorDescription (RemoteError tgt e) =
+  waiErrorDescription (RemoteError tgt path e) =
     "Error while connecting to "
       <> displayTarget tgt
+      <> " on path "
+      <> path
       <> ": "
       <> Text.pack (displayException e)
-  waiErrorDescription (RemoteErrorResponse tgt status body) =
+  waiErrorDescription (RemoteErrorResponse tgt path status body) =
     "Federator at "
       <> displayTarget tgt
+      <> " on path "
+      <> path
       <> " failed with status code "
       <> Text.pack (show (HTTP.statusCode status))
       <> ": "
@@ -112,12 +120,13 @@ interpretRemote = interpret $ \case
     let path =
           LBS.toStrict . toLazyByteString $
             HTTP.encodePathSegments ["federation", componentName component, rpc]
+        pathT = decodeUtf8 path
         -- filter out Host header, because the HTTP2 client adds it back
         headers' = filter ((/= "Host") . fst) headers
         req' = HTTP2.requestBuilder HTTP.methodPost path headers' body
 
     mgr <- input
-    resp <- mapError (RemoteError target) . (fromEither @FederatorClientHTTP2Error =<<) . embed $
+    resp <- mapError (RemoteError target pathT) . (fromEither @FederatorClientHTTP2Error =<<) . embed $
       Codensity $ \k ->
         E.catches
           (H2Manager.withHTTP2Request mgr (True, hostname, fromIntegral port) req' (consumeStreamingResponseWith $ k . Right))
@@ -132,6 +141,7 @@ interpretRemote = interpret $ \case
       throw $
         RemoteErrorResponse
           target
+          pathT
           (responseStatusCode resp)
           (toLazyByteString bdy)
     pure resp

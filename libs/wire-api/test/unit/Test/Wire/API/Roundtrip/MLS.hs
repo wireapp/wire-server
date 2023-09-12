@@ -1,4 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -15,14 +16,13 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-{-# OPTIONS_GHC -Wwarn #-}
 
 module Test.Wire.API.Roundtrip.MLS (tests) where
 
 import Data.Binary.Put
 import Imports
-import qualified Proto.Mls
-import qualified Test.Tasty as T
+import Proto.Mls qualified
+import Test.Tasty qualified as T
 import Test.Tasty.QuickCheck
 import Type.Reflection (typeRep)
 import Wire.API.ConverProtoLens

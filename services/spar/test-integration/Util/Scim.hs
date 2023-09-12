@@ -62,7 +62,7 @@ import qualified Web.Scim.Schema.User.Phone as Phone
 import qualified Wire.API.Team.Member as Member
 import Wire.API.Team.Role (Role, defaultRole)
 import Wire.API.User
-import Wire.API.User.IdentityProvider
+import Wire.API.User.IdentityProvider hiding (team)
 import Wire.API.User.RichInfo
 import Wire.API.User.Scim
 
@@ -144,11 +144,21 @@ randomScimUserWithSubjectAndRichInfo richInfo = do
         { Scim.User.displayName = Just ("ScimUser" <> suffix),
           Scim.User.externalId = Just externalId,
           Scim.User.emails = emails,
-          Scim.User.phoneNumbers = phones
+          Scim.User.phoneNumbers = phones,
+          Scim.User.roles = ["member"]
+          -- if we don't add this role here explicitly, some tests may show confusing failures
+          -- involving [] or null being changed to ["member"] during a create or update
+          -- operation.
         },
       subj
     )
 
+-- | Use the email address as externalId.
+--
+-- FUTUREWORK: since https://wearezeta.atlassian.net/browse/SQSERVICES-157 is done, we also
+-- support externalIds that are not emails, and storing email addresses in `emails` in the
+-- scim schema.  `randomScimUserWithEmail` is from a time where non-idp-authenticated users
+-- could only be provisioned with email as externalId.  we should probably rework all that.
 randomScimUserWithEmail :: MonadRandom m => m (Scim.User.User SparTag, Email)
 randomScimUserWithEmail = do
   suffix <- cs <$> replicateM 7 (getRandomR ('0', '9'))

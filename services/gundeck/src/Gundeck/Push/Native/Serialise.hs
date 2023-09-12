@@ -26,11 +26,11 @@ where
 
 import Data.Aeson (Value, object, (.=))
 import Data.Aeson.Text (encodeToTextBuilder)
-import qualified Data.ByteString as BS
+import Data.ByteString qualified as BS
 import Data.Id
 import Data.Text.Encoding (encodeUtf8)
-import qualified Data.Text.Lazy as LT
-import qualified Data.Text.Lazy.Builder as LTB
+import Data.Text.Lazy qualified as LT
+import Data.Text.Lazy.Builder qualified as LTB
 import Gundeck.Push.Native.Types
 import Gundeck.Types
 import Imports

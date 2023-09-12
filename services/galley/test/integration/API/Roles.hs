@@ -27,17 +27,17 @@ import Data.ByteString.Conversion (toByteString')
 import Data.Domain
 import Data.Id
 import Data.List1
-import qualified Data.List1 as List1
+import Data.List1 qualified as List1
 import Data.Qualified
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.Singletons
 import Federator.MockServer
 import Imports
-import qualified Network.HTTP.Types as Http
+import Network.HTTP.Types qualified as Http
 import Network.Wai.Utilities.Error
 import Test.Tasty
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
-import qualified Test.Tasty.Cannon as WS
+import Test.Tasty.Cannon qualified as WS
 import Test.Tasty.HUnit
 import TestHelpers
 import TestSetup
@@ -45,7 +45,8 @@ import Wire.API.Conversation
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Role
 import Wire.API.Event.Conversation
-import qualified Wire.API.Federation.API.Galley as F
+import Wire.API.Federation.API.Common
+import Wire.API.Federation.API.Galley qualified as F
 import Wire.API.Federation.Component
 import Wire.API.Internal.Notification (Notification (..))
 
@@ -179,7 +180,7 @@ roleUpdateRemoteMember = do
 
   WS.bracketR c bob $ \wsB -> do
     (_, requests) <-
-      withTempMockFederator' (mockReply ()) $
+      withTempMockFederator' (mockReply EmptyResponse) $
         putOtherMemberQualified
           bob
           qcharlie
@@ -249,7 +250,7 @@ roleUpdateWithRemotes = do
 
   WS.bracketR2 c bob charlie $ \(wsB, wsC) -> do
     (_, requests) <-
-      withTempMockFederator' (mockReply ()) $
+      withTempMockFederator' (mockReply EmptyResponse) $
         putOtherMemberQualified
           bob
           qcharlie
@@ -368,7 +369,7 @@ accessUpdateWithRemotes = do
   let access = ConversationAccessData (Set.singleton CodeAccess) (Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole, GuestAccessRole, ServiceAccessRole])
   WS.bracketR2 c bob charlie $ \(wsB, wsC) -> do
     (_, requests) <-
-      withTempMockFederator' (mockReply ()) $
+      withTempMockFederator' (mockReply EmptyResponse) $
         putQualifiedAccessUpdate bob qconv access
           !!! const 200 === statusCode
 

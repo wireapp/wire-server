@@ -1,15 +1,15 @@
 module API.Cargohold where
 
-import qualified Codec.MIME.Type as MIME
-import qualified Data.Aeson as Aeson
+import Codec.MIME.Type qualified as MIME
+import Data.Aeson qualified as Aeson
 import Data.ByteString.Builder
-import qualified Data.ByteString.Lazy as LBS
-import qualified Data.ByteString.Lazy.Char8 as LBSC
-import qualified Data.Text as T
+import Data.ByteString.Lazy qualified as LBS
+import Data.ByteString.Lazy.Char8 qualified as LBSC
+import Data.Text qualified as T
 import Data.Text.Encoding
 import Data.Time.Clock
 import GHC.Stack
-import qualified Network.HTTP.Client as HTTP
+import Network.HTTP.Client qualified as HTTP
 import Testlib.Prelude
 
 type LByteString = LBS.ByteString
@@ -122,14 +122,12 @@ buildMultipartBody header body bodyMimeType =
           MIME.mime_val_content = MIME.Single ((decodeUtf8 . LBS.toStrict) c)
         }
 
-downloadAsset :: (HasCallStack, MakesValue user, MakesValue key) => user -> key -> (HTTP.Request -> HTTP.Request) -> App Response
-downloadAsset user key trans = downloadAsset' user key "nginz-https.example.com" trans
-
-downloadAsset' :: (HasCallStack, MakesValue user, MakesValue key) => user -> key -> String -> (HTTP.Request -> HTTP.Request) -> App Response
-downloadAsset' user key zHostHeader trans = do
-  uid <- user & objId
-  key' <- key & asString
-  req <- baseRequest user Cargohold Versioned $ "/assets/example.com/" ++ key'
+downloadAsset :: (HasCallStack, MakesValue user, MakesValue key, MakesValue assetDomain) => user -> assetDomain -> key -> String -> (HTTP.Request -> HTTP.Request) -> App Response
+downloadAsset user assetDomain key zHostHeader trans = do
+  uid <- objId user
+  domain <- objDomain assetDomain
+  key' <- asString key
+  req <- baseRequest user Cargohold Versioned $ "/assets/" ++ domain ++ "/" ++ key'
   submit "GET" $
     req
       & zUser uid

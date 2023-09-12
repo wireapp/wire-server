@@ -3,29 +3,37 @@
 
 module Wire.BackgroundWorker.Env where
 
+import Control.Concurrent.Async
+import Control.Concurrent.Chan
 import Control.Monad.Base
 import Control.Monad.Catch
 import Control.Monad.Trans.Control
-import qualified Data.Map.Strict as Map
-import qualified Data.Metrics as Metrics
+import Data.Map.Strict qualified as Map
+import Data.Metrics qualified as Metrics
 import HTTP2.Client.Manager
 import Imports
+import Network.AMQP (Channel)
 import Network.AMQP.Extended
-import qualified Network.RabbitMqAdmin as RabbitMqAdmin
+import Network.HTTP.Client
+import Network.RabbitMqAdmin qualified as RabbitMqAdmin
 import OpenSSL.Session (SSLOption (..))
-import qualified OpenSSL.Session as SSL
+import OpenSSL.Session qualified as SSL
 import Prometheus
-import qualified Servant.Client as Servant
-import qualified System.Logger as Log
-import System.Logger.Class
-import qualified System.Logger.Extended as Log
+import Servant.Client qualified as Servant
+import System.Logger qualified as Log
+import System.Logger.Class (Logger, MonadLogger (..))
+import System.Logger.Extended qualified as Log
 import Util.Options
+import Wire.API.FederationUpdate
+import Wire.API.Routes.FederationDomainConfig
 import Wire.BackgroundWorker.Options
 
 type IsWorking = Bool
 
 -- | Eventually this will be a sum type of all the types of workers
-data Worker = BackendNotificationPusher
+data Worker
+  = BackendNotificationPusher
+  | DefederationWorker
   deriving (Show, Eq, Ord)
 
 data Env = Env
@@ -35,8 +43,18 @@ data Env = Env
     logger :: Logger,
     metrics :: Metrics.Metrics,
     federatorInternal :: Endpoint,
-    backendNotificationPusher :: BackendNotificationPusherOpts,
+    httpManager :: Manager,
+    galley :: Endpoint,
+    brig :: Endpoint,
+    defederationTimeout :: ResponseTimeout,
+    remoteDomains :: IORef FederationDomainConfigs,
+    remoteDomainsChan :: Chan FederationDomainConfigs,
     backendNotificationMetrics :: BackendNotificationMetrics,
+    -- This is needed so that the defederation worker can push
+    -- connection-removed notifications into the notifications channels.
+    -- This allows us to reuse existing code. This only pushes.
+    notificationChannel :: MVar Channel,
+    backendNotificationsConfig :: BackendNotificationsConfig,
     statuses :: IORef (Map Worker IsWorking)
   }
 
@@ -53,18 +71,39 @@ mkBackendNotificationMetrics =
     <*> register (vector "targetDomain" $ counter $ Prometheus.Info "wire_backend_notifications_errors" "Number of errors that occurred while pushing notifications")
     <*> register (vector "targetDomain" $ gauge $ Prometheus.Info "wire_backend_notifications_stuck_queues" "Set to 1 when pushing notifications is stuck")
 
-mkEnv :: Opts -> IO Env
+mkEnv :: Opts -> IO (Env, Async ())
 mkEnv opts = do
   http2Manager <- initHttp2Manager
   logger <- Log.mkLogger opts.logLevel Nothing opts.logFormat
+  httpManager <- newManager defaultManagerSettings
+  remoteDomainsChan <- newChan
   let federatorInternal = opts.federatorInternal
+      galley = opts.galley
+      defederationTimeout =
+        maybe
+          responseTimeoutNone
+          (\t -> responseTimeoutMicro $ 1000000 * t) -- seconds to microseconds
+          opts.defederationTimeout
+      brig = opts.brig
+      rabbitmqVHost = opts.rabbitmq.vHost
+      callback =
+        SyncFedDomainConfigsCallback
+          { fromFedUpdateCallback = \_old new -> do
+              writeChan remoteDomainsChan new
+          }
+  (remoteDomains, syncThread) <- syncFedDomainConfigs brig logger callback
   rabbitmqAdminClient <- mkRabbitMqAdminClientEnv opts.rabbitmq
-  let rabbitmqVHost = opts.rabbitmq.vHost
-      backendNotificationPusher = opts.backendNotificationPusher
-  statuses <- newIORef $ Map.singleton BackendNotificationPusher False
+  statuses <-
+    newIORef $
+      Map.fromList
+        [ (BackendNotificationPusher, False),
+          (DefederationWorker, False)
+        ]
   metrics <- Metrics.metrics
   backendNotificationMetrics <- mkBackendNotificationMetrics
-  pure Env {..}
+  notificationChannel <- mkRabbitMqChannelMVar logger $ demoteOpts opts.rabbitmq
+  let backendNotificationsConfig = opts.backendNotificationPusher
+  pure (Env {..}, syncThread)
 
 initHttp2Manager :: IO Http2Manager
 initHttp2Manager = do
@@ -92,11 +131,18 @@ newtype AppT m a = AppT {unAppT :: ReaderT Env m a}
       MonadMonitor
     )
 
-deriving newtype instance MonadBase b m => MonadBase b (AppT m)
+deriving newtype instance (MonadBase b m) => MonadBase b (AppT m)
 
-deriving newtype instance MonadBaseControl b m => MonadBaseControl b (AppT m)
+deriving newtype instance (MonadBaseControl b m) => MonadBaseControl b (AppT m)
 
-instance MonadIO m => MonadLogger (AppT m) where
+-- Coppied from Federator.
+instance MonadUnliftIO m => MonadUnliftIO (AppT m) where
+  withRunInIO inner =
+    AppT . ReaderT $ \r ->
+      withRunInIO $ \runner ->
+        inner (runner . flip runReaderT r . unAppT)
+
+instance (MonadIO m) => MonadLogger (AppT m) where
   log lvl m = do
     l <- asks logger
     Log.log l lvl m
@@ -104,10 +150,10 @@ instance MonadIO m => MonadLogger (AppT m) where
 runAppT :: Env -> AppT m a -> m a
 runAppT env app = runReaderT (unAppT app) env
 
-markAsWorking :: MonadIO m => Worker -> AppT m ()
+markAsWorking :: (MonadIO m) => Worker -> AppT m ()
 markAsWorking worker =
   flip modifyIORef (Map.insert worker True) =<< asks statuses
 
-markAsNotWorking :: MonadIO m => Worker -> AppT m ()
+markAsNotWorking :: (MonadIO m) => Worker -> AppT m ()
 markAsNotWorking worker =
   flip modifyIORef (Map.insert worker False) =<< asks statuses

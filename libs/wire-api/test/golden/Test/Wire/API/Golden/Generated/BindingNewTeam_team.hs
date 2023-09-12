@@ -19,7 +19,7 @@ module Test.Wire.API.Golden.Generated.BindingNewTeam_team where
 
 import Data.Id (Id (Id))
 import Data.Range (unsafeRange)
-import qualified Data.UUID as UUID (fromString)
+import Data.UUID qualified as UUID (fromString)
 import Imports (Maybe (Just, Nothing), fromJust)
 import Wire.API.Asset (AssetKey (..), AssetRetention (..))
 import Wire.API.Team

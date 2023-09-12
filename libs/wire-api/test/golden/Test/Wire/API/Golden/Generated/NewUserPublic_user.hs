@@ -20,11 +20,11 @@
 module Test.Wire.API.Golden.Generated.NewUserPublic_user where
 
 import Data.Id (Id (Id))
-import qualified Data.LanguageCodes (ISO639_1 (SO))
+import Data.LanguageCodes qualified (ISO639_1 (SO))
 import Data.Misc (plainTextPassword8Unsafe)
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.Text.Ascii (AsciiChars (validate))
-import qualified Data.UUID as UUID (fromString)
+import Data.UUID qualified as UUID (fromString)
 import Imports (Maybe (Just, Nothing), fromJust, fromRight, undefined)
 import Wire.API.Asset
 import Wire.API.User

@@ -21,7 +21,9 @@
 module Wire.API.User.Orphans where
 
 import Control.Lens
-import qualified Data.Currency as Currency
+import Data.Aeson qualified as A
+import Data.Char
+import Data.Currency qualified as Currency
 import Data.ISO3166_CountryCodes
 import Data.LanguageCodes
 import Data.Proxy
@@ -29,10 +31,10 @@ import Data.Swagger
 import Data.UUID
 import Data.X509 as X509
 import Imports
-import qualified SAML2.WebSSO as SAML
+import SAML2.WebSSO qualified as SAML
 import SAML2.WebSSO.Types.TH (deriveJSONOptions)
 import Servant.API ((:>))
-import qualified Servant.Multipart as SM
+import Servant.Multipart qualified as SM
 import Servant.Swagger
 import URI.ByteString
 
@@ -51,9 +53,18 @@ instance ToSchema CountryCode
 
 -- | The options to use for schema generation. Must match the options used
 -- for 'ToJSON' instances elsewhere.
+--
+-- FUTUREWORK: This should be removed once the saml2-web-sso types are updated to remove their prefixes.
+-- FUTUREWORK: Ticket for these changes https://wearezeta.atlassian.net/browse/WPB-3972
+-- Preserve the old prefix semantics for types that are coming from outside of this repo.
 samlSchemaOptions :: SchemaOptions
-samlSchemaOptions = fromAesonOptions deriveJSONOptions
+samlSchemaOptions = fromAesonOptions $ deriveJSONOptions {A.fieldLabelModifier = fieldMod . dropPrefix}
+  where
+    fieldMod = A.fieldLabelModifier deriveJSONOptions
+    dropPrefix = dropWhile (not . isUpper)
 
+-- This type comes from a seperate repo, so we're keeping the prefix dropping
+-- for the moment.
 instance ToSchema SAML.XmlText where
   declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
 

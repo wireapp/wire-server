@@ -22,7 +22,7 @@ module Galley.Cassandra.CustomBackend (interpretCustomBackendStoreToCassandra) w
 import Cassandra
 import Data.Domain (Domain)
 import Galley.Cassandra.Instances ()
-import qualified Galley.Cassandra.Queries as Cql
+import Galley.Cassandra.Queries qualified as Cql
 import Galley.Cassandra.Store
 import Galley.Effects.CustomBackendStore (CustomBackendStore (..))
 import Imports
@@ -51,7 +51,7 @@ getCustomBackend domain =
 
 setCustomBackend :: MonadClient m => Domain -> CustomBackend -> m ()
 setCustomBackend domain CustomBackend {..} = do
-  retry x5 $ write Cql.updateCustomBackend (params LocalQuorum (backendConfigJsonUrl, backendWebappWelcomeUrl, domain))
+  retry x5 $ write Cql.upsertCustomBackend (params LocalQuorum (backendConfigJsonUrl, backendWebappWelcomeUrl, domain))
 
 deleteCustomBackend :: MonadClient m => Domain -> m ()
 deleteCustomBackend domain = do

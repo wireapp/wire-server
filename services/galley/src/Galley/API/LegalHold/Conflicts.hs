@@ -18,15 +18,14 @@
 
 module Galley.API.LegalHold.Conflicts where
 
-import Brig.Types.Intra (accountUser)
 import Control.Lens (view)
 import Data.ByteString.Conversion (toByteString')
 import Data.Id
 import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Misc
 import Data.Qualified
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Galley.API.Util
 import Galley.Effects
 import Galley.Effects.BrigAccess
@@ -37,8 +36,8 @@ import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
-import qualified Polysemy.TinyLog as P
-import qualified System.Logger.Class as Log
+import Polysemy.TinyLog qualified as P
+import System.Logger.Class qualified as Log
 import Wire.API.Team.LegalHold
 import Wire.API.Team.Member
 import Wire.API.User
@@ -85,7 +84,7 @@ guardLegalholdPolicyConflicts LegalholdPlusFederationNotImplemented _otherClient
 guardLegalholdPolicyConflicts UnprotectedBot _otherClients = pure ()
 guardLegalholdPolicyConflicts (ProtectedUser self) otherClients = do
   opts <- input
-  case view (optSettings . setFeatureFlags . flagLegalHold) opts of
+  case view (settings . featureFlags . flagLegalHold) opts of
     FeatureLegalHoldDisabledPermanently -> case FutureWork @'LegalholdPlusFederationNotImplemented () of
       FutureWork () -> pure () -- FUTUREWORK: if federation is enabled, we still need to run the guard!
     FeatureLegalHoldDisabledByDefault -> guardLegalholdPolicyConflictsUid self otherClients

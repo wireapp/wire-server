@@ -20,12 +20,11 @@
 
 module API.Util where
 
-import qualified API.SQS as SQS
+import API.Federation.Util
+import API.SQS qualified as SQS
 import Bilge hiding (timeout)
 import Bilge.Assert
 import Bilge.TestSession
-import Brig.Types.Connection
-import Brig.Types.Intra
 import Control.Applicative
 import Control.Concurrent.Async
 import Control.Exception (throw)
@@ -35,69 +34,69 @@ import Control.Monad.Codensity (lowerCodensity)
 import Control.Monad.Except (ExceptT, runExceptT)
 import Control.Retry (constantDelay, exponentialBackoff, limitRetries, retrying)
 import Data.Aeson hiding (json)
-import qualified Data.Aeson as A
+import Data.Aeson qualified as A
 import Data.Aeson.Lens (key, _String)
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Char8 as B8
-import qualified Data.ByteString.Char8 as C
+import Data.ByteString qualified as BS
+import Data.ByteString.Char8 qualified as B8
+import Data.ByteString.Char8 qualified as C
 import Data.ByteString.Conversion
-import qualified Data.ByteString.Lazy as Lazy
-import qualified Data.CaseInsensitive as CI
-import qualified Data.Code as Code
-import qualified Data.Currency as Currency
+import Data.ByteString.Lazy qualified as Lazy
+import Data.CaseInsensitive qualified as CI
+import Data.Code qualified as Code
+import Data.Currency qualified as Currency
 import Data.Default
 import Data.Domain
-import qualified Data.Handle as Handle
-import qualified Data.HashMap.Strict as HashMap
+import Data.Handle qualified as Handle
+import Data.HashMap.Strict qualified as HashMap
 import Data.Id
 import Data.Json.Util hiding ((#))
 import Data.Kind
 import Data.LegalHold (defUserLegalHoldStatus)
 import Data.List.NonEmpty (NonEmpty)
 import Data.List1 as List1
-import qualified Data.Map as LMap
-import qualified Data.Map.Strict as Map
+import Data.Map qualified as LMap
+import Data.Map.Strict qualified as Map
 import Data.Misc
-import qualified Data.ProtoLens as Protolens
+import Data.ProtoLens qualified as Protolens
 import Data.ProtocolBuffers (encodeMessage)
 import Data.Qualified hiding (isLocal)
 import Data.Range
 import Data.Serialize (runPut)
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.Singletons
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
-import qualified Data.Text.Lazy.Encoding as T
+import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
+import Data.Text.Lazy.Encoding qualified as T
 import Data.Time (getCurrentTime)
 import Data.Tuple.Extra
-import qualified Data.UUID as UUID
+import Data.UUID qualified as UUID
 import Data.UUID.V4
 import Federator.MockServer
-import qualified Federator.MockServer as Mock
+import Federator.MockServer qualified as Mock
 import GHC.TypeLits (KnownSymbol)
 import GHC.TypeNats
 import Galley.Intra.User (chunkify)
-import qualified Galley.Options as Opts
-import qualified Galley.Run as Run
+import Galley.Options qualified as Opts
+import Galley.Run qualified as Run
 import Galley.Types.Conversations.One2One
-import qualified Galley.Types.Teams as Team
+import Galley.Types.Teams qualified as Team
 import Galley.Types.UserList
 import Imports
-import qualified Network.HTTP.Client as HTTP
+import Network.HTTP.Client qualified as HTTP
 import Network.HTTP.Media.MediaType
-import qualified Network.HTTP.Types as HTTP
+import Network.HTTP.Types qualified as HTTP
 import Network.URI (pathSegments)
 import Network.Wai (defaultRequest)
-import qualified Network.Wai as Wai
-import qualified Network.Wai.Test as Wai
+import Network.Wai qualified as Wai
+import Network.Wai.Test qualified as Wai
 import Network.Wai.Utilities.MockServer (withMockServer)
 import Servant
 import System.Exit
 import System.Process
 import System.Random
-import qualified Test.QuickCheck as Q
+import Test.QuickCheck qualified as Q
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
-import qualified Test.Tasty.Cannon as WS
+import Test.Tasty.Cannon qualified as WS
 import Test.Tasty.HUnit
 import TestHelpers (viewFederationDomain)
 import TestSetup
@@ -106,17 +105,20 @@ import Util.Options
 import Web.Cookie
 import Wire.API.Connection
 import Wire.API.Conversation
+import Wire.API.Conversation qualified as Conv
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Code hiding (Value)
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing
 import Wire.API.Event.Conversation
-import qualified Wire.API.Event.Conversation as Conv
+import Wire.API.Event.Conversation qualified as Conv
+import Wire.API.Event.Federation qualified as Fed
 import Wire.API.Event.Team
-import qualified Wire.API.Event.Team as TE
+import Wire.API.Event.Team qualified as TE
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
+import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Domain (originDomainHeaderName)
 import Wire.API.Internal.Notification hiding (target)
@@ -125,10 +127,11 @@ import Wire.API.MLS.Message
 import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
 import Wire.API.Message
-import qualified Wire.API.Message.Proto as Proto
+import Wire.API.Message.Proto qualified as Proto
+import Wire.API.Routes.FederationDomainConfig (FederationDomainConfig (..))
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Internal.Galley.ConversationsIntra
-import qualified Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Multi
+import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti qualified as Multi
 import Wire.API.Routes.Internal.Galley.TeamsIntra
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.Routes.Version
@@ -136,14 +139,15 @@ import Wire.API.Team
 import Wire.API.Team.Feature
 import Wire.API.Team.Invitation
 import Wire.API.Team.Member hiding (userId)
-import qualified Wire.API.Team.Member as Team
+import Wire.API.Team.Member qualified as Team
 import Wire.API.Team.Permission hiding (self)
 import Wire.API.Team.Role
 import Wire.API.User hiding (AccountStatus (..))
 import Wire.API.User.Auth hiding (Access)
 import Wire.API.User.Client
-import qualified Wire.API.User.Client as Client
+import Wire.API.User.Client qualified as Client
 import Wire.API.User.Client.Prekey
+import Wire.API.User.Search (FederatedUserSearchPolicy (..))
 
 -------------------------------------------------------------------------------
 -- API Operations
@@ -188,12 +192,12 @@ symmPermissions p = let s = Set.fromList p in fromJust (newPermissions s s)
 
 createBindingTeam :: HasCallStack => TestM (UserId, TeamId)
 createBindingTeam = do
-  first userId <$> createBindingTeam'
+  first Wire.API.User.userId <$> createBindingTeam'
 
 createBindingTeam' :: HasCallStack => TestM (User, TeamId)
 createBindingTeam' = do
   owner <- randomTeamCreator'
-  teams <- getTeams (userId owner) []
+  teams <- getTeams owner.userId []
   let [team] = view teamListTeams teams
   let tid = view teamId team
   SQS.assertTeamActivate "create team" tid
@@ -362,7 +366,7 @@ getTeamMembersPaginated usr tid n mPs = do
           . paths ["teams", toByteString' tid, "members"]
           . zUser usr
           . queryItem "maxResults" (C.pack $ show n)
-          . maybe id (queryItem "pagingState" . cs) mPs
+          . maybe Imports.id (queryItem "pagingState" . cs) mPs
       )
       <!! const 200
         === statusCode
@@ -451,7 +455,7 @@ addUserToTeamWithRole :: HasCallStack => Maybe Role -> UserId -> TeamId -> TestM
 addUserToTeamWithRole role inviter tid = do
   (inv, rsp2) <- addUserToTeamWithRole' role inviter tid
   let invitee :: User = responseJsonUnsafe rsp2
-      inviteeId = userId invitee
+      inviteeId = invitee.userId
   let invmeta = Just (inviter, inCreatedAt inv)
   mem <- getTeamMember inviter tid inviteeId
   liftIO $ assertEqual "Member has no/wrong invitation metadata" invmeta (mem ^. Team.invitation)
@@ -479,8 +483,7 @@ addUserToTeamWithRole' role inviter tid = do
 addUserToTeamWithSSO :: HasCallStack => Bool -> TeamId -> TestM TeamMember
 addUserToTeamWithSSO hasEmail tid = do
   let ssoid = UserSSOId mkSimpleSampleUref
-  user <- responseJsonError =<< postSSOUser "SSO User" hasEmail ssoid tid
-  let uid = userId user
+  uid <- fmap (\(u :: User) -> u.userId) $ responseJsonError =<< postSSOUser "SSO User" hasEmail ssoid tid
   getTeamMember uid tid uid
 
 makeOwner :: HasCallStack => UserId -> TeamMember -> TeamId -> TestM ()
@@ -721,7 +724,7 @@ postConvQualified u c n = do
     g
       . path "/conversations"
       . zUser u
-      . maybe id zClient c
+      . maybe Imports.id zClient c
       . zConn "conn"
       . zType "access"
       . json n
@@ -752,7 +755,16 @@ postConvWithRemoteUsers ::
   Maybe ClientId ->
   NewConv ->
   TestM (Response (Maybe LByteString))
-postConvWithRemoteUsers = postConvWithRemoteUsersGeneric $ mockReply ()
+postConvWithRemoteUsers u c n =
+  fmap fst $
+    withTempMockFederator' (("get-not-fully-connected-backends" ~> NonConnectedBackends mempty) <|> mockReply EmptyResponse) $
+      postConvQualified u c n {newConvName = setName (newConvName n)}
+        <!! const 201
+          === statusCode
+  where
+    setName :: (KnownNat n, KnownNat m, Within Text n m) => Maybe (Range n m Text) -> Maybe (Range n m Text)
+    setName Nothing = checked "federated gossip"
+    setName x = x
 
 postTeamConv :: TeamId -> UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe (Set AccessRole) -> Maybe Milliseconds -> TestM ResponseLBS
 postTeamConv tid u us name a r mtimer = do
@@ -919,7 +931,7 @@ data Broadcast = Broadcast
   }
 
 instance Default Broadcast where
-  def = Broadcast BroadcastLegacyQueryParams BroadcastJSON mempty "ZXhhbXBsZQ==" mempty id
+  def = Broadcast BroadcastLegacyQueryParams BroadcastJSON mempty "ZXhhbXBsZQ==" mempty Imports.id
 
 postBroadcast ::
   (MonadIO m, MonadHttp m, HasGalley m) =>
@@ -931,8 +943,8 @@ postBroadcast lu c b = do
   let u = qUnqualified lu
   g <- viewGalley
   let (bodyReport, queryReport) = case bAPI b of
-        BroadcastLegacyQueryParams -> (Nothing, maybe id mkOtrReportMissing (bReport b))
-        _ -> (bReport b, id)
+        BroadcastLegacyQueryParams -> (Nothing, maybe Imports.id mkOtrReportMissing (bReport b))
+        _ -> (bReport b, Imports.id)
   let bdy = case (bAPI b, bType b) of
         (BroadcastQualified, BroadcastJSON) -> error "JSON not supported for the qualified broadcast API"
         (BroadcastQualified, BroadcastProto) ->
@@ -984,7 +996,7 @@ mkOtrMessage (usr, clt, m) = (fn usr, HashMap.singleton (fn clt) m)
     fn = fromJust . fromByteString . toByteString'
 
 postProtoOtrMessage :: UserId -> ClientId -> ConvId -> OtrRecipients -> TestM ResponseLBS
-postProtoOtrMessage = postProtoOtrMessage' Nothing id
+postProtoOtrMessage = postProtoOtrMessage' Nothing Imports.id
 
 postProtoOtrMessage' :: Maybe [UserId] -> (Request -> Request) -> UserId -> ClientId -> ConvId -> OtrRecipients -> TestM ResponseLBS
 postProtoOtrMessage' reportMissing modif u d c rec = do
@@ -1385,6 +1397,40 @@ postJoinCodeConv' mPw u j = do
       -- `json (JoinConversationByCode j Nothing)` and `json j` are equivalent, using the latter to test backwards compatibility
       . (if isJust mPw then json (JoinConversationByCode j mPw) else json j)
 
+deleteFederation ::
+  (MonadHttp m, HasGalley m, MonadIO m) =>
+  Domain ->
+  m ResponseLBS
+deleteFederation dom = do
+  g <- viewGalley
+  delete $
+    g . paths ["/i/federation", toByteString' dom]
+
+addFederation ::
+  (MonadHttp m, HasBrig m, MonadIO m) =>
+  Domain ->
+  m ResponseLBS
+addFederation dom = do
+  b <- viewBrig
+  post $
+    b
+      . paths ["/i/federation/remotes"]
+      . json (FederationDomainConfig dom FullSearch)
+
+connectionRemovedFederation ::
+  (MonadHttp m, HasGalley m, MonadIO m) =>
+  Domain ->
+  Domain ->
+  m ResponseLBS
+connectionRemovedFederation origin target = do
+  g <- viewGalley
+  post $
+    g
+      . paths ["federation", "on-connection-removed"]
+      . content "application/json"
+      . header "Wire-Origin-Domain" (toByteString' origin)
+      . json target
+
 putQualifiedAccessUpdate ::
   (MonadHttp m, HasGalley m, MonadIO m) =>
   UserId ->
@@ -1532,20 +1578,21 @@ registerRemoteConv :: Qualified ConvId -> UserId -> Maybe Text -> Set OtherMembe
 registerRemoteConv convId originUser name othMembers = do
   fedGalleyClient <- view tsFedGalleyClient
   now <- liftIO getCurrentTime
-  runFedClient @"on-conversation-created" fedGalleyClient (qDomain convId) $
-    ConversationCreated
-      { ccTime = now,
-        ccOrigUserId = originUser,
-        ccCnvId = qUnqualified convId,
-        ccCnvType = RegularConv,
-        ccCnvAccess = [],
-        ccCnvAccessRoles = Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole],
-        ccCnvName = name,
-        ccNonCreatorMembers = othMembers,
-        ccMessageTimer = Nothing,
-        ccReceiptMode = Nothing,
-        ccProtocol = ProtocolProteus
-      }
+  void $
+    runFedClient @"on-conversation-created" fedGalleyClient (qDomain convId) $
+      ConversationCreated
+        { time = now,
+          origUserId = originUser,
+          cnvId = qUnqualified convId,
+          cnvType = RegularConv,
+          cnvAccess = [],
+          cnvAccessRoles = Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole],
+          cnvName = name,
+          nonCreatorMembers = othMembers,
+          messageTimer = Nothing,
+          receiptMode = Nothing,
+          protocol = ProtocolProteus
+        }
 
 getFeatureStatusMulti :: forall cfg. KnownSymbol (FeatureSymbol cfg) => Multi.TeamFeatureNoConfigMultiRequest -> TestM ResponseLBS
 getFeatureStatusMulti req = do
@@ -1580,15 +1627,15 @@ assertNotConvMember u c =
 
 assertConvEquals :: (HasCallStack, MonadIO m) => Conversation -> Conversation -> m ()
 assertConvEquals c1 c2 = liftIO $ do
-  assertEqual "id" (cnvQualifiedId c1) (cnvQualifiedId c2)
-  assertEqual "type" (cnvType c1) (cnvType c2)
-  assertEqual "creator" (cnvCreator c1) (cnvCreator c2)
+  assertEqual "id" c1.cnvQualifiedId c2.cnvQualifiedId
+  assertEqual "type" (Conv.cnvType c1) (Conv.cnvType c2)
+  assertEqual "creator" (Conv.cnvCreator c1) (Conv.cnvCreator c2)
   assertEqual "access" (accessSet c1) (accessSet c2)
-  assertEqual "name" (cnvName c1) (cnvName c2)
+  assertEqual "name" (Conv.cnvName c1) (Conv.cnvName c2)
   assertEqual "self member" (selfMember c1) (selfMember c2)
   assertEqual "other members" (otherMembers c1) (otherMembers c2)
   where
-    accessSet = Set.fromList . toList . cnvAccess
+    accessSet = Set.fromList . toList . Conv.cnvAccess
     selfMember = cmSelf . cnvMembers
     otherMembers = Set.fromList . cmOthers . cnvMembers
 
@@ -1621,9 +1668,9 @@ assertConvWithRole r t c s us n mt role = do
   let _self = cmSelf (cnvMembers cnv)
   let others = cmOthers (cnvMembers cnv)
   liftIO $ do
-    assertEqual "id" cId (qUnqualified (cnvQualifiedId cnv))
-    assertEqual "name" n (cnvName cnv)
-    assertEqual "type" t (cnvType cnv)
+    assertEqual "id" cId (qUnqualified cnv.cnvQualifiedId)
+    assertEqual "name" n (Conv.cnvName cnv)
+    assertEqual "type" t (Conv.cnvType cnv)
     assertEqual "creator" c (cnvCreator cnv)
     assertEqual "message_timer" mt (cnvMessageTimer cnv)
     assertEqual "self" s (memId _self)
@@ -1634,9 +1681,9 @@ assertConvWithRole r t c s us n mt role = do
     assertBool "otr archived not false" (not (memOtrArchived _self))
     assertBool "otr archived ref not empty" (isNothing (memOtrArchivedRef _self))
     case t of
-      SelfConv -> assertEqual "access" privateAccess (cnvAccess cnv)
-      ConnectConv -> assertEqual "access" privateAccess (cnvAccess cnv)
-      One2OneConv -> assertEqual "access" privateAccess (cnvAccess cnv)
+      SelfConv -> assertEqual "access" privateAccess (Conv.cnvAccess cnv)
+      ConnectConv -> assertEqual "access" privateAccess (Conv.cnvAccess cnv)
+      One2OneConv -> assertEqual "access" privateAccess (Conv.cnvAccess cnv)
       _ -> pure ()
   pure (cnvQualifiedId cnv)
 
@@ -1748,6 +1795,40 @@ assertJoinEvent conv usr new role e = do
   evtType e @?= Conv.MemberJoin
   evtFrom e @?= usr
   fmap (sort . mMembers) (evtData e ^? _EdMembersJoin) @?= Just (sort (fmap (`SimpleMember` role) new))
+
+wsAssertFederationDeleted ::
+  HasCallStack =>
+  Domain ->
+  Notification ->
+  IO ()
+wsAssertFederationDeleted dom n = do
+  ntfTransient n @?= False
+  assertFederationDeletedEvent dom $ List1.head (WS.unpackPayload n)
+
+assertFederationDeletedEvent ::
+  Domain ->
+  Fed.Event ->
+  IO ()
+assertFederationDeletedEvent dom e = do
+  e @?= Fed.FederationDelete dom
+
+wsAssertFederationConnectionRemoved ::
+  HasCallStack =>
+  Domain ->
+  Domain ->
+  Notification ->
+  IO ()
+wsAssertFederationConnectionRemoved domA domB n = do
+  ntfTransient n @?= False
+  assertFederationConnectionRemovedEvent domA domB $ List1.head (WS.unpackPayload n)
+
+assertFederationConnectionRemovedEvent ::
+  Domain ->
+  Domain ->
+  Fed.Event ->
+  IO ()
+assertFederationConnectionRemovedEvent domA domB e = do
+  e @?= Fed.FederationConnectionRemoved (domA, domB)
 
 -- FUTUREWORK: See if this one can be implemented in terms of:
 --
@@ -1943,7 +2024,7 @@ connectUsersUnchecked ::
   UserId ->
   List1 UserId ->
   TestM (List1 (Response (Maybe Lazy.ByteString), Response (Maybe Lazy.ByteString)))
-connectUsersUnchecked = connectUsersWith id
+connectUsersUnchecked = connectUsersWith Imports.id
 
 connectUsersWith ::
   (Request -> Request) ->
@@ -2116,7 +2197,7 @@ ephemeralUser = do
   let p = object ["name" .= name]
   r <- post (b . path "/register" . json p) <!! const 201 === statusCode
   user <- responseJsonError r
-  pure $ userId user
+  pure $ Wire.API.User.userId user
 
 randomClient :: HasCallStack => UserId -> LastPrekey -> TestM ClientId
 randomClient uid lk = randomClientWithCaps uid lk Nothing
@@ -2256,11 +2337,11 @@ fromBS bs =
 
 convRange :: Maybe (Either [ConvId] ConvId) -> Maybe Int32 -> Request -> Request
 convRange range size =
-  maybe id (queryItem "size" . C.pack . show) size
+  maybe Imports.id (queryItem "size" . C.pack . show) size
     . case range of
       Just (Left l) -> queryItem "ids" (C.intercalate "," $ map toByteString' l)
       Just (Right c) -> queryItem "start" (toByteString' c)
-      Nothing -> id
+      Nothing -> Imports.id
 
 privateAccess :: [Access]
 privateAccess = [PrivateAccess]
@@ -2285,7 +2366,7 @@ assertBroadcastMismatch ::
   [(UserId, Set ClientId)] ->
   Assertions ()
 assertBroadcastMismatch localDomain BroadcastQualified =
-  \m r d -> assertMismatchQualified mempty (mk m) (mk r) (mk d)
+  \m r d -> assertMismatchQualified mempty (mk m) (mk r) (mk d) mempty
   where
     mk :: [(UserId, Set ClientId)] -> Client.QualifiedUserClients
     mk [] = mempty
@@ -2308,7 +2389,7 @@ assertMismatchWithMessage mmsg missing redundant deleted = do
     userClients = UserClients . Map.fromList
 
     formatMessage :: String -> String
-    formatMessage = maybe id (\msg -> ((msg <> "\n") <>)) mmsg
+    formatMessage = maybe Imports.id (\msg -> ((msg <> "\n") <>)) mmsg
 
 assertMismatch ::
   HasCallStack =>
@@ -2324,12 +2405,14 @@ assertMismatchQualified ::
   Client.QualifiedUserClients ->
   Client.QualifiedUserClients ->
   Client.QualifiedUserClients ->
+  Client.QualifiedUserClients ->
   Assertions ()
-assertMismatchQualified failureToSend missing redundant deleted = do
+assertMismatchQualified failureToSend missing redundant deleted failedToConfirm = do
   assertExpected "failed to send" failureToSend (fmap mssFailedToSend . responseJsonMaybe)
   assertExpected "missing" missing (fmap mssMissingClients . responseJsonMaybe)
   assertExpected "redundant" redundant (fmap mssRedundantClients . responseJsonMaybe)
   assertExpected "deleted" deleted (fmap mssDeletedClients . responseJsonMaybe)
+  assertExpected "failed to confirm clients" failedToConfirm (fmap mssFailedToConfirmClients . responseJsonMaybe)
 
 otrRecipients :: [(UserId, ClientId, Text)] -> OtrRecipients
 otrRecipients =
@@ -2622,7 +2705,7 @@ withTempMockFederator' resp action = do
     [("Content-Type", "application/json")]
     mock
     $ \mockPort -> do
-      withSettingsOverrides (\opts -> opts & Opts.optFederator ?~ Endpoint "127.0.0.1" (fromIntegral mockPort)) action
+      withSettingsOverrides (\opts -> opts & Opts.federator ?~ Endpoint "127.0.0.1" (fromIntegral mockPort)) action
 
 -- Starts a servant Application in Network.Wai.Test session and runs the
 -- FederatedRequest against it.
@@ -2979,4 +3062,10 @@ createAndConnectUsers domains = do
       (True, False) -> connectWithRemoteUser (qUnqualified a) b
       (False, True) -> connectWithRemoteUser (qUnqualified b) a
       (False, False) -> pure ()
+  pure users
+
+connectBackend :: UserId -> Remote Backend -> TestM [Qualified UserId]
+connectBackend usr (tDomain &&& bUsers . tUnqualified -> (d, c)) = do
+  users <- replicateM (fromIntegral c) (randomQualifiedId d)
+  mapM_ (connectWithRemoteUser usr) users
   pure users

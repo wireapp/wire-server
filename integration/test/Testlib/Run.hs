@@ -11,9 +11,11 @@ import Data.Function
 import Data.Functor
 import Data.List
 import Data.Time.Clock
+import Data.Traversable (for)
 import RunAllTests
 import System.Directory
 import System.Environment
+import System.Exit
 import System.FilePath
 import Testlib.App
 import Testlib.Assertions
@@ -133,7 +135,7 @@ runTests tests cfg = do
   genv <- createGlobalEnv cfg
 
   withAsync displayOutput $ \displayThread -> do
-    report <- fmap mconcat $ pooledForConcurrently tests $ \(qname, _, _, action) -> do
+    report <- fmap mconcat $ for tests $ \(qname, _, _, action) -> do
       do
         (mErr, tm) <- withTime (runTest genv action)
         case mErr of
@@ -154,13 +156,12 @@ runTests tests cfg = do
     writeChan output Nothing
     wait displayThread
     printReport report
+    unless (null report.failures) $
+      exitFailure
 
 doListTests :: [(String, String, String, x)] -> IO ()
-doListTests tests = for_ tests $ \(qname, desc, full, _) -> do
-  putStrLn $ qname <> "  " <> colored gray desc
-  unless (null full) $
-    putStr $
-      colored gray (indent 2 full)
+doListTests tests = for_ tests $ \(qname, _desc, _full, _) -> do
+  putStrLn qname
 
 -- like `main` but meant to run from a repl
 mainI :: [String] -> IO ()

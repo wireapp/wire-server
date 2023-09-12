@@ -22,15 +22,15 @@ module Wire.API.Routes.MultiTablePaging.State
 where
 
 import Data.Aeson (FromJSON (..), ToJSON (..))
-import qualified Data.Attoparsec.ByteString as AB
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Base64.URL as Base64Url
+import Data.Attoparsec.ByteString qualified as AB
+import Data.ByteString qualified as BS
+import Data.ByteString.Base64.URL qualified as Base64Url
 import Data.Either.Combinators (mapLeft)
 import Data.Proxy
 import Data.Schema
-import qualified Data.Swagger as S
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
+import Data.Swagger qualified as S
+import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
 import GHC.TypeLits
 import Imports
 import Servant (FromHttpApiData (..), ToHttpApiData (..))

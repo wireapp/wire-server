@@ -22,7 +22,7 @@ module Test.Wire.API.Golden.Generated.SearchResult_20Contact_user where
 import Data.Domain (Domain (Domain, _domainText))
 import Data.Id (Id (Id))
 import Data.Qualified (Qualified (Qualified, qDomain, qUnqualified))
-import qualified Data.UUID as UUID (fromString)
+import Data.UUID qualified as UUID (fromString)
 import Imports (Bool (..), Maybe (Just, Nothing), fromJust)
 import Wire.API.User.Search (Contact (..), FederatedUserSearchPolicy (ExactHandleSearch, FullSearch), PagingState (..), SearchResult (..))
 

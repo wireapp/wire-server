@@ -59,6 +59,9 @@ module Stern.Intra
     getUserClients,
     getUserCookies,
     getUserNotifications,
+    getSsoDomainRedirect,
+    putSsoDomainRedirect,
+    deleteSsoDomainRedirect,
     registerOAuthClient,
     getOAuthClient,
     updateOAuthClient,
@@ -67,28 +70,29 @@ module Stern.Intra
 where
 
 import Bilge hiding (head, options, path, paths, requestId)
-import qualified Bilge
+import Bilge qualified
 import Bilge.RPC
 import Brig.Types.Intra
 import Control.Error
 import Control.Lens (view, (^.))
 import Control.Monad.Reader
 import Data.Aeson hiding (Error)
-import qualified Data.Aeson.KeyMap as KeyMap
+import Data.Aeson.KeyMap qualified as KeyMap
 import Data.Aeson.Types (emptyArray)
-import qualified Data.ByteString.Char8 as BS
+import Data.ByteString.Char8 qualified as BS
 import Data.ByteString.Conversion
 import Data.Handle (Handle)
 import Data.Id
 import Data.Int
 import Data.List.Split (chunksOf)
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Qualified (qUnqualified)
 import Data.Text (strip)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Text.Lazy (pack)
 import GHC.TypeLits (KnownSymbol)
 import Imports
+import Network.HTTP.Types (urlEncode)
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status hiding (statusCode)
 import Network.Wai.Utilities (Error (..), mkError)
@@ -96,22 +100,23 @@ import Servant.API (toUrlPiece)
 import Stern.App
 import Stern.Types
 import System.Logger.Class hiding (Error, name, (.=))
-import qualified System.Logger.Class as Log
+import System.Logger.Class qualified as Log
 import UnliftIO.Exception hiding (Handler)
 import Wire.API.Connection
 import Wire.API.Conversation
+import Wire.API.CustomBackend
 import Wire.API.Internal.Notification
 import Wire.API.OAuth (OAuthClient, OAuthClientConfig, OAuthClientCredentials)
 import Wire.API.Properties
 import Wire.API.Routes.Internal.Brig.Connection
-import qualified Wire.API.Routes.Internal.Brig.EJPD as EJPD
+import Wire.API.Routes.Internal.Brig.EJPD qualified as EJPD
 import Wire.API.Routes.Internal.Galley.TeamsIntra
-import qualified Wire.API.Routes.Internal.Galley.TeamsIntra as Team
+import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
 import Wire.API.Routes.Version
 import Wire.API.Routes.Versioned
 import Wire.API.Team
 import Wire.API.Team.Feature
-import qualified Wire.API.Team.Feature as Public
+import Wire.API.Team.Feature qualified as Public
 import Wire.API.Team.Member
 import Wire.API.Team.SearchVisibility
 import Wire.API.User
@@ -744,25 +749,27 @@ getUserCookies uid = do
         )
   parseResponse (mkError status502 "bad-upstream") r
 
-getUserConversations :: UserId -> Handler [Conversation]
-getUserConversations uid = do
+getUserConversations :: UserId -> Int -> Handler [Conversation]
+getUserConversations uid maxConvs = do
   info $ msg "Getting user conversations"
-  fetchAll [] Nothing
+  fetchAll [] Nothing maxConvs
   where
-    fetchAll xs start = do
-      userConversationList <- fetchBatch start
+    fetchAll :: [Conversation] -> Maybe ConvId -> Int -> Handler [Conversation]
+    fetchAll xs start remaining = do
+      userConversationList <- fetchBatch start (min 100 remaining)
       let batch = convList userConversationList
-      if (not . null) batch && convHasMore userConversationList
-        then fetchAll (batch ++ xs) (Just . qUnqualified . cnvQualifiedId $ last batch)
+          remaining' = remaining - length batch
+      if (not . null) batch && convHasMore userConversationList && remaining' > 0
+        then fetchAll (batch ++ xs) (Just . qUnqualified . cnvQualifiedId $ last batch) remaining'
         else pure (batch ++ xs)
-    fetchBatch :: Maybe ConvId -> Handler (ConversationList Conversation)
-    fetchBatch start = do
-      b <- view galley
+    fetchBatch :: Maybe ConvId -> Int -> Handler (ConversationList Conversation)
+    fetchBatch start batchSize = do
+      baseReq <- view galley
       r <-
         catchRpcErrors $
           rpc'
             "galley"
-            b
+            baseReq
             ( method GET
                 . header "Z-User" (toByteString' uid)
                 . versionedPath "conversations"
@@ -771,7 +778,6 @@ getUserConversations uid = do
                 . expect2xx
             )
       unVersioned @'V2 <$> parseResponse (mkError status502 "bad-upstream") r
-    batchSize = 100 :: Int
 
 getUserClients :: UserId -> Handler [Client]
 getUserClients uid = do
@@ -824,25 +830,27 @@ getUserProperties uid = do
       value <- parseResponse (mkError status502 "bad-upstream") r
       fetchProperty b xs (Map.insert x value acc)
 
-getUserNotifications :: UserId -> Handler [QueuedNotification]
-getUserNotifications uid = do
+getUserNotifications :: UserId -> Int -> Handler [QueuedNotification]
+getUserNotifications uid maxNotifs = do
   info $ msg "Getting user notifications"
-  fetchAll [] Nothing
+  fetchAll [] Nothing maxNotifs
   where
-    fetchAll xs start = do
-      userNotificationList <- fetchBatch start
+    fetchAll :: [QueuedNotification] -> Maybe NotificationId -> Int -> ExceptT Error App [QueuedNotification]
+    fetchAll xs start remaining = do
+      userNotificationList <- fetchBatch start (min 100 remaining)
       let batch = view queuedNotifications userNotificationList
-      if (not . null) batch && view queuedHasMore userNotificationList
-        then fetchAll (batch ++ xs) (Just . view queuedNotificationId $ last batch)
+          remaining' = remaining - length batch
+      if (not . null) batch && view queuedHasMore userNotificationList && remaining' > 0
+        then fetchAll (batch ++ xs) (Just . view queuedNotificationId $ last batch) remaining'
         else pure (batch ++ xs)
-    fetchBatch :: Maybe NotificationId -> Handler QueuedNotificationList
-    fetchBatch start = do
-      b <- view gundeck
+    fetchBatch :: Maybe NotificationId -> Int -> Handler QueuedNotificationList
+    fetchBatch start batchSize = do
+      baseReq <- view gundeck
       r <-
         catchRpcErrors $
           rpc'
-            "galley"
-            b
+            "gundeck"
+            baseReq
             ( method GET
                 . header "Z-User" (toByteString' uid)
                 . versionedPath "notifications"
@@ -856,7 +864,58 @@ getUserNotifications uid = do
         200 -> parseResponse (mkError status502 "bad-upstream") r
         404 -> parseResponse (mkError status502 "bad-upstream") r
         _ -> throwE (mkError status502 "bad-upstream" "")
-    batchSize = 100 :: Int
+
+getSsoDomainRedirect :: Text -> Handler (Maybe CustomBackend)
+getSsoDomainRedirect domain = do
+  info $ msg "getSsoDomainRedirect"
+  -- curl  -XGET ${CLOUD_BACKEND}/custom-backend/by-domain/${DOMAIN_EXAMPLE}
+  g <- view galley
+  r <-
+    catchRpcErrors $
+      rpc'
+        "galley"
+        g
+        ( method GET
+            . versionedPaths ["custom-backend", "by-domain", cs domain]
+            . expectStatus (`elem` [200, 404])
+        )
+  case statusCode r of
+    200 -> Just <$> parseResponse (mkError status502 "bad-upstream") r
+    404 -> pure Nothing
+    _ -> error "impossible"
+
+putSsoDomainRedirect :: Text -> Text -> Text -> Handler ()
+putSsoDomainRedirect domain config welcome = do
+  info $ msg "putSsoDomainRedirect"
+  -- export DOMAIN_ENTRY='{ \
+  --   "config_json_url": "https://wire-rest.https.example.com/config.json", \
+  --   "webapp_welcome_url": "https://app.wire.example.com/" \
+  -- }'
+  -- curl -XPUT http://localhost/i/custom-backend/by-domain/${DOMAIN_EXAMPLE} -d "${DOMAIN_ENTRY}"
+  g <- view galley
+  void . catchRpcErrors $
+    rpc'
+      "galley"
+      g
+      ( method PUT
+          . Bilge.paths ["i", "custom-backend", "by-domain", urlEncode True (cs domain)]
+          . Bilge.json (object ["config_json_url" .= config, "webapp_welcome_url" .= welcome])
+          . expect2xx
+      )
+
+deleteSsoDomainRedirect :: Text -> Handler ()
+deleteSsoDomainRedirect domain = do
+  info $ msg "deleteSsoDomainRedirect"
+  -- curl -XDELETE http://localhost/i/custom-backend/by-domain/${DOMAIN_EXAMPLE}
+  g <- view galley
+  void . catchRpcErrors $
+    rpc'
+      "galley"
+      g
+      ( method DELETE
+          . Bilge.paths ["i", "custom-backend", "by-domain", urlEncode True (cs domain)]
+          . expect2xx
+      )
 
 registerOAuthClient :: OAuthClientConfig -> Handler OAuthClientCredentials
 registerOAuthClient conf = do

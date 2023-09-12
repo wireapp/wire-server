@@ -18,9 +18,11 @@ module Wire.API.Error
   ( -- * Static and dynamic error types
     DynError (..),
     dynError,
+    dynErrorToWai,
     StaticError (..),
     KnownError,
     MapError,
+    errorToResponse,
     errorToWai,
     APIError (..),
 
@@ -28,6 +30,7 @@ module Wire.API.Error
     CanThrow,
     CanThrowMany,
     DeclaredErrorEffects,
+    addErrorResponseToSwagger,
     addStaticErrorToSwagger,
     IsSwaggerError (..),
     ErrorResponse,
@@ -45,25 +48,27 @@ where
 
 import Control.Lens (at, (%~), (.~), (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
-import qualified Data.Aeson as A
+import Data.Aeson qualified as A
 import Data.Kind
 import Data.Metrics.Servant
 import Data.Proxy
 import Data.SOP
 import Data.Schema
-import qualified Data.Swagger as S
-import qualified Data.Text as Text
-import qualified Data.Text.Lazy as LT
+import Data.Swagger qualified as S
+import Data.Text qualified as Text
+import Data.Text.Lazy qualified as LT
 import GHC.TypeLits
 import Imports hiding (All)
-import Network.HTTP.Types.Status
-import qualified Network.Wai.Utilities.Error as Wai
+import Network.HTTP.Types.Status qualified as HTTP
+import Network.Wai.Utilities.Error qualified as Wai
+import Network.Wai.Utilities.JSONResponse
 import Polysemy
 import Polysemy.Error
 import Servant
 import Servant.Swagger
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named (Named)
+import Wire.API.Routes.Version
 
 -- | Runtime representation of a statically-known error.
 data DynError = DynError
@@ -72,13 +77,17 @@ data DynError = DynError
     eMessage :: Text
   }
 
+dynErrorToWai :: DynError -> Wai.Error
+dynErrorToWai (DynError c l m) =
+  Wai.mkError (toEnum (fromIntegral c)) (LT.fromStrict l) (LT.fromStrict m)
+
 instance ToJSON DynError where
-  toJSON = toJSON . toWai
+  toJSON = (.value) . toResponse
 
 dynErrorFromWai :: Wai.Error -> DynError
 dynErrorFromWai =
   DynError
-    <$> fromIntegral . statusCode . Wai.code
+    <$> fromIntegral . HTTP.statusCode . Wai.code
     <*> LT.toStrict . Wai.label
     <*> LT.toStrict . Wai.message
 
@@ -159,6 +168,10 @@ instance RoutesToPaths api => RoutesToPaths (CanThrow err :> api) where
 instance RoutesToPaths api => RoutesToPaths (CanThrowMany errs :> api) where
   getRoutes = getRoutes @api
 
+type instance
+  SpecialiseToVersion v (CanThrow e :> api) =
+    CanThrow e :> SpecialiseToVersion v api
+
 instance (HasServer api ctx) => HasServer (CanThrow e :> api) ctx where
   type ServerT (CanThrow e :> api) m = ServerT api m
 
@@ -176,6 +189,10 @@ instance
   HasSwagger (CanThrow e :> api)
   where
   toSwagger _ = addToSwagger @e (toSwagger (Proxy @api))
+
+type instance
+  SpecialiseToVersion v (CanThrowMany es :> api) =
+    CanThrowMany es :> SpecialiseToVersion v api
 
 instance HasSwagger api => HasSwagger (CanThrowMany '() :> api) where
   toSwagger _ = toSwagger (Proxy @api)
@@ -202,22 +219,25 @@ errorResponseSwagger =
   where
     err = dynError @e
 
-addStaticErrorToSwagger :: forall e. KnownError e => S.Swagger -> S.Swagger
-addStaticErrorToSwagger =
+addErrorResponseToSwagger :: Int -> S.Response -> S.Swagger -> S.Swagger
+addErrorResponseToSwagger code resp =
   S.allOperations
     . S.responses
     . S.responses
-    . at (fromIntegral (eCode err))
+    . at code
     %~ Just
     . addRef
   where
-    err = dynError @e
-    resp = errorResponseSwagger @e
-
     addRef :: Maybe (S.Referenced S.Response) -> S.Referenced S.Response
     addRef Nothing = S.Inline resp
     addRef (Just (S.Inline resp1)) = S.Inline (combineResponseSwagger resp1 resp)
     addRef (Just r@(S.Ref _)) = r
+
+addStaticErrorToSwagger :: forall e. KnownError e => S.Swagger -> S.Swagger
+addStaticErrorToSwagger =
+  addErrorResponseToSwagger
+    (fromIntegral (eCode (dynError @e)))
+    (errorResponseSwagger @e)
 
 type family MapError (e :: k) :: StaticError
 
@@ -254,19 +274,24 @@ mapToDynamicError ::
 mapToDynamicError = mapToRuntimeError (dynError @(MapError e))
 
 errorToWai :: forall e. KnownError (MapError e) => Wai.Error
-errorToWai = toWai (dynError @(MapError e))
+errorToWai = dynErrorToWai (dynError @(MapError e))
+
+errorToResponse :: forall e. KnownError (MapError e) => JSONResponse
+errorToResponse = toResponse (dynError @(MapError e))
 
 class APIError e where
-  toWai :: e -> Wai.Error
+  toResponse :: e -> JSONResponse
 
 instance APIError Wai.Error where
-  toWai = id
+  toResponse = waiErrorToJSONResponse
 
 instance APIError DynError where
-  toWai (DynError c l m) = Wai.mkError (toEnum (fromIntegral c)) (LT.fromStrict l) (LT.fromStrict m)
+  toResponse (DynError c l m) =
+    toResponse $
+      Wai.mkError (toEnum (fromIntegral c)) (LT.fromStrict l) (LT.fromStrict m)
 
 instance APIError (SStaticError e) where
-  toWai = toWai . dynError'
+  toResponse = toResponse . dynError'
 
 --------------------------------------------------------------------------------
 -- MultiVerb support

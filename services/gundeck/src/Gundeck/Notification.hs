@@ -21,14 +21,29 @@ module Gundeck.Notification
   )
 where
 
+import Bilge.IO hiding (options)
+import Bilge.Request
+import Bilge.Response
+import Control.Lens (view)
+import Control.Monad.Catch
+import Control.Monad.Except
+import Data.ByteString.Conversion
 import Data.Id
 import Data.Misc (Milliseconds (..))
 import Data.Range
 import Data.Time.Clock.POSIX
+import Data.UUID qualified as UUID
 import Gundeck.Monad
-import qualified Gundeck.Notification.Data as Data
+import Gundeck.Notification.Data qualified as Data
+import Gundeck.Options hiding (host, port)
 import Imports hiding (getLast)
+import Network.HTTP.Types hiding (statusCode)
+import Network.Wai.Utilities.Error
+import System.Logger.Class
+import System.Logger.Class qualified as Log
+import Util.Options hiding (host, port)
 import Wire.API.Internal.Notification
+import Wire.API.Notification
 
 data PaginateResult = PaginateResult
   { paginateResultGap :: Bool,
@@ -36,9 +51,12 @@ data PaginateResult = PaginateResult
   }
 
 paginate :: UserId -> Maybe NotificationId -> Maybe ClientId -> Range 100 10000 Int32 -> Gundeck PaginateResult
-paginate uid since clt size = do
+paginate uid since mclt size = do
+  traverse_ validateNotificationId since
+  for_ mclt $ \clt -> updateActivity uid clt
+
   time <- posixTime
-  rs <- Data.fetch uid clt since size
+  rs <- Data.fetch uid mclt since size
   pure $ PaginateResult (Data.resultGap rs) (resultList time rs)
   where
     resultList time rs =
@@ -47,3 +65,24 @@ paginate uid since clt size = do
         (Data.resultHasMore rs)
         (Just (millisToUTC time))
     millisToUTC = posixSecondsToUTCTime . fromIntegral . (`div` 1000) . ms
+
+    validateNotificationId :: NotificationId -> Gundeck ()
+    validateNotificationId n =
+      unless (isValidNotificationId n) $
+        throwM (mkError status400 "bad-request" "Invalid Notification ID")
+
+-- | Update last_active property of the given client by making a request to brig.
+updateActivity :: UserId -> ClientId -> Gundeck ()
+updateActivity uid clt = do
+  r <- do
+    Endpoint h p <- view $ options . brig
+    post
+      ( host (toByteString' h)
+          . port p
+          . paths ["i", "clients", toByteString' uid, toByteString' clt, "activity"]
+      )
+  when (statusCode r /= 200) $ do
+    Log.warn $
+      Log.msg ("Could not update client activity" :: ByteString)
+        ~~ "user" .= UUID.toASCIIBytes (toUUID uid)
+        ~~ "client" .= client clt

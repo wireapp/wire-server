@@ -56,12 +56,12 @@ downloadRemoteAsset ::
 downloadRemoteAsset usr rkey tok = do
   let ga =
         GetAsset
-          { gaKey = tUnqualified rkey,
-            gaUser = tUnqualified usr,
-            gaToken = tok
+          { key = tUnqualified rkey,
+            user = tUnqualified usr,
+            token = tok
           }
   exists <-
-    fmap gaAvailable . executeFederated rkey $
+    fmap available . executeFederated rkey $
       fedClient @'Cargohold @"get-asset" ga
   if exists
     then
@@ -77,7 +77,7 @@ mkFederatorClientEnv :: Remote x -> Handler FederatorClientEnv
 mkFederatorClientEnv remote = do
   loc <- view localUnit
   endpoint <-
-    view (options . optFederator)
+    view (options . federator)
       >>= maybe (throwE federationNotConfigured) pure
   mgr <- view http2Manager
   pure

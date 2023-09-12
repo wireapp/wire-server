@@ -32,33 +32,32 @@ module Wire.API.Federation.Client
   )
 where
 
-import qualified Control.Exception as E
+import Control.Exception qualified as E
 import Control.Monad.Catch
 import Control.Monad.Codensity
 import Control.Monad.Except
 import Control.Monad.Trans.Maybe
-import qualified Data.Aeson as Aeson
+import Data.Aeson qualified as Aeson
 import Data.Bifunctor (first)
-import qualified Data.ByteString as BS
+import Data.ByteString qualified as BS
 import Data.ByteString.Builder
 import Data.ByteString.Conversion (toByteString')
-import qualified Data.ByteString.Lazy as LBS
+import Data.ByteString.Lazy qualified as LBS
 import Data.Domain
-import Data.List.NonEmpty (NonEmpty)
-import qualified Data.Sequence as Seq
-import qualified Data.Set as Set
-import qualified Data.Text.Encoding as Text
-import qualified Data.Text.Encoding.Error as Text
-import qualified Data.Text.Lazy.Encoding as LText
+import Data.Sequence qualified as Seq
+import Data.Set qualified as Set
+import Data.Text.Encoding qualified as Text
+import Data.Text.Encoding.Error qualified as Text
+import Data.Text.Lazy.Encoding qualified as LText
 import HTTP2.Client.Manager (Http2Manager)
-import qualified HTTP2.Client.Manager as H2Manager
+import HTTP2.Client.Manager qualified as H2Manager
 import Imports
-import qualified Network.HPACK as HTTP2
-import qualified Network.HPACK.Token as HTTP2
-import qualified Network.HTTP.Media as HTTP
-import qualified Network.HTTP.Types as HTTP
-import qualified Network.HTTP2.Client as HTTP2
-import qualified Network.Wai.Utilities.Error as Wai
+import Network.HPACK qualified as HTTP2
+import Network.HPACK.Token qualified as HTTP2
+import Network.HTTP.Media qualified as HTTP
+import Network.HTTP.Types qualified as HTTP
+import Network.HTTP2.Client qualified as HTTP2
+import Network.Wai.Utilities.Error qualified as Wai
 import Servant.Client
 import Servant.Client.Core
 import Servant.Types.SourceT
@@ -226,13 +225,13 @@ withHTTP2StreamingRequest successfulStatus req handleResponse = do
         FederatorClientError
           ( mkFailureResponse
               (responseStatusCode resp)
-              [ceTargetDomain env]
+              (ceTargetDomain env)
               (toLazyByteString (requestPath req))
               (toLazyByteString bdy)
           )
 
-mkFailureResponse :: HTTP.Status -> NonEmpty Domain -> LByteString -> LByteString -> Wai.Error
-mkFailureResponse status domains path body
+mkFailureResponse :: HTTP.Status -> Domain -> LByteString -> LByteString -> Wai.Error
+mkFailureResponse status domain path body
   -- If the outward federator fails with 403, that means that there was an
   -- error at the level of the local federator (most likely due to a bug somewhere
   -- in wire-server). It does not make sense to return this error directly to the
@@ -252,10 +251,11 @@ mkFailureResponse status domains path body
         { Wai.errorData =
             Just
               Wai.FederationErrorData
-                { Wai.federrDomains = domains,
+                { Wai.federrDomain = domain,
                   Wai.federrPath =
                     "/federation"
-                      <> Text.decodeUtf8With Text.lenientDecode (LBS.toStrict path)
+                      <> Text.decodeUtf8With Text.lenientDecode (LBS.toStrict path),
+                  Wai.federrResp = pure body
                 }
         }
   where

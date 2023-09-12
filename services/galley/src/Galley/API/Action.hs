@@ -26,6 +26,7 @@ module Galley.API.Action
     -- * Performing actions
     updateLocalConversation,
     updateLocalConversationUnchecked,
+    updateLocalConversationUserUnchecked,
     NoChanges (..),
     LocalConversationUpdate (..),
     notifyTypingIndicator,
@@ -38,56 +39,60 @@ module Galley.API.Action
     updateLocalStateOfRemoteConv,
     addLocalUsersToRemoteConv,
     ConversationUpdate,
+    getFederationStatus,
+    checkFederationStatus,
+    firstConflictOrFullyConnected,
   )
 where
 
 import Control.Arrow ((&&&))
+import Control.Error (headMay)
 import Control.Lens
 import Data.ByteString.Conversion (toByteString')
+import Data.Domain (Domain (..))
 import Data.Id
 import Data.Kind
-import qualified Data.List as List
+import Data.List qualified as List
 import Data.List.Extra (nubOrd)
 import Data.List.NonEmpty (nonEmpty)
-import qualified Data.Map as Map
+import Data.List.NonEmpty qualified as NE
+import Data.Map qualified as Map
 import Data.Misc
 import Data.Qualified
-import qualified Data.Set as Set
+import Data.Set qualified as Set
 import Data.Singletons
 import Data.Time.Clock
 import Galley.API.Error
 import Galley.API.MLS.Removal
 import Galley.API.Util
-import Galley.App
 import Galley.Data.Conversation
-import qualified Galley.Data.Conversation as Data
+import Galley.Data.Conversation qualified as Data
+import Galley.Data.Scope (Scope (ReusableCode))
 import Galley.Data.Services
-import Galley.Data.Types
 import Galley.Effects
-import qualified Galley.Effects.BotAccess as E
-import qualified Galley.Effects.BrigAccess as E
-import qualified Galley.Effects.CodeStore as E
-import qualified Galley.Effects.ConversationStore as E
-import qualified Galley.Effects.FederatorAccess as E
-import qualified Galley.Effects.FireAndForget as E
+import Galley.Effects.BotAccess qualified as E
+import Galley.Effects.BrigAccess qualified as E
+import Galley.Effects.CodeStore qualified as E
+import Galley.Effects.ConversationStore qualified as E
+import Galley.Effects.FederatorAccess qualified as E
+import Galley.Effects.FireAndForget qualified as E
 import Galley.Effects.GundeckAccess
-import qualified Galley.Effects.MemberStore as E
+import Galley.Effects.MemberStore qualified as E
 import Galley.Effects.ProposalStore
-import qualified Galley.Effects.TeamStore as E
+import Galley.Effects.TeamStore qualified as E
+import Galley.Env (Env)
 import Galley.Intra.Push
 import Galley.Options
 import Galley.Types.Conversations.Members
 import Galley.Types.UserList
 import Galley.Validation
 import Imports
-import qualified Network.HTTP.Types.Status as Wai
-import qualified Network.Wai.Utilities.Error as Wai
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog
-import qualified Polysemy.TinyLog as P
-import qualified System.Logger as Log
+import Polysemy.TinyLog qualified as P
+import System.Logger qualified as Log
 import Wire.API.Connection (Relation (Accepted))
 import Wire.API.Conversation hiding (Conversation, Member)
 import Wire.API.Conversation.Action
@@ -97,15 +102,16 @@ import Wire.API.Conversation.Typing
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
-import Wire.API.Federation.API (Component (Galley), fedClient)
+import Wire.API.Federation.API
+import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Galley
-import qualified Wire.API.Federation.API.Galley as F
+import Wire.API.Federation.API.Galley qualified as F
 import Wire.API.Federation.Error
+import Wire.API.FederationStatus (FederationStatus (FullyConnected, NotConnectedDomains), RemoteDomains (..))
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Team.LegalHold
 import Wire.API.Team.Member
-import Wire.API.Unreachable
-import qualified Wire.API.User as User
+import Wire.API.User qualified as User
 
 data NoChanges = NoChanges
 
@@ -123,6 +129,8 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member (ErrorS 'ConvNotFound) r,
       Member (ErrorS 'TooManyMembers) r,
       Member (ErrorS 'MissingLegalholdConsent) r,
+      Member (Error NonFederatingBackends) r,
+      Member (Error UnreachableBackends) r,
       Member ExternalAccess r,
       Member FederatorAccess r,
       Member GundeckAccess r,
@@ -151,6 +159,7 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
     )
   HasConversationActionEffects 'ConversationRemoveMembersTag r =
     ( Member MemberStore r,
+      Member TinyLog r,
       Member (Error NoChanges) r
     )
   HasConversationActionEffects 'ConversationMemberUpdateTag r =
@@ -255,7 +264,47 @@ type family HasConversationActionGalleyErrors (tag :: ConversationActionTag) :: 
        ErrorS 'ConvNotFound
      ]
 
-noChanges :: Member (Error NoChanges) r => Sem r a
+checkFederationStatus ::
+  ( Member (Error UnreachableBackends) r,
+    Member (Error NonFederatingBackends) r,
+    Member FederatorAccess r
+  ) =>
+  RemoteDomains ->
+  Sem r ()
+checkFederationStatus req = do
+  status <- getFederationStatus req
+  case status of
+    FullyConnected -> pure ()
+    NotConnectedDomains dom1 dom2 -> throw (NonFederatingBackends dom1 dom2)
+
+getFederationStatus ::
+  ( Member (Error UnreachableBackends) r,
+    Member FederatorAccess r
+  ) =>
+  RemoteDomains ->
+  Sem r FederationStatus
+getFederationStatus req = do
+  fmap firstConflictOrFullyConnected
+    . (ensureNoUnreachableBackends =<<)
+    $ E.runFederatedConcurrentlyEither
+      (flip toRemoteUnsafe () <$> Set.toList req.rdDomains)
+      (\qds -> fedClient @'Brig @"get-not-fully-connected-backends" (DomainSet (tDomain qds `Set.delete` req.rdDomains)))
+
+-- | "conflict" here means two remote domains that we are connected to
+-- but are not connected to each other.
+firstConflictOrFullyConnected :: [Remote NonConnectedBackends] -> FederationStatus
+firstConflictOrFullyConnected =
+  maybe
+    FullyConnected
+    (uncurry NotConnectedDomains)
+    . headMay
+    . mapMaybe toMaybeConflict
+  where
+    toMaybeConflict :: Remote NonConnectedBackends -> Maybe (Domain, Domain)
+    toMaybeConflict r =
+      headMay (Set.toList (nonConnectedBackends (tUnqualified r))) <&> (tDomain r,)
+
+noChanges :: (Member (Error NoChanges) r) => Sem r a
 noChanges = throw NoChanges
 
 ensureAllowed ::
@@ -307,7 +356,7 @@ performAction ::
   ConversationAction tag ->
   Sem r (BotsAndMembers, ConversationAction tag)
 performAction tag origUser lconv action = do
-  let lcnv = fmap convId lconv
+  let lcnv = fmap (.convId) lconv
       conv = tUnqualified lconv
   case tag of
     SConversationJoinTag -> do
@@ -368,6 +417,7 @@ performAction tag origUser lconv action = do
       pure (bm, act)
 
 performConversationJoin ::
+  forall r.
   ( HasConversationActionEffects 'ConversationJoinTag r
   ) =>
   Qualified UserId ->
@@ -384,28 +434,39 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
   checkRemotes lusr (ulRemotes newMembers)
   checkLHPolicyConflictsLocal (ulLocals newMembers)
   checkLHPolicyConflictsRemote (FutureWork (ulRemotes newMembers))
+  checkRemoteBackendsConnected lusr
 
-  addMembersToLocalConversation (fmap convId lconv) newMembers role
+  addMembersToLocalConversation (fmap (.convId) lconv) newMembers role
   where
+    checkRemoteBackendsConnected ::
+      Local UserId ->
+      Sem r ()
+    checkRemoteBackendsConnected lusr = do
+      let invitedDomains = tDomain <$> snd (partitionQualified lusr $ NE.toList invited)
+          existingDomains = tDomain . rmId <$> convRemoteMembers (tUnqualified lconv)
+
+      -- Note:
+      --
+      -- In some cases, this federation status check might be redundant (for
+      -- example if there are only local users in the conversation). However,
+      -- it is important that we attempt to connect to the backends of the new
+      -- users here, because that results in the correct error when those
+      -- backends are not reachable.
+      checkFederationStatus (RemoteDomains . Set.fromList $ invitedDomains <> existingDomains)
+
     conv :: Data.Conversation
     conv = tUnqualified lconv
 
     checkLocals ::
-      ( Member BrigAccess r,
-        Member (ErrorS 'NotATeamMember) r,
-        Member (ErrorS 'NotConnected) r,
-        Member (ErrorS 'ConvAccessDenied) r,
-        Member TeamStore r
-      ) =>
       Local UserId ->
       Maybe TeamId ->
       [UserId] ->
       Sem r ()
     checkLocals lusr (Just tid) newUsers = do
       tms <-
-        Map.fromList . map (view userId &&& id)
+        Map.fromList . map (view Wire.API.Team.Member.userId &&& Imports.id)
           <$> E.selectTeamMembers tid newUsers
-      let userMembershipMap = map (id &&& flip Map.lookup tms) newUsers
+      let userMembershipMap = map (Imports.id &&& flip Map.lookup tms) newUsers
       ensureAccessRole (convAccessRoles conv) userMembershipMap
       ensureConnectedOrSameTeam lusr newUsers
     checkLocals lusr Nothing newUsers = do
@@ -413,11 +474,6 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
       ensureConnectedOrSameTeam lusr newUsers
 
     checkRemotes ::
-      ( Member BrigAccess r,
-        Member (Error FederationError) r,
-        Member (ErrorS 'NotConnected) r,
-        Member FederatorAccess r
-      ) =>
       Local UserId ->
       [Remote UserId] ->
       Sem r ()
@@ -430,21 +486,6 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
       ensureConnectedToRemotes lusr remotes
 
     checkLHPolicyConflictsLocal ::
-      ( Member (Error FederationError) r,
-        Member (Error InternalError) r,
-        Member (ErrorS 'MissingLegalholdConsent) r,
-        Member ExternalAccess r,
-        Member FederatorAccess r,
-        Member GundeckAccess r,
-        Member (Input Env) r,
-        Member (Input Opts) r,
-        Member (Input UTCTime) r,
-        Member LegalHoldStore r,
-        Member MemberStore r,
-        Member ProposalStore r,
-        Member TeamStore r,
-        Member TinyLog r
-      ) =>
       [UserId] ->
       Sem r ()
     checkLHPolicyConflictsLocal newUsers = do
@@ -527,7 +568,7 @@ performConversationAccessData qusr lconv action = do
 
   pure (mempty, action)
   where
-    lcnv = fmap convId lconv
+    lcnv = fmap (.convId) lconv
     conv = tUnqualified lconv
 
     maybeRemoveBots :: BotsAndMembers -> Sem r BotsAndMembers
@@ -536,7 +577,7 @@ performConversationAccessData qusr lconv action = do
         then pure bm
         else pure $ bm {bmBots = mempty}
 
-    maybeRemoveGuests :: Member BrigAccess r => BotsAndMembers -> Sem r BotsAndMembers
+    maybeRemoveGuests :: (Member BrigAccess r) => BotsAndMembers -> Sem r BotsAndMembers
     maybeRemoveGuests bm =
       if Set.member GuestAccessRole (cupAccessRoles action)
         then pure bm
@@ -545,7 +586,7 @@ performConversationAccessData qusr lconv action = do
           -- FUTUREWORK: should we also remove non-activated remote users?
           pure $ bm {bmLocals = Set.fromList activated}
 
-    maybeRemoveNonTeamMembers :: Member TeamStore r => BotsAndMembers -> Sem r BotsAndMembers
+    maybeRemoveNonTeamMembers :: (Member TeamStore r) => BotsAndMembers -> Sem r BotsAndMembers
     maybeRemoveNonTeamMembers bm =
       if Set.member NonTeamMemberAccessRole (cupAccessRoles action)
         then pure bm
@@ -555,7 +596,7 @@ performConversationAccessData qusr lconv action = do
             pure $ bm {bmLocals = Set.fromList onlyTeamUsers, bmRemotes = mempty}
           Nothing -> pure bm
 
-    maybeRemoveTeamMembers :: Member TeamStore r => BotsAndMembers -> Sem r BotsAndMembers
+    maybeRemoveTeamMembers :: (Member TeamStore r) => BotsAndMembers -> Sem r BotsAndMembers
     maybeRemoveTeamMembers bm =
       if Set.member TeamMemberAccessRole (cupAccessRoles action)
         then pure bm
@@ -590,7 +631,7 @@ updateLocalConversation ::
   Qualified UserId ->
   Maybe ConnId ->
   ConversationAction tag ->
-  Sem r (LocalConversationUpdate, FailedToProcess)
+  Sem r LocalConversationUpdate
 updateLocalConversation lcnv qusr con action = do
   let tag = sing @tag
 
@@ -629,10 +670,10 @@ updateLocalConversationUnchecked ::
   Qualified UserId ->
   Maybe ConnId ->
   ConversationAction tag ->
-  Sem r (LocalConversationUpdate, FailedToProcess)
+  Sem r LocalConversationUpdate
 updateLocalConversationUnchecked lconv qusr con action = do
   let tag = sing @tag
-      lcnv = fmap convId lconv
+      lcnv = fmap (.convId) lconv
       conv = tUnqualified lconv
 
   -- retrieve member
@@ -652,6 +693,27 @@ updateLocalConversationUnchecked lconv qusr con action = do
     lconv
     (convBotsAndMembers conv <> extraTargets)
     action'
+
+-- | Similar to 'updateLocalConversationUnchecked', but skips performing
+-- user authorisation checks. This is written for use in de-federation code
+-- where conversations for many users will be torn down at once and must work.
+--
+-- Additionally, this function doesn't make notification calls to clients.
+updateLocalConversationUserUnchecked ::
+  forall tag r.
+  ( SingI tag,
+    HasConversationActionEffects tag r,
+    Member (Error FederationError) r
+  ) =>
+  Local Conversation ->
+  Qualified UserId ->
+  ConversationAction tag ->
+  Sem r ()
+updateLocalConversationUserUnchecked lconv qusr action = do
+  let tag = sing @tag
+
+  -- perform action
+  void $ performAction tag qusr lconv action
 
 -- --------------------------------------------------------------------------------
 -- -- Utilities
@@ -699,8 +761,7 @@ addMembersToLocalConversation lcnv users role = do
 
 notifyConversationAction ::
   forall tag r.
-  ( Member (Error FederationError) r,
-    Member FederatorAccess r,
+  ( Member FederatorAccess r,
     Member ExternalAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
@@ -713,11 +774,10 @@ notifyConversationAction ::
   Local Conversation ->
   BotsAndMembers ->
   ConversationAction (tag :: ConversationActionTag) ->
-  Sem r (LocalConversationUpdate, FailedToProcess)
+  Sem r LocalConversationUpdate
 notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
   now <- input
-  let lcnv = fmap convId lconv
-      conv = tUnqualified lconv
+  let lcnv = fmap (.convId) lconv
       e = conversationActionToEvent tag now quid (tUntagged lcnv) Nothing action
 
   let mkUpdate uids =
@@ -728,52 +788,7 @@ notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
           uids
           (SomeConversationAction tag action)
 
-  -- call `on-new-remote-conversation` on backends that are seeing this
-  -- conversation for the first time
-  let newDomains =
-        Set.difference
-          (Set.map void (bmRemotes targets))
-          (Set.fromList (map (void . rmId) (convRemoteMembers conv)))
-      newRemotes =
-        Set.filter (\r -> Set.member (void r) newDomains)
-          . bmRemotes
-          $ targets
-  let nrc =
-        NewRemoteConversation
-          { nrcConvId = convId conv,
-            nrcProtocol = convProtocol conv
-          }
-  (update, failedToProcess) <- do
-    notifyEithers <-
-      E.runFederatedConcurrentlyEither (toList newRemotes) $ \_ -> do
-        void $ fedClient @'Galley @"on-new-remote-conversation" nrc
-    -- For now these users will not be able to join the conversation until
-    -- queueing and retrying is implemented.
-    let failedNotifies = lefts notifyEithers
-    for_ failedNotifies $
-      logError
-        "on-new-remote-conversation"
-        "An error occurred while communicating with federated server: "
-    for_ failedNotifies $ \case
-      -- rethrow invalid-domain errors and mis-configured federation errors
-      (_, ex@(FederationCallFailure (FederatorClientError (Wai.Error (Wai.Status 422 _) _ _ _)))) -> throw ex
-      -- FUTUREWORK: This error occurs when federation strategy is set to `allowDynamic`
-      -- and the remote domain is not in the allow list
-      -- Is it ok to throw all 400 errors?
-      (_, ex@(FederationCallFailure (FederatorClientError (Wai.Error (Wai.Status 400 _) _ _ _)))) -> throw ex
-      (_, ex@(FederationCallFailure (FederatorClientHTTP2Error (FederatorClientConnectionError _)))) -> throw ex
-      -- FUTUREWORK: Default case (`_ -> pure ()`) is now explicit. Do we really want to ignore all these errors?
-      (_, FederationCallFailure (FederatorClientHTTP2Error _)) -> pure ()
-      (_, FederationCallFailure (FederatorClientError _)) -> pure ()
-      (_, FederationCallFailure FederatorClientStreamingNotSupported) -> pure ()
-      (_, FederationCallFailure (FederatorClientServantError _)) -> pure ()
-      (_, FederationCallFailure (FederatorClientVersionNegotiationError _)) -> pure ()
-      (_, FederationCallFailure FederatorClientVersionMismatch) -> pure ()
-      (_, FederationNotImplemented) -> pure ()
-      (_, FederationNotConfigured) -> pure ()
-      (_, FederationUnexpectedBody _) -> pure ()
-      (_, FederationUnexpectedError _) -> pure ()
-      (_, FederationUnreachableDomains _) -> pure ()
+  update <- do
     updates <-
       E.runFederatedConcurrentlyEither (toList (bmRemotes targets)) $
         \ruids -> do
@@ -787,31 +802,20 @@ notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
     let f = fromMaybe (mkUpdate []) . asum . map tUnqualified . rights
         update = f updates
         failedUpdates = lefts updates
-        toFailedToProcess :: [Qualified UserId] -> FailedToProcess
-        toFailedToProcess us = case tag of
-          SConversationJoinTag -> failedToAdd us
-          SConversationLeaveTag -> failedToRemove us
-          SConversationRemoveMembersTag -> failedToRemove us
-          _ -> mempty
     for_ failedUpdates $
       logError
         "on-conversation-updated"
         "An error occurred while communicating with federated server: "
-    let totalFailedToProcess =
-          failedToAdd (qualifiedFails failedNotifies)
-            <> toFailedToProcess (qualifiedFails failedUpdates)
-    pure (update, totalFailedToProcess)
+    pure update
 
   -- notify local participants and bots
   pushConversationEvent con e (qualifyAs lcnv (bmLocals targets)) (bmBots targets)
 
   -- return both the event and the 'ConversationUpdate' structure corresponding
   -- to the originating domain (if it is remote)
-  pure $ (LocalConversationUpdate e update, failedToProcess)
+  pure $ LocalConversationUpdate e update
   where
-    qualifiedFails :: [(QualifiedWithTag t [a], b)] -> [Qualified a]
-    qualifiedFails = foldMap (sequenceA . tUntagged . fst)
-    logError :: Show a => String -> String -> (a, FederationError) -> Sem r ()
+    logError :: (Show a) => String -> String -> (a, FederationError) -> Sem r ()
     logError field msg e =
       P.warn $
         Log.field "federation call" field . Log.msg (msg <> show e)
@@ -984,13 +988,13 @@ notifyTypingIndicator conv qusr mcon ts = do
   pushTypingIndicatorEvents qusr now (fmap lmId (Data.convLocalMembers conv)) mcon (tUntagged lconv) ts
 
   let (remoteMemsOrig, remoteMemsOther) = List.partition ((origDomain ==) . tDomain . rmId) (Data.convRemoteMembers conv)
-  let tdu users =
+      tdu users =
         TypingDataUpdated
-          { tudTime = now,
-            tudOrigUserId = qusr,
-            tudConvId = Data.convId conv,
-            tudUsersInConv = users,
-            tudTypingStatus = ts
+          { time = now,
+            origUserId = qusr,
+            convId = Data.convId conv,
+            usersInConv = users,
+            typingStatus = ts
           }
 
   void $ E.runFederatedConcurrentlyEither (fmap rmId remoteMemsOther) $ \rmems -> do

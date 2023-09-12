@@ -20,8 +20,9 @@ module Main
   )
 where
 
-import qualified API
-import Bilge hiding (body, header)
+import API qualified
+import Bilge hiding (body, header, host, port)
+import Bilge qualified
 import Cassandra.Util
 import Control.Lens
 import Data.Aeson
@@ -29,14 +30,14 @@ import Data.Proxy
 import Data.Tagged
 import Data.Text.Encoding (encodeUtf8)
 import Data.Yaml (decodeFileEither)
-import Gundeck.Options
+import Gundeck.Options hiding (host, port)
 import Imports hiding (local)
-import qualified Metrics
+import Metrics qualified
 import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.TLS
 import OpenSSL (withOpenSSL)
 import Options.Applicative
-import qualified System.Logger as Logger
+import System.Logger qualified as Logger
 import Test.Tasty
 import Test.Tasty.Options
 import TestSetup
@@ -102,15 +103,15 @@ main = withOpenSSL $ runTests go
             }
       gConf <- handleParseError =<< decodeFileEither gFile
       iConf <- handleParseError =<< decodeFileEither iFile
-      let g = GundeckR . mkRequest $ gundeck iConf
+      let g = GundeckR $ mkRequest iConf.gundeck
           c = CannonR . mkRequest $ cannon iConf
           c2 = CannonR . mkRequest $ cannon2 iConf
-          b = BrigR . mkRequest $ brig iConf
-          ch = gConf ^. optCassandra . casEndpoint . epHost
-          cp = gConf ^. optCassandra . casEndpoint . epPort
-          ck = gConf ^. optCassandra . casKeyspace
+          b = BrigR $ mkRequest iConf.brig
+          ch = gConf ^. cassandra . endpoint . host
+          cp = gConf ^. cassandra . endpoint . port
+          ck = gConf ^. cassandra . keyspace
       lg <- Logger.new Logger.defSettings
       db <- defInitCassandra ck ch cp lg
       pure $ TestSetup m g c c2 b db lg gConf (redis2 iConf)
     releaseOpts _ = pure ()
-    mkRequest (Endpoint h p) = host (encodeUtf8 h) . port p
+    mkRequest (Endpoint h p) = Bilge.host (encodeUtf8 h) . Bilge.port p

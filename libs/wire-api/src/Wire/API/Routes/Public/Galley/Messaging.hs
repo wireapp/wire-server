@@ -19,12 +19,12 @@ module Wire.API.Routes.Public.Galley.Messaging where
 
 import Data.Id
 import Data.SOP
-import qualified Generics.SOP as GSOP
+import Generics.SOP qualified as GSOP
 import Imports
 import Servant hiding (WithStatus)
 import Servant.Swagger.Internal.Orphans ()
 import Wire.API.Error
-import qualified Wire.API.Error.Brig as BrigError
+import Wire.API.Error.Brig qualified as BrigError
 import Wire.API.Error.Galley
 import Wire.API.MakesFederatedCall
 import Wire.API.Message

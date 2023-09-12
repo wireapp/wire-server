@@ -1,0 +1,49 @@
+{{- $apiIsStable := eq (include "ingress.isStable" .) "true" -}}
+{{- $ingressFieldNotAnnotation := eq (include "ingress.FieldNotAnnotation" .) "true" -}}
+{{- $ingressSupportsPathType := eq (include "ingress.supportsPathType" .) "true" -}}
+{{- $ingressAPIVersion := include "ingress.apiVersion" . }}
+
+{{- range $name, $dynamicBackend := .Values.config.dynamicBackends }}
+---
+apiVersion: {{ $ingressAPIVersion }}
+kind: Ingress
+metadata:
+  name: integration-federator-{{ $name }}
+  annotations:
+    {{- if not $ingressFieldNotAnnotation }}
+    kubernetes.io/ingress.class: "{{ $.Values.ingress.class }}"
+    {{- end }}
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+    nginx.ingress.kubernetes.io/auth-tls-verify-client: "on"
+    nginx.ingress.kubernetes.io/auth-tls-verify-depth: "{{ $.Values.tls.verify_depth }}"
+    nginx.ingress.kubernetes.io/auth-tls-secret: "{{ $.Release.Namespace }}/federator-ca-secret"
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      proxy_set_header "X-SSL-Certificate" $ssl_client_escaped_cert;
+spec:
+  {{- if $ingressFieldNotAnnotation }}
+  ingressClassName: "{{ $.Values.ingress.class }}"
+  {{- end }}
+  tls:
+  - hosts:
+      - {{ $dynamicBackend.federatorExternalHostPrefix }}.{{ $.Release.Namespace }}.svc.cluster.local
+    secretName: federator-certificate-secret
+  rules:
+    - host: {{ $dynamicBackend.federatorExternalHostPrefix }}.{{ $.Release.Namespace }}.svc.cluster.local
+      http:
+        paths:
+          - path: /
+            {{- if $ingressSupportsPathType }}
+            pathType: Prefix
+            {{- end }}
+            backend:
+              {{- if $apiIsStable }}
+              service:
+                name: integration
+                port:
+                  number: {{ $dynamicBackend.federatorExternalPort }}
+              {{- else }}
+              serviceName: integration
+              servicePort: {{ $dynamicBackend.federatorExternalPort }}
+              {{- end }}
+{{- end }}

@@ -19,7 +19,7 @@
 
 module Wire.API.Routes.Public.Brig where
 
-import qualified Data.Aeson as A (FromJSON, ToJSON, Value)
+import Data.Aeson qualified as A (FromJSON, ToJSON, Value)
 import Data.ByteString.Conversion
 import Data.Code (Timeout)
 import Data.CommaSeparatedList (CommaSeparatedList)
@@ -33,29 +33,28 @@ import Data.Range
 import Data.SOP
 import Data.Schema as Schema
 import Data.Swagger hiding (Contact, Header, Schema, ToSchema)
-import qualified Data.Swagger as S
-import qualified Generics.SOP as GSOP
+import Data.Swagger qualified as S
+import Generics.SOP qualified as GSOP
 import Imports hiding (head)
 import Network.Wai.Utilities
 import Servant (JSON)
 import Servant hiding (Handler, JSON, addHeader, respond)
-import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
 import Wire.API.Call.Config (RTCConfiguration)
 import Wire.API.Connection hiding (MissingLegalholdConsent)
 import Wire.API.Error
 import Wire.API.Error.Brig
 import Wire.API.Error.Empty
-import Wire.API.MLS.KeyPackage
-import Wire.API.MLS.Servant
 import Wire.API.MakesFederatedCall
 import Wire.API.OAuth
 import Wire.API.Properties
+import Wire.API.Routes.API
 import Wire.API.Routes.Bearer
 import Wire.API.Routes.Cookies
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
+import Wire.API.Routes.Public.Brig.Bot (BotAPI)
 import Wire.API.Routes.Public.Brig.OAuth (OAuthAPI)
 import Wire.API.Routes.Public.Util
 import Wire.API.Routes.QualifiedCapture
@@ -84,7 +83,6 @@ type BrigAPI =
     :<|> UserClientAPI
     :<|> ConnectionAPI
     :<|> PropertiesAPI
-    :<|> MLSAPI
     :<|> UserHandleAPI
     :<|> SearchAPI
     :<|> AuthAPI
@@ -92,9 +90,12 @@ type BrigAPI =
     :<|> TeamsAPI
     :<|> SystemSettingsAPI
     :<|> OAuthAPI
+    :<|> BotAPI
 
-brigSwagger :: Swagger
-brigSwagger = toSwagger (Proxy @BrigAPI)
+data BrigAPITag
+
+instance ServiceAPI BrigAPITag v where
+  type ServiceAPIRoutes BrigAPITag = BrigAPI
 
 -------------------------------------------------------------------------------
 -- User API
@@ -272,6 +273,7 @@ type UserAPI =
     :<|> Named
            "get-supported-protocols"
            ( Summary "Get a user's supported protocols"
+               :> From 'V5
                :> ZLocalUser
                :> "users"
                :> QualifiedCaptureUserId "uid"
@@ -414,6 +416,7 @@ type SelfAPI =
     :<|> Named
            "change-supported-protocols"
            ( Summary "Change your supported protocols"
+               :> From 'V5
                :> ZLocalUser
                :> ZConn
                :> "self"
@@ -1096,6 +1099,8 @@ type ConnectionAPI =
                :> Get '[Servant.JSON] (SearchResult Contact)
            )
 
+-- Properties API -----------------------------------------------------
+
 type PropertiesAPI =
   LiftNamed
     ( ZUser
@@ -1155,49 +1160,6 @@ type PropertiesAPI =
                :> "properties-values"
                :> Get '[JSON] PropertyKeysAndValues
            )
-
--- Properties API -----------------------------------------------------
-
-type MLSKeyPackageAPI =
-  "key-packages"
-    :> ( Named
-           "mls-key-packages-upload"
-           ( "self"
-               :> Summary "Upload a fresh batch of key packages"
-               :> Description "The request body should be a json object containing a list of base64-encoded key packages."
-               :> ZLocalUser
-               :> CanThrow 'MLSProtocolError
-               :> CanThrow 'MLSIdentityMismatch
-               :> CaptureClientId "client"
-               :> ReqBody '[JSON] KeyPackageUpload
-               :> MultiVerb 'POST '[JSON, MLS] '[RespondEmpty 201 "Key packages uploaded"] ()
-           )
-           :<|> Named
-                  "mls-key-packages-claim"
-                  ( "claim"
-                      :> Summary "Claim one key package for each client of the given user"
-                      :> MakesFederatedCall 'Brig "claim-key-packages"
-                      :> ZLocalUser
-                      :> QualifiedCaptureUserId "user"
-                      :> QueryParam'
-                           [ Optional,
-                             Strict,
-                             Description "Do not claim a key package for the given own client"
-                           ]
-                           "skip_own"
-                           ClientId
-                      :> MultiVerb1 'POST '[JSON] (Respond 200 "Claimed key packages" KeyPackageBundle)
-                  )
-           :<|> Named
-                  "mls-key-packages-count"
-                  ( "self"
-                      :> ZLocalUser
-                      :> CaptureClientId "client"
-                      :> "count"
-                      :> Summary "Return the number of unused key packages for the given client"
-                      :> MultiVerb1 'GET '[JSON] (Respond 200 "Number of key packages" KeyPackageCount)
-                  )
-       )
 
 -- Search API -----------------------------------------------------
 
@@ -1259,8 +1221,6 @@ type SearchAPI =
              '[Respond 200 "Search results" (SearchResult TeamContact)]
              (SearchResult TeamContact)
     )
-
-type MLSAPI = LiftNamed ("mls" :> MLSKeyPackageAPI)
 
 type AuthAPI =
   Named

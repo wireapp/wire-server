@@ -1,10 +1,11 @@
 module API.Brig where
 
 import API.Common
-import qualified Data.ByteString.Base64 as Base64
+import Data.Aeson qualified as Aeson
+import Data.ByteString.Base64 qualified as Base64
 import Data.Foldable
 import Data.Function
-import qualified Data.Text.Encoding as T
+import Data.Text.Encoding qualified as T
 import GHC.Stack
 import Testlib.Prelude
 
@@ -19,6 +20,24 @@ getUser user target = do
     baseRequest user Brig Versioned $
       joinHttpPath ["users", domain, uid]
   submit "GET" req
+
+getClient ::
+  (HasCallStack, MakesValue user, MakesValue client) =>
+  user ->
+  client ->
+  App Response
+getClient u cli = do
+  c <- make cli & asString
+  req <-
+    baseRequest u Brig Versioned $
+      joinHttpPath ["clients", c]
+  submit "GET" req
+
+deleteUser :: (HasCallStack, MakesValue user) => user -> App Response
+deleteUser user = do
+  req <- baseRequest user Brig Versioned "/self"
+  submit "DELETE" $
+    req & addJSONObject ["password" .= defPassword]
 
 data AddClient = AddClient
   { ctype :: String,
@@ -112,6 +131,28 @@ deleteClient user client = do
         [ "password" .= defPassword
         ]
 
+getClientsQualified ::
+  ( HasCallStack,
+    MakesValue user,
+    MakesValue domain,
+    MakesValue otherUser
+  ) =>
+  user ->
+  domain ->
+  otherUser ->
+  App Response
+getClientsQualified user domain otherUser = do
+  ouid <- objId otherUser
+  d <- objDomain domain
+  req <-
+    baseRequest user Brig Versioned $
+      "/users/"
+        <> d
+        <> "/"
+        <> ouid
+        <> "/clients"
+  submit "GET" req
+
 searchContacts ::
   ( MakesValue user,
     MakesValue searchTerm,
@@ -147,6 +188,21 @@ postConnection userFrom userTo = do
       joinHttpPath ["/connections", userToDomain, userToId]
   submit "POST" req
 
+getConnection ::
+  ( HasCallStack,
+    MakesValue userFrom,
+    MakesValue userTo
+  ) =>
+  userFrom ->
+  userTo ->
+  App Response
+getConnection userFrom userTo = do
+  (userToDomain, userToId) <- objQid userTo
+  req <-
+    baseRequest userFrom Brig Versioned $
+      joinHttpPath ["/connections", userToDomain, userToId]
+  submit "GET" req
+
 putConnection ::
   ( HasCallStack,
     MakesValue userFrom,
@@ -163,7 +219,12 @@ putConnection userFrom userTo status = do
     baseRequest userFrom Brig Versioned $
       joinHttpPath ["/connections", userToDomain, userToId]
   statusS <- asString status
-  submit "POST" (req & addJSONObject ["status" .= statusS])
+  submit "PUT" (req & addJSONObject ["status" .= statusS])
+
+getConnections :: (HasCallStack, MakesValue user) => user -> App Response
+getConnections user = do
+  req <- baseRequest user Brig Versioned "/list-connections"
+  submit "POST" (req & addJSONObject ["size" .= Aeson.Number 500])
 
 uploadKeyPackage :: ClientIdentity -> ByteString -> App Response
 uploadKeyPackage cid kp = do

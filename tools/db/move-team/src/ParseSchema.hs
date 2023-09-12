@@ -23,11 +23,11 @@
 module ParseSchema where
 
 import Data.Aeson (ToJSON, object, (.=))
-import qualified Data.Text as T
-import qualified Data.Text.IO as T
-import qualified Data.Text.Lazy.IO as TIO
+import Data.Text qualified as T
+import Data.Text.IO qualified as T
+import Data.Text.Lazy.IO qualified as TIO
 import Imports hiding (cs)
-import qualified Options.Applicative as OA
+import Options.Applicative qualified as OA
 import System.Environment (withArgs)
 import System.Exit (exitFailure)
 import System.FilePath ((</>))
@@ -36,7 +36,7 @@ import System.IO (Handle)
 import System.Process (system)
 import Text.Megaparsec
 import Text.Megaparsec.Char
-import qualified Text.Megaparsec.Char.Lexer as L
+import Text.Megaparsec.Char.Lexer qualified as L
 import Text.Mustache
 import Text.RawString.QQ
 

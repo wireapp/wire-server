@@ -21,7 +21,7 @@ import Cassandra.CQL
 import Control.Lens ((?~))
 import Data.Aeson hiding (constructorTagModifier)
 import Data.Schema
-import qualified Data.Swagger as S
+import Data.Swagger qualified as S
 import Imports
 import Test.QuickCheck
 

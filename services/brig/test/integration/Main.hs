@@ -20,53 +20,54 @@ module Main
   )
 where
 
-import qualified API.Calling as Calling
-import qualified API.Federation
-import qualified API.Internal
-import qualified API.MLS as MLS
-import qualified API.Metrics as Metrics
-import qualified API.OAuth
-import qualified API.Provider as Provider
-import qualified API.Search as Search
-import qualified API.Settings as Settings
-import qualified API.Swagger
-import qualified API.SystemSettings as SystemSettings
-import qualified API.Team as Team
-import qualified API.TeamUserSearch as TeamUserSearch
-import qualified API.User as User
-import qualified API.UserPendingActivation as UserPendingActivation
-import qualified API.Version
-import Bilge hiding (header)
+import API.Calling qualified as Calling
+import API.Federation qualified
+import API.Internal qualified
+import API.MLS qualified as MLS
+import API.Metrics qualified as Metrics
+import API.OAuth qualified
+import API.Provider qualified as Provider
+import API.Search qualified as Search
+import API.Settings qualified as Settings
+import API.Swagger qualified
+import API.SystemSettings qualified as SystemSettings
+import API.Team qualified as Team
+import API.TeamUserSearch qualified as TeamUserSearch
+import API.User qualified as User
+import API.UserPendingActivation qualified as UserPendingActivation
+import API.Version qualified
+import Bilge hiding (header, host, port)
+import Bilge qualified
 import Brig.API (sitemap)
-import qualified Brig.AWS as AWS
+import Brig.AWS qualified as AWS
 import Brig.CanonicalInterpreter
-import qualified Brig.Options as Opts
+import Brig.Options qualified as Opts
 import Cassandra.Util (defInitCassandra)
 import Control.Lens
 import Data.Aeson
-import qualified Data.ByteString.Char8 as B8
+import Data.ByteString.Char8 qualified as B8
 import Data.Metrics.Test (pathsConsistencyCheck)
 import Data.Metrics.WaiRoute (treeToPaths)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Yaml (decodeFileEither)
-import qualified Federation.End2end
+import Federation.End2end qualified
 import Imports hiding (local)
-import qualified Index.Create
-import qualified Network.HTTP.Client as HTTP
+import Index.Create qualified
+import Network.HTTP.Client qualified as HTTP
 import Network.HTTP.Client.TLS (tlsManagerSettings)
 import Network.URI (pathSegments)
 import Network.Wai.Utilities.Server (compile)
 import OpenSSL (withOpenSSL)
 import Options.Applicative hiding (action)
-import qualified SMTP
+import SMTP qualified
 import System.Environment (withArgs)
-import qualified System.Logger as Logger
+import System.Logger qualified as Logger
 import Test.Tasty
 import Test.Tasty.HUnit
 import Util
 import Util.Options
 import Util.Test
-import qualified Util.Test.SQS as SQS
+import Util.Test.SQS qualified as SQS
 import Web.HttpApiData
 import Wire.API.Federation.API
 import Wire.API.Routes.Version
@@ -131,9 +132,9 @@ runTests iConf brigOpts otherArgs = do
         Opts.TurnSourceFiles files -> files
         Opts.TurnSourceDNS _ -> error "The integration tests can only be run when TurnServers are sourced from files"
       localDomain = brigOpts ^. Opts.optionSettings . Opts.federationDomain
-      casHost = (\v -> Opts.cassandra v ^. casEndpoint . epHost) brigOpts
-      casPort = (\v -> Opts.cassandra v ^. casEndpoint . epPort) brigOpts
-      casKey = (\v -> Opts.cassandra v ^. casKeyspace) brigOpts
+      casHost = (\v -> Opts.cassandra v ^. endpoint . host) brigOpts
+      casPort = (\v -> Opts.cassandra v ^. endpoint . port) brigOpts
+      casKey = (\v -> Opts.cassandra v ^. keyspace) brigOpts
       awsOpts = Opts.aws brigOpts
   lg <- Logger.new Logger.defSettings -- TODO: use mkLogger'?
   db <- defInitCassandra casKey casHost casPort lg
@@ -193,9 +194,9 @@ runTests iConf brigOpts otherArgs = do
         federationEnd2End
       ]
   where
-    mkRequest (Endpoint h p) = host (encodeUtf8 h) . port p
+    mkRequest (Endpoint h p) = Bilge.host (encodeUtf8 h) . Bilge.port p
 
-    mkVersionedRequest endpoint = maybeAddPrefix . mkRequest endpoint
+    mkVersionedRequest ep = maybeAddPrefix . mkRequest ep
 
     maybeAddPrefix :: Request -> Request
     maybeAddPrefix r = case pathSegments $ getUri r of

@@ -1,4 +1,5 @@
 -- Disabling to stop warnings on HasCallStack
+{-# LANGUAGE DeepSubsumption #-}
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
 -- This file is part of the Wire Server implementation.
@@ -21,26 +22,26 @@
 module API.Util.TeamFeature where
 
 import API.Util (HasGalley (viewGalley), zUser)
-import qualified API.Util as Util
+import API.Util qualified as Util
 import Bilge
 import Control.Lens ((.~), (^?))
 import Control.Monad.Catch (MonadThrow)
 import Data.Aeson (FromJSON, Result (Success), ToJSON, Value, fromJSON)
-import qualified Data.Aeson.Key as Key
+import Data.Aeson.Key qualified as Key
 import Data.Aeson.Lens
 import Data.ByteString.Conversion (toByteString')
 import Data.Id (ConvId, TeamId, UserId)
 import Data.Schema
 import GHC.TypeLits (KnownSymbol)
-import Galley.Options (optSettings, setFeatureFlags)
+import Galley.Options (featureFlags, settings)
 import Galley.Types.Teams
 import Imports
 import TestSetup
-import qualified Wire.API.Team.Feature as Public
+import Wire.API.Team.Feature qualified as Public
 
 withCustomSearchFeature :: FeatureTeamSearchVisibilityAvailability -> TestM () -> TestM ()
 withCustomSearchFeature flag action = do
-  Util.withSettingsOverrides (\opts -> opts & optSettings . setFeatureFlags . flagTeamSearchVisibility .~ flag) action
+  Util.withSettingsOverrides (\opts -> opts & settings . featureFlags . flagTeamSearchVisibility .~ flag) action
 
 getTeamSearchVisibilityAvailable :: HasCallStack => (Request -> Request) -> UserId -> TeamId -> MonadHttp m => m ResponseLBS
 getTeamSearchVisibilityAvailable = getTeamFeatureFlagWithGalley @Public.SearchVisibilityAvailableConfig
@@ -73,7 +74,12 @@ getTeamFeatureFlagInternal tid = do
   g <- viewGalley
   getTeamFeatureFlagInternalWithGalley @cfg g tid
 
-getTeamFeatureFlagInternalWithGalley :: forall cfg m. (MonadHttp m, HasCallStack, KnownSymbol (Public.FeatureSymbol cfg)) => (Request -> Request) -> TeamId -> m ResponseLBS
+getTeamFeatureFlagInternalWithGalley ::
+  forall cfg m.
+  (MonadHttp m, HasCallStack, KnownSymbol (Public.FeatureSymbol cfg)) =>
+  (Request -> Request) ->
+  TeamId ->
+  m ResponseLBS
 getTeamFeatureFlagInternalWithGalley g tid = do
   get $
     g

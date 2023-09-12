@@ -25,53 +25,52 @@ module API.User.Client
   )
 where
 
-import qualified API.Team.Util as Util
+import API.Team.Util qualified as Util
 import API.User.Util
-import qualified API.User.Util as Util
+import API.User.Util qualified as Util
 import Bilge hiding (accept, head, timeout)
 import Bilge.Assert
-import qualified Brig.Code as Code
-import qualified Brig.Options as Opt
-import qualified Brig.Options as Opts
-import qualified Cassandra as DB
+import Brig.Code qualified as Code
+import Brig.Options qualified as Opt
+import Brig.Options qualified as Opts
+import Cassandra qualified as DB
 import Control.Lens hiding (Wrapped, (#))
 import Crypto.JWT hiding (Ed25519, header, params)
 import Data.Aeson hiding (json)
-import qualified Data.Aeson as A
-import qualified Data.Aeson.KeyMap as M
+import Data.Aeson qualified as A
+import Data.Aeson.KeyMap qualified as M
 import Data.Aeson.Lens
-import qualified Data.ByteString.Base64.URL as B64
 import Data.ByteString.Conversion
 import Data.Coerce (coerce)
 import Data.Default
 import Data.Domain (Domain (..))
 import Data.Id
-import qualified Data.List1 as List1
-import qualified Data.Map as Map
+import Data.List1 qualified as List1
+import Data.Map qualified as Map
 import Data.Nonce (isValidBase64UrlEncodedUUID)
 import Data.Qualified (Qualified (..))
 import Data.Range (unsafeRange)
-import qualified Data.Set as Set
-import Data.Text (replace)
-import Data.Text.Ascii (AsciiChars (validate))
+import Data.Set qualified as Set
+import Data.Text.Ascii (AsciiChars (validate), encodeBase64UrlUnpadded, toText)
 import Data.Time (addUTCTime)
 import Data.Time.Clock.POSIX
-import qualified Data.Vector as Vec
+import Data.UUID (toByteString)
+import Data.Vector qualified as Vec
 import Imports
-import qualified Network.Wai.Utilities.Error as Error
-import qualified System.Logger as Log
+import Network.Wai.Utilities.Error qualified as Error
+import System.Logger qualified as Log
 import Test.QuickCheck (arbitrary, generate)
 import Test.Tasty hiding (Timeout)
 import Test.Tasty.Cannon hiding (Cannon)
-import qualified Test.Tasty.Cannon as WS
+import Test.Tasty.Cannon qualified as WS
 import Test.Tasty.HUnit
 import UnliftIO (mapConcurrently)
 import Util
 import Wire.API.Internal.Notification
 import Wire.API.MLS.Credential
-import qualified Wire.API.Team.Feature as Public
+import Wire.API.Team.Feature qualified as Public
 import Wire.API.User
-import qualified Wire.API.User as Public
+import Wire.API.User qualified as Public
 import Wire.API.User.Auth
 import Wire.API.User.Client
 import Wire.API.User.Client.DPoPAccessToken
@@ -1424,22 +1423,25 @@ testCreateAccessToken opts n brig = do
   let localDomain = opts ^. Opt.optionSettings & Opt.setFederationDomain
   u <- randomUser brig
   let uid = userId u
+  -- convert the user Id into 16 octets of binary and then base64url
+  let uidBS = Data.UUID.toByteString (toUUID uid)
+  let uidB64 = encodeBase64UrlUnpadded (cs uidBS)
   let email = fromMaybe (error "invalid email") $ userEmail u
   rs <-
     login n (defEmailLogin email) PersistentCookie
       <!! const 200 === statusCode
   let t = decodeToken rs
-  let uidb64 = B64.encodeUnpadded $ cs $ replace "-" "" $ cs (toByteString' uid)
   cid <- createClientForUser brig uid
   nonceResponse <- Util.headNonce brig uid cid <!! const 200 === statusCode
   let nonceBs = cs $ fromMaybe (error "invalid nonce") $ getHeader "Replay-Nonce" nonceResponse
   now <- liftIO $ posixSecondsToUTCTime . fromInteger <$> (floor <$> getPOSIXTime)
-  let clientIdentity = cs $ "im:wireapp=" <> uidb64 <> "/" <> toByteString' cid <> "@" <> toByteString' localDomain
+  let clientIdentity = cs $ "im:wireapp=" <> cs (toText uidB64) <> "/" <> toByteString' cid <> "@" <> toByteString' localDomain
   let httpsUrl = cs $ "https://" <> toByteString' localDomain <> "/clients/" <> toByteString' cid <> "/access-token"
+  let expClaim = NumericDate (addUTCTime 10 now)
   let claimsSet' =
         emptyClaimsSet
           & claimIat ?~ NumericDate now
-          & claimExp ?~ NumericDate (addUTCTime 10 now)
+          & claimExp ?~ expClaim
           & claimNbf ?~ NumericDate now
           & claimSub ?~ fromMaybe (error "invalid sub claim") ((clientIdentity :: Text) ^? stringOrUri)
           & claimJti ?~ "6fc59e7f-b666-4ffc-b738-4f4760c884ca"

@@ -30,31 +30,31 @@ import Bilge.Assert
 import Control.Exception
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch
-import Control.Monad.Except
-import Crypto.Random.Types (MonadRandom, getRandomBytes)
+import Crypto.Random.Types
 import Data.Aeson
 import Data.Aeson.TH
-import qualified Data.Aeson.Types as Aeson
-import qualified Data.ByteString.Char8 as C8
+import Data.Aeson.Types qualified as Aeson
+import Data.ByteString.Char8 qualified as C8
 import Data.Id
 import Data.Misc
-import qualified Data.Text as Text
-import qualified Data.UUID as UUID
-import qualified Data.UUID.V4 as UUID
-import qualified Data.Yaml as Yaml
+import Data.Text qualified as Text
+import Data.UUID qualified as UUID
+import Data.UUID.V4 qualified as UUID
+import Data.Yaml qualified as Yaml
 import Federator.Options
 import Federator.Run
 import Imports
-import qualified Network.Connection
+import Network.Connection qualified
 import Network.HTTP.Client.TLS
 import OpenSSL.Session (SSLContext)
-import qualified Options.Applicative as OPA
+import Options.Applicative qualified as OPA
 import Polysemy
 import Polysemy.Error
 import System.Random
 import Test.Federator.JSON
 import Test.Tasty.HUnit
-import Util.Options
+import Util.Options (Endpoint)
+import Util.Options qualified as O
 import Wire.API.User
 import Wire.API.User.Auth
 
@@ -104,11 +104,11 @@ data TestEnv = TestEnv
 type Select = TestEnv -> (Request -> Request)
 
 data IntegrationConfig = IntegrationConfig
-  { cfgBrig :: Endpoint,
-    cfgCargohold :: Endpoint,
-    cfgFederatorExternal :: Endpoint,
-    cfgNginxIngress :: Endpoint,
-    cfgOriginDomain :: Text
+  { brig :: Endpoint,
+    cargohold :: Endpoint,
+    federatorExternal :: Endpoint,
+    nginxIngress :: Endpoint,
+    originDomain :: Text
   }
   deriving (Show, Generic)
 
@@ -152,8 +152,8 @@ mkEnv :: HasCallStack => IntegrationConfig -> Opts -> IO TestEnv
 mkEnv _teTstOpts _teOpts = do
   let managerSettings = mkManagerSettings (Network.Connection.TLSSettingsSimple True False False) Nothing
   _teMgr :: Manager <- newManager managerSettings
-  let _teBrig = endpointToReq (cfgBrig _teTstOpts)
-      _teCargohold = endpointToReq (cfgCargohold _teTstOpts)
+  let _teBrig = endpointToReq _teTstOpts.brig
+      _teCargohold = endpointToReq _teTstOpts.cargohold
   -- _teTLSSettings <- mkTLSSettingsOrThrow (optSettings _teOpts)
   _teSSLContext <- mkTLSSettingsOrThrow (optSettings _teOpts)
   let _teSettings = optSettings _teOpts
@@ -163,7 +163,7 @@ destroyEnv :: HasCallStack => TestEnv -> IO ()
 destroyEnv _ = pure ()
 
 endpointToReq :: Endpoint -> (Bilge.Request -> Bilge.Request)
-endpointToReq ep = Bilge.host (ep ^. epHost . to cs) . Bilge.port (ep ^. epPort)
+endpointToReq ep = Bilge.host (ep ^. O.host . to cs) . Bilge.port (ep ^. O.port)
 
 -- All the code below is copied from brig-integration tests
 -- FUTUREWORK: This should live in another package and shared by all the integration tests
