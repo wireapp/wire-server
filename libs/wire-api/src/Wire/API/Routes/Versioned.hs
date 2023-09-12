@@ -92,7 +92,7 @@ instance
   (KnownSymbol desc, S.ToSchema a) =>
   IsSwaggerResponse (VersionedRespond v s desc a)
   where
-  responseSwagger = simpleResponseSwagger @a @desc
+  responseSwagger = simpleResponseSwagger @a @'[JSON] @desc
 
 -------------------------------------------------------------------------------
 -- Versioned newtype wrapper

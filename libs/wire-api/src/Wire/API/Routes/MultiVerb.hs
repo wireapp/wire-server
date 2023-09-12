@@ -41,6 +41,7 @@ module Wire.API.Routes.MultiVerb
     ResponseType,
     IsResponse (..),
     IsSwaggerResponse (..),
+    IsSwaggerResponseList (..),
     simpleResponseSwagger,
     combineResponseSwagger,
     ResponseTypes,
@@ -55,7 +56,7 @@ import Data.ByteString.Builder
 import Data.ByteString.Lazy qualified as LBS
 import Data.CaseInsensitive qualified as CI
 import Data.Either.Combinators (leftToMaybe)
-import Data.HashMap.Strict.InsOrd (InsOrdHashMap)
+import Data.HashMap.Strict.InsOrd (InsOrdHashMap, unionWith)
 import Data.HashMap.Strict.InsOrd qualified as InsOrdHashMap
 import Data.Kind
 import Data.Metrics.Servant
@@ -69,6 +70,7 @@ import Data.Sequence qualified as Seq
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Data.Typeable
+import Debug.Trace qualified as T
 import GHC.TypeLits
 import Generics.SOP as GSOP
 import Imports hiding (cs)
@@ -191,19 +193,25 @@ instance (AllMimeRender cs a, AllMimeUnrender cs a, KnownStatus s) => IsResponse
       Nothing -> empty
       Just f -> either UnrenderError UnrenderSuccess (f (responseBody output))
 
-simpleResponseSwagger :: forall a desc. (S.ToSchema a, KnownSymbol desc) => Declare S.Response
+simpleResponseSwagger :: forall a cs desc. (S.ToSchema a, KnownSymbol desc, AllMime cs) => Declare S.Response
 simpleResponseSwagger = do
   ref <- S.declareSchemaRef (Proxy @a)
+  let resps :: InsOrdHashMap M.MediaType MediaTypeObject
+      resps = InsOrdHashMap.fromList $ (,MediaTypeObject (pure ref) Nothing mempty mempty) <$> cs
   pure $
     mempty
       & S.description .~ Text.pack (symbolVal (Proxy @desc))
-      & S.content . traverse . S.schema ?~ ref
+      & S.content .~ resps
+  where
+    cs :: [M.MediaType]
+    cs = allMime $ Proxy @cs
 
 instance
   (KnownSymbol desc, S.ToSchema a) =>
   IsSwaggerResponse (Respond s desc a)
   where
-  responseSwagger = simpleResponseSwagger @a @desc
+  -- TODO: Defaulting this to JSON, as openapi3 needs something to map a schema against.
+  responseSwagger = simpleResponseSwagger @a @'[JSON] @desc
 
 type instance ResponseType (RespondAs ct s desc a) = a
 
@@ -248,10 +256,10 @@ instance KnownStatus s => IsResponse cs (RespondAs '() s desc ()) where
     guard (responseStatusCode output == statusVal (Proxy @s))
 
 instance
-  (KnownSymbol desc, S.ToSchema a) =>
+  (KnownSymbol desc, S.ToSchema a, Accept ct) =>
   IsSwaggerResponse (RespondAs (ct :: Type) s desc a)
   where
-  responseSwagger = simpleResponseSwagger @a @desc
+  responseSwagger = simpleResponseSwagger @a @'[ct] @desc
 
 instance
   (KnownSymbol desc) =>
@@ -475,14 +483,33 @@ instance
 
 combineResponseSwagger :: S.Response -> S.Response -> S.Response
 combineResponseSwagger r1 r2 =
-  r1
-    & S.description <>~ ("\n\n" <> r2 ^. S.description)
-    & S.content
-      . traverse
-      . S.schema
-      . _Just
-      . S._Inline
-      %~ flip combineSwaggerSchema (r2 ^. S.content . traverse . S.schema . _Just . S._Inline)
+  let r =
+        r1
+          & S.description <>~ ("\n\n" <> r2 ^. S.description)
+          -- & S.content
+          --   . traverse
+          --   . S.schema
+          --   . _Just
+          --   . S._Inline
+          --   %~ flip combineSwaggerSchema (r2 ^. S.content . traverse . S.schema . _Just . S._Inline)
+
+          & S.content %~ flip (unionWith combineMediaTypeObject) (r2 ^. S.content)
+      s = show r
+   in if isInfixOf "get-user-qualified" s || isInfixOf "UserProfile" s
+        then T.traceShowId r
+        else T.trace "bar" r
+
+combineMediaTypeObject :: S.MediaTypeObject -> S.MediaTypeObject -> S.MediaTypeObject
+combineMediaTypeObject m1 m2 =
+  m1 & S.schema .~ merge (m1 ^. S.schema) (m2 ^. S.schema)
+  where
+    -- m1 & S.schema . _Just . S._Inline %~ flip combineSwaggerSchema (m2 ^. S.schema . _Just . S._Inline)
+
+    merge Nothing a = a
+    merge a Nothing = a
+    merge (Just (Inline a)) (Just (Inline b)) = pure $ Inline $ combineSwaggerSchema a b
+    merge a@(Just (Ref _)) _ = a
+    merge _ a@(Just (Ref _)) = a
 
 combineSwaggerSchema :: S.Schema -> S.Schema -> S.Schema
 combineSwaggerSchema s1 s2
@@ -739,9 +766,27 @@ instance
            )
     where
       method = S.openApiMethod (Proxy @method)
-      _cs = allMime (Proxy @cs)
+      -- This has our content types.
+      cs = allMime (Proxy @cs)
+      -- This has our schemas
       (defs, resps) = S.runDeclare (responseListSwagger @as) mempty
-      refResps = S.Inline <$> resps
+      -- We need to zip them together, and stick it all back into the contentMap
+      -- Since we have a single schema per type, and are only changing the content-types,
+      -- we should be able to pick a schema out of the resps' map, and then use it in for
+      -- all of the values out of cs
+      addMime :: S.Response -> S.Response
+      addMime resp =
+        resp
+          & S.content
+            %~
+            -- pick out an element from the map, if any exist.
+            -- These will all have the same schemas, and we are reapplying the content types.
+            foldMap (\c -> InsOrdHashMap.fromList $ (,c) <$> cs)
+            . listToMaybe
+            . toList
+      -- contentMap :: InsOrdHashMap M.MediaType MediaTypeObject
+      -- contentMap = InsOrdHashMap.fromList $ (, MediaTypeObject (pure $ S.Inline $ _) Nothing mempty mempty) <$> cs
+      refResps = S.Inline . addMime <$> resps
 
 class Typeable a => IsWaiBody a where
   responseToWai :: ResponseF a -> Wai.Response
