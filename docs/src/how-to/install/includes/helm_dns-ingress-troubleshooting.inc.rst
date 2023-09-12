@@ -1,5 +1,5 @@
-How to set up DNS records
-----------------------------
+How to set up the DNS records
+-----------------------------
 
 
 An installation needs 5 to 10 domain names (5 without audio/video support, federation and team settings, plus an additional one for each audio/video support and team settings, federation, SFTD and team settings):
@@ -51,8 +51,8 @@ You may be happy with skipping the DNS setup and just make sure that the ``/etc/
    1.2.3.4 nginz-https.<domain> nginz-ssl.<domain> assets.<domain> webapp.<domain> teams.<domain> account.<domain> sftd.<domain> restund01.<domain> restund02.<domain> federator.<domain>
 
 
-How to direct traffic to your cluster
-------------------------------------------
+How to direct traffic to the cluster
+------------------------------------
 
 There are a few options available. The easiest option is to use an ingress with a node port, as this works everywhere and doesn't need a special setup.
 
@@ -143,8 +143,8 @@ Next, we want to redirect port 443 to the port the nginx https ingress nodeport 
 
 * Option 2: Use ansible to do that, run the `iptables playbook <https://github.com/wireapp/wire-server-deploy/blob/master/ansible/iptables.yml>`__
 
-Trying things out
------------------
+Testing things out
+------------------
 
 At this point, with a bit of luck, everything should be working (if not, see the 'troubleshooting' section below)
 
@@ -166,8 +166,8 @@ You should get a 200 return code
 
 Can you access the webapp? Open https://webapp.<your-domain> in your browser (Firefox/Chrome/Safari only)
 
-Troubleshooting
---------------------
+Troubleshooting problems
+------------------------
 
 Which version am I on?
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
