@@ -37,7 +37,6 @@ import Galley.Cassandra.Store (embedClient)
 import Galley.Effects.BotAccess (BotAccess (..))
 import Galley.Effects.BrigAccess (BrigAccess (..))
 import Galley.Effects.DefederationNotifications (DefederationNotifications (..))
-import Galley.Effects.ExternalAccess (ExternalAccess, deliverAsync)
 import Galley.Effects.GundeckAccess (GundeckAccess (..), push1)
 import Galley.Effects.SparAccess (SparAccess (..))
 import Galley.Env
@@ -58,7 +57,7 @@ import UnliftIO qualified
 import Wire.API.Conversation (MutedStatus)
 import Wire.API.Conversation.Role (RoleName)
 import Wire.API.Event.Federation qualified as Federation
-import Wire.API.Team.Member (ListType (ListComplete))
+import Wire.API.Team.Member (HardTruncationLimit, ListType (ListComplete))
 
 interpretBrigAccess ::
   ( Member (Embed IO) r,
@@ -152,31 +151,31 @@ interpretGundeckAccess = interpret $ \case
 interpretDefederationNotifications ::
   forall r a.
   ( Member (Embed IO) r,
-    Member (Input Env) r,
     Member (Input ClientState) r,
-    Member GundeckAccess r,
-    Member ExternalAccess r
+    Member GundeckAccess r
   ) =>
   Sem (DefederationNotifications ': r) a ->
   Sem r a
 interpretDefederationNotifications = interpret $ \case
-  SendDefederationNotifications domain ->
-    getPage
+  SendDefederationNotifications maxPage domain ->
+    getPage maxPage
       >>= void . sendNotificationPage mempty (Federation.FederationDelete domain)
-  SendOnConnectionRemovedNotifications domainA domainB ->
-    getPage
+  SendOnConnectionRemovedNotifications maxPage domainA domainB ->
+    getPage maxPage
       >>= void . sendNotificationPage mempty (Federation.FederationConnectionRemoved (domainA, domainB))
   where
-    getPage :: Sem r (Page PageType)
-    getPage = do
-      maxPage <- inputs (fromRange . currentFanoutLimit . _options) -- This is based on the limits in removeIfLargeFanout
+    getPage :: (Range 1 HardTruncationLimit Int32) -> Sem r (Page PageType)
+    getPage maxPage = do
+      -- This is based on the limits in removeIfLargeFanout
       -- selectAllMembers will return duplicate members when they are in more than one chat
       -- however we need the full row to build out the bot members to send notifications
       -- to them. We have to do the duplicate filtering here.
-      embedClient $ paginate selectAllMembers (paramsP LocalQuorum () maxPage)
+      embedClient $ paginate selectAllMembers (paramsP LocalQuorum () (fromRange maxPage))
     pushEvents :: Set UserId -> Federation.Event -> [LocalMember] -> Sem r (Set UserId)
     pushEvents seenRecipients eventData results = do
-      let (bots, mems) = localBotsAndUsers results
+      -- FUTUREWORK: we are ignoring bots for now, but we might need to add them in the future
+      -- when bots are compatible with federation
+      let mems = snd $ localBotsAndUsers results
           recipients = Intra.recipient <$> mems
           event = Intra.FederationEvent eventData
           filteredRecipients =
@@ -193,7 +192,6 @@ interpretDefederationNotifications = interpret $ \case
         -- RouteAny is used as it will wake up mobile clients
         -- and notify them of the changes to federation state.
         push1 $ p & Intra.pushRoute .~ Intra.RouteAny
-      deliverAsync (bots `zip` repeat (G.pushEventJson event))
       -- Add the users to the set of users we've sent messages to.
       pure $ seenRecipients <> Set.fromList ((._recipientUserId) <$> filteredRecipients)
     sendNotificationPage :: Set UserId -> Federation.Event -> Page PageType -> Sem r ()

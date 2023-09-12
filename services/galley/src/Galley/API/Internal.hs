@@ -23,6 +23,7 @@ module Galley.API.Internal
     safeForever,
     -- Exported for tests
     deleteFederationDomain,
+    internalDeleteFederationDomain,
   )
 where
 
@@ -31,7 +32,6 @@ import Cassandra (ClientState, Consistency (LocalQuorum), Page (hasMore, nextPag
 import Control.Exception.Safe (catchAny)
 import Control.Lens hiding (Getter, Setter, (.=))
 import Control.Retry
-import Data.Domain
 import Data.Id as Id
 import Data.List.NonEmpty qualified as N
 import Data.List1 (maybeList1)
@@ -39,7 +39,6 @@ import Data.Map qualified as Map
 import Data.Qualified
 import Data.Range
 import Data.Singletons
-import Data.Text (unpack)
 import Data.Time
 import Galley.API.Action
 import Galley.API.Clients qualified as Clients
@@ -86,8 +85,6 @@ import Galley.Types.Conversations.Members (RemoteMember (RemoteMember, rmId))
 import Galley.Types.UserList
 import Imports hiding (head)
 import Network.AMQP qualified as Q
-import Network.HTTP.Types
-import Network.Wai
 import Network.Wai.Predicate hiding (Error, err, result, setStatus)
 import Network.Wai.Predicate qualified as Predicate hiding (result)
 import Network.Wai.Routing hiding (App, route, toList)
@@ -98,10 +95,9 @@ import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog qualified as P
 import Servant hiding (JSON, WithStatus)
-import Servant.Client (BaseUrl (BaseUrl), ClientEnv (ClientEnv), Scheme (Http), defaultMakeClientRequest)
+import Servant.Client
 import System.Logger.Class hiding (Path, name)
 import System.Logger.Class qualified as Log
-import Util.Options
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Action
 import Wire.API.CustomBackend
@@ -325,10 +321,6 @@ internalSitemap = unsafeCallsFed @'Galley @"on-client-removed" $ unsafeCallsFed 
     capture "domain"
       .&. accept "application" "json"
 
-  delete "/i/federation/:domain" (continue . internalDeleteFederationDomainH $ toRange (Proxy @500)) $
-    capture "domain"
-      .&. accept "application" "json"
-
 rmUser ::
   forall p1 p2 r.
   ( p1 ~ CassandraPaging,
@@ -501,8 +493,7 @@ guardLegalholdPolicyConflictsH glh = do
 -- Errors & exceptions are thrown to IO to stop the message being ACKed, eventually timing it
 -- out so that it can be redelivered.
 deleteFederationDomain ::
-  ( Member (Input Env) r,
-    Member (P.Logger (Msg -> Msg)) r,
+  ( Member (P.Logger (Msg -> Msg)) r,
     Member (Error FederationError) r,
     Member MemberStore r,
     Member (Input ClientState) r,
@@ -512,17 +503,18 @@ deleteFederationDomain ::
     Member TeamStore r,
     Member (Error InternalError) r
   ) =>
-  Range 1 1000 Int32 ->
-  Domain ->
+  ClientEnv ->
+  Range 1 2000 Int32 ->
+  Local a ->
+  Remote a ->
   Sem r ()
-deleteFederationDomain range d = do
-  deleteFederationDomainRemoteUserFromLocalConversations range d
+deleteFederationDomain c range ld d = do
+  deleteFederationDomainRemoteUserFromLocalConversations range ld d
   deleteFederationDomainLocalUserFromRemoteConversation range d
-  deleteFederationDomainOneOnOne d
+  deleteFederationDomainOneOnOne c d
 
-internalDeleteFederationDomainH ::
-  ( Member (Input Env) r,
-    Member (P.Logger (Msg -> Msg)) r,
+internalDeleteFederationDomain ::
+  ( Member (P.Logger (Msg -> Msg)) r,
     Member (Error FederationError) r,
     Member MemberStore r,
     Member ConversationStore r,
@@ -533,23 +525,24 @@ internalDeleteFederationDomainH ::
     Member DefederationNotifications r,
     Member (Error InternalError) r
   ) =>
-  Range 1 1000 Int32 ->
-  Domain ::: JSON ->
-  Sem r Response
-internalDeleteFederationDomainH range (domain ::: _) = do
+  ClientEnv ->
+  Range 1 2000 Int32 ->
+  Local a ->
+  Remote a ->
+  Sem r ()
+internalDeleteFederationDomain c range localDomain domain = do
   -- We have to send the same event twice.
   -- Once before and once after defederation work.
   -- https://wearezeta.atlassian.net/wiki/spaces/ENGINEERIN/pages/809238539/Use+case+Stopping+to+federate+with+a+domain
-  sendDefederationNotifications domain
-  deleteFederationDomain range domain
-  sendDefederationNotifications domain
-  pure (empty & setStatus status200)
+  let remoteDomain = tDomain domain
+  sendDefederationNotifications range remoteDomain
+  deleteFederationDomain c range localDomain domain
+  sendDefederationNotifications range remoteDomain
 
 -- Remove remote members from local conversations
 deleteFederationDomainRemoteUserFromLocalConversations ::
-  forall r.
-  ( Member (Input Env) r,
-    Member (P.Logger (Msg -> Msg)) r,
+  forall r a.
+  ( Member (P.Logger (Msg -> Msg)) r,
     Member (Error FederationError) r,
     Member (Input ClientState) r,
     Member (Embed IO) r,
@@ -558,10 +551,12 @@ deleteFederationDomainRemoteUserFromLocalConversations ::
     Member CodeStore r,
     Member TeamStore r
   ) =>
-  Range 1 1000 Int32 ->
-  Domain ->
+  Range 1 2000 Int32 ->
+  Local a ->
+  Remote a ->
   Sem r ()
-deleteFederationDomainRemoteUserFromLocalConversations (fromRange -> maxPage) dom = do
+deleteFederationDomainRemoteUserFromLocalConversations (fromRange -> maxPage) lDom rDom = do
+  let dom = tDomain rDom
   remoteUsers <-
     mkConvMem <$$> do
       page <-
@@ -569,9 +564,7 @@ deleteFederationDomainRemoteUserFromLocalConversations (fromRange -> maxPage) do
           paginate Q.selectRemoteMembersByDomain $
             paramsP LocalQuorum (Identity dom) maxPage
       getPaginatedData page
-  env <- input
   let lCnvMap = foldr insertIntoMap mempty remoteUsers
-      localDomain = env ^. Galley.App.options . Galley.Options.settings . federationDomain
   for_ (Map.toList lCnvMap) $ \(cnvId, rUsers) -> do
     let mapAllErrors ::
           Text ->
@@ -585,17 +578,16 @@ deleteFederationDomainRemoteUserFromLocalConversations (fromRange -> maxPage) do
 
     mapAllErrors "Federation domain removal" $ do
       getConversation cnvId
-        >>= maybe (pure () {- conv already gone, nothing to do -}) (delConv localDomain rUsers)
+        >>= maybe (pure () {- conv already gone, nothing to do -}) (delConv rUsers)
   where
-    mkConvMem (convId, usr, role) = (convId, RemoteMember (toRemoteUnsafe dom usr) role)
+    mkConvMem (convId, usr, role) = (convId, RemoteMember (rDom $> usr) role)
     delConv ::
-      Domain ->
       N.NonEmpty RemoteMember ->
       Galley.Data.Conversation.Types.Conversation ->
       Sem (Error NoChanges : ErrorS 'NotATeamMember : r) ()
-    delConv localDomain rUsers conv =
+    delConv rUsers conv =
       do
-        let lConv = toLocalUnsafe localDomain conv
+        let lConv = lDom $> conv
         updateLocalConversationUserUnchecked
           @'ConversationRemoveMembersTag
           lConv
@@ -620,10 +612,11 @@ deleteFederationDomainLocalUserFromRemoteConversation ::
     Member (Embed IO) r,
     Member MemberStore r
   ) =>
-  Range 1 1000 Int32 ->
-  Domain ->
+  Range 1 2000 Int32 ->
+  Remote a ->
   Sem r ()
-deleteFederationDomainLocalUserFromRemoteConversation (fromRange -> maxPage) dom = do
+deleteFederationDomainLocalUserFromRemoteConversation (fromRange -> maxPage) rDom = do
+  let dom = tDomain rDom
   remoteConvs <-
     foldr insertIntoMap mempty <$> do
       page <-
@@ -643,15 +636,12 @@ deleteFederationDomainLocalUserFromRemoteConversation (fromRange -> maxPage) dom
 --    The calling function needs to catch thrown exceptions and NACK the deletion
 --    message. This will allow Rabbit to redeliver the message and give us a second
 --    go at performing the deletion.
-deleteFederationDomainOneOnOne :: (Member (Input Env) r, Member (Embed IO) r) => Domain -> Sem r ()
-deleteFederationDomainOneOnOne dom = do
-  env <- input
-  let c = mkClientEnv (env ^. manager) (env ^. brig)
-      -- This is the same policy as background-worker for retrying.
-      policy = capDelay 60_000_000 $ fullJitterBackoff 200_000
+deleteFederationDomainOneOnOne :: (Member (Embed IO) r) => ClientEnv -> Remote a -> Sem r ()
+deleteFederationDomainOneOnOne c rDom = do
+  -- This is the same policy as background-worker for retrying.
+  let dom = tDomain rDom
+  let policy = capDelay 60_000_000 $ fullJitterBackoff 200_000
   void . liftIO . recovering policy httpHandlers $ \_ -> deleteFederationRemoteGalley dom c
-  where
-    mkClientEnv mgr (Endpoint h p) = ClientEnv mgr (BaseUrl Http (unpack h) (fromIntegral p) "") Nothing defaultMakeClientRequest
 
 getPaginatedData ::
   ( Member (Input ClientState) r,

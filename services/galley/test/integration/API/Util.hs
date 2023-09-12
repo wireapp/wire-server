@@ -1397,15 +1397,6 @@ postJoinCodeConv' mPw u j = do
       -- `json (JoinConversationByCode j Nothing)` and `json j` are equivalent, using the latter to test backwards compatibility
       . (if isJust mPw then json (JoinConversationByCode j mPw) else json j)
 
-deleteFederation ::
-  (MonadHttp m, HasGalley m, MonadIO m) =>
-  Domain ->
-  m ResponseLBS
-deleteFederation dom = do
-  g <- viewGalley
-  delete $
-    g . paths ["/i/federation", toByteString' dom]
-
 addFederation ::
   (MonadHttp m, HasBrig m, MonadIO m) =>
   Domain ->

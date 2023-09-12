@@ -32,17 +32,14 @@ library
     , amqp
     , async
     , base
-    , bilge
     , bytestring-conversion
     , containers
     , exceptions
     , extended
     , HsOpenSSL
     , http-client
-    , http-types
     , http2-manager
     , imports
-    , lens
     , metrics-core
     , metrics-wai
     , monad-control

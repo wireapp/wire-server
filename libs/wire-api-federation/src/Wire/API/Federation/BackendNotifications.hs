@@ -92,6 +92,9 @@ type DefederationDomain = Domain
 defederationQueue :: Text
 defederationQueue = "delete-federation"
 
+connectionRemovedQueue :: Text
+connectionRemovedQueue = "connection-removed"
+
 -- | If you ever change this function and modify
 -- queue parameters, know that it will start failing in the
 -- next release! So be prepared to write migrations.

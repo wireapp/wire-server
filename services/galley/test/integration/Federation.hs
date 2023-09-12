@@ -19,6 +19,7 @@ import Data.Qualified
 import Data.Range (toRange)
 import Data.Set qualified as Set
 import Data.Singletons
+import Data.Text (unpack)
 import Data.Time (getCurrentTime)
 import Data.UUID qualified as UUID
 import Federator.MockServer
@@ -27,16 +28,19 @@ import Galley.API.Util
 import Galley.App
 import Galley.Cassandra.Queries
 import Galley.Data.Conversation.Types qualified as Types
+import Galley.Env qualified as GalleyEnv
 import Galley.Monad
 import Galley.Options
 import Galley.Run
 import Galley.Types.Conversations.Members (LocalMember (..), RemoteMember (..), defMemberStatus, localMemberToOther)
 import Imports
+import Servant.Client (BaseUrl (BaseUrl), ClientEnv (..), Scheme (Http), defaultMakeClientRequest)
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
 import Test.Tasty.Cannon qualified as WS
 import Test.Tasty.HUnit
 import TestSetup
 import UnliftIO.Retry
+import Util.Options (Endpoint (Endpoint))
 import Wire.API.Conversation
 import Wire.API.Conversation qualified as Public
 import Wire.API.Conversation.Action
@@ -158,14 +162,27 @@ updateFedDomainsTestRemoveLocalFromRemote' = do
 fromFedList :: FederationDomainConfigs -> Set Domain
 fromFedList = Set.fromList . fmap domain . remotes
 
-deleteFederationDomains :: FederationDomainConfigs -> FederationDomainConfigs -> App ()
-deleteFederationDomains old new = do
+internalDeleteFederationDomain :: Env -> Domain -> App ()
+internalDeleteFederationDomain env remoteDomain = do
+  let ld = toLocalUnsafe (env ^. options . settings . federationDomain) ()
+      c = mkClientEnv (env ^. GalleyEnv.manager) (env ^. GalleyEnv.brig)
+      remote = toRemoteUnsafe remoteDomain ()
+  -- Call into the galley code
+  void $ liftIO (evalGalleyToIO env (deleteFederationDomain c (toRange $ Proxy @500) ld remote))
+  where
+    mkClientEnv mgr (Endpoint h p) = ClientEnv mgr (BaseUrl Http (unpack h) (fromIntegral p) "") Nothing defaultMakeClientRequest
+
+deleteFederationDomains :: Env -> FederationDomainConfigs -> FederationDomainConfigs -> App ()
+deleteFederationDomains env old new = do
   let prev = fromFedList old
       curr = fromFedList new
       deletedDomains = Set.difference prev curr
-  env <- ask
+      ld = toLocalUnsafe (env ^. options . settings . federationDomain) ()
+      c = mkClientEnv (env ^. GalleyEnv.manager) (env ^. GalleyEnv.brig)
   -- Call into the galley code
-  for_ deletedDomains $ liftIO . evalGalleyToIO env . deleteFederationDomain (toRange $ Proxy @500)
+  for_ deletedDomains $ liftIO . evalGalleyToIO env . deleteFederationDomain c (toRange $ Proxy @500) ld . flip toRemoteUnsafe ()
+  where
+    mkClientEnv mgr (Endpoint h p) = ClientEnv mgr (BaseUrl Http (unpack h) (fromIntegral p) "") Nothing defaultMakeClientRequest
 
 constHandlers :: (MonadIO m) => [RetryStatus -> Handler m Bool]
 constHandlers = [const $ Handler $ (\(_ :: SomeException) -> pure True)]
@@ -187,7 +204,7 @@ updateFedDomainRemoveRemoteFromLocal env remoteDomain remoteDomain2 interval = r
   connectWithRemoteUser alice remoteCharlie
   _ <- withTempMockFederator' ("get-not-fully-connected-backends" ~> NonConnectedBackends mempty) $ postQualifiedMembers alice (remoteCharlie <| remoteBob :| []) qConvId
   -- Remove the remote user from the local domain
-  liftIO $ runApp env $ deleteFederationDomains old new
+  liftIO $ runApp env $ deleteFederationDomains env old new
   -- Check that the conversation still exists.
   getConvQualified alice qConvId !!! do
     const 200 === statusCode
@@ -290,7 +307,7 @@ updateFedDomainRemoveLocalFromRemote env remoteDomain interval = recovering x3 c
   -- END: code from putRemoteConvMemberOk
 
   -- Remove the remote user from the local domain
-  liftIO $ runApp env $ deleteFederationDomains old new
+  liftIO $ runApp env $ deleteFederationDomains env old new
   convIds <-
     liftIO $
       C.runClient (env ^. cstate) $
@@ -337,7 +354,7 @@ updateFedDomainsAddRemote env remoteDomain remoteDomain2 interval = do
   _ <- withTempMockFederator' ("get-not-fully-connected-backends" ~> NonConnectedBackends mempty) $ postQualifiedMembers alice (remoteBob :| []) qConvId
 
   -- No-op
-  liftIO $ runApp env $ deleteFederationDomains old new
+  liftIO $ runApp env $ deleteFederationDomains env old new
   -- Check that the conversation still exists.
   getConvQualified (qUnqualified qalice) (Qualified convId localDomain) !!! do
     const 200 === statusCode
@@ -363,7 +380,7 @@ updateFedDomainsTestNoop env remoteDomain interval = do
   connectWithRemoteUser alice remoteBob
   _ <- withTempMockFederator' ("get-not-fully-connected-backends" ~> NonConnectedBackends mempty) $ postQualifiedMembers alice (remoteBob :| []) qConvId
   -- No-op
-  liftIO $ runApp env $ deleteFederationDomains old new
+  liftIO $ runApp env $ deleteFederationDomains env old new
   -- Check that the conversation still exists.
   getConvQualified (qUnqualified qalice) (Qualified convId localDomain) !!! do
     const 200 === statusCode

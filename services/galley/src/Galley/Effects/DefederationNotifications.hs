@@ -8,10 +8,13 @@ module Galley.Effects.DefederationNotifications
 where
 
 import Data.Domain (Domain)
+import Data.Range (Range)
+import Imports (Int32)
 import Polysemy
+import Wire.API.Team.Member (HardTruncationLimit)
 
 data DefederationNotifications m a where
-  SendDefederationNotifications :: Domain -> DefederationNotifications m ()
-  SendOnConnectionRemovedNotifications :: Domain -> Domain -> DefederationNotifications m ()
+  SendDefederationNotifications :: (Range 1 HardTruncationLimit Int32) -> Domain -> DefederationNotifications m ()
+  SendOnConnectionRemovedNotifications :: (Range 1 HardTruncationLimit Int32) -> Domain -> Domain -> DefederationNotifications m ()
 
 makeSem ''DefederationNotifications

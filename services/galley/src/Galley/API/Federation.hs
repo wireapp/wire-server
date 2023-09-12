@@ -784,12 +784,13 @@ onFederationConnectionRemoved ::
   Domain ->
   Sem r EmptyResponse
 onFederationConnectionRemoved range originDomain targetDomain = do
+  maxPage <- inputs (currentFanoutLimit . _options)
   fedDomains <- getFederationDomains
   let federatedWithBoth = all (`elem` fedDomains) [originDomain, targetDomain]
   when federatedWithBoth $ do
-    sendOnConnectionRemovedNotifications originDomain targetDomain
+    sendOnConnectionRemovedNotifications maxPage originDomain targetDomain
     cleanupRemovedConnections originDomain targetDomain range
-    sendOnConnectionRemovedNotifications originDomain targetDomain
+    sendOnConnectionRemovedNotifications maxPage originDomain targetDomain
   pure EmptyResponse
 
 getFederationDomains ::
