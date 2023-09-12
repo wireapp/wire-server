@@ -7,7 +7,7 @@ Fragment.
 This page is about the yaml files that determine the configuration of
 the Wire backend services.
 
-### MLS private key paths
+## MLS private key paths
 
 Note: This developer documentation. Documentation for site operators can be found here: {ref}`mls-message-layer-security`
 
