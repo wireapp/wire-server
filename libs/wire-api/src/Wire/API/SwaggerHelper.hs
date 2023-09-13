@@ -19,8 +19,10 @@ module Wire.API.SwaggerHelper where
 
 import Control.Lens
 import Data.Containers.ListUtils (nubOrd)
+import Data.HashMap.Strict.InsOrd
 import Data.OpenApi hiding (Contact, Header, Schema, ToSchema)
 import Data.OpenApi qualified as S
+import Data.Text qualified as T
 import Imports hiding (head)
 
 cleanupSwagger :: OpenApi -> OpenApi
@@ -28,6 +30,12 @@ cleanupSwagger =
   (S.security %~ nub)
     -- sanitise definitions
     . (S.components . S.schemas . traverse %~ sanitise)
+    -- strip the default errors
+    . ( S.allOperations
+          . S.responses
+          . S.responses
+          %~ foldrWithKey stripDefaultErrors mempty
+      )
     -- sanitise general responses
     . (S.components . S.responses . traverse . S.content . traverse . S.schema . _Just . S._Inline %~ sanitise)
     -- sanitise all responses of all paths
@@ -49,3 +57,49 @@ cleanupSwagger =
       (S.properties . traverse . S._Inline %~ sanitise)
         . (S.required %~ nubOrd)
         . (S.enum_ . _Just %~ nub)
+    -- servant-openapi and servant-swagger both insert default responses with codes 404 and 400.
+    -- They have a simple structure that we can match against, and remove from the final structure.
+    stripDefaultErrors :: HttpStatusCode -> Referenced Response -> Responses' -> Responses'
+    stripDefaultErrors code resp resps =
+      case code of
+        400 -> case resp ^? _Inline . S.description of
+          (Just desc) ->
+            if "Invalid "
+              `T.isPrefixOf` desc
+              && resp
+              ^? _Inline
+              . links
+              == pure mempty
+              && resp
+              ^? _Inline
+              . content
+              == pure mempty
+              && resp
+              ^? _Inline
+              . headers
+              == pure mempty
+              then resps
+              else insert code resp resps
+          Nothing -> insert code resp resps
+        404 -> case resp ^? _Inline . S.description of
+          (Just desc) ->
+            if " not found"
+              `T.isSuffixOf` desc
+              && resp
+              ^? _Inline
+              . links
+              == pure mempty
+              && resp
+              ^? _Inline
+              . content
+              == pure mempty
+              && resp
+              ^? _Inline
+              . headers
+              == pure mempty
+              then resps
+              else insert code resp resps
+          Nothing -> insert code resp resps
+        _ -> insert code resp resps
+
+type Responses' = InsOrdHashMap HttpStatusCode (Referenced Response)
