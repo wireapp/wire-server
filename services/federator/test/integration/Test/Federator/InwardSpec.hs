@@ -34,6 +34,7 @@ import Data.LegalHold (UserLegalHoldStatus (UserLegalHoldNoConsent))
 import Data.Text.Encoding
 import Federator.Options hiding (federatorExternal)
 import Imports
+import Network.HTTP.Client (responseBody)
 import Network.HTTP.Types qualified as HTTP
 import Network.Wai.Utilities.Error qualified as E
 import Test.Federator.Util
@@ -77,11 +78,12 @@ spec env =
         setSearchPolicyFor brig (Domain backendTwoDomain) Search.FullSearch
 
         let expectedProfile = (publicProfile user UserLegalHoldNoConsent) {profileHandle = Just (Handle hdl)}
-        bdy <-
-          responseJsonError
-            -- Explicitly make the call from a domain outside of Federator's own domain
-            =<< inwardCallWithOriginDomain backendTwoDomainBS "/federation/brig/get-user-by-handle" (encode hdl)
-              <!! const 200 === statusCode
+        bdy <- do
+          -- Explicitly make the call from a domain outside of Federator's own domain
+          resp <- inwardCallWithOriginDomain backendTwoDomainBS "/federation/brig/get-user-by-handle" (encode hdl)
+          _ <- error $ show (resp, responsBody resp)
+          responseJsonError resp
+            <!! const 200 === statusCode
         liftIO $ bdy `shouldBe` expectedProfile
 
     -- @SF.Federation @TSFI.RESTfulAPI @S2 @S3 @S7
