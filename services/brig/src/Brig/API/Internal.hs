@@ -76,6 +76,7 @@ import Imports hiding (head)
 import Network.AMQP qualified as Q
 import Network.Wai.Routing hiding (toList)
 import Network.Wai.Utilities as Utilities
+import Network.Wai.Utilities.Error qualified as Wai
 import Polysemy
 import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.Swagger.Internal.Orphans ()
@@ -340,6 +341,19 @@ assertNoDomainsFromConfigFiles dom = do
 -- way back to config file state for a federation domain.
 deleteFederationRemote :: Domain -> ExceptT Brig.API.Error.Error (AppT r) ()
 deleteFederationRemote dom = do
+  -- FUTUREWORK: when re-enabeling this end-point, also update:
+  --  /libs/wire-api/src/Wire/API/Routes/Internal/Brig.hs
+  --  /docs/src/understand/configure-federation.md
+  () <-
+    throwStd $
+      Wai.mkError
+        403
+        "defederation-disabled"
+        "Removing federation remotes is currently disabled. See note in\
+        \https://docs.wire.com/understand/configure-federation.html#configure-federation-strategy-whom-to-federate-with-in-brig."
+
+  -- code from here on odwn can't be reached.
+
   lift . wrapClient . Data.deleteFederationRemote $ dom
   assertNoDomainsFromConfigFiles dom
   env <- ask

@@ -766,8 +766,9 @@ type FederationRemotesAPI =
            )
     :<|> Named
            "delete-federation-remotes"
-           ( Description FederationRemotesAPIDescription
-               :> Description FederationRemotesAPIDeleteDescription
+           ( Description "Jira:WPB-4668: this is disabled (to avoid running into a scalability issue)."
+               -- :> Description FederationRemotesAPIDescription
+               -- :> Description FederationRemotesAPIDeleteDescription
                :> "federation"
                :> "remotes"
                :> Capture "domain" Domain
