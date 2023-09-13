@@ -45,7 +45,7 @@ config:
     # If set it must a map from `Z-Host` to URI prefix
     # Example:
     # multiIngress: 
-    #    wire.example: https://accounts.wire.example/conversation-join/
+    #    example.com: https://accounts.example.com/conversation-join/
     #    example.net: https://accounts.example.net/conversation-join/
     multiIngress: null
     # Disable one ore more API versions. Please make sure the configuration value is the same in all these charts:

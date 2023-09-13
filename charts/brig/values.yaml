@@ -87,7 +87,7 @@ config:
     # Details: https://github.com/wireapp/wire-server/blob/3d5684023c54fe580ab27c11d7dae8f19a29ddbc/services/brig/src/Brig/Options.hs#L465-L503
     # setCustomerExtensions:
     #   domainsBlockedForRegistration:
-    #   - wire.example
+    #   - example.com
     set2FACodeGenerationDelaySecs: 300 # 5 minutes
     setNonceTtlSecs: 300 # 5 minutes
     setDpopMaxSkewSecs: 1
@@ -122,7 +122,7 @@ turnStatic:
 
 turn:
   serversSource: files # files | dns
-  # baseDomain: turn.wire.example # Must be configured if serversSource is dns
+  # baseDomain: turn.example.com # Must be configured if serversSource is dns
   discoveryIntervalSeconds: 10 # Used only if serversSource is dns
 
 serviceAccount:

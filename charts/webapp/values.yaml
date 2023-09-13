@@ -20,10 +20,10 @@ service:
 
 #config:
 #  externalUrls:
-#   backendRest: nginz-https.wire.example
-#   backendWebsocket: nginz-ssl.wire.example
-#   backendDomain: wire.example
-#   appHost: webapp.wire.example
+#   backendRest: nginz-https.example.com
+#   backendWebsocket: nginz-ssl.example.com
+#   backendDomain: example.com
+#   appHost: webapp.example.com
 
 # Some relevant environment options. For a comprehensive
 # list of available variables, please refer to:
@@ -37,19 +37,19 @@ envVars: {}
 #   FEATURE_ENABLE_DEBUG: "true"
 #   You are likely to need at least following CSP headers
 #   due to the fact that you are likely to do cross sub-domain requests
-#   i.e., from webapp.wire.example to nginz-https.wire.example
-#   CSP_EXTRA_CONNECT_SRC: "https://*.wire.example, wss://*.wire.example"
-#   CSP_EXTRA_IMG_SRC: "https://*.wire.example"
-#   CSP_EXTRA_SCRIPT_SRC: "https://*.wire.example"
-#   CSP_EXTRA_DEFAULT_SRC: "https://*.wire.example"
-#   CSP_EXTRA_FONT_SRC: "https://*.wire.example"
-#   CSP_EXTRA_FRAME_SRC: "https://*.wire.example"
-#   CSP_EXTRA_MANIFEST_SRC: "https://*.wire.example"
-#   CSP_EXTRA_OBJECT_SRC: "https://*.wire.example"
-#   CSP_EXTRA_MEDIA_SRC: "https://*.wire.example"
-#   CSP_EXTRA_PREFETCH_SRC: "https://*.wire.example"
-#   CSP_EXTRA_STYLE_SRC: "https://*.wire.example"
-#   CSP_EXTRA_WORKER_SRC: "https://*.wire.example"
+#   i.e., from webapp.example.com to nginz-https.example.com
+#   CSP_EXTRA_CONNECT_SRC: "https://*.example.com, wss://*.example.com"
+#   CSP_EXTRA_IMG_SRC: "https://*.example.com"
+#   CSP_EXTRA_SCRIPT_SRC: "https://*.example.com"
+#   CSP_EXTRA_DEFAULT_SRC: "https://*.example.com"
+#   CSP_EXTRA_FONT_SRC: "https://*.example.com"
+#   CSP_EXTRA_FRAME_SRC: "https://*.example.com"
+#   CSP_EXTRA_MANIFEST_SRC: "https://*.example.com"
+#   CSP_EXTRA_OBJECT_SRC: "https://*.example.com"
+#   CSP_EXTRA_MEDIA_SRC: "https://*.example.com"
+#   CSP_EXTRA_PREFETCH_SRC: "https://*.example.com"
+#   CSP_EXTRA_STYLE_SRC: "https://*.example.com"
+#   CSP_EXTRA_WORKER_SRC: "https://*.example.com"
 
 podSecurityContext:
   allowPrivilegeEscalation: false
