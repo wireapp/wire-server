@@ -70,7 +70,6 @@ import Data.Sequence qualified as Seq
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Data.Typeable
-import Debug.Trace qualified as T
 import GHC.TypeLits
 import Generics.SOP as GSOP
 import Imports hiding (cs)
@@ -210,7 +209,7 @@ instance
   (KnownSymbol desc, S.ToSchema a) =>
   IsSwaggerResponse (Respond s desc a)
   where
-  -- TODO: Defaulting this to JSON, as openapi3 needs something to map a schema against.
+  -- Defaulting this to JSON, as openapi3 needs something to map a schema against.
   responseSwagger = simpleResponseSwagger @a @'[JSON] @desc
 
 type instance ResponseType (RespondAs ct s desc a) = a
@@ -483,28 +482,14 @@ instance
 
 combineResponseSwagger :: S.Response -> S.Response -> S.Response
 combineResponseSwagger r1 r2 =
-  let r =
-        r1
-          & S.description <>~ ("\n\n" <> r2 ^. S.description)
-          -- & S.content
-          --   . traverse
-          --   . S.schema
-          --   . _Just
-          --   . S._Inline
-          --   %~ flip combineSwaggerSchema (r2 ^. S.content . traverse . S.schema . _Just . S._Inline)
-
-          & S.content %~ flip (unionWith combineMediaTypeObject) (r2 ^. S.content)
-      s = show r
-   in if isInfixOf "get-user-qualified" s || isInfixOf "UserProfile" s
-        then T.traceShowId r
-        else T.trace "bar" r
+  r1
+    & S.description <>~ ("\n\n" <> r2 ^. S.description)
+    & S.content %~ flip (unionWith combineMediaTypeObject) (r2 ^. S.content)
 
 combineMediaTypeObject :: S.MediaTypeObject -> S.MediaTypeObject -> S.MediaTypeObject
 combineMediaTypeObject m1 m2 =
   m1 & S.schema .~ merge (m1 ^. S.schema) (m2 ^. S.schema)
   where
-    -- m1 & S.schema . _Just . S._Inline %~ flip combineSwaggerSchema (m2 ^. S.schema . _Just . S._Inline)
-
     merge Nothing a = a
     merge a Nothing = a
     merge (Just (Inline a)) (Just (Inline b)) = pure $ Inline $ combineSwaggerSchema a b
