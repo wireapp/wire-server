@@ -612,6 +612,7 @@ type ConversationAPI =
     :<|> Named
            "get-one-to-one-mls-conversation"
            ( Summary "Get an MLS 1:1 conversation"
+               :> From 'V5
                :> ZLocalUser
                :> CanThrow 'MLSNotEnabled
                :> CanThrow 'NotConnected
@@ -1256,6 +1257,7 @@ type ConversationAPI =
     :<|> Named
            "update-conversation-protocol"
            ( Summary "Update the protocol of the conversation"
+               :> From 'V5
                :> Description "**Note**: Only proteus->mixed upgrade is supported."
                :> CanThrow 'ConvNotFound
                :> CanThrow 'ConvInvalidProtocolTransition
