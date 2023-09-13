@@ -108,9 +108,7 @@ make kube-integration-setup
 
 #### Deploy your local code to a kind cluster
 
-This can be useful to get quicker feedback while working on multi-backend code or configuration (e.g. helm charts) than to wait an hour for CI. This allows you to test code without uploading it to github and waiting an hour for CI.
-
-FUTUREWORK: this process is in development (update this section after it's confirmed to work):
+This can be useful to get quicker feedback while working on multi-backend code or configuration (e.g. helm charts), or integration tests. It saves you uploading everything to github and waiting an hour for CI.
 
 ##### Run tests in kind
 
@@ -119,10 +117,32 @@ FUTUREWORK: this process is in development (update this section after it's confi
 
    *Note:* First time all the images need to be uploaded. When working on one
    service it can be selectively uploaded using `make kind-upload-image-<name>`
-   (e.g. `make kind-upload-image-brig`).
+   (e.g. `make kind-upload-image-{brig,integration}`).
 2. Install wire-server using `make kind-integration-setup`.
 3. Run tests using `make kind-integration-test`.
 4. Run end2end integration tests: `make kind-integration-e2e`.
+
+If you want to run only a particular test suite, [edit this line](https://github.com/wireapp/wire-server/blob/2dfc268f233cc7b42a75243f2fd0071b81aef65b/hack/bin/integration-test.sh#L14).
+
+If you want to run only a particular test *case*, you can add env variables like `TASTY_PATTERN` or `TEST_INCLUDE` to [this block](https://github.com/wireapp/wire-server/blob/2dfc268f233cc7b42a75243f2fd0071b81aef65b/charts/integration/templates/integration-integration.yaml#L192-L209).
+
+To shut everything down (sometimes RAM / CPU use stays high indefinitely otherwise):
+
+1. `make kind-delete`
+
+----------------------------------------------------------------------
+
+make kind-integration-setup
+make kind-integration-test
+
+
+
+[needs kind] make ci-safe package=integration TEST_INCLUDE=Federation.testNotificationsForOfflineBackends
+
+
+[fixed?] make ci-safe package=brig TASTY_PATTERN='(!/turn/&&!/user.auth.cookies.limit/)&&/search users on remote backend/'
+[fixed?] make ci-safe package=brig TASTY_PATTERN='(!/turn/&&!/user.auth.cookies.limit/)&&/lookup user by qualified handle on remote backend/'
+
 
 
 

@@ -207,3 +207,7 @@ spec:
         secretKeyRef:
           name: brig
           key: rabbitmqPassword
+    - name: TEST_INCLUDE
+      value: ""
+    - name: TASTY_PATTERN
+      value: "(!/turn/&&!/user.auth.cookies.limit/)&&/search users on remote backend/"

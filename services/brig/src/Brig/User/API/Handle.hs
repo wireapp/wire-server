@@ -53,7 +53,7 @@ getHandleInfo self handle = do
   lself <- qualifyLocal self
   foldQualified
     lself
-    (getLocalHandleInfo lself . tUnqualified)
+    (getLocalHandleInfo lself . tUnqualified) -- does it call local or remote?  how does local work?
     getRemoteHandleInfo
     handle
 
