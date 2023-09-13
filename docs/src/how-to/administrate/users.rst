@@ -99,7 +99,7 @@ Terminal one:
 
    kubectl port-forward svc/brig 9999:8080
 
-Terminal two: Search for your user by name or handle or a prefix of that handle or name:
+Terminal two: Search user by name or handle or a prefix of that handle or name:
 
 .. code:: sh
 
@@ -490,8 +490,8 @@ Then, run it the following way:
 
 Where:
 
-* In `-h <brig host>`, replace `<brig host>` with the base URL for your brig host (for example: `https://brig-host.your-domain.com`, defaults to `http://localhost:8082`)
-* In `-s <spar host>`, replace `<spar host>` with the base URL for your spar host (for example: `https://spar-host.your-domain.com`, defaults to `http://localhost:8088`)
+* In `-h <brig host>`, replace `<brig host>` with the base URL brig host (for example: `https://brig-host.your-domain.com`, defaults to `http://localhost:8082`)
+* In `-s <spar host>`, replace `<spar host>` with the base URL spar host (for example: `https://spar-host.your-domain.com`, defaults to `http://localhost:8088`)
 
 You might also need to edit the admin email and admin passwords at lines `48` and `49` of the script.
 
@@ -598,7 +598,7 @@ You do this by running:
 
 Where:
 
-* `$GALLEY_HOST` is the base URL for your brig service
+* `$GALLEY_HOST` is the base URL for your galley service
 * `$TEAM_ID` is the id of the team you want to delete
 * `$PASSWORD` is the user password for that team admin
 * `$VERIFICATION_CODE` is required only if you have 2FA enabled
