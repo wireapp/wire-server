@@ -2,7 +2,7 @@
 
 ## Problems with CSP on the web based applications (webapp, team-settings, account-pages)
 
-If you have installed wire-server, but the web application page in your browser has connection problems and throws errors in the console such as `"Refused to connect to 'https://assets.example.com' because it violates the following Content Security Policies"`, make sure to check that you have configured the `CSP_EXTRA_` environment variables.
+If you have installed wire-server, but the web application page in your browser has connection problems and throws errors in the console such as `"Refused to connect to 'https://assets.wire.example' because it violates the following Content Security Policies"`, make sure to check that you have configured the `CSP_EXTRA_` environment variables.
 
 In the file that you use as override when running `helm install/update -f <override values.yaml>` (using the webapp as an example):
 
@@ -11,18 +11,18 @@ webapp:
    # ... other settings...
    envVars:
      # ... other environment variables ...
-     CSP_EXTRA_CONNECT_SRC: "https://*.example.com, wss://*.example.com"
-     CSP_EXTRA_IMG_SRC: "https://*.example.com"
-     CSP_EXTRA_SCRIPT_SRC: "https://*.example.com"
-     CSP_EXTRA_DEFAULT_SRC: "https://*.example.com"
-     CSP_EXTRA_FONT_SRC: "https://*.example.com"
-     CSP_EXTRA_FRAME_SRC: "https://*.example.com"
-     CSP_EXTRA_MANIFEST_SRC: "https://*.example.com"
-     CSP_EXTRA_OBJECT_SRC: "https://*.example.com"
-     CSP_EXTRA_MEDIA_SRC: "https://*.example.com"
-     CSP_EXTRA_PREFETCH_SRC: "https://*.example.com"
-     CSP_EXTRA_STYLE_SRC: "https://*.example.com"
-     CSP_EXTRA_WORKER_SRC: "https://*.example.com"
+     CSP_EXTRA_CONNECT_SRC: "https://*.wire.example, wss://*.wire.example"
+     CSP_EXTRA_IMG_SRC: "https://*.wire.example"
+     CSP_EXTRA_SCRIPT_SRC: "https://*.wire.example"
+     CSP_EXTRA_DEFAULT_SRC: "https://*.wire.example"
+     CSP_EXTRA_FONT_SRC: "https://*.wire.example"
+     CSP_EXTRA_FRAME_SRC: "https://*.wire.example"
+     CSP_EXTRA_MANIFEST_SRC: "https://*.wire.example"
+     CSP_EXTRA_OBJECT_SRC: "https://*.wire.example"
+     CSP_EXTRA_MEDIA_SRC: "https://*.wire.example"
+     CSP_EXTRA_PREFETCH_SRC: "https://*.wire.example"
+     CSP_EXTRA_STYLE_SRC: "https://*.wire.example"
+     CSP_EXTRA_WORKER_SRC: "https://*.wire.example"
 ```
 
 For more info, you can have a look at respective charts values files, i.e.:

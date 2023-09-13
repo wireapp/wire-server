@@ -139,8 +139,8 @@
   ```
       federationStrategy:
         allowedDomains:
-        - red.example.com
-        - blue.example.com
+        - red.wire.example
+        - blue.wire.example
   ```
 
   you need to make sure that the following lines are part of your brig
@@ -153,9 +153,9 @@
     config:
       optSettings:
         setFederationDomainConfigs:
-        - domain: red.example.com
+        - domain: red.wire.example
           search_policy: full_search
-        - domain: blue.example.com
+        - domain: blue.wire.example
           search_policy: no_search
   ```
 
@@ -3578,7 +3578,7 @@ With this release, the `setCookieDomain` configuration (under `brig`/`config`.`o
 
 ## Security improvements
 
-* Authentication cookies are set to the specific DNS name of the backend server (like nginz-https.example.com), instead of a wildcard domain (like *.example.com). This is achieved by leaving the domain empty in the Set-Cookie header, but changing the code to allow clients with old cookies to continue using them until they get renewed. (#1102)
+* Authentication cookies are set to the specific DNS name of the backend server (like nginz-https.wire.example), instead of a wildcard domain (like *.wire.example). This is achieved by leaving the domain empty in the Set-Cookie header, but changing the code to allow clients with old cookies to continue using them until they get renewed. (#1102)
 
 ## Bug Fixes
 

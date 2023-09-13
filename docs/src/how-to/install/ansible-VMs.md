@@ -67,7 +67,7 @@ cp hosts.example.ini hosts.ini
   beginning with restund), replace the `ansible_host` values (`X.X.X.X`)
   with the IPs of the nodes that you can connect to via SSH.
 - Edit the minio variables in `[minio:vars]` (`prefix`, `domain` and `deeplink_title`)
-  by replacing `example.com` with your own domain.
+  by replacing `wire.example` with your own domain.
 
 There are more settings in this file that we will set in later steps.
 
@@ -216,7 +216,7 @@ minio_access_key = "REPLACE_THIS_WITH_THE_DESIRED_SECRET_KEY"
 minio_secret_key = "REPLACE_THIS_WITH_THE_DESIRED_SECRET_KEY"
 # if you want to use deep links for client configuration:
 #minio_deeplink_prefix = ""
-#minio_deeplink_domain = "example.com"
+#minio_deeplink_domain = "wire.example"
 
 [all:vars]
 # Default first interface on ubuntu on kvm:

@@ -13,7 +13,7 @@ Please note your data will be in-memory only and may disappear at any given mome
 What you need:
 
 - a way to create **DNS records** for your domain name (e.g.
-  `wire.example.com`)
+  `wire.wire.example`)
 
 - a way to create **SSL/TLS certificates** for your domain name (to allow
   connecting via `https://`)
@@ -40,8 +40,8 @@ If you already have a kubernetes cluster, your next step will be {ref}`helm`, ot
 
 What you need:
 
-- a way to create **DNS records** for your domain name (e.g. `wire.example.com`)
-- a way to create **SSL/TLS certificates** for your domain name (to allow connecting via `https://wire.example.com`)
+- a way to create **DNS records** for your domain name (e.g. `wire.wire.example`)
+- a way to create **SSL/TLS certificates** for your domain name (to allow connecting via `https://wire.wire.example`)
 - A **kubernetes cluster with at least 3 worker nodes and at least 3 etcd nodes** (some cloud providers offer a managed kubernetes cluster these days)
 - minimum **17 virtual machines** for components outside kubernetes (cassandra, minio, elasticsearch, redis, restund)
 

@@ -75,9 +75,9 @@ You should now have the following directory structure:
       ├── secrets.yaml
       └── values.yaml
 
-Inside the ``nginx-ingress-services`` directory, open ``values.yaml`` and replace ``example.com`` with a domain of your choosing. You can try using ``sed -i 's/example.com/<your-domain>/g' values.yaml``.
+Inside the ``nginx-ingress-services`` directory, open ``values.yaml`` and replace ``wire.example`` with a domain of your choosing. You can try using ``sed -i 's/wire.example/<your-domain>/g' values.yaml``.
 
-Next, open ``secrets.yaml`` and add a TLS wildcard certificate and private key matching your domain. For ``example.com``, you need a certificate for ``*.example.com``. The easiest and cheapest option is `Let's Encrypt <https://letsencrypt.org/getting-started/>`__
+Next, open ``secrets.yaml`` and add a TLS wildcard certificate and private key matching your domain. For ``wire.example``, you need a certificate for ``*.wire.example``. The easiest and cheapest option is `Let's Encrypt <https://letsencrypt.org/getting-started/>`__
 
 The certificate should be provided in the `PEM format <https://knowledge.digicert.com/quovadis/ssl-certificates/ssl-general-topics/what-is-pem-format.html>`__.
 

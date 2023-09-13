@@ -17,8 +17,8 @@ tags:
   sftd: true
 
 sftd:
-  host: sftd.example.com # Replace example.com with your domain
-  allowOrigin: webapp.example.com # Should be the address you used for the webapp deployment
+  host: sftd.wire.example # Replace wire.example with your domain
+  allowOrigin: webapp.wire.example # Should be the address you used for the webapp deployment
 ```
 
 In your `secrets.yaml` you should set the TLS keys for sftd domain:
@@ -37,7 +37,7 @@ You should also make sure that you configure brig to know about the SFT server i
 ```yaml
 brig:
   optSettings:
-    setSftStaticUrl: "https://sftd.example.com:443"
+    setSftStaticUrl: "https://sftd.wire.example:443"
 ```
 
 Now you can deploy as usual:
@@ -68,8 +68,8 @@ By default `sftd` doesn't need to set that many options, so we define them inlin
 SFT will deploy a Kubernetes Ingress on `$SFTD_HOST`.  Make sure that the domain name `$SFTD_HOST` points to your ingress IP as set up in {ref}`helm-prod`.  The SFT also needs to be made aware of the domain name of the webapp that you set up in {ref}`helm-prod` for setting up the appropriate CSP headers.
 
 ```shell
-export SFTD_HOST=sftd.example.com
-export WEBAPP_HOST=webapp.example.com
+export SFTD_HOST=sftd.wire.example
+export WEBAPP_HOST=webapp.wire.example
 ```
 
 Now you can install the chart:
@@ -88,7 +88,7 @@ You should also make sure that you configure brig to know about the SFT server, 
 ```yaml
 brig:
   optSettings:
-    setSftStaticUrl: "https://sftd.example.com:443"
+    setSftStaticUrl: "https://sftd.wire.example:443"
 ```
 
 And then roll-out the change to the `wire-server` chart

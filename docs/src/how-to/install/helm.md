@@ -113,7 +113,7 @@ curl -sSL https://raw.githubusercontent.com/wireapp/wire-server-deploy/master/va
 curl -sSL https://raw.githubusercontent.com/wireapp/wire-server-deploy/master/values/wire-server/demo-values.example.yaml > values.yaml
 ```
 
-Open `values.yaml` and replace `example.com` and other domains and subdomains with domains of your choosing. Look for the `# change this` comments. You can try using `sed -i 's/example.com/<your-domain>/g' values.yaml`.
+Open `values.yaml` and replace `wire.example` and other domains and subdomains with domains of your choosing. Look for the `# change this` comments. You can try using `sed -i 's/wire.example/<your-domain>/g' values.yaml`.
 
 Generate some secrets (if you are using the docker image from {ref}`ansible-kubernetes`, you should open a shell on the host system for this):
 
