@@ -16,4 +16,4 @@ resources:
 
 ## The following needs to be provided (and consistent with the config in brig)
 #TODO: It would actually be useful if the deployment _fails_ if this is undefined
-#sesSender: "sender@example.com"
+#sesSender: "sender@wire.example"
