@@ -63,9 +63,8 @@ import Brig.User.EJPD qualified
 import Brig.User.Search.Index qualified as Index
 import Control.Error hiding (bool)
 import Control.Lens (view, (^.))
-import Data.Aeson hiding (json)
 import Data.CommaSeparatedList
-import Data.Domain (Domain, domainText)
+import Data.Domain (Domain)
 import Data.Handle
 import Data.Id as Id
 import Data.Map.Strict qualified as Map
@@ -73,14 +72,11 @@ import Data.Qualified
 import Data.Set qualified as Set
 import Data.Time.Clock.System
 import Imports hiding (head)
-import Network.AMQP qualified as Q
 import Network.Wai.Routing hiding (toList)
 import Network.Wai.Utilities as Utilities
-import Network.Wai.Utilities.Error qualified as Wai
 import Polysemy
 import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.Swagger.Internal.Orphans ()
-import System.Logger qualified as Lg
 import System.Logger.Class qualified as Log
 import System.Random (randomRIO)
 import UnliftIO.Async
@@ -88,7 +84,6 @@ import Wire.API.Connection
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
 import Wire.API.Federation.API
-import Wire.API.Federation.BackendNotifications
 import Wire.API.Federation.Error (FederationError (..))
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
@@ -226,7 +221,6 @@ federationRemotesAPI =
   Named @"add-federation-remotes" addFederationRemote
     :<|> Named @"get-federation-remotes" getFederationRemotes
     :<|> Named @"update-federation-remotes" updateFederationRemote
-    :<|> Named @"delete-federation-remotes" deleteFederationRemote
     :<|> Named @"delete-federation-remote-from-galley" deleteFederationRemoteGalley
 
 addFederationRemote :: FederationDomainConfig -> ExceptT Brig.API.Error.Error (AppT r) ()
