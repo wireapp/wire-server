@@ -53,7 +53,7 @@ sed -i 's/X.X.X.X/1.2.3.4/g' inventory/demo/hosts.ini
 ## Minio setup
 
 In the `inventory/demo/hosts.ini` file, edit the minio variables in `[minio:vars]` (`prefix`, `domain` and `deeplink_title`)
-by replacing `example.com` with your own domain.
+by replacing `wire.example` with your own domain.
 
 ## How to install kubernetes
 

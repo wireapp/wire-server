@@ -19,7 +19,7 @@ kubectl port-forward svc/brig 9999:8080
 Terminal two: Search for your user by email:
 
 ```sh
-EMAIL=user@example.com
+EMAIL=user@wire.example
 curl -v -G localhost:9999/i/users --data-urlencode email=$EMAIL; echo
 # or, for nicer formatting
 curl -v -G localhost:9999/i/users --data-urlencode email=$EMAIL | json_pp
@@ -57,7 +57,7 @@ Which should give you output like:
       "accent_id" : 0,
       "status" : "active",
       "name" : "somename",
-      "email" : "user@example.com",
+      "email" : "user@wire.example",
       "id" : "9122e5de-b4fb-40fa-99ad-1b5d7d07bae5",
       "locale" : "en",
       "handle" : "user123"

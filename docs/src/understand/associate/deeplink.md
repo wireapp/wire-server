@@ -105,10 +105,10 @@ nginz:
   nginx_conf:
     deeplink:
       endpoints:
-        backendURL: "https://nginz-https.example.com"
-        backendWSURL: "https://nginz-ssl.example.com"
-        teamsURL: "https://teams.example.com"
-        accountsURL: "https://account.example.com"
+        backendURL: "https://nginz-https.wire.example"
+        backendWSURL: "https://nginz-ssl.wire.example"
+        teamsURL: "https://teams.wire.example"
+        accountsURL: "https://account.wire.example"
         blackListURL: "https://clientblacklist.wire.com/prod"
         websiteURL: "https://wire.com"
       apiProxy: # (optional)
@@ -158,13 +158,13 @@ Otherwise you need to create a `.json` file, and host it somewhere users can get
 
 There is no requirement for these hosts to be consistent, e.g. the REST endpoint could be `wireapp.pineapple.com` and the team setting `teams.banana.com`. If you have been following this documentation closely, these hosts will likely be consistent in naming, regardless.
 
-You now need to get a link referring to that `.json` file to your users, prepended with `wire://access/?config=`. For example, you can save the above `.json` file as `https://example.com/wire.json`, and save the following HTML content as `https://example.com/wire.html`:
+You now need to get a link referring to that `.json` file to your users, prepended with `wire://access/?config=`. For example, you can save the above `.json` file as `https://wire.example/wire.json`, and save the following HTML content as `https://wire.example/wire.html`:
 
 ```html
 <html>
   <head></head>
   <body>
-    <a href="wire://access/?config=https://example.com/wire.json">link</a>
+    <a href="wire://access/?config=https://wire.example/wire.json">link</a>
   </body>
 </html>
 ```

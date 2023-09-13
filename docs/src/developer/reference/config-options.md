@@ -93,7 +93,7 @@ codes), team invitation URLs can be made part of the result of
         {
             "created_at": "2022-09-15T15:47:28.577Z",
             "created_by": "375f56fe-7f12-4c0c-aed8-d48c0326d1fb",
-            "email": "foo@example.com",
+            "email": "foo@wire.example",
             "id": "4decf7f8-bdd4-43b3-aaf2-e912e2c0c46f",
             "name": null,
             "phone": null,
@@ -203,11 +203,11 @@ To enable classified domains, the following needs to be in galley.yaml or wire-s
 classifiedDomains:
   status: enabled
   config:
-    domains: ["example.com", "example2.com"]
+    domains: ["wire.example", "example2.com"]
 ```
 
 Note that when enabling this feature, it is important to provide your own domain
-too in the list of domains. In the example above, `example.com` or `example2.com` is your domain.
+too in the list of domains. In the example above, `wire.example` or `example2.com` is your domain.
 
 To disable, either omit the entry entirely (it is disabled by default), or provide the following:
 
@@ -320,7 +320,7 @@ The MLS end-to-end identity team feature adds an extra level of security and pra
 
 When a client first tries to fetch or renew a certificate, they may need to login to an identity provider (IdP) depending on their IdP domain authentication policy. The user may have a grace period during which they can “snooze” this login. The duration of this grace period (in seconds) is set in the `verificationDuration` parameter, which is enforced separately by each client. After the grace period has expired, the client will not allow the user to use the application until they have logged to refresh the certificate. The default value is 1 day (86400s).
 
-The client enrolls using the Automatic Certificate Management Environment (ACME) protocol [RFC 8555](https://www.rfc-editor.org/rfc/rfc8555.html). The `acmeDiscoveryUrl` parameter must be set to the HTTPS URL of the ACME server discovery endpoint for this team. It is of the form "https://acme.{backendDomain}/acme/{provisionerName}/discovery". For example: `https://acme.example.com/acme/provisioner1/discovery`.
+The client enrolls using the Automatic Certificate Management Environment (ACME) protocol [RFC 8555](https://www.rfc-editor.org/rfc/rfc8555.html). The `acmeDiscoveryUrl` parameter must be set to the HTTPS URL of the ACME server discovery endpoint for this team. It is of the form "https://acme.{backendDomain}/acme/{provisionerName}/discovery". For example: `https://acme.wire.example/acme/provisioner1/discovery`.
 
 ```yaml
 # galley.yaml
@@ -355,19 +355,19 @@ slighly different spelling of the config options).
 ```yaml
 # brig.yaml
 optSettings:
-  setFederationDomain: example.com
+  setFederationDomain: wire.example
 ```
 
 ```yaml
 # cargohold.yaml
 settings:
-  federationDomain: example.com
+  federationDomain: wire.example
 ```
 
 ```yaml
 # galley.yaml
 settings:
-  federationDomain: example.com
+  federationDomain: wire.example
 ```
 
 ### Federation allow list
@@ -410,7 +410,7 @@ federator:
     useSystemCAStore: true
 ```
 
-Federate only with `server2.example.com`, use a client certificate and a
+Federate only with `server2.wire.example`, use a client certificate and a
 specific CA:
 
 ```yaml
@@ -418,7 +418,7 @@ federator:
   optSettings:
     federationStrategy:
       allowedDomains:
-        - server2.example.com
+        - server2.wire.example
     useSystemCAStore: false
     clientCertificate: client.pem
     clientPrivateKey: client-key.pem
@@ -487,7 +487,7 @@ Configuring SFT load balancing can be done in two (mutually exclusive) settings:
 ```
 # [brig.yaml]
 sft:
-  sftBaseDomain: sft.wire.example.com
+  sftBaseDomain: sft.wire.wire.example
   sftSRVServiceName: sft
   sftDiscoveryIntervalSeconds: 10
   sftListLength: 20
@@ -500,7 +500,7 @@ or
 ```
 # [brig.yaml]
 settings:
-  setSftStaticUrl: https://sft.wire.example.com
+  setSftStaticUrl: https://sft.wire.wire.example
 ```
 
 This setting assumes that the sft load balancer has been deployed with the `sftd` helm chart.
@@ -684,7 +684,7 @@ E.g.
 ```yaml
 nginx_conf:
   additional_external_env_domains:
-    - red.example.com
+    - red.wire.example
     - green.example.org
     - blue.example.net
 ```
@@ -702,7 +702,7 @@ E.g.
 ```yaml
 nginx_conf:
   additional_external_env_domains:
-    - red.example.com
+    - red.wire.example
     - green.example.org
     - blue.example.net
 ```
@@ -729,16 +729,16 @@ aws:
   s3Endpoint: http://s3.internal.example
 
   # This option is ignored when multiIngress is configured
-  s3DownloadEndpoint: https://assets.default.example.com
+  s3DownloadEndpoint: https://assets.default.wire.example
 
   # Other settings can still be used
   # ...
 
   # Map from backend domain to S3 download domain
   multiIngress:
-    - nginz-https.red.example.com: https://assets.red.example.com
-    - nginz-https.blue.example.com: https://assets.blue.example.com
-    - nginz-https.green.example.com: https://assets.green.example.com
+    - nginz-https.red.wire.example: https://assets.red.wire.example
+    - nginz-https.blue.wire.example: https://assets.blue.wire.example
+    - nginz-https.green.wire.example: https://assets.green.wire.example
 ```
 
 
@@ -762,21 +762,21 @@ Example:
 
 ```yaml
 multiIngress: 
-   red.example.com: https://accounts.red.example.com/conversation-join/
-   green.example.com: https://accounts.green.example.net/conversation-join/
+   red.wire.example: https://accounts.red.wire.example/conversation-join/
+   green.wire.example: https://accounts.green.example.net/conversation-join/
 ```
 
 ### Webapp
 
 The webapp runs its own web server (a NodeJS server) to serve static files and the webapp config (based on environment variables). 
-In a multi-ingress configuration, a single webapp instance will be deployed and be accessible from multiple domains (say `webapp.red.example.com` and `webapp.green.example.com`). 
+In a multi-ingress configuration, a single webapp instance will be deployed and be accessible from multiple domains (say `webapp.red.wire.example` and `webapp.green.wire.example`). 
 When the webapp is loaded from one of those domains it first does a request to the web server to get the config (that will give it, for example, the backend endpoint that it should hit). 
 
-Because of the single instance nature of the webapp, by default the configuration is static and the root url to the backend API can be set there (say `nginz-https.root.example.com`). 
+Because of the single instance nature of the webapp, by default the configuration is static and the root url to the backend API can be set there (say `nginz-https.root.wire.example`). 
 In order to completely hide this root domain to the webapp, an environment variable can be set to allow the webapp hostname to be used to generate the API endpoint, team settings links, account page links and CSP headers.
 
 The "hostname" is the result of the domain name minus the `webapp.` part of it. 
-So querying the webapp on `webapp.red.example.com` will resolve to `red.example.com`.
+So querying the webapp on `webapp.red.wire.example` will resolve to `red.wire.example`.
 
 To enable dynamic hostname replacement, first set this variable:
 
@@ -784,7 +784,7 @@ To enable dynamic hostname replacement, first set this variable:
 ENABLE_DYNAMIC_HOSTNAME="true"
 ```
 
-Then, any other variable that will contain the string `[[hostname]]` will be replaced by the hostname of the running webapp. (eg. if a webapp is running on `webapp.red.example.com` then any occurrence of `[[hostname]]` in the config will be replaced by `red.example.com`). 
+Then, any other variable that will contain the string `[[hostname]]` will be replaced by the hostname of the running webapp. (eg. if a webapp is running on `webapp.red.wire.example` then any occurrence of `[[hostname]]` in the config will be replaced by `red.wire.example`). 
 
 You may use the template variable `[[hostname]]` in any environment variable to not provide (reveal) actual domain names.
 

@@ -12,15 +12,15 @@ federating backend by combining them with the {ref}`backend domain
 <glossary_backend_domain>`.
 
 For example a user with user id `d389b370-5f7d-4efd-9f9a-8d525540ad93` on
-backend `b.example.com` has the *qualified user id*
-`d389b370-5f7d-4efd-9f9a-8d525540ad93@b.example.com`. In API request bodies
+backend `b.wire.example` has the *qualified user id*
+`d389b370-5f7d-4efd-9f9a-8d525540ad93@b.wire.example`. In API request bodies
 qualified identities are encoded as objects, e.g.
 
 ```
 {
   "user": {
       "id": "d389b370-5f7d-4efd-9f9a-8d525540ad93",
-      "domain": "b.example.com"
+      "domain": "b.wire.example"
   }
   ...
 }
@@ -28,7 +28,7 @@ qualified identities are encoded as objects, e.g.
 ```
 In API path segments qualified identities are encoded with the domain first, e.g.
 ```
-POST /connections/b.example.com/d389b370-5f7d-4efd-9f9a-8d525540ad93
+POST /connections/b.wire.example/d389b370-5f7d-4efd-9f9a-8d525540ad93
 ```
 to send a connection request to a user.
 
@@ -38,7 +38,7 @@ Any identifier on a backend can be qualified:
 - team ids
 - client ids
 - user ids
-- user handles, e.g. local handle `@alice` is displayed as `@alice@b.example.com` in federating users' devices
+- user handles, e.g. local handle `@alice` is displayed as `@alice@b.wire.example` in federating users' devices
 
 User profile names (e.g. "Alice") which are not unique on the user\'s backend,
 can be changed by the user at any time and are not qualified.
@@ -241,13 +241,13 @@ a distinct backend.
 
 ### User Discovery
 
-In this flow, the user *Alice* at *a.example.com* tries to search for user
-*Bob* at *b.example.com*.
+In this flow, the user *Alice* at *a.wire.example* tries to search for user
+*Bob* at *b.wire.example*.
 
 1.  User *Alice* enters the qualified user name of the target
-    user *Bob* : `@bob@b.example.com` into the search field of their Wire client.
+    user *Bob* : `@bob@b.wire.example` into the search field of their Wire client.
 2.  The client issues a query to `/search/contacts` of the Brig
-    searching for *Bob* at *b.example.com*.
+    searching for *Bob* at *b.wire.example*.
 3.  The Brig in *Alice*\'s backend asks its local *Federator* to query the
     `search-users` endpoint in *Bob*\'s backend.
 4.  *Alice*\'s *Federator* queries *Bob*\'s Brig via *Bob*\'s *Federation
@@ -261,13 +261,13 @@ In this flow, the user *Alice* at *a.example.com* tries to search for user
 
 ### Conversation Establishment
 
-After having discovered user *Bob* at *b.example.com*, user *Alice* at
-*a.example.com* wants to establish a conversation with *Bob*.
+After having discovered user *Bob* at *b.wire.example*, user *Alice* at
+*a.wire.example* wants to establish a conversation with *Bob*.
 
 1.  From the search results of a
     {ref}`user discovery<user-discovery>`
     process, *Alice* chooses to create a conversation with *Bob*.
-2.  *Alice*\'s client issues a `/users/b.example.com/<bobs-user-id>/prekeys` query to
+2.  *Alice*\'s client issues a `/users/b.wire.example/<bobs-user-id>/prekeys` query to
     *Alice*\'s Brig.
 3.  *Alice*\'s Brig asks its *Federator* to query the `claim-prekey-bundle`
     endpoint of *Bob*\'s backend using *Bob*\'s user id.
@@ -293,12 +293,12 @@ After having discovered user *Bob* at *b.example.com*, user *Alice* at
 
 ### Message Sending
 
-Having established a conversation with user *Bob* at *b.example.com*, user
-*Alice* at *a.example.com* wants to send a message to user *Bob*.
+Having established a conversation with user *Bob* at *b.wire.example*, user
+*Alice* at *a.wire.example* wants to send a message to user *Bob*.
 
-1.  In a conversation *\<conv-id-1\>@a.example.com* on *Alice*\'s backend with
+1.  In a conversation *\<conv-id-1\>@a.wire.example* on *Alice*\'s backend with
     users *Alice* and *Bob*, *Alice* sends a message
-    by using the `/conversations/a.example.com/<conv-id-1>/proteus/messages`
+    by using the `/conversations/a.wire.example/<conv-id-1>/proteus/messages`
     endpoint on *Alice*\'s Galley.
 2.  *Alice*\'s Galley checks if *A* included all necessary user devices in
     their request. For that it makes a `get-user-clients` request to

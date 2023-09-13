@@ -260,7 +260,7 @@ cannon:
   service:
     nginz:
       enabled: true
-      hostname: "nginz-ssl.example.com"
+      hostname: "nginz-ssl.wire.example"
       externalDNS:
         enabled: true
       certManager:

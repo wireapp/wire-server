@@ -25,12 +25,12 @@ brig:
     v1:
       # v1 entries can be ignored and are not in use anymore since end of 2018.
     v2:
-    - turn:server1.example.com:3478 # server 1 UDP
-    - turn:server1.example.com:3478?transport=tcp # server 1 TCP
-    - turns:server1.example.com:5478?transport=tcp # server 1 TLS
-    - turn:server2.example.com:3478 # server 2 UDP
-    - turn:server2.example.com:3478?transport=tcp # server 2 TCP
-    - turns:server2.example.com:5478?transport=tcp # server 2 TLS
+    - turn:server1.wire.example:3478 # server 1 UDP
+    - turn:server1.wire.example:3478?transport=tcp # server 1 TCP
+    - turns:server1.wire.example:5478?transport=tcp # server 1 TLS
+    - turn:server2.wire.example:3478 # server 2 UDP
+    - turn:server2.wire.example:3478?transport=tcp # server 2 TCP
+    - turns:server2.wire.example:5478?transport=tcp # server 2 TLS
   turn:
     serversSource: files
 ```
@@ -47,28 +47,28 @@ brig:
 # (...)
   turn:
     serversSource: dns
-    baseDomain: prod.example.com
+    baseDomain: prod.wire.example
     discoveryIntervalSeconds: 10
 ```
 
 When configured like this, the wire-server would look for these 3 SRV records
 every 10 seconds:
 
-1. `_turn._udp.prod.example.com` will be used to discover UDP hostnames and port for all the
+1. `_turn._udp.prod.wire.example` will be used to discover UDP hostnames and port for all the
    turn servers.
-2. `_turn._tcp.prod.example.com` will be used to discover the TCP hostnames and port for all
+2. `_turn._tcp.prod.wire.example` will be used to discover the TCP hostnames and port for all
    the turn servers.
-3. `_turns._tcp.prod.example.com` will be used to discover the TLS hostnames and port for
+3. `_turns._tcp.prod.wire.example` will be used to discover the TLS hostnames and port for
    all the turn servers.
 
 Entries with weight 0 will be ignored. Example:
 
 ```
-dig +retries=3 +short SRV _turn._udp.prod.example.com
+dig +retries=3 +short SRV _turn._udp.prod.wire.example
 
-0 0 3478 turn36.prod.example.com
-0 10 3478 turn34..prod.example.com
-0 10 3478 turn35.prod.example.com
+0 0 3478 turn36.prod.wire.example
+0 10 3478 turn34..prod.wire.example
+0 10 3478 turn35.prod.wire.example
 ```
 
 At least one of these 3 lookups must succeed for the wire-server to be able to
@@ -77,7 +77,7 @@ responses are served in the result.
 
 In addition, if there are any clients using the legacy endpoint, `GET
 /calls/config`, (all versions of all mobile apps since 2018 no longer use this) they will be served by the servers listed in the
-`_turn._udp.prod.example.com` SRV record. This endpoint, however, will not
+`_turn._udp.prod.wire.example` SRV record. This endpoint, however, will not
 serve the domain names received inside the SRV record, instead it will serve the
 first `A` record that is associated with each domain name in the SRV record.
 
@@ -181,12 +181,12 @@ brig:
     v1:
       # v1 entries can be ignored and are not in use anymore since end of 2018.
     v2:
-    - turn:server1.example.com:3478 # server 1 UDP
-    - turn:server1.example.com:3478?transport=tcp # server 1 TCP
-    - turns:server1.example.com:5478?transport=tcp # server 1 TLS
-    - turn:server2.example.com:3478 # server 2 UDP
-    - turn:server2.example.com:3478?transport=tcp # server 2 TCP
-    - turns:server2.example.com:5478?transport=tcp # server 2 TLS
+    - turn:server1.wire.example:3478 # server 1 UDP
+    - turn:server1.wire.example:3478?transport=tcp # server 1 TCP
+    - turns:server1.wire.example:5478?transport=tcp # server 1 TLS
+    - turn:server2.wire.example:3478 # server 2 UDP
+    - turn:server2.wire.example:3478?transport=tcp # server 2 TCP
+    - turns:server2.wire.example:5478?transport=tcp # server 2 TLS
 ```
 
 And you want to remove server 1, then change the configuration to read
@@ -194,9 +194,9 @@ And you want to remove server 1, then change the configuration to read
 ```yaml
 turnStatic:
   v2:
-    - turn:server2.example.com:3478 # server 2 UDP
-    - turn:server2.example.com:3478?transport=tcp # server 2 TCP
-    - turns:server2.example.com:5478?transport=tcp # server 2 TLS
+    - turn:server2.wire.example:3478 # server 2 UDP
+    - turn:server2.wire.example:3478?transport=tcp # server 2 TCP
+    - turns:server2.wire.example:5478?transport=tcp # server 2 TLS
 ```
 
 (or comment out lines by adding a `#` in front of the respective line)
@@ -204,12 +204,12 @@ turnStatic:
 ```yaml
 turnStatic:
   v2:
-  #- turn:server1.example.com:3478 # server 1 UDP
-  #- turn:server1.example.com:3478?transport=tcp # server 1 TCP
-  #- turns:server1.example.com:5478?transport=tcp # server 1 TLS
-  - turn:server2.example.com:3478 # server 2 UDP
-  - turn:server2.example.com:3478?transport=tcp # server 2 TCP
-  - turns:server2.example.com:5478?transport=tcp # server 2 TLS
+  #- turn:server1.wire.example:3478 # server 1 UDP
+  #- turn:server1.wire.example:3478?transport=tcp # server 1 TCP
+  #- turns:server1.wire.example:5478?transport=tcp # server 1 TLS
+  - turn:server2.wire.example:3478 # server 2 UDP
+  - turn:server2.wire.example:3478?transport=tcp # server 2 TCP
+  - turns:server2.wire.example:5478?transport=tcp # server 2 TLS
 ```
 
 Next, apply these changes to configuration with `./bin/prod-setup.sh`
@@ -267,21 +267,21 @@ May return something like:
       {
          "credential" : "ASyFLXqbmg8fuK4chJG3S1Qg4L/nnhpkN0/UctdtTFbGW1AcuuAaOqUMDhm9V2w7zKHY6PPMqjhwKZ2neSE78g==",
          "urls" : [
-            "turn:turn1.example.com:3478"
+            "turn:turn1.wire.example:3478"
          ],
          "username" : "d=1582157904.v=1.k=0.t=s.r=mbzovplogqxbasbf"
       },
       {
          "credential" : "ZsxEtGWbpUZ3QWxPZtbX6g53HXu6PWfhhUfGNqRBJjrsly5w9IPAsuAWLEOP7fsoSXF13mgSPROXxMYAB/fQ6g==",
          "urls" : [
-            "turn:turn1.example.com:3478?transport=tcp"
+            "turn:turn1.wire.example:3478?transport=tcp"
          ],
          "username" : "d=1582157904.v=1.k=0.t=s.r=jsafnwtgqhfqjvco"
       },
       {
          "credential" : "ZsxEtGWbpUZ3QWxPZtbX6g53HXu6PWfhhUfGNqRBJjrsly5w9IPAsuAWLEOP7fsoSXF13mgSPROXxMYAB/fQ6g==",
          "urls" : [
-            "turns:turn1.example.com:5349?transport=tcp"
+            "turns:turn1.wire.example:5349?transport=tcp"
          ],
          "username" : "d=1582157904.v=1.k=0.t=s.r=jsafnwtgqhfqjvco"
       }

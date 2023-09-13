@@ -54,8 +54,8 @@ If you talk to any other backend, the development version may differ.
 Try to ask the backend you're talking if it exposes its docs itself:
 
 ```
-curl https://nginz-https.<custom-staging>.example.com/<version>/api/swagger-ui/
-curl https://nginz-https.<custom-staging>.example.com/<version>/api/swagger.json
+curl https://nginz-https.<custom-staging>.wire.example/<version>/api/swagger-ui/
+curl https://nginz-https.<custom-staging>.wire.example/<version>/api/swagger.json
 ```
 
 ### Internal endpoints
