@@ -18,7 +18,7 @@ tags:
 
 sftd:
   host: sftd.example.com # Replace example.com with your domain
-    allowOrigin: https://webapp.example.com # Should be the address you used for the webapp deployment (Note: you must include the uri schema "https://")
+  allowOrigin: https://webapp.example.com # Should be the address you used for the webapp deployment (Note: you must include the uri scheme "https://")
 ```
 
 In your `secrets.yaml` you should set the TLS keys for sftd domain:
