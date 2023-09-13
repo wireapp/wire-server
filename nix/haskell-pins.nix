@@ -173,6 +173,13 @@ let
         sha256 = "sha256-SKEE9ZqhjBxHYUKQaoB4IpN4/Ui3tS4S98FgZqj7WlY=";
       };
     };
+    servant-openapi3 = {
+      src = fetchgit {
+        url = "https://github.com/lepsa/servant-openapi3";
+        rev = "5cdb2783f15058f753c41b800415d4ba1149a78b";
+        sha256 = "sha256-8FM3IAA3ewCuv9Mar8aWmzbyfKK9eLXIJPMHzmYb1zE=";
+      };
+    };
     # This can be removed once postie 0.6.0.3 (or later) is in nixpkgs
     postie = {
       src = fetchgit {

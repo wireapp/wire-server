@@ -49,6 +49,7 @@ where
 import Control.Lens (at, (%~), (.~), (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Aeson qualified as A
+import Data.HashMap.Strict.InsOrd
 import Data.Kind
 import Data.Metrics.Servant
 import Data.OpenApi qualified as S
@@ -215,9 +216,17 @@ errorResponseSwagger :: forall e. (Typeable e, KnownError e) => S.Response
 errorResponseSwagger =
   mempty
     & S.description .~ (eMessage err <> " (label: `" <> eLabel err <> "`)")
-    & S.content . traverse . S.schema ?~ S.Inline (S.toSchema (Proxy @(SStaticError e)))
+    -- Defaulting this to JSON, as openapi3 needs something to map a schema against.
+    -- This _should_ be overridden with the actual media types once we are at the
+    -- point of rendering out the schemas for MultiVerb.
+    -- Check the instance of `S.HasOpenApi (MultiVerb method (cs :: [Type]) as r)`
+    & S.content .~ singleton mediaType mediaTypeObject
   where
     err = dynError @e
+    mediaType = contentType $ Proxy @JSON
+    mediaTypeObject =
+      mempty
+        & S.schema ?~ S.Inline (S.toSchema (Proxy @(SStaticError e)))
 
 addErrorResponseToSwagger :: Int -> S.Response -> S.OpenApi -> S.OpenApi
 addErrorResponseToSwagger code resp =

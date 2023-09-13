@@ -757,8 +757,8 @@ instance
       (defs, resps) = S.runDeclare (responseListSwagger @as) mempty
       -- We need to zip them together, and stick it all back into the contentMap
       -- Since we have a single schema per type, and are only changing the content-types,
-      -- we should be able to pick a schema out of the resps' map, and then use it in for
-      -- all of the values out of cs
+      -- we should be able to pick a schema out of the resps' map, and then use it for
+      -- all of the values of cs
       addMime :: S.Response -> S.Response
       addMime resp =
         resp
