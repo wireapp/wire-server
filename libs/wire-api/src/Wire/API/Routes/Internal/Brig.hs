@@ -764,16 +764,6 @@ type FederationRemotesAPI =
                :> ReqBody '[JSON] FederationDomainConfig
                :> Put '[JSON] ()
            )
-    :<|> Named
-           "delete-federation-remotes"
-           ( Description "Jira:WPB-4668: this is disabled (to avoid running into a scalability issue)."
-               -- :> Description FederationRemotesAPIDescription
-               -- :> Description FederationRemotesAPIDeleteDescription
-               :> "federation"
-               :> "remotes"
-               :> Capture "domain" Domain
-               :> Delete '[JSON] ()
-           )
     -- This is nominally similar to delete-federation-remotes,
     -- but is called from Galley to delete the one-on-one coversations.
     -- This is needed as Galley doesn't have access to the tables
