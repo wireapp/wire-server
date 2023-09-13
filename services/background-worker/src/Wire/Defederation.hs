@@ -1,16 +1,34 @@
 module Wire.Defederation where
 
+import Cassandra
 import Control.Concurrent.Async
+import Control.Error
 import Control.Monad.Catch
 import Data.Aeson qualified as A
 import Data.ByteString.Conversion
-import Data.Domain
+import Data.Data (Proxy (Proxy))
+import Data.Qualified
+import Data.Range (toRange)
+import Data.Text (unpack)
+import Galley.API.Error
+import Galley.API.Internal qualified as Galley
+import Galley.Effects
+import Galley.Effects.DefederationNotifications (DefederationNotifications)
 import Imports
 import Network.AMQP qualified as Q
 import Network.AMQP.Extended
 import Network.AMQP.Lifted qualified as QL
+import Network.Wai.Utilities.JSONResponse (JSONResponse)
+import Polysemy
+import Polysemy.Error
+import Polysemy.Input
+import Polysemy.TinyLog
+import Servant.Client (BaseUrl (BaseUrl), ClientEnv (ClientEnv), Scheme (Http), defaultMakeClientRequest)
 import System.Logger.Class qualified as Log
+import UnliftIO.Exception qualified as UnliftIO
+import Util.Options (Endpoint (Endpoint))
 import Wire.API.Federation.BackendNotifications
+import Wire.API.Federation.Error
 import Wire.BackgroundWorker.Env
 import Wire.BackgroundWorker.Util
 
@@ -33,13 +51,14 @@ deleteFederationDomainInner' go (msg, envelope) = do
     (go envelope)
     $ A.eitherDecode @DefederationDomain (Q.msgBody msg)
   where
-    logErr err =
+    logErr e =
       Log.err $
         Log.msg (Log.val "Failed to delete federation domain")
-          . Log.field "error" err
+          . Log.field "error" e
 
 callGalleyDelete ::
-  ( MonadMask m,
+  ( MonadReader Env m,
+    MonadMask m,
     ToByteString a,
     RabbitMQEnvelope e,
     MonadIO m
@@ -49,14 +68,50 @@ callGalleyDelete ::
   a ->
   m ()
 callGalleyDelete runningFlag envelope domain = do
+  env <- ask
   bracket_ (takeMVar runningFlag) (putMVar runningFlag ()) $ do
-    liftIO $ case fromByteString' @Domain $ toByteString domain of
-      Just _ -> do
-        -- internalDeleteFederationDomain undefined d
+    liftIO $ case fromByteString' @DefederationDomain $ toByteString domain of
+      Just d -> do
+        let ld = toLocalUnsafe env.federationDomain ()
+            rd = toRemoteUnsafe d ()
+            c = mkClientEnv env.httpManager env.brig
+            r = toRange (Proxy @500)
+        evalToIO $ Galley.internalDeleteFederationDomain c r ld rd
         ack envelope
       Nothing ->
         -- reject the message without requeuing it
         reject envelope False
+  where
+    mkClientEnv mgr (Endpoint h p) = ClientEnv mgr (BaseUrl Http (unpack h) (fromIntegral p) "") Nothing defaultMakeClientRequest
+
+evalToIO :: Sem GalleyEffects a -> IO a
+evalToIO action = do
+  r <-
+    -- log IO exceptions
+    runExceptT (eval action) `UnliftIO.catch` \(e :: SomeException) -> do
+      UnliftIO.throwIO e
+  case r of
+    -- throw any errors as IO exceptions without logging them
+    Left e -> UnliftIO.throwIO e
+    Right a -> pure a
+
+eval :: Sem GalleyEffects a -> ExceptT JSONResponse IO a
+eval =
+  ExceptT . (error ("todo"))
+
+
+type GalleyEffects =
+  '[ Input ClientState,
+     TinyLog,
+     Embed IO,
+     Error FederationError,
+     Error InternalError,
+     MemberStore,
+     ConversationStore,
+     CodeStore,
+     TeamStore,
+     DefederationNotifications
+   ]
 
 -- What should we do with non-recoverable (unparsable) errors/messages?
 -- should we deadletter, or do something else?

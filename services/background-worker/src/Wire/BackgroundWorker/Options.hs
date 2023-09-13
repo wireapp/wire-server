@@ -1,6 +1,7 @@
 module Wire.BackgroundWorker.Options where
 
 import Data.Aeson
+import Data.Domain
 import Imports
 import Network.AMQP.Extended
 import System.Logger.Extended
@@ -16,7 +17,8 @@ data Opts = Opts
     brig :: !Endpoint,
     -- | Seconds, Nothing for no timeout
     defederationTimeout :: Maybe Int,
-    backendNotificationPusher :: BackendNotificationsConfig
+    backendNotificationPusher :: BackendNotificationsConfig,
+    federationDomain :: Domain
   }
   deriving (Show, Generic)
 

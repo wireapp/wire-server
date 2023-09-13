@@ -33,9 +33,12 @@ library
     , async
     , base
     , bytestring-conversion
+    , cassandra-util
     , containers
+    , errors
     , exceptions
     , extended
+    , galley
     , HsOpenSSL
     , http-client
     , http2-manager
@@ -43,6 +46,8 @@ library
     , metrics-core
     , metrics-wai
     , monad-control
+    , polysemy
+    , polysemy-wire-zoo
     , prometheus-client
     , retry
     , servant-client

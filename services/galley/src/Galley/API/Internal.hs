@@ -27,11 +27,9 @@ module Galley.API.Internal
   )
 where
 
-import Bilge.Retry
 import Cassandra (ClientState, Consistency (LocalQuorum), Page (hasMore, nextPage, result), paginate, paramsP)
 import Control.Exception.Safe (catchAny)
 import Control.Lens hiding (Getter, Setter, (.=))
-import Control.Retry
 import Data.Id as Id
 import Data.List.NonEmpty qualified as N
 import Data.List1 (maybeList1)
@@ -61,12 +59,16 @@ import Galley.API.Util
 import Galley.App
 import Galley.Cassandra.Queries qualified as Q
 import Galley.Cassandra.Store (embedClient)
+import Galley.Data.Conversation (convTeam)
 import Galley.Data.Conversation qualified as Data
 import Galley.Data.Conversation.Types
+import Galley.Data.Scope (Scope (ReusableCode))
 import Galley.Effects
 import Galley.Effects.BackendNotificationQueueAccess
 import Galley.Effects.ClientStore
+import Galley.Effects.CodeStore qualified as E
 import Galley.Effects.ConversationStore
+import Galley.Effects.ConversationStore qualified as E
 import Galley.Effects.DefederationNotifications (DefederationNotifications, sendDefederationNotifications)
 import Galley.Effects.FederatorAccess
 import Galley.Effects.GundeckAccess
@@ -75,6 +77,7 @@ import Galley.Effects.MemberStore
 import Galley.Effects.MemberStore qualified as E
 import Galley.Effects.ProposalStore
 import Galley.Effects.TeamStore
+import Galley.Effects.TeamStore qualified as E
 import Galley.Intra.Push qualified as Intra
 import Galley.Monad
 import Galley.Options hiding (brig)
@@ -107,7 +110,6 @@ import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
-import Wire.API.FederationUpdate
 import Wire.API.Provider.Service hiding (Service)
 import Wire.API.Routes.API
 import Wire.API.Routes.Internal.Galley
@@ -493,15 +495,12 @@ guardLegalholdPolicyConflictsH glh = do
 -- Errors & exceptions are thrown to IO to stop the message being ACKed, eventually timing it
 -- out so that it can be redelivered.
 deleteFederationDomain ::
-  ( Member (P.Logger (Msg -> Msg)) r,
-    Member (Error FederationError) r,
-    Member MemberStore r,
+  ( Member MemberStore r,
     Member (Input ClientState) r,
     Member ConversationStore r,
     Member (Embed IO) r,
     Member CodeStore r,
-    Member TeamStore r,
-    Member (Error InternalError) r
+    Member TeamStore r
   ) =>
   ClientEnv ->
   Range 1 2000 Int32 ->
@@ -511,19 +510,17 @@ deleteFederationDomain ::
 deleteFederationDomain c range ld d = do
   deleteFederationDomainRemoteUserFromLocalConversations range ld d
   deleteFederationDomainLocalUserFromRemoteConversation range d
+  -- TODO: this cleanup of brig DB needs to be removed from here and be done from the background-worker
   deleteFederationDomainOneOnOne c d
 
 internalDeleteFederationDomain ::
-  ( Member (P.Logger (Msg -> Msg)) r,
-    Member (Error FederationError) r,
-    Member MemberStore r,
+  ( Member MemberStore r,
     Member ConversationStore r,
     Member (Embed IO) r,
     Member (Input ClientState) r,
     Member CodeStore r,
     Member TeamStore r,
-    Member DefederationNotifications r,
-    Member (Error InternalError) r
+    Member DefederationNotifications r
   ) =>
   ClientEnv ->
   Range 1 2000 Int32 ->
@@ -542,9 +539,7 @@ internalDeleteFederationDomain c range localDomain domain = do
 -- Remove remote members from local conversations
 deleteFederationDomainRemoteUserFromLocalConversations ::
   forall r a.
-  ( Member (P.Logger (Msg -> Msg)) r,
-    Member (Error FederationError) r,
-    Member (Input ClientState) r,
+  ( Member (Input ClientState) r,
     Member (Embed IO) r,
     Member MemberStore r,
     Member ConversationStore r,
@@ -566,49 +561,34 @@ deleteFederationDomainRemoteUserFromLocalConversations (fromRange -> maxPage) lD
       getPaginatedData page
   let lCnvMap = foldr insertIntoMap mempty remoteUsers
   for_ (Map.toList lCnvMap) $ \(cnvId, rUsers) -> do
-    let mapAllErrors ::
-          Text ->
-          Sem (Error NoChanges ': ErrorS 'NotATeamMember ': r) () ->
-          Sem r ()
-        mapAllErrors msgText =
-          -- This can be thrown in `updateLocalConversationUserUnchecked @'ConversationDeleteTag`.
-          P.logAndIgnoreErrors @(Tagged 'NotATeamMember ()) (const "Not a team member") msgText
-            -- This can be thrown in `updateLocalConversationUserUnchecked @'ConversationRemoveMembersTag`
-            . P.logAndIgnoreErrors @NoChanges (const "No changes") msgText
-
-    mapAllErrors "Federation domain removal" $ do
-      getConversation cnvId
-        >>= maybe (pure () {- conv already gone, nothing to do -}) (delConv rUsers)
+    getConversation cnvId
+      >>= maybe (pure () {- conv already gone, nothing to do -}) (delConv rUsers)
   where
     mkConvMem (convId, usr, role) = (convId, RemoteMember (rDom $> usr) role)
     delConv ::
       N.NonEmpty RemoteMember ->
       Galley.Data.Conversation.Types.Conversation ->
-      Sem (Error NoChanges : ErrorS 'NotATeamMember : r) ()
+      Sem r ()
     delConv rUsers conv =
       do
         let lConv = lDom $> conv
-        updateLocalConversationUserUnchecked
-          @'ConversationRemoveMembersTag
-          lConv
-          undefined
-          $ tUntagged . rmId <$> rUsers -- This field can be undefined as the path for ConversationRemoveMembersTag doens't use it
-          -- Check if the conversation if type 2 or 3, one-on-one conversations.
-          -- If it is, then we need to remove the entire conversation as users
-          -- aren't able to delete those types of conversations themselves.
-          -- Check that we are in a type 2 or a type 3 conversation
-        when (cnvmType (convMetadata conv) `elem` [One2OneConv, ConnectConv]) $
+        let presentVictims = filter (isConvMemberL lConv) (toList (tUntagged . rmId <$> rUsers))
+        E.deleteMembers conv.convId (toUserList lConv presentVictims)
+        -- Check if the conversation if type 2 or 3, one-on-one conversations.
+        -- If it is, then we need to remove the entire conversation as users
+        -- aren't able to delete those types of conversations themselves.
+        -- Check that we are in a type 2 or a type 3 conversation
+        when (cnvmType (convMetadata conv) `elem` [One2OneConv, ConnectConv]) $ do
           -- If we are, delete it.
-          updateLocalConversationUserUnchecked
-            @'ConversationDeleteTag
-            lConv
-            undefined
-            ()
+          key <- E.makeKey conv.convId
+          E.deleteCode key ReusableCode
+          case convTeam conv of
+            Nothing -> E.deleteConversation conv.convId
+            Just tid -> E.deleteTeamConversation tid conv.convId
 
 -- Remove local members from remote conversations
 deleteFederationDomainLocalUserFromRemoteConversation ::
-  ( Member (Error InternalError) r,
-    Member (Input ClientState) r,
+  ( Member (Input ClientState) r,
     Member (Embed IO) r,
     Member MemberStore r
   ) =>
@@ -625,9 +605,7 @@ deleteFederationDomainLocalUserFromRemoteConversation (fromRange -> maxPage) rDo
             paramsP LocalQuorum (Identity dom) maxPage
       getPaginatedData page
   for_ (Map.toList remoteConvs) $ \(cnv, lUsers) -> do
-    -- All errors, either exceptions or Either e, get thrown into IO
-    mapError @NoChanges (const (InternalErrorWithDescription "No Changes: Could not remove a local member from a remote conversation.")) $ do
-      E.deleteMembersInRemoteConversation (toRemoteUnsafe dom cnv) (N.toList lUsers)
+    E.deleteMembersInRemoteConversation (toRemoteUnsafe dom cnv) (N.toList lUsers)
 
 -- These need to be recoverable?
 -- This is recoverable with the following flow conditions.
@@ -636,12 +614,11 @@ deleteFederationDomainLocalUserFromRemoteConversation (fromRange -> maxPage) rDo
 --    The calling function needs to catch thrown exceptions and NACK the deletion
 --    message. This will allow Rabbit to redeliver the message and give us a second
 --    go at performing the deletion.
-deleteFederationDomainOneOnOne :: (Member (Embed IO) r) => ClientEnv -> Remote a -> Sem r ()
-deleteFederationDomainOneOnOne c rDom = do
-  -- This is the same policy as background-worker for retrying.
-  let dom = tDomain rDom
-  let policy = capDelay 60_000_000 $ fullJitterBackoff 200_000
-  void . liftIO . recovering policy httpHandlers $ \_ -> deleteFederationRemoteGalley dom c
+deleteFederationDomainOneOnOne :: ClientEnv -> Remote a -> Sem r ()
+deleteFederationDomainOneOnOne _c _rDom =
+  -- TODO: remove this, see comment above
+  pure ()
+
 
 getPaginatedData ::
   ( Member (Input ClientState) r,

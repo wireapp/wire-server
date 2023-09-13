@@ -233,6 +233,7 @@ spec = do
           galley = Endpoint "localhost" 8085
           brig = Endpoint "localhost" 8082
           backendNotificationsConfig = BackendNotificationsConfig 1000 500000
+          federationDomain = Domain "example.com"
 
       backendNotificationMetrics <- mkBackendNotificationMetrics
       domains <- runAppT Env {..} getRemoteDomains
@@ -256,6 +257,7 @@ spec = do
           galley = Endpoint "localhost" 8085
           brig = Endpoint "localhost" 8082
           backendNotificationsConfig = BackendNotificationsConfig 1000 500000
+          federationDomain = Domain "example.com"
       backendNotificationMetrics <- mkBackendNotificationMetrics
       domainsThread <- async $ runAppT Env {..} getRemoteDomains
 

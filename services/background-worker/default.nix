@@ -7,13 +7,15 @@
 , amqp
 , async
 , base
-, bilge
 , bytestring
 , bytestring-conversion
+, cassandra-util
 , containers
+, errors
 , exceptions
 , extended
 , federator
+, galley
 , gitignoreSource
 , HsOpenSSL
 , hspec
@@ -23,11 +25,12 @@
 , http2-manager
 , HUnit
 , imports
-, lens
 , lib
 , metrics-core
 , metrics-wai
 , monad-control
+, polysemy
+, polysemy-wire-zoo
 , prometheus-client
 , QuickCheck
 , retry
@@ -57,20 +60,22 @@ mkDerivation {
     amqp
     async
     base
-    bilge
     bytestring-conversion
+    cassandra-util
     containers
+    errors
     exceptions
     extended
+    galley
     HsOpenSSL
     http-client
-    http-types
     http2-manager
     imports
-    lens
     metrics-core
     metrics-wai
     monad-control
+    polysemy
+    polysemy-wire-zoo
     prometheus-client
     retry
     servant-client

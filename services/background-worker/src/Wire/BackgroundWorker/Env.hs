@@ -8,6 +8,7 @@ import Control.Concurrent.Chan
 import Control.Monad.Base
 import Control.Monad.Catch
 import Control.Monad.Trans.Control
+import Data.Domain
 import Data.Map.Strict qualified as Map
 import Data.Metrics qualified as Metrics
 import HTTP2.Client.Manager
@@ -55,7 +56,8 @@ data Env = Env
     -- This allows us to reuse existing code. This only pushes.
     notificationChannel :: MVar Channel,
     backendNotificationsConfig :: BackendNotificationsConfig,
-    statuses :: IORef (Map Worker IsWorking)
+    statuses :: IORef (Map Worker IsWorking),
+    federationDomain :: Domain
   }
 
 data BackendNotificationMetrics = BackendNotificationMetrics
@@ -103,6 +105,7 @@ mkEnv opts = do
   backendNotificationMetrics <- mkBackendNotificationMetrics
   notificationChannel <- mkRabbitMqChannelMVar logger $ demoteOpts opts.rabbitmq
   let backendNotificationsConfig = opts.backendNotificationPusher
+  let federationDomain = opts.federationDomain
   pure (Env {..}, syncThread)
 
 initHttp2Manager :: IO Http2Manager

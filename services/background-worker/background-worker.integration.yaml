@@ -25,3 +25,5 @@ rabbitmq:
 backendNotificationPusher:
   pushBackoffMinWait: 1000
   pushBackoffMaxWait: 1000000
+
+federationDomain: example.com

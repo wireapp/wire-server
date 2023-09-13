@@ -12,6 +12,7 @@ import Wire.BackgroundWorker.Env hiding (federatorInternal, galley)
 import Wire.BackgroundWorker.Env qualified as E
 import Wire.BackgroundWorker.Options
 import Wire.BackgroundWorker.Util
+import Data.Domain (Domain(..))
 
 testEnv :: IO Env
 testEnv = do
@@ -31,6 +32,7 @@ testEnv = do
       brig = Endpoint "localhost" 8082
       defederationTimeout = responseTimeoutNone
       backendNotificationsConfig = BackendNotificationsConfig 1000 500000
+      federationDomain = Domain "example.com"
   pure Env {..}
 
 runTestAppT :: AppT IO a -> Int -> IO a
