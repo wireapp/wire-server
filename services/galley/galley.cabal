@@ -20,6 +20,7 @@ library
   exposed-modules:
     Galley.API
     Galley.API.Action
+    Galley.API.BackgroundProcesses
     Galley.API.Clients
     Galley.API.Create
     Galley.API.CustomBackend

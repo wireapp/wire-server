@@ -21,19 +21,13 @@ module Galley.API.Internal
     InternalAPI,
     deleteLoop,
     safeForever,
-    -- Exported for tests
-    deleteFederationDomain,
-    internalDeleteFederationDomain,
   )
 where
 
-import Cassandra (ClientState, Consistency (LocalQuorum), Page (hasMore, nextPage, result), paginate, paramsP)
 import Control.Exception.Safe (catchAny)
 import Control.Lens hiding (Getter, Setter, (.=))
 import Data.Id as Id
-import Data.List.NonEmpty qualified as N
 import Data.List1 (maybeList1)
-import Data.Map qualified as Map
 import Data.Qualified
 import Data.Range
 import Data.Singletons
@@ -43,7 +37,6 @@ import Galley.API.Clients qualified as Clients
 import Galley.API.Create qualified as Create
 import Galley.API.CustomBackend qualified as CustomBackend
 import Galley.API.Error
-import Galley.API.Federation (insertIntoMap)
 import Galley.API.LegalHold (unsetTeamLegalholdWhitelistedH)
 import Galley.API.LegalHold.Conflicts
 import Galley.API.MLS.Removal
@@ -57,34 +50,24 @@ import Galley.API.Teams.Features
 import Galley.API.Update qualified as Update
 import Galley.API.Util
 import Galley.App
-import Galley.Cassandra.Queries qualified as Q
-import Galley.Cassandra.Store (embedClient)
-import Galley.Data.Conversation (convTeam)
 import Galley.Data.Conversation qualified as Data
-import Galley.Data.Conversation.Types
-import Galley.Data.Scope (Scope (ReusableCode))
 import Galley.Effects
 import Galley.Effects.BackendNotificationQueueAccess
 import Galley.Effects.ClientStore
-import Galley.Effects.CodeStore qualified as E
 import Galley.Effects.ConversationStore
-import Galley.Effects.ConversationStore qualified as E
-import Galley.Effects.DefederationNotifications (DefederationNotifications, sendDefederationNotifications)
 import Galley.Effects.FederatorAccess
 import Galley.Effects.GundeckAccess
 import Galley.Effects.LegalHoldStore as LegalHoldStore
 import Galley.Effects.MemberStore
-import Galley.Effects.MemberStore qualified as E
 import Galley.Effects.ProposalStore
 import Galley.Effects.TeamStore
-import Galley.Effects.TeamStore qualified as E
 import Galley.Intra.Push qualified as Intra
 import Galley.Monad
 import Galley.Options hiding (brig)
 import Galley.Queue qualified as Q
 import Galley.Types.Bot (AddBot, RemoveBot)
 import Galley.Types.Bot.Service
-import Galley.Types.Conversations.Members (RemoteMember (RemoteMember, rmId))
+import Galley.Types.Conversations.Members (RemoteMember (rmId))
 import Galley.Types.UserList
 import Imports hiding (head)
 import Network.AMQP qualified as Q
@@ -98,7 +81,6 @@ import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog qualified as P
 import Servant hiding (JSON, WithStatus)
-import Servant.Client
 import System.Logger.Class hiding (Path, name)
 import System.Logger.Class qualified as Log
 import Wire.API.Conversation hiding (Member)
@@ -490,144 +472,3 @@ guardLegalholdPolicyConflictsH ::
 guardLegalholdPolicyConflictsH glh = do
   mapError @LegalholdConflicts (const $ Tagged @'MissingLegalholdConsent ()) $
     guardLegalholdPolicyConflicts (glhProtectee glh) (glhUserClients glh)
-
--- Bundle all of the deletes together for easy calling
--- Errors & exceptions are thrown to IO to stop the message being ACKed, eventually timing it
--- out so that it can be redelivered.
-deleteFederationDomain ::
-  ( Member MemberStore r,
-    Member (Input ClientState) r,
-    Member ConversationStore r,
-    Member (Embed IO) r,
-    Member CodeStore r,
-    Member TeamStore r
-  ) =>
-  ClientEnv ->
-  Range 1 2000 Int32 ->
-  Local a ->
-  Remote a ->
-  Sem r ()
-deleteFederationDomain c range ld d = do
-  deleteFederationDomainRemoteUserFromLocalConversations range ld d
-  deleteFederationDomainLocalUserFromRemoteConversation range d
-  -- TODO: this cleanup of brig DB needs to be removed from here and be done from the background-worker
-  deleteFederationDomainOneOnOne c d
-
-internalDeleteFederationDomain ::
-  ( Member MemberStore r,
-    Member ConversationStore r,
-    Member (Embed IO) r,
-    Member (Input ClientState) r,
-    Member CodeStore r,
-    Member TeamStore r,
-    Member DefederationNotifications r
-  ) =>
-  ClientEnv ->
-  Range 1 2000 Int32 ->
-  Local a ->
-  Remote a ->
-  Sem r ()
-internalDeleteFederationDomain c range localDomain domain = do
-  -- We have to send the same event twice.
-  -- Once before and once after defederation work.
-  -- https://wearezeta.atlassian.net/wiki/spaces/ENGINEERIN/pages/809238539/Use+case+Stopping+to+federate+with+a+domain
-  let remoteDomain = tDomain domain
-  sendDefederationNotifications range remoteDomain
-  deleteFederationDomain c range localDomain domain
-  sendDefederationNotifications range remoteDomain
-
--- Remove remote members from local conversations
-deleteFederationDomainRemoteUserFromLocalConversations ::
-  forall r a.
-  ( Member (Input ClientState) r,
-    Member (Embed IO) r,
-    Member MemberStore r,
-    Member ConversationStore r,
-    Member CodeStore r,
-    Member TeamStore r
-  ) =>
-  Range 1 2000 Int32 ->
-  Local a ->
-  Remote a ->
-  Sem r ()
-deleteFederationDomainRemoteUserFromLocalConversations (fromRange -> maxPage) lDom rDom = do
-  let dom = tDomain rDom
-  remoteUsers <-
-    mkConvMem <$$> do
-      page <-
-        embedClient $
-          paginate Q.selectRemoteMembersByDomain $
-            paramsP LocalQuorum (Identity dom) maxPage
-      getPaginatedData page
-  let lCnvMap = foldr insertIntoMap mempty remoteUsers
-  for_ (Map.toList lCnvMap) $ \(cnvId, rUsers) -> do
-    getConversation cnvId
-      >>= maybe (pure () {- conv already gone, nothing to do -}) (delConv rUsers)
-  where
-    mkConvMem (convId, usr, role) = (convId, RemoteMember (rDom $> usr) role)
-    delConv ::
-      N.NonEmpty RemoteMember ->
-      Galley.Data.Conversation.Types.Conversation ->
-      Sem r ()
-    delConv rUsers conv =
-      do
-        let lConv = lDom $> conv
-        let presentVictims = filter (isConvMemberL lConv) (toList (tUntagged . rmId <$> rUsers))
-        E.deleteMembers conv.convId (toUserList lConv presentVictims)
-        -- Check if the conversation if type 2 or 3, one-on-one conversations.
-        -- If it is, then we need to remove the entire conversation as users
-        -- aren't able to delete those types of conversations themselves.
-        -- Check that we are in a type 2 or a type 3 conversation
-        when (cnvmType (convMetadata conv) `elem` [One2OneConv, ConnectConv]) $ do
-          -- If we are, delete it.
-          key <- E.makeKey conv.convId
-          E.deleteCode key ReusableCode
-          case convTeam conv of
-            Nothing -> E.deleteConversation conv.convId
-            Just tid -> E.deleteTeamConversation tid conv.convId
-
--- Remove local members from remote conversations
-deleteFederationDomainLocalUserFromRemoteConversation ::
-  ( Member (Input ClientState) r,
-    Member (Embed IO) r,
-    Member MemberStore r
-  ) =>
-  Range 1 2000 Int32 ->
-  Remote a ->
-  Sem r ()
-deleteFederationDomainLocalUserFromRemoteConversation (fromRange -> maxPage) rDom = do
-  let dom = tDomain rDom
-  remoteConvs <-
-    foldr insertIntoMap mempty <$> do
-      page <-
-        embedClient $
-          paginate Q.selectLocalMembersByDomain $
-            paramsP LocalQuorum (Identity dom) maxPage
-      getPaginatedData page
-  for_ (Map.toList remoteConvs) $ \(cnv, lUsers) -> do
-    E.deleteMembersInRemoteConversation (toRemoteUnsafe dom cnv) (N.toList lUsers)
-
--- These need to be recoverable?
--- This is recoverable with the following flow conditions.
--- 1) Deletion calls to the Brig endpoint `delete-federation-remote-from-galley` are idempotent for a given domain.
--- 2) This call is made from a function that is backed by a RabbitMQ queue.
---    The calling function needs to catch thrown exceptions and NACK the deletion
---    message. This will allow Rabbit to redeliver the message and give us a second
---    go at performing the deletion.
-deleteFederationDomainOneOnOne :: ClientEnv -> Remote a -> Sem r ()
-deleteFederationDomainOneOnOne _c _rDom =
-  -- TODO: remove this, see comment above
-  pure ()
-
-
-getPaginatedData ::
-  ( Member (Input ClientState) r,
-    Member (Embed IO) r
-  ) =>
-  Page a ->
-  Sem r [a]
-getPaginatedData page
-  | hasMore page =
-      (result page <>) <$> do
-        getPaginatedData <=< embedClient $ nextPage page
-  | otherwise = pure $ result page

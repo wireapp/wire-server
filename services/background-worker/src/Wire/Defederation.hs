@@ -10,10 +10,11 @@ import Data.Data (Proxy (Proxy))
 import Data.Qualified
 import Data.Range (toRange)
 import Data.Text (unpack)
+import Galley.API.BackgroundProcesses qualified as Galley
 import Galley.API.Error
-import Galley.API.Internal qualified as Galley
 import Galley.Effects
 import Galley.Effects.DefederationNotifications (DefederationNotifications)
+import Galley.Effects.DefederationNotifications qualified as E
 import Imports
 import Network.AMQP qualified as Q
 import Network.AMQP.Extended
@@ -74,9 +75,15 @@ callGalleyDelete runningFlag envelope domain = do
       Just d -> do
         let ld = toLocalUnsafe env.federationDomain ()
             rd = toRemoteUnsafe d ()
-            c = mkClientEnv env.httpManager env.brig
-            r = toRange (Proxy @500)
-        evalToIO $ Galley.internalDeleteFederationDomain c r ld rd
+            _c = mkClientEnv env.httpManager env.brig
+            maxPage = toRange (Proxy @500)
+        evalToIO $ do
+          E.sendDefederationNotifications maxPage (tDomain ld)
+          Galley.unsafeRemoveRemoteMembersFromLocalConversation maxPage ld rd
+          Galley.unsafeRemoveLocalMembersFromRemoteConversation maxPage rd
+          -- todo: remove connections
+          -- todo: remove 1:1 conversations
+          E.sendDefederationNotifications maxPage (tDomain ld)
         ack envelope
       Nothing ->
         -- reject the message without requeuing it
@@ -98,7 +105,6 @@ evalToIO action = do
 eval :: Sem GalleyEffects a -> ExceptT JSONResponse IO a
 eval =
   ExceptT . (error ("todo"))
-
 
 type GalleyEffects =
   '[ Input ClientState,
