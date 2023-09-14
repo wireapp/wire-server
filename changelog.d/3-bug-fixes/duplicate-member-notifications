@@ -1,3 +1,0 @@
-Defederation notifications, federation.delete and federation.connectionRemoved, now deduplicate the user list so that we don't send them more notifications than required.
-
-(The de-federation end-point has been temporarily removed from wire-server, see #4668)

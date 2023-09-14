@@ -1,1 +1,1 @@
-Remove de-federation end-point (to avoid running into a scalability issue).
+Remove de-federation (to avoid a scalability issue).
