@@ -769,8 +769,6 @@ instance
             foldMap (\c -> InsOrdHashMap.fromList $ (,c) <$> cs)
             . listToMaybe
             . toList
-      -- contentMap :: InsOrdHashMap M.MediaType MediaTypeObject
-      -- contentMap = InsOrdHashMap.fromList $ (, MediaTypeObject (pure $ S.Inline $ _) Nothing mempty mempty) <$> cs
       refResps = S.Inline . addMime <$> resps
 
 class Typeable a => IsWaiBody a where

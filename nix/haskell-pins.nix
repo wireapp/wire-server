@@ -175,6 +175,8 @@ let
     };
     servant-openapi3 = {
       src = fetchgit {
+        # This is a patched version of the library that sets the required flag for HTTP request bodies.
+        # A PR for these changes has been made for the upstream library. biocad/servant-openapi3#49
         url = "https://github.com/lepsa/servant-openapi3";
         rev = "5cdb2783f15058f753c41b800415d4ba1149a78b";
         sha256 = "sha256-8FM3IAA3ewCuv9Mar8aWmzbyfKK9eLXIJPMHzmYb1zE=";
