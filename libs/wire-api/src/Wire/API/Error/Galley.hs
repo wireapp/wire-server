@@ -37,6 +37,7 @@ import Control.Lens ((%~), (.~), (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Containers.ListUtils
 import Data.Domain
+import Data.HashMap.Strict.InsOrd (singleton)
 import Data.OpenApi qualified as S
 import Data.Proxy
 import Data.Qualified
@@ -51,6 +52,7 @@ import Network.Wai.Utilities.JSONResponse
 import Polysemy
 import Polysemy.Error
 import Prelude.Singletons (Show_)
+import Servant.API.ContentTypes (JSON, contentType)
 import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as BrigError
@@ -453,7 +455,12 @@ instance IsSwaggerError NonFederatingBackends where
     addErrorResponseToSwagger (HTTP.statusCode nonFederatingBackendsStatus) $
       mempty
         & S.description .~ "Adding members to the conversation is not possible because the backends involved do not form a fully connected graph"
-        & S.content . traverse . S.schema ?~ S.Inline (S.toSchema (Proxy @NonFederatingBackends))
+        & S.content .~ singleton mediaType mediaTypeObject
+    where
+      mediaType = contentType $ Proxy @JSON
+      mediaTypeObject =
+        mempty
+          & S.schema ?~ S.Inline (S.toSchema (Proxy @NonFederatingBackends))
 
 type instance ErrorEffect NonFederatingBackends = Error NonFederatingBackends
 
@@ -490,7 +497,14 @@ instance IsSwaggerError UnreachableBackends where
     addErrorResponseToSwagger (HTTP.statusCode unreachableBackendsStatus) $
       mempty
         & S.description .~ "Some domains are unreachable"
-        & S.content . traverse . S.schema ?~ S.Inline (S.toSchema (Proxy @UnreachableBackends))
+        -- Defaulting this to JSON, as openapi3 needs something to map a schema against.
+        -- This _should_ be overridden with the actual media types once we are at the
+        -- point of rendering out the schemas for MultiVerb.
+        -- Check the instance of `S.HasOpenApi (MultiVerb method (cs :: [Type]) as r)`
+        & S.content .~ singleton mediaType mediaTypeObject
+    where
+      mediaType = contentType $ Proxy @JSON
+      mediaTypeObject = mempty & S.schema ?~ S.Inline (S.toSchema (Proxy @UnreachableBackends))
 
 type instance ErrorEffect UnreachableBackends = Error UnreachableBackends
 
