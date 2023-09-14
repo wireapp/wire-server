@@ -9,7 +9,6 @@ import Data.ByteString.Conversion
 import Data.Data (Proxy (Proxy))
 import Data.Qualified
 import Data.Range (toRange)
-import Data.Text (unpack)
 import Galley.API.BackgroundProcesses qualified as Galley
 import Galley.API.Error
 import Galley.Effects
@@ -24,10 +23,8 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog
-import Servant.Client (BaseUrl (BaseUrl), ClientEnv (ClientEnv), Scheme (Http), defaultMakeClientRequest)
 import System.Logger.Class qualified as Log
 import UnliftIO.Exception qualified as UnliftIO
-import Util.Options (Endpoint (Endpoint))
 import Wire.API.Federation.BackendNotifications
 import Wire.API.Federation.Error
 import Wire.BackgroundWorker.Env
@@ -75,7 +72,6 @@ callGalleyDelete runningFlag envelope domain = do
       Just d -> do
         let ld = toLocalUnsafe env.federationDomain ()
             rd = toRemoteUnsafe d ()
-            _c = mkClientEnv env.httpManager env.brig
             maxPage = toRange (Proxy @500)
         evalToIO $ do
           E.sendDefederationNotifications maxPage (tDomain ld)
@@ -88,8 +84,6 @@ callGalleyDelete runningFlag envelope domain = do
       Nothing ->
         -- reject the message without requeuing it
         reject envelope False
-  where
-    mkClientEnv mgr (Endpoint h p) = ClientEnv mgr (BaseUrl Http (unpack h) (fromIntegral p) "") Nothing defaultMakeClientRequest
 
 evalToIO :: Sem GalleyEffects a -> IO a
 evalToIO action = do
