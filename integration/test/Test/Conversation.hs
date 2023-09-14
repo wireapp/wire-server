@@ -696,3 +696,14 @@ testOnUserDeletedConversations = do
         memIds <- for mems (%. "qualified_id")
         expectedIds <- for [alex, bart, chad] (%. "qualified_id")
         memIds `shouldMatchSet` expectedIds
+
+testUpdateConversationByRemoteAdmin :: HasCallStack => App ()
+testUpdateConversationByRemoteAdmin = do
+  [alice, bob, charlie] <- createAndConnectUsers [OwnDomain, OtherDomain, OtherDomain]
+  conv <-
+    postConversation alice (defProteus {qualifiedUsers = [bob, charlie]})
+      >>= getJSON 201
+  void $ updateRole alice bob "wire_admin" (conv %. "qualified_id") >>= getBody 200
+  void $ withWebSocket alice $ \ws -> do
+    void $ updateReceiptMode bob conv (41 :: Int) >>= getBody 200
+    awaitMatch 10 isReceiptModeUpdateNotif ws

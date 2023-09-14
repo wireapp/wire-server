@@ -23,7 +23,6 @@ import Bilge hiding (head)
 import Bilge.Assert
 import Control.Exception
 import Control.Lens hiding ((#))
-import Data.Aeson qualified as A
 import Data.ByteString.Conversion (toByteString')
 import Data.Domain
 import Data.Id
@@ -34,7 +33,6 @@ import Data.List1 qualified as List1
 import Data.Map qualified as Map
 import Data.ProtoLens qualified as Protolens
 import Data.Qualified
-import Data.Range
 import Data.Set qualified as Set
 import Data.Singletons
 import Data.Time.Clock
@@ -87,7 +85,6 @@ tests s =
       test s "POST /federation/leave-conversation : Invalid type" leaveConversationInvalidType,
       test s "POST /federation/on-message-sent : Receive a message from another backend" onMessageSent,
       test s "POST /federation/send-message : Post a message sent from another backend" sendMessage,
-      test s "POST /federation/update-conversation : Update local conversation by a remote admin " updateConversationByRemoteAdmin,
       test s "POST /federation/on-conversation-updated : Notify local user about conversation rename with an unavailable federator" notifyConvRenameUnavailable,
       test s "POST /federation/on-conversation-updated : Notify local user about message timer update with an unavailable federator" notifyMessageTimerUnavailable,
       test s "POST /federation/on-conversation-updated : Notify local user about receipt mode update with an unavailable federator" notifyReceiptModeUnavailable,
@@ -922,105 +919,6 @@ sendMessage = do
       -- check that alice received the message
       WS.assertMatch_ (5 # Second) ws $
         wsAssertOtr' "" conv bob bobClient aliceClient (toBase64Text "hi alice")
-
--- | We test only ReceiptMode update here
---
--- A : local domain, owns the conversation
--- B : bob is an admin of the converation
--- C : charlie is a regular member of the conversation
-updateConversationByRemoteAdmin :: TestM ()
-updateConversationByRemoteAdmin = do
-  c <- view tsCannon
-  (alice, qalice) <- randomUserTuple
-
-  let bdomain = Domain "b.example.com"
-      cdomain = Domain "c.example.com"
-  qbob <- randomQualifiedId bdomain
-  qcharlie <- randomQualifiedId cdomain
-  mapM_ (connectWithRemoteUser alice) [qbob, qcharlie]
-
-  let convName = "Test Conv"
-  WS.bracketR c alice $ \wsAlice -> do
-    (rsp, _federatedRequests) <- do
-      let mock = ("get-not-fully-connected-backends" ~> NonConnectedBackends mempty) <|> mockReply EmptyResponse
-      withTempMockFederator' mock $ do
-        postConvQualified alice Nothing defNewProteusConv {newConvName = checked convName, newConvQualifiedUsers = [qbob, qcharlie]}
-          <!! const 201 === statusCode
-
-    cnv <- assertConv rsp RegularConv alice qalice [qbob, qcharlie] (Just convName) Nothing
-
-    let newReceiptMode = ReceiptMode 41
-    let action = SomeConversationAction (sing @'ConversationReceiptModeUpdateTag) (ConversationReceiptModeUpdate newReceiptMode)
-
-    (_, federatedRequests) <-
-      withTempMockFederator' (mockReply EmptyResponse) $ do
-        -- promote chad to admin
-        putOtherMemberQualified alice qbob (OtherMemberUpdate (Just roleNameWireAdmin)) cnv
-          !!! const 200 === statusCode
-
-        -- bob updates the conversation
-        let cnvUpdateRequest =
-              ConversationUpdateRequest
-                { user = qUnqualified qbob,
-                  convId = qUnqualified cnv,
-                  action = action
-                }
-        resp <- do
-          fedGalleyClient <- view tsFedGalleyClient
-          runFedClient @"update-conversation" fedGalleyClient bdomain cnvUpdateRequest
-
-        cnvUpdate' <- liftIO $ case resp of
-          ConversationUpdateResponseError err -> assertFailure ("Expected ConversationUpdateResponseUpdate but got " <> show err)
-          ConversationUpdateResponseNoChanges -> assertFailure "Expected ConversationUpdateResponseUpdate but got ConversationUpdateResponseNoChanges"
-          ConversationUpdateResponseUpdate up -> pure up
-          ConversationUpdateResponseNonFederatingBackends _ -> assertFailure "Expected ConversationUpdateResponseUpdate but got ConversationUpdateResponseNonFederatingBackends"
-          ConversationUpdateResponseUnreachableBackends _ -> assertFailure "Expected ConversationUpdateResponseUpdate but got ConversationUpdateResponseUnreachableBackends"
-
-        liftIO $ do
-          cuOrigUserId cnvUpdate' @?= qbob
-          cuAlreadyPresentUsers cnvUpdate' @?= [qUnqualified qbob]
-          cuAction cnvUpdate' @?= action
-
-    -- backend A generates a notification for alice
-    void $
-      WS.awaitMatch (5 # Second) wsAlice $ \n -> do
-        liftIO $ wsAssertConvReceiptModeUpdate cnv qalice newReceiptMode n
-
-    -- backend B does *not* get notified of the conversation update ony of bob's promotion
-    liftIO $ do
-      [(_fr, cUpdate)] <- mapM parseConvUpdate $ filter (\r -> frTargetDomain r == bdomain) federatedRequests
-      assertBool "Action is not a ConversationMemberUpdate" (isJust (getConvAction (sing @'ConversationMemberUpdateTag) (cuAction cUpdate)))
-
-    -- conversation has been modified by action
-    updatedConv :: Conversation <- fmap responseJsonUnsafe $ getConvQualified alice cnv <!! const 200 === statusCode
-    liftIO $
-      (cnvmReceiptMode . cnvMetadata) updatedConv @?= Just newReceiptMode
-
-    -- backend C gets notified of the conversation update and bob's promotion
-    liftIO $ do
-      dUpdates <- mapM parseConvUpdate $ filter (\r -> frTargetDomain r == cdomain) federatedRequests
-
-      (_fr1, _cu1, _up1) <- assertOne $ mapMaybe (\(fr, up) -> getConvAction (sing @'ConversationMemberUpdateTag) (cuAction up) <&> (fr,up,)) dUpdates
-
-      (_fr2, convUpdate, receiptModeUpdate) <- assertOne $ mapMaybe (\(fr, up) -> getConvAction (sing @'ConversationReceiptModeUpdateTag) (cuAction up) <&> (fr,up,)) dUpdates
-
-      cruReceiptMode receiptModeUpdate @?= newReceiptMode
-      cuOrigUserId convUpdate @?= qbob
-      cuConvId convUpdate @?= qUnqualified cnv
-      cuAlreadyPresentUsers convUpdate @?= [qUnqualified qcharlie]
-
-    WS.assertMatch_ (5 # Second) wsAlice $ \n -> do
-      wsAssertConvReceiptModeUpdate cnv qbob newReceiptMode n
-  where
-    _toOtherMember qid = OtherMember qid Nothing roleNameWireAdmin
-    _convView cnv usr = responseJsonUnsafeWithMsg "conversation" <$> getConv usr cnv
-
-    parseConvUpdate :: FederatedRequest -> IO (FederatedRequest, ConversationUpdate)
-    parseConvUpdate rpc = do
-      frComponent rpc @?= Galley
-      frRPC rpc @?= "on-conversation-updated"
-      let convUpdate :: ConversationUpdate = fromRight (error $ "Could not parse ConversationUpdate from " <> show (frBody rpc)) $ A.eitherDecode (frBody rpc)
-      pure (rpc, convUpdate)
 
 getConvAction :: Sing tag -> SomeConversationAction -> Maybe (ConversationAction tag)
 getConvAction tquery (SomeConversationAction tag action) =
