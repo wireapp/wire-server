@@ -233,12 +233,22 @@ getGroupInfo user conv = do
   req <- baseRequest user Galley Versioned path
   submit "GET" req
 
-addMembers :: (HasCallStack, MakesValue user, MakesValue conv) => user -> conv -> [Value] -> App Response
-addMembers usr qcnv newMembers = do
+addMembers :: (HasCallStack, MakesValue user, MakesValue conv) => user -> conv -> Maybe String -> [Value] -> App Response
+addMembers usr qcnv role newMembers = do
   (convDomain, convId) <- objQid qcnv
   qUsers <- mapM objQidObject newMembers
-  req <- baseRequest usr Galley Versioned (joinHttpPath ["conversations", convDomain, convId, "members"])
-  submit "POST" (req & addJSONObject ["qualified_users" .= qUsers])
+  req <- do
+    b <-
+      baseRequest
+        usr
+        Galley
+        Versioned
+        (joinHttpPath ["conversations", convDomain, convId, "members"])
+    let b' = addJSONObject ["qualified_users" .= qUsers] b
+    pure $ case role of
+      Nothing -> b'
+      Just r -> addJSONObject ["conversation_role" .= r] b'
+  submit "POST" req
 
 removeMember :: (HasCallStack, MakesValue remover, MakesValue conv, MakesValue removed) => remover -> conv -> removed -> App Response
 removeMember remover qcnv removed = do
