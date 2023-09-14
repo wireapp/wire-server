@@ -2,7 +2,6 @@ module Wire.API.FederationUpdate
   ( syncFedDomainConfigs,
     SyncFedDomainConfigsCallback (..),
     emptySyncFedDomainConfigsCallback,
-    deleteFederationRemoteGalley,
     fetch,
   )
 where
@@ -10,13 +9,12 @@ where
 import Control.Concurrent.Async
 import Control.Exception
 import Control.Retry qualified as R
-import Data.Domain
 import Data.Set qualified as Set
 import Data.Text
 import Data.Typeable (cast)
 import Imports
 import Network.HTTP.Client (defaultManagerSettings, newManager)
-import Servant.Client (BaseUrl (BaseUrl), ClientEnv (ClientEnv), ClientError, ClientM, Scheme (Http), runClientM)
+import Servant.Client (BaseUrl (BaseUrl), ClientEnv (ClientEnv), ClientError, Scheme (Http), runClientM)
 import Servant.Client.Internal.HttpClient (defaultMakeClientRequest)
 import System.Logger qualified as L
 import Util.Options
@@ -33,9 +31,6 @@ syncFedDomainConfigs (Endpoint h p) log' cb = do
   ioref <- newIORef =<< initialize log' clientEnv
   updateDomainsThread <- async $ loop log' clientEnv cb ioref
   pure (ioref, updateDomainsThread)
-
-deleteFedRemoteGalley :: Domain -> ClientM ()
-deleteFedRemoteGalley dom = namedClient @IAPI.API @"delete-federation-remote-from-galley" dom
 
 -- | Initial function for getting the set of domains from brig, and an update interval
 initialize :: L.Logger -> ClientEnv -> IO FederationDomainConfigs
@@ -55,9 +50,6 @@ initialize logger clientEnv =
    in R.retrying policy (const (pure . isNothing)) (const go) >>= \case
         Just c -> pure c
         Nothing -> throwIO $ ErrorCall "*** Failed to reach brig for federation setup, giving up!"
-
-deleteFederationRemoteGalley :: Domain -> ClientEnv -> IO (Either ClientError ())
-deleteFederationRemoteGalley dom = runClientM $ deleteFedRemoteGalley dom
 
 loop :: L.Logger -> ClientEnv -> SyncFedDomainConfigsCallback -> IORef FederationDomainConfigs -> IO ()
 loop logger clientEnv (SyncFedDomainConfigsCallback callback) env = forever $

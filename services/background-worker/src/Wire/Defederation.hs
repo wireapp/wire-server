@@ -75,10 +75,11 @@ callGalleyDelete runningFlag envelope domain = do
             maxPage = toRange (Proxy @500)
         evalToIO $ do
           E.sendDefederationNotifications maxPage (tDomain ld)
+          -- this also deletes the 1:1 conversations
           Galley.unsafeRemoveRemoteMembersFromLocalConversation maxPage ld rd
           Galley.unsafeRemoveLocalMembersFromRemoteConversation maxPage rd
           -- todo: remove connections
-          -- todo: remove 1:1 conversations
+          -- Brig.deleteRemoteConnectionsDomain
           E.sendDefederationNotifications maxPage (tDomain ld)
         ack envelope
       Nothing ->
