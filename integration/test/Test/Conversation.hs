@@ -541,7 +541,7 @@ testAddUserWhenOtherBackendOffline = do
       [alice, alex, charlie] <-
         createAndConnectUsers $ [own, own] <> domains
 
-      let newConv = defProteus {qualifiedUsers = [alex, charlie]}
+      let newConv = defProteus {qualifiedUsers = [charlie]}
       conv <- postConversation alice newConv >>= getJSON 201
       pure ([alice, alex], conv)
   bindResponse (addMembers alice conv [alex]) $ \resp -> do

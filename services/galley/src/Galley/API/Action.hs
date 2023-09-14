@@ -59,6 +59,7 @@ import Data.List.NonEmpty qualified as NE
 import Data.Map qualified as Map
 import Data.Misc
 import Data.Qualified
+import Data.Set ((\\))
 import Data.Set qualified as Set
 import Data.Singletons
 import Data.Time.Clock
@@ -86,7 +87,7 @@ import Galley.Options
 import Galley.Types.Conversations.Members
 import Galley.Types.UserList
 import Galley.Validation
-import Imports
+import Imports hiding ((\\))
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
@@ -442,17 +443,19 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
       Local UserId ->
       Sem r ()
     checkRemoteBackendsConnected lusr = do
-      let invitedDomains = tDomain <$> snd (partitionQualified lusr $ NE.toList invited)
-          existingDomains = tDomain . rmId <$> convRemoteMembers (tUnqualified lconv)
+      let invitedRemoteDomains = Set.fromList . filter (/= tDomain lconv) $ tDomain <$> snd (partitionQualified lusr $ NE.toList invited)
+          existingRemoteDomains = Set.fromList $ tDomain . rmId <$> convRemoteMembers (tUnqualified lconv)
+          allInvitedAlreadyInConversation = null $ invitedRemoteDomains \\ existingRemoteDomains
 
-      -- Note:
-      --
-      -- In some cases, this federation status check might be redundant (for
-      -- example if there are only local users in the conversation). However,
-      -- it is important that we attempt to connect to the backends of the new
-      -- users here, because that results in the correct error when those
-      -- backends are not reachable.
-      checkFederationStatus (RemoteDomains . Set.fromList $ invitedDomains <> existingDomains)
+      unless allInvitedAlreadyInConversation $
+        -- Note:
+        --
+        -- In some cases, this federation status check might be redundant (for
+        -- example if there are only local users in the conversation). However,
+        -- it is important that we attempt to connect to the backends of the new
+        -- users here, because that results in the correct error when those
+        -- backends are not reachable.
+        checkFederationStatus (RemoteDomains (invitedRemoteDomains <> existingRemoteDomains))
 
     conv :: Data.Conversation
     conv = tUnqualified lconv
