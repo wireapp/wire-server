@@ -28,7 +28,6 @@ import Cassandra (ClientState, Consistency (LocalQuorum), Page (hasMore, nextPag
 import Control.Lens ((.~))
 import Data.Id (ProviderId, ServiceId, UserId)
 import Data.Range (Range (fromRange))
-import Data.Set qualified as Set
 import Galley.API.Error
 import Galley.API.Util (localBotsAndUsers)
 import Galley.Cassandra.Conversation.Members (toMember)
@@ -142,13 +141,6 @@ interpretGundeckAccess = interpret $ \case
   Push ps -> embedApp $ G.push ps
   PushSlowly ps -> embedApp $ G.pushSlowly ps
 
--- FUTUREWORK:
--- This functions uses an in-memory set for tracking UserIds that we have already
--- sent notifications to. This set will only grow throughout the lifttime of this
--- function, and may cause memory & performance problems with millions of users.
--- How we are tracking which users have already been sent 0, 1, or 2 defederation
--- messages should be rethought to be more fault tollerant, e.g. this method doesn't
--- handle the server crashing and restarting.
 interpretDefederationNotifications ::
   forall r a.
   ( Member (Embed IO) r,
@@ -162,48 +154,34 @@ interpretDefederationNotifications ::
 interpretDefederationNotifications = interpret $ \case
   SendDefederationNotifications domain ->
     getPage
-      >>= void . sendNotificationPage mempty (Federation.FederationDelete domain)
+      >>= void . sendNotificationPage (Federation.FederationDelete domain)
   SendOnConnectionRemovedNotifications domainA domainB ->
     getPage
-      >>= void . sendNotificationPage mempty (Federation.FederationConnectionRemoved (domainA, domainB))
+      >>= void . sendNotificationPage (Federation.FederationConnectionRemoved (domainA, domainB))
   where
     getPage :: Sem r (Page PageType)
     getPage = do
       maxPage <- inputs (fromRange . currentFanoutLimit . _options) -- This is based on the limits in removeIfLargeFanout
-      -- selectAllMembers will return duplicate members when they are in more than one chat
-      -- however we need the full row to build out the bot members to send notifications
-      -- to them. We have to do the duplicate filtering here.
       embedClient $ paginate selectAllMembers (paramsP LocalQuorum () maxPage)
-    pushEvents :: Set UserId -> Federation.Event -> [LocalMember] -> Sem r (Set UserId)
-    pushEvents seenRecipients eventData results = do
+    pushEvents :: Federation.Event -> [LocalMember] -> Sem r ()
+    pushEvents eventData results = do
       let (bots, mems) = localBotsAndUsers results
           recipients = Intra.recipient <$> mems
           event = Intra.FederationEvent eventData
-          filteredRecipients =
-            -- Deduplicate by UserId the page of recipients that we are working on
-            nubBy (\a b -> a._recipientUserId == b._recipientUserId)
-            -- Sort the remaining recipients by their IDs
-            $
-              sortBy (\a b -> a._recipientUserId `compare` b._recipientUserId)
-              -- Filter out any recipient that we have already seen in a previous page
-              $
-                filter (\r -> r._recipientUserId `notElem` seenRecipients) recipients
-      for_ (Intra.newPush ListComplete Nothing event filteredRecipients) $ \p -> do
+      for_ (Intra.newPush ListComplete Nothing event recipients) $ \p -> do
         -- Futurework: Transient or not?
         -- RouteAny is used as it will wake up mobile clients
         -- and notify them of the changes to federation state.
         push1 $ p & Intra.pushRoute .~ Intra.RouteAny
       deliverAsync (bots `zip` repeat (G.pushEventJson event))
-      -- Add the users to the set of users we've sent messages to.
-      pure $ seenRecipients <> Set.fromList ((._recipientUserId) <$> filteredRecipients)
-    sendNotificationPage :: Set UserId -> Federation.Event -> Page PageType -> Sem r ()
-    sendNotificationPage seenRecipients eventData page = do
+    sendNotificationPage :: Federation.Event -> Page PageType -> Sem r ()
+    sendNotificationPage eventData page = do
       let res = result page
           mems = mapMaybe toMember res
-      seenRecipients' <- pushEvents seenRecipients eventData mems
+      pushEvents eventData mems
       when (hasMore page) $ do
         page' <- embedClient $ nextPage page
-        sendNotificationPage seenRecipients' eventData page'
+        sendNotificationPage eventData page'
 
 type PageType =
   ( UserId,
