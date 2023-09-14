@@ -18,9 +18,18 @@ data Opts = Opts
     -- | Seconds, Nothing for no timeout
     defederationTimeout :: Maybe Int,
     backendNotificationPusher :: BackendNotificationsConfig,
-    federationDomain :: Domain
+    federationDomain :: !Domain,
+    cassandra :: !DBSettings
   }
   deriving (Show, Generic)
+
+data DBSettings = DBSettings
+  { brig :: !CassandraOpts,
+    galley :: !CassandraOpts
+  }
+  deriving (Show, Generic)
+
+instance FromJSON DBSettings
 
 instance FromJSON Opts
 

@@ -3,16 +3,21 @@
 
 module Wire.BackgroundWorker.Env where
 
+import Cassandra (Keyspace (Keyspace))
+import Cassandra.Settings hiding (Logger)
 import Control.Concurrent.Async
 import Control.Concurrent.Chan
+import Control.Lens ((^.))
 import Control.Monad.Base
 import Control.Monad.Catch
 import Control.Monad.Trans.Control
 import Data.Domain
 import Data.Map.Strict qualified as Map
 import Data.Metrics qualified as Metrics
+import Data.Text (unpack)
+import Database.CQL.IO.Tinylog qualified as CT
 import HTTP2.Client.Manager
-import Imports
+import Imports hiding (init)
 import Network.AMQP (Channel)
 import Network.AMQP.Extended
 import Network.HTTP.Client
@@ -24,7 +29,7 @@ import Servant.Client qualified as Servant
 import System.Logger qualified as Log
 import System.Logger.Class (Logger, MonadLogger (..))
 import System.Logger.Extended qualified as Log
-import Util.Options
+import Util.Options as Opts
 import Wire.API.FederationUpdate
 import Wire.API.Routes.FederationDomainConfig
 import Wire.BackgroundWorker.Options
@@ -57,7 +62,8 @@ data Env = Env
     notificationChannel :: MVar Channel,
     backendNotificationsConfig :: BackendNotificationsConfig,
     statuses :: IORef (Map Worker IsWorking),
-    federationDomain :: Domain
+    federationDomain :: Domain,
+    brigDB :: ClientState
   }
 
 data BackendNotificationMetrics = BackendNotificationMetrics
@@ -105,7 +111,17 @@ mkEnv opts = do
   backendNotificationMetrics <- mkBackendNotificationMetrics
   notificationChannel <- mkRabbitMqChannelMVar logger $ demoteOpts opts.rabbitmq
   let backendNotificationsConfig = opts.backendNotificationPusher
-  let federationDomain = opts.federationDomain
+      federationDomain = opts.federationDomain
+  brigDB <- do
+    let h = opts.cassandra.brig ^. endpoint . Opts.host
+        p = opts.cassandra.brig ^. endpoint . Opts.port
+        ks = opts.cassandra.brig ^. keyspace
+    init
+      $ setLogger (CT.mkLogger logger)
+        . setPortNumber (fromIntegral p)
+        . setContacts (unpack h) []
+        . setKeyspace (Keyspace ks)
+      $ defSettings
   pure (Env {..}, syncThread)
 
 initHttp2Manager :: IO Http2Manager

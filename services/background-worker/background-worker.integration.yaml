@@ -27,3 +27,15 @@ backendNotificationPusher:
   pushBackoffMaxWait: 1000000
 
 federationDomain: example.com
+
+cassandra:
+  brig:
+    endpoint:
+      host: 127.0.0.1
+      port: 9042
+    keyspace: brig_test
+  galley:
+    endpoint:
+      host: 127.0.0.1
+      port: 9042
+    keyspace: galley_test

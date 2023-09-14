@@ -32,9 +32,11 @@ library
     , amqp
     , async
     , base
+    , brig
     , bytestring-conversion
     , cassandra-util
     , containers
+    , cql-io-tinylog
     , errors
     , exceptions
     , extended
@@ -43,6 +45,7 @@ library
     , http-client
     , http2-manager
     , imports
+    , lens
     , metrics-core
     , metrics-wai
     , monad-control

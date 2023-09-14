@@ -1,5 +1,6 @@
 module Wire.Defederation where
 
+import Brig.Data.Connection as Brig
 import Cassandra
 import Control.Concurrent.Async
 import Control.Error
@@ -78,9 +79,8 @@ callGalleyDelete runningFlag envelope domain = do
           -- this also deletes the 1:1 conversations
           Galley.unsafeRemoveRemoteMembersFromLocalConversation maxPage ld rd
           Galley.unsafeRemoveLocalMembersFromRemoteConversation maxPage rd
-          -- todo: remove connections
-          -- Brig.deleteRemoteConnectionsDomain
-          E.sendDefederationNotifications maxPage (tDomain ld)
+        liftIO $ runClient env.brigDB $ Brig.deleteRemoteConnectionsDomain (tDomain rd)
+        evalToIO $ E.sendDefederationNotifications maxPage (tDomain ld)
         ack envelope
       Nothing ->
         -- reject the message without requeuing it
