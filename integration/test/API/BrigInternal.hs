@@ -159,3 +159,14 @@ refreshIndex domain = do
   req <- baseRequest domain Brig Unversioned "i/index/refresh"
   res <- submit "POST" req
   res.status `shouldMatchInt` 200
+
+connectWithRemoteUser :: (MakesValue userFrom, MakesValue userTo) => userFrom -> userTo -> App ()
+connectWithRemoteUser userFrom userTo = do
+  userFromId <- objId userFrom
+  qUserTo <- make userTo
+  let body = ["tag" .= "CreateConnectionForTest", "user" .= userFromId, "other" .= qUserTo]
+  req <-
+    baseRequest userFrom Brig Unversioned $
+      joinHttpPath ["i", "connections", "connection-update"]
+  res <- submit "PUT" (req & addJSONObject body)
+  res.status `shouldMatchInt` 200

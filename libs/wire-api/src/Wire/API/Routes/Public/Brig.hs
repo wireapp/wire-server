@@ -57,6 +57,7 @@ import Wire.API.Routes.Cookies
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
+import Wire.API.Routes.Public.Brig.Bot (BotAPI)
 import Wire.API.Routes.Public.Brig.OAuth (OAuthAPI)
 import Wire.API.Routes.Public.Util
 import Wire.API.Routes.QualifiedCapture
@@ -93,6 +94,7 @@ type BrigAPI =
     :<|> TeamsAPI
     :<|> SystemSettingsAPI
     :<|> OAuthAPI
+    :<|> BotAPI
 
 data BrigAPITag
 
@@ -275,6 +277,7 @@ type UserAPI =
     :<|> Named
            "get-supported-protocols"
            ( Summary "Get a user's supported protocols"
+               :> From 'V5
                :> ZLocalUser
                :> "users"
                :> QualifiedCaptureUserId "uid"
@@ -417,6 +420,7 @@ type SelfAPI =
     :<|> Named
            "change-supported-protocols"
            ( Summary "Change your supported protocols"
+               :> From 'V5
                :> ZLocalUser
                :> ZConn
                :> "self"
@@ -1178,6 +1182,7 @@ type MLSKeyPackageAPI =
            "mls-key-packages-upload"
            ( "self"
                :> Summary "Upload a fresh batch of key packages"
+               :> From 'V5
                :> Description "The request body should be a json object containing a list of base64-encoded key packages."
                :> ZLocalUser
                :> CanThrow 'MLSProtocolError
@@ -1190,6 +1195,7 @@ type MLSKeyPackageAPI =
                   "mls-key-packages-claim"
                   ( "claim"
                       :> Summary "Claim one key package for each client of the given user"
+                      :> From 'V5
                       :> Description "Only key packages for the specified ciphersuite are claimed. For backwards compatibility, the `ciphersuite` parameter is optional, defaulting to ciphersuite 0x0001 when omitted."
                       :> ZLocalUser
                       :> ZOptClient
@@ -1201,6 +1207,7 @@ type MLSKeyPackageAPI =
                   "mls-key-packages-count"
                   ( "self"
                       :> Summary "Return the number of unclaimed key packages for a given ciphersuite and client"
+                      :> From 'V5
                       :> ZLocalUser
                       :> CaptureClientId "client"
                       :> "count"
@@ -1210,6 +1217,7 @@ type MLSKeyPackageAPI =
            :<|> Named
                   "mls-key-packages-delete"
                   ( "self"
+                      :> From 'V5
                       :> ZLocalUser
                       :> CaptureClientId "client"
                       :> Summary "Delete all key packages for a given ciphersuite and client"
@@ -1218,6 +1226,8 @@ type MLSKeyPackageAPI =
                       :> MultiVerb1 'DELETE '[JSON] (RespondEmpty 201 "OK")
                   )
        )
+
+type MLSAPI = LiftNamed ("mls" :> MLSKeyPackageAPI)
 
 -- Search API -----------------------------------------------------
 
@@ -1279,8 +1289,6 @@ type SearchAPI =
              '[Respond 200 "Search results" (SearchResult TeamContact)]
              (SearchResult TeamContact)
     )
-
-type MLSAPI = LiftNamed ("mls" :> MLSKeyPackageAPI)
 
 type AuthAPI =
   Named

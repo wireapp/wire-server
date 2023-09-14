@@ -28,13 +28,11 @@ import Brig.Effects.GalleyProvider (GalleyProvider)
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import Network.Wai.Routing (Routes)
 import Polysemy
-import Wire.Sem.Concurrency
 
 sitemap ::
   forall r p.
   ( Member BlacklistStore r,
     Member GalleyProvider r,
-    Member (Concurrency 'Unsafe) r,
     Member (UserPendingActivationStore p) r
   ) =>
   Routes () (Handler r) ()

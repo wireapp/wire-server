@@ -398,9 +398,10 @@ logErrorMsg (Wai.Error c l m md) =
     . maybe id logErrorData md
     . msg (val "\"" +++ m +++ val "\"")
   where
-    logErrorData (Wai.FederationErrorData d p) =
+    logErrorData (Wai.FederationErrorData d p b) =
       field "domain" (domainText d)
         . field "path" p
+        . field "response" (fromMaybe "" b)
 
 logErrorMsgWithRequest :: Maybe ByteString -> Wai.Error -> Msg -> Msg
 logErrorMsgWithRequest mr e =

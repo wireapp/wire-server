@@ -110,7 +110,7 @@ are several steps to make apart from deciding what endpoint changes are part of
 the version:
 
  - In `wire-api` extend the `Version` type with a new version by appending the
-   new version to the end, e.g., by adding `V4`.
+   new version to the end, e.g., by adding `V6`.
  - In the same `Version` module update the `developmentVersions` value to list
    only the new version,
  - Consider updating the `backendApiVersion` value in Stern, which is

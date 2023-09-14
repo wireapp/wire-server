@@ -201,7 +201,7 @@ type ConversationAPI =
     :<|> Named
            "get-group-info"
            ( Summary "Get MLS group information"
-               :> From 'V4
+               :> From 'V5
                :> MakesFederatedCall 'Galley "query-group-info"
                :> CanThrow 'ConvNotFound
                :> CanThrow 'MLSMissingGroupInfo
@@ -459,7 +459,7 @@ type ConversationAPI =
     :<|> Named
            "get-mls-self-conversation"
            ( Summary "Get the user's MLS self-conversation"
-               :> From 'V4
+               :> From 'V5
                :> ZLocalUser
                :> "conversations"
                :> "mls-self"
@@ -476,6 +476,7 @@ type ConversationAPI =
     :<|> Named
            "get-subconversation"
            ( Summary "Get information about an MLS subconversation"
+               :> From 'V5
                :> MakesFederatedCall 'Galley "get-sub-conversation"
                :> CanThrow 'ConvNotFound
                :> CanThrow 'ConvAccessDenied
@@ -497,6 +498,7 @@ type ConversationAPI =
     :<|> Named
            "leave-subconversation"
            ( Summary "Leave an MLS subconversation"
+               :> From 'V5
                :> MakesFederatedCall 'Galley "on-mls-message-sent"
                :> MakesFederatedCall 'Galley "leave-sub-conversation"
                :> CanThrow 'ConvNotFound
@@ -519,6 +521,7 @@ type ConversationAPI =
     :<|> Named
            "delete-subconversation"
            ( Summary "Delete an MLS subconversation"
+               :> From 'V5
                :> MakesFederatedCall 'Galley "delete-sub-conversation"
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'ConvNotFound
@@ -538,6 +541,7 @@ type ConversationAPI =
     :<|> Named
            "get-subconversation-group-info"
            ( Summary "Get MLS group information of subconversation"
+               :> From 'V5
                :> MakesFederatedCall 'Galley "query-group-info"
                :> CanThrow 'ConvNotFound
                :> CanThrow 'MLSMissingGroupInfo
@@ -766,6 +770,7 @@ type ConversationAPI =
                :> CanThrow 'GuestLinksDisabled
                :> CanThrow 'CreateConversationCodeConflict
                :> ZUser
+               :> ZHostOpt
                :> ZOptConn
                :> "conversations"
                :> Capture' '[Description "Conversation ID"] "cnv" ConvId
@@ -784,6 +789,7 @@ type ConversationAPI =
                :> CanThrow 'GuestLinksDisabled
                :> CanThrow 'CreateConversationCodeConflict
                :> ZUser
+               :> ZHostOpt
                :> ZOptConn
                :> "conversations"
                :> Capture' '[Description "Conversation ID"] "cnv" ConvId
@@ -828,6 +834,7 @@ type ConversationAPI =
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'ConvNotFound
                :> CanThrow 'GuestLinksDisabled
+               :> ZHostOpt
                :> ZLocalUser
                :> "conversations"
                :> Capture' '[Description "Conversation ID"] "cnv" ConvId

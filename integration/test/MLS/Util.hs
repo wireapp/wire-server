@@ -35,7 +35,6 @@ import System.Posix.Files
 import System.Process
 import Testlib.App
 import Testlib.Assertions
-import Testlib.Env
 import Testlib.HTTP
 import Testlib.JSON
 import Testlib.Prelude

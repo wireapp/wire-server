@@ -19,7 +19,7 @@ module API.MLS where
 
 import API.MLS.Util
 import Bilge
-import Bilge.Assert
+import Bilge.Assert ((<!!), (===))
 import Brig.Options
 import Data.Aeson qualified as Aeson
 import Data.ByteString.Conversion

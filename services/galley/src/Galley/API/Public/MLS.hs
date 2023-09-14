@@ -19,7 +19,7 @@ module Galley.API.Public.MLS where
 
 import Galley.API.MLS
 import Galley.App
-import Wire.API.Federation.API
+import Wire.API.MakesFederatedCall
 import Wire.API.Routes.API
 import Wire.API.Routes.Public.Galley.MLS
 
