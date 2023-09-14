@@ -95,6 +95,9 @@ isConvAccessUpdateNotif :: (HasCallStack, MakesValue n) => n -> App Bool
 isConvAccessUpdateNotif n =
   fieldEquals n "payload.0.type" "conversation.access-update"
 
+isConvCreateNotif :: MakesValue a => a -> App Bool
+isConvCreateNotif n = fieldEquals n "payload.0.type" "conversation.create"
+
 isConvDeleteNotif :: MakesValue a => a -> App Bool
 isConvDeleteNotif n = fieldEquals n "payload.0.type" "conversation.delete"
 

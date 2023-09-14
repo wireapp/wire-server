@@ -32,7 +32,7 @@ import Data.Aeson qualified as Aeson
 import Data.Text qualified as T
 import GHC.Stack
 import Notifications
-import SetupHelpers
+import SetupHelpers hiding (deleteUser)
 import Testlib.One2One (generateRemoteAndConvIdWithDomain)
 import Testlib.Prelude
 import Testlib.ResourcePool
@@ -655,3 +655,44 @@ testLeaveConversationSuccess = do
     assertLeaveNotification chad conv alice aClient chad
     assertLeaveNotification chad conv bob bClient chad
     assertLeaveNotification chad conv eve eClient chad
+
+testOnUserDeletedConversations :: HasCallStack => App ()
+testOnUserDeletedConversations = do
+  let overrides =
+        def {brigCfg = setField "optSettings.setFederationStrategy" "allowAll"}
+  startDynamicBackends [overrides] $ \[dynDomain] -> do
+    [ownDomain, otherDomain] <- forM [OwnDomain, OtherDomain] asString
+    [alice, alex, bob, bart, chad] <-
+      createAndConnectUsers [ownDomain, ownDomain, otherDomain, otherDomain, dynDomain]
+    bobId <- bob %. "qualified_id"
+    ooConvId <- do
+      l <- getAllConvs alice
+      let isWith users c = do
+            t <- (==) <$> (c %. "type" & asInt) <*> pure 2
+            others <- c %. "members.others" & asList
+            qIds <- for others (%. "qualified_id")
+            pure $ qIds == users && t
+      c <- head <$> filterM (isWith [bobId]) l
+      c %. "qualified_id"
+
+    mainConvBefore <-
+      postConversation alice (defProteus {qualifiedUsers = [alex, bob, bart, chad]})
+        >>= getJSON 201
+
+    void $ withWebSocket alex $ \ws -> do
+      void $ deleteUser bob >>= getBody 200
+      n <- awaitMatch 10 isConvLeaveNotif ws
+      n %. "payload.0.qualified_from" `shouldMatch` bobId
+      n %. "payload.0.qualified_conversation" `shouldMatch` (mainConvBefore %. "qualified_id")
+
+      do
+        -- Bob is not in the one-to-one conversation with Alice any more
+        conv <- getConversation alice ooConvId >>= getJSON 200
+        shouldBeEmpty $ conv %. "members.others"
+      do
+        -- Bob is not in the main conversation any more
+        mainConvAfter <- getConversation alice (mainConvBefore %. "qualified_id") >>= getJSON 200
+        mems <- mainConvAfter %. "members.others" & asList
+        memIds <- for mems (%. "qualified_id")
+        expectedIds <- for [alex, bart, chad] (%. "qualified_id")
+        memIds `shouldMatchSet` expectedIds
