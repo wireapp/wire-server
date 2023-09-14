@@ -72,10 +72,12 @@ testNotificationsForOfflineBackends = do
     -- Adding users to an up backend conversation should not work when one of
     -- the participating backends is down. This is due to not being able to
     -- check non-fully connected graph between all participating backends
+    -- however, if the backend of the user to be added is already part of the conversation, we do not need to do the check
+    -- and the user can be added as long as the backend is reachable
     otherUser3 <- randomUser OtherDomain def
     connectUsers delUser otherUser3
     bindResponse (addMembers delUser upBackendConv [otherUser3]) $ \resp ->
-      resp.status `shouldMatchInt` 533
+      resp.status `shouldMatchInt` 200
 
     -- Adding users from down backend to a conversation should also fail
     bindResponse (addMembers delUser upBackendConv [downUser2]) $ \resp ->
