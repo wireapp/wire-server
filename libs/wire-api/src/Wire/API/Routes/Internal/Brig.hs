@@ -764,30 +764,9 @@ type FederationRemotesAPI =
                :> ReqBody '[JSON] FederationDomainConfig
                :> Put '[JSON] ()
            )
-    -- This is nominally similar to delete-federation-remotes,
-    -- but is called from Galley to delete the one-on-one coversations.
-    -- This is needed as Galley doesn't have access to the tables
-    -- that hold these values. We don't want these deletes to happen
-    -- in delete-federation-remotes as brig might fall over and leave
-    -- some records hanging around. Galley uses a Rabbit queue to track
-    -- what is has done and can recover from a service falling over.
-    :<|> Named
-           "delete-federation-remote-from-galley"
-           ( Description FederationRemotesAPIDescription
-               :> Description FederationRemotesAPIDeleteDescription
-               :> "federation"
-               :> "remote"
-               :> Capture "domain" Domain
-               :> "galley"
-               :> Delete '[JSON] ()
-           )
 
 type FederationRemotesAPIDescription =
   "See https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections for background. "
-
-type FederationRemotesAPIDeleteDescription =
-  "**WARNING!** If you remove a remote connection, all users from that remote will be removed from local conversations, and all \
-  \group conversations hosted by that remote will be removed from the local backend. This cannot be reverted! "
 
 swaggerDoc :: Swagger
 swaggerDoc =

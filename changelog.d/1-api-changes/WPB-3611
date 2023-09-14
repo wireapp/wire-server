@@ -1,7 +1,0 @@
-Added a new notification event type, "federation.connectionRemoved"
-This event contains a pair of domains that are no longer federating, and is used to inform other federation members of the change.
-This notification is sent twice to local clients of federation members who receive this notification. Once before and once after cleaning up local conversaions where users from both domains are present.
-
-Added a new Galley federation endpoint "/federation/on-connection-removed" to receive the connection removed notification.
-
-(The de-federation end-point has been temporarily removed from wire-server, see #4668)

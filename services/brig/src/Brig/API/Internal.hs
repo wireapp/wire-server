@@ -221,7 +221,6 @@ federationRemotesAPI =
   Named @"add-federation-remotes" addFederationRemote
     :<|> Named @"get-federation-remotes" getFederationRemotes
     :<|> Named @"update-federation-remotes" updateFederationRemote
-    :<|> Named @"delete-federation-remote-from-galley" deleteFederationRemoteGalley
 
 addFederationRemote :: FederationDomainConfig -> ExceptT Brig.API.Error.Error (AppT r) ()
 addFederationRemote fedDomConf = do
@@ -326,14 +325,6 @@ assertNoDomainsFromConfigFiles dom = do
     throwError . fedError . FederationUnexpectedError $
       "keeping track of remote domains in the brig config file is deprecated, but as long as we \
       \do that, removing or updating items listed in the config file is not allowed."
-
--- | Remove one-on-one conversations for the given remote domain. This is called from Galley as
--- part of the defederation process, and should not be called during the initial domain removal
--- call to brig. This is so we can ensure that domains are correctly cleaned up if a service
--- falls over for whatever reason.
-deleteFederationRemoteGalley :: Domain -> ExceptT Brig.API.Error.Error (AppT r) ()
-deleteFederationRemoteGalley dom = do
-  lift . wrapClient . Data.deleteRemoteConnectionsDomain $ dom
 
 -- | Responds with 'Nothing' if field is NULL in existing user or user does not exist.
 getAccountConferenceCallingConfig :: UserId -> (Handler r) (ApiFt.WithStatusNoLock ApiFt.ConferenceCallingConfig)

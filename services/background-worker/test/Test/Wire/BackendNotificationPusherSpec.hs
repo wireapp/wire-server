@@ -92,44 +92,6 @@ spec = do
       getVectorWith env.backendNotificationMetrics.pushedCounter getCounter
         `shouldReturn` [(domainText targetDomain, 1)]
 
-    it "should push on-connection-removed notifications" $ do
-      let returnSuccess _ = pure ("application/json", Aeson.encode EmptyResponse)
-      let origDomain = Domain "origin.example.com"
-          targetDomain = Domain "target.example.com"
-          defederatedDomain = Domain "defederated.example.com"
-      let notif =
-            BackendNotification
-              { targetComponent = Galley,
-                ownDomain = origDomain,
-                path = "/on-connection-removed",
-                body = RawJson $ Aeson.encode defederatedDomain
-              }
-      envelope <- newMockEnvelope
-      let msg =
-            Q.newMsg
-              { Q.msgBody = Aeson.encode notif,
-                Q.msgContentType = Just "application/json"
-              }
-      runningFlag <- newMVar ()
-      (env, fedReqs) <-
-        withTempMockFederator [] returnSuccess . runTestAppT $ do
-          wait =<< pushNotification runningFlag targetDomain (msg, envelope)
-          ask
-
-      readIORef envelope.acks `shouldReturn` 1
-      readIORef envelope.rejections `shouldReturn` []
-      fedReqs
-        `shouldBe` [ FederatedRequest
-                       { frTargetDomain = targetDomain,
-                         frOriginDomain = origDomain,
-                         frComponent = Galley,
-                         frRPC = "on-connection-removed",
-                         frBody = Aeson.encode defederatedDomain
-                       }
-                   ]
-      getVectorWith env.backendNotificationMetrics.pushedCounter getCounter
-        `shouldReturn` [(domainText targetDomain, 1)]
-
     it "should reject invalid notifications" $ do
       let returnSuccess _ = pure ("application/json", Aeson.encode EmptyResponse)
       envelope <- newMockEnvelope
@@ -222,7 +184,6 @@ spec = do
       httpManager <- newManager defaultManagerSettings
       remoteDomains <- newIORef defFederationDomainConfigs
       remoteDomainsChan <- newChan
-      notificationChannel <- newEmptyMVar
       let federatorInternal = Endpoint "localhost" 8097
           http2Manager = undefined
           statuses = undefined
@@ -245,7 +206,6 @@ spec = do
       httpManager <- newManager defaultManagerSettings
       remoteDomains <- newIORef defFederationDomainConfigs
       remoteDomainsChan <- newChan
-      notificationChannel <- newEmptyMVar
       let federatorInternal = Endpoint "localhost" 8097
           http2Manager = undefined
           statuses = undefined

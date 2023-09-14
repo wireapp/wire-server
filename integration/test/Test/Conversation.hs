@@ -221,17 +221,7 @@ testDefederationGroupConversation = do
             r.status `shouldMatchInt` 404
 
         -- assert federation.delete event is sent twice
-        void $
-          awaitNMatches
-            2
-            3
-            ( \n -> do
-                correctType <- nPayload n %. "type" `isEqual` "federation.delete"
-                if correctType
-                  then nPayload n %. "domain" `isEqual` domainB
-                  else pure False
-            )
-            ws
+        void $ awaitNMatches 2 3 (\n -> nPayload n %. "type" `isEqual` "federation.delete") ws
 
       -- assert no conversation.delete event is sent to uA
       eventPayloads <-

@@ -20,44 +20,27 @@ module Galley.Intra.Effects
     interpretSparAccess,
     interpretBotAccess,
     interpretGundeckAccess,
-    interpretDefederationNotifications,
   )
 where
 
-import Cassandra (ClientState, Consistency (LocalQuorum), Page (hasMore, nextPage, result), paginate, paramsP)
-import Control.Lens ((.~))
-import Data.Id (ProviderId, ServiceId, UserId)
-import Data.Range (Range (fromRange))
 import Galley.API.Error
-import Galley.API.Util (localBotsAndUsers)
-import Galley.Cassandra.Conversation.Members (toMember)
-import Galley.Cassandra.Queries (MemberStatus, selectAllMembers)
-import Galley.Cassandra.Store (embedClient)
 import Galley.Effects.BotAccess (BotAccess (..))
 import Galley.Effects.BrigAccess (BrigAccess (..))
-import Galley.Effects.DefederationNotifications (DefederationNotifications (..))
-import Galley.Effects.ExternalAccess (ExternalAccess, deliverAsync)
-import Galley.Effects.GundeckAccess (GundeckAccess (..), push1)
+import Galley.Effects.GundeckAccess (GundeckAccess (..))
 import Galley.Effects.SparAccess (SparAccess (..))
 import Galley.Env
 import Galley.Intra.Client
-import Galley.Intra.Push qualified as Intra
 import Galley.Intra.Push.Internal qualified as G
 import Galley.Intra.Spar
 import Galley.Intra.Team
 import Galley.Intra.User
 import Galley.Monad
-import Galley.Types.Conversations.Members (LocalMember)
 import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog qualified as P
 import UnliftIO qualified
-import Wire.API.Conversation (MutedStatus)
-import Wire.API.Conversation.Role (RoleName)
-import Wire.API.Event.Federation qualified as Federation
-import Wire.API.Team.Member (ListType (ListComplete))
 
 interpretBrigAccess ::
   ( Member (Embed IO) r,
@@ -140,59 +123,3 @@ interpretGundeckAccess ::
 interpretGundeckAccess = interpret $ \case
   Push ps -> embedApp $ G.push ps
   PushSlowly ps -> embedApp $ G.pushSlowly ps
-
-interpretDefederationNotifications ::
-  forall r a.
-  ( Member (Embed IO) r,
-    Member (Input Env) r,
-    Member (Input ClientState) r,
-    Member GundeckAccess r,
-    Member ExternalAccess r
-  ) =>
-  Sem (DefederationNotifications ': r) a ->
-  Sem r a
-interpretDefederationNotifications = interpret $ \case
-  SendDefederationNotifications domain ->
-    getPage
-      >>= void . sendNotificationPage (Federation.FederationDelete domain)
-  SendOnConnectionRemovedNotifications domainA domainB ->
-    getPage
-      >>= void . sendNotificationPage (Federation.FederationConnectionRemoved (domainA, domainB))
-  where
-    getPage :: Sem r (Page PageType)
-    getPage = do
-      maxPage <- inputs (fromRange . currentFanoutLimit . _options) -- This is based on the limits in removeIfLargeFanout
-      embedClient $ paginate selectAllMembers (paramsP LocalQuorum () maxPage)
-    pushEvents :: Federation.Event -> [LocalMember] -> Sem r ()
-    pushEvents eventData results = do
-      let (bots, mems) = localBotsAndUsers results
-          recipients = Intra.recipient <$> mems
-          event = Intra.FederationEvent eventData
-      for_ (Intra.newPush ListComplete Nothing event recipients) $ \p -> do
-        -- Futurework: Transient or not?
-        -- RouteAny is used as it will wake up mobile clients
-        -- and notify them of the changes to federation state.
-        push1 $ p & Intra.pushRoute .~ Intra.RouteAny
-      deliverAsync (bots `zip` repeat (G.pushEventJson event))
-    sendNotificationPage :: Federation.Event -> Page PageType -> Sem r ()
-    sendNotificationPage eventData page = do
-      let res = result page
-          mems = mapMaybe toMember res
-      pushEvents eventData mems
-      when (hasMore page) $ do
-        page' <- embedClient $ nextPage page
-        sendNotificationPage eventData page'
-
-type PageType =
-  ( UserId,
-    Maybe ServiceId,
-    Maybe ProviderId,
-    Maybe MemberStatus,
-    Maybe MutedStatus,
-    Maybe Text,
-    Maybe Bool,
-    Maybe Text,
-    Maybe Bool,
-    Maybe Text,
-    Maybe RoleName
-  )
