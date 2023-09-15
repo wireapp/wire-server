@@ -22,12 +22,13 @@ module Test.Federator.InwardSpec where
 
 import Bilge
 import Bilge.Assert
-import Control.Lens (view)
+import Control.Lens (view, (^.))
 import Data.Aeson
 import Data.Aeson.Types qualified as Aeson
 import Data.ByteString qualified as BS
 import Data.ByteString.Conversion (toByteString')
 import Data.ByteString.Lazy qualified as LBS
+import Data.Domain
 import Data.Handle
 import Data.LegalHold (UserLegalHoldStatus (UserLegalHoldNoConsent))
 import Data.Text.Encoding
@@ -75,9 +76,11 @@ spec env =
         _ <- putHandle brig (userId user) hdl
 
         let expectedProfile = (publicProfile user UserLegalHoldNoConsent) {profileHandle = Just (Handle hdl)}
+            callingDomain = (env ^. teTstOpts).backendTwo.originDomain
+        allowFullSearch brig (Domain callingDomain)
         bdy <-
           responseJsonError
-            =<< inwardCall "/federation/brig/get-user-by-handle" (encode hdl)
+            =<< inwardCallWithOriginDomain (cs callingDomain) "/federation/brig/get-user-by-handle" (encode hdl)
               <!! const 200 === statusCode
         liftIO $ bdy `shouldBe` expectedProfile
 

@@ -61,6 +61,10 @@ spec env = do
         _ <- putHandle brig (userId user) hdl
 
         let expectedProfile = (publicProfile user UserLegalHoldNoConsent) {profileHandle = Just (Handle hdl)}
+        let callingDomain =
+              -- `inwardBrigCallViaIngress` calls from local origin domain.  this is not realistic, but coherent.
+              Domain . originDomain . view teTstOpts $ env
+        allowFullSearch brig callingDomain
         runTestSem $ do
           resp <-
             liftToCodensity

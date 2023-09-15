@@ -35,6 +35,7 @@ import Data.Aeson
 import Data.Aeson.TH
 import Data.Aeson.Types qualified as Aeson
 import Data.ByteString.Char8 qualified as C8
+import Data.Domain
 import Data.Id
 import Data.Misc
 import Data.Text qualified as Text
@@ -55,8 +56,10 @@ import Test.Federator.JSON
 import Test.Tasty.HUnit
 import Util.Options (Endpoint)
 import Util.Options qualified as O
+import Wire.API.Routes.FederationDomainConfig qualified as FD
 import Wire.API.User
 import Wire.API.User.Auth
+import Wire.API.User.Search
 
 type BrigReq = Request -> Request
 
@@ -108,10 +111,17 @@ data IntegrationConfig = IntegrationConfig
     cargohold :: Endpoint,
     federatorExternal :: Endpoint,
     nginxIngress :: Endpoint,
-    originDomain :: Text
+    originDomain :: Text,
+    backendTwo :: BackendTwoConfig
   }
   deriving (Show, Generic)
 
+data BackendTwoConfig = BackendTwoConfig
+  { originDomain :: Text
+  }
+  deriving (Show, Generic)
+
+deriveFromJSON deriveJSONOptions ''BackendTwoConfig
 deriveFromJSON deriveJSONOptions ''IntegrationConfig
 
 makeLenses ''TestEnv
@@ -347,3 +357,16 @@ assertNoError =
   runError >=> \case
     Left err -> embed @IO . assertFailure $ "Unexpected error: " <> show err
     Right x -> pure x
+
+-- | this is how legacy integration tests work everywhere except in federator.  i'm adding
+-- this just because it's the easiest way to make progress.  (fisx)
+type Brig = Request -> Request
+
+setSearchPolicy :: (MonadHttp m, MonadCatch m, MonadIO m) => Brig -> Domain -> FederatedUserSearchPolicy -> m ()
+setSearchPolicy brig domain policy = do
+  let req = brig . path "/i/federation/remotes" . Bilge.json (FD.FederationDomainConfig domain policy)
+  post req
+    !!! const 200 === statusCode
+
+allowFullSearch :: (MonadHttp m, MonadCatch m, MonadIO m) => Brig -> Domain -> m ()
+allowFullSearch brig domain = setSearchPolicy brig domain FullSearch
