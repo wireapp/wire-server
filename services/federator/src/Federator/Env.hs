@@ -34,7 +34,6 @@ import Prometheus
 import System.Logger.Class qualified as LC
 import Util.Options
 import Wire.API.Federation.Component
-import Wire.API.Routes.FederationDomainConfig (FederationDomainConfigs)
 
 data FederatorMetrics = FederatorMetrics
   { outgoingRequests :: Vector Text Counter,
@@ -47,7 +46,6 @@ data Env = Env
     _requestId :: RequestId,
     _dnsResolver :: Resolver,
     _runSettings :: RunSettings,
-    _domainConfigs :: IORef FederationDomainConfigs,
     _service :: Component -> Endpoint,
     _externalPort :: Word16,
     _internalPort :: Word16,
