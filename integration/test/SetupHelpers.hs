@@ -77,11 +77,11 @@ getAllConvs u = do
     resp.json
   result %. "found" & asList
 
-deleteFedConn :: (HasCallStack, MakesValue owndom, MakesValue otherdom) => owndom -> otherdom -> App ()
-deleteFedConn mkown mkother = do
-  own <- asString mkown
+deleteFedConn :: (HasCallStack, MakesValue tablespace, MakesValue otherdom) => tablespace -> otherdom -> App ()
+deleteFedConn mktab mkother = do
+  tablespace <- asString mktab
   other <- asString mkother
-  runCqlCommand $ "delete from " <> tablespaceFromDomain own <> ".federation_remotes where domain='" <> other <> "';"
+  runCqlCommand $ "delete from " <> tablespace <> ".federation_remotes where domain='" <> other <> "';"
 
 resetFedConns :: (HasCallStack, MakesValue owndom) => owndom -> App ()
 resetFedConns mkown = do

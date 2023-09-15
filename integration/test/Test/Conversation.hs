@@ -3,7 +3,7 @@
 
 module Test.Conversation where
 
-import API.Brig (getConnection, getConnections, postConnection)
+import API.Brig (getConnections, postConnection)
 import API.BrigInternal
 import API.Galley
 import API.GalleyInternal
@@ -164,8 +164,8 @@ testCreateConversationNonFullyConnected = do
       connectAllDomainsAndWaitToSync 1 domains
       [u1, u2, u3] <- createAndConnectUsers [domainA, domainB, domainC]
       -- stop federation between B and C
-      void $ deleteFedConn domainB domainC
-      void $ deleteFedConn domainC domainB
+      void $ deleteFedConn "brig_test_dyn_2" domainC
+      void $ deleteFedConn "brig_test_dyn_3" domainB
       liftIO $ threadDelay (2 * 1000 * 1000)
       bindResponse (postConversation u1 (defProteus {qualifiedUsers = [u2, u3]})) $ \resp -> do
         resp.status `shouldMatchInt` 409
@@ -184,7 +184,9 @@ testDefederationGroupConversation = do
       domains@[domainA, domainB] <- pure dynDomains
       connectAllDomainsAndWaitToSync 1 domains
       [uA, uB] <- createAndConnectUsers [domainA, domainB]
-      withWebSocket uA $ \ws -> do
+      -- about _ws: currently we don't have any events here, but maybe there will be
+      -- `federation.delete` again in the future?
+      withWebSocket uA $ \_ws -> do
         -- create group conversation owned by domainB
         convId <- bindResponse (postConversation uB (defProteus {qualifiedUsers = [uA]})) $ \r -> do
           r.status `shouldMatchInt` 201
@@ -207,87 +209,16 @@ testDefederationGroupConversation = do
           qIds `shouldMatchSet` [uAQId]
 
         -- domainA stops federating with domainB
-        void $ deleteFedConn domainA domainB
+        void $ deleteFedConn "brig_test_dyn_1" domainB
 
         -- assert conversation deleted from domainA
         retryT $
           bindResponse (getConversation uA convId) $ \r ->
             r.status `shouldMatchInt` 404
 
-        -- assert federation.delete event is sent twice
-        void $ awaitNMatches 2 3 (\n -> nPayload n %. "type" `isEqual` "federation.delete") ws
-
       -- assert no conversation.delete event is sent to uA
       eventPayloads <-
         getNotifications uA "cA" def
-          >>= getJSON 200
-          >>= \n -> n %. "notifications" & asList >>= \ns -> for ns nPayload
-
-      forM_ eventPayloads $ \p ->
-        p %. "type" `shouldNotMatch` "conversation.delete"
-
-testDefederationOneOnOne :: HasCallStack => App ()
-testDefederationOneOnOne = do
-  let setFederationConfig =
-        setField "optSettings.setFederationStrategy" "allowDynamic"
-          >=> setField "optSettings.setFederationDomainConfigsUpdateFreq" (Aeson.Number 1)
-  startDynamicBackends
-    [ def {brigCfg = setFederationConfig},
-      def {brigCfg = setFederationConfig}
-    ]
-    $ \dynDomains -> do
-      domains@[domainA, domainB] <- pure dynDomains
-      connectAllDomainsAndWaitToSync 1 domains
-      [uA, uB] <- createAndConnectUsers [domainA, domainB]
-      -- figure out on which backend the 1:1 conversation is created
-      qConvId <- getConnection uA uB >>= \c -> c.json %. "qualified_conversation"
-
-      -- check conversation exists and uB is a member from POV of uA
-      bindResponse (getConversation uA qConvId) $ \r -> do
-        r.status `shouldMatchInt` 200
-        members <- r.json %. "members.others" & asList
-        qIds <- for members (\m -> m %. "qualified_id")
-        uBQId <- objQidObject uB
-        qIds `shouldMatchSet` [uBQId]
-
-      -- check conversation exists and uA is a member from POV of uB
-      bindResponse (getConversation uB qConvId) $ \r -> do
-        r.status `shouldMatchInt` 200
-        members <- r.json %. "members.others" & asList
-        qIds <- for members (\m -> m %. "qualified_id")
-        uAQId <- objQidObject uA
-        qIds `shouldMatchSet` [uAQId]
-
-      conversationOwningDomain <- objDomain qConvId
-
-      when (domainA == conversationOwningDomain) $ do
-        -- conversation is created on domainA
-        assertFederationTerminatingUserNoConvDeleteEvent uB qConvId domainB domainA
-
-      when (domainB == conversationOwningDomain) $ do
-        -- conversation is created on domainB
-        assertFederationTerminatingUserNoConvDeleteEvent uA qConvId domainA domainB
-
-      when (domainA /= conversationOwningDomain && domainB /= conversationOwningDomain) $ do
-        -- this should not happen
-        error "impossible"
-  where
-    assertFederationTerminatingUserNoConvDeleteEvent :: Value -> Value -> String -> String -> App ()
-    assertFederationTerminatingUserNoConvDeleteEvent user convId ownDomain otherDomain = do
-      withWebSocket user $ \ws -> do
-        void $ deleteFedConn ownDomain otherDomain
-
-        -- assert conversation deleted eventually
-        retryT $
-          bindResponse (getConversation user convId) $ \r ->
-            r.status `shouldMatchInt` 404
-
-        -- assert federation.delete event is sent twice
-        void $ awaitNMatches 2 3 (\n -> nPayload n %. "type" `isEqual` "federation.delete") ws
-
-      -- assert no conversation.delete event is sent to uA
-      eventPayloads <-
-        getNotifications user "user-client" def
           >>= getJSON 200
           >>= \n -> n %. "notifications" & asList >>= \ns -> for ns nPayload
 
@@ -315,8 +246,8 @@ testAddMembersNonFullyConnectedProteus = do
     -- create conversation with no users
     cid <- postConversation u1 (defProteus {qualifiedUsers = []}) >>= getJSON 201
     -- stop federation between B and C
-    void $ deleteFedConn domainB domainC
-    void $ deleteFedConn domainC domainB
+    void $ deleteFedConn "brig_test_dyn_2" domainC
+    void $ deleteFedConn "brig_test_dyn_3" domainB
     liftIO $ threadDelay (2 * 1000 * 1000) -- wait for federation status to be updated
     -- add members from remote backends
     members <- for [u2, u3] (%. "qualified_id")
