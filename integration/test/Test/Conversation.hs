@@ -519,3 +519,20 @@ testMultiIngressGuestLinks = do
       bindResponse (getConversationCode user conv (Just "unknown.example.com")) $ \resp -> do
         res <- getJSON 403 resp
         res %. "label" `shouldMatch` "access-denied"
+
+testAddUserWhenOtherBackendOffline :: HasCallStack => App ()
+testAddUserWhenOtherBackendOffline = do
+  let overrides =
+        def {brigCfg = setField "optSettings.setFederationStrategy" "allowAll"}
+          <> fullSearchWithAll
+  ([alice, alex], conv) <-
+    startDynamicBackends [overrides] $ \domains -> do
+      own <- make OwnDomain & asString
+      [alice, alex, charlie] <-
+        createAndConnectUsers $ [own, own] <> domains
+
+      let newConv = defProteus {qualifiedUsers = [charlie]}
+      conv <- postConversation alice newConv >>= getJSON 201
+      pure ([alice, alex], conv)
+  bindResponse (addMembers alice conv [alex]) $ \resp -> do
+    resp.status `shouldMatchInt` 200
