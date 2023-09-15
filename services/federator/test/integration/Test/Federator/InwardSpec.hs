@@ -76,7 +76,7 @@ spec env =
         _ <- putHandle brig (userId user) hdl
 
         let expectedProfile = (publicProfile user UserLegalHoldNoConsent) {profileHandle = Just (Handle hdl)}
-            callingDomain = (env ^. teTstOpts).backendTwo.originDomain
+            callingDomain = be2Domain env
         allowFullSearch brig (Domain callingDomain)
         bdy <-
           responseJsonError
@@ -129,7 +129,7 @@ spec env =
     -- and "IngressSpec".
     it "rejectRequestsWithoutClientCertInward" $
       runTestFederator env $ do
-        originDomain <- originDomain <$> view teTstOpts
+        originDomain <- be1Domain <$> ask
         hdl <- randomHandle
         inwardCallWithHeaders
           "federation/brig/get-user-by-handle"
@@ -163,7 +163,7 @@ inwardCall ::
   LBS.ByteString ->
   m (Response (Maybe LByteString))
 inwardCall requestPath payload = do
-  originDomain :: Text <- originDomain <$> view teTstOpts
+  originDomain :: Text <- be1Domain <$> ask
   inwardCallWithOriginDomain (toByteString' originDomain) requestPath payload
 
 inwardCallWithOriginDomain ::

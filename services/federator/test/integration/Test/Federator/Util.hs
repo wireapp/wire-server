@@ -126,6 +126,17 @@ deriveFromJSON deriveJSONOptions ''IntegrationConfig
 
 makeLenses ''TestEnv
 
+be1Domain :: TestEnv -> Text -- FUTUREWORK: -XDisabmgiuateRecordFields on ghc 9.2.7 isn't done yet...
+be1Domain = \case
+  TestEnv {_teTstOpts} -> case _teTstOpts of
+    IntegrationConfig {originDomain} -> originDomain
+
+be2Domain :: TestEnv -> Text -- FUTUREWORK: -XDisabmgiuateRecordFields on ghc 9.2.7 isn't done yet...
+be2Domain = \case
+  TestEnv {_teTstOpts} -> case _teTstOpts of
+    IntegrationConfig {backendTwo} -> case backendTwo of
+      BackendTwoConfig (originDomain) -> originDomain
+
 -- | Call 'mkEnv' with options from config files.
 mkEnvFromOptions :: IO TestEnv
 mkEnvFromOptions = do

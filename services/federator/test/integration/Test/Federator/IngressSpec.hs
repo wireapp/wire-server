@@ -63,7 +63,7 @@ spec env = do
         let expectedProfile = (publicProfile user UserLegalHoldNoConsent) {profileHandle = Just (Handle hdl)}
         let callingDomain =
               -- `inwardBrigCallViaIngress` calls from local origin domain.  this is not realistic, but coherent.
-              Domain . originDomain . view teTstOpts $ env
+              Domain $ be1Domain env
         allowFullSearch brig callingDomain
         runTestSem $ do
           resp <-
@@ -149,7 +149,7 @@ inwardBrigCallViaIngressWithSettings ::
 inwardBrigCallViaIngressWithSettings sslCtx requestPath payload =
   do
     Endpoint ingressHost ingressPort <- nginxIngress . view teTstOpts <$> input
-    originDomain <- originDomain . view teTstOpts <$> input
+    originDomain <- be1Domain <$> input
     let target = SrvTarget (cs ingressHost) ingressPort
         headers = [(originDomainHeaderName, Text.encodeUtf8 originDomain)]
     mgr <- liftToCodensity . liftIO $ http2ManagerWithSSLCtx sslCtx
