@@ -18,7 +18,6 @@ import Wire.BackgroundWorker.Env
 import Wire.BackgroundWorker.Health qualified as Health
 import Wire.BackgroundWorker.Options
 
--- FUTUREWORK: Start an http service with status and metrics endpoints
 run :: Opts -> IO ()
 run opts = do
   (env, syncThread) <- mkEnv opts
