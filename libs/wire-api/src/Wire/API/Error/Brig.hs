@@ -86,9 +86,12 @@ data BrigError
   | ServiceDisabled
   | InvalidBot
   | VerificationCodeThrottled
+  | InvalidProvider
 
 instance KnownError (MapError e) => IsSwaggerError (e :: BrigError) where
   addToSwagger = addStaticErrorToSwagger @(MapError e)
+
+type instance MapError 'InvalidProvider = 'StaticError 403 "invalid-provider" "The provider does not exist."
 
 type instance MapError 'VerificationCodeThrottled = 'StaticError 429 "too-many-requests" "Too many request to generate a verification code."
 

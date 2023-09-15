@@ -110,6 +110,9 @@ type ProviderAPI =
     :<|> Named
            "provider-delete"
            ( Summary "Delete a provider"
+               :> CanThrow 'AccessDenied
+               :> CanThrow 'InvalidProvider
+               :> CanThrow 'BadCredentials
                :> ZProvider
                :> "provider"
                :> ReqBody '[JSON] DeleteProvider

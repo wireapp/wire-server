@@ -635,19 +635,19 @@ deleteAccount ::
   (Handler r) ()
 deleteAccount pid del = do
   guardSecondFactorDisabled Nothing
-  prov <- DB.lookupAccount pid >>= maybeInvalidProvider
-  pass <- DB.lookupPassword pid >>= maybeBadCredentials
+  prov <- wrapClientE (DB.lookupAccount pid) >>= maybeInvalidProvider
+  pass <- wrapClientE (DB.lookupPassword pid) >>= maybeBadCredentials
   unless (verifyPassword (deleteProviderPassword del) pass) $
     throwStd (errorToWai @'E.BadCredentials)
-  svcs <- DB.listServices pid
+  svcs <- wrapClientE $ DB.listServices pid
   forM_ svcs $ \svc -> do
     let sid = serviceId svc
     let tags = unsafeRange (serviceTags svc)
         name = serviceName svc
-    lift $ RPC.removeServiceConn pid sid
-    DB.deleteService pid sid name tags
-  DB.deleteKey (mkEmailKey (providerEmail prov))
-  DB.deleteAccount pid
+    lift $ wrapHttpClient $ RPC.removeServiceConn pid sid
+    wrapClientE $ DB.deleteService pid sid name tags
+  wrapClientE $ DB.deleteKey (mkEmailKey (providerEmail prov))
+  wrapClientE $ DB.deleteAccount pid
 
 --------------------------------------------------------------------------------
 -- User API
@@ -1070,7 +1070,7 @@ invalidServiceKey :: Wai.Error
 invalidServiceKey = Wai.mkError status400 "invalid-service-key" "Invalid service key."
 
 invalidProvider :: Wai.Error
-invalidProvider = Wai.mkError status403 "invalid-provider" "The provider does not exist."
+invalidProvider = errorToWai @'E.InvalidProvider
 
 badGateway :: Wai.Error
 badGateway = Wai.mkError status502 "bad-gateway" "The upstream service returned an invalid response."
