@@ -83,10 +83,10 @@ deleteFedConn mktab mkother = do
   other <- asString mkother
   runCqlCommand $ "delete from " <> tablespace <> ".federation_remotes where domain='" <> other <> "';"
 
-resetFedConns :: (HasCallStack, MakesValue owndom) => owndom -> App ()
-resetFedConns mkown = do
-  own <- asString mkown
-  runCqlCommand $ "truncate table " <> tablespaceFromDomain own <> ".federation_remotes;"
+resetFedConns :: (HasCallStack, MakesValue tablespace) => tablespace -> App ()
+resetFedConns mktab = do
+  tablespace <- asString mktab
+  runCqlCommand $ "truncate table " <> tablespace <> ".federation_remotes;"
 
 randomId :: HasCallStack => App String
 randomId = liftIO (show <$> nextRandom)
