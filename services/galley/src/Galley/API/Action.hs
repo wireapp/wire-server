@@ -452,8 +452,8 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
         then checkFederationStatus (RemoteDomains (invitedRemoteDomains <> existingRemoteDomains))
         else -- even if there are no new remotes, we still need to check they are reachable
         void . (ensureNoUnreachableBackends =<<) $
-          E.runFederatedConcurrentlyEither invitedRemoteUsers $ \_ ->
-            void $ fedClient @'Brig @"api-version" ()
+          E.runFederatedConcurrentlyEither @_ @'Brig invitedRemoteUsers $ \_ ->
+            pure ()
 
     conv :: Data.Conversation
     conv = tUnqualified lconv
