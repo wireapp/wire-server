@@ -443,25 +443,17 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
       Local UserId ->
       Sem r ()
     checkRemoteBackendsConnected lusr = do
-      let remoteUsers = snd (partitionQualified lusr $ NE.toList invited)
-          invitedRemoteDomains = Set.fromList . filter (/= tDomain lconv) $ tDomain <$> remoteUsers
+      let invitedRemoteUsers = filter ((/= tDomain lconv) . tDomain) $ snd (partitionQualified lusr $ NE.toList invited)
+          invitedRemoteDomains = Set.fromList $ tDomain <$> invitedRemoteUsers
           existingRemoteDomains = Set.fromList $ tDomain . rmId <$> convRemoteMembers (tUnqualified lconv)
           allInvitedAlreadyInConversation = null $ invitedRemoteDomains \\ existingRemoteDomains
 
       if not allInvitedAlreadyInConversation
-        then -- Note:
-        --
-        -- In some cases, this federation status check might be redundant (for
-        -- example if there are only local users in the conversation). However,
-        -- it is important that we attempt to connect to the backends of the new
-        -- users here, because that results in the correct error when those
-        -- backends are not reachable.
-          checkFederationStatus (RemoteDomains (invitedRemoteDomains <> existingRemoteDomains))
-        else do
-          -- even if there are no new remotes, we still need to check they are reachable
-          void . (ensureNoUnreachableBackends =<<) $
-            E.runFederatedConcurrentlyEither remoteUsers $ \_ ->
-              void $ fedClient @'Brig @"api-version" ()
+        then checkFederationStatus (RemoteDomains (invitedRemoteDomains <> existingRemoteDomains))
+        else -- even if there are no new remotes, we still need to check they are reachable
+        void . (ensureNoUnreachableBackends =<<) $
+          E.runFederatedConcurrentlyEither invitedRemoteUsers $ \_ ->
+            void $ fedClient @'Brig @"api-version" ()
 
     conv :: Data.Conversation
     conv = tUnqualified lconv
