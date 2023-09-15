@@ -153,18 +153,13 @@ providerAPI =
     :<|> Named @"provider-activate" activateAccountKey
     :<|> Named @"provider-login" login
     :<|> Named @"provider-password-reset" beginPasswordReset
+    :<|> Named @"provider-password-reset-complete" completePasswordReset
 
 routesPublic ::
   ( Member GalleyProvider r
   ) =>
   Routes () (Handler r) ()
 routesPublic = do
-  -- Public API (Unauthenticated) --------------------------------------------
-
-  post "/provider/password-reset/complete" (continue completePasswordResetH) $
-    accept "application" "json"
-      .&> jsonRequest @Public.CompletePasswordReset
-
   -- Provider API ------------------------------------------------------------
 
   delete "/provider" (continue deleteAccountH) $
@@ -393,20 +388,16 @@ beginPasswordReset (Public.PasswordReset target) = do
   tryInsertVerificationCode code $ verificationCodeThrottledError . VerificationCodeThrottled
   lift $ sendPasswordResetMail target (Code.codeKey code) (Code.codeValue code)
 
-completePasswordResetH :: Member GalleyProvider r => JsonRequest Public.CompletePasswordReset -> (Handler r) Response
-completePasswordResetH req = do
-  guardSecondFactorDisabled Nothing
-  empty <$ (completePasswordReset =<< parseJsonBody req)
-
-completePasswordReset :: Public.CompletePasswordReset -> (Handler r) ()
+completePasswordReset :: Member GalleyProvider r => Public.CompletePasswordReset -> (Handler r) ()
 completePasswordReset (Public.CompletePasswordReset key val newpwd) = do
+  guardSecondFactorDisabled Nothing
   code <- wrapClientE (Code.verify key Code.PasswordReset val) >>= maybeInvalidCode
   case Id <$> Code.codeAccount code of
-    Nothing -> throwE $ pwResetError InvalidPasswordResetCode
+    Nothing -> throwStd (errorToWai @'E.InvalidPasswordResetCode)
     Just pid -> do
       oldpass <- wrapClientE (DB.lookupPassword pid) >>= maybeBadCredentials
       when (verifyPassword newpwd oldpass) $ do
-        throwStd newPasswordMustDiffer
+        throwStd (errorToWai @'E.ResetPasswordMustDiffer)
       wrapClientE $ do
         DB.updateAccountPassword pid newpwd
         Code.delete key Code.PasswordReset
@@ -473,7 +464,7 @@ updateAccountPassword pid upd = do
   unless (verifyPassword (oldPassword upd) pass) $
     throwStd (errorToWai @'E.BadCredentials)
   when (verifyPassword (newPassword upd) pass) $
-    throwStd newPasswordMustDiffer
+    throwStd (errorToWai @'E.ResetPasswordMustDiffer)
   wrapClientE $ DB.updateAccountPassword pid (newPassword upd)
 
 addServiceH :: Member GalleyProvider r => ProviderId ::: JsonRequest Public.NewService -> (Handler r) Response

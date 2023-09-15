@@ -92,3 +92,17 @@ type ProviderAPI =
                :> ReqBody '[JSON] PasswordReset
                :> MultiVerb1 'POST '[JSON] (RespondEmpty 201 "")
            )
+    :<|> Named
+           "provider-password-reset-complete"
+           ( Summary "Complete a password reset"
+               :> CanThrow 'AccessDenied
+               :> CanThrow 'InvalidCode
+               :> CanThrow 'ResetPasswordMustDiffer
+               :> CanThrow 'BadCredentials
+               :> CanThrow 'InvalidPasswordResetCode
+               :> "provider"
+               :> "password-reset"
+               :> "complete"
+               :> ReqBody '[JSON] CompletePasswordReset
+               :> MultiVerb1 'POST '[JSON] (RespondEmpty 200 "")
+           )
