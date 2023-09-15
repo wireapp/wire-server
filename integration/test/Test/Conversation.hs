@@ -21,7 +21,6 @@ testDynamicBackendsFullyConnectedWhenAllowAll :: HasCallStack => App ()
 testDynamicBackendsFullyConnectedWhenAllowAll = do
   let overrides =
         def {brigCfg = setField "optSettings.setFederationStrategy" "allowAll"}
-          <> fullSearchWithAll
   startDynamicBackends [overrides, overrides, overrides] $ \dynDomains -> do
     [domainA, domainB, domainC] <- pure dynDomains
     uidA <- randomUser domainA def {team = True}
@@ -61,7 +60,6 @@ testDynamicBackendsFullyConnectedWhenAllowDynamic :: HasCallStack => App ()
 testDynamicBackendsFullyConnectedWhenAllowDynamic = do
   let overrides =
         setField "optSettings.setFederationStrategy" "allowDynamic"
-          >=> removeField "optSettings.setFederationDomainConfigs"
           >=> setField "optSettings.setFederationDomainConfigsUpdateFreq" (Aeson.Number 1)
   startDynamicBackends
     [ def {brigCfg = overrides},
@@ -90,14 +88,13 @@ testDynamicBackendsNotFullyConnected = do
         def
           { brigCfg =
               setField "optSettings.setFederationStrategy" "allowDynamic"
-                >=> removeField "optSettings.setFederationDomainConfigs"
                 >=> setField "optSettings.setFederationDomainConfigsUpdateFreq" (Aeson.Number 1)
           }
   startDynamicBackends [overrides, overrides, overrides] $
     \dynDomains -> do
       domains@[domainA, domainB, domainC] <- pure dynDomains
       -- clean federation config
-      sequence_ [deleteFedConn x y | x <- domains, y <- domains, x /= y]
+      resetFedConns `mapM_` domains
       -- A is connected to B and C, but B and C are not connected to each other
       void $ createFedConn domainA $ FedConn domainB "full_search"
       void $ createFedConn domainB $ FedConn domainA "full_search"
@@ -139,7 +136,6 @@ testCreateConversationFullyConnected :: HasCallStack => App ()
 testCreateConversationFullyConnected = do
   let setFederationConfig =
         setField "optSettings.setFederationStrategy" "allowDynamic"
-          >=> removeField "optSettings.setFederationDomainConfigs"
           >=> setField "optSettings.setFederationDomainConfigsUpdateFreq" (Aeson.Number 1)
   startDynamicBackends
     [ def {brigCfg = setFederationConfig},
@@ -157,7 +153,6 @@ testCreateConversationNonFullyConnected :: HasCallStack => App ()
 testCreateConversationNonFullyConnected = do
   let setFederationConfig =
         setField "optSettings.setFederationStrategy" "allowDynamic"
-          >=> removeField "optSettings.setFederationDomainConfigs"
           >=> setField "optSettings.setFederationDomainConfigsUpdateFreq" (Aeson.Number 1)
   startDynamicBackends
     [ def {brigCfg = setFederationConfig},
@@ -180,7 +175,6 @@ testDefederationGroupConversation :: HasCallStack => App ()
 testDefederationGroupConversation = do
   let setFederationConfig =
         setField "optSettings.setFederationStrategy" "allowDynamic"
-          >=> removeField "optSettings.setFederationDomainConfigs"
           >=> setField "optSettings.setFederationDomainConfigsUpdateFreq" (Aeson.Number 1)
   startDynamicBackends
     [ def {brigCfg = setFederationConfig},
@@ -236,7 +230,6 @@ testDefederationOneOnOne :: HasCallStack => App ()
 testDefederationOneOnOne = do
   let setFederationConfig =
         setField "optSettings.setFederationStrategy" "allowDynamic"
-          >=> removeField "optSettings.setFederationDomainConfigs"
           >=> setField "optSettings.setFederationDomainConfigsUpdateFreq" (Aeson.Number 1)
   startDynamicBackends
     [ def {brigCfg = setFederationConfig},
@@ -335,7 +328,6 @@ testConvWithUnreachableRemoteUsers :: HasCallStack => App ()
 testConvWithUnreachableRemoteUsers = do
   let overrides =
         def {brigCfg = setField "optSettings.setFederationStrategy" "allowAll"}
-          <> fullSearchWithAll
   ([alice, alex, bob, charlie, dylan], domains) <-
     startDynamicBackends [overrides, overrides] $ \domains -> do
       own <- make OwnDomain & asString
@@ -356,7 +348,6 @@ testAddReachableWithUnreachableRemoteUsers :: HasCallStack => App ()
 testAddReachableWithUnreachableRemoteUsers = do
   let overrides =
         def {brigCfg = setField "optSettings.setFederationStrategy" "allowAll"}
-          <> fullSearchWithAll
   ([alex, bob], conv, domains) <-
     startDynamicBackends [overrides, overrides] $ \domains -> do
       own <- make OwnDomain & asString
@@ -382,7 +373,6 @@ testAddUnreachable :: HasCallStack => App ()
 testAddUnreachable = do
   let overrides =
         def {brigCfg = setField "optSettings.setFederationStrategy" "allowAll"}
-          <> fullSearchWithAll
   ([alex, charlie], [charlieDomain, dylanDomain], conv) <-
     startDynamicBackends [overrides, overrides] $ \domains -> do
       own <- make OwnDomain & asString
@@ -406,7 +396,6 @@ testAddingUserNonFullyConnectedFederation = do
         def
           { brigCfg =
               setField "optSettings.setFederationStrategy" "allowDynamic"
-                >=> removeField "optSettings.setFederationDomainConfigs"
           }
   startDynamicBackends [overrides] $ \[dynBackend] -> do
     own <- asString OwnDomain
@@ -417,7 +406,7 @@ testAddingUserNonFullyConnectedFederation = do
     --
     -- FUTUREWORK: deleteAllFedConns at the time of acquiring a backend, so
     -- tests don't affect each other.
-    deleteAllFedConns dynBackend
+    resetFedConns dynBackend
     void $ createFedConn dynBackend (FedConn own "full_search")
 
     alice <- randomUser own def
@@ -524,7 +513,6 @@ testAddUserWhenOtherBackendOffline :: HasCallStack => App ()
 testAddUserWhenOtherBackendOffline = do
   let overrides =
         def {brigCfg = setField "optSettings.setFederationStrategy" "allowAll"}
-          <> fullSearchWithAll
   ([alice, alex], conv) <-
     startDynamicBackends [overrides] $ \domains -> do
       own <- make OwnDomain & asString

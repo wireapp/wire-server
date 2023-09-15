@@ -29,14 +29,8 @@ testSearchContactForExternalUsers = do
 testCrudFederationRemotes :: HasCallStack => App ()
 testCrudFederationRemotes = do
   otherDomain <- asString OtherDomain
-  let overrides =
-        def
-          { brigCfg =
-              setField
-                "optSettings.setFederationDomainConfigs"
-                [object ["domain" .= otherDomain, "search_policy" .= "full_search"]]
-          }
-  withModifiedBackend overrides $ \ownDomain -> do
+  withModifiedBackend def $ \ownDomain -> do
+    void $ Internal.createFedConn ownDomain (Internal.FedConn otherDomain "full_search")
     let parseFedConns :: HasCallStack => Response -> App [Value]
         parseFedConns resp =
           -- Pick out the list of federation domain configs
@@ -52,11 +46,6 @@ testCrudFederationRemotes = do
             res2 <- parseFedConns =<< Internal.readFedConns ownDomain
             sort res2 `shouldMatch` sort want
 
-        addFail :: HasCallStack => MakesValue fedConn => fedConn -> App ()
-        addFail fedConn = do
-          bindResponse (Internal.createFedConn' ownDomain fedConn) $ \res -> do
-            addFailureContext ("res = " <> show res) $ res.status `shouldMatchInt` 533
-
         updateOnce :: (MakesValue fedConn, Ord fedConn2, ToJSON fedConn2, MakesValue fedConn2, HasCallStack) => String -> fedConn -> [fedConn2] -> App ()
         updateOnce domain fedConn want = do
           bindResponse (Internal.updateFedConn ownDomain domain fedConn) $ \res -> do
@@ -64,18 +53,11 @@ testCrudFederationRemotes = do
             res2 <- parseFedConns =<< Internal.readFedConns ownDomain
             sort res2 `shouldMatch` sort want
 
-        updateFail :: (MakesValue fedConn, HasCallStack) => String -> fedConn -> App ()
-        updateFail domain fedConn = do
-          bindResponse (Internal.updateFedConn' ownDomain domain fedConn) $ \res -> do
-            addFailureContext ("res = " <> show res) $ res.status `shouldMatchInt` 533
-
     dom1 :: String <- (<> ".example.com") . UUID.toString <$> liftIO UUID.nextRandom
-    dom2 :: String <- (<> ".example.com") . UUID.toString <$> liftIO UUID.nextRandom
 
-    let remote1, remote1', remote1'' :: Internal.FedConn
+    let remote1, remote1' :: Internal.FedConn
         remote1 = Internal.FedConn dom1 "no_search"
         remote1' = remote1 {Internal.searchStrategy = "full_search"}
-        remote1'' = remote1 {Internal.domain = dom2}
 
         cfgRemotesExpect :: Internal.FedConn
         cfgRemotesExpect = Internal.FedConn (cs otherDomain) "full_search"
@@ -89,14 +71,11 @@ testCrudFederationRemotes = do
     -- entries present in the config file can be idempotently added if identical, but cannot be
     -- updated.
     addOnce cfgRemotesExpect [cfgRemotesExpect]
-    addFail (cfgRemotesExpect {Internal.searchStrategy = "no_search"})
-    updateFail (Internal.domain cfgRemotesExpect) (cfgRemotesExpect {Internal.searchStrategy = "no_search"})
     -- create
     addOnce remote1 $ (remote1J : cfgRemotes)
     addOnce remote1 $ (remote1J : cfgRemotes) -- idempotency
     -- update
     updateOnce (Internal.domain remote1) remote1' (remote1J' : cfgRemotes)
-    updateFail (Internal.domain remote1) remote1''
 
 testCrudOAuthClient :: HasCallStack => App ()
 testCrudOAuthClient = do
@@ -169,7 +148,6 @@ testRemoteUserSearch :: HasCallStack => App ()
 testRemoteUserSearch = do
   let overrides =
         setField "optSettings.setFederationStrategy" "allowDynamic"
-          >=> removeField "optSettings.setFederationDomainConfigs"
           >=> setField "optSettings.setFederationDomainConfigsUpdateFreq" (Aeson.Number 1)
   startDynamicBackends [def {brigCfg = overrides}, def {brigCfg = overrides}] $ \dynDomains -> do
     domains@[d1, d2] <- pure dynDomains
