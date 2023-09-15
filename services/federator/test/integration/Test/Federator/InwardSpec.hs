@@ -22,7 +22,7 @@ module Test.Federator.InwardSpec where
 
 import Bilge
 import Bilge.Assert
-import Control.Lens (view, (^.))
+import Control.Lens (view)
 import Data.Aeson
 import Data.Aeson.Types qualified as Aeson
 import Data.ByteString qualified as BS
