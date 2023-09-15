@@ -32,7 +32,6 @@ type IsWorking = Bool
 -- | Eventually this will be a sum type of all the types of workers
 data Worker
   = BackendNotificationPusher
-  | DefederationWorker
   deriving (Show, Eq, Ord)
 
 data Env = Env
@@ -91,8 +90,7 @@ mkEnv opts = do
   statuses <-
     newIORef $
       Map.fromList
-        [ (BackendNotificationPusher, False),
-          (DefederationWorker, False)
+        [ (BackendNotificationPusher, False)
         ]
   metrics <- Metrics.metrics
   backendNotificationMetrics <- mkBackendNotificationMetrics
