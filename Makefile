@@ -95,7 +95,7 @@ endif
 #
 # If you want to pass arguments to the test-suite call cabal-run-integration.sh directly.
 .PHONY: ci-fast
-ci-fast: c db-migrate
+ci-fast: c db-migrate ci-cleanup-fed-remotes
 ifeq ("$(package)", "all")
 	./hack/bin/cabal-run-integration.sh all
 	./hack/bin/cabal-run-integration.sh integration
@@ -269,6 +269,13 @@ cqlsh:
 	$(eval CASSANDRA_CONTAINER := $(shell docker ps | grep '/cassandra:' | perl -ne '/^(\S+)\s/ && print $$1'))
 	@echo "make sure you have ./deploy/dockerephemeral/run.sh running in another window!"
 	docker exec -it $(CASSANDRA_CONTAINER) /usr/bin/cqlsh
+
+.PHONY: ci-cleanup-fed-remotes
+ci-cleanup-fed-remotes:
+	@echo "(this step is important because some ci tests expect table federation_remotes to be empty.)"
+	$(eval CASSANDRA_CONTAINER := $(shell docker ps | grep '/cassandra:' | perl -ne '/^(\S+)\s/ && print $$1'))
+	@echo "make sure you have ./deploy/dockerephemeral/run.sh running in another window!"
+	echo "truncate table brig_test.federation_remotes; truncate table brig_test2.federation_remotes; truncate table brig_test_dyn_1.federation_remotes; truncate table brig_test_dyn_2.federation_remotes; truncate table brig_test_dyn_3.federation_remotes;" | docker exec -i $(CASSANDRA_CONTAINER) /usr/bin/cqlsh
 
 .PHONY: db-reset-package
 db-reset-package:
