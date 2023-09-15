@@ -407,16 +407,3 @@ testAPIVersion :: Brig -> FedClient 'Brig -> Http ()
 testAPIVersion _brig fedBrigClient = do
   vinfo <- runFedClient @"api-version" fedBrigClient (Domain "far-away.example.com") ()
   liftIO $ vinfoSupported vinfo @?= toList supportedVersions
-
-testClaimKeyPackagesMLSDisabled :: HasCallStack => Opt.Opts -> Brig -> Http ()
-testClaimKeyPackagesMLSDisabled opts brig = do
-  alice <- fakeRemoteUser
-  bob <- userQualifiedId <$> randomUser brig
-
-  mbundle <-
-    withSettingsOverrides (opts & Opt.optionSettings . Opt.enableMLS ?~ False) $
-      runWaiTestFedClient (qDomain alice) $
-        createWaiTestFedClient @"claim-key-packages" @'Brig $
-          ClaimKeyPackageRequest (qUnqualified alice) (qUnqualified bob)
-
-  liftIO $ mbundle @?= Nothing

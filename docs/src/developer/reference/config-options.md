@@ -7,8 +7,6 @@ Fragment.
 This page is about the yaml files that determine the configuration of
 the Wire backend services.
 
-## Settings in galley
-
 ### MLS private key paths
 
 Note: This developer documentation. Documentation for site operators can be found here: {ref}`mls-message-layer-security`
@@ -657,39 +655,71 @@ The default setting is that no API version is disabled.
 
 ## Settings in cargohold
 
-### (Fake) AWS
-
 AWS S3 (or an alternative provider / service) is used to upload and download
 assets. The Haddock of
 [`CargoHold.Options.AWSOpts`](https://github.com/wireapp/wire-server/blob/develop/services/cargohold/src/CargoHold/Options.hs#L64)
 provides a lot of useful information.
 
-#### Multi-Ingress setup
+
+## Multi-Ingress setup
 
 In a multi-ingress setup the backend is reachable via several domains, each
 handled by a separate Kubernetes ingress. This is useful to obfuscate the
 relationship of clients to each other, as an attacker on TCP/IP-level could only
 see domains and IPs that do not obviously relate to each other.
+Each of these backend domains represents a virtual backend. N.B. these backend
+domains are *DNS domains* only, not to be confused of the "backend domain" term used for federation (see {ref}`configure-federation`). In single-ingress setups the backend DNS domain and federation backend domain is usually be the same, but this is not true for multi-ingress setups.
 
-In case of a fake AWS S3 service its identity needs to be obfuscated by making
-it accessible via several domains, too. Thus, there isn't one
-`s3DownloadEndpoint`, but one per domain at which the backend is reachable. Each
-of these backend domains represents a virtual backend. N.B. these backend
-domains are *DNS domains*. Do not confuse them with the federation domain! The
-latter is just an identifier, and may or may not be equal to the backend's DNS
-domain. Backend DNS domain(s) and federation domain are usually set equal by
-convention. But, this is not true for multi-ingress setups!
+
+For a multi-ingress setup multiple services need to be configured:
+### Nginz
+
+nginz sets [CORS
+headers](https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS). To generate
+them for multiple domains (usually, *nginz* works with only one root domain)
+these need to be defined with `nginx_conf.additional_external_env_domains`.
+
+E.g.
+
+```yaml
+nginx_conf:
+  additional_external_env_domains:
+    - red.example.com
+    - green.example.org
+    - blue.example.net
+```
+
+### Cannon
+
+*cannon* sets [CORS
+headers](https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS) for direct API
+accesses by clients. To generate them for multiple domains (usually, *cannon*
+works with only one root domain) these need to be defined with
+`nginx_conf.additional_external_env_domains`.
+
+E.g.
+
+```yaml
+nginx_conf:
+  additional_external_env_domains:
+    - red.example.com
+    - green.example.org
+    - blue.example.net
+```
+
+### Cargohold
+
 
 The backend domain of a download request is defined by its `Z-Host` header which
-is set by `nginz`. (Multi-ingress handlling only applies to download requests as
+is set by `nginz`. Multi-ingress handling only applies to download requests as
 these are implemented by redirects to the S3 assets host for local assets.
-Uploads are handled by cargohold directly itself.)
+Uploads are handled by cargohold directly itself.
 
-The config `aws.multiIngress` is a map from backend domain (`Z-Host` header
-value) to a S3 download endpoint. The `Z-Host` header is set by `nginz` to the
+
+For a multi-ingress setup `aws.multiIngress` needs to be configured as a map from backend domain (`Z-Host` header value) to a S3 download endpoint. The `Z-Host` header is set by `nginz` to the
 value of the incoming requests `Host` header. If there's no config map entry for
 a provided `Z-Host` in a download request for a local asset, then an error is
-returned.
+returned. When configured the configuration of `s3DownloadEndpoint` is ignored.
 
 This example shows a setup with fake backends *red*, *green* and *blue*:
 
@@ -724,45 +754,55 @@ Link to diagram:
 https://mermaid.live/edit#pako:eNrdVbFu2zAQ_ZUDJ7ewDdhtUkBDgBRB0CHIYCNL4eVEnmWiMk8lKbttkH8vJbsW5dCOUXSqBkHiPT6-e3yinoVkRSITEC5H32syku40FhbXCwP7C6VnC1hqSQNL6l1XeWRPwBuKqxk8OXKwpRyrahxGxvQD11VJY8mvSHPOB4UlMknSrtonbcfStBVar6Wu0HjQJgCdGwUNKfaonMGMax8WeH9acIq5FXKOuwVE7BcqN4U2v9IlibbgFZcqXZ5_ABeMxYK6uiXpwRb5YHp1NYTJ9FN7ixw3jW6ri5UHXva28rZ5BsVbUzIqB-gc-WgTD9DRzU3Pz7v9FChZYnk8L4KGiW23Gdyz3aJVQW7IoYvQbT3gDq2_wsIIbpWCr6MvHF5WhIpsL2p6g6HFhHePvdajFR6Yv0Fd7ZTDquF9mj3AMoR2t0zHcZg1CiJj92akdGP-OLBJ9JpDFOa73YGNxnRAFZ3Te9rxey5L3gZHdmueMrsLyBnHDwpScerGQr_9dn1tzfFeR_2k2MioRFIn15MhTD82Sb0-ndT4fPjM-emcdsDItf23eVlSW_D_ltXYv0uzenTknU_rOd_fzOsfy_9xYvtN_21ixVCsya5Rq_D3fG6KC-FXtKaFyMKjoiXWpV-IhXkJUKw9z38aKTJvaxqKulKBff-jFdkSS0cvvwHKl250
 -->
 
-## Settings in cannon
+### Galley
 
-### Multi-Ingress setup
+For conversation invite links to be correct in a multi-ingress setup `settings.multiIngress` needs to be configured as map from `Z-Host` to the conversation URI prefix.  This setting is a `Z-Host` depended version of `settings.conversationCodeURI`. In fact `settings.multiIngress` and `settings.conversationCodeURI` are mutually exclusive.
 
-*cannon* sets [CORS
-headers](https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS) for direct API
-accesses by clients. To generate them for multiple domains (usually, *cannon*
-works with only one root domain) these need to be defined with
-`nginx_conf.additional_external_env_domains`.
-
-E.g.
+Example:
 
 ```yaml
-nginx_conf:
-  additional_external_env_domains:
-    - red.example.com
-    - green.example.org
-    - blue.example.net
+multiIngress: 
+   red.example.com: https://accounts.red.example.com/conversation-join/
+   green.example.com: https://accounts.green.example.net/conversation-join/
 ```
 
-This setting has a dual in the *nginz* configuration.
+### Webapp
 
-## Settings in nginz
+The webapp runs its own web server (a NodeJS server) to serve static files and the webapp config (based on environment variables). 
+In a multi-ingress configuration, a single webapp instance will be deployed and be accessible from multiple domains (say `webapp.red.example.com` and `webapp.green.example.com`). 
+When the webapp is loaded from one of those domains it first does a request to the web server to get the config (that will give it, for example, the backend endpoint that it should hit). 
 
-### Multi-Ingress setup
+Because of the single instance nature of the webapp, by default the configuration is static and the root url to the backend API can be set there (say `nginz-https.root.example.com`). 
+In order to completely hide this root domain to the webapp, an environment variable can be set to allow the webapp hostname to be used to generate the API endpoint, team settings links, account page links and CSP headers.
 
-nginz sets [CORS
-headers](https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS). To generate
-them for multiple domains (usually, *nginz* works with only one root domain)
-these need to be defined with `nginx_conf.additional_external_env_domains`.
+The "hostname" is the result of the domain name minus the `webapp.` part of it. 
+So querying the webapp on `webapp.red.example.com` will resolve to `red.example.com`.
 
-E.g.
+To enable dynamic hostname replacement, first set this variable:
 
-```yaml
-nginx_conf:
-  additional_external_env_domains:
-    - red.example.com
-    - green.example.org
-    - blue.example.net
+```
+ENABLE_DYNAMIC_HOSTNAME="true"
 ```
 
-This setting has a dual in the *cannon* configuration.
+Then, any other variable that will contain the string `[[hostname]]` will be replaced by the hostname of the running webapp. (eg. if a webapp is running on `webapp.red.example.com` then any occurrence of `[[hostname]]` in the config will be replaced by `red.example.com`). 
+
+You may use the template variable `[[hostname]]` in any environment variable to not provide (reveal) actual domain names.
+
+For example:
+
+```
+APP_BASE:                                         https://[[hostname]]
+BACKEND_REST:                                     https://nginz-https.[[hostname]]
+BACKEND_WS:                                       wss://nginz-ssl.[[hostname]]
+CSP_EXTRA_CONNECT_SRC:                            https://*.[[hostname]], wss://*.[[hostname]]
+CSP_EXTRA_DEFAULT_SRC:                            https://*.[[hostname]]
+CSP_EXTRA_FONT_SRC:                               https://*.[[hostname]]
+CSP_EXTRA_FRAME_SRC:                              https://*.[[hostname]]
+CSP_EXTRA_IMG_SRC:                                https://*.[[hostname]]
+CSP_EXTRA_MANIFEST_SRC:                           https://*.[[hostname]]
+CSP_EXTRA_MEDIA_SRC:                              https://*.[[hostname]]
+CSP_EXTRA_PREFETCH_SRC:                           https://*.[[hostname]]
+CSP_EXTRA_SCRIPT_SRC:                             https://*.[[hostname]]
+CSP_EXTRA_STYLE_SRC:                              https://*.[[hostname]]
+CSP_EXTRA_WORKER_SRC:                             https://*.[[hostname]]
+```

@@ -32,8 +32,6 @@ import Wire.API.Conversation.Typing
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
-import Wire.API.MLS.PublicGroupState
-import Wire.API.MLS.Servant
 import Wire.API.MakesFederatedCall
 import Wire.API.OAuth
 import Wire.API.Routes.MultiVerb
@@ -195,27 +193,6 @@ type ConversationAPI =
                :> Capture "cnv" ConvId
                :> "roles"
                :> Get '[Servant.JSON] ConversationRolesList
-           )
-    :<|> Named
-           "get-group-info"
-           ( Summary "Get MLS group information"
-               :> From 'V4
-               :> MakesFederatedCall 'Galley "query-group-info"
-               :> CanThrow 'ConvNotFound
-               :> CanThrow 'MLSMissingGroupInfo
-               :> CanThrow 'MLSNotEnabled
-               :> ZLocalUser
-               :> "conversations"
-               :> QualifiedCapture "cnv" ConvId
-               :> "groupinfo"
-               :> MultiVerb1
-                    'GET
-                    '[MLS]
-                    ( Respond
-                        200
-                        "The group information"
-                        OpaquePublicGroupState
-                    )
            )
     :<|> Named
            "list-conversation-ids-unqualified"
@@ -460,23 +437,6 @@ type ConversationAPI =
                :> "self"
                :> ConversationVerb
            )
-    :<|> Named
-           "get-mls-self-conversation"
-           ( Summary "Get the user's MLS self-conversation"
-               :> From 'V4
-               :> ZLocalUser
-               :> "conversations"
-               :> "mls-self"
-               :> CanThrow 'MLSNotEnabled
-               :> MultiVerb1
-                    'GET
-                    '[JSON]
-                    ( Respond
-                        200
-                        "The MLS self-conversation"
-                        Conversation
-                    )
-           )
     -- This endpoint can lead to the following events being sent:
     -- - ConvCreate event to members
     -- TODO: add note: "On 201, the conversation ID is the `Location` header"
@@ -675,6 +635,7 @@ type ConversationAPI =
                :> CanThrow 'GuestLinksDisabled
                :> CanThrow 'CreateConversationCodeConflict
                :> ZUser
+               :> ZHostOpt
                :> ZOptConn
                :> "conversations"
                :> Capture' '[Description "Conversation ID"] "cnv" ConvId
@@ -693,6 +654,7 @@ type ConversationAPI =
                :> CanThrow 'GuestLinksDisabled
                :> CanThrow 'CreateConversationCodeConflict
                :> ZUser
+               :> ZHostOpt
                :> ZOptConn
                :> "conversations"
                :> Capture' '[Description "Conversation ID"] "cnv" ConvId
@@ -737,6 +699,7 @@ type ConversationAPI =
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'ConvNotFound
                :> CanThrow 'GuestLinksDisabled
+               :> ZHostOpt
                :> ZLocalUser
                :> "conversations"
                :> Capture' '[Description "Conversation ID"] "cnv" ConvId

@@ -194,6 +194,7 @@ isDevelopmentVersion V0 = False
 isDevelopmentVersion V1 = False
 isDevelopmentVersion V2 = False
 isDevelopmentVersion V3 = False
+isDevelopmentVersion V4 = False
 isDevelopmentVersion _ = True
 
 developmentVersions :: [Version]
