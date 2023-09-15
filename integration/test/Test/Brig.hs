@@ -62,9 +62,6 @@ testCrudFederationRemotes = do
         cfgRemotesExpect :: Internal.FedConn
         cfgRemotesExpect = Internal.FedConn (cs otherDomain) "full_search"
 
-    remote1J <- make remote1
-    remote1J' <- make remote1'
-
     resetFedConns ownDomain
     cfgRemotes <- parseFedConns =<< Internal.readFedConns ownDomain
     sort cfgRemotes `shouldMatch` ([] @Value)
@@ -72,10 +69,10 @@ testCrudFederationRemotes = do
     -- updated.
     addOnce cfgRemotesExpect [cfgRemotesExpect]
     -- create
-    addOnce remote1 (remote1J : cfgRemotes)
-    addOnce remote1 (remote1J : cfgRemotes) -- idempotency
+    addOnce remote1 [cfgRemotesExpect, remote1]
+    addOnce remote1 [cfgRemotesExpect, remote1] -- idempotency
     -- update
-    updateOnce (Internal.domain remote1) remote1' (remote1J' : cfgRemotes)
+    updateOnce (Internal.domain remote1) remote1' [cfgRemotesExpect, remote1']
 
 testCrudOAuthClient :: HasCallStack => App ()
 testCrudOAuthClient = do
