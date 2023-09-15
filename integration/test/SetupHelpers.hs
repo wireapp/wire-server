@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
+
 module SetupHelpers where
 
 import API.Brig qualified as Brig
@@ -9,10 +11,10 @@ import Data.Aeson hiding ((.=))
 import Data.Aeson.Types qualified as Aeson
 import Data.Default
 import Data.Function
-import Data.List qualified as List
 import Data.UUID.V1 (nextUUID)
 import Data.UUID.V4 (nextRandom)
 import GHC.Stack
+import System.Process (system)
 import Testlib.Prelude
 
 -- | `n` should be 2 x `setFederationDomainConfigsUpdateFreq` in the config
@@ -75,13 +77,16 @@ getAllConvs u = do
     resp.json
   result %. "found" & asList
 
+deleteFedConn :: (HasCallStack, MakesValue owndom, MakesValue otherdom) => owndom -> otherdom -> App ()
+deleteFedConn mkown mkother = do
+  own <- asString mkown
+  other <- asString mkother
+  runCqlCommand $ "delete from " <> tablespaceFromDomain own <> ".federation_remotes where domain='" <> other <> "';"
+
 resetFedConns :: (HasCallStack, MakesValue owndom) => owndom -> App ()
-resetFedConns owndom = do
-  bindResponse (Internal.readFedConns owndom) $ \resp -> do
-    rdoms :: [String] <- do
-      rawlist <- resp.json %. "remotes" & asList
-      (asString . (%. "domain")) `mapM` rawlist
-    Internal.deleteFedConn' owndom `mapM_` rdoms
+resetFedConns mkown = do
+  own <- asString mkown
+  runCqlCommand $ "truncate table " <> tablespaceFromDomain own <> ".federation_remotes;"
 
 randomId :: HasCallStack => App String
 randomId = liftIO (show <$> nextRandom)
@@ -95,32 +100,10 @@ randomUserId domain = do
   uid <- randomId
   pure $ object ["id" .= uid, "domain" .= d]
 
-addFullSearchFor :: [String] -> Value -> App Value
-addFullSearchFor domains val =
-  modifyField
-    "optSettings.setFederationDomainConfigs"
-    ( \configs -> do
-        cfg <- assertJust "" configs
-        xs <- cfg & asList
-        pure (xs <> [object ["domain" .= domain, "search_policy" .= "full_search"] | domain <- domains])
-    )
-    val
-
-fullSearchWithAll :: ServiceOverrides
-fullSearchWithAll =
-  def
-    { brigCfg = \val -> do
-        ownDomain <- asString =<< val %. "optSettings.setFederationDomain"
-        env <- ask
-        let remoteDomains = List.delete ownDomain $ [env.domain1, env.domain2] <> env.dynamicDomains
-        addFullSearchFor remoteDomains val
-    }
-
 withFederatingBackendsAllowDynamic :: HasCallStack => Int -> ((String, String, String) -> App a) -> App a
 withFederatingBackendsAllowDynamic n k = do
   let setFederationConfig =
         setField "optSettings.setFederationStrategy" "allowDynamic"
-          >=> removeField "optSettings.setFederationDomainConfigs"
           >=> setField "optSettings.setFederationDomainConfigsUpdateFreq" (Aeson.Number 1)
   startDynamicBackends
     [ def {brigCfg = setFederationConfig},
