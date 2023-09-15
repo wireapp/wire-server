@@ -57,18 +57,6 @@ testCrudFederationRemotes = do
           bindResponse (Internal.createFedConn' ownDomain fedConn) $ \res -> do
             addFailureContext ("res = " <> show res) $ res.status `shouldMatchInt` 533
 
-        deleteOnce :: (Ord fedConn, ToJSON fedConn, MakesValue fedConn) => String -> [fedConn] -> App ()
-        deleteOnce domain want = do
-          bindResponse (Internal.deleteFedConn ownDomain domain) $ \res -> do
-            addFailureContext ("res = " <> show res) $ res.status `shouldMatchInt` 200
-            res2 <- parseFedConns =<< Internal.readFedConns ownDomain
-            sort res2 `shouldMatch` sort want
-
-        deleteFail :: HasCallStack => String -> App ()
-        deleteFail del = do
-          bindResponse (Internal.deleteFedConn' ownDomain del) $ \res -> do
-            addFailureContext ("res = " <> show res) $ res.status `shouldMatchInt` 533
-
         updateOnce :: (MakesValue fedConn, Ord fedConn2, ToJSON fedConn2, MakesValue fedConn2, HasCallStack) => String -> fedConn -> [fedConn2] -> App ()
         updateOnce domain fedConn want = do
           bindResponse (Internal.updateFedConn ownDomain domain fedConn) $ \res -> do
@@ -97,12 +85,11 @@ testCrudFederationRemotes = do
 
     resetFedConns ownDomain
     cfgRemotes <- parseFedConns =<< Internal.readFedConns ownDomain
-    cfgRemotes `shouldMatch` [cfgRemotesExpect]
+    sort cfgRemotes `shouldMatch` sort [cfgRemotesExpect]
     -- entries present in the config file can be idempotently added if identical, but cannot be
-    -- updated, deleted or updated.
+    -- updated.
     addOnce cfgRemotesExpect [cfgRemotesExpect]
     addFail (cfgRemotesExpect {Internal.searchStrategy = "no_search"})
-    deleteFail (Internal.domain cfgRemotesExpect)
     updateFail (Internal.domain cfgRemotesExpect) (cfgRemotesExpect {Internal.searchStrategy = "no_search"})
     -- create
     addOnce remote1 $ (remote1J : cfgRemotes)
@@ -110,9 +97,6 @@ testCrudFederationRemotes = do
     -- update
     updateOnce (Internal.domain remote1) remote1' (remote1J' : cfgRemotes)
     updateFail (Internal.domain remote1) remote1''
-    -- delete
-    deleteOnce (Internal.domain remote1) cfgRemotes
-    deleteOnce (Internal.domain remote1) cfgRemotes -- idempotency
 
 testCrudOAuthClient :: HasCallStack => App ()
 testCrudOAuthClient = do
