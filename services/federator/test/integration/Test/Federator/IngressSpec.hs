@@ -145,7 +145,7 @@ inwardBrigCallViaIngressWithSettings ::
 inwardBrigCallViaIngressWithSettings sslCtx requestPath payload =
   do
     Endpoint ingressHost ingressPort <- nginxIngress . view teTstOpts <$> input
-    originDomain <- originDomain . view teTstOpts <$> input
+    originDomain <- (.backendTwo.originDomain) . view teTstOpts <$> input
     let target = SrvTarget (cs ingressHost) ingressPort
         headers = [(originDomainHeaderName, Text.encodeUtf8 originDomain)]
     mgr <- liftToCodensity . liftIO $ http2ManagerWithSSLCtx sslCtx

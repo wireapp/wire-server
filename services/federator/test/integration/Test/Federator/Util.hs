@@ -108,10 +108,17 @@ data IntegrationConfig = IntegrationConfig
     cargohold :: Endpoint,
     federatorExternal :: Endpoint,
     nginxIngress :: Endpoint,
-    originDomain :: Text
+    originDomain :: Text,
+    backendTwo :: BackendTwo
   }
   deriving (Show, Generic)
 
+data BackendTwo = BackendTwo
+  { originDomain :: Text
+  }
+  deriving (Show, Generic)
+
+deriveFromJSON deriveJSONOptions ''BackendTwo
 deriveFromJSON deriveJSONOptions ''IntegrationConfig
 
 makeLenses ''TestEnv
