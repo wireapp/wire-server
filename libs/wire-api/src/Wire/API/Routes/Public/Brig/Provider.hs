@@ -27,6 +27,7 @@ import Wire.API.Error.Brig
 import Wire.API.Provider
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named (Named (..))
+import Wire.API.Routes.Public
 import Wire.API.User.Auth
 
 type ActivateResponses =
@@ -105,4 +106,12 @@ type ProviderAPI =
                :> "complete"
                :> ReqBody '[JSON] CompletePasswordReset
                :> MultiVerb1 'POST '[JSON] (RespondEmpty 200 "")
+           )
+    :<|> Named
+           "provider-delete"
+           ( Summary "Delete a provider"
+               :> ZProvider
+               :> "provider"
+               :> ReqBody '[JSON] DeleteProvider
+               :> MultiVerb1 'DELETE '[JSON] (RespondEmpty 200 "")
            )

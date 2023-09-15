@@ -154,6 +154,7 @@ providerAPI =
     :<|> Named @"provider-login" login
     :<|> Named @"provider-password-reset" beginPasswordReset
     :<|> Named @"provider-password-reset-complete" completePasswordReset
+    :<|> Named @"provider-delete" deleteAccount
 
 routesPublic ::
   ( Member GalleyProvider r
@@ -161,11 +162,6 @@ routesPublic ::
   Routes () (Handler r) ()
 routesPublic = do
   -- Provider API ------------------------------------------------------------
-
-  delete "/provider" (continue deleteAccountH) $
-    zauth ZAuthProvider
-      .&> zauthProviderId
-        .&. jsonRequest @Public.DeleteProvider
 
   put "/provider" (continue updateAccountProfileH) $
     accept "application" "json"
@@ -631,31 +627,14 @@ finishDeleteService pid sid = do
   where
     kick (bid, cid, _) = deleteBot (botUserId bid) Nothing bid cid
 
-deleteAccountH ::
-  Member GalleyProvider r =>
-  ProviderId ::: JsonRequest Public.DeleteProvider ->
-  ExceptT Error (AppT r) Response
-deleteAccountH (pid ::: req) = do
-  guardSecondFactorDisabled Nothing
-  empty
-    <$ mapExceptT
-      wrapHttpClient
-      ( deleteAccount pid
-          =<< parseJsonBody req
-      )
-
 deleteAccount ::
-  ( MonadReader Env m,
-    MonadMask m,
-    MonadHttp m,
-    MonadClient m,
-    HasRequestId m,
-    MonadLogger m
+  ( Member GalleyProvider r
   ) =>
   ProviderId ->
   Public.DeleteProvider ->
-  ExceptT Error m ()
+  (Handler r) ()
 deleteAccount pid del = do
+  guardSecondFactorDisabled Nothing
   prov <- DB.lookupAccount pid >>= maybeInvalidProvider
   pass <- DB.lookupPassword pid >>= maybeBadCredentials
   unless (verifyPassword (deleteProviderPassword del) pass) $
