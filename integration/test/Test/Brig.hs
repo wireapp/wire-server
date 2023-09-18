@@ -4,6 +4,7 @@ import API.Brig qualified as Public
 import API.BrigInternal qualified as Internal
 import API.Common qualified as API
 import API.GalleyInternal qualified as Internal
+import Control.Concurrent (threadDelay)
 import Data.Aeson qualified as Aeson
 import Data.Aeson.Types hiding ((.=))
 import Data.Set qualified as Set
@@ -30,7 +31,6 @@ testCrudFederationRemotes :: HasCallStack => App ()
 testCrudFederationRemotes = do
   otherDomain <- asString OtherDomain
   withModifiedBackend def $ \ownDomain -> do
-    void $ Internal.createFedConn ownDomain (Internal.FedConn otherDomain "full_search")
     let parseFedConns :: HasCallStack => Response -> App [Value]
         parseFedConns resp =
           -- Pick out the list of federation domain configs
@@ -39,15 +39,15 @@ testCrudFederationRemotes = do
             -- Enforce that the values are objects and not something else
             >>= traverse (fmap Object . asObject)
 
-        addOnce :: (MakesValue fedConn, Ord fedConn2, ToJSON fedConn2, MakesValue fedConn2, HasCallStack) => fedConn -> [fedConn2] -> App ()
-        addOnce fedConn want = do
+        addTest :: (MakesValue fedConn, Ord fedConn2, ToJSON fedConn2, MakesValue fedConn2, HasCallStack) => fedConn -> [fedConn2] -> App ()
+        addTest fedConn want = do
           bindResponse (Internal.createFedConn ownDomain fedConn) $ \res -> do
             addFailureContext ("res = " <> show res) $ res.status `shouldMatchInt` 200
             res2 <- parseFedConns =<< Internal.readFedConns ownDomain
             sort res2 `shouldMatch` sort want
 
-        updateOnce :: (MakesValue fedConn, Ord fedConn2, ToJSON fedConn2, MakesValue fedConn2, HasCallStack) => String -> fedConn -> [fedConn2] -> App ()
-        updateOnce domain fedConn want = do
+        updateTest :: (MakesValue fedConn, Ord fedConn2, ToJSON fedConn2, MakesValue fedConn2, HasCallStack) => String -> fedConn -> [fedConn2] -> App ()
+        updateTest domain fedConn want = do
           bindResponse (Internal.updateFedConn ownDomain domain fedConn) $ \res -> do
             addFailureContext ("res = " <> show res) $ res.status `shouldMatchInt` 200
             res2 <- parseFedConns =<< Internal.readFedConns ownDomain
@@ -62,17 +62,21 @@ testCrudFederationRemotes = do
         cfgRemotesExpect :: Internal.FedConn
         cfgRemotesExpect = Internal.FedConn (cs otherDomain) "full_search"
 
-    resetFedConns ownDomain
+    -- TODO: add extra field "federation_allowed" to the table?  and allow search policy to be NULL.
+    -- void $ Internal.createFedConn ownDomain (Internal.FedConn otherDomain "full_search") -- TODO: have a default search policy next to allowAll in the config file.
+    -- anyway not needed in this test.
+
+    liftIO $ threadDelay 5_000_000
     cfgRemotes <- parseFedConns =<< Internal.readFedConns ownDomain
     cfgRemotes `shouldMatch` ([] @Value)
     -- entries present in the config file can be idempotently added if identical, but cannot be
     -- updated.
-    addOnce cfgRemotesExpect [cfgRemotesExpect]
+    addTest cfgRemotesExpect [cfgRemotesExpect]
     -- create
-    addOnce remote1 [cfgRemotesExpect, remote1]
-    addOnce remote1 [cfgRemotesExpect, remote1] -- idempotency
+    addTest remote1 [cfgRemotesExpect, remote1]
+    addTest remote1 [cfgRemotesExpect, remote1] -- idempotency
     -- update
-    updateOnce (Internal.domain remote1) remote1' [cfgRemotesExpect, remote1']
+    updateTest (Internal.domain remote1) remote1' [cfgRemotesExpect, remote1']
 
 testCrudOAuthClient :: HasCallStack => App ()
 testCrudOAuthClient = do

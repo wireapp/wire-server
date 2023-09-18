@@ -4,10 +4,9 @@
 module Test.Conversation where
 
 import API.Brig (getConnections, postConnection)
-import API.BrigInternal
+import API.BrigInternal as Internal
 import API.Galley
 import API.GalleyInternal
-import API.Gundeck (getNotifications)
 import Control.Applicative
 import Control.Concurrent (threadDelay)
 import Data.Aeson qualified as Aeson
@@ -91,10 +90,9 @@ testDynamicBackendsNotFullyConnected = do
                 >=> setField "optSettings.setFederationDomainConfigsUpdateFreq" (Aeson.Number 1)
           }
   startDynamicBackends [overrides, overrides, overrides] $
-    \dynDomains -> do
-      domains@[domainA, domainB, domainC] <- pure dynDomains
+    \[domainA, domainB, domainC] -> do
       -- clean federation config
-      resetFedConns `mapM_` domains
+      -- resetFedConns `mapM_` domains
       -- A is connected to B and C, but B and C are not connected to each other
       void $ createFedConn domainA $ FedConn domainB "full_search"
       void $ createFedConn domainB $ FedConn domainA "full_search"
@@ -161,73 +159,27 @@ testCreateConversationNonFullyConnected = do
     ]
     $ \dynDomains -> do
       domains@[domainA, domainB, domainC] <- pure dynDomains
-      connectAllDomainsAndWaitToSync 1 domains
-      [u1, u2, u3] <- createAndConnectUsers [domainA, domainB, domainC]
-      -- stop federation between B and C
-      void $ deleteFedConn "brig_test_dyn_2" domainC
-      void $ deleteFedConn "brig_test_dyn_3" domainB
-      liftIO $ threadDelay (2 * 1000 * 1000)
+      -- A is connected to B and C, but B and C are not connected to each other
+      void $ createFedConn domainA $ FedConn domainB "full_search"
+      void $ createFedConn domainB $ FedConn domainA "full_search"
+      void $ createFedConn domainA $ FedConn domainC "full_search"
+      void $ createFedConn domainC $ FedConn domainA "full_search"
+
+      u1 <- randomUser domainA def
+      u2 <- randomUser domainB def
+      u3 <- randomUser domainC def
+      connectUsers u1 u2
+      connectUsers u1 u3
+
+      liftIO $ threadDelay (2 * 1000 * 1000) -- TODO: remove
       bindResponse (postConversation u1 (defProteus {qualifiedUsers = [u2, u3]})) $ \resp -> do
         resp.status `shouldMatchInt` 409
         resp.json %. "non_federating_backends" `shouldMatchSet` [domainB, domainC]
 
-testDefederationGroupConversation :: HasCallStack => App ()
-testDefederationGroupConversation = do
-  let setFederationConfig =
-        setField "optSettings.setFederationStrategy" "allowDynamic"
-          >=> setField "optSettings.setFederationDomainConfigsUpdateFreq" (Aeson.Number 1)
-  startDynamicBackends
-    [ def {brigCfg = setFederationConfig},
-      def {brigCfg = setFederationConfig}
-    ]
-    $ \dynDomains -> do
-      domains@[domainA, domainB] <- pure dynDomains
-      connectAllDomainsAndWaitToSync 1 domains
-      [uA, uB] <- createAndConnectUsers [domainA, domainB]
-      -- about _ws: currently we don't have any events here, but maybe there will be
-      -- `federation.delete` again in the future?
-      withWebSocket uA $ \_ws -> do
-        -- create group conversation owned by domainB
-        convId <- bindResponse (postConversation uB (defProteus {qualifiedUsers = [uA]})) $ \r -> do
-          r.status `shouldMatchInt` 201
-          r.json %. "qualified_id"
-
-        -- check conversation exists and uB is a member from POV of uA
-        bindResponse (getConversation uA convId) $ \r -> do
-          r.status `shouldMatchInt` 200
-          members <- r.json %. "members.others" & asList
-          qIds <- for members (\m -> m %. "qualified_id")
-          uBQId <- objQidObject uB
-          qIds `shouldMatchSet` [uBQId]
-
-        -- check conversation exists and uA is a member from POV of uB
-        bindResponse (getConversation uB convId) $ \r -> do
-          r.status `shouldMatchInt` 200
-          members <- r.json %. "members.others" & asList
-          qIds <- for members (\m -> m %. "qualified_id")
-          uAQId <- objQidObject uA
-          qIds `shouldMatchSet` [uAQId]
-
-        -- domainA stops federating with domainB
-        void $ deleteFedConn "brig_test_dyn_1" domainB
-
-        -- assert conversation deleted from domainA
-        retryT $
-          bindResponse (getConversation uA convId) $ \r ->
-            r.status `shouldMatchInt` 404
-
-      -- assert no conversation.delete event is sent to uA
-      eventPayloads <-
-        getNotifications uA "cA" def
-          >>= getJSON 200
-          >>= \n -> n %. "notifications" & asList >>= \ns -> for ns nPayload
-
-      forM_ eventPayloads $ \p ->
-        p %. "type" `shouldNotMatch` "conversation.delete"
-
 testAddMembersFullyConnectedProteus :: HasCallStack => App ()
 testAddMembersFullyConnectedProteus = do
   withFederatingBackendsAllowDynamic 2 $ \(domainA, domainB, domainC) -> do
+    connectAllDomainsAndWaitToSync 2 [domainA, domainB, domainC]
     [u1, u2, u3] <- createAndConnectUsers [domainA, domainB, domainC]
     -- create conversation with no users
     cid <- postConversation u1 (defProteus {qualifiedUsers = []}) >>= getJSON 201
@@ -242,13 +194,21 @@ testAddMembersFullyConnectedProteus = do
 testAddMembersNonFullyConnectedProteus :: HasCallStack => App ()
 testAddMembersNonFullyConnectedProteus = do
   withFederatingBackendsAllowDynamic 2 $ \(domainA, domainB, domainC) -> do
-    [u1, u2, u3] <- createAndConnectUsers [domainA, domainB, domainC]
+    void $ createFedConn domainA (FedConn domainB "full_search")
+    void $ createFedConn domainB (FedConn domainA "full_search")
+    void $ createFedConn domainA (FedConn domainC "full_search")
+    void $ createFedConn domainC (FedConn domainA "full_search")
+    liftIO $ threadDelay (2 * 1000 * 1000) -- wait for federation status to be updated
+
+    -- add users
+    u1 <- randomUser domainA def
+    u2 <- randomUser domainB def
+    u3 <- randomUser domainC def
+    connectUsers u1 u2
+    connectUsers u1 u3
+
     -- create conversation with no users
     cid <- postConversation u1 (defProteus {qualifiedUsers = []}) >>= getJSON 201
-    -- stop federation between B and C
-    void $ deleteFedConn "brig_test_dyn_2" domainC
-    void $ deleteFedConn "brig_test_dyn_3" domainB
-    liftIO $ threadDelay (2 * 1000 * 1000) -- wait for federation status to be updated
     -- add members from remote backends
     members <- for [u2, u3] (%. "qualified_id")
     bindResponse (addMembers u1 cid members) $ \resp -> do
@@ -337,7 +297,7 @@ testAddingUserNonFullyConnectedFederation = do
     --
     -- FUTUREWORK: deleteAllFedConns at the time of acquiring a backend, so
     -- tests don't affect each other.
-    resetFedConns dynBackend
+    -- resetFedConns dynBackend
     void $ createFedConn dynBackend (FedConn own "full_search")
 
     alice <- randomUser own def

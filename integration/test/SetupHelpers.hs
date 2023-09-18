@@ -77,17 +77,6 @@ getAllConvs u = do
     resp.json
   result %. "found" & asList
 
-deleteFedConn :: (HasCallStack, MakesValue tablespace, MakesValue otherdom) => tablespace -> otherdom -> App ()
-deleteFedConn mktab mkother = do
-  tablespace <- asString mktab
-  other <- asString mkother
-  runCqlCommand $ "delete from " <> tablespace <> ".federation_remotes where domain='" <> other <> "';"
-
-resetFedConns :: (HasCallStack, MakesValue tablespace) => tablespace -> App ()
-resetFedConns mktab = do
-  tablespace <- asString mktab
-  runCqlCommand $ "truncate table " <> tablespace <> ".federation_remotes;"
-
 randomId :: HasCallStack => App String
 randomId = liftIO (show <$> nextRandom)
 
@@ -101,7 +90,8 @@ randomUserId domain = do
   pure $ object ["id" .= uid, "domain" .= d]
 
 withFederatingBackendsAllowDynamic :: HasCallStack => Int -> ((String, String, String) -> App a) -> App a
-withFederatingBackendsAllowDynamic n k = do
+withFederatingBackendsAllowDynamic _n k = do
+  -- TODO: don't thread-delay any more.
   let setFederationConfig =
         setField "optSettings.setFederationStrategy" "allowDynamic"
           >=> setField "optSettings.setFederationDomainConfigsUpdateFreq" (Aeson.Number 1)
@@ -112,6 +102,4 @@ withFederatingBackendsAllowDynamic n k = do
     ]
     $ \dynDomains -> do
       domains@[domainA, domainB, domainC] <- pure dynDomains
-      sequence_ [Internal.createFedConn x (Internal.FedConn y "full_search") | x <- domains, y <- domains, x /= y]
-      liftIO $ threadDelay (n * 1000 * 1000) -- wait for federation status to be updated
       k (domainA, domainB, domainC)
