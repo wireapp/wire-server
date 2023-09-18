@@ -158,6 +158,8 @@ providerAPI =
     :<|> Named @"provider-update" updateAccountProfile
     :<|> Named @"provider-update-email" updateAccountEmail
     :<|> Named @"provider-update-password" updateAccountPassword
+    :<|> Named @"provider-get-account" getAccount
+    :<|> Named @"provider-get-profile" getProviderProfile
 
 routesPublic ::
   ( Member GalleyProvider r
@@ -165,11 +167,6 @@ routesPublic ::
   Routes () (Handler r) ()
 routesPublic = do
   -- Provider API ------------------------------------------------------------
-
-  get "/provider" (continue getAccountH) $
-    accept "application" "json"
-      .&> zauth ZAuthProvider
-      .&> zauthProviderId
 
   post "/provider/services" (continue addServiceH) $
     accept "application" "json"
@@ -212,11 +209,6 @@ routesPublic = do
         .&. jsonRequest @Public.DeleteService
 
   -- User API ----------------------------------------------------------------
-
-  get "/providers/:pid" (continue getProviderProfileH) $
-    accept "application" "json"
-      .&> zauth ZAuthAccess
-      .&> capture "pid"
 
   get "/providers/:pid/services" (continue listServiceProfilesH) $
     accept "application" "json"
@@ -388,15 +380,10 @@ completePasswordReset (Public.CompletePasswordReset key val newpwd) = do
 --------------------------------------------------------------------------------
 -- Provider API
 
-getAccountH :: Member GalleyProvider r => ProviderId -> (Handler r) Response
-getAccountH pid = do
+getAccount :: Member GalleyProvider r => ProviderId -> (Handler r) (Maybe Public.Provider)
+getAccount pid = do
   guardSecondFactorDisabled Nothing
-  getAccount pid <&> \case
-    Just p -> json p
-    Nothing -> setStatus status404 empty
-
-getAccount :: ProviderId -> (Handler r) (Maybe Public.Provider)
-getAccount = wrapClientE . DB.lookupAccount
+  wrapClientE $ DB.lookupAccount pid
 
 updateAccountProfile :: Member GalleyProvider r => ProviderId -> Public.UpdateProvider -> (Handler r) ()
 updateAccountProfile pid upd = do
@@ -627,14 +614,10 @@ deleteAccount pid del = do
 --------------------------------------------------------------------------------
 -- User API
 
-getProviderProfileH :: Member GalleyProvider r => ProviderId -> (Handler r) Response
-getProviderProfileH pid = do
+getProviderProfile :: Member GalleyProvider r => ProviderId -> (Handler r) (Maybe Public.ProviderProfile)
+getProviderProfile pid = do
   guardSecondFactorDisabled Nothing
-  json <$> getProviderProfile pid
-
-getProviderProfile :: ProviderId -> (Handler r) Public.ProviderProfile
-getProviderProfile pid =
-  wrapClientE (DB.lookupAccountProfile pid) >>= maybeProviderNotFound
+  wrapClientE (DB.lookupAccountProfile pid)
 
 listServiceProfilesH :: Member GalleyProvider r => ProviderId -> (Handler r) Response
 listServiceProfilesH pid = do
@@ -1022,9 +1005,6 @@ maybeInvalidCode = maybe (throwStd (errorToWai @'E.InvalidCode)) pure
 
 maybeServiceNotFound :: Monad m => Maybe a -> (ExceptT Error m) a
 maybeServiceNotFound = maybe (throwStd (notFound "Service not found")) pure
-
-maybeProviderNotFound :: Monad m => Maybe a -> (ExceptT Error m) a
-maybeProviderNotFound = maybe (throwStd (notFound "Provider not found")) pure
 
 maybeConvNotFound :: Monad m => Maybe a -> (ExceptT Error m) a
 maybeConvNotFound = maybe (throwStd (notFound "Conversation not found")) pure

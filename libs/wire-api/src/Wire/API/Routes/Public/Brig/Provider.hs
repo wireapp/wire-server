@@ -18,11 +18,12 @@
 module Wire.API.Routes.Public.Brig.Provider where
 
 import Data.Code qualified as Code
+import Data.Id (ProviderId)
 import Imports
 import Servant (JSON)
 import Servant hiding (Handler, JSON, Tagged, addHeader, respond)
 import Servant.Swagger.Internal.Orphans ()
-import Wire.API.Error (CanThrow)
+import Wire.API.Error
 import Wire.API.Error.Brig
 import Wire.API.Provider
 import Wire.API.Routes.MultiVerb
@@ -33,6 +34,16 @@ import Wire.API.User.Auth
 type ActivateResponses =
   '[ RespondEmpty 204 "",
      Respond 200 "" ProviderActivationResponse
+   ]
+
+type GetProviderResponses =
+  '[ ErrorResponse 'ProviderNotFound,
+     Respond 200 "" Provider
+   ]
+
+type GetProviderProfileResponses =
+  '[ ErrorResponse 'ProviderNotFound,
+     Respond 200 "" ProviderProfile
    ]
 
 type ProviderAPI =
@@ -152,4 +163,20 @@ type ProviderAPI =
                :> "password"
                :> ReqBody '[JSON] PasswordChange
                :> MultiVerb1 'PUT '[JSON] (RespondEmpty 200 "")
+           )
+    :<|> Named
+           "provider-get-account"
+           ( Summary "Get account"
+               :> CanThrow 'AccessDenied
+               :> CanThrow 'ProviderNotFound
+               :> ZProvider
+               :> "provider"
+               :> MultiVerb 'GET '[JSON] GetProviderResponses (Maybe Provider)
+           )
+    :<|> Named
+           "provider-get-profile"
+           ( Summary "Get profile"
+               :> "providers"
+               :> Capture "pid" ProviderId
+               :> MultiVerb 'GET '[JSON] GetProviderProfileResponses (Maybe ProviderProfile)
            )

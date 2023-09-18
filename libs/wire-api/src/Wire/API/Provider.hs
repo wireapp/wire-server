@@ -95,7 +95,7 @@ instance ToSchema Provider where
 -- the full provider information.
 newtype ProviderProfile = ProviderProfile Provider
   deriving stock (Eq, Show)
-  deriving newtype (A.FromJSON, A.ToJSON, Arbitrary)
+  deriving newtype (A.FromJSON, A.ToJSON, Arbitrary, S.ToSchema)
 
 --------------------------------------------------------------------------------
 -- NewProvider

@@ -87,9 +87,12 @@ data BrigError
   | InvalidBot
   | VerificationCodeThrottled
   | InvalidProvider
+  | ProviderNotFound
 
 instance KnownError (MapError e) => IsSwaggerError (e :: BrigError) where
   addToSwagger = addStaticErrorToSwagger @(MapError e)
+
+type instance MapError 'ProviderNotFound = 'StaticError 404 "not-found" "Provider not found."
 
 type instance MapError 'InvalidProvider = 'StaticError 403 "invalid-provider" "The provider does not exist."
 
