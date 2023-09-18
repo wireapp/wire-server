@@ -17,26 +17,53 @@
 
 module Notifications where
 
--- import Data.Aeson qualified as Aeson
--- import Gundeck.Push (pushAll, pushAny)
--- import Gundeck.Push.Websocket as Web (bulkPush)
--- import Gundeck.Types
+import Cassandra
+import Data.ByteString.Lazy qualified as L
+import Data.UUID.V1
+import Gundeck.Notification.Data
 import Imports
--- import MockGundeck
--- import Test.QuickCheck
 import Test.QuickCheck.Instances ()
 import Test.Tasty
 import Test.Tasty.HUnit
-
--- import Test.Tasty.QuickCheck
-
--- import Wire.API.Internal.Notification
 
 tests :: TestTree
 tests =
   testGroup
     "notifications"
-    [testCase "collect" testCollect]
+    [ testCase "collect empty page" testCollectEmpty,
+      testCase "truncate page with large payloads" testCollectTruncated
+    ]
 
-testCollect :: IO ()
-testCollect = pure ()
+newtype TestCollectM a = TestCollectM
+  {runTestCollectM :: IO a}
+  deriving (Functor, Applicative, Monad, MonadIO)
+
+largePayload :: LByteString
+largePayload = mconcat (replicate 100 "developers ")
+
+largePayloadSize :: Int32
+largePayloadSize = fromIntegral $ L.length largePayload
+
+instance FetchPayloads TestCollectM where
+  fetchPayload c (id_, mpl, _, _, mcs) = do
+    let pl = fromMaybe (Blob largePayload) mpl
+    pure $ toNotifSingle c (id_, pl, mcs)
+  fetchPayloads c rows = catMaybes <$> traverse (fetchPayload c) rows
+
+emptyTestPage :: TestCollectM (NotifPage TestCollectM)
+emptyTestPage = pure $ NotifPage [] False emptyTestPage
+
+testCollectEmpty :: IO ()
+testCollectEmpty = do
+  r <- runTestCollectM $ collect Nothing mempty True 11 1000 emptyTestPage
+  r @?= (mempty, False)
+
+testCollectTruncated :: IO ()
+testCollectTruncated = do
+  ns <- replicateM 10 $ do
+    nId <- TimeUuid . fromJust <$> nextUUID
+    pure (nId, Nothing, Nothing, Just largePayloadSize, Nothing)
+  let getPage = pure $ NotifPage ns False emptyTestPage
+  (rs, more) <- runTestCollectM $ collect Nothing mempty True 5 500 getPage
+  more @?= True
+  length rs @?= 0

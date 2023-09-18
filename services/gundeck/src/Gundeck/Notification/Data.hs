@@ -22,11 +22,13 @@ module Gundeck.Notification.Data
     fetchId,
     fetchLast,
     deleteAll,
-    FetchPayloads,
+    FetchPayloads (..),
     FetchPayloadsDef (..),
+    NotifPage (..),
 
     -- * Exported for testing
     collect,
+    toNotifSingle,
   )
 where
 
@@ -51,7 +53,7 @@ import Wire.API.Internal.Notification
 
 class FetchPayloads m where
   fetchPayload :: Maybe ClientId -> NotifRow -> m (Maybe QueuedNotification)
-  fetchPayloads :: Maybe ClientId -> Int32 -> [NotifRow] -> m (Seq QueuedNotification, Int32)
+  fetchPayloads :: Maybe ClientId -> [NotifRow] -> m [QueuedNotification]
 
 data NotifPage m = NotifPage
   { notifs :: [NotifRow],
@@ -67,17 +69,10 @@ notifPage p = NotifPage (result p) (hasMore p) (notifPage <$> liftClient (nextPa
 newtype FetchPayloadsDef m a = FetchPayloadsDef {unFetchPayloadsDef :: m a}
 
 instance (MonadClient m, MonadUnliftIO m) => FetchPayloads (FetchPayloadsDef m) where
-  fetchPayloads c left rows = FetchPayloadsDef $ do
-    let (rows', left') = truncateNotifs [] (0 :: Int) left rows
-    s <-
-      Seq.fromList . catMaybes
-        <$> pooledMapConcurrentlyN 16 (unFetchPayloadsDef . fetchPayload c) rows'
-    pure (s, left')
-    where
-      truncateNotifs acc _i l [] = (reverse acc, l)
-      truncateNotifs acc i l (row : rest)
-        | i > 0 && l <= 0 = (reverse acc, l)
-        | otherwise = truncateNotifs (row : acc) (i + 1) (l - payloadSize row) rest
+  fetchPayloads c rows =
+    FetchPayloadsDef $
+      catMaybes
+        <$> pooledMapConcurrentlyN 16 (unFetchPayloadsDef . fetchPayload c) rows
 
   fetchPayload c (id_, mbPayload, mbPayloadRef, _mbPayloadRefSize, mbClients) =
     FetchPayloadsDef $
@@ -91,11 +86,27 @@ instance (MonadClient m, MonadUnliftIO m) => FetchPayloads (FetchPayloadsDef m) 
       cqlSelectPayload :: PrepQuery R (Identity PayloadId) (Identity Blob)
       cqlSelectPayload = "SELECT payload from notification_payload where id = ?"
 
+fetchTruncatedPayloads ::
+  (Monad m, FetchPayloads m) =>
+  Maybe ClientId ->
+  Int32 ->
+  [NotifRow] ->
+  m (Seq QueuedNotification, Int32)
+fetchTruncatedPayloads c left rows = do
+  let (rows', left') = truncateNotifs [] (0 :: Int) left rows
+  s <- Seq.fromList <$> fetchPayloads c rows'
+  pure (s, left')
+  where
+    truncateNotifs acc _i l [] = (reverse acc, l)
+    truncateNotifs acc i l (row : rest)
+      | i > 0 && l <= 0 = (reverse acc, l)
+      | otherwise = truncateNotifs (row : acc) (i + 1) (l - payloadSize row) rest
+
 data ResultPage = ResultPage
   { -- | A sequence of notifications.
     resultSeq :: Seq QueuedNotification,
     -- | Whether there might be more notifications that can be
-    -- obtained through another query, starting the the ID of the
+    -- obtained through another query, starting with the ID of the
     -- last notification in 'resultSeq'.
     resultHasMore :: !Bool,
     -- | Whether there might be a gap in the 'resultSeq'. This is 'True'
@@ -239,7 +250,7 @@ collect c acc lastPageHasMore remaining remainingBytes getPage
   | otherwise = do
       page <- getPage
       let rows = notifs page
-      (s, remaingBytes') <- fetchPayloads c remainingBytes rows
+      (s, remaingBytes') <- fetchTruncatedPayloads c remainingBytes rows
       let remaining' = remaining - Seq.length s
       collect c (acc <> s) (moreNotifs page) remaining' remaingBytes' (nextNotifPage page)
 

@@ -459,6 +459,8 @@ test-suite gundeck-tests
     , amazonka
     , async
     , base
+    , bytestring
+    , cassandra-util
     , containers
     , exceptions
     , gundeck
@@ -482,6 +484,7 @@ test-suite gundeck-tests
     , time
     , tinylog
     , types-common
+    , uuid
     , wai-utilities
     , wire-api
 
