@@ -14,7 +14,6 @@ import Data.Function
 import Data.UUID.V1 (nextUUID)
 import Data.UUID.V4 (nextRandom)
 import GHC.Stack
-import System.Process (system)
 import Testlib.Prelude
 
 -- | `n` should be 2 x `setFederationDomainConfigsUpdateFreq` in the config
@@ -101,5 +100,5 @@ withFederatingBackendsAllowDynamic _n k = do
       def {brigCfg = setFederationConfig}
     ]
     $ \dynDomains -> do
-      domains@[domainA, domainB, domainC] <- pure dynDomains
+      [domainA, domainB, domainC] <- pure dynDomains
       k (domainA, domainB, domainC)

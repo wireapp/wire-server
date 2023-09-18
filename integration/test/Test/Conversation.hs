@@ -158,7 +158,7 @@ testCreateConversationNonFullyConnected = do
       def {brigCfg = setFederationConfig}
     ]
     $ \dynDomains -> do
-      domains@[domainA, domainB, domainC] <- pure dynDomains
+      [domainA, domainB, domainC] <- pure dynDomains
       -- A is connected to B and C, but B and C are not connected to each other
       void $ createFedConn domainA $ FedConn domainB "full_search"
       void $ createFedConn domainB $ FedConn domainA "full_search"
