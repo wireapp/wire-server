@@ -64,7 +64,7 @@ testCrudFederationRemotes = do
 
     resetFedConns ownDomain
     cfgRemotes <- parseFedConns =<< Internal.readFedConns ownDomain
-    sort cfgRemotes `shouldMatch` ([] @Value)
+    cfgRemotes `shouldMatch` ([] @Value)
     -- entries present in the config file can be idempotently added if identical, but cannot be
     -- updated.
     addOnce cfgRemotesExpect [cfgRemotesExpect]
