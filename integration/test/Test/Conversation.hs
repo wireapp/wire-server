@@ -159,11 +159,13 @@ testCreateConversationNonFullyConnected = do
     ]
     $ \dynDomains -> do
       [domainA, domainB, domainC] <- pure dynDomains
+
       -- A is connected to B and C, but B and C are not connected to each other
       void $ createFedConn domainA $ FedConn domainB "full_search"
       void $ createFedConn domainB $ FedConn domainA "full_search"
       void $ createFedConn domainA $ FedConn domainC "full_search"
       void $ createFedConn domainC $ FedConn domainA "full_search"
+      liftIO $ threadDelay (2 * 1000 * 1000)
 
       u1 <- randomUser domainA def
       u2 <- randomUser domainB def
@@ -171,7 +173,6 @@ testCreateConversationNonFullyConnected = do
       connectUsers u1 u2
       connectUsers u1 u3
 
-      liftIO $ threadDelay (2 * 1000 * 1000) -- TODO: remove
       bindResponse (postConversation u1 (defProteus {qualifiedUsers = [u2, u3]})) $ \resp -> do
         resp.status `shouldMatchInt` 409
         resp.json %. "non_federating_backends" `shouldMatchSet` [domainB, domainC]
