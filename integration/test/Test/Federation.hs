@@ -105,7 +105,7 @@ testNotificationsForOfflineBackends = do
         isDelUserLeaveUpConvNotif = allPreds [isConvLeaveNotif, isNotifConv upBackendConv, isNotifForUser delUser]
 
     do
-      newMsgNotif <- awaitNotification otherUser otherClient noValue 1 isNewMessageNotif -- ! this fails locally, but why?
+      newMsgNotif <- awaitNotification otherUser otherClient noValue 1 isNewMessageNotif
       newMsgNotif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject upBackendConv
       newMsgNotif %. "payload.0.data.text" `shouldMatchBase64` "success message for other user"
 
