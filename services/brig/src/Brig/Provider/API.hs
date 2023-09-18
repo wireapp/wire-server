@@ -156,6 +156,7 @@ providerAPI =
     :<|> Named @"provider-password-reset-complete" completePasswordReset
     :<|> Named @"provider-delete" deleteAccount
     :<|> Named @"provider-update" updateAccountProfile
+    :<|> Named @"provider-update-email" updateAccountEmail
 
 routesPublic ::
   ( Member GalleyProvider r
@@ -163,11 +164,6 @@ routesPublic ::
   Routes () (Handler r) ()
 routesPublic = do
   -- Provider API ------------------------------------------------------------
-
-  put "/provider/email" (continue updateAccountEmailH) $
-    zauth ZAuthProvider
-      .&> zauthProviderId
-        .&. jsonRequest @Public.EmailUpdate
 
   put "/provider/password" (continue updateAccountPasswordH) $
     zauth ZAuthProvider
@@ -417,13 +413,9 @@ updateAccountProfile pid upd = do
       (updateProviderUrl upd)
       (updateProviderDescr upd)
 
-updateAccountEmailH :: Member GalleyProvider r => ProviderId ::: JsonRequest Public.EmailUpdate -> (Handler r) Response
-updateAccountEmailH (pid ::: req) = do
-  guardSecondFactorDisabled Nothing
-  setStatus status202 empty <$ (updateAccountEmail pid =<< parseJsonBody req)
-
-updateAccountEmail :: ProviderId -> Public.EmailUpdate -> (Handler r) ()
+updateAccountEmail :: Member GalleyProvider r => ProviderId -> Public.EmailUpdate -> (Handler r) ()
 updateAccountEmail pid (Public.EmailUpdate new) = do
+  guardSecondFactorDisabled Nothing
   email <- case validateEmail new of
     Right em -> pure em
     Left _ -> throwStd (errorToWai @'E.InvalidEmail)

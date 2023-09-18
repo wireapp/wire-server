@@ -128,3 +128,16 @@ type ProviderAPI =
                :> ReqBody '[JSON] UpdateProvider
                :> MultiVerb1 'PUT '[JSON] (RespondEmpty 200 "")
            )
+    :<|> Named
+           "provider-update-email"
+           ( Summary "Update a provider email"
+               :> CanThrow 'AccessDenied
+               :> CanThrow 'InvalidEmail
+               :> CanThrow 'InvalidProvider
+               :> CanThrow 'VerificationCodeThrottled
+               :> ZProvider
+               :> "provider"
+               :> "email"
+               :> ReqBody '[JSON] EmailUpdate
+               :> MultiVerb1 'PUT '[JSON] (RespondEmpty 202 "")
+           )
