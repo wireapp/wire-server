@@ -108,7 +108,7 @@ type ServicesAPI =
            "get-provider-services-by-provider-id"
            ( Summary "Get provider services by provider id"
                :> CanThrow 'AccessDenied
-               :> ZAccess
+               :> ZUser
                :> "providers"
                :> Capture "provider-id" ProviderId
                :> "services"
@@ -118,7 +118,7 @@ type ServicesAPI =
            "get-services"
            ( Summary "List services"
                :> CanThrow 'AccessDenied
-               :> ZAccess
+               :> ZUser
                :> "services"
                :> QueryParam "tags" (QueryAnyTags 1 3)
                :> QueryParam "start" Text
@@ -129,7 +129,7 @@ type ServicesAPI =
            "get-services-tags"
            ( Summary "Get services tags"
                :> CanThrow 'AccessDenied
-               :> ZAccess
+               :> ZUser
                :> Get '[JSON] ServiceTagList
            )
     :<|> Named
@@ -137,7 +137,7 @@ type ServicesAPI =
            ( Summary "Get provider service by provider id and service id"
                :> CanThrow 'AccessDenied
                :> CanThrow 'ServiceNotFound
-               :> ZAccess
+               :> ZUser
                :> "providers"
                :> Capture "provider-id" ProviderId
                :> "services"
@@ -147,7 +147,7 @@ type ServicesAPI =
     :<|> Named
            "get-whitelisted-services-by-team-id"
            ( Summary "Get whitelisted services by team id"
-               :> ZAccess
+               :> ZUser
                :> "teams"
                :> Capture "team-id" TeamId
                :> "services"
@@ -162,7 +162,7 @@ type ServicesAPI =
     :<|> Named
            "post-team-whitelist-by-team-id"
            ( Summary "Update service whitelist"
-               :> ZAccess
+               :> ZUser
                :> ZConn
                :> "teams"
                :> Capture "team-id" TeamId
