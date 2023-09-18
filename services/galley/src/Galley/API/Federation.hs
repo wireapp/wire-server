@@ -1,4 +1,3 @@
-{-# OPTIONS -Wno-redundant-constraints #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
@@ -222,7 +221,6 @@ onConversationUpdated requestingDomain cu = do
 leaveConversation ::
   ( Member ConversationStore r,
     Member (Error InternalError) r,
-    Member (Error FederationError) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,
@@ -367,8 +365,7 @@ sendMessage originDomain msr = do
     throwErr = throw . InvalidPayload . LT.pack
 
 onUserDeleted ::
-  ( Member (Error FederationError) r,
-    Member ConversationStore r,
+  ( Member ConversationStore r,
     Member FederatorAccess r,
     Member FireAndForget r,
     Member ExternalAccess r,
@@ -544,7 +541,6 @@ sendMLSCommitBundle ::
     Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member FederatorAccess r,
-    Member BackendNotificationQueueAccess r,
     Member GundeckAccess r,
     Member (Input (Local ())) r,
     Member (Input Env) r,
@@ -632,9 +628,6 @@ instance
 mlsSendWelcome ::
   ( Member BrigAccess r,
     Member (Error InternalError) r,
-    Member GundeckAccess r,
-    Member ExternalAccess r,
-    Member P.TinyLog r,
     Member (Input Env) r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r
