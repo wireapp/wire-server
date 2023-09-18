@@ -88,8 +88,8 @@ randomUserId domain = do
   uid <- randomId
   pure $ object ["id" .= uid, "domain" .= d]
 
-withFederatingBackendsAllowDynamic :: HasCallStack => Int -> ((String, String, String) -> App a) -> App a
-withFederatingBackendsAllowDynamic _n k = do
+withFederatingBackendsAllowDynamic :: HasCallStack => ((String, String, String) -> App a) -> App a
+withFederatingBackendsAllowDynamic k = do
   let setFederationConfig =
         setField "optSettings.setFederationStrategy" "allowDynamic"
           >=> setField "optSettings.setFederationDomainConfigsUpdateFreq" (Aeson.Number 1)

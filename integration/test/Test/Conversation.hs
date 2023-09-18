@@ -91,8 +91,6 @@ testDynamicBackendsNotFullyConnected = do
           }
   startDynamicBackends [overrides, overrides, overrides] $
     \[domainA, domainB, domainC] -> do
-      -- clean federation config
-      -- resetFedConns `mapM_` domains
       -- A is connected to B and C, but B and C are not connected to each other
       void $ createFedConn domainA $ FedConn domainB "full_search"
       void $ createFedConn domainB $ FedConn domainA "full_search"
@@ -179,7 +177,7 @@ testCreateConversationNonFullyConnected = do
 
 testAddMembersFullyConnectedProteus :: HasCallStack => App ()
 testAddMembersFullyConnectedProteus = do
-  withFederatingBackendsAllowDynamic 2 $ \(domainA, domainB, domainC) -> do
+  withFederatingBackendsAllowDynamic $ \(domainA, domainB, domainC) -> do
     connectAllDomainsAndWaitToSync 2 [domainA, domainB, domainC]
     [u1, u2, u3] <- createAndConnectUsers [domainA, domainB, domainC]
     -- create conversation with no users
@@ -194,7 +192,7 @@ testAddMembersFullyConnectedProteus = do
 
 testAddMembersNonFullyConnectedProteus :: HasCallStack => App ()
 testAddMembersNonFullyConnectedProteus = do
-  withFederatingBackendsAllowDynamic 2 $ \(domainA, domainB, domainC) -> do
+  withFederatingBackendsAllowDynamic $ \(domainA, domainB, domainC) -> do
     void $ createFedConn domainA (FedConn domainB "full_search")
     void $ createFedConn domainB (FedConn domainA "full_search")
     void $ createFedConn domainA (FedConn domainC "full_search")
@@ -295,10 +293,6 @@ testAddingUserNonFullyConnectedFederation = do
 
     -- Ensure that dynamic backend only federates with own domain, but not other
     -- domain.
-    --
-    -- FUTUREWORK: deleteAllFedConns at the time of acquiring a backend, so
-    -- tests don't affect each other.
-    -- resetFedConns dynBackend
     void $ createFedConn dynBackend (FedConn own "full_search")
 
     alice <- randomUser own def
