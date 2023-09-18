@@ -118,3 +118,13 @@ type ProviderAPI =
                :> ReqBody '[JSON] DeleteProvider
                :> MultiVerb1 'DELETE '[JSON] (RespondEmpty 200 "")
            )
+    :<|> Named
+           "provider-update"
+           ( Summary "Update a provider"
+               :> CanThrow 'AccessDenied
+               :> CanThrow 'InvalidProvider
+               :> ZProvider
+               :> "provider"
+               :> ReqBody '[JSON] UpdateProvider
+               :> MultiVerb1 'PUT '[JSON] (RespondEmpty 200 "")
+           )

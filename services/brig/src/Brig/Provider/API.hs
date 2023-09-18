@@ -155,6 +155,7 @@ providerAPI =
     :<|> Named @"provider-password-reset" beginPasswordReset
     :<|> Named @"provider-password-reset-complete" completePasswordReset
     :<|> Named @"provider-delete" deleteAccount
+    :<|> Named @"provider-update" updateAccountProfile
 
 routesPublic ::
   ( Member GalleyProvider r
@@ -162,12 +163,6 @@ routesPublic ::
   Routes () (Handler r) ()
 routesPublic = do
   -- Provider API ------------------------------------------------------------
-
-  put "/provider" (continue updateAccountProfileH) $
-    accept "application" "json"
-      .&> zauth ZAuthProvider
-      .&> zauthProviderId
-        .&. jsonRequest @Public.UpdateProvider
 
   put "/provider/email" (continue updateAccountEmailH) $
     zauth ZAuthProvider
@@ -411,13 +406,9 @@ getAccountH pid = do
 getAccount :: ProviderId -> (Handler r) (Maybe Public.Provider)
 getAccount = wrapClientE . DB.lookupAccount
 
-updateAccountProfileH :: Member GalleyProvider r => ProviderId ::: JsonRequest Public.UpdateProvider -> (Handler r) Response
-updateAccountProfileH (pid ::: req) = do
-  guardSecondFactorDisabled Nothing
-  empty <$ (updateAccountProfile pid =<< parseJsonBody req)
-
-updateAccountProfile :: ProviderId -> Public.UpdateProvider -> (Handler r) ()
+updateAccountProfile :: Member GalleyProvider r => ProviderId -> Public.UpdateProvider -> (Handler r) ()
 updateAccountProfile pid upd = do
+  guardSecondFactorDisabled Nothing
   _ <- wrapClientE (DB.lookupAccount pid) >>= maybeInvalidProvider
   wrapClientE $
     DB.updateAccountProfile
