@@ -141,3 +141,15 @@ type ProviderAPI =
                :> ReqBody '[JSON] EmailUpdate
                :> MultiVerb1 'PUT '[JSON] (RespondEmpty 202 "")
            )
+    :<|> Named
+           "provider-update-password"
+           ( Summary "Update a provider password"
+               :> CanThrow 'AccessDenied
+               :> CanThrow 'BadCredentials
+               :> CanThrow 'ResetPasswordMustDiffer
+               :> ZProvider
+               :> "provider"
+               :> "password"
+               :> ReqBody '[JSON] PasswordChange
+               :> MultiVerb1 'PUT '[JSON] (RespondEmpty 200 "")
+           )

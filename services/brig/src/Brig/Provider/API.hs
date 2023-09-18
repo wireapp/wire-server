@@ -157,6 +157,7 @@ providerAPI =
     :<|> Named @"provider-delete" deleteAccount
     :<|> Named @"provider-update" updateAccountProfile
     :<|> Named @"provider-update-email" updateAccountEmail
+    :<|> Named @"provider-update-password" updateAccountPassword
 
 routesPublic ::
   ( Member GalleyProvider r
@@ -164,11 +165,6 @@ routesPublic ::
   Routes () (Handler r) ()
 routesPublic = do
   -- Provider API ------------------------------------------------------------
-
-  put "/provider/password" (continue updateAccountPasswordH) $
-    zauth ZAuthProvider
-      .&> zauthProviderId
-        .&. jsonRequest @Public.PasswordChange
 
   get "/provider" (continue getAccountH) $
     accept "application" "json"
@@ -432,13 +428,9 @@ updateAccountEmail pid (Public.EmailUpdate new) = do
   tryInsertVerificationCode code $ verificationCodeThrottledError . VerificationCodeThrottled
   lift $ sendActivationMail (Name "name") email (Code.codeKey code) (Code.codeValue code) True
 
-updateAccountPasswordH :: Member GalleyProvider r => ProviderId ::: JsonRequest Public.PasswordChange -> (Handler r) Response
-updateAccountPasswordH (pid ::: req) = do
-  guardSecondFactorDisabled Nothing
-  empty <$ (updateAccountPassword pid =<< parseJsonBody req)
-
-updateAccountPassword :: ProviderId -> Public.PasswordChange -> (Handler r) ()
+updateAccountPassword :: Member GalleyProvider r => ProviderId -> Public.PasswordChange -> (Handler r) ()
 updateAccountPassword pid upd = do
+  guardSecondFactorDisabled Nothing
   pass <- wrapClientE (DB.lookupPassword pid) >>= maybeBadCredentials
   unless (verifyPassword (oldPassword upd) pass) $
     throwStd (errorToWai @'E.BadCredentials)
