@@ -42,7 +42,7 @@ where
 
 import Cassandra (Client, Consistency (All, One), Keyspace (Keyspace), PrepQuery, QueryParams (QueryParams), QueryString (QueryString), R, S, Version (V4), W, params, query, query1, retry, runClient, write, x1, x5)
 import Cassandra qualified as CQL (init)
-import Cassandra.Settings (Policy, defSettings, initialContactsPlain, setConnectTimeout, setContacts, setLogger, setMaxConnections, setPolicy, setPoolStripes, setPortNumber, setProtocolVersion, setResponseTimeout, setSendTimeout)
+import Cassandra.Settings (Policy, defSettings, initialContactsPlain, setConnectTimeout, setContacts, setLogger, setMaxConnections, setPolicy, setPoolStripes, setPortNumber, setProtocolVersion, setResponseTimeout, setSSLContext, setSendTimeout)
 import Control.Monad.Catch
 import Control.Retry
 import Data.Aeson
@@ -58,6 +58,7 @@ import Database.CQL.IO (HostResponse, Policy (Policy, acceptable, current, displ
 import Database.CQL.IO.Tinylog qualified as CT
 import Database.CQL.Protocol (Query (Query), Request (RqQuery))
 import Imports hiding (All, fromString, init, intercalate, log)
+import OpenSSL.Session qualified as OpenSSL
 import Options.Applicative hiding (info)
 -- FUTUREWORK: We could use the System.Logger.Class here in the future, but we don't have a ReaderT IO here (yet)
 import System.Logger qualified as Log
@@ -73,7 +74,9 @@ data MigrationOpts = MigrationOpts
     migPort :: Word16,
     migKeyspace :: Text,
     migRepl :: ReplicationStrategy,
-    migReset :: Bool
+    migReset :: Bool,
+    migUseTLS :: Bool,
+    migTLSCert :: Maybe FilePath
   }
   deriving (Eq, Show, Generic)
 
@@ -165,27 +168,29 @@ useKeyspace (Keyspace k) = void . getResult =<< qry
 
 migrateSchema :: Log.Logger -> MigrationOpts -> [Migration] -> IO ()
 migrateSchema l o ms = do
+  mbSSLContext <- createSSLContext
   hosts <- initialContactsPlain $ pack (migHost o)
-  p <-
-    CQL.init
-      $ setLogger (CT.mkLogger l)
-        . setContacts (NonEmpty.head hosts) (NonEmpty.tail hosts)
-        . setPortNumber (fromIntegral $ migPort o)
-        . setMaxConnections 1
-        . setPoolStripes 1
-        -- 'migrationPolicy' ensures we only talk to one host for all queries
-        -- required for correct functioning of 'waitForSchemaConsistency'
-        . setPolicy migrationPolicy
-        -- use higher timeouts on schema migrations to reduce the probability
-        -- of a timeout happening during 'migAction' or 'metaInsert',
-        -- as that can lead to a state where schema migrations cannot be re-run
-        -- without manual action.
-        -- (due to e.g. "cannot create table X, already exists" errors)
-        . setConnectTimeout 20
-        . setSendTimeout 20
-        . setResponseTimeout 50
-        . setProtocolVersion V4
-      $ defSettings
+  let basicCQLSettings =
+        setLogger (CT.mkLogger l)
+          . setContacts (NonEmpty.head hosts) (NonEmpty.tail hosts)
+          . setPortNumber (fromIntegral $ migPort o)
+          . setMaxConnections 1
+          . setPoolStripes 1
+          -- 'migrationPolicy' ensures we only talk to one host for all queries
+          -- required for correct functioning of 'waitForSchemaConsistency'
+          . setPolicy migrationPolicy
+          -- use higher timeouts on schema migrations to reduce the probability
+          -- of a timeout happening during 'migAction' or 'metaInsert',
+          -- as that can lead to a state where schema migrations cannot be re-run
+          -- without manual action.
+          -- (due to e.g. "cannot create table X, already exists" errors)
+          . setConnectTimeout 20
+          . setSendTimeout 20
+          . setResponseTimeout 50
+          . setProtocolVersion V4
+          $ defSettings
+      cqlSettings = maybe basicCQLSettings (\sslCtx -> setSSLContext sslCtx basicCQLSettings) mbSSLContext
+  p <- CQL.init cqlSettings
   runClient p $ do
     let keyspace = Keyspace . migKeyspace $ o
     when (migReset o) $ do
@@ -218,6 +223,20 @@ migrateSchema l o ms = do
     metaCreate = "create columnfamily if not exists meta (id int, version int, descr text, date timestamp, primary key (id, version))"
     metaInsert :: QueryString W (Int32, Text, UTCTime) ()
     metaInsert = "insert into meta (id, version, descr, date) values (1,?,?,?)"
+    createSSLContext :: IO (Maybe OpenSSL.SSLContext)
+    createSSLContext
+      | o.migUseTLS = do
+          sslContext <- OpenSSL.context
+          maybe (pure ()) (OpenSSL.contextSetCAFile sslContext) o.migTLSCert
+          OpenSSL.contextSetVerificationMode
+            sslContext
+            OpenSSL.VerifyPeer
+              { vpFailIfNoPeerCert = False,
+                vpClientOnce = True,
+                vpCallback = Nothing
+              }
+          pure $ Just sslContext
+      | otherwise = pure Nothing
 
 -- | Retrieve and compare local and peer system schema versions.
 -- if they don't match, retry once per second for 30 seconds
@@ -310,4 +329,14 @@ migrationOptsParser =
     <*> switch
       ( long "reset"
           <> help "Reset the keyspace before running migrations"
+      )
+    <*> switch
+      ( long "use-tls"
+          <> help "Use TLS to connect to Cassandra"
+      )
+    <*> option
+      auto
+      ( long "tls-certificate-file"
+          <> value Nothing
+          <> help "Location of a PEM encoded list of CA certificates to be used when verifying the Cassandra server's certificate"
       )

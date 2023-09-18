@@ -77,6 +77,7 @@ library
     , cql-io                >=0.14
     , cql-io-tinylog
     , exceptions            >=0.6
+    , HsOpenSSL
     , imports
     , lens                  >=4.4
     , lens-aeson            >=1.0
