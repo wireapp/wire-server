@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 module SetupHelpers where
 
@@ -90,7 +90,6 @@ randomUserId domain = do
 
 withFederatingBackendsAllowDynamic :: HasCallStack => Int -> ((String, String, String) -> App a) -> App a
 withFederatingBackendsAllowDynamic _n k = do
-  -- TODO: don't thread-delay any more.
   let setFederationConfig =
         setField "optSettings.setFederationStrategy" "allowDynamic"
           >=> setField "optSettings.setFederationDomainConfigsUpdateFreq" (Aeson.Number 1)
@@ -99,6 +98,5 @@ withFederatingBackendsAllowDynamic _n k = do
       def {brigCfg = setFederationConfig},
       def {brigCfg = setFederationConfig}
     ]
-    $ \dynDomains -> do
-      [domainA, domainB, domainC] <- pure dynDomains
+    $ \[domainA, domainB, domainC] ->
       k (domainA, domainB, domainC)

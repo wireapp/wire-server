@@ -62,10 +62,6 @@ testCrudFederationRemotes = do
         cfgRemotesExpect :: Internal.FedConn
         cfgRemotesExpect = Internal.FedConn (cs otherDomain) "full_search"
 
-    -- TODO: add extra field "federation_allowed" to the table?  and allow search policy to be NULL.
-    -- void $ Internal.createFedConn ownDomain (Internal.FedConn otherDomain "full_search") -- TODO: have a default search policy next to allowAll in the config file.
-    -- anyway not needed in this test.
-
     liftIO $ threadDelay 5_000_000
     cfgRemotes <- parseFedConns =<< Internal.readFedConns ownDomain
     cfgRemotes `shouldMatch` ([] @Value)

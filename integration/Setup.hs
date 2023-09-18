@@ -33,7 +33,7 @@ collectTests roots = do
 
     findModuleTests :: FilePath -> FilePath -> IO [(String, String, String, String)]
     findModuleTests root path = do
-      let modl = "Test." <> toModule root path -- TODO: don't grab '.#*' (also, add '~' to '.#name' in my emacs config -fisx
+      let modl = "Test." <> toModule root path
       tests <- collectTestsInModule path
       pure $ map (\(testName, summary, full) -> (modl, testName, summary, full)) tests
 
