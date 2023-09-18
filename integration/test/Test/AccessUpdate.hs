@@ -109,19 +109,14 @@ testAccessUpdateWithRemotes = do
   conv <-
     postConversation alice (defProteus {qualifiedUsers = [bob, charlie]})
       >>= getJSON 201
-  [aliceClient, bobClient, charlieClient] <-
-    mapM
-      (\user -> fmap (user,) . objId $ bindResponse (addClient user def) $ getJSON 201)
-      [alice, bob, charlie]
-
   let update_access_value = ["code"]
       update_access_role_value = ["team_member", "non_team_member", "guest", "service"]
       update = ["access" .= update_access_value, "access_role" .= update_access_role_value]
-  void $ updateAccess alice conv update >>= getJSON 200
-  let assertNotification user client = do
-        notif <- awaitNotification user client noValue 2 isConvAccessUpdateNotif
-        notif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
-        notif %. "payload.0.qualified_from" `shouldMatch` objQidObject alice
-        notif %. "payload.0.data.access" `shouldMatch` update_access_value
-        notif %. "payload.0.data.access_role_v2" `shouldMatch` update_access_role_value
-  forM_ [aliceClient, bobClient, charlieClient] $ uncurry assertNotification
+  withWebSockets [alice, bob, charlie] $ \wss -> do
+    void $ updateAccess alice conv update >>= getJSON 200
+    for_ wss $ \ws -> do
+      notif <- awaitMatch 10 isConvAccessUpdateNotif ws
+      notif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
+      notif %. "payload.0.qualified_from" `shouldMatch` objQidObject alice
+      notif %. "payload.0.data.access" `shouldMatch` update_access_value
+      notif %. "payload.0.data.access_role_v2" `shouldMatch` update_access_role_value

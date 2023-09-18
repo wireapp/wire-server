@@ -19,7 +19,6 @@
 
 module Test.Roles where
 
-import API.Brig
 import API.Galley
 import Control.Monad.Codensity
 import Control.Monad.Reader
@@ -32,32 +31,27 @@ import Testlib.ResourcePool
 testRoleUpdateWithRemotesOk :: HasCallStack => App ()
 testRoleUpdateWithRemotesOk = do
   [bob, charlie, alice] <- createAndConnectUsers [OwnDomain, OwnDomain, OtherDomain]
-  [bobClient, charlieClient] <-
-    forM [bob, charlie] $ \usr ->
-      objId $ bindResponse (addClient usr def) $ getJSON 201
   conv <-
     postConversation bob (defProteus {qualifiedUsers = [charlie, alice]})
       >>= getJSON 201
   adminRole <- make "wire_admin"
-  void $ updateRole bob charlie adminRole conv >>= getBody 200
-  bindResponse (getConversation bob conv) $ \resp -> do
-    resp.status `shouldMatchInt` 200
-    resp.json %. "members.others.0.qualified_id" `shouldMatch` objQidObject charlie
-    resp.json %. "members.others.0.conversation_role" `shouldMatch` "wire_admin"
 
-  forBob <- awaitNotification bob bobClient noValue 5 isMemberUpdateNotif
-  forCharlie <- awaitNotification charlie charlieClient noValue 5 isMemberUpdateNotif
-  forM_ [forBob, forCharlie] $ \notif -> do
-    notif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
-    notif %. "payload.0.qualified_from" `shouldMatch` objQidObject bob
+  withWebSockets [bob, charlie] $ \wss -> do
+    void $ updateRole bob charlie adminRole conv >>= getBody 200
+    bindResponse (getConversation bob conv) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      resp.json %. "members.others.0.qualified_id" `shouldMatch` objQidObject charlie
+      resp.json %. "members.others.0.conversation_role" `shouldMatch` "wire_admin"
+    for_ wss $ \ws -> do
+      notif <- awaitMatch 10 isMemberUpdateNotif ws
+      notif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
+      notif %. "payload.0.qualified_from" `shouldMatch` objQidObject bob
 
 testRoleUpdateWithRemotesUnreachable :: HasCallStack => App ()
 testRoleUpdateWithRemotesUnreachable = do
   resourcePool <- asks resourcePool
   [bob, charlie] <- createAndConnectUsers [OwnDomain, OwnDomain]
-  [bobClient, charlieClient] <-
-    forM [bob, charlie] $ \usr ->
-      objId $ bindResponse (addClient usr def) $ getJSON 201
+  -- TODO: use startDynamicBackends
   runCodensity (acquireResources 1 resourcePool) $ \[dynBackend] -> do
     (conv, _alice) <-
       runCodensity (startDynamicBackend dynBackend mempty) $ \_ -> do
@@ -68,10 +62,11 @@ testRoleUpdateWithRemotesUnreachable = do
             >>= getJSON 201
         pure (conv, alice)
     adminRole <- make "wire_admin"
-    void $ updateRole bob charlie adminRole conv >>= getBody 200
 
-    forBob <- awaitNotification bob bobClient noValue 5 isMemberUpdateNotif
-    forCharlie <- awaitNotification charlie charlieClient noValue 5 isMemberUpdateNotif
-    forM_ [forBob, forCharlie] $ \notif -> do
-      notif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
-      notif %. "payload.0.qualified_from" `shouldMatch` objQidObject bob
+    withWebSockets [bob, charlie] $ \wss -> do
+      void $ updateRole bob charlie adminRole conv >>= getBody 200
+
+      for_ wss $ \ws -> do
+        notif <- awaitMatch 10 isMemberUpdateNotif ws
+        notif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
+        notif %. "payload.0.qualified_from" `shouldMatch` objQidObject bob

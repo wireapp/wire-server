@@ -74,11 +74,8 @@ isNotifForUser user n = fieldEquals n "payload.0.data.qualified_user_ids.0" (obj
 isNotifFromUser :: (MakesValue user, MakesValue a, HasCallStack) => user -> a -> App Bool
 isNotifFromUser user n = fieldEquals n "payload.0.qualified_from" (objQidObject user)
 
-isConvNameChangeNotif :: (HasCallStack, MakesValue a, MakesValue c) => c -> a -> App Bool
-isConvNameChangeNotif name n = (&&) <$> fieldType <*> fieldName
-  where
-    fieldType = fieldEquals n "payload.0.type" "conversation.rename"
-    fieldName = fieldEquals n "payload.0.data.name" (asString name)
+isConvNameChangeNotif :: (HasCallStack, MakesValue a) => a -> App Bool
+isConvNameChangeNotif n = fieldEquals n "payload.0.type" "conversation.rename"
 
 isMemberUpdateNotif :: (HasCallStack, MakesValue n) => n -> App Bool
 isMemberUpdateNotif n = fieldEquals n "payload.0.type" "conversation.member-update"
