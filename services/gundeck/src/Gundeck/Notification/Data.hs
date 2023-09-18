@@ -22,6 +22,11 @@ module Gundeck.Notification.Data
     fetchId,
     fetchLast,
     deleteAll,
+    FetchPayloads,
+    FetchPayloadsDef (..),
+
+    -- * Exported for testing
+    collect,
   )
 where
 
@@ -43,6 +48,48 @@ import Imports hiding (cs)
 import UnliftIO (pooledForConcurrentlyN_)
 import UnliftIO.Async (pooledMapConcurrentlyN)
 import Wire.API.Internal.Notification
+
+class FetchPayloads m where
+  fetchPayload :: Maybe ClientId -> NotifRow -> m (Maybe QueuedNotification)
+  fetchPayloads :: Maybe ClientId -> Int32 -> [NotifRow] -> m (Seq QueuedNotification, Int32)
+
+data NotifPage m = NotifPage
+  { notifs :: [NotifRow],
+    moreNotifs :: Bool,
+    nextNotifPage :: m (NotifPage m)
+  }
+
+notifPage :: MonadClient m => Page NotifRow -> NotifPage m
+notifPage p = NotifPage (result p) (hasMore p) (notifPage <$> liftClient (nextPage p))
+
+-- | Fetches referenced payloads until maxTotalSize payload bytes are fetched from the database.
+-- At least the first row is fetched regardless of the payload size.
+newtype FetchPayloadsDef m a = FetchPayloadsDef {unFetchPayloadsDef :: m a}
+
+instance (MonadClient m, MonadUnliftIO m) => FetchPayloads (FetchPayloadsDef m) where
+  fetchPayloads c left rows = FetchPayloadsDef $ do
+    let (rows', left') = truncateNotifs [] (0 :: Int) left rows
+    s <-
+      Seq.fromList . catMaybes
+        <$> pooledMapConcurrentlyN 16 (unFetchPayloadsDef . fetchPayload c) rows'
+    pure (s, left')
+    where
+      truncateNotifs acc _i l [] = (reverse acc, l)
+      truncateNotifs acc i l (row : rest)
+        | i > 0 && l <= 0 = (reverse acc, l)
+        | otherwise = truncateNotifs (row : acc) (i + 1) (l - payloadSize row) rest
+
+  fetchPayload c (id_, mbPayload, mbPayloadRef, _mbPayloadRefSize, mbClients) =
+    FetchPayloadsDef $
+      case (mbPayload, mbPayloadRef) of
+        (Just payload, _) -> pure $ toNotifSingle c (id_, payload, mbClients)
+        (_, Just payloadRef) -> runMaybeT $ do
+          pl <- MaybeT $ fmap (fmap runIdentity) (query1 cqlSelectPayload (params LocalQuorum (Identity payloadRef)))
+          maybe mzero pure $ toNotifSingle c (id_, pl, mbClients)
+        _ -> pure Nothing
+    where
+      cqlSelectPayload :: PrepQuery R (Identity PayloadId) (Identity Blob)
+      cqlSelectPayload = "SELECT payload from notification_payload where id = ?"
 
 data ResultPage = ResultPage
   { -- | A sequence of notifications.
@@ -106,7 +153,7 @@ add n tgts (JSON.encode -> payload) (notificationTTLSeconds -> t) = do
       \(?   , ?) \
       \USING TTL ?"
 
-fetchId :: MonadClient m => UserId -> NotificationId -> Maybe ClientId -> m (Maybe QueuedNotification)
+fetchId :: (MonadClient m, FetchPayloads m) => UserId -> NotificationId -> Maybe ClientId -> m (Maybe QueuedNotification)
 fetchId u n c = runMaybeT $ do
   row <- MaybeT $ retry x1 $ query1 cqlById (params LocalQuorum (u, n))
   MaybeT $ fetchPayload c row
@@ -117,7 +164,11 @@ fetchId u n c = runMaybeT $ do
       \FROM notifications \
       \WHERE user = ? AND id = ?"
 
-fetchLast :: (MonadReader Env m, MonadClient m) => UserId -> Maybe ClientId -> m (Maybe QueuedNotification)
+fetchLast ::
+  (MonadReader Env m, MonadClient m, FetchPayloads m) =>
+  UserId ->
+  Maybe ClientId ->
+  m (Maybe QueuedNotification)
 fetchLast u c = do
   pageSize <- fromMaybe 100 <$> asks (^. options . settings . internalPageSize)
   go (Page True [] (firstPage pageSize))
@@ -158,18 +209,6 @@ fetchLast u c = do
       \WHERE user = ? AND id < ? \
       \ORDER BY id DESC"
 
-fetchPayload :: MonadClient m => Maybe ClientId -> NotifRow -> m (Maybe QueuedNotification)
-fetchPayload c (id_, mbPayload, mbPayloadRef, _mbPayloadRefSize, mbClients) =
-  case (mbPayload, mbPayloadRef) of
-    (Just payload, _) -> pure $ toNotifSingle c (id_, payload, mbClients)
-    (_, Just payloadRef) -> runMaybeT $ do
-      pl <- MaybeT $ fmap (fmap runIdentity) (query1 cqlSelectPayload (params LocalQuorum (Identity payloadRef)))
-      maybe mzero pure $ toNotifSingle c (id_, pl, mbClients)
-    _ -> pure Nothing
-  where
-    cqlSelectPayload :: PrepQuery R (Identity PayloadId) (Identity Blob)
-    cqlSelectPayload = "SELECT payload from notification_payload where id = ?"
-
 type NotifRow = (TimeUuid, Maybe Blob, Maybe PayloadId, Maybe Int32, Maybe (C.Set ClientId))
 
 payloadSize :: NotifRow -> Int32
@@ -179,35 +218,30 @@ payloadSize (_, mbPayload, _, mbPayloadRefSize, _) =
     (_, Just size) -> size
     _ -> 0
 
--- | Fetches referenced payloads until maxTotalSize payload bytes are fetched from the database.
--- At least the first row is fetched regardless of the payload size.
-fetchPayloads :: (MonadClient m, MonadUnliftIO m) => Maybe ClientId -> Int32 -> [NotifRow] -> m (Seq QueuedNotification, Int32)
-fetchPayloads c left rows = do
-  let (rows', left') = truncateNotifs [] (0 :: Int) left rows
-  s <- Seq.fromList . catMaybes <$> pooledMapConcurrentlyN 16 (fetchPayload c) rows'
-  pure (s, left')
-  where
-    truncateNotifs acc _i l [] = (reverse acc, l)
-    truncateNotifs acc i l (row : rest)
-      | i > 0 && l <= 0 = (reverse acc, l)
-      | otherwise = truncateNotifs (row : acc) (i + 1) (l - payloadSize row) rest
-
 -- | Tries to fetch @remaining@ many notifications.
 -- The returned 'Seq' might contain more notifications than @remaining@, (see
 -- https://docs.datastax.com/en/developer/java-driver/3.2/manual/paging/).
 --
 -- The boolean indicates whether more notifications can be fetched.
-collect :: (MonadReader Env m, MonadClient m, MonadUnliftIO m) => Maybe ClientId -> Seq QueuedNotification -> Bool -> Int -> Int32 -> m (Page NotifRow) -> m (Seq QueuedNotification, Bool)
+collect ::
+  (Monad m, FetchPayloads m) =>
+  Maybe ClientId ->
+  Seq QueuedNotification ->
+  Bool ->
+  Int ->
+  Int32 ->
+  m (NotifPage m) ->
+  m (Seq QueuedNotification, Bool)
 collect c acc lastPageHasMore remaining remainingBytes getPage
   | remaining <= 0 = pure (acc, lastPageHasMore)
   | remainingBytes <= 0 = pure (acc, True)
   | not lastPageHasMore = pure (acc, False)
   | otherwise = do
       page <- getPage
-      let rows = result page
+      let rows = notifs page
       (s, remaingBytes') <- fetchPayloads c remainingBytes rows
       let remaining' = remaining - Seq.length s
-      collect c (acc <> s) (hasMore page) remaining' remaingBytes' (liftClient (nextPage page))
+      collect c (acc <> s) (moreNotifs page) remaining' remaingBytes' (nextNotifPage page)
 
 mkResultPage :: Int -> Bool -> Seq QueuedNotification -> ResultPage
 mkResultPage size more ns =
@@ -217,10 +251,16 @@ mkResultPage size more ns =
       resultGap = False
     }
 
-fetch :: (MonadReader Env m, MonadClient m, MonadUnliftIO m) => UserId -> Maybe ClientId -> Maybe NotificationId -> Range 100 10000 Int32 -> m ResultPage
+fetch ::
+  (MonadReader Env m, MonadClient m, FetchPayloads m) =>
+  UserId ->
+  Maybe ClientId ->
+  Maybe NotificationId ->
+  Range 100 10000 Int32 ->
+  m ResultPage
 fetch u c Nothing (fromIntegral . fromRange -> size) = do
   pageSize <- fromMaybe 100 <$> asks (^. options . settings . internalPageSize)
-  let page1 = retry x1 $ paginate cqlStart (paramsP LocalQuorum (Identity u) pageSize)
+  let page1 = fmap notifPage . retry x1 $ paginate cqlStart (paramsP LocalQuorum (Identity u) pageSize)
   -- We always need to look for one more than requested in order to correctly
   -- report whether there are more results.
   maxPayloadSize <- fromMaybe (5 * 1024 * 1024) <$> asks (^. options . settings . maxPayloadLoadSize)
@@ -237,8 +277,9 @@ fetch u c Nothing (fromIntegral . fromRange -> size) = do
 fetch u c (Just since) (fromIntegral . fromRange -> size) = do
   pageSize <- fromMaybe 100 <$> asks (^. options . settings . internalPageSize)
   let page1 =
-        retry x1 $
-          paginate cqlSince (paramsP LocalQuorum (u, TimeUuid (toUUID since)) pageSize)
+        fmap notifPage
+          . retry x1
+          $ paginate cqlSince (paramsP LocalQuorum (u, TimeUuid (toUUID since)) pageSize)
   -- We fetch 2 more rows than requested. The first is to accommodate the
   -- notification corresponding to the `since` argument itself. The second is
   -- to get an accurate `hasMore`, just like in the case above.

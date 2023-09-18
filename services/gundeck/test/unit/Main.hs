@@ -28,6 +28,7 @@ import Imports
 import Json qualified
 import Native qualified
 import Network.Wai.Utilities.Server (compile)
+import Notifications
 import OpenSSL (withOpenSSL)
 import ParseExistsError qualified
 import Push qualified
@@ -42,12 +43,13 @@ main =
       "Main"
       [ testCase "sitemap" $
           assertEqual
-            "inconcistent sitemap"
+            "inconsistent sitemap"
             mempty
             (pathsConsistencyCheck . treeToPaths . compile $ Gundeck.API.sitemap),
         DelayQueue.tests,
         Json.tests,
         Native.tests,
+        Notifications.tests,
         Push.tests,
         ThreadBudget.tests,
         ParseExistsError.tests

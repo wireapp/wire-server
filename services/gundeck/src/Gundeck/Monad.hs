@@ -54,6 +54,7 @@ import Data.Default (def)
 import Data.Misc (Milliseconds (..))
 import Database.Redis qualified as Redis
 import Gundeck.Env
+import Gundeck.Notification.Data
 import Gundeck.Redis qualified as Redis
 import Imports
 import Network.HTTP.Types
@@ -81,6 +82,7 @@ newtype Gundeck a = Gundeck
       MonadClient,
       MonadUnliftIO
     )
+  deriving (FetchPayloads) via (FetchPayloadsDef Gundeck)
 
 -- | 'Gundeck' doesn't have an instance for 'MonadRedis' because it contains two
 -- connections to two redis instances. When using 'WithDefaultRedis', any redis
