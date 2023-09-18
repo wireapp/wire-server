@@ -507,17 +507,14 @@ testReceiptModeWithRemotesOk = do
 
 testReceiptModeWithRemotesUnreachable :: HasCallStack => App ()
 testReceiptModeWithRemotesUnreachable = do
-  resourcePool <- asks resourcePool
   ownDomain <- asString OwnDomain
   alice <- randomUser ownDomain def
-  -- TODO: use startDynamicBackends here?
-  runCodensity (acquireResources 1 resourcePool) $ \[dynBackend] -> do
+  startDynamicBackends [mempty] $ \[dynBackend] -> do
+    bob <- randomUser dynBackend def
+    connectUsers alice bob
     conv <-
-      runCodensity (startDynamicBackend dynBackend mempty) $ \_ -> do
-        bob <- randomUser dynBackend.berDomain def
-        connectUsers alice bob
-        postConversation alice (defProteus {qualifiedUsers = [bob]})
-          >>= getJSON 201
+      postConversation alice (defProteus {qualifiedUsers = [bob]})
+        >>= getJSON 201
     withWebSocket alice $ \ws -> do
       void $ updateReceiptMode alice conv (43 :: Int) >>= getBody 200
       notif <- awaitMatch 10 isReceiptModeUpdateNotif ws
@@ -561,17 +558,14 @@ testDeleteRemoteMember = do
 
 testDeleteRemoteMemberRemoteUnreachable :: HasCallStack => App ()
 testDeleteRemoteMemberRemoteUnreachable = do
-  resourcePool <- asks resourcePool
   [alice, bob, bart] <- createAndConnectUsers [OwnDomain, OtherDomain, OtherDomain]
-  -- TODO: use startDynamicBackends
-  conv <- runCodensity (acquireResources 1 resourcePool) $ \[dynBackend] ->
-    runCodensity (startDynamicBackend dynBackend mempty) $ \_ -> do
-      charlie <- randomUser dynBackend.berDomain def
-      connectUsers alice charlie
-      postConversation
-        alice
-        (defProteus {qualifiedUsers = [bob, bart, charlie]})
-        >>= getJSON 201
+  conv <- startDynamicBackends [mempty] $ \[dynBackend] -> do
+    charlie <- randomUser dynBackend def
+    connectUsers alice charlie
+    postConversation
+      alice
+      (defProteus {qualifiedUsers = [bob, bart, charlie]})
+      >>= getJSON 201
   void $ withWebSockets [alice, bob] $ \wss -> do
     void $ removeMember alice conv bob >>= getBody 200
     for wss $ \ws -> do

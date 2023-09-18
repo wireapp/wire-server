@@ -20,13 +20,11 @@
 module Test.Roles where
 
 import API.Galley
-import Control.Monad.Codensity
 import Control.Monad.Reader
 import GHC.Stack
 import Notifications
 import SetupHelpers
 import Testlib.Prelude
-import Testlib.ResourcePool
 
 testRoleUpdateWithRemotesOk :: HasCallStack => App ()
 testRoleUpdateWithRemotesOk = do
@@ -49,18 +47,13 @@ testRoleUpdateWithRemotesOk = do
 
 testRoleUpdateWithRemotesUnreachable :: HasCallStack => App ()
 testRoleUpdateWithRemotesUnreachable = do
-  resourcePool <- asks resourcePool
   [bob, charlie] <- createAndConnectUsers [OwnDomain, OwnDomain]
-  -- TODO: use startDynamicBackends
-  runCodensity (acquireResources 1 resourcePool) $ \[dynBackend] -> do
-    (conv, _alice) <-
-      runCodensity (startDynamicBackend dynBackend mempty) $ \_ -> do
-        alice <- randomUser dynBackend.berDomain def
-        mapM_ (connectUsers alice) [bob, charlie]
-        conv <-
-          postConversation bob (defProteus {qualifiedUsers = [charlie, alice]})
-            >>= getJSON 201
-        pure (conv, alice)
+  startDynamicBackends [mempty] $ \[dynBackend] -> do
+    alice <- randomUser dynBackend def
+    mapM_ (connectUsers alice) [bob, charlie]
+    conv <-
+      postConversation bob (defProteus {qualifiedUsers = [charlie, alice]})
+        >>= getJSON 201
     adminRole <- make "wire_admin"
 
     withWebSockets [bob, charlie] $ \wss -> do
