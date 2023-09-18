@@ -9,6 +9,7 @@ import Control.Monad.Cont
 import GHC.Stack
 import SetupHelpers
 import Testlib.Prelude
+import UnliftIO.Concurrent (threadDelay)
 
 -- | Legalhold clients cannot be deleted.
 testCantDeleteLHClient :: HasCallStack => App ()
@@ -175,10 +176,14 @@ testDynamicBackendsFederation :: HasCallStack => App ()
 testDynamicBackendsFederation = do
   startDynamicBackends [def, def] $ \dynDomains -> do
     [aDynDomain, anotherDynDomain] <- pure dynDomains
+    _ <- Internal.createFedConn anotherDynDomain (Internal.FedConn aDynDomain "full_search")
+    threadDelay 2_000_000
+
     u1 <- randomUser aDynDomain def
     u2 <- randomUser anotherDynDomain def
     uid2 <- objId u2
     Internal.refreshIndex anotherDynDomain
+
     bindResponse (Public.searchContacts u1 (u2 %. "name") anotherDynDomain) $ \resp -> do
       resp.status `shouldMatchInt` 200
       docs <- resp.json %. "documents" >>= asList
