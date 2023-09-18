@@ -61,10 +61,6 @@ main = do
     lowerCodensity $ do
       _modifyEnv <-
         traverseConcurrentlyCodensity
-          ( \resource ->
-              -- We add the 'fullSerachWithAll' overrrides is a hack to get
-              -- around https://wearezeta.atlassian.net/browse/WPB-3796
-              startDynamicBackend resource def
-          )
+          (`startDynamicBackend` def)
           [backendA, backendB]
       liftIO run
