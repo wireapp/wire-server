@@ -176,6 +176,7 @@ type ProviderAPI =
     :<|> Named
            "provider-get-profile"
            ( Summary "Get profile"
+               :> ZUser
                :> "providers"
                :> Capture "pid" ProviderId
                :> MultiVerb 'GET '[JSON] GetProviderProfileResponses (Maybe ProviderProfile)

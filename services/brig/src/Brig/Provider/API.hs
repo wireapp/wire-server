@@ -614,8 +614,8 @@ deleteAccount pid del = do
 --------------------------------------------------------------------------------
 -- User API
 
-getProviderProfile :: Member GalleyProvider r => ProviderId -> (Handler r) (Maybe Public.ProviderProfile)
-getProviderProfile pid = do
+getProviderProfile :: Member GalleyProvider r => UserId -> ProviderId -> (Handler r) (Maybe Public.ProviderProfile)
+getProviderProfile _ pid = do
   guardSecondFactorDisabled Nothing
   wrapClientE (DB.lookupAccountProfile pid)
 
