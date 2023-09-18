@@ -34,7 +34,6 @@ import Data.LegalHold (UserLegalHoldStatus (UserLegalHoldNoConsent))
 import Data.Text.Encoding
 import Federator.Options hiding (federatorExternal)
 import Imports
-import Network.HTTP.Client (responseBody)
 import Network.HTTP.Types qualified as HTTP
 import Network.Wai.Utilities.Error qualified as E
 import Test.Federator.Util
@@ -68,22 +67,20 @@ spec env =
   describe "Inward" $ do
     it "should be able to call brig" $
       runTestFederator env $ do
+        otherBackend <- cs . (.backendTwo.originDomain) . view teTstOpts <$> ask
         brig <- view teBrig <$> ask
         user <- randomUser brig
         hdl <- randomHandle
         _ <- putHandle brig (userId user) hdl
 
         backendTwoDomain <- asks (._teTstOpts.backendTwo.originDomain)
-        let backendTwoDomainBS = toByteString' backendTwoDomain
         setSearchPolicyFor brig (Domain backendTwoDomain) Search.FullSearch
 
         let expectedProfile = (publicProfile user UserLegalHoldNoConsent) {profileHandle = Just (Handle hdl)}
-        bdy <- do
-          -- Explicitly make the call from a domain outside of Federator's own domain
-          resp <- inwardCallWithOriginDomain backendTwoDomainBS "/federation/brig/get-user-by-handle" (encode hdl)
-          _ <- error $ show (resp, responsBody resp)
-          responseJsonError resp
-            <!! const 200 === statusCode
+        bdy <-
+          responseJsonError
+            =<< inwardCallWithOriginDomain otherBackend "/federation/brig/get-user-by-handle" (encode hdl)
+              <!! const 200 === statusCode
         liftIO $ bdy `shouldBe` expectedProfile
 
     -- @SF.Federation @TSFI.RESTfulAPI @S2 @S3 @S7
