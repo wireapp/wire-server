@@ -28,14 +28,14 @@ testNotificationsForOfflineBackends = do
   otherClient <- objId $ bindResponse (API.addClient otherUser def) $ getJSON 201
   otherClient2 <- objId $ bindResponse (API.addClient otherUser2 def) $ getJSON 201
 
-  let ownDomain = "example.com"
-      downDomain = "d1.example.com"
-      otherDomain = "b.example.com"
+  ownDomain <- asString OwnDomain
+  otherDomain <- asString OtherDomain
 
   -- We call it 'downBackend' because it is down for the most of this test
   -- except for setup and assertions. Perhaps there is a better name.
   runCodensity (acquireResources 1 resourcePool) $ \[downBackend] -> do
     (downUser1, downClient1, downUser2, upBackendConv, downBackendConv) <- runCodensity (startDynamicBackend downBackend mempty) $ \_ -> do
+      let downDomain = downBackend.berDomain
       void $ Internal.createFedConn ownDomain (Internal.FedConn otherDomain "full_search")
       void $ Internal.createFedConn ownDomain (Internal.FedConn downDomain "full_search")
       void $ Internal.createFedConn otherDomain (Internal.FedConn downDomain "full_search")
