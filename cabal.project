@@ -48,6 +48,7 @@ packages:
   , tools/db/repair-brig-clients-table/
   , tools/db/service-backfill/
   , tools/fedcalls/
+  , tools/rabbitmq-consumer
   , tools/rex/
   , tools/stern/
 
@@ -111,6 +112,8 @@ package move-team
 package polysemy-wire-zoo
     ghc-options: -Werror
 package proxy
+    ghc-options: -Werror
+package rabbitmq-consumer
     ghc-options: -Werror
 package repair-handles
     ghc-options: -Werror
