@@ -28,7 +28,6 @@ import Data.Aeson.Types qualified as Aeson
 import Data.ByteString qualified as BS
 import Data.ByteString.Conversion (toByteString')
 import Data.ByteString.Lazy qualified as LBS
-import Data.Domain
 import Data.Handle
 import Data.LegalHold (UserLegalHoldStatus (UserLegalHoldNoConsent))
 import Data.Text.Encoding
@@ -76,11 +75,9 @@ spec env =
         _ <- putHandle brig (userId user) hdl
 
         let expectedProfile = (publicProfile user UserLegalHoldNoConsent) {profileHandle = Just (Handle hdl)}
-            callingDomain = be2Domain env
-        allowFullSearch brig (Domain callingDomain)
         bdy <-
           responseJsonError
-            =<< inwardCallWithOriginDomain (cs callingDomain) "/federation/brig/get-user-by-handle" (encode hdl)
+            =<< inwardCall "/federation/brig/get-user-by-handle" (encode hdl)
               <!! const 200 === statusCode
         liftIO $ bdy `shouldBe` expectedProfile
 
@@ -129,7 +126,7 @@ spec env =
     -- and "IngressSpec".
     it "rejectRequestsWithoutClientCertInward" $
       runTestFederator env $ do
-        originDomain <- be1Domain <$> ask
+        originDomain <- originDomain <$> view teTstOpts
         hdl <- randomHandle
         inwardCallWithHeaders
           "federation/brig/get-user-by-handle"
@@ -163,7 +160,7 @@ inwardCall ::
   LBS.ByteString ->
   m (Response (Maybe LByteString))
 inwardCall requestPath payload = do
-  originDomain :: Text <- be1Domain <$> ask
+  originDomain :: Text <- originDomain <$> view teTstOpts
   inwardCallWithOriginDomain (toByteString' originDomain) requestPath payload
 
 inwardCallWithOriginDomain ::
