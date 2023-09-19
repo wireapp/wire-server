@@ -34,7 +34,7 @@ testRoleUpdateWithRemotesOk = do
       >>= getJSON 201
   adminRole <- make "wire_admin"
 
-  withWebSockets [bob, charlie] $ \wss -> do
+  withWebSockets [bob, charlie, alice] $ \wss -> do
     void $ updateRole bob charlie adminRole conv >>= getBody 200
     bindResponse (getConversation bob conv) $ \resp -> do
       resp.status `shouldMatchInt` 200

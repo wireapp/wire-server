@@ -522,16 +522,34 @@ testConvRenaming = do
     postConversation alice (defProteus {qualifiedUsers = [bob]})
       >>= getJSON 201
   let newConvName = "The new conversation name"
-  withWebSocket alice $ \ws -> do
-    void $ changeConversationName alice conv newConvName >>= getBody 200
-    nameNotif <- awaitMatch 10 isConvNameChangeNotif ws
-    nameNotif %. "payload.0.data.name" `shouldMatch` newConvName
-    nameNotif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
+  withWebSockets [alice, bob] $ \wss -> do
+    for_ wss $ \ws -> do
+      void $ changeConversationName alice conv newConvName >>= getBody 200
+      nameNotif <- awaitMatch 10 isConvNameChangeNotif ws
+      nameNotif %. "payload.0.data.name" `shouldMatch` newConvName
+      nameNotif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
 
 testReceiptModeWithRemotesOk :: HasCallStack => App ()
 testReceiptModeWithRemotesOk = do
   [alice, bob] <- createAndConnectUsers [OwnDomain, OtherDomain]
   conv <-
+    postConversation alice (defProteus {qualifiedUsers = [bob]})
+      >>= getJSON 201
+  withWebSockets [alice, bob] $ \wss -> do
+    void $ updateReceiptMode alice conv (43 :: Int) >>= getBody 200
+    for_ wss $ \ws -> do
+      notif <- awaitMatch 10 isReceiptModeUpdateNotif ws
+      notif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
+      notif %. "payload.0.qualified_from" `shouldMatch` objQidObject alice
+      notif %. "payload.0.data.receipt_mode" `shouldMatchInt` 43
+
+testReceiptModeWithRemotesUnreachable :: HasCallStack => App ()
+testReceiptModeWithRemotesUnreachable = do
+  ownDomain <- asString OwnDomain
+  alice <- randomUser ownDomain def
+  conv <- startDynamicBackends [mempty] $ \[dynBackend] -> do
+    bob <- randomUser dynBackend def
+    connectUsers alice bob
     postConversation alice (defProteus {qualifiedUsers = [bob]})
       >>= getJSON 201
   withWebSocket alice $ \ws -> do
@@ -540,23 +558,6 @@ testReceiptModeWithRemotesOk = do
     notif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
     notif %. "payload.0.qualified_from" `shouldMatch` objQidObject alice
     notif %. "payload.0.data.receipt_mode" `shouldMatchInt` 43
-
-testReceiptModeWithRemotesUnreachable :: HasCallStack => App ()
-testReceiptModeWithRemotesUnreachable = do
-  ownDomain <- asString OwnDomain
-  alice <- randomUser ownDomain def
-  startDynamicBackends [mempty] $ \[dynBackend] -> do
-    bob <- randomUser dynBackend def
-    connectUsers alice bob
-    conv <-
-      postConversation alice (defProteus {qualifiedUsers = [bob]})
-        >>= getJSON 201
-    withWebSocket alice $ \ws -> do
-      void $ updateReceiptMode alice conv (43 :: Int) >>= getBody 200
-      notif <- awaitMatch 10 isReceiptModeUpdateNotif ws
-      notif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
-      notif %. "payload.0.qualified_from" `shouldMatch` objQidObject alice
-      notif %. "payload.0.data.receipt_mode" `shouldMatchInt` 43
 
 testDeleteLocalMember :: HasCallStack => App ()
 testDeleteLocalMember = do
@@ -643,6 +644,12 @@ testDeleteTeamConversationWithUnreachableRemoteMembers = do
 
   runCodensity (acquireResources 1 resourcePool) $ \[dynBackend] -> do
     (bob, bobClient) <- runCodensity (startDynamicBackend dynBackend mempty) $ \_ -> do
+      -- FUTUREWORK: get rid of this once the background worker is able to listen to all queues
+      sequence_
+        [ createFedConn x.berDomain (FedConn dynBackend.berDomain "full_search")
+          | x <- [backendA, backendB]
+        ]
+
       bob <- randomUser dynBackend.berDomain def
       bobClient <- objId $ bindResponse (addClient bob def) $ getJSON 201
       connectUsers alice bob
@@ -730,6 +737,6 @@ testUpdateConversationByRemoteAdmin = do
     postConversation alice (defProteus {qualifiedUsers = [bob, charlie]})
       >>= getJSON 201
   void $ updateRole alice bob "wire_admin" (conv %. "qualified_id") >>= getBody 200
-  void $ withWebSocket alice $ \ws -> do
+  void $ withWebSockets [alice, bob, charlie] $ \wss -> do
     void $ updateReceiptMode bob conv (41 :: Int) >>= getBody 200
-    awaitMatch 10 isReceiptModeUpdateNotif ws
+    for_ wss $ \ws -> awaitMatch 10 isReceiptModeUpdateNotif ws

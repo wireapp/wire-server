@@ -32,11 +32,12 @@ testMessageTimerChangeWithRemotes :: HasCallStack => App ()
 testMessageTimerChangeWithRemotes = do
   [alice, bob] <- createAndConnectUsers [OwnDomain, OtherDomain]
   conv <- postConversation alice defProteus {qualifiedUsers = [bob]} >>= getJSON 201
-  withWebSocket bob $ \ws -> do
+  withWebSockets [alice, bob] $ \wss -> do
     void $ updateMessageTimer alice conv 1000 >>= getBody 200
-    notif <- awaitMatch 10 isConvMsgTimerUpdateNotif ws
-    notif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
-    notif %. "payload.0.qualified_from" `shouldMatch` objQidObject alice
+    for_ wss $ \ws -> do
+      notif <- awaitMatch 10 isConvMsgTimerUpdateNotif ws
+      notif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
+      notif %. "payload.0.qualified_from" `shouldMatch` objQidObject alice
 
 testMessageTimerChangeWithUnreachableRemotes :: HasCallStack => App ()
 testMessageTimerChangeWithUnreachableRemotes = do
