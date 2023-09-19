@@ -22,6 +22,7 @@ import Data.Set qualified as Set
 import Data.String
 import Data.Text qualified as T
 import Data.Tuple
+import Database.CQL.IO
 import GHC.Stack (HasCallStack)
 import Network.AMQP.Extended
 import Network.RabbitMqAdmin
@@ -46,13 +47,17 @@ acquireResources n pool = Codensity $ \f -> bracket acquire release $ \s -> do
       waitQSemN pool.sem n
       atomicModifyIORef pool.resources $ swap . Set.splitAt n
 
-createBackendResourcePool :: [DynamicBackendConfig] -> RabbitMQConfig -> IO (ResourcePool BackendResource)
-createBackendResourcePool dynConfs rabbitmq =
+createBackendResourcePool :: [DynamicBackendConfig] -> RabbitMQConfig -> ClientState -> IO (ResourcePool BackendResource)
+createBackendResourcePool dynConfs rabbitmq cassClient =
   let resources = backendResources dynConfs
+      cleanupBackend :: BackendResource -> IO ()
+      cleanupBackend resource = do
+        deleteAllRabbitMQQueues rabbitmq resource
+        runClient cassClient $ deleteAllDynamicBackendConfigs resource
    in ResourcePool
         <$> newQSemN (length dynConfs)
         <*> newIORef resources
-        <*> pure (deleteAllRabbitMQQueues rabbitmq)
+        <*> pure cleanupBackend
 
 deleteAllRabbitMQQueues :: RabbitMQConfig -> BackendResource -> IO ()
 deleteAllRabbitMQQueues rc resource = do
@@ -67,6 +72,12 @@ deleteAllRabbitMQQueues rc resource = do
   queues <- listQueuesByVHost client (T.pack resource.berVHost)
   for_ queues $ \queue ->
     deleteQueue client (T.pack resource.berVHost) queue.name
+
+deleteAllDynamicBackendConfigs :: BackendResource -> Client ()
+deleteAllDynamicBackendConfigs resource = write cql (defQueryParams LocalQuorum ())
+  where
+    cql :: PrepQuery W () ()
+    cql = fromString $ "TRUNCATE " <> resource.berBrigKeyspace <> ".federation_remotes"
 
 backendResources :: [DynamicBackendConfig] -> Set.Set BackendResource
 backendResources dynConfs =

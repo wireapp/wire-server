@@ -69,7 +69,6 @@ import Galley.Effects.ClientStore
 import Galley.Effects.CodeStore
 import Galley.Effects.ConversationStore
 import Galley.Effects.CustomBackendStore
-import Galley.Effects.DefederationNotifications
 import Galley.Effects.ExternalAccess
 import Galley.Effects.FederatorAccess
 import Galley.Effects.FireAndForget
@@ -100,7 +99,6 @@ import Wire.Sem.Paging.Cassandra
 type GalleyEffects1 =
   '[ BrigAccess,
      SparAccess,
-     DefederationNotifications,
      GundeckAccess,
      ExternalAccess,
      FederatorAccess,

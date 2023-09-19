@@ -457,13 +457,8 @@ the sysadmin:
 
 * [`PUT`](https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/#/brig/put_i_federation_remotes__domain_)
 
-* [`DELETE`](https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/#/brig/delete_i_federation_remotes__domain_)
-  - **WARNING:** If you delete a connection, all users from that
-   remote will be removed from local conversations, and all
-   conversations hosted by that remote will be removed from the local
-   backend.  Connections between local and remote users that are
-   removed will be archived, and can be re-established should you
-   decide to add the same backend later.
+* **NOTE:** De-federating (`DELETE`) has been removed from the API to
+   avoid a scalability issue.  Watch out for a fix in the changelog!
 
 The `remotes` list looks like this:
 

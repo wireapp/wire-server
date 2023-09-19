@@ -15,6 +15,8 @@
 , Cabal
 , case-insensitive
 , containers
+, cql
+, cql-io
 , cryptonite
 , data-default
 , directory
@@ -80,6 +82,8 @@ mkDerivation {
     bytestring-conversion
     case-insensitive
     containers
+    cql
+    cql-io
     cryptonite
     data-default
     directory
