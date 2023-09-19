@@ -19,6 +19,7 @@
 
 module Wire.API.Routes.Public.Brig where
 
+import Control.Lens ((?~))
 import Data.Aeson qualified as A (FromJSON, ToJSON, Value)
 import Data.ByteString.Conversion
 import Data.Code (Timeout)
@@ -42,6 +43,7 @@ import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.OpenApi.Internal.Orphans ()
 import Wire.API.Call.Config (RTCConfiguration)
 import Wire.API.Connection hiding (MissingLegalholdConsent)
+import Wire.API.Deprecated
 import Wire.API.Error
 import Wire.API.Error.Brig
 import Wire.API.Error.Empty
@@ -564,6 +566,7 @@ type AccountAPI =
     :<|> Named
            "post-password-reset-key-deprecated"
            ( Summary "Complete a password reset."
+               :> Deprecated
                :> CanThrow 'PasswordResetInProgress
                :> CanThrow 'InvalidPasswordResetKey
                :> CanThrow 'InvalidPasswordResetCode
@@ -577,6 +580,7 @@ type AccountAPI =
     :<|> Named
            "onboarding"
            ( Summary "Upload contacts and invoke matching."
+               :> Deprecated
                :> Description
                     "DEPRECATED: the feature has been turned off, the end-point does \
                     \nothing and always returns '{\"results\":[],\"auto-connects\":[]}'."
@@ -598,8 +602,9 @@ data DeprecatedMatchingResult = DeprecatedMatchingResult
 
 instance ToSchema DeprecatedMatchingResult where
   schema =
-    object
+    objectWithDocModifier
       "DeprecatedMatchingResult"
+      (S.deprecated ?~ True)
       $ DeprecatedMatchingResult
         <$ const []
           .= field "results" (array (null_ @SwaggerDoc))
@@ -1346,6 +1351,7 @@ type CallingAPI =
     ( Summary
         "[deprecated] Retrieve TURN server addresses and credentials for \
         \ IP addresses, scheme `turn` and transport `udp` only"
+        :> Deprecated
         :> ZUser
         :> ZConn
         :> "calls"

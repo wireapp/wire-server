@@ -71,6 +71,7 @@ import Data.Aeson qualified as A
 import Data.Aeson.KeyMap qualified as KeyMap
 import Data.Id
 import Data.Json.Util
+import Data.OpenApi (deprecated)
 import Data.OpenApi qualified as S
 import Data.Qualified
 import Data.SOP
@@ -234,7 +235,9 @@ instance ToSchema SimpleMembers where
           .= optional
             ( fieldWithDocModifier
                 "user_ids"
-                (description ?~ "deprecated")
+                ( (description ?~ "deprecated")
+                    . (deprecated ?~ True)
+                )
                 (array schema)
             )
 

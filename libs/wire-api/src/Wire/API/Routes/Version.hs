@@ -61,6 +61,7 @@ import GHC.TypeLits
 import Imports
 import Servant
 import Servant.API.Extended.RawM
+import Wire.API.Deprecated
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.VersionInfo
@@ -229,6 +230,10 @@ type instance
 type instance
   SpecialiseToVersion v (Summary s :> api) =
     Summary s :> SpecialiseToVersion v api
+
+type instance
+  SpecialiseToVersion v (Deprecated :> api) =
+    Deprecated :> SpecialiseToVersion v api
 
 type instance
   SpecialiseToVersion v (Verb m s t r) =

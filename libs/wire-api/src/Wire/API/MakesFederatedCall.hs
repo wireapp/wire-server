@@ -31,7 +31,7 @@ module Wire.API.MakesFederatedCall
   )
 where
 
-import Control.Lens ((%~), (<>~), _Just)
+import Control.Lens ((<>~))
 import Data.Aeson
 import Data.Constraint
 import Data.HashSet.InsOrd (singleton)
@@ -182,16 +182,7 @@ instance (HasOpenApi api, KnownSymbol name, KnownSymbol (ShowComponent comp)) =>
       -- Set the tags on the specific path we're looking at
       -- This is where the tag is actually registered on the path
       -- so it can be picked up by fedcalls.
-      & S.paths . traverse %~ \pathItem ->
-        pathItem
-          & S.get . _Just . S.tags <>~ setName
-          & S.put . _Just . S.tags <>~ setName
-          & S.post . _Just . S.tags <>~ setName
-          & S.delete . _Just . S.tags <>~ setName
-          & S.options . _Just . S.tags <>~ setName
-          & S.head_ . _Just . S.tags <>~ setName
-          & S.patch . _Just . S.tags <>~ setName
-          & S.trace . _Just . S.tags <>~ setName
+      & S.allOperations . S.tags <>~ setName
     where
       name = "wire-makes-federated-call-to-" <> T.pack (symbolVal $ Proxy @name)
       setName = singleton name

@@ -939,8 +939,14 @@ instance S.HasSchema d S.Schema => S.HasSchema (SchemaP d v w a b) S.Schema wher
 instance S.HasDescription NamedSwaggerDoc (Maybe Text) where
   description = declared . S.schema . S.description
 
+instance S.HasDeprecated NamedSwaggerDoc (Maybe Bool) where
+  deprecated = declared . S.schema . S.deprecated
+
 instance {-# OVERLAPPABLE #-} S.HasDescription s a => S.HasDescription (WithDeclare s) a where
   description = declared . S.description
+
+instance {-# OVERLAPPABLE #-} S.HasDeprecated s a => S.HasDeprecated (WithDeclare s) a where
+  deprecated = declared . S.deprecated
 
 instance {-# OVERLAPPABLE #-} S.HasExample s a => S.HasExample (WithDeclare s) a where
   example = declared . S.example

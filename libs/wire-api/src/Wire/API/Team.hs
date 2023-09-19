@@ -67,7 +67,7 @@ module Wire.API.Team
   )
 where
 
-import Control.Lens (makeLenses, (?~))
+import Control.Lens (makeLenses, over, (?~))
 import Data.Aeson (FromJSON, ToJSON, Value (..))
 import Data.Aeson.Types (Parser)
 import Data.Attoparsec.ByteString qualified as Atto (Parser, string)
@@ -76,6 +76,7 @@ import Data.ByteString.Conversion
 import Data.Code qualified as Code
 import Data.Id (TeamId, UserId)
 import Data.Misc (PlainTextPassword6)
+import Data.OpenApi (HasDeprecated (deprecated))
 import Data.OpenApi qualified as S
 import Data.Range
 import Data.Schema
@@ -118,7 +119,10 @@ instance ToSchema Team where
         <*> _teamSplashScreen .= (fromMaybe DefaultIcon <$> optField "splash_screen" schema)
     where
       desc = description ?~ "`binding` is deprecated, and should be ignored. The non-binding teams API is not used (and will not be supported from API version V4 onwards), and `binding` will always be `true`."
-      bindingDesc = description ?~ "Deprecated, please ignore."
+      bindingDesc v =
+        v
+          & description ?~ "Deprecated, please ignore."
+          & deprecated ?~ True
 
 -- | How a team "binds" its members (users)
 --
@@ -145,8 +149,9 @@ data TeamBinding
 
 instance ToSchema TeamBinding where
   schema =
-    enum @Bool "TeamBinding" $
-      mconcat [element True Binding, element False NonBinding]
+    over doc (deprecated ?~ True) $
+      enum @Bool "TeamBinding" $
+        mconcat [element True Binding, element False NonBinding]
 
 --------------------------------------------------------------------------------
 -- TeamList

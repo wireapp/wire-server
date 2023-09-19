@@ -48,13 +48,14 @@ module Data.Qualified
   )
 where
 
-import Control.Lens (Lens, lens, (?~))
+import Control.Lens (Lens, lens, over, (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Bifunctor (first)
 import Data.Domain (Domain)
 import Data.Handle (Handle (..))
 import Data.Id
 import Data.Map qualified as Map
+import Data.OpenApi (deprecated)
 import Data.OpenApi qualified as S
 import Data.Schema
 import Imports hiding (local)
@@ -163,8 +164,11 @@ isLocal loc = foldQualified loc (const True) (const False)
 
 ----------------------------------------------------------------------
 
-deprecatedSchema :: S.HasDescription doc (Maybe Text) => Text -> ValueSchema doc a -> ValueSchema doc a
-deprecatedSchema new = doc . description ?~ ("Deprecated, use " <> new)
+deprecatedSchema :: (S.HasDeprecated doc (Maybe Bool), S.HasDescription doc (Maybe Text)) => Text -> ValueSchema doc a -> ValueSchema doc a
+deprecatedSchema new =
+  over doc $
+    (description ?~ ("Deprecated, use " <> new))
+      . (deprecated ?~ True)
 
 qualifiedSchema ::
   HasSchemaRef doc =>

@@ -28,6 +28,7 @@ library
     Wire.API.Conversation.Role
     Wire.API.Conversation.Typing
     Wire.API.CustomBackend
+    Wire.API.Deprecated
     Wire.API.Error
     Wire.API.Error.Brig
     Wire.API.Error.Cannon
