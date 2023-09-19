@@ -63,9 +63,8 @@ import Brig.User.EJPD qualified
 import Brig.User.Search.Index qualified as Index
 import Control.Error hiding (bool)
 import Control.Lens (view, (^.))
-import Data.Aeson hiding (json)
 import Data.CommaSeparatedList
-import Data.Domain (Domain, domainText)
+import Data.Domain (Domain)
 import Data.Handle
 import Data.Id as Id
 import Data.Map.Strict qualified as Map
@@ -73,13 +72,11 @@ import Data.Qualified
 import Data.Set qualified as Set
 import Data.Time.Clock.System
 import Imports hiding (head)
-import Network.AMQP qualified as Q
 import Network.Wai.Routing hiding (toList)
 import Network.Wai.Utilities as Utilities
 import Polysemy
 import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.Swagger.Internal.Orphans ()
-import System.Logger qualified as Lg
 import System.Logger.Class qualified as Log
 import System.Random (randomRIO)
 import UnliftIO.Async
@@ -87,7 +84,6 @@ import Wire.API.Connection
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
 import Wire.API.Federation.API
-import Wire.API.Federation.BackendNotifications
 import Wire.API.Federation.Error (FederationError (..))
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
@@ -225,8 +221,6 @@ federationRemotesAPI =
   Named @"add-federation-remotes" addFederationRemote
     :<|> Named @"get-federation-remotes" getFederationRemotes
     :<|> Named @"update-federation-remotes" updateFederationRemote
-    :<|> Named @"delete-federation-remotes" deleteFederationRemote
-    :<|> Named @"delete-federation-remote-from-galley" deleteFederationRemoteGalley
 
 addFederationRemote :: FederationDomainConfig -> ExceptT Brig.API.Error.Error (AppT r) ()
 addFederationRemote fedDomConf = do
@@ -331,59 +325,6 @@ assertNoDomainsFromConfigFiles dom = do
     throwError . fedError . FederationUnexpectedError $
       "keeping track of remote domains in the brig config file is deprecated, but as long as we \
       \do that, removing or updating items listed in the config file is not allowed."
-
--- | Remove the entry from the database if present (or do nothing if not).  This responds with
--- 533 if the entry was also present in the config file, but only *after* it has removed the
--- entry from cassandra.
---
--- The ordering on this delete then check seems weird, but allows us to default all the
--- way back to config file state for a federation domain.
-deleteFederationRemote :: Domain -> ExceptT Brig.API.Error.Error (AppT r) ()
-deleteFederationRemote dom = do
-  lift . wrapClient . Data.deleteFederationRemote $ dom
-  assertNoDomainsFromConfigFiles dom
-  env <- ask
-  ownDomain <- viewFederationDomain
-  remoteDomains <- fmap domain . remotes <$> getFederationRemotes
-  for_ (env ^. rabbitmqChannel) $ \chan -> liftIO . withMVar chan $ \chan' -> do
-    -- ensureQueue uses routingKey internally
-    ensureQueue chan' defederationQueue
-    void $
-      Q.publishMsg chan' "" queue $
-        Q.newMsg
-          { -- Check that this message type is compatible with what
-            -- background worker is expecting
-            Q.msgBody = encode @DefederationDomain dom,
-            Q.msgDeliveryMode = pure Q.Persistent,
-            Q.msgContentType = pure "application/json"
-          }
-    -- Send a notification to remaining federation servers, telling them
-    -- that we are defederating from a given domain, and that they should
-    -- clean up their conversations and notify clients.
-    -- Just to be safe!
-    for_ (filter (/= dom) remoteDomains) $ \remoteDomain -> do
-      ensureQueue chan' $ domainText remoteDomain
-      liftIO
-        $ enqueue chan' ownDomain remoteDomain Q.Persistent
-          . void
-        $ fedQueueClient @'Galley @"on-connection-removed" dom
-    -- Drop the notification queue for the domain.
-    -- This will also drop all of the messages in the queue
-    -- as we will no longer be able to communicate with this
-    -- domain.
-    num <- Q.deleteQueue chan' . routingKey $ domainText dom
-    Lg.info (env ^. applog) $ Log.msg @String "Dropped Notifications" . Log.field "domain" (domainText dom) . Log.field "count" (show num)
-  where
-    -- Ensure that this is kept in sync with background worker
-    queue = routingKey defederationQueue
-
--- | Remove one-on-one conversations for the given remote domain. This is called from Galley as
--- part of the defederation process, and should not be called during the initial domain removal
--- call to brig. This is so we can ensure that domains are correctly cleaned up if a service
--- falls over for whatever reason.
-deleteFederationRemoteGalley :: Domain -> ExceptT Brig.API.Error.Error (AppT r) ()
-deleteFederationRemoteGalley dom = do
-  lift . wrapClient . Data.deleteRemoteConnectionsDomain $ dom
 
 -- | Responds with 'Nothing' if field is NULL in existing user or user does not exist.
 getAccountConferenceCallingConfig :: UserId -> (Handler r) (ApiFt.WithStatusNoLock ApiFt.ConferenceCallingConfig)

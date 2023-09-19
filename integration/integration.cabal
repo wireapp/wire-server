@@ -105,7 +105,6 @@ library
     Test.Brig
     Test.Client
     Test.Conversation
-    Test.Defederation
     Test.Demo
     Test.Federation
     Test.Federator
@@ -143,6 +142,8 @@ library
     , bytestring-conversion
     , case-insensitive
     , containers
+    , cql
+    , cql-io
     , cryptonite
     , data-default
     , directory
