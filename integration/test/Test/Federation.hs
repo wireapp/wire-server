@@ -95,7 +95,9 @@ testNotificationsForOfflineBackends = do
       bindResponse (removeMember delUser upBackendConv otherUser2) $ \resp ->
         resp.status `shouldMatchInt` 200
 
-      -- TODO: removing users from down backend?
+      -- Even removing a user from the down backend itself should work.
+      bindResponse (removeMember delUser upBackendConv delUser) $ \resp ->
+        resp.status `shouldMatchInt` 200
 
       -- User deletions should eventually make it to the other backend.
       deleteUser delUser
