@@ -5,6 +5,7 @@ module Galley.Intra.BackendNotificationQueue (interpretBackendNotificationQueueA
 import Control.Lens (view)
 import Control.Monad.Catch
 import Control.Retry
+import Data.Bifunctor
 import Data.Domain
 import Data.Qualified
 import Galley.Effects.BackendNotificationQueueAccess (BackendNotificationQueueAccess (..))
@@ -32,7 +33,7 @@ interpretBackendNotificationQueueAccess = interpret $ \case
   EnqueueNotificationsConcurrently m xs rpc -> do
     embedApp $ enqueueNotificationsConcurrently m xs rpc
 
-enqueueNotification :: Domain -> Q.DeliveryMode -> FedQueueClient c () -> App (Either FederationError ())
+enqueueNotification :: Domain -> Q.DeliveryMode -> FedQueueClient c a -> App (Either FederationError a)
 enqueueNotification remoteDomain deliveryMode action = do
   mChanVar <- view rabbitmqChannel
   ownDomain <- view (options . settings . federationDomain)
@@ -61,14 +62,15 @@ enqueueNotification remoteDomain deliveryMode action = do
 enqueueNotificationsConcurrently ::
   (Foldable f, Functor f) =>
   Q.DeliveryMode ->
-  f (Remote a) ->
-  (Remote [a] -> (FedQueueClient c (), b)) ->
-  App [Either (Remote [a], FederationError) (Remote b)]
+  f (Remote x) ->
+  (Remote [x] -> FedQueueClient c a) ->
+  App [(Either (Remote ([x], FederationError)) (Remote a))]
 enqueueNotificationsConcurrently m xs f =
   pooledForConcurrentlyN 8 (bucketRemote xs) $ \r ->
-    let o = f r
-     in bimap (r,) (qualifyAs r . const (snd o))
-          <$> enqueueNotification (tDomain r) m (fst o)
+    bimap
+      (qualifyAs r . (tUnqualified r,))
+      (qualifyAs r)
+      <$> enqueueNotification (tDomain r) m (f r)
 
 data NoRabbitMqChannel = NoRabbitMqChannel
   deriving (Show)

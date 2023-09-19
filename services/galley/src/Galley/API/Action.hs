@@ -804,16 +804,15 @@ notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
         -- because quid's backend will update local state and notify its users
         -- itself using the ConversationUpdate returned by this function
         if notifyOrigDomain || tDomain ruids /= qDomain quid
-          then (void $ fedQueueClient @'Galley @"on-conversation-updated" update, Nothing)
-          else (pure (), Just update)
-    let f = fromMaybe (mkUpdate []) . asum . map tUnqualified . rights
-        update = f updates
-        failedUpdates = lefts updates
-    for_ failedUpdates $
-      logError
-        "on-conversation-updated"
-        "An error occurred while communicating with federated server: "
-    pure update
+          then fedQueueClient @'Galley @"on-conversation-updated" update $> Nothing
+          else pure (Just update)
+    case partitionEithers updates of
+      (ls :: [Remote ([UserId], FederationError)], rs) -> do
+        for_ ls $
+          logError
+            "on-conversation-updated"
+            "An error occurred while communicating with federated server: "
+        pure $ fromMaybe (mkUpdate []) . asum . map tUnqualified $ rs
 
   -- notify local participants and bots
   pushConversationEvent con e (qualifyAs lcnv (bmLocals targets)) (bmBots targets)
@@ -822,10 +821,12 @@ notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
   -- to the originating domain (if it is remote)
   pure $ LocalConversationUpdate e update
   where
-    logError :: (Show a) => String -> String -> (a, FederationError) -> Sem r ()
+    logError :: String -> String -> Remote (a, FederationError) -> Sem r ()
     logError field msg e =
       P.warn $
-        Log.field "federation call" field . Log.msg (msg <> show e)
+        Log.field "federation call" field
+          . Log.field "domain" (_domainText (tDomain e))
+          . Log.msg (msg <> displayException (snd (tUnqualified e)))
 
 -- | Update the local database with information on conversation members joining
 -- or leaving. Finally, push out notifications to local users.
