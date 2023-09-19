@@ -77,7 +77,6 @@ import Network.Wai.Utilities as Utilities
 import Polysemy
 import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.OpenApi.Internal.Orphans ()
-import System.Logger qualified as Lg
 import System.Logger.Class qualified as Log
 import System.Random (randomRIO)
 import UnliftIO.Async
