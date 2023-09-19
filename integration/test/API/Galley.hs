@@ -233,22 +233,30 @@ getGroupInfo user conv = do
   req <- baseRequest user Galley Versioned path
   submit "GET" req
 
-addMembers :: (HasCallStack, MakesValue user, MakesValue conv) => user -> conv -> Maybe String -> [Value] -> App Response
-addMembers usr qcnv role newMembers = do
+data AddMembers = AddMembers
+  { users :: [Value],
+    role :: Maybe String
+  }
+
+instance Default AddMembers where
+  def = AddMembers {users = [], role = Nothing}
+
+addMembers :: (HasCallStack, MakesValue user, MakesValue conv) => user -> conv -> AddMembers -> App Response
+addMembers usr qcnv opts = do
   (convDomain, convId) <- objQid qcnv
-  qUsers <- mapM objQidObject newMembers
-  req <- do
-    b <-
-      baseRequest
-        usr
-        Galley
-        Versioned
-        (joinHttpPath ["conversations", convDomain, convId, "members"])
-    let b' = addJSONObject ["qualified_users" .= qUsers] b
-    pure $ case role of
-      Nothing -> b'
-      Just r -> addJSONObject ["conversation_role" .= r] b'
-  submit "POST" req
+  qUsers <- mapM objQidObject opts.users
+  req <-
+    baseRequest
+      usr
+      Galley
+      Versioned
+      (joinHttpPath ["conversations", convDomain, convId, "members"])
+  submit "POST" $
+    req
+      & addJSONObject
+        ( ["qualified_users" .= qUsers]
+            <> ["conversation_role" .= r | r <- toList opts.role]
+        )
 
 removeMember :: (HasCallStack, MakesValue remover, MakesValue conv, MakesValue removed) => remover -> conv -> removed -> App Response
 removeMember remover qcnv removed = do

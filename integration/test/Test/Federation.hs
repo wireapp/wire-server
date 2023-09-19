@@ -76,11 +76,11 @@ testNotificationsForOfflineBackends = do
     -- and the user can be added as long as the backend is reachable
     otherUser3 <- randomUser OtherDomain def
     connectUsers delUser otherUser3
-    bindResponse (addMembers delUser upBackendConv Nothing [otherUser3]) $ \resp ->
+    bindResponse (addMembers delUser upBackendConv def {users = [otherUser3]}) $ \resp ->
       resp.status `shouldMatchInt` 200
 
     -- Adding users from down backend to a conversation should also fail
-    bindResponse (addMembers delUser upBackendConv Nothing [downUser2]) $ \resp ->
+    bindResponse (addMembers delUser upBackendConv def {users = [downUser2]}) $ \resp ->
       resp.status `shouldMatchInt` 533
 
     -- Removing users from an up backend conversation should work even when one

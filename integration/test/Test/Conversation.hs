@@ -205,7 +205,7 @@ testAddMembersFullyConnectedProteus = do
     cid <- postConversation u1 (defProteus {qualifiedUsers = []}) >>= getJSON 201
     -- add members from remote backends
     members <- for [u2, u3] (%. "qualified_id")
-    bindResponse (addMembers u1 cid Nothing members) $ \resp -> do
+    bindResponse (addMembers u1 cid def {users = members}) $ \resp -> do
       resp.status `shouldMatchInt` 200
       users <- resp.json %. "data.users" >>= asList
       addedUsers <- forM users (%. "qualified_id")
@@ -231,29 +231,46 @@ testAddMembersNonFullyConnectedProteus = do
     cid <- postConversation u1 (defProteus {qualifiedUsers = []}) >>= getJSON 201
     -- add members from remote backends
     members <- for [u2, u3] (%. "qualified_id")
-    bindResponse (addMembers u1 cid Nothing members) $ \resp -> do
+    bindResponse (addMembers u1 cid def {users = members}) $ \resp -> do
       resp.status `shouldMatchInt` 409
       resp.json %. "non_federating_backends" `shouldMatchSet` [domainB, domainC]
 
 testAddMember :: HasCallStack => App ()
 testAddMember = do
   alice <- randomUser OwnDomain def
+  aliceId <- alice %. "qualified_id"
   -- create conversation with no users
   cid <- postConversation alice defProteus >>= getJSON 201
   bob <- randomUser OwnDomain def
-  mem <- bob %. "qualified_id"
-  bindResponse (addMembers alice cid Nothing [mem]) $ \resp -> do
+  bobId <- bob %. "qualified_id"
+  let addMember = addMembers alice cid def {role = Just "wire_member", users = [bobId]}
+  bindResponse addMember $ \resp -> do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "not-connected"
   connectUsers alice bob
-  bindResponse (addMembers alice cid Nothing [mem]) $ \resp -> do
+  bindResponse addMember $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "type" `shouldMatch` "conversation.member-join"
     resp.json %. "qualified_from" `shouldMatch` objQidObject alice
     resp.json %. "qualified_conversation" `shouldMatch` objQidObject cid
     users <- resp.json %. "data.users" >>= asList
     addedUsers <- forM users (%. "qualified_id")
-    addedUsers `shouldMatchSet` [mem]
+    addedUsers `shouldMatchSet` [bobId]
+
+  -- check that both users can see the conversation
+  bindResponse (getConversation alice cid) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    mems <- resp.json %. "members.others" & asList
+    mem <- assertOne mems
+    mem %. "qualified_id" `shouldMatch` bobId
+    mem %. "conversation_role" `shouldMatch` "wire_member"
+
+  bindResponse (getConversation bob cid) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    mems <- resp.json %. "members.others" & asList
+    mem <- assertOne mems
+    mem %. "qualified_id" `shouldMatch` aliceId
+    mem %. "conversation_role" `shouldMatch` "wire_admin"
 
 testConvWithUnreachableRemoteUsers :: HasCallStack => App ()
 testConvWithUnreachableRemoteUsers = do
@@ -291,7 +308,7 @@ testAddReachableWithUnreachableRemoteUsers = do
       pure ([alex, bob], conv, domains)
 
   bobId <- bob %. "qualified_id"
-  bindResponse (addMembers alex conv Nothing [bobId]) $ \resp -> do
+  bindResponse (addMembers alex conv def {users = [bobId]}) $ \resp -> do
     -- This test is updated to reflect the changes in `performConversationJoin`
     -- `performConversationJoin` now does a full check between all federation members
     -- that will be in the conversation when adding users to a conversation. This is
@@ -315,7 +332,7 @@ testAddUnreachable = do
       pure ([alex, charlie], domains, conv)
 
   charlieId <- charlie %. "qualified_id"
-  bindResponse (addMembers alex conv Nothing [charlieId]) $ \resp -> do
+  bindResponse (addMembers alex conv def {users = [charlieId]}) $ \resp -> do
     resp.status `shouldMatchInt` 533
     -- All of the domains that are in the conversation, or will be in the conversation,
     -- need to be reachable so we can check that the graph for those domains is fully connected.
@@ -348,7 +365,7 @@ testAddingUserNonFullyConnectedFederation = do
 
     bobId <- bob %. "qualified_id"
     charlieId <- charlie %. "qualified_id"
-    bindResponse (addMembers alice conv Nothing [bobId, charlieId]) $ \resp -> do
+    bindResponse (addMembers alice conv def {users = [bobId, charlieId]}) $ \resp -> do
       resp.status `shouldMatchInt` 409
       resp.json %. "non_federating_backends" `shouldMatchSet` [other, dynBackend]
 
@@ -449,7 +466,7 @@ testAddUserWhenOtherBackendOffline = do
       let newConv = defProteus {qualifiedUsers = [charlie]}
       conv <- postConversation alice newConv >>= getJSON 201
       pure ([alice, alex], conv)
-  bindResponse (addMembers alice conv Nothing [alex]) $ \resp -> do
+  bindResponse (addMembers alice conv def {users = [alex]}) $ \resp -> do
     resp.status `shouldMatchInt` 200
 
 testSynchroniseUserRemovalNotification :: HasCallStack => App ()
@@ -585,7 +602,7 @@ testDeleteTeamConversationWithRemoteMembers = do
   bob <- randomUser OtherDomain def
   connectUsers alice bob
   mem <- bob %. "qualified_id"
-  void $ addMembers alice conv Nothing [mem] >>= getBody 200
+  void $ addMembers alice conv def {users = [mem]} >>= getBody 200
 
   void $ withWebSockets [alice, bob] $ \wss -> do
     void $ deleteTeamConversation team conv alice >>= getBody 200
@@ -611,7 +628,7 @@ testDeleteTeamConversationWithUnreachableRemoteMembers = do
       bobClient <- objId $ bindResponse (addClient bob def) $ getJSON 201
       connectUsers alice bob
       mem <- bob %. "qualified_id"
-      void $ addMembers alice conv Nothing [mem] >>= getBody 200
+      void $ addMembers alice conv def {users = [mem]} >>= getBody 200
       pure (bob, bobClient)
     withWebSocket alice $ \ws -> do
       void $ deleteTeamConversation team conv alice >>= getBody 200
