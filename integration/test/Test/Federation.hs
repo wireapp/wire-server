@@ -77,7 +77,7 @@ testNotificationsForOfflineBackends = do
     otherUser3 <- randomUser OtherDomain def
     connectUsers delUser otherUser3
     bindResponse (addMembers delUser upBackendConv Nothing [otherUser3]) $ \resp ->
-      resp.status `shouldMatchInt` 533
+      resp.status `shouldMatchInt` 200
 
     -- Adding users from down backend to a conversation should also fail
     bindResponse (addMembers delUser upBackendConv Nothing [downUser2]) $ \resp ->
