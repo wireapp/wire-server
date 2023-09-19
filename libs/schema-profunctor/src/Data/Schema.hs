@@ -62,7 +62,6 @@ module Data.Schema
     fieldOverF,
     fieldWithDocModifierF,
     array,
-    pair,
     set,
     nonEmptyArray,
     map_,
@@ -462,24 +461,6 @@ array sch = SchemaP (SchemaDoc s) (SchemaIn r) (SchemaOut w)
     r = A.withArray (T.unpack name) $ \arr -> mapM (schemaIn sch) $ V.toList arr
     s = mkArray (schemaDoc sch)
     w x = A.Array . V.fromList <$> mapM (schemaOut sch) x
-
--- | A schema for a JSON pair.
--- This is serialised as JSON array of exactly 2 elements
--- of the same type. Any more or less is an error.
-pair ::
-  (HasArray ndoc doc, HasName ndoc) =>
-  ValueSchema ndoc a ->
-  ValueSchema doc (a, a)
-pair sch = SchemaP (SchemaDoc s) (SchemaIn r) (SchemaOut w)
-  where
-    name = maybe "pair" ("pair of " <>) (getName (schemaDoc sch))
-    r = A.withArray (T.unpack name) $ \arr -> do
-      l <- mapM (schemaIn sch) $ V.toList arr
-      case l of
-        [a, b] -> pure (a, b)
-        _ -> fail $ "Expected exactly 2 elements, but got " <> show (length l)
-    s = mkArray (schemaDoc sch)
-    w (a, b) = A.Array . V.fromList <$> mapM (schemaOut sch) [a, b]
 
 set ::
   (HasArray ndoc doc, HasName ndoc, Ord a) =>
