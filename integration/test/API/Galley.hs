@@ -235,22 +235,31 @@ getGroupInfo user conv = do
 
 data AddMembers = AddMembers
   { users :: [Value],
-    role :: Maybe String
+    role :: Maybe String,
+    version :: Maybe Int
   }
 
 instance Default AddMembers where
-  def = AddMembers {users = [], role = Nothing}
+  def = AddMembers {users = [], role = Nothing, version = Nothing}
 
-addMembers :: (HasCallStack, MakesValue user, MakesValue conv) => user -> conv -> AddMembers -> App Response
+addMembers ::
+  (HasCallStack, MakesValue user, MakesValue conv) =>
+  user ->
+  conv ->
+  AddMembers ->
+  App Response
 addMembers usr qcnv opts = do
   (convDomain, convId) <- objQid qcnv
   qUsers <- mapM objQidObject opts.users
+  let path = case opts.version of
+        Just v | v <= 1 -> ["conversations", convId, "members", "v2"]
+        _ -> ["conversations", convDomain, convId, "members"]
   req <-
     baseRequest
       usr
       Galley
-      Versioned
-      (joinHttpPath ["conversations", convDomain, convId, "members"])
+      (maybe Versioned ExplicitVersion opts.version)
+      (joinHttpPath path)
   submit "POST" $
     req
       & addJSONObject

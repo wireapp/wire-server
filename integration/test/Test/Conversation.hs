@@ -272,6 +272,25 @@ testAddMember = do
     mem %. "qualified_id" `shouldMatch` aliceId
     mem %. "conversation_role" `shouldMatch` "wire_admin"
 
+testAddMemberV1 :: HasCallStack => Domain -> App ()
+testAddMemberV1 domain = do
+  [alice, bob] <- createAndConnectUsers [OwnDomain, domain]
+  conv <- postConversation alice defProteus >>= getJSON 201
+  bobId <- bob %. "qualified_id"
+  let opts =
+        def
+          { version = Just 1,
+            role = Just "wire_member",
+            users = [bobId]
+          }
+  bindResponse (addMembers alice conv opts) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "type" `shouldMatch` "conversation.member-join"
+    resp.json %. "qualified_from" `shouldMatch` objQidObject alice
+    resp.json %. "qualified_conversation" `shouldMatch` objQidObject conv
+    users <- resp.json %. "data.users" >>= asList
+    traverse (%. "qualified_id") users `shouldMatchSet` [bobId]
+
 testConvWithUnreachableRemoteUsers :: HasCallStack => App ()
 testConvWithUnreachableRemoteUsers = do
   let overrides =
