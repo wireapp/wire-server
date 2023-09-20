@@ -14,18 +14,53 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# LANGUAGE OverloadedStrings #-}
 
 module RabbitMQConsumer.Lib where
 
+import Data.ByteString.Lazy.Char8 qualified as BL
 import Imports
+import Network.AMQP
+import Network.Socket
 import Options.Applicative
+
+main :: IO ()
+main = do
+  opts <- execParser (info (helper <*> optsParser) desc)
+  conn <- openConnection' opts.host opts.port opts.vhost opts.username opts.password
+  chan <- openChannel conn
+
+  _ <- consumeMsgs chan opts.queue Ack myCallback
+
+  mMsg <- getMsg chan Ack opts.queue
+  case mMsg of
+    Nothing -> putStrLn "no message"
+    Just (msg, env) -> do
+      putStrLn $ "received message:"
+      putStrLn $ BL.unpack (msgBody msg)
+      let requeue = True
+      rejectEnv env requeue
+  closeConnection conn
+  putStrLn "connection closed"
+  where
+    desc = header "rabbitmq-consumer" <> progDesc "CLI tool to consume messages from a RabbitMQ queue" <> fullDesc
+
+myCallback :: (Message, Envelope) -> IO ()
+myCallback (msg, env) = do
+  putStrLn $ "received message: " <> BL.unpack (msgBody msg)
+  -- acknowledge receiving the message
+  putStrLn $ "received message:"
+  putStrLn $ BL.unpack (msgBody msg)
+  let requeue = True
+  rejectEnv env requeue
 
 data Opts = Opts
   { host :: String,
-    port :: Int,
-    username :: String,
-    password :: String,
-    vhost :: String
+    port :: PortNumber,
+    username :: Text,
+    password :: Text,
+    vhost :: Text,
+    queue :: Text
   }
   deriving (Show)
 
@@ -46,7 +81,7 @@ optsParser =
           <> short 'p'
           <> metavar "PORT"
           <> help "RabbitMQ Port"
-          <> value 15762
+          <> value 5672
           <> showDefault
       )
     <*> strOption
@@ -62,7 +97,7 @@ optsParser =
           <> short 'w'
           <> metavar "PASSWORD"
           <> help "RabbitMQ Password"
-          <> value "guest"
+          <> value "alpaca-grapefruit"
           <> showDefault
       )
     <*> strOption
@@ -73,10 +108,11 @@ optsParser =
           <> value "/"
           <> showDefault
       )
-
-main :: IO ()
-main = do
-  opts <- execParser (info (helper <*> optsParser) desc)
-  putStrLn $ "Connecting to RabbitMQ at " <> show opts
-  where
-    desc = header "rabbitmq-consumer" <> progDesc "CLI tool to consume messages from a RabbitMQ queue" <> fullDesc
+    <*> strOption
+      ( long "queue"
+          <> short 'q'
+          <> metavar "QUEUE"
+          <> help "RabbitMQ Queue"
+          <> value "test"
+          <> showDefault
+      )

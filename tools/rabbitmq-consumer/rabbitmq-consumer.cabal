@@ -26,7 +26,11 @@ library
     -optP-Wno-nonportable-include-path
 
   build-depends:
+    , amqp
+    , base
+    , bytestring
     , imports
+    , network
     , optparse-applicative
 
   default-extensions:
