@@ -69,7 +69,11 @@ data SomeConversationAction where
 
 instance Show SomeConversationAction where
   show (SomeConversationAction tag action) =
-    $(sCases ''ConversationActionTag [|tag|] [|show action|])
+    "SomeConversationAction {tag = "
+      <> show (fromSing tag)
+      <> ", action = "
+      <> $(sCases ''ConversationActionTag [|tag|] [|show action|])
+      <> "}"
 
 instance Eq SomeConversationAction where
   (SomeConversationAction tag1 action1) == (SomeConversationAction tag2 action2) =
