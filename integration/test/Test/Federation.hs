@@ -33,10 +33,17 @@ testNotificationsForOfflineBackends = do
   runCodensity (acquireResources 1 resourcePool) $ \[downBackend] -> do
     (downUser1, downClient1, downUser2, upBackendConv, downBackendConv) <- runCodensity (startDynamicBackend downBackend mempty) $ \_ -> do
       -- FUTUREWORK: get rid of this once the background worker is able to listen to all queues
-      sequence_
-        [ API.createFedConn x.berDomain (API.FedConn downBackend.berDomain "full_search")
-          | x <- [backendA, backendB]
-        ]
+      do
+        ownDomain <- make OwnDomain & asString
+        otherDomain <- make OtherDomain & asString
+        let domains = [ownDomain, otherDomain, downBackend.berDomain]
+        sequence_
+          [ API.createFedConn x (API.FedConn y "full_search")
+            | x <- domains,
+              y <- domains,
+              x /= y
+          ]
+
       downUser1 <- randomUser downBackend.berDomain def
       downUser2 <- randomUser downBackend.berDomain def
       downClient1 <- objId $ bindResponse (API.addClient downUser1 def) $ getJSON 201

@@ -645,10 +645,16 @@ testDeleteTeamConversationWithUnreachableRemoteMembers = do
   runCodensity (acquireResources 1 resourcePool) $ \[dynBackend] -> do
     (bob, bobClient) <- runCodensity (startDynamicBackend dynBackend mempty) $ \_ -> do
       -- FUTUREWORK: get rid of this once the background worker is able to listen to all queues
-      sequence_
-        [ createFedConn x.berDomain (FedConn dynBackend.berDomain "full_search")
-          | x <- [backendA, backendB]
-        ]
+      do
+        ownDomain <- make OwnDomain & asString
+        otherDomain <- make OtherDomain & asString
+        let domains = [ownDomain, otherDomain, dynBackend.berDomain]
+        sequence_
+          [ createFedConn x (FedConn y "full_search")
+            | x <- domains,
+              y <- domains,
+              x /= y
+          ]
 
       bob <- randomUser dynBackend.berDomain def
       bobClient <- objId $ bindResponse (addClient bob def) $ getJSON 201
