@@ -4,6 +4,7 @@ module Testlib.Assertions where
 
 import Control.Exception as E
 import Control.Monad.Reader
+import Data.Aeson (Value)
 import Data.Aeson qualified as Aeson
 import Data.Aeson.Encode.Pretty qualified as Aeson
 import Data.ByteString.Base64 qualified as B64
@@ -126,6 +127,9 @@ shouldMatchSet a b = do
   la <- fmap sort (asList a)
   lb <- fmap sort (asList b)
   la `shouldMatch` lb
+
+shouldBeEmpty :: (MakesValue a, HasCallStack) => a -> App ()
+shouldBeEmpty a = a `shouldMatch` (mempty :: [Value])
 
 shouldMatchOneOf ::
   (MakesValue a, MakesValue b, HasCallStack) =>

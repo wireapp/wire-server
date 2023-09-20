@@ -66,6 +66,9 @@ module Testlib.Prelude
     -- * Functor
     (<$$>),
     (<$$$>),
+
+    -- * Applicative
+    allPreds,
   )
 where
 
@@ -222,3 +225,11 @@ infix 4 <$$>
 (<$$$>) = fmap . fmap . fmap
 
 infix 4 <$$$>
+
+----------------------------------------------------------------------
+-- Applicative
+
+allPreds :: (Applicative f) => [a -> f Bool] -> a -> f Bool
+allPreds [] _ = pure True
+allPreds [p] x = p x
+allPreds (p1 : ps) x = (&&) <$> p1 x <*> allPreds ps x

@@ -1082,7 +1082,8 @@ getTeamConversation zusr tid cid = do
     >>= noteS @'ConvNotFound
 
 deleteTeamConversation ::
-  ( Member CodeStore r,
+  ( Member BackendNotificationQueueAccess r,
+    Member CodeStore r,
     Member ConversationStore r,
     Member (Error FederationError) r,
     Member (ErrorS 'ConvNotFound) r,
@@ -1090,7 +1091,6 @@ deleteTeamConversation ::
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS ('ActionDenied 'DeleteConversation)) r,
     Member ExternalAccess r,
-    Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
     Member TeamStore r,
