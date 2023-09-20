@@ -568,7 +568,8 @@ type ConversationAPI =
     -- - MemberJoin event to members
     :<|> Named
            "join-conversation-by-id-unqualified"
-           ( Summary "Join a conversation by its ID (if link access enabled)"
+           ( Summary "Join a conversation by its ID (if link access enabled) (deprecated)"
+               :> Until 'V4
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'ConvNotFound
