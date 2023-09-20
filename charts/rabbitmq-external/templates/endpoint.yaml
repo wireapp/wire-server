@@ -1,4 +1,4 @@
-# create a headless clusterIP service to create dns name "elasticsearch-external"
+# create a headless clusterIP service to create dns name "rabbitmq-external"
 # and a custom endpoint, thus forwarding traffic when resolving DNS to custom IPs
 kind: Service
 apiVersion: v1
