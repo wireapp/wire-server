@@ -1,4 +1,4 @@
-portHttp: 9200
+portHttp: 5672
 
 ## Configure this helm chart with:
 # IPs:
