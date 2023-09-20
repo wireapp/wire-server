@@ -43,7 +43,7 @@ testModifiedBrig = do
 
 testModifiedGalley :: HasCallStack => App ()
 testModifiedGalley = do
-  (_user, tid) <- createTeam OwnDomain
+  (_user, tid, _) <- createTeam OwnDomain 1
 
   let getFeatureStatus :: (MakesValue domain) => domain -> String -> App Value
       getFeatureStatus domain team = do
@@ -56,7 +56,7 @@ testModifiedGalley = do
   withModifiedBackend
     def {galleyCfg = setField "settings.featureFlags.teamSearchVisibility" "enabled-by-default"}
     $ \domain -> do
-      (_user, tid') <- createTeam domain
+      (_user, tid', _) <- createTeam domain 1
       getFeatureStatus domain tid' `shouldMatch` "enabled"
 
 testModifiedCannon :: HasCallStack => App ()
@@ -84,7 +84,7 @@ testModifiedServices = do
           }
 
   withModifiedBackend serviceMap $ \domain -> do
-    (_user, tid) <- createTeam domain
+    (_user, tid, _) <- createTeam domain 1
     bindResponse (Internal.getTeamFeature domain "searchVisibility" tid) $ \res -> do
       res.status `shouldMatchInt` 200
       res.json %. "status" `shouldMatch` "enabled"

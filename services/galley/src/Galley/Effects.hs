@@ -56,6 +56,9 @@ module Galley.Effects
     -- * Polysemy re-exports
     Member,
     Members,
+
+    -- * Queueing effects
+    BackendNotificationQueueAccess,
   )
 where
 

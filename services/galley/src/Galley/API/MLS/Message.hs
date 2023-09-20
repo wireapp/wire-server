@@ -547,7 +547,8 @@ postMLSMessageToRemoteConv loc qusr _senderClient con smsg rcnv = do
     MLSMessageResponseNonFederatingBackends e -> throw e
 
 type HasProposalEffects r =
-  ( Member BrigAccess r,
+  ( Member BackendNotificationQueueAccess r,
+    Member BrigAccess r,
     Member ConversationStore r,
     Member (Error InternalError) r,
     Member (Error MLSProposalFailure) r,
@@ -1094,7 +1095,8 @@ checkExternalProposalUser qusr prop = do
 
 executeProposalAction ::
   forall r.
-  ( Member BrigAccess r,
+  ( Member BackendNotificationQueueAccess r,
+    Member BrigAccess r,
     Member ConversationStore r,
     Member (Error InternalError) r,
     Member (ErrorS 'ConvNotFound) r,
