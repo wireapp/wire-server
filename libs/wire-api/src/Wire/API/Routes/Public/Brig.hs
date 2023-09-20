@@ -1349,8 +1349,8 @@ type CallingAPI =
   Named
     "get-calls-config"
     ( Summary
-        "[deprecated] Retrieve TURN server addresses and credentials for \
-        \ IP addresses, scheme `turn` and transport `udp` only"
+        "Retrieve TURN server addresses and credentials for \
+        \ IP addresses, scheme `turn` and transport `udp` only (deprecated)"
         :> Deprecated
         :> ZUser
         :> ZConn
