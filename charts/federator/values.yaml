@@ -8,6 +8,10 @@ service:
   internalFederatorPort: 8080
   externalFederatorPort: 8081
 
+metrics:
+  serviceMonitor:
+    enabled: false
+
 tls:
   # if enabled, federator will get its client certificate and private key from
   # the secret used by the federator ingress
