@@ -20,9 +20,9 @@ module Wire.API.MLS.CommitBundle where
 import Control.Lens (view, (.~), (?~))
 import Data.Bifunctor (first)
 import Data.ByteString qualified as BS
+import Data.OpenApi qualified as S
 import Data.ProtoLens (decodeMessage, encodeMessage)
 import Data.ProtoLens qualified (Message (defMessage))
-import Data.Swagger qualified as S
 import Data.Text qualified as T
 import Imports
 import Proto.Mls qualified

@@ -32,6 +32,7 @@
 , lens-datetime
 , lib
 , mime
+, openapi3
 , optparse-applicative
 , pem
 , protobuf
@@ -40,7 +41,6 @@
 , random
 , schema-profunctor
 , servant-server
-, swagger2
 , tagged
 , tasty
 , tasty-hunit
@@ -86,6 +86,7 @@ mkDerivation {
     lens
     lens-datetime
     mime
+    openapi3
     optparse-applicative
     pem
     protobuf
@@ -94,7 +95,6 @@ mkDerivation {
     random
     schema-profunctor
     servant-server
-    swagger2
     tagged
     tasty
     tasty-hunit

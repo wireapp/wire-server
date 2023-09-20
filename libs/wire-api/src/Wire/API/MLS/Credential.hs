@@ -32,9 +32,9 @@ import Data.Binary.Parser
 import Data.Binary.Parser.Char8
 import Data.Domain
 import Data.Id
+import Data.OpenApi qualified as S
 import Data.Qualified
 import Data.Schema
-import Data.Swagger qualified as S
 import Data.Text qualified as T
 import Data.UUID
 import Imports
@@ -123,7 +123,7 @@ instance FromJSONKey SignatureSchemeTag where
   fromJSONKey = Aeson.FromJSONKeyTextParser parseSignatureScheme
 
 instance S.ToParamSchema SignatureSchemeTag where
-  toParamSchema _ = mempty & S.type_ ?~ S.SwaggerString
+  toParamSchema _ = mempty & S.type_ ?~ S.OpenApiString
 
 instance FromHttpApiData SignatureSchemeTag where
   parseQueryParam = note "Unknown signature scheme" . signatureSchemeFromName
@@ -206,7 +206,7 @@ instance FromJSONKey SignaturePurpose where
       either fail pure . signaturePurposeFromName
 
 instance S.ToParamSchema SignaturePurpose where
-  toParamSchema _ = mempty & S.type_ ?~ S.SwaggerString
+  toParamSchema _ = mempty & S.type_ ?~ S.OpenApiString
 
 instance FromHttpApiData SignaturePurpose where
   parseQueryParam = first T.pack . signaturePurposeFromName

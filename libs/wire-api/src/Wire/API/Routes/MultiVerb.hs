@@ -41,6 +41,7 @@ module Wire.API.Routes.MultiVerb
     ResponseType,
     IsResponse (..),
     IsSwaggerResponse (..),
+    IsSwaggerResponseList (..),
     simpleResponseSwagger,
     combineResponseSwagger,
     ResponseTypes,
@@ -54,18 +55,18 @@ import Control.Lens hiding (Context, (<|))
 import Data.ByteString.Builder
 import Data.ByteString.Lazy qualified as LBS
 import Data.CaseInsensitive qualified as CI
-import Data.Containers.ListUtils
 import Data.Either.Combinators (leftToMaybe)
-import Data.HashMap.Strict.InsOrd (InsOrdHashMap)
+import Data.HashMap.Strict.InsOrd (InsOrdHashMap, unionWith)
 import Data.HashMap.Strict.InsOrd qualified as InsOrdHashMap
 import Data.Kind
 import Data.Metrics.Servant
+import Data.OpenApi hiding (HasServer, Response, contentType)
+import Data.OpenApi qualified as S
+import Data.OpenApi.Declare qualified as S
 import Data.Proxy
 import Data.SOP
 import Data.Sequence (Seq, (<|), pattern (:<|))
 import Data.Sequence qualified as Seq
-import Data.Swagger qualified as S
-import Data.Swagger.Declare qualified as S
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Data.Typeable
@@ -82,10 +83,10 @@ import Servant.API.ContentTypes
 import Servant.API.Status (KnownStatus (..))
 import Servant.Client
 import Servant.Client.Core hiding (addHeader)
+import Servant.OpenApi as S
+import Servant.OpenApi.Internal as S
 import Servant.Server
 import Servant.Server.Internal
-import Servant.Swagger as S
-import Servant.Swagger.Internal as S
 import Servant.Types.SourceT
 
 type Declare = S.Declare (S.Definitions S.Schema)
@@ -191,19 +192,25 @@ instance (AllMimeRender cs a, AllMimeUnrender cs a, KnownStatus s) => IsResponse
       Nothing -> empty
       Just f -> either UnrenderError UnrenderSuccess (f (responseBody output))
 
-simpleResponseSwagger :: forall a desc. (S.ToSchema a, KnownSymbol desc) => Declare S.Response
+simpleResponseSwagger :: forall a cs desc. (S.ToSchema a, KnownSymbol desc, AllMime cs) => Declare S.Response
 simpleResponseSwagger = do
   ref <- S.declareSchemaRef (Proxy @a)
+  let resps :: InsOrdHashMap M.MediaType MediaTypeObject
+      resps = InsOrdHashMap.fromList $ (,MediaTypeObject (pure ref) Nothing mempty mempty) <$> cs
   pure $
     mempty
       & S.description .~ Text.pack (symbolVal (Proxy @desc))
-      & S.schema ?~ ref
+      & S.content .~ resps
+  where
+    cs :: [M.MediaType]
+    cs = allMime $ Proxy @cs
 
 instance
   (KnownSymbol desc, S.ToSchema a) =>
   IsSwaggerResponse (Respond s desc a)
   where
-  responseSwagger = simpleResponseSwagger @a @desc
+  -- Defaulting this to JSON, as openapi3 needs something to map a schema against.
+  responseSwagger = simpleResponseSwagger @a @'[JSON] @desc
 
 type instance ResponseType (RespondAs ct s desc a) = a
 
@@ -248,10 +255,10 @@ instance KnownStatus s => IsResponse cs (RespondAs '() s desc ()) where
     guard (responseStatusCode output == statusVal (Proxy @s))
 
 instance
-  (KnownSymbol desc, S.ToSchema a) =>
+  (KnownSymbol desc, S.ToSchema a, Accept ct) =>
   IsSwaggerResponse (RespondAs (ct :: Type) s desc a)
   where
-  responseSwagger = simpleResponseSwagger @a @desc
+  responseSwagger = simpleResponseSwagger @a @'[ct] @desc
 
 instance
   (KnownSymbol desc) =>
@@ -348,8 +355,8 @@ instance
   -- FUTUREWORK: should we concatenate all the matching headers instead of just
   -- taking the first one?
   extractHeaders hs = do
-    let name = headerName @name
-        (hs0, hs1) = Seq.partition (\(h, _) -> h == name) hs
+    let name' = headerName @name
+        (hs0, hs1) = Seq.partition (\(h, _) -> h == name') hs
     x <- case hs0 of
       Seq.Empty -> empty
       ((_, h) :<| _) -> either (const empty) pure (parseHeader h)
@@ -378,11 +385,11 @@ instance
   (KnownSymbol name, KnownSymbol desc, S.ToParamSchema a) =>
   ToResponseHeader (DescHeader name desc a)
   where
-  toResponseHeader _ = (name, S.Header (Just desc) sch)
+  toResponseHeader _ = (name', S.Header (Just desc) Nothing Nothing Nothing Nothing Nothing mempty sch)
     where
-      name = Text.pack (symbolVal (Proxy @name))
+      name' = Text.pack (symbolVal (Proxy @name))
       desc = Text.pack (symbolVal (Proxy @desc))
-      sch = S.toParamSchema (Proxy @a)
+      sch = pure $ Inline $ S.toParamSchema (Proxy @a)
 
 instance ToResponseHeader h => ToResponseHeader (OptHeader h) where
   toResponseHeader _ = toResponseHeader (Proxy @h)
@@ -419,7 +426,7 @@ instance
   where
   responseSwagger =
     fmap
-      (S.headers .~ toAllResponseHeaders (Proxy @hs))
+      (S.headers .~ fmap S.Inline (toAllResponseHeaders (Proxy @hs)))
       (responseSwagger @r)
 
 class IsSwaggerResponseList as where
@@ -477,7 +484,17 @@ combineResponseSwagger :: S.Response -> S.Response -> S.Response
 combineResponseSwagger r1 r2 =
   r1
     & S.description <>~ ("\n\n" <> r2 ^. S.description)
-    & S.schema . _Just . S._Inline %~ flip combineSwaggerSchema (r2 ^. S.schema . _Just . S._Inline)
+    & S.content %~ flip (unionWith combineMediaTypeObject) (r2 ^. S.content)
+
+combineMediaTypeObject :: S.MediaTypeObject -> S.MediaTypeObject -> S.MediaTypeObject
+combineMediaTypeObject m1 m2 =
+  m1 & S.schema .~ merge (m1 ^. S.schema) (m2 ^. S.schema)
+  where
+    merge Nothing a = a
+    merge a Nothing = a
+    merge (Just (Inline a)) (Just (Inline b)) = pure $ Inline $ combineSwaggerSchema a b
+    merge a@(Just (Ref _)) _ = a
+    merge _ a@(Just (Ref _)) = a
 
 combineSwaggerSchema :: S.Schema -> S.Schema -> S.Schema
 combineSwaggerSchema s1 s2
@@ -698,44 +715,61 @@ instance
   fromUnion (S (S x)) = case x of {}
 
 instance
-  (SwaggerMethod method, IsSwaggerResponseList as) =>
-  S.HasSwagger (MultiVerb method '() as r)
+  (OpenApiMethod method, IsSwaggerResponseList as) =>
+  S.HasOpenApi (MultiVerb method '() as r)
   where
-  toSwagger _ =
+  toOpenApi _ =
     mempty
-      & S.definitions <>~ defs
+      & S.components . S.schemas <>~ defs
       & S.paths
         . at "/"
         ?~ ( mempty
                & method
                  ?~ ( mempty
-                        & S.responses . S.responses .~ fmap S.Inline responses
+                        & S.responses . S.responses .~ refResps
                     )
            )
     where
-      method = S.swaggerMethod (Proxy @method)
-      (defs, responses) = S.runDeclare (responseListSwagger @as) mempty
+      method = S.openApiMethod (Proxy @method)
+      (defs, resps) = S.runDeclare (responseListSwagger @as) mempty
+      refResps = S.Inline <$> resps
 
 instance
-  (SwaggerMethod method, IsSwaggerResponseList as, AllMime cs) =>
-  S.HasSwagger (MultiVerb method (cs :: [Type]) as r)
+  (OpenApiMethod method, IsSwaggerResponseList as, AllMime cs) =>
+  S.HasOpenApi (MultiVerb method (cs :: [Type]) as r)
   where
-  toSwagger _ =
+  toOpenApi _ =
     mempty
-      & S.definitions <>~ defs
+      & S.components . S.schemas <>~ defs
       & S.paths
         . at "/"
         ?~ ( mempty
                & method
                  ?~ ( mempty
-                        & S.produces ?~ S.MimeList (nubOrd cs)
-                        & S.responses . S.responses .~ fmap S.Inline responses
+                        & S.responses . S.responses .~ refResps
                     )
            )
     where
-      method = S.swaggerMethod (Proxy @method)
+      method = S.openApiMethod (Proxy @method)
+      -- This has our content types.
       cs = allMime (Proxy @cs)
-      (defs, responses) = S.runDeclare (responseListSwagger @as) mempty
+      -- This has our schemas
+      (defs, resps) = S.runDeclare (responseListSwagger @as) mempty
+      -- We need to zip them together, and stick it all back into the contentMap
+      -- Since we have a single schema per type, and are only changing the content-types,
+      -- we should be able to pick a schema out of the resps' map, and then use it for
+      -- all of the values of cs
+      addMime :: S.Response -> S.Response
+      addMime resp =
+        resp
+          & S.content
+            %~
+            -- pick out an element from the map, if any exist.
+            -- These will all have the same schemas, and we are reapplying the content types.
+            foldMap (\c -> InsOrdHashMap.fromList $ (,c) <$> cs)
+            . listToMaybe
+            . toList
+      refResps = S.Inline . addMime <$> resps
 
 class Typeable a => IsWaiBody a where
   responseToWai :: ResponseF a -> Wai.Response

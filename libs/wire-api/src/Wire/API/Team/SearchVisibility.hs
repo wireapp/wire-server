@@ -24,8 +24,8 @@ module Wire.API.Team.SearchVisibility
 where
 
 import Control.Lens ((?~))
+import Data.OpenApi qualified as S
 import Data.Schema
-import Data.Swagger qualified as S
 import Deriving.Aeson
 import Imports
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))

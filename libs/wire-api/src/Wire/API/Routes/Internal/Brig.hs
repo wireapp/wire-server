@@ -46,14 +46,14 @@ import Data.CommaSeparatedList
 import Data.Domain (Domain)
 import Data.Handle (Handle)
 import Data.Id as Id
+import Data.OpenApi (HasInfo (info), HasTitle (title), OpenApi)
+import Data.OpenApi qualified as S
 import Data.Qualified (Qualified)
 import Data.Schema hiding (swaggerDoc)
-import Data.Swagger (HasInfo (info), HasTitle (title), Swagger)
-import Data.Swagger qualified as S
 import Imports hiding (head)
 import Servant hiding (Handler, WithStatus, addHeader, respond)
-import Servant.Swagger (HasSwagger (toSwagger))
-import Servant.Swagger.Internal.Orphans ()
+import Servant.OpenApi (HasOpenApi (toOpenApi))
+import Servant.OpenApi.Internal.Orphans ()
 import Wire.API.Connection
 import Wire.API.Error
 import Wire.API.Error.Brig
@@ -768,7 +768,7 @@ type FederationRemotesAPI =
 type FederationRemotesAPIDescription =
   "See https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections for background. "
 
-swaggerDoc :: Swagger
+swaggerDoc :: OpenApi
 swaggerDoc =
-  toSwagger (Proxy @API)
+  toOpenApi (Proxy @API)
     & info . title .~ "Wire-Server internal brig API"

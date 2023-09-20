@@ -20,7 +20,7 @@ module Wire.API.Routes.Public.Galley.Feature where
 import Data.Id
 import GHC.TypeLits
 import Servant hiding (WithStatus)
-import Servant.Swagger.Internal.Orphans ()
+import Servant.OpenApi.Internal.Orphans ()
 import Wire.API.ApplyMods
 import Wire.API.Conversation.Role
 import Wire.API.Error

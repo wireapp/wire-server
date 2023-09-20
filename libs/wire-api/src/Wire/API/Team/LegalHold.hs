@@ -35,9 +35,9 @@ import Data.Aeson.Types qualified as A
 import Data.Id
 import Data.LegalHold
 import Data.Misc
+import Data.OpenApi qualified as S hiding (info)
 import Data.Proxy
 import Data.Schema
-import Data.Swagger qualified as S hiding (info)
 import Deriving.Aeson
 import Imports
 import Wire.API.Provider
@@ -240,11 +240,11 @@ instance ToSchema LegalholdProtectee where
         pure $
           S.NamedSchema (Just "LegalholdProtectee") $
             mempty
-              & S.type_ ?~ S.SwaggerObject
+              & S.type_ ?~ S.OpenApiObject
               & S.properties . at "tag"
                 ?~ S.Inline
                   ( mempty
-                      & S.type_ ?~ S.SwaggerString
+                      & S.type_ ?~ S.OpenApiString
                       & S.enum_
                         ?~ [ A.toJSON ("ProtectedUser" :: String),
                              A.toJSON ("UnprotectedBot" :: String),

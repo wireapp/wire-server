@@ -19,13 +19,13 @@ module Wire.API.Routes.Internal.Galley where
 
 import Control.Lens ((.~))
 import Data.Id as Id
+import Data.OpenApi (OpenApi, info, title)
 import Data.Range
-import Data.Swagger (Swagger, info, title)
 import GHC.TypeLits (AppendSymbol)
 import Imports hiding (head)
 import Servant hiding (JSON, WithStatus)
 import Servant qualified hiding (WithStatus)
-import Servant.Swagger
+import Servant.OpenApi
 import Wire.API.ApplyMods
 import Wire.API.Conversation.Role
 import Wire.API.Error
@@ -426,7 +426,7 @@ type IFederationAPI =
         :> Get '[Servant.JSON] FederationStatus
     )
 
-swaggerDoc :: Swagger
+swaggerDoc :: OpenApi
 swaggerDoc =
-  toSwagger (Proxy @InternalAPI)
+  toOpenApi (Proxy @InternalAPI)
     & info . title .~ "Wire-Server internal galley API"

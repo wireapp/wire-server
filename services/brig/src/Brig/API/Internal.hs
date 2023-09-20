@@ -76,7 +76,7 @@ import Network.Wai.Routing hiding (toList)
 import Network.Wai.Utilities as Utilities
 import Polysemy
 import Servant hiding (Handler, JSON, addHeader, respond)
-import Servant.Swagger.Internal.Orphans ()
+import Servant.OpenApi.Internal.Orphans ()
 import System.Logger.Class qualified as Log
 import System.Random (randomRIO)
 import UnliftIO.Async
