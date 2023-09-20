@@ -21,6 +21,14 @@ getUser user target = do
       joinHttpPath ["users", domain, uid]
   submit "GET" req
 
+getUserByHandle :: (HasCallStack, MakesValue user, MakesValue domain) => user -> domain -> String -> App Response
+getUserByHandle user domain handle = do
+  domainStr <- asString domain
+  req <-
+    baseRequest user Brig Versioned $
+      joinHttpPath ["users", "by-handle", domainStr, handle]
+  submit "GET" req
+
 getClient ::
   (HasCallStack, MakesValue user, MakesValue client) =>
   user ->
@@ -38,6 +46,12 @@ deleteUser user = do
   req <- baseRequest user Brig Versioned "/self"
   submit "DELETE" $
     req & addJSONObject ["password" .= defPassword]
+
+putHandle :: (HasCallStack, MakesValue user) => user -> String -> App Response
+putHandle user handle = do
+  req <- baseRequest user Brig Versioned "/self/handle"
+  submit "PUT" $
+    req & addJSONObject ["handle" .= handle]
 
 data AddClient = AddClient
   { ctype :: String,
