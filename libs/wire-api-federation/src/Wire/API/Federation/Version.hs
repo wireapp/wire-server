@@ -21,10 +21,10 @@ module Wire.API.Federation.Version where
 
 import Control.Lens ((?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
+import Data.OpenApi qualified as S
 import Data.Schema
 import Data.Set qualified as Set
 import Data.Singletons.TH
-import Data.Swagger qualified as S
 import Imports
 import Wire.API.VersionInfo
 

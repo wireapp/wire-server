@@ -63,13 +63,14 @@ executable fedcalls
     -rtsopts -Wredundant-constraints -Wunused-packages
 
   build-depends:
-      aeson
-    , base
+      base
     , containers
     , imports
     , insert-ordered-containers
     , language-dot
-    , swagger2
+    , lens
+    , openapi3
+    , text
     , wire-api
 
   default-language:   GHC2021

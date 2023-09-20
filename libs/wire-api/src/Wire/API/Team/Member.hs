@@ -74,10 +74,10 @@ import Data.Json.Util
 import Data.Kind
 import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
 import Data.Misc (PlainTextPassword6)
+import Data.OpenApi (ToParamSchema (..))
+import Data.OpenApi.Schema qualified as S
 import Data.Proxy
 import Data.Schema
-import Data.Swagger (ToParamSchema (..))
-import Data.Swagger.Schema qualified as S
 import GHC.TypeLits
 import Imports
 import Wire.API.Routes.MultiTablePaging (MultiTablePage (..))
@@ -132,7 +132,7 @@ deriving via
 deriving via
   (Schema (TeamMember' tag))
   instance
-    (ToSchema (TeamMember' tag)) =>
+    (ToSchema (TeamMember' tag), Typeable tag) =>
     S.ToSchema (TeamMember' tag)
 
 mkTeamMember ::
@@ -256,7 +256,7 @@ deriving via
 deriving via
   (Schema (TeamMemberList' tag))
   instance
-    ToSchema (TeamMemberList' tag) =>
+    (ToSchema (TeamMemberList' tag), Typeable tag) =>
     S.ToSchema (TeamMemberList' tag)
 
 newTeamMemberList :: [TeamMember] -> ListType -> TeamMemberList
@@ -348,7 +348,7 @@ deriving via
 deriving via
   (Schema (NewTeamMember' tag))
   instance
-    (ToSchema (NewTeamMember' tag)) =>
+    (ToSchema (NewTeamMember' tag), Typeable tag) =>
     S.ToSchema (NewTeamMember' tag)
 
 deriving via (GenericUniform NewTeamMember) instance Arbitrary NewTeamMember

@@ -26,8 +26,8 @@ import Control.Lens.Tuple (_1)
 import Control.Monad.Except
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Id
+import Data.OpenApi qualified as S
 import Data.Schema
-import Data.Swagger qualified as S
 import Data.Text qualified as T
 import Imports
 import Servant (FromHttpApiData (..), ToHttpApiData (toQueryParam))

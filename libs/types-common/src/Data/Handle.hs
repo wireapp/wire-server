@@ -31,8 +31,8 @@ import Data.Bifunctor (Bifunctor (first))
 import Data.ByteString qualified as BS
 import Data.ByteString.Conversion (FromByteString (parser), ToByteString)
 import Data.Hashable (Hashable)
+import Data.OpenApi qualified as S
 import Data.Schema
-import Data.Swagger qualified as S
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text.E
 import Imports

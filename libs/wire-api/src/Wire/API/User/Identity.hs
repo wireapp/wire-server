@@ -59,10 +59,9 @@ import Data.Attoparsec.Text
 import Data.Bifunctor (first)
 import Data.ByteString.Conversion
 import Data.CaseInsensitive qualified as CI
-import Data.Id (TeamId)
+import Data.OpenApi (ToParamSchema (..))
+import Data.OpenApi qualified as S
 import Data.Schema
-import Data.Swagger (ToParamSchema (..))
-import Data.Swagger qualified as S
 import Data.Text qualified as Text
 import Data.Text.Encoding (decodeUtf8', encodeUtf8)
 import Data.Time.Clock
@@ -313,11 +312,7 @@ instance S.ToSchema LegacyUserSSOId where
     pure $
       S.NamedSchema (Just "UserSSOId") $
         mempty
-          & S.type_ ?~ S.SwaggerObject
-          & S.description
-            ?~ "[DEPRECATED] Only combinations tenant+subject or scim_external_id are allowed. \
-               \If both are available, fill in only tenant+subject.  (This is deprecated, \
-               \so please don't ask...)"
+          & S.type_ ?~ S.OpenApiObject
           & S.properties
             .~ [ ("tenant", tenantSchema),
                  ("subject", subjectSchema),

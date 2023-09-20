@@ -20,9 +20,9 @@ module Wire.API.Internal.BulkPush where
 import Control.Lens
 import Data.Aeson
 import Data.Id
+import Data.OpenApi qualified as Swagger
 import Data.Schema (ValueSchema)
 import Data.Schema qualified as S
-import Data.Swagger qualified as Swagger
 import Imports
 import Wire.API.Internal.Notification
 

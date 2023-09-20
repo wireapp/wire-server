@@ -22,7 +22,7 @@ import Data.SOP
 import Imports hiding (exp, head)
 import Servant (JSON)
 import Servant hiding (Handler, JSON, Tagged, addHeader, respond)
-import Servant.Swagger.Internal.Orphans ()
+import Servant.OpenApi.Internal.Orphans ()
 import Wire.API.Error
 import Wire.API.OAuth
 import Wire.API.Routes.API

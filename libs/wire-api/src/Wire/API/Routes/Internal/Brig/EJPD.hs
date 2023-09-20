@@ -28,7 +28,7 @@ where
 import Data.Aeson hiding (json)
 import Data.Handle (Handle)
 import Data.Id (TeamId, UserId)
-import Data.Swagger (ToSchema)
+import Data.OpenApi (ToSchema)
 import Deriving.Swagger (CamelToSnake, CustomSwagger (..), FieldLabelModifier, StripSuffix)
 import Imports hiding (head)
 import Test.QuickCheck (Arbitrary)

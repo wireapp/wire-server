@@ -18,12 +18,12 @@
 , lib
 , metrics-core
 , metrics-wai
+, openapi3
 , pipes
 , prometheus-client
 , schema-profunctor
 , servant-server
 , streaming-commons
-, swagger2
 , text
 , tinylog
 , types-common
@@ -52,12 +52,12 @@ mkDerivation {
     kan-extensions
     metrics-core
     metrics-wai
+    openapi3
     pipes
     prometheus-client
     schema-profunctor
     servant-server
     streaming-commons
-    swagger2
     text
     tinylog
     types-common

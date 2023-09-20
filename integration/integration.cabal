@@ -100,17 +100,19 @@ library
     Notifications
     RunAllTests
     SetupHelpers
+    Test.AccessUpdate
     Test.AssetDownload
     Test.B2B
     Test.Brig
     Test.Client
     Test.Conversation
-    Test.Defederation
     Test.Demo
     Test.Federation
     Test.Federator
+    Test.MessageTimer
     Test.Notifications
     Test.Presence
+    Test.Roles
     Test.User
     Testlib.App
     Testlib.Assertions
@@ -143,8 +145,11 @@ library
     , bytestring-conversion
     , case-insensitive
     , containers
+    , cql
+    , cql-io
     , cryptonite
     , data-default
+    , data-timeout
     , directory
     , errors
     , exceptions

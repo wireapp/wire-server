@@ -31,8 +31,8 @@ import Network.Wai
 import Servant.API
 import Servant.API.ContentTypes
 import Servant.API.Modifiers
+import Servant.OpenApi
 import Servant.Server.Internal
-import Servant.Swagger
 import Prelude ()
 
 -- | Like 'ReqBody'', but takes parsers that throw 'ServerError', not 'String'.  @tag@ is used
@@ -108,10 +108,10 @@ instance
             Right v -> pure v
 
 instance
-  HasSwagger (ReqBody' '[Required, Strict] cts a :> api) =>
-  HasSwagger (ReqBodyCustomError cts tag a :> api)
+  HasOpenApi (ReqBody' '[Required, Strict] cts a :> api) =>
+  HasOpenApi (ReqBodyCustomError cts tag a :> api)
   where
-  toSwagger Proxy = toSwagger (Proxy @(ReqBody' '[Required, Strict] cts a :> api))
+  toOpenApi Proxy = toOpenApi (Proxy @(ReqBody' '[Required, Strict] cts a :> api))
 
 instance RoutesToPaths rest => RoutesToPaths (ReqBodyCustomError' mods list tag a :> rest) where
   getRoutes = getRoutes @rest

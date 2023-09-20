@@ -25,7 +25,7 @@ import Data.Metrics.Servant
 import Data.Proxy
 import Imports hiding (head)
 import Servant
-import Servant.Swagger (HasSwagger (toSwagger))
+import Servant.OpenApi (HasOpenApi (toOpenApi))
 
 -- | A type-level tag that lets us omit any branch from Swagger docs.
 --
@@ -34,8 +34,8 @@ import Servant.Swagger (HasSwagger (toSwagger))
 -- it's only justification is laziness.
 data OmitDocs
 
-instance HasSwagger (OmitDocs :> a) where
-  toSwagger _ = mempty
+instance HasOpenApi (OmitDocs :> a) where
+  toOpenApi _ = mempty
 
 instance HasServer api ctx => HasServer (OmitDocs :> api) ctx where
   type ServerT (OmitDocs :> api) m = ServerT api m
