@@ -20,7 +20,7 @@
 module Wire.API.RawJson where
 
 import Control.Lens
-import Data.Swagger qualified as Swagger
+import Data.OpenApi qualified as Swagger
 import Imports
 import Servant
 import Test.QuickCheck
@@ -43,6 +43,6 @@ instance Swagger.ToSchema RawJson where
   declareNamedSchema _ =
     pure . Swagger.NamedSchema (Just "RawJson") $
       mempty
-        & Swagger.type_ ?~ Swagger.SwaggerObject
+        & Swagger.type_ ?~ Swagger.OpenApiObject
         & Swagger.description
           ?~ "Any JSON as plain string. The object structure is not specified in this schema."

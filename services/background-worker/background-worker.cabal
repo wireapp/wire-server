@@ -18,7 +18,6 @@ library
     Wire.BackgroundWorker.Health
     Wire.BackgroundWorker.Options
     Wire.BackgroundWorker.Util
-    Wire.Defederation
 
   hs-source-dirs:     src
   default-language:   GHC2021
@@ -32,17 +31,13 @@ library
     , amqp
     , async
     , base
-    , bilge
-    , bytestring-conversion
     , containers
     , exceptions
     , extended
     , HsOpenSSL
     , http-client
-    , http-types
     , http2-manager
     , imports
-    , lens
     , metrics-core
     , metrics-wai
     , monad-control
@@ -175,7 +170,6 @@ test-suite background-worker-test
   other-modules:
     Main
     Test.Wire.BackendNotificationPusherSpec
-    Test.Wire.DefederationSpec
     Test.Wire.Util
 
   build-depends:
@@ -191,7 +185,6 @@ test-suite background-worker-test
     , http-client
     , http-media
     , http-types
-    , HUnit
     , imports
     , prometheus-client
     , QuickCheck

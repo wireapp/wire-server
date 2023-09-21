@@ -29,7 +29,6 @@ import Data.ByteString qualified as BS
 import Data.ByteString.Conversion (toByteString')
 import Data.ByteString.Lazy qualified as LBS
 import Data.Domain
-import Data.Handle
 import Data.LegalHold (UserLegalHoldStatus (UserLegalHoldNoConsent))
 import Data.Text.Encoding
 import Federator.Options hiding (federatorExternal)
@@ -46,7 +45,7 @@ import Wire.API.User
 import Wire.API.User.Search qualified as Search
 
 -- | This module contains tests for the interface between federator and brig.  The tests call
--- federator directly, circumnventing ingress:
+-- federator directly, circumventing ingress:
 --
 --  +----------+
 --  |federator-|          +------+--+
@@ -70,18 +69,18 @@ spec env =
         otherBackend <- cs . (.backendTwo.originDomain) . view teTstOpts <$> ask
         brig <- view teBrig <$> ask
         user <- randomUser brig
-        hdl <- randomHandle
-        _ <- putHandle brig (userId user) hdl
 
         backendTwoDomain <- asks (._teTstOpts.backendTwo.originDomain)
         setSearchPolicyFor brig (Domain backendTwoDomain) Search.FullSearch
 
-        let expectedProfile = (publicProfile user UserLegalHoldNoConsent) {profileHandle = Just (Handle hdl)}
+        let expectedProfile = publicProfile user UserLegalHoldNoConsent
         bdy <-
           responseJsonError
-            =<< inwardCallWithOriginDomain otherBackend "/federation/brig/get-user-by-handle" (encode hdl)
-              <!! const 200 === statusCode
-        liftIO $ bdy `shouldBe` expectedProfile
+            =<< inwardCallWithOriginDomain otherBackend "/federation/brig/get-users-by-ids" (encode [userId user])
+              <!! do
+                const 200 === statusCode
+
+        liftIO $ bdy `shouldBe` [expectedProfile]
 
     -- @SF.Federation @TSFI.RESTfulAPI @S2 @S3 @S7
     --

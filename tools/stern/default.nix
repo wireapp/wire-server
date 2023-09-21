@@ -28,16 +28,16 @@
 , lib
 , metrics-wai
 , mtl
+, openapi3
 , optparse-applicative
 , random
 , retry
 , schema-profunctor
 , servant
+, servant-openapi3
 , servant-server
-, servant-swagger
 , servant-swagger-ui
 , split
-, swagger2
 , tagged
 , tasty
 , tasty-hunit
@@ -78,13 +78,13 @@ mkDerivation {
     lens
     metrics-wai
     mtl
+    openapi3
     schema-profunctor
     servant
+    servant-openapi3
     servant-server
-    servant-swagger
     servant-swagger-ui
     split
-    swagger2
     text
     tinylog
     transformers

@@ -51,9 +51,9 @@ import Data.Binary.Put
 import Data.ByteArray qualified as BA
 import Data.Json.Util
 import Data.Kind
+import Data.OpenApi qualified as S
 import Data.Schema
 import Data.Singletons.TH
-import Data.Swagger qualified as S
 import Imports hiding (cs)
 import Test.QuickCheck hiding (label)
 import Wire.API.Event.Conversation

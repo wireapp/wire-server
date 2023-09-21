@@ -177,13 +177,13 @@ import Data.Json.Util (UTCTimeMillis, (#))
 import Data.LegalHold (UserLegalHoldStatus)
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.Misc (PlainTextPassword6, PlainTextPassword8)
+import Data.OpenApi qualified as S
 import Data.Qualified
 import Data.Range
 import Data.SOP
 import Data.Schema
 import Data.Schema qualified as Schema
 import Data.Set qualified as Set
-import Data.Swagger qualified as S
 import Data.Text qualified as T
 import Data.Text.Ascii
 import Data.Text.Encoding qualified as T
@@ -1819,7 +1819,7 @@ instance S.ToSchema ListUsersQuery where
     pure $
       S.NamedSchema (Just "ListUsersQuery") $
         mempty
-          & S.type_ ?~ S.SwaggerObject
+          & S.type_ ?~ S.OpenApiObject
           & S.description ?~ "exactly one of qualified_ids or qualified_handles must be provided."
           & S.properties .~ InsOrdHashMap.fromList [("qualified_ids", uids), ("qualified_handles", handles)]
           & S.example ?~ toJSON (ListUsersByIds [Qualified (Id UUID.nil) (Domain "example.com")])
@@ -1954,8 +1954,8 @@ instance FromByteString VerificationAction where
 instance S.ToParamSchema VerificationAction where
   toParamSchema _ =
     mempty
-      { S._paramSchemaType = Just S.SwaggerString,
-        S._paramSchemaEnum = Just (A.String . toQueryParam <$> [(minBound :: VerificationAction) ..])
+      { S._schemaType = Just S.OpenApiString,
+        S._schemaEnum = Just (A.String . toQueryParam <$> [(minBound :: VerificationAction) ..])
       }
 
 instance FromHttpApiData VerificationAction where

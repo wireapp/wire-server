@@ -18,8 +18,8 @@ import Data.Aeson qualified as A
 import Data.FileEmbed
 import Data.HashMap.Strict.InsOrd qualified as HM
 import Data.HashSet.InsOrd qualified as InsOrdSet
-import Data.Swagger qualified as S
-import Data.Swagger.Declare qualified as S
+import Data.OpenApi qualified as S
+import Data.OpenApi.Declare qualified as S
 import Data.Text qualified as T
 import FileEmbedLzma
 import GHC.TypeLits
@@ -27,7 +27,7 @@ import Imports hiding (head)
 import Language.Haskell.TH
 import Network.Socket
 import Servant
-import Servant.Swagger.Internal.Orphans ()
+import Servant.OpenApi.Internal.Orphans ()
 import Servant.Swagger.UI
 import Wire.API.Event.Conversation qualified
 import Wire.API.Event.FeatureConfig qualified
@@ -68,16 +68,14 @@ swaggerPregenUIServer =
     . fromMaybe A.Null
     . A.decode
 
-adjustSwaggerForInternalEndpoint :: String -> PortNumber -> S.Swagger -> S.Swagger
+adjustSwaggerForInternalEndpoint :: String -> PortNumber -> S.OpenApi -> S.OpenApi
 adjustSwaggerForInternalEndpoint service examplePort swagger =
   swagger
     & S.info . S.title .~ T.pack ("Wire-Server internal API (" ++ service ++ ")")
     & S.info . S.description ?~ renderedDescription
-    & S.host ?~ S.Host "localhost" (Just examplePort)
     & S.allOperations . S.tags <>~ tag
     -- Enforce HTTP as the services themselves don't understand HTTPS
-    & S.schemes ?~ [S.Http]
-    & S.allOperations . S.schemes ?~ [S.Http]
+    & S.servers .~ [S.Server ("http://localhost:" <> T.pack (show examplePort)) Nothing mempty]
   where
     tag :: InsOrdSet.InsOrdHashSet S.TagName
     tag = InsOrdSet.singleton @S.TagName (T.pack service)
@@ -102,7 +100,7 @@ adjustSwaggerForInternalEndpoint service examplePort swagger =
 emptySwagger :: Servant.Server (ServiceSwaggerDocsAPIBase a)
 emptySwagger =
   swaggerSchemaUIServer $
-    mempty @S.Swagger
+    mempty @S.OpenApi
       & S.info . S.description
         ?~ "There is no Swagger documentation for this version. Please refer to v3 or later."
 

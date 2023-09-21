@@ -26,8 +26,8 @@ import Data.Aeson (toJSON)
 import Data.Aeson qualified as A
 import Data.Aeson.KeyMap qualified as KeyMap
 import Data.Json.Util (ToJSONObject (toJSONObject))
+import Data.OpenApi qualified as S
 import Data.Schema
-import Data.Swagger qualified as S
 import GHC.TypeLits (KnownSymbol)
 import Imports
 import Test.QuickCheck.Gen (oneof)

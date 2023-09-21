@@ -139,7 +139,8 @@ getSettings lzusr tid = do
 
 removeSettingsInternalPaging ::
   forall r.
-  ( Member BotAccess r,
+  ( Member BackendNotificationQueueAccess r,
+    Member BotAccess r,
     Member BrigAccess r,
     Member CodeStore r,
     Member ConversationStore r,
@@ -181,7 +182,8 @@ removeSettings ::
   forall p r.
   ( Paging p,
     Bounded (PagingBounds p TeamMember),
-    ( Member BotAccess r,
+    ( Member BackendNotificationQueueAccess r,
+      Member BotAccess r,
       Member BrigAccess r,
       Member CodeStore r,
       Member ConversationStore r,
@@ -243,7 +245,8 @@ removeSettings' ::
   forall p r.
   ( Paging p,
     Bounded (PagingBounds p TeamMember),
-    ( Member BotAccess r,
+    ( Member BackendNotificationQueueAccess r,
+      Member BotAccess r,
       Member BrigAccess r,
       Member CodeStore r,
       Member ConversationStore r,
@@ -335,7 +338,8 @@ getUserStatus _lzusr tid uid = do
 -- @withdrawExplicitConsentH@ (lots of corner cases we'd have to implement for that to pan
 -- out).
 grantConsent ::
-  ( Member BrigAccess r,
+  ( Member BackendNotificationQueueAccess r,
+    Member BrigAccess r,
     Member ConversationStore r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
@@ -372,7 +376,8 @@ grantConsent lusr tid = do
 -- | Request to provision a device on the legal hold service for a user
 requestDevice ::
   forall r.
-  ( Member BrigAccess r,
+  ( Member BackendNotificationQueueAccess r,
+    Member BrigAccess r,
     Member ConversationStore r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
@@ -450,7 +455,8 @@ requestDevice lzusr tid uid = do
 -- since they are replaced if needed when registering new LH devices.
 approveDevice ::
   forall r.
-  ( Member BrigAccess r,
+  ( Member BackendNotificationQueueAccess r,
+    Member BrigAccess r,
     Member ConversationStore r,
     Member (Error AuthenticationError) r,
     Member (Error FederationError) r,
@@ -528,7 +534,8 @@ approveDevice lzusr connId tid uid (Public.ApproveLegalHoldForUserRequest mPassw
 
 disableForUser ::
   forall r.
-  ( Member BrigAccess r,
+  ( Member BackendNotificationQueueAccess r,
+    Member BrigAccess r,
     Member ConversationStore r,
     Member (Error AuthenticationError) r,
     Member (Error FederationError) r,
@@ -585,7 +592,8 @@ disableForUser lzusr tid uid (Public.DisableLegalHoldForUserRequest mPassword) =
 -- or disabled, make sure the affected connections are screened for policy conflict (anybody
 -- with no-consent), and put those connections in the appropriate blocked state.
 changeLegalholdStatus ::
-  ( Member BrigAccess r,
+  ( Member BackendNotificationQueueAccess r,
+    Member BrigAccess r,
     Member ConversationStore r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
@@ -702,7 +710,8 @@ unsetTeamLegalholdWhitelistedH tid = do
 -- contains the hypothetical new LH status of `uid`'s so it can be consulted instead of the
 -- one from the database.
 handleGroupConvPolicyConflicts ::
-  ( Member ConversationStore r,
+  ( Member BackendNotificationQueueAccess r,
+    Member ConversationStore r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,

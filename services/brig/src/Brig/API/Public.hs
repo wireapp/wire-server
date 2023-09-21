@@ -87,9 +87,10 @@ import Data.List.NonEmpty (nonEmpty)
 import Data.Map.Strict qualified as Map
 import Data.Misc (IpAddr (..))
 import Data.Nonce (Nonce, randomNonce)
+import Data.OpenApi qualified as S
 import Data.Qualified
 import Data.Range
-import Data.Swagger qualified as S
+import Data.Schema ()
 import Data.Text qualified as Text
 import Data.Text.Ascii qualified as Ascii
 import Data.Text.Lazy (pack)
@@ -103,7 +104,7 @@ import Network.Wai.Utilities as Utilities
 import Polysemy
 import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant qualified
-import Servant.Swagger.Internal.Orphans ()
+import Servant.OpenApi.Internal.Orphans ()
 import Servant.Swagger.UI
 import System.Logger.Class qualified as Log
 import Util.Logging (logFunction, logHandle, logTeam, logUser)
@@ -220,7 +221,7 @@ versionedSwaggerDocsAPI Nothing = allroutes (throwError listAllVersionsResp)
 internalEndpointsSwaggerDocsAPI ::
   String ->
   PortNumber ->
-  S.Swagger ->
+  S.OpenApi ->
   Servant.Server (VersionedSwaggerDocsAPIBase service)
 internalEndpointsSwaggerDocsAPI service examplePort swagger (Just (VersionNumber V5)) =
   swaggerSchemaUIServer $

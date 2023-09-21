@@ -58,9 +58,9 @@ import Data.Attoparsec.Text
 import Data.ByteString.Conversion
 import Data.ISO3166_CountryCodes
 import Data.LanguageCodes
+import Data.OpenApi qualified as S
 import Data.Range
 import Data.Schema
-import Data.Swagger qualified as S
 import Data.Text qualified as Text
 import Imports
 import Wire.API.Asset (AssetKey (..))

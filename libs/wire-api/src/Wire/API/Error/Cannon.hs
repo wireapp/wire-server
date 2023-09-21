@@ -17,14 +17,15 @@
 
 module Wire.API.Error.Cannon where
 
+import Data.Data
 import Wire.API.Error
 
 data CannonError
   = ClientGone
   | PresenceNotRegistered
 
-instance KnownError (MapError e) => IsSwaggerError (e :: CannonError) where
-  addToSwagger = addStaticErrorToSwagger @(MapError e)
+instance (Typeable (MapError e), KnownError (MapError e)) => IsSwaggerError (e :: CannonError) where
+  addToOpenApi = addStaticErrorToSwagger @(MapError e)
 
 type instance MapError 'ClientGone = 'StaticError 410 "general" "client gone"
 

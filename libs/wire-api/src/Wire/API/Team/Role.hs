@@ -29,8 +29,8 @@ import Control.Lens ((?~))
 import Data.Aeson
 import Data.Attoparsec.ByteString.Char8 (string)
 import Data.ByteString.Conversion (FromByteString (..), ToByteString (..))
+import Data.OpenApi qualified as S
 import Data.Schema
-import Data.Swagger qualified as S
 import Data.Text qualified as T
 import Imports
 import Servant.API (FromHttpApiData, parseQueryParam)
@@ -93,7 +93,7 @@ instance ToSchema Role where
 instance S.ToParamSchema Role where
   toParamSchema _ =
     mempty
-      & S.type_ ?~ S.SwaggerString
+      & S.type_ ?~ S.OpenApiString
       & S.enum_ ?~ fmap roleName [minBound .. maxBound]
 
 instance FromHttpApiData Role where

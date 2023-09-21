@@ -48,15 +48,16 @@ module Data.Qualified
   )
 where
 
-import Control.Lens (Lens, lens, (?~))
+import Control.Lens (Lens, lens, over, (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Bifunctor (first)
 import Data.Domain (Domain)
 import Data.Handle (Handle (..))
 import Data.Id
 import Data.Map qualified as Map
+import Data.OpenApi (deprecated)
+import Data.OpenApi qualified as S
 import Data.Schema
-import Data.Swagger qualified as S
 import Imports hiding (local)
 import Test.QuickCheck (Arbitrary (arbitrary))
 
@@ -163,8 +164,11 @@ isLocal loc = foldQualified loc (const True) (const False)
 
 ----------------------------------------------------------------------
 
-deprecatedSchema :: S.HasDescription doc (Maybe Text) => Text -> ValueSchema doc a -> ValueSchema doc a
-deprecatedSchema new = doc . description ?~ ("Deprecated, use " <> new)
+deprecatedSchema :: (S.HasDeprecated doc (Maybe Bool), S.HasDescription doc (Maybe Text)) => Text -> ValueSchema doc a -> ValueSchema doc a
+deprecatedSchema new =
+  over doc $
+    (description ?~ ("Deprecated, use " <> new))
+      . (deprecated ?~ True)
 
 qualifiedSchema ::
   HasSchemaRef doc =>
@@ -198,7 +202,7 @@ instance KnownIdTag t => ToJSON (Qualified (Id t)) where
 instance KnownIdTag t => FromJSON (Qualified (Id t)) where
   parseJSON = schemaParseJSON
 
-instance KnownIdTag t => S.ToSchema (Qualified (Id t)) where
+instance (Typeable t, KnownIdTag t) => S.ToSchema (Qualified (Id t)) where
   declareNamedSchema = schemaToSwagger
 
 instance ToJSON (Qualified Handle) where
