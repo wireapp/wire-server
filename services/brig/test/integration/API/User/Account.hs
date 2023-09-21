@@ -1454,7 +1454,10 @@ testDeleteAnonUser brig = do
 
 testDeleteWithProfilePic :: Brig -> CargoHold -> Http ()
 testDeleteWithProfilePic brig cargohold = do
-  uid <- userId <$> createAnonUser "anon" brig
+  -- A random local part, with nice, email-friendly characters
+  localPart <- cs . show <$> liftIO UUID.nextRandom
+  -- Users need to be verified if they want to upload assets, so email it is!
+  uid <- userId <$> createUserWithEmail "anon" (Email localPart "example.test") brig
   ast <- responseJsonError =<< uploadAsset cargohold uid Asset.defAssetSettings "this is my profile pic"
   -- Ensure that the asset is there
   downloadAsset cargohold uid (ast ^. Asset.assetKey) !!! const 200 === statusCode
@@ -1469,7 +1472,7 @@ testDeleteWithProfilePic brig cargohold = do
   -- Update profile with the uploaded asset
   put (brig . path "/self" . contentJson . zUser uid . zConn "c" . body update)
     !!! const 200 === statusCode
-  deleteUser uid Nothing brig !!! const 200 === statusCode
+  deleteUser uid (pure defPassword) brig !!! const 200 === statusCode
   -- Check that the asset gets deleted
   downloadAsset cargohold uid (ast ^. Asset.assetKey) !!! const 404 === statusCode
 

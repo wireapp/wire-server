@@ -54,6 +54,7 @@
 , text
 , time
 , tinylog
+, transformers
 , transitive-anns
 , types-common
 , types-common-aws
@@ -109,10 +110,12 @@ mkDerivation {
     resourcet
     retry
     servant
+    servant-client
     servant-server
     text
     time
     tinylog
+    transformers
     transitive-anns
     types-common
     types-common-aws

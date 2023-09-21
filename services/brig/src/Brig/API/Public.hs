@@ -94,6 +94,7 @@ import Data.Text qualified as Text
 import Data.Text.Ascii qualified as Ascii
 import Data.Text.Lazy (pack)
 import Data.ZAuth.Token qualified as ZAuth
+import Debug.Trace qualified as T
 import FileEmbedLzma
 import Galley.Types.Teams (HiddenPerm (..), hasPermission)
 import Imports hiding (head)
@@ -1063,7 +1064,8 @@ deleteSelfUser ::
   UserId ->
   Public.DeleteUser ->
   (Handler r) (Maybe Code.Timeout)
-deleteSelfUser u body =
+deleteSelfUser u body = do
+  T.traceShowM body
   API.deleteSelfUser u (Public.deleteUserPassword body) !>> deleteUserError
 
 verifyDeleteUser :: Public.VerifyDeleteUser -> Handler r ()

@@ -89,7 +89,7 @@ mkApp o = Codensity $ \k ->
             (Proxy @CombinedAPI)
             ((o ^. settings . federationDomain) :. Servant.EmptyContext)
             ( hoistServerWithDomain @FederationAPI (toServantHandler e) federationSitemap
-                :<|> hoistServerWithDomain @CargoholdAPI (toServantHandler e) servantSitemap
+                :<|> hoistServerWithDomain @CargoholdAPI (toServantHandler e) (servantSitemap o)
                 :<|> hoistServerWithDomain @InternalAPI (toServantHandler e) internalSitemap
             )
             r

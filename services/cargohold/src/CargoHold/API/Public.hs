@@ -17,32 +17,43 @@
 
 module CargoHold.API.Public (servantSitemap, internalSitemap) where
 
+import CargoHold.API.Error (unverified, userNotFound)
 import qualified CargoHold.API.Legacy as LegacyAPI
 import CargoHold.API.Util
 import qualified CargoHold.API.V3 as V3
 import CargoHold.App
 import CargoHold.Federation
+import CargoHold.Options
 import qualified CargoHold.Types.V3 as V3
 import Control.Lens
+import Control.Monad.Trans.Except (throwE)
 import Data.ByteString.Builder
 import qualified Data.ByteString.Lazy as LBS
+import Data.CommaSeparatedList (CommaSeparatedList (..))
 import Data.Domain
 import Data.Id
 import Data.Kind
 import Data.Qualified
+import qualified Data.Text as T
 import Imports hiding (head)
+import Network.HTTP.Client
 import qualified Network.HTTP.Types as HTTP
 import Servant.API
+import Servant.Client
 import Servant.Server hiding (Handler)
 import URI.ByteString
+import Util.Options
 import Wire.API.Asset
 import Wire.API.Federation.API
 import Wire.API.Routes.AssetBody
+import qualified Wire.API.Routes.Internal.Brig as IBrig
 import Wire.API.Routes.Internal.Cargohold
+import Wire.API.Routes.Named (namedClient)
 import Wire.API.Routes.Public.Cargohold
+import Wire.API.User (accountUser, userIdentity)
 
-servantSitemap :: ServerT CargoholdAPI Handler
-servantSitemap =
+servantSitemap :: Opts -> ServerT CargoholdAPI Handler
+servantSitemap opts =
   renewTokenV3
     :<|> deleteTokenV3
     :<|> userAPI
@@ -52,12 +63,13 @@ servantSitemap =
     :<|> legacyAPI
     :<|> mainAPI
   where
+    brigEndpoint = opts ^. brig
     userAPI :: forall tag. tag ~ 'UserPrincipalTag => ServerT (BaseAPIv3 tag) Handler
-    userAPI = uploadAssetV3 @tag :<|> downloadAssetV3 @tag :<|> deleteAssetV3 @tag
+    userAPI = uploadAssetV3 @tag brigEndpoint :<|> downloadAssetV3 @tag :<|> deleteAssetV3 @tag
     botAPI :: forall tag. tag ~ 'BotPrincipalTag => ServerT (BaseAPIv3 tag) Handler
-    botAPI = uploadAssetV3 @tag :<|> downloadAssetV3 @tag :<|> deleteAssetV3 @tag
+    botAPI = uploadAssetV3 @tag brigEndpoint :<|> downloadAssetV3 @tag :<|> deleteAssetV3 @tag
     providerAPI :: forall tag. tag ~ 'ProviderPrincipalTag => ServerT (BaseAPIv3 tag) Handler
-    providerAPI = uploadAssetV3 @tag :<|> downloadAssetV3 @tag :<|> deleteAssetV3 @tag
+    providerAPI = uploadAssetV3 @tag brigEndpoint :<|> downloadAssetV3 @tag :<|> deleteAssetV3 @tag
     legacyAPI = legacyDownloadPlain :<|> legacyDownloadPlain :<|> legacyDownloadOtr
     qualifiedAPI :: ServerT QualifiedAPI Handler
     qualifiedAPI = callsFed (exposeAnnotations downloadAssetV4) :<|> deleteAssetV4
@@ -65,7 +77,7 @@ servantSitemap =
     mainAPI =
       renewTokenV3
         :<|> deleteTokenV3
-        :<|> uploadAssetV3 @'UserPrincipalTag
+        :<|> uploadAssetV3 @'UserPrincipalTag brigEndpoint
         :<|> callsFed (exposeAnnotations downloadAssetV4)
         :<|> deleteAssetV4
 
@@ -132,13 +144,36 @@ mkAssetLocation key =
 uploadAssetV3 ::
   forall tag id.
   MakePrincipal tag id =>
+  Endpoint ->
   id ->
   AssetSource ->
   Handler (Asset, AssetLocation Relative)
-uploadAssetV3 pid req = do
+uploadAssetV3 (Endpoint h p) pid req = do
   let principal = mkPrincipal pid
+      baseUrl = BaseUrl Http (T.unpack h) (fromIntegral p) ""
+  clientEnv <- liftIO $ newManager defaultManagerSettings <&> \mgr -> ClientEnv mgr baseUrl Nothing defaultMakeClientRequest
+  let getUser uid = runClientM (client' uid) clientEnv
+  case principal of
+    V3.UserPrincipal uid -> do
+      resp <- liftIO $ getUser uid
+      users <- either (const $ throwE userNotFound) pure resp
+      maybe
+        (throwE unverified)
+        (const $ pure ())
+        $ fmap (userIdentity . accountUser)
+        $ listToMaybe
+        $ users
+    _ -> pure ()
   asset <- V3.upload principal (getAssetSource req)
   pure (fmap tUntagged asset, mkAssetLocation @tag (asset ^. assetKey))
+  where
+    client' uid =
+      namedClient @IBrig.API @"iGetUsersByVariousKeys"
+        (pure $ CommaSeparatedList [uid])
+        Nothing
+        Nothing
+        Nothing
+        Nothing
 
 downloadAssetV3 ::
   MakePrincipal tag id =>
