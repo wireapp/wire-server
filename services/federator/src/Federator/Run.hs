@@ -104,7 +104,7 @@ newEnv o _dnsResolver _applog _domainConfigs = do
       _internalPort = o.federatorInternal._port
   _httpManager <- initHttpManager
   sslContext <- mkTLSSettingsOrThrow _runSettings
-  _http2Manager <- newIORef =<< mkHttp2Manager sslContext
+  _http2Manager <- newIORef =<< mkHttp2Manager o.optSettings.tcpConnectionTimeout sslContext
   _federatorMetrics <- mkFederatorMetrics
   pure Env {..}
 
