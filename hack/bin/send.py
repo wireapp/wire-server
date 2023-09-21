@@ -67,6 +67,10 @@ def random_string():
         s += random.choice(hiragana)
     return s
 
+def get_human_time():
+    t = datetime.datetime.now()
+    return t.strftime('%H:%M:%S')
+
 class App:
     def __init__(self, cfg):
         self.cfg = cfg
@@ -99,8 +103,7 @@ class App:
         return f'No conv found for <{conv_id}>'
 
     def send_msg(self, user_from_idx, conv_name):
-        t = datetime.datetime.now()
-        msg = t.strftime('%H:%M:%S') + ' ' + random_string()
+        msg = get_human_time() + ' ' + random_string()
         payload = msg.encode('utf8')
         conv = self.conv(conv_name)
         user_from = self.user(user_from_idx)
@@ -138,9 +141,9 @@ class App:
                     sender_user_id = payload['qualified_from']['id']
                     sender = self.user_idx(sender_user_id)
                     msg = base64.b64decode(payload['data']['data']).decode('utf8')
-                    print(f'{user_idx} receives in conv {conv["idx"]} from {sender["idx"]}: {msg}')
+                    print(f'{get_human_time()} {user_idx} receives in conv {conv["idx"]} from {sender["idx"]}: {msg}')
                 else:
-                    print(f'{user_idx} receives event fo type {type_}')
+                    print(f'{get_human_time()} {user_idx} receives event fo type {type_}')
 
     async def open_websockets(self, users):
         await asyncio.gather(*[self.open_websocket(u) for u in users])
