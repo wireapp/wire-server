@@ -9,11 +9,18 @@ import wire.otr_pb2 as otr
 import uuid
 import sys
 import subprocess
+import random
+import json
+import datetime
 
 example_cfg = {
     'users': {
         "col1" : {'domain_idx': "col1", 'id': '13cfb002-6f07-434a-90fa-1422e8141a30', 'client': '139da7a7e0034030' },
-        "col2" : {'domain_idx': "col2", 'id': 'f0e07e83-b573-4689-b366-5efa4a859a72', 'client': '6D1CB8D43AFC3EBB'},
+
+        # "col2" : {'domain_idx': "col2", 'id': 'f0e07e83-b573-4689-b366-5efa4a859a72', 'client': '6D1CB8D43AFC3EBB',
+        #         'comment': 'User en7ump0q@wire.com with Aqa123456!'},
+        "col2" : {'domain_idx': "col2", 'id': 'f0e07e83-b573-4689-b366-5efa4a859a72', 'client': '1BD4B2DCE638BD9E',
+                'comment': 'User en7ump0q@wire.com with Aqa123456!'},
         "off" : {'domain_idx': "offline-web", 'id': '8673c02b-651d-4f4a-96d8-4dbd51fa3e1b', 'client': 'b51351d821a734a3' },
     },
     'domains': {
@@ -23,7 +30,7 @@ example_cfg = {
     },
     'convs': {
         '1+2': {
-          'conv_id': 'eabb40cc-bf99-5a50-bd56-60c120830235',
+          'id': 'eabb40cc-bf99-5a50-bd56-60c120830235',
           'members': ["col1", "col2"],
           'domain_idx': "col2"
         }
@@ -51,9 +58,14 @@ kill "$pid1"
 kill "$pid2"
 '''
 
-def get_yaml(cmd):
-    p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
-    import ipdb; ipdb.set_trace()
+def random_string():
+    hiragana = [ "a", "i", "u", "e", "o", "ka", "ki", "ku", "ke", "ko", "sa", "shi", "su", "se", "so",\
+                 "ta", "chi", "tsu", "te", "to", "na", "ni", "nu", "ne", "no", "ha", "hi", "fu", "he",\
+                 "ho", "ma", "mi", "mu", "me", "mo", "ya", "yu", "yo", "ra", "ri", "ru", "re", "ro", "wa", "wo" ]
+    s = ''
+    for i in range(8):
+        s += random.choice(hiragana)
+    return s
 
 class App:
     def __init__(self, cfg):
@@ -65,40 +77,73 @@ class App:
         for k, v in self.cfg['convs'].items():
             v['idx'] = k
 
-
     def user(self, idx):
         return self.cfg['users'][idx]
-    
+
     def domain(self, idx):
         return self.cfg['domains'][idx]
-    
+
     def conv(self, name):
         return self.cfg['convs'][name]
 
-    def send_msg(self, user_from_idx, conv_name, payload=b'hello world'):
+    def user_idx(self, user_id):
+        for k, v in self.cfg['users'].items():
+            if v['id'] == user_id:
+                return v
+        return f'No user found for <{user_id}>'
+
+    def conv_idx(self, conv_id):
+        for k, v in self.cfg['convs'].items():
+            if v['id'] == conv_id:
+                return v
+        return f'No conv found for <{conv_id}>'
+
+    def send_msg(self, user_from_idx, conv_name):
+        t = datetime.datetime.now()
+        msg = t.strftime('%H:%M:%S') + ' ' + random_string()
+        payload = msg.encode('utf8')
         conv = self.conv(conv_name)
         user_from = self.user(user_from_idx)
         domain_conv = self.domain(conv['domain_idx'])
         domain_from = self.domain(user_from['domain_idx'])
-        url = f'http://localhost:{domain_from["galley_port"]}/v4/conversations/{domain_conv["domain"]}/{conv["conv_id"]}/proteus/messages'
+        url = f'http://localhost:{domain_from["galley_port"]}/v4/conversations/{domain_conv["domain"]}/{conv["id"]}/proteus/messages'
         client_identities = [{'user': self.user(i)['id'], 'domain': self.domain(i)['domain'], 'client': self.user(i)['client'] } for i in conv['members'] if i != user_from['idx']]
         data = mk_otr(user_from['client'], client_identities, payload)
         response = requests.post(url, headers={'content-type': 'application/x-protobuf', 'z-user': user_from['id'], 'z-connection': 'con'}, data=data)
+        if response.status_code != 201:
+            print(response.status_code, response.text)
+            sys.exit(1)
+        else:
+            print(f'{user_from_idx} sent: {msg}')
 
     async def open_websocket(self, user_idx):
         user = self.cfg['users'][user_idx]
-        print(f'open web socket for user {user["id"]}')
+        # print(f'open web socket for user {user["id"]}')
         domain = self.cfg['domains'][user['domain_idx']]
         # TODO: urlencode
         url = f'ws://127.0.0.1:{domain["cannon_port"]}/await?client={user["client"]}'
-        print(url)
-        headers = {"Z-User": user["id"], "Z-Connection": "con"}
-        print(headers)
+        # print(url)
+        headers = {"Z-User": user["id"], "Z-Connection": random_string()}
+        # print(headers)
         async with websockets.connect(url, extra_headers=headers, open_timeout=4 * 60) as ws:
-            print('connected')
+            print(f'{user_idx} opened a websocket')
             while True:
-                message = await ws.recv()
-                print(message)
+                message_raw = await ws.recv()
+                n = json.loads(message_raw.decode('utf8'))
+                payload = n['payload'][0]
+                type_ = payload['type']
+                if type_ == 'conversation.otr-message-add':
+
+                    conv = self.conv_idx(payload['conversation'])
+                    sender_user_id = payload['qualified_from']['id']
+                    sender = self.user_idx(sender_user_id)
+                    msg = base64.b64decode(payload['data']['data']).decode('utf8')
+                    print(f'{user_idx} receives in conv {conv["idx"]} from {sender["idx"]}: {msg}')
+                else:
+                    print(f'{user_idx} receives event fo type {type_}')
+
+    async def open_websockets(self, users):
+        await asyncio.gather(*[self.open_websocket(u) for u in users])
 
     def print_port_forward(self, domain_idx):
         d = self.domain(domain_idx)
@@ -161,6 +206,10 @@ def main_send(cfg, user, conv):
     app = App(cfg)
     app.send_msg(user, conv)
 
+def main_listen(cfg, users):
+    app = App(cfg)
+    asyncio.run(app.open_websockets(users))
+
 def main():
     parser = argparse.ArgumentParser(
         prog=sys.argv[0], description="Send and receive proteus messages across backends"
@@ -174,21 +223,11 @@ def main():
     sp.add_argument("--user", type=str, required=True)
     sp.add_argument("--conv", type=str, required=True)
 
-    rp = subparsers.add_parser("receive")
-    rp.add_argument("--users", type=str, required=True)
+    lp = subparsers.add_parser("listen")
+    lp.add_argument('--user', action='append', help='can be provided multiple times')
 
     pf = subparsers.add_parser("port-forward")
     pf.add_argument("--domain", type=str, required=True)
-
-    # subparsers.add_parser("setup").add_argument("users", type=int)
-
-    # add_parser = subparsers.add_parser("add")
-    # add_parser.add_argument("--basedir", type=str, default=LATEST_BASEDIR)
-    # add_parser.add_argument("--batchsize", type=int, default=500)
-
-    # subparsers.add_parser("send").add_argument("--basedir", type=str, default=LATEST_BASEDIR)
-    # subparsers.add_parser("receive").add_argument("--basedir", type=str, default=LATEST_BASEDIR)
-    # subparsers.add_parser("analyze").add_argument("--basedir", type=str, default=LATEST_BASEDIR)
 
     args = parser.parse_args()
 
@@ -200,30 +239,9 @@ def main():
     elif args.subparser_name == "port-forward":
         main_port_forward(cfg, args.domain)
 
-    else:
-        pass
+    elif args.subparser_name == "listen":
+        main_listen(cfg, args.user)
 
-
-    # elif args.subparser_name == "add":
-    #     main_setup_add_participants(args.basedir, batchsize=args.batchsize)
-
-    # elif args.subparser_name == "send":
-    #     main_send(args.basedir)
-
-    # elif args.subparser_name == "receive":
-    #     await main_receive(args.basedir)
-
-    # elif args.subparser_name == "analyze":
-    #     main_analyze(args.basedir)
 
 if __name__ == '__main__':
     main()
-
-    # if sys.argv[1] == 'send':
-    #     main(cfg)
-    # elif sys.argv[1] == 'receive':
-    #     asyncio.run(open_websocket(1))
-    # elif sys.argv[1] == 'port-forward':
-    #     port_forward(cfg)
-    # else:
-    #     raise ValueError('')
