@@ -6,10 +6,11 @@ import requests
 import base64 
 import wire.otr_pb2 as otr
 import uuid
+import sys
 
 users = {
     1: {'idx': 1, 'id': '13cfb002-6f07-434a-90fa-1422e8141a30', 'client': '139da7a7e0034030' },
-    2: {'idx': 2, 'id': 'f0e07e83-b573-4689-b366-5efa4a859a72', 'client': ''},
+    2: {'idx': 2, 'id': 'f0e07e83-b573-4689-b366-5efa4a859a72', 'client': '6D1CB8D43AFC3EBB'},
     3: {'idx': 3, 'id': '8673c02b-651d-4f4a-96d8-4dbd51fa3e1b', 'client': 'b51351d821a734a3' },
 }
 
@@ -35,7 +36,6 @@ def send_msg(user_from, conv, payload=b'hello world'):
     client_identities = [{'user': users[i]['id'], 'domain': domains[i]['domain'], 'client': users[i]['client'] } for i in conv['user_idxs'] if i != user_from['idx']]
     data = mk_otr(user_from['client'], client_identities, payload)
     response = requests.post(url, headers={'content-type': 'application/x-protobuf', 'z-user': user_from['id'], 'z-connection': 'con'}, data=data)
-    import ipdb; ipdb.set_trace()
 
 def get_conv(user_from, user_to):
     for c in convs:
@@ -47,18 +47,20 @@ async def open_websocket(user_idx):
     user = users[user_idx]
     print(f'open web socket for user {user["id"]}')
     domain = domains[user['idx']]
-    url = f'wss://localhost:{domain["cannon_port"]}/await?client={user["client"]}'
+    # TODO: urlencode
+    url = f'ws://localhost:{domain["cannon_port"]}/await?client={user["client"]}'
     print(url)
     headers = {"Z-User": user["id"], "Z-Connection": "con"}
     print(headers)
     async with websockets.connect(url, extra_headers=headers, open_timeout=4 * 60) as ws:
         print('connected')
-        message = await ws.recv()
-        print(message)
+        while True:
+            message = await ws.recv()
+            print(message)
 
 def main():
-    user_from_idx = 1
-    user_to_idx = 2
+    user_from_idx = 2
+    user_to_idx = 1
 
     user_from = users[user_from_idx]
     user_to = users[user_to_idx]
@@ -104,13 +106,16 @@ def mk_otr(sender_client_id_hex, client_identities, payload=b'foobar'):
         recipient = mk_user_entry(**cid)
         recipients.append(recipient)
 
-    report_all = otr.ClientMismatchStrategy.ReportAll()
-    m = otr.QualifiedNewOtrMessage(sender=sender, recipients=recipients, blob=payload, report_all=report_all)
+    # report_all = otr.ClientMismatchStrategy.ReportAll()
+    ignore_all = otr.ClientMismatchStrategy.IgnoreAll()
+    # m = otr.QualifiedNewOtrMessage(sender=sender, recipients=recipients, blob=payload, report_all=report_all)
+    m = otr.QualifiedNewOtrMessage(sender=sender, recipients=recipients, blob=payload, ignore_all=ignore_all)
     return m.SerializeToString()
 
-def foo():
-    p = mk_otr('6E49652F87D5AC8B', [{'user': 'f1ae31a5-8ca7-4bbb-b35b-9476e2d2b795', 'domain': 'example.com', 'client': '6E49652F87D5AC8B'}])
-    foot(p)
-
 if __name__ == '__main__':
-    asyncio.run(open_websocket(3))
+    if sys.argv[1] == 'send':
+        main()
+    elif sys.argv[1] == 'receive':
+        asyncio.run(open_websocket(1))
+    else:
+        raise ValueError('')
