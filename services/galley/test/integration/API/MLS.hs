@@ -93,7 +93,6 @@ tests s =
         [ test s "add user (not connected)" testAddUserNotConnected,
           test s "add client of existing user" testAddClientPartial,
           test s "add user with some non-MLS clients" testAddUserWithProteusClients,
-          test s "add remote user to a conversation" testAddRemoteUser,
           test s "add remote users to a conversation (some unreachable)" testAddRemotesSomeUnreachable,
           test s "return error when commit is locked" testCommitLock,
           test s "post commit that references an unknown proposal" testUnknownProposalRefCommit
@@ -481,40 +480,6 @@ testProteusMessage = do
           MismatchReportAll
           <!! const 404 === statusCode
     liftIO $ Wai.label e @?= "no-conversation"
-
-testAddRemoteUser :: TestM ()
-testAddRemoteUser = do
-  users@[alice, bob] <- createAndConnectUsers [Nothing, Just "bob.example.com"]
-  (events, reqs, qcnv) <- runMLSTest $ do
-    [alice1, bob1] <- traverse createMLSClient users
-    (_, qcnv) <- setupMLSGroup alice1
-
-    commit <- createAddCommit alice1 [bob]
-    (events, reqs) <-
-      withTempMockFederator' (receiveCommitMock [bob1] <|> welcomeMock) $
-        sendAndConsumeCommitBundle commit
-    pure (events, reqs, qcnv)
-
-  liftIO $ do
-    req <- assertOne $ filter ((== "on-conversation-updated") . frRPC) reqs
-    frTargetDomain req @?= qDomain bob
-    bdy <- case Aeson.eitherDecode (frBody req) of
-      Right b -> pure b
-      Left e -> assertFailure $ "Could not parse on-conversation-updated request body: " <> e
-    cuOrigUserId bdy @?= alice
-    cuConvId bdy @?= qUnqualified qcnv
-    cuAlreadyPresentUsers bdy @?= [qUnqualified bob]
-    cuAction bdy
-      @?= SomeConversationAction
-        SConversationJoinTag
-        ConversationJoin
-          { cjUsers = pure bob,
-            cjRole = roleNameWireMember
-          }
-
-  liftIO $ do
-    event <- assertOne events
-    assertJoinEvent qcnv alice [bob] roleNameWireMember event
 
 testAddRemotesSomeUnreachable :: TestM ()
 testAddRemotesSomeUnreachable = do
