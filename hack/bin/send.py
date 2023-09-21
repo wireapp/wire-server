@@ -21,14 +21,14 @@
 
 users = {
     1: {'idx': 1, 'id': 'foo'},
-    2: {},
-    3: {}
+    2: {'idx': 2, 'id': '13cfb002-6f07-434a-90fa-1422e8141a30' },
+    3: {'idx': 3, 'id': '' },
 }
 
 domains = {
     1: {'domain': 'bund-next-column-1.wire.link', 'galley_port': 6085},
     2: {'domain': 'bund-next-column-2.wire.link'},
-    3: {'domain': ''}
+    3: {'domain': 'bund-next-column-offline-web.wire.link'}
 }
 
 convs = [
