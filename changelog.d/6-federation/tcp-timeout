@@ -1,0 +1,3 @@
+federator: Allow setting TCP connection timeout for HTTP2 requests
+
+The helm chart defaults it to 5s which should be best for most installations.
