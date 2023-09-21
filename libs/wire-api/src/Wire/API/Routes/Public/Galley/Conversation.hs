@@ -569,7 +569,7 @@ type ConversationAPI =
     :<|> Named
            "join-conversation-by-id-unqualified"
            ( Summary "Join a conversation by its ID (if link access enabled) (deprecated)"
-               :> Until 'V4
+               :> Until 'V5
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'ConvNotFound
