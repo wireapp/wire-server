@@ -25,6 +25,8 @@ import qualified Data.Text.Encoding as Text
 import Data.Unique
 import Foreign.Marshal.Alloc (mallocBytes)
 import qualified Network.HTTP2.Client as HTTP2
+import qualified Network.HTTP2.Client.Internal as HTTP2
+import qualified Network.HTTP2.Internal as HTTP2
 import qualified Network.Socket as NS
 import qualified OpenSSL.Session as SSL
 import qualified System.TimeManager
@@ -128,10 +130,17 @@ sendRequestWithConnection :: HTTP2Conn -> HTTP2.Request -> (HTTP2.Response -> IO
 sendRequestWithConnection conn req k = do
   result :: MVar r <- newEmptyMVar
   threadKilled :: MVar SomeException <- newEmptyMVar
+  let HTTP2.Request outObj = req
+  putStrLn $ "----------------> http2Manager: sendRequestWithConnection: putting MVar for request" <> show (HTTP2.outObjHeaders outObj)
   putMVar (connectionActionMVar conn) (SendRequest (Request req (putMVar result <=< k) threadKilled))
+  putStrLn $ "----------------> http2Manager: sendRequestWithConnection: waiting for result for" <> show (HTTP2.outObjHeaders outObj)
   race (takeMVar result) (takeMVar threadKilled) >>= \case
-    Left r -> pure r
-    Right (SomeException e) -> throw e
+    Left r -> do
+      putStrLn $ "----------------> http2Manager: sendRequestWithConnection: got result for" <> show (HTTP2.outObjHeaders outObj)
+      pure r
+    Right (SomeException e) -> do
+      putStrLn $ "----------------> http2Manager: sendRequestWithConnection: got error for" <> show (HTTP2.outObjHeaders outObj) <> ": " <> displayException e
+      throw e
 
 -- | Make an HTTP2 request, if it is the first time the 'Http2Manager' sees this
 -- target, it creates the connection and keeps it around for
@@ -152,7 +161,9 @@ sendRequestWithConnection conn req k = do
 -- requests.
 withHTTP2Request :: Http2Manager -> Target -> HTTP2.Request -> (HTTP2.Response -> IO a) -> IO a
 withHTTP2Request mgr target req k = do
+  putStrLn $ "----------------> http2Manager: withHTTP2Request: " <> show target
   conn <- getOrMakeConnection mgr target
+  putStrLn $ "----------------> http2Manager: withHTTP2Request: made connection for " <> show target
   sendRequestWithConnection conn req k
 
 -- | Connects to a server if it is not already connected, useful when making
@@ -167,6 +178,9 @@ connectIfNotAlreadyConnected mgr target = void $ getOrMakeConnection mgr target
 getOrMakeConnection :: Http2Manager -> Target -> IO HTTP2Conn
 getOrMakeConnection mgr@Http2Manager {..} target = do
   mConn <- atomically $ getConnection mgr target
+  case mConn of
+    Nothing -> putStrLn $ "----------------> http2Manager: wiil make connection for " <> show target
+    Just _ -> putStrLn $ "----------------> http2Manager: found connection for " <> show target
   maybe connect pure mConn
   where
     -- Ensures that any old connection is preserved. This is required to ensure
@@ -308,6 +322,7 @@ startPersistentHTTP2Connection ctx (tlsEnabled, hostname, port) cl removeTrailin
         | tlsEnabled = Just $ TLSParams ctx hostnameForTLS
         | otherwise = Nothing
 
+  putStrLn $ "----------------> http2Manager: starting connection with " <> show hostname <> ":" <> show port
   handle cleanupThreadsWith $
     bracket (fst <$> getSocketTCP hostname port) NS.close $ \sock -> do
       bracket (mkTransport sock transportConfig) cleanupTransport $ \transport ->
@@ -329,10 +344,13 @@ startPersistentHTTP2Connection ctx (tlsEnabled, hostname, port) cl removeTrailin
             reqOrStop <- takeMVar sendReqMVar
             case reqOrStop of
               SendRequest r@(Request {..}) -> do
+                let HTTP2.Request outObj = request
+                putStrLn $ "----------------> http2Manager: sending request with headers: " <> show (HTTP2.outObjHeaders outObj)
                 processRequest liveReqs sendReq r
                   `catches` exceptionHandlers exceptionMVar
                 waitAndFork
               CloseConnection -> do
+                putStrLn "----------------> http2Manager: closing connection"
                 mapM_ (wait . fst) =<< readIORef liveReqs
       waitAndFork
 

@@ -6,7 +6,7 @@ module Test.Federation where
 import API.Brig qualified as API
 import API.BrigInternal qualified as API
 import API.Galley
-import Control.Lens
+import Control.Lens hiding ((.=))
 import Control.Monad.Codensity
 import Control.Monad.Reader
 import Data.ProtoLens qualified as Proto
@@ -18,6 +18,11 @@ import Proto.Otr_Fields qualified as Proto
 import SetupHelpers
 import Testlib.Prelude
 import Testlib.ResourcePool
+
+testBlackHoledReq :: HasCallStack => App ()
+testBlackHoledReq = do
+  user <- randomUser OwnDomain def
+  void $ bindResponse (API.searchContacts user "blah" (String $ fromString "blackhole.example.com")) $ getJSON 600
 
 testNotificationsForOfflineBackends :: HasCallStack => App ()
 testNotificationsForOfflineBackends = do

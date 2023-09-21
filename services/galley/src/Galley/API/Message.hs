@@ -397,6 +397,7 @@ postQualifiedOtrMessage senderType sender mconn lcnv msg =
       let senderClient = qualifiedNewOtrSender msg
 
       conv <- getConversation (tUnqualified lcnv) >>= noteS @'ConvNotFound
+      P.warn $ Log.msg (Log.val "Got conversation from DB") . Log.field "conv" (idToText conv.convId)
       unless (protocolTag (convProtocol conv) == ProtocolProteusTag) $
         throwS @'InvalidOperation
 
@@ -422,15 +423,18 @@ postQualifiedOtrMessage senderType sender mconn lcnv msg =
         if isInternal
           then Clients.fromUserClients <$> lookupClients localMemberIds
           else getClients localMemberIds
+      P.warn $ Log.msg (Log.val "Got local clients") . Log.field "conv" (idToText conv.convId)
       let qualifiedLocalClients =
             Map.mapKeys (localDomain,)
               . makeUserMap (Set.fromList (map lmId (convLocalMembers conv)))
               . Clients.toMap
               $ localClients
 
+      P.warn $ Log.msg (Log.val "Getting remote clients") . Log.field "conv" (idToText conv.convId)
       -- get remote clients
       qualifiedRemoteClients :: [Either (Remote [UserId], FederationError) (Map (Domain, UserId) (Set ClientId))] <-
         getRemoteClients (convRemoteMembers conv)
+      P.warn $ Log.msg (Log.val "Got remote clients") . Log.field "conv" (idToText conv.convId)
       let -- concatenating maps is correct here, because their sets of keys are disjoint
           qualifiedRemoteClients' = mconcat $ rights qualifiedRemoteClients
           -- Try to get the client IDs for the users that we failed to fetch clients for from the recipient list.
@@ -458,17 +462,22 @@ postQualifiedOtrMessage senderType sender mconn lcnv msg =
               (flattenMap $ qualifiedNewOtrRecipients msg)
               (qualifiedNewOtrClientMismatchStrategy msg)
           otrResult = mkMessageSendingStatus nowMillis mismatch
+      P.warn $ Log.msg (Log.val "Is sending message?") . Log.field "conv" (idToText conv.convId) . Log.field "sendMessage" sendMessage
       unless sendMessage $ do
         let lhProtectee = qualifiedUserToProtectee localDomain senderType sender
             missingClients = qmMissing mismatch
             legalholdErr = pure MessageNotSentLegalhold
             clientMissingErr = pure $ MessageNotSentClientMissing otrResult
+        P.warn $ Log.msg (Log.val "checking LH conflicts") . Log.field "conv" (idToText conv.convId)
         e <-
           runLocalInput lcnv
             . eitherM (const legalholdErr) (const clientMissingErr)
             . runError @LegalholdConflicts
             $ guardQualifiedLegalholdPolicyConflicts lhProtectee missingClients
+        P.warn $ Log.msg (Log.val "checked LH conflicts") . Log.field "conv" (idToText conv.convId)
         throw e
+
+      P.warn $ Log.msg (Log.val "sending messages") . Log.field "conv" (idToText conv.convId)
       failedToSend <-
         sendMessages
           now
@@ -479,6 +488,7 @@ postQualifiedOtrMessage senderType sender mconn lcnv msg =
           botMap
           (qualifiedNewOtrMetadata msg)
           validMessages
+      P.warn $ Log.msg (Log.val "sent messages") . Log.field "conv" (idToText conv.convId) . Log.field "failedToSend" (encode failedToSend)
 
       let -- List of the clients that are initially flagged as redundant.
           redundant' = toDomUserClient $ qualifiedUserClients $ mssRedundantClients otrResult

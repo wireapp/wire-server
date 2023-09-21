@@ -45,6 +45,7 @@ import Servant.API
 import Servant.API.Extended.Endpath
 import Servant.Server (Tagged (..))
 import Servant.Server.Generic
+import System.CPUTime
 import System.Logger.Class qualified as Log
 import Wire.API.Federation.Component
 import Wire.API.Routes.FederationDomainConfig
@@ -117,12 +118,13 @@ callOutward targetDomain component (RPC path) req = do
   ensureCanFederateWith targetDomain
   outgoingCounterIncr targetDomain
   body <- embed $ Wai.lazyRequestBody req
+
   debug $
     Log.msg (Log.val "Federator outward call")
       . Log.field "domain" targetDomain._domainText
       . Log.field "component" (show component)
       . Log.field "path" path
-      . Log.field "body" body
+  startTime <- embed $ getCPUTime
   resp <-
     discoverAndCall
       targetDomain
@@ -130,6 +132,13 @@ callOutward targetDomain component (RPC path) req = do
       path
       (Wai.requestHeaders req)
       (fromLazyByteString body)
+  endTime <- embed $ getCPUTime
+  debug $
+    Log.msg (Log.val "Federator outward call completed")
+      . Log.field "domain" targetDomain._domainText
+      . Log.field "component" (show component)
+      . Log.field "path" path
+      . Log.field "duration" (endTime - startTime)
   pure $ streamingResponseToWai resp
 
 serveOutward :: Env -> Int -> IO ()
