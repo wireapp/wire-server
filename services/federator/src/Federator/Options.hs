@@ -31,6 +31,9 @@ data RunSettings = RunSettings
     remoteCAStore :: Maybe FilePath,
     clientCertificate :: FilePath,
     clientPrivateKey :: FilePath,
+    -- | Timeout for making TCP connections (for http2) with remote federators
+    -- and local components. In microseconds.
+    tcpConnectionTimeout :: Int,
     dnsHost :: Maybe String,
     dnsPort :: Maybe Word16
   }
