@@ -38,7 +38,6 @@ import Imports
 import Network.HTTP.Client (Manager)
 import Network.HTTP.Types qualified as HTTP
 import Network.Wai qualified as Wai
-import Network.Wai.Utilities.Server (catchErrors)
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
@@ -145,8 +144,6 @@ callOutward targetDomain component (RPC path) req = do
 serveOutward :: Env -> Int -> IO ()
 serveOutward env =
   serveServant
-    ( Metrics.servantPrometheusMiddleware (Proxy @(ToServantApi API))
-        . catchErrors (env._applog) [Right $ env._metrics]
-    )
+    (Metrics.servantPrometheusMiddleware $ Proxy @(ToServantApi API))
     (server env._httpManager env._externalPort $ runFederator env)
     env
