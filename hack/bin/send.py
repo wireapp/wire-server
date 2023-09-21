@@ -26,8 +26,8 @@ users = {
 }
 
 domains = {
-    1: {'domain': 'bund-next-column-1.wire.link', 'galley_port': 6085},
-    2: {'domain': 'bund-next-column-2.wire.link'},
+    1: {'domain': 'bund-next-column-1.wire.link', 'galley_port': 6085, 'cannon_port': 6086},
+    2: {'domain': 'bund-next-column-2.wire.link', 'galley_port': 7085, 'cannon_port': 7086},
     3: {'domain': 'bund-next-column-offline-web.wire.link'}
 }
 
@@ -54,6 +54,15 @@ def get_conv(user_from, user_to):
         if set([user_from, user_to]) == c['user_idxs']:
             return c
     return ValueError('could not find cov')
+
+def open_websocket(user_id):
+    user = users[user_id]
+    print(f'open web socket for user {user["id"]}')
+    domain = domains[user['idx']]
+    url = f'wss://localhost:{domain["cannon_port"]}/await'
+    print(url)
+    headers = {"Z-User": user["id"]}
+    print(headers)
 
 def main():
     user_from = 1
