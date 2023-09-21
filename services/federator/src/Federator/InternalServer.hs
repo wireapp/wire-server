@@ -140,7 +140,7 @@ callOutward targetDomain component (RPC path) req = do
       . Log.field "component" (show component)
       . Log.field "path" path
       . Log.field "duration" (endTime - startTime)
-  pure $ streamingResponseToWai resp
+  pure $ streamingResponseToWaiWithLogs ("domain=" <> cs targetDomain._domainText <> ", component=" <> cs (show component) <> ", path=" <> cs path) resp
 
 serveOutward :: Env -> Int -> IO ()
 serveOutward env =

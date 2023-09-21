@@ -23,6 +23,7 @@ module Federator.Response
     runWaiError,
     runWaiErrors,
     streamingResponseToWai,
+    streamingResponseToWaiWithLogs,
   )
 where
 
@@ -187,5 +188,21 @@ streamingResponseToWai resp =
         foreach
           (const (pure ()))
           (\chunk -> output (byteString chunk) *> flush)
+          (responseBody resp)
+   in Wai.responseStream status headers streamingBody
+
+streamingResponseToWaiWithLogs :: String -> StreamingResponse -> Wai.Response
+streamingResponseToWaiWithLogs str resp =
+  let headers = toList (responseHeaders resp)
+      status = responseStatusCode resp
+      streamingBody output flush =
+        foreach
+          (const (pure ()))
+          ( \chunk -> do
+              output (byteString chunk)
+              flush
+              when (chunk == "") $ do
+                putStrLn $ "---------> streamingResponseToWai: flushed last chunk"
+          )
           (responseBody resp)
    in Wai.responseStream status headers streamingBody

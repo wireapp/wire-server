@@ -163,7 +163,7 @@ withHTTP2Request :: Http2Manager -> Target -> HTTP2.Request -> (HTTP2.Response -
 withHTTP2Request mgr target req k = do
   putStrLn $ "----------------> http2Manager: withHTTP2Request: " <> show target
   conn <- getOrMakeConnection mgr target
-  putStrLn $ "----------------> http2Manager: withHTTP2Request: made connection for " <> show target
+  putStrLn $ "----------------> http2Manager: withHTTP2Request: made/got connection for " <> show target
   sendRequestWithConnection conn req k
 
 -- | Connects to a server if it is not already connected, useful when making
@@ -325,7 +325,9 @@ startPersistentHTTP2Connection ctx (tlsEnabled, hostname, port) cl removeTrailin
   putStrLn $ "----------------> http2Manager: starting connection with " <> show hostname <> ":" <> show port
   handle cleanupThreadsWith $
     bracket (fst <$> getSocketTCP hostname port) NS.close $ \sock -> do
-      bracket (mkTransport sock transportConfig) cleanupTransport $ \transport ->
+      putStrLn $ "----------------> http2Manager: created socket with " <> show hostname <> ":" <> show port
+      bracket (mkTransport sock transportConfig) cleanupTransport $ \transport -> do
+        putStrLn $ "----------------> http2Manager: TLS handshook with " <> show hostname <> ":" <> show port
         bracket (allocHTTP2Config transport) HTTP2.freeSimpleConfig $ \http2Cfg -> do
           let runAction = HTTP2.run clientConfig http2Cfg $ \sendReq -> do
                 handleRequests liveReqs sendReq
