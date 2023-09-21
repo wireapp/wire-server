@@ -34,8 +34,8 @@ import Control.Lens (makeLenses)
 import Data.Aeson qualified as A
 import Data.Handle (Handle)
 import Data.Id
+import Data.OpenApi qualified as S
 import Data.Schema
-import Data.Swagger qualified as S
 import Imports
 import Wire.API.Conversation.Member (OtherMember (..))
 import Wire.API.User.Profile (ColourId, Name)

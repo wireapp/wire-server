@@ -31,8 +31,8 @@ import Control.Lens ((?~))
 import Data.Aeson
 import Data.Currency qualified as Currency
 import Data.Json.Util
+import Data.OpenApi qualified as Swagger
 import Data.Schema qualified as S
-import Data.Swagger qualified as Swagger
 import Data.Time (UTCTime)
 import Imports
 import Test.QuickCheck.Arbitrary (Arbitrary)

@@ -5,6 +5,7 @@ hself: hsuper: {
   aeson = (hlib.doJailbreak hsuper.aeson_2_1_2_1);
   binary-parsers = hlib.markUnbroken (hlib.doJailbreak hsuper.binary-parsers);
   bytestring-arbitrary = hlib.markUnbroken (hlib.doJailbreak hsuper.bytestring-arbitrary);
+  openapi3 = hlib.markUnbroken (hlib.dontCheck hsuper.openapi3);
   cql = hlib.appendPatch (hlib.markUnbroken hsuper.cql) (fetchpatch {
     url = "https://gitlab.com/twittner/cql/-/merge_requests/11.patch";
     sha256 = "sha256-qfcCRkKjSS1TEqPRVBU9Ox2DjsdGsYG/F3DrZ5JGoEI=";
@@ -23,7 +24,6 @@ hself: hsuper: {
   servant-swagger-ui = hlib.doJailbreak hsuper.servant-swagger-ui;
   servant-swagger-ui-core = hlib.doJailbreak hsuper.servant-swagger-ui-core;
   sodium-crypto-sign = hlib.addPkgconfigDepend hsuper.sodium-crypto-sign libsodium.dev;
-  swagger2 = hlib.doJailbreak hsuper.swagger2;
   text-icu-translit = hlib.markUnbroken (hlib.dontCheck hsuper.text-icu-translit);
   text-short = hlib.dontCheck hsuper.text-short;
   type-errors = hlib.dontCheck hsuper.type-errors;

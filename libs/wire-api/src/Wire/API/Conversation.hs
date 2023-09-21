@@ -96,12 +96,13 @@ import Data.List.NonEmpty (NonEmpty)
 import Data.List1
 import Data.Map qualified as Map
 import Data.Misc
+import Data.OpenApi (deprecated)
+import Data.OpenApi qualified as S
 import Data.Qualified
 import Data.Range (Range, fromRange, rangedSchema)
 import Data.SOP
 import Data.Schema
 import Data.Set qualified as Set
-import Data.Swagger qualified as S
 import Data.UUID qualified as UUID
 import Data.UUID.V5 qualified as UUIDV5
 import Imports
@@ -568,14 +569,15 @@ instance ToSchema AccessRole where
 
 instance ToSchema AccessRoleLegacy where
   schema =
-    (S.schema . description ?~ desc) $
-      enum @Text "AccessRoleLegacy" $
-        mconcat
-          [ element "private" PrivateAccessRole,
-            element "team" TeamAccessRole,
-            element "activated" ActivatedAccessRole,
-            element "non_activated" NonActivatedAccessRole
-          ]
+    (S.schema . S.deprecated ?~ True) $
+      (S.schema . description ?~ desc) $
+        enum @Text "AccessRoleLegacy" $
+          mconcat
+            [ element "private" PrivateAccessRole,
+              element "team" TeamAccessRole,
+              element "activated" ActivatedAccessRole,
+              element "non_activated" NonActivatedAccessRole
+            ]
     where
       desc =
         "Which users can join conversations (deprecated, use `access_role_v2` instead).\
@@ -671,7 +673,9 @@ newConvSchema sch =
       <$> newConvUsers
         .= ( fieldWithDocModifier
                "users"
-               (description ?~ usersDesc)
+               ( (deprecated ?~ True)
+                   . (description ?~ usersDesc)
+               )
                (array schema)
                <|> pure []
            )

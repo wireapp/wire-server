@@ -28,7 +28,7 @@ testJoinSubConv = do
 
 testDeleteParentOfSubConv :: HasCallStack => Domain -> App ()
 testDeleteParentOfSubConv secondDomain = do
-  (alice, tid) <- createTeam OwnDomain
+  (alice, tid, _) <- createTeam OwnDomain 1
   bob <- randomUser secondDomain def
   connectUsers [alice, bob]
 

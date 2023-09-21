@@ -28,9 +28,9 @@ import Data.Aeson qualified as A
 import Data.Id
 import Data.List.NonEmpty
 import Data.List.NonEmpty qualified as NE
+import Data.OpenApi qualified as S
 import Data.Qualified
 import Data.Schema
-import Data.Swagger qualified as S
 import Imports
 
 newtype UnreachableUsers = UnreachableUsers {unreachableUsers :: NonEmpty (Qualified UserId)}

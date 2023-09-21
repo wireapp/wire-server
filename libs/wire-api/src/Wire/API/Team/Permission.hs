@@ -48,10 +48,10 @@ import Control.Error.Util qualified as Err
 import Control.Lens (makeLenses, (?~), (^.))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Bits (testBit, (.|.))
+import Data.OpenApi qualified as S
 import Data.Schema
 import Data.Set qualified as Set
 import Data.Singletons.Base.TH
-import Data.Swagger qualified as S
 import Imports
 import Wire.API.Util.Aeson (CustomEncoded (..))
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))

@@ -21,8 +21,8 @@ import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Aeson qualified as A
 import Data.Id
 import Data.Misc
+import Data.OpenApi qualified as S
 import Data.Schema
-import Data.Swagger qualified as S
 import Imports
 import Wire.API.User.Auth
 

@@ -47,10 +47,10 @@ import Data.HashMap.Strict.InsOrd qualified as InsOrdHashMap
 import Data.Id
 import Data.Json.Util
 import Data.List.NonEmpty (NonEmpty)
+import Data.OpenApi (ToParamSchema (..))
+import Data.OpenApi qualified as S
 import Data.SOP
 import Data.Schema
-import Data.Swagger (ToParamSchema (..))
-import Data.Swagger qualified as S
 import Data.Time.Clock (UTCTime)
 import Data.UUID qualified as UUID
 import Imports

@@ -38,8 +38,8 @@ where
 import Control.Arrow
 import Control.Lens (Traversal', makePrisms, (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
+import Data.OpenApi qualified as S
 import Data.Schema
-import Data.Swagger qualified as S
 import Data.Time.Clock
 import Imports
 import Wire.API.Conversation.Action.Tag

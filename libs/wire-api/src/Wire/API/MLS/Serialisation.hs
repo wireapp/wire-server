@@ -67,9 +67,9 @@ import Data.ByteString qualified as BS
 import Data.ByteString.Lazy qualified as LBS
 import Data.Json.Util
 import Data.Kind
+import Data.OpenApi qualified as S
 import Data.Proxy
 import Data.Schema
-import Data.Swagger qualified as S
 import Data.Text qualified as Text
 import Debug.Trace
 import Imports

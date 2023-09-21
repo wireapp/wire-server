@@ -15,8 +15,11 @@
 , Cabal
 , case-insensitive
 , containers
+, cql
+, cql-io
 , cryptonite
 , data-default
+, data-timeout
 , directory
 , errors
 , exceptions
@@ -80,8 +83,11 @@ mkDerivation {
     bytestring-conversion
     case-insensitive
     containers
+    cql
+    cql-io
     cryptonite
     data-default
+    data-timeout
     directory
     errors
     exceptions

@@ -40,9 +40,10 @@ import Control.Lens ((?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Aeson qualified as A
 import Data.Id
+import Data.OpenApi (deprecated)
+import Data.OpenApi qualified as S
 import Data.Qualified
 import Data.Schema
-import Data.Swagger qualified as S
 import Imports
 import Test.QuickCheck qualified as QC
 import Wire.API.Conversation.Role
@@ -165,7 +166,7 @@ instance ToSchema OtherMember where
         <* (qUnqualified . omQualifiedId) .= optional (field "id" schema)
         <*> omService .= maybe_ (optFieldWithDocModifier "service" (description ?~ desc) schema)
         <*> omConvRoleName .= (field "conversation_role" schema <|> pure roleNameWireAdmin)
-        <* const (0 :: Int) .= optional (fieldWithDocModifier "status" (description ?~ "deprecated") schema) -- TODO: remove
+        <* const (0 :: Int) .= optional (fieldWithDocModifier "status" ((deprecated ?~ True) . (description ?~ "deprecated")) schema) -- TODO: remove
     where
       desc = "The reference to the owning service, if the member is a 'bot'."
 

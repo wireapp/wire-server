@@ -31,11 +31,11 @@ import Data.Aeson.TH
 import Data.Bifunctor (Bifunctor (first))
 import Data.ByteString.Conversion
 import Data.Json.Util
+import Data.OpenApi qualified as S
+import Data.OpenApi.ParamSchema
 import Data.Proxy (Proxy (Proxy))
 import Data.Range
 import Data.Schema
-import Data.Swagger qualified as S
-import Data.Swagger.ParamSchema
 import Data.Text (pack)
 import Data.Text.Ascii
 import Data.Text.Encoding (encodeUtf8)

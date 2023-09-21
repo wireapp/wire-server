@@ -25,13 +25,13 @@ where
 
 import Conduit
 import Data.ByteString.Lazy qualified as LBS
-import Data.Swagger
-import Data.Swagger.Internal.Schema
+import Data.OpenApi
+import Data.OpenApi.Internal.Schema
 import Imports
 import Network.HTTP.Media ((//))
 import Servant
 import Servant.Conduit ()
-import Servant.Swagger.Internal.Orphans ()
+import Servant.OpenApi.Internal.Orphans ()
 
 data MultipartMixed
 

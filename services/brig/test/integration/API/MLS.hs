@@ -31,9 +31,9 @@ import Data.Timeout
 import Debug.Trace (traceM)
 import Federation.Util
 import Imports
+import System.IO.Temp
 import Test.Tasty
 import Test.Tasty.HUnit
-import UnliftIO.Temporary
 import Util
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
