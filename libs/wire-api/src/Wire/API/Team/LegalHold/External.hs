@@ -34,7 +34,7 @@ where
 import Data.Aeson hiding (fieldLabelModifier)
 import Data.Id
 import Data.Json.Util ((#))
-import Data.Swagger
+import Data.OpenApi
 import Imports
 import Wire.API.User.Client.Prekey
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))

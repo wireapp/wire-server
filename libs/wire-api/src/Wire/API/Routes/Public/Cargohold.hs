@@ -24,7 +24,7 @@ import Data.Qualified
 import Data.SOP
 import Imports
 import Servant
-import Servant.Swagger.Internal.Orphans ()
+import Servant.OpenApi.Internal.Orphans ()
 import URI.ByteString
 import Wire.API.Asset
 import Wire.API.Error

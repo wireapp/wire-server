@@ -17,6 +17,7 @@
 
 module Wire.API.Error.Cargohold where
 
+import Data.Typeable
 import Wire.API.Error
 
 data CargoholdError
@@ -28,8 +29,8 @@ data CargoholdError
   | Unverified
   | UserNotFound
 
-instance KnownError (MapError e) => IsSwaggerError (e :: CargoholdError) where
-  addToSwagger = addStaticErrorToSwagger @(MapError e)
+instance (Typeable (MapError e), KnownError (MapError e)) => IsSwaggerError (e :: CargoholdError) where
+  addToOpenApi = addStaticErrorToSwagger @(MapError e)
 
 type instance MapError 'AssetNotFound = 'StaticError 404 "not-found" "Asset not found"
 

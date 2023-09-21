@@ -51,7 +51,6 @@ import Galley.API.Util
 import Galley.App
 import Galley.Data.Conversation qualified as Data
 import Galley.Effects
-import Galley.Effects.BackendNotificationQueueAccess
 import Galley.Effects.ConversationStore qualified as E
 import Galley.Effects.FireAndForget qualified as E
 import Galley.Effects.MemberStore qualified as E
@@ -219,7 +218,8 @@ onConversationUpdated requestingDomain cu = do
 
 -- as of now this will not generate the necessary events on the leaver's domain
 leaveConversation ::
-  ( Member ConversationStore r,
+  ( Member BackendNotificationQueueAccess r,
+    Member ConversationStore r,
     Member (Error InternalError) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
@@ -365,7 +365,8 @@ sendMessage originDomain msr = do
     throwErr = throw . InvalidPayload . LT.pack
 
 onUserDeleted ::
-  ( Member ConversationStore r,
+  ( Member BackendNotificationQueueAccess r,
+    Member ConversationStore r,
     Member FederatorAccess r,
     Member FireAndForget r,
     Member ExternalAccess r,
@@ -421,7 +422,8 @@ onUserDeleted origDomain udcn = do
 
 updateConversation ::
   forall r.
-  ( Member BrigAccess r,
+  ( Member BackendNotificationQueueAccess r,
+    Member BrigAccess r,
     Member CodeStore r,
     Member BotAccess r,
     Member FireAndForget r,
@@ -535,7 +537,8 @@ handleMLSMessageErrors =
     . mapToGalleyError @MLSBundleStaticErrors
 
 sendMLSCommitBundle ::
-  ( Member BrigAccess r,
+  ( Member BackendNotificationQueueAccess r,
+    Member BrigAccess r,
     Member ConversationStore r,
     Member ExternalAccess r,
     Member (Error FederationError) r,
@@ -568,7 +571,8 @@ sendMLSCommitBundle remoteDomain msr = handleMLSMessageErrors $ do
     <$> postMLSCommitBundle loc (tUntagged sender) Nothing qcnv Nothing bundle
 
 sendMLSMessage ::
-  ( Member BrigAccess r,
+  ( Member BackendNotificationQueueAccess r,
+    Member BrigAccess r,
     Member ConversationStore r,
     Member ExternalAccess r,
     Member (Error FederationError) r,

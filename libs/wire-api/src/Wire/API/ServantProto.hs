@@ -19,7 +19,7 @@ module Wire.API.ServantProto where
 
 import Data.ByteString.Lazy qualified as LBS
 import Data.List.NonEmpty (NonEmpty (..))
-import Data.Swagger
+import Data.OpenApi
 import Imports
 import Network.HTTP.Media ((//))
 import Servant

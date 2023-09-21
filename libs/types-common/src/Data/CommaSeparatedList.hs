@@ -23,9 +23,9 @@ import Control.Lens ((?~))
 import Data.Bifunctor qualified as Bifunctor
 import Data.ByteString (toStrict)
 import Data.ByteString.Conversion (FromByteString, List (..), ToByteString, builder, fromList, parser, runParser, toByteString)
+import Data.OpenApi
 import Data.Proxy (Proxy (..))
 import Data.Range (Bounds, Range)
-import Data.Swagger (CollectionFormat (CollectionCSV), SwaggerItems (SwaggerItemsPrimitive), SwaggerType (SwaggerString), ToParamSchema (..), items, type_)
 import Data.Text qualified as Text
 import Data.Text.Encoding (decodeUtf8With, encodeUtf8)
 import Data.Text.Encoding.Error
@@ -45,10 +45,10 @@ instance ToByteString (List a) => ToHttpApiData (CommaSeparatedList a) where
   toQueryParam (CommaSeparatedList l) = decodeUtf8With lenientDecode $ toStrict $ toByteString $ builder $ List l
 
 instance ToParamSchema (CommaSeparatedList a) where
-  toParamSchema _ = mempty & type_ ?~ SwaggerString
+  toParamSchema _ = mempty & type_ ?~ OpenApiString
 
 -- | TODO: is this obsoleted by the instances in "Data.Range"?
 instance (ToParamSchema a, ToParamSchema (Range n m [a])) => ToParamSchema (Range n m (CommaSeparatedList a)) where
   toParamSchema _ =
     toParamSchema (Proxy @(Range n m [a]))
-      & items ?~ SwaggerItemsPrimitive (Just CollectionCSV) (toParamSchema (Proxy @a))
+      & items ?~ OpenApiItemsArray [Inline $ toParamSchema (Proxy @a)]

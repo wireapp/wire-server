@@ -41,6 +41,7 @@
 , MonadRandom
 , mtl
 , network-uri
+, openapi3
 , optparse-applicative
 , polysemy
 , polysemy-check
@@ -53,10 +54,9 @@
 , saml2-web-sso
 , servant
 , servant-multipart
+, servant-openapi3
 , servant-server
-, servant-swagger
 , silently
-, swagger2
 , tasty-hunit
 , text
 , text-latin1
@@ -211,14 +211,14 @@ mkDerivation {
     metrics-wai
     mtl
     network-uri
+    openapi3
     polysemy
     polysemy-plugin
     polysemy-wire-zoo
     QuickCheck
     saml2-web-sso
     servant
-    servant-swagger
-    swagger2
+    servant-openapi3
     time
     tinylog
     types-common

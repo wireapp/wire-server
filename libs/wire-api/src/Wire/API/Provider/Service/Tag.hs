@@ -41,13 +41,18 @@ where
 
 import Data.Aeson (FromJSON (parseJSON), ToJSON (toJSON))
 import Data.Aeson qualified as JSON
+import Data.ByteString (toStrict)
 import Data.ByteString.Builder qualified as BB
 import Data.ByteString.Char8 qualified as C8
 import Data.ByteString.Conversion
-import Data.Range (Range, fromRange)
+import Data.OpenApi qualified as S
+import Data.Range (Range, fromRange, rangedSchema)
 import Data.Range qualified as Range
+import Data.Schema
 import Data.Set qualified as Set
+import Data.Text.Encoding (decodeUtf8With)
 import Data.Text.Encoding qualified as Text
+import Data.Text.Encoding.Error (lenientDecode)
 import Data.Type.Ord
 import GHC.TypeLits (KnownNat, Nat)
 import Imports
@@ -173,6 +178,16 @@ instance FromJSON ServiceTag where
     JSON.withText "ServiceTag" $
       either fail pure . runParser parser . Text.encodeUtf8
 
+instance ToSchema ServiceTag where
+  schema = enum @Text "" . mconcat $ (\a -> element (decodeUtf8With lenientDecode $ toStrict $ toByteString a) a) <$> [minBound ..]
+
+instance S.ToParamSchema ServiceTag where
+  toParamSchema _ =
+    mempty
+      { S._schemaType = Just S.OpenApiString,
+        S._schemaEnum = Just (toJSON <$> [(minBound :: ServiceTag) ..])
+      }
+
 --------------------------------------------------------------------------------
 -- Bounded ServiceTag Queries
 
@@ -180,6 +195,19 @@ instance FromJSON ServiceTag where
 newtype QueryAnyTags (m :: Nat) (n :: Nat) = QueryAnyTags
   {queryAnyTagsRange :: Range m n (Set (QueryAllTags m n))}
   deriving stock (Eq, Show, Ord)
+
+instance (m <= n) => S.ToParamSchema (QueryAnyTags m n) where
+  toParamSchema _ =
+    mempty
+      { S._schemaType = Just S.OpenApiString,
+        S._schemaEnum = Just (toJSON <$> [(minBound :: ServiceTag) ..])
+      }
+
+instance (KnownNat n, KnownNat m, m <= n) => ToSchema (QueryAnyTags m n) where
+  schema =
+    let sch :: ValueSchema NamedSwaggerDoc (Range m n (Set (QueryAllTags m n)))
+        sch = fromRange .= rangedSchema (named "QueryAnyTags" $ set schema)
+     in queryAnyTagsRange .= (QueryAnyTags <$> sch)
 
 instance (KnownNat m, KnownNat n, m <= n) => Arbitrary (QueryAnyTags m n) where
   arbitrary = QueryAnyTags <$> arbitrary
@@ -235,6 +263,12 @@ instance (KnownNat m, KnownNat n, m <= n) => FromByteString (QueryAllTags m n) w
     ts <- mapM (either fail pure . runParser parser) bs
     rs <- either fail pure (Range.checkedEither (Set.fromList ts))
     pure $! QueryAllTags rs
+
+instance (KnownNat m, KnownNat n, m <= n) => ToSchema (QueryAllTags m n) where
+  schema =
+    let sch :: ValueSchema NamedSwaggerDoc (Range m n (Set ServiceTag))
+        sch = fromRange .= rangedSchema (named "QueryAllTags" $ set schema)
+     in queryAllTagsRange .= fmap QueryAllTags sch
 
 --------------------------------------------------------------------------------
 -- ServiceTag Matchers

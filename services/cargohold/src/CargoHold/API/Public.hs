@@ -157,12 +157,8 @@ uploadAssetV3 (Endpoint h p) pid req = do
     V3.UserPrincipal uid -> do
       resp <- liftIO $ getUser uid
       users <- either (const $ throwE userNotFound) pure resp
-      maybe
-        (throwE unverified)
-        (const $ pure ())
-        $ fmap (userIdentity . accountUser)
-        $ listToMaybe
-        $ users
+      maybe (throwE unverified) ((const $ pure ()) . userIdentity . accountUser) (listToMaybe
+        $ users)
     _ -> pure ()
   asset <- V3.upload principal (getAssetSource req)
   pure (fmap tUntagged asset, mkAssetLocation @tag (asset ^. assetKey))

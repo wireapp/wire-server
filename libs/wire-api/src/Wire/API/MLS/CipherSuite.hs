@@ -25,10 +25,10 @@ import Crypto.Hash.Algorithms
 import Crypto.KDF.HKDF qualified as HKDF
 import Crypto.PubKey.Ed25519 qualified as Ed25519
 import Data.Aeson (parseJSON, toJSON)
+import Data.OpenApi qualified as S
+import Data.OpenApi.Internal.Schema qualified as S
 import Data.Proxy
 import Data.Schema
-import Data.Swagger qualified as S
-import Data.Swagger.Internal.Schema qualified as S
 import Data.Word
 import Imports
 import Wire.API.MLS.Credential

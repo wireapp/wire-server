@@ -71,9 +71,9 @@ import Data.Handle (Handle)
 import Data.Id
 import Data.Json.Util
 import Data.Misc (PlainTextPassword6)
+import Data.OpenApi qualified as S
 import Data.SOP
 import Data.Schema
-import Data.Swagger qualified as S
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
 import Data.Text.Lazy.Encoding qualified as LT
@@ -554,7 +554,7 @@ utcToSetCookie c =
     }
 
 instance S.ToParamSchema UserTokenCookie where
-  toParamSchema _ = mempty & S.type_ ?~ S.SwaggerString
+  toParamSchema _ = mempty & S.type_ ?~ S.OpenApiString
 
 instance FromHttpApiData UserTokenCookie where
   parseHeader = utcFromSetCookie . parseSetCookie

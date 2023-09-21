@@ -23,9 +23,9 @@ import Data.ByteArray (convert)
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Json.Util
+import Data.OpenApi qualified as S
 import Data.Qualified
 import Data.Schema
-import Data.Swagger qualified as S
 import Imports
 import Wire.API.MLS.Serialisation
 import Wire.Arbitrary

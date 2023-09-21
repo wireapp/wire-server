@@ -4,6 +4,7 @@ module SetupHelpers where
 
 import API.Brig qualified as Brig
 import API.BrigInternal qualified as Internal
+import API.Common
 import API.Galley
 import Control.Concurrent (threadDelay)
 import Control.Monad.Reader
@@ -32,15 +33,43 @@ deleteUser user = bindResponse (Brig.deleteUser user) $ \resp -> do
   resp.status `shouldMatchInt` 200
 
 -- | returns (user, team id)
-createTeam :: (HasCallStack, MakesValue domain) => domain -> App (Value, String)
-createTeam domain = do
+createTeam :: (HasCallStack, MakesValue domain) => domain -> Int -> App (Value, String, [Value])
+createTeam domain memberCount = do
   res <- Internal.createUser domain def {Internal.team = True}
-  user <- res.json
-  tid <- user %. "team" & asString
-  -- TODO
-  -- SQS.assertTeamActivate "create team" tid
-  -- refreshIndex
-  pure (user, tid)
+  owner <- res.json
+  tid <- owner %. "team" & asString
+  members <- for [2 .. memberCount] $ \_ -> createTeamMember owner tid
+  pure (owner, tid, members)
+
+createTeamMember ::
+  (HasCallStack, MakesValue inviter) =>
+  inviter ->
+  String ->
+  App Value
+createTeamMember inviter tid = do
+  newUserEmail <- randomEmail
+  let invitationJSON = ["role" .= "member", "email" .= newUserEmail]
+  invitationReq <-
+    baseRequest inviter Brig Versioned $
+      joinHttpPath ["teams", tid, "invitations"]
+  invitation <- getJSON 201 =<< submit "POST" (addJSONObject invitationJSON invitationReq)
+  invitationId <- objId invitation
+  invitationCodeReq <-
+    rawBaseRequest inviter Brig Unversioned "/i/teams/invitation-code"
+      <&> addQueryParams [("team", tid), ("invitation_id", invitationId)]
+  invitationCode <- bindResponse (submit "GET" invitationCodeReq) $ \res -> do
+    res.status `shouldMatchInt` 200
+    res.json %. "code" & asString
+  let registerJSON =
+        [ "name" .= newUserEmail,
+          "email" .= newUserEmail,
+          "password" .= defPassword,
+          "team_code" .= invitationCode
+        ]
+  registerReq <-
+    rawBaseRequest inviter Brig Versioned "/register"
+      <&> addJSONObject registerJSON
+  getJSON 201 =<< submit "POST" registerReq
 
 connectUsers ::
   ( HasCallStack,
