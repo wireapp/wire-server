@@ -192,7 +192,7 @@ streamingResponseToWai resp =
    in Wai.responseStream status headers streamingBody
 
 streamingResponseToWaiWithLogs :: String -> StreamingResponse -> Wai.Response
-streamingResponseToWaiWithLogs str resp =
+streamingResponseToWaiWithLogs _str resp =
   let headers = toList (responseHeaders resp)
       status = responseStatusCode resp
       streamingBody output flush =
