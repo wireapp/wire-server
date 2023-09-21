@@ -27,11 +27,14 @@ convs = [
     }
 ]
 
-def send_msg(user_from, conv):
+
+def send_msg(user_from, conv, payload=b'hello world'):
     domain_conv = domains[conv['domain_idx']]
     domain_from = domains[user_from['idx']]
     url = f'http://localhost:{domain_from["galley_port"]}/v4/conversations/{domain_conv["domain"]}/{conv["conv_id"]}/proteus/messages'
-    response = requests.post(url, headers={'content-type': 'application/x-protobuf', 'z-user': user_from['id'], 'z-connection': 'con'}, data=payload)
+    client_identities = [{'user': users[i]['id'], 'domain': domains[i]['domain'], 'client': users[i]['client'] } for i in conv['user_idxs'] if i != user_from['idx']]
+    data = mk_otr(user_from['client'], client_identities, payload)
+    response = requests.post(url, headers={'content-type': 'application/x-protobuf', 'z-user': user_from['id'], 'z-connection': 'con'}, data=data)
     import ipdb; ipdb.set_trace()
 
 def get_conv(user_from, user_to):
@@ -93,11 +96,11 @@ def mk_user_entry(domain, user, client):
     user_entry = otr.UserEntry(user=user_id, clients = clients )
     return otr.QualifiedUserEntry(domain=domain, entries=[user_entry])
 
-def mk_otr(sender_client_id_hex, client_identies, payload=b'foobar'):
+def mk_otr(sender_client_id_hex, client_identities, payload=b'foobar'):
     sender = mk_client_id(sender_client_id_hex)
 
     recipients = []
-    for cid in client_identies:
+    for cid in client_identities:
         recipient = mk_user_entry(**cid)
         recipients.append(recipient)
 
