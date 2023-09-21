@@ -22,7 +22,7 @@
 users = {
     1: {'idx': 1, 'id': 'foo'},
     2: {'idx': 2, 'id': '13cfb002-6f07-434a-90fa-1422e8141a30' },
-    3: {'idx': 3, 'id': '' },
+    3: {'idx': 3, 'id': '336da3f3-4c4e-4aa2-8cf4-d91e94c66add' },
 }
 
 domains = {
@@ -36,6 +36,11 @@ convs = [
         'user_idxs': set([1, 2]),
         'conv_id': 'eabb40cc-bf99-5a50-bd56-60c120830235',
         'domain_idx': 2
+    },
+    {
+        'user_idxs': set([3, 2]),
+        'conv_id': 'd29cca43-5421-562c-8d39-2ee74b6e01eb',
+        'domain_idx': 3
     }
 ]
 
