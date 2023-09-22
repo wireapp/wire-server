@@ -60,7 +60,7 @@ import asyncio
 import argparse
 import requests
 import base64 
-import wire.otr_pb2 as otr
+from urllib.parse import urljoin, urlparse, urlencode, urlunparse
 import uuid
 import sys
 import subprocess
@@ -70,7 +70,7 @@ import datetime
 import yaml
 import itertools
 import tempfile
-
+import wire.otr_pb2 as otr
 
 port_forward_script = '''
 #!/usr/bin/env bash
@@ -164,9 +164,6 @@ class App:
         domain_from = self.domain(user_from['domain_idx'])
         url = f'http://localhost:{domain_from["galley_port"]}/v4/conversations/{domain_conv["domain"]}/{conv["id"]}/proteus/messages'
 
-        # client_identities = []
-        # data = mk_otr(user_from['client'], client_identities, payload)
-
         data = mk_otr(user_from['client'], [], payload)
         response = requests.post(url, headers={'content-type': 'application/x-protobuf', 'z-user': user_from['id'], 'z-connection': 'con'}, data=data)
         if response.status_code != 412:
@@ -191,13 +188,16 @@ class App:
 
     async def open_websocket(self, user_idx):
         user = self.cfg['users'][user_idx]
-        # print(f'open web socket for user {user["id"]}')
         domain = self.cfg['domains'][user['domain_idx']]
-        # TODO: urlencode
-        url = f'ws://127.0.0.1:{domain["cannon_port"]}/await?client={user["client"]}'
-        # print(url)
+
+        url = f'ws://127.0.0.1:{domain["cannon_port"]}/await'
+        # add client param
+        urlparts = list(urlparse(url))
+        params = {"client": user["client"]}
+        urlparts[4] = urlencode(params)
+        url = urlunparse(urlparts)
+
         headers = {"Z-User": user["id"], "Z-Connection": random_string()}
-        # print(headers)
         async with websockets.connect(url, extra_headers=headers, open_timeout=4 * 60) as ws:
             print(f'{user_idx} opened a websocket')
             while True:
@@ -265,8 +265,6 @@ def mk_qualified_user_entry(domain, users):
 def mk_otr(sender_client_id_hex, client_identities, payload=b'foobar'):
     sender = mk_client_id(sender_client_id_hex)
 
-# mk_qualified_user_entry
-
     gdomain = lambda c: c['domain']
     guser = lambda c: c['user']
     recipients = []
@@ -277,9 +275,7 @@ def mk_otr(sender_client_id_hex, client_identities, payload=b'foobar'):
         recipients.append(mk_qualified_user_entry(domain, users))
 
     report_all = otr.ClientMismatchStrategy.ReportAll()
-    # ignore_all = otr.ClientMismatchStrategy.IgnoreAll()
     m = otr.QualifiedNewOtrMessage(sender=sender, recipients=recipients, blob=payload, report_all=report_all)
-    # m = otr.QualifiedNewOtrMessage(sender=sender, recipients=recipients, blob=payload, ignore_all=ignore_all)
     return m.SerializeToString()
 
 def main_port_forward(cfg, domain):
@@ -329,7 +325,6 @@ def main():
 
     elif args.subparser_name == "listen":
         main_listen(cfg, args.user)
-
 
 if __name__ == '__main__':
     main()
