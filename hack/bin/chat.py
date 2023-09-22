@@ -1,4 +1,59 @@
 #!/usr/bin/env python3
+#
+# With this tool you can send and receive (unencrypted) messages in conversations.
+# It exists to test basic message sending and monitoring of events without relying on using a client.
+#
+# Create a config file (see example.yaml).
+#
+# 1. generate a shell script that sets up the port-forwarding for domain col1 via kubectl
+# chat.py --config example.yaml port-forward --domain col1
+#
+# 2. open websockets and listen on the clients for user u1 and u2
+# chat.py --config example.yaml listen --user u1 --user u2
+# 
+# 3. send a message to conv 1+2 with as user u1
+# the message will be unencrypted plaintext, so normal clients won't be able to display it
+# chat.py --config example.yaml send --user u1 --conv 1+2
+#
+# # example.yaml
+# 
+# users:
+#   # pick any short name for user name
+#   u1:
+#     id: 13cfb002-6f07-434a-90fa-1422e8141a30
+#     domain_idx: col1
+#     client: 139da7a7e0034030
+#   u2:
+#     id: f0e07e83-b573-4689-b366-5efa4a859a72
+#     domain_idx: col2
+#     client: 1BD4B2DCE638BD9E
+#     comment: User en7ump0q@wire.com
+#   off:
+#     id: 8673c02b-651d-4f4a-96d8-4dbd51fa3e1b
+#     client: b51351d821a734a3
+#     domain_idx: offline-web
+# convs:
+#   # pick any short name for conversation names
+#   1+2:
+#     id: eabb40cc-bf99-5a50-bd56-60c120830235
+#     domain_idx: col2
+# domains:
+#   # pick any short name for the domain
+#   col1:
+#     domain: bund-next-column-1.wire.link
+#     cannon_port: 6086
+#     galley_port: 6085
+#     namespace: wire
+#   col2:
+#     domain: bund-next-column-2.wire.link
+#     cannon_port: 7086
+#     galley_port: 7085
+#     namespace: wire
+#   offline-web:
+#     domain: bund-next-column-offline-web.wire.link
+#     cannon_port: 11086
+#     galley_port: 11085
+#     namespace: column-offline-web
 
 import websockets
 import asyncio
@@ -16,62 +71,27 @@ import yaml
 import itertools
 import tempfile
 
-# # Example config
-# ·
-# convs:
-#   1+2:
-#     domain_idx: col2
-#     id: eabb40cc-bf99-5a50-bd56-60c120830235
-#     members:
-#     - u1
-#     - u2
-# domains:
-#   col1:
-#     cannon_port: 6086
-#     domain: bund-next-column-1.wire.link
-#     galley_port: 6085
-#     namespace: wire
-#   col2:
-#     cannon_port: 7086
-#     domain: bund-next-column-2.wire.link
-#     galley_port: 7085
-#     namespace: wire
-#   offline-web:
-#     cannon_port: 11086
-#     domain: bund-next-column-offline-web.wire.link
-#     galley_port: 11085
-#     namespace: column-offline-web
-# users:
-#   u1:
-#     client: 139da7a7e0034030
-#     domain_idx: col1
-#     id: 13cfb002-6f07-434a-90fa-1422e8141a30
-#   u2:
-#     client: 1BD4B2DCE638BD9E
-#     comment: User en7ump0q@wire.com with Aqa123456!
-#     domain_idx: col2
-#     id: f0e07e83-b573-4689-b366-5efa4a859a72
-#   off:
-#     client: b51351d821a734a3
-#     domain_idx: offline-web
-#     id: 8673c02b-651d-4f4a-96d8-4dbd51fa3e1b
 
 port_forward_script = '''
-set -eo pipefail;
-domain="$1";
-namespace="$2";
-galley_port="$3";
-cannon_port="$4";
-set -e;
-actual_domain=$(kubectl -n wire get configmap brig -o yaml | sed -n '"'"'s/.*setFederationDomain: \(.*\)/\\1/p'"'"');
-if [ ! "$actual_domain" = "$domain" ]; then echo "Error: backend is $actual_domain, but expected $domain"  ; exit 1; fi;
-set -x;
+#!/usr/bin/env bash
+
+set -eo pipefail
+domain="{domain}"
+namespace="{namespace}"
+galley_port="{galley_port}"
+cannon_port="{cannon_port}"
+
+actual_domain=$(kubectl -n wire get configmap brig -o yaml | sed -n 's/.*setFederationDomain: \(.*\)/\\1/p')
+if [ ! "$actual_domain" = "$domain" ]; then echo "Error: backend is $actual_domain, but expected $domain"  ; exit 1; fi
+
+set -x
 kubectl -n wire port-forward $(kubectl -n wire get pods -lapp=galley -o=custom-columns=name:.metadata.name --no-headers) $galley_port:8080 &
-pid1="$!";
+pid1="$!"
 kubectl -n wire port-forward $(kubectl -n wire get pods -lapp=cannon -o=custom-columns=name:.metadata.name --no-headers) $cannon_port:8080 &
-pid2="$!";
-set +x;
-sleep 1;
+pid2="$!"
+set +x
+
+sleep 1
 read -n 1 -p "Press ENTER to kill port-forwarding processes $pid1 and $pid2:";
 kill "$pid1"
 kill "$pid2"
@@ -82,9 +102,15 @@ def random_string():
                  "ta", "chi", "tsu", "te", "to", "na", "ni", "nu", "ne", "no", "ha", "hi", "fu", "he",\
                  "ho", "ma", "mi", "mu", "me", "mo", "ya", "yu", "yo", "ra", "ri", "ru", "re", "ro", "wa", "wo" ]
     s = ''
-    for i in range(8):
-        s += random.choice(hiragana)
-    return s
+    n = random.choice([2,3,4])
+    words = []
+    for _ in range(n):
+        l = random.choice([2,3])
+        word = ''
+        for i in range(l):
+            word += random.choice(hiragana)
+        words.append(word)
+    return '_'.join(words)
 
 def get_human_time():
     t = datetime.datetime.now()
@@ -198,10 +224,10 @@ class App:
         namespace = d['namespace']
         galley_port = d['galley_port']
         cannon_port = d['cannon_port']
-        s = f"bash -c '{port_forward_script}' \\\n  \"\" \"{domain}\" \"{namespace}\" \"{galley_port}\"  \"{cannon_port}\""
-        with tempfile.NamedTemporaryFile(prefix=f'{domain}-port-forward', suffix='.sh', delete=False, mode='w') as f:
+        script = port_forward_script.format(domain=domain, namespace=namespace, galley_port=galley_port, cannon_port=cannon_port)
+        with tempfile.NamedTemporaryFile(prefix=f'{domain}-port-forward-', suffix='.sh', delete=False, mode='w') as f:
             print(f'Wrote port-forward script to {f.name}')
-            f.write(s)
+            f.write(script)
 
 async def main_test_websocket():
     await open_websocket(3)
