@@ -1,37 +1,38 @@
 convs:
   1+2:
-    domain_idx: col2
-    id: eabb40cc-bf99-5a50-bd56-60c120830235
+    domain_idx: bella
+    id: 1fabd2d9-4748-418f-a7d9-87d2724c7012
     members:
     - u1
     - u2
+  black_hole:
+    domain_idx: anta
+    id: 3a7d14bf-8b8d-43c4-bb5e-6ea803c1e1fa
+    members:
+    - u1
 domains:
-  col1:
+  anta:
     cannon_port: 6086
-    domain: bund-next-column-1.wire.link
+    domain: anta.wire.link
     galley_port: 6085
     namespace: wire
-  col2:
+  bella:
     cannon_port: 7086
-    domain: bund-next-column-2.wire.link
+    domain: bella.wire.link
     galley_port: 7085
     namespace: wire
-  offline-web:
+  foma:
     cannon_port: 11086
-    domain: bund-next-column-offline-web.wire.link
+    domain: foma.wire.link
     galley_port: 11085
-    namespace: column-offline-web
+    namespace: wire
 users:
   u1:
-    client: 139da7a7e0034030
-    domain_idx: col1
-    id: 13cfb002-6f07-434a-90fa-1422e8141a30
+    client: 9fac5307195efeb2
+    domain_idx: anta
+    id: 2c4f70c4-36c0-48be-8bef-2b0d3b552f75
   u2:
-    client: 1BD4B2DCE638BD9E
-    comment: User en7ump0q@wire.com with Aqa123456!
+    client: 2a5ec769478cff55
+    comment: User doesnotexist+1_gmxjnrft@wire.com with jvxknqjcjhcoeylsuxch
     domain_idx: col2
-    id: f0e07e83-b573-4689-b366-5efa4a859a72
-  off:
-    client: b51351d821a734a3
-    domain_idx: offline-web
-    id: 8673c02b-651d-4f4a-96d8-4dbd51fa3e1b
+    id: 0446a855-bba4-4cd9-b5dd-540ad3b3f165
