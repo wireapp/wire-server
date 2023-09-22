@@ -127,7 +127,7 @@ class App:
         domain_conv = self.domain(conv['domain_idx'])
         domain_from = self.domain(user_from['domain_idx'])
         url = f'http://localhost:{domain_from["galley_port"]}/v4/conversations/{domain_conv["domain"]}/{conv["id"]}/proteus/messages'
-        client_identities = [{'user': self.user(i)['id'], 'domain': self.domain(i)['domain'], 'client': self.user(i)['client'] } for i in conv['members'] if i != user_from['idx']]
+        client_identities = [{'user': self.user(i)['id'], 'domain': self.domain(self.user(i)['domain_idx'])['domain'], 'client': self.user(i)['client'] } for i in conv['members'] if i != user_from['idx']]
         data = mk_otr(user_from['client'], client_identities, payload)
         response = requests.post(url, headers={'content-type': 'application/x-protobuf', 'z-user': user_from['id'], 'z-connection': 'con'}, data=data)
         if response.status_code != 201:
@@ -255,7 +255,7 @@ def main():
     args = parser.parse_args()
 
     with open(args.config, 'r') as f:
-        cfg = yaml.loads(f.read())
+        cfg = yaml.safe_load(f)
 
     if args.subparser_name == "send":
         main_send(cfg, args.user, args.conv)
