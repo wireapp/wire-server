@@ -22,6 +22,7 @@ import Data.Maybe (fromMaybe)
 import Data.Streaming.Network
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
+import Data.Time.Clock
 import Data.Unique
 import Foreign.Marshal.Alloc (mallocBytes)
 import qualified Network.HTTP2.Client as HTTP2
@@ -30,6 +31,7 @@ import qualified Network.HTTP2.Internal as HTTP2
 import qualified Network.Socket as NS
 import qualified OpenSSL.Session as SSL
 import qualified System.TimeManager
+import Text.Printf
 import Prelude
 
 data HTTP2Conn = HTTP2Conn
@@ -126,20 +128,31 @@ setSSLRemoveTrailingDot b mgr = mgr {sslRemoveTrailingDot = b}
 
 -- | Does not check whether connection is actually running. Users should use
 -- 'withHTTP2Request'. This function is good for testing.
-sendRequestWithConnection :: HTTP2Conn -> HTTP2.Request -> (HTTP2.Response -> IO r) -> IO r
-sendRequestWithConnection conn req k = do
+sendRequestWithConnection :: HTTP2Conn -> HTTP2.Request -> (HTTP2.Response -> IO r) -> Target -> IO r
+sendRequestWithConnection conn req k target = do
   result :: MVar r <- newEmptyMVar
   threadKilled :: MVar SomeException <- newEmptyMVar
-  let HTTP2.Request outObj = req
-  putStrLn $ "----------------> http2Manager: sendRequestWithConnection: putting MVar for request" <> show (HTTP2.outObjHeaders outObj)
+  tBefore <- getCurrentTime
   putMVar (connectionActionMVar conn) (SendRequest (Request req (putMVar result <=< k) threadKilled))
-  putStrLn $ "----------------> http2Manager: sendRequestWithConnection: waiting for result for" <> show (HTTP2.outObjHeaders outObj)
+  tAfter <- getCurrentTime
+
+  let duration :: Double = realToFrac (diffUTCTime tBefore tAfter)
+  let secs :: String = printf "%.3f" duration
+  putStrLn $ "----------------> http2Manager: putting MVar for request took " <> secs <> " secs for target " <> show target
+
+  tBefore2 <- getCurrentTime
   race (takeMVar result) (takeMVar threadKilled) >>= \case
     Left r -> do
-      putStrLn $ "----------------> http2Manager: sendRequestWithConnection: got result for" <> show (HTTP2.outObjHeaders outObj)
+      tAfter2 <- getCurrentTime
+      let duration2 :: Double = realToFrac (diffUTCTime tBefore2 tAfter2)
+      let secs2 :: String = printf "%.3f" duration2
+      putStrLn $ "----------------> http2Manager: sendRequestWithConnection result took " <> secs2 <> " secs for target " <> show target
       pure r
     Right (SomeException e) -> do
-      putStrLn $ "----------------> http2Manager: sendRequestWithConnection: got error for" <> show (HTTP2.outObjHeaders outObj) <> ": " <> displayException e
+      tAfter2 <- getCurrentTime
+      let duration2 :: Double = realToFrac (diffUTCTime tBefore2 tAfter2)
+      let secs2 :: String = printf "%.3f" duration2
+      putStrLn $ "----------------> http2Manager: sendRequestWithConnection: got error took " <> secs2 <> " secs for target " <> show target <> " with exception " <> displayException e
       throw e
 
 -- | Make an HTTP2 request, if it is the first time the 'Http2Manager' sees this
@@ -161,10 +174,13 @@ sendRequestWithConnection conn req k = do
 -- requests.
 withHTTP2Request :: Http2Manager -> Target -> HTTP2.Request -> (HTTP2.Response -> IO a) -> IO a
 withHTTP2Request mgr target req k = do
-  putStrLn $ "----------------> http2Manager: withHTTP2Request: " <> show target
+  tBefore <- getCurrentTime
   conn <- getOrMakeConnection mgr target
-  putStrLn $ "----------------> http2Manager: withHTTP2Request: made/got connection for " <> show target
-  sendRequestWithConnection conn req k
+  tAfter <- getCurrentTime
+  let duration :: Double = realToFrac (diffUTCTime tBefore tAfter)
+  let secs :: String = printf "%.3f" duration
+  putStrLn $ "----------------> http2Manager: withHTTP2Request took " <> secs <> " secs to get connection for target " <> show target
+  sendRequestWithConnection conn req k target
 
 -- | Connects to a server if it is not already connected, useful when making
 -- many concurrent requests. This way the first few requests don't have to fight
@@ -179,7 +195,7 @@ getOrMakeConnection :: Http2Manager -> Target -> IO HTTP2Conn
 getOrMakeConnection mgr@Http2Manager {..} target = do
   mConn <- atomically $ getConnection mgr target
   case mConn of
-    Nothing -> putStrLn $ "----------------> http2Manager: wiil make connection for " <> show target
+    Nothing -> putStrLn $ "----------------> http2Manager: will make connection for " <> show target
     Just _ -> putStrLn $ "----------------> http2Manager: found connection for " <> show target
   maybe connect pure mConn
   where
