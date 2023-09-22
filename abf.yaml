@@ -28,11 +28,11 @@ domains:
     namespace: wire
 users:
   u1:
-    client: 9fac5307195efeb2
-    domain_idx: anta
     id: 2c4f70c4-36c0-48be-8bef-2b0d3b552f75
+    domain_idx: anta
+    client: 9fac5307195efeb2
   u2:
-    client: 2a5ec769478cff55
-    comment: User doesnotexist+1_gmxjnrft@wire.com with jvxknqjcjhcoeylsuxch
-    domain_idx: col2
     id: 0446a855-bba4-4cd9-b5dd-540ad3b3f165
+    client: 2a5ec769478cff55
+    domain_idx: bella
+    comment: User doesnotexist+1_gmxjnrft@wire.com with jvxknqjcjhcoeylsuxch
