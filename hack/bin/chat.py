@@ -13,6 +13,7 @@ import random
 import json
 import datetime
 import yaml
+import itertools
 
 # # Example config
 # ·
@@ -88,6 +89,14 @@ def get_human_time():
     t = datetime.datetime.now()
     return t.strftime('%H:%M:%S')
 
+def client_identities_from_missing(missing):
+    cids = []
+    for domain, users in missing.items():
+        for user_id, client_ids in users.items():
+            for client_id in client_ids:
+                cids.append({'user': user_id, 'domain': domain, 'client': client_id})
+    return cids
+
 class App:
     def __init__(self, cfg):
         self.cfg = cfg
@@ -127,12 +136,29 @@ class App:
         domain_conv = self.domain(conv['domain_idx'])
         domain_from = self.domain(user_from['domain_idx'])
         url = f'http://localhost:{domain_from["galley_port"]}/v4/conversations/{domain_conv["domain"]}/{conv["id"]}/proteus/messages'
-        client_identities = [{'user': self.user(i)['id'], 'domain': self.domain(self.user(i)['domain_idx'])['domain'], 'client': self.user(i)['client'] } for i in conv['members'] if i != user_from['idx']]
+
+        # client_identities = []
+        # data = mk_otr(user_from['client'], client_identities, payload)
+
+        data = mk_otr(user_from['client'], [], payload)
+        response = requests.post(url, headers={'content-type': 'application/x-protobuf', 'z-user': user_from['id'], 'z-connection': 'con'}, data=data)
+        if response.status_code != 412:
+            print('got not 412')
+            print(response.status_code, response.text)
+            print(':(')
+            sys.exit(1)
+        b = response.json()
+
+        client_identities = client_identities_from_missing(b['missing'])
         data = mk_otr(user_from['client'], client_identities, payload)
+
         response = requests.post(url, headers={'content-type': 'application/x-protobuf', 'z-user': user_from['id'], 'z-connection': 'con'}, data=data)
         if response.status_code != 201:
+            print('got not 201')
             print(response.status_code, response.text)
+            print(':(')
             sys.exit(1)
+
         else:
             print(f'{user_from_idx} sent: {msg}')
 
@@ -198,24 +224,33 @@ def mk_user_id(uuid_string):
     uuid_bytes = uuid_to_bytes(uuid_string)
     return otr.UserId(uuid=uuid_bytes)
 
-def mk_user_entry(domain, user, client):
+def mk_user_entry(user, clients):
     user_id = mk_user_id(user)
-    clients = [mk_client_entry(client)]
-    user_entry = otr.UserEntry(user=user_id, clients = clients )
-    return otr.QualifiedUserEntry(domain=domain, entries=[user_entry])
+    clients = [mk_client_entry(c) for c in clients]
+    return otr.UserEntry(user=user_id, clients = clients )
+
+def mk_qualified_user_entry(domain, users):
+    entries = [mk_user_entry(u, users[u]) for u in users]
+    return otr.QualifiedUserEntry(domain=domain, entries=entries)
 
 def mk_otr(sender_client_id_hex, client_identities, payload=b'foobar'):
     sender = mk_client_id(sender_client_id_hex)
 
-    recipients = []
-    for cid in client_identities:
-        recipient = mk_user_entry(**cid)
-        recipients.append(recipient)
+# mk_qualified_user_entry
 
-    # report_all = otr.ClientMismatchStrategy.ReportAll()
-    ignore_all = otr.ClientMismatchStrategy.IgnoreAll()
-    # m = otr.QualifiedNewOtrMessage(sender=sender, recipients=recipients, blob=payload, report_all=report_all)
-    m = otr.QualifiedNewOtrMessage(sender=sender, recipients=recipients, blob=payload, ignore_all=ignore_all)
+    gdomain = lambda c: c['domain']
+    guser = lambda c: c['user']
+    recipients = []
+    for domain, users_flat in itertools.groupby(sorted(client_identities, key=gdomain), key=gdomain):
+        users = {}
+        for user_id, clients_flat in itertools.groupby(sorted(users_flat, key=guser), key=guser):
+            users[user_id] = [c['client'] for c in clients_flat]
+        recipients.append(mk_qualified_user_entry(domain, users))
+
+    report_all = otr.ClientMismatchStrategy.ReportAll()
+    # ignore_all = otr.ClientMismatchStrategy.IgnoreAll()
+    m = otr.QualifiedNewOtrMessage(sender=sender, recipients=recipients, blob=payload, report_all=report_all)
+    # m = otr.QualifiedNewOtrMessage(sender=sender, recipients=recipients, blob=payload, ignore_all=ignore_all)
     return m.SerializeToString()
 
 def main_port_forward(cfg, domain):
