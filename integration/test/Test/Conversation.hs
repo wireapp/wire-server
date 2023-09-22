@@ -25,13 +25,18 @@ import API.BrigInternal
 import API.Galley
 import API.GalleyInternal
 import Control.Applicative
-import Control.Concurrent (threadDelay)
+import Control.Concurrent
+import Control.Lens hiding ((.=))
 import Control.Monad.Codensity
 import Control.Monad.Reader
 import Data.Aeson qualified as Aeson
+import Data.ProtoLens qualified as Proto
 import Data.Text qualified as T
+import Data.Time
 import GHC.Stack
 import Notifications
+import Numeric.Lens
+import Proto.Otr as Proto
 import SetupHelpers hiding (deleteUser)
 import Testlib.One2One (generateRemoteAndConvIdWithDomain)
 import Testlib.Prelude
@@ -746,3 +751,62 @@ testUpdateConversationByRemoteAdmin = do
   void $ withWebSockets [alice, bob, charlie] $ \wss -> do
     void $ updateReceiptMode bob conv (41 :: Int) >>= getBody 200
     for_ wss $ \ws -> awaitMatch 10 isReceiptModeUpdateNotif ws
+
+testSendMessageWhileThirdBackendUnreachable :: HasCallStack => App ()
+testSendMessageWhileThirdBackendUnreachable = do
+  let overrides = def {brigCfg = setField "optSettings.setFederationStrategy" "allowAll"}
+  startDynamicBackends [overrides, overrides, overrides] $ \dynDomains -> do
+    [a, b, c] <- pure dynDomains
+
+    -- set up users and clients
+    [alice, bob, charlie] <- createAndConnectUsers [a, b, c]
+    [aClient, bClient, cClient] <- forM [alice, bob, charlie] $ \user ->
+      objId $ bindResponse (addClient user def) $ getJSON 201
+
+    -- set up conversations between A+B
+    convAB <- postConversation alice defProteus >>= getJSON 201
+    void $ addMembers alice convAB (def {users = [bob]}) >>= getBody 200
+    -- set up conversation between A+B+C where C is a black hole
+    convBlackHole <- postConversation alice defProteus >>= getJSON 201
+    void $ addMembers alice convBlackHole (def {users = [bob, charlie]}) >>= getBody 200
+
+    -- send msg in AB should work
+    do
+      msg <- mkProteusRecipient bob bClient "a message for Bob"
+      t <- time $ bindResponse (postProteusMessage alice convAB (successfulMsg aClient [msg])) assertSuccess
+      putStrLn $ "send msg to AB fist time took: " <> show t
+
+    -- send msg in black hole async
+    do
+      msgBob <- mkProteusRecipient bob bClient "a message for Bob"
+      msgCharlie <- mkProteusRecipient charlie cClient "a message for Charlie"
+      sendMsgAction <- appToIO $ bindResponse (postProteusMessage alice convBlackHole (successfulMsg aClient [msgBob, msgCharlie])) assertSuccess
+      let sendMsgAsyncWithTimer :: App () = void $ liftIO $ forkIO $ do
+            t <- time sendMsgAction
+            putStrLn $ "Black hole request took: " <> show t
+      -- send to black hole 5 x
+      replicateM_ 5 sendMsgAsyncWithTimer
+
+    -- send a msg in AB again but wait a little bit (20s)
+    liftIO $ threadDelay $ 20 * 1000 * 1000
+    do
+      msg <- mkProteusRecipient bob bClient "a message for Bob"
+      t <- time $ bindResponse (postProteusMessage alice convAB (successfulMsg aClient [msg])) assertSuccess
+      putStrLn $ "send msg to AB second time took: " <> show t
+
+    -- wait for 2 minutes
+    liftIO $ threadDelay $ 2 * 60 * 1000 * 1000
+  where
+    successfulMsg :: String -> [Proto.QualifiedUserEntry] -> Proto.QualifiedNewOtrMessage
+    successfulMsg sender msgs =
+      Proto.defMessage @Proto.QualifiedNewOtrMessage
+        & #sender . #client .~ (sender ^?! hex)
+        & #recipients .~ msgs
+        & #reportAll .~ Proto.defMessage
+
+    time :: (Monad m, MonadIO m) => m () -> m NominalDiffTime
+    time action = do
+      start <- liftIO getCurrentTime
+      void action
+      end <- liftIO getCurrentTime
+      pure $ diffUTCTime end start

@@ -38,7 +38,7 @@ import Brig.Types.User.Event
 import Brig.User.API.Handle
 import Brig.User.Search.SearchIndex qualified as Q
 import Control.Error.Util
-import Control.Lens ((^.))
+import Control.Lens (view, (^.))
 import Control.Monad.Trans.Except
 import Data.Domain
 import Data.Handle (Handle (..), parseHandle)
@@ -48,6 +48,7 @@ import Data.List1
 import Data.Qualified
 import Data.Range
 import Data.Set (fromList, (\\))
+import Debug.Trace
 import Gundeck.Types.Push qualified as Push
 import Imports hiding ((\\))
 import Network.Wai.Utilities.Error ((!>>))
@@ -216,7 +217,15 @@ searchUsers domain (SearchRequest searchTerm) = do
       | otherwise = pure []
 
 getUserClients :: Domain -> GetUserClients -> (Handler r) (UserMap (Set PubClient))
-getUserClients _ (GetUserClients uids) = API.lookupLocalPubClientsBulk uids !>> clientError
+getUserClients _ (GetUserClients uids) = do
+  -- create a black hole for d3.example.com
+  domain <- asks (setFederationDomain . view settings)
+  traceM $ "getting user clients for domain: " <> cs (domainText domain)
+  when (domainText domain == "d3.example.com") $ do
+    traceM $ "we are in a BLACK HOLE!!! 😱"
+    liftIO $ threadDelay $ 30 * 1000 * 1000
+    traceM $ "we are out of the BLACK HOLE!!! 😅"
+  API.lookupLocalPubClientsBulk uids !>> clientError
 
 getMLSClients :: Domain -> MLSClientsRequest -> Handler r (Set ClientInfo)
 getMLSClients _domain mcr = do
