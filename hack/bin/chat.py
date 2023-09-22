@@ -295,7 +295,6 @@ def main():
         prog=sys.argv[0], description="Send and receive proteus messages across backends"
     )
 
-
     subparsers = parser.add_subparsers(
         title="subcommand", description="valid subcommands", dest="subparser_name"
     )
