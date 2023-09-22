@@ -136,7 +136,7 @@ sendRequestWithConnection conn req k target = do
   putMVar (connectionActionMVar conn) (SendRequest (Request req (putMVar result <=< k) threadKilled))
   tAfter <- getCurrentTime
 
-  let duration :: Double = realToFrac (diffUTCTime tBefore tAfter)
+  let duration :: Double = realToFrac (diffUTCTime tAfter tBefore)
   let secs :: String = printf "%.3f" duration
   putStrLn $ "----------------> http2Manager: putting MVar for request took " <> secs <> " secs for target " <> show target
 
@@ -144,13 +144,13 @@ sendRequestWithConnection conn req k target = do
   race (takeMVar result) (takeMVar threadKilled) >>= \case
     Left r -> do
       tAfter2 <- getCurrentTime
-      let duration2 :: Double = realToFrac (diffUTCTime tBefore2 tAfter2)
+      let duration2 :: Double = realToFrac (diffUTCTime tAfter2 tBefore2)
       let secs2 :: String = printf "%.3f" duration2
       putStrLn $ "----------------> http2Manager: sendRequestWithConnection result took " <> secs2 <> " secs for target " <> show target
       pure r
     Right (SomeException e) -> do
       tAfter2 <- getCurrentTime
-      let duration2 :: Double = realToFrac (diffUTCTime tBefore2 tAfter2)
+      let duration2 :: Double = realToFrac (diffUTCTime tAfter2 tBefore2)
       let secs2 :: String = printf "%.3f" duration2
       putStrLn $ "----------------> http2Manager: sendRequestWithConnection: got error took " <> secs2 <> " secs for target " <> show target <> " with exception " <> displayException e
       throw e
@@ -177,7 +177,7 @@ withHTTP2Request mgr target req k = do
   tBefore <- getCurrentTime
   conn <- getOrMakeConnection mgr target
   tAfter <- getCurrentTime
-  let duration :: Double = realToFrac (diffUTCTime tBefore tAfter)
+  let duration :: Double = realToFrac (diffUTCTime tAfter tBefore)
   let secs :: String = printf "%.3f" duration
   putStrLn $ "----------------> http2Manager: withHTTP2Request took " <> secs <> " secs to get connection for target " <> show target
   sendRequestWithConnection conn req k target
