@@ -14,6 +14,7 @@ import json
 import datetime
 import yaml
 import itertools
+import tempfile
 
 # # Example config
 # ·
@@ -198,7 +199,9 @@ class App:
         galley_port = d['galley_port']
         cannon_port = d['cannon_port']
         s = f"bash -c '{port_forward_script}' \\\n  \"\" \"{domain}\" \"{namespace}\" \"{galley_port}\"  \"{cannon_port}\""
-        print(s)
+        with tempfile.NamedTemporaryFile(prefix=f'{domain}-port-forward', suffix='.sh', delete=False, mode='w') as f:
+            print(f'Wrote port-forward script to {f.name}')
+            f.write(s)
 
 async def main_test_websocket():
     await open_websocket(3)
