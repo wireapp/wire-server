@@ -14,26 +14,45 @@ import json
 import datetime
 import yaml
 
-example_cfg = {
-    'users': {
-        "col1" : {'domain_idx': "col1", 'id': '13cfb002-6f07-434a-90fa-1422e8141a30', 'client': '139da7a7e0034030' },
-        "col2" : {'domain_idx': "col2", 'id': 'f0e07e83-b573-4689-b366-5efa4a859a72', 'client': '1BD4B2DCE638BD9E',
-                'comment': 'User en7ump0q@wire.com with Aqa123456!'},
-        "off" : {'domain_idx': "offline-web", 'id': '8673c02b-651d-4f4a-96d8-4dbd51fa3e1b', 'client': 'b51351d821a734a3' },
-    },
-    'domains': {
-       "col1": {'domain': 'bund-next-column-1.wire.link', 'galley_port': 6085, 'cannon_port': 6086, 'namespace': 'wire'},
-       "col2": {'domain': 'bund-next-column-2.wire.link', 'galley_port': 7085, 'cannon_port': 7086, 'namespace': 'wire'},
-       "off": {'domain': 'bund-next-column-offline-web.wire.link', 'galley_port': 11085, 'cannon_port': 11086, 'namespace': 'column-offline-web'}
-    },
-    'convs': {
-        '1+2': {
-          'id': 'eabb40cc-bf99-5a50-bd56-60c120830235',
-          'members': ["col1", "col2"],
-          'domain_idx': "col2"
-        }
-    }
-}
+# # Example config
+# ·
+# convs:
+#   1+2:
+#     domain_idx: col2
+#     id: eabb40cc-bf99-5a50-bd56-60c120830235
+#     members:
+#     - u1
+#     - u2
+# domains:
+#   col1:
+#     cannon_port: 6086
+#     domain: bund-next-column-1.wire.link
+#     galley_port: 6085
+#     namespace: wire
+#   col2:
+#     cannon_port: 7086
+#     domain: bund-next-column-2.wire.link
+#     galley_port: 7085
+#     namespace: wire
+#   offline-web:
+#     cannon_port: 11086
+#     domain: bund-next-column-offline-web.wire.link
+#     galley_port: 11085
+#     namespace: column-offline-web
+# users:
+#   u1:
+#     client: 139da7a7e0034030
+#     domain_idx: col1
+#     id: 13cfb002-6f07-434a-90fa-1422e8141a30
+#   u2:
+#     client: 1BD4B2DCE638BD9E
+#     comment: User en7ump0q@wire.com with Aqa123456!
+#     domain_idx: col2
+#     id: f0e07e83-b573-4689-b366-5efa4a859a72
+#   off:
+#     client: b51351d821a734a3
+#     domain_idx: offline-web
+#     id: 8673c02b-651d-4f4a-96d8-4dbd51fa3e1b
 
 port_forward_script = '''
 set -eo pipefail;
