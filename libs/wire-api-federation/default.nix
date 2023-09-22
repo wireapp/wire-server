@@ -6,6 +6,7 @@
 , aeson
 , aeson-pretty
 , amqp
+, async
 , base
 , bytestring
 , bytestring-conversion
@@ -51,6 +52,7 @@ mkDerivation {
   libraryHaskellDepends = [
     aeson
     amqp
+    async
     base
     bytestring
     bytestring-conversion

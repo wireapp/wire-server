@@ -15,6 +15,10 @@ module HTTP2.Client.Manager
     ConnectionAlreadyClosed (..),
     disconnectTarget,
     disconnectTargetWithTimeout,
+    startPersistentHTTP2Connection,
+    sendRequestWithConnection,
+    HTTP2Conn (..),
+    ConnectionAction (..),
   )
 where
 
