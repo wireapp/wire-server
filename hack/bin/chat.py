@@ -12,13 +12,11 @@ import subprocess
 import random
 import json
 import datetime
+import yaml
 
 example_cfg = {
     'users': {
         "col1" : {'domain_idx': "col1", 'id': '13cfb002-6f07-434a-90fa-1422e8141a30', 'client': '139da7a7e0034030' },
-
-        # "col2" : {'domain_idx': "col2", 'id': 'f0e07e83-b573-4689-b366-5efa4a859a72', 'client': '6D1CB8D43AFC3EBB',
-        #         'comment': 'User en7ump0q@wire.com with Aqa123456!'},
         "col2" : {'domain_idx': "col2", 'id': 'f0e07e83-b573-4689-b366-5efa4a859a72', 'client': '1BD4B2DCE638BD9E',
                 'comment': 'User en7ump0q@wire.com with Aqa123456!'},
         "off" : {'domain_idx': "offline-web", 'id': '8673c02b-651d-4f4a-96d8-4dbd51fa3e1b', 'client': 'b51351d821a734a3' },
@@ -218,9 +216,12 @@ def main():
         prog=sys.argv[0], description="Send and receive proteus messages across backends"
     )
 
+
     subparsers = parser.add_subparsers(
         title="subcommand", description="valid subcommands", dest="subparser_name"
     )
+
+    parser.add_argument("--config", type=str, required=True)
 
     sp = subparsers.add_parser("send")
     sp.add_argument("--user", type=str, required=True)
@@ -234,7 +235,8 @@ def main():
 
     args = parser.parse_args()
 
-    cfg = example_cfg
+    with open(args.config, 'r') as f:
+        cfg = yaml.loads(f.read())
 
     if args.subparser_name == "send":
         main_send(cfg, args.user, args.conv)
