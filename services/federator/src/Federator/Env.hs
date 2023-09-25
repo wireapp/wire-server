@@ -62,6 +62,8 @@ onNewSSLContext :: Env -> SSLContext -> IO ()
 onNewSSLContext env ctx =
   atomicModifyIORef' (_http2Manager env) $ \mgr -> (setSSLContext ctx mgr, ())
 
-mkHttp2Manager :: SSLContext -> IO Http2Manager
-mkHttp2Manager sslContext =
-  setSSLRemoveTrailingDot True <$> http2ManagerWithSSLCtx sslContext
+mkHttp2Manager :: Int -> SSLContext -> IO Http2Manager
+mkHttp2Manager tcpConnectionTimeout sslContext =
+  setTCPConnectionTimeout tcpConnectionTimeout
+    . setSSLRemoveTrailingDot True
+    <$> http2ManagerWithSSLCtx sslContext
