@@ -9,17 +9,13 @@ import API.Gundeck
 import Control.Lens hiding ((.=))
 import Control.Monad.Codensity
 import Control.Monad.Reader
-import Data.Aeson
-import Data.Aeson.Key qualified as Key
-import Data.Aeson.KeyMap qualified as KeyMap
+import Data.Aeson hiding ((.=))
 import Data.ProtoLens.Labels ()
-import Data.String.Conversions
 import Data.Time.Clock.POSIX
 import Data.Time.Clock.System
 import Data.Time.Format
-import Data.Vector qualified as Vector
 import SetupHelpers
-import Testlib.Prelude hiding ((.=))
+import Testlib.Prelude
 import Testlib.ResourcePool
 
 testClientLastActive :: HasCallStack => App ()
@@ -57,32 +53,13 @@ testListClientsIfBackendIsOffline = do
   ownUser1Id <- objId ownUser1
   ownUser2Id <- objId ownUser2
 
-  let c1 =
-        Object
-          ( KeyMap.fromList
-              [ ( Key.fromText $ cs ownUser1Id,
-                  Array $ Vector.fromList [Object (KeyMap.fromList [(Key.fromText (cs "id"), String (cs ownClient1))])]
-                )
-              ]
-          )
-  let c2 =
-        Object
-          ( KeyMap.fromList
-              [ ( Key.fromText $ cs ownUser2Id,
-                  Array $ Vector.fromList [Object (KeyMap.fromList [(Key.fromText (cs "id"), String (cs ownClient2))])]
-                )
-              ]
-          )
   let expectedResponse =
-        Object
-          ( KeyMap.fromList
-              [ (Key.fromText $ cs ownDomain, c1),
-                (Key.fromText $ cs otherDomain, c2)
-              ]
-          )
+        object
+          [ ownDomain .= object [ownUser1Id .= [object ["id" .= ownClient1]]],
+            otherDomain .= object [ownUser2Id .= [object ["id" .= ownClient2]]]
+          ]
 
-  let qualifiedUsers = [ownUser1, ownUser2]
-  bindResponse (listUsersClients ownUser1 qualifiedUsers) $ \resp -> do
+  bindResponse (listUsersClients ownUser1 [ownUser1, ownUser2]) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "qualified_user_map" `shouldMatch` expectedResponse
 
@@ -98,12 +75,10 @@ testListClientsIfBackendIsOffline = do
           ]
 
       downUser <- randomUser downBackend.berDomain def
-      _downClient <- objId $ bindResponse (API.addClient downUser def) $ getJSON 201
       connectUsers ownUser1 downUser
       connectUsers ownUser2 downUser
-
       pure (downUser)
-    let qualifiedUsersIncludingDownUser = [ownUser1, ownUser2, downUser]
-    bindResponse (listUsersClients ownUser1 qualifiedUsersIncludingDownUser) $ \resp -> do
+
+    bindResponse (listUsersClients ownUser1 [ownUser1, ownUser2, downUser]) $ \resp -> do
       resp.status `shouldMatchInt` 200
       resp.json %. "qualified_user_map" `shouldMatch` expectedResponse
