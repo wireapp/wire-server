@@ -32,14 +32,7 @@ main = do
 
   _ <- consumeMsgs chan opts.queue Ack myCallback
 
-  mMsg <- getMsg chan Ack opts.queue
-  case mMsg of
-    Nothing -> putStrLn "no message"
-    Just (msg, env) -> do
-      putStrLn $ "received message:"
-      putStrLn $ BL.unpack (msgBody msg)
-      let requeue = True
-      rejectEnv env requeue
+  threadDelay $ 10 * 1000 * 1000 -- 10 seconds
   closeConnection conn
   putStrLn "connection closed"
   where
