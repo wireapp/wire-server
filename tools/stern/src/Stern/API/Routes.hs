@@ -233,7 +233,7 @@ type SternAPI =
                :> "blacklist"
                :> QueryParam' [Optional, Strict, Description "A verified email address"] "email" Email
                :> QueryParam' [Optional, Strict, Description "A verified phone number (E.164 format)."] "phone" Phone
-               :> Verb 'HEAD 200 '[JSON] NoContent
+               :> Verb 'GET 200 '[JSON] NoContent
            )
     :<|> Named
            "post-user-blacklist"
