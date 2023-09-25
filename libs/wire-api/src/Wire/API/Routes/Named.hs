@@ -22,14 +22,15 @@ module Wire.API.Routes.Named where
 import Control.Lens ((%~))
 import Data.Kind
 import Data.Metrics.Servant
+import Data.OpenApi.Lens hiding (HasServer)
+import Data.OpenApi.Operation
 import Data.Proxy
-import Data.Swagger
 import GHC.TypeLits
 import Imports
 import Servant
 import Servant.Client
 import Servant.Client.Core (clientIn)
-import Servant.Swagger
+import Servant.OpenApi
 
 -- | See http://docs.wire.com/developer/developer/servant.html#named-and-internal-route-ids-in-swagger
 newtype Named name x = Named {unnamed :: x}
@@ -46,9 +47,9 @@ instance {-# OVERLAPPABLE #-} KnownSymbol a => RenderableSymbol a where
 instance {-# OVERLAPPING #-} (RenderableSymbol a, RenderableSymbol b) => RenderableSymbol '(a, b) where
   renderSymbol = "(" <> (renderSymbol @a) <> ", " <> (renderSymbol @b) <> ")"
 
-instance (HasSwagger api, RenderableSymbol name) => HasSwagger (Named name api) where
-  toSwagger _ =
-    toSwagger (Proxy @api)
+instance (HasOpenApi api, RenderableSymbol name) => HasOpenApi (Named name api) where
+  toOpenApi _ =
+    toOpenApi (Proxy @api)
       & allOperations . description %~ (Just (dscr <> "\n\n") <>)
     where
       dscr :: Text
@@ -134,3 +135,12 @@ namedClient ::
   (HasEndpoint api endpoint name, HasClient m endpoint) =>
   Client m endpoint
 namedClient = clientIn (Proxy @endpoint) (Proxy @m)
+
+---------------------------------------------
+-- Utility to add a combinator to a Named API
+
+type family x ::> api
+
+type instance
+  x ::> (Named name api) =
+    Named name (x :> api)

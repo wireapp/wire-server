@@ -4,7 +4,6 @@
 
 module Test.Wire.BackendNotificationPusherSpec where
 
-import Control.Concurrent.Chan
 import Control.Exception
 import Control.Monad.Trans.Except
 import Data.Aeson qualified as Aeson
@@ -42,7 +41,6 @@ import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.BackendNotifications
 import Wire.API.RawJson
-import Wire.API.Routes.FederationDomainConfig
 import Wire.BackendNotificationPusher
 import Wire.BackgroundWorker.Env
 import Wire.BackgroundWorker.Options
@@ -87,44 +85,6 @@ spec = do
                          frComponent = Brig,
                          frRPC = "on-user-deleted-connections",
                          frBody = Aeson.encode notifContent
-                       }
-                   ]
-      getVectorWith env.backendNotificationMetrics.pushedCounter getCounter
-        `shouldReturn` [(domainText targetDomain, 1)]
-
-    it "should push on-connection-removed notifications" $ do
-      let returnSuccess _ = pure ("application/json", Aeson.encode EmptyResponse)
-      let origDomain = Domain "origin.example.com"
-          targetDomain = Domain "target.example.com"
-          defederatedDomain = Domain "defederated.example.com"
-      let notif =
-            BackendNotification
-              { targetComponent = Galley,
-                ownDomain = origDomain,
-                path = "/on-connection-removed",
-                body = RawJson $ Aeson.encode defederatedDomain
-              }
-      envelope <- newMockEnvelope
-      let msg =
-            Q.newMsg
-              { Q.msgBody = Aeson.encode notif,
-                Q.msgContentType = Just "application/json"
-              }
-      runningFlag <- newMVar ()
-      (env, fedReqs) <-
-        withTempMockFederator [] returnSuccess . runTestAppT $ do
-          wait =<< pushNotification runningFlag targetDomain (msg, envelope)
-          ask
-
-      readIORef envelope.acks `shouldReturn` 1
-      readIORef envelope.rejections `shouldReturn` []
-      fedReqs
-        `shouldBe` [ FederatedRequest
-                       { frTargetDomain = targetDomain,
-                         frOriginDomain = origDomain,
-                         frComponent = Galley,
-                         frRPC = "on-connection-removed",
-                         frBody = Aeson.encode defederatedDomain
                        }
                    ]
       getVectorWith env.backendNotificationMetrics.pushedCounter getCounter
@@ -220,9 +180,6 @@ spec = do
           ]
       logger <- Logger.new Logger.defSettings
       httpManager <- newManager defaultManagerSettings
-      remoteDomains <- newIORef defFederationDomainConfigs
-      remoteDomainsChan <- newChan
-      notificationChannel <- newEmptyMVar
       let federatorInternal = Endpoint "localhost" 8097
           http2Manager = undefined
           statuses = undefined
@@ -243,9 +200,6 @@ spec = do
       mockAdmin <- newMockRabbitMqAdmin True ["backend-notifications.foo.example"]
       logger <- Logger.new Logger.defSettings
       httpManager <- newManager defaultManagerSettings
-      remoteDomains <- newIORef defFederationDomainConfigs
-      remoteDomainsChan <- newChan
-      notificationChannel <- newEmptyMVar
       let federatorInternal = Endpoint "localhost" 8097
           http2Manager = undefined
           statuses = undefined
@@ -310,7 +264,8 @@ newMockRabbitMqAdmin isBroken queues = do
 mockApi :: MockRabbitMqAdmin -> AdminAPI (AsServerT Servant.Handler)
 mockApi mockAdmin =
   AdminAPI
-    { listQueuesByVHost = mockListQueuesByVHost mockAdmin
+    { listQueuesByVHost = mockListQueuesByVHost mockAdmin,
+      deleteQueue = mockListDeleteQueue mockAdmin
     }
 
 mockListQueuesByVHost :: MockRabbitMqAdmin -> Text -> Servant.Handler [Queue]
@@ -319,6 +274,10 @@ mockListQueuesByVHost MockRabbitMqAdmin {..} vhost = do
   readTVarIO broken >>= \case
     True -> throwError $ Servant.err500
     False -> pure $ map (\n -> Queue n vhost) queues
+
+mockListDeleteQueue :: MockRabbitMqAdmin -> Text -> Text -> Servant.Handler NoContent
+mockListDeleteQueue _ _ _ = do
+  pure NoContent
 
 mockRabbitMqAdminApp :: MockRabbitMqAdmin -> Application
 mockRabbitMqAdminApp mockAdmin = genericServe (mockApi mockAdmin)

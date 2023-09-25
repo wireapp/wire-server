@@ -5,12 +5,11 @@ import API.Brig qualified as Public
 import API.BrigInternal qualified as Internal
 import API.GalleyInternal qualified as Internal
 import API.Nginz qualified as Nginz
-import Control.Monad.Codensity
 import Control.Monad.Cont
-import Data.Map qualified as Map
 import GHC.Stack
 import SetupHelpers
 import Testlib.Prelude
+import UnliftIO.Concurrent (threadDelay)
 
 -- | Legalhold clients cannot be deleted.
 testCantDeleteLHClient :: HasCallStack => App ()
@@ -34,67 +33,68 @@ testDeleteUnknownClient = do
 
 testModifiedBrig :: HasCallStack => App ()
 testModifiedBrig = do
-  withModifiedService
-    Brig
-    (setField "optSettings.setFederationDomain" "overridden.example.com")
-    $ \_domain -> do
-      bindResponse (Public.getAPIVersion OwnDomain)
+  withModifiedBackend
+    (def {brigCfg = setField "optSettings.setFederationDomain" "overridden.example.com"})
+    $ \domain -> do
+      bindResponse (Public.getAPIVersion domain)
       $ \resp -> do
         resp.status `shouldMatchInt` 200
         (resp.json %. "domain") `shouldMatch` "overridden.example.com"
 
 testModifiedGalley :: HasCallStack => App ()
 testModifiedGalley = do
-  (_user, tid) <- createTeam OwnDomain
+  (_user, tid, _) <- createTeam OwnDomain 1
 
-  let getFeatureStatus = do
-        bindResponse (Internal.getTeamFeature "searchVisibility" tid) $ \res -> do
+  let getFeatureStatus :: (MakesValue domain) => domain -> String -> App Value
+      getFeatureStatus domain team = do
+        bindResponse (Internal.getTeamFeature domain "searchVisibility" team) $ \res -> do
           res.status `shouldMatchInt` 200
           res.json %. "status"
 
-  do
-    getFeatureStatus `shouldMatch` "disabled"
+  getFeatureStatus OwnDomain tid `shouldMatch` "disabled"
 
-  withModifiedService
-    Galley
-    (setField "settings.featureFlags.teamSearchVisibility" "enabled-by-default")
-    $ \_ -> getFeatureStatus `shouldMatch` "enabled"
+  withModifiedBackend
+    def {galleyCfg = setField "settings.featureFlags.teamSearchVisibility" "enabled-by-default"}
+    $ \domain -> do
+      (_user, tid', _) <- createTeam domain 1
+      getFeatureStatus domain tid' `shouldMatch` "enabled"
 
 testModifiedCannon :: HasCallStack => App ()
 testModifiedCannon = do
-  withModifiedService Cannon pure $ \_ -> pure ()
+  withModifiedBackend def $ \_ -> pure ()
 
 testModifiedGundeck :: HasCallStack => App ()
 testModifiedGundeck = do
-  withModifiedService Gundeck pure $ \_ -> pure ()
+  withModifiedBackend def $ \_ -> pure ()
 
 testModifiedCargohold :: HasCallStack => App ()
 testModifiedCargohold = do
-  withModifiedService Cargohold pure $ \_ -> pure ()
+  withModifiedBackend def $ \_ -> pure ()
 
 testModifiedSpar :: HasCallStack => App ()
 testModifiedSpar = do
-  withModifiedService Spar pure $ \_ -> pure ()
+  withModifiedBackend def $ \_ -> pure ()
 
 testModifiedServices :: HasCallStack => App ()
 testModifiedServices = do
   let serviceMap =
-        Map.fromList
-          [ (Brig, setField "optSettings.setFederationDomain" "overridden.example.com"),
-            (Galley, setField "settings.featureFlags.teamSearchVisibility" "enabled-by-default")
-          ]
-  runCodensity (withModifiedServices serviceMap) $ \_domain -> do
-    (_user, tid) <- createTeam OwnDomain
-    bindResponse (Internal.getTeamFeature "searchVisibility" tid) $ \res -> do
+        def
+          { brigCfg = setField "optSettings.setFederationDomain" "overridden.example.com",
+            galleyCfg = setField "settings.featureFlags.teamSearchVisibility" "enabled-by-default"
+          }
+
+  withModifiedBackend serviceMap $ \domain -> do
+    (_user, tid, _) <- createTeam domain 1
+    bindResponse (Internal.getTeamFeature domain "searchVisibility" tid) $ \res -> do
       res.status `shouldMatchInt` 200
       res.json %. "status" `shouldMatch` "enabled"
 
-    bindResponse (Public.getAPIVersion OwnDomain) $
+    bindResponse (Public.getAPIVersion domain) $
       \resp -> do
         resp.status `shouldMatchInt` 200
         (resp.json %. "domain") `shouldMatch` "overridden.example.com"
 
-    bindResponse (Nginz.getSystemSettingsUnAuthorized OwnDomain) $
+    bindResponse (Nginz.getSystemSettingsUnAuthorized domain) $
       \resp -> do
         resp.status `shouldMatchInt` 200
         resp.json %. "setRestrictUserCreation" `shouldMatch` False
@@ -174,12 +174,16 @@ testIndependentESIndices = do
 
 testDynamicBackendsFederation :: HasCallStack => App ()
 testDynamicBackendsFederation = do
-  startDynamicBackends [def <> fullSearchWithAll, def <> fullSearchWithAll] $ \dynDomains -> do
+  startDynamicBackends [def, def] $ \dynDomains -> do
     [aDynDomain, anotherDynDomain] <- pure dynDomains
+    _ <- Internal.createFedConn anotherDynDomain (Internal.FedConn aDynDomain "full_search")
+    threadDelay 2_000_000
+
     u1 <- randomUser aDynDomain def
     u2 <- randomUser anotherDynDomain def
     uid2 <- objId u2
     Internal.refreshIndex anotherDynDomain
+
     bindResponse (Public.searchContacts u1 (u2 %. "name") anotherDynDomain) $ \resp -> do
       resp.status `shouldMatchInt` 200
       docs <- resp.json %. "documents" >>= asList

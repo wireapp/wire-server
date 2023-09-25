@@ -34,6 +34,7 @@ import Federator.Discovery
 import Federator.Env
 import Federator.Error
 import Federator.Error.ServerError
+import Federator.Metrics (Metrics, interpretMetrics)
 import Federator.Options
 import Federator.Remote
 import Federator.Service
@@ -141,7 +142,8 @@ serveServant middleware server env port =
       genericServe server
 
 type AllEffects =
-  '[ Remote,
+  '[ Metrics,
+     Remote,
      DiscoverFederator,
      DNSLookup, -- needed by DiscoverFederator
      ServiceStreaming,
@@ -179,6 +181,7 @@ runFederator env =
     . runDNSLookupWithResolver (view dnsResolver env)
     . runFederatorDiscovery
     . interpretRemote
+    . interpretMetrics
 
 getFederationDomainConfigs :: Env -> IO FedUp.FederationDomainConfigs
 getFederationDomainConfigs env = do

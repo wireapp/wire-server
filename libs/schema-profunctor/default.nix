@@ -14,8 +14,8 @@
 , insert-ordered-containers
 , lens
 , lib
+, openapi3
 , profunctors
-, swagger2
 , tasty
 , tasty-hunit
 , text
@@ -34,8 +34,8 @@ mkDerivation {
     containers
     imports
     lens
+    openapi3
     profunctors
-    swagger2
     text
     transformers
     vector
@@ -47,7 +47,7 @@ mkDerivation {
     imports
     insert-ordered-containers
     lens
-    swagger2
+    openapi3
     tasty
     tasty-hunit
     text

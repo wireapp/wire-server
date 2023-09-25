@@ -21,7 +21,6 @@ import System.Logger.Class qualified as Log
 import UnliftIO
 import Wire.API.Federation.BackendNotifications
 import Wire.API.Federation.Client
-import Wire.API.Routes.FederationDomainConfig
 import Wire.BackgroundWorker.Env
 import Wire.BackgroundWorker.Options
 import Wire.BackgroundWorker.Util
@@ -114,7 +113,6 @@ startPusher consumersRef chan = do
   -- delivered in order.
   markAsWorking BackendNotificationPusher
   lift $ Q.qos chan 0 1 False
-  env <- ask
   -- Make sure threads aren't dangling if/when this async thread is killed
   let cleanup :: (Exception e, MonadThrow m, MonadIO m) => e -> m ()
       cleanup e = do
@@ -136,21 +134,22 @@ startPusher consumersRef chan = do
       -- The Chan that we will be waiting on isn't initialised with a
       -- value until the domain update loop runs the callback for the
       -- first time.
-      initRemotes <- liftIO $ readIORef env.remoteDomains
+      remotes <- getRemoteDomains
       -- Get an initial set of consumers for the domains pulled from the IORef
       -- so that we aren't just sitting around not doing anything for a bit at
       -- the start.
-      ensureConsumers consumersRef chan $ domain <$> initRemotes.remotes
+      ensureConsumers consumersRef chan remotes
       -- Wait for updates to the domains, this is where the bulk of the action
       -- is going to take place
       forever $ do
+        liftIO $ threadDelay $ 60 * 1000 * 1000 -- TODO!
         -- Wait for a new set of domains. This is a blocking action
         -- so we will only move past here when we get a new set of domains.
         -- It is a bit nicer than having another timeout value, as Brig is
         -- already providing one in the domain update message.
-        chanRemotes <- liftIO $ readChan env.remoteDomainsChan
+        newRemotes <- getRemoteDomains
         -- Make new consumers for the new domains, clean up old ones from the consumer map.
-        ensureConsumers consumersRef chan $ domain <$> chanRemotes.remotes
+        ensureConsumers consumersRef chan newRemotes
 
 ensureConsumers :: IORef (Map Domain (Q.ConsumerTag, MVar ())) -> Q.Channel -> [Domain] -> AppT IO ()
 ensureConsumers consumers chan domains = do

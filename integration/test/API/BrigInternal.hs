@@ -99,25 +99,6 @@ updateFedConn' owndom dom fedConn = do
   conn <- make fedConn
   submit "PUT" $ addJSON conn req
 
-deleteFedConn :: (HasCallStack, MakesValue owndom) => owndom -> String -> App Response
-deleteFedConn owndom dom = do
-  bindResponse (deleteFedConn' owndom dom) $ \res -> do
-    res.status `shouldMatchRange` (200, 299)
-    pure res
-
-deleteFedConn' :: (HasCallStack, MakesValue owndom) => owndom -> String -> App Response
-deleteFedConn' owndom dom = do
-  req <- rawBaseRequest owndom Brig Unversioned ("/i/federation/remotes/" <> dom)
-  submit "DELETE" req
-
-deleteAllFedConns :: (HasCallStack, MakesValue dom) => dom -> App ()
-deleteAllFedConns dom = do
-  readFedConns dom >>= \resp ->
-    resp.json %. "remotes"
-      & asList
-      >>= traverse (\v -> v %. "domain" & asString)
-      >>= mapM_ (deleteFedConn dom)
-
 registerOAuthClient :: (HasCallStack, MakesValue user, MakesValue name, MakesValue url) => user -> name -> url -> App Response
 registerOAuthClient user name url = do
   req <- baseRequest user Brig Unversioned "i/oauth/clients"
@@ -149,4 +130,15 @@ refreshIndex :: (HasCallStack, MakesValue domain) => domain -> App ()
 refreshIndex domain = do
   req <- baseRequest domain Brig Unversioned "i/index/refresh"
   res <- submit "POST" req
+  res.status `shouldMatchInt` 200
+
+connectWithRemoteUser :: (MakesValue userFrom, MakesValue userTo) => userFrom -> userTo -> App ()
+connectWithRemoteUser userFrom userTo = do
+  userFromId <- objId userFrom
+  qUserTo <- make userTo
+  let body = ["tag" .= "CreateConnectionForTest", "user" .= userFromId, "other" .= qUserTo]
+  req <-
+    baseRequest userFrom Brig Unversioned $
+      joinHttpPath ["i", "connections", "connection-update"]
+  res <- submit "PUT" (req & addJSONObject body)
   res.status `shouldMatchInt` 200

@@ -30,9 +30,15 @@ import Imports
 import Network.DNS.Resolver (Resolver)
 import Network.HTTP.Client qualified as HTTP
 import OpenSSL.Session (SSLContext)
+import Prometheus
 import System.Logger.Class qualified as LC
 import Util.Options
 import Wire.API.Federation.Component
+
+data FederatorMetrics = FederatorMetrics
+  { outgoingRequests :: Vector Text Counter,
+    incomingRequests :: Vector Text Counter
+  }
 
 data Env = Env
   { _metrics :: Metrics,
@@ -44,7 +50,8 @@ data Env = Env
     _externalPort :: Word16,
     _internalPort :: Word16,
     _httpManager :: HTTP.Manager,
-    _http2Manager :: IORef Http2Manager
+    _http2Manager :: IORef Http2Manager,
+    _federatorMetrics :: FederatorMetrics
   }
 
 makeLenses ''Env
@@ -53,6 +60,8 @@ onNewSSLContext :: Env -> SSLContext -> IO ()
 onNewSSLContext env ctx =
   atomicModifyIORef' (_http2Manager env) $ \mgr -> (setSSLContext ctx mgr, ())
 
-mkHttp2Manager :: SSLContext -> IO Http2Manager
-mkHttp2Manager sslContext =
-  setSSLRemoveTrailingDot True <$> http2ManagerWithSSLCtx sslContext
+mkHttp2Manager :: Int -> SSLContext -> IO Http2Manager
+mkHttp2Manager tcpConnectionTimeout sslContext =
+  setTCPConnectionTimeout tcpConnectionTimeout
+    . setSSLRemoveTrailingDot True
+    <$> http2ManagerWithSSLCtx sslContext

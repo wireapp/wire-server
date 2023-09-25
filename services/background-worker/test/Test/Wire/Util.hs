@@ -2,12 +2,10 @@
 
 module Test.Wire.Util where
 
-import Control.Concurrent.Chan
 import Imports
 import Network.HTTP.Client
 import System.Logger.Class qualified as Logger
 import Util.Options (Endpoint (..))
-import Wire.API.Routes.FederationDomainConfig
 import Wire.BackgroundWorker.Env hiding (federatorInternal, galley)
 import Wire.BackgroundWorker.Env qualified as E
 import Wire.BackgroundWorker.Options
@@ -20,9 +18,6 @@ testEnv = do
   statuses <- newIORef mempty
   backendNotificationMetrics <- mkBackendNotificationMetrics
   httpManager <- newManager defaultManagerSettings
-  remoteDomains <- newIORef defFederationDomainConfigs
-  remoteDomainsChan <- newChan
-  notificationChannel <- newEmptyMVar
   let federatorInternal = Endpoint "localhost" 0
       rabbitmqAdminClient = undefined
       rabbitmqVHost = undefined

@@ -15,9 +15,15 @@
 , Cabal
 , case-insensitive
 , containers
+, cql
+, cql-io
+, cryptonite
 , data-default
+, data-timeout
 , directory
+, errors
 , exceptions
+, extended
 , extra
 , filepath
 , gitignoreSource
@@ -28,6 +34,7 @@
 , lens
 , lens-aeson
 , lib
+, memory
 , mime
 , monad-control
 , mtl
@@ -76,9 +83,15 @@ mkDerivation {
     bytestring-conversion
     case-insensitive
     containers
+    cql
+    cql-io
+    cryptonite
     data-default
+    data-timeout
     directory
+    errors
     exceptions
+    extended
     extra
     filepath
     hex
@@ -87,6 +100,7 @@ mkDerivation {
     kan-extensions
     lens
     lens-aeson
+    memory
     mime
     monad-control
     mtl

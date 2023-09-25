@@ -45,9 +45,9 @@ where
 import Bilge hiding (Request, header, options, statusCode)
 import Bilge.RPC
 import Cassandra
-import Control.Error hiding (err)
+import Control.Error
 import Control.Exception (throwIO)
-import Control.Lens hiding ((.=))
+import Control.Lens
 import Control.Monad.Catch hiding (tryJust)
 import Data.Aeson (FromJSON)
 import Data.Default (def)
@@ -61,7 +61,7 @@ import Network.Wai
 import Network.Wai.Utilities
 import System.Logger qualified as Log
 import System.Logger qualified as Logger
-import System.Logger.Class hiding (Error, info)
+import System.Logger.Class
 import UnliftIO (async)
 
 -- | TODO: 'Client' already has an 'Env'.  Why do we need two?  How does this even work?  We should

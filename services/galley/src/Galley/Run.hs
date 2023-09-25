@@ -63,7 +63,7 @@ import System.Logger qualified as Log
 import System.Logger.Extended (mkLogger)
 import Util.Options
 import Wire.API.Routes.API
-import Wire.API.Routes.Public.Galley qualified as GalleyAPI
+import Wire.API.Routes.Public.Galley
 import Wire.API.Routes.Version.Wai
 
 run :: Opts -> IO ()
@@ -151,7 +151,7 @@ bodyParserErrorFormatter' _ _ errMsg =
     }
 
 type CombinedAPI =
-  GalleyAPI.ServantAPI
+  GalleyAPI
     :<|> InternalAPI
     :<|> FederationAPI
     :<|> Servant.Raw

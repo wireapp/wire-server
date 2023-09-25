@@ -83,11 +83,11 @@ import Data.Id
 import Data.Json.Util
 import Data.Map.Strict qualified as Map
 import Data.Misc (Latitude (..), Location, Longitude (..), PlainTextPassword6, latitude, location, longitude)
+import Data.OpenApi hiding (Schema, ToSchema, nullable, schema)
+import Data.OpenApi qualified as Swagger hiding (nullable)
 import Data.Qualified
 import Data.Schema
 import Data.Set qualified as Set
-import Data.Swagger hiding (Schema, ToSchema, schema)
-import Data.Swagger qualified as Swagger
 import Data.Text.Encoding qualified as Text.E
 import Data.Time.Clock
 import Data.UUID (toASCIIBytes)
@@ -368,7 +368,7 @@ instance Swagger.ToSchema UserClientsFull where
     pure $
       NamedSchema (Just "UserClientsFull") $
         mempty
-          & type_ ?~ SwaggerObject
+          & type_ ?~ OpenApiObject
           & description ?~ "Dictionary object of `Client` objects indexed by `UserId`."
           & example ?~ "{\"1355c55a-0ac8-11ee-97ee-db1a6351f093\": <Client object>, ...}"
 
@@ -529,19 +529,14 @@ data PubClient = PubClient
   deriving stock (Eq, Show, Generic, Ord)
   deriving (Arbitrary) via (GenericUniform PubClient)
   deriving (Swagger.ToSchema) via (CustomSwagger '[FieldLabelModifier (StripPrefix "pubClient", LowerCase)] PubClient)
+  deriving (FromJSON, ToJSON) via Schema PubClient
 
-instance ToJSON PubClient where
-  toJSON c =
-    A.object $
-      "id" A..= pubClientId c
-        # "class" A..= pubClientClass c
-        # []
-
-instance FromJSON PubClient where
-  parseJSON = A.withObject "PubClient" $ \o ->
-    PubClient
-      <$> o A..: "id"
-      <*> o A..:? "class"
+instance ToSchema PubClient where
+  schema =
+    object "PubClient" $
+      PubClient
+        <$> pubClientId .= field "id" schema
+        <*> pubClientClass .= maybe_ (optField "class" schema)
 
 --------------------------------------------------------------------------------
 -- Client Type/Class

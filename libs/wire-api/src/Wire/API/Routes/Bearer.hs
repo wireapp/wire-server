@@ -21,11 +21,12 @@ import Control.Lens ((<>~))
 import Data.ByteString qualified as BS
 import Data.HashMap.Strict.InsOrd qualified as InsOrdHashMap
 import Data.Metrics.Servant
-import Data.Swagger hiding (Header)
+import Data.OpenApi hiding (HasServer, Header)
 import Data.Text.Encoding qualified as T
 import Imports
 import Servant
-import Servant.Swagger
+import Servant.OpenApi
+import Wire.API.Routes.Version
 
 newtype Bearer a = Bearer {unBearer :: a}
 
@@ -42,9 +43,13 @@ type BearerQueryParam =
     [Lenient, Description "Access token"]
     "access_token"
 
-instance HasSwagger api => HasSwagger (Bearer a :> api) where
-  toSwagger _ =
-    toSwagger (Proxy @api)
+type instance
+  SpecialiseToVersion v (Bearer a :> api) =
+    Bearer a :> SpecialiseToVersion v api
+
+instance HasOpenApi api => HasOpenApi (Bearer a :> api) where
+  toOpenApi _ =
+    toOpenApi (Proxy @api)
       & security <>~ [SecurityRequirement $ InsOrdHashMap.singleton "ZAuth" []]
 
 instance RoutesToPaths api => RoutesToPaths (Bearer a :> api) where

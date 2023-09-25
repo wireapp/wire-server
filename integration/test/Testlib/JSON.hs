@@ -20,7 +20,6 @@ import Data.String
 import Data.Text qualified as T
 import Data.Vector ((!?))
 import GHC.Stack
-import Testlib.Env
 import Testlib.Types
 import Prelude
 
@@ -72,6 +71,9 @@ asString x =
   make x >>= \case
     (String s) -> pure (T.unpack s)
     v -> assertFailureWithJSON x ("String" `typeWasExpectedButGot` v)
+
+asText :: HasCallStack => MakesValue a => a -> App T.Text
+asText = (fmap T.pack) . asString
 
 asStringM :: HasCallStack => MakesValue a => a -> App (Maybe String)
 asStringM x =

@@ -31,7 +31,6 @@ import Brig.API.Client qualified as API
 import Brig.API.Connection qualified as API
 import Brig.API.Error
 import Brig.API.Handler
-import Brig.API.MLS.KeyPackages
 import Brig.API.OAuth (oauthAPI)
 import Brig.API.Properties qualified as API
 import Brig.API.Public.Swagger
@@ -56,6 +55,7 @@ import Brig.Effects.PasswordResetStore (PasswordResetStore)
 import Brig.Effects.PublicKeyBundle (PublicKeyBundle)
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import Brig.Options hiding (internalEvents, sesQueue)
+import Brig.Provider.API (botAPI)
 import Brig.Provider.API qualified as Provider
 import Brig.Team.API qualified as Team
 import Brig.Team.Email qualified as Team
@@ -87,9 +87,10 @@ import Data.List.NonEmpty (nonEmpty)
 import Data.Map.Strict qualified as Map
 import Data.Misc (IpAddr (..))
 import Data.Nonce (Nonce, randomNonce)
+import Data.OpenApi qualified as S
 import Data.Qualified
 import Data.Range
-import Data.Swagger qualified as S
+import Data.Schema ()
 import Data.Text qualified as Text
 import Data.Text.Ascii qualified as Ascii
 import Data.Text.Lazy (pack)
@@ -103,7 +104,7 @@ import Network.Wai.Utilities as Utilities
 import Polysemy
 import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant qualified
-import Servant.Swagger.Internal.Orphans ()
+import Servant.OpenApi.Internal.Orphans ()
 import Servant.Swagger.UI
 import System.Logger.Class qualified as Log
 import Util.Logging (logFunction, logHandle, logTeam, logUser)
@@ -113,6 +114,7 @@ import Wire.API.Error.Brig qualified as E
 import Wire.API.Federation.API
 import Wire.API.Federation.Error
 import Wire.API.Properties qualified as Public
+import Wire.API.Routes.API
 import Wire.API.Routes.Internal.Brig qualified as BrigInternalAPI
 import Wire.API.Routes.Internal.Cannon qualified as CannonInternalAPI
 import Wire.API.Routes.Internal.Cargohold qualified as CargoholdInternalAPI
@@ -121,13 +123,14 @@ import Wire.API.Routes.Internal.Spar qualified as SparInternalAPI
 import Wire.API.Routes.MultiTablePaging qualified as Public
 import Wire.API.Routes.Named (Named (Named))
 import Wire.API.Routes.Public.Brig
-import Wire.API.Routes.Public.Brig.OAuth qualified as OAuth
-import Wire.API.Routes.Public.Cannon qualified as CannonAPI
-import Wire.API.Routes.Public.Cargohold qualified as CargoholdAPI
-import Wire.API.Routes.Public.Galley qualified as GalleyAPI
-import Wire.API.Routes.Public.Gundeck qualified as GundeckAPI
-import Wire.API.Routes.Public.Proxy qualified as ProxyAPI
-import Wire.API.Routes.Public.Spar qualified as SparAPI
+import Wire.API.Routes.Public.Brig.Bot
+import Wire.API.Routes.Public.Brig.OAuth
+import Wire.API.Routes.Public.Cannon
+import Wire.API.Routes.Public.Cargohold
+import Wire.API.Routes.Public.Galley
+import Wire.API.Routes.Public.Gundeck
+import Wire.API.Routes.Public.Proxy
+import Wire.API.Routes.Public.Spar
 import Wire.API.Routes.Public.Util qualified as Public
 import Wire.API.Routes.Version
 import Wire.API.SwaggerHelper (cleanupSwagger)
@@ -166,17 +169,18 @@ docsAPI =
 --
 -- Dual to `internalEndpointsSwaggerDocsAPI`.
 versionedSwaggerDocsAPI :: Servant.Server VersionedSwaggerDocsAPI
-versionedSwaggerDocsAPI (Just (VersionNumber V4)) =
+versionedSwaggerDocsAPI (Just (VersionNumber V5)) =
   swaggerSchemaUIServer $
-    ( brigSwagger
-        <> versionSwagger
-        <> GalleyAPI.swaggerDoc
-        <> SparAPI.swaggerDoc
-        <> CargoholdAPI.swaggerDoc
-        <> CannonAPI.swaggerDoc
-        <> GundeckAPI.swaggerDoc
-        <> ProxyAPI.swaggerDoc
-        <> OAuth.swaggerDoc
+    ( serviceSwagger @VersionAPITag @'V5
+        <> serviceSwagger @BrigAPITag @'V5
+        <> serviceSwagger @GalleyAPITag @'V5
+        <> serviceSwagger @SparAPITag @'V5
+        <> serviceSwagger @CargoholdAPITag @'V5
+        <> serviceSwagger @CannonAPITag @'V5
+        <> serviceSwagger @GundeckAPITag @'V5
+        <> serviceSwagger @ProxyAPITag @'V5
+        <> serviceSwagger @OAuthAPITag @'V5
+        <> serviceSwagger @BotAPITag @'V5
     )
       & S.info . S.title .~ "Wire-Server API"
       & S.info . S.description ?~ $(embedText =<< makeRelativeToProject "docs/swagger.md")
@@ -185,6 +189,7 @@ versionedSwaggerDocsAPI (Just (VersionNumber V0)) = swaggerPregenUIServer $(preg
 versionedSwaggerDocsAPI (Just (VersionNumber V1)) = swaggerPregenUIServer $(pregenSwagger V1)
 versionedSwaggerDocsAPI (Just (VersionNumber V2)) = swaggerPregenUIServer $(pregenSwagger V2)
 versionedSwaggerDocsAPI (Just (VersionNumber V3)) = swaggerPregenUIServer $(pregenSwagger V3)
+versionedSwaggerDocsAPI (Just (VersionNumber V4)) = swaggerPregenUIServer $(pregenSwagger V4)
 versionedSwaggerDocsAPI Nothing = allroutes (throwError listAllVersionsResp)
   where
     allroutes ::
@@ -216,8 +221,13 @@ versionedSwaggerDocsAPI Nothing = allroutes (throwError listAllVersionsResp)
 internalEndpointsSwaggerDocsAPI ::
   String ->
   PortNumber ->
-  S.Swagger ->
+  S.OpenApi ->
   Servant.Server (VersionedSwaggerDocsAPIBase service)
+internalEndpointsSwaggerDocsAPI service examplePort swagger (Just (VersionNumber V5)) =
+  swaggerSchemaUIServer $
+    swagger
+      & adjustSwaggerForInternalEndpoint service examplePort
+      & cleanupSwagger
 internalEndpointsSwaggerDocsAPI service examplePort swagger (Just (VersionNumber V4)) =
   swaggerSchemaUIServer $
     swagger
@@ -254,7 +264,6 @@ servantSitemap =
     :<|> userClientAPI
     :<|> connectionAPI
     :<|> propertiesAPI
-    :<|> mlsAPI
     :<|> userHandleAPI
     :<|> searchAPI
     :<|> authAPI
@@ -262,6 +271,7 @@ servantSitemap =
     :<|> Team.servantAPI
     :<|> systemSettingsAPI
     :<|> oauthAPI
+    :<|> botAPI
   where
     userAPI :: ServerT UserAPI (Handler r)
     userAPI =
@@ -360,12 +370,6 @@ servantSitemap =
       )
         :<|> Named @"list-properties" listPropertyKeysAndValues
 
-    mlsAPI :: ServerT MLSAPI (Handler r)
-    mlsAPI =
-      Named @"mls-key-packages-upload" uploadKeyPackages
-        :<|> Named @"mls-key-packages-claim" (callsFed (exposeAnnotations claimKeyPackages))
-        :<|> Named @"mls-key-packages-count" countKeyPackages
-
     userHandleAPI :: ServerT UserHandleAPI (Handler r)
     userHandleAPI =
       Named @"check-user-handles" checkHandles
@@ -403,8 +407,7 @@ servantSitemap =
 -- - MemberLeave event to members for all conversations the user was in (via galley)
 
 sitemap ::
-  ( Member (Concurrency 'Unsafe) r,
-    Member GalleyProvider r
+  ( Member GalleyProvider r
   ) =>
   Routes () (Handler r) ()
 sitemap = do

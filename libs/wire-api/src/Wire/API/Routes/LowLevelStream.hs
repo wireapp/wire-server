@@ -17,13 +17,13 @@
 
 module Wire.API.Routes.LowLevelStream where
 
-import Control.Lens (at, (.~), (?~))
+import Control.Lens (at, (.~), (?~), _Just)
 import Data.ByteString.Char8 as B8
 import Data.CaseInsensitive qualified as CI
 import Data.HashMap.Strict.InsOrd qualified as InsOrdHashMap
 import Data.Metrics.Servant
+import Data.OpenApi qualified as S
 import Data.Proxy
-import Data.Swagger qualified as S
 import Data.Text qualified as Text
 import GHC.TypeLits
 import Imports
@@ -33,10 +33,11 @@ import Network.Wai
 import Servant.API
 import Servant.API.ContentTypes
 import Servant.API.Status
+import Servant.OpenApi as S
+import Servant.OpenApi.Internal as S
 import Servant.Server hiding (respond)
 import Servant.Server.Internal
-import Servant.Swagger as S
-import Servant.Swagger.Internal as S
+import Wire.API.Routes.Version
 
 -- FUTUREWORK: make it possible to generate headers at runtime
 data LowLevelStream method status (headers :: [(Symbol, Symbol)]) desc ctype
@@ -84,28 +85,35 @@ instance
       status = statusFromNat (Proxy :: Proxy status)
       extraHeaders = renderHeaders @headers
 
+type instance
+  SpecialiseToVersion v (LowLevelStream m s h d t) =
+    LowLevelStream m s h d t
+
 instance
-  (Accept ctype, KnownNat status, KnownSymbol desc, SwaggerMethod method) =>
-  HasSwagger (LowLevelStream method status headers desc ctype)
+  (S.ToSchema ctype, Accept ctype, KnownNat status, KnownSymbol desc, OpenApiMethod method) =>
+  HasOpenApi (LowLevelStream method status headers desc ctype)
   where
-  toSwagger _ =
+  toOpenApi _ =
     mempty
       & S.paths
         . at "/"
         ?~ ( mempty
                & method
                  ?~ ( mempty
-                        & S.produces ?~ S.MimeList [contentType (Proxy @ctype)]
                         & S.responses . S.responses .~ fmap S.Inline responses
                     )
            )
     where
-      method = S.swaggerMethod (Proxy @method)
+      method = S.openApiMethod (Proxy @method)
       responses =
         InsOrdHashMap.singleton
           (fromIntegral (natVal (Proxy @status)))
           $ mempty
             & S.description .~ Text.pack (symbolVal (Proxy @desc))
+            & S.content
+              .~ InsOrdHashMap.singleton
+                (contentType $ Proxy @ctype)
+                (mempty & S.schema . _Just . S._Inline .~ S.toSchema (Proxy @ctype))
 
 instance RoutesToPaths (LowLevelStream method status headers desc ctype) where
   getRoutes = []

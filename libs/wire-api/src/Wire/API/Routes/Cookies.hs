@@ -27,8 +27,9 @@ import Data.Text.Encoding qualified as T
 import GHC.TypeLits
 import Imports
 import Servant
-import Servant.Swagger
+import Servant.OpenApi
 import Web.Cookie (parseCookies)
+import Wire.API.Routes.Version
 
 data (:::) a b
 
@@ -58,8 +59,12 @@ newtype CookieTuple cs = CookieTuple {unCookieTuple :: NP I (CookieTypes cs)}
 
 type CookieMap = Map ByteString (NonEmpty ByteString)
 
-instance HasSwagger api => HasSwagger (Cookies cs :> api) where
-  toSwagger _ = toSwagger (Proxy @api)
+type instance
+  SpecialiseToVersion v (Cookies cs :> api) =
+    Cookies cs :> SpecialiseToVersion v api
+
+instance HasOpenApi api => HasOpenApi (Cookies cs :> api) where
+  toOpenApi _ = toOpenApi (Proxy @api)
 
 class CookieArgs (cs :: [Type]) where
   -- example: AddArgs ["foo" :: Foo, "bar" :: Bar] a = Foo -> Bar -> a

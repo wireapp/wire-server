@@ -153,6 +153,12 @@ randomScimUserWithSubjectAndRichInfo richInfo = do
       subj
     )
 
+-- | Use the email address as externalId.
+--
+-- FUTUREWORK: since https://wearezeta.atlassian.net/browse/SQSERVICES-157 is done, we also
+-- support externalIds that are not emails, and storing email addresses in `emails` in the
+-- scim schema.  `randomScimUserWithEmail` is from a time where non-idp-authenticated users
+-- could only be provisioned with email as externalId.  we should probably rework all that.
 randomScimUserWithEmail :: MonadRandom m => m (Scim.User.User SparTag, Email)
 randomScimUserWithEmail = do
   suffix <- cs <$> replicateM 7 (getRandomR ('0', '9'))

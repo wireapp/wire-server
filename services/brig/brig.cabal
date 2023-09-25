@@ -12,6 +12,9 @@ build-type:         Simple
 extra-source-files:
   docs/swagger-v0.json
   docs/swagger-v1.json
+  docs/swagger-v2.json
+  docs/swagger-v3.json
+  docs/swagger-v4.json
   docs/swagger.md
 
 library
@@ -257,6 +260,7 @@ library
     , mwc-random
     , network                    >=2.4
     , network-conduit-tls
+    , openapi3
     , optparse-applicative       >=0.11
     , polysemy
     , polysemy-plugin
@@ -273,15 +277,14 @@ library
     , schema-profunctor
     , scientific                 >=0.3.4
     , servant
+    , servant-openapi3
     , servant-server
-    , servant-swagger
     , servant-swagger-ui
     , sodium-crypto-sign         >=0.1
     , split                      >=0.2
     , ssl-util
     , statistics                 >=0.13
     , stomp-queue                >=0.3
-    , swagger2
     , template                   >=0.2
     , template-haskell
     , text                       >=0.11
@@ -533,7 +536,6 @@ executable brig-integration
     , attoparsec
     , base
     , base16-bytestring
-    , base64-bytestring
     , bilge
     , bloodhound
     , brig

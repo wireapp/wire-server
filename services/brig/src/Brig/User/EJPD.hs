@@ -36,7 +36,7 @@ import Data.Id (UserId)
 import Data.Set qualified as Set
 import Imports hiding (head)
 import Polysemy (Member)
-import Servant.Swagger.Internal.Orphans ()
+import Servant.OpenApi.Internal.Orphans ()
 import Wire.API.Connection (Relation, RelationWithHistory (..), relationDropHistory)
 import Wire.API.Push.Token qualified as PushTok
 import Wire.API.Routes.Internal.Brig.EJPD (EJPDRequestBody (EJPDRequestBody), EJPDResponseBody (EJPDResponseBody), EJPDResponseItem (EJPDResponseItem))

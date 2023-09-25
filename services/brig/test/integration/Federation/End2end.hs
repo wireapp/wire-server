@@ -17,7 +17,6 @@
 
 module Federation.End2end where
 
-import API.MLS.Util
 import API.Search.Util
 import API.User.Util
 import Bilge
@@ -28,12 +27,10 @@ import Control.Arrow ((&&&))
 import Control.Lens hiding ((#))
 import Data.Aeson qualified as Aeson
 import Data.ByteString.Conversion (toByteString')
-import Data.Default
 import Data.Domain
 import Data.Handle
 import Data.Id
 import Data.Json.Util (toBase64Text)
-import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.List1 as List1
 import Data.Map qualified as Map
 import Data.ProtoLens qualified as Protolens
@@ -47,17 +44,14 @@ import Test.Tasty
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
 import Test.Tasty.Cannon qualified as WS
 import Test.Tasty.HUnit
-import UnliftIO.Temporary
 import Util
 import Util.Options (Endpoint)
 import Wire.API.Asset
 import Wire.API.Conversation
-import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing
 import Wire.API.Event.Conversation
 import Wire.API.Internal.Notification
-import Wire.API.MLS.KeyPackage
 import Wire.API.Message
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.User hiding (assetKey)
@@ -103,7 +97,6 @@ spec _brigOpts mg brig galley cargohold cannon _federator brigTwo galleyTwo carg
         test mg "claim multi-prekey bundle" $ testClaimMultiPrekeyBundleSuccess brig brigTwo,
         test mg "list user clients" $ testListUserClients brig brigTwo,
         test mg "list own conversations" $ testListConversations brig brigTwo galley galleyTwo,
-        test mg "add remote users to local conversation" $ testAddRemoteUsersToLocalConv brig galley brigTwo galleyTwo,
         test mg "remove remote user from a local conversation" $ testRemoveRemoteUserFromLocalConv brig galley brigTwo galleyTwo,
         test mg "leave a remote conversation" $ leaveRemoteConversation brig galley brigTwo galleyTwo,
         test mg "include remote users to new conversation" $ testRemoteUsersInNewConv brig galley brigTwo galleyTwo,
@@ -111,7 +104,6 @@ spec _brigOpts mg brig galley cargohold cannon _federator brigTwo galleyTwo carg
         test mg "send a message in a remote conversation" $ testSendMessageToRemoteConv brig brigTwo galley galleyTwo cannon,
         test mg "delete user connected to remotes and in conversation with remotes" $ testDeleteUser brig brigTwo galley galleyTwo cannon,
         test mg "download remote asset" $ testRemoteAsset brig brigTwo cargohold cargoholdTwo,
-        test mg "claim remote key packages" $ claimRemoteKeyPackages brig brigTwo,
         test mg "remote typing indicator" $
           testRemoteTypingIndicator brig brigTwo galley galleyTwo cannon cannonTwo
       ]
@@ -253,63 +245,6 @@ testClaimMultiPrekeyBundleSuccess brig1 brig2 = do
     !!! do
       const 200 === statusCode
       const (Just ucm) === responseJsonMaybe
-
-testAddRemoteUsersToLocalConv :: Brig -> Galley -> Brig -> Galley -> Http ()
-testAddRemoteUsersToLocalConv brig1 galley1 brig2 galley2 = do
-  alice <- randomUser brig1
-  bob <- randomUser brig2
-
-  let newConv =
-        NewConv
-          []
-          []
-          (checked "gossip")
-          mempty
-          Nothing
-          Nothing
-          Nothing
-          Nothing
-          roleNameWireAdmin
-          ProtocolProteusTag
-  convId <-
-    fmap cnvQualifiedId . responseJsonError
-      =<< post
-        ( galley1
-            . path "/conversations"
-            . zUser (userId alice)
-            . zConn "conn"
-            . header "Z-Type" "access"
-            . json newConv
-        )
-
-  connectUsersEnd2End brig1 brig2 (userQualifiedId alice) (userQualifiedId bob)
-
-  let invite = InviteQualified (userQualifiedId bob :| []) roleNameWireAdmin
-  post
-    ( apiVersion "v1"
-        . galley1
-        . paths ["conversations", (toByteString' . qUnqualified) convId, "members", "v2"]
-        . zUser (userId alice)
-        . zConn "conn"
-        . header "Z-Type" "access"
-        . json invite
-    )
-    !!! (const 200 === statusCode)
-
-  -- test GET /conversations/:domain/:cnv -- Alice's domain is used here
-  liftIO $ putStrLn "search for conversation on backend 1..."
-  res <- getConvQualified galley1 (userId alice) convId <!! (const 200 === statusCode)
-  let conv = responseJsonUnsafeWithMsg "backend 1 - get /conversations/domain/cnvId" res
-      actual = cmOthers $ cnvMembers conv
-      expected = [OtherMember (userQualifiedId bob) Nothing roleNameWireAdmin]
-  liftIO $ actual @?= expected
-
-  liftIO $ putStrLn "search for conversation on backend 2..."
-  res' <- getConvQualified galley2 (userId bob) convId <!! (const 200 === statusCode)
-  let conv' = responseJsonUnsafeWithMsg "backend 2 - get /conversations/domain/cnvId" res'
-      actual' = cmOthers $ cnvMembers conv'
-      expected' = [OtherMember (userQualifiedId alice) Nothing roleNameWireAdmin]
-  liftIO $ actual' @?= expected'
 
 testRemoveRemoteUserFromLocalConv :: Brig -> Galley -> Brig -> Galley -> Http ()
 testRemoveRemoteUserFromLocalConv brig1 galley1 brig2 galley2 = do
@@ -661,32 +596,6 @@ testRemoteAsset brig1 brig2 ch1 ch2 = do
     !!! do
       const 200 === statusCode
       const (Just "hello world") === responseBody
-
-claimRemoteKeyPackages :: Brig -> Brig -> Http ()
-claimRemoteKeyPackages brig1 brig2 = do
-  alice <- userQualifiedId <$> randomUser brig1
-
-  bob <- userQualifiedId <$> randomUser brig2
-  bobClients <- for (take 3 someLastPrekeys) $ \lpk -> do
-    let new = defNewClient PermanentClientType [] lpk
-    fmap clientId $ responseJsonError =<< addClient brig2 (qUnqualified bob) new
-
-  withSystemTempDirectory "mls" $ \tmp ->
-    for_ bobClients $ \c ->
-      uploadKeyPackages brig2 tmp def bob c 5
-
-  bundle <-
-    responseJsonError
-      =<< post
-        ( brig1
-            . paths ["mls", "key-packages", "claim", toByteString' (qDomain bob), toByteString' (qUnqualified bob)]
-            . zUser (qUnqualified alice)
-        )
-        <!! const 200 === statusCode
-
-  liftIO $
-    Set.map (\e -> (kpbeUser e, kpbeClient e)) (kpbEntries bundle)
-      @?= Set.fromList [(bob, c) | c <- bobClients]
 
 testRemoteTypingIndicator :: Brig -> Brig -> Galley -> Galley -> Cannon -> Cannon -> Http ()
 testRemoteTypingIndicator brig1 brig2 galley1 galley2 cannon1 cannon2 = do

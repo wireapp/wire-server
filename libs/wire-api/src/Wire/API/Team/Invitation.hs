@@ -32,9 +32,9 @@ import Data.Aeson qualified as A
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Json.Util
+import Data.OpenApi qualified as S
 import Data.SOP
 import Data.Schema
-import Data.Swagger qualified as S
 import Data.Text.Encoding qualified as TE
 import Imports
 import Servant (FromHttpApiData (..), ToHttpApiData (..))
@@ -130,7 +130,7 @@ newtype InvitationLocation = InvitationLocation
 instance S.ToParamSchema InvitationLocation where
   toParamSchema _ =
     mempty
-      & S.type_ ?~ S.SwaggerString
+      & S.type_ ?~ S.OpenApiString
       & S.format ?~ "url"
 
 instance FromHttpApiData InvitationLocation where

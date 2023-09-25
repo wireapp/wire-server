@@ -24,48 +24,33 @@ module API.Internal
 where
 
 import API.Internal.Util
-import API.MLS (createClient)
-import API.MLS.Util
 import Bilge
 import Bilge.Assert
-import Brig.Data.Connection
 import Brig.Data.User (lookupFeatureConferenceCalling, lookupStatus, userExists)
 import Brig.Options qualified as Opt
 import Cassandra qualified as C
 import Cassandra qualified as Cass
-import Cassandra.Exec (x1)
 import Cassandra.Util
 import Control.Exception (ErrorCall (ErrorCall), throwIO)
 import Control.Lens ((^.), (^?!))
-import Data.Aeson (decode)
 import Data.Aeson.Lens qualified as Aeson
 import Data.Aeson.Types qualified as Aeson
 import Data.ByteString.Conversion (toByteString')
-import Data.Default
-import Data.Domain
 import Data.Id
-import Data.Json.Util (toUTCTimeMillis)
-import Data.Qualified (Qualified (qDomain, qUnqualified))
+import Data.Qualified
 import Data.Set qualified as Set
-import Data.Time
 import GHC.TypeLits (KnownSymbol)
 import Imports
-import Servant.API (ToHttpApiData (toUrlPiece))
-import Test.QuickCheck (Arbitrary (arbitrary), generate)
 import Test.Tasty
 import Test.Tasty.HUnit
-import UnliftIO (withSystemTempDirectory)
 import Util
 import Util.Options (Endpoint)
 import Wire.API.Connection qualified as Conn
-import Wire.API.MLS.Credential
-import Wire.API.MLS.KeyPackage
 import Wire.API.Routes.Internal.Brig
 import Wire.API.Team.Feature
 import Wire.API.Team.Feature qualified as ApiFt
 import Wire.API.Team.Member qualified as Team
 import Wire.API.User
-import Wire.API.User.Client
 
 tests :: Opt.Opts -> Manager -> Cass.ClientState -> Brig -> Endpoint -> Gundeck -> Galley -> IO TestTree
 tests opts mgr db brig brigep gundeck galley = do
@@ -77,82 +62,8 @@ tests opts mgr db brig brigep gundeck galley = do
         test mgr "suspend and unsuspend user" $ testSuspendUser db brig,
         test mgr "suspend non existing user and verify no db entry" $
           testSuspendNonExistingUser db brig,
-        test mgr "mls/clients" $ testGetMlsClients brig,
-        testGroup
-          "mls/key-packages"
-          $ [ test mgr "fresh get" $ testKpcFreshGet brig,
-              test mgr "put,get" $ testKpcPutGet brig,
-              test mgr "get,get" $ testKpcGetGet brig,
-              test mgr "put,put" $ testKpcPutPut brig,
-              test mgr "add key package ref" $ testAddKeyPackageRef brig
-            ],
-        test mgr "writetimeToInt64" $ testWritetimeRepresentation opts mgr db brig brigep galley,
-        test mgr "delete-federation-remote-galley" $ testDeleteFederationRemoteGalley db brig
+        test mgr "writetimeToInt64" $ testWritetimeRepresentation opts mgr db brig brigep galley
       ]
-
-testDeleteFederationRemoteGalley :: forall m. (TestConstraints m) => Cass.ClientState -> Brig -> m ()
-testDeleteFederationRemoteGalley db brig = do
-  let remoteDomain1 = Domain "far-away.example.com"
-      remoteDomain2 = Domain "far-away-two.example.com"
-      isRemote1 = (== remoteDomain1)
-      isRemote2 = (== remoteDomain2)
-  localUser <- randomUser brig
-  let localUserId = userId localUser
-  remoteUserId1 <- randomId
-  remoteUserId2 <- randomId
-  now <- liftIO $ getCurrentTime
-  convId <- randomId
-
-  -- Write the local and remote users into 'connection_remote'
-  let params1 = (localUserId, remoteDomain1, remoteUserId1, Conn.AcceptedWithHistory, toUTCTimeMillis now, remoteDomain1, convId)
-  liftIO $
-    Cass.runClient db $
-      Cass.retry x1 $
-        Cass.write remoteConnectionInsert (Cass.params Cass.LocalQuorum params1)
-  let params2 = (localUserId, remoteDomain2, remoteUserId2, Conn.AcceptedWithHistory, toUTCTimeMillis now, remoteDomain1, convId)
-  liftIO $
-    Cass.runClient db $
-      Cass.retry x1 $
-        Cass.write remoteConnectionInsert (Cass.params Cass.LocalQuorum params2)
-
-  -- Check that the value exists in the DB as expected.
-  -- Remote 1
-  liftIO
-    ( Cass.runClient db $
-        Cass.retry x1 $
-          Cass.query remoteConnectionsSelectUsers (Cass.params Cass.LocalQuorum $ pure localUserId)
-    )
-    >>= liftIO . assertBool "connection_remote entry should exist for the user" . any (isRemote1 . fst)
-  -- Remote 2
-  liftIO
-    ( Cass.runClient db $
-        Cass.retry x1 $
-          Cass.query remoteConnectionsSelectUsers (Cass.params Cass.LocalQuorum $ pure localUserId)
-    )
-    >>= liftIO . assertBool "connection_remote entry should exist for the user" . any (isRemote2 . fst)
-
-  -- Make the API call to delete remote domain 1
-  delete
-    ( brig
-        . paths ["i", "federation", "remote", toByteString' $ domainText remoteDomain1, "galley"]
-    )
-    !!! const 200 === statusCode
-
-  -- Check 'connection_remote' for the local user and ensure
-  -- that there are no conversations for the remote domain.
-  liftIO
-    ( Cass.runClient db $
-        Cass.retry x1 $
-          Cass.query remoteConnectionsSelectUsers (Cass.params Cass.LocalQuorum $ pure localUserId)
-    )
-    >>= liftIO . assertBool "connection_remote entry should NOT exist for the user" . not . any (isRemote1 . fst)
-  -- But remote domain 2 is still listed
-  liftIO
-    ( Cass.runClient db $
-        Cass.retry x1 $
-          Cass.query remoteConnectionsSelectUsers (Cass.params Cass.LocalQuorum $ pure localUserId)
-    )
-    >>= liftIO . assertBool "connection_remote entry should exist for the user" . any (isRemote2 . fst)
 
 testSuspendUser :: forall m. (TestConstraints m) => Cass.ClientState -> Brig -> m ()
 testSuspendUser db brig = do
@@ -299,143 +210,6 @@ testFeatureConferenceCallingByAccount (Opt.optSettings -> settings) mgr db brig 
   check $ ApiFt.WithStatusNoLock ApiFt.FeatureStatusEnabled ApiFt.ConferenceCallingConfig ApiFt.FeatureTTLUnlimited
   check $ ApiFt.WithStatusNoLock ApiFt.FeatureStatusDisabled ApiFt.ConferenceCallingConfig ApiFt.FeatureTTLUnlimited
   check'
-
-testGetMlsClients :: Brig -> Http ()
-testGetMlsClients brig = do
-  qusr <- userQualifiedId <$> randomUser brig
-  c <- createClient brig qusr 0
-  (cs0 :: Set ClientInfo) <-
-    responseJsonError
-      =<< get
-        ( brig
-            . paths ["i", "mls", "clients", toByteString' (qUnqualified qusr)]
-            . queryItem "sig_scheme" "ed25519"
-        )
-  liftIO $ toList cs0 @?= [ClientInfo c False]
-
-  withSystemTempDirectory "mls" $ \tmp ->
-    uploadKeyPackages brig tmp def qusr c 2
-
-  (cs1 :: Set ClientInfo) <-
-    responseJsonError
-      =<< get
-        ( brig
-            . paths ["i", "mls", "clients", toByteString' (qUnqualified qusr)]
-            . queryItem "sig_scheme" "ed25519"
-        )
-  liftIO $ toList cs1 @?= [ClientInfo c True]
-
-keyPackageCreate :: (HasCallStack) => Brig -> Http KeyPackageRef
-keyPackageCreate brig = do
-  uid <- userQualifiedId <$> randomUser brig
-  clid <- createClient brig uid 0
-  withSystemTempDirectory "mls" $ \tmp ->
-    uploadKeyPackages brig tmp def uid clid 2
-
-  uid2 <- userQualifiedId <$> randomUser brig
-  claimResp <-
-    post
-      ( brig
-          . paths
-            [ "mls",
-              "key-packages",
-              "claim",
-              toByteString' (qDomain uid),
-              toByteString' (qUnqualified uid)
-            ]
-          . zUser (qUnqualified uid2)
-          . contentJson
-      )
-  liftIO $
-    assertEqual "POST mls/key-packages/claim/:domain/:user failed" 200 (statusCode claimResp)
-  case responseBody claimResp >>= decode of
-    Nothing -> liftIO $ assertFailure "Claim response empty"
-    Just bundle -> case toList $ kpbEntries bundle of
-      [] -> liftIO $ assertFailure "Claim response held no bundles"
-      (h : _) -> pure $ kpbeRef h
-
-kpcPut :: (HasCallStack) => Brig -> KeyPackageRef -> Qualified ConvId -> Http ()
-kpcPut brig ref qConv = do
-  resp <-
-    put
-      ( brig
-          . paths ["i", "mls", "key-packages", toByteString' $ toUrlPiece ref, "conversation"]
-          . contentJson
-          . json qConv
-      )
-  liftIO $ assertEqual "PUT i/mls/key-packages/:ref/conversation failed" 204 (statusCode resp)
-
-kpcGet :: (HasCallStack) => Brig -> KeyPackageRef -> Http (Maybe (Qualified ConvId))
-kpcGet brig ref = do
-  resp <-
-    get (brig . paths ["i", "mls", "key-packages", toByteString' $ toUrlPiece ref, "conversation"])
-  liftIO $ case statusCode resp of
-    404 -> pure Nothing
-    200 -> pure $ responseBody resp >>= decode
-    _ -> assertFailure "GET i/mls/key-packages/:ref/conversation failed"
-
-testKpcFreshGet :: Brig -> Http ()
-testKpcFreshGet brig = do
-  ref <- keyPackageCreate brig
-  mqConv <- kpcGet brig ref
-  liftIO $ assertEqual "(fresh) Get ~= Nothing" Nothing mqConv
-
-testKpcPutGet :: Brig -> Http ()
-testKpcPutGet brig = do
-  ref <- keyPackageCreate brig
-  qConv <- liftIO $ generate arbitrary
-  kpcPut brig ref qConv
-  mqConv <- kpcGet brig ref
-  liftIO $ assertEqual "Put x; Get ~= x" (Just qConv) mqConv
-
-testKpcGetGet :: Brig -> Http ()
-testKpcGetGet brig = do
-  ref <- keyPackageCreate brig
-  liftIO (generate arbitrary) >>= kpcPut brig ref
-  mqConv1 <- kpcGet brig ref
-  mqConv2 <- kpcGet brig ref
-  liftIO $ assertEqual "Get; Get ~= Get" mqConv1 mqConv2
-
-testKpcPutPut :: Brig -> Http ()
-testKpcPutPut brig = do
-  ref <- keyPackageCreate brig
-  qConv <- liftIO $ generate arbitrary
-  qConv2 <- liftIO $ generate arbitrary
-  kpcPut brig ref qConv
-  kpcPut brig ref qConv2
-  mqConv <- kpcGet brig ref
-  liftIO $ assertEqual "Put x; Put y ~= Put y" (Just qConv2) mqConv
-
-testAddKeyPackageRef :: Brig -> Http ()
-testAddKeyPackageRef brig = do
-  ref <- keyPackageCreate brig
-  qcnv <- liftIO $ generate arbitrary
-  qusr <- liftIO $ generate arbitrary
-  c <- liftIO $ generate arbitrary
-  put
-    ( brig
-        . paths ["i", "mls", "key-packages", toByteString' $ toUrlPiece ref]
-        . json
-          NewKeyPackageRef
-            { nkprUserId = qusr,
-              nkprClientId = c,
-              nkprConversation = qcnv
-            }
-    )
-    !!! const 201 === statusCode
-  ci <-
-    responseJsonError
-      =<< get (brig . paths ["i", "mls", "key-packages", toByteString' $ toUrlPiece ref])
-        <!! const 200 === statusCode
-  liftIO $ do
-    fmap ciDomain ci @?= Just (qDomain qusr)
-    fmap ciUser ci @?= Just (qUnqualified qusr)
-    fmap ciClient ci @?= Just c
-  mqcnv <-
-    responseJsonError
-      =<< get (brig . paths ["i", "mls", "key-packages", toByteString' $ toUrlPiece ref, "conversation"])
-        <!! const 200 === statusCode
-  liftIO $ mqcnv @?= Just qcnv
 
 getFeatureConfig :: forall cfg m. (MonadHttp m, HasCallStack, KnownSymbol (ApiFt.FeatureSymbol cfg)) => (Request -> Request) -> UserId -> m ResponseLBS
 getFeatureConfig galley uid = do

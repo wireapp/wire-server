@@ -4,18 +4,14 @@ module Testlib.Env where
 
 import Control.Monad.Codensity
 import Control.Monad.IO.Class
-import Data.Aeson hiding ((.=))
-import Data.ByteString (ByteString)
+import Data.Function ((&))
 import Data.Functor
 import Data.IORef
-import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.Set (Set)
 import Data.Set qualified as Set
-import Data.String
-import Data.Word
 import Data.Yaml qualified as Yaml
-import GHC.Generics
+import Database.CQL.IO qualified as Cassandra
 import Network.HTTP.Client qualified as HTTP
 import System.Exit
 import System.FilePath
@@ -23,125 +19,8 @@ import System.IO
 import System.IO.Temp
 import Testlib.Prekeys
 import Testlib.ResourcePool
+import Testlib.Types
 import Prelude
-
--- | Initialised once per test.
-data Env = Env
-  { serviceMap :: Map String ServiceMap,
-    domain1 :: String,
-    domain2 :: String,
-    dynamicDomains :: [String],
-    defaultAPIVersion :: Int,
-    manager :: HTTP.Manager,
-    servicesCwdBase :: Maybe FilePath,
-    removalKeyPath :: FilePath,
-    prekeys :: IORef [(Int, String)],
-    lastPrekeys :: IORef [String],
-    mls :: IORef MLSState,
-    resourcePool :: ResourcePool BackendResource
-  }
-
--- | Initialised once per testsuite.
-data GlobalEnv = GlobalEnv
-  { gServiceMap :: Map String ServiceMap,
-    gDomain1 :: String,
-    gDomain2 :: String,
-    gDynamicDomains :: [String],
-    gDefaultAPIVersion :: Int,
-    gManager :: HTTP.Manager,
-    gServicesCwdBase :: Maybe FilePath,
-    gRemovalKeyPath :: FilePath,
-    gBackendResourcePool :: ResourcePool BackendResource
-  }
-
-data IntegrationConfig = IntegrationConfig
-  { backendOne :: BackendConfig,
-    backendTwo :: BackendConfig,
-    dynamicBackends :: Map String DynamicBackendConfig
-  }
-  deriving (Show, Generic)
-
-instance FromJSON IntegrationConfig where
-  parseJSON =
-    withObject "IntegrationConfig" $ \o ->
-      IntegrationConfig
-        <$> parseJSON (Object o)
-        <*> o .: "backendTwo"
-        <*> o .: "dynamicBackends"
-
-data ServiceMap = ServiceMap
-  { brig :: HostPort,
-    backgroundWorker :: HostPort,
-    cannon :: HostPort,
-    cargohold :: HostPort,
-    federatorInternal :: HostPort,
-    federatorExternal :: HostPort,
-    galley :: HostPort,
-    gundeck :: HostPort,
-    nginz :: HostPort,
-    spar :: HostPort,
-    proxy :: HostPort,
-    stern :: HostPort
-  }
-  deriving (Show, Generic)
-
-instance FromJSON ServiceMap
-
-data BackendConfig = BackendConfig
-  { beServiceMap :: ServiceMap,
-    originDomain :: String
-  }
-  deriving (Show, Generic)
-
-instance FromJSON BackendConfig where
-  parseJSON v =
-    BackendConfig
-      <$> parseJSON v
-      <*> withObject "BackendConfig" (\ob -> ob .: fromString "originDomain") v
-
-data HostPort = HostPort
-  { host :: String,
-    port :: Word16
-  }
-  deriving (Show, Generic)
-
-instance FromJSON HostPort
-
-data Service = Brig | Galley | Cannon | Gundeck | Cargohold | Nginz | Spar | BackgroundWorker | Stern | FederatorInternal
-  deriving
-    ( Show,
-      Eq,
-      Ord,
-      Enum,
-      Bounded
-    )
-
-serviceName :: Service -> String
-serviceName = \case
-  Brig -> "brig"
-  Galley -> "galley"
-  Cannon -> "cannon"
-  Gundeck -> "gundeck"
-  Cargohold -> "cargohold"
-  Nginz -> "nginz"
-  Spar -> "spar"
-  BackgroundWorker -> "backgroundWorker"
-  Stern -> "stern"
-  FederatorInternal -> "federator"
-
--- | Converts the service name to kebab-case.
-configName :: Service -> String
-configName = \case
-  Brig -> "brig"
-  Galley -> "galley"
-  Cannon -> "cannon"
-  Gundeck -> "gundeck"
-  Cargohold -> "cargohold"
-  Nginz -> "nginz"
-  Spar -> "spar"
-  BackgroundWorker -> "background-worker"
-  Stern -> "stern"
-  FederatorInternal -> "federator"
 
 serviceHostPort :: ServiceMap -> Service -> HostPort
 serviceHostPort m Brig = m.brig
@@ -172,7 +51,16 @@ mkGlobalEnv cfgFile = do
             else Nothing
 
   manager <- HTTP.newManager HTTP.defaultManagerSettings
-  resourcePool <- createBackendResourcePool (Map.elems intConfig.dynamicBackends)
+  let cassSettings =
+        Cassandra.defSettings
+          & Cassandra.setContacts intConfig.cassandra.host []
+          & Cassandra.setPortNumber (fromIntegral intConfig.cassandra.port)
+  cassClient <- Cassandra.init cassSettings
+  resourcePool <-
+    createBackendResourcePool
+      (Map.elems intConfig.dynamicBackends)
+      intConfig.rabbitmq
+      cassClient
   pure
     GlobalEnv
       { gServiceMap =
@@ -183,11 +71,12 @@ mkGlobalEnv cfgFile = do
         gDomain1 = intConfig.backendOne.originDomain,
         gDomain2 = intConfig.backendTwo.originDomain,
         gDynamicDomains = (.domain) <$> Map.elems intConfig.dynamicBackends,
-        gDefaultAPIVersion = 4,
+        gDefaultAPIVersion = 5,
         gManager = manager,
         gServicesCwdBase = devEnvProjectRoot <&> (</> "services"),
         gRemovalKeyPath = error "Uninitialised removal key path",
-        gBackendResourcePool = resourcePool
+        gBackendResourcePool = resourcePool,
+        gRabbitMQConfig = intConfig.rabbitmq
       }
 
 mkEnv :: GlobalEnv -> Codensity IO Env
@@ -209,7 +98,8 @@ mkEnv ge = do
           prekeys = pks,
           lastPrekeys = lpks,
           mls = mls,
-          resourcePool = ge.gBackendResourcePool
+          resourcePool = ge.gBackendResourcePool,
+          rabbitMQConfig = ge.gRabbitMQConfig
         }
 
 destroy :: IORef (Set BackendResource) -> BackendResource -> IO ()
@@ -224,18 +114,6 @@ create ioRef =
         Nothing -> error "No resources available"
         Just (r, s') -> (s', r)
 
-data MLSState = MLSState
-  { baseDir :: FilePath,
-    members :: Set ClientIdentity,
-    -- | users expected to receive a welcome message after the next commit
-    newMembers :: Set ClientIdentity,
-    groupId :: Maybe String,
-    convId :: Maybe Value,
-    clientGroupState :: Map ClientIdentity ByteString,
-    epoch :: Word64
-  }
-  deriving (Show)
-
 mkMLSState :: Codensity IO MLSState
 mkMLSState = Codensity $ \k ->
   withSystemTempDirectory "mls" $ \tmp -> do
@@ -249,10 +127,3 @@ mkMLSState = Codensity $ \k ->
           clientGroupState = mempty,
           epoch = 0
         }
-
-data ClientIdentity = ClientIdentity
-  { domain :: String,
-    user :: String,
-    client :: String
-  }
-  deriving (Show, Eq, Ord)

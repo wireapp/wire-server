@@ -4,6 +4,7 @@ import API.Brig qualified as Public
 import API.BrigInternal qualified as Internal
 import API.Common qualified as API
 import API.GalleyInternal qualified as Internal
+import Control.Concurrent (threadDelay)
 import Data.Aeson qualified as Aeson
 import Data.Aeson.Types hiding ((.=))
 import Data.Set qualified as Set
@@ -29,12 +30,7 @@ testSearchContactForExternalUsers = do
 testCrudFederationRemotes :: HasCallStack => App ()
 testCrudFederationRemotes = do
   otherDomain <- asString OtherDomain
-  let overrides =
-        ( setField
-            "optSettings.setFederationDomainConfigs"
-            [object ["domain" .= otherDomain, "search_policy" .= "full_search"]]
-        )
-  withModifiedService Brig overrides $ \_ -> do
+  withModifiedBackend def $ \ownDomain -> do
     let parseFedConns :: HasCallStack => Response -> App [Value]
         parseFedConns resp =
           -- Pick out the list of federation domain configs
@@ -43,74 +39,40 @@ testCrudFederationRemotes = do
             -- Enforce that the values are objects and not something else
             >>= traverse (fmap Object . asObject)
 
-        addOnce :: (MakesValue fedConn, Ord fedConn2, ToJSON fedConn2, MakesValue fedConn2, HasCallStack) => fedConn -> [fedConn2] -> App ()
-        addOnce fedConn want = do
-          bindResponse (Internal.createFedConn OwnDomain fedConn) $ \res -> do
+        addTest :: (MakesValue fedConn, Ord fedConn2, ToJSON fedConn2, MakesValue fedConn2, HasCallStack) => fedConn -> [fedConn2] -> App ()
+        addTest fedConn want = do
+          bindResponse (Internal.createFedConn ownDomain fedConn) $ \res -> do
             addFailureContext ("res = " <> show res) $ res.status `shouldMatchInt` 200
-            res2 <- parseFedConns =<< Internal.readFedConns OwnDomain
+            res2 <- parseFedConns =<< Internal.readFedConns ownDomain
             sort res2 `shouldMatch` sort want
 
-        addFail :: HasCallStack => MakesValue fedConn => fedConn -> App ()
-        addFail fedConn = do
-          bindResponse (Internal.createFedConn' OwnDomain fedConn) $ \res -> do
-            addFailureContext ("res = " <> show res) $ res.status `shouldMatchInt` 533
-
-        deleteOnce :: (Ord fedConn, ToJSON fedConn, MakesValue fedConn) => String -> [fedConn] -> App ()
-        deleteOnce domain want = do
-          bindResponse (Internal.deleteFedConn OwnDomain domain) $ \res -> do
+        updateTest :: (MakesValue fedConn, Ord fedConn2, ToJSON fedConn2, MakesValue fedConn2, HasCallStack) => String -> fedConn -> [fedConn2] -> App ()
+        updateTest domain fedConn want = do
+          bindResponse (Internal.updateFedConn ownDomain domain fedConn) $ \res -> do
             addFailureContext ("res = " <> show res) $ res.status `shouldMatchInt` 200
-            res2 <- parseFedConns =<< Internal.readFedConns OwnDomain
+            res2 <- parseFedConns =<< Internal.readFedConns ownDomain
             sort res2 `shouldMatch` sort want
-
-        deleteFail :: HasCallStack => String -> App ()
-        deleteFail del = do
-          bindResponse (Internal.deleteFedConn' OwnDomain del) $ \res -> do
-            addFailureContext ("res = " <> show res) $ res.status `shouldMatchInt` 533
-
-        updateOnce :: (MakesValue fedConn, Ord fedConn2, ToJSON fedConn2, MakesValue fedConn2, HasCallStack) => String -> fedConn -> [fedConn2] -> App ()
-        updateOnce domain fedConn want = do
-          bindResponse (Internal.updateFedConn OwnDomain domain fedConn) $ \res -> do
-            addFailureContext ("res = " <> show res) $ res.status `shouldMatchInt` 200
-            res2 <- parseFedConns =<< Internal.readFedConns OwnDomain
-            sort res2 `shouldMatch` sort want
-
-        updateFail :: (MakesValue fedConn, HasCallStack) => String -> fedConn -> App ()
-        updateFail domain fedConn = do
-          bindResponse (Internal.updateFedConn' OwnDomain domain fedConn) $ \res -> do
-            addFailureContext ("res = " <> show res) $ res.status `shouldMatchInt` 533
 
     dom1 :: String <- (<> ".example.com") . UUID.toString <$> liftIO UUID.nextRandom
-    dom2 :: String <- (<> ".example.com") . UUID.toString <$> liftIO UUID.nextRandom
 
-    let remote1, remote1', remote1'' :: Internal.FedConn
+    let remote1, remote1' :: Internal.FedConn
         remote1 = Internal.FedConn dom1 "no_search"
         remote1' = remote1 {Internal.searchStrategy = "full_search"}
-        remote1'' = remote1 {Internal.domain = dom2}
 
         cfgRemotesExpect :: Internal.FedConn
         cfgRemotesExpect = Internal.FedConn (cs otherDomain) "full_search"
 
-    remote1J <- make remote1
-    remote1J' <- make remote1'
-
-    resetFedConns OwnDomain
-    cfgRemotes <- parseFedConns =<< Internal.readFedConns OwnDomain
-    cfgRemotes `shouldMatch` [cfgRemotesExpect]
+    liftIO $ threadDelay 5_000_000
+    cfgRemotes <- parseFedConns =<< Internal.readFedConns ownDomain
+    cfgRemotes `shouldMatch` ([] @Value)
     -- entries present in the config file can be idempotently added if identical, but cannot be
-    -- updated, deleted or updated.
-    addOnce cfgRemotesExpect [cfgRemotesExpect]
-    addFail (cfgRemotesExpect {Internal.searchStrategy = "no_search"})
-    deleteFail (Internal.domain cfgRemotesExpect)
-    updateFail (Internal.domain cfgRemotesExpect) (cfgRemotesExpect {Internal.searchStrategy = "no_search"})
+    -- updated.
+    addTest cfgRemotesExpect [cfgRemotesExpect]
     -- create
-    addOnce remote1 $ (remote1J : cfgRemotes)
-    addOnce remote1 $ (remote1J : cfgRemotes) -- idempotency
+    addTest remote1 [cfgRemotesExpect, remote1]
+    addTest remote1 [cfgRemotesExpect, remote1] -- idempotency
     -- update
-    updateOnce (Internal.domain remote1) remote1' (remote1J' : cfgRemotes)
-    updateFail (Internal.domain remote1) remote1''
-    -- delete
-    deleteOnce (Internal.domain remote1) cfgRemotes
-    deleteOnce (Internal.domain remote1) cfgRemotes -- idempotency
+    updateTest (Internal.domain remote1) remote1' [cfgRemotesExpect, remote1']
 
 testCrudOAuthClient :: HasCallStack => App ()
 testCrudOAuthClient = do
@@ -139,7 +101,7 @@ testCrudOAuthClient = do
 testSwagger :: HasCallStack => App ()
 testSwagger = do
   let existingVersions :: [Int]
-      existingVersions = [0, 1, 2, 3, 4]
+      existingVersions = [0, 1, 2, 3, 4, 5]
 
       internalApis :: [String]
       internalApis = ["brig", "cannon", "cargohold", "cannon", "spar"]
@@ -183,9 +145,8 @@ testRemoteUserSearch :: HasCallStack => App ()
 testRemoteUserSearch = do
   let overrides =
         setField "optSettings.setFederationStrategy" "allowDynamic"
-          >=> removeField "optSettings.setFederationDomainConfigs"
           >=> setField "optSettings.setFederationDomainConfigsUpdateFreq" (Aeson.Number 1)
-  startDynamicBackends [def {dbBrig = overrides}, def {dbBrig = overrides}] $ \dynDomains -> do
+  startDynamicBackends [def {brigCfg = overrides}, def {brigCfg = overrides}] $ \dynDomains -> do
     domains@[d1, d2] <- pure dynDomains
     connectAllDomainsAndWaitToSync 1 domains
     [u1, u2] <- createAndConnectUsers [d1, d2]

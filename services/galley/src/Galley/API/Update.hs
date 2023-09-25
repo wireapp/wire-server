@@ -79,6 +79,7 @@ import Data.Id
 import Data.Json.Util
 import Data.List1
 import Data.Map.Strict qualified as Map
+import Data.Misc (HttpsUrl)
 import Data.Qualified
 import Data.Set qualified as Set
 import Data.Singletons
@@ -94,7 +95,6 @@ import Galley.Data.Conversation qualified as Data
 import Galley.Data.Services as Data
 import Galley.Data.Types hiding (Conversation)
 import Galley.Effects
-import Galley.Effects.BackendNotificationQueueAccess
 import Galley.Effects.ClientStore qualified as E
 import Galley.Effects.CodeStore qualified as E
 import Galley.Effects.ConversationStore qualified as E
@@ -135,6 +135,7 @@ import Wire.API.Federation.Error
 import Wire.API.Message
 import Wire.API.Password (mkSafePassword)
 import Wire.API.Provider.Service (ServiceRef)
+import Wire.API.Routes.Public (ZHostValue)
 import Wire.API.Routes.Public.Galley.Messaging
 import Wire.API.Routes.Public.Util (UpdateResult (..))
 import Wire.API.ServantProto (RawProto (..))
@@ -253,7 +254,8 @@ handleUpdateResult = \case
   Unchanged -> empty & setStatus status204
 
 type UpdateConversationAccessEffects =
-  '[ BotAccess,
+  '[ BackendNotificationQueueAccess,
+     BotAccess,
      BrigAccess,
      CodeStore,
      ConversationStore,
@@ -307,7 +309,8 @@ updateConversationAccessUnqualified lusr con cnv update =
       update
 
 updateConversationReceiptMode ::
-  ( Member BrigAccess r,
+  ( Member BackendNotificationQueueAccess r,
+    Member BrigAccess r,
     Member ConversationStore r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
@@ -380,7 +383,8 @@ updateRemoteConversation rcnv lusr conn action = getUpdateResult $ do
   updateLocalStateOfRemoteConv (qualifyAs rcnv convUpdate) (Just conn) >>= note NoChanges
 
 updateConversationReceiptModeUnqualified ::
-  ( Member BrigAccess r,
+  ( Member BackendNotificationQueueAccess r,
+    Member BrigAccess r,
     Member ConversationStore r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
@@ -403,13 +407,13 @@ updateConversationReceiptModeUnqualified ::
 updateConversationReceiptModeUnqualified lusr zcon cnv = updateConversationReceiptMode lusr zcon (tUntagged (qualifyAs lusr cnv))
 
 updateConversationMessageTimer ::
-  ( Member ConversationStore r,
+  ( Member BackendNotificationQueueAccess r,
+    Member ConversationStore r,
     Member (ErrorS ('ActionDenied 'ModifyConversationMessageTimer)) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
     Member (Error FederationError) r,
     Member ExternalAccess r,
-    Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
     Member (Logger (Msg -> Msg)) r
@@ -436,13 +440,13 @@ updateConversationMessageTimer lusr zcon qcnv update =
       qcnv
 
 updateConversationMessageTimerUnqualified ::
-  ( Member ConversationStore r,
+  ( Member BackendNotificationQueueAccess r,
+    Member ConversationStore r,
     Member (ErrorS ('ActionDenied 'ModifyConversationMessageTimer)) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
     Member (Error FederationError) r,
     Member ExternalAccess r,
-    Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
     Member (Logger (Msg -> Msg)) r
@@ -455,7 +459,8 @@ updateConversationMessageTimerUnqualified ::
 updateConversationMessageTimerUnqualified lusr zcon cnv = updateConversationMessageTimer lusr zcon (tUntagged (qualifyAs lusr cnv))
 
 deleteLocalConversation ::
-  ( Member CodeStore r,
+  ( Member BackendNotificationQueueAccess r,
+    Member CodeStore r,
     Member ConversationStore r,
     Member (Error FederationError) r,
     Member (ErrorS 'NotATeamMember) r,
@@ -463,7 +468,6 @@ deleteLocalConversation ::
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
     Member ExternalAccess r,
-    Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
     Member TeamStore r,
@@ -497,11 +501,12 @@ addCodeUnqualifiedWithReqBody ::
     Member TeamFeatureStore r
   ) =>
   UserId ->
+  Maybe Text ->
   Maybe ConnId ->
   ConvId ->
   CreateConversationCodeRequest ->
   Sem r AddCodeResult
-addCodeUnqualifiedWithReqBody usr mZcon cnv req = addCodeUnqualified (Just req) usr mZcon cnv
+addCodeUnqualifiedWithReqBody usr mbZHost mZcon cnv req = addCodeUnqualified (Just req) usr mbZHost mZcon cnv
 
 addCodeUnqualified ::
   forall r.
@@ -521,13 +526,14 @@ addCodeUnqualified ::
   ) =>
   Maybe CreateConversationCodeRequest ->
   UserId ->
+  Maybe ZHostValue ->
   Maybe ConnId ->
   ConvId ->
   Sem r AddCodeResult
-addCodeUnqualified mReq usr mZcon cnv = do
+addCodeUnqualified mReq usr mbZHost mZcon cnv = do
   lusr <- qualifyLocal usr
   lcnv <- qualifyLocal cnv
-  addCode lusr mZcon lcnv mReq
+  addCode lusr mbZHost mZcon lcnv mReq
 
 addCode ::
   forall r.
@@ -545,37 +551,34 @@ addCode ::
     Member (Embed IO) r
   ) =>
   Local UserId ->
+  Maybe ZHostValue ->
   Maybe ConnId ->
   Local ConvId ->
   Maybe CreateConversationCodeRequest ->
   Sem r AddCodeResult
-addCode lusr mZcon lcnv mReq = do
+addCode lusr mbZHost mZcon lcnv mReq = do
   conv <- E.getConversation (tUnqualified lcnv) >>= noteS @'ConvNotFound
   Query.ensureGuestLinksEnabled (Data.convTeam conv)
   Query.ensureConvAdmin (Data.convLocalMembers conv) (tUnqualified lusr)
   ensureAccess conv CodeAccess
   ensureGuestsOrNonTeamMembersAllowed conv
-  let (bots, users) = localBotsAndUsers $ Data.convLocalMembers conv
+  convUri <- getConversationCodeURI mbZHost
   key <- E.makeKey (tUnqualified lcnv)
-  mCode <- E.getCode key ReusableCode
-  case mCode of
+  E.getCode key ReusableCode >>= \case
     Nothing -> do
       code <- E.generateCode (tUnqualified lcnv) ReusableCode (Timeout 3600 * 24 * 365) -- one year FUTUREWORK: configurable
-      mPw <- forM ((.password) =<< mReq) mkSafePassword
+      mPw <- for (mReq >>= (.password)) mkSafePassword
       E.createCode code mPw
       now <- input
-      conversationCode <- createCode (isJust mPw) code
-      let event = Event (tUntagged lcnv) Nothing (tUntagged lusr) now (EdConvCodeUpdate conversationCode)
+      let event = Event (tUntagged lcnv) Nothing (tUntagged lusr) now (EdConvCodeUpdate (mkConversationCodeInfo (isJust mPw) (codeKey code) (codeValue code) convUri))
+      let (bots, users) = localBotsAndUsers $ Data.convLocalMembers conv
       pushConversationEvent mZcon event (qualifyAs lusr (map lmId users)) bots
       pure $ CodeAdded event
+    -- In case conversation already has a code this case covers the allowed no-ops
     Just (code, mPw) -> do
       when (isJust mPw || isJust (mReq >>= (.password))) $ throwS @'CreateConversationCodeConflict
-      conversationCode <- createCode (isJust mPw) code
-      pure $ CodeAlreadyExisted conversationCode
+      pure $ CodeAlreadyExisted (mkConversationCodeInfo (isJust mPw) (codeKey code) (codeValue code) convUri)
   where
-    createCode :: Bool -> Code -> Sem r ConversationCodeInfo
-    createCode hasPw code = do
-      mkConversationCodeInfo hasPw (codeKey code) (codeValue code) <$> E.getConversationCodeURI
     ensureGuestsOrNonTeamMembersAllowed :: Data.Conversation -> Sem r ()
     ensureGuestsOrNonTeamMembersAllowed conv =
       unless
@@ -639,10 +642,11 @@ getCode ::
     Member (Input Opts) r,
     Member TeamFeatureStore r
   ) =>
+  Maybe ZHostValue ->
   Local UserId ->
   ConvId ->
   Sem r ConversationCodeInfo
-getCode lusr cnv = do
+getCode mbZHost lusr cnv = do
   conv <-
     E.getConversation cnv >>= noteS @'ConvNotFound
   Query.ensureGuestLinksEnabled (Data.convTeam conv)
@@ -650,7 +654,8 @@ getCode lusr cnv = do
   ensureConvMember (Data.convLocalMembers conv) (tUnqualified lusr)
   key <- E.makeKey cnv
   (c, mPw) <- E.getCode key ReusableCode >>= noteS @'CodeNotFound
-  mkConversationCodeInfo (isJust mPw) (codeKey c) (codeValue c) <$> E.getConversationCodeURI
+  convUri <- getConversationCodeURI mbZHost
+  pure $ mkConversationCodeInfo (isJust mPw) (codeKey c) (codeValue c) convUri
 
 checkReusableCode ::
   forall r.
@@ -672,7 +677,8 @@ checkReusableCode convCode = do
 
 joinConversationByReusableCode ::
   forall r.
-  ( Member BrigAccess r,
+  ( Member BackendNotificationQueueAccess r,
+    Member BrigAccess r,
     Member CodeStore r,
     Member ConversationStore r,
     Member (ErrorS 'CodeNotFound) r,
@@ -683,7 +689,6 @@ joinConversationByReusableCode ::
     Member (ErrorS 'InvalidOperation) r,
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS 'TooManyMembers) r,
-    Member FederatorAccess r,
     Member ExternalAccess r,
     Member GundeckAccess r,
     Member (Input Opts) r,
@@ -705,8 +710,8 @@ joinConversationByReusableCode lusr zcon req = do
 
 joinConversationById ::
   forall r.
-  ( Member BrigAccess r,
-    Member FederatorAccess r,
+  ( Member BackendNotificationQueueAccess r,
+    Member BrigAccess r,
     Member ConversationStore r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'ConvNotFound) r,
@@ -731,8 +736,8 @@ joinConversationById lusr zcon cnv = do
 
 joinConversation ::
   forall r.
-  ( Member BrigAccess r,
-    Member FederatorAccess r,
+  ( Member BackendNotificationQueueAccess r,
+    Member BrigAccess r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'InvalidOperation) r,
     Member (ErrorS 'NotATeamMember) r,
@@ -774,7 +779,8 @@ joinConversation lusr zcon conv access = do
         action
 
 addMembers ::
-  ( Member BrigAccess r,
+  ( Member BackendNotificationQueueAccess r,
+    Member BrigAccess r,
     Member ConversationStore r,
     Member (Error InternalError) r,
     Member (ErrorS ('ActionDenied 'AddConversationMember)) r,
@@ -813,7 +819,8 @@ addMembers lusr zcon qcnv (InviteQualified users role) = do
       ConversationJoin users role
 
 addMembersUnqualifiedV2 ::
-  ( Member BrigAccess r,
+  ( Member BackendNotificationQueueAccess r,
+    Member BrigAccess r,
     Member ConversationStore r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
@@ -852,7 +859,8 @@ addMembersUnqualifiedV2 lusr zcon cnv (InviteQualified users role) = do
       ConversationJoin users role
 
 addMembersUnqualified ::
-  ( Member BrigAccess r,
+  ( Member BackendNotificationQueueAccess r,
+    Member BrigAccess r,
     Member ConversationStore r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
@@ -953,7 +961,8 @@ updateUnqualifiedSelfMember lusr zcon cnv update = do
   updateSelfMember lusr zcon (tUntagged lcnv) update
 
 updateOtherMemberLocalConv ::
-  ( Member ConversationStore r,
+  ( Member BackendNotificationQueueAccess r,
+    Member ConversationStore r,
     Member (Error FederationError) r,
     Member (ErrorS ('ActionDenied 'ModifyOtherConversationMember)) r,
     Member (ErrorS 'InvalidTarget) r,
@@ -961,7 +970,6 @@ updateOtherMemberLocalConv ::
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'ConvMemberNotFound) r,
     Member ExternalAccess r,
-    Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
     Member MemberStore r,
@@ -980,7 +988,8 @@ updateOtherMemberLocalConv lcnv lusr con qvictim update = void . getUpdateResult
     ConversationMemberUpdate qvictim update
 
 updateOtherMemberUnqualified ::
-  ( Member ConversationStore r,
+  ( Member BackendNotificationQueueAccess r,
+    Member ConversationStore r,
     Member (Error FederationError) r,
     Member (ErrorS ('ActionDenied 'ModifyOtherConversationMember)) r,
     Member (ErrorS 'InvalidTarget) r,
@@ -988,7 +997,6 @@ updateOtherMemberUnqualified ::
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'ConvMemberNotFound) r,
     Member ExternalAccess r,
-    Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
     Member MemberStore r,
@@ -1006,7 +1014,8 @@ updateOtherMemberUnqualified lusr zcon cnv victim update = do
   updateOtherMemberLocalConv lcnv lusr zcon (tUntagged lvictim) update
 
 updateOtherMember ::
-  ( Member ConversationStore r,
+  ( Member BackendNotificationQueueAccess r,
+    Member ConversationStore r,
     Member (Error FederationError) r,
     Member (ErrorS ('ActionDenied 'ModifyOtherConversationMember)) r,
     Member (ErrorS 'InvalidTarget) r,
@@ -1014,7 +1023,6 @@ updateOtherMember ::
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'ConvMemberNotFound) r,
     Member ExternalAccess r,
-    Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
     Member MemberStore r,
@@ -1041,7 +1049,8 @@ updateOtherMemberRemoteConv ::
 updateOtherMemberRemoteConv _ _ _ _ _ = throw FederationNotImplemented
 
 removeMemberUnqualified ::
-  ( Member ConversationStore r,
+  ( Member BackendNotificationQueueAccess r,
+    Member ConversationStore r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
@@ -1067,7 +1076,8 @@ removeMemberUnqualified lusr con cnv victim = do
   removeMemberQualified lusr con (tUntagged lcnv) (tUntagged lvictim)
 
 removeMemberQualified ::
-  ( Member ConversationStore r,
+  ( Member BackendNotificationQueueAccess r,
+    Member ConversationStore r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
@@ -1134,7 +1144,8 @@ removeMemberFromRemoteConv cnv lusr victim
 
 -- | Remove a member from a local conversation.
 removeMemberFromLocalConv ::
-  ( Member ConversationStore r,
+  ( Member BackendNotificationQueueAccess r,
+    Member ConversationStore r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member (ErrorS ('ActionDenied 'LeaveConversation)) r,
@@ -1326,14 +1337,14 @@ postOtrMessageUnqualified sender zcon cnv =
         (runLocalInput sender . postQualifiedOtrMessage User (tUntagged sender) (Just zcon) lcnv)
 
 updateConversationName ::
-  ( Member ConversationStore r,
+  ( Member BackendNotificationQueueAccess r,
+    Member ConversationStore r,
     Member (Error FederationError) r,
     Member (Error InvalidInput) r,
     Member (ErrorS ('ActionDenied 'ModifyConversationName)) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
     Member ExternalAccess r,
-    Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
     Member (Logger (Msg -> Msg)) r
@@ -1352,14 +1363,14 @@ updateConversationName lusr zcon qcnv convRename = do
     convRename
 
 updateUnqualifiedConversationName ::
-  ( Member ConversationStore r,
+  ( Member BackendNotificationQueueAccess r,
+    Member ConversationStore r,
     Member (Error FederationError) r,
     Member (Error InvalidInput) r,
     Member (ErrorS ('ActionDenied 'ModifyConversationName)) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
     Member ExternalAccess r,
-    Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
     Member (Logger (Msg -> Msg)) r
@@ -1374,14 +1385,14 @@ updateUnqualifiedConversationName lusr zcon cnv rename = do
   updateLocalConversationName lusr zcon lcnv rename
 
 updateLocalConversationName ::
-  ( Member ConversationStore r,
+  ( Member BackendNotificationQueueAccess r,
+    Member ConversationStore r,
     Member (Error FederationError) r,
     Member (Error InvalidInput) r,
     Member (ErrorS ('ActionDenied 'ModifyConversationName)) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
     Member ExternalAccess r,
-    Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
     Member (Logger (Msg -> Msg)) r
@@ -1618,3 +1629,15 @@ rmBot lusr zcon b = do
 ensureConvMember :: (Member (ErrorS 'ConvNotFound) r) => [LocalMember] -> UserId -> Sem r ()
 ensureConvMember users usr =
   unless (usr `isMember` users) $ throwS @'ConvNotFound
+
+getConversationCodeURI ::
+  ( Member (ErrorS 'ConvAccessDenied) r,
+    Member CodeStore r
+  ) =>
+  Maybe ZHostValue ->
+  Sem r HttpsUrl
+getConversationCodeURI mbZHost = do
+  mbURI <- E.getConversationCodeURI mbZHost
+  case mbURI of
+    Just uri -> pure uri
+    Nothing -> throwS @'ConvAccessDenied

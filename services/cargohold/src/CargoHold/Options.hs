@@ -104,7 +104,7 @@ data AWSOpts = AWSOpts
     --
     -- This logic is: If the @Z-Host@ header is provided and found in this map,
     -- the map's values is taken as s3 download endpoint to redirect to;
-    -- otherwise, `_awsS3DownloadEndpoint` is used. This option is only useful
+    -- otherwise a 404 is retuned. This option is only useful
     -- in the context of multi-ingress setups where one backend / deployment is
     -- reachable under several domains.
     _multiIngress :: !(Maybe (Map String AWSEndpoint))
