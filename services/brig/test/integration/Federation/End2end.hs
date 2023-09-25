@@ -24,6 +24,7 @@ import Bilge.Assert ((!!!), (<!!), (===))
 import Brig.API.Client (pubClient)
 import Brig.Options qualified as BrigOpts
 import Control.Arrow ((&&&))
+import Control.Exception (catch, throw, throwIO)
 import Control.Lens hiding ((#))
 import Data.Aeson qualified as Aeson
 import Data.ByteString.Conversion (toByteString')
@@ -37,6 +38,7 @@ import Data.ProtoLens qualified as Protolens
 import Data.Qualified
 import Data.Range (checked)
 import Data.Set qualified as Set
+import Debug.Trace qualified as T
 import Federation.Util (connectUsersEnd2End, generateClientPrekeys, getConvQualified)
 import Imports hiding (cs)
 import System.Logger qualified as Log
@@ -560,6 +562,11 @@ testSendMessageToRemoteConv brig1 brig2 galley1 galley2 cannon1 = do
           ( OtrMessage bobClient aliceClient (toBase64Text msgText) (Just "")
           )
 
+data NotificationException = NotificationException
+  deriving (Show, Typeable)
+
+instance Exception NotificationException
+
 testDeleteUser :: Brig -> Brig -> Galley -> Galley -> Cannon -> Http ()
 testDeleteUser brig1 brig2 galley1 galley2 cannon1 = do
   alice <- userQualifiedId <$> randomUser brig1
@@ -579,9 +586,45 @@ testDeleteUser brig1 brig2 galley1 galley2 cannon1 = do
 
   WS.bracketR cannon1 (qUnqualified alice) $ \wsAlice -> do
     deleteUser (qUnqualified bobDel) (Just defPassword) brig2 !!! const 200 === statusCode
-    WS.assertMatch_ (5 # Second) wsAlice $ matchDeleteUserNotification bobDel
-    WS.assertMatch_ (5 # Second) wsAlice $ matchConvLeaveNotification conv1 bobDel [bobDel]
-    WS.assertMatch_ (5 # Second) wsAlice $ matchConvLeaveNotification conv2 bobDel [bobDel]
+    refA <- newIORef True
+    refB <- newIORef True
+    refC <- newIORef True
+    let runFoo :: IORef Bool -> (Notification -> IO a) -> Notification -> IO ()
+        runFoo ref go notif = do
+          b <- readIORef ref
+          if b
+            then do
+              void $ go notif
+              T.traceM "Passed test!"
+              atomicWriteIORef ref False
+              T.traceM "Updated IORef!"
+            else do
+              T.traceM "Throwing notification exception"
+              throw NotificationException
+        checkNotification notif = do
+          T.traceShowM notif
+          foldr
+            (\a z -> a `catch` const @_ @SomeException z)
+            (T.traceM "-----------\nThrowing base exception\n-------------" *> throwIO NotificationException)
+            [ T.traceM "Test A" *> runFoo refA (matchDeleteUserNotification bobDel) notif,
+              T.traceM "Test B" *> runFoo refB (matchConvLeaveNotification conv1 bobDel [bobDel]) notif,
+              T.traceM "Test C" *> runFoo refC (matchConvLeaveNotification conv2 bobDel [bobDel]) notif
+            ]
+    T.traceM "First notification"
+    readIORef refA >>= T.traceM . mappend "refA = " . show
+    readIORef refB >>= T.traceM . mappend "refB = " . show
+    readIORef refC >>= T.traceM . mappend "refC = " . show
+    WS.assertMatch_ (5 # Second) wsAlice $ checkNotification
+    T.traceM "Second notification"
+    readIORef refA >>= T.traceM . mappend "refA = " . show
+    readIORef refB >>= T.traceM . mappend "refB = " . show
+    readIORef refC >>= T.traceM . mappend "refC = " . show
+    WS.assertMatch_ (5 # Second) wsAlice $ checkNotification
+    T.traceM "Third notification"
+    readIORef refA >>= T.traceM . mappend "refA = " . show
+    readIORef refB >>= T.traceM . mappend "refB = " . show
+    readIORef refC >>= T.traceM . mappend "refC = " . show
+    WS.assertMatch_ (5 # Second) wsAlice $ checkNotification
 
 testRemoteAsset :: Brig -> Brig -> CargoHold -> CargoHold -> Http ()
 testRemoteAsset brig1 brig2 ch1 ch2 = do
