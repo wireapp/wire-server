@@ -81,7 +81,6 @@ import Data.Domain
 import Data.IP (IP)
 import Data.Id (ClientId, ConnId, UserId)
 import Data.List.Split (chunksOf)
-import Data.Map.Strict (traverseWithKey)
 import Data.Map.Strict qualified as Map
 import Data.Misc (PlainTextPassword6)
 import Data.Qualified
@@ -133,13 +132,18 @@ lookupPubClientsBulk :: [Qualified UserId] -> ExceptT ClientError (AppT r) (Qual
 lookupPubClientsBulk qualifiedUids = do
   loc <- qualifyLocal ()
   let (localUsers, remoteUsers) = partitionQualified loc qualifiedUids
-  remoteUserClientMap <-
-    traverseWithKey
-      (\domain' uids -> getUserClients domain' (GetUserClients uids))
-      (indexQualified (fmap tUntagged remoteUsers))
-      !>> ClientFederationError
+  remoteUserClientMap <- lift $ getRemoteClients $ indexQualified (fmap tUntagged remoteUsers)
   localUserClientMap <- Map.singleton (tDomain loc) <$> lookupLocalPubClientsBulk localUsers
   pure $ QualifiedUserMap (Map.union localUserClientMap remoteUserClientMap)
+  where
+    getRemoteClients :: Map Domain [UserId] -> AppT r (Map Domain (UserMap (Set PubClient)))
+    getRemoteClients uids = do
+      results <-
+        traverse
+          ( \(d, ids) -> fmap (d,) <$> runExceptT (getUserClients d (GetUserClients ids))
+          )
+          (Map.toList uids)
+      pure $ Map.fromList (rights results)
 
 lookupLocalPubClientsBulk :: [UserId] -> ExceptT ClientError (AppT r) (UserMap (Set PubClient))
 lookupLocalPubClientsBulk = lift . wrapClient . Data.lookupPubClientsBulk
