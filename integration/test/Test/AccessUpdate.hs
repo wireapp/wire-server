@@ -69,6 +69,7 @@ testAccessUpdateGuestRemoved = do
 
 testAccessUpdateGuestRemovedUnreachableRemotes :: HasCallStack => App ()
 testAccessUpdateGuestRemovedUnreachableRemotes = do
+  -- TODO(md): test comment just to trigger the CI
   resourcePool <- asks resourcePool
   (alice, tid, [bob]) <- createTeam OwnDomain 2
   charlie <- randomUser OwnDomain def
