@@ -15,5 +15,6 @@ rabbitmq:
   adminPort: 15672
 
 backendNotificationPusher:
-  pushBackoffMinWait: 1000
-  pushBackoffMaxWait: 1000000
+  pushBackoffMinWait: 1000 # 1ms
+  pushBackoffMaxWait: 1000000 # 1s
+  remotesRefreshInterval: 10000 # 10ms

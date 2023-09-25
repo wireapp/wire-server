@@ -119,6 +119,7 @@ startPusher consumersRef chan = do
         traverse_ (liftIO . Q.cancelConsumer chan . fst) $ Map.elems consumers
         throwM e
 
+  timeBeforeNextRefresh <- asks (.backendNotificationsConfig.remotesRefreshInterval)
   -- If this thread is cancelled, catch the exception, kill the consumers, and carry on.
   -- FUTUREWORK?:
   -- If this throws an exception on the Chan / in the forever loop, the exception will
@@ -132,8 +133,7 @@ startPusher consumersRef chan = do
     $ do
       remotes <- getRemoteDomains
       ensureConsumers consumersRef chan remotes
-      -- TODO: Get from config, maybe copy code from previous PR
-      threadDelay 1_000_000
+      threadDelay timeBeforeNextRefresh
 
 ensureConsumers :: IORef (Map Domain (Q.ConsumerTag, MVar ())) -> Q.Channel -> [Domain] -> AppT IO ()
 ensureConsumers consumers chan domains = do
