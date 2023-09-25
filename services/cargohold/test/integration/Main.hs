@@ -30,7 +30,10 @@ import Imports hiding (local)
 import qualified Metrics
 import Options.Applicative
 import Test.Tasty
+import Test.Tasty.Ingredients
 import Test.Tasty.Options
+import Test.Tasty.Runners
+import Test.Tasty.Runners.AntXML
 import TestSetup
 import Util.Test
 
@@ -75,4 +78,6 @@ main = do
         [ Option (Proxy :: Proxy ServiceConfigFile),
           Option (Proxy :: Proxy IntegrationConfigFile)
         ]
+        : listingTests
+        : composeReporters antXMLRunner consoleTestReporter
         : defaultIngredients
