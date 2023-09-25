@@ -1,0 +1,4 @@
+apiVersion: v1
+name: outlook-addin
+version: 4.38.0
+description: Helm chart for outlook addin for Wire

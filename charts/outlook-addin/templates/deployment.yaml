@@ -1,0 +1,42 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "outlook.fullname" . }}
+  labels:
+    {{- include "outlook.labels" . | nindent 4 }}
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: {{ include "outlook.fullname" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "outlook.fullname" . }}
+    spec:
+      containers:
+        - name: {{ include "outlook.fullname" . }}
+          image: {{ .Values.containerImage }}
+          ports:
+            - name: http
+              containerPort: 80
+          env:
+            - name: BASE_URL
+              value: "https://{{ .Values.host }}"
+            - name: CLIENT_ID
+              value: "{{ .Values.clientId }}"
+            - name: WIRE_API_BASE_URL
+              value: "{{ .Values.wireApiBaseUrl }}"
+            - name: WIRE_AUTHORIZATION_ENDPOINT
+              value: "{{ .Values.wireAuthorizationEndpoint }}"
+            - name: SUPPORT_URL
+              value: "{{ .Values.supportUrl }}"
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
