@@ -7,9 +7,7 @@ import Imports
 import Network.HTTP.Client
 import System.Logger.Class qualified as Logger
 import Util.Options (Endpoint (..))
-import Wire.API.Routes.FederationDomainConfig
-import Wire.BackgroundWorker.Env hiding (federatorInternal, galley)
-import Wire.BackgroundWorker.Env qualified as E
+import Wire.BackgroundWorker.Env
 import Wire.BackgroundWorker.Options
 import Wire.BackgroundWorker.Util
 
@@ -20,14 +18,11 @@ testEnv = do
   statuses <- newIORef mempty
   backendNotificationMetrics <- mkBackendNotificationMetrics
   httpManager <- newManager defaultManagerSettings
-  remoteDomains <- newIORef defFederationDomainConfigs
   remoteDomainsChan <- newChan
   let federatorInternal = Endpoint "localhost" 0
       rabbitmqAdminClient = undefined
       rabbitmqVHost = undefined
       metrics = undefined
-      galley = Endpoint "localhost" 8085
-      brig = Endpoint "localhost" 8082
       defederationTimeout = responseTimeoutNone
       backendNotificationsConfig = BackendNotificationsConfig 1000 500000
   pure Env {..}
