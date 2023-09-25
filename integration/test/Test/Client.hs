@@ -21,7 +21,7 @@ testClientLastActive :: HasCallStack => App ()
 testClientLastActive = do
   alice <- randomUser OwnDomain def
   c0 <- addClient alice def >>= getJSON 201
-  cid <- c0 %. "id"
+  cid <- c0 %. "id" & asString
 
   -- newly created clients should not have a last_active value
   tm0 <- fromMaybe Null <$> lookupField c0 "last_active"
@@ -30,7 +30,7 @@ testClientLastActive = do
   now <- systemSeconds <$> liftIO getSystemTime
 
   -- fetching notifications updates last_active
-  void $ getNotifications alice cid def
+  void $ getNotifications alice def {client = Just cid}
 
   c1 <- getClient alice cid >>= getJSON 200
   tm1 <- c1 %. "last_active" & asString

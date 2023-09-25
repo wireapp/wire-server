@@ -52,6 +52,6 @@ testRemoveUser = do
 
   -- check that notifications are deleted
   do
-    ns <- getNotifications alice c def >>= getJSON 200
+    ns <- getNotifications alice def {client = Just c} >>= getJSON 200
     ns %. "notifications" `shouldMatch` ([] :: [Value])
     ns %. "has_more" `shouldMatch` False
