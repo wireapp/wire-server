@@ -1,5 +1,8 @@
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+
 module Test.MLS.Message where
 
+import API.Gundeck
 import MLS.Util
 import Notifications
 import SetupHelpers
@@ -50,3 +53,31 @@ testAppMessageSomeReachable = do
     pure alice1
 
   void $ createApplicationMessage alice1 "hi, bob!" >>= sendAndConsumeMessage
+
+testMessageNotifications :: HasCallStack => App ()
+testMessageNotifications = do
+  [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
+
+  [alice1, alice2, bob1, bob2] <- traverse (createMLSClient def) [alice, alice, bob, bob]
+  aliceClient <- alice1 %. "client_id" & asString
+  bobClient <- bob1 %. "client_id" & asString
+
+  traverse_ uploadNewKeyPackage [alice1, alice2, bob1, bob2]
+
+  void $ createNewGroup alice1
+  void $ createAddCommit alice1 [alice, bob] >>= sendAndConsumeCommitBundle
+
+  let get (opts :: GetNotifications) = do
+        notifs <- getNotifications bob opts {size = Just 10000} >>= getJSON 200
+        notifs %. "has_more" `shouldMatch` False
+        length <$> (notifs %. "notifications" & asList)
+
+  numNotifs <- get def
+  numNotifsClient <- get def {client = Just bobClient}
+
+  void $ withWebSocket bob $ \ws -> do
+    void $ createApplicationMessage alice1 "hi bob" >>= sendAndConsumeMessage
+    awaitMatch 10 isNewMLSMessageNotif ws
+
+  get def `shouldMatchInt` (numNotifs + 1)
+  get def {client = Just bobClient} `shouldMatchInt` (numNotifsClient + 1)
