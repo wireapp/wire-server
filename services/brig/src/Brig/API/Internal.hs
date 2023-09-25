@@ -72,7 +72,7 @@ import Data.Qualified
 import Data.Set qualified as Set
 import Data.Time.Clock.System
 import Imports hiding (head)
-import Network.Wai.Routing hiding (toList, trace)
+import Network.Wai.Routing hiding (toList)
 import Network.Wai.Utilities as Utilities
 import Polysemy
 import Servant hiding (Handler, JSON, addHeader, respond)
