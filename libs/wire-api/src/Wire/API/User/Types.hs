@@ -17,13 +17,12 @@ import Data.Id (TeamId)
 import Data.Proxy
 import Data.Schema
 import Data.Singletons.TH
-import Data.Swagger (ToParamSchema (..))
-import Data.Swagger qualified as S
+import Data.Swagger qualified as SW
 import Data.Text qualified as Text
 import GHC.Generics
 import Imports
 import SAML2.WebSSO qualified as SAML
-import Servant qualified as S
+import Servant qualified as SE
 import Test.QuickCheck.Arbitrary (Arbitrary, arbitrary)
 import Wire.Arbitrary (GenericUniform (..))
 
@@ -36,10 +35,10 @@ data Email = Email
     emailDomain :: Text
   }
   deriving stock (Eq, Ord, Generic)
-  deriving (FromJSON, ToJSON, S.ToSchema) via Schema Email
+  deriving (FromJSON, ToJSON, SW.ToSchema) via Schema Email
 
-instance ToParamSchema Email where
-  toParamSchema _ = toParamSchema (Proxy @Text)
+instance SW.ToParamSchema Email where
+  toParamSchema _ = SW.toParamSchema (Proxy @Text)
 
 instance ToSchema Email where
   schema =
@@ -61,10 +60,10 @@ instance ToByteString Email where
 instance FromByteString Email where
   parser = parser >>= maybe (fail "Invalid email") pure . parseEmail
 
-instance S.FromHttpApiData Email where
+instance SE.FromHttpApiData Email where
   parseUrlPiece = maybe (Left "Invalid email") Right . fromByteString . cs
 
-instance S.ToHttpApiData Email where
+instance SE.ToHttpApiData Email where
   toUrlPiece = cs . toByteString'
 
 instance Arbitrary Email where
