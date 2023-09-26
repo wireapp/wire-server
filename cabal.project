@@ -96,6 +96,8 @@ package hscim
     ghc-options: -Werror
 package http2-manager
     ghc-options: -Werror
+package integration
+    ghc-options: -Werror
 package imports
     ghc-options: -Werror
 package jwt-tools

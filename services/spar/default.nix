@@ -5,6 +5,7 @@
 { mkDerivation
 , aeson
 , aeson-qq
+, async
 , base
 , base64-bytestring
 , bilge
@@ -27,7 +28,9 @@
 , hscim
 , HsOpenSSL
 , hspec
+, hspec-core
 , hspec-discover
+, hspec-junit-formatter
 , hspec-wai
 , http-api-data
 , http-client
@@ -136,6 +139,7 @@ mkDerivation {
   executableHaskellDepends = [
     aeson
     aeson-qq
+    async
     base
     base64-bytestring
     bilge
@@ -156,6 +160,8 @@ mkDerivation {
     hscim
     HsOpenSSL
     hspec
+    hspec-core
+    hspec-junit-formatter
     hspec-wai
     http-api-data
     http-client

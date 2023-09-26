@@ -24,21 +24,10 @@ import Testlib.JSON
 import Testlib.Options
 import Testlib.Printing
 import Testlib.Types
+import Testlib.XML
 import Text.Printf
 import UnliftIO.Async
 import Prelude
-
-data TestReport = TestReport
-  { count :: Int,
-    failures :: [String]
-  }
-  deriving (Eq, Show)
-
-instance Semigroup TestReport where
-  TestReport s1 f1 <> TestReport s2 f2 = TestReport (s1 + s2) (f1 <> f2)
-
-instance Monoid TestReport where
-  mempty = TestReport 0 mempty
 
 runTest :: GlobalEnv -> App a -> IO (Either String a)
 runTest ge action = lowerCodensity $ do
@@ -55,16 +44,18 @@ pluralise :: Int -> String -> String
 pluralise 1 x = x
 pluralise _ x = x <> "s"
 
-printReport :: TestReport -> IO ()
+printReport :: TestSuiteReport -> IO ()
 printReport report = do
-  unless (null report.failures) $ putStrLn $ "----------"
-  putStrLn $ show report.count <> " " <> pluralise report.count "test" <> " run."
-  unless (null report.failures) $ do
+  let numTests = length report.cases
+      failures = filter (\testCase -> testCase.result /= TestSuccess) report.cases
+      numFailures = length failures
+  when (numFailures > 0) $ putStrLn $ "----------"
+  putStrLn $ show numTests <> " " <> pluralise numTests "test" <> " run."
+  when (numFailures > 0) $ do
     putStrLn ""
-    let numFailures = length report.failures
     putStrLn $ colored red (show numFailures <> " failed " <> pluralise numFailures "test" <> ": ")
-    for_ report.failures $ \name ->
-      putStrLn $ " - " <> name
+    for_ failures $ \testCase ->
+      putStrLn $ " - " <> testCase.name
 
 testFilter :: TestOptions -> String -> Bool
 testFilter opts n = included n && not (excluded n)
@@ -105,7 +96,7 @@ main = do
                 qualifiedName = module0 <> "." <> name
              in (qualifiedName, summary, full, action)
 
-  if opts.listTests then doListTests tests else runTests tests cfg
+  if opts.listTests then doListTests tests else runTests tests opts.xmlReport cfg
 
 createGlobalEnv :: FilePath -> IO GlobalEnv
 createGlobalEnv cfg = do
@@ -123,8 +114,8 @@ createGlobalEnv cfg = do
           Just dir -> dir </> "galley" </> relPath
       pure genv0 {gRemovalKeyPath = path}
 
-runTests :: [(String, x, y, App ())] -> FilePath -> IO ()
-runTests tests cfg = do
+runTests :: [(String, x, y, App ())] -> Maybe FilePath -> FilePath -> IO ()
+runTests tests mXMLOutput cfg = do
   output <- newChan
   let displayOutput =
         readChan output >>= \case
@@ -149,14 +140,15 @@ runTests tests cfg = do
                 <> ") -----\n"
                 <> err
                 <> "\n"
-            pure (TestReport 1 [qname])
+            pure (TestSuiteReport [TestCaseReport qname (TestFailure err) tm])
           Right _ -> do
             writeOutput $ qname <> colored green " OK" <> " (" <> printTime tm <> ")" <> "\n"
-            pure (TestReport 1 [])
+            pure (TestSuiteReport [TestCaseReport qname TestSuccess tm])
     writeChan output Nothing
     wait displayThread
     printReport report
-    unless (null report.failures) $
+    mapM_ (saveXMLReport report) mXMLOutput
+    when (any (\testCase -> testCase.result /= TestSuccess) report.cases) $
       exitFailure
 
 doListTests :: [(String, String, String, x)] -> IO ()

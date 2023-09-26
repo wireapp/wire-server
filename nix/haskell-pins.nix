@@ -206,6 +206,22 @@ let
         sha256 = "sha256-htEIJY+LmIMACVZrflU60+X42/g14NxUyFM7VJs4E6w=";
       };
     };
+    # PR: https://github.com/ocharles/tasty-ant-xml/pull/32
+    tasty-ant-xml = {
+      src = fetchgit {
+        url = "https://github.com/akshaymankar/tasty-ant-xml";
+        rev = "34ff294d805e62e73678dccc0be9d3da13540fbe";
+        sha256 = "sha256-+rHcS+BwEFsXqPAHX/KZDIgv9zfk1dZl0LlZJ57Com4=";
+      };
+    };
+    # PR: https://github.com/freckle/hspec-junit-formatter/pull/24
+    hspec-junit-formatter = {
+      src = fetchgit {
+        url = "https://github.com/akshaymankar/hspec-junit-formatter";
+        rev = "acec31822cc4f90489d9940bad23b3fd6d1d7c75";
+        sha256 = "sha256-4xGW3KHQKbTL+6+Q/gzfaMBP+J0npUe7tP5ZCQCB5+s=";
+      };
+    };
   };
   hackagePins = {
     # Major re-write upstream, we should get rid of this dependency rather than
