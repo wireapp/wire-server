@@ -150,7 +150,7 @@ testRemoteUserSearch = do
   startDynamicBackends [def {brigCfg = overrides}, def {brigCfg = overrides}] $ \dynDomains -> do
     domains@[d1, d2] <- pure dynDomains
     connectAllDomainsAndWaitToSync 1 domains
-    [u1, u2] <- createAndConnectUsers [d1, d2]
+    (u1, u2) <- createAndConnectUsers d1 d2
     BrigI.refreshIndex d2
     uidD2 <- objId u2
     bindResponse (BrigP.searchContacts u1 (u2 %. "name") d2) $ \resp -> do

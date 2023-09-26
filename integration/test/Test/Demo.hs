@@ -145,7 +145,7 @@ testIndependentESIndices = do
   u2 <- randomUser OwnDomain def
   uid2 <- objId u2
   connectUsers u1 u2
-  Internal.refreshIndex OwnDomain
+  BrigI.refreshIndex OwnDomain
   bindResponse (BrigP.searchContacts u1 (u2 %. "name") OwnDomain) $ \resp -> do
     resp.status `shouldMatchInt` 200
     docs <- resp.json %. "documents" >>= asList

@@ -30,7 +30,7 @@ import Testlib.ResourcePool
 
 testMessageTimerChangeWithRemotes :: HasCallStack => App ()
 testMessageTimerChangeWithRemotes = do
-  [alice, bob] <- createAndConnectUsers [OwnDomain, OtherDomain]
+  (alice, bob) <- createAndConnectUsers OwnDomain OtherDomain
   conv <- postConversation alice defProteus {qualifiedUsers = [bob]} >>= getJSON 201
   withWebSockets [alice, bob] $ \wss -> do
     void $ updateMessageTimer alice conv 1000 >>= getBody 200

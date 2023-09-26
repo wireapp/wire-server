@@ -23,7 +23,7 @@ testNotificationsForOfflineBackends :: HasCallStack => App ()
 testNotificationsForOfflineBackends = do
   resourcePool <- asks (.resourcePool)
   -- `delUser` will eventually get deleted.
-  [delUser, otherUser, otherUser2] <- createAndConnectUsers [OwnDomain, OtherDomain, OtherDomain]
+  [delUser, otherUser, otherUser2] <- createUsers [OwnDomain, OtherDomain, OtherDomain]
   delClient <- objId $ bindResponse (BrigP.addClient delUser def) $ getJSON 201
   otherClient <- objId $ bindResponse (BrigP.addClient otherUser def) $ getJSON 201
   otherClient2 <- objId $ bindResponse (BrigP.addClient otherUser2 def) $ getJSON 201
@@ -47,9 +47,13 @@ testNotificationsForOfflineBackends = do
       downUser1 <- randomUser downBackend.berDomain def
       downUser2 <- randomUser downBackend.berDomain def
       downClient1 <- objId $ bindResponse (BrigP.addClient downUser1 def) $ getJSON 201
+
+      connectUsers delUser otherUser
+      connectUsers delUser otherUser2
       connectUsers delUser downUser1
       connectUsers delUser downUser2
-      connectUsers otherUser downUser1
+      connectUsers downUser1 otherUser
+
       upBackendConv <- bindResponse (postConversation delUser (defProteus {qualifiedUsers = [otherUser, otherUser2, downUser1]})) $ getJSON 201
       downBackendConv <- bindResponse (postConversation downUser1 (defProteus {qualifiedUsers = [otherUser, delUser]})) $ getJSON 201
       pure (downUser1, downClient1, downUser2, upBackendConv, downBackendConv)
