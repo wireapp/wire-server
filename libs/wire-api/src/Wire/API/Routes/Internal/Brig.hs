@@ -46,14 +46,14 @@ import Data.CommaSeparatedList
 import Data.Domain (Domain)
 import Data.Handle (Handle)
 import Data.Id as Id
+import Data.OpenApi (HasInfo (info), HasTitle (title), OpenApi)
+import Data.OpenApi qualified as S
 import Data.Qualified (Qualified)
 import Data.Schema hiding (swaggerDoc)
-import Data.Swagger (HasInfo (info), HasTitle (title), Swagger)
-import Data.Swagger qualified as S
 import Imports hiding (head)
 import Servant hiding (Handler, WithStatus, addHeader, respond)
-import Servant.Swagger (HasSwagger (toSwagger))
-import Servant.Swagger.Internal.Orphans ()
+import Servant.OpenApi (HasOpenApi (toOpenApi))
+import Servant.OpenApi.Internal.Orphans ()
 import Wire.API.Connection
 import Wire.API.Error
 import Wire.API.Error.Brig
@@ -283,7 +283,7 @@ type AccountAPI =
                :> QueryParam' [Optional, Strict] "email" Email
                :> QueryParam' [Optional, Strict] "phone" Phone
                :> MultiVerb
-                    'HEAD
+                    'GET
                     '[Servant.JSON]
                     '[ Respond 404 "Not blacklisted" (),
                        Respond 200 "Yes blacklisted" ()
@@ -764,41 +764,11 @@ type FederationRemotesAPI =
                :> ReqBody '[JSON] FederationDomainConfig
                :> Put '[JSON] ()
            )
-    :<|> Named
-           "delete-federation-remotes"
-           ( Description FederationRemotesAPIDescription
-               :> Description FederationRemotesAPIDeleteDescription
-               :> "federation"
-               :> "remotes"
-               :> Capture "domain" Domain
-               :> Delete '[JSON] ()
-           )
-    -- This is nominally similar to delete-federation-remotes,
-    -- but is called from Galley to delete the one-on-one coversations.
-    -- This is needed as Galley doesn't have access to the tables
-    -- that hold these values. We don't want these deletes to happen
-    -- in delete-federation-remotes as brig might fall over and leave
-    -- some records hanging around. Galley uses a Rabbit queue to track
-    -- what is has done and can recover from a service falling over.
-    :<|> Named
-           "delete-federation-remote-from-galley"
-           ( Description FederationRemotesAPIDescription
-               :> Description FederationRemotesAPIDeleteDescription
-               :> "federation"
-               :> "remote"
-               :> Capture "domain" Domain
-               :> "galley"
-               :> Delete '[JSON] ()
-           )
 
 type FederationRemotesAPIDescription =
   "See https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections for background. "
 
-type FederationRemotesAPIDeleteDescription =
-  "**WARNING!** If you remove a remote connection, all users from that remote will be removed from local conversations, and all \
-  \group conversations hosted by that remote will be removed from the local backend. This cannot be reverted! "
-
-swaggerDoc :: Swagger
+swaggerDoc :: OpenApi
 swaggerDoc =
-  toSwagger (Proxy @API)
+  toOpenApi (Proxy @API)
     & info . title .~ "Wire-Server internal brig API"

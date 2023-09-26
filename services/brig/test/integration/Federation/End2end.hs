@@ -31,7 +31,6 @@ import Data.Domain
 import Data.Handle
 import Data.Id
 import Data.Json.Util (toBase64Text)
-import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.List1 as List1
 import Data.Map qualified as Map
 import Data.ProtoLens qualified as Protolens
@@ -49,7 +48,6 @@ import Util
 import Util.Options (Endpoint)
 import Wire.API.Asset
 import Wire.API.Conversation
-import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing
 import Wire.API.Event.Conversation
@@ -99,7 +97,6 @@ spec _brigOpts mg brig galley cargohold cannon _federator brigTwo galleyTwo carg
         test mg "claim multi-prekey bundle" $ testClaimMultiPrekeyBundleSuccess brig brigTwo,
         test mg "list user clients" $ testListUserClients brig brigTwo,
         test mg "list own conversations" $ testListConversations brig brigTwo galley galleyTwo,
-        test mg "add remote users to local conversation" $ testAddRemoteUsersToLocalConv brig galley brigTwo galleyTwo,
         test mg "remove remote user from a local conversation" $ testRemoveRemoteUserFromLocalConv brig galley brigTwo galleyTwo,
         test mg "leave a remote conversation" $ leaveRemoteConversation brig galley brigTwo galleyTwo,
         test mg "include remote users to new conversation" $ testRemoteUsersInNewConv brig galley brigTwo galleyTwo,
@@ -248,63 +245,6 @@ testClaimMultiPrekeyBundleSuccess brig1 brig2 = do
     !!! do
       const 200 === statusCode
       const (Just ucm) === responseJsonMaybe
-
-testAddRemoteUsersToLocalConv :: Brig -> Galley -> Brig -> Galley -> Http ()
-testAddRemoteUsersToLocalConv brig1 galley1 brig2 galley2 = do
-  alice <- randomUser brig1
-  bob <- randomUser brig2
-
-  let newConv =
-        NewConv
-          []
-          []
-          (checked "gossip")
-          mempty
-          Nothing
-          Nothing
-          Nothing
-          Nothing
-          roleNameWireAdmin
-          ProtocolProteusTag
-  convId <-
-    fmap cnvQualifiedId . responseJsonError
-      =<< post
-        ( galley1
-            . path "/conversations"
-            . zUser (userId alice)
-            . zConn "conn"
-            . header "Z-Type" "access"
-            . json newConv
-        )
-
-  connectUsersEnd2End brig1 brig2 (userQualifiedId alice) (userQualifiedId bob)
-
-  let invite = InviteQualified (userQualifiedId bob :| []) roleNameWireAdmin
-  post
-    ( apiVersion "v1"
-        . galley1
-        . paths ["conversations", (toByteString' . qUnqualified) convId, "members", "v2"]
-        . zUser (userId alice)
-        . zConn "conn"
-        . header "Z-Type" "access"
-        . json invite
-    )
-    !!! (const 200 === statusCode)
-
-  -- test GET /conversations/:domain/:cnv -- Alice's domain is used here
-  liftIO $ putStrLn "search for conversation on backend 1..."
-  res <- getConvQualified galley1 (userId alice) convId <!! (const 200 === statusCode)
-  let conv = responseJsonUnsafeWithMsg "backend 1 - get /conversations/domain/cnvId" res
-      actual = cmOthers $ cnvMembers conv
-      expected = [OtherMember (userQualifiedId bob) Nothing roleNameWireAdmin]
-  liftIO $ actual @?= expected
-
-  liftIO $ putStrLn "search for conversation on backend 2..."
-  res' <- getConvQualified galley2 (userId bob) convId <!! (const 200 === statusCode)
-  let conv' = responseJsonUnsafeWithMsg "backend 2 - get /conversations/domain/cnvId" res'
-      actual' = cmOthers $ cnvMembers conv'
-      expected' = [OtherMember (userQualifiedId alice) Nothing roleNameWireAdmin]
-  liftIO $ actual' @?= expected'
 
 testRemoveRemoteUserFromLocalConv :: Brig -> Galley -> Brig -> Galley -> Http ()
 testRemoveRemoteUserFromLocalConv brig1 galley1 brig2 galley2 = do

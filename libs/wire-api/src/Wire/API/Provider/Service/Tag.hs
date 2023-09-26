@@ -42,28 +42,25 @@ where
 
 import Control.Lens (Prism', prism)
 import Data.Aeson (FromJSON (parseJSON), ToJSON (toJSON))
-import Data.Aeson qualified as A
 import Data.Aeson qualified as JSON
 import Data.Attoparsec.ByteString (IResult (..), parse)
 import Data.ByteString (toStrict)
 import Data.ByteString.Builder qualified as BB
 import Data.ByteString.Char8 qualified as C8
 import Data.ByteString.Conversion
+import Data.OpenApi qualified as S
 import Data.Range (Range, fromRange, rangedSchema)
 import Data.Range qualified as Range
 import Data.Schema
 import Data.Set qualified as Set
-import Data.Swagger (ParamSchema (_paramSchemaEnum, _paramSchemaType), SwaggerType (SwaggerString), ToParamSchema (toParamSchema))
-import Data.Swagger qualified as S
-import Data.Text qualified as T
-import Data.Text.Encoding (decodeUtf8)
-import Data.Text.Encoding qualified as T
+import Data.Text.Encoding (decodeUtf8With)
 import Data.Text.Encoding qualified as Text
+import Data.Text qualified as Text
+import Data.Text.Encoding.Error (lenientDecode)
 import Data.Type.Ord
 import GHC.TypeLits (KnownNat, Nat)
 import Imports
-import Web.HttpApiData (FromHttpApiData (parseUrlPiece), ToHttpApiData, toQueryParam)
-import Web.Internal.HttpApiData (toUrlPiece)
+import Web.HttpApiData (FromHttpApiData (parseUrlPiece))
 import Wire.Arbitrary (Arbitrary (..), GenericUniform (..))
 
 --------------------------------------------------------------------------------
@@ -195,10 +192,14 @@ instance FromJSON ServiceTag where
       either fail pure . runParser parser . Text.encodeUtf8
 
 instance ToSchema ServiceTag where
-  schema = enum @Text "" . mconcat $ (\a -> element (decodeUtf8 $ toStrict $ toByteString a) a) <$> [minBound ..]
+  schema = enum @Text "" . mconcat $ (\a -> element (decodeUtf8With lenientDecode $ toStrict $ toByteString a) a) <$> [minBound ..]
 
-instance ToHttpApiData ServiceTag where
-  toUrlPiece = cs . toByteString'
+instance S.ToParamSchema ServiceTag where
+  toParamSchema _ =
+    mempty
+      { S._schemaType = Just S.OpenApiString,
+        S._schemaEnum = Just (toJSON <$> [(minBound :: ServiceTag) ..])
+      }
 
 --------------------------------------------------------------------------------
 -- Bounded ServiceTag Queries
@@ -208,11 +209,11 @@ newtype QueryAnyTags (m :: Nat) (n :: Nat) = QueryAnyTags
   {queryAnyTagsRange :: Range m n (Set (QueryAllTags m n))}
   deriving stock (Eq, Show, Ord)
 
-instance (m <= n) => ToParamSchema (QueryAnyTags m n) where
+instance (m <= n) => S.ToParamSchema (QueryAnyTags m n) where
   toParamSchema _ =
     mempty
-      { _paramSchemaType = Just SwaggerString,
-        _paramSchemaEnum = Just (A.String . toQueryParam <$> [(minBound :: ServiceTag) ..])
+      { S._schemaType = Just S.OpenApiString,
+        S._schemaEnum = Just (toJSON <$> [(minBound :: ServiceTag) ..])
       }
 
 instance (KnownNat n, KnownNat m, m <= n) => ToSchema (QueryAnyTags m n) where
@@ -249,7 +250,7 @@ instance (KnownNat n, KnownNat m, m <= n) => FromByteString (QueryAnyTags m n) w
 
 runPartial :: IsString i => Bool -> IResult i b -> Either Text b
 runPartial alreadyRun result = case result of
-  Fail _ _ e -> Left $ T.pack e
+  Fail _ _ e -> Left $ Text.pack e
   Partial f ->
     if alreadyRun
       then Left "A partial parse returned another partial parse."
@@ -259,7 +260,7 @@ runPartial alreadyRun result = case result of
 instance (KnownNat n, KnownNat m, m <= n) => FromHttpApiData (QueryAnyTags m n) where
   parseUrlPiece t = do
     txt <- parseUrlPiece t
-    runPartial False $ parse parser $ T.encodeUtf8 txt
+    runPartial False $ parse parser $ Text.encodeUtf8 txt
 
 -- | Bounded logical conjunction of 'm' to 'n' 'ServiceTag's to match.
 newtype QueryAllTags (m :: Nat) (n :: Nat) = QueryAllTags
@@ -296,10 +297,11 @@ instance (KnownNat m, KnownNat n, m <= n) => FromByteString (QueryAllTags m n) w
     rs <- either fail pure (Range.checkedEither (Set.fromList ts))
     pure $! QueryAllTags rs
 
+
 instance (KnownNat n, KnownNat m, m <= n) => FromHttpApiData (QueryAllTags m n) where
   parseUrlPiece t = do
     txt <- parseUrlPiece t
-    runPartial False $ parse parser $ T.encodeUtf8 txt
+    runPartial False $ parse parser $ Text.encodeUtf8 txt
 
 --------------------------------------------------------------------------------
 -- ServiceTag Matchers

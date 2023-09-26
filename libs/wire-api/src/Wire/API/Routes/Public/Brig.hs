@@ -21,6 +21,7 @@
 
 module Wire.API.Routes.Public.Brig where
 
+import Control.Lens ((?~))
 import Data.Aeson qualified as A (FromJSON, ToJSON, Value)
 import Data.ByteString.Conversion
 import Data.Code (Timeout)
@@ -30,20 +31,21 @@ import Data.Handle
 import Data.Id as Id
 import Data.Misc (IpAddr)
 import Data.Nonce (Nonce)
+import Data.OpenApi hiding (Contact, Header, Schema, ToSchema)
+import Data.OpenApi qualified as S
 import Data.Qualified (Qualified (..))
 import Data.Range
 import Data.SOP
 import Data.Schema as Schema
-import Data.Swagger hiding (Contact, Header, Schema, ToSchema)
-import Data.Swagger qualified as S
 import Generics.SOP qualified as GSOP
 import Imports hiding (head)
 import Network.Wai.Utilities
 import Servant (JSON)
 import Servant hiding (Handler, JSON, addHeader, respond)
-import Servant.Swagger.Internal.Orphans ()
+import Servant.OpenApi.Internal.Orphans ()
 import Wire.API.Call.Config (RTCConfiguration)
 import Wire.API.Connection hiding (MissingLegalholdConsent)
+import Wire.API.Deprecated
 import Wire.API.Error
 import Wire.API.Error.Brig
 import Wire.API.Error.Empty
@@ -568,6 +570,7 @@ type AccountAPI =
     :<|> Named
            "post-password-reset-key-deprecated"
            ( Summary "Complete a password reset."
+               :> Deprecated
                :> CanThrow 'PasswordResetInProgress
                :> CanThrow 'InvalidPasswordResetKey
                :> CanThrow 'InvalidPasswordResetCode
@@ -581,6 +584,7 @@ type AccountAPI =
     :<|> Named
            "onboarding"
            ( Summary "Upload contacts and invoke matching."
+               :> Deprecated
                :> Description
                     "DEPRECATED: the feature has been turned off, the end-point does \
                     \nothing and always returns '{\"results\":[],\"auto-connects\":[]}'."
@@ -602,8 +606,9 @@ data DeprecatedMatchingResult = DeprecatedMatchingResult
 
 instance ToSchema DeprecatedMatchingResult where
   schema =
-    object
+    objectWithDocModifier
       "DeprecatedMatchingResult"
+      (S.deprecated ?~ True)
       $ DeprecatedMatchingResult
         <$ const []
           .= field "results" (array (null_ @SwaggerDoc))
@@ -1348,8 +1353,9 @@ type CallingAPI =
   Named
     "get-calls-config"
     ( Summary
-        "[deprecated] Retrieve TURN server addresses and credentials for \
-        \ IP addresses, scheme `turn` and transport `udp` only"
+        "Retrieve TURN server addresses and credentials for \
+        \ IP addresses, scheme `turn` and transport `udp` only (deprecated)"
+        :> Deprecated
         :> ZUser
         :> ZConn
         :> "calls"

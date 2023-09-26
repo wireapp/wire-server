@@ -17,6 +17,7 @@
 
 module Wire.API.Error.Brig where
 
+import Data.Data
 import Wire.API.Error
 
 data BrigError
@@ -89,8 +90,8 @@ data BrigError
   | ServiceNotFound
   | ProviderNotFound
 
-instance KnownError (MapError e) => IsSwaggerError (e :: BrigError) where
-  addToSwagger = addStaticErrorToSwagger @(MapError e)
+instance (Typeable (MapError e), KnownError (MapError e)) => IsSwaggerError (e :: BrigError) where
+  addToOpenApi = addStaticErrorToSwagger @(MapError e)
 
 type instance MapError 'ProviderNotFound = 'StaticError 403 "invalid-provider" "The provider does not exist."
 

@@ -313,6 +313,7 @@ executable spar-integration
   build-depends:
       aeson
     , aeson-qq
+    , async
     , base
     , base64-bytestring
     , bilge
@@ -331,6 +332,8 @@ executable spar-integration
     , hscim
     , HsOpenSSL
     , hspec
+    , hspec-core
+    , hspec-junit-formatter
     , hspec-wai
     , http-api-data
     , http-client
@@ -618,15 +621,15 @@ test-suite spec
     , metrics-wai
     , mtl
     , network-uri
+    , openapi3
     , polysemy
     , polysemy-plugin
     , polysemy-wire-zoo
     , QuickCheck
     , saml2-web-sso          >=0.19
     , servant
-    , servant-swagger
+    , servant-openapi3
     , spar
-    , swagger2
     , time
     , tinylog
     , types-common

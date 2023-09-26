@@ -26,6 +26,7 @@ import Data.Set qualified as Set
 import Data.String
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
+import Data.Time
 import Data.Word
 import GHC.Generics (Generic)
 import GHC.Records
@@ -111,7 +112,8 @@ data IntegrationConfig = IntegrationConfig
   { backendOne :: BackendConfig,
     backendTwo :: BackendConfig,
     dynamicBackends :: Map String DynamicBackendConfig,
-    rabbitmq :: RabbitMQConfig
+    rabbitmq :: RabbitMQConfig,
+    cassandra :: HostPort
   }
   deriving (Show, Generic)
 
@@ -123,6 +125,7 @@ instance FromJSON IntegrationConfig where
         <*> o .: fromString "backendTwo"
         <*> o .: fromString "dynamicBackends"
         <*> o .: fromString "rabbitmq"
+        <*> o .: fromString "cassandra"
 
 data ServiceMap = ServiceMap
   { brig :: HostPort,
@@ -440,3 +443,17 @@ data BackendName
 
 allServices :: [Service]
 allServices = [minBound .. maxBound]
+
+newtype TestSuiteReport = TestSuiteReport {cases :: [TestCaseReport]}
+  deriving (Eq, Show)
+  deriving newtype (Semigroup, Monoid)
+
+data TestCaseReport = TestCaseReport
+  { name :: String,
+    result :: TestResult,
+    time :: NominalDiffTime
+  }
+  deriving (Eq, Show)
+
+data TestResult = TestSuccess | TestFailure String
+  deriving (Eq, Show)

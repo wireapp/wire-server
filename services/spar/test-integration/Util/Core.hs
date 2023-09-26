@@ -111,6 +111,7 @@ module Util.Core
     callIdpCreateReplace,
     callIdpCreateReplace',
     callIdpCreateWithHandle,
+    callIdpUpdate',
     callIdpUpdate,
     callIdpUpdateWithHandle,
     callIdpDelete,
@@ -1163,6 +1164,12 @@ callIdpCreateReplace' apiversion sparreq_ muid metadata idpid = do
         ]
       . body (RequestBodyLBS . cs $ SAML.encode metadata)
       . header "Content-Type" "application/xml"
+
+callIdpUpdate' :: (Monad m, MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> IdPId -> IdPMetadataInfo -> m IdP
+callIdpUpdate' sparreq_ muid idpid metainfo = do
+  resp <- callIdpUpdate (sparreq_ . expect2xx) muid idpid metainfo
+  either (liftIO . throwIO . ErrorCall . show) pure $
+    responseJsonEither @IdP resp
 
 callIdpUpdate :: MonadHttp m => SparReq -> Maybe UserId -> IdPId -> IdPMetadataInfo -> m ResponseLBS
 callIdpUpdate sparreq_ muid idpid (IdPMetadataValue metadata _) = do

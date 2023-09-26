@@ -24,14 +24,15 @@ import Control.Lens (makeLenses, (.~), (?~))
 import Control.Monad.Except
 import Data.Aeson
 import Data.Aeson.TH
+import Data.Aeson.Types (parseMaybe)
 import Data.Attoparsec.ByteString qualified as AP
 import Data.Binary.Builder qualified as BSB
 import Data.ByteString.Conversion qualified as BSC
 import Data.HashMap.Strict.InsOrd (InsOrdHashMap)
 import Data.HashMap.Strict.InsOrd qualified as InsOrdHashMap
 import Data.Id (TeamId)
+import Data.OpenApi
 import Data.Proxy (Proxy (Proxy))
-import Data.Swagger
 import Imports
 import Network.HTTP.Media ((//))
 import SAML2.WebSSO (IdPConfig)
@@ -107,9 +108,9 @@ instance ToHttpApiData WireIdPAPIVersion where
 instance ToParamSchema WireIdPAPIVersion where
   toParamSchema Proxy =
     mempty
-      { _paramSchemaDefault = Just "v2",
-        _paramSchemaType = Just SwaggerString,
-        _paramSchemaEnum = Just (String . toQueryParam <$> [(minBound :: WireIdPAPIVersion) ..])
+      { _schemaDefault = Just "v2",
+        _schemaType = Just OpenApiString,
+        _schemaEnum = Just (String . toQueryParam <$> [(minBound :: WireIdPAPIVersion) ..])
       }
 
 instance Cql.Cql WireIdPAPIVersion where
@@ -169,6 +170,12 @@ instance ToJSON IdPMetadataInfo where
   toJSON (IdPMetadataValue _ x) =
     object ["value" .= SAML.encode x]
 
+idPMetadataToInfo :: SAML.IdPMetadata -> IdPMetadataInfo
+idPMetadataToInfo =
+  -- 'undefined' is fine because `instance toJSON IdPMetadataValue` ignores it.  'fromJust' is
+  -- ok as long as 'parseJSON . toJSON' always yields a value and not 'Nothing'.
+  fromJust . parseMaybe parseJSON . toJSON . IdPMetadataValue undefined
+
 -- Swagger instances
 
 -- Same as WireIdP, check there for why this has different handling
@@ -198,7 +205,7 @@ instance ToSchema IdPMetadataInfo where
           & properties .~ properties_
           & minProperties ?~ 1
           & maxProperties ?~ 1
-          & type_ ?~ SwaggerObject
+          & type_ ?~ OpenApiObject
     where
       properties_ :: InsOrdHashMap Text (Referenced Schema)
       properties_ =

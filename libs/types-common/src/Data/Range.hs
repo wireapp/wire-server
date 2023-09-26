@@ -74,13 +74,13 @@ import Data.List.NonEmpty (NonEmpty)
 import Data.List.NonEmpty qualified as N
 import Data.List1 (List1, toNonEmpty)
 import Data.Map qualified as Map
+import Data.OpenApi (Schema, ToParamSchema (..))
+import Data.OpenApi qualified as S
 import Data.Proxy
-import Data.Schema
+import Data.Schema hiding (Schema)
 import Data.Sequence (Seq)
 import Data.Sequence qualified as Seq
 import Data.Set qualified as Set
-import Data.Swagger (ParamSchema, ToParamSchema (..))
-import Data.Swagger qualified as S
 import Data.Text qualified as T
 import Data.Text.Ascii (AsciiChar, AsciiChars, AsciiText, fromAsciiChars)
 import Data.Text.Ascii qualified as Ascii
@@ -152,7 +152,7 @@ numRangedSchemaDocModifier n m = S.schema %~ ((S.minimum_ ?~ fromIntegral n) . (
 
 instance S.HasSchema d S.Schema => HasRangedSchemaDocModifier d [a] where rangedSchemaDocModifier _ = listRangedSchemaDocModifier
 
--- Sets are effectively lists, so we can reuse that code.
+-- Sets are similar to lists, so use that as our defininition
 instance S.HasSchema d S.Schema => HasRangedSchemaDocModifier d (Set a) where rangedSchemaDocModifier _ = listRangedSchemaDocModifier
 
 instance S.HasSchema d S.Schema => HasRangedSchemaDocModifier d Text where rangedSchemaDocModifier _ = stringRangedSchemaDocModifier
@@ -235,7 +235,7 @@ instance (KnownNat n, KnownNat m) => ToParamSchema (Range n m TL.Text) where
       & S.maxLength ?~ fromKnownNat (Proxy @n)
       & S.minLength ?~ fromKnownNat (Proxy @m)
 
-instance S.ToSchema a => S.ToSchema (Range n m a) where
+instance (KnownNat n, S.ToSchema a, KnownNat m) => S.ToSchema (Range n m a) where
   declareNamedSchema _ =
     S.declareNamedSchema (Proxy @a)
 
@@ -319,7 +319,7 @@ rappend (Range a) (Range b) = Range (a <> b)
 rsingleton :: a -> Range 1 1 [a]
 rsingleton = Range . pure
 
-rangedNumToParamSchema :: forall a n m t. (ToParamSchema a, Num a, KnownNat n, KnownNat m) => Proxy (Range n m a) -> ParamSchema t
+rangedNumToParamSchema :: forall a n m. (ToParamSchema a, Num a, KnownNat n, KnownNat m) => Proxy (Range n m a) -> Schema
 rangedNumToParamSchema _ =
   toParamSchema (Proxy @a)
     & S.minimum_ ?~ fromKnownNat (Proxy @n)

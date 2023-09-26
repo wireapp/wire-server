@@ -65,8 +65,63 @@ isMemberJoinNotif n = fieldEquals n "payload.0.type" "conversation.member-join"
 isConvLeaveNotif :: MakesValue a => a -> App Bool
 isConvLeaveNotif n = fieldEquals n "payload.0.type" "conversation.member-leave"
 
-isNotifConv :: (MakesValue conv, MakesValue a) => conv -> a -> App Bool
+isNotifConv :: (MakesValue conv, MakesValue a, HasCallStack) => conv -> a -> App Bool
 isNotifConv conv n = fieldEquals n "payload.0.qualified_conversation" (objQidObject conv)
 
-isNotifForUser :: (MakesValue user, MakesValue a) => user -> a -> App Bool
+isNotifForUser :: (MakesValue user, MakesValue a, HasCallStack) => user -> a -> App Bool
 isNotifForUser user n = fieldEquals n "payload.0.data.qualified_user_ids.0" (objQidObject user)
+
+isNotifFromUser :: (MakesValue user, MakesValue a, HasCallStack) => user -> a -> App Bool
+isNotifFromUser user n = fieldEquals n "payload.0.qualified_from" (objQidObject user)
+
+isConvNameChangeNotif :: (HasCallStack, MakesValue a) => a -> App Bool
+isConvNameChangeNotif n = fieldEquals n "payload.0.type" "conversation.rename"
+
+isMemberUpdateNotif :: (HasCallStack, MakesValue n) => n -> App Bool
+isMemberUpdateNotif n = fieldEquals n "payload.0.type" "conversation.member-update"
+
+isReceiptModeUpdateNotif :: (HasCallStack, MakesValue n) => n -> App Bool
+isReceiptModeUpdateNotif n =
+  fieldEquals n "payload.0.type" "conversation.receipt-mode-update"
+
+isConvMsgTimerUpdateNotif :: (HasCallStack, MakesValue n) => n -> App Bool
+isConvMsgTimerUpdateNotif n =
+  fieldEquals n "payload.0.type" "conversation.message-timer-update"
+
+isConvAccessUpdateNotif :: (HasCallStack, MakesValue n) => n -> App Bool
+isConvAccessUpdateNotif n =
+  fieldEquals n "payload.0.type" "conversation.access-update"
+
+isConvCreateNotif :: MakesValue a => a -> App Bool
+isConvCreateNotif n = fieldEquals n "payload.0.type" "conversation.create"
+
+isConvDeleteNotif :: MakesValue a => a -> App Bool
+isConvDeleteNotif n = fieldEquals n "payload.0.type" "conversation.delete"
+
+assertLeaveNotification ::
+  ( HasCallStack,
+    MakesValue fromUser,
+    MakesValue conv,
+    MakesValue user,
+    MakesValue kickedUser
+  ) =>
+  fromUser ->
+  conv ->
+  user ->
+  String ->
+  kickedUser ->
+  App ()
+assertLeaveNotification fromUser conv user client leaver =
+  void $
+    awaitNotification
+      user
+      client
+      noValue
+      2
+      ( allPreds
+          [ isConvLeaveNotif,
+            isNotifConv conv,
+            isNotifForUser leaver,
+            isNotifFromUser fromUser
+          ]
+      )

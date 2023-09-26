@@ -4,7 +4,6 @@ module Testlib.RunServices where
 
 import Control.Concurrent
 import Control.Monad.Codensity (lowerCodensity)
-import SetupHelpers
 import System.Directory
 import System.Environment (getArgs)
 import System.Exit (exitWith)
@@ -62,10 +61,6 @@ main = do
     lowerCodensity $ do
       _modifyEnv <-
         traverseConcurrentlyCodensity
-          ( \resource ->
-              -- We add the 'fullSerachWithAll' overrrides is a hack to get
-              -- around https://wearezeta.atlassian.net/browse/WPB-3796
-              startDynamicBackend resource fullSearchWithAll
-          )
+          (`startDynamicBackend` def)
           [backendA, backendB]
       liftIO run

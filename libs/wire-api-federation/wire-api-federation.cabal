@@ -82,6 +82,7 @@ library
   build-depends:
       aeson                  >=2.0.1.0
     , amqp
+    , async
     , base                   >=4.6     && <5.0
     , bytestring
     , bytestring-conversion
@@ -97,6 +98,7 @@ library
     , lens
     , metrics-wai
     , mtl
+    , openapi3
     , QuickCheck             >=2.13
     , schema-profunctor
     , servant                >=0.16
@@ -104,7 +106,6 @@ library
     , servant-client-core
     , servant-server
     , singletons-th
-    , swagger2
     , text                   >=0.11
     , time                   >=1.8
     , transformers

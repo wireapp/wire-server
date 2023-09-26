@@ -128,7 +128,6 @@ import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
 import Wire.API.Message
 import Wire.API.Message.Proto qualified as Proto
-import Wire.API.Routes.FederationDomainConfig (FederationDomainConfig (..))
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Internal.Galley.ConversationsIntra
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti qualified as Multi
@@ -147,7 +146,6 @@ import Wire.API.User.Auth hiding (Access)
 import Wire.API.User.Client
 import Wire.API.User.Client qualified as Client
 import Wire.API.User.Client.Prekey
-import Wire.API.User.Search (FederatedUserSearchPolicy (..))
 
 -------------------------------------------------------------------------------
 -- API Operations
@@ -1374,7 +1372,8 @@ getJoinCodeConv u k v = do
 
 postJoinConv :: UserId -> ConvId -> TestM ResponseLBS
 postJoinConv u c = do
-  g <- viewGalley
+  -- This endpoint is removed from version v5 onwards
+  g <- fmap (addPrefixAtVersion V4 .) (view tsUnversionedGalley)
   post $
     g
       . paths ["/conversations", toByteString' c, "join"]
@@ -1405,31 +1404,6 @@ deleteFederation dom = do
   g <- viewGalley
   delete $
     g . paths ["/i/federation", toByteString' dom]
-
-addFederation ::
-  (MonadHttp m, HasBrig m, MonadIO m) =>
-  Domain ->
-  m ResponseLBS
-addFederation dom = do
-  b <- viewBrig
-  post $
-    b
-      . paths ["/i/federation/remotes"]
-      . json (FederationDomainConfig dom FullSearch)
-
-connectionRemovedFederation ::
-  (MonadHttp m, HasGalley m, MonadIO m) =>
-  Domain ->
-  Domain ->
-  m ResponseLBS
-connectionRemovedFederation origin target = do
-  g <- viewGalley
-  post $
-    g
-      . paths ["federation", "on-connection-removed"]
-      . content "application/json"
-      . header "Wire-Origin-Domain" (toByteString' origin)
-      . json target
 
 putQualifiedAccessUpdate ::
   (MonadHttp m, HasGalley m, MonadIO m) =>
@@ -1810,25 +1784,8 @@ assertFederationDeletedEvent ::
   Fed.Event ->
   IO ()
 assertFederationDeletedEvent dom e = do
-  e @?= Fed.FederationDelete dom
-
-wsAssertFederationConnectionRemoved ::
-  HasCallStack =>
-  Domain ->
-  Domain ->
-  Notification ->
-  IO ()
-wsAssertFederationConnectionRemoved domA domB n = do
-  ntfTransient n @?= False
-  assertFederationConnectionRemovedEvent domA domB $ List1.head (WS.unpackPayload n)
-
-assertFederationConnectionRemovedEvent ::
-  Domain ->
-  Domain ->
-  Fed.Event ->
-  IO ()
-assertFederationConnectionRemovedEvent domA domB e = do
-  e @?= Fed.FederationConnectionRemoved (domA, domB)
+  Fed._eventType e @?= Fed.FederationDelete
+  Fed._eventDomain e @?= dom
 
 -- FUTUREWORK: See if this one can be implemented in terms of:
 --

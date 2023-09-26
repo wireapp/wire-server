@@ -52,8 +52,8 @@ import Data.CaseInsensitive (CI)
 import Data.CaseInsensitive qualified as CI
 import Data.List.Extra (nubOrdOn)
 import Data.Map qualified as Map
+import Data.OpenApi qualified as S
 import Data.Schema
-import Data.Swagger qualified as S
 import Data.Text qualified as Text
 import Imports
 import Test.QuickCheck qualified as QC

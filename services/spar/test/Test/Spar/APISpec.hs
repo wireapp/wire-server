@@ -27,7 +27,7 @@ import Data.Metrics.Servant (routesToPaths)
 import Data.Metrics.Test (pathsConsistencyCheck)
 import Data.Proxy (Proxy (Proxy))
 import Imports
-import Servant.Swagger (validateEveryToJSON)
+import Servant.OpenApi (validateEveryToJSON)
 import Spar.API as API
 import Test.Hspec (Spec, describe, it, shouldBe, shouldSatisfy)
 import Test.QuickCheck (property)

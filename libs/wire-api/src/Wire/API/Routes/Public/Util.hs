@@ -23,7 +23,7 @@ module Wire.API.Routes.Public.Util where
 import Control.Comonad
 import Data.SOP (I (..), NS (..))
 import Servant
-import Servant.Swagger.Internal.Orphans ()
+import Servant.OpenApi.Internal.Orphans ()
 import Wire.API.Routes.MultiVerb
 
 instance

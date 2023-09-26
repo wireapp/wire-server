@@ -49,7 +49,10 @@ import Options.Applicative
 import System.Logger.Class qualified as Logger
 import Test.Tasty
 import Test.Tasty.HUnit
+import Test.Tasty.Ingredients
+import Test.Tasty.Ingredients.Basic
 import Test.Tasty.Options
+import Test.Tasty.Runners.AntXML
 import TestHelpers (test)
 import TestSetup
 import Util.Options
@@ -84,6 +87,8 @@ runTests run = defaultMainWithIngredients ings $
         [ Option (Proxy :: Proxy ServiceConfigFile),
           Option (Proxy :: Proxy IntegrationConfigFile)
         ]
+        : listingTests
+        : composeReporters antXMLRunner consoleTestReporter
         : defaultIngredients
 
 main :: IO ()
@@ -98,13 +103,6 @@ main = withOpenSSL $ runTests go
               mempty
               (pathsConsistencyCheck . treeToPaths . compile $ Galley.API.sitemap),
           API.tests setup,
-          testGroup
-            "Federation Domains"
-            [ test setup "No-Op" updateFedDomainsTestNoop',
-              test setup "Add Remote" updateFedDomainsTestAddRemote',
-              test setup "Remove Remote From Local" updateFedDomainsTestRemoveRemoteFromLocal',
-              test setup "Remove Local From Remote" updateFedDomainsTestRemoveLocalFromRemote'
-            ],
           test setup "isConvMemberL" isConvMemberLTests
         ]
     getOpts gFile iFile = do

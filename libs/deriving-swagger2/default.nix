@@ -8,12 +8,12 @@
 , gitignoreSource
 , imports
 , lib
-, swagger2
+, openapi3
 }:
 mkDerivation {
   pname = "deriving-swagger2";
   version = "0.1.0";
   src = gitignoreSource ./.;
-  libraryHaskellDepends = [ base extra imports swagger2 ];
+  libraryHaskellDepends = [ base extra imports openapi3 ];
   license = lib.licenses.agpl3Only;
 }

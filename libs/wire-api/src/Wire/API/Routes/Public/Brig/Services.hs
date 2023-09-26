@@ -22,7 +22,6 @@ import Data.Range
 import Imports hiding (head)
 import Servant (JSON)
 import Servant hiding (Handler, JSON, addHeader, respond)
-import Servant.Swagger.Internal.Orphans ()
 import Wire.API.Error (CanThrow)
 import Wire.API.Error.Brig
 import Wire.API.Provider.Service qualified as Public

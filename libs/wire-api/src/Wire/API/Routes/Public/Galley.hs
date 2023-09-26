@@ -21,7 +21,7 @@
 module Wire.API.Routes.Public.Galley where
 
 import Servant hiding (WithStatus)
-import Servant.Swagger.Internal.Orphans ()
+import Servant.OpenApi.Internal.Orphans ()
 import Wire.API.Routes.API
 import Wire.API.Routes.Public.Galley.Bot
 import Wire.API.Routes.Public.Galley.Conversation

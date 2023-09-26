@@ -17,6 +17,7 @@
 
 module Wire.API.Routes.Public.Galley.MLS where
 
-import Servant
+import Servant hiding (WithStatus)
+import Servant.OpenApi.Internal.Orphans ()
 
 type MLSAPI = EmptyAPI

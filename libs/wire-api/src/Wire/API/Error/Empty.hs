@@ -18,7 +18,7 @@
 module Wire.API.Error.Empty where
 
 import Control.Lens ((.~))
-import Data.Swagger qualified as S
+import Data.OpenApi qualified as S
 import Data.Text qualified as Text
 import GHC.TypeLits
 import Imports

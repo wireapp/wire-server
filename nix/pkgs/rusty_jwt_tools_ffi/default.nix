@@ -7,12 +7,12 @@
 }:
 
 let
-  version = "0.3.4";
+  version = "0.5.0";
   src = fetchFromGitHub {
     owner = "wireapp";
     repo = "rusty-jwt-tools";
-    rev = "fc4569c5b84d00a5cc8fc77b450714a5261cd3d9";
-    sha256 = "sha256-cZffVKfH0FzA4Eo7YVxivT3JWTwz9uu1HWhPVlvbYqM=";
+    rev = "6704e08376bb49168133d8f4ce66155adeb6bfb0";
+    sha256 = "sha256-ocmeFXjU3psCO+hpDuEAIzYIm4QzP+jHJR/V8yyw6Lw=";
   };
   cargoLockFile = builtins.toFile "cargo.lock" (builtins.readFile "${src}/ffi/Cargo.lock");
 
