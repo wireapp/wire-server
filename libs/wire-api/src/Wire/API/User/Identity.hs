@@ -59,7 +59,6 @@ import Data.Attoparsec.Text
 import Data.Bifunctor (first)
 import Data.ByteString.Conversion
 import Data.CaseInsensitive qualified as CI
-import Data.Id (TeamId)
 import Data.OpenApi (ToParamSchema (..))
 import Data.OpenApi qualified as S
 import Data.Schema
