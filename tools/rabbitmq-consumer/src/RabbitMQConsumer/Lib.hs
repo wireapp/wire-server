@@ -21,32 +21,37 @@ module RabbitMQConsumer.Lib where
 import Data.ByteString.Lazy.Char8 qualified as BL
 import Imports
 import Network.AMQP
-import Network.AMQP.Types (FieldTable (..))
 import Network.Socket
 import Options.Applicative
 
 main :: IO ()
 main = do
   opts <- execParser (info (helper <*> optsParser) desc)
+  done <- newEmptyMVar
   conn <- openConnection' opts.host opts.port opts.vhost opts.username opts.password
   chan <- openChannel conn
   recoverMsgs chan True
-
-  let abort = cancelConsumer chan
-
-  _tag <- consumeMsgs' chan opts.queue Ack (myCallback abort) abort (FieldTable mempty)
-  putStrLn "waiting for messages..."
-
-  threadDelay $ 10 * 1000 * 1000 -- 10 seconds
+  void $ consumeMsgs chan opts.queue Ack (myCallback opts done)
+  takeMVar done
   closeConnection conn
   putStrLn "connection closed"
   where
     desc = header "rabbitmq-consumer" <> progDesc "CLI tool to consume messages from a RabbitMQ queue" <> fullDesc
 
-myCallback :: (ConsumerTag -> IO ()) -> (Message, Envelope) -> IO ()
-myCallback abort (msg, _env) = do
-  putStrLn $ "received message:"
+myCallback :: Opts -> MVar () -> (Message, Envelope) -> IO ()
+myCallback opts done (msg, env) = do
+  putStrLn $ "received message (vhost=" <> cs opts.vhost <> ") (queue=" <> cs opts.queue <> "):\n"
   putStrLn $ BL.unpack (msgBody msg)
+  putStrLn $ "\ntype 'drop' to drop the message and terminate, or press enter to terminate without dropping the message"
+  input <- getLine
+  if input == "drop"
+    then do
+      ackEnv env
+      putStrLn "message dropped"
+    else putStrLn "message not dropped"
+  putMVar done ()
+  -- block and stop processing any more messages
+  forever $ threadDelay maxBound
 
 data Opts = Opts
   { host :: String,

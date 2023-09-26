@@ -123,10 +123,6 @@ testNotificationsForOfflineBackends = do
         delUserDeletedNotif <- nPayload $ awaitMatch 10 isDeleteUserNotif ws
         objQid delUserDeletedNotif `shouldMatch` objQid delUser
 
-    -- TODO(leif): remove
-    putStrLn "Press enter to continue..."
-    _ <- getLine
-
     runCodensity (startDynamicBackend downBackend mempty) $ \_ -> do
       newMsgNotif <- awaitNotification downUser1 downClient1 noValue 5 isNewMessageNotif
       newMsgNotif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject upBackendConv
