@@ -41,7 +41,6 @@ import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.BackendNotifications
 import Wire.API.RawJson
-import Wire.API.Routes.FederationDomainConfig
 import Wire.BackendNotificationPusher
 import Wire.BackgroundWorker.Env
 import Wire.BackgroundWorker.Options
@@ -193,8 +192,7 @@ spec = do
           backendNotificationsConfig = BackendNotificationsConfig 1000 500000
 
       backendNotificationMetrics <- mkBackendNotificationMetrics
-      fedConfig <- runAppT Env {..} getRemoteDomains
-      let domains = domain <$> remotes fedConfig
+      domains <- runAppT Env {..} getRemoteDomainsFromRabbit
       domains `shouldBe` map Domain ["foo.example", "bar.example", "baz.example"]
       readTVarIO mockAdmin.listQueuesVHostCalls `shouldReturn` ["test-vhost"]
 
@@ -213,8 +211,7 @@ spec = do
           brig = Endpoint "localhost" 8082
           backendNotificationsConfig = BackendNotificationsConfig 1000 500000
       backendNotificationMetrics <- mkBackendNotificationMetrics
-      fedConfigThread <- async $ runAppT Env {..} getRemoteDomains
-      let domainsThread = fmap domain . remotes <$> fedConfigThread
+      domainsThread <- async $ runAppT Env {..} getRemoteDomainsFromRabbit
 
       -- Wait for first call
       untilM (readTVarIO mockAdmin.listQueuesVHostCalls >>= \calls -> pure $ not $ null calls)

@@ -10,11 +10,13 @@ import Data.Domain
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Data.Text (unpack)
+import Data.Text qualified as Text
 import Imports
 import Network.AMQP (cancelConsumer)
 import Network.AMQP qualified as Q
 import Network.AMQP.Extended
 import Network.AMQP.Lifted qualified as QL
+import Network.RabbitMqAdmin
 import Prometheus
 import Servant.Client (BaseUrl (BaseUrl), ClientEnv, ClientError, Scheme (Http), mkClientEnv, runClientM)
 import System.Logger.Class qualified as Log
@@ -143,7 +145,7 @@ startPusher consumersRef chan = do
       -- Make new consumers for the new domains, clean up old ones from the consumer map.
       ensureConsumers consumersRef chan $ domain <$> remotes fedConfig
       -- Wait the for as long as brig told us to
-      liftIO $ threadDelay $ updateInterval fedConfig * 1000 * 1000 -- TODO!
+      liftIO $ threadDelay $ updateInterval fedConfig * 1000 * 1000
 
 ensureConsumers :: IORef (Map Domain (Q.ConsumerTag, MVar ())) -> Q.Channel -> [Domain] -> AppT IO ()
 ensureConsumers consumers chan domains = do
@@ -181,6 +183,38 @@ ensureConsumer consumers chan domain = do
 
 getFederationDomainConfigs :: ClientEnv -> IO (Either ClientError FederationDomainConfigs)
 getFederationDomainConfigs = runClientM $ namedClient @IAPI.API @"get-federation-remotes"
+
+-- This exists fro background-worker integration testing when Brig isn't available, but Rabbit is from the running services.
+getRemoteDomainsFromRabbit :: AppT IO [Domain]
+getRemoteDomainsFromRabbit = do
+  -- Jittered exponential backoff with 10ms as starting delay and 60s as max
+  -- cumulative delay. When this is reached, the operation fails.
+  --
+  -- FUTUREWORK: Pull these numbers into config
+  let policy = limitRetriesByCumulativeDelay 60_000_000 $ fullJitterBackoff 10000
+      logErrr willRetry (SomeException e) rs =
+        Log.err $
+          Log.msg (Log.val "Exception occurred while refreshig domains")
+            . Log.field "error" (displayException e)
+            . Log.field "willRetry" willRetry
+            . Log.field "retryCount" rs.rsIterNumber
+      handlers =
+        skipAsyncExceptions
+          <> [logRetries (const $ pure True) logErrr]
+  recovering policy handlers $ const go
+  where
+    go :: AppT IO [Domain]
+    go = do
+      client <- asks rabbitmqAdminClient
+      vhost <- asks rabbitmqVHost
+      queues <- liftIO $ listQueuesByVHost client vhost
+      let notifQueuesSuffixes = mapMaybe (\q -> Text.stripPrefix "backend-notifications." q.name) queues
+      catMaybes <$> traverse (\d -> either (\e -> logInvalidDomain d e >> pure Nothing) (pure . Just) $ mkDomain d) notifQueuesSuffixes
+    logInvalidDomain d e =
+      Log.warn $
+        Log.msg (Log.val "Found invalid domain in a backend notifications queue name")
+          . Log.field "queue" ("backend-notifications." <> d)
+          . Log.field "error" e
 
 getRemoteDomains :: AppT IO FederationDomainConfigs
 getRemoteDomains = do
