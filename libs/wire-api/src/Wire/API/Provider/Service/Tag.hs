@@ -53,9 +53,9 @@ import Data.Range (Range, fromRange, rangedSchema)
 import Data.Range qualified as Range
 import Data.Schema
 import Data.Set qualified as Set
+import Data.Text qualified as Text
 import Data.Text.Encoding (decodeUtf8With)
 import Data.Text.Encoding qualified as Text
-import Data.Text qualified as Text
 import Data.Text.Encoding.Error (lenientDecode)
 import Data.Type.Ord
 import GHC.TypeLits (KnownNat, Nat)
@@ -296,7 +296,6 @@ instance (KnownNat m, KnownNat n, m <= n) => FromByteString (QueryAllTags m n) w
     ts <- mapM (either fail pure . runParser parser) bs
     rs <- either fail pure (Range.checkedEither (Set.fromList ts))
     pure $! QueryAllTags rs
-
 
 instance (KnownNat n, KnownNat m, m <= n) => FromHttpApiData (QueryAllTags m n) where
   parseUrlPiece t = do
