@@ -28,7 +28,7 @@ module Wire.API.User.Identity
     ssoIdentity,
     userIdentityObjectSchema,
     maybeUserIdentityObjectSchema,
-    maybeUserIdentityFromComponents,
+    maybeUserIdentityFromRaw,
 
     -- * Email
     Email (..),
@@ -59,6 +59,7 @@ import Data.Attoparsec.Text
 import Data.Bifunctor (first)
 import Data.ByteString.Conversion
 import Data.CaseInsensitive qualified as CI
+import Data.Id (TeamId)
 import Data.OpenApi (ToParamSchema (..))
 import Data.OpenApi qualified as S
 import Data.Schema
@@ -100,77 +101,45 @@ userIdentityObjectSchema =
 
 maybeUserIdentityObjectSchema :: ObjectSchema SwaggerDoc (Maybe UserIdentity)
 maybeUserIdentityObjectSchema =
-  dimap maybeUserIdentityToComponents maybeUserIdentityFromComponents userIdentityComponentsObjectSchema
+  dimap maybeUserIdentityToRaw maybeUserIdentityFromRaw rawCassandraUserIdentityObjectSchema
 
--- | NOTE(fisx): this is getting interesting, and it's late...
---
--- brig sometimes may parse user identities, eg. updates from team-management.  (i'm not sure
--- about this, if it makes a difference i need to go check.)
---
--- if it parser an untrusted value, it must validate the saml stuff, so we need a parser for
--- "`ValidSamlIdF t` for any tag".  not sure how to accomplish that, smells like existential
--- types?  worst case we can decide to leave the validation for later, and just write what we
--- have, even if it's inconsistent.  maybe.  it's possible this is just for parsing cassandra
--- answers.
---
--- the 3 maybe texts at the end here are for the PartialUAuthId.
---
--- NOTE(owen): The last two fields in this are basically the same.
--- LegacyUserSSOId is a single value data constructir around PartialUAuthId. Is there a semantics difference
--- between them, or should we have another look at what LegacyUserSSOId is, and if it is still needed?
--- From its ToJSON and FromJSON instances, it is only looking at the scimExternalId and samlId fields.
--- Maybe we should change the type within LegacyUserSSOId to better reflect how it is being used, than having
--- everything in it be Maybe
-type UserIdentityComponents = (Maybe Email, Maybe Phone, Maybe LegacyUserSSOId, Maybe PartialUAuthId)
+-- | the unparsed data as retrieved from cassandra, including the redundant optional legacy
+-- and partial uauth ids.  see `maybeUserIdentityFromRaw`, `maybeUserIdentityToRaw` below.
+type RawCassandraUserIdentity =
+  (Maybe Email, Maybe Phone, Maybe LegacyUserSSOId, Maybe PartialUAuthId)
 
-userIdentityComponentsObjectSchema :: ObjectSchema SwaggerDoc UserIdentityComponents
-userIdentityComponentsObjectSchema =
+rawCassandraUserIdentityObjectSchema :: ObjectSchema SwaggerDoc RawCassandraUserIdentity
+rawCassandraUserIdentityObjectSchema =
   (,,,)
-    <$> fst4 .= maybe_ (optField "email" schema)
-    <*> snd4 .= maybe_ (optField "phone" schema)
-    <*> thd4 .= maybe_ (optField "sso_id" genericToSchema)
-    <*> fth4 .= maybe_ (optField "uauth_id" genericToSchema)
-  where
-    fst4 (a, _, _, _) = a
-    snd4 (_, a, _, _) = a
-    thd4 (_, _, a, _) = a
-    fth4 (_, _, _, a) = a
+    <$> (\(a, _, _, _) -> a) .= maybe_ (optField "email" schema)
+    <*> (\(_, a, _, _) -> a) .= maybe_ (optField "phone" schema)
+    <*> (\(_, _, a, _) -> a) .= maybe_ (optField "sso_id" genericToSchema)
+    <*> (\(_, _, _, a) -> a) .= maybe_ (optField "uauth_id" genericToSchema)
 
-maybeUserIdentityFromComponents :: UserIdentityComponents -> Maybe UserIdentity
-maybeUserIdentityFromComponents = \case
-  (maybeEmail, _, Just ssoid, _) ->
-    Just $
-      UAuthIdentity $
-        ssoid.fromLegacyUserSSOId
-          { email = (flip EmailWithSource EmailFromScimEmailsField <$> maybeEmail)
-          }
-  (Just email, Just phone, Nothing, _) -> Just $ FullIdentity email phone
-  (Just email, Nothing, Nothing, _) -> Just $ EmailIdentity email
-  (Nothing, Just phone, Nothing, _) -> Just $ PhoneIdentity phone
-  (Nothing, Nothing, Nothing, _) -> Nothing
+-- | This assumes the database is consistent and does not do any validation.
+maybeUserIdentityFromRaw :: RawCassandraUserIdentity -> Maybe UserIdentity
+maybeUserIdentityFromRaw = \case
+  (_, _, _, Just uauthid) -> Just $ UAuthIdentity uauthid
+  (maybeEmail, _, Just ssoid, Nothing) ->
+    let eml = flip EmailWithSource emlsrc <$> maybeEmail
+        emlsrc = undefined -- EmailFromScimEmailsField -- TODO
+     in Just . UAuthIdentity $ undefined -- ssoid.fromLegacyUserSSOId {email = eml}
+  (Just email, Just phone, Nothing, Nothing) -> Just $ FullIdentity email phone
+  (Just email, Nothing, Nothing, Nothing) -> Just $ EmailIdentity email
+  (Nothing, Just phone, Nothing, Nothing) -> Just $ PhoneIdentity phone
+  (Nothing, Nothing, Nothing, Nothing) -> Nothing
 
-maybeUserIdentityToComponents :: Maybe UserIdentity -> UserIdentityComponents
-maybeUserIdentityToComponents Nothing = (Nothing, Nothing, Nothing, Nothing)
-maybeUserIdentityToComponents (Just (FullIdentity email phone)) = (Just email, Just phone, Nothing, Nothing)
-maybeUserIdentityToComponents (Just (EmailIdentity email)) = (Just email, Nothing, Nothing, Nothing)
-maybeUserIdentityToComponents (Just (PhoneIdentity phone)) = (Nothing, Just phone, Nothing, Nothing)
-maybeUserIdentityToComponents (Just (UAuthIdentity uaid)) = (ewsEmail <$> uaid.email, Nothing, pure $ LegacyUserSSOId uaid, pure uaid)
+-- | Convert `UserIdentity` back into raw data for cassandra.  The `LegacySSOIdentity` part of
+-- the tuple is always `Nothing`.
+maybeUserIdentityToRaw :: Maybe UserIdentity -> RawCassandraUserIdentity
+maybeUserIdentityToRaw Nothing = (Nothing, Nothing, Nothing, Nothing)
+maybeUserIdentityToRaw (Just (FullIdentity email phone)) = (Just email, Just phone, Nothing, Nothing)
+maybeUserIdentityToRaw (Just (EmailIdentity email)) = (Just email, Nothing, Nothing, Nothing)
+maybeUserIdentityToRaw (Just (PhoneIdentity phone)) = (Nothing, Just phone, Nothing, Nothing)
+maybeUserIdentityToRaw (Just (UAuthIdentity uaid)) = (ewsEmail <$> uaid.email, Nothing, Nothing, pure uaid)
 
-newIdentity :: Maybe Email -> Maybe Phone -> Maybe LegacyUserSSOId -> Maybe UserIdentity
-newIdentity email _ (Just sso) =
-  Just $!
-    UAuthIdentity $
-      sso.fromLegacyUserSSOId
-        { -- TODO: Check that this is actually from SCIM email field
-          -- Additionally, check that we need to use the email from the
-          -- function parameter, rather than `sso.fromLegacyUserSSOId.email`
-          email = flip EmailWithSource EmailFromScimEmailsField <$> email
-        }
--- UAuthIdF _ sso  _ -- phone
-newIdentity Nothing Nothing Nothing = Nothing
-newIdentity (Just e) Nothing Nothing = Just $! EmailIdentity e
-newIdentity Nothing (Just p) Nothing = Just $! PhoneIdentity p
-newIdentity (Just e) (Just p) Nothing = Just $! FullIdentity e p
+newIdentity :: Maybe Email -> Maybe Phone -> Maybe PartialUAuthId -> Maybe UserIdentity
+newIdentity mbEmail mbPhone mbUAuth = maybeUserIdentityFromRaw (mbEmail, mbPhone, Nothing, mbUAuth)
 
 emailIdentity :: UserIdentity -> Maybe Email
 emailIdentity (FullIdentity email _) = Just email
@@ -292,7 +261,7 @@ instance ToJSON PhoneBudgetTimeout where
   toJSON (PhoneBudgetTimeout t) = A.object ["expires_in" A..= t]
 
 --------------------------------------------------------------------------------
--- UserSSOId (DEPRECATED)
+-- LegacyUserSSOId (DEPRECATED, formerly UserSSOId)
 
 -- | User's legacy external identity (DEPRECATED).
 -- NB: this type is serialized to the full xml encoding of the `SAML.UserRef` components, but
@@ -300,7 +269,7 @@ instance ToJSON PhoneBudgetTimeout where
 -- xml around it), and the `NameID` to be an email address (=> format "email") or an arbitrary
 -- text (=> format "unspecified").  This is for backwards compatibility and general
 -- robustness.
-data LegacyUserSSOId = LegacyUserSSOId {fromLegacyUserSSOId :: PartialUAuthId}
+newtype LegacyUserSSOId = LegacyUserSSOId {fromLegacyUserSSOId :: Either SAML.UserRef Text}
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform LegacyUserSSOId)
 
@@ -320,21 +289,21 @@ instance S.ToSchema LegacyUserSSOId where
                ]
 
 instance ToJSON LegacyUserSSOId where
-  toJSON (LegacyUserSSOId uid) = case uid.samlId of
-    Just (SAML.UserRef tenant subject) -> A.object ["tenant" A..= SAML.encodeElem tenant, "subject" A..= SAML.encodeElem subject]
-    Nothing -> case uid.scimExternalId of
-      Just eid -> A.object ["scim_external_id" A..= eid]
-      Nothing -> A.object []
+  toJSON = either mksaml mkscim . fromLegacyUserSSOId
+    where
+      mksaml (SAML.UserRef tenant subject) = A.object ["tenant" A..= SAML.encodeElem tenant, "subject" A..= SAML.encodeElem subject]
+      mkscim eid = A.object ["scim_external_id" A..= eid]
 
 instance FromJSON LegacyUserSSOId where
   parseJSON = A.withObject "UserSSOId" $ \obj -> do
-    -- TODO
     mtenant <- lenientlyParseSAMLIssuer =<< (obj A..:? "tenant")
     msubject <- lenientlyParseSAMLNameID =<< (obj A..:? "subject")
     meid <- obj A..:? "scim_external_id"
     case (mtenant, msubject, meid) of
-      (Just tenant, Just subject, Nothing) -> pure $ LegacyUserSSOId $ UAuthIdF (pure $ SAML.UserRef tenant subject) Nothing Nothing _
-      (Nothing, Nothing, Just eid) -> pure $ LegacyUserSSOId $ UAuthIdF Nothing eid Nothing _
+      (Just tenant, Just subject, Nothing) ->
+        pure $ LegacyUserSSOId (Left (SAML.UserRef tenant subject))
+      (Nothing, Nothing, Just eid) ->
+        pure $ LegacyUserSSOId (Right eid)
       _ -> fail "either need tenant and subject, or scim_external_id, but not both"
 
 lenientlyParseSAMLIssuer :: Maybe LText -> A.Parser (Maybe SAML.Issuer)

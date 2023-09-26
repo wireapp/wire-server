@@ -14,10 +14,10 @@ module Wire.API.User.Types where
 import Data.Aeson (FromJSON, ToJSON)
 import Data.ByteString.Conversion
 import Data.Id (TeamId)
+import Data.OpenApi qualified as OA
 import Data.Proxy
 import Data.Schema
 import Data.Singletons.TH
-import Data.Swagger qualified as SW
 import Data.Text qualified as Text
 import GHC.Generics
 import Imports
@@ -35,10 +35,10 @@ data Email = Email
     emailDomain :: Text
   }
   deriving stock (Eq, Ord, Generic)
-  deriving (FromJSON, ToJSON, SW.ToSchema) via Schema Email
+  deriving (FromJSON, ToJSON, OA.ToSchema) via Schema Email
 
-instance SW.ToParamSchema Email where
-  toParamSchema _ = SW.toParamSchema (Proxy @Text)
+instance OA.ToParamSchema Email where
+  toParamSchema _ = OA.toParamSchema (Proxy @Text)
 
 instance ToSchema Email where
   schema =
@@ -93,7 +93,8 @@ data EmailWithSource = EmailWithSource
 data EmailSource
   = EmailFromScimExternalIdField
   | EmailFromScimEmailsField
-  | EmailFromSamlNameId -- saml, but no scim.  deprecated, but we need to support this for the foreseeable future.
+  | -- | saml, but no scim.  deprecated, but we need to support this for the foreseeable future.
+    EmailFromSamlNameId
   deriving (Eq, Show, Bounded, Enum, Generic)
   deriving (Arbitrary) via (GenericUniform EmailSource)
 
@@ -106,14 +107,11 @@ data UAuthIdF a b c = UAuthIdF
   { samlId :: a SAML.UserRef,
     scimExternalId :: b Text,
     email :: c EmailWithSource,
-    -- | only team users support saml and/or scim.  externalId is scoped in
-    -- team, so once we have parsed a scim user record, the externalId should
-    -- never occur anywhere without team it!
-    --
-    -- NOTE(owen) This is a little ambiguous to me, is it correct that we can have a teamId
-    -- without an externalId, but never an externalId without a teamId?
-    -- Similarly, what if we are dealing with a SAML only record? My gut feeling is that this
-    -- should probably be a `b TeamId` to tie to to the same existance type as scimExternalId
+    -- | only team users support saml and/or scim.  externalId is scoped in team, so once we
+    -- have parsed a scim user record, the externalId should never occur anywhere without
+    -- teamId: we can have a teamId without an externalId, but never an `externalId` or a SAML
+    -- user identity without a teamId; so either we have a teamId or we cannot meaningfully
+    -- construct a `UAuthIdF` value.
     teamId :: TeamId
   }
   deriving (Generic)
