@@ -49,6 +49,7 @@ library
     , types-common
     , unliftio
     , wai-utilities
+    , wire-api
     , wire-api-federation
 
   default-extensions:
