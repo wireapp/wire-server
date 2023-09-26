@@ -4,7 +4,6 @@ module Test.Client where
 
 import API.Brig
 import API.Brig qualified as API
-import API.BrigInternal qualified as API
 import API.Gundeck
 import Control.Lens hiding ((.=))
 import Control.Monad.Codensity
@@ -63,21 +62,10 @@ testListClientsIfBackendIsOffline = do
     resp.status `shouldMatchInt` 200
     resp.json %. "qualified_user_map" `shouldMatch` expectedResponse
 
+  -- we don't even have to start the backend, but we have to take the resource so that it doesn't get started by another test
   runCodensity (acquireResources 1 resourcePool) $ \[downBackend] -> do
-    downUser <- runCodensity (startDynamicBackend downBackend mempty) $ \_ -> do
-      do
-        let domains = [ownDomain, otherDomain, downBackend.berDomain]
-        sequence_
-          [ API.createFedConn x (API.FedConn y "full_search")
-            | x <- domains,
-              y <- domains,
-              x /= y
-          ]
-
-      downUser <- randomUser downBackend.berDomain def
-      connectUsers ownUser1 downUser
-      connectUsers ownUser2 downUser
-      pure (downUser)
+    rndUsrId <- randomId
+    let downUser = (object ["domain" .= downBackend.berDomain, "id" .= rndUsrId])
 
     bindResponse (listUsersClients ownUser1 [ownUser1, ownUser2, downUser]) $ \resp -> do
       resp.status `shouldMatchInt` 200

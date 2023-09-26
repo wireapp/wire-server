@@ -78,6 +78,7 @@ import Control.Lens (view)
 import Data.ByteString.Conversion
 import Data.Code as Code
 import Data.Domain
+import Data.Either.Extra (mapLeft)
 import Data.IP (IP)
 import Data.Id (ClientId, ConnId, UserId)
 import Data.List.Split (chunksOf)
@@ -140,9 +141,12 @@ lookupPubClientsBulk qualifiedUids = do
     getRemoteClients uids = do
       results <-
         traverse
-          ( \(d, ids) -> fmap (d,) <$> runExceptT (getUserClients d (GetUserClients ids))
-          )
+          (\(d, ids) -> mapLeft (const d) . fmap (d,) <$> runExceptT (getUserClients d (GetUserClients ids)))
           (Map.toList uids)
+      forM_ (lefts results) $ \d ->
+        Log.warn $
+          field "remote_domain" (domainText d)
+            ~~ msg (val "Failed to fetch clients for domain")
       pure $ Map.fromList (rights results)
 
 lookupLocalPubClientsBulk :: [UserId] -> ExceptT ClientError (AppT r) (UserMap (Set PubClient))
