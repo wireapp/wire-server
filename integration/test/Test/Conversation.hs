@@ -23,7 +23,6 @@ import API.Brig
 import API.BrigInternal
 import API.Galley
 import API.GalleyInternal
-import API.Gundeck
 import Control.Applicative
 import Control.Concurrent (threadDelay)
 import Control.Monad.Codensity
