@@ -21,6 +21,7 @@ module RabbitMQConsumer.Lib where
 import Data.ByteString.Lazy.Char8 qualified as BL
 import Imports
 import Network.AMQP
+import Network.AMQP.Types (FieldTable (..))
 import Network.Socket
 import Options.Applicative
 
@@ -29,8 +30,12 @@ main = do
   opts <- execParser (info (helper <*> optsParser) desc)
   conn <- openConnection' opts.host opts.port opts.vhost opts.username opts.password
   chan <- openChannel conn
+  recoverMsgs chan True
 
-  _ <- consumeMsgs chan opts.queue Ack myCallback
+  let abort = cancelConsumer chan
+
+  _tag <- consumeMsgs' chan opts.queue Ack (myCallback abort) abort (FieldTable mempty)
+  putStrLn "waiting for messages..."
 
   threadDelay $ 10 * 1000 * 1000 -- 10 seconds
   closeConnection conn
@@ -38,14 +43,10 @@ main = do
   where
     desc = header "rabbitmq-consumer" <> progDesc "CLI tool to consume messages from a RabbitMQ queue" <> fullDesc
 
-myCallback :: (Message, Envelope) -> IO ()
-myCallback (msg, env) = do
-  putStrLn $ "received message: " <> BL.unpack (msgBody msg)
-  -- acknowledge receiving the message
+myCallback :: (ConsumerTag -> IO ()) -> (Message, Envelope) -> IO ()
+myCallback abort (msg, _env) = do
   putStrLn $ "received message:"
   putStrLn $ BL.unpack (msgBody msg)
-  let requeue = True
-  rejectEnv env requeue
 
 data Opts = Opts
   { host :: String,
