@@ -177,7 +177,7 @@ $(singDecideInstance ''UAuthIdTag)
 -- combinations, but code that only cares about one field can set its types based on that, kind
 -- of like `HasFoo` classes if you squint a bit.
 -- However, this is getting close to the point where it won't be limiting anything. Currently there
--- are 8 (2^3) options of Const and Identity.
+-- are 8 (2^3) possible and 5 legal combinations of Const and Identity.
 {- ORMOLU_DISABLE -}
 type family ValidUAuthIdF (f :: UAuthIdTag) where
   ValidUAuthIdF 'UAScimSamlEmail     = UAuthIdF Identity Identity Identity
