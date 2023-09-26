@@ -153,6 +153,12 @@ getClientsQualified user domain otherUser = do
         <> "/clients"
   submit "GET" req
 
+listUsersClients :: (HasCallStack, MakesValue user, MakesValue qualifiedUserIds) => user -> [qualifiedUserIds] -> App Response
+listUsersClients usr qualifiedUserIds = do
+  qUsers <- mapM objQidObject qualifiedUserIds
+  req <- baseRequest usr Brig Versioned $ joinHttpPath ["users", "list-clients"]
+  submit "POST" (req & addJSONObject ["qualified_users" .= qUsers])
+
 searchContacts ::
   ( MakesValue user,
     MakesValue searchTerm,

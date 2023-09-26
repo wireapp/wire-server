@@ -78,10 +78,10 @@ import Control.Lens (view)
 import Data.ByteString.Conversion
 import Data.Code as Code
 import Data.Domain
+import Data.Either.Extra (mapLeft)
 import Data.IP (IP)
 import Data.Id (ClientId, ConnId, UserId)
 import Data.List.Split (chunksOf)
-import Data.Map.Strict (traverseWithKey)
 import Data.Map.Strict qualified as Map
 import Data.Misc (PlainTextPassword6)
 import Data.Qualified
@@ -133,13 +133,21 @@ lookupPubClientsBulk :: [Qualified UserId] -> ExceptT ClientError (AppT r) (Qual
 lookupPubClientsBulk qualifiedUids = do
   loc <- qualifyLocal ()
   let (localUsers, remoteUsers) = partitionQualified loc qualifiedUids
-  remoteUserClientMap <-
-    traverseWithKey
-      (\domain' uids -> getUserClients domain' (GetUserClients uids))
-      (indexQualified (fmap tUntagged remoteUsers))
-      !>> ClientFederationError
+  remoteUserClientMap <- lift $ getRemoteClients $ indexQualified (fmap tUntagged remoteUsers)
   localUserClientMap <- Map.singleton (tDomain loc) <$> lookupLocalPubClientsBulk localUsers
   pure $ QualifiedUserMap (Map.union localUserClientMap remoteUserClientMap)
+  where
+    getRemoteClients :: Map Domain [UserId] -> AppT r (Map Domain (UserMap (Set PubClient)))
+    getRemoteClients uids = do
+      results <-
+        traverse
+          (\(d, ids) -> mapLeft (const d) . fmap (d,) <$> runExceptT (getUserClients d (GetUserClients ids)))
+          (Map.toList uids)
+      forM_ (lefts results) $ \d ->
+        Log.warn $
+          field "remote_domain" (domainText d)
+            ~~ msg (val "Failed to fetch clients for domain")
+      pure $ Map.fromList (rights results)
 
 lookupLocalPubClientsBulk :: [UserId] -> ExceptT ClientError (AppT r) (UserMap (Set PubClient))
 lookupLocalPubClientsBulk = lift . wrapClient . Data.lookupPubClientsBulk
