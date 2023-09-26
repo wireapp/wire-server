@@ -77,21 +77,6 @@ brig:
       setMaxConvSize: 16
       # See helmfile for the real value
       setFederationDomain: integration.example.com
-      setFederationDomainConfigs:
-        # 'setFederationDomainConfigs' is deprecated as of https://github.com/wireapp/wire-server/pull/3260.  See
-        # https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections
-        # for details.
-        - domain: integration.example.com
-          search_policy: full_search
-        - domain: federation-test-helper.{{ .Release.Namespace }}.svc.cluster.local
-          search_policy: full_search
-        # Remove these after fixing https://wearezeta.atlassian.net/browse/WPB-3796
-        - domain: dyn-backend-1
-          search_policy: full_search
-        - domain: dyn-backend-2
-          search_policy: full_search
-        - domain: dyn-backend-3
-          search_policy: full_search
       setFederationStrategy: allowAll
       setFederationDomainConfigsUpdateFreq: 10
       set2FACodeGenerationDelaySecs: 5
@@ -321,6 +306,7 @@ background-worker:
     backendNotificationPusher:
       pushBackoffMinWait: 1000 # 1ms
       pushBackoffMaxWait: 500000 # 0.5s
+      remotesRefreshInterval: 1000000 # 1s
   secrets:
     rabbitmq:
       username: {{ .Values.rabbitmqUsername }}

@@ -6,7 +6,6 @@ import API.Brig qualified as Brig
 import API.BrigInternal qualified as Internal
 import API.Common
 import API.Galley
-import Control.Concurrent (threadDelay)
 import Control.Monad.Reader
 import Data.Aeson hiding ((.=))
 import Data.Aeson.Types qualified as Aeson
@@ -16,12 +15,6 @@ import Data.UUID.V1 (nextUUID)
 import Data.UUID.V4 (nextRandom)
 import GHC.Stack
 import Testlib.Prelude
-
--- | `n` should be 2 x `setFederationDomainConfigsUpdateFreq` in the config
-connectAllDomainsAndWaitToSync :: HasCallStack => Int -> [String] -> App ()
-connectAllDomainsAndWaitToSync n domains = do
-  sequence_ [Internal.createFedConn x (Internal.FedConn y "full_search") | x <- domains, y <- domains, x /= y]
-  liftIO $ threadDelay (n * 1000 * 1000) -- wait for federation status to be updated
 
 randomUser :: (HasCallStack, MakesValue domain) => domain -> Internal.CreateUser -> App Value
 randomUser domain cu = bindResponse (Internal.createUser domain cu) $ \resp -> do

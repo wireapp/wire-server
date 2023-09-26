@@ -2,7 +2,6 @@
 
 module Wire.BackgroundWorker where
 
-import Control.Concurrent.Async (cancel)
 import Data.Domain
 import Data.Map.Strict qualified as Map
 import Data.Metrics.Servant qualified as Metrics
@@ -20,17 +19,16 @@ import Wire.BackgroundWorker.Options
 
 run :: Opts -> IO ()
 run opts = do
-  (env, syncThread) <- mkEnv opts
+  env <- mkEnv opts
   (notifChanRef, notifConsumersRef) <- runAppT env $ BackendNotificationPusher.startWorker opts.rabbitmq
   let -- cleanup will run in a new thread when the signal is caught, so we need to use IORefs and
       -- specific exception types to message threads to clean up
       l = logger env
       cleanup = do
-        cancel syncThread
         -- Notification pusher thread
-        Log.info (logger env) $ Log.msg (Log.val "Cancelling the notification pusher thread")
+        Log.info l $ Log.msg (Log.val "Cancelling the notification pusher thread")
         readIORef notifChanRef >>= traverse_ \chan -> do
-          Log.info (logger env) $ Log.msg (Log.val "Got channel")
+          Log.info l $ Log.msg (Log.val "Got channel")
           readIORef notifConsumersRef >>= \m -> for_ (Map.assocs m) \(domain, (consumer, runningFlag)) -> do
             Log.info l $ Log.msg (Log.val "Cancelling consumer") . Log.field "Domain" domain._domainText
             -- Remove the consumer from the channel so it isn't called again

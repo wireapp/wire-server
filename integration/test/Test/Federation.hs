@@ -3,7 +3,6 @@
 module Test.Federation where
 
 import API.Brig qualified as BrigP
-import API.BrigInternal qualified as BrigI
 import API.Galley
 import Control.Lens
 import Control.Monad.Codensity
@@ -31,18 +30,6 @@ testNotificationsForOfflineBackends = do
   -- except for setup and assertions. Perhaps there is a better name.
   runCodensity (acquireResources 1 resourcePool) $ \[downBackend] -> do
     (downUser1, downClient1, downUser2, upBackendConv, downBackendConv) <- runCodensity (startDynamicBackend downBackend mempty) $ \_ -> do
-      -- FUTUREWORK: get rid of this once the background worker is able to listen to all queues
-      do
-        ownDomain <- make OwnDomain & asString
-        otherDomain <- make OtherDomain & asString
-        let domains = [ownDomain, otherDomain, downBackend.berDomain]
-        sequence_
-          [ BrigI.createFedConn x (BrigI.FedConn y "full_search")
-            | x <- domains,
-              y <- domains,
-              x /= y
-          ]
-
       downUser1 <- randomUser downBackend.berDomain def
       downUser2 <- randomUser downBackend.berDomain def
       downClient1 <- objId $ bindResponse (BrigP.addClient downUser1 def) $ getJSON 201

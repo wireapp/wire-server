@@ -5,7 +5,6 @@ import API.BrigInternal qualified as BrigI
 import API.Common qualified as API
 import API.GalleyInternal qualified as GalleyI
 import Control.Concurrent (threadDelay)
-import Data.Aeson qualified as Aeson
 import Data.Aeson.Types hiding ((.=))
 import Data.Set qualified as Set
 import Data.String.Conversions
@@ -144,18 +143,35 @@ testSwagger = do
 
 testRemoteUserSearch :: HasCallStack => App ()
 testRemoteUserSearch = do
-  let overrides =
-        setField "optSettings.setFederationStrategy" "allowDynamic"
-          >=> setField "optSettings.setFederationDomainConfigsUpdateFreq" (Aeson.Number 1)
-  startDynamicBackends [def {brigCfg = overrides}, def {brigCfg = overrides}] $ \dynDomains -> do
-    domains@[d1, d2] <- pure dynDomains
-    connectAllDomainsAndWaitToSync 1 domains
-    (u1, u2) <- createAndConnectUsers d1 d2
+  startDynamicBackends [def, def] $ \[d1, d2] -> do
+    void $ BrigI.createFedConn d2 (BrigI.FedConn d1 "full_search")
+
+    u1 <- randomUser d1 def
+    u2 <- randomUser d2 def
     BrigI.refreshIndex d2
     uidD2 <- objId u2
+
     bindResponse (BrigP.searchContacts u1 (u2 %. "name") d2) $ \resp -> do
       resp.status `shouldMatchInt` 200
       docs <- resp.json %. "documents" >>= asList
       case docs of
         [] -> assertFailure "Expected a non empty result, but got an empty one"
         doc : _ -> doc %. "id" `shouldMatch` uidD2
+
+testRemoteUserSearchExactHandle :: HasCallStack => App ()
+testRemoteUserSearchExactHandle = do
+  startDynamicBackends [def, def] $ \[d1, d2] -> do
+    void $ BrigI.createFedConn d2 (BrigI.FedConn d1 "exact_handle_search")
+
+    u1 <- randomUser d1 def
+    u2 <- randomUser d2 def
+    u2Handle <- API.randomHandle
+    bindResponse (BrigP.putHandle u2 u2Handle) $ assertSuccess
+    BrigI.refreshIndex d2
+
+    bindResponse (BrigP.searchContacts u1 u2Handle d2) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      docs <- resp.json %. "documents" >>= asList
+      case docs of
+        [] -> assertFailure "Expected a non empty result, but got an empty one"
+        doc : _ -> objQid doc `shouldMatch` objQid u2
