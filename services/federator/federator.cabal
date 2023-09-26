@@ -276,6 +276,7 @@ executable federator-integration
 
   build-depends:
       aeson
+    , async
     , base
     , bilge
     , binary
@@ -288,6 +289,8 @@ executable federator-integration
     , federator
     , HsOpenSSL
     , hspec
+    , hspec-core
+    , hspec-junit-formatter
     , http-client-tls
     , http-types
     , http2-manager

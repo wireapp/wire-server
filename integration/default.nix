@@ -45,6 +45,8 @@
 , proto-lens
 , random
 , raw-strings-qq
+, regex-base
+, regex-tdfa
 , retry
 , scientific
 , split
@@ -62,6 +64,7 @@
 , vector
 , websockets
 , wire-message-proto-lens
+, xml
 , yaml
 }:
 mkDerivation {
@@ -111,6 +114,8 @@ mkDerivation {
     proto-lens
     random
     raw-strings-qq
+    regex-base
+    regex-tdfa
     retry
     scientific
     split
@@ -128,6 +133,7 @@ mkDerivation {
     vector
     websockets
     wire-message-proto-lens
+    xml
     yaml
   ];
   license = lib.licenses.agpl3Only;

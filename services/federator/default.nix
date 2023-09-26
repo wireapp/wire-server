@@ -23,6 +23,8 @@
 , hinotify
 , HsOpenSSL
 , hspec
+, hspec-core
+, hspec-junit-formatter
 , http-client
 , http-client-tls
 , http-media
@@ -126,6 +128,7 @@ mkDerivation {
   ];
   executableHaskellDepends = [
     aeson
+    async
     base
     bilge
     binary
@@ -137,6 +140,8 @@ mkDerivation {
     exceptions
     HsOpenSSL
     hspec
+    hspec-core
+    hspec-junit-formatter
     http-client-tls
     http-types
     http2-manager

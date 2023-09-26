@@ -303,6 +303,7 @@ executable gundeck-integration
     , safe
     , tagged
     , tasty                  >=1.0
+    , tasty-ant-xml
     , tasty-hunit            >=0.9
     , text
     , tinylog
