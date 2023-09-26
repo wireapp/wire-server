@@ -328,6 +328,7 @@ testAddReachableWithUnreachableRemoteUsers = do
 
       let newConv = defProteus {qualifiedUsers = [alex, charlie, dylan]}
       conv <- postConversation alice newConv >>= getJSON 201
+      connectUsers alex bob
       pure ([alex, bob], conv, domains)
 
   bobId <- bob %. "qualified_id"
@@ -352,6 +353,7 @@ testAddUnreachable = do
 
       let newConv = defProteus {qualifiedUsers = [alex, dylan]}
       conv <- postConversation alice newConv >>= getJSON 201
+      connectUsers alex charlie
       pure ([alex, charlie], domains, conv)
 
   charlieId <- charlie %. "qualified_id"
