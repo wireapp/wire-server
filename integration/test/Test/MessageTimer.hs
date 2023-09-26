@@ -30,8 +30,7 @@ import Testlib.ResourcePool
 
 testMessageTimerChangeWithRemotes :: HasCallStack => App ()
 testMessageTimerChangeWithRemotes = do
-  [alice, bob] <- createUsers [OwnDomain, OtherDomain]
-  connectUsers [alice, bob]
+  [alice, bob] <- createAndConnectUsers [OwnDomain, OtherDomain]
   conv <- postConversation alice defProteus {qualifiedUsers = [bob]} >>= getJSON 201
   withWebSockets [alice, bob] $ \wss -> do
     void $ updateMessageTimer alice conv 1000 >>= getBody 200
@@ -47,7 +46,7 @@ testMessageTimerChangeWithUnreachableRemotes = do
   conv <- runCodensity (acquireResources 1 resourcePool) $ \[dynBackend] ->
     runCodensity (startDynamicBackend dynBackend mempty) $ \_ -> do
       bob <- randomUser dynBackend.berDomain def
-      connectUsers [alice, bob]
+      connectUsers alice bob
       postConversation alice (defProteus {qualifiedUsers = [bob]}) >>= getJSON 201
   withWebSocket alice $ \ws -> do
     void $ updateMessageTimer alice conv 1000 >>= getBody 200

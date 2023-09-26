@@ -39,7 +39,7 @@ testAccessUpdateGuestRemoved = do
   (alice, tid, [bob]) <- createTeam OwnDomain 2
   charlie <- randomUser OwnDomain def
   dee <- randomUser OtherDomain def
-  mapM_ (connect2Users alice) [charlie, dee]
+  mapM_ (connectUsers alice) [charlie, dee]
   [aliceClient, bobClient, charlieClient, deeClient] <-
     mapM
       (\user -> objId $ bindResponse (addClient user def) $ getJSON 201)
@@ -72,7 +72,7 @@ testAccessUpdateGuestRemovedUnreachableRemotes = do
   resourcePool <- asks resourcePool
   (alice, tid, [bob]) <- createTeam OwnDomain 2
   charlie <- randomUser OwnDomain def
-  connect2Users alice charlie
+  connectUsers alice charlie
   [aliceClient, bobClient, charlieClient] <-
     mapM
       (\user -> objId $ bindResponse (addClient user def) $ getJSON 201)
@@ -80,7 +80,7 @@ testAccessUpdateGuestRemovedUnreachableRemotes = do
   (conv, dee) <- runCodensity (acquireResources 1 resourcePool) $ \[dynBackend] ->
     runCodensity (startDynamicBackend dynBackend mempty) $ \_ -> do
       dee <- randomUser dynBackend.berDomain def
-      connect2Users alice dee
+      connectUsers alice dee
       conv <-
         postConversation
           alice
@@ -105,8 +105,7 @@ testAccessUpdateGuestRemovedUnreachableRemotes = do
 
 testAccessUpdateWithRemotes :: HasCallStack => App ()
 testAccessUpdateWithRemotes = do
-  [alice, bob, charlie] <- createUsers [OwnDomain, OtherDomain, OwnDomain]
-  connectUsers [alice, bob, charlie]
+  [alice, bob, charlie] <- createAndConnectUsers [OwnDomain, OtherDomain, OwnDomain]
   conv <-
     postConversation alice (defProteus {qualifiedUsers = [bob, charlie]})
       >>= getJSON 201

@@ -28,8 +28,7 @@ import Testlib.Prelude
 
 testRoleUpdateWithRemotesOk :: HasCallStack => App ()
 testRoleUpdateWithRemotesOk = do
-  [bob, charlie, alice] <- createUsers [OwnDomain, OwnDomain, OtherDomain]
-  connectUsers [bob, charlie, alice]
+  [bob, charlie, alice] <- createAndConnectUsers [OwnDomain, OwnDomain, OtherDomain]
   conv <-
     postConversation bob (defProteus {qualifiedUsers = [charlie, alice]})
       >>= getJSON 201
@@ -48,10 +47,10 @@ testRoleUpdateWithRemotesOk = do
 
 testRoleUpdateWithRemotesUnreachable :: HasCallStack => App ()
 testRoleUpdateWithRemotesUnreachable = do
-  [bob, charlie] <- createUsers [OwnDomain, OwnDomain]
+  [bob, charlie] <- createAndConnectUsers [OwnDomain, OwnDomain]
   startDynamicBackends [mempty] $ \[dynBackend] -> do
     alice <- randomUser dynBackend def
-    connectUsers [alice, bob, charlie]
+    mapM_ (connectUsers alice) [bob, charlie]
     conv <-
       postConversation bob (defProteus {qualifiedUsers = [charlie, alice]})
         >>= getJSON 201
