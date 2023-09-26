@@ -23,7 +23,8 @@ testNotificationsForOfflineBackends :: HasCallStack => App ()
 testNotificationsForOfflineBackends = do
   resourcePool <- asks (.resourcePool)
   -- `delUser` will eventually get deleted.
-  [delUser, otherUser, otherUser2] <- createAndConnectUsers [OwnDomain, OtherDomain, OtherDomain]
+  [delUser, otherUser, otherUser2] <- createUsers [OwnDomain, OtherDomain, OtherDomain]
+  connectUsers [delUser, otherUser, otherUser2]
   delClient <- objId $ bindResponse (API.addClient delUser def) $ getJSON 201
   otherClient <- objId $ bindResponse (API.addClient otherUser def) $ getJSON 201
   otherClient2 <- objId $ bindResponse (API.addClient otherUser2 def) $ getJSON 201
@@ -47,9 +48,9 @@ testNotificationsForOfflineBackends = do
       downUser1 <- randomUser downBackend.berDomain def
       downUser2 <- randomUser downBackend.berDomain def
       downClient1 <- objId $ bindResponse (API.addClient downUser1 def) $ getJSON 201
-      connectUsers delUser downUser1
-      connectUsers delUser downUser2
-      connectUsers otherUser downUser1
+      connect2Users delUser downUser1
+      connect2Users delUser downUser2
+      connect2Users otherUser downUser1
       upBackendConv <- bindResponse (postConversation delUser (defProteus {qualifiedUsers = [otherUser, otherUser2, downUser1]})) $ getJSON 201
       downBackendConv <- bindResponse (postConversation downUser1 (defProteus {qualifiedUsers = [otherUser, delUser]})) $ getJSON 201
       pure (downUser1, downClient1, downUser2, upBackendConv, downBackendConv)
@@ -89,7 +90,7 @@ testNotificationsForOfflineBackends = do
       -- however, if the backend of the user to be added is already part of the conversation, we do not need to do the check
       -- and the user can be added as long as the backend is reachable
       otherUser3 <- randomUser OtherDomain def
-      connectUsers delUser otherUser3
+      connect2Users delUser otherUser3
       bindResponse (addMembers delUser upBackendConv def {users = [otherUser3]}) $ \resp ->
         resp.status `shouldMatchInt` 200
 

@@ -71,7 +71,7 @@ createTeamMember inviter tid = do
       <&> addJSONObject registerJSON
   getJSON 201 =<< submit "POST" registerReq
 
-connectUsers ::
+connect2Users ::
   ( HasCallStack,
     MakesValue alice,
     MakesValue bob
@@ -79,20 +79,21 @@ connectUsers ::
   alice ->
   bob ->
   App ()
-connectUsers alice bob = do
+connect2Users alice bob = do
   bindResponse (Brig.postConnection alice bob) (\resp -> resp.status `shouldMatchInt` 201)
   bindResponse (Brig.putConnection bob alice "accepted") (\resp -> resp.status `shouldMatchInt` 200)
 
-createAndConnectUsers :: (HasCallStack, MakesValue domain) => [domain] -> App [Value]
-createAndConnectUsers domains = do
-  users <- for domains (flip randomUser def)
+createUsers :: (HasCallStack, MakesValue domain) => [domain] -> App [Value]
+createUsers domains = for domains (flip randomUser def)
+
+connectUsers :: (HasCallStack, MakesValue u) => [u] -> App ()
+connectUsers users = do
   let userPairs = do
         t <- tails users
         (a, others) <- maybeToList (uncons t)
         b <- others
         pure (a, b)
-  for_ userPairs (uncurry connectUsers)
-  pure users
+  for_ userPairs (uncurry connect2Users)
 
 getAllConvs :: (HasCallStack, MakesValue u) => u -> App [Value]
 getAllConvs u = do

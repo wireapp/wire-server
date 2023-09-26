@@ -144,7 +144,7 @@ testIndependentESIndices = do
   u1 <- randomUser OwnDomain def
   u2 <- randomUser OwnDomain def
   uid2 <- objId u2
-  connectUsers u1 u2
+  connect2Users u1 u2
   Internal.refreshIndex OwnDomain
   bindResponse (Public.searchContacts u1 (u2 %. "name") OwnDomain) $ \resp -> do
     resp.status `shouldMatchInt` 200
@@ -162,7 +162,7 @@ testIndependentESIndices = do
       null docs `shouldMatch` True
     uD2 <- randomUser dynDomain def
     uidD2 <- objId uD2
-    connectUsers uD1 uD2
+    connect2Users uD1 uD2
     Internal.refreshIndex dynDomain
     -- searching for uD2 on the dyn backend should yield a result
     bindResponse (Public.searchContacts uD1 (uD2 %. "name") dynDomain) $ \resp -> do
