@@ -3,8 +3,8 @@
 
 module Test.Federation where
 
-import API.Brig qualified as API
-import API.BrigInternal qualified as API
+import API.Brig qualified as BrigP
+import API.BrigInternal qualified as BrigI
 import API.Galley
 import Control.Lens
 import Control.Monad.Codensity
@@ -25,9 +25,9 @@ testNotificationsForOfflineBackends = do
   -- `delUser` will eventually get deleted.
   [delUser, otherUser, otherUser2] <- createUsers [OwnDomain, OtherDomain, OtherDomain]
   connectUsers [delUser, otherUser, otherUser2]
-  delClient <- objId $ bindResponse (API.addClient delUser def) $ getJSON 201
-  otherClient <- objId $ bindResponse (API.addClient otherUser def) $ getJSON 201
-  otherClient2 <- objId $ bindResponse (API.addClient otherUser2 def) $ getJSON 201
+  delClient <- objId $ bindResponse (BrigP.addClient delUser def) $ getJSON 201
+  otherClient <- objId $ bindResponse (BrigP.addClient otherUser def) $ getJSON 201
+  otherClient2 <- objId $ bindResponse (BrigP.addClient otherUser2 def) $ getJSON 201
 
   -- We call it 'downBackend' because it is down for most of this test
   -- except for setup and assertions. Perhaps there is a better name.
@@ -39,7 +39,7 @@ testNotificationsForOfflineBackends = do
         otherDomain <- make OtherDomain & asString
         let domains = [ownDomain, otherDomain, downBackend.berDomain]
         sequence_
-          [ API.createFedConn x (API.FedConn y "full_search")
+          [ BrigI.createFedConn x (BrigI.FedConn y "full_search")
             | x <- domains,
               y <- domains,
               x /= y
@@ -47,7 +47,7 @@ testNotificationsForOfflineBackends = do
 
       downUser1 <- randomUser downBackend.berDomain def
       downUser2 <- randomUser downBackend.berDomain def
-      downClient1 <- objId $ bindResponse (API.addClient downUser1 def) $ getJSON 201
+      downClient1 <- objId $ bindResponse (BrigP.addClient downUser1 def) $ getJSON 201
       connect2Users delUser downUser1
       connect2Users delUser downUser2
       connect2Users otherUser downUser1
