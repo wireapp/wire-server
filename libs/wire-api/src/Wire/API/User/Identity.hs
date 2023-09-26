@@ -29,6 +29,8 @@ module Wire.API.User.Identity
     userIdentityObjectSchema,
     maybeUserIdentityObjectSchema,
     maybeUserIdentityFromRaw,
+    LegacyUserSSOId (..),
+    partialUAuthIdObjectSchema,
 
     -- * Email
     Email (..),
@@ -113,7 +115,10 @@ rawCassandraUserIdentityObjectSchema =
     <$> (\(a, _, _, _) -> a) .= maybe_ (optField "email" schema)
     <*> (\(_, a, _, _) -> a) .= maybe_ (optField "phone" schema)
     <*> (\(_, _, a, _) -> a) .= maybe_ (optField "sso_id" genericToSchema)
-    <*> (\(_, _, _, a) -> a) .= maybe_ (optField "uauth_id" genericToSchema)
+    <*> (\(_, _, _, a) -> a) .= maybe_ (optField "uauth_id" partialUAuthIdObjectSchema)
+
+partialUAuthIdObjectSchema :: ValueSchema NamedSwaggerDoc PartialUAuthId
+partialUAuthIdObjectSchema = _
 
 -- | This assumes the database is consistent and does not do any validation.
 maybeUserIdentityFromRaw :: RawCassandraUserIdentity -> Maybe UserIdentity

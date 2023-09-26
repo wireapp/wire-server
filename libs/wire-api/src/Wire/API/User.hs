@@ -1110,7 +1110,9 @@ data NewUserRaw = NewUserRaw
     newUserRawUUID :: Maybe UUID,
     newUserRawEmail :: Maybe Email,
     newUserRawPhone :: Maybe Phone,
-    newUserRawSSOId :: Maybe UserSSOId,
+    newUserRawSSOId ::
+      -- DEPRECATED (use newUserRawUAuthId instead)
+      Maybe LegacyUserSSOId,
     newUserRawUAuthId ::
       -- NOTE(fisx): This defines a json object under a json field, just like newUserRawSSOId.  no inlining!
       Maybe PartialUAuthId,
@@ -1146,6 +1148,8 @@ newUserRawObjectSchema =
       .= maybe_ (optField "phone" schema)
     <*> newUserRawSSOId
       .= maybe_ (optField "sso_id" genericToSchema)
+    <*> newUserRawUAuthId
+      .= maybe_ (optField "sso_id" partialUAuthIdObjectSchema)
     <*> newUserRawPict
       .= maybe_ (optField "picture" schema)
     <*> newUserRawAssets
@@ -1189,7 +1193,8 @@ newUserToRaw NewUser {..} =
           newUserRawUUID = newUserUUID,
           newUserRawEmail = emailIdentity =<< newUserIdentity,
           newUserRawPhone = phoneIdentity =<< newUserIdentity,
-          newUserRawSSOId = ssoIdentity =<< newUserIdentity,
+          newUserRawSSOId = _,
+          newUserRawUAuthId = ssoIdentity =<< newUserIdentity,
           newUserRawPict = newUserPict,
           newUserRawAssets = newUserAssets,
           newUserRawAccentId = newUserAccentId,
@@ -1211,11 +1216,17 @@ newUserFromRaw :: NewUserRaw -> A.Parser NewUser
 newUserFromRaw NewUserRaw {..} = do
   origin <-
     either fail pure $
-      maybeNewUserOriginFromComponents
+      maybeNewUserOriginFromRaw
         (isJust newUserRawPassword)
         (isJust newUserRawSSOId)
         (newUserRawInvitationCode, newUserRawTeamCode, newUserRawTeam, newUserRawTeamId)
-  let identity = maybeUserIdentityFromComponents (newUserRawEmail, newUserRawPhone, T.scimExternalId =<< newUserRawSSOId, _, _)
+  let identity =
+        maybeUserIdentityFromRaw
+          ( newUserRawEmail,
+            newUserRawPhone,
+            newUserRawSSOId,
+            newUserRawUAuthId
+          )
   expiresIn <-
     case (newUserRawExpiresIn, identity) of
       (Just _, Just _) -> fail "Only users without an identity can expire"
