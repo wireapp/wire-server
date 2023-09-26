@@ -1,1 +1,1 @@
-/integration: better qualified import names, clean up compiler warning flags, improve interface of some helper functions.
+Clean up some /integration cruft
