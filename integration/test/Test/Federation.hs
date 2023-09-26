@@ -1,5 +1,4 @@
 {-# LANGUAGE OverloadedLabels #-}
-{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 module Test.Federation where
 
