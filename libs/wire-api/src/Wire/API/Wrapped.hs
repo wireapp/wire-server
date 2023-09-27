@@ -21,8 +21,8 @@ import Control.Lens ((.~), (?~))
 import Data.Aeson
 import Data.Aeson.Key qualified as Key
 import Data.HashMap.Strict.InsOrd qualified as InsOrdHashMap
+import Data.OpenApi
 import Data.Proxy (Proxy (..))
-import Data.Swagger
 import Data.Text qualified as Text
 import GHC.TypeLits (KnownSymbol, Symbol, symbolVal)
 import Imports
@@ -48,7 +48,7 @@ instance (ToSchema a, KnownSymbol name) => ToSchema (Wrapped name a) where
     pure $
       NamedSchema Nothing $
         mempty
-          & type_ ?~ SwaggerObject
+          & type_ ?~ OpenApiObject
           & properties .~ InsOrdHashMap.singleton (Text.pack (symbolVal (Proxy @name))) wrappedSchema
 
 instance (Arbitrary a, KnownSymbol name) => Arbitrary (Wrapped name a) where

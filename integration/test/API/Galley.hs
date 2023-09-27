@@ -5,6 +5,7 @@ module API.Galley where
 import Control.Lens hiding ((.=))
 import Control.Monad.Reader
 import Data.Aeson qualified as Aeson
+import Data.Aeson.Types qualified as Aeson
 import Data.ByteString.Base64 qualified as B64
 import Data.ByteString.Base64.URL qualified as B64U
 import Data.ByteString.Char8 qualified as BS
@@ -82,6 +83,21 @@ postConversation user cc = do
   req <- baseRequest user Galley Versioned "/conversations"
   ccv <- make cc
   submit "POST" $ req & addJSON ccv
+
+deleteTeamConversation ::
+  ( HasCallStack,
+    MakesValue user,
+    MakesValue conv
+  ) =>
+  String ->
+  conv ->
+  user ->
+  App Response
+deleteTeamConversation tid qcnv user = do
+  cnv <- snd <$> objQid qcnv
+  let path = joinHttpPath ["teams", tid, "conversations", cnv]
+  req <- baseRequest user Galley Versioned path
+  submit "DELETE" req
 
 putConversationProtocol ::
   ( HasCallStack,
@@ -296,12 +312,39 @@ getGroupClients user groupId = do
       (joinHttpPath ["i", "group", BS.unpack . B64U.encodeUnpadded . B64.decodeLenient $ BS.pack groupId])
   submit "GET" req
 
-addMembers :: (HasCallStack, MakesValue user, MakesValue conv) => user -> conv -> [Value] -> App Response
-addMembers usr qcnv newMembers = do
+data AddMembers = AddMembers
+  { users :: [Value],
+    role :: Maybe String,
+    version :: Maybe Int
+  }
+
+instance Default AddMembers where
+  def = AddMembers {users = [], role = Nothing, version = Nothing}
+
+addMembers ::
+  (HasCallStack, MakesValue user, MakesValue conv) =>
+  user ->
+  conv ->
+  AddMembers ->
+  App Response
+addMembers usr qcnv opts = do
   (convDomain, convId) <- objQid qcnv
-  qUsers <- mapM objQidObject newMembers
-  req <- baseRequest usr Galley Versioned (joinHttpPath ["conversations", convDomain, convId, "members"])
-  submit "POST" (req & addJSONObject ["qualified_users" .= qUsers])
+  qUsers <- mapM objQidObject opts.users
+  let path = case opts.version of
+        Just v | v <= 1 -> ["conversations", convId, "members", "v2"]
+        _ -> ["conversations", convDomain, convId, "members"]
+  req <-
+    baseRequest
+      usr
+      Galley
+      (maybe Versioned ExplicitVersion opts.version)
+      (joinHttpPath path)
+  submit "POST" $
+    req
+      & addJSONObject
+        ( ["qualified_users" .= qUsers]
+            <> ["conversation_role" .= r | r <- toList opts.role]
+        )
 
 removeMember :: (HasCallStack, MakesValue remover, MakesValue conv, MakesValue removed) => remover -> conv -> removed -> App Response
 removeMember remover qcnv removed = do
@@ -342,3 +385,89 @@ getConversationCode user conv mbZHost = do
         & addQueryParams [("cnv", convId)]
         & maybe id zHost mbZHost
     )
+
+changeConversationName ::
+  (HasCallStack, MakesValue user, MakesValue conv, MakesValue name) =>
+  user ->
+  conv ->
+  name ->
+  App Response
+changeConversationName user qcnv name = do
+  (convDomain, convId) <- objQid qcnv
+  let path = joinHttpPath ["conversations", convDomain, convId, "name"]
+  nameReq <- make name
+  req <- baseRequest user Galley Versioned path
+  submit "PUT" (req & addJSONObject ["name" .= nameReq])
+
+updateRole ::
+  ( HasCallStack,
+    MakesValue callerUser,
+    MakesValue targetUser,
+    MakesValue roleUpdate,
+    MakesValue qcnv
+  ) =>
+  callerUser ->
+  targetUser ->
+  roleUpdate ->
+  qcnv ->
+  App Response
+updateRole caller target role qcnv = do
+  (cnvDomain, cnvId) <- objQid qcnv
+  (tarDomain, tarId) <- objQid target
+  roleReq <- make role
+  req <-
+    baseRequest
+      caller
+      Galley
+      Versioned
+      ( joinHttpPath ["conversations", cnvDomain, cnvId, "members", tarDomain, tarId]
+      )
+  submit "PUT" (req & addJSONObject ["conversation_role" .= roleReq])
+
+updateReceiptMode ::
+  ( HasCallStack,
+    MakesValue user,
+    MakesValue conv,
+    MakesValue mode
+  ) =>
+  user ->
+  conv ->
+  mode ->
+  App Response
+updateReceiptMode user qcnv mode = do
+  (cnvDomain, cnvId) <- objQid qcnv
+  modeReq <- make mode
+  let path = joinHttpPath ["conversations", cnvDomain, cnvId, "receipt-mode"]
+  req <- baseRequest user Galley Versioned path
+  submit "PUT" (req & addJSONObject ["receipt_mode" .= modeReq])
+
+updateAccess ::
+  ( HasCallStack,
+    MakesValue user,
+    MakesValue conv
+  ) =>
+  user ->
+  conv ->
+  [Aeson.Pair] ->
+  App Response
+updateAccess user qcnv update = do
+  (cnvDomain, cnvId) <- objQid qcnv
+  let path = joinHttpPath ["conversations", cnvDomain, cnvId, "access"]
+  req <- baseRequest user Galley Versioned path
+  submit "PUT" (req & addJSONObject update)
+
+updateMessageTimer ::
+  ( HasCallStack,
+    MakesValue user,
+    MakesValue conv
+  ) =>
+  user ->
+  conv ->
+  Word64 ->
+  App Response
+updateMessageTimer user qcnv update = do
+  (cnvDomain, cnvId) <- objQid qcnv
+  updateReq <- make update
+  let path = joinHttpPath ["conversations", cnvDomain, cnvId, "message-timer"]
+  req <- baseRequest user Galley Versioned path
+  submit "PUT" (addJSONObject ["message_timer" .= updateReq] req)

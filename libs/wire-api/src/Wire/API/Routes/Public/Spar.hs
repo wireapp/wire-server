@@ -25,11 +25,12 @@ import SAML2.WebSSO qualified as SAML
 import Servant
 import Servant.API.Extended
 import Servant.Multipart
-import Servant.Swagger
+import Servant.OpenApi
 import URI.ByteString qualified as URI
 import Web.Scim.Capabilities.MetaSchema as Scim.Meta
 import Web.Scim.Class.Auth as Scim.Auth
 import Web.Scim.Class.User as Scim.User
+import Wire.API.Deprecated (Deprecated)
 import Wire.API.Error
 import Wire.API.Error.Brig
 import Wire.API.Routes.API
@@ -57,7 +58,7 @@ type DeprecateSSOAPIV1 =
     \Details: https://docs.wire.com/understand/single-sign-on/trouble-shooting.html#can-i-use-the-same-sso-login-code-for-multiple-teams"
 
 type APISSO =
-  DeprecateSSOAPIV1 :> "metadata" :> SAML.APIMeta
+  DeprecateSSOAPIV1 :> Deprecated :> "metadata" :> SAML.APIMeta
     :<|> "metadata" :> Capture "team" TeamId :> SAML.APIMeta
     :<|> "initiate-login" :> APIAuthReqPrecheck
     :<|> "initiate-login" :> APIAuthReq
@@ -82,6 +83,7 @@ type APIAuthReq =
 
 type APIAuthRespLegacy =
   DeprecateSSOAPIV1
+    :> Deprecated
     :> "finalize-login"
     -- (SAML.APIAuthResp from here on, except for response)
     :> MultipartForm Mem SAML.AuthnResponseBody
@@ -191,4 +193,4 @@ data SparAPITag
 instance ServiceAPI SparAPITag v where
   type ServiceAPIRoutes SparAPITag = SparAPI
   type SpecialisedAPIRoutes v SparAPITag = SparAPI
-  serviceSwagger = toSwagger (Proxy @SparAPI)
+  serviceSwagger = toOpenApi (Proxy @SparAPI)

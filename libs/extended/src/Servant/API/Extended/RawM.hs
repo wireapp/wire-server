@@ -10,11 +10,11 @@ import Data.Proxy
 import Imports
 import Network.Wai
 import Servant.API (Raw)
+import Servant.OpenApi
 import Servant.Server hiding (respond)
 import Servant.Server.Internal.Delayed
 import Servant.Server.Internal.RouteResult
 import Servant.Server.Internal.Router
-import Servant.Swagger
 
 type ApplicationM m = Request -> (Response -> IO ResponseReceived) -> m ResponseReceived
 
@@ -51,8 +51,8 @@ instance HasServer RawM context where
 
   hoistServerWithContext _ _ f srvM req respond = f (srvM req respond)
 
-instance HasSwagger RawM where
-  toSwagger _ = toSwagger (Proxy @Raw)
+instance HasOpenApi RawM where
+  toOpenApi _ = toOpenApi (Proxy @Raw)
 
 instance RoutesToPaths RawM where
   getRoutes = []

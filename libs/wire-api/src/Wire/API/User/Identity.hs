@@ -61,9 +61,9 @@ import Data.Attoparsec.Text
 import Data.Bifunctor (first)
 import Data.ByteString.Conversion
 import Data.CaseInsensitive qualified as CI
+import Data.OpenApi (ToParamSchema (..))
+import Data.OpenApi qualified as S
 import Data.Schema
-import Data.Swagger (ToParamSchema (..))
-import Data.Swagger qualified as S
 import Data.Text qualified as Text
 import Data.Text.Encoding (decodeUtf8', encodeUtf8)
 import Data.Time.Clock
@@ -326,7 +326,7 @@ instance S.ToSchema UserSSOId where
     pure $
       S.NamedSchema (Just "UserSSOId") $
         mempty
-          & S.type_ ?~ S.SwaggerObject
+          & S.type_ ?~ S.OpenApiObject
           & S.properties
             .~ [ ("tenant", tenantSchema),
                  ("subject", subjectSchema),

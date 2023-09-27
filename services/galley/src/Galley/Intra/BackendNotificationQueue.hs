@@ -5,6 +5,7 @@ module Galley.Intra.BackendNotificationQueue (interpretBackendNotificationQueueA
 import Control.Lens (view)
 import Control.Monad.Catch
 import Control.Retry
+import Data.Bifunctor
 import Data.Domain
 import Data.Qualified
 import Galley.Effects.BackendNotificationQueueAccess (BackendNotificationQueueAccess (..))
@@ -16,7 +17,7 @@ import Network.AMQP qualified as Q
 import Polysemy
 import Polysemy.Input
 import System.Logger.Class qualified as Log
-import UnliftIO.Timeout (timeout)
+import UnliftIO
 import Wire.API.Federation.BackendNotifications
 import Wire.API.Federation.Error
 
@@ -29,8 +30,10 @@ interpretBackendNotificationQueueAccess ::
 interpretBackendNotificationQueueAccess = interpret $ \case
   EnqueueNotification remote deliveryMode action -> do
     embedApp $ enqueueNotification (tDomain remote) deliveryMode action
+  EnqueueNotificationsConcurrently m xs rpc -> do
+    embedApp $ enqueueNotificationsConcurrently m xs rpc
 
-enqueueNotification :: Domain -> Q.DeliveryMode -> FedQueueClient c () -> App (Either FederationError ())
+enqueueNotification :: Domain -> Q.DeliveryMode -> FedQueueClient c a -> App (Either FederationError a)
 enqueueNotification remoteDomain deliveryMode action = do
   mChanVar <- view rabbitmqChannel
   ownDomain <- view (options . settings . federationDomain)
@@ -55,6 +58,19 @@ enqueueNotification remoteDomain deliveryMode action = do
         Nothing -> throwM NoRabbitMqChannel
         Just chan -> do
           liftIO $ enqueue chan ownDomain remoteDomain deliveryMode action
+
+enqueueNotificationsConcurrently ::
+  (Foldable f, Functor f) =>
+  Q.DeliveryMode ->
+  f (Remote x) ->
+  (Remote [x] -> FedQueueClient c a) ->
+  App [(Either (Remote ([x], FederationError)) (Remote a))]
+enqueueNotificationsConcurrently m xs f =
+  pooledForConcurrentlyN 8 (bucketRemote xs) $ \r ->
+    bimap
+      (qualifyAs r . (tUnqualified r,))
+      (qualifyAs r)
+      <$> enqueueNotification (tDomain r) m (f r)
 
 data NoRabbitMqChannel = NoRabbitMqChannel
   deriving (Show)

@@ -61,7 +61,8 @@ import Wire.API.MLS.SubConversation
 import Wire.API.User.Client
 
 type HasProposalActionEffects r =
-  ( Member BrigAccess r,
+  ( Member BackendNotificationQueueAccess r,
+    Member BrigAccess r,
     Member ConversationStore r,
     Member (Error InternalError) r,
     Member (ErrorS 'ConvNotFound) r,

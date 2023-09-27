@@ -133,13 +133,6 @@ let
         sha256 = "sha256-g2lbKt3+hToVFQvaHOa9dg4HqAL7YgReo8fy7wQavmY=";
       };
     };
-    swagger2 = {
-      src = fetchgit {
-        url = "https://github.com/GetShopTV/swagger2";
-        rev = "d79deca03b714cdd4531217831a8305068b2e8f9";
-        sha256 = "sha256-R3p0L0TgM0Bspe5z6vauwdPq9TmEWpMC53DBkMtCEoE=";
-      };
-    };
     # MR: https://gitlab.com/twittner/cql-io/-/merge_requests/20
     cql-io = {
       src = fetchgit {
@@ -178,6 +171,15 @@ let
         url = "https://github.com/frasertweedale/hs-jose";
         rev = "a7f919b19f667dfbb4d5c989ce620d3e75af8247";
         sha256 = "sha256-SKEE9ZqhjBxHYUKQaoB4IpN4/Ui3tS4S98FgZqj7WlY=";
+      };
+    };
+    servant-openapi3 = {
+      src = fetchgit {
+        # This is a patched version of the library that sets the required flag for HTTP request bodies.
+        # A PR for these changes has been made for the upstream library. biocad/servant-openapi3#49
+        url = "https://github.com/lepsa/servant-openapi3";
+        rev = "5cdb2783f15058f753c41b800415d4ba1149a78b";
+        sha256 = "sha256-8FM3IAA3ewCuv9Mar8aWmzbyfKK9eLXIJPMHzmYb1zE=";
       };
     };
     # This can be removed once postie 0.6.0.3 (or later) is in nixpkgs

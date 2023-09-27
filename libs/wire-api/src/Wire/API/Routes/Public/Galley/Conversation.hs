@@ -24,12 +24,13 @@ import Data.Range
 import Data.SOP (I (..), NS (..))
 import Imports hiding (head)
 import Servant hiding (WithStatus)
-import Servant.Swagger.Internal.Orphans ()
+import Servant.OpenApi.Internal.Orphans ()
 import Wire.API.Conversation
 import Wire.API.Conversation.Code
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing
+import Wire.API.Deprecated
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
@@ -923,6 +924,7 @@ type ConversationAPI =
     :<|> Named
            "update-other-member-unqualified"
            ( Summary "Update membership of the specified user (deprecated)"
+               :> Deprecated
                :> Description "Use `PUT /conversations/:cnv_domain/:cnv/members/:usr_domain/:usr` instead"
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Galley "on-mls-message-sent"
@@ -975,6 +977,7 @@ type ConversationAPI =
     :<|> Named
            "update-conversation-name-deprecated"
            ( Summary "Update conversation name (deprecated)"
+               :> Deprecated
                :> Description "Use `/conversations/:domain/:conv/name` instead."
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Galley "on-mls-message-sent"
@@ -996,6 +999,7 @@ type ConversationAPI =
     :<|> Named
            "update-conversation-name-unqualified"
            ( Summary "Update conversation name (deprecated)"
+               :> Deprecated
                :> Description "Use `/conversations/:domain/:conv/name` instead."
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Galley "on-mls-message-sent"
@@ -1041,6 +1045,7 @@ type ConversationAPI =
     :<|> Named
            "update-conversation-message-timer-unqualified"
            ( Summary "Update the message timer for a conversation (deprecated)"
+               :> Deprecated
                :> Description "Use `/conversations/:domain/:cnv/message-timer` instead."
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Galley "on-mls-message-sent"
@@ -1088,6 +1093,7 @@ type ConversationAPI =
     :<|> Named
            "update-conversation-receipt-mode-unqualified"
            ( Summary "Update receipt mode for a conversation (deprecated)"
+               :> Deprecated
                :> Description "Use `PUT /conversations/:domain/:cnv/receipt-mode` instead."
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Galley "on-mls-message-sent"
@@ -1214,6 +1220,7 @@ type ConversationAPI =
     :<|> Named
            "get-conversation-self-unqualified"
            ( Summary "Get self membership properties (deprecated)"
+               :> Deprecated
                :> ZLocalUser
                :> "conversations"
                :> Capture' '[Description "Conversation ID"] "cnv" ConvId
@@ -1223,6 +1230,7 @@ type ConversationAPI =
     :<|> Named
            "update-conversation-self-unqualified"
            ( Summary "Update self membership properties (deprecated)"
+               :> Deprecated
                :> Description "Use `/conversations/:domain/:conv/self` instead."
                :> CanThrow 'ConvNotFound
                :> ZLocalUser

@@ -20,8 +20,8 @@ module Data.LegalHold where
 import Cassandra.CQL
 import Control.Lens ((?~))
 import Data.Aeson hiding (constructorTagModifier)
+import Data.OpenApi qualified as S
 import Data.Schema
-import Data.Swagger qualified as S
 import Imports
 import Test.QuickCheck
 

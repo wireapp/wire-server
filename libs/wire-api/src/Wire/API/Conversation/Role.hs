@@ -68,11 +68,11 @@ import Data.Aeson.TH qualified as A
 import Data.Attoparsec.Text
 import Data.ByteString.Conversion
 import Data.Hashable
+import Data.OpenApi qualified as S
 import Data.Range (fromRange, genRangeText)
 import Data.Schema
 import Data.Set qualified as Set
 import Data.Singletons.TH
-import Data.Swagger qualified as S
 import Deriving.Swagger qualified as S
 import GHC.TypeLits
 import Imports

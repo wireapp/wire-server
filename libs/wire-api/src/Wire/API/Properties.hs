@@ -30,7 +30,7 @@ import Data.Aeson (FromJSON (..), ToJSON (..), Value)
 import Data.Aeson qualified as A
 import Data.ByteString.Conversion
 import Data.Hashable (Hashable)
-import Data.Swagger qualified as S
+import Data.OpenApi qualified as S
 import Data.Text.Ascii
 import Imports
 import Servant
@@ -43,7 +43,7 @@ instance S.ToSchema PropertyKeysAndValues where
   declareNamedSchema _ =
     pure $
       S.NamedSchema (Just "PropertyKeysAndValues") $
-        mempty & S.type_ ?~ S.SwaggerObject
+        mempty & S.type_ ?~ S.OpenApiObject
 
 newtype PropertyKey = PropertyKey
   {propertyKeyName :: AsciiPrintable}
@@ -64,7 +64,7 @@ newtype PropertyKey = PropertyKey
 instance S.ToParamSchema PropertyKey where
   toParamSchema _ =
     mempty
-      & S.type_ ?~ S.SwaggerString
+      & S.type_ ?~ S.OpenApiString
       & S.format ?~ "printable"
 
 -- | A raw, unparsed property value.

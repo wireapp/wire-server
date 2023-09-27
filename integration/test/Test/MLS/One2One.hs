@@ -38,7 +38,7 @@ testGetMLSOne2OneUnconnected otherDomain = do
 
 testGetMLSOne2OneSameTeam :: App ()
 testGetMLSOne2OneSameTeam = do
-  (alice, _) <- createTeam OwnDomain
+  (alice, _, _) <- createTeam OwnDomain 1
   bob <- addUserToTeam alice
   void $ getMLSOne2OneConversation alice bob >>= getJSON 200
 

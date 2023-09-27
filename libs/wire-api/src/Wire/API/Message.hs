@@ -67,6 +67,7 @@ import Data.Domain (Domain, domainText, mkDomain)
 import Data.Id
 import Data.Json.Util
 import Data.Map.Strict qualified as Map
+import Data.OpenApi qualified as S
 import Data.ProtoLens qualified as ProtoLens
 import Data.ProtoLens.Field qualified as ProtoLens
 import Data.ProtocolBuffers qualified as Protobuf
@@ -74,7 +75,6 @@ import Data.Qualified (Qualified (..))
 import Data.Schema
 import Data.Serialize (runGet)
 import Data.Set qualified as Set
-import Data.Swagger qualified as S
 import Data.Text.Read qualified as Reader
 import Data.UUID qualified as UUID
 import Imports
@@ -553,7 +553,7 @@ data IgnoreMissing
   deriving (Show, Eq)
 
 instance S.ToParamSchema IgnoreMissing where
-  toParamSchema _ = mempty & S.type_ ?~ S.SwaggerString
+  toParamSchema _ = mempty & S.type_ ?~ S.OpenApiString
 
 instance FromHttpApiData IgnoreMissing where
   parseQueryParam = \case
@@ -566,7 +566,7 @@ data ReportMissing
   | ReportMissingList (Set UserId)
 
 instance S.ToParamSchema ReportMissing where
-  toParamSchema _ = mempty & S.type_ ?~ S.SwaggerString
+  toParamSchema _ = mempty & S.type_ ?~ S.OpenApiString
 
 instance FromHttpApiData ReportMissing where
   parseQueryParam = \case

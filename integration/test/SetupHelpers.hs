@@ -1,9 +1,11 @@
 {-# OPTIONS_GHC -Wno-ambiguous-fields #-}
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 module SetupHelpers where
 
 import API.Brig
 import API.BrigInternal
+import API.Common
 import API.Galley
 import Control.Concurrent (threadDelay)
 import Control.Monad.Reader
@@ -11,7 +13,6 @@ import Data.Aeson hiding ((.=))
 import Data.Aeson.Types qualified as Aeson
 import Data.Default
 import Data.Function
-import Data.List qualified as List
 import Data.UUID.V1 (nextUUID)
 import Data.UUID.V4 (nextRandom)
 import GHC.Stack
@@ -33,15 +34,43 @@ deleteUser user = bindResponse (API.Brig.deleteUser user) $ \resp -> do
   resp.status `shouldMatchInt` 200
 
 -- | returns (user, team id)
-createTeam :: (HasCallStack, MakesValue domain) => domain -> App (Value, String)
-createTeam domain = do
+createTeam :: (HasCallStack, MakesValue domain) => domain -> Int -> App (Value, String, [Value])
+createTeam domain memberCount = do
   res <- createUser domain def {team = True}
-  user <- res.json
-  tid <- user %. "team" & asString
-  -- TODO
-  -- SQS.assertTeamActivate "create team" tid
-  -- refreshIndex
-  pure (user, tid)
+  owner <- res.json
+  tid <- owner %. "team" & asString
+  members <- for [2 .. memberCount] $ \_ -> createTeamMember owner tid
+  pure (owner, tid, members)
+
+createTeamMember ::
+  (HasCallStack, MakesValue inviter) =>
+  inviter ->
+  String ->
+  App Value
+createTeamMember inviter tid = do
+  newUserEmail <- randomEmail
+  let invitationJSON = ["role" .= "member", "email" .= newUserEmail]
+  invitationReq <-
+    baseRequest inviter Brig Versioned $
+      joinHttpPath ["teams", tid, "invitations"]
+  invitation <- getJSON 201 =<< submit "POST" (addJSONObject invitationJSON invitationReq)
+  invitationId <- objId invitation
+  invitationCodeReq <-
+    rawBaseRequest inviter Brig Unversioned "/i/teams/invitation-code"
+      <&> addQueryParams [("team", tid), ("invitation_id", invitationId)]
+  invitationCode <- bindResponse (submit "GET" invitationCodeReq) $ \res -> do
+    res.status `shouldMatchInt` 200
+    res.json %. "code" & asString
+  let registerJSON =
+        [ "name" .= newUserEmail,
+          "email" .= newUserEmail,
+          "password" .= defPassword,
+          "team_code" .= invitationCode
+        ]
+  registerReq <-
+    rawBaseRequest inviter Brig Versioned "/register"
+      <&> addJSONObject registerJSON
+  getJSON 201 =<< submit "POST" registerReq
 
 connectUsers2 ::
   ( HasCallStack,
@@ -86,7 +115,7 @@ simpleMixedConversationSetup ::
   domain ->
   App (Value, Value, Value)
 simpleMixedConversationSetup secondDomain = do
-  (alice, tid) <- createTeam OwnDomain
+  (alice, tid, _) <- createTeam OwnDomain 1
   bob <- randomUser secondDomain def
   connectUsers [alice, bob]
 
@@ -119,14 +148,6 @@ addUserToTeam u = do
   code <- resp %. "code" & asString
   addUser u def {email = Just email, teamCode = Just code} >>= getJSON 201
 
-resetFedConns :: (HasCallStack, MakesValue owndom) => owndom -> App ()
-resetFedConns owndom = do
-  bindResponse (readFedConns owndom) $ \resp -> do
-    rdoms :: [String] <- do
-      rawlist <- resp.json %. "remotes" & asList
-      (asString . (%. "domain")) `mapM` rawlist
-    deleteFedConn' owndom `mapM_` rdoms
-
 -- | Create a user on the given domain, such that the 1-1 conversation with
 -- 'other' resides on 'convDomain'. This connects the two users as a side-effect.
 createMLSOne2OnePartner :: MakesValue user => Domain -> user -> Domain -> App Value
@@ -156,40 +177,14 @@ randomUserId domain = do
   uid <- randomId
   pure $ object ["id" .= uid, "domain" .= d]
 
-addFullSearchFor :: [String] -> Value -> App Value
-addFullSearchFor domains val =
-  modifyField
-    "optSettings.setFederationDomainConfigs"
-    ( \configs -> do
-        cfg <- assertJust "" configs
-        xs <- cfg & asList
-        pure (xs <> [object ["domain" .= domain, "search_policy" .= "full_search"] | domain <- domains])
-    )
-    val
-
-fullSearchWithAll :: ServiceOverrides
-fullSearchWithAll =
-  def
-    { brigCfg = \val -> do
-        ownDomain <- asString =<< val %. "optSettings.setFederationDomain"
-        env <- ask
-        let remoteDomains = List.delete ownDomain $ [env.domain1, env.domain2] <> env.dynamicDomains
-        addFullSearchFor remoteDomains val
-    }
-
-withFederatingBackendsAllowDynamic :: HasCallStack => Int -> ((String, String, String) -> App a) -> App a
-withFederatingBackendsAllowDynamic n k = do
+withFederatingBackendsAllowDynamic :: HasCallStack => ((String, String, String) -> App a) -> App a
+withFederatingBackendsAllowDynamic k = do
   let setFederationConfig =
         setField "optSettings.setFederationStrategy" "allowDynamic"
-          >=> removeField "optSettings.setFederationDomainConfigs"
           >=> setField "optSettings.setFederationDomainConfigsUpdateFreq" (Aeson.Number 1)
   startDynamicBackends
     [ def {brigCfg = setFederationConfig},
       def {brigCfg = setFederationConfig},
       def {brigCfg = setFederationConfig}
     ]
-    $ \dynDomains -> do
-      domains@[domainA, domainB, domainC] <- pure dynDomains
-      sequence_ [createFedConn x (FedConn y "full_search") | x <- domains, y <- domains, x /= y]
-      liftIO $ threadDelay (n * 1000 * 1000) -- wait for federation status to be updated
-      k (domainA, domainB, domainC)
+    $ \[domainA, domainB, domainC] -> k (domainA, domainB, domainC)

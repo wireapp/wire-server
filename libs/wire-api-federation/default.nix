@@ -26,6 +26,7 @@
 , lib
 , metrics-wai
 , mtl
+, openapi3
 , QuickCheck
 , schema-profunctor
 , servant
@@ -34,7 +35,6 @@
 , servant-server
 , singletons
 , singletons-th
-, swagger2
 , text
 , time
 , transformers
@@ -66,6 +66,7 @@ mkDerivation {
     lens
     metrics-wai
     mtl
+    openapi3
     QuickCheck
     schema-profunctor
     servant
@@ -73,7 +74,6 @@ mkDerivation {
     servant-client-core
     servant-server
     singletons-th
-    swagger2
     text
     time
     transformers

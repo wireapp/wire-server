@@ -68,7 +68,7 @@ testStaleApplicationMessage otherDomain = do
 
 testMixedProtocolUpgrade :: HasCallStack => Domain -> App ()
 testMixedProtocolUpgrade secondDomain = do
-  (alice, tid) <- createTeam OwnDomain
+  (alice, tid, _) <- createTeam OwnDomain 1
   [bob, charlie] <- replicateM 2 (randomUser secondDomain def)
   connectUsers [alice, bob, charlie]
 
@@ -119,7 +119,7 @@ testMixedProtocolNonTeam secondDomain = do
 
 testMixedProtocolAddUsers :: HasCallStack => Domain -> App ()
 testMixedProtocolAddUsers secondDomain = do
-  (alice, tid) <- createTeam OwnDomain
+  (alice, tid, _) <- createTeam OwnDomain 1
   [bob, charlie] <- replicateM 2 (randomUser secondDomain def)
   connectUsers [alice, bob, charlie]
 
@@ -147,7 +147,7 @@ testMixedProtocolAddUsers secondDomain = do
 
 testMixedProtocolUserLeaves :: HasCallStack => Domain -> App ()
 testMixedProtocolUserLeaves secondDomain = do
-  (alice, tid) <- createTeam OwnDomain
+  (alice, tid, _) <- createTeam OwnDomain 1
   bob <- randomUser secondDomain def
   connectUsers [alice, bob]
 
@@ -182,7 +182,7 @@ testMixedProtocolUserLeaves secondDomain = do
 
 testMixedProtocolAddPartialClients :: HasCallStack => Domain -> App ()
 testMixedProtocolAddPartialClients secondDomain = do
-  (alice, tid) <- createTeam OwnDomain
+  (alice, tid, _) <- createTeam OwnDomain 1
   bob <- randomUser secondDomain def
   connectUsers [alice, bob]
 
@@ -220,7 +220,7 @@ testMixedProtocolAddPartialClients secondDomain = do
 
 testMixedProtocolRemovePartialClients :: HasCallStack => Domain -> App ()
 testMixedProtocolRemovePartialClients secondDomain = do
-  (alice, tid) <- createTeam OwnDomain
+  (alice, tid, _) <- createTeam OwnDomain 1
   bob <- randomUser secondDomain def
   connectUsers [alice, bob]
 
@@ -245,7 +245,7 @@ testMixedProtocolRemovePartialClients secondDomain = do
 
 testMixedProtocolAppMessagesAreDenied :: HasCallStack => Domain -> App ()
 testMixedProtocolAppMessagesAreDenied secondDomain = do
-  (alice, tid) <- createTeam OwnDomain
+  (alice, tid, _) <- createTeam OwnDomain 1
   bob <- randomUser secondDomain def
   connectUsers [alice, bob]
 
@@ -441,7 +441,7 @@ testJoinSubConv = do
 
 testDeleteParentOfSubConv :: HasCallStack => Domain -> App ()
 testDeleteParentOfSubConv secondDomain = do
-  (alice, tid) <- createTeam OwnDomain
+  (alice, tid, _) <- createTeam OwnDomain 1
   bob <- randomUser secondDomain def
   connectUsers [alice, bob]
 

@@ -82,6 +82,7 @@ library
     Wire.API.Conversation.Role
     Wire.API.Conversation.Typing
     Wire.API.CustomBackend
+    Wire.API.Deprecated
     Wire.API.Error
     Wire.API.Error.Brig
     Wire.API.Error.Cannon
@@ -285,6 +286,7 @@ library
     , metrics-wai
     , mime                       >=0.4
     , mtl
+    , openapi3
     , pem                        >=0.2
     , polysemy
     , proto-lens
@@ -303,13 +305,12 @@ library
     , servant-client-core
     , servant-conduit
     , servant-multipart
+    , servant-openapi3
     , servant-server
-    , servant-swagger
     , singletons
     , singletons-base
     , singletons-th
     , sop-core
-    , swagger2
     , tagged
     , text                       >=0.11
     , time                       >=1.4
@@ -672,6 +673,7 @@ test-suite wire-api-tests
     , imports
     , memory
     , metrics-wai
+    , openapi3
     , process
     , QuickCheck
     , random
@@ -679,7 +681,6 @@ test-suite wire-api-tests
     , schema-profunctor
     , servant
     , servant-server
-    , swagger2
     , tasty
     , tasty-hspec
     , tasty-hunit

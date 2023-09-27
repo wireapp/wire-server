@@ -138,7 +138,8 @@ getSettings lzusr tid = do
 
 removeSettingsInternalPaging ::
   forall r.
-  ( Member BrigAccess r,
+  ( Member BackendNotificationQueueAccess r,
+    Member BrigAccess r,
     Member ConversationStore r,
     Member (Error AuthenticationError) r,
     Member (Error FederationError) r,
@@ -178,6 +179,10 @@ removeSettings ::
   forall p r.
   ( Paging p,
     Bounded (PagingBounds p TeamMember),
+    Member TeamFeatureStore r,
+    Member (TeamMemberStore p) r,
+    Member TeamStore r,
+    Member BackendNotificationQueueAccess r,
     Member BrigAccess r,
     Member ConversationStore r,
     Member (Error AuthenticationError) r,
@@ -203,10 +208,7 @@ removeSettings ::
     Member MemberStore r,
     Member ProposalStore r,
     Member P.TinyLog r,
-    Member SubConversationStore r,
-    Member TeamFeatureStore r,
-    Member (TeamMemberStore p) r,
-    Member TeamStore r
+    Member SubConversationStore r
   ) =>
   UserId ->
   TeamId ->
@@ -237,29 +239,30 @@ removeSettings' ::
   forall p r.
   ( Paging p,
     Bounded (PagingBounds p TeamMember),
+    Member BackendNotificationQueueAccess r,
     Member BrigAccess r,
     Member ConversationStore r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
-    Member (ErrorS 'LegalHoldCouldNotBlockConnections) r,
     Member (ErrorS 'LegalHoldServiceNotRegistered) r,
     Member (ErrorS 'UserLegalHoldIllegalOperation) r,
+    Member (ErrorS 'LegalHoldCouldNotBlockConnections) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member FireAndForget r,
     Member GundeckAccess r,
-    Member (Input Env) r,
-    Member (Input (Local ())) r,
     Member (Input UTCTime) r,
+    Member (Input (Local ())) r,
+    Member (Input Env) r,
     Member LegalHoldStore r,
     Member (ListItems LegacyPaging ConvId) r,
     Member MemberStore r,
+    Member (TeamMemberStore p) r,
+    Member TeamStore r,
     Member ProposalStore r,
     Member P.TinyLog r,
-    Member SubConversationStore r,
-    Member (TeamMemberStore p) r,
-    Member TeamStore r
+    Member SubConversationStore r
   ) =>
   TeamId ->
   Sem r ()
@@ -325,7 +328,8 @@ getUserStatus _lzusr tid uid = do
 -- @withdrawExplicitConsentH@ (lots of corner cases we'd have to implement for that to pan
 -- out).
 grantConsent ::
-  ( Member BrigAccess r,
+  ( Member BackendNotificationQueueAccess r,
+    Member BrigAccess r,
     Member ConversationStore r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
@@ -363,7 +367,8 @@ grantConsent lusr tid = do
 -- | Request to provision a device on the legal hold service for a user
 requestDevice ::
   forall r.
-  ( Member BrigAccess r,
+  ( Member BackendNotificationQueueAccess r,
+    Member BrigAccess r,
     Member ConversationStore r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
@@ -442,7 +447,8 @@ requestDevice lzusr tid uid = do
 -- since they are replaced if needed when registering new LH devices.
 approveDevice ::
   forall r.
-  ( Member BrigAccess r,
+  ( Member BackendNotificationQueueAccess r,
+    Member BrigAccess r,
     Member ConversationStore r,
     Member (Error AuthenticationError) r,
     Member (Error FederationError) r,
@@ -521,7 +527,8 @@ approveDevice lzusr connId tid uid (Public.ApproveLegalHoldForUserRequest mPassw
 
 disableForUser ::
   forall r.
-  ( Member BrigAccess r,
+  ( Member BackendNotificationQueueAccess r,
+    Member BrigAccess r,
     Member ConversationStore r,
     Member (Error AuthenticationError) r,
     Member (Error FederationError) r,
@@ -579,7 +586,8 @@ disableForUser lzusr tid uid (Public.DisableLegalHoldForUserRequest mPassword) =
 -- or disabled, make sure the affected connections are screened for policy conflict (anybody
 -- with no-consent), and put those connections in the appropriate blocked state.
 changeLegalholdStatus ::
-  ( Member BrigAccess r,
+  ( Member BackendNotificationQueueAccess r,
+    Member BrigAccess r,
     Member ConversationStore r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
@@ -697,7 +705,8 @@ unsetTeamLegalholdWhitelistedH tid = do
 -- contains the hypothetical new LH status of `uid`'s so it can be consulted instead of the
 -- one from the database.
 handleGroupConvPolicyConflicts ::
-  ( Member ConversationStore r,
+  ( Member BackendNotificationQueueAccess r,
+    Member ConversationStore r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
