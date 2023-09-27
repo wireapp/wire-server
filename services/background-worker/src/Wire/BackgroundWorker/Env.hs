@@ -37,7 +37,6 @@ data Env = Env
     logger :: Logger,
     metrics :: Metrics.Metrics,
     federatorInternal :: Endpoint,
-    brig :: Endpoint,
     httpManager :: Manager,
     defederationTimeout :: ResponseTimeout,
     backendNotificationMetrics :: BackendNotificationMetrics,
@@ -64,7 +63,6 @@ mkEnv opts = do
   logger <- Log.mkLogger opts.logLevel Nothing opts.logFormat
   httpManager <- newManager defaultManagerSettings
   let federatorInternal = opts.federatorInternal
-      brig = opts.brig
       defederationTimeout =
         maybe
           responseTimeoutNone

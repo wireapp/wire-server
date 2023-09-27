@@ -11,7 +11,6 @@ data Opts = Opts
     logFormat :: !(Maybe (Last LogFormat)),
     backgroundWorker :: !Endpoint,
     federatorInternal :: !Endpoint,
-    brig :: !Endpoint,
     rabbitmq :: !RabbitMqAdminOpts,
     -- | Seconds, Nothing for no timeout
     defederationTimeout :: Maybe Int,

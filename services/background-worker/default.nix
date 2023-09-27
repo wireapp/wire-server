@@ -70,7 +70,6 @@ mkDerivation {
     types-common
     unliftio
     wai-utilities
-    wire-api
     wire-api-federation
   ];
   executableHaskellDepends = [ HsOpenSSL imports types-common ];

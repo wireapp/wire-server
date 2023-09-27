@@ -19,7 +19,6 @@ testEnv = do
   backendNotificationMetrics <- mkBackendNotificationMetrics
   httpManager <- newManager defaultManagerSettings
   let federatorInternal = Endpoint "localhost" 0
-      brig = Endpoint "localhost" 8082
       rabbitmqAdminClient = undefined
       rabbitmqVHost = undefined
       metrics = undefined

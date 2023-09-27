@@ -181,7 +181,6 @@ spec = do
       logger <- Logger.new Logger.defSettings
       httpManager <- newManager defaultManagerSettings
       let federatorInternal = Endpoint "localhost" 8097
-          brig = Endpoint "localhost" 8082
           http2Manager = undefined
           statuses = undefined
           metrics = undefined
@@ -200,7 +199,6 @@ spec = do
       logger <- Logger.new Logger.defSettings
       httpManager <- newManager defaultManagerSettings
       let federatorInternal = Endpoint "localhost" 8097
-          brig = Endpoint "localhost" 8082
           http2Manager = undefined
           statuses = undefined
           metrics = undefined
