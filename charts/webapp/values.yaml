@@ -31,7 +31,8 @@ service:
 #
 # NOTE: Without an empty dictionary, you will see warnings
 #       when overriding envVars
-envVars: {}
+envVars:
+  FEATURE_USE_CORE_CRYPTO: "true"
 # E.g.
 # envVars:
 #   FEATURE_ENABLE_DEBUG: "true"
