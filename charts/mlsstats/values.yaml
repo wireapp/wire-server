@@ -21,8 +21,7 @@ config:
       keyspace: galley
     pagesize: 1024
   s3:
-    host: https://s3.eu-west-1.amazonaws.com
-    port: 4570
+    endpoint: https://s3.eu-west-1.amazonaws.com/
     region: eu-west-1
     addressingStyle: auto
     bucket:

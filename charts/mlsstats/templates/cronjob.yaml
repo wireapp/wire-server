@@ -35,8 +35,7 @@ spec:
                       , "--galley-cassandra-port", {{ .Values.config.cassandra.galley.port | quote }}
                       , "--galley-cassandra-keyspace", {{ .Values.config.cassandra.galley.keyspace | quote }}
                       , "--cassandra-pagesize", {{ .Values.config.cassandra.pagesize | quote }}
-                      , "--s3-host", {{ .Values.config.s3.host | quote -}}
-                      , "--s3-port", {{ .Values.config.s3.port | quote -}}
+                      , "--s3-endpoint", {{ .Values.config.s3.endpoint | quote -}}
                       , "--s3-region", {{ .Values.config.s3.region | quote -}}
                       , "--s3-addressing-style", {{ .Values.config.s3.addressingStyle | quote }}
                       , "--s3-bucket-name", {{ .Values.config.s3.bucket.name | quote }}
