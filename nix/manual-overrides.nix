@@ -30,6 +30,9 @@ hself: hsuper: {
   wai-middleware-prometheus = hlib.doJailbreak hsuper.wai-middleware-prometheus;
   wai-predicates = hlib.markUnbroken hsuper.wai-predicates;
 
+  # PR with fix: https://github.com/freckle/hspec-junit-formatter/pull/23
+  hspec-junit-formatter = hlib.markUnbroken (hlib.dontCheck hsuper.hspec-junit-formatter);
+
   # Some test seems to be broken
   hsaml2 = hlib.dontCheck hsuper.hsaml2;
   saml2-web-sso = hlib.dontCheck hsuper.saml2-web-sso;

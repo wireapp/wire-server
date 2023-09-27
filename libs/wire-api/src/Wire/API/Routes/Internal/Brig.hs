@@ -279,7 +279,7 @@ type AccountAPI =
                :> QueryParam' [Optional, Strict] "email" Email
                :> QueryParam' [Optional, Strict] "phone" Phone
                :> MultiVerb
-                    'HEAD
+                    'GET
                     '[Servant.JSON]
                     '[ Respond 404 "Not blacklisted" (),
                        Respond 200 "Yes blacklisted" ()

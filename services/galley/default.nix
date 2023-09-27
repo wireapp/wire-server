@@ -90,6 +90,7 @@
 , streaming-commons
 , tagged
 , tasty
+, tasty-ant-xml
 , tasty-cannon
 , tasty-hunit
 , tasty-quickcheck
@@ -281,6 +282,7 @@ mkDerivation {
     streaming-commons
     tagged
     tasty
+    tasty-ant-xml
     tasty-cannon
     tasty-hunit
     temporary

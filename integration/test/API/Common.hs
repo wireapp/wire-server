@@ -30,6 +30,14 @@ randomName = liftIO $ do
     chars = mkArray $ ['A' .. 'Z'] <> ['a' .. 'z'] <> ['0' .. '9']
     pick = (chars !) <$> randomRIO (Array.bounds chars)
 
+randomHandle :: App String
+randomHandle = liftIO $ do
+  n <- randomRIO (50, 256)
+  replicateM n pick
+  where
+    chars = mkArray $ ['a' .. 'z'] <> ['0' .. '9'] <> "_-."
+    pick = (chars !) <$> randomRIO (Array.bounds chars)
+
 randomHex :: Int -> App String
 randomHex n = liftIO $ replicateM n pick
   where

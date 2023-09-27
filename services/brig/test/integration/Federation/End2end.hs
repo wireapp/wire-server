@@ -18,7 +18,6 @@
 module Federation.End2end where
 
 import API.MLS.Util
-import API.Search.Util
 import API.User.Util
 import Bilge
 import Bilge.Assert ((!!!), (<!!), (===))
@@ -30,7 +29,6 @@ import Data.Aeson qualified as Aeson
 import Data.ByteString.Conversion (toByteString')
 import Data.Default
 import Data.Domain
-import Data.Handle
 import Data.Id
 import Data.Json.Util (toBase64Text)
 import Data.List1 as List1
@@ -93,9 +91,7 @@ spec _brigOpts mg brig galley cargohold cannon _federator brigTwo galleyTwo carg
   pure $
     testGroup
       "federation-end2end-user"
-      [ test mg "lookup user by qualified handle on remote backend" $ testHandleLookup brig brigTwo,
-        test mg "search users on remote backend" $ testSearchUsers brig brigTwo,
-        test mg "get users by ids on multiple backends" $ testGetUsersById brig brigTwo,
+      [ test mg "get users by ids on multiple backends" $ testGetUsersById brig brigTwo,
         test mg "claim client prekey" $ testClaimPrekeySuccess brig brigTwo,
         test mg "claim prekey bundle" $ testClaimPrekeyBundleSuccess brig brigTwo,
         test mg "claim multi-prekey bundle" $ testClaimMultiPrekeyBundleSuccess brig brigTwo,
@@ -119,39 +115,6 @@ spec _brigOpts mg brig galley cargohold cannon _federator brigTwo galleyTwo carg
 -- | brig |  http2  |federator| http2  |federator|   http   | brig |
 -- |      +-------->+         +------->+         +--------->+      |
 -- +------+         +-+-------+        +---------+          +------+
-testHandleLookup :: Brig -> Brig -> Http ()
-testHandleLookup brig brigTwo = do
-  -- Create a user on the "other side" using an internal brig endpoint from a
-  -- second brig instance in backendTwo (in another namespace in kubernetes)
-  (handle, userBrigTwo) <- createUserWithHandle brigTwo
-  -- Get result from brig two for comparison
-  let domain = qDomain $ userQualifiedId userBrigTwo
-  resultViaBrigTwo <- getUserInfoFromHandle brigTwo domain handle
-
-  -- query the local-namespace brig for a user sitting on the other backend
-  -- (which will exercise the network traffic via two federators to the remote brig)
-  resultViaBrigOne <- getUserInfoFromHandle brig domain handle
-
-  liftIO $ assertEqual "remote handle lookup via federator should work in the happy case" (profileQualifiedId resultViaBrigOne) (userQualifiedId userBrigTwo)
-  liftIO $ assertEqual "querying brig1 or brig2 about the same user should give same result" resultViaBrigTwo resultViaBrigOne
-
-testSearchUsers :: Brig -> Brig -> Http ()
-testSearchUsers brig brigTwo = do
-  -- Create a user on the "other side" using an internal brig endpoint from a
-  -- second brig instance in backendTwo (in another namespace in kubernetes)
-  (handle, userBrigTwo) <- createUserWithHandle brigTwo
-
-  searcher <- userId <$> randomUser brig
-  let expectedUserId = userQualifiedId userBrigTwo
-      searchTerm = fromHandle handle
-      domain = qDomain expectedUserId
-  liftIO $ putStrLn "search for user on brigTwo (directly)..."
-  assertCanFindWithDomain brigTwo searcher expectedUserId searchTerm domain
-
-  -- exercises multi-backend network traffic
-  liftIO $ putStrLn "search for user on brigOne via federators to remote brig..."
-  assertCanFindWithDomain brig searcher expectedUserId searchTerm domain
-
 testGetUsersById :: Brig -> Brig -> Http ()
 testGetUsersById brig1 brig2 = do
   users <- traverse randomUser [brig1, brig2]

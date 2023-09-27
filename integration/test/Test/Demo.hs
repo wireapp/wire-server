@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+
 -- | This module is meant to show how Testlib can be used
 module Test.Demo where
 
@@ -9,7 +11,6 @@ import Control.Monad.Cont
 import GHC.Stack
 import SetupHelpers
 import Testlib.Prelude
-import UnliftIO.Concurrent (threadDelay)
 
 -- | Legalhold clients cannot be deleted.
 testCantDeleteLHClient :: HasCallStack => App ()
@@ -174,22 +175,10 @@ testIndependentESIndices = do
 
 testDynamicBackendsFederation :: HasCallStack => App ()
 testDynamicBackendsFederation = do
-  startDynamicBackends [def, def] $ \dynDomains -> do
-    [aDynDomain, anotherDynDomain] <- pure dynDomains
-    _ <- Internal.createFedConn anotherDynDomain (Internal.FedConn aDynDomain "full_search")
-    threadDelay 2_000_000
-
-    u1 <- randomUser aDynDomain def
-    u2 <- randomUser anotherDynDomain def
-    uid2 <- objId u2
-    Internal.refreshIndex anotherDynDomain
-
-    bindResponse (Public.searchContacts u1 (u2 %. "name") anotherDynDomain) $ \resp -> do
-      resp.status `shouldMatchInt` 200
-      docs <- resp.json %. "documents" >>= asList
-      case docs of
-        [] -> assertFailure "Expected a non empty result, but got an empty one"
-        doc : _ -> doc %. "id" `shouldMatch` uid2
+  startDynamicBackends [def, def] $ \[aDynDomain, anotherDynDomain] -> do
+    [u1, u2] <- createAndConnectUsers [aDynDomain, anotherDynDomain]
+    bindResponse (Public.getConnection u1 u2) assertSuccess
+    bindResponse (Public.getConnection u2 u1) assertSuccess
 
 testWebSockets :: HasCallStack => App ()
 testWebSockets = do

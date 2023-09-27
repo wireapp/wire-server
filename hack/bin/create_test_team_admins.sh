@@ -12,6 +12,9 @@ USAGE="
 This bash script can be used to create active team admin users and
 their teams.
 
+This is the way to create teams if you have set
+'setRestrictUserCreation' to 'true' in your 'values.yaml'.
+
 Note that this uses an internal brig endpoint.  It is not exposed over
 nginz and can only be used if you have direct access to brig.
 

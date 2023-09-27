@@ -1,2 +1,2 @@
 - Extending the information returned in errors for Federator. Paths and response bodies, if available, are included in error logs.
-- Prometheus metrics for outgoing and incoming federation requests added.
+- Prometheus metrics for outgoing and incoming federation requests added. They can be enabled by setting `metrics.serviceMonitor.enabled`, like in other charts.

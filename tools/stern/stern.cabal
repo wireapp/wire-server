@@ -270,6 +270,7 @@ executable stern-integration
     , stern
     , tagged
     , tasty                  >=0.8
+    , tasty-ant-xml
     , tasty-hunit            >=0.9
     , text
     , tinylog

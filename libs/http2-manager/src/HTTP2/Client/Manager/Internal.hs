@@ -24,10 +24,13 @@ import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import Data.Unique
 import Foreign.Marshal.Alloc (mallocBytes)
+import GHC.IO.Exception
 import qualified Network.HTTP2.Client as HTTP2
 import qualified Network.Socket as NS
 import qualified OpenSSL.Session as SSL
+import System.IO.Error
 import qualified System.TimeManager
+import System.Timeout
 import Prelude
 
 data HTTP2Conn = HTTP2Conn
@@ -74,6 +77,8 @@ data Request = Request
 data Http2Manager = Http2Manager
   { connections :: TVar (Map Target HTTP2Conn),
     cacheLimit :: Int,
+    -- | In microseconds, defaults to 30s
+    tcpConnectionTimeout :: Int,
     sslContext :: SSL.SSLContext,
     sslRemoveTrailingDot :: Bool
   }
@@ -95,6 +100,7 @@ http2ManagerWithSSLCtx :: SSL.SSLContext -> IO Http2Manager
 http2ManagerWithSSLCtx sslContext = do
   connections <- newTVarIO mempty
   let cacheLimit = 20
+      tcpConnectionTimeout = 30_000_000
       sslRemoveTrailingDot = False
   pure $ Http2Manager {..}
 
@@ -121,6 +127,10 @@ setSSLContext ctx mgr = mgr {sslContext = ctx}
 -- Warning: This won't affect already established connections
 setSSLRemoveTrailingDot :: Bool -> Http2Manager -> Http2Manager
 setSSLRemoveTrailingDot b mgr = mgr {sslRemoveTrailingDot = b}
+
+-- | In microseconds
+setTCPConnectionTimeout :: Int -> Http2Manager -> Http2Manager
+setTCPConnectionTimeout n mgr = mgr {tcpConnectionTimeout = n}
 
 -- | Does not check whether connection is actually running. Users should use
 -- 'withHTTP2Request'. This function is good for testing.
@@ -182,7 +192,7 @@ getOrMakeConnection mgr@Http2Manager {..} target = do
     connect :: IO HTTP2Conn
     connect = do
       sendReqMVar <- newEmptyMVar
-      thread <- liftIO . async $ startPersistentHTTP2Connection sslContext target cacheLimit sslRemoveTrailingDot sendReqMVar
+      thread <- liftIO . async $ startPersistentHTTP2Connection sslContext target cacheLimit sslRemoveTrailingDot tcpConnectionTimeout sendReqMVar
       let newConn = HTTP2Conn thread (putMVar sendReqMVar CloseConnection) sendReqMVar
       (inserted, finalConn) <- atomically $ insertNewConn newConn
       unless inserted $ do
@@ -262,12 +272,14 @@ startPersistentHTTP2Connection ::
   Int ->
   -- sslRemoveTrailingDot
   Bool ->
+  -- | TCP connect timeout in microseconds
+  Int ->
   -- MVar used to communicate requests or the need to close the connection.  (We could use a
   -- queue here to queue several requests, but since the requestor has to wait for the
   -- response, it might as well block before sending off the request.)
   MVar ConnectionAction ->
   IO ()
-startPersistentHTTP2Connection ctx (tlsEnabled, hostname, port) cl removeTrailingDot sendReqMVar = do
+startPersistentHTTP2Connection ctx (tlsEnabled, hostname, port) cl removeTrailingDot tcpConnectTimeout sendReqMVar = do
   liveReqs <- newIORef mempty
   let clientConfig =
         HTTP2.ClientConfig
@@ -309,7 +321,7 @@ startPersistentHTTP2Connection ctx (tlsEnabled, hostname, port) cl removeTrailin
         | otherwise = Nothing
 
   handle cleanupThreadsWith $
-    bracket (fst <$> getSocketTCP hostname port) NS.close $ \sock -> do
+    bracket connectTCPWithTimeout NS.close $ \sock -> do
       bracket (mkTransport sock transportConfig) cleanupTransport $ \transport ->
         bracket (allocHTTP2Config transport) HTTP2.freeSimpleConfig $ \http2Cfg -> do
           let runAction = HTTP2.run clientConfig http2Cfg $ \sendReq -> do
@@ -353,6 +365,22 @@ startPersistentHTTP2Connection ctx (tlsEnabled, hostname, port) cl removeTrailin
       putMVar threadKilled (SomeException e)
     generalHandler threadKilled e = putMVar threadKilled e
     exceptionHandlers threadKilled = [Handler $ tooLateHandler threadKilled, Handler $ generalHandler threadKilled]
+
+    connectTCPWithTimeout :: IO NS.Socket
+    connectTCPWithTimeout = do
+      mSock <- timeout tcpConnectTimeout $ fst <$> getSocketTCP hostname port
+      case mSock of
+        Just sock -> pure sock
+        Nothing -> do
+          let errStr =
+                "TCP connection with "
+                  <> Text.unpack (Text.decodeUtf8 hostname)
+                  <> ":"
+                  <> show port
+                  <> " took longer than "
+                  <> show tcpConnectTimeout
+                  <> " microseconds"
+          throwIO $ mkIOError TimeExpired errStr Nothing Nothing
 
 type LiveReqs = Map Unique (Async (), MVar SomeException)
 

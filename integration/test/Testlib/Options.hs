@@ -9,6 +9,7 @@ data TestOptions = TestOptions
   { includeTests :: [String],
     excludeTests :: [String],
     listTests :: Bool,
+    xmlReport :: Maybe FilePath,
     configFile :: String
   }
 
@@ -32,6 +33,13 @@ parser =
           )
       )
     <*> switch (long "list" <> short 'l' <> help "Only list tests.")
+    <*> optional
+      ( strOption
+          ( long "xml"
+              <> metavar "FILE"
+              <> help "Generate XML report for the tests"
+          )
+      )
     <*> strOption
       ( long "config"
           <> short 'c'
@@ -53,12 +61,16 @@ getOptions :: IO TestOptions
 getOptions = do
   defaultsInclude <- maybe [] (splitOn ",") <$> lookupEnv "TEST_INCLUDE"
   defaultsExclude <- maybe [] (splitOn ",") <$> lookupEnv "TEST_EXCLUDE"
+  defaultsXMLReport <- lookupEnv "TEST_XML"
   opts <- execParser optInfo
   pure
     opts
       { includeTests = includeTests opts `orFromEnv` defaultsInclude,
-        excludeTests = excludeTests opts `orFromEnv` defaultsExclude
+        excludeTests = excludeTests opts `orFromEnv` defaultsExclude,
+        xmlReport = xmlReport opts `orFromEnv` defaultsXMLReport
       }
   where
-    orFromEnv [] fromEnv = fromEnv
-    orFromEnv patterns _ = patterns
+    orFromEnv fromArgs fromEnv =
+      if null fromArgs
+        then fromEnv
+        else fromArgs

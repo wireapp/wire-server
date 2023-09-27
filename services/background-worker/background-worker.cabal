@@ -29,7 +29,6 @@ library
   build-depends:
       aeson
     , amqp
-    , async
     , base
     , containers
     , exceptions

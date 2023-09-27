@@ -27,6 +27,7 @@ import Data.Set qualified as Set
 import Data.String
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
+import Data.Time
 import Data.Word
 import GHC.Generics (Generic)
 import GHC.Records
@@ -456,3 +457,17 @@ data BackendName
 
 allServices :: [Service]
 allServices = [minBound .. maxBound]
+
+newtype TestSuiteReport = TestSuiteReport {cases :: [TestCaseReport]}
+  deriving (Eq, Show)
+  deriving newtype (Semigroup, Monoid)
+
+data TestCaseReport = TestCaseReport
+  { name :: String,
+    result :: TestResult,
+    time :: NominalDiffTime
+  }
+  deriving (Eq, Show)
+
+data TestResult = TestSuccess | TestFailure String
+  deriving (Eq, Show)

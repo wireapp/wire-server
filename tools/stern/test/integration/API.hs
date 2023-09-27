@@ -563,7 +563,7 @@ ejpdInfo includeContacts handles = do
 userBlacklistHead :: Either Email Phone -> TestM ResponseLBS
 userBlacklistHead emailOrPhone = do
   s <- view tsStern
-  Bilge.head (s . paths ["users", "blacklist"] . mkQueryParam emailOrPhone)
+  Bilge.get (s . paths ["users", "blacklist"] . mkQueryParam emailOrPhone)
 
 postUserBlacklist :: Either Email Phone -> TestM ()
 postUserBlacklist emailOrPhone = do

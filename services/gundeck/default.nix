@@ -59,6 +59,7 @@
 , servant-server
 , tagged
 , tasty
+, tasty-ant-xml
 , tasty-hunit
 , tasty-quickcheck
 , text
@@ -171,6 +172,7 @@ mkDerivation {
     safe
     tagged
     tasty
+    tasty-ant-xml
     tasty-hunit
     text
     tinylog

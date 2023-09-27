@@ -64,6 +64,9 @@ import System.Environment (withArgs)
 import System.Logger qualified as Logger
 import Test.Tasty
 import Test.Tasty.HUnit
+import Test.Tasty.Ingredients
+import Test.Tasty.Runners
+import Test.Tasty.Runners.AntXML
 import Util
 import Util.Options
 import Util.Test
@@ -165,7 +168,7 @@ runTests iConf brigOpts otherArgs = do
       mlsApi = MLS.tests mg b brigOpts
       oauthAPI = API.OAuth.tests mg db b n brigOpts
 
-  withArgs otherArgs . defaultMain
+  withArgs otherArgs . defaultMainWithIngredients (listingTests : (composeReporters antXMLRunner consoleTestReporter) : defaultIngredients)
     $ testGroup
       "Brig API Integration"
     $ [ testCase "sitemap" $

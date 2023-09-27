@@ -1383,7 +1383,8 @@ getJoinCodeConv u k v = do
 
 postJoinConv :: UserId -> ConvId -> TestM ResponseLBS
 postJoinConv u c = do
-  g <- viewGalley
+  -- This endpoint is removed from version v5 onwards
+  g <- fmap (addPrefixAtVersion V4 .) (view tsUnversionedGalley)
   post $
     g
       . paths ["/conversations", toByteString' c, "join"]
