@@ -306,6 +306,7 @@ background-worker:
     backendNotificationPusher:
       pushBackoffMinWait: 1000 # 1ms
       pushBackoffMaxWait: 500000 # 0.5s
+      remotesRefreshInterval: 1000000 # 1s
   secrets:
     rabbitmq:
       username: {{ .Values.rabbitmqUsername }}

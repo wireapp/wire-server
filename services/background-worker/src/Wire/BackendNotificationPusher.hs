@@ -23,7 +23,7 @@ import UnliftIO
 import Util.Options (Endpoint (..))
 import Wire.API.Federation.BackendNotifications
 import Wire.API.Federation.Client
-import Wire.API.Routes.FederationDomainConfig (FederationDomainConfigs, domain, remotes, updateInterval)
+import Wire.API.Routes.FederationDomainConfig (FederationDomainConfigs)
 import Wire.API.Routes.Internal.Brig qualified as IAPI
 import Wire.API.Routes.Named (namedClient)
 import Wire.BackgroundWorker.Env
@@ -124,6 +124,7 @@ startPusher consumersRef chan = do
         consumers <- liftIO $ readIORef consumersRef
         traverse_ (liftIO . Q.cancelConsumer chan . fst) $ Map.elems consumers
         throwM e
+  timeBeforeNextRefresh <- asks (.backendNotificationsConfig.remotesRefreshInterval)
   -- If this thread is cancelled, catch the exception, kill the consumers, and carry on.
   -- FUTUREWORK?:
   -- If this throws an exception on the Chan / in the forever loop, the exception will
@@ -135,15 +136,9 @@ startPusher consumersRef chan = do
     ]
     $ forever
     $ do
-      -- Get a new set of domains. This is a blocking action
-      -- so we will only move past here when we get a new set of domains.
-      -- It is a bit nicer than having another timeout value, as Brig is
-      -- already providing one in the domain update message.
-      fedConfig <- getRemoteDomains
-      -- Make new consumers for the new domains, clean up old ones from the consumer map.
-      ensureConsumers consumersRef chan $ domain <$> remotes fedConfig
-      -- Wait the for as long as brig told us to
-      liftIO $ threadDelay $ updateInterval fedConfig * 1000 * 1000
+      remotes <- getRemoteDomains
+      ensureConsumers consumersRef chan remotes
+      threadDelay timeBeforeNextRefresh
 
 ensureConsumers :: IORef (Map Domain (Q.ConsumerTag, MVar ())) -> Q.Channel -> [Domain] -> AppT IO ()
 ensureConsumers consumers chan domains = do
@@ -182,9 +177,8 @@ ensureConsumer consumers chan domain = do
 getFederationDomainConfigs :: ClientEnv -> IO (Either ClientError FederationDomainConfigs)
 getFederationDomainConfigs = runClientM $ namedClient @IAPI.API @"get-federation-remotes"
 
--- This exists fro background-worker integration testing when Brig isn't available, but Rabbit is from the running services.
-getRemoteDomainsFromRabbit :: AppT IO [Domain]
-getRemoteDomainsFromRabbit = do
+getRemoteDomains :: AppT IO [Domain]
+getRemoteDomains = do
   -- Jittered exponential backoff with 10ms as starting delay and 60s as max
   -- cumulative delay. When this is reached, the operation fails.
   --
@@ -214,8 +208,8 @@ getRemoteDomainsFromRabbit = do
           . Log.field "queue" ("backend-notifications." <> d)
           . Log.field "error" e
 
-getRemoteDomains :: AppT IO FederationDomainConfigs
-getRemoteDomains = do
+getRemoteDomainsFromBrig :: AppT IO FederationDomainConfigs
+getRemoteDomainsFromBrig = do
   -- Jittered exponential backoff with 10ms as starting delay and 60s as max
   -- cumulative delay. When this is reached, the operation fails.
   --

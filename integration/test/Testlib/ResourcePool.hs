@@ -14,6 +14,7 @@ import Control.Concurrent
 import Control.Monad.Catch
 import Control.Monad.Codensity
 import Control.Monad.IO.Class
+import Data.Aeson
 import Data.Foldable (for_)
 import Data.Function ((&))
 import Data.Functor
@@ -105,7 +106,8 @@ backendResources dynConfs =
                     berVHost = dynConf.domain,
                     berNginzSslPort = Ports.portForDyn Ports.NginzSSL i,
                     berNginzHttp2Port = Ports.portForDyn Ports.NginzHttp2 i,
-                    berInternalServicePorts = Ports.internalServicePorts name
+                    berInternalServicePorts = Ports.internalServicePorts name,
+                    berFederationDomainConfigs = []
                   }
         )
     & Set.fromList
@@ -136,7 +138,13 @@ backendA =
       berVHost = "backendA",
       berNginzSslPort = Ports.port Ports.NginzSSL BackendA,
       berInternalServicePorts = Ports.internalServicePorts BackendA,
-      berNginzHttp2Port = Ports.port Ports.NginzHttp2 BackendA
+      berNginzHttp2Port = Ports.port Ports.NginzHttp2 BackendA,
+      berFederationDomainConfigs =
+        [ object
+            [ fromString "domain" .= backendB.berDomain,
+              fromString "search_policy" .= "full_search"
+            ]
+        ]
     }
 
 backendB :: BackendResource
@@ -165,5 +173,11 @@ backendB =
       berVHost = "backendB",
       berNginzSslPort = Ports.port Ports.NginzSSL BackendB,
       berInternalServicePorts = Ports.internalServicePorts BackendB,
-      berNginzHttp2Port = Ports.port Ports.NginzHttp2 BackendB
+      berNginzHttp2Port = Ports.port Ports.NginzHttp2 BackendB,
+      berFederationDomainConfigs =
+        [ object
+            [ fromString "domain" .= backendA.berDomain,
+              fromString "search_policy" .= "full_search"
+            ]
+        ]
     }

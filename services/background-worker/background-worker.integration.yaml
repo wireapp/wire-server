@@ -21,3 +21,4 @@ rabbitmq:
 backendNotificationPusher:
   pushBackoffMinWait: 1000 # 1ms
   pushBackoffMaxWait: 1000000 # 1s
+  remotesRefreshInterval: 10000 # 10ms

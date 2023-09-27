@@ -24,7 +24,7 @@ testEnv = do
       rabbitmqVHost = undefined
       metrics = undefined
       defederationTimeout = responseTimeoutNone
-      backendNotificationsConfig = BackendNotificationsConfig 1000 500000
+      backendNotificationsConfig = BackendNotificationsConfig 1000 500000 1000
   pure Env {..}
 
 runTestAppT :: AppT IO a -> Int -> IO a
