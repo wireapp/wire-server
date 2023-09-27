@@ -26,9 +26,9 @@ run opts = do
       l = logger env
       cleanup = do
         -- Notification pusher thread
-        Log.info (logger env) $ Log.msg (Log.val "Cancelling the notification pusher thread")
+        Log.info l $ Log.msg (Log.val "Cancelling the notification pusher thread")
         readIORef notifChanRef >>= traverse_ \chan -> do
-          Log.info (logger env) $ Log.msg (Log.val "Got channel")
+          Log.info l $ Log.msg (Log.val "Got channel")
           readIORef notifConsumersRef >>= \m -> for_ (Map.assocs m) \(domain, (consumer, runningFlag)) -> do
             Log.info l $ Log.msg (Log.val "Cancelling consumer") . Log.field "Domain" domain._domainText
             -- Remove the consumer from the channel so it isn't called again

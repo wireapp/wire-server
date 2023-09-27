@@ -11,9 +11,8 @@ data Opts = Opts
     logFormat :: !(Maybe (Last LogFormat)),
     backgroundWorker :: !Endpoint,
     federatorInternal :: !Endpoint,
-    rabbitmq :: !RabbitMqAdminOpts,
-    galley :: !Endpoint,
     brig :: !Endpoint,
+    rabbitmq :: !RabbitMqAdminOpts,
     -- | Seconds, Nothing for no timeout
     defederationTimeout :: Maybe Int,
     backendNotificationPusher :: BackendNotificationsConfig

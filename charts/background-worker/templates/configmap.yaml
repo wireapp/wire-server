@@ -20,11 +20,7 @@ data:
     federatorInternal:
       host: federator
       port: 8080
-
-    galley:
-      host: galley
-      port: 8080
-
+    
     brig:
       host: brig
       port: 8080

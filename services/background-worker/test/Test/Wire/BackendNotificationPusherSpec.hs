@@ -181,14 +181,13 @@ spec = do
       logger <- Logger.new Logger.defSettings
       httpManager <- newManager defaultManagerSettings
       let federatorInternal = Endpoint "localhost" 8097
+          brig = Endpoint "localhost" 8082
           http2Manager = undefined
           statuses = undefined
           metrics = undefined
           rabbitmqAdminClient = mockRabbitMqAdminClient mockAdmin
           rabbitmqVHost = "test-vhost"
           defederationTimeout = responseTimeoutNone
-          galley = Endpoint "localhost" 8085
-          brig = Endpoint "localhost" 8082
           backendNotificationsConfig = BackendNotificationsConfig 1000 500000
 
       backendNotificationMetrics <- mkBackendNotificationMetrics
@@ -201,14 +200,13 @@ spec = do
       logger <- Logger.new Logger.defSettings
       httpManager <- newManager defaultManagerSettings
       let federatorInternal = Endpoint "localhost" 8097
+          brig = Endpoint "localhost" 8082
           http2Manager = undefined
           statuses = undefined
           metrics = undefined
           rabbitmqAdminClient = mockRabbitMqAdminClient mockAdmin
           rabbitmqVHost = "test-vhost"
           defederationTimeout = responseTimeoutNone
-          galley = Endpoint "localhost" 8085
-          brig = Endpoint "localhost" 8082
           backendNotificationsConfig = BackendNotificationsConfig 1000 500000
       backendNotificationMetrics <- mkBackendNotificationMetrics
       domainsThread <- async $ runAppT Env {..} getRemoteDomainsFromRabbit

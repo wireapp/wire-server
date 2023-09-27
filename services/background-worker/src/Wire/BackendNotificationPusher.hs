@@ -12,7 +12,6 @@ import Data.Set qualified as Set
 import Data.Text (unpack)
 import Data.Text qualified as Text
 import Imports
-import Network.AMQP (cancelConsumer)
 import Network.AMQP qualified as Q
 import Network.AMQP.Extended
 import Network.AMQP.Lifted qualified as QL
@@ -123,9 +122,8 @@ startPusher consumersRef chan = do
   let cleanup :: (Exception e, MonadThrow m, MonadIO m) => e -> m ()
       cleanup e = do
         consumers <- liftIO $ readIORef consumersRef
-        traverse_ (liftIO . cancelConsumer chan . fst) $ Map.elems consumers
+        traverse_ (liftIO . Q.cancelConsumer chan . fst) $ Map.elems consumers
         throwM e
-
   -- If this thread is cancelled, catch the exception, kill the consumers, and carry on.
   -- FUTUREWORK?:
   -- If this throws an exception on the Chan / in the forever loop, the exception will
@@ -156,10 +154,10 @@ ensureConsumers consumers chan domains = do
   traverse_ (ensureConsumer consumers chan) domains
   -- Loop over all of the dropped domains. These need to be cancelled as they are no longer
   -- on the domain list.
-  traverse_ (cancelConsumer' consumers chan) droppedDomains
+  traverse_ (cancelConsumer consumers chan) droppedDomains
 
-cancelConsumer' :: IORef (Map Domain (Q.ConsumerTag, MVar ())) -> Q.Channel -> Domain -> AppT IO ()
-cancelConsumer' consumers chan domain = do
+cancelConsumer :: IORef (Map Domain (Q.ConsumerTag, MVar ())) -> Q.Channel -> Domain -> AppT IO ()
+cancelConsumer consumers chan domain = do
   Log.info $ Log.msg (Log.val "Stopping consumer") . Log.field "domain" (domainText domain)
   -- The ' version of atomicModifyIORef is strict in the function update and is useful
   -- for not leaking memory.

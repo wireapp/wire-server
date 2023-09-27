@@ -37,9 +37,8 @@ data Env = Env
     logger :: Logger,
     metrics :: Metrics.Metrics,
     federatorInternal :: Endpoint,
-    httpManager :: Manager,
-    galley :: Endpoint,
     brig :: Endpoint,
+    httpManager :: Manager,
     defederationTimeout :: ResponseTimeout,
     backendNotificationMetrics :: BackendNotificationMetrics,
     backendNotificationsConfig :: BackendNotificationsConfig,
@@ -65,13 +64,12 @@ mkEnv opts = do
   logger <- Log.mkLogger opts.logLevel Nothing opts.logFormat
   httpManager <- newManager defaultManagerSettings
   let federatorInternal = opts.federatorInternal
-      galley = opts.galley
+      brig = opts.brig
       defederationTimeout =
         maybe
           responseTimeoutNone
           (\t -> responseTimeoutMicro $ 1000000 * t) -- seconds to microseconds
           opts.defederationTimeout
-      brig = opts.brig
       rabbitmqVHost = opts.rabbitmq.vHost
   rabbitmqAdminClient <- mkRabbitMqAdminClientEnv opts.rabbitmq
   statuses <-
@@ -82,7 +80,7 @@ mkEnv opts = do
   metrics <- Metrics.metrics
   backendNotificationMetrics <- mkBackendNotificationMetrics
   let backendNotificationsConfig = opts.backendNotificationPusher
-  pure $ Env {..}
+  pure Env {..}
 
 initHttp2Manager :: IO Http2Manager
 initHttp2Manager = do
