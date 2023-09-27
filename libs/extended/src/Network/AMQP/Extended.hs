@@ -144,7 +144,6 @@ openConnectionWithRetries l RabbitMqOpts {..} hooks = do
 
     chanExceptionHandler :: Q.Connection -> SomeException -> m ()
     chanExceptionHandler conn e = do
-      logException l "RabbitMQ channel closed" e
       hooks.onChannelException e `catch` logException l "onChannelException hook threw an exception"
       case (Q.isNormalChannelClose e, fromException e) of
         (True, _) ->
@@ -153,7 +152,9 @@ openConnectionWithRetries l RabbitMqOpts {..} hooks = do
         (_, Just (Q.ConnectionClosedException {})) ->
           Log.info l $
             Log.msg (Log.val "RabbitMQ connection is closed, not attempting to reopen channel")
-        _ -> openChan conn
+        _ -> do
+          logException l "RabbitMQ channel closed" e
+          openChan conn
 
 logException :: (MonadIO m) => Logger -> String -> SomeException -> m ()
 logException l m (SomeException e) = do
