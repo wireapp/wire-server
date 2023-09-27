@@ -30,7 +30,6 @@ module Wire.API.User.Identity
     maybeUserIdentityObjectSchema,
     maybeUserIdentityFromRaw,
     LegacyUserSSOId (..),
-    partialUAuthIdObjectSchema,
 
     -- * Email
     Email (..),
@@ -115,10 +114,7 @@ rawCassandraUserIdentityObjectSchema =
     <$> (\(a, _, _, _) -> a) .= maybe_ (optField "email" schema)
     <*> (\(_, a, _, _) -> a) .= maybe_ (optField "phone" schema)
     <*> (\(_, _, a, _) -> a) .= maybe_ (optField "sso_id" genericToSchema)
-    <*> (\(_, _, _, a) -> a) .= maybe_ (optField "uauth_id" partialUAuthIdObjectSchema)
-
-partialUAuthIdObjectSchema :: ValueSchema NamedSwaggerDoc PartialUAuthId
-partialUAuthIdObjectSchema = _
+    <*> (\(_, _, _, a) -> a) .= maybe_ (optField "uauth_id" genericToSchema)
 
 -- | This assumes the database is consistent and does not do any validation.
 maybeUserIdentityFromRaw :: RawCassandraUserIdentity -> Maybe UserIdentity
@@ -273,14 +269,16 @@ instance ToJSON PhoneBudgetTimeout where
 -- xml around it), and the `NameID` to be an email address (=> format "email") or an arbitrary
 -- text (=> format "unspecified").  This is for backwards compatibility and general
 -- robustness.
-newtype LegacyUserSSOId = LegacyUserSSOId {fromLegacyUserSSOId :: Either SAML.UserRef Text}
+data LegacyUserSSOId
+  = UserSSOId SAML.UserRef
+  | UserScimExternalId Text
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform LegacyUserSSOId)
 
 instance S.ToSchema LegacyUserSSOId where
   declareNamedSchema _ = do
-    tenantSchema <- S.declareSchemaRef (Proxy @Text) -- FUTUREWORK: 'Issuer'
-    subjectSchema <- S.declareSchemaRef (Proxy @Text) -- FUTUREWORK: 'NameID'
+    tenantSchema <- S.declareSchemaRef (Proxy @Text) -- 'Issuer'
+    subjectSchema <- S.declareSchemaRef (Proxy @Text) -- 'NameID'
     scimSchema <- S.declareSchemaRef (Proxy @Text)
     pure $
       S.NamedSchema (Just "UserSSOId") $
@@ -293,10 +291,11 @@ instance S.ToSchema LegacyUserSSOId where
                ]
 
 instance ToJSON LegacyUserSSOId where
-  toJSON = either mksaml mkscim . fromLegacyUserSSOId
-    where
-      mksaml (SAML.UserRef tenant subject) = A.object ["tenant" A..= SAML.encodeElem tenant, "subject" A..= SAML.encodeElem subject]
-      mkscim eid = A.object ["scim_external_id" A..= eid]
+  toJSON = \case
+    UserSSOId (SAML.UserRef tenant subject) ->
+      A.object ["tenant" A..= SAML.encodeElem tenant, "subject" A..= SAML.encodeElem subject]
+    UserScimExternalId eid ->
+      A.object ["scim_external_id" A..= eid]
 
 instance FromJSON LegacyUserSSOId where
   parseJSON = A.withObject "UserSSOId" $ \obj -> do
@@ -305,9 +304,9 @@ instance FromJSON LegacyUserSSOId where
     meid <- obj A..:? "scim_external_id"
     case (mtenant, msubject, meid) of
       (Just tenant, Just subject, Nothing) ->
-        pure $ LegacyUserSSOId (Left (SAML.UserRef tenant subject))
+        pure $ UserSSOId (SAML.UserRef tenant subject)
       (Nothing, Nothing, Just eid) ->
-        pure $ LegacyUserSSOId (Right eid)
+        pure $ UserScimExternalId eid
       _ -> fail "either need tenant and subject, or scim_external_id, but not both"
 
 lenientlyParseSAMLIssuer :: Maybe LText -> A.Parser (Maybe SAML.Issuer)

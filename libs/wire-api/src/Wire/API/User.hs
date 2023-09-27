@@ -214,7 +214,6 @@ import Wire.API.User.Password
 import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 import Wire.API.User.Types (PartialUAuthId)
-import Wire.API.User.Types qualified as T
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
 --------------------------------------------------------------------------------
@@ -1149,7 +1148,7 @@ newUserRawObjectSchema =
     <*> newUserRawSSOId
       .= maybe_ (optField "sso_id" genericToSchema)
     <*> newUserRawUAuthId
-      .= maybe_ (optField "sso_id" partialUAuthIdObjectSchema)
+      .= maybe_ (optField "uauthid" genericToSchema)
     <*> newUserRawPict
       .= maybe_ (optField "picture" schema)
     <*> newUserRawAssets
@@ -1216,7 +1215,7 @@ newUserFromRaw :: NewUserRaw -> A.Parser NewUser
 newUserFromRaw NewUserRaw {..} = do
   origin <-
     either fail pure $
-      maybeNewUserOriginFromRaw
+      maybeNewUserOriginFromComponents
         (isJust newUserRawPassword)
         (isJust newUserRawSSOId)
         (newUserRawInvitationCode, newUserRawTeamCode, newUserRawTeam, newUserRawTeamId)

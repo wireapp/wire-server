@@ -117,6 +117,21 @@ data UAuthIdF a b c = UAuthIdF
   deriving (Generic)
 
 deriving via
+  (Schema (UAuthIdF Maybe Maybe Maybe))
+  instance
+    OA.ToSchema (UAuthIdF Maybe Maybe Maybe) -- TODO: make toschema, tojson, fromjson instances more polymorphic?
+
+deriving via
+  (Schema (UAuthIdF Maybe Maybe Maybe))
+  instance
+    ToJSON (UAuthIdF Maybe Maybe Maybe)
+
+deriving via
+  (Schema (UAuthIdF Maybe Maybe Maybe))
+  instance
+    FromJSON (UAuthIdF Maybe Maybe Maybe)
+
+deriving via
   (GenericUniform (UAuthIdF a b c))
   instance
     (Arbitrary (a SAML.UserRef), Arbitrary (b Text), Arbitrary (c EmailWithSource)) =>
