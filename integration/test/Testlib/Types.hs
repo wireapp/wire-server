@@ -64,8 +64,7 @@ data BackendResource = BackendResource
     berVHost :: String,
     berNginzSslPort :: Word16,
     berNginzHttp2Port :: Word16,
-    berInternalServicePorts :: forall a. Num a => Service -> a,
-    berFederationDomainConfigs :: [Value]
+    berInternalServicePorts :: forall a. Num a => Service -> a
   }
 
 instance Eq BackendResource where

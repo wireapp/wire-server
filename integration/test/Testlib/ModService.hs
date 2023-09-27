@@ -172,7 +172,7 @@ startDynamicBackend resource beOverrides = do
       def
         { brigCfg =
             setField "optSettings.setFederationDomain" resource.berDomain
-              >=> setField "optSettings.setFederationDomainConfigs" resource.berFederationDomainConfigs
+              >=> setField "optSettings.setFederationDomainConfigs" ([] :: [Value])
               >=> setField "federatorInternal.port" resource.berFederatorInternal
               >=> setField "federatorInternal.host" ("127.0.0.1" :: String)
               >=> setField "rabbitmq.vHost" resource.berVHost,
