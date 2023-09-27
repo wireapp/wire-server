@@ -41,9 +41,6 @@ spec:
                       , "--s3-addressing-style", {{ .Values.config.s3.addressingStyle | quote }}
                       , "--s3-bucket-name", {{ .Values.config.s3.bucket.name | quote }}
                       , "--s3-bucket-dir", {{ .Values.config.s3.bucket.directory | quote }}
-                      {{if .Values.config.federationDomain -}}
-                      , "--own-domain", {{ .Values.config.federationDomain | quote -}}
-                      {{- end -}}
                     ]
               resources:
               env:

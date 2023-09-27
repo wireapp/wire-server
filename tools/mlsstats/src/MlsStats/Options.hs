@@ -25,7 +25,6 @@ where
 
 import Amazonka
 import Cassandra qualified as C
-import Data.Domain
 import Data.Text qualified as Text
 import Imports
 import Options.Applicative
@@ -34,8 +33,7 @@ import Util.Options
 
 data Opts = Opts
   { cassandraSettings :: CassandraSettings,
-    s3Settings :: S3Settings,
-    ownDomain :: Maybe Domain
+    s3Settings :: S3Settings
   }
   deriving (Show, Generic)
 
@@ -64,14 +62,6 @@ optsParser =
   Opts
     <$> cassandraSettingsParser
     <*> s3SettingsParser
-    <*> optional
-      ( Domain
-          <$> strOption
-            ( long "own-domain"
-                <> metavar "DOMAIN"
-                <> help "own domain"
-            )
-      )
 
 cassandraSettingsParser :: Parser CassandraSettings
 cassandraSettingsParser =

@@ -60,7 +60,7 @@ run o = do
   let settings = o.cassandraSettings
   galleyTables <- initCas settings.galleyHost settings.galleyPort settings.galleyKeyspace logger'
   brigTables <- initCas settings.brigHost settings.brigPort settings.brigKeyspace logger'
-  runCommand o.s3Settings galleyTables brigTables o.cassandraSettings.pageSize o.ownDomain
+  runCommand o.s3Settings galleyTables brigTables o.cassandraSettings.pageSize
   where
     initLogger =
       Log.new
@@ -77,8 +77,8 @@ run o = do
         . C.setKeyspace casKeyspace
         $ C.defSettings
 
-runCommand :: S3Settings -> ClientState -> ClientState -> Int32 -> Maybe Domain -> IO ()
-runCommand s3 galleyTables brigTables queryPageSize mOwnDomain = do
+runCommand :: S3Settings -> ClientState -> ClientState -> Int32 -> IO ()
+runCommand s3 galleyTables brigTables queryPageSize = do
   logger <- newLogger Debug stderr
   let service =
         setEndpoint (s3.endpoint ^. awsSecure) (s3.endpoint ^. awsHost) (s3.endpoint ^. awsPort) defaultService
@@ -98,7 +98,7 @@ runCommand s3 galleyTables brigTables queryPageSize mOwnDomain = do
   runResourceT $ do
     upload "user-client.csv" (userClient brigTables queryPageSize)
     upload "conv-group-team-protocol.csv" (convGroupTeamProtocol galleyTables queryPageSize)
-    upload "domain-user-client-group.csv" (domainUserClientGroup mOwnDomain galleyTables queryPageSize)
+    upload "domain-user-client-group.csv" (domainUserClientGroup galleyTables queryPageSize)
     upload "user-conv.csv" (userConv galleyTables queryPageSize)
 
 userClient :: MonadIO m => ClientState -> Int32 -> ConduitT () ByteString m ()
@@ -143,14 +143,13 @@ convGroupTeamProtocol cassandra queryPageSize = do
       A.String s -> s
       _ -> "?"
 
-domainUserClientGroup :: MonadIO m => Maybe Domain -> ClientState -> Int32 -> ConduitT () ByteString m ()
-domainUserClientGroup mOwnDomain cassandra queryPageSize = do
+domainUserClientGroup :: MonadIO m => ClientState -> Int32 -> ConduitT () ByteString m ()
+domainUserClientGroup cassandra queryPageSize = do
   yield "user_domain,user,client,group\r\n"
   ( transPipe
       (runClient cassandra)
       (paginateC domainUserClientGroupCql (paramsP LocalQuorum () queryPageSize) x1)
       .| concat
-      .| filterC (maybe (const True) (\ownDomain (d, _, _, _) -> ownDomain == d) mOwnDomain)
       .| mapC
         ( \(d, u, c, g) ->
             (T.encodeUtf8 (domainText d))
