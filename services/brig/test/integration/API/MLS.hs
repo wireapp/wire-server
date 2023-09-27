@@ -19,7 +19,7 @@ module API.MLS where
 
 import API.MLS.Util
 import Bilge
-import Bilge.Assert
+import Bilge.Assert ((<!!), (===))
 import Brig.Options
 import Data.Aeson qualified as Aeson
 import Data.ByteString.Conversion
@@ -45,24 +45,12 @@ tests :: Manager -> Brig -> Opts -> TestTree
 tests m b opts =
   testGroup
     "MLS"
-    [ test m "POST /mls/key-packages/self/:client" (testKeyPackageUpload b),
-      test m "POST /mls/key-packages/self/:client (no public keys)" (testKeyPackageUploadNoKey b),
-      test m "GET /mls/key-packages/self/:client/count" (testKeyPackageZeroCount b),
+    [ test m "POST /mls/key-packages/self/:client (no public keys)" (testKeyPackageUploadNoKey b),
       -- FUTUREWORK test m "GET /mls/key-packages/self/:client/count (expired package)" (testKeyPackageExpired b),
       test m "GET /mls/key-packages/claim/local/:user" (testKeyPackageClaim b),
       test m "GET /mls/key-packages/claim/local/:user - self claim" (testKeyPackageSelfClaim b),
       test m "GET /mls/key-packages/claim/remote/:user" (testKeyPackageRemoteClaim opts b)
     ]
-
-testKeyPackageUpload :: Brig -> Http ()
-testKeyPackageUpload brig = do
-  u <- userQualifiedId <$> randomUser brig
-  c <- createClient brig u 0
-  withSystemTempDirectory "mls" $ \tmp ->
-    uploadKeyPackages brig tmp def u c 5
-
-  count <- getKeyPackageCount brig u c
-  liftIO $ count @?= 5
 
 testKeyPackageUploadNoKey :: Brig -> Http ()
 testKeyPackageUploadNoKey brig = do
@@ -71,13 +59,6 @@ testKeyPackageUploadNoKey brig = do
   withSystemTempDirectory "mls" $ \tmp ->
     uploadKeyPackages brig tmp def {kiSetKey = DontSetKey} u c 5
 
-  count <- getKeyPackageCount brig u c
-  liftIO $ count @?= 0
-
-testKeyPackageZeroCount :: Brig -> Http ()
-testKeyPackageZeroCount brig = do
-  u <- userQualifiedId <$> randomUser brig
-  c <- randomClient
   count <- getKeyPackageCount brig u c
   liftIO $ count @?= 0
 

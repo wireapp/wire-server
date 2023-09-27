@@ -30,11 +30,13 @@ import Wire.API.MakesFederatedCall
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
+import Wire.API.Routes.Version
 
 type MLSMessagingAPI =
   Named
     "mls-message"
     ( Summary "Post an MLS message"
+        :> From 'V5
         :> MakesFederatedCall 'Galley "on-mls-message-sent"
         :> MakesFederatedCall 'Galley "send-mls-message"
         :> MakesFederatedCall 'Galley "on-conversation-updated"
@@ -70,6 +72,7 @@ type MLSMessagingAPI =
     :<|> Named
            "mls-commit-bundle"
            ( Summary "Post a MLS CommitBundle"
+               :> From 'V5
                :> MakesFederatedCall 'Galley "on-mls-message-sent"
                :> MakesFederatedCall 'Galley "mls-welcome"
                :> MakesFederatedCall 'Galley "send-mls-commit-bundle"
@@ -109,6 +112,7 @@ type MLSMessagingAPI =
     :<|> Named
            "mls-public-keys"
            ( Summary "Get public keys used by the backend to sign external proposals"
+               :> From 'V5
                :> CanThrow 'MLSNotEnabled
                :> "public-keys"
                :> ZLocalUser

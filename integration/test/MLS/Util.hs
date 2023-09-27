@@ -35,7 +35,6 @@ import System.Posix.Files
 import System.Process
 import Testlib.App
 import Testlib.Assertions
-import Testlib.Env
 import Testlib.HTTP
 import Testlib.JSON
 import Testlib.Prelude
@@ -178,7 +177,7 @@ uploadNewKeyPackage cid = do
   (kp, ref) <- generateKeyPackage cid
 
   -- upload key package
-  bindResponse (uploadKeyPackage cid kp) $ \resp ->
+  bindResponse (uploadKeyPackages cid [kp]) $ \resp ->
     resp.status `shouldMatchInt` 201
 
   pure ref

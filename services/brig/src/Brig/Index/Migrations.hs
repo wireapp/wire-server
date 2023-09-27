@@ -120,21 +120,21 @@ failIfIndexAbsent targetIndex =
 
 -- | Runs only the migrations which need to run
 runMigration :: MigrationVersion -> MigrationActionT IO ()
-runMigration ver = do
-  vmax <- latestMigrationVersion
-  if ver > vmax
+runMigration expectedVersion = do
+  foundVersion <- latestMigrationVersion
+  if expectedVersion > foundVersion
     then do
       Log.info $
         Log.msg (Log.val "Migration necessary.")
-          . Log.field "expectedVersion" vmax
-          . Log.field "foundVersion" ver
+          . Log.field "expectedVersion" expectedVersion
+          . Log.field "foundVersion" foundVersion
       Search.reindexAllIfSameOrNewer
-      persistVersion ver
+      persistVersion expectedVersion
     else do
       Log.info $
         Log.msg (Log.val "No migration necessary.")
-          . Log.field "expectedVersion" vmax
-          . Log.field "foundVersion" ver
+          . Log.field "expectedVersion" expectedVersion
+          . Log.field "foundVersion" foundVersion
 
 persistVersion :: (MonadThrow m, MonadIO m) => MigrationVersion -> MigrationActionT m ()
 persistVersion v =
@@ -148,6 +148,7 @@ persistVersion v =
                 . Log.field "migrationVersion" v
           else throwM $ PersistVersionFailed v $ show persistResponse
 
+-- | Which version is the table space currently running on?
 latestMigrationVersion :: (MonadThrow m, MonadIO m) => MigrationActionT m MigrationVersion
 latestMigrationVersion = do
   resp <- ES.parseEsResponse =<< ES.searchByIndex indexName (ES.mkSearch Nothing Nothing)

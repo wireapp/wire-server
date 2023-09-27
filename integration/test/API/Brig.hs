@@ -1,6 +1,7 @@
 module API.Brig where
 
 import API.Common
+import Data.Aeson qualified as Aeson
 import Data.ByteString.Base64 qualified as Base64
 import Data.Foldable
 import Data.Function
@@ -241,17 +242,22 @@ putConnection userFrom userTo status = do
     baseRequest userFrom Brig Versioned $
       joinHttpPath ["/connections", userToDomain, userToId]
   statusS <- asString status
-  submit "POST" (req & addJSONObject ["status" .= statusS])
+  submit "PUT" (req & addJSONObject ["status" .= statusS])
 
-uploadKeyPackage :: ClientIdentity -> ByteString -> App Response
-uploadKeyPackage cid kp = do
+getConnections :: (HasCallStack, MakesValue user) => user -> App Response
+getConnections user = do
+  req <- baseRequest user Brig Versioned "/list-connections"
+  submit "POST" (req & addJSONObject ["size" .= Aeson.Number 500])
+
+uploadKeyPackages :: ClientIdentity -> [ByteString] -> App Response
+uploadKeyPackages cid kps = do
   req <-
     baseRequest cid Brig Versioned $
       "/mls/key-packages/self/" <> cid.client
   submit
     "POST"
     ( req
-        & addJSONObject ["key_packages" .= [T.decodeUtf8 (Base64.encode kp)]]
+        & addJSONObject ["key_packages" .= map (T.decodeUtf8 . Base64.encode) kps]
     )
 
 claimKeyPackages :: (MakesValue u, MakesValue v) => Ciphersuite -> u -> v -> App Response

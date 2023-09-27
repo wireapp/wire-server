@@ -26,6 +26,7 @@ config:
 
   cassandra:
     host: cassandra-ephemeral
+    port: 9042
     replicationFactor: 1
 
   elasticsearch:

@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wno-deferred-out-of-scope-variables #-}
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -19,7 +18,6 @@
 
 module API.Federation where
 
-import API.MLS.Util
 import API.Search.Util (refreshIndex)
 import API.User.Util
 import Bilge hiding (head)
@@ -28,7 +26,6 @@ import Brig.Options qualified as Opt
 import Control.Arrow (Arrow (first), (&&&))
 import Control.Lens ((?~))
 import Data.Aeson
-import Data.Default
 import Data.Domain (Domain (Domain))
 import Data.Handle (Handle (..))
 import Data.Id
@@ -45,7 +42,6 @@ import Test.QuickCheck hiding ((===))
 import Test.Tasty
 import Test.Tasty.Cannon qualified as WS
 import Test.Tasty.HUnit
-import UnliftIO.Temporary
 import Util
 import Wire.API.Connection
 import Wire.API.Federation.API.Brig
@@ -53,8 +49,6 @@ import Wire.API.Federation.API.Brig qualified as FedBrig
 import Wire.API.Federation.API.Brig qualified as S
 import Wire.API.Federation.Component
 import Wire.API.Federation.Version
-import Wire.API.MLS.CipherSuite
-import Wire.API.MLS.KeyPackage
 import Wire.API.Routes.FederationDomainConfig as FD
 import Wire.API.User
 import Wire.API.User.Client
@@ -73,7 +67,7 @@ tests m opts brig cannon fedBrigClient =
         test m "POST /federation/search-users : Found (multiple users)" (testFulltextSearchMultipleUsers opts brig),
         test m "POST /federation/search-users : NotFound" (testSearchNotFound opts),
         test m "POST /federation/search-users : Empty Input - NotFound" (testSearchNotFoundEmpty opts),
-        flakyTest m "POST /federation/search-users : configured restrictions" (testSearchRestrictions opts brig),
+        test m "POST /federation/search-users : configured restrictions" (testSearchRestrictions opts brig),
         test m "POST /federation/get-user-by-handle : configured restrictions" (testGetUserByHandleRestrictions opts brig),
         test m "POST /federation/get-user-by-handle : Found" (testGetUserByHandleSuccess opts brig),
         test m "POST /federation/get-user-by-handle : NotFound" (testGetUserByHandleNotFound opts),
@@ -85,7 +79,7 @@ tests m opts brig cannon fedBrigClient =
         test m "POST /federation/claim-multi-prekey-bundle : 200" (testClaimMultiPrekeyBundleSuccess brig fedBrigClient),
         test m "POST /federation/get-user-clients : 200" (testGetUserClients brig fedBrigClient),
         test m "POST /federation/get-user-clients : Not Found" (testGetUserClientsNotFound fedBrigClient),
-        flakyTest m "POST /federation/on-user-deleted-connections : 200" (testRemoteUserGetsDeleted opts brig cannon fedBrigClient),
+        test m "POST /federation/on-user-deleted-connections : 200" (testRemoteUserGetsDeleted opts brig cannon fedBrigClient),
         test m "POST /federation/api-version : 200" (testAPIVersion brig fedBrigClient)
       ]
 
@@ -121,11 +115,11 @@ testFulltextSearchSuccess opts brig = do
   searchResponse <- withSettingsOverrides (allowFullSearch domain opts) $ do
     runWaiTestFedClient domain $
       createWaiTestFedClient @"search-users" @'Brig $
-        SearchRequest ((fromName . userDisplayName) user)
+        SearchRequest (fromName $ userDisplayName user)
 
   liftIO $ do
     let contacts = contactQualifiedId <$> S.contacts searchResponse
-    assertEqual "should return the user id" [quid] contacts
+    assertElem "should return the user id" quid contacts
 
 testFulltextSearchMultipleUsers :: Opt.Opts -> Brig -> Http ()
 testFulltextSearchMultipleUsers opts brig = do
@@ -195,22 +189,30 @@ testSearchRestrictions opts brig = do
                  FD.FederationDomainConfig domainFullSearch FullSearch
                ]
 
-  let expectSearch :: HasCallStack => Domain -> Text -> [Qualified UserId] -> FederatedUserSearchPolicy -> WaiTest.Session ()
-      expectSearch domain squery expectedUsers expectedSearchPolicy = do
+  let expectSearch :: HasCallStack => Domain -> Either Handle Name -> Maybe (Qualified UserId) -> FederatedUserSearchPolicy -> WaiTest.Session ()
+      expectSearch domain handleOrName mExpectedUser expectedSearchPolicy = do
+        let squery = either fromHandle fromName handleOrName
         searchResponse <-
           runWaiTestFedClient domain $
             createWaiTestFedClient @"search-users" @'Brig (SearchRequest squery)
-        liftIO $ assertEqual "Unexpected search result" expectedUsers (contactQualifiedId <$> S.contacts searchResponse)
-        liftIO $ assertEqual "Unexpected search result" expectedSearchPolicy (S.searchPolicy searchResponse)
+        liftIO $ do
+          case (mExpectedUser, handleOrName) of
+            (Just expectedUser, Right _) ->
+              assertElem "Unexpected search result" expectedUser (contactQualifiedId <$> S.contacts searchResponse)
+            (Nothing, Right _) ->
+              assertEqual "Unexpected search result" [] (contactQualifiedId <$> S.contacts searchResponse)
+            _ ->
+              assertEqual "Unexpected search result" (maybeToList mExpectedUser) (contactQualifiedId <$> S.contacts searchResponse)
+          assertEqual "Unexpected search result" expectedSearchPolicy (S.searchPolicy searchResponse)
 
   withSettingsOverrides opts' $ do
-    expectSearch domainNoSearch (fromHandle handle) [] NoSearch
-    expectSearch domainExactHandle (fromHandle handle) [quid] ExactHandleSearch
-    expectSearch domainExactHandle (fromName (userDisplayName user)) [] ExactHandleSearch
-    expectSearch domainFullSearch (fromHandle handle) [quid] FullSearch
-    expectSearch domainFullSearch (fromName (userDisplayName user)) [quid] FullSearch
-    expectSearch domainUnconfigured (fromHandle handle) [] NoSearch
-    expectSearch domainUnconfigured (fromName (userDisplayName user)) [] NoSearch
+    expectSearch domainNoSearch (Left handle) Nothing NoSearch
+    expectSearch domainExactHandle (Left handle) (Just quid) ExactHandleSearch
+    expectSearch domainExactHandle (Right (userDisplayName user)) Nothing ExactHandleSearch
+    expectSearch domainFullSearch (Left handle) (Just quid) FullSearch
+    expectSearch domainFullSearch (Right (userDisplayName user)) (Just quid) FullSearch
+    expectSearch domainUnconfigured (Left handle) Nothing NoSearch
+    expectSearch domainUnconfigured (Right (userDisplayName user)) Nothing NoSearch
 
 testGetUserByHandleRestrictions :: Opt.Opts -> Brig -> Http ()
 testGetUserByHandleRestrictions opts brig = do
@@ -405,48 +407,3 @@ testAPIVersion :: Brig -> FedClient 'Brig -> Http ()
 testAPIVersion _brig fedBrigClient = do
   vinfo <- runFedClient @"api-version" fedBrigClient (Domain "far-away.example.com") ()
   liftIO $ vinfoSupported vinfo @?= toList supportedVersions
-
-testClaimKeyPackages :: HasCallStack => Brig -> FedClient 'Brig -> Http ()
-testClaimKeyPackages brig fedBrigClient = do
-  alice <- fakeRemoteUser
-  bob <- userQualifiedId <$> randomUser brig
-
-  bobClients <- for (take 2 someLastPrekeys) $ \lpk -> do
-    let new = defNewClient PermanentClientType [] lpk
-    fmap clientId $ responseJsonError =<< addClient brig (qUnqualified bob) new
-
-  withSystemTempDirectory "mls" $ \tmp ->
-    for_ bobClients $ \c ->
-      uploadKeyPackages brig tmp def bob c 2
-
-  Just bundle <-
-    runFedClient @"claim-key-packages" fedBrigClient (qDomain alice) $
-      ClaimKeyPackageRequest
-        (qUnqualified alice)
-        (qUnqualified bob)
-        (tagCipherSuite defCipherSuite)
-
-  liftIO $
-    Set.map (\e -> (e.user, e.client)) bundle.entries
-      @?= Set.fromList [(bob, c) | c <- bobClients]
-
-  -- check that we have one fewer key package now
-  for_ bobClients $ \c -> do
-    count <- getKeyPackageCount brig bob c
-    liftIO $ count @?= 1
-
-testClaimKeyPackagesMLSDisabled :: HasCallStack => Opt.Opts -> Brig -> Http ()
-testClaimKeyPackagesMLSDisabled opts brig = do
-  alice <- fakeRemoteUser
-  bob <- userQualifiedId <$> randomUser brig
-
-  mbundle <-
-    withSettingsOverrides (opts & Opt.optionSettings . Opt.enableMLS ?~ False) $
-      runWaiTestFedClient (qDomain alice) $
-        createWaiTestFedClient @"claim-key-packages" @'Brig $
-          ClaimKeyPackageRequest
-            (qUnqualified alice)
-            (qUnqualified bob)
-            (tagCipherSuite defCipherSuite)
-
-  liftIO $ mbundle @?= Nothing

@@ -4,7 +4,6 @@ module SetupHelpers where
 
 import API.Brig
 import API.BrigInternal
-import API.BrigInternal qualified as Internal
 import API.Galley
 import Control.Concurrent (threadDelay)
 import Control.Monad.Reader
@@ -13,6 +12,7 @@ import Data.Aeson.Types qualified as Aeson
 import Data.Default
 import Data.Function
 import Data.List qualified as List
+import Data.UUID.V1 (nextUUID)
 import Data.UUID.V4 (nextRandom)
 import GHC.Stack
 import Testlib.Prelude
@@ -145,8 +145,10 @@ createMLSOne2OnePartner domain other convDomain = loop
         else loop
 
 randomId :: HasCallStack => App String
-randomId = do
-  liftIO (show <$> nextRandom)
+randomId = liftIO (show <$> nextRandom)
+
+randomUUIDv1 :: HasCallStack => App String
+randomUUIDv1 = liftIO (show . fromJust <$> nextUUID)
 
 randomUserId :: (HasCallStack, MakesValue domain) => domain -> App Value
 randomUserId domain = do
@@ -168,7 +170,7 @@ addFullSearchFor domains val =
 fullSearchWithAll :: ServiceOverrides
 fullSearchWithAll =
   def
-    { dbBrig = \val -> do
+    { brigCfg = \val -> do
         ownDomain <- asString =<< val %. "optSettings.setFederationDomain"
         env <- ask
         let remoteDomains = List.delete ownDomain $ [env.domain1, env.domain2] <> env.dynamicDomains
@@ -182,12 +184,12 @@ withFederatingBackendsAllowDynamic n k = do
           >=> removeField "optSettings.setFederationDomainConfigs"
           >=> setField "optSettings.setFederationDomainConfigsUpdateFreq" (Aeson.Number 1)
   startDynamicBackends
-    [ def {dbBrig = setFederationConfig},
-      def {dbBrig = setFederationConfig},
-      def {dbBrig = setFederationConfig}
+    [ def {brigCfg = setFederationConfig},
+      def {brigCfg = setFederationConfig},
+      def {brigCfg = setFederationConfig}
     ]
     $ \dynDomains -> do
       domains@[domainA, domainB, domainC] <- pure dynDomains
-      sequence_ [Internal.createFedConn x (Internal.FedConn y "full_search") | x <- domains, y <- domains, x /= y]
+      sequence_ [createFedConn x (FedConn y "full_search") | x <- domains, y <- domains, x /= y]
       liftIO $ threadDelay (n * 1000 * 1000) -- wait for federation status to be updated
       k (domainA, domainB, domainC)

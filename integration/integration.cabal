@@ -90,6 +90,7 @@ library
     API.BrigInternal
     API.Cargohold
     API.Common
+    API.Federator
     API.Galley
     API.GalleyInternal
     API.Gundeck
@@ -122,6 +123,7 @@ library
     Testlib.HTTP
     Testlib.JSON
     Testlib.ModService
+    Testlib.One2One
     Testlib.Options
     Testlib.Ports
     Testlib.Prekeys
@@ -131,7 +133,6 @@ library
     Testlib.ResourcePool
     Testlib.Run
     Testlib.RunServices
-    Testlib.Service
     Testlib.Types
 
   build-depends:
@@ -146,9 +147,12 @@ library
     , bytestring-conversion
     , case-insensitive
     , containers
+    , cryptonite
     , data-default
     , directory
+    , errors
     , exceptions
+    , extended
     , extra
     , filepath
     , hex
@@ -157,6 +161,7 @@ library
     , kan-extensions
     , lens
     , lens-aeson
+    , memory
     , mime
     , monad-control
     , mtl
