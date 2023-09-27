@@ -51,6 +51,7 @@
 , servant-server
 , tagged
 , tasty
+, tasty-ant-xml
 , tasty-hunit
 , text
 , time
@@ -159,6 +160,7 @@ mkDerivation {
     servant-client
     tagged
     tasty
+    tasty-ant-xml
     tasty-hunit
     text
     time

@@ -132,6 +132,7 @@ library
     Testlib.Run
     Testlib.RunServices
     Testlib.Types
+    Testlib.XML
 
   build-depends:
     , aeson
@@ -173,6 +174,8 @@ library
     , proto-lens
     , random
     , raw-strings-qq
+    , regex-base
+    , regex-tdfa
     , retry
     , scientific
     , split
@@ -190,4 +193,5 @@ library
     , vector
     , websockets
     , wire-message-proto-lens
+    , xml
     , yaml

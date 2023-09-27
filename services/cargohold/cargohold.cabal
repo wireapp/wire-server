@@ -292,6 +292,7 @@ executable cargohold-integration
     , servant-client
     , tagged                 >=0.8
     , tasty                  >=1.0
+    , tasty-ant-xml
     , tasty-hunit            >=0.9
     , text                   >=1.1
     , time                   >=1.5
