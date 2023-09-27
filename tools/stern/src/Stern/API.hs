@@ -78,7 +78,7 @@ start o = do
   Server.runSettingsWithShutdown s (servantApp e) Nothing
   where
     server :: Env -> Server.Server
-    server e = Server.defaultServer (unpack $ stern o ^. epHost) (stern o ^. epPort) (e ^. applog) (e ^. metrics)
+    server e = Server.defaultServer (unpack $ stern o ^. host) (stern o ^. port) (e ^. applog) (e ^. metrics)
 
     servantApp :: Env -> Application
     servantApp e =

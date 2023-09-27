@@ -205,18 +205,18 @@ autoprovisionSamlUser ::
 autoprovisionSamlUser idp buid suid = do
   guardReplacedIdP
   guardScimTokens
-  createSamlUserWithId (idp ^. idpExtraInfo . wiTeam) buid suid defaultRole
+  createSamlUserWithId (idp ^. idpExtraInfo . team) buid suid defaultRole
   where
     -- Replaced IdPs are not allowed to create new wire accounts.
     guardReplacedIdP :: Sem r ()
     guardReplacedIdP = do
-      unless (isNothing $ idp ^. idpExtraInfo . wiReplacedBy) $ do
+      unless (isNothing $ idp ^. idpExtraInfo . replacedBy) $ do
         throwSparSem $ SparCannotCreateUsersOnReplacedIdP (cs . SAML.idPIdToST $ idp ^. idpId)
 
     -- IdPs in teams with scim tokens are not allowed to auto-provision.
     guardScimTokens :: Sem r ()
     guardScimTokens = do
-      let teamid = idp ^. idpExtraInfo . wiTeam
+      let teamid = idp ^. idpExtraInfo . team
       scimtoks <- ScimTokenStore.lookupByTeam teamid
       unless (null scimtoks) $ do
         throwSparSem SparSamlCredentialsNotFound
@@ -361,7 +361,7 @@ getUserByUrefViaOldIssuerUnsafe idp (SAML.UserRef _ subject) = do
         where
           uref = SAML.UserRef oldIssuer subject
 
-  foldM tryFind Nothing (idp ^. idpExtraInfo . wiOldIssuers)
+  foldM tryFind Nothing (idp ^. idpExtraInfo . oldIssuers)
 
 -- | After a user has been found using 'findUserWithOldIssuer', update it everywhere so that
 -- the old IdP is not needed any more next time.
@@ -397,18 +397,18 @@ verdictHandlerResultCore idp = \case
     pure $ VerifyHandlerDenied reasons
   SAML.AccessGranted uref -> do
     uid :: UserId <- do
-      let team = idp ^. idpExtraInfo . wiTeam
+      let team' = idp ^. idpExtraInfo . team
           err = SparUserRefInNoOrMultipleTeams . cs . show $ uref
       getUserByUrefUnsafe uref >>= \case
         Just usr -> do
-          if userTeam usr == Just team
+          if userTeam usr == Just team'
             then pure (userId usr)
             else throwSparSem err
         Nothing -> do
           getUserByUrefViaOldIssuerUnsafe idp uref >>= \case
             Just (olduref, usr) -> do
               let uid = userId usr
-              if userTeam usr == Just team
+              if userTeam usr == Just team'
                 then moveUserToNewIssuer olduref uref uid >> pure uid
                 else throwSparSem err
             Nothing -> do
@@ -572,11 +572,11 @@ deleteTeam ::
   ) =>
   TeamId ->
   Sem r ()
-deleteTeam team = do
-  ScimTokenStore.deleteByTeam team
+deleteTeam team' = do
+  ScimTokenStore.deleteByTeam team'
   -- Since IdPs are not shared between teams, we can look at the set of IdPs
   -- used by the team, and remove everything related to those IdPs, too.
-  idps <- IdPConfigStore.getConfigsByTeam team
+  idps <- IdPConfigStore.getConfigsByTeam team'
   for_ idps $ \idp -> do
     let issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
     SAMLUserStore.deleteByIssuer issuer

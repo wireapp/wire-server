@@ -584,8 +584,8 @@ assertMatchChan c match = go []
 
 getLHWhitelistedTeam :: HasCallStack => TeamId -> TestM ResponseLBS
 getLHWhitelistedTeam tid = do
-  galley <- viewGalley
-  getLHWhitelistedTeam' galley tid
+  galleyCall <- viewGalley
+  getLHWhitelistedTeam' galleyCall tid
 
 getLHWhitelistedTeam' :: (HasCallStack, MonadHttp m) => GalleyR -> TeamId -> m ResponseLBS
 getLHWhitelistedTeam' g tid = do
@@ -596,8 +596,8 @@ getLHWhitelistedTeam' g tid = do
 
 putLHWhitelistTeam :: HasCallStack => TeamId -> TestM ResponseLBS
 putLHWhitelistTeam tid = do
-  galley <- viewGalley
-  putLHWhitelistTeam' galley tid
+  galleyCall <- viewGalley
+  putLHWhitelistTeam' galleyCall tid
 
 putLHWhitelistTeam' :: (HasCallStack, MonadHttp m) => GalleyR -> TeamId -> m ResponseLBS
 putLHWhitelistTeam' g tid = do
@@ -608,8 +608,8 @@ putLHWhitelistTeam' g tid = do
 
 _deleteLHWhitelistTeam :: HasCallStack => TeamId -> TestM ResponseLBS
 _deleteLHWhitelistTeam tid = do
-  galley <- viewGalley
-  deleteLHWhitelistTeam' galley tid
+  galleyCall <- viewGalley
+  deleteLHWhitelistTeam' galleyCall tid
 
 deleteLHWhitelistTeam' :: (HasCallStack, MonadHttp m) => GalleyR -> TeamId -> m ResponseLBS
 deleteLHWhitelistTeam' g tid = do
@@ -642,7 +642,7 @@ instance IsTest LHTest where
   run :: OptionSet -> LHTest -> (Progress -> IO ()) -> IO Result
   run _ (LHTest expectedFlag setupAction testAction) _ = do
     setup <- setupAction
-    let featureLegalHold = setup ^. tsGConf . optSettings . setFeatureFlags . flagLegalHold
+    let featureLegalHold = setup ^. tsGConf . settings . featureFlags . flagLegalHold
     if featureLegalHold == expectedFlag
       then do
         hunitResult <- try $ void . flip runReaderT setup . runTestM $ testAction

@@ -29,6 +29,7 @@ import Network.HTTP.Types qualified as HTTP
 import Network.URI
 import Testlib.Env
 import Testlib.Printing
+import UnliftIO (MonadUnliftIO)
 import Prelude
 
 data Response = Response
@@ -107,13 +108,10 @@ newtype App a = App {unApp :: ReaderT Env IO a}
       MonadCatch,
       MonadThrow,
       MonadReader Env,
-      MonadBase IO
+      MonadBase IO,
+      MonadUnliftIO,
+      MonadBaseControl IO
     )
-
-instance MonadBaseControl IO App where
-  type StM App a = StM (ReaderT Env IO) a
-  liftBaseWith f = App (liftBaseWith (\g -> f (g . unApp)))
-  restoreM = App . restoreM
 
 runAppWithEnv :: Env -> App a -> IO a
 runAppWithEnv e m = runReaderT (unApp m) e

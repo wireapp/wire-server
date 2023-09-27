@@ -19,6 +19,7 @@ import Network.HTTP.Types
 import Servant.Client (BaseUrl (..), ClientEnv, Scheme (Http), mkClientEnv)
 import System.Logger.Class qualified as Log
 import Util.Options
+import Util.Options qualified as O
 import Wire.API.Federation.BackendNotifications
 import Wire.API.Routes.FederationDomainConfig qualified as Fed
 import Wire.BackgroundWorker.Env
@@ -99,8 +100,8 @@ req env dom =
   defaultRequest
     { method = methodDelete,
       secure = False,
-      host = galley env ^. epHost . to encodeUtf8,
-      port = galley env ^. epPort . to fromIntegral,
+      host = galley env ^. O.host . to encodeUtf8,
+      port = galley env ^. O.port . to fromIntegral,
       path = "/i/federation/" <> toByteString' dom,
       requestHeaders = ("Accept", "application/json") : requestHeaders defaultRequest,
       responseTimeout = defederationTimeout env

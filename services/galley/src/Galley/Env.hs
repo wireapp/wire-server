@@ -29,6 +29,7 @@ import Data.Misc (Fingerprint, Rsa)
 import Data.Range
 import Galley.Aws qualified as Aws
 import Galley.Options
+import Galley.Options qualified as O
 import Galley.Queue qualified as Q
 import HTTP2.Client.Manager (Http2Manager)
 import Imports
@@ -104,6 +105,6 @@ reqIdMsg = ("request" .=) . unRequestId
 
 currentFanoutLimit :: Opts -> Range 1 HardTruncationLimit Int32
 currentFanoutLimit o = do
-  let optFanoutLimit = fromIntegral . fromRange $ fromMaybe defFanoutLimit (o ^. (optSettings . setMaxFanoutSize))
-  let maxTeamSize = fromIntegral (o ^. (optSettings . setMaxTeamSize))
-  unsafeRange (min maxTeamSize optFanoutLimit)
+  let optFanoutLimit = fromIntegral . fromRange $ fromMaybe defFanoutLimit (o ^. (O.settings . maxFanoutSize))
+  let maxSize = fromIntegral (o ^. (O.settings . maxTeamSize))
+  unsafeRange (min maxSize optFanoutLimit)

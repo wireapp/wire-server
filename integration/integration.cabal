@@ -96,6 +96,7 @@ library
     API.GundeckInternal
     API.Nginz
     MLS.Util
+    Notifications
     RunAllTests
     SetupHelpers
     Test.AssetDownload
@@ -105,6 +106,7 @@ library
     Test.Conversation
     Test.Defederation
     Test.Demo
+    Test.Federation
     Test.Federator
     Test.MLS
     Test.MLS.KeyPackage
@@ -121,6 +123,7 @@ library
     Testlib.JSON
     Testlib.ModService
     Testlib.Options
+    Testlib.Ports
     Testlib.Prekeys
     Testlib.Prelude
     Testlib.Printing
@@ -128,6 +131,7 @@ library
     Testlib.ResourcePool
     Testlib.Run
     Testlib.RunServices
+    Testlib.Service
     Testlib.Types
 
   build-depends:
@@ -160,6 +164,7 @@ library
     , network-uri
     , optparse-applicative
     , process
+    , proto-lens
     , random
     , raw-strings-qq
     , retry
@@ -178,4 +183,5 @@ library
     , uuid
     , vector
     , websockets
+    , wire-message-proto-lens
     , yaml

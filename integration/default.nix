@@ -35,6 +35,7 @@
 , network-uri
 , optparse-applicative
 , process
+, proto-lens
 , random
 , raw-strings-qq
 , retry
@@ -53,6 +54,7 @@
 , uuid
 , vector
 , websockets
+, wire-message-proto-lens
 , yaml
 }:
 mkDerivation {
@@ -92,6 +94,7 @@ mkDerivation {
     network-uri
     optparse-applicative
     process
+    proto-lens
     random
     raw-strings-qq
     retry
@@ -110,6 +113,7 @@ mkDerivation {
     uuid
     vector
     websockets
+    wire-message-proto-lens
     yaml
   ];
   license = lib.licenses.agpl3Only;

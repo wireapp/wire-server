@@ -19,14 +19,13 @@ module Wire.API.Routes.Public.Brig.OAuth where
 
 import Data.Id as Id
 import Data.SOP
-import Data.Swagger (Swagger)
 import Imports hiding (exp, head)
 import Servant (JSON)
 import Servant hiding (Handler, JSON, Tagged, addHeader, respond)
-import Servant.Swagger
 import Servant.Swagger.Internal.Orphans ()
 import Wire.API.Error
 import Wire.API.OAuth
+import Wire.API.Routes.API
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named (Named (..))
 import Wire.API.Routes.Public
@@ -156,5 +155,7 @@ instance AsUnion CreateOAuthAuthorizationCodeResponses CreateOAuthCodeResponse w
   fromUnion (S (S (S (S (Z (I _)))))) = CreateOAuthCodeRedirectUrlMissMatch
   fromUnion (S (S (S (S (S x))))) = case x of {}
 
-swaggerDoc :: Swagger
-swaggerDoc = toSwagger (Proxy @OAuthAPI)
+data OAuthAPITag
+
+instance ServiceAPI OAuthAPITag v where
+  type ServiceAPIRoutes OAuthAPITag = OAuthAPI

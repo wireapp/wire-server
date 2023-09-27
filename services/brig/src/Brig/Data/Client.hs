@@ -382,10 +382,10 @@ insertClient :: PrepQuery W (UserId, ClientId, UTCTimeMillis, ClientType, Maybe 
 insertClient = "INSERT INTO clients (user, client, tstamp, type, label, class, cookie, lat, lon, model, capabilities) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
 updateClientLabelQuery :: PrepQuery W (Maybe Text, UserId, ClientId) ()
-updateClientLabelQuery = "UPDATE clients SET label = ? WHERE user = ? AND client = ?"
+updateClientLabelQuery = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE clients SET label = ? WHERE user = ? AND client = ?"
 
 updateClientCapabilitiesQuery :: PrepQuery W (Maybe (C.Set ClientCapability), UserId, ClientId) ()
-updateClientCapabilitiesQuery = "UPDATE clients SET capabilities = ? WHERE user = ? AND client = ?"
+updateClientCapabilitiesQuery = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE clients SET capabilities = ? WHERE user = ? AND client = ?"
 
 updateClientLastActiveQuery :: PrepQuery W (UTCTime, UserId, ClientId) Row
 updateClientLastActiveQuery = "UPDATE clients SET last_active = ? WHERE user = ? AND client = ? IF EXISTS"

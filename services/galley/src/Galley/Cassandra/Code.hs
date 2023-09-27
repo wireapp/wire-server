@@ -49,7 +49,7 @@ interpretCodeStoreToCassandra = interpret $ \case
   MakeKey cid -> Code.mkKey cid
   GenerateCode cid s t -> Code.generate cid s t
   GetConversationCodeURI ->
-    view (options . optSettings . setConversationCodeURI) <$> input
+    view (options . settings . conversationCodeURI) <$> input
 
 -- | Insert a conversation code
 insertCode :: Code -> Maybe Password -> Client ()

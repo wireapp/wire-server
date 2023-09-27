@@ -172,20 +172,16 @@ instance ToSchema A.Object where
 -- toJSONFieldName
 
 -- | Convenient helper to convert field names to use as JSON fields.
--- it removes the prefix (assumed to be anything before an uppercase
--- character) and converts the rest to underscore
+-- it converts the field names to snake_case.
 --
 -- Example:
--- newtype TeamName = TeamName { tnTeamName :: Text }
--- deriveJSON toJSONFieldName ''tnTeamName
+-- newtype TeamName = TeamName { teamName :: Text }
+-- deriveJSON toJSONFieldName ''teamName
 --
 -- would generate {To/From}JSON instances where
 -- the field name is "team_name"
 toJSONFieldName :: A.Options
-toJSONFieldName = A.defaultOptions {A.fieldLabelModifier = A.camelTo2 '_' . dropPrefix}
-  where
-    dropPrefix :: String -> String
-    dropPrefix = dropWhile (not . isUpper)
+toJSONFieldName = A.defaultOptions {A.fieldLabelModifier = A.camelTo2 '_'}
 
 --------------------------------------------------------------------------------
 

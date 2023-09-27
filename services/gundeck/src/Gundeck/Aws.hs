@@ -24,6 +24,8 @@ module Gundeck.Aws
     mkEnv,
     Amazon,
     execute,
+    Gundeck.Aws.region,
+    Gundeck.Aws.account,
 
     -- * Errors
     Error (..),
@@ -79,7 +81,8 @@ import Data.Text.Lazy qualified as LT
 import Gundeck.Aws.Arn
 import Gundeck.Aws.Sns
 import Gundeck.Instances ()
-import Gundeck.Options
+import Gundeck.Options (Opts)
+import Gundeck.Options qualified as O
 import Gundeck.Types.Push hiding (token)
 import Gundeck.Types.Push qualified as Push
 import Imports
@@ -152,10 +155,10 @@ mkEnv lgr opts mgr = do
   e <-
     mkAwsEnv
       g
-      (mkEndpoint SQS.defaultService (opts ^. optAws . awsSqsEndpoint))
-      (mkEndpoint SNS.defaultService (opts ^. optAws . awsSnsEndpoint))
-  q <- getQueueUrl e (opts ^. optAws . awsQueueName)
-  pure (Env e g q (opts ^. optAws . awsRegion) (opts ^. optAws . awsAccount))
+      (mkEndpoint SQS.defaultService (opts ^. O.aws . O.sqsEndpoint))
+      (mkEndpoint SNS.defaultService (opts ^. O.aws . O.snsEndpoint))
+  q <- getQueueUrl e (opts ^. O.aws . O.queueName)
+  pure (Env e g q (opts ^. O.aws . O.region) (opts ^. O.aws . O.account))
   where
     mkEndpoint svc e = AWS.setEndpoint (e ^. awsSecure) (e ^. awsHost) (e ^. awsPort) svc
     mkAwsEnv g sqs sns = do
@@ -166,7 +169,7 @@ mkEnv lgr opts mgr = do
       pure $
         baseEnv
           { AWS.logger = awsLogger g,
-            AWS.region = opts ^. optAws . awsRegion,
+            AWS.region = opts ^. O.aws . O.region,
             AWS.retryCheck = retryCheck,
             AWS.manager = mgr
           }
@@ -291,7 +294,7 @@ createEndpoint :: UserId -> Push.Transport -> ArnEnv -> AppName -> Push.Token ->
 createEndpoint u tr arnEnv app token = do
   env <- ask
   let top = mkAppTopic arnEnv tr app
-  let arn = mkSnsArn (env ^. region) (env ^. account) top
+  let arn = mkSnsArn env._region env._account top
   let tkn = Push.tokenText token
   let req =
         SNS.newCreatePlatformEndpoint (toText arn) tkn

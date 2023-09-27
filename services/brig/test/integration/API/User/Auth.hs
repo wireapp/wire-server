@@ -202,17 +202,20 @@ testLoginWith6CharPassword brig db = do
         (PasswordLogin (PasswordLoginData (LoginByEmail email) pw Nothing Nothing))
         PersistentCookie
         !!! const expectedStatusCode === statusCode
+
     -- Since 8 char passwords are required, when setting a password via the API,
     -- we need to write this directly to the db, to be able to test this
     writeDirectlyToDB :: UserId -> PlainTextPassword6 -> Http ()
     writeDirectlyToDB uid pw =
       liftIO (runClient db (updatePassword uid pw >> revokeAllCookies uid))
+
     updatePassword :: MonadClient m => UserId -> PlainTextPassword6 -> m ()
     updatePassword u t = do
       p <- liftIO $ mkSafePassword t
       retry x5 $ write userPasswordUpdate (params LocalQuorum (p, u))
+
     userPasswordUpdate :: PrepQuery W (Password, UserId) ()
-    userPasswordUpdate = "UPDATE user SET password = ? WHERE id = ?"
+    userPasswordUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET password = ? WHERE id = ?"
 
 --------------------------------------------------------------------------------
 -- ZAuth test environment for generating arbitrary tokens.
@@ -387,7 +390,7 @@ testPhoneLogin brig = do
 
 testHandleLogin :: Brig -> Http ()
 testHandleLogin brig = do
-  usr <- userId <$> randomUser brig
+  usr <- (.userId) <$> randomUser brig
   hdl <- randomHandle
   let update = RequestBodyLBS . encode $ HandleUpdate hdl
   put (brig . path "/self/handle" . contentJson . zUser usr . zConn "c" . Http.body update)
@@ -700,7 +703,7 @@ testLimitRetries conf brig = do
 testRegularUserLegalHoldLogin :: Brig -> Http ()
 testRegularUserLegalHoldLogin brig = do
   -- Create a regular user
-  uid <- userId <$> randomUser brig
+  uid <- (.userId) <$> randomUser brig
   -- fail if user is not a team user
   legalHoldLogin brig (LegalHoldLogin uid (Just defPassword) Nothing) PersistentCookie !!! do
     const 403 === statusCode
@@ -785,7 +788,7 @@ testLegalHoldLogout brig galley = do
 testEmailSsoLogin :: Brig -> Http ()
 testEmailSsoLogin brig = do
   -- Create a user
-  uid <- userId <$> randomUser brig
+  uid <- (.userId) <$> randomUser brig
   now <- liftIO getCurrentTime
   -- Login and do some checks
   _rs <-
@@ -800,7 +803,7 @@ testEmailSsoLogin brig = do
 testSuspendedSsoLogin :: Brig -> Http ()
 testSuspendedSsoLogin brig = do
   -- Create a user and immediately suspend them
-  uid <- userId <$> randomUser brig
+  uid <- (.userId) <$> randomUser brig
   setStatus brig uid Suspended
   -- Try to login and see if we fail
   ssoLogin brig (SsoLogin uid Nothing) PersistentCookie !!! do
@@ -830,7 +833,7 @@ testInvalidCookie z b = do
     const 403 === statusCode
     const (Just "Invalid user token") =~= responseBody
   -- Expired
-  user <- userId <$> randomUser b
+  user <- (.userId) <$> randomUser b
   let f = set (ZAuth.userTTL (Proxy @u)) 0
   t <- toByteString' <$> runZAuth z (ZAuth.localSettings f (ZAuth.newUserToken @u user Nothing))
   liftIO $ threadDelay 1000000
@@ -842,7 +845,7 @@ testInvalidCookie z b = do
 
 testInvalidToken :: ZAuth.Env -> Brig -> Http ()
 testInvalidToken z b = do
-  user <- userId <$> randomUser b
+  user <- (.userId) <$> randomUser b
   t <- toByteString' <$> runZAuth z (ZAuth.newUserToken @ZAuth.User user Nothing)
 
   -- Syntactically invalid
@@ -1418,7 +1421,7 @@ testLogout b = do
 
 testReauthentication :: Brig -> Http ()
 testReauthentication b = do
-  u <- userId <$> randomUser b
+  u <- (.userId) <$> randomUser b
   let js = Http.body . RequestBodyLBS . encode $ object ["foo" .= ("bar" :: Text)]
   get (b . paths ["/i/users", toByteString' u, "reauthenticate"] . contentJson . js) !!! do
     const 403 === statusCode

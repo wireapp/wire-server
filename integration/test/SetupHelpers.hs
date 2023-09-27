@@ -28,6 +28,10 @@ connectAllDomainsAndWaitToSync n domains = do
   sequence_ [createFedConn x (FedConn y "full_search") | x <- domains, y <- domains, x /= y]
   liftIO $ threadDelay (n * 1000 * 1000) -- wait for federation status to be updated
 
+deleteUser :: (HasCallStack, MakesValue user) => user -> App ()
+deleteUser user = bindResponse (API.Brig.deleteUser user) $ \resp -> do
+  resp.status `shouldMatchInt` 200
+
 -- | returns (user, team id)
 createTeam :: (HasCallStack, MakesValue domain) => domain -> App (Value, String)
 createTeam domain = do

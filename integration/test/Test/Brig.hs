@@ -139,7 +139,7 @@ testCrudOAuthClient = do
 testSwagger :: HasCallStack => App ()
 testSwagger = do
   let existingVersions :: [Int]
-      existingVersions = [0, 1, 2, 3, 4]
+      existingVersions = [0, 1, 2, 3, 4, 5]
 
       internalApis :: [String]
       internalApis = ["brig", "cannon", "cargohold", "cannon", "spar"]

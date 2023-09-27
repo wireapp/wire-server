@@ -152,7 +152,7 @@ requestAccessVerdict idp isGranted mkAuthnReq = do
     raw <- mkAuthnReq (idp ^. SAML.idpId)
     bdy <- maybe (error "authreq") pure $ responseBody raw
     either (error . show) pure $ Servant.mimeUnrender (Servant.Proxy @SAML.HTML) bdy
-  spmeta <- getTestSPMetadata (idp ^. idpExtraInfo . User.wiTeam)
+  spmeta <- getTestSPMetadata (idp ^. idpExtraInfo . User.team)
   (privKey, _, _) <- DSig.mkSignCredsWithCert Nothing 96
   authnresp :: SAML.AuthnResponse <- do
     case authnreq of

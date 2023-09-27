@@ -37,6 +37,7 @@ import Servant.Server hiding (respond)
 import Servant.Server.Internal
 import Servant.Swagger as S
 import Servant.Swagger.Internal as S
+import Wire.API.Routes.Version
 
 -- FUTUREWORK: make it possible to generate headers at runtime
 data LowLevelStream method status (headers :: [(Symbol, Symbol)]) desc ctype
@@ -83,6 +84,10 @@ instance
       method = reflectMethod (Proxy :: Proxy method)
       status = statusFromNat (Proxy :: Proxy status)
       extraHeaders = renderHeaders @headers
+
+type instance
+  SpecialiseToVersion v (LowLevelStream m s h d t) =
+    LowLevelStream m s h d t
 
 instance
   (Accept ctype, KnownNat status, KnownSymbol desc, SwaggerMethod method) =>

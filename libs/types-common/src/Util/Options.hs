@@ -75,8 +75,8 @@ urlPort u = do
 makeLenses ''AWSEndpoint
 
 data Endpoint = Endpoint
-  { _epHost :: !Text,
-    _epPort :: !Word16
+  { _host :: !Text,
+    _port :: !Word16
   }
   deriving (Show, Generic)
 
@@ -85,14 +85,14 @@ deriveFromJSON toOptionFieldName ''Endpoint
 makeLenses ''Endpoint
 
 data CassandraOpts = CassandraOpts
-  { _casEndpoint :: !Endpoint,
-    _casKeyspace :: !Text,
+  { _endpoint :: !Endpoint,
+    _keyspace :: !Text,
     -- | If this option is unset, use all available nodes.
     -- If this option is set, use only cassandra nodes in the given datacentre
     --
     -- This option is most likely only necessary during a cassandra DC migration
     -- FUTUREWORK: remove this option again, or support a datacentre migration feature
-    _casFilterNodesByDatacentre :: !(Maybe Text)
+    _filterNodesByDatacentre :: !(Maybe Text)
   }
   deriving (Show, Generic)
 

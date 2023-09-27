@@ -53,7 +53,8 @@ import Bilge (Manager, MonadHttp, RequestId (..), newManager, withResponse)
 import qualified Bilge
 import Bilge.RPC (HasRequestId (..))
 import qualified CargoHold.AWS as AWS
-import CargoHold.Options as Opt
+import CargoHold.Options (AWSOpts, Opts, S3Compatibility (..))
+import qualified CargoHold.Options as Opt
 import Control.Error (ExceptT, exceptT)
 import Control.Exception (throw)
 import Control.Lens (Lens', makeLenses, non, view, (?~), (^.))
@@ -93,18 +94,18 @@ data Env = Env
 makeLenses ''Env
 
 settings :: Lens' Env Opt.Settings
-settings = options . optSettings
+settings = options . Opt.settings
 
 newEnv :: Opts -> IO Env
 newEnv o = do
   met <- Metrics.metrics
-  lgr <- Log.mkLogger (o ^. optLogLevel) (o ^. optLogNetStrings) (o ^. optLogFormat)
+  lgr <- Log.mkLogger (o ^. Opt.logLevel) (o ^. Opt.logNetStrings) (o ^. Opt.logFormat)
   checkOpts o lgr
-  mgr <- initHttpManager (o ^. optAws . awsS3Compatibility)
+  mgr <- initHttpManager (o ^. Opt.aws . Opt.s3Compatibility)
   h2mgr <- initHttp2Manager
-  ama <- initAws (o ^. optAws) lgr mgr
+  ama <- initAws (o ^. Opt.aws) lgr mgr
   multiIngressAWS <- initMultiIngressAWS lgr mgr
-  let loc = toLocalUnsafe (o ^. optSettings . Opt.setFederationDomain) ()
+  let loc = toLocalUnsafe (o ^. Opt.settings . Opt.federationDomain) ()
   pure $ Env ama met lgr mgr h2mgr def o loc multiIngressAWS
   where
     initMultiIngressAWS :: Logger -> Manager -> IO (Map String AWS.Env)
@@ -114,10 +115,10 @@ newEnv o = do
           ( \(k, v) ->
               initAws (patchS3DownloadEndpoint v) lgr mgr >>= \v' -> pure (k, v')
           )
-          (Map.assocs (o ^. optAws . Opt.optMultiIngress . non Map.empty))
+          (Map.assocs (o ^. Opt.aws . Opt.multiIngress . non Map.empty))
 
     patchS3DownloadEndpoint :: AWSEndpoint -> AWSOpts
-    patchS3DownloadEndpoint endpoint = (o ^. optAws) & awsS3DownloadEndpoint ?~ endpoint
+    patchS3DownloadEndpoint e = (o ^. Opt.aws) & Opt.s3DownloadEndpoint ?~ e
 
 -- | Validate (some) options (`Opts`)
 --
@@ -134,19 +135,19 @@ checkOpts opts lgr = do
     error errorMsg
   where
     multiIngressConfigured :: Bool
-    multiIngressConfigured = (not . null) (opts ^. (optAws . Opt.optMultiIngress . non Map.empty))
+    multiIngressConfigured = (not . null) (opts ^. (Opt.aws . Opt.multiIngress . non Map.empty))
 
     cloudFrontConfigured :: Bool
-    cloudFrontConfigured = isJust (opts ^. (optAws . Opt.awsCloudFront))
+    cloudFrontConfigured = isJust (opts ^. (Opt.aws . Opt.cloudFront))
 
     singleAwsDownloadEndpointConfigured :: Bool
-    singleAwsDownloadEndpointConfigured = isJust (opts ^. (optAws . Opt.awsS3DownloadEndpoint))
+    singleAwsDownloadEndpointConfigured = isJust (opts ^. (Opt.aws . Opt.s3DownloadEndpoint))
 
 initAws :: AWSOpts -> Logger -> Manager -> IO AWS.Env
-initAws o l = AWS.mkEnv l (o ^. awsS3Endpoint) addrStyle downloadEndpoint (o ^. awsS3Bucket) (o ^. awsCloudFront)
+initAws o l = AWS.mkEnv l (o ^. Opt.s3Endpoint) addrStyle downloadEndpoint (o ^. Opt.s3Bucket) (o ^. Opt.cloudFront)
   where
-    downloadEndpoint = fromMaybe (o ^. awsS3Endpoint) (o ^. awsS3DownloadEndpoint)
-    addrStyle = maybe S3AddressingStylePath unwrapS3AddressingStyle (o ^. awsS3AddressingStyle)
+    downloadEndpoint = fromMaybe (o ^. Opt.s3Endpoint) (o ^. Opt.s3DownloadEndpoint)
+    addrStyle = maybe S3AddressingStylePath Opt.unwrapS3AddressingStyle (o ^. Opt.s3AddressingStyle)
 
 initHttpManager :: Maybe S3Compatibility -> IO Manager
 initHttpManager s3Compat =

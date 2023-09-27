@@ -29,8 +29,8 @@ testMultiIngressCloudFrontFails = do
   ts <- ask
   let opts =
         view tsOpts ts
-          & (Opts.optAws . Opts.awsCloudFront) ?~ cloudFrontOptions
-          & (Opts.optAws . Opts.optMultiIngress) ?~ multiIngressMap
+          & (Opts.aws . Opts.cloudFront) ?~ cloudFrontOptions
+          & (Opts.aws . Opts.multiIngress) ?~ multiIngressMap
   msg <-
     liftIO $
       catch
@@ -44,9 +44,9 @@ testMultiIngressCloudFrontFails = do
     cloudFrontOptions :: CloudFrontOpts
     cloudFrontOptions =
       CloudFrontOpts
-        { _cfDomain = Domain (T.pack "example.com"),
-          _cfKeyPairId = KeyPairId (T.pack "anyId"),
-          _cfPrivateKey = "any/path"
+        { _domain = Domain (T.pack "example.com"),
+          _keyPairId = KeyPairId (T.pack "anyId"),
+          _privateKey = "any/path"
         }
 
 multiIngressMap :: Map String AWSEndpoint
@@ -63,8 +63,8 @@ testMultiIngressS3DownloadEndpointFails = do
   ts <- ask
   let opts =
         view tsOpts ts
-          & (Opts.optAws . Opts.awsS3DownloadEndpoint) ?~ toAWSEndpoint "http://fake-s3:4570"
-          & (Opts.optAws . Opts.optMultiIngress) ?~ multiIngressMap
+          & (Opts.aws . Opts.s3DownloadEndpoint) ?~ toAWSEndpoint "http://fake-s3:4570"
+          & (Opts.aws . Opts.multiIngress) ?~ multiIngressMap
   msg <-
     liftIO $
       catch

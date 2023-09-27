@@ -44,7 +44,7 @@ module Galley.App
   )
 where
 
-import Bilge hiding (Request, header, options, statusCode, statusMessage)
+import Bilge hiding (Request, header, host, options, port, statusCode, statusMessage)
 import Cassandra hiding (Set)
 import Cassandra qualified as C
 import Cassandra.Settings qualified as C
@@ -82,13 +82,14 @@ import Galley.Intra.BackendNotificationQueue
 import Galley.Intra.Effects
 import Galley.Intra.Federator
 import Galley.Keys
-import Galley.Options
+import Galley.Options hiding (brig, endpoint, federator)
+import Galley.Options qualified as O
 import Galley.Queue
 import Galley.Queue qualified as Q
 import Galley.Types.Teams qualified as Teams
 import HTTP2.Client.Manager (Http2Manager, http2ManagerWithSSLCtx)
 import Imports hiding (forkIO)
-import Network.AMQP.Extended
+import Network.AMQP.Extended (mkRabbitMqChannelMVar)
 import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.OpenSSL
 import Network.Wai.Utilities.JSONResponse
@@ -102,7 +103,7 @@ import Polysemy.TinyLog qualified as P
 import Servant qualified
 import Ssl.Util
 import System.Logger qualified as Log
-import System.Logger.Class
+import System.Logger.Class (Logger)
 import System.Logger.Extended qualified as Logger
 import UnliftIO.Exception qualified as UnliftIO
 import Util.Options
@@ -133,19 +134,19 @@ type GalleyEffects = Append GalleyEffects1 GalleyEffects0
 -- Define some invariants for the options used
 validateOptions :: Opts -> IO ()
 validateOptions o = do
-  let settings = view optSettings o
+  let settings' = view settings o
       optFanoutLimit = fromIntegral . fromRange $ currentFanoutLimit o
-  when (settings ^. setMaxConvSize > fromIntegral optFanoutLimit) $
+  when (settings' ^. maxConvSize > fromIntegral optFanoutLimit) $
     error "setMaxConvSize cannot be > setTruncationLimit"
-  when (settings ^. setMaxTeamSize < optFanoutLimit) $
+  when (settings' ^. maxTeamSize < optFanoutLimit) $
     error "setMaxTeamSize cannot be < setTruncationLimit"
-  case (o ^. optFederator, o ^. optRabbitmq) of
+  case (o ^. O.federator, o ^. rabbitmq) of
     (Nothing, Just _) -> error "RabbitMQ config is specified and federator is not, please specify both or none"
     (Just _, Nothing) -> error "Federator is specified and RabbitMQ config is not, please specify both or none"
     _ -> pure ()
-  let mlsFlag = o ^. optSettings . setFeatureFlags . Teams.flagMLS . Teams.unDefaults . Teams.unImplicitLockStatus
+  let mlsFlag = settings' ^. featureFlags . Teams.flagMLS . Teams.unDefaults . Teams.unImplicitLockStatus
       mlsConfig = wsConfig mlsFlag
-      migrationStatus = wsStatus $ o ^. optSettings . setFeatureFlags . Teams.flagMlsMigration . Teams.unDefaults
+      migrationStatus = wsStatus $ settings' ^. featureFlags . Teams.flagMlsMigration . Teams.unDefaults
   when (migrationStatus == FeatureStatusEnabled && ProtocolMLSTag `notElem` mlsSupportedProtocols mlsConfig) $
     error "For starting MLS migration, MLS must be included in the supportedProtocol list"
   unless (mlsDefaultProtocol mlsConfig `elem` mlsSupportedProtocols mlsConfig) $
@@ -157,32 +158,32 @@ createEnv m o l = do
   mgr <- initHttpManager o
   h2mgr <- initHttp2Manager
   validateOptions o
-  Env def m o l mgr h2mgr (o ^. optFederator) (o ^. optBrig) cass
+  Env def m o l mgr h2mgr (o ^. O.federator) (o ^. O.brig) cass
     <$> Q.new 16000
     <*> initExtEnv
-    <*> maybe (pure Nothing) (fmap Just . Aws.mkEnv l mgr) (o ^. optJournal)
-    <*> loadAllMLSKeys (fold (o ^. optSettings . setMlsPrivateKeyPaths))
-    <*> traverse (mkRabbitMqChannelMVar l) (o ^. optRabbitmq)
+    <*> maybe (pure Nothing) (fmap Just . Aws.mkEnv l mgr) (o ^. journal)
+    <*> loadAllMLSKeys (fold (o ^. settings . mlsPrivateKeyPaths))
+    <*> traverse (mkRabbitMqChannelMVar l) (o ^. rabbitmq)
 
 initCassandra :: Opts -> Logger -> IO ClientState
 initCassandra o l = do
   c <-
     maybe
-      (C.initialContactsPlain (o ^. optCassandra . casEndpoint . epHost))
+      (C.initialContactsPlain (o ^. cassandra . endpoint . host))
       (C.initialContactsDisco "cassandra_galley" . unpack)
-      (o ^. optDiscoUrl)
+      (o ^. discoUrl)
   C.init
     . C.setLogger (C.mkLogger (Logger.clone (Just "cassandra.galley") l))
     . C.setContacts (NE.head c) (NE.tail c)
-    . C.setPortNumber (fromIntegral $ o ^. optCassandra . casEndpoint . epPort)
-    . C.setKeyspace (Keyspace $ o ^. optCassandra . casKeyspace)
+    . C.setPortNumber (fromIntegral $ o ^. cassandra . endpoint . port)
+    . C.setKeyspace (Keyspace $ o ^. cassandra . keyspace)
     . C.setMaxConnections 4
     . C.setMaxStreams 128
     . C.setPoolStripes 4
     . C.setSendTimeout 3
     . C.setResponseTimeout 10
     . C.setProtocolVersion C.V4
-    . C.setPolicy (C.dcFilterPolicyIfConfigured l (o ^. optCassandra . casFilterNodesByDatacentre))
+    . C.setPolicy (C.dcFilterPolicyIfConfigured l (o ^. cassandra . filterNodesByDatacentre))
     $ C.defSettings
 
 initHttpManager :: Opts -> IO Manager
@@ -197,8 +198,8 @@ initHttpManager o = do
   newManager
     (opensslManagerSettings (pure ctx))
       { managerResponseTimeout = responseTimeoutMicro 10000000,
-        managerConnCount = o ^. optSettings . setHttpPoolSize,
-        managerIdleConnectionCount = 3 * (o ^. optSettings . setHttpPoolSize)
+        managerConnCount = o ^. settings . httpPoolSize,
+        managerIdleConnectionCount = 3 * (o ^. settings . httpPoolSize)
       }
 
 initHttp2Manager :: IO Http2Manager
@@ -257,7 +258,7 @@ evalGalley e =
     . runInputSem (embed getCurrentTime) -- FUTUREWORK: could we take the time only once instead?
     . interpretWaiRoutes
     . runInputConst (e ^. options)
-    . runInputConst (toLocalUnsafe (e ^. options . optSettings . setFederationDomain) ())
+    . runInputConst (toLocalUnsafe (e ^. options . settings . federationDomain) ())
     . interpretInternalTeamListToCassandra
     . interpretTeamListToCassandra
     . interpretLegacyConversationListToCassandra
@@ -289,4 +290,4 @@ evalGalley e =
     . interpretSparAccess
     . interpretBrigAccess
   where
-    lh = view (options . optSettings . setFeatureFlags . Teams.flagLegalHold) e
+    lh = view (options . settings . featureFlags . Teams.flagLegalHold) e
