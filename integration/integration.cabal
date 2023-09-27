@@ -70,20 +70,18 @@ common common-all
 executable integration
   import:        common-all
   main-is:       ./main.hs
-  ghc-options:   -threaded -with-rtsopts=-N -Wall -Wpartial-fields -fwarn-tabs -Wno-incomplete-uni-patterns
+  ghc-options:   -threaded -with-rtsopts=-N
   build-depends: integration
 
 executable run-services
   import:        common-all
   main-is:       ./run-services.hs
-  ghc-options:   -threaded -with-rtsopts=-N -Wall -Wpartial-fields -fwarn-tabs -Wno-incomplete-uni-patterns
+  ghc-options:   -threaded -with-rtsopts=-N
   build-depends: integration
 
 library
   import:          common-all
   hs-source-dirs:  test
-  ghc-options:
-    -Wall -Wpartial-fields -fwarn-tabs -Wno-incomplete-uni-patterns
 
   -- cabal-fmt: expand test
   exposed-modules:
