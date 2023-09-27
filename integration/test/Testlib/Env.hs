@@ -5,12 +5,14 @@ module Testlib.Env where
 import Control.Monad.Codensity
 import Control.Monad.IO.Class
 import Data.Default
+import Data.Function ((&))
 import Data.Functor
 import Data.IORef
 import Data.Map qualified as Map
 import Data.Set (Set)
 import Data.Set qualified as Set
 import Data.Yaml qualified as Yaml
+import Database.CQL.IO qualified as Cassandra
 import Network.HTTP.Client qualified as HTTP
 import System.Exit
 import System.FilePath
@@ -50,10 +52,16 @@ mkGlobalEnv cfgFile = do
             else Nothing
 
   manager <- HTTP.newManager HTTP.defaultManagerSettings
+  let cassSettings =
+        Cassandra.defSettings
+          & Cassandra.setContacts intConfig.cassandra.host []
+          & Cassandra.setPortNumber (fromIntegral intConfig.cassandra.port)
+  cassClient <- Cassandra.init cassSettings
   resourcePool <-
     createBackendResourcePool
       (Map.elems intConfig.dynamicBackends)
       intConfig.rabbitmq
+      cassClient
   pure
     GlobalEnv
       { gServiceMap =

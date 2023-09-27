@@ -423,23 +423,10 @@ selectRemoteMembers = "select user_remote_domain, user_remote_id, conversation_r
 updateRemoteMemberConvRoleName :: PrepQuery W (RoleName, ConvId, Domain, UserId) ()
 updateRemoteMemberConvRoleName = {- `IF EXISTS`, but that requires benchmarking -} "update member_remote_user set conversation_role = ? where conv = ? and user_remote_domain = ? and user_remote_id = ?"
 
-removeRemoteDomain :: PrepQuery W (ConvId, Domain) ()
-removeRemoteDomain = "delete from member_remote_user where conv = ? and user_remote_domain = ?"
-
 -- Used when removing a federation domain, so that we can quickly list all of the affected remote users and conversations
 -- This returns local conversation IDs and remote users
 selectRemoteMembersByDomain :: PrepQuery R (Identity Domain) (ConvId, UserId, RoleName)
 selectRemoteMembersByDomain = "select conv, user_remote_id, conversation_role from member_remote_user where user_remote_domain = ?"
-
-selectRemoteMembersByConvAndDomain :: PrepQuery R (ConvId, Domain) (UserId, RoleName)
-selectRemoteMembersByConvAndDomain = "select user_remote_id, conversation_role from member_remote_user where conv = ? and user_remote_domain = ?"
-
-selectConvIdsByRemoteDomain :: PrepQuery R (Identity Domain) (Identity ConvId)
-selectConvIdsByRemoteDomain = "select conv from member_remote_user where user_remote_domain = ?"
-
--- Return a single element, as this is being used as a SQL exists analog
-checkConvForRemoteDomain :: PrepQuery R (ConvId, Domain) (Identity ConvId)
-checkConvForRemoteDomain = "select conv from member_remote_user where conv = ? and user_remote_domain = ? limit 1"
 
 -- local user with remote conversations
 

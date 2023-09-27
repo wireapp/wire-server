@@ -54,10 +54,10 @@ import Data.Aeson.Types qualified as Aeson
 import Data.Bifunctor
 import Data.ByteArray hiding (index)
 import Data.ByteArray qualified as BA
+import Data.OpenApi qualified as S
+import Data.OpenApi.Internal.Schema qualified as S
 import Data.Proxy
 import Data.Schema
-import Data.Swagger qualified as S
-import Data.Swagger.Internal.Schema qualified as S
 import Data.Text qualified as T
 import Data.Text.Lazy qualified as LT
 import Data.Text.Lazy.Builder qualified as LT
@@ -82,7 +82,7 @@ instance ToSchema CipherSuite where
 instance S.ToParamSchema CipherSuite where
   toParamSchema _ =
     mempty
-      & S.type_ ?~ S.SwaggerNumber
+      & S.type_ ?~ S.OpenApiNumber
 
 instance FromHttpApiData CipherSuite where
   parseUrlPiece t = do
@@ -253,7 +253,7 @@ instance FromJSONKey SignatureSchemeTag where
   fromJSONKey = Aeson.FromJSONKeyTextParser parseSignatureScheme
 
 instance S.ToParamSchema SignatureSchemeTag where
-  toParamSchema _ = mempty & S.type_ ?~ S.SwaggerString
+  toParamSchema _ = mempty & S.type_ ?~ S.OpenApiString
 
 instance FromHttpApiData SignatureSchemeTag where
   parseQueryParam = note "Unknown signature scheme" . signatureSchemeFromName

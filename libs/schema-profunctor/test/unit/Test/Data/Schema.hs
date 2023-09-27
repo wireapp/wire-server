@@ -27,10 +27,10 @@ import Data.Aeson.QQ
 import Data.Aeson.Types qualified as A
 import Data.HashMap.Strict.InsOrd qualified as InsOrdHashMap
 import Data.List.NonEmpty (NonEmpty ((:|)))
+import Data.OpenApi qualified as S
+import Data.OpenApi.Declare qualified as S
 import Data.Proxy
 import Data.Schema hiding (getName)
-import Data.Swagger qualified as S
-import Data.Swagger.Declare qualified as S
 import Data.Text qualified as Text
 import Imports
 import Test.Tasty
@@ -290,7 +290,7 @@ testNonEmptySchema =
       Nothing -> assertFailure "expected schema to have a property called 'nl'"
       Just (S.Ref _) -> assertFailure "expected property 'nl' to have inline schema"
       Just (S.Inline nlSch) -> do
-        assertEqual "type should be Array" (Just S.SwaggerArray) (nlSch ^. S.type_)
+        assertEqual "type should be Array" (Just S.OpenApiArray) (nlSch ^. S.type_)
         assertEqual "minItems should be 1" (Just 1) (nlSch ^. S.minItems)
 
 testRefField :: TestTree
@@ -332,7 +332,7 @@ testEnumType =
     assertEqual
       "Text enum has Swagger type \"string\""
       (s1 ^. S.type_)
-      (Just S.SwaggerString)
+      (Just S.OpenApiString)
 
     let e2 :: ValueSchema NamedSwaggerDoc Integer
         e2 = enum @Integer "IntEnum" (element (3 :: Integer) (3 :: Integer))
@@ -340,7 +340,7 @@ testEnumType =
     assertEqual
       "Integer enum has Swagger type \"integer\""
       (s2 ^. S.type_)
-      (Just S.SwaggerInteger)
+      (Just S.OpenApiInteger)
 
 testNullable :: TestTree
 testNullable =

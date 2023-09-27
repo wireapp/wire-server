@@ -21,9 +21,9 @@ module Wire.API.Routes.Internal.Brig.Connection where
 
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Id
+import Data.OpenApi qualified as S
 import Data.Qualified
 import Data.Schema
-import Data.Swagger qualified as S
 import Imports
 import Wire.API.Connection
 

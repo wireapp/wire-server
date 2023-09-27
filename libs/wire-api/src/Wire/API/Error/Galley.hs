@@ -37,11 +37,12 @@ import Control.Lens ((%~), (.~), (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Containers.ListUtils
 import Data.Domain
+import Data.HashMap.Strict.InsOrd (singleton)
+import Data.OpenApi qualified as S
 import Data.Proxy
 import Data.Qualified
 import Data.Schema
 import Data.Singletons.TH (genSingletons)
-import Data.Swagger qualified as S
 import Data.Tagged
 import GHC.TypeLits
 import Imports
@@ -51,6 +52,7 @@ import Network.Wai.Utilities.JSONResponse
 import Polysemy
 import Polysemy.Error
 import Prelude.Singletons (Show_)
+import Servant.API.ContentTypes (JSON, contentType)
 import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as BrigError
@@ -143,8 +145,8 @@ data GalleyError
 
 $(genSingletons [''GalleyError])
 
-instance KnownError (MapError e) => IsSwaggerError (e :: GalleyError) where
-  addToSwagger = addStaticErrorToSwagger @(MapError e)
+instance (Typeable (MapError e), KnownError (MapError e)) => IsSwaggerError (e :: GalleyError) where
+  addToOpenApi = addStaticErrorToSwagger @(MapError e)
 
 instance KnownError (MapError e) => APIError (Tagged (e :: GalleyError) ()) where
   toResponse _ = toResponse $ dynError @(MapError e)
@@ -334,7 +336,7 @@ type instance MapError 'VerificationCodeAuthFailed = 'StaticError 403 "code-auth
 type instance MapError 'VerificationCodeRequired = 'StaticError 403 "code-authentication-required" "Verification code required"
 
 instance IsSwaggerError AuthenticationError where
-  addToSwagger =
+  addToOpenApi =
     addStaticErrorToSwagger @(MapError 'ReAuthFailed)
       . addStaticErrorToSwagger @(MapError 'VerificationCodeAuthFailed)
       . addStaticErrorToSwagger @(MapError 'VerificationCodeRequired)
@@ -362,7 +364,7 @@ data TeamFeatureError
 
 instance IsSwaggerError TeamFeatureError where
   -- Do not display in Swagger
-  addToSwagger = id
+  addToOpenApi = id
 
 type instance MapError 'AppLockInactivityTimeoutTooLow = 'StaticError 400 "inactivity-timeout-too-low" "Applock inactivity timeout must be at least 30 seconds"
 
@@ -412,7 +414,7 @@ type instance ErrorEffect MLSProposalFailure = Error MLSProposalFailure
 
 -- Proposal failures are only reported generically in Swagger
 instance IsSwaggerError MLSProposalFailure where
-  addToSwagger = S.allOperations . S.description %~ Just . (<> desc) . fold
+  addToOpenApi = S.allOperations . S.description %~ Just . (<> desc) . fold
     where
       desc =
         "\n\n**Note**: this endpoint can execute proposals, and therefore \
@@ -463,11 +465,16 @@ instance ToSchema NonFederatingBackends where
         nonFederatingBackendsFromList
 
 instance IsSwaggerError NonFederatingBackends where
-  addToSwagger =
+  addToOpenApi =
     addErrorResponseToSwagger (HTTP.statusCode nonFederatingBackendsStatus) $
       mempty
         & S.description .~ "Adding members to the conversation is not possible because the backends involved do not form a fully connected graph"
-        & S.schema ?~ S.Inline (S.toSchema (Proxy @NonFederatingBackends))
+        & S.content .~ singleton mediaType mediaTypeObject
+    where
+      mediaType = contentType $ Proxy @JSON
+      mediaTypeObject =
+        mempty
+          & S.schema ?~ S.Inline (S.toSchema (Proxy @NonFederatingBackends))
 
 type instance ErrorEffect NonFederatingBackends = Error NonFederatingBackends
 
@@ -500,11 +507,18 @@ instance ToSchema UnreachableBackends where
         <$> (.backends) .= field "unreachable_backends" (array schema)
 
 instance IsSwaggerError UnreachableBackends where
-  addToSwagger =
+  addToOpenApi =
     addErrorResponseToSwagger (HTTP.statusCode unreachableBackendsStatus) $
       mempty
         & S.description .~ "Some domains are unreachable"
-        & S.schema ?~ S.Inline (S.toSchema (Proxy @UnreachableBackends))
+        -- Defaulting this to JSON, as openapi3 needs something to map a schema against.
+        -- This _should_ be overridden with the actual media types once we are at the
+        -- point of rendering out the schemas for MultiVerb.
+        -- Check the instance of `S.HasOpenApi (MultiVerb method (cs :: [Type]) as r)`
+        & S.content .~ singleton mediaType mediaTypeObject
+    where
+      mediaType = contentType $ Proxy @JSON
+      mediaTypeObject = mempty & S.schema ?~ S.Inline (S.toSchema (Proxy @UnreachableBackends))
 
 type instance ErrorEffect UnreachableBackends = Error UnreachableBackends
 

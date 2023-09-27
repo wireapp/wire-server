@@ -19,10 +19,10 @@ module Wire.API.SystemSettings where
 
 import Control.Lens hiding ((.=))
 import Data.Aeson qualified as A
+import Data.OpenApi qualified as S
 import Data.Schema as Schema
-import Data.Swagger qualified as S
 import Imports
-import Servant.Swagger.Internal.Orphans ()
+import Servant.OpenApi.Internal.Orphans ()
 import Test.QuickCheck
 import Wire.Arbitrary
 

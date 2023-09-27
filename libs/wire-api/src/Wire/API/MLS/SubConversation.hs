@@ -29,9 +29,9 @@ import Data.Aeson qualified as A
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Json.Util
+import Data.OpenApi qualified as S
 import Data.Qualified
 import Data.Schema hiding (HasField)
-import Data.Swagger qualified as S
 import Data.Text qualified as T
 import Data.Time.Clock
 import GHC.Records

@@ -42,8 +42,8 @@ import Control.Lens ((?~))
 import Data.Aeson qualified as A
 import Data.Binary
 import Data.Json.Util
+import Data.OpenApi qualified as S
 import Data.Schema hiding (HasField)
-import Data.Swagger qualified as S
 import GHC.Records
 import Imports hiding (cs)
 import Test.QuickCheck hiding (label)

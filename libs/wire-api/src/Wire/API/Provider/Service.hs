@@ -61,11 +61,11 @@ import Data.Id
 import Data.Json.Util ((#))
 import Data.List1 (List1)
 import Data.Misc (HttpsUrl (..), PlainTextPassword6)
+import Data.OpenApi qualified as S
 import Data.PEM (PEM, pemParseBS, pemWriteLBS)
 import Data.Proxy
 import Data.Range (Range)
 import Data.Schema
-import Data.Swagger qualified as S
 import Data.Text qualified as Text
 import Data.Text.Ascii
 import Data.Text.Encoding qualified as Text

@@ -110,7 +110,8 @@ proposalProcessingStage (ExternalInitProposal _) = ProposalProcessingStageExtern
 proposalProcessingStage (GroupContextExtensionsProposal _) = ProposalProcessingStageExtensions
 
 type HasProposalEffects r =
-  ( Member BrigAccess r,
+  ( Member BackendNotificationQueueAccess r,
+    Member BrigAccess r,
     Member ConversationStore r,
     Member (Error InternalError) r,
     Member (Error MLSProposalFailure) r,

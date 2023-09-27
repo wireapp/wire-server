@@ -25,7 +25,7 @@ where
 import Data.Binary.Get
 import Data.Binary.Put
 import Data.ByteString.Lazy qualified as LBS
-import Data.Swagger qualified as S
+import Data.OpenApi qualified as S
 import GHC.Records
 import Imports
 import Wire.API.MLS.CipherSuite

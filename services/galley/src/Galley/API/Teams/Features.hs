@@ -283,6 +283,7 @@ instance SetFeatureConfig LegalholdConfig where
   type
     SetConfigForTeamConstraints LegalholdConfig (r :: EffectRow) =
       ( Bounded (PagingBounds InternalPaging TeamMember),
+        Member BackendNotificationQueueAccess r,
         Member BotAccess r,
         Member BrigAccess r,
         Member CodeStore r,

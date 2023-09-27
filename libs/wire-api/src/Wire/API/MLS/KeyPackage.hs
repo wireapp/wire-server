@@ -40,10 +40,10 @@ import Data.Bifunctor
 import Data.ByteString.Lazy qualified as LBS
 import Data.Id
 import Data.Json.Util
+import Data.OpenApi qualified as S
 import Data.Qualified
 import Data.Range
 import Data.Schema hiding (HasField)
-import Data.Swagger qualified as S
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
 import Data.X509 qualified as X509

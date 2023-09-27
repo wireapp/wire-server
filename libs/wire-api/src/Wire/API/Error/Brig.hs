@@ -17,6 +17,7 @@
 
 module Wire.API.Error.Brig where
 
+import Data.Data
 import Wire.API.Error
 
 data BrigError
@@ -86,8 +87,12 @@ data BrigError
   | ServiceDisabled
   | InvalidBot
 
-instance KnownError (MapError e) => IsSwaggerError (e :: BrigError) where
-  addToSwagger = addStaticErrorToSwagger @(MapError e)
+instance (Typeable (MapError e), KnownError (MapError e)) => IsSwaggerError (e :: BrigError) where
+  addToOpenApi = addStaticErrorToSwagger @(MapError e)
+
+type instance MapError 'ServiceDisabled = 'StaticError 403 "service-disabled" "The desired service is currently disabled."
+
+type instance MapError 'InvalidBot = 'StaticError 403 "invalid-bot" "The targeted user is not a bot."
 
 type instance MapError 'ServiceDisabled = 'StaticError 403 "service-disabled" "The desired service is currently disabled."
 

@@ -9,6 +9,7 @@ import Control.Monad.Cont
 import GHC.Stack
 import SetupHelpers
 import Testlib.Prelude
+import UnliftIO.Concurrent (threadDelay)
 
 -- | Legalhold clients cannot be deleted.
 testCantDeleteLHClient :: HasCallStack => App ()
@@ -42,7 +43,7 @@ testModifiedBrig = do
 
 testModifiedGalley :: HasCallStack => App ()
 testModifiedGalley = do
-  (_user, tid) <- createTeam OwnDomain
+  (_user, tid, _) <- createTeam OwnDomain 1
 
   let getFeatureStatus :: (MakesValue domain) => domain -> String -> App Value
       getFeatureStatus domain team = do
@@ -55,7 +56,7 @@ testModifiedGalley = do
   withModifiedBackend
     def {galleyCfg = setField "settings.featureFlags.teamSearchVisibility" "enabled-by-default"}
     $ \domain -> do
-      (_user, tid') <- createTeam domain
+      (_user, tid', _) <- createTeam domain 1
       getFeatureStatus domain tid' `shouldMatch` "enabled"
 
 testModifiedCannon :: HasCallStack => App ()
@@ -83,7 +84,7 @@ testModifiedServices = do
           }
 
   withModifiedBackend serviceMap $ \domain -> do
-    (_user, tid) <- createTeam domain
+    (_user, tid, _) <- createTeam domain 1
     bindResponse (Internal.getTeamFeature domain "searchVisibility" tid) $ \res -> do
       res.status `shouldMatchInt` 200
       res.json %. "status" `shouldMatch` "enabled"
@@ -173,12 +174,16 @@ testIndependentESIndices = do
 
 testDynamicBackendsFederation :: HasCallStack => App ()
 testDynamicBackendsFederation = do
-  startDynamicBackends [def <> fullSearchWithAll, def <> fullSearchWithAll] $ \dynDomains -> do
+  startDynamicBackends [def, def] $ \dynDomains -> do
     [aDynDomain, anotherDynDomain] <- pure dynDomains
+    _ <- Internal.createFedConn anotherDynDomain (Internal.FedConn aDynDomain "full_search")
+    threadDelay 2_000_000
+
     u1 <- randomUser aDynDomain def
     u2 <- randomUser anotherDynDomain def
     uid2 <- objId u2
     Internal.refreshIndex anotherDynDomain
+
     bindResponse (Public.searchContacts u1 (u2 %. "name") anotherDynDomain) $ \resp -> do
       resp.status `shouldMatchInt` 200
       docs <- resp.json %. "documents" >>= asList

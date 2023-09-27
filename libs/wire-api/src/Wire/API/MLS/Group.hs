@@ -19,8 +19,8 @@ module Wire.API.MLS.Group where
 
 import Data.Aeson qualified as A
 import Data.Json.Util
+import Data.OpenApi qualified as S
 import Data.Schema
-import Data.Swagger qualified as S
 import Imports
 import Servant
 import Wire.API.MLS.Serialisation

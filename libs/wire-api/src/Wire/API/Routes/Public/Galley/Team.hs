@@ -20,7 +20,7 @@ module Wire.API.Routes.Public.Galley.Team where
 import Data.Id
 import Imports
 import Servant hiding (WithStatus)
-import Servant.Swagger.Internal.Orphans ()
+import Servant.OpenApi.Internal.Orphans ()
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Routes.MultiVerb
