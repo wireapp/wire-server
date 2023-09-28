@@ -68,14 +68,16 @@ These services require most of the deployment dependencies as seen in the archit
     - SNS
     - S3
     - DynamoDB
-- Required additional software:
-    - netcat (in order to allow the services being tested to talk to the dependencies above)
+
+Furthermore, testing federation requires a local DNS server set up with appropriate SRV records.
 
 Setting up these real, but in-memory internal and "fake" external dependencies is done easiest using [`docker-compose`](https://docs.docker.com/compose/install/). Run the following in a separate terminal (it will block that terminal, C-c to shut all these docker images down again):
 
 ```
 deploy/dockerephemeral/run.sh
 ```
+
+Also make sure your system is able to resolve the fully qualified domain `localhost.` (note the trailing dot). This is surprisingly not trivial, because of limitations in how libc parses `/etc/hosts`. You can check that with, for example, `ping localhost.`. If you get a name resolution error, you need to add `localhost.` explictly to your `/etc/hosts` file.
 
 After all containers are up you can use these Makefile targets to run the tests locally:
 
