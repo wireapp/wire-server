@@ -104,6 +104,7 @@ let
         hsuper
         hself;
 
+      werror = _: hlib.failOnAllWarnings;
       opt = _: drv:
         if enableOptimization
         then drv
