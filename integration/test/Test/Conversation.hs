@@ -689,3 +689,10 @@ testUpdateConversationByRemoteAdmin = do
   void $ withWebSockets [alice, bob, charlie] $ \wss -> do
     void $ updateReceiptMode bob conv (41 :: Int) >>= getBody 200
     for_ wss $ \ws -> awaitMatch 10 isReceiptModeUpdateNotif ws
+
+testGuestCreatesConversation :: HasCallStack => App ()
+testGuestCreatesConversation = do
+  alice <- randomUser OwnDomain def {activate = False}
+  bindResponse (postConversation alice defProteus) $ \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "operation-denied"
