@@ -27,8 +27,8 @@ cleanup() {
 copyToAwsS3(){
     if (( UPLOAD_LOGS > 0 )); then
         for t in "${tests[@]}"; do
-            echo "Copy logs-$t to s3://wire-server-test-logs/test-logs-$VERSION/$t-$VERSION.log"
-            aws s3 cp "logs-$t" "s3://wire-server-test-logs/test-logs-$VERSION/$t-$VERSION.log"
+            echo "Copy logs-$t to s3://wire-server-test-logs/test-logs-$VERSION/$t-$VERSION/$BUILD_NAME.log"
+            aws s3 cp "logs-$t" "s3://wire-server-test-logs/test-logs-$VERSION/$t-$VERSION/$BUILD_NAME.log"
         done
     fi
 }
