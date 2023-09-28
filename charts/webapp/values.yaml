@@ -9,7 +9,7 @@ resources:
     cpu: "1"
 image:
   repository: quay.io/wire/webapp
-  tag: "2023-09-26-mandarin-rc3"
+  tag: "2023-09-28-mandarin-rc4"
 service:
   https:
     externalPort: 443
