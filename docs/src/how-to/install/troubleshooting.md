@@ -420,7 +420,7 @@ Note that because the `cassandra-migration-qgn7r` pod might get destroyed once t
 More generally, you can also get `d kubectl get events` to get a list of all the events that have happened in your cluster, including the creation/destruction of pods, and the errors that have occured.
 
 ```
-demo@mandarin:~/wire-server-deploy$ d kubectl get events
+demo@admin-host:~/wire-server-deploy$ d kubectl get events
 LAST SEEN   TYPE      REASON                    OBJECT                                           MESSAGE
 17m         Normal    Scheduled                 pod/cassandra-migrations-qgn7r                   Successfully assigned default/cassandra-migrations-qgn7r to kubenode1
 17m         Normal    Pulling                   pod/cassandra-migrations-qgn7r                   Pulling image "quay.io/wire/gundeck-schema:4.38.0"
