@@ -26,6 +26,7 @@ library
     -optP-Wno-nonportable-include-path
 
   build-depends:
+    , aeson
     , amqp
     , base
     , bytestring

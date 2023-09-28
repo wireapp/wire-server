@@ -18,6 +18,7 @@
 
 module RabbitMQConsumer.Lib where
 
+import Data.Aeson (FromJSON, decode)
 import Data.ByteString.Lazy.Char8 qualified as BL
 import Imports
 import Network.AMQP
@@ -27,31 +28,67 @@ import Options.Applicative
 main :: IO ()
 main = do
   opts <- execParser (info (helper <*> optsParser) desc)
-  done <- newEmptyMVar
   conn <- openConnection' opts.host opts.port opts.vhost opts.username opts.password
   chan <- openChannel conn
-  recoverMsgs chan True
-  void $ consumeMsgs chan opts.queue Ack (myCallback opts done)
+  qos chan 0 1 False
+  done <- newEmptyMVar
+  runTimerAsync done opts.timeoutSec
+  case opts.cmd of
+    Head -> void $ consumeMsgs chan opts.queue Ack (printHead done opts)
+    Interactive -> void $ consumeMsgs chan opts.queue Ack (interactive done opts)
+    DropHead dhOpts -> void $ consumeMsgs chan opts.queue Ack (dropHead done opts dhOpts)
   takeMVar done
   closeConnection conn
   putStrLn "connection closed"
   where
     desc = header "rabbitmq-consumer" <> progDesc "CLI tool to consume messages from a RabbitMQ queue" <> fullDesc
 
-myCallback :: Opts -> MVar () -> (Message, Envelope) -> IO ()
-myCallback opts done (msg, env) = do
-  putStrLn $ "received message (vhost=" <> cs opts.vhost <> ") (queue=" <> cs opts.queue <> "):\n"
-  putStrLn $ BL.unpack (msgBody msg)
-  putStrLn $ "\ntype 'drop' to drop the message and terminate, or press enter to terminate without dropping the message"
-  input <- getLine
-  if input == "drop"
-    then do
-      ackEnv env
-      putStrLn "message dropped"
-    else putStrLn "message not dropped"
-  putMVar done ()
-  -- block and stop processing any more messages
-  forever $ threadDelay maxBound
+    printHead :: MVar () -> Opts -> (Message, Envelope) -> IO ()
+    printHead done opts (msg, _env) = do
+      putStrLn $ displayMessage opts msg
+      void $ tryPutMVar done ()
+
+    dropHead :: MVar () -> Opts -> DropHeadOpts -> (Message, Envelope) -> IO ()
+    dropHead done opts dhOpts (msg, env) = do
+      putStrLn $ displayMessage opts msg
+      case decode @MessageJSON msg.msgBody of
+        Nothing -> putStrLn "failed to decode message body"
+        Just json -> do
+          if json.path == dhOpts.path
+            then do
+              putStrLn "dropping message"
+              nackEnv env
+            else do
+              putStrLn "path does not match. keeping message"
+      void $ tryPutMVar done ()
+
+    interactive :: MVar () -> Opts -> (Message, Envelope) -> IO ()
+    interactive done opts (msg, env) = do
+      putStrLn $ displayMessage opts msg
+      putStrLn $ "type 'drop' to drop the message and terminate, or press enter to terminate without dropping the message"
+      input <- getLine
+      if input == "drop"
+        then do
+          ackEnv env
+          putStrLn "message dropped"
+        else putStrLn "message not dropped"
+      void $ tryPutMVar done ()
+
+    displayMessage :: Opts -> Message -> String
+    displayMessage opts msg =
+      intercalate
+        "\n"
+        [ "vhost: " <> cs opts.vhost,
+          "queue: " <> cs opts.queue,
+          "timestamp: " <> show msg.msgTimestamp,
+          "received message: " <> BL.unpack msg.msgBody
+        ]
+
+    runTimerAsync :: MVar () -> Int -> IO ()
+    runTimerAsync done sec = void $ forkIO $ do
+      threadDelay (sec * 1000000)
+      putStrLn $ "timeout after " <> show sec <> " seconds"
+      void $ tryPutMVar done ()
 
 data Opts = Opts
   { host :: String,
@@ -59,9 +96,16 @@ data Opts = Opts
     username :: Text,
     password :: Text,
     vhost :: Text,
-    queue :: Text
+    queue :: Text,
+    timeoutSec :: Int,
+    cmd :: Command
   }
-  deriving (Show)
+
+data DropHeadOpts = DropHeadOpts
+  { path :: String
+  }
+
+data Command = Head | DropHead DropHeadOpts | Interactive
 
 optsParser :: Parser Opts
 optsParser =
@@ -115,3 +159,45 @@ optsParser =
           <> value "test"
           <> showDefault
       )
+    <*> option
+      auto
+      ( long "timeout"
+          <> short 't'
+          <> metavar "TIMEOUT"
+          <> help
+            "Timeout in seconds. The command will timeout if no messages are received within this time. \
+            \This can happen when the queue is empty, \
+            \or when we lose the single active consumer race."
+          <> value 10
+          <> showDefault
+      )
+    <*> hsubparser (headCommand <> dropHeadCommand <> interactiveCommand)
+
+headCommand :: Mod CommandFields Command
+headCommand =
+  (command "head" (info (pure Head) (progDesc "Print the first message in the queue")))
+
+dropHeadCommand :: Mod CommandFields Command
+dropHeadCommand =
+  (command "drop-head" (info p (progDesc "Drop the first message in the queue")))
+  where
+    p :: Parser Command
+    p =
+      DropHead
+        . DropHeadOpts
+        <$> strOption
+          ( long "path"
+              <> short 'a'
+              <> metavar "PATH"
+              <> help "only drop the first message if the path matches"
+          )
+
+interactiveCommand :: Mod CommandFields Command
+interactiveCommand =
+  (command "interactive" (info (pure Interactive) (progDesc "Interactively drop the first message from the queue")))
+
+data MessageJSON = MessageJSON
+  {path :: String}
+  deriving (Generic, Show)
+
+instance FromJSON MessageJSON
