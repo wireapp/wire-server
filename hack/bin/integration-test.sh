@@ -25,7 +25,7 @@ cleanup() {
 # Copy to the concourse output (indetified by $OUTPUT_DIR) for propagation to
 # following steps.
 copyToAwsS3(){
-    build_uuid = uuidgen
+    build_uuid=$(uuidgen)
     if (( UPLOAD_LOGS > 0 )); then
         for t in "${tests[@]}"; do
             echo "Copy logs-$t to s3://wire-server-test-logs/test-logs-$VERSION/$t-$VERSION/$build_uuid.log"
