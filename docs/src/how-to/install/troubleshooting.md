@@ -272,8 +272,11 @@ These are some steps you can take to debug what is going on when the installatio
 
 As an example, we'll take a case where we try installing `wire-server` with `helm`, but it fails due to `cassandra` being broken in some way.
 
-Before installing `wire-server`, we run `d kubectl get pods` and get the result:
+This guide, while focusing on a `cassandra` related issue, will also provide general steps to debug problems that could be related to other components like `rabbitmq`, `redis`, etc.
 
+Our first step is to identify and isolate which component is causing the issue.
+
+Before installing `wire-server`, we run `d kubectl get pods` and get the result:
 
 ```
 demo@admin-host:~/wire-server-deploy$ d kubectl get pods
@@ -314,14 +317,25 @@ reaper-84cfbf746d-wk8nc         1/1     Running   0          95m
 redis-ephemeral-master-0        1/1     Running   0          96m
 ```
 
-We can see that a new pod has been created, called `cassandra-migration-qgn7r`, and that it is in the `Init:0/4` state.
+(You can also do `d kubectl get pods -o wide` to get more details though that's not necessary here)
+
+When comparing with the previous run of the command, we can see that a new pod has been created, called `cassandra-migration-qgn7r`, and that it is in the `Init:0/4` state.
 
 This means that the pod has been created, but that the init containers have not yet completed. In particular, it is at step 0 out of 4.
 
 If we let it running for a while, we'd see the "`RESTARTS`" field increase to 1, then 2, etc, as the init containers keep failing.
 
-We can get more information about the pod by running `d kubectl describe pod cassandra-migration-qgn7r`:
+We can use `d kubectl logs` to learn more about this failing pod:
 
+```
+demo@admin-host:~/wire-server-deploy$ d kubectl logs cassandra-migrations-qgn7r
+Error from server (BadRequest): container "job-done" in pod "cassandra-migrations-qgn7r" is waiting to start: PodInitializing
+```
+
+Note the name `job-done`, this is the name of the last step (container) of the pod, which is not yet running.
+
+
+We can get even more information about the pod by running `d kubectl describe pod cassandra-migration-qgn7r`:
 
 ```
 demo@admin-host:~/wire-server-deploy$ d kubectl describe pod cassandra-migrations-qgn7r
