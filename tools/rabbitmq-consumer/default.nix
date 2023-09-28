@@ -3,10 +3,14 @@
 # must be regenerated whenever local packages are added or removed, or
 # dependencies are added or removed.
 { mkDerivation
+, aeson
+, amqp
 , base
+, bytestring
 , gitignoreSource
 , imports
 , lib
+, network
 , optparse-applicative
 }:
 mkDerivation {
@@ -15,7 +19,15 @@ mkDerivation {
   src = gitignoreSource ./.;
   isLibrary = true;
   isExecutable = true;
-  libraryHaskellDepends = [ imports optparse-applicative ];
+  libraryHaskellDepends = [
+    aeson
+    amqp
+    base
+    bytestring
+    imports
+    network
+    optparse-applicative
+  ];
   executableHaskellDepends = [ base ];
   description = "CLI tool to consume messages from a RabbitMQ queue";
   license = lib.licenses.agpl3Only;
