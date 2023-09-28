@@ -71,14 +71,10 @@ newMessagePush ::
   Event ->
   MessagePush
 newMessagePush botMap mconn mm userOrBots event =
-  let (recipients, botMembers) =
-        foldMap
-          ( \r ->
-              case Map.lookup (_recipientUserId r) botMap of
-                Just botMember -> ([], [botMember])
-                Nothing -> ([r], [])
-          )
-          (map toRecipient userOrBots)
+  let toPair r = case Map.lookup (_recipientUserId r) botMap of
+        Just botMember -> ([], [botMember])
+        Nothing -> ([r], [])
+      (recipients, botMembers) = foldMap (toPair . toRecipient) userOrBots
    in MessagePush mconn mm recipients botMembers event
 
 runMessagePush ::

@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+{-# OPTIONS_GHC -Wno-ambiguous-fields #-}
 
 module Test.MLS.Message where
 
@@ -54,18 +54,20 @@ testAppMessageSomeReachable = do
 
   void $ createApplicationMessage alice1 "hi, bob!" >>= sendAndConsumeMessage
 
-testMessageNotifications :: HasCallStack => App ()
-testMessageNotifications = do
-  [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
+testMessageNotifications :: HasCallStack => Domain -> App ()
+testMessageNotifications bobDomain = do
+  [alice, bob] <- createAndConnectUsers [OwnDomain, bobDomain]
 
   [alice1, alice2, bob1, bob2] <- traverse (createMLSClient def) [alice, alice, bob, bob]
-  aliceClient <- alice1 %. "client_id" & asString
   bobClient <- bob1 %. "client_id" & asString
 
   traverse_ uploadNewKeyPackage [alice1, alice2, bob1, bob2]
 
   void $ createNewGroup alice1
-  void $ createAddCommit alice1 [alice, bob] >>= sendAndConsumeCommitBundle
+
+  void $ withWebSocket bob $ \ws -> do
+    void $ createAddCommit alice1 [alice, bob] >>= sendAndConsumeCommitBundle
+    awaitMatch 10 isMemberJoinNotif ws
 
   let get (opts :: GetNotifications) = do
         notifs <- getNotifications bob opts {size = Just 10000} >>= getJSON 200

@@ -20,7 +20,7 @@ module Galley.API.MLS.Propagate where
 import Control.Comonad
 import Data.Id
 import Data.Json.Util
-import Data.List.NonEmpty (nonEmpty)
+import Data.List.NonEmpty (NonEmpty, nonEmpty)
 import Data.List1
 import Data.Map qualified as Map
 import Data.Qualified
@@ -31,7 +31,6 @@ import Galley.API.Util
 import Galley.Data.Services
 import Galley.Effects
 import Galley.Effects.BackendNotificationQueueAccess
-import Galley.Effects.FederatorAccess
 import Galley.Intra.Push.Internal
 import Galley.Types.Conversations.Members
 import Gundeck.Types.Push.V2 (RecipientClients (..))
@@ -97,7 +96,12 @@ propagateMessage qusr mSenderClient lConvOrSub con msg cm = do
             metadata = mm,
             conversation = qUnqualified qcnv,
             subConversation = sconv,
-            recipients = tUnqualified rs >>= remoteMemberMLSClients,
+            recipients =
+              Map.fromList $
+                tUnqualified rs
+                  >>= toList . remoteMemberMLSClients,
+            -- Map.fromList $
+            --   rs >>= toList . remoteMemberMLSClients,
             message = Base64ByteString msg.raw
           }
   where
@@ -110,10 +114,11 @@ propagateMessage qusr mSenderClient lConvOrSub con msg cm = do
       clients <- nonEmpty $ Map.keys (Map.findWithDefault mempty localUserQId cmWithoutSender)
       pure $ Recipient localUserId (RecipientClientsSome (List1 clients))
 
-    remoteMemberMLSClients :: RemoteMember -> [(UserId, ClientId)]
-    remoteMemberMLSClients rm =
+    remoteMemberMLSClients :: RemoteMember -> Maybe (UserId, NonEmpty ClientId)
+    remoteMemberMLSClients rm = do
       let remoteUserQId = tUntagged (rmId rm)
           remoteUserId = qUnqualified remoteUserQId
-       in map
-            (\(c, _) -> (remoteUserId, c))
-            (Map.assocs (Map.findWithDefault mempty remoteUserQId cmWithoutSender))
+      clients <-
+        nonEmpty . map fst $
+          Map.assocs (Map.findWithDefault mempty remoteUserQId cmWithoutSender)
+      pure (remoteUserId, clients)
