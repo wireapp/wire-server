@@ -1,1 +1,1 @@
-Adding relative URLs to Swagger and OpenApi documentation to reflect the API versions.
+Fix: support api versions other than v0 in swagger docs.
