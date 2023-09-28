@@ -33,6 +33,7 @@ service:
 #       when overriding envVars
 envVars:
   FEATURE_USE_CORE_CRYPTO: "true"
+  ENABLE_DEV_BACKEND_API: "false"
 # E.g.
 # envVars:
 #   FEATURE_ENABLE_DEBUG: "true"
