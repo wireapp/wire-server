@@ -104,7 +104,7 @@ let
         hsuper
         hself;
 
-      werror = drv: hlib.appendConfigureFlag drv "--ghc-option=-Werror";
+      werror = _: (drv: hlib.appendConfigureFlag drv "--ghc-option=-Werror");
       opt = _: drv:
         if enableOptimization
         then drv
