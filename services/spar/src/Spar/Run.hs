@@ -45,6 +45,7 @@ import qualified Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as Warp
 import Network.Wai.Utilities.Request (lookupRequestId)
 import qualified Network.Wai.Utilities.Server as WU
+import qualified OpenSSL.Session as OpenSSL
 import qualified SAML2.WebSSO as SAML
 import Spar.API (SparAPI, app)
 import Spar.App
@@ -55,7 +56,7 @@ import Spar.Orphans ()
 import System.Logger (Logger, msg, val, (.=), (~~))
 import qualified System.Logger as Log
 import qualified System.Logger.Extended as Log
-import Util.Options (endpoint, filterNodesByDatacentre, host, keyspace, port)
+import Util.Options (CassandraOpts, endpoint, filterNodesByDatacentre, host, keyspace, port, tlsCert, useTLS)
 import Wire.API.Routes.Version.Wai
 import Wire.Sem.Logger.TinyLog
 
@@ -65,27 +66,44 @@ import Wire.Sem.Logger.TinyLog
 initCassandra :: Opts -> Logger -> IO ClientState
 initCassandra opts lgr = do
   let cassOpts = cassandra opts
+  mbSSLContext <- createSSLContext cassOpts
   connectString <-
     maybe
       (Cas.initialContactsPlain (cassOpts ^. endpoint . host))
       (Cas.initialContactsDisco "cassandra_spar" . cs)
       (discoUrl opts)
-  cas <-
-    Cas.init $
-      Cas.defSettings
-        & Cas.setLogger (Cas.mkLogger (Log.clone (Just "cassandra.spar") lgr))
-        & Cas.setContacts (NE.head connectString) (NE.tail connectString)
-        & Cas.setPortNumber (fromIntegral $ cassOpts ^. endpoint . port)
-        & Cas.setKeyspace (Keyspace $ cassOpts ^. keyspace)
-        & Cas.setMaxConnections 4
-        & Cas.setMaxStreams 128
-        & Cas.setPoolStripes 4
-        & Cas.setSendTimeout 3
-        & Cas.setResponseTimeout 10
-        & Cas.setProtocolVersion V4
-        & Cas.setPolicy (Cas.dcFilterPolicyIfConfigured lgr (cassOpts ^. filterNodesByDatacentre))
+  let basicCASSettings =
+        Cas.defSettings
+          & Cas.setLogger (Cas.mkLogger (Log.clone (Just "cassandra.spar") lgr))
+          & Cas.setContacts (NE.head connectString) (NE.tail connectString)
+          & Cas.setPortNumber (fromIntegral $ cassOpts ^. endpoint . port)
+          & Cas.setKeyspace (Keyspace $ cassOpts ^. keyspace)
+          & Cas.setMaxConnections 4
+          & Cas.setMaxStreams 128
+          & Cas.setPoolStripes 4
+          & Cas.setSendTimeout 3
+          & Cas.setResponseTimeout 10
+          & Cas.setProtocolVersion V4
+          & Cas.setPolicy (Cas.dcFilterPolicyIfConfigured lgr (cassOpts ^. filterNodesByDatacentre))
+      casSettings = maybe basicCASSettings (\sslCtx -> Cas.setSSLContext sslCtx basicCASSettings) mbSSLContext
+  cas <- Cas.init casSettings
   runClient cas $ Cas.versionCheck Data.schemaVersion
   pure cas
+  where
+    createSSLContext :: CassandraOpts -> IO (Maybe OpenSSL.SSLContext)
+    createSSLContext cassOpts
+      | cassOpts ^. useTLS = do
+          sslContext <- OpenSSL.context
+          maybe (pure ()) (OpenSSL.contextSetCAFile sslContext) (cassOpts ^. tlsCert)
+          OpenSSL.contextSetVerificationMode
+            sslContext
+            OpenSSL.VerifyPeer
+              { vpFailIfNoPeerCert = False,
+                vpClientOnce = True,
+                vpCallback = Nothing
+              }
+          pure $ Just sslContext
+      | otherwise = pure Nothing
 
 ----------------------------------------------------------------------
 -- servant / wai / warp
