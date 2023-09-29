@@ -81,7 +81,7 @@ Add to `charts/nginz/values.yaml`, under the `galley` section:
 If a PR adds new configuration options for say brig, the following files need to be edited:
 
 * [ ] The parser under `services/brig/src/Brig/Options.hs`
-* [ ] The integration test config: `services/brig/brig.integration.yaml`
+* [ ] The integration test config: `services/brig/brig.integration.yaml` and `charts/cargohold/templates/tests/configmap.yaml`
 * [ ] The charts: `charts/brig/templates/configmap.yaml`
 * [ ] The default values: `charts/brig/values.yaml`
 * [ ] The values files for CI: `hack/helm_vars/wire-server/values.yaml.gotmpl`
