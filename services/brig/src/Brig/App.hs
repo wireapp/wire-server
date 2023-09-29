@@ -141,6 +141,7 @@ import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.OpenSSL
 import OpenSSL.EVP.Digest (Digest, getDigestByName)
 import OpenSSL.Session (SSLOption (..))
+import OpenSSL.Session qualified as OpenSSL
 import OpenSSL.Session qualified as SSL
 import Polysemy
 import Polysemy.Final
@@ -430,21 +431,38 @@ initCassandra o g = do
       (Cas.initialContactsPlain (Opt.cassandra o ^. endpoint . host))
       (Cas.initialContactsDisco "cassandra_brig" . unpack)
       (Opt.discoUrl o)
-  p <-
-    Cas.init
-      $ Cas.setLogger (Cas.mkLogger (Log.clone (Just "cassandra.brig") g))
-        . Cas.setContacts (NE.head c) (NE.tail c)
-        . Cas.setPortNumber (fromIntegral (Opt.cassandra o ^. endpoint . port))
-        . Cas.setKeyspace (Keyspace (Opt.cassandra o ^. keyspace))
-        . Cas.setMaxConnections 4
-        . Cas.setPoolStripes 4
-        . Cas.setSendTimeout 3
-        . Cas.setResponseTimeout 10
-        . Cas.setProtocolVersion Cas.V4
-        . Cas.setPolicy (Cas.dcFilterPolicyIfConfigured g (Opt.cassandra o ^. filterNodesByDatacentre))
-      $ Cas.defSettings
+  mbSSLContext <- createSSLContext (Opt.cassandra o)
+  let basicCasSettings =
+        Cas.setLogger (Cas.mkLogger (Log.clone (Just "cassandra.brig") g))
+          . Cas.setContacts (NE.head c) (NE.tail c)
+          . Cas.setPortNumber (fromIntegral (Opt.cassandra o ^. endpoint . port))
+          . Cas.setKeyspace (Keyspace (Opt.cassandra o ^. keyspace))
+          . Cas.setMaxConnections 4
+          . Cas.setPoolStripes 4
+          . Cas.setSendTimeout 3
+          . Cas.setResponseTimeout 10
+          . Cas.setProtocolVersion Cas.V4
+          . Cas.setPolicy (Cas.dcFilterPolicyIfConfigured g (Opt.cassandra o ^. filterNodesByDatacentre))
+          $ Cas.defSettings
+      casSettings = maybe basicCasSettings (\sslCtx -> Cas.setSSLContext sslCtx basicCasSettings) mbSSLContext
+  p <- Cas.init casSettings
   runClient p $ versionCheck schemaVersion
   pure p
+  where
+    createSSLContext :: CassandraOpts -> IO (Maybe OpenSSL.SSLContext)
+    createSSLContext cassOpts
+      | cassOpts ^. useTLS = do
+          sslContext <- OpenSSL.context
+          maybe (pure ()) (OpenSSL.contextSetCAFile sslContext) (cassOpts ^. tlsCert)
+          OpenSSL.contextSetVerificationMode
+            sslContext
+            OpenSSL.VerifyPeer
+              { vpFailIfNoPeerCert = False,
+                vpClientOnce = True,
+                vpCallback = Nothing
+              }
+          pure $ Just sslContext
+      | otherwise = pure Nothing
 
 initCredentials :: (FromJSON a) => FilePathSecrets -> IO a
 initCredentials secretFile = do
