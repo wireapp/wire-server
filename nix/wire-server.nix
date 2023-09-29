@@ -448,6 +448,7 @@ in
   devEnv = pkgs.buildEnv {
     name = "wire-server-dev-env";
     paths = commonTools ++ [
+      pkgs.libuuid
       pkgs.bash
       pkgs.dash
       (pkgs.haskell-language-server.override { supportedGhcVersions = [ "92" ]; })
