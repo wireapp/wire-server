@@ -94,6 +94,7 @@ import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.OpenSSL
 import Network.Wai.Utilities.JSONResponse
 import OpenSSL.Session as Ssl
+import OpenSSL.Session qualified as OpenSSL
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
@@ -179,19 +180,37 @@ initCassandra o l = do
       (C.initialContactsPlain (o ^. cassandra . endpoint . host))
       (C.initialContactsDisco "cassandra_galley" . unpack)
       (o ^. discoUrl)
-  C.init
-    . C.setLogger (C.mkLogger (Logger.clone (Just "cassandra.galley") l))
-    . C.setContacts (NE.head c) (NE.tail c)
-    . C.setPortNumber (fromIntegral $ o ^. cassandra . endpoint . port)
-    . C.setKeyspace (Keyspace $ o ^. cassandra . keyspace)
-    . C.setMaxConnections 4
-    . C.setMaxStreams 128
-    . C.setPoolStripes 4
-    . C.setSendTimeout 3
-    . C.setResponseTimeout 10
-    . C.setProtocolVersion C.V4
-    . C.setPolicy (C.dcFilterPolicyIfConfigured l (o ^. cassandra . filterNodesByDatacentre))
-    $ C.defSettings
+  mbSSLContext <- createSSLContext (o ^. cassandra)
+  let basicCasSettings =
+        C.setLogger (C.mkLogger (Logger.clone (Just "cassandra.galley") l))
+          . C.setContacts (NE.head c) (NE.tail c)
+          . C.setPortNumber (fromIntegral $ o ^. cassandra . endpoint . port)
+          . C.setKeyspace (Keyspace $ o ^. cassandra . keyspace)
+          . C.setMaxConnections 4
+          . C.setMaxStreams 128
+          . C.setPoolStripes 4
+          . C.setSendTimeout 3
+          . C.setResponseTimeout 10
+          . C.setProtocolVersion C.V4
+          . C.setPolicy (C.dcFilterPolicyIfConfigured l (o ^. cassandra . filterNodesByDatacentre))
+          $ C.defSettings
+      casSettings = maybe basicCasSettings (\sslCtx -> C.setSSLContext sslCtx basicCasSettings) mbSSLContext
+  C.init casSettings
+  where
+    createSSLContext :: CassandraOpts -> IO (Maybe OpenSSL.SSLContext)
+    createSSLContext cassOpts
+      | cassOpts ^. useTLS = do
+          sslContext <- OpenSSL.context
+          maybe (pure ()) (OpenSSL.contextSetCAFile sslContext) (cassOpts ^. tlsCert)
+          OpenSSL.contextSetVerificationMode
+            sslContext
+            OpenSSL.VerifyPeer
+              { vpFailIfNoPeerCert = False,
+                vpClientOnce = True,
+                vpCallback = Nothing
+              }
+          pure $ Just sslContext
+      | otherwise = pure Nothing
 
 initHttpManager :: Opts -> IO Manager
 initHttpManager o = do
