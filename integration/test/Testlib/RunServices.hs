@@ -1,5 +1,3 @@
-{-# OPTIONS_GHC -Wno-unused-matches #-}
-
 module Testlib.RunServices where
 
 import Control.Concurrent

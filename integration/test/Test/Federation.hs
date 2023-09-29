@@ -1,9 +1,8 @@
 {-# LANGUAGE OverloadedLabels #-}
-{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 module Test.Federation where
 
-import API.Brig qualified as API
+import API.Brig qualified as BrigP
 import API.Galley
 import Control.Lens
 import Control.Monad.Codensity
@@ -22,10 +21,10 @@ testNotificationsForOfflineBackends :: HasCallStack => App ()
 testNotificationsForOfflineBackends = do
   resourcePool <- asks (.resourcePool)
   -- `delUser` will eventually get deleted.
-  [delUser, otherUser, otherUser2] <- createAndConnectUsers [OwnDomain, OtherDomain, OtherDomain]
-  delClient <- objId $ bindResponse (API.addClient delUser def) $ getJSON 201
-  otherClient <- objId $ bindResponse (API.addClient otherUser def) $ getJSON 201
-  otherClient2 <- objId $ bindResponse (API.addClient otherUser2 def) $ getJSON 201
+  [delUser, otherUser, otherUser2] <- createUsers [OwnDomain, OtherDomain, OtherDomain]
+  delClient <- objId $ bindResponse (BrigP.addClient delUser def) $ getJSON 201
+  otherClient <- objId $ bindResponse (BrigP.addClient otherUser def) $ getJSON 201
+  otherClient2 <- objId $ bindResponse (BrigP.addClient otherUser2 def) $ getJSON 201
 
   -- We call it 'downBackend' because it is down for most of this test
   -- except for setup and assertions. Perhaps there is a better name.
@@ -33,10 +32,14 @@ testNotificationsForOfflineBackends = do
     (downUser1, downClient1, downUser2, upBackendConv, downBackendConv) <- runCodensity (startDynamicBackend downBackend mempty) $ \_ -> do
       downUser1 <- randomUser downBackend.berDomain def
       downUser2 <- randomUser downBackend.berDomain def
-      downClient1 <- objId $ bindResponse (API.addClient downUser1 def) $ getJSON 201
+      downClient1 <- objId $ bindResponse (BrigP.addClient downUser1 def) $ getJSON 201
+
+      connectUsers delUser otherUser
+      connectUsers delUser otherUser2
       connectUsers delUser downUser1
       connectUsers delUser downUser2
-      connectUsers otherUser downUser1
+      connectUsers downUser1 otherUser
+
       upBackendConv <- bindResponse (postConversation delUser (defProteus {qualifiedUsers = [otherUser, otherUser2, downUser1]})) $ getJSON 201
       downBackendConv <- bindResponse (postConversation downUser1 (defProteus {qualifiedUsers = [otherUser, delUser]})) $ getJSON 201
       pure (downUser1, downClient1, downUser2, upBackendConv, downBackendConv)

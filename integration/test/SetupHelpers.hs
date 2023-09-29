@@ -76,16 +76,14 @@ connectUsers alice bob = do
   bindResponse (Brig.postConnection alice bob) (\resp -> resp.status `shouldMatchInt` 201)
   bindResponse (Brig.putConnection bob alice "accepted") (\resp -> resp.status `shouldMatchInt` 200)
 
-createAndConnectUsers :: (HasCallStack, MakesValue domain) => [domain] -> App [Value]
-createAndConnectUsers domains = do
-  users <- for domains (flip randomUser def)
-  let userPairs = do
-        t <- tails users
-        (a, others) <- maybeToList (uncons t)
-        b <- others
-        pure (a, b)
-  for_ userPairs (uncurry connectUsers)
-  pure users
+createAndConnectUsers :: (HasCallStack, MakesValue domain) => domain -> domain -> App (Value, Value)
+createAndConnectUsers d1 d2 = do
+  [u1, u2] <- for [d1, d2] (flip randomUser def)
+  connectUsers u1 u2
+  pure (u1, u2)
+
+createUsers :: (HasCallStack, MakesValue domain) => [domain] -> App [Value]
+createUsers domains = for domains (flip randomUser def)
 
 getAllConvs :: (HasCallStack, MakesValue u) => u -> App [Value]
 getAllConvs u = do
