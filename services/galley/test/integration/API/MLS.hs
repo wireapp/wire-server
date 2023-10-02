@@ -64,7 +64,6 @@ import Wire.API.MLS.SubConversation
 import Wire.API.Message
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.Routes.Version
-import Wire.API.Unreachable
 
 tests :: IO TestSetup -> TestTree
 tests s =
@@ -580,7 +579,7 @@ testRemoteAppMessage = do
     ((message, events), reqs) <- withTempMockFederator' mock $ do
       void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
       message <- createApplicationMessage alice1 "hello"
-      (events, _) <- sendAndConsumeMessage message
+      events <- sendAndConsumeMessage message
       pure (message, events)
 
     liftIO $ do
@@ -833,7 +832,7 @@ testAppMessage = do
     message <- createApplicationMessage alice1 "some text"
 
     mlsBracket clients $ \wss -> do
-      (events, _) <- sendAndConsumeMessage message
+      events <- sendAndConsumeMessage message
       liftIO $ events @?= []
       liftIO $ do
         WS.assertMatchN_ (5 # WS.Second) (tail wss) $
@@ -862,7 +861,7 @@ testAppMessage2 = do
     message <- createApplicationMessage bob1 "some text"
 
     mlsBracket (alice1 : clients) $ \[wsAlice1, wsBob1, wsBob2, wsCharlie1] -> do
-      (events, _) <- sendAndConsumeMessage message
+      events <- sendAndConsumeMessage message
       liftIO $ events @?= []
 
       -- check that the corresponding event is received by everyone except bob1
@@ -889,10 +888,9 @@ testAppMessageUnreachable = do
         sendAndConsumeCommitBundle commit
 
     message <- createApplicationMessage alice1 "hi, bob!"
-    (_, failed) <- sendAndConsumeMessage message
+    _ <- sendAndConsumeMessage message
     liftIO $ do
       assertBool "Event should be member join" $ is _EdMembersJoin (evtData event)
-      failed @?= unreachableFromList [bob]
 
 testRemoteToRemote :: TestM ()
 testRemoteToRemote = do
@@ -2068,7 +2066,7 @@ testSendMessageSubConv = do
 
     message <- createApplicationMessage alice1 "some text"
     mlsBracket [bob1, bob2] $ \wss -> do
-      (events, _) <- sendAndConsumeMessage message
+      events <- sendAndConsumeMessage message
       liftIO $ events @?= []
       liftIO $
         WS.assertMatchN_ (5 # WS.Second) wss $ \n -> do

@@ -50,7 +50,6 @@ import Data.Set qualified as Set
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
 import Data.Time
-import Data.Tuple.Extra qualified as Tuple
 import Data.UUID qualified as UUID
 import Data.UUID.V4 qualified as UUIDV4
 import Galley.Keys
@@ -83,7 +82,6 @@ import Wire.API.MLS.LeafNode
 import Wire.API.MLS.Message
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
-import Wire.API.Unreachable
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
 
@@ -866,11 +864,11 @@ consumeMessage1 cid msg =
 
 -- | Send an MLS message and simulate clients receiving it. If the message is a
 -- commit, the 'sendAndConsumeCommitBundle' function should be used instead.
-sendAndConsumeMessage :: HasCallStack => MessagePackage -> MLSTest ([Event], Maybe UnreachableUsers)
+sendAndConsumeMessage :: HasCallStack => MessagePackage -> MLSTest [Event]
 sendAndConsumeMessage mp = do
   for_ mp.mpWelcome $ \_ -> liftIO $ assertFailure "use sendAndConsumeCommitBundle"
   res <-
-    fmap (mmssEvents Tuple.&&& mmssFailedToSendTo) $
+    fmap mmssEvents $
       responseJsonError
         =<< postMessage (mpSender mp) (mpMessage mp)
           <!! const 201 === statusCode
