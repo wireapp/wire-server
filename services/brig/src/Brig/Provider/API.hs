@@ -20,6 +20,7 @@ module Brig.Provider.API
     routesPublic,
     routesInternal,
     botAPI,
+    providerAPI,
 
     -- * Event handlers
     finishDeleteService,
@@ -76,7 +77,6 @@ import Data.Range
 import Data.Set qualified as Set
 import Data.Text.Ascii qualified as Ascii
 import Data.Text.Encoding qualified as Text
-import Data.ZAuth.Token qualified as ZAuth
 import GHC.TypeNats
 import Imports
 import Network.HTTP.Types.Status
@@ -86,7 +86,7 @@ import Network.Wai.Routing
 import Network.Wai.Utilities.Error ((!>>))
 import Network.Wai.Utilities.Error qualified as Wai
 import Network.Wai.Utilities.Request (JsonRequest, jsonRequest)
-import Network.Wai.Utilities.Response (addHeader, empty, json, setStatus)
+import Network.Wai.Utilities.Response (empty, json, setStatus)
 import Network.Wai.Utilities.ZAuth
 import OpenSSL.EVP.Digest qualified as SSL
 import OpenSSL.EVP.PKey qualified as SSL
@@ -98,7 +98,6 @@ import Servant (ServerT, (:<|>) (..))
 import Ssl.Util qualified as SSL
 import System.Logger.Class (MonadLogger)
 import UnliftIO.Async (pooledMapConcurrentlyN_)
-import Web.Cookie qualified as Cookie
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Bot
 import Wire.API.Conversation.Bot qualified as Public
@@ -118,11 +117,13 @@ import Wire.API.Provider.Service qualified as Public
 import Wire.API.Provider.Service.Tag qualified as Public
 import Wire.API.Routes.Named (Named (Named))
 import Wire.API.Routes.Public.Brig.Bot (BotAPI)
+import Wire.API.Routes.Public.Brig.Provider (ProviderAPI)
 import Wire.API.Team.Feature qualified as Feature
 import Wire.API.Team.LegalHold (LegalholdProtectee (UnprotectedBot))
 import Wire.API.Team.Permission
 import Wire.API.User hiding (cpNewPassword, cpOldPassword)
 import Wire.API.User qualified as Public (UserProfile, publicProfile)
+import Wire.API.User.Auth
 import Wire.API.User.Client
 import Wire.API.User.Client qualified as Public (Client, ClientCapability (ClientSupportsLegalholdImplicitConsent), PubClient (..), UserClientPrekeyMap, UserClients, userClients)
 import Wire.API.User.Client.Prekey qualified as Public (PrekeyId)
@@ -146,65 +147,26 @@ botAPI =
     :<|> Named @"bot-list-users" botListUserProfiles
     :<|> Named @"bot-get-user-clients" botGetUserClients
 
+providerAPI :: Member GalleyProvider r => ServerT ProviderAPI (Handler r)
+providerAPI =
+  Named @"provider-register" newAccount
+    :<|> Named @"provider-activate" activateAccountKey
+    :<|> Named @"provider-login" login
+    :<|> Named @"provider-password-reset" beginPasswordReset
+    :<|> Named @"provider-password-reset-complete" completePasswordReset
+    :<|> Named @"provider-delete" deleteAccount
+    :<|> Named @"provider-update" updateAccountProfile
+    :<|> Named @"provider-update-email" updateAccountEmail
+    :<|> Named @"provider-update-password" updateAccountPassword
+    :<|> Named @"provider-get-account" getAccount
+    :<|> Named @"provider-get-profile" getProviderProfile
+
 routesPublic ::
   ( Member GalleyProvider r
   ) =>
   Routes () (Handler r) ()
 routesPublic = do
-  -- Public API (Unauthenticated) --------------------------------------------
-
-  post "/provider/register" (continue newAccountH) $
-    accept "application" "json"
-      .&> jsonRequest @Public.NewProvider
-
-  get "/provider/activate" (continue activateAccountKeyH) $
-    accept "application" "json"
-      .&> query "key"
-        .&. query "code"
-
-  get "/provider/approve" (continue approveAccountKeyH) $
-    accept "application" "json"
-      .&> query "key"
-        .&. query "code"
-
-  post "/provider/login" (continue loginH) $
-    jsonRequest @Public.ProviderLogin
-
-  post "/provider/password-reset" (continue beginPasswordResetH) $
-    accept "application" "json"
-      .&> jsonRequest @Public.PasswordReset
-
-  post "/provider/password-reset/complete" (continue completePasswordResetH) $
-    accept "application" "json"
-      .&> jsonRequest @Public.CompletePasswordReset
-
   -- Provider API ------------------------------------------------------------
-
-  delete "/provider" (continue deleteAccountH) $
-    zauth ZAuthProvider
-      .&> zauthProviderId
-        .&. jsonRequest @Public.DeleteProvider
-
-  put "/provider" (continue updateAccountProfileH) $
-    accept "application" "json"
-      .&> zauth ZAuthProvider
-      .&> zauthProviderId
-        .&. jsonRequest @Public.UpdateProvider
-
-  put "/provider/email" (continue updateAccountEmailH) $
-    zauth ZAuthProvider
-      .&> zauthProviderId
-        .&. jsonRequest @Public.EmailUpdate
-
-  put "/provider/password" (continue updateAccountPasswordH) $
-    zauth ZAuthProvider
-      .&> zauthProviderId
-        .&. jsonRequest @Public.PasswordChange
-
-  get "/provider" (continue getAccountH) $
-    accept "application" "json"
-      .&> zauth ZAuthProvider
-      .&> zauthProviderId
 
   post "/provider/services" (continue addServiceH) $
     accept "application" "json"
@@ -247,11 +209,6 @@ routesPublic = do
         .&. jsonRequest @Public.DeleteService
 
   -- User API ----------------------------------------------------------------
-
-  get "/providers/:pid" (continue getProviderProfileH) $
-    accept "application" "json"
-      .&> zauth ZAuthAccess
-      .&> capture "pid"
 
   get "/providers/:pid/services" (continue listServiceProfilesH) $
     accept "application" "json"
@@ -300,13 +257,9 @@ routesInternal = do
 --------------------------------------------------------------------------------
 -- Public API (Unauthenticated)
 
-newAccountH :: Member GalleyProvider r => JsonRequest Public.NewProvider -> (Handler r) Response
-newAccountH req = do
-  guardSecondFactorDisabled Nothing
-  setStatus status201 . json <$> (newAccount =<< parseJsonBody req)
-
-newAccount :: Public.NewProvider -> (Handler r) Public.NewProviderResponse
+newAccount :: Member GalleyProvider r => Public.NewProvider -> (Handler r) Public.NewProviderResponse
 newAccount new = do
+  guardSecondFactorDisabled Nothing
   email <- case validateEmail (Public.newProviderEmail new) of
     Right em -> pure em
     Left _ -> throwStd (errorToWai @'E.InvalidEmail)
@@ -337,13 +290,9 @@ newAccount new = do
   lift $ sendActivationMail name email key val False
   pure $ Public.NewProviderResponse pid newPass
 
-activateAccountKeyH :: Member GalleyProvider r => Code.Key ::: Code.Value -> (Handler r) Response
-activateAccountKeyH (key ::: val) = do
-  guardSecondFactorDisabled Nothing
-  maybe (setStatus status204 empty) json <$> activateAccountKey key val
-
-activateAccountKey :: Code.Key -> Code.Value -> (Handler r) (Maybe Public.ProviderActivationResponse)
+activateAccountKey :: Member GalleyProvider r => Code.Key -> Code.Value -> (Handler r) (Maybe Public.ProviderActivationResponse)
 activateAccountKey key val = do
+  guardSecondFactorDisabled Nothing
   c <- wrapClientE (Code.verify key Code.IdentityVerification val) >>= maybeInvalidCode
   (pid, email) <- case (Code.codeAccount c, Code.codeForEmail c) of
     (Just p, Just e) -> pure (Id p, e)
@@ -385,42 +334,20 @@ instance ToJSON FoundActivationCode where
     toJSON $
       Code.KeyValuePair (Code.codeKey vcode) (Code.codeValue vcode)
 
-approveAccountKeyH :: Member GalleyProvider r => Code.Key ::: Code.Value -> (Handler r) Response
-approveAccountKeyH (key ::: val) = do
-  guardSecondFactorDisabled Nothing
-  empty <$ approveAccountKey key val
-
-approveAccountKey :: Code.Key -> Code.Value -> (Handler r) ()
-approveAccountKey key val = do
-  c <- wrapClientE (Code.verify key Code.AccountApproval val) >>= maybeInvalidCode
-  case (Code.codeAccount c, Code.codeForEmail c) of
-    (Just pid, Just email) -> do
-      (name, _, _, _) <- wrapClientE (DB.lookupAccountData (Id pid)) >>= maybeInvalidCode
-      activate (Id pid) Nothing email
-      lift $ sendApprovalConfirmMail name email
-    _ -> throwStd (errorToWai @'E.InvalidCode)
-
-loginH :: Member GalleyProvider r => JsonRequest Public.ProviderLogin -> (Handler r) Response
-loginH req = do
-  guardSecondFactorDisabled Nothing
-  tok <- login =<< parseJsonBody req
-  setProviderCookie tok empty
-
-login :: Public.ProviderLogin -> Handler r (ZAuth.Token ZAuth.Provider)
+login :: Member GalleyProvider r => ProviderLogin -> Handler r ProviderTokenCookie
 login l = do
+  guardSecondFactorDisabled Nothing
   pid <- wrapClientE (DB.lookupKey (mkEmailKey (providerLoginEmail l))) >>= maybeBadCredentials
   pass <- wrapClientE (DB.lookupPassword pid) >>= maybeBadCredentials
   unless (verifyPassword (providerLoginPassword l) pass) $
     throwStd (errorToWai @'E.BadCredentials)
-  ZAuth.newProviderToken pid
+  token <- ZAuth.newProviderToken pid
+  s <- view settings
+  pure $ ProviderTokenCookie (ProviderToken token) (not (setCookieInsecure s))
 
-beginPasswordResetH :: Member GalleyProvider r => JsonRequest Public.PasswordReset -> (Handler r) Response
-beginPasswordResetH req = do
-  guardSecondFactorDisabled Nothing
-  setStatus status201 empty <$ (beginPasswordReset =<< parseJsonBody req)
-
-beginPasswordReset :: Public.PasswordReset -> (Handler r) ()
+beginPasswordReset :: Member GalleyProvider r => Public.PasswordReset -> (Handler r) ()
 beginPasswordReset (Public.PasswordReset target) = do
+  guardSecondFactorDisabled Nothing
   pid <- wrapClientE (DB.lookupKey (mkEmailKey target)) >>= maybeBadCredentials
   gen <- Code.mkGen (Code.ForEmail target)
   pending <- lift . wrapClient $ Code.lookup (Code.genKey gen) Code.PasswordReset
@@ -436,20 +363,16 @@ beginPasswordReset (Public.PasswordReset target) = do
   tryInsertVerificationCode code $ verificationCodeThrottledError . VerificationCodeThrottled
   lift $ sendPasswordResetMail target (Code.codeKey code) (Code.codeValue code)
 
-completePasswordResetH :: Member GalleyProvider r => JsonRequest Public.CompletePasswordReset -> (Handler r) Response
-completePasswordResetH req = do
-  guardSecondFactorDisabled Nothing
-  empty <$ (completePasswordReset =<< parseJsonBody req)
-
-completePasswordReset :: Public.CompletePasswordReset -> (Handler r) ()
+completePasswordReset :: Member GalleyProvider r => Public.CompletePasswordReset -> (Handler r) ()
 completePasswordReset (Public.CompletePasswordReset key val newpwd) = do
+  guardSecondFactorDisabled Nothing
   code <- wrapClientE (Code.verify key Code.PasswordReset val) >>= maybeInvalidCode
   case Id <$> Code.codeAccount code of
-    Nothing -> throwE $ pwResetError InvalidPasswordResetCode
+    Nothing -> throwStd (errorToWai @'E.InvalidPasswordResetCode)
     Just pid -> do
       oldpass <- wrapClientE (DB.lookupPassword pid) >>= maybeBadCredentials
       when (verifyPassword newpwd oldpass) $ do
-        throwStd newPasswordMustDiffer
+        throwStd (errorToWai @'E.ResetPasswordMustDiffer)
       wrapClientE $ do
         DB.updateAccountPassword pid newpwd
         Code.delete key Code.PasswordReset
@@ -457,23 +380,14 @@ completePasswordReset (Public.CompletePasswordReset key val newpwd) = do
 --------------------------------------------------------------------------------
 -- Provider API
 
-getAccountH :: Member GalleyProvider r => ProviderId -> (Handler r) Response
-getAccountH pid = do
+getAccount :: Member GalleyProvider r => ProviderId -> (Handler r) (Maybe Public.Provider)
+getAccount pid = do
   guardSecondFactorDisabled Nothing
-  getAccount pid <&> \case
-    Just p -> json p
-    Nothing -> setStatus status404 empty
+  wrapClientE $ DB.lookupAccount pid
 
-getAccount :: ProviderId -> (Handler r) (Maybe Public.Provider)
-getAccount = wrapClientE . DB.lookupAccount
-
-updateAccountProfileH :: Member GalleyProvider r => ProviderId ::: JsonRequest Public.UpdateProvider -> (Handler r) Response
-updateAccountProfileH (pid ::: req) = do
-  guardSecondFactorDisabled Nothing
-  empty <$ (updateAccountProfile pid =<< parseJsonBody req)
-
-updateAccountProfile :: ProviderId -> Public.UpdateProvider -> (Handler r) ()
+updateAccountProfile :: Member GalleyProvider r => ProviderId -> Public.UpdateProvider -> (Handler r) ()
 updateAccountProfile pid upd = do
+  guardSecondFactorDisabled Nothing
   _ <- wrapClientE (DB.lookupAccount pid) >>= maybeInvalidProvider
   wrapClientE $
     DB.updateAccountProfile
@@ -482,13 +396,9 @@ updateAccountProfile pid upd = do
       (updateProviderUrl upd)
       (updateProviderDescr upd)
 
-updateAccountEmailH :: Member GalleyProvider r => ProviderId ::: JsonRequest Public.EmailUpdate -> (Handler r) Response
-updateAccountEmailH (pid ::: req) = do
-  guardSecondFactorDisabled Nothing
-  setStatus status202 empty <$ (updateAccountEmail pid =<< parseJsonBody req)
-
-updateAccountEmail :: ProviderId -> Public.EmailUpdate -> (Handler r) ()
+updateAccountEmail :: Member GalleyProvider r => ProviderId -> Public.EmailUpdate -> (Handler r) ()
 updateAccountEmail pid (Public.EmailUpdate new) = do
+  guardSecondFactorDisabled Nothing
   email <- case validateEmail new of
     Right em -> pure em
     Left _ -> throwStd (errorToWai @'E.InvalidEmail)
@@ -505,18 +415,14 @@ updateAccountEmail pid (Public.EmailUpdate new) = do
   tryInsertVerificationCode code $ verificationCodeThrottledError . VerificationCodeThrottled
   lift $ sendActivationMail (Name "name") email (Code.codeKey code) (Code.codeValue code) True
 
-updateAccountPasswordH :: Member GalleyProvider r => ProviderId ::: JsonRequest Public.PasswordChange -> (Handler r) Response
-updateAccountPasswordH (pid ::: req) = do
-  guardSecondFactorDisabled Nothing
-  empty <$ (updateAccountPassword pid =<< parseJsonBody req)
-
-updateAccountPassword :: ProviderId -> Public.PasswordChange -> (Handler r) ()
+updateAccountPassword :: Member GalleyProvider r => ProviderId -> Public.PasswordChange -> (Handler r) ()
 updateAccountPassword pid upd = do
+  guardSecondFactorDisabled Nothing
   pass <- wrapClientE (DB.lookupPassword pid) >>= maybeBadCredentials
   unless (verifyPassword (oldPassword upd) pass) $
     throwStd (errorToWai @'E.BadCredentials)
   when (verifyPassword (newPassword upd) pass) $
-    throwStd newPasswordMustDiffer
+    throwStd (errorToWai @'E.ResetPasswordMustDiffer)
   wrapClientE $ DB.updateAccountPassword pid (newPassword upd)
 
 addServiceH :: Member GalleyProvider r => ProviderId ::: JsonRequest Public.NewService -> (Handler r) Response
@@ -683,56 +589,35 @@ finishDeleteService pid sid = do
   where
     kick (bid, cid, _) = deleteBot (botUserId bid) Nothing bid cid
 
-deleteAccountH ::
-  Member GalleyProvider r =>
-  ProviderId ::: JsonRequest Public.DeleteProvider ->
-  ExceptT Error (AppT r) Response
-deleteAccountH (pid ::: req) = do
-  guardSecondFactorDisabled Nothing
-  empty
-    <$ mapExceptT
-      wrapHttpClient
-      ( deleteAccount pid
-          =<< parseJsonBody req
-      )
-
 deleteAccount ::
-  ( MonadReader Env m,
-    MonadMask m,
-    MonadHttp m,
-    MonadClient m,
-    HasRequestId m,
-    MonadLogger m
+  ( Member GalleyProvider r
   ) =>
   ProviderId ->
   Public.DeleteProvider ->
-  ExceptT Error m ()
+  (Handler r) ()
 deleteAccount pid del = do
-  prov <- DB.lookupAccount pid >>= maybeInvalidProvider
-  pass <- DB.lookupPassword pid >>= maybeBadCredentials
+  guardSecondFactorDisabled Nothing
+  prov <- wrapClientE (DB.lookupAccount pid) >>= maybeInvalidProvider
+  pass <- wrapClientE (DB.lookupPassword pid) >>= maybeBadCredentials
   unless (verifyPassword (deleteProviderPassword del) pass) $
     throwStd (errorToWai @'E.BadCredentials)
-  svcs <- DB.listServices pid
+  svcs <- wrapClientE $ DB.listServices pid
   forM_ svcs $ \svc -> do
     let sid = serviceId svc
     let tags = unsafeRange (serviceTags svc)
         name = serviceName svc
-    lift $ RPC.removeServiceConn pid sid
-    DB.deleteService pid sid name tags
-  DB.deleteKey (mkEmailKey (providerEmail prov))
-  DB.deleteAccount pid
+    lift $ wrapHttpClient $ RPC.removeServiceConn pid sid
+    wrapClientE $ DB.deleteService pid sid name tags
+  wrapClientE $ DB.deleteKey (mkEmailKey (providerEmail prov))
+  wrapClientE $ DB.deleteAccount pid
 
 --------------------------------------------------------------------------------
 -- User API
 
-getProviderProfileH :: Member GalleyProvider r => ProviderId -> (Handler r) Response
-getProviderProfileH pid = do
+getProviderProfile :: Member GalleyProvider r => UserId -> ProviderId -> (Handler r) (Maybe Public.ProviderProfile)
+getProviderProfile _ pid = do
   guardSecondFactorDisabled Nothing
-  json <$> getProviderProfile pid
-
-getProviderProfile :: ProviderId -> (Handler r) Public.ProviderProfile
-getProviderProfile pid =
-  wrapClientE (DB.lookupAccountProfile pid) >>= maybeProviderNotFound
+  wrapClientE (DB.lookupAccountProfile pid)
 
 listServiceProfilesH :: Member GalleyProvider r => ProviderId -> (Handler r) Response
 listServiceProfilesH pid = do
@@ -1112,22 +997,6 @@ mkBotUserView u =
       Ext.botUserViewTeam = userTeam u
     }
 
-setProviderCookie :: ZAuth.Token ZAuth.Provider -> Response -> (Handler r) Response
-setProviderCookie t r = do
-  s <- view settings
-  let hdr = toByteString' (Cookie.renderSetCookie (cookie s))
-  pure (addHeader "Set-Cookie" hdr r)
-  where
-    cookie s =
-      Cookie.def
-        { Cookie.setCookieName = "zprovider",
-          Cookie.setCookieValue = toByteString' t,
-          Cookie.setCookiePath = Just "/provider",
-          Cookie.setCookieExpires = Just (ZAuth.tokenExpiresUTC t),
-          Cookie.setCookieSecure = not (setCookieInsecure s),
-          Cookie.setCookieHttpOnly = True
-        }
-
 maybeInvalidProvider :: Monad m => Maybe a -> (ExceptT Error m) a
 maybeInvalidProvider = maybe (throwStd invalidProvider) pure
 
@@ -1136,9 +1005,6 @@ maybeInvalidCode = maybe (throwStd (errorToWai @'E.InvalidCode)) pure
 
 maybeServiceNotFound :: Monad m => Maybe a -> (ExceptT Error m) a
 maybeServiceNotFound = maybe (throwStd (notFound "Service not found")) pure
-
-maybeProviderNotFound :: Monad m => Maybe a -> (ExceptT Error m) a
-maybeProviderNotFound = maybe (throwStd (notFound "Provider not found")) pure
 
 maybeConvNotFound :: Monad m => Maybe a -> (ExceptT Error m) a
 maybeConvNotFound = maybe (throwStd (notFound "Conversation not found")) pure
@@ -1159,7 +1025,7 @@ invalidServiceKey :: Wai.Error
 invalidServiceKey = Wai.mkError status400 "invalid-service-key" "Invalid service key."
 
 invalidProvider :: Wai.Error
-invalidProvider = Wai.mkError status403 "invalid-provider" "The provider does not exist."
+invalidProvider = errorToWai @'E.InvalidProvider
 
 badGateway :: Wai.Error
 badGateway = Wai.mkError status502 "bad-gateway" "The upstream service returned an invalid response."
