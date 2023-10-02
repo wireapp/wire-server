@@ -208,7 +208,7 @@ data Service = Service
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform Service)
-  deriving (S.ToSchema) via (Schema Service)
+  deriving (S.ToSchema, ToJSON, FromJSON) via (Schema Service)
 
 instance ToSchema Service where
   schema =
@@ -224,35 +224,6 @@ instance ToSchema Service where
         <*> serviceAssets .= field "assets" (array schema)
         <*> serviceTags .= field "tags" (set schema)
         <*> serviceEnabled .= field "enabled" schema
-
-instance ToJSON Service where
-  toJSON s =
-    A.object $
-      "id" A..= serviceId s
-        # "name" A..= serviceName s
-        # "summary" A..= serviceSummary s
-        # "description" A..= serviceDescr s
-        # "base_url" A..= serviceUrl s
-        # "auth_tokens" A..= serviceTokens s
-        # "public_keys" A..= serviceKeys s
-        # "assets" A..= serviceAssets s
-        # "tags" A..= serviceTags s
-        # "enabled" A..= serviceEnabled s
-        # []
-
-instance FromJSON Service where
-  parseJSON = A.withObject "Service" $ \o ->
-    Service
-      <$> o A..: "id"
-      <*> o A..: "name"
-      <*> o A..: "summary"
-      <*> o A..: "description"
-      <*> o A..: "base_url"
-      <*> o A..: "auth_tokens"
-      <*> o A..: "public_keys"
-      <*> o A..: "assets"
-      <*> o A..: "tags"
-      <*> o A..: "enabled"
 
 -- | A /secret/ bearer token used to authenticate and authorise requests @towards@
 -- a 'Service' via inclusion in the HTTP 'Authorization' header.
@@ -284,32 +255,7 @@ data ServiceProfile = ServiceProfile
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ServiceProfile)
-  deriving (S.ToSchema) via (Schema ServiceProfile)
-
-instance ToJSON ServiceProfile where
-  toJSON s =
-    A.object $
-      "id" A..= serviceProfileId s
-        # "provider" A..= serviceProfileProvider s
-        # "name" A..= serviceProfileName s
-        # "summary" A..= serviceProfileSummary s
-        # "description" A..= serviceProfileDescr s
-        # "assets" A..= serviceProfileAssets s
-        # "tags" A..= serviceProfileTags s
-        # "enabled" A..= serviceProfileEnabled s
-        # []
-
-instance FromJSON ServiceProfile where
-  parseJSON = A.withObject "ServiceProfile" $ \o ->
-    ServiceProfile
-      <$> o A..: "id"
-      <*> o A..: "provider"
-      <*> o A..: "name"
-      <*> o A..: "summary"
-      <*> o A..: "description"
-      <*> o A..: "assets"
-      <*> o A..: "tags"
-      <*> o A..: "enabled"
+  deriving (S.ToSchema, ToJSON, FromJSON) via (Schema ServiceProfile)
 
 instance ToSchema ServiceProfile where
   schema =
@@ -358,7 +304,7 @@ data NewService = NewService
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform NewService)
-  deriving (S.ToSchema) via (Schema NewService)
+  deriving (S.ToSchema, ToJSON, FromJSON) via (Schema NewService)
 
 instance ToSchema NewService where
   schema =
@@ -373,31 +319,6 @@ instance ToSchema NewService where
         <*> newServiceAssets .= field "assets" (array schema)
         <*> newServiceTags .= field "tags" (fromRange .= rangedSchema (set schema))
 
-instance ToJSON NewService where
-  toJSON s =
-    A.object $
-      "name" A..= newServiceName s
-        # "summary" A..= newServiceSummary s
-        # "description" A..= newServiceDescr s
-        # "base_url" A..= newServiceUrl s
-        # "public_key" A..= newServiceKey s
-        # "auth_token" A..= newServiceToken s
-        # "assets" A..= newServiceAssets s
-        # "tags" A..= newServiceTags s
-        # []
-
-instance FromJSON NewService where
-  parseJSON = A.withObject "NewService" $ \o ->
-    NewService
-      <$> o A..: "name"
-      <*> o A..: "summary"
-      <*> o A..: "description"
-      <*> o A..: "base_url"
-      <*> o A..: "public_key"
-      <*> o A..:? "auth_token"
-      <*> o A..:? "assets" A..!= []
-      <*> o A..: "tags"
-
 -- | Response data upon adding a new service.
 data NewServiceResponse = NewServiceResponse
   { rsNewServiceId :: ServiceId,
@@ -408,7 +329,7 @@ data NewServiceResponse = NewServiceResponse
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform NewServiceResponse)
-  deriving (S.ToSchema) via (Schema NewServiceResponse)
+  deriving (S.ToSchema, ToJSON, FromJSON) via (Schema NewServiceResponse)
 
 instance ToSchema NewServiceResponse where
   schema =
@@ -416,19 +337,6 @@ instance ToSchema NewServiceResponse where
       NewServiceResponse
         <$> rsNewServiceId .= field "id" schema
         <*> rsNewServiceToken .= maybe_ (optField "auth_token" schema)
-
-instance ToJSON NewServiceResponse where
-  toJSON r =
-    A.object $
-      "id" A..= rsNewServiceId r
-        # "auth_token" A..= rsNewServiceToken r
-        # []
-
-instance FromJSON NewServiceResponse where
-  parseJSON = A.withObject "NewServiceResponse" $ \o ->
-    NewServiceResponse
-      <$> o A..: "id"
-      <*> o A..:? "auth_token"
 
 --------------------------------------------------------------------------------
 -- UpdateService
@@ -443,7 +351,7 @@ data UpdateService = UpdateService
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UpdateService)
-  deriving (S.ToSchema) via (Schema UpdateService)
+  deriving (S.ToSchema, FromJSON, ToJSON) via (Schema UpdateService)
 
 instance ToSchema UpdateService where
   schema =
@@ -454,25 +362,6 @@ instance ToSchema UpdateService where
         <*> updateServiceDescr .= maybe_ (optField "description" schema)
         <*> updateServiceAssets .= maybe_ (optField "assets" $ array schema)
         <*> updateServiceTags .= maybe_ (optField "tags" (fromRange .= rangedSchema (set schema)))
-
-instance ToJSON UpdateService where
-  toJSON u =
-    A.object $
-      "name" A..= updateServiceName u
-        # "summary" A..= updateServiceSummary u
-        # "description" A..= updateServiceDescr u
-        # "assets" A..= updateServiceAssets u
-        # "tags" A..= updateServiceTags u
-        # []
-
-instance FromJSON UpdateService where
-  parseJSON = A.withObject "UpdateService" $ \o ->
-    UpdateService
-      <$> o A..:? "name"
-      <*> o A..:? "summary"
-      <*> o A..:? "description"
-      <*> o A..:? "assets"
-      <*> o A..:? "tags"
 
 --------------------------------------------------------------------------------
 -- UpdateServiceConn
@@ -488,7 +377,7 @@ data UpdateServiceConn = UpdateServiceConn
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UpdateServiceConn)
-  deriving (S.ToSchema) via (Schema UpdateServiceConn)
+  deriving (S.ToSchema, ToJSON, FromJSON) via (Schema UpdateServiceConn)
 
 instance ToSchema UpdateServiceConn where
   schema =
@@ -503,25 +392,6 @@ instance ToSchema UpdateServiceConn where
 mkUpdateServiceConn :: PlainTextPassword6 -> UpdateServiceConn
 mkUpdateServiceConn pw = UpdateServiceConn pw Nothing Nothing Nothing Nothing
 
-instance ToJSON UpdateServiceConn where
-  toJSON u =
-    A.object $
-      "password" A..= updateServiceConnPassword u
-        # "base_url" A..= updateServiceConnUrl u
-        # "public_keys" A..= updateServiceConnKeys u
-        # "auth_tokens" A..= updateServiceConnTokens u
-        # "enabled" A..= updateServiceConnEnabled u
-        # []
-
-instance FromJSON UpdateServiceConn where
-  parseJSON = A.withObject "UpdateServiceConn" $ \o ->
-    UpdateServiceConn
-      <$> o A..: "password"
-      <*> o A..:? "base_url"
-      <*> o A..:? "public_keys"
-      <*> o A..:? "auth_tokens"
-      <*> o A..:? "enabled"
-
 --------------------------------------------------------------------------------
 -- DeleteService
 
@@ -530,23 +400,13 @@ newtype DeleteService = DeleteService
   {deleteServicePassword :: PlainTextPassword6}
   deriving stock (Eq, Show)
   deriving newtype (Arbitrary)
-  deriving (S.ToSchema) via (Schema DeleteService)
+  deriving (S.ToSchema, ToJSON, FromJSON) via (Schema DeleteService)
 
 instance ToSchema DeleteService where
   schema =
     object "DeleteService" $
       DeleteService
         <$> deleteServicePassword .= field "password" schema
-
-instance ToJSON DeleteService where
-  toJSON d =
-    A.object
-      [ "password" A..= deleteServicePassword d
-      ]
-
-instance FromJSON DeleteService where
-  parseJSON = A.withObject "DeleteService" $ \o ->
-    DeleteService <$> o A..: "password"
 
 --------------------------------------------------------------------------------
 -- UpdateServiceWhitelist
