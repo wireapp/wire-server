@@ -104,7 +104,10 @@ let
         hsuper
         hself;
 
-      werror = _: hlib.failOnAllWarnings;
+      # append `-Werror` to ghc options for all packages.
+      # failOnAllWarnings implies `-Wall`, which overrides any `-Wno-*` from the package cabal file.
+      # https://github.com/NixOS/nixpkgs/blob/1e411c55166539b130b330dafcc4034152f8d4fd/pkgs/development/haskell-modules/lib/compose.nix#L327
+      werror = _: (drv: hlib.appendConfigureFlag drv "--ghc-option=-Werror");
       opt = _: drv:
         if enableOptimization
         then drv

@@ -1,5 +1,4 @@
 {-# OPTIONS_GHC -Wno-ambiguous-fields #-}
-{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -140,7 +139,9 @@ testFederationStatus = do
 testCreateConversationFullyConnected :: HasCallStack => App ()
 testCreateConversationFullyConnected = do
   startDynamicBackends [def, def, def] $ \[domainA, domainB, domainC] -> do
-    [u1, u2, u3] <- createAndConnectUsers [domainA, domainB, domainC]
+    [u1, u2, u3] <- createUsers [domainA, domainB, domainC]
+    connectUsers u1 u2
+    connectUsers u1 u3
     bindResponse (postConversation u1 (defProteus {qualifiedUsers = [u2, u3]})) $ \resp -> do
       resp.status `shouldMatchInt` 201
 
@@ -167,7 +168,9 @@ testCreateConversationNonFullyConnected = do
 testAddMembersFullyConnectedProteus :: HasCallStack => App ()
 testAddMembersFullyConnectedProteus = do
   startDynamicBackends [def, def, def] $ \[domainA, domainB, domainC] -> do
-    [u1, u2, u3] <- createAndConnectUsers [domainA, domainB, domainC]
+    [u1, u2, u3] <- createUsers [domainA, domainB, domainC]
+    connectUsers u1 u2
+    connectUsers u1 u3
     -- create conversation with no users
     cid <- postConversation u1 (defProteus {qualifiedUsers = []}) >>= getJSON 201
     -- add members from remote backends
@@ -241,7 +244,7 @@ testAddMember = do
 
 testAddMemberV1 :: HasCallStack => Domain -> App ()
 testAddMemberV1 domain = do
-  [alice, bob] <- createAndConnectUsers [OwnDomain, domain]
+  (alice, bob) <- createAndConnectUsers OwnDomain domain
   conv <- postConversation alice defProteus >>= getJSON 201
   bobId <- bob %. "qualified_id"
   let opts =
@@ -264,7 +267,8 @@ testConvWithUnreachableRemoteUsers = do
     startDynamicBackends [def, def] $ \domains -> do
       own <- make OwnDomain & asString
       other <- make OtherDomain & asString
-      users <- createAndConnectUsers $ [own, own, other] <> domains
+      users@(alice : others) <- createUsers $ [own, own, other] <> domains
+      forM_ others $ connectUsers alice
       pure (users, domains)
 
   let newConv = defProteus {qualifiedUsers = [alex, bob, charlie, dylan]}
@@ -282,11 +286,12 @@ testAddReachableWithUnreachableRemoteUsers = do
     startDynamicBackends [def, def] $ \domains -> do
       own <- make OwnDomain & asString
       other <- make OtherDomain & asString
-      [alice, alex, bob, charlie, dylan] <-
-        createAndConnectUsers $ [own, own, other] <> domains
+      [alice, alex, bob, charlie, dylan] <- createUsers $ [own, own, other] <> domains
+      forM_ [alex, bob, charlie, dylan] $ connectUsers alice
 
       let newConv = defProteus {qualifiedUsers = [alex, charlie, dylan]}
       conv <- postConversation alice newConv >>= getJSON 201
+      connectUsers alex bob
       pure ([alex, bob], conv, domains)
 
   bobId <- bob %. "qualified_id"
@@ -304,11 +309,12 @@ testAddUnreachable = do
   ([alex, charlie], [charlieDomain, dylanDomain], conv) <-
     startDynamicBackends [def, def] $ \domains -> do
       own <- make OwnDomain & asString
-      [alice, alex, charlie, dylan] <-
-        createAndConnectUsers $ [own, own] <> domains
+      [alice, alex, charlie, dylan] <- createUsers $ [own, own] <> domains
+      forM_ [alex, charlie, dylan] $ connectUsers alice
 
       let newConv = defProteus {qualifiedUsers = [alex, dylan]}
       conv <- postConversation alice newConv >>= getJSON 201
+      connectUsers alex charlie
       pure ([alex, charlie], domains, conv)
 
   charlieId <- charlie %. "qualified_id"
@@ -438,8 +444,8 @@ testAddUserWhenOtherBackendOffline = do
   ([alice, alex], conv) <-
     startDynamicBackends [def] $ \domains -> do
       own <- make OwnDomain & asString
-      [alice, alex, charlie] <-
-        createAndConnectUsers $ [own, own] <> domains
+      [alice, alex, charlie] <- createUsers $ [own, own] <> domains
+      forM_ [alex, charlie] $ connectUsers alice
 
       let newConv = defProteus {qualifiedUsers = [charlie]}
       conv <- postConversation alice newConv >>= getJSON 201
@@ -450,7 +456,7 @@ testAddUserWhenOtherBackendOffline = do
 testSynchroniseUserRemovalNotification :: HasCallStack => App ()
 testSynchroniseUserRemovalNotification = do
   resourcePool <- asks resourcePool
-  [alice, bob] <- createAndConnectUsers [OwnDomain, OtherDomain]
+  (alice, bob) <- createAndConnectUsers OwnDomain OtherDomain
   runCodensity (acquireResources 1 resourcePool) $ \[dynBackend] -> do
     (conv, charlie, client) <-
       runCodensity (startDynamicBackend dynBackend mempty) $ \_ -> do
@@ -476,7 +482,7 @@ testSynchroniseUserRemovalNotification = do
 
 testConvRenaming :: HasCallStack => App ()
 testConvRenaming = do
-  [alice, bob] <- createAndConnectUsers [OwnDomain, OtherDomain]
+  (alice, bob) <- createAndConnectUsers OwnDomain OtherDomain
   conv <-
     postConversation alice (defProteus {qualifiedUsers = [bob]})
       >>= getJSON 201
@@ -490,7 +496,7 @@ testConvRenaming = do
 
 testReceiptModeWithRemotesOk :: HasCallStack => App ()
 testReceiptModeWithRemotesOk = do
-  [alice, bob] <- createAndConnectUsers [OwnDomain, OtherDomain]
+  (alice, bob) <- createAndConnectUsers OwnDomain OtherDomain
   conv <-
     postConversation alice (defProteus {qualifiedUsers = [bob]})
       >>= getJSON 201
@@ -520,7 +526,9 @@ testReceiptModeWithRemotesUnreachable = do
 
 testDeleteLocalMember :: HasCallStack => App ()
 testDeleteLocalMember = do
-  [alice, alex, bob] <- createAndConnectUsers [OwnDomain, OwnDomain, OtherDomain]
+  [alice, alex, bob] <- createUsers [OwnDomain, OwnDomain, OtherDomain]
+  connectUsers alice alex
+  connectUsers alice bob
   conv <-
     postConversation alice (defProteus {qualifiedUsers = [alex, bob]})
       >>= getJSON 201
@@ -537,7 +545,9 @@ testDeleteLocalMember = do
 
 testDeleteRemoteMember :: HasCallStack => App ()
 testDeleteRemoteMember = do
-  [alice, alex, bob] <- createAndConnectUsers [OwnDomain, OwnDomain, OtherDomain]
+  [alice, alex, bob] <- createUsers [OwnDomain, OwnDomain, OtherDomain]
+  connectUsers alice alex
+  connectUsers alice bob
   conv <-
     postConversation alice (defProteus {qualifiedUsers = [alex, bob]})
       >>= getJSON 201
@@ -554,9 +564,11 @@ testDeleteRemoteMember = do
 
 testDeleteRemoteMemberRemoteUnreachable :: HasCallStack => App ()
 testDeleteRemoteMemberRemoteUnreachable = do
-  [alice, bob, bart] <- createAndConnectUsers [OwnDomain, OtherDomain, OtherDomain]
+  [alice, bob, bart] <- createUsers [OwnDomain, OtherDomain, OtherDomain]
   conv <- startDynamicBackends [mempty] $ \[dynBackend] -> do
     charlie <- randomUser dynBackend def
+    connectUsers alice bob
+    connectUsers alice bart
     connectUsers alice charlie
     postConversation
       alice
@@ -619,14 +631,13 @@ testDeleteTeamConversationWithUnreachableRemoteMembers = do
 
 testLeaveConversationSuccess :: HasCallStack => App ()
 testLeaveConversationSuccess = do
-  [alice, bob, chad, dee] <-
-    createAndConnectUsers [OwnDomain, OwnDomain, OtherDomain, OtherDomain]
+  [alice, bob, chad, dee] <- createUsers [OwnDomain, OwnDomain, OtherDomain, OtherDomain]
   [aClient, bClient] <- forM [alice, bob] $ \user ->
     objId $ bindResponse (addClient user def) $ getJSON 201
   startDynamicBackends [def] $ \[dynDomain] -> do
     eve <- randomUser dynDomain def
     eClient <- objId $ bindResponse (addClient eve def) $ getJSON 201
-    connectUsers alice eve
+    forM_ [bob, chad, dee, eve] $ connectUsers alice
     conv <-
       postConversation
         alice
@@ -644,8 +655,8 @@ testOnUserDeletedConversations :: HasCallStack => App ()
 testOnUserDeletedConversations = do
   startDynamicBackends [def] $ \[dynDomain] -> do
     [ownDomain, otherDomain] <- forM [OwnDomain, OtherDomain] asString
-    [alice, alex, bob, bart, chad] <-
-      createAndConnectUsers [ownDomain, ownDomain, otherDomain, otherDomain, dynDomain]
+    [alice, alex, bob, bart, chad] <- createUsers [ownDomain, ownDomain, otherDomain, otherDomain, dynDomain]
+    forM_ [alex, bob, bart, chad] $ connectUsers alice
     bobId <- bob %. "qualified_id"
     ooConvId <- do
       l <- getAllConvs alice
@@ -681,7 +692,9 @@ testOnUserDeletedConversations = do
 
 testUpdateConversationByRemoteAdmin :: HasCallStack => App ()
 testUpdateConversationByRemoteAdmin = do
-  [alice, bob, charlie] <- createAndConnectUsers [OwnDomain, OtherDomain, OtherDomain]
+  [alice, bob, charlie] <- createUsers [OwnDomain, OtherDomain, OtherDomain]
+  connectUsers alice bob
+  connectUsers alice charlie
   conv <-
     postConversation alice (defProteus {qualifiedUsers = [bob, charlie]})
       >>= getJSON 201
@@ -689,3 +702,10 @@ testUpdateConversationByRemoteAdmin = do
   void $ withWebSockets [alice, bob, charlie] $ \wss -> do
     void $ updateReceiptMode bob conv (41 :: Int) >>= getBody 200
     for_ wss $ \ws -> awaitMatch 10 isReceiptModeUpdateNotif ws
+
+testGuestCreatesConversation :: HasCallStack => App ()
+testGuestCreatesConversation = do
+  alice <- randomUser OwnDomain def {activate = False}
+  bindResponse (postConversation alice defProteus) $ \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "operation-denied"

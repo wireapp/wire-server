@@ -1,5 +1,3 @@
-{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2023 Wire Swiss GmbH <opensource@wire.com>
@@ -30,7 +28,7 @@ import Testlib.ResourcePool
 
 testMessageTimerChangeWithRemotes :: HasCallStack => App ()
 testMessageTimerChangeWithRemotes = do
-  [alice, bob] <- createAndConnectUsers [OwnDomain, OtherDomain]
+  (alice, bob) <- createAndConnectUsers OwnDomain OtherDomain
   conv <- postConversation alice defProteus {qualifiedUsers = [bob]} >>= getJSON 201
   withWebSockets [alice, bob] $ \wss -> do
     void $ updateMessageTimer alice conv 1000 >>= getBody 200
