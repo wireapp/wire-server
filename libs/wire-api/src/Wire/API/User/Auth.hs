@@ -625,7 +625,7 @@ ptcToSetCookie c =
     tokenExpiresUTC t = posixSecondsToUTCTime (fromIntegral (t ^. header . time))
 
 instance S.ToParamSchema ProviderTokenCookie where
-  toParamSchema _ = mempty & S.type_ ?~ S.SwaggerString
+  toParamSchema _ = mempty & S.type_ ?~ S.OpenApiString
 
 --------------------------------------------------------------------------------
 -- Servant
