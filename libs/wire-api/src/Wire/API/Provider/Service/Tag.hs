@@ -40,8 +40,7 @@ module Wire.API.Provider.Service.Tag
 where
 
 import Control.Lens (Prism', prism)
-import Data.Aeson (FromJSON (parseJSON), ToJSON (toJSON))
-import Data.Aeson qualified as JSON
+import Data.Aeson (FromJSON, ToJSON (toJSON))
 import Data.Attoparsec.ByteString (IResult (..), parse)
 import Data.ByteString (toStrict)
 import Data.ByteString.Builder qualified as BB
