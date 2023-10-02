@@ -80,7 +80,7 @@ import GHC.TypeNats
 import Imports
 import Network.HTTP.Types.Status
 import Network.Wai (Response)
-import Network.Wai.Predicate (accept, query)
+import Network.Wai.Predicate (accept)
 import Network.Wai.Routing
 import Network.Wai.Utilities.Error ((!>>))
 import Network.Wai.Utilities.Error qualified as Wai
@@ -92,7 +92,7 @@ import OpenSSL.PEM qualified as SSL
 import OpenSSL.RSA qualified as SSL
 import OpenSSL.Random (randBytes)
 import Polysemy
-import Servant (ServerT, (:<|>) (..))
+import Servant (NoContent (..), ServerT, (:<|>) (..))
 import Ssl.Util qualified as SSL
 import System.Logger.Class (MonadLogger)
 import UnliftIO.Async (pooledMapConcurrentlyN_)
@@ -392,7 +392,7 @@ updateService ::
   ProviderId ->
   ServiceId ->
   Public.UpdateService ->
-  (Handler r) ()
+  (Handler r) NoContent
 updateService pid sid upd = do
   guardSecondFactorDisabled Nothing
   _ <- wrapClientE (DB.lookupAccount pid) >>= maybeInvalidProvider
@@ -420,13 +420,14 @@ updateService pid sid upd = do
       newAssets
       tagsChange
       (serviceEnabled svc)
+      $> NoContent
 
 updateServiceConn ::
   Member GalleyProvider r =>
   ProviderId ->
   ServiceId ->
   Public.UpdateServiceConn ->
-  (Handler r) ()
+  (Handler r) NoContent
 updateServiceConn pid sid upd = do
   guardSecondFactorDisabled Nothing
   pass <- wrapClientE (DB.lookupPassword pid) >>= maybeBadCredentials
@@ -460,6 +461,7 @@ updateServiceConn pid sid upd = do
         if sconEnabled scon
           then DB.deleteServiceIndexes pid sid name tags
           else DB.insertServiceIndexes pid sid name tags
+  pure NoContent
 
 -- TODO: Send informational email to provider.
 

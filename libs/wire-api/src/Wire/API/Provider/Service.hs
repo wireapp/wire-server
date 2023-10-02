@@ -59,7 +59,6 @@ import Data.ByteString.Builder qualified as BB
 import Data.ByteString.Char8 qualified as BS
 import Data.ByteString.Conversion
 import Data.Id
-import Data.Json.Util ((#))
 import Data.List1 (List1)
 import Data.Misc (HttpsUrl (..), PlainTextPassword6)
 import Data.OpenApi qualified as S
@@ -433,7 +432,13 @@ data UpdateServiceWhitelistResp
   | UpdateServiceWhitelistRespUnchanged
 
 -- basically the same as the instance for CheckBlacklistResponse
-instance AsUnion '[RespondEmpty 200 "UpdateServiceWhitelistRespChanged", RespondEmpty 204 "UpdateServiceWhitelistRespUnchanged"] UpdateServiceWhitelistResp where
+instance
+  AsUnion
+    '[ RespondEmpty 200 "UpdateServiceWhitelistRespChanged",
+       RespondEmpty 204 "UpdateServiceWhitelistRespUnchanged"
+     ]
+    UpdateServiceWhitelistResp
+  where
   toUnion UpdateServiceWhitelistRespChanged = Z (I ())
   toUnion UpdateServiceWhitelistRespUnchanged = S (Z (I ()))
   fromUnion (Z (I ())) = UpdateServiceWhitelistRespChanged

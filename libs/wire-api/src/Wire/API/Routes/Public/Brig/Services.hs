@@ -73,7 +73,7 @@ type ServicesAPI =
                :> "services"
                :> Capture "service-id" ServiceId
                :> ReqBody '[JSON] Public.UpdateService
-               :> Put '[PlainText] ()
+               :> Put '[PlainText] NoContent
            )
     :<|> Named
            "put-provider-services-connection-by-service-id"
@@ -88,7 +88,7 @@ type ServicesAPI =
                :> Capture "service-id" ServiceId
                :> "connection"
                :> ReqBody '[JSON] Public.UpdateServiceConn
-               :> Put '[PlainText] ()
+               :> Put '[PlainText] NoContent
            )
     :<|> Named
            "delete-provider-services-by-service-id"
@@ -168,5 +168,11 @@ type ServicesAPI =
                :> "services"
                :> "whitelist"
                :> ReqBody '[JSON] Public.UpdateServiceWhitelist
-               :> MultiVerb 'POST '[PlainText] '[RespondEmpty 200 "UpdateServiceWhitelistRespChanged", RespondEmpty 204 "UpdateServiceWhitelistRespUnchanged"] Public.UpdateServiceWhitelistResp
+               :> MultiVerb
+                    'POST
+                    '[PlainText]
+                    '[ RespondEmpty 200 "UpdateServiceWhitelistRespChanged",
+                       RespondEmpty 204 "UpdateServiceWhitelistRespUnchanged"
+                     ]
+                    Public.UpdateServiceWhitelistResp
            )

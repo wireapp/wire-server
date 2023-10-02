@@ -1,6 +1,4 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
--- Required for `instance MimeRender PlainText ()`
-{-# OPTIONS_GHC -Wno-orphans #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -1495,10 +1493,6 @@ type TeamsAPI =
                     '[JSON]
                     (Respond 200 "Number of team members" TeamSize)
            )
-
--- Plaintext doesn't ship a renderer for (), so we have an orphan for it
-instance MimeRender PlainText () where
-  mimeRender _ () = ""
 
 type SystemSettingsAPI =
   Named
