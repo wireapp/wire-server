@@ -22,7 +22,6 @@ where
 
 import Brig.API.Handler (Handler)
 import Brig.API.Internal qualified as Internal
-import Brig.API.Public qualified as Public
 import Brig.Effects.BlacklistStore (BlacklistStore)
 import Brig.Effects.GalleyProvider (GalleyProvider)
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
@@ -37,5 +36,4 @@ sitemap ::
   ) =>
   Routes () (Handler r) ()
 sitemap = do
-  Public.sitemap
   Internal.sitemap

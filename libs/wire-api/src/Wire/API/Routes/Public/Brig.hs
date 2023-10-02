@@ -49,7 +49,7 @@ import Wire.API.Error.Brig
 import Wire.API.Error.Empty
 import Wire.API.MakesFederatedCall
 import Wire.API.OAuth
-import Wire.API.Properties
+import Wire.API.Properties (PropertyKey, PropertyKeysAndValues, RawPropertyValue)
 import Wire.API.Routes.API
 import Wire.API.Routes.Bearer
 import Wire.API.Routes.Cookies
@@ -59,6 +59,7 @@ import Wire.API.Routes.Public
 import Wire.API.Routes.Public.Brig.Bot (BotAPI)
 import Wire.API.Routes.Public.Brig.OAuth (OAuthAPI)
 import Wire.API.Routes.Public.Brig.Provider (ProviderAPI)
+import Wire.API.Routes.Public.Brig.Services (ServicesAPI)
 import Wire.API.Routes.Public.Util
 import Wire.API.Routes.QualifiedCapture
 import Wire.API.Routes.Version
@@ -94,6 +95,7 @@ type BrigAPI =
     :<|> SystemSettingsAPI
     :<|> OAuthAPI
     :<|> BotAPI
+    :<|> ServicesAPI
     :<|> ProviderAPI
 
 data BrigAPITag

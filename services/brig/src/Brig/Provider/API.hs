@@ -17,9 +17,9 @@
 
 module Brig.Provider.API
   ( -- * Main stuff
-    routesPublic,
     routesInternal,
     botAPI,
+    servicesAPI,
     providerAPI,
 
     -- * Event handlers
@@ -71,7 +71,6 @@ import Data.List qualified as List
 import Data.List1 (maybeList1)
 import Data.Map.Strict qualified as Map
 import Data.Misc (Fingerprint (..), FutureWork (FutureWork), Rsa)
-import Data.Predicate
 import Data.Qualified
 import Data.Range
 import Data.Set qualified as Set
@@ -81,12 +80,11 @@ import GHC.TypeNats
 import Imports
 import Network.HTTP.Types.Status
 import Network.Wai (Response)
-import Network.Wai.Predicate (accept, def, opt, query)
+import Network.Wai.Predicate (accept)
 import Network.Wai.Routing
 import Network.Wai.Utilities.Error ((!>>))
 import Network.Wai.Utilities.Error qualified as Wai
-import Network.Wai.Utilities.Request (JsonRequest, jsonRequest)
-import Network.Wai.Utilities.Response (empty, json, setStatus)
+import Network.Wai.Utilities.Response (json)
 import Network.Wai.Utilities.ZAuth
 import OpenSSL.EVP.Digest qualified as SSL
 import OpenSSL.EVP.PKey qualified as SSL
@@ -94,7 +92,7 @@ import OpenSSL.PEM qualified as SSL
 import OpenSSL.RSA qualified as SSL
 import OpenSSL.Random (randBytes)
 import Polysemy
-import Servant (ServerT, (:<|>) (..))
+import Servant (NoContent (..), ServerT, (:<|>) (..))
 import Ssl.Util qualified as SSL
 import System.Logger.Class (MonadLogger)
 import UnliftIO.Async (pooledMapConcurrentlyN_)
@@ -118,6 +116,7 @@ import Wire.API.Provider.Service.Tag qualified as Public
 import Wire.API.Routes.Named (Named (Named))
 import Wire.API.Routes.Public.Brig.Bot (BotAPI)
 import Wire.API.Routes.Public.Brig.Provider (ProviderAPI)
+import Wire.API.Routes.Public.Brig.Services (ServicesAPI)
 import Wire.API.Team.Feature qualified as Feature
 import Wire.API.Team.LegalHold (LegalholdProtectee (UnprotectedBot))
 import Wire.API.Team.Permission
@@ -147,6 +146,21 @@ botAPI =
     :<|> Named @"bot-list-users" botListUserProfiles
     :<|> Named @"bot-get-user-clients" botGetUserClients
 
+servicesAPI :: (Member GalleyProvider r) => ServerT ServicesAPI (Handler r)
+servicesAPI =
+  Named @"post-provider-services" addService
+    :<|> Named @"get-provider-services" listServices
+    :<|> Named @"get-provider-services-by-service-id" getService
+    :<|> Named @"put-provider-services-by-service-id" updateService
+    :<|> Named @"put-provider-services-connection-by-service-id" updateServiceConn
+    :<|> Named @"delete-provider-services-by-service-id" deleteService
+    :<|> Named @"get-provider-services-by-provider-id" listServiceProfiles
+    :<|> Named @"get-services" searchServiceProfiles
+    :<|> Named @"get-services-tags" getServiceTagList
+    :<|> Named @"get-provider-services-by-provider-id-and-service-id" getServiceProfile
+    :<|> Named @"get-whitelisted-services-by-team-id" searchTeamServiceProfiles
+    :<|> Named @"post-team-whitelist-by-team-id" updateServiceWhitelist
+
 providerAPI :: Member GalleyProvider r => ServerT ProviderAPI (Handler r)
 providerAPI =
   Named @"provider-register" newAccount
@@ -160,93 +174,6 @@ providerAPI =
     :<|> Named @"provider-update-password" updateAccountPassword
     :<|> Named @"provider-get-account" getAccount
     :<|> Named @"provider-get-profile" getProviderProfile
-
-routesPublic ::
-  ( Member GalleyProvider r
-  ) =>
-  Routes () (Handler r) ()
-routesPublic = do
-  -- Provider API ------------------------------------------------------------
-
-  post "/provider/services" (continue addServiceH) $
-    accept "application" "json"
-      .&> zauth ZAuthProvider
-      .&> zauthProviderId
-        .&. jsonRequest @Public.NewService
-
-  get "/provider/services" (continue listServicesH) $
-    accept "application" "json"
-      .&> zauth ZAuthProvider
-      .&> zauthProviderId
-
-  get "/provider/services/:sid" (continue getServiceH) $
-    accept "application" "json"
-      .&> zauth ZAuthProvider
-      .&> zauthProviderId
-        .&. capture "sid"
-
-  put "/provider/services/:sid" (continue updateServiceH) $
-    zauth ZAuthProvider
-      .&> zauthProviderId
-        .&. capture "sid"
-        .&. jsonRequest @Public.UpdateService
-
-  put "/provider/services/:sid/connection" (continue updateServiceConnH) $
-    zauth ZAuthProvider
-      .&> zauthProviderId
-        .&. capture "sid"
-        .&. jsonRequest @Public.UpdateServiceConn
-
-  -- TODO
-  --     post "/provider/services/:sid/token" (continue genServiceTokenH) $
-  --         accept "application" "json"
-  --         .&. zauthProvider
-
-  delete "/provider/services/:sid" (continue deleteServiceH) $
-    zauth ZAuthProvider
-      .&> zauthProviderId
-        .&. capture "sid"
-        .&. jsonRequest @Public.DeleteService
-
-  -- User API ----------------------------------------------------------------
-
-  get "/providers/:pid/services" (continue listServiceProfilesH) $
-    accept "application" "json"
-      .&> zauth ZAuthAccess
-      .&> capture "pid"
-
-  get "/providers/:pid/services/:sid" (continue getServiceProfileH) $
-    accept "application" "json"
-      .&> zauth ZAuthAccess
-      .&> capture "pid"
-        .&. capture "sid"
-
-  get "/services" (continue searchServiceProfilesH) $
-    accept "application" "json"
-      .&> zauth ZAuthAccess
-      .&> opt (query "tags")
-        .&. opt (query "start")
-        .&. def (unsafeRange 20) (query "size")
-
-  get "/services/tags" (continue getServiceTagListH) $
-    accept "application" "json"
-      .&> zauth ZAuthAccess
-
-  get "/teams/:tid/services/whitelisted" (continue searchTeamServiceProfilesH) $
-    accept "application" "json"
-      .&> zauthUserId
-        .&. capture "tid"
-        .&. opt (query "prefix")
-        .&. def True (query "filter_disabled")
-        .&. def (unsafeRange 20) (query "size")
-
-  post "/teams/:tid/services/whitelist" (continue updateServiceWhitelistH) $
-    accept "application" "json"
-      .&> zauth ZAuthAccess
-      .&> zauthUserId
-        .&. zauthConnId
-        .&. capture "tid"
-        .&. jsonRequest @Public.UpdateServiceWhitelist
 
 routesInternal :: Member GalleyProvider r => Routes a (Handler r) ()
 routesInternal = do
@@ -425,13 +352,13 @@ updateAccountPassword pid upd = do
     throwStd (errorToWai @'E.ResetPasswordMustDiffer)
   wrapClientE $ DB.updateAccountPassword pid (newPassword upd)
 
-addServiceH :: Member GalleyProvider r => ProviderId ::: JsonRequest Public.NewService -> (Handler r) Response
-addServiceH (pid ::: req) = do
-  guardSecondFactorDisabled Nothing
-  setStatus status201 . json <$> (addService pid =<< parseJsonBody req)
-
-addService :: ProviderId -> Public.NewService -> (Handler r) Public.NewServiceResponse
+addService ::
+  Member GalleyProvider r =>
+  ProviderId ->
+  Public.NewService ->
+  (Handler r) Public.NewServiceResponse
 addService pid new = do
+  guardSecondFactorDisabled Nothing
   _ <- wrapClientE (DB.lookupAccount pid) >>= maybeInvalidProvider
   let name = newServiceName new
   let summary = fromRange (newServiceSummary new)
@@ -446,30 +373,28 @@ addService pid new = do
   let rstoken = maybe (Just token) (const Nothing) (newServiceToken new)
   pure $ Public.NewServiceResponse sid rstoken
 
-listServicesH :: Member GalleyProvider r => ProviderId -> (Handler r) Response
-listServicesH pid = do
+listServices :: Member GalleyProvider r => ProviderId -> (Handler r) [Public.Service]
+listServices pid = do
   guardSecondFactorDisabled Nothing
-  json <$> listServices pid
+  wrapClientE $ DB.listServices pid
 
-listServices :: ProviderId -> (Handler r) [Public.Service]
-listServices = wrapClientE . DB.listServices
-
-getServiceH :: Member GalleyProvider r => ProviderId ::: ServiceId -> (Handler r) Response
-getServiceH (pid ::: sid) = do
+getService ::
+  Member GalleyProvider r =>
+  ProviderId ->
+  ServiceId ->
+  (Handler r) Public.Service
+getService pid sid = do
   guardSecondFactorDisabled Nothing
-  json <$> getService pid sid
-
-getService :: ProviderId -> ServiceId -> (Handler r) Public.Service
-getService pid sid =
   wrapClientE (DB.lookupService pid sid) >>= maybeServiceNotFound
 
-updateServiceH :: Member GalleyProvider r => ProviderId ::: ServiceId ::: JsonRequest Public.UpdateService -> (Handler r) Response
-updateServiceH (pid ::: sid ::: req) = do
-  guardSecondFactorDisabled Nothing
-  empty <$ (updateService pid sid =<< parseJsonBody req)
-
-updateService :: ProviderId -> ServiceId -> Public.UpdateService -> (Handler r) ()
+updateService ::
+  Member GalleyProvider r =>
+  ProviderId ->
+  ServiceId ->
+  Public.UpdateService ->
+  (Handler r) NoContent
 updateService pid sid upd = do
+  guardSecondFactorDisabled Nothing
   _ <- wrapClientE (DB.lookupAccount pid) >>= maybeInvalidProvider
   -- Update service profile
   svc <- wrapClientE (DB.lookupService pid sid) >>= maybeServiceNotFound
@@ -495,14 +420,16 @@ updateService pid sid upd = do
       newAssets
       tagsChange
       (serviceEnabled svc)
+      $> NoContent
 
-updateServiceConnH :: Member GalleyProvider r => ProviderId ::: ServiceId ::: JsonRequest Public.UpdateServiceConn -> (Handler r) Response
-updateServiceConnH (pid ::: sid ::: req) = do
-  guardSecondFactorDisabled Nothing
-  empty <$ (updateServiceConn pid sid =<< parseJsonBody req)
-
-updateServiceConn :: ProviderId -> ServiceId -> Public.UpdateServiceConn -> (Handler r) ()
+updateServiceConn ::
+  Member GalleyProvider r =>
+  ProviderId ->
+  ServiceId ->
+  Public.UpdateServiceConn ->
+  (Handler r) NoContent
 updateServiceConn pid sid upd = do
+  guardSecondFactorDisabled Nothing
   pass <- wrapClientE (DB.lookupPassword pid) >>= maybeBadCredentials
   unless (verifyPassword (updateServiceConnPassword upd) pass) $
     throwStd (errorToWai @'E.BadCredentials)
@@ -534,26 +461,23 @@ updateServiceConn pid sid upd = do
         if sconEnabled scon
           then DB.deleteServiceIndexes pid sid name tags
           else DB.insertServiceIndexes pid sid name tags
+  pure NoContent
 
 -- TODO: Send informational email to provider.
-
--- | Member GalleyProvider r => The endpoint that is called to delete a service.
---
--- Since deleting a service can be costly, it just marks the service as
--- disabled and then creates an event that will, when processed, actually
--- delete the service. See 'finishDeleteService'.
-deleteServiceH :: Member GalleyProvider r => ProviderId ::: ServiceId ::: JsonRequest Public.DeleteService -> (Handler r) Response
-deleteServiceH (pid ::: sid ::: req) = do
-  guardSecondFactorDisabled Nothing
-  setStatus status202 empty <$ (deleteService pid sid =<< parseJsonBody req)
 
 -- | The endpoint that is called to delete a service.
 --
 -- Since deleting a service can be costly, it just marks the service as
 -- disabled and then creates an event that will, when processed, actually
 -- delete the service. See 'finishDeleteService'.
-deleteService :: ProviderId -> ServiceId -> Public.DeleteService -> (Handler r) ()
+deleteService ::
+  Member GalleyProvider r =>
+  ProviderId ->
+  ServiceId ->
+  Public.DeleteService ->
+  (Handler r) ()
 deleteService pid sid del = do
+  guardSecondFactorDisabled Nothing
   pass <- wrapClientE (DB.lookupPassword pid) >>= maybeBadCredentials
   unless (verifyPassword (deleteServicePassword del) pass) $
     throwStd (errorToWai @'E.BadCredentials)
@@ -619,92 +543,64 @@ getProviderProfile _ pid = do
   guardSecondFactorDisabled Nothing
   wrapClientE (DB.lookupAccountProfile pid)
 
-listServiceProfilesH :: Member GalleyProvider r => ProviderId -> (Handler r) Response
-listServiceProfilesH pid = do
+listServiceProfiles :: Member GalleyProvider r => UserId -> ProviderId -> (Handler r) [Public.ServiceProfile]
+listServiceProfiles _ pid = do
   guardSecondFactorDisabled Nothing
-  json <$> listServiceProfiles pid
+  wrapClientE $ DB.listServiceProfiles pid
 
-listServiceProfiles :: ProviderId -> (Handler r) [Public.ServiceProfile]
-listServiceProfiles = wrapClientE . DB.listServiceProfiles
-
-getServiceProfileH :: Member GalleyProvider r => ProviderId ::: ServiceId -> (Handler r) Response
-getServiceProfileH (pid ::: sid) = do
+getServiceProfile :: Member GalleyProvider r => UserId -> ProviderId -> ServiceId -> (Handler r) Public.ServiceProfile
+getServiceProfile _ pid sid = do
   guardSecondFactorDisabled Nothing
-  json <$> getServiceProfile pid sid
-
-getServiceProfile :: ProviderId -> ServiceId -> (Handler r) Public.ServiceProfile
-getServiceProfile pid sid =
   wrapClientE (DB.lookupServiceProfile pid sid) >>= maybeServiceNotFound
-
-searchServiceProfilesH :: Member GalleyProvider r => Maybe (Public.QueryAnyTags 1 3) ::: Maybe Text ::: Range 10 100 Int32 -> (Handler r) Response
-searchServiceProfilesH (qt ::: start ::: size) = do
-  guardSecondFactorDisabled Nothing
-  json <$> searchServiceProfiles qt start size
 
 -- TODO: in order to actually make it possible for clients to implement
 -- pagination here, we need both 'start' and 'prefix'.
 --
 -- Also see Note [buggy pagination].
-searchServiceProfiles :: Maybe (Public.QueryAnyTags 1 3) -> Maybe Text -> Range 10 100 Int32 -> (Handler r) Public.ServiceProfilePage
-searchServiceProfiles Nothing (Just start) size = do
+searchServiceProfiles :: Member GalleyProvider r => UserId -> Maybe (Public.QueryAnyTags 1 3) -> Maybe Text -> Maybe (Range 10 100 Int32) -> (Handler r) Public.ServiceProfilePage
+searchServiceProfiles _ Nothing (Just start) mSize = do
+  guardSecondFactorDisabled Nothing
   prefix :: Range 1 128 Text <- rangeChecked start
+  let size = fromMaybe (unsafeRange 20) mSize
   wrapClientE . DB.paginateServiceNames (Just prefix) (fromRange size) . setProviderSearchFilter =<< view settings
-searchServiceProfiles (Just tags) start size = do
+searchServiceProfiles _ (Just tags) start mSize = do
+  guardSecondFactorDisabled Nothing
+  let size = fromMaybe (unsafeRange 20) mSize
   (wrapClientE . DB.paginateServiceTags tags start (fromRange size)) . setProviderSearchFilter =<< view settings
-searchServiceProfiles Nothing Nothing _ = do
+searchServiceProfiles _ Nothing Nothing _ = do
+  guardSecondFactorDisabled Nothing
   throwStd $ badRequest "At least `tags` or `start` must be provided."
-
-searchTeamServiceProfilesH ::
-  Member GalleyProvider r =>
-  UserId ::: TeamId ::: Maybe (Range 1 128 Text) ::: Bool ::: Range 10 100 Int32 ->
-  (Handler r) Response
-searchTeamServiceProfilesH (uid ::: tid ::: prefix ::: filterDisabled ::: size) = do
-  guardSecondFactorDisabled (Just uid)
-  json <$> searchTeamServiceProfiles uid tid prefix filterDisabled size
 
 -- NB: unlike 'searchServiceProfiles', we don't filter by service provider here
 searchTeamServiceProfiles ::
   UserId ->
   TeamId ->
   Maybe (Range 1 128 Text) ->
-  Bool ->
-  Range 10 100 Int32 ->
+  Maybe Bool ->
+  Maybe (Range 10 100 Int32) ->
   (Handler r) Public.ServiceProfilePage
-searchTeamServiceProfiles uid tid prefix filterDisabled size = do
+searchTeamServiceProfiles uid tid prefix mFilterDisabled mSize = do
   -- Check that the user actually belong to the team they claim they
   -- belong to. (Note: the 'tid' team might not even exist but we'll throw
   -- 'insufficientTeamPermissions' anyway)
+  let filterDisabled = fromMaybe True mFilterDisabled
+  let size = fromMaybe (unsafeRange 20) mSize
   teamId <- lift $ wrapClient $ User.lookupUserTeam uid
   unless (Just tid == teamId) $
     throwStd insufficientTeamPermissions
   -- Get search results
   wrapClientE $ DB.paginateServiceWhitelist tid prefix filterDisabled (fromRange size)
 
-getServiceTagListH :: Member GalleyProvider r => () -> (Handler r) Response
-getServiceTagListH () = do
+getServiceTagList :: Member GalleyProvider r => UserId -> (Handler r) Public.ServiceTagList
+getServiceTagList _ = do
   guardSecondFactorDisabled Nothing
-  json <$> getServiceTagList ()
-
-getServiceTagList :: () -> Monad m => m Public.ServiceTagList
-getServiceTagList () = pure (Public.ServiceTagList allTags)
+  pure (Public.ServiceTagList allTags)
   where
     allTags = [(minBound :: Public.ServiceTag) ..]
 
-updateServiceWhitelistH :: Member GalleyProvider r => UserId ::: ConnId ::: TeamId ::: JsonRequest Public.UpdateServiceWhitelist -> (Handler r) Response
-updateServiceWhitelistH (uid ::: con ::: tid ::: req) = do
-  guardSecondFactorDisabled (Just uid)
-  resp <- updateServiceWhitelist uid con tid =<< parseJsonBody req
-  let status = case resp of
-        UpdateServiceWhitelistRespChanged -> status200
-        UpdateServiceWhitelistRespUnchanged -> status204
-  pure $ setStatus status empty
-
-data UpdateServiceWhitelistResp
-  = UpdateServiceWhitelistRespChanged
-  | UpdateServiceWhitelistRespUnchanged
-
 updateServiceWhitelist :: Member GalleyProvider r => UserId -> ConnId -> TeamId -> Public.UpdateServiceWhitelist -> (Handler r) UpdateServiceWhitelistResp
 updateServiceWhitelist uid con tid upd = do
+  guardSecondFactorDisabled (Just uid)
   let pid = updateServiceWhitelistProvider upd
       sid = updateServiceWhitelistService upd
       newWhitelisted = updateServiceWhitelistStatus upd
@@ -998,13 +894,13 @@ mkBotUserView u =
     }
 
 maybeInvalidProvider :: Monad m => Maybe a -> (ExceptT Error m) a
-maybeInvalidProvider = maybe (throwStd invalidProvider) pure
+maybeInvalidProvider = maybe (throwStd (errorToWai @'E.ProviderNotFound)) pure
 
 maybeInvalidCode :: Monad m => Maybe a -> (ExceptT Error m) a
 maybeInvalidCode = maybe (throwStd (errorToWai @'E.InvalidCode)) pure
 
 maybeServiceNotFound :: Monad m => Maybe a -> (ExceptT Error m) a
-maybeServiceNotFound = maybe (throwStd (notFound "Service not found")) pure
+maybeServiceNotFound = maybe (throwStd (errorToWai @'E.ServiceNotFound)) pure
 
 maybeConvNotFound :: Monad m => Maybe a -> (ExceptT Error m) a
 maybeConvNotFound = maybe (throwStd (notFound "Conversation not found")) pure
@@ -1013,19 +909,13 @@ maybeBadCredentials :: Monad m => Maybe a -> (ExceptT Error m) a
 maybeBadCredentials = maybe (throwStd (errorToWai @'E.BadCredentials)) pure
 
 maybeInvalidServiceKey :: Monad m => Maybe a -> (ExceptT Error m) a
-maybeInvalidServiceKey = maybe (throwStd invalidServiceKey) pure
+maybeInvalidServiceKey = maybe (throwStd (errorToWai @'E.InvalidServiceKey)) pure
 
 maybeInvalidUser :: Monad m => Maybe a -> (ExceptT Error m) a
 maybeInvalidUser = maybe (throwStd (errorToWai @'E.InvalidUser)) pure
 
 rangeChecked :: (KnownNat n, KnownNat m, Within a n m, Monad monad) => a -> (ExceptT Error monad) (Range n m a)
 rangeChecked = either (throwStd . invalidRange . fromString) pure . checkedEither
-
-invalidServiceKey :: Wai.Error
-invalidServiceKey = Wai.mkError status400 "invalid-service-key" "Invalid service key."
-
-invalidProvider :: Wai.Error
-invalidProvider = errorToWai @'E.InvalidProvider
 
 badGateway :: Wai.Error
 badGateway = Wai.mkError status502 "bad-gateway" "The upstream service returned an invalid response."

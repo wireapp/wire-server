@@ -86,12 +86,18 @@ data BrigError
   | TooManyConversationMembers
   | ServiceDisabled
   | InvalidBot
+  | InvalidServiceKey
+  | ServiceNotFound
   | VerificationCodeThrottled
   | InvalidProvider
   | ProviderNotFound
 
 instance (Typeable (MapError e), KnownError (MapError e)) => IsSwaggerError (e :: BrigError) where
   addToOpenApi = addStaticErrorToSwagger @(MapError e)
+
+type instance MapError 'ServiceNotFound = 'StaticError 404 "not-found" "Service not found."
+
+type instance MapError 'InvalidServiceKey = 'StaticError 400 "invalid-service-key" "Invalid service key."
 
 type instance MapError 'ProviderNotFound = 'StaticError 404 "not-found" "Provider not found."
 
