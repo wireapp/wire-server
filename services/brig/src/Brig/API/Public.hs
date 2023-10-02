@@ -19,8 +19,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Brig.API.Public
-  ( sitemap,
-    servantSitemap,
+  ( servantSitemap,
     docsAPI,
     DocsAPI,
   )
@@ -56,7 +55,6 @@ import Brig.Effects.PublicKeyBundle (PublicKeyBundle)
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import Brig.Options hiding (internalEvents, sesQueue)
 import Brig.Provider.API
-import Brig.Provider.API qualified as Provider
 import Brig.Team.API qualified as Team
 import Brig.Team.Email qualified as Team
 import Brig.Types.Activation (ActivationPair)
@@ -99,7 +97,6 @@ import FileEmbedLzma
 import Galley.Types.Teams (HiddenPerm (..), hasPermission)
 import Imports hiding (head)
 import Network.Socket (PortNumber)
-import Network.Wai.Routing
 import Network.Wai.Utilities as Utilities
 import Polysemy
 import Servant hiding (Handler, JSON, addHeader, respond)
@@ -271,6 +268,7 @@ servantSitemap =
     :<|> systemSettingsAPI
     :<|> oauthAPI
     :<|> botAPI
+    :<|> servicesAPI
     :<|> providerAPI
   where
     userAPI :: ServerT UserAPI (Handler r)
@@ -405,13 +403,6 @@ servantSitemap =
 -- This leads to the following events being sent:
 -- - UserDeleted event to contacts of the user
 -- - MemberLeave event to members for all conversations the user was in (via galley)
-
-sitemap ::
-  ( Member GalleyProvider r
-  ) =>
-  Routes () (Handler r) ()
-sitemap = do
-  Provider.routesPublic
 
 ---------------------------------------------------------------------------
 -- Handlers
