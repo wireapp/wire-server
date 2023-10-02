@@ -80,7 +80,6 @@ sendMessageMock =
   "send-mls-message" ~>
     MLSMessageResponseUpdates
       []
-      mempty
 
 claimKeyPackagesMock :: KeyPackageBundle -> Mock LByteString
 claimKeyPackagesMock kpb = "claim-key-packages" ~> kpb
