@@ -352,7 +352,11 @@ updateAccountPassword pid upd = do
     throwStd (errorToWai @'E.ResetPasswordMustDiffer)
   wrapClientE $ DB.updateAccountPassword pid (newPassword upd)
 
-addService :: Member GalleyProvider r => ProviderId -> Public.NewService -> (Handler r) Public.NewServiceResponse
+addService ::
+  Member GalleyProvider r =>
+  ProviderId ->
+  Public.NewService ->
+  (Handler r) Public.NewServiceResponse
 addService pid new = do
   guardSecondFactorDisabled Nothing
   _ <- wrapClientE (DB.lookupAccount pid) >>= maybeInvalidProvider
@@ -374,12 +378,21 @@ listServices pid = do
   guardSecondFactorDisabled Nothing
   wrapClientE $ DB.listServices pid
 
-getService :: Member GalleyProvider r => ProviderId -> ServiceId -> (Handler r) Public.Service
+getService ::
+  Member GalleyProvider r =>
+  ProviderId ->
+  ServiceId ->
+  (Handler r) Public.Service
 getService pid sid = do
   guardSecondFactorDisabled Nothing
   wrapClientE (DB.lookupService pid sid) >>= maybeServiceNotFound
 
-updateService :: Member GalleyProvider r => ProviderId -> ServiceId -> Public.UpdateService -> (Handler r) ()
+updateService ::
+  Member GalleyProvider r =>
+  ProviderId ->
+  ServiceId ->
+  Public.UpdateService ->
+  (Handler r) ()
 updateService pid sid upd = do
   guardSecondFactorDisabled Nothing
   _ <- wrapClientE (DB.lookupAccount pid) >>= maybeInvalidProvider
@@ -408,7 +421,12 @@ updateService pid sid upd = do
       tagsChange
       (serviceEnabled svc)
 
-updateServiceConn :: Member GalleyProvider r => ProviderId -> ServiceId -> Public.UpdateServiceConn -> (Handler r) ()
+updateServiceConn ::
+  Member GalleyProvider r =>
+  ProviderId ->
+  ServiceId ->
+  Public.UpdateServiceConn ->
+  (Handler r) ()
 updateServiceConn pid sid upd = do
   guardSecondFactorDisabled Nothing
   pass <- wrapClientE (DB.lookupPassword pid) >>= maybeBadCredentials
@@ -450,7 +468,12 @@ updateServiceConn pid sid upd = do
 -- Since deleting a service can be costly, it just marks the service as
 -- disabled and then creates an event that will, when processed, actually
 -- delete the service. See 'finishDeleteService'.
-deleteService :: Member GalleyProvider r => ProviderId -> ServiceId -> Public.DeleteService -> (Handler r) ()
+deleteService ::
+  Member GalleyProvider r =>
+  ProviderId ->
+  ServiceId ->
+  Public.DeleteService ->
+  (Handler r) ()
 deleteService pid sid del = do
   guardSecondFactorDisabled Nothing
   pass <- wrapClientE (DB.lookupPassword pid) >>= maybeBadCredentials

@@ -111,7 +111,7 @@ data ServiceTag
   | WeatherTag
   deriving stock (Eq, Show, Ord, Enum, Bounded, Generic)
   deriving (Arbitrary) via (GenericUniform ServiceTag)
-  deriving (S.ToSchema) via (Schema ServiceTag)
+  deriving (S.ToSchema, ToJSON, FromJSON) via (Schema ServiceTag)
 
 instance FromByteString ServiceTag where
   parser =
@@ -181,14 +181,6 @@ instance ToByteString ServiceTag where
   builder TutorialTag = "tutorial"
   builder VideoTag = "video"
   builder WeatherTag = "weather"
-
-instance ToJSON ServiceTag where
-  toJSON = JSON.String . Text.decodeUtf8 . toByteString'
-
-instance FromJSON ServiceTag where
-  parseJSON =
-    JSON.withText "ServiceTag" $
-      either fail pure . runParser parser . Text.encodeUtf8
 
 instance ToSchema ServiceTag where
   schema = enum @Text "" . mconcat $ (\a -> element (decodeUtf8With lenientDecode $ toStrict $ toByteString a) a) <$> [minBound ..]
