@@ -22,7 +22,7 @@ import Data.Id (ProviderId)
 import Imports
 import Servant (JSON)
 import Servant hiding (Handler, JSON, Tagged, addHeader, respond)
-import Servant.Swagger.Internal.Orphans ()
+import Servant.OpenApi.Internal.Orphans ()
 import Wire.API.Error
 import Wire.API.Error.Brig
 import Wire.API.Provider

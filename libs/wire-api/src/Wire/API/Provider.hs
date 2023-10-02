@@ -54,9 +54,9 @@ where
 import Data.Aeson qualified as A
 import Data.Id
 import Data.Misc (HttpsUrl (..), PlainTextPassword6, PlainTextPassword8)
+import Data.OpenApi qualified as S
 import Data.Range
 import Data.Schema
-import Data.Swagger qualified as S
 import Imports
 import Wire.API.Conversation.Code as Code
 import Wire.API.Provider.Service (ServiceToken (..))
