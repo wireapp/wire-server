@@ -1,4 +1,5 @@
 {
+  "basePath": "/v3",
   "definitions": {
     "": {
       "description": "Username to use for authenticating against the given TURN servers",

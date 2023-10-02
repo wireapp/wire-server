@@ -88,16 +88,22 @@ data BrigError
   | InvalidBot
   | InvalidServiceKey
   | ServiceNotFound
+  | VerificationCodeThrottled
+  | InvalidProvider
   | ProviderNotFound
 
 instance (Typeable (MapError e), KnownError (MapError e)) => IsSwaggerError (e :: BrigError) where
   addToOpenApi = addStaticErrorToSwagger @(MapError e)
 
-type instance MapError 'ProviderNotFound = 'StaticError 403 "invalid-provider" "The provider does not exist."
-
 type instance MapError 'ServiceNotFound = 'StaticError 404 "not-found" "Service not found."
 
 type instance MapError 'InvalidServiceKey = 'StaticError 400 "invalid-service-key" "Invalid service key."
+
+type instance MapError 'ProviderNotFound = 'StaticError 404 "not-found" "Provider not found."
+
+type instance MapError 'InvalidProvider = 'StaticError 403 "invalid-provider" "The provider does not exist."
+
+type instance MapError 'VerificationCodeThrottled = 'StaticError 429 "too-many-requests" "Too many request to generate a verification code."
 
 type instance MapError 'ServiceDisabled = 'StaticError 403 "service-disabled" "The desired service is currently disabled."
 

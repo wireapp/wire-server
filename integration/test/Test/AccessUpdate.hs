@@ -1,5 +1,3 @@
-{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2023 Wire Swiss GmbH <opensource@wire.com>
@@ -105,7 +103,9 @@ testAccessUpdateGuestRemovedUnreachableRemotes = do
 
 testAccessUpdateWithRemotes :: HasCallStack => App ()
 testAccessUpdateWithRemotes = do
-  [alice, bob, charlie] <- createAndConnectUsers [OwnDomain, OtherDomain, OwnDomain]
+  [alice, bob, charlie] <- createUsers [OwnDomain, OtherDomain, OwnDomain]
+  connectUsers alice bob
+  connectUsers alice charlie
   conv <-
     postConversation alice (defProteus {qualifiedUsers = [bob, charlie]})
       >>= getJSON 201

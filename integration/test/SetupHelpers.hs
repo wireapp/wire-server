@@ -6,7 +6,6 @@ import API.Brig qualified as Brig
 import API.BrigInternal qualified as Internal
 import API.Common
 import API.Galley
-import Control.Concurrent (threadDelay)
 import Control.Monad.Reader
 import Data.Aeson hiding ((.=))
 import Data.Aeson.Types qualified as Aeson
@@ -16,12 +15,6 @@ import Data.UUID.V1 (nextUUID)
 import Data.UUID.V4 (nextRandom)
 import GHC.Stack
 import Testlib.Prelude
-
--- | `n` should be 2 x `setFederationDomainConfigsUpdateFreq` in the config
-connectAllDomainsAndWaitToSync :: HasCallStack => Int -> [String] -> App ()
-connectAllDomainsAndWaitToSync n domains = do
-  sequence_ [Internal.createFedConn x (Internal.FedConn y "full_search") | x <- domains, y <- domains, x /= y]
-  liftIO $ threadDelay (n * 1000 * 1000) -- wait for federation status to be updated
 
 randomUser :: (HasCallStack, MakesValue domain) => domain -> Internal.CreateUser -> App Value
 randomUser domain cu = bindResponse (Internal.createUser domain cu) $ \resp -> do
@@ -83,16 +76,14 @@ connectUsers alice bob = do
   bindResponse (Brig.postConnection alice bob) (\resp -> resp.status `shouldMatchInt` 201)
   bindResponse (Brig.putConnection bob alice "accepted") (\resp -> resp.status `shouldMatchInt` 200)
 
-createAndConnectUsers :: (HasCallStack, MakesValue domain) => [domain] -> App [Value]
-createAndConnectUsers domains = do
-  users <- for domains (flip randomUser def)
-  let userPairs = do
-        t <- tails users
-        (a, others) <- maybeToList (uncons t)
-        b <- others
-        pure (a, b)
-  for_ userPairs (uncurry connectUsers)
-  pure users
+createAndConnectUsers :: (HasCallStack, MakesValue domain) => domain -> domain -> App (Value, Value)
+createAndConnectUsers d1 d2 = do
+  [u1, u2] <- for [d1, d2] (flip randomUser def)
+  connectUsers u1 u2
+  pure (u1, u2)
+
+createUsers :: (HasCallStack, MakesValue domain) => [domain] -> App [Value]
+createUsers domains = for domains (flip randomUser def)
 
 getAllConvs :: (HasCallStack, MakesValue u) => u -> App [Value]
 getAllConvs u = do

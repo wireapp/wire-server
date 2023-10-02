@@ -61,6 +61,7 @@ import Wire.API.Routes.Public
 import Wire.API.Routes.Public.Brig.Bot (BotAPI)
 import Wire.API.Routes.Public.Brig.OAuth (OAuthAPI)
 import Wire.API.Routes.Public.Brig.Services (ServicesAPI)
+import Wire.API.Routes.Public.Brig.Provider (ProviderAPI)
 import Wire.API.Routes.Public.Util
 import Wire.API.Routes.QualifiedCapture
 import Wire.API.Routes.Version
@@ -97,6 +98,7 @@ type BrigAPI =
     :<|> OAuthAPI
     :<|> BotAPI
     :<|> ServicesAPI
+    :<|> ProviderAPI
 
 data BrigAPITag
 
@@ -924,6 +926,7 @@ type ClientAPI =
     :<|> Named
            "list-clients-bulk@v2"
            ( Summary "List all clients for a set of user ids"
+               :> Description "If a backend is unreachable, the clients from that backend will be omitted from the response"
                :> From 'V2
                :> MakesFederatedCall 'Brig "get-user-clients"
                :> ZUser

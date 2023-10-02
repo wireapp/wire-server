@@ -19,8 +19,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Brig.API.Public
-  ( sitemap,
-    servantSitemap,
+  ( servantSitemap,
     docsAPI,
     DocsAPI,
   )
@@ -123,7 +122,6 @@ import Wire.API.Routes.Internal.Spar qualified as SparInternalAPI
 import Wire.API.Routes.MultiTablePaging qualified as Public
 import Wire.API.Routes.Named (Named (Named))
 import Wire.API.Routes.Public.Brig
-import Wire.API.Routes.Public.Brig.Bot
 import Wire.API.Routes.Public.Brig.OAuth
 import Wire.API.Routes.Public.Cannon
 import Wire.API.Routes.Public.Cargohold
@@ -180,10 +178,10 @@ versionedSwaggerDocsAPI (Just (VersionNumber V5)) =
         <> serviceSwagger @GundeckAPITag @'V5
         <> serviceSwagger @ProxyAPITag @'V5
         <> serviceSwagger @OAuthAPITag @'V5
-        <> serviceSwagger @BotAPITag @'V5
     )
       & S.info . S.title .~ "Wire-Server API"
       & S.info . S.description ?~ $(embedText =<< makeRelativeToProject "docs/swagger.md")
+      & S.servers .~ [S.Server ("/" <> toUrlPiece V5) Nothing mempty]
       & cleanupSwagger
 versionedSwaggerDocsAPI (Just (VersionNumber V0)) = swaggerPregenUIServer $(pregenSwagger V0)
 versionedSwaggerDocsAPI (Just (VersionNumber V1)) = swaggerPregenUIServer $(pregenSwagger V1)
@@ -273,6 +271,7 @@ servantSitemap =
     :<|> oauthAPI
     :<|> botAPI
     :<|> servicesAPI
+    :<|> providerAPI
   where
     userAPI :: ServerT UserAPI (Handler r)
     userAPI =
@@ -406,13 +405,6 @@ servantSitemap =
 -- This leads to the following events being sent:
 -- - UserDeleted event to contacts of the user
 -- - MemberLeave event to members for all conversations the user was in (via galley)
-
-sitemap ::
-  ( Member GalleyProvider r
-  ) =>
-  Routes () (Handler r) ()
-sitemap = do
-  Provider.routesPublic
 
 ---------------------------------------------------------------------------
 -- Handlers

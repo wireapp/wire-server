@@ -333,20 +333,7 @@ data ServiceProfilePage = ServiceProfilePage
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ServiceProfilePage)
-  deriving (S.ToSchema) via (Schema ServiceProfilePage)
-
-instance ToJSON ServiceProfilePage where
-  toJSON p =
-    A.object
-      [ "has_more" A..= serviceProfilePageHasMore p,
-        "services" A..= serviceProfilePageResults p
-      ]
-
-instance FromJSON ServiceProfilePage where
-  parseJSON = A.withObject "ServiceProfilePage" $ \o ->
-    ServiceProfilePage
-      <$> o A..: "has_more"
-      <*> o A..: "services"
+  deriving (S.ToSchema, FromJSON, ToJSON) via (Schema ServiceProfilePage)
 
 instance ToSchema ServiceProfilePage where
   schema =
