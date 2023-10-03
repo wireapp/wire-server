@@ -124,6 +124,9 @@ let
         then drv
         else hlib.dontHaddock drv;
 
+      bench = _: drv:
+        hlib.doBenchmark drv;
+
       overrideAll = fn: overrides:
         attrsets.mapAttrs fn (overrides);
     in
@@ -132,6 +135,7 @@ let
       opt
       docs
       tests
+      bench
     ];
   manualOverrides = import ./manual-overrides.nix (with pkgs; {
     inherit hlib libsodium protobuf mls-test-cli fetchpatch;
@@ -419,6 +423,7 @@ let
   };
 
   shell = (hPkgs localModsOnlyTests).shellFor {
+    doBenchmark = true;
     packages = p: builtins.map (e: p.${e}) wireServerPackages;
   };
   ghcWithPackages = shell.nativeBuildInputs ++ shell.buildInputs;
