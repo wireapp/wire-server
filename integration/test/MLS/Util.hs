@@ -218,7 +218,7 @@ createGroup cid conv = do
     Nothing -> pure ()
   resetGroup cid conv
 
-createSubConv :: ClientIdentity -> String -> App ()
+createSubConv :: HasCallStack => ClientIdentity -> String -> App ()
 createSubConv cid subId = do
   mls <- getMLSState
   sub <- getSubConversation cid mls.convId subId >>= getJSON 200

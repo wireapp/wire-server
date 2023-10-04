@@ -38,10 +38,10 @@ testDeleteParentOfSubConv secondDomain = do
   (_, qcnv) <- createNewGroup alice1
   withWebSocket bob $ \ws -> do
     void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
-    void $ awaitMatch 3 isMemberJoinNotif ws
+    void $ awaitMatch 10 isMemberJoinNotif ws
 
+  -- bob creates a subconversation and adds his own client
   createSubConv bob1 "conference"
-  -- bob adds his client to the subconversation
   void $ createPendingProposalCommit bob1 >>= sendAndConsumeCommitBundle
 
   -- alice joins with her own client

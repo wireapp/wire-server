@@ -565,6 +565,7 @@ testUnknownProposalRefCommit = do
           <!! const 404 === statusCode
     liftIO $ Wai.label err @?= "mls-proposal-not-found"
 
+-- TODO: move to integration
 testRemoteAppMessage :: TestM ()
 testRemoteAppMessage = do
   users@[alice, bob] <- createAndConnectUsers [Nothing, Just "bob.example.com"]
