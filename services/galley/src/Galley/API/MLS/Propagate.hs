@@ -18,8 +18,6 @@
 module Galley.API.MLS.Propagate where
 
 import Control.Comonad
-import Data.Aeson qualified as A
-import Data.Domain
 import Data.Id
 import Data.Json.Util
 import Data.Map qualified as Map
@@ -33,17 +31,12 @@ import Galley.Effects
 import Galley.Effects.FederatorAccess
 import Galley.Types.Conversations.Members
 import Imports
-import Network.Wai.Utilities.JSONResponse
 import Polysemy
 import Polysemy.Input
 import Polysemy.TinyLog hiding (trace)
-import System.Logger.Class qualified as Logger
-import Wire.API.Error
-import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
-import Wire.API.Federation.Error
 import Wire.API.Message
 import Wire.API.Unreachable
 
@@ -81,19 +74,19 @@ propagateMessage qusr lconv cm con raw = do
     runMessagePush lconv (Just qcnv) (mkPush u c)
 
   -- send to remotes
-  unreachableFromList . concat
-    <$$> traverse handleError
-    <=< runFederatedConcurrentlyEither (map remoteMemberQualify rmems)
-    $ \(tUnqualified -> rs) ->
-      fedClient @'Galley @"on-mls-message-sent" $
-        RemoteMLSMessage
-          { time = now,
-            sender = qusr,
-            metadata = mm,
-            conversation = tUnqualified lcnv,
-            recipients = rs >>= remoteMemberMLSClients,
-            message = Base64ByteString raw
-          }
+  void $
+    runFederatedConcurrentlyEither (map remoteMemberQualify rmems) $
+      \(tUnqualified -> rs) ->
+        fedClient @'Galley @"on-mls-message-sent" $
+          RemoteMLSMessage
+            { time = now,
+              sender = qusr,
+              metadata = mm,
+              conversation = tUnqualified lcnv,
+              recipients = rs >>= remoteMemberMLSClients,
+              message = Base64ByteString raw
+            }
+  pure Nothing
   where
     localMemberMLSClients :: Local x -> LocalMember -> [(UserId, ClientId)]
     localMemberMLSClients loc lm =
@@ -110,24 +103,3 @@ propagateMessage qusr lconv cm con raw = do
        in map
             (\(c, _) -> (remoteUserId, c))
             (toList (Map.findWithDefault mempty remoteUserQId cm))
-
-    remotesToQIds = fmap (tUntagged . rmId)
-
-    handleError ::
-      Member TinyLog r =>
-      Either (Remote [RemoteMember], FederationError) (Remote RemoteMLSMessageResponse) ->
-      Sem r [Qualified UserId]
-    handleError (Right x) = case tUnqualified x of
-      RemoteMLSMessageOk -> pure []
-      RemoteMLSMessageMLSNotEnabled -> do
-        logFedError x (errorToResponse @'MLSNotEnabled)
-        pure []
-    handleError (Left (r, e)) = do
-      logFedError r (toResponse e)
-      pure $ remotesToQIds (tUnqualified r)
-    logFedError :: Member TinyLog r => Remote x -> JSONResponse -> Sem r ()
-    logFedError r e =
-      warn $
-        Logger.msg ("A message could not be delivered to a remote backend" :: ByteString)
-          . Logger.field "remote_domain" (domainText (tDomain r))
-          . Logger.field "error" (A.encode e.value)
