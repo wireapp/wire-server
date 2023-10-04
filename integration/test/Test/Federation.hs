@@ -34,11 +34,11 @@ testNotificationsForOfflineBackends = do
       downUser2 <- randomUser downBackend.berDomain def
       downClient1 <- objId $ bindResponse (BrigP.addClient downUser1 def) $ getJSON 201
 
-      connectUsers delUser otherUser
-      connectUsers delUser otherUser2
-      connectUsers delUser downUser1
-      connectUsers delUser downUser2
-      connectUsers downUser1 otherUser
+      connectTwoUsers delUser otherUser
+      connectTwoUsers delUser otherUser2
+      connectTwoUsers delUser downUser1
+      connectTwoUsers delUser downUser2
+      connectTwoUsers downUser1 otherUser
 
       upBackendConv <- bindResponse (postConversation delUser (defProteus {qualifiedUsers = [otherUser, otherUser2, downUser1]})) $ getJSON 201
       downBackendConv <- bindResponse (postConversation downUser1 (defProteus {qualifiedUsers = [otherUser, delUser]})) $ getJSON 201
@@ -79,7 +79,7 @@ testNotificationsForOfflineBackends = do
       -- however, if the backend of the user to be added is already part of the conversation, we do not need to do the check
       -- and the user can be added as long as the backend is reachable
       otherUser3 <- randomUser OtherDomain def
-      connectUsers delUser otherUser3
+      connectTwoUsers delUser otherUser3
       bindResponse (addMembers delUser upBackendConv def {users = [otherUser3]}) $ \resp ->
         resp.status `shouldMatchInt` 200
 
