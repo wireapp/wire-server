@@ -44,7 +44,7 @@ testMessageTimerChangeWithUnreachableRemotes = do
   conv <- runCodensity (acquireResources 1 resourcePool) $ \[dynBackend] ->
     runCodensity (startDynamicBackend dynBackend mempty) $ \_ -> do
       bob <- randomUser dynBackend.berDomain def
-      connectUsers2 alice bob
+      connectTwoUsers alice bob
       postConversation alice (defProteus {qualifiedUsers = [bob]}) >>= getJSON 201
   withWebSocket alice $ \ws -> do
     void $ updateMessageTimer alice conv 1000 >>= getBody 200
