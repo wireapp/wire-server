@@ -86,6 +86,7 @@ mkEnv l es cas galleyEndpoint = do
     <*> pure mgr
     <*> pure galleyEndpoint
   where
+    -- TODO: Add TLS support
     initCassandra =
       C.init
         $ C.setLogger (C.mkLogger l)

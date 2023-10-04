@@ -64,6 +64,7 @@ mkEnv settings = do
         . Log.setLogLevel
           (if s ^. setDebug == Debug then Log.Debug else Log.Info)
         $ Log.defSettings
+    -- TODO: Add TLS support
     initCassandra cas l =
       C.init
         . C.setLogger (C.mkLogger l)

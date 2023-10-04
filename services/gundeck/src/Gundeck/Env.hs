@@ -90,6 +90,7 @@ createEnv m o = do
       (rAddThread, rAdd) <- createRedisPool l additionalRedis "additional-write-redis"
       pure ([rAddThread], Just rAdd)
 
+  -- TODO: Add TLS support
   p <-
     C.init
       $ C.setLogger (C.mkLogger (Logger.clone (Just "cassandra.gundeck") l))

@@ -69,6 +69,7 @@ mkEnv l cas =
     <$> initCassandra
     <*> initLogger
   where
+    -- TODO: Add TLS support
     initCassandra =
       C.init
         $ C.setLogger (C.mkLogger l)
