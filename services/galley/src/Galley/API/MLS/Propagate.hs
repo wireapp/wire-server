@@ -38,7 +38,6 @@ import Polysemy.Input
 import Polysemy.TinyLog hiding (trace)
 import System.Logger.Class qualified as Logger
 import Wire.API.Error
-import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
@@ -125,13 +124,9 @@ propagateMessage qusr mSenderClient lConvOrSub con msg cm = do
 
     handleError ::
       Member TinyLog r =>
-      Either (Remote [RemoteMember], FederationError) (Remote RemoteMLSMessageResponse) ->
+      Either (Remote [RemoteMember], FederationError) (Remote x) ->
       Sem r [Qualified UserId]
-    handleError (Right x) = case tUnqualified x of
-      RemoteMLSMessageOk -> pure []
-      RemoteMLSMessageMLSNotEnabled -> do
-        logFedError x (errorToResponse @'MLSNotEnabled)
-        pure []
+    handleError (Right _) = pure []
     handleError (Left (r, e)) = do
       logFedError r (toResponse e)
       pure $ remotesToQIds (tUnqualified r)

@@ -40,7 +40,6 @@ import Wire.API.MLS.SubConversation
 import Wire.API.MakesFederatedCall
 import Wire.API.Message
 import Wire.API.Routes.Public.Galley.Messaging
-import Wire.API.Unreachable
 import Wire.API.Util.Aeson (CustomEncoded (..), CustomEncodedLensable (..))
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
@@ -100,7 +99,7 @@ type GalleyApi =
            ConversationUpdateRequest
            ConversationUpdateResponse
     :<|> FedEndpoint "mls-welcome" MLSWelcomeRequest MLSWelcomeResponse
-    :<|> FedEndpoint "on-mls-message-sent" RemoteMLSMessage RemoteMLSMessageResponse
+    :<|> FedEndpoint "on-mls-message-sent" RemoteMLSMessage EmptyResponse
     :<|> FedEndpointWithMods
            '[ MakesFederatedCall 'Galley "on-conversation-updated",
               MakesFederatedCall 'Galley "on-mls-message-sent",
@@ -472,7 +471,7 @@ data MLSMessageResponse
     MLSMessageResponseUnreachableBackends (Set Domain)
   | -- | If the list of unreachable users is non-empty, it corresponds to users
     -- that an application message could not be sent to.
-    MLSMessageResponseUpdates [ConversationUpdate] (Maybe UnreachableUsers)
+    MLSMessageResponseUpdates [ConversationUpdate]
   | MLSMessageResponseNonFederatingBackends NonFederatingBackends
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via (CustomEncoded MLSMessageResponse)

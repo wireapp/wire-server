@@ -81,7 +81,7 @@ import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Common (EmptyResponse (..))
-import Wire.API.Federation.API.Galley hiding (id)
+import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
 import Wire.API.MLS.Credential
 import Wire.API.MLS.GroupInfo
@@ -142,7 +142,7 @@ onClientRemoved domain req = do
       mConv <- E.getConversation convId
       for mConv $ \conv -> do
         lconv <- qualifyLocal conv
-        removeClient lconv qusr req.client
+        removeClient lconv qusr (req.client)
   pure EmptyResponse
 
 onConversationCreated ::
@@ -520,7 +520,7 @@ updateConversation origDomain updateRequest = do
         . runError @NoChanges
         . fmap (either ConversationUpdateResponseNonFederatingBackends Imports.id)
         . runError @NonFederatingBackends
-        . fmap (either ConversationUpdateResponseUnreachableBackends id)
+        . fmap (either ConversationUpdateResponseUnreachableBackends Imports.id)
         . runError @UnreachableBackends
         . fmap ConversationUpdateResponseUpdate
 
@@ -547,7 +547,7 @@ handleMLSMessageErrors =
     . runError
     . fmap (either MLSMessageResponseNonFederatingBackends Imports.id)
     . runError
-    . fmap (either (MLSMessageResponseUnreachableBackends . Set.fromList . (.backends)) id)
+    . fmap (either (MLSMessageResponseUnreachableBackends . Set.fromList . (.backends)) Imports.id)
     . runError @UnreachableBackends
     . mapToGalleyError @MLSBundleStaticErrors
 
@@ -586,7 +586,7 @@ sendMLSCommitBundle remoteDomain msr = handleMLSMessageErrors $ do
   ibundle <- noteS @'MLSUnsupportedMessage $ mkIncomingBundle bundle
   (ctype, qConvOrSub) <- getConvFromGroupId ibundle.groupId
   when (qUnqualified qConvOrSub /= msr.convOrSubId) $ throwS @'MLSGroupConversationMismatch
-  uncurry MLSMessageResponseUpdates . (,mempty) . map lcuUpdate
+  MLSMessageResponseUpdates . map lcuUpdate
     <$> postMLSCommitBundle
       loc
       (tUntagged sender)
@@ -627,7 +627,7 @@ sendMLSMessage remoteDomain msr = handleMLSMessageErrors $ do
   msg <- noteS @'MLSUnsupportedMessage $ mkIncomingMessage raw
   (ctype, qConvOrSub) <- getConvFromGroupId msg.groupId
   when (qUnqualified qConvOrSub /= msr.convOrSubId) $ throwS @'MLSGroupConversationMismatch
-  uncurry MLSMessageResponseUpdates . first (map lcuUpdate)
+  MLSMessageResponseUpdates . map lcuUpdate . fst
     <$> postMLSMessage
       loc
       (tUntagged sender)
@@ -673,9 +673,9 @@ leaveSubConversation domain lscr = do
   let rusr = toRemoteUnsafe domain (lscrUser lscr)
       cid = mkClientIdentity (tUntagged rusr) (lscrClient lscr)
   lcnv <- qualifyLocal (lscrConv lscr)
-  fmap (either (LeaveSubConversationResponseProtocolError . unTagged) id)
+  fmap (either (LeaveSubConversationResponseProtocolError . unTagged) Imports.id)
     . runError @MLSProtocolError
-    . fmap (either LeaveSubConversationResponseError id)
+    . fmap (either LeaveSubConversationResponseError Imports.id)
     . runError @GalleyError
     . mapToGalleyError @LeaveSubConversationStaticErrors
     $ leaveLocalSubConversation cid lcnv (lscrSubConv lscr)
@@ -776,9 +776,10 @@ onMLSMessageSent ::
   ) =>
   Domain ->
   RemoteMLSMessage ->
-  Sem r RemoteMLSMessageResponse
+  Sem r EmptyResponse
 onMLSMessageSent domain rmm =
-  fmap (either (const RemoteMLSMessageMLSNotEnabled) (const RemoteMLSMessageOk))
+  (EmptyResponse <$)
+    . (logError =<<)
     . runError @(Tagged 'MLSNotEnabled ())
     $ do
       assertMLSEnabled
@@ -805,6 +806,15 @@ onMLSMessageSent domain rmm =
 
       runMessagePush loc (Just (tUntagged rcnv)) $
         newMessagePush mempty Nothing rmm.metadata recipients e
+  where
+    logError :: Member P.TinyLog r => Either (Tagged 'MLSNotEnabled ()) () -> Sem r ()
+    logError (Left _) =
+      P.warn $
+        Log.field "conversation" (toByteString' rmm.conversation)
+          Log.~~ Log.field "domain" (toByteString' domain)
+          Log.~~ Log.msg
+            ("Cannot process remote MLS message because MLS is disabled on this backend" :: ByteString)
+    logError _ = pure ()
 
 mlsSendWelcome ::
   ( Member (Error InternalError) r,

@@ -1088,7 +1088,7 @@ testRemoteToLocal = do
             }
 
     WS.bracketR cannon (qUnqualified alice) $ \ws -> do
-      MLSMessageResponseUpdates updates _ <- runFedClient @"send-mls-message" fedGalleyClient bobDomain msr
+      MLSMessageResponseUpdates updates <- runFedClient @"send-mls-message" fedGalleyClient bobDomain msr
       liftIO $ do
         updates @?= []
         WS.assertMatch_ (5 # Second) ws $
@@ -1787,7 +1787,7 @@ testAddUserToRemoteConvWithBundle = do
     commit <- createAddCommit bob1 [charlie]
     commitBundle <- createBundle commit
 
-    let mock = "send-mls-commit-bundle" ~> MLSMessageResponseUpdates [] mempty
+    let mock = "send-mls-commit-bundle" ~> MLSMessageResponseUpdates []
     (_, reqs) <- withTempMockFederator' mock $ do
       void $ sendAndConsumeCommitBundle commit
 
@@ -2051,7 +2051,7 @@ testJoinRemoteSubConv = do
     -- bob joins subconversation
     let pgs = mpGroupInfo initialCommit
     let mock =
-          ("send-mls-commit-bundle" ~> MLSMessageResponseUpdates [] mempty)
+          ("send-mls-commit-bundle" ~> MLSMessageResponseUpdates [])
             <|> queryGroupStateMock (fold pgs) bob
             <|> sendMessageMock
     (_, reqs) <- withTempMockFederator' mock $ do
@@ -2595,7 +2595,7 @@ testLeaveRemoteSubConv = do
 
     let pgs = mpGroupInfo initialCommit
     let mock =
-          ("send-mls-commit-bundle" ~> MLSMessageResponseUpdates [] mempty)
+          ("send-mls-commit-bundle" ~> MLSMessageResponseUpdates [])
             <|> queryGroupStateMock (fold pgs) bob
             <|> sendMessageMock
             <|> ("leave-sub-conversation" ~> LeaveSubConversationResponseOk)

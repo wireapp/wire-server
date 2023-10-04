@@ -1,5 +1,3 @@
-{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2023 Wire Swiss GmbH <opensource@wire.com>
@@ -39,7 +37,7 @@ testAccessUpdateGuestRemoved = do
   (alice, tid, [bob]) <- createTeam OwnDomain 2
   charlie <- randomUser OwnDomain def
   dee <- randomUser OtherDomain def
-  mapM_ (connectUsers2 alice) [charlie, dee]
+  mapM_ (connectTwoUsers alice) [charlie, dee]
   [aliceClient, bobClient, charlieClient, deeClient] <-
     mapM
       (\user -> objId $ bindResponse (addClient user def) $ getJSON 201)
@@ -72,7 +70,7 @@ testAccessUpdateGuestRemovedUnreachableRemotes = do
   resourcePool <- asks resourcePool
   (alice, tid, [bob]) <- createTeam OwnDomain 2
   charlie <- randomUser OwnDomain def
-  connectUsers2 alice charlie
+  connectTwoUsers alice charlie
   [aliceClient, bobClient, charlieClient] <-
     mapM
       (\user -> objId $ bindResponse (addClient user def) $ getJSON 201)
@@ -80,7 +78,7 @@ testAccessUpdateGuestRemovedUnreachableRemotes = do
   (conv, dee) <- runCodensity (acquireResources 1 resourcePool) $ \[dynBackend] ->
     runCodensity (startDynamicBackend dynBackend mempty) $ \_ -> do
       dee <- randomUser dynBackend.berDomain def
-      connectUsers2 alice dee
+      connectTwoUsers alice dee
       conv <-
         postConversation
           alice
@@ -105,7 +103,9 @@ testAccessUpdateGuestRemovedUnreachableRemotes = do
 
 testAccessUpdateWithRemotes :: HasCallStack => App ()
 testAccessUpdateWithRemotes = do
-  [alice, bob, charlie] <- createAndConnectUsers [OwnDomain, OtherDomain, OwnDomain]
+  [alice, bob, charlie] <- createUsers [OwnDomain, OtherDomain, OwnDomain]
+  connectTwoUsers alice bob
+  connectTwoUsers alice charlie
   conv <-
     postConversation alice (defProteus {qualifiedUsers = [bob, charlie]})
       >>= getJSON 201

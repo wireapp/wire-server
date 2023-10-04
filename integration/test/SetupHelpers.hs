@@ -65,7 +65,7 @@ createTeamMember inviter tid = do
       <&> addJSONObject registerJSON
   getJSON 201 =<< submit "POST" registerReq
 
-connectUsers2 ::
+connectTwoUsers ::
   ( HasCallStack,
     MakesValue alice,
     MakesValue bob
@@ -73,12 +73,12 @@ connectUsers2 ::
   alice ->
   bob ->
   App ()
-connectUsers2 alice bob = do
+connectTwoUsers alice bob = do
   bindResponse (postConnection alice bob) (\resp -> resp.status `shouldMatchInt` 201)
   bindResponse (putConnection bob alice "accepted") (\resp -> resp.status `shouldMatchInt` 200)
 
 connectUsers :: HasCallStack => [Value] -> App ()
-connectUsers users = traverse_ (uncurry connectUsers2) $ do
+connectUsers users = traverse_ (uncurry connectTwoUsers) $ do
   t <- tails users
   (a, others) <- maybeToList (uncons t)
   b <- others
@@ -89,6 +89,9 @@ createAndConnectUsers domains = do
   users <- for domains (flip randomUser def)
   connectUsers users
   pure users
+
+createUsers :: (HasCallStack, MakesValue domain) => [domain] -> App [Value]
+createUsers domains = for domains (flip randomUser def)
 
 getAllConvs :: (HasCallStack, MakesValue u) => u -> App [Value]
 getAllConvs u = do
@@ -148,7 +151,7 @@ createMLSOne2OnePartner domain other convDomain = loop
   where
     loop = do
       u <- randomUser domain def
-      connectUsers2 u other
+      connectTwoUsers u other
       conv <- getMLSOne2OneConversation other u >>= getJSON 200
 
       desiredConvDomain <- make convDomain & asString
