@@ -131,7 +131,32 @@ spec:
     securityContext:
       {{- toYaml .Values.podSecurityContext | nindent 6 }}
         {{- end }}
-    command: [ "integration", "--config", "/etc/wire/integration/integration.yaml" ]
+    # command: [  ]
+    command:
+    - /bin/bash
+    - -c
+    - |
+      set -euo pipefail
+
+      if integration --config /etc/wire/integration/integration.yaml; then
+        exit_code=$?
+      else
+        exit_code=$?
+      fi
+
+      {{- if .Values.config.uploadXml }}
+      # In case a different S3 compliant storage is used to upload test result.
+      if ! [[ -z "${UPLOAD_XML_AWS_ACCESS_KEY_ID+x}" ]]; then
+        export AWS_ACCESS_KEY_ID="$UPLOAD_XML_AWS_ACCESS_KEY_ID"
+        export AWS_SECRET_ACCESS_KEY="$UPLOAD_XML_AWS_SECRET_ACCESS_KEY"
+      fi
+
+      # The `|| echo ..` ensures that the test isn't seen as failed even if the upload fails.
+      ts=$(date '+%Y-%m-%d-%H:%M:%S.%N')
+      aws s3 cp "$TEST_XML" "$UPLOAD_XML_S3_BASE_URL/integration/${ts}.xml" || echo "failed to upload result"
+      {{- end }}
+
+      exit $exit_code
     resources:
       requests:
         memory: "512Mi"
@@ -207,3 +232,15 @@ spec:
         secretKeyRef:
           name: brig
           key: rabbitmqPassword
+    {{- if .Values.config.uploadXml }}
+    - name: TEST_XML
+      value: /result.xml
+    - name: UPLOAD_XML_S3_BASE_URL
+      value: {{ .Values.config.uplaodXml.baseUrl }}
+    {{- if .Values.secrets.uploadXmlAwsAccessKeyId }}
+    - name: UPLOAD_XML_AWS_ACCESS_KEY_ID
+      value: .Values.secrets.uploadXmlAwsAccessKeyId
+    - name: UPLOAD_XML_AWS_SECRET_ACCESS_KEY
+      value: .Values.secrets.uploadXmlAwsSecretAccessKey
+    {{- end }}
+    {{- end }}
