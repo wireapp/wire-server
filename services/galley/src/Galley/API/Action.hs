@@ -799,8 +799,8 @@ notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
 
   update <-
     fmap (fromMaybe (mkUpdate []))
-      . (>>= either handleError (pure . asum . map tUnqualified))
-      . enqueueNotificationsConcurrently Q.Persistent (toList (bmRemotes targets))
+      . (either handleError (pure . asum . map tUnqualified))
+      <=< enqueueNotificationsConcurrently Q.Persistent (toList (bmRemotes targets))
       $ \ruids -> do
         let update = mkUpdate (tUnqualified ruids)
         -- if notifyOrigDomain is false, filter out user from quid's domain,
@@ -816,7 +816,6 @@ notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
   -- return both the event and the 'ConversationUpdate' structure corresponding
   -- to the originating domain (if it is remote)
   pure $ LocalConversationUpdate e update
-  where
 
 -- | Update the local database with information on conversation members joining
 -- or leaving. Finally, push out notifications to local users.
