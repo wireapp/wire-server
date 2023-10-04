@@ -145,7 +145,7 @@ testIndependentESIndices = do
   u1 <- randomUser OwnDomain def
   u2 <- randomUser OwnDomain def
   uid2 <- objId u2
-  connectUsers u1 u2
+  connectUsers2 u1 u2
   BrigI.refreshIndex OwnDomain
   bindResponse (BrigP.searchContacts u1 (u2 %. "name") OwnDomain) $ \resp -> do
     resp.status `shouldMatchInt` 200
@@ -163,7 +163,7 @@ testIndependentESIndices = do
       null docs `shouldMatch` True
     uD2 <- randomUser dynDomain def
     uidD2 <- objId uD2
-    connectUsers uD1 uD2
+    connectUsers2 uD1 uD2
     BrigI.refreshIndex dynDomain
     -- searching for uD2 on the dyn backend should yield a result
     bindResponse (BrigP.searchContacts uD1 (uD2 %. "name") dynDomain) $ \resp -> do
@@ -176,7 +176,7 @@ testIndependentESIndices = do
 testDynamicBackendsFederation :: HasCallStack => App ()
 testDynamicBackendsFederation = do
   startDynamicBackends [def, def] $ \[aDynDomain, anotherDynDomain] -> do
-    (u1, u2) <- createAndConnectUsers aDynDomain anotherDynDomain
+    [u1, u2] <- createAndConnectUsers [aDynDomain, anotherDynDomain]
     bindResponse (BrigP.getConnection u1 u2) assertSuccess
     bindResponse (BrigP.getConnection u2 u1) assertSuccess
 

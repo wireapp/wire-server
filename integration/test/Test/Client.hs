@@ -46,7 +46,7 @@ testListClientsIfBackendIsOffline = do
   resourcePool <- asks (.resourcePool)
   ownDomain <- asString OwnDomain
   otherDomain <- asString OtherDomain
-  (ownUser1, ownUser2) <- createAndConnectUsers OwnDomain OtherDomain
+  [ownUser1, ownUser2] <- createAndConnectUsers [OwnDomain, OtherDomain]
   ownClient1 <- objId $ bindResponse (API.addClient ownUser1 def) $ getJSON 201
   ownClient2 <- objId $ bindResponse (API.addClient ownUser2 def) $ getJSON 201
   ownUser1Id <- objId ownUser1
