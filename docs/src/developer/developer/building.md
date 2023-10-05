@@ -81,9 +81,14 @@ Also make sure your system is able to resolve the fully qualified domain `localh
 
 After all containers are up you can use these Makefile targets to run the tests locally:
 
+0. Set your resource limits to a high enough number: 
+  ```bash
+  ulimit 10240
+  ```
+
 1. Build and run all integration tests
    ```bash
-   make ci
+   make ci-safe
    ```
 
 2. Build and run integration tests for a service (say galley)
