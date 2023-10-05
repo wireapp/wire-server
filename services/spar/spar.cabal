@@ -460,6 +460,7 @@ executable spar-migrate-data
     , conduit
     , containers
     , exceptions
+    , HsOpenSSL
     , imports
     , lens
     , optparse-applicative

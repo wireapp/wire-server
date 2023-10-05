@@ -26,6 +26,7 @@ import Control.Monad.Catch (finally)
 import qualified Data.Text as Text
 import Data.Time (UTCTime, getCurrentTime)
 import Imports
+import qualified OpenSSL.Session as OpenSSL
 import qualified Options.Applicative as Opts
 import Spar.DataMigration.Options (settingsParser)
 import Spar.DataMigration.Types
@@ -64,15 +65,32 @@ mkEnv settings = do
         . Log.setLogLevel
           (if s ^. setDebug == Debug then Log.Debug else Log.Info)
         $ Log.defSettings
-    -- TODO: Add TLS support
-    initCassandra cas l =
-      C.init
-        . C.setLogger (C.mkLogger l)
-        . C.setContacts (cas ^. cHosts) []
-        . C.setPortNumber (fromIntegral $ cas ^. cPort)
-        . C.setKeyspace (cas ^. cKeyspace)
-        . C.setProtocolVersion C.V4
-        $ C.defSettings
+
+    initCassandra cas l = do
+      mbSSLContext <- createSSLContext (cas ^. tlsCert)
+      let basicCasSettings =
+            C.setLogger (C.mkLogger l)
+              . C.setContacts (cas ^. cHosts) []
+              . C.setPortNumber (fromIntegral $ cas ^. cPort)
+              . C.setKeyspace (cas ^. cKeyspace)
+              . C.setProtocolVersion C.V4
+              $ C.defSettings
+          casSettings = maybe basicCasSettings (\sslCtx -> C.setSSLContext sslCtx basicCasSettings) mbSSLContext
+      C.init casSettings
+
+    createSSLContext :: Maybe FilePath -> IO (Maybe OpenSSL.SSLContext)
+    createSSLContext (Just tlsCertPath) = do
+      sslContext <- OpenSSL.context
+      OpenSSL.contextSetCAFile sslContext tlsCertPath
+      OpenSSL.contextSetVerificationMode
+        sslContext
+        OpenSSL.VerifyPeer
+          { vpFailIfNoPeerCert = False,
+            vpClientOnce = True,
+            vpCallback = Nothing
+          }
+      pure $ Just sslContext
+    createSSLContext Nothing = pure Nothing
 
 cleanup :: (MonadIO m) => Env -> m ()
 cleanup env = do

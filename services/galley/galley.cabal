@@ -575,6 +575,7 @@ executable galley-migrate-data
     , exceptions
     , extended
     , galley-types
+    , HsOpenSSL
     , imports
     , lens
     , optparse-applicative

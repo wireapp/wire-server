@@ -24,6 +24,7 @@ import Data.Text qualified as Text
 import Data.Time (UTCTime, getCurrentTime)
 import Galley.DataMigration.Types
 import Imports
+import OpenSSL.Session qualified as OpenSSL
 import Options.Applicative (Parser)
 import Options.Applicative qualified as Opts
 import System.Logger.Class (Logger)
@@ -32,7 +33,8 @@ import System.Logger.Class qualified as Log
 data CassandraSettings = CassandraSettings
   { cHost :: String,
     cPort :: Word16,
-    cKeyspace :: C.Keyspace
+    cKeyspace :: C.Keyspace,
+    cTlsCert :: Maybe FilePath
   }
 
 cassandraSettingsParser :: Parser CassandraSettings
@@ -53,6 +55,11 @@ cassandraSettingsParser =
                   <> Opts.value "galley_test"
               )
         )
+    <*> ( (Opts.optional . Opts.strOption)
+            ( Opts.long "tls-certificate-file"
+                <> Opts.help "Location of a PEM encoded list of CA certificates to be used when verifying the Cassandra server's certificate"
+            )
+        )
 
 migrate :: Logger -> CassandraSettings -> [Migration] -> IO ()
 migrate l cas ms = do
@@ -69,16 +76,33 @@ mkEnv l cas =
     <$> initCassandra
     <*> initLogger
   where
-    -- TODO: Add TLS support
-    initCassandra =
-      C.init
-        $ C.setLogger (C.mkLogger l)
-          . C.setContacts (cHost cas) []
-          . C.setPortNumber (fromIntegral (cPort cas))
-          . C.setKeyspace (cKeyspace cas)
-          . C.setProtocolVersion C.V4
-        $ C.defSettings
+    initCassandra = do
+      mbSSLContext <- createSSLContext (cTlsCert cas)
+      let basicCasSettings =
+            C.setLogger (C.mkLogger l)
+              . C.setContacts (cHost cas) []
+              . C.setPortNumber (fromIntegral (cPort cas))
+              . C.setKeyspace (cKeyspace cas)
+              . C.setProtocolVersion C.V4
+              $ C.defSettings
+          casSettings = maybe basicCasSettings (\sslCtx -> C.setSSLContext sslCtx basicCasSettings) mbSSLContext
+
+      C.init casSettings
     initLogger = pure l
+
+    createSSLContext :: Maybe FilePath -> IO (Maybe OpenSSL.SSLContext)
+    createSSLContext (Just tlsCertPath) = do
+      sslContext <- OpenSSL.context
+      OpenSSL.contextSetCAFile sslContext tlsCertPath
+      OpenSSL.contextSetVerificationMode
+        sslContext
+        OpenSSL.VerifyPeer
+          { vpFailIfNoPeerCert = False,
+            vpClientOnce = True,
+            vpCallback = Nothing
+          }
+      pure $ Just sslContext
+    createSSLContext Nothing = pure Nothing
 
 -- | Runs only the migrations which need to run
 runMigrations :: [Migration] -> MigrationActionT IO ()
