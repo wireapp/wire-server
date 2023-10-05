@@ -34,8 +34,10 @@ import Data.Aeson (FromJSON)
 import Data.Aeson qualified as Aeson
 import Data.Metrics qualified as Metrics
 import Database.Bloodhound qualified as ES
+import Debug.Trace
 import Imports
 import Network.HTTP.Client as HTTP
+import OpenSSL.Session qualified as OpenSSL
 import System.Logger qualified as Log
 import System.Logger.Class (Logger, MonadLogger (..))
 
@@ -101,14 +103,32 @@ runCommand l = \case
         <*> pure mgr
     initES esURI mgr =
       ES.mkBHEnv (toESServer esURI) mgr
-    initDb cas =
-      C.init
-        $ C.setLogger (C.mkLogger l)
-          . C.setContacts (view cHost cas) []
-          . C.setPortNumber (fromIntegral (view cPort cas))
-          . C.setKeyspace (view cKeyspace cas)
-          . C.setProtocolVersion C.V4
-        $ C.defSettings
+    initDb cas = do
+      mbSSLContext <- createSSLContext (cas ^. cTlsCert)
+      let basicCasSettings =
+            C.setLogger (C.mkLogger l)
+              . C.setContacts (view cHost cas) []
+              . C.setPortNumber (fromIntegral (view cPort cas))
+              . C.setKeyspace (view cKeyspace cas)
+              . C.setProtocolVersion C.V4
+              $ C.defSettings
+          casSettings = maybe basicCasSettings (\sslCtx -> C.setSSLContext sslCtx basicCasSettings) mbSSLContext
+      C.init casSettings
+
+    createSSLContext :: Maybe FilePath -> IO (Maybe OpenSSL.SSLContext)
+    createSSLContext (Just tlsCertPath) = do
+      traceM $ "brig-index eval: " ++ show tlsCertPath
+      sslContext <- OpenSSL.context
+      OpenSSL.contextSetCAFile sslContext tlsCertPath
+      OpenSSL.contextSetVerificationMode
+        sslContext
+        OpenSSL.VerifyPeer
+          { vpFailIfNoPeerCert = False,
+            vpClientOnce = True,
+            vpCallback = Nothing
+          }
+      pure $ Just sslContext
+    createSSLContext Nothing = pure Nothing
 
 waitForTaskToComplete :: forall a m. (ES.MonadBH m, MonadThrow m, FromJSON a) => Int -> ES.TaskNodeId -> m ()
 waitForTaskToComplete timeoutSeconds taskNodeId = do

@@ -28,6 +28,8 @@ cassandra:
     port: 9042
   keyspace: spar_test
   filterNodesByDatacentre: datacenter1
+  useTLS: true
+  tlsCert: ../../hack/cassandra.cert.pem
 
 # Wire/AWS specific, optional
 # discoUrl: "https://"

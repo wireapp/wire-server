@@ -31,6 +31,7 @@ module Brig.Index.Options
     CassandraSettings,
     cHost,
     cPort,
+    cTlsCert,
     cKeyspace,
     localElasticSettings,
     localCassandraSettings,
@@ -82,7 +83,8 @@ data ElasticSettings = ElasticSettings
 data CassandraSettings = CassandraSettings
   { _cHost :: String,
     _cPort :: Word16,
-    _cKeyspace :: C.Keyspace
+    _cKeyspace :: C.Keyspace,
+    _cTlsCert :: Maybe FilePath
   }
   deriving (Show)
 
@@ -125,7 +127,8 @@ localCassandraSettings =
   CassandraSettings
     { _cHost = "localhost",
       _cPort = 9042,
-      _cKeyspace = C.Keyspace "brig_test"
+      _cKeyspace = C.Keyspace "brig_test",
+      _cTlsCert = pure "hack/cassandra.cert.pem"
     }
 
 elasticServerParser :: Parser (URIRef Absolute)
@@ -246,6 +249,13 @@ cassandraSettingsParser =
                   <> value (view (cKeyspace . _Keyspace . unpacked) localCassandraSettings)
                   <> showDefault
               )
+        )
+    <*> ( (optional . strOption)
+            ( long "tls-certificate-file"
+                <> help "Location of a PEM encoded list of CA certificates to be used when verifying the Cassandra server's certificate"
+                <> value (fromMaybe "" (localCassandraSettings ^. cTlsCert))
+                <> showDefault
+            )
         )
 
 reindexToAnotherIndexSettingsParser :: Parser ReindexFromAnotherIndexSettings

@@ -334,9 +334,8 @@ migrationOptsParser =
       ( long "use-tls"
           <> help "Use TLS to connect to Cassandra"
       )
-    <*> option
-      auto
-      ( long "tls-certificate-file"
-          <> value Nothing
-          <> help "Location of a PEM encoded list of CA certificates to be used when verifying the Cassandra server's certificate"
-      )
+    <*> ( (optional . strOption)
+            ( long "tls-certificate-file"
+                <> help "Location of a PEM encoded list of CA certificates to be used when verifying the Cassandra server's certificate"
+            )
+        )

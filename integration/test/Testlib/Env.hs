@@ -14,7 +14,10 @@ import Data.Set (Set)
 import Data.Set qualified as Set
 import Data.Yaml qualified as Yaml
 import Database.CQL.IO qualified as Cassandra
+import Debug.Trace
 import Network.HTTP.Client qualified as HTTP
+import OpenSSL.Session qualified as OpenSSL
+import System.Directory
 import System.Environment (lookupEnv)
 import System.Exit
 import System.FilePath
@@ -53,12 +56,26 @@ mkGlobalEnv cfgFile = do
           if last ps == "services"
             then Just (joinPath (init ps))
             else Nothing
+      getCassCertFilePath :: IO (Maybe FilePath) =
+        maybe
+          (pure Nothing)
+          ( \certFilePath ->
+              if isAbsolute certFilePath
+                then pure $ Just certFilePath
+                else maybe (pure Nothing) (\projectRoot -> (Just <$> (makeAbsolute) (combine projectRoot certFilePath))) devEnvProjectRoot
+          )
+          intConfig.cassandra.cassTlsCert
 
   manager <- liftIO $ HTTP.newManager HTTP.defaultManagerSettings
-  let cassSettings =
+
+  mbCassCertFilePath <- liftIO $ getCassCertFilePath
+  traceM $ "mbCassCertFilePath: " ++ show mbCassCertFilePath
+  mbSSLContext <- liftIO $ createSSLContext mbCassCertFilePath
+  let basicCassSettings =
         Cassandra.defSettings
-          & Cassandra.setContacts intConfig.cassandra.host []
-          & Cassandra.setPortNumber (fromIntegral intConfig.cassandra.port)
+          & Cassandra.setContacts intConfig.cassandra.cassHost []
+          & Cassandra.setPortNumber (fromIntegral intConfig.cassandra.cassPort)
+      cassSettings = maybe basicCassSettings (\sslCtx -> Cassandra.setSSLContext sslCtx basicCassSettings) mbSSLContext
   cassClient <- Cassandra.init cassSettings
   let resources = backendResources (Map.elems intConfig.dynamicBackends)
   resourcePool <-
@@ -92,6 +109,20 @@ mkGlobalEnv cfgFile = do
         gTempDir = tempDir,
         gTimeOutSeconds = timeOutSeconds
       }
+  where
+    createSSLContext :: Maybe FilePath -> IO (Maybe OpenSSL.SSLContext)
+    createSSLContext (Just certFilePath) = do
+      sslContext <- OpenSSL.context
+      OpenSSL.contextSetCAFile sslContext certFilePath
+      OpenSSL.contextSetVerificationMode
+        sslContext
+        OpenSSL.VerifyPeer
+          { vpFailIfNoPeerCert = False,
+            vpClientOnce = True,
+            vpCallback = Nothing
+          }
+      pure $ Just sslContext
+    createSSLContext Nothing = pure Nothing
 
 mkEnv :: GlobalEnv -> Codensity IO Env
 mkEnv ge = do

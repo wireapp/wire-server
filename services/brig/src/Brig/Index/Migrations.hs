@@ -31,8 +31,10 @@ import Data.Aeson (Value, object, (.=))
 import Data.Metrics qualified as Metrics
 import Data.Text qualified as Text
 import Database.Bloodhound qualified as ES
+import Debug.Trace
 import Imports
 import Network.HTTP.Client qualified as HTTP
+import OpenSSL.Session qualified as OpenSSL
 import System.Logger.Class (Logger)
 import System.Logger.Class qualified as Log
 import System.Logger.Extended (runWithLogger)
@@ -86,15 +88,34 @@ mkEnv l es cas galleyEndpoint = do
     <*> pure mgr
     <*> pure galleyEndpoint
   where
-    -- TODO: Add TLS support
     initCassandra =
-      C.init
-        $ C.setLogger (C.mkLogger l)
-          . C.setContacts (view Opts.cHost cas) []
-          . C.setPortNumber (fromIntegral (view Opts.cPort cas))
-          . C.setKeyspace (view Opts.cKeyspace cas)
-          . C.setProtocolVersion C.V4
-        $ C.defSettings
+      do
+        mbSSLContext <- createSSLContext (cas ^. Opts.cTlsCert)
+        let basicCasSettings =
+              C.setLogger (C.mkLogger l)
+                . C.setContacts (view Opts.cHost cas) []
+                . C.setPortNumber (fromIntegral (view Opts.cPort cas))
+                . C.setKeyspace (view Opts.cKeyspace cas)
+                . C.setProtocolVersion C.V4
+                $ C.defSettings
+            casSettings = maybe basicCasSettings (\sslCtx -> C.setSSLContext sslCtx basicCasSettings) mbSSLContext
+        C.init casSettings
+
+    createSSLContext :: Maybe FilePath -> IO (Maybe OpenSSL.SSLContext)
+    createSSLContext (Just tlsCertPath) = do
+      traceM $ "brig-index: " ++ show tlsCertPath
+      sslContext <- OpenSSL.context
+      OpenSSL.contextSetCAFile sslContext tlsCertPath
+      OpenSSL.contextSetVerificationMode
+        sslContext
+        OpenSSL.VerifyPeer
+          { vpFailIfNoPeerCert = False,
+            vpClientOnce = True,
+            vpCallback = Nothing
+          }
+      pure $ Just sslContext
+    createSSLContext Nothing = pure Nothing
+
     initLogger = pure l
 
 createMigrationsIndexIfNotPresent :: (MonadThrow m, ES.MonadBH m, Log.MonadLogger m) => m ()

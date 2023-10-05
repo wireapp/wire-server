@@ -24,7 +24,7 @@ where
 
 import Cassandra (ClientState, init)
 import Cassandra.CQL
-import Cassandra.Settings (defSettings, setContacts, setKeyspace, setLogger, setPortNumber)
+import Cassandra.Settings (defSettings, setContacts, setKeyspace, setLogger, setPortNumber, setSSLContext)
 import Data.Aeson
 import Data.Fixed
 import Data.Text (unpack)
@@ -32,17 +32,37 @@ import Data.Time (UTCTime, nominalDiffTimeToSeconds)
 import Data.Time.Clock (secondsToNominalDiffTime)
 import Data.Time.Clock.POSIX
 import Database.CQL.IO.Tinylog qualified as CT
+import Debug.Trace
 import Imports hiding (init)
+import OpenSSL.Session qualified as OpenSSL
 import System.Logger qualified as Log
 
-defInitCassandra :: Text -> Text -> Word16 -> Log.Logger -> IO ClientState
-defInitCassandra ks h p lg =
-  init
-    $ setLogger (CT.mkLogger lg)
-      . setPortNumber (fromIntegral p)
-      . setContacts (unpack h) []
-      . setKeyspace (Keyspace ks)
-    $ defSettings
+defInitCassandra :: Text -> Text -> Word16 -> Maybe FilePath -> Log.Logger -> IO ClientState
+defInitCassandra ks h p mbCertPath lg = do
+  mbSSLContext <- createSSLContext mbCertPath
+  let basicCasSettings =
+        setLogger (CT.mkLogger lg)
+          . setPortNumber (fromIntegral p)
+          . setContacts (unpack h) []
+          . setKeyspace (Keyspace ks)
+          $ defSettings
+      casSettings = maybe basicCasSettings (\sslCtx -> setSSLContext sslCtx basicCasSettings) mbSSLContext
+  init casSettings
+  where
+    createSSLContext :: Maybe FilePath -> IO (Maybe OpenSSL.SSLContext)
+    createSSLContext (Just tlsCertPath) = do
+      traceM $ "cassandra-util: " ++ show tlsCertPath
+      sslContext <- OpenSSL.context
+      OpenSSL.contextSetCAFile sslContext tlsCertPath
+      OpenSSL.contextSetVerificationMode
+        sslContext
+        OpenSSL.VerifyPeer
+          { vpFailIfNoPeerCert = False,
+            vpClientOnce = True,
+            vpCallback = Nothing
+          }
+      pure $ Just sslContext
+    createSSLContext Nothing = pure Nothing
 
 -- | Read cassandra's writetimes https://docs.datastax.com/en/dse/5.1/cql/cql/cql_using/useWritetime.html
 -- as UTCTime values without any loss of precision

@@ -107,6 +107,7 @@ mkDerivation {
     extra
     gundeck-types
     hedis
+    HsOpenSSL
     http-client
     http-client-tls
     http-types

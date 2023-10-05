@@ -115,8 +115,9 @@ main = withOpenSSL $ runTests go
           ch = gConf ^. cassandra . endpoint . host
           cp = gConf ^. cassandra . endpoint . port
           ck = gConf ^. cassandra . keyspace
+          cTlsCert = gConf ^. cassandra . tlsCert
       lg <- Logger.new Logger.defSettings
-      db <- defInitCassandra ck ch cp lg
+      db <- defInitCassandra ck ch cp cTlsCert lg
       pure $ TestSetup m g c c2 b db lg gConf (redis2 iConf)
     releaseOpts _ = pure ()
     mkRequest (Endpoint h p) = Bilge.host (encodeUtf8 h) . Bilge.port p
