@@ -1,0 +1,4 @@
+uploadXml:
+  awsAccessKeyId: {{ requiredEnv "UPLOAD_XML_AWS_ACCESS_KEY_ID" }}
+  awsSecretAccessKey: {{ requiredEnv "UPLOAD_XML_AWS_SECRET_ACCESS_KEY" }}
+  baseUrl: s3://wire-server-test-logs/flake-detector/{{ requiredEnv "DOCKER_TAG" }}/{{ requiredEnv "FLAKE_FINDER_RUN_ID" }}/

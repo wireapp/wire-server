@@ -324,3 +324,11 @@ background-worker:
 integration:
   ingress:
     class: "nginx-{{ .Release.Namespace }}"
+  {{- if .Values.uploadXml }}
+  config:
+    uploadXml:
+      baseUrl: {{ .Values.uploadXml.baseUrl }}
+  secrets:
+    uploadXmlAwsAccessKeyId: {{ .Values.uploadXml.awsAccessKeyId }}
+    uploadXmlAwsSecretAccessKey: {{ .Values.uploadXml.awsSecretAccessKey }}
+  {{- end }}
