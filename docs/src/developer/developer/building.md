@@ -81,9 +81,14 @@ Also make sure your system is able to resolve the fully qualified domain `localh
 
 After all containers are up you can use these Makefile targets to run the tests locally:
 
+0. Set your resource limits to a high enough number: 
+   ```bash
+   ulimit 10240
+   ```
+
 1. Build and run all integration tests
    ```bash
-   make ci
+   make ci-safe
    ```
 
 2. Build and run integration tests for a service (say galley)
@@ -93,19 +98,19 @@ After all containers are up you can use these Makefile targets to run the tests 
 
 3. Run integration tests written using `tasty` for a service (say galley) that match a pattern
    ```bash
-   TASTY_PATTERN="/MLS/" make ci package=galley
+   TASTY_PATTERN="/MLS/" make ci-safe package=galley
    ```
    For more details on pattern formats, see tasty docs: https://github.com/UnkindPartition/tasty#patterns
 
 4. Run integration tests written using `hspec` for a service (say spar) that match a pattern
    ```bash
-   HSPEC_MATCH='Scim' make ci package=spar
+   HSPEC_MATCH='Scim' make ci-safe package=spar
    ```
    For more details on match formats, see hspec docs: https://hspec.github.io/match.html
 
 5. Run integration tests without any parallelism
    ```bash
-   TASTY_NUM_THREADS=1 make ci package=brig
+   TASTY_NUM_THREADS=1 make ci-safe package=brig
    ```
 
    `TASTY_NUM_THREADS` can also be set to other values, it defaults to number of cores available.
