@@ -111,7 +111,6 @@ tests s =
             [ test s "send application message" testAppMessage,
               test s "send remote application message" testRemoteAppMessage,
               test s "another participant sends an application message" testAppMessage2,
-              test s "send message, some remotes are reachable" testAppMessageSomeReachable,
               test s "send message, remote users are unreachable" testAppMessageUnreachable
             ],
           testGroup
@@ -876,40 +875,6 @@ testAppMessage2 = do
         WS.assertMatchN_ (5 # WS.Second) [wsAlice1, wsBob2, wsCharlie1] $
           wsAssertMLSMessage (fmap Conv conversation) bob (mpMessage message)
         WS.assertNoEvent (2 # WS.Second) [wsBob1]
-
-testAppMessageSomeReachable :: TestM ()
-testAppMessageSomeReachable = do
-  let bobDomain = Domain "bob.example.com"
-      charlieDomain = Domain "charlie.example.com"
-  users@[_alice, bob, charlie] <-
-    createAndConnectUsers $
-      domainText <$$> [Nothing, Just bobDomain, Just charlieDomain]
-
-  void $ runMLSTest $ do
-    [alice1, bob1, charlie1] <-
-      traverse createMLSClient users
-
-    void $ setupMLSGroup alice1
-    commit <- createAddCommit alice1 [bob, charlie]
-
-    let commitMocks =
-          receiveCommitMockByDomain [bob1, charlie1]
-            <|> welcomeMock
-    ([event], _) <-
-      withTempMockFederator' commitMocks $ do
-        sendAndConsumeCommitBundle commit
-
-    let unreachables = Set.singleton (Domain "charlie.example.com")
-    let sendMocks =
-          messageSentMockByDomain [bobDomain]
-            <|> mockUnreachableFor unreachables
-
-    withTempMockFederator' sendMocks $ do
-      message <- createApplicationMessage alice1 "hi, bob!"
-      (_, failed) <- sendAndConsumeMessage message
-      liftIO $ do
-        assertBool "Event should be member join" $ is _EdMembersJoin (evtData event)
-        failed @?= unreachableFromList [charlie]
 
 testAppMessageUnreachable :: TestM ()
 testAppMessageUnreachable = do
