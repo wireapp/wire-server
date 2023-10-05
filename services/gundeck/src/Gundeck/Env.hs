@@ -125,7 +125,7 @@ createEnv m o = do
           OpenSSL.contextSetVerificationMode
             sslContext
             OpenSSL.VerifyPeer
-              { vpFailIfNoPeerCert = False,
+              { vpFailIfNoPeerCert = True,
                 vpClientOnce = True,
                 vpCallback = Nothing
               }

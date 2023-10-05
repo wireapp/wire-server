@@ -97,7 +97,7 @@ mkEnv l cas =
       OpenSSL.contextSetVerificationMode
         sslContext
         OpenSSL.VerifyPeer
-          { vpFailIfNoPeerCert = False,
+          { vpFailIfNoPeerCert = True,
             vpClientOnce = True,
             vpCallback = Nothing
           }

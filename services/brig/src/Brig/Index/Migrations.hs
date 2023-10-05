@@ -109,7 +109,7 @@ mkEnv l es cas galleyEndpoint = do
       OpenSSL.contextSetVerificationMode
         sslContext
         OpenSSL.VerifyPeer
-          { vpFailIfNoPeerCert = False,
+          { vpFailIfNoPeerCert = True,
             vpClientOnce = True,
             vpCallback = Nothing
           }

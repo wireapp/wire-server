@@ -57,7 +57,7 @@ defInitCassandra ks h p mbCertPath lg = do
       OpenSSL.contextSetVerificationMode
         sslContext
         OpenSSL.VerifyPeer
-          { vpFailIfNoPeerCert = False,
+          { vpFailIfNoPeerCert = True,
             vpClientOnce = True,
             vpCallback = Nothing
           }
