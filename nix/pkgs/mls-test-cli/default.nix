@@ -26,6 +26,15 @@ rustPlatform.buildRustPackage rec {
     };
   };
   doCheck = false;
+  /*
+     if ring does not detect it is a git repository (checks for .git) dir
+     it will expect pregenerated files that we do not have at our exposure
+     after pulling with the git fetcher
+
+     we put this patch in the preBuild phase because we need to have the
+     cargo-vendor-dir available and the dedicated cargo phase for this
+     in nixpkgs do not trigger
+  */
   preBuild = ''
     mkdir $CARGO_HOME/cargo-vendor-dir/ring-0.17.0-not-released-yet/.git
   '';
