@@ -654,3 +654,29 @@ createApplicationMessage cid messageContent = do
 
 setMLSCiphersuite :: Ciphersuite -> App ()
 setMLSCiphersuite suite = modifyMLSState $ \mls -> mls {ciphersuite = suite}
+
+leaveCurrentConv ::
+  HasCallStack =>
+  ClientIdentity ->
+  App ()
+leaveCurrentConv cid = do
+  mls <- getMLSState
+  (_, mSubId) <- objSubConv mls.convId
+  case mSubId of
+    -- FUTUREWORK: implement leaving main conversation as well
+    Nothing -> assertFailure "Leaving conversations is not supported"
+    Just _ -> do
+      void $ leaveSubConversation cid mls.convId >>= getBody 200
+      modifyMLSState $ \s ->
+        s
+          { members = Set.difference mls.members (Set.singleton cid)
+          }
+
+getCurrentConv :: HasCallStack => ClientIdentity -> App Value
+getCurrentConv cid = do
+  mls <- getMLSState
+  (conv, mSubId) <- objSubConv mls.convId
+  resp <- case mSubId of
+    Nothing -> getConversation cid conv
+    Just sub -> getSubConversation cid conv sub
+  getJSON 200 resp

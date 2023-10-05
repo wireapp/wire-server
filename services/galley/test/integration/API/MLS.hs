@@ -197,8 +197,6 @@ tests s =
               test s "send an application message in a subconversation" testSendMessageSubConv,
               test s "reset a subconversation and assert no leftover proposals" testJoinDeletedSubConvWithRemoval,
               test s "fail to reset a subconversation with wrong epoch" testDeleteSubConvStale,
-              test s "leave a subconversation as a creator" (testLeaveSubConv True),
-              test s "leave a subconversation as a non-creator" (testLeaveSubConv False),
               test s "last to leave a subconversation" testLastLeaverSubConv,
               test s "leave a subconversation as a non-member" testLeaveSubConvNonMember,
               test s "remove user from parent conversation" testRemoveUserParent,
@@ -2392,125 +2390,6 @@ testLastLeaverSubConv = do
       pscEpochTimestamp psc @?= Nothing
       assertBool "group ID unchanged" $ pscGroupId prePsc /= pscGroupId psc
       length (pscMembers psc) @?= 0
-
-testLeaveSubConv :: Bool -> TestM ()
-testLeaveSubConv isSubConvCreator = do
-  [alice, bob, charlie] <- createAndConnectUsers [Nothing, Nothing, Just "charlie.example.com"]
-
-  runMLSTest $ do
-    charlie1 : allLocals@[alice1, bob1, bob2] <-
-      traverse createMLSClient [charlie, alice, bob, bob]
-    traverse_ uploadNewKeyPackage [bob1, bob2]
-    (_, qcnv) <- setupMLSGroup alice1
-
-    let subId = SubConvId "conference"
-    (qsub, _) <- withTempMockFederator'
-      ( receiveCommitMock [charlie1]
-          <|> welcomeMock
-          <|> ("on-mls-message-sent" ~> RemoteMLSMessageOk)
-      )
-      $ do
-        void $ createAddCommit alice1 [bob, charlie] >>= sendAndConsumeCommitBundle
-
-        qsub <- createSubConv qcnv bob1 subId
-        void $ createExternalCommit alice1 Nothing qsub >>= sendAndConsumeCommitBundle
-        void $ createExternalCommit bob2 Nothing qsub >>= sendAndConsumeCommitBundle
-        void $ createExternalCommit charlie1 Nothing qsub >>= sendAndConsumeCommitBundle
-        pure qsub
-
-    let firstLeaver = if isSubConvCreator then bob1 else alice1
-    -- a member leaves the subconversation
-    [idxFirstLeaver] <-
-      map snd . filter (\(cid, _) -> cid == firstLeaver)
-        <$> getClientsFromGroupState
-          alice1
-          (cidQualifiedUser firstLeaver)
-    let others = filter (/= firstLeaver) allLocals
-    mlsBracket (firstLeaver : others) $ \(wsLeaver : wss) -> do
-      (_, reqs) <-
-        withTempMockFederator' messageSentMock $
-          leaveCurrentConv firstLeaver qsub
-      req :: RemoteMLSMessage <-
-        assertOne
-          ( toList . Aeson.decode . frBody
-              =<< filter ((== "on-mls-message-sent") . frRPC) reqs
-          )
-      let msg = fromBase64ByteString $ req.message
-      liftIO $
-        req.recipients @?= [(ciUser charlie1, ciClient charlie1)]
-      consumeMessage1 charlie1 msg
-
-      msgs <-
-        WS.assertMatchN (5 # WS.Second) wss $
-          wsAssertBackendRemoveProposal
-            (cidQualifiedUser firstLeaver)
-            (Conv <$> qcnv)
-            idxFirstLeaver
-      traverse_ (uncurry consumeMessage1) (zip others msgs)
-      -- assert the leaver gets no proposal or event
-      void . liftIO $ WS.assertNoEvent (5 # WS.Second) [wsLeaver]
-
-    -- a member commits the pending proposal
-    do
-      leaveCommit <- createPendingProposalCommit (head others)
-      mlsBracket (firstLeaver : tail others) $ \(wsLeaver : wss) -> do
-        events <-
-          fst
-            <$$> withTempMockFederator' ("on-mls-message-sent" ~> RemoteMLSMessageOk)
-            $ sendAndConsumeCommitBundle leaveCommit
-        liftIO $ events @?= []
-        WS.assertMatchN_ (5 # WS.Second) wss $ \n -> do
-          wsAssertMLSMessage qsub (cidQualifiedUser . head $ others) (mpMessage leaveCommit) n
-        void $ WS.assertNoEvent (5 # WS.Second) [wsLeaver]
-
-    -- send an application message
-    do
-      message <- createApplicationMessage (head others) "some text"
-      mlsBracket (firstLeaver : tail others) $ \(wsLeaver : wss) -> do
-        (events, _) <- sendAndConsumeMessage message
-        liftIO $ events @?= []
-        WS.assertMatchN_ (5 # WS.Second) wss $ \n -> do
-          wsAssertMLSMessage qsub (cidQualifiedUser . head $ others) (mpMessage message) n
-        void $ WS.assertNoEvent (5 # WS.Second) [wsLeaver]
-
-    -- check that only 3 clients are left in the subconv
-    do
-      psc <-
-        liftTest $
-          responseJsonError
-            =<< getSubConv (ciUser (head others)) qcnv subId
-              <!! do
-                const 200 === statusCode
-      liftIO $ length (pscMembers psc) @?= 3
-
-    -- charlie1 leaves
-    [idxCharlie1] <-
-      map snd . filter (\(cid, _) -> cid == charlie1)
-        <$> getClientsFromGroupState (head others) charlie
-    mlsBracket others $ \wss -> do
-      leaveCurrentConv charlie1 qsub
-
-      msgs <-
-        WS.assertMatchN (5 # WS.Second) wss $
-          wsAssertBackendRemoveProposal charlie (Conv <$> qcnv) idxCharlie1
-      traverse_ (uncurry consumeMessage1) (zip others msgs)
-
-    -- a member commits the pending proposal
-    void $
-      withTempMockFederator' ("on-mls-message-sent" ~> RemoteMLSMessageOk) $
-        createPendingProposalCommit (head others) >>= sendAndConsumeCommitBundle
-
-    -- check that only 2 clients are left in the subconv
-    do
-      psc <-
-        liftTest $
-          responseJsonError
-            =<< getSubConv (ciUser (head others)) qcnv subId
-              <!! do
-                const 200 === statusCode
-      liftIO $ do
-        length (pscMembers psc) @?= 2
-        sort (pscMembers psc) @?= sort others
 
 testLeaveSubConvNonMember :: TestM ()
 testLeaveSubConvNonMember = do

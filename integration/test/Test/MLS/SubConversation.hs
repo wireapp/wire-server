@@ -2,6 +2,7 @@ module Test.MLS.SubConversation where
 
 import API.Galley
 import MLS.Util
+import Notifications
 import SetupHelpers
 import Testlib.Prelude
 
@@ -96,3 +97,81 @@ testDeleteSubConversation otherDomain = do
 
   sub2' <- getSubConversation alice1 qcnv "conference2" >>= getJSON 200
   sub2 `shouldNotMatch` sub2'
+
+data LeaveSubConvVariant = AliceLeaves | BobLeaves
+
+instance HasTests x => HasTests (LeaveSubConvVariant -> x) where
+  mkTests m n s f x =
+    mkTests m (n <> "[leaver=alice]") s f (x AliceLeaves)
+      <> mkTests m (n <> "[leaver=bob]") s f (x BobLeaves)
+
+testLeaveSubConv :: HasCallStack => LeaveSubConvVariant -> App ()
+testLeaveSubConv variant = do
+  [alice, bob, charlie] <- createAndConnectUsers [OwnDomain, OwnDomain, OtherDomain]
+  clients@[alice1, bob1, bob2, charlie1] <- traverse (createMLSClient def) [alice, bob, bob, charlie]
+  traverse_ uploadNewKeyPackage [bob1, bob2, charlie1]
+  void $ createNewGroup alice1
+
+  withWebSockets [bob, charlie] $ \wss -> do
+    void $ createAddCommit alice1 [bob, charlie] >>= sendAndConsumeCommitBundle
+    traverse_ (awaitMatch 10 isMemberJoinNotif) wss
+
+  createSubConv bob1 "conference"
+  void $ createExternalCommit alice1 Nothing >>= sendAndConsumeCommitBundle
+  void $ createExternalCommit bob2 Nothing >>= sendAndConsumeCommitBundle
+  void $ createExternalCommit charlie1 Nothing >>= sendAndConsumeCommitBundle
+
+  -- a member leaves the subconversation
+  let (firstLeaver, idxFirstLeaver) = case variant of
+        BobLeaves -> (bob1, 0)
+        AliceLeaves -> (alice1, 1)
+  let idxCharlie1 = 3
+
+  let others = filter (/= firstLeaver) clients
+  withWebSockets others $ \wss -> do
+    leaveCurrentConv firstLeaver
+
+    for_ (zip others wss) $ \(cid, ws) -> do
+      notif <- awaitMatch 10 isNewMLSMessageNotif ws
+      msgData <- notif %. "payload.0.data" & asByteString
+      msg <- showMessage alice1 msgData
+      msg %. "message.content.body.Proposal.Remove.removed" `shouldMatchInt` idxFirstLeaver
+      msg %. "message.content.sender.External" `shouldMatchInt` 0
+      consumeMessage1 cid msgData
+
+  withWebSockets (tail others) $ \wss -> do
+    -- a member commits the pending proposal
+    void $ createPendingProposalCommit (head others) >>= sendAndConsumeCommitBundle
+    traverse_ (awaitMatch 10 isNewMLSMessageNotif) wss
+
+    -- send an application message
+    void $ createApplicationMessage (head others) "good riddance" >>= sendAndConsumeMessage
+    traverse_ (awaitMatch 10 isNewMLSMessageNotif) wss
+
+  -- check that only 3 clients are left in the subconv
+  do
+    conv <- getCurrentConv (head others)
+    mems <- conv %. "members" & asList
+    length mems `shouldMatchInt` 3
+
+  -- charlie1 leaves
+  let others' = filter (/= charlie1) others
+  withWebSockets others' $ \wss -> do
+    leaveCurrentConv charlie1
+
+    for_ (zip others' wss) $ \(cid, ws) -> do
+      notif <- awaitMatch 10 isNewMLSMessageNotif ws
+      msgData <- notif %. "payload.0.data" & asByteString
+      msg <- showMessage alice1 msgData
+      msg %. "message.content.body.Proposal.Remove.removed" `shouldMatchInt` idxCharlie1
+      msg %. "message.content.sender.External" `shouldMatchInt` 0
+      consumeMessage1 cid msgData
+
+  -- a member commits the pending proposal
+  void $ createPendingProposalCommit (head others') >>= sendAndConsumeCommitBundle
+
+  -- check that only 2 clients are left in the subconv
+  do
+    conv <- getCurrentConv (head others)
+    mems <- conv %. "members" & asList
+    length mems `shouldMatchInt` 2
