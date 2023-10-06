@@ -4,6 +4,7 @@ import API.Galley
 import Data.ByteString.Base64 qualified as Base64
 import Data.ByteString.Char8 qualified as B8
 import MLS.Util
+import Notifications
 import SetupHelpers
 import Testlib.Prelude
 
@@ -84,6 +85,8 @@ testMLSOne2One scenario = do
     let isWelcome n = nPayload n %. "type" `isEqual` "conversation.mls-welcome"
     n <- awaitMatch 3 isWelcome ws
     nPayload n %. "data" `shouldMatch` B8.unpack (Base64.encode (fold commit.welcome))
+
+    void $ awaitMatch 3 isMemberJoinNotif ws
 
   withWebSocket bob1 $ \ws -> do
     mp <- createApplicationMessage alice1 "hello, world"
