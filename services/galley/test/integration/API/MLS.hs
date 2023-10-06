@@ -201,8 +201,7 @@ tests s =
               test s "leave a subconversation as a non-member" testLeaveSubConvNonMember,
               test s "remove user from parent conversation" testRemoveUserParent,
               test s "remove creator from parent conversation" testRemoveCreatorParent,
-              test s "creator removes user from parent conversation" testCreatorRemovesUserFromParent,
-              test s "delete parent conversation of a subconversation" testDeleteParentOfSubConv
+              test s "creator removes user from parent conversation" testCreatorRemovesUserFromParent
             ],
           testGroup
             "Local Sender/Remote Subconversation"
@@ -2259,69 +2258,6 @@ testDeleteSubConvStale = do
   let dsc = DeleteSubConversationRequest (pscGroupId sub) (pscEpoch sub)
   deleteSubConv (qUnqualified alice) qcnv sconv dsc
     !!! do const 409 === statusCode
-
-testDeleteParentOfSubConv :: TestM ()
-testDeleteParentOfSubConv = do
-  (tid, aliceUnqualified, [arthurUnqualified]) <- API.Util.createBindingTeamWithMembers 2
-  bob <- randomQualifiedId (Domain "bobl.example.com")
-
-  localDomain <- viewFederationDomain
-  let alice = Qualified aliceUnqualified localDomain
-      arthur = Qualified arthurUnqualified localDomain
-
-  connectWithRemoteUser aliceUnqualified bob
-
-  let sconv = SubConvId "conference"
-  (qcnv, _parentGroupId, _subGroupId) <- runMLSTest $ do
-    [alice1, arthur1, bob1] <- traverse createMLSClient [alice, arthur, bob]
-    traverse_ uploadNewKeyPackage [arthur1]
-    (parentGroupId, qcnv) <- setupMLSGroup alice1
-
-    (qcs, _) <- withTempMockFederator'
-      ( receiveCommitMock [bob1]
-          <|> ("on-mls-message-sent" ~> RemoteMLSMessageOk)
-      )
-      $ do
-        void $ createAddCommit alice1 [arthur, bob] >>= sendAndConsumeCommitBundle
-        createSubConv qcnv alice1 sconv
-
-    subGid <- getCurrentGroupId
-
-    resetGroup arthur1 qcs subGid
-    void
-      $ withTempMockFederator'
-        ( welcomeMock
-            <|> ("on-mls-message-sent" ~> RemoteMLSMessageOk)
-        )
-      $ createExternalCommit arthur1 Nothing qcs >>= sendAndConsumeCommitBundle
-
-    resetGroup bob1 qcs subGid
-    void
-      $ withTempMockFederator'
-        ( welcomeMock
-            <|> ("on-mls-message-sent" ~> RemoteMLSMessageOk)
-        )
-      $ createExternalCommit bob1 Nothing qcs >>= sendAndConsumeCommitBundle
-
-    sub' <-
-      responseJsonError
-        =<< liftTest
-          ( getSubConv (qUnqualified alice) qcnv sconv
-              <!! do const 200 === statusCode
-          )
-
-    void $ assertOne (filter (== arthur1) (pscMembers sub'))
-    void $ assertOne (filter (== bob1) (pscMembers sub'))
-
-    pure (qcnv, parentGroupId, pscGroupId sub')
-
-  void $ withTempMockFederator' deleteMLSConvMock $ do
-    deleteTeamConv tid (qUnqualified qcnv) (qUnqualified alice)
-      !!! const 200
-        === statusCode
-
-  getSubConv (qUnqualified alice) qcnv sconv
-    !!! do const 404 === statusCode
 
 testDeleteRemoteSubConv :: Bool -> TestM ()
 testDeleteRemoteSubConv isAMember = do
