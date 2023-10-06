@@ -20,6 +20,9 @@ config:
   logNetStrings: false
   cassandra:
     host: aws-cassandra
+#   tls:
+#     enabled: false
+#     ca: CA in PEM format (can be self-signed)
   elasticsearch:
     host: elasticsearch-client
     port: 9200

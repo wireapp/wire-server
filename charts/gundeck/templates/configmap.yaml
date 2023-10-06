@@ -25,6 +25,13 @@ data:
       {{- if hasKey .cassandra "filterNodesByDatacentre" }}
       filterNodesByDatacentre: {{ .cassandra.filterNodesByDatacentre }}
       {{- end }}
+      {{- if and (hasKey .cassandra "tls") (.cassandra.tls.enabled) }}
+      useTls: true
+      {{- if (hasKey .cassandra.tls.ca) }}
+      tlsCert: /etc/wire/gundeck/cassandra/ca.pem
+      {{- else }}
+      useTls: false
+      {{- end }}
 
     redis:
       host: {{ .redis.host }}

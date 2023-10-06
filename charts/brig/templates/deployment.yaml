@@ -102,6 +102,14 @@ spec:
           - name: "geoip"
             mountPath: "/usr/share/GeoIP"
           {{- end }}
+          {{- if and
+                  (hasKey .Values.config.cassandra "tls")
+                  (.Values.config.cassandra.tls.enabled)
+                  (hasKey .Values.config.cassandra.tls "ca")
+          -}}
+          - name: "brig-cassandra"
+            mountPath: "/etc/wire/brig/cassandra"
+          {{- end }}
           env:
           - name: LOG_LEVEL
             value: {{ .Values.config.logLevel }}

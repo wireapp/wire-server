@@ -43,6 +43,14 @@ spec:
           volumeMounts:
           - name: "gundeck-config"
             mountPath: "/etc/wire/gundeck/conf"
+          {{- if and
+                  (hasKey .Values.config.cassandra "tls")
+                  (.Values.config.cassandra.tls.enabled)
+                  (hasKey .Values.config.cassandra.tls "ca")
+          -}}
+          - name: "gundeck-cassandra"
+            mountPath: "/etc/wire/gundeck/cassandra"
+          {{- end }}
           env:
           {{- if hasKey .Values.secrets "awsKeyId" }}
           - name: AWS_ACCESS_KEY_ID

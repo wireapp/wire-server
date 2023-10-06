@@ -41,6 +41,14 @@ spec:
           volumeMounts:
           - name: "spar-config"
             mountPath: "/etc/wire/spar/conf"
+          {{- if and
+                  (hasKey .Values.config.cassandra "tls")
+                  (.Values.config.cassandra.tls.enabled)
+                  (hasKey .Values.config.cassandra.tls "ca")
+          -}}
+          - name: "spar-cassandra"
+            mountPath: "/etc/wire/spar/cassandra"
+          {{- end }}
           env:
           {{- with .Values.config.proxy }}
           {{- if .httpProxy }}

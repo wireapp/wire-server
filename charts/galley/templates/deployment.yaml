@@ -36,6 +36,14 @@ spec:
         - name: "galley-secrets"
           secret:
             secretName: "galley"
+        {{- if and
+                (hasKey .Values.config.cassandra "tls")
+                (.Values.config.cassandra.tls.enabled)
+                (hasKey .Values.config.cassandra.tls "ca")
+        -}}
+        - name: "galley-cassandra"
+          mountPath: "/etc/wire/galley/cassandra"
+        {{- end }}
       containers:
         - name: galley
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"

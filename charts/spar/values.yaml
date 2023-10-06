@@ -17,6 +17,9 @@ service:
 config:
   cassandra:
     host: aws-cassandra
+#   tls:
+#     enabled: false
+#     ca: CA in PEM format (can be self-signed)
   richInfoLimit: 5000
   maxScimTokens: 0
   logLevel: Info
