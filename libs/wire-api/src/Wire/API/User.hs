@@ -1896,6 +1896,7 @@ instance Schema.ToSchema UserAccount where
 -- NewUserScimInvitation
 
 data NewUserScimInvitation = NewUserScimInvitation
+  -- FIXME: the TID should be captured in the route as usual
   { newUserScimInvTeamId :: TeamId,
     newUserScimInvLocale :: Maybe Locale,
     newUserScimInvName :: Name,

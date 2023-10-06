@@ -64,7 +64,7 @@ instance HasTrivialHandler api => HasTrivialHandler (From v :> api) where
 trivialNamedHandler ::
   forall (name :: Symbol) api.
   (KnownSymbol name, HasTrivialHandler api) =>
-  Server (Named name api)
+  Server (UntypedNamed name api)
 trivialNamedHandler = Named (trivialHandler @api (symbolVal (Proxy @name)))
 
 -- | Generate a servant handler from an incomplete list of handlers of named
@@ -74,40 +74,40 @@ class PartialAPI (api :: Type) (hs :: Type) where
 
 instance
   (KnownSymbol name, HasTrivialHandler endpoint) =>
-  PartialAPI (Named (name :: Symbol) endpoint) EmptyAPI
+  PartialAPI (UntypedNamed (name :: Symbol) endpoint) EmptyAPI
   where
   mkHandler _ = trivialNamedHandler @name @endpoint
 
 instance
   {-# OVERLAPPING #-}
   (KnownSymbol name, HasTrivialHandler endpoint, PartialAPI api EmptyAPI) =>
-  PartialAPI (Named (name :: Symbol) endpoint :<|> api) EmptyAPI
+  PartialAPI (UntypedNamed (name :: Symbol) endpoint :<|> api) EmptyAPI
   where
   mkHandler h = trivialNamedHandler @name @endpoint :<|> mkHandler @api h
 
 instance
   {-# OVERLAPPING #-}
   (h ~ Server endpoint, PartialAPI api hs) =>
-  PartialAPI (Named (name :: Symbol) endpoint :<|> api) (Named name h :<|> hs)
+  PartialAPI (UntypedNamed (name :: Symbol) endpoint :<|> api) (UntypedNamed name h :<|> hs)
   where
   mkHandler (h :<|> hs) = h :<|> mkHandler @api hs
 
 instance
   (KnownSymbol name, HasTrivialHandler endpoint, PartialAPI api hs) =>
-  PartialAPI (Named (name :: Symbol) endpoint :<|> api) hs
+  PartialAPI (UntypedNamed (name :: Symbol) endpoint :<|> api) hs
   where
   mkHandler hs = trivialNamedHandler @name @endpoint :<|> mkHandler @api hs
 
 instance
   (h ~ Server endpoint) =>
-  PartialAPI (Named (name :: Symbol) endpoint) (Named name h)
+  PartialAPI (UntypedNamed (name :: Symbol) endpoint) (UntypedNamed name h)
   where
   mkHandler = id
 
 instance
   {-# OVERLAPPING #-}
   (h ~ Server endpoint, PartialAPI api EmptyAPI) =>
-  PartialAPI (Named (name :: Symbol) endpoint :<|> api) (Named name h)
+  PartialAPI (UntypedNamed (name :: Symbol) endpoint :<|> api) (UntypedNamed name h)
   where
   mkHandler h = h :<|> mkHandler @api EmptyAPI
 
