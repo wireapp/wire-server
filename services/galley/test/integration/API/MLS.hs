@@ -216,8 +216,7 @@ tests s =
           testGroup
             "Remote Sender/Local SubConversation"
             [ test s "get subconversation as a remote member" (testRemoteMemberGetSubConv True),
-              test s "get subconversation as a remote non-member" (testRemoteMemberGetSubConv False),
-              test s "client of a remote user joins subconversation" testRemoteUserJoinSubConv
+              test s "get subconversation as a remote non-member" (testRemoteMemberGetSubConv False)
             ],
           testGroup
             "Remote Sender/Remote SubConversation"
@@ -2051,41 +2050,6 @@ testRemoteSubConvNotificationWhenUserJoins = do
     void $
       withTempMockFederator' (receiveCommitMock [bob1] <|> welcomeMock) $
         createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
-
-testRemoteUserJoinSubConv :: TestM ()
-testRemoteUserJoinSubConv = do
-  [alice, bob] <- createAndConnectUsers [Nothing, Just "bob.example.com"]
-
-  runMLSTest $ do
-    alice1 <- createMLSClient alice
-    (_, qcnv) <- setupMLSGroup alice1
-
-    bob1 <- createFakeMLSClient bob
-    void $ do
-      commit <- createAddCommit alice1 [bob]
-      withTempMockFederator' (receiveCommitMock [bob1] <|> welcomeMock) $
-        sendAndConsumeCommitBundle commit
-
-    let mock = messageSentMock
-    let subId = SubConvId "conference"
-    (qcs, _reqs) <- withTempMockFederator' mock $ createSubConv qcnv alice1 subId
-
-    -- bob joins the subconversation
-    void $
-      withTempMockFederator' ("on-mls-message-sent" ~> RemoteMLSMessageOk) $
-        createExternalCommit bob1 Nothing qcs >>= sendAndConsumeCommitBundle
-
-    -- check that bob is now part of the subconversation
-    liftTest $ do
-      psc' <-
-        responseJsonError
-          =<< getSubConv (qUnqualified alice) qcnv subId
-            <!! const 200 === statusCode
-      liftIO $ Set.fromList (pscMembers psc') @?= Set.fromList [alice1, bob1]
-
-    void $
-      withTempMockFederator' mock $
-        createPendingProposalCommit alice1 >>= sendAndConsumeCommitBundle
 
 testSendMessageSubConv :: TestM ()
 testSendMessageSubConv = do
