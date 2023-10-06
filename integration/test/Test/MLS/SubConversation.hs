@@ -36,9 +36,11 @@ testDeleteParentOfSubConv secondDomain = do
   [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
   traverse_ uploadNewKeyPackage [alice1, bob1]
   (_, qcnv) <- createNewGroup alice1
-  void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
-  createSubConv bob1 "conference"
+  withWebSocket bob $ \ws -> do
+    void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
+    void $ awaitMatch 3 isMemberJoinNotif ws
 
+  createSubConv bob1 "conference"
   -- bob adds his client to the subconversation
   void $ createPendingProposalCommit bob1 >>= sendAndConsumeCommitBundle
 
@@ -58,8 +60,10 @@ testDeleteParentOfSubConv secondDomain = do
       resp.status `shouldMatchInt` 201
 
   -- alice deletes main conversation
-  void . bindResponse (deleteTeamConv tid qcnv alice) $ \resp -> do
-    resp.status `shouldMatchInt` 200
+  withWebSocket bob $ \ws -> do
+    void . bindResponse (deleteTeamConv tid qcnv alice) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+    void $ awaitMatch 3 isConvDeleteNotif ws
 
   -- bob fails to send a message to the subconversation
   do
