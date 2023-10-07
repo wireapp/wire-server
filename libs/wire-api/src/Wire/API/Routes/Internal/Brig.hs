@@ -41,9 +41,7 @@ module Wire.API.Routes.Internal.Brig
 where
 
 import Control.Lens ((.~))
-import Data.Aeson (FromJSON, ToJSON (toJSON))
-{- yes, this is a bit weird -}
-
+import Data.Aeson (FromJSON, ToJSON)
 import Data.Aeson qualified as Aeson
 import Data.Code qualified as Code
 import Data.CommaSeparatedList
