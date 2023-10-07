@@ -51,7 +51,7 @@ instance {-# OVERLAPPING #-} (RenderableSymbol a, RenderableSymbol b) => Rendera
 
 type IsStronglyTyped :: forall k. k -> k
 type family IsStronglyTyped typ where
-  IsStronglyTyped (typ :: Type) = TypeError ('Text "Please don't use \"Type\" as Type as first parameter to Named")
+  IsStronglyTyped (typ :: Type) = TypeError ('Text "Please don't use \"Type\" as first parameter to \"Named\"")
   IsStronglyTyped typ = typ
 
 instance (HasOpenApi api, RenderableSymbol name) => HasOpenApi (UntypedNamed name api) where

@@ -500,9 +500,12 @@ instance ToSchema NewKeyPackageRef where
   schema =
     object "NewKeyPackageRef" $
       NewKeyPackageRef
-        <$> nkprUserId .= field "user_id" schema
-        <*> nkprClientId .= field "client_id" schema
-        <*> nkprConversation .= field "conversation" schema
+        <$> nkprUserId
+          .= field "user_id" schema
+        <*> nkprClientId
+          .= field "client_id" schema
+        <*> nkprConversation
+          .= field "conversation" schema
 
 data NewKeyPackage = NewKeyPackage
   { nkpConversation :: Qualified ConvId,
@@ -515,8 +518,10 @@ instance ToSchema NewKeyPackage where
   schema =
     object "NewKeyPackage" $
       NewKeyPackage
-        <$> nkpConversation .= field "conversation" schema
-        <*> nkpKeyPackage .= field "key_package" schema
+        <$> nkpConversation
+          .= field "conversation" schema
+        <*> nkpKeyPackage
+          .= field "key_package" schema
 
 data NewKeyPackageResult = NewKeyPackageResult
   { nkpresClientIdentity :: ClientIdentity,
@@ -529,8 +534,10 @@ instance ToSchema NewKeyPackageResult where
   schema =
     object "NewKeyPackageResult" $
       NewKeyPackageResult
-        <$> nkpresClientIdentity .= field "client_identity" schema
-        <*> nkpresKeyPackageRef .= field "key_package_ref" schema
+        <$> nkpresClientIdentity
+          .= field "client_identity" schema
+        <*> nkpresKeyPackageRef
+          .= field "key_package_ref" schema
 
 type MLSAPI =
   "mls"
@@ -712,7 +719,9 @@ type SuspendTeam =
     ( "teams"
         :> Capture "tid" TeamId
         :> "suspend"
-        :> PostNoContent
+        :> Post
+             '[Servant.JSON]
+             NoContent
     )
 
 type UnSuspendTeam =
@@ -721,7 +730,9 @@ type UnSuspendTeam =
     ( "teams"
         :> Capture "tid" TeamId
         :> "unsuspend"
-        :> PostNoContent
+        :> Post
+             '[Servant.JSON]
+             NoContent
     )
 
 type TeamSize =
