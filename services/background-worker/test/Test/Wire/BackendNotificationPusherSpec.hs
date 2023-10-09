@@ -4,7 +4,6 @@
 
 module Test.Wire.BackendNotificationPusherSpec where
 
-import Control.Concurrent.Chan
 import Control.Exception
 import Control.Monad.Trans.Except
 import Data.Aeson qualified as Aeson
@@ -181,7 +180,6 @@ spec = do
           ]
       logger <- Logger.new Logger.defSettings
       httpManager <- newManager defaultManagerSettings
-      remoteDomainsChan <- newChan
       let federatorInternal = Endpoint "localhost" 8097
           http2Manager = undefined
           statuses = undefined
@@ -200,7 +198,6 @@ spec = do
       mockAdmin <- newMockRabbitMqAdmin True ["backend-notifications.foo.example"]
       logger <- Logger.new Logger.defSettings
       httpManager <- newManager defaultManagerSettings
-      remoteDomainsChan <- newChan
       let federatorInternal = Endpoint "localhost" 8097
           http2Manager = undefined
           statuses = undefined

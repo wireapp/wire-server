@@ -29,7 +29,6 @@ library
   build-depends:
       aeson
     , amqp
-    , base
     , containers
     , exceptions
     , extended
@@ -50,7 +49,6 @@ library
     , types-common
     , unliftio
     , wai-utilities
-    , wire-api
     , wire-api-federation
 
   default-extensions:

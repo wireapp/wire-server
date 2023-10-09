@@ -1,10 +1,8 @@
 { fetchFromGitHub
-, lib
 , libsodium
 , perl
 , pkg-config
 , rustPlatform
-, stdenv
 , gitMinimal
 }:
 

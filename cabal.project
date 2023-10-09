@@ -1,3 +1,6 @@
+repository hackage.haskell.org
+  url: https://hackage.haskell.org/
+index-state: 2023-10-03T15:17:00Z  
 packages:
     integration
   , libs/bilge/
