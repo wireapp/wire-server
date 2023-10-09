@@ -35,10 +35,10 @@ serviceHostPort m BackgroundWorker = m.backgroundWorker
 serviceHostPort m Stern = m.stern
 serviceHostPort m FederatorInternal = m.federatorInternal
 
-mkGlobalEnv :: FilePath -> IO GlobalEnv
+mkGlobalEnv :: FilePath -> Codensity IO GlobalEnv
 mkGlobalEnv cfgFile = do
-  eith <- Yaml.decodeFileEither cfgFile
-  intConfig <- case eith of
+  eith <- liftIO $ Yaml.decodeFileEither cfgFile
+  intConfig <- liftIO $ case eith of
     Left err -> do
       hPutStrLn stderr $ "Could not parse " <> cfgFile <> ": " <> Yaml.prettyPrintParseException err
       exitFailure
@@ -51,17 +51,19 @@ mkGlobalEnv cfgFile = do
             then Just (joinPath (init ps))
             else Nothing
 
-  manager <- HTTP.newManager HTTP.defaultManagerSettings
+  manager <- liftIO $ HTTP.newManager HTTP.defaultManagerSettings
   let cassSettings =
         Cassandra.defSettings
           & Cassandra.setContacts intConfig.cassandra.host []
           & Cassandra.setPortNumber (fromIntegral intConfig.cassandra.port)
   cassClient <- Cassandra.init cassSettings
   resourcePool <-
-    createBackendResourcePool
-      (Map.elems intConfig.dynamicBackends)
-      intConfig.rabbitmq
-      cassClient
+    liftIO $
+      createBackendResourcePool
+        (Map.elems intConfig.dynamicBackends)
+        intConfig.rabbitmq
+        cassClient
+  tempDir <- Codensity $ withSystemTempDirectory "test"
   pure
     GlobalEnv
       { gServiceMap =
@@ -77,7 +79,8 @@ mkGlobalEnv cfgFile = do
         gServicesCwdBase = devEnvProjectRoot <&> (</> "services"),
         gRemovalKeyPath = error "Uninitialised removal key path",
         gBackendResourcePool = resourcePool,
-        gRabbitMQConfig = intConfig.rabbitmq
+        gRabbitMQConfig = intConfig.rabbitmq,
+        gTempDir = tempDir
       }
 
 mkEnv :: GlobalEnv -> Codensity IO Env

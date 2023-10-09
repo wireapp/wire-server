@@ -6,10 +6,15 @@ import Control.Monad
 import Control.Monad.Codensity
 import Control.Monad.IO.Class
 import Control.Monad.Reader
+import Crypto.Error
+import Crypto.PubKey.Ed25519 qualified as Ed25519
+import Data.ByteArray (convert)
+import Data.ByteString qualified as B
 import Data.Foldable
 import Data.Function
 import Data.Functor
 import Data.List
+import Data.PEM
 import Data.Time.Clock
 import Data.Traversable (for)
 import RunAllTests
@@ -98,12 +103,11 @@ main = do
 
   if opts.listTests then doListTests tests else runTests tests opts.xmlReport cfg
 
-createGlobalEnv :: FilePath -> IO GlobalEnv
+createGlobalEnv :: FilePath -> Codensity IO GlobalEnv
 createGlobalEnv cfg = do
   genv0 <- mkGlobalEnv cfg
 
-  -- save removal key to a file
-  lowerCodensity $ do
+  pubkey <- liftIO . lowerCodensity $ do
     env <- mkEnv genv0
     liftIO . runAppWithEnv env $ do
       config <- readServiceConfig Galley
@@ -112,7 +116,21 @@ createGlobalEnv cfg = do
         asks (.servicesCwdBase) <&> \case
           Nothing -> relPath
           Just dir -> dir </> "galley" </> relPath
-      pure genv0 {gRemovalKeyPath = path}
+      bs <- liftIO $ B.readFile path
+      pems <- case pemParseBS bs of
+        Left err -> assertFailure $ "Could not parse removal key PEM: " <> err
+        Right x -> pure x
+      asn1 <- pemContent <$> assertOne pems
+      -- quick and dirty ASN.1 decoding: assume the key is of the correct
+      -- format, and simply skip the 16 byte header
+      let bytes = B.drop 16 asn1
+      priv <- liftIO . throwCryptoErrorIO $ Ed25519.secretKey bytes
+      pure (convert (Ed25519.toPublic priv))
+
+  -- save removal key to a temporary file
+  let removalPath = gTempDir genv0 </> "removal.key"
+  liftIO $ B.writeFile removalPath pubkey
+  pure genv0 {gRemovalKeyPath = removalPath}
 
 runTests :: [(String, x, y, App ())] -> Maybe FilePath -> FilePath -> IO ()
 runTests tests mXMLOutput cfg = do
@@ -123,33 +141,32 @@ runTests tests mXMLOutput cfg = do
           Nothing -> pure ()
   let writeOutput = writeChan output . Just
 
-  genv <- createGlobalEnv cfg
-
-  withAsync displayOutput $ \displayThread -> do
-    report <- fmap mconcat $ for tests $ \(qname, _, _, action) -> do
-      do
-        (mErr, tm) <- withTime (runTest genv action)
-        case mErr of
-          Left err -> do
-            writeOutput $
-              "----- "
-                <> qname
-                <> colored red " FAIL"
-                <> " ("
-                <> printTime tm
-                <> ") -----\n"
-                <> err
-                <> "\n"
-            pure (TestSuiteReport [TestCaseReport qname (TestFailure err) tm])
-          Right _ -> do
-            writeOutput $ qname <> colored green " OK" <> " (" <> printTime tm <> ")" <> "\n"
-            pure (TestSuiteReport [TestCaseReport qname TestSuccess tm])
-    writeChan output Nothing
-    wait displayThread
-    printReport report
-    mapM_ (saveXMLReport report) mXMLOutput
-    when (any (\testCase -> testCase.result /= TestSuccess) report.cases) $
-      exitFailure
+  runCodensity (createGlobalEnv cfg) $ \genv ->
+    withAsync displayOutput $ \displayThread -> do
+      report <- fmap mconcat $ for tests $ \(qname, _, _, action) -> do
+        do
+          (mErr, tm) <- withTime (runTest genv action)
+          case mErr of
+            Left err -> do
+              writeOutput $
+                "----- "
+                  <> qname
+                  <> colored red " FAIL"
+                  <> " ("
+                  <> printTime tm
+                  <> ") -----\n"
+                  <> err
+                  <> "\n"
+              pure (TestSuiteReport [TestCaseReport qname (TestFailure err) tm])
+            Right _ -> do
+              writeOutput $ qname <> colored green " OK" <> " (" <> printTime tm <> ")" <> "\n"
+              pure (TestSuiteReport [TestCaseReport qname TestSuccess tm])
+      writeChan output Nothing
+      wait displayThread
+      printReport report
+      mapM_ (saveXMLReport report) mXMLOutput
+      when (any (\testCase -> testCase.result /= TestSuccess) report.cases) $
+        exitFailure
 
 doListTests :: [(String, String, String, x)] -> IO ()
 doListTests tests = for_ tests $ \(qname, _desc, _full, _) -> do

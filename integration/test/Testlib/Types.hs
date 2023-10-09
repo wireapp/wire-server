@@ -106,7 +106,8 @@ data GlobalEnv = GlobalEnv
     gServicesCwdBase :: Maybe FilePath,
     gRemovalKeyPath :: FilePath,
     gBackendResourcePool :: ResourcePool BackendResource,
-    gRabbitMQConfig :: RabbitMQConfig
+    gRabbitMQConfig :: RabbitMQConfig,
+    gTempDir :: FilePath
   }
 
 data IntegrationConfig = IntegrationConfig

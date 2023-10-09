@@ -51,6 +51,7 @@ import Galley.App (Env)
 import Galley.Data.Conversation qualified as Data
 import Galley.Data.Conversation.Types
 import Galley.Effects
+import Galley.Effects.BrigAccess
 import Galley.Effects.ConversationStore qualified as E
 import Galley.Effects.FederatorAccess qualified as E
 import Galley.Effects.GundeckAccess qualified as E
@@ -240,7 +241,9 @@ checkCreateConvPermissions ::
   Maybe ConvTeamInfo ->
   UserList UserId ->
   Sem r ()
-checkCreateConvPermissions lusr _newConv Nothing allUsers =
+checkCreateConvPermissions lusr _newConv Nothing allUsers = do
+  activated <- listToMaybe <$> lookupActivatedUsers [tUnqualified lusr]
+  void $ noteS @OperationDenied activated
   ensureConnected lusr allUsers
 checkCreateConvPermissions lusr newConv (Just tinfo) allUsers = do
   let convTeam = cnvTeamId tinfo

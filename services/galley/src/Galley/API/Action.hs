@@ -862,19 +862,22 @@ notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
   now <- input
   let lcnv = fmap (.convId) lconv
       e = conversationActionToEvent tag now quid (tUntagged lcnv) Nothing action
-
-  let mkUpdate uids =
+      mkUpdate uids =
         ConversationUpdate
           now
           quid
           (tUnqualified lcnv)
           uids
           (SomeConversationAction tag action)
+      handleError :: FederationError -> Sem r (Maybe ConversationUpdate)
+      handleError fedErr =
+        logRemoteNotificationError @"on-conversation-updated" fedErr $> Nothing
 
-  update <- do
-    let remoteTargets = toList (bmRemotes targets)
-    updates <-
-      enqueueNotificationsConcurrently Q.Persistent remoteTargets $ \ruids -> do
+  update <-
+    fmap (fromMaybe (mkUpdate []))
+      . (either handleError (pure . asum . map tUnqualified))
+      <=< enqueueNotificationsConcurrently Q.Persistent (toList (bmRemotes targets))
+      $ \ruids -> do
         let update = mkUpdate (tUnqualified ruids)
         -- if notifyOrigDomain is false, filter out user from quid's domain,
         -- because quid's backend will update local state and notify its users
@@ -882,13 +885,6 @@ notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
         if notifyOrigDomain || tDomain ruids /= qDomain quid
           then fedQueueClient @'Galley @"on-conversation-updated" update $> Nothing
           else pure (Just update)
-    case partitionEithers updates of
-      (ls :: [Remote ([UserId], FederationError)], rs) -> do
-        for_ ls $
-          logError
-            "on-conversation-updated"
-            "An error occurred while communicating with federated server: "
-        pure $ fromMaybe (mkUpdate []) . asum . map tUnqualified $ rs
 
   -- notify local participants and bots
   pushConversationEvent con e (qualifyAs lcnv (bmLocals targets)) (bmBots targets)
@@ -896,13 +892,6 @@ notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
   -- return both the event and the 'ConversationUpdate' structure corresponding
   -- to the originating domain (if it is remote)
   pure $ LocalConversationUpdate e update
-  where
-    logError :: String -> String -> Remote (a, FederationError) -> Sem r ()
-    logError field msg e =
-      P.warn $
-        Log.field "federation call" field
-          . Log.field "domain" (_domainText (tDomain e))
-          . Log.msg (msg <> displayException (snd (tUnqualified e)))
 
 -- | Update the local database with information on conversation members joining
 -- or leaving. Finally, push out notifications to local users.

@@ -111,7 +111,6 @@ tests s =
             [ test s "send application message" testAppMessage,
               test s "send remote application message" testRemoteAppMessage,
               test s "another participant sends an application message" testAppMessage2,
-              test s "send message, some remotes are reachable" testAppMessageSomeReachable,
               test s "send message, remote users are unreachable" testAppMessageUnreachable
             ],
           testGroup
@@ -198,14 +197,11 @@ tests s =
               test s "send an application message in a subconversation" testSendMessageSubConv,
               test s "reset a subconversation and assert no leftover proposals" testJoinDeletedSubConvWithRemoval,
               test s "fail to reset a subconversation with wrong epoch" testDeleteSubConvStale,
-              test s "leave a subconversation as a creator" (testLeaveSubConv True),
-              test s "leave a subconversation as a non-creator" (testLeaveSubConv False),
               test s "last to leave a subconversation" testLastLeaverSubConv,
               test s "leave a subconversation as a non-member" testLeaveSubConvNonMember,
               test s "remove user from parent conversation" testRemoveUserParent,
               test s "remove creator from parent conversation" testRemoveCreatorParent,
-              test s "creator removes user from parent conversation" testCreatorRemovesUserFromParent,
-              test s "delete parent conversation of a subconversation" testDeleteParentOfSubConv
+              test s "creator removes user from parent conversation" testCreatorRemovesUserFromParent
             ],
           testGroup
             "Local Sender/Remote Subconversation"
@@ -220,8 +216,7 @@ tests s =
           testGroup
             "Remote Sender/Local SubConversation"
             [ test s "get subconversation as a remote member" (testRemoteMemberGetSubConv True),
-              test s "get subconversation as a remote non-member" (testRemoteMemberGetSubConv False),
-              test s "client of a remote user joins subconversation" testRemoteUserJoinSubConv
+              test s "get subconversation as a remote non-member" (testRemoteMemberGetSubConv False)
             ],
           testGroup
             "Remote Sender/Remote SubConversation"
@@ -877,40 +872,6 @@ testAppMessage2 = do
           wsAssertMLSMessage (fmap Conv conversation) bob (mpMessage message)
         WS.assertNoEvent (2 # WS.Second) [wsBob1]
 
-testAppMessageSomeReachable :: TestM ()
-testAppMessageSomeReachable = do
-  let bobDomain = Domain "bob.example.com"
-      charlieDomain = Domain "charlie.example.com"
-  users@[_alice, bob, charlie] <-
-    createAndConnectUsers $
-      domainText <$$> [Nothing, Just bobDomain, Just charlieDomain]
-
-  void $ runMLSTest $ do
-    [alice1, bob1, charlie1] <-
-      traverse createMLSClient users
-
-    void $ setupMLSGroup alice1
-    commit <- createAddCommit alice1 [bob, charlie]
-
-    let commitMocks =
-          receiveCommitMockByDomain [bob1, charlie1]
-            <|> welcomeMock
-    ([event], _) <-
-      withTempMockFederator' commitMocks $ do
-        sendAndConsumeCommitBundle commit
-
-    let unreachables = Set.singleton (Domain "charlie.example.com")
-    let sendMocks =
-          messageSentMockByDomain [bobDomain]
-            <|> mockUnreachableFor unreachables
-
-    withTempMockFederator' sendMocks $ do
-      message <- createApplicationMessage alice1 "hi, bob!"
-      (_, failed) <- sendAndConsumeMessage message
-      liftIO $ do
-        assertBool "Event should be member join" $ is _EdMembersJoin (evtData event)
-        failed @?= unreachableFromList [charlie]
-
 testAppMessageUnreachable :: TestM ()
 testAppMessageUnreachable = do
   -- alice is local, bob is remote
@@ -1088,7 +1049,7 @@ testRemoteToLocal = do
             }
 
     WS.bracketR cannon (qUnqualified alice) $ \ws -> do
-      MLSMessageResponseUpdates updates _ <- runFedClient @"send-mls-message" fedGalleyClient bobDomain msr
+      MLSMessageResponseUpdates updates <- runFedClient @"send-mls-message" fedGalleyClient bobDomain msr
       liftIO $ do
         updates @?= []
         WS.assertMatch_ (5 # Second) ws $
@@ -1787,7 +1748,7 @@ testAddUserToRemoteConvWithBundle = do
     commit <- createAddCommit bob1 [charlie]
     commitBundle <- createBundle commit
 
-    let mock = "send-mls-commit-bundle" ~> MLSMessageResponseUpdates [] mempty
+    let mock = "send-mls-commit-bundle" ~> MLSMessageResponseUpdates []
     (_, reqs) <- withTempMockFederator' mock $ do
       void $ sendAndConsumeCommitBundle commit
 
@@ -2051,7 +2012,7 @@ testJoinRemoteSubConv = do
     -- bob joins subconversation
     let pgs = mpGroupInfo initialCommit
     let mock =
-          ("send-mls-commit-bundle" ~> MLSMessageResponseUpdates [] mempty)
+          ("send-mls-commit-bundle" ~> MLSMessageResponseUpdates [])
             <|> queryGroupStateMock (fold pgs) bob
             <|> sendMessageMock
     (_, reqs) <- withTempMockFederator' mock $ do
@@ -2089,41 +2050,6 @@ testRemoteSubConvNotificationWhenUserJoins = do
     void $
       withTempMockFederator' (receiveCommitMock [bob1] <|> welcomeMock) $
         createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
-
-testRemoteUserJoinSubConv :: TestM ()
-testRemoteUserJoinSubConv = do
-  [alice, bob] <- createAndConnectUsers [Nothing, Just "bob.example.com"]
-
-  runMLSTest $ do
-    alice1 <- createMLSClient alice
-    (_, qcnv) <- setupMLSGroup alice1
-
-    bob1 <- createFakeMLSClient bob
-    void $ do
-      commit <- createAddCommit alice1 [bob]
-      withTempMockFederator' (receiveCommitMock [bob1] <|> welcomeMock) $
-        sendAndConsumeCommitBundle commit
-
-    let mock = messageSentMock
-    let subId = SubConvId "conference"
-    (qcs, _reqs) <- withTempMockFederator' mock $ createSubConv qcnv alice1 subId
-
-    -- bob joins the subconversation
-    void $
-      withTempMockFederator' ("on-mls-message-sent" ~> RemoteMLSMessageOk) $
-        createExternalCommit bob1 Nothing qcs >>= sendAndConsumeCommitBundle
-
-    -- check that bob is now part of the subconversation
-    liftTest $ do
-      psc' <-
-        responseJsonError
-          =<< getSubConv (qUnqualified alice) qcnv subId
-            <!! const 200 === statusCode
-      liftIO $ Set.fromList (pscMembers psc') @?= Set.fromList [alice1, bob1]
-
-    void $
-      withTempMockFederator' mock $
-        createPendingProposalCommit alice1 >>= sendAndConsumeCommitBundle
 
 testSendMessageSubConv :: TestM ()
 testSendMessageSubConv = do
@@ -2297,69 +2223,6 @@ testDeleteSubConvStale = do
   deleteSubConv (qUnqualified alice) qcnv sconv dsc
     !!! do const 409 === statusCode
 
-testDeleteParentOfSubConv :: TestM ()
-testDeleteParentOfSubConv = do
-  (tid, aliceUnqualified, [arthurUnqualified]) <- API.Util.createBindingTeamWithMembers 2
-  bob <- randomQualifiedId (Domain "bobl.example.com")
-
-  localDomain <- viewFederationDomain
-  let alice = Qualified aliceUnqualified localDomain
-      arthur = Qualified arthurUnqualified localDomain
-
-  connectWithRemoteUser aliceUnqualified bob
-
-  let sconv = SubConvId "conference"
-  (qcnv, _parentGroupId, _subGroupId) <- runMLSTest $ do
-    [alice1, arthur1, bob1] <- traverse createMLSClient [alice, arthur, bob]
-    traverse_ uploadNewKeyPackage [arthur1]
-    (parentGroupId, qcnv) <- setupMLSGroup alice1
-
-    (qcs, _) <- withTempMockFederator'
-      ( receiveCommitMock [bob1]
-          <|> ("on-mls-message-sent" ~> RemoteMLSMessageOk)
-      )
-      $ do
-        void $ createAddCommit alice1 [arthur, bob] >>= sendAndConsumeCommitBundle
-        createSubConv qcnv alice1 sconv
-
-    subGid <- getCurrentGroupId
-
-    resetGroup arthur1 qcs subGid
-    void
-      $ withTempMockFederator'
-        ( welcomeMock
-            <|> ("on-mls-message-sent" ~> RemoteMLSMessageOk)
-        )
-      $ createExternalCommit arthur1 Nothing qcs >>= sendAndConsumeCommitBundle
-
-    resetGroup bob1 qcs subGid
-    void
-      $ withTempMockFederator'
-        ( welcomeMock
-            <|> ("on-mls-message-sent" ~> RemoteMLSMessageOk)
-        )
-      $ createExternalCommit bob1 Nothing qcs >>= sendAndConsumeCommitBundle
-
-    sub' <-
-      responseJsonError
-        =<< liftTest
-          ( getSubConv (qUnqualified alice) qcnv sconv
-              <!! do const 200 === statusCode
-          )
-
-    void $ assertOne (filter (== arthur1) (pscMembers sub'))
-    void $ assertOne (filter (== bob1) (pscMembers sub'))
-
-    pure (qcnv, parentGroupId, pscGroupId sub')
-
-  void $ withTempMockFederator' deleteMLSConvMock $ do
-    deleteTeamConv tid (qUnqualified qcnv) (qUnqualified alice)
-      !!! const 200
-        === statusCode
-
-  getSubConv (qUnqualified alice) qcnv sconv
-    !!! do const 404 === statusCode
-
 testDeleteRemoteSubConv :: Bool -> TestM ()
 testDeleteRemoteSubConv isAMember = do
   alice <- randomQualifiedUser
@@ -2428,125 +2291,6 @@ testLastLeaverSubConv = do
       assertBool "group ID unchanged" $ pscGroupId prePsc /= pscGroupId psc
       length (pscMembers psc) @?= 0
 
-testLeaveSubConv :: Bool -> TestM ()
-testLeaveSubConv isSubConvCreator = do
-  [alice, bob, charlie] <- createAndConnectUsers [Nothing, Nothing, Just "charlie.example.com"]
-
-  runMLSTest $ do
-    charlie1 : allLocals@[alice1, bob1, bob2] <-
-      traverse createMLSClient [charlie, alice, bob, bob]
-    traverse_ uploadNewKeyPackage [bob1, bob2]
-    (_, qcnv) <- setupMLSGroup alice1
-
-    let subId = SubConvId "conference"
-    (qsub, _) <- withTempMockFederator'
-      ( receiveCommitMock [charlie1]
-          <|> welcomeMock
-          <|> ("on-mls-message-sent" ~> RemoteMLSMessageOk)
-      )
-      $ do
-        void $ createAddCommit alice1 [bob, charlie] >>= sendAndConsumeCommitBundle
-
-        qsub <- createSubConv qcnv bob1 subId
-        void $ createExternalCommit alice1 Nothing qsub >>= sendAndConsumeCommitBundle
-        void $ createExternalCommit bob2 Nothing qsub >>= sendAndConsumeCommitBundle
-        void $ createExternalCommit charlie1 Nothing qsub >>= sendAndConsumeCommitBundle
-        pure qsub
-
-    let firstLeaver = if isSubConvCreator then bob1 else alice1
-    -- a member leaves the subconversation
-    [idxFirstLeaver] <-
-      map snd . filter (\(cid, _) -> cid == firstLeaver)
-        <$> getClientsFromGroupState
-          alice1
-          (cidQualifiedUser firstLeaver)
-    let others = filter (/= firstLeaver) allLocals
-    mlsBracket (firstLeaver : others) $ \(wsLeaver : wss) -> do
-      (_, reqs) <-
-        withTempMockFederator' messageSentMock $
-          leaveCurrentConv firstLeaver qsub
-      req :: RemoteMLSMessage <-
-        assertOne
-          ( toList . Aeson.decode . frBody
-              =<< filter ((== "on-mls-message-sent") . frRPC) reqs
-          )
-      let msg = fromBase64ByteString $ req.message
-      liftIO $
-        req.recipients @?= [(ciUser charlie1, ciClient charlie1)]
-      consumeMessage1 charlie1 msg
-
-      msgs <-
-        WS.assertMatchN (5 # WS.Second) wss $
-          wsAssertBackendRemoveProposal
-            (cidQualifiedUser firstLeaver)
-            (Conv <$> qcnv)
-            idxFirstLeaver
-      traverse_ (uncurry consumeMessage1) (zip others msgs)
-      -- assert the leaver gets no proposal or event
-      void . liftIO $ WS.assertNoEvent (5 # WS.Second) [wsLeaver]
-
-    -- a member commits the pending proposal
-    do
-      leaveCommit <- createPendingProposalCommit (head others)
-      mlsBracket (firstLeaver : tail others) $ \(wsLeaver : wss) -> do
-        events <-
-          fst
-            <$$> withTempMockFederator' ("on-mls-message-sent" ~> RemoteMLSMessageOk)
-            $ sendAndConsumeCommitBundle leaveCommit
-        liftIO $ events @?= []
-        WS.assertMatchN_ (5 # WS.Second) wss $ \n -> do
-          wsAssertMLSMessage qsub (cidQualifiedUser . head $ others) (mpMessage leaveCommit) n
-        void $ WS.assertNoEvent (5 # WS.Second) [wsLeaver]
-
-    -- send an application message
-    do
-      message <- createApplicationMessage (head others) "some text"
-      mlsBracket (firstLeaver : tail others) $ \(wsLeaver : wss) -> do
-        (events, _) <- sendAndConsumeMessage message
-        liftIO $ events @?= []
-        WS.assertMatchN_ (5 # WS.Second) wss $ \n -> do
-          wsAssertMLSMessage qsub (cidQualifiedUser . head $ others) (mpMessage message) n
-        void $ WS.assertNoEvent (5 # WS.Second) [wsLeaver]
-
-    -- check that only 3 clients are left in the subconv
-    do
-      psc <-
-        liftTest $
-          responseJsonError
-            =<< getSubConv (ciUser (head others)) qcnv subId
-              <!! do
-                const 200 === statusCode
-      liftIO $ length (pscMembers psc) @?= 3
-
-    -- charlie1 leaves
-    [idxCharlie1] <-
-      map snd . filter (\(cid, _) -> cid == charlie1)
-        <$> getClientsFromGroupState (head others) charlie
-    mlsBracket others $ \wss -> do
-      leaveCurrentConv charlie1 qsub
-
-      msgs <-
-        WS.assertMatchN (5 # WS.Second) wss $
-          wsAssertBackendRemoveProposal charlie (Conv <$> qcnv) idxCharlie1
-      traverse_ (uncurry consumeMessage1) (zip others msgs)
-
-    -- a member commits the pending proposal
-    void $
-      withTempMockFederator' ("on-mls-message-sent" ~> RemoteMLSMessageOk) $
-        createPendingProposalCommit (head others) >>= sendAndConsumeCommitBundle
-
-    -- check that only 2 clients are left in the subconv
-    do
-      psc <-
-        liftTest $
-          responseJsonError
-            =<< getSubConv (ciUser (head others)) qcnv subId
-              <!! do
-                const 200 === statusCode
-      liftIO $ do
-        length (pscMembers psc) @?= 2
-        sort (pscMembers psc) @?= sort others
-
 testLeaveSubConvNonMember :: TestM ()
 testLeaveSubConvNonMember = do
   [alice, bob] <- createAndConnectUsers [Nothing, Nothing]
@@ -2595,7 +2339,7 @@ testLeaveRemoteSubConv = do
 
     let pgs = mpGroupInfo initialCommit
     let mock =
-          ("send-mls-commit-bundle" ~> MLSMessageResponseUpdates [] mempty)
+          ("send-mls-commit-bundle" ~> MLSMessageResponseUpdates [])
             <|> queryGroupStateMock (fold pgs) bob
             <|> sendMessageMock
             <|> ("leave-sub-conversation" ~> LeaveSubConversationResponseOk)

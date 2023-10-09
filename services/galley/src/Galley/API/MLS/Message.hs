@@ -33,7 +33,6 @@ import Control.Comonad
 import Data.Domain
 import Data.Id
 import Data.Json.Util
-import Data.List.NonEmpty qualified as NE
 import Data.Qualified
 import Data.Set qualified as Set
 import Data.Text.Lazy qualified as LT
@@ -271,7 +270,6 @@ postMLSCommitBundleToRemoteConv ::
   ( Member BrigAccess r,
     Members MLSBundleStaticErrors r,
     Member (Error FederationError) r,
-    Member (Error InternalError) r,
     Member (Error MLSProtocolError) r,
     Member (Error MLSProposalFailure) r,
     Member (Error NonFederatingBackends) r,
@@ -312,13 +310,7 @@ postMLSCommitBundleToRemoteConv loc qusr c con bundle ctype rConvOrSubId = do
     MLSMessageResponseProtocolError e -> throw (mlsProtocolError e)
     MLSMessageResponseProposalFailure e -> throw (MLSProposalFailure e)
     MLSMessageResponseUnreachableBackends ds -> throw (UnreachableBackends (toList ds))
-    MLSMessageResponseUpdates updates unreachables -> do
-      for_ unreachables $ \us ->
-        throw . InternalErrorWithDescription $
-          "A commit to a remote conversation should not ever return a \
-          \non-empty list of users an application message could not be \
-          \sent to. The remote end returned: "
-            <> LT.pack (intercalate ", " (show <$> NE.toList (unreachableUsers us)))
+    MLSMessageResponseUpdates updates -> do
       fmap fst . runOutputList . runInputConst (void loc) $
         for_ updates $ \update -> do
           me <- updateLocalStateOfRemoteConv (qualifyAs rConvOrSubId update) con
@@ -462,12 +454,12 @@ postMLSMessageToRemoteConv loc qusr senderClient con msg rConvOrSubId = do
         \not ever return a non-empty list of domains a commit could not be \
         \sent to. The remote end returned: "
           <> LT.pack (intercalate ", " (show <$> Set.toList (Set.map domainText ds)))
-    MLSMessageResponseUpdates updates unreachables -> do
+    MLSMessageResponseUpdates updates -> do
       lcus <- fmap fst . runOutputList $
         for_ updates $ \update -> do
           me <- updateLocalStateOfRemoteConv (qualifyAs rConvOrSubId update) con
           for_ me $ \e -> output (LocalConversationUpdate e update)
-      pure (lcus, unreachables)
+      pure (lcus, Nothing)
     MLSMessageResponseNonFederatingBackends e -> throw e
 
 storeGroupInfo ::

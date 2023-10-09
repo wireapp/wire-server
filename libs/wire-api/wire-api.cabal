@@ -169,6 +169,8 @@ library
     Wire.API.Routes.Public.Brig
     Wire.API.Routes.Public.Brig.Bot
     Wire.API.Routes.Public.Brig.OAuth
+    Wire.API.Routes.Public.Brig.Provider
+    Wire.API.Routes.Public.Brig.Services
     Wire.API.Routes.Public.Cannon
     Wire.API.Routes.Public.Cargohold
     Wire.API.Routes.Public.Galley

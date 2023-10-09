@@ -175,7 +175,7 @@ remotePostCommitBundle rsender qcs bundle = do
       e@(MLSMessageResponseNonFederatingBackends _) ->
         assertFailure $
           "error while receiving commit bundle: " <> show e
-      MLSMessageResponseUpdates _ _ -> pure []
+      MLSMessageResponseUpdates _ -> pure []
 
 postCommitBundle ::
   HasCallStack =>

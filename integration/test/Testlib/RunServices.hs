@@ -1,5 +1,3 @@
-{-# OPTIONS_GHC -Wno-unused-matches #-}
-
 module Testlib.RunServices where
 
 import Control.Concurrent
@@ -43,8 +41,6 @@ main = do
     Just projectRoot ->
       pure $ joinPath [projectRoot, "services/integration.yaml"]
 
-  genv <- createGlobalEnv cfg
-
   args <- getArgs
 
   let run = case args of
@@ -56,7 +52,7 @@ main = do
           (_, _, _, ph) <- createProcess cp
           exitWith =<< waitForProcess ph
 
-  runCodensity (mkEnv genv) $ \env ->
+  runCodensity (createGlobalEnv cfg >>= mkEnv) $ \env ->
     runAppWithEnv env $
       lowerCodensity $ do
         _modifyEnv <-
