@@ -672,7 +672,7 @@ type TeamsAPI =
     :<|> InvitationByEmail
     :<|> InvitationCode
     :<|> SuspendTeam
-    :<|> UnSuspendTeam
+    :<|> UnsuspendTeam
     :<|> TeamSize
     :<|> TeamInvitations
 
@@ -715,7 +715,7 @@ type SuspendTeam =
              NoContent
     )
 
-type UnSuspendTeam =
+type UnsuspendTeam =
   Named
     "unsuspend-team"
     ( "teams"

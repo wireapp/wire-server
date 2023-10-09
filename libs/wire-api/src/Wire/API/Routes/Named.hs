@@ -33,6 +33,12 @@ import Servant.Client.Core (clientIn)
 import Servant.OpenApi
 
 -- | See http://docs.wire.com/developer/developer/servant.html#named-and-internal-route-ids-in-swagger
+--
+-- as 'UntypedNamed' is of kind $k -> Type -> Type$, we can pass any
+-- argument to it, however, most commonly we want to pass a 'Symbol' to
+-- it. To avoid mistakes, we make it possible to rule out untyped arguments
+-- like 'Type', this is done by the 'IsStronglyTyped' TyFam that will throw
+-- a type error when passed a 'Type'
 type Named name = UntypedNamed (IsStronglyTyped name)
 
 newtype UntypedNamed name x = Named {unnamed :: x}
