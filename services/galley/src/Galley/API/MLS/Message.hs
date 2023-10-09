@@ -453,11 +453,10 @@ postMLSMessageToRemoteConv loc qusr senderClient con msg rConvOrSubId = do
         \sent to. The remote end returned: "
           <> LT.pack (intercalate ", " (show <$> Set.toList (Set.map domainText ds)))
     MLSMessageResponseUpdates updates -> do
-      lcus <- fmap fst . runOutputList $
+      fmap fst . runOutputList $
         for_ updates $ \update -> do
           me <- updateLocalStateOfRemoteConv (qualifyAs rConvOrSubId update) con
           for_ me $ \e -> output (LocalConversationUpdate e update)
-      pure lcus
     MLSMessageResponseNonFederatingBackends e -> throw e
 
 storeGroupInfo ::
