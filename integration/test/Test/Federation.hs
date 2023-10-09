@@ -130,5 +130,5 @@ testNotificationsForOfflineBackends = do
       -- void $ awaitNotification downUser1 downClient1 (Just newMsgNotif) 1 isOtherUser2LeaveUpConvNotif
       -- void $ awaitNotification otherUser otherClient (Just newMsgNotif) 1 isDelUserLeaveDownConvNotif
 
-      delUserDeletedNotif <- nPayload $ awaitNotification downUser1 downClient1 (Just newMsgNotif) 5 isDeleteUserNotif
+      delUserDeletedNotif <- nPayload $ awaitNotification downUser1 downClient1 (Just newMsgNotif) 1 isDeleteUserNotif
       objQid delUserDeletedNotif `shouldMatch` objQid delUser
