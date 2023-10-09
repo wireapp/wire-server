@@ -108,7 +108,6 @@ tests s =
         [ testGroup
             "Local Sender/Local Conversation"
             [ test s "send application message" testAppMessage,
-              test s "send remote application message" testRemoteAppMessage,
               test s "another participant sends an application message" testAppMessage2,
               test s "send message, remote users are unreachable" testAppMessageUnreachable
             ],
@@ -122,11 +121,7 @@ tests s =
             [ test s "POST /federation/send-mls-message" testRemoteToLocal,
               test s "POST /federation/send-mls-message, remote user is not a conversation member" testRemoteNonMemberToLocal,
               test s "POST /federation/send-mls-message, remote user sends to wrong conversation" testRemoteToLocalWrongConversation
-            ],
-          testGroup
-            "Remote Sender/Remote Conversation"
-            [ test s "POST /federation/on-mls-message-sent" testRemoteToRemote
-            ] -- all is mocked
+            ]
         ],
       testGroup
         "Proposal"
@@ -565,37 +560,6 @@ testUnknownProposalRefCommit = do
           <!! const 404 === statusCode
     liftIO $ Wai.label err @?= "mls-proposal-not-found"
 
--- TODO: move to integration
-testRemoteAppMessage :: TestM ()
-testRemoteAppMessage = do
-  users@[alice, bob] <- createAndConnectUsers [Nothing, Just "bob.example.com"]
-
-  runMLSTest $ do
-    [alice1, bob1] <- traverse createMLSClient users
-
-    (_, qcnv) <- setupMLSGroup alice1
-
-    let mock = receiveCommitMock [bob1] <|> messageSentMock <|> welcomeMock
-
-    ((message, events), reqs) <- withTempMockFederator' mock $ do
-      void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
-      message <- createApplicationMessage alice1 "hello"
-      events <- sendAndConsumeMessage message
-      pure (message, events)
-
-    liftIO $ do
-      req <- assertOne $ filter ((== "on-mls-message-sent") . frRPC) reqs
-      frTargetDomain req @?= qDomain bob
-      bdy :: RemoteMLSMessage <- case Aeson.eitherDecode (frBody req) of
-        Right b -> pure b
-        Left e -> assertFailure $ "Could not parse on-mls-message-sent request body: " <> e
-      bdy.sender @?= alice
-      bdy.conversation @?= qUnqualified qcnv
-      bdy.recipients @?= [(ciUser bob1, ciClient bob1)]
-      bdy.message @?= Base64ByteString (mpMessage message)
-
-    liftIO $ assertBool "Unexpected events returned" (null events)
-
 -- The following test happens within backend B
 -- Alice@A is remote and Bob@B is local
 -- Alice creates a remote conversation and invites Bob
@@ -892,61 +856,6 @@ testAppMessageUnreachable = do
     _ <- sendAndConsumeMessage message
     liftIO $ do
       assertBool "Event should be member join" $ is _EdMembersJoin (evtData event)
-
-testRemoteToRemote :: TestM ()
-testRemoteToRemote = do
-  localDomain <- viewFederationDomain
-  c <- view tsCannon
-  alice <- randomUser
-  eve <- randomUser
-  bob <- randomId
-  conv <- randomId
-  let aliceC1 = newClientId 0
-      aliceC2 = newClientId 1
-      eveC = newClientId 0
-      bdom = Domain "bob.example.com"
-      qconv = Qualified conv bdom
-      qbob = Qualified bob bdom
-      qalice = Qualified alice localDomain
-  now <- liftIO getCurrentTime
-  fedGalleyClient <- view tsFedGalleyClient
-
-  -- only add alice to the remote conversation
-  connectWithRemoteUser alice qbob
-  let cu =
-        ConversationUpdate
-          { cuTime = now,
-            cuOrigUserId = qbob,
-            cuConvId = conv,
-            cuAlreadyPresentUsers = [],
-            cuAction =
-              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qalice) roleNameWireMember)
-          }
-  void $ runFedClient @"on-conversation-updated" fedGalleyClient bdom cu
-
-  let txt = "Hello from another backend"
-      rcpts = [(alice, aliceC1), (alice, aliceC2), (eve, eveC)]
-      rm =
-        RemoteMLSMessage
-          { time = now,
-            metadata = defMessageMetadata,
-            sender = qbob,
-            conversation = conv,
-            subConversation = Nothing,
-            recipients = rcpts,
-            message = Base64ByteString txt
-          }
-
-  -- send message to alice and check reception
-  WS.bracketAsClientRN c [(alice, aliceC1), (alice, aliceC2), (eve, eveC)] $ \[wsA1, wsA2, wsE] -> do
-    void $ runFedClient @"on-mls-message-sent" fedGalleyClient bdom rm
-    liftIO $ do
-      -- alice should receive the message on her first client
-      WS.assertMatch_ (5 # Second) wsA1 $ \n -> wsAssertMLSMessage (fmap Conv qconv) qbob txt n
-      WS.assertMatch_ (5 # Second) wsA2 $ \n -> wsAssertMLSMessage (fmap Conv qconv) qbob txt n
-
-      -- eve should not receive the message
-      WS.assertNoEvent (1 # Second) [wsE]
 
 testRemoteToRemoteInSub :: TestM ()
 testRemoteToRemoteInSub = do
