@@ -33,7 +33,6 @@ import Data.Domain
 import Data.Id
 import Data.Json.Util
 import Data.List.NonEmpty (NonEmpty, nonEmpty)
-import Data.List.NonEmpty qualified as NE
 import Data.Map qualified as Map
 import Data.Qualified
 import Data.Set qualified as Set
@@ -311,7 +310,6 @@ postMLSCommitBundleToRemoteConv ::
   ( Member BrigAccess r,
     Members MLSBundleStaticErrors r,
     Member (Error FederationError) r,
-    Member (Error InternalError) r,
     Member (Error MLSProtocolError) r,
     Member (Error MLSProposalFailure) r,
     Member (Error NonFederatingBackends) r,
@@ -347,13 +345,7 @@ postMLSCommitBundleToRemoteConv loc qusr con bundle rcnv = do
     MLSMessageResponseProtocolError e -> throw (mlsProtocolError e)
     MLSMessageResponseProposalFailure e -> throw (MLSProposalFailure e)
     MLSMessageResponseUnreachableBackends ds -> throw (UnreachableBackends (toList ds))
-    MLSMessageResponseUpdates updates unreachables -> do
-      for_ unreachables $ \us ->
-        throw . InternalErrorWithDescription $
-          "A commit to a remote conversation should not ever return a \
-          \non-empty list of users an application message could not be \
-          \sent to. The remote end returned: "
-            <> LT.pack (intercalate ", " (show <$> NE.toList (unreachableUsers us)))
+    MLSMessageResponseUpdates updates -> do
       fmap fst . runOutputList . runInputConst (void loc) $
         for_ updates $ \update -> do
           me <- updateLocalStateOfRemoteConv (qualifyAs rcnv update) con
@@ -538,12 +530,12 @@ postMLSMessageToRemoteConv loc qusr _senderClient con smsg rcnv = do
         \not ever return a non-empty list of domains a commit could not be \
         \sent to. The remote end returned: "
           <> LT.pack (intercalate ", " (show <$> Set.toList (Set.map domainText ds)))
-    MLSMessageResponseUpdates updates unreachables -> do
+    MLSMessageResponseUpdates updates -> do
       lcus <- fmap fst . runOutputList $
         for_ updates $ \update -> do
           me <- updateLocalStateOfRemoteConv (qualifyAs rcnv update) con
           for_ me $ \e -> output (LocalConversationUpdate e update)
-      pure (lcus, unreachables)
+      pure (lcus, Nothing)
     MLSMessageResponseNonFederatingBackends e -> throw e
 
 type HasProposalEffects r =

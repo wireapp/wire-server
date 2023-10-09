@@ -22,6 +22,6 @@ data BackendNotificationQueueAccess m a where
     Q.DeliveryMode ->
     f (Remote x) ->
     (Remote [x] -> FedQueueClient c a) ->
-    BackendNotificationQueueAccess m [Either (Remote ([x], FederationError)) (Remote a)]
+    BackendNotificationQueueAccess m (Either FederationError [Remote a])
 
 makeSem ''BackendNotificationQueueAccess
