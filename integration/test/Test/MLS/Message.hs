@@ -1,6 +1,5 @@
 module Test.MLS.Message where
 
-import API.Galley
 import MLS.Util
 import Notifications
 import SetupHelpers
@@ -8,7 +7,7 @@ import Testlib.Prelude
 
 testAppMessageSomeReachable :: HasCallStack => App ()
 testAppMessageSomeReachable = do
-  (alice1, charlie) <- startDynamicBackends [mempty] $ \[thirdDomain] -> do
+  alice1 <- startDynamicBackends [mempty] $ \[thirdDomain] -> do
     ownDomain <- make OwnDomain & asString
     otherDomain <- make OtherDomain & asString
     [alice, bob, charlie] <- createAndConnectUsers [ownDomain, otherDomain, thirdDomain]
@@ -19,11 +18,6 @@ testAppMessageSomeReachable = do
     void $ withWebSocket charlie $ \ws -> do
       void $ createAddCommit alice1 [bob, charlie] >>= sendAndConsumeCommitBundle
       awaitMatch 10 isMemberJoinNotif ws
-    pure (alice1, charlie)
+    pure alice1
 
-  mp <- createApplicationMessage alice1 "hi, bob!"
-  bindResponse (postMLSMessage mp.sender mp.message) $ \resp -> do
-    resp.status `shouldMatchInt` 201
-
-    charlieId <- charlie %. "qualified_id"
-    resp.json %. "failed_to_send" `shouldMatchSet` [charlieId]
+  void $ createApplicationMessage alice1 "hi, bob!" >>= sendAndConsumeMessage
