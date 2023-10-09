@@ -118,7 +118,7 @@ import Wire.API.Routes.Internal.Cargohold qualified as CargoholdInternalAPI
 import Wire.API.Routes.Internal.Galley qualified as GalleyInternalAPI
 import Wire.API.Routes.Internal.Spar qualified as SparInternalAPI
 import Wire.API.Routes.MultiTablePaging qualified as Public
-import Wire.API.Routes.Named (Named (Named))
+import Wire.API.Routes.Named (UntypedNamed (Named))
 import Wire.API.Routes.Public.Brig
 import Wire.API.Routes.Public.Brig.OAuth
 import Wire.API.Routes.Public.Cannon
