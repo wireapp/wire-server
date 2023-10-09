@@ -42,7 +42,6 @@ where
 
 import Control.Lens ((.~))
 import Data.Aeson (FromJSON, ToJSON)
-import Data.Aeson qualified as Aeson
 import Data.Code qualified as Code
 import Data.CommaSeparatedList
 import Data.Domain (Domain)
@@ -696,13 +695,14 @@ type InvitationCode =
         :> Get '[Servant.JSON] FoundInvitationCode
     )
 
-newtype FoundInvitationCode = FoundInvitationCode User.InvitationCode
+newtype FoundInvitationCode = FoundInvitationCode {getFoundInvitationCode :: User.InvitationCode}
   deriving stock (Eq, Show, Generic)
-  -- TODO: is this correct?
-  deriving newtype (S.ToSchema)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema FoundInvitationCode)
 
-instance ToJSON FoundInvitationCode where
-  toJSON (FoundInvitationCode c) = Aeson.object ["code" Aeson..= c]
+instance ToSchema FoundInvitationCode where
+  schema =
+    FoundInvitationCode
+      <$> getFoundInvitationCode .= object "FoundInvitationCode" (field "code" (schema @User.InvitationCode))
 
 type SuspendTeam =
   Named
