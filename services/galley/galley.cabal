@@ -16,7 +16,7 @@ flag static
   default:     False
 
 common common-all
-  default-language:   Haskell2010
+  default-language:   GHC2021
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
@@ -68,7 +68,7 @@ common common-all
     ViewPatterns
 
 library
-  import:           common-all
+  import:          common-all
 
   -- cabal-fmt: expand src
   exposed-modules:
@@ -208,9 +208,9 @@ library
     Galley.Types.UserList
     Galley.Validation
 
-  ghc-options:      -fplugin=TransitiveAnns.Plugin
-  other-modules:    Paths_galley
-  hs-source-dirs:   src
+  ghc-options:     -fplugin=TransitiveAnns.Plugin
+  other-modules:   Paths_galley
+  hs-source-dirs:  src
   build-depends:
     , aeson                  >=2.0.1.0
     , amazonka               >=1.4.5
@@ -297,13 +297,11 @@ library
     , wire-api-federation
     , x509
 
-  default-language: GHC2021
-
 executable galley
-  import:           common-all
-  main-is:          exec/Main.hs
-  other-modules:    Paths_galley
-  ghc-options:      -threaded -with-rtsopts=-T -rtsopts
+  import:        common-all
+  main-is:       exec/Main.hs
+  other-modules: Paths_galley
+  ghc-options:   -threaded -with-rtsopts=-T -rtsopts
   build-depends:
     , base
     , galley
@@ -313,8 +311,6 @@ executable galley
 
   if flag(static)
     ld-options: -static
-
-  default-language: GHC2021
 
 executable galley-integration
   import:             common-all
@@ -487,11 +483,9 @@ executable galley-integration
     , wire-api-federation
     , yaml
 
-  default-language:   GHC2021
-
 executable galley-migrate-data
-  import:           common-all
-  main-is:          ../main.hs
+  import:         common-all
+  main-is:        ../main.hs
 
   -- cabal-fmt: expand migrate-data/src
   other-modules:
@@ -503,7 +497,7 @@ executable galley-migrate-data
     V2_MigrateMLSMembers
     V3_BackfillTeamAdmins
 
-  hs-source-dirs:   migrate-data/src
+  hs-source-dirs: migrate-data/src
   build-depends:
     , base
     , cassandra-util
@@ -525,8 +519,6 @@ executable galley-migrate-data
 
   if flag(static)
     ld-options: -static
-
-  default-language: GHC2021
 
 executable galley-schema
   import:             common-all
@@ -591,9 +583,8 @@ executable galley-schema
   if flag(static)
     ld-options: -static
 
-  default-language:   GHC2021
-
 library galley-schema-lib
+  import:             common-all
   hs-source-dirs:     schema/lib
   exposed-modules:    Migrations
 
@@ -721,22 +712,21 @@ library galley-schema-lib
     , imports
     , raw-strings-qq  >=1.0
 
-  default-language:   GHC2021
-
 test-suite galley-tests
-  import:           common-all
-  type:             exitcode-stdio-1.0
-  main-is:          ../unit.hs
+  import:         common-all
+  type:           exitcode-stdio-1.0
+  main-is:        ../unit.hs
   other-modules:
     Paths_galley
+    Run
     Test.Galley.API.Action
     Test.Galley.API.Message
     Test.Galley.API.One2One
     Test.Galley.Intra.User
     Test.Galley.Mapping
 
-  ghc-options:      -threaded -with-rtsopts=-N
-  hs-source-dirs:   test/unit
+  ghc-options:    -threaded -with-rtsopts=-N
+  hs-source-dirs: test/unit
   build-depends:
     , base
     , containers
@@ -755,5 +745,3 @@ test-suite galley-tests
     , uuid-types
     , wire-api
     , wire-api-federation
-
-  default-language: GHC2021
