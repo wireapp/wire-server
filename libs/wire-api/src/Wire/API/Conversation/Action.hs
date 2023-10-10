@@ -158,9 +158,9 @@ conversationActionToEvent tag now quid qcnv subconv action =
           let ConversationJoin newMembers role = action
            in EdMembersJoin $ SimpleMembers (map (`SimpleMember` role) (toList newMembers))
         SConversationLeaveTag ->
-          EdMembersLeave (QualifiedUserIdList [quid])
+          EdMembersLeave EdReasonLeft (QualifiedUserIdList [quid])
         SConversationRemoveMembersTag ->
-          EdMembersLeave (QualifiedUserIdList (toList action))
+          EdMembersLeave EdReasonRemoved (QualifiedUserIdList (toList action))
         SConversationMemberUpdateTag ->
           let ConversationMemberUpdate target (OtherMemberUpdate role) = action
               update = MemberUpdateData target Nothing Nothing Nothing Nothing Nothing Nothing role

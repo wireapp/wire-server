@@ -379,7 +379,7 @@ rmUser lusr conn = do
                       Nothing
                       (tUntagged lusr)
                       now
-                      (EdMembersLeave (QualifiedUserIdList [qUser]))
+                      (EdMembersLeave EdReasonRemovedFromTeam (QualifiedUserIdList [qUser]))
               for_ (bucketRemote (fmap rmId (Data.convRemoteMembers c))) $ notifyRemoteMembers now qUser (Data.convId c)
               pure $
                 Intra.newPushLocal ListComplete (tUnqualified lusr) (Intra.ConvEvent e) (Intra.recipient <$> Data.convLocalMembers c)

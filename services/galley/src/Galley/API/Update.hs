@@ -1,4 +1,6 @@
 {-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE RecordWildCards #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -15,7 +17,6 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-{-# LANGUAGE RecordWildCards #-}
 
 module Galley.API.Update
   ( -- * Managing Conversations
@@ -1106,6 +1107,11 @@ removeMemberQualified lusr con qcnv victim =
       qcnv
       victim
 
+-- | if the public member leave api was called, we can assume that
+--   it was called by a user
+pattern EdMembersLeaveRemoved :: QualifiedUserIdList -> EventData
+pattern EdMembersLeaveRemoved l = EdMembersLeave EdReasonRemoved l
+
 removeMemberFromRemoteConv ::
   ( Member FederatorAccess r,
     Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
@@ -1120,8 +1126,8 @@ removeMemberFromRemoteConv cnv lusr victim
   | tUntagged lusr == victim = do
       let lc = LeaveConversationRequest (tUnqualified cnv) (qUnqualified victim)
       let rpc = fedClient @'Galley @"leave-conversation" lc
-      (either handleError handleSuccess . void . (.response) =<<) $
-        E.runFederated cnv rpc
+      E.runFederated cnv rpc
+        >>= either handleError handleSuccess . void . (.response)
   | otherwise = throwS @('ActionDenied 'RemoveConversationMember)
   where
     handleError ::
@@ -1140,7 +1146,7 @@ removeMemberFromRemoteConv cnv lusr victim
       t <- input
       pure . Just $
         Event (tUntagged cnv) Nothing (tUntagged lusr) t $
-          EdMembersLeave (QualifiedUserIdList [victim])
+          EdMembersLeaveRemoved (QualifiedUserIdList [victim])
 
 -- | Remove a member from a local conversation.
 removeMemberFromLocalConv ::
@@ -1614,7 +1620,7 @@ rmBot lusr zcon b = do
     else do
       t <- input
       do
-        let evd = EdMembersLeave (QualifiedUserIdList [tUntagged (qualifyAs lusr (botUserId (b ^. rmBotId)))])
+        let evd = EdMembersLeaveRemoved (QualifiedUserIdList [tUntagged (qualifyAs lusr (botUserId (b ^. rmBotId)))])
         let e = Event (tUntagged lcnv) Nothing (tUntagged lusr) t evd
         for_ (newPushLocal ListComplete (tUnqualified lusr) (ConvEvent e) (recipient <$> users)) $ \p ->
           E.push1 $ p & pushConn .~ zcon

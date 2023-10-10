@@ -25,6 +25,7 @@ module Wire.API.User
     UserIdList (..),
     UserIds (..),
     QualifiedUserIdList (..),
+    qualifiedUserIdListObjectSchema,
     LimitedQualifiedUserIdList (..),
     ScimUserInfo (..),
     ScimUserInfos (..),
@@ -546,12 +547,15 @@ newtype QualifiedUserIdList = QualifiedUserIdList {qualifiedUserIdList :: [Quali
 
 instance ToSchema QualifiedUserIdList where
   schema =
-    object "QualifiedUserIdList" $
-      QualifiedUserIdList
-        <$> qualifiedUserIdList
-          .= field "qualified_user_ids" (array schema)
-        <* (fmap qUnqualified . qualifiedUserIdList)
-          .= field "user_ids" (deprecatedSchema "qualified_user_ids" (array schema))
+    object "QualifiedUserIdList" qualifiedUserIdListObjectSchema
+
+qualifiedUserIdListObjectSchema :: ObjectSchema SwaggerDoc QualifiedUserIdList
+qualifiedUserIdListObjectSchema =
+  QualifiedUserIdList
+    <$> qualifiedUserIdList
+      .= field "qualified_user_ids" (array schema)
+    <* (fmap qUnqualified . qualifiedUserIdList)
+      .= field "user_ids" (deprecatedSchema "qualified_user_ids" (array schema))
 
 --------------------------------------------------------------------------------
 -- LimitedQualifiedUserIdList

@@ -1606,9 +1606,9 @@ postConvertTeamConv = do
     -- non-team members get kicked out
     liftIO $ do
       WS.assertMatchN_ (5 # Second) [wsA, wsB, wsE, wsM] $
-        wsAssertMemberLeave qconv qalice (pure qeve)
+        wsAssertMemberLeave qconv qalice (pure qeve) EdReasonRemoved
       WS.assertMatchN_ (5 # Second) [wsA, wsB, wsE, wsM] $
-        wsAssertMemberLeave qconv qalice (pure qmallory)
+        wsAssertMemberLeave qconv qalice (pure qmallory) EdReasonRemoved
     -- joining (for mallory) is no longer possible
     postJoinCodeConv mallory j !!! const 403 === statusCode
     -- team members (dave) can still join

@@ -790,7 +790,7 @@ testBotTeamOnlyConv config db brig galley cannon = withTestService config db bri
           let msg = QualifiedUserIdList gone
           assertEqual "conv" cnv (evtConv e)
           assertEqual "user" leaveFrom (evtFrom e)
-          assertEqual "event data" (EdMembersLeave msg) (evtData e)
+          assertEqual "event data" (EdMembersLeave EdReasonRemoved msg) (evtData e)
         _ ->
           assertFailure $ "expected event of type: ConvAccessUpdate or MemberLeave, got: " <> show e
     setAccessRole uid qcid role =
@@ -2037,7 +2037,7 @@ wsAssertMemberLeave ws conv usr old = void $
         evtConv e @?= conv
         evtType e @?= MemberLeave
         evtFrom e @?= usr
-        evtData e @?= EdMembersLeave (QualifiedUserIdList old)
+        evtData e @?= EdMembersLeave EdReasonRemoved (QualifiedUserIdList old)
 
 wsAssertConvDelete :: (HasCallStack, MonadIO m) => WS.WebSocket -> Qualified ConvId -> Qualified UserId -> m ()
 wsAssertConvDelete ws conv from = void $
@@ -2084,7 +2084,7 @@ svcAssertMemberLeave buf usr gone cnv = liftIO $ do
       assertEqual "event type" MemberLeave (evtType e)
       assertEqual "conv" cnv (evtConv e)
       assertEqual "user" usr (evtFrom e)
-      assertEqual "event data" (EdMembersLeave msg) (evtData e)
+      assertEqual "event data" (EdMembersLeave EdReasonRemoved msg) (evtData e)
     _ -> assertFailure "Event timeout (TestBotMessage: member-leave)"
 
 svcAssertConvDelete :: (HasCallStack, MonadIO m) => Chan TestBotEvent -> Qualified UserId -> Qualified ConvId -> m ()
