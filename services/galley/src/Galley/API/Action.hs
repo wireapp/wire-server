@@ -1,3 +1,6 @@
+{-# LANGUAGE PartialTypeSignatures #-}
+
+{-# OPTIONS -Wno-partial-type-signatures #-}
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -368,7 +371,8 @@ noChanges = throw NoChanges
 
 ensureAllowed ::
   forall tag mem r x.
-  (IsConvMember mem, HasConversationActionEffects tag r) =>
+  IsConvMember mem =>
+  HasConversationActionEffects tag r =>
   Sing tag ->
   Local x ->
   ConversationAction tag ->

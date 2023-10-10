@@ -1,3 +1,7 @@
+{-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE TupleSections #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas -Wno-partial-type-signatures #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -27,14 +31,12 @@ import Galley.API.MLS.Types
 import Galley.API.Push
 import Galley.API.Util
 import Galley.Data.Services
-import Galley.Effects
 import Galley.Effects.BackendNotificationQueueAccess
 import Galley.Types.Conversations.Members
 import Imports
 import Network.AMQP qualified as Q
 import Polysemy
 import Polysemy.Input
-import Polysemy.TinyLog hiding (trace)
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
@@ -48,12 +50,7 @@ import Wire.API.Message
 -- The message will not be propagated to the sender client if provided. This is
 -- a requirement from Core Crypto and the clients.
 propagateMessage ::
-  ( Member BackendNotificationQueueAccess r,
-    Member ExternalAccess r,
-    Member GundeckAccess r,
-    Member (Input UTCTime) r,
-    Member TinyLog r
-  ) =>
+  _ =>
   Qualified UserId ->
   Maybe ClientId ->
   Local ConvOrSubConv ->

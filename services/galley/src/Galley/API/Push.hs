@@ -1,5 +1,6 @@
+{-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE TupleSections #-}
-{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas -Wno-partial-type-signatures #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -73,10 +74,7 @@ newMessagePush botMap mconn mm userOrBots event =
 
 runMessagePush ::
   forall x r.
-  ( Member ExternalAccess r,
-    Member GundeckAccess r,
-    Member TinyLog r
-  ) =>
+  _ =>
   Local x ->
   Maybe (Qualified ConvId) ->
   MessagePush ->
