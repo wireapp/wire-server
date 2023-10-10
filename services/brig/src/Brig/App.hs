@@ -146,6 +146,7 @@ import Polysemy
 import Polysemy.Final
 import Ropes.Nexmo qualified as Nexmo
 import Ropes.Twilio qualified as Twilio
+import Run qualified as Migrations
 import Ssl.Util
 import System.FSNotify qualified as FS
 import System.FilePath qualified as Path
@@ -157,7 +158,7 @@ import Wire.API.User.Identity (Email)
 import Wire.API.User.Profile (Locale)
 
 schemaVersion :: Int32
-schemaVersion = 79
+schemaVersion = Migrations.lastSchemaVersion
 
 -------------------------------------------------------------------------------
 -- Environment

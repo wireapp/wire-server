@@ -70,50 +70,57 @@ main = do
   migrateSchema
     l
     o
-    [ V43.migration,
-      V44.migration,
-      V45.migration,
-      V46.migration,
-      V47.migration,
-      V48.migration,
-      V49.migration,
-      V50.migration,
-      V51.migration,
-      V52.migration,
-      V53.migration,
-      V54.migration,
-      V55.migration,
-      V56.migration,
-      V57.migration,
-      V58.migration,
-      V59.migration,
-      V60_AddFederationIdMapping.migration,
-      V61_team_invitation_email.migration,
-      V62_RemoveFederationIdMapping.migration,
-      V63_AddUsersPendingActivation.migration,
-      V64_ClientCapabilities.migration,
-      V65_FederatedConnections.migration,
-      V66_PersonalFeatureConfCallInit.migration,
-      V67_MLSKeyPackages.migration,
-      V68_AddMLSPublicKeys.migration,
-      V69_MLSKeyPackageRefMapping.migration,
-      V70_UserEmailUnvalidated.migration,
-      V71_AddTableVCodesThrottle.migration,
-      V72_AddNonceTable.migration,
-      V73_ReplaceNonceTable.migration,
-      V74_AddOAuthTables.migration,
-      V75_AddOAuthCodeChallenge.migration,
-      V76_AddSupportedProtocols.migration,
-      V77_FederationRemotes.migration,
-      V78_ClientLastActive.migration,
-      V79_ConnectionRemoteIndex.migration,
-      V80_KeyPackageCiphersuite.migration
-      -- When adding migrations here, don't forget to update
-      -- 'schemaVersion' in Brig.App
-
-      -- FUTUREWORK: undo V41 (searchable flag); we stopped using it in
-      -- https://github.com/wireapp/wire-server/pull/964
-      --
-      -- FUTUREWORK after July 2023: integrate V_FUTUREWORK here.
-    ]
+    migrations
     `finally` Log.close l
+
+lastSchemaVersion :: Int32
+lastSchemaVersion = migVersion $ last migrations
+
+migrations :: [Migration]
+migrations =
+  [ V43.migration,
+    V44.migration,
+    V45.migration,
+    V46.migration,
+    V47.migration,
+    V48.migration,
+    V49.migration,
+    V50.migration,
+    V51.migration,
+    V52.migration,
+    V53.migration,
+    V54.migration,
+    V55.migration,
+    V56.migration,
+    V57.migration,
+    V58.migration,
+    V59.migration,
+    V60_AddFederationIdMapping.migration,
+    V61_team_invitation_email.migration,
+    V62_RemoveFederationIdMapping.migration,
+    V63_AddUsersPendingActivation.migration,
+    V64_ClientCapabilities.migration,
+    V65_FederatedConnections.migration,
+    V66_PersonalFeatureConfCallInit.migration,
+    V67_MLSKeyPackages.migration,
+    V68_AddMLSPublicKeys.migration,
+    V69_MLSKeyPackageRefMapping.migration,
+    V70_UserEmailUnvalidated.migration,
+    V71_AddTableVCodesThrottle.migration,
+    V72_AddNonceTable.migration,
+    V73_ReplaceNonceTable.migration,
+    V74_AddOAuthTables.migration,
+    V75_AddOAuthCodeChallenge.migration,
+    V76_AddSupportedProtocols.migration,
+    V77_FederationRemotes.migration,
+    V78_ClientLastActive.migration,
+    V79_ConnectionRemoteIndex.migration,
+    V80_KeyPackageCiphersuite.migration
+    -- When adding migrations here, don't forget to update
+    -- 'schemaVersion' in Brig.App
+
+    -- FUTUREWORK: undo V41 (searchable flag); we stopped using it in
+    -- https://github.com/wireapp/wire-server/pull/964
+    --
+    -- FUTUREWORK after July 2023: integrate V_FUTUREWORK here.
+  ]

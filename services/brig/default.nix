@@ -244,6 +244,7 @@ mkDerivation {
     proto-lens
     random
     random-shuffle
+    raw-strings-qq
     resource-pool
     resourcet
     retry
@@ -409,6 +410,7 @@ mkDerivation {
     uuid
     wire-api
   ];
+  doHaddock = false;
   description = "User Service";
   license = lib.licenses.agpl3Only;
 }

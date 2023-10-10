@@ -18,7 +18,7 @@ extra-source-files:
   docs/swagger.md
 
 common common-all
-  default-language:   Haskell2010
+  default-language:   GHC2021
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
@@ -70,7 +70,7 @@ common common-all
     ViewPatterns
 
 library
-  import:           common-all
+  import:          common-all
 
   -- cabal-fmt: expand src
   exposed-modules:
@@ -192,8 +192,8 @@ library
     Brig.Version
     Brig.ZAuth
 
-  other-modules:    Paths_brig
-  hs-source-dirs:   src
+  other-modules:   Paths_brig
+  hs-source-dirs:  src
   ghc-options:
     -funbox-strict-fields -fplugin=Polysemy.Plugin
     -fplugin=TransitiveAnns.Plugin -Wredundant-constraints
@@ -215,6 +215,7 @@ library
     , base64-bytestring          >=1.0
     , bilge                      >=0.21.1
     , bloodhound                 >=0.13
+    , brig-schema-lib
     , brig-types                 >=0.91.1
     , bytestring                 >=0.10
     , bytestring-conversion      >=0.2
@@ -324,12 +325,10 @@ library
     , yaml                       >=0.8.22
     , zauth                      >=0.10.3
 
-  default-language: GHC2021
-
 executable brig
-  import:           common-all
-  main-is:          exec/Main.hs
-  other-modules:    Paths_brig
+  import:        common-all
+  main-is:       exec/Main.hs
+  other-modules: Paths_brig
   ghc-options:
     -funbox-strict-fields -threaded -with-rtsopts=-N -with-rtsopts=-T
     -rtsopts -Wredundant-constraints -Wunused-packages
@@ -341,13 +340,11 @@ executable brig
     , imports
     , types-common
 
-  default-language: GHC2021
-
 executable brig-index
-  import:           common-all
-  main-is:          index/src/Main.hs
-  other-modules:    Paths_brig
-  ghc-options:      -funbox-strict-fields -threaded -with-rtsopts=-N
+  import:        common-all
+  main-is:       index/src/Main.hs
+  other-modules: Paths_brig
+  ghc-options:   -funbox-strict-fields -threaded -with-rtsopts=-N
   build-depends:
     , base
     , brig
@@ -355,11 +352,9 @@ executable brig-index
     , optparse-applicative
     , tinylog
 
-  default-language: GHC2021
-
 executable brig-integration
-  import:           common-all
-  main-is:          ../integration.hs
+  import:         common-all
+  main-is:        ../integration.hs
 
   -- cabal-fmt: expand test/integration
   other-modules:
@@ -401,8 +396,8 @@ executable brig-integration
     Util
     Util.AWS
 
-  hs-source-dirs:   test/integration
-  ghc-options:      -funbox-strict-fields -threaded -with-rtsopts=-N
+  hs-source-dirs: test/integration
+  ghc-options:    -funbox-strict-fields -threaded -with-rtsopts=-N
   build-depends:
     , aeson
     , async
@@ -495,14 +490,73 @@ executable brig-integration
     , yaml
     , zauth
 
-  default-language: GHC2021
-
 executable brig-schema
   import:             common-all
   main-is:            ../main.hs
+  hs-source-dirs:     schema/src
+  ghc-options:        -funbox-strict-fields -Wredundant-constraints
+  default-extensions: TemplateHaskell
 
   -- cabal-fmt: expand schema/src
   other-modules:
+    Run
+    V43
+    V44
+    V45
+    V46
+    V47
+    V48
+    V49
+    V50
+    V51
+    V52
+    V53
+    V54
+    V55
+    V56
+    V57
+    V58
+    V59
+    V60_AddFederationIdMapping
+    V61_team_invitation_email
+    V62_RemoveFederationIdMapping
+    V63_AddUsersPendingActivation
+    V64_ClientCapabilities
+    V65_FederatedConnections
+    V66_PersonalFeatureConfCallInit
+    V67_MLSKeyPackages
+    V68_AddMLSPublicKeys
+    V69_MLSKeyPackageRefMapping
+    V70_UserEmailUnvalidated
+    V71_AddTableVCodesThrottle
+    V72_AddNonceTable
+    V73_ReplaceNonceTable
+    V74_AddOAuthTables
+    V75_AddOAuthCodeChallenge
+    V76_AddSupportedProtocols
+    V77_FederationRemotes
+    V78_ClientLastActive
+    V79_ConnectionRemoteIndex
+    V80_KeyPackageCiphersuite
+    V_FUTUREWORK
+
+  build-depends:
+    , base
+    , brig-schema-lib
+    , cassandra-util
+    , extended
+    , imports
+    , raw-strings-qq
+    , types-common
+
+library brig-schema-lib
+  import:             common-all
+  hs-source-dirs:     schema/src
+  ghc-options:        -funbox-strict-fields -Wredundant-constraints
+  default-extensions: TemplateHaskell
+
+  -- cabal-fmt: expand schema/src
+  exposed-modules:
     Run
     V43
     V44
@@ -555,12 +609,10 @@ executable brig-schema
     , raw-strings-qq  >=1.0
     , types-common
 
-  default-language:   GHC2021
-
 test-suite brig-tests
-  import:           common-all
-  type:             exitcode-stdio-1.0
-  main-is:          ../unit.hs
+  import:         common-all
+  type:           exitcode-stdio-1.0
+  main-is:        ../unit.hs
   other-modules:
     Run
     Test.Brig.Calling
@@ -571,8 +623,8 @@ test-suite brig-tests
     Test.Brig.Roundtrip
     Test.Brig.User.Search.Index.Types
 
-  hs-source-dirs:   test/unit
-  ghc-options:      -funbox-strict-fields -threaded -with-rtsopts=-N
+  hs-source-dirs: test/unit
+  ghc-options:    -funbox-strict-fields -threaded -with-rtsopts=-N
   build-depends:
     , aeson
     , base
@@ -600,5 +652,3 @@ test-suite brig-tests
     , uri-bytestring
     , uuid
     , wire-api
-
-  default-language: GHC2021
