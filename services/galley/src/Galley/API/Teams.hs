@@ -1083,6 +1083,7 @@ getTeamConversation zusr tid cid = do
 
 deleteTeamConversation ::
   ( Member BackendNotificationQueueAccess r,
+    Member BrigAccess r,
     Member CodeStore r,
     Member ConversationStore r,
     Member (Error FederationError) r,
@@ -1090,9 +1091,13 @@ deleteTeamConversation ::
     Member (ErrorS 'InvalidOperation) r,
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS ('ActionDenied 'DeleteConversation)) r,
+    Member FederatorAccess r,
+    Member MemberStore r,
+    Member ProposalStore r,
     Member ExternalAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
+    Member SubConversationStore r,
     Member TeamStore r,
     Member (P.Logger (Msg -> Msg)) r
   ) =>

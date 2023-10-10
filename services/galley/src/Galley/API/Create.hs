@@ -43,7 +43,6 @@ import Data.UUID.Tagged qualified as U
 import Galley.API.Action
 import Galley.API.Error
 import Galley.API.MLS
-import Galley.API.MLS.KeyPackage (nullKeyPackageRef)
 import Galley.API.MLS.Keys (getMLSRemovalKey)
 import Galley.API.Mapping
 import Galley.API.One2One
@@ -71,7 +70,6 @@ import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog qualified as P
 import Wire.API.Conversation hiding (Conversation, Member)
-import Wire.API.Conversation.Protocol
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
@@ -83,6 +81,7 @@ import Wire.API.Team
 import Wire.API.Team.LegalHold (LegalholdProtectee (LegalholdPlusFederationNotImplemented))
 import Wire.API.Team.Member
 import Wire.API.Team.Permission hiding (self)
+import Wire.API.User
 
 ----------------------------------------------------------------------------
 -- Group conversations
@@ -92,7 +91,6 @@ import Wire.API.Team.Permission hiding (self)
 createGroupConversationUpToV3 ::
   ( Member BrigAccess r,
     Member ConversationStore r,
-    Member MemberStore r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
@@ -102,7 +100,6 @@ createGroupConversationUpToV3 ::
     Member (ErrorS 'NotConnected) r,
     Member (ErrorS 'MLSNotEnabled) r,
     Member (ErrorS 'MLSNonEmptyMemberList) r,
-    Member (ErrorS 'MLSMissingSenderClient) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
     Member (Error UnreachableBackendsLegacy) r,
     Member FederatorAccess r,
@@ -115,16 +112,14 @@ createGroupConversationUpToV3 ::
     Member P.TinyLog r
   ) =>
   Local UserId ->
-  Maybe ClientId ->
   Maybe ConnId ->
   NewConv ->
   Sem r ConversationResponse
-createGroupConversationUpToV3 lusr mCreatorClient conn newConv = mapError UnreachableBackendsLegacy $
+createGroupConversationUpToV3 lusr conn newConv = mapError UnreachableBackendsLegacy $
   do
     conv <-
       createGroupConversationGeneric
         lusr
-        mCreatorClient
         conn
         newConv
     conversationCreated lusr conv
@@ -134,7 +129,6 @@ createGroupConversationUpToV3 lusr mCreatorClient conn newConv = mapError Unreac
 createGroupConversation ::
   ( Member BrigAccess r,
     Member ConversationStore r,
-    Member MemberStore r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
@@ -145,7 +139,6 @@ createGroupConversation ::
     Member (ErrorS 'NotConnected) r,
     Member (ErrorS 'MLSNotEnabled) r,
     Member (ErrorS 'MLSNonEmptyMemberList) r,
-    Member (ErrorS 'MLSMissingSenderClient) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
     Member (Error UnreachableBackends) r,
     Member FederatorAccess r,
@@ -158,17 +151,15 @@ createGroupConversation ::
     Member P.TinyLog r
   ) =>
   Local UserId ->
-  Maybe ClientId ->
   Maybe ConnId ->
   NewConv ->
   Sem r CreateGroupConversationResponse
-createGroupConversation lusr mCreatorClient conn newConv = do
+createGroupConversation lusr conn newConv = do
   let remoteDomains = tDomain <$> snd (partitionQualified lusr $ newConv.newConvQualifiedUsers)
   checkFederationStatus (RemoteDomains $ Set.fromList remoteDomains)
   cnv <-
     createGroupConversationGeneric
       lusr
-      mCreatorClient
       conn
       newConv
   conv <- conversationView lusr cnv
@@ -178,7 +169,6 @@ createGroupConversation lusr mCreatorClient conn newConv = do
 createGroupConversationGeneric ::
   ( Member BrigAccess r,
     Member ConversationStore r,
-    Member MemberStore r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
@@ -188,7 +178,6 @@ createGroupConversationGeneric ::
     Member (ErrorS 'NotConnected) r,
     Member (ErrorS 'MLSNotEnabled) r,
     Member (ErrorS 'MLSNonEmptyMemberList) r,
-    Member (ErrorS 'MLSMissingSenderClient) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
     Member (Error UnreachableBackends) r,
     Member FederatorAccess r,
@@ -201,17 +190,16 @@ createGroupConversationGeneric ::
     Member P.TinyLog r
   ) =>
   Local UserId ->
-  Maybe ClientId ->
   Maybe ConnId ->
   NewConv ->
   Sem r Conversation
-createGroupConversationGeneric lusr mCreatorClient conn newConv = do
+createGroupConversationGeneric lusr conn newConv = do
   (nc, fromConvSize -> allUsers) <- newRegularConversation lusr newConv
   let tinfo = newConvTeam newConv
   checkCreateConvPermissions lusr newConv tinfo allUsers
   ensureNoLegalholdConflicts allUsers
 
-  when (newConvProtocol newConv == ProtocolMLSTag) $ do
+  when (newConvProtocol newConv == BaseProtocolMLSTag) $ do
     -- Here we fail early in order to notify users of this misconfiguration
     assertMLSEnabled
     unlessM (isJust <$> getMLSRemovalKey) $
@@ -220,16 +208,6 @@ createGroupConversationGeneric lusr mCreatorClient conn newConv = do
   lcnv <- traverse (const E.createConversationId) lusr
   do
     conv <- E.createConversation lcnv nc
-
-    -- set creator client for MLS conversations
-    case (convProtocol conv, mCreatorClient) of
-      (ProtocolProteus, _) -> pure ()
-      (ProtocolMLS mlsMeta, Just c) ->
-        E.addMLSClients
-          (cnvmlsGroupId mlsMeta)
-          (tUntagged lusr)
-          (Set.singleton (c, nullKeyPackageRef))
-      (ProtocolMLS _mlsMeta, Nothing) -> throwS @'MLSMissingSenderClient
 
     -- NOTE: We only send (conversation) events to members of the conversation
     notifyCreatedConversation lusr conn conv
@@ -311,9 +289,9 @@ createProteusSelfConversation lusr = do
     create lcnv = do
       let nc =
             NewConversation
-              { ncMetadata = (defConversationMetadata (tUnqualified lusr)) {cnvmType = SelfConv},
+              { ncMetadata = (defConversationMetadata (Just (tUnqualified lusr))) {cnvmType = SelfConv},
                 ncUsers = ulFromLocals [toUserRole (tUnqualified lusr)],
-                ncProtocol = ProtocolProteusTag
+                ncProtocol = BaseProtocolProteusTag
               }
       c <- E.createConversation lcnv nc
       conversationCreated lusr c
@@ -414,7 +392,7 @@ createLegacyOne2OneConversationUnchecked ::
 createLegacyOne2OneConversationUnchecked self zcon name mtid other = do
   lcnv <- localOne2OneConvId self other
   let meta =
-        (defConversationMetadata (tUnqualified self))
+        (defConversationMetadata (Just (tUnqualified self)))
           { cnvmType = One2OneConv,
             cnvmTeam = mtid,
             cnvmName = fmap fromRange name
@@ -422,7 +400,7 @@ createLegacyOne2OneConversationUnchecked self zcon name mtid other = do
   let nc =
         NewConversation
           { ncUsers = ulFromLocals (map (toUserRole . tUnqualified) [self, other]),
-            ncProtocol = ProtocolProteusTag,
+            ncProtocol = BaseProtocolProteusTag,
             ncMetadata = meta
           }
   mc <- E.getConversation (tUnqualified lcnv)
@@ -459,7 +437,7 @@ createOne2OneConversationUnchecked self zcon name mtid other = do
           self
           createOne2OneConversationLocally
           createOne2OneConversationRemotely
-  create (one2OneConvId (tUntagged self) other) self zcon name mtid other
+  create (one2OneConvId BaseProtocolProteusTag (tUntagged self) other) self zcon name mtid other
 
 createOne2OneConversationLocally ::
   ( Member ConversationStore r,
@@ -484,7 +462,7 @@ createOne2OneConversationLocally lcnv self zcon name mtid other = do
     Just c -> conversationExisted self c
     Nothing -> do
       let meta =
-            (defConversationMetadata (tUnqualified self))
+            (defConversationMetadata (Just (tUnqualified self)))
               { cnvmType = One2OneConv,
                 cnvmTeam = mtid,
                 cnvmName = fmap fromRange name
@@ -493,7 +471,7 @@ createOne2OneConversationLocally lcnv self zcon name mtid other = do
             NewConversation
               { ncMetadata = meta,
                 ncUsers = fmap toUserRole (toUserList lcnv [tUntagged self, other]),
-                ncProtocol = ProtocolProteusTag
+                ncProtocol = BaseProtocolProteusTag
               }
       c <- E.createConversation lcnv nc
       notifyCreatedConversation self (Just zcon) c
@@ -533,7 +511,7 @@ createConnectConversation lusr conn j = do
   lrecipient <- ensureLocal lusr (cRecipient j)
   n <- rangeCheckedMaybe (cName j)
   let meta =
-        (defConversationMetadata (tUnqualified lusr))
+        (defConversationMetadata (Just (tUnqualified lusr)))
           { cnvmType = ConnectConv,
             cnvmName = fmap fromRange n
           }
@@ -543,7 +521,7 @@ createConnectConversation lusr conn j = do
           { -- We add only one member, second one gets added later,
             -- when the other user accepts the connection request.
             ncUsers = ulFromLocals (map (toUserRole . tUnqualified) [lusr]),
-            ncProtocol = ProtocolProteusTag,
+            ncProtocol = BaseProtocolProteusTag,
             ncMetadata = meta
           }
   E.getConversation (tUnqualified lcnv)
@@ -617,8 +595,8 @@ newRegularConversation lusr newConv = do
   o <- input
   let uncheckedUsers = newConvMembers lusr newConv
   users <- case newConvProtocol newConv of
-    ProtocolProteusTag -> checkedConvSize o uncheckedUsers
-    ProtocolMLSTag -> do
+    BaseProtocolProteusTag -> checkedConvSize o uncheckedUsers
+    BaseProtocolMLSTag -> do
       unless (null uncheckedUsers) $ throwS @'MLSNonEmptyMemberList
       pure mempty
   let nc =
@@ -626,7 +604,7 @@ newRegularConversation lusr newConv = do
           { ncMetadata =
               ConversationMetadata
                 { cnvmType = RegularConv,
-                  cnvmCreator = tUnqualified lusr,
+                  cnvmCreator = Just (tUnqualified lusr),
                   cnvmAccess = access newConv,
                   cnvmAccessRoles = accessRoles newConv,
                   cnvmName = fmap fromRange (newConvName newConv),
@@ -673,7 +651,7 @@ notifyCreatedConversation lusr conn c = do
   now <- input
   -- Ask remote servers to store conversation membership and notify remote users
   -- of being added to a conversation
-  registerRemoteConversationMemberships now (qualifyAs lusr c)
+  registerRemoteConversationMemberships now lusr (qualifyAs lusr c)
   unless (null (Data.convRemoteMembers c)) $
     unlessM E.isFederationConfigured $
       throw FederationNotConfigured

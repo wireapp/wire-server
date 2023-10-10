@@ -75,8 +75,8 @@ def simplify_body(content):
             else:
                 return content
         except Exception:
-            b = b64encode(content).decode("utf8")
-            return {"base64data": b, "comment": "binary blob has been replaced"}
+            b = b64encode(content).decode("utf8")[:1000]
+            return {"base64data": b, "comment": "binary blob has been replaced (and truncated)"}
 
 
 def simplify_response(response):
@@ -323,7 +323,7 @@ def save(res, path):
     if not os.path.exists(d):
         os.makedirs(d)
     save_json_file(b, path)
-    print(f"Saving to {path}")
+    # print(f"Saving to {path}")
     return b
 
 
@@ -816,13 +816,14 @@ def main_send(basedir):
 
         msg = random_msg()
         log.log("message_send_begin")
+        msg = create_application_message(admin_client_state, msg)["message"]
+        tbefore = time.time()
         res_test_msg = save(
-            api.mls_send_message(
-                ctx, create_application_message(admin_client_state, msg)["message"],
-                client=client_id
-            ),
+            api.mls_send_message(ctx, msg, client=client_id),
             j(ud, "res_test_msg.json"),
         )
+        tafter = time.time()
+        print(f'Message sending took {tafter-tbefore}')
         log.log("message_send_end")
         simple_expect_status(201, res_test_msg)
 

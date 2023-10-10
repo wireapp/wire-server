@@ -30,6 +30,7 @@ import Brig.API.Client qualified as API
 import Brig.API.Connection qualified as API
 import Brig.API.Error
 import Brig.API.Handler
+import Brig.API.MLS.KeyPackages
 import Brig.API.OAuth (oauthAPI)
 import Brig.API.Properties qualified as API
 import Brig.API.Public.Swagger
@@ -260,6 +261,7 @@ servantSitemap =
     :<|> userClientAPI
     :<|> connectionAPI
     :<|> propertiesAPI
+    :<|> mlsAPI
     :<|> userHandleAPI
     :<|> searchAPI
     :<|> authAPI
@@ -367,6 +369,13 @@ servantSitemap =
           :<|> Named @"list-property-keys" listPropertyKeys
       )
         :<|> Named @"list-properties" listPropertyKeysAndValues
+
+    mlsAPI :: ServerT MLSAPI (Handler r)
+    mlsAPI =
+      Named @"mls-key-packages-upload" uploadKeyPackages
+        :<|> Named @"mls-key-packages-claim" claimKeyPackages
+        :<|> Named @"mls-key-packages-count" countKeyPackages
+        :<|> Named @"mls-key-packages-delete" deleteKeyPackages
 
     userHandleAPI :: ServerT UserHandleAPI (Handler r)
     userHandleAPI =

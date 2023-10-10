@@ -1,0 +1,1 @@
+It is now possible to use `PUT /conversation/:domain/:id/protocol` to transition from Mixed to MLS

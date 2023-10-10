@@ -21,39 +21,87 @@
 
 module Wire.API.MLS.SubConversation where
 
-import Control.Lens (makePrisms)
+import Control.Lens (makePrisms, (?~))
 import Control.Lens.Tuple (_1)
 import Control.Monad.Except
 import Data.Aeson (FromJSON (..), ToJSON (..))
+import Data.Aeson qualified as A
+import Data.ByteString.Conversion
 import Data.Id
+import Data.Json.Util
 import Data.OpenApi qualified as S
-import Data.Schema
+import Data.Qualified
+import Data.Schema hiding (HasField)
 import Data.Text qualified as T
-import Imports
+import Data.Time.Clock
+import GHC.Records
+import Imports hiding (cs)
 import Servant (FromHttpApiData (..), ToHttpApiData (toQueryParam))
 import Test.QuickCheck
+import Wire.API.MLS.CipherSuite
+import Wire.API.MLS.Credential
+import Wire.API.MLS.Epoch
+import Wire.API.MLS.Group
 import Wire.Arbitrary
 
 -- | An MLS subconversation ID, which identifies a subconversation within a
 -- conversation. The pair of a qualified conversation ID and a subconversation
 -- ID identifies globally.
 newtype SubConvId = SubConvId {unSubConvId :: Text}
-  deriving newtype (Eq, ToSchema, Ord)
+  deriving newtype (Eq, ToSchema, Ord, S.ToParamSchema, ToByteString, ToJSON, FromJSON)
   deriving stock (Generic)
-  deriving (Arbitrary) via (GenericUniform SubConvId)
-  deriving newtype (S.ToParamSchema)
   deriving stock (Show)
 
 instance FromHttpApiData SubConvId where
   parseQueryParam s = do
     unless (T.length s > 0) $ throwError "The subconversation ID cannot be empty"
-    unless (T.all isValid s) $ throwError "The subconversation ID contains invalid characters"
+    unless (T.length s < 256) $ throwError "The subconversation ID cannot be longer than 255 characters"
+    unless (T.all isValidSubConvChar s) $ throwError "The subconversation ID contains invalid characters"
     pure (SubConvId s)
-    where
-      isValid c = isPrint c && isAscii c && not (isSpace c)
 
 instance ToHttpApiData SubConvId where
   toQueryParam = unSubConvId
+
+instance Arbitrary SubConvId where
+  arbitrary = do
+    n <- choose (1, 255)
+    cs <- replicateM n (arbitrary `suchThat` isValidSubConvChar)
+    pure $ SubConvId (T.pack cs)
+
+isValidSubConvChar :: Char -> Bool
+isValidSubConvChar c = isPrint c && isAscii c && not (isSpace c)
+
+data PublicSubConversation = PublicSubConversation
+  { pscParentConvId :: Qualified ConvId,
+    pscSubConvId :: SubConvId,
+    pscGroupId :: GroupId,
+    pscEpoch :: Epoch,
+    -- | It is 'Nothing' when the epoch is 0, and otherwise a timestamp when the
+    -- epoch was bumped, i.e., it is a timestamp of the most recent commit.
+    pscEpochTimestamp :: Maybe UTCTime,
+    pscCipherSuite :: CipherSuiteTag,
+    pscMembers :: [ClientIdentity]
+  }
+  deriving (Eq, Show)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema PublicSubConversation)
+
+instance ToSchema PublicSubConversation where
+  schema =
+    objectWithDocModifier
+      "PublicSubConversation"
+      (description ?~ "An MLS subconversation")
+      $ PublicSubConversation
+        <$> pscParentConvId .= field "parent_qualified_id" schema
+        <*> pscSubConvId .= field "subconv_id" schema
+        <*> pscGroupId .= field "group_id" schema
+        <*> pscEpoch .= field "epoch" schema
+        <*> pscEpochTimestamp .= field "epoch_timestamp" schemaEpochTimestamp
+        <*> pscCipherSuite .= field "cipher_suite" schema
+        <*> pscMembers .= field "members" (array schema)
+
+schemaEpochTimestamp :: ValueSchema NamedSwaggerDoc (Maybe UTCTime)
+schemaEpochTimestamp =
+  named "Epoch Timestamp" . nullable . unnamed $ utcTimeSchema
 
 data ConvOrSubTag = ConvTag | SubConvTag
   deriving (Eq, Enum, Bounded)
@@ -72,6 +120,14 @@ deriving via
   (GenericUniform (ConvOrSubChoice c s))
   instance
     (Generic c, Generic s, Arbitrary c, Arbitrary s) => Arbitrary (ConvOrSubChoice c s)
+
+instance HasField "conv" (ConvOrSubChoice c s) c where
+  getField (Conv c) = c
+  getField (SubConv c _) = c
+
+instance HasField "subconv" (ConvOrSubChoice c s) (Maybe s) where
+  getField (Conv _) = Nothing
+  getField (SubConv _ s) = Just s
 
 type ConvOrSubConvId = ConvOrSubChoice ConvId SubConvId
 
@@ -122,3 +178,20 @@ deriving via Schema ConvOrSubConvId instance FromJSON ConvOrSubConvId
 deriving via Schema ConvOrSubConvId instance ToJSON ConvOrSubConvId
 
 deriving via Schema ConvOrSubConvId instance S.ToSchema ConvOrSubConvId
+
+-- | The body of the delete subconversation request
+data DeleteSubConversationRequest = DeleteSubConversationRequest
+  { dscGroupId :: GroupId,
+    dscEpoch :: Epoch
+  }
+  deriving (Eq, Show)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema DeleteSubConversationRequest)
+
+instance ToSchema DeleteSubConversationRequest where
+  schema =
+    objectWithDocModifier
+      "DeleteSubConversationRequest"
+      (description ?~ "Delete an MLS subconversation")
+      $ DeleteSubConversationRequest
+        <$> dscGroupId .= field "group_id" schema
+        <*> dscEpoch .= field "epoch" schema

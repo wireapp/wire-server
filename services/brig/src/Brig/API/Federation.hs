@@ -25,6 +25,7 @@ import Brig.API.Error
 import Brig.API.Handler (Handler)
 import Brig.API.Internal hiding (getMLSClients)
 import Brig.API.Internal qualified as Internal
+import Brig.API.MLS.CipherSuite
 import Brig.API.MLS.KeyPackages
 import Brig.API.MLS.Util
 import Brig.API.User qualified as API
@@ -166,10 +167,11 @@ fedClaimKeyPackages :: Domain -> ClaimKeyPackageRequest -> Handler r (Maybe KeyP
 fedClaimKeyPackages domain ckpr =
   isMLSEnabled >>= \case
     True -> do
+      suite <- getCipherSuite (Just ckpr.cipherSuite)
       ltarget <- qualifyLocal ckpr.target
       let rusr = toRemoteUnsafe domain ckpr.claimant
       lift . fmap hush . runExceptT $
-        claimLocalKeyPackages (tUntagged rusr) Nothing ltarget
+        claimLocalKeyPackages (tUntagged rusr) Nothing suite ltarget
     False -> pure Nothing
 
 -- | Searching for federated users on a remote backend should
@@ -220,7 +222,7 @@ getUserClients _ (GetUserClients uids) = API.lookupLocalPubClientsBulk uids !>> 
 
 getMLSClients :: Domain -> MLSClientsRequest -> Handler r (Set ClientInfo)
 getMLSClients _domain mcr = do
-  Internal.getMLSClients mcr.userId mcr.signatureScheme
+  Internal.getMLSClients mcr.userId mcr.cipherSuite
 
 onUserDeleted :: Domain -> UserDeletedConnectionsNotification -> (Handler r) EmptyResponse
 onUserDeleted origDomain udcn = lift $ do

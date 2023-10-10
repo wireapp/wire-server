@@ -6,36 +6,31 @@
 , gitMinimal
 }:
 
-rustPlatform.buildRustPackage rec {
-  pname = "mls-test-cli";
-  version = "0.6.0";
-  nativeBuildInputs = [ pkg-config perl gitMinimal ];
-  buildInputs = [ libsodium ];
+let
+  version = "0.7.0";
   src = fetchFromGitHub {
     owner = "wireapp";
     repo = "mls-test-cli";
-    sha256 = "sha256-/XQ/9oQTPkRqgMzDGRm+Oh9jgkdeDM1vRJ6/wEf2+bY=";
-    rev = "c6f80be2839ac1ed2894e96044541d1c3cf6ecdf";
+    rev = "e6e6ce0c29f0e48e84b4ccef058130aca0625492";
+    sha256 = "sha256-J9M8w3GJnULH3spKEuPGCL/t43zb2Wd+YfZ0LY3YITo=";
   };
+  cargoLockFile = builtins.toFile "cargo.lock" (builtins.readFile "${src}/Cargo.lock");
+in rustPlatform.buildRustPackage rec {
+  name = "mls-test-cli-${version}";
+  inherit version src;
+
   cargoLock = {
-    lockFile = "${src}/Cargo.lock";
+    lockFile = cargoLockFile;
     outputHashes = {
-      "openmls-0.4.1" = "sha256-oEPziXyGmPV6C80lQpi0z7Ehl3/mGFz0HaePT8h3y0Q=";
-      "ring-0.17.0-not-released-yet" = "sha256-n8KuJRcOdMduPTjDBU1n1eec3w9Eat/8czvGRTGbqsI=";
-      "x509-parser-0.13.1" = "sha256-ipHZm3MmiOssGkFC5O4h/Y3p1U0aj7wu+LGaBuQImuU=";
+      "hpke-0.10.0" = "sha256-T1+BFwX6allljNZ/8T3mrWhOejnUU27BiWQetqU+0fY=";
+      "openmls-1.0.0" = "sha256-s1ejM/aicFGvsKY7ajEun1Mc645/k8QVrE8YSbyD3Fg=";
+      "safe_pqc_kyber-0.6.0" = "sha256-Ch1LA+by+ezf5RV0LDSQGC1o+IWKXk8IPvkwSrAos68=";
+      "tls_codec-0.3.0" = "sha256-IO6tenXKkC14EoUDp/+DtFNOVzDfOlLu8K1EJI7sOzs=";
     };
   };
-  doCheck = false;
-  /*
-     if ring does not detect it is a git repository (checks for .git) dir
-     it will expect pregenerated files that we do not have at our exposure
-     after pulling with the git fetcher
 
-     we put this patch in the preBuild phase because we need to have the
-     cargo-vendor-dir available and the dedicated cargo phase for this
-     in nixpkgs do not trigger
-  */
-  preBuild = ''
-    mkdir $CARGO_HOME/cargo-vendor-dir/ring-0.17.0-not-released-yet/.git
+  postPatch = ''
+    cp ${cargoLockFile} Cargo.lock
   '';
+  doCheck = false;
 }

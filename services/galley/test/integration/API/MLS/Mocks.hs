@@ -25,6 +25,7 @@ module API.MLS.Mocks
     sendMessageMock,
     claimKeyPackagesMock,
     queryGroupStateMock,
+    deleteMLSConvMock,
   )
 where
 
@@ -36,6 +37,8 @@ import Data.Set qualified as Set
 import Federator.MockServer
 import Imports
 import Wire.API.Error.Galley
+import Wire.API.Federation.API.Brig
+import Wire.API.Federation.API.Common (EmptyResponse (..))
 import Wire.API.Federation.API.Galley
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
@@ -44,7 +47,9 @@ import Wire.API.User.Client
 receiveCommitMock :: [ClientIdentity] -> Mock LByteString
 receiveCommitMock clients =
   asum
-    [ "get-mls-clients" ~>
+    [ "on-conversation-updated" ~> EmptyResponse,
+      "get-not-fully-connected-backends" ~> NonConnectedBackends mempty,
+      "get-mls-clients" ~>
         Set.fromList
           ( map (flip ClientInfo True . ciClient) clients
           )
@@ -92,3 +97,9 @@ queryGroupStateMock gs qusr = do
     if uid == qUnqualified qusr
       then GetGroupInfoResponseState (Base64ByteString gs)
       else GetGroupInfoResponseError ConvNotFound
+
+deleteMLSConvMock :: Mock LByteString
+deleteMLSConvMock =
+  asum
+    [ "on-conversation-updated" ~> EmptyResponse
+    ]

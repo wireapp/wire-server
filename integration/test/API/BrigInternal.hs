@@ -129,6 +129,15 @@ deleteOAuthClient user cid = do
   req <- baseRequest user Brig Unversioned $ "i/oauth/clients/" <> clientId
   submit "DELETE" req
 
+getInvitationCode :: (HasCallStack, MakesValue user, MakesValue inv) => user -> inv -> App Response
+getInvitationCode user inv = do
+  tid <- user %. "team" & asString
+  invId <- inv %. "id" & asString
+  req <-
+    baseRequest user Brig Unversioned $
+      "i/teams/invitation-code?team=" <> tid <> "&invitation_id=" <> invId
+  submit "GET" req
+
 refreshIndex :: (HasCallStack, MakesValue domain) => domain -> App ()
 refreshIndex domain = do
   req <- baseRequest domain Brig Unversioned "i/index/refresh"

@@ -1,0 +1,4 @@
+apiVersion: v1
+description: mlsstats - Push Proteus to MLS statistics to S3
+name: mlsstats
+version: 0.0.1

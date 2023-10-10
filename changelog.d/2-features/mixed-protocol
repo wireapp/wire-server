@@ -1,0 +1,1 @@
+Introduce a "mixed" conversation protocol type. A conversation of "mixed" protocol functions as a Proteus converation as well as a MLS conversations. It's intended to be used for migrating conversations from Proteus to MLS.
