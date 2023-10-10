@@ -81,7 +81,6 @@ import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.Message
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
-import Wire.API.Unreachable
 
 -- FUTUREWORK
 -- - Check that the capabilities of a leaf node in an add proposal contains all
@@ -140,11 +139,11 @@ postMLSMessageFromLocalUser lusr c conn smsg = do
   assertMLSEnabled
   imsg <- noteS @'MLSUnsupportedMessage $ mkIncomingMessage smsg
   (ctype, cnvOrSub) <- getConvFromGroupId imsg.groupId
-  (events, unreachables) <-
-    first (map lcuEvent)
+  events <-
+    map lcuEvent
       <$> postMLSMessage lusr (tUntagged lusr) c ctype cnvOrSub (Just conn) imsg
   t <- toUTCTimeMillis <$> input
-  pure $ MLSMessageSendingStatus events t unreachables
+  pure $ MLSMessageSendingStatus events t
 
 postMLSCommitBundle ::
   ( HasProposalEffects r,
@@ -188,7 +187,7 @@ postMLSCommitBundleFromLocalUser lusr c conn bundle = do
     map lcuEvent
       <$> postMLSCommitBundle lusr (tUntagged lusr) c ctype qConvOrSub (Just conn) ibundle
   t <- toUTCTimeMillis <$> input
-  pure $ MLSMessageSendingStatus events t mempty
+  pure $ MLSMessageSendingStatus events t
 
 postMLSCommitBundleToLocalConv ::
   ( HasProposalEffects r,
@@ -259,7 +258,6 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
   storeGroupInfo (tUnqualified lConvOrSub).id (GroupInfoData bundle.groupInfo.raw)
 
   propagateMessage qusr (Just c) lConvOrSub conn bundle.rawMessage (tUnqualified lConvOrSub).members
-    >>= mapM_ (throw . unreachableUsersToUnreachableBackends)
 
   for_ bundle.welcome $ \welcome ->
     sendWelcomes lConvOrSubId qusr conn newClients welcome
@@ -342,7 +340,7 @@ postMLSMessage ::
   Qualified ConvOrSubConvId ->
   Maybe ConnId ->
   IncomingMessage ->
-  Sem r ([LocalConversationUpdate], Maybe UnreachableUsers)
+  Sem r [LocalConversationUpdate]
 postMLSMessage loc qusr c ctype qconvOrSub con msg = do
   foldQualified
     loc
@@ -383,7 +381,7 @@ postMLSMessageToLocalConv ::
   IncomingMessage ->
   ConvType ->
   Local ConvOrSubConvId ->
-  Sem r ([LocalConversationUpdate], Maybe UnreachableUsers)
+  Sem r [LocalConversationUpdate]
 postMLSMessageToLocalConv qusr c con msg ctype convOrSubId = do
   lConvOrSub <- fetchConvOrSub qusr msg.groupId ctype convOrSubId
   let convOrSub = tUnqualified lConvOrSub
@@ -413,8 +411,8 @@ postMLSMessageToLocalConv qusr c con msg ctype convOrSubId = do
         (epochInt msg.epoch < epochInt convOrSub.mlsMeta.cnvmlsEpoch - 2)
         $ throwS @'MLSStaleMessage
 
-  unreachables <- propagateMessage qusr (Just c) lConvOrSub con msg.rawMessage (tUnqualified lConvOrSub).members
-  pure ([], unreachables)
+  propagateMessage qusr (Just c) lConvOrSub con msg.rawMessage (tUnqualified lConvOrSub).members
+  pure []
 
 postMLSMessageToRemoteConv ::
   ( Members MLSMessageStaticErrors r,
@@ -427,7 +425,7 @@ postMLSMessageToRemoteConv ::
   Maybe ConnId ->
   IncomingMessage ->
   Remote ConvOrSubConvId ->
-  Sem r ([LocalConversationUpdate], Maybe UnreachableUsers)
+  Sem r [LocalConversationUpdate]
 postMLSMessageToRemoteConv loc qusr senderClient con msg rConvOrSubId = do
   -- only local users can send messages to remote conversations
   lusr <- foldQualified loc pure (\_ -> throwS @'ConvAccessDenied) qusr
@@ -455,11 +453,10 @@ postMLSMessageToRemoteConv loc qusr senderClient con msg rConvOrSubId = do
         \sent to. The remote end returned: "
           <> LT.pack (intercalate ", " (show <$> Set.toList (Set.map domainText ds)))
     MLSMessageResponseUpdates updates -> do
-      lcus <- fmap fst . runOutputList $
+      fmap fst . runOutputList $
         for_ updates $ \update -> do
           me <- updateLocalStateOfRemoteConv (qualifyAs rConvOrSubId update) con
           for_ me $ \e -> output (LocalConversationUpdate e update)
-      pure (lcus, Nothing)
     MLSMessageResponseNonFederatingBackends e -> throw e
 
 storeGroupInfo ::

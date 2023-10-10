@@ -120,9 +120,9 @@ federationSitemap =
     :<|> Named @"get-one2one-conversation" getOne2OneConversation
 
 onClientRemoved ::
-  ( Member ConversationStore r,
+  ( Member BackendNotificationQueueAccess r,
+    Member ConversationStore r,
     Member ExternalAccess r,
-    Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input Env) r,
     Member (Input (Local ())) r,
@@ -374,7 +374,6 @@ sendMessage originDomain msr = do
 onUserDeleted ::
   ( Member BackendNotificationQueueAccess r,
     Member ConversationStore r,
-    Member FederatorAccess r,
     Member FireAndForget r,
     Member ExternalAccess r,
     Member GundeckAccess r,
@@ -627,7 +626,7 @@ sendMLSMessage remoteDomain msr = handleMLSMessageErrors $ do
   msg <- noteS @'MLSUnsupportedMessage $ mkIncomingMessage raw
   (ctype, qConvOrSub) <- getConvFromGroupId msg.groupId
   when (qUnqualified qConvOrSub /= msr.convOrSubId) $ throwS @'MLSGroupConversationMismatch
-  MLSMessageResponseUpdates . map lcuUpdate . fst
+  MLSMessageResponseUpdates . map lcuUpdate
     <$> postMLSMessage
       loc
       (tUntagged sender)
@@ -660,11 +659,8 @@ getSubConversationForRemoteUser domain GetSubConversationsRequest {..} =
 
 leaveSubConversation ::
   ( HasLeaveSubConversationEffects r,
-    Members
-      '[ Input (Local ()),
-         Resource
-       ]
-      r
+    Member (Input (Local ())) r,
+    Member Resource r
   ) =>
   Domain ->
   LeaveSubConversationRequest ->

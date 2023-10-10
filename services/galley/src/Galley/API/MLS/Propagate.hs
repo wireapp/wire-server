@@ -18,8 +18,6 @@
 module Galley.API.MLS.Propagate where
 
 import Control.Comonad
-import Data.Aeson qualified as A
-import Data.Domain
 import Data.Id
 import Data.Json.Util
 import Data.Map qualified as Map
@@ -27,34 +25,31 @@ import Data.Qualified
 import Data.Time
 import Galley.API.MLS.Types
 import Galley.API.Push
+import Galley.API.Util
 import Galley.Data.Services
 import Galley.Effects
-import Galley.Effects.FederatorAccess
+import Galley.Effects.BackendNotificationQueueAccess
 import Galley.Types.Conversations.Members
 import Imports
-import Network.Wai.Utilities.JSONResponse
+import Network.AMQP qualified as Q
 import Polysemy
 import Polysemy.Input
 import Polysemy.TinyLog hiding (trace)
-import System.Logger.Class qualified as Logger
-import Wire.API.Error
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
-import Wire.API.Federation.Error
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Message
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
 import Wire.API.Message
-import Wire.API.Unreachable
 
 -- | Propagate a message.
 -- The message will not be propagated to the sender client if provided. This is
 -- a requirement from Core Crypto and the clients.
 propagateMessage ::
-  ( Member ExternalAccess r,
-    Member FederatorAccess r,
+  ( Member BackendNotificationQueueAccess r,
+    Member ExternalAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
     Member TinyLog r
@@ -65,7 +60,7 @@ propagateMessage ::
   Maybe ConnId ->
   RawMLS Message ->
   ClientMap ->
-  Sem r (Maybe UnreachableUsers)
+  Sem r ()
 propagateMessage qusr mSenderClient lConvOrSub con msg cm = do
   now <- input @UTCTime
   let mlsConv = (.conv) <$> lConvOrSub
@@ -88,18 +83,16 @@ propagateMessage qusr mSenderClient lConvOrSub con msg cm = do
     newMessagePush botMap con mm (lmems >>= localMemberMLSClients mlsConv) e
 
   -- send to remotes
-  unreachableFromList . concat
-    <$$> traverse handleError
-    <=< runFederatedConcurrentlyEither (map remoteMemberQualify rmems)
-    $ \(tUnqualified -> rs) ->
-      fedClient @'Galley @"on-mls-message-sent" $
+  (either (logRemoteNotificationError @"on-mls-message-sent") (const (pure ())) <=< enqueueNotificationsConcurrently Q.Persistent (map remoteMemberQualify rmems)) $
+    \rs ->
+      fedQueueClient @'Galley @"on-mls-message-sent" $
         RemoteMLSMessage
           { time = now,
             sender = qusr,
             metadata = mm,
             conversation = qUnqualified qcnv,
             subConversation = sconv,
-            recipients = rs >>= remoteMemberMLSClients,
+            recipients = tUnqualified rs >>= remoteMemberMLSClients,
             message = Base64ByteString msg.raw
           }
   where
@@ -119,20 +112,3 @@ propagateMessage qusr mSenderClient lConvOrSub con msg cm = do
        in map
             (\(c, _) -> (remoteUserId, c))
             (Map.assocs (Map.findWithDefault mempty remoteUserQId cmWithoutSender))
-
-    remotesToQIds = fmap (tUntagged . rmId)
-
-    handleError ::
-      Member TinyLog r =>
-      Either (Remote [RemoteMember], FederationError) (Remote x) ->
-      Sem r [Qualified UserId]
-    handleError (Right _) = pure []
-    handleError (Left (r, e)) = do
-      logFedError r (toResponse e)
-      pure $ remotesToQIds (tUnqualified r)
-    logFedError :: Member TinyLog r => Remote x -> JSONResponse -> Sem r ()
-    logFedError r e =
-      warn $
-        Logger.msg ("A message could not be delivered to a remote backend" :: ByteString)
-          . Logger.field "remote_domain" (domainText (tDomain r))
-          . Logger.field "error" (A.encode e.value)

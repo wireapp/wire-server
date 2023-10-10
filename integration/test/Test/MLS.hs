@@ -8,6 +8,7 @@ import Data.ByteString.Base64 qualified as Base64
 import Data.ByteString.Char8 qualified as B8
 import Data.Text.Encoding qualified as T
 import MLS.Util
+import Notifications
 import SetupHelpers
 import Testlib.Prelude
 
@@ -282,9 +283,11 @@ testMLSProtocolUpgrade secondDomain = do
   void $ createPendingProposalCommit alice1 >>= sendAndConsumeCommitBundle
   void $ createExternalCommit bob1 Nothing >>= sendAndConsumeCommitBundle
 
-  -- charlie is added to the group
-  void $ uploadNewKeyPackage charlie1
-  void $ createAddCommit alice1 [charlie] >>= sendAndConsumeCommitBundle
+  void $ withWebSocket bob $ \ws -> do
+    -- charlie is added to the group
+    void $ uploadNewKeyPackage charlie1
+    void $ createAddCommit alice1 [charlie] >>= sendAndConsumeCommitBundle
+    awaitMatch 10 isNewMLSMessageNotif ws
 
   supportMLS alice
   bindResponse (putConversationProtocol bob conv "mls") $ \resp -> do
@@ -300,8 +303,7 @@ testMLSProtocolUpgrade secondDomain = do
     bindResponse (putConversationProtocol bob conv "mls") $ \resp -> do
       resp.status `shouldMatchInt` 200
     for_ wss $ \ws -> do
-      let isMessage n = nPayload n %. "type" `isEqual` "conversation.mls-message-add"
-      n <- awaitMatch 3 isMessage ws
+      n <- awaitMatch 3 isNewMLSMessageNotif ws
       msg <- asByteString (nPayload n %. "data") >>= showMessage alice1
       let leafIndexCharlie = 2
       msg %. "message.content.body.Proposal.Remove.removed" `shouldMatchInt` leafIndexCharlie
