@@ -1,4 +1,4 @@
-cabal-version:      1.12
+cabal-version:      3.0
 name:               brig
 version:            2.0
 synopsis:           User Service
@@ -6,7 +6,7 @@ category:           Network
 author:             Wire Swiss GmbH
 maintainer:         Wire Swiss GmbH <backend@wire.com>
 copyright:          (c) 2017 Wire Swiss GmbH
-license:            AGPL-3
+license:            AGPL-3.0-only
 license-file:       LICENSE
 build-type:         Simple
 extra-source-files:
@@ -17,7 +17,61 @@ extra-source-files:
   docs/swagger-v4.json
   docs/swagger.md
 
+common common-all
+  default-language:   Haskell2010
+  ghc-options:
+    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+    -Wredundant-constraints
+
+  default-extensions:
+    NoImplicitPrelude
+    AllowAmbiguousTypes
+    BangPatterns
+    ConstraintKinds
+    DataKinds
+    DefaultSignatures
+    DeriveFunctor
+    DeriveGeneric
+    DeriveLift
+    DeriveTraversable
+    DerivingStrategies
+    DerivingVia
+    DuplicateRecordFields
+    EmptyCase
+    FlexibleContexts
+    FlexibleInstances
+    FunctionalDependencies
+    GADTs
+    GeneralizedNewtypeDeriving
+    InstanceSigs
+    KindSignatures
+    LambdaCase
+    MultiParamTypeClasses
+    MultiWayIf
+    NamedFieldPuns
+    NumericUnderscores
+    OverloadedLabels
+    OverloadedRecordDot
+    OverloadedStrings
+    PackageImports
+    PatternSynonyms
+    PolyKinds
+    QuasiQuotes
+    RankNTypes
+    ScopedTypeVariables
+    StandaloneDeriving
+    TupleSections
+    TypeApplications
+    TypeFamilies
+    TypeFamilyDependencies
+    TypeOperators
+    UndecidableInstances
+    ViewPatterns
+
 library
+  import:           common-all
+
   -- cabal-fmt: expand src
   exposed-modules:
     Brig.Allowlists
@@ -31,6 +85,7 @@ library
     Brig.API.Federation
     Brig.API.Handler
     Brig.API.Internal
+    Brig.API.MLS.CipherSuite
     Brig.API.MLS.KeyPackages
     Brig.API.MLS.KeyPackages.Validation
     Brig.API.MLS.Util
@@ -137,60 +192,15 @@ library
     Brig.Version
     Brig.ZAuth
 
-  other-modules:      Paths_brig
-  hs-source-dirs:     src
-  default-extensions:
-    NoImplicitPrelude
-    AllowAmbiguousTypes
-    BangPatterns
-    ConstraintKinds
-    DataKinds
-    DefaultSignatures
-    DeriveFunctor
-    DeriveGeneric
-    DeriveLift
-    DeriveTraversable
-    DerivingStrategies
-    DerivingVia
-    DuplicateRecordFields
-    EmptyCase
-    FlexibleContexts
-    FlexibleInstances
-    FunctionalDependencies
-    GADTs
-    InstanceSigs
-    KindSignatures
-    LambdaCase
-    MultiParamTypeClasses
-    MultiWayIf
-    NamedFieldPuns
-    NumericUnderscores
-    OverloadedRecordDot
-    OverloadedStrings
-    PackageImports
-    PatternSynonyms
-    PolyKinds
-    QuasiQuotes
-    RankNTypes
-    ScopedTypeVariables
-    StandaloneDeriving
-    TupleSections
-    TypeApplications
-    TypeFamilies
-    TypeFamilyDependencies
-    TypeOperators
-    UndecidableInstances
-    ViewPatterns
-
+  other-modules:    Paths_brig
+  hs-source-dirs:   src
   ghc-options:
-    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
-    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
     -funbox-strict-fields -fplugin=Polysemy.Plugin
     -fplugin=TransitiveAnns.Plugin -Wredundant-constraints
     -Wunused-packages
 
   build-depends:
-      aeson                      >=2.0.1.0
+    , aeson                      >=2.0.1.0
     , amazonka                   >=2
     , amazonka-core              >=2
     , amazonka-dynamodb          >=2
@@ -314,131 +324,42 @@ library
     , yaml                       >=0.8.22
     , zauth                      >=0.10.3
 
-  default-language:   GHC2021
+  default-language: GHC2021
 
 executable brig
-  main-is:            exec/Main.hs
-  other-modules:      Paths_brig
-  default-extensions:
-    NoImplicitPrelude
-    AllowAmbiguousTypes
-    BangPatterns
-    ConstraintKinds
-    DataKinds
-    DefaultSignatures
-    DeriveFunctor
-    DeriveGeneric
-    DeriveLift
-    DeriveTraversable
-    DerivingStrategies
-    DerivingVia
-    DuplicateRecordFields
-    EmptyCase
-    FlexibleContexts
-    FlexibleInstances
-    FunctionalDependencies
-    GADTs
-    InstanceSigs
-    KindSignatures
-    LambdaCase
-    MultiParamTypeClasses
-    MultiWayIf
-    NamedFieldPuns
-    NumericUnderscores
-    OverloadedRecordDot
-    OverloadedStrings
-    PackageImports
-    PatternSynonyms
-    PolyKinds
-    QuasiQuotes
-    RankNTypes
-    ScopedTypeVariables
-    StandaloneDeriving
-    TupleSections
-    TypeApplications
-    TypeFamilies
-    TypeFamilyDependencies
-    TypeOperators
-    UndecidableInstances
-    ViewPatterns
-
+  import:           common-all
+  main-is:          exec/Main.hs
+  other-modules:    Paths_brig
   ghc-options:
-    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
-    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
     -funbox-strict-fields -threaded -with-rtsopts=-N -with-rtsopts=-T
     -rtsopts -Wredundant-constraints -Wunused-packages
 
   build-depends:
-      base
+    , base
     , brig
     , HsOpenSSL
     , imports
     , types-common
 
-  default-language:   GHC2021
+  default-language: GHC2021
 
 executable brig-index
-  main-is:            index/src/Main.hs
-  other-modules:      Paths_brig
-  default-extensions:
-    NoImplicitPrelude
-    AllowAmbiguousTypes
-    BangPatterns
-    ConstraintKinds
-    DataKinds
-    DefaultSignatures
-    DeriveFunctor
-    DeriveGeneric
-    DeriveLift
-    DeriveTraversable
-    DerivingStrategies
-    DerivingVia
-    DuplicateRecordFields
-    EmptyCase
-    FlexibleContexts
-    FlexibleInstances
-    FunctionalDependencies
-    GADTs
-    InstanceSigs
-    KindSignatures
-    LambdaCase
-    MultiParamTypeClasses
-    MultiWayIf
-    NamedFieldPuns
-    OverloadedRecordDot
-    OverloadedStrings
-    PackageImports
-    PatternSynonyms
-    PolyKinds
-    QuasiQuotes
-    RankNTypes
-    ScopedTypeVariables
-    StandaloneDeriving
-    TupleSections
-    TypeApplications
-    TypeFamilies
-    TypeFamilyDependencies
-    TypeOperators
-    UndecidableInstances
-    ViewPatterns
-
-  ghc-options:
-    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
-    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -funbox-strict-fields -threaded -with-rtsopts=-N
-    -Wredundant-constraints -Wunused-packages
-
+  import:           common-all
+  main-is:          index/src/Main.hs
+  other-modules:    Paths_brig
+  ghc-options:      -funbox-strict-fields -threaded -with-rtsopts=-N
   build-depends:
-      base
+    , base
     , brig
     , imports
     , optparse-applicative
     , tinylog
 
-  default-language:   GHC2021
+  default-language: GHC2021
 
 executable brig-integration
-  main-is:            Main.hs
+  import:           common-all
+  main-is:          ../integration.hs
 
   -- cabal-fmt: expand test/integration
   other-modules:
@@ -475,63 +396,15 @@ executable brig-integration
     Federation.End2end
     Federation.Util
     Index.Create
-    Main
+    Run
     SMTP
     Util
     Util.AWS
 
-  hs-source-dirs:     test/integration
-  default-extensions:
-    NoImplicitPrelude
-    AllowAmbiguousTypes
-    BangPatterns
-    ConstraintKinds
-    DataKinds
-    DefaultSignatures
-    DeriveFunctor
-    DeriveGeneric
-    DeriveLift
-    DeriveTraversable
-    DerivingStrategies
-    DerivingVia
-    DuplicateRecordFields
-    EmptyCase
-    FlexibleContexts
-    FlexibleInstances
-    FunctionalDependencies
-    GADTs
-    InstanceSigs
-    KindSignatures
-    LambdaCase
-    MultiParamTypeClasses
-    MultiWayIf
-    NamedFieldPuns
-    NumericUnderscores
-    OverloadedRecordDot
-    OverloadedStrings
-    PackageImports
-    PatternSynonyms
-    PolyKinds
-    QuasiQuotes
-    RankNTypes
-    ScopedTypeVariables
-    StandaloneDeriving
-    TupleSections
-    TypeApplications
-    TypeFamilies
-    TypeFamilyDependencies
-    TypeOperators
-    UndecidableInstances
-    ViewPatterns
-
-  ghc-options:
-    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
-    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -funbox-strict-fields -threaded -with-rtsopts=-N
-    -Wredundant-constraints -Wunused-packages
-
+  hs-source-dirs:   test/integration
+  ghc-options:      -funbox-strict-fields -threaded -with-rtsopts=-N
   build-depends:
-      aeson
+    , aeson
     , async
     , attoparsec
     , base
@@ -622,14 +495,15 @@ executable brig-integration
     , yaml
     , zauth
 
-  default-language:   GHC2021
+  default-language: GHC2021
 
 executable brig-schema
-  main-is:            Main.hs
+  import:             common-all
+  main-is:            ../main.hs
 
   -- cabal-fmt: expand schema/src
   other-modules:
-    Main
+    Run
     V43
     V44
     V45
@@ -667,59 +541,14 @@ executable brig-schema
     V77_FederationRemotes
     V78_ClientLastActive
     V79_ConnectionRemoteIndex
+    V80_KeyPackageCiphersuite
     V_FUTUREWORK
 
   hs-source-dirs:     schema/src
-  default-extensions:
-    NoImplicitPrelude
-    AllowAmbiguousTypes
-    BangPatterns
-    ConstraintKinds
-    DataKinds
-    DefaultSignatures
-    DeriveFunctor
-    DeriveGeneric
-    DeriveLift
-    DeriveTraversable
-    DerivingStrategies
-    DerivingVia
-    DuplicateRecordFields
-    EmptyCase
-    FlexibleContexts
-    FlexibleInstances
-    FunctionalDependencies
-    GADTs
-    InstanceSigs
-    KindSignatures
-    LambdaCase
-    MultiParamTypeClasses
-    MultiWayIf
-    NamedFieldPuns
-    NumericUnderscores
-    OverloadedRecordDot
-    OverloadedStrings
-    PackageImports
-    PatternSynonyms
-    PolyKinds
-    QuasiQuotes
-    RankNTypes
-    ScopedTypeVariables
-    StandaloneDeriving
-    TupleSections
-    TypeApplications
-    TypeFamilies
-    TypeFamilyDependencies
-    TypeOperators
-    UndecidableInstances
-    ViewPatterns
-
-  ghc-options:
-    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
-    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -funbox-strict-fields -Wredundant-constraints -Wunused-packages
-
+  ghc-options:        -funbox-strict-fields -Wredundant-constraints
+  default-extensions: TemplateHaskell
   build-depends:
-      base
+    , base
     , cassandra-util  >=0.12
     , extended
     , imports
@@ -729,12 +558,11 @@ executable brig-schema
   default-language:   GHC2021
 
 test-suite brig-tests
-  type:               exitcode-stdio-1.0
-  main-is:            Main.hs
-
-  -- cabal-fmt: expand test/unit
+  import:           common-all
+  type:             exitcode-stdio-1.0
+  main-is:          ../unit.hs
   other-modules:
-    Main
+    Run
     Test.Brig.Calling
     Test.Brig.Calling.Internal
     Test.Brig.Effects.Delay
@@ -743,61 +571,14 @@ test-suite brig-tests
     Test.Brig.Roundtrip
     Test.Brig.User.Search.Index.Types
 
-  hs-source-dirs:     test/unit
-  default-extensions:
-    NoImplicitPrelude
-    AllowAmbiguousTypes
-    BangPatterns
-    ConstraintKinds
-    DataKinds
-    DefaultSignatures
-    DeriveFunctor
-    DeriveGeneric
-    DeriveLift
-    DeriveTraversable
-    DerivingStrategies
-    DerivingVia
-    DuplicateRecordFields
-    EmptyCase
-    FlexibleContexts
-    FlexibleInstances
-    FunctionalDependencies
-    GADTs
-    InstanceSigs
-    KindSignatures
-    LambdaCase
-    MultiParamTypeClasses
-    MultiWayIf
-    NamedFieldPuns
-    NumericUnderscores
-    OverloadedRecordDot
-    OverloadedStrings
-    PackageImports
-    PatternSynonyms
-    PolyKinds
-    QuasiQuotes
-    RankNTypes
-    ScopedTypeVariables
-    StandaloneDeriving
-    TupleSections
-    TypeApplications
-    TypeFamilies
-    TypeFamilyDependencies
-    TypeOperators
-    UndecidableInstances
-    ViewPatterns
-
-  ghc-options:
-    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
-    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -funbox-strict-fields -threaded -with-rtsopts=-N
-    -Wredundant-constraints -Wunused-packages
-
+  hs-source-dirs:   test/unit
+  ghc-options:      -funbox-strict-fields -threaded -with-rtsopts=-N
   build-depends:
-      aeson
+    , aeson
     , base
     , binary
     , brig
+    , brig-types
     , bytestring
     , containers
     , data-timeout
@@ -820,4 +601,4 @@ test-suite brig-tests
     , uuid
     , wire-api
 
-  default-language:   GHC2021
+  default-language: GHC2021

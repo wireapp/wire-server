@@ -17,10 +17,14 @@
 
 module Galley.API.Public.MLS where
 
+import Galley.API.MLS
 import Galley.App
-import Servant
+import Wire.API.MakesFederatedCall
 import Wire.API.Routes.API
 import Wire.API.Routes.Public.Galley.MLS
 
 mlsAPI :: API MLSAPI GalleyEffects
-mlsAPI = mkAPI emptyServer
+mlsAPI =
+  mkNamedAPI @"mls-message" (callsFed (exposeAnnotations postMLSMessageFromLocalUser))
+    <@> mkNamedAPI @"mls-commit-bundle" (callsFed (exposeAnnotations postMLSCommitBundleFromLocalUser))
+    <@> mkNamedAPI @"mls-public-keys" getMLSPublicKeys

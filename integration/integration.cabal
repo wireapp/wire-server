@@ -109,6 +109,11 @@ library
     Test.Federation
     Test.Federator
     Test.MessageTimer
+    Test.MLS
+    Test.MLS.KeyPackage
+    Test.MLS.Message
+    Test.MLS.One2One
+    Test.MLS.SubConversation
     Test.Notifications
     Test.Presence
     Test.Roles
@@ -169,6 +174,7 @@ library
     , network
     , network-uri
     , optparse-applicative
+    , pem
     , process
     , proto-lens
     , random

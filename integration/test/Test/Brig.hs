@@ -108,8 +108,8 @@ testSwagger = do
   bindResponse BrigP.getApiVersions $ \resp -> do
     resp.status `shouldMatchInt` 200
     actualVersions :: [Int] <- do
-      sup <- resp.json %. "supported" & asListOf asInt
-      dev <- resp.json %. "development" & asListOf asInt
+      sup <- resp.json %. "supported" & asListOf asIntegral
+      dev <- resp.json %. "development" & asListOf asIntegral
       pure $ sup <> dev
     assertBool ("unexpected actually existing versions: " <> show actualVersions) $
       -- make sure nobody has added a new version without adding it to `existingVersions`.
