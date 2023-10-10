@@ -98,85 +98,92 @@ main = do
   migrateSchema
     l
     o
-    [ V20.migration,
-      V21.migration,
-      V22.migration,
-      V23.migration,
-      V24.migration,
-      V25.migration,
-      V26.migration,
-      V27.migration,
-      V28.migration,
-      V29.migration,
-      V30.migration,
-      V31.migration,
-      V32.migration,
-      V33.migration,
-      V34.migration,
-      V35.migration,
-      V36.migration,
-      V37.migration,
-      V38_CreateTableBillingTeamMember.migration,
-      V39.migration,
-      V40_CreateTableDataMigration.migration,
-      V41_TeamNotificationQueue.migration,
-      V42_TeamFeatureValidateSamlEmails.migration,
-      V43_TeamFeatureDigitalSignatures.migration,
-      V44_AddRemoteIdentifiers.migration,
-      V45_AddFederationIdMapping.migration,
-      V46_TeamFeatureAppLock.migration,
-      V47_RemoveFederationIdMapping.migration,
-      V48_DeleteRemoteIdentifiers.migration,
-      V49_ReAddRemoteIdentifiers.migration,
-      V50_AddLegalholdWhitelisted.migration,
-      V51_FeatureFileSharing.migration,
-      V52_FeatureConferenceCalling.migration,
-      V53_AddRemoteConvStatus.migration,
-      V54_TeamFeatureSelfDeletingMessages.migration,
-      V55_SelfDeletingMessagesLockStatus.migration,
-      V56_GuestLinksTeamFeatureStatus.migration,
-      V57_GuestLinksLockStatus.migration,
-      V58_ConversationAccessRoleV2.migration,
-      V59_FileSharingLockStatus.migration,
-      V60_TeamFeatureSndFactorPasswordChallenge.migration,
-      V61_MLSConversation.migration,
-      V62_TeamFeatureSearchVisibilityInbound.migration,
-      V63_MLSConversationClients.migration,
-      V64_Epoch.migration,
-      V65_MLSRemoteClients.migration,
-      V66_AddSplashScreen.migration,
-      V67_MLSFeature.migration,
-      V68_MLSCommitLock.migration,
-      V69_MLSProposal.migration,
-      V70_MLSCipherSuite.migration,
-      V71_MemberClientKeypackage.migration,
-      V72_DropManagedConversations.migration,
-      V73_MemberClientTable.migration,
-      V74_ExposeInvitationsToTeamAdmin.migration,
-      V75_MLSGroupInfo.migration,
-      V76_ProposalOrigin.migration,
-      V77_MLSGroupMemberClient.migration,
-      V78_TeamFeatureOutlookCalIntegration.migration,
-      V79_TeamFeatureMlsE2EId.migration,
-      V80_AddConversationCodePassword.migration,
-      V81_TeamFeatureMlsE2EIdUpdate.migration,
-      V82_RemoteDomainIndexes.migration,
-      V83_CreateTableTeamAdmin.migration,
-      V84_MLSSubconversation.migration,
-      V85_MLSDraft17.migration,
-      V86_TeamFeatureMlsMigration.migration,
-      V87_TeamFeatureSupportedProtocols.migration
-      -- When adding migrations here, don't forget to update
-      -- 'schemaVersion' in Galley.Cassandra
-      -- (see also docs/developer/cassandra-interaction.md)
-      --
-      -- FUTUREWORK: once #1726 has made its way to master/production,
-      -- the 'message' field in connections table can be dropped.
-      -- See also https://github.com/wireapp/wire-server/pull/1747/files
-      -- for an explanation
-      -- FUTUREWORK: once #1751 has made its way to master/production,
-      -- the 'otr_muted' field in the member table can be dropped.
-    ]
+    migrations
     `finally` Log.close l
   where
     desc = header "Galley Cassandra Schema" <> fullDesc
+
+lastSchemaVersion :: Int32
+lastSchemaVersion = migVersion $ last migrations
+
+migrations :: [Migration]
+migrations =
+  [ V20.migration,
+    V21.migration,
+    V22.migration,
+    V23.migration,
+    V24.migration,
+    V25.migration,
+    V26.migration,
+    V27.migration,
+    V28.migration,
+    V29.migration,
+    V30.migration,
+    V31.migration,
+    V32.migration,
+    V33.migration,
+    V34.migration,
+    V35.migration,
+    V36.migration,
+    V37.migration,
+    V38_CreateTableBillingTeamMember.migration,
+    V39.migration,
+    V40_CreateTableDataMigration.migration,
+    V41_TeamNotificationQueue.migration,
+    V42_TeamFeatureValidateSamlEmails.migration,
+    V43_TeamFeatureDigitalSignatures.migration,
+    V44_AddRemoteIdentifiers.migration,
+    V45_AddFederationIdMapping.migration,
+    V46_TeamFeatureAppLock.migration,
+    V47_RemoveFederationIdMapping.migration,
+    V48_DeleteRemoteIdentifiers.migration,
+    V49_ReAddRemoteIdentifiers.migration,
+    V50_AddLegalholdWhitelisted.migration,
+    V51_FeatureFileSharing.migration,
+    V52_FeatureConferenceCalling.migration,
+    V53_AddRemoteConvStatus.migration,
+    V54_TeamFeatureSelfDeletingMessages.migration,
+    V55_SelfDeletingMessagesLockStatus.migration,
+    V56_GuestLinksTeamFeatureStatus.migration,
+    V57_GuestLinksLockStatus.migration,
+    V58_ConversationAccessRoleV2.migration,
+    V59_FileSharingLockStatus.migration,
+    V60_TeamFeatureSndFactorPasswordChallenge.migration,
+    V61_MLSConversation.migration,
+    V62_TeamFeatureSearchVisibilityInbound.migration,
+    V63_MLSConversationClients.migration,
+    V64_Epoch.migration,
+    V65_MLSRemoteClients.migration,
+    V66_AddSplashScreen.migration,
+    V67_MLSFeature.migration,
+    V68_MLSCommitLock.migration,
+    V69_MLSProposal.migration,
+    V70_MLSCipherSuite.migration,
+    V71_MemberClientKeypackage.migration,
+    V72_DropManagedConversations.migration,
+    V73_MemberClientTable.migration,
+    V74_ExposeInvitationsToTeamAdmin.migration,
+    V75_MLSGroupInfo.migration,
+    V76_ProposalOrigin.migration,
+    V77_MLSGroupMemberClient.migration,
+    V78_TeamFeatureOutlookCalIntegration.migration,
+    V79_TeamFeatureMlsE2EId.migration,
+    V80_AddConversationCodePassword.migration,
+    V81_TeamFeatureMlsE2EIdUpdate.migration,
+    V82_RemoteDomainIndexes.migration,
+    V83_CreateTableTeamAdmin.migration,
+    V84_MLSSubconversation.migration,
+    V85_MLSDraft17.migration,
+    V86_TeamFeatureMlsMigration.migration,
+    V87_TeamFeatureSupportedProtocols.migration
+    -- When adding migrations here, don't forget to update
+    -- 'schemaVersion' in Galley.Cassandra
+    -- (see also docs/developer/cassandra-interaction.md)
+    --
+    -- FUTUREWORK: once #1726 has made its way to master/production,
+    -- the 'message' field in connections table can be dropped.
+    -- See also https://github.com/wireapp/wire-server/pull/1747/files
+    -- for an explanation
+    -- FUTUREWORK: once #1751 has made its way to master/production,
+    -- the 'otr_muted' field in the member table can be dropped.
+  ]

@@ -174,6 +174,7 @@ mkDerivation {
     metrics-core
     metrics-wai
     mtl
+    optparse-applicative
     pem
     polysemy
     polysemy-wire-zoo
@@ -325,6 +326,7 @@ mkDerivation {
     wire-api
     wire-api-federation
   ];
+  doHaddock = false;
   description = "Conversations";
   license = lib.licenses.agpl3Only;
 }
