@@ -33,6 +33,7 @@ module Wire.API.Routes.Internal.Brig
     DeleteAccountConferenceCallingConfig,
     swaggerDoc,
     module Wire.API.Routes.Internal.Brig.EJPD,
+    FoundInvitationCode (..),
   )
 where
 
@@ -66,8 +67,11 @@ import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public (ZUser)
 import Wire.API.Team.Feature
+import Wire.API.Team.Invitation (Invitation)
 import Wire.API.Team.LegalHold.Internal
-import Wire.API.User
+import Wire.API.Team.Size qualified as Teamsize
+import Wire.API.User hiding (InvitationCode)
+import Wire.API.User qualified as User
 import Wire.API.User.Auth
 import Wire.API.User.Auth.LegalHold
 import Wire.API.User.Auth.ReAuth
@@ -544,6 +548,82 @@ type TeamsAPI =
     ( "teams"
         :> ReqBody '[Servant.JSON] (Multi.TeamStatus SearchVisibilityInboundConfig)
         :> Post '[Servant.JSON] ()
+    )
+    :<|> InvitationByEmail
+    :<|> InvitationCode
+    :<|> SuspendTeam
+    :<|> UnsuspendTeam
+    :<|> TeamSize
+    :<|> TeamInvitations
+
+type InvitationByEmail =
+  Named
+    "get-invitation-by-email"
+    ( "teams"
+        :> "invitations"
+        :> "by-email"
+        :> QueryParam' [Required, Strict] "email" Email
+        :> Get '[Servant.JSON] Invitation
+    )
+
+type InvitationCode =
+  Named
+    "get-invitation-code"
+    ( "teams"
+        :> "invitation-code"
+        :> QueryParam' [Required, Strict] "team" TeamId
+        :> QueryParam' [Required, Strict] "invitation_id" InvitationId
+        :> Get '[Servant.JSON] FoundInvitationCode
+    )
+
+newtype FoundInvitationCode = FoundInvitationCode {getFoundInvitationCode :: User.InvitationCode}
+  deriving stock (Eq, Show, Generic)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema FoundInvitationCode)
+
+instance ToSchema FoundInvitationCode where
+  schema =
+    FoundInvitationCode
+      <$> getFoundInvitationCode .= object "FoundInvitationCode" (field "code" (schema @User.InvitationCode))
+
+type SuspendTeam =
+  Named
+    "suspend-team"
+    ( "teams"
+        :> Capture "tid" TeamId
+        :> "suspend"
+        :> Post
+             '[Servant.JSON]
+             NoContent
+    )
+
+type UnsuspendTeam =
+  Named
+    "unsuspend-team"
+    ( "teams"
+        :> Capture "tid" TeamId
+        :> "unsuspend"
+        :> Post
+             '[Servant.JSON]
+             NoContent
+    )
+
+type TeamSize =
+  Named
+    "team-size"
+    ( "teams"
+        :> Capture "tid" TeamId
+        :> "size"
+        :> Get '[JSON] Teamsize.TeamSize
+    )
+
+type TeamInvitations =
+  Named
+    "create-invitations-via-scim"
+    ( "teams"
+        :> Capture "tid" TeamId
+        :> "invitations"
+        :> Servant.ReqBody '[JSON] NewUserScimInvitation
+        :> Post '[JSON] UserAccount
     )
 
 type UserAPI =

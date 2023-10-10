@@ -183,8 +183,20 @@ accountAPI =
     :<|> Named @"iLegalholdAddClient" legalHoldClientRequestedH
     :<|> Named @"iLegalholdDeleteClient" removeLegalHoldClientH
 
-teamsAPI :: ServerT BrigIRoutes.TeamsAPI (Handler r)
-teamsAPI = Named @"updateSearchVisibilityInbound" Index.updateSearchVisibilityInbound
+teamsAPI ::
+  ( Member GalleyProvider r,
+    Member (UserPendingActivationStore p) r,
+    Member BlacklistStore r
+  ) =>
+  ServerT BrigIRoutes.TeamsAPI (Handler r)
+teamsAPI =
+  Named @"updateSearchVisibilityInbound" Index.updateSearchVisibilityInbound
+    :<|> Named @"get-invitation-by-email" Team.getInvitationByEmail
+    :<|> Named @"get-invitation-code" Team.getInvitationCode
+    :<|> Named @"suspend-team" Team.suspendTeam
+    :<|> Named @"unsuspend-team" Team.unsuspendTeam
+    :<|> Named @"team-size" Team.teamSize
+    :<|> Named @"create-invitations-via-scim" Team.createInvitationViaScim
 
 userAPI :: ServerT BrigIRoutes.UserAPI (Handler r)
 userAPI =
@@ -364,14 +376,11 @@ internalSearchIndexAPI =
 -- Sitemap (wai-route)
 
 sitemap ::
-  ( Member BlacklistStore r,
-    Member GalleyProvider r,
-    Member (UserPendingActivationStore p) r
+  ( Member GalleyProvider r
   ) =>
   Routes a (Handler r) ()
 sitemap = unsafeCallsFed @'Brig @"on-user-deleted-connections" $ do
   Provider.routesInternal
-  Team.routesInternal
 
 ---------------------------------------------------------------------------
 -- Handlers

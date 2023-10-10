@@ -78,7 +78,7 @@ instance HasEmptyResponse (Post '[JSON] EmptyResponse)
 
 instance HasEmptyResponse api => HasEmptyResponse (x :> api)
 
-instance HasEmptyResponse api => HasEmptyResponse (Named name api)
+instance HasEmptyResponse api => HasEmptyResponse (UntypedNamed name api)
 
 -- | Return a client for a named endpoint.
 --
