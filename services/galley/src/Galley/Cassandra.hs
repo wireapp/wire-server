@@ -18,6 +18,7 @@
 module Galley.Cassandra (schemaVersion) where
 
 import Imports
+import Migrations qualified
 
 schemaVersion :: Int32
-schemaVersion = 83
+schemaVersion = Migrations.lastSchemaVersion
