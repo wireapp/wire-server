@@ -116,6 +116,7 @@ mkDerivation {
   src = gitignoreSource ./.;
   libraryHaskellDepends = [
     aeson
+    async
     attoparsec
     base
     base64-bytestring
