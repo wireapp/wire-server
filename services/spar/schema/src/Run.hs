@@ -76,9 +76,6 @@ migrations =
     V15.migration,
     V16.migration,
     V17.migration
-    -- When adding migrations here, don't forget to update
-    -- 'schemaVersion' in Spar.Data
-
     -- TODO: Add a migration that removes unused fields
     -- (we don't want to risk running a migration which would
     -- effectively break the currently deployed spar service)
