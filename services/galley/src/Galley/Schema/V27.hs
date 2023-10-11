@@ -15,10 +15,16 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Cassandra (schemaVersion) where
+module Galley.Schema.V27
+  ( migration,
+  )
+where
 
-import Galley.Schema.Run qualified as Migrations
+import Cassandra.Schema
 import Imports
+import Text.RawString.QQ
 
-schemaVersion :: Int32
-schemaVersion = Migrations.lastSchemaVersion
+migration :: Migration
+migration =
+  Migration 27 "Add conversation message_timer" $
+    schema' [r| ALTER TABLE conversation ADD message_timer bigint; |]

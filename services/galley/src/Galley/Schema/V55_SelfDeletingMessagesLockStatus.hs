@@ -15,10 +15,19 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Cassandra (schemaVersion) where
+module Galley.Schema.V55_SelfDeletingMessagesLockStatus
+  ( migration,
+  )
+where
 
-import Galley.Schema.Run qualified as Migrations
+import Cassandra.Schema
 import Imports
+import Text.RawString.QQ
 
-schemaVersion :: Int32
-schemaVersion = Migrations.lastSchemaVersion
+migration :: Migration
+migration = Migration 55 "Add payment status config for self deleting messages team feature" $ do
+  schema'
+    [r| ALTER TABLE team_features ADD (
+          self_deleting_messages_lock_status int
+        )
+     |]

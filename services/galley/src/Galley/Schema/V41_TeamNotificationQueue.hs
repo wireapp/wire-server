@@ -15,10 +15,24 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Cassandra (schemaVersion) where
+module Galley.Schema.V41_TeamNotificationQueue
+  ( migration,
+  )
+where
 
-import Galley.Schema.Run qualified as Migrations
+import Cassandra.Schema
 import Imports
+import Text.RawString.QQ
 
-schemaVersion :: Int32
-schemaVersion = Migrations.lastSchemaVersion
+migration :: Migration
+migration = Migration 41 "Create team team_notification queue" $ do
+  schema'
+    [r|
+        CREATE TABLE team_notifications (
+            team    uuid,
+            id      timeuuid,
+            payload blob,
+            PRIMARY KEY (team, id)
+        ) WITH compaction = {'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'}
+           AND gc_grace_seconds = 864000;
+    |]

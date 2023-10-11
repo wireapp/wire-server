@@ -15,10 +15,30 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Cassandra (schemaVersion) where
+module Galley.Schema.V48_DeleteRemoteIdentifiers
+  ( migration,
+  )
+where
 
-import Galley.Schema.Run qualified as Migrations
+import Cassandra.Schema
 import Imports
+import Text.RawString.QQ
 
-schemaVersion :: Int32
-schemaVersion = Migrations.lastSchemaVersion
+-- This migration deletes the (so far unused) entries introduced in migration 44
+-- as we decided to stop using opaque Ids and to be explict with remote identifiers.
+migration :: Migration
+migration = Migration 48 "Delete remote identifiers introduced in migration 44" $ do
+  schema'
+    [r|
+      ALTER TABLE user DROP (
+        conv_remote_id,
+        conv_remote_domain
+      );
+    |]
+  schema'
+    [r|
+      ALTER TABLE member DROP (
+        user_remote_id,
+        user_remote_domain
+      );
+    |]

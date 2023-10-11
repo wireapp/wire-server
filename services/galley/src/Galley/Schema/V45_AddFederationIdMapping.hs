@@ -15,10 +15,24 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Cassandra (schemaVersion) where
+module Galley.Schema.V45_AddFederationIdMapping
+  ( migration,
+  )
+where
 
-import Galley.Schema.Run qualified as Migrations
+import Cassandra.Schema
 import Imports
+import Text.RawString.QQ
 
-schemaVersion :: Int32
-schemaVersion = Migrations.lastSchemaVersion
+-- | See <https://github.com/wearezeta/documentation/blob/master/topics/federation/federation-design.md#namespaces-and-user-identity>.
+migration :: Migration
+migration = Migration 45 "Add ID mapping for federation" $ do
+  schema'
+    [r|
+        CREATE TABLE id_mapping (
+            mapped_id uuid PRIMARY KEY,
+            remote_id uuid,
+            remote_domain text,
+        ) WITH compaction = {'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'}
+           AND gc_grace_seconds = 864000;
+    |]

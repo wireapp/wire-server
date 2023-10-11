@@ -15,10 +15,16 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Cassandra (schemaVersion) where
+module Galley.Schema.V39
+  ( migration,
+  )
+where
 
-import Galley.Schema.Run qualified as Migrations
+import Cassandra.Schema
 import Imports
+import Text.RawString.QQ
 
-schemaVersion :: Int32
-schemaVersion = Migrations.lastSchemaVersion
+migration :: Migration
+migration = Migration 39 "Add extra feature `same_team_only_status` field in the team_features table and in the team" $ do
+  schema' [r| ALTER TABLE team_features ADD search_visibility_status int; |]
+  schema' [r| ALTER TABLE team ADD search_visibility int; |]

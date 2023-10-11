@@ -15,10 +15,24 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Cassandra (schemaVersion) where
+module Galley.Schema.V53_AddRemoteConvStatus (migration) where
 
-import Galley.Schema.Run qualified as Migrations
+import Cassandra.Schema
 import Imports
+import Text.RawString.QQ
 
-schemaVersion :: Int32
-schemaVersion = Migrations.lastSchemaVersion
+-- This migration adds fields that track remote conversation status for a local user.
+migration :: Migration
+migration =
+  Migration 53 "Add fields for remote conversation status (hidden/archived/muted)" $
+    schema'
+      [r|
+      ALTER TABLE user_remote_conv ADD (
+        hidden            boolean,
+        hidden_ref        text,
+        otr_archived      boolean,
+        otr_archived_ref  text,
+        otr_muted_status  int,
+        otr_muted_ref     text
+      )
+    |]

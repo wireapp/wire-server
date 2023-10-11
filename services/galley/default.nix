@@ -174,6 +174,7 @@ mkDerivation {
     metrics-core
     metrics-wai
     mtl
+    optparse-applicative
     pem
     polysemy
     polysemy-wire-zoo
@@ -269,7 +270,6 @@ mkDerivation {
     QuickCheck
     quickcheck-instances
     random
-    raw-strings-qq
     retry
     saml2-web-sso
     schema-profunctor

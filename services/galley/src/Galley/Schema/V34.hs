@@ -15,10 +15,24 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Cassandra (schemaVersion) where
+module Galley.Schema.V34
+  ( migration,
+  )
+where
 
-import Galley.Schema.Run qualified as Migrations
+import Cassandra.Schema
 import Imports
+import Text.RawString.QQ
 
-schemaVersion :: Int32
-schemaVersion = Migrations.lastSchemaVersion
+migration :: Migration
+migration = Migration 34 "Add team features table" $ do
+  schema'
+    [r|
+        CREATE TABLE team_features (
+            team_id          uuid,
+            legalhold_status int,
+            sso_status       int,
+            PRIMARY KEY (team_id)
+        ) WITH compaction = {'class': 'LeveledCompactionStrategy'}
+          AND gc_grace_seconds = 864000;
+    |]
