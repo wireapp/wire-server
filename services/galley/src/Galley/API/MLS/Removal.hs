@@ -59,8 +59,8 @@ import Wire.API.MLS.SubConversation
 createAndSendRemoveProposals ::
   ( Member (Input UTCTime) r,
     Member TinyLog r,
+    Member BackendNotificationQueueAccess r,
     Member ExternalAccess r,
-    Member FederatorAccess r,
     Member GundeckAccess r,
     Member ProposalStore r,
     Member (Input Env) r,
@@ -104,18 +104,15 @@ createAndSendRemoveProposals lConvOrSubConv indices qusr cm = do
         propagateMessage qusr Nothing lConvOrSubConv Nothing msg cm
 
 removeClientsWithClientMapRecursively ::
-  ( Members
-      '[ Input UTCTime,
-         TinyLog,
-         ExternalAccess,
-         FederatorAccess,
-         GundeckAccess,
-         MemberStore,
-         ProposalStore,
-         SubConversationStore,
-         Input Env
-       ]
-      r,
+  ( Member (Input UTCTime) r,
+    Member TinyLog r,
+    Member BackendNotificationQueueAccess r,
+    Member ExternalAccess r,
+    Member GundeckAccess r,
+    Member MemberStore r,
+    Member ProposalStore r,
+    Member SubConversationStore r,
+    Member (Input Env) r,
     Functor f,
     Foldable f
   ) =>
@@ -152,8 +149,8 @@ removeClientsWithClientMapRecursively lMlsConv getClients qusr = do
 
 -- | Send remove proposals for a single client of a user to the local conversation.
 removeClient ::
-  ( Member ExternalAccess r,
-    Member FederatorAccess r,
+  ( Member BackendNotificationQueueAccess r,
+    Member ExternalAccess r,
     Member GundeckAccess r,
     Member (Input Env) r,
     Member (Input UTCTime) r,
@@ -175,8 +172,8 @@ removeClient lc qusr c = do
 
 -- | Send remove proposals for all clients of the user to the local conversation.
 removeUser ::
-  ( Member ExternalAccess r,
-    Member FederatorAccess r,
+  ( Member BackendNotificationQueueAccess r,
+    Member ExternalAccess r,
     Member GundeckAccess r,
     Member (Input Env) r,
     Member (Input UTCTime) r,
@@ -212,8 +209,8 @@ listSubConversations' cid = do
 
 -- | Send remove proposals for clients of users that are not part of a conversation
 removeExtraneousClients ::
-  ( Member ExternalAccess r,
-    Member FederatorAccess r,
+  ( Member BackendNotificationQueueAccess r,
+    Member ExternalAccess r,
     Member GundeckAccess r,
     Member (Input Env) r,
     Member (Input UTCTime) r,

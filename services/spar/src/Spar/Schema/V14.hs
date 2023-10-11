@@ -15,7 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module V2
+module Spar.Schema.V14
   ( migration,
   )
 where
@@ -25,14 +25,15 @@ import Imports
 import Text.RawString.QQ
 
 migration :: Migration
-migration = Migration 2 "Add extra idp keys set" $ do
+migration = Migration 14 "Create table `user_v2`" $ do
   void $
     schema'
       [r|
-        ALTER TABLE idp DROP metadata;
-    |]
-  void $
-    schema'
-      [r|
-        ALTER TABLE idp ADD extra_public_keys list<blob>;
-    |]
+        CREATE TABLE if not exists user_v2
+            ( issuer text
+            , normalized_uname_id text
+            , sso_id text
+            , uid uuid
+            , primary key (issuer, normalized_uname_id)
+            ) with compaction = {'class': 'LeveledCompactionStrategy'};
+        |]

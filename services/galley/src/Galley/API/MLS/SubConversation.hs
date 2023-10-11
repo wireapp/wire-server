@@ -56,7 +56,7 @@ import Polysemy.Error
 import Polysemy.Input
 import Polysemy.Resource
 import Polysemy.TinyLog
-import Wire.API.Conversation
+import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Protocol
 import Wire.API.Error
 import Wire.API.Error.Galley
@@ -325,7 +325,8 @@ deleteRemoteSubConversation lusr rcnvId scnvId dsc = do
 
 type HasLeaveSubConversationEffects r =
   ( Members
-      '[ ConversationStore,
+      '[ BackendNotificationQueueAccess,
+         ConversationStore,
          ExternalAccess,
          FederatorAccess,
          GundeckAccess,
@@ -348,14 +349,11 @@ type LeaveSubConversationStaticErrors =
 
 leaveSubConversation ::
   ( HasLeaveSubConversationEffects r,
-    Members
-      '[ Error MLSProtocolError,
-         Error FederationError,
-         ErrorS 'MLSStaleMessage,
-         ErrorS 'MLSNotEnabled,
-         Resource
-       ]
-      r,
+    Member (Error MLSProtocolError) r,
+    Member (Error FederationError) r,
+    Member (ErrorS 'MLSStaleMessage) r,
+    Member (ErrorS 'MLSNotEnabled) r,
+    Member Resource r,
     Members LeaveSubConversationStaticErrors r
   ) =>
   Local UserId ->
@@ -375,14 +373,10 @@ leaveSubConversation lusr cli qcnv sub =
 
 leaveLocalSubConversation ::
   ( HasLeaveSubConversationEffects r,
-    Members
-      '[ Error MLSProtocolError,
-         ErrorS 'MLSStaleMessage,
-         ErrorS 'MLSNotEnabled,
-         Resource,
-         MemberStore
-       ]
-      r,
+    Member (Error MLSProtocolError) r,
+    Member (ErrorS 'MLSStaleMessage) r,
+    Member (ErrorS 'MLSNotEnabled) r,
+    Member Resource r,
     Members LeaveSubConversationStaticErrors r
   ) =>
   ClientIdentity ->

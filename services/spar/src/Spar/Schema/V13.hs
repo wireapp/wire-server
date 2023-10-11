@@ -15,7 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module V12
+module Spar.Schema.V13
   ( migration,
   )
 where
@@ -25,14 +25,14 @@ import Imports
 import Text.RawString.QQ
 
 migration :: Migration
-migration = Migration 12 "Add scim_external" $ do
-  void $
-    schema'
-      [r|
-        CREATE TABLE if not exists scim_external
-            ( team uuid,
-              external_id text,
-              user uuid,
-              primary key (team, external_id)
-            ) with compaction = {'class': 'LeveledCompactionStrategy'};
-      |]
+migration = Migration 13 "Create table `data_migration`" $ do
+  schema'
+    [r|
+        CREATE TABLE data_migration (
+            id      int,
+            version int,
+            descr   text,
+            date    timestamp,
+            PRIMARY KEY (id, version)
+        );
+        |]
