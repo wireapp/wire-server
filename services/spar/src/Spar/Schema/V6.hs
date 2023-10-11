@@ -1,3 +1,6 @@
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE QuasiQuotes #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -15,7 +18,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module V11
+module Spar.Schema.V6
   ( migration,
   )
 where
@@ -25,9 +28,13 @@ import Imports
 import Text.RawString.QQ
 
 migration :: Migration
-migration = Migration 11 "Remove unused table" $ do
+migration = Migration 6 "Store raw XML metadata" $ do
   void $
     schema'
       [r|
-        DROP TABLE scim_user;
-      |]
+        CREATE TABLE if not exists idp_raw_metadata
+            ( id       uuid
+            , metadata text
+            , primary key (id)
+            ) with compaction = {'class': 'LeveledCompactionStrategy'};
+    |]

@@ -15,7 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module V7
+module Spar.Schema.V3
   ( migration,
   )
 where
@@ -25,15 +25,13 @@ import Imports
 import Text.RawString.QQ
 
 migration :: Migration
-migration = Migration 7 "Store default SSO code" $ do
-  -- partition_key_always_default should always be "default".
-  -- It exists so the row is always at a known partition.
+migration = Migration 3 "DEPRECATED AS OF https://github.com/wireapp/wire-server/pull/2441" $ do
   void $
     schema'
       [r|
-        CREATE TABLE if not exists default_idp
-            ( partition_key_always_default text
-            , idp uuid
-            , PRIMARY KEY (partition_key_always_default, idp)
-            ) with compaction = {'class': 'LeveledCompactionStrategy'};
+        CREATE TABLE if not exists bind_cookie
+            ( cookie          text
+            , session_owner   uuid
+            , primary key (cookie)
+            )
     |]
