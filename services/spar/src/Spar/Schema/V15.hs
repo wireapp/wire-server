@@ -1,6 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE QuasiQuotes #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -18,7 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module V6
+module Spar.Schema.V15
   ( migration,
   )
 where
@@ -28,13 +25,19 @@ import Imports
 import Text.RawString.QQ
 
 migration :: Migration
-migration = Migration 6 "Store raw XML metadata" $ do
+migration = Migration 15 "Optionally index IdP by teamid (in addition to entityID); add idp api version." $ do
   void $
     schema'
       [r|
-        CREATE TABLE if not exists idp_raw_metadata
-            ( id       uuid
-            , metadata text
-            , primary key (id)
+        CREATE TABLE if not exists issuer_idp_v2
+            ( issuer        text
+            , team          uuid
+            , idp           uuid
+            , PRIMARY KEY (issuer, team)
             ) with compaction = {'class': 'LeveledCompactionStrategy'};
-    |]
+        |]
+  void $
+    schema'
+      [r|
+        ALTER TABLE idp ADD api_version int;
+        |]

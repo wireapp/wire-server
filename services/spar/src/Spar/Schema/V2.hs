@@ -15,7 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module V8
+module Spar.Schema.V2
   ( migration,
   )
 where
@@ -25,9 +25,14 @@ import Imports
 import Text.RawString.QQ
 
 migration :: Migration
-migration = Migration 8 "Keep track of old issuers, replacement idps in the idp table" $ do
+migration = Migration 2 "Add extra idp keys set" $ do
   void $
     schema'
       [r|
-        ALTER TABLE idp ADD (old_issuers list<text>, replaced_by uuid);
-      |]
+        ALTER TABLE idp DROP metadata;
+    |]
+  void $
+    schema'
+      [r|
+        ALTER TABLE idp ADD extra_public_keys list<blob>;
+    |]

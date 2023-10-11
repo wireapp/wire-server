@@ -15,7 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module V9
+module Spar.Schema.V10
   ( migration,
   )
 where
@@ -25,15 +25,13 @@ import Imports
 import Text.RawString.QQ
 
 migration :: Migration
-migration = Migration 9 "As replacement for `scim_user`, add smaller table for storing time stamps only" $ do
+migration = Migration 10 "Add table for mapping scim external ids to brig user ids" $ do
   void $
     schema'
-      -- FUTUREWORK: https://github.com/zinfra/backend-issues/issues/1631
       [r|
-        CREATE TABLE if not exists scim_user_times
-          ( uid             uuid
-          , created_at      timestamp
-          , last_updated_at timestamp
-          , primary key (uid)
+        CREATE TABLE if not exists scim_external_ids
+          ( external  text
+          , user      uuid
+          , primary key (external)
           ) with compaction = {'class': 'LeveledCompactionStrategy'};
       |]

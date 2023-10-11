@@ -15,31 +15,31 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Run where
+module Spar.Schema.Run where
 
 import Cassandra.Schema
 import Control.Exception (finally)
 import Imports
+import qualified Spar.Schema.V0 as V0
+import qualified Spar.Schema.V1 as V1
+import qualified Spar.Schema.V10 as V10
+import qualified Spar.Schema.V11 as V11
+import qualified Spar.Schema.V12 as V12
+import qualified Spar.Schema.V13 as V13
+import qualified Spar.Schema.V14 as V14
+import qualified Spar.Schema.V15 as V15
+import qualified Spar.Schema.V16 as V16
+import qualified Spar.Schema.V17 as V17
+import qualified Spar.Schema.V2 as V2
+import qualified Spar.Schema.V3 as V3
+import qualified Spar.Schema.V4 as V4
+import qualified Spar.Schema.V5 as V5
+import qualified Spar.Schema.V6 as V6
+import qualified Spar.Schema.V7 as V7
+import qualified Spar.Schema.V8 as V8
+import qualified Spar.Schema.V9 as V9
 import qualified System.Logger.Extended as Log
 import Util.Options
-import qualified V0
-import qualified V1
-import qualified V10
-import qualified V11
-import qualified V12
-import qualified V13
-import qualified V14
-import qualified V15
-import qualified V16
-import qualified V17
-import qualified V2
-import qualified V3
-import qualified V4
-import qualified V5
-import qualified V6
-import qualified V7
-import qualified V8
-import qualified V9
 
 main :: IO ()
 main = do

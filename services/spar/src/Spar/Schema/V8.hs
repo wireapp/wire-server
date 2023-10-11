@@ -15,7 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module V1
+module Spar.Schema.V8
   ( migration,
   )
 where
@@ -25,15 +25,9 @@ import Imports
 import Text.RawString.QQ
 
 migration :: Migration
-migration = Migration 1 "Add verdict table" $ do
+migration = Migration 8 "Keep track of old issuers, replacement idps in the idp table" $ do
   void $
     schema'
       [r|
-        CREATE TABLE if not exists verdict
-            ( req                   text
-            , format_con            int
-            , format_mobile_success text
-            , format_mobile_error   text
-            , primary key (req)
-            ) with compaction = {'class': 'LeveledCompactionStrategy'};
-        |]
+        ALTER TABLE idp ADD (old_issuers list<text>, replaced_by uuid);
+      |]

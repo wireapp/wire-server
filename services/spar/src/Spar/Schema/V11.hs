@@ -15,7 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module V3
+module Spar.Schema.V11
   ( migration,
   )
 where
@@ -25,13 +25,9 @@ import Imports
 import Text.RawString.QQ
 
 migration :: Migration
-migration = Migration 3 "DEPRECATED AS OF https://github.com/wireapp/wire-server/pull/2441" $ do
+migration = Migration 11 "Remove unused table" $ do
   void $
     schema'
       [r|
-        CREATE TABLE if not exists bind_cookie
-            ( cookie          text
-            , session_owner   uuid
-            , primary key (cookie)
-            )
-    |]
+        DROP TABLE scim_user;
+      |]
