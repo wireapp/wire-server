@@ -239,8 +239,14 @@ spec:
       value: {{ .Values.config.uploadXml.baseUrl }}
     {{- if .Values.secrets.uploadXmlAwsAccessKeyId }}
     - name: UPLOAD_XML_AWS_ACCESS_KEY_ID
-      value: .Values.secrets.uploadXmlAwsAccessKeyId
+      valueFrom:
+        secretKeyRef:
+          name: integration
+          key: uploadXmlAwsAccessKeyId
     - name: UPLOAD_XML_AWS_SECRET_ACCESS_KEY
-      value: .Values.secrets.uploadXmlAwsSecretAccessKey
+      valueFrom:
+        secretKeyRef:
+          name: integration
+          key: uploadXmlAwsSecretAccessKey
     {{- end }}
     {{- end }}
