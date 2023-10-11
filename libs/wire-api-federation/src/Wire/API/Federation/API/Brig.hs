@@ -70,9 +70,9 @@ type BrigApi =
     :<|> FedEndpoint "get-user-clients" GetUserClients (UserMap (Set PubClient))
     :<|> FedEndpoint "get-mls-clients" MLSClientsRequest (Set ClientInfo)
     :<|> FedEndpoint "send-connection-action" NewConnectionRequest NewConnectionResponse
-    :<|> FedEndpoint "on-user-deleted-connections" UserDeletedConnectionsNotification EmptyResponse
     :<|> FedEndpoint "claim-key-packages" ClaimKeyPackageRequest (Maybe KeyPackageBundle)
     :<|> FedEndpoint "get-not-fully-connected-backends" DomainSet NonConnectedBackends
+    :<|> FedEndpoint "on-user-deleted-connections" UserDeletedConnectionsNotification EmptyResponse
 
 newtype DomainSet = DomainSet
   { domains :: Set Domain
