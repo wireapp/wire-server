@@ -58,9 +58,6 @@ type GalleyApi =
     -- This endpoint is called the first time a user from this backend is
     -- added to a remote conversation.
     :<|> FedEndpoint "get-conversations" GetConversationsRequest GetConversationsResponse
-    -- used by the backend that owns a conversation to inform this backend of
-    -- changes to the conversation
-    :<|> FedEndpoint "on-conversation-updated" ConversationUpdate EmptyResponse
     :<|> FedEndpointWithMods
            '[ MakesFederatedCall 'Galley "on-conversation-updated",
               MakesFederatedCall 'Galley "on-mls-message-sent",
@@ -70,9 +67,6 @@ type GalleyApi =
            "leave-conversation"
            LeaveConversationRequest
            LeaveConversationResponse
-    -- used to notify this backend that a new message has been posted to a
-    -- remote conversation
-    :<|> FedEndpoint "on-message-sent" (RemoteMessage ConvId) EmptyResponse
     -- used by a remote backend to send a message to a conversation owned by
     -- this backend
     :<|> FedEndpointWithMods
@@ -83,14 +77,6 @@ type GalleyApi =
            ProteusMessageSendRequest
            MessageSendResponse
     :<|> FedEndpointWithMods
-           '[ MakesFederatedCall 'Galley "on-mls-message-sent",
-              MakesFederatedCall 'Galley "on-conversation-updated",
-              MakesFederatedCall 'Brig "api-version"
-            ]
-           "on-user-deleted-conversations"
-           UserDeletedConversationsNotification
-           EmptyResponse
-    :<|> FedEndpointWithMods
            '[ MakesFederatedCall 'Galley "on-conversation-updated",
               MakesFederatedCall 'Galley "on-mls-message-sent",
               MakesFederatedCall 'Brig "get-users-by-ids",
@@ -100,7 +86,6 @@ type GalleyApi =
            ConversationUpdateRequest
            ConversationUpdateResponse
     :<|> FedEndpoint "mls-welcome" MLSWelcomeRequest MLSWelcomeResponse
-    :<|> FedEndpoint "on-mls-message-sent" RemoteMLSMessage EmptyResponse
     :<|> FedEndpointWithMods
            '[ MakesFederatedCall 'Galley "on-conversation-updated",
               MakesFederatedCall 'Galley "on-mls-message-sent",
@@ -123,12 +108,6 @@ type GalleyApi =
            MLSMessageSendRequest
            MLSMessageResponse
     :<|> FedEndpoint "query-group-info" GetGroupInfoRequest GetGroupInfoResponse
-    :<|> FedEndpointWithMods
-           '[ MakesFederatedCall 'Galley "on-mls-message-sent"
-            ]
-           "on-client-removed"
-           ClientRemovedRequest
-           EmptyResponse
     :<|> FedEndpointWithMods
            '[ MakesFederatedCall 'Galley "on-typing-indicator-updated"
             ]
@@ -153,6 +132,27 @@ type GalleyApi =
            "get-one2one-conversation"
            GetOne2OneConversationRequest
            GetOne2OneConversationResponse
+    :<|> FedEndpointWithMods
+           '[ MakesFederatedCall 'Galley "on-mls-message-sent"
+            ]
+           "on-client-removed"
+           ClientRemovedRequest
+           EmptyResponse
+    -- used to notify this backend that a new message has been posted to a
+    -- remote conversation
+    :<|> FedEndpoint "on-message-sent" (RemoteMessage ConvId) EmptyResponse
+    :<|> FedEndpoint "on-mls-message-sent" RemoteMLSMessage EmptyResponse
+    -- used by the backend that owns a conversation to inform this backend of
+    -- changes to the conversation
+    :<|> FedEndpoint "on-conversation-updated" ConversationUpdate EmptyResponse
+    :<|> FedEndpointWithMods
+           '[ MakesFederatedCall 'Galley "on-mls-message-sent",
+              MakesFederatedCall 'Galley "on-conversation-updated",
+              MakesFederatedCall 'Brig "api-version"
+            ]
+           "on-user-deleted-conversations"
+           UserDeletedConversationsNotification
+           EmptyResponse
 
 data TypingDataUpdateRequest = TypingDataUpdateRequest
   { typingStatus :: TypingStatus,
