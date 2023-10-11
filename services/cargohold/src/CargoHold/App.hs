@@ -35,6 +35,7 @@ module CargoHold.App
     localUnit,
     options,
     settings,
+    brigClientEnv,
 
     -- * App Monad
     AppT,
@@ -53,7 +54,7 @@ import Bilge (Manager, MonadHttp, RequestId (..), newManager, withResponse)
 import qualified Bilge
 import Bilge.RPC (HasRequestId (..))
 import qualified CargoHold.AWS as AWS
-import CargoHold.Options (AWSOpts, Opts, S3Compatibility (..))
+import CargoHold.Options (AWSOpts, Opts, S3Compatibility (..), brig)
 import qualified CargoHold.Options as Opt
 import Control.Error (ExceptT, exceptT)
 import Control.Exception (throw)
@@ -65,13 +66,15 @@ import qualified Data.Map as Map
 import Data.Metrics.Middleware (Metrics)
 import qualified Data.Metrics.Middleware as Metrics
 import Data.Qualified
+import qualified Data.Text as T
 import HTTP2.Client.Manager (Http2Manager, http2ManagerWithSSLCtx)
 import Imports hiding (log)
-import Network.HTTP.Client (ManagerSettings (..), requestHeaders, responseTimeoutMicro)
+import Network.HTTP.Client (ManagerSettings (..), defaultManagerSettings, requestHeaders, responseTimeoutMicro)
 import Network.HTTP.Client.OpenSSL
 import Network.Wai.Utilities (Error (..))
 import OpenSSL.Session (SSLContext, SSLOption (..))
 import qualified OpenSSL.Session as SSL
+import Servant.Client
 import System.Logger.Class hiding (settings)
 import qualified System.Logger.Extended as Log
 import Util.Options
@@ -88,7 +91,8 @@ data Env = Env
     _requestId :: RequestId,
     _options :: Opt.Opts,
     _localUnit :: Local (),
-    _multiIngress :: Map String AWS.Env
+    _multiIngress :: Map String AWS.Env,
+    _brigClientEnv :: ClientEnv
   }
 
 makeLenses ''Env
@@ -106,7 +110,10 @@ newEnv o = do
   ama <- initAws (o ^. Opt.aws) lgr mgr
   multiIngressAWS <- initMultiIngressAWS lgr mgr
   let loc = toLocalUnsafe (o ^. Opt.settings . Opt.federationDomain) ()
-  pure $ Env ama met lgr mgr h2mgr def o loc multiIngressAWS
+      (Endpoint h p) = o ^. brig
+      baseUrl = BaseUrl Http (T.unpack h) (fromIntegral p) ""
+  clientEnv <- liftIO $ newManager defaultManagerSettings <&> \m -> ClientEnv m baseUrl Nothing defaultMakeClientRequest
+  pure $ Env ama met lgr mgr h2mgr def o loc multiIngressAWS clientEnv
   where
     initMultiIngressAWS :: Logger -> Manager -> IO (Map String AWS.Env)
     initMultiIngressAWS lgr mgr =

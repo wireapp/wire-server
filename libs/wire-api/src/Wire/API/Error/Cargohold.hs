@@ -42,7 +42,7 @@ type instance MapError 'InvalidLength = 'StaticError 400 "invalid-length" "Inval
 
 type instance MapError 'Unverified = 'StaticError 403 "unverified" "Unverified"
 
-type instance MapError 'UserNotFound = 'StaticError 404 "not-found" "User not found"
+type instance MapError 'UserNotFound = 'StaticError 403 "not-found" "User not found"
 
 -- | Return `AssetNotFound` to hide there's a multi-ingress setup.
 type instance MapError 'NoMatchingAssetEndpoint = MapError 'AssetNotFound

@@ -528,11 +528,6 @@ testSendMessageToRemoteConv brig1 brig2 galley1 galley2 cannon1 = do
           ( OtrMessage bobClient aliceClient (toBase64Text msgText) (Just "")
           )
 
-data NotificationException = NotificationException
-  deriving (Show, Typeable)
-
-instance Exception NotificationException
-
 testDeleteUser :: Brig -> Brig -> Galley -> Galley -> Cannon -> Http ()
 testDeleteUser brig1 brig2 galley1 galley2 cannon1 = do
   alice <- userQualifiedId <$> randomUser brig1

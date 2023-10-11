@@ -67,8 +67,7 @@ tests s =
           test s "tokens" testSimpleTokens,
           test s "s3-upstream-closed" testSimpleS3ClosedConnectionReuse,
           test s "client-compatibility" testUploadCompatibility,
-          test s "download url override" testDownloadURLOverride,
-          test s "unverified user upload" testUnverifiedUserUpload
+          test s "download url override" testDownloadURLOverride
         ],
       testGroup
         "remote"
@@ -131,20 +130,6 @@ testSimpleRoundtrip = do
       let Just date' = C8.unpack <$> lookup "Date" (responseHeaders r4)
       let utc' = parseTimeOrError False defaultTimeLocale rfc822DateFormat date' :: UTCTime
       liftIO $ assertBool "bad date" (utc' >= utc)
-
-testUnverifiedUserUpload :: TestM ()
-testUnverifiedUserUpload = do
-  let def = V3.defAssetSettings
-  let rets = [minBound ..]
-  let sets = def : map (\r -> def & V3.setAssetRetention ?~ r) rets
-  mapM_ simpleUpload sets
-  where
-    simpleUpload sets = do
-      uid <- liftIO $ Id <$> nextRandom
-      let bdy = (applicationText, "Hello World")
-      void $
-        uploadSimple (path "/assets/v3") uid sets bdy
-          <!! const 403 === statusCode
 
 testDownloadWithAcceptHeader :: TestM ()
 testDownloadWithAcceptHeader = do

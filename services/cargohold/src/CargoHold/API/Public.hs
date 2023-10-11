@@ -23,7 +23,6 @@ import CargoHold.API.Util
 import qualified CargoHold.API.V3 as V3
 import CargoHold.App
 import CargoHold.Federation
-import CargoHold.Options
 import qualified CargoHold.Types.V3 as V3
 import Control.Lens
 import Control.Monad.Trans.Except (throwE)
@@ -34,15 +33,12 @@ import Data.Domain
 import Data.Id
 import Data.Kind
 import Data.Qualified
-import qualified Data.Text as T
 import Imports hiding (head)
-import Network.HTTP.Client
 import qualified Network.HTTP.Types as HTTP
 import Servant.API
 import Servant.Client
 import Servant.Server hiding (Handler)
 import URI.ByteString
-import Util.Options
 import Wire.API.Asset
 import Wire.API.Federation.API
 import Wire.API.Routes.AssetBody
@@ -52,8 +48,8 @@ import Wire.API.Routes.Named (namedClient)
 import Wire.API.Routes.Public.Cargohold
 import Wire.API.User (accountUser, userIdentity)
 
-servantSitemap :: Opts -> ServerT CargoholdAPI Handler
-servantSitemap opts =
+servantSitemap :: ServerT CargoholdAPI Handler
+servantSitemap =
   renewTokenV3
     :<|> deleteTokenV3
     :<|> userAPI
@@ -63,13 +59,12 @@ servantSitemap opts =
     :<|> legacyAPI
     :<|> mainAPI
   where
-    brigEndpoint = opts ^. brig
     userAPI :: forall tag. tag ~ 'UserPrincipalTag => ServerT (BaseAPIv3 tag) Handler
-    userAPI = uploadAssetV3 @tag brigEndpoint :<|> downloadAssetV3 @tag :<|> deleteAssetV3 @tag
+    userAPI = uploadAssetV3 @tag :<|> downloadAssetV3 @tag :<|> deleteAssetV3 @tag
     botAPI :: forall tag. tag ~ 'BotPrincipalTag => ServerT (BaseAPIv3 tag) Handler
-    botAPI = uploadAssetV3 @tag brigEndpoint :<|> downloadAssetV3 @tag :<|> deleteAssetV3 @tag
+    botAPI = uploadAssetV3 @tag :<|> downloadAssetV3 @tag :<|> deleteAssetV3 @tag
     providerAPI :: forall tag. tag ~ 'ProviderPrincipalTag => ServerT (BaseAPIv3 tag) Handler
-    providerAPI = uploadAssetV3 @tag brigEndpoint :<|> downloadAssetV3 @tag :<|> deleteAssetV3 @tag
+    providerAPI = uploadAssetV3 @tag :<|> downloadAssetV3 @tag :<|> deleteAssetV3 @tag
     legacyAPI = legacyDownloadPlain :<|> legacyDownloadPlain :<|> legacyDownloadOtr
     qualifiedAPI :: ServerT QualifiedAPI Handler
     qualifiedAPI = callsFed (exposeAnnotations downloadAssetV4) :<|> deleteAssetV4
@@ -77,7 +72,7 @@ servantSitemap opts =
     mainAPI =
       renewTokenV3
         :<|> deleteTokenV3
-        :<|> uploadAssetV3 @'UserPrincipalTag brigEndpoint
+        :<|> uploadAssetV3 @'UserPrincipalTag
         :<|> callsFed (exposeAnnotations downloadAssetV4)
         :<|> deleteAssetV4
 
@@ -144,15 +139,13 @@ mkAssetLocation key =
 uploadAssetV3 ::
   forall tag id.
   MakePrincipal tag id =>
-  Endpoint ->
   id ->
   AssetSource ->
   Handler (Asset, AssetLocation Relative)
-uploadAssetV3 (Endpoint h p) pid req = do
+uploadAssetV3 pid req = do
+  clientEnv <- asks $ view brigClientEnv
   let principal = mkPrincipal pid
-      baseUrl = BaseUrl Http (T.unpack h) (fromIntegral p) ""
-  clientEnv <- liftIO $ newManager defaultManagerSettings <&> \mgr -> ClientEnv mgr baseUrl Nothing defaultMakeClientRequest
-  let getUser uid = runClientM (client' uid) clientEnv
+      getUser uid = runClientM (client' uid) clientEnv
   case principal of
     V3.UserPrincipal uid -> do
       resp <- liftIO $ getUser uid
@@ -160,9 +153,7 @@ uploadAssetV3 (Endpoint h p) pid req = do
       maybe
         (throwE unverified)
         (const (pure ()) . userIdentity . accountUser)
-        ( listToMaybe $
-            users
-        )
+        (listToMaybe users)
     _ -> pure ()
   asset <- V3.upload principal (getAssetSource req)
   pure (fmap tUntagged asset, mkAssetLocation @tag (asset ^. assetKey))
