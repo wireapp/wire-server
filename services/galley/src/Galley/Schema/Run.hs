@@ -176,10 +176,6 @@ migrations =
     V85_MLSDraft17.migration,
     V86_TeamFeatureMlsMigration.migration,
     V87_TeamFeatureSupportedProtocols.migration
-    -- When adding migrations here, don't forget to update
-    -- 'schemaVersion' in Galley.Cassandra
-    -- (see also docs/developer/cassandra-interaction.md)
-    --
     -- FUTUREWORK: once #1726 has made its way to master/production,
     -- the 'message' field in connections table can be dropped.
     -- See also https://github.com/wireapp/wire-server/pull/1747/files
