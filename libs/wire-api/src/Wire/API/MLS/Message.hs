@@ -59,7 +59,6 @@ import Wire.API.MLS.Proposal
 import Wire.API.MLS.ProtocolVersion
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.Welcome
-import Wire.API.Unreachable
 import Wire.Arbitrary
 
 data WireFormatTag
@@ -377,11 +376,7 @@ verifyMessageSignature ctx msgContent authData pubkey = isJust $ do
 
 data MLSMessageSendingStatus = MLSMessageSendingStatus
   { mmssEvents :: [Event],
-    mmssTime :: UTCTimeMillis,
-    -- | An optional list of unreachable users an application message could not
-    -- be sent to. In case of commits and unreachable users use the
-    -- MLSMessageResponseUnreachableBackends data constructor.
-    mmssFailedToSendTo :: Maybe UnreachableUsers
+    mmssTime :: UTCTimeMillis
   }
   deriving (Eq, Show)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema MLSMessageSendingStatus
@@ -400,10 +395,3 @@ instance ToSchema MLSMessageSendingStatus where
             "time"
             (description ?~ "The time of sending the message.")
             schema
-        <*> mmssFailedToSendTo
-          .= maybe_
-            ( optFieldWithDocModifier
-                "failed_to_send"
-                (description ?~ "List of federated users who could not be reached and did not receive the message")
-                schema
-            )

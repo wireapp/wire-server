@@ -15,7 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module V15
+module Spar.Schema.V16
   ( migration,
   )
 where
@@ -25,19 +25,9 @@ import Imports
 import Text.RawString.QQ
 
 migration :: Migration
-migration = Migration 15 "Optionally index IdP by teamid (in addition to entityID); add idp api version." $ do
+migration = Migration 16 "Human readable name for IdP" $ do
   void $
     schema'
       [r|
-        CREATE TABLE if not exists issuer_idp_v2
-            ( issuer        text
-            , team          uuid
-            , idp           uuid
-            , PRIMARY KEY (issuer, team)
-            ) with compaction = {'class': 'LeveledCompactionStrategy'};
-        |]
-  void $
-    schema'
-      [r|
-        ALTER TABLE idp ADD api_version int;
-        |]
+        ALTER TABLE idp ADD (handle text);
+      |]

@@ -15,7 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module V10
+module Spar.Schema.V1
   ( migration,
   )
 where
@@ -25,13 +25,15 @@ import Imports
 import Text.RawString.QQ
 
 migration :: Migration
-migration = Migration 10 "Add table for mapping scim external ids to brig user ids" $ do
+migration = Migration 1 "Add verdict table" $ do
   void $
     schema'
       [r|
-        CREATE TABLE if not exists scim_external_ids
-          ( external  text
-          , user      uuid
-          , primary key (external)
-          ) with compaction = {'class': 'LeveledCompactionStrategy'};
-      |]
+        CREATE TABLE if not exists verdict
+            ( req                   text
+            , format_con            int
+            , format_mobile_success text
+            , format_mobile_error   text
+            , primary key (req)
+            ) with compaction = {'class': 'LeveledCompactionStrategy'};
+        |]
