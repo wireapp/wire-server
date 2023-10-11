@@ -270,7 +270,6 @@ mkDerivation {
     QuickCheck
     quickcheck-instances
     random
-    raw-strings-qq
     retry
     saml2-web-sso
     schema-profunctor
@@ -326,7 +325,6 @@ mkDerivation {
     wire-api
     wire-api-federation
   ];
-  doHaddock = false;
   description = "Conversations";
   license = lib.licenses.agpl3Only;
 }

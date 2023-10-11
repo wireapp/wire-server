@@ -15,10 +15,18 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Cassandra (schemaVersion) where
+module Galley.Schema.V85_MLSDraft17 (migration) where
 
-import Galley.Schema.Run qualified as Migrations
+import Cassandra.Schema
 import Imports
+import Text.RawString.QQ
 
-schemaVersion :: Int32
-schemaVersion = Migrations.lastSchemaVersion
+migration :: Migration
+migration =
+  Migration 85 "Upgrade to MLS draft 17 structures" $ do
+    schema'
+      [r| ALTER TABLE mls_group_member_client
+            ADD (leaf_node_index int,
+                 removal_pending boolean
+          );
+        |]

@@ -15,10 +15,19 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Cassandra (schemaVersion) where
+module Galley.Schema.V47_RemoveFederationIdMapping
+  ( migration,
+  )
+where
 
-import Galley.Schema.Run qualified as Migrations
+import Cassandra.Schema
 import Imports
+import Text.RawString.QQ
 
-schemaVersion :: Int32
-schemaVersion = Migrations.lastSchemaVersion
+-- | We decided avoid storing this mapping, handling the transition on the API level instead.
+migration :: Migration
+migration = Migration 47 "Remove ID mapping for federation" $ do
+  schema'
+    [r|
+        DROP TABLE id_mapping;
+    |]
