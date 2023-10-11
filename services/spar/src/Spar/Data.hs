@@ -40,6 +40,7 @@ import qualified Data.CaseInsensitive as CI
 import Data.Time
 import GHC.TypeLits (KnownSymbol)
 import Imports
+import qualified Run as Migrations
 import SAML2.Util (renderURI)
 import qualified SAML2.WebSSO as SAML
 import qualified SAML2.WebSSO.Types.Email as SAMLEmail
@@ -48,7 +49,7 @@ import Wire.API.User.Saml
 
 -- | A lower bound: @schemaVersion <= whatWeFoundOnCassandra@, not @==@.
 schemaVersion :: Int32
-schemaVersion = 17
+schemaVersion = Migrations.lastSchemaVersion
 
 ----------------------------------------------------------------------
 -- helpers

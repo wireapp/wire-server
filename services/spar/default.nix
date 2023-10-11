@@ -233,6 +233,7 @@ mkDerivation {
     wire-api
   ];
   testToolDepends = [ hspec-discover ];
+  doHaddock = false;
   description = "User Service for SSO (Single Sign-On) provisioning and authentication";
   license = lib.licenses.agpl3Only;
 }

@@ -50,30 +50,37 @@ main = do
   migrateSchema
     l
     o
-    [ V0.migration,
-      V1.migration,
-      V2.migration,
-      V3.migration,
-      V4.migration,
-      V5.migration,
-      V6.migration,
-      V7.migration,
-      V8.migration,
-      V9.migration,
-      V10.migration,
-      V11.migration,
-      V12.migration,
-      V13.migration,
-      V14.migration,
-      V15.migration,
-      V16.migration,
-      V17.migration
-      -- When adding migrations here, don't forget to update
-      -- 'schemaVersion' in Spar.Data
-
-      -- TODO: Add a migration that removes unused fields
-      -- (we don't want to risk running a migration which would
-      -- effectively break the currently deployed spar service)
-      -- see https://github.com/wireapp/wire-server/pull/476.
-    ]
+    migrations
     `finally` Log.close l
+
+lastSchemaVersion :: Int32
+lastSchemaVersion = migVersion $ last migrations
+
+migrations :: [Migration]
+migrations =
+  [ V0.migration,
+    V1.migration,
+    V2.migration,
+    V3.migration,
+    V4.migration,
+    V5.migration,
+    V6.migration,
+    V7.migration,
+    V8.migration,
+    V9.migration,
+    V10.migration,
+    V11.migration,
+    V12.migration,
+    V13.migration,
+    V14.migration,
+    V15.migration,
+    V16.migration,
+    V17.migration
+    -- When adding migrations here, don't forget to update
+    -- 'schemaVersion' in Spar.Data
+
+    -- TODO: Add a migration that removes unused fields
+    -- (we don't want to risk running a migration which would
+    -- effectively break the currently deployed spar service)
+    -- see https://github.com/wireapp/wire-server/pull/476.
+  ]

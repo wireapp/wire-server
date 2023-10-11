@@ -162,6 +162,7 @@ library
     , saml2-web-sso          >=0.19
     , servant-multipart
     , servant-server
+    , spar-schema-lib
     , text
     , text-latin1
     , time
@@ -455,7 +456,7 @@ executable spar-migrate-data
   default-language:   Haskell2010
 
 executable spar-schema
-  main-is:            spar-schema.hs
+  main-is:            ../main.hs
 
   -- cabal-fmt: expand schema/src
   other-modules:
@@ -479,7 +480,7 @@ executable spar-schema
     V8
     V9
 
-  hs-source-dirs:     schema/src schema/exe
+  hs-source-dirs:     schema/src
   default-extensions:
     NoImplicitPrelude
     AllowAmbiguousTypes
@@ -527,6 +528,89 @@ executable spar-schema
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -j
     -Wno-redundant-constraints -Werror -threaded -rtsopts
     -with-rtsopts=-N -Wredundant-constraints -Wunused-packages
+
+  build-depends:
+      base
+    , cassandra-util
+    , extended
+    , imports
+    , raw-strings-qq
+    , spar-schema-lib
+    , types-common
+
+  default-language:   Haskell2010
+
+library spar-schema-lib
+  -- cabal-fmt: expand schema/src
+  exposed-modules:
+    Run
+    V0
+    V1
+    V10
+    V11
+    V12
+    V13
+    V14
+    V15
+    V16
+    V17
+    V2
+    V3
+    V4
+    V5
+    V6
+    V7
+    V8
+    V9
+
+  hs-source-dirs:     schema/src
+  default-extensions:
+    NoImplicitPrelude
+    AllowAmbiguousTypes
+    BangPatterns
+    ConstraintKinds
+    DataKinds
+    DefaultSignatures
+    DeriveFunctor
+    DeriveGeneric
+    DeriveLift
+    DeriveTraversable
+    DerivingStrategies
+    DerivingVia
+    DuplicateRecordFields
+    EmptyCase
+    FlexibleContexts
+    FlexibleInstances
+    FunctionalDependencies
+    GADTs
+    InstanceSigs
+    KindSignatures
+    LambdaCase
+    MultiParamTypeClasses
+    MultiWayIf
+    NamedFieldPuns
+    OverloadedRecordDot
+    OverloadedStrings
+    PackageImports
+    PatternSynonyms
+    PolyKinds
+    QuasiQuotes
+    RankNTypes
+    ScopedTypeVariables
+    StandaloneDeriving
+    TupleSections
+    TypeApplications
+    TypeFamilies
+    TypeFamilyDependencies
+    TypeOperators
+    UndecidableInstances
+    ViewPatterns
+
+  ghc-options:
+    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -j
+    -Wno-redundant-constraints -Werror -Wredundant-constraints
+    -Wunused-packages
 
   build-depends:
       base
