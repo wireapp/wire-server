@@ -15,23 +15,23 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Main where
+module Gundeck.Schema.Run where
 
 import Cassandra.Schema
 import Control.Exception (finally)
+import Gundeck.Schema.V1 qualified as V1
+import Gundeck.Schema.V10 qualified as V10
+import Gundeck.Schema.V2 qualified as V2
+import Gundeck.Schema.V3 qualified as V3
+import Gundeck.Schema.V4 qualified as V4
+import Gundeck.Schema.V5 qualified as V5
+import Gundeck.Schema.V6 qualified as V6
+import Gundeck.Schema.V7 qualified as V7
+import Gundeck.Schema.V8 qualified as V8
+import Gundeck.Schema.V9 qualified as V9
 import Imports
 import System.Logger.Extended qualified as Log
 import Util.Options
-import V1 qualified
-import V10 qualified
-import V2 qualified
-import V3 qualified
-import V4 qualified
-import V5 qualified
-import V6 qualified
-import V7 qualified
-import V8 qualified
-import V9 qualified
 
 main :: IO ()
 main = do
@@ -40,18 +40,25 @@ main = do
   migrateSchema
     l
     o
-    [ V1.migration,
-      V2.migration,
-      V3.migration,
-      V4.migration,
-      V5.migration,
-      V6.migration,
-      V7.migration,
-      V8.migration,
-      V9.migration,
-      V10.migration
-    ]
+    migrations
     `finally` Log.close l
   where
     desc = "Gundeck Cassandra Schema Migrations"
     defaultPath = "/etc/wire/gundeck/conf/gundeck-schema.yaml"
+
+lastSchemaVersion :: Int32
+lastSchemaVersion = migVersion $ last migrations
+
+migrations :: [Migration]
+migrations =
+  [ V1.migration,
+    V2.migration,
+    V3.migration,
+    V4.migration,
+    V5.migration,
+    V6.migration,
+    V7.migration,
+    V8.migration,
+    V9.migration,
+    V10.migration
+  ]

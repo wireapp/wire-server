@@ -15,17 +15,15 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module V8
+module Gundeck.Schema.V2
   ( migration,
   )
 where
 
 import Cassandra.Schema
 import Imports
-import Text.RawString.QQ
 
 migration :: Migration
-migration = Migration 8 "Remove deprecated tables" $ do
-  schema' [r| drop columnfamily clients; |]
-  schema' [r| alter columnfamily user_push drop fallback; |]
-  schema' [r| drop columnfamily fallback_cancel; |]
+migration = Migration 2 "Add push_token.connection column" $ do
+  schema' "alter columnfamily push add connection blob"
+  schema' "alter columnfamily user_push add connection blob"

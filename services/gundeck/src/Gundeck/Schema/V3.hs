@@ -15,7 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module V9
+module Gundeck.Schema.V3
   ( migration,
   )
 where
@@ -25,9 +25,16 @@ import Imports
 import Text.RawString.QQ
 
 migration :: Migration
-migration = Migration 9 "Remove deprecated tables" $ do
-  -- all data in notifications is written with a TTL, therefore should be a good fit for TWCS.
-  -- TTL is 28 days (see https://github.com/wireapp/wire-server/blob/434f7a874ce5e3f7e3e57aa98afb6441d4a53169/charts/gundeck/templates/configmap.yaml#L51)
-  -- so 28 windows of 1 day each fits well with the suggestion of 20-30 windows.
-  -- https://cassandra.apache.org/doc/latest/cassandra/operating/compaction/twcs.html
-  schema' [r| ALTER TABLE notifications WITH compaction = {'class': 'TimeWindowCompactionStrategy', 'compaction_window_unit': 'DAYS', 'compaction_window_size': 1}; |]
+migration = Migration 3 "Add clients table, push.client and user_push.client" $ do
+  schema'
+    [r|
+        create columnfamily if not exists clients
+            ( user    uuid -- user id
+            , client  text -- client id
+            , enckey  blob -- native push encryption key
+            , mackey  blob -- native push mac key
+            , primary key (user, client)
+            ) with compaction = { 'class' : 'LeveledCompactionStrategy' };
+        |]
+  schema' [r| alter columnfamily user_push add client text; |]
+  schema' [r| alter columnfamily push add client text; |]
