@@ -15,25 +15,10 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module V6
-  ( migration,
-  )
-where
+module Main where
 
-import Cassandra.Schema
+import Gundeck.Schema.Run qualified as Run
 import Imports
-import Text.RawString.QQ
 
-migration :: Migration
-migration = Migration 6 "Add fallback_cancel table" $ do
-  schema'
-    [r|
-        -- Column family for keeping track of cancelled
-        -- fallback notifications.
-        create columnfamily if not exists fallback_cancel
-            ( user uuid     -- user id
-            , id   timeuuid -- notification id
-            , primary key (user, id)
-            ) with compaction = { 'class' : 'LeveledCompactionStrategy' }
-               and gc_grace_seconds = 0;
-        |]
+main :: IO ()
+main = Run.main

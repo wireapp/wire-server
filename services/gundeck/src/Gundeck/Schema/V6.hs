@@ -1,6 +1,6 @@
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2023 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -15,7 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module V10
+module Gundeck.Schema.V6
   ( migration,
   )
 where
@@ -25,15 +25,15 @@ import Imports
 import Text.RawString.QQ
 
 migration :: Migration
-migration = Migration 10 "Add notification payload references" $ do
-  schema' [r| ALTER TABLE notifications ADD payload_ref uuid; |]
-
-  schema' [r| ALTER TABLE notifications ADD payload_ref_size int; |]
-
+migration = Migration 6 "Add fallback_cancel table" $ do
   schema'
     [r|
-        CREATE COLUMNFAMILY IF NOT EXISTS notification_payload
-            ( id       uuid PRIMARY KEY -- payload id
-            , payload blob
-            ) with compaction = { 'class' : 'LeveledCompactionStrategy' };
+        -- Column family for keeping track of cancelled
+        -- fallback notifications.
+        create columnfamily if not exists fallback_cancel
+            ( user uuid     -- user id
+            , id   timeuuid -- notification id
+            , primary key (user, id)
+            ) with compaction = { 'class' : 'LeveledCompactionStrategy' }
+               and gc_grace_seconds = 0;
         |]

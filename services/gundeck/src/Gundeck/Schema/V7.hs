@@ -15,7 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module V4
+module Gundeck.Schema.V7
   ( migration,
   )
 where
@@ -26,5 +26,18 @@ import Text.RawString.QQ
 
 migration :: Migration
 migration =
-  Migration 4 "Add user_push.arn column" $
-    schema' [r| alter columnfamily user_push add arn text; |]
+  Migration 7 "Add notifications column family" $
+    schema'
+      [r|
+        create columnfamily if not exists notifications
+            ( user    uuid      -- user id
+            , id      timeuuid  -- notification id
+            , payload blob      -- notification payload
+            , clients set<text> -- intended recipients (empty=all)
+            , primary key (user, id)
+            ) with clustering order by (id asc)
+               and compaction  = { 'class'               : 'LeveledCompactionStrategy'
+                                 , 'tombstone_threshold' : 0.1 }
+               and compression = { 'sstable_compression' : 'LZ4Compressor' }
+               and gc_grace_seconds = 0;
+        |]

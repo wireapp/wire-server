@@ -15,7 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module V3
+module Gundeck.Schema.V4
   ( migration,
   )
 where
@@ -25,16 +25,6 @@ import Imports
 import Text.RawString.QQ
 
 migration :: Migration
-migration = Migration 3 "Add clients table, push.client and user_push.client" $ do
-  schema'
-    [r|
-        create columnfamily if not exists clients
-            ( user    uuid -- user id
-            , client  text -- client id
-            , enckey  blob -- native push encryption key
-            , mackey  blob -- native push mac key
-            , primary key (user, client)
-            ) with compaction = { 'class' : 'LeveledCompactionStrategy' };
-        |]
-  schema' [r| alter columnfamily user_push add client text; |]
-  schema' [r| alter columnfamily push add client text; |]
+migration =
+  Migration 4 "Add user_push.arn column" $
+    schema' [r| alter columnfamily user_push add arn text; |]
