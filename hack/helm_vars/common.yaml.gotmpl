@@ -10,11 +10,11 @@ dynBackendDomain1: dynamic-backend-1.{{ requiredEnv "NAMESPACE_1" }}.svc.cluster
 dynBackendDomain2: dynamic-backend-2.{{ requiredEnv "NAMESPACE_1" }}.svc.cluster.local
 dynBackendDomain3: dynamic-backend-3.{{ requiredEnv "NAMESPACE_1" }}.svc.cluster.local
 
-{{- if (env "UPLOAD_XML_S3_BASE_URL") != "" }}
+{{- if (eq (env "UPLOAD_XML_S3_BASE_URL") "") }}
+uploadXml: {}
+{{- else }}
 uploadXml:
   awsAccessKeyId: {{ requiredEnv "UPLOAD_XML_AWS_ACCESS_KEY_ID" }}
   awsSecretAccessKey: {{ requiredEnv "UPLOAD_XML_AWS_SECRET_ACCESS_KEY" }}
   baseUrl: {{ requiredEnv "UPLOAD_XML_S3_BASE_URL" }}
-{{- else }
-uploadXml: {}
 {{- end }}

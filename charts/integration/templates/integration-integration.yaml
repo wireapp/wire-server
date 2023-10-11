@@ -236,7 +236,7 @@ spec:
     - name: TEST_XML
       value: /result.xml
     - name: UPLOAD_XML_S3_BASE_URL
-      value: {{ .Values.config.uplaodXml.baseUrl }}
+      value: {{ .Values.config.uploadXml.baseUrl }}
     {{- if .Values.secrets.uploadXmlAwsAccessKeyId }}
     - name: UPLOAD_XML_AWS_ACCESS_KEY_ID
       value: .Values.secrets.uploadXmlAwsAccessKeyId
