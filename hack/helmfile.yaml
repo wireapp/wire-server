@@ -18,12 +18,6 @@ environments:
       - ./helm_vars/common.yaml.gotmpl
       - imagePullPolicy: Always
       - storageClass: hcloud-volumes
-  flake-finder:
-    values:
-      - ./helm_vars/common.yaml.gotmpl
-      - imagePullPolicy: Always
-      - storageClass: hcloud-volumes
-      - ./helm_vars/flake-finder.yaml.gotmpl
   kind:
     values:
       - ./helm_vars/common.yaml.gotmpl
