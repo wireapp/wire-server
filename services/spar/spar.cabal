@@ -456,31 +456,8 @@ executable spar-migrate-data
   default-language:   Haskell2010
 
 executable spar-schema
-  main-is:            ../main.hs
-
-  -- cabal-fmt: expand schema/src
-  other-modules:
-    Run
-    V0
-    V1
-    V10
-    V11
-    V12
-    V13
-    V14
-    V15
-    V16
-    V17
-    V2
-    V3
-    V4
-    V5
-    V6
-    V7
-    V8
-    V9
-
-  hs-source-dirs:     schema/src
+  main-is:            main.hs
+  hs-source-dirs:     schema/exe
   default-extensions:
     NoImplicitPrelude
     AllowAmbiguousTypes
@@ -530,13 +507,8 @@ executable spar-schema
     -with-rtsopts=-N -Wredundant-constraints -Wunused-packages
 
   build-depends:
-      base
-    , cassandra-util
-    , extended
-    , imports
-    , raw-strings-qq
+      imports
     , spar-schema-lib
-    , types-common
 
   default-language:   Haskell2010
 
