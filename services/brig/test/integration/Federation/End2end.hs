@@ -17,6 +17,7 @@
 
 module Federation.End2end where
 
+import API.MLS.Util
 import API.User.Util
 import Bilge
 import Bilge.Assert ((!!!), (<!!), (===))
@@ -26,6 +27,7 @@ import Control.Arrow ((&&&))
 import Control.Lens hiding ((#))
 import Data.Aeson qualified as Aeson
 import Data.ByteString.Conversion (toByteString')
+import Data.Default
 import Data.Domain
 import Data.Id
 import Data.Json.Util (toBase64Text)
@@ -35,8 +37,9 @@ import Data.ProtoLens qualified as Protolens
 import Data.Qualified
 import Data.Range (checked)
 import Data.Set qualified as Set
-import Federation.Util (connectUsersEnd2End, generateClientPrekeys, getConvQualified)
+import Federation.Util
 import Imports hiding (cs)
+import System.IO.Temp
 import System.Logger qualified as Log
 import Test.Tasty
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
@@ -50,6 +53,7 @@ import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing
 import Wire.API.Event.Conversation
 import Wire.API.Internal.Notification
+import Wire.API.MLS.KeyPackage
 import Wire.API.Message
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.User hiding (assetKey)
@@ -100,6 +104,7 @@ spec _brigOpts mg brig galley cargohold cannon _federator brigTwo galleyTwo carg
         test mg "send a message in a remote conversation" $ testSendMessageToRemoteConv brig brigTwo galley galleyTwo cannon,
         test mg "delete user connected to remotes and in conversation with remotes" $ testDeleteUser brig brigTwo galley galleyTwo cannon,
         test mg "download remote asset" $ testRemoteAsset brig brigTwo cargohold cargoholdTwo,
+        test mg "claim remote key packages" $ claimRemoteKeyPackages brig brigTwo,
         test mg "remote typing indicator" $
           testRemoteTypingIndicator brig brigTwo galley galleyTwo cannon cannonTwo
       ]
@@ -559,6 +564,32 @@ testRemoteAsset brig1 brig2 ch1 ch2 = do
     !!! do
       const 200 === statusCode
       const (Just "hello world") === responseBody
+
+claimRemoteKeyPackages :: Brig -> Brig -> Http ()
+claimRemoteKeyPackages brig1 brig2 = do
+  alice <- userQualifiedId <$> randomUser brig1
+
+  bob <- userQualifiedId <$> randomUser brig2
+  bobClients <- for (take 3 someLastPrekeys) $ \lpk -> do
+    let new = defNewClient PermanentClientType [] lpk
+    fmap clientId $ responseJsonError =<< addClient brig2 (qUnqualified bob) new
+
+  withSystemTempDirectory "mls" $ \tmp ->
+    for_ bobClients $ \c ->
+      uploadKeyPackages brig2 tmp def bob c 5
+
+  bundle :: KeyPackageBundle <-
+    responseJsonError
+      =<< post
+        ( brig1
+            . paths ["mls", "key-packages", "claim", toByteString' (qDomain bob), toByteString' (qUnqualified bob)]
+            . zUser (qUnqualified alice)
+        )
+        <!! const 200 === statusCode
+
+  liftIO $
+    Set.map (\e -> (e.user, e.client)) bundle.entries
+      @?= Set.fromList [(bob, c) | c <- bobClients]
 
 testRemoteTypingIndicator :: Brig -> Brig -> Galley -> Galley -> Cannon -> Cannon -> Http ()
 testRemoteTypingIndicator brig1 brig2 galley1 galley2 cannon1 cannon2 = do

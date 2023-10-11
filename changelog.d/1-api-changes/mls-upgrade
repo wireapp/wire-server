@@ -1,0 +1,7 @@
+Switch to MLS draft 20. The following endpoints are affected by the change:
+
+ - All endpoints with `message/mls` content type now expect and return draft-20 MLS structures.
+ - `POST /conversations` does not require `creator_client` anymore.
+ - `POST /mls/commit-bundles` now expects a "stream" of MLS messages, i.e. a sequence of TLS-serialised messages, one after the other, in any order. Its protobuf interface has been removed.
+ - `POST /mls/welcome` has been removed. Welcome messages can now only be sent as part of a commit bundle.
+ - `POST /mls/message` does not accept commit messages anymore. All commit messages must be sent as part of a commit bundle.

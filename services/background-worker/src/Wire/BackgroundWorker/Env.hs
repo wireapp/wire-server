@@ -3,7 +3,6 @@
 
 module Wire.BackgroundWorker.Env where
 
-import Control.Concurrent.Chan
 import Control.Monad.Base
 import Control.Monad.Catch
 import Control.Monad.Trans.Control
@@ -22,7 +21,6 @@ import System.Logger qualified as Log
 import System.Logger.Class (Logger, MonadLogger (..))
 import System.Logger.Extended qualified as Log
 import Util.Options
-import Wire.API.Routes.FederationDomainConfig
 import Wire.BackgroundWorker.Options
 
 type IsWorking = Bool
@@ -41,7 +39,6 @@ data Env = Env
     federatorInternal :: Endpoint,
     httpManager :: Manager,
     defederationTimeout :: ResponseTimeout,
-    remoteDomainsChan :: Chan FederationDomainConfigs,
     backendNotificationMetrics :: BackendNotificationMetrics,
     backendNotificationsConfig :: BackendNotificationsConfig,
     statuses :: IORef (Map Worker IsWorking)
@@ -65,7 +62,6 @@ mkEnv opts = do
   http2Manager <- initHttp2Manager
   logger <- Log.mkLogger opts.logLevel Nothing opts.logFormat
   httpManager <- newManager defaultManagerSettings
-  remoteDomainsChan <- newChan
   let federatorInternal = opts.federatorInternal
       defederationTimeout =
         maybe

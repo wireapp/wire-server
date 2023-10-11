@@ -82,6 +82,8 @@ import Test.QuickCheck qualified as QC
 import URI.ByteString ()
 import Wire.API.Conversation
 import Wire.API.Conversation.Code (ConversationCode (..), ConversationCodeInfo)
+import Wire.API.Conversation.Protocol (ProtocolUpdate (unProtocolUpdate))
+import Wire.API.Conversation.Protocol qualified as P
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing
 import Wire.API.MLS.SubConversation
@@ -134,6 +136,7 @@ data EventType
   | MLSMessageAdd
   | MLSWelcome
   | Typing
+  | ProtocolUpdate
   deriving stock (Eq, Show, Generic, Enum, Bounded, Ord)
   deriving (Arbitrary) via (GenericUniform EventType)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema EventType
@@ -157,7 +160,8 @@ instance ToSchema EventType where
           element "conversation.typing" Typing,
           element "conversation.otr-message-add" OtrMessageAdd,
           element "conversation.mls-message-add" MLSMessageAdd,
-          element "conversation.mls-welcome" MLSWelcome
+          element "conversation.mls-welcome" MLSWelcome,
+          element "conversation.protocol-update" ProtocolUpdate
         ]
 
 data EventData
@@ -177,6 +181,7 @@ data EventData
   | EdOtrMessage OtrMessage
   | EdMLSMessage ByteString
   | EdMLSWelcome ByteString
+  | EdProtocolUpdate P.ProtocolTag
   deriving stock (Eq, Show, Generic)
 
 genEventData :: EventType -> QC.Gen EventData
@@ -197,6 +202,7 @@ genEventData = \case
   MLSMessageAdd -> EdMLSMessage <$> arbitrary
   MLSWelcome -> EdMLSWelcome <$> arbitrary
   ConvDelete -> pure EdConvDelete
+  ProtocolUpdate -> EdProtocolUpdate <$> arbitrary
 
 eventDataType :: EventData -> EventType
 eventDataType (EdMembersJoin _) = MemberJoin
@@ -215,6 +221,7 @@ eventDataType (EdOtrMessage _) = OtrMessageAdd
 eventDataType (EdMLSMessage _) = MLSMessageAdd
 eventDataType (EdMLSWelcome _) = MLSWelcome
 eventDataType EdConvDelete = ConvDelete
+eventDataType (EdProtocolUpdate _) = ProtocolUpdate
 
 --------------------------------------------------------------------------------
 -- Event data helpers
@@ -397,6 +404,7 @@ taggedEventDataSchema =
       Typing -> tag _EdTyping (unnamed schema)
       ConvCodeDelete -> tag _EdConvCodeDelete null_
       ConvDelete -> tag _EdConvDelete null_
+      ProtocolUpdate -> tag _EdProtocolUpdate (unnamed (unProtocolUpdate <$> P.ProtocolUpdate .= schema))
 
 instance ToSchema Event where
   schema = object "Event" eventObjectSchema

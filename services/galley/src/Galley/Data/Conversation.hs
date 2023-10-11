@@ -86,7 +86,7 @@ convAccessData c =
     (Set.fromList (convAccess c))
     (convAccessRoles c)
 
-convCreator :: Conversation -> UserId
+convCreator :: Conversation -> Maybe UserId
 convCreator = cnvmCreator . convMetadata
 
 convName :: Conversation -> Maybe Text

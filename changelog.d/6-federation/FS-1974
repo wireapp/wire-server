@@ -1,0 +1,10 @@
+Derive group ID from qualified conversation ID and, if applicable,
+subconversation ID.
+
+Retire mapping from group IDs to conversation IDs. (group_id_conv_id)
+
+Remove federation endpoints
+- on-new-remote-conversation,
+- on-new-remote-subconversation, and
+- on-delete-mls-conversation
+which were used to synchronise the group to conversation mapping.

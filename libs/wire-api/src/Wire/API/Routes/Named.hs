@@ -33,7 +33,15 @@ import Servant.Client.Core (clientIn)
 import Servant.OpenApi
 
 -- | See http://docs.wire.com/developer/developer/servant.html#named-and-internal-route-ids-in-swagger
-newtype Named name x = Named {unnamed :: x}
+--
+-- as 'UntypedNamed' is of kind $k -> Type -> Type$, we can pass any
+-- argument to it, however, most commonly we want to pass a 'Symbol' to
+-- it. To avoid mistakes, we make it possible to rule out untyped arguments
+-- like 'Type', this is done by the 'IsStronglyTyped' TyFam that will throw
+-- a type error when passed a 'Type'
+type Named name = UntypedNamed (IsStronglyTyped name)
+
+newtype UntypedNamed name x = Named {unnamed :: x}
   deriving (Functor)
 
 -- | For 'HasSwagger' instance of 'Named'.  'KnownSymbol' isn't enough because we're using
@@ -47,7 +55,12 @@ instance {-# OVERLAPPABLE #-} KnownSymbol a => RenderableSymbol a where
 instance {-# OVERLAPPING #-} (RenderableSymbol a, RenderableSymbol b) => RenderableSymbol '(a, b) where
   renderSymbol = "(" <> (renderSymbol @a) <> ", " <> (renderSymbol @b) <> ")"
 
-instance (HasOpenApi api, RenderableSymbol name) => HasOpenApi (Named name api) where
+type IsStronglyTyped :: forall k. k -> k
+type family IsStronglyTyped typ where
+  IsStronglyTyped (typ :: Type) = TypeError ('Text "Please don't use \"Type\" as first parameter to \"Named\"")
+  IsStronglyTyped typ = typ
+
+instance (HasOpenApi api, RenderableSymbol name) => HasOpenApi (UntypedNamed name api) where
   toOpenApi _ =
     toOpenApi (Proxy @api)
       & allOperations . description %~ (Just (dscr <> "\n\n") <>)
@@ -58,27 +71,27 @@ instance (HasOpenApi api, RenderableSymbol name) => HasOpenApi (Named name api) 
           <> cs (renderSymbol @name)
           <> "]"
 
-instance HasServer api ctx => HasServer (Named name api) ctx where
-  type ServerT (Named name api) m = Named name (ServerT api m)
+instance HasServer api ctx => HasServer (UntypedNamed name api) ctx where
+  type ServerT (UntypedNamed name api) m = UntypedNamed name (ServerT api m)
 
   route _ ctx action = route (Proxy @api) ctx (fmap unnamed action)
   hoistServerWithContext _ ctx f =
     fmap (hoistServerWithContext (Proxy @api) ctx f)
 
-instance HasLink endpoint => HasLink (Named name endpoint) where
-  type MkLink (Named name endpoint) a = MkLink endpoint a
+instance HasLink endpoint => HasLink (UntypedNamed name endpoint) where
+  type MkLink (UntypedNamed name endpoint) a = MkLink endpoint a
   toLink toA _ = toLink toA (Proxy @endpoint)
 
-instance RoutesToPaths api => RoutesToPaths (Named name api) where
+instance RoutesToPaths api => RoutesToPaths (UntypedNamed name api) where
   getRoutes = getRoutes @api
 
-instance HasClient m api => HasClient m (Named n api) where
-  type Client m (Named n api) = Client m api
+instance HasClient m api => HasClient m (UntypedNamed n api) where
+  type Client m (UntypedNamed n api) = Client m api
   clientWithRoute pm _ req = clientWithRoute pm (Proxy @api) req
   hoistClientMonad pm _ f = hoistClientMonad pm (Proxy @api) f
 
 type family FindName n (api :: Type) :: (n, Type) where
-  FindName n (Named name api) = '(name, api)
+  FindName n (UntypedNamed name api) = '(name, api)
   FindName n (x :> api) = AddPrefix x (FindName n api)
   FindName n api = '(TypeError ('Text "Named combinator not found"), api)
 
@@ -116,7 +129,7 @@ type family FMap (f :: a -> b) (m :: Maybe a) :: Maybe b where
   FMap f ('Just a) = 'Just (f a)
 
 type family LookupEndpoint api name :: Maybe Type where
-  LookupEndpoint (Named name endpoint) name = 'Just endpoint
+  LookupEndpoint (UntypedNamed name endpoint) name = 'Just endpoint
   LookupEndpoint (api1 :<|> api2) name =
     MappendMaybe
       (LookupEndpoint api1 name)
@@ -142,5 +155,5 @@ namedClient = clientIn (Proxy @endpoint) (Proxy @m)
 type family x ::> api
 
 type instance
-  x ::> (Named name api) =
+  x ::> (UntypedNamed name api) =
     Named name (x :> api)

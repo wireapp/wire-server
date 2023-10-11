@@ -24,6 +24,7 @@ import Imports
 import Wire.API.Conversation hiding (Conversation)
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
+import Wire.API.User
 
 -- | Internal conversation type, corresponding directly to database schema.
 -- Should never be sent to users (and therefore doesn't have 'FromJSON' or
@@ -38,14 +39,23 @@ data Conversation = Conversation
   }
   deriving (Show)
 
+convProtocolTag :: Conversation -> ProtocolTag
+convProtocolTag = protocolTag . convProtocol
+
 data NewConversation = NewConversation
   { ncMetadata :: ConversationMetadata,
     ncUsers :: UserList (UserId, RoleName),
-    ncProtocol :: ProtocolTag
+    ncProtocol :: BaseProtocolTag
   }
 
-mlsMetadata :: Conversation -> Maybe ConversationMLSData
+data MLSMigrationState
+  = MLSMigrationMixed
+  | MLSMigrationMLS
+  deriving (Show, Eq, Ord)
+
+mlsMetadata :: Conversation -> Maybe (ConversationMLSData, MLSMigrationState)
 mlsMetadata conv =
   case convProtocol conv of
     ProtocolProteus -> Nothing
-    ProtocolMLS meta -> pure meta
+    ProtocolMLS meta -> pure (meta, MLSMigrationMLS)
+    ProtocolMixed meta -> pure (meta, MLSMigrationMixed)

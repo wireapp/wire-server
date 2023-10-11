@@ -27,6 +27,7 @@ import Servant hiding (JSON, WithStatus)
 import Servant qualified hiding (WithStatus)
 import Servant.OpenApi
 import Wire.API.ApplyMods
+import Wire.API.Conversation
 import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
@@ -45,6 +46,7 @@ import Wire.API.Team
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
 import Wire.API.Team.SearchVisibility
+import Wire.API.User.Client
 
 type LegalHoldFeatureStatusChangeErrors =
   '( 'ActionDenied 'RemoveConversationMember,
@@ -152,6 +154,11 @@ type IFeatureAPI =
     :<|> IFeatureStatusPut '[] '() MlsE2EIdConfig
     :<|> IFeatureStatusPatch '[] '() MlsE2EIdConfig
     :<|> IFeatureStatusLockStatusPut MlsE2EIdConfig
+    -- MlsMigrationConfig
+    :<|> IFeatureStatusGet MlsMigrationConfig
+    :<|> IFeatureStatusPut '[] '() MlsMigrationConfig
+    :<|> IFeatureStatusPatch '[] '() MlsMigrationConfig
+    :<|> IFeatureStatusLockStatusPut MlsMigrationConfig
     -- all feature configs
     :<|> Named
            "feature-configs-internal"
@@ -209,6 +216,18 @@ type InternalAPIBase =
                :> "connect"
                :> ReqBody '[Servant.JSON] Connect
                :> ConversationVerb
+           )
+    -- This endpoint is meant for testing membership of a conversation
+    :<|> Named
+           "get-conversation-clients"
+           ( Summary "Get mls conversation client list"
+               :> CanThrow 'ConvNotFound
+               :> "group"
+               :> Capture "gid" GroupId
+               :> MultiVerb1
+                    'GET
+                    '[Servant.JSON]
+                    (Respond 200 "Clients" ClientList)
            )
     :<|> Named
            "guard-legalhold-policy-conflicts"

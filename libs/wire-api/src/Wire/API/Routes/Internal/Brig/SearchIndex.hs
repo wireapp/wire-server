@@ -20,7 +20,7 @@ module Wire.API.Routes.Internal.Brig.SearchIndex where
 import Servant (JSON)
 import Servant hiding (Handler, JSON, Tagged, addHeader, respond)
 import Servant.OpenApi.Internal.Orphans ()
-import Wire.API.Routes.Named (Named (..))
+import Wire.API.Routes.Named (Named)
 
 type ISearchIndexAPI =
   Named

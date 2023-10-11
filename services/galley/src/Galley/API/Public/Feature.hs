@@ -63,6 +63,8 @@ featureAPI =
     <@> mkNamedAPI @'("put", OutlookCalIntegrationConfig) (setFeatureStatus . DoAuth)
     <@> mkNamedAPI @'("get", MlsE2EIdConfig) (getFeatureStatus . DoAuth)
     <@> mkNamedAPI @'("put", MlsE2EIdConfig) (setFeatureStatus . DoAuth)
+    <@> mkNamedAPI @'("get", MlsMigrationConfig) (getFeatureStatus . DoAuth)
+    <@> mkNamedAPI @'("put", MlsMigrationConfig) (setFeatureStatus . DoAuth)
     <@> mkNamedAPI @"get-all-feature-configs-for-user" getAllFeatureConfigsForUser
     <@> mkNamedAPI @"get-all-feature-configs-for-team" getAllFeatureConfigsForTeam
     <@> mkNamedAPI @'("get-config", LegalholdConfig) getFeatureStatusForUser

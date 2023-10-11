@@ -146,6 +146,7 @@ module Wire.API.User
 
     -- * Protocol preferences
     BaseProtocolTag (..),
+    baseProtocolToProtocol,
     SupportedProtocolUpdate (..),
     defSupportedProtocols,
     protocolSetBits,
@@ -200,6 +201,7 @@ import Servant (FromHttpApiData (..), ToHttpApiData (..), type (.++))
 import Test.QuickCheck qualified as QC
 import URI.ByteString (serializeURIRef)
 import Web.Cookie qualified as Web
+import Wire.API.Conversation.Protocol
 import Wire.API.Error
 import Wire.API.Error.Brig
 import Wire.API.Error.Brig qualified as E
@@ -1896,6 +1898,7 @@ instance Schema.ToSchema UserAccount where
 -- NewUserScimInvitation
 
 data NewUserScimInvitation = NewUserScimInvitation
+  -- FIXME: the TID should be captured in the route as usual
   { newUserScimInvTeamId :: TeamId,
     newUserScimInvLocale :: Maybe Locale,
     newUserScimInvName :: Name,
@@ -1996,6 +1999,10 @@ data BaseProtocolTag = BaseProtocolProteusTag | BaseProtocolMLSTag
 baseProtocolMask :: BaseProtocolTag -> Word32
 baseProtocolMask BaseProtocolProteusTag = 1
 baseProtocolMask BaseProtocolMLSTag = 2
+
+baseProtocolToProtocol :: BaseProtocolTag -> ProtocolTag
+baseProtocolToProtocol BaseProtocolProteusTag = ProtocolProteusTag
+baseProtocolToProtocol BaseProtocolMLSTag = ProtocolMLSTag
 
 instance ToSchema BaseProtocolTag where
   schema =

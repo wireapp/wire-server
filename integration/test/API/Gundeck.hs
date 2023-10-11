@@ -5,54 +5,58 @@ import Testlib.Prelude
 
 data GetNotifications = GetNotifications
   { since :: Maybe String,
-    size :: Maybe Int
+    size :: Maybe Int,
+    client :: Maybe String
   }
 
 instance Default GetNotifications where
-  def = GetNotifications {since = Nothing, size = Nothing}
+  def = GetNotifications {since = Nothing, size = Nothing, client = Nothing}
 
 getNotifications ::
-  (HasCallStack, MakesValue user, MakesValue client) =>
+  (HasCallStack, MakesValue user) =>
   user ->
-  client ->
   GetNotifications ->
   App Response
-getNotifications user client r = do
-  c <- client & asString
+getNotifications user r = do
   req <- baseRequest user Gundeck Versioned "/notifications"
   let req' =
         req
           & addQueryParams
             ( [("since", since) | since <- toList r.since]
-                <> [("client", c)]
+                <> [("client", c) | c <- toList r.client]
                 <> [("size", show size) | size <- toList r.size]
             )
   submit "GET" req'
 
+data GetNotification = GetNotification
+  { client :: Maybe String
+  }
+
+instance Default GetNotification where
+  def = GetNotification Nothing
+
 getNotification ::
-  (HasCallStack, MakesValue user, MakesValue client, MakesValue nid) =>
+  (HasCallStack, MakesValue user, MakesValue nid) =>
   user ->
-  client ->
+  GetNotification ->
   nid ->
   App Response
-getNotification user client nid = do
-  c <- client & asString
+getNotification user opts nid = do
   n <- nid & asString
   req <-
     baseRequest user Gundeck Versioned $
       joinHttpPath ["notifications", n]
-  submit "GET" $ req & addQueryParams [("client", c)]
+  submit "GET" $ req & addQueryParams [("client", c) | c <- toList opts.client]
 
 getLastNotification ::
-  (HasCallStack, MakesValue user, MakesValue client) =>
+  (HasCallStack, MakesValue user) =>
   user ->
-  client ->
+  GetNotification ->
   App Response
-getLastNotification user client = do
-  c <- client & asString
+getLastNotification user opts = do
   req <-
     baseRequest user Gundeck Versioned "/notifications/last"
-  submit "GET" $ req & addQueryParams [("client", c)]
+  submit "GET" $ req & addQueryParams [("client", c) | c <- toList opts.client]
 
 data PostPushToken = PostPushToken
   { transport :: String,

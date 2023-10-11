@@ -118,7 +118,6 @@ startPusher consumersRef chan = do
         consumers <- liftIO $ readIORef consumersRef
         traverse_ (liftIO . Q.cancelConsumer chan . fst) $ Map.elems consumers
         throwM e
-
   timeBeforeNextRefresh <- asks (.backendNotificationsConfig.remotesRefreshInterval)
   -- If this thread is cancelled, catch the exception, kill the consumers, and carry on.
   -- FUTUREWORK?:
