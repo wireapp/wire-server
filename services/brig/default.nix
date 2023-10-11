@@ -410,7 +410,6 @@ mkDerivation {
     uuid
     wire-api
   ];
-  doHaddock = false;
   description = "User Service";
   license = lib.licenses.agpl3Only;
 }

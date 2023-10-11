@@ -99,6 +99,7 @@ import Brig.Provider.Template
 import Brig.Queue.Stomp qualified as Stomp
 import Brig.Queue.Types (Queue (..))
 import Brig.SMTP qualified as SMTP
+import Brig.Schema.Run qualified as Migrations
 import Brig.Team.Template
 import Brig.Template (Localised, TemplateBranding, forLocale, genTemplateBranding)
 import Brig.User.Search.Index (IndexEnv (..), MonadIndexIO (..), runIndexIO)
@@ -146,7 +147,6 @@ import Polysemy
 import Polysemy.Final
 import Ropes.Nexmo qualified as Nexmo
 import Ropes.Twilio qualified as Twilio
-import Run qualified as Migrations
 import Ssl.Util
 import System.FSNotify qualified as FS
 import System.FilePath qualified as Path
