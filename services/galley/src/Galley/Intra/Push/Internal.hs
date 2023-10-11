@@ -60,7 +60,7 @@ data RecipientBy user = Recipient
   { _recipientUserId :: user,
     _recipientClients :: RecipientClients
   }
-  deriving stock (Functor, Foldable, Traversable, Show)
+  deriving stock (Functor, Foldable, Traversable, Show, Ord, Eq)
 
 makeLenses ''RecipientBy
 

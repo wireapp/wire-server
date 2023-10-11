@@ -10,6 +10,8 @@ import Data.Aeson.Encode.Pretty qualified as Aeson
 import Data.Aeson.Key qualified as KM
 import Data.Aeson.KeyMap qualified as KM
 import Data.Aeson.Types qualified as Aeson
+import Data.ByteString (ByteString)
+import Data.ByteString.Base64 qualified as Base64
 import Data.ByteString.Lazy.Char8 qualified as LC8
 import Data.Foldable
 import Data.Function
@@ -18,6 +20,7 @@ import Data.List.Split (splitOn)
 import Data.Scientific qualified as Sci
 import Data.String
 import Data.Text qualified as T
+import Data.Text.Encoding qualified as T
 import Data.Vector ((!?))
 import GHC.Stack
 import Testlib.Types
@@ -81,6 +84,14 @@ asStringM x =
     (String s) -> pure (Just (T.unpack s))
     _ -> pure Nothing
 
+asByteString :: (HasCallStack, MakesValue a) => a -> App ByteString
+asByteString x = do
+  s <- asString x
+  let bs = T.encodeUtf8 (T.pack s)
+  case Base64.decode bs of
+    Left _ -> assertFailure "Could not base64 decode"
+    Right a -> pure a
+
 asObject :: HasCallStack => MakesValue a => a -> App Object
 asObject x =
   make x >>= \case
@@ -88,7 +99,10 @@ asObject x =
     v -> assertFailureWithJSON x ("Object" `typeWasExpectedButGot` v)
 
 asInt :: HasCallStack => MakesValue a => a -> App Int
-asInt x =
+asInt = asIntegral
+
+asIntegral :: (Integral i, HasCallStack) => MakesValue a => a -> App i
+asIntegral x =
   make x >>= \case
     (Number n) ->
       case Sci.floatingOrInteger n of

@@ -14,6 +14,7 @@
 , base
 , base64-bytestring
 , bilge
+, binary
 , brig-types
 , bytestring
 , bytestring-conversion
@@ -30,7 +31,6 @@
 , currency-codes
 , data-default
 , data-timeout
-, directory
 , either
 , enclosed-exceptions
 , errors
@@ -42,9 +42,9 @@
 , galley-types
 , gitignoreSource
 , gundeck-types
-, hex
 , HsOpenSSL
 , hspec
+, http-api-data
 , http-client
 , http-client-openssl
 , http-client-tls
@@ -222,6 +222,7 @@ mkDerivation {
     base
     base64-bytestring
     bilge
+    binary
     brig-types
     bytestring
     bytestring-conversion
@@ -233,11 +234,9 @@ mkDerivation {
     conduit
     containers
     cookie
-    cryptonite
     currency-codes
     data-default
     data-timeout
-    directory
     errors
     exceptions
     extended
@@ -245,9 +244,9 @@ mkDerivation {
     federator
     filepath
     galley-types
-    hex
     HsOpenSSL
     hspec
+    http-api-data
     http-client
     http-client-openssl
     http-client-tls

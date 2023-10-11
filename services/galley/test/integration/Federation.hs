@@ -47,7 +47,7 @@ isConvMemberLTests = do
             convLocalMembers
             convRemoteMembers
             False
-            (defConversationMetadata userId)
+            (defConversationMetadata (Just userId))
             ProtocolProteus
       lUserId :: Local UserId
       lUserId = toLocalUnsafe localDomain $ Id $ fromJust $ UUID.fromString "217352c0-8b2b-4653-ac76-a88d19490dad" -- A random V4 UUID

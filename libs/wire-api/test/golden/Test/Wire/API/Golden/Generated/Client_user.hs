@@ -25,7 +25,7 @@ import Data.Map qualified as Map
 import Data.Misc
 import Data.Set as Set
 import Imports
-import Wire.API.MLS.Credential
+import Wire.API.MLS.CipherSuite
 import Wire.API.User.Auth (CookieLabel (CookieLabel, cookieLabelText))
 import Wire.API.User.Client
 

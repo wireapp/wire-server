@@ -34,6 +34,7 @@ import System.FilePath
 import System.Process
 import Test.Tasty.HUnit
 import Util
+import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Serialisation
@@ -109,7 +110,7 @@ uploadKeyPackages brig tmp KeyingInfo {..} u c n = do
             . json defUpdateClient {updateClientMLSPublicKeys = Map.fromList [(Ed25519, pk)]}
         )
       !!! const 200 === statusCode
-  let upload = object ["key_packages" .= toJSON (map (Base64ByteString . rmRaw) kps)]
+  let upload = object ["key_packages" .= toJSON (map (Base64ByteString . raw) kps)]
   post
     ( brig
         . paths ["mls", "key-packages", "self", toByteString' c]

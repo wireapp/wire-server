@@ -101,13 +101,14 @@ import Test.Tasty.Pending (flakyTestCase)
 import Text.Printf (printf)
 import UnliftIO.Async qualified as Async
 import Util.Options
+import Web.Internal.HttpApiData
 import Wire.API.Connection
 import Wire.API.Conversation
-import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role (roleNameWireAdmin)
 import Wire.API.Federation.API
 import Wire.API.Federation.Domain
 import Wire.API.Internal.Notification
+import Wire.API.MLS.SubConversation
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.Team.Member hiding (userId)
 import Wire.API.User hiding (AccountStatus (..))
@@ -255,7 +256,7 @@ localAndRemoteUserWithConvId brig shouldBeLocal = do
   quid <- userQualifiedId <$> randomUser brig
   let go = do
         other <- Qualified <$> randomId <*> pure (Domain "far-away.example.com")
-        let convId = one2OneConvId quid other
+        let convId = one2OneConvId BaseProtocolProteusTag quid other
             isLocal = qDomain quid == qDomain convId
         if shouldBeLocal == isLocal
           then pure (qUnqualified quid, other, convId)
@@ -734,7 +735,7 @@ createMLSConversation galley zusr c = do
           Nothing
           Nothing
           roleNameWireAdmin
-          ProtocolMLSTag
+          BaseProtocolMLSTag
   post $
     galley
       . path "/conversations"
@@ -742,6 +743,25 @@ createMLSConversation galley zusr c = do
       . zConn "conn"
       . zClient c
       . json conv
+
+createMLSSubConversation ::
+  (MonadIO m, MonadHttp m) =>
+  Galley ->
+  UserId ->
+  Qualified ConvId ->
+  SubConvId ->
+  m ResponseLBS
+createMLSSubConversation galley zusr qcnv sconv =
+  get $
+    galley
+      . paths
+        [ "conversations",
+          toByteString' (qDomain qcnv),
+          toByteString' (qUnqualified qcnv),
+          "subconversations",
+          toHeader sconv
+        ]
+      . zUser zusr
 
 createConversation :: MonadHttp m => Galley -> UserId -> [Qualified UserId] -> m ResponseLBS
 createConversation galley zusr usersToAdd = do
@@ -756,7 +776,7 @@ createConversation galley zusr usersToAdd = do
           Nothing
           Nothing
           roleNameWireAdmin
-          ProtocolProteusTag
+          BaseProtocolProteusTag
   post $
     galley
       . path "/conversations"

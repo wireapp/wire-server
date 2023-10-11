@@ -1,0 +1,1 @@
+Removing or kicking a user from a conversation also removes the user's clients from any subconversation.

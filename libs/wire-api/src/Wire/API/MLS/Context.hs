@@ -19,15 +19,6 @@ module Wire.API.MLS.Context where
 
 import Imports
 
--- Warning: the "context" string here is different from the one mandated by
--- the spec, but it is the one that happens to be used by openmls. Until
--- openmls is patched and we switch to a fixed version, we will have to use
--- the "wrong" string here as well.
---
--- This is used when invoking 'csHash'.
-context :: ByteString
-context = "MLS 1.0 ref"
-
 proposalContext, keyPackageContext :: ByteString
-proposalContext = context
-keyPackageContext = context
+proposalContext = "MLS 1.0 Proposal Reference"
+keyPackageContext = "MLS 1.0 KeyPackage Reference"

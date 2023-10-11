@@ -41,6 +41,7 @@
 , network
 , network-uri
 , optparse-applicative
+, pem
 , process
 , proto-lens
 , random
@@ -110,6 +111,7 @@ mkDerivation {
     network
     network-uri
     optparse-applicative
+    pem
     process
     proto-lens
     random

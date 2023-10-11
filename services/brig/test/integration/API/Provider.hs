@@ -84,7 +84,6 @@ import Wire.API.Asset hiding (Asset)
 import Wire.API.Connection
 import Wire.API.Conversation
 import Wire.API.Conversation.Bot
-import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Event.Conversation
 import Wire.API.Internal.Notification
@@ -97,11 +96,12 @@ import Wire.API.Team.Feature (featureNameBS)
 import Wire.API.Team.Feature qualified as Public
 import Wire.API.Team.Permission
 import Wire.API.User as User hiding (EmailUpdate, PasswordChange, mkName)
+import Wire.API.User.Auth (CookieType (..))
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
 
-tests :: Domain -> Config -> Manager -> DB.ClientState -> Brig -> Cannon -> Galley -> IO TestTree
-tests dom conf p db b c g = do
+tests :: Domain -> Config -> Manager -> DB.ClientState -> Brig -> Cannon -> Galley -> Nginz -> IO TestTree
+tests dom conf p db b c g n = do
   pure $
     testGroup
       "provider"
@@ -139,7 +139,8 @@ tests dom conf p db b c g = do
             test p "de-whitelisted bots are removed" $
               testWhitelistKickout dom conf db b g c,
             test p "de-whitelisting works with deleted conversations" $
-              testDeWhitelistDeletedConv conf db b g c
+              testDeWhitelistDeletedConv conf db b g c,
+            test p "whitelist via nginz" $ testWhitelistNginz conf db b n
           ],
         testGroup
           "bot"
@@ -358,6 +359,12 @@ testAddGetService config db brig = do
     assertEqual "assets" (serviceAssets svc) (serviceProfileAssets svp)
     assertEqual "tags" (serviceTags svc) (serviceProfileTags svp)
     assertBool "enabled" (not (serviceProfileEnabled svp))
+  services :: [Service] <- responseJsonError =<< getServices brig pid <!! const 200 === statusCode
+  liftIO $ do
+    assertBool "list of all services should not be empty" (not (null services))
+  providerServices :: [ServiceProfile] <- responseJsonError =<< getProviderServices brig uid pid <!! const 200 === statusCode
+  liftIO $ do
+    assertBool "list of provider services should not be empty" (not (null providerServices))
 
 -- TODO: Check that disabled services can not be found via tag search?
 --       Need to generate a unique service name for that.
@@ -1259,6 +1266,22 @@ getService brig pid sid =
       . header "Z-Type" "provider"
       . header "Z-Provider" (toByteString' pid)
 
+getServices :: Brig -> ProviderId -> Http ResponseLBS
+getServices brig pid =
+  get $
+    brig
+      . path "/provider/services"
+      . header "Z-Type" "provider"
+      . header "Z-Provider" (toByteString' pid)
+
+getProviderServices :: Brig -> UserId -> ProviderId -> Http ResponseLBS
+getProviderServices brig uid pid =
+  get $
+    brig
+      . paths ["providers", toByteString' pid, "services"]
+      . header "Z-Type" "access"
+      . header "Z-User" (toByteString' uid)
+
 getServiceProfile ::
   Brig ->
   UserId ->
@@ -1469,7 +1492,7 @@ createConvWithAccessRoles ars g u us =
       . contentJson
       . body (RequestBodyLBS (encode conv))
   where
-    conv = NewConv us [] Nothing Set.empty ars Nothing Nothing Nothing roleNameWireAdmin ProtocolProteusTag
+    conv = NewConv us [] Nothing Set.empty ars Nothing Nothing Nothing roleNameWireAdmin BaseProtocolProteusTag
 
 postMessage ::
   Galley ->
@@ -1733,6 +1756,36 @@ disableService brig pid sid = do
           }
   updateServiceConn brig pid sid upd
     !!! const 200 === statusCode
+
+whitelistServiceNginz ::
+  HasCallStack =>
+  Nginz ->
+  -- | Team owner
+  User ->
+  -- | Team
+  TeamId ->
+  ProviderId ->
+  ServiceId ->
+  Http ()
+whitelistServiceNginz nginz user tid pid sid =
+  updateServiceWhitelistNginz nginz user tid (UpdateServiceWhitelist pid sid True) !!! const 200 === statusCode
+
+updateServiceWhitelistNginz ::
+  Nginz ->
+  User ->
+  TeamId ->
+  UpdateServiceWhitelist ->
+  Http ResponseLBS
+updateServiceWhitelistNginz nginz user tid upd = do
+  let Just email = userEmail user
+  rs <- login nginz (defEmailLogin email) PersistentCookie <!! const 200 === statusCode
+  let t = decodeToken rs
+  post $
+    nginz
+      . paths ["teams", toByteString' tid, "services", "whitelist"]
+      . header "Authorization" ("Bearer " <> toByteString' t)
+      . contentJson
+      . body (RequestBodyLBS (encode upd))
 
 whitelistService ::
   HasCallStack =>
@@ -2290,6 +2343,14 @@ prepareBotUsersTeam brig galley sref = do
   -- Create conversation
   cid <- Team.createTeamConv galley tid uid1 [uid2] Nothing
   pure (u1, u2, h, tid, cid, pid, sid)
+
+testWhitelistNginz :: Config -> DB.ClientState -> Brig -> Nginz -> Http ()
+testWhitelistNginz config db brig nginz = withTestService config db brig defServiceApp $ \sref _ -> do
+  let pid = sref ^. serviceRefProvider
+  let sid = sref ^. serviceRefId
+  (admin, tid) <- Team.createUserWithTeam brig
+  adminUser <- selfUser <$> getSelfProfile brig admin
+  whitelistServiceNginz nginz adminUser tid pid sid
 
 addBotConv ::
   HasCallStack =>

@@ -82,7 +82,7 @@ handleConversationRoleAdmin = do
   let role = roleNameWireAdmin
   cid <- WS.bracketR3 c alice bob chuck $ \(wsA, wsB, wsC) -> do
     rsp <- postConvWithRole alice [bob, chuck] (Just "gossip") [] Nothing Nothing role
-    void $ assertConvWithRole rsp RegularConv alice qalice [qbob, qchuck] (Just "gossip") Nothing role
+    void $ assertConvWithRole rsp RegularConv (Just alice) qalice [qbob, qchuck] (Just "gossip") Nothing role
     let cid = decodeConvId rsp
         qcid = Qualified cid localDomain
     -- Make sure everyone gets the correct event
@@ -123,7 +123,7 @@ handleConversationRoleMember = do
   let role = roleNameWireMember
   cid <- WS.bracketR3 c alice bob chuck $ \(wsA, wsB, wsC) -> do
     rsp <- postConvWithRole alice [bob, chuck] (Just "gossip") [] Nothing Nothing role
-    void $ assertConvWithRole rsp RegularConv alice qalice [qbob, qchuck] (Just "gossip") Nothing role
+    void $ assertConvWithRole rsp RegularConv (Just alice) qalice [qbob, qchuck] (Just "gossip") Nothing role
     let cid = decodeConvId rsp
         qcid = Qualified cid localDomain
     -- Make sure everyone gets the correct event

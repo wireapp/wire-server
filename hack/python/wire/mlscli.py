@@ -40,10 +40,12 @@ def mlscli(state, client_identity, args, stdin=None):
         else:
             args_substd.append(arg)
 
+    basedir = os.path.join(cdir, cid2str(state.client_identity) )
+    os.makedirs(basedir, exist_ok=True)
     all_args = [
         "mls-test-cli",
         "--store",
-        os.path.join(cdir, cid2str(state.client_identity), "store"),
+        os.path.join(basedir, "store"),
     ] + args_substd
 
     # TODO: maybe add cwd=cdir, not sure if necessary
@@ -154,6 +156,9 @@ class ClientState:
         os.system(f'cp -r /tmp/client_state_backup {client_dir}')
         return ClientState.load(client_dir)
 
+    def __repr__(self):
+        values = ', '.join(f'{k}={str(getattr(self, k))}' for k in self.saveable_attrs.keys())
+        return f'{self.__class__.__name__}({values})'
 
 def key_package_file(state, ref):
     return os.path.join(state.client_dir, cid2str(state.client_identity), ref.hex())
@@ -197,7 +202,7 @@ def add_member(state, kpfiles):
         "<group-in>",
         "--welcome-out",
         welcome_file,
-        "--group-state-out",
+        "--group-info-out",
         pgs_file,
         "--group-out",
         "<group-out>",

@@ -4,8 +4,8 @@ module Galley.Intra.BackendNotificationQueue (interpretBackendNotificationQueueA
 
 import Control.Lens (view)
 import Control.Monad.Catch
+import Control.Monad.Trans.Except
 import Control.Retry
-import Data.Bifunctor
 import Data.Domain
 import Data.Qualified
 import Galley.Effects.BackendNotificationQueueAccess (BackendNotificationQueueAccess (..))
@@ -29,22 +29,21 @@ interpretBackendNotificationQueueAccess ::
   Sem r a
 interpretBackendNotificationQueueAccess = interpret $ \case
   EnqueueNotification remote deliveryMode action -> do
-    embedApp $ enqueueNotification (tDomain remote) deliveryMode action
+    embedApp . runExceptT $ enqueueNotification (tDomain remote) deliveryMode action
   EnqueueNotificationsConcurrently m xs rpc -> do
-    embedApp $ enqueueNotificationsConcurrently m xs rpc
+    embedApp . runExceptT $ enqueueNotificationsConcurrently m xs rpc
 
-enqueueNotification :: Domain -> Q.DeliveryMode -> FedQueueClient c a -> App (Either FederationError a)
-enqueueNotification remoteDomain deliveryMode action = do
-  mChanVar <- view rabbitmqChannel
+getChannel :: ExceptT FederationError App (MVar Q.Channel)
+getChannel = view rabbitmqChannel >>= maybe (throwE FederationNotConfigured) pure
+
+enqueueSingleNotification :: Domain -> Q.DeliveryMode -> MVar Q.Channel -> FedQueueClient c a -> App a
+enqueueSingleNotification remoteDomain deliveryMode chanVar action = do
   ownDomain <- view (options . settings . federationDomain)
-  case mChanVar of
-    Nothing -> pure (Left FederationNotConfigured)
-    Just chanVar -> do
-      let policy = limitRetries 3 <> constantDelay 1_000_000
-          handlers =
-            skipAsyncExceptions
-              <> [logRetries (const $ pure True) logError]
-      Right <$> recovering policy handlers (const $ go ownDomain chanVar)
+  let policy = limitRetries 3 <> constantDelay 1_000_000
+      handlers =
+        skipAsyncExceptions
+          <> [logRetries (const $ pure True) logError]
+  recovering policy handlers (const $ go ownDomain)
   where
     logError willRetry (SomeException e) status = do
       Log.err $
@@ -52,25 +51,29 @@ enqueueNotification remoteDomain deliveryMode action = do
           . Log.field "error" (displayException e)
           . Log.field "willRetry" willRetry
           . Log.field "retryCount" status.rsIterNumber
-    go ownDomain chanVar = do
+    go ownDomain = do
       mChan <- timeout 1_000_000 (readMVar chanVar)
       case mChan of
         Nothing -> throwM NoRabbitMqChannel
         Just chan -> do
           liftIO $ enqueue chan ownDomain remoteDomain deliveryMode action
 
+enqueueNotification :: Domain -> Q.DeliveryMode -> FedQueueClient c a -> ExceptT FederationError App a
+enqueueNotification remoteDomain deliveryMode action = do
+  chanVar <- getChannel
+  lift $ enqueueSingleNotification remoteDomain deliveryMode chanVar action
+
 enqueueNotificationsConcurrently ::
   (Foldable f, Functor f) =>
   Q.DeliveryMode ->
   f (Remote x) ->
   (Remote [x] -> FedQueueClient c a) ->
-  App [(Either (Remote ([x], FederationError)) (Remote a))]
-enqueueNotificationsConcurrently m xs f =
-  pooledForConcurrentlyN 8 (bucketRemote xs) $ \r ->
-    bimap
-      (qualifyAs r . (tUnqualified r,))
-      (qualifyAs r)
-      <$> enqueueNotification (tDomain r) m (f r)
+  ExceptT FederationError App [Remote a]
+enqueueNotificationsConcurrently m xs f = do
+  chanVar <- getChannel
+  lift $ pooledForConcurrentlyN 8 (bucketRemote xs) $ \r ->
+    qualifyAs r
+      <$> enqueueSingleNotification (tDomain r) m chanVar (f r)
 
 data NoRabbitMqChannel = NoRabbitMqChannel
   deriving (Show)

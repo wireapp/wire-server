@@ -27,9 +27,8 @@ import Wire.API.Conversation.Bot
 import Wire.API.Error (CanThrow, ErrorResponse)
 import Wire.API.Error.Brig (BrigError (..))
 import Wire.API.Provider.Bot (BotUserView)
-import Wire.API.Routes.API (ServiceAPI (..))
 import Wire.API.Routes.MultiVerb
-import Wire.API.Routes.Named (Named (..))
+import Wire.API.Routes.Named (Named)
 import Wire.API.Routes.Public
 import Wire.API.User
 import Wire.API.User.Client
@@ -161,8 +160,3 @@ type BotAPI =
                :> "clients"
                :> Get '[JSON] [PubClient]
            )
-
-data BotAPITag
-
-instance ServiceAPI BotAPITag v where
-  type ServiceAPIRoutes BotAPITag = BotAPI
