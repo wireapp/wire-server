@@ -15,16 +15,18 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.API.Federation.API.Galley where
+module Wire.API.Federation.API.Galley
+  ( module Wire.API.Federation.API.Galley,
+    module Notifications,
+  )
+where
 
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Domain
 import Data.Id
 import Data.Json.Util
-import Data.List.NonEmpty (NonEmpty)
 import Data.Misc (Milliseconds)
 import Data.Qualified
-import Data.Range
 import Data.Time.Clock (UTCTime)
 import Imports
 import Network.Wai.Utilities.JSONResponse
@@ -36,12 +38,13 @@ import Wire.API.Conversation.Role (RoleName)
 import Wire.API.Conversation.Typing
 import Wire.API.Error.Galley
 import Wire.API.Federation.API.Common
+import Wire.API.Federation.API.Galley.Notifications as Notifications
 import Wire.API.Federation.Endpoint
 import Wire.API.MLS.SubConversation
 import Wire.API.MakesFederatedCall
 import Wire.API.Message
 import Wire.API.Routes.Public.Galley.Messaging
-import Wire.API.Util.Aeson (CustomEncoded (..), CustomEncodedLensable (..))
+import Wire.API.Util.Aeson (CustomEncoded (..))
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
 -- FUTUREWORK: data types, json instances, more endpoints. See
@@ -132,27 +135,9 @@ type GalleyApi =
            "get-one2one-conversation"
            GetOne2OneConversationRequest
            GetOne2OneConversationResponse
-    :<|> FedEndpointWithMods
-           '[ MakesFederatedCall 'Galley "on-mls-message-sent"
-            ]
-           "on-client-removed"
-           ClientRemovedRequest
-           EmptyResponse
-    -- used to notify this backend that a new message has been posted to a
-    -- remote conversation
-    :<|> FedEndpoint "on-message-sent" (RemoteMessage ConvId) EmptyResponse
-    :<|> FedEndpoint "on-mls-message-sent" RemoteMLSMessage EmptyResponse
-    -- used by the backend that owns a conversation to inform this backend of
-    -- changes to the conversation
-    :<|> FedEndpoint "on-conversation-updated" ConversationUpdate EmptyResponse
-    :<|> FedEndpointWithMods
-           '[ MakesFederatedCall 'Galley "on-mls-message-sent",
-              MakesFederatedCall 'Galley "on-conversation-updated",
-              MakesFederatedCall 'Brig "api-version"
-            ]
-           "on-user-deleted-conversations"
-           UserDeletedConversationsNotification
-           EmptyResponse
+    -- All the notification endpoints that go through the queue-based
+    -- federation client ('fedQueueClient').
+    :<|> NotificationAPI
 
 data TypingDataUpdateRequest = TypingDataUpdateRequest
   { typingStatus :: TypingStatus,
@@ -179,15 +164,6 @@ data TypingDataUpdated = TypingDataUpdated
   }
   deriving stock (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via (CustomEncoded TypingDataUpdated)
-
-data ClientRemovedRequest = ClientRemovedRequest
-  { user :: UserId,
-    client :: ClientId,
-    convs :: [ConvId]
-  }
-  deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform ClientRemovedRequest)
-  deriving (FromJSON, ToJSON) via (CustomEncoded ClientRemovedRequest)
 
 data GetConversationsRequest = GetConversationsRequest
   { userId :: UserId,
@@ -281,28 +257,6 @@ data ConversationCreated conv = ConversationCreated
 ccRemoteOrigUserId :: ConversationCreated (Remote ConvId) -> Remote UserId
 ccRemoteOrigUserId cc = qualifyAs cc.cnvId cc.origUserId
 
-data ConversationUpdate = ConversationUpdate
-  { cuTime :: UTCTime,
-    cuOrigUserId :: Qualified UserId,
-    -- | The unqualified ID of the conversation where the update is happening.
-    -- The ID is local to the sender to prevent putting arbitrary domain that
-    -- is different than that of the backend making a conversation membership
-    -- update request.
-    cuConvId :: ConvId,
-    -- | A list of users from the receiving backend that need to be sent
-    -- notifications about this change. This is required as we do not expect a
-    -- non-conversation owning backend to have an indexed mapping of
-    -- conversation to users.
-    cuAlreadyPresentUsers :: [UserId],
-    -- | Information on the specific action that caused the update.
-    cuAction :: SomeConversationAction
-  }
-  deriving (Eq, Show, Generic)
-
-instance ToJSON ConversationUpdate
-
-instance FromJSON ConversationUpdate
-
 data LeaveConversationRequest = LeaveConversationRequest
   { -- | The conversation is assumed to be owned by the target domain, which
     -- allows us to protect against relay attacks
@@ -323,38 +277,6 @@ data RemoveFromConversationError
   deriving
     (ToJSON, FromJSON)
     via (CustomEncoded RemoveFromConversationError)
-
--- Note: this is parametric in the conversation type to allow it to be used
--- both for conversations with a fixed known domain (e.g. as the argument of the
--- federation RPC), and for conversations with an arbitrary Qualified or Remote id
--- (e.g. as the argument of the corresponding handler).
-data RemoteMessage conv = RemoteMessage
-  { time :: UTCTime,
-    _data :: Maybe Text,
-    sender :: Qualified UserId,
-    senderClient :: ClientId,
-    conversation :: conv,
-    priority :: Maybe Priority,
-    push :: Bool,
-    transient :: Bool,
-    recipients :: UserClientMap Text
-  }
-  deriving stock (Eq, Show, Generic, Functor)
-  deriving (Arbitrary) via (GenericUniform (RemoteMessage conv))
-  deriving (ToJSON, FromJSON) via (CustomEncodedLensable (RemoteMessage conv))
-
-data RemoteMLSMessage = RemoteMLSMessage
-  { time :: UTCTime,
-    metadata :: MessageMetadata,
-    sender :: Qualified UserId,
-    conversation :: ConvId,
-    subConversation :: Maybe SubConvId,
-    recipients :: Map UserId (NonEmpty ClientId),
-    message :: Base64ByteString
-  }
-  deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform RemoteMLSMessage)
-  deriving (ToJSON, FromJSON) via (CustomEncoded RemoteMLSMessage)
 
 data RemoteMLSMessageResponse
   = RemoteMLSMessageOk
@@ -405,18 +327,6 @@ newtype LeaveConversationResponse = LeaveConversationResponse
   deriving
     (ToJSON, FromJSON)
     via (Either (CustomEncoded RemoveFromConversationError) ())
-
-type UserDeletedNotificationMaxConvs = 1000
-
-data UserDeletedConversationsNotification = UserDeletedConversationsNotification
-  { -- | This is qualified implicitly by the origin domain
-    user :: UserId,
-    -- | These are qualified implicitly by the target domain
-    conversations :: Range 1 UserDeletedNotificationMaxConvs [ConvId]
-  }
-  deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform UserDeletedConversationsNotification)
-  deriving (FromJSON, ToJSON) via (CustomEncoded UserDeletedConversationsNotification)
 
 data ConversationUpdateRequest = ConversationUpdateRequest
   { -- | The user that is attempting to perform the action. This is qualified
