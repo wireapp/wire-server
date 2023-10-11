@@ -40,7 +40,7 @@ type instance MapError 'AssetTooLarge = 'StaticError 413 "client-error" "Asset t
 
 type instance MapError 'InvalidLength = 'StaticError 400 "invalid-length" "Invalid content length"
 
-type instance MapError 'Unverified = 'StaticError 403 "unverified" "Unverified"
+type instance MapError 'Unverified = 'StaticError 403 "unverified-user" "Unverified user"
 
 type instance MapError 'UserNotFound = 'StaticError 403 "not-found" "User not found"
 
