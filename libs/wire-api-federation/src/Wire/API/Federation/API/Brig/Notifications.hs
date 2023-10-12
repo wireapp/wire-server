@@ -21,7 +21,6 @@ import Data.Aeson
 import Data.Id
 import Data.Range
 import Imports
-import Wire.API.Federation.API.Common
 import Wire.API.Federation.Endpoint
 import Wire.API.Util.Aeson
 import Wire.Arbitrary
@@ -40,4 +39,4 @@ data UserDeletedConnectionsNotification = UserDeletedConnectionsNotification
 
 -- | All the notification endpoints return an 'EmptyResponse'.
 type NotificationAPI =
-  FedEndpoint "on-user-deleted-connections" UserDeletedConnectionsNotification EmptyResponse
+  NotificationFedEndpoint "on-user-deleted-connections" UserDeletedConnectionsNotification

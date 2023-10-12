@@ -27,7 +27,6 @@ import Data.Time.Clock
 import Imports
 import Servant.API
 import Wire.API.Conversation.Action
-import Wire.API.Federation.API.Common
 import Wire.API.Federation.Endpoint
 import Wire.API.MLS.SubConversation
 import Wire.API.MakesFederatedCall
@@ -37,27 +36,25 @@ import Wire.Arbitrary
 
 -- | All the notification endpoints return an 'EmptyResponse'.
 type NotificationAPI =
-  FedEndpointWithMods
+  NotificationFedEndpointWithMods
     '[ MakesFederatedCall 'Galley "on-mls-message-sent"
      ]
     "on-client-removed"
     ClientRemovedRequest
-    EmptyResponse
     -- used to notify this backend that a new message has been posted to a
     -- remote conversation
-    :<|> FedEndpoint "on-message-sent" (RemoteMessage ConvId) EmptyResponse
-    :<|> FedEndpoint "on-mls-message-sent" RemoteMLSMessage EmptyResponse
+    :<|> NotificationFedEndpoint "on-message-sent" (RemoteMessage ConvId)
+    :<|> NotificationFedEndpoint "on-mls-message-sent" RemoteMLSMessage
     -- used by the backend that owns a conversation to inform this backend of
     -- changes to the conversation
-    :<|> FedEndpoint "on-conversation-updated" ConversationUpdate EmptyResponse
-    :<|> FedEndpointWithMods
+    :<|> NotificationFedEndpoint "on-conversation-updated" ConversationUpdate
+    :<|> NotificationFedEndpointWithMods
            '[ MakesFederatedCall 'Galley "on-mls-message-sent",
               MakesFederatedCall 'Galley "on-conversation-updated",
               MakesFederatedCall 'Brig "api-version"
             ]
            "on-user-deleted-conversations"
            UserDeletedConversationsNotification
-           EmptyResponse
 
 data ClientRemovedRequest = ClientRemovedRequest
   { user :: UserId,
