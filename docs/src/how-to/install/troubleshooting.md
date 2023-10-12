@@ -263,3 +263,154 @@ p: the expected ping (how many pings have not returned)
 Question: Are the connection values for bad networks/disconnect configurable on on-prem?
 
 Answer: The values are not currently configurable, they are built into the clients at compile time, we do have a mechanism for sending calling configs to the clients but these values are not currently there.
+
+## Verifying correct deployment of DNS / DNS troubleshooting.
+
+After installation, or if you meet some functionality problems, you should check that your DNS setup is correct.
+
+You'll do this from either your own computer (any public computer connected to the Internet), or from the Wire backend itself.
+
+### Testing public domains.
+
+From your own computer (not from the Wire backend), test that you can reach all sub-domains you setup during the Wire installation:
+
+* `assets.youdomain.com`
+* `teams.yourdomain.com`
+* `webapp.yourdomain.com`
+* `accounts.yourdomain.com`
+* etc...
+
+You can test if a domain is reachable by typing in your local terminal:
+
+```
+nslookup assets.yourdomain.com
+```
+
+If the domain is succesfully resolved, you should see something like:
+
+```
+Server:         127.0.0.53
+Address:        127.0.0.53#53
+
+Non-authoritative answer:
+Name:   assets.yourdomain.com
+Address: 388.114.97.2
+```
+
+And if the domain can not be resolved, it will be something like this:
+
+```
+Server:         127.0.0.53
+Address:        127.0.0.53#53
+
+** server can't find test.fra: NXDOMAIN
+```
+
+Do this for each and every of the domains you configured, make sure each of them is reachable from the open Internet.
+
+If a domain can not be reached, check your DNS configuration and make sure to solve the issue.
+
+### Testing internal domain resolution.
+
+Open a shell inside the SNS pod, and make sure you can resolve the following three domains:
+
+* `minio-external`
+* `cassandra-external`
+* `elasticsearch-external`
+
+First get a list of all pods:
+
+```
+kubectl get pods --all-namespaces
+```
+
+In here, find the sns pod (usually its name contains `fake-aws-sns`).
+
+Open a shell into that pod:
+
+```
+kubectl exec -it my-sns-pod-name -- /bin/sh
+```
+
+From inside the pod, you should now test each domain:
+
+```
+nslookup minio-external
+```
+
+If the domain is succesfully resolved, you should see something like:
+
+```
+Server:         127.0.0.53
+Address:        127.0.0.53#53
+
+Non-authoritative answer:
+Name:   minio-external
+Address: 173.188.1.14
+```
+
+And if the domain can not be resolved, it will be something like this:
+
+```
+Server:         127.0.0.53
+Address:        127.0.0.53#53
+
+** server can't find test.fra: NXDOMAIN
+```
+
+If you can not reach some of the domains from the SNS pod, you need to try those from one of the servers running kubernetes (kubernetes host):
+
+```
+ssh kubernetes-server
+```
+
+Then try the same thing using `nslookup`.
+
+If either of these steps fail, please request support.
+
+### Testing reachability of AWS.
+
+First off, use the Amazon AWS documentation to determine your region code: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-regions-availability-zones.html
+
+Here we will use `us-west-1` but please change this to whichever is closest to your server as needed.
+
+First list all pods:
+
+```
+kubectl get pods --all-namespaces
+```
+
+In here, find the sns pod (usually its name contains `fake-aws-sns`).
+
+Open a shell into that pod:
+
+```
+kubectl exec -it my-sns-pod-name -- /bin/sh
+```
+
+And test the reachability of the AWS services:
+
+```
+nslookup sqs.us-west-1.amazonaws.com
+```
+
+If it can be reached, you'll see something like this:
+
+```
+Server:         127.0.0.53
+Address:        127.0.0.53#53
+
+Non-authoritative answer:
+sqs.us-west-1.amazonaws.com     canonical name = us-west-1.queue.amazonaws.com.
+Name:   us-west-1.queue.amazonaws.com
+Address: 3.101.114.18
+```
+
+And if it can't:
+
+```
+Server:         127.0.0.53
+Address:        127.0.0.53#53
+
+** server can't find sqs.us-west-1.amazonaws.com: NXDOMAIN
+```
