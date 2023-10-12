@@ -244,6 +244,7 @@ mkDerivation {
     proto-lens
     random
     random-shuffle
+    raw-strings-qq
     resource-pool
     resourcet
     retry
