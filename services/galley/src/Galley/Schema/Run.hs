@@ -87,6 +87,7 @@ import Galley.Schema.V84_MLSSubconversation qualified as V84_MLSSubconversation
 import Galley.Schema.V85_MLSDraft17 qualified as V85_MLSDraft17
 import Galley.Schema.V86_TeamFeatureMlsMigration qualified as V86_TeamFeatureMlsMigration
 import Galley.Schema.V87_TeamFeatureSupportedProtocols qualified as V87_TeamFeatureSupportedProtocols
+import Galley.Schema.V88_TruncateMLSGroupMemberClient qualified as V88_TruncateMLSGroupMemberClient
 import Imports
 import Options.Applicative
 import System.Logger.Extended qualified as Log
@@ -175,7 +176,8 @@ migrations =
     V84_MLSSubconversation.migration,
     V85_MLSDraft17.migration,
     V86_TeamFeatureMlsMigration.migration,
-    V87_TeamFeatureSupportedProtocols.migration
+    V87_TeamFeatureSupportedProtocols.migration,
+    V88_TruncateMLSGroupMemberClient.migration
     -- FUTUREWORK: once #1726 has made its way to master/production,
     -- the 'message' field in connections table can be dropped.
     -- See also https://github.com/wireapp/wire-server/pull/1747/files
