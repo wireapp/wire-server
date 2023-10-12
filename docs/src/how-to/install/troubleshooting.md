@@ -358,15 +358,7 @@ Address:        127.0.0.53#53
 ** server can't find minio-external: NXDOMAIN
 ```
 
-If you can not reach some of the domains from the SNS pod, you need to try those from one of the servers running kubernetes (kubernetes host):
-
-```
-ssh kubernetes-server
-```
-
-Then try the same thing using `nslookup`.
-
-If either of these steps fail, please request support.
+If you can not resolve any of the three domains, please request support.
 
 ### Testing reachability of AWS.
 
@@ -414,3 +406,13 @@ Address:        127.0.0.53#53
 
 ** server can't find sqs.us-west-1.amazonaws.com: NXDOMAIN
 ```
+
+If you can not reach the AWS domain from the SNS pod, you need to try those from one of the servers running kubernetes (kubernetes host):
+
+```
+ssh kubernetes-server
+```
+
+Then try the same thing using `nslookup`.
+
+If either of these steps fail, please request support.
