@@ -343,7 +343,7 @@ testServer req _ respWriter = do
           delayedBSWriter (line : moreLines) bsWriter flush = do
             bsWriter $ Builder.lazyByteString (line <> "\n")
             flush
-            threadDelay =<< randomRIO (0, 100_000)
+            threadDelay =<< randomRIO (10_000, 100_000)
             delayedBSWriter moreLines bsWriter flush
           delayedResponse = Server.responseStreaming status200 [] (delayedBSWriter reqBodyLines)
       respWriter delayedResponse []

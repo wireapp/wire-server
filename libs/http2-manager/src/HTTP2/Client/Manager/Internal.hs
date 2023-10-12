@@ -303,7 +303,7 @@ startPersistentHTTP2Connection ctx (tlsEnabled, hostname, port) cl removeTrailin
         -- but how would we know here?
         mapM_ (\(thread, _) -> cancelWith thread e) =<< readIORef liveReqs
         -- Spawns a thread that will hang around for 1 second to deal with
-        -- the race betwen main thread sending a request and this thread
+        -- the race betwen main thread sending a renewConnquest and this thread
         -- already having stoped waiting for new requests. Sending requests
         -- after 'handleRequests' has finsihed just causes the main thread
         -- to hang until recieving 'BlockedIndefinitelyOnMVar'.
