@@ -15,29 +15,28 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Run
-  ( main,
-  )
-where
+module Test.Galley.Intra.Push where
 
+import Data.List1 qualified as List1
+import Galley.Intra.Push.Internal
 import Imports
-import Test.Galley.API.Action qualified
-import Test.Galley.API.Message qualified
-import Test.Galley.API.One2One qualified
-import Test.Galley.Intra.Push qualified
-import Test.Galley.Intra.User qualified
-import Test.Galley.Mapping qualified
+import Test.QuickCheck
 import Test.Tasty
+import Test.Tasty.QuickCheck
 
-main :: IO ()
-main =
-  defaultMain $
-    testGroup
-      "Tests"
-      [ Test.Galley.API.Message.tests,
-        Test.Galley.API.One2One.tests,
-        Test.Galley.Intra.User.tests,
-        Test.Galley.Intra.Push.tests,
-        Test.Galley.Mapping.tests,
-        Test.Galley.API.Action.tests
-      ]
+normalisePush :: PushTo a -> [PushTo a]
+normalisePush p =
+  map
+    (\r -> p {_pushRecipients = List1.singleton r})
+    (toList (_pushRecipients p))
+
+tests :: TestTree
+tests =
+  testGroup
+    "chunkPushes"
+    [ testProperty "empty push" $ \(Positive limit) ->
+        chunkPushes limit [] === ([] :: [[PushTo ()]]),
+      testProperty "concatenation" $ \(Positive limit) (pushes :: [PushTo Int]) ->
+        (chunkPushes limit pushes >>= reverse >>= normalisePush)
+          === (pushes >>= normalisePush)
+    ]

@@ -66,6 +66,7 @@ import Data.Attoparsec.ByteString.Char8 qualified as Atto
 import Data.Bifunctor (first)
 import Data.Binary
 import Data.ByteString.Builder (byteString)
+import Data.ByteString.Char8 qualified as B8
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy qualified as L
 import Data.Char qualified as Char
@@ -297,6 +298,9 @@ instance S.ToParamSchema ConnId where
 
 instance FromHttpApiData ConnId where
   parseUrlPiece = Right . ConnId . encodeUtf8
+
+instance Arbitrary ConnId where
+  arbitrary = ConnId . B8.pack <$> resize 10 (listOf arbitraryPrintableChar)
 
 -- ClientId --------------------------------------------------------------------
 

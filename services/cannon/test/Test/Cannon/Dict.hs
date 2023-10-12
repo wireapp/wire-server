@@ -24,7 +24,6 @@ import Cannon.Dict qualified as D
 import Cannon.WS (Key, mkKey)
 import Control.Concurrent.Async
 import Data.ByteString.Lazy qualified as Lazy
-import Data.Id
 import Data.List qualified as List
 import Data.UUID hiding (fromString)
 import Data.UUID.V4
@@ -122,6 +121,3 @@ runProp = monadicIO . forAllM arbitrary
 
 instance Arbitrary Key where
   arbitrary = mkKey <$> arbitrary <*> arbitrary
-
-instance Arbitrary ConnId where
-  arbitrary = ConnId <$> arbitrary
