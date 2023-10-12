@@ -17,7 +17,7 @@
 
 module CargoHold.API.Public (servantSitemap, internalSitemap) where
 
-import CargoHold.API.Error (unverified, userNotFound)
+import CargoHold.API.Error (unverifiedUser, userNotFound)
 import qualified CargoHold.API.Legacy as LegacyAPI
 import CargoHold.API.Util
 import qualified CargoHold.API.V3 as V3
@@ -145,26 +145,30 @@ uploadAssetV3 ::
 uploadAssetV3 pid req = do
   clientEnv <- asks $ view brigClientEnv
   let principal = mkPrincipal pid
-      getUser uid = runClientM (client' uid) clientEnv
   case principal of
     V3.UserPrincipal uid -> do
-      resp <- liftIO $ getUser uid
+      resp <- liftIO $ getUserById uid clientEnv
       users <- either (const $ throwE userNotFound) pure resp
-      maybe
-        (throwE unverified)
-        (const (pure ()) . userIdentity . accountUser)
-        (listToMaybe users)
+      case listToMaybe users >>= userIdentity . accountUser of
+        Nothing -> throwE unverifiedUser
+        Just _ -> pure ()
+    -- Just id -> case id of
+    --   FullIdentity -> pure ()
+    --   EmailIdentity -> pure ()
+    --   SSOIdentity _ (Just _) _ -> pure ()
+    --   _ -> throwE unverifiedUser
     _ -> pure ()
   asset <- V3.upload principal (getAssetSource req)
   pure (fmap tUntagged asset, mkAssetLocation @tag (asset ^. assetKey))
   where
-    client' uid =
-      namedClient @IBrig.API @"iGetUsersByVariousKeys"
-        (pure $ CommaSeparatedList [uid])
-        Nothing
-        Nothing
-        Nothing
-        Nothing
+    getUserById uid env =
+      flip runClientM env $
+        namedClient @IBrig.API @"iGetUsersByVariousKeys"
+          (pure $ CommaSeparatedList [uid])
+          Nothing
+          Nothing
+          Nothing
+          Nothing
 
 downloadAssetV3 ::
   MakePrincipal tag id =>

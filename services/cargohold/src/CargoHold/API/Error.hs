@@ -35,8 +35,8 @@ invalidLength = errorToWai @'InvalidLength
 assetNotFound :: Error
 assetNotFound = errorToWai @'AssetNotFound
 
-unverified :: Error
-unverified = errorToWai @'Unverified
+unverifiedUser :: Error
+unverifiedUser = errorToWai @'UnverifiedUser
 
 userNotFound :: Error
 userNotFound = errorToWai @'UserNotFound

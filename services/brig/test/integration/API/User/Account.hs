@@ -1454,7 +1454,6 @@ testDeleteAnonUser brig = do
 
 testDeleteWithProfilePic :: Brig -> CargoHold -> Http ()
 testDeleteWithProfilePic brig cargohold = do
-  -- A random local part, with nice, email-friendly characters
   email <- randomEmail
   -- Users need to be verified if they want to upload assets, so email it is!
   uid <- userId <$> createUserWithEmail "anon" email brig

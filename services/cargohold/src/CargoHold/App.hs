@@ -69,7 +69,7 @@ import Data.Qualified
 import qualified Data.Text as T
 import HTTP2.Client.Manager (Http2Manager, http2ManagerWithSSLCtx)
 import Imports hiding (log)
-import Network.HTTP.Client (ManagerSettings (..), defaultManagerSettings, requestHeaders, responseTimeoutMicro)
+import Network.HTTP.Client (ManagerSettings (..), requestHeaders, responseTimeoutMicro)
 import Network.HTTP.Client.OpenSSL
 import Network.Wai.Utilities (Error (..))
 import OpenSSL.Session (SSLContext, SSLOption (..))
@@ -112,7 +112,7 @@ newEnv o = do
   let loc = toLocalUnsafe (o ^. Opt.settings . Opt.federationDomain) ()
       (Endpoint h p) = o ^. brig
       baseUrl = BaseUrl Http (T.unpack h) (fromIntegral p) ""
-  clientEnv <- liftIO $ newManager defaultManagerSettings <&> \m -> ClientEnv m baseUrl Nothing defaultMakeClientRequest
+      clientEnv = ClientEnv mgr baseUrl Nothing defaultMakeClientRequest
   pure $ Env ama met lgr mgr h2mgr def o loc multiIngressAWS clientEnv
   where
     initMultiIngressAWS :: Logger -> Manager -> IO (Map String AWS.Env)
