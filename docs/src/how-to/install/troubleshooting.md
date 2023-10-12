@@ -371,7 +371,7 @@ If you can not resolve any of the three domains, please request support.
 
 First off, use the Amazon AWS documentation to determine your region code: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-regions-availability-zones.html
 
-Here we will use `us-west-1` but please change this to whichever is closest to your server as needed.
+Here we will use `us-west-1` but please change this to whichever value you set in your `values.yaml` file during installation.
 
 First list all pods:
 
