@@ -294,6 +294,7 @@ let
     less
     gnutar
     gzip
+    openssl
     which
   ];
 
