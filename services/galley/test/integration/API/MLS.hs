@@ -2392,7 +2392,7 @@ testCreatorRemovesUserFromParent = do
         liftIO $ assertOne events >>= assertLeaveEvent qcnv alice [bob]
 
         WS.assertMatchN_ (5 # Second) wss $ \n -> do
-          wsAssertMemberLeave qcnv alice [bob] n
+          wsAssertMemberLeave qcnv alice [bob] EdReasonRemoved n
 
         State.put stateSub
         -- Get client state for alice and fetch bob client identities

@@ -167,13 +167,16 @@ instance ToSchema EventType where
 
 --  | The reason for a member to leave
 --    There are three reasons
---    - the member has left on his own
+--    - the member has left on their own
 --    - the member was removed from the team
 --    - the member was removed by another member
 data EdMemberLeftReason
-  = EdReasonLeft
-  | EdReasonRemovedFromTeam
-  | EdReasonRemoved
+  = -- | The member has left on their own
+    EdReasonLeft
+  | -- | The member was removed from the team (that includes being deleted)
+    EdReasonRemovedFromTeam
+  | -- | The member was removed by another member
+    EdReasonRemoved
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via GenericUniform EdMemberLeftReason
 
