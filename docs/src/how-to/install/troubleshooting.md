@@ -303,7 +303,7 @@ And if the domain can not be resolved, it will be something like this:
 Server:         127.0.0.53
 Address:        127.0.0.53#53
 
-** server can't find test.fra: NXDOMAIN
+** server can't find assets.yourdomain.com: NXDOMAIN
 ```
 
 Do this for each and every of the domains you configured, make sure each of them is reachable from the open Internet.
@@ -355,7 +355,7 @@ And if the domain can not be resolved, it will be something like this:
 Server:         127.0.0.53
 Address:        127.0.0.53#53
 
-** server can't find test.fra: NXDOMAIN
+** server can't find minio-external: NXDOMAIN
 ```
 
 If you can not reach some of the domains from the SNS pod, you need to try those from one of the servers running kubernetes (kubernetes host):
