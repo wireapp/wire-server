@@ -40,6 +40,8 @@ tests =
     "chunkPushes"
     [ testProperty "empty push" $ \(Positive limit) ->
         chunkPushes limit [] === ([] :: [[PushTo ()]]),
+      testProperty "no empty chunk" $ \(Positive limit) (pushes :: [PushTo Int]) ->
+        not (any null (chunkPushes limit pushes)),
       testProperty "concatenation" $ \(Positive limit) (pushes :: [PushTo Int]) ->
         (chunkPushes limit pushes >>= reverse >>= normalisePush)
           === (pushes >>= normalisePush),
