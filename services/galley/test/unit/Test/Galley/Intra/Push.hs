@@ -18,6 +18,7 @@
 module Test.Galley.Intra.Push where
 
 import Data.List1 qualified as List1
+import Data.Monoid
 import Galley.Intra.Push.Internal
 import Imports
 import Test.QuickCheck
@@ -30,6 +31,9 @@ normalisePush p =
     (\r -> p {_pushRecipients = List1.singleton r})
     (toList (_pushRecipients p))
 
+chunkSize :: [PushTo a] -> Int
+chunkSize = getSum . foldMap (Sum . length . _pushRecipients)
+
 tests :: TestTree
 tests =
   testGroup
@@ -38,5 +42,7 @@ tests =
         chunkPushes limit [] === ([] :: [[PushTo ()]]),
       testProperty "concatenation" $ \(Positive limit) (pushes :: [PushTo Int]) ->
         (chunkPushes limit pushes >>= reverse >>= normalisePush)
-          === (pushes >>= normalisePush)
+          === (pushes >>= normalisePush),
+      testProperty "small chunks" $ \(Positive limit) (pushes :: [PushTo Int]) ->
+        all ((<= limit) . chunkSize) (chunkPushes limit pushes)
     ]
