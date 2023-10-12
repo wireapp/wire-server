@@ -108,6 +108,7 @@ library
     Test.Demo
     Test.Federation
     Test.Federator
+    Test.HTTP2
     Test.MessageTimer
     Test.MLS
     Test.MLS.KeyPackage

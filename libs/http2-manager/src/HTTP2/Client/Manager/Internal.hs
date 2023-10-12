@@ -5,6 +5,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
+
 module HTTP2.Client.Manager.Internal where
 
 import Control.Concurrent
@@ -36,7 +37,17 @@ import Prelude
 data HTTP2Conn = HTTP2Conn
   { backgroundThread :: Async (),
     disconnect :: IO (),
-    connectionActionMVar :: MVar ConnectionAction
+    connectionActionMVar :: MVar ConnectionAction,
+    -- Like TSem, but the blocking of waitTSem is undesirable for us
+    -- so we get to basically redo their code. Fun
+    requestSem :: TVar Int,
+    -- A sync variable to stop a thundering herd of requests from
+    -- filling up the max concurrent requests on a given connection,
+    -- and then having a bunch of threads creating new connections, most
+    -- of which will only have 1 or 2 requests, with one finally being
+    -- the long lived replacement. If requests are waiting on a new connection
+    -- they can loop until this resolves and they can use the new connection.
+    newConnectionBeingMade :: TVar Bool
   }
 
 type TLSEnabled = Bool
@@ -160,12 +171,76 @@ sendRequestWithConnection conn req k = do
 -- concurrent requests are to be made, it might be best to ensure that a
 -- connection exists using 'connectIfNotAlreadyConnected' before making all the
 -- requests.
-withHTTP2Request :: Http2Manager -> Target -> HTTP2.Request -> (HTTP2.Response -> IO a) -> IO a
+withHTTP2Request :: forall a. Http2Manager -> Target -> HTTP2.Request -> (HTTP2.Response -> IO a) -> IO a
 withHTTP2Request mgr target req k = do
   conn <- getOrMakeConnection mgr target
-  sendRequestWithConnection conn req k
 
--- | Connects to a server if it is not already connected, useful when making
+  -- let http2ErrorHandler :: HTTP2Error -> IO a
+  --     http2ErrorHandler e = case e of
+  --       StreamErrorIsSent RefusedStream _ -> mkNewConnection conn
+  --       StreamErrorIsReceived RefusedStream _ -> mkNewConnection conn
+  --       BadThingHappen _ -> mkNewConnection conn
+  --       _ -> throwIO e
+  --     managerErrorHandler :: ConnectionAlreadyClosed -> IO a
+  --     managerErrorHandler _ = mkNewConnection conn
+  -- sendRequestWithConnection conn req k `catches` [Handler $ managerErrorHandler, Handler http2ErrorHandler]
+  let tReqSem = requestSem conn
+      tNewConn = newConnectionBeingMade conn
+  gotSem <- atomically $ do
+    -- Check if a new connection is being made
+    canMakeNewConn <- readTVar tNewConn
+    if canMakeNewConn
+      then do
+        sem <- readTVar tReqSem
+        if sem <= 0
+          then pure False
+          else do
+            writeTVar tReqSem $! sem - 1
+            pure True
+      else -- A new connection is being make, don't use existing connections
+        pure False
+  if gotSem
+    then
+      sendRequestWithConnection conn req k
+        `finally` atomically
+          ( do
+              sem <- readTVar tReqSem
+              writeTVar tReqSem $! sem + 1
+          )
+    else do
+      -- This is messy. When a thundering herd of requests is coming in, many
+      -- of them can get a negative semaphore check, which will then cause them
+      -- to make new connections to the server. Eventually, one of these will become
+      -- the lasting replacement, but there is no telling which one.
+      -- Ideally, this should have a block that only one thread can create the new
+      -- connection, and then everything that is waiting on a connection can use
+      -- it, until we run out of semaphores again.
+      canMakeNewConn <- atomically $ do
+        sem <- readTVar tNewConn
+        if sem
+          then do
+            writeTVar tNewConn False
+            pure sem
+          else pure sem
+      if canMakeNewConn
+        then -- Make the new connection, then try to use it
+          mkNewConnection conn
+        else -- Can't make the new connection, so look and maybe something
+        -- has freed up or the connection is ready to go.
+        -- TODO: Should there be a small delay here?
+        do
+          threadDelay 1000
+          withHTTP2Request mgr target req k
+  where
+    mkNewConnection conn = do
+      -- Stop processing on the existing connection
+      disconnect conn
+      -- Drop the connection from the connection map
+      atomically $ modifyTVar' (connections mgr) (Map.delete target)
+      -- Try again
+      withHTTP2Request mgr target req k
+
+-- | Connects to a server if it is not already connected, useful when makingdisconnect
 -- many concurrent requests. This way the first few requests don't have to fight
 -- for making a connection This way the first few requests don't have to fight
 -- for making a connection.
@@ -175,9 +250,25 @@ connectIfNotAlreadyConnected mgr target = void $ getOrMakeConnection mgr target
 -- | Gets a connection if it exists and is alive, otherwise connects to the
 -- given 'Target'.
 getOrMakeConnection :: Http2Manager -> Target -> IO HTTP2Conn
-getOrMakeConnection mgr@Http2Manager {..} target = do
+getOrMakeConnection mgr target = do
   mConn <- atomically $ getConnection mgr target
-  maybe connect pure mConn
+  maybe (connect mgr target) pure mConn
+
+connect :: Http2Manager -> Target -> IO HTTP2Conn
+connect Http2Manager {..} target = do
+  sendReqMVar <- newEmptyMVar
+  thread <- liftIO . async $ startPersistentHTTP2Connection sslContext target cacheLimit sslRemoveTrailingDot tcpConnectionTimeout sendReqMVar
+  tReqSem <- newTVarIO 98
+  tNewConn <- newTVarIO True
+  let newConn = HTTP2Conn thread (putMVar sendReqMVar CloseConnection) sendReqMVar tReqSem tNewConn
+  (inserted, finalConn) <- atomically $ insertNewConn newConn
+  unless inserted $ do
+    -- It is possible that the connection won't leak because it is waiting
+    -- on an MVar and as soon as it gets removed from the map and GC collects
+    -- the 'HTTP2Conn', the connection thread _should_ in theory get
+    -- 'BlockedIndefinitelyOnMVar' exception. So perhaps this is useless?
+    disconnect newConn
+  pure finalConn
   where
     -- Ensures that any old connection is preserved. This is required to ensure
     -- that concurrent calls to this function don't cause the connections to
@@ -188,20 +279,6 @@ getOrMakeConnection mgr@Http2Manager {..} target = do
         case Map.lookup target conns of
           Nothing -> ((True, newConn), Map.insert target newConn conns)
           Just alreadyEstablishedConn -> ((False, alreadyEstablishedConn), conns)
-
-    connect :: IO HTTP2Conn
-    connect = do
-      sendReqMVar <- newEmptyMVar
-      thread <- liftIO . async $ startPersistentHTTP2Connection sslContext target cacheLimit sslRemoveTrailingDot tcpConnectionTimeout sendReqMVar
-      let newConn = HTTP2Conn thread (putMVar sendReqMVar CloseConnection) sendReqMVar
-      (inserted, finalConn) <- atomically $ insertNewConn newConn
-      unless inserted $ do
-        -- It is possible that the connection won't leak because it is waiting
-        -- on an MVar and as soon as it gets removed from the map and GC collects
-        -- the 'HTTP2Conn', the connection thread _should_ in theory get
-        -- 'BlockedIndefinitelyOnMVar' exception. So perhaps this is useless?
-        disconnect newConn
-      pure finalConn
 
 -- | Removes connection from map if it is not alive anymore
 getConnection :: Http2Manager -> Target -> STM (Maybe HTTP2Conn)
@@ -329,6 +406,18 @@ startPersistentHTTP2Connection ctx (tlsEnabled, hostname, port) cl removeTrailin
           -- Any request threads still hanging about after 'runAction' finishes
           -- are canceled with 'ConnectionAlreadyClosed'.
           flip finally (cleanupThreadsWith (SomeException ConnectionAlreadyClosed)) $
+            -- Any exceptions thrown will get re-thrown to any running requests,
+            -- handle at the top level is not good as 'finally' wrapping this
+            -- function would kill all threads with some other exception.
+
+            -- Any exceptions thrown will get re-thrown to any running requests,
+            -- handle at the top level is not good as 'finally' wrapping this
+            -- function would kill all threads with some other exception.
+            
+            -- Any exceptions thrown will get re-thrown to any running requests,
+            -- handle at the top level is not good as 'finally' wrapping this
+            -- function would kill all threads with some other exception.
+
             -- Any exceptions thrown will get re-thrown to any running requests,
             -- handle at the top level is not good as 'finally' wrapping this
             -- function would kill all threads with some other exception.
