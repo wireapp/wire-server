@@ -294,7 +294,6 @@ let
     less
     gnutar
     gzip
-    openssl
     which
   ];
 
@@ -394,6 +393,7 @@ let
     pkgs.kubectl
     pkgs.kubelogin-oidc
     pkgs.nixpkgs-fmt
+    pkgs.openssl
     pkgs.ormolu
     pkgs.shellcheck
     pkgs.treefmt
