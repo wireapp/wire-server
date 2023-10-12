@@ -33,9 +33,7 @@ module Wire.API.Routes.Internal.Brig
     DeleteAccountConferenceCallingConfig,
     swaggerDoc,
     module Wire.API.Routes.Internal.Brig.EJPD,
-    NewKeyPackageRef (..),
-    NewKeyPackage (..),
-    NewKeyPackageResult (..),
+    FoundInvitationCode (..),
   )
 where
 
@@ -57,8 +55,7 @@ import Servant.OpenApi.Internal.Orphans ()
 import Wire.API.Connection
 import Wire.API.Error
 import Wire.API.Error.Brig
-import Wire.API.MLS.Credential
-import Wire.API.MLS.KeyPackage
+import Wire.API.MLS.CipherSuite
 import Wire.API.MakesFederatedCall
 import Wire.API.Routes.FederationDomainConfig
 import Wire.API.Routes.Internal.Brig.Connection
@@ -68,10 +65,13 @@ import Wire.API.Routes.Internal.Brig.SearchIndex (ISearchIndexAPI)
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti qualified as Multi
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
-import Wire.API.Routes.Public (ZUser {- yes, this is a bit weird -})
+import Wire.API.Routes.Public (ZUser)
 import Wire.API.Team.Feature
+import Wire.API.Team.Invitation (Invitation)
 import Wire.API.Team.LegalHold.Internal
-import Wire.API.User
+import Wire.API.Team.Size qualified as Teamsize
+import Wire.API.User hiding (InvitationCode)
+import Wire.API.User qualified as User
 import Wire.API.User.Auth
 import Wire.API.User.Auth.LegalHold
 import Wire.API.User.Auth.ReAuth
@@ -497,133 +497,18 @@ instance ToSchema NewKeyPackageRef where
         <*> nkprClientId .= field "client_id" schema
         <*> nkprConversation .= field "conversation" schema
 
-data NewKeyPackage = NewKeyPackage
-  { nkpConversation :: Qualified ConvId,
-    nkpKeyPackage :: KeyPackageData
-  }
-  deriving stock (Eq, Show, Generic)
-  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema NewKeyPackage)
-
-instance ToSchema NewKeyPackage where
-  schema =
-    object "NewKeyPackage" $
-      NewKeyPackage
-        <$> nkpConversation .= field "conversation" schema
-        <*> nkpKeyPackage .= field "key_package" schema
-
-data NewKeyPackageResult = NewKeyPackageResult
-  { nkpresClientIdentity :: ClientIdentity,
-    nkpresKeyPackageRef :: KeyPackageRef
-  }
-  deriving stock (Eq, Show, Generic)
-  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema NewKeyPackageResult)
-
-instance ToSchema NewKeyPackageResult where
-  schema =
-    object "NewKeyPackageResult" $
-      NewKeyPackageResult
-        <$> nkpresClientIdentity .= field "client_identity" schema
-        <*> nkpresKeyPackageRef .= field "key_package_ref" schema
-
-type MLSAPI =
-  "mls"
-    :> ( ( "key-packages"
-             :> Capture "ref" KeyPackageRef
-             :> ( Named
-                    "get-client-by-key-package-ref"
-                    ( Summary "Resolve an MLS key package ref to a qualified client ID"
-                        :> MultiVerb
-                             'GET
-                             '[Servant.JSON]
-                             '[ RespondEmpty 404 "Key package ref not found",
-                                Respond 200 "Key package ref found" ClientIdentity
-                              ]
-                             (Maybe ClientIdentity)
-                    )
-                    :<|> ( "conversation"
-                             :> ( PutConversationByKeyPackageRef
-                                    :<|> GetConversationByKeyPackageRef
-                                )
-                         )
-                    :<|> Named
-                           "put-key-package-ref"
-                           ( Summary "Create a new KeyPackageRef mapping"
-                               :> ReqBody '[Servant.JSON] NewKeyPackageRef
-                               :> MultiVerb
-                                    'PUT
-                                    '[Servant.JSON]
-                                    '[RespondEmpty 201 "Key package ref mapping created"]
-                                    ()
-                           )
-                    :<|> Named
-                           "post-key-package-ref"
-                           ( Summary "Update a KeyPackageRef in mapping"
-                               :> ReqBody '[Servant.JSON] KeyPackageRef
-                               :> MultiVerb
-                                    'POST
-                                    '[Servant.JSON]
-                                    '[RespondEmpty 201 "Key package ref mapping updated"]
-                                    ()
-                           )
-                )
-         )
-           :<|> GetMLSClients
-           :<|> MapKeyPackageRefs
-           :<|> Named
-                  "put-key-package-add"
-                  ( "key-package-add"
-                      :> ReqBody '[Servant.JSON] NewKeyPackage
-                      :> MultiVerb1
-                           'PUT
-                           '[Servant.JSON]
-                           (Respond 200 "Key package ref mapping updated" NewKeyPackageResult)
-                  )
-       )
-
-type PutConversationByKeyPackageRef =
-  Named
-    "put-conversation-by-key-package-ref"
-    ( Summary "Associate a conversation with a key package"
-        :> ReqBody '[Servant.JSON] (Qualified ConvId)
-        :> MultiVerb
-             'PUT
-             '[Servant.JSON]
-             [ RespondEmpty 404 "No key package found by reference",
-               RespondEmpty 204 "Conversation associated"
-             ]
-             Bool
-    )
-
-type GetConversationByKeyPackageRef =
-  Named
-    "get-conversation-by-key-package-ref"
-    ( Summary
-        "Retrieve the conversation associated with a key package"
-        :> MultiVerb
-             'GET
-             '[Servant.JSON]
-             [ RespondEmpty 404 "No associated conversation or bad key package",
-               Respond 200 "Conversation found" (Qualified ConvId)
-             ]
-             (Maybe (Qualified ConvId))
-    )
+type MLSAPI = "mls" :> GetMLSClients
 
 type GetMLSClients =
   Summary "Return all clients and all MLS-capable clients of a user"
     :> "clients"
     :> CanThrow 'UserNotFound
     :> Capture "user" UserId
-    :> QueryParam' '[Required, Strict] "sig_scheme" SignatureSchemeTag
+    :> QueryParam' '[Required, Strict] "ciphersuite" CipherSuite
     :> MultiVerb1
          'GET
          '[Servant.JSON]
          (Respond 200 "MLS clients" (Set ClientInfo))
-
-type MapKeyPackageRefs =
-  Summary "Insert bundle into the KeyPackage ref mapping. Only for tests."
-    :> "key-package-refs"
-    :> ReqBody '[Servant.JSON] KeyPackageBundle
-    :> MultiVerb 'PUT '[Servant.JSON] '[RespondEmpty 204 "Mapping was updated"] ()
 
 type GetVerificationCode =
   Summary "Get verification code for a given email and action"
@@ -663,6 +548,82 @@ type TeamsAPI =
     ( "teams"
         :> ReqBody '[Servant.JSON] (Multi.TeamStatus SearchVisibilityInboundConfig)
         :> Post '[Servant.JSON] ()
+    )
+    :<|> InvitationByEmail
+    :<|> InvitationCode
+    :<|> SuspendTeam
+    :<|> UnsuspendTeam
+    :<|> TeamSize
+    :<|> TeamInvitations
+
+type InvitationByEmail =
+  Named
+    "get-invitation-by-email"
+    ( "teams"
+        :> "invitations"
+        :> "by-email"
+        :> QueryParam' [Required, Strict] "email" Email
+        :> Get '[Servant.JSON] Invitation
+    )
+
+type InvitationCode =
+  Named
+    "get-invitation-code"
+    ( "teams"
+        :> "invitation-code"
+        :> QueryParam' [Required, Strict] "team" TeamId
+        :> QueryParam' [Required, Strict] "invitation_id" InvitationId
+        :> Get '[Servant.JSON] FoundInvitationCode
+    )
+
+newtype FoundInvitationCode = FoundInvitationCode {getFoundInvitationCode :: User.InvitationCode}
+  deriving stock (Eq, Show, Generic)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema FoundInvitationCode)
+
+instance ToSchema FoundInvitationCode where
+  schema =
+    FoundInvitationCode
+      <$> getFoundInvitationCode .= object "FoundInvitationCode" (field "code" (schema @User.InvitationCode))
+
+type SuspendTeam =
+  Named
+    "suspend-team"
+    ( "teams"
+        :> Capture "tid" TeamId
+        :> "suspend"
+        :> Post
+             '[Servant.JSON]
+             NoContent
+    )
+
+type UnsuspendTeam =
+  Named
+    "unsuspend-team"
+    ( "teams"
+        :> Capture "tid" TeamId
+        :> "unsuspend"
+        :> Post
+             '[Servant.JSON]
+             NoContent
+    )
+
+type TeamSize =
+  Named
+    "team-size"
+    ( "teams"
+        :> Capture "tid" TeamId
+        :> "size"
+        :> Get '[JSON] Teamsize.TeamSize
+    )
+
+type TeamInvitations =
+  Named
+    "create-invitations-via-scim"
+    ( "teams"
+        :> Capture "tid" TeamId
+        :> "invitations"
+        :> Servant.ReqBody '[JSON] NewUserScimInvitation
+        :> Post '[JSON] UserAccount
     )
 
 type UserAPI =

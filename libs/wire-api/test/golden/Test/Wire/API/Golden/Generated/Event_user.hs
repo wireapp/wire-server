@@ -148,7 +148,7 @@ testObject_Event_user_8 =
               cnvMetadata =
                 ConversationMetadata
                   { cnvmType = RegularConv,
-                    cnvmCreator = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000200000001")),
+                    cnvmCreator = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000200000001"))),
                     cnvmAccess =
                       [InviteAccess, PrivateAccess, LinkAccess, InviteAccess, InviteAccess, InviteAccess, LinkAccess],
                     cnvmAccessRoles = Set.fromList [TeamMemberAccessRole, GuestAccessRole, ServiceAccessRole],

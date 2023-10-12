@@ -44,7 +44,7 @@ import Bilge qualified
 import Bilge.Assert
 import Control.Concurrent.Async qualified as Async
 import Control.Exception (throw)
-import Control.Lens (at, view, (.~), (?~))
+import Control.Lens hiding ((#), (.=))
 import Control.Monad.Trans.Maybe
 import Data.Aeson hiding (json)
 import Data.ByteString qualified as BS
@@ -81,7 +81,6 @@ import Test.Tasty.Cannon qualified as WS
 import Test.Tasty.HUnit
 import TestHelpers
 import TestSetup
-import Util.Options (Endpoint (Endpoint))
 import Wire.API.Connection
 import Wire.API.Conversation
 import Wire.API.Conversation qualified as C
@@ -105,6 +104,7 @@ import Wire.API.Routes.Version
 import Wire.API.Routes.Versioned
 import Wire.API.Team.Feature qualified as Public
 import Wire.API.Team.Member qualified as Teams
+import Wire.API.User
 import Wire.API.User.Client
 import Wire.API.UserMap (UserMap (..))
 
@@ -184,7 +184,6 @@ tests s =
           test s "post conversations/list/v2" testBulkGetQualifiedConvs,
           test s "add remote members on invalid domain" testAddRemoteMemberInvalidDomain,
           test s "add remote members when federation isn't enabled" testAddRemoteMemberFederationDisabled,
-          test s "add remote members when federator is unavailable" testAddRemoteMemberFederationUnavailable,
           test s "delete conversations/:domain/:cnv/members/:domain/:usr - fail, self conv" deleteMembersQualifiedFailSelf,
           test s "delete conversations/:domain:/cnv/members/:domain/:usr - fail, 1:1 conv" deleteMembersQualifiedFailO2O,
           test s "delete conversations/:domain/:cnv/members/:domain/:usr - local conv with all locals" deleteMembersConvLocalQualifiedOk,
@@ -343,7 +342,7 @@ postProteusConvOk = do
     rsp <-
       postConv alice [bob, jane] (Just nameMaxSize) [] Nothing Nothing
         <!! const 201 === statusCode
-    qcid <- assertConv rsp RegularConv alice qalice [qbob, qjane] (Just nameMaxSize) Nothing
+    qcid <- assertConv rsp RegularConv (Just alice) qalice [qbob, qjane] (Just nameMaxSize) Nothing
     let cid = qUnqualified qcid
     cvs <- mapM (convView cid) [alice, bob, jane]
     liftIO $ mapM_ WS.assertSuccess =<< Async.mapConcurrently (checkWs qalice) (zip cvs [wsA, wsB, wsJ])
@@ -462,7 +461,7 @@ postConvWithRemoteUsersOk rbs = do
       assertConv
         rsp
         RegularConv
-        alice
+        (Just alice)
         qAlice
         (otherLocals <> participatingRemotes)
         (Just convName)
@@ -2161,7 +2160,7 @@ postConvQualifiedFederationNotEnabled = do
 -- FUTUREWORK: figure out how to use functions in the TestM monad inside withSettingsOverrides and remove this duplication
 postConvHelper :: MonadHttp m => (Request -> Request) -> UserId -> [Qualified UserId] -> m ResponseLBS
 postConvHelper g zusr newUsers = do
-  let conv = NewConv [] newUsers (checked "gossip") (Set.fromList []) Nothing Nothing Nothing Nothing roleNameWireAdmin ProtocolProteusTag
+  let conv = NewConv [] newUsers (checked "gossip") (Set.fromList []) Nothing Nothing Nothing Nothing roleNameWireAdmin BaseProtocolProteusTag
   post $ g . path "/conversations" . zUser zusr . zConn "conn" . zType "access" . json conv
 
 postSelfConvOk :: TestM ()
@@ -2170,8 +2169,8 @@ postSelfConvOk = do
   let alice = qUnqualified qalice
   m <- postSelfConv alice <!! const 200 === statusCode
   n <- postSelfConv alice <!! const 200 === statusCode
-  mId <- assertConv m SelfConv alice qalice [] Nothing Nothing
-  nId <- assertConv n SelfConv alice qalice [] Nothing Nothing
+  mId <- assertConv m SelfConv (Just alice) qalice [] Nothing Nothing
+  nId <- assertConv n SelfConv (Just alice) qalice [] Nothing Nothing
   liftIO $ mId @=? nId
 
 postO2OConvOk :: TestM ()
@@ -2181,15 +2180,15 @@ postO2OConvOk = do
   connectUsers alice (singleton bob)
   a <- postO2OConv alice bob Nothing <!! const 200 === statusCode
   c <- postO2OConv alice bob Nothing <!! const 200 === statusCode
-  aId <- assertConv a One2OneConv alice qalice [qbob] Nothing Nothing
-  cId <- assertConv c One2OneConv alice qalice [qbob] Nothing Nothing
+  aId <- assertConv a One2OneConv (Just alice) qalice [qbob] Nothing Nothing
+  cId <- assertConv c One2OneConv (Just alice) qalice [qbob] Nothing Nothing
   liftIO $ aId @=? cId
 
 postConvO2OFailWithSelf :: TestM ()
 postConvO2OFailWithSelf = do
   g <- viewGalley
   alice <- randomUser
-  let inv = NewConv [alice] [] Nothing mempty Nothing Nothing Nothing Nothing roleNameWireAdmin ProtocolProteusTag
+  let inv = NewConv [alice] [] Nothing mempty Nothing Nothing Nothing Nothing roleNameWireAdmin BaseProtocolProteusTag
   post (g . path "/conversations/one2one" . zUser alice . zConn "conn" . zType "access" . json inv) !!! do
     const 403 === statusCode
     const (Just "invalid-op") === fmap label . responseJsonUnsafe
@@ -2205,8 +2204,8 @@ postConnectConvOk = do
   n <-
     postConnectConv alice bob "Alice" "connect with me!" Nothing
       <!! const 200 === statusCode
-  mId <- assertConv m ConnectConv alice qalice [] (Just "Alice") Nothing
-  nId <- assertConv n ConnectConv alice qalice [] (Just "Alice") Nothing
+  mId <- assertConv m ConnectConv (Just alice) qalice [] (Just "Alice") Nothing
+  nId <- assertConv n ConnectConv (Just alice) qalice [] (Just "Alice") Nothing
   liftIO $ mId @=? nId
 
 postConnectConvOk2 :: TestM ()
@@ -2251,13 +2250,13 @@ postMutualConnectConvOk = do
   ac <-
     postConnectConv alice bob "A" "a" Nothing
       <!! const 201 === statusCode
-  acId <- assertConv ac ConnectConv alice qalice [] (Just "A") Nothing
+  acId <- assertConv ac ConnectConv (Just alice) qalice [] (Just "A") Nothing
   bc <-
     postConnectConv bob alice "B" "b" Nothing
       <!! const 200 === statusCode
   -- The connect conversation was simply accepted, thus the
   -- conversation name and message sent in Bob's request ignored.
-  bcId <- assertConv bc One2OneConv alice qbob [qalice] (Just "A") Nothing
+  bcId <- assertConv bc One2OneConv (Just alice) qbob [qalice] (Just "A") Nothing
   liftIO $ acId @=? bcId
 
 postRepeatConnectConvCancel :: TestM ()
@@ -2388,7 +2387,7 @@ accessConvMeta = do
   let meta =
         ConversationMetadata
           RegularConv
-          alice
+          (Just alice)
           [InviteAccess]
           (Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole, ServiceAccessRole])
           (Just "gossip")
@@ -2649,30 +2648,6 @@ testAddRemoteMemberFederationDisabled = do
       const (Right "federation-not-enabled") === fmap label . responseJsonEither
 
   -- the member is not actually added to the conversation
-  conv <- responseJsonError =<< getConvQualified alice qconvId <!! const 200 === statusCode
-  liftIO $ map omQualifiedId (cmOthers (cnvMembers conv)) @?= []
-
-testAddRemoteMemberFederationUnavailable :: TestM ()
-testAddRemoteMemberFederationUnavailable = do
-  alice <- randomUser
-  let domain = Domain "some-remote-backend.example.com"
-  remoteBob <- flip Qualified domain <$> randomId
-  qconvId <- decodeQualifiedConvId <$> postConv alice [] (Just "remote gossip") [] Nothing Nothing
-  connectWithRemoteUser alice remoteBob
-
-  -- federator endpoint being configured in brig and/or galley, but not being
-  -- available (i.e. no service listing on that IP/port) can happen due to a
-  -- misconfiguration of federator. That should give an unreachable_backends error.
-  -- Port 1 should always be wrong hopefully.
-  let federatorUnavailable = federator ?~ Endpoint "127.0.0.1" 1
-  withSettingsOverrides federatorUnavailable $ do
-    e :: UnreachableBackends <-
-      responseJsonError
-        =<< postQualifiedMembers alice (remoteBob :| []) qconvId <!! do
-          const 533 === statusCode
-    liftIO $ e.backends @?= [domain]
-
-  -- since on member add the check of connection between remote backends will fail, the member is not actually added to the conversation
   conv <- responseJsonError =<< getConvQualified alice qconvId <!! const 200 === statusCode
   liftIO $ map omQualifiedId (cmOthers (cnvMembers conv)) @?= []
 

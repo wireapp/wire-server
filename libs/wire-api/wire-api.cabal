@@ -1,4 +1,4 @@
-cabal-version: 1.12
+cabal-version: 3.0
 name:          wire-api
 version:       0.1.0
 description:   API types of the Wire collaboration platform
@@ -6,11 +6,65 @@ category:      Network
 author:        Wire Swiss GmbH
 maintainer:    Wire Swiss GmbH <backend@wire.com>
 copyright:     (c) 2020 Wire Swiss GmbH
-license:       AGPL-3
+license:       AGPL-3.0-only
 license-file:  LICENSE
 build-type:    Simple
 
+common common-all
+  default-language:   Haskell2010
+  ghc-options:
+    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+    -Wredundant-constraints
+
+  default-extensions:
+    NoImplicitPrelude
+    AllowAmbiguousTypes
+    BangPatterns
+    ConstraintKinds
+    DataKinds
+    DefaultSignatures
+    DeriveFunctor
+    DeriveGeneric
+    DeriveLift
+    DeriveTraversable
+    DerivingStrategies
+    DerivingVia
+    DuplicateRecordFields
+    EmptyCase
+    FlexibleContexts
+    FlexibleInstances
+    FunctionalDependencies
+    GADTs
+    GeneralizedNewtypeDeriving
+    InstanceSigs
+    KindSignatures
+    LambdaCase
+    MultiParamTypeClasses
+    MultiWayIf
+    NamedFieldPuns
+    NumericUnderscores
+    OverloadedLabels
+    OverloadedRecordDot
+    OverloadedStrings
+    PackageImports
+    PatternSynonyms
+    PolyKinds
+    QuasiQuotes
+    RankNTypes
+    ScopedTypeVariables
+    StandaloneDeriving
+    TupleSections
+    TypeApplications
+    TypeFamilies
+    TypeFamilyDependencies
+    TypeOperators
+    UndecidableInstances
+    ViewPatterns
+
 library
+  import:           common-all
+
   -- cabal-fmt: expand src
   exposed-modules:
     Wire.API.ApplyMods
@@ -47,6 +101,8 @@ library
     Wire.API.MakesFederatedCall
     Wire.API.Message
     Wire.API.Message.Proto
+    Wire.API.MLS.AuthenticatedContent
+    Wire.API.MLS.Capabilities
     Wire.API.MLS.CipherSuite
     Wire.API.MLS.Commit
     Wire.API.MLS.CommitBundle
@@ -55,15 +111,22 @@ library
     Wire.API.MLS.Epoch
     Wire.API.MLS.Extension
     Wire.API.MLS.Group
-    Wire.API.MLS.GroupInfoBundle
+    Wire.API.MLS.Group.Serialisation
+    Wire.API.MLS.GroupInfo
+    Wire.API.MLS.HPKEPublicKey
     Wire.API.MLS.KeyPackage
     Wire.API.MLS.Keys
+    Wire.API.MLS.LeafNode
+    Wire.API.MLS.Lifetime
     Wire.API.MLS.Message
     Wire.API.MLS.Proposal
+    Wire.API.MLS.ProposalTag
+    Wire.API.MLS.ProtocolVersion
     Wire.API.MLS.PublicGroupState
     Wire.API.MLS.Serialisation
     Wire.API.MLS.Servant
     Wire.API.MLS.SubConversation
+    Wire.API.MLS.Validation
     Wire.API.MLS.Welcome
     Wire.API.Notification
     Wire.API.OAuth
@@ -173,58 +236,11 @@ library
     Wire.API.VersionInfo
     Wire.API.Wrapped
 
-  other-modules:      Paths_wire_api
-  hs-source-dirs:     src
-  default-extensions:
-    NoImplicitPrelude
-    AllowAmbiguousTypes
-    BangPatterns
-    ConstraintKinds
-    DataKinds
-    DefaultSignatures
-    DeriveFunctor
-    DeriveGeneric
-    DeriveLift
-    DeriveTraversable
-    DerivingStrategies
-    DerivingVia
-    DuplicateRecordFields
-    EmptyCase
-    FlexibleContexts
-    FlexibleInstances
-    FunctionalDependencies
-    GADTs
-    InstanceSigs
-    KindSignatures
-    LambdaCase
-    MultiParamTypeClasses
-    MultiWayIf
-    NamedFieldPuns
-    NumericUnderscores
-    OverloadedRecordDot
-    OverloadedStrings
-    PackageImports
-    PatternSynonyms
-    PolyKinds
-    QuasiQuotes
-    RankNTypes
-    ScopedTypeVariables
-    StandaloneDeriving
-    TupleSections
-    TypeApplications
-    TypeFamilies
-    TypeFamilyDependencies
-    TypeOperators
-    UndecidableInstances
-    ViewPatterns
-
-  ghc-options:
-    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
-    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -Wredundant-constraints -Wunused-packages
-
+  other-modules:    Paths_wire_api
+  hs-source-dirs:   src
   build-depends:
-      aeson                      >=2.0.1.0
+    , aeson                      >=2.0.1.0
+    , async
     , attoparsec                 >=0.10
     , base                       >=4       && <5
     , base64-bytestring          >=1.0
@@ -314,15 +330,15 @@ library
     , x509
     , zauth
 
-  default-language:   GHC2021
+  default-language: GHC2021
 
 test-suite wire-api-golden-tests
-  type:               exitcode-stdio-1.0
-  main-is:            Main.hs
+  import:           common-all
+  type:             exitcode-stdio-1.0
+  main-is:          ../golden.hs
 
   -- cabal-fmt: expand test/golden
   other-modules:
-    Main
     Paths_wire_api
     Test.Wire.API.Golden.FromJSON
     Test.Wire.API.Golden.Generated
@@ -563,64 +579,19 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Manual.ListUsersById
     Test.Wire.API.Golden.Manual.QualifiedUserClientPrekeyMap
     Test.Wire.API.Golden.Manual.SearchResultContact
+    Test.Wire.API.Golden.Manual.SubConversation
     Test.Wire.API.Golden.Manual.TeamSize
     Test.Wire.API.Golden.Manual.Token
     Test.Wire.API.Golden.Manual.UserClientPrekeyMap
     Test.Wire.API.Golden.Manual.UserIdList
     Test.Wire.API.Golden.Protobuf
+    Test.Wire.API.Golden.Run
     Test.Wire.API.Golden.Runner
 
-  hs-source-dirs:     test/golden
-  default-extensions:
-    NoImplicitPrelude
-    AllowAmbiguousTypes
-    BangPatterns
-    ConstraintKinds
-    DataKinds
-    DefaultSignatures
-    DeriveFunctor
-    DeriveGeneric
-    DeriveLift
-    DeriveTraversable
-    DerivingStrategies
-    DerivingVia
-    DuplicateRecordFields
-    EmptyCase
-    FlexibleContexts
-    FlexibleInstances
-    FunctionalDependencies
-    GADTs
-    InstanceSigs
-    KindSignatures
-    LambdaCase
-    MultiParamTypeClasses
-    MultiWayIf
-    NamedFieldPuns
-    OverloadedRecordDot
-    OverloadedStrings
-    PackageImports
-    PatternSynonyms
-    PolyKinds
-    QuasiQuotes
-    RankNTypes
-    ScopedTypeVariables
-    StandaloneDeriving
-    TupleSections
-    TypeApplications
-    TypeFamilies
-    TypeFamilyDependencies
-    TypeOperators
-    UndecidableInstances
-    ViewPatterns
-
-  ghc-options:
-    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
-    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -threaded -with-rtsopts=-N -Wredundant-constraints
-    -Wunused-packages
-
+  ghc-options:      -threaded -with-rtsopts=-N
+  hs-source-dirs:   test/golden
   build-depends:
-      aeson                    >=2.0.1.0
+    , aeson                    >=2.0.1.0
     , aeson-diff
     , aeson-pretty
     , base
@@ -646,19 +617,20 @@ test-suite wire-api-golden-tests
     , wire-api
     , wire-message-proto-lens
 
-  default-language:   GHC2021
+  default-language: GHC2021
 
 test-suite wire-api-tests
-  type:               exitcode-stdio-1.0
-  main-is:            Main.hs
+  import:           common-all
+  type:             exitcode-stdio-1.0
+  main-is:          ../unit.hs
 
   -- cabal-fmt: expand test/unit
   other-modules:
-    Main
     Paths_wire_api
     Test.Wire.API.Call.Config
     Test.Wire.API.Conversation
     Test.Wire.API.MLS
+    Test.Wire.API.MLS.Group
     Test.Wire.API.OAuth
     Test.Wire.API.RawJson
     Test.Wire.API.Roundtrip.Aeson
@@ -669,6 +641,7 @@ test-suite wire-api-tests
     Test.Wire.API.Routes
     Test.Wire.API.Routes.Version
     Test.Wire.API.Routes.Version.Wai
+    Test.Wire.API.Run
     Test.Wire.API.Swagger
     Test.Wire.API.Team.Export
     Test.Wire.API.Team.Member
@@ -677,57 +650,9 @@ test-suite wire-api-tests
     Test.Wire.API.User.RichInfo
     Test.Wire.API.User.Search
 
-  hs-source-dirs:     test/unit
-  default-extensions:
-    NoImplicitPrelude
-    AllowAmbiguousTypes
-    BangPatterns
-    ConstraintKinds
-    DataKinds
-    DefaultSignatures
-    DeriveFunctor
-    DeriveGeneric
-    DeriveLift
-    DeriveTraversable
-    DerivingStrategies
-    DerivingVia
-    DuplicateRecordFields
-    EmptyCase
-    FlexibleContexts
-    FlexibleInstances
-    FunctionalDependencies
-    GADTs
-    InstanceSigs
-    KindSignatures
-    LambdaCase
-    MultiParamTypeClasses
-    MultiWayIf
-    NamedFieldPuns
-    OverloadedRecordDot
-    OverloadedStrings
-    PackageImports
-    PatternSynonyms
-    PolyKinds
-    QuasiQuotes
-    RankNTypes
-    ScopedTypeVariables
-    StandaloneDeriving
-    TupleSections
-    TypeApplications
-    TypeFamilies
-    TypeFamilyDependencies
-    TypeOperators
-    UndecidableInstances
-    ViewPatterns
-
-  ghc-options:
-    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
-    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -threaded -with-rtsopts=-N -Wredundant-constraints
-    -Wunused-packages
-
+  hs-source-dirs:   test/unit
   build-depends:
-      aeson                    >=2.0.1.0
+    , aeson                    >=2.0.1.0
     , aeson-qq
     , async
     , base
@@ -750,6 +675,8 @@ test-suite wire-api-tests
     , openapi3
     , process
     , QuickCheck
+    , random
+    , saml2-web-sso
     , schema-profunctor
     , servant
     , servant-server
@@ -766,4 +693,5 @@ test-suite wire-api-tests
     , wire-api
     , wire-message-proto-lens
 
-  default-language:   GHC2021
+  ghc-options:      -threaded -with-rtsopts=-N
+  default-language: GHC2021

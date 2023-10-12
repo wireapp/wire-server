@@ -237,6 +237,7 @@ getAllFeatureConfigsForServer =
     <*> getConfigForServer @ExposeInvitationURLsToTeamAdminConfig
     <*> getConfigForServer @OutlookCalIntegrationConfig
     <*> getConfigForServer @MlsE2EIdConfig
+    <*> getConfigForServer @MlsMigrationConfig
 
 getAllFeatureConfigsUser ::
   forall r.
@@ -270,6 +271,7 @@ getAllFeatureConfigsUser uid =
     <*> getConfigForUser @ExposeInvitationURLsToTeamAdminConfig uid
     <*> getConfigForUser @OutlookCalIntegrationConfig uid
     <*> getConfigForUser @MlsE2EIdConfig uid
+    <*> getConfigForUser @MlsMigrationConfig uid
 
 getAllFeatureConfigsTeam ::
   forall r.
@@ -299,6 +301,7 @@ getAllFeatureConfigsTeam tid =
     <*> getConfigForTeam @ExposeInvitationURLsToTeamAdminConfig tid
     <*> getConfigForTeam @OutlookCalIntegrationConfig tid
     <*> getConfigForTeam @MlsE2EIdConfig tid
+    <*> getConfigForTeam @MlsMigrationConfig tid
 
 -- | Note: this is an internal function which doesn't cover all features, e.g. LegalholdConfig
 genericGetConfigForTeam ::
@@ -482,6 +485,10 @@ instance GetFeatureConfig OutlookCalIntegrationConfig where
 instance GetFeatureConfig MlsE2EIdConfig where
   getConfigForServer =
     input <&> view (settings . featureFlags . flagMlsE2EId . unDefaults)
+
+instance GetFeatureConfig MlsMigrationConfig where
+  getConfigForServer =
+    input <&> view (settings . featureFlags . flagMlsMigration . unDefaults)
 
 -- -- | If second factor auth is enabled, make sure that end-points that don't support it, but should, are blocked completely.  (This is a workaround until we have 2FA for those end-points as well.)
 -- --

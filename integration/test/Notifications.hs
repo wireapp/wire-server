@@ -66,6 +66,9 @@ isDeleteUserNotif n =
 isNewMessageNotif :: MakesValue a => a -> App Bool
 isNewMessageNotif n = fieldEquals n "payload.0.type" "conversation.otr-message-add"
 
+isNewMLSMessageNotif :: MakesValue a => a -> App Bool
+isNewMLSMessageNotif n = fieldEquals n "payload.0.type" "conversation.mls-message-add"
+
 isMemberJoinNotif :: MakesValue a => a -> App Bool
 isMemberJoinNotif n = fieldEquals n "payload.0.type" "conversation.member-join"
 

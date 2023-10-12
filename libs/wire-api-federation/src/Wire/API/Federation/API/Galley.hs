@@ -63,6 +63,7 @@ type GalleyApi =
     :<|> FedEndpointWithMods
            '[ MakesFederatedCall 'Galley "on-conversation-updated",
               MakesFederatedCall 'Galley "on-mls-message-sent",
+              MakesFederatedCall 'Brig "get-users-by-ids",
               MakesFederatedCall 'Brig "api-version"
             ]
            "leave-conversation"
@@ -90,6 +91,8 @@ type GalleyApi =
            EmptyResponse
     :<|> FedEndpointWithMods
            '[ MakesFederatedCall 'Galley "on-conversation-updated",
+              MakesFederatedCall 'Galley "on-mls-message-sent",
+              MakesFederatedCall 'Brig "get-users-by-ids",
               MakesFederatedCall 'Galley "on-mls-message-sent"
             ]
            "update-conversation"
@@ -111,7 +114,9 @@ type GalleyApi =
               MakesFederatedCall 'Galley "on-conversation-updated",
               MakesFederatedCall 'Galley "on-mls-message-sent",
               MakesFederatedCall 'Galley "send-mls-commit-bundle",
-              MakesFederatedCall 'Brig "get-mls-clients"
+              MakesFederatedCall 'Brig "get-mls-clients",
+              MakesFederatedCall 'Brig "get-users-by-ids",
+              MakesFederatedCall 'Brig "api-version"
             ]
            "send-mls-commit-bundle"
            MLSMessageSendRequest
@@ -130,6 +135,23 @@ type GalleyApi =
            TypingDataUpdateRequest
            TypingDataUpdateResponse
     :<|> FedEndpoint "on-typing-indicator-updated" TypingDataUpdated EmptyResponse
+    :<|> FedEndpoint "get-sub-conversation" GetSubConversationsRequest GetSubConversationsResponse
+    :<|> FedEndpointWithMods
+           '[
+            ]
+           "delete-sub-conversation"
+           DeleteSubConversationFedRequest
+           DeleteSubConversationResponse
+    :<|> FedEndpointWithMods
+           '[ MakesFederatedCall 'Galley "on-mls-message-sent"
+            ]
+           "leave-sub-conversation"
+           LeaveSubConversationRequest
+           LeaveSubConversationResponse
+    :<|> FedEndpoint
+           "get-one2one-conversation"
+           GetOne2OneConversationRequest
+           GetOne2OneConversationResponse
 
 data TypingDataUpdateRequest = TypingDataUpdateRequest
   { typingStatus :: TypingStatus,
@@ -174,6 +196,16 @@ data GetConversationsRequest = GetConversationsRequest
   deriving (Arbitrary) via (GenericUniform GetConversationsRequest)
   deriving (ToJSON, FromJSON) via (CustomEncoded GetConversationsRequest)
 
+data GetOne2OneConversationRequest = GetOne2OneConversationRequest
+  { -- The user on the sender's domain
+    goocSenderUser :: UserId,
+    -- The user on the receiver's domain
+    goocReceiverUser :: UserId
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform GetOne2OneConversationRequest)
+  deriving (ToJSON, FromJSON) via (CustomEncoded GetOne2OneConversationRequest)
+
 data RemoteConvMembers = RemoteConvMembers
   { selfRole :: RoleName,
     others :: [OtherMember]
@@ -204,6 +236,18 @@ newtype GetConversationsResponse = GetConversationsResponse
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform GetConversationsResponse)
   deriving (ToJSON, FromJSON) via (CustomEncoded GetConversationsResponse)
+
+data GetOne2OneConversationResponse
+  = GetOne2OneConversationOk RemoteConversation
+  | -- | This is returned when the local backend is asked for a 1-1 conversation
+    -- that should reside on the other backend.
+    GetOne2OneConversationBackendMismatch
+  | -- | This is returned when a 1-1 conversation between two unconnected users
+    -- is requested.
+    GetOne2OneConversationNotConnected
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform GetOne2OneConversationResponse)
+  deriving (ToJSON, FromJSON) via (CustomEncoded GetOne2OneConversationResponse)
 
 -- | A record type describing a new federated conversation
 --
@@ -303,6 +347,7 @@ data RemoteMLSMessage = RemoteMLSMessage
     metadata :: MessageMetadata,
     sender :: Qualified UserId,
     conversation :: ConvId,
+    subConversation :: Maybe SubConvId,
     recipients :: [(UserId, ClientId)],
     message :: Base64ByteString
   }
@@ -336,6 +381,7 @@ data MLSMessageSendRequest = MLSMessageSendRequest
     -- | Sender is assumed to be owned by the origin domain, this allows us to
     -- protect against spoofing attacks
     sender :: UserId,
+    senderClient :: ClientId,
     rawMessage :: Base64ByteString
   }
   deriving stock (Eq, Show, Generic)
@@ -396,8 +442,15 @@ data ConversationUpdateResponse
     via (CustomEncoded ConversationUpdateResponse)
 
 -- | A wrapper around a raw welcome message
-newtype MLSWelcomeRequest = MLSWelcomeRequest
-  { mlsWelcomeRequest :: Base64ByteString
+data MLSWelcomeRequest = MLSWelcomeRequest
+  { -- | Implicitely qualified by origin domain
+    originatingUser :: UserId,
+    -- | A serialised welcome message.
+    welcomeMessage :: Base64ByteString,
+    -- | Recipients local to the target backend.
+    recipients :: [(UserId, ClientId)],
+    -- | The conversation id, qualified to the owning domain
+    qualifiedConvId :: Qualified ConvId
   }
   deriving stock (Eq, Generic, Show)
   deriving (Arbitrary) via (GenericUniform MLSWelcomeRequest)
@@ -424,9 +477,9 @@ data MLSMessageResponse
   deriving (ToJSON, FromJSON) via (CustomEncoded MLSMessageResponse)
 
 data GetGroupInfoRequest = GetGroupInfoRequest
-  { -- | Conversation is assumed to be owned by the target domain, this allows
-    -- us to protect against relay attacks
-    conv :: ConvId,
+  { -- | Conversation (or subconversation) is assumed to be owned by the target
+    -- domain, this allows us to protect against relay attacks
+    conv :: ConvOrSubConvId,
     -- | Sender is assumed to be owned by the origin domain, this allows us to
     -- protect against spoofing attacks
     sender :: UserId
@@ -440,3 +493,50 @@ data GetGroupInfoResponse
   | GetGroupInfoResponseState Base64ByteString
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via (CustomEncoded GetGroupInfoResponse)
+
+data GetSubConversationsRequest = GetSubConversationsRequest
+  { gsreqUser :: UserId,
+    gsreqConv :: ConvId,
+    gsreqSubConv :: SubConvId
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON) via (CustomEncoded GetSubConversationsRequest)
+
+data GetSubConversationsResponse
+  = GetSubConversationsResponseError GalleyError
+  | GetSubConversationsResponseSuccess PublicSubConversation
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON) via (CustomEncoded GetSubConversationsResponse)
+
+data LeaveSubConversationRequest = LeaveSubConversationRequest
+  { lscrUser :: UserId,
+    lscrClient :: ClientId,
+    lscrConv :: ConvId,
+    lscrSubConv :: SubConvId
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform LeaveSubConversationRequest)
+  deriving (ToJSON, FromJSON) via (CustomEncoded LeaveSubConversationRequest)
+
+data LeaveSubConversationResponse
+  = LeaveSubConversationResponseError GalleyError
+  | LeaveSubConversationResponseProtocolError Text
+  | LeaveSubConversationResponseOk
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON) via (CustomEncoded LeaveSubConversationResponse)
+
+data DeleteSubConversationFedRequest = DeleteSubConversationFedRequest
+  { dscreqUser :: UserId,
+    dscreqConv :: ConvId,
+    dscreqSubConv :: SubConvId,
+    dscreqGroupId :: GroupId,
+    dscreqEpoch :: Epoch
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON) via (CustomEncoded DeleteSubConversationFedRequest)
+
+data DeleteSubConversationResponse
+  = DeleteSubConversationResponseError GalleyError
+  | DeleteSubConversationResponseSuccess
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON) via (CustomEncoded DeleteSubConversationResponse)

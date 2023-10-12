@@ -53,6 +53,7 @@ packages:
   , tools/fedcalls/
   , tools/rex/
   , tools/stern/
+  , tools/mlsstats/
 
 tests: True
 benchmarks: True
@@ -116,6 +117,8 @@ package move-team
 package polysemy-wire-zoo
     ghc-options: -Werror
 package proxy
+    ghc-options: -Werror
+package mlsstats
     ghc-options: -Werror
 package repair-handles
     ghc-options: -Werror

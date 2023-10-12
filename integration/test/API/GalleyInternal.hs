@@ -12,7 +12,7 @@ putTeamMember user team perms = do
   tid <- asString team
   req <-
     baseRequest
-      OwnDomain
+      user
       Galley
       Unversioned
       ("/i/teams/" <> tid <> "/members")

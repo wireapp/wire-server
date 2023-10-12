@@ -25,76 +25,85 @@ import Data.Qualified
 import Data.Time
 import Galley.API.MLS.Types
 import Galley.API.Push
-import Galley.Data.Conversation.Types qualified as Data
+import Galley.API.Util
 import Galley.Data.Services
 import Galley.Effects
-import Galley.Effects.FederatorAccess
+import Galley.Effects.BackendNotificationQueueAccess
 import Galley.Types.Conversations.Members
 import Imports
+import Network.AMQP qualified as Q
 import Polysemy
 import Polysemy.Input
 import Polysemy.TinyLog hiding (trace)
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
+import Wire.API.MLS.Credential
+import Wire.API.MLS.Message
+import Wire.API.MLS.Serialisation
+import Wire.API.MLS.SubConversation
 import Wire.API.Message
-import Wire.API.Unreachable
 
 -- | Propagate a message.
+-- The message will not be propagated to the sender client if provided. This is
+-- a requirement from Core Crypto and the clients.
 propagateMessage ::
-  ( Member ExternalAccess r,
-    Member FederatorAccess r,
+  ( Member BackendNotificationQueueAccess r,
+    Member ExternalAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
     Member TinyLog r
   ) =>
   Qualified UserId ->
-  Local Data.Conversation ->
-  ClientMap ->
+  Maybe ClientId ->
+  Local ConvOrSubConv ->
   Maybe ConnId ->
-  ByteString ->
-  Sem r (Maybe UnreachableUsers)
-propagateMessage qusr lconv cm con raw = do
-  -- FUTUREWORK: check the epoch
-  let lmems = Data.convLocalMembers . tUnqualified $ lconv
-      rmems = Data.convRemoteMembers . tUnqualified $ lconv
+  RawMLS Message ->
+  ClientMap ->
+  Sem r ()
+propagateMessage qusr mSenderClient lConvOrSub con msg cm = do
+  now <- input @UTCTime
+  let mlsConv = (.conv) <$> lConvOrSub
+      lmems = mcLocalMembers . tUnqualified $ mlsConv
+      rmems = mcRemoteMembers . tUnqualified $ mlsConv
       botMap = Map.fromList $ do
         m <- lmems
         b <- maybeToList $ newBotMember m
         pure (lmId m, b)
       mm = defMessageMetadata
-  now <- input @UTCTime
-  let lcnv = fmap Data.convId lconv
-      qcnv = tUntagged lcnv
-      e = Event qcnv Nothing qusr now $ EdMLSMessage raw
-      mkPush :: UserId -> ClientId -> MessagePush
-      mkPush u c = newMessagePush botMap con mm [(u, c)] e
+  let qt =
+        tUntagged lConvOrSub <&> \case
+          Conv c -> (mcId c, Nothing)
+          SubConv c s -> (mcId c, Just (scSubConvId s))
+      qcnv = fst <$> qt
+      sconv = snd (qUnqualified qt)
+      e = Event qcnv sconv qusr now $ EdMLSMessage msg.raw
 
-  for_ (lmems >>= localMemberMLSClients lcnv) $ \(u, c) ->
-    runMessagePush lconv (Just qcnv) (mkPush u c)
+  runMessagePush lConvOrSub (Just qcnv) $
+    newMessagePush botMap con mm (lmems >>= localMemberMLSClients mlsConv) e
 
   -- send to remotes
-  void $
-    runFederatedConcurrentlyEither (map remoteMemberQualify rmems) $
-      \(tUnqualified -> rs) ->
-        fedClient @'Galley @"on-mls-message-sent" $
-          RemoteMLSMessage
-            { time = now,
-              sender = qusr,
-              metadata = mm,
-              conversation = tUnqualified lcnv,
-              recipients = rs >>= remoteMemberMLSClients,
-              message = Base64ByteString raw
-            }
-  pure Nothing
+  (either (logRemoteNotificationError @"on-mls-message-sent") (const (pure ())) <=< enqueueNotificationsConcurrently Q.Persistent (map remoteMemberQualify rmems)) $
+    \rs ->
+      fedQueueClient @'Galley @"on-mls-message-sent" $
+        RemoteMLSMessage
+          { time = now,
+            sender = qusr,
+            metadata = mm,
+            conversation = qUnqualified qcnv,
+            subConversation = sconv,
+            recipients = tUnqualified rs >>= remoteMemberMLSClients,
+            message = Base64ByteString msg.raw
+          }
   where
+    cmWithoutSender = maybe cm (flip cmRemoveClient cm . mkClientIdentity qusr) mSenderClient
     localMemberMLSClients :: Local x -> LocalMember -> [(UserId, ClientId)]
     localMemberMLSClients loc lm =
       let localUserQId = tUntagged (qualifyAs loc localUserId)
           localUserId = lmId lm
        in map
             (\(c, _) -> (localUserId, c))
-            (toList (Map.findWithDefault mempty localUserQId cm))
+            (Map.assocs (Map.findWithDefault mempty localUserQId cmWithoutSender))
 
     remoteMemberMLSClients :: RemoteMember -> [(UserId, ClientId)]
     remoteMemberMLSClients rm =
@@ -102,4 +111,4 @@ propagateMessage qusr lconv cm con raw = do
           remoteUserId = qUnqualified remoteUserQId
        in map
             (\(c, _) -> (remoteUserId, c))
-            (toList (Map.findWithDefault mempty remoteUserQId cm))
+            (Map.assocs (Map.findWithDefault mempty remoteUserQId cmWithoutSender))

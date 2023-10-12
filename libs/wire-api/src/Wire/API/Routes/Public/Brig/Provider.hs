@@ -27,7 +27,7 @@ import Wire.API.Error
 import Wire.API.Error.Brig
 import Wire.API.Provider
 import Wire.API.Routes.MultiVerb
-import Wire.API.Routes.Named (Named (..))
+import Wire.API.Routes.Named (Named)
 import Wire.API.Routes.Public
 import Wire.API.User.Auth
 

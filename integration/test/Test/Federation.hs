@@ -124,11 +124,11 @@ testNotificationsForOfflineBackends = do
                 isNotifConv downBackendConv,
                 isNotifForUser delUser
               ]
-      void $ awaitNotification downUser1 downClient1 (Just newMsgNotif) 1 isDelUserLeaveDownConvNotif
+      void $ awaitNotification downUser1 downClient1 (Just newMsgNotif) 5 isDelUserLeaveDownConvNotif
 
       -- FUTUREWORK: Uncomment after fixing this bug: https://wearezeta.atlassian.net/browse/WPB-3664
       -- void $ awaitNotification downUser1 downClient1 (Just newMsgNotif) 1 isOtherUser2LeaveUpConvNotif
       -- void $ awaitNotification otherUser otherClient (Just newMsgNotif) 1 isDelUserLeaveDownConvNotif
 
-      delUserDeletedNotif <- nPayload $ awaitNotification downUser1 downClient1 (Just newMsgNotif) 1 isDeleteUserNotif
+      delUserDeletedNotif <- nPayload $ awaitNotification downUser1 downClient1 (Just newMsgNotif) 5 isDeleteUserNotif
       objQid delUserDeletedNotif `shouldMatch` objQid delUser

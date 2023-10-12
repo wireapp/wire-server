@@ -24,30 +24,26 @@ import Data.Qualified
 import Data.UUID qualified as UUID
 import Imports
 import Wire.API.MLS.Message
-import Wire.API.Unreachable
 
 testObject_MLSMessageSendingStatus1 :: MLSMessageSendingStatus
 testObject_MLSMessageSendingStatus1 =
   MLSMessageSendingStatus
     { mmssEvents = [],
-      mmssTime = toUTCTimeMillis (read "1864-04-12 12:22:43.673 UTC"),
-      mmssFailedToSendTo = mempty
+      mmssTime = toUTCTimeMillis (read "1864-04-12 12:22:43.673 UTC")
     }
 
 testObject_MLSMessageSendingStatus2 :: MLSMessageSendingStatus
 testObject_MLSMessageSendingStatus2 =
   MLSMessageSendingStatus
     { mmssEvents = [],
-      mmssTime = toUTCTimeMillis (read "2001-04-12 12:22:43.673 UTC"),
-      mmssFailedToSendTo = unreachableFromList failed1
+      mmssTime = toUTCTimeMillis (read "2001-04-12 12:22:43.673 UTC")
     }
 
 testObject_MLSMessageSendingStatus3 :: MLSMessageSendingStatus
 testObject_MLSMessageSendingStatus3 =
   MLSMessageSendingStatus
     { mmssEvents = [],
-      mmssTime = toUTCTimeMillis (read "1999-04-12 12:22:43.673 UTC"),
-      mmssFailedToSendTo = unreachableFromList failed2
+      mmssTime = toUTCTimeMillis (read "1999-04-12 12:22:43.673 UTC")
     }
 
 failed1 :: [Qualified UserId]

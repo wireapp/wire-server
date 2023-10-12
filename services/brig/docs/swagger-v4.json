@@ -220,6 +220,9 @@
         "mlsE2EId": {
           "$ref": "#/definitions/MlsE2EIdConfig.WithStatus"
         },
+        "mlsMigration": {
+          "$ref": "#/definitions/MlsMigration.WithStatus"
+        },
         "outlookCalIntegration": {
           "$ref": "#/definitions/OutlookCalIntegrationConfig.WithStatus"
         },
@@ -259,7 +262,8 @@
         "mls",
         "exposeInvitationURLsToTeamAdmin",
         "outlookCalIntegration",
-        "mlsE2EId"
+        "mlsE2EId",
+        "mlsMigration"
       ],
       "type": "object"
     },
@@ -1063,6 +1067,9 @@
           "minimum": 0,
           "type": "integer"
         },
+        "epoch_timestamp": {
+          "$ref": "#/definitions/Epoch Timestamp"
+        },
         "group_id": {
           "$ref": "#/definitions/GroupId"
         },
@@ -1111,11 +1118,11 @@
       "required": [
         "qualified_id",
         "type",
-        "creator",
         "access",
         "members",
         "group_id",
         "epoch",
+        "epoch_timestamp",
         "cipher_suite"
       ],
       "type": "object"
@@ -1447,6 +1454,9 @@
           "minimum": 0,
           "type": "integer"
         },
+        "epoch_timestamp": {
+          "$ref": "#/definitions/Epoch Timestamp"
+        },
         "failed_to_add": {
           "items": {
             "$ref": "#/definitions/Qualified_UserId"
@@ -1501,12 +1511,12 @@
       "required": [
         "qualified_id",
         "type",
-        "creator",
         "access",
         "access_role",
         "members",
         "group_id",
         "epoch",
+        "epoch_timestamp",
         "cipher_suite",
         "failed_to_add"
       ],
@@ -1737,6 +1747,12 @@
       ],
       "type": "object"
     },
+    "Epoch Timestamp": {
+      "description": "The timestamp of the epoch number",
+      "example": "2021-05-12T10:52:02.671Z",
+      "format": "yyyy-mm-ddThh:MM:ss.qqq",
+      "type": "string"
+    },
     "Event": {
       "properties": {
         "conversation": {
@@ -1786,6 +1802,9 @@
               "maximum": 18446744073709552000,
               "minimum": 0,
               "type": "integer"
+            },
+            "epoch_timestamp": {
+              "$ref": "#/definitions/Epoch Timestamp"
             },
             "group_id": {
               "$ref": "#/definitions/GroupId"
@@ -1919,10 +1938,10 @@
             "has_password",
             "qualified_id",
             "type",
-            "creator",
             "members",
             "group_id",
             "epoch",
+            "epoch_timestamp",
             "cipher_suite",
             "qualified_recipient",
             "receipt_mode",
@@ -1978,7 +1997,8 @@
         "conversation.typing",
         "conversation.otr-message-add",
         "conversation.mls-message-add",
-        "conversation.mls-welcome"
+        "conversation.mls-welcome",
+        "conversation.protocol-update"
       ],
       "type": "string"
     },
@@ -2648,13 +2668,20 @@
             "$ref": "#/definitions/UUID"
           },
           "type": "array"
+        },
+        "supportedProtocols": {
+          "items": {
+            "$ref": "#/definitions/Protocol"
+          },
+          "type": "array"
         }
       },
       "required": [
         "protocolToggleUsers",
         "defaultProtocol",
         "allowedCipherSuites",
-        "defaultCipherSuite"
+        "defaultCipherSuite",
+        "supportedProtocols"
       ],
       "type": "object"
     },
@@ -2884,6 +2911,42 @@
       ],
       "type": "object"
     },
+    "MlsMigration": {
+      "properties": {
+        "finaliseRegardlessAfter": {
+          "$ref": "#/definitions/UTCTime"
+        },
+        "startTime": {
+          "$ref": "#/definitions/UTCTime"
+        }
+      },
+      "type": "object"
+    },
+    "MlsMigration.WithStatus": {
+      "properties": {
+        "config": {
+          "$ref": "#/definitions/MlsMigration"
+        },
+        "lockStatus": {
+          "$ref": "#/definitions/LockStatus"
+        },
+        "status": {
+          "$ref": "#/definitions/FeatureStatus"
+        },
+        "ttl": {
+          "example": "unlimited",
+          "maximum": 18446744073709552000,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "status",
+        "lockStatus",
+        "config"
+      ],
+      "type": "object"
+    },
     "NameIDFormat": {
       "enum": [
         "NameIDFUnspecified",
@@ -3012,7 +3075,7 @@
           "type": "string"
         },
         "protocol": {
-          "$ref": "#/definitions/Protocol"
+          "$ref": "#/definitions/BaseProtocol"
         },
         "qualified_users": {
           "description": "List of qualified user IDs (excluding the requestor) to be part of this conversation",
@@ -3585,9 +3648,18 @@
     "Protocol": {
       "enum": [
         "proteus",
-        "mls"
+        "mls",
+        "mixed"
       ],
       "type": "string"
+    },
+    "ProtocolUpdate": {
+      "properties": {
+        "protocol": {
+          "$ref": "#/definitions/Protocol"
+        }
+      },
+      "type": "object"
     },
     "PubClient": {
       "properties": {
@@ -8302,7 +8374,7 @@
             "description": "Invalid `body`\n\nMLS is not configured on this backend. See docs.wire.com for instructions on how to enable it (label: `mls-not-enabled`)\n\nAttempting to add group members outside MLS (label: `non-empty-member-list`)"
           },
           "403": {
-            "description": "Failed to connect to a user or to invite a user to a group because somebody is under legalhold and somebody else has not granted consent (label: `missing-legalhold-consent`)\n\nInsufficient permissions (label: `operation-denied`)\n\nRequesting user is not a team member (label: `no-team-member`)\n\nUsers are not connected (label: `not-connected`)\n\nThe client has to refresh their access token and provide their client ID (label: `mls-missing-sender-client`)\n\nConversation access denied (label: `access-denied`)",
+            "description": "Failed to connect to a user or to invite a user to a group because somebody is under legalhold and somebody else has not granted consent (label: `missing-legalhold-consent`)\n\nInsufficient permissions (label: `operation-denied`)\n\nRequesting user is not a team member (label: `no-team-member`)\n\nUsers are not connected (label: `not-connected`)\n\nConversation access denied (label: `access-denied`)",
             "schema": {
               "example": {
                 "code": 403,
@@ -8322,7 +8394,6 @@
                     "operation-denied",
                     "no-team-member",
                     "not-connected",
-                    "mls-missing-sender-client",
                     "access-denied"
                   ],
                   "type": "string"
@@ -9417,6 +9488,10 @@
           [
             "galley",
             "on-mls-message-sent"
+          ],
+          [
+            "brig",
+            "get-users-by-ids"
           ]
         ]
       }
@@ -9718,6 +9793,10 @@
           [
             "galley",
             "on-mls-message-sent"
+          ],
+          [
+            "brig",
+            "get-users-by-ids"
           ]
         ]
       },
@@ -9853,6 +9932,10 @@
           [
             "galley",
             "on-mls-message-sent"
+          ],
+          [
+            "brig",
+            "get-users-by-ids"
           ]
         ]
       }
@@ -9982,6 +10065,10 @@
           [
             "galley",
             "on-mls-message-sent"
+          ],
+          [
+            "brig",
+            "get-users-by-ids"
           ]
         ]
       }
@@ -10110,6 +10197,10 @@
           [
             "galley",
             "on-mls-message-sent"
+          ],
+          [
+            "brig",
+            "get-users-by-ids"
           ]
         ]
       }
@@ -10377,6 +10468,10 @@
           [
             "galley",
             "update-conversation"
+          ],
+          [
+            "brig",
+            "get-users-by-ids"
           ]
         ]
       }
@@ -10665,6 +10760,10 @@
           [
             "galley",
             "on-mls-message-sent"
+          ],
+          [
+            "brig",
+            "get-users-by-ids"
           ]
         ]
       }
@@ -11367,6 +11466,10 @@
           [
             "galley",
             "on-mls-message-sent"
+          ],
+          [
+            "brig",
+            "get-users-by-ids"
           ]
         ]
       }
@@ -11490,6 +11593,10 @@
           [
             "galley",
             "on-mls-message-sent"
+          ],
+          [
+            "brig",
+            "get-users-by-ids"
           ]
         ]
       }
@@ -11612,6 +11719,10 @@
           [
             "galley",
             "on-mls-message-sent"
+          ],
+          [
+            "brig",
+            "get-users-by-ids"
           ]
         ]
       }
@@ -11876,6 +11987,10 @@
           [
             "galley",
             "update-conversation"
+          ],
+          [
+            "brig",
+            "get-users-by-ids"
           ]
         ]
       }
@@ -16275,6 +16390,10 @@
           [
             "galley",
             "on-mls-message-sent"
+          ],
+          [
+            "brig",
+            "get-users-by-ids"
           ]
         ]
       },
@@ -19568,6 +19687,10 @@
           [
             "galley",
             "on-mls-message-sent"
+          ],
+          [
+            "brig",
+            "get-users-by-ids"
           ]
         ]
       }
@@ -19691,6 +19814,10 @@
           [
             "galley",
             "on-mls-message-sent"
+          ],
+          [
+            "brig",
+            "get-users-by-ids"
           ]
         ]
       },
@@ -19956,6 +20083,10 @@
           [
             "galley",
             "on-mls-message-sent"
+          ],
+          [
+            "brig",
+            "get-users-by-ids"
           ]
         ]
       },
@@ -20205,6 +20336,10 @@
           [
             "galley",
             "on-mls-message-sent"
+          ],
+          [
+            "brig",
+            "get-users-by-ids"
           ]
         ]
       }
@@ -20431,6 +20566,10 @@
           [
             "galley",
             "on-mls-message-sent"
+          ],
+          [
+            "brig",
+            "get-users-by-ids"
           ]
         ]
       }

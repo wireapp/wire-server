@@ -30,6 +30,7 @@ import Brig.API.Client qualified as API
 import Brig.API.Connection qualified as API
 import Brig.API.Error
 import Brig.API.Handler
+import Brig.API.MLS.KeyPackages
 import Brig.API.OAuth (oauthAPI)
 import Brig.API.Properties qualified as API
 import Brig.API.Public.Swagger
@@ -118,7 +119,7 @@ import Wire.API.Routes.Internal.Cargohold qualified as CargoholdInternalAPI
 import Wire.API.Routes.Internal.Galley qualified as GalleyInternalAPI
 import Wire.API.Routes.Internal.Spar qualified as SparInternalAPI
 import Wire.API.Routes.MultiTablePaging qualified as Public
-import Wire.API.Routes.Named (Named (Named))
+import Wire.API.Routes.Named (UntypedNamed (Named))
 import Wire.API.Routes.Public.Brig
 import Wire.API.Routes.Public.Brig.OAuth
 import Wire.API.Routes.Public.Cannon
@@ -260,6 +261,7 @@ servantSitemap =
     :<|> userClientAPI
     :<|> connectionAPI
     :<|> propertiesAPI
+    :<|> mlsAPI
     :<|> userHandleAPI
     :<|> searchAPI
     :<|> authAPI
@@ -367,6 +369,13 @@ servantSitemap =
           :<|> Named @"list-property-keys" listPropertyKeys
       )
         :<|> Named @"list-properties" listPropertyKeysAndValues
+
+    mlsAPI :: ServerT MLSAPI (Handler r)
+    mlsAPI =
+      Named @"mls-key-packages-upload" uploadKeyPackages
+        :<|> Named @"mls-key-packages-claim" claimKeyPackages
+        :<|> Named @"mls-key-packages-count" countKeyPackages
+        :<|> Named @"mls-key-packages-delete" deleteKeyPackages
 
     userHandleAPI :: ServerT UserHandleAPI (Handler r)
     userHandleAPI =
