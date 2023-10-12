@@ -235,7 +235,8 @@ testObject_Event_user_11 =
     Nothing
     (Qualified (Id (fromJust (UUID.fromString "000043a6-0000-1627-0000-490300002017"))) (Domain "faraway.example.com"))
     (read "1864-04-12 01:28:25.705 UTC")
-    ( EdMembersLeave EdReasonLeft
+    ( EdMembersLeave
+        EdReasonLeft
         ( QualifiedUserIdList
             { qualifiedUserIdList =
                 [ Qualified (Id (fromJust (UUID.fromString "00003fab-0000-40b8-0000-3b0c000014ef"))) (Domain "faraway.example.com"),

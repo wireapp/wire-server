@@ -1864,7 +1864,7 @@ wsAssertConvMessageTimerUpdate conv usr new n = do
   evtData e @?= EdConvMessageTimerUpdate new
 
 wsAssertMemberLeave :: Qualified ConvId -> Qualified UserId -> [Qualified UserId] -> EdMemberLeftReason -> Notification -> IO ()
-wsAssertMemberLeave conv usr old reason  n = do
+wsAssertMemberLeave conv usr old reason n = do
   let e = List1.head (WS.unpackPayload n)
   ntfTransient n @?= False
   evtConv e @?= conv

@@ -60,6 +60,7 @@ import Test.Tasty.HUnit
 import Util
 import Wire.API.Asset
 import Wire.API.Connection
+import Wire.API.Event.Conversation (EdMemberLeftReason)
 import Wire.API.Event.Conversation qualified as Conv
 import Wire.API.Federation.API.Brig qualified as F
 import Wire.API.Federation.Component
@@ -77,7 +78,6 @@ import Wire.API.User.Client.DPoPAccessToken (Proof)
 import Wire.API.User.Client.Prekey
 import Wire.API.User.Handle
 import Wire.API.User.Password
-import Wire.API.Event.Conversation (EdMemberLeftReason)
 
 newtype ConnectionLimit = ConnectionLimit Int64
 
