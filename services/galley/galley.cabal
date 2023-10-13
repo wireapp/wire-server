@@ -611,6 +611,7 @@ test-suite galley-tests
     Test.Galley.API.Action
     Test.Galley.API.Message
     Test.Galley.API.One2One
+    Test.Galley.Intra.Push
     Test.Galley.Intra.User
     Test.Galley.Mapping
 

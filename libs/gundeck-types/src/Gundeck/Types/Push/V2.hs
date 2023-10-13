@@ -86,6 +86,7 @@ import Data.Set qualified as Set
 import Imports hiding (cs)
 import Wire.API.Message (Priority (..))
 import Wire.API.Push.V2.Token
+import Wire.Arbitrary
 
 -----------------------------------------------------------------------------
 -- Route
@@ -97,7 +98,8 @@ data Route
     RouteAny
   | -- | Avoids causing push notification for mobile clients.
     RouteDirect
-  deriving (Eq, Ord, Enum, Bounded, Show)
+  deriving (Eq, Ord, Enum, Bounded, Show, Generic)
+  deriving (Arbitrary) via GenericUniform Route
 
 instance FromJSON Route where
   parseJSON (String "any") = pure RouteAny
@@ -116,14 +118,15 @@ data Recipient = Recipient
     _recipientRoute :: !Route,
     _recipientClients :: !RecipientClients
   }
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Generic)
 
 data RecipientClients
   = -- | All clients of some user
     RecipientClientsAll
   | -- | An explicit list of clients
     RecipientClientsSome (List1 ClientId)
-  deriving (Eq, Show, Ord)
+  deriving (Eq, Show, Ord, Generic)
+  deriving (Arbitrary) via GenericUniform RecipientClients
 
 makeLenses ''Recipient
 

@@ -109,7 +109,6 @@ mkDerivation {
     tasty
     tasty-hunit
     tasty-quickcheck
-    types-common
     uuid
     wire-api
   ];
