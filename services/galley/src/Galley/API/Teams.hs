@@ -15,7 +15,6 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 {-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE PartialTypeSignatures #-}
 
 module Galley.API.Teams
   ( createBindingTeam,
@@ -1028,7 +1027,7 @@ uncheckedDeleteTeamMember lusr zcon tid remove mems = do
       -- remove the user from conversations but never send out any events. We assume that clients
       -- handle nicely these missing events, regardless of whether they are in the same team or not
       let tmids = Set.fromList $ map (view userId) (mems ^. teamMembers)
-      let edata = Conv.EdMembersLeave Conv.EdReasonRemovedFromTeam (Conv.QualifiedUserIdList [tUntagged (qualifyAs lusr remove)])
+      let edata = Conv.EdMembersLeave Conv.EdReasonDeleted (Conv.QualifiedUserIdList [tUntagged (qualifyAs lusr remove)])
       cc <- E.getTeamConversations tid
       for_ cc $ \c ->
         E.getConversation (c ^. conversationId) >>= \conv ->

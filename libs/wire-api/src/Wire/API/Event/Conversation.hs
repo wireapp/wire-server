@@ -173,8 +173,8 @@ instance ToSchema EventType where
 data EdMemberLeftReason
   = -- | The member has left on their own
     EdReasonLeft
-  | -- | The member was removed from the team (that includes being deleted)
-    EdReasonRemovedFromTeam
+  | -- | The member was removed from the team and/or deleted
+    EdReasonDeleted
   | -- | The member was removed by another member
     EdReasonRemoved
   deriving stock (Eq, Show, Generic)
@@ -185,7 +185,7 @@ instance ToSchema EdMemberLeftReason where
     enum @Text "EdMemberLeftReason" $
       mconcat
         [ element "left" EdReasonLeft,
-          element "removed-from-team" EdReasonRemovedFromTeam,
+          element "user-deleted" EdReasonDeleted,
           element "removed" EdReasonRemoved
         ]
 
