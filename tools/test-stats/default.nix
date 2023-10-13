@@ -8,6 +8,8 @@
 , gitignoreSource
 , imports
 , lib
+, prettyprinter
+, text
 , xml
 }:
 mkDerivation {
@@ -16,7 +18,14 @@ mkDerivation {
   src = gitignoreSource ./.;
   isLibrary = false;
   isExecutable = true;
-  executableHaskellDepends = [ base containers imports xml ];
+  executableHaskellDepends = [
+    base
+    containers
+    imports
+    prettyprinter
+    text
+    xml
+  ];
   description = "Test run statistics";
   license = lib.licenses.agpl3Only;
   mainProgram = "test-stats";

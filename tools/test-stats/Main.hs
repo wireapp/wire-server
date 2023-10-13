@@ -19,7 +19,10 @@ module Main (main) where
 
 import Data.List
 import Data.Map qualified as Map
+import Data.Text qualified as T
 import Imports
+import Prettyprinter
+import Prettyprinter.Render.Text
 import Text.XML.Light
 
 main :: IO ()
@@ -92,9 +95,28 @@ name = maybeToList . findAttrBy (matchQName "name")
 -- * Metrics output
 
 pushMetrics :: Map TestCase Report -> IO ()
-pushMetrics = undefined
+pushMetrics _ = pure () -- TODO
 
--- * Failure descriptions output
+-- * Failure descriptions output (MD)
 
 pushFailureDescriptions :: Map TestCase Report -> IO ()
-pushFailureDescriptions = undefined
+pushFailureDescriptions = putDoc . separateByLine preamble . render . failures
+  where
+    preamble = h1 "Failure Descriptions"
+    render =
+      concatWith separateByLine
+        . Map.mapWithKey
+          ( curry
+              ( liftM2
+                  separateByLine
+                  (h2 . pretty . T.pack . fst)
+                  (concatWith separateByLine . map (verbatim . pretty . T.pack) . failureDesc . snd)
+              )
+          )
+    failures = Map.filter (not . null . failureDesc)
+    h1 = onSeparateLine . underlineWith "="
+    h2 = onSeparateLine . underlineWith "-"
+    underlineWith symbol x = align (width x (\w -> hardline <> pretty (T.replicate w symbol)))
+    verbatim = onSeparateLine . enclose "```" "```" . onSeparateLine
+    onSeparateLine = enclose hardline hardline
+    separateByLine a b = enclose a b hardline

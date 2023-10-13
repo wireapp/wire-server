@@ -20,6 +20,8 @@ executable test-stats
       base
     , containers
     , imports
+    , prettyprinter
+    , text
     , xml
 
   default-extensions:
