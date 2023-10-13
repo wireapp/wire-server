@@ -304,6 +304,7 @@ let
     gnutar
     gzip
     openssl
+    nix-output-monitor
     which
   ];
 
@@ -439,6 +440,15 @@ let
   };
   ghcWithPackages = shell.nativeBuildInputs ++ shell.buildInputs;
 
+  inherit (
+    pkgs.haskellPackages.override {
+      overrides = _hfinal: hprev: {
+        base-compat = hprev.base-compat_0_13_0;
+        base-compat-batteries = hprev.base-compat-batteries_0_13_0;
+        cabal-plan = hlib.markUnbroken (hlib.doJailbreak hprev.cabal-plan);
+      };
+    }) cabal-plan;
+
   profileEnv = pkgs.writeTextFile {
     name = "profile-env";
     destination = "/.profile";
@@ -495,8 +505,8 @@ in
       pkgs.rabbitmqadmin
 
       pkgs.cabal-install
-      pkgs.haskellPackages.cabal-plan
       pkgs.nix-prefetch-git
+      cabal-plan
       profileEnv
     ]
     ++ ghcWithPackages
@@ -510,4 +520,4 @@ in
   inherit brig-templates;
   haskellPackages = hPkgs localModsEnableAll;
   haskellPackagesUnoptimizedNoDocs = hPkgs localModsOnlyTests;
-} // attrsets.genAttrs (wireServerPackages) (e: hPkgs.${e})
+} // attrsets.genAttrs wireServerPackages (e: hPkgs.${e})
