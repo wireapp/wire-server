@@ -27,6 +27,7 @@ import Data.ByteString.Conversion (toByteString')
 import Data.Domain (Domain)
 import Data.Id
 import Data.Json.Util
+import Data.List1 (List1 (..))
 import Data.Map qualified as Map
 import Data.Map.Lens (toMapOf)
 import Data.Qualified
@@ -57,10 +58,12 @@ import Galley.Effects
 import Galley.Effects.ConversationStore qualified as E
 import Galley.Effects.FireAndForget qualified as E
 import Galley.Effects.MemberStore qualified as E
+import Galley.Intra.Push.Internal hiding (push)
 import Galley.Options
 import Galley.Types.Conversations.Members
 import Galley.Types.Conversations.One2One
 import Galley.Types.UserList (UserList (UserList))
+import Gundeck.Types.Push.V2 (RecipientClients (..))
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -781,7 +784,7 @@ onMLSMessageSent domain rmm =
       assertMLSEnabled
       loc <- qualifyLocal ()
       let rcnv = toRemoteUnsafe domain rmm.conversation
-      let users = Set.fromList (map fst rmm.recipients)
+      let users = Map.keys rmm.recipients
       (members, allMembers) <-
         first Set.fromList
           <$> E.selectRemoteMembers (toList users) rcnv
@@ -794,7 +797,11 @@ onMLSMessageSent domain rmm =
                 \ users not in the conversation" ::
                   ByteString
               )
-      let recipients = filter (\(u, _) -> Set.member u members) rmm.recipients
+      let recipients =
+            filter (\r -> Set.member (_recipientUserId r) members)
+              . map (\(u, clts) -> Recipient u (RecipientClientsSome (List1 clts)))
+              . Map.assocs
+              $ rmm.recipients
       -- FUTUREWORK: support local bots
       let e =
             Event (tUntagged rcnv) rmm.subConversation rmm.sender rmm.time $

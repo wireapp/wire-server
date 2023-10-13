@@ -128,6 +128,12 @@ data RecipientClients
   deriving (Eq, Show, Ord, Generic)
   deriving (Arbitrary) via GenericUniform RecipientClients
 
+instance Semigroup RecipientClients where
+  RecipientClientsAll <> _ = RecipientClientsAll
+  _ <> RecipientClientsAll = RecipientClientsAll
+  RecipientClientsSome cs1 <> RecipientClientsSome cs2 =
+    RecipientClientsSome (cs1 <> cs2)
+
 makeLenses ''Recipient
 
 recipient :: UserId -> Route -> Recipient

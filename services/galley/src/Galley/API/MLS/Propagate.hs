@@ -20,6 +20,8 @@ module Galley.API.MLS.Propagate where
 import Control.Comonad
 import Data.Id
 import Data.Json.Util
+import Data.List.NonEmpty (NonEmpty, nonEmpty)
+import Data.List1
 import Data.Map qualified as Map
 import Data.Qualified
 import Data.Time
@@ -29,7 +31,9 @@ import Galley.API.Util
 import Galley.Data.Services
 import Galley.Effects
 import Galley.Effects.BackendNotificationQueueAccess
+import Galley.Intra.Push.Internal
 import Galley.Types.Conversations.Members
+import Gundeck.Types.Push.V2 (RecipientClients (..))
 import Imports
 import Network.AMQP qualified as Q
 import Polysemy
@@ -80,7 +84,7 @@ propagateMessage qusr mSenderClient lConvOrSub con msg cm = do
       e = Event qcnv sconv qusr now $ EdMLSMessage msg.raw
 
   runMessagePush lConvOrSub (Just qcnv) $
-    newMessagePush botMap con mm (lmems >>= localMemberMLSClients mlsConv) e
+    newMessagePush botMap con mm (lmems >>= toList . localMemberRecipient mlsConv) e
 
   -- send to remotes
   (either (logRemoteNotificationError @"on-mls-message-sent") (const (pure ())) <=< enqueueNotificationsConcurrently Q.Persistent (map remoteMemberQualify rmems)) $
@@ -92,23 +96,27 @@ propagateMessage qusr mSenderClient lConvOrSub con msg cm = do
             metadata = mm,
             conversation = qUnqualified qcnv,
             subConversation = sconv,
-            recipients = tUnqualified rs >>= remoteMemberMLSClients,
+            recipients =
+              Map.fromList $
+                tUnqualified rs
+                  >>= toList . remoteMemberMLSClients,
             message = Base64ByteString msg.raw
           }
   where
     cmWithoutSender = maybe cm (flip cmRemoveClient cm . mkClientIdentity qusr) mSenderClient
-    localMemberMLSClients :: Local x -> LocalMember -> [(UserId, ClientId)]
-    localMemberMLSClients loc lm =
+
+    localMemberRecipient :: Local x -> LocalMember -> Maybe Recipient
+    localMemberRecipient loc lm = do
       let localUserQId = tUntagged (qualifyAs loc localUserId)
           localUserId = lmId lm
-       in map
-            (\(c, _) -> (localUserId, c))
-            (Map.assocs (Map.findWithDefault mempty localUserQId cmWithoutSender))
+      clients <- nonEmpty $ Map.keys (Map.findWithDefault mempty localUserQId cmWithoutSender)
+      pure $ Recipient localUserId (RecipientClientsSome (List1 clients))
 
-    remoteMemberMLSClients :: RemoteMember -> [(UserId, ClientId)]
-    remoteMemberMLSClients rm =
+    remoteMemberMLSClients :: RemoteMember -> Maybe (UserId, NonEmpty ClientId)
+    remoteMemberMLSClients rm = do
       let remoteUserQId = tUntagged (rmId rm)
           remoteUserId = qUnqualified remoteUserQId
-       in map
-            (\(c, _) -> (remoteUserId, c))
-            (Map.assocs (Map.findWithDefault mempty remoteUserQId cmWithoutSender))
+      clients <-
+        nonEmpty . map fst $
+          Map.assocs (Map.findWithDefault mempty remoteUserQId cmWithoutSender)
+      pure (remoteUserId, clients)

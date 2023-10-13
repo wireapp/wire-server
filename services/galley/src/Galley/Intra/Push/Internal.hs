@@ -24,6 +24,7 @@ import Control.Lens (makeLenses, set, view, (.~))
 import Data.Aeson (Object)
 import Data.Id (ConnId, UserId)
 import Data.Json.Util
+import Data.List.Extra
 import Data.List.NonEmpty (NonEmpty, nonEmpty)
 import Data.List1
 import Data.Qualified
