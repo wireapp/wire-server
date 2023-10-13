@@ -23,10 +23,11 @@ data:
       {{- end }}
       {{- if and (hasKey .cassandra "tls") (.cassandra.tls.enabled) }}
       useTls: true
-      {{- if (hasKey .cassandra.tls.ca) }}
+      {{- if (hasKey .cassandra.tls "ca" ) }}
       tlsCert: /etc/wire/galley/cassandra/ca.pem
       {{- else }}
       useTls: false
+      {{- end }}
       {{- end }}
 
     brig:
