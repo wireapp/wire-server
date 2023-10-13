@@ -605,7 +605,6 @@ test-suite wire-api-golden-tests
     , iso639
     , lens
     , pem
-    , pretty
     , proto-lens
     , tasty
     , tasty-hunit
