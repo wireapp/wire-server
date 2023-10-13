@@ -60,6 +60,7 @@ import Test.Tasty.HUnit
 import Util
 import Wire.API.Asset
 import Wire.API.Connection
+import Wire.API.Event.Conversation (EdMemberLeftReason)
 import Wire.API.Event.Conversation qualified as Conv
 import Wire.API.Federation.API.Brig qualified as F
 import Wire.API.Federation.Component
@@ -512,16 +513,16 @@ matchDeleteUserNotification quid n = do
   eUnqualifiedId @?= Just (qUnqualified quid)
   eQualifiedId @?= Just quid
 
-matchConvLeaveNotification :: Qualified ConvId -> Qualified UserId -> [Qualified UserId] -> Notification -> IO ()
-matchConvLeaveNotification conv remover removeds n = do
+matchConvLeaveNotification :: Qualified ConvId -> Qualified UserId -> [Qualified UserId] -> EdMemberLeftReason -> Notification -> IO ()
+matchConvLeaveNotification conv remover removeds reason n = do
   let e = List1.head (WS.unpackPayload n)
   ntfTransient n @?= False
   Conv.evtConv e @?= conv
   Conv.evtType e @?= Conv.MemberLeave
   Conv.evtFrom e @?= remover
-  sorted (Conv.evtData e) @?= sorted (Conv.EdMembersLeave (Conv.QualifiedUserIdList removeds))
+  sorted (Conv.evtData e) @?= sorted (Conv.EdMembersLeave reason (Conv.QualifiedUserIdList removeds))
   where
-    sorted (Conv.EdMembersLeave (Conv.QualifiedUserIdList m)) = Conv.EdMembersLeave (Conv.QualifiedUserIdList (sort m))
+    sorted (Conv.EdMembersLeave r (Conv.QualifiedUserIdList m)) = Conv.EdMembersLeave r (Conv.QualifiedUserIdList (sort m))
     sorted x = x
 
 generateVerificationCode :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> Public.SendVerificationCode -> m ()
