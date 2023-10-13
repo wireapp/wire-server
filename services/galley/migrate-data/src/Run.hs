@@ -22,7 +22,6 @@ import Imports
 import Options.Applicative
 import System.Logger.Extended qualified as Log
 import V1_BackfillBillingTeamMembers qualified
-import V2_MigrateMLSMembers qualified
 import V3_BackfillTeamAdmins qualified
 
 main :: IO ()
@@ -33,7 +32,6 @@ main = do
     l
     o
     [ V1_BackfillBillingTeamMembers.migration,
-      V2_MigrateMLSMembers.migration,
       V3_BackfillTeamAdmins.migration
     ]
   where
