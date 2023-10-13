@@ -100,8 +100,6 @@ propagateMessage qusr mSenderClient lConvOrSub con msg cm = do
               Map.fromList $
                 tUnqualified rs
                   >>= toList . remoteMemberMLSClients,
-            -- Map.fromList $
-            --   rs >>= toList . remoteMemberMLSClients,
             message = Base64ByteString msg.raw
           }
   where
