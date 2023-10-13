@@ -272,6 +272,8 @@ library
     Galley.Schema.V85_MLSDraft17
     Galley.Schema.V86_TeamFeatureMlsMigration
     Galley.Schema.V87_TeamFeatureSupportedProtocols
+    Galley.Schema.V88_TruncateMLSGroupMemberClient
+    Galley.Schema.V89_RemoveMemberClient
     Galley.Types.Clients
     Galley.Types.ToUserRole
     Galley.Types.UserList
@@ -563,7 +565,6 @@ executable galley-migrate-data
     Paths_galley
     Run
     V1_BackfillBillingTeamMembers
-    V2_MigrateMLSMembers
     V3_BackfillTeamAdmins
 
   hs-source-dirs: migrate-data/src
@@ -574,7 +575,6 @@ executable galley-migrate-data
     , containers
     , exceptions
     , extended
-    , galley
     , galley-types
     , imports
     , lens
@@ -583,7 +583,6 @@ executable galley-migrate-data
     , time
     , tinylog
     , types-common
-    , unliftio
     , wire-api
 
   if flag(static)

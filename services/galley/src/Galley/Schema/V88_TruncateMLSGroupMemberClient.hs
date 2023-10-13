@@ -1,6 +1,6 @@
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2023 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -14,25 +14,20 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+module Galley.Schema.V88_TruncateMLSGroupMemberClient
+  ( migration,
+  )
+where
 
-module Run where
-
-import Galley.DataMigration
+import Cassandra.Schema
 import Imports
-import Options.Applicative
-import System.Logger.Extended qualified as Log
-import V1_BackfillBillingTeamMembers qualified
-import V3_BackfillTeamAdmins qualified
+import Text.RawString.QQ
 
-main :: IO ()
-main = do
-  o <- execParser (info (helper <*> cassandraSettingsParser) desc)
-  l <- Log.mkLogger Log.Debug Nothing Nothing
-  migrate
-    l
-    o
-    [ V1_BackfillBillingTeamMembers.migration,
-      V3_BackfillTeamAdmins.migration
-    ]
-  where
-    desc = header "Galley Cassandra Data Migrations" <> fullDesc
+-- | This migration exists because the table could have some rogue data in it
+-- before MLS Draft-17 was implemented. It was not supposed to be used, but it
+-- could've been. This migration just deletes old data. This could break some
+-- conversations/users in unknown ways. But those are most likely test users.
+migration :: Migration
+migration = Migration 88 "Truncate mls_group_member_client" $ do
+  schema'
+    [r|TRUNCATE TABLE mls_group_member_client|]
