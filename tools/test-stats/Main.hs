@@ -19,7 +19,9 @@ module Main (main) where
 
 import Data.List
 import Data.Map qualified as Map
+import Data.Set qualified as Set
 import Data.Text qualified as T
+import Data.Text.IO qualified as T
 import Imports
 import Prettyprinter
 import Prettyprinter.Render.Text
@@ -30,12 +32,12 @@ main = liftM2 (>>) pushMetrics pushFailureDescriptions . merge =<< mapM parse =<
 
 -- * Intermediate representation
 
-type TestCase = String
+type TestCase = Text
 
 data Report = Report
   { success :: Int,
     failure :: Int,
-    failureDesc :: [String]
+    failureDesc :: Set Text
   }
   deriving (Show)
 
@@ -47,17 +49,17 @@ instance Semigroup Report where
       (a.failureDesc <> b.failureDesc)
 
 successCase :: Report
-successCase = Report 1 0 []
+successCase = Report 1 0 mempty
 
-failureCase :: [String] -> Report
+failureCase :: Set Text -> Report
 failureCase = Report 0 1
 
 -- * XML parser
 
 parse :: FilePath -> IO (Map TestCase Report)
-parse fn = parseRaw <$> readFile fn
+parse fn = parseRaw <$> T.readFile fn
 
-parseRaw :: String -> Map TestCase Report
+parseRaw :: Text -> Map TestCase Report
 parseRaw = merge . map parseTestSuites . selectTestSuites . parseXML
   where
     selectTestSuites = filter (matchQName "testsuites" . elName) . onlyElems
@@ -65,20 +67,20 @@ parseRaw = merge . map parseTestSuites . selectTestSuites . parseXML
 parseTestSuites :: Element -> Map TestCase Report
 parseTestSuites = merge . liftM2 map (parseTestSuite . name) (children "testsuite")
 
-parseTestSuite :: [String] -> Element -> Map TestCase Report
+parseTestSuite :: [Text] -> Element -> Map TestCase Report
 parseTestSuite names =
   liftM2
     (Map.unionWith (<>))
     (merge . liftM2 map (parseTestSuite . (names <>) . name) (children "testsuite"))
     (merge . liftM2 map (parseTestCase . (names <>) . name) (children "testcase"))
 
-parseTestCase :: [String] -> Element -> Map TestCase Report
+parseTestCase :: [Text] -> Element -> Map TestCase Report
 parseTestCase names el
   | null failures = Map.singleton compName successCase
   | otherwise = Map.singleton compName $ failureCase failures
   where
-    compName = intercalate "." $ names <> name el
-    failures = map strContent $ children "failure" el
+    compName = T.intercalate "." $ names <> name el
+    failures = Set.fromList . map (T.pack . strContent) $ children "failure" el
 
 merge :: [Map TestCase Report] -> Map TestCase Report
 merge = Map.unionsWith (<>)
@@ -89,8 +91,8 @@ matchQName = flip $ (==) . qName
 children :: String -> Element -> [Element]
 children = filterChildrenName . matchQName
 
-name :: Element -> [String]
-name = maybeToList . findAttrBy (matchQName "name")
+name :: Element -> [Text]
+name = maybeToList . fmap T.pack . findAttrBy (matchQName "name")
 
 -- * Metrics output
 
@@ -109,8 +111,8 @@ pushFailureDescriptions = putDoc . separateByLine preamble . render . failures
           ( curry
               ( liftM2
                   separateByLine
-                  (h2 . pretty . T.pack . fst)
-                  (concatWith separateByLine . map (verbatim . pretty . T.pack) . failureDesc . snd)
+                  (h2 . pretty . fst)
+                  (concatWith separateByLine . map (verbatim . pretty) . Set.toList . failureDesc . snd)
               )
           )
     failures = Map.filter (not . null . failureDesc)
