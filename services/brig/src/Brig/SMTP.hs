@@ -124,7 +124,7 @@ initSMTP' timeoutDuration lg host port credentials connType = do
         flush lg
         error $ "Failed to close test connection with SMTP server: " ++ show e
     )
-  SMTP <$> createPool create destroy 1 5 5
+  SMTP <$> newPool (defaultPoolConfig create destroy 5 5)
   where
     ensureTimeout :: IO a -> IO a
     ensureTimeout = ensureSMTPConnectionTimeout timeoutDuration
@@ -186,7 +186,7 @@ logExceptionOrResult lg actionString action = do
   doLog Logger.Debug ("Succeeded." :: String)
   pure res
   where
-    doLog :: MonadIO m => Logger.Level -> String -> m ()
+    doLog :: (MonadIO m) => Logger.Level -> String -> m ()
     doLog lvl result =
       let msg' = msg ("SMTP connection result" :: String)
        in Logger.log lg lvl (msg' . field "action" actionString . field "result" result)
@@ -214,7 +214,7 @@ ensureSMTPConnectionTimeout timeoutDuration action =
 -- a timeout happens and on every other network failure.
 --
 -- `defaultTimeoutDuration` is used as timeout duration for all actions.
-sendMail :: MonadIO m => Logger -> SMTP -> Mail -> m ()
+sendMail :: (MonadIO m) => Logger -> SMTP -> Mail -> m ()
 sendMail = sendMail' defaultTimeoutDuration
 
 -- | `sendMail` with configurable timeout duration
