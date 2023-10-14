@@ -552,7 +552,7 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
       ensureAccessRole (convAccessRoles conv) userMembershipMap
       ensureConnectedToLocalsOrSameTeam lusr newUsers
     checkLocals lusr Nothing newUsers = do
-      ensureAccessRole (convAccessRoles conv) (zip newUsers $ repeat Nothing)
+      ensureAccessRole (convAccessRoles conv) (map (,Nothing) newUsers)
       ensureConnectedToLocalsOrSameTeam lusr newUsers
 
     checkRemotes ::

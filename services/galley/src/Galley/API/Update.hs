@@ -1616,7 +1616,7 @@ addBot lusr zcon b = do
           )
   for_ (newPushLocal ListComplete (tUnqualified lusr) (ConvEvent e) (recipient <$> users)) $ \p ->
     E.push1 $ p & pushConn ?~ zcon
-  E.deliverAsync ((bm : bots) `zip` repeat e)
+  E.deliverAsync (map (,e) (bm : bots))
   pure e
   where
     regularConvChecks c = do
@@ -1690,7 +1690,7 @@ rmBot lusr zcon b = do
           E.push1 $ p & pushConn .~ zcon
         E.deleteMembers (Data.convId c) (UserList [botUserId (b ^. rmBotId)] [])
         E.deleteClients (botUserId (b ^. rmBotId))
-        E.deliverAsync (bots `zip` repeat e)
+        E.deliverAsync (map (,e) bots)
         pure $ Updated e
 
 -------------------------------------------------------------------------------

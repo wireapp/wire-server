@@ -520,7 +520,7 @@ createConnectConversation lusr conn j = do
         NewConversation
           { -- We add only one member, second one gets added later,
             -- when the other user accepts the connection request.
-            ncUsers = ulFromLocals (map (toUserRole . tUnqualified) [lusr]),
+            ncUsers = ulFromLocals ([(toUserRole . tUnqualified) lusr]),
             ncProtocol = BaseProtocolProteusTag,
             ncMetadata = meta
           }
