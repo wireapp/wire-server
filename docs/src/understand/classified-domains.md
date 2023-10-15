@@ -17,7 +17,7 @@ galley:
           domains: ["domain-that-is-classified.link"]
           ...
 ```
-Note: This is only a `backend` level configuration option, the `team` configuration mentionned below only exists for technical reasons and is not actually accessible in any way.
+Note: This is only a `backend` level configuration option, the `team` configuration mentioned below only exists for technical reasons and is not actually accessible in any way.
 
 Here is a table to navigate the possible configurations:
 
