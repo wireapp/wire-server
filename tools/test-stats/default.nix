@@ -9,6 +9,7 @@
 , imports
 , lib
 , prettyprinter
+, prometheus-client
 , text
 , xml
 }:
@@ -23,6 +24,7 @@ mkDerivation {
     containers
     imports
     prettyprinter
+    prometheus-client
     text
     xml
   ];

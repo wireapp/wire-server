@@ -21,6 +21,7 @@ executable test-stats
     , containers
     , imports
     , prettyprinter
+    , prometheus-client
     , text
     , xml
 

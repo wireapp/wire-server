@@ -25,6 +25,7 @@ import Data.Text.IO qualified as T
 import Imports
 import Prettyprinter
 import Prettyprinter.Render.Text
+import Prometheus
 import Text.XML.Light
 
 main :: IO ()
@@ -94,10 +95,19 @@ children = filterChildrenName . matchQName
 name :: Element -> [Text]
 name = maybeToList . fmap T.pack . findAttrBy (matchQName "name")
 
--- * Metrics output
+-- * Metrics output (Prometheus)
 
 pushMetrics :: Map TestCase Report -> IO ()
-pushMetrics _ = pure () -- TODO
+pushMetrics reports =
+  mapM_
+    (liftM2 (>>) (push "success" success) (push "failure" failure))
+    $ Map.toList reports
+  where
+    push state source (caseName, report) =
+      flip setGauge (fromIntegral $ source report)
+        =<< register (gaugeInfo (appendState state) caseName)
+    gaugeInfo state = gauge . liftM2 Info state state
+    appendState state n = T.intercalate "." [n, state]
 
 -- * Failure descriptions output (MD)
 
