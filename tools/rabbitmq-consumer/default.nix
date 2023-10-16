@@ -4,6 +4,7 @@
 # dependencies are added or removed.
 { mkDerivation
 , aeson
+, aeson-pretty
 , amqp
 , base
 , bytestring
@@ -21,6 +22,7 @@ mkDerivation {
   isExecutable = true;
   libraryHaskellDepends = [
     aeson
+    aeson-pretty
     amqp
     base
     bytestring
