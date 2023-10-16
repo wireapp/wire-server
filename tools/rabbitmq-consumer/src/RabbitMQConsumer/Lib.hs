@@ -85,7 +85,7 @@ main = do
         [ "vhost: " <> cs opts.vhost,
           "queue: " <> cs opts.queue,
           "timestamp: " <> show msg.msgTimestamp,
-          "received message: " <> BL.unpack (maybe msg.msgBody encodePretty (decode @Value msg.msgBody))
+          "received message: \n" <> BL.unpack (maybe msg.msgBody encodePretty (decode @Value msg.msgBody))
         ]
 
     runTimerAsync :: MVar () -> Int -> IO ()
