@@ -18,13 +18,17 @@
 
 module RabbitMQConsumer.Lib where
 
-import Data.Aeson (FromJSON, Value, decode)
+import Data.Aeson
 import Data.Aeson.Encode.Pretty
 import Data.ByteString.Lazy.Char8 qualified as BL
+import Data.Domain (domainText)
+import Data.Text.Lazy.Encoding qualified as TL
 import Imports
 import Network.AMQP
 import Network.Socket
 import Options.Applicative
+import Wire.API.Federation.BackendNotifications (BackendNotification (..))
+import Wire.API.RawJson
 
 main :: IO ()
 main = do
@@ -55,10 +59,10 @@ main = do
     dropHead :: MVar () -> Opts -> DropHeadOpts -> (Message, Envelope) -> IO ()
     dropHead done opts dhOpts (msg, env) = do
       putStrLn $ displayMessage opts msg
-      case decode @MessageJSON msg.msgBody of
+      case decode @BackendNotification msg.msgBody of
         Nothing -> putStrLn "failed to decode message body"
-        Just json -> do
-          if json.path == dhOpts.path
+        Just bn -> do
+          if bn.path == dhOpts.path
             then do
               putStrLn "dropping message"
               nackEnv env
@@ -85,7 +89,7 @@ main = do
         [ "vhost: " <> cs opts.vhost,
           "queue: " <> cs opts.queue,
           "timestamp: " <> show msg.msgTimestamp,
-          "received message: \n" <> BL.unpack (maybe msg.msgBody encodePretty (decode @Value msg.msgBody))
+          "received message: \n" <> maybe (BL.unpack msg.msgBody) displayBackendNotification (decode @BackendNotification msg.msgBody)
         ]
 
     runTimerAsync :: MVar () -> Int -> IO ()
@@ -106,7 +110,7 @@ data Opts = Opts
   }
 
 data DropHeadOpts = DropHeadOpts
-  { path :: String
+  { path :: Text
   }
 
 data Command = Head | DropHead DropHeadOpts | Interactive
@@ -200,8 +204,26 @@ interactiveCommand :: Mod CommandFields Command
 interactiveCommand =
   (command "interactive" (info (pure Interactive) (progDesc "Interactively drop the first message from the queue")))
 
-data MessageJSON = MessageJSON
-  {path :: String}
-  deriving (Generic, Show)
+data PrettyMessage = PrettyMessage
+  { ownDomain :: Text,
+    targetComponent :: Text,
+    path :: Text,
+    body :: Value
+  }
+  deriving (Show, Eq, Generic)
 
-instance FromJSON MessageJSON
+instance ToJSON PrettyMessage
+
+instance FromJSON PrettyMessage
+
+displayBackendNotification :: BackendNotification -> String
+displayBackendNotification = BL.unpack . encodePretty . toPrettyMessage
+  where
+    toPrettyMessage :: BackendNotification -> PrettyMessage
+    toPrettyMessage BackendNotification {..} =
+      PrettyMessage
+        { ownDomain = domainText ownDomain,
+          targetComponent = cs $ show targetComponent,
+          path = path,
+          body = fromMaybe (String $ cs $ TL.decodeUtf8 body.rawJsonBytes) $ decode @Value body.rawJsonBytes
+        }

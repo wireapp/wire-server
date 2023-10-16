@@ -34,6 +34,10 @@ library
     , imports
     , network
     , optparse-applicative
+    , text
+    , types-common
+    , wire-api
+    , wire-api-federation
 
   default-extensions:
     NoImplicitPrelude
