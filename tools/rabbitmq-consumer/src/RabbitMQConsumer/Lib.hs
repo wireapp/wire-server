@@ -27,7 +27,6 @@ import Network.AMQP
 import Network.Socket
 import Options.Applicative
 import Wire.API.Federation.BackendNotifications (BackendNotification (..))
-import Wire.API.RawJson
 
 main :: IO ()
 main = do
@@ -88,7 +87,7 @@ main = do
         [ "vhost: " <> cs opts.vhost,
           "queue: " <> cs opts.queue,
           "timestamp: " <> show msg.msgTimestamp,
-          "received message: \n" <> maybe (BL.unpack msg.msgBody) displayBackendNotification (decode @BackendNotification msg.msgBody)
+          "received message: \n" <> BL.unpack (maybe msg.msgBody encodePretty (decode @BackendNotification' msg.msgBody))
         ]
 
     runTimerAsync :: MVar () -> Int -> IO ()
@@ -203,7 +202,8 @@ interactiveCommand :: Mod CommandFields Command
 interactiveCommand =
   (command "interactive" (info (pure Interactive) (progDesc "Interactively drop the first message from the queue")))
 
-data PrettyMessage = PrettyMessage
+-- | A variant of 'BackendNotification' that allows encodePretty to work with the body field
+data BackendNotification' = BackendNotification'
   { ownDomain :: Value,
     targetComponent :: Value,
     path :: Value,
@@ -211,18 +211,15 @@ data PrettyMessage = PrettyMessage
   }
   deriving (Show, Eq, Generic)
 
-instance ToJSON PrettyMessage
+instance ToJSON BackendNotification'
 
-instance FromJSON PrettyMessage
-
-displayBackendNotification :: BackendNotification -> String
-displayBackendNotification = BL.unpack . encodePretty . toPrettyMessage
-  where
-    toPrettyMessage :: BackendNotification -> PrettyMessage
-    toPrettyMessage BackendNotification {..} =
-      PrettyMessage
-        { ownDomain = toJSON ownDomain,
-          targetComponent = toJSON targetComponent,
-          path = toJSON path,
-          body = fromMaybe (String $ cs $ TL.decodeUtf8 body.rawJsonBytes) $ decode @Value body.rawJsonBytes
-        }
+instance FromJSON BackendNotification' where
+  parseJSON = withObject "BackendNotification" $ \o ->
+    BackendNotification'
+      <$> o .: "ownDomain"
+      <*> o .: "targetComponent"
+      <*> o .: "path"
+      <*> (bodyToValue . TL.encodeUtf8 <$> o .: "body")
+    where
+      bodyToValue :: BL.ByteString -> Value
+      bodyToValue bs = fromMaybe (String $ cs $ TL.decodeUtf8 bs) $ decode @Value bs
