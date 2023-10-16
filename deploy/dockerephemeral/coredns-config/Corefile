@@ -1,4 +1,6 @@
 example.com {
-    file /coredns-config/db.example.com
+    file /coredns-config/db.example.com {
+        reload 1s
+    }
     log
 }

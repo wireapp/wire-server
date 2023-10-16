@@ -1,6 +1,6 @@
 $ORIGIN example.com.
 @	1 IN	SOA sns.dns.icann.org. noc.dns.icann.org. (
-				2017042745 ; serial
+				2023101616 ; serial
 				1       ; refresh (2 hours)
 				1       ; retry (1 hour)
 				1    ; expire (2 weeks)
@@ -16,4 +16,4 @@ _wire-server-federator._tcp    IN SRV 0 0 8443 localhost.
 _wire-server-federator._tcp.b  IN SRV 0 0 9443 localhost.
 _wire-server-federator._tcp.d1  IN SRV 0 0 10443 localhost.
 _wire-server-federator._tcp.d2  IN SRV 0 0 11443 localhost.
-_wire-server-federator._tcp.d3  IN SRV 0 0 12443 localhost.
+_wire-server-federator._tcp.d3  IN SRV 0 0 12443 192.0.2.1 ; This IP address is from the TEST-NET-1 block, and is never routable. Thus, it is a perfect "bad" ip address

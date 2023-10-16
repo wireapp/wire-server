@@ -1,6 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedLists #-}
-
 {-# OPTIONS_GHC -Wno-unused-binds #-}
 
 -- This file is part of the Wire Server implementation.

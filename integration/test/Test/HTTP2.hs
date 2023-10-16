@@ -1,5 +1,7 @@
 {-# OPTIONS_GHC -Wno-ambiguous-fields #-}
+{-# OPTIONS_GHC -Wno-unused-binds #-}
 {-# OPTIONS_GHC -Wno-unused-imports #-}
+{-# OPTIONS_GHC -Wno-unused-matches #-}
 
 module Test.HTTP2 where
 
@@ -21,6 +23,7 @@ import GHC.Stack
 import Network.HTTP.Client
 import Notifications
 import SetupHelpers hiding (deleteUser)
+import System.Process
 import Test.Conversation
 import Test.User
 import Testlib.One2One (generateRemoteAndConvIdWithDomain)
@@ -62,39 +65,65 @@ testHTTP2 = do
     -- Rewrite the service map for domainC
     modEnv <- asks $! adjustServiceMap domainC mangleDomainOther
     -- _ <- assertFailure $ show $ Map.lookup domainC modEnv.serviceMap
-    local (const modEnv) $ do
-      env <- ask
+    let -- Swap from the original DNS one to a version that lists a non-routable
+        -- IP for the d3 environment.
+        swapToTest =
+          -- Swap the DNS files around
+          callProcess
+            "cp"
+            [ "deploy/dockerephemeral/coredns-config/db.example.com-http2-test",
+              "deploy/dockerephemeral/coredns-config/db.example.com"
+            ]
+        -- Swap back to the (almost) original DNS file, with the exception of the serial
+        -- number, which is needed to convince CoreDNS that this really has changed and
+        -- be delivered to requestors.
+        swapToNormal =
+          callProcess
+            "cp"
+            [ "deploy/dockerephemeral/coredns-config/db.example.com-new-serial",
+              "deploy/dockerephemeral/coredns-config/db.example.com"
+            ]
+
+        -- Wait 5 seconds. This is to allow CoreDNS to update its database
+        waitDNS = threadDelay $ round @Double $ 5 * 10e6
+        resetDNS = do
+          swapToNormal
+          waitDNS
+        setupDNS = do
+          swapToTest
+          waitDNS
+
+    env <- ask
+    result <- liftIO $ flip finally resetDNS $ do
+      setupDNS
       -- Run requests to different domains at the same time.
       -- One should be going to OtherDomain, which we have already
       -- set up with an _invalid_ host, so that requests block and
       -- eventually timeout. The other request function should keep
       -- running actual requests at once to a different domain.
-      result <-
-        liftIO $
-          race
-            -- Run 10 failing requests at once.
-            -- NO FAIL. This failing will kill the concurrency of the other
-            -- request loop, and we are expecting this to fail.
-            ( try @HttpException $
-                replicateConcurrently 10 $
-                  -- Request somethig from domain c, it doesn't matter what so long as
-                  -- it goes through domainA's federator.
-
-                  -- Request somethig from domain c, it doesn't matter what so long as
-                  -- it goes through domainA's federator.
-                  runAppWithEnv env $
-                    getClientsQualified uidA domainC uidC
-            )
-            -- Run 10 successful requests at once, on a finite loop.
-            ( do
-                replicateM_ 10 $
-                  replicateConcurrently_ 10 $
-                    runAppWithEnv env $
-                      getClientsQualified uidA domainB uidB
-            )
-      case result of
-        Left r -> assertFailure $ "Failing requests finished first:\n" <> show r
-        Right _ -> pure ()
+      race
+        -- Run 10 failing requests at once.
+        -- NO FAIL. This failing will kill the concurrency of the other
+        -- request loop, and we are expecting this to fail.
+        ( try @HttpException $
+            replicateConcurrently 10 $
+              -- Request somethig from domain c, it doesn't matter what so long as
+              -- it goes through domainA's federator.
+              -- Request somethig from domain c, it doesn't matter what so long as
+              -- it goes through domainA's federator.
+              runAppWithEnv env $
+                getClientsQualified uidA domainC uidC
+        )
+        -- Run 10 successful requests at once, on a finite loop.
+        ( do
+            replicateM_ 10 $
+              replicateConcurrently_ 10 $
+                runAppWithEnv env $
+                  getClientsQualified uidA domainB uidB
+        )
+    case result of
+      Left r -> assertFailure $ "Failing requests finished first:\n" <> show r
+      Right _ -> pure ()
   where
     -- This IP addresses is from the TEST-NET-1 reserved block
     -- and should never be routable. If it is, then someone is
