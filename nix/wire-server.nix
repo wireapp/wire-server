@@ -84,6 +84,7 @@ let
     zauth = [ "zauth" ];
     background-worker = [ "background-worker" ];
     integration = [ "integration" ];
+    rabbitmq-consumer = [ "rabbitmq-consumer" ];
   };
 
   attrsets = lib.attrsets;
