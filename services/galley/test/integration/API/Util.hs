@@ -1830,7 +1830,7 @@ assertLeaveEvent conv usr leaving e = do
   evtConv e @?= conv
   evtType e @?= Conv.MemberLeave
   evtFrom e @?= usr
-  fmap (sort . qualifiedUserIdList) (evtData e ^? _EdMembersLeave) @?= Just (sort leaving)
+  fmap (sort . qualifiedUserIdList) (evtData e ^? _EdMembersLeave . _2) @?= Just (sort leaving)
 
 wsAssertMemberUpdateWithRole :: Qualified ConvId -> Qualified UserId -> UserId -> RoleName -> Notification -> IO ()
 wsAssertMemberUpdateWithRole conv usr target role n = do
@@ -1863,16 +1863,16 @@ wsAssertConvMessageTimerUpdate conv usr new n = do
   evtFrom e @?= usr
   evtData e @?= EdConvMessageTimerUpdate new
 
-wsAssertMemberLeave :: Qualified ConvId -> Qualified UserId -> [Qualified UserId] -> Notification -> IO ()
-wsAssertMemberLeave conv usr old n = do
+wsAssertMemberLeave :: Qualified ConvId -> Qualified UserId -> [Qualified UserId] -> EdMemberLeftReason -> Notification -> IO ()
+wsAssertMemberLeave conv usr old reason n = do
   let e = List1.head (WS.unpackPayload n)
   ntfTransient n @?= False
   evtConv e @?= conv
   evtType e @?= Conv.MemberLeave
   evtFrom e @?= usr
-  sorted (evtData e) @?= sorted (EdMembersLeave (QualifiedUserIdList old))
+  sorted (evtData e) @?= sorted (EdMembersLeave reason (QualifiedUserIdList old))
   where
-    sorted (EdMembersLeave (QualifiedUserIdList m)) = EdMembersLeave (QualifiedUserIdList (sort m))
+    sorted (EdMembersLeave _ (QualifiedUserIdList m)) = EdMembersLeave reason (QualifiedUserIdList (sort m))
     sorted x = x
 
 wsAssertTyping :: HasCallStack => Qualified ConvId -> Qualified UserId -> TypingStatus -> Notification -> IO ()
@@ -2843,7 +2843,7 @@ checkConvMemberLeaveEvent cid usr w = WS.assertMatch_ checkTimeout w $ \notif ->
   evtConv e @?= cid
   evtType e @?= Conv.MemberLeave
   case evtData e of
-    Conv.EdMembersLeave mm -> mm @?= Conv.QualifiedUserIdList [usr]
+    Conv.EdMembersLeave _ mm -> mm @?= Conv.QualifiedUserIdList [usr]
     other -> assertFailure $ "Unexpected event data: " <> show other
 
 checkTimeout :: WS.Timeout

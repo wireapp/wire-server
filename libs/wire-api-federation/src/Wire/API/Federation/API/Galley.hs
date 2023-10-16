@@ -21,6 +21,7 @@ import Data.Aeson (FromJSON, ToJSON)
 import Data.Domain
 import Data.Id
 import Data.Json.Util
+import Data.List.NonEmpty (NonEmpty)
 import Data.Misc (Milliseconds)
 import Data.Qualified
 import Data.Range
@@ -348,7 +349,7 @@ data RemoteMLSMessage = RemoteMLSMessage
     sender :: Qualified UserId,
     conversation :: ConvId,
     subConversation :: Maybe SubConvId,
-    recipients :: [(UserId, ClientId)],
+    recipients :: Map UserId (NonEmpty ClientId),
     message :: Base64ByteString
   }
   deriving stock (Eq, Show, Generic)

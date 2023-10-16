@@ -1,6 +1,6 @@
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2023 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -14,30 +14,20 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-
-module Run
-  ( main,
+module Galley.Schema.V89_RemoveMemberClient
+  ( migration,
   )
 where
 
+import Cassandra.Schema
 import Imports
-import Test.Galley.API.Action qualified
-import Test.Galley.API.Message qualified
-import Test.Galley.API.One2One qualified
-import Test.Galley.Intra.Push qualified
-import Test.Galley.Intra.User qualified
-import Test.Galley.Mapping qualified
-import Test.Tasty
+import Text.RawString.QQ
 
-main :: IO ()
-main =
-  defaultMain $
-    testGroup
-      "Tests"
-      [ Test.Galley.API.Message.tests,
-        Test.Galley.API.One2One.tests,
-        Test.Galley.Intra.User.tests,
-        Test.Galley.Intra.Push.tests,
-        Test.Galley.Mapping.tests,
-        Test.Galley.API.Action.tests
-      ]
+-- | This migration exists because the table could have some rogue data in it
+-- before MLS Draft-17 was implemented. It was not supposed to be used, but it
+-- could've been. This migration just deletes old data. This could break some
+-- conversations/users in unknown ways. But those are most likely test users.
+migration :: Migration
+migration = Migration 88 "Remove member_client" $ do
+  schema'
+    [r|DROP TABLE IF EXISTS member_client|]

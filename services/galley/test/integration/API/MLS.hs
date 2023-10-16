@@ -32,6 +32,7 @@ import Data.Aeson qualified as Aeson
 import Data.Domain
 import Data.Id
 import Data.Json.Util hiding ((#))
+import Data.List.NonEmpty (NonEmpty (..))
 import Data.List1 hiding (head)
 import Data.Map qualified as Map
 import Data.Qualified
@@ -890,7 +891,7 @@ testRemoteToRemoteInSub = do
   void $ runFedClient @"on-conversation-updated" fedGalleyClient bdom cu
 
   let txt = "Hello from another backend"
-      rcpts = [(alice, aliceC1), (alice, aliceC2), (eve, eveC)]
+      rcpts = Map.fromList [(alice, aliceC1 :| [aliceC2]), (eve, eveC :| [])]
       rm =
         RemoteMLSMessage
           { time = now,
@@ -2392,7 +2393,7 @@ testCreatorRemovesUserFromParent = do
         liftIO $ assertOne events >>= assertLeaveEvent qcnv alice [bob]
 
         WS.assertMatchN_ (5 # Second) wss $ \n -> do
-          wsAssertMemberLeave qcnv alice [bob] n
+          wsAssertMemberLeave qcnv alice [bob] EdReasonRemoved n
 
         State.put stateSub
         -- Get client state for alice and fetch bob client identities

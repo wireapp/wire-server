@@ -25,6 +25,7 @@ module Wire.API.Event.Conversation
     evtType,
     EventType (..),
     EventData (..),
+    EdMemberLeftReason (..),
     AddCodeResult (..),
 
     -- * Event lenses
@@ -89,7 +90,7 @@ import Wire.API.Conversation.Typing
 import Wire.API.MLS.SubConversation
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Version
-import Wire.API.User (QualifiedUserIdList (..))
+import Wire.API.User (QualifiedUserIdList (..), qualifiedUserIdListObjectSchema)
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
 --------------------------------------------------------------------------------
@@ -164,9 +165,33 @@ instance ToSchema EventType where
           element "conversation.protocol-update" ProtocolUpdate
         ]
 
+--  | The reason for a member to leave
+--    There are three reasons
+--    - the member has left on their own
+--    - the member was removed from the team
+--    - the member was removed by another member
+data EdMemberLeftReason
+  = -- | The member has left on their own
+    EdReasonLeft
+  | -- | The member was removed from the team and/or deleted
+    EdReasonDeleted
+  | -- | The member was removed by another member
+    EdReasonRemoved
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via GenericUniform EdMemberLeftReason
+
+instance ToSchema EdMemberLeftReason where
+  schema =
+    enum @Text "EdMemberLeftReason" $
+      mconcat
+        [ element "left" EdReasonLeft,
+          element "user-deleted" EdReasonDeleted,
+          element "removed" EdReasonRemoved
+        ]
+
 data EventData
   = EdMembersJoin SimpleMembers
-  | EdMembersLeave QualifiedUserIdList
+  | EdMembersLeave EdMemberLeftReason QualifiedUserIdList
   | EdConnect Connect
   | EdConvReceiptModeUpdate ConversationReceiptModeUpdate
   | EdConvRename ConversationRename
@@ -187,7 +212,7 @@ data EventData
 genEventData :: EventType -> QC.Gen EventData
 genEventData = \case
   MemberJoin -> EdMembersJoin <$> arbitrary
-  MemberLeave -> EdMembersLeave <$> arbitrary
+  MemberLeave -> EdMembersLeave <$> arbitrary <*> arbitrary
   MemberStateUpdate -> EdMemberUpdate <$> arbitrary
   ConvRename -> EdConvRename <$> arbitrary
   ConvAccessUpdate -> EdConvAccessUpdate <$> arbitrary
@@ -206,7 +231,7 @@ genEventData = \case
 
 eventDataType :: EventData -> EventType
 eventDataType (EdMembersJoin _) = MemberJoin
-eventDataType (EdMembersLeave _) = MemberLeave
+eventDataType (EdMembersLeave _ _) = MemberLeave
 eventDataType (EdMemberUpdate _) = MemberStateUpdate
 eventDataType (EdConvRename _) = ConvRename
 eventDataType (EdConvAccessUpdate _) = ConvAccessUpdate
@@ -383,7 +408,7 @@ taggedEventDataSchema =
   where
     edata = dispatch $ \case
       MemberJoin -> tag _EdMembersJoin (unnamed schema)
-      MemberLeave -> tag _EdMembersLeave (unnamed schema)
+      MemberLeave -> tag _EdMembersLeave (unnamed memberLeaveSchema)
       MemberStateUpdate -> tag _EdMemberUpdate (unnamed schema)
       ConvRename -> tag _EdConvRename (unnamed schema)
       -- FUTUREWORK: when V2 is dropped, it is fine to change this schema to
@@ -405,6 +430,11 @@ taggedEventDataSchema =
       ConvCodeDelete -> tag _EdConvCodeDelete null_
       ConvDelete -> tag _EdConvDelete null_
       ProtocolUpdate -> tag _EdProtocolUpdate (unnamed (unProtocolUpdate <$> P.ProtocolUpdate .= schema))
+
+memberLeaveSchema :: ValueSchema NamedSwaggerDoc (EdMemberLeftReason, QualifiedUserIdList)
+memberLeaveSchema =
+  object "QualifiedUserIdList with EdMemberLeftReason" $
+    (,) <$> fst .= field "reason" schema <*> snd .= qualifiedUserIdListObjectSchema
 
 instance ToSchema Event where
   schema = object "Event" eventObjectSchema
