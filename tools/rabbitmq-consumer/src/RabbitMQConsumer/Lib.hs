@@ -21,12 +21,14 @@ module RabbitMQConsumer.Lib where
 import Data.Aeson
 import Data.Aeson.Encode.Pretty
 import Data.ByteString.Lazy.Char8 qualified as BL
+import Data.Domain (Domain)
 import Data.Text.Lazy.Encoding qualified as TL
 import Imports
 import Network.AMQP
 import Network.Socket
 import Options.Applicative
 import Wire.API.Federation.BackendNotifications (BackendNotification (..))
+import Wire.API.MakesFederatedCall (Component)
 
 main :: IO ()
 main = do
@@ -202,24 +204,29 @@ interactiveCommand :: Mod CommandFields Command
 interactiveCommand =
   (command "interactive" (info (pure Interactive) (progDesc "Interactively drop the first message from the queue")))
 
--- | A variant of 'BackendNotification' that allows encodePretty to work with the body field
+newtype Body = Body {unBody :: Value}
+  deriving (Show, Eq, Generic)
+
+instance ToJSON Body where
+  toJSON (Body v) = v
+
+instance FromJSON Body where
+  parseJSON v =
+    Body . bodyToValue . TL.encodeUtf8 <$> parseJSON v
+    where
+      bodyToValue :: BL.ByteString -> Value
+      bodyToValue bs = fromMaybe (String $ cs $ TL.decodeUtf8 bs) $ decode @Value bs
+
+-- | A variant of 'BackendNotification' with a FromJSON instance for the body field
+-- that converts its BL.ByteString content to a JSON value so that it can be pretty printed
 data BackendNotification' = BackendNotification'
-  { ownDomain :: Value,
-    targetComponent :: Value,
-    path :: Value,
-    body :: Value
+  { ownDomain :: Domain,
+    targetComponent :: Component,
+    path :: Text,
+    body :: Body
   }
   deriving (Show, Eq, Generic)
 
 instance ToJSON BackendNotification'
 
-instance FromJSON BackendNotification' where
-  parseJSON = withObject "BackendNotification" $ \o ->
-    BackendNotification'
-      <$> o .: "ownDomain"
-      <*> o .: "targetComponent"
-      <*> o .: "path"
-      <*> (bodyToValue . TL.encodeUtf8 <$> o .: "body")
-    where
-      bodyToValue :: BL.ByteString -> Value
-      bodyToValue bs = fromMaybe (String $ cs $ TL.decodeUtf8 bs) $ decode @Value bs
+instance FromJSON BackendNotification'
