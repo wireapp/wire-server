@@ -21,7 +21,6 @@ module RabbitMQConsumer.Lib where
 import Data.Aeson
 import Data.Aeson.Encode.Pretty
 import Data.ByteString.Lazy.Char8 qualified as BL
-import Data.Domain (domainText)
 import Data.Text.Lazy.Encoding qualified as TL
 import Imports
 import Network.AMQP
@@ -205,9 +204,9 @@ interactiveCommand =
   (command "interactive" (info (pure Interactive) (progDesc "Interactively drop the first message from the queue")))
 
 data PrettyMessage = PrettyMessage
-  { ownDomain :: Text,
-    targetComponent :: Text,
-    path :: Text,
+  { ownDomain :: Value,
+    targetComponent :: Value,
+    path :: Value,
     body :: Value
   }
   deriving (Show, Eq, Generic)
@@ -222,8 +221,8 @@ displayBackendNotification = BL.unpack . encodePretty . toPrettyMessage
     toPrettyMessage :: BackendNotification -> PrettyMessage
     toPrettyMessage BackendNotification {..} =
       PrettyMessage
-        { ownDomain = domainText ownDomain,
-          targetComponent = cs $ show targetComponent,
-          path = path,
+        { ownDomain = toJSON ownDomain,
+          targetComponent = toJSON targetComponent,
+          path = toJSON path,
           body = fromMaybe (String $ cs $ TL.decodeUtf8 body.rawJsonBytes) $ decode @Value body.rawJsonBytes
         }
