@@ -87,6 +87,9 @@ If a PR adds new configuration options for say brig, the following files need to
 * [ ] The values files for CI: `hack/helm_vars/wire-server/values.yaml.gotmpl`
 * [ ] The configuration docs: `docs/src/developer/reference/config-options.md`
 
+Additional configuration may also exist for services in the following locations.
+* [ ] `charts/$SERVICE/templates/tests/configmap.yaml`
+
 If any new configuration value is required and has no default, then:
 
 * [ ] Write a changelog entry in `0-release-notes` advertising the new configuration value
