@@ -13,6 +13,10 @@
 , lib
 , network
 , optparse-applicative
+, text
+, types-common
+, wire-api
+, wire-api-federation
 }:
 mkDerivation {
   pname = "rabbitmq-consumer";
@@ -29,6 +33,10 @@ mkDerivation {
     imports
     network
     optparse-applicative
+    text
+    types-common
+    wire-api
+    wire-api-federation
   ];
   executableHaskellDepends = [ base ];
   description = "CLI tool to consume messages from a RabbitMQ queue";
