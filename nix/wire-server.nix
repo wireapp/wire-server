@@ -254,8 +254,13 @@ let
   # extraContents :: Map Exe Derivation -> Map Text [Derivation]
   extraContents = exes: {
     brig = [ brig-templates ];
-    brig-integration = [ brig-templates pkgs.mls-test-cli ];
-    galley-integration = [ pkgs.mls-test-cli ];
+    brig-integration = [brig-templates pkgs.mls-test-cli pkgs.awscli2];
+    galley-integration = [pkgs.mls-test-cli pkgs.awscli2];
+    stern-integration = [ pkgs.awscli2 ];
+    gundeck-integration = [ pkgs.awscli2 ];
+    cargohold-integration = [ pkgs.awscli2 ];
+    spar-integration = [ pkgs.awscli2 ];
+    federator-integration = [ pkgs.awscli2 ];
     integration = with exes; [
       brig
       brig-index
@@ -275,6 +280,7 @@ let
       background-worker
       pkgs.nginz
       pkgs.mls-test-cli
+      pkgs.awscli2
       integration-dynamic-backends-db-schemas
       integration-dynamic-backends-brig-index
       integration-dynamic-backends-sqs
