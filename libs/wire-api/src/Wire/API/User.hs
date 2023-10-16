@@ -216,7 +216,6 @@ import Wire.API.User.Identity hiding (scimExternalId)
 import Wire.API.User.Password
 import Wire.API.User.Profile
 import Wire.API.User.RichInfo
-import Wire.API.User.Types (PartialUAuthId)
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
 --------------------------------------------------------------------------------
@@ -749,24 +748,24 @@ userSCIMExternalId usr = scimExternalId (userManagedBy usr) =<< userSSOId usr
 -- FUTUREWORK: this is only ignoring case in the email format, and emails should be
 -- handled case-insensitively.  https://wearezeta.atlassian.net/browse/SQSERVICES-909
 scimExternalId :: ManagedBy -> PartialUAuthId -> Maybe Text
-scimExternalId _ (UAuthIdF _ (Just extId) _ _) = Just extId
-scimExternalId ManagedByScim (UAuthIdF (Just (SAML.UserRef _ nameIdXML)) _ _ _) = Just . CI.original . SAML.unsafeShowNameID $ nameIdXML
-scimExternalId ManagedByWire (UAuthIdF {}) = Nothing
+scimExternalId _ (UAuthId _ (Just extId) _ _) = Just extId
+scimExternalId ManagedByScim (UAuthId (Just (SAML.UserRef _ nameIdXML)) _ _ _) = Just . CI.original . SAML.unsafeShowNameID $ nameIdXML
+scimExternalId ManagedByWire (UAuthId {}) = Nothing
 -- TODO: Check that this makes sense.
 scimExternalId _ _ = Nothing
 
 ssoIssuerAndNameId :: PartialUAuthId -> Maybe (Text, Text)
-ssoIssuerAndNameId (UAuthIdF (Just (SAML.UserRef (SAML.Issuer uri) nameIdXML)) _ _ _) = Just (fromUri uri, fromNameId nameIdXML)
+ssoIssuerAndNameId (UAuthId (Just (SAML.UserRef (SAML.Issuer uri) nameIdXML)) _ _ _) = Just (fromUri uri, fromNameId nameIdXML)
   where
     fromUri = cs . toLazyByteString . serializeURIRef
     fromNameId = CI.original . SAML.unsafeShowNameID
-ssoIssuerAndNameId (UAuthIdF {}) = Nothing
+ssoIssuerAndNameId (UAuthId {}) = Nothing
 
 userIssuer :: User -> Maybe SAML.Issuer
 userIssuer user = userSSOId user >>= fromSSOId
   where
     fromSSOId :: PartialUAuthId -> Maybe SAML.Issuer
-    fromSSOId (UAuthIdF (Just (SAML.UserRef issuer _)) _ _ _) = Just issuer
+    fromSSOId (UAuthId (Just (SAML.UserRef issuer _)) _ _ _) = Just issuer
     fromSSOId _ = Nothing
 
 connectedProfile :: User -> UserLegalHoldStatus -> UserProfile

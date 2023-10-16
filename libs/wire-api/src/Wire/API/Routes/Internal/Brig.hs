@@ -341,7 +341,7 @@ type AccountAPI =
            ( "users"
                :> Capture "uid" UserId
                :> "sso-id"
-               :> ReqBody '[Servant.JSON] UserSSOId
+               :> ReqBody '[Servant.JSON] LegacyUserSSOId
                :> MultiVerb
                     'PUT
                     '[Servant.JSON]
@@ -355,6 +355,33 @@ type AccountAPI =
            ( "users"
                :> Capture "uid" UserId
                :> "sso-id"
+               :> MultiVerb
+                    'DELETE
+                    '[Servant.JSON]
+                    '[ RespondEmpty 200 "UpdateSSOIdSuccess",
+                       RespondEmpty 404 "UpdateSSOIdNotFound"
+                     ]
+                    UpdateSSOIdResponse
+           )
+    :<|> Named
+           "iPutUAuthId"
+           ( "users"
+               :> Capture "uid" UserId
+               :> "uauthid"
+               :> ReqBody '[Servant.JSON] PartialUAuthId
+               :> MultiVerb
+                    'PUT
+                    '[Servant.JSON]
+                    '[ RespondEmpty 200 "UpdateSSOIdSuccess",
+                       RespondEmpty 404 "UpdateSSOIdNotFound"
+                     ]
+                    UpdateSSOIdResponse
+           )
+    :<|> Named
+           "iDeleteUAuthId"
+           ( "users"
+               :> Capture "uid" UserId
+               :> "uauthid"
                :> MultiVerb
                     'DELETE
                     '[Servant.JSON]
