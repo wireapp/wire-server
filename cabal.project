@@ -121,6 +121,8 @@ package proxy
     ghc-options: -Werror
 package mlsstats
     ghc-options: -Werror
+package rabbitmq-consumer
+    ghc-options: -Werror
 package repair-handles
     ghc-options: -Werror
 package rex
