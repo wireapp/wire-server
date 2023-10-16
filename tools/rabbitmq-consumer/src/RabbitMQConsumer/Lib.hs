@@ -18,14 +18,13 @@
 
 module RabbitMQConsumer.Lib where
 
-import Data.Aeson (FromJSON, decode, Value)
+import Data.Aeson (FromJSON, Value, decode)
+import Data.Aeson.Encode.Pretty
 import Data.ByteString.Lazy.Char8 qualified as BL
 import Imports
 import Network.AMQP
 import Network.Socket
 import Options.Applicative
-import Data.Aeson.Encode.Pretty
-
 
 main :: IO ()
 main = do
@@ -88,7 +87,6 @@ main = do
           "timestamp: " <> show msg.msgTimestamp,
           "received message: " <> BL.unpack (maybe msg.msgBody encodePretty (decode @Value msg.msgBody))
         ]
-
 
     runTimerAsync :: MVar () -> Int -> IO ()
     runTimerAsync done sec = void $ forkIO $ do
