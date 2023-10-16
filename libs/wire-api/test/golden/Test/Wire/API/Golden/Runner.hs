@@ -32,12 +32,11 @@ import Data.ByteString qualified as ByteString
 import Data.ByteString.Lazy qualified as LBS
 import Data.ProtoLens.Encoding (decodeMessage, encodeMessage)
 import Data.ProtoLens.Message (Message)
-import Data.ProtoLens.TextFormat (pprintMessage, readMessage)
+import Data.ProtoLens.TextFormat (readMessage, showMessage)
 import Data.Text.Lazy.IO qualified as LText
 import Imports
 import Test.Tasty (TestTree)
 import Test.Tasty.HUnit
-import Text.PrettyPrint (render)
 import Type.Reflection (typeRep)
 import Wire.API.ServantProto
 
@@ -93,7 +92,7 @@ protoTestObject ::
 protoTestObject obj path = do
   let actual = toProto obj
   msg <- assertRight (decodeMessage @m actual)
-  let pretty = render (pprintMessage msg)
+  let pretty = showMessage msg
       dir = "test/golden"
       fullPath = dir <> "/" <> path
   createDirectoryIfMissing True dir
