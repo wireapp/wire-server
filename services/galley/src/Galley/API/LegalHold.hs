@@ -54,7 +54,6 @@ import Galley.Effects
 import Galley.Effects.BrigAccess
 import Galley.Effects.FireAndForget
 import Galley.Effects.LegalHoldStore qualified as LegalHoldData
-import Galley.Effects.ProposalStore
 import Galley.Effects.TeamMemberStore
 import Galley.Effects.TeamStore
 import Galley.External.LegalHoldService qualified as LHService
@@ -140,15 +139,12 @@ getSettings lzusr tid = do
 removeSettingsInternalPaging ::
   forall r.
   ( Member BackendNotificationQueueAccess r,
-    Member BotAccess r,
     Member BrigAccess r,
-    Member CodeStore r,
     Member ConversationStore r,
     Member (Error AuthenticationError) r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
-    Member (ErrorS 'InvalidOperation) r,
     Member (ErrorS 'LegalHoldCouldNotBlockConnections) r,
     Member (ErrorS 'LegalHoldDisableUnimplemented) r,
     Member (ErrorS 'LegalHoldNotEnabled) r,
@@ -168,6 +164,7 @@ removeSettingsInternalPaging ::
     Member MemberStore r,
     Member ProposalStore r,
     Member P.TinyLog r,
+    Member SubConversationStore r,
     Member TeamFeatureStore r,
     Member (TeamMemberStore InternalPaging) r,
     Member TeamStore r
@@ -182,39 +179,36 @@ removeSettings ::
   forall p r.
   ( Paging p,
     Bounded (PagingBounds p TeamMember),
-    ( Member BackendNotificationQueueAccess r,
-      Member BotAccess r,
-      Member BrigAccess r,
-      Member CodeStore r,
-      Member ConversationStore r,
-      Member (Error AuthenticationError) r,
-      Member (Error FederationError) r,
-      Member (Error InternalError) r,
-      Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
-      Member (ErrorS 'InvalidOperation) r,
-      Member (ErrorS 'LegalHoldCouldNotBlockConnections) r,
-      Member (ErrorS 'LegalHoldDisableUnimplemented) r,
-      Member (ErrorS 'LegalHoldNotEnabled) r,
-      Member (ErrorS 'LegalHoldServiceNotRegistered) r,
-      Member (ErrorS 'NotATeamMember) r,
-      Member (ErrorS OperationDenied) r,
-      Member (ErrorS 'UserLegalHoldIllegalOperation) r,
-      Member ExternalAccess r,
-      Member FederatorAccess r,
-      Member FireAndForget r,
-      Member GundeckAccess r,
-      Member (Input Env) r,
-      Member (Input (Local ())) r,
-      Member (Input UTCTime) r,
-      Member LegalHoldStore r,
-      Member (ListItems LegacyPaging ConvId) r,
-      Member MemberStore r,
-      Member ProposalStore r,
-      Member P.TinyLog r,
-      Member TeamFeatureStore r,
-      Member (TeamMemberStore p) r,
-      Member TeamStore r
-    )
+    Member TeamFeatureStore r,
+    Member (TeamMemberStore p) r,
+    Member TeamStore r,
+    Member BackendNotificationQueueAccess r,
+    Member BrigAccess r,
+    Member ConversationStore r,
+    Member (Error AuthenticationError) r,
+    Member (Error FederationError) r,
+    Member (Error InternalError) r,
+    Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
+    Member (ErrorS 'LegalHoldCouldNotBlockConnections) r,
+    Member (ErrorS 'LegalHoldDisableUnimplemented) r,
+    Member (ErrorS 'LegalHoldNotEnabled) r,
+    Member (ErrorS 'LegalHoldServiceNotRegistered) r,
+    Member (ErrorS 'NotATeamMember) r,
+    Member (ErrorS OperationDenied) r,
+    Member (ErrorS 'UserLegalHoldIllegalOperation) r,
+    Member ExternalAccess r,
+    Member FederatorAccess r,
+    Member FireAndForget r,
+    Member GundeckAccess r,
+    Member (Input Env) r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member LegalHoldStore r,
+    Member (ListItems LegacyPaging ConvId) r,
+    Member MemberStore r,
+    Member ProposalStore r,
+    Member P.TinyLog r,
+    Member SubConversationStore r
   ) =>
   UserId ->
   TeamId ->
@@ -245,34 +239,30 @@ removeSettings' ::
   forall p r.
   ( Paging p,
     Bounded (PagingBounds p TeamMember),
-    ( Member BackendNotificationQueueAccess r,
-      Member BotAccess r,
-      Member BrigAccess r,
-      Member CodeStore r,
-      Member ConversationStore r,
-      Member (Error FederationError) r,
-      Member (Error InternalError) r,
-      Member (Error AuthenticationError) r,
-      Member (ErrorS 'NotATeamMember) r,
-      Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
-      Member (ErrorS 'LegalHoldServiceNotRegistered) r,
-      Member (ErrorS 'UserLegalHoldIllegalOperation) r,
-      Member (ErrorS 'LegalHoldCouldNotBlockConnections) r,
-      Member ExternalAccess r,
-      Member FederatorAccess r,
-      Member FireAndForget r,
-      Member GundeckAccess r,
-      Member (Input UTCTime) r,
-      Member (Input (Local ())) r,
-      Member (Input Env) r,
-      Member LegalHoldStore r,
-      Member (ListItems LegacyPaging ConvId) r,
-      Member MemberStore r,
-      Member (TeamMemberStore p) r,
-      Member TeamStore r,
-      Member ProposalStore r,
-      Member P.TinyLog r
-    )
+    Member BackendNotificationQueueAccess r,
+    Member BrigAccess r,
+    Member ConversationStore r,
+    Member (Error FederationError) r,
+    Member (Error InternalError) r,
+    Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
+    Member (ErrorS 'LegalHoldServiceNotRegistered) r,
+    Member (ErrorS 'UserLegalHoldIllegalOperation) r,
+    Member (ErrorS 'LegalHoldCouldNotBlockConnections) r,
+    Member ExternalAccess r,
+    Member FederatorAccess r,
+    Member FireAndForget r,
+    Member GundeckAccess r,
+    Member (Input UTCTime) r,
+    Member (Input (Local ())) r,
+    Member (Input Env) r,
+    Member LegalHoldStore r,
+    Member (ListItems LegacyPaging ConvId) r,
+    Member MemberStore r,
+    Member (TeamMemberStore p) r,
+    Member TeamStore r,
+    Member ProposalStore r,
+    Member P.TinyLog r,
+    Member SubConversationStore r
   ) =>
   TeamId ->
   Sem r ()
@@ -357,6 +347,7 @@ grantConsent ::
     Member MemberStore r,
     Member ProposalStore r,
     Member P.TinyLog r,
+    Member SubConversationStore r,
     Member TeamStore r
   ) =>
   Local UserId ->
@@ -403,6 +394,7 @@ requestDevice ::
     Member MemberStore r,
     Member ProposalStore r,
     Member P.TinyLog r,
+    Member SubConversationStore r,
     Member TeamFeatureStore r,
     Member TeamStore r
   ) =>
@@ -482,6 +474,7 @@ approveDevice ::
     Member MemberStore r,
     Member ProposalStore r,
     Member P.TinyLog r,
+    Member SubConversationStore r,
     Member TeamFeatureStore r,
     Member TeamStore r
   ) =>
@@ -557,6 +550,7 @@ disableForUser ::
     Member MemberStore r,
     Member ProposalStore r,
     Member P.TinyLog r,
+    Member SubConversationStore r,
     Member TeamStore r
   ) =>
   Local UserId ->
@@ -610,7 +604,8 @@ changeLegalholdStatus ::
     Member MemberStore r,
     Member TeamStore r,
     Member ProposalStore r,
-    Member P.TinyLog r
+    Member P.TinyLog r,
+    Member SubConversationStore r
   ) =>
   TeamId ->
   Local UserId ->
@@ -724,6 +719,7 @@ handleGroupConvPolicyConflicts ::
     Member MemberStore r,
     Member ProposalStore r,
     Member P.TinyLog r,
+    Member SubConversationStore r,
     Member TeamStore r
   ) =>
   Local UserId ->

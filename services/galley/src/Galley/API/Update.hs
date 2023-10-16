@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedRecordDot #-}
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -15,6 +14,7 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Galley.API.Update
@@ -39,6 +39,7 @@ module Galley.API.Update
     updateConversationAccess,
     deleteLocalConversation,
     updateRemoteConversation,
+    updateConversationProtocolWithLocalUser,
     updateLocalStateOfRemoteConv,
 
     -- * Managing Members
@@ -92,6 +93,7 @@ import Galley.API.Query qualified as Query
 import Galley.API.Util
 import Galley.App
 import Galley.Data.Conversation qualified as Data
+import Galley.Data.Conversation.Types qualified as Data
 import Galley.Data.Services as Data
 import Galley.Data.Types hiding (Conversation)
 import Galley.Effects
@@ -102,7 +104,6 @@ import Galley.Effects.ExternalAccess qualified as E
 import Galley.Effects.FederatorAccess qualified as E
 import Galley.Effects.GundeckAccess qualified as E
 import Galley.Effects.MemberStore qualified as E
-import Galley.Effects.ProposalStore
 import Galley.Effects.ServiceStore qualified as E
 import Galley.Effects.WaiRoutes
 import Galley.Intra.Push
@@ -124,6 +125,7 @@ import System.Logger (Msg)
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Code
+import Wire.API.Conversation.Protocol qualified as P
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing
 import Wire.API.Error
@@ -275,6 +277,7 @@ type UpdateConversationAccessEffects =
      Input UTCTime,
      MemberStore,
      ProposalStore,
+     SubConversationStore,
      TeamStore,
      TinyLog
    ]
@@ -356,9 +359,9 @@ updateRemoteConversation ::
     Member (Input (Local ())) r,
     Member MemberStore r,
     Member TinyLog r,
+    RethrowErrors (HasConversationActionGalleyErrors tag) r,
     Member (Error NonFederatingBackends) r,
     Member (Error UnreachableBackends) r,
-    RethrowErrors (HasConversationActionGalleyErrors tag) (Error NoChanges : r),
     SingI tag
   ) =>
   Remote ConvId ->
@@ -376,7 +379,7 @@ updateRemoteConversation rcnv lusr conn action = getUpdateResult $ do
   response <- E.runFederated rcnv (fedClient @'Galley @"update-conversation" updateRequest)
   convUpdate <- case response of
     ConversationUpdateResponseNoChanges -> throw NoChanges
-    ConversationUpdateResponseError err' -> rethrowErrors @(HasConversationActionGalleyErrors tag) err'
+    ConversationUpdateResponseError err' -> raise $ rethrowErrors @(HasConversationActionGalleyErrors tag) err'
     ConversationUpdateResponseUpdate convUpdate -> pure convUpdate
     ConversationUpdateResponseNonFederatingBackends e -> throw e
     ConversationUpdateResponseUnreachableBackends e -> throw e
@@ -459,7 +462,8 @@ updateConversationMessageTimerUnqualified ::
 updateConversationMessageTimerUnqualified lusr zcon cnv = updateConversationMessageTimer lusr zcon (tUntagged (qualifyAs lusr cnv))
 
 deleteLocalConversation ::
-  ( Member BackendNotificationQueueAccess r,
+  ( Member BrigAccess r,
+    Member BackendNotificationQueueAccess r,
     Member CodeStore r,
     Member ConversationStore r,
     Member (Error FederationError) r,
@@ -468,7 +472,11 @@ deleteLocalConversation ::
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
     Member ExternalAccess r,
+    Member FederatorAccess r,
     Member GundeckAccess r,
+    Member SubConversationStore r,
+    Member MemberStore r,
+    Member ProposalStore r,
     Member (Input UTCTime) r,
     Member TeamStore r,
     Member (Logger (Msg -> Msg)) r
@@ -675,6 +683,57 @@ checkReusableCode convCode = do
   mapErrorS @'GuestLinksDisabled @'CodeNotFound $
     Query.ensureGuestLinksEnabled (Data.convTeam conv)
 
+updateConversationProtocolWithLocalUser ::
+  forall r.
+  ( Member (ErrorS 'ConvNotFound) r,
+    Member (ErrorS 'ConvInvalidProtocolTransition) r,
+    Member (ErrorS ('ActionDenied 'LeaveConversation)) r,
+    Member (ErrorS 'InvalidOperation) r,
+    Member (Error FederationError) r,
+    Member (ErrorS 'MLSMigrationCriteriaNotSatisfied) r,
+    Member (ErrorS 'NotATeamMember) r,
+    Member (ErrorS OperationDenied) r,
+    Member (ErrorS 'TeamNotFound) r,
+    Member (Error InternalError) r,
+    Member (Input UTCTime) r,
+    Member (Input Env) r,
+    Member (Input (Local ())) r,
+    Member (Input Opts) r,
+    Member BackendNotificationQueueAccess r,
+    Member BrigAccess r,
+    Member ConversationStore r,
+    Member MemberStore r,
+    Member TinyLog r,
+    Member GundeckAccess r,
+    Member ExternalAccess r,
+    Member FederatorAccess r,
+    Member ProposalStore r,
+    Member SubConversationStore r,
+    Member TeamFeatureStore r,
+    Member TeamStore r
+  ) =>
+  Local UserId ->
+  ConnId ->
+  Qualified ConvId ->
+  P.ProtocolUpdate ->
+  Sem r (UpdateResult Event)
+updateConversationProtocolWithLocalUser lusr conn qcnv (P.ProtocolUpdate newProtocol) =
+  mapError @UnreachableBackends @InternalError (\_ -> InternalErrorWithDescription "Unexpected UnreachableBackends error when updating remote protocol")
+    . mapError @NonFederatingBackends @InternalError (\_ -> InternalErrorWithDescription "Unexpected NonFederatingBackends error when updating remote protocol")
+    $ foldQualified
+      lusr
+      ( \lcnv -> do
+          fmap (maybe Unchanged (Updated . lcuEvent) . hush)
+            . runError @NoChanges
+            . updateLocalConversation @'ConversationUpdateProtocolTag lcnv (tUntagged lusr) (Just conn)
+            $ newProtocol
+      )
+      ( \rcnv ->
+          updateRemoteConversation @'ConversationUpdateProtocolTag rcnv lusr conn $
+            newProtocol
+      )
+      qcnv
+
 joinConversationByReusableCode ::
   forall r.
   ( Member BackendNotificationQueueAccess r,
@@ -760,7 +819,7 @@ joinConversation lusr zcon conv access = do
   ensureConversationAccess (tUnqualified lusr) conv access
   ensureGroupConversation conv
   -- FUTUREWORK: remote users?
-  ensureMemberLimit (toList $ Data.convLocalMembers conv) [tUnqualified lusr]
+  ensureMemberLimit (Data.convProtocolTag conv) (toList $ Data.convLocalMembers conv) [tUnqualified lusr]
   getUpdateResult $ do
     -- NOTE: When joining conversations, all users become members
     -- as this is our desired behavior for these types of conversations
@@ -804,6 +863,7 @@ addMembers ::
     Member LegalHoldStore r,
     Member MemberStore r,
     Member ProposalStore r,
+    Member SubConversationStore r,
     Member TeamStore r,
     Member TinyLog r
   ) =>
@@ -844,6 +904,7 @@ addMembersUnqualifiedV2 ::
     Member LegalHoldStore r,
     Member MemberStore r,
     Member ProposalStore r,
+    Member SubConversationStore r,
     Member TeamStore r,
     Member TinyLog r
   ) =>
@@ -884,6 +945,7 @@ addMembersUnqualified ::
     Member LegalHoldStore r,
     Member MemberStore r,
     Member ProposalStore r,
+    Member SubConversationStore r,
     Member TeamStore r,
     Member TinyLog r
   ) =>
@@ -1063,6 +1125,7 @@ removeMemberUnqualified ::
     Member (Input UTCTime) r,
     Member MemberStore r,
     Member ProposalStore r,
+    Member SubConversationStore r,
     Member TinyLog r
   ) =>
   Local UserId ->
@@ -1090,6 +1153,7 @@ removeMemberQualified ::
     Member (Input UTCTime) r,
     Member MemberStore r,
     Member ProposalStore r,
+    Member SubConversationStore r,
     Member TinyLog r
   ) =>
   Local UserId ->
@@ -1106,6 +1170,11 @@ removeMemberQualified lusr con qcnv victim =
       qcnv
       victim
 
+-- | if the public member leave api was called, we can assume that
+--   it was called by a user
+pattern EdMembersLeaveRemoved :: QualifiedUserIdList -> EventData
+pattern EdMembersLeaveRemoved l = EdMembersLeave EdReasonRemoved l
+
 removeMemberFromRemoteConv ::
   ( Member FederatorAccess r,
     Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
@@ -1120,8 +1189,8 @@ removeMemberFromRemoteConv cnv lusr victim
   | tUntagged lusr == victim = do
       let lc = LeaveConversationRequest (tUnqualified cnv) (qUnqualified victim)
       let rpc = fedClient @'Galley @"leave-conversation" lc
-      (either handleError handleSuccess . void . (.response) =<<) $
-        E.runFederated cnv rpc
+      E.runFederated cnv rpc
+        >>= either handleError handleSuccess . void . (.response)
   | otherwise = throwS @('ActionDenied 'RemoveConversationMember)
   where
     handleError ::
@@ -1140,7 +1209,7 @@ removeMemberFromRemoteConv cnv lusr victim
       t <- input
       pure . Just $
         Event (tUntagged cnv) Nothing (tUntagged lusr) t $
-          EdMembersLeave (QualifiedUserIdList [victim])
+          EdMembersLeaveRemoved (QualifiedUserIdList [victim])
 
 -- | Remove a member from a local conversation.
 removeMemberFromLocalConv ::
@@ -1159,6 +1228,7 @@ removeMemberFromLocalConv ::
     Member (Input UTCTime) r,
     Member MemberStore r,
     Member ProposalStore r,
+    Member SubConversationStore r,
     Member TinyLog r
   ) =>
   Local ConvId ->
@@ -1559,7 +1629,7 @@ addBot lusr zcon b = do
       ensureActionAllowed SAddConversationMember self
       unless (any ((== b ^. addBotId) . botMemId) bots) $ do
         let botId = qualifyAs lusr (botUserId (b ^. addBotId))
-        ensureMemberLimit (toList $ Data.convLocalMembers c) [tUntagged botId]
+        ensureMemberLimit (Data.convProtocolTag c) (toList $ Data.convLocalMembers c) [tUntagged botId]
       pure (bots, users)
 
 rmBotH ::
@@ -1614,7 +1684,7 @@ rmBot lusr zcon b = do
     else do
       t <- input
       do
-        let evd = EdMembersLeave (QualifiedUserIdList [tUntagged (qualifyAs lusr (botUserId (b ^. rmBotId)))])
+        let evd = EdMembersLeaveRemoved (QualifiedUserIdList [tUntagged (qualifyAs lusr (botUserId (b ^. rmBotId)))])
         let e = Event (tUntagged lcnv) Nothing (tUntagged lusr) t evd
         for_ (newPushLocal ListComplete (tUnqualified lusr) (ConvEvent e) (recipient <$> users)) $ \p ->
           E.push1 $ p & pushConn .~ zcon

@@ -1027,7 +1027,7 @@ uncheckedDeleteTeamMember lusr zcon tid remove mems = do
       -- remove the user from conversations but never send out any events. We assume that clients
       -- handle nicely these missing events, regardless of whether they are in the same team or not
       let tmids = Set.fromList $ map (view userId) (mems ^. teamMembers)
-      let edata = Conv.EdMembersLeave (Conv.QualifiedUserIdList [tUntagged (qualifyAs lusr remove)])
+      let edata = Conv.EdMembersLeave Conv.EdReasonDeleted (Conv.QualifiedUserIdList [tUntagged (qualifyAs lusr remove)])
       cc <- E.getTeamConversations tid
       for_ cc $ \c ->
         E.getConversation (c ^. conversationId) >>= \conv ->
@@ -1083,6 +1083,7 @@ getTeamConversation zusr tid cid = do
 
 deleteTeamConversation ::
   ( Member BackendNotificationQueueAccess r,
+    Member BrigAccess r,
     Member CodeStore r,
     Member ConversationStore r,
     Member (Error FederationError) r,
@@ -1090,9 +1091,13 @@ deleteTeamConversation ::
     Member (ErrorS 'InvalidOperation) r,
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS ('ActionDenied 'DeleteConversation)) r,
+    Member FederatorAccess r,
+    Member MemberStore r,
+    Member ProposalStore r,
     Member ExternalAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
+    Member SubConversationStore r,
     Member TeamStore r,
     Member (P.Logger (Msg -> Msg)) r
   ) =>

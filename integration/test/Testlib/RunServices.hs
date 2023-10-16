@@ -1,9 +1,7 @@
-{-# OPTIONS_GHC -Wno-unused-matches #-}
-
 module Testlib.RunServices where
 
 import Control.Concurrent
-import Control.Monad.Codensity (lowerCodensity)
+import Control.Monad.Codensity
 import System.Directory
 import System.Environment (getArgs)
 import System.Exit (exitWith)
@@ -43,9 +41,6 @@ main = do
     Just projectRoot ->
       pure $ joinPath [projectRoot, "services/integration.yaml"]
 
-  genv <- createGlobalEnv cfg
-  env <- lowerCodensity $ mkEnv genv
-
   args <- getArgs
 
   let run = case args of
@@ -57,10 +52,11 @@ main = do
           (_, _, _, ph) <- createProcess cp
           exitWith =<< waitForProcess ph
 
-  runAppWithEnv env $ do
-    lowerCodensity $ do
-      _modifyEnv <-
-        traverseConcurrentlyCodensity
-          (`startDynamicBackend` def)
-          [backendA, backendB]
-      liftIO run
+  runCodensity (createGlobalEnv cfg >>= mkEnv) $ \env ->
+    runAppWithEnv env $
+      lowerCodensity $ do
+        _modifyEnv <-
+          traverseConcurrentlyCodensity
+            (\r -> startDynamicBackend r mempty)
+            [backendA, backendB]
+        liftIO run

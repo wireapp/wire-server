@@ -16,6 +16,7 @@ flag static
   default:     False
 
 library
+  -- cabal-fmt: expand src
   exposed-modules:
     Gundeck.API
     Gundeck.API.Internal
@@ -42,6 +43,17 @@ library
     Gundeck.Redis
     Gundeck.Redis.HedisExtensions
     Gundeck.Run
+    Gundeck.Schema.Run
+    Gundeck.Schema.V1
+    Gundeck.Schema.V10
+    Gundeck.Schema.V2
+    Gundeck.Schema.V3
+    Gundeck.Schema.V4
+    Gundeck.Schema.V5
+    Gundeck.Schema.V6
+    Gundeck.Schema.V7
+    Gundeck.Schema.V8
+    Gundeck.Schema.V9
     Gundeck.ThreadBudget
     Gundeck.ThreadBudget.Internal
     Gundeck.Util
@@ -130,6 +142,7 @@ library
     , mtl                    >=2.2
     , network-uri            >=2.6
     , psqueues               >=0.2.2
+    , raw-strings-qq
     , resourcet              >=1.1
     , retry                  >=0.5
     , safe-exceptions
@@ -318,20 +331,7 @@ executable gundeck-integration
 
 executable gundeck-schema
   main-is:            Main.hs
-  other-modules:
-    Paths_gundeck
-    V1
-    V10
-    V2
-    V3
-    V4
-    V5
-    V6
-    V7
-    V8
-    V9
-
-  hs-source-dirs:     schema/src
+  hs-source-dirs:     schema
   default-extensions:
     NoImplicitPrelude
     AllowAmbiguousTypes
@@ -380,12 +380,8 @@ executable gundeck-schema
     -threaded -Wredundant-constraints -Wunused-packages
 
   build-depends:
-      base
-    , cassandra-util
-    , extended
+      gundeck
     , imports
-    , raw-strings-qq
-    , types-common
 
   if flag(static)
     ld-options: -static

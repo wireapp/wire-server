@@ -1,3 +1,6 @@
+repository hackage.haskell.org
+  url: https://hackage.haskell.org/
+index-state: 2023-10-03T15:17:00Z
 packages:
     integration
   , libs/bilge/
@@ -51,6 +54,7 @@ packages:
   , tools/rabbitmq-consumer
   , tools/rex/
   , tools/stern/
+  , tools/mlsstats/
 
 tests: True
 benchmarks: True
@@ -97,6 +101,8 @@ package hscim
     ghc-options: -Werror
 package http2-manager
     ghc-options: -Werror
+package integration
+    ghc-options: -Werror
 package imports
     ghc-options: -Werror
 package jwt-tools
@@ -113,7 +119,7 @@ package polysemy-wire-zoo
     ghc-options: -Werror
 package proxy
     ghc-options: -Werror
-package rabbitmq-consumer
+package mlsstats
     ghc-options: -Werror
 package repair-handles
     ghc-options: -Werror

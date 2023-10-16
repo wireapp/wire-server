@@ -53,22 +53,28 @@ data MessagePush
 
 type BotMap = Map UserId BotMember
 
+class ToRecipient a where
+  toRecipient :: a -> Recipient
+
+instance ToRecipient (UserId, ClientId) where
+  toRecipient (u, c) = Recipient u (RecipientClientsSome (List1.singleton c))
+
+instance ToRecipient Recipient where
+  toRecipient = id
+
 newMessagePush ::
+  ToRecipient r =>
   BotMap ->
   Maybe ConnId ->
   MessageMetadata ->
-  [(UserId, ClientId)] ->
+  [r] ->
   Event ->
   MessagePush
 newMessagePush botMap mconn mm userOrBots event =
-  let (recipients, botMembers) =
-        foldMap
-          ( \(u, c) ->
-              case Map.lookup u botMap of
-                Just botMember -> ([], [botMember])
-                Nothing -> ([Recipient u (RecipientClientsSome (List1.singleton c))], [])
-          )
-          userOrBots
+  let toPair r = case Map.lookup (_recipientUserId r) botMap of
+        Just botMember -> ([], [botMember])
+        Nothing -> ([r], [])
+      (recipients, botMembers) = foldMap (toPair . toRecipient) userOrBots
    in MessagePush mconn mm recipients botMembers event
 
 runMessagePush ::
@@ -90,9 +96,9 @@ runMessagePush loc mqcnv mp@(MessagePush _ _ _ botMembers event) = do
       else deliverAndDeleteAsync (qUnqualified qcnv) (map (,event) botMembers)
 
 toPush :: MessagePush -> Maybe Push
-toPush (MessagePush mconn mm userRecipients _ event) =
+toPush (MessagePush mconn mm rs _ event) =
   let usr = qUnqualified (evtFrom event)
-   in newPush ListComplete (Just usr) (ConvEvent event) userRecipients
+   in newPush ListComplete (Just usr) (ConvEvent event) rs
         <&> set pushConn mconn
           . set pushNativePriority (mmNativePriority mm)
           . set pushRoute (bool RouteDirect RouteAny (mmNativePush mm))

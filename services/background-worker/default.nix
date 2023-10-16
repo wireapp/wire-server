@@ -5,7 +5,6 @@
 { mkDerivation
 , aeson
 , amqp
-, async
 , base
 , bytestring
 , containers
@@ -51,8 +50,6 @@ mkDerivation {
   libraryHaskellDepends = [
     aeson
     amqp
-    async
-    base
     containers
     exceptions
     extended
@@ -73,7 +70,6 @@ mkDerivation {
     types-common
     unliftio
     wai-utilities
-    wire-api
     wire-api-federation
   ];
   executableHaskellDepends = [ HsOpenSSL imports types-common ];

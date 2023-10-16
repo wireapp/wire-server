@@ -1,5 +1,3 @@
-{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2023 Wire Swiss GmbH <opensource@wire.com>
@@ -46,7 +44,7 @@ testMessageTimerChangeWithUnreachableRemotes = do
   conv <- runCodensity (acquireResources 1 resourcePool) $ \[dynBackend] ->
     runCodensity (startDynamicBackend dynBackend mempty) $ \_ -> do
       bob <- randomUser dynBackend.berDomain def
-      connectUsers alice bob
+      connectTwoUsers alice bob
       postConversation alice (defProteus {qualifiedUsers = [bob]}) >>= getJSON 201
   withWebSocket alice $ \ws -> do
     void $ updateMessageTimer alice conv 1000 >>= getBody 200

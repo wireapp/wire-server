@@ -1,10 +1,8 @@
 {-# LANGUAGE OverloadedLabels #-}
-{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 module Test.Federation where
 
-import API.Brig qualified as API
-import API.BrigInternal qualified as API
+import API.Brig qualified as BrigP
 import API.Galley
 import Control.Lens
 import Control.Monad.Codensity
@@ -23,33 +21,25 @@ testNotificationsForOfflineBackends :: HasCallStack => App ()
 testNotificationsForOfflineBackends = do
   resourcePool <- asks (.resourcePool)
   -- `delUser` will eventually get deleted.
-  [delUser, otherUser, otherUser2] <- createAndConnectUsers [OwnDomain, OtherDomain, OtherDomain]
-  delClient <- objId $ bindResponse (API.addClient delUser def) $ getJSON 201
-  otherClient <- objId $ bindResponse (API.addClient otherUser def) $ getJSON 201
-  otherClient2 <- objId $ bindResponse (API.addClient otherUser2 def) $ getJSON 201
+  [delUser, otherUser, otherUser2] <- createUsers [OwnDomain, OtherDomain, OtherDomain]
+  delClient <- objId $ bindResponse (BrigP.addClient delUser def) $ getJSON 201
+  otherClient <- objId $ bindResponse (BrigP.addClient otherUser def) $ getJSON 201
+  otherClient2 <- objId $ bindResponse (BrigP.addClient otherUser2 def) $ getJSON 201
 
   -- We call it 'downBackend' because it is down for most of this test
   -- except for setup and assertions. Perhaps there is a better name.
   runCodensity (acquireResources 1 resourcePool) $ \[downBackend] -> do
     (downUser1, downClient1, downUser2, upBackendConv, downBackendConv) <- runCodensity (startDynamicBackend downBackend mempty) $ \_ -> do
-      -- FUTUREWORK: get rid of this once the background worker is able to listen to all queues
-      do
-        ownDomain <- make OwnDomain & asString
-        otherDomain <- make OtherDomain & asString
-        let domains = [ownDomain, otherDomain, downBackend.berDomain]
-        sequence_
-          [ API.createFedConn x (API.FedConn y "full_search")
-            | x <- domains,
-              y <- domains,
-              x /= y
-          ]
-
       downUser1 <- randomUser downBackend.berDomain def
       downUser2 <- randomUser downBackend.berDomain def
-      downClient1 <- objId $ bindResponse (API.addClient downUser1 def) $ getJSON 201
-      connectUsers delUser downUser1
-      connectUsers delUser downUser2
-      connectUsers otherUser downUser1
+      downClient1 <- objId $ bindResponse (BrigP.addClient downUser1 def) $ getJSON 201
+
+      connectTwoUsers delUser otherUser
+      connectTwoUsers delUser otherUser2
+      connectTwoUsers delUser downUser1
+      connectTwoUsers delUser downUser2
+      connectTwoUsers downUser1 otherUser
+
       upBackendConv <- bindResponse (postConversation delUser (defProteus {qualifiedUsers = [otherUser, otherUser2, downUser1]})) $ getJSON 201
       downBackendConv <- bindResponse (postConversation downUser1 (defProteus {qualifiedUsers = [otherUser, delUser]})) $ getJSON 201
       pure (downUser1, downClient1, downUser2, upBackendConv, downBackendConv)
@@ -89,7 +79,7 @@ testNotificationsForOfflineBackends = do
       -- however, if the backend of the user to be added is already part of the conversation, we do not need to do the check
       -- and the user can be added as long as the backend is reachable
       otherUser3 <- randomUser OtherDomain def
-      connectUsers delUser otherUser3
+      connectTwoUsers delUser otherUser3
       bindResponse (addMembers delUser upBackendConv def {users = [otherUser3]}) $ \resp ->
         resp.status `shouldMatchInt` 200
 
@@ -134,11 +124,11 @@ testNotificationsForOfflineBackends = do
                 isNotifConv downBackendConv,
                 isNotifForUser delUser
               ]
-      void $ awaitNotification downUser1 downClient1 (Just newMsgNotif) 1 isDelUserLeaveDownConvNotif
+      void $ awaitNotification downUser1 downClient1 (Just newMsgNotif) 5 isDelUserLeaveDownConvNotif
 
       -- FUTUREWORK: Uncomment after fixing this bug: https://wearezeta.atlassian.net/browse/WPB-3664
       -- void $ awaitNotification downUser1 downClient1 (Just newMsgNotif) 1 isOtherUser2LeaveUpConvNotif
       -- void $ awaitNotification otherUser otherClient (Just newMsgNotif) 1 isDelUserLeaveDownConvNotif
 
-      delUserDeletedNotif <- nPayload $ awaitNotification downUser1 downClient1 (Just newMsgNotif) 1 isDeleteUserNotif
+      delUserDeletedNotif <- nPayload $ awaitNotification downUser1 downClient1 (Just newMsgNotif) 5 isDeleteUserNotif
       objQid delUserDeletedNotif `shouldMatch` objQid delUser

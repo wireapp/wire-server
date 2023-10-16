@@ -45,6 +45,7 @@ where
 import Bilge hiding (Request, header, options, statusCode)
 import Bilge.RPC
 import Cassandra
+import Control.Concurrent.Async (AsyncCancelled)
 import Control.Error
 import Control.Exception (throwIO)
 import Control.Lens
@@ -170,10 +171,13 @@ runDirect :: Env -> Gundeck a -> IO a
 runDirect e m =
   runClient (e ^. cstate) (runReaderT (unGundeck m) e)
     `catch` ( \(exception :: SomeException) -> do
-                Log.err (e ^. applog) $
-                  Log.msg ("IO Exception occurred" :: ByteString)
-                    . Log.field "message" (displayException exception)
-                    . Log.field "request" (unRequestId (e ^. reqId))
+                case fromException exception of
+                  Nothing ->
+                    Log.err (e ^. applog) $
+                      Log.msg ("IO Exception occurred" :: ByteString)
+                        . Log.field "message" (displayException exception)
+                        . Log.field "request" (unRequestId (e ^. reqId))
+                  Just (_ :: AsyncCancelled) -> pure ()
                 throwIO exception
             )
 

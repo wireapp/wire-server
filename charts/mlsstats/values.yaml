@@ -1,0 +1,30 @@
+image:
+  repository: quay.io/wire/mlsstats
+  tag: 0.1
+resources:
+  requests:
+    memory: "256Mi"
+    cpu: "100m"
+  limits:
+    memory: "256Mi"
+    cpu: "100m"
+schedule: "23 3 * * *"
+config:
+  cassandra:
+    brig:
+      host: cassandra
+      port: 9042
+      keyspace: brig
+    galley:
+      host: cassandra
+      port: 9042
+      keyspace: galley
+    pagesize: 1024
+  s3:
+    endpoint: https://s3.eu-west-1.amazonaws.com/
+    region: eu-west-1
+    addressingStyle: auto
+    bucket:
+      name: mlsstats
+      directory: "/"
+secrets: {}

@@ -37,10 +37,12 @@ import Data.Kind
 import Data.Proxy
 import GHC.TypeLits
 import Imports
+import Servant
 import Servant.Client
 import Servant.Client.Core
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Cargohold
+import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.BackendNotifications
 import Wire.API.Federation.Client
@@ -64,6 +66,20 @@ type HasFedEndpoint comp api name = (HasUnsafeFedEndpoint comp api name)
 -- you to forget about some federated calls.
 type HasUnsafeFedEndpoint comp api name = 'Just api ~ LookupEndpoint (FedApi comp) name
 
+-- | Constrains which endpoints can be used with FedQueueClient.
+--
+-- Since the servant client implementation underlying FedQueueClient is
+-- returning a "fake" response consisting of an empty object, we need to make
+-- sure that an API type is compatible with an empty response if we want to
+-- invoke it using `fedQueueClient`
+class HasEmptyResponse api
+
+instance HasEmptyResponse (Post '[JSON] EmptyResponse)
+
+instance HasEmptyResponse api => HasEmptyResponse (x :> api)
+
+instance HasEmptyResponse api => HasEmptyResponse (UntypedNamed name api)
+
 -- | Return a client for a named endpoint.
 --
 -- This function introduces an 'AddAnnotation' constraint, which is
@@ -79,7 +95,11 @@ fedClient = clientIn (Proxy @api) (Proxy @m)
 
 fedQueueClient ::
   forall (comp :: Component) (name :: Symbol) m api.
-  (HasFedEndpoint comp api name, HasClient m api, m ~ FedQueueClient comp) =>
+  ( HasEmptyResponse api,
+    HasFedEndpoint comp api name,
+    HasClient m api,
+    m ~ FedQueueClient comp
+  ) =>
   Client m api
 fedQueueClient = clientIn (Proxy @api) (Proxy @m)
 

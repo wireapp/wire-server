@@ -25,6 +25,8 @@ import Data.Id (Id (Id))
 import Data.Misc
 import Data.Qualified
 import Data.Set qualified as Set
+import Data.Time.Calendar
+import Data.Time.Clock
 import Data.UUID qualified as UUID
 import Imports
 import Wire.API.Conversation
@@ -56,7 +58,7 @@ conv1 =
       cnvMetadata =
         ConversationMetadata
           { cnvmType = One2OneConv,
-            cnvmCreator = Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000200000001")),
+            cnvmCreator = Just (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000200000001"))),
             cnvmAccess = [],
             cnvmAccessRoles = Set.empty,
             cnvmName = Just " 0",
@@ -90,7 +92,7 @@ conv2 =
       cnvMetadata =
         ConversationMetadata
           { cnvmType = SelfConv,
-            cnvmCreator = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000200000001")),
+            cnvmCreator = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000200000001"))),
             cnvmAccess =
               [ InviteAccess,
                 InviteAccess,
@@ -128,5 +130,15 @@ conv2 =
                 },
             cmOthers = []
           },
-      cnvProtocol = ProtocolMLS (ConversationMLSData (GroupId "test_group") (Epoch 42) MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519)
+      cnvProtocol =
+        ProtocolMLS
+          ( ConversationMLSData
+              (GroupId "test_group")
+              (Epoch 42)
+              (Just timestamp)
+              MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
+          )
     }
+  where
+    timestamp :: UTCTime
+    timestamp = UTCTime (fromGregorian 2023 1 17) (secondsToDiffTime 42)

@@ -95,6 +95,7 @@ mkDerivation {
     imports
     QuickCheck
     singletons
+    time
     types-common
     uuid
     wire-api

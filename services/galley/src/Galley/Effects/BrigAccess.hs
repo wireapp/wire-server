@@ -48,11 +48,7 @@ module Galley.Effects.BrigAccess
     removeLegalHoldClientFromUser,
 
     -- * MLS
-    getClientByKeyPackageRef,
     getLocalMLSClients,
-    addKeyPackageRef,
-    validateAndAddKeyPackageRef,
-    updateKeyPackageRef,
 
     -- * Features
     getAccountConferenceCallingConfigClient,
@@ -72,9 +68,7 @@ import Polysemy
 import Polysemy.Error
 import Wire.API.Connection
 import Wire.API.Error.Galley
-import Wire.API.MLS.Credential
-import Wire.API.MLS.KeyPackage
-import Wire.API.Routes.Internal.Brig
+import Wire.API.MLS.CipherSuite
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti qualified as Multi
 import Wire.API.Team.Feature
@@ -129,11 +123,7 @@ data BrigAccess m a where
     BrigAccess m (Either AuthenticationError ClientId)
   RemoveLegalHoldClientFromUser :: UserId -> BrigAccess m ()
   GetAccountConferenceCallingConfigClient :: UserId -> BrigAccess m (WithStatusNoLock ConferenceCallingConfig)
-  GetClientByKeyPackageRef :: KeyPackageRef -> BrigAccess m (Maybe ClientIdentity)
-  GetLocalMLSClients :: Local UserId -> SignatureSchemeTag -> BrigAccess m (Set ClientInfo)
-  AddKeyPackageRef :: KeyPackageRef -> Qualified UserId -> ClientId -> Qualified ConvId -> BrigAccess m ()
-  ValidateAndAddKeyPackageRef :: NewKeyPackage -> BrigAccess m (Either Text NewKeyPackageResult)
-  UpdateKeyPackageRef :: KeyPackageUpdate -> BrigAccess m ()
+  GetLocalMLSClients :: Local UserId -> CipherSuiteTag -> BrigAccess m (Set ClientInfo)
   UpdateSearchVisibilityInbound ::
     Multi.TeamStatus SearchVisibilityInboundConfig ->
     BrigAccess m ()

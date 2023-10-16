@@ -36,7 +36,6 @@ import Galley.Effects.BackendNotificationQueueAccess
 import Galley.Effects.BrigAccess qualified as E
 import Galley.Effects.ClientStore qualified as E
 import Galley.Effects.ConversationStore (getConversation)
-import Galley.Effects.ProposalStore (ProposalStore)
 import Galley.Env
 import Galley.Types.Clients (clientIds, fromUserClients)
 import Imports
@@ -85,6 +84,9 @@ addClientH (usr ::: clt) = do
   E.createClient usr clt
   pure empty
 
+-- | Remove a client from conversations it is part of according to the
+-- conversation protocol (Proteus or MLS). In addition, remove the client from
+-- the "clients" table in Galley.
 rmClientH ::
   forall p1 r.
   ( p1 ~ CassandraPaging,
@@ -102,6 +104,7 @@ rmClientH ::
       Member MemberStore r,
       Member (Error InternalError) r,
       Member ProposalStore r,
+      Member SubConversationStore r,
       Member P.TinyLog r
     )
   ) =>

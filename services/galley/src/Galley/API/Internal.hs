@@ -28,6 +28,7 @@ import Control.Exception.Safe (catchAny)
 import Control.Lens hiding (Getter, Setter, (.=))
 import Data.Id as Id
 import Data.List1 (maybeList1)
+import Data.Map qualified as Map
 import Data.Qualified
 import Data.Range
 import Data.Singletons
@@ -58,8 +59,7 @@ import Galley.Effects.ConversationStore
 import Galley.Effects.FederatorAccess
 import Galley.Effects.GundeckAccess
 import Galley.Effects.LegalHoldStore as LegalHoldStore
-import Galley.Effects.MemberStore
-import Galley.Effects.ProposalStore
+import Galley.Effects.MemberStore qualified as E
 import Galley.Effects.TeamStore
 import Galley.Intra.Push qualified as Intra
 import Galley.Monad
@@ -99,6 +99,7 @@ import Wire.API.Routes.Internal.Galley.TeamsIntra
 import Wire.API.Routes.MultiTablePaging (mtpHasMore, mtpPagingState, mtpResults)
 import Wire.API.Team.Feature hiding (setStatus)
 import Wire.API.Team.Member
+import Wire.API.User.Client
 import Wire.Sem.Paging
 import Wire.Sem.Paging.Cassandra
 
@@ -108,6 +109,7 @@ internalAPI =
     mkNamedAPI @"status" (pure ())
       <@> mkNamedAPI @"delete-user" (callsFed (exposeAnnotations rmUser))
       <@> mkNamedAPI @"connect" (callsFed (exposeAnnotations Create.createConnectConversation))
+      <@> mkNamedAPI @"get-conversation-clients" iGetMLSClientListForConv
       <@> mkNamedAPI @"guard-legalhold-policy-conflicts" guardLegalholdPolicyConflictsH
       <@> legalholdWhitelistedTeamsAPI
       <@> iTeamsAPI
@@ -218,6 +220,10 @@ featureAPI =
     <@> mkNamedAPI @'("iput", MlsE2EIdConfig) setFeatureStatusInternal
     <@> mkNamedAPI @'("ipatch", MlsE2EIdConfig) patchFeatureStatusInternal
     <@> mkNamedAPI @'("ilock", MlsE2EIdConfig) (updateLockStatus @MlsE2EIdConfig)
+    <@> mkNamedAPI @'("iget", MlsMigrationConfig) (getFeatureStatus DontDoAuth)
+    <@> mkNamedAPI @'("iput", MlsMigrationConfig) setFeatureStatusInternal
+    <@> mkNamedAPI @'("ipatch", MlsMigrationConfig) patchFeatureStatusInternal
+    <@> mkNamedAPI @'("ilock", MlsMigrationConfig) (updateLockStatus @MlsMigrationConfig)
     <@> mkNamedAPI @"feature-configs-internal" (maybe getAllFeatureConfigsForServer getAllFeatureConfigsForUser)
 
 internalSitemap :: Routes a (Sem GalleyEffects) ()
@@ -326,6 +332,7 @@ rmUser ::
       Member MemberStore r,
       Member ProposalStore r,
       Member P.TinyLog r,
+      Member SubConversationStore r,
       Member TeamStore r
     )
   ) =>
@@ -365,21 +372,21 @@ rmUser lusr conn = do
       now <- input
       pp <- for cc $ \c -> case Data.convType c of
         SelfConv -> pure Nothing
-        One2OneConv -> deleteMembers (Data.convId c) (UserList [tUnqualified lusr] []) $> Nothing
-        ConnectConv -> deleteMembers (Data.convId c) (UserList [tUnqualified lusr] []) $> Nothing
+        One2OneConv -> E.deleteMembers (Data.convId c) (UserList [tUnqualified lusr] []) $> Nothing
+        ConnectConv -> E.deleteMembers (Data.convId c) (UserList [tUnqualified lusr] []) $> Nothing
         RegularConv
           | tUnqualified lusr `isMember` Data.convLocalMembers c -> do
               runError (removeUser (qualifyAs lusr c) (tUntagged lusr)) >>= \case
                 Left e -> P.err $ Log.msg ("failed to send remove proposal: " <> internalErrorDescription e)
                 Right _ -> pure ()
-              deleteMembers (Data.convId c) (UserList [tUnqualified lusr] [])
+              E.deleteMembers (Data.convId c) (UserList [tUnqualified lusr] [])
               let e =
                     Event
                       (tUntagged (qualifyAs lusr (Data.convId c)))
                       Nothing
                       (tUntagged lusr)
                       now
-                      (EdMembersLeave (QualifiedUserIdList [qUser]))
+                      (EdMembersLeave EdReasonDeleted (QualifiedUserIdList [qUser]))
               for_ (bucketRemote (fmap rmId (Data.convRemoteMembers c))) $ notifyRemoteMembers now qUser (Data.convId c)
               pure $
                 Intra.newPushLocal ListComplete (tUnqualified lusr) (Intra.ConvEvent e) (Intra.recipient <$> Data.convLocalMembers c)
@@ -472,3 +479,17 @@ guardLegalholdPolicyConflictsH ::
 guardLegalholdPolicyConflictsH glh = do
   mapError @LegalholdConflicts (const $ Tagged @'MissingLegalholdConsent ()) $
     guardLegalholdPolicyConflicts (glhProtectee glh) (glhUserClients glh)
+
+-- | Get an MLS conversation client list
+iGetMLSClientListForConv ::
+  forall r.
+  Members
+    '[ MemberStore,
+       ErrorS 'ConvNotFound
+     ]
+    r =>
+  GroupId ->
+  Sem r ClientList
+iGetMLSClientListForConv gid = do
+  cm <- E.lookupMLSClients gid
+  pure $ ClientList (concatMap (Map.keys . snd) (Map.assocs cm))

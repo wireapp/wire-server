@@ -24,6 +24,8 @@ module API.Internal
 where
 
 import API.Internal.Util
+import API.MLS hiding (tests)
+import API.MLS.Util
 import Bilge
 import Bilge.Assert
 import Brig.Data.User (lookupFeatureConferenceCalling, lookupStatus, userExists)
@@ -36,11 +38,13 @@ import Control.Lens ((^.), (^?!))
 import Data.Aeson.Lens qualified as Aeson
 import Data.Aeson.Types qualified as Aeson
 import Data.ByteString.Conversion (toByteString')
+import Data.Default
 import Data.Id
 import Data.Qualified
 import Data.Set qualified as Set
 import GHC.TypeLits (KnownSymbol)
 import Imports
+import System.IO.Temp
 import Test.Tasty
 import Test.Tasty.HUnit
 import Util
@@ -51,6 +55,7 @@ import Wire.API.Team.Feature
 import Wire.API.Team.Feature qualified as ApiFt
 import Wire.API.Team.Member qualified as Team
 import Wire.API.User
+import Wire.API.User.Client
 
 tests :: Opt.Opts -> Manager -> Cass.ClientState -> Brig -> Endpoint -> Gundeck -> Galley -> IO TestTree
 tests opts mgr db brig brigep gundeck galley = do
@@ -62,6 +67,7 @@ tests opts mgr db brig brigep gundeck galley = do
         test mgr "suspend and unsuspend user" $ testSuspendUser db brig,
         test mgr "suspend non existing user and verify no db entry" $
           testSuspendNonExistingUser db brig,
+        test mgr "mls/clients" $ testGetMlsClients brig,
         test mgr "writetimeToInt64" $ testWritetimeRepresentation opts mgr db brig brigep galley
       ]
 
@@ -210,6 +216,30 @@ testFeatureConferenceCallingByAccount (Opt.optSettings -> settings) mgr db brig 
   check $ ApiFt.WithStatusNoLock ApiFt.FeatureStatusEnabled ApiFt.ConferenceCallingConfig ApiFt.FeatureTTLUnlimited
   check $ ApiFt.WithStatusNoLock ApiFt.FeatureStatusDisabled ApiFt.ConferenceCallingConfig ApiFt.FeatureTTLUnlimited
   check'
+
+testGetMlsClients :: Brig -> Http ()
+testGetMlsClients brig = do
+  qusr <- userQualifiedId <$> randomUser brig
+  c <- createClient brig qusr 0
+
+  let getClients :: Http (Set ClientInfo)
+      getClients =
+        responseJsonError
+          =<< get
+            ( brig
+                . paths ["i", "mls", "clients", toByteString' (qUnqualified qusr)]
+                . queryItem "ciphersuite" "0x0001"
+            )
+            <!! const 200 === statusCode
+
+  cs0 <- getClients
+  liftIO $ toList cs0 @?= [ClientInfo c False]
+
+  withSystemTempDirectory "mls" $ \tmp ->
+    uploadKeyPackages brig tmp def qusr c 2
+
+  cs1 <- getClients
+  liftIO $ toList cs1 @?= [ClientInfo c True]
 
 getFeatureConfig :: forall cfg m. (MonadHttp m, HasCallStack, KnownSymbol (ApiFt.FeatureSymbol cfg)) => (Request -> Request) -> UserId -> m ResponseLBS
 getFeatureConfig galley uid = do

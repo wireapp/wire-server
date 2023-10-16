@@ -22,6 +22,8 @@ import Data.Id
 import Data.Misc
 import Data.Qualified
 import Data.Set qualified as Set
+import Data.Time.Calendar
+import Data.Time.Clock
 import Data.UUID qualified as UUID
 import Imports
 import Wire.API.Conversation
@@ -84,5 +86,5 @@ testObject_ConversationCreated2 =
       nonCreatorMembers = Set.fromList [],
       messageTimer = Nothing,
       receiptMode = Nothing,
-      protocol = ProtocolMLS (ConversationMLSData (GroupId "group") (Epoch 3) MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519)
+      protocol = ProtocolMLS (ConversationMLSData (GroupId "group") (Epoch 3) (Just (UTCTime (fromGregorian 2020 8 29) 0)) MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519)
     }

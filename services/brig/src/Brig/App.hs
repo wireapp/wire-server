@@ -99,6 +99,7 @@ import Brig.Provider.Template
 import Brig.Queue.Stomp qualified as Stomp
 import Brig.Queue.Types (Queue (..))
 import Brig.SMTP qualified as SMTP
+import Brig.Schema.Run qualified as Migrations
 import Brig.Team.Template
 import Brig.Template (Localised, TemplateBranding, forLocale, genTemplateBranding)
 import Brig.User.Search.Index (IndexEnv (..), MonadIndexIO (..), runIndexIO)
@@ -157,7 +158,7 @@ import Wire.API.User.Identity (Email)
 import Wire.API.User.Profile (Locale)
 
 schemaVersion :: Int32
-schemaVersion = 79
+schemaVersion = Migrations.lastSchemaVersion
 
 -------------------------------------------------------------------------------
 -- Environment
