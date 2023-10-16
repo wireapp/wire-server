@@ -27,6 +27,7 @@ library
 
   build-depends:
     , aeson
+    , aeson-pretty
     , amqp
     , base
     , bytestring

@@ -18,12 +18,14 @@
 
 module RabbitMQConsumer.Lib where
 
-import Data.Aeson (FromJSON, decode)
+import Data.Aeson (FromJSON, decode, Value)
 import Data.ByteString.Lazy.Char8 qualified as BL
 import Imports
 import Network.AMQP
 import Network.Socket
 import Options.Applicative
+import Data.Aeson.Encode.Pretty
+
 
 main :: IO ()
 main = do
@@ -32,11 +34,14 @@ main = do
   chan <- openChannel conn
   qos chan 0 1 False
   done <- newEmptyMVar
-  runTimerAsync done opts.timeoutSec
   case opts.cmd of
-    Head -> void $ consumeMsgs chan opts.queue Ack (printHead done opts)
     Interactive -> void $ consumeMsgs chan opts.queue Ack (interactive done opts)
-    DropHead dhOpts -> void $ consumeMsgs chan opts.queue Ack (dropHead done opts dhOpts)
+    Head -> do
+      runTimerAsync done opts.timeoutSec
+      void $ consumeMsgs chan opts.queue Ack (printHead done opts)
+    DropHead dhOpts -> do
+      runTimerAsync done opts.timeoutSec
+      void $ consumeMsgs chan opts.queue Ack (dropHead done opts dhOpts)
   takeMVar done
   closeConnection conn
   putStrLn "connection closed"
@@ -81,8 +86,9 @@ main = do
         [ "vhost: " <> cs opts.vhost,
           "queue: " <> cs opts.queue,
           "timestamp: " <> show msg.msgTimestamp,
-          "received message: " <> BL.unpack msg.msgBody
+          "received message: " <> BL.unpack (maybe msg.msgBody encodePretty (decode @Value msg.msgBody))
         ]
+
 
     runTimerAsync :: MVar () -> Int -> IO ()
     runTimerAsync done sec = void $ forkIO $ do
