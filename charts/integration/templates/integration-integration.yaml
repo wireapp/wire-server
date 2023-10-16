@@ -131,7 +131,6 @@ spec:
     securityContext:
       {{- toYaml .Values.podSecurityContext | nindent 6 }}
         {{- end }}
-    # command: [  ]
     command:
     - /bin/bash
     - -c
