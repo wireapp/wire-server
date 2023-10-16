@@ -231,9 +231,9 @@ spec:
         secretKeyRef:
           name: brig
           key: rabbitmqPassword
-    {{- if .Values.config.uploadXml }}
     - name: TEST_XML
       value: /tmp/result.xml
+    {{- if .Values.config.uploadXml }}
     - name: UPLOAD_XML_S3_BASE_URL
       value: {{ .Values.config.uploadXml.baseUrl }}
     {{- if .Values.secrets.uploadXmlAwsAccessKeyId }}
