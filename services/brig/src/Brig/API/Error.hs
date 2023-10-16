@@ -297,9 +297,6 @@ loginCodePending = Wai.mkError status403 "pending-login" "A login code is still 
 loginCodeNotFound :: Wai.Error
 loginCodeNotFound = Wai.mkError status404 "no-pending-login" "No login code was found."
 
-newPasswordMustDiffer :: Wai.Error
-newPasswordMustDiffer = Wai.mkError status409 "password-must-differ" "For provider password change or reset, new and old password must be different."
-
 notFound :: LText -> Wai.Error
 notFound = Wai.mkError status404 "not-found"
 

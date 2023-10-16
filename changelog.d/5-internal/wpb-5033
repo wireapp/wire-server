@@ -1,0 +1,4 @@
+Truncate `galley.mls_group_member_client` table and drop `galley.member_client` table.
+
+The data in `mls_group_member_client` could contain nulls from client testing in prod. So, its OK to truncate it.
+The `member_client` table is unused.

@@ -23,7 +23,7 @@ import Servant hiding (Handler, JSON, Tagged, addHeader, respond)
 import Servant.OpenApi.Internal.Orphans ()
 import Wire.API.Error
 import Wire.API.OAuth
-import Wire.API.Routes.Named (Named (..))
+import Wire.API.Routes.Named (Named)
 
 --------------------------------------------------------------------------------
 -- API Internal

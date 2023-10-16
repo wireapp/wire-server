@@ -18,49 +18,74 @@
 module Wire.API.MLS.Commit where
 
 import Imports
-import Wire.API.MLS.KeyPackage
+import Wire.API.MLS.LeafNode
 import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
 import Wire.Arbitrary
 
+-- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-12.4-3
 data Commit = Commit
-  { cProposals :: [ProposalOrRef],
-    cPath :: Maybe UpdatePath
+  { proposals :: [ProposalOrRef],
+    path :: Maybe UpdatePath
   }
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform Commit)
 
 instance ParseMLS Commit where
-  parseMLS = Commit <$> parseMLSVector @Word32 parseMLS <*> parseMLSOptional parseMLS
+  parseMLS =
+    Commit
+      <$> parseMLSVector @VarInt parseMLS
+      <*> parseMLSOptional parseMLS
 
+instance SerialiseMLS Commit where
+  serialiseMLS c = do
+    serialiseMLSVector @VarInt serialiseMLS c.proposals
+    serialiseMLSOptional serialiseMLS c.path
+
+-- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-7.6-2
 data UpdatePath = UpdatePath
-  { upLeaf :: RawMLS KeyPackage,
-    upNodes :: [UpdatePathNode]
+  { leaf :: RawMLS LeafNode,
+    nodes :: [UpdatePathNode]
   }
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform UpdatePath)
 
 instance ParseMLS UpdatePath where
-  parseMLS = UpdatePath <$> parseMLS <*> parseMLSVector @Word32 parseMLS
+  parseMLS = UpdatePath <$> parseMLS <*> parseMLSVector @VarInt parseMLS
 
+instance SerialiseMLS UpdatePath where
+  serialiseMLS up = do
+    serialiseMLS up.leaf
+    serialiseMLSVector @VarInt serialiseMLS up.nodes
+
+-- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-7.6-2
 data UpdatePathNode = UpdatePathNode
-  { upnPublicKey :: ByteString,
-    upnSecret :: [HPKECiphertext]
+  { publicKey :: ByteString,
+    secret :: [HPKECiphertext]
   }
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform UpdatePathNode)
 
 instance ParseMLS UpdatePathNode where
-  parseMLS = UpdatePathNode <$> parseMLSBytes @Word16 <*> parseMLSVector @Word32 parseMLS
+  parseMLS = UpdatePathNode <$> parseMLSBytes @VarInt <*> parseMLSVector @VarInt parseMLS
 
+instance SerialiseMLS UpdatePathNode where
+  serialiseMLS upn = do
+    serialiseMLSBytes @VarInt upn.publicKey
+    serialiseMLSVector @VarInt serialiseMLS upn.secret
+
+-- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-7.6-2
 data HPKECiphertext = HPKECiphertext
-  { hcOutput :: ByteString,
-    hcCiphertext :: ByteString
+  { output :: ByteString,
+    ciphertext :: ByteString
   }
   deriving (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform HPKECiphertext)
 
 instance ParseMLS HPKECiphertext where
-  parseMLS = HPKECiphertext <$> parseMLSBytes @Word16 <*> parseMLSBytes @Word16
+  parseMLS = HPKECiphertext <$> parseMLSBytes @VarInt <*> parseMLSBytes @VarInt
 
 instance SerialiseMLS HPKECiphertext where
   serialiseMLS (HPKECiphertext out ct) = do
-    serialiseMLSBytes @Word16 out
-    serialiseMLSBytes @Word16 ct
+    serialiseMLSBytes @VarInt out
+    serialiseMLSBytes @VarInt ct

@@ -1,0 +1,1 @@
+Avoid including MLS application messages in the sender client's event stream.

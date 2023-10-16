@@ -222,9 +222,10 @@ CREATE TABLE brig_test.user_cookies (
 CREATE TABLE brig_test.mls_key_packages (
     user uuid,
     client text,
+    cipher_suite int,
     ref blob,
     data blob,
-    PRIMARY KEY ((user, client), ref)
+    PRIMARY KEY ((user, client, cipher_suite), ref)
 ) WITH CLUSTERING ORDER BY (ref ASC)
     AND bloom_filter_fp_chance = 0.1
     AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
@@ -1195,8 +1196,13 @@ CREATE TABLE galley_test.team_features (
     mls_e2eid_lock_status int,
     mls_e2eid_status int,
     mls_e2eid_ver_exp timestamp,
+    mls_migration_finalise_regardless_after timestamp,
+    mls_migration_lock_status int,
+    mls_migration_start_time timestamp,
+    mls_migration_status int,
     mls_protocol_toggle_users set<uuid>,
     mls_status int,
+    mls_supported_protocols set<int>,
     outlook_cal_integration_lock_status int,
     outlook_cal_integration_status int,
     search_visibility_inbound_status int,
@@ -1410,7 +1416,8 @@ CREATE TABLE galley_test.legalhold_pending_prekeys (
 CREATE TABLE galley_test.group_id_conv_id (
     group_id blob PRIMARY KEY,
     conv_id uuid,
-    domain text
+    domain text,
+    subconv_id text
 ) WITH bloom_filter_fp_chance = 0.01
     AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
     AND comment = ''
@@ -1520,6 +1527,8 @@ CREATE TABLE galley_test.mls_group_member_client (
     user uuid,
     client text,
     key_package_ref blob,
+    leaf_node_index int,
+    removal_pending boolean,
     PRIMARY KEY (group_id, user_domain, user, client)
 ) WITH CLUSTERING ORDER BY (user_domain ASC, user ASC, client ASC)
     AND bloom_filter_fp_chance = 0.01
@@ -1592,6 +1601,30 @@ CREATE TABLE galley_test.mls_commit_locks (
     epoch bigint,
     PRIMARY KEY (group_id, epoch)
 ) WITH CLUSTERING ORDER BY (epoch ASC)
+    AND bloom_filter_fp_chance = 0.01
+    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
+    AND comment = ''
+    AND compaction = {'class': 'org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy', 'max_threshold': '32', 'min_threshold': '4'}
+    AND compression = {'chunk_length_in_kb': '64', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}
+    AND crc_check_chance = 1.0
+    AND dclocal_read_repair_chance = 0.1
+    AND default_time_to_live = 0
+    AND gc_grace_seconds = 864000
+    AND max_index_interval = 2048
+    AND memtable_flush_period_in_ms = 0
+    AND min_index_interval = 128
+    AND read_repair_chance = 0.0
+    AND speculative_retry = '99PERCENTILE';
+
+CREATE TABLE galley_test.subconversation (
+    conv_id uuid,
+    subconv_id text,
+    cipher_suite int,
+    epoch bigint,
+    group_id blob,
+    public_group_state blob,
+    PRIMARY KEY (conv_id, subconv_id)
+) WITH CLUSTERING ORDER BY (subconv_id ASC)
     AND bloom_filter_fp_chance = 0.01
     AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
     AND comment = ''

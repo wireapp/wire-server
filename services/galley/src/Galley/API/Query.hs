@@ -37,6 +37,7 @@ module Galley.API.Query
     ensureConvAdmin,
     getMLSSelfConversation,
     getMLSSelfConversationWithError,
+    getMLSOne2OneConversation,
   )
 where
 
@@ -56,9 +57,11 @@ import Data.Set qualified as Set
 import Galley.API.Error
 import Galley.API.MLS
 import Galley.API.MLS.Keys
+import Galley.API.MLS.One2One
 import Galley.API.MLS.Types
 import Galley.API.Mapping
 import Galley.API.Mapping qualified as Mapping
+import Galley.API.One2One
 import Galley.API.Util
 import Galley.Data.Conversation qualified as Data
 import Galley.Data.Types (Code (codeConversation))
@@ -97,6 +100,7 @@ import Wire.API.Federation.Error
 import Wire.API.Provider.Bot qualified as Public
 import Wire.API.Routes.MultiTablePaging qualified as Public
 import Wire.API.Team.Feature as Public hiding (setStatus)
+import Wire.API.User
 import Wire.Sem.Paging.Cassandra
 
 getBotConversationH ::
@@ -141,7 +145,7 @@ getUnqualifiedConversation ::
   ConvId ->
   Sem r Public.Conversation
 getUnqualifiedConversation lusr cnv = do
-  c <- getConversationAndCheckMembership (tUnqualified lusr) (qualifyAs lusr cnv)
+  c <- getConversationAndCheckMembership (tUntagged lusr) (qualifyAs lusr cnv)
   Mapping.conversationView lusr c
 
 getConversation ::
@@ -288,7 +292,7 @@ getConversationRoles ::
   ConvId ->
   Sem r Public.ConversationRolesList
 getConversationRoles lusr cnv = do
-  void $ getConversationAndCheckMembership (tUnqualified lusr) (qualifyAs lusr cnv)
+  void $ getConversationAndCheckMembership (tUntagged lusr) (qualifyAs lusr cnv)
   -- NOTE: If/when custom roles are added, these roles should
   --       be merged with the team roles (if they exist)
   pure $ Public.ConversationRolesList wireConvRoles
@@ -734,6 +738,81 @@ getMLSSelfConversation lusr = do
   mconv <- E.getConversation selfConvId
   cnv <- maybe (E.createMLSSelfConversation lusr) pure mconv
   conversationView lusr cnv
+
+-- | Get an MLS 1-1 conversation. If not already existing, the conversation
+-- object is created on the fly, but not persisted. The conversation will only
+-- be stored in the database when its first commit arrives.
+--
+-- For the federated case, we do not make the assumption that the other backend
+-- uses the same function to calculate the conversation ID and corresponding
+-- group ID, however we /do/ assume that the two backends agree on which of the
+-- two is responsible for hosting the conversation.
+getMLSOne2OneConversation ::
+  ( Member BrigAccess r,
+    Member ConversationStore r,
+    Member (Input Env) r,
+    Member (Error FederationError) r,
+    Member (Error InternalError) r,
+    Member (ErrorS 'MLSNotEnabled) r,
+    Member (ErrorS 'NotConnected) r,
+    Member FederatorAccess r,
+    Member TeamStore r,
+    Member P.TinyLog r
+  ) =>
+  Local UserId ->
+  Qualified UserId ->
+  Sem r Conversation
+getMLSOne2OneConversation lself qother = do
+  assertMLSEnabled
+  ensureConnectedOrSameTeam lself [qother]
+  let convId = one2OneConvId BaseProtocolMLSTag (tUntagged lself) qother
+  foldQualified
+    lself
+    (getLocalMLSOne2OneConversation lself)
+    (getRemoteMLSOne2OneConversation lself qother)
+    convId
+
+getLocalMLSOne2OneConversation ::
+  ( Member ConversationStore r,
+    Member (Error InternalError) r,
+    Member P.TinyLog r
+  ) =>
+  Local UserId ->
+  Local ConvId ->
+  Sem r Conversation
+getLocalMLSOne2OneConversation lself lconv = do
+  mconv <- E.getConversation (tUnqualified lconv)
+  case mconv of
+    Nothing -> pure (localMLSOne2OneConversation lself lconv)
+    Just conv -> conversationView lself conv
+
+getRemoteMLSOne2OneConversation ::
+  ( Member (Error InternalError) r,
+    Member (Error FederationError) r,
+    Member (ErrorS 'NotConnected) r,
+    Member FederatorAccess r
+  ) =>
+  Local UserId ->
+  Qualified UserId ->
+  Remote conv ->
+  Sem r Conversation
+getRemoteMLSOne2OneConversation lself qother rconv = do
+  -- a conversation can only be remote if it is hosted on the other user's domain
+  rother <-
+    if qDomain qother == tDomain rconv
+      then pure (toRemoteUnsafe (tDomain rconv) (qUnqualified qother))
+      else throw (InternalErrorWithDescription "Unexpected 1-1 conversation domain")
+
+  resp <-
+    E.runFederated rconv $
+      fedClient @'Galley @"get-one2one-conversation" $
+        GetOne2OneConversationRequest (tUnqualified lself) (tUnqualified rother)
+  case resp of
+    GetOne2OneConversationOk rc ->
+      pure (remoteMLSOne2OneConversation lself rother rc)
+    GetOne2OneConversationBackendMismatch ->
+      throw (FederationUnexpectedBody "Backend mismatch when retrieving a remote 1-1 conversation")
+    GetOne2OneConversationNotConnected -> throwS @'NotConnected
 
 -------------------------------------------------------------------------------
 -- Helpers

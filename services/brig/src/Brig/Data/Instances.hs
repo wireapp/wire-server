@@ -39,6 +39,7 @@ import Data.Text.Encoding (encodeUtf8)
 import Imports
 import Wire.API.Asset (AssetKey, assetKeyToText, nilAssetKey)
 import Wire.API.Connection (RelationWithHistory (..))
+import Wire.API.MLS.CipherSuite
 import Wire.API.Properties
 import Wire.API.User
 import Wire.API.User.Activation
@@ -296,3 +297,13 @@ instance Cql (Imports.Set BaseProtocolTag) where
   toCql = CqlInt . fromIntegral . protocolSetBits
   fromCql (CqlInt bits) = pure $ protocolSetFromBits (fromIntegral bits)
   fromCql _ = Left "Protocol set: Int expected"
+
+instance Cql CipherSuiteTag where
+  ctype = Tagged IntColumn
+  toCql = CqlInt . fromIntegral . cipherSuiteNumber . tagCipherSuite
+
+  fromCql (CqlInt index) =
+    case cipherSuiteTag (CipherSuite (fromIntegral index)) of
+      Just tag -> Right tag
+      Nothing -> Left "CipherSuiteTag: unexpected index"
+  fromCql _ = Left "CipherSuiteTag: int expected"

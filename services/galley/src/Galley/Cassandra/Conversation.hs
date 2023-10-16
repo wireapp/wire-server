@@ -24,6 +24,7 @@ where
 
 import Cassandra hiding (Set)
 import Cassandra qualified as Cql
+import Cassandra.Util
 import Control.Error.Util
 import Control.Monad.Trans.Maybe
 import Data.ByteString.Conversion
@@ -33,6 +34,7 @@ import Data.Misc
 import Data.Qualified
 import Data.Range
 import Data.Set qualified as Set
+import Data.Time.Clock
 import Data.UUID.V4 (nextRandom)
 import Galley.Cassandra.Access
 import Galley.Cassandra.Conversation.MLS
@@ -54,8 +56,10 @@ import UnliftIO qualified
 import Wire.API.Conversation hiding (Conversation, Member)
 import Wire.API.Conversation.Protocol
 import Wire.API.MLS.CipherSuite
-import Wire.API.MLS.Group
-import Wire.API.MLS.PublicGroupState
+import Wire.API.MLS.Group.Serialisation
+import Wire.API.MLS.GroupInfo
+import Wire.API.MLS.SubConversation
+import Wire.API.User
 
 createMLSSelfConversation ::
   Local UserId ->
@@ -66,12 +70,12 @@ createMLSSelfConversation lusr = do
       nc =
         NewConversation
           { ncMetadata =
-              (defConversationMetadata usr) {cnvmType = SelfConv},
+              (defConversationMetadata (Just usr)) {cnvmType = SelfConv},
             ncUsers = ulFromLocals [toUserRole usr],
-            ncProtocol = ProtocolMLSTag
+            ncProtocol = BaseProtocolMLSTag
           }
       meta = ncMetadata nc
-      gid = convToGroupId . qualifyAs lusr $ cnv
+      gid = convToGroupId . groupIdParts meta.cnvmType . fmap Conv . tUntagged . qualifyAs lusr $ cnv
       -- FUTUREWORK: Stop hard-coding the cipher suite
       --
       -- 'CipherSuite 1' corresponds to
@@ -82,6 +86,7 @@ createMLSSelfConversation lusr = do
           ConversationMLSData
             { cnvmlsGroupId = gid,
               cnvmlsEpoch = Epoch 0,
+              cnvmlsEpochTimestamp = Nothing,
               cnvmlsCipherSuite = cs
             }
   retry x5 . batch $ do
@@ -101,7 +106,6 @@ createMLSSelfConversation lusr = do
         Just gid,
         Just cs
       )
-    addPrepQuery Cql.insertGroupId (gid, cnv, tDomain lusr)
 
   (lmems, rmems) <- addMembers cnv (ncUsers nc)
   pure
@@ -118,15 +122,16 @@ createConversation :: Local ConvId -> NewConversation -> Client Conversation
 createConversation lcnv nc = do
   let meta = ncMetadata nc
       (proto, mgid, mep, mcs) = case ncProtocol nc of
-        ProtocolProteusTag -> (ProtocolProteus, Nothing, Nothing, Nothing)
-        ProtocolMLSTag ->
-          let gid = convToGroupId lcnv
+        BaseProtocolProteusTag -> (ProtocolProteus, Nothing, Nothing, Nothing)
+        BaseProtocolMLSTag ->
+          let gid = convToGroupId . groupIdParts meta.cnvmType $ Conv <$> tUntagged lcnv
               ep = Epoch 0
               cs = MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
            in ( ProtocolMLS
                   ConversationMLSData
                     { cnvmlsGroupId = gid,
                       cnvmlsEpoch = ep,
+                      cnvmlsEpochTimestamp = Nothing,
                       cnvmlsCipherSuite = cs
                     },
                 Just gid,
@@ -152,13 +157,12 @@ createConversation lcnv nc = do
         cnvmTeam meta,
         cnvmMessageTimer meta,
         cnvmReceiptMode meta,
-        ncProtocol nc,
+        baseProtocolToProtocol (ncProtocol nc),
         mgid,
         mep,
         mcs
       )
     for_ (cnvmTeam meta) $ \tid -> addPrepQuery Cql.insertTeamConv (tid, tUnqualified lcnv)
-    for_ mgid $ \gid -> addPrepQuery Cql.insertGroupId (gid, tUnqualified lcnv, tDomain lcnv)
   (lmems, rmems) <- addMembers (tUnqualified lcnv) (ncUsers nc)
   pure
     Conversation
@@ -187,22 +191,20 @@ conversationMeta conv =
   (toConvMeta =<<)
     <$> retry x1 (query1 Cql.selectConv (params LocalQuorum (Identity conv)))
   where
-    toConvMeta (t, mc, a, r, r', n, i, _, mt, rm, _, _, _, _) = do
-      c <- mc
+    toConvMeta (t, mc, a, r, r', n, i, _, mt, rm, _, _, _, _, _) = do
       let mbAccessRolesV2 = Set.fromList . Cql.fromSet <$> r'
           accessRoles = maybeRole t $ parseAccessRoles r mbAccessRolesV2
-      pure $ ConversationMetadata t c (defAccess t a) accessRoles n i mt rm
+      pure $ ConversationMetadata t mc (defAccess t a) accessRoles n i mt rm
 
-getPublicGroupState :: ConvId -> Client (Maybe OpaquePublicGroupState)
-getPublicGroupState cid = do
-  fmap join $
-    runIdentity
-      <$$> retry
-        x1
-        ( query1
-            Cql.selectPublicGroupState
-            (params LocalQuorum (Identity cid))
-        )
+getGroupInfo :: ConvId -> Client (Maybe GroupInfoData)
+getGroupInfo cid = do
+  runIdentity
+    <$$> retry
+      x1
+      ( query1
+          Cql.selectGroupInfo
+          (params LocalQuorum (Identity cid))
+      )
 
 isConvAlive :: ConvId -> Client Bool
 isConvAlive cid = do
@@ -232,12 +234,26 @@ updateConvReceiptMode cid receiptMode = retry x5 $ write Cql.updateConvReceiptMo
 updateConvMessageTimer :: ConvId -> Maybe Milliseconds -> Client ()
 updateConvMessageTimer cid mtimer = retry x5 $ write Cql.updateConvMessageTimer (params LocalQuorum (mtimer, cid))
 
+getConvEpoch :: ConvId -> Client (Maybe Epoch)
+getConvEpoch cid =
+  (runIdentity =<<)
+    <$> retry
+      x1
+      (query1 Cql.getConvEpoch (params LocalQuorum (Identity cid)))
+
 updateConvEpoch :: ConvId -> Epoch -> Client ()
 updateConvEpoch cid epoch = retry x5 $ write Cql.updateConvEpoch (params LocalQuorum (epoch, cid))
 
-setPublicGroupState :: ConvId -> OpaquePublicGroupState -> Client ()
-setPublicGroupState conv gib =
-  write Cql.updatePublicGroupState (params LocalQuorum (gib, conv))
+updateConvCipherSuite :: ConvId -> CipherSuiteTag -> Client ()
+updateConvCipherSuite cid cs =
+  retry x5 $
+    write
+      Cql.updateConvCipherSuite
+      (params LocalQuorum (cs, cid))
+
+setGroupInfo :: ConvId -> GroupInfoData -> Client ()
+setGroupInfo conv gid =
+  write Cql.updateGroupInfo (params LocalQuorum (gid, conv))
 
 getConversation :: ConvId -> Client (Maybe Conversation)
 getConversation conv = do
@@ -270,7 +286,10 @@ localConversation cid =
     toConv cid
       <$> UnliftIO.Concurrently (members cid)
       <*> UnliftIO.Concurrently (lookupRemoteMembers cid)
-      <*> UnliftIO.Concurrently (retry x1 $ query1 Cql.selectConv (params LocalQuorum (Identity cid)))
+      <*> UnliftIO.Concurrently
+        ( retry x1 $
+            query1 Cql.selectConv (params LocalQuorum (Identity cid))
+        )
 
 localConversations ::
   ( Member (Embed IO) r,
@@ -323,31 +342,55 @@ toProtocol ::
   Maybe ProtocolTag ->
   Maybe GroupId ->
   Maybe Epoch ->
+  Maybe UTCTime ->
   Maybe CipherSuiteTag ->
   Maybe Protocol
-toProtocol Nothing _ _ _ = Just ProtocolProteus
-toProtocol (Just ProtocolProteusTag) _ _ _ = Just ProtocolProteus
-toProtocol (Just ProtocolMLSTag) mgid mepoch mcs =
-  ProtocolMLS
-    <$> ( ConversationMLSData
-            <$> mgid
-            -- If there is no epoch in the database, assume the epoch is 0
-            <*> (mepoch <|> Just (Epoch 0))
-            <*> mcs
-        )
+toProtocol Nothing _ _ _ _ = Just ProtocolProteus
+toProtocol (Just ProtocolProteusTag) _ _ _ _ = Just ProtocolProteus
+toProtocol (Just ProtocolMLSTag) mgid mepoch mtimestamp mcs = ProtocolMLS <$> toConversationMLSData mgid mepoch mtimestamp mcs
+toProtocol (Just ProtocolMixedTag) mgid mepoch mtimestamp mcs = ProtocolMixed <$> toConversationMLSData mgid mepoch mtimestamp mcs
+
+toConversationMLSData :: Maybe GroupId -> Maybe Epoch -> Maybe UTCTime -> Maybe CipherSuiteTag -> Maybe ConversationMLSData
+toConversationMLSData mgid mepoch mtimestamp mcs =
+  ConversationMLSData
+    <$> mgid
+    -- If there is no epoch in the database, assume the epoch is 0
+    <*> (mepoch <|> Just (Epoch 0))
+    <*> pure (mepoch `toTimestamp` mtimestamp)
+    <*> mcs
+  where
+    toTimestamp :: Maybe Epoch -> Maybe UTCTime -> Maybe UTCTime
+    toTimestamp Nothing _ = Nothing
+    toTimestamp (Just (Epoch 0)) _ = Nothing
+    toTimestamp (Just _) ts = ts
 
 toConv ::
   ConvId ->
   [LocalMember] ->
   [RemoteMember] ->
-  Maybe (ConvType, Maybe UserId, Maybe (Cql.Set Access), Maybe AccessRoleLegacy, Maybe (Cql.Set AccessRole), Maybe Text, Maybe TeamId, Maybe Bool, Maybe Milliseconds, Maybe ReceiptMode, Maybe ProtocolTag, Maybe GroupId, Maybe Epoch, Maybe CipherSuiteTag) ->
+  Maybe
+    ( ConvType,
+      Maybe UserId,
+      Maybe (Cql.Set Access),
+      Maybe AccessRoleLegacy,
+      Maybe (Cql.Set AccessRole),
+      Maybe Text,
+      Maybe TeamId,
+      Maybe Bool,
+      Maybe Milliseconds,
+      Maybe ReceiptMode,
+      Maybe ProtocolTag,
+      Maybe GroupId,
+      Maybe Epoch,
+      Maybe (Writetime Epoch),
+      Maybe CipherSuiteTag
+    ) ->
   Maybe Conversation
 toConv cid ms remoteMems mconv = do
-  (cty, muid, acc, role, roleV2, nme, ti, del, timer, rm, ptag, mgid, mep, mcs) <- mconv
-  uid <- muid
+  (cty, muid, acc, role, roleV2, nme, ti, del, timer, rm, ptag, mgid, mep, mts, mcs) <- mconv
   let mbAccessRolesV2 = Set.fromList . Cql.fromSet <$> roleV2
       accessRoles = maybeRole cty $ parseAccessRoles role mbAccessRolesV2
-  proto <- toProtocol ptag mgid mep mcs
+  proto <- toProtocol ptag mgid mep (writetimeToUTC <$> mts) mcs
   pure
     Conversation
       { convId = cid,
@@ -358,7 +401,7 @@ toConv cid ms remoteMems mconv = do
         convMetadata =
           ConversationMetadata
             { cnvmType = cty,
-              cnvmCreator = uid,
+              cnvmCreator = muid,
               cnvmAccess = defAccess cty acc,
               cnvmAccessRoles = accessRoles,
               cnvmName = nme,
@@ -368,13 +411,36 @@ toConv cid ms remoteMems mconv = do
             }
       }
 
-mapGroupId :: GroupId -> Qualified ConvId -> Client ()
-mapGroupId gId conv =
-  write Cql.insertGroupId (params LocalQuorum (gId, qUnqualified conv, qDomain conv))
+updateToMixedProtocol ::
+  Members
+    '[ Embed IO,
+       Input ClientState
+     ]
+    r =>
+  Local ConvId ->
+  ConvType ->
+  CipherSuiteTag ->
+  Sem r ()
+updateToMixedProtocol lcnv ct cs = do
+  let gid = convToGroupId . groupIdParts ct $ Conv <$> tUntagged lcnv
+      epoch = Epoch 0
+  embedClient . retry x5 . batch $ do
+    setType BatchLogged
+    setConsistency LocalQuorum
+    addPrepQuery Cql.updateToMixedConv (tUnqualified lcnv, ProtocolMixedTag, gid, epoch, cs)
+  pure ()
 
-lookupGroupId :: GroupId -> Client (Maybe (Qualified ConvId))
-lookupGroupId gId =
-  uncurry Qualified <$$> retry x1 (query1 Cql.lookupGroupId (params LocalQuorum (Identity gId)))
+updateToMLSProtocol ::
+  Members
+    '[ Embed IO,
+       Input ClientState
+     ]
+    r =>
+  Local ConvId ->
+  Sem r ()
+updateToMLSProtocol lcnv =
+  embedClient . retry x5 $
+    write Cql.updateToMLSConv (params LocalQuorum (tUnqualified lcnv, ProtocolMLSTag))
 
 interpretConversationStoreToCassandra ::
   ( Member (Embed IO) r,
@@ -388,10 +454,10 @@ interpretConversationStoreToCassandra = interpret $ \case
   CreateConversation loc nc -> embedClient $ createConversation loc nc
   CreateMLSSelfConversation lusr -> embedClient $ createMLSSelfConversation lusr
   GetConversation cid -> embedClient $ getConversation cid
-  GetConversationIdByGroupId gId -> embedClient $ lookupGroupId gId
+  GetConversationEpoch cid -> embedClient $ getConvEpoch cid
   GetConversations cids -> localConversations cids
   GetConversationMetadata cid -> embedClient $ conversationMeta cid
-  GetPublicGroupState cid -> embedClient $ getPublicGroupState cid
+  GetGroupInfo cid -> embedClient $ getGroupInfo cid
   IsConversationAlive cid -> embedClient $ isConvAlive cid
   SelectConversations uid cids -> embedClient $ localConversationIdsOf uid cids
   GetRemoteConversationStatus uid cids -> embedClient $ remoteConversationStatus uid cids
@@ -401,8 +467,10 @@ interpretConversationStoreToCassandra = interpret $ \case
   SetConversationReceiptMode cid value -> embedClient $ updateConvReceiptMode cid value
   SetConversationMessageTimer cid value -> embedClient $ updateConvMessageTimer cid value
   SetConversationEpoch cid epoch -> embedClient $ updateConvEpoch cid epoch
+  SetConversationCipherSuite cid cs -> embedClient $ updateConvCipherSuite cid cs
   DeleteConversation cid -> embedClient $ deleteConversation cid
-  SetGroupId gId cid -> embedClient $ mapGroupId gId cid
-  SetPublicGroupState cid gib -> embedClient $ setPublicGroupState cid gib
+  SetGroupInfo cid gib -> embedClient $ setGroupInfo cid gib
   AcquireCommitLock gId epoch ttl -> embedClient $ acquireCommitLock gId epoch ttl
   ReleaseCommitLock gId epoch -> embedClient $ releaseCommitLock gId epoch
+  UpdateToMixedProtocol cid ct cs -> updateToMixedProtocol cid ct cs
+  UpdateToMLSProtocol cid -> updateToMLSProtocol cid

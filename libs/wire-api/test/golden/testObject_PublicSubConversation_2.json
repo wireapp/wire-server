@@ -1,0 +1,18 @@
+{
+    "cipher_suite": 1,
+    "epoch": 0,
+    "epoch_timestamp": null,
+    "group_id": "dGVzdF9ncm91cF8y",
+    "members": [
+        {
+            "client_id": "deadbeef",
+            "domain": "golden.example.com",
+            "user_id": "00000000-0000-0007-0000-000a00000002"
+        }
+    ],
+    "parent_qualified_id": {
+        "domain": "golden.example.com",
+        "id": "00000000-0000-0001-0000-000100000001"
+    },
+    "subconv_id": "call"
+}

@@ -25,6 +25,7 @@ module Wire.API.User
     UserIdList (..),
     UserIds (..),
     QualifiedUserIdList (..),
+    qualifiedUserIdListObjectSchema,
     LimitedQualifiedUserIdList (..),
     ScimUserInfo (..),
     ScimUserInfos (..),
@@ -146,6 +147,7 @@ module Wire.API.User
 
     -- * Protocol preferences
     BaseProtocolTag (..),
+    baseProtocolToProtocol,
     SupportedProtocolUpdate (..),
     defSupportedProtocols,
     protocolSetBits,
@@ -200,6 +202,7 @@ import Servant (FromHttpApiData (..), ToHttpApiData (..), type (.++))
 import Test.QuickCheck qualified as QC
 import URI.ByteString (serializeURIRef)
 import Web.Cookie qualified as Web
+import Wire.API.Conversation.Protocol
 import Wire.API.Error
 import Wire.API.Error.Brig
 import Wire.API.Error.Brig qualified as E
@@ -547,12 +550,15 @@ newtype QualifiedUserIdList = QualifiedUserIdList {qualifiedUserIdList :: [Quali
 
 instance ToSchema QualifiedUserIdList where
   schema =
-    object "QualifiedUserIdList" $
-      QualifiedUserIdList
-        <$> qualifiedUserIdList
-          .= field "qualified_user_ids" (array schema)
-        <* (fmap qUnqualified . qualifiedUserIdList)
-          .= field "user_ids" (deprecatedSchema "qualified_user_ids" (array schema))
+    object "QualifiedUserIdList" qualifiedUserIdListObjectSchema
+
+qualifiedUserIdListObjectSchema :: ObjectSchema SwaggerDoc QualifiedUserIdList
+qualifiedUserIdListObjectSchema =
+  QualifiedUserIdList
+    <$> qualifiedUserIdList
+      .= field "qualified_user_ids" (array schema)
+    <* (fmap qUnqualified . qualifiedUserIdList)
+      .= field "user_ids" (deprecatedSchema "qualified_user_ids" (array schema))
 
 --------------------------------------------------------------------------------
 -- LimitedQualifiedUserIdList
@@ -1914,6 +1920,7 @@ instance Schema.ToSchema UserAccount where
 -- NewUserScimInvitation
 
 data NewUserScimInvitation = NewUserScimInvitation
+  -- FIXME: the TID should be captured in the route as usual
   { newUserScimInvTeamId :: TeamId,
     newUserScimInvLocale :: Maybe Locale,
     newUserScimInvName :: Name,
@@ -2014,6 +2021,10 @@ data BaseProtocolTag = BaseProtocolProteusTag | BaseProtocolMLSTag
 baseProtocolMask :: BaseProtocolTag -> Word32
 baseProtocolMask BaseProtocolProteusTag = 1
 baseProtocolMask BaseProtocolMLSTag = 2
+
+baseProtocolToProtocol :: BaseProtocolTag -> ProtocolTag
+baseProtocolToProtocol BaseProtocolProteusTag = ProtocolProteusTag
+baseProtocolToProtocol BaseProtocolMLSTag = ProtocolMLSTag
 
 instance ToSchema BaseProtocolTag where
   schema =

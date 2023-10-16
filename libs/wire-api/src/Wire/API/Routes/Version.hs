@@ -220,7 +220,7 @@ type instance
     s :> SpecialiseToVersion v api
 
 type instance
-  SpecialiseToVersion v (Named n api) =
+  SpecialiseToVersion v (UntypedNamed n api) =
     Named n (SpecialiseToVersion v api)
 
 type instance
