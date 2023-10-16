@@ -128,7 +128,7 @@ traverseConcurrentlyCodensity f args = do
     liftIO $ traverse_ wait asyncs
     pure result
 
-startDynamicBackends :: HasCallStack => [ServiceOverrides] -> (HasCallStack => [String] -> App a) -> App a
+6 HasCallStack => [ServiceOverrides] -> (HasCallStack => [String] -> App a) -> App a
 startDynamicBackends beOverrides k =
   runCodensity
     ( do

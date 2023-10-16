@@ -4,7 +4,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-
+{-# OPTIONS_GHC -Wno-unused-local-binds #-}
 
 module HTTP2.Client.Manager.Internal where
 
@@ -37,17 +37,17 @@ import Prelude
 data HTTP2Conn = HTTP2Conn
   { backgroundThread :: Async (),
     disconnect :: IO (),
-    connectionActionMVar :: MVar ConnectionAction,
+    connectionActionMVar :: MVar ConnectionAction
     -- Like TSem, but the blocking of waitTSem is undesirable for us
     -- so we get to basically redo their code. Fun
-    requestSem :: TVar Int,
+    -- requestSem :: TVar Int,
     -- A sync variable to stop a thundering herd of requests from
     -- filling up the max concurrent requests on a given connection,
     -- and then having a bunch of threads creating new connections, most
     -- of which will only have 1 or 2 requests, with one finally being
     -- the long lived replacement. If requests are waiting on a new connection
     -- they can loop until this resolves and they can use the new connection.
-    newConnectionBeingMade :: TVar Bool
+    -- newConnectionBeingMade :: TVar Bool
   }
 
 type TLSEnabled = Bool
@@ -174,64 +174,66 @@ sendRequestWithConnection conn req k = do
 withHTTP2Request :: forall a. Http2Manager -> Target -> HTTP2.Request -> (HTTP2.Response -> IO a) -> IO a
 withHTTP2Request mgr target req k = do
   conn <- getOrMakeConnection mgr target
-
-  -- let http2ErrorHandler :: HTTP2Error -> IO a
-  --     http2ErrorHandler e = case e of
-  --       StreamErrorIsSent RefusedStream _ -> mkNewConnection conn
-  --       StreamErrorIsReceived RefusedStream _ -> mkNewConnection conn
-  --       BadThingHappen _ -> mkNewConnection conn
-  --       _ -> throwIO e
-  --     managerErrorHandler :: ConnectionAlreadyClosed -> IO a
-  --     managerErrorHandler _ = mkNewConnection conn
-  -- sendRequestWithConnection conn req k `catches` [Handler $ managerErrorHandler, Handler http2ErrorHandler]
-  let tReqSem = requestSem conn
-      tNewConn = newConnectionBeingMade conn
-  gotSem <- atomically $ do
-    -- Check if a new connection is being made
-    canMakeNewConn <- readTVar tNewConn
-    if canMakeNewConn
-      then do
-        sem <- readTVar tReqSem
-        if sem <= 0
-          then pure False
-          else do
-            writeTVar tReqSem $! sem - 1
-            pure True
-      else -- A new connection is being make, don't use existing connections
-        pure False
-  if gotSem
-    then
-      sendRequestWithConnection conn req k
-        `finally` atomically
-          ( do
-              sem <- readTVar tReqSem
-              writeTVar tReqSem $! sem + 1
-          )
-    else do
-      -- This is messy. When a thundering herd of requests is coming in, many
-      -- of them can get a negative semaphore check, which will then cause them
-      -- to make new connections to the server. Eventually, one of these will become
-      -- the lasting replacement, but there is no telling which one.
-      -- Ideally, this should have a block that only one thread can create the new
-      -- connection, and then everything that is waiting on a connection can use
-      -- it, until we run out of semaphores again.
-      canMakeNewConn <- atomically $ do
-        sem <- readTVar tNewConn
-        if sem
-          then do
-            writeTVar tNewConn False
-            pure sem
-          else pure sem
-      if canMakeNewConn
-        then -- Make the new connection, then try to use it
-          mkNewConnection conn
-        else -- Can't make the new connection, so look and maybe something
-        -- has freed up or the connection is ready to go.
-        -- TODO: Should there be a small delay here?
-        do
-          threadDelay 1000
-          withHTTP2Request mgr target req k
+  sendRequestWithConnection conn req k
   where
+    -- let http2ErrorHandler :: HTTP2Error -> IO a
+    --     http2ErrorHandler e = case e of
+    --       StreamErrorIsSent RefusedStream _ -> mkNewConnection conn
+    --       StreamErrorIsReceived RefusedStream _ -> mkNewConnection conn
+    --       BadThingHappen _ -> mkNewConnection conn
+    --       _ -> throwIO e
+    --     managerErrorHandler :: ConnectionAlreadyClosed -> IO a
+    --     managerErrorHandler _ = mkNewConnection conn
+    -- sendRequestWithConnection conn req k `catches` [Handler $ managerErrorHandler, Handler http2ErrorHandler]
+
+    -- let tReqSem = requestSem conn
+    --     tNewConn = newConnectionBeingMade conn
+    -- gotSem <- atomically $ do
+    --   -- Check if a new connection is being made
+    --   canMakeNewConn <- readTVar tNewConn
+    --   if canMakeNewConn
+    --     then do
+    --       sem <- readTVar tReqSem
+    --       if sem <= 0
+    --         then pure False
+    --         else do
+    --           writeTVar tReqSem $! sem - 1
+    --           pure True
+    --     else -- A new connection is being make, don't use existing connections
+    --       pure False
+    -- if gotSem
+    --   then
+    --     sendRequestWithConnection conn req k
+    --       `finally` atomically
+    --         ( do
+    --             sem <- readTVar tReqSem
+    --             writeTVar tReqSem $! sem + 1
+    --         )
+    --   else do
+    --     -- This is messy. When a thundering herd of requests is coming in, many
+    --     -- of them can get a negative semaphore check, which will then cause them
+    --     -- to make new connections to the server. Eventually, one of these will become
+    --     -- the lasting replacement, but there is no telling which one.
+    --     -- Ideally, this should have a block that only one thread can create the new
+    --     -- connection, and then everything that is waiting on a connection can use
+    --     -- it, until we run out of semaphores again.
+    --     canMakeNewConn <- atomically $ do
+    --       sem <- readTVar tNewConn
+    --       if sem
+    --         then do
+    --           writeTVar tNewConn False
+    --           pure sem
+    --         else pure sem
+    --     if canMakeNewConn
+    --       then -- Make the new connection, then try to use it
+    --         mkNewConnection conn
+    --       else -- Can't make the new connection, so look and maybe something
+    --       -- has freed up or the connection is ready to go.
+    --       -- TODO: Should there be a small delay here?
+    --       do
+    --         threadDelay 1000
+    --         withHTTP2Request mgr target req k
+
     mkNewConnection conn = do
       -- Stop processing on the existing connection
       disconnect conn
@@ -258,9 +260,9 @@ connect :: Http2Manager -> Target -> IO HTTP2Conn
 connect Http2Manager {..} target = do
   sendReqMVar <- newEmptyMVar
   thread <- liftIO . async $ startPersistentHTTP2Connection sslContext target cacheLimit sslRemoveTrailingDot tcpConnectionTimeout sendReqMVar
-  tReqSem <- newTVarIO 98
-  tNewConn <- newTVarIO True
-  let newConn = HTTP2Conn thread (putMVar sendReqMVar CloseConnection) sendReqMVar tReqSem tNewConn
+  -- tReqSem <- newTVarIO 98
+  -- tNewConn <- newTVarIO True
+  let newConn = HTTP2Conn thread (putMVar sendReqMVar CloseConnection) sendReqMVar -- tReqSem tNewConn
   (inserted, finalConn) <- atomically $ insertNewConn newConn
   unless inserted $ do
     -- It is possible that the connection won't leak because it is waiting
@@ -413,7 +415,7 @@ startPersistentHTTP2Connection ctx (tlsEnabled, hostname, port) cl removeTrailin
             -- Any exceptions thrown will get re-thrown to any running requests,
             -- handle at the top level is not good as 'finally' wrapping this
             -- function would kill all threads with some other exception.
-            
+
             -- Any exceptions thrown will get re-thrown to any running requests,
             -- handle at the top level is not good as 'finally' wrapping this
             -- function would kill all threads with some other exception.

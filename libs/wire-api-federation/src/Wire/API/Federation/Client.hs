@@ -1,6 +1,8 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedLists #-}
 
+{-# OPTIONS_GHC -Wno-unused-binds #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -125,7 +127,9 @@ withNewHttpRequest target req k = do
       tcpConnectionTimeout = 30_000_000
   sendReqMVar <- newEmptyMVar
   thread <- liftIO . async $ H2Manager.startPersistentHTTP2Connection ctx target cacheLimit sslRemoveTrailingDot tcpConnectionTimeout sendReqMVar
-  let newConn = H2Manager.HTTP2Conn thread (putMVar sendReqMVar H2Manager.CloseConnection) sendReqMVar
+  -- tSem <- newTVarIO 99
+  -- tNewConn <- newTVarIO True
+  let newConn = H2Manager.HTTP2Conn thread (putMVar sendReqMVar H2Manager.CloseConnection) sendReqMVar -- tSem tNewConn
   H2Manager.sendRequestWithConnection newConn req k
 
 performHTTP2Request ::
@@ -134,7 +138,7 @@ performHTTP2Request ::
   HTTP2.Request ->
   IO (Either FederatorClientHTTP2Error (ResponseF Builder))
 performHTTP2Request _mgr target req = try $ do
-  withNewHttpRequest target req $ consumeStreamingResponseWith $ \resp -> do
+  H2Manager.withHTTP2Request _mgr target req $ consumeStreamingResponseWith $ \resp -> do
     b <-
       fmap (fromRight mempty)
         . runExceptT
@@ -225,7 +229,7 @@ withHTTP2StreamingRequest successfulStatus req handleResponse = do
     either throwError pure <=< liftCodensity $
       Codensity $ \k ->
         E.catches
-          (withNewHttpRequest (False, hostname, port) req' (consumeStreamingResponseWith (k . Right)))
+          (H2Manager.withHTTP2Request (ceHttp2Manager env) (False, hostname, port) req' (consumeStreamingResponseWith (k . Right)))
           [ E.Handler $ k . Left . FederatorClientHTTP2Error,
             E.Handler $ k . Left . FederatorClientHTTP2Error . FederatorClientConnectionError,
             E.Handler $ k . Left . FederatorClientHTTP2Error . FederatorClientHTTP2Exception,
