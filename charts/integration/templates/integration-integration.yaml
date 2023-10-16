@@ -234,7 +234,7 @@ spec:
           key: rabbitmqPassword
     {{- if .Values.config.uploadXml }}
     - name: TEST_XML
-      value: /result.xml
+      value: /tmp/result.xml
     - name: UPLOAD_XML_S3_BASE_URL
       value: {{ .Values.config.uploadXml.baseUrl }}
     {{- if .Values.secrets.uploadXmlAwsAccessKeyId }}
