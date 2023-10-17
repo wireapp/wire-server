@@ -2379,7 +2379,7 @@ testCreatorRemovesUserFromParent = do
           !!! do const 200 === statusCode
 
       for_ [bob1, bob2, charlie1, charlie2] $ \c -> do
-        void $ createExternalCommit c Nothing qcs >>= sendAndConsumeCommitBundle
+        createExternalCommit c Nothing qcs >>= sendAndConsumeCommitBundle
 
       stateSub <- State.get
       State.put stateParent

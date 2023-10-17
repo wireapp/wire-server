@@ -530,4 +530,14 @@ in
   inherit brig-templates;
   haskellPackages = hPkgs localModsEnableAll;
   haskellPackagesUnoptimizedNoDocs = hPkgs localModsOnlyTests;
-} // attrsets.genAttrs wireServerPackages (e: hPkgs.${e})
+
+  allLocalPackages = pkgs.symlinkJoin {
+    name = "all-local-packages"; 
+    paths = map (e: (hPkgs localModsEnableAll).${e}) wireServerPackages;
+  };
+
+  allImages = pkgs.symlinkJoin {
+    name = "all-images";
+    paths = builtins.attrValues (images localModsEnableAll);
+  };
+} // attrsets.genAttrs wireServerPackages (e: (hPkgs localModsEnableAll).${e})
