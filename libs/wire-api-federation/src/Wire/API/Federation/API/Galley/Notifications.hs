@@ -1,3 +1,6 @@
+{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
+{-# OPTIONS_GHC -Wno-unused-matches #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2023 Wire Swiss GmbH <opensource@wire.com>
@@ -20,10 +23,12 @@ module Wire.API.Federation.API.Galley.Notifications where
 import Data.Aeson
 import Data.Id
 import Data.Json.Util
+import Data.Kind
 import Data.List.NonEmpty
 import Data.Qualified
 import Data.Range
 import Data.Time.Clock
+import GHC.TypeLits
 import Imports
 import Servant.API
 import Wire.API.Conversation.Action
@@ -34,27 +39,63 @@ import Wire.API.Message
 import Wire.API.Util.Aeson
 import Wire.Arbitrary
 
+data GalleyNotificationTag
+  = OnClientRemovedTag
+  | OnMessageSentTag
+  | OnMLSMessageSentTag
+  | OnConversationUpdatedTag
+  | OnUserDeletedConversationsTag
+  deriving (Show, Eq, Generic, Bounded, Enum)
+
+type family GalleyNotification (tag :: GalleyNotificationTag) :: Type where
+  GalleyNotification 'OnClientRemovedTag = ClientRemovedRequest
+  GalleyNotification 'OnMessageSentTag = RemoteMessage ConvId
+  GalleyNotification 'OnMLSMessageSentTag = RemoteMLSMessage
+  GalleyNotification 'OnConversationUpdatedTag = ConversationUpdate
+  GalleyNotification 'OnUserDeletedConversationsTag = UserDeletedConversationsNotification
+
+-- | The central path component of a Galley notification endpoint
+type family GNPath (tag :: GalleyNotificationTag) :: Symbol where
+  GNPath 'OnClientRemovedTag = "on-client-removed"
+  GNPath 'OnMessageSentTag = "on-message-sent"
+  GNPath 'OnMLSMessageSentTag = "on-mls-message-sent"
+  GNPath 'OnConversationUpdatedTag = "on-conversation-updated"
+  GNPath 'OnUserDeletedConversationsTag = "on-user-deleted-conversations"
+
+type GalleyNotifEndpoint (tag :: GalleyNotificationTag) =
+  NotificationFedEndpoint (GNPath tag) (GalleyNotification tag)
+
+type family GalleyNotificationToServantAPI (gn :: GalleyNotificationTag) :: Type where
+  GalleyNotificationToServantAPI 'OnClientRemovedTag =
+    NotificationFedEndpointWithMods
+      '[ MakesFederatedCall 'Galley "on-mls-message-sent"
+       ]
+      (GNPath 'OnClientRemovedTag)
+      (GalleyNotification 'OnClientRemovedTag)
+  -- used to notify this backend that a new message has been posted to a
+  -- remote conversation
+  GalleyNotificationToServantAPI 'OnMessageSentTag = GalleyNotifEndpoint 'OnMessageSentTag
+  GalleyNotificationToServantAPI 'OnMLSMessageSentTag = GalleyNotifEndpoint 'OnMLSMessageSentTag
+  -- used by the backend that owns a conversation to inform this backend of
+  -- changes to the conversation
+  GalleyNotificationToServantAPI 'OnConversationUpdatedTag =
+    GalleyNotifEndpoint 'OnConversationUpdatedTag
+  GalleyNotificationToServantAPI 'OnUserDeletedConversationsTag =
+    NotificationFedEndpointWithMods
+      '[ MakesFederatedCall 'Galley "on-mls-message-sent",
+         MakesFederatedCall 'Galley "on-conversation-updated",
+         MakesFederatedCall 'Brig "api-version"
+       ]
+      (GNPath 'OnUserDeletedConversationsTag)
+      (GalleyNotification 'OnUserDeletedConversationsTag)
+
 -- | All the notification endpoints return an 'EmptyResponse'.
 type NotificationAPI =
-  NotificationFedEndpointWithMods
-    '[ MakesFederatedCall 'Galley "on-mls-message-sent"
-     ]
-    "on-client-removed"
-    ClientRemovedRequest
-    -- used to notify this backend that a new message has been posted to a
-    -- remote conversation
-    :<|> NotificationFedEndpoint "on-message-sent" (RemoteMessage ConvId)
-    :<|> NotificationFedEndpoint "on-mls-message-sent" RemoteMLSMessage
-    -- used by the backend that owns a conversation to inform this backend of
-    -- changes to the conversation
-    :<|> NotificationFedEndpoint "on-conversation-updated" ConversationUpdate
-    :<|> NotificationFedEndpointWithMods
-           '[ MakesFederatedCall 'Galley "on-mls-message-sent",
-              MakesFederatedCall 'Galley "on-conversation-updated",
-              MakesFederatedCall 'Brig "api-version"
-            ]
-           "on-user-deleted-conversations"
-           UserDeletedConversationsNotification
+  GalleyNotificationToServantAPI 'OnClientRemovedTag
+    :<|> GalleyNotificationToServantAPI 'OnMessageSentTag
+    :<|> GalleyNotificationToServantAPI 'OnMLSMessageSentTag
+    :<|> GalleyNotificationToServantAPI 'OnConversationUpdatedTag
+    :<|> GalleyNotificationToServantAPI 'OnUserDeletedConversationsTag
 
 data ClientRemovedRequest = ClientRemovedRequest
   { user :: UserId,
