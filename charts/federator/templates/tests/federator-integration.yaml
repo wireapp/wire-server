@@ -23,7 +23,34 @@ spec:
         name: "federator-ca"
   containers:
   - name: integration
-    command: ["federator-integration"]
+    command:
+    - /bin/bash
+    - -c
+    - |
+      set -euo pipefail
+
+      if federator-integration -f junit; then
+        exit_code=$?
+      else
+        exit_code=$?
+      fi
+
+      {{- if .Values.tests.config.uploadXml }}
+      # In case a different S3 compliant storage is used to upload test result.
+      if ! [[ -z "${UPLOAD_XML_AWS_ACCESS_KEY_ID+x}" ]]; then
+        export AWS_ACCESS_KEY_ID="$UPLOAD_XML_AWS_ACCESS_KEY_ID"
+        export AWS_SECRET_ACCESS_KEY="$UPLOAD_XML_AWS_SECRET_ACCESS_KEY"
+      fi
+      TEST_XML="$JUNIT_OUTPUT_DIRECTORY/junit.xml"
+
+      # The `|| echo ..` ensures that the test isn't seen as failed even if the upload fails.
+      ts=$(date --utc '+%Y%m%d%H%M%S%N')
+      uploadUrl="$UPLOAD_XML_S3_BASE_URL/federator-integration/${ts}.xml"
+      echo "Uploading xml result to: $uploadUrl"
+      aws s3 cp "$TEST_XML" "$uploadUrl" || echo "failed to upload result"
+      {{- end }}
+
+      exit $exit_code
     image: "{{ .Values.image.repository }}-integration:{{ .Values.image.tag }}"
         {{- if eq (include "includeSecurityContext" .) "true" }}
     securityContext:
@@ -38,4 +65,25 @@ spec:
       mountPath: "/etc/wire/federator/secrets"
     - name: "federator-ca"
       mountPath: "/etc/wire/federator/ca"
+  env:
+    - name: JUNIT_OUTPUT_DIRECTORY
+      value: /tmp/
+    - name: JUNIT_SUITE_NAME
+      value: federator
+    {{- if .Values.tests.config.uploadXml }}
+    - name: UPLOAD_XML_S3_BASE_URL
+      value: {{ .Values.tests.config.uploadXml.baseUrl }}
+    {{- if .Values.tests.secrets.uploadXmlAwsAccessKeyId }}
+    - name: UPLOAD_XML_AWS_ACCESS_KEY_ID
+      valueFrom:
+        secretKeyRef:
+          name: integration
+          key: uploadXmlAwsAccessKeyId
+    - name: UPLOAD_XML_AWS_SECRET_ACCESS_KEY
+      valueFrom:
+        secretKeyRef:
+          name: integration
+          key: uploadXmlAwsSecretAccessKey
+    {{- end }}
+    {{- end }}
   restartPolicy: Never
