@@ -65,7 +65,7 @@ spec:
       mountPath: "/etc/wire/federator/secrets"
     - name: "federator-ca"
       mountPath: "/etc/wire/federator/ca"
-  env:
+    env:
     - name: JUNIT_OUTPUT_DIRECTORY
       value: /tmp/
     - name: JUNIT_SUITE_NAME
