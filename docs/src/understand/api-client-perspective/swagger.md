@@ -31,7 +31,7 @@ If you want to get the raw json for the swagger (ie., for compiling it
 into client code in typescript, kotlin, swift, ...), replace
 `swagger-ui` with `swagger.json` in the above URL pattern.
 
-#### Example: doing it manually
+### Example: doing it manually
 
 To get the versions a backend (`staging-nginz-https.zinfra.io` in this case)
 supports, execute:
@@ -44,7 +44,7 @@ curl https://<nginz-host>/api-version
 The URL to open in your browser for the development version `4` is
 `https://<nginz-host>/v4/api/swagger-ui/`.
 
-### On-prem and test instances, versioning
+## On-prem and test instances, versioning
 
 The above is valid for the official wire.com staging environment and
 includes both all released API versions and the current development
@@ -58,7 +58,7 @@ curl https://nginz-https.<custom-staging>.example.com/<version>/api/swagger-ui/
 curl https://nginz-https.<custom-staging>.example.com/<version>/api/swagger.json
 ```
 
-### Internal endpoints
+## Internal endpoints
 
 Swagger docs for internal endpoints are served per service. I.e. there's one for
 `brig`, one for `cannon`, etc.. This is because Swagger doesn't play well with
@@ -84,7 +84,7 @@ The URL pattern is similar to that of public endpoints for latest version:
 If you want to get the raw json of the swagger:
 `https://<nginz-host>/api-internal/swagger-ui/<service>-swagger.json`.
 
-### Finding the source code for an end-point
+## Finding the source code for an end-point
 
 A *route internal ID* is provided for every end-point.  See
 {ref}`named-and-internal-route-ids` for details and usage.
