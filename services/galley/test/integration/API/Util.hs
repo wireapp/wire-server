@@ -2986,7 +2986,7 @@ wsAssertBackendRemoveProposal fromUser cnvOrSubCnv idx n = do
   where
     getMLSMessageData :: Conv.EventData -> ByteString
     getMLSMessageData (EdMLSMessage bs) = bs
-    getMLSMessageData d = error ("Excepected EdMLSMessage, but got " <> show d)
+    getMLSMessageData d = error ("Expected EdMLSMessage, but got " <> show d)
 
 wsAssertAddProposal ::
   HasCallStack =>
