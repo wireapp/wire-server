@@ -305,6 +305,15 @@ federator:
   config:
     optSettings:
       useSystemCAStore: false
+  tests:
+    {{- if .Values.uploadXml }}
+    config:
+      uploadXml:
+        baseUrl: {{ .Values.uploadXml.baseUrl }}
+    secrets:
+      uploadXmlAwsAccessKeyId: {{ .Values.uploadXml.awsAccessKeyId }}
+      uploadXmlAwsSecretAccessKey: {{ .Values.uploadXml.awsSecretAccessKey }}
+    {{- end }}
 
 background-worker:
   replicaCount: 1
