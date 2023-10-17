@@ -21,21 +21,26 @@
 module Wire.API.Federation.API.Galley.Notifications where
 
 import Data.Aeson
+import Data.Domain
 import Data.Id
 import Data.Json.Util
 import Data.Kind
 import Data.List.NonEmpty
+import Data.Proxy
 import Data.Qualified
 import Data.Range
+import Data.Text qualified as T
 import Data.Time.Clock
 import GHC.TypeLits
 import Imports
 import Servant.API
 import Wire.API.Conversation.Action
+import Wire.API.Federation.BackendNotifications
 import Wire.API.Federation.Endpoint
 import Wire.API.MLS.SubConversation
 import Wire.API.MakesFederatedCall
 import Wire.API.Message
+import Wire.API.RawJson
 import Wire.API.Util.Aeson
 import Wire.Arbitrary
 
@@ -96,6 +101,27 @@ type NotificationAPI =
     :<|> GalleyNotificationToServantAPI 'OnMLSMessageSentTag
     :<|> GalleyNotificationToServantAPI 'OnConversationUpdatedTag
     :<|> GalleyNotificationToServantAPI 'OnUserDeletedConversationsTag
+
+galleyToBackendNotification ::
+  forall tag.
+  KnownSymbol (GNPath tag) =>
+  ToJSON (GalleyNotification tag) =>
+  Domain ->
+  GalleyNotification tag ->
+  BackendNotification
+galleyToBackendNotification ownDomain gn =
+  let p = symbolVal (Proxy @(GNPath tag))
+      b = RawJson . encode $ gn
+   in toNotif (T.pack . show $ p) b
+  where
+    toNotif :: Text -> RawJson -> BackendNotification
+    toNotif path payload =
+      BackendNotification
+        { ownDomain = ownDomain,
+          targetComponent = Galley,
+          path = path,
+          body = payload
+        }
 
 data ClientRemovedRequest = ClientRemovedRequest
   { user :: UserId,
