@@ -116,10 +116,6 @@ spec:
     - name: RABBITMQ_PASSWORD
       value: "guest"
     {{- end }}
-    resources:
-      requests:
-        memory: "512Mi"
-        cpu: "2"
     - name: TEST_XML
       value: /tmp/result.xml
     {{- if .Values.tests.config.uploadXml }}
@@ -138,4 +134,8 @@ spec:
           key: uploadXmlAwsSecretAccessKey
     {{- end }}
     {{- end }}
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "2"
   restartPolicy: Never
