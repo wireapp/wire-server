@@ -68,7 +68,7 @@ spec:
 
       # The `|| echo ..` ensures that the test isn't seen as failed even if the upload fails.
       ts=$(date --utc '+%Y%m%d%H%M%S%N')
-      uploadUrl="$UPLOAD_XML_S3_BASE_URL/stern-integration/${ts}.xml"
+      uploadUrl="$UPLOAD_XML_S3_BASE_URL/galley-integration/${ts}.xml"
       echo "Uploading xml result to: $uploadUrl"
       aws s3 cp "$TEST_XML" "$uploadUrl" || echo "failed to upload result"
       {{- end }}
@@ -111,12 +111,12 @@ spec:
     - name: UPLOAD_XML_AWS_ACCESS_KEY_ID
       valueFrom:
         secretKeyRef:
-          name: integration
+          name: galley-integration-secrets
           key: uploadXmlAwsAccessKeyId
     - name: UPLOAD_XML_AWS_SECRET_ACCESS_KEY
       valueFrom:
         secretKeyRef:
-          name: integration
+          name: galley-integration-secrets
           key: uploadXmlAwsSecretAccessKey
     {{- end }}
     {{- end }}
