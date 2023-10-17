@@ -14,7 +14,7 @@ dynBackendDomain3: dynamic-backend-3.{{ requiredEnv "NAMESPACE_1" }}.svc.cluster
 uploadXml: {}
 {{- else }}
 uploadXml:
-  awsAccessKeyId: {{ requiredEnv "UPLOAD_XML_AWS_ACCESS_KEY_ID" }}
-  awsSecretAccessKey: {{ requiredEnv "UPLOAD_XML_AWS_SECRET_ACCESS_KEY" }}
-  baseUrl: {{ requiredEnv "UPLOAD_XML_S3_BASE_URL" }}
+  awsAccessKeyId: {{ env "UPLOAD_XML_AWS_ACCESS_KEY_ID" }}
+  awsSecretAccessKey: {{ env "UPLOAD_XML_AWS_SECRET_ACCESS_KEY" }}
+  baseUrl: {{ env "UPLOAD_XML_S3_BASE_URL" }}
 {{- end }}
