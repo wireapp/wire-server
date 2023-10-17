@@ -145,9 +145,15 @@ podSecurityContext:
     type: RuntimeDefault
 tests:
   config: {}
+    # uploadXml:
+    #   baseUrl: s3://bucket/path/
+
   secrets:
+    # uploadXmlAwsAccessKeyId: <key-id>
+    # uploadXmlAwsSecretAccessKey: <secret>
+
     # These "secrets" are only used in tests and are therefore safe to be stored unencrypted
-    provider-privatekey.pem: |
+    providerPrivateKey: |
         -----BEGIN RSA PRIVATE KEY-----
         MIIEpAIBAAKCAQEAu+Kg/PHHU3atXrUbKnw0G06FliXcNt3lMwl2os5twEDcPPFw
         /feGiAKymxp+7JqZDrseS5D9THGrW+OQRIPHWvUBdiLfGrZqJO223DB6D8K2Su/o
@@ -175,7 +181,7 @@ tests:
         F47rKenpBrslvdfTVsCDB1xyP2ebWVzp6EqMycw6OLPxgo3fBfZ4pi6P+rByh0Cc
         Lhfh+ET0CPnKCxtop3lUrn4ZvqchS0j3J+M0pDuqoWF5hfKxFhkEIw==
         -----END RSA PRIVATE KEY-----
-    provider-publickey.pem: |
+    providerPublicKey: |
         -----BEGIN PUBLIC KEY-----
         MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu+Kg/PHHU3atXrUbKnw0
         G06FliXcNt3lMwl2os5twEDcPPFw/feGiAKymxp+7JqZDrseS5D9THGrW+OQRIPH
@@ -185,7 +191,7 @@ tests:
         7X883H+LA/d6X5CTiPv1VMxXdBUiGPuC9IT/6CNQ1/LFt0P37ax58+LGYlaFo7la
         nQIDAQAB
         -----END PUBLIC KEY-----
-    provider-publiccert.pem: |
+    providerPublicCert.pem: |
         -----BEGIN CERTIFICATE-----
         MIIDdjCCAl4CCQCm0AiwERR/qjANBgkqhkiG9w0BAQsFADB9MQswCQYDVQQGEwJE
         RTEPMA0GA1UECAwGQmVybGluMQ8wDQYDVQQHDAZCZXJsaW4xGDAWBgNVBAoMD1dp
@@ -207,10 +213,3 @@ tests:
         hZMuK3BWD3fzkQVfW0yMwz6fWRXB483ZmekGkgndOTDoJQMdJXZxHpI3t2FcxQYj
         T45GXxRd18neXtuYa/OoAw9UQFDN5XfXN0g=
         -----END CERTIFICATE-----
-
-#  config:
-#   uploadXml:
-#     baseUrl: s3://bucket/path/
-#  secrets:
-#    uploadXmlAwsAccessKeyId: <key-id>
-#    uploadXmlAwsSecretAccessKey: <secret>
