@@ -42,8 +42,8 @@ spec:
       configMap:
         name: "turn"
     - name: "brig-integration-secrets"
-      configMap:
-        name: "brig-integration-secrets"
+      secret:
+        name: "brig-integration"
   containers:
   - name: integration
     image: "{{ .Values.image.repository }}-integration:{{ .Values.image.tag }}"
@@ -125,12 +125,12 @@ spec:
     - name: UPLOAD_XML_AWS_ACCESS_KEY_ID
       valueFrom:
         secretKeyRef:
-          name: brig-integration-secrets
+          name: brig-integration
           key: uploadXmlAwsAccessKeyId
     - name: UPLOAD_XML_AWS_SECRET_ACCESS_KEY
       valueFrom:
         secretKeyRef:
-          name: brig-integration-secrets
+          name: brig-integration
           key: uploadXmlAwsSecretAccessKey
     {{- end }}
     {{- end }}
