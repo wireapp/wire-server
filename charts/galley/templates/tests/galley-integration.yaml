@@ -35,8 +35,8 @@ spec:
       configMap:
         name: "galley"
     - name: "galley-integration-secrets"
-      configMap:
-        name: "galley-integration-secrets"
+      secret:
+        name: "galley-integration"
     - name: "galley-secrets"
       secret:
         secretName: "galley"
@@ -107,12 +107,12 @@ spec:
     - name: UPLOAD_XML_AWS_ACCESS_KEY_ID
       valueFrom:
         secretKeyRef:
-          name: galley-integration-secrets
+          name: galley-integration
           key: uploadXmlAwsAccessKeyId
     - name: UPLOAD_XML_AWS_SECRET_ACCESS_KEY
       valueFrom:
         secretKeyRef:
-          name: galley-integration-secrets
+          name: galley-integration
           key: uploadXmlAwsSecretAccessKey
     {{- end }}
     {{- end }}
