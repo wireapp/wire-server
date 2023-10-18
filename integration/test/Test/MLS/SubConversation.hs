@@ -179,7 +179,7 @@ testCreatorRemovesUserFromParent = do
   [alice, bob, charlie] <- createAndConnectUsers [OwnDomain, OwnDomain, OtherDomain]
   [alice1, bob1, bob2, charlie1, charlie2] <- traverse (createMLSClient def) [alice, bob, bob, charlie, charlie]
   traverse_ uploadNewKeyPackage [bob1, bob2, charlie1, charlie2]
-  (_, _qcnv) <- createNewGroup alice1
+  (_, qcnv) <- createNewGroup alice1
 
   withWebSockets [bob, charlie] \wss -> do
     _ <- createAddCommit alice1 [bob, charlie] >>= sendAndConsumeCommitBundle
@@ -188,7 +188,8 @@ testCreatorRemovesUserFromParent = do
   -- save the state of the parent group
   parentState <- getMLSState
   -- switch to the subgroup
-  createSubConv alice1 "conference"
+  let subConvName = "conference"
+  createSubConv alice1 subConvName
 
   for_ [bob1, bob2, charlie1, charlie2] \c ->
     createExternalCommit c Nothing >>= sendAndConsumeCommitBundle
@@ -196,7 +197,7 @@ testCreatorRemovesUserFromParent = do
   childState <- getMLSState <* setMLSState parentState
   withWebSockets [alice1, charlie1, charlie2] \wss -> do
     removeCommitEvents <- createRemoveCommit alice1 [bob1, bob2] >>= sendAndConsumeCommitBundle
-    modifyMLSState $ \s -> s {members = members s Set.\\ Set.fromList [bob1, bob2]}
+    modifyMLSState $ \s -> s {members = s.members Set.\\ Set.fromList [bob1, bob2]}
 
     removeCommitEvents %. "events.0.type" `shouldMatch` "conversation.member-leave"
     removeCommitEvents %. "events.0.data.reason" `shouldMatch` "removed"
@@ -210,7 +211,7 @@ testCreatorRemovesUserFromParent = do
     setMLSState childState
     let idxBob1 :: Int = 1
         idxBob2 :: Int = 2
-    for_ ((,,) <$> [alice1, charlie1, charlie2] <*> [idxBob1, idxBob2] <*> wss) \(consumer, idx, ws) -> do
+    for_ ((,) <$> [idxBob1, idxBob2] <*> [alice1, charlie1, charlie2] `zip` wss) \(idx, (consumer, ws)) -> do
       msg <-
         awaitMatch
           10
@@ -228,5 +229,22 @@ testCreatorRemovesUserFromParent = do
                 lift do
                   (== idx) <$> (prop %. "Remove.removed" & asInt)
           ws
-      msgData <- msg %. "payload.0.data" & asByteString
-      consumeMessage1 consumer msgData
+      msg %. "payload.0.data"
+        & asByteString
+        >>= consumeMessage1 consumer
+
+    -- remove bob from the child state
+    modifyMLSState $ \s -> s {members = s.members Set.\\ Set.fromList [bob1, bob2]}
+
+    _ <-
+      createPendingProposalCommit alice1
+        >>= sendAndConsumeCommitBundle
+
+    getSubConversation bob qcnv subConvName >>= flip withResponse \resp ->
+      assertBool "access to the conversation for bob should be denied" (resp.status == 403)
+
+    for_ [charlie, alice] \m -> do
+      resp <- getSubConversation m qcnv subConvName
+      assertBool "alice and charlie should have access to the conversation" (resp.status == 200)
+      mems <- resp.jsonBody %. "members" & asList
+      mems `shouldMatchSet` [alice1, charlie1, charlie2]
