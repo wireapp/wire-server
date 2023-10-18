@@ -191,7 +191,7 @@ tests:
         7X883H+LA/d6X5CTiPv1VMxXdBUiGPuC9IT/6CNQ1/LFt0P37ax58+LGYlaFo7la
         nQIDAQAB
         -----END PUBLIC KEY-----
-    providerPublicCert.pem: |
+    providerPublicCert: |
         -----BEGIN CERTIFICATE-----
         MIIDdjCCAl4CCQCm0AiwERR/qjANBgkqhkiG9w0BAQsFADB9MQswCQYDVQQGEwJE
         RTEPMA0GA1UECAwGQmVybGluMQ8wDQYDVQQHDAZCZXJsaW4xGDAWBgNVBAoMD1dp
