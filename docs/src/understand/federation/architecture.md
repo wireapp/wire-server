@@ -104,6 +104,19 @@ from remote backends (forwarded via the local
 
 (other-wire-server)=
 
+## RabbitMQ and BackendNotificationPusher
+
+Federated environments use RabbitMQ to enqueue messages between instances.
+RabbitMQ creates a queue for each federated backend, and the BackendNotificationPusher 
+component is responsible for consuming those queues and pushing the messages to the
+correct federated node.
+
+RabbitMQ is tightly connected to the background worker BackendNotificationPusher, by adjusting
+its backoff and refresh intervals in the chart configuration we can fine-tune how resources
+are managed, allowing us to be more agressive or permissive on how often backends
+will probe each other for liveliness in case of downtime, for example.
+
+
 ## Service components
 
 Components such as Brig, Galley, Cargohold are responsible
