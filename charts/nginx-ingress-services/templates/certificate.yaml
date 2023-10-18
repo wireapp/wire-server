@@ -33,6 +33,9 @@ spec:
     {{- if .Values.webapp.enabled }}
     - {{ .Values.config.dns.webapp }}
     {{- end }}
+    {{- if .Values.webapp2.enabled }}
+    - {{ .Values.config.dns.webapp2 }}
+    {{- end }}
     {{- if .Values.fakeS3.enabled }}
     - {{ .Values.config.dns.fakeS3 }}
     {{- end }}

@@ -10,6 +10,8 @@ websockets:
   enabled: true
 webapp:
   enabled: true
+webapp2:
+  enabled: false
 fakeS3:
   enabled: true
 federator:

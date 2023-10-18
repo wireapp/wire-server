@@ -117,6 +117,25 @@ spec:
               servicePort: {{ .Values.service.webapp.externalPort }}
               {{- end }}
 {{- end }}
+{{- if .Values.webapp2.enabled }}
+    - host: {{ .Values.config.dns.webapp2 }}
+      http:
+        paths:
+          - path: /
+            {{- if $ingressSupportsPathType }}
+            pathType: Prefix
+            {{- end }}
+            backend:
+              {{- if $apiIsStable }}
+              service:
+                name: webapp2-http
+                port:
+                  number: {{ .Values.service.webapp2.externalPort }}
+              {{- else }}
+              serviceName: webapp2-http
+              servicePort: {{ .Values.service.webapp2.externalPort }}
+              {{- end }}
+{{- end }}
 {{- if .Values.fakeS3.enabled }}
     - host: {{ .Values.config.dns.fakeS3 }}
       http:
