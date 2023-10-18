@@ -53,7 +53,7 @@ spec:
     - |
       set -euo pipefail
 
-      if brig-integration --xml "$TEST_XML" --pattern "!/turn/ && !/user.auth.cookies.limit/"; then
+      if galley-integration --xml "$TEST_XML"; then
         exit_code=$?
       else
         exit_code=$?
