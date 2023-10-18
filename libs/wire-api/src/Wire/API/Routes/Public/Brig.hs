@@ -1202,6 +1202,19 @@ type MLSKeyPackageAPI =
                :> MultiVerb 'POST '[JSON, MLS] '[RespondEmpty 201 "Key packages uploaded"] ()
            )
            :<|> Named
+                  "mls-key-packages-replace"
+                  ( "self"
+                      :> Summary "Upload a fresh batch of key packages and replace the old ones"
+                      :> From 'V5
+                      :> Description "The request body should be a json object containing a list of base64-encoded key packages. Use this sparingly."
+                      :> ZLocalUser
+                      :> CanThrow 'MLSProtocolError
+                      :> CanThrow 'MLSIdentityMismatch
+                      :> CaptureClientId "client"
+                      :> ReqBody '[JSON] KeyPackageUpload
+                      :> MultiVerb 'PUT '[JSON, MLS] '[RespondEmpty 201 "Key packages replaced"] ()
+                  )
+           :<|> Named
                   "mls-key-packages-claim"
                   ( "claim"
                       :> Summary "Claim one key package for each client of the given user"
