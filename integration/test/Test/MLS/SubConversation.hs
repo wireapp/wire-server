@@ -247,4 +247,4 @@ testCreatorRemovesUserFromParent = do
       resp <- getSubConversation m qcnv subConvName
       assertBool "alice and charlie should have access to the conversation" (resp.status == 200)
       mems <- resp.jsonBody %. "members" & asList
-      mems `shouldMatchSet` [alice1, charlie1, charlie2]
+      mems `shouldMatchSet` ((renameField "id" "user_id" <=< make) `traverse` [alice1, charlie1, charlie2])

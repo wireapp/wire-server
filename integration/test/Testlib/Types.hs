@@ -30,7 +30,7 @@ import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
 import Data.Time
 import Data.Word
-import Deriving.Aeson
+import GHC.Generics (Generic)
 import GHC.Records
 import GHC.Stack
 import Network.HTTP.Client qualified as HTTP
@@ -203,17 +203,6 @@ data ClientIdentity = ClientIdentity
     client :: String
   }
   deriving stock (Show, Eq, Ord, Generic)
-  deriving
-    (ToJSON)
-    via -- we want to change these so they're compatible with the members field
-    -- coming from a getConversation
-    CustomJSON
-      [ FieldLabelModifier (Rename "user" "user_id"),
-        FieldLabelModifier (Rename "client" "client_id")
-      ]
-      ClientIdentity
-
-data Mod
 
 newtype Ciphersuite = Ciphersuite {code :: String}
   deriving (Eq, Ord, Show)
