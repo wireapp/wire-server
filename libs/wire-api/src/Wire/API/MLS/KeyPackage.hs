@@ -62,8 +62,7 @@ import Wire.API.MLS.Serialisation
 import Wire.Arbitrary
 
 data KeyPackageUpload = KeyPackageUpload
-  { keyPackages :: [RawMLS KeyPackage],
-    cipherSuites :: [CipherSuite]
+  { keyPackages :: [RawMLS KeyPackage]
   }
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema KeyPackageUpload
 
@@ -72,7 +71,6 @@ instance ToSchema KeyPackageUpload where
     object "KeyPackageUpload" $
       KeyPackageUpload
         <$> keyPackages .= field "key_packages" (array rawKeyPackageSchema)
-        <*> cipherSuites .= field "ciphersuites" (array schema)
 
 newtype KeyPackageData = KeyPackageData {kpData :: ByteString}
   deriving stock (Eq, Ord, Show)

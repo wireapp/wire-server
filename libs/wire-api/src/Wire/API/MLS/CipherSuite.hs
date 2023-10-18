@@ -42,6 +42,7 @@ module Wire.API.MLS.CipherSuite
 where
 
 import Cassandra.CQL
+import Control.Applicative
 import Control.Error (note)
 import Control.Lens ((?~))
 import Crypto.Error
@@ -51,18 +52,20 @@ import Crypto.PubKey.Ed25519 qualified as Ed25519
 import Data.Aeson qualified as Aeson
 import Data.Aeson.Types (FromJSON (..), FromJSONKey (..), ToJSON (..), ToJSONKey (..))
 import Data.Aeson.Types qualified as Aeson
+import Data.Attoparsec.ByteString.Char8 qualified as Atto
 import Data.Bifunctor
 import Data.ByteArray hiding (index)
 import Data.ByteArray qualified as BA
+import Data.ByteString.Conversion
 import Data.OpenApi qualified as S
 import Data.OpenApi.Internal.Schema qualified as S
 import Data.Proxy
 import Data.Schema
 import Data.Text qualified as T
+import Data.Text.Encoding qualified as T
 import Data.Text.Lazy qualified as LT
 import Data.Text.Lazy.Builder qualified as LT
 import Data.Text.Lazy.Builder.Int qualified as LT
-import Data.Text.Read qualified as T
 import Data.Word
 import Imports hiding (cs)
 import Web.HttpApiData
@@ -85,11 +88,8 @@ instance S.ToParamSchema CipherSuite where
       & S.type_ ?~ S.OpenApiNumber
 
 instance FromHttpApiData CipherSuite where
-  parseUrlPiece t = do
-    (x, rest) <- first T.pack $ T.hexadecimal t
-    unless (T.null rest) $
-      Left "Trailing characters after ciphersuite number"
-    pure (CipherSuite x)
+  parseUrlPiece = parseHeader . T.encodeUtf8
+  parseHeader = first T.pack . runParser parser
 
 instance ToHttpApiData CipherSuite where
   toUrlPiece =
@@ -98,6 +98,11 @@ instance ToHttpApiData CipherSuite where
       . ("0x" <>)
       . LT.hexadecimal
       . cipherSuiteNumber
+
+instance FromByteString CipherSuite where
+  parser = do
+    void $ Atto.try (optional (Atto.string "0x"))
+    CipherSuite <$> Atto.hexadecimal
 
 data CipherSuiteTag
   = MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519

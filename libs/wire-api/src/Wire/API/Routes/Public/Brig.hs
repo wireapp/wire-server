@@ -1186,6 +1186,15 @@ type CipherSuiteParam =
     "ciphersuite"
     CipherSuite
 
+type MultipleCipherSuitesParam =
+  QueryParam'
+    [ Optional,
+      Strict,
+      Description "Comma-separated list of ciphersuites in hex format (e.g. 0xf031) - default is 0x0001"
+    ]
+    "ciphersuites"
+    (CommaSeparatedList CipherSuite)
+
 type MLSKeyPackageAPI =
   "key-packages"
     :> ( Named
@@ -1211,6 +1220,7 @@ type MLSKeyPackageAPI =
                       :> CanThrow 'MLSProtocolError
                       :> CanThrow 'MLSIdentityMismatch
                       :> CaptureClientId "client"
+                      :> MultipleCipherSuitesParam
                       :> ReqBody '[JSON] KeyPackageUpload
                       :> MultiVerb 'PUT '[JSON, MLS] '[RespondEmpty 201 "Key packages replaced"] ()
                   )
