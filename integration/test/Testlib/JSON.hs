@@ -175,6 +175,13 @@ assertField :: (HasCallStack, MakesValue a) => a -> String -> Maybe Value -> App
 assertField x k Nothing = assertFailureWithJSON x $ "Field \"" <> k <> "\" is missing from object:"
 assertField _ _ (Just x) = pure x
 
+-- rename a field if it exists, else return the old object
+renameField :: String -> String -> Value -> App Value
+renameField old new obj =
+  fromMaybe obj <$> runMaybeT do
+    o :: Value <- maybe mzero pure =<< lift (lookupField obj old)
+    lift (removeField old obj >>= setField new o)
+
 -- | Look up (nested) field of a JSON object
 --
 -- If the field key has no dots then returns Nothing if the key is missing from the
