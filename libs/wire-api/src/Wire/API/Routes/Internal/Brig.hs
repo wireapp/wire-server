@@ -53,6 +53,7 @@ import Servant hiding (Handler, WithStatus, addHeader, respond)
 import Servant.OpenApi (HasOpenApi (toOpenApi))
 import Servant.OpenApi.Internal.Orphans ()
 import Wire.API.Connection
+import Wire.API.Deprecated
 import Wire.API.Error
 import Wire.API.Error.Brig
 import Wire.API.MLS.CipherSuite
@@ -338,7 +339,8 @@ type AccountAPI =
            )
     :<|> Named
            "iPutUserSsoId"
-           ( "users"
+           ( Deprecated -- use `iPutUAuthId` instead
+               :> "users"
                :> Capture "uid" UserId
                :> "sso-id"
                :> ReqBody '[Servant.JSON] LegacyUserSSOId
@@ -352,7 +354,8 @@ type AccountAPI =
            )
     :<|> Named
            "iDeleteUserSsoId"
-           ( "users"
+           ( Deprecated -- use `iDeleteUAuthId` instead
+               :> "users"
                :> Capture "uid" UserId
                :> "sso-id"
                :> MultiVerb

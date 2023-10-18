@@ -81,7 +81,7 @@ data UserUpdatedData = UserUpdatedData
     eupHandle :: !(Maybe Handle),
     eupLocale :: !(Maybe Locale),
     eupManagedBy :: !(Maybe ManagedBy),
-    eupSSOId :: !(Maybe UserSSOId),
+    eupSSOId :: !(Maybe LegacyUserSSOId), -- FUTUREWORK: add fields `eupUAuthId`?  (this can replace both SSOId and SSOIdRemoved, but beware of backward compatibility issues when removing those!)
     eupSSOIdRemoved :: Bool,
     eupSupportedProtocols :: !(Maybe (Set BaseProtocolTag))
   }

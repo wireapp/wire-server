@@ -212,7 +212,7 @@ import Wire.API.Team (BindingNewTeam, bindingNewTeamObjectSchema)
 import Wire.API.Team.Role
 import Wire.API.User.Activation (ActivationCode, ActivationKey)
 import Wire.API.User.Auth (CookieLabel)
-import Wire.API.User.Identity hiding (scimExternalId)
+import Wire.API.User.Identity
 import Wire.API.User.Password
 import Wire.API.User.Profile
 import Wire.API.User.RichInfo
