@@ -137,7 +137,7 @@ maybeUserIdentityToRaw Nothing = (Nothing, Nothing, Nothing, Nothing)
 maybeUserIdentityToRaw (Just (FullIdentity email phone)) = (Just email, Just phone, Nothing, Nothing)
 maybeUserIdentityToRaw (Just (EmailIdentity email)) = (Just email, Nothing, Nothing, Nothing)
 maybeUserIdentityToRaw (Just (PhoneIdentity phone)) = (Nothing, Just phone, Nothing, Nothing)
-maybeUserIdentityToRaw (Just (UAuthIdentity uaid)) = (ewsEmail <$> uaid.email, Nothing, Nothing, pure uaid)
+maybeUserIdentityToRaw (Just (UAuthIdentity uaid)) = (ewsEmail <$> uaid.uaEmail, Nothing, Nothing, pure uaid)
 
 newIdentity :: Maybe Email -> Maybe Phone -> Maybe PartialUAuthId -> Maybe UserIdentity
 newIdentity mbEmail mbPhone mbUAuth = maybeUserIdentityFromRaw (mbEmail, mbPhone, Nothing, mbUAuth)
@@ -146,7 +146,7 @@ emailIdentity :: UserIdentity -> Maybe Email
 emailIdentity (FullIdentity email _) = Just email
 emailIdentity (EmailIdentity email) = Just email
 emailIdentity (PhoneIdentity _) = Nothing
-emailIdentity (UAuthIdentity uaid) = ewsEmail <$> uaid.email
+emailIdentity (UAuthIdentity uaid) = ewsEmail <$> uaid.uaEmail
 
 phoneIdentity :: UserIdentity -> Maybe Phone
 phoneIdentity (FullIdentity _ phone) = Just phone

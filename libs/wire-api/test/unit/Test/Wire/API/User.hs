@@ -65,11 +65,11 @@ parseIdentityTests =
               Right (Just (EmailIdentity hemail)) =#= [email],
             testCase "PhoneIdentity" $
               Right (Just (PhoneIdentity hphone)) =#= [phone],
-            testCase "SSOIdentity" $ do
-              Right (Just (SSOIdentity hssoid Nothing Nothing)) =#= [ssoid]
-              Right (Just (SSOIdentity hssoid Nothing (Just hphone))) =#= [ssoid, phone]
-              Right (Just (SSOIdentity hssoid (Just hemail) Nothing)) =#= [ssoid, email]
-              Right (Just (SSOIdentity hssoid (Just hemail) (Just hphone))) =#= [ssoid, email, phone],
+            testCase "UAuthIdentity" $ do
+              Right (Just (UAuthIdentity (UAuthId hssoid Nothing Nothing))) =#= [ssoid]
+              Right (Just (UAuthIdentity (UAuthId hssoid Nothing (Just hphone)))) =#= [ssoid, phone]
+              Right (Just (UAuthIdentity (UAuthId hssoid (Just hemail) Nothing))) =#= [ssoid, email]
+              Right (Just (UAuthIdentity (UAuthId hssoid (Just hemail) (Just hphone)))) =#= [ssoid, email, phone],
             testCase "Bad phone" $
               Left "Error in $.phone: Invalid phone number. Expected E.164 format." =#= [badphone],
             testCase "Bad email" $

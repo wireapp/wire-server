@@ -42,7 +42,7 @@
 -- * Request and response types for SCIM-related endpoints.
 module Wire.API.User.Scim where
 
-import Control.Lens (Prism', makeLenses, mapped, prism', (.~), (?~))
+import Control.Lens (makeLenses, mapped, (.~), (?~))
 import Control.Monad.Except (throwError)
 import Crypto.Hash (hash)
 import Crypto.Hash.Algorithms (SHA512)
@@ -320,7 +320,7 @@ instance Scim.Patchable ScimUserExtra where
 -- and/or ignore POSTed content, returning the full representation can be useful to the
 -- client, enabling it to correlate the client's and server's views of the new resource."
 data ValidScimUser = ValidScimUser
-  { _vsuExternalId :: ValidExternalId,
+  { _vsuExternalId :: UAuthId Maybe Identity Maybe,
     _vsuHandle :: Handle,
     _vsuName :: BT.Name,
     _vsuRichInfo :: RI.RichInfo,

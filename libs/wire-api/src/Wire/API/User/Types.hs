@@ -105,14 +105,14 @@ type Konst = Const ()
 -- Type parameters let caller decide which fields are required (`Identity`) / optional
 -- (`Maybe`) / missing and ignored (`Konst`).
 data UAuthId (a :: Type -> Type) (b :: Type -> Type) (c :: Type -> Type) = UAuthId
-  { samlId :: a SAML.UserRef,
-    scimExternalId :: b Text,
-    email :: c EmailWithSource,
+  { uaSamlId :: a SAML.UserRef,
+    uaScimExternalId :: b Text,
+    uaEmail :: c EmailWithSource,
     -- | Only team users support saml and/or scim.  `externalId` is scoped in `teamId`, so
     -- once we have parsed a scim user record, the `externalId` should never occur anywhere
     -- without its `teamId`.  `samlId` *could* under certain conditions be meaningful without
     -- explicit `teamId`, but it's much easier to enforce it here, too.
-    teamId :: TeamId
+    uaTeamId :: TeamId
   }
   deriving (Generic)
 
