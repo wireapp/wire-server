@@ -437,7 +437,7 @@ instance ToSchema RichInfoUpdate where
 
 type PasswordResetPair = (PasswordResetKey, PasswordResetCode)
 
--- we recycle that for delete userssoid, too.  can't be bothered.
+-- TODO: rename to UpdateOrDeleteUAuthId, also rename constructors
 data UpdateSSOIdResponse = UpdateSSOIdSuccess | UpdateSSOIdNotFound
 
 instance
@@ -1197,7 +1197,7 @@ newUserToRaw NewUser {..} =
           newUserRawUUID = newUserUUID,
           newUserRawEmail = emailIdentity =<< newUserIdentity,
           newUserRawPhone = phoneIdentity =<< newUserIdentity,
-          newUserRawSSOId = _,
+          newUserRawSSOId = undefined,
           newUserRawUAuthId = ssoIdentity =<< newUserIdentity,
           newUserRawPict = newUserPict,
           newUserRawAssets = newUserAssets,
@@ -1225,12 +1225,15 @@ newUserFromRaw NewUserRaw {..} = do
         (isJust newUserRawSSOId)
         (newUserRawInvitationCode, newUserRawTeamCode, newUserRawTeam, newUserRawTeamId)
   let identity =
-        maybeUserIdentityFromRaw
+        maybeUserIdentityFromComponents
+          {-
           ( newUserRawEmail,
             newUserRawPhone,
             newUserRawSSOId,
             newUserRawUAuthId
           )
+          -}
+          undefined
   expiresIn <-
     case (newUserRawExpiresIn, identity) of
       (Just _, Just _) -> fail "Only users without an identity can expire"

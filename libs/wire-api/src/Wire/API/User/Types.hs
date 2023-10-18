@@ -122,6 +122,8 @@ data UAuthId (a :: Type -> Type) (b :: Type -> Type) (c :: Type -> Type) = UAuth
 -- combination of fields present.
 type PartialUAuthId = UAuthId Maybe Maybe Maybe
 
+type ScimUAuthId = UAuthId Maybe Identity Maybe
+
 instance ToSchema (UAuthId Identity Identity Identity) where
   schema = undefined
 

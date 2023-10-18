@@ -67,7 +67,6 @@ import Wire.API.User
 import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Auth.Sso
 import Wire.API.User.RichInfo as RichInfo
-import Wire.API.User.Scim (ValidExternalId (..), runValidExternalIdEither)
 
 ----------------------------------------------------------------------
 
@@ -106,7 +105,7 @@ createBrigUserSAML uref (Id buid) teamid name managedBy handle richInfo mLocale 
         NewUserSpar
           { newUserSparUUID = buid,
             newUserSparDisplayName = name,
-            newUserSparSSOId = UserSSOId uref,
+            newUserSparSSOId = undefined uref, -- LegacyUserSSOId uref
             newUserSparTeamId = teamid,
             newUserSparManagedBy = managedBy,
             newUserSparHandle = handle,
@@ -267,13 +266,13 @@ setBrigUserManagedBy buid managedBy = do
     rethrow "brig" resp
 
 -- | Set user's UserSSOId.
-setBrigUserVeid :: (HasCallStack, MonadSparToBrig m) => UserId -> ValidExternalId -> m ()
-setBrigUserVeid buid veid = do
+setBrigUserVeid :: (HasCallStack, MonadSparToBrig m) => UserId -> PartialUAuthId -> m ()
+setBrigUserVeid buid uauthid = do
   resp <-
     call $
       method PUT
         . paths ["i", "users", toByteString' buid, "sso-id"]
-        . json (veidToUserSSOId veid)
+        . json uauthid
   case statusCode resp of
     200 -> pure ()
     _ -> rethrow "brig" resp
