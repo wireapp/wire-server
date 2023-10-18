@@ -21,7 +21,9 @@ import Data.Aeson
 import Data.Id
 import Data.Range
 import Imports
+import Wire.API.Federation.Component
 import Wire.API.Federation.Endpoint
+import Wire.API.Federation.HasNotificationEndpoint
 import Wire.API.Util.Aeson
 import Wire.Arbitrary
 
@@ -37,6 +39,18 @@ data UserDeletedConnectionsNotification = UserDeletedConnectionsNotification
   deriving (Arbitrary) via (GenericUniform UserDeletedConnectionsNotification)
   deriving (FromJSON, ToJSON) via (CustomEncoded UserDeletedConnectionsNotification)
 
+data BrigNotificationTag = OnUserDeletedConnectionsTag
+  deriving (Show, Eq, Generic, Bounded, Enum)
+
+instance HasNotificationEndpoint 'OnUserDeletedConnectionsTag where
+  type Payload 'OnUserDeletedConnectionsTag = UserDeletedConnectionsNotification
+  type NotificationPath 'OnUserDeletedConnectionsTag = "on-user-deleted-connections"
+  type NotificationComponent 'OnUserDeletedConnectionsTag = 'Brig
+  type
+    NotificationAPI 'OnUserDeletedConnectionsTag 'Brig =
+      NotificationFedEndpoint 'OnUserDeletedConnectionsTag
+
 -- | All the notification endpoints return an 'EmptyResponse'.
-type NotificationAPI =
-  NotificationFedEndpoint "on-user-deleted-connections" UserDeletedConnectionsNotification
+type BrigNotificationAPI =
+  -- FUTUREWORK: Use NotificationAPI 'OnUserDeletedConnectionsTag 'Brig instead
+  NotificationFedEndpoint 'OnUserDeletedConnectionsTag

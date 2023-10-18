@@ -137,7 +137,7 @@ type GalleyApi =
            GetOne2OneConversationResponse
     -- All the notification endpoints that go through the queue-based
     -- federation client ('fedQueueClient').
-    :<|> NotificationAPI
+    :<|> GalleyNotificationAPI
 
 data TypingDataUpdateRequest = TypingDataUpdateRequest
   { typingStatus :: TypingStatus,

@@ -77,7 +77,7 @@ type BrigApi =
     :<|> FedEndpoint "get-not-fully-connected-backends" DomainSet NonConnectedBackends
     -- All the notification endpoints that go through the queue-based
     -- federation client ('fedQueueClient').
-    :<|> NotificationAPI
+    :<|> BrigNotificationAPI
 
 newtype DomainSet = DomainSet
   { domains :: Set Domain

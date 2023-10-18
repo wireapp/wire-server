@@ -26,6 +26,7 @@ import Servant.API
 import Wire.API.ApplyMods
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.Domain
+import Wire.API.Federation.HasNotificationEndpoint
 import Wire.API.Routes.Named
 
 type FedEndpointWithMods (mods :: [Type]) name input output =
@@ -41,7 +42,8 @@ type NotificationFedEndpointWithMods (mods :: [Type]) name input =
 
 type FedEndpoint name input output = FedEndpointWithMods '[] name input output
 
-type NotificationFedEndpoint name input = FedEndpoint name input EmptyResponse
+type NotificationFedEndpoint tag =
+  FedEndpoint (NotificationPath tag) (Payload tag) EmptyResponse
 
 type StreamingFedEndpoint name input output =
   Named

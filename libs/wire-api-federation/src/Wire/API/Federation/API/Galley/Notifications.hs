@@ -21,26 +21,21 @@
 module Wire.API.Federation.API.Galley.Notifications where
 
 import Data.Aeson
-import Data.Domain
 import Data.Id
 import Data.Json.Util
-import Data.Kind
 import Data.List.NonEmpty
-import Data.Proxy
 import Data.Qualified
 import Data.Range
-import Data.Text qualified as T
 import Data.Time.Clock
-import GHC.TypeLits
 import Imports
 import Servant.API
 import Wire.API.Conversation.Action
-import Wire.API.Federation.BackendNotifications
+import Wire.API.Federation.Component
 import Wire.API.Federation.Endpoint
+import Wire.API.Federation.HasNotificationEndpoint
 import Wire.API.MLS.SubConversation
 import Wire.API.MakesFederatedCall
 import Wire.API.Message
-import Wire.API.RawJson
 import Wire.API.Util.Aeson
 import Wire.Arbitrary
 
@@ -52,76 +47,63 @@ data GalleyNotificationTag
   | OnUserDeletedConversationsTag
   deriving (Show, Eq, Generic, Bounded, Enum)
 
-type family GalleyNotification (tag :: GalleyNotificationTag) :: Type where
-  GalleyNotification 'OnClientRemovedTag = ClientRemovedRequest
-  GalleyNotification 'OnMessageSentTag = RemoteMessage ConvId
-  GalleyNotification 'OnMLSMessageSentTag = RemoteMLSMessage
-  GalleyNotification 'OnConversationUpdatedTag = ConversationUpdate
-  GalleyNotification 'OnUserDeletedConversationsTag = UserDeletedConversationsNotification
+instance HasNotificationEndpoint 'OnClientRemovedTag where
+  type Payload 'OnClientRemovedTag = ClientRemovedRequest
+  type NotificationPath 'OnClientRemovedTag = "on-client-removed"
+  type NotificationComponent 'OnClientRemovedTag = 'Galley
+  type
+    NotificationAPI 'OnClientRemovedTag 'Galley =
+      NotificationFedEndpointWithMods
+        '[ MakesFederatedCall 'Galley "on-mls-message-sent"
+         ]
+        (NotificationPath 'OnClientRemovedTag)
+        (Payload 'OnClientRemovedTag)
 
--- | The central path component of a Galley notification endpoint
-type family GNPath (tag :: GalleyNotificationTag) :: Symbol where
-  GNPath 'OnClientRemovedTag = "on-client-removed"
-  GNPath 'OnMessageSentTag = "on-message-sent"
-  GNPath 'OnMLSMessageSentTag = "on-mls-message-sent"
-  GNPath 'OnConversationUpdatedTag = "on-conversation-updated"
-  GNPath 'OnUserDeletedConversationsTag = "on-user-deleted-conversations"
+instance HasNotificationEndpoint 'OnMessageSentTag where
+  type Payload 'OnMessageSentTag = RemoteMessage ConvId
+  type NotificationPath 'OnMessageSentTag = "on-message-sent"
+  type NotificationComponent 'OnMessageSentTag = 'Galley
 
-type GalleyNotifEndpoint (tag :: GalleyNotificationTag) =
-  NotificationFedEndpoint (GNPath tag) (GalleyNotification tag)
-
-type family GalleyNotificationToServantAPI (gn :: GalleyNotificationTag) :: Type where
-  GalleyNotificationToServantAPI 'OnClientRemovedTag =
-    NotificationFedEndpointWithMods
-      '[ MakesFederatedCall 'Galley "on-mls-message-sent"
-       ]
-      (GNPath 'OnClientRemovedTag)
-      (GalleyNotification 'OnClientRemovedTag)
   -- used to notify this backend that a new message has been posted to a
   -- remote conversation
-  GalleyNotificationToServantAPI 'OnMessageSentTag = GalleyNotifEndpoint 'OnMessageSentTag
-  GalleyNotificationToServantAPI 'OnMLSMessageSentTag = GalleyNotifEndpoint 'OnMLSMessageSentTag
+  type NotificationAPI 'OnMessageSentTag 'Galley = NotificationFedEndpoint 'OnMessageSentTag
+
+instance HasNotificationEndpoint 'OnMLSMessageSentTag where
+  type Payload 'OnMLSMessageSentTag = RemoteMLSMessage
+  type NotificationPath 'OnMLSMessageSentTag = "on-mls-message-sent"
+  type NotificationComponent 'OnMLSMessageSentTag = 'Galley
+  type NotificationAPI 'OnMLSMessageSentTag 'Galley = NotificationFedEndpoint 'OnMLSMessageSentTag
+
+instance HasNotificationEndpoint 'OnConversationUpdatedTag where
+  type Payload 'OnConversationUpdatedTag = ConversationUpdate
+  type NotificationPath 'OnConversationUpdatedTag = "on-conversation-updated"
+  type NotificationComponent 'OnConversationUpdatedTag = 'Galley
+
   -- used by the backend that owns a conversation to inform this backend of
   -- changes to the conversation
-  GalleyNotificationToServantAPI 'OnConversationUpdatedTag =
-    GalleyNotifEndpoint 'OnConversationUpdatedTag
-  GalleyNotificationToServantAPI 'OnUserDeletedConversationsTag =
-    NotificationFedEndpointWithMods
-      '[ MakesFederatedCall 'Galley "on-mls-message-sent",
-         MakesFederatedCall 'Galley "on-conversation-updated",
-         MakesFederatedCall 'Brig "api-version"
-       ]
-      (GNPath 'OnUserDeletedConversationsTag)
-      (GalleyNotification 'OnUserDeletedConversationsTag)
+  type NotificationAPI 'OnConversationUpdatedTag 'Galley = NotificationFedEndpoint 'OnConversationUpdatedTag
+
+instance HasNotificationEndpoint 'OnUserDeletedConversationsTag where
+  type Payload 'OnUserDeletedConversationsTag = UserDeletedConversationsNotification
+  type NotificationPath 'OnUserDeletedConversationsTag = "on-user-deleted-conversations"
+  type NotificationComponent 'OnUserDeletedConversationsTag = 'Galley
+  type
+    NotificationAPI 'OnUserDeletedConversationsTag 'Galley =
+      NotificationFedEndpointWithMods
+        '[ MakesFederatedCall 'Galley "on-mls-message-sent",
+           MakesFederatedCall 'Galley "on-conversation-updated",
+           MakesFederatedCall 'Brig "api-version"
+         ]
+        (NotificationPath 'OnUserDeletedConversationsTag)
+        (Payload 'OnUserDeletedConversationsTag)
 
 -- | All the notification endpoints return an 'EmptyResponse'.
-type NotificationAPI =
-  GalleyNotificationToServantAPI 'OnClientRemovedTag
-    :<|> GalleyNotificationToServantAPI 'OnMessageSentTag
-    :<|> GalleyNotificationToServantAPI 'OnMLSMessageSentTag
-    :<|> GalleyNotificationToServantAPI 'OnConversationUpdatedTag
-    :<|> GalleyNotificationToServantAPI 'OnUserDeletedConversationsTag
-
-galleyToBackendNotification ::
-  forall tag.
-  KnownSymbol (GNPath tag) =>
-  ToJSON (GalleyNotification tag) =>
-  Domain ->
-  GalleyNotification tag ->
-  BackendNotification
-galleyToBackendNotification ownDomain gn =
-  let p = symbolVal (Proxy @(GNPath tag))
-      b = RawJson . encode $ gn
-   in toNotif (T.pack . show $ p) b
-  where
-    toNotif :: Text -> RawJson -> BackendNotification
-    toNotif path payload =
-      BackendNotification
-        { ownDomain = ownDomain,
-          targetComponent = Galley,
-          path = path,
-          body = payload
-        }
+type GalleyNotificationAPI =
+  NotificationAPI 'OnClientRemovedTag 'Galley
+    :<|> NotificationAPI 'OnMessageSentTag 'Galley
+    :<|> NotificationAPI 'OnMLSMessageSentTag 'Galley
+    :<|> NotificationAPI 'OnConversationUpdatedTag 'Galley
+    :<|> NotificationAPI 'OnUserDeletedConversationsTag 'Galley
 
 data ClientRemovedRequest = ClientRemovedRequest
   { user :: UserId,

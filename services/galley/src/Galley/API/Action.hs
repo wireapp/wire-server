@@ -883,7 +883,7 @@ notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
         -- because quid's backend will update local state and notify its users
         -- itself using the ConversationUpdate returned by this function
         if notifyOrigDomain || tDomain ruids /= qDomain quid
-          then fedQueueClient @'Galley @"on-conversation-updated" update $> Nothing
+          then fedQueueClient @'OnConversationUpdatedTag update $> Nothing
           else pure (Just update)
 
   -- notify local participants and bots
