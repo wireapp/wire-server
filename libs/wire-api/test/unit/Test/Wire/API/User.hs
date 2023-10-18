@@ -66,13 +66,10 @@ parseIdentityTests =
             testCase "PhoneIdentity" $
               Right (Just (PhoneIdentity hphone)) =#= [phone],
             testCase "UAuthIdentity" $ do
-              {-
-              Right (Just (UAuthIdentity hssoid Nothing Nothing)) =#= [ssoid]
-              Right (Just (UAuthIdentity hssoid Nothing (Just hphone))) =#= [ssoid, phone]
-              Right (Just (UAuthIdentity hssoid (Just hemail) Nothing)) =#= [ssoid, email]
-              Right (Just (UAuthIdentity hssoid (Just hemail) (Just hphone))) =#= [ssoid, email, phone],
-              -}
-              undefined,
+              Right (Just (UAuthIdentity (UAuthId hssoid Nothing Nothing))) =#= [ssoid]
+              Right (Just (UAuthIdentity (UAuthId hssoid Nothing (Just hphone)))) =#= [ssoid, phone]
+              Right (Just (UAuthIdentity (UAuthId hssoid (Just hemail) Nothing))) =#= [ssoid, email]
+              Right (Just (UAuthIdentity (UAuthId hssoid (Just hemail) (Just hphone)))) =#= [ssoid, email, phone],
             testCase "Bad phone" $
               Left "Error in $.phone: Invalid phone number. Expected E.164 format." =#= [badphone],
             testCase "Bad email" $
@@ -88,5 +85,5 @@ parseIdentityTests =
     hphone = Phone "+493012345678"
     phone = ("phone", "+493012345678")
     badphone = ("phone", "__@@")
-    hssoid = undefined -- UserSSOId mkSimpleSampleUref
-    -- ssoid = ("sso_id", toJSON hssoid)
+    hssoid = UserSSOId mkSimpleSampleUref
+    ssoid = ("sso_id", toJSON hssoid)

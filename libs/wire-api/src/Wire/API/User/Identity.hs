@@ -28,7 +28,7 @@ module Wire.API.User.Identity
     ssoIdentity,
     userIdentityObjectSchema,
     maybeUserIdentityObjectSchema,
-    maybeUserIdentityFromComponents,
+    maybeUserIdentityFromRaw,
     LegacyUserSSOId (..),
 
     -- * Email
@@ -41,20 +41,12 @@ module Wire.API.User.Identity
     Phone (..),
     parsePhone,
     isValidPhone,
-
-    -- * UAuthId
     UAuthId (..),
-    EmailWithSource (..),
     PartialUAuthId,
-    ScimUAuthId,
-
-    -- * helpers
     emailFromSAML,
     emailToSAML,
     emailToSAMLNameID,
     emailFromSAMLNameID,
-    mkUserNameScim,
-    mkUserNameSaml,
     mkSampleUref,
     mkSimpleSampleUref,
   )
@@ -69,7 +61,6 @@ import Data.Attoparsec.Text
 import Data.Bifunctor (first)
 import Data.ByteString.Conversion
 import Data.CaseInsensitive qualified as CI
-import Data.Id
 import Data.OpenApi (ToParamSchema (..))
 import Data.OpenApi qualified as S
 import Data.Schema
@@ -88,7 +79,7 @@ import Test.QuickCheck qualified as QC
 import Text.Email.Validate qualified as Email.V
 import URI.ByteString qualified as URI
 import URI.ByteString.QQ (uri)
-import Wire.API.User.Profile
+import Wire.API.User.Profile (fromName, mkName)
 import Wire.API.User.Types
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
@@ -111,31 +102,25 @@ userIdentityObjectSchema =
 
 maybeUserIdentityObjectSchema :: ObjectSchema SwaggerDoc (Maybe UserIdentity)
 maybeUserIdentityObjectSchema =
-  dimap maybeUserIdentityToComponents maybeUserIdentityFromComponents userIdentityComponentsObjectSchema
+  dimap maybeUserIdentityToRaw maybeUserIdentityFromRaw rawCassandraUserIdentityObjectSchema
 
--- | The unparsed data as retrieved from cassandra.  See
--- `rawCassandraUserIdentityObjectSchema`, `maybeUserIdentityFromComponents`,
--- `maybeUserIdentityToComponents` below.
-type UserIdentityComponents =
-  (Maybe Email, Maybe Phone, Maybe Text, Maybe Text, Maybe Text, Maybe TeamId, Maybe LegacyUserSSOId)
+-- | the unparsed data as retrieved from cassandra, including the redundant optional legacy
+-- and partial uauth ids.  see `maybeUserIdentityFromRaw`, `maybeUserIdentityToRaw` below.
+type RawCassandraUserIdentity =
+  (Maybe Email, Maybe Phone, Maybe LegacyUserSSOId, Maybe PartialUAuthId)
 
-userIdentityComponentsObjectSchema :: ObjectSchema SwaggerDoc UserIdentityComponents
-userIdentityComponentsObjectSchema =
-  (,,,,,,)
-    <$> (\(a, _, _, _, _, _, _) -> a) .= maybe_ (optField "email" schema)
-    <*> (\(_, a, _, _, _, _, _) -> a) .= maybe_ (optField "phone" schema)
-    <*> (\(_, _, a, _, _, _, _) -> a) .= maybe_ (optField "saml_entity" genericToSchema)
-    <*> (\(_, _, _, a, _, _, _) -> a) .= maybe_ (optField "saml_nameid" genericToSchema)
-    <*> (\(_, _, _, _, a, _, _) -> a) .= maybe_ (optField "scim_external_id" genericToSchema)
-    <*> (\(_, _, _, _, _, a, _) -> a) .= maybe_ (optField "team_id" genericToSchema)
-    <*> (\(_, _, _, _, _, _, a) -> a) .= maybe_ (optField "sso_id" genericToSchema)
+rawCassandraUserIdentityObjectSchema :: ObjectSchema SwaggerDoc RawCassandraUserIdentity
+rawCassandraUserIdentityObjectSchema =
+  (,,,)
+    <$> (\(a, _, _, _) -> a) .= maybe_ (optField "email" schema)
+    <*> (\(_, a, _, _) -> a) .= maybe_ (optField "phone" schema)
+    <*> (\(_, _, a, _) -> a) .= maybe_ (optField "sso_id" genericToSchema)
+    <*> (\(_, _, _, a) -> a) .= maybe_ (optField "uauth_id" genericToSchema)
 
 -- | This assumes the database is consistent and does not do any validation.
-maybeUserIdentityFromComponents :: UserIdentityComponents -> Maybe UserIdentity
-{-
-maybeUserIdentityFromComponents = \case
-  (_eml, _phn, _iss, _nam, _scm, _tid, _lsso) -> _
-  (_eml, _phn, Just iss, Just nam, Just scm, Just tid, _lsso) -> Just $ UAuthIdentity (UAuthId (mkUserRef iss nam) uauthid
+maybeUserIdentityFromRaw :: RawCassandraUserIdentity -> Maybe UserIdentity
+maybeUserIdentityFromRaw = \case
+  (_, _, _, Just uauthid) -> Just $ UAuthIdentity uauthid
   (maybeEmail, _, Just ssoid, Nothing) ->
     let eml = flip EmailWithSource emlsrc <$> maybeEmail
         emlsrc = undefined -- EmailFromScimEmailsField -- TODO
@@ -144,24 +129,18 @@ maybeUserIdentityFromComponents = \case
   (Just email, Nothing, Nothing, Nothing) -> Just $ EmailIdentity email
   (Nothing, Just phone, Nothing, Nothing) -> Just $ PhoneIdentity phone
   (Nothing, Nothing, Nothing, Nothing) -> Nothing
--}
-maybeUserIdentityFromComponents = undefined
 
 -- | Convert `UserIdentity` back into raw data for cassandra.  The `LegacySSOIdentity` part of
 -- the tuple is always `Nothing`.
-maybeUserIdentityToComponents :: Maybe UserIdentity -> UserIdentityComponents
-{-
-maybeUserIdentityToComponents Nothing = (Nothing, Nothing, Nothing, Nothing)
-maybeUserIdentityToComponents (Just (FullIdentity email phone)) = (Just email, Just phone, Nothing, Nothing)
-maybeUserIdentityToComponents (Just (EmailIdentity email)) = (Just email, Nothing, Nothing, Nothing)
-maybeUserIdentityToComponents (Just (PhoneIdentity phone)) = (Nothing, Just phone, Nothing, Nothing)
-maybeUserIdentityToComponents (Just (UAuthIdentity uaid)) = (ewsEmail <$> uaid.uaEmail, Nothing, Nothing, pure uaid)
--}
-maybeUserIdentityToComponents = undefined
+maybeUserIdentityToRaw :: Maybe UserIdentity -> RawCassandraUserIdentity
+maybeUserIdentityToRaw Nothing = (Nothing, Nothing, Nothing, Nothing)
+maybeUserIdentityToRaw (Just (FullIdentity email phone)) = (Just email, Just phone, Nothing, Nothing)
+maybeUserIdentityToRaw (Just (EmailIdentity email)) = (Just email, Nothing, Nothing, Nothing)
+maybeUserIdentityToRaw (Just (PhoneIdentity phone)) = (Nothing, Just phone, Nothing, Nothing)
+maybeUserIdentityToRaw (Just (UAuthIdentity uaid)) = (ewsEmail <$> uaid.uaEmail, Nothing, Nothing, pure uaid)
 
 newIdentity :: Maybe Email -> Maybe Phone -> Maybe PartialUAuthId -> Maybe UserIdentity
--- TODO: where do we call this?  is this function still convenient?
-newIdentity mbEmail mbPhone mbUAuth = maybeUserIdentityFromComponents $ undefined (mbEmail, mbPhone, Nothing, mbUAuth)
+newIdentity mbEmail mbPhone mbUAuth = maybeUserIdentityFromRaw (mbEmail, mbPhone, Nothing, mbUAuth)
 
 emailIdentity :: UserIdentity -> Maybe Email
 emailIdentity (FullIdentity email _) = Just email
@@ -175,12 +154,12 @@ phoneIdentity (PhoneIdentity phone) = Just phone
 phoneIdentity (EmailIdentity _) = Nothing
 phoneIdentity (UAuthIdentity _) = Nothing
 
--- TODO: rename to uauthIdentity
 ssoIdentity :: UserIdentity -> Maybe PartialUAuthId
 ssoIdentity (UAuthIdentity uaid) = pure uaid
 ssoIdentity _ = Nothing
 
--- | FUTUREWORK:
+-- |
+-- FUTUREWORK:
 --
 -- * Enforce these constrains during parsing already or use a separate type, see
 --   [Parse, don't validate](https://lexi-lambda.github.io/blog/2019/11/05/parse-don-t-validate).
@@ -331,9 +310,6 @@ instance FromJSON LegacyUserSSOId where
         pure $ UserScimExternalId eid
       _ -> fail "either need tenant and subject, or scim_external_id, but not both"
 
-----------------------------------------------------------------------
--- low-level helper functions
-
 lenientlyParseSAMLIssuer :: Maybe LText -> A.Parser (Maybe SAML.Issuer)
 lenientlyParseSAMLIssuer mbtxt = forM mbtxt $ \txt -> do
   let asxml :: Either String SAML.Issuer
@@ -390,24 +366,6 @@ emailFromSAMLNameID :: HasCallStack => SAML.NameID -> Maybe Email
 emailFromSAMLNameID nid = case nid ^. SAML.nameID of
   SAML.UNameIDEmail email -> Just . emailFromSAML . CI.original $ email
   _ -> Nothing
-
-mkUserNameScim :: Maybe Text -> UAuthId Maybe Maybe Maybe -> Either String Name
-mkUserNameScim = undefined
-
-{-
--- | Construct a 'Name' either from a maybe text or from the scim data.  If the text
--- isn't present, use an email address or a saml subject (usually also an email address).  If
--- both are 'Nothing', fail.
-mkUserName :: Maybe Text -> UAuthId Maybe b Maybe -> Either String Name
-mkUserName (Just n) = const $ mkName n
-mkUserName Nothing =
-  mkName . \case
-    (uaSamlId -> Just uref) -> (CI.original . SAML.unsafeShowNameID $ uref ^. SAML.uidSubject)
-    (uaEmail -> Just (EmailWithSource email _)) -> fromEmail email
--}
-
-mkUserNameSaml :: Maybe Text -> UAuthId Maybe Maybe Maybe -> Either String Name
-mkUserNameSaml = undefined
 
 -- | For testing.  Create a sample 'SAML.UserRef' value with random seeds to make 'Issuer' and
 -- 'NameID' unique.  FUTUREWORK: move to saml2-web-sso.

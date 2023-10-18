@@ -330,7 +330,45 @@ data ValidScimUser = ValidScimUser
   }
   deriving (Eq, Show)
 
+-- | Note that a 'SAML.UserRef' may contain an email. Even though it is possible to construct a 'ValidExternalId' from such a 'UserRef' with 'UrefOnly',
+-- this does not represent a valid 'ValidExternalId'. So in case of a 'UrefOnly', we can assume that the 'UserRef' does not contain an email.
+data ValidExternalId
+  = EmailAndUref Email SAML.UserRef
+  | UrefOnly SAML.UserRef
+  | EmailOnly Email
+  deriving (Eq, Show, Generic)
+
+-- | Take apart a 'ValidExternalId', using 'SAML.UserRef' if available, otherwise 'Email'.
+runValidExternalIdEither :: (SAML.UserRef -> a) -> (Email -> a) -> ValidExternalId -> a
+runValidExternalIdEither doUref doEmail = \case
+  EmailAndUref _ uref -> doUref uref
+  UrefOnly uref -> doUref uref
+  EmailOnly em -> doEmail em
+
+-- | Take apart a 'ValidExternalId', use both 'SAML.UserRef', 'Email' if applicable, and
+-- merge the result with a given function.
+runValidExternalIdBoth :: (a -> a -> a) -> (SAML.UserRef -> a) -> (Email -> a) -> ValidExternalId -> a
+runValidExternalIdBoth merge doUref doEmail = \case
+  EmailAndUref eml uref -> doUref uref `merge` doEmail eml
+  UrefOnly uref -> doUref uref
+  EmailOnly em -> doEmail em
+
+veidUref :: Prism' ValidExternalId SAML.UserRef
+veidUref = prism' UrefOnly $
+  \case
+    EmailAndUref _ uref -> Just uref
+    UrefOnly uref -> Just uref
+    EmailOnly _ -> Nothing
+
+veidEmail :: Prism' ValidExternalId Email
+veidEmail = prism' EmailOnly $
+  \case
+    EmailAndUref em _ -> Just em
+    UrefOnly _ -> Nothing
+    EmailOnly em -> Just em
+
 makeLenses ''ValidScimUser
+makeLenses ''ValidExternalId
 
 ----------------------------------------------------------------------------
 -- Request and response types

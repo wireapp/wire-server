@@ -27,7 +27,7 @@ module Spar.App
     verdictHandler,
     getUserByUrefUnsafe,
     getUserIdByScimExternalId,
-    makeBrigValidateEmail,
+    validateEmail,
     errorPage,
     deleteTeam,
     sparToServerErrorWithLogging,
@@ -88,10 +88,10 @@ import qualified System.Logger as TinyLog
 import URI.ByteString as URI
 import Web.Cookie (SetCookie, renderSetCookie)
 import Wire.API.Team.Role (Role, defaultRole)
-import Wire.API.User
--- import Wire.API.User.Identity
+import Wire.API.User hiding (validateEmail)
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
+import Wire.API.User.Scim (ValidExternalId (..))
 import Wire.Sem.Logger (Logger)
 import qualified Wire.Sem.Logger as Logger
 import Wire.Sem.Random (Random)
@@ -181,7 +181,7 @@ createSamlUserWithId ::
   Role ->
   Sem r ()
 createSamlUserWithId teamid buid suid role = do
-  uname <- either (throwSparSem . SparBadUserName . cs) pure $ mkUserNameSaml Nothing (UAuthId (Just suid) Nothing Nothing teamid)
+  uname <- either (throwSparSem . SparBadUserName . cs) pure $ Intra.mkUserName Nothing (UrefOnly suid)
   buid' <- BrigAccess.createSAML suid buid teamid uname ManagedByWire Nothing Nothing Nothing role
   assert (buid == buid') $ pure ()
   SAMLUserStore.insert suid buid
@@ -222,8 +222,8 @@ autoprovisionSamlUser idp buid suid = do
         throwSparSem SparSamlCredentialsNotFound
 
 -- | If user's 'NameID' is an email address and the team has email validation for SSO enabled,
--- make brig initiate the email-validation-via-code procedure.
-makeBrigValidateEmailIfExists ::
+-- make brig initiate the email validate procedure.
+validateEmailIfExists ::
   forall r.
   ( Member GalleyAccess r,
     Member BrigAccess r
@@ -231,13 +231,13 @@ makeBrigValidateEmailIfExists ::
   UserId ->
   SAML.UserRef ->
   Sem r ()
-makeBrigValidateEmailIfExists uid = \case
+validateEmailIfExists uid = \case
   (SAML.UserRef _ (view SAML.nameID -> UNameIDEmail email)) -> do
     mbTid <- Intra.getBrigUserTeam Intra.NoPendingInvitations uid
-    makeBrigValidateEmail mbTid uid . Intra.emailFromSAML . CI.original $ email
+    validateEmail mbTid uid . Intra.emailFromSAML . CI.original $ email
   _ -> pure ()
 
-makeBrigValidateEmail ::
+validateEmail ::
   forall r.
   ( Member GalleyAccess r,
     Member BrigAccess r
@@ -246,7 +246,7 @@ makeBrigValidateEmail ::
   UserId ->
   Email ->
   Sem r ()
-makeBrigValidateEmail mbTid uid email = do
+validateEmail mbTid uid email = do
   enabled <- maybe (pure False) GalleyAccess.isEmailValidationEnabledTeam mbTid
   when enabled $ do
     BrigAccess.updateEmail uid email
@@ -375,7 +375,7 @@ moveUserToNewIssuer ::
   Sem r ()
 moveUserToNewIssuer oldUserRef newUserRef uid = do
   SAMLUserStore.insert newUserRef uid
-  BrigAccess.setVeid uid undefined -- (UrefOnly newUserRef) - we need to make sure we don't overwrite externalid, email, team here.
+  BrigAccess.setVeid uid (UrefOnly newUserRef)
   SAMLUserStore.delete uid oldUserRef
 
 verdictHandlerResultCore ::
@@ -414,7 +414,7 @@ verdictHandlerResultCore idp = \case
             Nothing -> do
               buid <- Id <$> Random.uuid
               autoprovisionSamlUser idp buid uref
-              makeBrigValidateEmailIfExists buid uref
+              validateEmailIfExists buid uref
               pure buid
 
     Logger.log Logger.Debug ("granting sso login for " <> show uid)
