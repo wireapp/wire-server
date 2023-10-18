@@ -43,7 +43,7 @@ spec:
         name: "turn"
     - name: "brig-integration-secrets"
       secret:
-        name: "brig-integration"
+        secretName: "brig-integration"
   containers:
   - name: integration
     image: "{{ .Values.image.repository }}-integration:{{ .Values.image.tag }}"

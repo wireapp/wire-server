@@ -36,7 +36,7 @@ spec:
         name: "galley"
     - name: "galley-integration-secrets"
       secret:
-        name: "galley-integration"
+        secretName: "galley-integration"
     - name: "galley-secrets"
       secret:
         secretName: "galley"
