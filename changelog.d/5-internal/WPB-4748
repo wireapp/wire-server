@@ -1,1 +1,1 @@
-CLI tool to consume messages from a RabbitMQ queue
+CLI tool to consume messages from a RabbitMQ queue (#3589, #3655)
