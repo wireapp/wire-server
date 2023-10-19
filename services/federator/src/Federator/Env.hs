@@ -31,6 +31,7 @@ import Network.DNS.Resolver (Resolver)
 import Network.HTTP.Client qualified as HTTP
 import OpenSSL.Session (SSLContext)
 import Prometheus
+import Servant.Client qualified as Servant
 import System.Logger.Class qualified as LC
 import Util.Options
 import Wire.API.Federation.Component
@@ -51,6 +52,7 @@ data Env = Env
     _internalPort :: Word16,
     _httpManager :: HTTP.Manager,
     _http2Manager :: IORef Http2Manager,
+    _brigClientEnv :: Servant.ClientEnv,
     _federatorMetrics :: FederatorMetrics
   }
 

@@ -54,13 +54,10 @@ import Polysemy.Input
 import Polysemy.Internal
 import Polysemy.TinyLog
 import Servant hiding (ServerError, respond, serve)
-import Servant.Client (mkClientEnv)
 import Servant.Client.Core
 import Servant.Server.Generic
 import Servant.Types.SourceT
-import Util.Options (Endpoint (..))
 import Wire.API.FederationUpdate qualified as FedUp (getFederationDomainConfigs)
-import Wire.API.MakesFederatedCall (Component (Brig))
 import Wire.API.Routes.FederationDomainConfig qualified as FedUp (FederationDomainConfigs)
 import Wire.Network.DNS.Effect
 import Wire.Sem.Logger.TinyLog
@@ -185,11 +182,7 @@ runFederator env =
 
 getFederationDomainConfigs :: Env -> IO FedUp.FederationDomainConfigs
 getFederationDomainConfigs env = do
-  let mgr = env ^. httpManager
-      Endpoint h p = env ^. service $ Brig
-      baseurl = BaseUrl Http (cs h) (fromIntegral p) ""
-      clientEnv = mkClientEnv mgr baseurl
-  FedUp.getFederationDomainConfigs clientEnv >>= \case
+  FedUp.getFederationDomainConfigs env._brigClientEnv >>= \case
     Right v -> pure v
     Left e -> error $ show e
 
