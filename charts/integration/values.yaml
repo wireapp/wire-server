@@ -42,3 +42,5 @@ tls:
 
 ingress:
   class: nginx
+
+secrets: {}
