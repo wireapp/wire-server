@@ -126,7 +126,8 @@ withNewHttpRequest target req k = do
   sendReqMVar <- newEmptyMVar
   thread <- liftIO . async $ H2Manager.startPersistentHTTP2Connection ctx target cacheLimit sslRemoveTrailingDot tcpConnectionTimeout sendReqMVar
   let newConn = H2Manager.HTTP2Conn thread (putMVar sendReqMVar H2Manager.CloseConnection) sendReqMVar
-  H2Manager.sendRequestWithConnection newConn req k
+  H2Manager.sendRequestWithConnection newConn req $ \resp -> do
+    k resp <* newConn.disconnect
 
 performHTTP2Request ::
   Http2Manager ->
