@@ -350,7 +350,6 @@ federator:
     requests: {}
     limits:
       memory: 5Gi
-      cpu: null
   imagePullPolicy: {{ .Values.imagePullPolicy }}
   config:
     optSettings:
@@ -369,6 +368,8 @@ background-worker:
   replicaCount: 1
   resources:
     requests: {}
+    limits:
+      memory: 5Gi
   imagePullPolicy: {{ .Values.imagePullPolicy }}
   config:
     backendNotificationPusher:
