@@ -79,6 +79,16 @@ instance Cql Email where
 
   toCql = toCql . fromEmail
 
+instance Cql LegacyUserSSOId where
+  ctype = Tagged TextColumn
+
+  fromCql (CqlText t) = case JSON.eitherDecode $ cs t of
+    Right i -> pure i
+    Left msg -> Left $ "fromCql: Invalid LegacyUserSSOId: " ++ msg
+  fromCql _ = Left "fromCql: LegacyUserSSOId: CqlText expected"
+
+  toCql = toCql . cs @LByteString @Text . JSON.encode
+
 instance Cql RelationWithHistory where
   ctype = Tagged IntColumn
 

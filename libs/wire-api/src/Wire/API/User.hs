@@ -1225,7 +1225,7 @@ newUserFromRaw NewUserRaw {..} = do
         (isJust newUserRawSSOId)
         (newUserRawInvitationCode, newUserRawTeamCode, newUserRawTeam, newUserRawTeamId)
   let identity =
-        maybeUserIdentityFromRaw
+        maybeUserIdentityFromComponents
           ( newUserRawEmail,
             newUserRawPhone,
             newUserRawSSOId,
