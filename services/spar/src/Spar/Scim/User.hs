@@ -820,15 +820,15 @@ assertExternalIdNotUsedElsewhere ::
     Member SAMLUserStore r
   ) =>
   TeamId ->
-  ST.ValidExternalId ->
+  PartialUAuthId ->
   UserId ->
   Scim.ScimHandler (Sem r) ()
-assertExternalIdNotUsedElsewhere tid veid wireUserId =
+assertExternalIdNotUsedElsewhere tid uauthid wireUserId =
   assertExternalIdInAllowedValues
     [Nothing, Just wireUserId]
     "externalId already in use by another Wire user"
     tid
-    veid
+    uauthid
 
 assertExternalIdInAllowedValues ::
   ( Member BrigAccess r,
@@ -838,17 +838,15 @@ assertExternalIdInAllowedValues ::
   [Maybe UserId] ->
   Text ->
   TeamId ->
-  ST.ValidExternalId ->
+  PartialUAuthId ->
   Scim.ScimHandler (Sem r) ()
-assertExternalIdInAllowedValues allowedValues errmsg tid veid = do
-  isGood <-
-    lift $
-      ST.runValidExternalIdBoth
-        (\ma mb -> (&&) <$> ma <*> mb)
-        (\uref -> getUserByUrefUnsafe uref <&> (`elem` allowedValues) . fmap userId)
-        (fmap (`elem` allowedValues) . getUserIdByScimExternalId tid)
-        veid
-  unless isGood $
+assertExternalIdInAllowedValues allowedValues errmsg tid uauthid = do
+  urefGood <- forM_ (uaSamlId uauthid) $
+    \uref -> lift $ getUserByUrefUnsafe uref <&> (`elem` allowedValues) . fmap userId
+  eidGood <- forM_ (uaScimExternalId uauthid) $
+    \eid -> lift $ getUserIdByScimExternalId tid eid <&> (`elem` allowedValues) . fmap userId
+
+  unless (urefGood && eidGood) $
     throwError Scim.conflict {Scim.detail = Just errmsg}
 
 assertHandleUnused :: Member BrigAccess r => Handle -> Scim.ScimHandler (Sem r) ()
@@ -879,15 +877,15 @@ synthesizeStoredUser ::
     Member ScimUserTimesStore r
   ) =>
   UserAccount ->
-  ST.ValidExternalId ->
+  PartialUAuthId ->
   Scim.ScimHandler (Sem r) (Scim.StoredUser ST.SparTag)
-synthesizeStoredUser usr veid =
+synthesizeStoredUser usr uauthid =
   logScim
     ( logFunction "Spar.Scim.User.synthesizeStoredUser"
         . logUser (userId . accountUser $ usr)
         . maybe id logHandle (userHandle . accountUser $ usr)
         . maybe id logTeam (userTeam . accountUser $ usr)
-        . maybe id logEmail (veidEmail veid)
+        . maybe id logEmail (uaEmail uauthid)
     )
     logScimUserId
     $ do
@@ -921,7 +919,7 @@ synthesizeStoredUser usr veid =
       storedUser <-
         synthesizeStoredUser'
           uid
-          veid
+          uauthid
           (userDisplayName (accountUser usr))
           handle
           richInfo
@@ -941,7 +939,7 @@ synthesizeStoredUser usr veid =
 
 synthesizeStoredUser' ::
   UserId ->
-  ST.ValidExternalId ->
+  PartialUAuthId ->
   Name ->
   Handle ->
   RI.RichInfo ->
@@ -952,12 +950,12 @@ synthesizeStoredUser' ::
   Locale ->
   Maybe Role ->
   MonadError Scim.ScimError m => m (Scim.StoredUser ST.SparTag)
-synthesizeStoredUser' uid veid dname handle richInfo accStatus createdAt lastUpdatedAt baseuri locale mbRole = do
+synthesizeStoredUser' uid uauthid dname handle richInfo accStatus createdAt lastUpdatedAt baseuri locale mbRole = do
   let scimUser :: Scim.User ST.SparTag
       scimUser =
         synthesizeScimUser
           ST.ValidScimUser
-            { ST._vsuExternalId = veid,
+            { ST._vsuExternalId = uauthid,
               ST._vsuHandle = handle {- 'Maybe' there is one in @usr@, but we want the type
                                         checker to make sure this exists, so we add it here
                                         redundantly, without the 'Maybe'. -},
@@ -974,15 +972,14 @@ synthesizeScimUser :: ST.ValidScimUser -> Scim.User ST.SparTag
 synthesizeScimUser info =
   let Handle userName = info ^. ST.vsuHandle
    in (Scim.empty ST.userSchemas userName (ST.ScimUserExtra (info ^. ST.vsuRichInfo)))
-        { Scim.externalId = Brig.renderValidExternalId $ info ^. ST.vsuExternalId,
+        { Scim.externalId = info ^. ST.vsuExternalId . to uaScimExternalId,
           Scim.displayName = Just $ fromName (info ^. ST.vsuName),
           Scim.active = Just . Scim.ScimBool $ info ^. ST.vsuActive,
           Scim.preferredLanguage = lan2Text . lLanguage <$> info ^. ST.vsuLocale,
           Scim.roles = maybe [] ((: []) . cs . toByteString) (info ^. ST.vsuRole)
         }
 
--- TODO: now write a test, either in /integration or in spar, whichever is easier.  (spar)
-
+-- | Find user in brig by id.  If not already under scim control, import it.
 getUserById ::
   forall r.
   ( Member BrigAccess r,
@@ -1019,17 +1016,18 @@ getUserById midp stiTeam uid = do
       pure storedUser
     _ -> Applicative.empty
   where
-    veidChanged :: User -> ST.ValidExternalId -> Bool
-    veidChanged usr veid = case userIdentity usr of
+    uauthidChanged :: User -> PartialUAuthId -> Bool
+    uauthidChanged usr uauthid = case userIdentity usr of
       Nothing -> True
       Just (FullIdentity _ _) -> True
       Just (EmailIdentity _) -> True
       Just (PhoneIdentity _) -> True
-      Just (SSOIdentity ssoid _ _) -> Brig.veidToUserSSOId veid /= ssoid
+      Just (UAuthIdentity uauthid') -> uauthid' /= uauthid
 
     managedByChanged :: User -> Bool
     managedByChanged usr = userManagedBy usr /= ManagedByScim
 
+-- | find user in brig by handle and move under scim control (wrapper for `getUserById`).
 scimFindUserByHandle ::
   forall r.
   ( Member BrigAccess r,
@@ -1113,22 +1111,19 @@ logFilter (FilterAttrCompare attr op val) =
           <> sha256String s
           <> (if isJust (UUID.fromText s) then " original is a UUID" else "")
 
-{- TODO: might be useful later.
-~~~~~~~~~~~~~~~~~~~~~~~~~
-
 -- | Parse a name from a user profile into an SCIM name (Okta wants given
 -- name and last name, so we break our names up to satisfy Okta).
 --
--- TODO: use the same algorithm as Wire clients use.
+-- TODO: use the same algorithm that Wire clients use.
 toScimName :: Name -> Scim.Name
 toScimName (Name name) =
   Scim.Name
-    { Scim.formatted = Just name
-    , Scim.givenName = Just first
-    , Scim.familyName = if Text.null rest then Nothing else Just rest
-    , Scim.middleName = Nothing
-    , Scim.honorificPrefix = Nothing
-    , Scim.honorificSuffix = Nothing
+    { Scim.formatted = Just name,
+      Scim.givenName = Just first,
+      Scim.familyName = if Text.null rest then Nothing else Just rest,
+      Scim.middleName = Nothing,
+      Scim.honorificPrefix = Nothing,
+      Scim.honorificSuffix = Nothing
     }
   where
     (first, Text.drop 1 -> rest) = Text.breakOn " " name
@@ -1137,33 +1132,15 @@ toScimName (Name name) =
 toScimPhone :: Phone -> Scim.Phone
 toScimPhone (Phone phone) =
   Scim.Phone
-    { Scim.typ = Nothing
-    , Scim.value = Just phone
+    { Scim.typ = Nothing,
+      Scim.value = Just phone
     }
 
 -- | Convert from the Wire email type to the SCIM email type.
 toScimEmail :: Email -> Scim.Email
 toScimEmail (Email eLocal eDomain) =
   Scim.Email
-    { Scim.typ = Nothing
-    , Scim.value = Scim.EmailAddress2
-        (unsafeEmailAddress (encodeUtf8 eLocal) (encodeUtf8 eDomain))
-    , Scim.primary = Just True
+    { Scim.typ = Nothing,
+      Scim.value = Scim.EmailAddress2 (unsafeEmailAddress (encodeUtf8 eLocal) (encodeUtf8 eDomain)),
+      Scim.primary = Just True
     }
-
--}
-
--- Note [error handling]
--- ~~~~~~~~~~~~~~~~~
---
--- FUTUREWORK: There are two problems with error handling here:
---
--- 1. We want all errors originating from SCIM handlers to be thrown as SCIM
---    errors, not as Spar errors. Currently errors thrown from things like
---    'getTeamMembers' will look like Spar errors and won't be wrapped into
---    the 'ScimError' type. This might or might not be important, depending
---    on what is expected by apps that use the SCIM interface.
---
--- 2. We want generic error descriptions in response bodies, while still
---    logging nice error messages internally. The current messages might
---    be giving too many internal details away.

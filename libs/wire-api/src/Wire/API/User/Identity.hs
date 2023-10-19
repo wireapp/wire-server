@@ -28,7 +28,7 @@ module Wire.API.User.Identity
     ssoIdentity,
     userIdentityObjectSchema,
     maybeUserIdentityObjectSchema,
-    maybeUserIdentityFromRaw,
+    maybeUserIdentityFromComponents,
     LegacyUserSSOId (..),
 
     -- * Email
@@ -41,12 +41,23 @@ module Wire.API.User.Identity
     Phone (..),
     parsePhone,
     isValidPhone,
+
+    -- * UAuthId
     UAuthId (..),
+    EmailWithSource (..),
+    EmailSource (..),
     PartialUAuthId,
+    ScimUAuthId,
+    partialToScimUAuthId,
+    scimToPartialUAuthId,
+
+    -- * helpers
     emailFromSAML,
     emailToSAML,
     emailToSAMLNameID,
     emailFromSAMLNameID,
+    mkUserNameScim,
+    mkUserNameSaml,
     mkSampleUref,
     mkSimpleSampleUref,
   )
@@ -61,6 +72,7 @@ import Data.Attoparsec.Text
 import Data.Bifunctor (first)
 import Data.ByteString.Conversion
 import Data.CaseInsensitive qualified as CI
+import Data.Id
 import Data.OpenApi (ToParamSchema (..))
 import Data.OpenApi qualified as S
 import Data.Schema
@@ -79,7 +91,7 @@ import Test.QuickCheck qualified as QC
 import Text.Email.Validate qualified as Email.V
 import URI.ByteString qualified as URI
 import URI.ByteString.QQ (uri)
-import Wire.API.User.Profile (fromName, mkName)
+import Wire.API.User.Profile
 import Wire.API.User.Types
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
@@ -102,20 +114,24 @@ userIdentityObjectSchema =
 
 maybeUserIdentityObjectSchema :: ObjectSchema SwaggerDoc (Maybe UserIdentity)
 maybeUserIdentityObjectSchema =
-  dimap maybeUserIdentityToRaw maybeUserIdentityFromRaw rawCassandraUserIdentityObjectSchema
+  dimap maybeUserIdentityToComponents maybeUserIdentityFromComponents userIdentityComponentsObjectSchema
 
--- | the unparsed data as retrieved from cassandra, including the redundant optional legacy
--- and partial uauth ids.  see `maybeUserIdentityFromRaw`, `maybeUserIdentityToRaw` below.
-type RawCassandraUserIdentity =
-  (Maybe Email, Maybe Phone, Maybe LegacyUserSSOId, Maybe PartialUAuthId)
+-- | The unparsed data as retrieved from cassandra.  See
+-- `rawCassandraUserIdentityObjectSchema`, `maybeUserIdentityFromComponents`,
+-- `maybeUserIdentityToComponents` below.
+type UserIdentityComponents =
+  (Maybe Email, Maybe Phone, Maybe Text, Maybe Text, Maybe Text, Maybe TeamId, Maybe LegacyUserSSOId)
 
-rawCassandraUserIdentityObjectSchema :: ObjectSchema SwaggerDoc RawCassandraUserIdentity
-rawCassandraUserIdentityObjectSchema =
-  (,,,)
-    <$> (\(a, _, _, _) -> a) .= maybe_ (optField "email" schema)
-    <*> (\(_, a, _, _) -> a) .= maybe_ (optField "phone" schema)
-    <*> (\(_, _, a, _) -> a) .= maybe_ (optField "sso_id" genericToSchema)
-    <*> (\(_, _, _, a) -> a) .= maybe_ (optField "uauth_id" genericToSchema)
+userIdentityComponentsObjectSchema :: ObjectSchema SwaggerDoc UserIdentityComponents
+userIdentityComponentsObjectSchema =
+  (,,,,,,)
+    <$> (\(a, _, _, _, _, _, _) -> a) .= maybe_ (optField "email" schema)
+    <*> (\(_, a, _, _, _, _, _) -> a) .= maybe_ (optField "phone" schema)
+    <*> (\(_, _, a, _, _, _, _) -> a) .= maybe_ (optField "saml_entity" genericToSchema)
+    <*> (\(_, _, _, a, _, _, _) -> a) .= maybe_ (optField "saml_nameid" genericToSchema)
+    <*> (\(_, _, _, _, a, _, _) -> a) .= maybe_ (optField "scim_external_id" genericToSchema)
+    <*> (\(_, _, _, _, _, a, _) -> a) .= maybe_ (optField "team_id" genericToSchema)
+    <*> (\(_, _, _, _, _, _, a) -> a) .= maybe_ (optField "sso_id" genericToSchema)
 
 -- | This assumes the database is consistent and does not do any validation.
 maybeUserIdentityFromRaw :: RawCassandraUserIdentity -> Maybe UserIdentity
@@ -158,8 +174,7 @@ ssoIdentity :: UserIdentity -> Maybe PartialUAuthId
 ssoIdentity (UAuthIdentity uaid) = pure uaid
 ssoIdentity _ = Nothing
 
--- |
--- FUTUREWORK:
+-- | FUTUREWORK:
 --
 -- * Enforce these constrains during parsing already or use a separate type, see
 --   [Parse, don't validate](https://lexi-lambda.github.io/blog/2019/11/05/parse-don-t-validate).
@@ -309,6 +324,9 @@ instance FromJSON LegacyUserSSOId where
       (Nothing, Nothing, Just eid) ->
         pure $ UserScimExternalId eid
       _ -> fail "either need tenant and subject, or scim_external_id, but not both"
+
+----------------------------------------------------------------------
+-- low-level helper functions
 
 lenientlyParseSAMLIssuer :: Maybe LText -> A.Parser (Maybe SAML.Issuer)
 lenientlyParseSAMLIssuer mbtxt = forM mbtxt $ \txt -> do

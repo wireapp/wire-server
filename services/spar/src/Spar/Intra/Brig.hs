@@ -267,13 +267,13 @@ setBrigUserManagedBy buid managedBy = do
     rethrow "brig" resp
 
 -- | Set user's UserSSOId.
-setBrigUserVeid :: (HasCallStack, MonadSparToBrig m) => UserId -> ValidExternalId -> m ()
-setBrigUserVeid buid veid = do
+setBrigUserVeid :: (HasCallStack, MonadSparToBrig m) => UserId -> PartialUAuthId -> m ()
+setBrigUserVeid buid uauthid = do
   resp <-
     call $
       method PUT
         . paths ["i", "users", toByteString' buid, "sso-id"]
-        . json (veidToUserSSOId veid)
+        . json uauthid
   case statusCode resp of
     200 -> pure ()
     _ -> rethrow "brig" resp
