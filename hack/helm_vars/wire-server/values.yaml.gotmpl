@@ -348,6 +348,9 @@ federator:
   replicaCount: 1
   resources:
     requests: {}
+    limits:
+      memory: null
+      cpu: null
   imagePullPolicy: {{ .Values.imagePullPolicy }}
   config:
     optSettings:
