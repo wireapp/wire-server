@@ -174,7 +174,8 @@ createMLSClient opts u = do
 -- | create and upload to backend
 uploadNewKeyPackage :: HasCallStack => ClientIdentity -> App String
 uploadNewKeyPackage cid = do
-  (kp, ref) <- generateKeyPackage cid
+  mls <- getMLSState
+  (kp, ref) <- generateKeyPackage cid mls.ciphersuite
 
   -- upload key package
   bindResponse (uploadKeyPackages cid [kp]) $ \resp ->
@@ -182,10 +183,9 @@ uploadNewKeyPackage cid = do
 
   pure ref
 
-generateKeyPackage :: HasCallStack => ClientIdentity -> App (ByteString, String)
-generateKeyPackage cid = do
-  mls <- getMLSState
-  kp <- mlscli cid ["key-package", "create", "--ciphersuite", mls.ciphersuite.code] Nothing
+generateKeyPackage :: HasCallStack => ClientIdentity -> Ciphersuite -> App (ByteString, String)
+generateKeyPackage cid suite = do
+  kp <- mlscli cid ["key-package", "create", "--ciphersuite", suite.code] Nothing
   ref <- B8.unpack . Base64.encode <$> mlscli cid ["key-package", "ref", "-"] (Just kp)
   fp <- keyPackageFile cid ref
   liftIO $ BS.writeFile fp kp
