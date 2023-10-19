@@ -1,1 +1,0 @@
-Add Helm chart (`rabbitmq-external`) to interface RabbitMQ instances outside of the Kubernetes cluster.

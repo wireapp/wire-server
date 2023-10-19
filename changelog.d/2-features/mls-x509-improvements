@@ -1,1 +1,0 @@
-The public key in an x509 credential is now checked against that of the client
