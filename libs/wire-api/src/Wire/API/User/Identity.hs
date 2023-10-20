@@ -120,18 +120,15 @@ maybeUserIdentityObjectSchema =
 -- `rawCassandraUserIdentityObjectSchema`, `maybeUserIdentityFromComponents`,
 -- `maybeUserIdentityToComponents` below.
 type UserIdentityComponents =
-  (Maybe Email, Maybe Phone, Maybe Text, Maybe Text, Maybe Text, Maybe TeamId, Maybe LegacyUserSSOId)
+  (Maybe Email, Maybe Phone, Maybe UAuthId, Maybe LegacyUserSSOId)
 
 userIdentityComponentsObjectSchema :: ObjectSchema SwaggerDoc UserIdentityComponents
 userIdentityComponentsObjectSchema =
-  (,,,,,,)
-    <$> (\(a, _, _, _, _, _, _) -> a) .= maybe_ (optField "email" schema)
-    <*> (\(_, a, _, _, _, _, _) -> a) .= maybe_ (optField "phone" schema)
-    <*> (\(_, _, a, _, _, _, _) -> a) .= maybe_ (optField "saml_entity" genericToSchema)
-    <*> (\(_, _, _, a, _, _, _) -> a) .= maybe_ (optField "saml_nameid" genericToSchema)
-    <*> (\(_, _, _, _, a, _, _) -> a) .= maybe_ (optField "scim_external_id" genericToSchema)
-    <*> (\(_, _, _, _, _, a, _) -> a) .= maybe_ (optField "team_id" genericToSchema)
-    <*> (\(_, _, _, _, _, _, a) -> a) .= maybe_ (optField "sso_id" genericToSchema)
+  (,,,)
+    <$> (\(a, _, _, _, _) -> a) .= maybe_ (optField "email" schema)
+    <*> (\(_, a, _, _, _) -> a) .= maybe_ (optField "phone" schema)
+    <*> (\(_, _, _, a, _) -> a) .= maybe_ (optField "uauth_id" genericToSchema)
+    <*> (\(_, _, _, _, a) -> a) .= maybe_ (optField "sso_id" genericToSchema)
 
 -- | This assumes the database is consistent and does not do any validation.
 maybeUserIdentityFromRaw :: RawCassandraUserIdentity -> Maybe UserIdentity
