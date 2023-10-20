@@ -1197,7 +1197,7 @@ newUserToRaw NewUser {..} =
           newUserRawUUID = newUserUUID,
           newUserRawEmail = emailIdentity =<< newUserIdentity,
           newUserRawPhone = phoneIdentity =<< newUserIdentity,
-          newUserRawSSOId = _,
+          newUserRawSSOId = undefined,
           newUserRawUAuthId = ssoIdentity =<< newUserIdentity,
           newUserRawPict = newUserPict,
           newUserRawAssets = newUserAssets,
@@ -1226,11 +1226,14 @@ newUserFromRaw NewUserRaw {..} = do
         (newUserRawInvitationCode, newUserRawTeamCode, newUserRawTeam, newUserRawTeamId)
   let identity =
         maybeUserIdentityFromComponents
+          {-
           ( newUserRawEmail,
             newUserRawPhone,
             newUserRawSSOId,
             newUserRawUAuthId
           )
+          -}
+          undefined
   expiresIn <-
     case (newUserRawExpiresIn, identity) of
       (Just _, Just _) -> fail "Only users without an identity can expire"
