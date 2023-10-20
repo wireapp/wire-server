@@ -1,3 +1,5 @@
+-- allows to write Map and HashMap as lists
+{-# LANGUAGE OverloadedLists #-}
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -31,7 +33,7 @@ module Wire.API.Conversation.Action
   )
 where
 
-import Control.Lens ((?~))
+import Control.Lens ((.~), (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Aeson qualified as A
 import Data.Aeson.KeyMap qualified as A
@@ -88,6 +90,23 @@ instance ToJSON SomeConversationAction where
     let tag = fromSing sb
         actionJSON = fromMaybe A.Null $ schemaOut (conversationActionSchema sb) action
      in A.object ["tag" A..= tag, "action" A..= actionJSON]
+
+instance S.ToSchema SomeConversationAction where
+  declareNamedSchema _ = do
+    tagSchema <- S.declareSchemaRef (Proxy :: Proxy ConversationActionTag)
+    -- I am not sure how to create a meaningful ToSchema instance for ConversationAction...
+    -- As this is currently only used for the backend-to-backend API documentation
+    -- So let's just use one example from all the actions
+    actionSchema <- S.declareSchemaRef (Proxy :: Proxy ConversationJoin)
+    pure $
+      S.NamedSchema (Just "SomeConversationAction") $
+        mempty
+          & S.type_ ?~ S.OpenApiObject
+          & S.properties
+            .~ [ ("tag", tagSchema),
+                 ("action", actionSchema)
+               ]
+          & S.required .~ ["tag", "action"]
 
 conversationActionSchema :: forall tag. Sing tag -> ValueSchema NamedSwaggerDoc (ConversationAction tag)
 conversationActionSchema SConversationJoinTag = schema @ConversationJoin

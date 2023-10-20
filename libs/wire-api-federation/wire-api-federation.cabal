@@ -104,6 +104,7 @@ library
     , servant                >=0.16
     , servant-client
     , servant-client-core
+    , servant-openapi3
     , servant-server
     , singletons-th
     , text                   >=0.11

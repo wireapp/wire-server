@@ -72,7 +72,7 @@ import Wire.Arbitrary
 newtype CipherSuite = CipherSuite {cipherSuiteNumber :: Word16}
   deriving stock (Eq, Show)
   deriving newtype (ParseMLS, SerialiseMLS, Arbitrary)
-  deriving (FromJSON, ToJSON) via Schema CipherSuite
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema CipherSuite
 
 instance ToSchema CipherSuite where
   schema =

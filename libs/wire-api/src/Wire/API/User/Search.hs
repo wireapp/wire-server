@@ -308,7 +308,7 @@ data FederatedUserSearchPolicy
   | FullSearch
   deriving (Show, Eq, Ord, Generic, Enum, Bounded)
   deriving (Arbitrary) via (GenericUniform FederatedUserSearchPolicy)
-  deriving (ToJSON, FromJSON) via (Schema FederatedUserSearchPolicy)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema FederatedUserSearchPolicy)
 
 instance ToSchema FederatedUserSearchPolicy where
   schema =

@@ -24,6 +24,7 @@ import GHC.TypeLits (Symbol, symbolVal)
 import Imports
 import Servant.API (Header', Required, Strict, (:>))
 import Servant.Client
+import Servant.OpenApi (HasOpenApi (toOpenApi))
 import Servant.Server
 import Servant.Server.Internal (MkContextWithErrorFormatter)
 import Wire.API.Routes.ClientAlgebra
@@ -58,3 +59,6 @@ instance
 
 originDomainHeaderName :: IsString a => a
 originDomainHeaderName = fromString $ symbolVal (Proxy @OriginDomainHeaderName)
+
+instance (HasOpenApi api) => HasOpenApi (OriginDomainHeader :> api) where
+  toOpenApi _ = toOpenApi (Proxy @api)

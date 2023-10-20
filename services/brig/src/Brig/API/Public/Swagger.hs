@@ -5,10 +5,12 @@ module Brig.API.Public.Swagger
     SwaggerDocsAPIBase,
     ServiceSwaggerDocsAPIBase,
     DocsAPI,
+    FederationSwaggerDocsAPI,
     pregenSwagger,
     swaggerPregenUIServer,
     eventNotificationSchemas,
     adjustSwaggerForInternalEndpoint,
+    adjustSwaggerForFederationEndpoints,
     emptySwagger,
   )
 where
@@ -54,7 +56,18 @@ type InternalEndpointsSwaggerDocsAPI =
 
 type NotificationSchemasAPI = "api" :> "event-notification-schemas" :> Get '[JSON] [S.Definitions S.Schema]
 
-type DocsAPI = VersionedSwaggerDocsAPI :<|> NotificationSchemasAPI :<|> InternalEndpointsSwaggerDocsAPI
+type FederationSwaggerDocsAPI =
+  "api-federation"
+    :> "swagger-ui"
+    :> ( VersionedSwaggerDocsAPIBase "brig"
+           :<|> VersionedSwaggerDocsAPIBase "galley"
+       )
+
+type DocsAPI =
+  VersionedSwaggerDocsAPI
+    :<|> NotificationSchemasAPI
+    :<|> InternalEndpointsSwaggerDocsAPI
+    :<|> FederationSwaggerDocsAPI
 
 pregenSwagger :: Version -> Q Exp
 pregenSwagger v =
@@ -71,7 +84,7 @@ swaggerPregenUIServer =
 adjustSwaggerForInternalEndpoint :: String -> PortNumber -> S.OpenApi -> S.OpenApi
 adjustSwaggerForInternalEndpoint service examplePort swagger =
   swagger
-    & S.info . S.title .~ T.pack ("Wire-Server internal API (" ++ service ++ ")")
+    & S.info . S.title .~ T.pack ("Wire-Server Internal API (" ++ service ++ ")")
     & S.info . S.description ?~ renderedDescription
     & S.allOperations . S.tags <>~ tag
     -- Enforce HTTP as the services themselves don't understand HTTPS
@@ -96,6 +109,15 @@ adjustSwaggerForInternalEndpoint service examplePort swagger =
           "**N.B.:** Execution via this UI won't work due to CORS issues."
             ++ " But, the proposed `curl` commands will."
         ]
+
+adjustSwaggerForFederationEndpoints :: String -> S.OpenApi -> S.OpenApi
+adjustSwaggerForFederationEndpoints service swagger =
+  swagger
+    & S.info . S.title .~ T.pack ("Wire-Server Federation API (" ++ service ++ ")")
+    & S.allOperations . S.tags <>~ tag
+  where
+    tag :: InsOrdSet.InsOrdHashSet S.TagName
+    tag = InsOrdSet.singleton @S.TagName (T.pack service)
 
 emptySwagger :: Servant.Server (ServiceSwaggerDocsAPIBase a)
 emptySwagger =

@@ -158,6 +158,8 @@ deriving via (Schema Protocol) instance FromJSON Protocol
 
 deriving via (Schema Protocol) instance ToJSON Protocol
 
+deriving via (Schema Protocol) instance S.ToSchema Protocol
+
 protocolDataSchema :: ProtocolTag -> ObjectSchema SwaggerDoc Protocol
 protocolDataSchema ProtocolProteusTag = tag _ProtocolProteus (pure ())
 protocolDataSchema ProtocolMLSTag = tag _ProtocolMLS mlsDataSchema

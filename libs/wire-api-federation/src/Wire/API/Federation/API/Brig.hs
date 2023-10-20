@@ -21,9 +21,12 @@ import Data.Aeson
 import Data.Domain (Domain)
 import Data.Handle (Handle)
 import Data.Id
+import Data.OpenApi (OpenApi, ToSchema)
+import Data.Proxy (Proxy (Proxy))
 import Data.Range
 import Imports
 import Servant.API
+import Servant.OpenApi (HasOpenApi (toOpenApi))
 import Test.QuickCheck (Arbitrary)
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.Endpoint
@@ -46,6 +49,8 @@ instance ToJSON SearchRequest
 
 instance FromJSON SearchRequest
 
+instance ToSchema SearchRequest
+
 data SearchResponse = SearchResponse
   { contacts :: [Contact],
     searchPolicy :: FederatedUserSearchPolicy
@@ -55,6 +60,8 @@ data SearchResponse = SearchResponse
 instance ToJSON SearchResponse
 
 instance FromJSON SearchResponse
+
+instance ToSchema SearchResponse
 
 -- | For conventions see /docs/developer/federation-api-conventions.md
 type BrigApi =
@@ -80,6 +87,8 @@ newtype DomainSet = DomainSet
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via (CustomEncoded DomainSet)
 
+instance ToSchema DomainSet
+
 newtype NonConnectedBackends = NonConnectedBackends
   -- TODO:
   -- The encoding rules that were in place would make this "connectedBackends" over the wire.
@@ -89,11 +98,15 @@ newtype NonConnectedBackends = NonConnectedBackends
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via (CustomEncoded NonConnectedBackends)
 
+instance ToSchema NonConnectedBackends
+
 newtype GetUserClients = GetUserClients
   { users :: [UserId]
   }
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via (CustomEncoded GetUserClients)
+
+instance ToSchema GetUserClients
 
 data MLSClientsRequest = MLSClientsRequest
   { userId :: UserId, -- implicitly qualified by the local domain
@@ -101,6 +114,8 @@ data MLSClientsRequest = MLSClientsRequest
   }
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via (CustomEncoded MLSClientsRequest)
+
+instance ToSchema MLSClientsRequest
 
 -- NOTE: ConversationId for remote connections
 --
@@ -129,6 +144,8 @@ data NewConnectionRequest = NewConnectionRequest
   deriving (Arbitrary) via (GenericUniform NewConnectionRequest)
   deriving (FromJSON, ToJSON) via (CustomEncoded NewConnectionRequest)
 
+instance ToSchema NewConnectionRequest
+
 data RemoteConnectionAction
   = RemoteConnect
   | RemoteRescind
@@ -136,12 +153,16 @@ data RemoteConnectionAction
   deriving (Arbitrary) via (GenericUniform RemoteConnectionAction)
   deriving (FromJSON, ToJSON) via (CustomEncoded RemoteConnectionAction)
 
+instance ToSchema RemoteConnectionAction
+
 data NewConnectionResponse
   = NewConnectionResponseUserNotActivated
   | NewConnectionResponseOk (Maybe RemoteConnectionAction)
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform NewConnectionResponse)
   deriving (FromJSON, ToJSON) via (CustomEncoded NewConnectionResponse)
+
+instance ToSchema NewConnectionResponse
 
 type UserDeletedNotificationMaxConnections = 1000
 
@@ -155,6 +176,8 @@ data UserDeletedConnectionsNotification = UserDeletedConnectionsNotification
   deriving (Arbitrary) via (GenericUniform UserDeletedConnectionsNotification)
   deriving (FromJSON, ToJSON) via (CustomEncoded UserDeletedConnectionsNotification)
 
+instance ToSchema UserDeletedConnectionsNotification
+
 data ClaimKeyPackageRequest = ClaimKeyPackageRequest
   { -- | The user making the request, implictly qualified by the origin domain.
     claimant :: UserId,
@@ -167,3 +190,8 @@ data ClaimKeyPackageRequest = ClaimKeyPackageRequest
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ClaimKeyPackageRequest)
   deriving (FromJSON, ToJSON) via (CustomEncoded ClaimKeyPackageRequest)
+
+instance ToSchema ClaimKeyPackageRequest
+
+swaggerDoc :: OpenApi
+swaggerDoc = toOpenApi (Proxy @BrigApi)
