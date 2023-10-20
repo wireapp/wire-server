@@ -1,4 +1,5 @@
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -29,6 +30,7 @@ import Data.Qualified
 import Data.Schema (schemaIn)
 import Data.UUID.V4 qualified as UUID
 import Imports
+import Servant.API (parseUrlPiece)
 import Test.Tasty
 import Test.Tasty.HUnit
 import Wire.API.User
@@ -66,10 +68,11 @@ parseIdentityTests =
             testCase "PhoneIdentity" $
               Right (Just (PhoneIdentity hphone)) =#= [phone],
             testCase "UAuthIdentity" $ do
-              Right (Just (UAuthIdentity (UAuthId hssoid Nothing Nothing))) =#= [ssoid]
-              Right (Just (UAuthIdentity (UAuthId hssoid Nothing (Just hphone)))) =#= [ssoid, phone]
-              Right (Just (UAuthIdentity (UAuthId hssoid (Just hemail) Nothing))) =#= [ssoid, email]
-              Right (Just (UAuthIdentity (UAuthId hssoid (Just hemail) (Just hphone)))) =#= [ssoid, email, phone],
+              -- only test the deprecated fields, not the json object under `uauthid`
+              Right (Just (UAuthIdentity huauthid1)) =#= [ssoid1]
+              Right (Just (UAuthIdentity huauthid2)) =#= [ssoid2]
+              Right (Just (UAuthIdentity huauthid3)) =#= [ssoid3, email]
+              Right (Just (UAuthIdentity huauthid4)) =#= [ssoid4, email],
             testCase "Bad phone" $
               Left "Error in $.phone: Invalid phone number. Expected E.164 format." =#= [badphone],
             testCase "Bad email" $
@@ -85,5 +88,13 @@ parseIdentityTests =
     hphone = Phone "+493012345678"
     phone = ("phone", "+493012345678")
     badphone = ("phone", "__@@")
-    hssoid = UserSSOId mkSimpleSampleUref
-    ssoid = ("sso_id", toJSON hssoid)
+    Right tid = parseUrlPiece "226923f0-6f15-11ee-96bd-33644427c814"
+    uref = mkSampleUref "http://example.com/wef" "wefwef"
+    huauthid1 = UAuthId Nothing (Just "bla") Nothing tid
+    ssoid1 = ("sso_id", object [("scim_external_id", "bla")])
+    huauthid2 = UAuthId (Just uref) (Just "bla") Nothing tid
+    ssoid2 = ("sso_id", object [("tenant", "http://example.com/wuf"), ("subject", "wefwef"), ("scim_external_id", "bla")])
+    huauthid3 = UAuthId Nothing (Just "bla") (Just (EmailWithSource hemail EmailFromScimExternalIdField)) tid
+    ssoid3 = ("sso_id", object [("scim_external_id", "bla"), ("email", "me@me.me")])
+    huauthid4 = UAuthId (Just uref) Nothing (Just (EmailWithSource hemail EmailFromScimExternalIdField)) tid
+    ssoid4 = ("sso_id", object [("tenant", "http://example.com/wuf"), ("subject", "wefwef"), ("email", "me@me.me")])
