@@ -602,9 +602,9 @@ instance IsUser ValidScimUser where
   maybeUserId = Nothing
   maybeHandle = Just (Just . view vsuHandle)
   maybeName = Just (Just . view vsuName)
-  maybeTenant = Just (^? (vsuExternalId . veidUref . SAML.uidTenant))
-  maybeSubject = Just (^? (vsuExternalId . veidUref . SAML.uidSubject))
-  maybeScimExternalId = Just (runValidExternalIdEither Intra.urefToExternalId (Just . fromEmail) . view vsuExternalId)
+  maybeTenant = Just (^? (vsuExternalId . to uaSamlId . _Just . SAML.uidTenant))
+  maybeSubject = Just (^? (vsuExternalId . to uaSamlId . _Just . SAML.uidSubject))
+  maybeScimExternalId = Just (Just . runIdentity . uaScimExternalId . view vsuExternalId)
   maybeLocale = Just (view vsuLocale)
 
 instance IsUser (WrappedScimStoredUser SparTag) where

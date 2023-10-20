@@ -194,6 +194,7 @@ import qualified System.Logger.Extended as Log
 import System.Random (randomRIO)
 import Test.Hspec hiding (it, pending, pendingWith, xit)
 import qualified Test.Hspec
+import Test.QuickCheck (arbitrary, generate)
 import qualified Text.XML as XML
 import qualified Text.XML.Cursor as XML
 import Text.XML.DSig (SignPrivCreds)
@@ -217,7 +218,6 @@ import qualified Wire.API.User as User
 import Wire.API.User.Activation
 import Wire.API.User.Auth hiding (Cookie)
 import Wire.API.User.IdentityProvider
-import Wire.API.User.Scim (runValidExternalIdEither)
 import Wire.Sem.Logger.TinyLog
 
 -- | Call 'mkEnv' with options from config files.
@@ -496,13 +496,10 @@ createTeamMember ::
   Permissions ->
   m UserId
 createTeamMember brigreq galleyreq teamid perms = do
-  let randomtxt = liftIO $ UUID.toText <$> UUID.nextRandom
-      randomssoid = liftIO $ UserSSOId <$> (mkSampleUref <$> rnd <*> rnd)
-      rnd = cs . show <$> randomRIO (0 :: Integer, 10000000)
-  name <- randomtxt
-  ssoid <- randomssoid
+  name <- liftIO $ UUID.toText <$> UUID.nextRandom
+  uauthid <- liftIO $ generate (arbitrary @PartialUAuthId)
   resp :: ResponseLBS <-
-    postUser name False (Just ssoid) (Just teamid) brigreq
+    postUser name False (Just uauthid) (Just teamid) brigreq
       <!! const 201 === statusCode
   let nobody :: UserId = userId (responseJsonUnsafe @User resp)
   addTeamMember galleyreq teamid (Member.mkNewTeamMember nobody perms Nothing)
@@ -683,11 +680,11 @@ postUser ::
   (HasCallStack, MonadIO m, MonadHttp m) =>
   Text ->
   Bool ->
-  Maybe UserSSOId ->
+  Maybe PartialUAuthId ->
   Maybe TeamId ->
   BrigReq ->
   m ResponseLBS
-postUser name haveEmail ssoid teamid brig_ = do
+postUser name haveEmail uauthid teamid brig_ = do
   email <- if haveEmail then Just <$> randomEmail else pure Nothing
   let p =
         RequestBodyLBS . Aeson.encode $
@@ -696,7 +693,7 @@ postUser name haveEmail ssoid teamid brig_ = do
               "email" .= email,
               "password" .= defPassword,
               "cookie" .= defCookieLabel,
-              "sso_id" .= ssoid,
+              "uauth_id" .= uauthid,
               "team_id" .= teamid
             ]
   post (brig_ . path "/i/users" . contentJson . body p)
@@ -1243,14 +1240,10 @@ callDeleteDefaultSsoCode sparreq_ = do
 -- helpers talking to spar's cassandra directly
 
 -- | Look up 'UserId' under 'UserSSOId' on spar's cassandra directly.
-ssoToUidSpar :: (HasCallStack, MonadIO m, MonadReader TestEnv m) => TeamId -> UserSSOId -> m (Maybe UserId)
-ssoToUidSpar tid ssoid = do
-  veid <- either (error . ("could not parse brig sso_id: " <>)) pure $ Intra.veidFromUserSSOId ssoid
-  runSpar $
-    runValidExternalIdEither
-      SAMLUserStore.get
-      (ScimExternalIdStore.lookup tid)
-      veid
+ssoToUidSpar :: (HasCallStack, MonadIO m, MonadReader TestEnv m) => TeamId -> PartialUAuthId -> m (Maybe UserId)
+ssoToUidSpar _ (uaSamlId -> Just uref) = runSpar $ SAMLUserStore.get uref
+ssoToUidSpar tid (uaEmail -> Just (EmailWithSource (fromEmail -> email) _)) = runSpar $ ScimExternalIdStore.lookup tid email
+ssoToUidSpar _ _ = pure Nothing
 
 runSimpleSP :: (MonadReader TestEnv m, MonadIO m) => SAML.SimpleSP a -> m a
 runSimpleSP action = do
@@ -1276,14 +1269,14 @@ runSparE action = do
   ctx <- (^. teSparEnv) <$> ask
   liftIO $ runSparToIO ctx action
 
-getSsoidViaSelf :: HasCallStack => UserId -> TestSpar UserSSOId
+getSsoidViaSelf :: HasCallStack => UserId -> TestSpar PartialUAuthId
 getSsoidViaSelf uid = maybe (error "not found") pure =<< getSsoidViaSelf' uid
 
-getSsoidViaSelf' :: HasCallStack => UserId -> TestSpar (Maybe UserSSOId)
+getSsoidViaSelf' :: HasCallStack => UserId -> TestSpar (Maybe PartialUAuthId)
 getSsoidViaSelf' uid = do
   musr <- aFewTimes (runSpar $ Intra.getBrigUser Intra.NoPendingInvitations uid) isJust
   pure $ case userIdentity =<< musr of
-    Just (SSOIdentity ssoid _ _) -> Just ssoid
+    Just (UAuthIdentity uauthid) -> Just uauthid
     Just (FullIdentity _ _) -> Nothing
     Just (EmailIdentity _) -> Nothing
     Just (PhoneIdentity _) -> Nothing
