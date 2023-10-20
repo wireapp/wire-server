@@ -16,4 +16,11 @@ _wire-server-federator._tcp    IN SRV 0 0 8443 localhost.
 _wire-server-federator._tcp.b  IN SRV 0 0 9443 localhost.
 _wire-server-federator._tcp.d1  IN SRV 0 0 10443 localhost.
 _wire-server-federator._tcp.d2  IN SRV 0 0 11443 localhost.
-_wire-server-federator._tcp.d3  IN SRV 0 0 12443 192.0.2.1 ; This IP address is from the TEST-NET-1 block, and is never routable. Thus, it is a perfect "bad" ip address
+; This host address is from the TEST-NET-1 block, and is never routable. Thus, it is a perfect "bad" ip address
+; hyphenhyphen.net is controlled by Owen Harvey, but I recommend that one of the following actions is taken.
+; The IP address should be 192.0.2.1
+; 1 - Setup a similar domain on wire.com, or a testing domain, with the same or similar IP address.
+; 2 - Rework `federator` so that it uses the DNS setup for all of the host lookups it performs.
+; 3 - Rework how integration tests are run, so that they see the CoreDNS docker container as the default
+;     DNS resolver, side-stepping having to add a known-bad IP to other resolvers.
+_wire-server-federator._tcp.d3  IN SRV 0 0 12443 invalid.hyphenhyphen.net.
