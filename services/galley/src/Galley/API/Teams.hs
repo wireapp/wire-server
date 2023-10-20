@@ -144,9 +144,9 @@ import Wire.API.Team.Permission (Perm (..), Permissions (..), SPerm (..), copy, 
 import Wire.API.Team.Role
 import Wire.API.Team.SearchVisibility
 import Wire.API.Team.SearchVisibility qualified as Public
-import Wire.API.User (ScimUserInfo (..), User, UserIdList, UserSSOId (UserScimExternalId), userSCIMExternalId, userSSOId)
+import Wire.API.User (ScimUserInfo (..), User, UserIdList, userSCIMExternalId, userSSOId)
 import Wire.API.User qualified as U
-import Wire.API.User.Identity (UserSSOId (UserSSOId))
+import Wire.API.User.Identity (LegacyUserSSOId (UserSSOId, UserScimExternalId))
 import Wire.API.User.RichInfo (RichInfo)
 import Wire.Sem.Paging qualified as E
 import Wire.Sem.Paging.Cassandra

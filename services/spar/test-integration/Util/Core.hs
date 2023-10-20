@@ -217,7 +217,7 @@ import qualified Wire.API.User as User
 import Wire.API.User.Activation
 import Wire.API.User.Auth hiding (Cookie)
 import Wire.API.User.IdentityProvider
-import Wire.API.User.Scim (runValidExternalIdEither)
+import Wire.API.User.Scim
 import Wire.Sem.Logger.TinyLog
 
 -- | Call 'mkEnv' with options from config files.
