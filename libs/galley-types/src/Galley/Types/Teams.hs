@@ -324,6 +324,7 @@ data HiddenPerm
     -- play with it unless we have to.
     DownloadTeamMembersCsv
   | ChangeTeamMemberProfiles
+  | SearchFullTeam
   | SearchContacts
   deriving (Eq, Ord, Show)
 
@@ -359,12 +360,13 @@ roleHiddenPermissions role = HiddenPermissions p p
       (roleHiddenPerms RoleExternalPartner <>) $
         Set.fromList
           [ ViewSameTeamEmails,
-            SearchContacts
+            SearchFullTeam
           ]
     roleHiddenPerms RoleExternalPartner =
       Set.fromList
         [ ViewLegalHoldUserSettings,
-          ViewTeamSearchVisibility
+          ViewTeamSearchVisibility,
+          SearchContacts
         ]
 
 -- | See Note [hidden team roles]
