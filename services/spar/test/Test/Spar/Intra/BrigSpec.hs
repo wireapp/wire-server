@@ -27,7 +27,7 @@ import Spar.Intra.BrigApp
 import Test.Hspec
 import Test.QuickCheck
 import URI.ByteString (URI, laxURIParserOptions, parseURI)
-import Wire.API.User.Identity
+import Wire.API.User.Identity (UserSSOId (UserSSOId))
 import Wire.API.User.Scim
 
 mkuri :: Text -> URI

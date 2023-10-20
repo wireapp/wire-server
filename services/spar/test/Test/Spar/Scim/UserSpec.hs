@@ -81,9 +81,9 @@ deleteUserAndAssertDeletionInSpar acc tokenInfo = do
   let tid = stiTeam tokenInfo
       email = (fromJust . emailIdentity . fromJust . userIdentity . accountUser) acc
       uid = (userId . accountUser) acc
-  ScimExternalIdStore.insert tid (fromEmail email) uid
+  ScimExternalIdStore.insert tid email uid
   r <- runExceptT $ deleteScimUser tokenInfo uid
-  lr <- ScimExternalIdStore.lookup tid (fromEmail email)
+  lr <- ScimExternalIdStore.lookup tid email
   liftIO $ lr `shouldBe` Nothing
   pure r
 
