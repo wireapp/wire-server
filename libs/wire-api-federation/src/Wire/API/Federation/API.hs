@@ -101,6 +101,7 @@ fedClient = clientIn (Proxy @api) (Proxy @m)
 fedQueueClient ::
   forall tag api.
   ( HasNotificationEndpoint tag,
+    -- FUTUREWORK: Include this API constraint and get it working
     -- api ~ NotificationAPI tag (NotificationComponent tag),
     HasEmptyResponse api,
     KnownSymbol (NotificationPath tag),
