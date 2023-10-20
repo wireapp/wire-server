@@ -66,6 +66,9 @@ import Network.Wai.Utilities.JSONResponse
 import Polysemy
 import Polysemy.Error
 import Servant
+import Servant.Client (HasClient (Client))
+import Servant.Client.Core.HasClient (hoistClientMonad)
+import Servant.Client.Streaming (HasClient (clientWithRoute))
 import Servant.OpenApi
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named (UntypedNamed)
@@ -190,6 +193,11 @@ instance
   HasOpenApi (CanThrow e :> api)
   where
   toOpenApi _ = addToOpenApi @e (toOpenApi (Proxy @api))
+
+instance HasClient m api => HasClient m (CanThrow e :> api) where
+  type Client m (CanThrow e :> api) = Client m api
+  clientWithRoute pm _ = clientWithRoute pm $ Proxy @api
+  hoistClientMonad pm _ = hoistClientMonad pm (Proxy @api)
 
 type instance
   SpecialiseToVersion v (CanThrowMany es :> api) =

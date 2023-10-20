@@ -28,7 +28,6 @@ import Control.Lens
 import Control.Monad.Trans.Except (throwE)
 import Data.ByteString.Builder
 import qualified Data.ByteString.Lazy as LBS
-import Data.CommaSeparatedList (CommaSeparatedList (..))
 import Data.Domain
 import Data.Id
 import Data.Kind
@@ -46,7 +45,7 @@ import qualified Wire.API.Routes.Internal.Brig as IBrig
 import Wire.API.Routes.Internal.Cargohold
 import Wire.API.Routes.Named (namedClient)
 import Wire.API.Routes.Public.Cargohold
-import Wire.API.User (accountUser, userIdentity)
+import Wire.API.User (AccountStatus (Active), AccountStatusResp (..))
 
 servantSitemap :: ServerT CargoholdAPI Handler
 servantSitemap =
@@ -147,28 +146,20 @@ uploadAssetV3 pid req = do
   let principal = mkPrincipal pid
   case principal of
     V3.UserPrincipal uid -> do
-      resp <- liftIO $ getUserById uid clientEnv
-      users <- either (const $ throwE userNotFound) pure resp
-      case listToMaybe users >>= userIdentity . accountUser of
-        Nothing -> throwE unverifiedUser
-        Just _ -> pure ()
-    -- Just id -> case id of
-    --   FullIdentity -> pure ()
-    --   EmailIdentity -> pure ()
-    --   SSOIdentity _ (Just _) _ -> pure ()
-    --   _ -> throwE unverifiedUser
+      status <-
+        liftIO (getUserStatusById clientEnv uid)
+          >>= either (const $ throwE userNotFound) pure
+      case fromAccountStatusResp status of
+        Active -> pure ()
+        _ -> throwE unverifiedUser
     _ -> pure ()
   asset <- V3.upload principal (getAssetSource req)
   pure (fmap tUntagged asset, mkAssetLocation @tag (asset ^. assetKey))
   where
-    getUserById uid env =
+    getUserStatusById :: ClientEnv -> UserId -> IO (Either ClientError AccountStatusResp)
+    getUserStatusById env uid =
       flip runClientM env $
-        namedClient @IBrig.API @"iGetUsersByVariousKeys"
-          (pure $ CommaSeparatedList [uid])
-          Nothing
-          Nothing
-          Nothing
-          Nothing
+        namedClient @IBrig.API @"iGetUserStatus" uid
 
 downloadAssetV3 ::
   MakePrincipal tag id =>
