@@ -19,6 +19,33 @@ spec:
     securityContext:
       {{- toYaml .Values.podSecurityContext | nindent 6 }}
         {{- end }}
+    command:
+    - /bin/bash
+    - -c
+    - |
+      set -euo pipefail
+
+      if stern-integration --xml "$TEST_XML"; then
+        exit_code=$?
+      else
+        exit_code=$?
+      fi
+
+      {{- if .Values.tests.config.uploadXml }}
+      # In case a different S3 compliant storage is used to upload test result.
+      if ! [[ -z "${UPLOAD_XML_AWS_ACCESS_KEY_ID+x}" ]]; then
+        export AWS_ACCESS_KEY_ID="$UPLOAD_XML_AWS_ACCESS_KEY_ID"
+        export AWS_SECRET_ACCESS_KEY="$UPLOAD_XML_AWS_SECRET_ACCESS_KEY"
+      fi
+
+      # The `|| echo ..` ensures that the test isn't seen as failed even if the upload fails.
+      ts=$(date --utc '+%Y%m%d%H%M%S%N')
+      uploadUrl="$UPLOAD_XML_S3_BASE_URL/stern-integration/${ts}.xml"
+      echo "Uploading xml result to: $uploadUrl"
+      aws s3 cp "$TEST_XML" "$uploadUrl" || echo "failed to upload result"
+      {{- end }}
+
+      exit $exit_code
     volumeMounts:
     - name: "stern-integration"
       mountPath: "/etc/wire/integration"
@@ -26,4 +53,23 @@ spec:
       requests:
         memory: "128Mi"
         cpu: "1"
+    env:
+    - name: TEST_XML
+      value: /tmp/result.xml
+    {{- if .Values.tests.config.uploadXml }}
+    - name: UPLOAD_XML_S3_BASE_URL
+      value: {{ .Values.tests.config.uploadXml.baseUrl }}
+    {{- if .Values.tests.secrets.uploadXmlAwsAccessKeyId }}
+    - name: UPLOAD_XML_AWS_ACCESS_KEY_ID
+      valueFrom:
+        secretKeyRef:
+          name: stern-integration
+          key: uploadXmlAwsAccessKeyId
+    - name: UPLOAD_XML_AWS_SECRET_ACCESS_KEY
+      valueFrom:
+        secretKeyRef:
+          name: stern-integration
+          key: uploadXmlAwsSecretAccessKey
+    {{- end }}
+    {{- end }}
   restartPolicy: Never

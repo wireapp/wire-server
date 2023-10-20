@@ -136,6 +136,15 @@ brig:
       password: {{ .Values.rabbitmqPassword }}
   tests:
     enableFederationTests: true
+    {{- if .Values.uploadXml }}
+    config:
+      uploadXml:
+        baseUrl: {{ .Values.uploadXml.baseUrl }}
+    secrets:
+      uploadXmlAwsAccessKeyId: {{ .Values.uploadXml.awsAccessKeyId }}
+      uploadXmlAwsSecretAccessKey: {{ .Values.uploadXml.awsSecretAccessKey }}
+    {{- end }}
+
 cannon:
   replicaCount: 2
   imagePullPolicy: {{ .Values.imagePullPolicy }}
@@ -162,6 +171,16 @@ cargohold:
   secrets:
     awsKeyId: dummykey
     awsSecretKey: dummysecret
+  tests:
+    {{- if .Values.uploadXml }}
+    config:
+      uploadXml:
+        baseUrl: {{ .Values.uploadXml.baseUrl }}
+    secrets:
+      uploadXmlAwsAccessKeyId: {{ .Values.uploadXml.awsAccessKeyId }}
+      uploadXmlAwsSecretAccessKey: {{ .Values.uploadXml.awsSecretAccessKey }}
+    {{- end }}
+
 galley:
   replicaCount: 1
   imagePullPolicy: {{ .Values.imagePullPolicy }}
@@ -210,6 +229,15 @@ galley:
     rabbitmq:
       username: {{ .Values.rabbitmqUsername }}
       password: {{ .Values.rabbitmqPassword }}
+  tests:
+    {{- if .Values.uploadXml }}
+    config:
+      uploadXml:
+        baseUrl: {{ .Values.uploadXml.baseUrl }}
+    secrets:
+      uploadXmlAwsAccessKeyId: {{ .Values.uploadXml.awsAccessKeyId }}
+      uploadXmlAwsSecretAccessKey: {{ .Values.uploadXml.awsSecretAccessKey }}
+    {{- end }}
 
 gundeck:
   replicaCount: 1
@@ -239,6 +267,16 @@ gundeck:
   secrets:
     awsKeyId: dummykey
     awsSecretKey: dummysecret
+  tests:
+    {{- if .Values.uploadXml }}
+    config:
+      uploadXml:
+        baseUrl: {{ .Values.uploadXml.baseUrl }}
+    secrets:
+      uploadXmlAwsAccessKeyId: {{ .Values.uploadXml.awsAccessKeyId }}
+      uploadXmlAwsSecretAccessKey: {{ .Values.uploadXml.awsSecretAccessKey }}
+    {{- end }}
+
 nginz:
   replicaCount: 1
   imagePullPolicy: {{ .Values.imagePullPolicy }}
@@ -296,6 +334,15 @@ spar:
     - type: ContactSupport
       company: Example Company
       email: email:backend+spar@wire.com
+  tests:
+    {{- if .Values.uploadXml }}
+    config:
+      uploadXml:
+        baseUrl: {{ .Values.uploadXml.baseUrl }}
+    secrets:
+      uploadXmlAwsAccessKeyId: {{ .Values.uploadXml.awsAccessKeyId }}
+      uploadXmlAwsSecretAccessKey: {{ .Values.uploadXml.awsSecretAccessKey }}
+    {{- end }}
 
 federator:
   replicaCount: 1
@@ -305,6 +352,15 @@ federator:
   config:
     optSettings:
       useSystemCAStore: false
+  tests:
+    {{- if .Values.uploadXml }}
+    config:
+      uploadXml:
+        baseUrl: {{ .Values.uploadXml.baseUrl }}
+    secrets:
+      uploadXmlAwsAccessKeyId: {{ .Values.uploadXml.awsAccessKeyId }}
+      uploadXmlAwsSecretAccessKey: {{ .Values.uploadXml.awsSecretAccessKey }}
+    {{- end }}
 
 background-worker:
   replicaCount: 1
@@ -324,3 +380,21 @@ background-worker:
 integration:
   ingress:
     class: "nginx-{{ .Release.Namespace }}"
+  {{- if .Values.uploadXml }}
+  config:
+    uploadXml:
+      baseUrl: {{ .Values.uploadXml.baseUrl }}
+  secrets:
+    uploadXmlAwsAccessKeyId: {{ .Values.uploadXml.awsAccessKeyId }}
+    uploadXmlAwsSecretAccessKey: {{ .Values.uploadXml.awsSecretAccessKey }}
+  {{- end }}
+backoffice:
+  tests:
+    {{- if .Values.uploadXml }}
+    config:
+      uploadXml:
+        baseUrl: {{ .Values.uploadXml.baseUrl }}
+    secrets:
+      uploadXmlAwsAccessKeyId: {{ .Values.uploadXml.awsAccessKeyId }}
+      uploadXmlAwsSecretAccessKey: {{ .Values.uploadXml.awsSecretAccessKey }}
+    {{- end }}

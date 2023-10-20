@@ -127,10 +127,9 @@ headersFromTable (headerList, _) = flip map headerList $ first HTTP2.tokenKey
 --       tcpConnectionTimeout = 30_000_000
 --   sendReqMVar <- newEmptyMVar
 --   thread <- liftIO . async $ H2Manager.startPersistentHTTP2Connection ctx target cacheLimit sslRemoveTrailingDot tcpConnectionTimeout sendReqMVar
---   -- tSem <- newTVarIO 99
---   -- tNewConn <- newTVarIO True
---   let newConn = H2Manager.HTTP2Conn thread (putMVar sendReqMVar H2Manager.CloseConnection) sendReqMVar -- tSem tNewConn
---   H2Manager.sendRequestWithConnection newConn req k
+--   let newConn = H2Manager.HTTP2Conn thread (putMVar sendReqMVar H2Manager.CloseConnection) sendReqMVar
+--   H2Manager.sendRequestWithConnection newConn req $ \resp -> do
+--     k resp <* newConn.disconnect
 
 performHTTP2Request ::
   Http2Manager ->
