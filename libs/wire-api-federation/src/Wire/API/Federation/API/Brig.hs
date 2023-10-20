@@ -15,17 +15,20 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.API.Federation.API.Brig where
+module Wire.API.Federation.API.Brig
+  ( module Notifications,
+    module Wire.API.Federation.API.Brig,
+  )
+where
 
 import Data.Aeson
 import Data.Domain (Domain)
 import Data.Handle (Handle)
 import Data.Id
-import Data.Range
 import Imports
 import Servant.API
 import Test.QuickCheck (Arbitrary)
-import Wire.API.Federation.API.Common
+import Wire.API.Federation.API.Brig.Notifications as Notifications
 import Wire.API.Federation.Endpoint
 import Wire.API.Federation.Version
 import Wire.API.MLS.CipherSuite
@@ -70,9 +73,11 @@ type BrigApi =
     :<|> FedEndpoint "get-user-clients" GetUserClients (UserMap (Set PubClient))
     :<|> FedEndpoint "get-mls-clients" MLSClientsRequest (Set ClientInfo)
     :<|> FedEndpoint "send-connection-action" NewConnectionRequest NewConnectionResponse
-    :<|> FedEndpoint "on-user-deleted-connections" UserDeletedConnectionsNotification EmptyResponse
     :<|> FedEndpoint "claim-key-packages" ClaimKeyPackageRequest (Maybe KeyPackageBundle)
     :<|> FedEndpoint "get-not-fully-connected-backends" DomainSet NonConnectedBackends
+    -- All the notification endpoints that go through the queue-based
+    -- federation client ('fedQueueClient').
+    :<|> BrigNotificationAPI
 
 newtype DomainSet = DomainSet
   { domains :: Set Domain
@@ -142,18 +147,6 @@ data NewConnectionResponse
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform NewConnectionResponse)
   deriving (FromJSON, ToJSON) via (CustomEncoded NewConnectionResponse)
-
-type UserDeletedNotificationMaxConnections = 1000
-
-data UserDeletedConnectionsNotification = UserDeletedConnectionsNotification
-  { -- | This is qualified implicitly by the origin domain
-    user :: UserId,
-    -- | These are qualified implicitly by the target domain
-    connections :: Range 1 UserDeletedNotificationMaxConnections [UserId]
-  }
-  deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform UserDeletedConnectionsNotification)
-  deriving (FromJSON, ToJSON) via (CustomEncoded UserDeletedConnectionsNotification)
 
 data ClaimKeyPackageRequest = ClaimKeyPackageRequest
   { -- | The user making the request, implictly qualified by the origin domain.

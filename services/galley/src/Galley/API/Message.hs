@@ -663,7 +663,7 @@ sendRemoteMessages domain now sender senderClient lcnv metadata messages = (hand
             transient = mmTransient metadata,
             recipients = UserClientMap rcpts
           }
-  let rpc = void $ fedQueueClient @'Galley @"on-message-sent" rm
+  let rpc = void $ fedQueueClient @'OnMessageSentTag rm
   enqueueNotification domain Q.Persistent rpc
   where
     handle :: Either FederationError a -> Sem r (Set (UserId, ClientId))
