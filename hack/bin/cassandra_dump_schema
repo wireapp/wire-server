@@ -25,7 +25,6 @@ def main():
     for keyspace in keyspaces:
         if keyspace.endswith('_test'):
             s = run_cqlsh(container, f'DESCRIBE keyspace {keyspace}')
-            print(s.replace('CREATE TABLE galley_test.member_client','-- NOTE: this table is unused. It was replaced by mls_group_member_client\nCREATE TABLE galley_test.member_client'))
             print()
 
 if __name__ == '__main__':

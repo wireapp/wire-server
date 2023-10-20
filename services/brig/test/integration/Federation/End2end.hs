@@ -548,8 +548,8 @@ testDeleteUser brig1 brig2 galley1 galley2 cannon1 = do
   WS.bracketR cannon1 (qUnqualified alice) $ \wsAlice -> do
     deleteUser (qUnqualified bobDel) (Just defPassword) brig2 !!! const 200 === statusCode
     WS.assertMatch_ (5 # Second) wsAlice $ matchDeleteUserNotification bobDel
-    WS.assertMatch_ (5 # Second) wsAlice $ matchConvLeaveNotification conv1 bobDel [bobDel]
-    WS.assertMatch_ (5 # Second) wsAlice $ matchConvLeaveNotification conv2 bobDel [bobDel]
+    WS.assertMatch_ (5 # Second) wsAlice $ matchConvLeaveNotification conv1 bobDel [bobDel] EdReasonLeft
+    WS.assertMatch_ (5 # Second) wsAlice $ matchConvLeaveNotification conv2 bobDel [bobDel] EdReasonLeft
 
 testRemoteAsset :: Brig -> Brig -> CargoHold -> CargoHold -> Http ()
 testRemoteAsset brig1 brig2 ch1 ch2 = do

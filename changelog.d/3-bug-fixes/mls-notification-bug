@@ -1,0 +1,1 @@
+Fix bug where notifications for MLS messages were not showing up in all notification streams of clients

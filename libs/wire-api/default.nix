@@ -63,7 +63,6 @@
 , openapi3
 , pem
 , polysemy
-, pretty
 , process
 , proto-lens
 , protobuf
@@ -235,7 +234,6 @@ mkDerivation {
     metrics-wai
     openapi3
     pem
-    pretty
     process
     proto-lens
     QuickCheck
