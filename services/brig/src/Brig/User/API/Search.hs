@@ -175,7 +175,19 @@ searchLocally searcherId searchTerm maybeMaxResults = do
 
     allContacts :: UserId -> Handler r [UserId]
     allContacts =
-      error "select right from brig.connection where left = ?"
+      error
+        "\
+        \\n\
+        \maybe something like:\n\
+        \`select right from brig.connection where left = ?`\n\
+        \... but brig.connection does not track *implicit* connections between team mates.\n\
+        \\n\
+        \this would work:\n\
+        \`select user from galley.member where conv = (select conv from galley.user where user = ?)`\n\
+        \... but https://stackoverflow.com/questions/16790297/inner-join-in-cassandra-cql\n\
+        \\n\
+        \so this can be easily done, but performance may be an issue.\n\
+        \"
 
 teamUserSearch ::
   Member GalleyProvider r =>
