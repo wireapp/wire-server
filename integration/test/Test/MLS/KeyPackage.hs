@@ -124,7 +124,7 @@ testReplaceKeyPackages = do
     checkCount def 4
     checkCount suite 0
 
-  when False $ do
+  do
     -- replenish key packages for the second ciphersuite
     void $
       replicateM 5 (fmap fst (generateKeyPackage alice1 suite))
