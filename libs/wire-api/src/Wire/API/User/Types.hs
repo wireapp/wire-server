@@ -107,13 +107,6 @@ type Konst = Const ()
 data UAuthId (a :: Type -> Type) (b :: Type -> Type) (c :: Type -> Type) = UAuthId
   { uaSamlId :: a SAML.UserRef,
     uaScimExternalId :: b Text,
-    -- | TODO: replace uaEmail with uaEmailScim and uaEmailValidated.  the latter is the one
-    -- that goes into the `email` field in the user, and it needs to be stored here
-    -- redundantly, because we need to derive it from `UAuthIdentity`.  come to think of it,
-    -- maybe we don't: we could do `UAuthIdentity UAuthId (Maybe Email)`.
-    --
-    -- TODO: also double-check the semantics of the `email` field in the User schema.  is it
-    -- really only validated emails?
     uaEmail :: c EmailWithSource,
     -- | Only team users support saml and/or scim.  `externalId` is scoped in `teamId`, so
     -- once we have parsed a scim user record, the `externalId` should never occur anywhere
