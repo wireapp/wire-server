@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedLists #-}
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -25,7 +26,7 @@ import Data.ISO3166_CountryCodes
       ( LY
       ),
   )
-import Data.Id (Id (Id, toUUID))
+import Data.Id
 import Data.LanguageCodes qualified
   ( ISO639_1
       ( SN
@@ -35,7 +36,8 @@ import Data.Misc (plainTextPassword8Unsafe)
 import Data.Range (unsafeRange)
 import Data.Text.Ascii (AsciiChars (validate))
 import Data.UUID qualified as UUID (fromString)
-import Imports (Maybe (Just, Nothing), fromJust, fromRight, undefined, (.))
+import Imports
+import Web.HttpApiData (parseUrlPiece)
 import Wire.API.Asset
 import Wire.API.Team (BindingNewTeam (..), Icon (..), NewTeam (..))
 import Wire.API.User
@@ -54,16 +56,15 @@ import Wire.API.User
     NewUser (..),
     NewUserOrigin (..),
     Pict (Pict, fromPict),
-    UserIdentity
-      ( EmailIdentity,
-        PhoneIdentity,
-        SSOIdentity
-      ),
+    UserIdentity (EmailIdentity, PhoneIdentity, UAuthIdentity),
     emptyNewUser,
   )
 import Wire.API.User.Activation (ActivationCode (ActivationCode, fromActivationCode))
 import Wire.API.User.Auth (CookieLabel (CookieLabel, cookieLabelText))
-import Wire.API.User.Identity (Phone (..), UserSSOId (UserSSOId), mkSimpleSampleUref)
+import Wire.API.User.Identity (Phone (..), UAuthId (..), mkSimpleSampleUref)
+
+sampleTeamId :: TeamId
+Right sampleTeamId = parseUrlPiece "579edcd0-6f1b-11ee-b49a-e770ab99392a"
 
 testObject_NewUser_user_1 :: NewUser
 testObject_NewUser_user_1 =
@@ -143,7 +144,7 @@ testObject_NewUser_user_6 =
       (Name {fromName = "test name"})
   )
     { newUserOrigin = Just (NewUserOriginTeamUser (NewTeamMemberSSO tid)),
-      newUserIdentity = Just (SSOIdentity (UserSSOId mkSimpleSampleUref) Nothing Nothing)
+      newUserIdentity = Just (UAuthIdentity (UAuthId (Just mkSimpleSampleUref) Nothing Nothing sampleTeamId))
     }
   where
     tid = Id (fromJust (UUID.fromString "00007b0e-0000-3489-0000-075c00005be7"))

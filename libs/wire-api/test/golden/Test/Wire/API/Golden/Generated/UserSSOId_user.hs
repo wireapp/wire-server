@@ -17,14 +17,14 @@
 
 module Test.Wire.API.Golden.Generated.UserSSOId_user where
 
-import Wire.API.User (UserSSOId (..))
+import Wire.API.User (LegacyUserSSOId (..))
 import Wire.API.User.Identity (mkSimpleSampleUref)
 
-testObject_UserSSOId_user_2 :: UserSSOId
+testObject_UserSSOId_user_2 :: LegacyUserSSOId
 testObject_UserSSOId_user_2 = UserSSOId mkSimpleSampleUref
 
-testObject_UserSSOId_user_9 :: UserSSOId
+testObject_UserSSOId_user_9 :: LegacyUserSSOId
 testObject_UserSSOId_user_9 = UserScimExternalId "\r\1074376iua\1008736M\138936\v"
 
-testObject_UserSSOId_user_13 :: UserSSOId
+testObject_UserSSOId_user_13 :: LegacyUserSSOId
 testObject_UserSSOId_user_13 = UserScimExternalId ""
