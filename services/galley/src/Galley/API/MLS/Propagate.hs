@@ -89,7 +89,7 @@ propagateMessage qusr mSenderClient lConvOrSub con msg cm = do
   -- send to remotes
   (either (logRemoteNotificationError @"on-mls-message-sent") (const (pure ())) <=< enqueueNotificationsConcurrently Q.Persistent (map remoteMemberQualify rmems)) $
     \rs ->
-      fedQueueClient @'Galley @"on-mls-message-sent" $
+      fedQueueClient @'OnMLSMessageSentTag $
         RemoteMLSMessage
           { time = now,
             sender = qusr,

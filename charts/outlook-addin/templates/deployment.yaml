@@ -30,8 +30,6 @@ spec:
               value: "{{ .Values.wireApiBaseUrl }}"
             - name: WIRE_AUTHORIZATION_ENDPOINT
               value: "{{ .Values.wireAuthorizationEndpoint }}"
-            - name: SUPPORT_URL
-              value: "{{ .Values.supportUrl }}"
           livenessProbe:
             httpGet:
               path: /

@@ -1,0 +1,1 @@
+Reorganise the federation API such that queueing notification endpoints are separate from synchronous endpoints. Also simplify queueing federation notification endpoints.

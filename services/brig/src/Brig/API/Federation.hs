@@ -90,9 +90,9 @@ federationSitemap =
     :<|> Named @"get-user-clients" getUserClients
     :<|> Named @"get-mls-clients" getMLSClients
     :<|> Named @"send-connection-action" sendConnectionAction
-    :<|> Named @"on-user-deleted-connections" onUserDeleted
     :<|> Named @"claim-key-packages" fedClaimKeyPackages
     :<|> Named @"get-not-fully-connected-backends" getFederationStatus
+    :<|> Named @"on-user-deleted-connections" onUserDeleted
 
 -- Allow remote domains to send their known remote federation instances, and respond
 -- with the subset of those we aren't connected to.
