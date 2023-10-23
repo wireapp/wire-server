@@ -18,8 +18,11 @@ executable test-stats
   main-is:            Main.hs
   build-depends:
       base
+    , bytestring
     , containers
     , imports
+    , monoidal-containers
+    , optparse-generic
     , prettyprinter
     , prometheus-client
     , text

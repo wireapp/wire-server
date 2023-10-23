@@ -17,19 +17,40 @@
 
 module Main (main) where
 
+import Data.ByteString.Lazy.Char8 qualified as LBS
 import Data.List
-import Data.Map qualified as Map
+import Data.Map.Monoidal (MonoidalMap)
+import Data.Map.Monoidal qualified as MonoidalMap
 import Data.Set qualified as Set
 import Data.Text qualified as T
+import Data.Text qualified as Text
 import Data.Text.IO qualified as T
-import Imports
+import Imports hiding (Map)
+import Options.Generic
 import Prettyprinter
 import Prettyprinter.Render.Text
 import Prometheus
 import Text.XML.Light
 
 main :: IO ()
-main = liftM2 (>>) pushMetrics pushFailureDescriptions . merge =<< mapM parse =<< getArgs
+main = do
+  opts :: Options Unwrapped <- unwrapRecord "Test Statistics"
+  xmlFiles <- map ((opts.testResults <> "/") <>) . filter (".xml" `isSuffixOf`) <$> listDirectory opts.testResults
+  reports <- mconcat <$> traverse parse xmlFiles
+  pushFailureDescriptions opts.failureReport reports
+  pushMetrics opts.metricName reports
+  LBS.putStrLn =<< exportMetricsAsText
+
+-- * Command Line Options
+
+data Options w = Options
+  { testResults :: w ::: FilePath <?> "Directory containing test results in the JUNIT xml format. All files with 'xml' extension in this directory will be considered test results",
+    failureReport :: w ::: FilePath <?> "Path to output file containing failure formatted as markdown.",
+    metricName :: w ::: Text <?> "Name of the prometheus metric" <!> "flake_news_test_case_results"
+  }
+  deriving (Generic)
+
+instance ParseRecord (Options Wrapped)
 
 -- * Intermediate representation
 
@@ -57,34 +78,31 @@ failureCase = Report 0 1
 
 -- * XML parser
 
-parse :: FilePath -> IO (Map TestCase Report)
+parse :: FilePath -> IO (MonoidalMap TestCase Report)
 parse fn = parseRaw <$> T.readFile fn
 
-parseRaw :: Text -> Map TestCase Report
-parseRaw = merge . map parseTestSuites . selectTestSuites . parseXML
+parseRaw :: Text -> MonoidalMap TestCase Report
+parseRaw = mconcat . map parseTestSuites . selectTestSuites . parseXML
   where
     selectTestSuites = filter (matchQName "testsuites" . elName) . onlyElems
 
-parseTestSuites :: Element -> Map TestCase Report
-parseTestSuites = merge . liftM2 map (parseTestSuite . name) (children "testsuite")
+parseTestSuites :: Element -> MonoidalMap TestCase Report
+parseTestSuites = mconcat . liftM2 map (parseTestSuite . name) (children "testsuite")
 
-parseTestSuite :: [Text] -> Element -> Map TestCase Report
+parseTestSuite :: [Text] -> Element -> MonoidalMap TestCase Report
 parseTestSuite names =
   liftM2
-    (Map.unionWith (<>))
-    (merge . liftM2 map (parseTestSuite . (names <>) . name) (children "testsuite"))
-    (merge . liftM2 map (parseTestCase . (names <>) . name) (children "testcase"))
+    (MonoidalMap.unionWith (<>))
+    (mconcat . liftM2 map (parseTestSuite . (names <>) . name) (children "testsuite"))
+    (mconcat . liftM2 map (parseTestCase . (names <>) . name) (children "testcase"))
 
-parseTestCase :: [Text] -> Element -> Map TestCase Report
+parseTestCase :: [Text] -> Element -> MonoidalMap TestCase Report
 parseTestCase names el
-  | null failures = Map.singleton compName successCase
-  | otherwise = Map.singleton compName $ failureCase failures
+  | null failures = MonoidalMap.singleton compName successCase
+  | otherwise = MonoidalMap.singleton compName $ failureCase failures
   where
     compName = T.intercalate "." $ names <> name el
     failures = Set.fromList . map (T.pack . strContent) $ children "failure" el
-
-merge :: [Map TestCase Report] -> Map TestCase Report
-merge = Map.unionsWith (<>)
 
 matchQName :: String -> QName -> Bool
 matchQName = flip $ (==) . qName
@@ -97,27 +115,31 @@ name = maybeToList . fmap T.pack . findAttrBy (matchQName "name")
 
 -- * Metrics output (Prometheus)
 
-pushMetrics :: Map TestCase Report -> IO ()
-pushMetrics reports =
-  mapM_
-    (liftM2 (>>) (push "success" success) (push "failure" failure))
-    $ Map.toList reports
+pushMetrics :: Text -> MonoidalMap TestCase Report -> IO ()
+pushMetrics metricName reports = do
+  let metric = vector ("testcase", "result") $ gauge $ Info metricName "Result of a test case after running it a few times"
+  v <- register metric
+  void $ MonoidalMap.traverseWithKey (push v) reports
   where
-    push state source (caseName, report) =
-      flip setGauge (fromIntegral $ source report)
-        =<< register (gaugeInfo (appendState state) caseName)
-    gaugeInfo state = gauge . liftM2 Info state state
-    appendState state n = T.intercalate "." [n, state]
+    push v caseName report = do
+      when (report.success > 0) $
+        withLabel v (caseName, "success") $
+          flip setGauge (fromIntegral report.success)
+      when (report.failure > 0) $
+        withLabel v (caseName, "failure") $
+          flip setGauge (fromIntegral report.failure)
 
 -- * Failure descriptions output (MD)
 
-pushFailureDescriptions :: Map TestCase Report -> IO ()
-pushFailureDescriptions = putDoc . separateByLine preamble . render . failures
+pushFailureDescriptions :: FilePath -> MonoidalMap TestCase Report -> IO ()
+pushFailureDescriptions outFile reports =
+  withFile outFile WriteMode $ \outFileH ->
+    hPutDoc outFileH . separateByLine preamble . render $ failures reports
   where
     preamble = h1 "Failure Descriptions"
     render =
       concatWith separateByLine
-        . Map.mapWithKey
+        . MonoidalMap.mapWithKey
           ( curry
               ( liftM2
                   separateByLine
@@ -125,7 +147,7 @@ pushFailureDescriptions = putDoc . separateByLine preamble . render . failures
                   (concatWith separateByLine . map (verbatim . pretty) . Set.toList . failureDesc . snd)
               )
           )
-    failures = Map.filter (not . null . failureDesc)
+    failures = MonoidalMap.filter (not . null . failureDesc)
     h1 = onSeparateLine . underlineWith "="
     h2 = onSeparateLine . underlineWith "-"
     underlineWith symbol x = align (width x (\w -> hardline <> pretty (T.replicate w symbol)))

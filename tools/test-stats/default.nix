@@ -4,10 +4,13 @@
 # dependencies are added or removed.
 { mkDerivation
 , base
+, bytestring
 , containers
 , gitignoreSource
 , imports
 , lib
+, monoidal-containers
+, optparse-generic
 , prettyprinter
 , prometheus-client
 , text
@@ -21,8 +24,11 @@ mkDerivation {
   isExecutable = true;
   executableHaskellDepends = [
     base
+    bytestring
     containers
     imports
+    monoidal-containers
+    optparse-generic
     prettyprinter
     prometheus-client
     text
