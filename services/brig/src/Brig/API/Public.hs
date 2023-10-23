@@ -111,6 +111,7 @@ import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig qualified as BrigFederationAPI
+import Wire.API.Federation.API.Cargohold qualified as CargoholdFederationAPI
 import Wire.API.Federation.API.Galley qualified as GalleyFederationAPI
 import Wire.API.Federation.Error
 import Wire.API.Properties qualified as Public
@@ -163,8 +164,9 @@ docsAPI =
 
 federatedEndpointsSwaggerDocsAPIs :: Servant.Server FederationSwaggerDocsAPI
 federatedEndpointsSwaggerDocsAPIs =
-  federatedEndpointsSwaggerDocsAPI "brig" BrigFederationAPI.swaggerDoc
-    :<|> federatedEndpointsSwaggerDocsAPI "galley" GalleyFederationAPI.swaggerDoc
+  swaggerSchemaUIServer (adjustSwaggerForFederationEndpoints "brig" BrigFederationAPI.swaggerDoc)
+    :<|> swaggerSchemaUIServer (adjustSwaggerForFederationEndpoints "galley" GalleyFederationAPI.swaggerDoc)
+    :<|> swaggerSchemaUIServer (adjustSwaggerForFederationEndpoints "cargohold" CargoholdFederationAPI.swaggerDoc)
 
 internalEndpointsSwaggerDocsAPIs :: Servant.Server InternalEndpointsSwaggerDocsAPI
 internalEndpointsSwaggerDocsAPIs =
@@ -173,16 +175,6 @@ internalEndpointsSwaggerDocsAPIs =
     :<|> internalEndpointsSwaggerDocsAPI "cargohold" 9094 CargoholdInternalAPI.swaggerDoc
     :<|> internalEndpointsSwaggerDocsAPI "galley" 9095 GalleyInternalAPI.swaggerDoc
     :<|> internalEndpointsSwaggerDocsAPI "spar" 9098 SparInternalAPI.swaggerDoc
-
-federatedEndpointsSwaggerDocsAPI :: String -> S.OpenApi -> Servant.Server (VersionedSwaggerDocsAPIBase service)
-federatedEndpointsSwaggerDocsAPI service swagger (Just (VersionNumber V5)) =
-  swaggerSchemaUIServer $
-    adjustSwaggerForFederationEndpoints service swagger
-federatedEndpointsSwaggerDocsAPI service swagger (Just (VersionNumber V4)) =
-  swaggerSchemaUIServer $
-    adjustSwaggerForFederationEndpoints service swagger
-federatedEndpointsSwaggerDocsAPI service swagger Nothing = federatedEndpointsSwaggerDocsAPI service swagger (Just maxBound)
-federatedEndpointsSwaggerDocsAPI _ _ _ = emptySwagger
 
 -- | Serves Swagger docs for public endpoints
 --

@@ -59,8 +59,9 @@ type NotificationSchemasAPI = "api" :> "event-notification-schemas" :> Get '[JSO
 type FederationSwaggerDocsAPI =
   "api-federation"
     :> "swagger-ui"
-    :> ( VersionedSwaggerDocsAPIBase "brig"
-           :<|> VersionedSwaggerDocsAPIBase "galley"
+    :> ( ServiceSwaggerDocsAPIBase "brig"
+           :<|> ServiceSwaggerDocsAPIBase "galley"
+           :<|> ServiceSwaggerDocsAPIBase "cargohold"
        )
 
 type DocsAPI =
