@@ -80,7 +80,7 @@ assertNoRemoteError = \case
 
 mkTestCall :: SSLContext -> ByteString -> Int -> Codensity IO (Either RemoteError ())
 mkTestCall sslCtx hostname port = do
-  mgr <- liftIO $ mkHttp2Manager 1_000_000 sslCtx
+  mgr <- liftIO $ mkHttp2Manager 300_000_000 sslCtx
   runM
     . runEmbedded @IO @(Codensity IO) liftIO
     . runError @RemoteError
