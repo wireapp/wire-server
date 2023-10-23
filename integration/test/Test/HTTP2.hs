@@ -55,9 +55,6 @@ testHTTP2 = do
       addedUsers <- forM users (%. "qualified_id")
       addedUsers `shouldMatchSet` [bId]
 
-    -- Increase the timeout so that we can block connections for longer.
-    -- 5 minute timeout. This is purely for this test, which is why it's
-    -- using local.
     env <- ask
     result <- liftIO $ flip finally resetDNS $ do
       -- Change the target in CoreDNS

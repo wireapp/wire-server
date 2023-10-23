@@ -1,6 +1,6 @@
 $ORIGIN example.com.
 @	1 IN	SOA sns.dns.icann.org. noc.dns.icann.org. (
-				2023101617 ; serial
+				2017042745 ; serial
 				1       ; refresh (2 hours)
 				1       ; retry (1 hour)
 				1    ; expire (2 weeks)

@@ -170,7 +170,7 @@ sendRequestWithConnection conn req k = do
 -- concurrent requests are to be made, it might be best to ensure that a
 -- connection exists using 'connectIfNotAlreadyConnected' before making all the
 -- requests.
-withHTTP2Request :: forall a. Http2Manager -> Target -> HTTP2.Request -> (HTTP2.Response -> IO a) -> IO a
+withHTTP2Request :: Http2Manager -> Target -> HTTP2.Request -> (HTTP2.Response -> IO a) -> IO a
 withHTTP2Request mgr target req k = do
   conn <- getOrMakeConnection mgr target
 

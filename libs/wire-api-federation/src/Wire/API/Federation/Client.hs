@@ -1,7 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedLists #-}
-{-# OPTIONS_GHC -Wno-unused-binds #-}
-{-# OPTIONS_GHC -Wno-unused-imports #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -34,7 +32,6 @@ module Wire.API.Federation.Client
   )
 where
 
-import Control.Concurrent.Async
 import Control.Exception qualified as E
 import Control.Monad.Catch
 import Control.Monad.Codensity
@@ -61,7 +58,6 @@ import Network.HTTP.Media qualified as HTTP
 import Network.HTTP.Types qualified as HTTP
 import Network.HTTP2.Client qualified as HTTP2
 import Network.Wai.Utilities.Error qualified as Wai
-import OpenSSL.Session qualified as SSL
 import Servant.Client
 import Servant.Client.Core
 import Servant.Types.SourceT
