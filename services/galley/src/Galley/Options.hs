@@ -19,39 +19,40 @@
 
 module Galley.Options
   ( Settings,
-    setHttpPoolSize,
-    setMaxTeamSize,
-    setMaxFanoutSize,
-    setExposeInvitationURLsTeamAllowlist,
-    setMaxConvSize,
-    setIntraListing,
-    setDisabledAPIVersions,
-    setConversationCodeURI,
-    setConcurrentDeletionEvents,
-    setDeleteConvThrottleMillis,
-    setFederationDomain,
-    setMlsPrivateKeyPaths,
-    setFeatureFlags,
+    httpPoolSize,
+    maxTeamSize,
+    maxFanoutSize,
+    exposeInvitationURLsTeamAllowlist,
+    maxConvSize,
+    intraListing,
+    disabledAPIVersions,
+    conversationCodeURI,
+    multiIngress,
+    concurrentDeletionEvents,
+    deleteConvThrottleMillis,
+    federationDomain,
+    mlsPrivateKeyPaths,
+    featureFlags,
     defConcurrentDeletionEvents,
     defDeleteConvThrottleMillis,
     defFanoutLimit,
     JournalOpts (JournalOpts),
-    awsQueueName,
-    awsEndpoint,
+    queueName,
+    endpoint,
     Opts,
-    optGalley,
-    optCassandra,
-    optBrig,
-    optGundeck,
-    optSpar,
-    optFederator,
-    optRabbitmq,
-    optDiscoUrl,
-    optSettings,
-    optJournal,
-    optLogLevel,
-    optLogNetStrings,
-    optLogFormat,
+    galley,
+    cassandra,
+    brig,
+    gundeck,
+    spar,
+    federator,
+    rabbitmq,
+    discoUrl,
+    settings,
+    journal,
+    logLevel,
+    logNetStrings,
+    logFormat,
   )
 where
 
@@ -66,35 +67,47 @@ import Galley.Types.Teams
 import Imports
 import Network.AMQP.Extended
 import System.Logger.Extended (Level, LogFormat)
-import Util.Options
+import Util.Options hiding (endpoint)
 import Util.Options.Common
 import Wire.API.Routes.Version
 import Wire.API.Team.Member
 
 data Settings = Settings
   { -- | Number of connections for the HTTP client pool
-    _setHttpPoolSize :: !Int,
+    _httpPoolSize :: !Int,
     -- | Max number of members in a team. NOTE: This must be in sync with Brig
-    _setMaxTeamSize :: !Word32,
+    _maxTeamSize :: !Word32,
     -- | Max number of team members users to fanout events to. For teams larger than
     --   this value, team events and user updates will no longer be sent to team users.
     --   This defaults to setMaxTeamSize and cannot be > HardTruncationLimit. Useful
     --   to tune mainly for testing purposes.
-    _setMaxFanoutSize :: !(Maybe (Range 1 HardTruncationLimit Int32)),
+    _maxFanoutSize :: !(Maybe (Range 1 HardTruncationLimit Int32)),
     -- | List of teams for which the invitation URL can be added to the list of all
     -- invitations retrievable by team admins.  See also:
     -- 'ExposeInvitationURLsToTeamAdminConfig'.
-    _setExposeInvitationURLsTeamAllowlist :: !(Maybe [TeamId]),
+    _exposeInvitationURLsTeamAllowlist :: !(Maybe [TeamId]),
     -- | Max number of members in a conversation. NOTE: This must be in sync with Brig
-    _setMaxConvSize :: !Word16,
+    _maxConvSize :: !Word16,
     -- | Whether to call Brig for device listing
-    _setIntraListing :: !Bool,
+    _intraListing :: !Bool,
     -- | URI prefix for conversations with access mode @code@
-    _setConversationCodeURI :: !HttpsUrl,
+    _conversationCodeURI :: !(Maybe HttpsUrl),
+    -- | Map from @Z-Host@ header to URI prefix for conversations with access mode @code@
+    --
+    -- If setMultiIngress is set then the URI prefix for guest links is looked
+    -- up in this config setting using the @Z-Host@ header value as a key. If
+    -- the lookup fails then no guest link can be created via the API.
+    --
+    -- This option is only useful in the context of multi-ingress setups where
+    -- one backend / deployment is is reachable under several domains.
+    --
+    -- multiIngress and conversationCodeURI are mutually exclusive. One of
+    -- both options need to be configured.
+    _multiIngress :: Maybe (Map Text HttpsUrl),
     -- | Throttling: limits to concurrent deletion events
-    _setConcurrentDeletionEvents :: !(Maybe Int),
+    _concurrentDeletionEvents :: !(Maybe Int),
     -- | Throttling: delay between sending events upon team deletion
-    _setDeleteConvThrottleMillis :: !(Maybe Int),
+    _deleteConvThrottleMillis :: !(Maybe Int),
     -- | FederationDomain is required, even when not wanting to federate with other backends
     -- (in that case the 'allowedDomains' can be set to empty in Federator)
     -- Federation domain is used to qualify local IDs and handles,
@@ -107,16 +120,16 @@ data Settings = Settings
     --   allowedDomains:
     --     - wire.com
     --     - example.com
-    _setFederationDomain :: !Domain,
+    _federationDomain :: !Domain,
     -- | When true, galley will assume data in `billing_team_member` table is
     -- consistent and use it for billing.
     -- When false, billing information for large teams is not guaranteed to have all
     -- the owners.
     -- Defaults to false.
-    _setMlsPrivateKeyPaths :: !(Maybe MLSPrivateKeyPaths),
+    _mlsPrivateKeyPaths :: !(Maybe MLSPrivateKeyPaths),
     -- | FUTUREWORK: 'setFeatureFlags' should be renamed to 'setFeatureConfigs' in all types.
-    _setFeatureFlags :: !FeatureFlags,
-    _setDisabledAPIVersions :: Maybe (Set Version)
+    _featureFlags :: !FeatureFlags,
+    _disabledAPIVersions :: Maybe (Set Version)
   }
   deriving (Show, Generic)
 
@@ -135,9 +148,9 @@ defFanoutLimit = unsafeRange hardTruncationLimit
 
 data JournalOpts = JournalOpts
   { -- | SQS queue name to send team events
-    _awsQueueName :: !Text,
+    _queueName :: !Text,
     -- | AWS endpoint
-    _awsEndpoint :: !AWSEndpoint
+    _endpoint :: !AWSEndpoint
   }
   deriving (Show, Generic)
 
@@ -147,34 +160,34 @@ makeLenses ''JournalOpts
 
 data Opts = Opts
   { -- | Host and port to bind to
-    _optGalley :: !Endpoint,
+    _galley :: !Endpoint,
     -- | Cassandra settings
-    _optCassandra :: !CassandraOpts,
+    _cassandra :: !CassandraOpts,
     -- | Brig endpoint
-    _optBrig :: !Endpoint,
+    _brig :: !Endpoint,
     -- | Gundeck endpoint
-    _optGundeck :: !Endpoint,
+    _gundeck :: !Endpoint,
     -- | Spar endpoint
-    _optSpar :: !Endpoint,
+    _spar :: !Endpoint,
     -- | Federator endpoint
-    _optFederator :: !(Maybe Endpoint),
+    _federator :: !(Maybe Endpoint),
     -- | RabbitMQ settings, required when federation is enabled.
-    _optRabbitmq :: !(Maybe RabbitMqOpts),
+    _rabbitmq :: !(Maybe RabbitMqOpts),
     -- | Disco URL
-    _optDiscoUrl :: !(Maybe Text),
+    _discoUrl :: !(Maybe Text),
     -- | Other settings
-    _optSettings :: !Settings,
+    _settings :: !Settings,
     -- | Journaling options ('Nothing'
     --   disables journaling)
     -- Logging
-    _optJournal :: !(Maybe JournalOpts),
+    _journal :: !(Maybe JournalOpts),
     -- | Log level (Debug, Info, etc)
-    _optLogLevel :: !Level,
+    _logLevel :: !Level,
     -- | Use netstrings encoding
     --  <http://cr.yp.to/proto/netstrings.txt>
-    _optLogNetStrings :: !(Maybe (Last Bool)),
+    _logNetStrings :: !(Maybe (Last Bool)),
     -- | What log format to use
-    _optLogFormat :: !(Maybe (Last LogFormat))
+    _logFormat :: !(Maybe (Last LogFormat))
   }
 
 deriveFromJSON toOptionFieldName ''Opts

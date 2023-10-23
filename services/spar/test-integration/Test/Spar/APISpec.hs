@@ -81,10 +81,11 @@ import Text.XML.DSig (SignPrivCreds, mkSignCredsWithCert)
 import qualified URI.ByteString as URI
 import URI.ByteString.QQ (uri)
 import Util.Core
-import Util.Scim (filterBy, listUsers, registerScimToken)
+import Util.Scim (createUser, filterBy, listUsers, randomScimUser, randomScimUserWithEmail, registerScimToken)
 import qualified Util.Scim as ScimT
 import Util.Types
 import qualified Web.Cookie as Cky
+import qualified Web.Scim.Class.User as Scim
 import qualified Web.Scim.Schema.User as Scim
 import Wire.API.Team.Member (newTeamMemberDeleteData)
 import Wire.API.Team.Permission hiding (self)
@@ -258,12 +259,12 @@ specFinalizeLogin = do
       context "happy flow" $ do
         it "responds with a very peculiar 'allowed' HTTP response" $ do
           env <- ask
-          let apiVersion = env ^. teWireIdPAPIVersion
+          let apiVer = env ^. teWireIdPAPIVersion
           (_, tid, idp, (_, privcreds)) <- registerTestIdPWithMeta
-          liftIO $ fromMaybe defWireIdPAPIVersion (idp ^. idpExtraInfo . wiApiVersion) `shouldBe` apiVersion
+          liftIO $ fromMaybe defWireIdPAPIVersion (idp ^. idpExtraInfo . apiVersion) `shouldBe` apiVer
           spmeta <- getTestSPMetadata tid
           authnreq <- negotiateAuthnRequest idp
-          let audiencePath = case apiVersion of
+          let audiencePath = case apiVer of
                 WireIdPAPIV1 -> "/sso/finalize-login"
                 WireIdPAPIV2 -> "/sso/finalize-login/" <> toByteString' tid
           liftIO $ authnreq ^. rqIssuer . fromIssuer . to URI.uriPath `shouldBe` audiencePath
@@ -621,7 +622,7 @@ specCRUDIdentityProvider = do
           (owner :: UserId, _teamid :: TeamId) <-
             call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
           callIdpGetAll (env ^. teSpar) (Just owner)
-            `shouldRespondWith` (null . _idplProviders)
+            `shouldRespondWith` (null . _providers)
     context "some idps are registered" $ do
       context "client is team owner with email" $ do
         it "returns a non-empty empty list" $ do
@@ -629,7 +630,7 @@ specCRUDIdentityProvider = do
           (SampleIdP metadata _ _ _) <- makeSampleIdPMetadata
           (owner, _, _) <- registerTestIdPFrom metadata (env ^. teMgr) (env ^. teBrig) (env ^. teGalley) (env ^. teSpar)
           callIdpGetAll (env ^. teSpar) (Just owner)
-            `shouldRespondWith` (not . null . _idplProviders)
+            `shouldRespondWith` (not . null . _providers)
       context "client is team owner without email" $ do
         it "returns a non-empty empty list" $ do
           env <- ask
@@ -637,7 +638,7 @@ specCRUDIdentityProvider = do
           (firstOwner, tid, idp) <- registerTestIdPFrom metadata (env ^. teMgr) (env ^. teBrig) (env ^. teGalley) (env ^. teSpar)
           ssoOwner <- mkSsoOwner firstOwner tid idp privcreds
           callIdpGetAll (env ^. teSpar) (Just ssoOwner)
-            `shouldRespondWith` (not . null . _idplProviders)
+            `shouldRespondWith` (not . null . _providers)
   describe "DELETE /identity-providers/:idp" $ do
     testGetPutDelete (\o t i _ -> callIdpDelete' o t i)
     context "zuser has wrong team" $ do
@@ -722,12 +723,12 @@ specCRUDIdentityProvider = do
         (SampleIdP metadata _ _ _) <- makeSampleIdPMetadata
         idp <- call $ callIdpCreate (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just owner) metadata
         callIdpGet (env ^. teSpar) (Just owner) (idp ^. idpId)
-          `shouldRespondWith` ((== IdPHandle "IdP 1") . (\idp' -> idp' ^. (SAML.idpExtraInfo . wiHandle)))
+          `shouldRespondWith` ((== IdPHandle "IdP 1") . (\idp' -> idp' ^. (SAML.idpExtraInfo . handle)))
         let expected = IdPHandle "kukku mukku"
         callIdpUpdateWithHandle (env ^. teSpar) (Just owner) (idp ^. idpId) (IdPMetadataValue (cs $ SAML.encode metadata) undefined) expected
           `shouldRespondWith` ((== 200) . statusCode)
         callIdpGet (env ^. teSpar) (Just owner) (idp ^. idpId)
-          `shouldRespondWith` ((== expected) . (\idp' -> idp' ^. (SAML.idpExtraInfo . wiHandle)))
+          `shouldRespondWith` ((== expected) . (\idp' -> idp' ^. (SAML.idpExtraInfo . handle)))
       it "updates IdP metadata and creates a new IdP with the first metadata" $ do
         env <- ask
         (owner, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
@@ -785,8 +786,8 @@ specCRUDIdentityProvider = do
           idp <- runSpar $ IdPEffect.getConfig idpid1
           liftIO $ do
             (idp ^. idpMetadata . edIssuer) `shouldBe` (idpmeta1 ^. edIssuer)
-            (idp ^. idpExtraInfo . wiOldIssuers) `shouldBe` []
-            (idp ^. idpExtraInfo . wiReplacedBy) `shouldBe` Nothing
+            (idp ^. idpExtraInfo . oldIssuers) `shouldBe` []
+            (idp ^. idpExtraInfo . replacedBy) `shouldBe` Nothing
 
         let -- change idp metadata (only issuer, to be precise), and look at new issuer and
             -- old issuers.
@@ -798,8 +799,8 @@ specCRUDIdentityProvider = do
               idp <- runSpar $ IdPEffect.getConfig idpid1
               liftIO $ do
                 (idp ^. idpMetadata . edIssuer) `shouldBe` (new ^. edIssuer)
-                sort (idp ^. idpExtraInfo . wiOldIssuers) `shouldBe` sort (olds <&> (^. edIssuer))
-                (idp ^. idpExtraInfo . wiReplacedBy) `shouldBe` Nothing
+                sort (idp ^. idpExtraInfo . oldIssuers) `shouldBe` sort (olds <&> (^. edIssuer))
+                (idp ^. idpExtraInfo . replacedBy) `shouldBe` Nothing
 
         -- update the name a few times, ending up with the original one.
         change idpmeta1' [idpmeta1]
@@ -819,7 +820,7 @@ specCRUDIdentityProvider = do
         liftIO $ do
           statusCode resp `shouldBe` 200
           idp ^. idpMetadata . edIssuer `shouldBe` issuer2
-          idp ^. idpExtraInfo . wiOldIssuers `shouldBe` [idpmeta1 ^. edIssuer]
+          idp ^. idpExtraInfo . oldIssuers `shouldBe` [idpmeta1 ^. edIssuer]
       it "migrates old users to new idp on their next login (auto-prov)" $ do
         env <- ask
         (owner1, _, idp1@((^. idpId) -> idpid1), (IdPMetadataValue _ idpmeta1, privkey1)) <- registerTestIdPWithMeta
@@ -916,7 +917,7 @@ specCRUDIdentityProvider = do
           check :: HasCallStack => Bool -> Int -> String -> Either String () -> TestSpar ()
           check useNewPrivKey expectedStatus expectedHtmlTitle expectedCookie = do
             (idp, oldPrivKey, newPrivKey) <- initidp
-            let tid = idp ^. idpExtraInfo . wiTeam
+            let tid = idp ^. idpExtraInfo . team
             env <- ask
             (_, authnreq) <- call $ callAuthnReq (env ^. teSpar) (idp ^. idpId)
             spmeta <- getTestSPMetadata tid
@@ -1024,14 +1025,14 @@ specCRUDIdentityProvider = do
         liftIO $ do
           idp1 `shouldBe` idp1'
           idp2 `shouldBe` idp2'
-          (idp1 ^. (SAML.idpExtraInfo . wiHandle)) `shouldBe` IdPHandle "IdP 1"
-          (idp2 ^. (SAML.idpExtraInfo . wiHandle)) `shouldBe` IdPHandle "IdP 2"
+          (idp1 ^. (SAML.idpExtraInfo . handle)) `shouldBe` IdPHandle "IdP 1"
+          (idp2 ^. (SAML.idpExtraInfo . handle)) `shouldBe` IdPHandle "IdP 2"
       it "explicitly set handle on IdP create" $ do
         env <- ask
         (owner, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
         (SampleIdP metadata _ _ _) <- makeSampleIdPMetadata
         let expected = IdPHandle "kukku mukku"
-        actual <- (\idp -> idp ^. (SAML.idpExtraInfo . wiHandle)) <$> call (callIdpCreateWithHandle (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just owner) metadata expected)
+        actual <- (\idp -> idp ^. (SAML.idpExtraInfo . handle)) <$> call (callIdpCreateWithHandle (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just owner) metadata expected)
         liftIO $ actual `shouldBe` expected
     context "client is owner without email" $ do
       it "responds with 2xx; makes IdP available for GET /identity-providers/" $ do
@@ -1054,34 +1055,99 @@ specCRUDIdentityProvider = do
             idp `shouldBe` idp'
             let prefix = "<EntityDescriptor xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" xmlns:samla=\"urn:oasis:names"
             ST.take (ST.length prefix) rawmeta `shouldBe` prefix
-    describe "replaces an existing idp" $ do
-      it "creates new idp, setting old_issuer; sets replaced_by in old idp" $ do
-        env <- ask
-        (owner1, _, idp1, (IdPMetadataValue _ idpmeta1, _)) <- registerTestIdPWithMeta
-        issuer2 <- makeIssuer
-        idp2 <-
-          let idpmeta2 = idpmeta1 & edIssuer .~ issuer2
-           in call $ callIdpCreateReplace (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just owner1) idpmeta2 (idp1 ^. SAML.idpId)
-        idp1' <- call $ callIdpGet (env ^. teSpar) (Just owner1) (idp1 ^. SAML.idpId)
-        idp2' <- call $ callIdpGet (env ^. teSpar) (Just owner1) (idp2 ^. SAML.idpId)
-        liftIO $ do
-          (idp1 & idpExtraInfo . wiReplacedBy .~ (idp1' ^. idpExtraInfo . wiReplacedBy)) `shouldBe` idp1'
-          idp2 `shouldBe` idp2'
-          idp1 ^. idpMetadata . SAML.edIssuer `shouldBe` (idpmeta1 ^. SAML.edIssuer)
-          idp2 ^. idpMetadata . SAML.edIssuer `shouldBe` issuer2
-          idp2 ^. idpId `shouldNotBe` idp1 ^. idpId
-          idp2 ^. idpExtraInfo . wiOldIssuers `shouldBe` [idpmeta1 ^. edIssuer]
-          idp1' ^. idpExtraInfo . wiReplacedBy `shouldBe` Just (idp2 ^. idpId)
-          -- erase everything that is supposed to be different between idp1, idp2, and make
-          -- sure the result is equal.
-          let erase :: IdP -> IdP
-              erase =
-                (idpId .~ (idp1 ^. idpId))
-                  . (idpMetadata . edIssuer .~ (idp1 ^. idpMetadata . edIssuer))
-                  . (idpExtraInfo . wiOldIssuers .~ (idp1 ^. idpExtraInfo . wiOldIssuers))
-                  . (idpExtraInfo . wiReplacedBy .~ (idp1 ^. idpExtraInfo . wiReplacedBy))
-                  . (idpExtraInfo . wiHandle .~ (idp1 ^. idpExtraInfo . wiHandle))
-          erase idp1 `shouldBe` erase idp2
+
+    describe "replaces an existing idp"
+      $ forM_
+        [ (h, u, e)
+          | h <- [False, True], -- are users scim provisioned or via team management invitations?
+            u <- [False, True], -- do we use update-by-put or update-by-post?  (see below)
+            (h, u) /= (True, False), -- scim doesn't not work with more than one idp (https://wearezeta.atlassian.net/browse/WPB-689)
+            e <- [False, True], -- is the externalId an email address?  (if not, it's a uuidv4, and the email address is stored in `emails`)
+            (u, u, e) /= (True, True, False) -- TODO: this combination fails, see https://github.com/wireapp/wire-server/pull/3563)
+        ]
+      $ \(haveScim, updateNotReplace, externalIdIsEmail) -> do
+        it ("creates new idp, setting old_issuer; sets replaced_by in old idp; scim user search still works " <> show (haveScim, updateNotReplace, externalIdIsEmail)) $ do
+          env <- ask
+          (owner1, teamid, idp1, (IdPMetadataValue _ idpmeta1, _privCreds)) <- registerTestIdPWithMeta
+          let idp1id = idp1 ^. idpId
+
+          mbScimStuff :: Maybe (ScimToken, Scim.StoredUser SparTag, Scim.User SparTag) <-
+            if haveScim
+              then do
+                tok <- registerScimToken teamid (Just idp1id)
+                user <-
+                  if externalIdIsEmail
+                    then fst <$> randomScimUserWithEmail
+                    else randomScimUser
+                scimStoredUser <- createUser tok user
+                pure $ Just (tok, scimStoredUser, user)
+              else pure Nothing
+
+          let checkScimSearch ::
+                HasCallStack =>
+                (ScimToken, Scim.StoredUser SparTag, Scim.User SparTag) ->
+                ReaderT TestEnv IO ()
+              checkScimSearch (tok, target, searchKeys) = do
+                let Just externalId = Scim.externalId searchKeys
+                    handle' = Scim.userName searchKeys
+                respId <- listUsers tok (Just (filterBy "externalId" externalId))
+                respHandle <- listUsers tok (Just (filterBy "userName" handle'))
+                liftIO $ do
+                  respId `shouldBe` [target]
+                  respHandle `shouldBe` [target]
+
+          checkScimSearch `mapM_` mbScimStuff
+
+          issuer2 <- makeIssuer
+          idp2 <- do
+            let idpmeta2 = idpmeta1 & edIssuer .~ issuer2
+             in call $
+                  -- There are two mechanisms for re-aligning your team when your IdP metadata
+                  -- has changed: POST (create a new one, and mark it as replacing the old one),
+                  -- and PUT (updating the existing IdP's metadata).  The reason for having two
+                  -- ways to do this has been lost in history, but we're testing both here.
+                  --
+                  -- FUTUREWORK: deprecate POST!
+                  if updateNotReplace
+                    then callIdpUpdate' (env ^. teSpar) (Just owner1) (idp1 ^. SAML.idpId) (idPMetadataToInfo idpmeta2)
+                    else callIdpCreateReplace (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just owner1) idpmeta2 (idp1 ^. SAML.idpId)
+
+          idp1' <- call $ callIdpGet (env ^. teSpar) (Just owner1) (idp1 ^. SAML.idpId)
+          idp2' <- call $ callIdpGet (env ^. teSpar) (Just owner1) (idp2 ^. SAML.idpId)
+          liftIO $ do
+            let updateIdp1 = updateCurrentIssuer . updateOldIssuers
+                  where
+                    updateCurrentIssuer = idpMetadata . edIssuer .~ (idp2' ^. idpMetadata . edIssuer)
+                    updateOldIssuers = idpExtraInfo . oldIssuers .~ [idp1 ^. idpMetadata . edIssuer]
+                replaceIdp1 =
+                  idpExtraInfo . replacedBy .~ idp1' ^. idpExtraInfo . replacedBy
+             in idp1' `shouldBe` (idp1 & if updateNotReplace then updateIdp1 else replaceIdp1)
+
+            idp2' `shouldBe` idp2
+            idp1 ^. idpMetadata . SAML.edIssuer `shouldBe` (idpmeta1 ^. SAML.edIssuer)
+            idp2 ^. idpMetadata . SAML.edIssuer `shouldBe` issuer2
+
+            if updateNotReplace
+              then idp2 ^. idpId `shouldBe` idp1 ^. idpId
+              else idp2 ^. idpId `shouldNotBe` idp1 ^. idpId
+
+            idp2 ^. idpExtraInfo . oldIssuers `shouldBe` [idpmeta1 ^. edIssuer]
+            idp1' ^. idpExtraInfo . replacedBy `shouldBe` if updateNotReplace then Nothing else Just (idp2 ^. idpId)
+
+            -- erase everything that is supposed to be different between idp1, idp2, and make
+            -- sure the result is equal.
+            let erase :: IdP -> IdP
+                erase =
+                  (idpId .~ (idp1 ^. idpId))
+                    . (idpMetadata . edIssuer .~ (idp1 ^. idpMetadata . edIssuer))
+                    . (idpExtraInfo . oldIssuers .~ (idp1 ^. idpExtraInfo . oldIssuers))
+                    . (idpExtraInfo . replacedBy .~ (idp1 ^. idpExtraInfo . replacedBy))
+                    . (idpExtraInfo . handle .~ (idp1 ^. idpExtraInfo . handle))
+             in erase idp1 `shouldBe` erase idp2
+
+          checkScimSearch `mapM_` mbScimStuff
+
+    describe "replaces an existing idp (cont.)" $ do
       it "users can still login on old idp as before" $ do
         env <- ask
         (owner1, _, idp1, (IdPMetadataValue _ idpmeta1, privkey1)) <- registerTestIdPWithMeta
@@ -1100,6 +1166,7 @@ specCRUDIdentityProvider = do
           olduid `shouldBe` newuid
           (olduref ^. SAML.uidTenant) `shouldBe` issuer1
           (newuref ^. SAML.uidTenant) `shouldBe` issuer1
+
       it "migrates old users to new idp on their next login on new idp; after that, login on old won't work any more" $ do
         env <- ask
         (owner1, _, idp1, (IdPMetadataValue _ idpmeta1, privkey1)) <- registerTestIdPWithMeta
@@ -1120,6 +1187,7 @@ specCRUDIdentityProvider = do
           (olduref ^. SAML.uidTenant) `shouldBe` issuer1
           (newuref ^. SAML.uidTenant) `shouldBe` issuer2
         tryLoginFail privkey1 idp1 userSubject "cannont-provision-on-replaced-idp"
+
       it "creates non-existent users on new idp" $ do
         env <- ask
         (owner1, _, idp1, (IdPMetadataValue _ idpmeta1, privkey1)) <- registerTestIdPWithMeta
@@ -1211,7 +1279,7 @@ specDeleteCornerCases = describe "delete corner cases" $ do
 
     createViaSamlResp :: HasCallStack => IdP -> SignPrivCreds -> SAML.UserRef -> TestSpar ResponseLBS
     createViaSamlResp idp privCreds (SAML.UserRef _ subj) = do
-      let tid = idp ^. idpExtraInfo . wiTeam
+      let tid = idp ^. idpExtraInfo . team
       authnReq <- negotiateAuthnRequest idp
       spmeta <- getTestSPMetadata tid
       authnResp <- runSimpleSP $ mkAuthnResponseWithSubj subj privCreds idp spmeta authnReq True
@@ -1297,7 +1365,7 @@ specScimAndSAML = do
             mkNameID subj (Just "https://federation.foobar.com/nidp/saml2/metadata") (Just "https://prod-nginz-https.wire.com/sso/finalize-login") Nothing
 
     authnreq <- negotiateAuthnRequest idp
-    spmeta <- getTestSPMetadata (idp ^. idpExtraInfo . wiTeam)
+    spmeta <- getTestSPMetadata (idp ^. idpExtraInfo . team)
     authnresp :: SignedAuthnResponse <- runSimpleSP $ mkAuthnResponseWithSubj subjectWithQualifier privcreds idp spmeta authnreq True
 
     ssoid <- getSsoidViaAuthResp authnresp
@@ -1565,8 +1633,8 @@ specReAuthSsoUserWithPassword =
         if withIdp
           then do
             SampleIdP idpmeta _privkey _ _ <- makeSampleIdPMetadata
-            apiVersion <- view teWireIdPAPIVersion
-            idp <- call $ callIdpCreate apiVersion (env ^. teSpar) (Just owner) idpmeta
+            apiVer <- view teWireIdPAPIVersion
+            idp <- call $ callIdpCreate apiVer (env ^. teSpar) (Just owner) idpmeta
             pure $ Just (idp ^. idpId)
           else pure Nothing
       -- then user gets upgraded to scim with or without SAML

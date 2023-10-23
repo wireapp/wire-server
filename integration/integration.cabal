@@ -21,8 +21,7 @@ custom-setup
 common common-all
   default-language:   GHC2021
   ghc-options:
-    -Wall -Wpartial-fields -fwarn-tabs
-    -optP-Wno-nonportable-include-path
+    -Wall -Wpartial-fields -fwarn-tabs -Wno-incomplete-uni-patterns
 
   default-extensions:
     NoImplicitPrelude
@@ -90,23 +89,34 @@ library
     API.BrigInternal
     API.Cargohold
     API.Common
+    API.Federator
     API.Galley
     API.GalleyInternal
     API.Gundeck
     API.GundeckInternal
     API.Nginz
     MLS.Util
+    Notifications
     RunAllTests
     SetupHelpers
+    Test.AccessUpdate
     Test.AssetDownload
     Test.B2B
     Test.Brig
     Test.Client
     Test.Conversation
     Test.Demo
+    Test.Federation
     Test.Federator
+    Test.MessageTimer
+    Test.MLS
+    Test.MLS.KeyPackage
+    Test.MLS.Message
+    Test.MLS.One2One
+    Test.MLS.SubConversation
     Test.Notifications
     Test.Presence
+    Test.Roles
     Test.User
     Testlib.App
     Testlib.Assertions
@@ -115,7 +125,9 @@ library
     Testlib.HTTP
     Testlib.JSON
     Testlib.ModService
+    Testlib.One2One
     Testlib.Options
+    Testlib.Ports
     Testlib.Prekeys
     Testlib.Prelude
     Testlib.Printing
@@ -124,6 +136,7 @@ library
     Testlib.Run
     Testlib.RunServices
     Testlib.Types
+    Testlib.XML
 
   build-depends:
     , aeson
@@ -137,9 +150,15 @@ library
     , bytestring-conversion
     , case-insensitive
     , containers
+    , cql
+    , cql-io
+    , cryptonite
     , data-default
+    , data-timeout
     , directory
+    , errors
     , exceptions
+    , extended
     , extra
     , filepath
     , hex
@@ -148,15 +167,20 @@ library
     , kan-extensions
     , lens
     , lens-aeson
+    , memory
     , mime
     , monad-control
     , mtl
     , network
     , network-uri
     , optparse-applicative
+    , pem
     , process
+    , proto-lens
     , random
     , raw-strings-qq
+    , regex-base
+    , regex-tdfa
     , retry
     , scientific
     , split
@@ -173,4 +197,6 @@ library
     , uuid
     , vector
     , websockets
+    , wire-message-proto-lens
+    , xml
     , yaml

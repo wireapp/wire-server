@@ -90,11 +90,12 @@ import Data.Qualified (qUnqualified)
 import Data.Text (strip)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Text.Lazy (pack)
+import Data.Text.Lazy.Encoding qualified as TL
 import GHC.TypeLits (KnownSymbol)
 import Imports
 import Network.HTTP.Types (urlEncode)
 import Network.HTTP.Types.Method
-import Network.HTTP.Types.Status hiding (statusCode)
+import Network.HTTP.Types.Status hiding (statusCode, statusMessage)
 import Network.Wai.Utilities (Error (..), mkError)
 import Servant.API (toUrlPiece)
 import Stern.App
@@ -454,7 +455,7 @@ getTeamBillingInfo :: TeamId -> Handler (Maybe TeamBillingInfo)
 getTeamBillingInfo tid = do
   info $ msg "Getting team billing info"
   i <- view ibis
-  r <-
+  resp <-
     catchRpcErrors $
       rpc'
         "ibis"
@@ -462,10 +463,10 @@ getTeamBillingInfo tid = do
         ( method GET
             . Bilge.paths ["i", "team", toByteString' tid, "billing"]
         )
-  case Bilge.statusCode r of
-    200 -> Just <$> parseResponse (mkError status502 "bad-upstream") r
+  case Bilge.statusCode resp of
+    200 -> Just <$> parseResponse (mkError status502 "bad-upstream") resp
     404 -> pure Nothing
-    _ -> throwE (mkError status502 "bad-upstream" "bad response")
+    _ -> throwE (mkError status502 "bad-upstream" (errorMessage resp))
 
 setTeamBillingInfo :: TeamId -> TeamBillingInfo -> Handler ()
 setTeamBillingInfo tid tbu = do
@@ -486,19 +487,19 @@ isBlacklisted :: Either Email Phone -> Handler Bool
 isBlacklisted emailOrPhone = do
   info $ msg "Checking blacklist"
   b <- view brig
-  r <-
+  resp <-
     catchRpcErrors $
       rpc'
         "brig"
         b
-        ( method HEAD
+        ( method GET
             . Bilge.path "i/users/blacklist"
             . userKeyToParam emailOrPhone
         )
-  case Bilge.statusCode r of
+  case Bilge.statusCode resp of
     200 -> pure True
     404 -> pure False
-    _ -> throwE (mkError status502 "bad-upstream" "bad response")
+    _ -> throwE (mkError status502 "bad-upstream" (errorMessage resp))
 
 setBlacklistStatus :: Bool -> Either Email Phone -> Handler ()
 setBlacklistStatus status emailOrPhone = do
@@ -535,7 +536,7 @@ getTeamFeatureFlag tid = do
   case Bilge.statusCode resp of
     200 -> pure $ responseJsonUnsafe @(Public.WithStatus cfg) resp
     404 -> throwE (mkError status404 "bad-upstream" "team doesnt exist")
-    _ -> throwE (mkError status502 "bad-upstream" "bad response")
+    _ -> throwE (mkError status502 "bad-upstream" (errorMessage resp))
 
 setTeamFeatureFlag ::
   forall cfg.
@@ -559,7 +560,7 @@ setTeamFeatureFlag tid status = do
     200 -> pure ()
     404 -> throwE (mkError status404 "bad-upstream" "team doesnt exist")
     403 -> throwE (mkError status403 "bad-upstream" "legal hold config cannot be changed")
-    _ -> throwE (mkError status502 "bad-upstream" "bad response")
+    _ -> throwE (mkError status502 "bad-upstream" (errorMessage resp))
   where
     checkDaysLimit :: FeatureTTL -> Handler ()
     checkDaysLimit = \case
@@ -619,6 +620,9 @@ stripBS = encodeUtf8 . strip . decodeUtf8
 userKeyToParam :: Either Email Phone -> Request -> Request
 userKeyToParam (Left e) = queryItem "email" (stripBS $ toByteString' e)
 userKeyToParam (Right p) = queryItem "phone" (stripBS $ toByteString' p)
+
+errorMessage :: Response (Maybe LByteString) -> LText
+errorMessage = maybe "" TL.decodeUtf8 . responseBody
 
 -- | Run an App and catch any RPCException's which may occur, lifting them to ExceptT
 -- This isn't an ideal set-up; but is required in certain cases because 'ExceptT' isn't
@@ -749,25 +753,27 @@ getUserCookies uid = do
         )
   parseResponse (mkError status502 "bad-upstream") r
 
-getUserConversations :: UserId -> Handler [Conversation]
-getUserConversations uid = do
+getUserConversations :: UserId -> Int -> Handler [Conversation]
+getUserConversations uid maxConvs = do
   info $ msg "Getting user conversations"
-  fetchAll [] Nothing
+  fetchAll [] Nothing maxConvs
   where
-    fetchAll xs start = do
-      userConversationList <- fetchBatch start
+    fetchAll :: [Conversation] -> Maybe ConvId -> Int -> Handler [Conversation]
+    fetchAll xs start remaining = do
+      userConversationList <- fetchBatch start (min 100 remaining)
       let batch = convList userConversationList
-      if (not . null) batch && convHasMore userConversationList
-        then fetchAll (batch ++ xs) (Just . qUnqualified . cnvQualifiedId $ last batch)
+          remaining' = remaining - length batch
+      if (not . null) batch && convHasMore userConversationList && remaining' > 0
+        then fetchAll (batch ++ xs) (Just . qUnqualified . cnvQualifiedId $ last batch) remaining'
         else pure (batch ++ xs)
-    fetchBatch :: Maybe ConvId -> Handler (ConversationList Conversation)
-    fetchBatch start = do
-      b <- view galley
+    fetchBatch :: Maybe ConvId -> Int -> Handler (ConversationList Conversation)
+    fetchBatch start batchSize = do
+      baseReq <- view galley
       r <-
         catchRpcErrors $
           rpc'
             "galley"
-            b
+            baseReq
             ( method GET
                 . header "Z-User" (toByteString' uid)
                 . versionedPath "conversations"
@@ -776,7 +782,6 @@ getUserConversations uid = do
                 . expect2xx
             )
       unVersioned @'V2 <$> parseResponse (mkError status502 "bad-upstream") r
-    batchSize = 100 :: Int
 
 getUserClients :: UserId -> Handler [Client]
 getUserClients uid = do
@@ -829,25 +834,27 @@ getUserProperties uid = do
       value <- parseResponse (mkError status502 "bad-upstream") r
       fetchProperty b xs (Map.insert x value acc)
 
-getUserNotifications :: UserId -> Handler [QueuedNotification]
-getUserNotifications uid = do
+getUserNotifications :: UserId -> Int -> Handler [QueuedNotification]
+getUserNotifications uid maxNotifs = do
   info $ msg "Getting user notifications"
-  fetchAll [] Nothing
+  fetchAll [] Nothing maxNotifs
   where
-    fetchAll xs start = do
-      userNotificationList <- fetchBatch start
+    fetchAll :: [QueuedNotification] -> Maybe NotificationId -> Int -> ExceptT Error App [QueuedNotification]
+    fetchAll xs start remaining = do
+      userNotificationList <- fetchBatch start (min 100 remaining)
       let batch = view queuedNotifications userNotificationList
-      if (not . null) batch && view queuedHasMore userNotificationList
-        then fetchAll (batch ++ xs) (Just . view queuedNotificationId $ last batch)
+          remaining' = remaining - length batch
+      if (not . null) batch && view queuedHasMore userNotificationList && remaining' > 0
+        then fetchAll (batch ++ xs) (Just . view queuedNotificationId $ last batch) remaining'
         else pure (batch ++ xs)
-    fetchBatch :: Maybe NotificationId -> Handler QueuedNotificationList
-    fetchBatch start = do
-      b <- view gundeck
+    fetchBatch :: Maybe NotificationId -> Int -> Handler QueuedNotificationList
+    fetchBatch start batchSize = do
+      baseReq <- view gundeck
       r <-
         catchRpcErrors $
           rpc'
-            "galley"
-            b
+            "gundeck"
+            baseReq
             ( method GET
                 . header "Z-User" (toByteString' uid)
                 . versionedPath "notifications"
@@ -861,7 +868,6 @@ getUserNotifications uid = do
         200 -> parseResponse (mkError status502 "bad-upstream") r
         404 -> parseResponse (mkError status502 "bad-upstream") r
         _ -> throwE (mkError status502 "bad-upstream" "")
-    batchSize = 100 :: Int
 
 getSsoDomainRedirect :: Text -> Handler (Maybe CustomBackend)
 getSsoDomainRedirect domain = do

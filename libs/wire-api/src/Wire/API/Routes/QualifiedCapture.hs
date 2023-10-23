@@ -24,16 +24,17 @@ where
 import Data.Domain
 import Data.Kind
 import Data.Metrics.Servant
+import Data.OpenApi hiding (HasServer, value)
 import Data.Qualified
-import Data.Swagger
 import GHC.TypeLits
 import Imports
 import Servant
 import Servant.API.Description
 import Servant.API.Modifiers
 import Servant.Client.Core.HasClient
+import Servant.OpenApi
 import Servant.Server.Internal.ErrorFormatter
-import Servant.Swagger
+import Wire.API.Routes.Version
 
 -- | Capture a value qualified by a domain, with modifiers.
 data QualifiedCapture' (mods :: [Type]) (capture :: Symbol) (a :: Type)
@@ -50,17 +51,20 @@ type WithDomain mods capture a api =
     :> Capture' mods capture a
     :> api
 
+type instance
+  SpecialiseToVersion v (QualifiedCapture' mods capture a :> api) =
+    QualifiedCapture' mods capture a :> SpecialiseToVersion v api
+
 instance
-  ( Typeable a,
-    ToParamSchema a,
-    HasSwagger api,
+  ( ToParamSchema a,
+    HasOpenApi api,
     KnownSymbol capture,
     KnownSymbol (AppendSymbol capture "_domain"),
     KnownSymbol (FoldDescription mods)
   ) =>
-  HasSwagger (QualifiedCapture' mods capture a :> api)
+  HasOpenApi (QualifiedCapture' mods capture a :> api)
   where
-  toSwagger _ = toSwagger (Proxy @(WithDomain mods capture a api))
+  toOpenApi _ = toOpenApi (Proxy @(WithDomain mods capture a api))
 
 instance
   ( KnownSymbol capture,

@@ -20,7 +20,7 @@ module Wire.API.Routes.Public.Galley.Feature where
 import Data.Id
 import GHC.TypeLits
 import Servant hiding (WithStatus)
-import Servant.Swagger.Internal.Orphans ()
+import Servant.OpenApi.Internal.Orphans ()
 import Wire.API.ApplyMods
 import Wire.API.Conversation.Role
 import Wire.API.Error
@@ -79,16 +79,18 @@ type FeatureAPI =
     :<|> FeatureStatusPut '[] '() GuestLinksConfig
     :<|> FeatureStatusGet SndFactorPasswordChallengeConfig
     :<|> FeatureStatusPut '[] '() SndFactorPasswordChallengeConfig
-    :<|> FeatureStatusGet MLSConfig
-    :<|> FeatureStatusPut '[] '() MLSConfig
+    :<|> From 'V5 ::> FeatureStatusGet MLSConfig
+    :<|> From 'V5 ::> FeatureStatusPut '[] '() MLSConfig
     :<|> FeatureStatusGet ExposeInvitationURLsToTeamAdminConfig
     :<|> FeatureStatusPut '[] '() ExposeInvitationURLsToTeamAdminConfig
     :<|> FeatureStatusGet SearchVisibilityInboundConfig
     :<|> FeatureStatusPut '[] '() SearchVisibilityInboundConfig
     :<|> FeatureStatusGet OutlookCalIntegrationConfig
     :<|> FeatureStatusPut '[] '() OutlookCalIntegrationConfig
-    :<|> FeatureStatusGet MlsE2EIdConfig
-    :<|> FeatureStatusPut '[] '() MlsE2EIdConfig
+    :<|> From 'V5 ::> FeatureStatusGet MlsE2EIdConfig
+    :<|> From 'V5 ::> FeatureStatusPut '[] '() MlsE2EIdConfig
+    :<|> From 'V5 ::> FeatureStatusGet MlsMigrationConfig
+    :<|> From 'V5 ::> FeatureStatusPut '[] '() MlsMigrationConfig
     :<|> AllFeatureConfigsUserGet
     :<|> AllFeatureConfigsTeamGet
     :<|> FeatureConfigDeprecatedGet "The usage of this endpoint was removed in iOS in version 3.101. It is not used by team management, or webapp, and is potentially used by the old Android client as of June 2022" LegalholdConfig

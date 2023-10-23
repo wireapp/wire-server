@@ -27,8 +27,8 @@ import qualified Amazonka as AWS
 import CargoHold.API.Federation
 import CargoHold.API.Public
 import CargoHold.AWS (amazonkaEnv)
-import CargoHold.App
-import CargoHold.Options
+import CargoHold.App hiding (settings)
+import CargoHold.Options hiding (aws)
 import Control.Exception (bracket)
 import Control.Lens (set, (^.))
 import Control.Monad.Codensity
@@ -55,7 +55,7 @@ import Wire.API.Routes.Internal.Cargohold
 import Wire.API.Routes.Public.Cargohold
 import Wire.API.Routes.Version.Wai
 
-type CombinedAPI = FederationAPI :<|> ServantAPI :<|> InternalAPI
+type CombinedAPI = FederationAPI :<|> CargoholdAPI :<|> InternalAPI
 
 run :: Opts -> IO ()
 run o = lowerCodensity $ do
@@ -65,8 +65,8 @@ run o = lowerCodensity $ do
     s <-
       Server.newSettings $
         defaultServer
-          (unpack $ o ^. optCargohold . epHost)
-          (o ^. optCargohold . epPort)
+          (unpack $ o ^. cargohold . host)
+          (o ^. cargohold . port)
           (e ^. appLogger)
           (e ^. metrics)
     runSettingsWithShutdown s app Nothing
@@ -78,7 +78,7 @@ mkApp o = Codensity $ \k ->
   where
     middleware :: Env -> Wai.Middleware
     middleware e =
-      versionMiddleware (fold (o ^. optSettings . setDisabledAPIVersions))
+      versionMiddleware (fold (o ^. settings . disabledAPIVersions))
         . servantPrometheusMiddleware (Proxy @CombinedAPI)
         . GZip.gzip GZip.def
         . catchErrors (e ^. appLogger) [Right $ e ^. metrics]
@@ -87,9 +87,9 @@ mkApp o = Codensity $ \k ->
       let e = set requestId (maybe def RequestId (lookupRequestId r)) e0
        in Servant.serveWithContext
             (Proxy @CombinedAPI)
-            ((o ^. optSettings . setFederationDomain) :. Servant.EmptyContext)
+            ((o ^. settings . federationDomain) :. Servant.EmptyContext)
             ( hoistServerWithDomain @FederationAPI (toServantHandler e) federationSitemap
-                :<|> hoistServerWithDomain @ServantAPI (toServantHandler e) servantSitemap
+                :<|> hoistServerWithDomain @CargoholdAPI (toServantHandler e) servantSitemap
                 :<|> hoistServerWithDomain @InternalAPI (toServantHandler e) internalSitemap
             )
             r

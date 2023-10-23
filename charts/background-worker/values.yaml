@@ -24,7 +24,9 @@ config:
     vHost: /
     adminPort: 15672
   backendNotificationPusher:
-    remotesRefreshInterval: 60 # seconds
+    pushBackoffMinWait: 10000 # in microseconds, so 10ms
+    pushBackoffMaxWait: 300000000 # microseconds, so 300s
+    remotesRefreshInterval: 300000000 # microseconds, so 300s
 
 serviceAccount:
   # When setting this to 'false', either make sure that a service account named

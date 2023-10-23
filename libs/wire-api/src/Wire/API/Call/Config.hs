@@ -81,8 +81,8 @@ import Data.ByteString.Conversion qualified as BC
 import Data.IP qualified as IP
 import Data.List.NonEmpty (NonEmpty)
 import Data.Misc (HttpsUrl (..), IpAddr (IpAddr), Port (..))
+import Data.OpenApi qualified as S
 import Data.Schema
-import Data.Swagger qualified as S
 import Data.Text qualified as Text
 import Data.Text.Ascii
 import Data.Text.Encoding qualified as TE

@@ -35,8 +35,8 @@ where
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Hashable (hash)
 import Data.Id
+import Data.OpenApi qualified as S
 import Data.Schema
-import Data.Swagger qualified as S
 import Imports
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 

@@ -19,14 +19,15 @@ module Wire.API.Routes.Internal.Galley where
 
 import Control.Lens ((.~))
 import Data.Id as Id
+import Data.OpenApi (OpenApi, info, title)
 import Data.Range
-import Data.Swagger (Swagger, info, title)
 import GHC.TypeLits (AppendSymbol)
 import Imports hiding (head)
 import Servant hiding (JSON, WithStatus)
 import Servant qualified hiding (WithStatus)
-import Servant.Swagger
+import Servant.OpenApi
 import Wire.API.ApplyMods
+import Wire.API.Conversation
 import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
@@ -45,6 +46,7 @@ import Wire.API.Team
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
 import Wire.API.Team.SearchVisibility
+import Wire.API.User.Client
 
 type LegalHoldFeatureStatusChangeErrors =
   '( 'ActionDenied 'RemoveConversationMember,
@@ -152,6 +154,11 @@ type IFeatureAPI =
     :<|> IFeatureStatusPut '[] '() MlsE2EIdConfig
     :<|> IFeatureStatusPatch '[] '() MlsE2EIdConfig
     :<|> IFeatureStatusLockStatusPut MlsE2EIdConfig
+    -- MlsMigrationConfig
+    :<|> IFeatureStatusGet MlsMigrationConfig
+    :<|> IFeatureStatusPut '[] '() MlsMigrationConfig
+    :<|> IFeatureStatusPatch '[] '() MlsMigrationConfig
+    :<|> IFeatureStatusLockStatusPut MlsMigrationConfig
     -- all feature configs
     :<|> Named
            "feature-configs-internal"
@@ -209,6 +216,18 @@ type InternalAPIBase =
                :> "connect"
                :> ReqBody '[Servant.JSON] Connect
                :> ConversationVerb
+           )
+    -- This endpoint is meant for testing membership of a conversation
+    :<|> Named
+           "get-conversation-clients"
+           ( Summary "Get mls conversation client list"
+               :> CanThrow 'ConvNotFound
+               :> "group"
+               :> Capture "gid" GroupId
+               :> MultiVerb1
+                    'GET
+                    '[Servant.JSON]
+                    (Respond 200 "Clients" ClientList)
            )
     :<|> Named
            "guard-legalhold-policy-conflicts"
@@ -426,7 +445,7 @@ type IFederationAPI =
         :> Get '[Servant.JSON] FederationStatus
     )
 
-swaggerDoc :: Swagger
+swaggerDoc :: OpenApi
 swaggerDoc =
-  toSwagger (Proxy @InternalAPI)
+  toOpenApi (Proxy @InternalAPI)
     & info . title .~ "Wire-Server internal galley API"

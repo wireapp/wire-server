@@ -28,10 +28,9 @@ import Data.Aeson.Types qualified as Aeson
 import Data.ByteString qualified as BS
 import Data.ByteString.Conversion (toByteString')
 import Data.ByteString.Lazy qualified as LBS
-import Data.Handle
 import Data.LegalHold (UserLegalHoldStatus (UserLegalHoldNoConsent))
 import Data.Text.Encoding
-import Federator.Options
+import Federator.Options hiding (federatorExternal)
 import Imports
 import Network.HTTP.Types qualified as HTTP
 import Network.Wai.Utilities.Error qualified as E
@@ -48,7 +47,7 @@ import Wire.API.User
 -- they don't spread out over the different sevices.
 
 -- | This module contains tests for the interface between federator and brig.  The tests call
--- federator directly, circumnventing ingress:
+-- federator directly, circumventing ingress:
 --
 --  +----------+
 --  |federator-|          +------+--+
@@ -71,15 +70,15 @@ spec env =
       runTestFederator env $ do
         brig <- view teBrig <$> ask
         user <- randomUser brig
-        hdl <- randomHandle
-        _ <- putHandle brig (userId user) hdl
 
-        let expectedProfile = (publicProfile user UserLegalHoldNoConsent) {profileHandle = Just (Handle hdl)}
+        let expectedProfile = publicProfile user UserLegalHoldNoConsent
         bdy <-
           responseJsonError
-            =<< inwardCall "/federation/brig/get-user-by-handle" (encode hdl)
-              <!! const 200 === statusCode
-        liftIO $ bdy `shouldBe` expectedProfile
+            =<< inwardCall "/federation/brig/get-users-by-ids" (encode [userId user])
+              <!! do
+                const 200 === statusCode
+
+        liftIO $ bdy `shouldBe` [expectedProfile]
 
     -- @SF.Federation @TSFI.RESTfulAPI @S2 @S3 @S7
     --
@@ -126,7 +125,7 @@ spec env =
     -- and "IngressSpec".
     it "rejectRequestsWithoutClientCertInward" $
       runTestFederator env $ do
-        originDomain <- cfgOriginDomain <$> view teTstOpts
+        originDomain <- originDomain <$> view teTstOpts
         hdl <- randomHandle
         inwardCallWithHeaders
           "federation/brig/get-user-by-handle"
@@ -145,7 +144,7 @@ inwardCallWithHeaders ::
   LBS.ByteString ->
   m (Response (Maybe LByteString))
 inwardCallWithHeaders requestPath hh payload = do
-  Endpoint fedHost fedPort <- cfgFederatorExternal <$> view teTstOpts
+  Endpoint fedHost fedPort <- federatorExternal <$> view teTstOpts
   post
     ( host (encodeUtf8 fedHost)
         . port fedPort
@@ -160,7 +159,7 @@ inwardCall ::
   LBS.ByteString ->
   m (Response (Maybe LByteString))
 inwardCall requestPath payload = do
-  originDomain :: Text <- cfgOriginDomain <$> view teTstOpts
+  originDomain :: Text <- originDomain <$> view teTstOpts
   inwardCallWithOriginDomain (toByteString' originDomain) requestPath payload
 
 inwardCallWithOriginDomain ::
@@ -170,7 +169,7 @@ inwardCallWithOriginDomain ::
   LBS.ByteString ->
   m (Response (Maybe LByteString))
 inwardCallWithOriginDomain originDomain requestPath payload = do
-  Endpoint fedHost fedPort <- cfgFederatorExternal <$> view teTstOpts
+  Endpoint fedHost fedPort <- federatorExternal <$> view teTstOpts
   clientCertFilename <- clientCertificate . optSettings . view teOpts <$> ask
   clientCert <- liftIO $ BS.readFile clientCertFilename
   post

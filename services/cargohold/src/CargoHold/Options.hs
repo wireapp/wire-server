@@ -35,11 +35,11 @@ import Wire.API.Routes.Version
 -- | AWS CloudFront settings.
 data CloudFrontOpts = CloudFrontOpts
   { -- | Domain
-    _cfDomain :: CF.Domain,
+    _domain :: CF.Domain,
     -- | Keypair ID
-    _cfKeyPairId :: CF.KeyPairId,
+    _keyPairId :: CF.KeyPairId,
     -- | Path to private key
-    _cfPrivateKey :: FilePath
+    _privateKey :: FilePath
   }
   deriving (Show, Generic)
 
@@ -62,7 +62,7 @@ instance FromJSON OptS3AddressingStyle where
         other -> fail $ "invalid S3AddressingStyle: " <> show other
 
 data AWSOpts = AWSOpts
-  { _awsS3Endpoint :: !AWSEndpoint,
+  { _s3Endpoint :: !AWSEndpoint,
     -- | S3 can either by addressed in path style, i.e.
     -- https://<s3-endpoint>/<bucket-name>/<object>, or vhost style, i.e.
     -- https://<bucket-name>.<s3-endpoint>/<object>. AWS's S3 offering has
@@ -88,26 +88,26 @@ data AWSOpts = AWSOpts
     --
     -- When this option is unspecified, we default to path style addressing to
     -- ensure smooth transition for older deployments.
-    _awsS3AddressingStyle :: !(Maybe OptS3AddressingStyle),
+    _s3AddressingStyle :: !(Maybe OptS3AddressingStyle),
     -- | S3 endpoint for generating download links. Useful if Cargohold is configured to use
     -- an S3 replacement running inside the internal network (in which case internally we
     -- would use one hostname for S3, and when generating an asset link for a client app, we
     -- would use another hostname).
-    _awsS3DownloadEndpoint :: !(Maybe AWSEndpoint),
+    _s3DownloadEndpoint :: !(Maybe AWSEndpoint),
     -- | S3 bucket name
-    _awsS3Bucket :: !Text,
+    _s3Bucket :: !Text,
     -- | Enable this option for compatibility with specific S3 backends.
-    _awsS3Compatibility :: !(Maybe S3Compatibility),
+    _s3Compatibility :: !(Maybe S3Compatibility),
     -- | AWS CloudFront options
-    _awsCloudFront :: !(Maybe CloudFrontOpts),
+    _cloudFront :: !(Maybe CloudFrontOpts),
     -- | @Z-Host@ header to s3 download endpoint `Map`
     --
     -- This logic is: If the @Z-Host@ header is provided and found in this map,
     -- the map's values is taken as s3 download endpoint to redirect to;
-    -- otherwise, `_awsS3DownloadEndpoint` is used. This option is only useful
+    -- otherwise a 404 is retuned. This option is only useful
     -- in the context of multi-ingress setups where one backend / deployment is
     -- reachable under several domains.
-    _optMultiIngress :: !(Maybe (Map String AWSEndpoint))
+    _multiIngress :: !(Maybe (Map String AWSEndpoint))
   }
   deriving (Show, Generic)
 
@@ -128,9 +128,9 @@ makeLenses ''AWSOpts
 
 data Settings = Settings
   { -- | Maximum allowed size for uploads, in bytes
-    _setMaxTotalBytes :: !Int,
+    _maxTotalBytes :: !Int,
     -- | TTL for download links, in seconds
-    _setDownloadLinkTTL :: !Word,
+    _downloadLinkTTL :: !Word,
     -- | FederationDomain is required, even when not wanting to federate with other backends
     -- (in that case the 'allowedDomains' can be set to empty in Federator)
     -- Federation domain is used to qualify local IDs and handles,
@@ -141,8 +141,8 @@ data Settings = Settings
     -- Remember to keep it the same in all services.
     -- This is referred to as the 'backend domain' in the public documentation; See
     -- https://docs.wire.com/how-to/install/configure-federation.html#choose-a-backend-domain-name
-    _setFederationDomain :: !Domain,
-    _setDisabledAPIVersions :: !(Maybe (Set Version))
+    _federationDomain :: !Domain,
+    _disabledAPIVersions :: !(Maybe (Set Version))
   }
   deriving (Show, Generic)
 
@@ -154,19 +154,19 @@ makeLenses ''Settings
 -- modify the behavior.
 data Opts = Opts
   { -- | Hostname and port to bind to
-    _optCargohold :: !Endpoint,
-    _optAws :: !AWSOpts,
-    _optSettings :: !Settings,
+    _cargohold :: !Endpoint,
+    _aws :: !AWSOpts,
+    _settings :: !Settings,
     -- | Federator endpoint
-    _optFederator :: Maybe Endpoint,
+    _federator :: Maybe Endpoint,
     -- Logging
 
     -- | Log level (Debug, Info, etc)
-    _optLogLevel :: !Level,
+    _logLevel :: !Level,
     -- | Use netstrings encoding:
     --   <http://cr.yp.to/proto/netstrings.txt>
-    _optLogNetStrings :: !(Maybe (Last Bool)),
-    _optLogFormat :: !(Maybe (Last LogFormat)) --- ^ Log format
+    _logNetStrings :: !(Maybe (Last Bool)),
+    _logFormat :: !(Maybe (Last LogFormat)) --- ^ Log format
   }
   deriving (Show, Generic)
 

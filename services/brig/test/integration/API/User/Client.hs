@@ -40,7 +40,6 @@ import Data.Aeson hiding (json)
 import Data.Aeson qualified as A
 import Data.Aeson.KeyMap qualified as M
 import Data.Aeson.Lens
-import Data.ByteString.Base64.URL qualified as B64
 import Data.ByteString.Conversion
 import Data.Coerce (coerce)
 import Data.Default
@@ -52,10 +51,10 @@ import Data.Nonce (isValidBase64UrlEncodedUUID)
 import Data.Qualified (Qualified (..))
 import Data.Range (unsafeRange)
 import Data.Set qualified as Set
-import Data.Text (replace)
-import Data.Text.Ascii (AsciiChars (validate))
+import Data.Text.Ascii (AsciiChars (validate), encodeBase64UrlUnpadded, toText)
 import Data.Time (addUTCTime)
 import Data.Time.Clock.POSIX
+import Data.UUID (toByteString)
 import Data.Vector qualified as Vec
 import Imports
 import Network.Wai.Utilities.Error qualified as Error
@@ -68,7 +67,7 @@ import Test.Tasty.HUnit
 import UnliftIO (mapConcurrently)
 import Util
 import Wire.API.Internal.Notification
-import Wire.API.MLS.Credential
+import Wire.API.MLS.CipherSuite
 import Wire.API.Team.Feature qualified as Public
 import Wire.API.User
 import Wire.API.User qualified as Public
@@ -1424,22 +1423,25 @@ testCreateAccessToken opts n brig = do
   let localDomain = opts ^. Opt.optionSettings & Opt.setFederationDomain
   u <- randomUser brig
   let uid = userId u
+  -- convert the user Id into 16 octets of binary and then base64url
+  let uidBS = Data.UUID.toByteString (toUUID uid)
+  let uidB64 = encodeBase64UrlUnpadded (cs uidBS)
   let email = fromMaybe (error "invalid email") $ userEmail u
   rs <-
     login n (defEmailLogin email) PersistentCookie
       <!! const 200 === statusCode
   let t = decodeToken rs
-  let uidb64 = B64.encodeUnpadded $ cs $ replace "-" "" $ cs (toByteString' uid)
   cid <- createClientForUser brig uid
   nonceResponse <- Util.headNonce brig uid cid <!! const 200 === statusCode
   let nonceBs = cs $ fromMaybe (error "invalid nonce") $ getHeader "Replay-Nonce" nonceResponse
   now <- liftIO $ posixSecondsToUTCTime . fromInteger <$> (floor <$> getPOSIXTime)
-  let clientIdentity = cs $ "im:wireapp=" <> uidb64 <> "/" <> toByteString' cid <> "@" <> toByteString' localDomain
+  let clientIdentity = cs $ "im:wireapp=" <> cs (toText uidB64) <> "/" <> toByteString' cid <> "@" <> toByteString' localDomain
   let httpsUrl = cs $ "https://" <> toByteString' localDomain <> "/clients/" <> toByteString' cid <> "/access-token"
+  let expClaim = NumericDate (addUTCTime 10 now)
   let claimsSet' =
         emptyClaimsSet
           & claimIat ?~ NumericDate now
-          & claimExp ?~ NumericDate (addUTCTime 10 now)
+          & claimExp ?~ expClaim
           & claimNbf ?~ NumericDate now
           & claimSub ?~ fromMaybe (error "invalid sub claim") ((clientIdentity :: Text) ^? stringOrUri)
           & claimJti ?~ "6fc59e7f-b666-4ffc-b738-4f4760c884ca"

@@ -23,8 +23,10 @@ module Wire.API.Conversation.Member
 
     -- * Member
     Member (..),
+    defMember,
     MutedStatus (..),
     OtherMember (..),
+    defOtherMember,
 
     -- * Member Update
     MemberUpdate (..),
@@ -38,9 +40,10 @@ import Control.Lens ((?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Aeson qualified as A
 import Data.Id
+import Data.OpenApi (deprecated)
+import Data.OpenApi qualified as S
 import Data.Qualified
 import Data.Schema
-import Data.Swagger qualified as S
 import Imports
 import Test.QuickCheck qualified as QC
 import Wire.API.Conversation.Role
@@ -88,6 +91,20 @@ data Member = Member
   deriving (Arbitrary) via (GenericUniform Member)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema Member
 
+defMember :: Qualified UserId -> Member
+defMember uid =
+  Member
+    { memId = uid,
+      memService = Nothing,
+      memOtrMutedStatus = Nothing,
+      memOtrMutedRef = Nothing,
+      memOtrArchived = False,
+      memOtrArchivedRef = Nothing,
+      memHidden = False,
+      memHiddenRef = Nothing,
+      memConvRoleName = roleNameWireMember
+    }
+
 instance ToSchema Member where
   schema =
     object "Member" $
@@ -133,6 +150,14 @@ data OtherMember = OtherMember
   deriving (Arbitrary) via (GenericUniform OtherMember)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema OtherMember
 
+defOtherMember :: Qualified UserId -> OtherMember
+defOtherMember uid =
+  OtherMember
+    { omQualifiedId = uid,
+      omService = Nothing,
+      omConvRoleName = roleNameWireMember
+    }
+
 instance ToSchema OtherMember where
   schema =
     object "OtherMember" $
@@ -141,7 +166,7 @@ instance ToSchema OtherMember where
         <* (qUnqualified . omQualifiedId) .= optional (field "id" schema)
         <*> omService .= maybe_ (optFieldWithDocModifier "service" (description ?~ desc) schema)
         <*> omConvRoleName .= (field "conversation_role" schema <|> pure roleNameWireAdmin)
-        <* const (0 :: Int) .= optional (fieldWithDocModifier "status" (description ?~ "deprecated") schema) -- TODO: remove
+        <* const (0 :: Int) .= optional (fieldWithDocModifier "status" ((deprecated ?~ True) . (description ?~ "deprecated")) schema) -- TODO: remove
     where
       desc = "The reference to the owning service, if the member is a 'bot'."
 

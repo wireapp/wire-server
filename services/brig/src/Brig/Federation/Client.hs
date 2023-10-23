@@ -1,7 +1,3 @@
-{-# LANGUAGE AllowAmbiguousTypes #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -154,7 +150,9 @@ notifyUserDeleted self remotes = do
       remoteDomain = tDomain remotes
   view rabbitmqChannel >>= \case
     Just chanVar -> do
-      enqueueNotification (tDomain self) remoteDomain Q.Persistent chanVar $ void $ fedQueueClient @'Brig @"on-user-deleted-connections" notif
+      enqueueNotification (tDomain self) remoteDomain Q.Persistent chanVar $
+        void $
+          fedQueueClient @'OnUserDeletedConnectionsTag notif
     Nothing ->
       Log.err $
         Log.msg ("Federation error while notifying remote backends of a user deletion." :: ByteString)
@@ -163,7 +161,7 @@ notifyUserDeleted self remotes = do
           . Log.field "error" (show FederationNotConfigured)
 
 -- | Enqueues notifications in RabbitMQ. Retries 3 times with a delay of 1s.
-enqueueNotification :: (MonadReader Env m, MonadIO m, MonadMask m, Log.MonadLogger m) => Domain -> Domain -> Q.DeliveryMode -> MVar Q.Channel -> FedQueueClient c () -> m ()
+enqueueNotification :: (MonadIO m, MonadMask m, Log.MonadLogger m) => Domain -> Domain -> Q.DeliveryMode -> MVar Q.Channel -> FedQueueClient c () -> m ()
 enqueueNotification ownDomain remoteDomain deliveryMode chanVar action = do
   let policy = limitRetries 3 <> constantDelay 1_000_000
   recovering policy [logRetries (const $ pure True) logError] (const go)

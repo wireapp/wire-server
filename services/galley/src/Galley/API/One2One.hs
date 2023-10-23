@@ -35,8 +35,8 @@ import Galley.Types.UserList
 import Imports
 import Polysemy
 import Wire.API.Conversation hiding (Member)
-import Wire.API.Conversation.Protocol
-import Wire.API.Routes.Internal.Galley.ConversationsIntra (Actor (..), DesiredMembership (..), UpsertOne2OneConversationRequest (..), UpsertOne2OneConversationResponse (..))
+import Wire.API.Routes.Internal.Galley.ConversationsIntra
+import Wire.API.User
 
 newConnectConversationWithRemote ::
   Local UserId ->
@@ -45,11 +45,11 @@ newConnectConversationWithRemote ::
 newConnectConversationWithRemote creator users =
   NewConversation
     { ncMetadata =
-        (defConversationMetadata (tUnqualified creator))
+        (defConversationMetadata (Just (tUnqualified creator)))
           { cnvmType = One2OneConv
           },
       ncUsers = fmap toUserRole users,
-      ncProtocol = ProtocolProteusTag
+      ncProtocol = BaseProtocolProteusTag
     }
 
 iUpsertOne2OneConversation ::
@@ -60,7 +60,14 @@ iUpsertOne2OneConversation ::
   UpsertOne2OneConversationRequest ->
   Sem r UpsertOne2OneConversationResponse
 iUpsertOne2OneConversation UpsertOne2OneConversationRequest {..} = do
-  let convId = fromMaybe (one2OneConvId (tUntagged uooLocalUser) (tUntagged uooRemoteUser)) uooConvId
+  let convId =
+        fromMaybe
+          ( one2OneConvId
+              BaseProtocolProteusTag
+              (tUntagged uooLocalUser)
+              (tUntagged uooRemoteUser)
+          )
+          uooConvId
 
   let dolocal :: Local ConvId -> Sem r ()
       dolocal lconvId = do

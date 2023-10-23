@@ -22,10 +22,10 @@ module Wire.API.User.Client.DPoPAccessToken where
 
 import Data.Aeson (FromJSON, ToJSON)
 import Data.ByteString.Conversion (FromByteString (..), ToByteString (..), fromByteString', toByteString')
+import Data.OpenApi qualified as S
+import Data.OpenApi.ParamSchema (ToParamSchema (..))
 import Data.SOP
 import Data.Schema
-import Data.Swagger qualified as S
-import Data.Swagger.ParamSchema (ToParamSchema (..))
 import Data.Text as T
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Imports

@@ -18,7 +18,6 @@
 module Federation.End2end where
 
 import API.MLS.Util
-import API.Search.Util
 import API.User.Util
 import Bilge
 import Bilge.Assert ((!!!), (<!!), (===))
@@ -30,29 +29,26 @@ import Data.Aeson qualified as Aeson
 import Data.ByteString.Conversion (toByteString')
 import Data.Default
 import Data.Domain
-import Data.Handle
 import Data.Id
 import Data.Json.Util (toBase64Text)
-import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.List1 as List1
 import Data.Map qualified as Map
 import Data.ProtoLens qualified as Protolens
 import Data.Qualified
 import Data.Range (checked)
 import Data.Set qualified as Set
-import Federation.Util (connectUsersEnd2End, generateClientPrekeys, getConvQualified)
+import Federation.Util
 import Imports hiding (cs)
+import System.IO.Temp
 import System.Logger qualified as Log
 import Test.Tasty
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
 import Test.Tasty.Cannon qualified as WS
 import Test.Tasty.HUnit
-import UnliftIO.Temporary
 import Util
 import Util.Options (Endpoint)
 import Wire.API.Asset
 import Wire.API.Conversation
-import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing
 import Wire.API.Event.Conversation
@@ -95,15 +91,12 @@ spec _brigOpts mg brig galley cargohold cannon _federator brigTwo galleyTwo carg
   pure $
     testGroup
       "federation-end2end-user"
-      [ test mg "lookup user by qualified handle on remote backend" $ testHandleLookup brig brigTwo,
-        test mg "search users on remote backend" $ testSearchUsers brig brigTwo,
-        test mg "get users by ids on multiple backends" $ testGetUsersById brig brigTwo,
+      [ test mg "get users by ids on multiple backends" $ testGetUsersById brig brigTwo,
         test mg "claim client prekey" $ testClaimPrekeySuccess brig brigTwo,
         test mg "claim prekey bundle" $ testClaimPrekeyBundleSuccess brig brigTwo,
         test mg "claim multi-prekey bundle" $ testClaimMultiPrekeyBundleSuccess brig brigTwo,
         test mg "list user clients" $ testListUserClients brig brigTwo,
         test mg "list own conversations" $ testListConversations brig brigTwo galley galleyTwo,
-        test mg "add remote users to local conversation" $ testAddRemoteUsersToLocalConv brig galley brigTwo galleyTwo,
         test mg "remove remote user from a local conversation" $ testRemoveRemoteUserFromLocalConv brig galley brigTwo galleyTwo,
         test mg "leave a remote conversation" $ leaveRemoteConversation brig galley brigTwo galleyTwo,
         test mg "include remote users to new conversation" $ testRemoteUsersInNewConv brig galley brigTwo galleyTwo,
@@ -122,39 +115,6 @@ spec _brigOpts mg brig galley cargohold cannon _federator brigTwo galleyTwo carg
 -- | brig |  http2  |federator| http2  |federator|   http   | brig |
 -- |      +-------->+         +------->+         +--------->+      |
 -- +------+         +-+-------+        +---------+          +------+
-testHandleLookup :: Brig -> Brig -> Http ()
-testHandleLookup brig brigTwo = do
-  -- Create a user on the "other side" using an internal brig endpoint from a
-  -- second brig instance in backendTwo (in another namespace in kubernetes)
-  (handle, userBrigTwo) <- createUserWithHandle brigTwo
-  -- Get result from brig two for comparison
-  let domain = qDomain $ userQualifiedId userBrigTwo
-  resultViaBrigTwo <- getUserInfoFromHandle brigTwo domain handle
-
-  -- query the local-namespace brig for a user sitting on the other backend
-  -- (which will exercise the network traffic via two federators to the remote brig)
-  resultViaBrigOne <- getUserInfoFromHandle brig domain handle
-
-  liftIO $ assertEqual "remote handle lookup via federator should work in the happy case" (profileQualifiedId resultViaBrigOne) (userQualifiedId userBrigTwo)
-  liftIO $ assertEqual "querying brig1 or brig2 about the same user should give same result" resultViaBrigTwo resultViaBrigOne
-
-testSearchUsers :: Brig -> Brig -> Http ()
-testSearchUsers brig brigTwo = do
-  -- Create a user on the "other side" using an internal brig endpoint from a
-  -- second brig instance in backendTwo (in another namespace in kubernetes)
-  (handle, userBrigTwo) <- createUserWithHandle brigTwo
-
-  searcher <- userId <$> randomUser brig
-  let expectedUserId = userQualifiedId userBrigTwo
-      searchTerm = fromHandle handle
-      domain = qDomain expectedUserId
-  liftIO $ putStrLn "search for user on brigTwo (directly)..."
-  assertCanFindWithDomain brigTwo searcher expectedUserId searchTerm domain
-
-  -- exercises multi-backend network traffic
-  liftIO $ putStrLn "search for user on brigOne via federators to remote brig..."
-  assertCanFindWithDomain brig searcher expectedUserId searchTerm domain
-
 testGetUsersById :: Brig -> Brig -> Http ()
 testGetUsersById brig1 brig2 = do
   users <- traverse randomUser [brig1, brig2]
@@ -253,63 +213,6 @@ testClaimMultiPrekeyBundleSuccess brig1 brig2 = do
     !!! do
       const 200 === statusCode
       const (Just ucm) === responseJsonMaybe
-
-testAddRemoteUsersToLocalConv :: Brig -> Galley -> Brig -> Galley -> Http ()
-testAddRemoteUsersToLocalConv brig1 galley1 brig2 galley2 = do
-  alice <- randomUser brig1
-  bob <- randomUser brig2
-
-  let newConv =
-        NewConv
-          []
-          []
-          (checked "gossip")
-          mempty
-          Nothing
-          Nothing
-          Nothing
-          Nothing
-          roleNameWireAdmin
-          ProtocolProteusTag
-  convId <-
-    fmap cnvQualifiedId . responseJsonError
-      =<< post
-        ( galley1
-            . path "/conversations"
-            . zUser (userId alice)
-            . zConn "conn"
-            . header "Z-Type" "access"
-            . json newConv
-        )
-
-  connectUsersEnd2End brig1 brig2 (userQualifiedId alice) (userQualifiedId bob)
-
-  let invite = InviteQualified (userQualifiedId bob :| []) roleNameWireAdmin
-  post
-    ( apiVersion "v1"
-        . galley1
-        . paths ["conversations", (toByteString' . qUnqualified) convId, "members", "v2"]
-        . zUser (userId alice)
-        . zConn "conn"
-        . header "Z-Type" "access"
-        . json invite
-    )
-    !!! (const 200 === statusCode)
-
-  -- test GET /conversations/:domain/:cnv -- Alice's domain is used here
-  liftIO $ putStrLn "search for conversation on backend 1..."
-  res <- getConvQualified galley1 (userId alice) convId <!! (const 200 === statusCode)
-  let conv = responseJsonUnsafeWithMsg "backend 1 - get /conversations/domain/cnvId" res
-      actual = cmOthers $ cnvMembers conv
-      expected = [OtherMember (userQualifiedId bob) Nothing roleNameWireAdmin]
-  liftIO $ actual @?= expected
-
-  liftIO $ putStrLn "search for conversation on backend 2..."
-  res' <- getConvQualified galley2 (userId bob) convId <!! (const 200 === statusCode)
-  let conv' = responseJsonUnsafeWithMsg "backend 2 - get /conversations/domain/cnvId" res'
-      actual' = cmOthers $ cnvMembers conv'
-      expected' = [OtherMember (userQualifiedId alice) Nothing roleNameWireAdmin]
-  liftIO $ actual' @?= expected'
 
 testRemoveRemoteUserFromLocalConv :: Brig -> Galley -> Brig -> Galley -> Http ()
 testRemoveRemoteUserFromLocalConv brig1 galley1 brig2 galley2 = do
@@ -645,8 +548,8 @@ testDeleteUser brig1 brig2 galley1 galley2 cannon1 = do
   WS.bracketR cannon1 (qUnqualified alice) $ \wsAlice -> do
     deleteUser (qUnqualified bobDel) (Just defPassword) brig2 !!! const 200 === statusCode
     WS.assertMatch_ (5 # Second) wsAlice $ matchDeleteUserNotification bobDel
-    WS.assertMatch_ (5 # Second) wsAlice $ matchConvLeaveNotification conv1 bobDel [bobDel]
-    WS.assertMatch_ (5 # Second) wsAlice $ matchConvLeaveNotification conv2 bobDel [bobDel]
+    WS.assertMatch_ (5 # Second) wsAlice $ matchConvLeaveNotification conv1 bobDel [bobDel] EdReasonLeft
+    WS.assertMatch_ (5 # Second) wsAlice $ matchConvLeaveNotification conv2 bobDel [bobDel] EdReasonLeft
 
 testRemoteAsset :: Brig -> Brig -> CargoHold -> CargoHold -> Http ()
 testRemoteAsset brig1 brig2 ch1 ch2 = do
@@ -675,7 +578,7 @@ claimRemoteKeyPackages brig1 brig2 = do
     for_ bobClients $ \c ->
       uploadKeyPackages brig2 tmp def bob c 5
 
-  bundle <-
+  bundle :: KeyPackageBundle <-
     responseJsonError
       =<< post
         ( brig1
@@ -685,7 +588,7 @@ claimRemoteKeyPackages brig1 brig2 = do
         <!! const 200 === statusCode
 
   liftIO $
-    Set.map (\e -> (kpbeUser e, kpbeClient e)) (kpbEntries bundle)
+    Set.map (\e -> (e.user, e.client)) bundle.entries
       @?= Set.fromList [(bob, c) | c <- bobClients]
 
 testRemoteTypingIndicator :: Brig -> Brig -> Galley -> Galley -> Cannon -> Cannon -> Http ()

@@ -15,7 +15,11 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.API.Federation.API.Galley where
+module Wire.API.Federation.API.Galley
+  ( module Wire.API.Federation.API.Galley,
+    module Notifications,
+  )
+where
 
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Domain
@@ -23,7 +27,6 @@ import Data.Id
 import Data.Json.Util
 import Data.Misc (Milliseconds)
 import Data.Qualified
-import Data.Range
 import Data.Time.Clock (UTCTime)
 import Imports
 import Network.Wai.Utilities.JSONResponse
@@ -35,12 +38,12 @@ import Wire.API.Conversation.Role (RoleName)
 import Wire.API.Conversation.Typing
 import Wire.API.Error.Galley
 import Wire.API.Federation.API.Common
+import Wire.API.Federation.API.Galley.Notifications as Notifications
 import Wire.API.Federation.Endpoint
 import Wire.API.MLS.SubConversation
 import Wire.API.MakesFederatedCall
 import Wire.API.Message
 import Wire.API.Routes.Public.Galley.Messaging
-import Wire.API.Unreachable
 import Wire.API.Util.Aeson (CustomEncoded (..))
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
@@ -58,20 +61,15 @@ type GalleyApi =
     -- This endpoint is called the first time a user from this backend is
     -- added to a remote conversation.
     :<|> FedEndpoint "get-conversations" GetConversationsRequest GetConversationsResponse
-    -- used by the backend that owns a conversation to inform this backend of
-    -- changes to the conversation
-    :<|> FedEndpoint "on-conversation-updated" ConversationUpdate EmptyResponse
     :<|> FedEndpointWithMods
            '[ MakesFederatedCall 'Galley "on-conversation-updated",
               MakesFederatedCall 'Galley "on-mls-message-sent",
+              MakesFederatedCall 'Brig "get-users-by-ids",
               MakesFederatedCall 'Brig "api-version"
             ]
            "leave-conversation"
            LeaveConversationRequest
            LeaveConversationResponse
-    -- used to notify this backend that a new message has been posted to a
-    -- remote conversation
-    :<|> FedEndpoint "on-message-sent" (RemoteMessage ConvId) EmptyResponse
     -- used by a remote backend to send a message to a conversation owned by
     -- this backend
     :<|> FedEndpointWithMods
@@ -82,22 +80,15 @@ type GalleyApi =
            ProteusMessageSendRequest
            MessageSendResponse
     :<|> FedEndpointWithMods
-           '[ MakesFederatedCall 'Galley "on-mls-message-sent",
-              MakesFederatedCall 'Galley "on-conversation-updated",
-              MakesFederatedCall 'Brig "api-version"
-            ]
-           "on-user-deleted-conversations"
-           UserDeletedConversationsNotification
-           EmptyResponse
-    :<|> FedEndpointWithMods
            '[ MakesFederatedCall 'Galley "on-conversation-updated",
+              MakesFederatedCall 'Galley "on-mls-message-sent",
+              MakesFederatedCall 'Brig "get-users-by-ids",
               MakesFederatedCall 'Galley "on-mls-message-sent"
             ]
            "update-conversation"
            ConversationUpdateRequest
            ConversationUpdateResponse
     :<|> FedEndpoint "mls-welcome" MLSWelcomeRequest MLSWelcomeResponse
-    :<|> FedEndpoint "on-mls-message-sent" RemoteMLSMessage RemoteMLSMessageResponse
     :<|> FedEndpointWithMods
            '[ MakesFederatedCall 'Galley "on-conversation-updated",
               MakesFederatedCall 'Galley "on-mls-message-sent",
@@ -112,18 +103,14 @@ type GalleyApi =
               MakesFederatedCall 'Galley "on-conversation-updated",
               MakesFederatedCall 'Galley "on-mls-message-sent",
               MakesFederatedCall 'Galley "send-mls-commit-bundle",
-              MakesFederatedCall 'Brig "get-mls-clients"
+              MakesFederatedCall 'Brig "get-mls-clients",
+              MakesFederatedCall 'Brig "get-users-by-ids",
+              MakesFederatedCall 'Brig "api-version"
             ]
            "send-mls-commit-bundle"
            MLSMessageSendRequest
            MLSMessageResponse
     :<|> FedEndpoint "query-group-info" GetGroupInfoRequest GetGroupInfoResponse
-    :<|> FedEndpointWithMods
-           '[ MakesFederatedCall 'Galley "on-mls-message-sent"
-            ]
-           "on-client-removed"
-           ClientRemovedRequest
-           EmptyResponse
     :<|> FedEndpointWithMods
            '[ MakesFederatedCall 'Galley "on-typing-indicator-updated"
             ]
@@ -131,11 +118,31 @@ type GalleyApi =
            TypingDataUpdateRequest
            TypingDataUpdateResponse
     :<|> FedEndpoint "on-typing-indicator-updated" TypingDataUpdated EmptyResponse
+    :<|> FedEndpoint "get-sub-conversation" GetSubConversationsRequest GetSubConversationsResponse
+    :<|> FedEndpointWithMods
+           '[
+            ]
+           "delete-sub-conversation"
+           DeleteSubConversationFedRequest
+           DeleteSubConversationResponse
+    :<|> FedEndpointWithMods
+           '[ MakesFederatedCall 'Galley "on-mls-message-sent"
+            ]
+           "leave-sub-conversation"
+           LeaveSubConversationRequest
+           LeaveSubConversationResponse
+    :<|> FedEndpoint
+           "get-one2one-conversation"
+           GetOne2OneConversationRequest
+           GetOne2OneConversationResponse
+    -- All the notification endpoints that go through the queue-based
+    -- federation client ('fedQueueClient').
+    :<|> GalleyNotificationAPI
 
 data TypingDataUpdateRequest = TypingDataUpdateRequest
-  { tdurTypingStatus :: TypingStatus,
-    tdurUserId :: UserId,
-    tdurConvId :: ConvId
+  { typingStatus :: TypingStatus,
+    userId :: UserId,
+    convId :: ConvId
   }
   deriving stock (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via (CustomEncoded TypingDataUpdateRequest)
@@ -147,37 +154,38 @@ data TypingDataUpdateResponse
   deriving (FromJSON, ToJSON) via (CustomEncoded TypingDataUpdateResponse)
 
 data TypingDataUpdated = TypingDataUpdated
-  { tudTime :: UTCTime,
-    tudOrigUserId :: Qualified UserId,
+  { time :: UTCTime,
+    origUserId :: Qualified UserId,
     -- | Implicitely qualified by sender's domain
-    tudConvId :: ConvId,
+    convId :: ConvId,
     -- | Implicitely qualified by receiver's domain
-    tudUsersInConv :: [UserId],
-    tudTypingStatus :: TypingStatus
+    usersInConv :: [UserId],
+    typingStatus :: TypingStatus
   }
   deriving stock (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via (CustomEncoded TypingDataUpdated)
 
-data ClientRemovedRequest = ClientRemovedRequest
-  { crrUser :: UserId,
-    crrClient :: ClientId,
-    crrConvs :: [ConvId]
-  }
-  deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform ClientRemovedRequest)
-  deriving (FromJSON, ToJSON) via (CustomEncoded ClientRemovedRequest)
-
 data GetConversationsRequest = GetConversationsRequest
-  { gcrUserId :: UserId,
-    gcrConvIds :: [ConvId]
+  { userId :: UserId,
+    convIds :: [ConvId]
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform GetConversationsRequest)
   deriving (ToJSON, FromJSON) via (CustomEncoded GetConversationsRequest)
 
+data GetOne2OneConversationRequest = GetOne2OneConversationRequest
+  { -- The user on the sender's domain
+    goocSenderUser :: UserId,
+    -- The user on the receiver's domain
+    goocReceiverUser :: UserId
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform GetOne2OneConversationRequest)
+  deriving (ToJSON, FromJSON) via (CustomEncoded GetOne2OneConversationRequest)
+
 data RemoteConvMembers = RemoteConvMembers
-  { rcmSelfRole :: RoleName,
-    rcmOthers :: [OtherMember]
+  { selfRole :: RoleName,
+    others :: [OtherMember]
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform RemoteConvMembers)
@@ -190,21 +198,33 @@ data RemoteConvMembers = RemoteConvMembers
 data RemoteConversation = RemoteConversation
   { -- | Id of the conversation, implicitly qualified with the domain of the
     -- backend that created this value.
-    rcnvId :: ConvId,
-    rcnvMetadata :: ConversationMetadata,
-    rcnvMembers :: RemoteConvMembers,
-    rcnvProtocol :: Protocol
+    id :: ConvId,
+    metadata :: ConversationMetadata,
+    members :: RemoteConvMembers,
+    protocol :: Protocol
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform RemoteConversation)
   deriving (FromJSON, ToJSON) via (CustomEncoded RemoteConversation)
 
 newtype GetConversationsResponse = GetConversationsResponse
-  { gcresConvs :: [RemoteConversation]
+  { convs :: [RemoteConversation]
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform GetConversationsResponse)
   deriving (ToJSON, FromJSON) via (CustomEncoded GetConversationsResponse)
+
+data GetOne2OneConversationResponse
+  = GetOne2OneConversationOk RemoteConversation
+  | -- | This is returned when the local backend is asked for a 1-1 conversation
+    -- that should reside on the other backend.
+    GetOne2OneConversationBackendMismatch
+  | -- | This is returned when a 1-1 conversation between two unconnected users
+    -- is requested.
+    GetOne2OneConversationNotConnected
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform GetOne2OneConversationResponse)
+  deriving (ToJSON, FromJSON) via (CustomEncoded GetOne2OneConversationResponse)
 
 -- | A record type describing a new federated conversation
 --
@@ -212,60 +232,38 @@ newtype GetConversationsResponse = GetConversationsResponse
 -- separarate data type that can be reused in several data types in this module.
 data ConversationCreated conv = ConversationCreated
   { -- | The time when the conversation was created
-    ccTime :: UTCTime,
+    time :: UTCTime,
     -- | The user that created the conversation. This is implicitly qualified
     -- by the requesting domain, since it is impossible to create a regular/group
     -- conversation on a remote backend.
-    ccOrigUserId :: UserId,
+    origUserId :: UserId,
     -- | The conversation ID, local to the backend invoking the RPC
-    ccCnvId :: conv,
+    cnvId :: conv,
     -- | The conversation type
-    ccCnvType :: ConvType,
-    ccCnvAccess :: [Access],
-    ccCnvAccessRoles :: Set AccessRole,
+    cnvType :: ConvType,
+    cnvAccess :: [Access],
+    cnvAccessRoles :: Set AccessRole,
     -- | The conversation name,
-    ccCnvName :: Maybe Text,
+    cnvName :: Maybe Text,
     -- | Members of the conversation apart from the creator
-    ccNonCreatorMembers :: Set OtherMember,
-    ccMessageTimer :: Maybe Milliseconds,
-    ccReceiptMode :: Maybe ReceiptMode,
-    ccProtocol :: Protocol
+    nonCreatorMembers :: Set OtherMember,
+    messageTimer :: Maybe Milliseconds,
+    receiptMode :: Maybe ReceiptMode,
+    protocol :: Protocol
   }
   deriving stock (Eq, Show, Generic, Functor)
   deriving (ToJSON, FromJSON) via (CustomEncoded (ConversationCreated conv))
 
 ccRemoteOrigUserId :: ConversationCreated (Remote ConvId) -> Remote UserId
-ccRemoteOrigUserId cc = qualifyAs (ccCnvId cc) (ccOrigUserId cc)
-
-data ConversationUpdate = ConversationUpdate
-  { cuTime :: UTCTime,
-    cuOrigUserId :: Qualified UserId,
-    -- | The unqualified ID of the conversation where the update is happening.
-    -- The ID is local to the sender to prevent putting arbitrary domain that
-    -- is different than that of the backend making a conversation membership
-    -- update request.
-    cuConvId :: ConvId,
-    -- | A list of users from the receiving backend that need to be sent
-    -- notifications about this change. This is required as we do not expect a
-    -- non-conversation owning backend to have an indexed mapping of
-    -- conversation to users.
-    cuAlreadyPresentUsers :: [UserId],
-    -- | Information on the specific action that caused the update.
-    cuAction :: SomeConversationAction
-  }
-  deriving (Eq, Show, Generic)
-
-instance ToJSON ConversationUpdate
-
-instance FromJSON ConversationUpdate
+ccRemoteOrigUserId cc = qualifyAs cc.cnvId cc.origUserId
 
 data LeaveConversationRequest = LeaveConversationRequest
   { -- | The conversation is assumed to be owned by the target domain, which
     -- allows us to protect against relay attacks
-    lcConvId :: ConvId,
+    convId :: ConvId,
     -- | The leaver is assumed to be owned by the origin domain, which allows us
     -- to protect against spoofing attacks
-    lcLeaver :: UserId
+    leaver :: UserId
   }
   deriving stock (Generic, Eq, Show)
   deriving (ToJSON, FromJSON) via (CustomEncoded LeaveConversationRequest)
@@ -280,37 +278,6 @@ data RemoveFromConversationError
     (ToJSON, FromJSON)
     via (CustomEncoded RemoveFromConversationError)
 
--- Note: this is parametric in the conversation type to allow it to be used
--- both for conversations with a fixed known domain (e.g. as the argument of the
--- federation RPC), and for conversations with an arbitrary Qualified or Remote id
--- (e.g. as the argument of the corresponding handler).
-data RemoteMessage conv = RemoteMessage
-  { rmTime :: UTCTime,
-    rmData :: Maybe Text,
-    rmSender :: Qualified UserId,
-    rmSenderClient :: ClientId,
-    rmConversation :: conv,
-    rmPriority :: Maybe Priority,
-    rmPush :: Bool,
-    rmTransient :: Bool,
-    rmRecipients :: UserClientMap Text
-  }
-  deriving stock (Eq, Show, Generic, Functor)
-  deriving (Arbitrary) via (GenericUniform (RemoteMessage conv))
-  deriving (ToJSON, FromJSON) via (CustomEncoded (RemoteMessage conv))
-
-data RemoteMLSMessage = RemoteMLSMessage
-  { rmmTime :: UTCTime,
-    rmmMetadata :: MessageMetadata,
-    rmmSender :: Qualified UserId,
-    rmmConversation :: ConvId,
-    rmmRecipients :: [(UserId, ClientId)],
-    rmmMessage :: Base64ByteString
-  }
-  deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform RemoteMLSMessage)
-  deriving (ToJSON, FromJSON) via (CustomEncoded RemoteMLSMessage)
-
 data RemoteMLSMessageResponse
   = RemoteMLSMessageOk
   | RemoteMLSMessageMLSNotEnabled
@@ -320,11 +287,11 @@ data RemoteMLSMessageResponse
 data ProteusMessageSendRequest = ProteusMessageSendRequest
   { -- | Conversation is assumed to be owned by the target domain, this allows
     -- us to protect against relay attacks
-    pmsrConvId :: ConvId,
+    convId :: ConvId,
     -- | Sender is assumed to be owned by the origin domain, this allows us to
     -- protect against spoofing attacks
-    pmsrSender :: UserId,
-    pmsrRawMessage :: Base64ByteString
+    sender :: UserId,
+    rawMessage :: Base64ByteString
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ProteusMessageSendRequest)
@@ -333,18 +300,19 @@ data ProteusMessageSendRequest = ProteusMessageSendRequest
 data MLSMessageSendRequest = MLSMessageSendRequest
   { -- | Conversation (or sub conversation) is assumed to be owned by the target
     -- domain, this allows us to protect against relay attacks
-    mmsrConvOrSubId :: ConvOrSubConvId,
+    convOrSubId :: ConvOrSubConvId,
     -- | Sender is assumed to be owned by the origin domain, this allows us to
     -- protect against spoofing attacks
-    mmsrSender :: UserId,
-    mmsrRawMessage :: Base64ByteString
+    sender :: UserId,
+    senderClient :: ClientId,
+    rawMessage :: Base64ByteString
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform MLSMessageSendRequest)
   deriving (ToJSON, FromJSON) via (CustomEncoded MLSMessageSendRequest)
 
 newtype MessageSendResponse = MessageSendResponse
-  {msResponse :: PostOtrResponse MessageSendingStatus}
+  {response :: PostOtrResponse MessageSendingStatus}
   deriving stock (Eq, Show)
   deriving
     (ToJSON, FromJSON)
@@ -354,32 +322,20 @@ newtype MessageSendResponse = MessageSendResponse
         )
 
 newtype LeaveConversationResponse = LeaveConversationResponse
-  {leaveResponse :: Either RemoveFromConversationError ()}
+  {response :: Either RemoveFromConversationError ()}
   deriving stock (Eq, Show)
   deriving
     (ToJSON, FromJSON)
     via (Either (CustomEncoded RemoveFromConversationError) ())
 
-type UserDeletedNotificationMaxConvs = 1000
-
-data UserDeletedConversationsNotification = UserDeletedConversationsNotification
-  { -- | This is qualified implicitly by the origin domain
-    udcvUser :: UserId,
-    -- | These are qualified implicitly by the target domain
-    udcvConversations :: Range 1 UserDeletedNotificationMaxConvs [ConvId]
-  }
-  deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform UserDeletedConversationsNotification)
-  deriving (FromJSON, ToJSON) via (CustomEncoded UserDeletedConversationsNotification)
-
 data ConversationUpdateRequest = ConversationUpdateRequest
   { -- | The user that is attempting to perform the action. This is qualified
     -- implicitly by the origin domain
-    curUser :: UserId,
+    user :: UserId,
     -- | Id of conversation the action should be performed on. The is qualified
     -- implicity by the owning backend which receives this request.
-    curConvId :: ConvId,
-    curAction :: SomeConversationAction
+    convId :: ConvId,
+    action :: SomeConversationAction
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConversationUpdateRequest)
@@ -397,8 +353,15 @@ data ConversationUpdateResponse
     via (CustomEncoded ConversationUpdateResponse)
 
 -- | A wrapper around a raw welcome message
-newtype MLSWelcomeRequest = MLSWelcomeRequest
-  { unMLSWelcomeRequest :: Base64ByteString
+data MLSWelcomeRequest = MLSWelcomeRequest
+  { -- | Implicitely qualified by origin domain
+    originatingUser :: UserId,
+    -- | A serialised welcome message.
+    welcomeMessage :: Base64ByteString,
+    -- | Recipients local to the target backend.
+    recipients :: [(UserId, ClientId)],
+    -- | The conversation id, qualified to the owning domain
+    qualifiedConvId :: Qualified ConvId
   }
   deriving stock (Eq, Generic, Show)
   deriving (Arbitrary) via (GenericUniform MLSWelcomeRequest)
@@ -419,18 +382,18 @@ data MLSMessageResponse
     MLSMessageResponseUnreachableBackends (Set Domain)
   | -- | If the list of unreachable users is non-empty, it corresponds to users
     -- that an application message could not be sent to.
-    MLSMessageResponseUpdates [ConversationUpdate] (Maybe UnreachableUsers)
+    MLSMessageResponseUpdates [ConversationUpdate]
   | MLSMessageResponseNonFederatingBackends NonFederatingBackends
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via (CustomEncoded MLSMessageResponse)
 
 data GetGroupInfoRequest = GetGroupInfoRequest
-  { -- | Conversation is assumed to be owned by the target domain, this allows
-    -- us to protect against relay attacks
-    ggireqConv :: ConvId,
+  { -- | Conversation (or subconversation) is assumed to be owned by the target
+    -- domain, this allows us to protect against relay attacks
+    conv :: ConvOrSubConvId,
     -- | Sender is assumed to be owned by the origin domain, this allows us to
     -- protect against spoofing attacks
-    ggireqSender :: UserId
+    sender :: UserId
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform GetGroupInfoRequest)
@@ -441,3 +404,50 @@ data GetGroupInfoResponse
   | GetGroupInfoResponseState Base64ByteString
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via (CustomEncoded GetGroupInfoResponse)
+
+data GetSubConversationsRequest = GetSubConversationsRequest
+  { gsreqUser :: UserId,
+    gsreqConv :: ConvId,
+    gsreqSubConv :: SubConvId
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON) via (CustomEncoded GetSubConversationsRequest)
+
+data GetSubConversationsResponse
+  = GetSubConversationsResponseError GalleyError
+  | GetSubConversationsResponseSuccess PublicSubConversation
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON) via (CustomEncoded GetSubConversationsResponse)
+
+data LeaveSubConversationRequest = LeaveSubConversationRequest
+  { lscrUser :: UserId,
+    lscrClient :: ClientId,
+    lscrConv :: ConvId,
+    lscrSubConv :: SubConvId
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform LeaveSubConversationRequest)
+  deriving (ToJSON, FromJSON) via (CustomEncoded LeaveSubConversationRequest)
+
+data LeaveSubConversationResponse
+  = LeaveSubConversationResponseError GalleyError
+  | LeaveSubConversationResponseProtocolError Text
+  | LeaveSubConversationResponseOk
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON) via (CustomEncoded LeaveSubConversationResponse)
+
+data DeleteSubConversationFedRequest = DeleteSubConversationFedRequest
+  { dscreqUser :: UserId,
+    dscreqConv :: ConvId,
+    dscreqSubConv :: SubConvId,
+    dscreqGroupId :: GroupId,
+    dscreqEpoch :: Epoch
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON) via (CustomEncoded DeleteSubConversationFedRequest)
+
+data DeleteSubConversationResponse
+  = DeleteSubConversationResponseError GalleyError
+  | DeleteSubConversationResponseSuccess
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON) via (CustomEncoded DeleteSubConversationResponse)

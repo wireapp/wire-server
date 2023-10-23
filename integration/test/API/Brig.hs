@@ -1,12 +1,36 @@
 module API.Brig where
 
 import API.Common
+import Data.Aeson qualified as Aeson
 import Data.ByteString.Base64 qualified as Base64
 import Data.Foldable
 import Data.Function
 import Data.Text.Encoding qualified as T
 import GHC.Stack
 import Testlib.Prelude
+
+data AddUser = AddUser
+  { name :: Maybe String,
+    email :: Maybe String,
+    teamCode :: Maybe String,
+    password :: Maybe String
+  }
+
+instance Default AddUser where
+  def = AddUser Nothing Nothing Nothing Nothing
+
+addUser :: (HasCallStack, MakesValue dom) => dom -> AddUser -> App Response
+addUser dom opts = do
+  req <- baseRequest dom Brig Versioned "register"
+  name <- maybe randomName pure opts.name
+  submit "POST" $
+    req
+      & addJSONObject
+        [ "name" .= name,
+          "email" .= opts.email,
+          "team_code" .= opts.teamCode,
+          "password" .= fromMaybe defPassword opts.password
+        ]
 
 getUser ::
   (HasCallStack, MakesValue user, MakesValue target) =>
@@ -20,6 +44,14 @@ getUser user target = do
       joinHttpPath ["users", domain, uid]
   submit "GET" req
 
+getUserByHandle :: (HasCallStack, MakesValue user, MakesValue domain) => user -> domain -> String -> App Response
+getUserByHandle user domain handle = do
+  domainStr <- asString domain
+  req <-
+    baseRequest user Brig Versioned $
+      joinHttpPath ["users", "by-handle", domainStr, handle]
+  submit "GET" req
+
 getClient ::
   (HasCallStack, MakesValue user, MakesValue client) =>
   user ->
@@ -31,6 +63,18 @@ getClient u cli = do
     baseRequest u Brig Versioned $
       joinHttpPath ["clients", c]
   submit "GET" req
+
+deleteUser :: (HasCallStack, MakesValue user) => user -> App Response
+deleteUser user = do
+  req <- baseRequest user Brig Versioned "/self"
+  submit "DELETE" $
+    req & addJSONObject ["password" .= defPassword]
+
+putHandle :: (HasCallStack, MakesValue user) => user -> String -> App Response
+putHandle user handle = do
+  req <- baseRequest user Brig Versioned "/self/handle"
+  submit "PUT" $
+    req & addJSONObject ["handle" .= handle]
 
 data AddClient = AddClient
   { ctype :: String,
@@ -146,6 +190,12 @@ getClientsQualified user domain otherUser = do
         <> "/clients"
   submit "GET" req
 
+listUsersClients :: (HasCallStack, MakesValue user, MakesValue qualifiedUserIds) => user -> [qualifiedUserIds] -> App Response
+listUsersClients usr qualifiedUserIds = do
+  qUsers <- mapM objQidObject qualifiedUserIds
+  req <- baseRequest usr Brig Versioned $ joinHttpPath ["users", "list-clients"]
+  submit "POST" (req & addJSONObject ["qualified_users" .= qUsers])
+
 searchContacts ::
   ( MakesValue user,
     MakesValue searchTerm,
@@ -212,26 +262,45 @@ putConnection userFrom userTo status = do
     baseRequest userFrom Brig Versioned $
       joinHttpPath ["/connections", userToDomain, userToId]
   statusS <- asString status
-  submit "POST" (req & addJSONObject ["status" .= statusS])
+  submit "PUT" (req & addJSONObject ["status" .= statusS])
 
-uploadKeyPackage :: ClientIdentity -> ByteString -> App Response
-uploadKeyPackage cid kp = do
+getConnections :: (HasCallStack, MakesValue user) => user -> App Response
+getConnections user = do
+  req <- baseRequest user Brig Versioned "/list-connections"
+  submit "POST" (req & addJSONObject ["size" .= Aeson.Number 500])
+
+uploadKeyPackages :: ClientIdentity -> [ByteString] -> App Response
+uploadKeyPackages cid kps = do
   req <-
     baseRequest cid Brig Versioned $
       "/mls/key-packages/self/" <> cid.client
   submit
     "POST"
     ( req
-        & addJSONObject ["key_packages" .= [T.decodeUtf8 (Base64.encode kp)]]
+        & addJSONObject ["key_packages" .= map (T.decodeUtf8 . Base64.encode) kps]
     )
 
-claimKeyPackages :: (MakesValue u, MakesValue v) => u -> v -> App Response
-claimKeyPackages u v = do
+claimKeyPackages :: (MakesValue u, MakesValue v) => Ciphersuite -> u -> v -> App Response
+claimKeyPackages suite u v = do
   (targetDom, targetUid) <- objQid v
   req <-
     baseRequest u Brig Versioned $
       "/mls/key-packages/claim/" <> targetDom <> "/" <> targetUid
-  submit "POST" req
+  submit "POST" $
+    req
+      & addQueryParams [("ciphersuite", suite.code)]
+
+countKeyPackages :: Ciphersuite -> ClientIdentity -> App Response
+countKeyPackages suite cid = do
+  req <- baseRequest cid Brig Versioned ("/mls/key-packages/self/" <> cid.client <> "/count")
+  submit "GET" $
+    req
+      & addQueryParams [("ciphersuite", suite.code)]
+
+deleteKeyPackages :: ClientIdentity -> [String] -> App Response
+deleteKeyPackages cid kps = do
+  req <- baseRequest cid Brig Versioned ("/mls/key-packages/self/" <> cid.client)
+  submit "DELETE" $ req & addJSONObject ["key_packages" .= kps]
 
 getSelf :: HasCallStack => String -> String -> App Response
 getSelf domain uid = do
@@ -261,6 +330,27 @@ putUserSupportedProtocols user ps = do
     baseRequest user Brig Versioned $
       joinHttpPath ["self", "supported-protocols"]
   submit "PUT" (req & addJSONObject ["supported_protocols" .= ps])
+
+data PostInvitation = PostInvitation
+  { email :: Maybe String
+  }
+
+instance Default PostInvitation where
+  def = PostInvitation Nothing
+
+postInvitation ::
+  (HasCallStack, MakesValue user) =>
+  user ->
+  PostInvitation ->
+  App Response
+postInvitation user inv = do
+  tid <- user %. "team" & asString
+  req <-
+    baseRequest user Brig Versioned $
+      joinHttpPath ["teams", tid, "invitations"]
+  email <- maybe randomEmail pure inv.email
+  submit "POST" $
+    req & addJSONObject ["email" .= email]
 
 getApiVersions :: HasCallStack => App Response
 getApiVersions = do

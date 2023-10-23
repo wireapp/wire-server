@@ -148,7 +148,7 @@ mkMessageSendingStatus time mismatch =
     }
 
 clientMismatchStrategyApply :: ClientMismatchStrategy -> QualifiedRecipientSet -> QualifiedRecipientSet
-clientMismatchStrategyApply MismatchReportAll = id
+clientMismatchStrategyApply MismatchReportAll = Imports.id
 clientMismatchStrategyApply MismatchIgnoreAll = const mempty
 clientMismatchStrategyApply (MismatchReportOnly users) =
   Set.filter (\(d, u, _) -> Set.member (Qualified u d) users)
@@ -190,7 +190,7 @@ checkMessageClients ::
   ClientMismatchStrategy ->
   (Bool, Map (Domain, UserId, ClientId) ByteString, QualifiedMismatch)
 checkMessageClients sender participantMap recipientMap mismatchStrat =
-  let participants = setOf ((itraversed <. folded) . withIndex . to (\((d, u), c) -> (d, u, c))) participantMap
+  let participants = setOf ((itraversed <. folded) . withIndex . Control.Lens.to (\((d, u), c) -> (d, u, c))) participantMap
       expected = Set.delete sender participants
       expectedUsers :: Set (Domain, UserId) = Map.keysSet participantMap
 
@@ -242,12 +242,12 @@ postRemoteOtrMessage ::
 postRemoteOtrMessage sender conv rawMsg = do
   let msr =
         ProteusMessageSendRequest
-          { pmsrConvId = tUnqualified conv,
-            pmsrSender = qUnqualified sender,
-            pmsrRawMessage = Base64ByteString rawMsg
+          { convId = tUnqualified conv,
+            sender = qUnqualified sender,
+            rawMessage = Base64ByteString rawMsg
           }
       rpc = fedClient @'Galley @"send-message" msr
-  msResponse <$> runFederated conv rpc
+  (.response) <$> runFederated conv rpc
 
 postBroadcast ::
   ( Member BrigAccess r,
@@ -287,7 +287,7 @@ postBroadcast lusr con msg = runError $ do
   -- is used and length `report_missing` < limit since we cannot fetch larger teams than
   -- that.
   tMembers <-
-    fmap (view userId) <$> case qualifiedNewOtrClientMismatchStrategy msg of
+    fmap (view Wire.API.Team.Member.userId) <$> case qualifiedNewOtrClientMismatchStrategy msg of
       -- Note: remote ids are not in a local team
       MismatchReportOnly qus ->
         maybeFetchLimitedTeamMemberList
@@ -397,7 +397,7 @@ postQualifiedOtrMessage senderType sender mconn lcnv msg =
       let senderClient = qualifiedNewOtrSender msg
 
       conv <- getConversation (tUnqualified lcnv) >>= noteS @'ConvNotFound
-      unless (protocolTag (convProtocol conv) == ProtocolProteusTag) $
+      unless (protocolTag (convProtocol conv) `elem` [ProtocolProteusTag, ProtocolMixedTag]) $
         throwS @'InvalidOperation
 
       let localMemberIds = lmId <$> convLocalMembers conv
@@ -411,7 +411,7 @@ postQualifiedOtrMessage senderType sender mconn lcnv msg =
             Set.fromList $
               map (tUntagged . qualifyAs lcnv) localMemberIds
                 <> map (tUntagged . rmId) (convRemoteMembers conv)
-      isInternal <- view (optSettings . setIntraListing) <$> input
+      isInternal <- view (settings . intraListing) <$> input
 
       -- check if the sender is part of the conversation
       unless (Set.member sender members) $
@@ -653,17 +653,17 @@ sendRemoteMessages domain now sender senderClient lcnv metadata messages = (hand
           (Map.assocs messages)
       rm =
         RemoteMessage
-          { rmTime = now,
-            rmData = mmData metadata,
-            rmSender = sender,
-            rmSenderClient = senderClient,
-            rmConversation = tUnqualified lcnv,
-            rmPriority = mmNativePriority metadata,
-            rmPush = mmNativePush metadata,
-            rmTransient = mmTransient metadata,
-            rmRecipients = UserClientMap rcpts
+          { time = now,
+            _data = mmData metadata,
+            sender = sender,
+            senderClient = senderClient,
+            conversation = tUnqualified lcnv,
+            priority = mmNativePriority metadata,
+            push = mmNativePush metadata,
+            transient = mmTransient metadata,
+            recipients = UserClientMap rcpts
           }
-  let rpc = void $ fedQueueClient @'Galley @"on-message-sent" rm
+  let rpc = void $ fedQueueClient @'OnMessageSentTag rm
   enqueueNotification domain Q.Persistent rpc
   where
     handle :: Either FederationError a -> Sem r (Set (UserId, ClientId))
@@ -716,7 +716,7 @@ class Unqualify a b where
   unqualify :: Domain -> a -> b
 
 instance Unqualify a a where
-  unqualify _ = id
+  unqualify _ = Imports.id
 
 instance Unqualify MessageSendingStatus ClientMismatch where
   unqualify domain status =

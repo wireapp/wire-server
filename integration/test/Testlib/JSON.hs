@@ -1,6 +1,7 @@
 module Testlib.JSON where
 
 import Control.Monad
+import Control.Monad.Catch
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Maybe
 import Data.Aeson hiding ((.=))
@@ -9,6 +10,8 @@ import Data.Aeson.Encode.Pretty qualified as Aeson
 import Data.Aeson.Key qualified as KM
 import Data.Aeson.KeyMap qualified as KM
 import Data.Aeson.Types qualified as Aeson
+import Data.ByteString (ByteString)
+import Data.ByteString.Base64 qualified as Base64
 import Data.ByteString.Lazy.Char8 qualified as LC8
 import Data.Foldable
 import Data.Function
@@ -17,9 +20,9 @@ import Data.List.Split (splitOn)
 import Data.Scientific qualified as Sci
 import Data.String
 import Data.Text qualified as T
+import Data.Text.Encoding qualified as T
 import Data.Vector ((!?))
 import GHC.Stack
-import Testlib.Env
 import Testlib.Types
 import Prelude
 
@@ -72,11 +75,22 @@ asString x =
     (String s) -> pure (T.unpack s)
     v -> assertFailureWithJSON x ("String" `typeWasExpectedButGot` v)
 
+asText :: HasCallStack => MakesValue a => a -> App T.Text
+asText = (fmap T.pack) . asString
+
 asStringM :: HasCallStack => MakesValue a => a -> App (Maybe String)
 asStringM x =
   make x >>= \case
     (String s) -> pure (Just (T.unpack s))
     _ -> pure Nothing
+
+asByteString :: (HasCallStack, MakesValue a) => a -> App ByteString
+asByteString x = do
+  s <- asString x
+  let bs = T.encodeUtf8 (T.pack s)
+  case Base64.decode bs of
+    Left _ -> assertFailure "Could not base64 decode"
+    Right a -> pure a
 
 asObject :: HasCallStack => MakesValue a => a -> App Object
 asObject x =
@@ -85,7 +99,10 @@ asObject x =
     v -> assertFailureWithJSON x ("Object" `typeWasExpectedButGot` v)
 
 asInt :: HasCallStack => MakesValue a => a -> App Int
-asInt x =
+asInt = asIntegral
+
+asIntegral :: (Integral i, HasCallStack) => MakesValue a => a -> App i
+asIntegral x =
   make x >>= \case
     (Number n) ->
       case Sci.floatingOrInteger n of
@@ -119,6 +136,30 @@ asBool x =
   String ->
   App Value
 (%.) x k = lookupField x k >>= assertField x k
+
+isEqual ::
+  (MakesValue a, MakesValue b, HasCallStack) =>
+  a ->
+  b ->
+  App Bool
+isEqual = liftP2 (==)
+
+liftP2 ::
+  (MakesValue a, MakesValue b, HasCallStack) =>
+  (Value -> Value -> c) ->
+  a ->
+  b ->
+  App c
+liftP2 f a b = do
+  f <$> make a <*> make b
+
+fieldEquals :: (MakesValue a, MakesValue b) => a -> String -> b -> App Bool
+fieldEquals a fieldSelector b = do
+  ma <- lookupField a fieldSelector `catchAll` const (pure Nothing)
+  case ma of
+    Nothing -> pure False
+    Just f ->
+      f `isEqual` b
 
 assertField :: (HasCallStack, MakesValue a) => a -> String -> Maybe Value -> App Value
 assertField x k Nothing = assertFailureWithJSON x $ "Field \"" <> k <> "\" is missing from object:"

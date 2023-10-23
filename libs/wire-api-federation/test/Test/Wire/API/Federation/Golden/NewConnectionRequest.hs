@@ -25,15 +25,15 @@ import Wire.API.Federation.API.Brig
 testObject_NewConnectionRequest1 :: NewConnectionRequest
 testObject_NewConnectionRequest1 =
   NewConnectionRequest
-    { ncrFrom = Id (fromJust (UUID.fromString "69f66843-6cf1-48fb-8c05-1cf58c23566a")),
-      ncrTo = Id (fromJust (UUID.fromString "1669240c-c510-43e0-bf1a-33378fa4ba55")),
-      ncrAction = RemoteConnect
+    { from = Id (fromJust (UUID.fromString "69f66843-6cf1-48fb-8c05-1cf58c23566a")),
+      to = Id (fromJust (UUID.fromString "1669240c-c510-43e0-bf1a-33378fa4ba55")),
+      action = RemoteConnect
     }
 
 testObject_NewConnectionRequest2 :: NewConnectionRequest
 testObject_NewConnectionRequest2 =
   NewConnectionRequest
-    { ncrFrom = Id (fromJust (UUID.fromString "69f66843-6cf1-48fb-8c05-1cf58c23566a")),
-      ncrTo = Id (fromJust (UUID.fromString "1669240c-c510-43e0-bf1a-33378fa4ba55")),
-      ncrAction = RemoteRescind
+    { from = Id (fromJust (UUID.fromString "69f66843-6cf1-48fb-8c05-1cf58c23566a")),
+      to = Id (fromJust (UUID.fromString "1669240c-c510-43e0-bf1a-33378fa4ba55")),
+      action = RemoteRescind
     }

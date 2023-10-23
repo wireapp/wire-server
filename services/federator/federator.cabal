@@ -43,6 +43,7 @@ library
     Federator.ExternalServer
     Federator.Health
     Federator.InternalServer
+    Federator.Metrics
     Federator.MockServer
     Federator.Monitor
     Federator.Monitor.Internal
@@ -134,7 +135,9 @@ library
     , pem
     , polysemy
     , polysemy-wire-zoo
+    , prometheus-client
     , servant
+    , servant-client
     , servant-client-core
     , servant-server
     , text
@@ -273,6 +276,7 @@ executable federator-integration
 
   build-depends:
       aeson
+    , async
     , base
     , bilge
     , binary
@@ -285,13 +289,14 @@ executable federator-integration
     , federator
     , HsOpenSSL
     , hspec
+    , hspec-core
+    , hspec-junit-formatter
     , http-client-tls
     , http-types
     , http2-manager
     , imports
     , kan-extensions
     , lens
-    , mtl
     , optparse-applicative
     , polysemy
     , QuickCheck

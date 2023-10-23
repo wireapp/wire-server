@@ -14,6 +14,10 @@ services:
     container_name: demo_wire_dynamodb
 #    image: cnadiminti/dynamodb-local:2018-04-11
     image: julialongtin/dynamodb_local:0.0.9
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
     ports:
       - 127.0.0.1:4567:8000
     networks:
@@ -53,8 +57,7 @@ services:
 
   fake_s3:
     container_name: demo_wire_s3
-#    image: minio/minio:RELEASE.2018-05-25T19-49-13Z
-    image: julialongtin/minio:0.0.9
+    image: minio/minio:RELEASE.2023-07-07T07-13-57Z
     ports:
      - "127.0.0.1:4570:9000"
     environment:
@@ -164,6 +167,10 @@ services:
     image: julialongtin/elasticsearch:0.0.9-amd64
     # https://hub.docker.com/_/elastic is deprecated, but 6.2.4 did not work without further changes.
     # image: docker.elastic.co/elasticsearch/elasticsearch:6.2.4
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
     ports:
       - "127.0.0.1:9200:9200"
       - "127.0.0.1:9300:9300"
@@ -198,7 +205,7 @@ services:
 
   rabbitmq:
     container_name: rabbitmq
-    image: rabbitmq:3-management-alpine
+    image: rabbitmq:3.11-management-alpine
     environment:
       - RABBITMQ_DEFAULT_USER=${RABBITMQ_USERNAME}
       - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASSWORD}

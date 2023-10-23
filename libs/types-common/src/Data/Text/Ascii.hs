@@ -86,8 +86,8 @@ import Data.ByteString.Base64.URL qualified as B64Url
 import Data.ByteString.Char8 qualified as C8
 import Data.ByteString.Conversion
 import Data.Hashable (Hashable)
+import Data.OpenApi qualified as S
 import Data.Schema
-import Data.Swagger qualified as S
 import Data.Text qualified as Text
 import Data.Text.Encoding (decodeLatin1, decodeUtf8')
 import Imports
@@ -156,7 +156,7 @@ instance AsciiChars c => ToJSON (AsciiText c) where
 instance AsciiChars c => FromJSON (AsciiText c) where
   parseJSON = schemaParseJSON
 
-instance AsciiChars c => S.ToSchema (AsciiText c) where
+instance (Typeable c, AsciiChars c) => S.ToSchema (AsciiText c) where
   declareNamedSchema = schemaToSwagger
 
 instance AsciiChars c => Cql (AsciiText c) where

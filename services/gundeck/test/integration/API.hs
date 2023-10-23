@@ -50,7 +50,8 @@ import Data.Set qualified as Set
 import Data.Text.Encoding qualified as T
 import Data.UUID qualified as UUID
 import Data.UUID.V4
-import Gundeck.Options
+import Gundeck.Options hiding (bulkPush)
+import Gundeck.Options qualified as O
 import Gundeck.Types
 import Gundeck.Types.Common qualified
 import Imports
@@ -407,10 +408,10 @@ targetClientPush = do
 storeNotificationsEvenWhenRedisIsDown :: TestM ()
 storeNotificationsEvenWhenRedisIsDown = do
   ally <- randomId
-  origRedisEndpoint <- view $ tsOpts . optRedis
+  origRedisEndpoint <- view $ tsOpts . redis
   let proxyPort = 10112
-  redisProxyServer <- liftIO . async $ runRedisProxy (origRedisEndpoint ^. rHost) (origRedisEndpoint ^. rPort) proxyPort
-  withSettingsOverrides (optRedis .~ RedisEndpoint "localhost" proxyPort (origRedisEndpoint ^. rConnectionMode)) $ do
+  redisProxyServer <- liftIO . async $ runRedisProxy (origRedisEndpoint ^. O.host) (origRedisEndpoint ^. O.port) proxyPort
+  withSettingsOverrides (redis .~ RedisEndpoint "localhost" proxyPort (origRedisEndpoint ^. connectionMode)) $ do
     let pload = textPayload "hello"
         push = buildPush ally [(ally, RecipientClientsAll)] pload
     gu <- view tsGundeck
@@ -912,7 +913,7 @@ testRedisMigration = do
   let presence = Presence uid con cannonURI Nothing 1 ""
   redis2 <- view tsRedis2
 
-  withSettingsOverrides (optRedisAdditionalWrite ?~ redis2) $ do
+  withSettingsOverrides (redisAdditionalWrite ?~ redis2) $ do
     g <- view tsGundeck
     setPresence g presence
       !!! const 201
@@ -921,7 +922,7 @@ testRedisMigration = do
       map resource . decodePresence <$> (getPresence g (toByteString' uid) <!! const 200 === statusCode)
     liftIO $ assertEqual "With both redises: presences should match the set presences" [cannonURI] retrievedPresence
 
-  withSettingsOverrides (optRedis .~ redis2) $ do
+  withSettingsOverrides (redis .~ redis2) $ do
     g <- view tsGundeck
     retrievedPresence <-
       map resource . decodePresence <$> (getPresence g (toByteString' uid) <!! const 200 === statusCode)

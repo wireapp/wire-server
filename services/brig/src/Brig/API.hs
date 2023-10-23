@@ -22,22 +22,10 @@ where
 
 import Brig.API.Handler (Handler)
 import Brig.API.Internal qualified as Internal
-import Brig.API.Public qualified as Public
-import Brig.Effects.BlacklistStore (BlacklistStore)
 import Brig.Effects.GalleyProvider (GalleyProvider)
-import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import Network.Wai.Routing (Routes)
 import Polysemy
-import Wire.Sem.Concurrency
 
-sitemap ::
-  forall r p.
-  ( Member BlacklistStore r,
-    Member GalleyProvider r,
-    Member (Concurrency 'Unsafe) r,
-    Member (UserPendingActivationStore p) r
-  ) =>
-  Routes () (Handler r) ()
+sitemap :: forall r. (Member GalleyProvider r) => Routes () (Handler r) ()
 sitemap = do
-  Public.sitemap
   Internal.sitemap

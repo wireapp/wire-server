@@ -66,16 +66,17 @@ import Data.Attoparsec.ByteString.Char8 qualified as Atto
 import Data.Bifunctor (first)
 import Data.Binary
 import Data.ByteString.Builder (byteString)
+import Data.ByteString.Char8 qualified as B8
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy qualified as L
 import Data.Char qualified as Char
 import Data.Default (Default (..))
 import Data.Hashable (Hashable)
+import Data.OpenApi qualified as S
+import Data.OpenApi.Internal.ParamSchema (ToParamSchema (..))
 import Data.ProtocolBuffers.Internal
 import Data.Proxy
 import Data.Schema
-import Data.Swagger qualified as S
-import Data.Swagger.Internal.ParamSchema (ToParamSchema (..))
 import Data.Text qualified as T
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Text.Lazy (toStrict)
@@ -298,6 +299,9 @@ instance S.ToParamSchema ConnId where
 instance FromHttpApiData ConnId where
   parseUrlPiece = Right . ConnId . encodeUtf8
 
+instance Arbitrary ConnId where
+  arbitrary = ConnId . B8.pack <$> resize 10 (listOf arbitraryPrintableChar)
+
 -- ClientId --------------------------------------------------------------------
 
 -- | Handle for a device.  Corresponds to the device fingerprints exposed in the UI.  It is unique
@@ -354,10 +358,11 @@ newtype BotId = BotId
       FromHttpApiData,
       Hashable,
       NFData,
-      FromJSON,
-      ToJSON,
-      Generic
+      Generic,
+      ToParamSchema
     )
+  deriving newtype (ToSchema)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema BotId
 
 instance Show BotId where
   show = show . botUserId

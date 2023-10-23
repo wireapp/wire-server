@@ -18,13 +18,8 @@
 module Brig.Data.MLS.KeyPackage
   ( insertKeyPackages,
     claimKeyPackage,
-    mapKeyPackageRef,
     countKeyPackages,
-    derefKeyPackage,
-    keyPackageRefConvId,
-    keyPackageRefSetConvId,
-    addKeyPackageRef,
-    updateKeyPackageRef,
+    deleteKeyPackages,
   )
 where
 
@@ -32,34 +27,35 @@ import Brig.API.MLS.KeyPackages.Validation
 import Brig.App
 import Brig.Options hiding (Timeout)
 import Cassandra
-import Cassandra.Settings
 import Control.Arrow
 import Control.Error
-import Control.Exception
 import Control.Lens
-import Control.Monad.Catch
 import Control.Monad.Random (randomRIO)
-import Data.Domain
 import Data.Functor
 import Data.Id
 import Data.Qualified
 import Data.Time.Clock
 import Data.Time.Clock.POSIX
 import Imports
-import Wire.API.MLS.Credential
+import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.KeyPackage
+import Wire.API.MLS.LeafNode
 import Wire.API.MLS.Serialisation
-import Wire.API.Routes.Internal.Brig
 
-insertKeyPackages :: MonadClient m => UserId -> ClientId -> [(KeyPackageRef, KeyPackageData)] -> m ()
+insertKeyPackages ::
+  MonadClient m =>
+  UserId ->
+  ClientId ->
+  [(KeyPackageRef, CipherSuiteTag, KeyPackageData)] ->
+  m ()
 insertKeyPackages uid cid kps = retry x5 . batch $ do
   setType BatchLogged
   setConsistency LocalQuorum
-  for_ kps $ \(ref, kp) -> do
-    addPrepQuery q (uid, cid, kp, ref)
+  for_ kps $ \(ref, suite, kp) -> do
+    addPrepQuery q (uid, cid, suite, kp, ref)
   where
-    q :: PrepQuery W (UserId, ClientId, KeyPackageData, KeyPackageRef) ()
-    q = "INSERT INTO mls_key_packages (user, client, data, ref) VALUES (?, ?, ?, ?)"
+    q :: PrepQuery W (UserId, ClientId, CipherSuiteTag, KeyPackageData, KeyPackageRef) ()
+    q = "INSERT INTO mls_key_packages (user, client, cipher_suite, data, ref) VALUES (?, ?, ?, ?, ?)"
 
 claimKeyPackage ::
   ( MonadReader Env m,
@@ -68,22 +64,22 @@ claimKeyPackage ::
   ) =>
   Local UserId ->
   ClientId ->
+  CipherSuiteTag ->
   MaybeT m (KeyPackageRef, KeyPackageData)
-claimKeyPackage u c = do
+claimKeyPackage u c suite = do
   -- FUTUREWORK: investigate better locking strategies
   lock <- lift $ view keyPackageLocalLock
   -- get a random key package and delete it
   (ref, kpd) <- MaybeT . withMVar lock . const $ do
-    kps <- getNonClaimedKeyPackages u c
+    kps <- getNonClaimedKeyPackages u c suite
     mk <- liftIO (pick kps)
     for mk $ \(ref, kpd) -> do
-      retry x5 $ write deleteByRef (params LocalQuorum (tUnqualified u, c, ref))
+      retry x5 $ write delete1Query (params LocalQuorum (tUnqualified u, c, suite, ref))
       pure (ref, kpd)
-  lift $ mapKeyPackageRef ref (tUntagged u) c
   pure (ref, kpd)
   where
-    deleteByRef :: PrepQuery W (UserId, ClientId, KeyPackageRef) ()
-    deleteByRef = "DELETE FROM mls_key_packages WHERE user = ? AND client = ? AND ref = ?"
+    delete1Query :: PrepQuery W (UserId, ClientId, CipherSuiteTag, KeyPackageRef) ()
+    delete1Query = "DELETE FROM mls_key_packages WHERE user = ? AND client = ? AND cipher_suite = ? AND ref = ?"
 
 -- | Fetch all unclaimed non-expired key packages for a given client and delete
 -- from the database those that have expired.
@@ -93,9 +89,10 @@ getNonClaimedKeyPackages ::
   ) =>
   Local UserId ->
   ClientId ->
+  CipherSuiteTag ->
   m [(KeyPackageRef, KeyPackageData)]
-getNonClaimedKeyPackages u c = do
-  kps <- retry x1 $ query lookupQuery (params LocalQuorum (tUnqualified u, c))
+getNonClaimedKeyPackages u c suite = do
+  kps <- retry x1 $ query lookupQuery (params LocalQuorum (tUnqualified u, c, suite))
   let decodedKps = foldMap (keepDecoded . (decodeKp &&& id)) kps
 
   now <- liftIO getPOSIXTime
@@ -104,18 +101,11 @@ getNonClaimedKeyPackages u c = do
   let (kpsExpired, kpsNonExpired) =
         partition (hasExpired now mMaxLifetime) decodedKps
   -- delete expired key packages
-  let kpsExpired' = fmap (\(_, (ref, _)) -> ref) kpsExpired
-   in retry x5 $
-        write
-          deleteByRefs
-          (params LocalQuorum (tUnqualified u, c, kpsExpired'))
+  deleteKeyPackages (tUnqualified u) c suite (map (\(_, (ref, _)) -> ref) kpsExpired)
   pure $ fmap snd kpsNonExpired
   where
-    lookupQuery :: PrepQuery R (UserId, ClientId) (KeyPackageRef, KeyPackageData)
-    lookupQuery = "SELECT ref, data FROM mls_key_packages WHERE user = ? AND client = ?"
-
-    deleteByRefs :: PrepQuery W (UserId, ClientId, [KeyPackageRef]) ()
-    deleteByRefs = "DELETE FROM mls_key_packages WHERE user = ? AND client = ? AND ref in ?"
+    lookupQuery :: PrepQuery R (UserId, ClientId, CipherSuiteTag) (KeyPackageRef, KeyPackageData)
+    lookupQuery = "SELECT ref, data FROM mls_key_packages WHERE user = ? AND client = ? AND cipher_suite = ?"
 
     decodeKp :: (a, KeyPackageData) -> Maybe KeyPackage
     decodeKp = hush . decodeMLS' . kpData . snd
@@ -126,19 +116,11 @@ getNonClaimedKeyPackages u c = do
 
     hasExpired :: POSIXTime -> Maybe NominalDiffTime -> (KeyPackage, a) -> Bool
     hasExpired now mMaxLifetime (kp, _) =
-      case findExtensions (kpExtensions kp) of
-        Left _ -> True -- the assumption is the key package is valid and has the
-        -- required extensions so we return 'True'
-        Right (runIdentity . reLifetime -> lt) ->
+      case kp.leafNode.source of
+        LeafNodeSourceKeyPackage lt ->
           either (const True) (const False) . validateLifetime' now mMaxLifetime $ lt
-
--- | Add key package ref to mapping table.
-mapKeyPackageRef :: MonadClient m => KeyPackageRef -> Qualified UserId -> ClientId -> m ()
-mapKeyPackageRef ref u c =
-  write insertQuery (params LocalQuorum (ref, qDomain u, qUnqualified u, c))
-  where
-    insertQuery :: PrepQuery W (KeyPackageRef, Domain, UserId, ClientId) ()
-    insertQuery = "INSERT INTO mls_key_package_refs (ref, domain, user, client) VALUES (?, ?, ?, ?)"
+        _ -> True -- the assumption is the key package is valid and has the
+        -- required extensions so we return 'True'
 
 countKeyPackages ::
   ( MonadReader Env m,
@@ -146,96 +128,22 @@ countKeyPackages ::
   ) =>
   Local UserId ->
   ClientId ->
+  CipherSuiteTag ->
   m Int64
-countKeyPackages u c = fromIntegral . length <$> getNonClaimedKeyPackages u c
+countKeyPackages u c suite = fromIntegral . length <$> getNonClaimedKeyPackages u c suite
 
-derefKeyPackage :: MonadClient m => KeyPackageRef -> MaybeT m ClientIdentity
-derefKeyPackage ref = do
-  (d, u, c) <- MaybeT . retry x1 $ query1 q (params LocalQuorum (Identity ref))
-  pure $ ClientIdentity d u c
-  where
-    q :: PrepQuery R (Identity KeyPackageRef) (Domain, UserId, ClientId)
-    q = "SELECT domain, user, client from mls_key_package_refs WHERE ref = ?"
-
-keyPackageRefConvId :: MonadClient m => KeyPackageRef -> MaybeT m (Qualified ConvId)
-keyPackageRefConvId ref = MaybeT $ do
-  qr <- retry x1 $ query1 q (params LocalSerial (Identity ref))
-  pure $ do
-    (domain, cid) <- qr
-    Qualified <$> cid <*> domain
-  where
-    q :: PrepQuery R (Identity KeyPackageRef) (Maybe Domain, Maybe ConvId)
-    q = "SELECT conv_domain, conv FROM mls_key_package_refs WHERE ref = ?"
-
--- We want to proper update, not an upsert, to avoid "ghost" refs without user+client
-keyPackageRefSetConvId :: MonadClient m => KeyPackageRef -> Qualified ConvId -> m Bool
-keyPackageRefSetConvId ref convId = do
-  updated <-
-    retry x5 $
-      trans
-        q
-        (params LocalQuorum (qDomain convId, qUnqualified convId, ref))
-          { serialConsistency = Just LocalSerialConsistency
-          }
-  case updated of
-    [] -> pure False
-    [_] -> pure True
-    _ -> throwM $ ErrorCall "Primary key violation detected mls_key_package_refs.ref"
-  where
-    q :: PrepQuery W (Domain, ConvId, KeyPackageRef) Row
-    q = "UPDATE mls_key_package_refs SET conv_domain = ?, conv = ? WHERE ref = ? IF EXISTS"
-
-addKeyPackageRef :: MonadClient m => KeyPackageRef -> NewKeyPackageRef -> m ()
-addKeyPackageRef ref nkpr = do
+deleteKeyPackages :: MonadClient m => UserId -> ClientId -> CipherSuiteTag -> [KeyPackageRef] -> m ()
+deleteKeyPackages u c suite refs =
   retry x5 $
     write
-      q
-      (params LocalQuorum (nkprClientId nkpr, qUnqualified (nkprConversation nkpr), qDomain (nkprConversation nkpr), qDomain (nkprUserId nkpr), qUnqualified (nkprUserId nkpr), ref))
+      deleteQuery
+      (params LocalQuorum (u, c, suite, refs))
   where
-    q :: PrepQuery W (ClientId, ConvId, Domain, Domain, UserId, KeyPackageRef) x
-    q = "UPDATE mls_key_package_refs SET client = ?, conv = ?, conv_domain = ?, domain = ?, user = ? WHERE ref = ?"
-
--- | Update key package ref, used in Galley when commit reveals key package ref update for the sender.
--- Nothing is changed if the previous key package ref is not found in the table.
--- Updating amounts to INSERT the new key package ref, followed by DELETE the
--- previous one.
---
--- FUTUREWORK: this function has to be extended if a table mapping (client,
--- conversation) to key package ref is added, for instance, when implementing
--- external delete proposals.
-updateKeyPackageRef :: MonadClient m => KeyPackageRef -> KeyPackageRef -> m ()
-updateKeyPackageRef prevRef newRef =
-  void . runMaybeT $ do
-    backup <- backupKeyPackageMeta prevRef
-    lift $ restoreKeyPackageMeta newRef backup >> deleteKeyPackage prevRef
+    deleteQuery :: PrepQuery W (UserId, ClientId, CipherSuiteTag, [KeyPackageRef]) ()
+    deleteQuery = "DELETE FROM mls_key_packages WHERE user = ? AND client = ? AND cipher_suite = ? AND ref in ?"
 
 --------------------------------------------------------------------------------
 -- Utilities
-
-backupKeyPackageMeta :: MonadClient m => KeyPackageRef -> MaybeT m (ClientId, Maybe (Qualified ConvId), Qualified UserId)
-backupKeyPackageMeta ref = do
-  (clientId, convId, convDomain, userDomain, userId) <- MaybeT . retry x1 $ query1 q (params LocalQuorum (Identity ref))
-  pure (clientId, Qualified <$> convId <*> convDomain, Qualified userId userDomain)
-  where
-    q :: PrepQuery R (Identity KeyPackageRef) (ClientId, Maybe ConvId, Maybe Domain, Domain, UserId)
-    q = "SELECT client, conv, conv_domain, domain, user FROM mls_key_package_refs WHERE ref = ?"
-
-restoreKeyPackageMeta :: MonadClient m => KeyPackageRef -> (ClientId, Maybe (Qualified ConvId), Qualified UserId) -> m ()
-restoreKeyPackageMeta ref (clientId, convId, userId) = do
-  write q (params LocalQuorum (ref, clientId, qUnqualified <$> convId, qDomain <$> convId, qDomain userId, qUnqualified userId))
-  where
-    q :: PrepQuery W (KeyPackageRef, ClientId, Maybe ConvId, Maybe Domain, Domain, UserId) ()
-    q = "INSERT INTO mls_key_package_refs (ref, client, conv, conv_domain, domain, user) VALUES (?, ?, ?, ?, ?, ?)"
-
-deleteKeyPackage :: MonadClient m => KeyPackageRef -> m ()
-deleteKeyPackage ref =
-  retry x5 $
-    write
-      q
-      (params LocalQuorum (Identity ref))
-  where
-    q :: PrepQuery W (Identity KeyPackageRef) x
-    q = "DELETE FROM mls_key_package_refs WHERE ref = ?"
 
 pick :: [a] -> IO (Maybe a)
 pick [] = pure Nothing

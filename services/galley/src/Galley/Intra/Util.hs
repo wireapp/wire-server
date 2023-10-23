@@ -22,7 +22,8 @@ module Galley.Intra.Util
   )
 where
 
-import Bilge hiding (getHeader, options, statusCode)
+import Bilge hiding (getHeader, host, options, port, statusCode)
+import Bilge qualified as B
 import Bilge.RPC
 import Bilge.Retry
 import Control.Lens (view, (^.))
@@ -32,7 +33,7 @@ import Data.ByteString.Lazy qualified as LB
 import Data.Misc (portNumber)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Text.Lazy qualified as LT
-import Galley.Env
+import Galley.Env hiding (brig)
 import Galley.Monad
 import Galley.Options
 import Imports hiding (log)
@@ -51,14 +52,14 @@ componentName Gundeck = "gundeck"
 
 componentRequest :: IntraComponent -> Opts -> Request -> Request
 componentRequest Brig o =
-  host (encodeUtf8 (o ^. optBrig . epHost))
-    . port (portNumber (fromIntegral (o ^. optBrig . epPort)))
+  B.host (encodeUtf8 (o ^. brig . host))
+    . B.port (portNumber (fromIntegral (o ^. brig . port)))
 componentRequest Spar o =
-  host (encodeUtf8 (o ^. optSpar . epHost))
-    . port (portNumber (fromIntegral (o ^. optSpar . epPort)))
+  B.host (encodeUtf8 (o ^. spar . host))
+    . B.port (portNumber (fromIntegral (o ^. spar . port)))
 componentRequest Gundeck o =
-  host (encodeUtf8 $ o ^. optGundeck . epHost)
-    . port (portNumber $ fromIntegral (o ^. optGundeck . epPort))
+  B.host (encodeUtf8 $ o ^. gundeck . host)
+    . B.port (portNumber $ fromIntegral (o ^. gundeck . port))
     . method POST
     . path "/i/push/v2"
     . expect2xx

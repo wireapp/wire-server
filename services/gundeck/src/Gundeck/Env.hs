@@ -19,7 +19,7 @@
 
 module Gundeck.Env where
 
-import Bilge
+import Bilge hiding (host, port)
 import Cassandra (ClientState, Keyspace (..))
 import Cassandra qualified as C
 import Cassandra.Settings qualified as C
@@ -36,7 +36,8 @@ import Data.Time.Clock
 import Data.Time.Clock.POSIX
 import Database.Redis qualified as Redis
 import Gundeck.Aws qualified as Aws
-import Gundeck.Options as Opt
+import Gundeck.Options as Opt hiding (host, port)
+import Gundeck.Options qualified as O
 import Gundeck.Redis qualified as Redis
 import Gundeck.Redis.HedisExtensions qualified as Redis
 import Gundeck.ThreadBudget
@@ -68,23 +69,23 @@ schemaVersion = 7
 
 createEnv :: Metrics -> Opts -> IO ([Async ()], Env)
 createEnv m o = do
-  l <- Logger.mkLogger (o ^. optLogLevel) (o ^. optLogNetStrings) (o ^. optLogFormat)
+  l <- Logger.mkLogger (o ^. logLevel) (o ^. logNetStrings) (o ^. logFormat)
   c <-
     maybe
-      (C.initialContactsPlain (o ^. optCassandra . casEndpoint . epHost))
+      (C.initialContactsPlain (o ^. cassandra . endpoint . host))
       (C.initialContactsDisco "cassandra_gundeck" . unpack)
-      (o ^. optDiscoUrl)
+      (o ^. discoUrl)
   n <-
     newManager
       tlsManagerSettings
-        { managerConnCount = o ^. optSettings . setHttpPoolSize,
-          managerIdleConnectionCount = 3 * (o ^. optSettings . setHttpPoolSize),
+        { managerConnCount = o ^. settings . httpPoolSize,
+          managerIdleConnectionCount = 3 * (o ^. settings . httpPoolSize),
           managerResponseTimeout = responseTimeoutMicro 5000000
         }
 
-  (rThread, r) <- createRedisPool l (o ^. optRedis) "main-redis"
+  (rThread, r) <- createRedisPool l (o ^. redis) "main-redis"
 
-  (rAdditionalThreads, rAdditional) <- case o ^. optRedisAdditionalWrite of
+  (rAdditionalThreads, rAdditional) <- case o ^. redisAdditionalWrite of
     Nothing -> pure ([], Nothing)
     Just additionalRedis -> do
       (rAddThread, rAdd) <- createRedisPool l additionalRedis "additional-write-redis"
@@ -94,15 +95,15 @@ createEnv m o = do
     C.init
       $ C.setLogger (C.mkLogger (Logger.clone (Just "cassandra.gundeck") l))
         . C.setContacts (NE.head c) (NE.tail c)
-        . C.setPortNumber (fromIntegral $ o ^. optCassandra . casEndpoint . epPort)
-        . C.setKeyspace (Keyspace (o ^. optCassandra . casKeyspace))
+        . C.setPortNumber (fromIntegral $ o ^. cassandra . endpoint . port)
+        . C.setKeyspace (Keyspace (o ^. cassandra . keyspace))
         . C.setMaxConnections 4
         . C.setMaxStreams 128
         . C.setPoolStripes 4
         . C.setSendTimeout 3
         . C.setResponseTimeout 10
         . C.setProtocolVersion C.V4
-        . C.setPolicy (C.dcFilterPolicyIfConfigured l (o ^. optCassandra . casFilterNodesByDatacentre))
+        . C.setPolicy (C.dcFilterPolicyIfConfigured l (o ^. cassandra . filterNodesByDatacentre))
       $ C.defSettings
   a <- Aws.mkEnv l o n
   io <-
@@ -110,7 +111,7 @@ createEnv m o = do
       defaultUpdateSettings
         { updateAction = Ms . round . (* 1000) <$> getPOSIXTime
         }
-  mtbs <- mkThreadBudgetState `mapM` (o ^. optSettings . setMaxConcurrentNativePushes)
+  mtbs <- mkThreadBudgetState `mapM` (o ^. settings . maxConcurrentNativePushes)
   pure $! (rThread : rAdditionalThreads,) $! Env def m o l n p r rAdditional a io mtbs
 
 reqIdMsg :: RequestId -> Logger.Msg -> Logger.Msg
@@ -118,21 +119,21 @@ reqIdMsg = ("request" Logger..=) . unRequestId
 {-# INLINE reqIdMsg #-}
 
 createRedisPool :: Logger.Logger -> RedisEndpoint -> ByteString -> IO (Async (), Redis.RobustConnection)
-createRedisPool l endpoint identifier = do
+createRedisPool l ep identifier = do
   let redisConnInfo =
         Redis.defaultConnectInfo
-          { Redis.connectHost = unpack $ endpoint ^. rHost,
-            Redis.connectPort = Redis.PortNumber (fromIntegral $ endpoint ^. rPort),
+          { Redis.connectHost = unpack $ ep ^. O.host,
+            Redis.connectPort = Redis.PortNumber (fromIntegral $ ep ^. O.port),
             Redis.connectTimeout = Just (secondsToNominalDiffTime 5),
             Redis.connectMaxConnections = 100
           }
 
   Log.info l $
     Log.msg (Log.val $ "starting connection to " <> identifier <> "...")
-      . Log.field "connectionMode" (show $ endpoint ^. rConnectionMode)
+      . Log.field "connectionMode" (show $ ep ^. O.connectionMode)
       . Log.field "connInfo" (show redisConnInfo)
   let connectWithRetry = Redis.connectRobust l (capDelay 1000000 (exponentialBackoff 50000))
-  r <- case endpoint ^. rConnectionMode of
+  r <- case ep ^. O.connectionMode of
     Master -> connectWithRetry $ Redis.checkedConnect redisConnInfo
     Cluster -> connectWithRetry $ Redis.checkedConnectCluster redisConnInfo
   Log.info l $ Log.msg (Log.val $ "Established connection to " <> identifier <> ".")

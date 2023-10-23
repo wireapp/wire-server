@@ -11,6 +11,8 @@ type RabbitMqBasicAuth = BasicAuth "RabbitMq Management" BasicAuthData
 
 type VHost = Text
 
+type QueueName = Text
+
 -- | Upstream Docs:
 -- https://rawcdn.githack.com/rabbitmq/rabbitmq-server/v3.12.0/deps/rabbitmq_management/priv/www/api/index.html
 data AdminAPI route = AdminAPI
@@ -22,7 +24,14 @@ data AdminAPI route = AdminAPI
         :- "api"
           :> "queues"
           :> Capture "vhost" VHost
-          :> Get '[JSON] [Queue]
+          :> Get '[JSON] [Queue],
+    deleteQueue ::
+      route
+        :- "api"
+          :> "queues"
+          :> Capture "vhost" VHost
+          :> Capture "queue" QueueName
+          :> DeleteNoContent
   }
   deriving (Generic)
 

@@ -6,6 +6,7 @@
 , aeson
 , aeson-pretty
 , amqp
+, async
 , base
 , bytestring
 , bytestring-conversion
@@ -26,6 +27,7 @@
 , lib
 , metrics-wai
 , mtl
+, openapi3
 , QuickCheck
 , schema-profunctor
 , servant
@@ -34,7 +36,6 @@
 , servant-server
 , singletons
 , singletons-th
-, swagger2
 , text
 , time
 , transformers
@@ -51,6 +52,7 @@ mkDerivation {
   libraryHaskellDepends = [
     aeson
     amqp
+    async
     base
     bytestring
     bytestring-conversion
@@ -66,6 +68,7 @@ mkDerivation {
     lens
     metrics-wai
     mtl
+    openapi3
     QuickCheck
     schema-profunctor
     servant
@@ -73,7 +76,6 @@ mkDerivation {
     servant-client-core
     servant-server
     singletons-th
-    swagger2
     text
     time
     transformers
@@ -93,6 +95,7 @@ mkDerivation {
     imports
     QuickCheck
     singletons
+    time
     types-common
     uuid
     wire-api

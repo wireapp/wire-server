@@ -52,25 +52,30 @@ addBody body contentType req =
 addMLS :: ByteString -> HTTP.Request -> HTTP.Request
 addMLS bytes req =
   req
-    { HTTP.requestBody = HTTP.RequestBodyLBS (L.fromStrict bytes),
+    { HTTP.requestBody = HTTP.RequestBodyBS bytes,
       HTTP.requestHeaders =
         (fromString "Content-Type", fromString "message/mls")
           : HTTP.requestHeaders req
+    }
+
+addProtobuf :: ByteString -> HTTP.Request -> HTTP.Request
+addProtobuf bytes req =
+  req
+    { HTTP.requestBody = HTTP.RequestBodyBS bytes,
+      HTTP.requestHeaders = (fromString "Content-Type", fromString "application/x-protobuf") : HTTP.requestHeaders req
     }
 
 addHeader :: String -> String -> HTTP.Request -> HTTP.Request
 addHeader name value req =
   req {HTTP.requestHeaders = (CI.mk . C8.pack $ name, C8.pack value) : HTTP.requestHeaders req}
 
+setCookie :: String -> HTTP.Request -> HTTP.Request
+setCookie c r =
+  addHeader "Cookie" (cs c) r
+
 addQueryParams :: [(String, String)] -> HTTP.Request -> HTTP.Request
 addQueryParams params req =
   HTTP.setQueryString (map (\(k, v) -> (cs k, Just (cs v))) params) req
-
-zType :: String -> HTTP.Request -> HTTP.Request
-zType = addHeader "Z-Type"
-
-zHost :: String -> HTTP.Request -> HTTP.Request
-zHost = addHeader "Z-Host"
 
 contentTypeJSON :: HTTP.Request -> HTTP.Request
 contentTypeJSON = addHeader "Content-Type" "application/json"
@@ -92,6 +97,9 @@ getJSON :: HasCallStack => Int -> Response -> App Aeson.Value
 getJSON status resp = withResponse resp $ \r -> do
   r.status `shouldMatch` status
   r.json
+
+assertSuccess :: HasCallStack => Response -> App ()
+assertSuccess resp = withResponse resp $ \r -> r.status `shouldMatchRange` (200, 299)
 
 onFailureAddResponse :: HasCallStack => Response -> App a -> App a
 onFailureAddResponse r m = App $ do
@@ -140,6 +148,12 @@ zConnection = addHeader "Z-Connection"
 
 zClient :: String -> HTTP.Request -> HTTP.Request
 zClient = addHeader "Z-Client"
+
+zType :: String -> HTTP.Request -> HTTP.Request
+zType = addHeader "Z-Type"
+
+zHost :: String -> HTTP.Request -> HTTP.Request
+zHost = addHeader "Z-Host"
 
 submit :: String -> HTTP.Request -> App Response
 submit method req0 = do

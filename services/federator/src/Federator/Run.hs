@@ -47,12 +47,11 @@ import Federator.Options as Opt
 import Imports
 import Network.DNS qualified as DNS
 import Network.HTTP.Client qualified as HTTP
+import Prometheus
 import System.Logger qualified as Log
 import System.Logger.Extended qualified as LogExt
 import Util.Options
 import Wire.API.Federation.Component
-import Wire.API.FederationUpdate
-import Wire.API.Routes.FederationDomainConfig
 import Wire.Network.DNS.Helper qualified as DNS
 
 ------------------------------------------------------------------------------
@@ -64,47 +63,65 @@ run opts = do
   let resolvConf = mkResolvConf (optSettings opts) DNS.defaultResolvConf
   DNS.withCachingResolver resolvConf $ \res -> do
     logger <- LogExt.mkLogger (Opt.logLevel opts) (Opt.logNetStrings opts) (Opt.logFormat opts)
-    (ioref, updateFedDomainsThread) <- syncFedDomainConfigs (brig opts) logger emptySyncFedDomainConfigsCallback
-    bracket (newEnv opts res logger ioref) closeEnv $ \env -> do
+    bracket (newEnv opts res logger) closeEnv $ \env -> do
       let externalServer = serveInward env portExternal
           internalServer = serveOutward env portInternal
       withMonitor logger (onNewSSLContext env) (optSettings opts) $ do
         internalServerThread <- async internalServer
         externalServerThread <- async externalServer
-        void $ waitAnyCancel [updateFedDomainsThread, internalServerThread, externalServerThread]
+        void $ waitAnyCancel [internalServerThread, externalServerThread]
   where
     endpointInternal = federatorInternal opts
-    portInternal = fromIntegral $ endpointInternal ^. epPort
+    portInternal = fromIntegral $ endpointInternal ^. port
 
     endpointExternal = federatorExternal opts
-    portExternal = fromIntegral $ endpointExternal ^. epPort
+    portExternal = fromIntegral $ endpointExternal ^. port
 
     mkResolvConf :: RunSettings -> DNS.ResolvConf -> DNS.ResolvConf
     mkResolvConf settings conf =
       case (dnsHost settings, dnsPort settings) of
-        (Just host, Nothing) ->
-          conf {DNS.resolvInfo = DNS.RCHostName host}
-        (Just host, Just port) ->
-          conf {DNS.resolvInfo = DNS.RCHostPort host (fromIntegral port)}
+        (Just h, Nothing) ->
+          conf {DNS.resolvInfo = DNS.RCHostName h}
+        (Just h, Just p) ->
+          conf {DNS.resolvInfo = DNS.RCHostPort h (fromIntegral p)}
         (_, _) -> conf
 
 -------------------------------------------------------------------------------
 -- Environment
 
-newEnv :: Opts -> DNS.Resolver -> Log.Logger -> IORef FederationDomainConfigs -> IO Env
-newEnv o _dnsResolver _applog _domainConfigs = do
+newEnv :: Opts -> DNS.Resolver -> Log.Logger -> IO Env
+newEnv o _dnsResolver _applog = do
   _metrics <- Metrics.metrics
   let _requestId = def
       _runSettings = Opt.optSettings o
       _service Brig = Opt.brig o
       _service Galley = Opt.galley o
       _service Cargohold = Opt.cargohold o
-      _externalPort = o.federatorExternal._epPort
-      _internalPort = o.federatorInternal._epPort
+      _externalPort = o.federatorExternal._port
+      _internalPort = o.federatorInternal._port
   _httpManager <- initHttpManager
   sslContext <- mkTLSSettingsOrThrow _runSettings
-  _http2Manager <- newIORef =<< mkHttp2Manager sslContext
+  _http2Manager <- newIORef =<< mkHttp2Manager o.optSettings.tcpConnectionTimeout sslContext
+  _federatorMetrics <- mkFederatorMetrics
   pure Env {..}
+
+mkFederatorMetrics :: IO FederatorMetrics
+mkFederatorMetrics =
+  FederatorMetrics
+    <$> register
+      ( vector "target_domain" $
+          counter $
+            Prometheus.Info
+              "com_wire_federator_outgoing_requests"
+              "Number of outgoing requests"
+      )
+    <*> register
+      ( vector "origin_domain" $
+          counter $
+            Prometheus.Info
+              "com_wire_federator_incoming_requests"
+              "Number of incoming requests"
+      )
 
 closeEnv :: Env -> IO ()
 closeEnv e = do

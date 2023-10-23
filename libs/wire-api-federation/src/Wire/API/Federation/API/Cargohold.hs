@@ -29,19 +29,19 @@ import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
 data GetAsset = GetAsset
   { -- | User requesting the asset. Implictly qualified with the source domain.
-    gaUser :: UserId,
+    user :: UserId,
     -- | Asset key for the asset to download. Implictly qualified with the
     -- target domain.
-    gaKey :: AssetKey,
+    key :: AssetKey,
     -- | Optional asset token.
-    gaToken :: Maybe AssetToken
+    token :: Maybe AssetToken
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform GetAsset)
   deriving (ToJSON, FromJSON) via (CustomEncoded GetAsset)
 
 data GetAssetResponse = GetAssetResponse
-  {gaAvailable :: Bool}
+  {available :: Bool}
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform GetAssetResponse)
   deriving (ToJSON, FromJSON) via (CustomEncoded GetAssetResponse)

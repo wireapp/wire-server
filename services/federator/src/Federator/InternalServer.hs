@@ -29,6 +29,7 @@ import Data.Proxy
 import Federator.Env
 import Federator.Error.ServerError
 import Federator.Health qualified as Health
+import Federator.Metrics (Metrics, outgoingCounterIncr)
 import Federator.RPC
 import Federator.Remote
 import Federator.Response
@@ -44,8 +45,10 @@ import Servant.API
 import Servant.API.Extended.Endpath
 import Servant.Server (Tagged (..))
 import Servant.Server.Generic
+import System.Logger.Class qualified as Log
 import Wire.API.Federation.Component
 import Wire.API.Routes.FederationDomainConfig
+import Wire.Sem.Logger (Logger, debug)
 
 data API mode = API
   { status ::
@@ -75,7 +78,9 @@ server ::
     Member (Embed IO) r,
     Member (Error ValidationError) r,
     Member (Error ServerError) r,
-    Member (Input FederationDomainConfigs) r
+    Member (Input FederationDomainConfigs) r,
+    Member Metrics r,
+    Member (Logger (Log.Msg -> Log.Msg)) r
   ) =>
   Manager ->
   Word16 ->
@@ -93,7 +98,9 @@ callOutward ::
     Member (Embed IO) r,
     Member (Error ValidationError) r,
     Member (Error ServerError) r,
-    Member (Input FederationDomainConfigs) r
+    Member (Input FederationDomainConfigs) r,
+    Member Metrics r,
+    Member (Logger (Log.Msg -> Log.Msg)) r
   ) =>
   Domain ->
   Component ->
@@ -107,9 +114,15 @@ callOutward targetDomain component (RPC path) req = do
   -- No query parameters are allowed
   unless (BS.null . Wai.rawQueryString $ req) $
     throw InvalidRoute
-
   ensureCanFederateWith targetDomain
+  outgoingCounterIncr targetDomain
   body <- embed $ Wai.lazyRequestBody req
+  debug $
+    Log.msg (Log.val "Federator outward call")
+      . Log.field "domain" targetDomain._domainText
+      . Log.field "component" (show component)
+      . Log.field "path" path
+      . Log.field "body" body
   resp <-
     discoverAndCall
       targetDomain

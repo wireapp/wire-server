@@ -34,6 +34,7 @@ import Federator.Discovery
 import Federator.Env
 import Federator.Error
 import Federator.Error.ServerError
+import Federator.Metrics (Metrics, interpretMetrics)
 import Federator.Options
 import Federator.Remote
 import Federator.Service
@@ -53,10 +54,14 @@ import Polysemy.Input
 import Polysemy.Internal
 import Polysemy.TinyLog
 import Servant hiding (ServerError, respond, serve)
+import Servant.Client (mkClientEnv)
 import Servant.Client.Core
 import Servant.Server.Generic
 import Servant.Types.SourceT
-import Wire.API.Routes.FederationDomainConfig
+import Util.Options (Endpoint (..))
+import Wire.API.FederationUpdate qualified as FedUp (getFederationDomainConfigs)
+import Wire.API.MakesFederatedCall (Component (Brig))
+import Wire.API.Routes.FederationDomainConfig qualified as FedUp (FederationDomainConfigs)
 import Wire.Network.DNS.Effect
 import Wire.Sem.Logger.TinyLog
 
@@ -137,13 +142,14 @@ serveServant middleware server env port =
       genericServe server
 
 type AllEffects =
-  '[ Remote,
+  '[ Metrics,
+     Remote,
      DiscoverFederator,
      DNSLookup, -- needed by DiscoverFederator
      ServiceStreaming,
      Input RunSettings,
      Input Http2Manager, -- needed by Remote
-     Input FederationDomainConfigs, -- needed for the domain list.
+     Input FedUp.FederationDomainConfigs, -- needed for the domain list and federation policy.
      Input Env, -- needed by Service
      Error ValidationError,
      Error RemoteError,
@@ -168,13 +174,24 @@ runFederator env =
           DiscoveryFailure
         ]
     . runInputConst env
-    . runInputSem (embed @IO (readIORef (view domainConfigs env)))
+    . runInputSem (embed @IO (getFederationDomainConfigs env))
     . runInputSem (embed @IO (readIORef (view http2Manager env)))
     . runInputConst (view runSettings env)
     . interpretServiceHTTP
     . runDNSLookupWithResolver (view dnsResolver env)
     . runFederatorDiscovery
     . interpretRemote
+    . interpretMetrics
+
+getFederationDomainConfigs :: Env -> IO FedUp.FederationDomainConfigs
+getFederationDomainConfigs env = do
+  let mgr = env ^. httpManager
+      Endpoint h p = env ^. service $ Brig
+      baseurl = BaseUrl Http (cs h) (fromIntegral p) ""
+      clientEnv = mkClientEnv mgr baseurl
+  FedUp.getFederationDomainConfigs clientEnv >>= \case
+    Right v -> pure v
+    Left e -> error $ show e
 
 streamingResponseToWai :: StreamingResponse -> Wai.Response
 streamingResponseToWai resp =

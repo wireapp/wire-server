@@ -30,8 +30,8 @@ import Data.Aeson hiding (fieldLabelModifier)
 import Data.Aeson.TH hiding (fieldLabelModifier)
 import Data.ByteString.Builder qualified as Builder
 import Data.Id (UserId)
+import Data.OpenApi
 import Data.Proxy (Proxy (Proxy))
-import Data.Swagger
 import Data.Text qualified as T
 import Data.Time
 import GHC.TypeLits (KnownSymbol, symbolVal)
@@ -56,7 +56,7 @@ type AssId = ID Assertion
 -- so that the verdict handler can act on it.
 data VerdictFormat
   = VerdictFormatWeb
-  | VerdictFormatMobile {_verdictFormatGrantedURI :: URI, _verdictFormatDeniedURI :: URI}
+  | VerdictFormatMobile {_formatGrantedURI :: URI, _formatDeniedURI :: URI}
   deriving (Eq, Show, Generic)
 
 makeLenses ''VerdictFormat

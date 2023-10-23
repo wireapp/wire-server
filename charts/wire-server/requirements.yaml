@@ -129,3 +129,8 @@ dependencies:
   repository: "file://../integration"
   tags:
     - integration
+- name: mlsstats
+  version: "0.0.42"
+  repository: "file://../mlsstats"
+  tags:
+    - mlsstats

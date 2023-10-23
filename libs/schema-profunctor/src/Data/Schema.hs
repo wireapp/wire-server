@@ -100,12 +100,11 @@ import Data.List.NonEmpty (NonEmpty)
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map qualified as Map
 import Data.Monoid hiding (Product)
+import Data.OpenApi qualified as S
+import Data.OpenApi.Declare qualified as S
 import Data.Profunctor (Star (..))
 import Data.Proxy (Proxy (..))
 import Data.Set qualified as Set
-import Data.Swagger qualified as S
-import Data.Swagger.Declare qualified as S
-import Data.Swagger.Internal qualified as S
 import Data.Text qualified as T
 import Data.Text.Lazy qualified as TL
 import Data.Vector qualified as V
@@ -624,7 +623,7 @@ text name =
       (A.withText (T.unpack name) pure)
       (pure . A.String)
   where
-    d = mempty & S.type_ ?~ S.SwaggerString
+    d = mempty & S.type_ ?~ S.OpenApiString
 
 -- | A schema for a textual value with possible failure.
 parsedText ::
@@ -764,7 +763,7 @@ instance HasSchemaRef doc => HasField doc SwaggerDoc where
     where
       f ref =
         mempty
-          & S.type_ ?~ S.SwaggerObject
+          & S.type_ ?~ S.OpenApiObject
           & S.properties . at name ?~ ref
           & S.required .~ [name]
 
@@ -780,8 +779,8 @@ instance HasSchemaRef ndoc => HasArray ndoc SwaggerDoc where
       f :: S.Referenced S.Schema -> S.Schema
       f ref =
         mempty
-          & S.type_ ?~ S.SwaggerArray
-          & S.items ?~ S.SwaggerItemsObject ref
+          & S.type_ ?~ S.OpenApiArray
+          & S.items ?~ S.OpenApiItemsObject ref
 
 instance HasSchemaRef ndoc => HasMap ndoc SwaggerDoc where
   mkMap = fmap f . schemaRef
@@ -789,7 +788,7 @@ instance HasSchemaRef ndoc => HasMap ndoc SwaggerDoc where
       f :: S.Referenced S.Schema -> S.Schema
       f ref =
         mempty
-          & S.type_ ?~ S.SwaggerObject
+          & S.type_ ?~ S.OpenApiObject
           & S.additionalProperties ?~ S.AdditionalPropertiesSchema ref
 
 class HasMinItems s a where
@@ -799,19 +798,19 @@ instance HasMinItems SwaggerDoc (Maybe Integer) where
   minItems = declared . S.minItems
 
 instance HasEnum Text NamedSwaggerDoc where
-  mkEnum = mkSwaggerEnum S.SwaggerString
+  mkEnum = mkSwaggerEnum S.OpenApiString
 
 instance HasEnum Integer NamedSwaggerDoc where
-  mkEnum = mkSwaggerEnum S.SwaggerInteger
+  mkEnum = mkSwaggerEnum S.OpenApiInteger
 
 instance HasEnum Natural NamedSwaggerDoc where
-  mkEnum = mkSwaggerEnum S.SwaggerInteger
+  mkEnum = mkSwaggerEnum S.OpenApiInteger
 
 instance HasEnum Bool NamedSwaggerDoc where
-  mkEnum = mkSwaggerEnum S.SwaggerBoolean
+  mkEnum = mkSwaggerEnum S.OpenApiBoolean
 
 mkSwaggerEnum ::
-  S.SwaggerType 'S.SwaggerKindSchema ->
+  S.OpenApiType ->
   Text ->
   [A.Value] ->
   NamedSwaggerDoc
@@ -839,11 +838,12 @@ class ToSchema a where
 -- Newtype wrappers for deriving via
 
 newtype Schema a = Schema {getSchema :: a}
+  deriving (Generic)
 
 schemaToSwagger :: forall a. ToSchema a => Proxy a -> Declare S.NamedSchema
 schemaToSwagger _ = runDeclare (schemaDoc (schema @a))
 
-instance ToSchema a => S.ToSchema (Schema a) where
+instance (Typeable a, ToSchema a) => S.ToSchema (Schema a) where
   declareNamedSchema _ = schemaToSwagger (Proxy @a)
 
 -- | JSON serialiser for an instance of 'ToSchema'.
@@ -920,8 +920,14 @@ instance S.HasSchema d S.Schema => S.HasSchema (SchemaP d v w a b) S.Schema wher
 instance S.HasDescription NamedSwaggerDoc (Maybe Text) where
   description = declared . S.schema . S.description
 
+instance S.HasDeprecated NamedSwaggerDoc (Maybe Bool) where
+  deprecated = declared . S.schema . S.deprecated
+
 instance {-# OVERLAPPABLE #-} S.HasDescription s a => S.HasDescription (WithDeclare s) a where
   description = declared . S.description
+
+instance {-# OVERLAPPABLE #-} S.HasDeprecated s a => S.HasDeprecated (WithDeclare s) a where
+  deprecated = declared . S.deprecated
 
 instance {-# OVERLAPPABLE #-} S.HasExample s a => S.HasExample (WithDeclare s) a where
   example = declared . S.example

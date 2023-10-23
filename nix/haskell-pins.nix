@@ -133,13 +133,6 @@ let
         sha256 = "sha256-g2lbKt3+hToVFQvaHOa9dg4HqAL7YgReo8fy7wQavmY=";
       };
     };
-    swagger2 = {
-      src = fetchgit {
-        url = "https://github.com/GetShopTV/swagger2";
-        rev = "d79deca03b714cdd4531217831a8305068b2e8f9";
-        sha256 = "sha256-R3p0L0TgM0Bspe5z6vauwdPq9TmEWpMC53DBkMtCEoE=";
-      };
-    };
     # MR: https://gitlab.com/twittner/cql-io/-/merge_requests/20
     cql-io = {
       src = fetchgit {
@@ -180,6 +173,15 @@ let
         sha256 = "sha256-SKEE9ZqhjBxHYUKQaoB4IpN4/Ui3tS4S98FgZqj7WlY=";
       };
     };
+    servant-openapi3 = {
+      src = fetchgit {
+        # This is a patched version of the library that sets the required flag for HTTP request bodies.
+        # A PR for these changes has been made for the upstream library. biocad/servant-openapi3#49
+        url = "https://github.com/lepsa/servant-openapi3";
+        rev = "5cdb2783f15058f753c41b800415d4ba1149a78b";
+        sha256 = "sha256-8FM3IAA3ewCuv9Mar8aWmzbyfKK9eLXIJPMHzmYb1zE=";
+      };
+    };
     # This can be removed once postie 0.6.0.3 (or later) is in nixpkgs
     postie = {
       src = fetchgit {
@@ -202,6 +204,22 @@ let
         url = "https://gitlab.com/wireapp/forks/tinylog.git";
         rev = "9609104263e8cd2a631417c1c3ef23e090de0d09";
         sha256 = "sha256-htEIJY+LmIMACVZrflU60+X42/g14NxUyFM7VJs4E6w=";
+      };
+    };
+    # PR: https://github.com/ocharles/tasty-ant-xml/pull/32
+    tasty-ant-xml = {
+      src = fetchgit {
+        url = "https://github.com/akshaymankar/tasty-ant-xml";
+        rev = "34ff294d805e62e73678dccc0be9d3da13540fbe";
+        sha256 = "sha256-+rHcS+BwEFsXqPAHX/KZDIgv9zfk1dZl0LlZJ57Com4=";
+      };
+    };
+    # PR: https://github.com/freckle/hspec-junit-formatter/pull/24
+    hspec-junit-formatter = {
+      src = fetchgit {
+        url = "https://github.com/akshaymankar/hspec-junit-formatter";
+        rev = "acec31822cc4f90489d9940bad23b3fd6d1d7c75";
+        sha256 = "sha256-4xGW3KHQKbTL+6+Q/gzfaMBP+J0npUe7tP5ZCQCB5+s=";
       };
     };
   };

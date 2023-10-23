@@ -35,8 +35,8 @@ where
 import Control.Lens (makeLenses, (?~))
 import Data.Aeson qualified as A
 import Data.Id (ConvId)
+import Data.OpenApi qualified as S
 import Data.Schema
-import Data.Swagger qualified as S
 import Imports
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 

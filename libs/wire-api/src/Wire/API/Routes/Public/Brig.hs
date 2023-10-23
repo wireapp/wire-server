@@ -19,6 +19,7 @@
 
 module Wire.API.Routes.Public.Brig where
 
+import Control.Lens ((?~))
 import Data.Aeson qualified as A (FromJSON, ToJSON, Value)
 import Data.ByteString.Conversion
 import Data.Code (Timeout)
@@ -28,35 +29,40 @@ import Data.Handle
 import Data.Id as Id
 import Data.Misc (IpAddr)
 import Data.Nonce (Nonce)
+import Data.OpenApi hiding (Contact, Header, Schema, ToSchema)
+import Data.OpenApi qualified as S
 import Data.Qualified (Qualified (..))
 import Data.Range
 import Data.SOP
 import Data.Schema as Schema
-import Data.Swagger hiding (Contact, Header, Schema, ToSchema)
-import Data.Swagger qualified as S
 import Generics.SOP qualified as GSOP
 import Imports hiding (head)
 import Network.Wai.Utilities
 import Servant (JSON)
 import Servant hiding (Handler, JSON, addHeader, respond)
-import Servant.Swagger (HasSwagger (toSwagger))
-import Servant.Swagger.Internal.Orphans ()
+import Servant.OpenApi.Internal.Orphans ()
 import Wire.API.Call.Config (RTCConfiguration)
 import Wire.API.Connection hiding (MissingLegalholdConsent)
+import Wire.API.Deprecated
 import Wire.API.Error
 import Wire.API.Error.Brig
 import Wire.API.Error.Empty
+import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Servant
 import Wire.API.MakesFederatedCall
 import Wire.API.OAuth
-import Wire.API.Properties
+import Wire.API.Properties (PropertyKey, PropertyKeysAndValues, RawPropertyValue)
+import Wire.API.Routes.API
 import Wire.API.Routes.Bearer
 import Wire.API.Routes.Cookies
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
+import Wire.API.Routes.Public.Brig.Bot (BotAPI)
 import Wire.API.Routes.Public.Brig.OAuth (OAuthAPI)
+import Wire.API.Routes.Public.Brig.Provider (ProviderAPI)
+import Wire.API.Routes.Public.Brig.Services (ServicesAPI)
 import Wire.API.Routes.Public.Util
 import Wire.API.Routes.QualifiedCapture
 import Wire.API.Routes.Version
@@ -92,9 +98,14 @@ type BrigAPI =
     :<|> TeamsAPI
     :<|> SystemSettingsAPI
     :<|> OAuthAPI
+    :<|> BotAPI
+    :<|> ServicesAPI
+    :<|> ProviderAPI
 
-brigSwagger :: Swagger
-brigSwagger = toSwagger (Proxy @BrigAPI)
+data BrigAPITag
+
+instance ServiceAPI BrigAPITag v where
+  type ServiceAPIRoutes BrigAPITag = BrigAPI
 
 -------------------------------------------------------------------------------
 -- User API
@@ -272,6 +283,7 @@ type UserAPI =
     :<|> Named
            "get-supported-protocols"
            ( Summary "Get a user's supported protocols"
+               :> From 'V5
                :> ZLocalUser
                :> "users"
                :> QualifiedCaptureUserId "uid"
@@ -414,6 +426,7 @@ type SelfAPI =
     :<|> Named
            "change-supported-protocols"
            ( Summary "Change your supported protocols"
+               :> From 'V5
                :> ZLocalUser
                :> ZConn
                :> "self"
@@ -561,6 +574,7 @@ type AccountAPI =
     :<|> Named
            "post-password-reset-key-deprecated"
            ( Summary "Complete a password reset."
+               :> Deprecated
                :> CanThrow 'PasswordResetInProgress
                :> CanThrow 'InvalidPasswordResetKey
                :> CanThrow 'InvalidPasswordResetCode
@@ -574,6 +588,7 @@ type AccountAPI =
     :<|> Named
            "onboarding"
            ( Summary "Upload contacts and invoke matching."
+               :> Deprecated
                :> Description
                     "DEPRECATED: the feature has been turned off, the end-point does \
                     \nothing and always returns '{\"results\":[],\"auto-connects\":[]}'."
@@ -595,8 +610,9 @@ data DeprecatedMatchingResult = DeprecatedMatchingResult
 
 instance ToSchema DeprecatedMatchingResult where
   schema =
-    object
+    objectWithDocModifier
       "DeprecatedMatchingResult"
+      (S.deprecated ?~ True)
       $ DeprecatedMatchingResult
         <$ const []
           .= field "results" (array (null_ @SwaggerDoc))
@@ -912,6 +928,7 @@ type ClientAPI =
     :<|> Named
            "list-clients-bulk@v2"
            ( Summary "List all clients for a set of user ids"
+               :> Description "If a backend is unreachable, the clients from that backend will be omitted from the response"
                :> From 'V2
                :> MakesFederatedCall 'Brig "get-user-clients"
                :> ZUser
@@ -1096,6 +1113,8 @@ type ConnectionAPI =
                :> Get '[Servant.JSON] (SearchResult Contact)
            )
 
+-- Properties API -----------------------------------------------------
+
 type PropertiesAPI =
   LiftNamed
     ( ZUser
@@ -1156,7 +1175,16 @@ type PropertiesAPI =
                :> Get '[JSON] PropertyKeysAndValues
            )
 
--- Properties API -----------------------------------------------------
+-- MLS API ---------------------------------------------------------------------
+
+type CipherSuiteParam =
+  QueryParam'
+    [ Optional,
+      Strict,
+      Description "Ciphersuite in hex format (e.g. 0xf031) - default is 0x0001"
+    ]
+    "ciphersuite"
+    CipherSuite
 
 type MLSKeyPackageAPI =
   "key-packages"
@@ -1164,6 +1192,7 @@ type MLSKeyPackageAPI =
            "mls-key-packages-upload"
            ( "self"
                :> Summary "Upload a fresh batch of key packages"
+               :> From 'V5
                :> Description "The request body should be a json object containing a list of base64-encoded key packages."
                :> ZLocalUser
                :> CanThrow 'MLSProtocolError
@@ -1176,28 +1205,39 @@ type MLSKeyPackageAPI =
                   "mls-key-packages-claim"
                   ( "claim"
                       :> Summary "Claim one key package for each client of the given user"
-                      :> MakesFederatedCall 'Brig "claim-key-packages"
+                      :> From 'V5
+                      :> Description "Only key packages for the specified ciphersuite are claimed. For backwards compatibility, the `ciphersuite` parameter is optional, defaulting to ciphersuite 0x0001 when omitted."
                       :> ZLocalUser
+                      :> ZOptClient
                       :> QualifiedCaptureUserId "user"
-                      :> QueryParam'
-                           [ Optional,
-                             Strict,
-                             Description "Do not claim a key package for the given own client"
-                           ]
-                           "skip_own"
-                           ClientId
+                      :> CipherSuiteParam
                       :> MultiVerb1 'POST '[JSON] (Respond 200 "Claimed key packages" KeyPackageBundle)
                   )
            :<|> Named
                   "mls-key-packages-count"
                   ( "self"
+                      :> Summary "Return the number of unclaimed key packages for a given ciphersuite and client"
+                      :> From 'V5
                       :> ZLocalUser
                       :> CaptureClientId "client"
                       :> "count"
-                      :> Summary "Return the number of unused key packages for the given client"
+                      :> CipherSuiteParam
                       :> MultiVerb1 'GET '[JSON] (Respond 200 "Number of key packages" KeyPackageCount)
                   )
+           :<|> Named
+                  "mls-key-packages-delete"
+                  ( "self"
+                      :> From 'V5
+                      :> ZLocalUser
+                      :> CaptureClientId "client"
+                      :> Summary "Delete all key packages for a given ciphersuite and client"
+                      :> CipherSuiteParam
+                      :> ReqBody '[JSON] DeleteKeyPackages
+                      :> MultiVerb1 'DELETE '[JSON] (RespondEmpty 201 "OK")
+                  )
        )
+
+type MLSAPI = LiftNamed ("mls" :> MLSKeyPackageAPI)
 
 -- Search API -----------------------------------------------------
 
@@ -1259,8 +1299,6 @@ type SearchAPI =
              '[Respond 200 "Search results" (SearchResult TeamContact)]
              (SearchResult TeamContact)
     )
-
-type MLSAPI = LiftNamed ("mls" :> MLSKeyPackageAPI)
 
 type AuthAPI =
   Named
@@ -1384,8 +1422,9 @@ type CallingAPI =
   Named
     "get-calls-config"
     ( Summary
-        "[deprecated] Retrieve TURN server addresses and credentials for \
-        \ IP addresses, scheme `turn` and transport `udp` only"
+        "Retrieve TURN server addresses and credentials for \
+        \ IP addresses, scheme `turn` and transport `udp` only (deprecated)"
+        :> Deprecated
         :> ZUser
         :> ZConn
         :> "calls"

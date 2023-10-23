@@ -4,7 +4,6 @@
 
 module Test.Wire.BackendNotificationPusherSpec where
 
-import Control.Concurrent.Chan
 import Control.Exception
 import Control.Monad.Trans.Except
 import Data.Aeson qualified as Aeson
@@ -42,9 +41,9 @@ import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.BackendNotifications
 import Wire.API.RawJson
-import Wire.API.Routes.FederationDomainConfig
 import Wire.BackendNotificationPusher
 import Wire.BackgroundWorker.Env
+import Wire.BackgroundWorker.Options
 import Wire.BackgroundWorker.Util
 
 spec :: Spec
@@ -181,8 +180,6 @@ spec = do
           ]
       logger <- Logger.new Logger.defSettings
       httpManager <- newManager defaultManagerSettings
-      remoteDomains <- newIORef defFederationDomainConfigs
-      remoteDomainsChan <- newChan
       let federatorInternal = Endpoint "localhost" 8097
           http2Manager = undefined
           statuses = undefined
@@ -190,8 +187,7 @@ spec = do
           rabbitmqAdminClient = mockRabbitMqAdminClient mockAdmin
           rabbitmqVHost = "test-vhost"
           defederationTimeout = responseTimeoutNone
-          galley = Endpoint "localhost" 8085
-          brig = Endpoint "localhost" 8082
+          backendNotificationsConfig = BackendNotificationsConfig 1000 500000 1000
 
       backendNotificationMetrics <- mkBackendNotificationMetrics
       domains <- runAppT Env {..} getRemoteDomains
@@ -202,8 +198,6 @@ spec = do
       mockAdmin <- newMockRabbitMqAdmin True ["backend-notifications.foo.example"]
       logger <- Logger.new Logger.defSettings
       httpManager <- newManager defaultManagerSettings
-      remoteDomains <- newIORef defFederationDomainConfigs
-      remoteDomainsChan <- newChan
       let federatorInternal = Endpoint "localhost" 8097
           http2Manager = undefined
           statuses = undefined
@@ -211,8 +205,7 @@ spec = do
           rabbitmqAdminClient = mockRabbitMqAdminClient mockAdmin
           rabbitmqVHost = "test-vhost"
           defederationTimeout = responseTimeoutNone
-          galley = Endpoint "localhost" 8085
-          brig = Endpoint "localhost" 8082
+          backendNotificationsConfig = BackendNotificationsConfig 1000 500000 1000
       backendNotificationMetrics <- mkBackendNotificationMetrics
       domainsThread <- async $ runAppT Env {..} getRemoteDomains
 
@@ -267,7 +260,8 @@ newMockRabbitMqAdmin isBroken queues = do
 mockApi :: MockRabbitMqAdmin -> AdminAPI (AsServerT Servant.Handler)
 mockApi mockAdmin =
   AdminAPI
-    { listQueuesByVHost = mockListQueuesByVHost mockAdmin
+    { listQueuesByVHost = mockListQueuesByVHost mockAdmin,
+      deleteQueue = mockListDeleteQueue mockAdmin
     }
 
 mockListQueuesByVHost :: MockRabbitMqAdmin -> Text -> Servant.Handler [Queue]
@@ -276,6 +270,10 @@ mockListQueuesByVHost MockRabbitMqAdmin {..} vhost = do
   readTVarIO broken >>= \case
     True -> throwError $ Servant.err500
     False -> pure $ map (\n -> Queue n vhost) queues
+
+mockListDeleteQueue :: MockRabbitMqAdmin -> Text -> Text -> Servant.Handler NoContent
+mockListDeleteQueue _ _ _ = do
+  pure NoContent
 
 mockRabbitMqAdminApp :: MockRabbitMqAdmin -> Application
 mockRabbitMqAdminApp mockAdmin = genericServe (mockApi mockAdmin)

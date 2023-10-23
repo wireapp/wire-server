@@ -15,20 +15,23 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.API.Federation.API.Brig where
+module Wire.API.Federation.API.Brig
+  ( module Notifications,
+    module Wire.API.Federation.API.Brig,
+  )
+where
 
 import Data.Aeson
 import Data.Domain (Domain)
 import Data.Handle (Handle)
 import Data.Id
-import Data.Range
 import Imports
 import Servant.API
 import Test.QuickCheck (Arbitrary)
-import Wire.API.Federation.API.Common
+import Wire.API.Federation.API.Brig.Notifications as Notifications
 import Wire.API.Federation.Endpoint
 import Wire.API.Federation.Version
-import Wire.API.MLS.Credential
+import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.KeyPackage
 import Wire.API.User (UserProfile)
 import Wire.API.User.Client
@@ -70,31 +73,36 @@ type BrigApi =
     :<|> FedEndpoint "get-user-clients" GetUserClients (UserMap (Set PubClient))
     :<|> FedEndpoint "get-mls-clients" MLSClientsRequest (Set ClientInfo)
     :<|> FedEndpoint "send-connection-action" NewConnectionRequest NewConnectionResponse
-    :<|> FedEndpoint "on-user-deleted-connections" UserDeletedConnectionsNotification EmptyResponse
     :<|> FedEndpoint "claim-key-packages" ClaimKeyPackageRequest (Maybe KeyPackageBundle)
     :<|> FedEndpoint "get-not-fully-connected-backends" DomainSet NonConnectedBackends
+    -- All the notification endpoints that go through the queue-based
+    -- federation client ('fedQueueClient').
+    :<|> BrigNotificationAPI
 
 newtype DomainSet = DomainSet
-  { dsDomains :: Set Domain
+  { domains :: Set Domain
   }
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via (CustomEncoded DomainSet)
 
 newtype NonConnectedBackends = NonConnectedBackends
+  -- TODO:
+  -- The encoding rules that were in place would make this "connectedBackends" over the wire.
+  -- I do not think that this was intended, so I'm leaving this note as it will be an API break.
   { nonConnectedBackends :: Set Domain
   }
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via (CustomEncoded NonConnectedBackends)
 
 newtype GetUserClients = GetUserClients
-  { gucUsers :: [UserId]
+  { users :: [UserId]
   }
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via (CustomEncoded GetUserClients)
 
 data MLSClientsRequest = MLSClientsRequest
-  { mcrUserId :: UserId, -- implicitly qualified by the local domain
-    mcrSignatureScheme :: SignatureSchemeTag
+  { userId :: UserId, -- implicitly qualified by the local domain
+    cipherSuite :: CipherSuite
   }
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via (CustomEncoded MLSClientsRequest)
@@ -117,10 +125,10 @@ data MLSClientsRequest = MLSClientsRequest
 
 data NewConnectionRequest = NewConnectionRequest
   { -- | The 'from' userId is understood to always have the domain of the backend making the connection request
-    ncrFrom :: UserId,
+    from :: UserId,
     -- | The 'to' userId is understood to always have the domain of the receiving backend.
-    ncrTo :: UserId,
-    ncrAction :: RemoteConnectionAction
+    to :: UserId,
+    action :: RemoteConnectionAction
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform NewConnectionRequest)
@@ -140,24 +148,14 @@ data NewConnectionResponse
   deriving (Arbitrary) via (GenericUniform NewConnectionResponse)
   deriving (FromJSON, ToJSON) via (CustomEncoded NewConnectionResponse)
 
-type UserDeletedNotificationMaxConnections = 1000
-
-data UserDeletedConnectionsNotification = UserDeletedConnectionsNotification
-  { -- | This is qualified implicitly by the origin domain
-    udcnUser :: UserId,
-    -- | These are qualified implicitly by the target domain
-    udcnConnections :: Range 1 UserDeletedNotificationMaxConnections [UserId]
-  }
-  deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform UserDeletedConnectionsNotification)
-  deriving (FromJSON, ToJSON) via (CustomEncoded UserDeletedConnectionsNotification)
-
 data ClaimKeyPackageRequest = ClaimKeyPackageRequest
   { -- | The user making the request, implictly qualified by the origin domain.
-    ckprClaimant :: UserId,
+    claimant :: UserId,
     -- | The user whose key packages are being claimed, implictly qualified by
     -- the target domain.
-    ckprTarget :: UserId
+    target :: UserId,
+    -- | The ciphersuite of the key packages being claimed.
+    cipherSuite :: CipherSuite
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ClaimKeyPackageRequest)

@@ -39,6 +39,7 @@ defRunSettings client key =
       remoteCAStore = Nothing,
       clientCertificate = client,
       clientPrivateKey = key,
+      tcpConnectionTimeout = 1000,
       dnsHost = Nothing,
       dnsPort = Nothing
     }
@@ -66,6 +67,7 @@ testSettings =
                   allowAll:
                 clientCertificate: client.pem
                 clientPrivateKey: client-key.pem
+                tcpConnectionTimeout: 1000
                 useSystemCAStore: true|]
           ),
       testCase "parse configuration example (closed federation)" $ do
@@ -79,6 +81,7 @@ testSettings =
             allowedDomains:
               - server2.example.com
           useSystemCAStore: false
+          tcpConnectionTimeout: 1000
           clientCertificate: client.pem
           clientPrivateKey: client-key.pem|],
       testCase "succefully read client credentials" $ do
@@ -89,6 +92,7 @@ testSettings =
         assertParsesAs settings . B8.pack $
           [QQ.i|
           useSystemCAStore: true
+          tcpConnectionTimeout: 1000
           federationStrategy:
             allowAll: null
           clientCertificate: test/resources/unit/localhost.pem
@@ -98,12 +102,14 @@ testSettings =
         assertParseFailure @RunSettings . B8.pack $
           [QQ.i|
           useSystemCAStore: true
+          tcpConnectionTimeout: 1000
           federationStrategy:
             allowAll: null|],
       testCase "fail on missing client private key" $ do
         assertParseFailure @RunSettings . B8.pack $
           [QQ.i|
           useSystemCAStore: true
+          tcpConnectionTimeout: 1000
           federationStrategy:
             allowAll: null
           clientCertificate: test/resources/unit/localhost.pem|],
@@ -111,6 +117,7 @@ testSettings =
         assertParseFailure @RunSettings . B8.pack $
           [QQ.i|
           useSystemCAStore: true
+          tcpConnectionTimeout: 1000
           federationStrategy:
             allowAll: null
           clientPrivateKey: test/resources/unit/localhost-key.pem|],
@@ -119,6 +126,7 @@ testSettings =
         assertParsesAs settings . B8.pack $
           [QQ.i|
           useSystemCAStore: true
+          tcpConnectionTimeout: 1000
           federationStrategy:
             allowAll: null
           clientCertificate: non-existent
@@ -140,6 +148,7 @@ testSettings =
         assertParsesAs settings . B8.pack $
           [QQ.i|
           useSystemCAStore: true
+          tcpConnectionTimeout: 1000
           federationStrategy:
             allowAll: null
           clientCertificate: test/resources/unit/invalid.pem
@@ -161,6 +170,7 @@ testSettings =
         assertParsesAs settings . B8.pack $
           [QQ.i|
           useSystemCAStore: true
+          tcpConnectionTimeout: 1000
           federationStrategy:
             allowAll: null
           clientCertificate: test/resources/unit/localhost.pem

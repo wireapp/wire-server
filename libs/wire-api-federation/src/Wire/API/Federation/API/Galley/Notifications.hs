@@ -1,0 +1,181 @@
+{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
+{-# OPTIONS_GHC -Wno-unused-matches #-}
+
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2023 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
+module Wire.API.Federation.API.Galley.Notifications where
+
+import Data.Aeson
+import Data.Id
+import Data.Json.Util
+import Data.List.NonEmpty
+import Data.Qualified
+import Data.Range
+import Data.Time.Clock
+import Imports
+import Servant.API
+import Wire.API.Conversation.Action
+import Wire.API.Federation.Component
+import Wire.API.Federation.Endpoint
+import Wire.API.Federation.HasNotificationEndpoint
+import Wire.API.MLS.SubConversation
+import Wire.API.MakesFederatedCall
+import Wire.API.Message
+import Wire.API.Util.Aeson
+import Wire.Arbitrary
+
+data GalleyNotificationTag
+  = OnClientRemovedTag
+  | OnMessageSentTag
+  | OnMLSMessageSentTag
+  | OnConversationUpdatedTag
+  | OnUserDeletedConversationsTag
+  deriving (Show, Eq, Generic, Bounded, Enum)
+
+instance HasNotificationEndpoint 'OnClientRemovedTag where
+  type Payload 'OnClientRemovedTag = ClientRemovedRequest
+  type NotificationPath 'OnClientRemovedTag = "on-client-removed"
+  type NotificationComponent 'OnClientRemovedTag = 'Galley
+  type
+    NotificationAPI 'OnClientRemovedTag 'Galley =
+      NotificationFedEndpointWithMods
+        '[ MakesFederatedCall 'Galley "on-mls-message-sent"
+         ]
+        (NotificationPath 'OnClientRemovedTag)
+        (Payload 'OnClientRemovedTag)
+
+instance HasNotificationEndpoint 'OnMessageSentTag where
+  type Payload 'OnMessageSentTag = RemoteMessage ConvId
+  type NotificationPath 'OnMessageSentTag = "on-message-sent"
+  type NotificationComponent 'OnMessageSentTag = 'Galley
+
+  -- used to notify this backend that a new message has been posted to a
+  -- remote conversation
+  type NotificationAPI 'OnMessageSentTag 'Galley = NotificationFedEndpoint 'OnMessageSentTag
+
+instance HasNotificationEndpoint 'OnMLSMessageSentTag where
+  type Payload 'OnMLSMessageSentTag = RemoteMLSMessage
+  type NotificationPath 'OnMLSMessageSentTag = "on-mls-message-sent"
+  type NotificationComponent 'OnMLSMessageSentTag = 'Galley
+  type NotificationAPI 'OnMLSMessageSentTag 'Galley = NotificationFedEndpoint 'OnMLSMessageSentTag
+
+instance HasNotificationEndpoint 'OnConversationUpdatedTag where
+  type Payload 'OnConversationUpdatedTag = ConversationUpdate
+  type NotificationPath 'OnConversationUpdatedTag = "on-conversation-updated"
+  type NotificationComponent 'OnConversationUpdatedTag = 'Galley
+
+  -- used by the backend that owns a conversation to inform this backend of
+  -- changes to the conversation
+  type NotificationAPI 'OnConversationUpdatedTag 'Galley = NotificationFedEndpoint 'OnConversationUpdatedTag
+
+instance HasNotificationEndpoint 'OnUserDeletedConversationsTag where
+  type Payload 'OnUserDeletedConversationsTag = UserDeletedConversationsNotification
+  type NotificationPath 'OnUserDeletedConversationsTag = "on-user-deleted-conversations"
+  type NotificationComponent 'OnUserDeletedConversationsTag = 'Galley
+  type
+    NotificationAPI 'OnUserDeletedConversationsTag 'Galley =
+      NotificationFedEndpointWithMods
+        '[ MakesFederatedCall 'Galley "on-mls-message-sent",
+           MakesFederatedCall 'Galley "on-conversation-updated",
+           MakesFederatedCall 'Brig "api-version"
+         ]
+        (NotificationPath 'OnUserDeletedConversationsTag)
+        (Payload 'OnUserDeletedConversationsTag)
+
+-- | All the notification endpoints return an 'EmptyResponse'.
+type GalleyNotificationAPI =
+  NotificationAPI 'OnClientRemovedTag 'Galley
+    :<|> NotificationAPI 'OnMessageSentTag 'Galley
+    :<|> NotificationAPI 'OnMLSMessageSentTag 'Galley
+    :<|> NotificationAPI 'OnConversationUpdatedTag 'Galley
+    :<|> NotificationAPI 'OnUserDeletedConversationsTag 'Galley
+
+data ClientRemovedRequest = ClientRemovedRequest
+  { user :: UserId,
+    client :: ClientId,
+    convs :: [ConvId]
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ClientRemovedRequest)
+  deriving (FromJSON, ToJSON) via (CustomEncoded ClientRemovedRequest)
+
+-- Note: this is parametric in the conversation type to allow it to be used
+-- both for conversations with a fixed known domain (e.g. as the argument of the
+-- federation RPC), and for conversations with an arbitrary Qualified or Remote id
+-- (e.g. as the argument of the corresponding handler).
+data RemoteMessage conv = RemoteMessage
+  { time :: UTCTime,
+    _data :: Maybe Text,
+    sender :: Qualified UserId,
+    senderClient :: ClientId,
+    conversation :: conv,
+    priority :: Maybe Priority,
+    push :: Bool,
+    transient :: Bool,
+    recipients :: UserClientMap Text
+  }
+  deriving stock (Eq, Show, Generic, Functor)
+  deriving (Arbitrary) via (GenericUniform (RemoteMessage conv))
+  deriving (ToJSON, FromJSON) via (CustomEncodedLensable (RemoteMessage conv))
+
+data RemoteMLSMessage = RemoteMLSMessage
+  { time :: UTCTime,
+    metadata :: MessageMetadata,
+    sender :: Qualified UserId,
+    conversation :: ConvId,
+    subConversation :: Maybe SubConvId,
+    recipients :: Map UserId (NonEmpty ClientId),
+    message :: Base64ByteString
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform RemoteMLSMessage)
+  deriving (ToJSON, FromJSON) via (CustomEncoded RemoteMLSMessage)
+
+data ConversationUpdate = ConversationUpdate
+  { cuTime :: UTCTime,
+    cuOrigUserId :: Qualified UserId,
+    -- | The unqualified ID of the conversation where the update is happening.
+    -- The ID is local to the sender to prevent putting arbitrary domain that
+    -- is different than that of the backend making a conversation membership
+    -- update request.
+    cuConvId :: ConvId,
+    -- | A list of users from the receiving backend that need to be sent
+    -- notifications about this change. This is required as we do not expect a
+    -- non-conversation owning backend to have an indexed mapping of
+    -- conversation to users.
+    cuAlreadyPresentUsers :: [UserId],
+    -- | Information on the specific action that caused the update.
+    cuAction :: SomeConversationAction
+  }
+  deriving (Eq, Show, Generic)
+
+instance ToJSON ConversationUpdate
+
+instance FromJSON ConversationUpdate
+
+type UserDeletedNotificationMaxConvs = 1000
+
+data UserDeletedConversationsNotification = UserDeletedConversationsNotification
+  { -- | This is qualified implicitly by the origin domain
+    user :: UserId,
+    -- | These are qualified implicitly by the target domain
+    conversations :: Range 1 UserDeletedNotificationMaxConvs [ConvId]
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform UserDeletedConversationsNotification)
+  deriving (FromJSON, ToJSON) via (CustomEncoded UserDeletedConversationsNotification)

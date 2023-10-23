@@ -25,10 +25,11 @@ import Control.Lens hiding ((.=))
 import Data.ByteString.Conversion (toByteString')
 import Data.Id
 import Data.Metrics.Middleware
-import Data.Misc (Fingerprint, Rsa)
+import Data.Misc (Fingerprint, HttpsUrl, Rsa)
 import Data.Range
 import Galley.Aws qualified as Aws
 import Galley.Options
+import Galley.Options qualified as O
 import Galley.Queue qualified as Q
 import HTTP2.Client.Manager (Http2Manager)
 import Imports
@@ -62,7 +63,8 @@ data Env = Env
     _extEnv :: ExtEnv,
     _aEnv :: Maybe Aws.Env,
     _mlsKeys :: SignaturePurpose -> MLSKeys,
-    _rabbitmqChannel :: Maybe (MVar Q.Channel)
+    _rabbitmqChannel :: Maybe (MVar Q.Channel),
+    _convCodeURI :: Either HttpsUrl (Map Text HttpsUrl)
   }
 
 -- | Environment specific to the communication with external
@@ -104,6 +106,6 @@ reqIdMsg = ("request" .=) . unRequestId
 
 currentFanoutLimit :: Opts -> Range 1 HardTruncationLimit Int32
 currentFanoutLimit o = do
-  let optFanoutLimit = fromIntegral . fromRange $ fromMaybe defFanoutLimit (o ^. (optSettings . setMaxFanoutSize))
-  let maxTeamSize = fromIntegral (o ^. (optSettings . setMaxTeamSize))
-  unsafeRange (min maxTeamSize optFanoutLimit)
+  let optFanoutLimit = fromIntegral . fromRange $ fromMaybe defFanoutLimit (o ^. (O.settings . maxFanoutSize))
+  let maxSize = fromIntegral (o ^. (O.settings . maxTeamSize))
+  unsafeRange (min maxSize optFanoutLimit)

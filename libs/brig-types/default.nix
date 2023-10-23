@@ -13,8 +13,8 @@
 , gitignoreSource
 , imports
 , lib
+, openapi3
 , QuickCheck
-, swagger2
 , tasty
 , tasty-hunit
 , tasty-quickcheck
@@ -47,8 +47,8 @@ mkDerivation {
     base
     bytestring-conversion
     imports
+    openapi3
     QuickCheck
-    swagger2
     tasty
     tasty-hunit
     tasty-quickcheck

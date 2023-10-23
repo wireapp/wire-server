@@ -290,11 +290,11 @@ updateTeamStatus tid (TeamStatusUpdate newStatus cur) = do
   oldStatus <- fmap tdStatus $ E.getTeam tid >>= noteS @'TeamNotFound
   valid <- validateTransition (oldStatus, newStatus)
   when valid $ do
-    journal newStatus cur
+    runJournal newStatus cur
     E.setTeamStatus tid newStatus
   where
-    journal Suspended _ = Journal.teamSuspend tid
-    journal Active c = do
+    runJournal Suspended _ = Journal.teamSuspend tid
+    runJournal Active c = do
       teamCreationTime <- E.getTeamCreationTime tid
       -- When teams are created, they are activated immediately. In this situation, Brig will
       -- most likely report team size as 0 due to ES taking some time to index the team creator.
@@ -305,7 +305,7 @@ updateTeamStatus tid (TeamStatusUpdate newStatus cur) = do
               then 1
               else possiblyStaleSize
       Journal.teamActivate tid size c teamCreationTime
-    journal _ _ = throwS @'InvalidTeamStatusUpdate
+    runJournal _ _ = throwS @'InvalidTeamStatusUpdate
     validateTransition :: Member (ErrorS 'InvalidTeamStatusUpdate) r => (TeamStatus, TeamStatus) -> Sem r Bool
     validateTransition = \case
       (PendingActive, Active) -> pure True
@@ -437,10 +437,10 @@ uncheckedDeleteTeam lusr zcon tid = do
   where
     pushDeleteEvents :: [TeamMember] -> Event -> [Push] -> Sem r ()
     pushDeleteEvents membs e ue = do
-      o <- inputs (view optSettings)
+      o <- inputs (view settings)
       let r = list1 (userRecipient (tUnqualified lusr)) (membersToRecipients (Just (tUnqualified lusr)) membs)
       -- To avoid DoS on gundeck, send team deletion events in chunks
-      let chunkSize = fromMaybe defConcurrentDeletionEvents (o ^. setConcurrentDeletionEvents)
+      let chunkSize = fromMaybe defConcurrentDeletionEvents (o ^. concurrentDeletionEvents)
       let chunks = List.chunksOf chunkSize (toList r)
       forM_ chunks $ \case
         [] -> pure ()
@@ -1027,7 +1027,7 @@ uncheckedDeleteTeamMember lusr zcon tid remove mems = do
       -- remove the user from conversations but never send out any events. We assume that clients
       -- handle nicely these missing events, regardless of whether they are in the same team or not
       let tmids = Set.fromList $ map (view userId) (mems ^. teamMembers)
-      let edata = Conv.EdMembersLeave (Conv.QualifiedUserIdList [tUntagged (qualifyAs lusr remove)])
+      let edata = Conv.EdMembersLeave Conv.EdReasonDeleted (Conv.QualifiedUserIdList [tUntagged (qualifyAs lusr remove)])
       cc <- E.getTeamConversations tid
       for_ cc $ \c ->
         E.getConversation (c ^. conversationId) >>= \conv ->
@@ -1082,17 +1082,22 @@ getTeamConversation zusr tid cid = do
     >>= noteS @'ConvNotFound
 
 deleteTeamConversation ::
-  ( Member CodeStore r,
+  ( Member BackendNotificationQueueAccess r,
+    Member BrigAccess r,
+    Member CodeStore r,
     Member ConversationStore r,
     Member (Error FederationError) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS ('ActionDenied 'DeleteConversation)) r,
-    Member ExternalAccess r,
     Member FederatorAccess r,
+    Member MemberStore r,
+    Member ProposalStore r,
+    Member ExternalAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
+    Member SubConversationStore r,
     Member TeamStore r,
     Member (P.Logger (Msg -> Msg)) r
   ) =>
@@ -1216,7 +1221,7 @@ ensureNotTooLarge ::
 ensureNotTooLarge tid = do
   o <- input
   (TeamSize size) <- E.getSize tid
-  unless (size < fromIntegral (o ^. optSettings . setMaxTeamSize)) $
+  unless (size < fromIntegral (o ^. settings . maxTeamSize)) $
     throwS @'TooManyTeamMembers
   pure $ TeamSize size
 

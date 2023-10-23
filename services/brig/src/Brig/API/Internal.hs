@@ -63,9 +63,8 @@ import Brig.User.EJPD qualified
 import Brig.User.Search.Index qualified as Index
 import Control.Error hiding (bool)
 import Control.Lens (view, (^.))
-import Data.Aeson hiding (json)
 import Data.CommaSeparatedList
-import Data.Domain (Domain, domainText)
+import Data.Domain (Domain)
 import Data.Handle
 import Data.Id as Id
 import Data.Map.Strict qualified as Map
@@ -73,13 +72,11 @@ import Data.Qualified
 import Data.Set qualified as Set
 import Data.Time.Clock.System
 import Imports hiding (head)
-import Network.AMQP qualified as Q
 import Network.Wai.Routing hiding (toList)
 import Network.Wai.Utilities as Utilities
 import Polysemy
 import Servant hiding (Handler, JSON, addHeader, respond)
-import Servant.Swagger.Internal.Orphans ()
-import System.Logger qualified as Lg
+import Servant.OpenApi.Internal.Orphans ()
 import System.Logger.Class qualified as Log
 import System.Random (randomRIO)
 import UnliftIO.Async
@@ -87,13 +84,9 @@ import Wire.API.Connection
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
 import Wire.API.Federation.API
-import Wire.API.Federation.BackendNotifications
 import Wire.API.Federation.Error (FederationError (..))
-import Wire.API.MLS.Credential
-import Wire.API.MLS.KeyPackage
-import Wire.API.MLS.Serialisation
+import Wire.API.MLS.CipherSuite
 import Wire.API.Routes.FederationDomainConfig
-import Wire.API.Routes.Internal.Brig
 import Wire.API.Routes.Internal.Brig qualified as BrigIRoutes
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Named
@@ -145,18 +138,7 @@ ejpdAPI =
     :<|> getConnectionsStatus
 
 mlsAPI :: ServerT BrigIRoutes.MLSAPI (Handler r)
-mlsAPI =
-  ( \ref ->
-      Named @"get-client-by-key-package-ref" (getClientByKeyPackageRef ref)
-        :<|> ( Named @"put-conversation-by-key-package-ref" (putConvIdByKeyPackageRef ref)
-                 :<|> Named @"get-conversation-by-key-package-ref" (getConvIdByKeyPackageRef ref)
-             )
-        :<|> Named @"put-key-package-ref" (putKeyPackageRef ref)
-        :<|> Named @"post-key-package-ref" (postKeyPackageRef ref)
-  )
-    :<|> getMLSClients
-    :<|> mapKeyPackageRefsInternal
-    :<|> Named @"put-key-package-add" upsertKeyPackage
+mlsAPI = getMLSClients
 
 accountAPI ::
   ( Member BlacklistStore r,
@@ -201,8 +183,20 @@ accountAPI =
     :<|> Named @"iLegalholdAddClient" legalHoldClientRequestedH
     :<|> Named @"iLegalholdDeleteClient" removeLegalHoldClientH
 
-teamsAPI :: ServerT BrigIRoutes.TeamsAPI (Handler r)
-teamsAPI = Named @"updateSearchVisibilityInbound" Index.updateSearchVisibilityInbound
+teamsAPI ::
+  ( Member GalleyProvider r,
+    Member (UserPendingActivationStore p) r,
+    Member BlacklistStore r
+  ) =>
+  ServerT BrigIRoutes.TeamsAPI (Handler r)
+teamsAPI =
+  Named @"updateSearchVisibilityInbound" Index.updateSearchVisibilityInbound
+    :<|> Named @"get-invitation-by-email" Team.getInvitationByEmail
+    :<|> Named @"get-invitation-code" Team.getInvitationCode
+    :<|> Named @"suspend-team" Team.suspendTeam
+    :<|> Named @"unsuspend-team" Team.unsuspendTeam
+    :<|> Named @"team-size" Team.teamSize
+    :<|> Named @"create-invitations-via-scim" Team.createInvitationViaScim
 
 userAPI :: ServerT BrigIRoutes.UserAPI (Handler r)
 userAPI =
@@ -225,8 +219,6 @@ federationRemotesAPI =
   Named @"add-federation-remotes" addFederationRemote
     :<|> Named @"get-federation-remotes" getFederationRemotes
     :<|> Named @"update-federation-remotes" updateFederationRemote
-    :<|> Named @"delete-federation-remotes" deleteFederationRemote
-    :<|> Named @"delete-federation-remote-from-galley" deleteFederationRemoteGalley
 
 addFederationRemote :: FederationDomainConfig -> ExceptT Brig.API.Error.Error (AppT r) ()
 addFederationRemote fedDomConf = do
@@ -332,47 +324,6 @@ assertNoDomainsFromConfigFiles dom = do
       "keeping track of remote domains in the brig config file is deprecated, but as long as we \
       \do that, removing or updating items listed in the config file is not allowed."
 
--- | Remove the entry from the database if present (or do nothing if not).  This responds with
--- 533 if the entry was also present in the config file, but only *after* it has removed the
--- entry from cassandra.
---
--- The ordering on this delete then check seems weird, but allows us to default all the
--- way back to config file state for a federation domain.
-deleteFederationRemote :: Domain -> ExceptT Brig.API.Error.Error (AppT r) ()
-deleteFederationRemote dom = do
-  lift . wrapClient . Data.deleteFederationRemote $ dom
-  assertNoDomainsFromConfigFiles dom
-  env <- ask
-  for_ (env ^. rabbitmqChannel) $ \chan -> liftIO . withMVar chan $ \chan' -> do
-    -- ensureQueue uses routingKey internally
-    ensureQueue chan' defederationQueue
-    void $
-      Q.publishMsg chan' "" queue $
-        Q.newMsg
-          { -- Check that this message type is compatible with what
-            -- background worker is expecting
-            Q.msgBody = encode @DefederationDomain dom,
-            Q.msgDeliveryMode = pure Q.Persistent,
-            Q.msgContentType = pure "application/json"
-          }
-    -- Drop the notification queue for the domain.
-    -- This will also drop all of the messages in the queue
-    -- as we will no longer be able to communicate with this
-    -- domain.
-    num <- Q.deleteQueue chan' . routingKey $ domainText dom
-    Lg.info (env ^. applog) $ Log.msg @String "Dropped Notifications" . Log.field "domain" (domainText dom) . Log.field "count" (show num)
-  where
-    -- Ensure that this is kept in sync with background worker
-    queue = routingKey defederationQueue
-
--- | Remove one-on-one conversations for the given remote domain. This is called from Galley as
--- part of the defederation process, and should not be called during the initial domain removal
--- call to brig. This is so we can ensure that domains are correctly cleaned up if a service
--- falls over for whatever reason.
-deleteFederationRemoteGalley :: Domain -> ExceptT Brig.API.Error.Error (AppT r) ()
-deleteFederationRemoteGalley dom = do
-  lift . wrapClient . Data.deleteRemoteConnectionsDomain $ dom
-
 -- | Responds with 'Nothing' if field is NULL in existing user or user does not exist.
 getAccountConferenceCallingConfig :: UserId -> (Handler r) (ApiFt.WithStatusNoLock ApiFt.ConferenceCallingConfig)
 getAccountConferenceCallingConfig uid =
@@ -387,64 +338,12 @@ deleteAccountConferenceCallingConfig :: UserId -> (Handler r) NoContent
 deleteAccountConferenceCallingConfig uid =
   lift $ wrapClient $ Data.updateFeatureConferenceCalling uid Nothing $> NoContent
 
-getClientByKeyPackageRef :: KeyPackageRef -> Handler r (Maybe ClientIdentity)
-getClientByKeyPackageRef = runMaybeT . mapMaybeT wrapClientE . Data.derefKeyPackage
-
--- Used by galley to update conversation id in mls_key_package_ref
-putConvIdByKeyPackageRef :: KeyPackageRef -> Qualified ConvId -> Handler r Bool
-putConvIdByKeyPackageRef ref = lift . wrapClient . Data.keyPackageRefSetConvId ref
-
--- Used by galley to create a new record in mls_key_package_ref
-putKeyPackageRef :: KeyPackageRef -> NewKeyPackageRef -> Handler r ()
-putKeyPackageRef ref = lift . wrapClient . Data.addKeyPackageRef ref
-
--- Used by galley to retrieve conversation id from mls_key_package_ref
-getConvIdByKeyPackageRef :: KeyPackageRef -> Handler r (Maybe (Qualified ConvId))
-getConvIdByKeyPackageRef = runMaybeT . mapMaybeT wrapClientE . Data.keyPackageRefConvId
-
--- Used by galley to update key packages in mls_key_package_ref on commits with update_path
-postKeyPackageRef :: KeyPackageRef -> KeyPackageRef -> Handler r ()
-postKeyPackageRef ref = lift . wrapClient . Data.updateKeyPackageRef ref
-
--- Used by galley to update key package refs and also validate
-upsertKeyPackage :: NewKeyPackage -> Handler r NewKeyPackageResult
-upsertKeyPackage nkp = do
-  kp <-
-    either
-      (const $ mlsProtocolError "upsertKeyPackage: Cannot decocode KeyPackage")
-      pure
-      $ decodeMLS' @(RawMLS KeyPackage) (kpData . nkpKeyPackage $ nkp)
-  ref <- kpRef' kp & noteH "upsertKeyPackage: Unsupported CipherSuite"
-
-  identity <-
-    either
-      (const $ mlsProtocolError "upsertKeyPackage: Cannot decode ClientIdentity")
-      pure
-      $ kpIdentity (rmValue kp)
-  mp <- lift . wrapClient . runMaybeT $ Data.derefKeyPackage ref
-  when (isNothing mp) $ do
-    void $ validateKeyPackage identity kp
-    lift . wrapClient $
-      Data.addKeyPackageRef
-        ref
-        ( NewKeyPackageRef
-            (fst <$> cidQualifiedClient identity)
-            (ciClient identity)
-            (nkpConversation nkp)
-        )
-
-  pure $ NewKeyPackageResult identity ref
-  where
-    noteH :: Text -> Maybe a -> Handler r a
-    noteH errMsg Nothing = mlsProtocolError errMsg
-    noteH _ (Just y) = pure y
-
-getMLSClients :: UserId -> SignatureSchemeTag -> Handler r (Set ClientInfo)
-getMLSClients usr _ss = do
-  -- FUTUREWORK: check existence of key packages with a given ciphersuite
+getMLSClients :: UserId -> CipherSuite -> Handler r (Set ClientInfo)
+getMLSClients usr suite = do
   lusr <- qualifyLocal usr
+  suiteTag <- maybe (mlsProtocolError "Unknown ciphersuite") pure (cipherSuiteTag suite)
   allClients <- lift (wrapClient (API.lookupUsersClientIds (pure usr))) >>= getResult
-  clientInfo <- lift . wrapClient $ pooledMapConcurrentlyN 16 (getValidity lusr) (toList allClients)
+  clientInfo <- lift . wrapClient $ pooledMapConcurrentlyN 16 (\c -> getValidity lusr c suiteTag) (toList allClients)
   pure . Set.fromList . map (uncurry ClientInfo) $ clientInfo
   where
     getResult [] = pure mempty
@@ -452,15 +351,9 @@ getMLSClients usr _ss = do
       | u == usr = pure cs'
       | otherwise = getResult rs
 
-    getValidity lusr cid =
+    getValidity lusr cid suiteTag =
       (cid,) . (> 0)
-        <$> Data.countKeyPackages lusr cid
-
-mapKeyPackageRefsInternal :: KeyPackageBundle -> Handler r ()
-mapKeyPackageRefsInternal bundle = do
-  wrapClientE $
-    for_ (kpbEntries bundle) $ \e ->
-      Data.mapKeyPackageRef (kpbeRef e) (kpbeUser e) (kpbeClient e)
+        <$> Data.countKeyPackages lusr cid suiteTag
 
 getVerificationCode :: UserId -> VerificationAction -> Handler r (Maybe Code.Value)
 getVerificationCode uid action = do
@@ -483,14 +376,11 @@ internalSearchIndexAPI =
 -- Sitemap (wai-route)
 
 sitemap ::
-  ( Member BlacklistStore r,
-    Member GalleyProvider r,
-    Member (UserPendingActivationStore p) r
+  ( Member GalleyProvider r
   ) =>
   Routes a (Handler r) ()
 sitemap = unsafeCallsFed @'Brig @"on-user-deleted-connections" $ do
   Provider.routesInternal
-  Team.routesInternal
 
 ---------------------------------------------------------------------------
 -- Handlers

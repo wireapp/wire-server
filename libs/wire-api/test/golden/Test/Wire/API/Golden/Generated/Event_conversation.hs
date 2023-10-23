@@ -147,6 +147,7 @@ testObject_Event_conversation_9 =
       evtTime = UTCTime {utctDay = ModifiedJulianDay 58119, utctDayTime = 0},
       evtData =
         EdMembersLeave
+          EdReasonLeft
           ( QualifiedUserIdList
               { qualifiedUserIdList =
                   [ Qualified {qUnqualified = Id (fromJust (UUID.fromString "2126ea99-ca79-43ea-ad99-a59616468e8e")), qDomain = Domain {_domainText = "ow8i3fhr.v"}},

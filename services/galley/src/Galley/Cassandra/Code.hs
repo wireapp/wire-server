@@ -23,13 +23,13 @@ where
 import Cassandra
 import Control.Lens
 import Data.Code
+import Data.Map qualified as Map
 import Galley.Cassandra.Queries qualified as Cql
 import Galley.Cassandra.Store
 import Galley.Data.Types
 import Galley.Data.Types qualified as Code
 import Galley.Effects.CodeStore (CodeStore (..))
 import Galley.Env
-import Galley.Options
 import Imports
 import Polysemy
 import Polysemy.Input
@@ -48,8 +48,14 @@ interpretCodeStoreToCassandra = interpret $ \case
   DeleteCode k s -> embedClient $ deleteCode k s
   MakeKey cid -> Code.mkKey cid
   GenerateCode cid s t -> Code.generate cid s t
-  GetConversationCodeURI ->
-    view (options . optSettings . setConversationCodeURI) <$> input
+  GetConversationCodeURI mbHost -> do
+    env <- input
+    case env ^. convCodeURI of
+      Left uri -> pure (Just uri)
+      Right map' ->
+        case mbHost of
+          Just host -> pure (Map.lookup host map')
+          Nothing -> pure Nothing
 
 -- | Insert a conversation code
 insertCode :: Code -> Maybe Password -> Client ()

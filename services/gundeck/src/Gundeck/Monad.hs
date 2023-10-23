@@ -45,9 +45,10 @@ where
 import Bilge hiding (Request, header, options, statusCode)
 import Bilge.RPC
 import Cassandra
-import Control.Error hiding (err)
+import Control.Concurrent.Async (AsyncCancelled)
+import Control.Error
 import Control.Exception (throwIO)
-import Control.Lens hiding ((.=))
+import Control.Lens
 import Control.Monad.Catch hiding (tryJust)
 import Data.Aeson (FromJSON)
 import Data.Default (def)
@@ -61,7 +62,7 @@ import Network.Wai
 import Network.Wai.Utilities
 import System.Logger qualified as Log
 import System.Logger qualified as Logger
-import System.Logger.Class hiding (Error, info)
+import System.Logger.Class
 import UnliftIO (async)
 
 -- | TODO: 'Client' already has an 'Env'.  Why do we need two?  How does this even work?  We should
@@ -170,10 +171,13 @@ runDirect :: Env -> Gundeck a -> IO a
 runDirect e m =
   runClient (e ^. cstate) (runReaderT (unGundeck m) e)
     `catch` ( \(exception :: SomeException) -> do
-                Log.err (e ^. applog) $
-                  Log.msg ("IO Exception occurred" :: ByteString)
-                    . Log.field "message" (displayException exception)
-                    . Log.field "request" (unRequestId (e ^. reqId))
+                case fromException exception of
+                  Nothing ->
+                    Log.err (e ^. applog) $
+                      Log.msg ("IO Exception occurred" :: ByteString)
+                        . Log.field "message" (displayException exception)
+                        . Log.field "request" (unRequestId (e ^. reqId))
+                  Just (_ :: AsyncCancelled) -> pure ()
                 throwIO exception
             )
 

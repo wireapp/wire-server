@@ -77,14 +77,6 @@ brig:
       setMaxConvSize: 16
       # See helmfile for the real value
       setFederationDomain: integration.example.com
-      setFederationDomainConfigs:
-        # 'setFederationDomainConfigs' is deprecated as of https://github.com/wireapp/wire-server/pull/3260.  See
-        # https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections
-        # for details.
-        - domain: integration.example.com
-          search_policy: full_search
-        - domain: federation-test-helper.{{ .Release.Namespace }}.svc.cluster.local
-          search_policy: full_search
       setFederationStrategy: allowAll
       setFederationDomainConfigsUpdateFreq: 10
       set2FACodeGenerationDelaySecs: 5
@@ -144,6 +136,15 @@ brig:
       password: {{ .Values.rabbitmqPassword }}
   tests:
     enableFederationTests: true
+    {{- if .Values.uploadXml }}
+    config:
+      uploadXml:
+        baseUrl: {{ .Values.uploadXml.baseUrl }}
+    secrets:
+      uploadXmlAwsAccessKeyId: {{ .Values.uploadXml.awsAccessKeyId }}
+      uploadXmlAwsSecretAccessKey: {{ .Values.uploadXml.awsSecretAccessKey }}
+    {{- end }}
+
 cannon:
   replicaCount: 2
   imagePullPolicy: {{ .Values.imagePullPolicy }}
@@ -170,6 +171,16 @@ cargohold:
   secrets:
     awsKeyId: dummykey
     awsSecretKey: dummysecret
+  tests:
+    {{- if .Values.uploadXml }}
+    config:
+      uploadXml:
+        baseUrl: {{ .Values.uploadXml.baseUrl }}
+    secrets:
+      uploadXmlAwsAccessKeyId: {{ .Values.uploadXml.awsAccessKeyId }}
+      uploadXmlAwsSecretAccessKey: {{ .Values.uploadXml.awsSecretAccessKey }}
+    {{- end }}
+
 galley:
   replicaCount: 1
   imagePullPolicy: {{ .Values.imagePullPolicy }}
@@ -194,6 +205,15 @@ galley:
           status: enabled
           config:
             domains: ["example.com"]
+        mlsMigration:
+          defaults:
+            status: enabled
+            config:
+              startTime: "2029-05-16T10:11:12.123Z"
+              finaliseRegardlessAfter: "2029-10-17T00:00:00.000Z"
+              usersThreshold: 100
+              clientsThreshold: 50
+            lockStatus: locked
     journal:
       endpoint: http://fake-aws-sqs:4568
       queueName: integration-team-events.fifo
@@ -209,6 +229,15 @@ galley:
     rabbitmq:
       username: {{ .Values.rabbitmqUsername }}
       password: {{ .Values.rabbitmqPassword }}
+  tests:
+    {{- if .Values.uploadXml }}
+    config:
+      uploadXml:
+        baseUrl: {{ .Values.uploadXml.baseUrl }}
+    secrets:
+      uploadXmlAwsAccessKeyId: {{ .Values.uploadXml.awsAccessKeyId }}
+      uploadXmlAwsSecretAccessKey: {{ .Values.uploadXml.awsSecretAccessKey }}
+    {{- end }}
 
 gundeck:
   replicaCount: 1
@@ -238,6 +267,16 @@ gundeck:
   secrets:
     awsKeyId: dummykey
     awsSecretKey: dummysecret
+  tests:
+    {{- if .Values.uploadXml }}
+    config:
+      uploadXml:
+        baseUrl: {{ .Values.uploadXml.baseUrl }}
+    secrets:
+      uploadXmlAwsAccessKeyId: {{ .Values.uploadXml.awsAccessKeyId }}
+      uploadXmlAwsSecretAccessKey: {{ .Values.uploadXml.awsSecretAccessKey }}
+    {{- end }}
+
 nginz:
   replicaCount: 1
   imagePullPolicy: {{ .Values.imagePullPolicy }}
@@ -295,6 +334,15 @@ spar:
     - type: ContactSupport
       company: Example Company
       email: email:backend+spar@wire.com
+  tests:
+    {{- if .Values.uploadXml }}
+    config:
+      uploadXml:
+        baseUrl: {{ .Values.uploadXml.baseUrl }}
+    secrets:
+      uploadXmlAwsAccessKeyId: {{ .Values.uploadXml.awsAccessKeyId }}
+      uploadXmlAwsSecretAccessKey: {{ .Values.uploadXml.awsSecretAccessKey }}
+    {{- end }}
 
 federator:
   replicaCount: 1
@@ -304,6 +352,15 @@ federator:
   config:
     optSettings:
       useSystemCAStore: false
+  tests:
+    {{- if .Values.uploadXml }}
+    config:
+      uploadXml:
+        baseUrl: {{ .Values.uploadXml.baseUrl }}
+    secrets:
+      uploadXmlAwsAccessKeyId: {{ .Values.uploadXml.awsAccessKeyId }}
+      uploadXmlAwsSecretAccessKey: {{ .Values.uploadXml.awsSecretAccessKey }}
+    {{- end }}
 
 background-worker:
   replicaCount: 1
@@ -312,7 +369,9 @@ background-worker:
   imagePullPolicy: {{ .Values.imagePullPolicy }}
   config:
     backendNotificationPusher:
-      remotesRefreshInterval: 1
+      pushBackoffMinWait: 1000 # 1ms
+      pushBackoffMaxWait: 500000 # 0.5s
+      remotesRefreshInterval: 1000000 # 1s
   secrets:
     rabbitmq:
       username: {{ .Values.rabbitmqUsername }}
@@ -321,3 +380,21 @@ background-worker:
 integration:
   ingress:
     class: "nginx-{{ .Release.Namespace }}"
+  {{- if .Values.uploadXml }}
+  config:
+    uploadXml:
+      baseUrl: {{ .Values.uploadXml.baseUrl }}
+  secrets:
+    uploadXmlAwsAccessKeyId: {{ .Values.uploadXml.awsAccessKeyId }}
+    uploadXmlAwsSecretAccessKey: {{ .Values.uploadXml.awsSecretAccessKey }}
+  {{- end }}
+backoffice:
+  tests:
+    {{- if .Values.uploadXml }}
+    config:
+      uploadXml:
+        baseUrl: {{ .Values.uploadXml.baseUrl }}
+    secrets:
+      uploadXmlAwsAccessKeyId: {{ .Values.uploadXml.awsAccessKeyId }}
+      uploadXmlAwsSecretAccessKey: {{ .Values.uploadXml.awsSecretAccessKey }}
+    {{- end }}

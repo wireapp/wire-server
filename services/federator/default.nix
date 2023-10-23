@@ -23,6 +23,8 @@
 , hinotify
 , HsOpenSSL
 , hspec
+, hspec-core
+, hspec-junit-formatter
 , http-client
 , http-client-tls
 , http-media
@@ -41,6 +43,7 @@
 , pem
 , polysemy
 , polysemy-wire-zoo
+, prometheus-client
 , QuickCheck
 , random
 , servant
@@ -105,7 +108,9 @@ mkDerivation {
     pem
     polysemy
     polysemy-wire-zoo
+    prometheus-client
     servant
+    servant-client
     servant-client-core
     servant-server
     text
@@ -123,6 +128,7 @@ mkDerivation {
   ];
   executableHaskellDepends = [
     aeson
+    async
     base
     bilge
     binary
@@ -134,13 +140,14 @@ mkDerivation {
     exceptions
     HsOpenSSL
     hspec
+    hspec-core
+    hspec-junit-formatter
     http-client-tls
     http-types
     http2-manager
     imports
     kan-extensions
     lens
-    mtl
     optparse-applicative
     polysemy
     QuickCheck

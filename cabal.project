@@ -1,3 +1,6 @@
+repository hackage.haskell.org
+  url: https://hackage.haskell.org/
+index-state: 2023-10-03T15:17:00Z
 packages:
     integration
   , libs/bilge/
@@ -40,16 +43,18 @@ packages:
   , services/spar/
   , tools/db/assets/
   , tools/db/auto-whitelist/
-  , tools/db/billing-team-member-backfill/
   , tools/db/find-undead/
   , tools/db/inconsistencies/
   , tools/db/migrate-sso-feature-flag/
   , tools/db/move-team/
   , tools/db/repair-handles/
+  , tools/db/repair-brig-clients-table/
   , tools/db/service-backfill/
   , tools/fedcalls/
+  , tools/rabbitmq-consumer
   , tools/rex/
   , tools/stern/
+  , tools/mlsstats/
 
 tests: True
 benchmarks: True
@@ -61,8 +66,6 @@ package auto-whitelist
 package background-worker
     ghc-options: -Werror
 package bilge
-    ghc-options: -Werror
-package billing-team-member-backfill
     ghc-options: -Werror
 package brig
     ghc-options: -Werror
@@ -98,6 +101,8 @@ package hscim
     ghc-options: -Werror
 package http2-manager
     ghc-options: -Werror
+package integration
+    ghc-options: -Werror
 package imports
     ghc-options: -Werror
 package jwt-tools
@@ -113,6 +118,10 @@ package move-team
 package polysemy-wire-zoo
     ghc-options: -Werror
 package proxy
+    ghc-options: -Werror
+package mlsstats
+    ghc-options: -Werror
+package rabbitmq-consumer
     ghc-options: -Werror
 package repair-handles
     ghc-options: -Werror

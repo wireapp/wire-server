@@ -25,8 +25,6 @@ import API.SQS qualified as SQS
 import Bilge hiding (timeout)
 import Bilge.Assert
 import Bilge.TestSession
-import Brig.Types.Connection
-import Brig.Types.Intra
 import Control.Applicative
 import Control.Concurrent.Async
 import Control.Exception (throw)
@@ -39,6 +37,7 @@ import Data.Aeson hiding (json)
 import Data.Aeson qualified as A
 import Data.Aeson.Lens (key, _String)
 import Data.ByteString qualified as BS
+import Data.ByteString.Base64.URL qualified as B64U
 import Data.ByteString.Char8 qualified as B8
 import Data.ByteString.Char8 qualified as C
 import Data.ByteString.Conversion
@@ -107,6 +106,7 @@ import Util.Options
 import Web.Cookie
 import Wire.API.Connection
 import Wire.API.Conversation
+import Wire.API.Conversation qualified as Conv
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Code hiding (Value)
 import Wire.API.Conversation.Protocol
@@ -123,10 +123,11 @@ import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Domain (originDomainHeaderName)
 import Wire.API.Internal.Notification hiding (target)
-import Wire.API.MLS.KeyPackage
+import Wire.API.MLS.LeafNode
 import Wire.API.MLS.Message
 import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
+import Wire.API.MLS.SubConversation
 import Wire.API.Message
 import Wire.API.Message.Proto qualified as Proto
 import Wire.API.Routes.Internal.Brig.Connection
@@ -191,13 +192,13 @@ symmPermissions p = let s = Set.fromList p in fromJust (newPermissions s s)
 
 createBindingTeam :: HasCallStack => TestM (UserId, TeamId)
 createBindingTeam = do
-  first userId <$> createBindingTeam'
+  first Wire.API.User.userId <$> createBindingTeam'
 
 createBindingTeam' :: HasCallStack => TestM (User, TeamId)
 createBindingTeam' = do
   owner <- randomTeamCreator'
-  teams <- getTeams (userId owner) []
-  let [team] = view teamListTeams teams
+  teams <- getTeams owner.userId []
+  team <- assertOne $ view teamListTeams teams
   let tid = view teamId team
   SQS.assertTeamActivate "create team" tid
   refreshIndex
@@ -365,7 +366,7 @@ getTeamMembersPaginated usr tid n mPs = do
           . paths ["teams", toByteString' tid, "members"]
           . zUser usr
           . queryItem "maxResults" (C.pack $ show n)
-          . maybe id (queryItem "pagingState" . cs) mPs
+          . maybe Imports.id (queryItem "pagingState" . cs) mPs
       )
       <!! const 200
         === statusCode
@@ -454,7 +455,7 @@ addUserToTeamWithRole :: HasCallStack => Maybe Role -> UserId -> TeamId -> TestM
 addUserToTeamWithRole role inviter tid = do
   (inv, rsp2) <- addUserToTeamWithRole' role inviter tid
   let invitee :: User = responseJsonUnsafe rsp2
-      inviteeId = userId invitee
+      inviteeId = invitee.userId
   let invmeta = Just (inviter, inCreatedAt inv)
   mem <- getTeamMember inviter tid inviteeId
   liftIO $ assertEqual "Member has no/wrong invitation metadata" invmeta (mem ^. Team.invitation)
@@ -482,8 +483,7 @@ addUserToTeamWithRole' role inviter tid = do
 addUserToTeamWithSSO :: HasCallStack => Bool -> TeamId -> TestM TeamMember
 addUserToTeamWithSSO hasEmail tid = do
   let ssoid = UserSSOId mkSimpleSampleUref
-  user <- responseJsonError =<< postSSOUser "SSO User" hasEmail ssoid tid
-  let uid = userId user
+  uid <- fmap (\(u :: User) -> u.userId) $ responseJsonError =<< postSSOUser "SSO User" hasEmail ssoid tid
   getTeamMember uid tid uid
 
 makeOwner :: HasCallStack => UserId -> TeamMember -> TeamId -> TestM ()
@@ -624,7 +624,7 @@ createTeamConvAccessRaw u tid us name acc role mtimer convRole = do
   g <- viewGalley
   let tinfo = ConvTeamInfo tid
   let conv =
-        NewConv us [] (name >>= checked) (fromMaybe (Set.fromList []) acc) role (Just tinfo) mtimer Nothing (fromMaybe roleNameWireAdmin convRole) ProtocolProteusTag
+        NewConv us [] (name >>= checked) (fromMaybe (Set.fromList []) acc) role (Just tinfo) mtimer Nothing (fromMaybe roleNameWireAdmin convRole) BaseProtocolProteusTag
   post
     ( g
         . path "/conversations"
@@ -660,7 +660,7 @@ createMLSTeamConv lusr c tid users name access role timer convRole = do
             newConvMessageTimer = timer,
             newConvUsersRole = fromMaybe roleNameWireAdmin convRole,
             newConvReceiptMode = Nothing,
-            newConvProtocol = ProtocolMLSTag
+            newConvProtocol = BaseProtocolMLSTag
           }
   r <-
     post
@@ -691,7 +691,7 @@ createOne2OneTeamConv :: UserId -> UserId -> Maybe Text -> TeamId -> TestM Respo
 createOne2OneTeamConv u1 u2 n tid = do
   g <- viewGalley
   let conv =
-        NewConv [u2] [] (n >>= checked) mempty Nothing (Just $ ConvTeamInfo tid) Nothing Nothing roleNameWireAdmin ProtocolProteusTag
+        NewConv [u2] [] (n >>= checked) mempty Nothing (Just $ ConvTeamInfo tid) Nothing Nothing roleNameWireAdmin BaseProtocolProteusTag
   post $ g . path "/conversations/one2one" . zUser u1 . zConn "conn" . zType "access" . json conv
 
 postConv ::
@@ -705,12 +705,12 @@ postConv ::
 postConv u us name a r mtimer = postConvWithRole u us name a r mtimer roleNameWireAdmin
 
 defNewProteusConv :: NewConv
-defNewProteusConv = NewConv [] [] Nothing mempty Nothing Nothing Nothing Nothing roleNameWireAdmin ProtocolProteusTag
+defNewProteusConv = NewConv [] [] Nothing mempty Nothing Nothing Nothing Nothing roleNameWireAdmin BaseProtocolProteusTag
 
 defNewMLSConv :: NewConv
 defNewMLSConv =
   defNewProteusConv
-    { newConvProtocol = ProtocolMLSTag
+    { newConvProtocol = BaseProtocolMLSTag
     }
 
 postConvQualified ::
@@ -724,7 +724,7 @@ postConvQualified u c n = do
     g
       . path "/conversations"
       . zUser u
-      . maybe id zClient c
+      . maybe Imports.id zClient c
       . zConn "conn"
       . zType "access"
       . json n
@@ -769,7 +769,7 @@ postConvWithRemoteUsers u c n =
 postTeamConv :: TeamId -> UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe (Set AccessRole) -> Maybe Milliseconds -> TestM ResponseLBS
 postTeamConv tid u us name a r mtimer = do
   g <- viewGalley
-  let conv = NewConv us [] (name >>= checked) (Set.fromList a) r (Just (ConvTeamInfo tid)) mtimer Nothing roleNameWireAdmin ProtocolProteusTag
+  let conv = NewConv us [] (name >>= checked) (Set.fromList a) r (Just (ConvTeamInfo tid)) mtimer Nothing roleNameWireAdmin BaseProtocolProteusTag
   post $ g . path "/conversations" . zUser u . zConn "conn" . zType "access" . json conv
 
 deleteTeamConv :: (HasGalley m, MonadIO m, MonadHttp m) => TeamId -> ConvId -> UserId -> m ResponseLBS
@@ -807,7 +807,7 @@ postConvWithRole u members name access arole timer role =
 postConvWithReceipt :: UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe (Set AccessRole) -> Maybe Milliseconds -> ReceiptMode -> TestM ResponseLBS
 postConvWithReceipt u us name a r mtimer rcpt = do
   g <- viewGalley
-  let conv = NewConv us [] (name >>= checked) (Set.fromList a) r Nothing mtimer (Just rcpt) roleNameWireAdmin ProtocolProteusTag
+  let conv = NewConv us [] (name >>= checked) (Set.fromList a) r Nothing mtimer (Just rcpt) roleNameWireAdmin BaseProtocolProteusTag
   post $ g . path "/conversations" . zUser u . zConn "conn" . zType "access" . json conv
 
 postSelfConv :: UserId -> TestM ResponseLBS
@@ -818,7 +818,7 @@ postSelfConv u = do
 postO2OConv :: UserId -> UserId -> Maybe Text -> TestM ResponseLBS
 postO2OConv u1 u2 n = do
   g <- viewGalley
-  let conv = NewConv [u2] [] (n >>= checked) mempty Nothing Nothing Nothing Nothing roleNameWireAdmin ProtocolProteusTag
+  let conv = NewConv [u2] [] (n >>= checked) mempty Nothing Nothing Nothing Nothing roleNameWireAdmin BaseProtocolProteusTag
   post $ g . path "/conversations/one2one" . zUser u1 . zConn "conn" . zType "access" . json conv
 
 postConnectConv :: UserId -> UserId -> Text -> Text -> Maybe Text -> TestM ResponseLBS
@@ -931,7 +931,7 @@ data Broadcast = Broadcast
   }
 
 instance Default Broadcast where
-  def = Broadcast BroadcastLegacyQueryParams BroadcastJSON mempty "ZXhhbXBsZQ==" mempty id
+  def = Broadcast BroadcastLegacyQueryParams BroadcastJSON mempty "ZXhhbXBsZQ==" mempty Imports.id
 
 postBroadcast ::
   (MonadIO m, MonadHttp m, HasGalley m) =>
@@ -943,8 +943,8 @@ postBroadcast lu c b = do
   let u = qUnqualified lu
   g <- viewGalley
   let (bodyReport, queryReport) = case bAPI b of
-        BroadcastLegacyQueryParams -> (Nothing, maybe id mkOtrReportMissing (bReport b))
-        _ -> (bReport b, id)
+        BroadcastLegacyQueryParams -> (Nothing, maybe Imports.id mkOtrReportMissing (bReport b))
+        _ -> (bReport b, Imports.id)
   let bdy = case (bAPI b, bType b) of
         (BroadcastQualified, BroadcastJSON) -> error "JSON not supported for the qualified broadcast API"
         (BroadcastQualified, BroadcastProto) ->
@@ -996,7 +996,7 @@ mkOtrMessage (usr, clt, m) = (fn usr, HashMap.singleton (fn clt) m)
     fn = fromJust . fromByteString . toByteString'
 
 postProtoOtrMessage :: UserId -> ClientId -> ConvId -> OtrRecipients -> TestM ResponseLBS
-postProtoOtrMessage = postProtoOtrMessage' Nothing id
+postProtoOtrMessage = postProtoOtrMessage' Nothing Imports.id
 
 postProtoOtrMessage' :: Maybe [UserId] -> (Request -> Request) -> UserId -> ClientId -> ConvId -> OtrRecipients -> TestM ResponseLBS
 postProtoOtrMessage' reportMissing modif u d c rec = do
@@ -1030,6 +1030,15 @@ getConvs u cids = do
       . zUser u
       . zConn "conn"
       . json (ListConversations (unsafeRange cids))
+
+getConvClients :: HasCallStack => GroupId -> TestM ClientList
+getConvClients gid = do
+  g <- viewGalley
+  responseJsonError
+    =<< get
+      ( g
+          . paths ["i", "group", B64U.encode $ unGroupId gid]
+      )
 
 getAllConvs :: HasCallStack => UserId -> TestM [Conversation]
 getAllConvs u = do
@@ -1374,7 +1383,8 @@ getJoinCodeConv u k v = do
 
 postJoinConv :: UserId -> ConvId -> TestM ResponseLBS
 postJoinConv u c = do
-  g <- viewGalley
+  -- This endpoint is removed from version v5 onwards
+  g <- fmap (addPrefixAtVersion V4 .) (view tsUnversionedGalley)
   post $
     g
       . paths ["/conversations", toByteString' c, "join"]
@@ -1556,17 +1566,17 @@ registerRemoteConv convId originUser name othMembers = do
   void $
     runFedClient @"on-conversation-created" fedGalleyClient (qDomain convId) $
       ConversationCreated
-        { ccTime = now,
-          ccOrigUserId = originUser,
-          ccCnvId = qUnqualified convId,
-          ccCnvType = RegularConv,
-          ccCnvAccess = [],
-          ccCnvAccessRoles = Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole],
-          ccCnvName = name,
-          ccNonCreatorMembers = othMembers,
-          ccMessageTimer = Nothing,
-          ccReceiptMode = Nothing,
-          ccProtocol = ProtocolProteus
+        { time = now,
+          origUserId = originUser,
+          cnvId = qUnqualified convId,
+          cnvType = RegularConv,
+          cnvAccess = [],
+          cnvAccessRoles = Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole],
+          cnvName = name,
+          nonCreatorMembers = othMembers,
+          messageTimer = Nothing,
+          receiptMode = Nothing,
+          protocol = ProtocolProteus
         }
 
 getFeatureStatusMulti :: forall cfg. KnownSymbol (FeatureSymbol cfg) => Multi.TeamFeatureNoConfigMultiRequest -> TestM ResponseLBS
@@ -1602,15 +1612,15 @@ assertNotConvMember u c =
 
 assertConvEquals :: (HasCallStack, MonadIO m) => Conversation -> Conversation -> m ()
 assertConvEquals c1 c2 = liftIO $ do
-  assertEqual "id" (cnvQualifiedId c1) (cnvQualifiedId c2)
-  assertEqual "type" (cnvType c1) (cnvType c2)
-  assertEqual "creator" (cnvCreator c1) (cnvCreator c2)
+  assertEqual "id" c1.cnvQualifiedId c2.cnvQualifiedId
+  assertEqual "type" (Conv.cnvType c1) (Conv.cnvType c2)
+  assertEqual "creator" (Conv.cnvCreator c1) (Conv.cnvCreator c2)
   assertEqual "access" (accessSet c1) (accessSet c2)
-  assertEqual "name" (cnvName c1) (cnvName c2)
+  assertEqual "name" (Conv.cnvName c1) (Conv.cnvName c2)
   assertEqual "self member" (selfMember c1) (selfMember c2)
   assertEqual "other members" (otherMembers c1) (otherMembers c2)
   where
-    accessSet = Set.fromList . toList . cnvAccess
+    accessSet = Set.fromList . toList . Conv.cnvAccess
     selfMember = cmSelf . cnvMembers
     otherMembers = Set.fromList . cmOthers . cnvMembers
 
@@ -1618,7 +1628,7 @@ assertConv ::
   HasCallStack =>
   Response (Maybe Lazy.ByteString) ->
   ConvType ->
-  UserId ->
+  Maybe UserId ->
   Qualified UserId ->
   [Qualified UserId] ->
   Maybe Text ->
@@ -1630,7 +1640,7 @@ assertConvWithRole ::
   HasCallStack =>
   Response (Maybe Lazy.ByteString) ->
   ConvType ->
-  UserId ->
+  Maybe UserId ->
   Qualified UserId ->
   [Qualified UserId] ->
   Maybe Text ->
@@ -1643,9 +1653,9 @@ assertConvWithRole r t c s us n mt role = do
   let _self = cmSelf (cnvMembers cnv)
   let others = cmOthers (cnvMembers cnv)
   liftIO $ do
-    assertEqual "id" cId (qUnqualified (cnvQualifiedId cnv))
-    assertEqual "name" n (cnvName cnv)
-    assertEqual "type" t (cnvType cnv)
+    assertEqual "id" cId (qUnqualified cnv.cnvQualifiedId)
+    assertEqual "name" n (Conv.cnvName cnv)
+    assertEqual "type" t (Conv.cnvType cnv)
     assertEqual "creator" c (cnvCreator cnv)
     assertEqual "message_timer" mt (cnvMessageTimer cnv)
     assertEqual "self" s (memId _self)
@@ -1656,9 +1666,9 @@ assertConvWithRole r t c s us n mt role = do
     assertBool "otr archived not false" (not (memOtrArchived _self))
     assertBool "otr archived ref not empty" (isNothing (memOtrArchivedRef _self))
     case t of
-      SelfConv -> assertEqual "access" privateAccess (cnvAccess cnv)
-      ConnectConv -> assertEqual "access" privateAccess (cnvAccess cnv)
-      One2OneConv -> assertEqual "access" privateAccess (cnvAccess cnv)
+      SelfConv -> assertEqual "access" privateAccess (Conv.cnvAccess cnv)
+      ConnectConv -> assertEqual "access" privateAccess (Conv.cnvAccess cnv)
+      One2OneConv -> assertEqual "access" privateAccess (Conv.cnvAccess cnv)
       _ -> pure ()
   pure (cnvQualifiedId cnv)
 
@@ -1694,28 +1704,29 @@ wsAssertOtr' evData conv usr from to txt n = do
 wsAssertMLSWelcome ::
   HasCallStack =>
   Qualified UserId ->
+  Qualified ConvId ->
   ByteString ->
   Notification ->
   IO ()
-wsAssertMLSWelcome u welcome n = do
+wsAssertMLSWelcome u cid welcome n = do
   let e = List1.head (WS.unpackPayload n)
   ntfTransient n @?= False
-  evtConv e @?= fmap selfConv u
+  evtConv e @?= cid
   evtType e @?= MLSWelcome
   evtFrom e @?= u
   evtData e @?= EdMLSWelcome welcome
 
 wsAssertMLSMessage ::
   HasCallStack =>
-  Qualified ConvId ->
+  Qualified ConvOrSubConvId ->
   Qualified UserId ->
   ByteString ->
   Notification ->
   IO ()
-wsAssertMLSMessage conv u message n = do
+wsAssertMLSMessage qcs u message n = do
   let e = List1.head (WS.unpackPayload n)
   ntfTransient n @?= False
-  assertMLSMessageEvent conv u message e
+  assertMLSMessageEvent qcs u message e
 
 wsAssertClientRemoved ::
   HasCallStack =>
@@ -1743,13 +1754,17 @@ wsAssertClientAdded cid n = do
 
 assertMLSMessageEvent ::
   HasCallStack =>
-  Qualified ConvId ->
+  Qualified ConvOrSubConvId ->
   Qualified UserId ->
   ByteString ->
   Conv.Event ->
   IO ()
-assertMLSMessageEvent conv u message e = do
-  evtConv e @?= conv
+assertMLSMessageEvent qcs u message e = do
+  evtConv e @?= (.conv) <$> qcs
+  case qUnqualified qcs of
+    Conv _ -> pure ()
+    SubConv _ subconvId ->
+      evtSubConv e @?= Just subconvId
   evtType e @?= MLSMessageAdd
   evtFrom e @?= u
   evtData e @?= EdMLSMessage message
@@ -1815,7 +1830,7 @@ assertLeaveEvent conv usr leaving e = do
   evtConv e @?= conv
   evtType e @?= Conv.MemberLeave
   evtFrom e @?= usr
-  fmap (sort . qualifiedUserIdList) (evtData e ^? _EdMembersLeave) @?= Just (sort leaving)
+  fmap (sort . qualifiedUserIdList) (evtData e ^? _EdMembersLeave . _2) @?= Just (sort leaving)
 
 wsAssertMemberUpdateWithRole :: Qualified ConvId -> Qualified UserId -> UserId -> RoleName -> Notification -> IO ()
 wsAssertMemberUpdateWithRole conv usr target role n = do
@@ -1848,16 +1863,16 @@ wsAssertConvMessageTimerUpdate conv usr new n = do
   evtFrom e @?= usr
   evtData e @?= EdConvMessageTimerUpdate new
 
-wsAssertMemberLeave :: Qualified ConvId -> Qualified UserId -> [Qualified UserId] -> Notification -> IO ()
-wsAssertMemberLeave conv usr old n = do
+wsAssertMemberLeave :: Qualified ConvId -> Qualified UserId -> [Qualified UserId] -> EdMemberLeftReason -> Notification -> IO ()
+wsAssertMemberLeave conv usr old reason n = do
   let e = List1.head (WS.unpackPayload n)
   ntfTransient n @?= False
   evtConv e @?= conv
   evtType e @?= Conv.MemberLeave
   evtFrom e @?= usr
-  sorted (evtData e) @?= sorted (EdMembersLeave (QualifiedUserIdList old))
+  sorted (evtData e) @?= sorted (EdMembersLeave reason (QualifiedUserIdList old))
   where
-    sorted (EdMembersLeave (QualifiedUserIdList m)) = EdMembersLeave (QualifiedUserIdList (sort m))
+    sorted (EdMembersLeave _ (QualifiedUserIdList m)) = EdMembersLeave reason (QualifiedUserIdList (sort m))
     sorted x = x
 
 wsAssertTyping :: HasCallStack => Qualified ConvId -> Qualified UserId -> TypingStatus -> Notification -> IO ()
@@ -1880,7 +1895,7 @@ assertRemoveUpdate :: (MonadIO m, HasCallStack) => FederatedRequest -> Qualified
 assertRemoveUpdate req qconvId remover alreadyPresentUsers victim = liftIO $ do
   frRPC req @?= "on-conversation-updated"
   frOriginDomain req @?= qDomain qconvId
-  let Just cu = decode (frBody req)
+  cu <- assertJust $ decode (frBody req)
   cuOrigUserId cu @?= remover
   cuConvId cu @?= qUnqualified qconvId
   sort (cuAlreadyPresentUsers cu) @?= sort alreadyPresentUsers
@@ -1890,7 +1905,7 @@ assertLeaveUpdate :: (MonadIO m, HasCallStack) => FederatedRequest -> Qualified 
 assertLeaveUpdate req qconvId remover alreadyPresentUsers = liftIO $ do
   frRPC req @?= "on-conversation-updated"
   frOriginDomain req @?= qDomain qconvId
-  let Just cu = decode (frBody req)
+  cu <- assertJust $ decode (frBody req)
   cuOrigUserId cu @?= remover
   cuConvId cu @?= qUnqualified qconvId
   sort (cuAlreadyPresentUsers cu) @?= sort alreadyPresentUsers
@@ -1982,7 +1997,7 @@ connectUsersUnchecked ::
   UserId ->
   List1 UserId ->
   TestM (List1 (Response (Maybe Lazy.ByteString), Response (Maybe Lazy.ByteString)))
-connectUsersUnchecked = connectUsersWith id
+connectUsersUnchecked = connectUsersWith Imports.id
 
 connectUsersWith ::
   (Request -> Request) ->
@@ -2155,7 +2170,7 @@ ephemeralUser = do
   let p = object ["name" .= name]
   r <- post (b . path "/register" . json p) <!! const 201 === statusCode
   user <- responseJsonError r
-  pure $ userId user
+  pure $ Wire.API.User.userId user
 
 randomClient :: HasCallStack => UserId -> LastPrekey -> TestM ClientId
 randomClient uid lk = randomClientWithCaps uid lk Nothing
@@ -2222,7 +2237,7 @@ getInternalClientsFull userSet = do
 ensureClientCaps :: HasCallStack => UserId -> ClientId -> Client.ClientCapabilityList -> TestM ()
 ensureClientCaps uid cid caps = do
   UserClientsFull (Map.lookup uid -> (Just clnts)) <- getInternalClientsFull (UserSet $ Set.singleton uid)
-  let [clnt] = filter ((== cid) . clientId) $ Set.toList clnts
+  clnt <- assertOne . filter ((== cid) . clientId) $ Set.toList clnts
   liftIO $ assertEqual ("ensureClientCaps: " <> show (uid, cid, caps)) (clientCapabilities clnt) caps
 
 -- TODO: Refactor, as used also in brig
@@ -2295,11 +2310,11 @@ fromBS bs =
 
 convRange :: Maybe (Either [ConvId] ConvId) -> Maybe Int32 -> Request -> Request
 convRange range size =
-  maybe id (queryItem "size" . C.pack . show) size
+  maybe Imports.id (queryItem "size" . C.pack . show) size
     . case range of
       Just (Left l) -> queryItem "ids" (C.intercalate "," $ map toByteString' l)
       Just (Right c) -> queryItem "start" (toByteString' c)
-      Nothing -> id
+      Nothing -> Imports.id
 
 privateAccess :: [Access]
 privateAccess = [PrivateAccess]
@@ -2347,7 +2362,7 @@ assertMismatchWithMessage mmsg missing redundant deleted = do
     userClients = UserClients . Map.fromList
 
     formatMessage :: String -> String
-    formatMessage = maybe id (\msg -> ((msg <> "\n") <>)) mmsg
+    formatMessage = maybe Imports.id (\msg -> ((msg <> "\n") <>)) mmsg
 
 assertMismatch ::
   HasCallStack =>
@@ -2465,7 +2480,7 @@ mkProteusConv cnvId creator selfRole otherMembers =
     cnvId
     ( ConversationMetadata
         RegularConv
-        creator
+        (Just creator)
         []
         (Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole])
         (Just "federated gossip")
@@ -2663,7 +2678,7 @@ withTempMockFederator' resp action = do
     [("Content-Type", "application/json")]
     mock
     $ \mockPort -> do
-      withSettingsOverrides (\opts -> opts & Opts.optFederator ?~ Endpoint "127.0.0.1" (fromIntegral mockPort)) action
+      withSettingsOverrides (\opts -> opts & Opts.federator ?~ Endpoint "127.0.0.1" (fromIntegral mockPort)) action
 
 -- Starts a servant Application in Network.Wai.Test session and runs the
 -- FederatedRequest against it.
@@ -2828,7 +2843,7 @@ checkConvMemberLeaveEvent cid usr w = WS.assertMatch_ checkTimeout w $ \notif ->
   evtConv e @?= cid
   evtType e @?= Conv.MemberLeave
   case evtData e of
-    Conv.EdMembersLeave mm -> mm @?= Conv.QualifiedUserIdList [usr]
+    Conv.EdMembersLeave _ mm -> mm @?= Conv.QualifiedUserIdList [usr]
     other -> assertFailure $ "Unexpected event data: " <> show other
 
 checkTimeout :: WS.Timeout
@@ -2899,7 +2914,7 @@ generateRemoteAndConvId = generateRemoteAndConvIdWithDomain (Domain "far-away.ex
 generateRemoteAndConvIdWithDomain :: Domain -> Bool -> Local UserId -> TestM (Remote UserId, Qualified ConvId)
 generateRemoteAndConvIdWithDomain remoteDomain shouldBeLocal lUserId = do
   other <- Qualified <$> randomId <*> pure remoteDomain
-  let convId = one2OneConvId (tUntagged lUserId) other
+  let convId = one2OneConvId BaseProtocolProteusTag (tUntagged lUserId) other
       isLocal = tDomain lUserId == qDomain convId
   if shouldBeLocal == isLocal
     then pure (qTagUnsafe other, convId)
@@ -2940,32 +2955,33 @@ wsAssertConvReceiptModeUpdate conv usr new n = do
   evtFrom e @?= usr
   evtData e @?= EdConvReceiptModeUpdate (ConversationReceiptModeUpdate new)
 
-wsAssertBackendRemoveProposalWithEpoch :: HasCallStack => Qualified UserId -> Qualified ConvId -> KeyPackageRef -> Epoch -> Notification -> IO ByteString
-wsAssertBackendRemoveProposalWithEpoch fromUser convId kpref epoch n = do
-  bs <- wsAssertBackendRemoveProposal fromUser convId kpref n
-  let msg = fromRight (error "Failed to parse Message 'MLSPlaintext") $ decodeMLS' @(Message 'MLSPlainText) bs
-  let tbs = rmValue . msgTBS $ msg
-  tbsMsgEpoch tbs @?= epoch
+wsAssertBackendRemoveProposalWithEpoch :: HasCallStack => Qualified UserId -> Qualified ConvId -> LeafIndex -> Epoch -> Notification -> IO ByteString
+wsAssertBackendRemoveProposalWithEpoch fromUser convId idx epoch n = do
+  bs <- wsAssertBackendRemoveProposal fromUser (Conv <$> convId) idx n
+  let msg = fromRight (error "Failed to parse Message") $ decodeMLS' @Message bs
+  case msg.content of
+    MessagePublic pmsg -> liftIO $ pmsg.content.value.epoch @?= epoch
+    _ -> assertFailure "unexpected message content"
   pure bs
 
-wsAssertBackendRemoveProposal :: HasCallStack => Qualified UserId -> Qualified ConvId -> KeyPackageRef -> Notification -> IO ByteString
-wsAssertBackendRemoveProposal fromUser convId kpref n = do
+wsAssertBackendRemoveProposal :: HasCallStack => Qualified UserId -> Qualified ConvOrSubConvId -> LeafIndex -> Notification -> IO ByteString
+wsAssertBackendRemoveProposal fromUser cnvOrSubCnv idx n = do
   let e = List1.head (WS.unpackPayload n)
   ntfTransient n @?= False
-  evtConv e @?= convId
+  evtConv e @?= (.conv) <$> cnvOrSubCnv
   evtType e @?= MLSMessageAdd
   evtFrom e @?= fromUser
   let bs = getMLSMessageData (evtData e)
-  let msg = fromRight (error "Failed to parse Message 'MLSPlaintext") $ decodeMLS' bs
-  let tbs = rmValue . msgTBS $ msg
-  tbsMsgSender tbs @?= PreconfiguredSender 0
-  case tbsMsgPayload tbs of
-    ProposalMessage rp ->
-      case rmValue rp of
-        RemoveProposal kpRefRemove ->
-          kpRefRemove @?= kpref
-        otherProp -> assertFailure $ "Expected RemoveProposal but got " <> show otherProp
-    otherPayload -> assertFailure $ "Expected ProposalMessage but got " <> show otherPayload
+  let msg = fromRight (error "Failed to parse Message") $ decodeMLS' @Message bs
+  liftIO $ case msg.content of
+    MessagePublic pmsg -> do
+      pmsg.content.value.sender @?= SenderExternal 0
+      case pmsg.content.value.content of
+        FramedContentProposal prop -> case prop.value of
+          RemoveProposal removedIdx -> removedIdx @?= idx
+          otherProp -> assertFailure $ "Expected RemoveProposal but got " <> show otherProp
+        otherPayload -> assertFailure $ "Expected ProposalMessage but got " <> show otherPayload
+    _ -> assertFailure $ "Expected PublicMessage"
   pure bs
   where
     getMLSMessageData :: Conv.EventData -> ByteString
@@ -2985,19 +3001,16 @@ wsAssertAddProposal fromUser convId n = do
   evtType e @?= MLSMessageAdd
   evtFrom e @?= fromUser
   let bs = getMLSMessageData (evtData e)
-  let msg = fromRight (error "Failed to parse Message 'MLSPlaintext") $ decodeMLS' bs
-  let tbs = rmValue . msgTBS $ msg
-  tbsMsgSender tbs @?= NewMemberSender
-  case tbsMsgPayload tbs of
-    ProposalMessage rp ->
-      case rmValue rp of
-        AddProposal _ -> pure ()
-        otherProp ->
-          assertFailure $
-            "Expected AddProposal but got " <> show otherProp
-    otherPayload ->
-      assertFailure $
-        "Expected ProposalMessage but got " <> show otherPayload
+  let msg = fromRight (error "Failed to parse Message 'MLSPlaintext") $ decodeMLS' @Message bs
+  liftIO $ case msg.content of
+    MessagePublic pmsg -> do
+      pmsg.content.value.sender @?= SenderNewMemberProposal
+      case pmsg.content.value.content of
+        FramedContentProposal prop -> case prop.value of
+          AddProposal _ -> pure ()
+          otherProp -> assertFailure $ "Expected AddProposal but got " <> show otherProp
+        otherPayload -> assertFailure $ "Expected ProposalMessage but got " <> show otherPayload
+    _ -> assertFailure $ "Expected PublicMessage"
   pure bs
   where
     getMLSMessageData :: Conv.EventData -> ByteString
@@ -3021,6 +3034,24 @@ createAndConnectUsers domains = do
       (False, True) -> connectWithRemoteUser (qUnqualified b) a
       (False, False) -> pure ()
   pure users
+
+putConversationProtocol :: (MonadIO m, MonadHttp m, HasGalley m, HasCallStack) => UserId -> ClientId -> Qualified ConvId -> ProtocolTag -> m ResponseLBS
+putConversationProtocol uid client (Qualified conv domain) protocol = do
+  galley <- viewGalley
+  put
+    ( galley
+        . paths ["conversations", toByteString' domain, toByteString' conv, "protocol"]
+        . zUser uid
+        . zConn "conn"
+        . zClient client
+        . Bilge.json (object ["protocol" .= protocol])
+    )
+
+assertMixedProtocol :: (MonadIO m, HasCallStack) => Conversation -> m ConversationMLSData
+assertMixedProtocol conv = do
+  case cnvProtocol conv of
+    ProtocolMixed mlsData -> pure mlsData
+    _ -> liftIO $ assertFailure "Unexpected protocol"
 
 connectBackend :: UserId -> Remote Backend -> TestM [Qualified UserId]
 connectBackend usr (tDomain &&& bUsers . tUnqualified -> (d, c)) = do

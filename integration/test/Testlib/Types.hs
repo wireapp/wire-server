@@ -1,35 +1,188 @@
+{-
+NOTE: Don't import any other Testlib modules here. Use this module to break dependency cycles.
+-}
 module Testlib.Types where
 
+import Control.Concurrent (QSemN)
 import Control.Exception as E
 import Control.Monad.Base
 import Control.Monad.Catch
 import Control.Monad.Reader
 import Control.Monad.Trans.Control
-import Data.Aeson (Value)
+import Data.Aeson
 import Data.Aeson qualified as Aeson
-import Data.Aeson.Encode.Pretty qualified as Aeson
 import Data.ByteString (ByteString)
 import Data.ByteString qualified as BS
 import Data.ByteString.Char8 qualified as C8
 import Data.ByteString.Lazy qualified as L
 import Data.CaseInsensitive qualified as CI
 import Data.Default
-import Data.Function ((&))
 import Data.Functor
-import Data.Hex
 import Data.IORef
 import Data.List
+import Data.Map
 import Data.Map qualified as Map
+import Data.Set (Set)
+import Data.Set qualified as Set
+import Data.String
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
+import Data.Time
+import Data.Word
+import GHC.Generics (Generic)
 import GHC.Records
 import GHC.Stack
 import Network.HTTP.Client qualified as HTTP
 import Network.HTTP.Types qualified as HTTP
 import Network.URI
-import Testlib.Env
-import Testlib.Printing
+import UnliftIO (MonadUnliftIO)
 import Prelude
+
+data ResourcePool a = ResourcePool
+  { sem :: QSemN,
+    resources :: IORef (Set.Set a),
+    onAcquire :: a -> IO ()
+  }
+
+data BackendResource = BackendResource
+  { berName :: BackendName,
+    berBrigKeyspace :: String,
+    berGalleyKeyspace :: String,
+    berSparKeyspace :: String,
+    berGundeckKeyspace :: String,
+    berElasticsearchIndex :: String,
+    berFederatorInternal :: Word16,
+    berFederatorExternal :: Word16,
+    berDomain :: String,
+    berAwsUserJournalQueue :: String,
+    berAwsPrekeyTable :: String,
+    berAwsS3Bucket :: String,
+    berAwsQueueName :: String,
+    berBrigInternalEvents :: String,
+    berEmailSMSSesQueue :: String,
+    berEmailSMSEmailSender :: String,
+    berGalleyJournal :: String,
+    berVHost :: String,
+    berNginzSslPort :: Word16,
+    berNginzHttp2Port :: Word16,
+    berInternalServicePorts :: forall a. Num a => Service -> a
+  }
+
+instance Eq BackendResource where
+  a == b = a.berName == b.berName
+
+instance Ord BackendResource where
+  a `compare` b = a.berName `compare` b.berName
+
+data DynamicBackendConfig = DynamicBackendConfig
+  { domain :: String,
+    federatorExternalPort :: Word16
+  }
+  deriving (Show, Generic)
+
+instance FromJSON DynamicBackendConfig
+
+data RabbitMQConfig = RabbitMQConfig
+  { host :: String,
+    adminPort :: Word16
+  }
+  deriving (Show)
+
+instance FromJSON RabbitMQConfig where
+  parseJSON =
+    withObject "RabbitMQConfig" $ \ob ->
+      RabbitMQConfig
+        <$> ob .: fromString "host"
+        <*> ob .: fromString "adminPort"
+
+-- | Initialised once per testsuite.
+data GlobalEnv = GlobalEnv
+  { gServiceMap :: Map String ServiceMap,
+    gDomain1 :: String,
+    gDomain2 :: String,
+    gDynamicDomains :: [String],
+    gDefaultAPIVersion :: Int,
+    gManager :: HTTP.Manager,
+    gServicesCwdBase :: Maybe FilePath,
+    gRemovalKeyPath :: FilePath,
+    gBackendResourcePool :: ResourcePool BackendResource,
+    gRabbitMQConfig :: RabbitMQConfig,
+    gTempDir :: FilePath
+  }
+
+data IntegrationConfig = IntegrationConfig
+  { backendOne :: BackendConfig,
+    backendTwo :: BackendConfig,
+    dynamicBackends :: Map String DynamicBackendConfig,
+    rabbitmq :: RabbitMQConfig,
+    cassandra :: HostPort
+  }
+  deriving (Show, Generic)
+
+instance FromJSON IntegrationConfig where
+  parseJSON =
+    withObject "IntegrationConfig" $ \o ->
+      IntegrationConfig
+        <$> parseJSON (Object o)
+        <*> o .: fromString "backendTwo"
+        <*> o .: fromString "dynamicBackends"
+        <*> o .: fromString "rabbitmq"
+        <*> o .: fromString "cassandra"
+
+data ServiceMap = ServiceMap
+  { brig :: HostPort,
+    backgroundWorker :: HostPort,
+    cannon :: HostPort,
+    cargohold :: HostPort,
+    federatorInternal :: HostPort,
+    federatorExternal :: HostPort,
+    galley :: HostPort,
+    gundeck :: HostPort,
+    nginz :: HostPort,
+    spar :: HostPort,
+    proxy :: HostPort,
+    stern :: HostPort
+  }
+  deriving (Show, Generic)
+
+instance FromJSON ServiceMap
+
+data BackendConfig = BackendConfig
+  { beServiceMap :: ServiceMap,
+    originDomain :: String
+  }
+  deriving (Show, Generic)
+
+instance FromJSON BackendConfig where
+  parseJSON v =
+    BackendConfig
+      <$> parseJSON v
+      <*> withObject "BackendConfig" (\ob -> ob .: fromString "originDomain") v
+
+data HostPort = HostPort
+  { host :: String,
+    port :: Word16
+  }
+  deriving (Show, Generic)
+
+instance FromJSON HostPort
+
+-- | Initialised once per test.
+data Env = Env
+  { serviceMap :: Map String ServiceMap,
+    domain1 :: String,
+    domain2 :: String,
+    dynamicDomains :: [String],
+    defaultAPIVersion :: Int,
+    manager :: HTTP.Manager,
+    servicesCwdBase :: Maybe FilePath,
+    removalKeyPath :: FilePath,
+    prekeys :: IORef [(Int, String)],
+    lastPrekeys :: IORef [String],
+    mls :: IORef MLSState,
+    resourcePool :: ResourcePool BackendResource,
+    rabbitMQConfig :: RabbitMQConfig
+  }
 
 data Response = Response
   { jsonBody :: Maybe Aeson.Value,
@@ -42,6 +195,38 @@ data Response = Response
 
 instance HasField "json" Response (App Aeson.Value) where
   getField response = maybe (assertFailure "Response has no json body") pure response.jsonBody
+
+data ClientIdentity = ClientIdentity
+  { domain :: String,
+    user :: String,
+    client :: String
+  }
+  deriving (Show, Eq, Ord)
+
+newtype Ciphersuite = Ciphersuite {code :: String}
+  deriving (Eq, Ord, Show)
+
+instance Default Ciphersuite where
+  def = Ciphersuite "0x0001"
+
+data ClientGroupState = ClientGroupState
+  { group :: Maybe ByteString,
+    keystore :: Maybe ByteString
+  }
+  deriving (Show)
+
+data MLSState = MLSState
+  { baseDir :: FilePath,
+    members :: Set ClientIdentity,
+    -- | users expected to receive a welcome message after the next commit
+    newMembers :: Set ClientIdentity,
+    groupId :: Maybe String,
+    convId :: Maybe Value,
+    clientGroupState :: Map ClientIdentity ClientGroupState,
+    epoch :: Word64,
+    ciphersuite :: Ciphersuite
+  }
+  deriving (Show)
 
 showRequest :: HTTP.Request -> String
 showRequest r =
@@ -60,30 +245,6 @@ getRequestBody req = case HTTP.requestBody req of
   HTTP.RequestBodyLBS lbs -> pure (L.toStrict lbs)
   HTTP.RequestBodyBS bs -> pure bs
   _ -> Nothing
-
-prettyResponse :: Response -> String
-prettyResponse r =
-  unlines $
-    concat
-      [ pure $ colored yellow "request: \n" <> showRequest r.request,
-        pure $ colored yellow "request headers: \n" <> showHeaders (HTTP.requestHeaders r.request),
-        case getRequestBody r.request of
-          Nothing -> []
-          Just b ->
-            [ colored yellow "request body:",
-              T.unpack . T.decodeUtf8 $ case Aeson.decode (L.fromStrict b) of
-                Just v -> L.toStrict (Aeson.encodePretty (v :: Aeson.Value))
-                Nothing -> hex b
-            ],
-        pure $ colored blue "response status: " <> show r.status,
-        pure $ colored blue "response body:",
-        pure $
-          ( T.unpack . T.decodeUtf8 $
-              case r.jsonBody of
-                Just b -> L.toStrict (Aeson.encodePretty b)
-                Nothing -> r.body
-          )
-      ]
 
 data AssertionFailure = AssertionFailure
   { callstack :: CallStack,
@@ -107,13 +268,10 @@ newtype App a = App {unApp :: ReaderT Env IO a}
       MonadCatch,
       MonadThrow,
       MonadReader Env,
-      MonadBase IO
+      MonadBase IO,
+      MonadUnliftIO,
+      MonadBaseControl IO
     )
-
-instance MonadBaseControl IO App where
-  type StM App a = StM (ReaderT Env IO) a
-  liftBaseWith f = App (liftBaseWith (\g -> f (g . unApp)))
-  restoreM = App . restoreM
 
 runAppWithEnv :: Env -> App a -> IO a
 runAppWithEnv e m = runReaderT (unApp m) e
@@ -129,7 +287,7 @@ appToIOKleisli k = do
   env <- ask
   pure $ \a -> runAppWithEnv env (k a)
 
-getServiceMap :: String -> App ServiceMap
+getServiceMap :: HasCallStack => String -> App ServiceMap
 getServiceMap fedDomain = do
   env <- ask
   assertJust ("Could not find service map for federation domain: " <> fedDomain) (Map.lookup fedDomain (env.serviceMap))
@@ -194,15 +352,16 @@ modifyFailure modifyAssertion action = do
     )
 
 data ServiceOverrides = ServiceOverrides
-  { dbBrig :: Value -> App Value,
-    dbCannon :: Value -> App Value,
-    dbCargohold :: Value -> App Value,
-    dbGalley :: Value -> App Value,
-    dbGundeck :: Value -> App Value,
-    dbNginz :: Value -> App Value,
-    dbSpar :: Value -> App Value,
-    dbBackgroundWorker :: Value -> App Value,
-    dbStern :: Value -> App Value
+  { brigCfg :: Value -> App Value,
+    cannonCfg :: Value -> App Value,
+    cargoholdCfg :: Value -> App Value,
+    galleyCfg :: Value -> App Value,
+    gundeckCfg :: Value -> App Value,
+    nginzCfg :: Value -> App Value,
+    sparCfg :: Value -> App Value,
+    backgroundWorkerCfg :: Value -> App Value,
+    sternCfg :: Value -> App Value,
+    federatorInternalCfg :: Value -> App Value
   }
 
 instance Default ServiceOverrides where
@@ -211,15 +370,16 @@ instance Default ServiceOverrides where
 instance Semigroup ServiceOverrides where
   a <> b =
     ServiceOverrides
-      { dbBrig = dbBrig a >=> dbBrig b,
-        dbCannon = dbCannon a >=> dbCannon b,
-        dbCargohold = dbCargohold a >=> dbCargohold b,
-        dbGalley = dbGalley a >=> dbGalley b,
-        dbGundeck = dbGundeck a >=> dbGundeck b,
-        dbNginz = dbNginz a >=> dbNginz b,
-        dbSpar = dbSpar a >=> dbSpar b,
-        dbBackgroundWorker = dbBackgroundWorker a >=> dbBackgroundWorker b,
-        dbStern = dbStern a >=> dbStern b
+      { brigCfg = brigCfg a >=> brigCfg b,
+        cannonCfg = cannonCfg a >=> cannonCfg b,
+        cargoholdCfg = cargoholdCfg a >=> cargoholdCfg b,
+        galleyCfg = galleyCfg a >=> galleyCfg b,
+        gundeckCfg = gundeckCfg a >=> gundeckCfg b,
+        nginzCfg = nginzCfg a >=> nginzCfg b,
+        sparCfg = sparCfg a >=> sparCfg b,
+        backgroundWorkerCfg = backgroundWorkerCfg a >=> backgroundWorkerCfg b,
+        sternCfg = sternCfg a >=> sternCfg b,
+        federatorInternalCfg = federatorInternalCfg a >=> federatorInternalCfg b
       }
 
 instance Monoid ServiceOverrides where
@@ -228,42 +388,87 @@ instance Monoid ServiceOverrides where
 defaultServiceOverrides :: ServiceOverrides
 defaultServiceOverrides =
   ServiceOverrides
-    { dbBrig = pure,
-      dbCannon = pure,
-      dbCargohold = pure,
-      dbGalley = pure,
-      dbGundeck = pure,
-      dbNginz = pure,
-      dbSpar = pure,
-      dbBackgroundWorker = pure,
-      dbStern = pure
+    { brigCfg = pure,
+      cannonCfg = pure,
+      cargoholdCfg = pure,
+      galleyCfg = pure,
+      gundeckCfg = pure,
+      nginzCfg = pure,
+      sparCfg = pure,
+      backgroundWorkerCfg = pure,
+      sternCfg = pure,
+      federatorInternalCfg = pure
     }
 
-defaultServiceOverridesToMap :: Map.Map Service (Value -> App Value)
-defaultServiceOverridesToMap = ([minBound .. maxBound] <&> (,pure)) & Map.fromList
+lookupConfigOverride :: ServiceOverrides -> Service -> (Value -> App Value)
+lookupConfigOverride overrides = \case
+  Brig -> overrides.brigCfg
+  Cannon -> overrides.cannonCfg
+  Cargohold -> overrides.cargoholdCfg
+  Galley -> overrides.galleyCfg
+  Gundeck -> overrides.gundeckCfg
+  Nginz -> overrides.nginzCfg
+  Spar -> overrides.sparCfg
+  BackgroundWorker -> overrides.backgroundWorkerCfg
+  Stern -> overrides.sternCfg
+  FederatorInternal -> overrides.federatorInternalCfg
 
--- | Overrides the service configurations with the given overrides.
--- e.g.
--- `let overrides =
---    def
---      { dbBrig =
---          setField "optSettings.setFederationStrategy" "allowDynamic"
---            >=> removeField "optSettings.setFederationDomainConfigs"
---      }
---  withOverrides overrides defaultServiceOverridesToMap`
-withOverrides :: ServiceOverrides -> Map.Map Service (Value -> App Value) -> Map.Map Service (Value -> App Value)
-withOverrides overrides =
-  Map.mapWithKey
-    ( \svr f ->
-        case svr of
-          Brig -> f >=> overrides.dbBrig
-          Cannon -> f >=> overrides.dbCannon
-          Cargohold -> f >=> overrides.dbCargohold
-          Galley -> f >=> overrides.dbGalley
-          Gundeck -> f >=> overrides.dbGundeck
-          Nginz -> f >=> overrides.dbNginz
-          Spar -> f >=> overrides.dbSpar
-          BackgroundWorker -> f >=> overrides.dbBackgroundWorker
-          Stern -> f >=> overrides.dbStern
-          FederatorInternal -> f
+data Service = Brig | Galley | Cannon | Gundeck | Cargohold | Nginz | Spar | BackgroundWorker | Stern | FederatorInternal
+  deriving
+    ( Show,
+      Eq,
+      Ord,
+      Enum,
+      Bounded
     )
+
+serviceName :: Service -> String
+serviceName = \case
+  Brig -> "brig"
+  Galley -> "galley"
+  Cannon -> "cannon"
+  Gundeck -> "gundeck"
+  Cargohold -> "cargohold"
+  Nginz -> "nginz"
+  Spar -> "spar"
+  BackgroundWorker -> "backgroundWorker"
+  Stern -> "stern"
+  FederatorInternal -> "federator"
+
+-- | Converts the service name to kebab-case.
+configName :: Service -> String
+configName = \case
+  Brig -> "brig"
+  Galley -> "galley"
+  Cannon -> "cannon"
+  Gundeck -> "gundeck"
+  Cargohold -> "cargohold"
+  Nginz -> "nginz"
+  Spar -> "spar"
+  BackgroundWorker -> "background-worker"
+  Stern -> "stern"
+  FederatorInternal -> "federator"
+
+data BackendName
+  = BackendA
+  | BackendB
+  | -- | The index of dynamic backends begin with 1
+    DynamicBackend Int
+  deriving (Show, Eq, Ord)
+
+allServices :: [Service]
+allServices = [minBound .. maxBound]
+
+newtype TestSuiteReport = TestSuiteReport {cases :: [TestCaseReport]}
+  deriving (Eq, Show)
+  deriving newtype (Semigroup, Monoid)
+
+data TestCaseReport = TestCaseReport
+  { name :: String,
+    result :: TestResult,
+    time :: NominalDiffTime
+  }
+  deriving (Eq, Show)
+
+data TestResult = TestSuccess | TestFailure String
+  deriving (Eq, Show)

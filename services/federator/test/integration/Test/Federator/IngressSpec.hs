@@ -23,7 +23,6 @@ import Control.Monad.Codensity
 import Data.Aeson qualified as Aeson
 import Data.Binary.Builder
 import Data.Domain
-import Data.Handle
 import Data.LegalHold (UserLegalHoldStatus (UserLegalHoldNoConsent))
 import Data.Text.Encoding qualified as Text
 import Federator.Discovery
@@ -57,22 +56,20 @@ spec env = do
       runTestFederator env $ do
         brig <- view teBrig <$> ask
         user <- randomUser brig
-        hdl <- randomHandle
-        _ <- putHandle brig (userId user) hdl
 
-        let expectedProfile = (publicProfile user UserLegalHoldNoConsent) {profileHandle = Just (Handle hdl)}
+        let expectedProfile = publicProfile user UserLegalHoldNoConsent
         runTestSem $ do
           resp <-
             liftToCodensity
               . assertNoError @RemoteError
               $ inwardBrigCallViaIngress
-                "get-user-by-handle"
-                (Aeson.fromEncoding (Aeson.toEncoding hdl))
+                "get-users-by-ids"
+                (Aeson.fromEncoding (Aeson.toEncoding [userId user]))
           embed . lift @Codensity $ do
             bdy <- streamingResponseStrictBody resp
             let actualProfile = Aeson.decode (toLazyByteString bdy)
             responseStatusCode resp `shouldBe` HTTP.status200
-            actualProfile `shouldBe` Just expectedProfile
+            actualProfile `shouldBe` Just [expectedProfile]
 
   -- @SF.Federation @TSFI.RESTfulAPI @S2 @S3 @S7
   --
@@ -106,9 +103,9 @@ spec env = do
               (Aeson.fromEncoding (Aeson.toEncoding hdl))
         liftToCodensity . embed $ case r of
           Right _ -> expectationFailure "Expected client certificate error, got response"
-          Left (RemoteError _ _) ->
+          Left (RemoteError {}) ->
             expectationFailure "Expected client certificate error, got remote error"
-          Left (RemoteErrorResponse _ status _) -> status `shouldBe` HTTP.status400
+          Left (RemoteErrorResponse _ _ status _) -> status `shouldBe` HTTP.status400
 
 -- FUTUREWORK: ORMOLU_DISABLE
 -- @END
@@ -144,8 +141,8 @@ inwardBrigCallViaIngressWithSettings ::
   Sem r StreamingResponse
 inwardBrigCallViaIngressWithSettings sslCtx requestPath payload =
   do
-    Endpoint ingressHost ingressPort <- cfgNginxIngress . view teTstOpts <$> input
-    originDomain <- cfgOriginDomain . view teTstOpts <$> input
+    Endpoint ingressHost ingressPort <- nginxIngress . view teTstOpts <$> input
+    originDomain <- originDomain . view teTstOpts <$> input
     let target = SrvTarget (cs ingressHost) ingressPort
         headers = [(originDomainHeaderName, Text.encodeUtf8 originDomain)]
     mgr <- liftToCodensity . liftIO $ http2ManagerWithSSLCtx sslCtx

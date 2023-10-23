@@ -12,7 +12,7 @@ putTeamMember user team perms = do
   tid <- asString team
   req <-
     baseRequest
-      OwnDomain
+      user
       Galley
       Unversioned
       ("/i/teams/" <> tid <> "/members")
@@ -32,9 +32,9 @@ putTeamMember user team perms = do
       ]
       req
 
-getTeamFeature :: HasCallStack => String -> String -> App Response
-getTeamFeature featureName tid = do
-  req <- baseRequest OwnDomain Galley Unversioned $ joinHttpPath ["i", "teams", tid, "features", featureName]
+getTeamFeature :: (HasCallStack, MakesValue domain_) => domain_ -> String -> String -> App Response
+getTeamFeature domain_ featureName tid = do
+  req <- baseRequest domain_ Galley Unversioned $ joinHttpPath ["i", "teams", tid, "features", featureName]
   submit "GET" $ req
 
 getFederationStatus ::

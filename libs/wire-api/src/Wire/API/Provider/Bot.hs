@@ -31,10 +31,11 @@ module Wire.API.Provider.Bot
 where
 
 import Control.Lens (makeLenses)
-import Data.Aeson
+import Data.Aeson qualified as A
 import Data.Handle (Handle)
 import Data.Id
-import Data.Json.Util ((#))
+import Data.OpenApi qualified as S
+import Data.Schema
 import Imports
 import Wire.API.Conversation.Member (OtherMember (..))
 import Wire.API.User.Profile (ColourId, Name)
@@ -51,24 +52,18 @@ data BotConvView = BotConvView
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform BotConvView)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema BotConvView
+
+instance ToSchema BotConvView where
+  schema =
+    object "BotConvView" $
+      BotConvView
+        <$> _botConvId .= field "id" schema
+        <*> _botConvName .= maybe_ (optField "name" schema)
+        <*> _botConvMembers .= field "members" (array schema)
 
 botConvView :: ConvId -> Maybe Text -> [OtherMember] -> BotConvView
 botConvView = BotConvView
-
-instance ToJSON BotConvView where
-  toJSON c =
-    object $
-      "id" .= _botConvId c
-        # "name" .= _botConvName c
-        # "members" .= _botConvMembers c
-        # []
-
-instance FromJSON BotConvView where
-  parseJSON = withObject "BotConvView" $ \o ->
-    BotConvView
-      <$> o .: "id"
-      <*> o .:? "name"
-      <*> o .: "members"
 
 --------------------------------------------------------------------------------
 -- BotUserView
@@ -82,24 +77,16 @@ data BotUserView = BotUserView
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform BotUserView)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema BotUserView
 
-instance ToJSON BotUserView where
-  toJSON u =
-    object
-      [ "id" .= botUserViewId u,
-        "name" .= botUserViewName u,
-        "accent_id" .= botUserViewColour u,
-        "handle" .= botUserViewHandle u,
-        "team" .= botUserViewTeam u
-      ]
-
-instance FromJSON BotUserView where
-  parseJSON = withObject "BotUserView" $ \o ->
-    BotUserView
-      <$> o .: "id"
-      <*> o .: "name"
-      <*> o .: "accent_id"
-      <*> o .:? "handle"
-      <*> o .:? "team"
+instance ToSchema BotUserView where
+  schema =
+    object "BotUserView" $
+      BotUserView
+        <$> botUserViewId .= field "id" schema
+        <*> botUserViewName .= field "name" schema
+        <*> botUserViewColour .= field "accent_id" schema
+        <*> botUserViewHandle .= optField "handle" (maybeWithDefault A.Null schema)
+        <*> botUserViewTeam .= optField "team" (maybeWithDefault A.Null schema)
 
 makeLenses ''BotConvView

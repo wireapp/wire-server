@@ -49,12 +49,13 @@ where
 import Control.Lens (at, (%~), (.~), (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Aeson qualified as A
+import Data.HashMap.Strict.InsOrd
 import Data.Kind
 import Data.Metrics.Servant
+import Data.OpenApi qualified as S
 import Data.Proxy
 import Data.SOP
 import Data.Schema
-import Data.Swagger qualified as S
 import Data.Text qualified as Text
 import Data.Text.Lazy qualified as LT
 import GHC.TypeLits
@@ -65,9 +66,10 @@ import Network.Wai.Utilities.JSONResponse
 import Polysemy
 import Polysemy.Error
 import Servant
-import Servant.Swagger
+import Servant.OpenApi
 import Wire.API.Routes.MultiVerb
-import Wire.API.Routes.Named (Named)
+import Wire.API.Routes.Named (UntypedNamed)
+import Wire.API.Routes.Version
 
 -- | Runtime representation of a statically-known error.
 data DynError = DynError
@@ -167,6 +169,10 @@ instance RoutesToPaths api => RoutesToPaths (CanThrow err :> api) where
 instance RoutesToPaths api => RoutesToPaths (CanThrowMany errs :> api) where
   getRoutes = getRoutes @api
 
+type instance
+  SpecialiseToVersion v (CanThrow e :> api) =
+    CanThrow e :> SpecialiseToVersion v api
+
 instance (HasServer api ctx) => HasServer (CanThrow e :> api) ctx where
   type ServerT (CanThrow e :> api) m = ServerT api m
 
@@ -180,37 +186,49 @@ instance (HasServer api ctx) => HasServer (CanThrowMany es :> api) ctx where
   hoistServerWithContext _ = hoistServerWithContext (Proxy @api)
 
 instance
-  (HasSwagger api, IsSwaggerError e) =>
-  HasSwagger (CanThrow e :> api)
+  (HasOpenApi api, IsSwaggerError e) =>
+  HasOpenApi (CanThrow e :> api)
   where
-  toSwagger _ = addToSwagger @e (toSwagger (Proxy @api))
+  toOpenApi _ = addToOpenApi @e (toOpenApi (Proxy @api))
 
-instance HasSwagger api => HasSwagger (CanThrowMany '() :> api) where
-  toSwagger _ = toSwagger (Proxy @api)
+type instance
+  SpecialiseToVersion v (CanThrowMany es :> api) =
+    CanThrowMany es :> SpecialiseToVersion v api
+
+instance HasOpenApi api => HasOpenApi (CanThrowMany '() :> api) where
+  toOpenApi _ = toOpenApi (Proxy @api)
 
 instance
-  (HasSwagger (CanThrowMany es :> api), IsSwaggerError e) =>
-  HasSwagger (CanThrowMany '(e, es) :> api)
+  (HasOpenApi (CanThrowMany es :> api), IsSwaggerError e) =>
+  HasOpenApi (CanThrowMany '(e, es) :> api)
   where
-  toSwagger _ = addToSwagger @e (toSwagger (Proxy @(CanThrowMany es :> api)))
+  toOpenApi _ = addToOpenApi @e (toOpenApi (Proxy @(CanThrowMany es :> api)))
 
 type family DeclaredErrorEffects api :: EffectRow where
   DeclaredErrorEffects (CanThrow e :> api) = (ErrorEffect e ': DeclaredErrorEffects api)
   DeclaredErrorEffects (CanThrowMany '(e, es) :> api) =
     DeclaredErrorEffects (CanThrow e :> CanThrowMany es :> api)
   DeclaredErrorEffects (x :> api) = DeclaredErrorEffects api
-  DeclaredErrorEffects (Named n api) = DeclaredErrorEffects api
+  DeclaredErrorEffects (UntypedNamed n api) = DeclaredErrorEffects api
   DeclaredErrorEffects api = '[]
 
-errorResponseSwagger :: forall e. KnownError e => S.Response
+errorResponseSwagger :: forall e. (Typeable e, KnownError e) => S.Response
 errorResponseSwagger =
   mempty
     & S.description .~ (eMessage err <> " (label: `" <> eLabel err <> "`)")
-    & S.schema ?~ S.Inline (S.toSchema (Proxy @(SStaticError e)))
+    -- Defaulting this to JSON, as openapi3 needs something to map a schema against.
+    -- This _should_ be overridden with the actual media types once we are at the
+    -- point of rendering out the schemas for MultiVerb.
+    -- Check the instance of `S.HasOpenApi (MultiVerb method (cs :: [Type]) as r)`
+    & S.content .~ singleton mediaType mediaTypeObject
   where
     err = dynError @e
+    mediaType = contentType $ Proxy @JSON
+    mediaTypeObject =
+      mempty
+        & S.schema ?~ S.Inline (S.toSchema (Proxy @(SStaticError e)))
 
-addErrorResponseToSwagger :: Int -> S.Response -> S.Swagger -> S.Swagger
+addErrorResponseToSwagger :: Int -> S.Response -> S.OpenApi -> S.OpenApi
 addErrorResponseToSwagger code resp =
   S.allOperations
     . S.responses
@@ -224,7 +242,7 @@ addErrorResponseToSwagger code resp =
     addRef (Just (S.Inline resp1)) = S.Inline (combineResponseSwagger resp1 resp)
     addRef (Just r@(S.Ref _)) = r
 
-addStaticErrorToSwagger :: forall e. KnownError e => S.Swagger -> S.Swagger
+addStaticErrorToSwagger :: forall e. (Typeable e, KnownError e) => S.OpenApi -> S.OpenApi
 addStaticErrorToSwagger =
   addErrorResponseToSwagger
     (fromIntegral (eCode (dynError @e)))
@@ -235,7 +253,7 @@ type family MapError (e :: k) :: StaticError
 type family ErrorEffect (e :: k) :: Effect
 
 class IsSwaggerError e where
-  addToSwagger :: S.Swagger -> S.Swagger
+  addToOpenApi :: S.OpenApi -> S.OpenApi
 
 -- | An effect for a static error type with no data.
 type ErrorS e = Error (Tagged e ())
@@ -314,7 +332,7 @@ instance KnownError (MapError e) => AsConstructor '[] (ErrorResponse e) where
   toConstructor _ = Nil
   fromConstructor _ = dynError @(MapError e)
 
-instance KnownError (MapError e) => IsSwaggerResponse (ErrorResponse e) where
+instance (KnownError (MapError e), Typeable (MapError e)) => IsSwaggerResponse (ErrorResponse e) where
   responseSwagger = pure $ errorResponseSwagger @(MapError e)
 
 instance

@@ -19,11 +19,12 @@ module Wire.API.Routes.Internal.LegalHold where
 
 import Control.Lens
 import Data.Id
+import Data.OpenApi (OpenApi)
+import Data.OpenApi.Lens
 import Data.Proxy
-import Data.Swagger
 import Imports
 import Servant.API hiding (Header, WithStatus)
-import Servant.Swagger
+import Servant.OpenApi
 import Wire.API.Team.Feature
 
 type InternalLegalHoldAPI =
@@ -38,7 +39,7 @@ type InternalLegalHoldAPI =
              :> Put '[] NoContent
        )
 
-swaggerDoc :: Swagger
+swaggerDoc :: OpenApi
 swaggerDoc =
-  toSwagger (Proxy @InternalLegalHoldAPI)
+  toOpenApi (Proxy @InternalLegalHoldAPI)
     & info . title .~ "Wire-Server internal legalhold API"

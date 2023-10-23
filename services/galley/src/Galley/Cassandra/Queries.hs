@@ -34,8 +34,8 @@ import Wire.API.Conversation.Code
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.MLS.CipherSuite
-import Wire.API.MLS.KeyPackage
-import Wire.API.MLS.PublicGroupState
+import Wire.API.MLS.GroupInfo
+import Wire.API.MLS.SubConversation
 import Wire.API.Password (Password)
 import Wire.API.Provider
 import Wire.API.Provider.Service
@@ -176,6 +176,10 @@ deleteTeamAdmin = "delete from team_admin where team = ? and user = ?"
 listTeamAdmins :: PrepQuery R (Identity TeamId) (Identity UserId)
 listTeamAdmins = "select user from team_admin where team = ?"
 
+-- | This is not an upsert, but we can't add `IF EXISTS` here, or cassandra will yell `Invalid
+-- "Batch with conditions cannot span multiple tables"` at us.  So we make sure in the
+-- application logic to only call this if the user exists (in the handler, not entirely
+-- race-condition-proof, unfortunately).
 updatePermissions :: PrepQuery W (Permissions, TeamId, UserId) ()
 updatePermissions = "update team_member set perms = ? where team = ? and user = ?"
 
@@ -186,25 +190,25 @@ deleteUserTeam :: PrepQuery W (UserId, TeamId) ()
 deleteUserTeam = "delete from user_team where user = ? and team = ?"
 
 markTeamDeleted :: PrepQuery W (TeamStatus, TeamId) ()
-markTeamDeleted = "update team set status = ? where team = ?"
+markTeamDeleted = {- `IF EXISTS`, but that requires benchmarking -} "update team set status = ? where team = ?"
 
 deleteTeam :: PrepQuery W (TeamStatus, TeamId) ()
-deleteTeam = "update team using timestamp 32503680000000000 set name = 'default', icon = 'default', status = ? where team = ? "
+deleteTeam = {- `IF EXISTS`, but that requires benchmarking -} "update team using timestamp 32503680000000000 set name = 'default', icon = 'default', status = ? where team = ? "
 
 updateTeamName :: PrepQuery W (Text, TeamId) ()
-updateTeamName = "update team set name = ? where team = ?"
+updateTeamName = {- `IF EXISTS`, but that requires benchmarking -} "update team set name = ? where team = ?"
 
 updateTeamIcon :: PrepQuery W (Text, TeamId) ()
-updateTeamIcon = "update team set icon = ? where team = ?"
+updateTeamIcon = {- `IF EXISTS`, but that requires benchmarking -} "update team set icon = ? where team = ?"
 
 updateTeamIconKey :: PrepQuery W (Text, TeamId) ()
-updateTeamIconKey = "update team set icon_key = ? where team = ?"
+updateTeamIconKey = {- `IF EXISTS`, but that requires benchmarking -} "update team set icon_key = ? where team = ?"
 
 updateTeamStatus :: PrepQuery W (TeamStatus, TeamId) ()
-updateTeamStatus = "update team set status = ? where team = ?"
+updateTeamStatus = {- `IF EXISTS`, but that requires benchmarking -} "update team set status = ? where team = ?"
 
 updateTeamSplashScreen :: PrepQuery W (Text, TeamId) ()
-updateTeamSplashScreen = "update team set splash_screen = ? where team = ?"
+updateTeamSplashScreen = {- `IF EXISTS`, but that requires benchmarking -} "update team set splash_screen = ? where team = ?"
 
 -- Conversations ------------------------------------------------------------
 
@@ -225,9 +229,10 @@ selectConv ::
       Maybe ProtocolTag,
       Maybe GroupId,
       Maybe Epoch,
+      Maybe (Writetime Epoch),
       Maybe CipherSuiteTag
     )
-selectConv = "select type, creator, access, access_role, access_roles_v2, name, team, deleted, message_timer, receipt_mode, protocol, group_id, epoch, cipher_suite from conversation where conv = ?"
+selectConv = "select type, creator, access, access_role, access_roles_v2, name, team, deleted, message_timer, receipt_mode, protocol, group_id, epoch, WRITETIME(epoch), cipher_suite from conversation where conv = ?"
 
 selectReceiptMode :: PrepQuery R (Identity ConvId) (Identity (Maybe ReceiptMode))
 selectReceiptMode = "select receipt_mode from conversation where conv = ?"
@@ -235,7 +240,7 @@ selectReceiptMode = "select receipt_mode from conversation where conv = ?"
 isConvDeleted :: PrepQuery R (Identity ConvId) (Identity (Maybe Bool))
 isConvDeleted = "select deleted from conversation where conv = ?"
 
-insertConv :: PrepQuery W (ConvId, ConvType, UserId, C.Set Access, C.Set AccessRole, Maybe Text, Maybe TeamId, Maybe Milliseconds, Maybe ReceiptMode, ProtocolTag, Maybe GroupId, Maybe Epoch, Maybe CipherSuiteTag) ()
+insertConv :: PrepQuery W (ConvId, ConvType, Maybe UserId, C.Set Access, C.Set AccessRole, Maybe Text, Maybe TeamId, Maybe Milliseconds, Maybe ReceiptMode, ProtocolTag, Maybe GroupId, Maybe Epoch, Maybe CipherSuiteTag) ()
 insertConv = "insert into conversation (conv, type, creator, access, access_roles_v2, name, team, message_timer, receipt_mode, protocol, group_id, epoch, cipher_suite) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
 insertMLSSelfConv ::
@@ -243,7 +248,7 @@ insertMLSSelfConv ::
     W
     ( ConvId,
       ConvType,
-      UserId,
+      Maybe UserId,
       C.Set Access,
       C.Set AccessRole,
       Maybe Text,
@@ -263,35 +268,48 @@ insertMLSSelfConv =
       <> show (fromEnum ProtocolMLSTag)
       <> ", ?, ?)"
 
+updateToMixedConv :: PrepQuery W (ConvId, ProtocolTag, GroupId, Epoch, CipherSuiteTag) ()
+updateToMixedConv =
+  "insert into conversation (conv, protocol, group_id, epoch, cipher_suite) values (?, ?, ?, ?, ?)"
+
+updateToMLSConv :: PrepQuery W (ConvId, ProtocolTag) ()
+updateToMLSConv = "insert into conversation (conv, protocol) values (?, ?)"
+
 updateConvAccess :: PrepQuery W (C.Set Access, C.Set AccessRole, ConvId) ()
-updateConvAccess = "update conversation set access = ?, access_roles_v2 = ? where conv = ?"
+updateConvAccess = {- `IF EXISTS`, but that requires benchmarking -} "update conversation set access = ?, access_roles_v2 = ? where conv = ?"
 
 updateConvReceiptMode :: PrepQuery W (ReceiptMode, ConvId) ()
-updateConvReceiptMode = "update conversation set receipt_mode = ? where conv = ?"
+updateConvReceiptMode = {- `IF EXISTS`, but that requires benchmarking -} "update conversation set receipt_mode = ? where conv = ?"
 
 updateConvMessageTimer :: PrepQuery W (Maybe Milliseconds, ConvId) ()
-updateConvMessageTimer = "update conversation set message_timer = ? where conv = ?"
+updateConvMessageTimer = {- `IF EXISTS`, but that requires benchmarking -} "update conversation set message_timer = ? where conv = ?"
 
 updateConvName :: PrepQuery W (Text, ConvId) ()
-updateConvName = "update conversation set name = ? where conv = ?"
+updateConvName = {- `IF EXISTS`, but that requires benchmarking -} "update conversation set name = ? where conv = ?"
 
 updateConvType :: PrepQuery W (ConvType, ConvId) ()
-updateConvType = "update conversation set type = ? where conv = ?"
+updateConvType = {- `IF EXISTS`, but that requires benchmarking -} "update conversation set type = ? where conv = ?"
+
+getConvEpoch :: PrepQuery R (Identity ConvId) (Identity (Maybe Epoch))
+getConvEpoch = "select epoch from conversation where conv = ?"
 
 updateConvEpoch :: PrepQuery W (Epoch, ConvId) ()
-updateConvEpoch = "update conversation set epoch = ? where conv = ?"
+updateConvEpoch = {- `IF EXISTS`, but that requires benchmarking -} "update conversation set epoch = ? where conv = ?"
+
+updateConvCipherSuite :: PrepQuery W (CipherSuiteTag, ConvId) ()
+updateConvCipherSuite = "update conversation set cipher_suite = ? where conv = ?"
 
 deleteConv :: PrepQuery W (Identity ConvId) ()
 deleteConv = "delete from conversation using timestamp 32503680000000000 where conv = ?"
 
 markConvDeleted :: PrepQuery W (Identity ConvId) ()
-markConvDeleted = "update conversation set deleted = true where conv = ?"
+markConvDeleted = {- `IF EXISTS`, but that requires benchmarking -} "update conversation set deleted = true where conv = ?"
 
-selectPublicGroupState :: PrepQuery R (Identity ConvId) (Identity (Maybe OpaquePublicGroupState))
-selectPublicGroupState = "select public_group_state from conversation where conv = ?"
+selectGroupInfo :: PrepQuery R (Identity ConvId) (Identity GroupInfoData)
+selectGroupInfo = "select public_group_state from conversation where conv = ?"
 
-updatePublicGroupState :: PrepQuery W (OpaquePublicGroupState, ConvId) ()
-updatePublicGroupState = "update conversation set public_group_state = ? where conv = ?"
+updateGroupInfo :: PrepQuery W (GroupInfoData, ConvId) ()
+updateGroupInfo = "update conversation set public_group_state = ? where conv = ?"
 
 -- Conversations accessible by code -----------------------------------------
 
@@ -321,13 +339,37 @@ insertUserConv = "insert into user (user, conv) values (?, ?)"
 deleteUserConv :: PrepQuery W (UserId, ConvId) ()
 deleteUserConv = "delete from user where user = ? and conv = ?"
 
--- MLS Conversations --------------------------------------------------------
+-- MLS SubConversations -----------------------------------------------------
 
-insertGroupId :: PrepQuery W (GroupId, ConvId, Domain) ()
-insertGroupId = "INSERT INTO group_id_conv_id (group_id, conv_id, domain) VALUES (?, ?, ?)"
+selectSubConversation :: PrepQuery R (ConvId, SubConvId) (Maybe CipherSuiteTag, Maybe Epoch, Maybe (Writetime Epoch), Maybe GroupId)
+selectSubConversation = "SELECT cipher_suite, epoch, WRITETIME(epoch), group_id FROM subconversation WHERE conv_id = ? and subconv_id = ?"
 
-lookupGroupId :: PrepQuery R (Identity GroupId) (ConvId, Domain)
-lookupGroupId = "SELECT conv_id, domain from group_id_conv_id where group_id = ?"
+insertSubConversation :: PrepQuery W (ConvId, SubConvId, CipherSuiteTag, Epoch, GroupId, Maybe GroupInfoData) ()
+insertSubConversation = "INSERT INTO subconversation (conv_id, subconv_id, cipher_suite, epoch, group_id, public_group_state) VALUES (?, ?, ?, ?, ?, ?)"
+
+updateSubConvGroupInfo :: PrepQuery W (ConvId, SubConvId, Maybe GroupInfoData) ()
+updateSubConvGroupInfo = "INSERT INTO subconversation (conv_id, subconv_id, public_group_state) VALUES (?, ?, ?)"
+
+selectSubConvGroupInfo :: PrepQuery R (ConvId, SubConvId) (Identity (Maybe GroupInfoData))
+selectSubConvGroupInfo = "SELECT public_group_state FROM subconversation WHERE conv_id = ? AND subconv_id = ?"
+
+selectSubConvEpoch :: PrepQuery R (ConvId, SubConvId) (Identity (Maybe Epoch))
+selectSubConvEpoch = "SELECT epoch FROM subconversation WHERE conv_id = ? AND subconv_id = ?"
+
+insertEpochForSubConversation :: PrepQuery W (Epoch, ConvId, SubConvId) ()
+insertEpochForSubConversation = "UPDATE subconversation set epoch = ? WHERE conv_id = ? AND subconv_id = ?"
+
+insertCipherSuiteForSubConversation :: PrepQuery W (CipherSuiteTag, ConvId, SubConvId) ()
+insertCipherSuiteForSubConversation = "UPDATE subconversation set cipher_suite = ? WHERE conv_id = ? AND subconv_id = ?"
+
+listSubConversations :: PrepQuery R (Identity ConvId) (SubConvId, CipherSuiteTag, Epoch, Writetime Epoch, GroupId)
+listSubConversations = "SELECT subconv_id, cipher_suite, epoch, WRITETIME(epoch), group_id FROM subconversation WHERE conv_id = ?"
+
+selectSubConversations :: PrepQuery R (Identity ConvId) (Identity SubConvId)
+selectSubConversations = "SELECT subconv_id FROM subconversation WHERE conv_id = ?"
+
+deleteSubConversation :: PrepQuery W (ConvId, SubConvId) ()
+deleteSubConversation = "DELETE FROM subconversation where conv_id = ? and subconv_id = ?"
 
 -- Members ------------------------------------------------------------------
 
@@ -349,16 +391,16 @@ removeMember :: PrepQuery W (ConvId, UserId) ()
 removeMember = "delete from member where conv = ? and user = ?"
 
 updateOtrMemberMutedStatus :: PrepQuery W (MutedStatus, Maybe Text, ConvId, UserId) ()
-updateOtrMemberMutedStatus = "update member set otr_muted_status = ?, otr_muted_ref = ? where conv = ? and user = ?"
+updateOtrMemberMutedStatus = {- `IF EXISTS`, but that requires benchmarking -} "update member set otr_muted_status = ?, otr_muted_ref = ? where conv = ? and user = ?"
 
 updateOtrMemberArchived :: PrepQuery W (Bool, Maybe Text, ConvId, UserId) ()
-updateOtrMemberArchived = "update member set otr_archived = ?, otr_archived_ref = ? where conv = ? and user = ?"
+updateOtrMemberArchived = {- `IF EXISTS`, but that requires benchmarking -} "update member set otr_archived = ?, otr_archived_ref = ? where conv = ? and user = ?"
 
 updateMemberHidden :: PrepQuery W (Bool, Maybe Text, ConvId, UserId) ()
-updateMemberHidden = "update member set hidden = ?, hidden_ref = ? where conv = ? and user = ?"
+updateMemberHidden = {- `IF EXISTS`, but that requires benchmarking -} "update member set hidden = ?, hidden_ref = ? where conv = ? and user = ?"
 
 updateMemberConvRoleName :: PrepQuery W (RoleName, ConvId, UserId) ()
-updateMemberConvRoleName = "update member set conversation_role = ? where conv = ? and user = ?"
+updateMemberConvRoleName = {- `IF EXISTS`, but that requires benchmarking -} "update member set conversation_role = ? where conv = ? and user = ?"
 
 -- Federated conversations -----------------------------------------------------
 --
@@ -379,7 +421,7 @@ selectRemoteMembers :: PrepQuery R (Identity ConvId) (Domain, UserId, RoleName)
 selectRemoteMembers = "select user_remote_domain, user_remote_id, conversation_role from member_remote_user where conv = ?"
 
 updateRemoteMemberConvRoleName :: PrepQuery W (RoleName, ConvId, Domain, UserId) ()
-updateRemoteMemberConvRoleName = "update member_remote_user set conversation_role = ? where conv = ? and user_remote_domain = ? and user_remote_id = ?"
+updateRemoteMemberConvRoleName = {- `IF EXISTS`, but that requires benchmarking -} "update member_remote_user set conversation_role = ? where conv = ? and user_remote_domain = ? and user_remote_id = ?"
 
 -- Used when removing a federation domain, so that we can quickly list all of the affected remote users and conversations
 -- This returns local conversation IDs and remote users
@@ -411,13 +453,13 @@ selectLocalMembersByDomain = "select conv_remote_id, user from user_remote_conv 
 -- remote conversation status for local user
 
 updateRemoteOtrMemberMutedStatus :: PrepQuery W (MutedStatus, Maybe Text, Domain, ConvId, UserId) ()
-updateRemoteOtrMemberMutedStatus = "update user_remote_conv set otr_muted_status = ?, otr_muted_ref = ? where conv_remote_domain = ? and conv_remote_id = ? and user = ?"
+updateRemoteOtrMemberMutedStatus = {- `IF EXISTS`, but that requires benchmarking -} "update user_remote_conv set otr_muted_status = ?, otr_muted_ref = ? where conv_remote_domain = ? and conv_remote_id = ? and user = ?"
 
 updateRemoteOtrMemberArchived :: PrepQuery W (Bool, Maybe Text, Domain, ConvId, UserId) ()
-updateRemoteOtrMemberArchived = "update user_remote_conv set otr_archived = ?, otr_archived_ref = ? where conv_remote_domain = ? and conv_remote_id = ? and user = ?"
+updateRemoteOtrMemberArchived = {- `IF EXISTS`, but that requires benchmarking -} "update user_remote_conv set otr_archived = ?, otr_archived_ref = ? where conv_remote_domain = ? and conv_remote_id = ? and user = ?"
 
 updateRemoteMemberHidden :: PrepQuery W (Bool, Maybe Text, Domain, ConvId, UserId) ()
-updateRemoteMemberHidden = "update user_remote_conv set hidden = ?, hidden_ref = ? where conv_remote_domain = ? and conv_remote_id = ? and user = ?"
+updateRemoteMemberHidden = {- `IF EXISTS`, but that requires benchmarking -} "update user_remote_conv set hidden = ?, hidden_ref = ? where conv_remote_domain = ? and conv_remote_id = ? and user = ?"
 
 selectRemoteMemberStatus :: PrepQuery R (Domain, ConvId, UserId) (Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text)
 selectRemoteMemberStatus = "select otr_muted_status, otr_muted_ref, otr_archived, otr_archived_ref, hidden, hidden_ref from user_remote_conv where conv_remote_domain = ? and conv_remote_id = ? and user = ?"
@@ -430,26 +472,32 @@ selectClients = "select user, clients from clients where user in ?"
 rmClients :: PrepQuery W (Identity UserId) ()
 rmClients = "delete from clients where user = ?"
 
-addMemberClient :: ClientId -> QueryString W (Identity UserId) ()
-addMemberClient c =
+upsertMemberAddClient :: ClientId -> QueryString W (Identity UserId) ()
+upsertMemberAddClient c =
   let t = LT.fromStrict (client c)
    in QueryString $ "update clients set clients = clients + {'" <> t <> "'} where user = ?"
 
-rmMemberClient :: ClientId -> QueryString W (Identity UserId) ()
-rmMemberClient c =
+upsertMemberRmClient :: ClientId -> QueryString W (Identity UserId) ()
+upsertMemberRmClient c =
   let t = LT.fromStrict (client c)
    in QueryString $ "update clients set clients = clients - {'" <> t <> "'} where user = ?"
 
 -- MLS Clients --------------------------------------------------------------
 
-addMLSClient :: PrepQuery W (GroupId, Domain, UserId, ClientId, KeyPackageRef) ()
-addMLSClient = "insert into mls_group_member_client (group_id, user_domain, user, client, key_package_ref) values (?, ?, ?, ?, ?)"
+addMLSClient :: PrepQuery W (GroupId, Domain, UserId, ClientId, Int32) ()
+addMLSClient = "insert into mls_group_member_client (group_id, user_domain, user, client, leaf_node_index, removal_pending) values (?, ?, ?, ?, ?, false)"
+
+planMLSClientRemoval :: PrepQuery W (GroupId, Domain, UserId, ClientId) ()
+planMLSClientRemoval = "update mls_group_member_client set removal_pending = true where group_id = ? and user_domain = ? and user = ? and client = ?"
 
 removeMLSClient :: PrepQuery W (GroupId, Domain, UserId, ClientId) ()
 removeMLSClient = "delete from mls_group_member_client where group_id = ? and user_domain = ? and user = ? and client = ?"
 
-lookupMLSClients :: PrepQuery R (Identity GroupId) (Domain, UserId, ClientId, KeyPackageRef)
-lookupMLSClients = "select user_domain, user, client, key_package_ref from mls_group_member_client where group_id = ?"
+removeAllMLSClients :: PrepQuery W (Identity GroupId) ()
+removeAllMLSClients = "DELETE FROM mls_group_member_client WHERE group_id = ?"
+
+lookupMLSClients :: PrepQuery R (Identity GroupId) (Domain, UserId, ClientId, Int32, Bool)
+lookupMLSClients = "select user_domain, user, client, leaf_node_index, removal_pending from mls_group_member_client where group_id = ?"
 
 acquireCommitLock :: PrepQuery W (GroupId, Epoch, Int32) Row
 acquireCommitLock = "insert into mls_commit_locks (group_id, epoch) values (?, ?) if not exists using ttl ?"
@@ -553,7 +601,7 @@ selectSearchVisibility =
 
 updateSearchVisibility :: PrepQuery W (TeamSearchVisibility, TeamId) ()
 updateSearchVisibility =
-  "update team set search_visibility = ? where team = ?"
+  {- `IF EXISTS`, but that requires benchmarking -} "update team set search_visibility = ? where team = ?"
 
 -- Custom Backend -----------------------------------------------------------
 
@@ -561,8 +609,8 @@ selectCustomBackend :: PrepQuery R (Identity Domain) (HttpsUrl, HttpsUrl)
 selectCustomBackend =
   "select config_json_url, webapp_welcome_url from custom_backend where domain = ?"
 
-updateCustomBackend :: PrepQuery W (HttpsUrl, HttpsUrl, Domain) ()
-updateCustomBackend =
+upsertCustomBackend :: PrepQuery W (HttpsUrl, HttpsUrl, Domain) ()
+upsertCustomBackend =
   "update custom_backend set config_json_url = ?, webapp_welcome_url = ? where domain = ?"
 
 deleteCustomBackend :: PrepQuery W (Identity Domain) ()

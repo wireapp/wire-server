@@ -47,6 +47,7 @@ import Data.Id hiding (client)
 import Data.Json.Util (toBase64Text)
 import Data.List1 (List1)
 import Data.List1 qualified as List1
+import Data.Map qualified as Map
 import Data.Misc
 import Data.PEM
 import Data.Qualified
@@ -83,7 +84,6 @@ import Wire.API.Asset hiding (Asset)
 import Wire.API.Connection
 import Wire.API.Conversation
 import Wire.API.Conversation.Bot
-import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Event.Conversation
 import Wire.API.Internal.Notification
@@ -96,11 +96,12 @@ import Wire.API.Team.Feature (featureNameBS)
 import Wire.API.Team.Feature qualified as Public
 import Wire.API.Team.Permission
 import Wire.API.User as User hiding (EmailUpdate, PasswordChange, mkName)
+import Wire.API.User.Auth (CookieType (..))
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
 
-tests :: Domain -> Config -> Manager -> DB.ClientState -> Brig -> Cannon -> Galley -> IO TestTree
-tests dom conf p db b c g = do
+tests :: Domain -> Config -> Manager -> DB.ClientState -> Brig -> Cannon -> Galley -> Nginz -> IO TestTree
+tests dom conf p db b c g n = do
   pure $
     testGroup
       "provider"
@@ -138,14 +139,18 @@ tests dom conf p db b c g = do
             test p "de-whitelisted bots are removed" $
               testWhitelistKickout dom conf db b g c,
             test p "de-whitelisting works with deleted conversations" $
-              testDeWhitelistDeletedConv conf db b g c
+              testDeWhitelistDeletedConv conf db b g c,
+            test p "whitelist via nginz" $ testWhitelistNginz conf db b n
           ],
         testGroup
           "bot"
           [ test p "add-remove" $ testAddRemoveBot conf db b g c,
             test p "message" $ testMessageBot conf db b g c,
             test p "bad fingerprint" $ testBadFingerprint conf db b g c,
-            test p "add bot forbidden" $ testAddBotForbidden conf db b g
+            test p "add bot forbidden" $ testAddBotForbidden conf db b g,
+            test p "claim user prekeys" $ testClaimUserPrekeys conf db b g,
+            test p "list user profiles" $ testListUserProfiles conf db b g,
+            test p "get user clients" $ testGetUserClients conf db b g
           ],
         testGroup
           "bot-teams"
@@ -354,6 +359,12 @@ testAddGetService config db brig = do
     assertEqual "assets" (serviceAssets svc) (serviceProfileAssets svp)
     assertEqual "tags" (serviceTags svc) (serviceProfileTags svp)
     assertBool "enabled" (not (serviceProfileEnabled svp))
+  services :: [Service] <- responseJsonError =<< getServices brig pid <!! const 200 === statusCode
+  liftIO $ do
+    assertBool "list of all services should not be empty" (not (null services))
+  providerServices :: [ServiceProfile] <- responseJsonError =<< getProviderServices brig uid pid <!! const 200 === statusCode
+  liftIO $ do
+    assertBool "list of provider services should not be empty" (not (null providerServices))
 
 -- TODO: Check that disabled services can not be found via tag search?
 --       Need to generate a unique service name for that.
@@ -560,6 +571,57 @@ testAddBotForbidden config db brig galley = withTestService config db brig defSe
     const 403 === statusCode
     const (Just "invalid-conversation") === fmap Error.label . responseJsonMaybe
 
+testClaimUserPrekeys :: Config -> DB.ClientState -> Brig -> Galley -> Http ()
+testClaimUserPrekeys config db brig galley = withTestService config db brig defServiceApp $ \sref _ -> do
+  (pid, sid, u1, _u2, _h) <- prepareUsers sref brig
+  cid <- do
+    rs <- createConv galley u1.userId [] <!! const 201 === statusCode
+    let Just cnv = responseJsonMaybe rs
+    let cid = qUnqualified . cnvQualifiedId $ cnv
+    pure cid
+  addBotResponse :: AddBotResponse <- responseJsonError =<< addBot brig u1.userId pid sid cid <!! const 201 === statusCode
+  let bid = addBotResponse.rsAddBotId
+  let new = defNewClient TemporaryClientType (take 1 somePrekeys) (Imports.head someLastPrekeys)
+  c :: Client <- responseJsonError =<< addClient brig u1.userId new
+
+  let userClients = UserClients $ Map.fromList [(u1.userId, Set.fromList [c.clientId])]
+  actual <- responseJsonError =<< claimUsersPrekeys brig bid userClients <!! const 200 === statusCode
+
+  let expected =
+        UserClientPrekeyMap $
+          UserClientMap $
+            Map.fromList [(u1.userId, Map.fromList [(c.clientId, Just (Imports.head somePrekeys))])]
+
+  liftIO $ assertEqual "claim prekeys" expected actual
+
+testListUserProfiles :: Config -> DB.ClientState -> Brig -> Galley -> Http ()
+testListUserProfiles config db brig galley = withTestService config db brig defServiceApp $ \sref _ -> do
+  (pid, sid, u1, u2, _h) <- prepareUsers sref brig
+  cid <- do
+    rs <- createConv galley u1.userId [] <!! const 201 === statusCode
+    let Just cnv = responseJsonMaybe rs
+    let cid = qUnqualified . cnvQualifiedId $ cnv
+    pure cid
+  addBotResponse :: AddBotResponse <- responseJsonError =<< addBot brig u1.userId pid sid cid <!! const 201 === statusCode
+  let bid = addBotResponse.rsAddBotId
+  resp :: [Ext.BotUserView] <- responseJsonError =<< listUserProfiles brig bid [u1.userId, u2.userId] <!! const 200 === statusCode
+  liftIO $ Set.fromList (fmap (.botUserViewId) resp) @?= Set.fromList [u1.userId, u2.userId]
+
+testGetUserClients :: Config -> DB.ClientState -> Brig -> Galley -> Http ()
+testGetUserClients config db brig galley = withTestService config db brig defServiceApp $ \sref _ -> do
+  (pid, sid, u1, _u2, _h) <- prepareUsers sref brig
+  cid <- do
+    rs <- createConv galley u1.userId [] <!! const 201 === statusCode
+    let Just cnv = responseJsonMaybe rs
+    let cid = qUnqualified . cnvQualifiedId $ cnv
+    pure cid
+  addBotResponse :: AddBotResponse <- responseJsonError =<< addBot brig u1.userId pid sid cid <!! const 201 === statusCode
+  let bid = addBotResponse.rsAddBotId
+  let new = defNewClient TemporaryClientType (take 1 somePrekeys) (Imports.head someLastPrekeys)
+  expected :: Client <- responseJsonError =<< addClient brig u1.userId new
+  [actual] :: [PubClient] <- responseJsonError =<< getUserClients brig bid u1.userId <!! const 200 === statusCode
+  liftIO $ actual.pubClientId @?= expected.clientId
+
 testAddBotBlocked :: Config -> DB.ClientState -> Brig -> Galley -> Http ()
 testAddBotBlocked config db brig galley = withTestService config db brig defServiceApp $ \sref _buf -> do
   (userId -> u1, _, _, tid, cid, pid, sid) <- prepareBotUsersTeam brig galley sref
@@ -727,7 +789,7 @@ testBotTeamOnlyConv config db brig galley cannon = withTestService config db bri
           let msg = QualifiedUserIdList gone
           assertEqual "conv" cnv (evtConv e)
           assertEqual "user" leaveFrom (evtFrom e)
-          assertEqual "event data" (EdMembersLeave msg) (evtData e)
+          assertEqual "event data" (EdMembersLeave EdReasonRemoved msg) (evtData e)
         _ ->
           assertFailure $ "expected event of type: ConvAccessUpdate or MemberLeave, got: " <> show e
     setAccessRole uid qcid role =
@@ -1204,6 +1266,22 @@ getService brig pid sid =
       . header "Z-Type" "provider"
       . header "Z-Provider" (toByteString' pid)
 
+getServices :: Brig -> ProviderId -> Http ResponseLBS
+getServices brig pid =
+  get $
+    brig
+      . path "/provider/services"
+      . header "Z-Type" "provider"
+      . header "Z-Provider" (toByteString' pid)
+
+getProviderServices :: Brig -> UserId -> ProviderId -> Http ResponseLBS
+getProviderServices brig uid pid =
+  get $
+    brig
+      . paths ["providers", toByteString' pid, "services"]
+      . header "Z-Type" "access"
+      . header "Z-User" (toByteString' uid)
+
 getServiceProfile ::
   Brig ->
   UserId ->
@@ -1414,7 +1492,7 @@ createConvWithAccessRoles ars g u us =
       . contentJson
       . body (RequestBodyLBS (encode conv))
   where
-    conv = NewConv us [] Nothing Set.empty ars Nothing Nothing Nothing roleNameWireAdmin ProtocolProteusTag
+    conv = NewConv us [] Nothing Set.empty ars Nothing Nothing Nothing roleNameWireAdmin BaseProtocolProteusTag
 
 postMessage ::
   Galley ->
@@ -1504,6 +1582,68 @@ enabled2ndFaForTeamInternal galley tid = do
     )
     !!! const 200 === statusCode
 
+getBotSelf :: Brig -> BotId -> Http ResponseLBS
+getBotSelf brig bid =
+  get $
+    brig
+      . path "/bot/self"
+      . header "Z-Type" "bot"
+      . header "Z-Bot" (toByteString' bid)
+
+getBotClient :: Brig -> BotId -> Http ResponseLBS
+getBotClient brig bid =
+  get $
+    brig
+      . path "/bot/client"
+      . header "Z-Type" "bot"
+      . header "Z-Bot" (toByteString' bid)
+      . contentJson
+
+getBotPreKeyIds :: Brig -> BotId -> Http ResponseLBS
+getBotPreKeyIds brig bid =
+  get $
+    brig
+      . path "/bot/client/prekeys"
+      . header "Z-Type" "bot"
+      . header "Z-Bot" (toByteString' bid)
+
+updateBotPrekeys :: Brig -> BotId -> [Prekey] -> Http ResponseLBS
+updateBotPrekeys brig bid prekeys =
+  post $
+    brig
+      . path "/bot/client/prekeys"
+      . header "Z-Type" "bot"
+      . header "Z-Bot" (toByteString' bid)
+      . contentJson
+      . body (RequestBodyLBS (encode (UpdateBotPrekeys prekeys)))
+
+claimUsersPrekeys :: Brig -> BotId -> UserClients -> Http ResponseLBS
+claimUsersPrekeys brig bid ucs =
+  post $
+    brig
+      . path "/bot/users/prekeys"
+      . header "Z-Type" "bot"
+      . header "Z-Bot" (toByteString' bid)
+      . contentJson
+      . body (RequestBodyLBS (encode ucs))
+
+listUserProfiles :: Brig -> BotId -> [UserId] -> Http ResponseLBS
+listUserProfiles brig bid uids =
+  get $
+    brig
+      . path "/bot/users"
+      . header "Z-Type" "bot"
+      . header "Z-Bot" (toByteString' bid)
+      . queryItem "ids" (C8.intercalate "," $ toByteString' <$> uids)
+
+getUserClients :: Brig -> BotId -> UserId -> Http ResponseLBS
+getUserClients brig bid uid =
+  get $
+    brig
+      . paths ["bot", "users", toByteString' uid, "clients"]
+      . header "Z-Type" "bot"
+      . header "Z-Bot" (toByteString' bid)
+
 --------------------------------------------------------------------------------
 -- DB Operations
 
@@ -1545,7 +1685,7 @@ testRegisterProvider db' brig = do
         getProviderActivationCodeInternal brig email
           <!! const 200 === statusCode
       let Just pair = responseJsonMaybe _rs :: Maybe Code.KeyValuePair
-      activateProvider brig (Code.kcKey pair) (Code.kcCode pair)
+      activateProvider brig (Code.key pair) (Code.code pair)
         !!! const 200 === statusCode
   -- Login succeeds after activation (due to auto-approval)
   loginProvider brig email defProviderPassword
@@ -1616,6 +1756,36 @@ disableService brig pid sid = do
           }
   updateServiceConn brig pid sid upd
     !!! const 200 === statusCode
+
+whitelistServiceNginz ::
+  HasCallStack =>
+  Nginz ->
+  -- | Team owner
+  User ->
+  -- | Team
+  TeamId ->
+  ProviderId ->
+  ServiceId ->
+  Http ()
+whitelistServiceNginz nginz user tid pid sid =
+  updateServiceWhitelistNginz nginz user tid (UpdateServiceWhitelist pid sid True) !!! const 200 === statusCode
+
+updateServiceWhitelistNginz ::
+  Nginz ->
+  User ->
+  TeamId ->
+  UpdateServiceWhitelist ->
+  Http ResponseLBS
+updateServiceWhitelistNginz nginz user tid upd = do
+  let Just email = userEmail user
+  rs <- login nginz (defEmailLogin email) PersistentCookie <!! const 200 === statusCode
+  let t = decodeToken rs
+  post $
+    nginz
+      . paths ["teams", toByteString' tid, "services", "whitelist"]
+      . header "Authorization" ("Bearer " <> toByteString' t)
+      . contentJson
+      . body (RequestBodyLBS (encode upd))
 
 whitelistService ::
   HasCallStack =>
@@ -1866,7 +2036,7 @@ wsAssertMemberLeave ws conv usr old = void $
         evtConv e @?= conv
         evtType e @?= MemberLeave
         evtFrom e @?= usr
-        evtData e @?= EdMembersLeave (QualifiedUserIdList old)
+        evtData e @?= EdMembersLeave EdReasonRemoved (QualifiedUserIdList old)
 
 wsAssertConvDelete :: (HasCallStack, MonadIO m) => WS.WebSocket -> Qualified ConvId -> Qualified UserId -> m ()
 wsAssertConvDelete ws conv from = void $
@@ -1913,7 +2083,7 @@ svcAssertMemberLeave buf usr gone cnv = liftIO $ do
       assertEqual "event type" MemberLeave (evtType e)
       assertEqual "conv" cnv (evtConv e)
       assertEqual "user" usr (evtFrom e)
-      assertEqual "event data" (EdMembersLeave msg) (evtData e)
+      assertEqual "event data" (EdMembersLeave EdReasonRemoved msg) (evtData e)
     _ -> assertFailure "Event timeout (TestBotMessage: member-leave)"
 
 svcAssertConvDelete :: (HasCallStack, MonadIO m) => Chan TestBotEvent -> Qualified UserId -> Qualified ConvId -> m ()
@@ -2036,9 +2206,17 @@ testAddRemoveBotUtil localDomain pid sid cid u1 u2 h sref buf brig galley cannon
     let Just rs = responseJsonMaybe _rs
         bid = rsAddBotId rs
         qbuid = Qualified (botUserId bid) localDomain
+    getBotSelf brig bid !!! const 200 === statusCode
+    (randomId >>= getBotSelf brig . BotId) !!! const 404 === statusCode
+    botClient :: Client <- responseJsonError =<< getBotClient brig bid <!! const 200 === statusCode
+    liftIO $ assertEqual "bot client" rs.rsAddBotClient botClient.clientId
+    (randomId >>= getBotClient brig . BotId) !!! const 404 === statusCode
     bot <- svcAssertBotCreated buf bid cid
-    liftIO $ assertEqual "bot client" (rsAddBotClient rs) (testBotClient bot)
+    liftIO $ assertEqual "bot client" rs.rsAddBotClient bot.testBotClient
     liftIO $ assertEqual "bot event" MemberJoin (evtType (rsAddBotEvent rs))
+    -- just check that these endpoints works
+    getBotPreKeyIds brig bid !!! const 200 === statusCode
+    updateBotPrekeys brig bid bot.testBotPrekeys !!! const 200 === statusCode
     -- Member join event for both users
     forM_ [ws1, ws2] $ \ws -> wsAssertMemberJoin ws qcid quid1 [qbuid]
     -- Member join event for the bot
@@ -2068,7 +2246,7 @@ testAddRemoveBotUtil localDomain pid sid cid u1 u2 h sref buf brig galley cannon
     assertEqual "colour" defaultAccentId (profileAccentId bp)
     assertEqual "assets" defServiceAssets (profileAssets bp)
   -- Check that the bot client exists and has prekeys
-  let isBotPrekey = (`elem` testBotPrekeys bot) . prekeyData
+  let isBotPrekey = (`elem` bot.testBotPrekeys) . prekeyData
   getPreKey brig buid buid (rsAddBotClient rs) !!! do
     const 200 === statusCode
     const (Just True) === fmap isBotPrekey . responseJsonMaybe
@@ -2165,6 +2343,14 @@ prepareBotUsersTeam brig galley sref = do
   -- Create conversation
   cid <- Team.createTeamConv galley tid uid1 [uid2] Nothing
   pure (u1, u2, h, tid, cid, pid, sid)
+
+testWhitelistNginz :: Config -> DB.ClientState -> Brig -> Nginz -> Http ()
+testWhitelistNginz config db brig nginz = withTestService config db brig defServiceApp $ \sref _ -> do
+  let pid = sref ^. serviceRefProvider
+  let sid = sref ^. serviceRefId
+  (admin, tid) <- Team.createUserWithTeam brig
+  adminUser <- selfUser <$> getSelfProfile brig admin
+  whitelistServiceNginz nginz adminUser tid pid sid
 
 addBotConv ::
   HasCallStack =>

@@ -34,9 +34,12 @@ import OpenSSL (withOpenSSL)
 import Options.Applicative
 import System.Logger qualified as Logger
 import Test.Tasty
+import Test.Tasty.Ingredients
 import Test.Tasty.Options
+import Test.Tasty.Runners
+import Test.Tasty.Runners.AntXML
 import TestSetup
-import Util.Options
+import Util.Options (Endpoint (Endpoint))
 import Util.Test
 
 data IntegrationConfig = IntegrationConfig
@@ -74,6 +77,8 @@ runTests run = defaultMainWithIngredients ings $
         [ Option (Proxy :: Proxy ServiceConfigFile),
           Option (Proxy :: Proxy IntegrationConfigFile)
         ]
+        : listingTests
+        : composeReporters antXMLRunner consoleTestReporter
         : defaultIngredients
 
 main :: IO ()

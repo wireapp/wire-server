@@ -11,10 +11,10 @@ UPLOAD_LOGS=${UPLOAD_LOGS:-0}
 echo "Running integration tests on wire-server with parallelism=${HELM_PARALLELISM} ..."
 
 CHART=wire-server
-tests=(stern galley cargohold gundeck federator spar brig integration)
+tests=(integration stern galley cargohold gundeck federator spar brig)
 
 cleanup() {
-    if (( CLEANUP_LOCAL_FILES > 0 )); then
+    if ((CLEANUP_LOCAL_FILES > 0)); then
         for t in "${tests[@]}"; do
             rm -f "stat-$t"
             rm -f "logs-$t"
@@ -24,11 +24,12 @@ cleanup() {
 
 # Copy to the concourse output (indetified by $OUTPUT_DIR) for propagation to
 # following steps.
-copyToAwsS3(){
-    if (( UPLOAD_LOGS > 0 )); then
+copyToAwsS3() {
+    build_ts=$(date +%s)
+    if ((UPLOAD_LOGS > 0)); then
         for t in "${tests[@]}"; do
-            echo "Copy logs-$t to s3://wire-server-test-logs/test-logs-$VERSION/$t-$VERSION.log"
-            aws s3 cp "logs-$t" "s3://wire-server-test-logs/test-logs-$VERSION/$t-$VERSION.log"
+            echo "Copy logs-$t to s3://wire-server-test-logs/test-logs-$VERSION/$t-$VERSION-$build_ts.log"
+            aws s3 cp "logs-$t" "s3://wire-server-test-logs/test-logs-$VERSION/$t-$VERSION-$build_ts.log"
         done
     fi
 }
@@ -89,7 +90,7 @@ if ((exit_code > 0)); then
         x=$(cat "stat-$t")
         if ((x > 0)); then
             echo "=== (relevant) logs for failed $t-integration ==="
-            "$DIR/integration-logs-relevant-bits.sh" < "logs-$t"
+            "$DIR/integration-logs-relevant-bits.sh" <"logs-$t"
         fi
     done
     summary

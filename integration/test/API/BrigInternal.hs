@@ -11,6 +11,7 @@ data CreateUser = CreateUser
     password :: Maybe String,
     name :: Maybe String,
     team :: Bool,
+    activate :: Bool,
     supportedProtocols :: Maybe [String]
   }
 
@@ -21,23 +22,25 @@ instance Default CreateUser where
         password = Nothing,
         name = Nothing,
         team = False,
+        activate = True,
         supportedProtocols = Nothing
       }
 
 createUser :: (HasCallStack, MakesValue domain) => domain -> CreateUser -> App Response
 createUser domain cu = do
-  email <- maybe randomEmail pure cu.email
+  re <- randomEmail
+  let email :: Maybe String = guard cu.activate $> fromMaybe re cu.email
   let password = fromMaybe defPassword cu.password
-      name = fromMaybe email cu.name
+      name = fromMaybe "default" (cu.name <|> email)
   req <- baseRequest domain Brig Unversioned "/i/users"
   submit "POST" $
     req
       & addJSONObject
-        ( [ "email" .= email,
-            "name" .= name,
-            "password" .= password,
-            "icon" .= "default"
-          ]
+        ( ["email" .= e | e <- toList email]
+            <> [ "name" .= name,
+                 "password" .= password,
+                 "icon" .= "default"
+               ]
             <> ["supported_protocols" .= prots | prots <- toList cu.supportedProtocols]
             <> [ "team"
                    .= object
@@ -99,17 +102,6 @@ updateFedConn' owndom dom fedConn = do
   conn <- make fedConn
   submit "PUT" $ addJSON conn req
 
-deleteFedConn :: (HasCallStack, MakesValue owndom) => owndom -> String -> App Response
-deleteFedConn owndom dom = do
-  bindResponse (deleteFedConn' owndom dom) $ \res -> do
-    res.status `shouldMatchRange` (200, 299)
-    pure res
-
-deleteFedConn' :: (HasCallStack, MakesValue owndom) => owndom -> String -> App Response
-deleteFedConn' owndom dom = do
-  req <- rawBaseRequest owndom Brig Unversioned ("/i/federation/remotes/" <> dom)
-  submit "DELETE" req
-
 registerOAuthClient :: (HasCallStack, MakesValue user, MakesValue name, MakesValue url) => user -> name -> url -> App Response
 registerOAuthClient user name url = do
   req <- baseRequest user Brig Unversioned "i/oauth/clients"
@@ -137,8 +129,28 @@ deleteOAuthClient user cid = do
   req <- baseRequest user Brig Unversioned $ "i/oauth/clients/" <> clientId
   submit "DELETE" req
 
+getInvitationCode :: (HasCallStack, MakesValue user, MakesValue inv) => user -> inv -> App Response
+getInvitationCode user inv = do
+  tid <- user %. "team" & asString
+  invId <- inv %. "id" & asString
+  req <-
+    baseRequest user Brig Unversioned $
+      "i/teams/invitation-code?team=" <> tid <> "&invitation_id=" <> invId
+  submit "GET" req
+
 refreshIndex :: (HasCallStack, MakesValue domain) => domain -> App ()
 refreshIndex domain = do
   req <- baseRequest domain Brig Unversioned "i/index/refresh"
   res <- submit "POST" req
+  res.status `shouldMatchInt` 200
+
+connectWithRemoteUser :: (MakesValue userFrom, MakesValue userTo) => userFrom -> userTo -> App ()
+connectWithRemoteUser userFrom userTo = do
+  userFromId <- objId userFrom
+  qUserTo <- make userTo
+  let body = ["tag" .= "CreateConnectionForTest", "user" .= userFromId, "other" .= qUserTo]
+  req <-
+    baseRequest userFrom Brig Unversioned $
+      joinHttpPath ["i", "connections", "connection-update"]
+  res <- submit "PUT" (req & addJSONObject body)
   res.status `shouldMatchInt` 200

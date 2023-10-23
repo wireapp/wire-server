@@ -127,8 +127,6 @@ releases:
         value: {{ .Values.federationDomain1 }}
       - name: cargohold.config.settings.federationDomain
         value: {{ .Values.federationDomain1 }}
-      - name: brig.config.optSettings.setFederationDomainConfigs[0].domain
-        value: {{ .Values.federationDomain2 }}
     needs:
       - 'databases-ephemeral'
 
@@ -145,7 +143,5 @@ releases:
         value: {{ .Values.federationDomain2 }}
       - name: cargohold.config.settings.federationDomain
         value: {{ .Values.federationDomain2 }}
-      - name: brig.config.optSettings.setFederationDomainConfigs[0].domain
-        value: {{ .Values.federationDomain1 }}
     needs:
       - 'databases-ephemeral'

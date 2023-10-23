@@ -31,11 +31,11 @@ import Data.Aeson.TH
 import Data.Bifunctor (Bifunctor (first))
 import Data.ByteString.Conversion
 import Data.Json.Util
+import Data.OpenApi qualified as S
+import Data.OpenApi.ParamSchema
 import Data.Proxy (Proxy (Proxy))
 import Data.Range
 import Data.Schema
-import Data.Swagger qualified as S
-import Data.Swagger.ParamSchema
 import Data.Text (pack)
 import Data.Text.Ascii
 import Data.Text.Encoding (encodeUtf8)
@@ -119,8 +119,8 @@ deriving instance Cql Value
 -- (but without a type, using plain fields). This will make it easier to re-use a key/value
 -- pair in the API, keeping "code" in the JSON for backwards compatibility
 data KeyValuePair = KeyValuePair
-  { kcKey :: !Key,
-    kcCode :: !Value
+  { key :: !Key,
+    code :: !Value
   }
   deriving (Eq, Generic, Show)
 

@@ -48,7 +48,7 @@ import Wire.API.Error
 import Wire.API.OAuth as OAuth
 import Wire.API.Password (Password, mkSafePassword)
 import Wire.API.Routes.Internal.Brig.OAuth qualified as I
-import Wire.API.Routes.Named (Named (..))
+import Wire.API.Routes.Named (UntypedNamed (Named))
 import Wire.API.Routes.Public.Brig.OAuth
 import Wire.Sem.Jwk
 import Wire.Sem.Jwk qualified as Jwk
@@ -313,7 +313,7 @@ updateOAuthClient' :: (MonadClient m) => OAuthClientId -> OAuthApplicationName -
 updateOAuthClient' cid name uri = retry x5 . write q $ params LocalQuorum (name, uri, cid)
   where
     q :: PrepQuery W (OAuthApplicationName, RedirectUrl, OAuthClientId) ()
-    q = "UPDATE oauth_client SET name = ?, redirect_uri = ? WHERE id = ?"
+    q = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE oauth_client SET name = ?, redirect_uri = ? WHERE id = ?"
 
 insertOAuthClient :: (MonadClient m) => OAuthClientId -> OAuthApplicationName -> RedirectUrl -> Password -> m ()
 insertOAuthClient cid name uri pw = retry x5 . write q $ params LocalQuorum (cid, name, uri, pw)

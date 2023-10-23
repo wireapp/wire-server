@@ -80,7 +80,7 @@ assertNoRemoteError = \case
 
 mkTestCall :: SSLContext -> ByteString -> Int -> Codensity IO (Either RemoteError ())
 mkTestCall sslCtx hostname port = do
-  mgr <- liftIO $ mkHttp2Manager sslCtx
+  mgr <- liftIO $ mkHttp2Manager 1_000_000 sslCtx
   runM
     . runEmbedded @IO @(Codensity IO) liftIO
     . runError @RemoteError
@@ -142,14 +142,14 @@ testValidatesCertificateWrongHostname =
         withMockServer certForWrongDomain $ \port -> do
           tlsSettings <- mkTLSSettingsOrThrow settings
           runCodensity (mkTestCall tlsSettings "localhost" port) $ \case
-            Left (RemoteError _ (FederatorClientTLSException _)) -> pure ()
+            Left (RemoteError _ _ (FederatorClientTLSException _)) -> pure ()
             Left x -> assertFailure $ "Expected TLS failure, got: " <> show x
             Right _ -> assertFailure "Expected connection with the server to fail",
       testCase "when the server's certificate does not have the server key usage flag" $
         withMockServer certWithoutServerKeyUsage $ \port -> do
           tlsSettings <- mkTLSSettingsOrThrow settings
           runCodensity (mkTestCall tlsSettings "localhost" port) $ \case
-            Left (RemoteError _ (FederatorClientTLSException _)) -> pure ()
+            Left (RemoteError _ _ (FederatorClientTLSException _)) -> pure ()
             Left x -> assertFailure $ "Expected TLS failure, got: " <> show x
             Right _ -> assertFailure "Expected connection with the server to fail"
     ]
@@ -160,7 +160,7 @@ testConnectionError :: TestTree
 testConnectionError = testCase "connection failures are reported correctly" $ do
   tlsSettings <- mkTLSSettingsOrThrow settings
   runCodensity (mkTestCall tlsSettings "localhost" 1) $ \case
-    Left (RemoteError _ (FederatorClientConnectionError _)) -> pure ()
+    Left (RemoteError _ _ (FederatorClientConnectionError _)) -> pure ()
     Left x -> assertFailure $ "Expected connection error, got: " <> show x
     Right _ -> assertFailure "Expected connection with the server to fail"
 

@@ -31,23 +31,26 @@ module Wire.API.MakesFederatedCall
   )
 where
 
+import Control.Lens ((<>~))
 import Data.Aeson
 import Data.Constraint
+import Data.HashSet.InsOrd (singleton)
 import Data.Kind
 import Data.Metrics.Servant
+import Data.OpenApi qualified as S
 import Data.Proxy
 import Data.Schema
-import Data.Swagger.Operation (addExtensions)
 import Data.Text qualified as T
 import GHC.TypeLits
 import Imports
 import Servant.API
 import Servant.Client
+import Servant.OpenApi
 import Servant.Server
-import Servant.Swagger
 import Test.QuickCheck (Arbitrary)
 import TransitiveAnns.Types
 import Unsafe.Coerce (unsafeCoerce)
+import Wire.API.Routes.Version
 import Wire.Arbitrary (GenericUniform (..))
 
 -- | This function exists only to provide a convenient place for the
@@ -151,26 +154,38 @@ type family ShowComponent (x :: Component) = (res :: Symbol) | res -> x where
   ShowComponent 'Galley = "galley"
   ShowComponent 'Cargohold = "cargohold"
 
+type instance
+  SpecialiseToVersion v (MakesFederatedCall comp name :> api) =
+    MakesFederatedCall comp name :> SpecialiseToVersion v api
+
 -- | 'MakesFederatedCall' annotates the swagger documentation with an extension
 -- tag @x-wire-makes-federated-calls-to@.
-instance (HasSwagger api, KnownSymbol name, KnownSymbol (ShowComponent comp)) => HasSwagger (MakesFederatedCall comp name :> api :: Type) where
-  toSwagger _ =
-    toSwagger (Proxy @api)
-      & addExtensions
-        mergeJSONArray
-        [ ( "wire-makes-federated-call-to",
-            Array
-              [ Array
-                  [ String $ T.pack $ symbolVal $ Proxy @(ShowComponent comp),
-                    String $ T.pack $ symbolVal $ Proxy @name
-                  ]
-              ]
-          )
-        ]
+instance (HasOpenApi api, KnownSymbol name, KnownSymbol (ShowComponent comp)) => HasOpenApi (MakesFederatedCall comp name :> api :: Type) where
+  toOpenApi _ =
+    toOpenApi (Proxy @api)
+      -- Since extensions aren't in the openapi3 library yet,
+      -- and the PRs for their support seem be going no where quickly, I'm using
+      -- tags instead. https://github.com/biocad/openapi3/pull/43
+      -- Basically, this is similar to the old system, except we don't have nested JSON to
+      -- work with. So I'm using the magic string and sticking the call name on the end
+      -- and sticking the component in the description. This ordering is important as we
+      -- can't have duplicate tag names on an object.
 
-mergeJSONArray :: Value -> Value -> Value
-mergeJSONArray (Array x) (Array y) = Array $ x <> y
-mergeJSONArray _ _ = error "impossible! bug in construction of federated calls JSON"
+      -- Set the tags at the top of OpenApi object
+      & S.tags
+        <>~ singleton
+          ( S.Tag
+              name
+              (pure $ T.pack (symbolVal $ Proxy @(ShowComponent comp)))
+              Nothing
+          )
+      -- Set the tags on the specific path we're looking at
+      -- This is where the tag is actually registered on the path
+      -- so it can be picked up by fedcalls.
+      & S.allOperations . S.tags <>~ setName
+    where
+      name = "wire-makes-federated-call-to-" <> T.pack (symbolVal $ Proxy @name)
+      setName = singleton name
 
 instance HasClient m api => HasClient m (MakesFederatedCall comp name :> api :: Type) where
   type Client m (MakesFederatedCall comp name :> api) = Client m api

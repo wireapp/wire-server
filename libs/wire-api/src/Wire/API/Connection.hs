@@ -45,10 +45,10 @@ import Control.Lens ((?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Id
 import Data.Json.Util (UTCTimeMillis)
+import Data.OpenApi qualified as S
 import Data.Qualified (Qualified (qUnqualified), deprecatedSchema)
 import Data.Range
 import Data.Schema
-import Data.Swagger qualified as S
 import Data.Text as Text
 import Imports
 import Servant.API
@@ -142,7 +142,7 @@ data Relation
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema Relation)
 
 instance S.ToParamSchema Relation where
-  toParamSchema _ = mempty & S.type_ ?~ S.SwaggerString
+  toParamSchema _ = mempty & S.type_ ?~ S.OpenApiString
 
 -- | 'updateConnectionInternal', requires knowledge of the previous state (before
 -- 'MissingLegalholdConsent'), but the clients don't need that information.  To avoid having

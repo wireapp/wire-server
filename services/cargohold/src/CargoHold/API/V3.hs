@@ -69,8 +69,8 @@ upload own bdy = do
   let cl = fromIntegral $ hdrLength hdrs
   when (cl <= 0) $
     throwE invalidLength
-  maxTotalBytes <- view (settings . setMaxTotalBytes)
-  when (cl > maxTotalBytes) $
+  maxBytes <- view (CargoHold.App.settings . maxTotalBytes)
+  when (cl > maxBytes) $
     throwE assetTooLarge
   ast <- liftIO $ Id <$> nextRandom
   tok <- if sets ^. V3.setAssetPublic then pure Nothing else Just <$> randToken
@@ -172,7 +172,7 @@ metadataHeaders =
       cl <- contentLength hdrs
       pure (ct, cl)
 
-assetHeaders :: Parser AssetHeaders
+assetHeaders :: Parser CargoHold.Types.V3.AssetHeaders
 assetHeaders =
   eol
     *> boundary
@@ -180,7 +180,7 @@ assetHeaders =
     <* eol
   where
     go hdrs =
-      AssetHeaders
+      CargoHold.Types.V3.AssetHeaders
         <$> contentType hdrs
         <*> contentLength hdrs
 

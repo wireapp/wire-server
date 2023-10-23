@@ -63,7 +63,7 @@ import Wire.API.Internal.Notification (QueuedNotification)
 import Wire.API.Routes.Internal.Brig.Connection (ConnectionStatus)
 import Wire.API.Routes.Internal.Brig.EJPD qualified as EJPD
 import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
-import Wire.API.Routes.Named (Named (Named))
+import Wire.API.Routes.Named (UntypedNamed (Named))
 import Wire.API.Team.Feature hiding (setStatus)
 import Wire.API.Team.SearchVisibility
 import Wire.API.User
@@ -78,7 +78,7 @@ start o = do
   Server.runSettingsWithShutdown s (servantApp e) Nothing
   where
     server :: Env -> Server.Server
-    server e = Server.defaultServer (unpack $ stern o ^. epHost) (stern o ^. epPort) (e ^. applog) (e ^. metrics)
+    server e = Server.defaultServer (unpack $ stern o ^. host) (stern o ^. port) (e ^. applog) (e ^. metrics)
 
     servantApp :: Env -> Application
     servantApp e =
@@ -402,9 +402,9 @@ getUserData :: UserId -> Maybe Int -> Maybe Int -> Handler UserMetaInfo
 getUserData uid mMaxConvs mMaxNotifs = do
   account <- Intra.getUserProfiles (Left [uid]) >>= noSuchUser . listToMaybe
   conns <- Intra.getUserConnections uid
-  convs <- Intra.getUserConversations uid <&> take (fromMaybe 1 mMaxConvs)
+  convs <- Intra.getUserConversations uid (fromMaybe 1 mMaxConvs)
   clts <- Intra.getUserClients uid
-  notfs <- (Intra.getUserNotifications uid <&> take (fromMaybe 10 mMaxNotifs) <&> toJSON @[QueuedNotification]) `catchE` (pure . String . cs . show)
+  notfs <- (Intra.getUserNotifications uid (fromMaybe 10 mMaxNotifs) <&> toJSON @[QueuedNotification]) `catchE` (pure . String . cs . show)
   consent <- (Intra.getUserConsentValue uid <&> toJSON @ConsentValue) `catchE` (pure . String . cs . show)
   consentLog <- (Intra.getUserConsentLog uid <&> toJSON @ConsentLog) `catchE` (pure . String . cs . show)
   cookies <- Intra.getUserCookies uid

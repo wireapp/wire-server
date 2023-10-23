@@ -80,12 +80,11 @@ let
     proxy = [ "proxy" ];
     spar = [ "spar" "spar-integration" "spar-schema" "spar-migrate-data" ];
     stern = [ "stern" "stern-integration" ];
-
-    billing-team-member-backfill = [ "billing-team-member-backfill" ];
     inconsistencies = [ "inconsistencies" ];
     zauth = [ "zauth" ];
     background-worker = [ "background-worker" ];
     integration = [ "integration" ];
+    rabbitmq-consumer = [ "rabbitmq-consumer" ];
   };
 
   attrsets = lib.attrsets;
@@ -106,7 +105,10 @@ let
         hsuper
         hself;
 
-      werror = _: hlib.failOnAllWarnings;
+      # append `-Werror` to ghc options for all packages.
+      # failOnAllWarnings implies `-Wall`, which overrides any `-Wno-*` from the package cabal file.
+      # https://github.com/NixOS/nixpkgs/blob/1e411c55166539b130b330dafcc4034152f8d4fd/pkgs/development/haskell-modules/lib/compose.nix#L327
+      werror = _: (drv: hlib.appendConfigureFlag drv "--ghc-option=-Werror");
       opt = _: drv:
         if enableOptimization
         then drv
@@ -123,6 +125,9 @@ let
         then drv
         else hlib.dontHaddock drv;
 
+      bench = _: drv:
+        hlib.doBenchmark drv;
+
       overrideAll = fn: overrides:
         attrsets.mapAttrs fn (overrides);
     in
@@ -131,9 +136,10 @@ let
       opt
       docs
       tests
+      bench
     ];
   manualOverrides = import ./manual-overrides.nix (with pkgs; {
-    inherit hlib libsodium protobuf mls-test-cli;
+    inherit hlib libsodium protobuf mls-test-cli fetchpatch;
   });
 
   executables = hself: hsuper:
@@ -249,8 +255,13 @@ let
   # extraContents :: Map Exe Derivation -> Map Text [Derivation]
   extraContents = exes: {
     brig = [ brig-templates ];
-    brig-integration = [ brig-templates pkgs.mls-test-cli ];
-    galley-integration = [ pkgs.mls-test-cli ];
+    brig-integration = [brig-templates pkgs.mls-test-cli pkgs.awscli2];
+    galley-integration = [pkgs.mls-test-cli pkgs.awscli2];
+    stern-integration = [ pkgs.awscli2 ];
+    gundeck-integration = [ pkgs.awscli2 ];
+    cargohold-integration = [ pkgs.awscli2 ];
+    spar-integration = [ pkgs.awscli2 ];
+    federator-integration = [ pkgs.awscli2 ];
     integration = with exes; [
       brig
       brig-index
@@ -269,6 +280,8 @@ let
       brig-templates
       background-worker
       pkgs.nginz
+      pkgs.mls-test-cli
+      pkgs.awscli2
       integration-dynamic-backends-db-schemas
       integration-dynamic-backends-brig-index
       integration-dynamic-backends-sqs
@@ -388,6 +401,7 @@ let
     pkgs.kubectl
     pkgs.kubelogin-oidc
     pkgs.nixpkgs-fmt
+    pkgs.openssl
     pkgs.ormolu
     pkgs.shellcheck
     pkgs.treefmt
@@ -418,6 +432,7 @@ let
   };
 
   shell = (hPkgs localModsOnlyTests).shellFor {
+    doBenchmark = true;
     packages = p: builtins.map (e: p.${e}) wireServerPackages;
   };
   ghcWithPackages = shell.nativeBuildInputs ++ shell.buildInputs;
@@ -464,6 +479,7 @@ in
           flake8
           ipdb
           ipython
+          protobuf
           pylint
           pyyaml
           requests

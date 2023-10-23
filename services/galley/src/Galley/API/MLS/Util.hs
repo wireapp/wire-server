@@ -20,24 +20,31 @@ module Galley.API.MLS.Util where
 import Control.Comonad
 import Data.Id
 import Data.Qualified
+import Data.Text qualified as T
 import Galley.Data.Conversation.Types hiding (Conversation)
 import Galley.Data.Conversation.Types qualified as Data
+import Galley.Data.Types
 import Galley.Effects
 import Galley.Effects.ConversationStore
 import Galley.Effects.MemberStore
 import Galley.Effects.ProposalStore
+import Galley.Effects.SubConversationStore
 import Imports
 import Polysemy
+import Polysemy.Error
+import Polysemy.Resource (Resource, bracket)
 import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as TinyLog
 import System.Logger qualified as Log
+import Wire.API.Conversation hiding (Member)
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.MLS.Epoch
-import Wire.API.MLS.Group
-import Wire.API.MLS.KeyPackage
+import Wire.API.MLS.Group.Serialisation
+import Wire.API.MLS.LeafNode
 import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
+import Wire.API.MLS.SubConversation
 
 getLocalConvForUser ::
   ( Member (ErrorS 'ConvNotFound) r,
@@ -70,18 +77,58 @@ getPendingBackendRemoveProposals ::
   ) =>
   GroupId ->
   Epoch ->
-  Sem r [KeyPackageRef]
+  Sem r [LeafIndex]
 getPendingBackendRemoveProposals gid epoch = do
   proposals <- getAllPendingProposals gid epoch
   catMaybes
     <$> for
       proposals
       ( \case
-          (Just ProposalOriginBackend, proposal) -> case rmValue proposal of
-            RemoveProposal kp -> pure . Just $ kp
+          (Just ProposalOriginBackend, proposal) -> case value proposal of
+            RemoveProposal i -> pure (Just i)
             _ -> pure Nothing
           (Just ProposalOriginClient, _) -> pure Nothing
           (Nothing, _) -> do
             TinyLog.warn $ Log.msg ("found pending proposal without origin, ignoring" :: ByteString)
             pure Nothing
       )
+
+withCommitLock ::
+  forall r a.
+  ( Members
+      '[ Resource,
+         ConversationStore,
+         ErrorS 'MLSStaleMessage,
+         SubConversationStore
+       ]
+      r
+  ) =>
+  Local ConvOrSubConvId ->
+  GroupId ->
+  Epoch ->
+  Sem r a ->
+  Sem r a
+withCommitLock lConvOrSubId gid epoch action =
+  bracket
+    ( acquireCommitLock gid epoch ttl >>= \lockAcquired ->
+        when (lockAcquired == NotAcquired) $
+          throwS @'MLSStaleMessage
+    )
+    (const $ releaseCommitLock gid epoch)
+    $ \_ -> do
+      actualEpoch <-
+        fromMaybe (Epoch 0) <$> case tUnqualified lConvOrSubId of
+          Conv cnv -> getConversationEpoch cnv
+          SubConv cnv sub -> getSubConversationEpoch cnv sub
+      unless (actualEpoch == epoch) $ throwS @'MLSStaleMessage
+      action
+  where
+    ttl = fromIntegral (600 :: Int) -- 10 minutes
+
+getConvFromGroupId ::
+  Member (Error MLSProtocolError) r =>
+  GroupId ->
+  Sem r (ConvType, Qualified ConvOrSubConvId)
+getConvFromGroupId gid = case groupIdToConv gid of
+  Left e -> throw (mlsProtocolError (T.pack e))
+  Right parts -> pure (parts.convType, parts.qConvId)

@@ -43,11 +43,11 @@ import Data.ByteString.Conversion (FromByteString (..), ToByteString (..))
 import Data.Either.Combinators (mapLeft)
 import Data.Id (TeamId, UserId)
 import Data.Json.Util (UTCTimeMillis)
+import Data.OpenApi (ToParamSchema (..))
+import Data.OpenApi qualified as S
 import Data.Proxy
 import Data.Qualified
 import Data.Schema
-import Data.Swagger (ToParamSchema (..))
-import Data.Swagger qualified as S
 import Data.Text qualified as T
 import Data.Text.Ascii (AsciiBase64Url, toText, validateBase64Url)
 import Imports
@@ -228,7 +228,7 @@ data TeamUserSearchSortBy
 instance S.ToParamSchema TeamUserSearchSortBy where
   toParamSchema _ =
     mempty
-      & S.type_ ?~ S.SwaggerString
+      & S.type_ ?~ S.OpenApiString
       & S.enum_ ?~ fmap teamUserSearchSortByName [minBound .. maxBound]
 
 instance ToByteString TeamUserSearchSortBy where
@@ -264,7 +264,7 @@ data TeamUserSearchSortOrder
 instance S.ToParamSchema TeamUserSearchSortOrder where
   toParamSchema _ =
     mempty
-      & S.type_ ?~ S.SwaggerString
+      & S.type_ ?~ S.OpenApiString
       & S.enum_ ?~ fmap teamUserSearchSortOrderName [minBound .. maxBound]
 
 instance ToByteString TeamUserSearchSortOrder where

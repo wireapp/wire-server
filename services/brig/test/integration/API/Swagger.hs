@@ -48,7 +48,7 @@ tests p _opts brigNoImplicitVersion =
         [ test p "toc" $ do
             forM_ ["/api/swagger-ui", "/api/swagger-ui/index.html", "/api/swagger.json"] $ \pth -> do
               r <- get (brigNoImplicitVersion . path pth . expect2xx)
-              liftIO $ assertEqual "toc is intact" (responseBody r) (Just "<html><head></head><body><h2>please pick an api version</h2><a href=\"/v0/api/swagger-ui/\">/v0/api/swagger-ui/</a><br><a href=\"/v1/api/swagger-ui/\">/v1/api/swagger-ui/</a><br><a href=\"/v2/api/swagger-ui/\">/v2/api/swagger-ui/</a><br><a href=\"/v3/api/swagger-ui/\">/v3/api/swagger-ui/</a><br><a href=\"/v4/api/swagger-ui/\">/v4/api/swagger-ui/</a><br></body>")
+              liftIO $ assertEqual "toc is intact" (Just "<html><head></head><body><h2>please pick an api version</h2><a href=\"/v0/api/swagger-ui/\">/v0/api/swagger-ui/</a><br><a href=\"/v1/api/swagger-ui/\">/v1/api/swagger-ui/</a><br><a href=\"/v2/api/swagger-ui/\">/v2/api/swagger-ui/</a><br><a href=\"/v3/api/swagger-ui/\">/v3/api/swagger-ui/</a><br><a href=\"/v4/api/swagger-ui/\">/v4/api/swagger-ui/</a><br><a href=\"/v5/api/swagger-ui/\">/v5/api/swagger-ui/</a><br></body>") (responseBody r)
               -- are all versions listed?
               forM_ [minBound :: Version ..] $ \v -> liftIO $ assertBool (show v) ((cs (toQueryParam v) :: String) `isInfixOf` (cs . fromJust . responseBody $ r))
               -- FUTUREWORK: maybe test that no invalid versions are listed?  (that wouldn't
