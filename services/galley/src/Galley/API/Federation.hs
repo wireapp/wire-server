@@ -414,7 +414,7 @@ onUserDeleted origDomain udcn = do
             Public.SelfConv -> pure ()
             Public.RegularConv -> do
               let botsAndMembers = convBotsAndMembers conv
-              removeUser (qualifyAs lc conv) (tUntagged deletedUser)
+              removeUser (qualifyAs lc conv) RemoveUserIncludeMain (tUntagged deletedUser)
               outcome <-
                 runError @FederationError $
                   notifyConversationAction
