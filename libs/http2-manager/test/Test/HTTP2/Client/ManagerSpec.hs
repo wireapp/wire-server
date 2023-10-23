@@ -72,12 +72,7 @@ spec = do
       withTestServer (Just ctx) $ \TestServer {..} ->
         echoTest mgr True serverPort `shouldThrow` (\(_ :: SSL.SomeSSLException) -> True)
 
-<<<<<<< HEAD
 #if DENABLE-TRAILING-DOT-TEST
-||||||| parent of 8fd17109c ([fix] don't check the trailing dot test in nix tests)
-=======
-#if -DENABLE-TRAILING-DOT-TEST
->>>>>>> 8fd17109c ([fix] don't check the trailing dot test in nix tests)
     it "should allow accepting a certificate without a trailing dot" $ do
       mgr <- setSSLRemoveTrailingDot True <$> mkTestManager
       withTestServer (Just localhostCtx) $ \TestServer {..} ->

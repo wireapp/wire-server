@@ -161,3 +161,7 @@ package zauth
     ghc-options: -Werror
 package fedcalls
     ghc-options: -Werror
+
+allow-newer: 
+  , proto-lens-protoc:base
+  , proto-lens-protoc:ghc

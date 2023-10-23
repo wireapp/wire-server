@@ -90,7 +90,8 @@ let
   attrsets = lib.attrsets;
 
   pinnedPackages = import ./haskell-pins.nix {
-    fetchgit = pkgs.fetchgit;
+    inherit pkgs;
+    inherit (pkgs) fetchgit;
     inherit lib;
   };
 
@@ -139,7 +140,7 @@ let
       bench
     ];
   manualOverrides = import ./manual-overrides.nix (with pkgs; {
-    inherit hlib libsodium protobuf mls-test-cli fetchpatch;
+    inherit hlib libsodium protobuf mls-test-cli fetchpatch pkgs;
   });
 
   executables = hself: hsuper:
@@ -152,7 +153,7 @@ let
       )
       executablesMap;
 
-  hPkgs = localMods@{ enableOptimization, enableDocs, enableTests }: pkgs.haskell.packages.ghc92.override {
+  hPkgs = localMods@{ enableOptimization, enableDocs, enableTests }: pkgs.haskell.packages.ghc94.override {
     overrides = lib.composeManyExtensions [
       pinnedPackages
       (localPackages localMods)
@@ -470,7 +471,6 @@ let
   };
 in
 {
-
   inherit ciImage hoogleImage;
 
   images = images localModsEnableAll;
@@ -486,11 +486,12 @@ in
 
   devEnv = pkgs.buildEnv {
     name = "wire-server-dev-env";
+    ignoreCollisions = true;
     paths = commonTools ++ [
       pkgs.bash
       pkgs.crate2nix
       pkgs.dash
-      (pkgs.haskell-language-server.override { supportedGhcVersions = [ "92" ]; })
+      (pkgs.haskell-language-server.override { supportedGhcVersions = [ "94" ]; })
       pkgs.ghcid
       pkgs.kind
       pkgs.netcat

@@ -56,14 +56,14 @@
 # 1. Update version number.
 # 2. Make the 'sha256' blank string.
 # 3. Run step 3. from how to add a git pin.
-{ lib, fetchgit }: hself: hsuper:
+{ lib, fetchgit, pkgs }: hself: hsuper:
 let
   gitPins = {
     transitive-anns = {
       src = fetchgit {
         url = "https://github.com/wireapp/transitive-anns";
-        rev = "c3bdc423f84bf15fe8b3618b5dddd5764fc8a470";
-        sha256 = "sha256-mWBZ2uY0shlxNRceyC2Zu1f3Kr4IDtT/rOL7CKWgilA=";
+        rev = "7caf82f8d1be0f994a557e0cdc87fde8e32d5420";
+        sha256 = "sha256-rDIAbYpNGMBDOOE1hqLneRSVkCnj3cCQVYGKkhw8t7w=";
       };
     };
     amazonka = {
@@ -214,12 +214,23 @@ let
         sha256 = "sha256-+rHcS+BwEFsXqPAHX/KZDIgv9zfk1dZl0LlZJ57Com4=";
       };
     };
-    # PR: https://github.com/freckle/hspec-junit-formatter/pull/24
-    hspec-junit-formatter = {
-      src = fetchgit {
-        url = "https://github.com/akshaymankar/hspec-junit-formatter";
-        rev = "acec31822cc4f90489d9940bad23b3fd6d1d7c75";
-        sha256 = "sha256-4xGW3KHQKbTL+6+Q/gzfaMBP+J0npUe7tP5ZCQCB5+s=";
+
+    text-icu-translit = {
+      src = pkgs.fetchFromGitHub {
+        owner = "wireapp";
+        repo = "text-icu-translit";
+        rev = "92e9ce8dc5d4fc987d12c68799efa869df2b9933";
+        hash = "sha256-9uVqUTkLkE7U19FDjn5xt8JEHyJmosLPSnmW7kYbe5w=";
+      };
+    };
+
+    ghc-source-gen = {
+      version = "0.4.4.0";
+      src = pkgs.fetchFromGitHub {
+        owner = "circuithub";
+        repo = "ghc-source-gen";
+        rev = "7a6aac047b706508e85ba2054b5bedbecfd7eb7a";
+        hash = "sha256-DZu3XAOYLKcSpOYhjpb6IuXMvRHtGohTkL0nsCb/dT0=";
       };
     };
   };
