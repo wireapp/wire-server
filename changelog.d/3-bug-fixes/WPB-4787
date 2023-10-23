@@ -1,1 +1,0 @@
-Create a new http2 connection in every federator client request instead of using a shared connection.

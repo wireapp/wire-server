@@ -1,4 +1,0 @@
-Updating the route documentation library from swagger2 to openapi3.
-
-This also introduced a breaking change in how we track what federation calls each route makes.
-The openapi3 library doesn't support extension fields, and as such tags are being used instead in a similar way.
