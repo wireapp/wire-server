@@ -1,1 +1,0 @@
-This fixes a bug where a remote member is removed from a conversation while their backend is unreachable, and the backend does not receive the removal notification once it is reachable again.

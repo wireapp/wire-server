@@ -1,1 +1,0 @@
-list-clients returns with partial success even if one of the remote backends is unreachable

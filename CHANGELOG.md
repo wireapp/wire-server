@@ -1,3 +1,293 @@
+# [2023-10-23] (Chart Release 4.39.0)
+
+## Release notes
+
+
+* New field for Supported protocols in Galley's MLS feature config
+
+  Galley will refuse to start if the list `supportedProtocols` does not contain
+  the value of the field `defaultProtocol`. Galley will also refuse to start if
+  MLS migration is enabled and MLS is not part of `supportedProtocols`.
+
+  The default value for `supportedProtocols` is:
+  ```
+  [proteus, mls]
+  ``` (#3374)
+
+
+## API changes
+
+
+* The JSON schema of `NonConnectedBackends` has changed to have its single field now called `non_connected_backends`. (#3518)
+
+* Remove de-federation (to avoid a scalability issue). (#3582)
+
+* Replace the placeholder self conversation id with the qualified conversation id for welcome events. (#3335)
+
+* Add new endpoint `DELETE /mls/key-packages/self/:client` (#3295)
+
+* Introduce an endpoint for deleting a subconversation (#2956, #3119, #3123)
+
+* Remove MLS endpoints from API v4 and finalise it (#3545)
+
+* Add new endpoint `GET /conversations/one2one/:domain/:uid` to fetch the MLS 1-1 conversation with another user (#3345)
+
+* Introduce a subconversation GET endpoint (#2869, #2995)
+
+* Add `GET /conversations/:domain/:cid/subconversations/:id/groupinfo` endpoint to fetch the group info object for a subconversation (#2932)
+
+* Introduce v5 development version (#3527)
+
+* It is now possible to use `PUT /conversation/:domain/:id/protocol` to transition from Mixed to MLS (#3334)
+
+* Report a failure to add remote users to an MLS conversation (#3304)
+
+* The key package API has gained a `ciphersuite` query parameter, which should be the hexadecimal value of an MLS ciphersuite, defaulting to `0x0001`. The `ciphersuite` parameter is used by the claim and count endpoints. For uploads, the API is unchanged, and the ciphersuite is taken directly from the uploaded key package. (#3454)
+
+* Add MLS migration feature config (#3299)
+
+* Switch to MLS draft 20. The following endpoints are affected by the change:
+
+   - All endpoints with `message/mls` content type now expect and return draft-20 MLS structures.
+   - `POST /conversations` does not require `creator_client` anymore.
+   - `POST /mls/commit-bundles` now expects a "stream" of MLS messages, i.e. a sequence of TLS-serialised messages, one after the other, in any order. Its protobuf interface has been removed.
+   - `POST /mls/welcome` has been removed. Welcome messages can now only be sent as part of a commit bundle.
+   - `POST /mls/message` does not accept commit messages anymore. All commit messages must be sent as part of a commit bundle. (#3172)
+
+* Key packages and leaf nodes with x509 credentials are now supported (#3532)
+
+
+## Features
+
+
+* Add reason field to conversation.member-leave (#3640)
+
+* Support deleting a remote subconversation (#2964)
+
+* Introduce support for resetting a subconversation (#2956)
+
+* Introduce a "mixed" conversation protocol type. A conversation of "mixed" protocol functions as a Proteus converation as well as a MLS conversations. It's intended to be used for migrating conversations from Proteus to MLS. (#3258)
+
+* Added support for post-quantum ciphersuite 0xf031. Correspondingly, MLS groups with a non-default ciphersuite are now supported. The first commit in a group determines the group ciphersuite. (#3454)
+
+* Remove conversation size limit for MLS conversations (#3468)
+
+* Added support for MSL 1-1 conversations (#3360)
+
+* MLS application messages for older epochs are now rejected (#3438)
+
+* The public key in an x509 credential is now checked against that of the client (#3542)
+
+* Add federated endpoints to get subconversations (#2952)
+
+* Add Helm chart (`rabbitmq-external`) to interface RabbitMQ instances outside of the Kubernetes cluster. (#3626)
+
+* Removing or kicking a user from a conversation also removes the user's clients from any subconversation. (#2942)
+
+* Add support for subconversations in `POST /mls/commit-bundles` (#2932)
+
+* Implement endpoint for leaving a subconversation (#2969, #3080, #3085, #3107)
+
+
+## Bug fixes and other updates
+
+
+* Fix nix derivations for rust packages (#3628)
+
+* Ensure benchmarking dependencies are provided by nix development environment (#3628)
+
+* Disable a guest user from creating a group conversation (#3622)
+
+* Adding users to a conversation now enforces that all federation domains that will be in the conversation are federated with each other. (#3514)
+
+* Fix ES migration script. (#3558)
+
+* Fixed add user to conversation when one of the other participating backends is offline (#3585)
+
+* Create a new http2 connection in every federator client request instead of using a shared connection. (#3602)
+
+* list-clients returns with partial success even if one of the remote backends is unreachable (#3611)
+
+* Defederation notifications, federation.delete and federation.connectionRemoved, now deduplicate the user list so that we don't send them more notifications than required. (#3515)
+
+* Fix memory and TCP connection leak in brig, galley, caroghold and background-worker. (#3663)
+
+* Fix bug where notifications for MLS messages were not showing up in all notification streams of clients (#3610)
+
+* Map the MLS self-conversation creator's key package reference in Brig (#3055)
+
+* This fixes a bug where a remote member is removed from a conversation while their backend is unreachable, and the backend does not receive the removal notification once it is reachable again. (#3537)
+
+* Welcome messages are not sent anymore to the creator of an MLS group on the first commit (#3392)
+
+
+## Documentation
+
+
+* Fix: support api versions other than v0 in swagger docs. (#3619)
+
+* Updating the route documentation from Swagger 2 to OpenAPI 3. (#3570)
+
+* Elaborate on internal user creation in prod (#3596)
+
+* Adding a testing config entry to the PR guidelines. (#3624)
+
+
+## Internal changes
+
+
+* remove leaving clients immediately from subconversations (#3096)
+
+* Servantify internal end-points: brig/teams (#3634)
+
+* add conversation type to group ID serialisation (#3344)
+
+* Do not cache federation remote configs on non-brig services (#3612)
+
+* JSON derived schemas have been changed to no longer pre-process record fields to drop prefixes that were required to disambiguate fields.
+  Prefix processing still exists to drop leading underscores from field names, as we are using prefixed field names with `makeLenses`.
+  Code has been updated to use `OverloadedRecordDot` with the changed field names. (#3518)
+
+* Updating the route documentation library from swagger2 to openapi3.
+
+  This also introduced a breaking change in how we track what federation calls each route makes.
+  The openapi3 library doesn't support extension fields, and as such tags are being used instead in a similar way. (#3570)
+
+* - Extending the information returned in errors for Federator. Paths and response bodies, if available, are included in error logs.
+  - Prometheus metrics for outgoing and incoming federation requests added. They can be enabled by setting `metrics.serviceMonitor.enabled`, like in other charts. (#3556)
+
+* CLI tool to consume messages from a RabbitMQ queue (#3589, #3655)
+
+* Removed user and client threshold fields from mls migration feature. (#3364)
+
+* Include timestamp in s3 upload path for test logs (#3621)
+
+* Migrating the following routes to the Servant API form.
+
+  POST /provider/services
+  GET /provider/services
+  GET /provider/services/:sid
+  PUT /provider/services/:sid
+  PUT /provider/services/:sid/connection
+  DELETE /provider/services/:sid
+  GET /providers/:pid/services
+  GET /providers/:pid/services/:sid
+  GET /services
+  GET /services/tags
+  GET /teams/:tid/services/whitelisted
+  POST /teams/:tid/services/whitelist (#3554)
+
+* Provider API has been migrated to servant (#3547)
+
+* background-worker: Get list of domains from RabbitMQ instead of brig for pushing backend notifications (#3588)
+
+* Avoid including MLS application messages in the sender client's event stream. (#3379)
+
+* Avoid empty pushes when chunking pushes in galley (#PR_NOT_FOUND)
+
+* Introduce a Galley DB table for subconversations (#2869)
+
+* Support mapping MLS group IDs to subconversations (#2869)
+
+* change version and conversation type to 16 bit in group ID serialisation (#3353)
+
+* Brig does not perform key package ref mapping anymore. Claimed key packages are simply removed from the `mls_key_packages` table. The `mls_key_package_refs` table is now unused, and will be removed in the future. (#3172)
+
+* Add intermediate "mixed" protocol for migrating from Proteus to MLS (#3292)
+
+* - Do not perform client checks for add and remove proposals in mixed conversations
+  - Restrict protocol updates to team conversations
+  - Disallow MLS application messages in mixed conversations
+  - Send remove proposals when users leave mixed conversations (#3303)
+
+* New cron job to save data usable to watch the progress of the Proteus to MLS migration in S3 bucket.
+
+  **IMPORTANT:** This cron job is _not_ meant for general use! It can leak data about one team to other teams. (#3579)
+
+* Subconversations are now created on their first commit (#3355)
+
+* Propagate messages in MLS subconversations (#2937)
+
+* Move some MLS tests to new integration suite (#3286)
+
+* Check validity of notification IDs in the notification API (#3550)
+
+* stern: Optimize RAM usage of /i/users/meta-info (#3522)
+
+* Additional integration test for federated connections (#3538)
+
+* The bot API is now migrated to servant (#3540)
+
+* `rusty-jwt-tools` is upgraded to version 0.5.0 (#3572)
+
+* Refactored schema version tracking from manually managed to automatic. (#3643)
+
+* Avoid unnecessary error logs on service shutdown (#3592)
+
+* Introduce an effect for subconversations (#2869)
+
+* Via the update path update the key package of the committer in epoch 0 of a subconversation (#2975)
+
+* Add more tests for joining a subconversation (#2974)
+
+* Added `/tools/db/repair-brig-clients-table` to clean up after the fix in #3504 (#3507)
+
+* Distinguish between update and upsert cassandra commands (follow-up to #3504) (#3513)
+
+* Truncate `galley.mls_group_member_client` table and drop `galley.member_client` table.
+
+  The data in `mls_group_member_client` could contain nulls from client testing in prod. So, its OK to truncate it.
+  The `member_client` table is unused. (#3648)
+
+* All integration tests can generate XML reports.
+
+  To generate the report in brig-integration, galley-integration,
+  cargohold-integration, gundeck-integration, stern-integration and the new
+  integration suite pass `--xml=<outfile>` to generate the XML file.
+
+  For spar-integration and federator-integration pass `-f junit` and set
+  `JUNIT_OUTPUT_DIRECTORY` and `JUNIT_SUITE_NAME` environment variables. The XML
+  report will be generated at `$JUNIT_OUTPUT_DIRECTORY/junit.xml`.
+
+  (#3568, #3633)
+
+
+## Federation changes
+
+
+* Add subconversation ID to onMLSMessageSent request payload. (#3270)
+
+* Derive group ID from qualified conversation ID and, if applicable,
+  subconversation ID.
+
+  Retire mapping from group IDs to conversation IDs. (group_id_conv_id)
+
+  Remove federation endpoints
+  - on-new-remote-conversation,
+  - on-new-remote-subconversation, and
+  - on-delete-mls-conversation
+  which were used to synchronise the group to conversation mapping. (#3309)
+
+* Reorganise the federation API such that queueing notification endpoints are separate from synchronous endpoints. Also simplify queueing federation notification endpoints. (#3647)
+
+* Introduce an endpoint for resetting a remote subconversation (#2964)
+
+* Split federation endpoint into on-new-remote-conversation and on-new-remote-subconversation
+  Call on-new-remote-subconversation when a new subconversation is created
+  Call on-new-remote-subconversation for all existing subconversations when a new backend gets involved
+  Call on-new-remote-subconversation when a subconversation is reset (#2997)
+
+* federator: Allow setting TCP connection timeout for HTTP2 requests
+
+  The helm chart defaults it to 5s which should be best for most installations. (#3595)
+
+* Constrain which federation endpoints can be used via the queueing federation client (#3629)
+
+* There is a breaking change in the "on-mls-message-sent" federation endpoint due to queueing. Now that there is retrying because of queueing, the endpoint can no longer respond with a list of unreachable users. (#3629)
+
+* Remote MLS messages get queued via RabbitMQ (#PR_NOT_FOUND)
+
+
 # [2023-08-16] (Chart Release 4.38.0)
 
 ## Bug fixes and other updates
