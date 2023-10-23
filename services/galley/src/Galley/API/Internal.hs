@@ -420,7 +420,7 @@ rmUser lusr conn = do
     leaveRemoteConversations cids =
       for_ (bucketRemote (fromRange cids)) $ \remoteConvs -> do
         let userDelete = UserDeletedConversationsNotification (tUnqualified lusr) (unsafeRange (tUnqualified remoteConvs))
-        let rpc = void $ fedQueueClient @'Galley @"on-user-deleted-conversations" userDelete
+        let rpc = void $ fedQueueClient @'OnUserDeletedConversationsTag userDelete
         enqueueNotification remoteConvs Q.Persistent rpc
 
     -- FUTUREWORK: Add a retry mechanism if there are federation errrors.

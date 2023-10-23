@@ -1,3 +1,0 @@
-New cron job to save data usable to watch the progress of the Proteus to MLS migration in S3 bucket.
-
-**IMPORTANT:** This cron job is _not_ meant for general use! It can leak data about one team to other teams.

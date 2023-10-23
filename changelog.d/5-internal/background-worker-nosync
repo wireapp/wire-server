@@ -1,1 +1,0 @@
-background-worker: Get list of domains from RabbitMQ instead of brig for pushing backend notifications
