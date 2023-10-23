@@ -28,6 +28,7 @@ common common-all
     NoImplicitPrelude
     AllowAmbiguousTypes
     BangPatterns
+    BlockArguments
     ConstraintKinds
     DataKinds
     DefaultSignatures
