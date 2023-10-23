@@ -117,20 +117,6 @@ liftCodensity = FederatorClient . lift . lift . lift
 headersFromTable :: HTTP2.HeaderTable -> [HTTP.Header]
 headersFromTable (headerList, _) = flip map headerList $ first HTTP2.tokenKey
 
--- This opens a new http2 connection. Using a http2-manager leads to this problem https://wearezeta.atlassian.net/browse/WPB-4787
--- FUTUREWORK: Replace with H2Manager.withHTTP2Request once the bugs are solved.
--- withNewHttpRequest :: H2Manager.Target -> HTTP2.Request -> (HTTP2.Response -> IO a) -> IO a
--- withNewHttpRequest target req k = do
---   ctx <- SSL.context
---   let cacheLimit = 20
---       sslRemoveTrailingDot = False
---       tcpConnectionTimeout = 30_000_000
---   sendReqMVar <- newEmptyMVar
---   thread <- liftIO . async $ H2Manager.startPersistentHTTP2Connection ctx target cacheLimit sslRemoveTrailingDot tcpConnectionTimeout sendReqMVar
---   let newConn = H2Manager.HTTP2Conn thread (putMVar sendReqMVar H2Manager.CloseConnection) sendReqMVar
---   H2Manager.sendRequestWithConnection newConn req $ \resp -> do
---     k resp <* newConn.disconnect
-
 performHTTP2Request ::
   Http2Manager ->
   H2Manager.Target ->

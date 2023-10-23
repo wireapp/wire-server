@@ -45,8 +45,8 @@ config:
     # A client certificate and corresponding private key can be specified
     # similarly to a custom CA store.
     useSystemCAStore: true
-    # In microseconds, default is 300s.
-    tcpConnectionTimeout: 300_000_000
+    # In microseconds, default is 5s.
+    tcpConnectionTimeout: 5000000
 
 podSecurityContext:
   allowPrivilegeEscalation: false

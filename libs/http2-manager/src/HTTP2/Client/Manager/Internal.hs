@@ -110,7 +110,7 @@ http2ManagerWithSSLCtx :: SSL.SSLContext -> IO Http2Manager
 http2ManagerWithSSLCtx sslContext = do
   connections <- newTVarIO mempty
   let cacheLimit = 20
-      tcpConnectionTimeout = 300_000_000
+      tcpConnectionTimeout = 30_000_000
       sslRemoveTrailingDot = False
   pure $ Http2Manager {..}
 

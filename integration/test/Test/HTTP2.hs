@@ -14,7 +14,6 @@ import Data.Text.Encoding qualified as T
 import GHC.Stack
 import MLS.Util
 import Network.HTTP.Client
-import Network.HTTP.Client qualified as HTTP
 import SetupHelpers hiding (deleteUser)
 import System.Process
 import System.Random
@@ -28,10 +27,8 @@ import Testlib.Prelude
 
 -- NOTE:
 -- If you find this test failing, try the following before rerunning it. This will reset the DNS container to a known initial state
-
--- $ cp deploy/dockerephemeral/coredns-config/db.example.com-old-serial deploy/dockerephemeral/coredns-config/db.example.com
-
--- $ docker restart dockerephemeral-coredns-1
+-- cp deploy/dockerephemeral/coredns-config/db.example.com-old-serial deploy/dockerephemeral/coredns-config/db.example.com
+-- docker restart dockerephemeral-coredns-1
 
 testHTTP2 :: HasCallStack => App ()
 testHTTP2 = do
@@ -61,9 +58,7 @@ testHTTP2 = do
     -- Increase the timeout so that we can block connections for longer.
     -- 5 minute timeout. This is purely for this test, which is why it's
     -- using local.
-    let timeout = 300 * 1000 * 1000
-    mgr <- liftIO $ HTTP.newManager $ HTTP.defaultManagerSettings {managerResponseTimeout = responseTimeoutMicro timeout}
-    env <- local (\e -> e {manager = mgr}) ask
+    env <- ask
     result <- liftIO $ flip finally resetDNS $ do
       -- Change the target in CoreDNS
       setupDNS
