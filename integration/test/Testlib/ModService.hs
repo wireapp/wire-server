@@ -311,15 +311,49 @@ startBackend resource overrides services = do
           whenM (doesDirectoryExist path) $ removeDirectoryRecursive path
 
   let modifyEnv env = env {serviceMap = Map.insert resource.berDomain serviceMap env.serviceMap}
+      mkReq srv = do
+        req <- baseRequest domain srv Unversioned "/i/status"
+        checkStatus <- appToIO $ do
+          res <- submit "GET" req
+          pure (res.status `elem` [200, 204])
+        eith <- liftIO (E.try checkStatus)
+        pure $ either (\(_e :: HTTP.HttpException) -> False) id eith
 
   Codensity $ \action -> local modifyEnv $ do
-    waitForService <- appToIOKleisli (waitUntilServiceUp domain)
+    waitForService <- appToIOKleisli (retryRequestUntil mkReq)
     ioAction <- appToIO (action ())
+    ioEnsureReachable <- appToIO (ensureReachable resource.berDomain)
     liftIO $
-      (mapConcurrently_ waitForService services >> ioAction)
+      ( mapConcurrently_ waitForService services
+          >> ioEnsureReachable
+          >> ioAction
+      )
         `finally` stopInstances
 
   pure modifyEnv
+  where
+    ensureReachable :: String -> App ()
+    ensureReachable domain = do
+      env <- ask
+      let mkReq _ = do
+            req <-
+              rawBaseRequest
+                env.domain1
+                FederatorInternal
+                Unversioned
+                ("/rpc/" <> domain <> "/brig/api-version")
+                <&> (addHeader "Wire-Origin-Domain" env.domain1)
+                  . (addJSONObject [])
+            checkStatus <- appToIO $ do
+              res <- submit "POST" req
+              -- If we get 533 here it means federation is not avaiable between domains
+              -- but ingress is working, since we're processing the request.
+              pure (res.status `elem` [200, 533])
+            eith <- liftIO (E.try checkStatus)
+            pure $ either (\(_e :: HTTP.HttpException) -> False) id eith
+
+      when ((domain /= env.domain1) && (domain /= env.domain2)) $ do
+        retryRequestUntil mkReq FederatorInternal
 
 startProcess :: String -> Service -> Value -> App (ProcessHandle, FilePath)
 startProcess domain srv = startProcess' domain (configName srv)
@@ -365,22 +399,15 @@ logToConsole colorize prefix hdl = do
           `E.catch` (\(_ :: E.IOException) -> pure ())
   go
 
-waitUntilServiceUp :: HasCallStack => String -> Service -> App ()
-waitUntilServiceUp domain = \case
+retryRequestUntil :: HasCallStack => (Service -> App Bool) -> Service -> App ()
+retryRequestUntil mkReq = \case
   Nginz -> pure ()
   srv -> do
     isUp <-
       retrying
         (limitRetriesByCumulativeDelay (4 * 1000 * 1000) (fibonacciBackoff (200 * 1000)))
         (\_ isUp -> pure (not isUp))
-        ( \_ -> do
-            req <- baseRequest domain srv Unversioned "/i/status"
-            checkStatus <- appToIO $ do
-              res <- submit "GET" req
-              pure (res.status `elem` [200, 204])
-            eith <- liftIO (E.try checkStatus)
-            pure $ either (\(_e :: HTTP.HttpException) -> False) id eith
-        )
+        (\_ -> mkReq srv)
     unless isUp $
       failApp ("Time out for service " <> show srv <> " to come up")
 
