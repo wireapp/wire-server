@@ -540,15 +540,17 @@ consumingMessages mp = Codensity $ \k -> do
   withWebSockets (map fst clients) $ \wss -> do
     r <- k ()
 
-    -- pick one client for each new user and wait for its join event
-    traverse_
-      (awaitMatch 10 isMemberJoinNotif)
-      ( flip Map.restrictKeys newUsers
-          . Map.mapKeys ((.user) . fst)
-          . Map.fromList
-          . toList
-          $ zip clients wss
-      )
+    -- if the conversation is actually MLS (and not mixed), pick one client for
+    -- each new user and wait for its join event
+    when (mls.protocol == MLSProtocolMLS) $
+      traverse_
+        (awaitMatch 10 isMemberJoinNotif)
+        ( flip Map.restrictKeys newUsers
+            . Map.mapKeys ((.user) . fst)
+            . Map.fromList
+            . toList
+            $ zip clients wss
+        )
 
     -- at this point we know that every new user has been added to the
     -- conversation

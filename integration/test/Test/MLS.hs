@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns -Wno-ambiguous-fields #-}
 
 module Test.MLS where
 
@@ -90,6 +90,7 @@ testMixedProtocolUpgrade secondDomain = do
       resp.status `shouldMatchInt` 200
       resp.json %. "conversation" `shouldMatch` (qcnv %. "id")
       resp.json %. "data.protocol" `shouldMatch` "mixed"
+    modifyMLSState $ \mls -> mls {protocol = MLSProtocolMixed}
 
     for_ websockets $ \ws -> do
       n <- awaitMatch 3 (\value -> nPayload value %. "type" `isEqual` "conversation.protocol-update") ws
@@ -130,6 +131,7 @@ testMixedProtocolAddUsers secondDomain = do
 
   bindResponse (putConversationProtocol bob qcnv "mixed") $ \resp -> do
     resp.status `shouldMatchInt` 200
+  modifyMLSState $ \mls -> mls {protocol = MLSProtocolMixed}
 
   [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
 
@@ -158,6 +160,7 @@ testMixedProtocolUserLeaves secondDomain = do
 
   bindResponse (putConversationProtocol bob qcnv "mixed") $ \resp -> do
     resp.status `shouldMatchInt` 200
+  modifyMLSState $ \mls -> mls {protocol = MLSProtocolMixed}
 
   [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
 
@@ -193,6 +196,7 @@ testMixedProtocolAddPartialClients secondDomain = do
 
   bindResponse (putConversationProtocol bob qcnv "mixed") $ \resp -> do
     resp.status `shouldMatchInt` 200
+  modifyMLSState $ \mls -> mls {protocol = MLSProtocolMixed}
 
   [alice1, bob1, bob2] <- traverse (createMLSClient def) [alice, bob, bob]
 
@@ -231,6 +235,7 @@ testMixedProtocolRemovePartialClients secondDomain = do
 
   bindResponse (putConversationProtocol bob qcnv "mixed") $ \resp -> do
     resp.status `shouldMatchInt` 200
+  modifyMLSState $ \mls -> mls {protocol = MLSProtocolMixed}
 
   [alice1, bob1, bob2] <- traverse (createMLSClient def) [alice, bob, bob]
 
@@ -256,6 +261,7 @@ testMixedProtocolAppMessagesAreDenied secondDomain = do
 
   bindResponse (putConversationProtocol bob qcnv "mixed") $ \resp -> do
     resp.status `shouldMatchInt` 200
+  modifyMLSState $ \mls -> mls {protocol = MLSProtocolMixed}
 
   [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
 
@@ -302,6 +308,7 @@ testMLSProtocolUpgrade secondDomain = do
   withWebSockets [alice1, bob1] $ \wss -> do
     bindResponse (putConversationProtocol bob conv "mls") $ \resp -> do
       resp.status `shouldMatchInt` 200
+    modifyMLSState $ \mls -> mls {protocol = MLSProtocolMLS}
     for_ wss $ \ws -> do
       n <- awaitMatch 3 isNewMLSMessageNotif ws
       msg <- asByteString (nPayload n %. "data") >>= showMessage alice1
