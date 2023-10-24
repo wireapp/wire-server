@@ -290,7 +290,7 @@ appToIOKleisli k = do
 getServiceMap :: HasCallStack => String -> App ServiceMap
 getServiceMap fedDomain = do
   env <- ask
-  assertJust ("Could not find service map for federation domain: " <> fedDomain) (Map.lookup fedDomain (env.serviceMap))
+  assertJust ("Could not find service map for federation domain: " <> fedDomain) (Map.lookup fedDomain env.serviceMap)
 
 getMLSState :: App MLSState
 getMLSState = do
