@@ -18,6 +18,7 @@ import Control.Monad.Extra
 import Control.Monad.Reader
 import Control.Retry (fibonacciBackoff, limitRetriesByCumulativeDelay, retrying)
 import Data.Aeson hiding ((.=))
+import Data.Aeson.KeyMap qualified as Aeson
 import Data.Default
 import Data.Foldable
 import Data.Function
@@ -356,7 +357,19 @@ startBackend resource overrides services = do
               res <- submit "POST" req
               -- If we get 533 here it means federation is not avaiable between domains
               -- but ingress is working, since we're processing the request.
-              pure (res.status `elem` [200, 533])
+              let is200 = res.status == 200
+                  msg = case res.jsonBody of
+                    Just (Object obj) ->
+                      (Aeson.lookup "message" obj)
+                    _ -> Nothing
+                  isFedDenied =
+                    res.status == 533
+                      && ( Text.isInfixOf
+                             "federation-denied"
+                             (Text.pack $ show msg)
+                         )
+
+              pure (is200 || isFedDenied)
             eith <- liftIO (E.try checkStatus)
             pure $ either (\(_e :: HTTP.HttpException) -> False) id eith
 
