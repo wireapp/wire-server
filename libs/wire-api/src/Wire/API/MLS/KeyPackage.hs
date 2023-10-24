@@ -62,7 +62,8 @@ import Wire.API.MLS.Serialisation
 import Wire.Arbitrary
 
 data KeyPackageUpload = KeyPackageUpload
-  {keyPackages :: [RawMLS KeyPackage]}
+  { keyPackages :: [RawMLS KeyPackage]
+  }
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema KeyPackageUpload
 
 instance ToSchema KeyPackageUpload where

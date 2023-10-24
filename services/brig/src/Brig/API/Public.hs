@@ -373,6 +373,7 @@ servantSitemap =
     mlsAPI :: ServerT MLSAPI (Handler r)
     mlsAPI =
       Named @"mls-key-packages-upload" uploadKeyPackages
+        :<|> Named @"mls-key-packages-replace" replaceKeyPackages
         :<|> Named @"mls-key-packages-claim" claimKeyPackages
         :<|> Named @"mls-key-packages-count" countKeyPackages
         :<|> Named @"mls-key-packages-delete" deleteKeyPackages

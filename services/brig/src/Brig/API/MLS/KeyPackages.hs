@@ -21,6 +21,7 @@ module Brig.API.MLS.KeyPackages
     claimLocalKeyPackages,
     countKeyPackages,
     deleteKeyPackages,
+    replaceKeyPackages,
   )
 where
 
@@ -37,6 +38,7 @@ import Brig.Federation.Client
 import Brig.IO.Intra
 import Control.Monad.Trans.Except
 import Control.Monad.Trans.Maybe
+import Data.CommaSeparatedList
 import Data.Id
 import Data.Qualified
 import Data.Set qualified as Set
@@ -157,3 +159,15 @@ deleteKeyPackages lusr c mSuite (unDeleteKeyPackages -> refs) = do
   assertMLSEnabled
   suite <- getCipherSuite mSuite
   lift $ wrapClient (Data.deleteKeyPackages (tUnqualified lusr) c suite refs)
+
+replaceKeyPackages ::
+  Local UserId ->
+  ClientId ->
+  Maybe (CommaSeparatedList CipherSuite) ->
+  KeyPackageUpload ->
+  Handler r ()
+replaceKeyPackages lusr c (fmap toList -> mSuites) upload = do
+  assertMLSEnabled
+  suites <- getCipherSuites mSuites
+  lift $ wrapClient (Data.deleteAllKeyPackages (tUnqualified lusr) c suites)
+  uploadKeyPackages lusr c upload
