@@ -94,7 +94,8 @@ testHTTP2Blocking = do
                 offset <- randomRIO (0, round @Double 2e6)
                 threadDelay offset
                 -- Request something from domain C, it doesn't matter what so long as
-                -- it goes through domainB's federator.
+                -- it goes through domainB's federator, and importantly, from the same service
+                -- that sendFromB is using. In this case, Galley.
                 runAppWithEnv env $
                   getConversation bob xid
 
@@ -114,7 +115,9 @@ testHTTP2Blocking = do
     numRequests :: Int
     numRequests = 200
     -- Swap from the original DNS one to a version that lists a non-routable
-    -- IP for the d3 environment.
+    -- IP for the d3 environment. Local IPs without an active port won't work,
+    -- as they will return near instantly with a cannot connect error. This needs
+    -- to be an IP where packets will never arrive at the destination.
     swapToTest =
       -- Swap the DNS files around
       callProcess
@@ -129,7 +132,8 @@ testHTTP2Blocking = do
         [ "deploy/dockerephemeral/coredns-config/db.example.com-new-serial",
           "deploy/dockerephemeral/coredns-config/db.example.com"
         ]
-    -- Wait 10 seconds. This is to allow CoreDNS to update its database
+    -- Wait 10 seconds. This is to allow CoreDNS to update its database. Shorter
+    -- delays don't always work in my local testing experience.
     waitDNS = threadDelay $ round @Double $ 10 * 1e6
     resetDNS = do
       swapToNormal
@@ -148,6 +152,7 @@ testHTTP2AllSuccessful = do
   cid <- postConversation alice defProteus >>= getJSON 201
   bob <- randomUser OwnDomain def
   bobId <- bob %. "qualified_id"
+  -- Add members across a federation
   let addMember = addMembers alice cid def {role = Just "wire_member", users = [bobId]}
   bindResponse addMember $ \resp -> do
     resp.status `shouldMatchInt` 403
@@ -162,11 +167,11 @@ testHTTP2AllSuccessful = do
     addedUsers <- forM users (%. "qualified_id")
     addedUsers `shouldMatchSet` [bobId]
 
+  -- Run many parallel queries via federation to stress-test the connection
   env <- ask
   liftIO $
     replicateConcurrently_ 1000 $
       runAppWithEnv env $
-        -- Query via federation
         bindResponse (getConversation bob cid) $ \resp -> do
           resp.status `shouldMatchInt` 200
           mems <- resp.json %. "members.others" & asList
