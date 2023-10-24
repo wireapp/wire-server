@@ -118,8 +118,8 @@ performHTTP2Request ::
   H2Manager.Target ->
   HTTP2.Request ->
   IO (Either FederatorClientHTTP2Error (ResponseF Builder))
-performHTTP2Request _mgr target req = try $ do
-  H2Manager.withHTTP2Request _mgr target req $ consumeStreamingResponseWith $ \resp -> do
+performHTTP2Request mgr target req = try $ do
+  H2Manager.withHTTP2Request mgr target req $ consumeStreamingResponseWith $ \resp -> do
     b <-
       fmap (fromRight mempty)
         . runExceptT

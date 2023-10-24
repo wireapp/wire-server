@@ -202,29 +202,20 @@ withHTTP2Request mgr target req k = do
     else do
       -- This is messy. When a thundering herd of requests is coming in, many
       -- of them can get a negative semaphore check, which will then cause them
-      -- to make new connections to the server. Eventually, one of these will become
-      -- the lasting replacement, but there is no telling which one.
-      -- Ideally, this should have a block that only one thread can create the new
-      -- connection, and then everything that is waiting on a connection can use
-      -- it, until we run out of semaphores again.
+      -- try to make new connections to the server. One of these will become
+      -- the replacement.
       if canMakeConn
-        then -- Make the new connection, then try to use it
-          mkNewConnection conn
-        else do
-          -- Can't make the new connection, so loop and maybe something
-          -- has freed up or the connection is ready to go.
+        then do
+          -- Stop processing on the existing connection
+          disconnect conn
+          -- Drop the connection from the connection map so we can try again
+          atomically $ modifyTVar' (connections mgr) (Map.delete target)
+        else -- Can't make the new connection, so loop and maybe something
+        -- has freed up or the connection is ready to go.
           threadDelay 1000
-          withHTTP2Request mgr target req k
-  where
-    mkNewConnection conn = do
-      -- Stop processing on the existing connection
-      disconnect conn
-      -- Drop the connection from the connection map
-      atomically $ modifyTVar' (connections mgr) (Map.delete target)
-      -- Try again
       withHTTP2Request mgr target req k
 
--- | Connects to a server if it is not already connected, useful when makingdisconnect
+-- | Connects to a server if it is not already connected, useful when making
 -- many concurrent requests. This way the first few requests don't have to fight
 -- for making a connection This way the first few requests don't have to fight
 -- for making a connection.
@@ -368,7 +359,7 @@ startPersistentHTTP2Connection ctx (tlsEnabled, hostname, port) cl removeTrailin
         -- but how would we know here?
         mapM_ (\(thread, _) -> cancelWith thread e) =<< readIORef liveReqs
         -- Spawns a thread that will hang around for 1 second to deal with
-        -- the race betwen main thread sending a renewConnquest and this thread
+        -- the race betwen main thread sending a request and this thread
         -- already having stoped waiting for new requests. Sending requests
         -- after 'handleRequests' has finsihed just causes the main thread
         -- to hang until recieving 'BlockedIndefinitelyOnMVar'.
