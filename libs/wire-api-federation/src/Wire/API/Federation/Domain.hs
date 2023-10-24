@@ -17,8 +17,11 @@
 
 module Wire.API.Federation.Domain where
 
+import Control.Lens ((?~))
 import Data.Domain (Domain)
 import Data.Metrics.Servant
+import Data.OpenApi (OpenApi)
+import Data.OpenApi qualified as S
 import Data.Proxy (Proxy (..))
 import GHC.TypeLits (Symbol, symbolVal)
 import Imports
@@ -61,4 +64,7 @@ originDomainHeaderName :: IsString a => a
 originDomainHeaderName = fromString $ symbolVal (Proxy @OriginDomainHeaderName)
 
 instance (HasOpenApi api) => HasOpenApi (OriginDomainHeader :> api) where
-  toOpenApi _ = toOpenApi (Proxy @api)
+  toOpenApi _ = desc $ toOpenApi (Proxy @api)
+    where
+      desc :: OpenApi -> OpenApi
+      desc = S.allOperations . S.description ?~ ("All federated endpoints expect origin domain header: `" <> originDomainHeaderName <> "`")
