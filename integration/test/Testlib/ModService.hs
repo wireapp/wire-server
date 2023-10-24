@@ -311,13 +311,15 @@ startBackend resource overrides services = do
           whenM (doesDirectoryExist path) $ removeDirectoryRecursive path
 
   let modifyEnv env = env {serviceMap = Map.insert resource.berDomain serviceMap env.serviceMap}
-      checkServiceIsUp srv = do
-        req <- baseRequest domain srv Unversioned "/i/status"
-        checkStatus <- appToIO $ do
-          res <- submit "GET" req
-          pure (res.status `elem` [200, 204])
-        eith <- liftIO (E.try checkStatus)
-        pure $ either (\(_e :: HTTP.HttpException) -> False) id eith
+      checkServiceIsUp = \case
+        Nginz -> pure True
+        srv -> do
+          req <- baseRequest domain srv Unversioned "/i/status"
+          checkStatus <- appToIO $ do
+            res <- submit "GET" req
+            pure (res.status `elem` [200, 204])
+          eith <- liftIO (E.try checkStatus)
+          pure $ either (\(_e :: HTTP.HttpException) -> False) id eith
 
   Codensity $ \action -> local modifyEnv $ do
     waitForService <-
