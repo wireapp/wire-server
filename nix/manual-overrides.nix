@@ -11,8 +11,6 @@ hself: hsuper: {
     sha256 = "sha256-qfcCRkKjSS1TEqPRVBU9Ox2DjsdGsYG/F3DrZ5JGoEI=";
   });
   hashtables = hsuper.hashtables_1_3;
-  # in case everything breaks with the hashable update, use this 
-  # hashable = hsuper.callHackage "hashable" "1.4.2.0" {};
   invertible = hlib.markUnbroken hsuper.invertible;
   lens-datetime = hlib.markUnbroken (hlib.doJailbreak hsuper.lens-datetime);
   monoidal-containers = hlib.doJailbreak hsuper.monoidal-containers;
@@ -42,9 +40,7 @@ hself: hsuper: {
   wai-middleware-prometheus = hlib.doJailbreak hsuper.wai-middleware-prometheus;
   wai-predicates = hlib.markUnbroken hsuper.wai-predicates;
 
-  # FIXME: the test "should allow accepting a certificate without a trailing dot" fails
-  # but only in the nix setup
-  http2-manager = hlib.dontCheck hsuper.http2-manager;
+  http2-manager = hlib.enableCabalFlag hsuper.http2-manager "-f-test-trailing-dot";
 
   # PR with fix: https://github.com/freckle/hspec-junit-formatter/pull/23
   hspec-junit-formatter = hlib.markUnbroken (hlib.dontCheck hsuper.hspec-junit-formatter);
