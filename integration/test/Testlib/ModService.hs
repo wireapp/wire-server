@@ -311,7 +311,7 @@ startBackend resource overrides services = do
           whenM (doesDirectoryExist path) $ removeDirectoryRecursive path
 
   let modifyEnv env = env {serviceMap = Map.insert resource.berDomain serviceMap env.serviceMap}
-      mkReq srv = do
+      checkServiceIsUp srv = do
         req <- baseRequest domain srv Unversioned "/i/status"
         checkStatus <- appToIO $ do
           res <- submit "GET" req
@@ -320,7 +320,13 @@ startBackend resource overrides services = do
         pure $ either (\(_e :: HTTP.HttpException) -> False) id eith
 
   Codensity $ \action -> local modifyEnv $ do
-    waitForService <- appToIOKleisli (retryRequestUntil mkReq)
+    waitForService <-
+      appToIOKleisli
+        ( \srv ->
+            retryRequestUntil
+              (checkServiceIsUp srv)
+              (show srv)
+        )
     ioAction <- appToIO (action ())
     ioEnsureReachable <- appToIO (ensureReachable resource.berDomain)
     liftIO $
@@ -335,7 +341,7 @@ startBackend resource overrides services = do
     ensureReachable :: String -> App ()
     ensureReachable domain = do
       env <- ask
-      let mkReq _ = do
+      let checkServiceIsUpReq = do
             req <-
               rawBaseRequest
                 env.domain1
@@ -353,7 +359,7 @@ startBackend resource overrides services = do
             pure $ either (\(_e :: HTTP.HttpException) -> False) id eith
 
       when ((domain /= env.domain1) && (domain /= env.domain2)) $ do
-        retryRequestUntil mkReq FederatorInternal
+        retryRequestUntil checkServiceIsUpReq "Federator ingress"
 
 startProcess :: String -> Service -> Value -> App (ProcessHandle, FilePath)
 startProcess domain srv = startProcess' domain (configName srv)
@@ -399,17 +405,15 @@ logToConsole colorize prefix hdl = do
           `E.catch` (\(_ :: E.IOException) -> pure ())
   go
 
-retryRequestUntil :: HasCallStack => (Service -> App Bool) -> Service -> App ()
-retryRequestUntil mkReq = \case
-  Nginz -> pure ()
-  srv -> do
-    isUp <-
-      retrying
-        (limitRetriesByCumulativeDelay (4 * 1000 * 1000) (fibonacciBackoff (200 * 1000)))
-        (\_ isUp -> pure (not isUp))
-        (\_ -> mkReq srv)
-    unless isUp $
-      failApp ("Time out for service " <> show srv <> " to come up")
+retryRequestUntil :: HasCallStack => App Bool -> String -> App ()
+retryRequestUntil reqAction err = do
+  isUp <-
+    retrying
+      (limitRetriesByCumulativeDelay (4 * 1000 * 1000) (fibonacciBackoff (200 * 1000)))
+      (\_ isUp -> pure (not isUp))
+      (const reqAction)
+  unless isUp $
+    failApp ("Timed out waiting for service " <> err <> " to come up")
 
 startNginzK8s :: String -> ServiceMap -> App (ProcessHandle, FilePath)
 startNginzK8s domain sm = do
