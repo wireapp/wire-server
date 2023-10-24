@@ -147,6 +147,8 @@ data Perm
   deriving (Arbitrary) via (GenericUniform Perm)
   deriving (FromJSON, ToJSON) via (CustomEncoded Perm)
 
+instance S.ToSchema Perm
+
 permsToInt :: Set Perm -> Word64
 permsToInt = Set.foldr' (\p n -> n .|. permToInt p) 0
 

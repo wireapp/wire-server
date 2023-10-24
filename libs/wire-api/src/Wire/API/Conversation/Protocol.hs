@@ -53,6 +53,8 @@ data ProtocolTag = ProtocolProteusTag | ProtocolMLSTag | ProtocolMixedTag
   deriving stock (Eq, Show, Enum, Ord, Bounded, Generic)
   deriving (Arbitrary) via GenericUniform ProtocolTag
 
+instance S.ToSchema ProtocolTag
+
 data ConversationMLSData = ConversationMLSData
   { -- | The MLS group ID associated to the conversation.
     cnvmlsGroupId :: GroupId,
@@ -157,6 +159,8 @@ instance ToSchema Protocol where
 deriving via (Schema Protocol) instance FromJSON Protocol
 
 deriving via (Schema Protocol) instance ToJSON Protocol
+
+deriving via (Schema Protocol) instance S.ToSchema Protocol
 
 protocolDataSchema :: ProtocolTag -> ObjectSchema SwaggerDoc Protocol
 protocolDataSchema ProtocolProteusTag = tag _ProtocolProteus (pure ())

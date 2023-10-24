@@ -19,6 +19,7 @@ module Wire.API.Federation.API.Brig.Notifications where
 
 import Data.Aeson
 import Data.Id
+import Data.OpenApi (ToSchema)
 import Data.Range
 import Imports
 import Wire.API.Federation.Component
@@ -49,6 +50,8 @@ instance HasNotificationEndpoint 'OnUserDeletedConnectionsTag where
   type
     NotificationAPI 'OnUserDeletedConnectionsTag 'Brig =
       NotificationFedEndpoint 'OnUserDeletedConnectionsTag
+
+instance ToSchema UserDeletedConnectionsNotification
 
 -- | All the notification endpoints return an 'EmptyResponse'.
 type BrigNotificationAPI =

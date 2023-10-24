@@ -22,6 +22,7 @@
 module Wire.API.Conversation.Action.Tag where
 
 import Data.Aeson (FromJSON (..), ToJSON (..))
+import Data.OpenApi qualified as S
 import Data.Schema hiding (tag)
 import Data.Singletons.TH
 import Imports
@@ -65,6 +66,9 @@ instance ToJSON ConversationActionTag where
 
 instance FromJSON ConversationActionTag where
   parseJSON = schemaParseJSON
+
+instance S.ToSchema ConversationActionTag where
+  declareNamedSchema = schemaToSwagger
 
 $(genSingletons [''ConversationActionTag])
 

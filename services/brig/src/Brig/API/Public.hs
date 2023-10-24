@@ -110,6 +110,9 @@ import Wire.API.Connection qualified as Public
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
 import Wire.API.Federation.API
+import Wire.API.Federation.API.Brig qualified as BrigFederationAPI
+import Wire.API.Federation.API.Cargohold qualified as CargoholdFederationAPI
+import Wire.API.Federation.API.Galley qualified as GalleyFederationAPI
 import Wire.API.Federation.Error
 import Wire.API.Properties qualified as Public
 import Wire.API.Routes.API
@@ -156,7 +159,18 @@ docsAPI :: Servant.Server DocsAPI
 docsAPI =
   versionedSwaggerDocsAPI
     :<|> pure eventNotificationSchemas
-    :<|> internalEndpointsSwaggerDocsAPI "brig" 9082 BrigInternalAPI.swaggerDoc
+    :<|> internalEndpointsSwaggerDocsAPIs
+    :<|> federatedEndpointsSwaggerDocsAPIs
+
+federatedEndpointsSwaggerDocsAPIs :: Servant.Server FederationSwaggerDocsAPI
+federatedEndpointsSwaggerDocsAPIs =
+  swaggerSchemaUIServer (adjustSwaggerForFederationEndpoints "brig" BrigFederationAPI.swaggerDoc)
+    :<|> swaggerSchemaUIServer (adjustSwaggerForFederationEndpoints "galley" GalleyFederationAPI.swaggerDoc)
+    :<|> swaggerSchemaUIServer (adjustSwaggerForFederationEndpoints "cargohold" CargoholdFederationAPI.swaggerDoc)
+
+internalEndpointsSwaggerDocsAPIs :: Servant.Server InternalEndpointsSwaggerDocsAPI
+internalEndpointsSwaggerDocsAPIs =
+  internalEndpointsSwaggerDocsAPI "brig" 9082 BrigInternalAPI.swaggerDoc
     :<|> internalEndpointsSwaggerDocsAPI "cannon" 9093 CannonInternalAPI.swaggerDoc
     :<|> internalEndpointsSwaggerDocsAPI "cargohold" 9094 CargoholdInternalAPI.swaggerDoc
     :<|> internalEndpointsSwaggerDocsAPI "galley" 9095 GalleyInternalAPI.swaggerDoc

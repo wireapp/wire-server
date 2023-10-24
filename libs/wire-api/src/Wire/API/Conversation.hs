@@ -137,7 +137,7 @@ data ConversationMetadata = ConversationMetadata
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConversationMetadata)
-  deriving (FromJSON, ToJSON) via Schema ConversationMetadata
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConversationMetadata
 
 defConversationMetadata :: Maybe UserId -> ConversationMetadata
 defConversationMetadata mCreator =
