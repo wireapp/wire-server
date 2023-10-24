@@ -19,9 +19,6 @@ import System.Process
 import System.Random
 import Testlib.Prelude
 
--- Also test graceful shutdown. How will this handle the server shutting down, ensuring
--- that requests are waited on so that we aren't dropping requests midway.
-
 -- This is based on the description in
 -- https://wearezeta.atlassian.net/browse/WPB-4787
 
@@ -30,8 +27,8 @@ import Testlib.Prelude
 -- cp deploy/dockerephemeral/coredns-config/db.example.com-old-serial deploy/dockerephemeral/coredns-config/db.example.com
 -- docker restart dockerephemeral-coredns-1
 
-testHTTP2 :: HasCallStack => App ()
-testHTTP2 = do
+testHTTP2Blocking :: HasCallStack => App ()
+testHTTP2Blocking = do
   startDynamicBackends [def, def, def] $ \[domainA, domainB, domainC] -> do
     -- Setup MLS for users on backends A and B
     [alice, bob] <- createAndConnectUsers [domainA, domainB]
@@ -140,3 +137,39 @@ testHTTP2 = do
     setupDNS = do
       swapToTest
       waitDNS
+
+-- Run hundreds of requests to the same host, all over HTTP2
+-- and ensure that every request is successfully answered.
+testHTTP2AllSuccessful :: HasCallStack => App ()
+testHTTP2AllSuccessful = do
+  alice <- randomUser OwnDomain def
+  aliceId <- alice %. "qualified_id"
+  -- create conversation with no users
+  cid <- postConversation alice defProteus >>= getJSON 201
+  bob <- randomUser OwnDomain def
+  bobId <- bob %. "qualified_id"
+  let addMember = addMembers alice cid def {role = Just "wire_member", users = [bobId]}
+  bindResponse addMember $ \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "not-connected"
+  connectTwoUsers alice bob
+  bindResponse addMember $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "type" `shouldMatch` "conversation.member-join"
+    resp.json %. "qualified_from" `shouldMatch` objQidObject alice
+    resp.json %. "qualified_conversation" `shouldMatch` objQidObject cid
+    users <- resp.json %. "data.users" >>= asList
+    addedUsers <- forM users (%. "qualified_id")
+    addedUsers `shouldMatchSet` [bobId]
+
+  env <- ask
+  liftIO $
+    replicateConcurrently_ 1000 $
+      runAppWithEnv env $
+        -- Query via federation
+        bindResponse (getConversation bob cid) $ \resp -> do
+          resp.status `shouldMatchInt` 200
+          mems <- resp.json %. "members.others" & asList
+          mem <- assertOne mems
+          mem %. "qualified_id" `shouldMatch` aliceId
+          mem %. "conversation_role" `shouldMatch` "wire_admin"
