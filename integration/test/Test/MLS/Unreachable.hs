@@ -78,7 +78,7 @@ testAddUnreachableUserFromFederatingBackend :: HasCallStack => App ()
 testAddUnreachableUserFromFederatingBackend = do
   resourcePool <- asks resourcePool
   runCodensity (acquireResources 1 resourcePool) $ \[cDom] -> do
-    mp <- runCodensity (startDynamicBackend cDom mempty) $ \_ -> do
+    ((alice, chad), mp, qcnv) <- runCodensity (startDynamicBackend cDom mempty) $ \_ -> do
       ownDomain <- make OwnDomain & asString
       otherDomain <- make OtherDomain & asString
       [alice, bob, charlie, chad] <-
@@ -86,12 +86,26 @@ testAddUnreachableUserFromFederatingBackend = do
 
       [alice1, bob1, charlie1, chad1] <- traverse (createMLSClient def) [alice, bob, charlie, chad]
       traverse_ uploadNewKeyPackage [bob1, charlie1, chad1]
-      void $ createNewGroup alice1
+      qcnv <- snd <$> createNewGroup alice1
       withWebSockets [bob, charlie] $ \wss -> do
         void $ createAddCommit alice1 [bob, charlie] >>= sendAndConsumeCommitBundle
         forM_ wss $ awaitMatch 5 isMemberJoinNotif
-      createAddCommit alice1 [chad]
+      mp <- createAddCommit alice1 [chad]
+      pure ((alice, chad), mp, qcnv)
 
-    bindResponse (postMLSCommitBundle mp.sender (mkBundle mp)) $ \resp -> do
-      resp.status `shouldMatchInt` 533
-      resp.jsonBody %. "unreachable_backends" `shouldMatchSet` [cDom.berDomain]
+    resp <- sendAndConsumeCommitBundle mp
+    chadId <- chad %. "qualified_id"
+    events <- resp %. "events" & asList
+    do
+      event <- assertOne events
+      shouldMatch (event %. "qualified_conversation") qcnv
+      shouldMatch (event %. "type") "conversation.member-join"
+      shouldMatch (event %. "from") (objId alice)
+      members <- event %. "data" %. "users" & asList
+      memberQids <- for members $ \mem -> mem %. "qualified_id"
+      shouldMatch memberQids [chadId]
+
+    runCodensity (startDynamicBackend cDom mempty) $ \_ ->
+      withWebSocket chad $ \ws -> do
+        n <- awaitMatch 10 isMemberJoinNotif ws
+        n %. "data.qualified_target" `shouldMatch` chadId
