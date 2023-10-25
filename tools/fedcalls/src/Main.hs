@@ -69,6 +69,7 @@ type Swaggers =
     :<|> SpecialisedAPIRoutes 'V5 GundeckAPITag
     :<|> SpecialisedAPIRoutes 'V5 ProxyAPITag
     :<|> SpecialisedAPIRoutes 'V5 SparAPITag
+    :<|> BrigIRoutes.API
 
 swaggers :: [OpenApi]
 swaggers =

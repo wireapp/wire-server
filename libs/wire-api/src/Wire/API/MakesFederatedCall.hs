@@ -66,7 +66,7 @@ import Wire.API.Routes.LowLevelStream (LowLevelStream)
 import Wire.API.Routes.MultiVerb (MultiVerb)
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
-import Wire.API.Routes.QualifiedCapture (QualifiedCapture')
+import Wire.API.Routes.QualifiedCapture (QualifiedCapture', WithDomain)
 import Wire.API.Routes.Version
 import Wire.API.Routes.Versioned (VersionedReqBody)
 import Wire.API.Routes.WebSocket (WebSocketPending)
@@ -269,15 +269,25 @@ class HasFeds a where
   getFedCalls :: Proxy a -> State FedCallFrom [FedCallFrom]
 
 -- Here onwards are all of the interesting instances that have something we care about
+instance (KnownSymbol seg, HasFeds rest) => HasFeds (seg :> rest) where
+  getFedCalls _ = do
+    let segString = "/" <> T.unpack (T.dropAround (== '"') $ renderSymbol @seg)
+    modify $ appendName segString
+    getFedCalls $ Proxy @rest
+
+instance (KnownSymbol capture, HasFeds rest) => HasFeds (Capture' mods capture a :> rest) where
+  getFedCalls _ = do
+    let segString = "/{" <> T.unpack (T.dropAround (== '"') $ renderSymbol @capture) <> "}"
+    modify $ appendName segString
+    getFedCalls $ Proxy @rest
+
+instance (KnownSymbol capture, KnownSymbol (AppendSymbol capture "_domain"), HasFeds rest) => HasFeds (QualifiedCapture' mods capture a :> rest) where
+  getFedCalls _ = getFedCalls $ Proxy @(WithDomain mods capture a rest)
+
 instance (ReflectMethod method) => HasFeds (LowLevelStream method status headers desc ctype) where
   getFedCalls _ = do
     modify $ \s -> s {method = getMethod @method}
     gets pure
-
-instance (RenderableSymbol name, HasFeds rest) => HasFeds (UntypedNamed name rest) where
-  getFedCalls _ = do
-    modify $ \s -> s {name = pure . T.unpack $ renderSymbol @name}
-    getFedCalls $ Proxy @rest
 
 instance (HasFeds rest, KnownSymbol (ShowComponent comp), KnownSymbol name) => HasFeds (MakesFederatedCall comp name :> rest) where
   getFedCalls _ = do
@@ -333,13 +343,13 @@ instance HasFeds RawM where
   getFedCalls _ = gets pure
 
 getMethod :: forall method. ReflectMethod method => Maybe String
-getMethod = pure . unpack . reflectMethod $ Proxy @method
+getMethod = pure . fmap toLower . unpack . reflectMethod $ Proxy @method
+
+appendName :: String -> FedCallFrom -> FedCallFrom
+appendName toAppend s = s {name = pure $ maybe toAppend (<> toAppend) $ name s}
 
 -- All of the boring instances live here.
-instance (KnownSymbol seg, HasFeds rest) => HasFeds (seg :> rest) where
-  getFedCalls _ = getFedCalls $ Proxy @rest
-
-instance HasFeds rest => HasFeds (Capture' mods capture a :> rest) where
+instance (RenderableSymbol name, HasFeds rest) => HasFeds (UntypedNamed name rest) where
   getFedCalls _ = getFedCalls $ Proxy @rest
 
 instance HasFeds rest => HasFeds (Header' mods name a :> rest) where
@@ -388,9 +398,6 @@ instance HasFeds rest => HasFeds (ZAuthServant ztype opts :> rest) where
   getFedCalls _ = getFedCalls $ Proxy @rest
 
 instance HasFeds rest => HasFeds (ReqBodyCustomError' mods cts tag a :> rest) where
-  getFedCalls _ = getFedCalls $ Proxy @rest
-
-instance HasFeds rest => HasFeds (QualifiedCapture' mods capture a :> rest) where
   getFedCalls _ = getFedCalls $ Proxy @rest
 
 instance HasFeds rest => HasFeds (DescriptionOAuthScope scope :> rest) where
