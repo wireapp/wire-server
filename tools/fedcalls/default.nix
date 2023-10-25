@@ -7,14 +7,11 @@
 , containers
 , gitignoreSource
 , imports
-, insert-ordered-containers
 , language-dot
 , lens
 , lib
 , mtl
-, openapi3
 , servant
-, text
 , wire-api
 }:
 mkDerivation {
@@ -27,13 +24,10 @@ mkDerivation {
     base
     containers
     imports
-    insert-ordered-containers
     language-dot
     lens
     mtl
-    openapi3
     servant
-    text
     wire-api
   ];
   description = "Generate a dot file from swagger docs representing calls to federated instances";

@@ -66,13 +66,10 @@ executable fedcalls
       base
     , containers
     , imports
-    , insert-ordered-containers
     , language-dot
     , lens
     , mtl
-    , openapi3
     , servant
-    , text
     , wire-api
 
   default-language:   GHC2021
