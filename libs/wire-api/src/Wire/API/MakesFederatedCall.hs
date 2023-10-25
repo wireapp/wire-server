@@ -185,10 +185,14 @@ instance (HasOpenApi api, KnownSymbol name, KnownSymbol (ShowComponent comp)) =>
     toOpenApi (Proxy @api)
       -- Append federated call line to the description of routes
       -- that perform calls to federation members.
-      & S.allOperations . S.description %~ pure . maybe name (\d -> d <> "\n" <> name)
+      & S.allOperations . S.description %~ pure . maybe call (\d -> d <> "\n" <> call)
     where
-      name :: Text
-      name = "wire-makes-federated-call-to-" <> T.pack (symbolVal $ Proxy @name)
+      call :: Text
+      call =
+        T.pack "Calls federation service "
+          <> T.pack (symbolVal $ Proxy @(ShowComponent comp))
+          <> T.pack " on "
+          <> T.pack (symbolVal $ Proxy @name)
 
 instance HasClient m api => HasClient m (MakesFederatedCall comp name :> api :: Type) where
   type Client m (MakesFederatedCall comp name :> api) = Client m api
