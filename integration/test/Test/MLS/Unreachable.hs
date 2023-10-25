@@ -73,3 +73,25 @@ testAddReachableWithUnreachableRemoteUsers = do
     bindResponse (postMLSCommitBundle mp.sender (mkBundle mp)) $ \resp -> do
       resp.status `shouldMatchInt` 533
       resp.jsonBody %. "unreachable_backends" `shouldMatchSet` [cDom.berDomain]
+
+testAddUnreachableUserFromFederatingBackend :: HasCallStack => App ()
+testAddUnreachableUserFromFederatingBackend = do
+  resourcePool <- asks resourcePool
+  runCodensity (acquireResources 1 resourcePool) $ \[cDom] -> do
+    mp <- runCodensity (startDynamicBackend cDom mempty) $ \_ -> do
+      ownDomain <- make OwnDomain & asString
+      otherDomain <- make OtherDomain & asString
+      [alice, bob, charlie, chad] <-
+        createAndConnectUsers [ownDomain, otherDomain, cDom.berDomain, cDom.berDomain]
+
+      [alice1, bob1, charlie1, chad1] <- traverse (createMLSClient def) [alice, bob, charlie, chad]
+      traverse_ uploadNewKeyPackage [bob1, charlie1, chad1]
+      void $ createNewGroup alice1
+      withWebSockets [bob, charlie] $ \wss -> do
+        void $ createAddCommit alice1 [bob, charlie] >>= sendAndConsumeCommitBundle
+        forM_ wss $ awaitMatch 5 isMemberJoinNotif
+      createAddCommit alice1 [chad]
+
+    bindResponse (postMLSCommitBundle mp.sender (mkBundle mp)) $ \resp -> do
+      resp.status `shouldMatchInt` 533
+      resp.jsonBody %. "unreachable_backends" `shouldMatchSet` [cDom.berDomain]
