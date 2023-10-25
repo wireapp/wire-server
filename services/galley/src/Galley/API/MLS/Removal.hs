@@ -19,6 +19,7 @@ module Galley.API.MLS.Removal
   ( createAndSendRemoveProposals,
     removeExtraneousClients,
     removeClient,
+    RemoveUserIncludeMain (..),
     removeUser,
   )
 where
@@ -133,6 +134,31 @@ removeClientsWithClientMapRecursively lMlsConv getClients qusr = do
     planClientRemoval gid (fmap fst clients)
     createAndSendRemoveProposals mainConv (fmap snd clients) qusr cm
 
+  removeClientsFromSubConvs lMlsConv getClients qusr
+
+removeClientsFromSubConvs ::
+  ( Member (Input UTCTime) r,
+    Member TinyLog r,
+    Member BackendNotificationQueueAccess r,
+    Member ExternalAccess r,
+    Member GundeckAccess r,
+    Member MemberStore r,
+    Member ProposalStore r,
+    Member SubConversationStore r,
+    Member (Input Env) r,
+    Functor f,
+    Foldable f
+  ) =>
+  Local MLSConversation ->
+  -- | A function returning the "list" of clients to be removed from either the
+  -- main conversation or each of its subconversations.
+  (ConvOrSubConv -> f (ClientIdentity, LeafIndex)) ->
+  -- | Originating user. The resulting proposals will appear to be sent by this user.
+  Qualified UserId ->
+  Sem r ()
+removeClientsFromSubConvs lMlsConv getClients qusr = do
+  let cm = mcMembers (tUnqualified lMlsConv)
+
   -- remove this client from all subconversations
   subs <- listSubConversations' (mcId (tUnqualified lMlsConv))
   for_ subs $ \sub -> do
@@ -170,6 +196,18 @@ removeClient lc qusr c = do
     let getClients = fmap (cid,) . cmLookupIndex cid . (.members)
     removeClientsWithClientMapRecursively (qualifyAs lc mlsConv) getClients qusr
 
+-- | A flag to determine whether 'removeUser' should operate on the parent
+-- conversation as well as all the subconversations.
+data RemoveUserIncludeMain
+  = -- | Remove user clients from all subconversations, including the parent.
+    RemoveUserIncludeMain
+  | -- | Remove user clients from all subconversations, but not the parent.
+    --
+    -- This can be used when the clients are already in the process of being
+    -- removed from the main conversation, for example as a result of a commit
+    -- containing a remove proposal.
+    RemoveUserExcludeMain
+
 -- | Send remove proposals for all clients of the user to the local conversation.
 removeUser ::
   ( Member BackendNotificationQueueAccess r,
@@ -183,9 +221,10 @@ removeUser ::
     Member TinyLog r
   ) =>
   Local Data.Conversation ->
+  RemoveUserIncludeMain ->
   Qualified UserId ->
   Sem r ()
-removeUser lc qusr = do
+removeUser lc includeMain qusr = do
   mMlsConv <- mkMLSConversation (tUnqualified lc)
   for_ mMlsConv $ \mlsConv -> do
     let getClients :: ConvOrSubConv -> [(ClientIdentity, LeafIndex)]
@@ -194,7 +233,14 @@ removeUser lc qusr = do
             . Map.assocs
             . Map.findWithDefault mempty qusr
             . (.members)
-    removeClientsWithClientMapRecursively (qualifyAs lc mlsConv) getClients qusr
+    case includeMain of
+      RemoveUserIncludeMain ->
+        removeClientsWithClientMapRecursively
+          (qualifyAs lc mlsConv)
+          getClients
+          qusr
+      RemoveUserExcludeMain ->
+        removeClientsFromSubConvs (qualifyAs lc mlsConv) getClients qusr
 
 -- | Convert cassandra subconv maps into SubConversations
 listSubConversations' ::
