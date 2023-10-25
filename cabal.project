@@ -159,3 +159,5 @@ package wire-message-proto-lens
     ghc-options: -Werror
 package zauth
     ghc-options: -Werror
+package fedcalls
+    ghc-options: -Werror

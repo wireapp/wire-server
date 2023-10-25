@@ -11,7 +11,9 @@
 , language-dot
 , lens
 , lib
+, mtl
 , openapi3
+, servant
 , text
 , wire-api
 }:
@@ -28,7 +30,9 @@ mkDerivation {
     insert-ordered-containers
     language-dot
     lens
+    mtl
     openapi3
+    servant
     text
     wire-api
   ];

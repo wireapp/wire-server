@@ -1,4 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# OPTIONS_GHC -Wno-unused-binds #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -24,14 +26,18 @@ where
 
 import Control.Exception (assert)
 import Control.Lens
+import Control.Monad.State (evalState)
+import Data.Data (Proxy (Proxy))
 import Data.HashMap.Strict.InsOrd qualified as HM
 import Data.HashSet.InsOrd (InsOrdHashSet)
 import Data.Map qualified as M
-import Data.OpenApi
+import Data.OpenApi hiding (name)
 import Data.OpenApi.Lens qualified as S
 import Data.Text qualified as T
 import Imports
 import Language.Dot as D
+import Servant.API
+import Wire.API.MakesFederatedCall (Calls (..), FedCallFrom' (..), HasFeds (..))
 import Wire.API.Routes.API
 import Wire.API.Routes.Internal.Brig qualified as BrigIRoutes
 import Wire.API.Routes.Public.Brig
@@ -53,7 +59,16 @@ main = do
 calls :: [MakesCallTo]
 calls = assert (calls' == nub calls') calls'
   where
-    calls' = mconcat $ parse <$> swaggers
+    calls' = parse $ Proxy @Swaggers
+
+type Swaggers =
+  SpecialisedAPIRoutes 'V5 BrigAPITag
+    :<|> SpecialisedAPIRoutes 'V5 CannonAPITag
+    :<|> SpecialisedAPIRoutes 'V5 CargoholdAPITag
+    :<|> SpecialisedAPIRoutes 'V5 GalleyAPITag
+    :<|> SpecialisedAPIRoutes 'V5 GundeckAPITag
+    :<|> SpecialisedAPIRoutes 'V5 ProxyAPITag
+    :<|> SpecialisedAPIRoutes 'V5 SparAPITag
 
 swaggers :: [OpenApi]
 swaggers =
@@ -91,8 +106,30 @@ data MakesCallTo = MakesCallTo
 
 ------------------------------
 
-parse :: OpenApi -> [MakesCallTo]
-parse oapi =
+fromFedCall :: FedCallFrom' Identity -> [MakesCallTo]
+fromFedCall FedCallFrom {..} = do
+  (comp, names) <- M.assocs $ unCalls fedCalls
+  MakesCallTo
+    (runIdentity name)
+    (runIdentity method)
+    comp
+    <$> names
+
+filterCalls :: FedCallFrom' Maybe -> Maybe (FedCallFrom' Identity)
+filterCalls fedCall =
+  FedCallFrom
+    <$> fmap pure (name fedCall)
+    <*> fmap pure (method fedCall)
+    <*> pure (fedCalls fedCall)
+
+parse :: HasFeds api => Proxy api -> [MakesCallTo]
+parse p = do
+  fedCallM <- evalState (getFedCalls p) mempty
+  fedCallI <- maybeToList $ filterCalls fedCallM
+  fromFedCall fedCallI
+
+parse' :: OpenApi -> [MakesCallTo]
+parse' oapi =
   mconcat
     . fmap (parseOperationExtensions allTags)
     . mconcat

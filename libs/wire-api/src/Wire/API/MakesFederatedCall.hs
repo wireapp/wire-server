@@ -15,7 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 {-# LANGUAGE OverloadedLists #-}
-{-# OPTIONS_GHC -fno-warn-redundant-constraints #-}
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
 module Wire.API.MakesFederatedCall
   ( CallsFed,
@@ -28,14 +28,19 @@ module Wire.API.MakesFederatedCall
     ShowComponent,
     Annotation,
     exposeAnnotations,
+    HasFeds (..),
+    FedCallFrom' (..),
+    Calls (..),
   )
 where
 
-import Control.Lens ((<>~))
+import Control.Lens ((%~))
+import Control.Monad.State (State, evalState, get, gets, modify)
 import Data.Aeson
+import Data.ByteString.Char8 (unpack)
 import Data.Constraint
-import Data.HashSet.InsOrd (singleton)
 import Data.Kind
+import Data.Map qualified as M
 import Data.Metrics.Servant
 import Data.OpenApi qualified as S
 import Data.Proxy
@@ -44,13 +49,28 @@ import Data.Text qualified as T
 import GHC.TypeLits
 import Imports
 import Servant.API
+import Servant.API.Extended (ReqBodyCustomError')
+import Servant.API.Extended.RawM (RawM)
 import Servant.Client
+import Servant.Multipart
 import Servant.OpenApi
 import Servant.Server
 import Test.QuickCheck (Arbitrary)
 import TransitiveAnns.Types
 import Unsafe.Coerce (unsafeCoerce)
+import Wire.API.Deprecated (Deprecated)
+import Wire.API.Error (CanThrow, CanThrowMany)
+import Wire.API.Routes.Bearer (Bearer)
+import Wire.API.Routes.Cookies (Cookies)
+import Wire.API.Routes.LowLevelStream (LowLevelStream)
+import Wire.API.Routes.MultiVerb (MultiVerb)
+import Wire.API.Routes.Named
+import Wire.API.Routes.Public
+import Wire.API.Routes.QualifiedCapture (QualifiedCapture')
 import Wire.API.Routes.Version
+import Wire.API.Routes.Versioned (VersionedReqBody)
+import Wire.API.Routes.WebSocket (WebSocketPending)
+import Wire.API.SwaggerServant (OmitDocs)
 import Wire.Arbitrary (GenericUniform (..))
 
 -- | This function exists only to provide a convenient place for the
@@ -163,29 +183,12 @@ type instance
 instance (HasOpenApi api, KnownSymbol name, KnownSymbol (ShowComponent comp)) => HasOpenApi (MakesFederatedCall comp name :> api :: Type) where
   toOpenApi _ =
     toOpenApi (Proxy @api)
-      -- Since extensions aren't in the openapi3 library yet,
-      -- and the PRs for their support seem be going no where quickly, I'm using
-      -- tags instead. https://github.com/biocad/openapi3/pull/43
-      -- Basically, this is similar to the old system, except we don't have nested JSON to
-      -- work with. So I'm using the magic string and sticking the call name on the end
-      -- and sticking the component in the description. This ordering is important as we
-      -- can't have duplicate tag names on an object.
-
-      -- Set the tags at the top of OpenApi object
-      & S.tags
-        <>~ singleton
-          ( S.Tag
-              name
-              (pure $ T.pack (symbolVal $ Proxy @(ShowComponent comp)))
-              Nothing
-          )
-      -- Set the tags on the specific path we're looking at
-      -- This is where the tag is actually registered on the path
-      -- so it can be picked up by fedcalls.
-      & S.allOperations . S.tags <>~ setName
+      -- Append federated call line to the description of routes
+      -- that perform calls to federation members.
+      & S.allOperations . S.description %~ pure . maybe name (\d -> d <> "\n" <> name)
     where
+      name :: Text
       name = "wire-makes-federated-call-to-" <> T.pack (symbolVal $ Proxy @name)
-      setName = singleton name
 
 instance HasClient m api => HasClient m (MakesFederatedCall comp name :> api :: Type) where
   type Client m (MakesFederatedCall comp name :> api) = Client m api
@@ -216,3 +219,181 @@ instance {-# OVERLAPPABLE #-} (c ~ (() :: Constraint), r ~ a) => SolveCallsFed c
 -- thus might mean a federated call gets forgotten in the documentation.
 unsafeCallsFed :: forall (comp :: Component) (name :: Symbol) r. (CallsFed comp name => r) -> r
 unsafeCallsFed f = withDict (synthesizeCallsFed @comp @name) f
+
+data FedCallFrom' f = FedCallFrom
+  { name :: f String,
+    method :: f String,
+    fedCalls :: Calls
+  }
+
+deriving instance Show (FedCallFrom' Maybe)
+
+deriving instance Show (FedCallFrom' Identity)
+
+type FedCallFrom = FedCallFrom' Maybe
+
+-- Merge the maps, perserving as much unique info as possible.
+instance Semigroup (FedCallFrom' Maybe) where
+  a <> b =
+    FedCallFrom
+      (name a <|> name b)
+      (method a <|> method b)
+      (fedCalls a <> fedCalls b)
+
+instance Semigroup (FedCallFrom' Identity) where
+  a <> b =
+    FedCallFrom
+      (name a)
+      (method a)
+      (fedCalls a <> fedCalls b)
+
+instance Monoid FedCallFrom where
+  mempty = FedCallFrom mempty mempty mempty
+
+newtype Calls = Calls
+  { unCalls :: Map String [String]
+  }
+  deriving (Eq, Ord, Show)
+
+instance Semigroup Calls where
+  Calls a <> Calls b = Calls $ M.unionWith (\na nb -> nub . sort $ na <> nb) a b
+
+instance Monoid Calls where
+  mempty = Calls mempty
+
+class HasFeds a where
+  getFedCalls :: Proxy a -> State FedCallFrom [FedCallFrom]
+
+-- Here onwards are all of the interesting instances that have something we care about
+instance (ReflectMethod method) => HasFeds (LowLevelStream method status headers desc ctype) where
+  getFedCalls _ = do
+    modify $ \s -> s {method = getMethod @method}
+    gets pure
+
+instance (RenderableSymbol name, HasFeds rest) => HasFeds (UntypedNamed name rest) where
+  getFedCalls _ = do
+    modify $ \s -> s {name = pure . T.unpack $ renderSymbol @name}
+    getFedCalls $ Proxy @rest
+
+instance (HasFeds rest, KnownSymbol (ShowComponent comp), KnownSymbol name) => HasFeds (MakesFederatedCall comp name :> rest) where
+  getFedCalls _ = do
+    let call =
+          M.singleton
+            (symbolVal $ Proxy @(ShowComponent comp))
+            (pure (symbolVal $ Proxy @name))
+    modify $ \s -> s {fedCalls = fedCalls s <> Calls call}
+    getFedCalls $ Proxy @rest
+
+instance ReflectMethod method => HasFeds (MultiVerb method cs as r) where
+  getFedCalls _ = do
+    modify $ \s -> s {method = getMethod @method}
+    gets pure
+
+instance ReflectMethod method => HasFeds (Verb method status cts a) where
+  getFedCalls _ = do
+    modify $ \s -> s {method = getMethod @method}
+    gets pure
+
+instance ReflectMethod method => HasFeds (NoContentVerb method) where
+  getFedCalls _ = do
+    modify $ \s -> s {method = getMethod @method}
+    gets pure
+
+instance ReflectMethod method => HasFeds (Stream method status framing ct a) where
+  getFedCalls _ = do
+    modify $ \s -> s {method = getMethod @method}
+    gets pure
+
+instance HasFeds WebSocketPending where
+  getFedCalls _ = do
+    modify $ \s -> s {method = pure $ show GET}
+    gets pure
+
+instance (HasFeds route, HasFeds routes) => HasFeds (route :<|> routes) where
+  getFedCalls _ = do
+    s <- get
+    -- Use what state we have up until now, as it might be a funky style of endpoint.
+    -- Routes will usually specify their own name, as we don't have a style of sharing
+    -- a route name between several HTTP methods.
+    let a = evalState (getFedCalls $ Proxy @route) s
+        b = evalState (getFedCalls $ Proxy @routes) s
+    pure $ a <> b
+
+instance HasFeds EmptyAPI where
+  getFedCalls _ = gets pure
+
+instance HasFeds Raw where
+  getFedCalls _ = gets pure
+
+instance HasFeds RawM where
+  getFedCalls _ = gets pure
+
+getMethod :: forall method. ReflectMethod method => Maybe String
+getMethod = pure . unpack . reflectMethod $ Proxy @method
+
+-- All of the boring instances live here.
+instance (KnownSymbol seg, HasFeds rest) => HasFeds (seg :> rest) where
+  getFedCalls _ = getFedCalls $ Proxy @rest
+
+instance HasFeds rest => HasFeds (Capture' mods capture a :> rest) where
+  getFedCalls _ = getFedCalls $ Proxy @rest
+
+instance HasFeds rest => HasFeds (Header' mods name a :> rest) where
+  getFedCalls _ = getFedCalls $ Proxy @rest
+
+instance HasFeds rest => HasFeds (ReqBody' mods cts a :> rest) where
+  getFedCalls _ = getFedCalls $ Proxy @rest
+
+instance HasFeds rest => HasFeds (StreamBody' opts framing ct a :> rest) where
+  getFedCalls _ = getFedCalls $ Proxy @rest
+
+instance HasFeds rest => HasFeds (Summary summary :> rest) where
+  getFedCalls _ = getFedCalls $ Proxy @rest
+
+instance HasFeds rest => HasFeds (QueryParam' mods name a :> rest) where
+  getFedCalls _ = getFedCalls $ Proxy @rest
+
+instance HasFeds rest => HasFeds (MultipartForm tag a :> rest) where
+  getFedCalls _ = getFedCalls $ Proxy @rest
+
+instance HasFeds rest => HasFeds (QueryFlag a :> rest) where
+  getFedCalls _ = getFedCalls $ Proxy @rest
+
+instance HasFeds rest => HasFeds (Description desc :> rest) where
+  getFedCalls _ = getFedCalls $ Proxy @rest
+
+instance HasFeds rest => HasFeds (Deprecated :> rest) where
+  getFedCalls _ = getFedCalls $ Proxy @rest
+
+instance HasFeds rest => HasFeds (CanThrow e :> rest) where
+  getFedCalls _ = getFedCalls $ Proxy @rest
+
+instance HasFeds rest => HasFeds (CanThrowMany es :> rest) where
+  getFedCalls _ = getFedCalls $ Proxy @rest
+
+instance HasFeds rest => HasFeds (Bearer a :> rest) where
+  getFedCalls _ = getFedCalls $ Proxy @rest
+
+instance HasFeds rest => HasFeds (Cookies cs :> rest) where
+  getFedCalls _ = getFedCalls $ Proxy @rest
+
+instance HasFeds rest => HasFeds (ZHostOpt :> rest) where
+  getFedCalls _ = getFedCalls $ Proxy @rest
+
+instance HasFeds rest => HasFeds (ZAuthServant ztype opts :> rest) where
+  getFedCalls _ = getFedCalls $ Proxy @rest
+
+instance HasFeds rest => HasFeds (ReqBodyCustomError' mods cts tag a :> rest) where
+  getFedCalls _ = getFedCalls $ Proxy @rest
+
+instance HasFeds rest => HasFeds (QualifiedCapture' mods capture a :> rest) where
+  getFedCalls _ = getFedCalls $ Proxy @rest
+
+instance HasFeds rest => HasFeds (DescriptionOAuthScope scope :> rest) where
+  getFedCalls _ = getFedCalls $ Proxy @rest
+
+instance HasFeds rest => HasFeds (OmitDocs :> rest) where
+  getFedCalls _ = getFedCalls $ Proxy @rest
+
+instance HasFeds rest => HasFeds (VersionedReqBody v cts a :> rest) where
+  getFedCalls _ = getFedCalls $ Proxy @rest
