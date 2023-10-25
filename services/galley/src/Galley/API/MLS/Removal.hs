@@ -196,9 +196,17 @@ removeClient lc qusr c = do
     let getClients = fmap (cid,) . cmLookupIndex cid . (.members)
     removeClientsWithClientMapRecursively (qualifyAs lc mlsConv) getClients qusr
 
+-- | A flag to determine whether 'removeUser' should operate on the parent
+-- conversation as well as all the subconversations.
 data RemoveUserIncludeMain
-  = RemoveUserIncludeMain
-  | RemoveUserExcludeMain
+  = -- | Remove user clients from all subconversations, including the parent.
+    RemoveUserIncludeMain
+  | -- | Remove user clients from all subconversations, but not the parent.
+    --
+    -- This can be used when the clients are already in the process of being
+    -- removed from the main conversation, for example as a result of a commit
+    -- containing a remove proposal.
+    RemoveUserExcludeMain
 
 -- | Send remove proposals for all clients of the user to the local conversation.
 removeUser ::
