@@ -19,10 +19,10 @@ executable test-stats
   build-depends:
       base
     , bytestring
-    , containers
     , imports
     , monoidal-containers
     , optparse-generic
+    , postgresql-simple
     , prettyprinter
     , prometheus-client
     , text

@@ -17,14 +17,14 @@
 
 module Main (main) where
 
+import Control.Exception
 import Data.ByteString.Lazy.Char8 qualified as LBS
 import Data.List
 import Data.Map.Monoidal (MonoidalMap)
 import Data.Map.Monoidal qualified as MonoidalMap
-import Data.Set qualified as Set
 import Data.Text qualified as T
-import Data.Text qualified as Text
 import Data.Text.IO qualified as T
+import Database.PostgreSQL.Simple
 import Imports hiding (Map)
 import Options.Generic
 import Prettyprinter
@@ -38,7 +38,7 @@ main = do
   xmlFiles <- map ((opts.testResults <> "/") <>) . filter (".xml" `isSuffixOf`) <$> listDirectory opts.testResults
   reports <- mconcat <$> traverse parse xmlFiles
   pushFailureDescriptions opts.failureReport reports
-  pushMetrics opts.metricName reports
+  pushToPostgresql opts reports
   LBS.putStrLn =<< exportMetricsAsText
 
 -- * Command Line Options
@@ -46,7 +46,14 @@ main = do
 data Options w = Options
   { testResults :: w ::: FilePath <?> "Directory containing test results in the JUNIT xml format. All files with 'xml' extension in this directory will be considered test results",
     failureReport :: w ::: FilePath <?> "Path to output file containing failure formatted as markdown.",
-    metricName :: w ::: Text <?> "Name of the prometheus metric" <!> "flake_news_test_case_results"
+    metricName :: w ::: Text <?> "Name of the prometheus metric" <!> "flake_news_test_case_results",
+    runId :: w ::: Text <?> "ID of the flake-news run",
+    suiteName :: w ::: Text <?> "Name of the test suite, e.g brig, galley, integration, etc.",
+    postgresqlHost :: w ::: String <?> "Hostname for postgresql DB" <!> "localhost",
+    postgresqlPort :: w ::: Word16 <?> "Port for postgresql DB" <!> "5432",
+    postgresqlDatabase :: w ::: String <?> "The database to use in postgresql DB" <!> "flake_news",
+    postgresqlUser :: w ::: String <?> "Username for postgresql DB" <!> "flake_journalist",
+    postgresqlPassword :: w ::: String <?> "Password for postgresql DB" <!> ""
   }
   deriving (Generic)
 
@@ -59,7 +66,7 @@ type TestCase = Text
 data Report = Report
   { success :: Int,
     failure :: Int,
-    failureDesc :: Set Text
+    failureDesc :: [Text]
   }
   deriving (Show)
 
@@ -73,7 +80,7 @@ instance Semigroup Report where
 successCase :: Report
 successCase = Report 1 0 mempty
 
-failureCase :: Set Text -> Report
+failureCase :: [Text] -> Report
 failureCase = Report 0 1
 
 -- * XML parser
@@ -102,7 +109,7 @@ parseTestCase names el
   | otherwise = MonoidalMap.singleton compName $ failureCase failures
   where
     compName = T.intercalate "." $ names <> name el
-    failures = Set.fromList . map (T.pack . strContent) $ children "failure" el
+    failures = map (T.pack . strContent) $ children "failure" el
 
 matchQName :: String -> QName -> Bool
 matchQName = flip $ (==) . qName
@@ -113,21 +120,35 @@ children = filterChildrenName . matchQName
 name :: Element -> [Text]
 name = maybeToList . fmap T.pack . findAttrBy (matchQName "name")
 
--- * Metrics output (Prometheus)
+-- * Postgresql outout
 
-pushMetrics :: Text -> MonoidalMap TestCase Report -> IO ()
-pushMetrics metricName reports = do
-  let metric = vector ("testcase", "result") $ gauge $ Info metricName "Result of a test case after running it a few times"
-  v <- register metric
-  void $ MonoidalMap.traverseWithKey (push v) reports
-  where
-    push v caseName report = do
-      when (report.success > 0) $
-        withLabel v (caseName, "success") $
-          flip setGauge (fromIntegral report.success)
-      when (report.failure > 0) $
-        withLabel v (caseName, "failure") $
-          flip setGauge (fromIntegral report.failure)
+runMigrations :: Connection -> IO ()
+runMigrations conn = do
+  void $ execute_ conn "CREATE TABLE IF NOT EXISTS test_runs (id SERIAL PRIMARY KEY, suite VARCHAR)"
+  void $ execute_ conn "CREATE TABLE IF NOT EXISTS test_case_runs (id SERIAL PRIMARY KEY, name VARCHAR, test_run_id integer, failure_count integer, success_count integer)"
+  void $ execute_ conn "CREATE TABLE IF NOT EXISTS test_case_failures (id SERIAL PRIMARY KEY, test_case_run_id integer, failure_log text)"
+
+pushToPostgresql :: Options Unwrapped -> MonoidalMap TestCase Report -> IO ()
+pushToPostgresql opts reports = do
+  let connInfo =
+        ConnectInfo
+          { connectHost = opts.postgresqlHost,
+            connectPort = opts.postgresqlPort,
+            connectUser = opts.postgresqlUser,
+            connectPassword = opts.postgresqlPassword,
+            connectDatabase = opts.postgresqlDatabase
+          }
+  bracket (connect connInfo) (close) $ \conn -> do
+    runMigrations conn
+    runId <- extractId =<< returning conn "INSERT INTO test_runs (suite) VALUES (?) RETURNING id" [Only opts.suiteName]
+    let saveTestCaseRun testCase report = do
+          testCaseRunId <- extractId =<< returning conn "INSERT INTO test_case_runs (name, test_run_id, failure_count, success_count) VALUES (?,?,?,?) RETURNING id" [(testCase, runId, report.failure, report.success)]
+          void $ executeMany conn "INSERT INTO test_case_failures (test_case_run_id, failure_log) VALUES (?,?)" $ zip (repeat testCaseRunId) report.failureDesc
+    void $ MonoidalMap.traverseWithKey saveTestCaseRun reports
+
+extractId :: HasCallStack => [Only Int] -> IO Int
+extractId [] = error $ "No ID returned by query"
+extractId (Only x : _) = pure x
 
 -- * Failure descriptions output (MD)
 
@@ -144,7 +165,7 @@ pushFailureDescriptions outFile reports =
               ( liftM2
                   separateByLine
                   (h2 . pretty . fst)
-                  (concatWith separateByLine . map (verbatim . pretty) . Set.toList . failureDesc . snd)
+                  (concatWith separateByLine . map (verbatim . pretty) . failureDesc . snd)
               )
           )
     failures = MonoidalMap.filter (not . null . failureDesc)
