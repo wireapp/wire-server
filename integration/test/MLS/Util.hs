@@ -7,9 +7,11 @@ import API.Galley
 import Control.Concurrent.Async hiding (link)
 import Control.Monad
 import Control.Monad.Catch
+import Control.Monad.Codensity
 import Control.Monad.Cont
 import Control.Monad.Reader
 import Control.Monad.Trans.Maybe
+import Data.Aeson qualified as A
 import Data.Aeson qualified as Aeson
 import Data.ByteString qualified as BS
 import Data.ByteString.Base64 qualified as Base64
@@ -26,6 +28,7 @@ import Data.Traversable
 import Data.UUID qualified as UUID
 import Data.UUID.V4 qualified as UUIDV4
 import GHC.Stack
+import Notifications
 import System.Directory
 import System.Exit
 import System.FilePath
@@ -501,15 +504,75 @@ createExternalCommit cid mgi = do
         groupInfo = Just newPgs
       }
 
--- | Make all member clients consume a given message.
-consumeMessage :: HasCallStack => MessagePackage -> App ()
-consumeMessage msg = do
-  mls <- getMLSState
-  for_ (Set.delete msg.sender mls.members) $ \cid ->
-    consumeMessage1 cid msg.message
+data MLSNotificationTag = MLSNotificationMessageTag | MLSNotificationWelcomeTag
+  deriving (Show, Eq, Ord)
 
-consumeMessage1 :: HasCallStack => ClientIdentity -> ByteString -> App ()
-consumeMessage1 cid msg =
+-- | Extract a conversation ID (including an optional subconversation) from an
+-- event object.
+eventSubConv :: HasCallStack => MakesValue event => event -> App Value
+eventSubConv event = do
+  sub <- lookupField event "subconv"
+  conv <- event %. "qualified_conversation"
+  objSubConvObject $
+    object
+      [ "parent_qualified_id" .= conv,
+        "subconv_id" .= sub
+      ]
+
+consumingMessages :: HasCallStack => MessagePackage -> Codensity App ()
+consumingMessages mp = Codensity $ \k -> do
+  mls <- getMLSState
+  -- clients that should receive the message itself
+  let oldClients = Set.delete mp.sender mls.members
+  -- clients that should receive a welcome message
+  let newClients = Set.delete mp.sender mls.newMembers
+  -- all clients that should receive some MLS notification, together with the
+  -- expected notification tag
+  let clients =
+        map (,MLSNotificationMessageTag) (toList oldClients)
+          <> map (,MLSNotificationWelcomeTag) (toList newClients)
+
+  let newUsers =
+        Set.delete mp.sender.user $
+          Set.difference
+            (Set.map (.user) newClients)
+            (Set.map (.user) oldClients)
+  withWebSockets (map fst clients) $ \wss -> do
+    r <- k ()
+
+    -- if the conversation is actually MLS (and not mixed), pick one client for
+    -- each new user and wait for its join event
+    when (mls.protocol == MLSProtocolMLS) $
+      traverse_
+        (awaitMatch 10 isMemberJoinNotif)
+        ( flip Map.restrictKeys newUsers
+            . Map.mapKeys ((.user) . fst)
+            . Map.fromList
+            . toList
+            $ zip clients wss
+        )
+
+    -- at this point we know that every new user has been added to the
+    -- conversation
+    for_ (zip clients wss) $ \((cid, t), ws) -> case t of
+      MLSNotificationMessageTag -> void $ consumeMessage cid (Just mp) ws
+      MLSNotificationWelcomeTag -> consumeWelcome cid mp ws
+    pure r
+
+-- | Get a single MLS message from a websocket and consume it. Return a JSON
+-- representation of the message.
+consumeMessage :: HasCallStack => ClientIdentity -> Maybe MessagePackage -> WebSocket -> App Value
+consumeMessage cid mmp ws = do
+  mls <- getMLSState
+  notif <- awaitMatch 10 isNewMLSMessageNotif ws
+  event <- notif %. "payload.0"
+
+  for_ mmp $ \mp -> do
+    shouldMatch (eventSubConv event) (fromMaybe A.Null mls.convId)
+    shouldMatch (event %. "from") mp.sender.user
+    shouldMatch (event %. "data") (B8.unpack (Base64.encode mp.message))
+
+  msgData <- event %. "data" & asByteString
   void $
     mlscli
       cid
@@ -520,52 +583,72 @@ consumeMessage1 cid msg =
         "<group-out>",
         "-"
       ]
-      (Just msg)
+      (Just msgData)
+  showMessage cid msgData
 
--- | Send an MLS message and simulate clients receiving it. If the message is a
--- commit, the 'sendAndConsumeCommit' function should be used instead.
+-- | Send an MLS message, wait for clients to receive it, then consume it on
+-- the client side. If the message is a commit, the
+-- 'sendAndConsumeCommitBundle' function should be used instead.
 sendAndConsumeMessage :: HasCallStack => MessagePackage -> App Value
-sendAndConsumeMessage mp = do
-  r <- postMLSMessage mp.sender mp.message >>= getJSON 201
-  consumeMessage mp
-  pure r
+sendAndConsumeMessage mp = lowerCodensity $ do
+  consumingMessages mp
+  lift $ postMLSMessage mp.sender mp.message >>= getJSON 201
 
--- | Send an MLS commit bundle, simulate clients receiving it, and update the
--- test state accordingly.
+-- | Send an MLS commit bundle, wait for clients to receive it, consume it, and
+-- update the test state accordingly.
 sendAndConsumeCommitBundle :: HasCallStack => MessagePackage -> App Value
 sendAndConsumeCommitBundle mp = do
-  resp <- postMLSCommitBundle mp.sender (mkBundle mp) >>= getJSON 201
-  consumeMessage mp
-  traverse_ consumeWelcome mp.welcome
+  lowerCodensity $ do
+    consumingMessages mp
+    lift $ do
+      r <- postMLSCommitBundle mp.sender (mkBundle mp) >>= getJSON 201
 
-  -- increment epoch and add new clients
-  modifyMLSState $ \mls ->
-    mls
-      { epoch = epoch mls + 1,
-        members = members mls <> newMembers mls,
-        newMembers = mempty
-      }
+      -- if the sender is a new member (i.e. it's an external commit), then
+      -- process the welcome message directly
+      do
+        mls <- getMLSState
+        when (Set.member mp.sender mls.newMembers) $
+          traverse_ (fromWelcome mp.sender) mp.welcome
 
-  pure resp
+      -- increment epoch and add new clients
+      modifyMLSState $ \mls ->
+        mls
+          { epoch = epoch mls + 1,
+            members = members mls <> newMembers mls,
+            newMembers = mempty
+          }
 
-consumeWelcome :: HasCallStack => ByteString -> App ()
-consumeWelcome welcome = do
+      pure r
+
+consumeWelcome :: HasCallStack => ClientIdentity -> MessagePackage -> WebSocket -> App ()
+consumeWelcome cid mp ws = do
   mls <- getMLSState
-  for_ mls.newMembers $ \cid -> do
-    gs <- getClientGroupState cid
-    assertBool
-      "Existing clients in a conversation should not consume welcomes"
-      (isNothing gs.group)
-    void $
-      mlscli
-        cid
-        [ "group",
-          "from-welcome",
-          "--group-out",
-          "<group-out>",
-          "-"
-        ]
-        (Just welcome)
+  notif <- awaitMatch 10 isWelcomeNotif ws
+  event <- notif %. "payload.0"
+
+  shouldMatch (eventSubConv event) (fromMaybe A.Null mls.convId)
+  shouldMatch (event %. "from") mp.sender.user
+  shouldMatch (event %. "data") (fmap (B8.unpack . Base64.encode) mp.welcome)
+
+  welcome <- event %. "data" & asByteString
+  gs <- getClientGroupState cid
+  assertBool
+    "Existing clients in a conversation should not consume welcomes"
+    (isNothing gs.group)
+  fromWelcome cid welcome
+
+fromWelcome :: ClientIdentity -> ByteString -> App ()
+fromWelcome cid welcome =
+  void $
+    mlscli
+      cid
+      [ "group",
+        "from-welcome",
+        "--group-out",
+        "<group-out>",
+        "-"
+      ]
+      (Just welcome)
 
 readWelcome :: FilePath -> IO (Maybe ByteString)
 readWelcome fp = runMaybeT $ do

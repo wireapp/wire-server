@@ -215,6 +215,9 @@ data ClientGroupState = ClientGroupState
   }
   deriving (Show)
 
+data MLSProtocol = MLSProtocolMLS | MLSProtocolMixed
+  deriving (Eq, Show)
+
 data MLSState = MLSState
   { baseDir :: FilePath,
     members :: Set ClientIdentity,
@@ -224,7 +227,8 @@ data MLSState = MLSState
     convId :: Maybe Value,
     clientGroupState :: Map ClientIdentity ClientGroupState,
     epoch :: Word64,
-    ciphersuite :: Ciphersuite
+    ciphersuite :: Ciphersuite,
+    protocol :: MLSProtocol
   }
   deriving (Show)
 
@@ -290,7 +294,7 @@ appToIOKleisli k = do
 getServiceMap :: HasCallStack => String -> App ServiceMap
 getServiceMap fedDomain = do
   env <- ask
-  assertJust ("Could not find service map for federation domain: " <> fedDomain) (Map.lookup fedDomain (env.serviceMap))
+  assertJust ("Could not find service map for federation domain: " <> fedDomain) (Map.lookup fedDomain env.serviceMap)
 
 getMLSState :: App MLSState
 getMLSState = do

@@ -19,6 +19,7 @@
 
 module Test.MLS.Message where
 
+import API.Galley
 import API.Gundeck
 import MLS.Util
 import Notifications
@@ -69,7 +70,10 @@ testAppMessageSomeReachable = do
       awaitMatch 10 isMemberJoinNotif ws
     pure alice1
 
-  void $ createApplicationMessage alice1 "hi, bob!" >>= sendAndConsumeMessage
+  -- charlie isn't able to receive this message, so we make sure we can post it
+  -- successfully, but not attempt to consume it
+  mp <- createApplicationMessage alice1 "hi, bob!"
+  void $ postMLSMessage mp.sender mp.message >>= getJSON 201
 
 testMessageNotifications :: HasCallStack => Domain -> App ()
 testMessageNotifications bobDomain = do

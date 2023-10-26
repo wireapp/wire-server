@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns -Wno-ambiguous-fields #-}
 
 module Test.MLS where
 
@@ -90,6 +90,7 @@ testMixedProtocolUpgrade secondDomain = do
       resp.status `shouldMatchInt` 200
       resp.json %. "conversation" `shouldMatch` (qcnv %. "id")
       resp.json %. "data.protocol" `shouldMatch` "mixed"
+    modifyMLSState $ \mls -> mls {protocol = MLSProtocolMixed}
 
     for_ websockets $ \ws -> do
       n <- awaitMatch 3 (\value -> nPayload value %. "type" `isEqual` "conversation.protocol-update") ws
@@ -130,6 +131,7 @@ testMixedProtocolAddUsers secondDomain = do
 
   bindResponse (putConversationProtocol bob qcnv "mixed") $ \resp -> do
     resp.status `shouldMatchInt` 200
+  modifyMLSState $ \mls -> mls {protocol = MLSProtocolMixed}
 
   [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
 
@@ -158,6 +160,7 @@ testMixedProtocolUserLeaves secondDomain = do
 
   bindResponse (putConversationProtocol bob qcnv "mixed") $ \resp -> do
     resp.status `shouldMatchInt` 200
+  modifyMLSState $ \mls -> mls {protocol = MLSProtocolMixed}
 
   [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
 
@@ -193,6 +196,7 @@ testMixedProtocolAddPartialClients secondDomain = do
 
   bindResponse (putConversationProtocol bob qcnv "mixed") $ \resp -> do
     resp.status `shouldMatchInt` 200
+  modifyMLSState $ \mls -> mls {protocol = MLSProtocolMixed}
 
   [alice1, bob1, bob2] <- traverse (createMLSClient def) [alice, bob, bob]
 
@@ -231,6 +235,7 @@ testMixedProtocolRemovePartialClients secondDomain = do
 
   bindResponse (putConversationProtocol bob qcnv "mixed") $ \resp -> do
     resp.status `shouldMatchInt` 200
+  modifyMLSState $ \mls -> mls {protocol = MLSProtocolMixed}
 
   [alice1, bob1, bob2] <- traverse (createMLSClient def) [alice, bob, bob]
 
@@ -256,6 +261,7 @@ testMixedProtocolAppMessagesAreDenied secondDomain = do
 
   bindResponse (putConversationProtocol bob qcnv "mixed") $ \resp -> do
     resp.status `shouldMatchInt` 200
+  modifyMLSState $ \mls -> mls {protocol = MLSProtocolMixed}
 
   [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
 
@@ -302,6 +308,7 @@ testMLSProtocolUpgrade secondDomain = do
   withWebSockets [alice1, bob1] $ \wss -> do
     bindResponse (putConversationProtocol bob conv "mls") $ \resp -> do
       resp.status `shouldMatchInt` 200
+    modifyMLSState $ \mls -> mls {protocol = MLSProtocolMLS}
     for_ wss $ \ws -> do
       n <- awaitMatch 3 isNewMLSMessageNotif ws
       msg <- asByteString (nPayload n %. "data") >>= showMessage alice1
@@ -399,47 +406,17 @@ testCreateSubConvProteus = do
   bindResponse (getSubConversation alice conv "conference") $ \resp ->
     resp.status `shouldMatchInt` 404
 
--- FUTUREWORK: New clients should be adding themselves via external commits, and
--- they shouldn't be added by another client. Change the test so external
--- commits are used.
 testSelfConversation :: App ()
 testSelfConversation = do
   alice <- randomUser OwnDomain def
   creator : others <- traverse (createMLSClient def) (replicate 3 alice)
   traverse_ uploadNewKeyPackage others
-  (_, cnv) <- createSelfGroup creator
-  commit <- createAddCommit creator [alice]
-  welcome <- assertOne (toList commit.welcome)
+  void $ createSelfGroup creator
+  void $ createAddCommit creator [alice] >>= sendAndConsumeCommitBundle
 
-  withWebSockets others $ \wss -> do
-    void $ sendAndConsumeCommitBundle commit
-    let isWelcome n = nPayload n %. "type" `isEqual` "conversation.mls-welcome"
-    for_ wss $ \ws -> do
-      n <- awaitMatch 3 isWelcome ws
-      shouldMatch (nPayload n %. "conversation") (objId cnv)
-      shouldMatch (nPayload n %. "from") (objId alice)
-      shouldMatch (nPayload n %. "data") (B8.unpack (Base64.encode welcome))
-
-testJoinSubConv :: App ()
-testJoinSubConv = do
-  [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
-  [alice1, bob1, bob2] <- traverse (createMLSClient def) [alice, bob, bob]
-  traverse_ uploadNewKeyPackage [bob1, bob2]
-  (_, qcnv) <- createNewGroup alice1
-  void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
-  void $ createSubConv bob1 "conference"
-
-  -- bob adds his first client to the subconversation
-  void $ createPendingProposalCommit bob1 >>= sendAndConsumeCommitBundle
-  sub' <- getSubConversation bob qcnv "conference" >>= getJSON 200
-  do
-    tm <- sub' %. "epoch_timestamp"
-    assertBool "Epoch timestamp should not be null" (tm /= Null)
-
-  -- now alice joins with her own client
-  void $
-    createExternalCommit alice1 Nothing
-      >>= sendAndConsumeCommitBundle
+  newClient <- createMLSClient def alice
+  void $ uploadNewKeyPackage newClient
+  void $ createExternalCommit newClient Nothing >>= sendAndConsumeCommitBundle
 
 -- | FUTUREWORK: Don't allow partial adds, not even in the first commit
 testFirstCommitAllowsPartialAdds :: HasCallStack => App ()
@@ -505,6 +482,7 @@ testAdminRemovesUserFromConv :: HasCallStack => App ()
 testAdminRemovesUserFromConv = do
   [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
   [alice1, bob1, bob2] <- traverse (createMLSClient def) [alice, bob, bob]
+
   void $ createWireClient bob
   traverse_ uploadNewKeyPackage [bob1, bob2]
   (gid, qcnv) <- createNewGroup alice1
@@ -520,15 +498,16 @@ testAdminRemovesUserFromConv = do
     bobQid <- bob %. "qualified_id"
     shouldMatch members [bobQid]
 
-  convs <- getAllConvs bob
-  convIds <- traverse (%. "qualified_id") convs
-  clients <- bindResponse (getGroupClients alice gid) $ \resp -> do
-    resp.status `shouldMatchInt` 200
-    resp.json %. "client_ids" & asList
-  void $ assertOne clients
-  assertBool
-    "bob is not longer part of conversation after the commit"
-    (qcnv `notElem` convIds)
+  do
+    convs <- getAllConvs bob
+    convIds <- traverse (%. "qualified_id") convs
+    clients <- bindResponse (getGroupClients alice gid) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      resp.json %. "client_ids" & asList
+    void $ assertOne clients
+    assertBool
+      "bob is not longer part of conversation after the commit"
+      (qcnv `notElem` convIds)
 
 testLocalWelcome :: HasCallStack => App ()
 testLocalWelcome = do

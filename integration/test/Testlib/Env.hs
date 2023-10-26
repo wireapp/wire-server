@@ -136,5 +136,6 @@ mkMLSState = Codensity $ \k ->
           convId = Nothing,
           clientGroupState = mempty,
           epoch = 0,
-          ciphersuite = def
+          ciphersuite = def,
+          protocol = MLSProtocolMLS
         }

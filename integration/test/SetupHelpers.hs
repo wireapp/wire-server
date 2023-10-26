@@ -122,6 +122,8 @@ simpleMixedConversationSetup secondDomain = do
   bindResponse (putConversationProtocol bob conv "mixed") $ \resp -> do
     resp.status `shouldMatchInt` 200
 
+  modifyMLSState $ \mls -> mls {protocol = MLSProtocolMixed}
+
   conv' <- getConversation alice conv >>= getJSON 200
 
   pure (alice, bob, conv')
