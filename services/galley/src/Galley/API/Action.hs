@@ -425,14 +425,14 @@ performAction tag origUser lconv action = do
       let victims = [origUser]
       lconv' <- traverse (convDeleteMembers (toUserList lconv victims)) lconv
       -- send remove proposals in the MLS case
-      traverse_ (removeUser lconv') victims
+      traverse_ (removeUser lconv' RemoveUserIncludeMain) victims
       pure (mempty, action)
     SConversationRemoveMembersTag -> do
       let presentVictims = filter (isConvMemberL lconv) (toList action)
       when (null presentVictims) noChanges
       traverse_ (convDeleteMembers (toUserList lconv presentVictims)) lconv
       -- send remove proposals in the MLS case
-      traverse_ (removeUser lconv) presentVictims
+      traverse_ (removeUser lconv RemoveUserExcludeMain) presentVictims
       pure (mempty, action) -- FUTUREWORK: should we return the filtered action here?
     SConversationMemberUpdateTag -> do
       void $ ensureOtherMember lconv (cmuTarget action) conv
@@ -883,7 +883,7 @@ notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
         -- because quid's backend will update local state and notify its users
         -- itself using the ConversationUpdate returned by this function
         if notifyOrigDomain || tDomain ruids /= qDomain quid
-          then fedQueueClient @'Galley @"on-conversation-updated" update $> Nothing
+          then fedQueueClient @'OnConversationUpdatedTag update $> Nothing
           else pure (Just update)
 
   -- notify local participants and bots

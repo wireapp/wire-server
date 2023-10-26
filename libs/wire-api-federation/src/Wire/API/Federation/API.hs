@@ -33,10 +33,13 @@ module Wire.API.Federation.API
   )
 where
 
+import Data.Aeson
+import Data.Domain
 import Data.Kind
 import Data.Proxy
 import GHC.TypeLits
 import Imports
+import Network.AMQP
 import Servant
 import Servant.Client
 import Servant.Client.Core
@@ -46,6 +49,8 @@ import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.BackendNotifications
 import Wire.API.Federation.Client
+import Wire.API.Federation.Component
+import Wire.API.Federation.HasNotificationEndpoint
 import Wire.API.MakesFederatedCall
 import Wire.API.Routes.Named
 
@@ -94,14 +99,32 @@ fedClient ::
 fedClient = clientIn (Proxy @api) (Proxy @m)
 
 fedQueueClient ::
-  forall (comp :: Component) (name :: Symbol) m api.
-  ( HasEmptyResponse api,
-    HasFedEndpoint comp api name,
-    HasClient m api,
-    m ~ FedQueueClient comp
+  forall tag api.
+  ( HasNotificationEndpoint tag,
+    -- FUTUREWORK: Include this API constraint and get it working
+    -- api ~ NotificationAPI tag (NotificationComponent tag),
+    HasEmptyResponse api,
+    KnownSymbol (NotificationPath tag),
+    KnownComponent (NotificationComponent tag),
+    ToJSON (Payload tag),
+    HasFedEndpoint (NotificationComponent tag) api (NotificationPath tag)
   ) =>
-  Client m api
-fedQueueClient = clientIn (Proxy @api) (Proxy @m)
+  Payload tag ->
+  FedQueueClient (NotificationComponent tag) ()
+fedQueueClient payload = do
+  env <- ask
+  let notif = fedNotifToBackendNotif @tag env.originDomain payload
+      msg =
+        newMsg
+          { msgBody = encode notif,
+            msgDeliveryMode = Just (env.deliveryMode),
+            msgContentType = Just "application/json"
+          }
+      -- Empty string means default exchange
+      exchange = ""
+  liftIO $ do
+    ensureQueue env.channel env.targetDomain._domainText
+    void $ publishMsg env.channel exchange (routingKey env.targetDomain._domainText) msg
 
 fedClientIn ::
   forall (comp :: Component) (name :: Symbol) m api.

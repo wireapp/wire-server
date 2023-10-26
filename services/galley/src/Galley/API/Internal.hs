@@ -376,7 +376,7 @@ rmUser lusr conn = do
         ConnectConv -> E.deleteMembers (Data.convId c) (UserList [tUnqualified lusr] []) $> Nothing
         RegularConv
           | tUnqualified lusr `isMember` Data.convLocalMembers c -> do
-              runError (removeUser (qualifyAs lusr c) (tUntagged lusr)) >>= \case
+              runError (removeUser (qualifyAs lusr c) RemoveUserIncludeMain (tUntagged lusr)) >>= \case
                 Left e -> P.err $ Log.msg ("failed to send remove proposal: " <> internalErrorDescription e)
                 Right _ -> pure ()
               E.deleteMembers (Data.convId c) (UserList [tUnqualified lusr] [])
@@ -420,7 +420,7 @@ rmUser lusr conn = do
     leaveRemoteConversations cids =
       for_ (bucketRemote (fromRange cids)) $ \remoteConvs -> do
         let userDelete = UserDeletedConversationsNotification (tUnqualified lusr) (unsafeRange (tUnqualified remoteConvs))
-        let rpc = void $ fedQueueClient @'Galley @"on-user-deleted-conversations" userDelete
+        let rpc = void $ fedQueueClient @'OnUserDeletedConversationsTag userDelete
         enqueueNotification remoteConvs Q.Persistent rpc
 
     -- FUTUREWORK: Add a retry mechanism if there are federation errrors.

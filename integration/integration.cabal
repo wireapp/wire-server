@@ -114,6 +114,7 @@ library
     Test.MLS.Message
     Test.MLS.One2One
     Test.MLS.SubConversation
+    Test.MLS.Unreachable
     Test.Notifications
     Test.Presence
     Test.Roles

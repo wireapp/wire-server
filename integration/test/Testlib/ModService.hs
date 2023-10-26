@@ -18,6 +18,7 @@ import Control.Monad.Extra
 import Control.Monad.Reader
 import Control.Retry (fibonacciBackoff, limitRetriesByCumulativeDelay, retrying)
 import Data.Aeson hiding ((.=))
+import Data.Aeson.KeyMap qualified as Aeson
 import Data.Default
 import Data.Foldable
 import Data.Function
@@ -311,15 +312,69 @@ startBackend resource overrides services = do
           whenM (doesDirectoryExist path) $ removeDirectoryRecursive path
 
   let modifyEnv env = env {serviceMap = Map.insert resource.berDomain serviceMap env.serviceMap}
+      checkServiceIsUp = \case
+        Nginz -> pure True
+        srv -> do
+          req <- baseRequest domain srv Unversioned "/i/status"
+          checkStatus <- appToIO $ do
+            res <- submit "GET" req
+            pure (res.status `elem` [200, 204])
+          eith <- liftIO (E.try checkStatus)
+          pure $ either (\(_e :: HTTP.HttpException) -> False) id eith
 
   Codensity $ \action -> local modifyEnv $ do
-    waitForService <- appToIOKleisli (waitUntilServiceUp domain)
+    waitForService <-
+      appToIOKleisli
+        ( \srv ->
+            retryRequestUntil
+              (checkServiceIsUp srv)
+              (show srv)
+        )
     ioAction <- appToIO (action ())
+    ioEnsureReachable <- appToIO (ensureReachable resource.berDomain)
     liftIO $
-      (mapConcurrently_ waitForService services >> ioAction)
+      ( mapConcurrently_ waitForService services
+          >> ioEnsureReachable
+          >> ioAction
+      )
         `finally` stopInstances
 
   pure modifyEnv
+  where
+    ensureReachable :: String -> App ()
+    ensureReachable domain = do
+      env <- ask
+      let checkServiceIsUpReq = do
+            req <-
+              rawBaseRequest
+                env.domain1
+                FederatorInternal
+                Unversioned
+                ("/rpc/" <> domain <> "/brig/api-version")
+                <&> (addHeader "Wire-Origin-Domain" env.domain1)
+                  . (addJSONObject [])
+            checkStatus <- appToIO $ do
+              res <- submit "POST" req
+              -- If we get 533 here it means federation is not avaiable between domains
+              -- but ingress is working, since we're processing the request.
+              let is200 = res.status == 200
+                  msg = case res.jsonBody of
+                    Just (Object obj) ->
+                      (Aeson.lookup "message" obj)
+                    _ -> Nothing
+                  isFedDenied =
+                    res.status == 533
+                      && ( Text.isInfixOf
+                             "federation-denied"
+                             (Text.pack $ show msg)
+                         )
+
+              pure (is200 || isFedDenied)
+            eith <- liftIO (E.try checkStatus)
+            pure $ either (\(_e :: HTTP.HttpException) -> False) id eith
+
+      when ((domain /= env.domain1) && (domain /= env.domain2)) $ do
+        retryRequestUntil checkServiceIsUpReq "Federator ingress"
 
 startProcess :: String -> Service -> Value -> App (ProcessHandle, FilePath)
 startProcess domain srv = startProcess' domain (configName srv)
@@ -365,24 +420,15 @@ logToConsole colorize prefix hdl = do
           `E.catch` (\(_ :: E.IOException) -> pure ())
   go
 
-waitUntilServiceUp :: HasCallStack => String -> Service -> App ()
-waitUntilServiceUp domain = \case
-  Nginz -> pure ()
-  srv -> do
-    isUp <-
-      retrying
-        (limitRetriesByCumulativeDelay (4 * 1000 * 1000) (fibonacciBackoff (200 * 1000)))
-        (\_ isUp -> pure (not isUp))
-        ( \_ -> do
-            req <- baseRequest domain srv Unversioned "/i/status"
-            checkStatus <- appToIO $ do
-              res <- submit "GET" req
-              pure (res.status `elem` [200, 204])
-            eith <- liftIO (E.try checkStatus)
-            pure $ either (\(_e :: HTTP.HttpException) -> False) id eith
-        )
-    unless isUp $
-      failApp ("Time out for service " <> show srv <> " to come up")
+retryRequestUntil :: HasCallStack => App Bool -> String -> App ()
+retryRequestUntil reqAction err = do
+  isUp <-
+    retrying
+      (limitRetriesByCumulativeDelay (4 * 1000 * 1000) (fibonacciBackoff (200 * 1000)))
+      (\_ isUp -> pure (not isUp))
+      (const reqAction)
+  unless isUp $
+    failApp ("Timed out waiting for service " <> err <> " to come up")
 
 startNginzK8s :: String -> ServiceMap -> App (ProcessHandle, FilePath)
 startNginzK8s domain sm = do

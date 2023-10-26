@@ -31,7 +31,7 @@ module Wire.API.Conversation.Action
   )
 where
 
-import Control.Lens ((?~))
+import Control.Lens hiding ((%~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Aeson qualified as A
 import Data.Aeson.KeyMap qualified as A
@@ -88,6 +88,40 @@ instance ToJSON SomeConversationAction where
     let tag = fromSing sb
         actionJSON = fromMaybe A.Null $ schemaOut (conversationActionSchema sb) action
      in A.object ["tag" A..= tag, "action" A..= actionJSON]
+
+instance S.ToSchema SomeConversationAction where
+  declareNamedSchema _ = do
+    unitSchema <- S.declareSchemaRef (Proxy :: Proxy ())
+    conversationJoin <- S.declareSchemaRef (Proxy :: Proxy ConversationJoin)
+    conversationMemberUpdate <- S.declareSchemaRef (Proxy :: Proxy ConversationMemberUpdate)
+    conversationRename <- S.declareSchemaRef (Proxy :: Proxy ConversationRename)
+    conversationMessageTimerUpdate <- S.declareSchemaRef (Proxy :: Proxy ConversationMessageTimerUpdate)
+    conversationReceiptModeUpdate <- S.declareSchemaRef (Proxy :: Proxy ConversationReceiptModeUpdate)
+    conversationAccessData <- S.declareSchemaRef (Proxy :: Proxy ConversationAccessData)
+    nonEmptyListNonEmptyQualifiedUserId <- S.declareSchemaRef (Proxy :: Proxy (NonEmptyList.NonEmpty (Qualified UserId)))
+    protocolTag <- S.declareSchemaRef (Proxy :: Proxy ProtocolTag)
+    let schemas =
+          [ (toJSON ConversationJoinTag, conversationJoin),
+            (toJSON ConversationLeaveTag, unitSchema),
+            (toJSON ConversationMemberUpdateTag, conversationMemberUpdate),
+            (toJSON ConversationDeleteTag, unitSchema),
+            (toJSON ConversationRenameTag, conversationRename),
+            (toJSON ConversationMessageTimerUpdateTag, conversationMessageTimerUpdate),
+            (toJSON ConversationReceiptModeUpdateTag, conversationReceiptModeUpdate),
+            (toJSON ConversationAccessDataTag, conversationAccessData),
+            (toJSON ConversationRemoveMembersTag, nonEmptyListNonEmptyQualifiedUserId),
+            (toJSON ConversationUpdateProtocolTag, protocolTag)
+          ]
+            <&> \(t, a) ->
+              S.Inline $
+                mempty
+                  & S.type_ ?~ S.OpenApiObject
+                  & S.properties . at "tag" ?~ S.Inline (mempty & S.type_ ?~ S.OpenApiString & S.enum_ ?~ [t])
+                  & S.properties . at "action" ?~ a
+                  & S.required .~ ["tag", "action"]
+    pure $
+      S.NamedSchema (Just "SomeConversationAction") $
+        mempty & S.oneOf ?~ schemas
 
 conversationActionSchema :: forall tag. Sing tag -> ValueSchema NamedSwaggerDoc (ConversationAction tag)
 conversationActionSchema SConversationJoinTag = schema @ConversationJoin

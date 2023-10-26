@@ -302,6 +302,16 @@ deleteKeyPackages cid kps = do
   req <- baseRequest cid Brig Versioned ("/mls/key-packages/self/" <> cid.client)
   submit "DELETE" $ req & addJSONObject ["key_packages" .= kps]
 
+replaceKeyPackages :: ClientIdentity -> [Ciphersuite] -> [ByteString] -> App Response
+replaceKeyPackages cid suites kps = do
+  req <-
+    baseRequest cid Brig Versioned $
+      "/mls/key-packages/self/" <> cid.client
+  submit "PUT" $
+    req
+      & addQueryParams [("ciphersuites", intercalate "," (map (.code) suites))]
+      & addJSONObject ["key_packages" .= map (T.decodeUtf8 . Base64.encode) kps]
+
 getSelf :: HasCallStack => String -> String -> App Response
 getSelf domain uid = do
   let user = object ["domain" .= domain, "id" .= uid]

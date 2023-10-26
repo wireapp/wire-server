@@ -1733,17 +1733,15 @@ testSelfConversationLeave :: TestM ()
 testSelfConversationLeave = do
   alice <- randomQualifiedUser
   runMLSTest $ do
-    clients@(creator : others) <- traverse createMLSClient (replicate 3 alice)
+    (creator : others) <- traverse createMLSClient (replicate 3 alice)
     traverse_ uploadNewKeyPackage others
     (_, qcnv) <- setupMLSSelfGroup creator
     void $ createAddCommit creator [alice] >>= sendAndConsumeCommitBundle
-    mlsBracket clients $ \wss -> do
-      liftTest $
-        deleteMemberQualified (qUnqualified alice) alice qcnv
-          !!! do
-            const 403 === statusCode
-            const (Just "invalid-op") === fmap Wai.label . responseJsonError
-      WS.assertNoEvent (1 # WS.Second) wss
+    liftTest $
+      deleteMemberQualified (qUnqualified alice) alice qcnv
+        !!! do
+          const 403 === statusCode
+          const (Just "invalid-op") === fmap Wai.label . responseJsonError
 
 assertMLSNotEnabled :: Assertions ()
 assertMLSNotEnabled = do

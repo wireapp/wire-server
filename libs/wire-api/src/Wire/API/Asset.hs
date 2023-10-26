@@ -196,7 +196,7 @@ nilAssetKey = AssetKeyV3 (Id UUID.nil) AssetVolatile
 newtype AssetToken = AssetToken {assetTokenAscii :: AsciiBase64Url}
   deriving stock (Eq, Show)
   deriving newtype (FromByteString, ToByteString, Arbitrary)
-  deriving (FromJSON, ToJSON) via (Schema AssetToken)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema AssetToken)
 
 instance ToSchema AssetToken where
   schema =

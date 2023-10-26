@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedLabels #-}
+{-# OPTIONS_GHC -Wno-ambiguous-fields #-}
 
 module API.Galley where
 
