@@ -40,6 +40,7 @@ type TeamMemberAPI =
     "get-team-members"
     ( Summary "Get team members"
         :> CanThrow 'NotATeamMember
+        :> CanThrow 'InvalidPermissions
         :> ZLocalUser
         :> "teams"
         :> Capture "tid" TeamId

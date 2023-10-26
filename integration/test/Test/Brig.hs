@@ -3,7 +3,7 @@ module Test.Brig where
 import API.Brig qualified as BrigP
 import API.BrigInternal qualified as BrigI
 import API.Common qualified as API
-import API.GalleyInternal qualified as GalleyI
+import API.Galley qualified as Galley
 import Control.Concurrent (threadDelay)
 import Data.Aeson.Types hiding ((.=))
 import Data.Set qualified as Set
@@ -18,12 +18,25 @@ import Testlib.Prelude
 testSearchContactForExternalUsers :: HasCallStack => App ()
 testSearchContactForExternalUsers = do
   owner <- randomUser OwnDomain def {BrigI.team = True}
-  partner <- randomUser OwnDomain def {BrigI.team = True}
+  tid <- owner %. "team" & asString
 
-  bindResponse (GalleyI.putTeamMember partner (partner %. "team") (API.teamRole "partner")) $ \resp ->
+  partner <- createTeamMemberWithRole owner tid "partner"
+  teamMember <- createTeamMember owner tid
+
+  bindResponse (BrigP.searchContacts teamMember (owner %. "name") OwnDomain) $ \resp ->
     resp.status `shouldMatchInt` 200
 
   bindResponse (BrigP.searchContacts partner (owner %. "name") OwnDomain) $ \resp ->
+    resp.status `shouldMatchInt` 403
+
+  bindResponse (Galley.getTeamMembers teamMember tid) $ \resp -> do
+    members <- resp.json %. "members" & asList
+    userIds <- for members (\m -> m %. "user")
+    expected <- for [owner, teamMember, partner] objId
+    userIds `shouldMatchSet` expected
+    resp.status `shouldMatchInt` 200
+
+  bindResponse (Galley.getTeamMembers partner tid) $ \resp -> do
     resp.status `shouldMatchInt` 403
 
 testCrudFederationRemotes :: HasCallStack => App ()

@@ -484,6 +484,7 @@ getTeamConversationRoles zusr tid = do
 
 getTeamMembers ::
   ( Member (ErrorS 'NotATeamMember) r,
+    Member (ErrorS 'InvalidPermissions) r,
     Member TeamStore r,
     Member (TeamMemberStore CassandraPaging) r
   ) =>
@@ -494,6 +495,7 @@ getTeamMembers ::
   Sem r TeamMembersPage
 getTeamMembers lzusr tid mbMaxResults mbPagingState = do
   member <- E.getTeamMember tid (tUnqualified lzusr) >>= noteS @'NotATeamMember
+  unless (member `hasPermission` SearchContacts) $ throwS @'InvalidPermissions
   let mState = C.PagingState . LBS.fromStrict <$> (mbPagingState >>= mtpsState)
   let mLimit = fromMaybe (unsafeRange Public.hardTruncationLimit) mbMaxResults
   E.listTeamMembers @CassandraPaging tid mState mLimit <&> toTeamMembersPage member
