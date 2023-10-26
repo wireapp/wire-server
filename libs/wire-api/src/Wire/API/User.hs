@@ -1196,7 +1196,7 @@ newUserToRaw NewUser {..} =
           newUserRawUUID = newUserUUID,
           newUserRawEmail = emailIdentity =<< newUserIdentity,
           newUserRawPhone = phoneIdentity =<< newUserIdentity,
-          newUserRawSSOId = _,
+          newUserRawSSOId = Nothing,
           newUserRawUAuthId = ssoIdentity =<< newUserIdentity,
           newUserRawPict = newUserPict,
           newUserRawAssets = newUserAssets,
@@ -1228,9 +1228,9 @@ newUserFromRaw NewUserRaw {..} = do
           ( newUserRawEmail,
             newUserRawPhone,
             newUserRawUAuthId,
-            newUserRawSSOId,
-            newUserRawTeam,
-            newUserRawManagedBy
+            newUserRawSSOId, -- probably `Nothing`
+            newUserRawTeamId,
+            fromMaybe ManagedByWire newUserRawManagedBy
           )
   expiresIn <-
     case (newUserRawExpiresIn, identity) of

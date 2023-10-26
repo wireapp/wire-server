@@ -198,6 +198,7 @@ phoneIdentity (PhoneIdentity phone) = Just phone
 phoneIdentity (EmailIdentity _) = Nothing
 phoneIdentity (UAuthIdentity _) = Nothing
 
+-- TODO: rename to uauthIdentity
 ssoIdentity :: UserIdentity -> Maybe PartialUAuthId
 ssoIdentity (UAuthIdentity uaid) = pure uaid
 ssoIdentity _ = Nothing
