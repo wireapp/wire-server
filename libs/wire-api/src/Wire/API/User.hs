@@ -1196,7 +1196,7 @@ newUserToRaw NewUser {..} =
           newUserRawUUID = newUserUUID,
           newUserRawEmail = emailIdentity =<< newUserIdentity,
           newUserRawPhone = phoneIdentity =<< newUserIdentity,
-          newUserRawSSOId = Nothing,
+          newUserRawSSOId = Nothing, -- `LegacyUserSSOId` was migrated away during construction of `NewUser`.
           newUserRawUAuthId = ssoIdentity =<< newUserIdentity,
           newUserRawPict = newUserPict,
           newUserRawAssets = newUserAssets,
@@ -1228,7 +1228,7 @@ newUserFromRaw NewUserRaw {..} = do
           ( newUserRawEmail,
             newUserRawPhone,
             newUserRawUAuthId,
-            newUserRawSSOId, -- probably `Nothing`
+            newUserRawSSOId,
             newUserRawTeamId,
             fromMaybe ManagedByWire newUserRawManagedBy
           )
