@@ -3,6 +3,7 @@ module Test.Brig where
 import API.Brig qualified as BrigP
 import API.BrigInternal qualified as BrigI
 import API.Common (randomName)
+import API.Galley qualified as Galley
 import Data.Aeson.Types hiding ((.=))
 import Data.Set qualified as Set
 import Data.String.Conversions
@@ -12,6 +13,30 @@ import GHC.Stack
 import SetupHelpers
 import Testlib.Assertions
 import Testlib.Prelude
+
+testSearchContactForExternalUsers :: HasCallStack => App ()
+testSearchContactForExternalUsers = do
+  owner <- randomUser OwnDomain def {BrigI.team = True}
+  tid <- owner %. "team" & asString
+
+  partner <- createTeamMemberWithRole owner tid "partner"
+  teamMember <- createTeamMember owner tid
+
+  bindResponse (BrigP.searchContacts teamMember (owner %. "name") OwnDomain) $ \resp ->
+    resp.status `shouldMatchInt` 200
+
+  bindResponse (BrigP.searchContacts partner (owner %. "name") OwnDomain) $ \resp ->
+    resp.status `shouldMatchInt` 403
+
+  bindResponse (Galley.getTeamMembers teamMember tid) $ \resp -> do
+    members <- resp.json %. "members" & asList
+    userIds <- for members (\m -> m %. "user")
+    expected <- for [owner, teamMember, partner] objId
+    userIds `shouldMatchSet` expected
+    resp.status `shouldMatchInt` 200
+
+  bindResponse (Galley.getTeamMembers partner tid) $ \resp -> do
+    resp.status `shouldMatchInt` 403
 
 testCrudFederationRemotes :: HasCallStack => App ()
 testCrudFederationRemotes = do
