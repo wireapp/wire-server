@@ -90,13 +90,29 @@ data EmailWithSource = EmailWithSource
   deriving (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform EmailWithSource)
 
+instance ToSchema EmailWithSource where
+  schema =
+    object "EmailWithSource" $
+      EmailWithSource
+        <$> ewsEmail .= field "email" schema
+        <*> ewsEmailSource .= field "source" emailSourceSchema
+
 data EmailSource
   = EmailFromScimExternalIdField
   | EmailFromScimEmailsField
-  | -- | saml, but no scim.  deprecated, but we need to support this for the foreseeable future.
+  | -- | saml auto-provisioning (no scim).  deprecated, but we need to support this for the foreseeable future.
     EmailFromSamlNameId
   deriving (Eq, Show, Bounded, Enum, Generic)
   deriving (Arbitrary) via (GenericUniform EmailSource)
+
+emailSourceSchema :: ValueSchema NamedSwaggerDoc EmailSource
+emailSourceSchema =
+  enum @Text "EmailSource" $
+    mconcat
+      [ element "scim_external_id" EmailFromScimExternalIdField,
+        element "scim_emails" EmailFromScimEmailsField,
+        element "saml_name_id" EmailFromSamlNameId
+      ]
 
 -- | Konst exists to make the next set of declarations easier to write
 type Konst = Const ()
@@ -128,31 +144,42 @@ type PartialUAuthId = UAuthId Maybe Maybe Maybe
 type ScimUAuthId = UAuthId Maybe Identity Maybe
 
 partialToScimUAuthId :: PartialUAuthId -> Maybe ScimUAuthId
-partialToScimUAuthId = undefined
+partialToScimUAuthId (UAuthId saml (Just eid) eml tid) = Just $ UAuthId saml (Identity eid) eml tid
+partialToScimUAuthId (UAuthId _ Nothing _ _) = Nothing
 
 scimToPartialUAuthId :: ScimUAuthId -> PartialUAuthId
-scimToPartialUAuthId = undefined
+scimToPartialUAuthId (UAuthId saml (Identity eid) eml tid) = UAuthId saml (Just eid) eml tid
 
-instance ToSchema (UAuthId Identity Identity Identity) where
-  schema = undefined
+instance ToSchema PartialUAuthId where
+  schema =
+    object "PartialUAuthId" $
+      UAuthId
+        <$> uaSamlId .= maybe_ (optField "samlId" userRefSchema)
+        <*> uaScimExternalId .= maybe_ (optField "scimExternalId" schema)
+        <*> uaEmail .= maybe_ (optField "email" schema)
+        <*> uaTeamId .= field "teamId" schema
 
-instance ToSchema (UAuthId Identity Identity Konst) where
-  schema = undefined
+instance ToSchema ScimUAuthId where
+  schema =
+    object "ScimUAuthId" $
+      UAuthId
+        <$> uaSamlId .= maybe_ (optField "samlId" userRefSchema)
+        <*> (runIdentity . uaScimExternalId) .= (Identity <$> field "scimExternalId" schema)
+        <*> uaEmail .= maybe_ (optField "email" schema)
+        <*> uaTeamId .= field "teamId" schema
 
-instance ToSchema (UAuthId Identity Konst Identity) where
-  schema = undefined
+userRefSchema :: ValueSchema NamedSwaggerDoc SAML.UserRef
+userRefSchema =
+  object "UserRef" $
+    SAML.UserRef
+      <$> SAML._uidTenant .= field "tenant" issuerSchema
+      <*> SAML._uidSubject .= field "subject" nameIdSchema
 
-instance ToSchema (UAuthId Identity Konst Konst) where
-  schema = undefined
+issuerSchema :: ValueSchema NamedSwaggerDoc SAML.Issuer
+issuerSchema = undefined -- schema @Text
 
-instance ToSchema (UAuthId Konst Identity Identity) where
-  schema = undefined
-
-instance ToSchema (UAuthId Konst Identity Konst) where
-  schema = undefined
-
-instance ToSchema (UAuthId Maybe Maybe Maybe) where
-  schema = undefined
+nameIdSchema :: ValueSchema NamedSwaggerDoc SAML.NameID
+nameIdSchema = undefined -- schema @Text
 
 deriving via (Schema (UAuthId a b c)) instance (Typeable a, Typeable b, Typeable c, ToSchema (UAuthId a b c)) => OA.ToSchema (UAuthId a b c)
 
