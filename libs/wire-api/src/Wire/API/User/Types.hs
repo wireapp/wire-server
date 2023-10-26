@@ -107,6 +107,9 @@ type Konst = Const ()
 data UAuthId (a :: Type -> Type) (b :: Type -> Type) (c :: Type -> Type) = UAuthId
   { uaSamlId :: a SAML.UserRef,
     uaScimExternalId :: b Text,
+    -- | In contrast to the `email` field in `User`, this is the email address coming from
+    -- SAML or SCIM.  If the user has a confirmed email address stored in `User.email` and
+    -- gets an update here, the two will be different until reconfirmation.
     uaEmail :: c EmailWithSource,
     -- | Only team users support saml and/or scim.  `externalId` is scoped in `teamId`, so
     -- once we have parsed a scim user record, the `externalId` should never occur anywhere

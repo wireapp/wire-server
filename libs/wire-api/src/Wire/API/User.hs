@@ -751,7 +751,6 @@ scimExternalId :: ManagedBy -> PartialUAuthId -> Maybe Text
 scimExternalId _ (UAuthId _ (Just extId) _ _) = Just extId
 scimExternalId ManagedByScim (UAuthId (Just (SAML.UserRef _ nameIdXML)) _ _ _) = Just . CI.original . SAML.unsafeShowNameID $ nameIdXML
 scimExternalId ManagedByWire (UAuthId {}) = Nothing
--- TODO: Check that this makes sense.
 scimExternalId _ _ = Nothing
 
 ssoIssuerAndNameId :: PartialUAuthId -> Maybe (Text, Text)
@@ -1228,8 +1227,10 @@ newUserFromRaw NewUserRaw {..} = do
         maybeUserIdentityFromComponents
           ( newUserRawEmail,
             newUserRawPhone,
+            newUserRawUAuthId,
             newUserRawSSOId,
-            newUserRawUAuthId
+            newUserRawTeam,
+            newUserRawManagedBy
           )
   expiresIn <-
     case (newUserRawExpiresIn, identity) of
