@@ -389,13 +389,14 @@ testRemoteRemoveClient = do
 testCreateSubConv :: HasCallStack => Ciphersuite -> App ()
 testCreateSubConv suite = do
   setMLSCiphersuite suite
-  alice <- randomUser OwnDomain def
-  alice1 <- createMLSClient def alice
-  (_, conv) <- createNewGroup alice1
-  bindResponse (getSubConversation alice conv "conference") $ \resp -> do
-    resp.status `shouldMatchInt` 200
-    let tm = resp.json %. "epoch_timestamp"
-    tm `shouldMatch` Null
+  [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
+  aliceClients@(alice1 : _) <- replicateM 5 $ createMLSClient def alice
+  replicateM_ 3 $ traverse_ uploadNewKeyPackage aliceClients
+  [bob1, bob2] <- replicateM 2 $ createMLSClient def bob
+  replicateM_ 3 $ traverse_ uploadNewKeyPackage [bob1, bob2]
+  void $ createNewGroup alice1
+  void $ createAddCommit alice1 [alice, bob] >>= sendAndConsumeCommitBundle
+  createSubConv alice1 "conference"
 
 testCreateSubConvProteus :: App ()
 testCreateSubConvProteus = do
