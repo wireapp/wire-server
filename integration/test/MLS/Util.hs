@@ -573,7 +573,11 @@ consumeMessage cid mmp ws = do
     shouldMatch (event %. "data") (B8.unpack (Base64.encode mp.message))
 
   msgData <- event %. "data" & asByteString
-  void $
+  _ <- consumeMessage1 cid msgData
+  showMessage cid msgData
+
+consumeMessage1 :: ClientIdentity -> ByteString -> App ByteString
+consumeMessage1 cid msgData = 
     mlscli
       cid
       [ "consume",
@@ -584,7 +588,6 @@ consumeMessage cid mmp ws = do
         "-"
       ]
       (Just msgData)
-  showMessage cid msgData
 
 -- | Send an MLS message, wait for clients to receive it, then consume it on
 -- the client side. If the message is a commit, the
