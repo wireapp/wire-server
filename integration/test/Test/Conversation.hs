@@ -308,38 +308,24 @@ testAddUnreachableUserFromFederatingBackend :: HasCallStack => App ()
 testAddUnreachableUserFromFederatingBackend = do
   resourcePool <- asks resourcePool
   runCodensity (acquireResources 1 resourcePool) $ \[cDom] -> do
-    (alice, chad, chad1, qcnv) <- runCodensity (startDynamicBackend cDom mempty) $ \_ -> do
+    (alice, chadId, conv) <- runCodensity (startDynamicBackend cDom mempty) $ \_ -> do
       ownDomain <- make OwnDomain & asString
       otherDomain <- make OtherDomain & asString
       [alice, bob, charlie, chad] <-
         createAndConnectUsers [ownDomain, otherDomain, cDom.berDomain, cDom.berDomain]
-      chad1 <- objId $ bindResponse (addClient chad def) $ getJSON 201
 
-      qcnv <- withWebSockets [bob, charlie] $ \wss -> do
+      conv <- withWebSockets [bob, charlie] $ \wss -> do
         conv <-
           postConversation alice (defProteus {qualifiedUsers = [bob, charlie]})
             >>= getJSON 201
         forM_ wss $ awaitMatch 5 isMemberJoinNotif
-        let qcnv = conv %. "qualified_id"
-        pure qcnv
-      pure (alice, chad, chad1, qcnv)
+        pure conv
+      chadId <- chad %. "qualified_id"
+      pure (alice, chadId, conv)
 
-    chadId <- chad %. "qualified_id"
-    bindResponse (addMembers alice qcnv def {users = [chad]}) $ \resp -> do
-      resp.status `shouldMatchInt` 200
-      let event = resp.jsonBody
-      shouldMatch (event %. "qualified_conversation") qcnv
-      shouldMatch (event %. "type") "conversation.member-join"
-      shouldMatch (event %. "from") (objId alice)
-      members <- event %. "data.users" & asList
-      memberQids <- for members (%. "qualified_id")
-      memberQids `shouldMatch` [chadId]
-
-    runCodensity (startDynamicBackend cDom mempty) $ \_ -> do
-      n <- awaitNotification chad chad1 noValue 10 isMemberJoinNotif
-      members <- n %. "payload.0.data.users" & asList
-      memberQids <- for members (%. "qualified_id")
-      memberQids `shouldMatch` [chadId]
+    bindResponse (addMembers alice conv def {users = [chadId]}) $ \resp -> do
+      resp.status `shouldMatchInt` 533
+      resp.jsonBody %. "unreachable_backends" `shouldMatchSet` [cDom.berDomain]
 
 testAddUnreachable :: HasCallStack => App ()
 testAddUnreachable = do
