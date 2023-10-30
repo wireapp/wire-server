@@ -104,3 +104,20 @@ testMessageNotifications bobDomain = do
 
   get def `shouldMatchInt` (numNotifs + 1)
   get def {client = Just bobClient} `shouldMatchInt` (numNotifsClient + 1)
+
+testMultipleMessages :: HasCallStack => App ()
+testMultipleMessages = do
+  [alice, bob] <- createAndConnectUsers [OwnDomain, OtherDomain]
+  [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
+  traverse_ uploadNewKeyPackage [alice1, bob1]
+  void $ createNewGroup alice1
+
+  withWebSockets [bob] $ \wss -> do
+    void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
+    traverse_ (awaitMatch 10 isMemberJoinNotif) wss
+
+    void $ createApplicationMessage alice1 "hello" >>= sendAndConsumeMessage
+    traverse_ (awaitMatch 10 isNewMLSMessageNotif) wss
+
+    void $ createApplicationMessage alice1 "world" >>= sendAndConsumeMessage
+    traverse_ (awaitMatch 10 isNewMLSMessageNotif) wss
