@@ -14,7 +14,7 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-module Galley.Schema.V88_TruncateMLSGroupMemberClient
+module Galley.Schema.V88_RemoveMemberClient
   ( migration,
   )
 where
@@ -28,6 +28,6 @@ import Text.RawString.QQ
 -- could've been. This migration just deletes old data. This could break some
 -- conversations/users in unknown ways. But those are most likely test users.
 migration :: Migration
-migration = Migration 88 "Truncate mls_group_member_client" $ do
+migration = Migration 88 "Remove member_client" $ do
   schema'
-    [r|TRUNCATE TABLE mls_group_member_client|]
+    [r|DROP TABLE IF EXISTS member_client|]

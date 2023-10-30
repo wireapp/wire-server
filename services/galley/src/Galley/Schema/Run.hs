@@ -87,8 +87,8 @@ import Galley.Schema.V84_MLSSubconversation qualified as V84_MLSSubconversation
 import Galley.Schema.V85_MLSDraft17 qualified as V85_MLSDraft17
 import Galley.Schema.V86_TeamFeatureMlsMigration qualified as V86_TeamFeatureMlsMigration
 import Galley.Schema.V87_TeamFeatureSupportedProtocols qualified as V87_TeamFeatureSupportedProtocols
-import Galley.Schema.V88_TruncateMLSGroupMemberClient qualified as V88_TruncateMLSGroupMemberClient
-import Galley.Schema.V89_RemoveMemberClient qualified as V89_RemoveMemberClient
+import Galley.Schema.V88_RemoveMemberClient qualified as V89_RemoveMemberClient
+import Galley.Schema.V89_TruncateMLSGroupMemberClient qualified as V88_TruncateMLSGroupMemberClient
 import Imports
 import Options.Applicative
 import System.Logger.Extended qualified as Log
