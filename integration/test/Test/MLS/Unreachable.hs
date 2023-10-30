@@ -78,7 +78,7 @@ testAddUnreachableUserFromFederatingBackend :: HasCallStack => App ()
 testAddUnreachableUserFromFederatingBackend = do
   resourcePool <- asks resourcePool
   runCodensity (acquireResources 1 resourcePool) $ \[cDom] -> do
-    ((alice, chad, chad1), mp, qcnv) <- runCodensity (startDynamicBackend cDom mempty) $ \_ -> do
+    ((alice, chad), mp, qcnv) <- runCodensity (startDynamicBackend cDom mempty) $ \_ -> do
       ownDomain <- make OwnDomain & asString
       otherDomain <- make OtherDomain & asString
       [alice, bob, charlie, chad] <-
@@ -91,9 +91,9 @@ testAddUnreachableUserFromFederatingBackend = do
         void $ createAddCommit alice1 [bob, charlie] >>= sendAndConsumeCommitBundle
         forM_ wss $ awaitMatch 5 isMemberJoinNotif
       mp <- createAddCommit alice1 [chad]
-      pure ((alice, chad, chad1), mp, qcnv)
+      pure ((alice, chad), mp, qcnv)
 
-    resp <- postMLSCommitBundle mp.sender (mkBundle mp) >>= getJSON 201
+    resp <- sendAndConsumeCommitBundle mp
     chadId <- chad %. "qualified_id"
     events <- resp %. "events" & asList
     do
@@ -101,12 +101,11 @@ testAddUnreachableUserFromFederatingBackend = do
       shouldMatch (event %. "qualified_conversation") qcnv
       shouldMatch (event %. "type") "conversation.member-join"
       shouldMatch (event %. "from") (objId alice)
-      members <- event %. "data.users" & asList
-      memberQids <- for members $ (%. "qualified_id")
+      members <- event %. "data" %. "users" & asList
+      memberQids <- for members $ \mem -> mem %. "qualified_id"
       shouldMatch memberQids [chadId]
 
-    runCodensity (startDynamicBackend cDom mempty) $ \_ -> do
-      n <- awaitNotification chad chad1 noValue 10 isMemberJoinNotif
-      members <- n %. "payload.0.data.users" & asList
-      memberQids <- for members (%. "qualified_id")
-      memberQids `shouldMatch` [chadId]
+    runCodensity (startDynamicBackend cDom mempty) $ \_ ->
+      withWebSocket chad $ \ws -> do
+        n <- awaitMatch 10 isMemberJoinNotif ws
+        n %. "data.qualified_target" `shouldMatch` chadId
