@@ -272,8 +272,7 @@ library
     Galley.Schema.V85_MLSDraft17
     Galley.Schema.V86_TeamFeatureMlsMigration
     Galley.Schema.V87_TeamFeatureSupportedProtocols
-    Galley.Schema.V88_TruncateMLSGroupMemberClient
-    Galley.Schema.V89_RemoveMemberClient
+    Galley.Schema.V88_RemoveMemberClientAndTruncateMLSGroupMemberClient
     Galley.Types.Clients
     Galley.Types.ToUserRole
     Galley.Types.UserList
