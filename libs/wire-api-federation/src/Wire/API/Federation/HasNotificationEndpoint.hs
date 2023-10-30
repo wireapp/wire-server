@@ -39,9 +39,6 @@ class HasNotificationEndpoint t where
   -- | The server component this endpoint is associated with
   type NotificationComponent t :: Component
 
-  -- | The Servant API endpoint type
-  type NotificationAPI t (c :: Component) :: Type
-
 -- | Convert a federation endpoint to a backend notification to be enqueued to a
 -- RabbitMQ queue.
 fedNotifToBackendNotif ::
