@@ -1184,6 +1184,7 @@ CREATE TABLE galley_test.team_features (
     mls_e2eid_lock_status int,
     mls_e2eid_status int,
     mls_e2eid_ver_exp timestamp,
+    mls_lock_status int,
     mls_migration_finalise_regardless_after timestamp,
     mls_migration_lock_status int,
     mls_migration_start_time timestamp,
