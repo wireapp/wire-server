@@ -206,6 +206,7 @@ featureAPI =
     <@> mkNamedAPI @'("iget", MLSConfig) (getFeatureStatus DontDoAuth)
     <@> mkNamedAPI @'("iput", MLSConfig) setFeatureStatusInternal
     <@> mkNamedAPI @'("ipatch", MLSConfig) patchFeatureStatusInternal
+    <@> mkNamedAPI @'("ilock", MLSConfig) (updateLockStatus @MLSConfig)
     <@> mkNamedAPI @'("iget", ExposeInvitationURLsToTeamAdminConfig) (getFeatureStatus DontDoAuth)
     <@> mkNamedAPI @'("iput", ExposeInvitationURLsToTeamAdminConfig) setFeatureStatusInternal
     <@> mkNamedAPI @'("ipatch", ExposeInvitationURLsToTeamAdminConfig) patchFeatureStatusInternal
