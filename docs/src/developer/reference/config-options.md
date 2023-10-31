@@ -299,18 +299,18 @@ If this feature is disabled then clients will use the Proteus protocol with this
 
 The default configuration that applies to all teams that didn't explicitly change their feature configuration can be given in galley's `featureFlags` section in the config file:
 
-```
+```yaml
 # galley.yaml
 mls:
   defaults:
-    status: disabled
+    status: enabled
     config:
       protocolToggleUsers: []
-      defaultProtocol: proteus
+      defaultProtocol: mls
       allowedCipherSuites: [1]
       defaultCipherSuite: 1
-    lockStatus: unlocked
-
+      supportedProtocols: [proteus, mls] # must contain defaultProtocol
+    lockStatus: locked
 ```
 
 This default configuration can be overriden on a per-team basis through the [feature config API](../developer/features.md)
