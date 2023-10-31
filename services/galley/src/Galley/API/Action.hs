@@ -425,14 +425,14 @@ performAction tag origUser lconv action = do
       let victims = [origUser]
       lconv' <- traverse (convDeleteMembers (toUserList lconv victims)) lconv
       -- send remove proposals in the MLS case
-      traverse_ (removeUser lconv') victims
+      traverse_ (removeUser lconv' RemoveUserIncludeMain) victims
       pure (mempty, action)
     SConversationRemoveMembersTag -> do
       let presentVictims = filter (isConvMemberL lconv) (toList action)
       when (null presentVictims) noChanges
       traverse_ (convDeleteMembers (toUserList lconv presentVictims)) lconv
       -- send remove proposals in the MLS case
-      traverse_ (removeUser lconv) presentVictims
+      traverse_ (removeUser lconv RemoveUserExcludeMain) presentVictims
       pure (mempty, action) -- FUTUREWORK: should we return the filtered action here?
     SConversationMemberUpdateTag -> do
       void $ ensureOtherMember lconv (cmuTarget action) conv

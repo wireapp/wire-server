@@ -304,6 +304,29 @@ testAddReachableWithUnreachableRemoteUsers = do
     resp.status `shouldMatchInt` 533
     resp.jsonBody %. "unreachable_backends" `shouldMatchSet` domains
 
+testAddUnreachableUserFromFederatingBackend :: HasCallStack => App ()
+testAddUnreachableUserFromFederatingBackend = do
+  resourcePool <- asks resourcePool
+  runCodensity (acquireResources 1 resourcePool) $ \[cDom] -> do
+    (alice, chadId, conv) <- runCodensity (startDynamicBackend cDom mempty) $ \_ -> do
+      ownDomain <- make OwnDomain & asString
+      otherDomain <- make OtherDomain & asString
+      [alice, bob, charlie, chad] <-
+        createAndConnectUsers [ownDomain, otherDomain, cDom.berDomain, cDom.berDomain]
+
+      conv <- withWebSockets [bob, charlie] $ \wss -> do
+        conv <-
+          postConversation alice (defProteus {qualifiedUsers = [bob, charlie]})
+            >>= getJSON 201
+        forM_ wss $ awaitMatch 5 isMemberJoinNotif
+        pure conv
+      chadId <- chad %. "qualified_id"
+      pure (alice, chadId, conv)
+
+    bindResponse (addMembers alice conv def {users = [chadId]}) $ \resp -> do
+      resp.status `shouldMatchInt` 533
+      resp.jsonBody %. "unreachable_backends" `shouldMatchSet` [cDom.berDomain]
+
 testAddUnreachable :: HasCallStack => App ()
 testAddUnreachable = do
   ([alex, charlie], [charlieDomain, dylanDomain], conv) <-

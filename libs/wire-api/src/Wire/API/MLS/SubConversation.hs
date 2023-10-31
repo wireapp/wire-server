@@ -48,7 +48,7 @@ import Wire.Arbitrary
 -- conversation. The pair of a qualified conversation ID and a subconversation
 -- ID identifies globally.
 newtype SubConvId = SubConvId {unSubConvId :: Text}
-  deriving newtype (Eq, ToSchema, Ord, S.ToParamSchema, ToByteString, ToJSON, FromJSON)
+  deriving newtype (Eq, ToSchema, Ord, S.ToParamSchema, ToByteString, ToJSON, FromJSON, S.ToSchema)
   deriving stock (Generic)
   deriving stock (Show)
 

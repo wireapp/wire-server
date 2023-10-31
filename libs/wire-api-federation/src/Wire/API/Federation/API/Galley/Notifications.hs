@@ -24,6 +24,7 @@ import Data.Aeson
 import Data.Id
 import Data.Json.Util
 import Data.List.NonEmpty
+import Data.OpenApi (ToSchema)
 import Data.Qualified
 import Data.Range
 import Data.Time.Clock
@@ -114,6 +115,8 @@ data ClientRemovedRequest = ClientRemovedRequest
   deriving (Arbitrary) via (GenericUniform ClientRemovedRequest)
   deriving (FromJSON, ToJSON) via (CustomEncoded ClientRemovedRequest)
 
+instance ToSchema ClientRemovedRequest
+
 -- Note: this is parametric in the conversation type to allow it to be used
 -- both for conversations with a fixed known domain (e.g. as the argument of the
 -- federation RPC), and for conversations with an arbitrary Qualified or Remote id
@@ -133,6 +136,8 @@ data RemoteMessage conv = RemoteMessage
   deriving (Arbitrary) via (GenericUniform (RemoteMessage conv))
   deriving (ToJSON, FromJSON) via (CustomEncodedLensable (RemoteMessage conv))
 
+instance (ToSchema a) => ToSchema (RemoteMessage a)
+
 data RemoteMLSMessage = RemoteMLSMessage
   { time :: UTCTime,
     metadata :: MessageMetadata,
@@ -145,6 +150,8 @@ data RemoteMLSMessage = RemoteMLSMessage
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform RemoteMLSMessage)
   deriving (ToJSON, FromJSON) via (CustomEncoded RemoteMLSMessage)
+
+instance ToSchema RemoteMLSMessage
 
 data ConversationUpdate = ConversationUpdate
   { cuTime :: UTCTime,
@@ -168,6 +175,8 @@ instance ToJSON ConversationUpdate
 
 instance FromJSON ConversationUpdate
 
+instance ToSchema ConversationUpdate
+
 type UserDeletedNotificationMaxConvs = 1000
 
 data UserDeletedConversationsNotification = UserDeletedConversationsNotification
@@ -179,3 +188,5 @@ data UserDeletedConversationsNotification = UserDeletedConversationsNotification
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserDeletedConversationsNotification)
   deriving (FromJSON, ToJSON) via (CustomEncoded UserDeletedConversationsNotification)
+
+instance ToSchema UserDeletedConversationsNotification

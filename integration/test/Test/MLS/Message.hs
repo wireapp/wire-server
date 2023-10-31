@@ -1,7 +1,25 @@
 {-# OPTIONS_GHC -Wno-ambiguous-fields #-}
 
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2023 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module Test.MLS.Message where
 
+import API.Galley
 import API.Gundeck
 import MLS.Util
 import Notifications
@@ -52,7 +70,10 @@ testAppMessageSomeReachable = do
       awaitMatch 10 isMemberJoinNotif ws
     pure alice1
 
-  void $ createApplicationMessage alice1 "hi, bob!" >>= sendAndConsumeMessage
+  -- charlie isn't able to receive this message, so we make sure we can post it
+  -- successfully, but not attempt to consume it
+  mp <- createApplicationMessage alice1 "hi, bob!"
+  void $ postMLSMessage mp.sender mp.message >>= getJSON 201
 
 testMessageNotifications :: HasCallStack => Domain -> App ()
 testMessageNotifications bobDomain = do
@@ -83,3 +104,20 @@ testMessageNotifications bobDomain = do
 
   get def `shouldMatchInt` (numNotifs + 1)
   get def {client = Just bobClient} `shouldMatchInt` (numNotifsClient + 1)
+
+testMultipleMessages :: HasCallStack => App ()
+testMultipleMessages = do
+  [alice, bob] <- createAndConnectUsers [OwnDomain, OtherDomain]
+  [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
+  traverse_ uploadNewKeyPackage [alice1, bob1]
+  void $ createNewGroup alice1
+
+  withWebSockets [bob] $ \wss -> do
+    void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
+    traverse_ (awaitMatch 10 isMemberJoinNotif) wss
+
+    void $ createApplicationMessage alice1 "hello" >>= sendAndConsumeMessage
+    traverse_ (awaitMatch 10 isNewMLSMessageNotif) wss
+
+    void $ createApplicationMessage alice1 "world" >>= sendAndConsumeMessage
+    traverse_ (awaitMatch 10 isNewMLSMessageNotif) wss

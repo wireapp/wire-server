@@ -84,6 +84,13 @@ The URL pattern is similar to that of public endpoints for latest version:
 If you want to get the raw json of the swagger:
 `https://<nginz-host>/api-internal/swagger-ui/<service>-swagger.json`.
 
+### Federation API
+
+- Unversioned
+  - [`brig` - Federation API](https://staging-nginz-https.zinfra.io/api-federation/swagger-ui/brig)
+  - [`galley` - Federation API](https://staging-nginz-https.zinfra.io/api-federation/swagger-ui/galley)
+  - [`cargohold` - Federation API](https://staging-nginz-https.zinfra.io/api-federation/swagger-ui/cargohold)
+
 ### Finding the source code for an end-point
 
 A *route internal ID* is provided for every end-point.  See

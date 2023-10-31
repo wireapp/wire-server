@@ -12,11 +12,11 @@ testJoinSubConv = do
   [alice1, bob1, bob2] <- traverse (createMLSClient def) [alice, bob, bob]
   traverse_ uploadNewKeyPackage [bob1, bob2]
   (_, qcnv) <- createNewGroup alice1
+
   void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
   createSubConv bob1 "conference"
 
   -- bob adds his first client to the subconversation
-  void $ createPendingProposalCommit bob1 >>= sendAndConsumeCommitBundle
   sub' <- getSubConversation bob qcnv "conference" >>= getJSON 200
   do
     tm <- sub' %. "epoch_timestamp"
@@ -36,13 +36,10 @@ testDeleteParentOfSubConv secondDomain = do
   [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
   traverse_ uploadNewKeyPackage [alice1, bob1]
   (_, qcnv) <- createNewGroup alice1
-  withWebSocket bob $ \ws -> do
-    void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
-    void $ awaitMatch 10 isMemberJoinNotif ws
+  void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
 
   -- bob creates a subconversation and adds his own client
   createSubConv bob1 "conference"
-  void $ createPendingProposalCommit bob1 >>= sendAndConsumeCommitBundle
 
   -- alice joins with her own client
   void $ createExternalCommit alice1 Nothing >>= sendAndConsumeCommitBundle
@@ -136,12 +133,9 @@ testLeaveSubConv variant = do
     leaveCurrentConv firstLeaver
 
     for_ (zip others wss) $ \(cid, ws) -> do
-      notif <- awaitMatch 10 isNewMLSMessageNotif ws
-      msgData <- notif %. "payload.0.data" & asByteString
-      msg <- showMessage alice1 msgData
+      msg <- consumeMessage cid Nothing ws
       msg %. "message.content.body.Proposal.Remove.removed" `shouldMatchInt` idxFirstLeaver
       msg %. "message.content.sender.External" `shouldMatchInt` 0
-      consumeMessage1 cid msgData
 
   withWebSockets (tail others) $ \wss -> do
     -- a member commits the pending proposal
@@ -164,12 +158,9 @@ testLeaveSubConv variant = do
     leaveCurrentConv charlie1
 
     for_ (zip others' wss) $ \(cid, ws) -> do
-      notif <- awaitMatch 10 isNewMLSMessageNotif ws
-      msgData <- notif %. "payload.0.data" & asByteString
-      msg <- showMessage alice1 msgData
+      msg <- consumeMessage cid Nothing ws
       msg %. "message.content.body.Proposal.Remove.removed" `shouldMatchInt` idxCharlie1
       msg %. "message.content.sender.External" `shouldMatchInt` 0
-      consumeMessage1 cid msgData
 
   -- a member commits the pending proposal
   void $ createPendingProposalCommit (head others') >>= sendAndConsumeCommitBundle

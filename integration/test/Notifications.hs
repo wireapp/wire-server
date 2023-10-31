@@ -69,6 +69,9 @@ isNewMessageNotif n = fieldEquals n "payload.0.type" "conversation.otr-message-a
 isNewMLSMessageNotif :: MakesValue a => a -> App Bool
 isNewMLSMessageNotif n = fieldEquals n "payload.0.type" "conversation.mls-message-add"
 
+isWelcomeNotif :: MakesValue a => a -> App Bool
+isWelcomeNotif n = fieldEquals n "payload.0.type" "conversation.mls-welcome"
+
 isMemberJoinNotif :: MakesValue a => a -> App Bool
 isMemberJoinNotif n = fieldEquals n "payload.0.type" "conversation.member-join"
 
