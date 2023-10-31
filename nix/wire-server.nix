@@ -393,13 +393,12 @@ let
   # should have to upgrade ormolu to support
   # the new parser and get rid of these (then unnecessary)
   # overrides
-  inherit (
-    pkgs.haskell.packages.ghc92.override {
-      overrides = hfinal: hprev: {
-        ormolu = hfinal.ormolu_0_5_0_1;      
-        ghc-lib-parser = hprev.ghc-lib-parser_9_2_8_20230729;
-     };
-    }) ormolu;
+  inherit (pkgs.haskell.packages.ghc92.override {
+    overrides = hfinal: hprev: {
+      ormolu = hfinal.ormolu_0_5_0_1;
+      ghc-lib-parser = hprev.ghc-lib-parser_9_2_8_20230729;
+    };
+  }) ormolu;
 
   # Tools common between CI and developers
   commonTools = [
@@ -452,14 +451,13 @@ let
   };
   ghcWithPackages = shell.nativeBuildInputs ++ shell.buildInputs;
 
-  inherit (
-    pkgs.haskellPackages.override {
-      overrides = _hfinal: hprev: {
-        base-compat = hprev.base-compat_0_13_0;
-        base-compat-batteries = hprev.base-compat-batteries_0_13_0;
-        cabal-plan = hlib.markUnbroken (hlib.doJailbreak hprev.cabal-plan);
-      };
-    }) cabal-plan;
+  inherit (pkgs.haskellPackages.override {
+    overrides = _hfinal: hprev: {
+      base-compat = hprev.base-compat_0_13_0;
+      base-compat-batteries = hprev.base-compat-batteries_0_13_0;
+      cabal-plan = hlib.markUnbroken (hlib.doJailbreak hprev.cabal-plan);
+    };
+  }) cabal-plan;
 
   profileEnv = pkgs.writeTextFile {
     name = "profile-env";
@@ -534,7 +532,7 @@ in
   haskellPackagesUnoptimizedNoDocs = hPkgs localModsOnlyTests;
 
   allLocalPackages = pkgs.symlinkJoin {
-    name = "all-local-packages"; 
+    name = "all-local-packages";
     paths = map (e: (hPkgs localModsEnableAll).${e}) wireServerPackages;
   };
 

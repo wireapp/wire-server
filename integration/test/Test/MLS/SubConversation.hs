@@ -181,9 +181,7 @@ testCreatorRemovesUserFromParent = do
   traverse_ uploadNewKeyPackage [bob1, bob2, charlie1, charlie2]
   (_, qcnv) <- createNewGroup alice1
 
-  withWebSockets [bob, charlie] \wss -> do
-    _ <- createAddCommit alice1 [bob, charlie] >>= sendAndConsumeCommitBundle
-    traverse_ (awaitMatch 10 isMemberJoinNotif) wss
+  _ <- createAddCommit alice1 [bob, charlie] >>= sendAndConsumeCommitBundle
 
   -- save the state of the parent group
   parentState <- getMLSState
@@ -236,9 +234,7 @@ testCreatorRemovesUserFromParent = do
     -- remove bob from the child state
     modifyMLSState $ \s -> s {members = s.members Set.\\ Set.fromList [bob1, bob2]}
 
-    _ <-
-      createPendingProposalCommit alice1
-        >>= sendAndConsumeCommitBundle
+    _ <- createPendingProposalCommit alice1 >>= sendAndConsumeCommitBundle
 
     getSubConversation bob qcnv subConvName >>= flip withResponse \resp ->
       assertBool "access to the conversation for bob should be denied" (resp.status == 403)

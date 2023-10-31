@@ -76,7 +76,7 @@ randomFileName = do
   bd <- getBaseDir
   (bd </>) . UUID.toString <$> liftIO UUIDV4.nextRandom
 
-mlscli :: HasCallStack => ClientIdentity -> [String] -> Maybe ByteString -> App ByteString
+mlscli :: (HasCallStack) => ClientIdentity -> [String] -> Maybe ByteString -> App ByteString
 mlscli cid args mbstdin = do
   groupOut <- randomFileName
   let substOut = argSubst "<group-out>" groupOut
@@ -136,7 +136,7 @@ instance MakesValue CredentialType where
   make BasicCredentialType = make "basic"
   make X509CredentialType = make "x509"
 
-instance HasTests x => HasTests (CredentialType -> x) where
+instance (HasTests x) => HasTests (CredentialType -> x) where
   mkTests m n s f x =
     mkTests m (n <> "[ctype=basic]") s f (x BasicCredentialType)
       <> mkTests m (n <> "[ctype=x509]") s f (x X509CredentialType)
@@ -147,7 +147,7 @@ data InitMLSClient = InitMLSClient
 instance Default InitMLSClient where
   def = InitMLSClient {credType = BasicCredentialType}
 
-initMLSClient :: HasCallStack => InitMLSClient -> ClientIdentity -> App ()
+initMLSClient :: (HasCallStack) => InitMLSClient -> ClientIdentity -> App ()
 initMLSClient opts cid = do
   bd <- getBaseDir
   mls <- getMLSState
@@ -175,7 +175,7 @@ createMLSClient opts u = do
   pure cid
 
 -- | create and upload to backend
-uploadNewKeyPackage :: HasCallStack => ClientIdentity -> App String
+uploadNewKeyPackage :: (HasCallStack) => ClientIdentity -> App String
 uploadNewKeyPackage cid = do
   mls <- getMLSState
   (kp, ref) <- generateKeyPackage cid mls.ciphersuite
@@ -186,7 +186,7 @@ uploadNewKeyPackage cid = do
 
   pure ref
 
-generateKeyPackage :: HasCallStack => ClientIdentity -> Ciphersuite -> App (ByteString, String)
+generateKeyPackage :: (HasCallStack) => ClientIdentity -> Ciphersuite -> App (ByteString, String)
 generateKeyPackage cid suite = do
   kp <- mlscli cid ["key-package", "create", "--ciphersuite", suite.code] Nothing
   ref <- B8.unpack . Base64.encode <$> mlscli cid ["key-package", "ref", "-"] (Just kp)
@@ -195,7 +195,7 @@ generateKeyPackage cid suite = do
   pure (kp, ref)
 
 -- | Create conversation and corresponding group.
-createNewGroup :: HasCallStack => ClientIdentity -> App (String, Value)
+createNewGroup :: (HasCallStack) => ClientIdentity -> App (String, Value)
 createNewGroup cid = do
   conv <- postConversation cid defMLS >>= getJSON 201
   groupId <- conv %. "group_id" & asString
@@ -204,7 +204,7 @@ createNewGroup cid = do
   pure (groupId, convId)
 
 -- | Retrieve self conversation and create the corresponding group.
-createSelfGroup :: HasCallStack => ClientIdentity -> App (String, Value)
+createSelfGroup :: (HasCallStack) => ClientIdentity -> App (String, Value)
 createSelfGroup cid = do
   conv <- getSelfConversation cid >>= getJSON 200
   conv %. "epoch" `shouldMatchInt` 0
@@ -213,7 +213,7 @@ createSelfGroup cid = do
   createGroup cid conv
   pure (groupId, convId)
 
-createGroup :: MakesValue conv => ClientIdentity -> conv -> App ()
+createGroup :: (MakesValue conv) => ClientIdentity -> conv -> App ()
 createGroup cid conv = do
   mls <- getMLSState
   case mls.groupId of
@@ -221,14 +221,14 @@ createGroup cid conv = do
     Nothing -> pure ()
   resetGroup cid conv
 
-createSubConv :: HasCallStack => ClientIdentity -> String -> App ()
+createSubConv :: (HasCallStack) => ClientIdentity -> String -> App ()
 createSubConv cid subId = do
   mls <- getMLSState
   sub <- getSubConversation cid mls.convId subId >>= getJSON 200
   resetGroup cid sub
   void $ createPendingProposalCommit cid >>= sendAndConsumeCommitBundle
 
-resetGroup :: MakesValue conv => ClientIdentity -> conv -> App ()
+resetGroup :: (MakesValue conv) => ClientIdentity -> conv -> App ()
 resetGroup cid conv = do
   convId <- objSubConvObject conv
   groupId <- conv %. "group_id" & asString
@@ -261,7 +261,7 @@ resetClientGroup cid gid = do
       ]
       Nothing
 
-keyPackageFile :: HasCallStack => ClientIdentity -> String -> App FilePath
+keyPackageFile :: (HasCallStack) => ClientIdentity -> String -> App FilePath
 keyPackageFile cid ref = do
   let ref' = map urlSafe ref
   bd <- getBaseDir
@@ -271,7 +271,7 @@ keyPackageFile cid ref = do
     urlSafe '/' = '_'
     urlSafe c = c
 
-unbundleKeyPackages :: HasCallStack => Value -> App [(ClientIdentity, ByteString)]
+unbundleKeyPackages :: (HasCallStack) => Value -> App [(ClientIdentity, ByteString)]
 unbundleKeyPackages bundle = do
   let entryIdentity be = do
         d <- be %. "domain" & asString
@@ -290,7 +290,7 @@ unbundleKeyPackages bundle = do
 -- Note that this alters the state of the group immediately. If we want to test
 -- a scenario where the commit is rejected by the backend, we can restore the
 -- group to the previous state by using an older version of the group file.
-createAddCommit :: HasCallStack => ClientIdentity -> [Value] -> App MessagePackage
+createAddCommit :: (HasCallStack) => ClientIdentity -> [Value] -> App MessagePackage
 createAddCommit cid users = do
   mls <- getMLSState
   kps <- fmap concat . for users $ \user -> do
@@ -310,7 +310,7 @@ withTempKeyPackageFile bs = do
         k fp
 
 createAddCommitWithKeyPackages ::
-  HasCallStack =>
+  (HasCallStack) =>
   ClientIdentity ->
   [(ClientIdentity, ByteString)] ->
   App MessagePackage
@@ -352,7 +352,7 @@ createAddCommitWithKeyPackages cid clientsAndKeyPackages = do
         groupInfo = Just gi
       }
 
-createRemoveCommit :: HasCallStack => ClientIdentity -> [ClientIdentity] -> App MessagePackage
+createRemoveCommit :: (HasCallStack) => ClientIdentity -> [ClientIdentity] -> App MessagePackage
 createRemoveCommit cid targets = do
   bd <- getBaseDir
   welcomeFile <- liftIO $ emptyTempFile bd "welcome"
@@ -393,14 +393,14 @@ createRemoveCommit cid targets = do
         groupInfo = Just gi
       }
 
-createAddProposals :: HasCallStack => ClientIdentity -> [Value] -> App [MessagePackage]
+createAddProposals :: (HasCallStack) => ClientIdentity -> [Value] -> App [MessagePackage]
 createAddProposals cid users = do
   mls <- getMLSState
   bundles <- for users $ (claimKeyPackages mls.ciphersuite cid >=> getJSON 200)
   kps <- concat <$> traverse unbundleKeyPackages bundles
   traverse (createAddProposalWithKeyPackage cid) kps
 
-createReInitProposal :: HasCallStack => ClientIdentity -> App MessagePackage
+createReInitProposal :: (HasCallStack) => ClientIdentity -> App MessagePackage
 createReInitProposal cid = do
   prop <-
     mlscli
@@ -433,7 +433,7 @@ createAddProposalWithKeyPackage cid (_, kp) = do
         groupInfo = Nothing
       }
 
-createPendingProposalCommit :: HasCallStack => ClientIdentity -> App MessagePackage
+createPendingProposalCommit :: (HasCallStack) => ClientIdentity -> App MessagePackage
 createPendingProposalCommit cid = do
   bd <- getBaseDir
   welcomeFile <- liftIO $ emptyTempFile bd "welcome"
@@ -464,7 +464,7 @@ createPendingProposalCommit cid = do
       }
 
 createExternalCommit ::
-  HasCallStack =>
+  (HasCallStack) =>
   ClientIdentity ->
   Maybe ByteString ->
   App MessagePackage
@@ -509,7 +509,7 @@ data MLSNotificationTag = MLSNotificationMessageTag | MLSNotificationWelcomeTag
 
 -- | Extract a conversation ID (including an optional subconversation) from an
 -- event object.
-eventSubConv :: HasCallStack => MakesValue event => event -> App Value
+eventSubConv :: (HasCallStack) => (MakesValue event) => event -> App Value
 eventSubConv event = do
   sub <- lookupField event "subconv"
   conv <- event %. "qualified_conversation"
@@ -519,7 +519,7 @@ eventSubConv event = do
         "subconv_id" .= sub
       ]
 
-consumingMessages :: HasCallStack => MessagePackage -> Codensity App ()
+consumingMessages :: (HasCallStack) => MessagePackage -> Codensity App ()
 consumingMessages mp = Codensity $ \k -> do
   mls <- getMLSState
   -- clients that should receive the message itself
@@ -555,16 +555,14 @@ consumingMessages mp = Codensity $ \k -> do
     -- at this point we know that every new user has been added to the
     -- conversation
     for_ (zip clients wss) $ \((cid, t), ws) -> case t of
-      MLSNotificationMessageTag -> void $ consumeMessage cid (Just mp) ws
+      MLSNotificationMessageTag -> void $ consumeMessageNoExternal cid (Just mp) ws
       MLSNotificationWelcomeTag -> consumeWelcome cid mp ws
     pure r
 
--- | Get a single MLS message from a websocket and consume it. Return a JSON
--- representation of the message.
-consumeMessage :: HasCallStack => ClientIdentity -> Maybe MessagePackage -> WebSocket -> App Value
-consumeMessage cid mmp ws = do
+consumeMessageWithPredicate :: (HasCallStack) => (Value -> App Bool) -> ClientIdentity -> Maybe MessagePackage -> WebSocket -> App Value
+consumeMessageWithPredicate p cid mmp ws = do
   mls <- getMLSState
-  notif <- awaitMatch isNewMLSMessageNotif ws
+  notif <- awaitMatch p ws
   event <- notif %. "payload.0"
 
   for_ mmp $ \mp -> do
@@ -575,6 +573,28 @@ consumeMessage cid mmp ws = do
   msgData <- event %. "data" & asByteString
   _ <- consumeMessage1 cid msgData
   showMessage cid msgData
+
+-- | Get a single MLS message from a websocket and consume it. Return a JSON
+-- representation of the message.
+consumeMessage :: (HasCallStack) => ClientIdentity -> Maybe MessagePackage -> WebSocket -> App Value
+consumeMessage = consumeMessageWithPredicate isNewMLSMessageNotif
+
+-- | like 'consumeMessage' but but will not consume a message where the sender is the backend
+consumeMessageNoExternal :: (HasCallStack) => ClientIdentity -> Maybe MessagePackage -> WebSocket -> App Value
+consumeMessageNoExternal cid = consumeMessageWithPredicate isNewMLSMessageNotifButNoProposal cid
+  where
+    -- the backend (correctly) reacts to a commit removing someone from a parent conversation with a
+    -- remove proposal, however, we don't want to consume this here
+    isNewMLSMessageNotifButNoProposal :: Value -> App Bool
+    isNewMLSMessageNotifButNoProposal n = do
+      isNotif <- isNewMLSMessageNotif n
+      if isNotif
+        then do
+          msg <- n %. "payload.0.data" & asByteString >>= showMessage cid
+          sender <- msg `lookupField` "message.content.sender" `catch` \(_ :: AssertionFailure) -> pure Nothing
+          let backendSender = object ["External" .= Number 0]
+          pure $ sender /= Just backendSender
+        else pure False
 
 consumeMessage1 :: ClientIdentity -> ByteString -> App ByteString
 consumeMessage1 cid msgData =
@@ -592,14 +612,14 @@ consumeMessage1 cid msgData =
 -- | Send an MLS message, wait for clients to receive it, then consume it on
 -- the client side. If the message is a commit, the
 -- 'sendAndConsumeCommitBundle' function should be used instead.
-sendAndConsumeMessage :: HasCallStack => MessagePackage -> App Value
+sendAndConsumeMessage :: (HasCallStack) => MessagePackage -> App Value
 sendAndConsumeMessage mp = lowerCodensity $ do
   consumingMessages mp
   lift $ postMLSMessage mp.sender mp.message >>= getJSON 201
 
 -- | Send an MLS commit bundle, wait for clients to receive it, consume it, and
 -- update the test state accordingly.
-sendAndConsumeCommitBundle :: HasCallStack => MessagePackage -> App Value
+sendAndConsumeCommitBundle :: (HasCallStack) => MessagePackage -> App Value
 sendAndConsumeCommitBundle mp = do
   lowerCodensity $ do
     consumingMessages mp
@@ -623,7 +643,7 @@ sendAndConsumeCommitBundle mp = do
 
       pure r
 
-consumeWelcome :: HasCallStack => ClientIdentity -> MessagePackage -> WebSocket -> App ()
+consumeWelcome :: (HasCallStack) => ClientIdentity -> MessagePackage -> WebSocket -> App ()
 consumeWelcome cid mp ws = do
   mls <- getMLSState
   notif <- awaitMatch isWelcomeNotif ws
@@ -666,7 +686,7 @@ mkBundle mp = mp.message <> foldMap mkGroupInfoMessage mp.groupInfo <> fold mp.w
 mkGroupInfoMessage :: ByteString -> ByteString
 mkGroupInfoMessage gi = BS.pack [0x00, 0x01, 0x00, 0x04] <> gi
 
-spawn :: HasCallStack => CreateProcess -> Maybe ByteString -> App ByteString
+spawn :: (HasCallStack) => CreateProcess -> Maybe ByteString -> App ByteString
 spawn cp minput = do
   (mout, ex) <- liftIO
     $ withCreateProcess
@@ -683,22 +703,22 @@ spawn cp minput = do
     (Just out, ExitSuccess) -> pure out
     _ -> assertFailure "Failed spawning process"
 
-getClientGroupState :: HasCallStack => ClientIdentity -> App ClientGroupState
+getClientGroupState :: (HasCallStack) => ClientIdentity -> App ClientGroupState
 getClientGroupState cid = do
   mls <- getMLSState
   pure $ Map.findWithDefault emptyClientGroupState cid mls.clientGroupState
 
-setClientGroupState :: HasCallStack => ClientIdentity -> ClientGroupState -> App ()
+setClientGroupState :: (HasCallStack) => ClientIdentity -> ClientGroupState -> App ()
 setClientGroupState cid g =
   modifyMLSState $ \s ->
     s {clientGroupState = Map.insert cid g (clientGroupState s)}
 
-showMessage :: HasCallStack => ClientIdentity -> ByteString -> App Value
+showMessage :: (HasCallStack) => ClientIdentity -> ByteString -> App Value
 showMessage cid msg = do
   bs <- mlscli cid ["show", "message", "-"] (Just msg)
   assertOne (Aeson.decode (BS.fromStrict bs))
 
-readGroupState :: HasCallStack => ByteString -> App [(ClientIdentity, Word32)]
+readGroupState :: (HasCallStack) => ByteString -> App [(ClientIdentity, Word32)]
 readGroupState gs = do
   v :: Value <- assertJust "Could not decode group state" (Aeson.decode (BS.fromStrict gs))
   lnodes <- v %. "group" %. "public_group" %. "treesync" %. "tree" %. "leaf_nodes" & asList
@@ -719,7 +739,7 @@ readGroupState gs = do
         pure Nothing
 
 createApplicationMessage ::
-  HasCallStack =>
+  (HasCallStack) =>
   ClientIdentity ->
   String ->
   App MessagePackage
@@ -742,7 +762,7 @@ setMLSCiphersuite :: Ciphersuite -> App ()
 setMLSCiphersuite suite = modifyMLSState $ \mls -> mls {ciphersuite = suite}
 
 leaveCurrentConv ::
-  HasCallStack =>
+  (HasCallStack) =>
   ClientIdentity ->
   App ()
 leaveCurrentConv cid = do
@@ -758,7 +778,7 @@ leaveCurrentConv cid = do
           { members = Set.difference mls.members (Set.singleton cid)
           }
 
-getCurrentConv :: HasCallStack => ClientIdentity -> App Value
+getCurrentConv :: (HasCallStack) => ClientIdentity -> App Value
 getCurrentConv cid = do
   mls <- getMLSState
   (conv, mSubId) <- objSubConv mls.convId

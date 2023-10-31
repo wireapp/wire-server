@@ -70,7 +70,7 @@ self: super: {
       src = ../services/nginz/third_party/nginx-zauth-module;
       inputs = [ self.pkg-config self.zauth.lib ];
       meta = {
-        license = [self.lib.licenses.agpl3Only];
+        license = [ self.lib.licenses.agpl3Only ];
       };
     };
   };
