@@ -47,34 +47,32 @@ data GalleyNotificationTag
   | OnUserDeletedConversationsTag
   deriving (Show, Eq, Generic, Bounded, Enum)
 
+instance IsNotificationTag GalleyNotificationTag where
+  type NotificationComponent _ = 'Galley
+
 instance HasNotificationEndpoint 'OnClientRemovedTag where
   type Payload 'OnClientRemovedTag = ClientRemovedRequest
   type NotificationPath 'OnClientRemovedTag = "on-client-removed"
-  type NotificationComponent 'OnClientRemovedTag = 'Galley
 
 -- used to notify this backend that a new message has been posted to a
 -- remote conversation
 instance HasNotificationEndpoint 'OnMessageSentTag where
   type Payload 'OnMessageSentTag = RemoteMessage ConvId
   type NotificationPath 'OnMessageSentTag = "on-message-sent"
-  type NotificationComponent 'OnMessageSentTag = 'Galley
 
 instance HasNotificationEndpoint 'OnMLSMessageSentTag where
   type Payload 'OnMLSMessageSentTag = RemoteMLSMessage
   type NotificationPath 'OnMLSMessageSentTag = "on-mls-message-sent"
-  type NotificationComponent 'OnMLSMessageSentTag = 'Galley
 
 -- used by the backend that owns a conversation to inform this backend of
 -- changes to the conversation
 instance HasNotificationEndpoint 'OnConversationUpdatedTag where
   type Payload 'OnConversationUpdatedTag = ConversationUpdate
   type NotificationPath 'OnConversationUpdatedTag = "on-conversation-updated"
-  type NotificationComponent 'OnConversationUpdatedTag = 'Galley
 
 instance HasNotificationEndpoint 'OnUserDeletedConversationsTag where
   type Payload 'OnUserDeletedConversationsTag = UserDeletedConversationsNotification
   type NotificationPath 'OnUserDeletedConversationsTag = "on-user-deleted-conversations"
-  type NotificationComponent 'OnUserDeletedConversationsTag = 'Galley
 
 -- | All the notification endpoints return an 'EmptyResponse'.
 type GalleyNotificationAPI =
