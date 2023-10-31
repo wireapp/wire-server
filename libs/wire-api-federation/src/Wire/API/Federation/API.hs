@@ -83,14 +83,14 @@ fedClient ::
 fedClient = clientIn (Proxy @api) (Proxy @m)
 
 fedQueueClient ::
-  forall tag.
+  forall {k} (tag :: k).
   ( HasNotificationEndpoint tag,
     KnownSymbol (NotificationPath tag),
-    KnownComponent (NotificationComponent tag),
+    KnownComponent (NotificationComponent k),
     ToJSON (Payload tag)
   ) =>
   Payload tag ->
-  FedQueueClient (NotificationComponent tag) ()
+  FedQueueClient (NotificationComponent k) ()
 fedQueueClient payload = do
   env <- ask
   let notif = fedNotifToBackendNotif @tag env.originDomain payload
