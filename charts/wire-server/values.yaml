@@ -13,3 +13,4 @@ tags:
   sftd: false
   backoffice: false
   mlsstats: false
+  integration: false
