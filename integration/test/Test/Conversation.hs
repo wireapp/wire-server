@@ -282,27 +282,31 @@ testConvWithUnreachableRemoteUsers = do
 
 testAddReachableWithUnreachableRemoteUsers :: HasCallStack => App ()
 testAddReachableWithUnreachableRemoteUsers = do
-  ([alex, bob], conv, domains) <-
-    startDynamicBackends [def, def] $ \domains -> do
-      own <- make OwnDomain & asString
-      other <- make OtherDomain & asString
-      [alice, alex, bob, charlie, dylan] <- createUsers $ [own, own, other] <> domains
-      forM_ [alex, bob, charlie, dylan] $ connectTwoUsers alice
+  resourcePool <- asks resourcePool
+  own <- make OwnDomain & asString
+  other <- make OtherDomain & asString
+  runCodensity (acquireResources 1 resourcePool) $ \[cDom] -> do
+    ([alex, bob, brad], conv) <- runCodensity (startDynamicBackend cDom mempty) $ \_ -> do
+      [alice, alex, bob, brad, charlie] <-
+        createAndConnectUsers [own, own, other, other, cDom.berDomain]
 
-      let newConv = defProteus {qualifiedUsers = [alex, charlie, dylan]}
+      let newConv = defProteus {qualifiedUsers = [alex, charlie]}
       conv <- postConversation alice newConv >>= getJSON 201
-      connectTwoUsers alex bob
-      pure ([alex, bob], conv, domains)
+      pure ([alex, bob, brad], conv)
 
-  bobId <- bob %. "qualified_id"
-  bindResponse (addMembers alex conv def {users = [bobId]}) $ \resp -> do
-    -- This test is updated to reflect the changes in `performConversationJoin`
-    -- `performConversationJoin` now does a full check between all federation members
-    -- that will be in the conversation when adding users to a conversation. This is
-    -- to ensure that users from domains that aren't federating are not directly
-    -- connected to each other.
-    resp.status `shouldMatchInt` 533
-    resp.jsonBody %. "unreachable_backends" `shouldMatchSet` domains
+    [bobId, bradId] <- forM [bob, brad] (%. "qualified_id")
+
+    bindResponse (addMembers alex conv def {users = [bobId]}) $ \resp -> do
+      resp.status `shouldMatchInt` 533
+      resp.jsonBody %. "unreachable_backends" `shouldMatchSet` [cDom.berDomain]
+
+    runCodensity (startDynamicBackend cDom mempty) $ \_ ->
+      void $ addMembers alex conv def {users = [bobId]} >>= getBody 200
+
+    -- even though backend C is unreachable, we know B/OtherDomain and C
+    -- federate because Bob joined when C was reachable, hence it is OK to add
+    -- brad from B to the conversation.
+    void $ addMembers alex conv def {users = [bradId]} >>= getBody 200
 
 testAddUnreachableUserFromFederatingBackend :: HasCallStack => App ()
 testAddUnreachableUserFromFederatingBackend = do
