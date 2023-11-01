@@ -264,6 +264,179 @@ Question: Are the connection values for bad networks/disconnect configurable on 
 
 Answer: The values are not currently configurable, they are built into the clients at compile time, we do have a mechanism for sending calling configs to the clients but these values are not currently there.
 
+## Diagnosing issues with installation steps.
+
+Some steps of the installation (for example `helm` commands) provide less feedback than others in the case errors are encountered.
+
+These are some steps you can take to debug what is going on when the installation process breaks down.
+
+As an example, we'll take a case where we try installing `wire-server` with `helm`, but it fails due to `cassandra` being broken in some way.
+
+This guide, while focusing on a `cassandra` related issue, will also provide general steps to debug problems that could be related to other components like `rabbitmq`, `redis`, etc.
+
+Our first step is to identify and isolate which component is causing the issue.
+
+Before installing `wire-server`, we run `d kubectl get pods` and get the result:
+
+```
+demo@admin-host:~/wire-server-deploy$ d kubectl get pods
+NAME                            READY   STATUS    RESTARTS   AGE
+demo-smtp-d98b789d7-5ntj6       1/1     Running   0          75m
+fake-aws-sns-76fb45cf4f-t6mg6   2/2     Running   0          75m
+fake-aws-sqs-6495cd7c98-w8f8w   2/2     Running   0          75m
+rabbitmq-external-0             0/1     Pending   0          78m
+reaper-84cfbf746d-wk8nc         1/1     Running   0          75m
+redis-ephemeral-master-0        1/1     Running   0          76m
+```
+
+We then run the `wire-server` helm installation command:
+
+```
+d helm install wire-server ./charts/wire-server --timeout=15m0s --values ./values/wire-server/values.yaml --values ./values/wire-server/secrets.yaml
+```
+
+And we get the following error:
+
+```
+Error: INSTALLATION FAILED: failed pre-install: job failed: BackoffLimitExceeded
+```
+
+This, by itself, isn't much help in understanding what is going wrong.
+
+We can get more information by running `d kubectl get pods` again:
+
+```
+demo@admin-host:~/wire-server-deploy$ d kubectl get pods
+NAME                            READY   STATUS    RESTARTS   AGE
+cassandra-migration-qgn7r       0/1     Init:0/4  0          12s
+demo-smtp-d98b789d7-5ntj6       1/1     Running   0          95m
+fake-aws-sns-76fb45cf4f-t6mg6   2/2     Running   0          95m
+fake-aws-sqs-6495cd7c98-w8f8w   2/2     Running   0          95m
+rabbitmq-external-0             0/1     Pending   0          98m
+reaper-84cfbf746d-wk8nc         1/1     Running   0          95m
+redis-ephemeral-master-0        1/1     Running   0          96m
+```
+
+(You can also do `d kubectl get pods -o wide` to get more details though that's not necessary here)
+
+When comparing with the previous run of the command, we can see that a new pod has been created, called `cassandra-migration-qgn7r`, and that it is in the `Init:0/4` state.
+
+This means that the pod has been created, but that the init containers have not yet completed. In particular, it is at step 0 out of 4.
+
+If we let it running for a while, we'd see the "`RESTARTS`" field increase to 1, then 2, etc, as the init containers keep failing.
+
+We can use `d kubectl logs` to learn more about this failing pod:
+
+```
+demo@admin-host:~/wire-server-deploy$ d kubectl logs cassandra-migrations-qgn7r
+Error from server (BadRequest): container "job-done" in pod "cassandra-migrations-qgn7r" is waiting to start: PodInitializing
+```
+
+Note the name `job-done`, this is the name of the last step (container) of the pod, which is not yet running.
+
+
+We can get even more information about the pod by running `d kubectl describe pod cassandra-migration-qgn7r`:
+
+```
+demo@admin-host:~/wire-server-deploy$ d kubectl describe pod cassandra-migrations-qgn7r
+Name:         cassandra-migrations-qgn7r
+Namespace:    default
+Priority:     0
+Node:         kubenode1/172.16.0.129
+Start Time:   Wed, 27 Sep 2023 23:03:07 +0000
+Labels:       app=cassandra-migrations
+              controller-uid=c43f2a66-57c8-4657-877f-36a751cf487d
+              job-name=cassandra-migrations
+              release=wire-server
+Annotations:  cni.projectcalico.org/containerID: e314c7330c1196fbd9419267791429e3f31d6bfb910daa7739167b807116e830
+              cni.projectcalico.org/podIP: 10.233.110.68/32
+              cni.projectcalico.org/podIPs: 10.233.110.68/32
+Status:       Pending
+IP:           10.233.110.68
+IPs:
+  IP:           10.233.110.68
+Controlled By:  Job/cassandra-migrations
+Init Containers:
+  gundeck-schema:
+    Container ID:  containerd://1cb4a68a0877e993ed5b2ab8ccf9a18e90bf868c742141514b31fa9070be055f
+    Image:         quay.io/wire/gundeck-schema:4.38.0
+    Image ID:      quay.io/wire/gundeck-schema@sha256:2a060ef26b014fa43296e9bb36acd8f43070574add99821196c7da8e23127c9c
+    Port:          <none>
+    Host Port:     <none>
+    Command:
+      gundeck-schema
+      --host
+      cassandra-external
+      --port
+      9042
+      --keyspace
+      gundeck
+      --replication-factor
+      3
+    State:          Running
+      Started:      Wed, 27 Sep 2023 23:06:02 +0000
+    Last State:     Terminated
+      Reason:       Error
+      Exit Code:    1
+      Started:      Wed, 27 Sep 2023 23:04:19 +0000
+      Finished:     Wed, 27 Sep 2023 23:05:10 +0000
+    Ready:          False
+    Restart Count:  4
+    Environment:    <none>
+    Mounts:
+[...]
+```
+
+In this output, the «containers» are the different «stages» of this pod, described as they get executed.
+
+We can see that the `gundeck-schema` container (step) has failed, and that it has been restarted 4 times.
+
+The other containers (steps) have not yet been executed, because the previous step failed, they'll be in a "`Waiting`"" state
+
+We can get further information about the failure by running `d kubectl logs cassandra-migrations-qgn7r -c gundeck-schema`.
+
+This will provide us an output such as:
+
+```
+demo@admin-host:~/wire-server-deploy$ d kubectl logs cassandra-migrations-qgn7r -c gundeck-schema
+D, Connecting to 172.16.0.134:9042  
+I, Known hosts: [datacenter1:rack1:172.16.0.132:9042,datacenter1:rack1:172.16.0.133:9042,datacenter1:rack1:172.16.0.134:9042]
+I, New control connection: datacenter1:rack1:172.16.0.134:9042#<socket: 11>
+D, Connection established: datacenter1:rack1:172.16.0.134:9042#<socket: 12>
+I, New migrations found.
+I, [1] Initial schema
+gundeck-schema: ResponseError {reHost = datacenter1:rack1:172.16.0.134:9042, reTrace = Nothing, reWarn = [], reCause = Unavailable {unavailMessage = "Cannot achieve consistency level ALL", unavailConsistency = All, unavailNumRequired = 3,
+ unavailNumAlive = 1}}
+```
+
+The error message «`Cannot achieve consistency level ALL`» is the cause of the failure, it essentially means that some of the cassandra nodes in our cluster are not running, or not reachable in some way.
+
+We have now succesfully reached the «root» cause of the issue.
+
+We could use `nodetool status` to get more details about the cassandra nodes, `ping <NODE_IP>` to check if they are reachable, `cat /var/log/cassandra/system.log` to look for any warnings/errors, review the cassandra documentation, use diagnostic tools such as `nodetool cfstats` or `nodetool describecluster`, etc.
+
+Note that because the `cassandra-migration-qgn7r` pod might get destroyed once the helm command outputs its error/terminates, you might have a limited amount of time to run these debugging commands, and might need to uninstall then re-install wire-server to get the error to occur multiple times. To uninstall the wire-server helm chart before running it again, run `d helm uninstall wire-server`.
+
+More generally, you can also get `d kubectl get events` to get a list of all the events that have happened in your cluster, including the creation/destruction of pods, and the errors that have occured.
+
+```
+demo@admin-host:~/wire-server-deploy$ d kubectl get events
+LAST SEEN   TYPE      REASON                    OBJECT                                           MESSAGE
+17m         Normal    Scheduled                 pod/cassandra-migrations-qgn7r                   Successfully assigned default/cassandra-migrations-qgn7r to kubenode1
+17m         Normal    Pulling                   pod/cassandra-migrations-qgn7r                   Pulling image "quay.io/wire/gundeck-schema:4.38.0"
+17m         Normal    Pulled                    pod/cassandra-migrations-qgn7r                   Successfully pulled image "quay.io/wire/gundeck-schema:4.38.0" in 8.769605884s
+14m         Normal    Created                   pod/cassandra-migrations-qgn7r                   Created container gundeck-schema
+14m         Normal    Started                   pod/cassandra-migrations-qgn7r                   Started container gundeck-schema
+14m         Normal    Pulled                    pod/cassandra-migrations-qgn7r                   Container image "quay.io/wire/gundeck-schema:4.38.0" already present on machine
+12m         Warning   BackOff                   pod/cassandra-migrations-qgn7r                   Back-off restarting failed container
+17m         Normal    SuccessfulCreate          job/cassandra-migrations                         Created pod: cassandra-migrations-qgn7r
+9m25s       Normal    SuccessfulDelete          job/cassandra-migrations                         Deleted pod: cassandra-migrations-qgn7r
+9m25s       Warning   BackoffLimitExceeded      job/cassandra-migrations                         Job has reached the specified backoff limit
+[...]
+```
+
+Here we can see that the `cassandra-migrations-qgn7r` pod was created, then the warnings about the «`BackOff`» and reaching the backoff limit.
+
 ## Verifying correct deployment of DNS / DNS troubleshooting.
 
 After installation, or if you meet some functionality problems, you should check that your DNS setup is correct.
@@ -423,3 +596,4 @@ ssh kubernetes-server
 Then try the same thing using `nslookup`.
 
 If either of these steps fail, please request support.
+
