@@ -1,9 +1,5 @@
 { fetchFromGitHub
-, libsodium
-, perl
-, pkg-config
 , rustPlatform
-, gitMinimal
 }:
 
 let
@@ -15,7 +11,8 @@ let
     sha256 = "sha256-J9M8w3GJnULH3spKEuPGCL/t43zb2Wd+YfZ0LY3YITo=";
   };
   cargoLockFile = builtins.toFile "cargo.lock" (builtins.readFile "${src}/Cargo.lock");
-in rustPlatform.buildRustPackage rec {
+in
+rustPlatform.buildRustPackage rec {
   name = "mls-test-cli-${version}";
   inherit version src;
 
