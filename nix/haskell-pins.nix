@@ -219,7 +219,7 @@ let
       src = pkgs.fetchFromGitHub {
         owner = "wireapp";
         repo = "text-icu-translit";
-        rev = "92e9ce8dc5d4fc987d12c68799efa869df2b9933";
+        rev = "317bbd27ea5ae4e7f93836ee9ca664f9bde7c583";
         hash = "sha256-9uVqUTkLkE7U19FDjn5xt8JEHyJmosLPSnmW7kYbe5w=";
       };
     };
