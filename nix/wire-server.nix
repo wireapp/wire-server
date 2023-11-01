@@ -395,7 +395,7 @@ let
   inherit (
     pkgs.haskell.packages.ghc92.override {
       overrides = hfinal: hprev: {
-        ormolu = hfinal.ormolu_0_5_0_1;      
+        ormolu = hfinal.ormolu_0_5_2_0;
         ghc-lib-parser = hprev.ghc-lib-parser_9_2_8_20230729;
      };
     }) ormolu;
