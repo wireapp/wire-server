@@ -5,7 +5,6 @@
 { mkDerivation
 , base
 , bytestring
-, containers
 , gitignoreSource
 , imports
 , lib
@@ -26,7 +25,6 @@ mkDerivation {
   executableHaskellDepends = [
     base
     bytestring
-    containers
     imports
     monoidal-containers
     optparse-generic
