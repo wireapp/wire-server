@@ -43,6 +43,7 @@ main = do
 data Options w = Options
   { testResults :: w ::: FilePath <?> "Directory containing test results in the JUNIT xml format. All files with 'xml' extension in this directory will be considered test results",
     runId :: w ::: Text <?> "ID of the flake-news run, this can be used to unite multiple test suites together",
+    codeVersion :: w ::: Text <?> "Version of the code and tests, Plainly stored next to the stats so it can be used for some analysis",
     suiteName :: w ::: Text <?> "Name of the test suite, e.g brig, galley, integration, etc.",
     postgresqlHost :: w ::: String <?> "Hostname for postgresql DB" <!> "localhost",
     postgresqlPort :: w ::: Word16 <?> "Port for postgresql DB" <!> "5432",
@@ -127,7 +128,7 @@ name = maybeToList . fmap T.pack . findAttrBy (matchQName "name")
 
 runMigrations :: Connection -> IO ()
 runMigrations conn = do
-  void $ execute_ conn "CREATE TABLE IF NOT EXISTS test_suite_runs (id SERIAL PRIMARY KEY, run_id VARCHAR, suite VARCHAR, failedRuns INT, successfulRuns INT)"
+  void $ execute_ conn "CREATE TABLE IF NOT EXISTS test_suite_runs (id SERIAL PRIMARY KEY, run_id VARCHAR, version VARCHAR, suite VARCHAR, failedRuns INT, successfulRuns INT)"
   void $ execute_ conn "CREATE TABLE IF NOT EXISTS test_case_runs (id SERIAL PRIMARY KEY, name VARCHAR, test_suite_run_id integer, failure_count integer, success_count integer)"
   void $ execute_ conn "CREATE TABLE IF NOT EXISTS test_case_failures (id SERIAL PRIMARY KEY, test_case_run_id integer, failure_log text)"
 
@@ -143,10 +144,22 @@ pushToPostgresql opts (reports, failedRuns, successfulRuns) = do
           }
   bracket (connect connInfo) (close) $ \conn -> do
     runMigrations conn
-    suiteRunId <- extractId =<< returning conn "INSERT INTO test_suite_runs (run_id, suite, failedRuns, successfulRuns) VALUES (?,?,?,?) RETURNING id" [(opts.runId, opts.suiteName, getSum failedRuns, getSum successfulRuns)]
+    suiteRunId <-
+      extractId
+        =<< returning
+          conn
+          "INSERT INTO test_suite_runs (run_id, version, suite, failedRuns, successfulRuns) VALUES (?,?,?,?) RETURNING id"
+          [(opts.runId, opts.codeVersion, opts.suiteName, getSum failedRuns, getSum successfulRuns)]
     let saveTestCaseRun testCase report = do
-          testCaseRunId <- extractId =<< returning conn "INSERT INTO test_case_runs (name, test_suite_run_id, failure_count, success_count) VALUES (?,?,?,?) RETURNING id" [(testCase, suiteRunId, report.failure, report.success)]
-          void $ executeMany conn "INSERT INTO test_case_failures (test_case_run_id, failure_log) VALUES (?,?)" $ zip (repeat testCaseRunId) report.failureDesc
+          testCaseRunId <-
+            extractId
+              =<< returning
+                conn
+                "INSERT INTO test_case_runs (name, test_suite_run_id, failure_count, success_count) VALUES (?,?,?,?) RETURNING id"
+                [(testCase, suiteRunId, report.failure, report.success)]
+          void $
+            executeMany conn "INSERT INTO test_case_failures (test_case_run_id, failure_log) VALUES (?,?)" $
+              zip (repeat testCaseRunId) report.failureDesc
     void $ MonoidalMap.traverseWithKey saveTestCaseRun reports
 
 extractId :: HasCallStack => [Only Int] -> IO Int
