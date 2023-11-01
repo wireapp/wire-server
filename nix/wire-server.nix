@@ -466,6 +466,7 @@ in
     name = "wire-server-dev-env";
     paths = commonTools ++ [
       pkgs.bash
+      pkgs.crate2nix
       pkgs.dash
       (pkgs.haskell-language-server.override { supportedGhcVersions = [ "92" ]; })
       pkgs.ghcid
