@@ -149,7 +149,7 @@ pushToPostgresql opts (reports, failedRuns, successfulRuns) = do
       extractId
         =<< returning
           conn
-          "INSERT INTO test_suite_runs (run_id, version, suite, failedRuns, successfulRuns) VALUES (?,?,?,?) RETURNING id"
+          "INSERT INTO test_suite_runs (run_id, version, suite, failedRuns, successfulRuns) VALUES (?,?,?,?,?) RETURNING id"
           [(opts.runId, opts.codeVersion, opts.suiteName, getSum failedRuns, getSum successfulRuns)]
     let saveTestCaseRun testCase report = do
           testCaseRunId <-
