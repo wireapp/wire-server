@@ -2,6 +2,8 @@
 , rustPlatform
 }:
 
+# TODO: migrate to crate2nix once
+# https://github.com/nix-community/crate2nix/issues/310 is fixed
 let
   version = "0.7.0";
   src = fetchFromGitHub {
