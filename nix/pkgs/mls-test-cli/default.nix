@@ -1,11 +1,9 @@
 { fetchFromGitHub
-, libsodium
-, perl
-, pkg-config
 , rustPlatform
-, gitMinimal
 }:
 
+# TODO: migrate to crate2nix once
+# https://github.com/nix-community/crate2nix/issues/310 is fixed
 let
   version = "0.7.0";
   src = fetchFromGitHub {
@@ -15,7 +13,8 @@ let
     sha256 = "sha256-M6bWB5hWl+WSblcH6L+AyGD+7ef9TvRs8wKYq7lJyS8=";
   };
   cargoLockFile = builtins.toFile "cargo.lock" (builtins.readFile "${src}/Cargo.lock");
-in rustPlatform.buildRustPackage rec {
+in
+rustPlatform.buildRustPackage rec {
   name = "mls-test-cli-${version}";
   inherit version src;
 

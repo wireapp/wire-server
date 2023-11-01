@@ -255,8 +255,8 @@ let
   # extraContents :: Map Exe Derivation -> Map Text [Derivation]
   extraContents = exes: {
     brig = [ brig-templates ];
-    brig-integration = [brig-templates pkgs.mls-test-cli pkgs.awscli2];
-    galley-integration = [pkgs.mls-test-cli pkgs.awscli2];
+    brig-integration = [ brig-templates pkgs.mls-test-cli pkgs.awscli2 ];
+    galley-integration = [ pkgs.mls-test-cli pkgs.awscli2 ];
     stern-integration = [ pkgs.awscli2 ];
     gundeck-integration = [ pkgs.awscli2 ];
     cargohold-integration = [ pkgs.awscli2 ];
@@ -466,6 +466,7 @@ in
     name = "wire-server-dev-env";
     paths = commonTools ++ [
       pkgs.bash
+      pkgs.crate2nix
       pkgs.dash
       (pkgs.haskell-language-server.override { supportedGhcVersions = [ "92" ]; })
       pkgs.ghcid
