@@ -27,8 +27,6 @@ import Data.Text.IO qualified as T
 import Database.PostgreSQL.Simple
 import Imports hiding (Map)
 import Options.Generic
-import Prettyprinter
-import Prettyprinter.Render.Text
 import Prometheus
 import Text.XML.Light
 
@@ -37,7 +35,6 @@ main = do
   opts :: Options Unwrapped <- unwrapRecord "Test Statistics"
   xmlFiles <- map ((opts.testResults <> "/") <>) . filter (".xml" `isSuffixOf`) <$> listDirectory opts.testResults
   reports <- mconcat <$> traverse parse xmlFiles
-  pushFailureDescriptions opts.failureReport reports
   pushToPostgresql opts reports
   LBS.putStrLn =<< exportMetricsAsText
 
@@ -45,8 +42,6 @@ main = do
 
 data Options w = Options
   { testResults :: w ::: FilePath <?> "Directory containing test results in the JUNIT xml format. All files with 'xml' extension in this directory will be considered test results",
-    failureReport :: w ::: FilePath <?> "Path to output file containing failure formatted as markdown.",
-    metricName :: w ::: Text <?> "Name of the prometheus metric" <!> "flake_news_test_case_results",
     runId :: w ::: Text <?> "ID of the flake-news run",
     suiteName :: w ::: Text <?> "Name of the test suite, e.g brig, galley, integration, etc.",
     postgresqlHost :: w ::: String <?> "Hostname for postgresql DB" <!> "localhost",
@@ -149,29 +144,3 @@ pushToPostgresql opts reports = do
 extractId :: HasCallStack => [Only Int] -> IO Int
 extractId [] = error $ "No ID returned by query"
 extractId (Only x : _) = pure x
-
--- * Failure descriptions output (MD)
-
-pushFailureDescriptions :: FilePath -> MonoidalMap TestCase Report -> IO ()
-pushFailureDescriptions outFile reports =
-  withFile outFile WriteMode $ \outFileH ->
-    hPutDoc outFileH . separateByLine preamble . render $ failures reports
-  where
-    preamble = h1 "Failure Descriptions"
-    render =
-      concatWith separateByLine
-        . MonoidalMap.mapWithKey
-          ( curry
-              ( liftM2
-                  separateByLine
-                  (h2 . pretty . fst)
-                  (concatWith separateByLine . map (verbatim . pretty) . failureDesc . snd)
-              )
-          )
-    failures = MonoidalMap.filter (not . null . failureDesc)
-    h1 = onSeparateLine . underlineWith "="
-    h2 = onSeparateLine . underlineWith "-"
-    underlineWith symbol x = align (width x (\w -> hardline <> pretty (T.replicate w symbol)))
-    verbatim = onSeparateLine . enclose "```" "```" . onSeparateLine
-    onSeparateLine = enclose hardline hardline
-    separateByLine a b = enclose a b hardline

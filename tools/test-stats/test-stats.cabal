@@ -23,7 +23,6 @@ executable test-stats
     , monoidal-containers
     , optparse-generic
     , postgresql-simple
-    , prettyprinter
     , prometheus-client
     , text
     , xml

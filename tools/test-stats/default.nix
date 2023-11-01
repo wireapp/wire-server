@@ -11,7 +11,6 @@
 , monoidal-containers
 , optparse-generic
 , postgresql-simple
-, prettyprinter
 , prometheus-client
 , text
 , xml
@@ -29,7 +28,6 @@ mkDerivation {
     monoidal-containers
     optparse-generic
     postgresql-simple
-    prettyprinter
     prometheus-client
     text
     xml
