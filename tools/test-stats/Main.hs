@@ -53,7 +53,8 @@ data Options w = Options
   }
   deriving (Generic)
 
-instance ParseRecord (Options Wrapped)
+instance ParseRecord (Options Wrapped) where
+  parseRecord = parseRecordWithModifiers lispCaseModifiers
 
 -- * Intermediate representation
 
