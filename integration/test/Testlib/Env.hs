@@ -4,6 +4,7 @@ module Testlib.Env where
 
 import Control.Monad.Codensity
 import Control.Monad.IO.Class
+import Data.Default
 import Data.Function ((&))
 import Data.Functor
 import Data.IORef
@@ -34,10 +35,10 @@ serviceHostPort m BackgroundWorker = m.backgroundWorker
 serviceHostPort m Stern = m.stern
 serviceHostPort m FederatorInternal = m.federatorInternal
 
-mkGlobalEnv :: FilePath -> IO GlobalEnv
+mkGlobalEnv :: FilePath -> Codensity IO GlobalEnv
 mkGlobalEnv cfgFile = do
-  eith <- Yaml.decodeFileEither cfgFile
-  intConfig <- case eith of
+  eith <- liftIO $ Yaml.decodeFileEither cfgFile
+  intConfig <- liftIO $ case eith of
     Left err -> do
       hPutStrLn stderr $ "Could not parse " <> cfgFile <> ": " <> Yaml.prettyPrintParseException err
       exitFailure
@@ -50,17 +51,19 @@ mkGlobalEnv cfgFile = do
             then Just (joinPath (init ps))
             else Nothing
 
-  manager <- HTTP.newManager HTTP.defaultManagerSettings
+  manager <- liftIO $ HTTP.newManager HTTP.defaultManagerSettings
   let cassSettings =
         Cassandra.defSettings
           & Cassandra.setContacts intConfig.cassandra.host []
           & Cassandra.setPortNumber (fromIntegral intConfig.cassandra.port)
   cassClient <- Cassandra.init cassSettings
   resourcePool <-
-    createBackendResourcePool
-      (Map.elems intConfig.dynamicBackends)
-      intConfig.rabbitmq
-      cassClient
+    liftIO $
+      createBackendResourcePool
+        (Map.elems intConfig.dynamicBackends)
+        intConfig.rabbitmq
+        cassClient
+  tempDir <- Codensity $ withSystemTempDirectory "test"
   pure
     GlobalEnv
       { gServiceMap =
@@ -76,7 +79,8 @@ mkGlobalEnv cfgFile = do
         gServicesCwdBase = devEnvProjectRoot <&> (</> "services"),
         gRemovalKeyPath = error "Uninitialised removal key path",
         gBackendResourcePool = resourcePool,
-        gRabbitMQConfig = intConfig.rabbitmq
+        gRabbitMQConfig = intConfig.rabbitmq,
+        gTempDir = tempDir
       }
 
 mkEnv :: GlobalEnv -> Codensity IO Env
@@ -114,6 +118,12 @@ create ioRef =
         Nothing -> error "No resources available"
         Just (r, s') -> (s', r)
 
+emptyClientGroupState :: ClientGroupState
+emptyClientGroupState = ClientGroupState Nothing Nothing
+
+allCiphersuites :: [Ciphersuite]
+allCiphersuites = map Ciphersuite ["0x0001", "0xf031"]
+
 mkMLSState :: Codensity IO MLSState
 mkMLSState = Codensity $ \k ->
   withSystemTempDirectory "mls" $ \tmp -> do
@@ -125,5 +135,7 @@ mkMLSState = Codensity $ \k ->
           groupId = Nothing,
           convId = Nothing,
           clientGroupState = mempty,
-          epoch = 0
+          epoch = 0,
+          ciphersuite = def,
+          protocol = MLSProtocolMLS
         }

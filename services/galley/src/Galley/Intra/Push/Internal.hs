@@ -24,6 +24,7 @@ import Control.Lens (makeLenses, set, view, (.~))
 import Data.Aeson (Object)
 import Data.Id (ConnId, UserId)
 import Data.Json.Util
+import Data.List.Extra
 import Data.List.NonEmpty (NonEmpty, nonEmpty)
 import Data.List1
 import Data.Qualified
@@ -43,6 +44,7 @@ import Wire.API.Event.FeatureConfig qualified as FeatureConfig
 import Wire.API.Event.Federation qualified as Federation
 import Wire.API.Event.Team qualified as Teams
 import Wire.API.Team.Member
+import Wire.Arbitrary
 
 data PushEvent
   = ConvEvent Event
@@ -60,7 +62,8 @@ data RecipientBy user = Recipient
   { _recipientUserId :: user,
     _recipientClients :: RecipientClients
   }
-  deriving stock (Functor, Foldable, Traversable, Show)
+  deriving stock (Functor, Foldable, Traversable, Show, Ord, Eq, Generic)
+  deriving (Arbitrary) via GenericUniform (RecipientBy user)
 
 makeLenses ''RecipientBy
 
@@ -77,7 +80,8 @@ data PushTo user = Push
     pushJson :: Object,
     pushRecipientListType :: ListType
   }
-  deriving stock (Functor, Foldable, Traversable, Show)
+  deriving stock (Eq, Generic, Functor, Foldable, Traversable, Show)
+  deriving (Arbitrary) via GenericUniform (PushTo user)
 
 makeLenses ''PushTo
 
@@ -93,6 +97,31 @@ push ps = do
       nonEmpty (toList (_pushRecipients p)) <&> \nonEmptyRecipients ->
         p {_pushRecipients = List1 nonEmptyRecipients}
 
+-- | Split a list of pushes into chunks with the given maximum number of
+-- recipients. maxRecipients must be strictly positive. Note that the order of
+-- pushes within a chunk is reversed compared to the order of the input list.
+chunkPushes :: Int -> [PushTo a] -> [[PushTo a]]
+chunkPushes maxRecipients | maxRecipients <= 0 = error "maxRecipients must be positive"
+chunkPushes maxRecipients = go 0 []
+  where
+    go _ [] [] = []
+    go _ acc [] = [acc]
+    go n acc (y : ys)
+      | n >= maxRecipients = acc : go 0 [] (y : ys)
+      | otherwise =
+          let totalLength = (n + length (_pushRecipients y))
+           in if totalLength > maxRecipients
+                then
+                  let (y1, y2) = splitPush (maxRecipients - n) y
+                   in go maxRecipients (y1 : acc) (y2 : ys)
+                else go totalLength (y : acc) ys
+
+    -- n must be strictly > 0 and < length (_pushRecipients p)
+    splitPush :: Int -> PushTo a -> (PushTo a, PushTo a)
+    splitPush n p =
+      let (r1, r2) = splitAt n (toList (_pushRecipients p))
+       in (p {_pushRecipients = fromJust $ maybeList1 r1}, p {_pushRecipients = fromJust $ maybeList1 r2})
+
 -- | Asynchronously send multiple pushes, aggregating them into as
 -- few requests as possible, such that no single request targets
 -- more than 128 recipients.
@@ -106,28 +135,7 @@ pushLocal ps = do
   mapConcurrently_ (call Gundeck <=< jsonChunkedIO) (pushes syncs)
   where
     pushes :: [PushTo UserId] -> [[Gundeck.Push]]
-    pushes = map (map (\p -> toPush p (recipientList p))) . chunk 0 []
-
-    chunk :: Int -> [PushTo a] -> [PushTo a] -> [[PushTo a]]
-    chunk _ acc [] = [acc]
-    chunk n acc (y : ys)
-      | n >= maxRecipients = acc : chunk 0 [] (y : ys)
-      | otherwise =
-          let totalLength = (n + length (_pushRecipients y))
-           in if totalLength > maxRecipients
-                then
-                  let (y1, y2) = splitPush (maxRecipients - n) y
-                   in chunk maxRecipients (y1 : acc) (y2 : ys)
-                else chunk totalLength (y : acc) ys
-
-    -- n must be strictly > 0 and < length (_pushRecipients p)
-    splitPush :: Int -> PushTo a -> (PushTo a, PushTo a)
-    splitPush n p =
-      let (r1, r2) = splitAt n (toList (_pushRecipients p))
-       in (p {_pushRecipients = fromJust $ maybeList1 r1}, p {_pushRecipients = fromJust $ maybeList1 r2})
-
-    maxRecipients :: Int
-    maxRecipients = 128
+    pushes = map (map (\p -> toPush p (recipientList p))) . chunkPushes 128
 
     recipientList :: PushTo UserId -> [Gundeck.Recipient]
     recipientList p = map (toRecipient p) . toList $ _pushRecipients p

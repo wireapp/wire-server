@@ -47,9 +47,12 @@ import Wire.API.Deprecated
 import Wire.API.Error
 import Wire.API.Error.Brig
 import Wire.API.Error.Empty
+import Wire.API.MLS.CipherSuite
+import Wire.API.MLS.KeyPackage
+import Wire.API.MLS.Servant
 import Wire.API.MakesFederatedCall
 import Wire.API.OAuth
-import Wire.API.Properties
+import Wire.API.Properties (PropertyKey, PropertyKeysAndValues, RawPropertyValue)
 import Wire.API.Routes.API
 import Wire.API.Routes.Bearer
 import Wire.API.Routes.Cookies
@@ -58,6 +61,8 @@ import Wire.API.Routes.Named
 import Wire.API.Routes.Public
 import Wire.API.Routes.Public.Brig.Bot (BotAPI)
 import Wire.API.Routes.Public.Brig.OAuth (OAuthAPI)
+import Wire.API.Routes.Public.Brig.Provider (ProviderAPI)
+import Wire.API.Routes.Public.Brig.Services (ServicesAPI)
 import Wire.API.Routes.Public.Util
 import Wire.API.Routes.QualifiedCapture
 import Wire.API.Routes.Version
@@ -85,6 +90,7 @@ type BrigAPI =
     :<|> UserClientAPI
     :<|> ConnectionAPI
     :<|> PropertiesAPI
+    :<|> MLSAPI
     :<|> UserHandleAPI
     :<|> SearchAPI
     :<|> AuthAPI
@@ -93,6 +99,8 @@ type BrigAPI =
     :<|> SystemSettingsAPI
     :<|> OAuthAPI
     :<|> BotAPI
+    :<|> ServicesAPI
+    :<|> ProviderAPI
 
 data BrigAPITag
 
@@ -1166,6 +1174,93 @@ type PropertiesAPI =
                :> "properties-values"
                :> Get '[JSON] PropertyKeysAndValues
            )
+
+-- MLS API ---------------------------------------------------------------------
+
+type CipherSuiteParam =
+  QueryParam'
+    [ Optional,
+      Strict,
+      Description "Ciphersuite in hex format (e.g. 0xf031) - default is 0x0001"
+    ]
+    "ciphersuite"
+    CipherSuite
+
+type MultipleCipherSuitesParam =
+  QueryParam'
+    [ Optional,
+      Strict,
+      Description "Comma-separated list of ciphersuites in hex format (e.g. 0xf031) - default is 0x0001"
+    ]
+    "ciphersuites"
+    (CommaSeparatedList CipherSuite)
+
+type MLSKeyPackageAPI =
+  "key-packages"
+    :> ( Named
+           "mls-key-packages-upload"
+           ( "self"
+               :> Summary "Upload a fresh batch of key packages"
+               :> From 'V5
+               :> Description "The request body should be a json object containing a list of base64-encoded key packages."
+               :> ZLocalUser
+               :> CanThrow 'MLSProtocolError
+               :> CanThrow 'MLSIdentityMismatch
+               :> CaptureClientId "client"
+               :> ReqBody '[JSON] KeyPackageUpload
+               :> MultiVerb 'POST '[JSON, MLS] '[RespondEmpty 201 "Key packages uploaded"] ()
+           )
+           :<|> Named
+                  "mls-key-packages-replace"
+                  ( "self"
+                      :> Summary "Upload a fresh batch of key packages and replace the old ones"
+                      :> From 'V5
+                      :> Description "The request body should be a json object containing a list of base64-encoded key packages. Use this sparingly."
+                      :> ZLocalUser
+                      :> CanThrow 'MLSProtocolError
+                      :> CanThrow 'MLSIdentityMismatch
+                      :> CaptureClientId "client"
+                      :> MultipleCipherSuitesParam
+                      :> ReqBody '[JSON] KeyPackageUpload
+                      :> MultiVerb 'PUT '[JSON, MLS] '[RespondEmpty 201 "Key packages replaced"] ()
+                  )
+           :<|> Named
+                  "mls-key-packages-claim"
+                  ( "claim"
+                      :> Summary "Claim one key package for each client of the given user"
+                      :> From 'V5
+                      :> Description "Only key packages for the specified ciphersuite are claimed. For backwards compatibility, the `ciphersuite` parameter is optional, defaulting to ciphersuite 0x0001 when omitted."
+                      :> ZLocalUser
+                      :> ZOptClient
+                      :> QualifiedCaptureUserId "user"
+                      :> CipherSuiteParam
+                      :> MultiVerb1 'POST '[JSON] (Respond 200 "Claimed key packages" KeyPackageBundle)
+                  )
+           :<|> Named
+                  "mls-key-packages-count"
+                  ( "self"
+                      :> Summary "Return the number of unclaimed key packages for a given ciphersuite and client"
+                      :> From 'V5
+                      :> ZLocalUser
+                      :> CaptureClientId "client"
+                      :> "count"
+                      :> CipherSuiteParam
+                      :> MultiVerb1 'GET '[JSON] (Respond 200 "Number of key packages" KeyPackageCount)
+                  )
+           :<|> Named
+                  "mls-key-packages-delete"
+                  ( "self"
+                      :> From 'V5
+                      :> ZLocalUser
+                      :> CaptureClientId "client"
+                      :> Summary "Delete all key packages for a given ciphersuite and client"
+                      :> CipherSuiteParam
+                      :> ReqBody '[JSON] DeleteKeyPackages
+                      :> MultiVerb1 'DELETE '[JSON] (RespondEmpty 201 "OK")
+                  )
+       )
+
+type MLSAPI = LiftNamed ("mls" :> MLSKeyPackageAPI)
 
 -- Search API -----------------------------------------------------
 

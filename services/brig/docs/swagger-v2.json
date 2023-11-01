@@ -1,4 +1,5 @@
 {
+  "basePath": "/v2",
   "definitions": {
     "ASCII": {
       "example": "aGVsbG8",

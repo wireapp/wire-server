@@ -196,7 +196,7 @@ toJSONFieldName = A.defaultOptions {A.fieldLabelModifier = A.camelTo2 '_'}
 -- Some related discussion: <https://github.com/bos/aeson/issues/126>.
 newtype Base64ByteString = Base64ByteString {fromBase64ByteString :: ByteString}
   deriving stock (Eq, Ord, Show)
-  deriving (FromJSON, ToJSON) via Schema Base64ByteString
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema Base64ByteString
   deriving newtype (Arbitrary, IsString)
 
 instance ToSchema Base64ByteString where

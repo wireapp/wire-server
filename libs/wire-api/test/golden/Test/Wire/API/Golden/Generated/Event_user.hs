@@ -148,7 +148,7 @@ testObject_Event_user_8 =
               cnvMetadata =
                 ConversationMetadata
                   { cnvmType = RegularConv,
-                    cnvmCreator = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000200000001")),
+                    cnvmCreator = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000200000001"))),
                     cnvmAccess =
                       [InviteAccess, PrivateAccess, LinkAccess, InviteAccess, InviteAccess, InviteAccess, LinkAccess],
                     cnvmAccessRoles = Set.fromList [TeamMemberAccessRole, GuestAccessRole, ServiceAccessRole],
@@ -236,6 +236,7 @@ testObject_Event_user_11 =
     (Qualified (Id (fromJust (UUID.fromString "000043a6-0000-1627-0000-490300002017"))) (Domain "faraway.example.com"))
     (read "1864-04-12 01:28:25.705 UTC")
     ( EdMembersLeave
+        EdReasonLeft
         ( QualifiedUserIdList
             { qualifiedUserIdList =
                 [ Qualified (Id (fromJust (UUID.fromString "00003fab-0000-40b8-0000-3b0c000014ef"))) (Domain "faraway.example.com"),

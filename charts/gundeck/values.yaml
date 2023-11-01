@@ -68,3 +68,11 @@ podSecurityContext:
   runAsNonRoot: true
   seccompProfile:
     type: RuntimeDefault
+tests:
+  config: {}
+#  config:
+#   uploadXml:
+#     baseUrl: s3://bucket/path/
+#  secrets:
+#    uploadXmlAwsAccessKeyId: <key-id>
+#    uploadXmlAwsSecretAccessKey: <secret>

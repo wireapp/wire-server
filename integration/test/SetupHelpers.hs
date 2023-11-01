@@ -1,9 +1,10 @@
+{-# OPTIONS_GHC -Wno-ambiguous-fields #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 module SetupHelpers where
 
-import API.Brig qualified as Brig
-import API.BrigInternal qualified as Internal
+import API.Brig
+import API.BrigInternal
 import API.Common
 import API.Galley
 import Control.Monad.Reader
@@ -16,19 +17,19 @@ import Data.UUID.V4 (nextRandom)
 import GHC.Stack
 import Testlib.Prelude
 
-randomUser :: (HasCallStack, MakesValue domain) => domain -> Internal.CreateUser -> App Value
-randomUser domain cu = bindResponse (Internal.createUser domain cu) $ \resp -> do
+randomUser :: (HasCallStack, MakesValue domain) => domain -> CreateUser -> App Value
+randomUser domain cu = bindResponse (createUser domain cu) $ \resp -> do
   resp.status `shouldMatchInt` 201
   resp.json
 
 deleteUser :: (HasCallStack, MakesValue user) => user -> App ()
-deleteUser user = bindResponse (Brig.deleteUser user) $ \resp -> do
+deleteUser user = bindResponse (API.Brig.deleteUser user) $ \resp -> do
   resp.status `shouldMatchInt` 200
 
 -- | returns (user, team id)
 createTeam :: (HasCallStack, MakesValue domain) => domain -> Int -> App (Value, String, [Value])
 createTeam domain memberCount = do
-  res <- Internal.createUser domain def {Internal.team = True}
+  res <- createUser domain def {team = True}
   owner <- res.json
   tid <- owner %. "team" & asString
   members <- for [2 .. memberCount] $ \_ -> createTeamMember owner tid
@@ -64,7 +65,7 @@ createTeamMember inviter tid = do
       <&> addJSONObject registerJSON
   getJSON 201 =<< submit "POST" registerReq
 
-connectUsers ::
+connectTwoUsers ::
   ( HasCallStack,
     MakesValue alice,
     MakesValue bob
@@ -72,20 +73,25 @@ connectUsers ::
   alice ->
   bob ->
   App ()
-connectUsers alice bob = do
-  bindResponse (Brig.postConnection alice bob) (\resp -> resp.status `shouldMatchInt` 201)
-  bindResponse (Brig.putConnection bob alice "accepted") (\resp -> resp.status `shouldMatchInt` 200)
+connectTwoUsers alice bob = do
+  bindResponse (postConnection alice bob) (\resp -> resp.status `shouldMatchInt` 201)
+  bindResponse (putConnection bob alice "accepted") (\resp -> resp.status `shouldMatchInt` 200)
+
+connectUsers :: HasCallStack => [Value] -> App ()
+connectUsers users = traverse_ (uncurry connectTwoUsers) $ do
+  t <- tails users
+  (a, others) <- maybeToList (uncons t)
+  b <- others
+  pure (a, b)
 
 createAndConnectUsers :: (HasCallStack, MakesValue domain) => [domain] -> App [Value]
 createAndConnectUsers domains = do
   users <- for domains (flip randomUser def)
-  let userPairs = do
-        t <- tails users
-        (a, others) <- maybeToList (uncons t)
-        b <- others
-        pure (a, b)
-  for_ userPairs (uncurry connectUsers)
+  connectUsers users
   pure users
+
+createUsers :: (HasCallStack, MakesValue domain) => [domain] -> App [Value]
+createUsers domains = for domains (flip randomUser def)
 
 getAllConvs :: (HasCallStack, MakesValue u) => u -> App [Value]
 getAllConvs u = do
@@ -97,6 +103,65 @@ getAllConvs u = do
     resp.status `shouldMatchInt` 200
     resp.json
   result %. "found" & asList
+
+-- | Setup a team user, another user, connect the two, create a proteus
+-- conversation, upgrade to mixed. Return the two users and the conversation.
+simpleMixedConversationSetup ::
+  (HasCallStack, MakesValue domain) =>
+  domain ->
+  App (Value, Value, Value)
+simpleMixedConversationSetup secondDomain = do
+  (alice, tid, _) <- createTeam OwnDomain 1
+  bob <- randomUser secondDomain def
+  connectUsers [alice, bob]
+
+  conv <-
+    postConversation alice defProteus {qualifiedUsers = [bob], team = Just tid}
+      >>= getJSON 201
+
+  bindResponse (putConversationProtocol bob conv "mixed") $ \resp -> do
+    resp.status `shouldMatchInt` 200
+
+  modifyMLSState $ \mls -> mls {protocol = MLSProtocolMixed}
+
+  conv' <- getConversation alice conv >>= getJSON 200
+
+  pure (alice, bob, conv')
+
+supportMLS :: (HasCallStack, MakesValue u) => u -> App ()
+supportMLS u = do
+  prots <- bindResponse (getUserSupportedProtocols u u) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    prots <- resp.json & asList
+    traverse asString prots
+  let prots' = "mls" : prots
+  bindResponse (putUserSupportedProtocols u prots') $ \resp ->
+    resp.status `shouldMatchInt` 200
+
+addUserToTeam :: (HasCallStack, MakesValue u) => u -> App Value
+addUserToTeam u = do
+  inv <- postInvitation u def >>= getJSON 201
+  email <- inv %. "email" & asString
+  resp <- getInvitationCode u inv >>= getJSON 200
+  code <- resp %. "code" & asString
+  addUser u def {email = Just email, teamCode = Just code} >>= getJSON 201
+
+-- | Create a user on the given domain, such that the 1-1 conversation with
+-- 'other' resides on 'convDomain'. This connects the two users as a side-effect.
+createMLSOne2OnePartner :: MakesValue user => Domain -> user -> Domain -> App Value
+createMLSOne2OnePartner domain other convDomain = loop
+  where
+    loop = do
+      u <- randomUser domain def
+      connectTwoUsers u other
+      conv <- getMLSOne2OneConversation other u >>= getJSON 200
+
+      desiredConvDomain <- make convDomain & asString
+      actualConvDomain <- conv %. "qualified_id.domain" & asString
+
+      if desiredConvDomain == actualConvDomain
+        then pure u
+        else loop
 
 randomId :: HasCallStack => App String
 randomId = liftIO (show <$> nextRandom)
@@ -120,5 +185,4 @@ withFederatingBackendsAllowDynamic k = do
       def {brigCfg = setFederationConfig},
       def {brigCfg = setFederationConfig}
     ]
-    $ \[domainA, domainB, domainC] ->
-      k (domainA, domainB, domainC)
+    $ \[domainA, domainB, domainC] -> k (domainA, domainB, domainC)

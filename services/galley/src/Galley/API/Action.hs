@@ -64,10 +64,14 @@ import Data.Set qualified as Set
 import Data.Singletons
 import Data.Time.Clock
 import Galley.API.Error
+import Galley.API.MLS.Conversation
+import Galley.API.MLS.Migration
 import Galley.API.MLS.Removal
+import Galley.API.Teams.Features.Get
 import Galley.API.Util
 import Galley.Data.Conversation
 import Galley.Data.Conversation qualified as Data
+import Galley.Data.Conversation.Types
 import Galley.Data.Scope (Scope (ReusableCode))
 import Galley.Data.Services
 import Galley.Effects
@@ -80,7 +84,8 @@ import Galley.Effects.FederatorAccess qualified as E
 import Galley.Effects.FireAndForget qualified as E
 import Galley.Effects.GundeckAccess
 import Galley.Effects.MemberStore qualified as E
-import Galley.Effects.ProposalStore
+import Galley.Effects.ProposalStore qualified as E
+import Galley.Effects.SubConversationStore qualified as E
 import Galley.Effects.TeamStore qualified as E
 import Galley.Env (Env)
 import Galley.Intra.Push
@@ -111,7 +116,9 @@ import Wire.API.Federation.API.Galley
 import Wire.API.Federation.API.Galley qualified as F
 import Wire.API.Federation.Error
 import Wire.API.FederationStatus (FederationStatus (FullyConnected, NotConnectedDomains), RemoteDomains (..))
+import Wire.API.MLS.CipherSuite
 import Wire.API.Routes.Internal.Brig.Connection
+import Wire.API.Team.Feature
 import Wire.API.Team.LegalHold
 import Wire.API.Team.Member
 import Wire.API.User qualified as User
@@ -143,6 +150,7 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member LegalHoldStore r,
       Member MemberStore r,
       Member ProposalStore r,
+      Member SubConversationStore r,
       Member TeamStore r,
       Member TinyLog r,
       Member ConversationStore r,
@@ -158,10 +166,20 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member (Input UTCTime) r,
       Member (Input Env) r,
       Member ProposalStore r,
+      Member SubConversationStore r,
       Member TinyLog r
     )
   HasConversationActionEffects 'ConversationRemoveMembersTag r =
     ( Member MemberStore r,
+      Member (Error NoChanges) r,
+      Member SubConversationStore r,
+      Member ProposalStore r,
+      Member (Input Env) r,
+      Member (Input UTCTime) r,
+      Member ExternalAccess r,
+      Member FederatorAccess r,
+      Member GundeckAccess r,
+      Member (Error InternalError) r,
       Member TinyLog r,
       Member (Error NoChanges) r
     )
@@ -170,11 +188,16 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member (ErrorS 'ConvMemberNotFound) r
     )
   HasConversationActionEffects 'ConversationDeleteTag r =
-    ( Member (Error FederationError) r,
-      Member (ErrorS 'NotATeamMember) r,
+    ( Member BrigAccess r,
       Member CodeStore r,
-      Member TeamStore r,
-      Member ConversationStore r
+      Member ConversationStore r,
+      Member (Error FederationError) r,
+      Member (ErrorS 'NotATeamMember) r,
+      Member FederatorAccess r,
+      Member MemberStore r,
+      Member ProposalStore r,
+      Member SubConversationStore r,
+      Member TeamStore r
     )
   HasConversationActionEffects 'ConversationRenameTag r =
     ( Member (Error InvalidInput) r,
@@ -199,7 +222,8 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member TeamStore r,
       Member TinyLog r,
       Member (Input UTCTime) r,
-      Member ConversationStore r
+      Member ConversationStore r,
+      Member SubConversationStore r
     )
   HasConversationActionEffects 'ConversationMessageTimerUpdateTag r =
     ( Member ConversationStore r,
@@ -208,6 +232,28 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
   HasConversationActionEffects 'ConversationReceiptModeUpdateTag r =
     ( Member ConversationStore r,
       Member (Error NoChanges) r
+    )
+  HasConversationActionEffects 'ConversationUpdateProtocolTag r =
+    ( Member ConversationStore r,
+      Member (ErrorS 'ConvInvalidProtocolTransition) r,
+      Member (ErrorS OperationDenied) r,
+      Member (ErrorS 'MLSMigrationCriteriaNotSatisfied) r,
+      Member (Error NoChanges) r,
+      Member (ErrorS 'NotATeamMember) r,
+      Member (ErrorS 'TeamNotFound) r,
+      Member BrigAccess r,
+      Member ExternalAccess r,
+      Member FederatorAccess r,
+      Member GundeckAccess r,
+      Member (Input Env) r,
+      Member (Input Opts) r,
+      Member (Input UTCTime) r,
+      Member MemberStore r,
+      Member ProposalStore r,
+      Member SubConversationStore r,
+      Member TeamFeatureStore r,
+      Member TeamStore r,
+      Member TinyLog r
     )
 
 type family HasConversationActionGalleyErrors (tag :: ConversationActionTag) :: EffectRow where
@@ -265,6 +311,16 @@ type family HasConversationActionGalleyErrors (tag :: ConversationActionTag) :: 
        ErrorS 'InvalidOperation,
        ErrorS 'InvalidTargetAccess,
        ErrorS 'ConvNotFound
+     ]
+  HasConversationActionGalleyErrors 'ConversationUpdateProtocolTag =
+    '[ ErrorS ('ActionDenied 'LeaveConversation),
+       ErrorS 'InvalidOperation,
+       ErrorS 'ConvNotFound,
+       ErrorS 'ConvInvalidProtocolTransition,
+       ErrorS 'MLSMigrationCriteriaNotSatisfied,
+       ErrorS 'NotATeamMember,
+       ErrorS OperationDenied,
+       ErrorS 'TeamNotFound
      ]
 
 checkFederationStatus ::
@@ -367,42 +423,41 @@ performAction tag origUser lconv action = do
       performConversationJoin origUser lconv action
     SConversationLeaveTag -> do
       let victims = [origUser]
-      E.deleteMembers (tUnqualified lcnv) (toUserList lconv victims)
-      -- update in-memory view of the conversation
-      let lconv' =
-            lconv <&> \c ->
-              foldQualified
-                lconv
-                ( \lu ->
-                    c
-                      { convLocalMembers =
-                          filter (\lm -> lmId lm /= tUnqualified lu) (convLocalMembers c)
-                      }
-                )
-                ( \ru ->
-                    c
-                      { convRemoteMembers =
-                          filter (\rm -> rmId rm /= ru) (convRemoteMembers c)
-                      }
-                )
-                origUser
-      traverse_ (removeUser lconv') victims
+      lconv' <- traverse (convDeleteMembers (toUserList lconv victims)) lconv
+      -- send remove proposals in the MLS case
+      traverse_ (removeUser lconv' RemoveUserIncludeMain) victims
       pure (mempty, action)
     SConversationRemoveMembersTag -> do
       let presentVictims = filter (isConvMemberL lconv) (toList action)
       when (null presentVictims) noChanges
-      E.deleteMembers (tUnqualified lcnv) (toUserList lconv presentVictims)
+      traverse_ (convDeleteMembers (toUserList lconv presentVictims)) lconv
+      -- send remove proposals in the MLS case
+      traverse_ (removeUser lconv RemoveUserExcludeMain) presentVictims
       pure (mempty, action) -- FUTUREWORK: should we return the filtered action here?
     SConversationMemberUpdateTag -> do
       void $ ensureOtherMember lconv (cmuTarget action) conv
       E.setOtherMember lcnv (cmuTarget action) (cmuUpdate action)
       pure (mempty, action)
     SConversationDeleteTag -> do
+      let deleteGroup groupId = do
+            E.removeAllMLSClients groupId
+            E.deleteAllProposals groupId
+
+      let cid = conv.convId
+      for_ (conv & mlsMetadata <&> cnvmlsGroupId . fst) $ \gidParent -> do
+        sconvs <- E.listSubConversations cid
+        for_ (Map.assocs sconvs) $ \(subid, mlsData) -> do
+          let gidSub = cnvmlsGroupId mlsData
+          E.deleteSubConversation cid subid
+          deleteGroup gidSub
+        deleteGroup gidParent
+
       key <- E.makeKey (tUnqualified lcnv)
       E.deleteCode key ReusableCode
       case convTeam conv of
         Nothing -> E.deleteConversation (tUnqualified lcnv)
         Just tid -> E.deleteTeamConversation tid (tUnqualified lcnv)
+
       pure (mempty, action)
     SConversationRenameTag -> do
       cn <- rangeChecked (cupName action)
@@ -419,6 +474,27 @@ performAction tag origUser lconv action = do
     SConversationAccessDataTag -> do
       (bm, act) <- performConversationAccessData origUser lconv action
       pure (bm, act)
+    SConversationUpdateProtocolTag -> do
+      case (protocolTag (convProtocol (tUnqualified lconv)), action, convTeam (tUnqualified lconv)) of
+        (ProtocolProteusTag, ProtocolMixedTag, Just _) -> do
+          E.updateToMixedProtocol lcnv (convType (tUnqualified lconv)) MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
+          pure (mempty, action)
+        (ProtocolMixedTag, ProtocolMLSTag, Just tid) -> do
+          mig <- getFeatureStatus @MlsMigrationConfig DontDoAuth tid
+          now <- input
+          mlsConv <- mkMLSConversation conv >>= noteS @'ConvInvalidProtocolTransition
+          ok <- checkMigrationCriteria now mlsConv mig
+          unless ok $ throwS @'MLSMigrationCriteriaNotSatisfied
+          removeExtraneousClients origUser lconv
+          E.updateToMLSProtocol lcnv
+          pure (mempty, action)
+        (ProtocolProteusTag, ProtocolProteusTag, _) ->
+          noChanges
+        (ProtocolMixedTag, ProtocolMixedTag, _) ->
+          noChanges
+        (ProtocolMLSTag, ProtocolMLSTag, _) ->
+          noChanges
+        (_, _, _) -> throwS @'ConvInvalidProtocolTransition
 
 performConversationJoin ::
   forall r.
@@ -433,7 +509,7 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
   let newMembers = ulNewMembers lconv conv . toUserList lconv $ invited
 
   lusr <- ensureLocal lconv qusr
-  ensureMemberLimit (toList (convLocalMembers conv)) newMembers
+  ensureMemberLimit (convProtocolTag conv) (toList (convLocalMembers conv)) newMembers
   ensureAccess conv InviteAccess
   checkLocals lusr (convTeam conv) (ulLocals newMembers)
   checkRemotes lusr (ulRemotes newMembers)
@@ -473,10 +549,10 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
           <$> E.selectTeamMembers tid newUsers
       let userMembershipMap = map (Imports.id &&& flip Map.lookup tms) newUsers
       ensureAccessRole (convAccessRoles conv) userMembershipMap
-      ensureConnectedOrSameTeam lusr newUsers
+      ensureConnectedToLocalsOrSameTeam lusr newUsers
     checkLocals lusr Nothing newUsers = do
       ensureAccessRole (convAccessRoles conv) (zip newUsers $ repeat Nothing)
-      ensureConnectedOrSameTeam lusr newUsers
+      ensureConnectedToLocalsOrSameTeam lusr newUsers
 
     checkRemotes ::
       Local UserId ->
@@ -648,7 +724,7 @@ updateLocalConversation lcnv qusr con action = do
   unless (protocolValidAction (convProtocol conv) (fromSing tag)) $
     throwS @'InvalidOperation
 
-  -- perform all authorisation checks and, if successful, the update itself
+  -- perform all authorisation checks and, if successful, then update itself
   updateLocalConversationUnchecked @tag (qualifyAs lcnv conv) qusr con action
 
 -- | Similar to 'updateLocalConversationWithLocalUser', but takes a
@@ -786,33 +862,29 @@ notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
   now <- input
   let lcnv = fmap (.convId) lconv
       e = conversationActionToEvent tag now quid (tUntagged lcnv) Nothing action
-
-  let mkUpdate uids =
+      mkUpdate uids =
         ConversationUpdate
           now
           quid
           (tUnqualified lcnv)
           uids
           (SomeConversationAction tag action)
+      handleError :: FederationError -> Sem r (Maybe ConversationUpdate)
+      handleError fedErr =
+        logRemoteNotificationError @"on-conversation-updated" fedErr $> Nothing
 
-  update <- do
-    let remoteTargets = toList (bmRemotes targets)
-    updates <-
-      enqueueNotificationsConcurrently Q.Persistent remoteTargets $ \ruids -> do
+  update <-
+    fmap (fromMaybe (mkUpdate []))
+      . (either handleError (pure . asum . map tUnqualified))
+      <=< enqueueNotificationsConcurrently Q.Persistent (toList (bmRemotes targets))
+      $ \ruids -> do
         let update = mkUpdate (tUnqualified ruids)
         -- if notifyOrigDomain is false, filter out user from quid's domain,
         -- because quid's backend will update local state and notify its users
         -- itself using the ConversationUpdate returned by this function
         if notifyOrigDomain || tDomain ruids /= qDomain quid
-          then fedQueueClient @'Galley @"on-conversation-updated" update $> Nothing
+          then fedQueueClient @'OnConversationUpdatedTag update $> Nothing
           else pure (Just update)
-    case partitionEithers updates of
-      (ls :: [Remote ([UserId], FederationError)], rs) -> do
-        for_ ls $
-          logError
-            "on-conversation-updated"
-            "An error occurred while communicating with federated server: "
-        pure $ fromMaybe (mkUpdate []) . asum . map tUnqualified $ rs
 
   -- notify local participants and bots
   pushConversationEvent con e (qualifyAs lcnv (bmLocals targets)) (bmBots targets)
@@ -820,13 +892,6 @@ notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
   -- return both the event and the 'ConversationUpdate' structure corresponding
   -- to the originating domain (if it is remote)
   pure $ LocalConversationUpdate e update
-  where
-    logError :: String -> String -> Remote (a, FederationError) -> Sem r ()
-    logError field msg e =
-      P.warn $
-        Log.field "federation call" field
-          . Log.field "domain" (_domainText (tDomain e))
-          . Log.msg (msg <> displayException (snd (tUnqualified e)))
 
 -- | Update the local database with information on conversation members joining
 -- or leaving. Finally, push out notifications to local users.
@@ -892,6 +957,7 @@ updateLocalStateOfRemoteConv rcu con = do
       SConversationMessageTimerUpdateTag -> pure (Just sca, [])
       SConversationReceiptModeUpdateTag -> pure (Just sca, [])
       SConversationAccessDataTag -> pure (Just sca, [])
+      SConversationUpdateProtocolTag -> pure (Just sca, [])
 
   unless allUsersArePresent $
     P.warn $
@@ -922,7 +988,15 @@ addLocalUsersToRemoteConv ::
 addLocalUsersToRemoteConv remoteConvId qAdder localUsers = do
   connStatus <- E.getConnections localUsers (Just [qAdder]) (Just Accepted)
   let localUserIdsSet = Set.fromList localUsers
-      connected = Set.fromList $ fmap csv2From connStatus
+      adder = qUnqualified qAdder
+      -- If alice@A creates a 1-1 conversation on B, it can appear as if alice is
+      -- adding herself to a remote conversation. To make sure this is allowed, we
+      -- always consider a user as connected to themself.
+      connected =
+        Set.fromList (fmap csv2From connStatus)
+          <> if Set.member adder localUserIdsSet
+            then Set.singleton adder
+            else mempty
       unconnected = Set.difference localUserIdsSet connected
       connectedList = Set.toList connected
 
@@ -955,6 +1029,7 @@ kickMember ::
     Member (Input UTCTime) r,
     Member (Input Env) r,
     Member MemberStore r,
+    Member SubConversationStore r,
     Member TinyLog r
   ) =>
   Qualified UserId ->

@@ -46,7 +46,6 @@
 , hspec
 , hspec-wai
 , http-api-data
-, http-client
 , http-media
 , http-types
 , imports
@@ -64,7 +63,6 @@
 , openapi3
 , pem
 , polysemy
-, pretty
 , process
 , proto-lens
 , protobuf
@@ -72,7 +70,6 @@
 , quickcheck-instances
 , random
 , resourcet
-, retry
 , saml2-web-sso
 , schema-profunctor
 , scientific
@@ -95,7 +92,6 @@
 , tasty-quickcheck
 , text
 , time
-, tinylog
 , transitive-anns
 , types-common
 , unliftio
@@ -153,7 +149,6 @@ mkDerivation {
     hscim
     HsOpenSSL
     http-api-data
-    http-client
     http-media
     http-types
     imports
@@ -176,7 +171,6 @@ mkDerivation {
     quickcheck-instances
     random
     resourcet
-    retry
     saml2-web-sso
     schema-profunctor
     scientific
@@ -195,7 +189,6 @@ mkDerivation {
     tagged
     text
     time
-    tinylog
     transitive-anns
     types-common
     unordered-containers
@@ -241,10 +234,11 @@ mkDerivation {
     metrics-wai
     openapi3
     pem
-    pretty
     process
     proto-lens
     QuickCheck
+    random
+    saml2-web-sso
     schema-profunctor
     servant
     servant-server

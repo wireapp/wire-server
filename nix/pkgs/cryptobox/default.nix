@@ -1,31 +1,38 @@
-{ fetchFromGitHub
-, lib
+{ pkgs
 , libsodium
 , pkg-config
-, rustPlatform
-, stdenv
+, runCommand
 }:
 
-rustPlatform.buildRustPackage rec {
-  name = "cryptobox-c-${version}";
-  version = "2019-06-17";
-  nativeBuildInputs = [ pkg-config ];
-  buildInputs = [ libsodium ];
-  src = fetchFromGitHub {
-    owner = "wireapp";
-    repo = "cryptobox-c";
-    rev = "4067ad96b125942545dbdec8c1a89f1e1b65d013";
-    sha256 = "1i9dlhw0xk1viglyhail9fb36v1awrypps8jmhrkz8k1bhx98ci3";
+let
+  # load the crate2nix crate tree
+  crates = import ./Cargo.nix {
+    inherit pkgs;
+    nixpkgs = pkgs.path;
+
+    # per-crate overrides
+    defaultCrateOverrides = pkgs.defaultCrateOverrides // {
+      libsodium-sys = prev: {
+        nativeBuildInputs = prev.nativeBuildInputs or [ ] ++ [ pkg-config ];
+        buildInputs = [ libsodium ];
+      };
+    };
   };
-  cargoSha256 = "sha256-Afr3ShCXDCwTQNdeCZbA5/aosRt+KFpGfT1mrob6cog=";
 
-  patchLibs = lib.optionalString stdenv.isDarwin ''
-    install_name_tool -id $out/lib/libcryptobox.dylib $out/lib/libcryptobox.dylib
-  '';
+  rootCrate = crates.rootCrate.build;
 
-  postInstall = ''
-    ${patchLibs}
-    mkdir -p $out/include
-    cp src/cbox.h $out/include
-  '';
-}
+in
+
+# HACK: rather than providing the multi-output crate output, expose a single-
+  # output structure in the format expected by cryptobox-haskell.
+  # Note it expects the .so file to be called libcryptobox.so, not
+  # libcryptobox_c.so, and the cbox.h to be present.
+  # In the future, we might want to rework this to instead have cryptobox-c crate
+  # emit a .pc file, and all downstream tooling use pkg-config to discover things,
+  # but today is not that day.
+runCommand "cryptobox" { } ''
+  mkdir -p $out/lib $out/include
+  cp ${rootCrate.lib}/lib/libcryptobox_c* $out/lib/
+  ln -sfn libcryptobox_c.so $out/lib/libcryptobox.so
+  cp ${rootCrate.src}/src/cbox.h $out/include
+''

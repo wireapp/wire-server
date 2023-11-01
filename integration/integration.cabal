@@ -21,8 +21,7 @@ custom-setup
 common common-all
   default-language:   GHC2021
   ghc-options:
-    -Wall -Wpartial-fields -fwarn-tabs
-    -optP-Wno-nonportable-include-path
+    -Wall -Wpartial-fields -fwarn-tabs -Wno-incomplete-uni-patterns
 
   default-extensions:
     NoImplicitPrelude
@@ -110,6 +109,12 @@ library
     Test.Federation
     Test.Federator
     Test.MessageTimer
+    Test.MLS
+    Test.MLS.KeyPackage
+    Test.MLS.Message
+    Test.MLS.One2One
+    Test.MLS.SubConversation
+    Test.MLS.Unreachable
     Test.Notifications
     Test.Presence
     Test.Roles
@@ -170,6 +175,7 @@ library
     , network
     , network-uri
     , optparse-applicative
+    , pem
     , process
     , proto-lens
     , random

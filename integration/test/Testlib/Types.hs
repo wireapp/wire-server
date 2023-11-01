@@ -22,6 +22,7 @@ import Data.IORef
 import Data.List
 import Data.Map
 import Data.Map qualified as Map
+import Data.Set (Set)
 import Data.Set qualified as Set
 import Data.String
 import Data.Text qualified as T
@@ -105,7 +106,8 @@ data GlobalEnv = GlobalEnv
     gServicesCwdBase :: Maybe FilePath,
     gRemovalKeyPath :: FilePath,
     gBackendResourcePool :: ResourcePool BackendResource,
-    gRabbitMQConfig :: RabbitMQConfig
+    gRabbitMQConfig :: RabbitMQConfig,
+    gTempDir :: FilePath
   }
 
 data IntegrationConfig = IntegrationConfig
@@ -201,15 +203,32 @@ data ClientIdentity = ClientIdentity
   }
   deriving (Show, Eq, Ord)
 
+newtype Ciphersuite = Ciphersuite {code :: String}
+  deriving (Eq, Ord, Show)
+
+instance Default Ciphersuite where
+  def = Ciphersuite "0x0001"
+
+data ClientGroupState = ClientGroupState
+  { group :: Maybe ByteString,
+    keystore :: Maybe ByteString
+  }
+  deriving (Show)
+
+data MLSProtocol = MLSProtocolMLS | MLSProtocolMixed
+  deriving (Eq, Show)
+
 data MLSState = MLSState
   { baseDir :: FilePath,
-    members :: Set.Set ClientIdentity,
+    members :: Set ClientIdentity,
     -- | users expected to receive a welcome message after the next commit
-    newMembers :: Set.Set ClientIdentity,
+    newMembers :: Set ClientIdentity,
     groupId :: Maybe String,
     convId :: Maybe Value,
-    clientGroupState :: Map ClientIdentity ByteString,
-    epoch :: Word64
+    clientGroupState :: Map ClientIdentity ClientGroupState,
+    epoch :: Word64,
+    ciphersuite :: Ciphersuite,
+    protocol :: MLSProtocol
   }
   deriving (Show)
 
@@ -275,7 +294,7 @@ appToIOKleisli k = do
 getServiceMap :: HasCallStack => String -> App ServiceMap
 getServiceMap fedDomain = do
   env <- ask
-  assertJust ("Could not find service map for federation domain: " <> fedDomain) (Map.lookup fedDomain (env.serviceMap))
+  assertJust ("Could not find service map for federation domain: " <> fedDomain) (Map.lookup fedDomain env.serviceMap)
 
 getMLSState :: App MLSState
 getMLSState = do

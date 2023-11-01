@@ -1,3 +1,4 @@
+{-# OPTIONS -Wno-ambiguous-fields #-}
 module Notifications where
 
 import API.Gundeck
@@ -22,7 +23,13 @@ awaitNotifications user client since0 tSecs n selector =
   where
     go 0 _ res = pure res
     go timeRemaining since res0 = do
-      notifs <- bindResponse (getNotifications user client (GetNotifications since Nothing)) $ \resp -> asList (resp.json %. "notifications")
+      c <- make client & asString
+      notifs <- bindResponse
+        ( getNotifications
+            user
+            def {since = since, client = Just c}
+        )
+        $ \resp -> asList (resp.json %. "notifications")
       lastNotifId <- case notifs of
         [] -> pure since
         _ -> Just <$> objId (last notifs)
@@ -58,6 +65,12 @@ isDeleteUserNotif n =
 
 isNewMessageNotif :: MakesValue a => a -> App Bool
 isNewMessageNotif n = fieldEquals n "payload.0.type" "conversation.otr-message-add"
+
+isNewMLSMessageNotif :: MakesValue a => a -> App Bool
+isNewMLSMessageNotif n = fieldEquals n "payload.0.type" "conversation.mls-message-add"
+
+isWelcomeNotif :: MakesValue a => a -> App Bool
+isWelcomeNotif n = fieldEquals n "payload.0.type" "conversation.mls-welcome"
 
 isMemberJoinNotif :: MakesValue a => a -> App Bool
 isMemberJoinNotif n = fieldEquals n "payload.0.type" "conversation.member-join"

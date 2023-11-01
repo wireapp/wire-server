@@ -82,11 +82,12 @@ data GalleyError
   | InvalidTarget
   | ConvNotFound
   | ConvAccessDenied
+  | ConvInvalidProtocolTransition
   | -- MLS Errors
     MLSNotEnabled
   | MLSNonEmptyMemberList
   | MLSDuplicatePublicKey
-  | MLSKeyPackageRefNotFound
+  | MLSInvalidLeafNodeIndex
   | MLSUnsupportedMessage
   | MLSProposalNotFound
   | MLSUnsupportedProposal
@@ -99,7 +100,10 @@ data GalleyError
   | MLSClientSenderUserMismatch
   | MLSWelcomeMismatch
   | MLSMissingGroupInfo
-  | MLSMissingSenderClient
+  | MLSUnexpectedSenderClient
+  | MLSSubConvUnsupportedConvType
+  | MLSSubConvClientNotInParent
+  | MLSMigrationCriteriaNotSatisfied
   | --
     NoBindingTeamMembers
   | NoBindingTeam
@@ -138,6 +142,8 @@ data GalleyError
     InvalidTeamNotificationId
   deriving (Show, Eq, Generic)
   deriving (FromJSON, ToJSON) via (CustomEncoded GalleyError)
+
+instance S.ToSchema GalleyError
 
 $(genSingletons [''GalleyError])
 
@@ -199,6 +205,8 @@ type instance MapError 'ConvNotFound = 'StaticError 404 "no-conversation" "Conve
 
 type instance MapError 'ConvAccessDenied = 'StaticError 403 "access-denied" "Conversation access denied"
 
+type instance MapError 'ConvInvalidProtocolTransition = 'StaticError 403 "invalid-protocol-transition" "Protocol transition is invalid"
+
 type instance MapError 'InvalidTeamNotificationId = 'StaticError 400 "invalid-notification-id" "Could not parse notification id (must be UUIDv1)."
 
 type instance
@@ -212,7 +220,7 @@ type instance MapError 'MLSNonEmptyMemberList = 'StaticError 400 "non-empty-memb
 
 type instance MapError 'MLSDuplicatePublicKey = 'StaticError 400 "mls-duplicate-public-key" "MLS public key for the given signature scheme already exists"
 
-type instance MapError 'MLSKeyPackageRefNotFound = 'StaticError 404 "mls-key-package-ref-not-found" "A referenced key package could not be mapped to a known client"
+type instance MapError 'MLSInvalidLeafNodeIndex = 'StaticError 400 "mls-invalid-leaf-node-index" "A referenced leaf node index points to a blank or non-existing node"
 
 type instance MapError 'MLSUnsupportedMessage = 'StaticError 422 "mls-unsupported-message" "Attempted to send a message with an unsupported combination of content type and wire format"
 
@@ -238,7 +246,11 @@ type instance MapError 'MLSWelcomeMismatch = 'StaticError 400 "mls-welcome-misma
 
 type instance MapError 'MLSMissingGroupInfo = 'StaticError 404 "mls-missing-group-info" "The conversation has no group information"
 
-type instance MapError 'MLSMissingSenderClient = 'StaticError 403 "mls-missing-sender-client" "The client has to refresh their access token and provide their client ID"
+type instance MapError 'MLSSubConvUnsupportedConvType = 'StaticError 403 "mls-subconv-unsupported-convtype" "MLS subconversations are only supported for regular conversations"
+
+type instance MapError 'MLSSubConvClientNotInParent = 'StaticError 403 "mls-subconv-join-parent-missing" "MLS client cannot join the subconversation because it is not member of the parent conversation"
+
+type instance MapError 'MLSMigrationCriteriaNotSatisfied = 'StaticError 400 "mls-migration-criteria-not-satisfied" "The migration criteria for mixed to MLS protocol transition are not satisfied for this conversation"
 
 type instance MapError 'NoBindingTeamMembers = 'StaticError 403 "non-binding-team-members" "Both users must be members of the same binding team"
 
@@ -350,6 +362,7 @@ data TeamFeatureError
   | LegalHoldWhitelistedOnly
   | DisableSsoNotImplemented
   | FeatureLocked
+  | MLSProtocolMismatch
 
 instance IsSwaggerError TeamFeatureError where
   -- Do not display in Swagger
@@ -379,6 +392,8 @@ type instance
 
 type instance MapError 'FeatureLocked = 'StaticError 409 "feature-locked" "Feature config cannot be updated (e.g. because it is configured to be locked, or because you need to upgrade your plan)"
 
+type instance MapError 'MLSProtocolMismatch = 'StaticError 400 "mls-protocol-mismatch" "The default protocol needs to be part of the supported protocols"
+
 type instance ErrorEffect TeamFeatureError = Error TeamFeatureError
 
 instance Member (Error DynError) r => ServerEffect (Error TeamFeatureError) r where
@@ -388,6 +403,7 @@ instance Member (Error DynError) r => ServerEffect (Error TeamFeatureError) r wh
     LegalHoldWhitelistedOnly -> dynError @(MapError 'LegalHoldWhitelistedOnly)
     DisableSsoNotImplemented -> dynError @(MapError 'DisableSsoNotImplemented)
     FeatureLocked -> dynError @(MapError 'FeatureLocked)
+    MLSProtocolMismatch -> dynError @(MapError 'MLSProtocolMismatch)
 
 --------------------------------------------------------------------------------
 -- Proposal failure

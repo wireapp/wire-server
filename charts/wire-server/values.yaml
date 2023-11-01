@@ -12,3 +12,4 @@ tags:
   federation: false # see also galley.config.enableFederation and brig.config.enableFederation
   sftd: false
   backoffice: false
+  mlsstats: false

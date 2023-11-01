@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedLabels #-}
+{-# OPTIONS_GHC -Wno-ambiguous-fields #-}
 
 module API.Galley where
 
@@ -6,6 +7,9 @@ import Control.Lens hiding ((.=))
 import Control.Monad.Reader
 import Data.Aeson qualified as Aeson
 import Data.Aeson.Types qualified as Aeson
+import Data.ByteString.Base64 qualified as B64
+import Data.ByteString.Base64.URL qualified as B64U
+import Data.ByteString.Char8 qualified as BS
 import Data.ByteString.Lazy qualified as LBS
 import Data.ProtoLens qualified as Proto
 import Data.ProtoLens.Labels ()
@@ -100,7 +104,6 @@ putConversationProtocol ::
   ( HasCallStack,
     MakesValue user,
     MakesValue qcnv,
-    MakesValue conn,
     MakesValue protocol
   ) =>
   user ->
@@ -147,6 +150,34 @@ getSubConversation user conv sub = do
           sub
         ]
   submit "GET" req
+
+deleteSubConversation ::
+  (HasCallStack, MakesValue user, MakesValue sub) =>
+  user ->
+  sub ->
+  App Response
+deleteSubConversation user sub = do
+  (conv, Just subId) <- objSubConv sub
+  (domain, convId) <- objQid conv
+  groupId <- sub %. "group_id" & asString
+  epoch :: Int <- sub %. "epoch" & asIntegral
+  req <-
+    baseRequest user Galley Versioned $
+      joinHttpPath ["conversations", domain, convId, "subconversations", subId]
+  submit "DELETE" $ req & addJSONObject ["group_id" .= groupId, "epoch" .= epoch]
+
+leaveSubConversation ::
+  (HasCallStack, MakesValue user, MakesValue sub) =>
+  user ->
+  sub ->
+  App Response
+leaveSubConversation user sub = do
+  (conv, Just subId) <- objSubConv sub
+  (domain, convId) <- objQid conv
+  req <-
+    baseRequest user Galley Versioned $
+      joinHttpPath ["conversations", domain, convId, "subconversations", subId, "self"]
+  submit "DELETE" req
 
 getSelfConversation :: (HasCallStack, MakesValue user) => user -> App Response
 getSelfConversation user = do
@@ -231,6 +262,68 @@ getGroupInfo user conv = do
         Nothing -> ["conversations", convDomain, convId, "groupinfo"]
         Just sub -> ["conversations", convDomain, convId, "subconversations", sub, "groupinfo"]
   req <- baseRequest user Galley Versioned path
+  submit "GET" req
+
+removeConversationMember ::
+  (HasCallStack, MakesValue user, MakesValue conv) =>
+  user ->
+  conv ->
+  App Response
+removeConversationMember user conv = do
+  (convDomain, convId) <- objQid conv
+  (userDomain, userId) <- objQid user
+  req <- baseRequest user Galley Versioned (joinHttpPath ["conversations", convDomain, convId, "members", userDomain, userId])
+  submit "DELETE" req
+
+updateConversationMember ::
+  (HasCallStack, MakesValue user, MakesValue conv, MakesValue target) =>
+  user ->
+  conv ->
+  target ->
+  String ->
+  App Response
+updateConversationMember user conv target role = do
+  (convDomain, convId) <- objQid conv
+  (targetDomain, targetId) <- objQid target
+  req <- baseRequest user Galley Versioned (joinHttpPath ["conversations", convDomain, convId, "members", targetDomain, targetId])
+  submit "PUT" (req & addJSONObject ["conversation_role" .= role])
+
+deleteTeamConv ::
+  (HasCallStack, MakesValue team, MakesValue conv, MakesValue user) =>
+  team ->
+  conv ->
+  user ->
+  App Response
+deleteTeamConv team conv user = do
+  teamId <- objId team
+  convId <- objId conv
+  req <- baseRequest user Galley Versioned (joinHttpPath ["teams", teamId, "conversations", convId])
+  submit "DELETE" req
+
+getMLSOne2OneConversation ::
+  (HasCallStack, MakesValue self, MakesValue other) =>
+  self ->
+  other ->
+  App Response
+getMLSOne2OneConversation self other = do
+  (domain, uid) <- objQid other
+  req <-
+    baseRequest self Galley Versioned $
+      joinHttpPath ["conversations", "one2one", domain, uid]
+  submit "GET" req
+
+getGroupClients ::
+  (HasCallStack, MakesValue user) =>
+  user ->
+  String ->
+  App Response
+getGroupClients user groupId = do
+  req <-
+    baseRequest
+      user
+      Galley
+      Unversioned
+      (joinHttpPath ["i", "group", BS.unpack . B64U.encodeUnpadded . B64.decodeLenient $ BS.pack groupId])
   submit "GET" req
 
 data AddMembers = AddMembers

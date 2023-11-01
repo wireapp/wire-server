@@ -1,4 +1,4 @@
-cabal-version: 1.12
+cabal-version: 3.0
 name:          galley
 version:       0.83.0
 synopsis:      Conversations
@@ -6,7 +6,7 @@ category:      Network
 author:        Wire Swiss GmbH
 maintainer:    Wire Swiss GmbH <backend@wire.com>
 copyright:     (c) 2017 Wire Swiss GmbH
-license:       AGPL-3
+license:       AGPL-3.0-only
 license-file:  LICENSE
 build-type:    Simple
 
@@ -15,7 +15,61 @@ flag static
   manual:      True
   default:     False
 
+common common-all
+  default-language:   GHC2021
+  ghc-options:
+    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+    -Wredundant-constraints -Wunused-packages
+
+  default-extensions:
+    NoImplicitPrelude
+    AllowAmbiguousTypes
+    BangPatterns
+    ConstraintKinds
+    DataKinds
+    DefaultSignatures
+    DeriveFunctor
+    DeriveGeneric
+    DeriveLift
+    DeriveTraversable
+    DerivingStrategies
+    DerivingVia
+    DuplicateRecordFields
+    EmptyCase
+    FlexibleContexts
+    FlexibleInstances
+    FunctionalDependencies
+    GADTs
+    GeneralizedNewtypeDeriving
+    InstanceSigs
+    KindSignatures
+    LambdaCase
+    MultiParamTypeClasses
+    MultiWayIf
+    NamedFieldPuns
+    NumericUnderscores
+    OverloadedLabels
+    OverloadedRecordDot
+    OverloadedStrings
+    PackageImports
+    PatternSynonyms
+    PolyKinds
+    QuasiQuotes
+    RankNTypes
+    ScopedTypeVariables
+    StandaloneDeriving
+    TupleSections
+    TypeApplications
+    TypeFamilies
+    TypeFamilyDependencies
+    TypeOperators
+    UndecidableInstances
+    ViewPatterns
+
 library
+  import:          common-all
+
   -- cabal-fmt: expand src
   exposed-modules:
     Galley.API
@@ -32,13 +86,22 @@ library
     Galley.API.Mapping
     Galley.API.Message
     Galley.API.MLS
+    Galley.API.MLS.Commit
+    Galley.API.MLS.Commit.Core
+    Galley.API.MLS.Commit.ExternalCommit
+    Galley.API.MLS.Commit.InternalCommit
+    Galley.API.MLS.Conversation
     Galley.API.MLS.Enabled
     Galley.API.MLS.GroupInfo
-    Galley.API.MLS.KeyPackage
+    Galley.API.MLS.IncomingMessage
     Galley.API.MLS.Keys
     Galley.API.MLS.Message
+    Galley.API.MLS.Migration
+    Galley.API.MLS.One2One
     Galley.API.MLS.Propagate
+    Galley.API.MLS.Proposal
     Galley.API.MLS.Removal
+    Galley.API.MLS.SubConversation
     Galley.API.MLS.Types
     Galley.API.MLS.Util
     Galley.API.MLS.Welcome
@@ -82,6 +145,7 @@ library
     Galley.Cassandra.SearchVisibility
     Galley.Cassandra.Services
     Galley.Cassandra.Store
+    Galley.Cassandra.SubConversation
     Galley.Cassandra.Team
     Galley.Cassandra.TeamFeatures
     Galley.Cassandra.TeamNotifications
@@ -111,6 +175,7 @@ library
     Galley.Effects.SearchVisibilityStore
     Galley.Effects.ServiceStore
     Galley.Effects.SparAccess
+    Galley.Effects.SubConversationStore
     Galley.Effects.TeamFeatureStore
     Galley.Effects.TeamMemberStore
     Galley.Effects.TeamNotificationStore
@@ -138,64 +203,86 @@ library
     Galley.Options
     Galley.Queue
     Galley.Run
+    Galley.Schema.Run
+    Galley.Schema.V20
+    Galley.Schema.V21
+    Galley.Schema.V22
+    Galley.Schema.V23
+    Galley.Schema.V24
+    Galley.Schema.V25
+    Galley.Schema.V26
+    Galley.Schema.V27
+    Galley.Schema.V28
+    Galley.Schema.V29
+    Galley.Schema.V30
+    Galley.Schema.V31
+    Galley.Schema.V32
+    Galley.Schema.V33
+    Galley.Schema.V34
+    Galley.Schema.V35
+    Galley.Schema.V36
+    Galley.Schema.V37
+    Galley.Schema.V38_CreateTableBillingTeamMember
+    Galley.Schema.V39
+    Galley.Schema.V40_CreateTableDataMigration
+    Galley.Schema.V41_TeamNotificationQueue
+    Galley.Schema.V42_TeamFeatureValidateSamlEmails
+    Galley.Schema.V43_TeamFeatureDigitalSignatures
+    Galley.Schema.V44_AddRemoteIdentifiers
+    Galley.Schema.V45_AddFederationIdMapping
+    Galley.Schema.V46_TeamFeatureAppLock
+    Galley.Schema.V47_RemoveFederationIdMapping
+    Galley.Schema.V48_DeleteRemoteIdentifiers
+    Galley.Schema.V49_ReAddRemoteIdentifiers
+    Galley.Schema.V50_AddLegalholdWhitelisted
+    Galley.Schema.V51_FeatureFileSharing
+    Galley.Schema.V52_FeatureConferenceCalling
+    Galley.Schema.V53_AddRemoteConvStatus
+    Galley.Schema.V54_TeamFeatureSelfDeletingMessages
+    Galley.Schema.V55_SelfDeletingMessagesLockStatus
+    Galley.Schema.V56_GuestLinksTeamFeatureStatus
+    Galley.Schema.V57_GuestLinksLockStatus
+    Galley.Schema.V58_ConversationAccessRoleV2
+    Galley.Schema.V59_FileSharingLockStatus
+    Galley.Schema.V60_TeamFeatureSndFactorPasswordChallenge
+    Galley.Schema.V61_MLSConversation
+    Galley.Schema.V62_TeamFeatureSearchVisibilityInbound
+    Galley.Schema.V63_MLSConversationClients
+    Galley.Schema.V64_Epoch
+    Galley.Schema.V65_MLSRemoteClients
+    Galley.Schema.V66_AddSplashScreen
+    Galley.Schema.V67_MLSFeature
+    Galley.Schema.V68_MLSCommitLock
+    Galley.Schema.V69_MLSProposal
+    Galley.Schema.V70_MLSCipherSuite
+    Galley.Schema.V71_MemberClientKeypackage
+    Galley.Schema.V72_DropManagedConversations
+    Galley.Schema.V73_MemberClientTable
+    Galley.Schema.V74_ExposeInvitationsToTeamAdmin
+    Galley.Schema.V75_MLSGroupInfo
+    Galley.Schema.V76_ProposalOrigin
+    Galley.Schema.V77_MLSGroupMemberClient
+    Galley.Schema.V78_TeamFeatureOutlookCalIntegration
+    Galley.Schema.V79_TeamFeatureMlsE2EId
+    Galley.Schema.V80_AddConversationCodePassword
+    Galley.Schema.V81_TeamFeatureMlsE2EIdUpdate
+    Galley.Schema.V82_RemoteDomainIndexes
+    Galley.Schema.V83_CreateTableTeamAdmin
+    Galley.Schema.V84_MLSSubconversation
+    Galley.Schema.V85_MLSDraft17
+    Galley.Schema.V86_TeamFeatureMlsMigration
+    Galley.Schema.V87_TeamFeatureSupportedProtocols
+    Galley.Schema.V88_RemoveMemberClientAndTruncateMLSGroupMemberClient
     Galley.Types.Clients
     Galley.Types.ToUserRole
     Galley.Types.UserList
     Galley.Validation
 
-  other-modules:      Paths_galley
-  hs-source-dirs:     src
-  default-extensions:
-    NoImplicitPrelude
-    AllowAmbiguousTypes
-    BangPatterns
-    ConstraintKinds
-    DataKinds
-    DefaultSignatures
-    DeriveFunctor
-    DeriveGeneric
-    DeriveLift
-    DeriveTraversable
-    DerivingStrategies
-    DerivingVia
-    DuplicateRecordFields
-    EmptyCase
-    FlexibleContexts
-    FlexibleInstances
-    FunctionalDependencies
-    GADTs
-    InstanceSigs
-    KindSignatures
-    LambdaCase
-    MultiParamTypeClasses
-    MultiWayIf
-    NamedFieldPuns
-    NumericUnderscores
-    OverloadedRecordDot
-    OverloadedStrings
-    PackageImports
-    PatternSynonyms
-    PolyKinds
-    QuasiQuotes
-    RankNTypes
-    ScopedTypeVariables
-    StandaloneDeriving
-    TupleSections
-    TypeApplications
-    TypeFamilies
-    TypeFamilyDependencies
-    TypeOperators
-    UndecidableInstances
-    ViewPatterns
-
-  ghc-options:
-    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
-    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -fplugin=TransitiveAnns.Plugin -Wredundant-constraints
-    -Wunused-packages
-
+  ghc-options:     -fplugin=TransitiveAnns.Plugin
+  other-modules:   Paths_galley
+  hs-source-dirs:  src
   build-depends:
-      aeson                  >=2.0.1.0
+    , aeson                  >=2.0.1.0
     , amazonka               >=1.4.5
     , amazonka-sqs           >=1.4.5
     , amqp
@@ -238,6 +325,7 @@ library
     , metrics-core
     , metrics-wai            >=0.4
     , mtl                    >=2.2
+    , optparse-applicative
     , pem
     , polysemy
     , polysemy-wire-zoo
@@ -279,62 +367,13 @@ library
     , wire-api-federation
     , x509
 
-  default-language:   GHC2021
-
 executable galley
-  main-is:            exec/Main.hs
-  other-modules:      Paths_galley
-  default-extensions:
-    NoImplicitPrelude
-    AllowAmbiguousTypes
-    BangPatterns
-    ConstraintKinds
-    DataKinds
-    DefaultSignatures
-    DeriveFunctor
-    DeriveGeneric
-    DeriveLift
-    DeriveTraversable
-    DerivingStrategies
-    DerivingVia
-    DuplicateRecordFields
-    EmptyCase
-    FlexibleContexts
-    FlexibleInstances
-    FunctionalDependencies
-    GADTs
-    InstanceSigs
-    KindSignatures
-    LambdaCase
-    MultiParamTypeClasses
-    MultiWayIf
-    NamedFieldPuns
-    NumericUnderscores
-    OverloadedRecordDot
-    OverloadedStrings
-    PackageImports
-    PatternSynonyms
-    PolyKinds
-    QuasiQuotes
-    RankNTypes
-    ScopedTypeVariables
-    StandaloneDeriving
-    TupleSections
-    TypeApplications
-    TypeFamilies
-    TypeFamilyDependencies
-    TypeOperators
-    UndecidableInstances
-    ViewPatterns
-
-  ghc-options:
-    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
-    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -threaded -with-rtsopts=-T -rtsopts -Wredundant-constraints
-    -Wunused-packages
-
+  import:        common-all
+  main-is:       exec/Main.hs
+  other-modules: Paths_galley
+  ghc-options:   -threaded -with-rtsopts=-T -rtsopts
   build-depends:
-      base
+    , base
     , galley
     , HsOpenSSL
     , imports
@@ -343,10 +382,10 @@ executable galley
   if flag(static)
     ld-options: -static
 
-  default-language:   GHC2021
-
 executable galley-integration
-  main-is:            Main.hs
+  import:             common-all
+  main-is:            ../integration.hs
+  ghc-options:        -Wno-unused-packages
 
   -- cabal-fmt: expand test/integration
   other-modules:
@@ -368,10 +407,12 @@ executable galley-integration
     API.Util
     API.Util.TeamFeature
     Federation
-    Main
+    Run
     TestHelpers
     TestSetup
 
+  ghc-options:        -threaded -with-rtsopts=-N -rtsopts
+  hs-source-dirs:     test/integration
   hs-source-dirs:     test/integration
   default-extensions:
     NoImplicitPrelude
@@ -423,12 +464,13 @@ executable galley-integration
     -Wunused-packages
 
   build-depends:
-      aeson
+    , aeson
     , aeson-qq
     , async
     , base
     , base64-bytestring
     , bilge
+    , binary
     , brig-types
     , bytestring
     , bytestring-conversion
@@ -439,11 +481,9 @@ executable galley-integration
     , cereal
     , containers
     , cookie
-    , cryptonite
     , currency-codes
     , data-default
     , data-timeout
-    , directory
     , errors
     , exceptions
     , extra                  >=1.3
@@ -451,9 +491,9 @@ executable galley-integration
     , filepath
     , galley
     , galley-types
-    , hex
     , HsOpenSSL
     , hspec
+    , http-api-data
     , http-client
     , http-client-openssl
     , http-client-tls
@@ -513,78 +553,27 @@ executable galley-integration
     , wire-api-federation
     , yaml
 
-  default-language:   GHC2021
-
 executable galley-migrate-data
-  main-is:            Main.hs
+  import:         common-all
+  main-is:        ../main.hs
 
   -- cabal-fmt: expand migrate-data/src
   other-modules:
     Galley.DataMigration
     Galley.DataMigration.Types
-    Main
     Paths_galley
+    Run
     V1_BackfillBillingTeamMembers
-    V2_MigrateMLSMembers
     V3_BackfillTeamAdmins
 
-  hs-source-dirs:     migrate-data/src
-  default-extensions:
-    NoImplicitPrelude
-    AllowAmbiguousTypes
-    BangPatterns
-    ConstraintKinds
-    DataKinds
-    DefaultSignatures
-    DeriveFunctor
-    DeriveGeneric
-    DeriveLift
-    DeriveTraversable
-    DerivingStrategies
-    DerivingVia
-    DuplicateRecordFields
-    EmptyCase
-    FlexibleContexts
-    FlexibleInstances
-    FunctionalDependencies
-    GADTs
-    InstanceSigs
-    KindSignatures
-    LambdaCase
-    MultiParamTypeClasses
-    MultiWayIf
-    NamedFieldPuns
-    NumericUnderscores
-    OverloadedRecordDot
-    OverloadedStrings
-    PackageImports
-    PatternSynonyms
-    PolyKinds
-    QuasiQuotes
-    RankNTypes
-    ScopedTypeVariables
-    StandaloneDeriving
-    TupleSections
-    TypeApplications
-    TypeFamilies
-    TypeFamilyDependencies
-    TypeOperators
-    UndecidableInstances
-    ViewPatterns
-
-  ghc-options:
-    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
-    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -Wredundant-constraints -Wunused-packages
-
+  hs-source-dirs: migrate-data/src
   build-depends:
-      base
+    , base
     , cassandra-util
     , conduit
     , containers
     , exceptions
     , extended
-    , galley
     , galley-types
     , imports
     , lens
@@ -593,210 +582,41 @@ executable galley-migrate-data
     , time
     , tinylog
     , types-common
-    , unliftio
     , wire-api
 
   if flag(static)
     ld-options: -static
 
-  default-language:   GHC2021
-
 executable galley-schema
+  import:             common-all
   main-is:            Main.hs
-
-  -- cabal-fmt: expand schema/src
-  other-modules:
-    Main
-    V20
-    V21
-    V22
-    V23
-    V24
-    V25
-    V26
-    V27
-    V28
-    V29
-    V30
-    V31
-    V32
-    V33
-    V34
-    V35
-    V36
-    V37
-    V38_CreateTableBillingTeamMember
-    V39
-    V40_CreateTableDataMigration
-    V41_TeamNotificationQueue
-    V42_TeamFeatureValidateSamlEmails
-    V43_TeamFeatureDigitalSignatures
-    V44_AddRemoteIdentifiers
-    V45_AddFederationIdMapping
-    V46_TeamFeatureAppLock
-    V47_RemoveFederationIdMapping
-    V48_DeleteRemoteIdentifiers
-    V49_ReAddRemoteIdentifiers
-    V50_AddLegalholdWhitelisted
-    V51_FeatureFileSharing
-    V52_FeatureConferenceCalling
-    V53_AddRemoteConvStatus
-    V54_TeamFeatureSelfDeletingMessages
-    V55_SelfDeletingMessagesLockStatus
-    V56_GuestLinksTeamFeatureStatus
-    V57_GuestLinksLockStatus
-    V58_ConversationAccessRoleV2
-    V59_FileSharingLockStatus
-    V60_TeamFeatureSndFactorPasswordChallenge
-    V61_MLSConversation
-    V62_TeamFeatureSearchVisibilityInbound
-    V63_MLSConversationClients
-    V64_Epoch
-    V65_MLSRemoteClients
-    V66_AddSplashScreen
-    V67_MLSFeature
-    V68_MLSCommitLock
-    V69_MLSProposal
-    V70_MLSCipherSuite
-    V71_MemberClientKeypackage
-    V72_DropManagedConversations
-    V73_MemberClientTable
-    V74_ExposeInvitationsToTeamAdmin
-    V75_MLSGroupInfo
-    V76_ProposalOrigin
-    V77_MLSGroupMemberClient
-    V78_TeamFeatureOutlookCalIntegration
-    V79_TeamFeatureMlsE2EId
-    V80_AddConversationCodePassword
-    V81_TeamFeatureMlsE2EIdUpdate
-    V82_RemoteDomainIndexes
-    V83_CreateTableTeamAdmin
-
-  hs-source-dirs:     schema/src
-  default-extensions:
-    NoImplicitPrelude
-    AllowAmbiguousTypes
-    BangPatterns
-    ConstraintKinds
-    DataKinds
-    DefaultSignatures
-    DeriveFunctor
-    DeriveGeneric
-    DeriveLift
-    DeriveTraversable
-    DerivingStrategies
-    DerivingVia
-    DuplicateRecordFields
-    EmptyCase
-    FlexibleContexts
-    FlexibleInstances
-    FunctionalDependencies
-    GADTs
-    InstanceSigs
-    KindSignatures
-    LambdaCase
-    MultiParamTypeClasses
-    MultiWayIf
-    NamedFieldPuns
-    NumericUnderscores
-    OverloadedRecordDot
-    OverloadedStrings
-    PackageImports
-    PatternSynonyms
-    PolyKinds
-    QuasiQuotes
-    RankNTypes
-    ScopedTypeVariables
-    StandaloneDeriving
-    TupleSections
-    TypeApplications
-    TypeFamilies
-    TypeFamilyDependencies
-    TypeOperators
-    UndecidableInstances
-    ViewPatterns
-
-  ghc-options:
-    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
-    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -Wredundant-constraints -Wunused-packages
-
+  hs-source-dirs:     schema
+  default-extensions: TemplateHaskell
   build-depends:
-      base
-    , cassandra-util
-    , extended
+    , galley
     , imports
-    , optparse-applicative
-    , raw-strings-qq        >=1.0
 
   if flag(static)
     ld-options: -static
 
-  default-language:   GHC2021
-
 test-suite galley-tests
-  type:               exitcode-stdio-1.0
-  main-is:            Main.hs
+  import:         common-all
+  type:           exitcode-stdio-1.0
+  main-is:        ../unit.hs
   other-modules:
     Paths_galley
+    Run
     Test.Galley.API.Action
     Test.Galley.API.Message
     Test.Galley.API.One2One
+    Test.Galley.Intra.Push
     Test.Galley.Intra.User
     Test.Galley.Mapping
 
-  hs-source-dirs:     test/unit
-  default-extensions:
-    NoImplicitPrelude
-    AllowAmbiguousTypes
-    BangPatterns
-    ConstraintKinds
-    DataKinds
-    DefaultSignatures
-    DeriveFunctor
-    DeriveGeneric
-    DeriveLift
-    DeriveTraversable
-    DerivingStrategies
-    DerivingVia
-    DuplicateRecordFields
-    EmptyCase
-    FlexibleContexts
-    FlexibleInstances
-    FunctionalDependencies
-    GADTs
-    InstanceSigs
-    KindSignatures
-    LambdaCase
-    MultiParamTypeClasses
-    MultiWayIf
-    NamedFieldPuns
-    NumericUnderscores
-    OverloadedRecordDot
-    OverloadedStrings
-    PackageImports
-    PatternSynonyms
-    PolyKinds
-    QuasiQuotes
-    RankNTypes
-    ScopedTypeVariables
-    StandaloneDeriving
-    TupleSections
-    TypeApplications
-    TypeFamilies
-    TypeFamilyDependencies
-    TypeOperators
-    UndecidableInstances
-    ViewPatterns
-
-  ghc-options:
-    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
-    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -threaded -with-rtsopts=-N -Wredundant-constraints
-    -Wunused-packages
-
+  ghc-options:    -threaded -with-rtsopts=-N
+  hs-source-dirs: test/unit
   build-depends:
-      base
+    , base
     , containers
     , extra                >=1.3
     , galley
@@ -813,5 +633,3 @@ test-suite galley-tests
     , uuid-types
     , wire-api
     , wire-api-federation
-
-  default-language:   GHC2021

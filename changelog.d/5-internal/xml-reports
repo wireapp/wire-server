@@ -1,9 +1,0 @@
-All integration tests can generate XML reports.
-
-To generate the report in brig-integration, galley-integration,
-cargohold-integration, gundeck-integration, stern-integration and the new
-integration suite pass `--xml=<outfile>` to generate the XML file.
-
-For spar-integration and federator-integration pass `-f junit` and set
-`JUNIT_OUTPUT_DIRECTORY` and `JUNIT_SUITE_NAME` environment variables. The XML
-report will be generated at `$JUNIT_OUTPUT_DIRECTORY/junit.xml`.
