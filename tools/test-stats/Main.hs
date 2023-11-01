@@ -42,7 +42,7 @@ main = do
 
 data Options w = Options
   { testResults :: w ::: FilePath <?> "Directory containing test results in the JUNIT xml format. All files with 'xml' extension in this directory will be considered test results",
-    runId :: w ::: Text <?> "ID of the flake-news run",
+    runId :: w ::: Text <?> "ID of the flake-news run, this can be used to unite multiple test suites together",
     suiteName :: w ::: Text <?> "Name of the test suite, e.g brig, galley, integration, etc.",
     postgresqlHost :: w ::: String <?> "Hostname for postgresql DB" <!> "localhost",
     postgresqlPort :: w ::: Word16 <?> "Port for postgresql DB" <!> "5432",
@@ -80,8 +80,16 @@ failureCase = Report 0 1
 
 -- * XML parser
 
-parse :: FilePath -> IO (MonoidalMap TestCase Report)
-parse fn = parseRaw <$> T.readFile fn
+-- | Returns (report by test case name, overallTestSuiteFailures, overallTestSuiteSucesses)
+--
+-- The overall numbers are always 1 or 0 and wrapped in the `Sum` type so we can
+-- mconcat them to get the overall sum.
+parse :: FilePath -> IO (MonoidalMap TestCase Report, Sum Int, Sum Int)
+parse fn = do
+  testCaseReport <- parseRaw <$> T.readFile fn
+  if any (\r -> r.failure > 0) testCaseReport
+    then pure (testCaseReport, Sum 1, Sum 0)
+    else pure (testCaseReport, Sum 0, Sum 1)
 
 parseRaw :: Text -> MonoidalMap TestCase Report
 parseRaw = mconcat . map parseTestSuites . selectTestSuites . parseXML
@@ -119,12 +127,12 @@ name = maybeToList . fmap T.pack . findAttrBy (matchQName "name")
 
 runMigrations :: Connection -> IO ()
 runMigrations conn = do
-  void $ execute_ conn "CREATE TABLE IF NOT EXISTS test_runs (id SERIAL PRIMARY KEY, suite VARCHAR)"
-  void $ execute_ conn "CREATE TABLE IF NOT EXISTS test_case_runs (id SERIAL PRIMARY KEY, name VARCHAR, test_run_id integer, failure_count integer, success_count integer)"
+  void $ execute_ conn "CREATE TABLE IF NOT EXISTS test_suite_runs (id SERIAL PRIMARY KEY, run_id VARCHAR, suite VARCHAR, failedRuns INT, successfulRuns INT)"
+  void $ execute_ conn "CREATE TABLE IF NOT EXISTS test_case_runs (id SERIAL PRIMARY KEY, name VARCHAR, test_suite_run_id integer, failure_count integer, success_count integer)"
   void $ execute_ conn "CREATE TABLE IF NOT EXISTS test_case_failures (id SERIAL PRIMARY KEY, test_case_run_id integer, failure_log text)"
 
-pushToPostgresql :: Options Unwrapped -> MonoidalMap TestCase Report -> IO ()
-pushToPostgresql opts reports = do
+pushToPostgresql :: Options Unwrapped -> (MonoidalMap TestCase Report, Sum Int, Sum Int) -> IO ()
+pushToPostgresql opts (reports, failedRuns, successfulRuns) = do
   let connInfo =
         ConnectInfo
           { connectHost = opts.postgresqlHost,
@@ -135,9 +143,9 @@ pushToPostgresql opts reports = do
           }
   bracket (connect connInfo) (close) $ \conn -> do
     runMigrations conn
-    runId <- extractId =<< returning conn "INSERT INTO test_runs (suite) VALUES (?) RETURNING id" [Only opts.suiteName]
+    suiteRunId <- extractId =<< returning conn "INSERT INTO test_suite_runs (run_id, suite, failedRuns, successfulRuns) VALUES (?,?,?,?) RETURNING id" [(opts.runId, opts.suiteName, getSum failedRuns, getSum successfulRuns)]
     let saveTestCaseRun testCase report = do
-          testCaseRunId <- extractId =<< returning conn "INSERT INTO test_case_runs (name, test_run_id, failure_count, success_count) VALUES (?,?,?,?) RETURNING id" [(testCase, runId, report.failure, report.success)]
+          testCaseRunId <- extractId =<< returning conn "INSERT INTO test_case_runs (name, test_suite_run_id, failure_count, success_count) VALUES (?,?,?,?) RETURNING id" [(testCase, suiteRunId, report.failure, report.success)]
           void $ executeMany conn "INSERT INTO test_case_failures (test_case_run_id, failure_log) VALUES (?,?)" $ zip (repeat testCaseRunId) report.failureDesc
     void $ MonoidalMap.traverseWithKey saveTestCaseRun reports
 
