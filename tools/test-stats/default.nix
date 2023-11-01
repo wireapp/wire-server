@@ -13,6 +13,7 @@
 , postgresql-simple
 , prometheus-client
 , text
+, time
 , xml
 }:
 mkDerivation {
@@ -30,6 +31,7 @@ mkDerivation {
     postgresql-simple
     prometheus-client
     text
+    time
     xml
   ];
   description = "Test run statistics";

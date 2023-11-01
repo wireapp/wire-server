@@ -24,6 +24,7 @@ import Data.Map.Monoidal (MonoidalMap)
 import Data.Map.Monoidal qualified as MonoidalMap
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
+import Data.Time
 import Database.PostgreSQL.Simple
 import Imports hiding (Map)
 import Options.Generic
@@ -42,6 +43,7 @@ main = do
 
 data Options w = Options
   { testResults :: w ::: FilePath <?> "Directory containing test results in the JUNIT xml format. All files with 'xml' extension in this directory will be considered test results",
+    time :: w ::: Maybe ZonedTime <?> "Time at which the test suite was run, defaults to current time.",
     runId :: w ::: Text <?> "ID of the flake-news run, this can be used to unite multiple test suites together",
     codeVersion :: w ::: Text <?> "Version of the code and tests, Plainly stored next to the stats so it can be used for some analysis",
     suiteName :: w ::: Text <?> "Name of the test suite, e.g brig, galley, integration, etc.",
@@ -129,7 +131,7 @@ name = maybeToList . fmap T.pack . findAttrBy (matchQName "name")
 
 runMigrations :: Connection -> IO ()
 runMigrations conn = do
-  void $ execute_ conn "CREATE TABLE IF NOT EXISTS test_suite_runs (id SERIAL PRIMARY KEY, run_id VARCHAR, version VARCHAR, suite VARCHAR, failedRuns INT, successfulRuns INT)"
+  void $ execute_ conn "CREATE TABLE IF NOT EXISTS test_suite_runs (id SERIAL PRIMARY KEY, run_id VARCHAR, time TIMESTAMP, version VARCHAR, suite VARCHAR, failed_runs INT, successful_runs INT)"
   void $ execute_ conn "CREATE TABLE IF NOT EXISTS test_case_runs (id SERIAL PRIMARY KEY, name VARCHAR, test_suite_run_id integer, failure_count integer, success_count integer)"
   void $ execute_ conn "CREATE TABLE IF NOT EXISTS test_case_failures (id SERIAL PRIMARY KEY, test_case_run_id integer, failure_log text)"
 
@@ -143,14 +145,15 @@ pushToPostgresql opts (reports, failedRuns, successfulRuns) = do
             connectPassword = opts.postgresqlPassword,
             connectDatabase = opts.postgresqlDatabase
           }
+  currentTime <- getCurrentTime
   bracket (connect connInfo) (close) $ \conn -> do
     runMigrations conn
     suiteRunId <-
       extractId
         =<< returning
           conn
-          "INSERT INTO test_suite_runs (run_id, version, suite, failedRuns, successfulRuns) VALUES (?,?,?,?,?) RETURNING id"
-          [(opts.runId, opts.codeVersion, opts.suiteName, getSum failedRuns, getSum successfulRuns)]
+          "INSERT INTO test_suite_runs (run_id, time, version, suite, failed_runs, successful_runs) VALUES (?,?,?,?,?,?) RETURNING id"
+          [(opts.runId, maybe currentTime zonedTimeToUTC opts.time, opts.codeVersion, opts.suiteName, getSum failedRuns, getSum successfulRuns)]
     let saveTestCaseRun testCase report = do
           testCaseRunId <-
             extractId
