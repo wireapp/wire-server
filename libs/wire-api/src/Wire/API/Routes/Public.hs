@@ -34,6 +34,7 @@ module Wire.API.Routes.Public
     DescriptionOAuthScope,
     ZHostOpt,
     ZHostValue,
+    ZAuthServant,
   )
 where
 
