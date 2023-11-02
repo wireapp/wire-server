@@ -18,6 +18,7 @@ import Data.Foldable
 import Data.Function
 import Data.Functor
 import Data.List.Split (splitOn)
+import Data.Maybe (fromMaybe)
 import Data.Scientific qualified as Sci
 import Data.String
 import Data.Text qualified as T
