@@ -92,10 +92,13 @@ patchFeatureStatusInternal ::
   WithStatusPatch cfg ->
   Sem r (WithStatus cfg)
 patchFeatureStatusInternal tid patch = do
+  assertTeamExists tid
   currentFeatureStatus <- getFeatureStatus @cfg DontDoAuth tid
   let newFeatureStatus = applyPatch currentFeatureStatus
+  -- setting the config can fail, so we need to do it first
+  void $ setConfigForTeam @cfg tid (forgetLock newFeatureStatus)
   when (isJust $ wspLockStatus patch) $ void $ updateLockStatus @cfg tid (wsLockStatus newFeatureStatus)
-  setConfigForTeam @cfg tid (forgetLock newFeatureStatus)
+  getFeatureStatus @cfg DontDoAuth tid
   where
     applyPatch :: WithStatus cfg -> WithStatus cfg
     applyPatch current =
