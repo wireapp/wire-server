@@ -5,6 +5,7 @@ apiVersion: {{ include "ingress.apiVersion" . }}
 kind: Ingress
 metadata:
   name: "{{ include "sftd.fullname" . }}"
+  namespace: {{ .Release.Namespace }}
   labels:
     {{- include "sftd.labels" . | nindent 4 }}
   annotations:
