@@ -577,17 +577,17 @@ consumeMessage cid mmp ws = do
   showMessage cid msgData
 
 consumeMessage1 :: ClientIdentity -> ByteString -> App ByteString
-consumeMessage1 cid msgData = 
-    mlscli
-      cid
-      [ "consume",
-        "--group",
-        "<group-in>",
-        "--group-out",
-        "<group-out>",
-        "-"
-      ]
-      (Just msgData)
+consumeMessage1 cid msgData =
+  mlscli
+    cid
+    [ "consume",
+      "--group",
+      "<group-in>",
+      "--group-out",
+      "<group-out>",
+      "-"
+    ]
+    (Just msgData)
 
 -- | Send an MLS message, wait for clients to receive it, then consume it on
 -- the client side. If the message is a commit, the
