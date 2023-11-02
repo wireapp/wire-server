@@ -481,6 +481,8 @@ When a `null` value is encountered, it is assumed to be
 
 ### SFT configuration
 
+#### SFT Load Balancing
+
 Configuring SFT load balancing can be done in two (mutually exclusive) settings:
 
 1) Configuring a SRV DNS record based load balancing setting
@@ -507,6 +509,32 @@ settings:
 This setting assumes that the sft load balancer has been deployed with the `sftd` helm chart.
 
 Additionally if `setSftListAllServers` is set to `enabled` (disabled by default) then the `/calls/config/v2` endpoint will include a list of all servers that are load balanced by `setSftStaticUrl` at field `sft_servers_all`. This is required to enable calls between federated instances of Wire.
+
+#### Adjusting Keyframe Rates for Low-Quality Internet Connections
+
+If you anticipate users to have a poor quality internet connection, modifying the frequency of keyframes - also known as "I-frames" - sent during a video stream can be advantageous. 
+
+Keyframes are critical frames in a video stream that serve as reference points for subsequent frames, thus their rate of transmission directly impacts video quality and bandwidth consumption.
+
+To adjust the keyframe rate, you can utilize the `-k` option in the SFT command, followed by a numeric value indicating the desired rate.
+
+You'll find the location where you need to execute the SFT command here: [https://github.com/wireapp/wire-server/blob/develop/charts/sftd/templates/statefulset.yaml#L166](https://github.com/wireapp/wire-server/blob/develop/charts/sftd/templates/statefulset.yaml#L166)
+
+Here's an example of how to include the `-k` option in the command:
+
+```
+              exec sftd \
+                      -k 1000 \     
+                      -I "${POD_IP}" \
+                      -M "${POD_IP}" \
+                      ${ACCESS_ARGS} \
+                      ${MULTI_SFT_ARGS} \
+                      {{ if .Values.turnDiscoveryEnabled }}-T{{ end }} \
+                      -u "https://{{ required "must specify host" .Values.host }}/sfts/${POD_NAME}"
+
+```
+
+The default value for `-k` is `3000`. If internet access is degraded, a good start would be to try `1000` instead.
 
 ### Locale
 
