@@ -43,17 +43,15 @@ data UserDeletedConnectionsNotification = UserDeletedConnectionsNotification
 data BrigNotificationTag = OnUserDeletedConnectionsTag
   deriving (Show, Eq, Generic, Bounded, Enum)
 
+instance IsNotificationTag BrigNotificationTag where
+  type NotificationComponent _ = 'Brig
+
 instance HasNotificationEndpoint 'OnUserDeletedConnectionsTag where
   type Payload 'OnUserDeletedConnectionsTag = UserDeletedConnectionsNotification
   type NotificationPath 'OnUserDeletedConnectionsTag = "on-user-deleted-connections"
-  type NotificationComponent 'OnUserDeletedConnectionsTag = 'Brig
-  type
-    NotificationAPI 'OnUserDeletedConnectionsTag 'Brig =
-      NotificationFedEndpoint 'OnUserDeletedConnectionsTag
 
 instance ToSchema UserDeletedConnectionsNotification
 
 -- | All the notification endpoints return an 'EmptyResponse'.
 type BrigNotificationAPI =
-  -- FUTUREWORK: Use NotificationAPI 'OnUserDeletedConnectionsTag 'Brig instead
   NotificationFedEndpoint 'OnUserDeletedConnectionsTag

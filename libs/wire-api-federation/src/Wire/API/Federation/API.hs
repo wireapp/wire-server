@@ -40,12 +40,10 @@ import Data.Proxy
 import GHC.TypeLits
 import Imports
 import Network.AMQP
-import Servant
 import Servant.Client
 import Servant.Client.Core
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Cargohold
-import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.BackendNotifications
 import Wire.API.Federation.Client
@@ -71,20 +69,6 @@ type HasFedEndpoint comp api name = (HasUnsafeFedEndpoint comp api name)
 -- you to forget about some federated calls.
 type HasUnsafeFedEndpoint comp api name = 'Just api ~ LookupEndpoint (FedApi comp) name
 
--- | Constrains which endpoints can be used with FedQueueClient.
---
--- Since the servant client implementation underlying FedQueueClient is
--- returning a "fake" response consisting of an empty object, we need to make
--- sure that an API type is compatible with an empty response if we want to
--- invoke it using `fedQueueClient`
-class HasEmptyResponse api
-
-instance HasEmptyResponse (Post '[JSON] EmptyResponse)
-
-instance HasEmptyResponse api => HasEmptyResponse (x :> api)
-
-instance HasEmptyResponse api => HasEmptyResponse (UntypedNamed name api)
-
 -- | Return a client for a named endpoint.
 --
 -- This function introduces an 'AddAnnotation' constraint, which is
@@ -99,18 +83,14 @@ fedClient ::
 fedClient = clientIn (Proxy @api) (Proxy @m)
 
 fedQueueClient ::
-  forall tag api.
+  forall {k} (tag :: k).
   ( HasNotificationEndpoint tag,
-    -- FUTUREWORK: Include this API constraint and get it working
-    -- api ~ NotificationAPI tag (NotificationComponent tag),
-    HasEmptyResponse api,
     KnownSymbol (NotificationPath tag),
-    KnownComponent (NotificationComponent tag),
-    ToJSON (Payload tag),
-    HasFedEndpoint (NotificationComponent tag) api (NotificationPath tag)
+    KnownComponent (NotificationComponent k),
+    ToJSON (Payload tag)
   ) =>
   Payload tag ->
-  FedQueueClient (NotificationComponent tag) ()
+  FedQueueClient (NotificationComponent k) ()
 fedQueueClient payload = do
   env <- ask
   let notif = fedNotifToBackendNotif @tag env.originDomain payload
