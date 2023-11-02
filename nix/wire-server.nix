@@ -388,17 +388,7 @@ let
     };
   };
 
-  # FIXME: when upgrading the ghc version, we
-  # should have to upgrade ormolu to support
-  # the new parser and get rid of these (then unnecessary)
-  # overrides
-  inherit (
-    pkgs.haskell.packages.ghc92.override {
-      overrides = hfinal: hprev: {
-        ormolu = hfinal.ormolu_0_5_2_0;
-        ghc-lib-parser = hprev.ghc-lib-parser_9_2_8_20230729;
-     };
-    }) ormolu;
+  ormolu = pkgs.haskell.packages.ghc94.ormolu_0_5_2_0;
 
   # Tools common between CI and developers
   commonTools = [
