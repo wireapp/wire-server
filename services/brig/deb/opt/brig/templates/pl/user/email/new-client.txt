@@ -1,0 +1,23 @@
+[${brand_logo}]
+
+${brand_label_url} [${brand_url}]
+
+NOWE URZĄDZENIE
+Twoje konto ${brand} zostało użyte dnia:
+
+${date}
+
+${model}
+
+Możesz zainstalować ${brand} na nowym urządzeniu lub zainstalować go ponownie na
+istniejącym. Jeśli tak nie było, przejdź do Ustawień ${brand}, usuń urządzenie i 
+zresetuj hasło [${forgot}].
+
+Jeśli masz jakieś pytania, prosimy skontaktuj się z nami [${support}].
+
+
+--------------------------------------------------------------------------------
+
+Polityka prywatności i warunki użytkowania [${legal}] · Zgłoś niewłaściwe użycie
+[${misuse}]
+${copyright}. WSZELKIE PRAWA ZASTRZEŻONE.

@@ -1,0 +1,2 @@
+Dotknij, aby usunąć swoje konto ${brand}.
+${url}

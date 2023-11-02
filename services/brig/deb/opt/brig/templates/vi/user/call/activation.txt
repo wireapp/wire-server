@@ -1,0 +1,1 @@
+Xin chào, mã xác thực Wire của bạn là: ${code}. Một lần nữa, mã của bạn là: ${code}

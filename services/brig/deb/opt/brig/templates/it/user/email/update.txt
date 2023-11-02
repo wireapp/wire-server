@@ -1,22 +1,21 @@
-Wire
+[${brand_logo}]
 
+${brand_label_url} [${brand_url}]
 
-Ciao,
+VERIFICA IL TUO INDIRIZZO E-MAIL
+${email} è stato registrato come tuo nuovo indirizzo email su ${brand}. Clicca
+il pulsante sotto per verificare il tuo indirizzo.
 
-${email} è stato registrato come il tuo nuovo indirizzo email su Wire. Ti preghiamo di verificare l'indirizzo email.
-
-Apri il link qui sotto per confermare il tuo nuovo indirizzo.
-
+Verifica [${url}]Se non puoi fare clic sul pulsante, copia e incolla questo link
+nel tuo browser:
 
 ${url}
 
-Si prega di non rispondere a questo messaggio.
-
-Se non hai richiesto questa modifica, puoi ignorare questa email o visita https://support.wire.com
+Se hai domande, per favore contattaci [${support}].
 
 
+--------------------------------------------------------------------------------
 
-
-(c) Wire Swiss GmbH
-
-Informativa sulla privacy |  Riporta uso improprio
+Politica della privacy e termini d'uso [${legal}] · Segnala Uso Scorretto
+[${misuse}]
+${copyright}. TUTTI I DIRITTI RISERVATI.

@@ -1,0 +1,3 @@
+Mã ${brand} của bạn là ${code}.
+
+Mở ${url} để xác minh số điện thoại của bạn.

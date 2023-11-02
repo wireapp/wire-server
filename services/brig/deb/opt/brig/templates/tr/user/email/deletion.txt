@@ -1,0 +1,24 @@
+[${brand_logo}]
+
+${brand_label_url} [${brand_url}]
+
+HESABINI SIL
+${brand} hesabınızı silmek için bir istek aldık. Tüm konuşmalarınızı,
+içeriğinizi ve bağlantılarınızı silmek için 10 dakika içinde aşağıdaki düğmeyi
+tıklayın.
+
+Hesabı Sil [${url}]Düğmeyi tıklayamıyorsanız, bu bağlantıyı kopyalayıp
+tarayıcınıza yapıştırın:
+
+${url}
+
+Bunu istemediyseniz, şifrenizi sıfırlayın [${forgot}].
+
+Herhangi bir sorunuz veya yardıma ihtiyacınız varsa, lütfen bize ulaşın
+[${support}].
+
+
+--------------------------------------------------------------------------------
+
+Privacy policy and terms of use [${legal}] · Report Misuse [${misuse}]
+${copyright}. ALL RIGHTS RESERVED.

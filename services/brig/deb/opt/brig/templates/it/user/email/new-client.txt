@@ -1,18 +1,24 @@
-Wire
+[${brand_logo}]
+
+${brand_label_url} [${brand_url}]
+
+NUOVO DISPOSITIVO
+Il tuo account ${brand} è stato utilizzato in data:
+
+${date}
+
+${model}
+
+Potresti avere installato ${brand} su un nuovo dispositivo o averlo installato
+di nuovo su uno utilizzato precedentemente. Se questo non è il caso, vai nelle
+impostazioni di ${brand} rimuovi quel dispositivo e reimposta la tua password
+[${forgot}].
+
+Se hai domande, per favore contattaci [${support}].
 
 
-Ciao ${name},
+--------------------------------------------------------------------------------
 
-Il tuo account di Wire è stato utilizzato in data:
-
-    ${date}
-    ${model}
-
-Potresti avere installato Wire su un nuovo dispositivo o averlo installato di nuovo su uno utilizzato precedentemente. Se questo non è il caso, vai nelle impostazioni di Wire, rimuovi quel dispositivo e reimposta la tua password.
-
-Il team di Wire
-
-
-(c) Wire Swiss GmbH
-
-Informativa sulla privacy |  Riporta uso improprio
+Politica della privacy e termini d'uso [${legal}] · Segnala Uso Scorretto
+[${misuse}]
+${copyright}. TUTTI I DIRITTI RISERVATI.

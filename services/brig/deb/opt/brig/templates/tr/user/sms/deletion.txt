@@ -1,2 +1,2 @@
-Wire hesabınızı silmek için tıklayın.
-${url} 
+${brand} hesabınızı silmek için tıklayın.
+${url}

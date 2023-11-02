@@ -1,1 +1,1 @@
-Selam, Wire giriş kodunuz: ${code} Bir kez daha, kodunuz: ${code}
+Merhaba, Wire giriş kodunuz: ${code}. Birkez daha, kodunuz şudur: ${code}

@@ -1,2 +1,2 @@
-Toccare per eliminare il tuo account di Wire.
-${url} 
+Tocca per eliminare il tuo profilo di ${brand}.
+${url}

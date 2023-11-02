@@ -1,0 +1,18 @@
+[${brand_logo}]
+
+${brand_label_url} [${brand_url}]
+
+POTWIERDŹ SWÓJ ADRES EMAIL
+${email} został użyty do rejestracji ${brand}. Wprowadź ten kod, aby
+zweryfikować swój adres e-mail i utworzyć konto.
+
+${code}
+
+Jeśli masz jakieś pytania, prosimy skontaktuj się z nami [${support}].
+
+
+--------------------------------------------------------------------------------
+
+Polityka prywatności i warunki użytkowania [${legal}] · Zgłoś niewłaściwe użycie
+[${misuse}]
+${copyright}. WSZELKIE PRAWA ZASTRZEŻONE.
