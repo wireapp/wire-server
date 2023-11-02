@@ -24,14 +24,6 @@ ingress-nginx:
       # upstream services. Comes with tradeoff considerations, see
       # documentation on "ingress" on docs.wire.com
       externalTrafficPolicy: Local
-      nodePorts:
-        # If you set service.type = NodePort, then the nginx controller instance
-        # is exposed on ports 31773 (https) and 31772 (http) on the node on
-        # which it runs. You should add a port-forwarding rule on the node or on
-        # the loadbalancer that forwards ports 443 and 80 to these respective
-        # ports.
-        https: 31773
-        http: 31772
     config:
       # NOTE: These are some sane defaults (compliant to TR-02102-2), you may
       # want to overrride them on your own installation For TR-02102-2 see
