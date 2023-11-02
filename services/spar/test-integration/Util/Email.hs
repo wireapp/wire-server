@@ -34,6 +34,7 @@ import qualified Data.Text.Ascii as Ascii
 import Data.Text.Encoding (encodeUtf8)
 import qualified Data.ZAuth.Token as ZAuth
 import Imports
+import qualified SAML2.WebSSO.Types as SAML
 import Test.Tasty.HUnit
 import Util.Core
 import Util.Types
@@ -136,6 +137,15 @@ checkEmail uid expectedEmail = do
     get (brig . path "/self" . zUser uid) !!! do
       const 200 === statusCode
       const expectedEmail === (userEmail <=< responseJsonMaybe)
+
+assertUserLoginRespStatus ::
+  HasCallStack =>
+  Maybe SAML.IdPId ->
+  Email ->
+  Misc.PlainTextPassword ->
+  Int ->
+  TestSpar ()
+assertUserLoginRespStatus _mbiid _email _password _status = undefined
 
 activate ::
   (MonadHttp m, HasCallStack) =>
