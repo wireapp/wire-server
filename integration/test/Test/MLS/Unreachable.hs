@@ -48,22 +48,22 @@ testAddUsersSomeReachable = do
     (resp.json %. "unreachable_backends" & asList) `shouldMatch` [d]
 
 -- There is analogous counterpart for Proteus in the 'Test.Conversation' module.
-testAddReachableWithUnreachableRemoteUsers :: HasCallStack => App ()
-testAddReachableWithUnreachableRemoteUsers = do
+testAddUserWithUnreachableRemoteUsers :: HasCallStack => App ()
+testAddUserWithUnreachableRemoteUsers = do
   resourcePool <- asks resourcePool
   runCodensity (acquireResources 1 resourcePool) $ \[cDom] -> do
-    (alice1, bob, brad) <- runCodensity (startDynamicBackend cDom mempty) $ \_ -> do
+    (alice1, bob, brad, chris) <- runCodensity (startDynamicBackend cDom mempty) $ \_ -> do
       [own, other] <- forM [OwnDomain, OtherDomain] $ asString . make
-      [alice, bob, brad, charlie] <-
-        createAndConnectUsers [own, other, other, cDom.berDomain]
-
-      [alice1, charlie1] <- traverse (createMLSClient def) [alice, charlie]
-      void $ uploadNewKeyPackage charlie1
+      [alice, bob, brad, charlie, chris] <-
+        createAndConnectUsers [own, other, other, cDom.berDomain, cDom.berDomain]
+      [alice1, charlie1, chris1] <-
+        traverse (createMLSClient def) [alice, charlie, chris]
+      traverse_ uploadNewKeyPackage [charlie1, chris1]
       void $ createNewGroup alice1
       void $ withWebSocket charlie $ \ws -> do
         void $ createAddCommit alice1 [charlie] >>= sendAndConsumeCommitBundle
         awaitMatch 10 isMemberJoinNotif ws
-      pure (alice1, bob, brad)
+      pure (alice1, bob, brad, chris)
 
     [bob1, brad1] <- traverse (createMLSClient def) [bob, brad]
     traverse_ uploadNewKeyPackage [bob1, brad1]
@@ -80,6 +80,13 @@ testAddReachableWithUnreachableRemoteUsers = do
     do
       mp <- createAddCommit alice1 [brad]
       void $ postMLSCommitBundle mp.sender (mkBundle mp) >>= getBody 201
+
+    do
+      mp <- runCodensity (startDynamicBackend cDom mempty) $ \_ ->
+        createAddCommit alice1 [chris]
+      bindResponse (postMLSCommitBundle mp.sender (mkBundle mp)) $ \resp -> do
+        resp.status `shouldMatchInt` 533
+        resp.jsonBody %. "unreachable_backends" `shouldMatchSet` [cDom.berDomain]
 
 testAddUnreachableUserFromFederatingBackend :: HasCallStack => App ()
 testAddUnreachableUserFromFederatingBackend = do

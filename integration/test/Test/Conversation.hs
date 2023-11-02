@@ -280,19 +280,19 @@ testConvWithUnreachableRemoteUsers = do
   regConvs <- filterM (\c -> (==) <$> (c %. "type" & asInt) <*> pure 0) convs
   regConvs `shouldMatch` ([] :: [Value])
 
-testAddReachableWithUnreachableRemoteUsers :: HasCallStack => App ()
-testAddReachableWithUnreachableRemoteUsers = do
+testAddUserWithUnreachableRemoteUsers :: HasCallStack => App ()
+testAddUserWithUnreachableRemoteUsers = do
   resourcePool <- asks resourcePool
   own <- make OwnDomain & asString
   other <- make OtherDomain & asString
   runCodensity (acquireResources 1 resourcePool) $ \[cDom] -> do
-    ([alex, bob, brad], conv) <- runCodensity (startDynamicBackend cDom mempty) $ \_ -> do
-      [alice, alex, bob, brad, charlie] <-
-        createAndConnectUsers [own, own, other, other, cDom.berDomain]
+    ([alex, bob, brad, chris], conv) <- runCodensity (startDynamicBackend cDom mempty) $ \_ -> do
+      [alice, alex, bob, brad, charlie, chris] <-
+        createAndConnectUsers [own, own, other, other, cDom.berDomain, cDom.berDomain]
 
       let newConv = defProteus {qualifiedUsers = [alex, charlie]}
       conv <- postConversation alice newConv >>= getJSON 201
-      pure ([alex, bob, brad], conv)
+      pure ([alex, bob, brad, chris], conv)
 
     [bobId, bradId] <- forM [bob, brad] (%. "qualified_id")
 
@@ -307,6 +307,11 @@ testAddReachableWithUnreachableRemoteUsers = do
     -- federate because Bob joined when C was reachable, hence it is OK to add
     -- brad from B to the conversation.
     void $ addMembers alex conv def {users = [bradId]} >>= getBody 200
+
+    -- assert an unreachable user cannot be added
+    bindResponse (addMembers alex conv def {users = [chris]}) $ \resp -> do
+      resp.status `shouldMatchInt` 533
+      resp.jsonBody %. "unreachable_backends" `shouldMatchSet` [cDom.berDomain]
 
 testAddUnreachableUserFromFederatingBackend :: HasCallStack => App ()
 testAddUnreachableUserFromFederatingBackend = do
