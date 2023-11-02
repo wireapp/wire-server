@@ -286,15 +286,14 @@ testAddUserWithUnreachableRemoteUsers = do
   own <- make OwnDomain & asString
   other <- make OtherDomain & asString
   runCodensity (acquireResources 1 resourcePool) $ \[cDom] -> do
-    ([alex, bob, brad, chris], conv) <- runCodensity (startDynamicBackend cDom mempty) $ \_ -> do
+    ([alex, bobId, bradId, chrisId], conv) <- runCodensity (startDynamicBackend cDom mempty) $ \_ -> do
       [alice, alex, bob, brad, charlie, chris] <-
         createAndConnectUsers [own, own, other, other, cDom.berDomain, cDom.berDomain]
 
       let newConv = defProteus {qualifiedUsers = [alex, charlie]}
       conv <- postConversation alice newConv >>= getJSON 201
-      pure ([alex, bob, brad, chris], conv)
-
-    [bobId, bradId] <- forM [bob, brad] (%. "qualified_id")
+      [bobId, bradId, chrisId] <- forM [bob, brad, chris] (%. "qualified_id")
+      pure ([alex, bobId, bradId, chrisId], conv)
 
     bindResponse (addMembers alex conv def {users = [bobId]}) $ \resp -> do
       resp.status `shouldMatchInt` 533
@@ -309,7 +308,7 @@ testAddUserWithUnreachableRemoteUsers = do
     void $ addMembers alex conv def {users = [bradId]} >>= getBody 200
 
     -- assert an unreachable user cannot be added
-    bindResponse (addMembers alex conv def {users = [chris]}) $ \resp -> do
+    bindResponse (addMembers alex conv def {users = [chrisId]}) $ \resp -> do
       resp.status `shouldMatchInt` 533
       resp.jsonBody %. "unreachable_backends" `shouldMatchSet` [cDom.berDomain]
 
