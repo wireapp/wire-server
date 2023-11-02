@@ -230,7 +230,7 @@ sendMail m = do
             ^. AWS.serviceError_status
             == status400
             && "Invalid domain name"
-            `Text.isPrefixOf` AWS.toText (se ^. AWS.serviceError_code) ->
+              `Text.isPrefixOf` AWS.toText (se ^. AWS.serviceError_code) ->
             throwM SESInvalidDomain
       _ -> throwM (GeneralError x)
 
