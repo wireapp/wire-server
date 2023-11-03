@@ -647,7 +647,7 @@ createApplicationMessage cid messageContent = do
   message <-
     mlscli
       cid
-      ["message", "--group-in", "<group-in>", messageContent, "--group-out", "<group-out>"]
+      ["message", "--group", "<group-in>", messageContent]
       Nothing
 
   pure $
