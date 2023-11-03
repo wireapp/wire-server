@@ -382,20 +382,8 @@ nativeTargets psh rcps' alreadySent =
       where
         pick pr a = case a ^. addrTransport of
           GCM -> True
-          APNS -> pr == ApsStdPreference || notAny a APNSVoIP
-          APNSSandbox -> pr == ApsStdPreference || notAny a APNSVoIPSandbox
-          APNSVoIP -> pr == ApsVoIPPreference || notAny a APNS
-          APNSVoIPSandbox -> pr == ApsVoIPPreference || notAny a APNSSandbox
-        notAny a t =
-          not
-            ( any
-                ( \a' ->
-                    addrEqualClient a a'
-                      && a ^. addrApp == a' ^. addrApp
-                      && a' ^. addrTransport == t
-                )
-                as
-            )
+          APNS -> pr == ApsStdPreference
+          APNSSandbox -> pr == ApsStdPreference
         defPreference = case psh ^. pushNativePriority of
           LowPriority -> ApsStdPreference
           HighPriority -> ApsVoIPPreference

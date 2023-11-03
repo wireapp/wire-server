@@ -29,6 +29,7 @@ import Data.Qualified
 import Data.Text qualified as T
 import Data.Text qualified as Text
 import Data.UUID.V4 qualified as UUID
+import Debug.Trace qualified as T
 import Imports
 import System.Exit
 import System.FilePath ((</>))
@@ -122,7 +123,7 @@ testParseApplication = do
   qcid <- B8.unpack . encodeMLS' <$> randomIdentity
   msgData <- withSystemTempDirectory "mls" $ \tmp -> do
     void $ spawn (cli qcid tmp ["init", qcid]) Nothing
-    groupJSON <- spawn (cli qcid tmp ["group", "create", "Zm9v"]) Nothing
+    groupJSON <- spawn (T.traceShowId (cli qcid tmp ["group", "create", "Zm9v"])) Nothing
     spawn (cli qcid tmp ["message", "--group-in", "-", "hello"]) (Just groupJSON)
 
   msg <- case decodeMLS' @Message msgData of
@@ -301,7 +302,7 @@ spawn cp minput = do
        in snd <$> concurrently writeInput readOutput
   case (mout, ex) of
     (Just out, ExitSuccess) -> pure out
-    _ -> assertFailure "Failed spawning process"
+    _ -> assertFailure $ "Failed spawning process\n" <> show mout <> "\n" <> show ex
 
 cli :: String -> FilePath -> [String] -> CreateProcess
 cli store tmp args =
