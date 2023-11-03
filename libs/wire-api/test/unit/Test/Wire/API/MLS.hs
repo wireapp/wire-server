@@ -122,9 +122,9 @@ testParseApplication :: IO ()
 testParseApplication = do
   qcid <- B8.unpack . encodeMLS' <$> randomIdentity
   msgData <- withSystemTempDirectory "mls" $ \tmp -> do
-    void $ spawn (cli qcid tmp ["init", qcid]) Nothing
-    groupJSON <- spawn (T.traceShowId (cli qcid tmp ["group", "create", "Zm9v"])) Nothing
-    spawn (cli qcid tmp ["message", "--group-in", "-", "hello"]) (Just groupJSON)
+    void $ spawn (T.traceShowId $ cli qcid tmp ["init", qcid]) Nothing
+    groupJSON <- spawn (T.traceShowId $ cli qcid tmp ["group", "create", "Zm9v"]) Nothing
+    spawn (T.traceShowId $ cli qcid tmp ["message", "--group", "-", "hello"]) (Just groupJSON)
 
   msg <- case decodeMLS' @Message msgData of
     Left err -> assertFailure (T.unpack err)

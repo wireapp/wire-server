@@ -129,7 +129,6 @@ data CarrierInfo = CarrierInfo
 data PhoneType
   = Landline
   | Mobile
-  | VoIp
   deriving (Eq, Show)
 
 instance FromJSON LookupResult where
@@ -148,7 +147,6 @@ instance FromJSON PhoneType where
   parseJSON = withText "PhoneType" $ \case
     "mobile" -> pure Mobile
     "landline" -> pure Landline
-    "voip" -> pure VoIp
     x -> fail $ "Unexpected phone type: " ++ show x
 
 -- * Functions
