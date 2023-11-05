@@ -727,6 +727,9 @@ deleteScimUser tokeninfo@ScimTokenInfo {stiTeam, stiIdP} uid =
           -- possible, we should do a check here and prohibit it.
           unless (userTeam brigUser == Just stiTeam) $
             -- users from other teams get you a 404.
+            -- users from other teams get you a 404.
+
+            -- users from other teams get you a 404.
             throwError $
               Scim.notFound "user" (idToText uid)
 
@@ -845,7 +848,7 @@ assertExternalIdInAllowedValues allowedValues errmsg tid veid = do
     lift $
       ST.runValidExternalIdBoth
         (\ma mb -> (&&) <$> ma <*> mb)
-        (\uref -> getUserByUrefUnsafe uref <&> (`elem` allowedValues) . fmap userId)
+        (fmap ((`elem` allowedValues) . fmap userId) . getUserByUrefUnsafe)
         (fmap (`elem` allowedValues) . getUserIdByScimExternalId tid)
         veid
   unless isGood $

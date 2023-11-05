@@ -647,13 +647,8 @@ testOldClientsBlockDeviceHandshake = do
         approveLegalHoldDevice (Just defPassword) uid uid tid !!! testResponse 200 Nothing
         UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped uid tid
         liftIO $ assertEqual "approving should change status" UserLegalHoldEnabled userStatus
-        getInternalClientsFull (UserSet $ Set.fromList [uid])
-          <&> userClientsFull
-          <&> Map.elems
-          <&> Set.unions
-          <&> Set.toList
-          <&> (\[x] -> x)
-          <&> clientId
+        getInternalClientsFull (UserSet $ Set.singleton uid)
+          <&> clientId . head . Set.toList . Set.unions . Map.elems . userClientsFull
 
   withDummyTestServiceForTeam' legalholder tid $ \_ _chan -> do
     grantConsent tid legalholder
@@ -724,13 +719,8 @@ testClaimKeys testcase = do
         approveLegalHoldDevice (Just defPassword) uid uid team !!! testResponse 200 Nothing
         UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped uid team
         liftIO $ assertEqual "approving should change status" UserLegalHoldEnabled userStatus
-        getInternalClientsFull (UserSet $ Set.fromList [uid])
-          <&> userClientsFull
-          <&> Map.elems
-          <&> Set.unions
-          <&> Set.toList
-          <&> (\[x] -> x)
-          <&> clientId
+        getInternalClientsFull (UserSet $ Set.singleton uid)
+          <&> clientId . head . Set.toList . Set.unions . Map.elems . userClientsFull
 
   let makePeerClient :: TestM ()
       makePeerClient = case testcase of

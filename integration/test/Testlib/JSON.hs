@@ -287,7 +287,7 @@ printJSON = prettyJSON >=> liftIO . putStrLn
 
 prettyJSON :: MakesValue a => a -> App String
 prettyJSON x =
-  make x <&> Aeson.encodePretty <&> LC8.unpack
+  make x <&> LC8.unpack . Aeson.encodePretty
 
 jsonType :: Value -> String
 jsonType (Object _) = "Object"

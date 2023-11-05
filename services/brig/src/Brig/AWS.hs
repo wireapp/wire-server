@@ -123,9 +123,7 @@ mkEnv lgr opts emailOpts mgr = do
     mkAwsEnv g ses dyn sqs = do
       baseEnv <-
         AWS.newEnv AWS.discover
-          <&> maybe id AWS.configureService ses
-          <&> maybe id AWS.configureService dyn
-          <&> AWS.configureService sqs
+          <&> AWS.configureService sqs . maybe id AWS.configureService dyn . maybe id AWS.configureService ses
       pure $
         baseEnv
           { AWS.logger = awsLogger g,

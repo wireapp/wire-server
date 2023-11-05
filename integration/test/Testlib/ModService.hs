@@ -397,10 +397,14 @@ startProcess' domain execName config = do
   tempFile <- liftIO $ writeTempFile "/tmp" (execName <> "-" <> domain <> "-" <> ".yaml") (cs $ Yaml.encode config)
 
   (cwd, exe) <-
-    asks (.servicesCwdBase) <&> \case
-      Nothing -> (Nothing, execName)
-      Just dir ->
-        (Just (dir </> execName), "../../dist" </> execName)
+    asks
+      ( ( \case
+            Nothing -> (Nothing, execName)
+            Just dir ->
+              (Just (dir </> execName), "../../dist" </> execName)
+        )
+          . (.servicesCwdBase)
+      )
 
   (_, Just stdoutHdl, Just stderrHdl, ph) <- liftIO $ createProcess (proc exe ["-c", tempFile]) {cwd = cwd, std_out = CreatePipe, std_err = CreatePipe}
   let prefix = "[" <> execName <> "@" <> domain <> "] "

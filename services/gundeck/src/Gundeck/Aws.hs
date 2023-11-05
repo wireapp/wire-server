@@ -163,9 +163,7 @@ mkEnv lgr opts mgr = do
     mkEndpoint svc e = AWS.setEndpoint (e ^. awsSecure) (e ^. awsHost) (e ^. awsPort) svc
     mkAwsEnv g sqs sns = do
       baseEnv <-
-        AWS.newEnv AWS.discover
-          <&> AWS.configureService sqs
-          <&> AWS.configureService (sns & set AWS.service_timeout (Just (AWS.Seconds 5)))
+        AWS.newEnv AWS.discover <&> AWS.configureService (sns & set AWS.service_timeout (Just (AWS.Seconds 5))) . AWS.configureService sqs
       pure $
         baseEnv
           { AWS.logger = awsLogger g,
