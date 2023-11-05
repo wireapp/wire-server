@@ -50,7 +50,7 @@ library
 
 flag test-trailing-dot
   description: "Whether or not include the trainling dot test"
-  default: True
+  default:     True
 
 test-suite http2-manager-tests
   type:               exitcode-stdio-1.0
@@ -60,9 +60,9 @@ test-suite http2-manager-tests
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
     -Wredundant-constraints -Wunused-packages -threaded
     -with-rtsopts=-N
-  if flag(test-trailing-dot)
-    CPP-Options: "-DENABLE-TRAILING-DOT-TEST"
 
+  if flag(test-trailing-dot)
+    cpp-options: -DENABLE-TRAILING-DOT-TEST
 
   -- cabal-fmt: expand test
   other-modules:
