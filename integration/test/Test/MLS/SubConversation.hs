@@ -229,7 +229,7 @@ testCreatorRemovesUserFromParent = do
           ws
       msg %. "payload.0.data"
         & asByteString
-        >>= consumeMessage1 consumer
+        >>= mlsCliConsume consumer
 
     -- remove bob from the child state
     modifyMLSState $ \s -> s {members = s.members Set.\\ Set.fromList [bob1, bob2]}

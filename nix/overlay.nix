@@ -82,7 +82,6 @@ self: super: {
       hash = "sha256-nrszOp6CuVKs0+K0rrHU/2QG9ySRurbNn+afDepzfzE=";
     };
   }).override {
-    src = null;
     modules = [
       self.nginxModules.vts
       self.nginxModules.moreheaders
