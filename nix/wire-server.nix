@@ -471,6 +471,7 @@ in
       pkgs.ghcid
       pkgs.kind
       pkgs.netcat
+      pkgs.parallel
       pkgs.niv
       (pkgs.python3.withPackages
         (ps: with ps; [
