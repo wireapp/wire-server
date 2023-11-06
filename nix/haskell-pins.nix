@@ -242,6 +242,10 @@ let
       version = "4.1.0";
       sha256 = "sha256-D6RWYBguoj+W1LwNeX04h4csXV69rrs0tZpeNr7ZBqE=";
     };
+    optparse-generic = {
+      version = "1.5.1";
+      sha256 = "sha256-TS3T6AtYfdzmPkG6SwvN/tr2Vdr4eTdGRRH2Xbd8fzM=";
+    };
   };
   # Name -> Source -> Maybe Subpath -> Drv
   mkGitDrv = name: src: subpath:
