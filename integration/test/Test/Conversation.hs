@@ -505,10 +505,10 @@ testSynchroniseUserRemovalNotification = do
     bindResponse (removeMember alice conv charlie) $ \resp ->
       resp.status `shouldMatchInt` 200
     runCodensity (startDynamicBackend dynBackend mempty) $ \_ -> do
-      nameNotif <- awaitNotification charlie client noValue 2 isConvNameChangeNotif
+      nameNotif <- awaitNotification charlie client noValue isConvNameChangeNotif
       nameNotif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
       nameNotif %. "payload.0.data.name" `shouldMatch` newConvName
-      leaveNotif <- awaitNotification charlie client noValue 2 isConvLeaveNotif
+      leaveNotif <- awaitNotification charlie client noValue isConvLeaveNotif
       leaveNotif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
 
 testConvRenaming :: HasCallStack => App ()
@@ -657,7 +657,7 @@ testDeleteTeamConversationWithUnreachableRemoteMembers = do
       notif <- awaitMatch isConvDeleteNotif ws
       assertNotification notif
     void $ runCodensity (startDynamicBackend dynBackend mempty) $ \_ -> do
-      notif <- awaitNotification bob bobClient noValue 2 isConvDeleteNotif
+      notif <- awaitNotification bob bobClient noValue isConvDeleteNotif
       assertNotification notif
 
 testLeaveConversationSuccess :: HasCallStack => App ()
