@@ -49,7 +49,7 @@ library
   default-language: Haskell2010
 
 flag test-trailing-dot
-  description: "Whether or not include the trainling dot test"
+  description: "Whether or not include the trailing dot test"
   default:     True
 
 test-suite http2-manager-tests
