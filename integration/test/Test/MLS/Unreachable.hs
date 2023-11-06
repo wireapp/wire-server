@@ -38,7 +38,7 @@ testAddUsersSomeReachable = do
     void $ createNewGroup alice1
     void $ withWebSocket bob $ \ws -> do
       void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
-      awaitMatch 10 isMemberJoinNotif ws
+      awaitMatch isMemberJoinNotif ws
     mp <- createAddCommit alice1 [charlie]
     pure (mp, thirdDomain)
 
@@ -62,7 +62,7 @@ testAddUserWithUnreachableRemoteUsers = do
       void $ createNewGroup alice1
       void $ withWebSocket charlie $ \ws -> do
         void $ createAddCommit alice1 [charlie] >>= sendAndConsumeCommitBundle
-        awaitMatch 10 isMemberJoinNotif ws
+        awaitMatch isMemberJoinNotif ws
       pure (alice1, bob, brad, chris)
 
     [bob1, brad1] <- traverse (createMLSClient def) [bob, brad]
@@ -103,7 +103,7 @@ testAddUnreachableUserFromFederatingBackend = do
       void $ createNewGroup alice1
       withWebSockets [bob, charlie] $ \wss -> do
         void $ createAddCommit alice1 [bob, charlie] >>= sendAndConsumeCommitBundle
-        forM_ wss $ awaitMatch 5 isMemberJoinNotif
+        forM_ wss $ awaitMatch isMemberJoinNotif
       createAddCommit alice1 [chad]
 
     bindResponse (postMLSCommitBundle mp.sender (mkBundle mp)) $ \resp -> do

@@ -27,11 +27,10 @@ testSendMessageNoReturnToSender = do
     void . bindResponse (postMLSMessage mp.sender mp.message) $ \resp -> do
       resp.status `shouldMatchInt` 201
     for_ wss $ \ws -> do
-      n <- awaitMatch 3 (\n -> nPayload n %. "type" `isEqual` "conversation.mls-message-add") ws
+      n <- awaitMatch (\n -> nPayload n %. "type" `isEqual` "conversation.mls-message-add") ws
       nPayload n %. "data" `shouldMatch` T.decodeUtf8 (Base64.encode mp.message)
     expectFailure (const $ pure ()) $
       awaitMatch
-        3
         ( \n ->
             liftM2
               (&&)
@@ -93,7 +92,7 @@ testMixedProtocolUpgrade secondDomain = do
     modifyMLSState $ \mls -> mls {protocol = MLSProtocolMixed}
 
     for_ websockets $ \ws -> do
-      n <- awaitMatch 3 (\value -> nPayload value %. "type" `isEqual` "conversation.protocol-update") ws
+      n <- awaitMatch (\value -> nPayload value %. "type" `isEqual` "conversation.protocol-update") ws
       nPayload n %. "data.protocol" `shouldMatch` "mixed"
 
   bindResponse (getConversation alice qcnv) $ \resp -> do
@@ -145,7 +144,7 @@ testMixedProtocolAddUsers secondDomain = do
     mp <- createAddCommit alice1 [bob]
     welcome <- assertJust "should have welcome" mp.welcome
     void $ sendAndConsumeCommitBundle mp
-    n <- awaitMatch 3 (\n -> nPayload n %. "type" `isEqual` "conversation.mls-welcome") ws
+    n <- awaitMatch (\n -> nPayload n %. "type" `isEqual` "conversation.mls-welcome") ws
     nPayload n %. "data" `shouldMatch` T.decodeUtf8 (Base64.encode welcome)
 
 testMixedProtocolUserLeaves :: HasCallStack => Domain -> App ()
@@ -177,7 +176,7 @@ testMixedProtocolUserLeaves secondDomain = do
     bindResponse (removeConversationMember bob qcnv) $ \resp ->
       resp.status `shouldMatchInt` 200
 
-    n <- awaitMatch 3 (\n -> nPayload n %. "type" `isEqual` "conversation.mls-message-add") ws
+    n <- awaitMatch (\n -> nPayload n %. "type" `isEqual` "conversation.mls-message-add") ws
 
     msg <- asByteString (nPayload n %. "data") >>= showMessage alice1
     let leafIndexBob = 1
@@ -293,7 +292,7 @@ testMLSProtocolUpgrade secondDomain = do
     -- charlie is added to the group
     void $ uploadNewKeyPackage charlie1
     void $ createAddCommit alice1 [charlie] >>= sendAndConsumeCommitBundle
-    awaitMatch 10 isNewMLSMessageNotif ws
+    awaitMatch isNewMLSMessageNotif ws
 
   supportMLS alice
   bindResponse (putConversationProtocol bob conv "mls") $ \resp -> do
@@ -310,7 +309,7 @@ testMLSProtocolUpgrade secondDomain = do
       resp.status `shouldMatchInt` 200
     modifyMLSState $ \mls -> mls {protocol = MLSProtocolMLS}
     for_ wss $ \ws -> do
-      n <- awaitMatch 3 isNewMLSMessageNotif ws
+      n <- awaitMatch isNewMLSMessageNotif ws
       msg <- asByteString (nPayload n %. "data") >>= showMessage alice1
       let leafIndexCharlie = 2
       msg %. "message.content.body.Proposal.Remove.removed" `shouldMatchInt` leafIndexCharlie
@@ -377,7 +376,7 @@ testRemoteRemoveClient = do
   withWebSocket alice $ \wsAlice -> do
     void $ deleteClient bob bob1.client >>= getBody 200
     let predicate n = nPayload n %. "type" `isEqual` "conversation.mls-message-add"
-    n <- awaitMatch 5 predicate wsAlice
+    n <- awaitMatch predicate wsAlice
     shouldMatch (nPayload n %. "conversation") (objId conv)
     shouldMatch (nPayload n %. "from") (objId bob)
 
@@ -527,7 +526,7 @@ testLocalWelcome = do
     es <- sendAndConsumeCommitBundle commit
     let isWelcome n = nPayload n %. "type" `isEqual` "conversation.mls-welcome"
 
-    n <- awaitMatch 5 isWelcome wsBob
+    n <- awaitMatch isWelcome wsBob
 
     shouldMatch (nPayload n %. "conversation") (objId qcnv)
     shouldMatch (nPayload n %. "from") (objId alice)

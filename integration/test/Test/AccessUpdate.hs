@@ -115,7 +115,7 @@ testAccessUpdateWithRemotes = do
   withWebSockets [alice, bob, charlie] $ \wss -> do
     void $ updateAccess alice conv update >>= getJSON 200
     for_ wss $ \ws -> do
-      notif <- awaitMatch 10 isConvAccessUpdateNotif ws
+      notif <- awaitMatch isConvAccessUpdateNotif ws
       notif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
       notif %. "payload.0.qualified_from" `shouldMatch` objQidObject alice
       notif %. "payload.0.data.access" `shouldMatch` update_access_value

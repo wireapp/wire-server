@@ -60,7 +60,7 @@ testDeleteParentOfSubConv secondDomain = do
   withWebSocket bob $ \ws -> do
     void . bindResponse (deleteTeamConv tid qcnv alice) $ \resp -> do
       resp.status `shouldMatchInt` 200
-    void $ awaitMatch 3 isConvDeleteNotif ws
+    void $ awaitMatch isConvDeleteNotif ws
 
   -- bob fails to send a message to the subconversation
   do
@@ -115,7 +115,7 @@ testLeaveSubConv variant = do
 
   withWebSockets [bob, charlie] $ \wss -> do
     void $ createAddCommit alice1 [bob, charlie] >>= sendAndConsumeCommitBundle
-    traverse_ (awaitMatch 10 isMemberJoinNotif) wss
+    traverse_ (awaitMatch isMemberJoinNotif) wss
 
   createSubConv bob1 "conference"
   void $ createExternalCommit alice1 Nothing >>= sendAndConsumeCommitBundle
@@ -140,11 +140,11 @@ testLeaveSubConv variant = do
   withWebSockets (tail others) $ \wss -> do
     -- a member commits the pending proposal
     void $ createPendingProposalCommit (head others) >>= sendAndConsumeCommitBundle
-    traverse_ (awaitMatch 10 isNewMLSMessageNotif) wss
+    traverse_ (awaitMatch isNewMLSMessageNotif) wss
 
     -- send an application message
     void $ createApplicationMessage (head others) "good riddance" >>= sendAndConsumeMessage
-    traverse_ (awaitMatch 10 isNewMLSMessageNotif) wss
+    traverse_ (awaitMatch isNewMLSMessageNotif) wss
 
   -- check that only 3 clients are left in the subconv
   do

@@ -100,14 +100,14 @@ testMLSOne2One scenario = do
     void $ sendAndConsumeCommitBundle commit
 
     let isWelcome n = nPayload n %. "type" `isEqual` "conversation.mls-welcome"
-    n <- awaitMatch 3 isWelcome ws
+    n <- awaitMatch isWelcome ws
     nPayload n %. "data" `shouldMatch` B8.unpack (Base64.encode (fold commit.welcome))
 
-    void $ awaitMatch 3 isMemberJoinNotif ws
+    void $ awaitMatch isMemberJoinNotif ws
 
   withWebSocket bob1 $ \ws -> do
     mp <- createApplicationMessage alice1 "hello, world"
     void $ sendAndConsumeMessage mp
     let isMessage n = nPayload n %. "type" `isEqual` "conversation.mls-message-add"
-    n <- awaitMatch 3 isMessage ws
+    n <- awaitMatch isMessage ws
     nPayload n %. "data" `shouldMatch` B8.unpack (Base64.encode mp.message)
