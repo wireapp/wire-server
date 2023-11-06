@@ -146,7 +146,7 @@ pushToPostgresql opts (reports, failedRuns, successfulRuns) = do
             connectDatabase = opts.postgresqlDatabase
           }
   currentTime <- getCurrentTime
-  bracket (connect connInfo) (close) $ \conn -> do
+  bracket (connect connInfo) close $ \conn -> do
     runMigrations conn
     suiteRunId <-
       extractId
