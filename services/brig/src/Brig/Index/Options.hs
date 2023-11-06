@@ -128,7 +128,7 @@ localCassandraSettings =
     { _cHost = "localhost",
       _cPort = 9042,
       _cKeyspace = C.Keyspace "brig_test",
-      _cTlsCert = pure "hack/cassandra.cert.pem"
+      _cTlsCert = Nothing
     }
 
 elasticServerParser :: Parser (URIRef Absolute)
