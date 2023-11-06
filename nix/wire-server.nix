@@ -85,6 +85,7 @@ let
     background-worker = [ "background-worker" ];
     integration = [ "integration" ];
     rabbitmq-consumer = [ "rabbitmq-consumer" ];
+    test-stats = [ "test-stats" ];
   };
 
   attrsets = lib.attrsets;
@@ -289,6 +290,7 @@ let
       integration-dynamic-backends-s3
       integration-dynamic-backends-vhosts
     ];
+    test-stats = [ pkgs.awscli2 pkgs.jq ];
   };
 
   # useful to poke around a container during a 'kubectl exec'
