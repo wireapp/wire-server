@@ -123,7 +123,7 @@ testParseApplication = do
   msgData <- withSystemTempDirectory "mls" $ \tmp -> do
     void $ spawn (cli qcid tmp ["init", qcid]) Nothing
     groupJSON <- spawn (cli qcid tmp ["group", "create", "Zm9v"]) Nothing
-    spawn (cli qcid tmp ["message", "--group", "-", "hello"]) (Just groupJSON)
+    spawn (cli qcid tmp ["message", "--group-in", "-", "hello"]) (Just groupJSON)
 
   msg <- case decodeMLS' @Message msgData of
     Left err -> assertFailure (T.unpack err)
