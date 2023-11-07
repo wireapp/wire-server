@@ -288,6 +288,7 @@ library
     , mime                       >=0.4
     , mtl
     , openapi3
+    , password
     , pem                        >=0.2
     , polysemy
     , proto-lens
@@ -299,7 +300,6 @@ library
     , saml2-web-sso
     , schema-profunctor
     , scientific
-    , scrypt
     , servant
     , servant-client
     , servant-client-core
