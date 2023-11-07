@@ -202,7 +202,7 @@ testCreatorRemovesUserFromParent = do
     removeCommitEvents %. "events.0.from" `shouldMatch` alice1.user
 
     for_ wss \ws -> do
-      n <- awaitMatch 10 isConvLeaveNotif ws
+      n <- awaitMatch isConvLeaveNotif ws
       n %. "payload.0.data.reason" `shouldMatch` "removed"
       n %. "payload.0.from" `shouldMatch` alice1.user
 
@@ -212,7 +212,6 @@ testCreatorRemovesUserFromParent = do
     for_ ((,) <$> [idxBob1, idxBob2] <*> [alice1, charlie1, charlie2] `zip` wss) \(idx, (consumer, ws)) -> do
       msg <-
         awaitMatch
-          10
           do
             \n ->
               isJust <$> runMaybeT do
