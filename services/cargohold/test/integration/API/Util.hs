@@ -51,6 +51,9 @@ import Wire.API.Asset
 -- This is needed because it sets up the email on the user, verifiying it.
 -- The changes to the asset routes forbidding non-verified users from uploading
 -- assets breaks a lot of existing tests.
+--
+-- FUTUREWORK: Move all the cargohold tests to the new integration test suite.
+-- https://wearezeta.atlassian.net/browse/WPB-5382
 randomUser :: TestM UserId
 randomUser = do
   (Endpoint (encodeUtf8 -> eHost) ePort) <- view tsBrig
