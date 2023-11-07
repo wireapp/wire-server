@@ -70,7 +70,7 @@ self: super: {
       src = ../services/nginz/third_party/nginx-zauth-module;
       inputs = [ self.pkg-config self.zauth.lib ];
       meta = {
-        license = [self.lib.licenses.agpl3Only];
+        license = [ self.lib.licenses.agpl3Only ];
       };
     };
   };
@@ -82,7 +82,6 @@ self: super: {
       hash = "sha256-nrszOp6CuVKs0+K0rrHU/2QG9ySRurbNn+afDepzfzE=";
     };
   }).override {
-    src = null;
     modules = [
       self.nginxModules.vts
       self.nginxModules.moreheaders

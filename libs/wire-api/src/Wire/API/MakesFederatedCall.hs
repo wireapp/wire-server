@@ -185,7 +185,7 @@ instance (HasOpenApi api, KnownSymbol name, KnownSymbol (ShowComponent comp)) =>
     toOpenApi (Proxy @api)
       -- Append federated call line to the description of routes
       -- that perform calls to federation members.
-      & S.allOperations . S.description %~ pure . maybe call (\d -> d <> "\n" <> call)
+      & S.allOperations . S.description %~ pure . maybe call (\d -> d <> "<br>" <> call)
     where
       call :: Text
       call =

@@ -1,4 +1,3 @@
-
 # Support functions to create a nix generated workspace for out-of-tree sources.
 #
 # You do not need to check this in since it will be regenerated every time it is
@@ -10,45 +9,48 @@
 # See https://github.com/kolloch/crate2nix for more info.
 
 { nixpkgs ? <nixpkgs>
-, pkgs ? import nixpkgs {}
+, pkgs ? import nixpkgs { }
 , lib ? pkgs.lib
-# The path to crate2nix.json.
+  # The path to crate2nix.json.
 , crate2nixJson ? ./crate2nix.json
 }:
 
-let config = builtins.fromJSON (builtins.readFile crate2nixJson);
-    sources = config.sources or (builtins.throw "no sources in ${crate2nixJson}");
+let
+  config = builtins.fromJSON (builtins.readFile crate2nixJson);
+  sources = config.sources or (builtins.throw "no sources in ${crate2nixJson}");
 in
 rec {
-    /* An attrset mapping a source name to its source (as a derivation). */
-    fetchedSourcesByName = lib.mapAttrs internal.sourceFromConfig sources;
+  /* An attrset mapping a source name to its source (as a derivation). */
+  fetchedSourcesByName = lib.mapAttrs internal.sourceFromConfig sources;
 
-    /* A derivation building a directory symlinking all workspace member sources
+  /* A derivation building a directory symlinking all workspace member sources
        by their name.
     */
-    fetchedSources =
-        let sources = lib.mapAttrsToList (name: path: { inherit name path; }) fetchedSourcesByName;
-        in
-        pkgs.linkFarm "crate2nix-sources" sources;
+  fetchedSources =
+    let sources = lib.mapAttrsToList (name: path: { inherit name path; }) fetchedSourcesByName;
+    in
+    pkgs.linkFarm "crate2nix-sources" sources;
 
-    internal = rec {
-        sourceFromConfig = name: { type, ... } @ source:
-            assert builtins.isString name;
-            assert builtins.isString type;
+  internal = rec {
+    sourceFromConfig = name: { type, ... } @ source:
+      assert builtins.isString name;
+      assert builtins.isString type;
 
-            if type == "Git"
-            then pkgs.fetchgit {
-                url = source.url;
-                rev = source.rev;
-                sha256 = source.sha256;
-            }
-            else if type == "CratesIo"
-            then downloadFromCratesIo source
-            else if type == "Nix"
-            then resolveNix source
-            else builtins.throw "Unexpected source type '${type}' for source: ${builtins.toJSON source}";
+      if type == "Git"
+      then
+        pkgs.fetchgit
+          {
+            url = source.url;
+            rev = source.rev;
+            sha256 = source.sha256;
+          }
+      else if type == "CratesIo"
+      then downloadFromCratesIo source
+      else if type == "Nix"
+      then resolveNix source
+      else builtins.throw "Unexpected source type '${type}' for source: ${builtins.toJSON source}";
 
-        /* Resolves a source configuration of type "Nix".
+    /* Resolves a source configuration of type "Nix".
 
            It can either have
 
@@ -67,43 +69,47 @@ rec {
            }
            ```
         */
-        resolveNix = { type, ... } @ source:
-            assert type == "Nix";
+    resolveNix = { type, ... } @ source:
+      assert type == "Nix";
 
-            let attrs =
-                    if source ? package
-                    then pkgs.callPackage (./. + "/${source.package}") {}
-                    else if source ? "import"
-                    then import (./. + ''/${source."import"}'')
-                    else builtins.throw "Neither import nor package in nix source.";
-                attrPath = lib.splitString "." source.attr;
-                sourceDerivation =
-                    if source ? attr
-                    then lib.attrByPath
-                        attrPath
-                        (builtins.throw
-                            ''
-                            Did not find attribute '${source.attr or ""}'
-                            in '${source.package or source.import or "missing file"}'.
-                            '')
-                        attrs
-                    else attrs;
-            in
-            sourceDerivation;
+      let
+        attrs =
+          if source ? package
+          then pkgs.callPackage (./. + "/${source.package}") { }
+          else if source ? "import"
+          then import (./. + ''/${source."import"}'')
+          else builtins.throw "Neither import nor package in nix source.";
+        attrPath = lib.splitString "." source.attr;
+        sourceDerivation =
+          if source ? attr
+          then
+            lib.attrByPath
+              attrPath
+              (builtins.throw
+                ''
+                  Did not find attribute '${source.attr or ""}'
+                  in '${source.package or source.import or "missing file"}'.
+                '')
+              attrs
+          else attrs;
+      in
+      sourceDerivation;
 
-        downloadFromCratesIo = { type, name, version, sha256 }:
-            assert type == "CratesIo";
+    downloadFromCratesIo = { type, name, version, sha256 }:
+      assert type == "CratesIo";
 
-            let archive = pkgs.fetchurl {
-                name = "${name}-${version}.tar.gz";
-                url = "https://crates.io/api/v1/crates/${name}/${version}/download";
-                inherit sha256;
-            };
-            in pkgs.runCommand (lib.removeSuffix ".tar.gz" name) {}
-            ''
-                mkdir -p $out
-                tar -xzf ${archive} --strip-components=1 -C $out
-            '';
-    };
+      let
+        archive = pkgs.fetchurl {
+          name = "${name}-${version}.tar.gz";
+          url = "https://crates.io/api/v1/crates/${name}/${version}/download";
+          inherit sha256;
+        };
+      in
+      pkgs.runCommand (lib.removeSuffix ".tar.gz" name) { }
+        ''
+          mkdir -p $out
+          tar -xzf ${archive} --strip-components=1 -C $out
+        '';
+  };
 }
 

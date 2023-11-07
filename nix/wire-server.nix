@@ -85,6 +85,7 @@ let
     background-worker = [ "background-worker" ];
     integration = [ "integration" ];
     rabbitmq-consumer = [ "rabbitmq-consumer" ];
+    test-stats = [ "test-stats" ];
   };
 
   attrsets = lib.attrsets;
@@ -290,6 +291,7 @@ let
       integration-dynamic-backends-s3
       integration-dynamic-backends-vhosts
     ];
+    test-stats = [ pkgs.awscli2 pkgs.jq ];
   };
 
   # useful to poke around a container during a 'kubectl exec'
@@ -441,14 +443,13 @@ let
   };
   ghcWithPackages = shell.nativeBuildInputs ++ shell.buildInputs;
 
-  inherit (
-    pkgs.haskellPackages.override {
-      overrides = _hfinal: hprev: {
-        base-compat = hprev.base-compat_0_13_0;
-        base-compat-batteries = hprev.base-compat-batteries_0_13_0;
-        cabal-plan = hlib.markUnbroken (hlib.doJailbreak hprev.cabal-plan);
-      };
-    }) cabal-plan;
+  inherit (pkgs.haskellPackages.override {
+    overrides = _hfinal: hprev: {
+      base-compat = hprev.base-compat_0_13_0;
+      base-compat-batteries = hprev.base-compat-batteries_0_13_0;
+      cabal-plan = hlib.markUnbroken (hlib.doJailbreak hprev.cabal-plan);
+    };
+  }) cabal-plan;
 
   profileEnv = pkgs.writeTextFile {
     name = "profile-env";

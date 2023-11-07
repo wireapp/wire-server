@@ -78,7 +78,9 @@ testSendMailNoReceiver lg = do
     $ \(port, sock) ->
       withMailServer sock (mailStoringApp receivedMailRef) $
         do
+          traceIO "before initSMTP"
           conPool <- initSMTP lg "localhost" (Just port) Nothing Plain
+          traceIO "finished initSMTP"
           caughtException <-
             handle @SomeException
               (const (pure True))

@@ -63,7 +63,7 @@ testDeleteParentOfSubConv secondDomain = do
   withWebSocket bob $ \ws -> do
     void . bindResponse (deleteTeamConv tid qcnv alice) $ \resp -> do
       resp.status `shouldMatchInt` 200
-    void $ awaitMatch 3 isConvDeleteNotif ws
+    void $ awaitMatch isConvDeleteNotif ws
 
   -- bob fails to send a message to the subconversation
   do
@@ -118,7 +118,7 @@ testLeaveSubConv variant = do
 
   withWebSockets [bob, charlie] $ \wss -> do
     void $ createAddCommit alice1 [bob, charlie] >>= sendAndConsumeCommitBundle
-    traverse_ (awaitMatch 10 isMemberJoinNotif) wss
+    traverse_ (awaitMatch isMemberJoinNotif) wss
 
   createSubConv bob1 "conference"
   void $ createExternalCommit alice1 Nothing >>= sendAndConsumeCommitBundle
@@ -143,11 +143,11 @@ testLeaveSubConv variant = do
   withWebSockets (tail others) $ \wss -> do
     -- a member commits the pending proposal
     void $ createPendingProposalCommit (head others) >>= sendAndConsumeCommitBundle
-    traverse_ (awaitMatch 10 isNewMLSMessageNotif) wss
+    traverse_ (awaitMatch isNewMLSMessageNotif) wss
 
     -- send an application message
     void $ createApplicationMessage (head others) "good riddance" >>= sendAndConsumeMessage
-    traverse_ (awaitMatch 10 isNewMLSMessageNotif) wss
+    traverse_ (awaitMatch isNewMLSMessageNotif) wss
 
   -- check that only 3 clients are left in the subconv
   do
@@ -202,7 +202,7 @@ testCreatorRemovesUserFromParent = do
     removeCommitEvents %. "events.0.from" `shouldMatch` alice1.user
 
     for_ wss \ws -> do
-      n <- awaitMatch 10 isConvLeaveNotif ws
+      n <- awaitMatch isConvLeaveNotif ws
       n %. "payload.0.data.reason" `shouldMatch` "removed"
       n %. "payload.0.from" `shouldMatch` alice1.user
 
@@ -212,7 +212,6 @@ testCreatorRemovesUserFromParent = do
     for_ ((,) <$> [idxBob1, idxBob2] <*> [alice1, charlie1, charlie2] `zip` wss) \(idx, (consumer, ws)) -> do
       msg <-
         awaitMatch
-          10
           do
             \n ->
               isJust <$> runMaybeT do
@@ -229,7 +228,7 @@ testCreatorRemovesUserFromParent = do
           ws
       msg %. "payload.0.data"
         & asByteString
-        >>= consumeMessage1 consumer
+        >>= mlsCliConsume consumer
 
     -- remove bob from the child state
     modifyMLSState $ \s -> s {members = s.members Set.\\ Set.fromList [bob1, bob2]}

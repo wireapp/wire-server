@@ -108,7 +108,8 @@ data GlobalEnv = GlobalEnv
     gRemovalKeyPath :: FilePath,
     gBackendResourcePool :: ResourcePool BackendResource,
     gRabbitMQConfig :: RabbitMQConfig,
-    gTempDir :: FilePath
+    gTempDir :: FilePath,
+    gTimeOutSeconds :: Int
   }
 
 data IntegrationConfig = IntegrationConfig
@@ -182,7 +183,8 @@ data Env = Env
     lastPrekeys :: IORef [String],
     mls :: IORef MLSState,
     resourcePool :: ResourcePool BackendResource,
-    rabbitMQConfig :: RabbitMQConfig
+    rabbitMQConfig :: RabbitMQConfig,
+    timeOutSeconds :: Int
   }
 
 data Response = Response

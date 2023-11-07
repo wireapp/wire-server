@@ -544,7 +544,7 @@ consumingMessages mp = Codensity $ \k -> do
     -- each new user and wait for its join event
     when (mls.protocol == MLSProtocolMLS) $
       traverse_
-        (awaitMatch 10 isMemberJoinNotif)
+        (awaitMatch isMemberJoinNotif)
         ( flip Map.restrictKeys newUsers
             . Map.mapKeys ((.user) . fst)
             . Map.fromList
@@ -562,7 +562,7 @@ consumingMessages mp = Codensity $ \k -> do
 consumeMessageWithPredicate :: (HasCallStack) => (Value -> App Bool) -> ClientIdentity -> Maybe MessagePackage -> WebSocket -> App Value
 consumeMessageWithPredicate p cid mmp ws = do
   mls <- getMLSState
-  notif <- awaitMatch 10 p ws
+  notif <- awaitMatch p ws
   event <- notif %. "payload.0"
 
   for_ mmp $ \mp -> do
@@ -596,8 +596,8 @@ consumeMessageNoExternal cid = consumeMessageWithPredicate isNewMLSMessageNotifB
           pure $ sender /= Just backendSender
         else pure False
 
-consumeMessage1 :: ClientIdentity -> ByteString -> App ByteString
-consumeMessage1 cid msgData =
+mlsCliConsume :: ClientIdentity -> ByteString -> App ByteString
+mlsCliConsume cid msgData =
   mlscli
     cid
     [ "consume",
@@ -646,7 +646,7 @@ sendAndConsumeCommitBundle mp = do
 consumeWelcome :: (HasCallStack) => ClientIdentity -> MessagePackage -> WebSocket -> App ()
 consumeWelcome cid mp ws = do
   mls <- getMLSState
-  notif <- awaitMatch 10 isWelcomeNotif ws
+  notif <- awaitMatch isWelcomeNotif ws
   event <- notif %. "payload.0"
 
   shouldMatch (eventSubConv event) (fromMaybe A.Null mls.convId)

@@ -46,8 +46,8 @@ hself: hsuper: {
   wai-predicates = hlib.markUnbroken hsuper.wai-predicates;
   # transitive-anns has flaky tests
   transitive-anns = hlib.dontCheck hsuper.transitive-anns;
-
   http2-manager = hlib.enableCabalFlag hsuper.http2-manager "-f-test-trailing-dot";
+
   # PR with fix: https://github.com/freckle/hspec-junit-formatter/pull/23
   hspec-junit-formatter = hlib.markUnbroken (hlib.dontCheck hsuper.hspec-junit-formatter);
 
