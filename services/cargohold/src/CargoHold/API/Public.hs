@@ -41,6 +41,7 @@ import URI.ByteString
 import Wire.API.Asset
 import Wire.API.Federation.API
 import Wire.API.Routes.AssetBody
+import Wire.API.Routes.Internal.Brig (brigInternalClient)
 import qualified Wire.API.Routes.Internal.Brig as IBrig
 import Wire.API.Routes.Internal.Cargohold
 import Wire.API.Routes.Named (namedClient)
@@ -142,12 +143,11 @@ uploadAssetV3 ::
   AssetSource ->
   Handler (Asset, AssetLocation Relative)
 uploadAssetV3 pid req = do
-  clientEnv <- asks $ view brigClientEnv
   let principal = mkPrincipal pid
   case principal of
     V3.UserPrincipal uid -> do
       status <-
-        liftIO (getUserStatusById clientEnv uid)
+        lift (executeBrigInteral $ brigInternalClient @"iGetUserStatus" uid)
           >>= either (const $ throwE userNotFound) pure
       case fromAccountStatusResp status of
         Active -> pure ()
@@ -155,11 +155,6 @@ uploadAssetV3 pid req = do
     _ -> pure ()
   asset <- V3.upload principal (getAssetSource req)
   pure (fmap tUntagged asset, mkAssetLocation @tag (asset ^. assetKey))
-  where
-    getUserStatusById :: ClientEnv -> UserId -> IO (Either ClientError AccountStatusResp)
-    getUserStatusById env uid =
-      flip runClientM env $
-        namedClient @IBrig.API @"iGetUserStatus" uid
 
 downloadAssetV3 ::
   MakePrincipal tag id =>

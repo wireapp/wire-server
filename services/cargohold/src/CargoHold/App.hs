@@ -35,13 +35,13 @@ module CargoHold.App
     localUnit,
     options,
     settings,
-    brigClientEnv,
 
     -- * App Monad
     AppT,
     App,
     runAppT,
     runAppResourceT,
+    executeBrigInteral,
 
     -- * Handler Monad
     Handler,
@@ -66,7 +66,6 @@ import qualified Data.Map as Map
 import Data.Metrics.Middleware (Metrics)
 import qualified Data.Metrics.Middleware as Metrics
 import Data.Qualified
-import qualified Data.Text as T
 import HTTP2.Client.Manager (Http2Manager, http2ManagerWithSSLCtx)
 import Imports hiding (log)
 import Network.HTTP.Client (ManagerSettings (..), requestHeaders, responseTimeoutMicro)
@@ -74,10 +73,12 @@ import Network.HTTP.Client.OpenSSL
 import Network.Wai.Utilities (Error (..))
 import OpenSSL.Session (SSLContext, SSLOption (..))
 import qualified OpenSSL.Session as SSL
-import Servant.Client
+import qualified Servant.Client as Servant
 import System.Logger.Class hiding (settings)
 import qualified System.Logger.Extended as Log
 import Util.Options
+import Wire.API.Routes.Internal.Brig (BrigInternalClient)
+import qualified Wire.API.Routes.Internal.Brig as IBrig
 
 -------------------------------------------------------------------------------
 -- Environment
@@ -91,8 +92,7 @@ data Env = Env
     _requestId :: RequestId,
     _options :: Opt.Opts,
     _localUnit :: Local (),
-    _multiIngress :: Map String AWS.Env,
-    _brigClientEnv :: ClientEnv
+    _multiIngress :: Map String AWS.Env
   }
 
 makeLenses ''Env
@@ -110,10 +110,7 @@ newEnv opts = do
   awsEnv <- initAws (opts ^. Opt.aws) logger httpMgr
   multiIngressAWS <- initMultiIngressAWS logger httpMgr
   let localDomain = toLocalUnsafe (opts ^. Opt.settings . Opt.federationDomain) ()
-      (Endpoint h p) = opts ^. brig
-      baseUrl = BaseUrl Http (T.unpack h) (fromIntegral p) ""
-      clientEnv = ClientEnv httpMgr baseUrl Nothing defaultMakeClientRequest
-  pure $ Env awsEnv metricsStorage logger httpMgr http2Mgr def opts localDomain multiIngressAWS clientEnv
+  pure $ Env awsEnv metricsStorage logger httpMgr http2Mgr def opts localDomain multiIngressAWS
   where
     initMultiIngressAWS :: Logger -> Manager -> IO (Map String AWS.Env)
     initMultiIngressAWS logger httpMgr =
@@ -242,6 +239,12 @@ runAppT e (AppT a) = runReaderT a e
 
 runAppResourceT :: MonadIO m => Env -> ResourceT App a -> m a
 runAppResourceT e rma = liftIO . runResourceT $ transResourceT (runAppT e) rma
+
+executeBrigInteral :: BrigInternalClient a -> App (Either Servant.ClientError a)
+executeBrigInteral action = do
+  httpMgr <- view httpManager
+  brigEndpoint <- view (options . brig)
+  liftIO $ IBrig.runBrigInternalClient httpMgr brigEndpoint action
 
 -------------------------------------------------------------------------------
 -- Handler Monad
