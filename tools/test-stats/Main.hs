@@ -163,7 +163,7 @@ pushToPostgresql opts (reports, failedRuns, successfulRuns) = do
                 [(testCase, suiteRunId, report.failure, report.success)]
           void $
             executeMany conn "INSERT INTO test_case_failures (test_case_run_id, failure_log) VALUES (?,?)" $
-              zip (repeat testCaseRunId) report.failureDesc
+              map (testCaseRunId,) report.failureDesc
     void $ MonoidalMap.traverseWithKey saveTestCaseRun reports
 
 extractId :: HasCallStack => [Only Int] -> IO Int

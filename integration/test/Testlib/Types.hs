@@ -1,6 +1,7 @@
 {-
 NOTE: Don't import any other Testlib modules here. Use this module to break dependency cycles.
 -}
+
 module Testlib.Types where
 
 import Control.Concurrent (QSemN)
@@ -193,7 +194,7 @@ data Response = Response
     headers :: [HTTP.Header],
     request :: HTTP.Request
   }
-  deriving (Show)
+  deriving stock (Show)
 
 instance HasField "json" Response (App Aeson.Value) where
   getField response = maybe (assertFailure "Response has no json body") pure response.jsonBody
@@ -203,7 +204,7 @@ data ClientIdentity = ClientIdentity
     user :: String,
     client :: String
   }
-  deriving (Show, Eq, Ord)
+  deriving stock (Show, Eq, Ord, Generic)
 
 newtype Ciphersuite = Ciphersuite {code :: String}
   deriving (Eq, Ord, Show)
@@ -265,7 +266,7 @@ instance Exception AssertionFailure where
   displayException (AssertionFailure _ _ msg) = msg
 
 newtype App a = App {unApp :: ReaderT Env IO a}
-  deriving
+  deriving newtype
     ( Functor,
       Applicative,
       Monad,

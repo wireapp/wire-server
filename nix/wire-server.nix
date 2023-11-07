@@ -304,6 +304,7 @@ let
     gnutar
     gzip
     openssl
+    nix-output-monitor
     which
   ];
 
@@ -388,6 +389,17 @@ let
     };
   };
 
+  # FIXME: when upgrading the ghc version, we
+  # should have to upgrade ormolu to support
+  # the new parser and get rid of these (then unnecessary)
+  # overrides
+  inherit (pkgs.haskell.packages.ghc92.override {
+    overrides = hfinal: hprev: {
+      ormolu = hfinal.ormolu_0_5_0_1;
+      ghc-lib-parser = hprev.ghc-lib-parser_9_2_8_20230729;
+    };
+  }) ormolu;
+
   # Tools common between CI and developers
   commonTools = [
     pkgs.cabal2nix
@@ -404,7 +416,7 @@ let
     pkgs.kubelogin-oidc
     pkgs.nixpkgs-fmt
     pkgs.openssl
-    pkgs.ormolu
+    ormolu
     pkgs.shellcheck
     pkgs.treefmt
     pkgs.gawk
@@ -438,6 +450,14 @@ let
     packages = p: builtins.map (e: p.${e}) wireServerPackages;
   };
   ghcWithPackages = shell.nativeBuildInputs ++ shell.buildInputs;
+
+  inherit (pkgs.haskellPackages.override {
+    overrides = _hfinal: hprev: {
+      base-compat = hprev.base-compat_0_13_0;
+      base-compat-batteries = hprev.base-compat-batteries_0_13_0;
+      cabal-plan = hlib.markUnbroken (hlib.doJailbreak hprev.cabal-plan);
+    };
+  }) cabal-plan;
 
   profileEnv = pkgs.writeTextFile {
     name = "profile-env";
@@ -495,8 +515,8 @@ in
       pkgs.rabbitmqadmin
 
       pkgs.cabal-install
-      pkgs.haskellPackages.cabal-plan
       pkgs.nix-prefetch-git
+      cabal-plan
       profileEnv
     ]
     ++ ghcWithPackages
@@ -510,4 +530,14 @@ in
   inherit brig-templates;
   haskellPackages = hPkgs localModsEnableAll;
   haskellPackagesUnoptimizedNoDocs = hPkgs localModsOnlyTests;
-} // attrsets.genAttrs (wireServerPackages) (e: hPkgs.${e})
+
+  allLocalPackages = pkgs.symlinkJoin {
+    name = "all-local-packages";
+    paths = map (e: (hPkgs localModsEnableAll).${e}) wireServerPackages;
+  };
+
+  allImages = pkgs.symlinkJoin {
+    name = "all-images";
+    paths = builtins.attrValues (images localModsEnableAll);
+  };
+} // attrsets.genAttrs wireServerPackages (e: (hPkgs localModsEnableAll).${e})

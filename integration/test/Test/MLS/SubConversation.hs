@@ -1,6 +1,9 @@
 module Test.MLS.SubConversation where
 
 import API.Galley
+import Control.Monad.Trans (lift)
+import Control.Monad.Trans.Maybe (MaybeT (runMaybeT))
+import Data.Set qualified as Set
 import MLS.Util
 import Notifications
 import SetupHelpers
@@ -170,3 +173,73 @@ testLeaveSubConv variant = do
     conv <- getCurrentConv (head others)
     mems <- conv %. "members" & asList
     length mems `shouldMatchInt` 2
+
+testCreatorRemovesUserFromParent :: App ()
+testCreatorRemovesUserFromParent = do
+  [alice, bob, charlie] <- createAndConnectUsers [OwnDomain, OwnDomain, OtherDomain]
+  [alice1, bob1, bob2, charlie1, charlie2] <- traverse (createMLSClient def) [alice, bob, bob, charlie, charlie]
+  traverse_ uploadNewKeyPackage [bob1, bob2, charlie1, charlie2]
+  (_, qcnv) <- createNewGroup alice1
+
+  _ <- createAddCommit alice1 [bob, charlie] >>= sendAndConsumeCommitBundle
+
+  -- save the state of the parent group
+  parentState <- getMLSState
+  -- switch to the subgroup
+  let subConvName = "conference"
+  createSubConv alice1 subConvName
+
+  for_ [bob1, bob2, charlie1, charlie2] \c ->
+    createExternalCommit c Nothing >>= sendAndConsumeCommitBundle
+  -- save the state of the subgroup and switch to the parent context
+  childState <- getMLSState <* setMLSState parentState
+  withWebSockets [alice1, charlie1, charlie2] \wss -> do
+    removeCommitEvents <- createRemoveCommit alice1 [bob1, bob2] >>= sendAndConsumeCommitBundle
+    modifyMLSState $ \s -> s {members = s.members Set.\\ Set.fromList [bob1, bob2]}
+
+    removeCommitEvents %. "events.0.type" `shouldMatch` "conversation.member-leave"
+    removeCommitEvents %. "events.0.data.reason" `shouldMatch` "removed"
+    removeCommitEvents %. "events.0.from" `shouldMatch` alice1.user
+
+    for_ wss \ws -> do
+      n <- awaitMatch isConvLeaveNotif ws
+      n %. "payload.0.data.reason" `shouldMatch` "removed"
+      n %. "payload.0.from" `shouldMatch` alice1.user
+
+    setMLSState childState
+    let idxBob1 :: Int = 1
+        idxBob2 :: Int = 2
+    for_ ((,) <$> [idxBob1, idxBob2] <*> [alice1, charlie1, charlie2] `zip` wss) \(idx, (consumer, ws)) -> do
+      msg <-
+        awaitMatch
+          do
+            \n ->
+              isJust <$> runMaybeT do
+                msg <- lift $ n %. "payload.0.data" & asByteString >>= showMessage alice1
+                guard =<< lift do
+                  isNewMLSMessageNotif n
+
+                prop <-
+                  maybe mzero pure =<< lift do
+                    lookupField msg "message.content.body.Proposal"
+
+                lift do
+                  (== idx) <$> (prop %. "Remove.removed" & asInt)
+          ws
+      msg %. "payload.0.data"
+        & asByteString
+        >>= mlsCliConsume consumer
+
+    -- remove bob from the child state
+    modifyMLSState $ \s -> s {members = s.members Set.\\ Set.fromList [bob1, bob2]}
+
+    _ <- createPendingProposalCommit alice1 >>= sendAndConsumeCommitBundle
+
+    getSubConversation bob qcnv subConvName >>= flip withResponse \resp ->
+      assertBool "access to the conversation for bob should be denied" (resp.status == 403)
+
+    for_ [charlie, alice] \m -> do
+      resp <- getSubConversation m qcnv subConvName
+      assertBool "alice and charlie should have access to the conversation" (resp.status == 200)
+      mems <- resp.jsonBody %. "members" & asList
+      mems `shouldMatchSet` ((renameField "id" "user_id" <=< make) `traverse` [alice1, charlie1, charlie2])
