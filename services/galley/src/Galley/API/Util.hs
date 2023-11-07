@@ -642,7 +642,7 @@ pushConversationEvent ::
 pushConversationEvent conn e lusers bots = do
   for_ (newConversationEventPush e (fmap toList lusers)) $ \p ->
     push1 $ p & set pushConn conn
-  deliverAsync (toList bots `zip` repeat e)
+  deliverAsync (map (,e) (toList bots))
 
 verifyReusableCode ::
   ( Member CodeStore r,

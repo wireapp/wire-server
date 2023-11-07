@@ -136,6 +136,7 @@ type IFeatureAPI =
     :<|> IFeatureStatusGet MLSConfig
     :<|> IFeatureStatusPut '[] '() MLSConfig
     :<|> IFeatureStatusPatch '[] '() MLSConfig
+    :<|> IFeatureStatusLockStatusPut MLSConfig
     -- ExposeInvitationURLsToTeamAdminConfig
     :<|> IFeatureStatusGet ExposeInvitationURLsToTeamAdminConfig
     :<|> IFeatureStatusPut '[] '() ExposeInvitationURLsToTeamAdminConfig

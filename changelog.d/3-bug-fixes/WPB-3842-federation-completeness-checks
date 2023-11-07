@@ -1,1 +1,0 @@
-Adding users to a conversation now enforces that all federation domains that will be in the conversation are federated with each other.

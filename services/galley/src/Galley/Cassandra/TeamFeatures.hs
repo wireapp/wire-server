@@ -255,6 +255,7 @@ getFeatureLockStatus FeatureSingletonSndFactorPasswordChallengeConfig tid = getL
 getFeatureLockStatus FeatureSingletonMlsE2EIdConfig tid = getLockStatusC "mls_e2eid_lock_status" tid
 getFeatureLockStatus FeatureSingletonMlsMigration tid = getLockStatusC "mls_migration_lock_status" tid
 getFeatureLockStatus FeatureSingletonOutlookCalIntegrationConfig tid = getLockStatusC "outlook_cal_integration_lock_status" tid
+getFeatureLockStatus FeatureSingletonMLSConfig tid = getLockStatusC "mls_lock_status" tid
 getFeatureLockStatus _ _ = pure Nothing
 
 setFeatureLockStatus :: MonadClient m => FeatureSingleton cfg -> TeamId -> LockStatus -> m ()
@@ -265,6 +266,7 @@ setFeatureLockStatus FeatureSingletonSndFactorPasswordChallengeConfig tid status
 setFeatureLockStatus FeatureSingletonMlsE2EIdConfig tid status = setLockStatusC "mls_e2eid_lock_status" tid status
 setFeatureLockStatus FeatureSingletonMlsMigration tid status = setLockStatusC "mls_migration_lock_status" tid status
 setFeatureLockStatus FeatureSingletonOutlookCalIntegrationConfig tid status = setLockStatusC "outlook_cal_integration_lock_status" tid status
+setFeatureLockStatus FeatureSingletonMLSConfig tid status = setLockStatusC "mls_lock_status" tid status
 setFeatureLockStatus _ _tid _status = pure ()
 
 getTrivialConfigC ::

@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns -Wno-ambiguous-fields #-}
 
 module Test.MLS where
 
@@ -27,11 +27,10 @@ testSendMessageNoReturnToSender = do
     void . bindResponse (postMLSMessage mp.sender mp.message) $ \resp -> do
       resp.status `shouldMatchInt` 201
     for_ wss $ \ws -> do
-      n <- awaitMatch 3 (\n -> nPayload n %. "type" `isEqual` "conversation.mls-message-add") ws
+      n <- awaitMatch (\n -> nPayload n %. "type" `isEqual` "conversation.mls-message-add") ws
       nPayload n %. "data" `shouldMatch` T.decodeUtf8 (Base64.encode mp.message)
     expectFailure (const $ pure ()) $
       awaitMatch
-        3
         ( \n ->
             liftM2
               (&&)
@@ -90,9 +89,10 @@ testMixedProtocolUpgrade secondDomain = do
       resp.status `shouldMatchInt` 200
       resp.json %. "conversation" `shouldMatch` (qcnv %. "id")
       resp.json %. "data.protocol" `shouldMatch` "mixed"
+    modifyMLSState $ \mls -> mls {protocol = MLSProtocolMixed}
 
     for_ websockets $ \ws -> do
-      n <- awaitMatch 3 (\value -> nPayload value %. "type" `isEqual` "conversation.protocol-update") ws
+      n <- awaitMatch (\value -> nPayload value %. "type" `isEqual` "conversation.protocol-update") ws
       nPayload n %. "data.protocol" `shouldMatch` "mixed"
 
   bindResponse (getConversation alice qcnv) $ \resp -> do
@@ -130,6 +130,7 @@ testMixedProtocolAddUsers secondDomain = do
 
   bindResponse (putConversationProtocol bob qcnv "mixed") $ \resp -> do
     resp.status `shouldMatchInt` 200
+  modifyMLSState $ \mls -> mls {protocol = MLSProtocolMixed}
 
   [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
 
@@ -143,7 +144,7 @@ testMixedProtocolAddUsers secondDomain = do
     mp <- createAddCommit alice1 [bob]
     welcome <- assertJust "should have welcome" mp.welcome
     void $ sendAndConsumeCommitBundle mp
-    n <- awaitMatch 3 (\n -> nPayload n %. "type" `isEqual` "conversation.mls-welcome") ws
+    n <- awaitMatch (\n -> nPayload n %. "type" `isEqual` "conversation.mls-welcome") ws
     nPayload n %. "data" `shouldMatch` T.decodeUtf8 (Base64.encode welcome)
 
 testMixedProtocolUserLeaves :: HasCallStack => Domain -> App ()
@@ -158,6 +159,7 @@ testMixedProtocolUserLeaves secondDomain = do
 
   bindResponse (putConversationProtocol bob qcnv "mixed") $ \resp -> do
     resp.status `shouldMatchInt` 200
+  modifyMLSState $ \mls -> mls {protocol = MLSProtocolMixed}
 
   [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
 
@@ -174,7 +176,7 @@ testMixedProtocolUserLeaves secondDomain = do
     bindResponse (removeConversationMember bob qcnv) $ \resp ->
       resp.status `shouldMatchInt` 200
 
-    n <- awaitMatch 3 (\n -> nPayload n %. "type" `isEqual` "conversation.mls-message-add") ws
+    n <- awaitMatch (\n -> nPayload n %. "type" `isEqual` "conversation.mls-message-add") ws
 
     msg <- asByteString (nPayload n %. "data") >>= showMessage alice1
     let leafIndexBob = 1
@@ -193,6 +195,7 @@ testMixedProtocolAddPartialClients secondDomain = do
 
   bindResponse (putConversationProtocol bob qcnv "mixed") $ \resp -> do
     resp.status `shouldMatchInt` 200
+  modifyMLSState $ \mls -> mls {protocol = MLSProtocolMixed}
 
   [alice1, bob1, bob2] <- traverse (createMLSClient def) [alice, bob, bob]
 
@@ -231,6 +234,7 @@ testMixedProtocolRemovePartialClients secondDomain = do
 
   bindResponse (putConversationProtocol bob qcnv "mixed") $ \resp -> do
     resp.status `shouldMatchInt` 200
+  modifyMLSState $ \mls -> mls {protocol = MLSProtocolMixed}
 
   [alice1, bob1, bob2] <- traverse (createMLSClient def) [alice, bob, bob]
 
@@ -256,6 +260,7 @@ testMixedProtocolAppMessagesAreDenied secondDomain = do
 
   bindResponse (putConversationProtocol bob qcnv "mixed") $ \resp -> do
     resp.status `shouldMatchInt` 200
+  modifyMLSState $ \mls -> mls {protocol = MLSProtocolMixed}
 
   [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
 
@@ -287,7 +292,7 @@ testMLSProtocolUpgrade secondDomain = do
     -- charlie is added to the group
     void $ uploadNewKeyPackage charlie1
     void $ createAddCommit alice1 [charlie] >>= sendAndConsumeCommitBundle
-    awaitMatch 10 isNewMLSMessageNotif ws
+    awaitMatch isNewMLSMessageNotif ws
 
   supportMLS alice
   bindResponse (putConversationProtocol bob conv "mls") $ \resp -> do
@@ -302,8 +307,9 @@ testMLSProtocolUpgrade secondDomain = do
   withWebSockets [alice1, bob1] $ \wss -> do
     bindResponse (putConversationProtocol bob conv "mls") $ \resp -> do
       resp.status `shouldMatchInt` 200
+    modifyMLSState $ \mls -> mls {protocol = MLSProtocolMLS}
     for_ wss $ \ws -> do
-      n <- awaitMatch 3 isNewMLSMessageNotif ws
+      n <- awaitMatch isNewMLSMessageNotif ws
       msg <- asByteString (nPayload n %. "data") >>= showMessage alice1
       let leafIndexCharlie = 2
       msg %. "message.content.body.Proposal.Remove.removed" `shouldMatchInt` leafIndexCharlie
@@ -370,7 +376,7 @@ testRemoteRemoveClient = do
   withWebSocket alice $ \wsAlice -> do
     void $ deleteClient bob bob1.client >>= getBody 200
     let predicate n = nPayload n %. "type" `isEqual` "conversation.mls-message-add"
-    n <- awaitMatch 5 predicate wsAlice
+    n <- awaitMatch predicate wsAlice
     shouldMatch (nPayload n %. "conversation") (objId conv)
     shouldMatch (nPayload n %. "from") (objId bob)
 
@@ -382,13 +388,14 @@ testRemoteRemoveClient = do
 testCreateSubConv :: HasCallStack => Ciphersuite -> App ()
 testCreateSubConv suite = do
   setMLSCiphersuite suite
-  alice <- randomUser OwnDomain def
-  alice1 <- createMLSClient def alice
-  (_, conv) <- createNewGroup alice1
-  bindResponse (getSubConversation alice conv "conference") $ \resp -> do
-    resp.status `shouldMatchInt` 200
-    let tm = resp.json %. "epoch_timestamp"
-    tm `shouldMatch` Null
+  [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
+  aliceClients@(alice1 : _) <- replicateM 5 $ createMLSClient def alice
+  replicateM_ 3 $ traverse_ uploadNewKeyPackage aliceClients
+  [bob1, bob2] <- replicateM 2 $ createMLSClient def bob
+  replicateM_ 3 $ traverse_ uploadNewKeyPackage [bob1, bob2]
+  void $ createNewGroup alice1
+  void $ createAddCommit alice1 [alice, bob] >>= sendAndConsumeCommitBundle
+  createSubConv alice1 "conference"
 
 testCreateSubConvProteus :: App ()
 testCreateSubConvProteus = do
@@ -399,47 +406,17 @@ testCreateSubConvProteus = do
   bindResponse (getSubConversation alice conv "conference") $ \resp ->
     resp.status `shouldMatchInt` 404
 
--- FUTUREWORK: New clients should be adding themselves via external commits, and
--- they shouldn't be added by another client. Change the test so external
--- commits are used.
 testSelfConversation :: App ()
 testSelfConversation = do
   alice <- randomUser OwnDomain def
   creator : others <- traverse (createMLSClient def) (replicate 3 alice)
   traverse_ uploadNewKeyPackage others
-  (_, cnv) <- createSelfGroup creator
-  commit <- createAddCommit creator [alice]
-  welcome <- assertOne (toList commit.welcome)
+  void $ createSelfGroup creator
+  void $ createAddCommit creator [alice] >>= sendAndConsumeCommitBundle
 
-  withWebSockets others $ \wss -> do
-    void $ sendAndConsumeCommitBundle commit
-    let isWelcome n = nPayload n %. "type" `isEqual` "conversation.mls-welcome"
-    for_ wss $ \ws -> do
-      n <- awaitMatch 3 isWelcome ws
-      shouldMatch (nPayload n %. "conversation") (objId cnv)
-      shouldMatch (nPayload n %. "from") (objId alice)
-      shouldMatch (nPayload n %. "data") (B8.unpack (Base64.encode welcome))
-
-testJoinSubConv :: App ()
-testJoinSubConv = do
-  [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
-  [alice1, bob1, bob2] <- traverse (createMLSClient def) [alice, bob, bob]
-  traverse_ uploadNewKeyPackage [bob1, bob2]
-  (_, qcnv) <- createNewGroup alice1
-  void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
-  void $ createSubConv bob1 "conference"
-
-  -- bob adds his first client to the subconversation
-  void $ createPendingProposalCommit bob1 >>= sendAndConsumeCommitBundle
-  sub' <- getSubConversation bob qcnv "conference" >>= getJSON 200
-  do
-    tm <- sub' %. "epoch_timestamp"
-    assertBool "Epoch timestamp should not be null" (tm /= Null)
-
-  -- now alice joins with her own client
-  void $
-    createExternalCommit alice1 Nothing
-      >>= sendAndConsumeCommitBundle
+  newClient <- createMLSClient def alice
+  void $ uploadNewKeyPackage newClient
+  void $ createExternalCommit newClient Nothing >>= sendAndConsumeCommitBundle
 
 -- | FUTUREWORK: Don't allow partial adds, not even in the first commit
 testFirstCommitAllowsPartialAdds :: HasCallStack => App ()
@@ -505,6 +482,7 @@ testAdminRemovesUserFromConv :: HasCallStack => App ()
 testAdminRemovesUserFromConv = do
   [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
   [alice1, bob1, bob2] <- traverse (createMLSClient def) [alice, bob, bob]
+
   void $ createWireClient bob
   traverse_ uploadNewKeyPackage [bob1, bob2]
   (gid, qcnv) <- createNewGroup alice1
@@ -520,15 +498,16 @@ testAdminRemovesUserFromConv = do
     bobQid <- bob %. "qualified_id"
     shouldMatch members [bobQid]
 
-  convs <- getAllConvs bob
-  convIds <- traverse (%. "qualified_id") convs
-  clients <- bindResponse (getGroupClients alice gid) $ \resp -> do
-    resp.status `shouldMatchInt` 200
-    resp.json %. "client_ids" & asList
-  void $ assertOne clients
-  assertBool
-    "bob is not longer part of conversation after the commit"
-    (qcnv `notElem` convIds)
+  do
+    convs <- getAllConvs bob
+    convIds <- traverse (%. "qualified_id") convs
+    clients <- bindResponse (getGroupClients alice gid) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      resp.json %. "client_ids" & asList
+    void $ assertOne clients
+    assertBool
+      "bob is not longer part of conversation after the commit"
+      (qcnv `notElem` convIds)
 
 testLocalWelcome :: HasCallStack => App ()
 testLocalWelcome = do
@@ -547,7 +526,7 @@ testLocalWelcome = do
     es <- sendAndConsumeCommitBundle commit
     let isWelcome n = nPayload n %. "type" `isEqual` "conversation.mls-welcome"
 
-    n <- awaitMatch 5 isWelcome wsBob
+    n <- awaitMatch isWelcome wsBob
 
     shouldMatch (nPayload n %. "conversation") (objId qcnv)
     shouldMatch (nPayload n %. "from") (objId alice)

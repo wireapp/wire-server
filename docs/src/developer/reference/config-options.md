@@ -299,17 +299,18 @@ If this feature is disabled then clients will use the Proteus protocol with this
 
 The default configuration that applies to all teams that didn't explicitly change their feature configuration can be given in galley's `featureFlags` section in the config file:
 
-```
+```yaml
 # galley.yaml
 mls:
   defaults:
-    status: disabled
+    status: enabled
     config:
       protocolToggleUsers: []
-      defaultProtocol: proteus
+      defaultProtocol: mls
       allowedCipherSuites: [1]
       defaultCipherSuite: 1
-
+      supportedProtocols: [proteus, mls] # must contain defaultProtocol
+    lockStatus: locked
 ```
 
 This default configuration can be overriden on a per-team basis through the [feature config API](../developer/features.md)
@@ -748,7 +749,7 @@ to the configuration example above:
 
 ![Sequence Diagram: Alice and Bob download an asset](./multi-ingress-example-sequence.svg)
 
-<!-- 
+<!--
 Unfortunately, kroki currently doesn't work on our CI: SQPIT-1810
 Link to diagram:
 https://mermaid.live/edit#pako:eNrdVbFu2zAQ_ZUDJ7ewDdhtUkBDgBRB0CHIYCNL4eVEnmWiMk8lKbttkH8vJbsW5dCOUXSqBkHiPT6-e3yinoVkRSITEC5H32syku40FhbXCwP7C6VnC1hqSQNL6l1XeWRPwBuKqxk8OXKwpRyrahxGxvQD11VJY8mvSHPOB4UlMknSrtonbcfStBVar6Wu0HjQJgCdGwUNKfaonMGMax8WeH9acIq5FXKOuwVE7BcqN4U2v9IlibbgFZcqXZ5_ABeMxYK6uiXpwRb5YHp1NYTJ9FN7ixw3jW6ri5UHXva28rZ5BsVbUzIqB-gc-WgTD9DRzU3Pz7v9FChZYnk8L4KGiW23Gdyz3aJVQW7IoYvQbT3gDq2_wsIIbpWCr6MvHF5WhIpsL2p6g6HFhHePvdajFR6Yv0Fd7ZTDquF9mj3AMoR2t0zHcZg1CiJj92akdGP-OLBJ9JpDFOa73YGNxnRAFZ3Te9rxey5L3gZHdmueMrsLyBnHDwpScerGQr_9dn1tzfFeR_2k2MioRFIn15MhTD82Sb0-ndT4fPjM-emcdsDItf23eVlSW_D_ltXYv0uzenTknU_rOd_fzOsfy_9xYvtN_21ixVCsya5Rq_D3fG6KC-FXtKaFyMKjoiXWpV-IhXkJUKw9z38aKTJvaxqKulKBff-jFdkSS0cvvwHKl250
@@ -761,21 +762,21 @@ For conversation invite links to be correct in a multi-ingress setup `settings.m
 Example:
 
 ```yaml
-multiIngress: 
+multiIngress:
    red.example.com: https://accounts.red.example.com/conversation-join/
    green.example.com: https://accounts.green.example.net/conversation-join/
 ```
 
 ### Webapp
 
-The webapp runs its own web server (a NodeJS server) to serve static files and the webapp config (based on environment variables). 
-In a multi-ingress configuration, a single webapp instance will be deployed and be accessible from multiple domains (say `webapp.red.example.com` and `webapp.green.example.com`). 
-When the webapp is loaded from one of those domains it first does a request to the web server to get the config (that will give it, for example, the backend endpoint that it should hit). 
+The webapp runs its own web server (a NodeJS server) to serve static files and the webapp config (based on environment variables).
+In a multi-ingress configuration, a single webapp instance will be deployed and be accessible from multiple domains (say `webapp.red.example.com` and `webapp.green.example.com`).
+When the webapp is loaded from one of those domains it first does a request to the web server to get the config (that will give it, for example, the backend endpoint that it should hit).
 
-Because of the single instance nature of the webapp, by default the configuration is static and the root url to the backend API can be set there (say `nginz-https.root.example.com`). 
+Because of the single instance nature of the webapp, by default the configuration is static and the root url to the backend API can be set there (say `nginz-https.root.example.com`).
 In order to completely hide this root domain to the webapp, an environment variable can be set to allow the webapp hostname to be used to generate the API endpoint, team settings links, account page links and CSP headers.
 
-The "hostname" is the result of the domain name minus the `webapp.` part of it. 
+The "hostname" is the result of the domain name minus the `webapp.` part of it.
 So querying the webapp on `webapp.red.example.com` will resolve to `red.example.com`.
 
 To enable dynamic hostname replacement, first set this variable:
@@ -784,7 +785,7 @@ To enable dynamic hostname replacement, first set this variable:
 ENABLE_DYNAMIC_HOSTNAME="true"
 ```
 
-Then, any other variable that will contain the string `[[hostname]]` will be replaced by the hostname of the running webapp. (eg. if a webapp is running on `webapp.red.example.com` then any occurrence of `[[hostname]]` in the config will be replaced by `red.example.com`). 
+Then, any other variable that will contain the string `[[hostname]]` will be replaced by the hostname of the running webapp. (eg. if a webapp is running on `webapp.red.example.com` then any occurrence of `[[hostname]]` in the config will be replaced by `red.example.com`).
 
 You may use the template variable `[[hostname]]` in any environment variable to not provide (reveal) actual domain names.
 

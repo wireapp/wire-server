@@ -33,19 +33,22 @@ module Wire.API.Federation.API
   )
 where
 
+import Data.Aeson
+import Data.Domain
 import Data.Kind
 import Data.Proxy
 import GHC.TypeLits
 import Imports
-import Servant
+import Network.AMQP
 import Servant.Client
 import Servant.Client.Core
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Cargohold
-import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.BackendNotifications
 import Wire.API.Federation.Client
+import Wire.API.Federation.Component
+import Wire.API.Federation.HasNotificationEndpoint
 import Wire.API.MakesFederatedCall
 import Wire.API.Routes.Named
 
@@ -66,20 +69,6 @@ type HasFedEndpoint comp api name = (HasUnsafeFedEndpoint comp api name)
 -- you to forget about some federated calls.
 type HasUnsafeFedEndpoint comp api name = 'Just api ~ LookupEndpoint (FedApi comp) name
 
--- | Constrains which endpoints can be used with FedQueueClient.
---
--- Since the servant client implementation underlying FedQueueClient is
--- returning a "fake" response consisting of an empty object, we need to make
--- sure that an API type is compatible with an empty response if we want to
--- invoke it using `fedQueueClient`
-class HasEmptyResponse api
-
-instance HasEmptyResponse (Post '[JSON] EmptyResponse)
-
-instance HasEmptyResponse api => HasEmptyResponse (x :> api)
-
-instance HasEmptyResponse api => HasEmptyResponse (UntypedNamed name api)
-
 -- | Return a client for a named endpoint.
 --
 -- This function introduces an 'AddAnnotation' constraint, which is
@@ -94,14 +83,28 @@ fedClient ::
 fedClient = clientIn (Proxy @api) (Proxy @m)
 
 fedQueueClient ::
-  forall (comp :: Component) (name :: Symbol) m api.
-  ( HasEmptyResponse api,
-    HasFedEndpoint comp api name,
-    HasClient m api,
-    m ~ FedQueueClient comp
+  forall {k} (tag :: k).
+  ( HasNotificationEndpoint tag,
+    KnownSymbol (NotificationPath tag),
+    KnownComponent (NotificationComponent k),
+    ToJSON (Payload tag)
   ) =>
-  Client m api
-fedQueueClient = clientIn (Proxy @api) (Proxy @m)
+  Payload tag ->
+  FedQueueClient (NotificationComponent k) ()
+fedQueueClient payload = do
+  env <- ask
+  let notif = fedNotifToBackendNotif @tag env.originDomain payload
+      msg =
+        newMsg
+          { msgBody = encode notif,
+            msgDeliveryMode = Just (env.deliveryMode),
+            msgContentType = Just "application/json"
+          }
+      -- Empty string means default exchange
+      exchange = ""
+  liftIO $ do
+    ensureQueue env.channel env.targetDomain._domainText
+    void $ publishMsg env.channel exchange (routingKey env.targetDomain._domainText) msg
 
 fedClientIn ::
   forall (comp :: Component) (name :: Symbol) m api.

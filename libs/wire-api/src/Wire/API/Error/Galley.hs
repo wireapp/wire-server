@@ -143,6 +143,8 @@ data GalleyError
   deriving (Show, Eq, Generic)
   deriving (FromJSON, ToJSON) via (CustomEncoded GalleyError)
 
+instance S.ToSchema GalleyError
+
 $(genSingletons [''GalleyError])
 
 instance (Typeable (MapError e), KnownError (MapError e)) => IsSwaggerError (e :: GalleyError) where

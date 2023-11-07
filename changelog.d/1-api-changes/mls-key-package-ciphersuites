@@ -1,1 +1,0 @@
-The key package API has gained a `ciphersuite` query parameter, which should be the hexadecimal value of an MLS ciphersuite, defaulting to `0x0001`. The `ciphersuite` parameter is used by the claim and count endpoints. For uploads, the API is unchanged, and the ciphersuite is taken directly from the uploaded key package.

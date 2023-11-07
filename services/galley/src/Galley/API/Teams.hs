@@ -465,7 +465,7 @@ uncheckedDeleteTeam lusr zcon tid = do
       let e = Conv.Event qconvId Nothing (tUntagged lusr) now Conv.EdConvDelete
       -- This event always contains all the required recipients
       let p = newPushLocal ListComplete (tUnqualified lusr) (ConvEvent e) (map recipient mm)
-      let ee' = bots `zip` repeat e
+      let ee' = map (,e) bots
       let pp' = maybe pp (\x -> (x & pushConn .~ zcon) : pp) p
       pure (pp', ee' ++ ee)
 
@@ -1044,7 +1044,7 @@ uncheckedDeleteTeamMember lusr zcon tid remove mems = do
       let y = Conv.Event qconvId Nothing (tUntagged lusr) now edata
       for_ (newPushLocal (mems ^. teamMemberListType) (tUnqualified lusr) (ConvEvent y) (recipient <$> x)) $ \p ->
         E.push1 $ p & pushConn .~ zcon
-      E.deliverAsync (bots `zip` repeat y)
+      E.deliverAsync (map (,y) bots)
 
 getTeamConversations ::
   ( Member (ErrorS 'NotATeamMember) r,

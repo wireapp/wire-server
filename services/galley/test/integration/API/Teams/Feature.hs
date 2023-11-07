@@ -130,8 +130,8 @@ tests s =
             testPatch IgnoreLockStatusChange FeatureStatusEnabled SearchVisibilityAvailableConfig,
           test s (unpack $ featureNameBS @MLSConfig) $
             testPatchWithCustomGen
-              IgnoreLockStatusChange
-              FeatureStatusEnabled
+              AssertLockStatusChange
+              FeatureStatusDisabled
               ( MLSConfig
                   []
                   ProtocolProteusTag
@@ -1278,6 +1278,10 @@ testMLS = do
       setForTeamInternal :: HasCallStack => WithStatusNoLock MLSConfig -> TestM ()
       setForTeamInternal = setForTeamInternalWithStatusCode expect2xx
 
+      setLockStatus :: HasCallStack => LockStatus -> TestM ()
+      setLockStatus lockStatus =
+        Util.setLockStatusInternal @MLSConfig galley tid lockStatus !!! statusCode === const 200
+
   let cipherSuite = MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
       defaultConfig =
         WithStatusNoLock
@@ -1302,12 +1306,22 @@ testMLS = do
 
   getViaEndpoints defaultConfig
 
+  -- when the feature is locked it cannot be changed
+  setLockStatus LockStatusLocked
+  setForTeamWithStatusCode 409 config2
+  setLockStatus LockStatusUnlocked
+
   WS.bracketR cannon member $ \ws -> do
     setForTeam config2
     void . liftIO $
       WS.assertMatch (5 # Second) ws $
         wsAssertFeatureConfigUpdate @MLSConfig config2 LockStatusUnlocked
   getViaEndpoints config2
+
+  -- when the feature is locked the default config is returned
+  setLockStatus LockStatusLocked
+  getViaEndpoints defaultConfig
+  setLockStatus LockStatusUnlocked
 
   WS.bracketR cannon member $ \ws -> do
     setForTeamWithStatusCode 400 invalidConfig

@@ -137,5 +137,5 @@ rmClientH (usr ::: cid) = do
     removeRemoteMLSClients :: Range 1 1000 [Remote ConvId] -> Sem r ()
     removeRemoteMLSClients convIds = do
       for_ (bucketRemote (fromRange convIds)) $ \remoteConvs ->
-        let rpc = void $ fedQueueClient @'Galley @"on-client-removed" (ClientRemovedRequest usr cid (tUnqualified remoteConvs))
+        let rpc = void $ fedQueueClient @'OnClientRemovedTag (ClientRemovedRequest usr cid (tUnqualified remoteConvs))
          in enqueueNotification remoteConvs Q.Persistent rpc
