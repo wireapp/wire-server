@@ -102,6 +102,7 @@ library
     SetupHelpers
     Test.AccessUpdate
     Test.AssetDownload
+    Test.AssetUpload
     Test.B2B
     Test.Brig
     Test.Client

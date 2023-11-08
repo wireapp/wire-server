@@ -273,6 +273,7 @@ library
     , hscim
     , HsOpenSSL
     , http-api-data
+    , http-client
     , http-media
     , http-types
     , imports

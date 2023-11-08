@@ -46,6 +46,7 @@
 , hspec
 , hspec-wai
 , http-api-data
+, http-client
 , http-media
 , http-types
 , imports
@@ -149,6 +150,7 @@ mkDerivation {
     hscim
     HsOpenSSL
     http-api-data
+    http-client
     http-media
     http-types
     imports

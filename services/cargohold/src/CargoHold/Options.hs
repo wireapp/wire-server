@@ -159,6 +159,8 @@ data Opts = Opts
     _settings :: !Settings,
     -- | Federator endpoint
     _federator :: Maybe Endpoint,
+    -- | Brig endpoint
+    _brig :: !Endpoint,
     -- Logging
 
     -- | Log level (Debug, Info, etc)
