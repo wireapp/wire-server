@@ -1042,7 +1042,6 @@ CREATE TABLE brig_test.service_prefix (
     AND min_index_interval = 128
     AND read_repair_chance = 0.0
     AND speculative_retry = '99PERCENTILE';
-
 CREATE KEYSPACE galley_test WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}  AND durable_writes = true;
 
 CREATE TYPE galley_test.permissions (
@@ -1185,6 +1184,7 @@ CREATE TABLE galley_test.team_features (
     mls_e2eid_lock_status int,
     mls_e2eid_status int,
     mls_e2eid_ver_exp timestamp,
+    mls_lock_status int,
     mls_migration_finalise_regardless_after timestamp,
     mls_migration_lock_status int,
     mls_migration_start_time timestamp,
@@ -1442,19 +1442,15 @@ CREATE TABLE galley_test.team_admin (
     AND read_repair_chance = 0.0
     AND speculative_retry = '99PERCENTILE';
 
--- NOTE: this table is unused. It was replaced by mls_group_member_client
-CREATE TABLE galley_test.member_client (
-    conv uuid,
-    user_domain text,
+CREATE TABLE galley_test.user (
     user uuid,
-    client text,
-    key_package_ref blob,
-    PRIMARY KEY (conv, user_domain, user, client)
-) WITH CLUSTERING ORDER BY (user_domain ASC, user ASC, client ASC)
-    AND bloom_filter_fp_chance = 0.01
+    conv uuid,
+    PRIMARY KEY (user, conv)
+) WITH CLUSTERING ORDER BY (conv ASC)
+    AND bloom_filter_fp_chance = 0.1
     AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
     AND comment = ''
-    AND compaction = {'class': 'org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy', 'max_threshold': '32', 'min_threshold': '4'}
+    AND compaction = {'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'}
     AND compression = {'chunk_length_in_kb': '64', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}
     AND crc_check_chance = 1.0
     AND dclocal_read_repair_chance = 0.1
@@ -1697,27 +1693,6 @@ CREATE TABLE galley_test.mls_proposal_refs (
     AND min_index_interval = 128
     AND read_repair_chance = 0.0
     AND speculative_retry = '99PERCENTILE';
-
-CREATE TABLE galley_test.user (
-    user uuid,
-    conv uuid,
-    PRIMARY KEY (user, conv)
-) WITH CLUSTERING ORDER BY (conv ASC)
-    AND bloom_filter_fp_chance = 0.1
-    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
-    AND comment = ''
-    AND compaction = {'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'}
-    AND compression = {'chunk_length_in_kb': '64', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}
-    AND crc_check_chance = 1.0
-    AND dclocal_read_repair_chance = 0.1
-    AND default_time_to_live = 0
-    AND gc_grace_seconds = 864000
-    AND max_index_interval = 2048
-    AND memtable_flush_period_in_ms = 0
-    AND min_index_interval = 128
-    AND read_repair_chance = 0.0
-    AND speculative_retry = '99PERCENTILE';
-
 CREATE KEYSPACE gundeck_test WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}  AND durable_writes = true;
 
 CREATE TABLE gundeck_test.push (
@@ -1832,7 +1807,6 @@ CREATE TABLE gundeck_test.user_push (
     AND min_index_interval = 128
     AND read_repair_chance = 0.0
     AND speculative_retry = '99PERCENTILE';
-
 CREATE KEYSPACE spar_test WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}  AND durable_writes = true;
 
 CREATE TABLE spar_test.bind_cookie (
@@ -2204,4 +2178,3 @@ CREATE TABLE spar_test.user (
     AND min_index_interval = 128
     AND read_repair_chance = 0.0
     AND speculative_retry = '99PERCENTILE';
-

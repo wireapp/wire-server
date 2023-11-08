@@ -66,7 +66,7 @@ testGetAssetAvailable isPublicAsset = do
         defAssetSettings
           & set setAssetRetention (Just AssetVolatile)
           & set setAssetPublic isPublicAsset
-  uid <- liftIO $ Id <$> nextRandom
+  uid <- randomUser
   ast :: Asset <-
     responseJsonError
       =<< uploadSimple (path "/assets/v3") uid settings bdy
@@ -113,7 +113,7 @@ testGetAssetWrongToken = do
   -- Initial upload
   let bdy = (applicationOctetStream, "Hello World")
       settings = defAssetSettings & set setAssetRetention (Just AssetVolatile)
-  uid <- liftIO $ Id <$> nextRandom
+  uid <- randomUser
   ast :: Asset <-
     responseJsonError
       =<< uploadSimple (path "/assets/v3") uid settings bdy
@@ -141,7 +141,7 @@ testLargeAsset = do
   let settings =
         defAssetSettings
           & set setAssetRetention (Just AssetVolatile)
-  uid <- liftIO $ Id <$> nextRandom
+  uid <- randomUser
   -- generate random bytes
   let size = 1024 * 1024
   bs <- liftIO $ getRandomBytes size
@@ -177,7 +177,7 @@ testStreamAsset = do
       settings =
         defAssetSettings
           & set setAssetRetention (Just AssetVolatile)
-  uid <- liftIO $ Id <$> nextRandom
+  uid <- randomUser
   ast :: Asset <-
     responseJsonError
       =<< uploadSimple (path "/assets/v3") uid settings bdy
@@ -221,7 +221,7 @@ testStreamAssetWrongToken = do
   -- Initial upload
   let bdy = (applicationOctetStream, "Hello World")
       settings = defAssetSettings & set setAssetRetention (Just AssetVolatile)
-  uid <- liftIO $ Id <$> nextRandom
+  uid <- randomUser
   ast :: Asset <-
     responseJsonError
       =<< uploadSimple (path "/assets/v3") uid settings bdy

@@ -3,6 +3,7 @@ module Notifications where
 
 import API.Gundeck
 import Control.Monad.Extra
+import Control.Monad.Reader (asks)
 import Testlib.Prelude
 import UnliftIO.Concurrent
 
@@ -11,14 +12,13 @@ awaitNotifications ::
   user ->
   client ->
   Maybe String ->
-  -- | Timeout in seconds
-  Int ->
   -- | Max no. of notifications
   Int ->
   -- | Selection function. Should not throw any exceptions
   (Value -> App Bool) ->
   App [Value]
-awaitNotifications user client since0 tSecs n selector =
+awaitNotifications user client since0 n selector = do
+  tSecs <- asks timeOutSeconds
   assertAwaitResult =<< go tSecs since0 (AwaitResult False n [] [])
   where
     go 0 _ res = pure res
@@ -52,12 +52,11 @@ awaitNotification ::
   user ->
   client ->
   Maybe lastNotifId ->
-  Int ->
   (Value -> App Bool) ->
   App Value
-awaitNotification user client lastNotifId tSecs selector = do
+awaitNotification user client lastNotifId selector = do
   since0 <- mapM objId lastNotifId
-  head <$> awaitNotifications user client since0 tSecs 1 selector
+  head <$> awaitNotifications user client since0 1 selector
 
 isDeleteUserNotif :: MakesValue a => a -> App Bool
 isDeleteUserNotif n =
@@ -68,6 +67,9 @@ isNewMessageNotif n = fieldEquals n "payload.0.type" "conversation.otr-message-a
 
 isNewMLSMessageNotif :: MakesValue a => a -> App Bool
 isNewMLSMessageNotif n = fieldEquals n "payload.0.type" "conversation.mls-message-add"
+
+isWelcomeNotif :: MakesValue a => a -> App Bool
+isWelcomeNotif n = fieldEquals n "payload.0.type" "conversation.mls-welcome"
 
 isMemberJoinNotif :: MakesValue a => a -> App Bool
 isMemberJoinNotif n = fieldEquals n "payload.0.type" "conversation.member-join"
@@ -127,7 +129,6 @@ assertLeaveNotification fromUser conv user client leaver =
       user
       client
       noValue
-      2
       ( allPreds
           [ isConvLeaveNotif,
             isNotifConv conv,

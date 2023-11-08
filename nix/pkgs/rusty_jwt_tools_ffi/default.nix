@@ -6,6 +6,9 @@
 , gitMinimal
 }:
 
+# TODO: update to crate2nix once https://github.com/wireapp/rusty-jwt-tools as a
+# Cargo.lock file in its root (not at the ffi/ subpath).
+
 let
   version = "0.5.0";
   src = fetchFromGitHub {

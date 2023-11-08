@@ -32,11 +32,16 @@ module Wire.API.User.Client.Prekey
   )
 where
 
+import Crypto.Hash (SHA256, hash)
 import Data.Aeson (FromJSON (..), ToJSON (..))
-import Data.Hashable (hash)
+import Data.ByteArray (convert)
+import Data.ByteString qualified as BS
+import Data.ByteString.Conversion (toByteString')
 import Data.Id
 import Data.OpenApi qualified as S
 import Data.Schema
+import Data.Text.Ascii (encodeBase16)
+import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Imports
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
@@ -63,7 +68,16 @@ instance ToSchema Prekey where
         <*> prekeyKey .= field "key" schema
 
 clientIdFromPrekey :: Prekey -> ClientId
-clientIdFromPrekey = newClientId . fromIntegral . hash . prekeyKey
+clientIdFromPrekey =
+  ClientId
+    . decodeUtf8
+    . toByteString'
+    . encodeBase16
+    . BS.take 8
+    . convert
+    . hash @ByteString @SHA256
+    . encodeUtf8
+    . prekeyKey
 
 --------------------------------------------------------------------------------
 -- LastPrekey

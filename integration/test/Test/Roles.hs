@@ -41,7 +41,7 @@ testRoleUpdateWithRemotesOk = do
       resp.json %. "members.others.0.qualified_id" `shouldMatch` objQidObject charlie
       resp.json %. "members.others.0.conversation_role" `shouldMatch` "wire_admin"
     for_ wss $ \ws -> do
-      notif <- awaitMatch 10 isMemberUpdateNotif ws
+      notif <- awaitMatch isMemberUpdateNotif ws
       notif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
       notif %. "payload.0.qualified_from" `shouldMatch` objQidObject bob
 
@@ -61,6 +61,6 @@ testRoleUpdateWithRemotesUnreachable = do
       void $ updateRole bob charlie adminRole conv >>= getBody 200
 
       for_ wss $ \ws -> do
-        notif <- awaitMatch 10 isMemberUpdateNotif ws
+        notif <- awaitMatch isMemberUpdateNotif ws
         notif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
         notif %. "payload.0.qualified_from" `shouldMatch` objQidObject bob

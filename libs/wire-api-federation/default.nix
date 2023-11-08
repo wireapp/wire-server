@@ -32,6 +32,7 @@
 , servant
 , servant-client
 , servant-client-core
+, servant-openapi3
 , servant-server
 , singletons
 , singletons-th
@@ -72,6 +73,7 @@ mkDerivation {
     servant
     servant-client
     servant-client-core
+    servant-openapi3
     servant-server
     singletons-th
     text

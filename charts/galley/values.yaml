@@ -41,10 +41,10 @@ config:
     conversationCodeURI: null
     #
     # `multiIngress` is a `Z-Host` depended setting of conversationCodeURI.
-    # Use this only if you want to expose the instance on mutliple ingresses.
+    # Use this only if you want to expose the instance on multiple ingresses.
     # If set it must a map from `Z-Host` to URI prefix
     # Example:
-    # multiIngress: 
+    # multiIngress:
     #    example.com: https://accounts.example.com/conversation-join/
     #    example.net: https://accounts.example.net/conversation-join/
     multiIngress: null
@@ -83,6 +83,7 @@ config:
             allowedCipherSuites: [1]
             defaultCipherSuite: 1
             supportedProtocols: [proteus, mls] # must contain defaultProtocol
+          lockStatus: unlocked
       searchVisibilityInbound:
         defaults:
           status: disabled

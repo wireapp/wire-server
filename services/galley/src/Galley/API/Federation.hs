@@ -116,11 +116,11 @@ federationSitemap =
     :<|> Named @"delete-sub-conversation" (callsFed deleteSubConversationForRemoteUser)
     :<|> Named @"leave-sub-conversation" (callsFed leaveSubConversation)
     :<|> Named @"get-one2one-conversation" getOne2OneConversation
-    :<|> Named @"on-client-removed" (callsFed (exposeAnnotations onClientRemoved))
+    :<|> Named @"on-client-removed" onClientRemoved
     :<|> Named @"on-message-sent" onMessageSent
     :<|> Named @"on-mls-message-sent" onMLSMessageSent
     :<|> Named @"on-conversation-updated" onConversationUpdated
-    :<|> Named @"on-user-deleted-conversations" (callsFed (exposeAnnotations onUserDeleted))
+    :<|> Named @"on-user-deleted-conversations" onUserDeleted
 
 onClientRemoved ::
   ( Member BackendNotificationQueueAccess r,
@@ -414,7 +414,7 @@ onUserDeleted origDomain udcn = do
             Public.SelfConv -> pure ()
             Public.RegularConv -> do
               let botsAndMembers = convBotsAndMembers conv
-              removeUser (qualifyAs lc conv) (tUntagged deletedUser)
+              removeUser (qualifyAs lc conv) RemoveUserIncludeMain (tUntagged deletedUser)
               outcome <-
                 runError @FederationError $
                   notifyConversationAction

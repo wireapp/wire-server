@@ -28,7 +28,7 @@ import CargoHold.Types
 import qualified CargoHold.Types.V3 as V3
 import qualified Codec.MIME.Type as MIME
 import Control.Exception (throw)
-import Control.Lens hiding (sets)
+import Control.Lens hiding (sets, (.=))
 import qualified Data.Aeson as Aeson
 import Data.ByteString.Builder
 import qualified Data.ByteString.Char8 as C8
@@ -94,7 +94,7 @@ testSimpleRoundtrip = do
   mapM_ simpleRoundtrip sets
   where
     simpleRoundtrip sets = do
-      uid <- liftIO $ Id <$> nextRandom
+      uid <- randomUser
       uid2 <- liftIO $ Id <$> nextRandom
       -- Initial upload
       let bdy = (applicationText, "Hello World")
@@ -143,7 +143,7 @@ testDownloadWithAcceptHeader = do
 
 testSimpleTokens :: TestM ()
 testSimpleTokens = do
-  uid <- liftIO $ Id <$> nextRandom
+  uid <- randomUser
   uid2 <- liftIO $ Id <$> nextRandom
   -- Initial upload
   let sets = V3.defAssetSettings & set V3.setAssetRetention (Just V3.AssetVolatile)
@@ -217,7 +217,7 @@ testSimpleS3ClosedConnectionReuse = go >> wait >> go
   where
     wait = liftIO $ putStrLn "Waiting for S3 idle timeout ..." >> threadDelay 7000000
     go = do
-      uid <- liftIO $ Id <$> nextRandom
+      uid <- randomUser
       let sets = V3.defAssetSettings & set V3.setAssetRetention (Just V3.AssetVolatile)
       let part2 = (MIME.Type (MIME.Text "plain") [], C8.replicate 100000 'c')
       uploadSimple (path "/assets/v3") uid sets part2
@@ -229,7 +229,7 @@ testDownloadURLOverride = do
   -- supposed to be used by cargohold to make connections.
   let downloadEndpoint = "external-s3-url.example"
   withSettingsOverrides (aws . s3DownloadEndpoint ?~ AWSEndpoint downloadEndpoint True 443) $ do
-    uid <- liftIO $ Id <$> nextRandom
+    uid <- randomUser
 
     -- Upload, should work, shouldn't try to use the S3DownloadEndpoint
     let bdy = (applicationText, "Hello World")
@@ -263,7 +263,7 @@ testDownloadURLOverride = do
 -- (just replaced the content with a shorter one and updated the MD5 header).
 testUploadCompatibility :: TestM ()
 testUploadCompatibility = do
-  uid <- liftIO $ Id <$> nextRandom
+  uid <- randomUser
   -- Initial upload
   r1 <-
     uploadRaw (path "/assets/v3") uid exampleMultipart

@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE NumericUnderscores #-}
@@ -71,10 +72,12 @@ spec = do
       withTestServer (Just ctx) $ \TestServer {..} ->
         echoTest mgr True serverPort `shouldThrow` (\(_ :: SSL.SomeSSLException) -> True)
 
+#if DENABLE-TRAILING-DOT-TEST
     it "should allow accepting a certificate without a trailing dot" $ do
       mgr <- setSSLRemoveTrailingDot True <$> mkTestManager
       withTestServer (Just localhostCtx) $ \TestServer {..} ->
         echoTest' "localhost." "/echo" "some body" mgr True serverPort
+#endif
 
 specTemplate :: Maybe SSL.SSLContext -> Spec
 specTemplate mCtx = do

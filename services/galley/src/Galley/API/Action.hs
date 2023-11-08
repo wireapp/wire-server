@@ -115,7 +115,7 @@ import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.API.Galley qualified as F
 import Wire.API.Federation.Error
-import Wire.API.FederationStatus (FederationStatus (FullyConnected, NotConnectedDomains), RemoteDomains (..))
+import Wire.API.FederationStatus
 import Wire.API.MLS.CipherSuite
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Team.Feature
@@ -346,8 +346,11 @@ getFederationStatus req = do
   fmap firstConflictOrFullyConnected
     . (ensureNoUnreachableBackends =<<)
     $ E.runFederatedConcurrentlyEither
-      (flip toRemoteUnsafe () <$> Set.toList req.rdDomains)
-      (\qds -> fedClient @'Brig @"get-not-fully-connected-backends" (DomainSet (tDomain qds `Set.delete` req.rdDomains)))
+      (Set.toList req.rdDomains)
+      ( \qds ->
+          fedClient @'Brig @"get-not-fully-connected-backends"
+            (DomainSet . Set.map tDomain $ void qds `Set.delete` req.rdDomains)
+      )
 
 -- | "conflict" here means two remote domains that we are connected to
 -- but are not connected to each other.
@@ -425,14 +428,14 @@ performAction tag origUser lconv action = do
       let victims = [origUser]
       lconv' <- traverse (convDeleteMembers (toUserList lconv victims)) lconv
       -- send remove proposals in the MLS case
-      traverse_ (removeUser lconv') victims
+      traverse_ (removeUser lconv' RemoveUserIncludeMain) victims
       pure (mempty, action)
     SConversationRemoveMembersTag -> do
       let presentVictims = filter (isConvMemberL lconv) (toList action)
       when (null presentVictims) noChanges
       traverse_ (convDeleteMembers (toUserList lconv presentVictims)) lconv
       -- send remove proposals in the MLS case
-      traverse_ (removeUser lconv) presentVictims
+      traverse_ (removeUser lconv RemoveUserExcludeMain) presentVictims
       pure (mempty, action) -- FUTUREWORK: should we return the filtered action here?
     SConversationMemberUpdateTag -> do
       void $ ensureOtherMember lconv (cmuTarget action) conv
@@ -519,13 +522,11 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
 
   addMembersToLocalConversation (fmap (.convId) lconv) newMembers role
   where
-    checkRemoteBackendsConnected ::
-      Local UserId ->
-      Sem r ()
-    checkRemoteBackendsConnected lusr = do
-      let invitedRemoteUsers = filter ((/= tDomain lconv) . tDomain) $ snd (partitionQualified lusr $ NE.toList invited)
-          invitedRemoteDomains = Set.fromList $ tDomain <$> invitedRemoteUsers
-          existingRemoteDomains = Set.fromList $ tDomain . rmId <$> convRemoteMembers (tUnqualified lconv)
+    checkRemoteBackendsConnected :: Local x -> Sem r ()
+    checkRemoteBackendsConnected loc = do
+      let invitedRemoteUsers = snd . partitionQualified loc . NE.toList $ invited
+          invitedRemoteDomains = Set.fromList $ void <$> invitedRemoteUsers
+          existingRemoteDomains = Set.fromList $ void . rmId <$> convRemoteMembers (tUnqualified lconv)
           allInvitedAlreadyInConversation = null $ invitedRemoteDomains \\ existingRemoteDomains
 
       if not allInvitedAlreadyInConversation
@@ -551,7 +552,7 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
       ensureAccessRole (convAccessRoles conv) userMembershipMap
       ensureConnectedToLocalsOrSameTeam lusr newUsers
     checkLocals lusr Nothing newUsers = do
-      ensureAccessRole (convAccessRoles conv) (zip newUsers $ repeat Nothing)
+      ensureAccessRole (convAccessRoles conv) (map (,Nothing) newUsers)
       ensureConnectedToLocalsOrSameTeam lusr newUsers
 
     checkRemotes ::

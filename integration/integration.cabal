@@ -27,6 +27,7 @@ common common-all
     NoImplicitPrelude
     AllowAmbiguousTypes
     BangPatterns
+    BlockArguments
     ConstraintKinds
     DataKinds
     DefaultSignatures
@@ -101,6 +102,7 @@ library
     SetupHelpers
     Test.AccessUpdate
     Test.AssetDownload
+    Test.AssetUpload
     Test.B2B
     Test.Brig
     Test.Client
@@ -115,6 +117,7 @@ library
     Test.MLS.Message
     Test.MLS.One2One
     Test.MLS.SubConversation
+    Test.MLS.Unreachable
     Test.Notifications
     Test.Presence
     Test.Roles
@@ -156,6 +159,7 @@ library
     , cryptonite
     , data-default
     , data-timeout
+    , deriving-aeson
     , directory
     , errors
     , exceptions

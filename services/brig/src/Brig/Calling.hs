@@ -106,7 +106,7 @@ type MaximumSFTServers = 100
 -- servers in this list. Limit this list to a smaller subset in case many
 -- SFT servers are advertised in a given environment.
 getRandomElements ::
-  MonadRandom f =>
+  (MonadRandom f) =>
   Range 1 MaximumSFTServers Int ->
   NonEmpty a ->
   f (NonEmpty a)
@@ -141,12 +141,12 @@ data Discovery a
   | Discovered a
   deriving (Show, Eq)
 
-instance Semigroup a => Semigroup (Discovery a) where
+instance (Semigroup a) => Semigroup (Discovery a) where
   NotDiscoveredYet <> other = other
   other <> NotDiscoveredYet = other
   Discovered x <> Discovered y = Discovered (x <> y)
 
-instance Semigroup a => Monoid (Discovery a) where
+instance (Semigroup a) => Monoid (Discovery a) where
   mempty = NotDiscoveredYet
 
 discoveryToMaybe :: Discovery a -> Maybe a
@@ -154,7 +154,7 @@ discoveryToMaybe = \case
   NotDiscoveredYet -> Nothing
   Discovered x -> Just x
 
-discoverSRVRecords :: Members [DNSLookup, TinyLog] r => DNS.Domain -> Sem r (Maybe (NonEmpty SrvEntry))
+discoverSRVRecords :: (Members [DNSLookup, TinyLog] r) => DNS.Domain -> Sem r (Maybe (NonEmpty SrvEntry))
 discoverSRVRecords domain =
   lookupSRV domain >>= \case
     SrvAvailable es -> pure $ Just es
@@ -176,7 +176,7 @@ discoverSRVRecords domain =
           . Log.field "domain" domain
       pure Nothing
 
-srvDiscoveryLoop :: Members [DNSLookup, TinyLog, Delay] r => DNS.Domain -> Int -> (NonEmpty SrvEntry -> Sem r ()) -> Sem r ()
+srvDiscoveryLoop :: (Members [DNSLookup, TinyLog, Delay] r) => DNS.Domain -> Int -> (NonEmpty SrvEntry -> Sem r ()) -> Sem r ()
 srvDiscoveryLoop domain discoveryInterval saveAction = forever $ do
   servers <- discoverSRVRecords domain
   forM_ servers saveAction
@@ -185,7 +185,7 @@ srvDiscoveryLoop domain discoveryInterval saveAction = forever $ do
 mkSFTDomain :: SFTOptions -> DNS.Domain
 mkSFTDomain SFTOptions {..} = DNS.normalize $ maybe defSftServiceName ("_" <>) sftSRVServiceName <> "._tcp." <> sftBaseDomain
 
-sftDiscoveryLoop :: Members [DNSLookup, TinyLog, Delay, Embed IO] r => SFTEnv -> Sem r ()
+sftDiscoveryLoop :: (Members [DNSLookup, TinyLog, Delay, Embed IO] r) => SFTEnv -> Sem r ()
 sftDiscoveryLoop SFTEnv {..} =
   srvDiscoveryLoop sftDomain sftDiscoveryInterval $
     atomicWriteIORef sftServers . Discovered . SFTServers
@@ -244,7 +244,7 @@ mkTurnEnv serversSource _turnTokenTTL _turnConfigTTL _turnSecret _turnSHA512 = d
   _turnPrng <- createSystemRandom
   pure $ TurnEnv {..}
 
-turnServersV1 :: MonadIO m => TurnServers -> m (Discovery (NonEmpty TurnURI))
+turnServersV1 :: (MonadIO m) => TurnServers -> m (Discovery (NonEmpty TurnURI))
 turnServersV1 =
   readIORef . \case
     TurnServersFromFiles _opts v1Ref _v2Ref ->
@@ -252,7 +252,7 @@ turnServersV1 =
     TurnServersFromDNS _opts v1UdpRef _v2UdpRef _tcpRef _tlsRef ->
       v1UdpRef
 
-turnServersV2 :: MonadIO m => TurnServers -> m (Discovery (NonEmpty TurnURI))
+turnServersV2 :: (MonadIO m) => TurnServers -> m (Discovery (NonEmpty TurnURI))
 turnServersV2 = \case
   TurnServersFromFiles _opts _v1Udref v2Ref ->
     readIORef v2Ref
@@ -303,7 +303,7 @@ startDNSBasedTurnDiscovery logger opts deprecatedUdpRef udpRef tcpRef tlsRef = d
       atomicWriteIORef tlsRef . Discovered . fmap (turnURIFromSRV SchemeTurns (Just TransportTCP))
   pure [udpLoop, tcpLoop, tlsLoop]
   where
-    withNonZeroWeightRecords :: Monad m => (NonEmpty SrvEntry -> m ()) -> NonEmpty SrvEntry -> m ()
+    withNonZeroWeightRecords :: (Monad m) => (NonEmpty SrvEntry -> m ()) -> NonEmpty SrvEntry -> m ()
     withNonZeroWeightRecords action records =
       case NonEmpty.filter (\e -> srvWeight e /= 0) records of
         [] -> pure ()
@@ -369,6 +369,9 @@ startWatching w p = void . FS.watchDir w (Path.dropFileName p) predicate
     predicate (FS.Modified f _ _) = Path.equalFilePath f p
     predicate FS.Removed {} = False
     predicate FS.Unknown {} = False
+    predicate FS.ModifiedAttributes {} = False
+    predicate FS.WatchedDirectoryRemoved {} = False
+    predicate FS.CloseWrite {} = False
 
 readTurnList :: FilePath -> IO (Maybe (NonEmpty TurnURI))
 readTurnList = Text.readFile >=> pure . fn . mapMaybe (fromByteString . Text.encodeUtf8) . Text.lines

@@ -279,7 +279,7 @@ addUnconnectedUsersOnly = do
   -- Bob is connected to Alice
   -- Bob is not connected to Charlie
   connectWithRemoteUser alice qBob
-  let requestMembers = Set.fromList (map asOtherMember [qAlice])
+  let requestMembers = Set.fromList ([asOtherMember qAlice])
 
   now <- liftIO getCurrentTime
   fedGalleyClient <- view tsFedGalleyClient
@@ -623,7 +623,7 @@ notifyDeletedConversation = do
     qconv
     bob
     (Just "gossip")
-    (Set.fromList (map mkMember [qalice]))
+    (Set.fromList ([mkMember qalice]))
 
   fedGalleyClient <- view tsFedGalleyClient
 

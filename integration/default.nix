@@ -20,6 +20,7 @@
 , cryptonite
 , data-default
 , data-timeout
+, deriving-aeson
 , directory
 , errors
 , exceptions
@@ -92,6 +93,7 @@ mkDerivation {
     cryptonite
     data-default
     data-timeout
+    deriving-aeson
     directory
     errors
     exceptions

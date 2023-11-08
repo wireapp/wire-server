@@ -1,6 +1,7 @@
 {-
 NOTE: Don't import any other Testlib modules here. Use this module to break dependency cycles.
 -}
+
 module Testlib.Types where
 
 import Control.Concurrent (QSemN)
@@ -107,7 +108,8 @@ data GlobalEnv = GlobalEnv
     gRemovalKeyPath :: FilePath,
     gBackendResourcePool :: ResourcePool BackendResource,
     gRabbitMQConfig :: RabbitMQConfig,
-    gTempDir :: FilePath
+    gTempDir :: FilePath,
+    gTimeOutSeconds :: Int
   }
 
 data IntegrationConfig = IntegrationConfig
@@ -181,7 +183,8 @@ data Env = Env
     lastPrekeys :: IORef [String],
     mls :: IORef MLSState,
     resourcePool :: ResourcePool BackendResource,
-    rabbitMQConfig :: RabbitMQConfig
+    rabbitMQConfig :: RabbitMQConfig,
+    timeOutSeconds :: Int
   }
 
 data Response = Response
@@ -191,7 +194,7 @@ data Response = Response
     headers :: [HTTP.Header],
     request :: HTTP.Request
   }
-  deriving (Show)
+  deriving stock (Show)
 
 instance HasField "json" Response (App Aeson.Value) where
   getField response = maybe (assertFailure "Response has no json body") pure response.jsonBody
@@ -201,7 +204,7 @@ data ClientIdentity = ClientIdentity
     user :: String,
     client :: String
   }
-  deriving (Show, Eq, Ord)
+  deriving stock (Show, Eq, Ord, Generic)
 
 newtype Ciphersuite = Ciphersuite {code :: String}
   deriving (Eq, Ord, Show)
@@ -215,6 +218,9 @@ data ClientGroupState = ClientGroupState
   }
   deriving (Show)
 
+data MLSProtocol = MLSProtocolMLS | MLSProtocolMixed
+  deriving (Eq, Show)
+
 data MLSState = MLSState
   { baseDir :: FilePath,
     members :: Set ClientIdentity,
@@ -224,7 +230,8 @@ data MLSState = MLSState
     convId :: Maybe Value,
     clientGroupState :: Map ClientIdentity ClientGroupState,
     epoch :: Word64,
-    ciphersuite :: Ciphersuite
+    ciphersuite :: Ciphersuite,
+    protocol :: MLSProtocol
   }
   deriving (Show)
 
@@ -259,7 +266,7 @@ instance Exception AssertionFailure where
   displayException (AssertionFailure _ _ msg) = msg
 
 newtype App a = App {unApp :: ReaderT Env IO a}
-  deriving
+  deriving newtype
     ( Functor,
       Applicative,
       Monad,
@@ -290,7 +297,7 @@ appToIOKleisli k = do
 getServiceMap :: HasCallStack => String -> App ServiceMap
 getServiceMap fedDomain = do
   env <- ask
-  assertJust ("Could not find service map for federation domain: " <> fedDomain) (Map.lookup fedDomain (env.serviceMap))
+  assertJust ("Could not find service map for federation domain: " <> fedDomain) (Map.lookup fedDomain env.serviceMap)
 
 getMLSState :: App MLSState
 getMLSState = do

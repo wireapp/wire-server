@@ -133,39 +133,47 @@ processInternalCommit senderIdentity con lConvOrSub epoch action commit = do
 
                 pure qtarget
 
-          -- for each user, we compare their clients with the ones being added to the conversation
-          failedAddFetching <- fmap catMaybes . forM newUserClients $
-            \(qtarget, newclients) -> case Map.lookup qtarget cm of
-              -- user is already present, skip check in this case
-              Just _ -> do
-                -- new user
-                pure Nothing
-              Nothing -> do
-                -- final set of clients in the conversation
-                let clients = Map.keysSet (newclients <> Map.findWithDefault mempty qtarget cm)
-                -- get list of mls clients from Brig (local or remote)
-                getClientInfo lConvOrSub qtarget suite >>= \case
-                  Left _e -> pure (Just qtarget)
-                  Right clientInfo -> do
-                    let allClients = Set.map ciId clientInfo
-                    let allMLSClients = Set.map ciId (Set.filter ciMLS clientInfo)
-                    -- We check the following condition:
-                    --   allMLSClients ⊆ clients ⊆ allClients
-                    -- i.e.
-                    -- - if a client has at least 1 key package, it has to be added
-                    -- - if a client is being added, it has to still exist
-                    --
-                    -- The reason why we can't simply check that clients == allMLSClients is
-                    -- that a client with no remaining key packages might be added by a user
-                    -- who just fetched its last key package.
-                    unless
-                      ( Set.isSubsetOf allMLSClients clients
-                          && Set.isSubsetOf clients allClients
-                      )
-                      $ do
-                        -- FUTUREWORK: turn this error into a proper response
-                        throwS @'MLSClientMismatch
+          -- For each user, we compare their clients with the ones being added
+          -- to the conversation, and return a list of users for of which we
+          -- were unable to get a list of MLS-capable clients.
+          --
+          -- Again, for subconversations there is no need to check anything
+          -- here, so we simply return the empty list.
+          failedAddFetching <- case convOrSub.id of
+            SubConv _ _ -> pure []
+            Conv _ ->
+              fmap catMaybes . forM newUserClients $
+                \(qtarget, newclients) -> case Map.lookup qtarget cm of
+                  -- user is already present, skip check in this case
+                  Just _ -> do
+                    -- new user
                     pure Nothing
+                  Nothing -> do
+                    -- final set of clients in the conversation
+                    let clients = Map.keysSet (newclients <> Map.findWithDefault mempty qtarget cm)
+                    -- get list of mls clients from Brig (local or remote)
+                    getClientInfo lConvOrSub qtarget suite >>= \case
+                      Left _e -> pure (Just qtarget)
+                      Right clientInfo -> do
+                        let allClients = Set.map ciId clientInfo
+                        let allMLSClients = Set.map ciId (Set.filter ciMLS clientInfo)
+                        -- We check the following condition:
+                        --   allMLSClients ⊆ clients ⊆ allClients
+                        -- i.e.
+                        -- - if a client has at least 1 key package, it has to be added
+                        -- - if a client is being added, it has to still exist
+                        --
+                        -- The reason why we can't simply check that clients == allMLSClients is
+                        -- that a client with no remaining key packages might be added by a user
+                        -- who just fetched its last key package.
+                        unless
+                          ( Set.isSubsetOf allMLSClients clients
+                              && Set.isSubsetOf clients allClients
+                          )
+                          $
+                          -- FUTUREWORK: turn this error into a proper response
+                          throwS @'MLSClientMismatch
+                        pure Nothing
           for_
             (unreachableFromList failedAddFetching)
             (throw . unreachableUsersToUnreachableBackends)
@@ -225,7 +233,8 @@ processInternalCommit senderIdentity con lConvOrSub epoch action commit = do
                           cjRole = roleNameWireMember
                         }
                   pure [update]
-            _ -> do
+            SubConv _ _ -> pure []
+            Conv _ -> do
               -- remove users from the conversation and send events
               removeEvents <-
                 foldMap

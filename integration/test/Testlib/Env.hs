@@ -9,11 +9,13 @@ import Data.Function ((&))
 import Data.Functor
 import Data.IORef
 import Data.Map qualified as Map
+import Data.Maybe (fromMaybe)
 import Data.Set (Set)
 import Data.Set qualified as Set
 import Data.Yaml qualified as Yaml
 import Database.CQL.IO qualified as Cassandra
 import Network.HTTP.Client qualified as HTTP
+import System.Environment (lookupEnv)
 import System.Exit
 import System.FilePath
 import System.IO
@@ -21,6 +23,7 @@ import System.IO.Temp
 import Testlib.Prekeys
 import Testlib.ResourcePool
 import Testlib.Types
+import Text.Read (readMaybe)
 import Prelude
 
 serviceHostPort :: ServiceMap -> Service -> HostPort
@@ -64,6 +67,9 @@ mkGlobalEnv cfgFile = do
         intConfig.rabbitmq
         cassClient
   tempDir <- Codensity $ withSystemTempDirectory "test"
+  timeOutSeconds <-
+    liftIO $
+      fromMaybe 10 . (readMaybe @Int =<<) <$> (lookupEnv "TEST_TIMEOUT_SECONDS")
   pure
     GlobalEnv
       { gServiceMap =
@@ -80,7 +86,8 @@ mkGlobalEnv cfgFile = do
         gRemovalKeyPath = error "Uninitialised removal key path",
         gBackendResourcePool = resourcePool,
         gRabbitMQConfig = intConfig.rabbitmq,
-        gTempDir = tempDir
+        gTempDir = tempDir,
+        gTimeOutSeconds = timeOutSeconds
       }
 
 mkEnv :: GlobalEnv -> Codensity IO Env
@@ -103,7 +110,8 @@ mkEnv ge = do
           lastPrekeys = lpks,
           mls = mls,
           resourcePool = ge.gBackendResourcePool,
-          rabbitMQConfig = ge.gRabbitMQConfig
+          rabbitMQConfig = ge.gRabbitMQConfig,
+          timeOutSeconds = ge.gTimeOutSeconds
         }
 
 destroy :: IORef (Set BackendResource) -> BackendResource -> IO ()
@@ -136,5 +144,6 @@ mkMLSState = Codensity $ \k ->
           convId = Nothing,
           clientGroupState = mempty,
           epoch = 0,
-          ciphersuite = def
+          ciphersuite = def,
+          protocol = MLSProtocolMLS
         }

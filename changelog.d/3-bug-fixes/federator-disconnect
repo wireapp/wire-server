@@ -1,1 +1,0 @@
-Fix memory and TCP connection leak in brig, galley, caroghold and background-worker.

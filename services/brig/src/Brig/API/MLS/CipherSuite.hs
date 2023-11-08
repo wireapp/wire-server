@@ -15,15 +15,22 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.API.MLS.CipherSuite (getCipherSuite) where
+module Brig.API.MLS.CipherSuite (getCipherSuite, getCipherSuites) where
 
 import Brig.API.Handler
 import Brig.API.MLS.KeyPackages.Validation
 import Imports
 import Wire.API.MLS.CipherSuite
 
+getOneCipherSuite :: CipherSuite -> Handler r CipherSuiteTag
+getOneCipherSuite s =
+  maybe
+    (mlsProtocolError "Unknown ciphersuite")
+    pure
+    (cipherSuiteTag s)
+
 getCipherSuite :: Maybe CipherSuite -> Handler r CipherSuiteTag
-getCipherSuite mSuite = case mSuite of
-  Nothing -> pure defCipherSuite
-  Just x ->
-    maybe (mlsProtocolError "Unknown ciphersuite") pure (cipherSuiteTag x)
+getCipherSuite = maybe (pure defCipherSuite) getOneCipherSuite
+
+getCipherSuites :: Maybe [CipherSuite] -> Handler r [CipherSuiteTag]
+getCipherSuites = maybe (pure [defCipherSuite]) (traverse getOneCipherSuite)

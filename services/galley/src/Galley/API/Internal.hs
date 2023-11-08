@@ -206,6 +206,7 @@ featureAPI =
     <@> mkNamedAPI @'("iget", MLSConfig) (getFeatureStatus DontDoAuth)
     <@> mkNamedAPI @'("iput", MLSConfig) setFeatureStatusInternal
     <@> mkNamedAPI @'("ipatch", MLSConfig) patchFeatureStatusInternal
+    <@> mkNamedAPI @'("ilock", MLSConfig) (updateLockStatus @MLSConfig)
     <@> mkNamedAPI @'("iget", ExposeInvitationURLsToTeamAdminConfig) (getFeatureStatus DontDoAuth)
     <@> mkNamedAPI @'("iput", ExposeInvitationURLsToTeamAdminConfig) setFeatureStatusInternal
     <@> mkNamedAPI @'("ipatch", ExposeInvitationURLsToTeamAdminConfig) patchFeatureStatusInternal
@@ -376,7 +377,7 @@ rmUser lusr conn = do
         ConnectConv -> E.deleteMembers (Data.convId c) (UserList [tUnqualified lusr] []) $> Nothing
         RegularConv
           | tUnqualified lusr `isMember` Data.convLocalMembers c -> do
-              runError (removeUser (qualifyAs lusr c) (tUntagged lusr)) >>= \case
+              runError (removeUser (qualifyAs lusr c) RemoveUserIncludeMain (tUntagged lusr)) >>= \case
                 Left e -> P.err $ Log.msg ("failed to send remove proposal: " <> internalErrorDescription e)
                 Right _ -> pure ()
               E.deleteMembers (Data.convId c) (UserList [tUnqualified lusr] [])

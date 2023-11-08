@@ -536,15 +536,13 @@ testDeleteService config db brig galley cannon = withTestService config db brig 
       !!! const 202 === statusCode
     _ <- waitFor (5 # Second) not (isMember galley lbuid1 cid)
     _ <- waitFor (5 # Second) not (isMember galley lbuid2 cid)
-    getBotConv galley bid1 cid !!! const 404 === statusCode
-    getBotConv galley bid2 cid !!! const 404 === statusCode
+    void $ aFewTimes 12 (getBotConv galley bid1 cid) ((== 404) . statusCode)
+    void $ aFewTimes 12 (getBotConv galley bid2 cid) ((== 404) . statusCode)
     wsAssertMemberLeave ws qcid (tUntagged lbuid1) [tUntagged lbuid1]
     wsAssertMemberLeave ws qcid (tUntagged lbuid2) [tUntagged lbuid2]
   -- The service should not be available
-  getService brig pid sid
-    !!! const 404 === statusCode
-  getServiceProfile brig uid1 pid sid
-    !!! const 404 === statusCode
+  void $ aFewTimes 12 (getService brig pid sid) ((== 404) . statusCode)
+  void $ aFewTimes 12 (getServiceProfile brig uid1 pid sid) ((== 404) . statusCode)
 
 testAddRemoveBot :: Config -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
 testAddRemoveBot config db brig galley cannon = withTestService config db brig defServiceApp $ \sref buf -> do

@@ -455,7 +455,7 @@ instance GetFeatureConfig SearchVisibilityInboundConfig where
 
 instance GetFeatureConfig MLSConfig where
   getConfigForServer =
-    input <&> view (settings . featureFlags . flagMLS . unDefaults . unImplicitLockStatus)
+    input <&> view (settings . featureFlags . flagMLS . unDefaults)
 
 instance GetFeatureConfig ExposeInvitationURLsToTeamAdminConfig where
   getConfigForTeam tid = do

@@ -20,6 +20,7 @@ module Brig.Data.MLS.KeyPackage
     claimKeyPackage,
     countKeyPackages,
     deleteKeyPackages,
+    deleteAllKeyPackages,
   )
 where
 
@@ -37,6 +38,7 @@ import Data.Qualified
 import Data.Time.Clock
 import Data.Time.Clock.POSIX
 import Imports
+import UnliftIO.Async
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.LeafNode
@@ -141,6 +143,22 @@ deleteKeyPackages u c suite refs =
   where
     deleteQuery :: PrepQuery W (UserId, ClientId, CipherSuiteTag, [KeyPackageRef]) ()
     deleteQuery = "DELETE FROM mls_key_packages WHERE user = ? AND client = ? AND cipher_suite = ? AND ref in ?"
+
+deleteAllKeyPackages ::
+  (MonadClient m, MonadUnliftIO m) =>
+  UserId ->
+  ClientId ->
+  [CipherSuiteTag] ->
+  m ()
+deleteAllKeyPackages u c suites =
+  pooledForConcurrentlyN_ 16 suites $ \suite ->
+    retry x5 $
+      write
+        deleteQuery
+        (params LocalQuorum (u, c, suite))
+  where
+    deleteQuery :: PrepQuery W (UserId, ClientId, CipherSuiteTag) ()
+    deleteQuery = "DELETE FROM mls_key_packages WHERE user = ? AND client = ? AND cipher_suite = ?"
 
 --------------------------------------------------------------------------------
 -- Utilities

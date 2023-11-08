@@ -3,6 +3,7 @@ module Testlib.JSON where
 import Control.Monad
 import Control.Monad.Catch
 import Control.Monad.IO.Class
+import Control.Monad.Trans.Class
 import Control.Monad.Trans.Maybe
 import Data.Aeson hiding ((.=))
 import Data.Aeson qualified as Aeson
@@ -17,6 +18,7 @@ import Data.Foldable
 import Data.Function
 import Data.Functor
 import Data.List.Split (splitOn)
+import Data.Maybe
 import Data.Scientific qualified as Sci
 import Data.String
 import Data.Text qualified as T
@@ -68,6 +70,14 @@ noValue = Nothing
 
 (.=?) :: ToJSON a => String -> Maybe a -> Maybe Aeson.Pair
 (.=?) k v = (Aeson..=) (fromString k) <$> v
+
+-- | Convert JSON null to Nothing.
+asOptional :: HasCallStack => MakesValue a => a -> App (Maybe Value)
+asOptional x = do
+  v <- make x
+  pure $ case v of
+    Null -> Nothing
+    _ -> Just v
 
 asString :: HasCallStack => MakesValue a => a -> App String
 asString x =
@@ -164,6 +174,13 @@ fieldEquals a fieldSelector b = do
 assertField :: (HasCallStack, MakesValue a) => a -> String -> Maybe Value -> App Value
 assertField x k Nothing = assertFailureWithJSON x $ "Field \"" <> k <> "\" is missing from object:"
 assertField _ _ (Just x) = pure x
+
+-- rename a field if it exists, else return the old object
+renameField :: String -> String -> Value -> App Value
+renameField old new obj =
+  fromMaybe obj <$> runMaybeT do
+    o :: Value <- maybe mzero pure =<< lift (lookupField obj old)
+    lift (removeField old obj >>= setField new o)
 
 -- | Look up (nested) field of a JSON object
 --
@@ -360,17 +377,14 @@ objDomain x = do
 -- is also supported.
 objSubConv :: (HasCallStack, MakesValue a) => a -> App (Value, Maybe String)
 objSubConv x = do
-  mParent <- lookupField x "parent_qualified_id"
-  case mParent of
-    Nothing -> do
-      obj <- objQidObject x
-      subValue <- lookupField x "subconv_id"
-      sub <- traverse asString subValue
-      pure (obj, sub)
-    Just parent -> do
-      obj <- objQidObject parent
-      sub <- x %. "subconv_id" & asString
-      pure (obj, Just sub)
+  v <- make x
+  mParent <- lookupField v "parent_qualified_id"
+  obj <- objQidObject $ fromMaybe v mParent
+  sub <- runMaybeT $ do
+    sub <- MaybeT $ lookupField v "subconv_id"
+    sub' <- MaybeT $ asOptional sub
+    lift $ asString sub'
+  pure (obj, sub)
 
 -- | Turn an object parseable by 'objSubConv' into a canonical flat representation.
 objSubConvObject :: (HasCallStack, MakesValue a) => a -> App Value

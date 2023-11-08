@@ -2419,7 +2419,7 @@ retryWhileN n f m =
 -- | Changing this will break tests; all prekeys and client Id must match the same
 -- fingerprint
 someClientId :: ClientId
-someClientId = ClientId "550d8c614fd20299"
+someClientId = ClientId "cc6e640e296e8bba"
 
 -- | Changing these will break tests; all prekeys and client Id must match the same
 -- fingerprint
@@ -2939,7 +2939,7 @@ spawn cp minput = do
        in snd <$> concurrently writeInput readOutput
   case (mout, ex) of
     (Just out, ExitSuccess) -> pure out
-    _ -> assertFailure "Failed spawning process"
+    _ -> assertFailure "Process didn't finish successfully"
 
 decodeMLSError :: ParseMLS a => ByteString -> IO a
 decodeMLSError s = case decodeMLS' s of
@@ -2986,7 +2986,7 @@ wsAssertBackendRemoveProposal fromUser cnvOrSubCnv idx n = do
   where
     getMLSMessageData :: Conv.EventData -> ByteString
     getMLSMessageData (EdMLSMessage bs) = bs
-    getMLSMessageData d = error ("Excepected EdMLSMessage, but got " <> show d)
+    getMLSMessageData d = error ("Expected EdMLSMessage, but got " <> show d)
 
 wsAssertAddProposal ::
   HasCallStack =>

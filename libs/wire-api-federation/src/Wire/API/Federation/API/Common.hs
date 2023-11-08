@@ -18,6 +18,7 @@
 module Wire.API.Federation.API.Common where
 
 import Data.Aeson
+import Data.OpenApi (ToSchema)
 import Imports
 import Test.QuickCheck
 import Wire.Arbitrary
@@ -28,6 +29,8 @@ import Wire.Arbitrary
 data EmptyResponse = EmptyResponse
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform EmptyResponse)
+
+instance ToSchema EmptyResponse
 
 instance FromJSON EmptyResponse where
   parseJSON = withObject "EmptyResponse" . const $ pure EmptyResponse

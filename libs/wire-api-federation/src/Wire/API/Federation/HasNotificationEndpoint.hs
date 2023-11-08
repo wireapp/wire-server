@@ -28,6 +28,9 @@ import Wire.API.Federation.BackendNotifications
 import Wire.API.Federation.Component
 import Wire.API.RawJson
 
+class IsNotificationTag k where
+  type NotificationComponent k = (c :: Component) | c -> k
+
 class HasNotificationEndpoint t where
   -- | The type of the payload for this endpoint
   type Payload t :: Type
@@ -36,18 +39,12 @@ class HasNotificationEndpoint t where
   -- "on-conversation-updated".
   type NotificationPath t :: Symbol
 
-  -- | The server component this endpoint is associated with
-  type NotificationComponent t :: Component
-
-  -- | The Servant API endpoint type
-  type NotificationAPI t (c :: Component) :: Type
-
 -- | Convert a federation endpoint to a backend notification to be enqueued to a
 -- RabbitMQ queue.
 fedNotifToBackendNotif ::
-  forall tag.
+  forall {k} (tag :: k).
   KnownSymbol (NotificationPath tag) =>
-  KnownComponent (NotificationComponent tag) =>
+  KnownComponent (NotificationComponent k) =>
   ToJSON (Payload tag) =>
   Domain ->
   Payload tag ->
@@ -61,7 +58,7 @@ fedNotifToBackendNotif ownDomain payload =
     toNotif path body =
       BackendNotification
         { ownDomain = ownDomain,
-          targetComponent = componentVal @(NotificationComponent tag),
+          targetComponent = componentVal @(NotificationComponent k),
           path = path,
           body = body
         }
