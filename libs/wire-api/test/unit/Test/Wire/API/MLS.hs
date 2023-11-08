@@ -301,7 +301,7 @@ spawn cp minput = do
        in snd <$> concurrently writeInput readOutput
   case (mout, ex) of
     (Just out, ExitSuccess) -> pure out
-    _ -> assertFailure "Failed spawning process"
+    _ -> assertFailure $ "Failed spawning process\n" <> show mout <> "\n" <> show ex
 
 cli :: String -> FilePath -> [String] -> CreateProcess
 cli store tmp args =
