@@ -272,8 +272,8 @@ library
     , hostname-validate
     , hscim
     , HsOpenSSL
-    , http-client
     , http-api-data
+    , http-client
     , http-media
     , http-types
     , imports

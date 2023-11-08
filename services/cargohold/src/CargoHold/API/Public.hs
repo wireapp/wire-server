@@ -35,16 +35,13 @@ import Data.Qualified
 import Imports hiding (head)
 import qualified Network.HTTP.Types as HTTP
 import Servant.API
-import Servant.Client
 import Servant.Server hiding (Handler)
 import URI.ByteString
 import Wire.API.Asset
 import Wire.API.Federation.API
 import Wire.API.Routes.AssetBody
 import Wire.API.Routes.Internal.Brig (brigInternalClient)
-import qualified Wire.API.Routes.Internal.Brig as IBrig
 import Wire.API.Routes.Internal.Cargohold
-import Wire.API.Routes.Named (namedClient)
 import Wire.API.Routes.Public.Cargohold
 import Wire.API.User (AccountStatus (Active), AccountStatusResp (..))
 
