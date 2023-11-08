@@ -202,7 +202,7 @@ library
     Brig.Schema.V78_ClientLastActive
     Brig.Schema.V79_ConnectionRemoteIndex
     Brig.Schema.V80_KeyPackageCiphersuite
-    Brig.Schema.V81_AddTeamtoFederationRemotes
+    Brig.Schema.V81_AddFederationRemoteTeams
     Brig.Schema.V_FUTUREWORK
     Brig.SMTP
     Brig.Team.API

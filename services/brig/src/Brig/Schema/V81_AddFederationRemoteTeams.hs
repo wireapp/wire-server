@@ -17,7 +17,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.Schema.V81_AddTeamtoFederationRemotes
+module Brig.Schema.V81_AddFederationRemoteTeams
   ( migration,
   )
 where
@@ -28,9 +28,11 @@ import Text.RawString.QQ
 
 migration :: Migration
 migration =
-  Migration 81 "Add remote_team to federation_remotes table" $
+  Migration 81 "Add table for managing backend wide team federation" $
     schema'
-      [r| ALTER TABLE federation_remotes ADD (
-            remote_team uuid
-          )
+      [r|
+        CREATE TABLE federation_remote_teams
+          ( domain text
+          , team uuid
+          , PRIMARY KEY (domain, team))
      |]
