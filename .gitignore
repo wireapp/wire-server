@@ -114,3 +114,6 @@ result-*
 
 services/nginz/third_party/headers-more-nginx-module
 services/nginz/third_party/nginx-module-vts
+
+# dumped out by running tests in kind
+logs-integration
