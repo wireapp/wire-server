@@ -158,7 +158,8 @@ library
     , cassandra-util
     , containers
     , cookie
-    , cryptonite
+    , crypton
+    , crypton-x509
     , data-default
     , exceptions
     , extended
@@ -193,7 +194,6 @@ library
     , wai-utilities
     , warp
     , wire-api
-    , x509
     , yaml
 
   default-language:   Haskell2010
@@ -343,7 +343,7 @@ executable spar-integration
     , cassandra-util
     , cassava
     , cookie
-    , cryptonite
+    , crypton
     , email-validate
     , exceptions
     , extended

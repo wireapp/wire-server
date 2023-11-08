@@ -76,7 +76,7 @@ library
     , bytestring
     , bytestring-conversion
     , containers             >=0.5
-    , cryptonite
+    , crypton
     , errors
     , imports
     , lens                   >=4.12

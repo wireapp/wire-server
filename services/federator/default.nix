@@ -10,9 +10,9 @@
 , binary
 , bytestring
 , bytestring-conversion
-, connection
+, crypton-connection
 , containers
-, cryptonite
+, crypton
 , data-default
 , dns
 , dns-util
@@ -67,8 +67,8 @@
 , warp-tls
 , wire-api
 , wire-api-federation
-, x509
-, x509-validation
+, crypton-x509
+, crypton-x509-validation
 , yaml
 }:
 mkDerivation {
@@ -123,8 +123,8 @@ mkDerivation {
     warp
     wire-api
     wire-api-federation
-    x509
-    x509-validation
+    crypton-x509
+    crypton-x509-validation
   ];
   executableHaskellDepends = [
     aeson
@@ -134,8 +134,8 @@ mkDerivation {
     binary
     bytestring
     bytestring-conversion
-    connection
-    cryptonite
+    crypton-connection
+    crypton
     dns-util
     exceptions
     HsOpenSSL
@@ -203,7 +203,7 @@ mkDerivation {
     warp-tls
     wire-api
     wire-api-federation
-    x509-validation
+    crypton-x509-validation
     yaml
   ];
   description = "Federation Service";

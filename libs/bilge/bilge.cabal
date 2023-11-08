@@ -84,7 +84,7 @@ library
     , cookie
     , errors             >=1.4
     , exceptions         >=0.6
-    , http-client        >=0.5
+    , http-client        >=0.7
     , http-types         >=0.8
     , imports
     , lens

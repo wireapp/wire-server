@@ -69,7 +69,7 @@ library
     , base                   >=4            && <5
     , bytestring             >=0.9
     , errors                 >=2.0
-    , http-client            >=0.5
+    , http-client            >=0.7
     , http-types             >=0.7
     , imports
     , iso3166-country-codes  >=0.20140203.7

@@ -41,6 +41,7 @@ import Test.Wire.API.User qualified as User
 import Test.Wire.API.User.Auth qualified as User.Auth
 import Test.Wire.API.User.RichInfo qualified as User.RichInfo
 import Test.Wire.API.User.Search qualified as User.Search
+import Test.Wire.API.Password qualified as Password
 
 main :: IO ()
 main =
@@ -67,5 +68,6 @@ main =
         Routes.Version.tests,
         unsafePerformIO Routes.Version.Wai.tests,
         RawJson.tests,
-        OAuth.tests
+        OAuth.tests,
+        Password.tests
       ]

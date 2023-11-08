@@ -18,7 +18,7 @@
 , conduit
 , containers
 , cookie
-, cryptonite
+, crypton
 , data-default
 , email-validate
 , exceptions
@@ -75,7 +75,7 @@
 , wai-utilities
 , warp
 , wire-api
-, x509
+, crypton-x509
 , xml-conduit
 , yaml
 , zauth
@@ -98,7 +98,7 @@ mkDerivation {
     cassandra-util
     containers
     cookie
-    cryptonite
+    crypton
     data-default
     exceptions
     extended
@@ -133,7 +133,7 @@ mkDerivation {
     wai-utilities
     warp
     wire-api
-    x509
+    crypton-x509
     yaml
   ];
   executableHaskellDepends = [
@@ -152,7 +152,7 @@ mkDerivation {
     conduit
     containers
     cookie
-    cryptonite
+    crypton
     email-validate
     exceptions
     extended

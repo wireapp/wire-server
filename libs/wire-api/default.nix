@@ -25,7 +25,7 @@
 , constraints
 , containers
 , cookie
-, cryptonite
+, crypton
 , currency-codes
 , deriving-aeson
 , deriving-swagger2
@@ -107,7 +107,7 @@
 , wai-websockets
 , websockets
 , wire-message-proto-lens
-, x509
+, crypton-x509
 , zauth
 }:
 mkDerivation {
@@ -133,7 +133,7 @@ mkDerivation {
     constraints
     containers
     cookie
-    cryptonite
+    crypton
     currency-codes
     deriving-aeson
     deriving-swagger2
@@ -204,7 +204,7 @@ mkDerivation {
     wai-websockets
     websockets
     wire-message-proto-lens
-    x509
+    crypton-x509
     zauth
   ];
   testHaskellDepends = [
@@ -220,7 +220,7 @@ mkDerivation {
     bytestring-conversion
     cassava
     containers
-    cryptonite
+    crypton
     currency-codes
     either
     filepath

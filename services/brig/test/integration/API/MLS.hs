@@ -28,7 +28,6 @@ import Data.Id
 import Data.Qualified
 import Data.Set qualified as Set
 import Data.Timeout
-import Debug.Trace (traceM)
 import Federation.Util
 import Imports
 import System.IO.Temp
@@ -161,7 +160,6 @@ testKeyPackageSelfClaim brig = do
 
 testKeyPackageRemoteClaim :: Opts -> Brig -> Http ()
 testKeyPackageRemoteClaim opts brig = do
-  traceM "sun"
   u <- fakeRemoteUser
 
   u' <- userQualifiedId <$> randomUser brig
@@ -179,7 +177,6 @@ testKeyPackageRemoteClaim opts brig = do
             keyPackage = KeyPackageData . raw $ r
           }
   let mockBundle = KeyPackageBundle (Set.fromList entries)
-  traceM "gun"
   (bundle :: KeyPackageBundle, _reqs) <-
     liftIO . withTempMockFederator opts (Aeson.encode mockBundle) $
       responseJsonError
@@ -191,7 +188,6 @@ testKeyPackageRemoteClaim opts brig = do
           <!! const 200 === statusCode
 
   liftIO $ bundle @?= mockBundle
-  traceM "fun"
 
 --------------------------------------------------------------------------------
 

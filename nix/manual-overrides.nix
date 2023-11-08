@@ -1,4 +1,4 @@
-{ libsodium, protobuf, hlib, mls-test-cli, fetchpatch }:
+{ libsodium, protobuf, hlib, mls-test-cli, fetchpatch, pkgs }:
 # FUTUREWORK: Figure out a way to detect if some of these packages are not
 # actually marked broken, so we can cleanup this file on every nixpkgs bump.
 hself: hsuper: {
@@ -42,6 +42,11 @@ hself: hsuper: {
 
   http2-manager = hlib.enableCabalFlag hsuper.http2-manager "-f-test-trailing-dot";
 
+  crypton-connection = hlib.markUnbroken hsuper.crypton-connection;
+  # Patched dependency on crypton-connection
+  HaskellNet-SSL = hlib.markUnbroken hsuper.HaskellNet-SSL;
+  warp = hlib.dontCheck hsuper.warp;
+
   # PR with fix: https://github.com/freckle/hspec-junit-formatter/pull/23
   hspec-junit-formatter = hlib.markUnbroken (hlib.dontCheck hsuper.hspec-junit-formatter);
 
@@ -56,6 +61,8 @@ hself: hsuper: {
   # Explicitly enable haddock because cabal2nix disables it for packages with
   # internal libraries
   cql-io = hlib.doHaddock (hlib.dontCheck hsuper.cql-io);
+  connection = null;
+  amqp = hlib.dontCheck hsuper.amqp;
 
   # Needs network access to running ES
   # also the test suite doesn't compile https://github.com/NixOS/nixpkgs/pull/167957
@@ -84,7 +91,7 @@ hself: hsuper: {
   hoogle = hlib.justStaticExecutables hsuper.hoogle;
 
   # Postie has been fixed upstream (master)
-  postie = hlib.markUnbroken (hlib.doJailbreak hsuper.postie);
+  # postie = hlib.markUnbroken (hlib.doJailbreak hsuper.postie);
 
   # This would not be necessary if we could pull revision -r1 from 0.2.2.3
   kind-generics-th = hlib.doJailbreak hsuper.kind-generics-th;
