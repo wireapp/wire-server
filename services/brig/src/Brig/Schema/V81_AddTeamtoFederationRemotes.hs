@@ -28,9 +28,10 @@ import Text.RawString.QQ
 
 migration :: Migration
 migration =
-  Migration 81 "Add remote_team to federation_remotes table" $
+  Migration 81 "Add remote_teams and all_teams_allowed to federation_remotes table" $
     schema'
       [r| ALTER TABLE federation_remotes ADD (
-            remote_team uuid
+            all_teams_allowed boolean,
+            remote_teams set<uuid>
           )
      |]

@@ -932,7 +932,8 @@ CREATE TABLE brig_test.password_reset (
 
 CREATE TABLE brig_test.federation_remotes (
     domain text PRIMARY KEY,
-    remote_team uuid,
+    all_teams_allowed boolean,
+    remote_teams set<uuid>,
     search_policy int
 ) WITH bloom_filter_fp_chance = 0.01
     AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
