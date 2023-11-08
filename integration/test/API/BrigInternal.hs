@@ -154,3 +154,25 @@ connectWithRemoteUser userFrom userTo = do
       joinHttpPath ["i", "connections", "connection-update"]
   res <- submit "PUT" (req & addJSONObject body)
   res.status `shouldMatchInt` 200
+
+addFederationRemoteTeam :: (HasCallStack, MakesValue domain, MakesValue remoteDomain, MakesValue team) => domain -> remoteDomain -> team -> App ()
+addFederationRemoteTeam domain remoteDomain team = do
+  d <- asString remoteDomain
+  t <- make team
+  req <- baseRequest domain Brig Unversioned $ joinHttpPath ["i", "federation", "remotes", d, "teams"]
+  res <- submit "POST" (req & addJSONObject ["team_id" .= t])
+  res.status `shouldMatchInt` 200
+
+getFederationRemoteTeams :: (HasCallStack, MakesValue domain, MakesValue remoteDomain) => domain -> remoteDomain -> App Response
+getFederationRemoteTeams domain remoteDomain = do
+  d <- asString remoteDomain
+  req <- baseRequest domain Brig Unversioned $ joinHttpPath ["i", "federation", "remotes", d, "teams"]
+  submit "GET" req
+
+deleteFederationRemoteTeam :: (HasCallStack, MakesValue domain, MakesValue remoteDomain, MakesValue team) => domain -> remoteDomain -> team -> App ()
+deleteFederationRemoteTeam domain remoteDomain team = do
+  d <- asString remoteDomain
+  t <- asString team
+  req <- baseRequest domain Brig Unversioned $ joinHttpPath ["i", "federation", "remotes", d, "teams", t]
+  res <- submit "DELETE" req
+  res.status `shouldMatchInt` 200

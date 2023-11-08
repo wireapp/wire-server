@@ -20,12 +20,14 @@ module Wire.API.Routes.FederationDomainConfig
     FederationDomainConfigs (..),
     defFederationDomainConfigs,
     FederationStrategy (..),
+    FederationRemoteTeam (..),
   )
 where
 
 import Control.Lens ((?~))
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Domain (Domain)
+import Data.Id
 import Data.OpenApi qualified as S
 import Data.Schema
 import GHC.Generics
@@ -98,3 +100,16 @@ instance ToSchema FederationStrategy where
           element "allowAll" AllowAll,
           element "allowDynamic" AllowDynamic
         ]
+
+newtype FederationRemoteTeam = FederationRemoteTeam
+  { teamId :: TeamId
+  }
+  deriving (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema FederationRemoteTeam
+  deriving (Arbitrary) via (GenericUniform FederationRemoteTeam)
+
+instance ToSchema FederationRemoteTeam where
+  schema =
+    object "FederationRemoteTeam" $
+      FederationRemoteTeam
+        <$> teamId .= field "team_id" schema

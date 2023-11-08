@@ -175,3 +175,42 @@ testRemoteUserSearchExactHandle = do
       case docs of
         [] -> assertFailure "Expected a non empty result, but got an empty one"
         doc : _ -> objQid doc `shouldMatch` objQid u2
+
+testCrudFederationRemoteTeams :: HasCallStack => App ()
+testCrudFederationRemoteTeams = do
+  (_, tid, _) <- createTeam OwnDomain 1
+  (_, tid2, _) <- createTeam OwnDomain 1
+  let rd = "some-remote-domain.wire.com"
+  bindResponse (BrigI.getFederationRemoteTeams OwnDomain rd) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    checkAbsence resp [tid, tid2]
+  BrigI.addFederationRemoteTeam OwnDomain rd tid
+  bindResponse (BrigI.getFederationRemoteTeams OwnDomain rd) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    checkPresence resp [tid]
+    checkAbsence resp [tid2]
+  BrigI.addFederationRemoteTeam OwnDomain rd tid2
+  bindResponse (BrigI.getFederationRemoteTeams OwnDomain rd) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    checkPresence resp [tid, tid2]
+  BrigI.deleteFederationRemoteTeam OwnDomain rd tid
+  bindResponse (BrigI.getFederationRemoteTeams OwnDomain rd) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    checkPresence resp [tid2]
+    checkAbsence resp [tid]
+  BrigI.deleteFederationRemoteTeam OwnDomain rd tid2
+  bindResponse (BrigI.getFederationRemoteTeams OwnDomain rd) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    checkAbsence resp [tid, tid2]
+  where
+    checkAbsence :: Response -> [String] -> App ()
+    checkAbsence resp tids = do
+      l <- resp.json & asList
+      remoteTeams <- forM l (\e -> e %. "team_id" & asString)
+      when (any (\t -> t `elem` remoteTeams) tids) $ assertFailure "Expected response to not contain any of the teams"
+
+    checkPresence :: Response -> [String] -> App ()
+    checkPresence resp tids = do
+      l <- resp.json & asList
+      remoteTeams <- forM l (\e -> e %. "team_id" & asString)
+      when (any (\t -> t `notElem` remoteTeams) tids) $ assertFailure "Expected response to contain all of the teams"

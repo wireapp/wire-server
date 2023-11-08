@@ -20,6 +20,9 @@ module Brig.Data.Federation
     addFederationRemote,
     updateFederationRemote,
     deleteFederationRemote,
+    addFederationRemoteTeam,
+    getFederationRemoteTeams,
+    deleteFederationRemoteTeam,
     AddFederationRemoteResult (..),
   )
 where
@@ -29,6 +32,7 @@ import Cassandra
 import Control.Exception (ErrorCall (ErrorCall))
 import Control.Monad.Catch (throwM)
 import Data.Domain
+import Data.Id
 import Database.CQL.Protocol (SerialConsistency (LocalSerialConsistency), serialConsistency)
 import Imports
 import Wire.API.Routes.FederationDomainConfig
@@ -74,3 +78,24 @@ deleteFederationRemote rdom =
   where
     delete :: PrepQuery W (Identity Domain) ()
     delete = "DELETE FROM federation_remotes WHERE domain = ?"
+
+addFederationRemoteTeam :: MonadClient m => Domain -> FederationRemoteTeam -> m ()
+addFederationRemoteTeam rdom rteam =
+  retry x1 $ write add (params LocalQuorum (rdom, rteam.teamId))
+  where
+    add :: PrepQuery W (Domain, TeamId) ()
+    add = "INSERT INTO federation_remote_teams (domain, team) VALUES (?, ?)"
+
+getFederationRemoteTeams :: MonadClient m => Domain -> m [FederationRemoteTeam]
+getFederationRemoteTeams rdom = do
+  fmap (FederationRemoteTeam . runIdentity) <$> retry x1 (query get (params LocalQuorum (Identity rdom)))
+  where
+    get :: PrepQuery R (Identity Domain) (Identity TeamId)
+    get = "SELECT team FROM federation_remote_teams WHERE domain = ?"
+
+deleteFederationRemoteTeam :: MonadClient m => Domain -> TeamId -> m ()
+deleteFederationRemoteTeam rdom rteam =
+  retry x1 $ write delete (params LocalQuorum (rdom, rteam))
+  where
+    delete :: PrepQuery W (Domain, TeamId) ()
+    delete = "DELETE FROM federation_remote_teams WHERE domain = ? AND team = ?"

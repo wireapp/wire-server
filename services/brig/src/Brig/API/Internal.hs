@@ -219,6 +219,21 @@ federationRemotesAPI =
   Named @"add-federation-remotes" addFederationRemote
     :<|> Named @"get-federation-remotes" getFederationRemotes
     :<|> Named @"update-federation-remotes" updateFederationRemote
+    :<|> Named @"add-federation-remote-team" addFederationRemoteTeam
+    :<|> Named @"get-federation-remote-teams" getFederationRemoteTeams
+    :<|> Named @"delete-federation-remote-team" deleteFederationRemoteTeam
+
+deleteFederationRemoteTeam :: Domain -> TeamId -> (Handler r) ()
+deleteFederationRemoteTeam domain teamId =
+  lift . wrapClient $ Data.deleteFederationRemoteTeam domain teamId
+
+getFederationRemoteTeams :: Domain -> (Handler r) [FederationRemoteTeam]
+getFederationRemoteTeams domain =
+  lift . wrapClient $ Data.getFederationRemoteTeams domain
+
+addFederationRemoteTeam :: Domain -> FederationRemoteTeam -> (Handler r) ()
+addFederationRemoteTeam domain rt =
+  lift . wrapClient $ Data.addFederationRemoteTeam domain rt
 
 addFederationRemote :: FederationDomainConfig -> ExceptT Brig.API.Error.Error (AppT r) ()
 addFederationRemote fedDomConf = do
