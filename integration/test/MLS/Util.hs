@@ -571,7 +571,7 @@ consumeMessageWithPredicate p cid mmp ws = do
     shouldMatch (event %. "data") (B8.unpack (Base64.encode mp.message))
 
   msgData <- event %. "data" & asByteString
-  _ <- consumeMessage1 cid msgData
+  _ <- mlsCliConsume cid msgData
   showMessage cid msgData
 
 -- | Get a single MLS message from a websocket and consume it. Return a JSON
