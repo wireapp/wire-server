@@ -43,4 +43,20 @@ spec:
              - "9042"
              - --cassandra-keyspace-brig
              - brig
+             # TODO: This is odd because we also need to talk to brig db
+             {{- if (include "useTlsCertSpar" .)  }}
+             - --use-tls
+             - --tls-certificate-file /certs/spar/ca.pem
+             {{- end }}
+          {{- if (include "useTlsCertSpar" .) }}
+          volumeMounts:
+            - name: spar-cassandra-cert
+              mountPath: "/certs/spar"
+          {{- end }}
+      {{- if (include "useTlsCertSpar" .) }}
+      volumes:
+        - name: spar-cassandra-cert
+          secret:
+            secretName: spar-cassandra-cert
+      {{- end }}
 {{- end }}

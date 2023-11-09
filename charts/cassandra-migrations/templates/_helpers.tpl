@@ -107,6 +107,62 @@ Thus the order of priority is:
 {{- end -}}
 {{- end -}}
 
+{{- define "useTlsCertGalley" -}}
+{{ $cassandraGalley := default dict .Values.cassandraGalley }}
+{{- or .Values.cassandra.tlsCert $cassandraGalley.tlsCert -}}
+{{- end -}}
+
+{{- define "tlsCertGalley" -}}
+{{ $cassandraGalley := default dict .Values.cassandraGalley }}
+{{- if .Values.cassandra.tlsCert -}}
+{{ .Values.cassandra.tlsCert }}
+{{- else -}}
+{{ $cassandraGalley.tlsCert }}
+{{- end -}}
+{{- end -}}
+
+{{- define "useTlsCertBrig" -}}
+{{ $cassandraBrig := default dict .Values.cassandraBrig }}
+{{- or .Values.cassandra.tlsCert $cassandraBrig.tlsCert -}}
+{{- end -}}
+
+{{- define "tlsCertBrig" -}}
+{{ $cassandraBrig := default dict .Values.cassandraBrig }}
+{{- if .Values.cassandra.tlsCert -}}
+{{ .Values.cassandra.tlsCert }}
+{{- else -}}
+{{ $cassandraBrig.tlsCert }}
+{{- end -}}
+{{- end -}}
+
+{{- define "useTlsCertSpar" -}}
+{{ $cassandraSpar := default dict .Values.cassandraSpar }}
+{{- or .Values.cassandra.tlsCert $cassandraSpar.tlsCert -}}
+{{- end -}}
+
+{{- define "tlsCertSpar" -}}
+{{ $cassandraSpar := default dict .Values.cassandraSpar }}
+{{- if .Values.cassandra.tlsCert -}}
+{{ .Values.cassandra.tlsCert }}
+{{- else -}}
+{{ $cassandraSpar.tlsCert }}
+{{- end -}}
+{{- end -}}
+
+{{- define "useTlsCertGundeck" -}}
+{{ $cassandraGundeck := default dict .Values.cassandraGundeck }}
+{{- or .Values.cassandra.tlsCert $cassandraGundeck.tlsCert -}}
+{{- end -}}
+
+{{- define "tlsCertGundeck" -}}
+{{ $cassandraGundeck := default dict .Values.cassandraGundeck }}
+{{- if .Values.cassandra.tlsCert -}}
+{{ .Values.cassandra.tlsCert }}
+{{- else -}}
+{{ $cassandraGundeck.tlsCert }}
+{{- end -}}
+{{- end -}}
+
 {{/* Allow KubeVersion to be overridden. */}}
 {{- define "kubeVersion" -}}
   {{- default .Capabilities.KubeVersion.Version .Values.kubeVersionOverride -}}

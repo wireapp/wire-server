@@ -9,7 +9,7 @@ metadata:
     heritage: {{ .Release.Service }}
   annotations:
     "helm.sh/hook": pre-install,pre-upgrade
-    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-weight": "1"
     "helm.sh/hook-delete-policy": "before-hook-creation"
 spec:
   template:
@@ -19,9 +19,30 @@ spec:
         release: {{ .Release.Name }}
     spec:
       restartPolicy: OnFailure
-      # specifying cassandra-migrations as initContainers executes them sequentially, rather than in parallel
+            # specifying cassandra-migrations as initContainers executes them sequentially, rather than in parallel
       # to avoid 'Column family ID mismatch' / schema disagreements
       # see https://stackoverflow.com/questions/29030661/creating-new-table-with-cqlsh-on-existing-keyspace-column-family-id-mismatch#40325651 for details.
+      volumes:
+        {{- if (include "useTlsCertGundeck" .) }}
+        - name: gundeck-cassandra-cert
+          secret:
+            secretName: gundeck-cassandra-cert
+        {{- end }}
+        {{- if (include "useTlsCertBrig" .) }}
+        - name: brig-cassandra-cert
+          secret:
+            secretName: brig-cassandra-cert
+        {{- end }}
+        {{- if (include "useTlsCertGalley" .) }}
+        - name: galley-cassandra-cert
+          secret:
+            secretName: galley-cassandra-cert
+        {{- end }}
+        {{- if (include "useTlsCertSpar" .) }}
+        - name: spar-cassandra-cert
+          secret:
+            secretName: spar-cassandra-cert
+        {{- end }}
       initContainers:
         {{- if .Values.enableGundeckMigrations }}
         - name: gundeck-schema
@@ -41,6 +62,17 @@ spec:
             - gundeck
             - {{ template "cassandraGundeckReplicationType" . }}
             - "{{ template "cassandraGundeckReplicationArg" . }}"
+            {{- if (include "useTlsCertGundeck" .) }}
+            - --use-tls
+            - --tls-certificate-file
+            - /certs/gundeck/ca.pem
+            {{- end }}
+
+          {{- if (include "useTlsCertGundeck" .) }}
+          volumeMounts:
+            - name: gundeck-cassandra-cert
+              mountPath: "/certs/gundeck"
+          {{- end }}
         {{- end }}
 
         {{- if .Values.enableBrigMigrations }}
@@ -61,6 +93,17 @@ spec:
             - brig
             - {{ template "cassandraBrigReplicationType" . }}
             - "{{ template "cassandraBrigReplicationArg" . }}"
+            {{- if (include "useTlsCertBrig" .) }}
+            - --use-tls
+            - --tls-certificate-file
+            - /certs/brig/ca.pem
+            {{- end }}
+
+          {{- if (include "useTlsCertBrig" .) }}
+          volumeMounts:
+            - name: brig-cassandra-cert
+              mountPath: "/certs/brig"
+          {{- end }}
         {{- end }}
 
         {{- if .Values.enableGalleyMigrations }}
@@ -81,6 +124,17 @@ spec:
             - galley
             - {{ template "cassandraGalleyReplicationType" . }}
             - "{{ template "cassandraGalleyReplicationArg" . }}"
+            {{- if (include "useTlsCertGalley" .) }}
+            - --use-tls
+            - --tls-certificate-file
+            - /certs/galley/ca.pem
+            {{- end }}
+
+          {{- if (include "useTlsCertGalley" .) }}
+          volumeMounts:
+            - name: galley-cassandra-cert
+              mountPath: "/certs/galley"
+          {{- end }}
         {{- end }}
 
         {{- if .Values.enableSparMigrations }}
@@ -101,7 +155,18 @@ spec:
             - spar
             - {{ template "cassandraSparReplicationType" . }}
             - "{{ template "cassandraSparReplicationArg" . }}"
-        {{- end }}
+             {{- if (include "useTlsCertSpar" .) }}
+            - --use-tls
+            - --tls-certificate-file
+            - /certs/spar/ca.pem
+            {{- end }}
+
+          {{- if (include "useTlsCertSpar" .) }}
+          volumeMounts:
+            - name: spar-cassandra-cert
+              mountPath: "/certs/spar"
+          {{- end }}
+       {{- end }}
 
       containers:
         - name: job-done
