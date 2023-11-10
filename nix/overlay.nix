@@ -50,7 +50,7 @@ let
     };
 
   sources = import ./sources.nix;
-  pkgsCargo = import sources.nixpkgs-cargo {};
+  pkgsCargo = import sources.nixpkgs-cargo { };
 in
 
 self: super: {
@@ -68,11 +68,20 @@ self: super: {
     zauth = {
       name = "zauth";
       src = ../services/nginz/third_party/nginx-zauth-module;
-      inputs = [ self.pkg-config self.zauth ];
+      inputs = [ self.pkg-config self.zauth.lib ];
+      meta = {
+        license = [ self.lib.licenses.agpl3Only ];
+      };
     };
   };
 
-  nginz = super.nginx.override {
+  nginz = (super.nginx.overrideAttrs rec {
+    version = "1.22.1";
+    src = super.fetchurl {
+      url = "https://nginx.org/download/nginx-${version}.tar.gz";
+      hash = "sha256-nrszOp6CuVKs0+K0rrHU/2QG9ySRurbNn+afDepzfzE=";
+    };
+  }).override {
     modules = [
       self.nginxModules.vts
       self.nginxModules.moreheaders

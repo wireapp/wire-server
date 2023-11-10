@@ -14,7 +14,7 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-module Galley.Schema.V89_RemoveMemberClient
+module Galley.Schema.V89_MlsLockStatus
   ( migration,
   )
 where
@@ -23,11 +23,11 @@ import Cassandra.Schema
 import Imports
 import Text.RawString.QQ
 
--- | This migration exists because the table could have some rogue data in it
--- before MLS Draft-17 was implemented. It was not supposed to be used, but it
--- could've been. This migration just deletes old data. This could break some
--- conversations/users in unknown ways. But those are most likely test users.
 migration :: Migration
-migration = Migration 88 "Remove member_client" $ do
-  schema'
-    [r|DROP TABLE IF EXISTS member_client|]
+migration =
+  Migration 89 "Add lock status for MLSConfig" $
+    schema'
+      [r| ALTER TABLE team_features ADD (
+            mls_lock_status int
+        )
+     |]

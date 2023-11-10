@@ -56,4 +56,5 @@
   rabbitmq-consumer = hself.callPackage ../tools/rabbitmq-consumer/default.nix { inherit gitignoreSource; };
   rex = hself.callPackage ../tools/rex/default.nix { inherit gitignoreSource; };
   stern = hself.callPackage ../tools/stern/default.nix { inherit gitignoreSource; };
+  test-stats = hself.callPackage ../tools/test-stats/default.nix { inherit gitignoreSource; };
 }

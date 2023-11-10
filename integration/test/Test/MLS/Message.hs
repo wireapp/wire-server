@@ -45,15 +45,15 @@ testApplicationMessage = do
   withWebSockets [alice, alex, bob, betty] $ \wss -> do
     -- alice adds all other users (including her own client)
     void $ createAddCommit alice1 [alice, alex, bob, betty] >>= sendAndConsumeCommitBundle
-    traverse_ (awaitMatch 10 isMemberJoinNotif) wss
+    traverse_ (awaitMatch isMemberJoinNotif) wss
 
     -- alex sends a message
     void $ createApplicationMessage alex1 "hello" >>= sendAndConsumeMessage
-    traverse_ (awaitMatch 10 isNewMLSMessageNotif) wss
+    traverse_ (awaitMatch isNewMLSMessageNotif) wss
 
     -- bob sends a message
     void $ createApplicationMessage bob1 "hey" >>= sendAndConsumeMessage
-    traverse_ (awaitMatch 10 isNewMLSMessageNotif) wss
+    traverse_ (awaitMatch isNewMLSMessageNotif) wss
 
 testAppMessageSomeReachable :: HasCallStack => App ()
 testAppMessageSomeReachable = do
@@ -67,7 +67,7 @@ testAppMessageSomeReachable = do
     void $ createNewGroup alice1
     void $ withWebSocket charlie $ \ws -> do
       void $ createAddCommit alice1 [bob, charlie] >>= sendAndConsumeCommitBundle
-      awaitMatch 10 isMemberJoinNotif ws
+      awaitMatch isMemberJoinNotif ws
     pure alice1
 
   -- charlie isn't able to receive this message, so we make sure we can post it
@@ -88,7 +88,7 @@ testMessageNotifications bobDomain = do
 
   void $ withWebSocket bob $ \ws -> do
     void $ createAddCommit alice1 [alice, bob] >>= sendAndConsumeCommitBundle
-    awaitMatch 10 isMemberJoinNotif ws
+    awaitMatch isMemberJoinNotif ws
 
   let get (opts :: GetNotifications) = do
         notifs <- getNotifications bob opts {size = Just 10000} >>= getJSON 200
@@ -100,7 +100,24 @@ testMessageNotifications bobDomain = do
 
   void $ withWebSocket bob $ \ws -> do
     void $ createApplicationMessage alice1 "hi bob" >>= sendAndConsumeMessage
-    awaitMatch 10 isNewMLSMessageNotif ws
+    awaitMatch isNewMLSMessageNotif ws
 
   get def `shouldMatchInt` (numNotifs + 1)
   get def {client = Just bobClient} `shouldMatchInt` (numNotifsClient + 1)
+
+testMultipleMessages :: HasCallStack => App ()
+testMultipleMessages = do
+  [alice, bob] <- createAndConnectUsers [OwnDomain, OtherDomain]
+  [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
+  traverse_ uploadNewKeyPackage [alice1, bob1]
+  void $ createNewGroup alice1
+
+  withWebSockets [bob] $ \wss -> do
+    void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
+    traverse_ (awaitMatch isMemberJoinNotif) wss
+
+    void $ createApplicationMessage alice1 "hello" >>= sendAndConsumeMessage
+    traverse_ (awaitMatch isNewMLSMessageNotif) wss
+
+    void $ createApplicationMessage alice1 "world" >>= sendAndConsumeMessage
+    traverse_ (awaitMatch isNewMLSMessageNotif) wss

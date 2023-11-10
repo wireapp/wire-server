@@ -55,6 +55,7 @@ packages:
   , tools/rex/
   , tools/stern/
   , tools/mlsstats/
+  , tools/test-stats/
 
 tests: True
 benchmarks: True
@@ -113,6 +114,8 @@ package metrics-wai
     ghc-options: -Werror
 package migrate-sso-feature-flag
     ghc-options: -Werror
+package mlsstats
+    ghc-options: -Werror
 package move-team
     ghc-options: -Werror
 package polysemy-wire-zoo
@@ -143,6 +146,8 @@ package stern
     ghc-options: -Werror
 package tasty-cannon
     ghc-options: -Werror
+package test-stats
+    ghc-options: -Werror
 package types-common
     ghc-options: -Werror
 package types-common-aws
@@ -158,4 +163,6 @@ package wire-api-federation
 package wire-message-proto-lens
     ghc-options: -Werror
 package zauth
+    ghc-options: -Werror
+package fedcalls
     ghc-options: -Werror

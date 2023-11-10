@@ -145,7 +145,7 @@ validateOptions o = do
     (Nothing, Just _) -> error "RabbitMQ config is specified and federator is not, please specify both or none"
     (Just _, Nothing) -> error "Federator is specified and RabbitMQ config is not, please specify both or none"
     _ -> pure ()
-  let mlsFlag = settings' ^. featureFlags . Teams.flagMLS . Teams.unDefaults . Teams.unImplicitLockStatus
+  let mlsFlag = settings' ^. featureFlags . Teams.flagMLS . Teams.unDefaults
       mlsConfig = wsConfig mlsFlag
       migrationStatus = wsStatus $ settings' ^. featureFlags . Teams.flagMlsMigration . Teams.unDefaults
   when (migrationStatus == FeatureStatusEnabled && ProtocolMLSTag `notElem` mlsSupportedProtocols mlsConfig) $

@@ -38,7 +38,7 @@ testAddUsersSomeReachable = do
     void $ createNewGroup alice1
     void $ withWebSocket bob $ \ws -> do
       void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
-      awaitMatch 10 isMemberJoinNotif ws
+      awaitMatch isMemberJoinNotif ws
     mp <- createAddCommit alice1 [charlie]
     pure (mp, thirdDomain)
 
@@ -48,31 +48,45 @@ testAddUsersSomeReachable = do
     (resp.json %. "unreachable_backends" & asList) `shouldMatch` [d]
 
 -- There is analogous counterpart for Proteus in the 'Test.Conversation' module.
-testAddReachableWithUnreachableRemoteUsers :: HasCallStack => App ()
-testAddReachableWithUnreachableRemoteUsers = do
+testAddUserWithUnreachableRemoteUsers :: HasCallStack => App ()
+testAddUserWithUnreachableRemoteUsers = do
   resourcePool <- asks resourcePool
   runCodensity (acquireResources 1 resourcePool) $ \[cDom] -> do
-    (alice1, bob) <- runCodensity (startDynamicBackend cDom mempty) $ \_ -> do
-      ownDomain <- make OwnDomain & asString
-      [alice, charlie] <- createAndConnectUsers [ownDomain, cDom.berDomain]
-
-      [alice1, charlie1] <- traverse (createMLSClient def) [alice, charlie]
-      void $ uploadNewKeyPackage charlie1
+    (alice1, bob, brad, chris) <- runCodensity (startDynamicBackend cDom mempty) $ \_ -> do
+      [own, other] <- forM [OwnDomain, OtherDomain] $ asString . make
+      [alice, bob, brad, charlie, chris] <-
+        createAndConnectUsers [own, other, other, cDom.berDomain, cDom.berDomain]
+      [alice1, charlie1, chris1] <-
+        traverse (createMLSClient def) [alice, charlie, chris]
+      traverse_ uploadNewKeyPackage [charlie1, chris1]
       void $ createNewGroup alice1
       void $ withWebSocket charlie $ \ws -> do
         void $ createAddCommit alice1 [charlie] >>= sendAndConsumeCommitBundle
-        awaitMatch 10 isMemberJoinNotif ws
-      otherDomain <- make OtherDomain & asString
-      bob <- randomUser otherDomain def
-      forM_ [alice, charlie] $ connectTwoUsers bob
-      pure (alice1, bob)
+        awaitMatch isMemberJoinNotif ws
+      pure (alice1, bob, brad, chris)
 
-    bob1 <- createMLSClient def bob
-    void $ uploadNewKeyPackage bob1
-    mp <- createAddCommit alice1 [bob]
-    bindResponse (postMLSCommitBundle mp.sender (mkBundle mp)) $ \resp -> do
-      resp.status `shouldMatchInt` 533
-      resp.jsonBody %. "unreachable_backends" `shouldMatchSet` [cDom.berDomain]
+    [bob1, brad1] <- traverse (createMLSClient def) [bob, brad]
+    traverse_ uploadNewKeyPackage [bob1, brad1]
+
+    do
+      mp <- createAddCommit alice1 [bob]
+      bindResponse (postMLSCommitBundle mp.sender (mkBundle mp)) $ \resp -> do
+        resp.status `shouldMatchInt` 533
+        resp.jsonBody %. "unreachable_backends" `shouldMatchSet` [cDom.berDomain]
+
+      runCodensity (startDynamicBackend cDom mempty) $ \_ ->
+        void $ postMLSCommitBundle mp.sender (mkBundle mp) >>= getBody 201
+
+    do
+      mp <- createAddCommit alice1 [brad]
+      void $ postMLSCommitBundle mp.sender (mkBundle mp) >>= getBody 201
+
+    do
+      mp <- runCodensity (startDynamicBackend cDom mempty) $ \_ ->
+        createAddCommit alice1 [chris]
+      bindResponse (postMLSCommitBundle mp.sender (mkBundle mp)) $ \resp -> do
+        resp.status `shouldMatchInt` 533
+        resp.jsonBody %. "unreachable_backends" `shouldMatchSet` [cDom.berDomain]
 
 testAddUnreachableUserFromFederatingBackend :: HasCallStack => App ()
 testAddUnreachableUserFromFederatingBackend = do
@@ -89,7 +103,7 @@ testAddUnreachableUserFromFederatingBackend = do
       void $ createNewGroup alice1
       withWebSockets [bob, charlie] $ \wss -> do
         void $ createAddCommit alice1 [bob, charlie] >>= sendAndConsumeCommitBundle
-        forM_ wss $ awaitMatch 5 isMemberJoinNotif
+        forM_ wss $ awaitMatch isMemberJoinNotif
       createAddCommit alice1 [chad]
 
     bindResponse (postMLSCommitBundle mp.sender (mkBundle mp)) $ \resp -> do

@@ -17,6 +17,9 @@
 
 module Wire.API.Routes.Internal.Brig
   ( API,
+    BrigInternalClient,
+    brigInternalClient,
+    runBrigInternalClient,
     IStatusAPI,
     EJPD_API,
     AccountAPI,
@@ -48,10 +51,16 @@ import Data.OpenApi (HasInfo (info), HasTitle (title), OpenApi)
 import Data.OpenApi qualified as S
 import Data.Qualified (Qualified)
 import Data.Schema hiding (swaggerDoc)
+import Data.Text qualified as Text
+import GHC.TypeLits
 import Imports hiding (head)
+import Network.HTTP.Client qualified as HTTP
 import Servant hiding (Handler, WithStatus, addHeader, respond)
+import Servant.Client qualified as Servant
+import Servant.Client.Core qualified as Servant
 import Servant.OpenApi (HasOpenApi (toOpenApi))
 import Servant.OpenApi.Internal.Orphans ()
+import Util.Options
 import Wire.API.Connection
 import Wire.API.Deprecated
 import Wire.API.Error
@@ -763,3 +772,15 @@ swaggerDoc :: OpenApi
 swaggerDoc =
   toOpenApi (Proxy @API)
     & info . title .~ "Wire-Server internal brig API"
+
+newtype BrigInternalClient a = BrigInternalClient (Servant.ClientM a)
+  deriving newtype (Functor, Applicative, Monad, Servant.RunClient)
+
+brigInternalClient :: forall (name :: Symbol) endpoint. (HasEndpoint API endpoint name, Servant.HasClient BrigInternalClient endpoint) => Servant.Client BrigInternalClient endpoint
+brigInternalClient = namedClient @API @name @BrigInternalClient
+
+runBrigInternalClient :: HTTP.Manager -> Endpoint -> BrigInternalClient a -> IO (Either Servant.ClientError a)
+runBrigInternalClient httpMgr (Endpoint brigHost brigPort) (BrigInternalClient action) = do
+  let baseUrl = Servant.BaseUrl Servant.Http (Text.unpack brigHost) (fromIntegral brigPort) ""
+      clientEnv = Servant.ClientEnv httpMgr baseUrl Nothing Servant.defaultMakeClientRequest
+  Servant.runClientM action clientEnv

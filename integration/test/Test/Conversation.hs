@@ -280,29 +280,37 @@ testConvWithUnreachableRemoteUsers = do
   regConvs <- filterM (\c -> (==) <$> (c %. "type" & asInt) <*> pure 0) convs
   regConvs `shouldMatch` ([] :: [Value])
 
-testAddReachableWithUnreachableRemoteUsers :: HasCallStack => App ()
-testAddReachableWithUnreachableRemoteUsers = do
-  ([alex, bob], conv, domains) <-
-    startDynamicBackends [def, def] $ \domains -> do
-      own <- make OwnDomain & asString
-      other <- make OtherDomain & asString
-      [alice, alex, bob, charlie, dylan] <- createUsers $ [own, own, other] <> domains
-      forM_ [alex, bob, charlie, dylan] $ connectTwoUsers alice
+testAddUserWithUnreachableRemoteUsers :: HasCallStack => App ()
+testAddUserWithUnreachableRemoteUsers = do
+  resourcePool <- asks resourcePool
+  own <- make OwnDomain & asString
+  other <- make OtherDomain & asString
+  runCodensity (acquireResources 1 resourcePool) $ \[cDom] -> do
+    ([alex, bobId, bradId, chrisId], conv) <- runCodensity (startDynamicBackend cDom mempty) $ \_ -> do
+      [alice, alex, bob, brad, charlie, chris] <-
+        createAndConnectUsers [own, own, other, other, cDom.berDomain, cDom.berDomain]
 
-      let newConv = defProteus {qualifiedUsers = [alex, charlie, dylan]}
+      let newConv = defProteus {qualifiedUsers = [alex, charlie]}
       conv <- postConversation alice newConv >>= getJSON 201
-      connectTwoUsers alex bob
-      pure ([alex, bob], conv, domains)
+      [bobId, bradId, chrisId] <- forM [bob, brad, chris] (%. "qualified_id")
+      pure ([alex, bobId, bradId, chrisId], conv)
 
-  bobId <- bob %. "qualified_id"
-  bindResponse (addMembers alex conv def {users = [bobId]}) $ \resp -> do
-    -- This test is updated to reflect the changes in `performConversationJoin`
-    -- `performConversationJoin` now does a full check between all federation members
-    -- that will be in the conversation when adding users to a conversation. This is
-    -- to ensure that users from domains that aren't federating are not directly
-    -- connected to each other.
-    resp.status `shouldMatchInt` 533
-    resp.jsonBody %. "unreachable_backends" `shouldMatchSet` domains
+    bindResponse (addMembers alex conv def {users = [bobId]}) $ \resp -> do
+      resp.status `shouldMatchInt` 533
+      resp.jsonBody %. "unreachable_backends" `shouldMatchSet` [cDom.berDomain]
+
+    runCodensity (startDynamicBackend cDom mempty) $ \_ ->
+      void $ addMembers alex conv def {users = [bobId]} >>= getBody 200
+
+    -- even though backend C is unreachable, we know B/OtherDomain and C
+    -- federate because Bob joined when C was reachable, hence it is OK to add
+    -- brad from B to the conversation.
+    void $ addMembers alex conv def {users = [bradId]} >>= getBody 200
+
+    -- assert an unreachable user cannot be added
+    bindResponse (addMembers alex conv def {users = [chrisId]}) $ \resp -> do
+      resp.status `shouldMatchInt` 533
+      resp.jsonBody %. "unreachable_backends" `shouldMatchSet` [cDom.berDomain]
 
 testAddUnreachableUserFromFederatingBackend :: HasCallStack => App ()
 testAddUnreachableUserFromFederatingBackend = do
@@ -318,7 +326,7 @@ testAddUnreachableUserFromFederatingBackend = do
         conv <-
           postConversation alice (defProteus {qualifiedUsers = [bob, charlie]})
             >>= getJSON 201
-        forM_ wss $ awaitMatch 5 isMemberJoinNotif
+        forM_ wss $ awaitMatch isMemberJoinNotif
         pure conv
       chadId <- chad %. "qualified_id"
       pure (alice, chadId, conv)
@@ -497,10 +505,10 @@ testSynchroniseUserRemovalNotification = do
     bindResponse (removeMember alice conv charlie) $ \resp ->
       resp.status `shouldMatchInt` 200
     runCodensity (startDynamicBackend dynBackend mempty) $ \_ -> do
-      nameNotif <- awaitNotification charlie client noValue 2 isConvNameChangeNotif
+      nameNotif <- awaitNotification charlie client noValue isConvNameChangeNotif
       nameNotif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
       nameNotif %. "payload.0.data.name" `shouldMatch` newConvName
-      leaveNotif <- awaitNotification charlie client noValue 2 isConvLeaveNotif
+      leaveNotif <- awaitNotification charlie client noValue isConvLeaveNotif
       leaveNotif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
 
 testConvRenaming :: HasCallStack => App ()
@@ -513,7 +521,7 @@ testConvRenaming = do
   withWebSockets [alice, bob] $ \wss -> do
     for_ wss $ \ws -> do
       void $ changeConversationName alice conv newConvName >>= getBody 200
-      nameNotif <- awaitMatch 10 isConvNameChangeNotif ws
+      nameNotif <- awaitMatch isConvNameChangeNotif ws
       nameNotif %. "payload.0.data.name" `shouldMatch` newConvName
       nameNotif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
 
@@ -526,7 +534,7 @@ testReceiptModeWithRemotesOk = do
   withWebSockets [alice, bob] $ \wss -> do
     void $ updateReceiptMode alice conv (43 :: Int) >>= getBody 200
     for_ wss $ \ws -> do
-      notif <- awaitMatch 10 isReceiptModeUpdateNotif ws
+      notif <- awaitMatch isReceiptModeUpdateNotif ws
       notif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
       notif %. "payload.0.qualified_from" `shouldMatch` objQidObject alice
       notif %. "payload.0.data.receipt_mode" `shouldMatchInt` 43
@@ -542,7 +550,7 @@ testReceiptModeWithRemotesUnreachable = do
       >>= getJSON 201
   withWebSocket alice $ \ws -> do
     void $ updateReceiptMode alice conv (43 :: Int) >>= getBody 200
-    notif <- awaitMatch 10 isReceiptModeUpdateNotif ws
+    notif <- awaitMatch isReceiptModeUpdateNotif ws
     notif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
     notif %. "payload.0.qualified_from" `shouldMatch` objQidObject alice
     notif %. "payload.0.data.receipt_mode" `shouldMatchInt` 43
@@ -600,7 +608,7 @@ testDeleteRemoteMemberRemoteUnreachable = do
   void $ withWebSockets [alice, bob] $ \wss -> do
     void $ removeMember alice conv bob >>= getBody 200
     for wss $ \ws -> do
-      leaveNotif <- awaitMatch 10 isConvLeaveNotif ws
+      leaveNotif <- awaitMatch isConvLeaveNotif ws
       leaveNotif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
       leaveNotif %. "payload.0.qualified_from" `shouldMatch` objQidObject alice
       leaveNotif %. "payload.0.data.qualified_user_ids.0" `shouldMatch` objQidObject bob
@@ -621,7 +629,7 @@ testDeleteTeamConversationWithRemoteMembers = do
   void $ withWebSockets [alice, bob] $ \wss -> do
     void $ deleteTeamConversation team conv alice >>= getBody 200
     for wss $ \ws -> do
-      notif <- awaitMatch 10 isConvDeleteNotif ws
+      notif <- awaitMatch isConvDeleteNotif ws
       notif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
       notif %. "payload.0.qualified_from" `shouldMatch` objQidObject alice
 
@@ -646,10 +654,10 @@ testDeleteTeamConversationWithUnreachableRemoteMembers = do
       pure (bob, bobClient)
     withWebSocket alice $ \ws -> do
       void $ deleteTeamConversation team conv alice >>= getBody 200
-      notif <- awaitMatch 10 isConvDeleteNotif ws
+      notif <- awaitMatch isConvDeleteNotif ws
       assertNotification notif
     void $ runCodensity (startDynamicBackend dynBackend mempty) $ \_ -> do
-      notif <- awaitNotification bob bobClient noValue 2 isConvDeleteNotif
+      notif <- awaitNotification bob bobClient noValue isConvDeleteNotif
       assertNotification notif
 
 testLeaveConversationSuccess :: HasCallStack => App ()
@@ -697,7 +705,7 @@ testOnUserDeletedConversations = do
 
     void $ withWebSocket alex $ \ws -> do
       void $ deleteUser bob >>= getBody 200
-      n <- awaitMatch 10 isConvLeaveNotif ws
+      n <- awaitMatch isConvLeaveNotif ws
       n %. "payload.0.qualified_from" `shouldMatch` bobId
       n %. "payload.0.qualified_conversation" `shouldMatch` (mainConvBefore %. "qualified_id")
 
@@ -724,7 +732,7 @@ testUpdateConversationByRemoteAdmin = do
   void $ updateRole alice bob "wire_admin" (conv %. "qualified_id") >>= getBody 200
   void $ withWebSockets [alice, bob, charlie] $ \wss -> do
     void $ updateReceiptMode bob conv (41 :: Int) >>= getBody 200
-    for_ wss $ \ws -> awaitMatch 10 isReceiptModeUpdateNotif ws
+    for_ wss $ \ws -> awaitMatch isReceiptModeUpdateNotif ws
 
 testGuestCreatesConversation :: HasCallStack => App ()
 testGuestCreatesConversation = do

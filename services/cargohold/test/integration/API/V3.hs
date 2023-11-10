@@ -57,7 +57,7 @@ testSimpleRoundtrip = do
   mapM_ simpleRoundtrip sets
   where
     simpleRoundtrip sets = do
-      uid <- liftIO $ Id <$> nextRandom
+      uid <- randomUser
       uid2 <- liftIO $ Id <$> nextRandom
       -- Initial upload
       let bdy = (applicationText, "Hello World")

@@ -119,10 +119,12 @@ library
     , resourcet              >=1.1
     , retry                  >=0.5
     , servant
+    , servant-client
     , servant-server
     , text                   >=1.1
     , time                   >=1.4
     , tinylog                >=0.10
+    , transformers
     , transitive-anns
     , types-common           >=0.16
     , types-common-aws
@@ -286,6 +288,7 @@ executable cargohold-integration
     , mmorph
     , mtl
     , optparse-applicative
+    , safe
     , servant-client
     , tagged                 >=0.8
     , tasty                  >=1.0

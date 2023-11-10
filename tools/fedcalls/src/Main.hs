@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -24,14 +25,13 @@ where
 
 import Control.Exception (assert)
 import Control.Lens
-import Data.HashMap.Strict.InsOrd qualified as HM
-import Data.HashSet.InsOrd (InsOrdHashSet)
+import Control.Monad.State (evalState)
+import Data.Data (Proxy (Proxy))
 import Data.Map qualified as M
-import Data.OpenApi
-import Data.OpenApi.Lens qualified as S
-import Data.Text qualified as T
 import Imports
 import Language.Dot as D
+import Servant.API
+import Wire.API.MakesFederatedCall (Calls (..), FedCallFrom' (..), HasFeds (..))
 import Wire.API.Routes.API
 import Wire.API.Routes.Internal.Brig qualified as BrigIRoutes
 import Wire.API.Routes.Public.Brig
@@ -53,29 +53,25 @@ main = do
 calls :: [MakesCallTo]
 calls = assert (calls' == nub calls') calls'
   where
-    calls' = mconcat $ parse <$> swaggers
+    calls' = parse $ Proxy @Swaggers
 
-swaggers :: [OpenApi]
-swaggers =
-  [ -- TODO: introduce allSwaggerDocs in wire-api that collects these for all
-    -- services, use that in /services/brig/src/Brig/API/Public.hs instead of
-    -- doing it by hand.
+type Swaggers =
+  -- TODO: introduce allSwaggerApis in wire-api that collects these for all
+  -- services, use that in /services/brig/src/Brig/API/Public.hs instead of
+  -- doing it by hand.
+  SpecialisedAPIRoutes 'V5 BrigAPITag
+    :<|> SpecialisedAPIRoutes 'V5 CannonAPITag
+    :<|> SpecialisedAPIRoutes 'V5 CargoholdAPITag
+    :<|> SpecialisedAPIRoutes 'V5 GalleyAPITag
+    :<|> SpecialisedAPIRoutes 'V5 GundeckAPITag
+    :<|> SpecialisedAPIRoutes 'V5 ProxyAPITag
+    :<|> SpecialisedAPIRoutes 'V5 SparAPITag
+    -- TODO: collect all internal apis somewhere else (brig?)
+    :<|> BrigIRoutes.API
 
-    serviceSwagger @BrigAPITag @'V5,
-    serviceSwagger @CannonAPITag @'V5,
-    serviceSwagger @CargoholdAPITag @'V5,
-    serviceSwagger @GalleyAPITag @'V5,
-    serviceSwagger @GundeckAPITag @'V5,
-    serviceSwagger @ProxyAPITag @'V5,
-    serviceSwagger @SparAPITag @'V5,
-    -- TODO: collect all internal apis somewhere else (brig?), and expose them
-    -- via an internal swagger api end-point.
-
-    BrigIRoutes.swaggerDoc
-    -- CannonIRoutes.swaggerDoc,
-    -- CargoholdIRoutes.swaggerDoc,
-    -- LegalHoldIRoutes.swaggerDoc
-  ]
+-- :<|> CannonIRoutes.API
+-- :<|> CargoholdIRoutes.API
+-- :<|> LegalHoldIRoutes.API
 
 ------------------------------
 
@@ -91,63 +87,27 @@ data MakesCallTo = MakesCallTo
 
 ------------------------------
 
-parse :: OpenApi -> [MakesCallTo]
-parse oapi =
-  mconcat
-    . fmap (parseOperationExtensions allTags)
-    . mconcat
-    . fmap flattenPathItems
-    . HM.toList
-    $ oapi ^. S.paths
-  where
-    allTags = oapi ^. S.tags
+fromFedCall :: FedCallFrom' Identity -> [MakesCallTo]
+fromFedCall FedCallFrom {..} = do
+  (comp, names) <- M.assocs $ unCalls fedCalls
+  MakesCallTo
+    (runIdentity name)
+    (runIdentity method)
+    comp
+    <$> names
 
--- Simple aliases to help track which field is what
-type RPC = String
+filterCalls :: FedCallFrom' Maybe -> Maybe (FedCallFrom' Identity)
+filterCalls fedCall =
+  FedCallFrom
+    <$> fmap pure (name fedCall)
+    <*> fmap pure (method fedCall)
+    <*> pure (fedCalls fedCall)
 
-type Component = String
-
--- | extract path, method, and operation extensions
-flattenPathItems :: (FilePath, PathItem) -> [((FilePath, String), InsOrdHashSet TagName)]
-flattenPathItems (path, item) =
-  filter ((/= mempty) . snd) $
-    catMaybes
-      [ ((path, "get"),) . view S.tags <$> _pathItemGet item,
-        ((path, "put"),) . view S.tags <$> _pathItemPut item,
-        ((path, "post"),) . view S.tags <$> _pathItemPost item,
-        ((path, "delete"),) . view S.tags <$> _pathItemDelete item,
-        ((path, "options"),) . view S.tags <$> _pathItemOptions item,
-        ((path, "head"),) . view S.tags <$> _pathItemHead item,
-        ((path, "patch"),) . view S.tags <$> _pathItemPatch item
-      ]
-
-parseOperationExtensions :: InsOrdHashSet Tag -> ((FilePath, String), InsOrdHashSet TagName) -> [MakesCallTo]
-parseOperationExtensions allTags ((path, method), hm) =
-  uncurry (MakesCallTo path method) <$> findCallsFedInfo allTags hm
-
--- Given a set of tags, and a set of tag names for an operation,
--- parse out the RPC calls and their components
-findCallsFedInfo :: InsOrdHashSet Tag -> InsOrdHashSet TagName -> [(Component, RPC)]
-findCallsFedInfo allTags = mapMaybe extractStrings . toList
-  where
-    magicPrefix :: Text
-    magicPrefix = "wire-makes-federated-call-to-"
-    extractStrings :: TagName -> Maybe (Component, RPC)
-    extractStrings tagName =
-      tag >>= \t ->
-        (,)
-          -- Extract the name and description, and drop everything that is empty
-          -- This gives us the component name, and as a route may call the same component
-          -- multiple times, it has to go into the description so it isn't dropped by the set.
-          <$> fmap T.unpack t._tagDescription
-          -- Strip off the magic string from the tag names, and drop empty results
-          -- This also implicitly filters for results that start with the prefix.
-          -- This gives us the RPC name, as that will be unique for each route, and it
-          -- doesn't matter if it is set multiple times and dropped in the set, as it
-          -- still describes that Fed call is made.
-          <*> fmap T.unpack (T.stripPrefix magicPrefix t._tagName)
-      where
-        tag = find (\t -> t._tagName == tagName) allTags
+parse :: HasFeds api => Proxy api -> [MakesCallTo]
+parse p = do
+  fedCallM <- evalState (getFedCalls p) mempty
+  fedCallI <- maybeToList $ filterCalls fedCallM
+  fromFedCall fedCallI
 
 ------------------------------
 

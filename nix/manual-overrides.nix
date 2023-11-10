@@ -2,9 +2,9 @@
 # FUTUREWORK: Figure out a way to detect if some of these packages are not
 # actually marked broken, so we can cleanup this file on every nixpkgs bump.
 hself: hsuper: {
-  aeson = (hlib.doJailbreak hsuper.aeson_2_1_2_1);
   binary-parsers = hlib.markUnbroken (hlib.doJailbreak hsuper.binary-parsers);
   bytestring-arbitrary = hlib.markUnbroken (hlib.doJailbreak hsuper.bytestring-arbitrary);
+  bytestring-conversion = hlib.markUnbroken (hsuper.bytestring-conversion);
   openapi3 = hlib.markUnbroken (hlib.dontCheck hsuper.openapi3);
   cql = hlib.appendPatch (hlib.markUnbroken hsuper.cql) (fetchpatch {
     url = "https://gitlab.com/twittner/cql/-/merge_requests/11.patch";
@@ -13,22 +13,34 @@ hself: hsuper: {
   hashtables = hsuper.hashtables_1_3;
   invertible = hlib.markUnbroken hsuper.invertible;
   lens-datetime = hlib.markUnbroken (hlib.doJailbreak hsuper.lens-datetime);
+  monoidal-containers = hlib.doJailbreak hsuper.monoidal-containers;
   network-arbitrary = hlib.markUnbroken (hlib.doJailbreak hsuper.network-arbitrary);
   one-liner = hlib.doJailbreak hsuper.one-liner;
+  linear-generics = hsuper.linear-generics_0_2_2;
   polysemy = hlib.doJailbreak hsuper.polysemy;
   polysemy-check = hlib.markUnbroken (hlib.doJailbreak hsuper.polysemy-check);
   polysemy-plugin = hlib.doJailbreak hsuper.polysemy-plugin;
   quickcheck-state-machine = hlib.dontCheck hsuper.quickcheck-state-machine;
+  servant = hlib.doJailbreak hsuper.servant;
+  servant-client = hlib.doJailbreak hsuper.servant-client;
+  servant-client-core = hlib.doJailbreak hsuper.servant-client-core;
   servant-foreign = hlib.doJailbreak hsuper.servant-foreign;
   servant-multipart = hlib.doJailbreak hsuper.servant-multipart;
   servant-swagger-ui = hlib.doJailbreak hsuper.servant-swagger-ui;
   servant-swagger-ui-core = hlib.doJailbreak hsuper.servant-swagger-ui-core;
+  singletons-th = hlib.doJailbreak hsuper.singletons-th;
+  singletons-base = hlib.dontCheck (hlib.doJailbreak hsuper.singletons-base);
   sodium-crypto-sign = hlib.addPkgconfigDepend hsuper.sodium-crypto-sign libsodium.dev;
   text-icu-translit = hlib.markUnbroken (hlib.dontCheck hsuper.text-icu-translit);
   text-short = hlib.dontCheck hsuper.text-short;
+  template = hlib.markUnbroken hsuper.template;
   type-errors = hlib.dontCheck hsuper.type-errors;
+  th-abstraction = hsuper.th-abstraction_0_5_0_0;
+  th-desugar = hlib.doJailbreak hsuper.th-desugar;
   wai-middleware-prometheus = hlib.doJailbreak hsuper.wai-middleware-prometheus;
   wai-predicates = hlib.markUnbroken hsuper.wai-predicates;
+
+  http2-manager = hlib.enableCabalFlag hsuper.http2-manager "-f-test-trailing-dot";
 
   # PR with fix: https://github.com/freckle/hspec-junit-formatter/pull/23
   hspec-junit-formatter = hlib.markUnbroken (hlib.dontCheck hsuper.hspec-junit-formatter);

@@ -155,7 +155,7 @@ createGroupConversation ::
   NewConv ->
   Sem r CreateGroupConversationResponse
 createGroupConversation lusr conn newConv = do
-  let remoteDomains = tDomain <$> snd (partitionQualified lusr $ newConv.newConvQualifiedUsers)
+  let remoteDomains = void <$> snd (partitionQualified lusr $ newConv.newConvQualifiedUsers)
   checkFederationStatus (RemoteDomains $ Set.fromList remoteDomains)
   cnv <-
     createGroupConversationGeneric
@@ -520,7 +520,7 @@ createConnectConversation lusr conn j = do
         NewConversation
           { -- We add only one member, second one gets added later,
             -- when the other user accepts the connection request.
-            ncUsers = ulFromLocals (map (toUserRole . tUnqualified) [lusr]),
+            ncUsers = ulFromLocals ([(toUserRole . tUnqualified) lusr]),
             ncProtocol = BaseProtocolProteusTag,
             ncMetadata = meta
           }

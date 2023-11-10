@@ -1079,7 +1079,7 @@ deleteSelfUser ::
   UserId ->
   Public.DeleteUser ->
   (Handler r) (Maybe Code.Timeout)
-deleteSelfUser u body =
+deleteSelfUser u body = do
   API.deleteSelfUser u (Public.deleteUserPassword body) !>> deleteUserError
 
 verifyDeleteUser :: Public.VerifyDeleteUser -> Handler r ()

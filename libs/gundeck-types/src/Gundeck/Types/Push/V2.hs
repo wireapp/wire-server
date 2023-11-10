@@ -178,16 +178,13 @@ newtype ApsLocKey = ApsLocKey {fromLocKey :: Text}
 
 data ApsPreference
   = ApsStdPreference
-  | ApsVoIPPreference
   deriving (Eq, Show)
 
 instance ToJSON ApsPreference where
-  toJSON ApsVoIPPreference = "voip"
   toJSON ApsStdPreference = "std"
 
 instance FromJSON ApsPreference where
   parseJSON = withText "ApsPreference" $ \case
-    "voip" -> pure ApsVoIPPreference
     "std" -> pure ApsStdPreference
     x -> fail $ "Invalid preference: " ++ show x
 
@@ -312,9 +309,9 @@ instance ToJSON Push where
         # "origin" .= _pushOrigin p
         # "connections" .= ifNot Set.null (_pushConnections p)
         # "origin_connection" .= _pushOriginConnection p
-        # "transient" .= ifNot (== False) (_pushTransient p)
-        # "native_include_origin" .= ifNot (== True) (_pushNativeIncludeOrigin p)
-        # "native_encrypt" .= ifNot (== True) (_pushNativeEncrypt p)
+        # "transient" .= ifNot not (_pushTransient p)
+        # "native_include_origin" .= ifNot id (_pushNativeIncludeOrigin p)
+        # "native_encrypt" .= ifNot id (_pushNativeEncrypt p)
         # "native_aps" .= _pushNativeAps p
         # "native_priority" .= ifNot (== HighPriority) (_pushNativePriority p)
         # "payload" .= _pushPayload p

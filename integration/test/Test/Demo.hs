@@ -185,7 +185,7 @@ testWebSockets = do
   user <- randomUser OwnDomain def
   withWebSocket user $ \ws -> do
     client <- BrigP.addClient user def >>= getJSON 201
-    n <- awaitMatch 3 (\n -> nPayload n %. "type" `isEqual` "user.client-add") ws
+    n <- awaitMatch (\n -> nPayload n %. "type" `isEqual` "user.client-add") ws
     nPayload n %. "client.id" `shouldMatch` (client %. "id")
 
 testMultipleBackends :: App ()

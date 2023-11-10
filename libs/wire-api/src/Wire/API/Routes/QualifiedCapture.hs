@@ -18,6 +18,7 @@
 module Wire.API.Routes.QualifiedCapture
   ( QualifiedCapture,
     QualifiedCapture',
+    WithDomain,
   )
 where
 
