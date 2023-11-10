@@ -75,7 +75,7 @@ mlsDataSchema =
     <$> cnvmlsGroupId
       .= fieldWithDocModifier
         "group_id"
-        (description ?~ "An MLS group identifier (at most 256 bytes long)")
+        (description ?~ "A base64-encoded MLS group ID")
         schema
     <*> cnvmlsEpoch
       .= fieldWithDocModifier
