@@ -11,3 +11,13 @@ storageClassName: hcloud-volumes-encrypted
 # storage, it's fine to request 10GB. The memory units are described here:
 # https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#meaning-of-memory
 storageSize: 10G
+
+#  These options relate to the client_encryption_options described in:
+#  https://cassandra.apache.org/doc/stable/cassandra/configuration/cass_yaml_file.html#client_encryption_options
+client_encryption_options:
+  enabled: false
+  optional: true
+  keystore: "<base64 encoded Java Key Store (JKS)>"
+  keystorePassword: password
+  truststore:  "<base64 encoded Java Key Store (JKS)>"
+  truststorePassword: password

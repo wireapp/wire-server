@@ -26,6 +26,10 @@ spec:
         gc_g1_max_gc_pause_ms: 300
         gc_g1_initiating_heap_occupancy_percent: 55
         gc_g1_parallel_threads: 16
+      cassandraYaml:
+        client_encryption_options:
+          enabled: {{ .Values.client_encryption_options.enabled }}
+          optional: {{ .Values.client_encryption_options.optional }}
     datacenters:
         - metadata:
             name: datacenter-1
@@ -38,6 +42,13 @@ spec:
               resources:
                 requests:
                   storage: {{ .Values.storageSize }}
+  {{- if .Values.client_encryption_options.enabled }}
+    clientEncryptionStores:
+      keystoreSecretRef:
+        name: client-encryption-stores
+      truststoreSecretRef:
+        name: client-encryption-stores
+  {{- end }}
   reaper:
     autoScheduling:
       enabled: true
