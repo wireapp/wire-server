@@ -740,7 +740,7 @@ userEmail = emailIdentity <=< userIdentity
 userPhone :: User -> Maybe Phone
 userPhone = phoneIdentity <=< userIdentity
 
-userSSOId :: User -> Maybe (PartialUAuthId "team")
+userSSOId :: User -> Maybe PartialUAuthId
 userSSOId = uauthIdentity <=< userIdentity
 
 userSCIMExternalId :: User -> Maybe Text
@@ -748,13 +748,13 @@ userSCIMExternalId usr = scimExternalId (userManagedBy usr) =<< userSSOId usr
 
 -- FUTUREWORK: this is only ignoring case in the email format, and emails should be
 -- handled case-insensitively.  https://wearezeta.atlassian.net/browse/SQSERVICES-909
-scimExternalId :: ManagedBy -> PartialUAuthId tf -> Maybe Text
+scimExternalId :: ManagedBy -> PartialUAuthId -> Maybe Text
 scimExternalId _ (UAuthId _ (Just extId) _ _) = Just extId
 scimExternalId ManagedByScim (UAuthId (Just (SAML.UserRef _ nameIdXML)) _ _ _) = Just . CI.original . SAML.unsafeShowNameID $ nameIdXML
 scimExternalId ManagedByWire (UAuthId {}) = Nothing
 scimExternalId _ _ = Nothing
 
-ssoIssuerAndNameId :: PartialUAuthId tf -> Maybe (Text, Text)
+ssoIssuerAndNameId :: PartialUAuthId -> Maybe (Text, Text)
 ssoIssuerAndNameId (UAuthId (Just (SAML.UserRef (SAML.Issuer uri) nameIdXML)) _ _ _) = Just (fromUri uri, fromNameId nameIdXML)
   where
     fromUri = cs . toLazyByteString . serializeURIRef
@@ -764,7 +764,7 @@ ssoIssuerAndNameId (UAuthId {}) = Nothing
 userIssuer :: User -> Maybe SAML.Issuer
 userIssuer user = userSSOId user >>= fromSSOId
   where
-    fromSSOId :: PartialUAuthId tf -> Maybe SAML.Issuer
+    fromSSOId :: PartialUAuthId -> Maybe SAML.Issuer
     fromSSOId (UAuthId (Just (SAML.UserRef issuer _)) _ _ _) = Just issuer
     fromSSOId _ = Nothing
 
@@ -1119,7 +1119,7 @@ data NewUserRaw = NewUserRaw
       Maybe LegacyUserSSOId,
     newUserRawUAuthId ::
       -- NOTE(fisx): This defines a json object under a json field, just like newUserRawSSOId.  no inlining!
-      Maybe (PartialUAuthId "team_id"),
+      Maybe PartialUAuthId,
     newUserRawPict ::
       -- DEPRECATED
       Maybe Pict,
@@ -1324,7 +1324,7 @@ newUserEmail = emailIdentity <=< newUserIdentity
 newUserPhone :: NewUser -> Maybe Phone
 newUserPhone = phoneIdentity <=< newUserIdentity
 
-newUserSSOId :: NewUser -> Maybe (PartialUAuthId "team_id")
+newUserSSOId :: NewUser -> Maybe PartialUAuthId
 newUserSSOId = uauthIdentity <=< newUserIdentity
 
 --------------------------------------------------------------------------------

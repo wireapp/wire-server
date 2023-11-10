@@ -22,7 +22,6 @@ import Data.Proxy
 import Data.Schema
 import Data.Text qualified as Text
 import GHC.Generics
-import GHC.TypeLits
 import Imports
 import SAML2.WebSSO qualified as SAML
 import Servant qualified as SE
@@ -123,7 +122,8 @@ type Konst = Const ()
 
 -- | Collection of user ids for saml sso, scim, and required extra info (email, team id).
 -- Type parameters let caller decide which fields are required (`Identity`) / optional
--- (`Maybe`) / missing and ignored (`Konst`).
+-- (`Maybe`) / missing and ignored (`Konst`).  Team is always required, so no type parameter
+-- necessary.
 --
 -- Read `test/unit/Test/Wire/API/User.hs` to get some intuition of allowed values and
 -- semantics.
@@ -158,23 +158,27 @@ type PartialUAuthId = UAuthId Maybe Maybe Maybe
 -- `ScimOnlyUAuthId = UAuthId Konst Identity Identity`, ...
 type ScimUAuthId = UAuthId Maybe Identity Maybe
 
-partialToScimUAuthId :: PartialUAuthId tf -> Maybe (ScimUAuthId tf)
+partialToScimUAuthId :: PartialUAuthId -> Maybe ScimUAuthId
 partialToScimUAuthId (UAuthId saml (Just eid) eml tid) = Just $ UAuthId saml (Identity eid) eml tid
 partialToScimUAuthId (UAuthId _ Nothing _ _) = Nothing
 
-scimToPartialUAuthId :: ScimUAuthId tf -> PartialUAuthId tf
+scimToPartialUAuthId :: ScimUAuthId -> PartialUAuthId
 scimToPartialUAuthId (UAuthId saml (Identity eid) eml tid) = UAuthId saml (Just eid) eml tid
 
-instance ToSchema (PartialUAuthId tf) where
-  schema =
-    object "PartialUAuthId" $
-      UAuthId
-        <$> uaSamlId .= maybe_ (optField "saml_id" userRefSchema)
-        <*> uaScimExternalId .= maybe_ (optField "scim_external_id" schema)
-        <*> uaEmail .= maybe_ (optField "email" schema)
-        <*> uaTeamId .= field "team" schema
+instance ToSchema PartialUAuthId where
+  schema = withParser scm $ \case
+    UAuthId Nothing Nothing _ _ -> fail "at least one of saml_id, scim_external_id must be present"
+    ok -> pure ok
+    where
+      scm =
+        object "PartialUAuthId" $
+          UAuthId
+            <$> uaSamlId .= maybe_ (optField "saml_id" userRefSchema)
+            <*> uaScimExternalId .= maybe_ (optField "scim_external_id" schema)
+            <*> uaEmail .= maybe_ (optField "email" schema)
+            <*> uaTeamId .= field "team" schema
 
-instance ToSchema (ScimUAuthId tf) where
+instance ToSchema ScimUAuthId where
   schema =
     object "ScimUAuthId" $
       UAuthId
@@ -222,18 +226,18 @@ nameIdSchema = rdr .= parsedText "SAML.NameID" prs
         justTxt :: Text -> Either String SAML.NameID
         justTxt = Right . either (const $ SAML.unspecifiedNameID txt) id . SAML.emailNameID
 
-deriving via (Schema (UAuthId a b c tf)) instance (Typeable a, Typeable b, Typeable c, KnownSymbol tf, ToSchema (UAuthId a b c tf)) => OA.ToSchema (UAuthId a b c tf)
+deriving via (Schema (UAuthId a b c)) instance (Typeable a, Typeable b, Typeable c, ToSchema (UAuthId a b c)) => OA.ToSchema (UAuthId a b c)
 
-deriving via (Schema (UAuthId a b c tf)) instance (ToSchema (UAuthId a b c tf)) => ToJSON (UAuthId a b c tf)
+deriving via (Schema (UAuthId a b c)) instance (ToSchema (UAuthId a b c)) => ToJSON (UAuthId a b c)
 
-deriving via (Schema (UAuthId a b c tf)) instance (ToSchema (UAuthId a b c tf)) => FromJSON (UAuthId a b c tf)
+deriving via (Schema (UAuthId a b c)) instance (ToSchema (UAuthId a b c)) => FromJSON (UAuthId a b c)
 
 deriving via
-  (GenericUniform (UAuthId a b c tf))
+  (GenericUniform (UAuthId a b c))
   instance
     (Arbitrary (a SAML.UserRef), Arbitrary (b Text), Arbitrary (c EmailWithSource)) =>
-    Arbitrary (UAuthId a b c tf)
+    Arbitrary (UAuthId a b c)
 
-deriving stock instance (Eq (a SAML.UserRef), Eq (b Text), Eq (c EmailWithSource), KnownSymbol tf) => Eq (UAuthId a b c tf)
+deriving stock instance (Eq (a SAML.UserRef), Eq (b Text), Eq (c EmailWithSource)) => Eq (UAuthId a b c)
 
-deriving stock instance (Show (a SAML.UserRef), Show (b Text), Show (c EmailWithSource), KnownSymbol tf) => Show (UAuthId a b c tf)
+deriving stock instance (Show (a SAML.UserRef), Show (b Text), Show (c EmailWithSource)) => Show (UAuthId a b c)

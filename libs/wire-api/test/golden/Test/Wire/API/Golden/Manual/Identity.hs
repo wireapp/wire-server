@@ -34,6 +34,7 @@ where
 import Data.Aeson
 import Data.Id
 import Data.Schema
+import GHC.TypeLits
 import Imports
 import SAML2.WebSSO.Types qualified as SAML
 import Web.HttpApiData (parseUrlPiece)
@@ -57,22 +58,22 @@ samplePhone = Phone "+1123123123"
 sampleTeamId :: TeamId
 Right sampleTeamId = parseUrlPiece "579edcd0-6f1b-11ee-b49a-e770ab99392a"
 
-testObject_UAuthId_1 :: PartialUAuthId "team_id"
+testObject_UAuthId_1 :: PartialUAuthId
 testObject_UAuthId_1 = UAuthId Nothing (Just sampleExtId) Nothing sampleTeamId
 
-testObject_UAuthId_2 :: PartialUAuthId "team_id"
+testObject_UAuthId_2 :: PartialUAuthId
 testObject_UAuthId_2 = UAuthId (Just sampleUref) Nothing Nothing sampleTeamId
 
-testObject_UAuthId_3 :: PartialUAuthId "team_id"
+testObject_UAuthId_3 :: PartialUAuthId
 testObject_UAuthId_3 = UAuthId (Just sampleUref) (Just sampleExtId) Nothing sampleTeamId
 
-testObject_UAuthId_4 :: PartialUAuthId "team_id"
+testObject_UAuthId_4 :: PartialUAuthId
 testObject_UAuthId_4 = UAuthId (Just sampleUref) (Just sampleExtId) (Just sampleEmail) sampleTeamId
 
-testObject_UAuthId_5 :: ScimUAuthId "team_id"
+testObject_UAuthId_5 :: ScimUAuthId
 testObject_UAuthId_5 = UAuthId (Just sampleUref) (Identity sampleExtId) (Just sampleEmail) sampleTeamId
 
-testObject_UAuthId_6 :: ScimUAuthId "team_id"
+testObject_UAuthId_6 :: ScimUAuthId
 testObject_UAuthId_6 = UAuthId Nothing (Identity sampleExtId) (Just sampleEmail) sampleTeamId
 
 testObject_UserIdentity_1 :: UserIdentity "team_id"
@@ -88,9 +89,9 @@ testObject_UserIdentity_4 :: UserIdentity "team_id"
 testObject_UserIdentity_4 = UAuthIdentity testObject_UAuthId_4 (Just sampleEmail2)
 
 -- | This type is usually embedded in a bigger record, but this instance is handy for testing.
-instance ToSchema (UserIdentity "team_id") where
-  schema = Data.Schema.object "UserIdentity" (userIdentityObjectSchema @"team_id")
+instance KnownSymbol tf => ToSchema (UserIdentity tf) where
+  schema = Data.Schema.object "UserIdentity" (userIdentityObjectSchema @tf)
 
-deriving via (Schema (UserIdentity "team_id")) instance ToJSON (UserIdentity "team_id")
+deriving via (Schema (UserIdentity tf)) instance KnownSymbol tf => ToJSON (UserIdentity tf)
 
-deriving via (Schema (UserIdentity "team_id")) instance FromJSON (UserIdentity "team_id")
+deriving via (Schema (UserIdentity tf)) instance KnownSymbol tf => FromJSON (UserIdentity tf)

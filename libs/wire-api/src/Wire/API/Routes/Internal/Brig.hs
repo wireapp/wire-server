@@ -380,7 +380,7 @@ type AccountAPI =
            ( "users"
                :> Capture "uid" UserId
                :> "uauthid"
-               :> ReqBody '[Servant.JSON] (PartialUAuthId "team") -- ("team" field is only for migration from LegacyUserSSOId, does not apply here.)
+               :> ReqBody '[Servant.JSON] PartialUAuthId
                :> MultiVerb
                     'PUT
                     '[Servant.JSON]
