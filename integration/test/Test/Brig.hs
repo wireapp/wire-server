@@ -3,6 +3,7 @@ module Test.Brig where
 import API.Brig qualified as BrigP
 import API.BrigInternal qualified as BrigI
 import API.Common (randomName)
+import API.Galley
 import API.Galley qualified as Galley
 import Data.Aeson.Types hiding ((.=))
 import Data.Set qualified as Set
@@ -20,23 +21,41 @@ testSearchContactForExternalUsers = do
   tid <- owner %. "team" & asString
 
   partner <- createTeamMemberWithRole owner tid "partner"
-  teamMember <- createTeamMember owner tid
+  tm1 <- createTeamMember owner tid
+  tm2 <- createTeamMember owner tid
 
-  bindResponse (BrigP.searchContacts teamMember (owner %. "name") OwnDomain) $ \resp ->
+  -- a team member can search for contacts
+  bindResponse (BrigP.searchContacts tm1 (owner %. "name") OwnDomain) $ \resp ->
     resp.status `shouldMatchInt` 200
 
+  -- a partner is not allowed to search for contacts
   bindResponse (BrigP.searchContacts partner (owner %. "name") OwnDomain) $ \resp ->
     resp.status `shouldMatchInt` 403
 
-  bindResponse (Galley.getTeamMembers teamMember tid) $ \resp -> do
-    members <- resp.json %. "members" & asList
-    userIds <- for members (\m -> m %. "user")
-    expected <- for [owner, teamMember, partner] objId
-    userIds `shouldMatchSet` expected
+  -- a team member can see all other team members
+  bindResponse (Galley.getTeamMembers tm1 tid) $ \resp -> do
     resp.status `shouldMatchInt` 200
+    assertContainsUserIds resp [owner, tm1, tm2, partner]
 
+  -- an external partner should see the person who invited them
   bindResponse (Galley.getTeamMembers partner tid) $ \resp -> do
-    resp.status `shouldMatchInt` 403
+    resp.status `shouldMatchInt` 200
+    assertContainsUserIds resp [owner, partner]
+
+  -- the team owner creates a conversation with the partner and another team member
+  void $ postConversation owner (defProteus {qualifiedUsers = [tm1, partner], team = Just tid}) >>= getJSON 201
+
+  -- now the external partner should also see the other team member
+  bindResponse (Galley.getTeamMembers partner tid) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    assertContainsUserIds resp [owner, tm1, partner]
+  where
+    assertContainsUserIds :: Response -> [Value] -> App ()
+    assertContainsUserIds resp users = do
+      members <- resp.json %. "members" & asList
+      userIds <- for members (\m -> m %. "user")
+      expected <- for users objId
+      userIds `shouldMatchSet` expected
 
 testCrudFederationRemotes :: HasCallStack => App ()
 testCrudFederationRemotes = do
