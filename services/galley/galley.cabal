@@ -592,6 +592,7 @@ executable galley-schema
   import:             common-all
   main-is:            Main.hs
   hs-source-dirs:     schema
+  ghc-options:        -threaded
   default-extensions: TemplateHaskell
   build-depends:
     , galley

@@ -534,7 +534,7 @@ executable brig-schema
   import:             common-all
   main-is:            Main.hs
   hs-source-dirs:     schema
-  ghc-options:        -funbox-strict-fields -Wredundant-constraints
+  ghc-options:        -funbox-strict-fields -Wredundant-constraints -threaded
   default-extensions: TemplateHaskell
   build-depends:
     , base
