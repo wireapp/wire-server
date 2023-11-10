@@ -609,6 +609,7 @@ test-suite wire-api-golden-tests
     , pem
     , proto-lens
     , saml2-web-sso
+    , schema-profunctor
     , tasty
     , tasty-hunit
     , text
@@ -672,6 +673,7 @@ test-suite wire-api-tests
     , hspec-wai
     , http-types
     , imports
+    , lens
     , memory
     , metrics-wai
     , openapi3

@@ -29,16 +29,19 @@ import Wire.API.User
     UserIdentity (EmailIdentity, FullIdentity, PhoneIdentity, UAuthIdentity),
   )
 import Wire.API.User.Activation (ActivationResponse (..))
-import Wire.API.User.Identity (EmailSource (..), EmailWithSource (..), UAuthId (..), mkSampleUref)
+import Wire.API.User.Identity (EmailSource (..), EmailWithSource (..), UAuthId (..), mkSimpleSampleUref)
 
 sampleUref :: SAML.UserRef
-sampleUref = mkSampleUref "http://example.com" "it"
+sampleUref = mkSimpleSampleUref
 
 sampleExtId :: Text
-sampleExtId = "it"
+sampleExtId = "me@example.com"
 
 sampleEmail :: EmailWithSource
-sampleEmail = EmailWithSource (Email "it" "example.com") EmailFromScimEmailsField
+sampleEmail = EmailWithSource (Email "me" "example.com") EmailFromScimEmailsField
+
+sampleEmail2 :: Email
+sampleEmail2 = Email "other" "2.example.com"
 
 sampleTeamId :: TeamId
 Right sampleTeamId = parseUrlPiece "579edcd0-6f1b-11ee-b49a-e770ab99392a"
@@ -46,7 +49,7 @@ Right sampleTeamId = parseUrlPiece "579edcd0-6f1b-11ee-b49a-e770ab99392a"
 testObject_ActivationResponse_user_1 :: ActivationResponse
 testObject_ActivationResponse_user_1 =
   ActivationResponse
-    { activatedIdentity = UAuthIdentity (UAuthId (Just sampleUref) Nothing (Just sampleEmail) sampleTeamId),
+    { activatedIdentity = UAuthIdentity (UAuthId (Just sampleUref) Nothing (Just sampleEmail) sampleTeamId) (Just sampleEmail2),
       activatedFirst = False
     }
 
@@ -81,7 +84,7 @@ testObject_ActivationResponse_user_5 =
 testObject_ActivationResponse_user_6 :: ActivationResponse
 testObject_ActivationResponse_user_6 =
   ActivationResponse
-    { activatedIdentity = UAuthIdentity $ UAuthId Nothing (Just sampleExtId) Nothing sampleTeamId,
+    { activatedIdentity = UAuthIdentity (UAuthId Nothing (Just sampleExtId) Nothing sampleTeamId) Nothing,
       activatedFirst = False
     }
 
@@ -131,7 +134,7 @@ testObject_ActivationResponse_user_12 =
 testObject_ActivationResponse_user_14 :: ActivationResponse
 testObject_ActivationResponse_user_14 =
   ActivationResponse
-    { activatedIdentity = UAuthIdentity $ UAuthId (Just sampleUref) (Just sampleExtId) (Just sampleEmail) sampleTeamId,
+    { activatedIdentity = UAuthIdentity (UAuthId Nothing (Just "me") Nothing sampleTeamId) (Just sampleEmail2),
       activatedFirst = False
     }
 

@@ -13,6 +13,8 @@ module Wire.API.User.Types where
 
 import Data.Aeson (FromJSON, ToJSON)
 import Data.ByteString.Conversion
+import Data.CaseInsensitive as CI
+import Data.EitherR (fmapL)
 import Data.Id (TeamId)
 import Data.Kind (Type)
 import Data.OpenApi qualified as OA
@@ -20,10 +22,12 @@ import Data.Proxy
 import Data.Schema
 import Data.Text qualified as Text
 import GHC.Generics
+import GHC.TypeLits
 import Imports
 import SAML2.WebSSO qualified as SAML
 import Servant qualified as SE
 import Test.QuickCheck.Arbitrary (Arbitrary, arbitrary)
+import URI.ByteString
 import Wire.Arbitrary (GenericUniform (..))
 
 --------------------------------------------------------------------------------
@@ -120,6 +124,9 @@ type Konst = Const ()
 -- | Collection of user ids for saml sso, scim, and required extra info (email, team id).
 -- Type parameters let caller decide which fields are required (`Identity`) / optional
 -- (`Maybe`) / missing and ignored (`Konst`).
+--
+-- Read `test/unit/Test/Wire/API/User.hs` to get some intuition of allowed values and
+-- semantics.
 data UAuthId (a :: Type -> Type) (b :: Type -> Type) (c :: Type -> Type) = UAuthId
   { uaSamlId :: a SAML.UserRef,
     uaScimExternalId :: b Text,
@@ -139,34 +146,42 @@ data UAuthId (a :: Type -> Type) (b :: Type -> Type) (c :: Type -> Type) = UAuth
 -- just get them from spar, write them to the database, and later communicate them back to
 -- spar or to team-management or to clients.  In these contexts it's ok to allow any
 -- combination of fields present.
+--
+-- FUTUREWORK: make scim external id mandatory (dropping old discouraged saml-only use cases)
+-- and drop `ScimUAuthId` in favor of `PartialUAuthId`.
 type PartialUAuthId = UAuthId Maybe Maybe Maybe
 
+-- | In large parts of the application logic we know that the scim identity is strictly
+-- required.
+--
+-- FUTUREWORK: we should probably introduce and use more types like `ScimUAuthId`, like
+-- `ScimOnlyUAuthId = UAuthId Konst Identity Identity`, ...
 type ScimUAuthId = UAuthId Maybe Identity Maybe
 
-partialToScimUAuthId :: PartialUAuthId -> Maybe ScimUAuthId
+partialToScimUAuthId :: PartialUAuthId tf -> Maybe (ScimUAuthId tf)
 partialToScimUAuthId (UAuthId saml (Just eid) eml tid) = Just $ UAuthId saml (Identity eid) eml tid
 partialToScimUAuthId (UAuthId _ Nothing _ _) = Nothing
 
-scimToPartialUAuthId :: ScimUAuthId -> PartialUAuthId
+scimToPartialUAuthId :: ScimUAuthId tf -> PartialUAuthId tf
 scimToPartialUAuthId (UAuthId saml (Identity eid) eml tid) = UAuthId saml (Just eid) eml tid
 
-instance ToSchema PartialUAuthId where
+instance ToSchema (PartialUAuthId tf) where
   schema =
     object "PartialUAuthId" $
       UAuthId
-        <$> uaSamlId .= maybe_ (optField "samlId" userRefSchema)
-        <*> uaScimExternalId .= maybe_ (optField "scimExternalId" schema)
+        <$> uaSamlId .= maybe_ (optField "saml_id" userRefSchema)
+        <*> uaScimExternalId .= maybe_ (optField "scim_external_id" schema)
         <*> uaEmail .= maybe_ (optField "email" schema)
-        <*> uaTeamId .= field "teamId" schema
+        <*> uaTeamId .= field "team" schema
 
-instance ToSchema ScimUAuthId where
+instance ToSchema (ScimUAuthId tf) where
   schema =
     object "ScimUAuthId" $
       UAuthId
-        <$> uaSamlId .= maybe_ (optField "samlId" userRefSchema)
-        <*> (runIdentity . uaScimExternalId) .= (Identity <$> field "scimExternalId" schema)
+        <$> uaSamlId .= maybe_ (optField "saml_id" userRefSchema)
+        <*> (runIdentity . uaScimExternalId) .= (Identity <$> field "scim_external_id" schema)
         <*> uaEmail .= maybe_ (optField "email" schema)
-        <*> uaTeamId .= field "teamId" schema
+        <*> uaTeamId .= field "team" schema
 
 userRefSchema :: ValueSchema NamedSwaggerDoc SAML.UserRef
 userRefSchema =
@@ -175,24 +190,50 @@ userRefSchema =
       <$> SAML._uidTenant .= field "tenant" issuerSchema
       <*> SAML._uidSubject .= field "subject" nameIdSchema
 
+-- | FUTUREWORK: partially redundant, see lenientlyParseSAMLIssuer.
 issuerSchema :: ValueSchema NamedSwaggerDoc SAML.Issuer
-issuerSchema = undefined -- schema @Text
+issuerSchema = rdr .= parsedText "SAML.Issuer" prs
+  where
+    rdr :: SAML.Issuer -> Text
+    rdr = cs . SAML.encodeElem
+      where
+        _justTxt :: SAML.Issuer -> Text
+        _justTxt = cs . normalizeURIRef' noNormalization . SAML._fromIssuer
 
+    prs :: Text -> Either String SAML.Issuer
+    prs txt = SAML.decodeElem (cs txt) <|> justTxt txt
+      where
+        justTxt :: Text -> Either String SAML.Issuer
+        justTxt = fmap SAML.Issuer . fmapL show . parseURI laxURIParserOptions . cs
+
+-- | FUTUREWORK: partially redundant, see lenientlyParseSAMLNameID.
 nameIdSchema :: ValueSchema NamedSwaggerDoc SAML.NameID
-nameIdSchema = undefined -- schema @Text
+nameIdSchema = rdr .= parsedText "SAML.NameID" prs
+  where
+    rdr :: SAML.NameID -> Text
+    rdr = cs . SAML.encodeElem
+      where
+        _justTxt :: SAML.NameID -> Text
+        _justTxt = CI.original . SAML.nameIDToST
 
-deriving via (Schema (UAuthId a b c)) instance (Typeable a, Typeable b, Typeable c, ToSchema (UAuthId a b c)) => OA.ToSchema (UAuthId a b c)
+    prs :: Text -> Either String SAML.NameID
+    prs txt = SAML.decodeElem (cs txt) <|> justTxt txt
+      where
+        justTxt :: Text -> Either String SAML.NameID
+        justTxt = Right . either (const $ SAML.unspecifiedNameID txt) id . SAML.emailNameID
 
-deriving via (Schema (UAuthId a b c)) instance (ToSchema (UAuthId a b c)) => ToJSON (UAuthId a b c)
+deriving via (Schema (UAuthId a b c tf)) instance (Typeable a, Typeable b, Typeable c, KnownSymbol tf, ToSchema (UAuthId a b c tf)) => OA.ToSchema (UAuthId a b c tf)
 
-deriving via (Schema (UAuthId a b c)) instance (ToSchema (UAuthId a b c)) => FromJSON (UAuthId a b c)
+deriving via (Schema (UAuthId a b c tf)) instance (ToSchema (UAuthId a b c tf)) => ToJSON (UAuthId a b c tf)
+
+deriving via (Schema (UAuthId a b c tf)) instance (ToSchema (UAuthId a b c tf)) => FromJSON (UAuthId a b c tf)
 
 deriving via
-  (GenericUniform (UAuthId a b c))
+  (GenericUniform (UAuthId a b c tf))
   instance
     (Arbitrary (a SAML.UserRef), Arbitrary (b Text), Arbitrary (c EmailWithSource)) =>
-    Arbitrary (UAuthId a b c)
+    Arbitrary (UAuthId a b c tf)
 
-deriving stock instance (Eq (a SAML.UserRef), Eq (b Text), Eq (c EmailWithSource)) => Eq (UAuthId a b c)
+deriving stock instance (Eq (a SAML.UserRef), Eq (b Text), Eq (c EmailWithSource), KnownSymbol tf) => Eq (UAuthId a b c tf)
 
-deriving stock instance (Show (a SAML.UserRef), Show (b Text), Show (c EmailWithSource)) => Show (UAuthId a b c)
+deriving stock instance (Show (a SAML.UserRef), Show (b Text), Show (c EmailWithSource), KnownSymbol tf) => Show (UAuthId a b c tf)

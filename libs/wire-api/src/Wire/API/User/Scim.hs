@@ -63,6 +63,7 @@ import Data.OpenApi hiding (Operation)
 import Data.Proxy
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Clock (UTCTime)
+import GHC.TypeLits
 import Imports
 import SAML2.WebSSO qualified as SAML
 import SAML2.WebSSO.Test.Arbitrary ()
@@ -319,8 +320,8 @@ instance Scim.Patchable ScimUserExtra where
 -- [here](https://tools.ietf.org/html/rfc7644#section-3.3): "Since the server is free to alter
 -- and/or ignore POSTed content, returning the full representation can be useful to the
 -- client, enabling it to correlate the client's and server's views of the new resource."
-data ValidScimUser = ValidScimUser
-  { _vsuExternalId :: ScimUAuthId,
+data ValidScimUser (tf :: Symbol) = ValidScimUser
+  { _vsuExternalId :: ScimUAuthId tf,
     _vsuHandle :: Handle,
     _vsuName :: BT.Name,
     _vsuRichInfo :: RI.RichInfo,

@@ -1,6 +1,10 @@
-{
-    "first": false,
-    "sso_id": {
-        "scim_external_id": "\u0007n|"
-    }
+ {
+  "first": false,
+  "uauth_id": {
+    "scim_external_id": "me@example.com",
+    "team": "579edcd0-6f1b-11ee-b49a-e770ab99392a"
+  },
+  "sso_id": {
+    "scim_external_id": "me@example.com"
+  }
 }

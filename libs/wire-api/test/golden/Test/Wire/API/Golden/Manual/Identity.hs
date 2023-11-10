@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns -Wno-orphans #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -24,10 +24,16 @@ module Test.Wire.API.Golden.Manual.Identity
     testObject_UAuthId_4,
     testObject_UAuthId_5,
     testObject_UAuthId_6,
+    testObject_UserIdentity_1,
+    testObject_UserIdentity_2,
+    testObject_UserIdentity_3,
+    testObject_UserIdentity_4,
   )
 where
 
+import Data.Aeson
 import Data.Id
+import Data.Schema
 import Imports
 import SAML2.WebSSO.Types qualified as SAML
 import Web.HttpApiData (parseUrlPiece)
@@ -42,23 +48,49 @@ sampleExtId = "it"
 sampleEmail :: EmailWithSource
 sampleEmail = EmailWithSource (Email "it" "example.com") EmailFromScimEmailsField
 
+sampleEmail2 :: Email
+sampleEmail2 = Email "it2" "example.com"
+
+samplePhone :: Phone
+samplePhone = Phone "+1123123123"
+
 sampleTeamId :: TeamId
 Right sampleTeamId = parseUrlPiece "579edcd0-6f1b-11ee-b49a-e770ab99392a"
 
-testObject_UAuthId_1 :: PartialUAuthId
+testObject_UAuthId_1 :: PartialUAuthId "team_id"
 testObject_UAuthId_1 = UAuthId Nothing (Just sampleExtId) Nothing sampleTeamId
 
-testObject_UAuthId_2 :: PartialUAuthId
+testObject_UAuthId_2 :: PartialUAuthId "team_id"
 testObject_UAuthId_2 = UAuthId (Just sampleUref) Nothing Nothing sampleTeamId
 
-testObject_UAuthId_3 :: PartialUAuthId
+testObject_UAuthId_3 :: PartialUAuthId "team_id"
 testObject_UAuthId_3 = UAuthId (Just sampleUref) (Just sampleExtId) Nothing sampleTeamId
 
-testObject_UAuthId_4 :: PartialUAuthId
+testObject_UAuthId_4 :: PartialUAuthId "team_id"
 testObject_UAuthId_4 = UAuthId (Just sampleUref) (Just sampleExtId) (Just sampleEmail) sampleTeamId
 
-testObject_UAuthId_5 :: ScimUAuthId
+testObject_UAuthId_5 :: ScimUAuthId "team_id"
 testObject_UAuthId_5 = UAuthId (Just sampleUref) (Identity sampleExtId) (Just sampleEmail) sampleTeamId
 
-testObject_UAuthId_6 :: ScimUAuthId
+testObject_UAuthId_6 :: ScimUAuthId "team_id"
 testObject_UAuthId_6 = UAuthId Nothing (Identity sampleExtId) (Just sampleEmail) sampleTeamId
+
+testObject_UserIdentity_1 :: UserIdentity "team_id"
+testObject_UserIdentity_1 = EmailIdentity (ewsEmail sampleEmail)
+
+testObject_UserIdentity_2 :: UserIdentity "team_id"
+testObject_UserIdentity_2 = PhoneIdentity samplePhone
+
+testObject_UserIdentity_3 :: UserIdentity "team_id"
+testObject_UserIdentity_3 = FullIdentity (ewsEmail sampleEmail) samplePhone
+
+testObject_UserIdentity_4 :: UserIdentity "team_id"
+testObject_UserIdentity_4 = UAuthIdentity testObject_UAuthId_4 (Just sampleEmail2)
+
+-- | This type is usually embedded in a bigger record, but this instance is handy for testing.
+instance ToSchema (UserIdentity "team_id") where
+  schema = Data.Schema.object "UserIdentity" (userIdentityObjectSchema @"team_id")
+
+deriving via (Schema (UserIdentity "team_id")) instance ToJSON (UserIdentity "team_id")
+
+deriving via (Schema (UserIdentity "team_id")) instance FromJSON (UserIdentity "team_id")

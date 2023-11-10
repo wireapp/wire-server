@@ -143,11 +143,9 @@ testObject_NewUser_user_6 =
   ( emptyNewUser
       (Name {fromName = "test name"})
   )
-    { newUserOrigin = Just (NewUserOriginTeamUser (NewTeamMemberSSO tid)),
-      newUserIdentity = Just (UAuthIdentity (UAuthId (Just mkSimpleSampleUref) Nothing Nothing sampleTeamId))
+    { newUserOrigin = Just (NewUserOriginTeamUser (NewTeamMemberSSO sampleTeamId)),
+      newUserIdentity = Just (UAuthIdentity (UAuthId (Just mkSimpleSampleUref) Nothing Nothing sampleTeamId) Nothing)
     }
-  where
-    tid = Id (fromJust (UUID.fromString "00007b0e-0000-3489-0000-075c00005be7"))
 
 testObject_NewUser_user_7 :: NewUser
 testObject_NewUser_user_7 =

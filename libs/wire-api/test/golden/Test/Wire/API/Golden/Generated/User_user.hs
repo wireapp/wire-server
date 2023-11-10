@@ -160,7 +160,7 @@ testObject_User_user_4 =
             qDomain = Domain {_domainText = "28b.cqb"}
           },
       userIdentity =
-        Just (UAuthIdentity (UAuthId Nothing (Just sampleExtId) (Just sampleEmail) sampleTeamId)),
+        Just (UAuthIdentity (UAuthId Nothing (Just sampleExtId) (Just sampleEmail) sampleTeamId) Nothing),
       userDisplayName =
         Name
           { fromName =
@@ -186,7 +186,7 @@ testObject_User_user_4 =
               }
           ),
       userExpire = Just (fromJust (readUTCTimeMillis "1864-05-09T14:25:26.089Z")),
-      userTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000002"))),
+      userTeam = Just sampleTeamId,
       userManagedBy = ManagedByScim,
       userSupportedProtocols = defSupportedProtocols
     }

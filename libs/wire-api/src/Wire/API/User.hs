@@ -68,6 +68,7 @@ module Wire.API.User
     newUserSSOId,
     isNewUserEphemeral,
     isNewUserTeamMember,
+    patchSampleNewUser,
 
     -- * NewUserOrigin
     NewUserOrigin (..),
@@ -669,7 +670,7 @@ data User = User
     -- | User identity. For endpoints like @/self@, it will be present in the response iff
     -- the user is activated, and the email/phone contained in it will be guaranteedly
     -- verified. {#RefActivation}
-    userIdentity :: Maybe UserIdentity,
+    userIdentity :: Maybe (UserIdentity "team"),
     -- | required; non-unique
     userDisplayName :: Name,
     -- | DEPRECATED
@@ -696,8 +697,8 @@ data User = User
   deriving (Arbitrary) via (GenericUniform User)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema User)
 
--- -- FUTUREWORK:
--- -- disentangle json serializations for 'User', 'NewUser', 'UserIdentity', 'NewUserOrigin'.
+-- FUTUREWORK: disentangle json serializations for 'User', 'NewUser', 'UserIdentity',
+-- 'NewUserOrigin'.
 instance ToSchema User where
   schema = object "User" userObjectSchema
 
@@ -739,21 +740,21 @@ userEmail = emailIdentity <=< userIdentity
 userPhone :: User -> Maybe Phone
 userPhone = phoneIdentity <=< userIdentity
 
-userSSOId :: User -> Maybe PartialUAuthId
-userSSOId = ssoIdentity <=< userIdentity
+userSSOId :: User -> Maybe (PartialUAuthId "team")
+userSSOId = uauthIdentity <=< userIdentity
 
 userSCIMExternalId :: User -> Maybe Text
 userSCIMExternalId usr = scimExternalId (userManagedBy usr) =<< userSSOId usr
 
 -- FUTUREWORK: this is only ignoring case in the email format, and emails should be
 -- handled case-insensitively.  https://wearezeta.atlassian.net/browse/SQSERVICES-909
-scimExternalId :: ManagedBy -> PartialUAuthId -> Maybe Text
+scimExternalId :: ManagedBy -> PartialUAuthId tf -> Maybe Text
 scimExternalId _ (UAuthId _ (Just extId) _ _) = Just extId
 scimExternalId ManagedByScim (UAuthId (Just (SAML.UserRef _ nameIdXML)) _ _ _) = Just . CI.original . SAML.unsafeShowNameID $ nameIdXML
 scimExternalId ManagedByWire (UAuthId {}) = Nothing
 scimExternalId _ _ = Nothing
 
-ssoIssuerAndNameId :: PartialUAuthId -> Maybe (Text, Text)
+ssoIssuerAndNameId :: PartialUAuthId tf -> Maybe (Text, Text)
 ssoIssuerAndNameId (UAuthId (Just (SAML.UserRef (SAML.Issuer uri) nameIdXML)) _ _ _) = Just (fromUri uri, fromNameId nameIdXML)
   where
     fromUri = cs . toLazyByteString . serializeURIRef
@@ -763,7 +764,7 @@ ssoIssuerAndNameId (UAuthId {}) = Nothing
 userIssuer :: User -> Maybe SAML.Issuer
 userIssuer user = userSSOId user >>= fromSSOId
   where
-    fromSSOId :: PartialUAuthId -> Maybe SAML.Issuer
+    fromSSOId :: PartialUAuthId tf -> Maybe SAML.Issuer
     fromSSOId (UAuthId (Just (SAML.UserRef issuer _)) _ _ _) = Just issuer
     fromSSOId _ = Nothing
 
@@ -1047,7 +1048,7 @@ newUserFromSpar new =
   NewUser
     { newUserDisplayName = newUserSparDisplayName new,
       newUserUUID = Just $ newUserSparUUID new,
-      newUserIdentity = Just $ UAuthIdentity $ newUserSparSSOId new,
+      newUserIdentity = Just $ UAuthIdentity (newUserSparSSOId new) Nothing,
       newUserPict = Nothing,
       newUserAssets = [],
       newUserAccentId = Nothing,
@@ -1066,7 +1067,7 @@ data NewUser = NewUser
   { newUserDisplayName :: Name,
     -- | use this as 'UserId' (if 'Nothing', call 'Data.UUID.nextRandom').
     newUserUUID :: Maybe UUID,
-    newUserIdentity :: Maybe UserIdentity,
+    newUserIdentity :: Maybe (UserIdentity "team_id"),
     -- | DEPRECATED
     newUserPict :: Maybe Pict,
     newUserAssets :: [Asset],
@@ -1118,7 +1119,7 @@ data NewUserRaw = NewUserRaw
       Maybe LegacyUserSSOId,
     newUserRawUAuthId ::
       -- NOTE(fisx): This defines a json object under a json field, just like newUserRawSSOId.  no inlining!
-      Maybe PartialUAuthId,
+      Maybe (PartialUAuthId "team_id"),
     newUserRawPict ::
       -- DEPRECATED
       Maybe Pict,
@@ -1196,8 +1197,8 @@ newUserToRaw NewUser {..} =
           newUserRawUUID = newUserUUID,
           newUserRawEmail = emailIdentity =<< newUserIdentity,
           newUserRawPhone = phoneIdentity =<< newUserIdentity,
-          newUserRawSSOId = Nothing, -- `LegacyUserSSOId` was migrated away during construction of `NewUser`.
-          newUserRawUAuthId = ssoIdentity =<< newUserIdentity,
+          newUserRawSSOId = legacySsoIdentity =<< newUserIdentity,
+          newUserRawUAuthId = uauthIdentity =<< newUserIdentity,
           newUserRawPict = newUserPict,
           newUserRawAssets = newUserAssets,
           newUserRawAccentId = newUserAccentId,
@@ -1223,15 +1224,19 @@ newUserFromRaw NewUserRaw {..} = do
         (isJust newUserRawPassword)
         (isJust newUserRawSSOId)
         (newUserRawInvitationCode, newUserRawTeamCode, newUserRawTeam, newUserRawTeamId)
-  let identity =
-        maybeUserIdentityFromComponents
-          ( newUserRawEmail,
-            newUserRawPhone,
-            newUserRawUAuthId,
-            newUserRawSSOId,
-            newUserRawTeamId,
-            fromMaybe ManagedByWire newUserRawManagedBy
-          )
+  identity <-
+    let hdl = \case
+          UserIdentityFromComponentsNoFields -> pure Nothing
+          other -> fail (show other)
+     in either hdl (pure . Just) $
+          eUserIdentityFromComponents
+            ( newUserRawEmail,
+              newUserRawPhone,
+              newUserRawUAuthId,
+              newUserRawSSOId,
+              newUserRawTeamId,
+              newUserRawManagedBy
+            )
   expiresIn <-
     case (newUserRawExpiresIn, identity) of
       (Just _, Just _) -> fail "Only users without an identity can expire"
@@ -1297,6 +1302,12 @@ instance Arbitrary NewUser where
       genUserExpiresIn newUserIdentity =
         if isJust newUserIdentity then pure Nothing else arbitrary
 
+-- | Sanitize output from quickcheck-generator so the result can always be parsed
+-- successfully.  This is only for testing!  The result does not always make sense in the
+-- application logic.
+patchSampleNewUser :: NewUser -> NewUser
+patchSampleNewUser = undefined
+
 newUserInvitationCode :: NewUser -> Maybe InvitationCode
 newUserInvitationCode nu = case newUserOrigin nu of
   Just (NewUserOriginInvitationCode ic) -> Just ic
@@ -1313,8 +1324,8 @@ newUserEmail = emailIdentity <=< newUserIdentity
 newUserPhone :: NewUser -> Maybe Phone
 newUserPhone = phoneIdentity <=< newUserIdentity
 
-newUserSSOId :: NewUser -> Maybe PartialUAuthId
-newUserSSOId = ssoIdentity <=< newUserIdentity
+newUserSSOId :: NewUser -> Maybe (PartialUAuthId "team_id")
+newUserSSOId = uauthIdentity <=< newUserIdentity
 
 --------------------------------------------------------------------------------
 -- NewUserOrigin

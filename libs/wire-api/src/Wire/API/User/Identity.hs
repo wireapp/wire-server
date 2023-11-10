@@ -25,10 +25,15 @@ module Wire.API.User.Identity
     newIdentity,
     emailIdentity,
     phoneIdentity,
-    ssoIdentity,
+    uauthIdentity,
+    legacySsoIdentity,
     userIdentityObjectSchema,
     maybeUserIdentityObjectSchema,
-    maybeUserIdentityFromComponents,
+    eUserIdentityObjectSchema,
+    eUserIdentityFromComponents,
+    eUserIdentityToComponents,
+    UserIdentityComponents,
+    UserIdentityFromComponentsParseErrors (..),
     LegacyUserSSOId (..),
 
     -- * Email
@@ -79,6 +84,7 @@ import Data.Schema
 import Data.Text qualified as Text
 import Data.Text.Encoding (decodeUtf8', encodeUtf8)
 import Data.Time.Clock
+import GHC.TypeLits
 import Imports
 import SAML2.WebSSO.Test.Arbitrary ()
 import SAML2.WebSSO.Types qualified as SAML
@@ -100,108 +106,139 @@ import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
 -- | The private unique user identity that is used for login and
 -- account recovery.
-data UserIdentity
+-- See `UAuthId` docs for an explanation of the phantom type parameter.
+data UserIdentity (tf :: Symbol)
   = FullIdentity Email Phone
   | EmailIdentity Email
   | PhoneIdentity Phone
-  | UAuthIdentity PartialUAuthId -- email is already represented in this type; phone is not supported for saml/scim users.
+  | UAuthIdentity (PartialUAuthId tf) (Maybe Email {- from `brig.user.email`, which may differ from the email address inside UAuthId -})
   deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform UserIdentity)
+  deriving (Arbitrary) via (GenericUniform (UserIdentity tf))
 
-userIdentityObjectSchema :: ObjectSchema SwaggerDoc UserIdentity
-userIdentityObjectSchema =
-  Just .= withParser maybeUserIdentityObjectSchema (maybe (fail "Missing 'email' or 'phone' or 'sso_id'.") pure)
-
-maybeUserIdentityObjectSchema :: ObjectSchema SwaggerDoc (Maybe UserIdentity)
-maybeUserIdentityObjectSchema =
-  dimap maybeUserIdentityToComponents maybeUserIdentityFromComponents userIdentityComponentsObjectSchema
-
--- | The unparsed data as retrieved from cassandra.  See
--- `rawCassandraUserIdentityObjectSchema`, `maybeUserIdentityFromComponents`,
+-- | The unparsed data as retrieved from cassandra or json.  See source code and
+-- `userIdentityComponentsObjectSchema`, `maybeUserIdentityFromComponents`,
 -- `maybeUserIdentityToComponents` below.
-type UserIdentityComponents =
-  (Maybe Email, Maybe Phone, Maybe PartialUAuthId, Maybe LegacyUserSSOId, Maybe TeamId, ManagedBy)
+userIdentityObjectSchema :: forall tf. KnownSymbol tf => ObjectSchema SwaggerDoc (UserIdentity tf)
+userIdentityObjectSchema =
+  Right .= withParser (eUserIdentityObjectSchema @tf) (either (fail . show) pure)
+
+eUserIdentityObjectSchema :: forall tf. KnownSymbol tf => ObjectSchema SwaggerDoc (Either UserIdentityFromComponentsParseErrors (UserIdentity tf))
+eUserIdentityObjectSchema =
+  dimap eUserIdentityToComponents eUserIdentityFromComponents (userIdentityComponentsObjectSchema @tf)
+
+maybeUserIdentityObjectSchema :: forall tf. KnownSymbol tf => ObjectSchema SwaggerDoc (Maybe (UserIdentity tf))
+maybeUserIdentityObjectSchema =
+  dimap (maybeUserIdentityToComponents @tf) (maybeUserIdentityFromComponents @tf) (userIdentityComponentsObjectSchema @tf)
+
+-- See `UAuthId` docs for an explanation of the phantom type parameter.
+type UserIdentityComponents (tf :: Symbol) =
+  ( -- email from `brig.user.email`
+    Maybe Email,
+    -- phone from `brig.user.phone`
+    Maybe Phone,
+    -- user identifying data from spar
+    Maybe (PartialUAuthId tf),
+    -- user auth info from spar (legacy)
+    Maybe LegacyUserSSOId,
+    -- `TeamId`, `ManagedBy` are needed for migration from `LegacyUserSSOId` to
+    -- `PartialUAuthId`.  When parsing, eg., `User` json values, these are duplicated from the
+    -- fields also in that record.  During rendering, they will be ignored (because we always
+    -- have a UAuthId at that point: parsed `UserIdentity` values always contain the migrated
+    -- `UAuthId` value).  `UserIdentityComponents` values constructed from `UAuthId` values
+    -- will always be 'Nothing'.
+    Maybe TeamId,
+    Maybe ManagedBy
+  )
 
 userIdentityComponentsObjectSchema :: ObjectSchema SwaggerDoc UserIdentityComponents
 userIdentityComponentsObjectSchema =
   (,,,,,)
     <$> (\(a, _, _, _, _, _) -> a) .= maybe_ (optField "email" schema)
     <*> (\(_, a, _, _, _, _) -> a) .= maybe_ (optField "phone" schema)
-    <*> (\(_, _, a, _, _, _) -> a) .= maybe_ (optField "uauth_id" genericToSchema)
+    <*> (\(_, _, a, _, _, _) -> a) .= maybe_ (optField "uauth_id" (genericToSchema @(PartialUAuthId tf)))
     <*> (\(_, _, _, a, _, _) -> a) .= maybe_ (optField "sso_id" genericToSchema)
-    <*> (\(_, _, _, _, a, _) -> a) .= maybe_ (optField "team_id" genericToSchema)
-    <*> (\(_, _, _, _, _, a) -> a) .= field "team_id" genericToSchema
+    <*> (\(_, _, _, _, a, _) -> a) .= maybe_ (optField (cs $ symbolVal (Proxy @tf)) genericToSchema)
+    <*> (\(_, _, _, _, _, a) -> a) .= maybe_ (optField "managed_by" genericToSchema)
 
 data UserIdentityFromComponentsParseErrors
   = UserIdentityFromComponentsNoFields
   | UserIdentityFromComponentsNoPhoneAllowedForUAuthId
   | UserIdentityFromComponentsUAuthIdWithoutTeam
   | UserIdentityFromComponentsUAuthIdTeamMismatch
+  | UserIdentityFromComponentsEmailAndSourceMustComeTogetherForLegacyMigration
   deriving (Eq, Show)
 
-maybeUserIdentityFromComponents :: UserIdentityComponents -> Maybe UserIdentity
-maybeUserIdentityFromComponents = either (const Nothing) Just . eUserIdentityFromComponents
-
-eUserIdentityFromComponents :: UserIdentityComponents -> Either UserIdentityFromComponentsParseErrors UserIdentity
+eUserIdentityFromComponents :: UserIdentityComponents tf -> Either UserIdentityFromComponentsParseErrors (UserIdentity tf)
 eUserIdentityFromComponents = \case
   -- old-school
   (Just eml, Just phn, Nothing, Nothing, _, _) -> Right $ FullIdentity eml phn
   (Just eml, Nothing, Nothing, Nothing, _, _) -> Right $ EmailIdentity eml
   (Nothing, Just phn, Nothing, Nothing, _, _) -> Right $ PhoneIdentity phn
   --
-  -- uauth (sso_id field will be ignored)
-  (_, Just _phn, Just _uauth, _, _, _) -> Left UserIdentityFromComponentsNoPhoneAllowedForUAuthId
-  (_, Just _phn, Nothing, Just _ssoid, _, _) -> Left UserIdentityFromComponentsNoPhoneAllowedForUAuthId
-  (_eml, Nothing, Just uauth, _, mbteamid, _) ->
-    -- `_eml` and `uauth.uaEmail` do not need to match: the email address in the first part of
-    -- the tuple is the validated one stored in brig.  eg., the one stored in the
-    -- `PartialUAuthId` may just have been uploaded by scim and not yet validated.
+  -- uauth (from uauth_id; sso_id field will be ignored)
+  (_, Just _, Just _, _, _, _) -> Left UserIdentityFromComponentsNoPhoneAllowedForUAuthId
+  (_, Just _, Nothing, Just _, _, _) -> Left UserIdentityFromComponentsNoPhoneAllowedForUAuthId
+  (mbeml, Nothing, Just uauth, _, mbteamid, _) ->
+    -- `mbteamid` must be Nothing or match `uauth.uaTeamId`.  `mbeml` and `uauth.uaEmail` do
+    -- not need to match: the email address in the first part of the tuple is the validated
+    -- one stored in brig.  eg., the one stored in the `PartialUAuthId` may just have been
+    -- uploaded by scim and not yet validated.
     case mbteamid of
-      Nothing -> Left UserIdentityFromComponentsUAuthIdWithoutTeam
+      Nothing -> Right $ UAuthIdentity uauth mbeml
       Just teamid ->
-        if uauth.uaTeamId /= teamid
-          then Left UserIdentityFromComponentsUAuthIdTeamMismatch
-          else Right $ UAuthIdentity uauth
+        if uauth.uaTeamId == teamid
+          then Right $ UAuthIdentity uauth mbeml
+          else Left UserIdentityFromComponentsUAuthIdTeamMismatch
   --
-  -- uauth (but legacy)
-  (_, Nothing, Nothing, Just _lsso, Nothing, _) -> Left UserIdentityFromComponentsUAuthIdWithoutTeam
-  (mbemail, Nothing, Nothing, Just lsso, Just teamid, managedBy) ->
-    Right . UAuthIdentity $ legacyUserSSOIdToUAuthId lsso teamid mbemail managedBy
+  -- uauth (legacy; uauth_id is missing and sso_id is considered instead)
+  (mbemail, Nothing, Nothing, Just lsso, Just teamid, fromMaybe ManagedByWire -> mby) ->
+    Right $ UAuthIdentity (legacyUserSSOIdToUAuthId lsso teamid mby mbemail) mbemail
+  (_, Nothing, Nothing, Just _, Nothing, _) ->
+    Left UserIdentityFromComponentsUAuthIdWithoutTeam
   --
-  (Nothing, Nothing, Nothing, Nothing, _, _) -> Left UserIdentityFromComponentsNoFields
+  -- catchall
+  (Nothing, Nothing, Nothing, Nothing, _, _) ->
+    Left UserIdentityFromComponentsNoFields
+
+-- | Wrapper for `eUserIdentityFromComponents`.
+maybeUserIdentityFromComponents :: forall tf. UserIdentityComponents tf -> Maybe (UserIdentity tf)
+maybeUserIdentityFromComponents = either (const Nothing) Just . (eUserIdentityFromComponents @tf)
 
 -- | Convert `UserIdentity` back into raw data for json.  The `LegacySSOIdentity` part of
 -- the tuple is always `Nothing`.
-maybeUserIdentityToComponents :: Maybe UserIdentity -> UserIdentityComponents
-maybeUserIdentityToComponents Nothing = (Nothing, Nothing, Nothing, Nothing, Nothing, ManagedByWire)
-maybeUserIdentityToComponents (Just (FullIdentity email phone)) = (Just email, Just phone, Nothing, Nothing, Nothing, ManagedByWire)
-maybeUserIdentityToComponents (Just (EmailIdentity email)) = (Just email, Nothing, Nothing, Nothing, Nothing, ManagedByWire)
-maybeUserIdentityToComponents (Just (PhoneIdentity phone)) = (Nothing, Just phone, Nothing, Nothing, Nothing, ManagedByWire)
-maybeUserIdentityToComponents (Just (UAuthIdentity uaid)) = (ewsEmail <$> uaid.uaEmail, Nothing, pure uaid, Nothing, Nothing, mby)
-  where
-    mby = maybe ManagedByWire (const ManagedByScim) (uaScimExternalId uaid)
+eUserIdentityToComponents :: forall tf e. Either e (UserIdentity tf) -> UserIdentityComponents tf
+eUserIdentityToComponents (Left _) = (Nothing, Nothing, Nothing, Nothing, Nothing, Nothing)
+eUserIdentityToComponents (Right (FullIdentity email phone)) = (Just email, Just phone, Nothing, Nothing, Nothing, Nothing)
+eUserIdentityToComponents (Right (EmailIdentity email)) = (Just email, Nothing, Nothing, Nothing, Nothing, Nothing)
+eUserIdentityToComponents (Right (PhoneIdentity phone)) = (Nothing, Just phone, Nothing, Nothing, Nothing, Nothing)
+eUserIdentityToComponents (Right (UAuthIdentity uaid mbemail)) = (mbemail, Nothing, Just uaid, uAuthIdToLegacyUserSSOId @tf uaid, Nothing, Nothing)
 
-newIdentity :: Maybe Email -> Maybe Phone -> Maybe PartialUAuthId -> Maybe UserIdentity
-newIdentity mbEmail mbPhone mbUAuth = maybeUserIdentityFromComponents (mbEmail, mbPhone, mbUAuth, Nothing, Nothing, mby)
-  where
-    mby = maybe ManagedByWire (const ManagedByScim) (uaScimExternalId =<< mbUAuth)
+-- | Wrapper for `eUserIdentityToComponents`.
+maybeUserIdentityToComponents :: Maybe (UserIdentity tf) -> UserIdentityComponents tf
+maybeUserIdentityToComponents = eUserIdentityToComponents . maybe (Left ()) Right
 
-emailIdentity :: UserIdentity -> Maybe Email
+newIdentity :: Maybe Email -> Maybe Phone -> Maybe (PartialUAuthId tf) -> Maybe (UserIdentity tf)
+newIdentity mbEmail mbPhone mbUAuth = maybeUserIdentityFromComponents (mbEmail, mbPhone, mbUAuth, Nothing, Nothing, Nothing)
+
+emailIdentity :: UserIdentity tf -> Maybe Email
 emailIdentity (FullIdentity email _) = Just email
 emailIdentity (EmailIdentity email) = Just email
 emailIdentity (PhoneIdentity _) = Nothing
-emailIdentity (UAuthIdentity uaid) = ewsEmail <$> uaid.uaEmail
+emailIdentity (UAuthIdentity _ mbemail) = mbemail -- if uaid.uaEmail diverges, mbemail is not a (validated) part of uaid yet.
 
-phoneIdentity :: UserIdentity -> Maybe Phone
+phoneIdentity :: UserIdentity tf -> Maybe Phone
 phoneIdentity (FullIdentity _ phone) = Just phone
 phoneIdentity (PhoneIdentity phone) = Just phone
 phoneIdentity (EmailIdentity _) = Nothing
-phoneIdentity (UAuthIdentity _) = Nothing
+phoneIdentity (UAuthIdentity _ _) = Nothing
 
--- TODO: rename to uauthIdentity
-ssoIdentity :: UserIdentity -> Maybe PartialUAuthId
-ssoIdentity (UAuthIdentity uaid) = pure uaid
-ssoIdentity _ = Nothing
+uauthIdentity :: UserIdentity tf -> Maybe (PartialUAuthId tf)
+uauthIdentity (UAuthIdentity uaid _) = pure uaid
+uauthIdentity _ = Nothing
+
+legacySsoIdentity :: UserIdentity tf -> Maybe LegacyUserSSOId
+legacySsoIdentity (UAuthIdentity uaid _mbemail) = uAuthIdToLegacyUserSSOId uaid
+legacySsoIdentity _ = Nothing
 
 -- | FUTUREWORK:
 --
@@ -320,7 +357,7 @@ data LegacyUserSSOId
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform LegacyUserSSOId)
 
-legacyUserSSOIdToUAuthId :: LegacyUserSSOId -> TeamId -> Maybe Email -> ManagedBy -> PartialUAuthId
+legacyUserSSOIdToUAuthId :: LegacyUserSSOId -> TeamId -> ManagedBy -> Maybe Email -> PartialUAuthId tf
 {-
 some removed code from spar that describes the semantics of LegacyUserSSOId:
 
@@ -344,24 +381,32 @@ veidFromUserSSOId = \case
       (pure . EmailOnly)
       (parseEmail email)
 -}
-legacyUserSSOIdToUAuthId ssoid tid eml mby = UAuthId uref' eid' eml' tid
+legacyUserSSOIdToUAuthId ssoid tid mby mbeml = UAuthId uref' eid' eml' tid
   where
     uref' = case ssoid of
       UserSSOId uref -> Just uref
       UserScimExternalId _ -> Nothing
 
-    eid' = case mby of
-      ManagedByWire -> Nothing
-      ManagedByScim -> fromEmail <$> eml
+    eid' = case (ssoid, mby) of
+      (UserSSOId _, ManagedByWire) -> Nothing
+      (UserSSOId uref, ManagedByScim) -> Just . CI.original . SAML.unsafeShowNameID . view SAML.uidSubject $ uref
+      (UserScimExternalId e, _) -> Just e
 
-    eml' =
-      ( `EmailWithSource`
-          ( case mby of
-              ManagedByWire -> EmailFromSamlNameId
-              ManagedByScim -> EmailFromScimExternalIdField
-          )
-      )
-        <$> eml
+    -- `EmailFromScimEmailsField` is never has not been introduced yet at the time of writing
+    -- this code.  So no legacy users should ever exist that need this value: either they have
+    -- been created after introduction of `EmailFromScimEmailsField` and don't need migration,
+    -- or they have been introduced before and don't need `EmailFromScimEmailsField`.
+    eml' = mbeml <&> (`EmailWithSource` emlsrc)
+    emlsrc = case mby of
+      ManagedByWire -> EmailFromSamlNameId
+      ManagedByScim -> EmailFromScimExternalIdField
+
+uAuthIdToLegacyUserSSOId :: PartialUAuthId tf -> Maybe LegacyUserSSOId
+uAuthIdToLegacyUserSSOId (UAuthId mburef mbeid _mbeml _tid) = case mburef of
+  Just uref -> Just $ UserSSOId uref
+  Nothing -> case mbeid of
+    Just eid -> Just $ UserScimExternalId eid
+    Nothing -> Nothing
 
 instance S.ToSchema LegacyUserSSOId where
   declareNamedSchema _ = do
@@ -457,16 +502,16 @@ emailFromSAMLNameID nid = case nid ^. SAML.nameID of
   SAML.UNameIDEmail email -> Just . emailFromSAML . CI.original $ email
   _ -> Nothing
 
-mkUserNameScim :: Maybe Text -> UAuthId Maybe Identity Maybe -> Either String Name
+mkUserNameScim :: Maybe Text -> UAuthId Maybe Identity Maybe tf -> Either String Name
 mkUserNameScim (Just n) = const $ mkName n
 mkUserNameScim Nothing = mkName . runIdentity . uaScimExternalId
 
-mkUserNameSaml :: Maybe Text -> UAuthId Identity Maybe Maybe -> Either String Name
+mkUserNameSaml :: Maybe Text -> UAuthId Identity Maybe Maybe tf -> Either String Name
 mkUserNameSaml (Just n) = const $ mkName n
 mkUserNameSaml Nothing = mkName . CI.original . SAML.unsafeShowNameID . view SAML.uidSubject . runIdentity . uaSamlId
 
 -- | For testing.  Create a sample 'SAML.UserRef' value with random seeds to make 'Issuer' and
--- 'NameID' unique.  FUTUREWORK: move to saml2-web-sso.
+-- 'NameID' unique.
 mkSampleUref :: Text -> Text -> SAML.UserRef
 mkSampleUref iseed nseed = SAML.UserRef issuer nameid
   where
@@ -474,7 +519,7 @@ mkSampleUref iseed nseed = SAML.UserRef issuer nameid
     issuer = SAML.Issuer ([uri|http://example.com/|] & URI.pathL .~ cs ("/" </> cs iseed))
 
     nameid :: SAML.NameID
-    nameid = fromRight (error "impossible") $ do
+    nameid = fromRight (error ("impossible: " <> show (iseed, nseed))) $ do
       unqualified <- SAML.mkUNameIDEmail $ "me" <> nseed <> "@example.com"
       SAML.mkNameID unqualified Nothing Nothing Nothing
 

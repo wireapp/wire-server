@@ -311,7 +311,7 @@ tests =
       testRoundTrip @User.Identity.Email,
       testRoundTrip @User.Identity.Phone,
       testRoundTrip @User.Identity.LegacyUserSSOId,
-      testRoundTrip @User.Identity.PartialUAuthId,
+      testRoundTrip @(User.Identity.PartialUAuthId "team_id"),
       testRoundTrip @User.Password.NewPasswordReset,
       testRoundTrip @User.Password.PasswordResetKey,
       -- FUTUREWORK: this should probably be tested individually,

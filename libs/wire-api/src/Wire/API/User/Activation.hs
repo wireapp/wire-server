@@ -168,7 +168,7 @@ instance ToSchema Activate where
 -- | Information returned as part of a successful activation.
 data ActivationResponse = ActivationResponse
   { -- | The activated / verified user identity.
-    activatedIdentity :: UserIdentity,
+    activatedIdentity :: UserIdentity "team_id" {- it's ok for "team_id" to be empty; see haddocks for `UAuthId` type. -},
     -- | Whether this is the first verified identity of the account.
     activatedFirst :: Bool
   }

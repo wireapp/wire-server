@@ -1,7 +1,6 @@
 {
     "accent_id": 0,
     "assets": [],
-    "email": "@",
     "expires_at": "1864-05-09T14:25:26.089Z",
     "handle": "iw2-.udd2l7-7yg3dfg.wzn4vx3hjhch8.--5t6uyjqk93twv-a2pce8p1xjh7387nztzu.q",
     "id": "00000002-0000-0001-0000-000100000002",
@@ -18,10 +17,18 @@
         "provider": "00000000-0000-0000-0000-000000000000"
     },
     "sso_id": {
-        "scim_external_id": ""
+        "scim_external_id": "it"
+    },
+    "uauth_id": {
+        "scim_external_id": "it",
+        "email": {
+            "email": "it@example.com",
+            "source": "scim_emails"
+        },
+        "team": "579edcd0-6f1b-11ee-b49a-e770ab99392a"
     },
     "supported_protocols": [
         "proteus"
     ],
-    "team": "00000000-0000-0000-0000-000100000002"
+    "team": "579edcd0-6f1b-11ee-b49a-e770ab99392a"
 }
