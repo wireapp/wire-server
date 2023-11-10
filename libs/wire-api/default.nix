@@ -227,6 +227,7 @@ mkDerivation {
     hex
     hspec
     hspec-wai
+    http-api-data
     http-types
     imports
     iso3166-country-codes
