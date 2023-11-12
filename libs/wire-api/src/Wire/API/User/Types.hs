@@ -168,6 +168,7 @@ scimToPartialUAuthId (UAuthId saml (Identity eid) eml tid) = UAuthId saml (Just 
 instance ToSchema PartialUAuthId where
   schema = withParser scm $ \case
     UAuthId Nothing Nothing _ _ -> fail "at least one of saml_id, scim_external_id must be present"
+    UAuthId Nothing (Just _) Nothing _ -> fail "scim_external_id requires either email address or saml_id to be present"
     ok -> pure ok
     where
       scm =

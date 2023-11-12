@@ -85,14 +85,110 @@ parseIdentityTests =
       $ flip fmap [Nothing, Just email1, Just email2]
       $ \mbBrigEmail ->
         testGroup ("brig email: " <> show mbBrigEmail) $
-          [ let jsonIn = [("uauth_id", [aesonQQ|{}|])]
+          [ -- {}
+            let jsonIn = [("uauth_id", [aesonQQ|{}|])]
                 haskellIn = Left "Error in $['uauth_id']: key \"team\" not found"
                 jsonOut = error "impossible"
              in mkUAuthIdTestCase "1" jsonIn haskellIn jsonOut mbBrigEmail,
-            let jsonIn = [("uauth_id", [aesonQQ|{"team": "7e869040-7fab-11ee-9dff-0bb0f984d9c8"}|])]
+            -- {email, team}
+            let jsonIn =
+                  [ ( "uauth_id",
+                      [aesonQQ|{"email": {"email": "me@example.com", "source": "scim_emails"},
+                                "team": "226923f0-6f15-11ee-96bd-33644427c814"}|]
+                    )
+                  ]
                 haskellIn = Left "Error in $['uauth_id']: at least one of saml_id, scim_external_id must be present"
                 jsonOut = error "impossible"
-             in mkUAuthIdTestCase "1.1" jsonIn haskellIn jsonOut mbBrigEmail,
+             in mkUAuthIdTestCase "2" jsonIn haskellIn jsonOut mbBrigEmail,
+            -- {eid, team}
+            let jsonIn =
+                  [ ( "uauth_id",
+                      [aesonQQ|{"scim_external_id": "me@example.com",
+                                "team": "226923f0-6f15-11ee-96bd-33644427c814"}|]
+                    )
+                  ]
+                haskellIn = Left "Error in $['uauth_id']: scim_external_id requires either email address or saml_id to be present"
+                jsonOut = error "impossible"
+             in mkUAuthIdTestCase "3" jsonIn haskellIn jsonOut mbBrigEmail,
+            -- {eid, email, team}
+            let jsonIn =
+                  [ ( "uauth_id",
+                      [aesonQQ|{"scim_external_id": "me@example.com",
+                                "email": {"email": "me@example.com", "source": "scim_external_id"},
+                                "team": "226923f0-6f15-11ee-96bd-33644427c814"}|]
+                    )
+                  ]
+                haskellIn = Right uaid
+                jsonOut = jsonIn <> [("sso_id", [aesonQQ|{"scim_external_id": "me@example.com"}|])]
+                uaid = UAuthId Nothing (Just eid1) (Just ews1) tid
+             in mkUAuthIdTestCase "4" jsonIn haskellIn jsonOut mbBrigEmail,
+            let jsonIn =
+                  [ ( "uauth_id",
+                      [aesonQQ|{"scim_external_id": "nick",
+                                "email": {"email": "other@example.com", "source": "scim_emails"},
+                                "team": "226923f0-6f15-11ee-96bd-33644427c814"}|]
+                    )
+                  ]
+                haskellIn = Right uaid
+                jsonOut = jsonIn <> [("sso_id", [aesonQQ|{"scim_external_id": "nick"}|])]
+                uaid = UAuthId Nothing (Just eid3) (Just ews3) tid
+             in mkUAuthIdTestCase "4.1" jsonIn haskellIn jsonOut mbBrigEmail,
+            -- {saml, team}
+            let jsonIn =
+                  [ ( "uauth_id",
+                      [aesonQQ|{"saml_id": {
+                                    "subject": "<NameID xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" xmlns:samla=\"urn:oasis:names:tc:SAML:2.0:assertion\" xmlns:samlm=\"urn:oasis:names:tc:SAML:2.0:metadata\" xmlns:ds=\"http://www.w3.org/2000/09/xmldsig#\" Format=\"urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress\" xmlns=\"urn:oasis:names:tc:SAML:2.0:assertion\">me@example.com</NameID>",
+                                    "tenant": "<Issuer xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" xmlns:samla=\"urn:oasis:names:tc:SAML:2.0:assertion\" xmlns:samlm=\"urn:oasis:names:tc:SAML:2.0:metadata\" xmlns:ds=\"http://www.w3.org/2000/09/xmldsig#\" xmlns=\"urn:oasis:names:tc:SAML:2.0:assertion\">http://example.com/wef</Issuer>"
+                                },
+                                "team": "226923f0-6f15-11ee-96bd-33644427c814"}|]
+                    )
+                  ]
+                haskellIn = Right uaid
+                jsonOut =
+                  jsonIn
+                    <> [ ( "sso_id",
+                           [aesonQQ|{"subject": "<NameID xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" xmlns:samla=\"urn:oasis:names:tc:SAML:2.0:assertion\" xmlns:samlm=\"urn:oasis:names:tc:SAML:2.0:metadata\" xmlns:ds=\"http://www.w3.org/2000/09/xmldsig#\" Format=\"urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress\" xmlns=\"urn:oasis:names:tc:SAML:2.0:assertion\">me@example.com</NameID>",
+                                     "tenant": "<Issuer xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" xmlns:samla=\"urn:oasis:names:tc:SAML:2.0:assertion\" xmlns:samlm=\"urn:oasis:names:tc:SAML:2.0:metadata\" xmlns:ds=\"http://www.w3.org/2000/09/xmldsig#\" xmlns=\"urn:oasis:names:tc:SAML:2.0:assertion\">http://example.com/wef</Issuer>"
+                                    }|]
+                         )
+                       ]
+                uaid = UAuthId (Just uref1) Nothing Nothing tid
+             in mkUAuthIdTestCase "5" jsonIn haskellIn jsonOut mbBrigEmail,
+            -- {saml, email, team}
+            let jsonIn =
+                  [ ( "uauth_id",
+                      [aesonQQ|{"saml_id": {
+                                    "subject": "<NameID xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" xmlns:samla=\"urn:oasis:names:tc:SAML:2.0:assertion\" xmlns:samlm=\"urn:oasis:names:tc:SAML:2.0:metadata\" xmlns:ds=\"http://www.w3.org/2000/09/xmldsig#\" Format=\"urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress\" xmlns=\"urn:oasis:names:tc:SAML:2.0:assertion\">me@example.com</NameID>",
+                                    "tenant": "<Issuer xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" xmlns:samla=\"urn:oasis:names:tc:SAML:2.0:assertion\" xmlns:samlm=\"urn:oasis:names:tc:SAML:2.0:metadata\" xmlns:ds=\"http://www.w3.org/2000/09/xmldsig#\" xmlns=\"urn:oasis:names:tc:SAML:2.0:assertion\">http://example.com/wef</Issuer>"
+                                },
+                                "email": {"email": "me@example.com", "source": "scim_external_id"},
+                                "team": "226923f0-6f15-11ee-96bd-33644427c814"}|]
+                    )
+                  ]
+                haskellIn = Right uaid
+                jsonOut =
+                  jsonIn
+                    <> [ ( "sso_id",
+                           [aesonQQ|{"subject": "<NameID xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" xmlns:samla=\"urn:oasis:names:tc:SAML:2.0:assertion\" xmlns:samlm=\"urn:oasis:names:tc:SAML:2.0:metadata\" xmlns:ds=\"http://www.w3.org/2000/09/xmldsig#\" Format=\"urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress\" xmlns=\"urn:oasis:names:tc:SAML:2.0:assertion\">me@example.com</NameID>",
+                                     "tenant": "<Issuer xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" xmlns:samla=\"urn:oasis:names:tc:SAML:2.0:assertion\" xmlns:samlm=\"urn:oasis:names:tc:SAML:2.0:metadata\" xmlns:ds=\"http://www.w3.org/2000/09/xmldsig#\" xmlns=\"urn:oasis:names:tc:SAML:2.0:assertion\">http://example.com/wef</Issuer>"
+                                    }|]
+                         )
+                       ]
+                uaid = UAuthId (Just uref1) Nothing (Just ews1) tid
+             in mkUAuthIdTestCase "6" jsonIn haskellIn jsonOut mbBrigEmail,
+            -- {saml, eid, team}
+            let jsonIn =
+                  [ ( "uauth_id",
+                      [aesonQQ|{"scim_external_id": "nick",
+                                "email": {"email": "other@example.com", "source": "scim_emails"},
+                                "team": "226923f0-6f15-11ee-96bd-33644427c814"}|]
+                    )
+                  ]
+                haskellIn = Right uaid
+                jsonOut = jsonIn
+                uaid = UAuthId (Just uref1) (Just eid1) Nothing tid
+             in mkUAuthIdTestCase "7" jsonIn haskellIn jsonOut mbBrigEmail,
+            -- {saml, eid, email, team}
             let jsonIn =
                   [ ( "uauth_id",
                       [aesonQQ|{
@@ -120,35 +216,6 @@ parseIdentityTests =
                                     }|]
                          )
                        ]
-             in mkUAuthIdTestCase "2" jsonIn haskellIn jsonOut mbBrigEmail,
-            let jsonIn = [("uauth_id", [aesonQQ|{}|])]
-                haskellIn = Left ""
-                jsonOut = error "impossible"
-             in mkUAuthIdTestCase "3" jsonIn haskellIn jsonOut mbBrigEmail,
-            let jsonIn = [("uauth_id", [aesonQQ|{}|])]
-                haskellIn = Right uaid
-                jsonOut = jsonIn
-                uaid = UAuthId Nothing (Just eid1) (Just ews1) tid
-             in mkUAuthIdTestCase "4" jsonIn haskellIn jsonOut mbBrigEmail,
-            let jsonIn = [("uauth_id", [aesonQQ|{}|])]
-                haskellIn = Right uaid
-                jsonOut = jsonIn
-                uaid = UAuthId (Just uref1) Nothing Nothing tid
-             in mkUAuthIdTestCase "5" jsonIn haskellIn jsonOut mbBrigEmail,
-            let jsonIn = [("uauth_id", [aesonQQ|{}|])]
-                haskellIn = Right uaid
-                jsonOut = jsonIn
-                uaid = UAuthId (Just uref1) Nothing (Just ews1) tid
-             in mkUAuthIdTestCase "6" jsonIn haskellIn jsonOut mbBrigEmail,
-            let jsonIn = [("uauth_id", [aesonQQ|{}|])]
-                haskellIn = Right uaid
-                jsonOut = jsonIn
-                uaid = UAuthId (Just uref1) (Just eid1) Nothing tid
-             in mkUAuthIdTestCase "7" jsonIn haskellIn jsonOut mbBrigEmail,
-            let jsonIn = [("uauth_id", [aesonQQ|{}|])]
-                haskellIn = Right uaid
-                jsonOut = jsonIn
-                uaid = UAuthId (Just uref1) (Just eid1) (Just ews1) tid
              in mkUAuthIdTestCase "8" jsonIn haskellIn jsonOut mbBrigEmail,
             testCase "..." $
               error "ok, what else?"
