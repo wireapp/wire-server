@@ -250,8 +250,8 @@ addFederationRemote fedDomConf = do
 -- file is consistent (ie., no two entries for the same domain).
 remotesMapFromCfgFile :: AppT r (Map Domain FederationDomainConfig)
 remotesMapFromCfgFile = do
-  cfg <- asks (fromMaybe [] . setFederationDomainConfigs . view settings)
-  let dict = [(domain cnf, cnf) | cnf <- cfg]
+  cfg <- fmap (.federationDomainConfig) <$> asks (fromMaybe [] . setFederationDomainConfigs . view settings)
+  let dict = [(cnf.domain, cnf) | cnf <- cfg]
       merge c c' =
         if c == c'
           then c
@@ -333,7 +333,7 @@ assertDomainIsNotUpdated dom fedcfg = do
 -- | FUTUREWORK: should go away in the future; see 'getFederationRemotes'.
 assertNoDomainsFromConfigFiles :: Domain -> ExceptT Brig.API.Error.Error (AppT r) ()
 assertNoDomainsFromConfigFiles dom = do
-  cfg <- asks (fromMaybe [] . setFederationDomainConfigs . view settings)
+  cfg <- fmap (.federationDomainConfig) <$> asks (fromMaybe [] . setFederationDomainConfigs . view settings)
   when (dom `elem` (domain <$> cfg)) $ do
     throwError . fedError . FederationUnexpectedError $
       "keeping track of remote domains in the brig config file is deprecated, but as long as we \

@@ -21,6 +21,7 @@ module Wire.API.Routes.FederationDomainConfig
     defFederationDomainConfigs,
     FederationStrategy (..),
     FederationRemoteTeam (..),
+    FederationRestriction (..),
   )
 where
 
@@ -35,12 +36,26 @@ import Imports
 import Wire.API.User.Search (FederatedUserSearchPolicy)
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
+data FederationRestriction = FederationRestrictionAllowAll | FederationRestrictionByTeam
+  deriving (Eq, Show, Generic, Ord)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema FederationRestriction
+  deriving (Arbitrary) via (GenericUniform FederationRestriction)
+
+instance ToSchema FederationRestriction where
+  schema =
+    enum @Text "FederationRestriction" $
+      mconcat
+        [ element "allow_all" FederationRestrictionAllowAll,
+          element "restrict_by_team" FederationRestrictionByTeam
+        ]
+
 -- | Everything we need to know about a remote instance in order to federate with it.  Comes
 -- in `AllowedDomains` if `AllowStrategy` is `AllowDynamic`.  If `AllowAll`, we still use this
 -- information for search policy.
 data FederationDomainConfig = FederationDomainConfig
   { domain :: Domain,
-    cfgSearchPolicy :: FederatedUserSearchPolicy
+    cfgSearchPolicy :: FederatedUserSearchPolicy,
+    restriction :: FederationRestriction
   }
   deriving (Eq, Ord, Show, Generic)
   deriving (ToJSON, FromJSON, S.ToSchema) via Schema FederationDomainConfig
@@ -52,6 +67,7 @@ instance ToSchema FederationDomainConfig where
       FederationDomainConfig
         <$> domain .= field "domain" schema
         <*> cfgSearchPolicy .= field "search_policy" schema
+        <*> restriction .= field "restriction" schema
 
 data FederationDomainConfigs = FederationDomainConfigs
   { strategy :: FederationStrategy,

@@ -4,7 +4,6 @@ import API.Brig qualified as BrigP
 import API.BrigInternal qualified as BrigI
 import API.Common qualified as API
 import API.GalleyInternal qualified as GalleyI
-import Control.Concurrent (threadDelay)
 import Data.Aeson.Types hiding ((.=))
 import Data.Set qualified as Set
 import Data.String.Conversions
@@ -55,13 +54,12 @@ testCrudFederationRemotes = do
     dom1 :: String <- (<> ".example.com") . UUID.toString <$> liftIO UUID.nextRandom
 
     let remote1, remote1' :: BrigI.FedConn
-        remote1 = BrigI.FedConn dom1 "no_search"
-        remote1' = remote1 {BrigI.searchStrategy = "full_search"}
+        remote1 = BrigI.FedConn dom1 "no_search" "allow_all"
+        remote1' = remote1 {BrigI.searchStrategy = "full_search", BrigI.restriction = "restrict_by_team"}
 
         cfgRemotesExpect :: BrigI.FedConn
-        cfgRemotesExpect = BrigI.FedConn (cs otherDomain) "full_search"
+        cfgRemotesExpect = BrigI.FedConn (cs otherDomain) "full_search" "allow_all"
 
-    liftIO $ threadDelay 5_000_000
     cfgRemotes <- parseFedConns =<< BrigI.readFedConns ownDomain
     cfgRemotes `shouldMatch` ([] @Value)
     -- entries present in the config file can be idempotently added if identical, but cannot be
@@ -144,7 +142,7 @@ testSwagger = do
 testRemoteUserSearch :: HasCallStack => App ()
 testRemoteUserSearch = do
   startDynamicBackends [def, def] $ \[d1, d2] -> do
-    void $ BrigI.createFedConn d2 (BrigI.FedConn d1 "full_search")
+    void $ BrigI.createFedConn d2 (BrigI.FedConn d1 "full_search" "allow_all")
 
     u1 <- randomUser d1 def
     u2 <- randomUser d2 def
@@ -161,7 +159,7 @@ testRemoteUserSearch = do
 testRemoteUserSearchExactHandle :: HasCallStack => App ()
 testRemoteUserSearchExactHandle = do
   startDynamicBackends [def, def] $ \[d1, d2] -> do
-    void $ BrigI.createFedConn d2 (BrigI.FedConn d1 "exact_handle_search")
+    void $ BrigI.createFedConn d2 (BrigI.FedConn d1 "exact_handle_search" "allow_all")
 
     u1 <- randomUser d1 def
     u2 <- randomUser d2 def

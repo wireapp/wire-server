@@ -78,7 +78,7 @@ testDynamicBackendsFullyConnectedWhenAllowDynamic = do
     -- Allowing 'full_search' or any type of search is how we enable federation
     -- between backends when the federation strategy is 'allowDynamic'.
     sequence_
-      [ createFedConn x (FedConn y "full_search")
+      [ createFedConn x (FedConn y "full_search" "allow_all")
         | x <- [domainA, domainB, domainC],
           y <- [domainA, domainB, domainC],
           x /= y
@@ -100,10 +100,10 @@ testDynamicBackendsNotFullyConnected :: HasCallStack => App ()
 testDynamicBackendsNotFullyConnected = do
   withFederatingBackendsAllowDynamic $ \(domainA, domainB, domainC) -> do
     -- A is connected to B and C, but B and C are not connected to each other
-    void $ createFedConn domainA $ FedConn domainB "full_search"
-    void $ createFedConn domainB $ FedConn domainA "full_search"
-    void $ createFedConn domainA $ FedConn domainC "full_search"
-    void $ createFedConn domainC $ FedConn domainA "full_search"
+    void $ createFedConn domainA $ FedConn domainB "full_search" "allow_all"
+    void $ createFedConn domainB $ FedConn domainA "full_search" "allow_all"
+    void $ createFedConn domainA $ FedConn domainC "full_search" "allow_all"
+    void $ createFedConn domainC $ FedConn domainA "full_search" "allow_all"
     uidA <- randomUser domainA def {team = True}
     retryT
       $ bindResponse
@@ -149,10 +149,10 @@ testCreateConversationNonFullyConnected :: HasCallStack => App ()
 testCreateConversationNonFullyConnected = do
   withFederatingBackendsAllowDynamic $ \(domainA, domainB, domainC) -> do
     -- A is connected to B and C, but B and C are not connected to each other
-    void $ createFedConn domainA $ FedConn domainB "full_search"
-    void $ createFedConn domainB $ FedConn domainA "full_search"
-    void $ createFedConn domainA $ FedConn domainC "full_search"
-    void $ createFedConn domainC $ FedConn domainA "full_search"
+    void $ createFedConn domainA $ FedConn domainB "full_search" "allow_all"
+    void $ createFedConn domainB $ FedConn domainA "full_search" "allow_all"
+    void $ createFedConn domainA $ FedConn domainC "full_search" "allow_all"
+    void $ createFedConn domainC $ FedConn domainA "full_search" "allow_all"
     liftIO $ threadDelay (2 * 1000 * 1000)
 
     u1 <- randomUser domainA def
@@ -184,10 +184,10 @@ testAddMembersFullyConnectedProteus = do
 testAddMembersNonFullyConnectedProteus :: HasCallStack => App ()
 testAddMembersNonFullyConnectedProteus = do
   withFederatingBackendsAllowDynamic $ \(domainA, domainB, domainC) -> do
-    void $ createFedConn domainA (FedConn domainB "full_search")
-    void $ createFedConn domainB (FedConn domainA "full_search")
-    void $ createFedConn domainA (FedConn domainC "full_search")
-    void $ createFedConn domainC (FedConn domainA "full_search")
+    void $ createFedConn domainA (FedConn domainB "full_search" "allow_all")
+    void $ createFedConn domainB (FedConn domainA "full_search" "allow_all")
+    void $ createFedConn domainA (FedConn domainC "full_search" "allow_all")
+    void $ createFedConn domainC (FedConn domainA "full_search" "allow_all")
     liftIO $ threadDelay (2 * 1000 * 1000) -- wait for federation status to be updated
 
     -- add users
@@ -386,7 +386,7 @@ testAddingUserNonFullyConnectedFederation = do
 
     -- Ensure that dynamic backend only federates with own domain, but not other
     -- domain.
-    void $ createFedConn dynBackend (FedConn own "full_search")
+    void $ createFedConn dynBackend (FedConn own "full_search" "allow_all")
 
     alice <- randomUser own def
     bob <- randomUser other def

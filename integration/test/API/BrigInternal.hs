@@ -53,15 +53,17 @@ createUser domain cu = do
 
 data FedConn = FedConn
   { domain :: String,
-    searchStrategy :: String
+    searchStrategy :: String,
+    restriction :: String
   }
   deriving (Eq, Ord, Show)
 
 instance ToJSON FedConn where
-  toJSON (FedConn d s) =
+  toJSON (FedConn d s r) =
     Aeson.object
       [ "domain" .= d,
-        "search_policy" .= s
+        "search_policy" .= s,
+        "restriction" .= r
       ]
 
 instance MakesValue FedConn where
