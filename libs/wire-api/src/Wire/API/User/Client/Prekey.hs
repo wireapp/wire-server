@@ -71,6 +71,8 @@ instance ToSchema Prekey where
 clientIdFromPrekey :: Prekey -> ClientId
 clientIdFromPrekey =
   ClientId
+    -- FIXME the clients expect UInts on the protobufs, 
+    -- We will eventually not need this change anymore 
     . T.dropWhile (== '0')
     . decodeUtf8
     . toByteString'
