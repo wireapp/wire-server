@@ -40,6 +40,7 @@ import Data.ByteString.Conversion (toByteString')
 import Data.Id
 import Data.OpenApi qualified as S
 import Data.Schema
+import Data.Text qualified as T
 import Data.Text.Ascii (encodeBase16)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Imports
@@ -70,6 +71,7 @@ instance ToSchema Prekey where
 clientIdFromPrekey :: Prekey -> ClientId
 clientIdFromPrekey =
   ClientId
+    . T.dropWhile (== '0')
     . decodeUtf8
     . toByteString'
     . encodeBase16

@@ -1,0 +1,1 @@
+Prevent client IDs with leading zeros from being generated. This works around a type mismatch in the protobuf API, where client IDs are represented as uint64.
