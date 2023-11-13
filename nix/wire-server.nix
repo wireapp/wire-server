@@ -410,13 +410,12 @@ let
     pkgs.kubernetes-helm
     pkgs.helmfile
     pkgs.hlint
-    (hlib.justStaticExecutables pkgs.haskellPackages.apply-refact)
     pkgs.jq
     pkgs.kubectl
     pkgs.kubelogin-oidc
     pkgs.nixpkgs-fmt
     pkgs.openssl
-    ormolu
+    (hlib.justStaticExecutables ormolu)
     pkgs.shellcheck
     pkgs.treefmt
     pkgs.gawk
@@ -495,6 +494,7 @@ in
       pkgs.kind
       pkgs.netcat
       pkgs.niv
+      (hlib.justStaticExecutables pkgs.haskellPackages.apply-refact)
       (pkgs.python3.withPackages
         (ps: with ps; [
           black
