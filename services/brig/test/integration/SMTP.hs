@@ -23,20 +23,23 @@ import Bilge qualified
 import System.Logger qualified as Logger
 import Test.Tasty
 import Test.Tasty.HUnit
+
 -- import Util
 
 tests :: Bilge.Manager -> Logger.Logger -> TestTree
 tests m lg =
-  testGroup 
-    "SMTP" []
-    -- [ test m "should send mail" $ testSendMail lg,
-    --   test m "should throw exception when SMTP server refuses to send mail (mail without receiver)" $ testSendMailNoReceiver lg,
-    --   test m "should throw when an SMTP transaction is aborted (SMTP error 554: 'Transaction failed')" $ testSendMailTransactionFailed lg,
-    --   test m "should throw an error when the connection cannot be initiated on startup" $ testSendMailFailingConnectionOnStartup lg,
-    --   test m "should throw when the server cannot be reached on sending" $ testSendMailFailingConnectionOnSend lg,
-    --   test m "should throw when sending times out" $ testSendMailTimeout lg,
-    --   test m "should throw an error the initiation times out" $ testSendMailTimeoutOnStartup lg
-    -- ]
+  testGroup
+    "SMTP"
+    []
+
+-- [ test m "should send mail" $ testSendMail lg,
+--   test m "should throw exception when SMTP server refuses to send mail (mail without receiver)" $ testSendMailNoReceiver lg,
+--   test m "should throw when an SMTP transaction is aborted (SMTP error 554: 'Transaction failed')" $ testSendMailTransactionFailed lg,
+--   test m "should throw an error when the connection cannot be initiated on startup" $ testSendMailFailingConnectionOnStartup lg,
+--   test m "should throw when the server cannot be reached on sending" $ testSendMailFailingConnectionOnSend lg,
+--   test m "should throw when sending times out" $ testSendMailTimeout lg,
+--   test m "should throw an error the initiation times out" $ testSendMailTimeoutOnStartup lg
+-- ]
 
 -- testSendMail :: Logger.Logger -> Bilge.Http ()
 -- testSendMail lg = do

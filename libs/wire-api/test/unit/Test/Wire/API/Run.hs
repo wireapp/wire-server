@@ -25,6 +25,7 @@ import Test.Wire.API.Conversation qualified as Conversation
 import Test.Wire.API.MLS qualified as MLS
 import Test.Wire.API.MLS.Group qualified as Group
 import Test.Wire.API.OAuth qualified as OAuth
+import Test.Wire.API.Password qualified as Password
 import Test.Wire.API.RawJson qualified as RawJson
 import Test.Wire.API.Roundtrip.Aeson qualified as Roundtrip.Aeson
 import Test.Wire.API.Roundtrip.ByteString qualified as Roundtrip.ByteString
@@ -41,7 +42,6 @@ import Test.Wire.API.User qualified as User
 import Test.Wire.API.User.Auth qualified as User.Auth
 import Test.Wire.API.User.RichInfo qualified as User.RichInfo
 import Test.Wire.API.User.Search qualified as User.Search
-import Test.Wire.API.Password qualified as Password
 
 main :: IO ()
 main =
