@@ -59,7 +59,8 @@ module Wire.API.Message
   )
 where
 
-import Control.Lens (view, (.~), (?~))
+import Control.Lens (preview, view, (.~), (?~))
+import Control.Monad.Trans.Maybe
 import Data.Aeson qualified as A
 import Data.ByteString.Lazy qualified as LBS
 import Data.CommaSeparatedList (CommaSeparatedList (fromCommaSeparatedList))
@@ -75,7 +76,6 @@ import Data.Qualified (Qualified (..))
 import Data.Schema
 import Data.Serialize (runGet)
 import Data.Set qualified as Set
-import Data.Text.Read qualified as Reader
 import Data.UUID qualified as UUID
 import Imports
 import Proto.Otr qualified
@@ -221,11 +221,12 @@ instance ToProto QualifiedNewOtrMessage where
 
 protolensToQualifiedNewOtrMessage :: Proto.Otr.QualifiedNewOtrMessage -> Either String QualifiedNewOtrMessage
 protolensToQualifiedNewOtrMessage protoMsg = do
+  sender <- protolensToClientId $ view Proto.Otr.sender protoMsg
   recipients <- protolensOtrRecipientsToOtrRecipients $ view Proto.Otr.recipients protoMsg
   strat <- protolensToClientMismatchStrategy $ view Proto.Otr.maybe'clientMismatchStrategy protoMsg
   pure $
     QualifiedNewOtrMessage
-      { qualifiedNewOtrSender = protolensToClientId $ view Proto.Otr.sender protoMsg,
+      { qualifiedNewOtrSender = sender,
         qualifiedNewOtrRecipients = recipients,
         qualifiedNewOtrNativePush = view Proto.Otr.nativePush protoMsg,
         qualifiedNewOtrTransient = view Proto.Otr.transient protoMsg,
@@ -234,8 +235,12 @@ protolensToQualifiedNewOtrMessage protoMsg = do
         qualifiedNewOtrClientMismatchStrategy = strat
       }
 
-protolensToClientId :: Proto.Otr.ClientId -> ClientId
-protolensToClientId = newClientId . view Proto.Otr.client
+protolensToClientId :: Proto.Otr.ClientId -> Either String ClientId
+protolensToClientId proto = fmap (fromMaybe legacy) . runMaybeT $ do
+  client <- maybe mzero pure $ preview Proto.Otr.client proto
+  lift $ clientIdFromText client
+  where
+    legacy = newClientId $ view Proto.Otr.clientLegacy proto
 
 qualifiedNewOtrMessageToProto :: QualifiedNewOtrMessage -> Proto.Otr.QualifiedNewOtrMessage
 qualifiedNewOtrMessageToProto msg =
@@ -276,7 +281,7 @@ mkQualifiedOtrPayload sender entries dat strat =
 clientIdToProtolens :: ClientId -> Proto.Otr.ClientId
 clientIdToProtolens cid =
   ProtoLens.defMessage
-    & Proto.Otr.client .~ (either error fst . Reader.hexadecimal $ client cid)
+    & Proto.Otr.client .~ client cid
 
 --------------------------------------------------------------------------------
 -- Priority
@@ -383,7 +388,7 @@ protolensOtrRecipientsToOtrRecipients entries =
     parseClientMap entry = parseMap parseClientId parseText $ view Proto.Otr.clients entry
 
     parseClientId :: Proto.Otr.ClientEntry -> Either String ClientId
-    parseClientId = pure . protolensToClientId . view Proto.Otr.client
+    parseClientId = protolensToClientId . view Proto.Otr.client
 
     parseText :: Proto.Otr.ClientEntry -> Either String ByteString
     parseText = pure . view Proto.Otr.text

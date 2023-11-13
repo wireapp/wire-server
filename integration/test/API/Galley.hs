@@ -13,8 +13,8 @@ import Data.ByteString.Char8 qualified as BS
 import Data.ByteString.Lazy qualified as LBS
 import Data.ProtoLens qualified as Proto
 import Data.ProtoLens.Labels ()
+import Data.Text qualified as T
 import Data.UUID qualified as UUID
-import Numeric.Lens
 import Proto.Otr as Proto
 import Testlib.Prelude
 
@@ -244,7 +244,7 @@ mkProteusRecipients dom userClients msg = do
           & #user . #uuid .~ userId
           & #clients .~ clientEntries
     mkClientEntry client = do
-      clientId <- (^?! hex) <$> objId client
+      clientId <- T.pack <$> asString client
       pure $
         Proto.defMessage
           & #client . #client .~ clientId

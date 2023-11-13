@@ -9,8 +9,8 @@ import Control.Monad.Codensity
 import Control.Monad.Reader
 import Data.ProtoLens qualified as Proto
 import Data.ProtoLens.Labels ()
+import Data.Text qualified as T
 import Notifications
-import Numeric.Lens
 import Proto.Otr qualified as Proto
 import Proto.Otr_Fields qualified as Proto
 import SetupHelpers
@@ -51,7 +51,7 @@ testNotificationsForOfflineBackends = do
       successfulMsgForDownUser <- mkProteusRecipient downUser1 downClient1 "success message for down user"
       let successfulMsg =
             Proto.defMessage @Proto.QualifiedNewOtrMessage
-              & #sender . Proto.client .~ (delClient ^?! hex)
+              & #sender . Proto.client .~ T.pack delClient
               & #recipients .~ [successfulMsgForOtherUsers, successfulMsgForDownUser]
               & #reportAll .~ Proto.defMessage
       bindResponse (postProteusMessage delUser upBackendConv successfulMsg) assertSuccess
@@ -61,7 +61,7 @@ testNotificationsForOfflineBackends = do
       failedMsgForDownUser <- mkProteusRecipient downUser1 downClient1 "failed message for down user"
       let failedMsg =
             Proto.defMessage @Proto.QualifiedNewOtrMessage
-              & #sender . Proto.client .~ (delClient ^?! hex)
+              & #sender . Proto.client .~ T.pack delClient
               & #recipients .~ [failedMsgForOtherUser, failedMsgForDownUser]
               & #reportAll .~ Proto.defMessage
       bindResponse (postProteusMessage delUser downBackendConv failedMsg) $ \resp ->

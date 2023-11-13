@@ -43,6 +43,7 @@ module Data.Id
     -- * Client IDs
     ClientId (..),
     newClientId,
+    clientIdFromText,
 
     -- * Other IDs
     ConnId (..),
@@ -315,13 +316,13 @@ newtype ClientId = ClientId
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema ClientId
 
 instance ToSchema ClientId where
-  schema = client .= parsedText "ClientId" clientIdFromByteString
+  schema = client .= parsedText "ClientId" clientIdFromText
 
 newClientId :: Word64 -> ClientId
 newClientId = ClientId . toStrict . toLazyText . hexadecimal
 
-clientIdFromByteString :: Text -> Either String ClientId
-clientIdFromByteString txt =
+clientIdFromText :: Text -> Either String ClientId
+clientIdFromText txt =
   if T.length txt <= 20 && T.all isHexDigit txt
     then Right $ ClientId txt
     else Left "Invalid ClientId"
@@ -329,10 +330,10 @@ clientIdFromByteString txt =
 instance FromByteString ClientId where
   parser = do
     bs <- Atto.takeByteString
-    either fail pure $ clientIdFromByteString (cs bs)
+    either fail pure $ clientIdFromText (cs bs)
 
 instance A.FromJSONKey ClientId where
-  fromJSONKey = A.FromJSONKeyTextParser $ either fail pure . clientIdFromByteString
+  fromJSONKey = A.FromJSONKeyTextParser $ either fail pure . clientIdFromText
 
 deriving instance Cql ClientId
 
