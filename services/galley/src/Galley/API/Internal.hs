@@ -61,6 +61,7 @@ import Galley.Effects.GundeckAccess
 import Galley.Effects.LegalHoldStore as LegalHoldStore
 import Galley.Effects.MemberStore qualified as E
 import Galley.Effects.TeamStore
+import Galley.Effects.TeamStore qualified as E
 import Galley.Intra.Push qualified as Intra
 import Galley.Monad
 import Galley.Options hiding (brig)
@@ -361,8 +362,8 @@ rmUser lusr conn = do
         goConvPages range newCids
 
     leaveTeams page = for_ (pageItems page) $ \tid -> do
-      mems <- getTeamMembersForFanout tid
-      uncheckedDeleteTeamMember lusr conn tid (tUnqualified lusr) mems
+      admins <- E.getTeamAdmins tid
+      uncheckedDeleteTeamMember lusr conn tid (tUnqualified lusr) admins
       page' <- listTeams @p2 (tUnqualified lusr) (Just (pageState page)) maxBound
       leaveTeams page'
 
