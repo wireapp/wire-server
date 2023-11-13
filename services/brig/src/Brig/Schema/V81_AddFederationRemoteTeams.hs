@@ -28,11 +28,16 @@ import Text.RawString.QQ
 
 migration :: Migration
 migration =
-  Migration 81 "Add table for managing backend wide team federation" $
+  Migration 81 "Add table for managing backend wide team federation" $ do
     schema'
       [r|
         CREATE TABLE federation_remote_teams
           ( domain text
           , team uuid
           , PRIMARY KEY (domain, team))
+     |]
+    schema'
+      [r| ALTER TABLE federation_remotes ADD (
+            restriction int
+          )
      |]

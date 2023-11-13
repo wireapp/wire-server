@@ -728,11 +728,7 @@ type FederationRemotesAPI =
     :<|> Named
            "add-federation-remote-team"
            ( Description
-               "Add a remote team to the list of teams that are allowed to federate with our domain, \
-               \given that federation with that domain is enabled in the first place. \
-               \Note, if no remote team is present in this list for a certain domain, all teams of the that domain are allowed to federate. \
-               \Additionally, if no remote teams are present for a domain, and a team is added, all other teams of that domain are disallowed from federating. \
-               \Also note, that team admins may be able to further restrict the team federation settings in the future."
+               "Add a remote team to the list of teams that are allowed to federate with our domain"
                :> "federation"
                :> "remotes"
                :> Capture "domain" Domain
@@ -743,9 +739,7 @@ type FederationRemotesAPI =
     :<|> Named
            "get-federation-remote-teams"
            ( Description
-               "Get a list of teams from a remote domain that our backend is allowed to federate with. \
-               \If the list is empty, our backend is allowed to federate with all teams of that domain. \
-               \Note, that team admins may be able to further restrict the team federation settings in the future."
+               "Get a list of teams from a remote domain that our backend is allowed to federate with."
                :> "federation"
                :> "remotes"
                :> Capture "domain" Domain
@@ -755,8 +749,7 @@ type FederationRemotesAPI =
     :<|> Named
            "delete-federation-remote-team"
            ( Description
-               "Remove a remote team from the list of teams that are allowed to federate with our domain, \
-               \Please be aware that removing the last team will mean that all teams of that domain are allowed to federate with us."
+               "Remove a remote team from the list of teams that are allowed to federate with our domain"
                :> "federation"
                :> "remotes"
                :> Capture "domain" Domain
