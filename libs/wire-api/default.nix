@@ -26,6 +26,7 @@
 , containers
 , cookie
 , crypton
+, crypton-x509
 , currency-codes
 , deriving-aeson
 , deriving-swagger2
@@ -74,7 +75,6 @@
 , saml2-web-sso
 , schema-profunctor
 , scientific
-, scrypt
 , servant
 , servant-client
 , servant-client-core
@@ -107,7 +107,6 @@
 , wai-websockets
 , websockets
 , wire-message-proto-lens
-, crypton-x509
 , zauth
 }:
 mkDerivation {
@@ -134,6 +133,7 @@ mkDerivation {
     containers
     cookie
     crypton
+    crypton-x509
     currency-codes
     deriving-aeson
     deriving-swagger2
@@ -176,7 +176,6 @@ mkDerivation {
     saml2-web-sso
     schema-profunctor
     scientific
-    scrypt
     servant
     servant-client
     servant-client-core
@@ -204,7 +203,6 @@ mkDerivation {
     wai-websockets
     websockets
     wire-message-proto-lens
-    crypton-x509
     zauth
   ];
   testHaskellDepends = [

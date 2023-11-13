@@ -35,7 +35,6 @@ import Data.ByteString.Lazy (fromStrict, toStrict)
 import Data.Misc
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
-import Debug.Trace (traceM)
 import Imports
 import OpenSSL.Random (randBytes)
 

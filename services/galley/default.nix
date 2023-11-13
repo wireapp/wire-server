@@ -28,6 +28,7 @@
 , containers
 , cookie
 , crypton
+, crypton-x509
 , currency-codes
 , data-default
 , data-timeout
@@ -121,7 +122,6 @@
 , warp-tls
 , wire-api
 , wire-api-federation
-, crypton-x509
 , yaml
 }:
 mkDerivation {
@@ -151,6 +151,7 @@ mkDerivation {
     comonad
     containers
     crypton
+    crypton-x509
     currency-codes
     data-default
     data-timeout
@@ -214,7 +215,6 @@ mkDerivation {
     wai-utilities
     wire-api
     wire-api-federation
-    crypton-x509
   ];
   executableHaskellDepends = [
     aeson

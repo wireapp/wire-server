@@ -1,4 +1,4 @@
-{ libsodium, protobuf, hlib, mls-test-cli, fetchpatch, pkgs }:
+{ libsodium, protobuf, hlib, mls-test-cli, fetchpatch }:
 # FUTUREWORK: Figure out a way to detect if some of these packages are not
 # actually marked broken, so we can cleanup this file on every nixpkgs bump.
 hself: hsuper: {

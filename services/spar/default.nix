@@ -19,6 +19,7 @@
 , containers
 , cookie
 , crypton
+, crypton-x509
 , data-default
 , email-validate
 , exceptions
@@ -75,7 +76,6 @@
 , wai-utilities
 , warp
 , wire-api
-, crypton-x509
 , xml-conduit
 , yaml
 , zauth
@@ -99,6 +99,7 @@ mkDerivation {
     containers
     cookie
     crypton
+    crypton-x509
     data-default
     exceptions
     extended
@@ -133,7 +134,6 @@ mkDerivation {
     wai-utilities
     warp
     wire-api
-    crypton-x509
     yaml
   ];
   executableHaskellDepends = [
