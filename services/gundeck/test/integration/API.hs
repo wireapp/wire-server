@@ -398,7 +398,7 @@ targetClientPush = do
     let p = view queuedNotificationPayload (Prelude.head ns)
     assertEqual "Wrong events in notification" (List1.toNonEmpty (pload c)) p
   where
-    pevent c = KeyMap.fromList ["foo" .= client c]
+    pevent c = KeyMap.fromList ["foo" .= clientToText c]
     pload c = List1.singleton (pevent c)
     rcpt u c =
       recipient u RouteAny

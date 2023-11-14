@@ -35,7 +35,7 @@ import Control.Monad.Except
 import Crypto.JWT hiding (params, uri)
 import Data.ByteString.Conversion
 import Data.Domain
-import Data.Id hiding (client)
+import Data.Id
 import Data.Misc
 import Data.Set qualified as Set
 import Data.Text.Ascii

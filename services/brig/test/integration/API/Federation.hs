@@ -28,7 +28,7 @@ import Control.Lens ((?~))
 import Data.Aeson
 import Data.Domain (Domain (Domain))
 import Data.Handle (Handle (..))
-import Data.Id hiding (client)
+import Data.Id
 import Data.Map qualified as Map
 import Data.Qualified
 import Data.Range

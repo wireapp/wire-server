@@ -95,7 +95,7 @@ instance Show ClientIdentity where
   show (ClientIdentity dom u c) =
     show u
       <> ":"
-      <> T.unpack (client c)
+      <> T.unpack (clientToText c)
       <> "@"
       <> T.unpack (domainText dom)
 
@@ -151,7 +151,7 @@ instance SerialiseMLS ClientIdentity where
   serialiseMLS cid = do
     putByteString $ toASCIIBytes (toUUID (ciUser cid))
     putCharUtf8 ':'
-    putStringUtf8 $ T.unpack (client (ciClient cid))
+    putStringUtf8 $ T.unpack (clientToText (ciClient cid))
     putCharUtf8 '@'
     putStringUtf8 $ T.unpack (domainText (ciDomain cid))
 

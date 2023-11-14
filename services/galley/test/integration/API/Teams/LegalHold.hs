@@ -35,7 +35,7 @@ import Brig.Types.User.Event qualified as Ev
 import Cassandra.Exec qualified as Cql
 import Control.Concurrent.Chan
 import Control.Lens hiding ((#))
-import Data.Id hiding (client)
+import Data.Id
 import Data.LegalHold
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.List1 qualified as List1

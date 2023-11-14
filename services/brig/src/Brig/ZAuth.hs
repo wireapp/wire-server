@@ -92,8 +92,7 @@ import Data.Aeson
 import Data.Bits
 import Data.ByteString qualified as BS
 import Data.ByteString.Conversion
-import Data.Id hiding (client)
-import Data.Id qualified
+import Data.Id
 import Data.List.NonEmpty (NonEmpty, nonEmpty)
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Proxy
@@ -292,7 +291,7 @@ mkUserToken' u cid r t = liftZAuth $ do
   z <- ask
   liftIO $
     ZC.runCreate (z ^. private) (z ^. settings . keyIndex) $
-      ZC.newToken (utcTimeToPOSIXSeconds t) U Nothing (mkUser (toUUID u) (fmap Data.Id.client cid) r)
+      ZC.newToken (utcTimeToPOSIXSeconds t) U Nothing (mkUser (toUUID u) (fmap clientToText cid) r)
 
 newUserToken' :: MonadZAuth m => UserId -> Maybe ClientId -> m (Token User)
 newUserToken' u c = liftZAuth $ do
@@ -301,7 +300,7 @@ newUserToken' u c = liftZAuth $ do
   liftIO $
     ZC.runCreate (z ^. private) (z ^. settings . keyIndex) $
       let UserTokenTimeout ttl = z ^. settings . userTokenTimeout
-       in ZC.userToken ttl (toUUID u) (fmap Data.Id.client c) r
+       in ZC.userToken ttl (toUUID u) (fmap clientToText c) r
 
 newSessionToken' :: MonadZAuth m => UserId -> Maybe ClientId -> m (Token User)
 newSessionToken' u c = liftZAuth $ do
@@ -310,7 +309,7 @@ newSessionToken' u c = liftZAuth $ do
   liftIO $
     ZC.runCreate (z ^. private) (z ^. settings . keyIndex) $
       let SessionTokenTimeout ttl = z ^. settings . sessionTokenTimeout
-       in ZC.sessionToken ttl (toUUID u) (fmap Data.Id.client c) r
+       in ZC.sessionToken ttl (toUUID u) (fmap clientToText c) r
 
 newAccessToken' :: MonadZAuth m => Token User -> m (Token Access)
 newAccessToken' xt = liftZAuth $ do
@@ -330,7 +329,7 @@ renewAccessToken' mcid old = liftZAuth $ do
             ttl
             (old ^. header)
             ( clientId
-                .~ fmap Data.Id.client mcid
+                .~ fmap clientToText mcid
                 $ (old ^. body)
             )
 
@@ -370,7 +369,7 @@ mkLegalHoldUserToken u c r t = liftZAuth $ do
         (utcTimeToPOSIXSeconds t)
         LU
         Nothing
-        (mkLegalHoldUser (toUUID u) (fmap Data.Id.client c) r)
+        (mkLegalHoldUser (toUUID u) (fmap clientToText c) r)
 
 newLegalHoldUserToken :: MonadZAuth m => UserId -> Maybe ClientId -> m (Token LegalHoldUser)
 newLegalHoldUserToken u c = liftZAuth $ do
@@ -379,7 +378,7 @@ newLegalHoldUserToken u c = liftZAuth $ do
   liftIO $
     ZC.runCreate (z ^. private) (z ^. settings . keyIndex) $
       let LegalHoldUserTokenTimeout ttl = z ^. settings . legalHoldUserTokenTimeout
-       in ZC.legalHoldUserToken ttl (toUUID u) (fmap Data.Id.client c) r
+       in ZC.legalHoldUserToken ttl (toUUID u) (fmap clientToText c) r
 
 newLegalHoldAccessToken :: MonadZAuth m => Token LegalHoldUser -> m (Token LegalHoldAccess)
 newLegalHoldAccessToken xt = liftZAuth $ do

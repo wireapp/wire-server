@@ -31,7 +31,7 @@ import Bilge.RPC
 import Brig.Types.Intra
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
 import Data.ByteString.Conversion
-import Data.Id hiding (client)
+import Data.Id
 import Data.Misc
 import Data.Qualified
 import Data.Set qualified as Set

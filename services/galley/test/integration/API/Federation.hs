@@ -25,7 +25,7 @@ import Control.Exception
 import Control.Lens hiding ((#))
 import Data.ByteString.Conversion (toByteString')
 import Data.Domain
-import Data.Id hiding (client)
+import Data.Id
 import Data.Json.Util hiding ((#))
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.List1 hiding (head)

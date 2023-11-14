@@ -29,7 +29,7 @@ import Control.Monad.Catch (MonadCatch)
 import Data.Aeson hiding (json)
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
-import Data.Id hiding (client)
+import Data.Id
 import Data.Misc (Milliseconds)
 import Data.Range
 import Data.Set qualified as Set

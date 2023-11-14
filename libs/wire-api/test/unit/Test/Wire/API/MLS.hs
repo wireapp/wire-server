@@ -282,7 +282,7 @@ userClientQid :: Qualified UserId -> ClientId -> String
 userClientQid usr c =
   show (qUnqualified usr)
     <> ":"
-    <> T.unpack (Data.Id.client c)
+    <> T.unpack (clientToText c)
     <> "@"
     <> T.unpack (domainText (qDomain usr))
 

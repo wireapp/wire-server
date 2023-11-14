@@ -33,7 +33,7 @@ import Data.Aeson
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
 import Data.Handle (Handle (Handle))
-import Data.Id hiding (client)
+import Data.Id
 import Data.List1 qualified as List1
 import Data.Qualified (Qualified (..))
 import Data.UUID qualified as UUID

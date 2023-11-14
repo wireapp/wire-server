@@ -42,7 +42,7 @@ module Data.Id
 
     -- * Client IDs
     ClientId (..),
-    client,
+    clientToText,
 
     -- * Other IDs
     ConnId (..),
@@ -313,14 +313,14 @@ newtype ClientId = ClientId
   deriving newtype (ToParamSchema, FromHttpApiData, ToHttpApiData, Binary)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema ClientId
 
-client :: ClientId -> Text
-client = toStrict . toLazyText . hexadecimal . clientToWord64
+clientToText :: ClientId -> Text
+clientToText = toStrict . toLazyText . hexadecimal . clientToWord64
 
 instance ToSchema ClientId where
   schema = withParser s parseClientId
     where
       s :: ValueSchemaP NamedSwaggerDoc ClientId Text
-      s = client .= schema
+      s = clientToText .= schema
 
 parseClientId :: Text -> A.Parser ClientId
 parseClientId = either fail pure . runParser parser . encodeUtf8
@@ -335,11 +335,11 @@ instance A.FromJSONKey ClientId where
   fromJSONKey = A.FromJSONKeyTextParser parseClientId
 
 instance A.ToJSONKey ClientId where
-  toJSONKey = A.toJSONKeyText client
+  toJSONKey = A.toJSONKeyText clientToText
 
 instance Cql ClientId where
   ctype = Tagged TextColumn
-  toCql = CqlText . client
+  toCql = CqlText . clientToText
   fromCql (CqlText t) = runParser parser (encodeUtf8 t)
   fromCql _ = Left "ClientId: expected CqlText"
 
@@ -347,7 +347,7 @@ instance Arbitrary ClientId where
   arbitrary = ClientId <$> arbitrary
 
 instance EncodeWire ClientId where
-  encodeWire t = encodeWire t . client
+  encodeWire t = encodeWire t . clientToText
 
 instance DecodeWire ClientId where
   decodeWire (DelimitedField _ x) = either fail pure (runParser parser x)

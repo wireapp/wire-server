@@ -32,7 +32,7 @@ import Control.Monad.Random.Class (getRandomR)
 import Data.Aeson as Aeson
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
-import Data.Id hiding (client)
+import Data.Id
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Misc
 import Data.Proxy

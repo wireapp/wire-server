@@ -44,7 +44,7 @@ import Data.ByteString.Conversion
 import Data.Coerce (coerce)
 import Data.Default
 import Data.Domain (Domain (..))
-import Data.Id hiding (client)
+import Data.Id
 import Data.List1 qualified as List1
 import Data.Map qualified as Map
 import Data.Nonce (isValidBase64UrlEncodedUUID)

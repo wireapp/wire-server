@@ -41,7 +41,7 @@ import Data.ByteString.Conversion
 import Data.ByteString.Lazy qualified as LB
 import Data.Domain
 import Data.Handle (Handle (Handle))
-import Data.Id hiding (client)
+import Data.Id
 import Data.Kind
 import Data.List1 qualified as List1
 import Data.Misc

@@ -23,7 +23,7 @@ import Cassandra
 import Data.Conduit
 import Data.Conduit.Internal (zipSources)
 import Data.Conduit.List qualified as C
-import Data.Id hiding (client)
+import Data.Id
 import Data.Time.Clock
 import Imports
 import System.Logger (Logger)

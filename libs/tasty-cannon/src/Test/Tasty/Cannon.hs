@@ -81,7 +81,7 @@ import Data.Aeson (FromJSON, Value (..), decodeStrict', fromJSON)
 import Data.Aeson qualified as JSON
 import Data.ByteString.Char8 qualified as C
 import Data.ByteString.Conversion
-import Data.Id hiding (client)
+import Data.Id
 import Data.List1
 import Data.Timeout (Timeout, TimeoutUnit (..), (#))
 import Imports

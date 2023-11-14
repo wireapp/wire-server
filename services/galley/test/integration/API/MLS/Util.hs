@@ -42,8 +42,7 @@ import Data.ByteString.Base64.URL qualified as B64U
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy qualified as LBS
 import Data.Domain
-import Data.Id hiding (client)
-import Data.Id qualified
+import Data.Id
 import Data.Json.Util hiding ((#))
 import Data.Map qualified as Map
 import Data.Qualified
@@ -90,7 +89,7 @@ cid2Str :: ClientIdentity -> String
 cid2Str cid =
   show cid.ciUser
     <> ":"
-    <> T.unpack (Data.Id.client cid.ciClient)
+    <> T.unpack (clientToText cid.ciClient)
     <> "@"
     <> T.unpack (domainText (ciDomain cid))
 

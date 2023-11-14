@@ -276,7 +276,7 @@ mkQualifiedOtrPayload sender entries dat strat =
 clientIdToProtolens :: ClientId -> Proto.Otr.ClientId
 clientIdToProtolens cid =
   ProtoLens.defMessage
-    & Proto.Otr.client .~ (either error fst . Reader.hexadecimal $ client cid)
+    & Proto.Otr.client .~ (either error fst . Reader.hexadecimal $ clientToText cid)
 
 --------------------------------------------------------------------------------
 -- Priority

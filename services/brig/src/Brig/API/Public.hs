@@ -81,7 +81,7 @@ import Data.CommaSeparatedList
 import Data.Domain
 import Data.FileEmbed
 import Data.Handle (Handle, parseHandle)
-import Data.Id hiding (client)
+import Data.Id
 import Data.Id qualified as Id
 import Data.List.NonEmpty (nonEmpty)
 import Data.Map.Strict qualified as Map
@@ -645,7 +645,7 @@ newNonce :: UserId -> ClientId -> (Handler r) (Nonce, CacheControl)
 newNonce uid cid = do
   ttl <- setNonceTtlSecs <$> view settings
   nonce <- randomNonce
-  lift $ wrapClient $ Nonce.insertNonce ttl uid (Id.client cid) nonce
+  lift $ wrapClient $ Nonce.insertNonce ttl uid (Id.clientToText cid) nonce
   pure (nonce, NoStore)
 
 createAccessToken ::

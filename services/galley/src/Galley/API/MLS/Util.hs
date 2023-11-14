@@ -18,7 +18,7 @@
 module Galley.API.MLS.Util where
 
 import Control.Comonad
-import Data.Id hiding (client)
+import Data.Id
 import Data.Qualified
 import Data.Text qualified as T
 import Galley.Data.Conversation.Types hiding (Conversation)

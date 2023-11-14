@@ -784,7 +784,7 @@ fakePresence userId clientId_ = Presence {..}
 
 -- | See also: 'fakePresence'.
 fakeConnId :: ClientId -> ConnId
-fakeConnId = ConnId . cs . client
+fakeConnId = ConnId . cs . clientToText
 
 clientIdFromConnId :: ConnId -> ClientId
 clientIdFromConnId = fromJust . fromByteString . fromConnId

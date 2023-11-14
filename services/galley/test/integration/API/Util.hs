@@ -49,7 +49,7 @@ import Data.Default
 import Data.Domain
 import Data.Handle qualified as Handle
 import Data.HashMap.Strict qualified as HashMap
-import Data.Id hiding (client)
+import Data.Id
 import Data.Json.Util hiding ((#))
 import Data.Kind
 import Data.LegalHold (defUserLegalHoldStatus)
