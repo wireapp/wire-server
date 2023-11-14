@@ -46,6 +46,11 @@ spec:
         - name: "geoip"
           emptyDir: {}
         {{- end }}
+        {{- if (include "useCassandraCA" .Values.config) }}
+        - name: "brig-cassandra"
+          secret:
+            secretName: "brig-cassandra"
+        {{- end}}
       {{- if .Values.config.geoip.enabled }}
       # Brig needs GeoIP database to be downloaded before it can start.
       initContainers:
@@ -102,11 +107,7 @@ spec:
           - name: "geoip"
             mountPath: "/usr/share/GeoIP"
           {{- end }}
-          {{- if and
-                  (hasKey .Values.config.cassandra "tls")
-                  (.Values.config.cassandra.tls.enabled)
-                  (hasKey .Values.config.cassandra.tls "ca")
-          -}}
+          {{- if (include "useCassandraCA" .Values.config) }}
           - name: "brig-cassandra"
             mountPath: "/etc/wire/brig/cassandra"
           {{- end }}

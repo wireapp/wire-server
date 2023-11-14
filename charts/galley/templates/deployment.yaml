@@ -36,11 +36,7 @@ spec:
         - name: "galley-secrets"
           secret:
             secretName: "galley"
-        {{- if and
-                (hasKey .Values.config.cassandra "tls")
-                (.Values.config.cassandra.tls.enabled)
-                (hasKey .Values.config.cassandra.tls "ca")
-        -}}
+        {{- if (include "useCassandraCA" .Values.config) }}
         - name: "galley-cassandra"
           mountPath: "/etc/wire/galley/cassandra"
         {{- end }}
@@ -57,6 +53,10 @@ spec:
             mountPath: "/etc/wire/galley/conf"
           - name: "galley-secrets"
             mountPath: "/etc/wire/galley/secrets"
+          {{- if (include "useCassandraCA" .Values.config)}}
+          - name: "galley-cassandra"
+            mountPath: "/etc/wire/galley/cassandra"
+          {{- end }}
           env:
           {{- if hasKey .Values.secrets "awsKeyId" }}
           - name: AWS_ACCESS_KEY_ID

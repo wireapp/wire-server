@@ -21,9 +21,9 @@ data:
       {{- if hasKey .cassandra "filterNodesByDatacentre" }}
       filterNodesByDatacentre: {{ .cassandra.filterNodesByDatacentre }}
       {{- end }}
-      {{- if and (hasKey .cassandra "tls") (.cassandra.tls.enabled) }}
+      {{- if (include "useCassandraTLS" .) }}
       useTLS: true
-      {{- if (hasKey .cassandra.tls "ca" ) }}
+      {{- if (include "useCassandraCA" .) }}
       tlsCert: /etc/wire/galley/cassandra/ca.pem
       {{- end }}
       {{- else }}

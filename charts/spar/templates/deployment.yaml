@@ -30,6 +30,11 @@ spec:
         - name: "spar-config"
           configMap:
             name: "spar"
+        {{- if (include "useCassandraCA" .Values.config) }}
+        - name: "spar-cassandra"
+          secret:
+            secretName: "spar-cassandra"
+        {{- end}}
       containers:
         - name: spar
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -41,11 +46,7 @@ spec:
           volumeMounts:
           - name: "spar-config"
             mountPath: "/etc/wire/spar/conf"
-          {{- if and
-                  (hasKey .Values.config.cassandra "tls")
-                  (.Values.config.cassandra.tls.enabled)
-                  (hasKey .Values.config.cassandra.tls "ca")
-          -}}
+          {{- if (include "useCassandraCA" .Values.config) }}
           - name: "spar-cassandra"
             mountPath: "/etc/wire/spar/cassandra"
           {{- end }}
