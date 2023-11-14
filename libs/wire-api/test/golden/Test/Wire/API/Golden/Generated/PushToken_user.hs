@@ -32,4 +32,4 @@ testObject_PushToken_user_1 =
     APNSSandbox
     (AppName {appNameText = "G\1008289"})
     (Token {tokenText = "\EOT8M\NAKAv\1104873"})
-    (ClientId 16)
+    (ClientId 0x16)

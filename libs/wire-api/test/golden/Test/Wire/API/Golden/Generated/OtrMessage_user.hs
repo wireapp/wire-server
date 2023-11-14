@@ -33,7 +33,7 @@ testObject_OtrMessage_user_1 =
 testObject_OtrMessage_user_2 :: OtrMessage
 testObject_OtrMessage_user_2 =
   OtrMessage
-    { otrSender = ClientId 18,
+    { otrSender = ClientId 0x18,
       otrRecipient = ClientId 0xa,
       otrCiphertext = "\11788t",
       otrData = Just "\ESC\NAKJj"

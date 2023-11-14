@@ -79,14 +79,14 @@ testObject_ClientPrekey_user_8 =
 testObject_ClientPrekey_user_9 :: ClientPrekey
 testObject_ClientPrekey_user_9 =
   ClientPrekey
-    { prekeyClient = ClientId 324,
+    { prekeyClient = ClientId 0x324,
       prekeyData = Prekey {prekeyId = PrekeyId {keyId = 5}, prekeyKey = "\v>h"}
     }
 
 testObject_ClientPrekey_user_10 :: ClientPrekey
 testObject_ClientPrekey_user_10 =
   ClientPrekey
-    { prekeyClient = ClientId 252,
+    { prekeyClient = ClientId 0x252,
       prekeyData = Prekey {prekeyId = PrekeyId {keyId = 2}, prekeyKey = "0\EOT\DC2\RS\SI\1082579f"}
     }
 
@@ -114,7 +114,7 @@ testObject_ClientPrekey_user_13 =
 testObject_ClientPrekey_user_14 :: ClientPrekey
 testObject_ClientPrekey_user_14 =
   ClientPrekey
-    { prekeyClient = ClientId 710,
+    { prekeyClient = ClientId 0x710,
       prekeyData = Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = "\DC2\135043\96744\DEL\156322x\1009249"}
     }
 
@@ -142,14 +142,14 @@ testObject_ClientPrekey_user_17 =
 testObject_ClientPrekey_user_18 :: ClientPrekey
 testObject_ClientPrekey_user_18 =
   ClientPrekey
-    { prekeyClient = ClientId 895,
+    { prekeyClient = ClientId 0x895,
       prekeyData = Prekey {prekeyId = PrekeyId {keyId = 8}, prekeyKey = ","}
     }
 
 testObject_ClientPrekey_user_19 :: ClientPrekey
 testObject_ClientPrekey_user_19 =
   ClientPrekey
-    { prekeyClient = ClientId 792,
+    { prekeyClient = ClientId 0x792,
       prekeyData = Prekey {prekeyId = PrekeyId {keyId = 4}, prekeyKey = "g\60021\23060i\ETX"}
     }
 

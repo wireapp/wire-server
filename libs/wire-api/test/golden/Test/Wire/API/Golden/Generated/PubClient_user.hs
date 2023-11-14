@@ -33,16 +33,16 @@ testObject_PubClient_user_1 :: PubClient
 testObject_PubClient_user_1 = PubClient {pubClientId = ClientId 0x1f4, pubClientClass = Nothing}
 
 testObject_PubClient_user_2 :: PubClient
-testObject_PubClient_user_2 = PubClient {pubClientId = ClientId 502, pubClientClass = Just TabletClient}
+testObject_PubClient_user_2 = PubClient {pubClientId = ClientId 0x502, pubClientClass = Just TabletClient}
 
 testObject_PubClient_user_3 :: PubClient
-testObject_PubClient_user_3 = PubClient {pubClientId = ClientId 376, pubClientClass = Just DesktopClient}
+testObject_PubClient_user_3 = PubClient {pubClientId = ClientId 0x376, pubClientClass = Just DesktopClient}
 
 testObject_PubClient_user_4 :: PubClient
 testObject_PubClient_user_4 = PubClient {pubClientId = ClientId 0x47f, pubClientClass = Just TabletClient}
 
 testObject_PubClient_user_5 :: PubClient
-testObject_PubClient_user_5 = PubClient {pubClientId = ClientId 377, pubClientClass = Just LegalHoldClient}
+testObject_PubClient_user_5 = PubClient {pubClientId = ClientId 0x377, pubClientClass = Just LegalHoldClient}
 
 testObject_PubClient_user_6 :: PubClient
 testObject_PubClient_user_6 = PubClient {pubClientId = ClientId 0xe4f, pubClientClass = Just DesktopClient}
@@ -54,13 +54,13 @@ testObject_PubClient_user_8 :: PubClient
 testObject_PubClient_user_8 = PubClient {pubClientId = ClientId 0x69b, pubClientClass = Just PhoneClient}
 
 testObject_PubClient_user_9 :: PubClient
-testObject_PubClient_user_9 = PubClient {pubClientId = ClientId 357, pubClientClass = Just LegalHoldClient}
+testObject_PubClient_user_9 = PubClient {pubClientId = ClientId 0x357, pubClientClass = Just LegalHoldClient}
 
 testObject_PubClient_user_10 :: PubClient
 testObject_PubClient_user_10 = PubClient {pubClientId = ClientId 0x4aa, pubClientClass = Just PhoneClient}
 
 testObject_PubClient_user_11 :: PubClient
-testObject_PubClient_user_11 = PubClient {pubClientId = ClientId 599, pubClientClass = Nothing}
+testObject_PubClient_user_11 = PubClient {pubClientId = ClientId 0x599, pubClientClass = Nothing}
 
 testObject_PubClient_user_12 :: PubClient
 testObject_PubClient_user_12 = PubClient {pubClientId = ClientId 0xdcd, pubClientClass = Just TabletClient}
@@ -89,4 +89,4 @@ testObject_PubClient_user_19 :: PubClient
 testObject_PubClient_user_19 = PubClient {pubClientId = ClientId 0x4c7, pubClientClass = Just TabletClient}
 
 testObject_PubClient_user_20 :: PubClient
-testObject_PubClient_user_20 = PubClient {pubClientId = ClientId 787, pubClientClass = Just TabletClient}
+testObject_PubClient_user_20 = PubClient {pubClientId = ClientId 0x787, pubClientClass = Just TabletClient}

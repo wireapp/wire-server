@@ -34,7 +34,7 @@ testObject_UserLegalHoldStatusResponse_team_1 =
   UserLegalHoldStatusResponse
     { ulhsrStatus = UserLegalHoldDisabled,
       ulhsrLastPrekey = Just (lastPrekey "\39669\&9\ENQ\1016886\11258\\3\62960x\25215"),
-      ulhsrClientId = Just (ClientId 97)
+      ulhsrClientId = Just (ClientId 0x97)
     }
 
 testObject_UserLegalHoldStatusResponse_team_2 :: UserLegalHoldStatusResponse
@@ -42,7 +42,7 @@ testObject_UserLegalHoldStatusResponse_team_2 =
   UserLegalHoldStatusResponse
     { ulhsrStatus = UserLegalHoldDisabled,
       ulhsrLastPrekey = Just (lastPrekey "\111141L,"),
-      ulhsrClientId = Just (ClientId 46)
+      ulhsrClientId = Just (ClientId 0x46)
     }
 
 testObject_UserLegalHoldStatusResponse_team_3 :: UserLegalHoldStatusResponse
@@ -62,7 +62,7 @@ testObject_UserLegalHoldStatusResponse_team_5 =
   UserLegalHoldStatusResponse
     { ulhsrStatus = UserLegalHoldEnabled,
       ulhsrLastPrekey = Just (lastPrekey "?\tvSq"),
-      ulhsrClientId = Just (ClientId 12)
+      ulhsrClientId = Just (ClientId 0x12)
     }
 
 testObject_UserLegalHoldStatusResponse_team_6 :: UserLegalHoldStatusResponse
@@ -70,7 +70,7 @@ testObject_UserLegalHoldStatusResponse_team_6 =
   UserLegalHoldStatusResponse
     { ulhsrStatus = UserLegalHoldEnabled,
       ulhsrLastPrekey = Nothing,
-      ulhsrClientId = Just (ClientId 50)
+      ulhsrClientId = Just (ClientId 0x50)
     }
 
 testObject_UserLegalHoldStatusResponse_team_7 :: UserLegalHoldStatusResponse
@@ -78,7 +78,7 @@ testObject_UserLegalHoldStatusResponse_team_7 =
   UserLegalHoldStatusResponse
     { ulhsrStatus = UserLegalHoldEnabled,
       ulhsrLastPrekey = Just (lastPrekey ""),
-      ulhsrClientId = Just (ClientId 63)
+      ulhsrClientId = Just (ClientId 0x63)
     }
 
 testObject_UserLegalHoldStatusResponse_team_8 :: UserLegalHoldStatusResponse
@@ -166,7 +166,7 @@ testObject_UserLegalHoldStatusResponse_team_19 =
   UserLegalHoldStatusResponse
     { ulhsrStatus = UserLegalHoldEnabled,
       ulhsrLastPrekey = Just (lastPrekey ""),
-      ulhsrClientId = Just (ClientId 88)
+      ulhsrClientId = Just (ClientId 0x88)
     }
 
 testObject_UserLegalHoldStatusResponse_team_20 :: UserLegalHoldStatusResponse

@@ -84,7 +84,7 @@ testObject_UserClientPrekeyMap_5 :: UserClientPrekeyMap
 testObject_UserClientPrekeyMap_5 =
   (mkUserClientPrekeyMap . fromList)
     [ ( Id (fromJust (UUID.fromString "00000000-0000-0004-0000-000400000005")),
-        fromList [(ClientId 17, Nothing)]
+        fromList [(ClientId 0x17, Nothing)]
       ),
       ( Id (fromJust (UUID.fromString "00000003-0000-0006-0000-000100000000")),
         fromList [(ClientId 2, Just testObject_Prekey_user_5)]

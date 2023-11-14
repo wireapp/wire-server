@@ -34,7 +34,7 @@ testObject_LegalHoldServiceConfirm_team_1 =
 testObject_LegalHoldServiceConfirm_team_2 :: LegalHoldServiceConfirm
 testObject_LegalHoldServiceConfirm_team_2 =
   LegalHoldServiceConfirm
-    { lhcClientId = ClientId 15,
+    { lhcClientId = ClientId 0x15,
       lhcUserId = Id (fromJust (UUID.fromString "00000002-0000-0008-0000-000200000007")),
       lhcTeamId = Id (fromJust (UUID.fromString "00000007-0000-0004-0000-000600000002")),
       lhcRefreshToken = "\\i"
@@ -61,7 +61,7 @@ testObject_LegalHoldServiceConfirm_team_4 =
 testObject_LegalHoldServiceConfirm_team_5 :: LegalHoldServiceConfirm
 testObject_LegalHoldServiceConfirm_team_5 =
   LegalHoldServiceConfirm
-    { lhcClientId = ClientId 12,
+    { lhcClientId = ClientId 0x12,
       lhcUserId = Id (fromJust (UUID.fromString "00000000-0000-0005-0000-000300000006")),
       lhcTeamId = Id (fromJust (UUID.fromString "00000002-0000-0008-0000-000400000007")),
       lhcRefreshToken = "\1021908hL\1101997\23856\180103"
@@ -106,7 +106,7 @@ testObject_LegalHoldServiceConfirm_team_9 =
 testObject_LegalHoldServiceConfirm_team_10 :: LegalHoldServiceConfirm
 testObject_LegalHoldServiceConfirm_team_10 =
   LegalHoldServiceConfirm
-    { lhcClientId = ClientId 20,
+    { lhcClientId = ClientId 0x20,
       lhcUserId = Id (fromJust (UUID.fromString "00000006-0000-0005-0000-000500000006")),
       lhcTeamId = Id (fromJust (UUID.fromString "00000001-0000-0005-0000-000700000001")),
       lhcRefreshToken = ""
@@ -178,7 +178,7 @@ testObject_LegalHoldServiceConfirm_team_17 =
 testObject_LegalHoldServiceConfirm_team_18 :: LegalHoldServiceConfirm
 testObject_LegalHoldServiceConfirm_team_18 =
   LegalHoldServiceConfirm
-    { lhcClientId = ClientId 11,
+    { lhcClientId = ClientId 0x11,
       lhcUserId = Id (fromJust (UUID.fromString "00000006-0000-0000-0000-000800000004")),
       lhcTeamId = Id (fromJust (UUID.fromString "00000006-0000-0003-0000-000100000005")),
       lhcRefreshToken = "Y\1029262"

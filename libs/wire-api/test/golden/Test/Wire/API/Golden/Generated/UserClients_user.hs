@@ -277,7 +277,7 @@ testObject_UserClients_user_14 =
     { userClients =
         fromList
           [ ( Id (fromJust (UUID.fromString "00001130-0000-01e5-0000-3c24000015c6")),
-              fromList [ClientId 18, ClientId 0x1f, ClientId 0xa]
+              fromList [ClientId 0x18, ClientId 0x1f, ClientId 0xa]
             )
           ]
     }
@@ -288,7 +288,7 @@ testObject_UserClients_user_15 =
     { userClients =
         fromList
           [ ( Id (fromJust (UUID.fromString "000004e9-0000-307b-0000-1ab300006689")),
-              fromList [ClientId 0x6c, ClientId 946]
+              fromList [ClientId 0x6c, ClientId 0x946]
             )
           ]
     }

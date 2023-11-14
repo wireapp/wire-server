@@ -34,7 +34,7 @@ testObject_OtrRecipients_user_1 =
               fromList
                 [ ( Id (fromJust (UUID.fromString "00000025-0000-0031-0000-003e00000001")),
                     fromList
-                      [ (ClientId 10, "q"),
+                      [ (ClientId 0x10, "q"),
                         (ClientId 4, "\f"),
                         (ClientId 0xb, "\83295")
                       ]

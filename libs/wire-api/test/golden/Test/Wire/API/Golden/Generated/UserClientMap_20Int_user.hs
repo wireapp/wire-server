@@ -97,7 +97,7 @@ testObject_UserClientMap_20Int_user_5 =
     { userClientMap =
         fromList
           [ ( Id (fromJust (UUID.fromString "00000000-0000-0004-0000-000400000005")),
-              fromList [(ClientId 17, -7)]
+              fromList [(ClientId 0x17, -7)]
             ),
             ( Id (fromJust (UUID.fromString "00000003-0000-0006-0000-000100000000")),
               fromList [(ClientId 2, 4)]
@@ -193,7 +193,7 @@ testObject_UserClientMap_20Int_user_11 =
     { userClientMap =
         fromList
           [ ( Id (fromJust (UUID.fromString "00000001-0000-001b-0000-000200000004")),
-              fromList [(ClientId 38, -3)]
+              fromList [(ClientId 0x38, -3)]
             ),
             ( Id (fromJust (UUID.fromString "00000007-0000-001b-0000-000700000017")),
               fromList [(ClientId 1, 0), (ClientId 2, 2), (ClientId 3, -3)]
@@ -237,7 +237,7 @@ testObject_UserClientMap_20Int_user_13 =
               fromList [(ClientId 0x9, -3), (ClientId 0xd, -5)]
             ),
             ( Id (fromJust (UUID.fromString "00000008-0000-0011-0000-000b0000000f")),
-              fromList [(ClientId 98, 1)]
+              fromList [(ClientId 0x98, 1)]
             )
           ]
     }
@@ -357,7 +357,7 @@ testObject_UserClientMap_20Int_user_19 =
           [ (Id (fromJust (UUID.fromString "00000000-0000-0005-0000-000800000002")), fromList []),
             (Id (fromJust (UUID.fromString "00000002-0000-0007-0000-000100000002")), fromList []),
             ( Id (fromJust (UUID.fromString "00000002-0000-0008-0000-000300000006")),
-              fromList [(ClientId 12, 6)]
+              fromList [(ClientId 0x12, 6)]
             ),
             (Id (fromJust (UUID.fromString "00000002-0000-0008-0000-000300000008")), fromList [])
           ]
