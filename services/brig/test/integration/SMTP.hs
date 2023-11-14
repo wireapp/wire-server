@@ -22,12 +22,13 @@ import Bilge qualified
 -- import Pipes.Prelude qualified
 import System.Logger qualified as Logger
 import Test.Tasty
-import Test.Tasty.HUnit
+
+-- import Test.Tasty.HUnit
 
 -- import Util
 
 tests :: Bilge.Manager -> Logger.Logger -> TestTree
-tests m lg =
+tests _m _lg =
   testGroup
     "SMTP"
     []
