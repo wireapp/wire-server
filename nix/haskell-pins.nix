@@ -199,8 +199,8 @@ let
     # This can be removed once postie with TLS 1.9 is on nixpkgs.
     postie = {
       src = fetchgit {
-        url = "https://github.com/elland/postie.git";
-        rev = "a3a703fa53b2948a31e24c4e47f9ea9d2648967a";
+        url = "https://github.com/wireapp/postie.git";
+        rev = "43b6d1d21d56e567077c194d49efb92e777e7628";
         sha256 = "sha256-DKugy4EpRsSgaGvybdh2tLa7HCtoxId+7RAAAw43llA=";
       };
     };
