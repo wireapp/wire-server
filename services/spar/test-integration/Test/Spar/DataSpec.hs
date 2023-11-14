@@ -32,6 +32,7 @@ import Polysemy
 import SAML2.WebSSO as SAML
 import Spar.App as App
 import Spar.Error (IdpDbError (IdpNotFound), SparCustomError (IdpDbError))
+import Spar.Intra.BrigApp (veidFromUserSSOId)
 import Spar.Options
 import qualified Spar.Sem.AReqIDStore as AReqIDStore
 import qualified Spar.Sem.AssIDStore as AssIDStore

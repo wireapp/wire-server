@@ -791,8 +791,8 @@ type ReindexRow =
     Maybe (Writetime ServiceId),
     Maybe ManagedBy,
     Maybe (Writetime ManagedBy),
-    Maybe LegacyUserSSOId, -- TODO: add UAuthId fields and deprecate these two
-    Maybe (Writetime LegacyUserSSOId),
+    Maybe UserSSOId,
+    Maybe (Writetime UserSSOId),
     Maybe Email,
     Maybe (Writetime Email)
   )
@@ -856,7 +856,7 @@ reindexRowToIndexUser
                 . set iuManagedBy managedBy
                 . set iuCreatedAt (Just (writetimeToUTC tActivated))
                 . set iuSearchVisibilityInbound (Just searchVisInbound)
-                . set iuScimExternalId (join $ User.scimExternalId <$> managedBy <*> undefined ssoId)
+                . set iuScimExternalId (join $ User.scimExternalId <$> managedBy <*> ssoId)
                 . set iuSso (sso =<< ssoId)
                 . set iuEmailUnvalidated emailUnvalidated
           else
@@ -882,7 +882,7 @@ reindexRowToIndexUser
         )
           && activated -- FUTUREWORK: how is this adding to the first case?
           && isNothing service
-      idpUrl :: LegacyUserSSOId -> Maybe Text
+      idpUrl :: UserSSOId -> Maybe Text
       idpUrl (UserSSOId (SAML.UserRef (SAML.Issuer uri) _subject)) =
         Just $ fromUri uri
       idpUrl (UserScimExternalId _) = Nothing
@@ -890,9 +890,9 @@ reindexRowToIndexUser
       fromUri :: URI -> Text
       fromUri = cs . toLazyByteString . serializeURIRef
 
-      sso :: LegacyUserSSOId -> Maybe Sso
+      sso :: UserSSOId -> Maybe Sso
       sso userSsoId = do
-        (issuer, nameid) <- User.ssoIssuerAndNameId (undefined userSsoId)
+        (issuer, nameid) <- User.ssoIssuerAndNameId userSsoId
         pure $ Sso {ssoIssuer = issuer, ssoNameId = nameid}
 
 getTeamSearchVisibilityInbound ::

@@ -1008,7 +1008,7 @@ errFromEither (Right e) = CreateUserSparRegistrationError e
 
 data NewUserSpar = NewUserSpar
   { newUserSparUUID :: UUID,
-    newUserSparSSOId :: PartialUAuthId, -- TODO: should we keep support for legacy data here to prevent hickups during upgrade?
+    newUserSparSSOId :: PartialUAuthId,
     newUserSparDisplayName :: Name,
     newUserSparTeamId :: TeamId,
     newUserSparManagedBy :: ManagedBy,
@@ -1291,9 +1291,6 @@ instance Arbitrary NewUser where
         if hasSSOId
           then pure ssoOrigin
           else arbitrary `QC.suchThat` (not . isSsoOrigin)
-
-      -- start writing changelog: "parsers containing UserIdentity are more restrictive now, in particular: ...
-
       genUserPassword newUserIdentity newUserOrigin = do
         let hasSSOId = case newUserIdentity of
               Just UAuthIdentity {} -> True

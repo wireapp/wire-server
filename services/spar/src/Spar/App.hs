@@ -85,10 +85,10 @@ import qualified System.Logger as TinyLog
 import URI.ByteString as URI
 import Web.Cookie (SetCookie, renderSetCookie)
 import Wire.API.Team.Role (Role, defaultRole)
-import Wire.API.User
--- import Wire.API.User.Identity
+import Wire.API.User hiding (validateEmail)
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
+import Wire.API.User.Scim (ValidExternalId (..))
 import Wire.Sem.Logger (Logger)
 import qualified Wire.Sem.Logger as Logger
 import Wire.Sem.Random (Random)
@@ -351,7 +351,7 @@ moveUserToNewIssuer ::
   Sem r ()
 moveUserToNewIssuer oldUserRef newUserRef uid = do
   SAMLUserStore.insert newUserRef uid
-  BrigAccess.setVeid uid undefined -- (UrefOnly newUserRef) - we need to make sure we don't overwrite externalid, email, team here.
+  BrigAccess.setVeid uid (UrefOnly newUserRef)
   SAMLUserStore.delete uid oldUserRef
 
 verdictHandlerResultCore ::
