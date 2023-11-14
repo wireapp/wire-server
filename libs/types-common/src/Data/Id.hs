@@ -320,7 +320,12 @@ instance ToSchema ClientId where
   schema = withParser s parseClientId
     where
       s :: ValueSchemaP NamedSwaggerDoc ClientId Text
-      s = clientToText .= schema
+      s =
+        clientToText .= schema
+          & doc . S.description
+            ?~ "A 64-bit unsigned integer, represented as a hexadecimal numeral. \
+               \Any valid hexadecimal numeral is accepted, but the backend will only \
+               \produce representations with lowercase digits and no leading zeros"
 
 parseClientId :: Text -> A.Parser ClientId
 parseClientId = either fail pure . runParser parser . encodeUtf8
