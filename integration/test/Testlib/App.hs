@@ -42,14 +42,9 @@ readServiceConfig = readServiceConfig' . configName
 
 readServiceConfig' :: String -> App Value
 readServiceConfig' srvName = do
-  cfgFile <-
-    asks
-      ( ( \case
-            Nothing -> "/etc/wire" </> srvName </> "conf" </> (srvName <> ".yaml")
-            Just p -> p </> srvName </> (srvName <> ".integration.yaml")
-        )
-          . (.servicesCwdBase)
-      )
+  cfgFile <- asks \env -> case env.servicesCwdBase of
+    Nothing -> "/etc/wire" </> srvName </> "conf" </> (srvName <> ".yaml")
+    Just p -> p </> srvName </> (srvName <> ".integration.yaml")
 
   eith <- liftIO (Yaml.decodeFileEither cfgFile)
   case eith of

@@ -224,6 +224,7 @@ let
       };
     };
 
+    # PR at https://github.com/google/ghc-source-gen/pull/102
     ghc-source-gen = {
       version = "0.4.4.0";
       src = pkgs.fetchFromGitHub {

@@ -33,6 +33,7 @@ import Brig.Types.Intra (UserSet (..))
 import Brig.Types.Test.Arbitrary ()
 import Brig.Types.User.Event qualified as Ev
 import Cassandra.Exec qualified as Cql
+import Control.Category ((>>>))
 import Control.Concurrent.Chan
 import Control.Lens hiding ((#))
 import Data.Id
@@ -724,7 +725,13 @@ testOldClientsBlockDeviceHandshake = do
         UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped uid tid
         liftIO $ assertEqual "approving should change status" UserLegalHoldEnabled userStatus
         getInternalClientsFull (UserSet $ Set.singleton uid)
-          <&> clientId . head . Set.toList . Set.unions . Map.elems . userClientsFull
+          <&> do
+            userClientsFull
+              >>> Map.elems
+              >>> Set.unions
+              >>> Set.toList
+              >>> head
+              >>> clientId
 
   putLHWhitelistTeam tid !!! const 200 === statusCode
 
@@ -800,7 +807,13 @@ testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH testPendingConnect
         if approveLH
           then
             getInternalClientsFull (UserSet $ Set.singleton legalholder)
-              <&> fmap clientId . listToMaybe . Set.toList . Set.unions . Map.elems . userClientsFull
+              <&> do
+                userClientsFull
+                  >>> Map.elems
+                  >>> Set.unions
+                  >>> Set.toList
+                  >>> listToMaybe
+                  >>> fmap clientId
           else pure Nothing
 
       doDisableLH :: HasCallStack => TestM ()
@@ -1117,7 +1130,13 @@ testClaimKeys testcase = do
         UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped uid team
         liftIO $ assertEqual "approving should change status" UserLegalHoldEnabled userStatus
         getInternalClientsFull (UserSet $ Set.singleton uid)
-          <&> clientId . head . Set.toList . Set.unions . Map.elems . userClientsFull
+          <&> do
+            userClientsFull
+              >>> Map.elems
+              >>> Set.unions
+              >>> Set.toList
+              >>> head
+              >>> clientId
 
   let makePeerClient :: TestM ()
       makePeerClient = case testcase of

@@ -64,6 +64,7 @@ import Amazonka.SNS.Lens qualified as SNS
 import Amazonka.SQS qualified as SQS
 import Amazonka.SQS.Lens qualified as SQS
 import Amazonka.SQS.Types
+import Control.Category ((>>>))
 import Control.Error hiding (err, isRight)
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch
@@ -163,7 +164,10 @@ mkEnv lgr opts mgr = do
     mkEndpoint svc e = AWS.setEndpoint (e ^. awsSecure) (e ^. awsHost) (e ^. awsPort) svc
     mkAwsEnv g sqs sns = do
       baseEnv <-
-        AWS.newEnv AWS.discover <&> AWS.configureService (sns & set AWS.service_timeout (Just (AWS.Seconds 5))) . AWS.configureService sqs
+        AWS.newEnv AWS.discover
+          <&> do
+            AWS.configureService sqs
+              >>> AWS.configureService (sns & set AWS.service_timeout (Just (AWS.Seconds 5)))
       pure $
         baseEnv
           { AWS.logger = awsLogger g,

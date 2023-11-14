@@ -523,7 +523,7 @@ in
   haskellPackages = hPkgs localModsEnableAll;
   haskellPackagesUnoptimizedNoDocs = hPkgs localModsOnlyTests;
   allLocalPackages = pkgs.symlinkJoin {
-    name = "all-local-packages"; 
+    name = "all-local-packages";
     paths = map (e: (hPkgs localModsEnableAll).${e}) wireServerPackages;
   };
 

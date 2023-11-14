@@ -727,9 +727,6 @@ deleteScimUser tokeninfo@ScimTokenInfo {stiTeam, stiIdP} uid =
           -- possible, we should do a check here and prohibit it.
           unless (userTeam brigUser == Just stiTeam) $
             -- users from other teams get you a 404.
-            -- users from other teams get you a 404.
-
-            -- users from other teams get you a 404.
             throwError $
               Scim.notFound "user" (idToText uid)
 

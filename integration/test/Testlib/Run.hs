@@ -112,14 +112,9 @@ createGlobalEnv cfg = do
     liftIO . runAppWithEnv env $ do
       config <- readServiceConfig Galley
       relPath <- config %. "settings.mlsPrivateKeyPaths.removal.ed25519" & asString
-      path <-
-        asks
-          ( ( \case
-                Nothing -> relPath
-                Just dir -> dir </> "galley" </> relPath
-            )
-              . ((.servicesCwdBase))
-          )
+      path <- asks \env' -> case env'.servicesCwdBase of
+        Nothing -> relPath
+        Just dir -> dir </> "galley" </> relPath
       bs <- liftIO $ B.readFile path
       pems <- case pemParseBS bs of
         Left err -> assertFailure $ "Could not parse removal key PEM: " <> err

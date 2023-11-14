@@ -397,14 +397,10 @@ startProcess' domain execName config = do
   tempFile <- liftIO $ writeTempFile "/tmp" (execName <> "-" <> domain <> "-" <> ".yaml") (cs $ Yaml.encode config)
 
   (cwd, exe) <-
-    asks
-      ( ( \case
-            Nothing -> (Nothing, execName)
-            Just dir ->
-              (Just (dir </> execName), "../../dist" </> execName)
-        )
-          . (.servicesCwdBase)
-      )
+    asks \env -> case env.servicesCwdBase of
+      Nothing -> (Nothing, execName)
+      Just dir ->
+        (Just (dir </> execName), "../../dist" </> execName)
 
   (_, Just stdoutHdl, Just stderrHdl, ph) <- liftIO $ createProcess (proc exe ["-c", tempFile]) {cwd = cwd, std_out = CreatePipe, std_err = CreatePipe}
   let prefix = "[" <> execName <> "@" <> domain <> "] "
@@ -549,14 +545,13 @@ server 127.0.0.1:{port} max_fails=3 weight=1;
       (serviceName Spar, sm.spar.port),
       ("proxy", sm.proxy.port)
     ]
-    ( \case
-        (srv, p) -> do
-          let upstream =
-                upstreamTemplate
-                  & Text.replace "{name}" (cs $ srv)
-                  & Text.replace "{port}" (cs $ show p)
-          liftIO $ appendFile upstreamsCfg (cs upstream)
-    )
+    \case
+      (srv, p) -> do
+        let upstream =
+              upstreamTemplate
+                & Text.replace "{name}" (cs $ srv)
+                & Text.replace "{port}" (cs $ show p)
+        liftIO $ appendFile upstreamsCfg (cs upstream)
 
 startNginz :: String -> FilePath -> FilePath -> App ProcessHandle
 startNginz domain conf workingDir = do
