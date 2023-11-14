@@ -21,3 +21,6 @@ client_encryption_options:
   keystorePassword: password
   truststore:  "<base64 encoded Java Key Store (JKS)>"
   truststorePassword: password
+
+  # TODO: This could be deduced from the keystore.
+  ca: "<CA as PEM>"

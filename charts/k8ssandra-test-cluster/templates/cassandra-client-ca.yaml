@@ -1,0 +1,10 @@
+{{- if .Values.client_encryption_options.enabled }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cassandra-client-ca
+  namespace: {{ .Release.Namespace }}
+type: Opaque
+data:
+  ca: {{ .Values.client_encryption_options.ca | quote }}
+{{- end }}
