@@ -196,14 +196,14 @@ let
         sha256 = "sha256-8FM3IAA3ewCuv9Mar8aWmzbyfKK9eLXIJPMHzmYb1zE=";
       };
     };
-    # This can be removed once postie 0.6.0.3 (or later) is in nixpkgs
-    # postie = {
-    #   src = fetchgit {
-    #     url = "https://github.com/elland/postie.git";
-    #     rev = "098ee680d6a7c7a67a19de1ef83d66883fb815de";
-    #     sha256 = "sha256-K3GlvqxsXJTs4cobt4JXcQCZw8/5tD/NZJmlcDzX034=";
-    #   };
-    # };
+    # This can be removed once postie with TLS 1.9 is on nixpkgs.
+    postie = {
+      src = fetchgit {
+        url = "https://github.com/elland/postie.git";
+        rev = "a3a703fa53b2948a31e24c4e47f9ea9d2648967a";
+        sha256 = "sha256-DKugy4EpRsSgaGvybdh2tLa7HCtoxId+7RAAAw43llA=";
+      };
+    };
     # Not tested/relased yet
     # https://github.com/dylex/invertible/commit/e203c6a729fde87b1f903c3f468f739a085fb446
     invertible = {
@@ -240,6 +240,13 @@ let
         url = "https://github.com/akshaymankar/hspec-junit-formatter";
         rev = "acec31822cc4f90489d9940bad23b3fd6d1d7c75";
         sha256 = "sha256-4xGW3KHQKbTL+6+Q/gzfaMBP+J0npUe7tP5ZCQCB5+s=";
+      };
+    };
+    hoogle = {
+      src = fetchgit {
+        url = "https://github.com/ndmitchell/hoogle";
+        rev = "0be38ee5e078e31ef7eabeaba255aed12ce7055d";
+        sha256 = "sha256-xcGZ11ocdlB8ks20QAhtPZ+4ggmV4Om4CPHH/M6NjXk=";
       };
     };
   };

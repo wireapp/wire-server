@@ -92,6 +92,7 @@
 , polysemy
 , polysemy-plugin
 , polysemy-wire-zoo
+, postie
 , process
 , proto-lens
 , QuickCheck
@@ -338,6 +339,7 @@ mkDerivation {
     pipes
     polysemy
     polysemy-wire-zoo
+    postie
     process
     proto-lens
     QuickCheck
