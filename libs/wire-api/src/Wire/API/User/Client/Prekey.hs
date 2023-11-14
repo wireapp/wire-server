@@ -34,14 +34,13 @@ where
 
 import Crypto.Hash (SHA256, hash)
 import Data.Aeson (FromJSON (..), ToJSON (..))
+import Data.Bits
 import Data.ByteArray (convert)
 import Data.ByteString qualified as BS
-import Data.ByteString.Conversion (toByteString')
 import Data.Id
 import Data.OpenApi qualified as S
 import Data.Schema
-import Data.Text.Ascii (encodeBase16)
-import Data.Text.Encoding (decodeUtf8, encodeUtf8)
+import Data.Text.Encoding (encodeUtf8)
 import Imports
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
@@ -70,9 +69,8 @@ instance ToSchema Prekey where
 clientIdFromPrekey :: Prekey -> ClientId
 clientIdFromPrekey =
   ClientId
-    . decodeUtf8
-    . toByteString'
-    . encodeBase16
+    . foldr (\d w -> (w `shiftL` 8) .|. fromIntegral d) 0
+    . BS.unpack
     . BS.take 8
     . convert
     . hash @ByteString @SHA256

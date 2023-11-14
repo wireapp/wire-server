@@ -204,13 +204,13 @@ testKeyPackageRef = do
 testRemoveProposalMessageSignature :: IO ()
 testRemoveProposalMessageSignature = withSystemTempDirectory "mls" $ \tmp -> do
   qcid <- do
-    let c = newClientId 0x3ae58155
+    let c = ClientId 0x3ae58155
     usr <- flip Qualified (Domain "example.com") <$> (Id <$> UUID.nextRandom)
     pure (userClientQid usr c)
   void $ spawn (cli qcid tmp ["init", qcid]) Nothing
 
   qcid2 <- do
-    let c = newClientId 0x4ae58157
+    let c = ClientId 0x4ae58157
     usr <- flip Qualified (Domain "example.com") <$> (Id <$> UUID.nextRandom)
     pure (userClientQid usr c)
   void $ spawn (cli qcid2 tmp ["init", qcid2]) Nothing
@@ -282,7 +282,7 @@ userClientQid :: Qualified UserId -> ClientId -> String
 userClientQid usr c =
   show (qUnqualified usr)
     <> ":"
-    <> T.unpack c.client
+    <> T.unpack (Data.Id.client c)
     <> "@"
     <> T.unpack (domainText (qDomain usr))
 
@@ -311,5 +311,5 @@ cli store tmp args =
 randomIdentity :: IO ClientIdentity
 randomIdentity = do
   uid <- Id <$> UUID.nextRandom
-  c <- newClientId <$> randomIO
+  c <- ClientId <$> randomIO
   pure $ ClientIdentity (Domain "mls.example.com") uid c

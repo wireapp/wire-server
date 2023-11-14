@@ -42,7 +42,7 @@ module Data.Id
 
     -- * Client IDs
     ClientId (..),
-    newClientId,
+    client,
 
     -- * Other IDs
     ConnId (..),
@@ -77,7 +77,6 @@ import Data.OpenApi.Internal.ParamSchema (ToParamSchema (..))
 import Data.ProtocolBuffers.Internal
 import Data.Proxy
 import Data.Schema
-import Data.Text qualified as T
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Text.Lazy (toStrict)
 import Data.Text.Lazy.Builder
@@ -308,36 +307,44 @@ instance Arbitrary ConnId where
 -- only together with a 'UserId', stored in C*, and used as a handle for end-to-end encryption.  It
 -- lives as long as the device is registered.  See also: 'ConnId'.
 newtype ClientId = ClientId
-  { client :: Text
+  { clientToWord64 :: Word64
   }
-  deriving (Eq, Ord, Show, ToByteString, Hashable, NFData, A.ToJSONKey, Generic)
+  deriving (Eq, Ord, Show, ToByteString, Hashable, NFData, Generic)
   deriving newtype (ToParamSchema, FromHttpApiData, ToHttpApiData, Binary)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema ClientId
 
+client :: ClientId -> Text
+client = toStrict . toLazyText . hexadecimal . clientToWord64
+
 instance ToSchema ClientId where
-  schema = client .= parsedText "ClientId" clientIdFromByteString
+  schema = withParser s parseClientId
+    where
+      s :: ValueSchemaP NamedSwaggerDoc ClientId Text
+      s = client .= schema
 
-newClientId :: Word64 -> ClientId
-newClientId = ClientId . toStrict . toLazyText . hexadecimal
-
-clientIdFromByteString :: Text -> Either String ClientId
-clientIdFromByteString txt =
-  if T.length txt <= 20 && T.all isHexDigit txt
-    then Right $ ClientId txt
-    else Left "Invalid ClientId"
+parseClientId :: Text -> A.Parser ClientId
+parseClientId = either fail pure . runParser parser . encodeUtf8
 
 instance FromByteString ClientId where
   parser = do
-    bs <- Atto.takeByteString
-    either fail pure $ clientIdFromByteString (cs bs)
+    num :: Integer <- Atto.hexadecimal
+    guard $ num < fromIntegral (maxBound :: Word64)
+    pure (ClientId (fromIntegral num))
 
 instance A.FromJSONKey ClientId where
-  fromJSONKey = A.FromJSONKeyTextParser $ either fail pure . clientIdFromByteString
+  fromJSONKey = A.FromJSONKeyTextParser parseClientId
 
-deriving instance Cql ClientId
+instance A.ToJSONKey ClientId where
+  toJSONKey = A.toJSONKeyText client
+
+instance Cql ClientId where
+  ctype = Tagged TextColumn
+  toCql = CqlText . client
+  fromCql (CqlText t) = runParser parser (encodeUtf8 t)
+  fromCql _ = Left "ClientId: expected CqlText"
 
 instance Arbitrary ClientId where
-  arbitrary = newClientId <$> arbitrary
+  arbitrary = ClientId <$> arbitrary
 
 instance EncodeWire ClientId where
   encodeWire t = encodeWire t . client

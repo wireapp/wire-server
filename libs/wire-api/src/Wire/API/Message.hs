@@ -235,7 +235,7 @@ protolensToQualifiedNewOtrMessage protoMsg = do
       }
 
 protolensToClientId :: Proto.Otr.ClientId -> ClientId
-protolensToClientId = newClientId . view Proto.Otr.client
+protolensToClientId = ClientId . view Proto.Otr.client
 
 qualifiedNewOtrMessageToProto :: QualifiedNewOtrMessage -> Proto.Otr.QualifiedNewOtrMessage
 qualifiedNewOtrMessageToProto msg =

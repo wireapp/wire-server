@@ -784,7 +784,7 @@ testCreateTeamMLSConv = do
     lConvId <-
       Util.createMLSTeamConv
         lOwner
-        (newClientId 0)
+        (ClientId 0)
         tid
         mempty
         (Just "Team MLS conversation")

@@ -97,6 +97,7 @@ import Data.Id qualified
 import Data.List.NonEmpty (NonEmpty, nonEmpty)
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Proxy
+import Data.Text.Encoding qualified as T
 import Data.Time.Clock
 import Data.Time.Clock.POSIX
 import Data.ZAuth.Creation qualified as ZC
@@ -418,25 +419,25 @@ accessTokenOf' :: Token Access -> UserId
 accessTokenOf' t = Id (t ^. body . userId)
 
 accessTokenClient' :: Token Access -> Maybe ClientId
-accessTokenClient' t = fmap ClientId (t ^. body . clientId)
+accessTokenClient' t = fromByteString . T.encodeUtf8 =<< t ^. body . clientId
 
 userTokenOf' :: Token User -> UserId
 userTokenOf' t = Id (t ^. body . user)
 
 userTokenClient' :: Token User -> Maybe ClientId
-userTokenClient' t = fmap ClientId (t ^. body . client)
+userTokenClient' t = fromByteString . T.encodeUtf8 =<< t ^. body . client
 
 legalHoldAccessTokenOf :: Token LegalHoldAccess -> UserId
 legalHoldAccessTokenOf t = Id (t ^. body . legalHoldAccess . userId)
 
 legalHoldAccessTokenClient :: Token LegalHoldAccess -> Maybe ClientId
-legalHoldAccessTokenClient t = fmap ClientId (t ^. body . legalHoldAccess . clientId)
+legalHoldAccessTokenClient t = fromByteString . T.encodeUtf8 =<< t ^. body . legalHoldAccess . clientId
 
 legalHoldUserTokenOf :: Token LegalHoldUser -> UserId
 legalHoldUserTokenOf t = Id (t ^. body . legalHoldUser . user)
 
 legalHoldClientTokenOf :: Token LegalHoldUser -> Maybe ClientId
-legalHoldClientTokenOf t = fmap ClientId (t ^. body . legalHoldUser . client)
+legalHoldClientTokenOf t = fromByteString . T.encodeUtf8 =<< t ^. body . legalHoldUser . client
 
 userTokenRand' :: Token User -> Word32
 userTokenRand' t = t ^. body . rand

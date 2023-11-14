@@ -6,7 +6,7 @@ import Brig.API.Types (CertEnrollmentError (..))
 import Control.Monad.Trans.Except
 import Data.ByteString.Conversion
 import Data.Either.Extra
-import Data.Id (ClientId (client))
+import Data.Id
 import Data.Jwt.Tools qualified as Jwt
 import Data.Misc (HttpsUrl)
 import Data.Nonce (Nonce)

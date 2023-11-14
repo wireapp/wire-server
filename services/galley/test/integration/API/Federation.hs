@@ -25,7 +25,7 @@ import Control.Exception
 import Control.Lens hiding ((#))
 import Data.ByteString.Conversion (toByteString')
 import Data.Domain
-import Data.Id
+import Data.Id hiding (client)
 import Data.Json.Util hiding ((#))
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.List1 hiding (head)
@@ -759,10 +759,10 @@ onMessageSent = do
   eve <- randomUser
   bob <- randomId
   conv <- randomId
-  let fromc = newClientId 0
-      aliceC1 = newClientId 0
-      aliceC2 = newClientId 1
-      eveC = newClientId 0
+  let fromc = ClientId 0
+      aliceC1 = ClientId 0
+      aliceC2 = ClientId 1
+      eveC = ClientId 0
       bdom = Domain "bob.example.com"
       qconv = Qualified conv bdom
       qbob = Qualified bob bdom

@@ -240,7 +240,7 @@ instance ToSchema UserClientPrekeyMap where
             ( Map.singleton
                 (generateExample @UserId)
                 ( Map.singleton
-                    (newClientId 4940483633899001999)
+                    (ClientId 4940483633899001999)
                     (Just (Prekey (PrekeyId 1) "pQABAQECoQBYIOjl7hw0D8YRNq..."))
                 )
             )
@@ -415,8 +415,8 @@ instance ToSchema UserClients where
           & Swagger.schema . Swagger.example
             ?~ toJSON
               ( Map.fromList
-                  [ (generateExample @UserId, [newClientId 1684636986166846496, newClientId 4940483633899001999]),
-                    (generateExample @UserId, [newClientId 6987438498444556166, newClientId 7940473633839002939])
+                  [ (generateExample @UserId, [ClientId 1684636986166846496, ClientId 4940483633899001999]),
+                    (generateExample @UserId, [ClientId 6987438498444556166, ClientId 7940473633839002939])
                   ]
               )
 

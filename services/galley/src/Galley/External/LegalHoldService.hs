@@ -33,7 +33,7 @@ import Brig.Types.Team.LegalHold
 import Data.Aeson
 import Data.ByteString.Conversion.To
 import Data.ByteString.Lazy.Char8 qualified as LC8
-import Data.Id
+import Data.Id hiding (client)
 import Data.Misc
 import Galley.Effects.LegalHoldStore as LegalHoldData
 import Galley.External.LegalHoldService.Types

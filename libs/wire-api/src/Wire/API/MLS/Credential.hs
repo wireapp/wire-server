@@ -129,7 +129,7 @@ instance ParseMLS ClientIdentity where
     uid <-
       maybe (fail "Invalid UUID") (pure . Id) . fromASCIIBytes =<< getByteString 36
     char ':'
-    cid <- newClientId <$> hexadecimal
+    cid <- ClientId <$> hexadecimal
     char '@'
     dom <-
       either fail pure . (mkDomain . T.pack) =<< many' anyChar
@@ -141,7 +141,7 @@ parseX509ClientIdentity = do
   uidBytes <- either fail pure $ B64URL.decodeUnpadded b64uuid
   uid <- maybe (fail "Invalid UUID") (pure . Id) $ fromByteString (L.fromStrict uidBytes)
   char '/'
-  cid <- newClientId <$> hexadecimal
+  cid <- ClientId <$> hexadecimal
   char '@'
   dom <-
     either fail pure . (mkDomain . T.pack) =<< many' anyChar
