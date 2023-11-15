@@ -16,7 +16,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Galley.API.Internal
-  ( internalSitemap,
+  ( waiInternalSitemap,
     internalAPI,
     InternalAPI,
     deleteLoop,
@@ -228,8 +228,8 @@ featureAPI =
     <@> mkNamedAPI @'("ilock", MlsMigrationConfig) (updateLockStatus @MlsMigrationConfig)
     <@> mkNamedAPI @"feature-configs-internal" (maybe getAllFeatureConfigsForServer getAllFeatureConfigsForUser)
 
-internalSitemap :: Routes a (Sem GalleyEffects) ()
-internalSitemap = unsafeCallsFed @'Galley @"on-client-removed" $ unsafeCallsFed @'Galley @"on-mls-message-sent" $ do
+waiInternalSitemap :: Routes a (Sem GalleyEffects) ()
+waiInternalSitemap = unsafeCallsFed @'Galley @"on-client-removed" $ unsafeCallsFed @'Galley @"on-mls-message-sent" $ do
   -- Conversation API (internal) ----------------------------------------
   put "/i/conversations/:cnv/channel" (continue $ const (pure empty)) $
     zauthUserId

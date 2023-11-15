@@ -16,7 +16,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Galley.API
-  ( sitemap,
+  ( waiSitemap,
     servantSitemap,
   )
 where
@@ -28,7 +28,7 @@ import Galley.App (GalleyEffects)
 import Network.Wai.Routing (Routes)
 import Polysemy
 
-sitemap :: Routes () (Sem GalleyEffects) ()
-sitemap = do
+waiSitemap :: Routes () (Sem GalleyEffects) ()
+waiSitemap = do
   Public.sitemap
-  internalSitemap
+  waiInternalSitemap
