@@ -556,6 +556,7 @@ executable galley-integration
 executable galley-migrate-data
   import:         common-all
   main-is:        ../main.hs
+  ghc-options:        -threaded
 
   -- cabal-fmt: expand migrate-data/src
   other-modules:
