@@ -480,6 +480,16 @@ type IConversationAPI =
                :> "v2"
                :> Put '[Servant.JSON] Conversation
            )
+    :<|> Named
+           "conversation-block"
+           ( CanThrow 'InvalidOperation
+               :> CanThrow 'ConvNotFound
+               :> ZUser
+               :> "conversations"
+               :> Capture "cnv" ConvId
+               :> "block"
+               :> Put '[Servant.JSON] ()
+           )
 
 swaggerDoc :: OpenApi
 swaggerDoc =

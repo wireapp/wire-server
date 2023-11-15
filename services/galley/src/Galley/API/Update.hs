@@ -19,8 +19,8 @@
 
 module Galley.API.Update
   ( -- * Managing Conversations
-    blockConvH,
     acceptConv,
+    blockConv,
     unblockConvH,
     checkReusableCode,
     joinConversationByReusableCode,
@@ -163,17 +163,6 @@ acceptConv lusr conn cnv = do
     E.getConversation cnv >>= noteS @'ConvNotFound
   conv' <- acceptOne2One lusr conv conn
   conversationView lusr conv'
-
-blockConvH ::
-  ( Member ConversationStore r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'InvalidOperation) r,
-    Member MemberStore r
-  ) =>
-  UserId ::: ConvId ->
-  Sem r Response
-blockConvH (zusr ::: cnv) =
-  empty <$ blockConv zusr cnv
 
 blockConv ::
   ( Member ConversationStore r,
