@@ -456,6 +456,14 @@ type IConversationAPI =
         :> "channel"
         :> Put '[Servant.JSON] ()
     )
+    :<|> Named
+           "conversation-get-member"
+           ( "conversations"
+               :> Capture "cnv" ConvId
+               :> "members"
+               :> Capture "usr" UserId
+               :> Get '[Servant.JSON] (Maybe Member)
+           )
 
 swaggerDoc :: OpenApi
 swaggerDoc =

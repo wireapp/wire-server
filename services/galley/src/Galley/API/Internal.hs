@@ -125,6 +125,7 @@ federationAPI =
 conversationAPI :: API IConversationAPI GalleyEffects
 conversationAPI =
   mkNamedAPI @"conversation-channel" (const mempty)
+    <@> mkNamedAPI @"conversation-get-member" Query.internalGetMember
 
 legalholdWhitelistedTeamsAPI :: API ILegalholdWhitelistedTeamsAPI GalleyEffects
 legalholdWhitelistedTeamsAPI = mkAPI $ \tid -> hoistAPIHandler Imports.id (base tid)
@@ -235,10 +236,6 @@ featureAPI =
 waiInternalSitemap :: Routes a (Sem GalleyEffects) ()
 waiInternalSitemap = unsafeCallsFed @'Galley @"on-client-removed" $ unsafeCallsFed @'Galley @"on-mls-message-sent" $ do
   -- Conversation API (internal) ----------------------------------------
-
-  get "/i/conversations/:cnv/members/:usr" (continue Query.internalGetMemberH) $
-    capture "cnv"
-      .&. capture "usr"
 
   -- This endpoint can lead to the following events being sent:
   -- - MemberJoin event to you, if the conversation existed and had < 2 members before

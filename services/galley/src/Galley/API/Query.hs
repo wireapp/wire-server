@@ -29,7 +29,7 @@ module Galley.API.Query
     listConversations,
     iterateConversations,
     getLocalSelf,
-    internalGetMemberH,
+    internalGetMember,
     getConversationMetaH,
     getConversationByReusableCode,
     ensureGuestLinksEnabled,
@@ -577,16 +577,17 @@ iterateConversations luid pageSize handleConvs = go Nothing
         _ -> pure []
       pure $ resultHead : resultTail
 
-internalGetMemberH ::
+internalGetMember ::
   ( Member ConversationStore r,
     Member (Input (Local ())) r,
     Member MemberStore r
   ) =>
-  ConvId ::: UserId ->
-  Sem r Response
-internalGetMemberH (cnv ::: usr) = do
+  ConvId ->
+  UserId ->
+  Sem r (Maybe Public.Member)
+internalGetMember cnv usr = do
   lusr <- qualifyLocal usr
-  json <$> getLocalSelf lusr cnv
+  getLocalSelf lusr cnv
 
 getLocalSelf ::
   ( Member ConversationStore r,
