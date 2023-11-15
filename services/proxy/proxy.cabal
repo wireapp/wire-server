@@ -83,8 +83,8 @@ library
     , data-default        >=0.5
     , exceptions          >=0.8
     , extended
-    , http-client         >=0.4
-    , http-client-tls     >=0.2
+    , http-client         >=0.7
+    , http-client-tls     >=0.3
     , http-reverse-proxy  >=0.4
     , http-types          >=0.9
     , imports

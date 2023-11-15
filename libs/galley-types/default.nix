@@ -8,7 +8,7 @@
 , bytestring
 , bytestring-conversion
 , containers
-, cryptonite
+, crypton
 , errors
 , gitignoreSource
 , imports
@@ -35,7 +35,7 @@ mkDerivation {
     bytestring
     bytestring-conversion
     containers
-    cryptonite
+    crypton
     errors
     imports
     lens
