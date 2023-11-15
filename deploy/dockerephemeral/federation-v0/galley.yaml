@@ -1,34 +1,34 @@
 galley:
-  host: 127.0.0.1
-  port: 8085
+  host: 0.0.0.0
+  port: 8080
 
 cassandra:
   endpoint:
-    host: 127.0.0.1
+    host: demo_wire_cassandra
     port: 9042
-  keyspace: galley_test
+  keyspace: galley_test_federation_v0
   # filterNodesByDatacentre: datacenter1
 
 brig:
-  host: 0.0.0.0
-  port: 8082
+  host: brig
+  port: 8080
 
 gundeck:
-  host: 127.0.0.1
-  port: 8086
+  host: gundeck
+  port: 8080
 
 spar:
-  host: 127.0.0.1
-  port: 8088
+  host: spar
+  port: 8080
 
 federator:
-  host: 127.0.0.1
-  port: 8097
+  host: federator
+  port: 8080
 
 rabbitmq:
-  host: 127.0.0.1
+  host: rabbitmq
   port: 5672
-  vHost: /
+  vHost: federation-v0
 
 settings:
   httpPoolSize: 128
@@ -46,10 +46,10 @@ settings:
   #      _wire-server-federator._tcp.<federationDomain>
   #   Once set, DO NOT change it: if you do, existing users may have a broken experience and/or stop working
   #   Remember to keep it the same in Brig
-  federationDomain: example.com
+  federationDomain: federation-v0.example.com
   mlsPrivateKeyPaths:
     removal:
-      ed25519: test/resources/ed25519.pem
+      ed25519: /etc/wire/galley/conf/mls-private-key-ed25519.pem
 
   featureFlags:  # see #RefConfigOptions in `/docs/reference`
     sso: disabled-by-default
@@ -88,6 +88,6 @@ logLevel: Warn
 logNetStrings: false
 
 journal: # if set, journals; if not set, disables journaling
-  queueName: integration-team-events.fifo
-  endpoint: http://localhost:4568 # https://sqs.eu-west-1.amazonaws.com
+  queueName: integration-team-events.fifo-federation-v0
+  endpoint: http://demo_wire_sqs:4568 # https://sqs.eu-west-1.amazonaws.com
   region: eu-west-1

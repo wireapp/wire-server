@@ -197,6 +197,9 @@ services:
     environment:
       - "CS_JVM_OPTIONS=-Xmx1024M -Xms1024M -Xmn200M"
 
+    healthcheck:
+      test: [ "CMD", "nodetool", "status" ]
+
       # on nixos, you also may need to run
       #   sysctl -w vm.max_map_count=1048576
       # or add that to your `configuration.nix`

@@ -1,0 +1,73 @@
+version: '2.3'
+
+networks:
+  demo_wire:
+    external: false
+
+services:
+  brig_schema:
+    container_name: brig-schema-federation-v0
+    image: quay.io/wire/brig-schema:4.38.51
+    command: --host cassandra --keyspace brig_test_federation_v0 --replication-factor 1
+    depends_on:
+      cassandra:
+        condition: service_healthy
+    networks:
+      - demo_wire
+  brig:
+    container_name: brig-federation-v0
+    image: quay.io/wire/brig:4.38.0-mandarin.14
+    volumes:
+      - ./federation-v0:/etc/wire/brig/conf
+    networks:
+      - demo_wire
+    ports:
+      - '127.0.0.1:21082:8080'
+    depends_on:
+      brig_schema:
+        condition: service_completed_successfully
+      aws_cli:
+        condition: service_completed_successfully
+      init_vhosts:
+        condition: service_completed_successfully
+
+    environment:
+      - AWS_REGION=eu-west-1
+      - AWS_ACCESS_KEY_ID=dummykey
+      - AWS_SECRET_ACCESS_KEY=dummysecret
+      - RABBITMQ_USERNAME=${RABBITMQ_USERNAME}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
+
+  galley_schema:
+    container_name: galley-schema-federation-v0
+    image: quay.io/wire/galley-schema:4.38.51
+    command: --host cassandra --keyspace galley_test_federation_v0 --replication-factor 1
+    depends_on:
+      cassandra:
+        condition: service_healthy
+    networks:
+      - demo_wire
+
+  galley:
+    container_name: galley-federation-v0
+    image: quay.io/wire/galley:4.38.0-mandarin.14
+    volumes:
+      - ./federation-v0:/etc/wire/galley/conf
+    networks:
+      - demo_wire
+    ports:
+      - '127.0.0.1:21085:8080'
+    depends_on:
+      galley_schema:
+        condition: service_completed_successfully
+      aws_cli:
+        condition: service_completed_successfully
+      init_vhosts:
+        condition: service_completed_successfully
+
+    environment:
+      - AWS_REGION=eu-west-1
+      - AWS_ACCESS_KEY_ID=dummykey
+      - AWS_SECRET_ACCESS_KEY=dummysecret
+      - RABBITMQ_USERNAME=${RABBITMQ_USERNAME}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
