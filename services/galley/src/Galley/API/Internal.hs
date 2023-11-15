@@ -129,6 +129,7 @@ conversationAPI =
     <@> mkNamedAPI @"conversation-accept-v2" Update.acceptConv
     <@> mkNamedAPI @"conversation-block" Update.blockConv
     <@> mkNamedAPI @"conversation-unblock" Update.unblockConv
+    <@> mkNamedAPI @"conversation-meta" Query.getConversationMeta
 
 legalholdWhitelistedTeamsAPI :: API ILegalholdWhitelistedTeamsAPI GalleyEffects
 legalholdWhitelistedTeamsAPI = mkAPI $ \tid -> hoistAPIHandler Imports.id (base tid)
@@ -238,11 +239,6 @@ featureAPI =
 
 waiInternalSitemap :: Routes a (Sem GalleyEffects) ()
 waiInternalSitemap = unsafeCallsFed @'Galley @"on-client-removed" $ unsafeCallsFed @'Galley @"on-mls-message-sent" $ do
-  -- Conversation API (internal) ----------------------------------------
-
-  get "/i/conversations/:cnv/meta" (continue Query.getConversationMetaH) $
-    capture "cnv"
-
   -- Misc API (internal) ------------------------------------------------
 
   get "/i/users/:uid/team/members" (continueE Teams.getBindingTeamMembersH) $

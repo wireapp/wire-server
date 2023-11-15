@@ -505,6 +505,14 @@ type IConversationAPI =
                :> "unblock"
                :> Put '[Servant.JSON] Conversation
            )
+    :<|> Named
+           "conversation-meta"
+           ( CanThrow 'ConvNotFound
+               :> "conversations"
+               :> Capture "cnv" ConvId
+               :> "meta"
+               :> Get '[Servant.JSON] ConversationMetadata
+           )
 
 swaggerDoc :: OpenApi
 swaggerDoc =
