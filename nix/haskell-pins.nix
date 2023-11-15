@@ -197,6 +197,7 @@ let
       };
     };
     # This can be removed once postie with TLS 1.9 is on nixpkgs.
+    # https://github.com/alexbiehl/postie/pull/4
     postie = {
       src = fetchgit {
         url = "https://github.com/wireapp/postie.git";
