@@ -43,8 +43,10 @@ spec:
            - --cassandra-keyspace
            - galley
            {{- if (include "useTlsCertGalley" .) }}
-           - --use-tls
-           - --tls-certificate-file /certs/galley/ca.pem
+           # TODO: This option does not exist, yet
+           # - --use-tls
+           - --tls-certificate-file
+           - /certs/galley/ca.pem
            {{- end }}
           {{- if (include "useTlsCertGalley" .) }}
           volumeMounts:

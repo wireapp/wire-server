@@ -38,7 +38,8 @@ spec:
             secretName: "galley"
         {{- if (include "useCassandraCA" .Values.config) }}
         - name: "galley-cassandra"
-          mountPath: "/etc/wire/galley/cassandra"
+          secret:
+            secretName: galley-cassandra
         {{- end }}
       containers:
         - name: galley

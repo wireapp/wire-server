@@ -43,3 +43,20 @@ spec:
             - "{{ required "missing elasticsearch-index.galley.host!" .Values.galley.host }}"
             - --galley-port
             - "{{ required "missing elasticsearch-index.galley.port!" .Values.galley.port }}"
+            {{- if (include "useTlsCertGundeck" .) }}
+            # - TODO: This option does not yet exists in brig-index (Brig.Index.Options)
+            # use-tls
+            - --tls-certificate-file
+            - /certs/ca.pem
+            {{- end }}
+          {{- if (include "useCassandraCA" .Values) }}
+          volumeMounts:
+            - name: elasticsearch-index-migrate-cassandra-client-ca
+              mountPath: "/certs"
+          {{- end }}
+        {{- if (include "useCassandraCA" .Values) }}
+      volumes:
+        - name: elasticsearch-index-migrate-cassandra-client-ca
+          secret:
+            secretName: elasticsearch-index-migrate-cassandra-client-ca
+        {{- end}}

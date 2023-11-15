@@ -45,8 +45,10 @@ spec:
              - brig
              # TODO: This is odd because we also need to talk to brig db
              {{- if (include "useTlsCertSpar" .)  }}
-             - --use-tls
-             - --tls-certificate-file /certs/spar/ca.pem
+             # TODO: This option does not exist, yet
+             # - --use-tls
+             - --tls-certificate-file
+             - /certs/spar/ca.pem
              {{- end }}
           {{- if (include "useTlsCertSpar" .) }}
           volumeMounts:
