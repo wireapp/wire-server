@@ -66,6 +66,11 @@ instance ToSchema Prekey where
         <$> prekeyId .= field "id" schema
         <*> prekeyKey .= field "key" schema
 
+-- | Construct a new client ID from a prekey.
+--
+-- This works by taking the SHA256 hash of the prekey, truncating it to its
+-- first 8 bytes, and interpreting the resulting bytestring as a big endian
+-- Word64.
 clientIdFromPrekey :: Prekey -> ClientId
 clientIdFromPrekey =
   ClientId
