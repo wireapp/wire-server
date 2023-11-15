@@ -464,6 +464,22 @@ type IConversationAPI =
                :> Capture "usr" UserId
                :> Get '[Servant.JSON] (Maybe Member)
            )
+    -- This endpoint can lead to the following events being sent:
+    -- - MemberJoin event to you, if the conversation existed and had < 2 members before
+    -- - MemberJoin event to other, if the conversation existed and only the other was member
+    --   before
+    :<|> Named
+           "conversation-accept-v2"
+           ( CanThrow 'InvalidOperation
+               :> CanThrow 'ConvNotFound
+               :> ZLocalUser
+               :> ZOptConn
+               :> "conversations"
+               :> Capture "cnv" ConvId
+               :> "accept"
+               :> "v2"
+               :> Put '[Servant.JSON] Conversation
+           )
 
 swaggerDoc :: OpenApi
 swaggerDoc =

@@ -19,8 +19,8 @@
 
 module Galley.API.Update
   ( -- * Managing Conversations
-    acceptConvH,
     blockConvH,
+    acceptConv,
     unblockConvH,
     checkReusableCode,
     joinConversationByReusableCode,
@@ -143,23 +143,6 @@ import Wire.API.Routes.Public.Util (UpdateResult (..))
 import Wire.API.ServantProto (RawProto (..))
 import Wire.API.Team.Member
 import Wire.API.User.Client
-
-acceptConvH ::
-  ( Member ConversationStore r,
-    Member (Error InternalError) r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'InvalidOperation) r,
-    Member GundeckAccess r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member MemberStore r,
-    Member TinyLog r
-  ) =>
-  UserId ::: Maybe ConnId ::: ConvId ->
-  Sem r Response
-acceptConvH (usr ::: conn ::: cnv) = do
-  lusr <- qualifyLocal usr
-  setStatus status200 . json <$> acceptConv lusr conn cnv
 
 acceptConv ::
   ( Member ConversationStore r,
