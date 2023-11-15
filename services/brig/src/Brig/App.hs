@@ -431,7 +431,7 @@ initCassandra o g = do
       (Cas.initialContactsPlain (Opt.cassandra o ^. endpoint . host))
       (Cas.initialContactsDisco "cassandra_brig" . unpack)
       (Opt.discoUrl o)
-  mbSSLContext <- createSSLContext (Opt.cassandra o)
+  mbSSLContext <- createSSLContext (Opt.cassandra o) g
   let basicCasSettings =
         Cas.setLogger (Cas.mkLogger (Log.clone (Just "cassandra.brig") g))
           . Cas.setContacts (NE.head c) (NE.tail c)
@@ -449,11 +449,21 @@ initCassandra o g = do
   runClient p $ versionCheck schemaVersion
   pure p
   where
-    createSSLContext :: CassandraOpts -> IO (Maybe OpenSSL.SSLContext)
-    createSSLContext cassOpts
+    -- TODO: Re-consider logging
+    createSSLContext :: CassandraOpts -> Logger -> IO (Maybe OpenSSL.SSLContext)
+    createSSLContext cassOpts logger
       | cassOpts ^. useTLS = do
           sslContext <- OpenSSL.context
-          maybe (pure ()) (OpenSSL.contextSetCAFile sslContext) (cassOpts ^. tlsCert)
+          let mbTlsCertPath = cassOpts ^. tlsCert
+          void . liftIO $ Log.debug logger (Log.msg ("TLS cert file path: " <> show mbTlsCertPath))
+          maybe
+            (pure ())
+            ( \certFile -> do
+                fileExists <- doesFileExist certFile
+                void . liftIO $ Log.debug logger (Log.msg ("TLS cert file exists: " <> show fileExists))
+                OpenSSL.contextSetCAFile sslContext certFile
+            )
+            mbTlsCertPath
           OpenSSL.contextSetVerificationMode
             sslContext
             OpenSSL.VerifyPeer
