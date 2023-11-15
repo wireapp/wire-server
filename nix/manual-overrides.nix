@@ -44,7 +44,7 @@ hself: hsuper: {
 
   crypton-connection = hlib.markUnbroken hsuper.crypton-connection;
   # Patched dependency on crypton-connection
-  HaskellNet-SSL = hlib.markUnbroken hsuper.HaskellNet-SSL;
+  HaskellNet-SSL = hsuper.HaskellNet-SSL;
   warp = hlib.dontCheck hsuper.warp;
 
   # PR with fix: https://github.com/freckle/hspec-junit-formatter/pull/23
@@ -61,7 +61,6 @@ hself: hsuper: {
   # Explicitly enable haddock because cabal2nix disables it for packages with
   # internal libraries
   cql-io = hlib.doHaddock (hlib.dontCheck hsuper.cql-io);
-  connection = null;
   amqp = hlib.dontCheck hsuper.amqp;
 
   # Needs network access to running ES

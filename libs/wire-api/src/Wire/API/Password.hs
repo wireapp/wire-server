@@ -17,13 +17,13 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
-module Wire.API.Password where
-
--- ( Password,
---   genPassword,
---   mkSafePassword,
---   verifyPassword,
--- )
+module Wire.API.Password
+  ( Password,
+    genPassword,
+    mkSafePassword,
+    verifyPassword,
+  )
+where
 
 import Cassandra
 import Crypto.KDF.Scrypt as Scrypt
@@ -172,20 +172,3 @@ parseScryptPasswordHashParams passwordHash = do
       salt,
       hashedKey
     )
-
--- | Same as 'read' but works on 'Text'
-readT :: Read a => Text -> Maybe a
-readT = readMaybe . Text.unpack
-{-# INLINE readT #-}
-
--- | Same as 'show' but works on 'Text'
-showT :: Show a => a -> Text
-showT = Text.pack . show
-{-# INLINE showT #-}
-
--- | Decodes a base64 'Text' to a regular 'ByteString' (if possible)
-from64 :: Text -> Maybe ByteString
-from64 = toMaybe . B64.decode . Text.encodeUtf8
-  where
-    toMaybe = either (const Nothing) Just
-{-# INLINE from64 #-}

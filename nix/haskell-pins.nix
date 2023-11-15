@@ -261,14 +261,6 @@ let
       version = "1.8.0.0";
       sha256 = "sha256-AdxxKWXdUjZiHLDj6iswMWpycs7mFB8eKhBR4ljF6kk=";
     };
-    # http-client = {
-    #   version = "0.7.15";
-    #   sha256 = "sha256-EGvMlwZSka9H90XXZWGVYtZecloWkj0efFLyB8Eew2k=";
-    # };
-    # http-client-tls = {
-    #   version = "0.3.6.3";
-    #   sha256 = "sha256-CB8cnaDV4Vmdq0ct3bQsYfqKtGPRRATPRA649AzmcaU=";
-    # };
     hpack = {
       version = "0.36.0";
       sha256 = "sha256-a8jKkzO3CWIoBg+Uaw5TtpDwmeajWCTW1zJNrlpBKPU=";
