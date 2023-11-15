@@ -22,6 +22,7 @@ module Wire.API.Password
     genPassword,
     mkSafePassword,
     verifyPassword,
+    unsafeMkPassword,
   )
 where
 
@@ -52,6 +53,9 @@ instance Cql Password where
   fromCql _ = Left "password: expected blob"
 
   toCql = CqlBlob . fromStrict . Text.encodeUtf8 . fromPassword
+
+unsafeMkPassword :: Text -> Password
+unsafeMkPassword = Password
 
 -------------------------------------------------------------------------------
 
