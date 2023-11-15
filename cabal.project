@@ -166,3 +166,14 @@ package zauth
     ghc-options: -Werror
 package fedcalls
     ghc-options: -Werror
+
+-- NOTE:
+-- - these packages are not provided by nix, reason being, that
+--   there is a bug in the nixpkgs haskell compatibility which
+--   makes it such that they cannot be installed by the nixpkgs code
+-- - these packages have bounds that are justified with their current
+--   dependency set, however, we have updated their dependencies, such
+--   that they work with newer base and ghc (api) versions
+allow-newer: 
+  , proto-lens-protoc:base
+  , proto-lens-protoc:ghc

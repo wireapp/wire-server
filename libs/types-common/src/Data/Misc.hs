@@ -331,7 +331,7 @@ instance ToSchema (Fingerprint Rsa) where
       p :: Chars.Parser (Fingerprint Rsa)
       p = do
         bs <- parser
-        either fail pure (Fingerprint <$> B64.decode bs)
+        either fail (pure . Fingerprint) (B64.decode bs)
 
 instance Cql (Fingerprint a) where
   ctype = Tagged BlobColumn

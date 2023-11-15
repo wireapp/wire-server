@@ -9,7 +9,6 @@ import Data.ByteString.Char8 qualified as C8
 import Data.ByteString.Lazy qualified as L
 import Data.CaseInsensitive qualified as CI
 import Data.Function
-import Data.Functor ((<&>))
 import Data.List
 import Data.List.Split (splitOn)
 import Data.Maybe
@@ -173,7 +172,7 @@ locationHeaderHost :: Response -> String
 locationHeaderHost resp =
   let location = C8.unpack . snd . fromJust $ locationHeader resp
       locationURI = fromJust $ parseURI location
-      locationHost = fromJust $ locationURI & uriAuthority <&> uriRegName
+      locationHost = uriRegName (fromJust (locationURI & uriAuthority))
    in locationHost
 
 locationHeader :: Response -> Maybe (HTTP.HeaderName, ByteString)

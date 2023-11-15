@@ -1,15 +1,14 @@
 { fetchPypi
 , buildPythonPackage
 , sphinx
-,
 }:
 buildPythonPackage rec {
-
+  doCheck = false;
   pname = "sphinx_reredirects";
-  version = "0.1.1";
+  version = "0.1.2";
   src = fetchPypi {
     inherit pname version;
-    sha256 = "sha256:RRmkXTFskhxGMnty/kEOHnoy/lFpR0EpYCCwygCPvO4=";
+    sha256 = "sha256-oOchMwR1mwHtwi8DLxcVocYRdvyPFnFk56Urn+7JrGQ=";
   };
 
   propagatedBuildInputs = [

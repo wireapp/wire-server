@@ -538,8 +538,7 @@ testCsvData tid owner uid mbeid mbsaml hasissuer = do
 
 decodeCSV :: Csv.FromNamedRecord a => LByteString -> [a]
 decodeCSV bstr =
-  either (error "could not decode csv") id $
-    Csv.decodeByName bstr <&> (V.toList . snd)
+  either (error "could not decode csv") (V.toList . snd) (Csv.decodeByName bstr)
 
 testCreateUserWithPass :: TestSpar ()
 testCreateUserWithPass = do

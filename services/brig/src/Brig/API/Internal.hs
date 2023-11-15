@@ -219,6 +219,21 @@ federationRemotesAPI =
   Named @"add-federation-remotes" addFederationRemote
     :<|> Named @"get-federation-remotes" getFederationRemotes
     :<|> Named @"update-federation-remotes" updateFederationRemote
+    :<|> Named @"add-federation-remote-team" addFederationRemoteTeam
+    :<|> Named @"get-federation-remote-teams" getFederationRemoteTeams
+    :<|> Named @"delete-federation-remote-team" deleteFederationRemoteTeam
+
+deleteFederationRemoteTeam :: Domain -> TeamId -> (Handler r) ()
+deleteFederationRemoteTeam domain teamId =
+  lift . wrapClient $ Data.deleteFederationRemoteTeam domain teamId
+
+getFederationRemoteTeams :: Domain -> (Handler r) [FederationRemoteTeam]
+getFederationRemoteTeams domain =
+  lift . wrapClient $ Data.getFederationRemoteTeams domain
+
+addFederationRemoteTeam :: Domain -> FederationRemoteTeam -> (Handler r) ()
+addFederationRemoteTeam domain rt =
+  lift . wrapClient $ Data.addFederationRemoteTeam domain rt
 
 addFederationRemote :: FederationDomainConfig -> ExceptT Brig.API.Error.Error (AppT r) ()
 addFederationRemote fedDomConf = do
@@ -235,8 +250,8 @@ addFederationRemote fedDomConf = do
 -- file is consistent (ie., no two entries for the same domain).
 remotesMapFromCfgFile :: AppT r (Map Domain FederationDomainConfig)
 remotesMapFromCfgFile = do
-  cfg <- asks (fromMaybe [] . setFederationDomainConfigs . view settings)
-  let dict = [(domain cnf, cnf) | cnf <- cfg]
+  cfg <- fmap (.federationDomainConfig) <$> asks (fromMaybe [] . setFederationDomainConfigs . view settings)
+  let dict = [(cnf.domain, cnf) | cnf <- cfg]
       merge c c' =
         if c == c'
           then c
@@ -318,7 +333,7 @@ assertDomainIsNotUpdated dom fedcfg = do
 -- | FUTUREWORK: should go away in the future; see 'getFederationRemotes'.
 assertNoDomainsFromConfigFiles :: Domain -> ExceptT Brig.API.Error.Error (AppT r) ()
 assertNoDomainsFromConfigFiles dom = do
-  cfg <- asks (fromMaybe [] . setFederationDomainConfigs . view settings)
+  cfg <- fmap (.federationDomainConfig) <$> asks (fromMaybe [] . setFederationDomainConfigs . view settings)
   when (dom `elem` (domain <$> cfg)) $ do
     throwError . fedError . FederationUnexpectedError $
       "keeping track of remote domains in the brig config file is deprecated, but as long as we \
