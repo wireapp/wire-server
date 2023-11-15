@@ -21,7 +21,7 @@ module Galley.API.Update
   ( -- * Managing Conversations
     acceptConv,
     blockConv,
-    unblockConvH,
+    unblockConv,
     checkReusableCode,
     joinConversationByReusableCode,
     joinConversationById,
@@ -180,23 +180,6 @@ blockConv zusr cnv = do
   let mems = Data.convLocalMembers conv
   when (zusr `isMember` mems) $
     E.deleteMembers cnv (UserList [zusr] [])
-
-unblockConvH ::
-  ( Member ConversationStore r,
-    Member (Error InternalError) r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'InvalidOperation) r,
-    Member GundeckAccess r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member MemberStore r,
-    Member TinyLog r
-  ) =>
-  UserId ::: Maybe ConnId ::: ConvId ->
-  Sem r Response
-unblockConvH (usr ::: conn ::: cnv) = do
-  lusr <- qualifyLocal usr
-  setStatus status200 . json <$> unblockConv lusr conn cnv
 
 unblockConv ::
   ( Member ConversationStore r,

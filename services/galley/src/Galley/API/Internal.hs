@@ -128,6 +128,7 @@ conversationAPI =
     <@> mkNamedAPI @"conversation-get-member" Query.internalGetMember
     <@> mkNamedAPI @"conversation-accept-v2" Update.acceptConv
     <@> mkNamedAPI @"conversation-block" Update.blockConv
+    <@> mkNamedAPI @"conversation-unblock" Update.unblockConv
 
 legalholdWhitelistedTeamsAPI :: API ILegalholdWhitelistedTeamsAPI GalleyEffects
 legalholdWhitelistedTeamsAPI = mkAPI $ \tid -> hoistAPIHandler Imports.id (base tid)
@@ -238,15 +239,6 @@ featureAPI =
 waiInternalSitemap :: Routes a (Sem GalleyEffects) ()
 waiInternalSitemap = unsafeCallsFed @'Galley @"on-client-removed" $ unsafeCallsFed @'Galley @"on-mls-message-sent" $ do
   -- Conversation API (internal) ----------------------------------------
-
-  -- This endpoint can lead to the following events being sent:
-  -- - MemberJoin event to you, if the conversation existed and had < 2 members before
-  -- - MemberJoin event to other, if the conversation existed and only the other was member
-  --   before
-  put "/i/conversations/:cnv/unblock" (continueE Update.unblockConvH) $
-    zauthUserId
-      .&. opt zauthConnId
-      .&. capture "cnv"
 
   get "/i/conversations/:cnv/meta" (continue Query.getConversationMetaH) $
     capture "cnv"
