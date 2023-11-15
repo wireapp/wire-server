@@ -73,7 +73,6 @@ import Galley.Types.UserList
 import Imports hiding (head)
 import Network.AMQP qualified as Q
 import Network.Wai.Predicate hiding (Error, err, result, setStatus)
-import Network.Wai.Predicate qualified as Predicate hiding (result)
 import Network.Wai.Routing hiding (App, route, toList)
 import Network.Wai.Utilities hiding (Error)
 import Network.Wai.Utilities.ZAuth
@@ -117,10 +116,15 @@ internalAPI =
       <@> mkNamedAPI @"upsert-one2one" iUpsertOne2OneConversation
       <@> featureAPI
       <@> federationAPI
+      <@> conversationAPI
 
 federationAPI :: API IFederationAPI GalleyEffects
 federationAPI =
   mkNamedAPI @"get-federation-status" (const getFederationStatus)
+
+conversationAPI :: API IConversationAPI GalleyEffects
+conversationAPI =
+  mkNamedAPI @"conversation-channel" (const mempty)
 
 legalholdWhitelistedTeamsAPI :: API ILegalholdWhitelistedTeamsAPI GalleyEffects
 legalholdWhitelistedTeamsAPI = mkAPI $ \tid -> hoistAPIHandler Imports.id (base tid)
@@ -231,10 +235,6 @@ featureAPI =
 waiInternalSitemap :: Routes a (Sem GalleyEffects) ()
 waiInternalSitemap = unsafeCallsFed @'Galley @"on-client-removed" $ unsafeCallsFed @'Galley @"on-mls-message-sent" $ do
   -- Conversation API (internal) ----------------------------------------
-  put "/i/conversations/:cnv/channel" (continue $ const (pure empty)) $
-    zauthUserId
-      .&. (capture "cnv" :: (HasCaptures r) => Predicate r Predicate.Error ConvId)
-      .&. request
 
   get "/i/conversations/:cnv/members/:usr" (continue Query.internalGetMemberH) $
     capture "cnv"

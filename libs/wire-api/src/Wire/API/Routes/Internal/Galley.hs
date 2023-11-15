@@ -250,6 +250,7 @@ type InternalAPIBase =
            )
     :<|> IFeatureAPI
     :<|> IFederationAPI
+    :<|> IConversationAPI
 
 type ILegalholdWhitelistedTeamsAPI =
   "legalhold"
@@ -444,6 +445,16 @@ type IFederationAPI =
         :> "federation-status"
         :> ReqBody '[Servant.JSON] RemoteDomains
         :> Get '[Servant.JSON] FederationStatus
+    )
+
+type IConversationAPI =
+  Named
+    "conversation-channel"
+    ( ZLocalUser
+        :> "conversations"
+        :> Capture "cnv" ConvId
+        :> "channel"
+        :> Put '[Servant.JSON] ()
     )
 
 swaggerDoc :: OpenApi

@@ -36,7 +36,7 @@ import Data.Text (pack)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Yaml (decodeFileEither)
 import Federation
-import Galley.API (sitemap)
+import Galley.API
 import Galley.Aws qualified as Aws
 import Galley.Options hiding (endpoint)
 import Galley.Options qualified as O
@@ -101,7 +101,7 @@ main = withOpenSSL $ runTests go
             assertEqual
               "inconsistent sitemap"
               mempty
-              (pathsConsistencyCheck . treeToPaths . compile $ Galley.API.sitemap),
+              (pathsConsistencyCheck . treeToPaths . compile $ Galley.API.waiSitemap),
           API.tests setup,
           test setup "isConvMemberL" isConvMemberLTests
         ]
