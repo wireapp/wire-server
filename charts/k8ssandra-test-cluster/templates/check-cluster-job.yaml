@@ -15,7 +15,7 @@ spec:
     {{- if not .Values.client_encryption_options.enabled }}
         command: ["cqlsh", "k8ssandra-cluster-datacenter-1-service"]
     {{- else }}
-        command: ["cqlsh", "k8ssandra-cluster-datacenter-1-service", "--ssl"]
+        command: ["cqlsh", "--ssl", "k8ssandra-cluster-datacenter-1-service"]
         env:
           - name: SSL_CERTFILE
             value:  "/certs/ca.pem"
