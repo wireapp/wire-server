@@ -20,6 +20,7 @@ import Data.Aeson qualified as A
 import Data.FileEmbed
 import Data.HashMap.Strict.InsOrd qualified as HM
 import Data.HashSet.InsOrd qualified as InsOrdSet
+import Data.Kind qualified as Kind
 import Data.OpenApi qualified as S
 import Data.OpenApi.Declare qualified as S
 import Data.Text qualified as T
@@ -40,6 +41,7 @@ type SwaggerDocsAPIBase = SwaggerSchemaUI "swagger-ui" "swagger.json"
 
 type VersionedSwaggerDocsAPI = "api" :> Header VersionHeader VersionNumber :> SwaggerDocsAPIBase
 
+type ServiceSwaggerDocsAPIBase :: Symbol -> Kind.Type
 type ServiceSwaggerDocsAPIBase service = SwaggerSchemaUI service (AppendSymbol service "-swagger.json")
 
 type VersionedSwaggerDocsAPIBase service = Header VersionHeader VersionNumber :> ServiceSwaggerDocsAPIBase service

@@ -18,7 +18,7 @@ import Data.Foldable
 import Data.Function
 import Data.Functor
 import Data.List.Split (splitOn)
-import Data.Maybe
+import Data.Maybe (fromMaybe)
 import Data.Scientific qualified as Sci
 import Data.String
 import Data.Text qualified as T
@@ -287,7 +287,7 @@ printJSON = prettyJSON >=> liftIO . putStrLn
 
 prettyJSON :: MakesValue a => a -> App String
 prettyJSON x =
-  make x <&> Aeson.encodePretty <&> LC8.unpack
+  make x <&> LC8.unpack . Aeson.encodePretty
 
 jsonType :: Value -> String
 jsonType (Object _) = "Object"

@@ -146,7 +146,7 @@ createConnectionToLocalUser self conn target = do
 
     accept :: UserConnection -> UserConnection -> ExceptT ConnectionError (AppT r) (ResponseForExistedCreated UserConnection)
     accept s2o o2s = do
-      when (ucStatus s2o `notElem` [Sent, Accepted]) $
+      unless (ucStatus s2o `elem` [Sent, Accepted]) $
         checkLimit self
       lift . Log.info $
         logLocalConnection (tUnqualified self) (qUnqualified (ucTo s2o))
@@ -168,7 +168,7 @@ createConnectionToLocalUser self conn target = do
 
     resend :: UserConnection -> UserConnection -> ExceptT ConnectionError (AppT r) (ResponseForExistedCreated UserConnection)
     resend s2o o2s = do
-      when (ucStatus s2o `notElem` [Sent, Accepted]) $
+      unless (ucStatus s2o `elem` [Sent, Accepted]) $
         checkLimit self
       lift . Log.info $
         logLocalConnection (tUnqualified self) (qUnqualified (ucTo s2o))

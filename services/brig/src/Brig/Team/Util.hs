@@ -49,7 +49,7 @@ ensurePermissions u t perms = do
     throwStd insufficientTeamPermissions
   where
     check :: Maybe TeamMember -> Bool
-    check (Just m) = and $ hasPermission m <$> perms
+    check (Just m) = all (hasPermission m) perms
     check Nothing = False
 
 -- | Privilege escalation detection (make sure no `RoleMember` user creates a `RoleOwner`).
@@ -64,5 +64,5 @@ ensurePermissionToAddUser u t inviteePerms = do
     check :: Maybe TeamMember -> Bool
     check (Just inviter) =
       hasPermission inviter AddTeamMember
-        && and (mayGrantPermission inviter <$> Set.toList (inviteePerms ^. self))
+        && all (mayGrantPermission inviter) (Set.toList (inviteePerms ^. self))
     check Nothing = False

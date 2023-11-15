@@ -109,10 +109,10 @@ randomPhone = liftIO $ do
   pure $ fromMaybe (error "Invalid random phone#") phone
 
 randomEmailUser :: HasCallStack => TestM (UserId, Email)
-randomEmailUser = randomUserProfile'' False False True <&> first ((.userId) . selfUser) <&> second fst
+randomEmailUser = randomUserProfile'' False False True <&> bimap ((.userId) . selfUser) fst
 
 randomPhoneUser :: HasCallStack => TestM (UserId, Phone)
-randomPhoneUser = randomUserProfile'' False False True <&> first ((.userId) . selfUser) <&> second snd
+randomPhoneUser = randomUserProfile'' False False True <&> bimap ((.userId) . selfUser) snd
 
 randomEmailPhoneUser :: HasCallStack => TestM (UserId, (Email, Phone))
 randomEmailPhoneUser = randomUserProfile'' False False True <&> first ((.userId) . selfUser)

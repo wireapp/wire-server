@@ -1700,7 +1700,9 @@ testSelfConversationList isBelowV3 = do
         responseJsonError
           =<< listEndpoint u Nothing (Just 100)
             <!! const 200 === statusCode
-      pure $ foldr (<|>) Nothing $ guard . isMLSSelf u <$> mtpResults convIds
+      pure . getAlt $
+        foldMap (Alt . guard . isMLSSelf u) $
+          mtpResults convIds
 
     getConvPageV2 u s c = do
       g <- view tsUnversionedGalley

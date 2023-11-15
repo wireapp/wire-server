@@ -113,7 +113,7 @@ createTable = do
     betweenBrackets $
       catMaybes
         <$> ((Just <$> column) <|> (Nothing <$ primaryKeyAtEndOfColumns))
-        `sepBy` lexeme ","
+          `sepBy` lexeme ","
   noise
   pure (CreateTable ks tn cols)
 
