@@ -65,6 +65,7 @@ import Data.Attoparsec.ByteString ((<?>))
 import Data.Attoparsec.ByteString.Char8 qualified as Atto
 import Data.Bifunctor (first)
 import Data.Binary
+import Data.Binary.Builder qualified as Builder
 import Data.ByteString.Builder (byteString)
 import Data.ByteString.Char8 qualified as B8
 import Data.ByteString.Conversion
@@ -77,6 +78,7 @@ import Data.OpenApi.Internal.ParamSchema (ToParamSchema (..))
 import Data.ProtocolBuffers.Internal
 import Data.Proxy
 import Data.Schema
+import Data.Text qualified as T
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Text.Lazy (toStrict)
 import Data.Text.Lazy.Builder
@@ -309,9 +311,17 @@ instance Arbitrary ConnId where
 newtype ClientId = ClientId
   { clientToWord64 :: Word64
   }
-  deriving (Eq, Ord, Show, ToByteString, Hashable, NFData, Generic)
-  deriving newtype (ToParamSchema, FromHttpApiData, ToHttpApiData, Binary)
+  deriving (Eq, Ord, Show)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema ClientId
+
+instance ToParamSchema ClientId where
+  toParamSchema _ = toParamSchema (Proxy @Text)
+
+instance FromHttpApiData ClientId where
+  parseUrlPiece = first T.pack . runParser parser . encodeUtf8
+
+instance ToHttpApiData ClientId where
+  toUrlPiece = clientToText
 
 clientToText :: ClientId -> Text
 clientToText = toStrict . toLazyText . hexadecimal . clientToWord64
@@ -335,6 +345,9 @@ instance FromByteString ClientId where
     num :: Integer <- Atto.hexadecimal
     guard $ num < fromIntegral (maxBound :: Word64)
     pure (ClientId (fromIntegral num))
+
+instance ToByteString ClientId where
+  builder = Builder.fromByteString . encodeUtf8 . clientToText
 
 instance A.FromJSONKey ClientId where
   fromJSONKey = A.FromJSONKeyTextParser parseClientId
