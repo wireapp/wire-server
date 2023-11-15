@@ -69,7 +69,7 @@ instance ToSchema Prekey where
 clientIdFromPrekey :: Prekey -> ClientId
 clientIdFromPrekey =
   ClientId
-    . foldr (\d w -> (w `shiftL` 8) .|. fromIntegral d) 0
+    . foldl' (\w d -> (w `shiftL` 8) .|. fromIntegral d) 0
     . BS.unpack
     . BS.take 8
     . convert
