@@ -558,7 +558,7 @@ data Settings = Settings
     -- https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections
     -- for details.
     -- default: []
-    setFederationDomainConfigs :: !(Maybe [FederationDomainConfig]),
+    setFederationDomainConfigs :: !(Maybe [ImplicitNoFederationRestriction]),
     -- | In seconds.  Default: 10 seconds.  Values <1 are silently replaced by 1.  See
     -- https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections
     setFederationDomainConfigsUpdateFreq :: !(Maybe Int),
@@ -628,6 +628,20 @@ data Settings = Settings
     setOAuthMaxActiveRefreshTokensInternal :: !(Maybe Word32)
   }
   deriving (Show, Generic)
+
+newtype ImplicitNoFederationRestriction = ImplicitNoFederationRestriction
+  {federationDomainConfig :: FederationDomainConfig}
+  deriving (Show, Eq, Generic)
+
+instance FromJSON ImplicitNoFederationRestriction where
+  parseJSON =
+    Aeson.withObject
+      "ImplicitNoFederationRestriction"
+      ( \obj -> do
+          domain <- obj Aeson..: "domain"
+          searchPolicy <- obj Aeson..: "search_policy"
+          pure $ ImplicitNoFederationRestriction $ FederationDomainConfig domain searchPolicy FederationRestrictionAllowAll
+      )
 
 defaultTemplateLocale :: Locale
 defaultTemplateLocale = Locale (Language EN) Nothing
