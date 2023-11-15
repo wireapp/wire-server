@@ -206,11 +206,11 @@ POST /login?persist=false
 Set-Cookie: zuid=(redacted); Path=/access; Domain=zinfra.io; HttpOnly; Secure
 ```
 
-When you log in **with** `persist=true`, you get a persistent cookie,
-which means it has *some* expiration date. In production this is
-currently 56 days (again, configurable, check current config in
-[hegemony](https://github.com/zinfra/hegemony)) and can be renewed
-during token refresh. Example **persistent cookie**:
+When you log in **with** `persist=true`, you get a persistent cookie, which
+means it has *some* expiration date. In production this is currently 14 days
+(again, configurable, check current config in [production
+config](https://github.com/zinfra/cailleach/tree/master/targets/wire/prod/app))
+and can be renewed during token refresh. Example **persistent cookie**:
 
 ```
 POST /login?persist=true
