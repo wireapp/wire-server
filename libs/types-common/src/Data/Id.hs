@@ -343,7 +343,7 @@ parseClientId = either fail pure . runParser parser . encodeUtf8
 instance FromByteString ClientId where
   parser = do
     num :: Integer <- Atto.hexadecimal
-    guard $ num < fromIntegral (maxBound :: Word64)
+    guard $ num <= fromIntegral (maxBound :: Word64)
     pure (ClientId (fromIntegral num))
 
 instance ToByteString ClientId where
