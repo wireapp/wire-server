@@ -18,6 +18,7 @@
 module Wire.API.Routes.Public.Galley.Feature where
 
 import Data.Id
+import Data.Kind (Type)
 import GHC.TypeLits
 import Servant hiding (WithStatus)
 import Servant.OpenApi.Internal.Orphans ()
@@ -41,24 +42,22 @@ type FeatureAPI =
            '[ MakesFederatedCall 'Galley "on-conversation-updated",
               MakesFederatedCall 'Galley "on-mls-message-sent"
             ]
-           '( 'ActionDenied 'RemoveConversationMember,
-              '( AuthenticationError,
-                 '( 'CannotEnableLegalHoldServiceLargeTeam,
-                    '( 'LegalHoldNotEnabled,
-                       '( 'LegalHoldDisableUnimplemented,
-                          '( 'LegalHoldServiceNotRegistered,
-                             '( 'UserLegalHoldIllegalOperation,
-                                '( 'LegalHoldCouldNotBlockConnections, '())
-                              )
-                           )
-                        )
-                     )
-                  )
-               )
-            )
+           ( T
+               GalleyError
+               '[ ActionDenied RemoveConversationMember,
+                  CannotEnableLegalHoldServiceLargeTeam,
+                  LegalHoldNotEnabled,
+                  LegalHoldDisableUnimplemented,
+                  LegalHoldServiceNotRegistered,
+                  UserLegalHoldIllegalOperation,
+                  LegalHoldCouldNotBlockConnections
+                ]
+               ::* T Type '[AuthenticationError]
+               ::* DN
+           )
            LegalholdConfig
     :<|> FeatureStatusGet SearchVisibilityAvailableConfig
-    :<|> FeatureStatusPut '[] '() SearchVisibilityAvailableConfig
+    :<|> FeatureStatusPut '[] DN SearchVisibilityAvailableConfig
     :<|> FeatureStatusDeprecatedGet "This endpoint is potentially used by the old Android client. It is not used by iOS, team management, or webapp as of June 2022" SearchVisibilityAvailableConfig
     :<|> FeatureStatusDeprecatedPut "This endpoint is potentially used by the old Android client. It is not used by iOS, team management, or webapp as of June 2022" SearchVisibilityAvailableConfig
     :<|> SearchVisibilityGet
@@ -68,29 +67,29 @@ type FeatureAPI =
     :<|> FeatureStatusGet DigitalSignaturesConfig
     :<|> FeatureStatusDeprecatedGet "The usage of this endpoint was removed in iOS in version 3.101. It is potentially used by the old Android client. It is not used by team management, or webapp as of June 2022" DigitalSignaturesConfig
     :<|> FeatureStatusGet AppLockConfig
-    :<|> FeatureStatusPut '[] '() AppLockConfig
+    :<|> FeatureStatusPut '[] DN AppLockConfig
     :<|> FeatureStatusGet FileSharingConfig
-    :<|> FeatureStatusPut '[] '() FileSharingConfig
+    :<|> FeatureStatusPut '[] DN FileSharingConfig
     :<|> FeatureStatusGet ClassifiedDomainsConfig
     :<|> FeatureStatusGet ConferenceCallingConfig
     :<|> FeatureStatusGet SelfDeletingMessagesConfig
-    :<|> FeatureStatusPut '[] '() SelfDeletingMessagesConfig
+    :<|> FeatureStatusPut '[] DN SelfDeletingMessagesConfig
     :<|> FeatureStatusGet GuestLinksConfig
-    :<|> FeatureStatusPut '[] '() GuestLinksConfig
+    :<|> FeatureStatusPut '[] DN GuestLinksConfig
     :<|> FeatureStatusGet SndFactorPasswordChallengeConfig
-    :<|> FeatureStatusPut '[] '() SndFactorPasswordChallengeConfig
+    :<|> FeatureStatusPut '[] DN SndFactorPasswordChallengeConfig
     :<|> From 'V5 ::> FeatureStatusGet MLSConfig
-    :<|> From 'V5 ::> FeatureStatusPut '[] '() MLSConfig
+    :<|> From 'V5 ::> FeatureStatusPut '[] DN MLSConfig
     :<|> FeatureStatusGet ExposeInvitationURLsToTeamAdminConfig
-    :<|> FeatureStatusPut '[] '() ExposeInvitationURLsToTeamAdminConfig
+    :<|> FeatureStatusPut '[] DN ExposeInvitationURLsToTeamAdminConfig
     :<|> FeatureStatusGet SearchVisibilityInboundConfig
-    :<|> FeatureStatusPut '[] '() SearchVisibilityInboundConfig
+    :<|> FeatureStatusPut '[] DN SearchVisibilityInboundConfig
     :<|> FeatureStatusGet OutlookCalIntegrationConfig
-    :<|> FeatureStatusPut '[] '() OutlookCalIntegrationConfig
+    :<|> FeatureStatusPut '[] DN OutlookCalIntegrationConfig
     :<|> From 'V5 ::> FeatureStatusGet MlsE2EIdConfig
-    :<|> From 'V5 ::> FeatureStatusPut '[] '() MlsE2EIdConfig
+    :<|> From 'V5 ::> FeatureStatusPut '[] DN MlsE2EIdConfig
     :<|> From 'V5 ::> FeatureStatusGet MlsMigrationConfig
-    :<|> From 'V5 ::> FeatureStatusPut '[] '() MlsMigrationConfig
+    :<|> From 'V5 ::> FeatureStatusPut '[] DN MlsMigrationConfig
     :<|> AllFeatureConfigsUserGet
     :<|> AllFeatureConfigsTeamGet
     :<|> FeatureConfigDeprecatedGet "The usage of this endpoint was removed in iOS in version 3.101. It is not used by team management, or webapp, and is potentially used by the old Android client as of June 2022" LegalholdConfig

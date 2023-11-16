@@ -19,6 +19,7 @@ module Wire.API.Routes.Internal.Galley where
 
 import Control.Lens ((.~))
 import Data.Id as Id
+import Data.Kind (Type)
 import Data.OpenApi (OpenApi, info, title)
 import Data.Range
 import GHC.TypeLits (AppendSymbol)
@@ -48,22 +49,20 @@ import Wire.API.Team.Member
 import Wire.API.Team.SearchVisibility
 import Wire.API.User.Client
 
+type LegalHoldFeatureStatusChangeErrors :: DL '[GalleyError, Type]
 type LegalHoldFeatureStatusChangeErrors =
-  '( 'ActionDenied 'RemoveConversationMember,
-     '( AuthenticationError,
-        '( 'CannotEnableLegalHoldServiceLargeTeam,
-           '( 'LegalHoldNotEnabled,
-              '( 'LegalHoldDisableUnimplemented,
-                 '( 'LegalHoldServiceNotRegistered,
-                    '( 'UserLegalHoldIllegalOperation,
-                       '( 'LegalHoldCouldNotBlockConnections, '())
-                     )
-                  )
-               )
-            )
-         )
-      )
-   )
+  T
+    GalleyError
+    [ ActionDenied RemoveConversationMember,
+      CannotEnableLegalHoldServiceLargeTeam,
+      LegalHoldNotEnabled,
+      LegalHoldDisableUnimplemented,
+      LegalHoldServiceNotRegistered,
+      UserLegalHoldIllegalOperation,
+      LegalHoldCouldNotBlockConnections
+    ]
+    ::* T Type '[AuthenticationError]
+    ::* DN
 
 type LegalHoldFeaturesStatusChangeFederatedCalls =
   '[ MakesFederatedCall 'Galley "on-conversation-updated",
@@ -73,8 +72,8 @@ type LegalHoldFeaturesStatusChangeFederatedCalls =
 type IFeatureAPI =
   -- SSOConfig
   IFeatureStatusGet SSOConfig
-    :<|> IFeatureStatusPut '[] '() SSOConfig
-    :<|> IFeatureStatusPatch '[] '() SSOConfig
+    :<|> IFeatureStatusPut '[] DN SSOConfig
+    :<|> IFeatureStatusPatch '[] DN SSOConfig
     -- LegalholdConfig
     :<|> IFeatureStatusGet LegalholdConfig
     :<|> IFeatureStatusPut
@@ -87,78 +86,78 @@ type IFeatureAPI =
            LegalholdConfig
     -- SearchVisibilityAvailableConfig
     :<|> IFeatureStatusGet SearchVisibilityAvailableConfig
-    :<|> IFeatureStatusPut '[] '() SearchVisibilityAvailableConfig
-    :<|> IFeatureStatusPatch '[] '() SearchVisibilityAvailableConfig
+    :<|> IFeatureStatusPut '[] DN SearchVisibilityAvailableConfig
+    :<|> IFeatureStatusPatch '[] DN SearchVisibilityAvailableConfig
     -- ValidateSAMLEmailsConfig
     :<|> IFeatureStatusGet ValidateSAMLEmailsConfig
-    :<|> IFeatureStatusPut '[] '() ValidateSAMLEmailsConfig
-    :<|> IFeatureStatusPatch '[] '() ValidateSAMLEmailsConfig
+    :<|> IFeatureStatusPut '[] DN ValidateSAMLEmailsConfig
+    :<|> IFeatureStatusPatch '[] DN ValidateSAMLEmailsConfig
     -- DigitalSignaturesConfig
     :<|> IFeatureStatusGet DigitalSignaturesConfig
-    :<|> IFeatureStatusPut '[] '() DigitalSignaturesConfig
-    :<|> IFeatureStatusPatch '[] '() DigitalSignaturesConfig
+    :<|> IFeatureStatusPut '[] DN DigitalSignaturesConfig
+    :<|> IFeatureStatusPatch '[] DN DigitalSignaturesConfig
     -- AppLockConfig
     :<|> IFeatureStatusGet AppLockConfig
-    :<|> IFeatureStatusPut '[] '() AppLockConfig
-    :<|> IFeatureStatusPatch '[] '() AppLockConfig
+    :<|> IFeatureStatusPut '[] DN AppLockConfig
+    :<|> IFeatureStatusPatch '[] DN AppLockConfig
     -- FileSharingConfig
     :<|> IFeatureStatusGet FileSharingConfig
-    :<|> IFeatureStatusPut '[] '() FileSharingConfig
+    :<|> IFeatureStatusPut '[] DN FileSharingConfig
     :<|> IFeatureStatusLockStatusPut FileSharingConfig
-    :<|> IFeatureStatusPatch '[] '() FileSharingConfig
+    :<|> IFeatureStatusPatch '[] 'DN FileSharingConfig
     -- ConferenceCallingConfig
     :<|> IFeatureStatusGet ConferenceCallingConfig
-    :<|> IFeatureStatusPut '[] '() ConferenceCallingConfig
-    :<|> IFeatureStatusPatch '[] '() ConferenceCallingConfig
+    :<|> IFeatureStatusPut '[] DN ConferenceCallingConfig
+    :<|> IFeatureStatusPatch '[] DN ConferenceCallingConfig
     -- SelfDeletingMessagesConfig
     :<|> IFeatureStatusGet SelfDeletingMessagesConfig
-    :<|> IFeatureStatusPut '[] '() SelfDeletingMessagesConfig
+    :<|> IFeatureStatusPut '[] DN SelfDeletingMessagesConfig
     :<|> IFeatureStatusLockStatusPut SelfDeletingMessagesConfig
-    :<|> IFeatureStatusPatch '[] '() SelfDeletingMessagesConfig
+    :<|> IFeatureStatusPatch '[] DN SelfDeletingMessagesConfig
     -- GuestLinksConfig
     :<|> IFeatureStatusGet GuestLinksConfig
-    :<|> IFeatureStatusPut '[] '() GuestLinksConfig
+    :<|> IFeatureStatusPut '[] DN GuestLinksConfig
     :<|> IFeatureStatusLockStatusPut GuestLinksConfig
-    :<|> IFeatureStatusPatch '[] '() GuestLinksConfig
+    :<|> IFeatureStatusPatch '[] DN GuestLinksConfig
     --  SndFactorPasswordChallengeConfig
     :<|> IFeatureStatusGet SndFactorPasswordChallengeConfig
-    :<|> IFeatureStatusPut '[] '() SndFactorPasswordChallengeConfig
+    :<|> IFeatureStatusPut '[] DN SndFactorPasswordChallengeConfig
     :<|> IFeatureStatusLockStatusPut SndFactorPasswordChallengeConfig
-    :<|> IFeatureStatusPatch '[] '() SndFactorPasswordChallengeConfig
+    :<|> IFeatureStatusPatch '[] DN SndFactorPasswordChallengeConfig
     -- SearchVisibilityInboundConfig
     :<|> IFeatureStatusGet SearchVisibilityInboundConfig
-    :<|> IFeatureStatusPut '[] '() SearchVisibilityInboundConfig
-    :<|> IFeatureStatusPatch '[] '() SearchVisibilityInboundConfig
+    :<|> IFeatureStatusPut '[] DN SearchVisibilityInboundConfig
+    :<|> IFeatureStatusPatch '[] DN SearchVisibilityInboundConfig
     :<|> IFeatureNoConfigMultiGet SearchVisibilityInboundConfig
     -- ClassifiedDomainsConfig
     :<|> IFeatureStatusGet ClassifiedDomainsConfig
     -- MLSConfig
     :<|> IFeatureStatusGet MLSConfig
-    :<|> IFeatureStatusPut '[] '() MLSConfig
-    :<|> IFeatureStatusPatch '[] '() MLSConfig
+    :<|> IFeatureStatusPut '[] DN MLSConfig
+    :<|> IFeatureStatusPatch '[] DN MLSConfig
     :<|> IFeatureStatusLockStatusPut MLSConfig
     -- ExposeInvitationURLsToTeamAdminConfig
     :<|> IFeatureStatusGet ExposeInvitationURLsToTeamAdminConfig
-    :<|> IFeatureStatusPut '[] '() ExposeInvitationURLsToTeamAdminConfig
-    :<|> IFeatureStatusPatch '[] '() ExposeInvitationURLsToTeamAdminConfig
+    :<|> IFeatureStatusPut '[] DN ExposeInvitationURLsToTeamAdminConfig
+    :<|> IFeatureStatusPatch '[] DN ExposeInvitationURLsToTeamAdminConfig
     -- SearchVisibilityInboundConfig
     :<|> IFeatureStatusGet SearchVisibilityInboundConfig
-    :<|> IFeatureStatusPut '[] '() SearchVisibilityInboundConfig
-    :<|> IFeatureStatusPatch '[] '() SearchVisibilityInboundConfig
+    :<|> IFeatureStatusPut '[] DN SearchVisibilityInboundConfig
+    :<|> IFeatureStatusPatch '[] DN SearchVisibilityInboundConfig
     -- OutlookCalIntegrationConfig
     :<|> IFeatureStatusGet OutlookCalIntegrationConfig
-    :<|> IFeatureStatusPut '[] '() OutlookCalIntegrationConfig
-    :<|> IFeatureStatusPatch '[] '() OutlookCalIntegrationConfig
+    :<|> IFeatureStatusPut '[] DN OutlookCalIntegrationConfig
+    :<|> IFeatureStatusPatch '[] DN OutlookCalIntegrationConfig
     :<|> IFeatureStatusLockStatusPut OutlookCalIntegrationConfig
     -- MlsE2EIdConfig
     :<|> IFeatureStatusGet MlsE2EIdConfig
-    :<|> IFeatureStatusPut '[] '() MlsE2EIdConfig
-    :<|> IFeatureStatusPatch '[] '() MlsE2EIdConfig
+    :<|> IFeatureStatusPut '[] DN MlsE2EIdConfig
+    :<|> IFeatureStatusPatch '[] DN MlsE2EIdConfig
     :<|> IFeatureStatusLockStatusPut MlsE2EIdConfig
     -- MlsMigrationConfig
     :<|> IFeatureStatusGet MlsMigrationConfig
-    :<|> IFeatureStatusPut '[] '() MlsMigrationConfig
-    :<|> IFeatureStatusPatch '[] '() MlsMigrationConfig
+    :<|> IFeatureStatusPut '[] DN MlsMigrationConfig
+    :<|> IFeatureStatusPatch '[] DN MlsMigrationConfig
     :<|> IFeatureStatusLockStatusPut MlsMigrationConfig
     -- all feature configs
     :<|> Named

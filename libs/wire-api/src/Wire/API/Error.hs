@@ -29,6 +29,8 @@ module Wire.API.Error
     -- * Static errors and Servant
     CanThrow,
     CanThrowMany,
+    DL (..),
+    T,
     DeclaredErrorEffects,
     addErrorResponseToSwagger,
     addStaticErrorToSwagger,
@@ -167,7 +169,23 @@ instance KnownError e => ToSchema (SStaticError e) where
 
 data CanThrow e
 
-data CanThrowMany e
+-- | a list of Error kinds that contains lists of errors of that kind
+--
+--   this is to be used as such
+--   @T ErrKind '[ ErrKindC1, ErrKindC2 ] ::* T Type '[ DataType1, DataType2 ]@
+type DL :: [Type] -> Type
+data DL ts where
+  DN :: DL '[]
+  (::*) :: [k] -> DL ks -> DL (k ': ks)
+
+infixr 5 ::*
+
+type CanThrowMany :: forall xs. DL xs -> Type
+data CanThrowMany errs
+
+-- | Identity where the type of the list depends on the argument
+type T :: forall k -> [k] -> [k]
+type T typ l = l
 
 instance RoutesToPaths api => RoutesToPaths (CanThrow err :> api) where
   getRoutes = getRoutes @api
@@ -206,19 +224,27 @@ type instance
   SpecialiseToVersion v (CanThrowMany es :> api) =
     CanThrowMany es :> SpecialiseToVersion v api
 
-instance HasOpenApi api => HasOpenApi (CanThrowMany '() :> api) where
+instance HasOpenApi api => HasOpenApi (CanThrowMany DN :> api) where
   toOpenApi _ = toOpenApi (Proxy @api)
 
 instance
-  (HasOpenApi (CanThrowMany es :> api), IsSwaggerError e) =>
-  HasOpenApi (CanThrowMany '(e, es) :> api)
+  (HasOpenApi (CanThrowMany (es ::* ess) :> api), IsSwaggerError e) =>
+  HasOpenApi (CanThrowMany ((e : es) ::* ess) :> api)
   where
-  toOpenApi _ = addToOpenApi @e (toOpenApi (Proxy @(CanThrowMany es :> api)))
+  toOpenApi _ = addToOpenApi @e (toOpenApi (Proxy @(CanThrowMany (es ::* ess) :> api)))
+
+instance
+  (HasOpenApi (CanThrowMany ess :> api)) =>
+  HasOpenApi (CanThrowMany ('[] ::* ess) :> api)
+  where
+  toOpenApi _ = toOpenApi (Proxy @(CanThrowMany ess :> api))
 
 type family DeclaredErrorEffects api :: EffectRow where
   DeclaredErrorEffects (CanThrow e :> api) = (ErrorEffect e ': DeclaredErrorEffects api)
-  DeclaredErrorEffects (CanThrowMany '(e, es) :> api) =
-    DeclaredErrorEffects (CanThrow e :> CanThrowMany es :> api)
+  DeclaredErrorEffects (CanThrowMany ((e : es) ::* ess) :> api) =
+    DeclaredErrorEffects (CanThrow e :> CanThrowMany (es ::* ess) :> api)
+  DeclaredErrorEffects (CanThrowMany ('[] ::* es) :> api) =
+    DeclaredErrorEffects (CanThrowMany es :> api)
   DeclaredErrorEffects (x :> api) = DeclaredErrorEffects api
   DeclaredErrorEffects (UntypedNamed n api) = DeclaredErrorEffects api
   DeclaredErrorEffects api = '[]
