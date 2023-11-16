@@ -37,56 +37,9 @@ import Network.HTTP.Client qualified as HTTP
 import Network.HTTP.Types qualified as HTTP
 import Testlib.Prelude
 import Testlib.Types
-import Wire.API.Asset qualified as V3
 
 --------------------------------------------------------------------------------
 -- Simple (single-step) uploads
-
-testSimpleRoundtrip :: HasCallStack => App ()
-testSimpleRoundtrip = do
-  let def = V3.defAssetSettings
-  let rets = [minBound ..]
-  let sets = def : map (\r -> def & V3.setAssetRetention ?~ r) rets
-  mapM_ simpleRoundtrip sets
-  where
-    simpleRoundtrip sets = do
-      uid <- randomUser
-      uid2 <- liftIO $ Id <$> nextRandom
-      -- Initial upload
-      let bdy = (applicationText, "Hello World")
-      r1 <-
-        uploadSimple (path "/assets/v3") uid sets bdy
-          <!! const 201
-          === statusCode
-      let loc = decodeHeaderOrFail "Location" r1 :: ByteString
-      let Just ast = responseJsonMaybe @V3.Asset r1
-      let Just tok = view V3.assetToken ast
-      -- Check mandatory Date header
-      let Just date = C8.unpack <$> lookup "Date" (responseHeaders r1)
-      let utc = parseTimeOrError False defaultTimeLocale rfc822DateFormat date :: UTCTime
-      -- Potentially check for the expires header
-      when (isJust $ V3.assetRetentionSeconds =<< (sets ^. V3.setAssetRetention)) $ do
-        liftIO $ assertBool "invalid expiration" (Just utc < view V3.assetExpires ast)
-      -- Lookup with token and download via redirect.
-      r2 <-
-        downloadAsset uid loc (Just tok) <!! do
-          const 302 === statusCode
-          const Nothing === responseBody
-      r3 <- flip get' id =<< parseUrlThrow (C8.unpack (getHeader' "Location" r2))
-      liftIO $ do
-        assertEqual "status" HTTP.status200 (responseStatus r3)
-        assertEqual "content-type should always be application/octet-stream" (Just applicationOctetStream) (getContentType r3)
-        assertEqual "token mismatch" tok (decodeHeaderOrFail "x-amz-meta-token" r3)
-        assertEqual "user mismatch" uid (decodeHeaderOrFail "x-amz-meta-user" r3)
-        assertEqual "data mismatch" (Just "Hello World") (responseBody r3)
-      -- Delete (forbidden for other users)
-      deleteAsset uid2 (view V3.assetKey ast) !!! const 403 === statusCode
-      -- Delete (allowed for creator)
-      deleteAsset uid (view V3.assetKey ast) !!! const 200 === statusCode
-      r4 <- downloadAsset uid loc (Just tok) <!! const 404 === statusCode
-      let Just date' = C8.unpack <$> lookup "Date" (responseHeaders r4)
-      let utc' = parseTimeOrError False defaultTimeLocale rfc822DateFormat date' :: UTCTime
-      liftIO $ assertBool "bad date" (utc' >= utc)
 
 testDownloadWithAcceptHeader :: HasCallStack => App ()
 testDownloadWithAcceptHeader = do
@@ -110,10 +63,11 @@ testSimpleTokens = do
     uploadSimple (path "/assets/v3") uid sets bdy
       <!! const 201
       === statusCode
-  let loc = decodeHeaderOrFail "Location" r1 :: ByteString
-  let Just ast = responseJsonMaybe @V3.Asset r1
-  let key = view V3.assetKey ast
-  let Just tok = view V3.assetToken ast
+  (key, tok, expires) <-
+    (,,)
+      <$> r1.json %. "key"
+      <*> r1.json %. "token"
+      <*> r1.json %. "expires"
   -- No access without token from other user (opaque 404)
   downloadAsset uid2 loc ()
     !!! const 404
@@ -205,8 +159,11 @@ testDownloadURLOverride = do
         <!! const 201
         === statusCode
     let loc = decodeHeaderOrFail "Location" uploadRes :: ByteString
-    let Just ast = responseJsonMaybe @V3.Asset uploadRes
-    let Just tok = view V3.assetToken ast
+    (key, tok, expires) <-
+      (,,)
+        <$> uploadRes.json %. "key"
+        <*> uploadRes.json %. "token"
+        <*> uploadRes.json %. "expires"
 
     -- Lookup with token and get download URL. Should return the
     -- S3DownloadEndpoint, but not try to use it.

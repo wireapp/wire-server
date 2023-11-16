@@ -79,6 +79,9 @@ addQueryParams params req =
 contentTypeJSON :: HTTP.Request -> HTTP.Request
 contentTypeJSON = addHeader "Content-Type" "application/json"
 
+contentTypeMixed :: HTTP.Request -> HTTP.Request
+contentTypeMixed = addHeader "Content-Type" "multipart/mixed"
+
 bindResponse :: HasCallStack => App Response -> (Response -> App a) -> App a
 bindResponse m k = m >>= \r -> withResponse r k
 

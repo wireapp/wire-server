@@ -19,40 +19,46 @@
 
 module Test.Cargohold.API.V3 where
 
-import Control.Lens hiding (sets)
-import qualified Data.ByteString.Char8 as C8
+import Control.Lens hiding (sets, (.=))
+import Data.ByteString.Char8 qualified as C8
 import Data.Time.Clock
 import Data.Time.Format
-import Data.UUID.V4
-import Network.HTTP.Client (parseUrlThrow)
+import Network.HTTP.Client (parseUrlThrow, requestBody)
 import Network.HTTP.Types.Status (status200)
-import Testlib.Types
+import SetupHelpers
+import Test.Cargohold.API.Util
 import Testlib.Prelude
+import Testlib.Types
 
 --------------------------------------------------------------------------------
 -- Simple (single-step) uploads
 
 testSimpleRoundtrip :: HasCallStack => App ()
 testSimpleRoundtrip = do
-  let def = defAssetSettings
-  let rets = [minBound ..]
-  let sets = def : map (\r -> def & setAssetRetention ?~ r) rets
+  let defSettings =
+        [ "public" .= False
+        ]
+  let rets = ["eternal", "persistent", "volatile", "eternal-infrequent_access", "expiring"]
+  let sets =
+        fmap object $
+          defSettings : map (\r -> defSettings <> ["retention" .= r]) rets
   mapM_ simpleRoundtrip sets
   where
     simpleRoundtrip sets = do
-      uid <- randomUser
-      uid2 <- liftIO $ Id <$> nextRandom
+      uid <- randomUser OwnDomain def
+      uid2 <- randomId
       -- Initial upload
       let bdy = (applicationText, "Hello World")
       r1 <-
-        uploadSimple (path "/assets/v3") uid sets bdy
-          <!! const 201 === statusCode
+        uploadSimple uid sets bdy
+          <!! const 201
+          === statusCode
       -- use v3 path instead of the one returned in the header
-      (qKey, tok, expires) <- (,)
-        <$> r1.json %. "key"
-        <*> r1.json %. "token"
-        <*> r1.json %. "expires"
-      let key = qUnqualified qKey
+      (key, tok, expires) <-
+        (,,)
+          <$> r1.json %. "key"
+          <*> r1.json %. "token"
+          <*> r1.json %. "expires"
       -- Check mandatory Date header
       let Just date = C8.unpack <$> lookup "Date" (responseHeaders r1)
       let utc = parseTimeOrError False defaultTimeLocale rfc822DateFormat date :: UTCTime
@@ -77,7 +83,8 @@ testSimpleRoundtrip = do
       deleteAssetV3 uid key !!! const 200 === statusCode
       r4 <-
         downloadAsset uid key (Just tok)
-          <!! const 404 === statusCode
+          <!! const 404
+          === statusCode
       let Just date' = C8.unpack <$> lookup "Date" (responseHeaders r4)
       let utc' = parseTimeOrError False defaultTimeLocale rfc822DateFormat date' :: UTCTime
       liftIO $ assertBool "bad date" (utc' >= utc)

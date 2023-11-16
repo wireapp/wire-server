@@ -16,8 +16,9 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Test.Cargohold.Metrics where
-import Testlib.Prelude
+
 import Data.String.Conversions
+import Testlib.Prelude
 
 testPrometheusMetrics :: HasCallStack => App ()
 testPrometheusMetrics = do

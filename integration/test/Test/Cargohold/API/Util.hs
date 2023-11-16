@@ -17,180 +17,188 @@
 
 module Test.Cargohold.API.Util where
 
-import qualified Codec.MIME.Parse as MIME
-import qualified Codec.MIME.Type as MIME
-import Control.Lens hiding ((.=))
-import Control.Monad.Codensity
-import Data.Aeson (object, (.=))
+import Codec.MIME.Parse qualified as MIME
+import Codec.MIME.Type qualified as MIME
+import Data.Aeson qualified as Aeson
 import Data.ByteString.Builder
-import qualified Data.ByteString.Char8 as C
 import Data.ByteString.Conversion
-import qualified Data.ByteString.Lazy as Lazy
-import Data.Text.Encoding (decodeLatin1, encodeUtf8)
-import qualified Data.UUID as UUID
-import Data.UUID.V4 (nextRandom)
+import Data.ByteString.Lazy qualified as LBS
+import Data.ByteString.Lazy qualified as Lazy
+import Data.ByteString.Lazy.Char8 qualified as Lazy8
+import Data.String.Conversions
+import Data.Text qualified as T
+import Data.Text.Encoding (decodeLatin1)
+import Data.Text.Lazy.Encoding (encodeUtf8Builder)
+import GHC.Stack
+import Network.HTTP.Client (Request (requestHeaders))
+import Network.HTTP.Client qualified as HTTP
 import Network.HTTP.Types.Header
-import Network.HTTP.Types.Method
 import Testlib.Prelude
 
-uploadSimple :: HasCallStack =>
-  (Request -> Request) ->
-  UserId ->
-  AssetSettings ->
-  (MIME.Type, ByteString) ->
-  App (Response (Maybe Lazy.ByteString))
-uploadSimple c usr sts (ct, bs) =
-  let mp = buildMultipartBody sts ct (Lazy.fromStrict bs)
-   in uploadRaw c usr (toLazyByteString mp)
+uploadSimple ::
+  (HasCallStack, MakesValue user, MakesValue settings) =>
+  user ->
+  settings ->
+  (MIME.MIMEType, String) ->
+  App Response
+uploadSimple usr sts (ct, bs) =
+  uploadRaw usr $ buildMultipartBody sts (Lazy8.pack bs) ct
 
-decodeHeaderOrFail :: (HasCallStack, FromByteString a) => HeaderName -> Response b -> a
+decodeHeaderOrFail :: (HasCallStack, FromByteString a) => HeaderName -> Response -> a
 decodeHeaderOrFail h =
   fromMaybe (error $ "decodeHeaderOrFail: missing or invalid header: " ++ show h)
     . fromByteString
     . getHeader' h
 
-uploadRaw :: HasCallStack =>
-  (Request -> Request) ->
-  UserId ->
-  Lazy.ByteString ->
-  App (Response (Maybe Lazy.ByteString))
-uploadRaw c usr bs = do
-  cargohold' <- viewUnversionedCargohold
-  post $
-    apiVersion "v1"
-      . c
-      . cargohold'
-      . method POST
-      . zUser usr
-      . zConn "conn"
-      . content "multipart/mixed"
-      . lbytes bs
+-- | Like 'getHeader', but if no value exists for the given key, return the
+-- static ByteString \"NO_HEADER_VALUE\".
+getHeader' :: HeaderName -> Response -> ByteString
+getHeader' h = fromMaybe (cs "NO_HEADER_VALUE") . getHeader h
 
-getContentType :: Response a -> Maybe MIME.Type
-getContentType = MIME.parseContentType . decodeLatin1 . getHeader' "Content-Type"
+getHeader :: HeaderName -> Response -> Maybe ByteString
+getHeader h = fmap snd . find ((h ==) . fst) . headers
+
+uploadRaw ::
+  (HasCallStack, MakesValue user) =>
+  user ->
+  Lazy.ByteString ->
+  App Response
+uploadRaw usr bs = do
+  req <- baseRequest usr Cargohold (ExplicitVersion 1) "assets/v3"
+  submit "POST" $
+    req
+      & contentTypeMixed
+      & (\r -> r {HTTP.requestBody = HTTP.RequestBodyLBS bs})
+
+getContentType :: Response -> Maybe MIME.Type
+getContentType = MIME.parseContentType . decodeLatin1 . getHeader' (cs "Content-Type")
 
 applicationText :: MIME.Type
-applicationText = MIME.Type (MIME.Application "text") []
+applicationText = MIME.Type (MIME.Application $ cs "text") []
 
 applicationOctetStream :: MIME.Type
-applicationOctetStream = MIME.Type (MIME.Application "octet-stream") []
+applicationOctetStream = MIME.Type (MIME.Application $ cs "octet-stream") []
 
-zUser :: UserId -> Request -> Request
-zUser = header "Z-User" . UUID.toASCIIBytes . toUUID
+deleteAssetV3 :: (HasCallStack, MakesValue user, MakesValue key) => user -> key -> App Response
+deleteAssetV3 user key = do
+  k <- key %. "id" & asString
+  req <- baseRequest user Cargohold (ExplicitVersion 1) $ "assets/v3/" <> k
+  submit "DELETE" req
 
-zConn :: ByteString -> Request -> Request
-zConn = header "Z-Connection"
-
-deleteAssetV3 :: HasCallStack => UserId -> Qualified AssetKey -> App (Response (Maybe Lazy.ByteString))
-deleteAssetV3 u k = do
-  c <- viewUnversionedCargohold
-  delete $ apiVersion "v1" . c . zUser u . paths ["assets", "v3", toByteString' (qUnqualified k)]
-
-deleteAsset :: HasCallStack => UserId -> Qualified AssetKey -> App (Response (Maybe Lazy.ByteString))
-deleteAsset u k = do
-  c <- viewCargohold
-  delete $
-    c
-      . zUser u
-      . paths
-        [ "assets",
-          toByteString' (qDomain k),
-          toByteString' (qUnqualified k)
-        ]
-
-class IsAssetLocation key where
-  locationPath :: key -> Request -> Request
-
-instance IsAssetLocation AssetKey where
-  locationPath k =
-    apiVersion "v1"
-      . paths ["assets", "v3", toByteString' k]
-
-instance IsAssetLocation (Qualified AssetKey) where
-  locationPath k =
-    apiVersion "v2"
-      . paths ["assets", toByteString' (qDomain k), toByteString' (qUnqualified k)]
-
-instance IsAssetLocation ByteString where
-  locationPath = path
+deleteAsset :: (HasCallStack, MakesValue user, MakesValue key) => user -> key -> App Response
+deleteAsset user key = do
+  k <- key %. "id" & asString
+  d <- key %. "domain" & asString
+  req <- baseRequest user Cargohold Versioned $ "/assets/" <> d <> "/" <> show k
+  submit "DELETE" req
 
 class IsAssetToken tok where
-  tokenParam :: tok -> Request -> Request
+  tokenParam :: tok -> HTTP.Request -> HTTP.Request
 
-instance IsAssetToken () where
-  tokenParam _ = id
+instance IsAssetToken (Maybe String) where
+  tokenParam = maybe id (header "Asset-Token")
 
-instance IsAssetToken (Maybe AssetToken) where
-  tokenParam = maybe id (header "Asset-Token" . toByteString')
+header :: String -> Request -> Request
+header name req =
+  req {requestHeaders = (cs name, _) : requestHeaders req}
 
-instance IsAssetToken (Request -> Request) where
-  tokenParam = id
+downloadAssetWithAssetKey ::
+  (HasCallStack, MakesValue user) =>
+  (HTTP.Request -> HTTP.Request) ->
+  user ->
+  String ->
+  App Response
+downloadAssetWithAssetKey r user tok = do
+  req <- baseRequest user Cargohold (ExplicitVersion 1) $ "asserts/v3/" <> tok
+  submit "GET" $
+    req
+      & tokenParam tok
 
-downloadAssetWith ::
-  (HasCallStack, IsAssetLocation loc, IsAssetToken tok) =>
-  (Request -> Request) ->
-  UserId ->
-  loc ->
-  tok ->
-  App (Response (Maybe LByteString))
-downloadAssetWith r uid loc tok = do
-  c <- viewUnversionedCargohold
-  get $
-    c
-      . r
-      . zUser uid
-      . locationPath loc
-      . tokenParam tok
-      . noRedirect
+downloadAssetWithQualifiedAssetKey ::
+  (HasCallStack, MakesValue tok, MakesValue user) =>
+  (HTTP.Request -> HTTP.Request) ->
+  user ->
+  Maybe String ->
+  App Response
+downloadAssetWithQualifiedAssetKey r user tok = do
+  dom <- tok %. "domain" & asString
+  key <- tok %. "id" & asString
+  req <- baseRequest user Cargohold (ExplicitVersion 2) $ "assets/" <> dom <> "/" <> key
+  submit "GET" $
+    req
+      & tokenParam tok
 
-downloadAsset ::
-  (HasCallStack, IsAssetLocation loc, IsAssetToken tok) =>
-  UserId ->
-  loc ->
-  tok ->
-  App (Response (Maybe LByteString))
-downloadAsset = downloadAssetWith id
+postToken :: (MakesValue user, HasCallStack) => user -> String -> App Response
+postToken user key = do
+  req <- baseRequest user Cargohold Versioned $ "assets/" <> key <> "/token"
+  submit "POST" req
 
-postToken :: HasCallStack => UserId -> AssetKey -> App (Response (Maybe LByteString))
-postToken uid key = do
-  c <- viewCargohold
-  post $
-    c
-      . zUser uid
-      . paths ["assets", toByteString' key, "token"]
+deleteToken :: (MakesValue user, HasCallStack) => user -> String -> App Response
+deleteToken user key = do
+  req <- baseRequest user Cargohold Versioned $ "asserts/" <> key <> "/token"
+  submit "DELETE" req
 
-deleteToken :: HasCallStack => UserId -> AssetKey -> App`` (Response (Maybe LByteString))
-deleteToken uid key = do
-  c <- viewCargohold
-  delete $
-    c
-      . zUser uid
-      . paths ["assets", toByteString' key, "token"]
+-- | Build a complete @multipart/mixed@ request body for a one-shot,
+-- non-resumable asset upload.
+buildMultipartBody :: Value -> Lazy.ByteString -> MIME.MIMEType -> Lazy.ByteString
+buildMultipartBody header body bodyMimeType = toLazyByteString render
+  where
+    headerJson = Aeson.encode header
 
-viewFederationDomain :: HasCallStack => App Domain
-viewFederationDomain = view (tsOpts . settings . federationDomain)
+    render :: Builder
+    render = renderBody <> endMultipartBody
 
---------------------------------------------------------------------------------
--- Mocking utilities
+    endMultipartBody :: Builder
+    endMultipartBody = lineBreak <> boundary <> stringUtf8 "--" <> lineBreak
 
-withSettingsOverrides :: HasCallStack => (Opts -> Opts) -> App a -> App a
-withSettingsOverrides f action = do
-  ts <- ask
-  let opts = f (view tsOpts ts)
-  liftIO . lowerCodensity $ do
-    (app, _) <- mkApp opts
-    p <- withMockServer app
-    liftIO $ runTestM (ts & tsEndpoint %~ setLocalEndpoint p) action
+    renderBody :: Builder
+    renderBody = mconcat $ map renderPart multipartContent
 
-setLocalEndpoint :: Word16 -> Endpoint -> Endpoint
-setLocalEndpoint p = (port .~ p) . (host .~ "127.0.0.1")
+    renderPart :: MIME.MIMEValue -> Builder
+    renderPart v =
+      boundary
+        <> lineBreak
+        <> (contentType . MIME.mime_val_type) v
+        <> lineBreak
+        <> (headers . MIME.mime_val_headers) v
+        <> lineBreak
+        <> lineBreak
+        <> (content . MIME.mime_val_content) v
+        <> lineBreak
 
-withMockFederator :: HasCallStack =>
-  (FederatedRequest -> IO (HTTP.MediaType, LByteString)) ->
-  App a ->
-  App (a, [FederatedRequest])
-withMockFederator respond action = do
-  withTempMockFederator [] respond $ \p ->
-    withSettingsOverrides
-      (federator . _Just %~ setLocalEndpoint (fromIntegral p))
-      action
+    boundary :: Builder
+    boundary = stringUtf8 "--" <> stringUtf8 multipartBoundary
+
+    lineBreak :: Builder
+    lineBreak = stringUtf8 "\r\n"
+
+    contentType :: MIME.Type -> Builder
+    contentType t = stringUtf8 "Content-Type: " <> (encodeUtf8Builder . MIME.showType) t
+
+    headers :: [MIME.MIMEParam] -> Builder
+    headers [] = mempty
+    headers (x : xs) = renderHeader x <> headers xs
+
+    renderHeader :: MIME.MIMEParam -> Builder
+    renderHeader p =
+      encodeUtf8Builder (MIME.paramName p)
+        <> stringUtf8 ": "
+        <> encodeUtf8Builder (MIME.paramValue p)
+
+    content :: MIME.MIMEContent -> Builder
+    content (MIME.Single c) = encodeUtf8Builder c
+    content (MIME.Multi _) = error "Not implemented."
+
+    multipartContent :: [MIME.MIMEValue]
+    multipartContent =
+      [ part (MIME.Application (T.pack "json")) headerJson,
+        part bodyMimeType body
+      ]
+
+    part :: MIME.MIMEType -> Lazy.ByteString -> MIME.MIMEValue
+    part mtype c =
+      MIME.nullMIMEValue
+        { MIME.mime_val_type = MIME.Type mtype [],
+          MIME.mime_val_headers = [MIME.MIMEParam (T.pack "Content-Length") ((T.pack . show . LBS.length) c)],
+          MIME.mime_val_content = MIME.Single ((decodeUtf8 . LBS.toStrict) c)
+        }

@@ -5,8 +5,8 @@ module Test.Cargohold.App where
 import Control.Exception
 import Control.Lens
 import Data.ByteString.Conversion
-import qualified Data.Map as Map
-import qualified Data.Text as T
+import Data.Map qualified as Map
+import Data.Text qualified as T
 import Testlib.Prelude
 
 testMultiIngressCloudFrontFails :: HasCallStack => App ()
@@ -43,7 +43,7 @@ multiIngressMap =
 toAWSEndpoint :: ByteString -> AWSEndpoint
 toAWSEndpoint = fromJust . fromByteString
 
-testMultiIngressS3DownloadEndpointFails :: HasCallStack => App  ()
+testMultiIngressS3DownloadEndpointFails :: HasCallStack => App ()
 testMultiIngressS3DownloadEndpointFails = do
   ts <- ask
   let opts =

@@ -10,12 +10,12 @@ import Data.Text.Encoding
 import Data.Time.Clock
 import GHC.Stack
 import Network.HTTP.Client qualified as HTTP
+import Test.Cargohold.API.Util
 import Testlib.Prelude
-import Wire.API.Asset (AssetRetention, assetRetentionSeconds)
 
 type LByteString = LBS.ByteString
 
-uploadAssetV3 :: (HasCallStack, MakesValue user) => user -> Bool -> AssetRetention -> MIME.MIMEType -> LByteString -> App Response
+uploadAssetV3 :: (HasCallStack, MakesValue user) => user -> Bool -> Maybe NominalDiffTime -> MIME.MIMEType -> LByteString -> App Response
 uploadAssetV3 user isPublic retention mimeType bdy = do
   uid <- user & objId
   req <- baseRequest user Cargohold (ExplicitVersion 1) "/assets/v3"
@@ -24,8 +24,7 @@ uploadAssetV3 user isPublic retention mimeType bdy = do
       & zUser uid
       & addBody body multipartMixedMime
   where
-    ret = assetRetentionSeconds retention
-    body = buildUploadAssetRequestBody isPublic ret bdy mimeType
+    body = buildUploadAssetRequestBody isPublic retention bdy mimeType
     multipartMixedMime :: String
     multipartMixedMime = "multipart/mixed; boundary=" <> multipartBoundary
 
@@ -70,72 +69,6 @@ buildUploadAssetRequestBody isPublic mbRetention body mimeType =
 
 multipartBoundary :: String
 multipartBoundary = "frontier"
-
--- | Build a complete @multipart/mixed@ request body for a one-shot,
--- non-resumable asset upload.
-buildMultipartBody :: Aeson.Value -> LByteString -> MIME.MIMEType -> HTTP.RequestBody
-buildMultipartBody header body bodyMimeType =
-  HTTP.RequestBodyLBS . toLazyByteString $ render
-  where
-    headerJson = Aeson.encode header
-
-    render :: Builder
-    render = renderBody <> endMultipartBody
-
-    endMultipartBody :: Builder
-    endMultipartBody = lineBreak <> boundary <> stringUtf8 "--" <> lineBreak
-
-    renderBody :: Builder
-    renderBody = mconcat $ map renderPart multipartContent
-
-    renderPart :: MIME.MIMEValue -> Builder
-    renderPart v =
-      boundary
-        <> lineBreak
-        <> (contentType . MIME.mime_val_type) v
-        <> lineBreak
-        <> (headers . MIME.mime_val_headers) v
-        <> lineBreak
-        <> lineBreak
-        <> (content . MIME.mime_val_content) v
-        <> lineBreak
-
-    boundary :: Builder
-    boundary = stringUtf8 "--" <> stringUtf8 multipartBoundary
-
-    lineBreak :: Builder
-    lineBreak = stringUtf8 "\r\n"
-
-    contentType :: MIME.Type -> Builder
-    contentType t = stringUtf8 "Content-Type: " <> (encodeUtf8Builder . MIME.showType) t
-
-    headers :: [MIME.MIMEParam] -> Builder
-    headers [] = mempty
-    headers (x : xs) = renderHeader x <> headers xs
-
-    renderHeader :: MIME.MIMEParam -> Builder
-    renderHeader p =
-      encodeUtf8Builder (MIME.paramName p)
-        <> stringUtf8 ": "
-        <> encodeUtf8Builder (MIME.paramValue p)
-
-    content :: MIME.MIMEContent -> Builder
-    content (MIME.Single c) = encodeUtf8Builder c
-    content (MIME.Multi _) = error "Not implemented."
-
-    multipartContent :: [MIME.MIMEValue]
-    multipartContent =
-      [ part (MIME.Application (T.pack "json")) headerJson,
-        part bodyMimeType body
-      ]
-
-    part :: MIME.MIMEType -> LByteString -> MIME.MIMEValue
-    part mtype c =
-      MIME.nullMIMEValue
-        { MIME.mime_val_type = MIME.Type mtype [],
-          MIME.mime_val_headers = [MIME.MIMEParam (T.pack "Content-Length") ((T.pack . show . LBS.length) c)],
-          MIME.mime_val_content = MIME.Single ((decodeUtf8 . LBS.toStrict) c)
-        }
 
 downloadAsset :: (HasCallStack, MakesValue user, MakesValue key, MakesValue assetDomain) => user -> assetDomain -> key -> String -> (HTTP.Request -> HTTP.Request) -> App Response
 downloadAsset user assetDomain key zHostHeader trans = do

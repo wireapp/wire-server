@@ -17,26 +17,25 @@
 
 module Test.Cargohold.API.Federation where
 
-import Test.Cargohold.API.Util
-import Control.Lens
-import Crypto.Random
-import Data.UUID.V4
 import API.Brig qualified as BrigP
 import API.BrigInternal qualified as BrigI
 import API.Common qualified as API
 import API.GalleyInternal qualified as GalleyI
 import Control.Concurrent (threadDelay)
+import Control.Lens
+import Crypto.Random
 import Data.Aeson.Types hiding ((.=))
 import Data.Set qualified as Set
 import Data.String.Conversions
 import Data.UUID qualified as UUID
+import Data.UUID.V4
 import Data.UUID.V4 qualified as UUID
+import Data.Vector.Internal.Check (HasCallStack)
 import GHC.Stack
 import SetupHelpers
+import Test.Cargohold.API.Util
 import Testlib.Assertions
 import Testlib.Prelude
-import Data.Vector.Internal.Check (HasCallStack)
-import Wire.API.Asset (AssetRetention(AssetVolatile))
 
 testGetAssetAvailablePrivate :: HasCallStack => App ()
 testGetAssetAvailablePrivate = getAssetAvailable False
@@ -50,7 +49,8 @@ getAssetAvailable isPublicAsset = do
   ast :: Asset <-
     responseJsonError
       =<< uploadAssetV3 uid isPublicAsset (Just AssetVolatile) applicationOctetStream bdy
-        <!! const 201 === statusCode
+      <!! const 201
+      === statusCode
 
   -- Call get-asset federation API
   let tok = view assetToken ast
@@ -97,7 +97,8 @@ testGetAssetWrongToken = do
   ast :: Asset <-
     responseJsonError
       =<< uploadSimple (path "/assets/v3") uid settings bdy
-        <!! const 201 === statusCode
+      <!! const 201
+      === statusCode
 
   -- Call get-asset federation API with wrong (random) token
   tok <- randToken
@@ -110,9 +111,18 @@ testGetAssetWrongToken = do
           }
   ok <-
     withFederationClient $
-      available
-type TestM = ReaderT TestSetup Http
-User
+      available <$> runFederationClient (unsafeFedClientIn @'Cargohold @"get-asset" ga)
+
+  -- check that asset is not available
+  liftIO $ ok @?= False
+
+testLargeAsset :: HasCallStack => App ()
+testLargeAsset = do
+  -- Initial upload
+  let settings =
+        defAssetSettings
+          & set setAssetRetention (Just AssetVolatile)
+  uid <- randomUser
   -- generate random bytes
   let size = 1024 * 1024
   bs <- liftIO $ getRandomBytes size
@@ -120,7 +130,8 @@ User
   ast :: Asset <-
     responseJsonError
       =<< uploadSimple (path "/assets/v3") uid settings (applicationOctetStream, bs)
-        <!! const 201 === statusCode
+      <!! const 201
+      === statusCode
 
   -- Call get-asset federation API
   let tok = view assetToken ast
@@ -152,7 +163,8 @@ testStreamAsset = do
   ast :: Asset <-
     responseJsonError
       =<< uploadSimple (path "/assets/v3") uid settings bdy
-        <!! const 201 === statusCode
+      <!! const 201
+      === statusCode
 
   -- Call get-asset federation API
   let tok = view assetToken ast
@@ -196,7 +208,8 @@ testStreamAssetWrongToken = do
   ast :: Asset <-
     responseJsonError
       =<< uploadSimple (path "/assets/v3") uid settings bdy
-        <!! const 201 === statusCode
+      <!! const 201
+      === statusCode
 
   -- Call get-asset federation API with wrong (random) token
   tok <- randToken
