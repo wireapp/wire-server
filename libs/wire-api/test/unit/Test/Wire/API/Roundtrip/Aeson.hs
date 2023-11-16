@@ -23,7 +23,7 @@ import Data.Id (ConvId)
 import Data.OpenApi (ToSchema, validatePrettyToJSON)
 import Imports
 import Test.Tasty qualified as T
-import Test.Tasty.QuickCheck (Arbitrary, counterexample, testProperty, (.&&.), (===))
+import Test.Tasty.QuickCheck (Arbitrary (..), counterexample, testProperty, (.&&.), (===))
 import Type.Reflection (typeRep)
 import Wire.API.Asset qualified as Asset
 import Wire.API.Call.Config qualified as Call.Config
@@ -243,14 +243,14 @@ tests =
       testRoundTrip @Team.SearchVisibility.TeamSearchVisibility,
       testRoundTrip @Team.SearchVisibility.TeamSearchVisibilityView,
       testRoundTrip @User.NameUpdate,
-      testRoundTrip @User.NewUser,
+      testRoundTrip @(WithSanitizedUserIdentity User.NewUser),
       testRoundTrip @User.NewUserPublic,
       testRoundTrip @User.UserIdList,
       testRoundTrip @(User.LimitedQualifiedUserIdList 20),
       testRoundTrip @User.UserProfile,
-      testRoundTrip @User.User,
+      testRoundTrip @(WithSanitizedUserIdentity User.User),
       testRoundTrip @User.UserSet,
-      testRoundTrip @User.SelfProfile,
+      testRoundTrip @(WithSanitizedUserIdentity User.SelfProfile),
       testRoundTrip @User.InvitationCode,
       testRoundTrip @User.BindingNewTeamUser,
       -- FUTUREWORK: this should probably be tested individually,
@@ -273,7 +273,7 @@ tests =
       -- testRoundTrip @User.Activation.ActivationTarget,
       testRoundTrip @User.Activation.ActivationCode,
       testRoundTrip @User.Activation.Activate,
-      testRoundTrip @User.Activation.ActivationResponse,
+      testRoundTrip @(WithSanitizedUserIdentity User.Activation.ActivationResponse),
       testRoundTrip @User.Activation.SendActivationCode,
       testRoundTrip @User.Auth.LoginId,
       testRoundTrip @User.Auth.LoginCode,
@@ -311,7 +311,7 @@ tests =
       testRoundTrip @User.Identity.Email,
       testRoundTrip @User.Identity.Phone,
       testRoundTrip @User.Identity.LegacyUserSSOId,
-      testRoundTrip @User.Identity.PartialUAuthId,
+      testRoundTrip @(WithSanitizedUserIdentity User.Identity.PartialUAuthId),
       testRoundTrip @User.Password.NewPasswordReset,
       testRoundTrip @User.Password.PasswordResetKey,
       -- FUTUREWORK: this should probably be tested individually,
@@ -372,3 +372,31 @@ testRoundTripWithSwagger = testProperty msg (trip .&&. scm)
             validatePrettyToJSON v
         )
         $ isNothing (validatePrettyToJSON v)
+
+-- | Some `UserIdentity` values, or values of types containing `UserIdentity`, just as
+-- `NewUser`, have values that can be represented in Haskell, but lead to parse errors on the
+-- way back in aeson roundtrip tests.  If you give a "sanitized" instance for those types
+-- wrapped in `WithSanitizedUserIdentity`, you can run the roundtrip test on the wrapped type.
+data WithSanitizedUserIdentity a = WithSanitizedUserIdentity a
+  deriving (Eq, Show)
+
+instance ToJSON a => ToJSON (WithSanitizedUserIdentity a) where
+  toJSON (WithSanitizedUserIdentity a) = toJSON a
+
+instance FromJSON a => FromJSON (WithSanitizedUserIdentity a) where
+  parseJSON = fmap WithSanitizedUserIdentity . parseJSON
+
+instance Arbitrary (WithSanitizedUserIdentity User.NewUser) where
+  arbitrary = undefined
+
+instance Arbitrary (WithSanitizedUserIdentity User.User) where
+  arbitrary = undefined
+
+instance Arbitrary (WithSanitizedUserIdentity User.SelfProfile) where
+  arbitrary = undefined
+
+instance Arbitrary (WithSanitizedUserIdentity User.Activation.ActivationResponse) where
+  arbitrary = undefined
+
+instance Arbitrary (WithSanitizedUserIdentity User.Identity.PartialUAuthId) where
+  arbitrary = undefined

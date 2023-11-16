@@ -21,7 +21,7 @@
 
 module Test.Wire.API.User where
 
-import Control.Lens ((?~), _1, _2, _3, _4, _5, _6)
+import Control.Lens (Lens', (?~), _1, _2, _3, _4, _5, _6)
 import Data.Aeson
 import Data.Aeson qualified as Aeson
 import Data.Aeson.QQ (aesonQQ)
@@ -30,7 +30,7 @@ import Data.Domain
 import Data.Id
 import Data.LegalHold (UserLegalHoldStatus (UserLegalHoldNoConsent))
 import Data.Qualified
-import Data.Schema (schemaIn)
+import Data.Schema (schema, schemaIn)
 import Data.UUID.V4 qualified as UUID
 import Imports
 import Servant.API (parseUrlPiece)
@@ -60,7 +60,7 @@ testUserProfile = do
 parseIdentityTests :: [TestTree]
 parseIdentityTests =
   [ testGroup
-      "parseIdentity (simple cases)"
+      "parse UserIdentity: {Email,Phone,Full}Identity"
       [ testCase "FullIdentity" $
           [("email", "me@example.com"), ("phone", "+493012345678")]
             =#= Right (Just (FullIdentity (Email "me" "example.com") (Phone "+493012345678"))),
@@ -81,36 +81,30 @@ parseIdentityTests =
             =#= Right Nothing
       ],
     testGroup
-      "parseIdentity (UAuthId)"
+      "parse UAuthId"
+      [ -- {}
+        let jsonIn = [aesonQQ|{}|]
+            err = "Error in $: key \"team\" not found"
+         in mkUAuthIdTestCase "1" jsonIn err,
+        -- {email, team}
+        let jsonIn =
+              [aesonQQ|{"email": {"email": "me@example.com", "source": "scim_emails"},
+                        "team": "226923f0-6f15-11ee-96bd-33644427c814"}|]
+            err = "Error in $: at least one of saml_id, scim_external_id must be present"
+         in mkUAuthIdTestCase "2" jsonIn err,
+        -- {eid, team}
+        let jsonIn =
+              [aesonQQ|{"scim_external_id": "me@example.com",
+                        "team": "226923f0-6f15-11ee-96bd-33644427c814"}|]
+            err = "Error in $: scim_external_id requires either email address or saml_id to be present"
+         in mkUAuthIdTestCase "3" jsonIn err
+      ],
+    testGroup
+      "parse Identity: UAuthIdentity"
       $ flip fmap [Nothing, Just email1, Just email2]
       $ \mbBrigEmail ->
         testGroup ("brig email: " <> show mbBrigEmail) $
-          [ -- {}
-            let jsonIn = [("uauth_id", [aesonQQ|{}|])]
-                haskellIn = Left "Error in $['uauth_id']: key \"team\" not found"
-                jsonOut = error "impossible"
-             in mkUAuthIdTestCase "1" jsonIn haskellIn jsonOut mbBrigEmail,
-            -- {email, team}
-            let jsonIn =
-                  [ ( "uauth_id",
-                      [aesonQQ|{"email": {"email": "me@example.com", "source": "scim_emails"},
-                                "team": "226923f0-6f15-11ee-96bd-33644427c814"}|]
-                    )
-                  ]
-                haskellIn = Left "Error in $['uauth_id']: at least one of saml_id, scim_external_id must be present"
-                jsonOut = error "impossible"
-             in mkUAuthIdTestCase "2" jsonIn haskellIn jsonOut mbBrigEmail,
-            -- {eid, team}
-            let jsonIn =
-                  [ ( "uauth_id",
-                      [aesonQQ|{"scim_external_id": "me@example.com",
-                                "team": "226923f0-6f15-11ee-96bd-33644427c814"}|]
-                    )
-                  ]
-                haskellIn = Left "Error in $['uauth_id']: scim_external_id requires either email address or saml_id to be present"
-                jsonOut = error "impossible"
-             in mkUAuthIdTestCase "3" jsonIn haskellIn jsonOut mbBrigEmail,
-            -- {eid, email, team}
+          [ -- {eid, email, team}
             let jsonIn =
                   [ ( "uauth_id",
                       [aesonQQ|{"scim_external_id": "me@example.com",
@@ -121,7 +115,7 @@ parseIdentityTests =
                 haskellIn = Right uaid
                 jsonOut = jsonIn <> [("sso_id", [aesonQQ|{"scim_external_id": "me@example.com"}|])]
                 uaid = UAuthId Nothing (Just eid1) (Just ews1) tid
-             in mkUAuthIdTestCase "4" jsonIn haskellIn jsonOut mbBrigEmail,
+             in mkUAuthIdentityTestCase "4" jsonIn haskellIn jsonOut mbBrigEmail,
             let jsonIn =
                   [ ( "uauth_id",
                       [aesonQQ|{"scim_external_id": "nick",
@@ -132,7 +126,7 @@ parseIdentityTests =
                 haskellIn = Right uaid
                 jsonOut = jsonIn <> [("sso_id", [aesonQQ|{"scim_external_id": "nick"}|])]
                 uaid = UAuthId Nothing (Just eid3) (Just ews3) tid
-             in mkUAuthIdTestCase "4.1" jsonIn haskellIn jsonOut mbBrigEmail,
+             in mkUAuthIdentityTestCase "4.1" jsonIn haskellIn jsonOut mbBrigEmail,
             -- {saml, team}
             let jsonIn =
                   [ ( "uauth_id",
@@ -153,7 +147,7 @@ parseIdentityTests =
                          )
                        ]
                 uaid = UAuthId (Just uref1) Nothing Nothing tid
-             in mkUAuthIdTestCase "5" jsonIn haskellIn jsonOut mbBrigEmail,
+             in mkUAuthIdentityTestCase "5" jsonIn haskellIn jsonOut mbBrigEmail,
             -- {saml, email, team}
             let jsonIn =
                   [ ( "uauth_id",
@@ -175,19 +169,29 @@ parseIdentityTests =
                          )
                        ]
                 uaid = UAuthId (Just uref1) Nothing (Just ews1) tid
-             in mkUAuthIdTestCase "6" jsonIn haskellIn jsonOut mbBrigEmail,
+             in mkUAuthIdentityTestCase "6" jsonIn haskellIn jsonOut mbBrigEmail,
             -- {saml, eid, team}
             let jsonIn =
                   [ ( "uauth_id",
-                      [aesonQQ|{"scim_external_id": "nick",
+                      [aesonQQ|{"scim_external_id": "<NameID xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" xmlns:samla=\"urn:oasis:names:tc:SAML:2.0:assertion\" xmlns:samlm=\"urn:oasis:names:tc:SAML:2.0:metadata\" xmlns:ds=\"http://www.w3.org/2000/09/xmldsig#\" Format=\"urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified\" xmlns=\"urn:oasis:names:tc:SAML:2.0:assertion\">nick</NameID>",
+                                "saml_id": {
+                                    "subject": "<NameID xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" xmlns:samla=\"urn:oasis:names:tc:SAML:2.0:assertion\" xmlns:samlm=\"urn:oasis:names:tc:SAML:2.0:metadata\" xmlns:ds=\"http://www.w3.org/2000/09/xmldsig#\" Format=\"urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified\" xmlns=\"urn:oasis:names:tc:SAML:2.0:assertion\">nick</NameID>",
+                                    "tenant": "<Issuer xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" xmlns:samla=\"urn:oasis:names:tc:SAML:2.0:assertion\" xmlns:samlm=\"urn:oasis:names:tc:SAML:2.0:metadata\" xmlns:ds=\"http://www.w3.org/2000/09/xmldsig#\" xmlns=\"urn:oasis:names:tc:SAML:2.0:assertion\">http://example.com/wef</Issuer>"
+                                },
                                 "email": {"email": "other@example.com", "source": "scim_emails"},
                                 "team": "226923f0-6f15-11ee-96bd-33644427c814"}|]
                     )
                   ]
                 haskellIn = Right uaid
-                jsonOut = jsonIn
-                uaid = UAuthId (Just uref1) (Just eid1) Nothing tid
-             in mkUAuthIdTestCase "7" jsonIn haskellIn jsonOut mbBrigEmail,
+                jsonOut =
+                  jsonIn
+                    <> [ ( "sso_id",
+                           [aesonQQ|{"subject": "<NameID xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" xmlns:samla=\"urn:oasis:names:tc:SAML:2.0:assertion\" xmlns:samlm=\"urn:oasis:names:tc:SAML:2.0:metadata\" xmlns:ds=\"http://www.w3.org/2000/09/xmldsig#\" Format=\"urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified\" xmlns=\"urn:oasis:names:tc:SAML:2.0:assertion\">nick</NameID>",
+                                     "tenant": "<Issuer xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" xmlns:samla=\"urn:oasis:names:tc:SAML:2.0:assertion\" xmlns:samlm=\"urn:oasis:names:tc:SAML:2.0:metadata\" xmlns:ds=\"http://www.w3.org/2000/09/xmldsig#\" xmlns=\"urn:oasis:names:tc:SAML:2.0:assertion\">http://example.com/wef</Issuer>"                                }|]
+                         )
+                       ]
+                uaid = UAuthId (Just uref3) (Just "<NameID xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" xmlns:samla=\"urn:oasis:names:tc:SAML:2.0:assertion\" xmlns:samlm=\"urn:oasis:names:tc:SAML:2.0:metadata\" xmlns:ds=\"http://www.w3.org/2000/09/xmldsig#\" Format=\"urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified\" xmlns=\"urn:oasis:names:tc:SAML:2.0:assertion\">nick</NameID>") (Just ews3) tid
+             in mkUAuthIdentityTestCase "7" jsonIn haskellIn jsonOut mbBrigEmail,
             -- {saml, eid, email, team}
             let jsonIn =
                   [ ( "uauth_id",
@@ -216,20 +220,32 @@ parseIdentityTests =
                                     }|]
                          )
                        ]
-             in mkUAuthIdTestCase "8" jsonIn haskellIn jsonOut mbBrigEmail,
+             in mkUAuthIdentityTestCase "8" jsonIn haskellIn jsonOut mbBrigEmail,
             testCase "..." $
               error "ok, what else?"
           ]
   ]
   where
+    -- render jsonIn into a UAuthId parser error.
+    --
+    -- msg: for associating test reports with source code of test case
+    -- mbBrigEmail: email address from `brig.user.email`; doesn't may or may not match email field in uauthid
+    mkUAuthIdTestCase :: String -> Value -> String -> TestTree
+    mkUAuthIdTestCase msg val err =
+      testCase ("mkUAuthIdTestCase[" <> msg <> "]") $
+        assertEqual "" (Left err) (Aeson.parseEither (schemaIn (schema @PartialUAuthId)) val)
+
     -- render jsonIn into a UserIdentity value, and back to its components.
     --
     -- msg: for associating test reports with source code of test case
     -- mbBrigEmail: email address from `brig.user.email`; doesn't may or may not match email field in uauthid
-    mkUAuthIdTestCase :: String -> [Aeson.Pair] -> Either String PartialUAuthId -> [Aeson.Pair] -> Maybe Email -> TestTree
-    mkUAuthIdTestCase msg jsonIn_ haskellIn_ jsonOut mbBrigEmail =
-      let jsonIn = jsonIn_ <> [("email", String $ cs (fromEmail e)) | e <- maybeToList mbBrigEmail]
+    mkUAuthIdentityTestCase :: String -> [Aeson.Pair] -> Either String PartialUAuthId -> [Aeson.Pair] -> Maybe Email -> TestTree
+    mkUAuthIdentityTestCase msg jsonIn_ haskellIn_ jsonOut_ mbBrigEmail =
+      let emailComp = [("email", String $ cs (fromEmail e)) | e <- maybeToList mbBrigEmail]
+          jsonIn = jsonIn_ <> emailComp
+          jsonOut = jsonOut_ <> emailComp
           haskellIn = (`UAuthIdentity` mbBrigEmail) <$> haskellIn_
+          (=##=) uid comps = assertEqual "=##=" (eUserIdentityToComponents (Right uid)) comps
        in testGroup msg $
             [ testCase "in" $
                 jsonIn
@@ -241,24 +257,25 @@ parseIdentityTests =
                      haskellIn
                  )
 
-    componentsFromJSON :: [Aeson.Pair] -> UserIdentityComponents "team_id"
-    componentsFromJSON = foldr go (Nothing, Nothing, Nothing, Nothing, Nothing, Nothing)
+    componentsFromJSON :: HasCallStack => [Aeson.Pair] -> UserIdentityComponents "team_id"
+    componentsFromJSON obj = foldr go (Nothing, Nothing, Nothing, Nothing, Nothing, Nothing) obj
       where
         go :: Aeson.Pair -> UserIdentityComponents "team_id" -> UserIdentityComponents "team_id"
-        go ("email", Aeson.fromJSON -> (Aeson.Success v)) comps = comps & _1 ?~ v
-        go ("phone", Aeson.fromJSON -> (Aeson.Success v)) comps = comps & _2 ?~ v
-        go ("uauth_id", Aeson.fromJSON -> (Aeson.Success v)) comps = comps & _3 ?~ v
-        go ("sso_id", Aeson.fromJSON -> (Aeson.Success v)) comps = comps & _4 ?~ v
-        go ("team_id", Aeson.fromJSON -> (Aeson.Success v)) comps = comps & _5 ?~ v
-        go ("managed_by", Aeson.fromJSON -> (Aeson.Success v)) comps = comps & _6 ?~ v
-        go (bad, _) _ = error $ show bad
+        go ("email", v) comps = upd comps _1 (Aeson.fromJSON v)
+        go ("phone", v) comps = upd comps _2 (Aeson.fromJSON v)
+        go ("uauth_id", v) comps = upd comps _3 (Aeson.fromJSON v)
+        go ("sso_id", v) comps = upd comps _4 (Aeson.fromJSON v)
+        go ("team_id", v) comps = upd comps _5 (Aeson.fromJSON v)
+        go ("managed_by", v) comps = upd comps _6 (Aeson.fromJSON v)
+        go bad _ = error $ unlines ["go", show obj, show bad]
+
+        upd :: a -> Lens' a (Maybe b) -> Result b -> a
+        upd comps lens (Aeson.Success v) = comps & lens ?~ v
+        upd _ _ (Aeson.Error err) = error $ unlines ["upd", show obj, err]
 
     (=#=) :: HasCallStack => [Aeson.Pair] -> Either String (Maybe (UserIdentity "team_id")) -> Assertion
     (=#=) (object -> Object obj) uid = assertEqual "=#=" uid (Aeson.parseEither (schemaIn (maybeUserIdentityObjectSchema @"team_id")) obj)
     (=#=) _ _ = error $ "=#=: impossible"
-
-    (=##=) :: HasCallStack => UserIdentity "team_id" -> (UserIdentityComponents "team_id") -> Assertion
-    (=##=) uid comps = assertEqual "=##=" (eUserIdentityToComponents (Right uid)) comps
 
     (=###=) :: HasCallStack => (UserIdentityComponents "team_id") -> UserIdentityFromComponentsParseErrors -> Assertion
     (=###=) comps err = assertEqual "=###=" (eUserIdentityFromComponents comps) (Left err)
@@ -267,15 +284,12 @@ parseIdentityTests =
     email2 = Email "other" "example.com"
 
     ews1 = EmailWithSource email1 EmailFromScimExternalIdField
-    ews2 = EmailWithSource email2 EmailFromScimExternalIdField
     ews3 = EmailWithSource email2 EmailFromScimEmailsField
 
     eid1 = fromEmail email1
-    eid2 = fromEmail email2
     eid3 = "nick" :: Text
 
     uref1 = mkBasicSampleUref "http://example.com/wef" eid1
-    uref2 = mkBasicSampleUref "http://example.com/wef" eid2
     uref3 = mkBasicSampleUref "http://example.com/wef" "nick"
 
     Right tid = parseUrlPiece "226923f0-6f15-11ee-96bd-33644427c814"
