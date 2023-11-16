@@ -66,8 +66,9 @@ import Data.Serialize (runPut)
 import Data.Set qualified as Set
 import Data.Singletons
 import Data.Text qualified as Text
+import Data.Text.Encoding qualified as T
 import Data.Text.Encoding qualified as Text
-import Data.Text.Lazy.Encoding qualified as T
+import Data.Text.Lazy.Encoding qualified as LT
 import Data.Time (getCurrentTime)
 import Data.Tuple.Extra
 import Data.UUID qualified as UUID
@@ -1738,7 +1739,7 @@ wsAssertClientRemoved cid n = do
   let etype = j ^? key "type" . _String
   let eclient = j ^? key "client" . key "id" . _String
   etype @?= Just "user.client-remove"
-  fmap ClientId eclient @?= Just cid
+  (fromByteString . T.encodeUtf8 =<< eclient) @?= Just cid
 
 wsAssertClientAdded ::
   HasCallStack =>
@@ -1750,7 +1751,7 @@ wsAssertClientAdded cid n = do
   let etype = j ^? key "type" . _String
   let eclient = j ^? key "client" . key "id" . _String
   etype @?= Just "user.client-add"
-  fmap ClientId eclient @?= Just cid
+  (fromByteString . T.encodeUtf8 =<< eclient) @?= Just cid
 
 assertMLSMessageEvent ::
   HasCallStack =>
@@ -2419,7 +2420,7 @@ retryWhileN n f m =
 -- | Changing this will break tests; all prekeys and client Id must match the same
 -- fingerprint
 someClientId :: ClientId
-someClientId = ClientId "cc6e640e296e8bba"
+someClientId = ClientId 0xcc6e640e296e8bba
 
 -- | Changing these will break tests; all prekeys and client Id must match the same
 -- fingerprint
@@ -2695,7 +2696,7 @@ makeFedRequestToServant originDomain server fedRequest = do
       bdy = Wai.simpleBody sresp
   if HTTP.statusIsSuccessful status
     then pure bdy
-    else throw (Mock.MockErrorResponse status (T.decodeUtf8 bdy))
+    else throw (Mock.MockErrorResponse status (LT.decodeUtf8 bdy))
   where
     app :: Application
     app = serve (Proxy @api) server

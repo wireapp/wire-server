@@ -89,7 +89,7 @@ cid2Str :: ClientIdentity -> String
 cid2Str cid =
   show cid.ciUser
     <> ":"
-    <> T.unpack cid.ciClient.client
+    <> T.unpack (clientToText cid.ciClient)
     <> "@"
     <> T.unpack (domainText (ciDomain cid))
 

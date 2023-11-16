@@ -81,7 +81,7 @@ mkAddress t = do
   let ept = mkEndpoint t app
   let tok = Token "test"
   let con = ConnId "conn"
-  let clt = ClientId "client"
+  let clt = ClientId 3265102391
   pure $! Address u ept con (pushToken t app tok clt)
 
 mkEndpoint :: Transport -> AppName -> EndpointArn

@@ -17,7 +17,7 @@
 
 module Test.Wire.API.Golden.Generated.PushToken_user where
 
-import Data.Id (ClientId (ClientId, client))
+import Data.Id
 import Wire.API.Push.Token
   ( AppName (AppName, appNameText),
     PushToken,
@@ -32,4 +32,4 @@ testObject_PushToken_user_1 =
     APNSSandbox
     (AppName {appNameText = "G\1008289"})
     (Token {tokenText = "\EOT8M\NAKAv\1104873"})
-    (ClientId {client = "16"})
+    (ClientId 0x16)

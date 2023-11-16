@@ -31,7 +31,7 @@ import Cassandra qualified as DB
 import Control.Arrow ((&&&))
 import Data.ByteString.Conversion
 import Data.Domain
-import Data.Id hiding (client)
+import Data.Id
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import Data.Qualified
 import Data.Time.Clock (getCurrentTime)

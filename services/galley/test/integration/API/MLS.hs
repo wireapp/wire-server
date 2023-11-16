@@ -223,7 +223,7 @@ postMLSConvFail :: TestM ()
 postMLSConvFail = do
   qalice <- randomQualifiedUser
   let alice = qUnqualified qalice
-  let aliceClient = newClientId 0
+  let aliceClient = ClientId 0
   bob <- randomUser
   connectUsers alice (list1 bob [])
   postConvQualified
@@ -241,7 +241,7 @@ postMLSConvOk = do
   c <- view tsCannon
   qalice <- randomQualifiedUser
   let alice = qUnqualified qalice
-  let aliceClient = newClientId 0
+  let aliceClient = ClientId 0
   let nameMaxSize = T.replicate 256 "a"
   WS.bracketR c alice $ \wsA -> do
     rsp <-
@@ -866,9 +866,9 @@ testRemoteToRemoteInSub = do
   bob <- randomId
   conv <- randomId
   let subConvId = SubConvId "conference"
-      aliceC1 = newClientId 0
-      aliceC2 = newClientId 1
-      eveC = newClientId 0
+      aliceC1 = ClientId 0
+      aliceC2 = ClientId 1
+      eveC = ClientId 0
       bdom = Domain "bob.example.com"
       qconv = Qualified conv bdom
       qbob = Qualified bob bdom
@@ -1755,7 +1755,7 @@ postMLSConvDisabled = do
   withMLSDisabled $
     postConvQualified
       (qUnqualified alice)
-      (Just (newClientId 0))
+      (Just (ClientId 0))
       defNewMLSConv
       !!! assertMLSNotEnabled
 

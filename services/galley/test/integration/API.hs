@@ -687,7 +687,7 @@ postCryptoMessageNotAuthorizeUnknownClient = do
   -- Unknown client ID => 403
   let ciphertext = toBase64Text "hello bob"
   let m = otrRecipients [(bob, bc, ciphertext)]
-  postProtoOtrMessage alice (ClientId "172618352518396") conv m
+  postProtoOtrMessage alice (ClientId 0x172618352518396) conv m
     !!! const 403 === statusCode
 
 -- @SF.Separation @TSFI.RESTfulAPI @S2

@@ -20,7 +20,7 @@
 module Test.Wire.API.Golden.Generated.Event_user where
 
 import Data.Domain
-import Data.Id (ClientId (ClientId, client), Id (Id))
+import Data.Id
 import Data.Misc (Milliseconds (Ms, ms))
 import Data.Qualified
 import Data.Range (unsafeRange)
@@ -72,8 +72,8 @@ testObject_Event_user_3 =
     (read "1864-04-27 15:44:23.844 UTC")
     ( EdOtrMessage
         ( OtrMessage
-            { otrSender = ClientId {client = "c"},
-              otrRecipient = ClientId {client = "f"},
+            { otrSender = ClientId 0xc,
+              otrRecipient = ClientId 0xf,
               otrCiphertext = "",
               otrData = Just ">\33032\SI\30584"
             }

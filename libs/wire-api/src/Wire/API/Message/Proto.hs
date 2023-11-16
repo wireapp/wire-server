@@ -51,8 +51,6 @@ where
 
 import Data.Id qualified as Id
 import Data.ProtocolBuffers
-import Data.Text.Lazy qualified as Text
-import Data.Text.Lazy.Read (hexadecimal)
 import Imports
 
 --------------------------------------------------------------------------------
@@ -92,14 +90,10 @@ clientId :: Functor f => (Word64 -> f Word64) -> ClientId -> f ClientId
 clientId f c = (\x -> c {_client = x}) <$> field f (_client c)
 
 toClientId :: ClientId -> Id.ClientId
-toClientId c = Id.newClientId $ getField (_client c)
+toClientId c = Id.ClientId $ getField (_client c)
 
 fromClientId :: Id.ClientId -> ClientId
-fromClientId c =
-  either
-    (error "Invalid client ID")
-    (newClientId . fst)
-    (hexadecimal (Text.fromStrict $ Id.client c))
+fromClientId = newClientId . Id.clientToWord64
 
 --------------------------------------------------------------------------------
 -- ClientEntry

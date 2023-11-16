@@ -85,4 +85,4 @@ updateActivity uid clt = do
     Log.warn $
       Log.msg ("Could not update client activity" :: ByteString)
         ~~ "user" .= UUID.toASCIIBytes (toUUID uid)
-        ~~ "client" .= client clt
+        ~~ "client" .= clientToText clt

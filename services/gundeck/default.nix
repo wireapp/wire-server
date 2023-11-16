@@ -188,6 +188,7 @@ mkDerivation {
     amazonka
     async
     base
+    bytestring-conversion
     containers
     exceptions
     gundeck-types

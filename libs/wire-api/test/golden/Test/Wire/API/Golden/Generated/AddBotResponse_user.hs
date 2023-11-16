@@ -20,7 +20,7 @@
 module Test.Wire.API.Golden.Generated.AddBotResponse_user where
 
 import Data.Domain
-import Data.Id (BotId (BotId), ClientId (ClientId, client), Id (Id))
+import Data.Id
 import Data.Qualified
 import Data.UUID qualified as UUID (fromString)
 import Imports (Maybe (Just, Nothing), fromJust, read, (.))
@@ -35,7 +35,7 @@ testObject_AddBotResponse_user_1 :: AddBotResponse
 testObject_AddBotResponse_user_1 =
   AddBotResponse
     { rsAddBotId = (BotId . Id) (fromJust (UUID.fromString "00000003-0000-0004-0000-000300000001")),
-      rsAddBotClient = ClientId {client = "e"},
+      rsAddBotClient = ClientId 0xe,
       rsAddBotName =
         Name
           { fromName =
@@ -63,7 +63,7 @@ testObject_AddBotResponse_user_2 :: AddBotResponse
 testObject_AddBotResponse_user_2 =
   AddBotResponse
     { rsAddBotId = (BotId . Id) (fromJust (UUID.fromString "00000001-0000-0003-0000-000200000004")),
-      rsAddBotClient = ClientId {client = "e"},
+      rsAddBotClient = ClientId 0xe,
       rsAddBotName =
         Name
           { fromName =
