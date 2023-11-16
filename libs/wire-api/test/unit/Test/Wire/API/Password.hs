@@ -27,23 +27,26 @@ import Wire.API.Password
 tests :: TestTree
 tests =
   testGroup "Password" $
-    [ testCase "hash password" testHashPassword,
-      testCase "verify compat" verifyPasswordHashingRemainsCompatible
+    [ testCase "hash password argon2id" testHashPasswordArgon2id,
+      testCase "verify old scrypt password still works" testHashingOldScrypt
     ]
 
-testHashPassword :: IO ()
-testHashPassword = do
+testHashPasswordArgon2id :: IO ()
+testHashPasswordArgon2id = do
   pwd <- genPassword
-  hashed <- mkSafePassword pwd
-  let correct = verifyPassword pwd hashed
+  hashed <- mkSafePasswordArgon2id pwd
+  let (correct, status) = verifyPasswordWithStatus pwd hashed
   assertBool "Password could not be verified" correct
+  assertBool "Password could not be verified" (status == PasswordStatusOk)
 
-verifyPasswordHashingRemainsCompatible :: IO ()
-verifyPasswordHashingRemainsCompatible = do
-  forConcurrently_ pwds $ \pwd ->
+testHashingOldScrypt :: IO ()
+testHashingOldScrypt =
+  forConcurrently_ pwds $ \pwd -> do
     let orig = plainTextPassword8Unsafe (fst pwd)
         expected = unsafeMkPassword (snd pwd)
-     in assertBool "Oops" (verifyPassword orig expected)
+        (correct, status) = (verifyPasswordWithStatus orig expected)
+    assertBool "Password did not match hash." correct
+    assertBool "Password could not be verified" (status == PasswordStatusNeedsUpdate)
   where
     -- Password and hashes generated using the old code, but verified using the new one.
     pwds =

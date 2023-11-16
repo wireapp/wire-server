@@ -6,7 +6,10 @@ import Brig.API.Types (CertEnrollmentError (..))
 import Control.Monad.Trans.Except
 import Data.ByteString.Conversion
 import Data.Either.Extra
+<<<<<<< HEAD
 import Data.Handle (Handle, fromHandle)
+=======
+>>>>>>> b9782cdb1 (Add pwd verification cascading)
 import Data.Id
 import Data.Jwt.Tools qualified as Jwt
 import Data.Misc (HttpsUrl)
@@ -14,7 +17,10 @@ import Data.Nonce (Nonce)
 import Data.PEMKeys
 import Imports
 import Network.HTTP.Types (StdMethod (..))
+<<<<<<< HEAD
 import Network.HTTP.Types qualified as HTTP
+=======
+>>>>>>> b9782cdb1 (Add pwd verification cascading)
 import Polysemy
 import Wire.API.MLS.Credential (ClientIdentity (..))
 import Wire.API.MLS.Epoch (Epoch (..))
