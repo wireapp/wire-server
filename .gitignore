@@ -105,6 +105,7 @@ result-*
 # Created by .envrc
 .direnv
 .env
+.env-hs-run
 
 # emacs misc
 .dir-locals.el
