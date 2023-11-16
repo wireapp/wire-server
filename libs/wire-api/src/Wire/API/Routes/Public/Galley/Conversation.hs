@@ -723,10 +723,10 @@ type ConversationAPI =
     -- - MemberJoin event to members
     :<|> Named
            "join-conversation-by-code-unqualified"
-           ( Summary
-               "Join a conversation using a reusable code.\
-               \If the guest links team feature is disabled, this will fail with 409 GuestLinksDisabled.\
-               \Note that this is currently inconsistent (for backwards compatibility reasons) with `POST /conversations/code-check` which responds with 404 CodeNotFound if guest links are disabled."
+           ( Summary "Join a conversation using a reusable code"
+               :> Description
+                    "If the guest links team feature is disabled, this will fail with 409 GuestLinksDisabled.\
+                    \Note that this is currently inconsistent (for backwards compatibility reasons) with `POST /conversations/code-check` which responds with 404 CodeNotFound if guest links are disabled."
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> CanThrow 'CodeNotFound
                :> CanThrow 'InvalidConversationPassword
@@ -745,10 +745,10 @@ type ConversationAPI =
            )
     :<|> Named
            "code-check"
-           ( Summary
-               "Check validity of a conversation code.\
-               \If the guest links team feature is disabled, this will fail with 404 CodeNotFound.\
-               \Note that this is currently inconsistent (for backwards compatibility reasons) with `POST /conversations/join` which responds with 409 GuestLinksDisabled if guest links are disabled."
+           ( Summary "Check validity of a conversation code."
+               :> Description
+                    "If the guest links team feature is disabled, this will fail with 404 CodeNotFound.\
+                    \Note that this is currently inconsistent (for backwards compatibility reasons) with `POST /conversations/join` which responds with 409 GuestLinksDisabled if guest links are disabled."
                :> CanThrow 'CodeNotFound
                :> CanThrow 'ConvNotFound
                :> CanThrow 'InvalidConversationPassword
