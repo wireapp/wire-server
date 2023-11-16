@@ -124,8 +124,7 @@ federationAPI =
 
 conversationAPI :: API IConversationAPI GalleyEffects
 conversationAPI =
-  mkNamedAPI @"conversation-channel" (const mempty)
-    <@> mkNamedAPI @"conversation-get-member" Query.internalGetMember
+  mkNamedAPI @"conversation-get-member" Query.internalGetMember
     <@> mkNamedAPI @"conversation-accept-v2" Update.acceptConv
     <@> mkNamedAPI @"conversation-block" Update.blockConv
     <@> mkNamedAPI @"conversation-unblock" Update.unblockConv

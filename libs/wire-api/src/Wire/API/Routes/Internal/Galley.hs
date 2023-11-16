@@ -449,21 +449,13 @@ type IFederationAPI =
 
 type IConversationAPI =
   Named
-    "conversation-channel"
-    ( ZLocalUser
-        :> "conversations"
+    "conversation-get-member"
+    ( "conversations"
         :> Capture "cnv" ConvId
-        :> "channel"
-        :> Put '[Servant.JSON] ()
+        :> "members"
+        :> Capture "usr" UserId
+        :> Get '[Servant.JSON] (Maybe Member)
     )
-    :<|> Named
-           "conversation-get-member"
-           ( "conversations"
-               :> Capture "cnv" ConvId
-               :> "members"
-               :> Capture "usr" UserId
-               :> Get '[Servant.JSON] (Maybe Member)
-           )
     -- This endpoint can lead to the following events being sent:
     -- - MemberJoin event to you, if the conversation existed and had < 2 members before
     -- - MemberJoin event to other, if the conversation existed and only the other was member
