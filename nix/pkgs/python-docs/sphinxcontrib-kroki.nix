@@ -3,10 +3,9 @@
 , sphinx
 , requests
 , pyyaml
-,
 }:
 buildPythonPackage rec {
-
+  doCheck = false;
   pname = "sphinxcontrib-kroki";
   version = "1.3.0";
   src = fetchPypi {

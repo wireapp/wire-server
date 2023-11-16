@@ -113,6 +113,8 @@ library
     , bytestring
     , bytestring-conversion
     , containers
+    , crypton-x509
+    , crypton-x509-validation
     , data-default
     , dns
     , dns-util
@@ -150,8 +152,6 @@ library
     , warp
     , wire-api
     , wire-api-federation
-    , x509
-    , x509-validation
 
   default-language:   GHC2021
 
@@ -282,8 +282,8 @@ executable federator-integration
     , binary
     , bytestring
     , bytestring-conversion
-    , connection
-    , cryptonite
+    , crypton
+    , crypton-connection
     , dns-util
     , exceptions
     , federator
@@ -383,6 +383,7 @@ test-suite federator-tests
     , bytestring
     , bytestring-conversion
     , containers
+    , crypton-x509-validation
     , data-default
     , dns-util
     , federator
@@ -419,7 +420,6 @@ test-suite federator-tests
     , warp-tls
     , wire-api
     , wire-api-federation
-    , x509-validation
     , yaml
 
   default-language:   GHC2021

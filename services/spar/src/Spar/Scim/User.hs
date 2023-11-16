@@ -845,7 +845,7 @@ assertExternalIdInAllowedValues allowedValues errmsg tid veid = do
     lift $
       ST.runValidExternalIdBoth
         (\ma mb -> (&&) <$> ma <*> mb)
-        (\uref -> getUserByUrefUnsafe uref <&> (`elem` allowedValues) . fmap userId)
+        (fmap ((`elem` allowedValues) . fmap userId) . getUserByUrefUnsafe)
         (fmap (`elem` allowedValues) . getUserIdByScimExternalId tid)
         veid
   unless isGood $

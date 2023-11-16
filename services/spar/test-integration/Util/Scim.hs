@@ -629,7 +629,7 @@ instance IsUser (WrappedScimUser SparTag) where
   maybeLocale =
     Just
       ( \u ->
-          case Scim.User.preferredLanguage (fromWrappedScimUser u) >>= (\l -> parseLanguage l <&> flip Locale Nothing) of
+          case Scim.User.preferredLanguage (fromWrappedScimUser u) >>= (fmap (flip Locale Nothing) . parseLanguage) of
             -- this should match the default user locale in brig options
             Nothing -> Just (Locale (Language EN) Nothing)
             Just l -> Just l

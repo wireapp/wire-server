@@ -70,7 +70,7 @@ library
     , bytestring-conversion
     , data-timeout
     , exceptions
-    , http-client            >=0.5
+    , http-client            >=0.7
     , http-types
     , imports
     , random

@@ -734,6 +734,38 @@ type FederationRemotesAPI =
                :> ReqBody '[JSON] FederationDomainConfig
                :> Put '[JSON] ()
            )
+    :<|> Named
+           "add-federation-remote-team"
+           ( Description
+               "Add a remote team to the list of teams that are allowed to federate with our domain"
+               :> "federation"
+               :> "remotes"
+               :> Capture "domain" Domain
+               :> "teams"
+               :> ReqBody '[JSON] FederationRemoteTeam
+               :> Post '[JSON] ()
+           )
+    :<|> Named
+           "get-federation-remote-teams"
+           ( Description
+               "Get a list of teams from a remote domain that our backend is allowed to federate with."
+               :> "federation"
+               :> "remotes"
+               :> Capture "domain" Domain
+               :> "teams"
+               :> Get '[JSON] [FederationRemoteTeam]
+           )
+    :<|> Named
+           "delete-federation-remote-team"
+           ( Description
+               "Remove a remote team from the list of teams that are allowed to federate with our domain"
+               :> "federation"
+               :> "remotes"
+               :> Capture "domain" Domain
+               :> "teams"
+               :> Capture "team" TeamId
+               :> Delete '[JSON] ()
+           )
 
 type FederationRemotesAPIDescription =
   "See https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections for background. "

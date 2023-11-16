@@ -19,9 +19,10 @@ uploadAssetV3 :: (HasCallStack, MakesValue user) => user -> Bool -> AssetRetenti
 uploadAssetV3 user isPublic retention mimeType bdy = do
   uid <- user & objId
   req <- baseRequest user Cargohold (ExplicitVersion 1) "/assets/v3"
-  submit "POST" $ req
-    & zUser uid
-    & addBody body multipartMixedMime
+  submit "POST" $
+    req
+      & zUser uid
+      & addBody body multipartMixedMime
   where
     ret = assetRetentionSeconds retention
     body = buildUploadAssetRequestBody isPublic ret bdy mimeType

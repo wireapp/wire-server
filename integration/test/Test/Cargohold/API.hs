@@ -19,25 +19,25 @@
 
 module Test.Cargohold.API where
 
-import qualified Codec.MIME.Type as MIME
+import Codec.MIME.Type qualified as MIME
 import Control.Exception (throw)
 import Control.Lens hiding (sets, (.=))
-import qualified Data.Aeson as Aeson
+import Data.Aeson qualified as Aeson
 import Data.ByteString.Builder
-import qualified Data.ByteString.Char8 as C8
+import Data.ByteString.Char8 qualified as C8
 import Data.ByteString.Conversion
-import qualified Data.Text.Encoding.Error as Text
-import qualified Data.Text.Lazy.Encoding as LText
+import Data.Text.Encoding.Error qualified as Text
+import Data.Text.Lazy.Encoding qualified as LText
 import Data.Time.Clock
 import Data.Time.Format
 import Data.UUID.V4
-import Network.HTTP.Client (parseUrlThrow)
-import qualified Network.HTTP.Client as HTTP
-import qualified Network.HTTP.Types as HTTP
 import Data.Vector.Internal.Check (HasCallStack)
-import Testlib.Types
-import qualified Wire.API.Asset as V3
+import Network.HTTP.Client (parseUrlThrow)
+import Network.HTTP.Client qualified as HTTP
+import Network.HTTP.Types qualified as HTTP
 import Testlib.Prelude
+import Testlib.Types
+import Wire.API.Asset qualified as V3
 
 --------------------------------------------------------------------------------
 -- Simple (single-step) uploads
@@ -56,7 +56,8 @@ testSimpleRoundtrip = do
       let bdy = (applicationText, "Hello World")
       r1 <-
         uploadSimple (path "/assets/v3") uid sets bdy
-          <!! const 201 === statusCode
+          <!! const 201
+          === statusCode
       let loc = decodeHeaderOrFail "Location" r1 :: ByteString
       let Just ast = responseJsonMaybe @V3.Asset r1
       let Just tok = view V3.assetToken ast
@@ -95,7 +96,8 @@ testDownloadWithAcceptHeader = do
   let key = AssetKeyV3 assetId AssetPersistent
       qkey = Qualified key domain
   downloadAssetWith (header "Accept" "image/jpeg") uid qkey ()
-    !!! const 404 === statusCode
+    !!! const 404
+    === statusCode
 
 testSimpleTokens :: HasCallStack => App ()
 testSimpleTokens = do
@@ -106,23 +108,28 @@ testSimpleTokens = do
   let bdy = (applicationText, "Hello World")
   r1 <-
     uploadSimple (path "/assets/v3") uid sets bdy
-      <!! const 201 === statusCode
+      <!! const 201
+      === statusCode
   let loc = decodeHeaderOrFail "Location" r1 :: ByteString
   let Just ast = responseJsonMaybe @V3.Asset r1
   let key = view V3.assetKey ast
   let Just tok = view V3.assetToken ast
   -- No access without token from other user (opaque 404)
   downloadAsset uid2 loc ()
-    !!! const 404 === statusCode
+    !!! const 404
+    === statusCode
   -- No access with empty token query parameter from other user (opaque 404)
   downloadAsset uid2 loc (queryItem' "asset_token" Nothing)
-    !!! const 404 === statusCode
+    !!! const 404
+    === statusCode
   -- No access with wrong token (opaque 404)
   downloadAsset uid2 loc (Just (AssetToken "abc123"))
-    !!! const 404 === statusCode
+    !!! const 404
+    === statusCode
   -- No access with wrong token as query parameter (opaque 404)
   downloadAsset uid2 loc (queryItem "asset_token" "acb123")
-    !!! const 404 === statusCode
+    !!! const 404
+    === statusCode
   -- Token renewal fails if not done by owner
   postToken uid2 (qUnqualified key) !!! do
     const 403 === statusCode
@@ -145,13 +152,16 @@ testSimpleTokens = do
     assertEqual "data mismatch" (Just "Hello World") (responseBody r4)
   -- Verify access without token if the request comes from the creator.
   downloadAsset uid loc ()
-    !!! const 302 === statusCode
+    !!! const 302
+    === statusCode
   -- Verify access with new token from a different user.
   downloadAsset uid2 loc (Just tok')
-    !!! const 302 === statusCode
+    !!! const 302
+    === statusCode
   -- Verify access with new token as query parameter from a different user
   downloadAsset uid2 loc (queryItem "asset_token" (toByteString' tok'))
-    !!! const 302 === statusCode
+    !!! const 302
+    === statusCode
   -- Delete Token fails if not done by owner
   deleteToken uid2 (qUnqualified key) !!! do
     const 403 === statusCode
@@ -177,7 +187,8 @@ testSimpleS3ClosedConnectionReuse = go >> wait >> go
       let sets = V3.defAssetSettings & set V3.setAssetRetention (Just V3.AssetVolatile)
       let part2 = (MIME.Type (MIME.Text "plain") [], C8.replicate 100000 'c')
       uploadSimple (path "/assets/v3") uid sets part2
-        !!! const 201 === statusCode
+        !!! const 201
+        === statusCode
 
 testDownloadURLOverride :: HasCallStack => App ()
 testDownloadURLOverride = do
@@ -191,7 +202,8 @@ testDownloadURLOverride = do
     let bdy = (applicationText, "Hello World")
     uploadRes <-
       uploadSimple (path "/assets/v3") uid V3.defAssetSettings bdy
-        <!! const 201 === statusCode
+        <!! const 201
+        === statusCode
     let loc = decodeHeaderOrFail "Location" uploadRes :: ByteString
     let Just ast = responseJsonMaybe @V3.Asset uploadRes
     let Just tok = view V3.assetToken ast
@@ -223,7 +235,8 @@ testUploadCompatibility = do
   -- Initial upload
   r1 <-
     uploadRaw (path "/assets/v3") uid exampleMultipart
-      <!! const 201 === statusCode
+      <!! const 201
+      === statusCode
   let loc = decodeHeaderOrFail "Location" r1 :: ByteString
   -- Lookup and download via redirect.
   r2 <-
@@ -238,20 +251,21 @@ testUploadCompatibility = do
     assertEqual "data mismatch" (Just "test") (responseBody r3)
   where
     exampleMultipart :: a
-    exampleMultipart = cs
-      "--FrontierIyj6RcVrqMcxNtMEWPsNpuPm325QsvWQ\r\n\
-      \Content-Type: application/json;charset=utf-8\r\n\
-      \Content-length: 37\r\n\
-      \\r\n\
-      \{\"public\":true,\"retention\":\"eternal\"}\r\n\
-      \--FrontierIyj6RcVrqMcxNtMEWPsNpuPm325QsvWQ\r\n\
-      \Content-Type: application/octet-stream\r\n\
-      \Content-length: 4\r\n\
-      \Content-MD5: CY9rzUYh03PK3k6DJie09g==\r\n\
-      \\r\n\
-      \test\r\n\
-      \--FrontierIyj6RcVrqMcxNtMEWPsNpuPm325QsvWQ--\r\n\
-      \\r\n"
+    exampleMultipart =
+      cs
+        "--FrontierIyj6RcVrqMcxNtMEWPsNpuPm325QsvWQ\r\n\
+        \Content-Type: application/json;charset=utf-8\r\n\
+        \Content-length: 37\r\n\
+        \\r\n\
+        \{\"public\":true,\"retention\":\"eternal\"}\r\n\
+        \--FrontierIyj6RcVrqMcxNtMEWPsNpuPm325QsvWQ\r\n\
+        \Content-Type: application/octet-stream\r\n\
+        \Content-length: 4\r\n\
+        \Content-MD5: CY9rzUYh03PK3k6DJie09g==\r\n\
+        \\r\n\
+        \test\r\n\
+        \--FrontierIyj6RcVrqMcxNtMEWPsNpuPm325QsvWQ--\r\n\
+        \\r\n"
 
 --------------------------------------------------------------------------------
 -- Federation behaviour
@@ -309,7 +323,8 @@ testRemoteDownloadFederationFailure = do
   (resp, _) <-
     withMockFederator respond $ do
       responseJsonError
-        =<< downloadAsset uid qkey () <!! do
+        =<< downloadAsset uid qkey ()
+        <!! do
           const 500 === statusCode
   liftIO $ do
     Wai.label resp @?= "mock-error"

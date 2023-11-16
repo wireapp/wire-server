@@ -162,7 +162,7 @@ library
     , containers
     , cql
     , cql-io
-    , cryptonite
+    , crypton
     , data-default
     , data-timeout
     , deriving-aeson

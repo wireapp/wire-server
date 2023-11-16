@@ -27,10 +27,10 @@ module Wire.API.MakesFederatedCall
     Location (..),
     ShowComponent,
     Annotation,
-    exposeAnnotations,
     HasFeds (..),
     FedCallFrom' (..),
     Calls (..),
+    Wire.API.MakesFederatedCall.exposeAnnotations,
   )
 where
 

@@ -33,6 +33,7 @@ import Brig.Types.Intra (UserSet (..))
 import Brig.Types.Test.Arbitrary ()
 import Brig.Types.User.Event qualified as Ev
 import Cassandra.Exec qualified as Cql
+import Control.Category ((>>>))
 import Control.Concurrent.Chan
 import Control.Lens hiding ((#))
 import Data.Id
@@ -723,13 +724,14 @@ testOldClientsBlockDeviceHandshake = do
         approveLegalHoldDevice (Just defPassword) uid uid tid !!! testResponse 200 Nothing
         UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped uid tid
         liftIO $ assertEqual "approving should change status" UserLegalHoldEnabled userStatus
-        getInternalClientsFull (UserSet $ Set.fromList [uid])
-          <&> userClientsFull
-          <&> Map.elems
-          <&> Set.unions
-          <&> Set.toList
-          <&> (\[x] -> x)
-          <&> clientId
+        getInternalClientsFull (UserSet $ Set.singleton uid)
+          <&> do
+            userClientsFull
+              >>> Map.elems
+              >>> Set.unions
+              >>> Set.toList
+              >>> head
+              >>> clientId
 
   putLHWhitelistTeam tid !!! const 200 === statusCode
 
@@ -804,14 +806,14 @@ testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH testPendingConnect
         liftIO $ assertEqual "approving should change status" (if approveLH then UserLegalHoldEnabled else UserLegalHoldPending) userStatus
         if approveLH
           then
-            getInternalClientsFull (UserSet $ Set.fromList [legalholder])
-              <&> userClientsFull
-              <&> Map.elems
-              <&> Set.unions
-              <&> Set.toList
-              <&> (\[x] -> x)
-              <&> clientId
-              <&> Just
+            getInternalClientsFull (UserSet $ Set.singleton legalholder)
+              <&> do
+                userClientsFull
+                  >>> Map.elems
+                  >>> Set.unions
+                  >>> Set.toList
+                  >>> listToMaybe
+                  >>> fmap clientId
           else pure Nothing
 
       doDisableLH :: HasCallStack => TestM ()
@@ -1127,13 +1129,14 @@ testClaimKeys testcase = do
         approveLegalHoldDevice (Just defPassword) uid uid team !!! testResponse 200 Nothing
         UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped uid team
         liftIO $ assertEqual "approving should change status" UserLegalHoldEnabled userStatus
-        getInternalClientsFull (UserSet $ Set.fromList [uid])
-          <&> userClientsFull
-          <&> Map.elems
-          <&> Set.unions
-          <&> Set.toList
-          <&> (\[x] -> x)
-          <&> clientId
+        getInternalClientsFull (UserSet $ Set.singleton uid)
+          <&> do
+            userClientsFull
+              >>> Map.elems
+              >>> Set.unions
+              >>> Set.toList
+              >>> head
+              >>> clientId
 
   let makePeerClient :: TestM ()
       makePeerClient = case testcase of
