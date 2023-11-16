@@ -126,6 +126,7 @@ library
     Brig.Effects.CodeStore
     Brig.Effects.CodeStore.Cassandra
     Brig.Effects.Delay
+    Brig.Effects.FederationConfigStore
     Brig.Effects.GalleyProvider
     Brig.Effects.GalleyProvider.RPC
     Brig.Effects.JwtTools
