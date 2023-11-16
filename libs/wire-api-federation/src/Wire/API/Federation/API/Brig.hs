@@ -36,6 +36,7 @@ import Wire.API.Federation.Endpoint
 import Wire.API.Federation.Version
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.KeyPackage
+import Wire.API.Routes.SpecialiseToVersion
 import Wire.API.User (UserProfile)
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey (ClientPrekey, PrekeyBundle)
@@ -195,4 +196,4 @@ data ClaimKeyPackageRequest = ClaimKeyPackageRequest
 instance ToSchema ClaimKeyPackageRequest
 
 swaggerDoc :: OpenApi
-swaggerDoc = toOpenApi (Proxy @BrigApi)
+swaggerDoc = toOpenApi (Proxy @(SpecialiseToVersion 'V1 BrigApi))

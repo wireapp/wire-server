@@ -109,7 +109,7 @@ library
     , servant-client-core
     , servant-openapi3
     , servant-server
-    , singletons-th
+    , singletons-base
     , text                   >=0.11
     , time                   >=1.8
     , transformers

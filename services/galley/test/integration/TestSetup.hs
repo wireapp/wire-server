@@ -1,5 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 -- Disabling to stop warnings on HasCallStack
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
 {-# OPTIONS_GHC -fprint-potential-instances #-}
@@ -60,6 +61,7 @@ import Galley.Options (Opts)
 import Imports
 import Network.HTTP.Client qualified as HTTP
 import Proto.TeamEvents (TeamEvent)
+import Servant.Client
 import Servant.Client qualified as Servant
 import Servant.Client.Core qualified as Servant
 import Test.Tasty.HUnit
@@ -67,6 +69,7 @@ import Util.Options
 import Util.Test.SQS qualified as SQS
 import Wire.API.Federation.API
 import Wire.API.Federation.Domain
+import Wire.API.VersionInfo
 
 type GalleyR = Request -> Request
 
@@ -132,6 +135,9 @@ instance MonadHttp TestM where
   handleRequestWithCont req handler = do
     manager <- view tsManager
     liftIO $ withResponse req manager handler
+
+instance VersionedMonad v ClientM where
+  guardVersion _ = pure ()
 
 runFedClient ::
   forall (name :: Symbol) comp m api.

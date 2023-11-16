@@ -190,6 +190,7 @@ library
     Wire.API.Routes.Public.Spar
     Wire.API.Routes.Public.Util
     Wire.API.Routes.QualifiedCapture
+    Wire.API.Routes.SpecialiseToVersion
     Wire.API.Routes.Version
     Wire.API.Routes.Version.Wai
     Wire.API.Routes.Versioned

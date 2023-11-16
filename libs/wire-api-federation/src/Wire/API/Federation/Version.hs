@@ -24,12 +24,12 @@ import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.OpenApi qualified as S
 import Data.Schema
 import Data.Set qualified as Set
-import Data.Singletons.TH
+import Data.Singletons.Base.TH
 import Imports
 import Wire.API.VersionInfo
 
 data Version = V0 | V1
-  deriving stock (Eq, Ord, Bounded, Enum, Show)
+  deriving stock (Eq, Ord, Bounded, Enum, Show, Generic)
   deriving (FromJSON, ToJSON) via (Schema Version)
 
 instance ToSchema Version where
@@ -63,3 +63,5 @@ versionInfo :: VersionInfo
 versionInfo = VersionInfo (toList supportedVersions)
 
 $(genSingletons [''Version])
+
+$(promoteOrdInstances [''Version])
