@@ -250,6 +250,7 @@ type InternalAPIBase =
            )
     :<|> IFeatureAPI
     :<|> IFederationAPI
+    :<|> IConversationAPI
 
 type ILegalholdWhitelistedTeamsAPI =
   "legalhold"
@@ -445,6 +446,65 @@ type IFederationAPI =
         :> ReqBody '[Servant.JSON] RemoteDomains
         :> Get '[Servant.JSON] FederationStatus
     )
+
+type IConversationAPI =
+  Named
+    "conversation-get-member"
+    ( "conversations"
+        :> Capture "cnv" ConvId
+        :> "members"
+        :> Capture "usr" UserId
+        :> Get '[Servant.JSON] (Maybe Member)
+    )
+    -- This endpoint can lead to the following events being sent:
+    -- - MemberJoin event to you, if the conversation existed and had < 2 members before
+    -- - MemberJoin event to other, if the conversation existed and only the other was member
+    --   before
+    :<|> Named
+           "conversation-accept-v2"
+           ( CanThrow 'InvalidOperation
+               :> CanThrow 'ConvNotFound
+               :> ZLocalUser
+               :> ZOptConn
+               :> "conversations"
+               :> Capture "cnv" ConvId
+               :> "accept"
+               :> "v2"
+               :> Put '[Servant.JSON] Conversation
+           )
+    :<|> Named
+           "conversation-block"
+           ( CanThrow 'InvalidOperation
+               :> CanThrow 'ConvNotFound
+               :> ZUser
+               :> "conversations"
+               :> Capture "cnv" ConvId
+               :> "block"
+               :> Put '[Servant.JSON] ()
+           )
+    -- This endpoint can lead to the following events being sent:
+    -- - MemberJoin event to you, if the conversation existed and had < 2 members before
+    -- - MemberJoin event to other, if the conversation existed and only the other was member
+    --   before
+    :<|> Named
+           "conversation-unblock"
+           ( CanThrow 'InvalidOperation
+               :> CanThrow 'ConvNotFound
+               :> ZLocalUser
+               :> ZOptConn
+               :> "conversations"
+               :> Capture "cnv" ConvId
+               :> "unblock"
+               :> Put '[Servant.JSON] Conversation
+           )
+    :<|> Named
+           "conversation-meta"
+           ( CanThrow 'ConvNotFound
+               :> "conversations"
+               :> Capture "cnv" ConvId
+               :> "meta"
+               :> Get '[Servant.JSON] ConversationMetadata
+           )
 
 swaggerDoc :: OpenApi
 swaggerDoc =
