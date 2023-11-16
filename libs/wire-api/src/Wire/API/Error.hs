@@ -107,6 +107,9 @@ data StaticError = StaticError
 
 -- | The singleton corresponding to 'StaticError'. This is hand-written,
 -- because the singletons library has problems with promoted natural numbers.
+--
+-- FIXME: this KnownSomething a => Proxy a should be replaced with SSomething a
+-- as soon as that's exported from `GHC.TypeLits.Singletons` in base >= 4.18
 data SStaticError e where
   SStaticError ::
     (KnownNat c, KnownSymbol l, KnownSymbol msg) =>
