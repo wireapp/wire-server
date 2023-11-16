@@ -46,7 +46,7 @@ import Data.ByteString.Char8 (pack)
 import Data.ByteString.Conversion
 import Data.Domain
 import Data.Handle
-import Data.Id hiding (client)
+import Data.Id
 import Data.Json.Util (fromUTCTimeMillis)
 import Data.LegalHold
 import Data.List.NonEmpty qualified as NonEmpty

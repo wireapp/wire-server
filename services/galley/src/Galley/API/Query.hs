@@ -29,8 +29,8 @@ module Galley.API.Query
     listConversations,
     iterateConversations,
     getLocalSelf,
-    internalGetMemberH,
-    getConversationMetaH,
+    internalGetMember,
+    getConversationMeta,
     getConversationByReusableCode,
     ensureGuestLinksEnabled,
     getConversationGuestLinksStatus,
@@ -43,6 +43,7 @@ where
 
 import Cassandra qualified as C
 import Control.Lens
+import Control.Monad.Extra
 import Data.ByteString.Lazy qualified as LBS
 import Data.Code
 import Data.CommaSeparatedList
@@ -77,7 +78,6 @@ import Galley.Options
 import Galley.Types.Conversations.Members
 import Galley.Types.Teams
 import Imports hiding (cs)
-import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (Error, result, setStatus)
 import Network.Wai.Utilities hiding (Error)
@@ -577,16 +577,17 @@ iterateConversations luid pageSize handleConvs = go Nothing
         _ -> pure []
       pure $ resultHead : resultTail
 
-internalGetMemberH ::
+internalGetMember ::
   ( Member ConversationStore r,
     Member (Input (Local ())) r,
     Member MemberStore r
   ) =>
-  ConvId ::: UserId ->
-  Sem r Response
-internalGetMemberH (cnv ::: usr) = do
+  ConvId ->
+  UserId ->
+  Sem r (Maybe Public.Member)
+internalGetMember cnv usr = do
   lusr <- qualifyLocal usr
-  json <$> getLocalSelf lusr cnv
+  getLocalSelf lusr cnv
 
 getLocalSelf ::
   ( Member ConversationStore r,
@@ -602,26 +603,17 @@ getLocalSelf lusr cnv = do
       then Mapping.localMemberToSelf lusr <$$> E.getLocalMember cnv (tUnqualified lusr)
       else Nothing <$ E.deleteConversation cnv
 
-getConversationMetaH ::
-  Member ConversationStore r =>
-  ConvId ->
-  Sem r Response
-getConversationMetaH cnv = do
-  getConversationMeta cnv <&> \case
-    Nothing -> setStatus status404 empty
-    Just meta -> json meta
-
 getConversationMeta ::
-  Member ConversationStore r =>
+  ( Member ConversationStore r,
+    Member (ErrorS 'ConvNotFound) r
+  ) =>
   ConvId ->
-  Sem r (Maybe ConversationMetadata)
-getConversationMeta cnv = do
-  alive <- E.isConversationAlive cnv
-  if alive
-    then E.getConversationMetadata cnv
-    else do
-      E.deleteConversation cnv
-      pure Nothing
+  Sem r ConversationMetadata
+getConversationMeta cnv =
+  ifM
+    (E.isConversationAlive cnv)
+    (E.getConversationMetadata cnv >>= noteS @'ConvNotFound)
+    (E.deleteConversation cnv >> throwS @'ConvNotFound)
 
 getConversationByReusableCode ::
   forall r.

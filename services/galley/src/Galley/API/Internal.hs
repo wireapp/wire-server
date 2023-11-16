@@ -16,7 +16,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Galley.API.Internal
-  ( internalSitemap,
+  ( waiInternalSitemap,
     internalAPI,
     InternalAPI,
     deleteLoop,
@@ -73,7 +73,6 @@ import Galley.Types.UserList
 import Imports hiding (head)
 import Network.AMQP qualified as Q
 import Network.Wai.Predicate hiding (Error, err, result, setStatus)
-import Network.Wai.Predicate qualified as Predicate hiding (result)
 import Network.Wai.Routing hiding (App, route, toList)
 import Network.Wai.Utilities hiding (Error)
 import Network.Wai.Utilities.ZAuth
@@ -117,10 +116,19 @@ internalAPI =
       <@> mkNamedAPI @"upsert-one2one" iUpsertOne2OneConversation
       <@> featureAPI
       <@> federationAPI
+      <@> conversationAPI
 
 federationAPI :: API IFederationAPI GalleyEffects
 federationAPI =
   mkNamedAPI @"get-federation-status" (const getFederationStatus)
+
+conversationAPI :: API IConversationAPI GalleyEffects
+conversationAPI =
+  mkNamedAPI @"conversation-get-member" Query.internalGetMember
+    <@> mkNamedAPI @"conversation-accept-v2" Update.acceptConv
+    <@> mkNamedAPI @"conversation-block" Update.blockConv
+    <@> mkNamedAPI @"conversation-unblock" Update.unblockConv
+    <@> mkNamedAPI @"conversation-meta" Query.getConversationMeta
 
 legalholdWhitelistedTeamsAPI :: API ILegalholdWhitelistedTeamsAPI GalleyEffects
 legalholdWhitelistedTeamsAPI = mkAPI $ \tid -> hoistAPIHandler Imports.id (base tid)
@@ -228,43 +236,8 @@ featureAPI =
     <@> mkNamedAPI @'("ilock", MlsMigrationConfig) (updateLockStatus @MlsMigrationConfig)
     <@> mkNamedAPI @"feature-configs-internal" (maybe getAllFeatureConfigsForServer getAllFeatureConfigsForUser)
 
-internalSitemap :: Routes a (Sem GalleyEffects) ()
-internalSitemap = unsafeCallsFed @'Galley @"on-client-removed" $ unsafeCallsFed @'Galley @"on-mls-message-sent" $ do
-  -- Conversation API (internal) ----------------------------------------
-  put "/i/conversations/:cnv/channel" (continue $ const (pure empty)) $
-    zauthUserId
-      .&. (capture "cnv" :: (HasCaptures r) => Predicate r Predicate.Error ConvId)
-      .&. request
-
-  get "/i/conversations/:cnv/members/:usr" (continue Query.internalGetMemberH) $
-    capture "cnv"
-      .&. capture "usr"
-
-  -- This endpoint can lead to the following events being sent:
-  -- - MemberJoin event to you, if the conversation existed and had < 2 members before
-  -- - MemberJoin event to other, if the conversation existed and only the other was member
-  --   before
-  put "/i/conversations/:cnv/accept/v2" (continueE Update.acceptConvH) $
-    zauthUserId
-      .&. opt zauthConnId
-      .&. capture "cnv"
-
-  put "/i/conversations/:cnv/block" (continueE Update.blockConvH) $
-    zauthUserId
-      .&. capture "cnv"
-
-  -- This endpoint can lead to the following events being sent:
-  -- - MemberJoin event to you, if the conversation existed and had < 2 members before
-  -- - MemberJoin event to other, if the conversation existed and only the other was member
-  --   before
-  put "/i/conversations/:cnv/unblock" (continueE Update.unblockConvH) $
-    zauthUserId
-      .&. opt zauthConnId
-      .&. capture "cnv"
-
-  get "/i/conversations/:cnv/meta" (continue Query.getConversationMetaH) $
-    capture "cnv"
-
+waiInternalSitemap :: Routes a (Sem GalleyEffects) ()
+waiInternalSitemap = unsafeCallsFed @'Galley @"on-client-removed" $ unsafeCallsFed @'Galley @"on-mls-message-sent" $ do
   -- Misc API (internal) ------------------------------------------------
 
   get "/i/users/:uid/team/members" (continueE Teams.getBindingTeamMembersH) $

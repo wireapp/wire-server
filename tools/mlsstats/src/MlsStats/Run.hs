@@ -108,7 +108,7 @@ userClient cassandra queryPageSize = do
       (runClient cassandra)
       (paginateC userClientCql (paramsP LocalQuorum () queryPageSize) x1)
       .| concat
-      .| mapC (\(u, c) -> T.encodeUtf8 $ T.pack (show u) <> "," <> c.client <> "\r\n")
+      .| mapC (\(u, c) -> T.encodeUtf8 $ T.pack (show u) <> "," <> clientToText c <> "\r\n")
     )
   where
     userClientCql :: PrepQuery R () (UserId, ClientId)
@@ -156,7 +156,7 @@ domainUserClientGroup cassandra queryPageSize = do
               <> ","
               <> T.encodeUtf8 (T.pack (show u))
               <> ","
-              <> T.encodeUtf8 (client c)
+              <> T.encodeUtf8 (clientToText c)
               <> ","
               <> BS64.encode (unGroupId g)
               <> "\r\n"

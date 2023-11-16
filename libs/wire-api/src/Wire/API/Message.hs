@@ -235,7 +235,7 @@ protolensToQualifiedNewOtrMessage protoMsg = do
       }
 
 protolensToClientId :: Proto.Otr.ClientId -> ClientId
-protolensToClientId = newClientId . view Proto.Otr.client
+protolensToClientId = ClientId . view Proto.Otr.client
 
 qualifiedNewOtrMessageToProto :: QualifiedNewOtrMessage -> Proto.Otr.QualifiedNewOtrMessage
 qualifiedNewOtrMessageToProto msg =
@@ -276,7 +276,7 @@ mkQualifiedOtrPayload sender entries dat strat =
 clientIdToProtolens :: ClientId -> Proto.Otr.ClientId
 clientIdToProtolens cid =
   ProtoLens.defMessage
-    & Proto.Otr.client .~ (either error fst . Reader.hexadecimal $ client cid)
+    & Proto.Otr.client .~ (either error fst . Reader.hexadecimal $ clientToText cid)
 
 --------------------------------------------------------------------------------
 -- Priority

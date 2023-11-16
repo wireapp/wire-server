@@ -19,7 +19,7 @@
 
 module Test.Wire.API.Golden.Generated.NewOtrMessage_user where
 
-import Data.Id (ClientId (ClientId, client))
+import Data.Id
 import GHC.Exts (IsList (fromList))
 import Imports (Bool (False, True), Maybe (Just, Nothing))
 import Wire.API.Message
@@ -32,7 +32,7 @@ import Wire.API.Message
 testObject_NewOtrMessage_user_1 :: NewOtrMessage
 testObject_NewOtrMessage_user_1 =
   NewOtrMessage
-    { newOtrSender = ClientId {client = "6"},
+    { newOtrSender = ClientId 6,
       newOtrRecipients = OtrRecipients {otrRecipientsMap = UserClientMap {userClientMap = fromList []}},
       newOtrNativePush = True,
       newOtrTransient = False,
@@ -44,7 +44,7 @@ testObject_NewOtrMessage_user_1 =
 testObject_NewOtrMessage_user_2 :: NewOtrMessage
 testObject_NewOtrMessage_user_2 =
   NewOtrMessage
-    { newOtrSender = ClientId {client = "6"},
+    { newOtrSender = ClientId 6,
       newOtrRecipients = OtrRecipients {otrRecipientsMap = UserClientMap {userClientMap = fromList []}},
       newOtrNativePush = True,
       newOtrTransient = False,

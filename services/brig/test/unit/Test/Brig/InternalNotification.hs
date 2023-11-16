@@ -20,7 +20,7 @@ module Test.Brig.InternalNotification where
 import Brig.InternalEvent.Types (InternalNotification (..))
 import Data.Aeson qualified as A
 import Data.ByteString.Lazy as BSL
-import Data.Id (client)
+import Data.Id (clientToText)
 import Imports
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -41,5 +41,5 @@ checkGolden = do
     Right n ->
       case n of
         DeleteClient cid _uid _mcon ->
-          client cid @?= "1"
+          clientToText cid @?= "1"
         _ -> assertFailure "Unexpected value"

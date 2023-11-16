@@ -17,15 +17,15 @@
 
 module Test.Wire.API.Golden.Generated.OtrMessage_user where
 
-import Data.Id (ClientId (ClientId, client))
+import Data.Id
 import Imports (Maybe (Just, Nothing))
 import Wire.API.Event.Conversation (OtrMessage (..))
 
 testObject_OtrMessage_user_1 :: OtrMessage
 testObject_OtrMessage_user_1 =
   OtrMessage
-    { otrSender = ClientId {client = "4"},
-      otrRecipient = ClientId {client = "0"},
+    { otrSender = ClientId 4,
+      otrRecipient = ClientId 0,
       otrCiphertext = "\1051967\1047896\1101213|",
       otrData = Nothing
     }
@@ -33,8 +33,8 @@ testObject_OtrMessage_user_1 =
 testObject_OtrMessage_user_2 :: OtrMessage
 testObject_OtrMessage_user_2 =
   OtrMessage
-    { otrSender = ClientId {client = "18"},
-      otrRecipient = ClientId {client = "a"},
+    { otrSender = ClientId 0x18,
+      otrRecipient = ClientId 0xa,
       otrCiphertext = "\11788t",
       otrData = Just "\ESC\NAKJj"
     }

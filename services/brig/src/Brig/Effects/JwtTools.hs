@@ -6,7 +6,7 @@ import Brig.API.Types (CertEnrollmentError (..))
 import Control.Monad.Trans.Except
 import Data.ByteString.Conversion
 import Data.Either.Extra
-import Data.Id (ClientId (client))
+import Data.Id
 import Data.Jwt.Tools qualified as Jwt
 import Data.Misc (HttpsUrl)
 import Data.Nonce (Nonce)
@@ -47,7 +47,7 @@ makeSem ''JwtTools
 
 interpretJwtTools :: Member (Embed IO) r => Sem (JwtTools ': r) a -> Sem r a
 interpretJwtTools = interpret $ \(GenerateDPoPAccessToken pr ci n uri method skew ex now pem) -> do
-  case readHex @Word64 (cs $ client $ ciClient ci) of
+  case readHex @Word64 (cs $ clientToText $ ciClient ci) of
     [(parsedClientId, "")] ->
       mapLeft RustError
         <$> runExceptT
