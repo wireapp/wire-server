@@ -1,1 +1,1 @@
-(import ./nix).pkgs.wireServer.devShell
+(import ./nix).wireServer.devEnv
