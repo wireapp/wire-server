@@ -11,8 +11,22 @@ import Data.Time.Clock
 import GHC.Stack
 import Network.HTTP.Client qualified as HTTP
 import Testlib.Prelude
+import Wire.API.Asset (AssetRetention, assetRetentionSeconds)
 
 type LByteString = LBS.ByteString
+
+uploadAssetV3 :: (HasCallStack, MakesValue user) => user -> Bool -> AssetRetention -> MIME.MIMEType -> LByteString -> App Response
+uploadAssetV3 user isPublic retention mimeType bdy = do
+  uid <- user & objId
+  req <- baseRequest user Cargohold (ExplicitVersion 1) "/assets/v3"
+  submit "POST" $ req
+    & zUser uid
+    & addBody body multipartMixedMime
+  where
+    ret = assetRetentionSeconds retention
+    body = buildUploadAssetRequestBody isPublic ret bdy mimeType
+    multipartMixedMime :: String
+    multipartMixedMime = "multipart/mixed; boundary=" <> multipartBoundary
 
 uploadAsset :: (HasCallStack, MakesValue user) => user -> App Response
 uploadAsset user = do

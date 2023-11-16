@@ -17,39 +17,22 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module API.V3 (tests) where
+module Test.Cargohold.API.V3 where
 
-import API.Util
-import Bilge hiding (body)
-import Bilge.Assert
 import Control.Lens hiding (sets)
 import qualified Data.ByteString.Char8 as C8
-import Data.Id
-import Data.Qualified
 import Data.Time.Clock
 import Data.Time.Format
 import Data.UUID.V4
-import Imports hiding (head)
 import Network.HTTP.Client (parseUrlThrow)
 import Network.HTTP.Types.Status (status200)
-import Test.Tasty
-import Test.Tasty.HUnit
-import TestSetup
-import Wire.API.Asset
-
-tests :: IO TestSetup -> TestTree
-tests s =
-  testGroup
-    "API Integration v3"
-    [ testGroup
-        "simple"
-        [test s "roundtrip using v3 API" testSimpleRoundtrip]
-    ]
+import Testlib.Types
+import Testlib.Prelude
 
 --------------------------------------------------------------------------------
 -- Simple (single-step) uploads
 
-testSimpleRoundtrip :: TestM ()
+testSimpleRoundtrip :: HasCallStack => App ()
 testSimpleRoundtrip = do
   let def = defAssetSettings
   let rets = [minBound ..]
@@ -65,15 +48,17 @@ testSimpleRoundtrip = do
         uploadSimple (path "/assets/v3") uid sets bdy
           <!! const 201 === statusCode
       -- use v3 path instead of the one returned in the header
-      let Just ast = responseJsonMaybe @Asset r1
-      let key = qUnqualified (ast ^. assetKey)
-      let Just tok = view assetToken ast
+      (qKey, tok, expires) <- (,)
+        <$> r1.json %. "key"
+        <*> r1.json %. "token"
+        <*> r1.json %. "expires"
+      let key = qUnqualified qKey
       -- Check mandatory Date header
       let Just date = C8.unpack <$> lookup "Date" (responseHeaders r1)
       let utc = parseTimeOrError False defaultTimeLocale rfc822DateFormat date :: UTCTime
       -- Potentially check for the expires header
       when (isJust $ assetRetentionSeconds =<< (sets ^. setAssetRetention)) $ do
-        liftIO $ assertBool "invalid expiration" (Just utc < view assetExpires ast)
+        liftIO $ assertBool "invalid expiration" (Just utc < expires)
       -- Lookup with token and download via redirect.
       r2 <-
         downloadAsset uid key (Just tok) <!! do
@@ -87,9 +72,9 @@ testSimpleRoundtrip = do
         assertEqual "user mismatch" uid (decodeHeaderOrFail "x-amz-meta-user" r3)
         assertEqual "data mismatch" (Just "Hello World") (responseBody r3)
       -- Delete (forbidden for other users)
-      deleteAssetV3 uid2 (view assetKey ast) !!! const 403 === statusCode
+      deleteAssetV3 uid2 key !!! const 403 === statusCode
       -- Delete (allowed for creator)
-      deleteAssetV3 uid (view assetKey ast) !!! const 200 === statusCode
+      deleteAssetV3 uid key !!! const 200 === statusCode
       r4 <-
         downloadAsset uid key (Just tok)
           <!! const 404 === statusCode

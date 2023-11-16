@@ -15,61 +15,41 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module API.Federation (tests) where
+module Test.Cargohold.API.Federation where
 
-import API.Util
-import Bilge
-import Bilge.Assert
-import CargoHold.API.V3 (randToken)
-import Conduit
+import Test.Cargohold.API.Util
 import Control.Lens
 import Crypto.Random
-import Data.Id
-import Data.Qualified
 import Data.UUID.V4
-import Imports
-import qualified Network.HTTP.Types as HTTP
-import qualified Network.Wai.Utilities.Error as Wai
-import Test.Tasty
-import Test.Tasty.HUnit
-import TestSetup
-import Wire.API.Asset
-import Wire.API.Federation.API
-import Wire.API.Federation.API.Cargohold
-import Wire.API.Routes.AssetBody
+import API.Brig qualified as BrigP
+import API.BrigInternal qualified as BrigI
+import API.Common qualified as API
+import API.GalleyInternal qualified as GalleyI
+import Control.Concurrent (threadDelay)
+import Data.Aeson.Types hiding ((.=))
+import Data.Set qualified as Set
+import Data.String.Conversions
+import Data.UUID qualified as UUID
+import Data.UUID.V4 qualified as UUID
+import GHC.Stack
+import SetupHelpers
+import Testlib.Assertions
+import Testlib.Prelude
+import Data.Vector.Internal.Check (HasCallStack)
+import Wire.API.Asset (AssetRetention(AssetVolatile))
 
-tests :: IO TestSetup -> TestTree
-tests s =
-  testGroup
-    "API Federation"
-    [ testGroup
-        "get-asset"
-        [ test s "private asset is available" (testGetAssetAvailable False),
-          test s "public asset is available" (testGetAssetAvailable True),
-          test s "not available" testGetAssetNotAvailable,
-          test s "wrong token" testGetAssetWrongToken
-        ],
-      testGroup
-        "stream-asset"
-        [ test s "streaming large asset" testLargeAsset,
-          test s "stream an asset" testStreamAsset,
-          test s "stream asset not available" testStreamAssetNotAvailable,
-          test s "stream asset wrong token" testStreamAssetWrongToken
-        ]
-    ]
+testGetAssetAvailablePrivate :: HasCallStack => App ()
+testGetAssetAvailablePrivate = getAssetAvailable False
 
-testGetAssetAvailable :: Bool -> TestM ()
-testGetAssetAvailable isPublicAsset = do
-  -- Initial upload
-  let bdy = (applicationOctetStream, "Hello World")
-      settings =
-        defAssetSettings
-          & set setAssetRetention (Just AssetVolatile)
-          & set setAssetPublic isPublicAsset
+testGetAssetAvailablePublic :: HasCallStack => App ()
+testGetAssetAvailablePublic = getAssetAvailable True
+
+getAssetAvailable :: Bool -> App ()
+getAssetAvailable isPublicAsset = do
   uid <- randomUser
   ast :: Asset <-
     responseJsonError
-      =<< uploadSimple (path "/assets/v3") uid settings bdy
+      =<< uploadAssetV3 uid isPublicAsset (Just AssetVolatile) applicationOctetStream bdy
         <!! const 201 === statusCode
 
   -- Call get-asset federation API
@@ -88,7 +68,7 @@ testGetAssetAvailable isPublicAsset = do
   -- check that asset is available
   liftIO $ ok @?= True
 
-testGetAssetNotAvailable :: TestM ()
+testGetAssetNotAvailable :: HasCallStack => App ()
 testGetAssetNotAvailable = do
   uid <- liftIO $ Id <$> nextRandom
   token <- randToken
@@ -108,7 +88,7 @@ testGetAssetNotAvailable = do
   -- check that asset is not available
   liftIO $ ok @?= False
 
-testGetAssetWrongToken :: TestM ()
+testGetAssetWrongToken :: HasCallStack => App ()
 testGetAssetWrongToken = do
   -- Initial upload
   let bdy = (applicationOctetStream, "Hello World")
@@ -130,18 +110,9 @@ testGetAssetWrongToken = do
           }
   ok <-
     withFederationClient $
-      available <$> runFederationClient (unsafeFedClientIn @'Cargohold @"get-asset" ga)
-
-  -- check that asset is not available
-  liftIO $ ok @?= False
-
-testLargeAsset :: TestM ()
-testLargeAsset = do
-  -- Initial upload
-  let settings =
-        defAssetSettings
-          & set setAssetRetention (Just AssetVolatile)
-  uid <- randomUser
+      available
+type TestM = ReaderT TestSetup Http
+User
   -- generate random bytes
   let size = 1024 * 1024
   bs <- liftIO $ getRandomBytes size
@@ -170,7 +141,7 @@ testLargeAsset = do
       (length chunks > minNumChunks)
     mconcat chunks @?= bs
 
-testStreamAsset :: TestM ()
+testStreamAsset :: HasCallStack => App ()
 testStreamAsset = do
   -- Initial upload
   let bdy = (applicationOctetStream, "Hello World")
@@ -197,7 +168,7 @@ testStreamAsset = do
     liftIO . runResourceT $ connect source sinkLazy
   liftIO $ respBody @?= "Hello World"
 
-testStreamAssetNotAvailable :: TestM ()
+testStreamAssetNotAvailable :: HasCallStack => App ()
 testStreamAssetNotAvailable = do
   uid <- liftIO $ Id <$> nextRandom
   token <- randToken
@@ -216,7 +187,7 @@ testStreamAssetNotAvailable = do
     Wai.code err @?= HTTP.notFound404
     Wai.label err @?= "not-found"
 
-testStreamAssetWrongToken :: TestM ()
+testStreamAssetWrongToken :: HasCallStack => App ()
 testStreamAssetWrongToken = do
   -- Initial upload
   let bdy = (applicationOctetStream, "Hello World")

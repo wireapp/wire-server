@@ -17,15 +17,8 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module API (tests) where
+module Test.Cargohold.API where
 
-import API.Util
-import Bilge hiding (body)
-import Bilge.Assert
-import CargoHold.API.Error
-import CargoHold.Options (aws, s3DownloadEndpoint)
-import CargoHold.Types
-import qualified CargoHold.Types.V3 as V3
 import qualified Codec.MIME.Type as MIME
 import Control.Exception (throw)
 import Control.Lens hiding (sets, (.=))
@@ -33,60 +26,23 @@ import qualified Data.Aeson as Aeson
 import Data.ByteString.Builder
 import qualified Data.ByteString.Char8 as C8
 import Data.ByteString.Conversion
-import Data.Domain
-import Data.Id
-import Data.Qualified
 import qualified Data.Text.Encoding.Error as Text
 import qualified Data.Text.Lazy.Encoding as LText
 import Data.Time.Clock
 import Data.Time.Format
 import Data.UUID.V4
-import Federator.MockServer
-import Imports hiding (head)
 import Network.HTTP.Client (parseUrlThrow)
 import qualified Network.HTTP.Client as HTTP
-import Network.HTTP.Media ((//))
 import qualified Network.HTTP.Types as HTTP
-import Network.Wai.Utilities (Error (label))
-import qualified Network.Wai.Utilities.Error as Wai
-import Test.Tasty
-import Test.Tasty.HUnit
-import TestSetup
-import Util.Options
-import Wire.API.Federation.API.Cargohold
-import Wire.API.Federation.Component
-
-tests :: IO TestSetup -> TestTree
-tests s =
-  testGroup
-    "API Integration"
-    [ testGroup
-        "simple"
-        [ test s "roundtrip" testSimpleRoundtrip,
-          test s "download with accept header" testDownloadWithAcceptHeader,
-          test s "tokens" testSimpleTokens,
-          test s "s3-upstream-closed" testSimpleS3ClosedConnectionReuse,
-          test s "client-compatibility" testUploadCompatibility,
-          test s "download url override" testDownloadURLOverride
-        ],
-      testGroup
-        "remote"
-        [ test s "remote download wrong domain" testRemoteDownloadWrongDomain,
-          test s "remote download no asset" testRemoteDownloadNoAsset,
-          test s "federator failure on remote download" testRemoteDownloadFederationFailure,
-          test s "remote download" (testRemoteDownload "asset content"),
-          test s "large remote download" $
-            testRemoteDownload
-              ( toLazyByteString
-                  (mconcat (replicate 20000 (byteString "hello world\n")))
-              )
-        ]
-    ]
+import Data.Vector.Internal.Check (HasCallStack)
+import Testlib.Types
+import qualified Wire.API.Asset as V3
+import Testlib.Prelude
 
 --------------------------------------------------------------------------------
 -- Simple (single-step) uploads
 
-testSimpleRoundtrip :: TestM ()
+testSimpleRoundtrip :: HasCallStack => App ()
 testSimpleRoundtrip = do
   let def = V3.defAssetSettings
   let rets = [minBound ..]
@@ -131,7 +87,7 @@ testSimpleRoundtrip = do
       let utc' = parseTimeOrError False defaultTimeLocale rfc822DateFormat date' :: UTCTime
       liftIO $ assertBool "bad date" (utc' >= utc)
 
-testDownloadWithAcceptHeader :: TestM ()
+testDownloadWithAcceptHeader :: HasCallStack => App ()
 testDownloadWithAcceptHeader = do
   assetId <- liftIO $ Id <$> nextRandom
   uid <- liftIO $ Id <$> nextRandom
@@ -141,7 +97,7 @@ testDownloadWithAcceptHeader = do
   downloadAssetWith (header "Accept" "image/jpeg") uid qkey ()
     !!! const 404 === statusCode
 
-testSimpleTokens :: TestM ()
+testSimpleTokens :: HasCallStack => App ()
 testSimpleTokens = do
   uid <- randomUser
   uid2 <- liftIO $ Id <$> nextRandom
@@ -212,7 +168,7 @@ testSimpleTokens = do
 -- S3 closes idle connections after ~5 seconds, before the http-client 'Manager'
 -- does. If such a closed connection is reused for an upload, no problems should
 -- occur (i.e. the closed connection should be detected before sending any data).
-testSimpleS3ClosedConnectionReuse :: TestM ()
+testSimpleS3ClosedConnectionReuse :: HasCallStack => App ()
 testSimpleS3ClosedConnectionReuse = go >> wait >> go
   where
     wait = liftIO $ putStrLn "Waiting for S3 idle timeout ..." >> threadDelay 7000000
@@ -223,7 +179,7 @@ testSimpleS3ClosedConnectionReuse = go >> wait >> go
       uploadSimple (path "/assets/v3") uid sets part2
         !!! const 201 === statusCode
 
-testDownloadURLOverride :: TestM ()
+testDownloadURLOverride :: HasCallStack => App ()
 testDownloadURLOverride = do
   -- This is a .example domain, it shouldn't resolve. But it is also not
   -- supposed to be used by cargohold to make connections.
@@ -261,7 +217,7 @@ testDownloadURLOverride = do
 --
 -- The body is taken directly from a request made by the web app
 -- (just replaced the content with a shorter one and updated the MD5 header).
-testUploadCompatibility :: TestM ()
+testUploadCompatibility :: HasCallStack => App ()
 testUploadCompatibility = do
   uid <- randomUser
   -- Initial upload
@@ -281,8 +237,8 @@ testUploadCompatibility = do
     assertEqual "user mismatch" uid (decodeHeaderOrFail "x-amz-meta-user" r3)
     assertEqual "data mismatch" (Just "test") (responseBody r3)
   where
-    exampleMultipart :: LByteString
-    exampleMultipart =
+    exampleMultipart :: a
+    exampleMultipart = cs
       "--FrontierIyj6RcVrqMcxNtMEWPsNpuPm325QsvWQ\r\n\
       \Content-Type: application/json;charset=utf-8\r\n\
       \Content-length: 37\r\n\
@@ -300,7 +256,7 @@ testUploadCompatibility = do
 --------------------------------------------------------------------------------
 -- Federation behaviour
 
-testRemoteDownloadWrongDomain :: TestM ()
+testRemoteDownloadWrongDomain :: HasCallStack => App ()
 testRemoteDownloadWrongDomain = do
   assetId <- liftIO $ Id <$> nextRandom
   uid <- liftIO $ Id <$> nextRandom
@@ -310,7 +266,7 @@ testRemoteDownloadWrongDomain = do
   downloadAsset uid qkey () !!! do
     const 422 === statusCode
 
-testRemoteDownloadNoAsset :: TestM ()
+testRemoteDownloadNoAsset :: HasCallStack => App ()
 testRemoteDownloadNoAsset = do
   assetId <- liftIO $ Id <$> nextRandom
   uid <- liftIO $ Id <$> nextRandom
@@ -340,7 +296,7 @@ testRemoteDownloadNoAsset = do
               }
           ]
 
-testRemoteDownloadFederationFailure :: TestM ()
+testRemoteDownloadFederationFailure :: HasCallStack => App ()
 testRemoteDownloadFederationFailure = do
   assetId <- liftIO $ Id <$> nextRandom
   uid <- liftIO $ Id <$> nextRandom
@@ -359,8 +315,14 @@ testRemoteDownloadFederationFailure = do
     Wai.label resp @?= "mock-error"
     Wai.message resp @?= "mock error"
 
-testRemoteDownload :: LByteString -> TestM ()
-testRemoteDownload assetContent = do
+testRemoteDownloadShort :: HasCallStack => App ()
+testRemoteDownloadShort = remoteDownload "asset content"
+
+testRemoteDownloadLong :: HasCallStack => App ()
+testRemoteDownloadLong = remoteDownload $ toLazyByteString $ mconcat $ replicate 20000 $ byteString "hello world\n"
+
+remoteDownload :: HasCallStack => LByteString -> App ()
+remoteDownload assetContent = do
   assetId <- liftIO $ Id <$> nextRandom
   uid <- liftIO $ Id <$> nextRandom
 

@@ -1,30 +1,15 @@
 {-# OPTIONS_GHC -Wno-unused-do-bind #-}
 
-module App (tests) where
+module Test.Cargohold.App where
 
-import CargoHold.App (newEnv)
-import CargoHold.CloudFront
-import CargoHold.Options as Opts
 import Control.Exception
 import Control.Lens
 import Data.ByteString.Conversion
 import qualified Data.Map as Map
 import qualified Data.Text as T
-import Imports
-import Test.Tasty
-import Test.Tasty.HUnit
-import TestSetup
-import Util.Options
+import Testlib.Prelude
 
-tests :: IO TestSetup -> TestTree
-tests s =
-  testGroup
-    "Configuration sanity checks"
-    [ test s "multiIngress and cloudFront cannot be combined" testMultiIngressCloudFrontFails,
-      test s "multiIngress and s3DownloadEndpoint cannot be combined" testMultiIngressS3DownloadEndpointFails
-    ]
-
-testMultiIngressCloudFrontFails :: TestM ()
+testMultiIngressCloudFrontFails :: HasCallStack => App ()
 testMultiIngressCloudFrontFails = do
   ts <- ask
   let opts =
@@ -58,7 +43,7 @@ multiIngressMap =
 toAWSEndpoint :: ByteString -> AWSEndpoint
 toAWSEndpoint = fromJust . fromByteString
 
-testMultiIngressS3DownloadEndpointFails :: TestM ()
+testMultiIngressS3DownloadEndpointFails :: HasCallStack => App  ()
 testMultiIngressS3DownloadEndpointFails = do
   ts <- ask
   let opts =
