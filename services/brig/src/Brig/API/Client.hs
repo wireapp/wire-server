@@ -86,6 +86,7 @@ import Data.Map.Strict qualified as Map
 import Data.Misc (PlainTextPassword6)
 import Data.Qualified
 import Data.Set qualified as Set
+import Debug.Trace (traceM)
 import Imports
 import Network.HTTP.Types.Method (StdMethod)
 import Network.Wai.Utilities
@@ -500,6 +501,7 @@ createAccessToken luid cid method link proof = do
   httpsUrl <- do
     let urlBs = "https://" <> toByteString' domain <> "/" <> cs (toUrlPiece link)
     maybe (throwE MisconfiguredRequestUrl) pure $ fromByteString $ urlBs
+  traceM $ "httpsUrl: " <> show httpsUrl
   maxSkewSeconds <- Opt.setDpopMaxSkewSecs <$> view settings
   expiresIn <- Opt.setDpopTokenExpirationTimeSecs <$> view settings
   now <- fromUTCTime <$> lift (liftSem Now.get)
