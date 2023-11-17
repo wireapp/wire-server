@@ -21,7 +21,7 @@ spec:
             value:  "/certs/ca.pem"
         volumeMounts:
           - name: cassandra-cert
-            mountPath: "/certs/ca.pem"
+            mountPath: "/certs"
       volumes:
         - name: cassandra-cert
           secret:
