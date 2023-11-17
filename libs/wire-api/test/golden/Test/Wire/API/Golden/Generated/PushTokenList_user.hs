@@ -19,7 +19,7 @@
 
 module Test.Wire.API.Golden.Generated.PushTokenList_user where
 
-import Data.Id (ClientId (ClientId, client))
+import Data.Id
 import Wire.API.Push.Token
   ( AppName (AppName, appNameText),
     PushTokenList (..),
@@ -32,7 +32,7 @@ testObject_PushTokenList_user_1 :: PushTokenList
 testObject_PushTokenList_user_1 =
   PushTokenList
     { pushTokens =
-        [ pushToken GCM (AppName {appNameText = "p\DELU2r"}) (Token {tokenText = "MK8p\f"}) (ClientId {client = "4"})
+        [ pushToken GCM (AppName {appNameText = "p\DELU2r"}) (Token {tokenText = "MK8p\f"}) (ClientId 4)
         ]
     }
 

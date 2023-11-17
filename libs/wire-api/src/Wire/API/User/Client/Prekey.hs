@@ -34,14 +34,13 @@ where
 
 import Crypto.Hash (SHA256, hash)
 import Data.Aeson (FromJSON (..), ToJSON (..))
+import Data.Bits
 import Data.ByteArray (convert)
 import Data.ByteString qualified as BS
-import Data.ByteString.Conversion (toByteString')
 import Data.Id
 import Data.OpenApi qualified as S
 import Data.Schema
-import Data.Text.Ascii (encodeBase16)
-import Data.Text.Encoding (decodeUtf8, encodeUtf8)
+import Data.Text.Encoding (encodeUtf8)
 import Imports
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
@@ -67,12 +66,16 @@ instance ToSchema Prekey where
         <$> prekeyId .= field "id" schema
         <*> prekeyKey .= field "key" schema
 
+-- | Construct a new client ID from a prekey.
+--
+-- This works by taking the SHA256 hash of the prekey, truncating it to its
+-- first 8 bytes, and interpreting the resulting bytestring as a big endian
+-- Word64.
 clientIdFromPrekey :: Prekey -> ClientId
 clientIdFromPrekey =
   ClientId
-    . decodeUtf8
-    . toByteString'
-    . encodeBase16
+    . foldl' (\w d -> (w `shiftL` 8) .|. fromIntegral d) 0
+    . BS.unpack
     . BS.take 8
     . convert
     . hash @ByteString @SHA256

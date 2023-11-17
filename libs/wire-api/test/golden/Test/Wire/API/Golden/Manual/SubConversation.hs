@@ -83,4 +83,4 @@ testObject_PublicSubConversation_2 =
         ( Id (fromJust (UUID.fromString "00000000-0000-0007-0000-000a00000002"))
         )
         domain
-    cid = ClientId "deadbeef"
+    cid = ClientId 0xdeadbeef

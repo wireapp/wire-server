@@ -19,7 +19,7 @@
 
 module Test.Wire.API.Golden.Generated.Client_user where
 
-import Data.Id (ClientId (ClientId, client))
+import Data.Id
 import Data.Json.Util
 import Data.Map qualified as Map
 import Data.Misc
@@ -32,7 +32,7 @@ import Wire.API.User.Client
 testObject_Client_user_1 :: Client
 testObject_Client_user_1 =
   Client
-    { clientId = ClientId {client = "2"},
+    { clientId = ClientId 2,
       clientType = PermanentClientType,
       clientTime = fromJust (readUTCTimeMillis "1864-05-06T19:39:12.770Z"),
       clientClass = Just DesktopClient,
@@ -48,7 +48,7 @@ testObject_Client_user_1 =
 testObject_Client_user_2 :: Client
 testObject_Client_user_2 =
   Client
-    { clientId = ClientId {client = "1"},
+    { clientId = ClientId 1,
       clientType = LegalHoldClientType,
       clientTime = fromJust (readUTCTimeMillis "1864-05-07T08:48:22.537Z"),
       clientClass = Nothing,
@@ -64,7 +64,7 @@ testObject_Client_user_2 =
 testObject_Client_user_3 :: Client
 testObject_Client_user_3 =
   Client
-    { clientId = ClientId {client = "1"},
+    { clientId = ClientId 1,
       clientType = TemporaryClientType,
       clientTime = fromJust (readUTCTimeMillis "1864-05-07T00:38:22.384Z"),
       clientClass = Just LegalHoldClient,
@@ -80,7 +80,7 @@ testObject_Client_user_3 =
 testObject_Client_user_4 :: Client
 testObject_Client_user_4 =
   Client
-    { clientId = ClientId {client = "3"},
+    { clientId = ClientId 3,
       clientType = PermanentClientType,
       clientTime = fromJust (readUTCTimeMillis "1864-05-06T09:13:45.902Z"),
       clientClass = Just LegalHoldClient,
@@ -96,7 +96,7 @@ testObject_Client_user_4 =
 testObject_Client_user_5 :: Client
 testObject_Client_user_5 =
   Client
-    { clientId = ClientId {client = "0"},
+    { clientId = ClientId 0,
       clientType = TemporaryClientType,
       clientTime = fromJust (readUTCTimeMillis "1864-05-07T09:07:14.559Z"),
       clientClass = Just DesktopClient,
@@ -112,7 +112,7 @@ testObject_Client_user_5 =
 testObject_Client_user_6 :: Client
 testObject_Client_user_6 =
   Client
-    { clientId = ClientId {client = "4"},
+    { clientId = ClientId 4,
       clientType = PermanentClientType,
       clientTime = fromJust (readUTCTimeMillis "1864-05-08T22:37:53.030Z"),
       clientClass = Just TabletClient,
@@ -128,7 +128,7 @@ testObject_Client_user_6 =
 testObject_Client_user_7 :: Client
 testObject_Client_user_7 =
   Client
-    { clientId = ClientId {client = "4"},
+    { clientId = ClientId 4,
       clientType = PermanentClientType,
       clientTime = fromJust (readUTCTimeMillis "1864-05-07T04:35:34.201Z"),
       clientClass = Just PhoneClient,
@@ -144,7 +144,7 @@ testObject_Client_user_7 =
 testObject_Client_user_8 :: Client
 testObject_Client_user_8 =
   Client
-    { clientId = ClientId {client = "4"},
+    { clientId = ClientId 4,
       clientType = LegalHoldClientType,
       clientTime = fromJust (readUTCTimeMillis "1864-05-11T06:32:01.921Z"),
       clientClass = Just PhoneClient,
@@ -160,7 +160,7 @@ testObject_Client_user_8 =
 testObject_Client_user_9 :: Client
 testObject_Client_user_9 =
   Client
-    { clientId = ClientId {client = "1"},
+    { clientId = ClientId 1,
       clientType = LegalHoldClientType,
       clientTime = fromJust (readUTCTimeMillis "1864-05-08T03:54:56.526Z"),
       clientClass = Just LegalHoldClient,
@@ -176,7 +176,7 @@ testObject_Client_user_9 =
 testObject_Client_user_10 :: Client
 testObject_Client_user_10 =
   Client
-    { clientId = ClientId {client = "0"},
+    { clientId = ClientId 0,
       clientType = PermanentClientType,
       clientTime = fromJust (readUTCTimeMillis "1864-05-10T18:42:04.137Z"),
       clientClass = Nothing,
@@ -192,7 +192,7 @@ testObject_Client_user_10 =
 testObject_Client_user_11 :: Client
 testObject_Client_user_11 =
   Client
-    { clientId = ClientId {client = "3"},
+    { clientId = ClientId 3,
       clientType = TemporaryClientType,
       clientTime = fromJust (readUTCTimeMillis "1864-05-08T11:57:08.087Z"),
       clientClass = Just LegalHoldClient,
@@ -208,7 +208,7 @@ testObject_Client_user_11 =
 testObject_Client_user_12 :: Client
 testObject_Client_user_12 =
   Client
-    { clientId = ClientId {client = "2"},
+    { clientId = ClientId 2,
       clientType = PermanentClientType,
       clientTime = fromJust (readUTCTimeMillis "1864-05-08T18:44:00.378Z"),
       clientClass = Nothing,
@@ -224,7 +224,7 @@ testObject_Client_user_12 =
 testObject_Client_user_13 :: Client
 testObject_Client_user_13 =
   Client
-    { clientId = ClientId {client = "2"},
+    { clientId = ClientId 2,
       clientType = PermanentClientType,
       clientTime = fromJust (readUTCTimeMillis "1864-05-07T01:09:04.597Z"),
       clientClass = Just PhoneClient,
@@ -240,7 +240,7 @@ testObject_Client_user_13 =
 testObject_Client_user_14 :: Client
 testObject_Client_user_14 =
   Client
-    { clientId = ClientId {client = "2"},
+    { clientId = ClientId 2,
       clientType = TemporaryClientType,
       clientTime = fromJust (readUTCTimeMillis "1864-05-12T11:00:10.449Z"),
       clientClass = Just TabletClient,
@@ -256,7 +256,7 @@ testObject_Client_user_14 =
 testObject_Client_user_15 :: Client
 testObject_Client_user_15 =
   Client
-    { clientId = ClientId {client = "3"},
+    { clientId = ClientId 3,
       clientType = TemporaryClientType,
       clientTime = fromJust (readUTCTimeMillis "1864-05-08T11:28:27.778Z"),
       clientClass = Nothing,
@@ -272,7 +272,7 @@ testObject_Client_user_15 =
 testObject_Client_user_16 :: Client
 testObject_Client_user_16 =
   Client
-    { clientId = ClientId {client = "2"},
+    { clientId = ClientId 2,
       clientType = TemporaryClientType,
       clientTime = fromJust (readUTCTimeMillis "1864-05-12T11:31:10.072Z"),
       clientClass = Just LegalHoldClient,
@@ -288,7 +288,7 @@ testObject_Client_user_16 =
 testObject_Client_user_17 :: Client
 testObject_Client_user_17 =
   Client
-    { clientId = ClientId {client = "4"},
+    { clientId = ClientId 4,
       clientType = TemporaryClientType,
       clientTime = fromJust (readUTCTimeMillis "1864-05-12T02:25:34.770Z"),
       clientClass = Just DesktopClient,
@@ -304,7 +304,7 @@ testObject_Client_user_17 =
 testObject_Client_user_18 :: Client
 testObject_Client_user_18 =
   Client
-    { clientId = ClientId {client = "1"},
+    { clientId = ClientId 1,
       clientType = TemporaryClientType,
       clientTime = fromJust (readUTCTimeMillis "1864-05-07T17:21:05.930Z"),
       clientClass = Just LegalHoldClient,
@@ -320,7 +320,7 @@ testObject_Client_user_18 =
 testObject_Client_user_19 :: Client
 testObject_Client_user_19 =
   Client
-    { clientId = ClientId {client = "2"},
+    { clientId = ClientId 2,
       clientType = PermanentClientType,
       clientTime = fromJust (readUTCTimeMillis "1864-05-12T07:49:27.999Z"),
       clientClass = Just DesktopClient,
@@ -336,7 +336,7 @@ testObject_Client_user_19 =
 testObject_Client_user_20 :: Client
 testObject_Client_user_20 =
   Client
-    { clientId = ClientId {client = "1"},
+    { clientId = ClientId 1,
       clientType = LegalHoldClientType,
       clientTime = fromJust (readUTCTimeMillis "1864-05-06T18:43:52.483Z"),
       clientClass = Just PhoneClient,

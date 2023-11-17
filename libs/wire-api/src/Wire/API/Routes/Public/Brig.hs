@@ -684,9 +684,8 @@ type PrekeyAPI =
     :<|> Named
            "get-multi-user-prekey-bundle-unqualified"
            ( Summary
-               "(deprecated)  Given a map of user IDs to client IDs return a \
-               \prekey for each one. You can't request information for more users than \
-               \maximum conversation size."
+               "(deprecated)  Given a map of user IDs to client IDs return a prekey for each one."
+               :> Description "You can't request information for more users than maximum conversation size."
                :> Until 'V2
                :> ZUser
                :> "users"
@@ -697,9 +696,8 @@ type PrekeyAPI =
     :<|> Named
            "get-multi-user-prekey-bundle-qualified@v3"
            ( Summary
-               "Given a map of domain to (map of user IDs to client IDs) return a \
-               \prekey for each one. You can't request information for more users than \
-               \maximum conversation size."
+               "(deprecated)  Given a map of user IDs to client IDs return a prekey for each one."
+               :> Description "You can't request information for more users than maximum conversation size."
                :> MakesFederatedCall 'Brig "claim-multi-prekey-bundle"
                :> ZUser
                :> Until 'V4
@@ -711,9 +709,8 @@ type PrekeyAPI =
     :<|> Named
            "get-multi-user-prekey-bundle-qualified"
            ( Summary
-               "Given a map of domain to (map of user IDs to client IDs) return a \
-               \prekey for each one. You can't request information for more users than \
-               \maximum conversation size."
+               "(deprecated)  Given a map of user IDs to client IDs return a prekey for each one."
+               :> Description "You can't request information for more users than maximum conversation size."
                :> MakesFederatedCall 'Brig "claim-multi-prekey-bundle"
                :> ZUser
                :> From 'V4
@@ -1570,10 +1567,10 @@ type TeamsAPI =
            )
     :<|> Named
            "get-team-size"
-           ( Summary
-               "Returns the number of team members as an integer.  \
-               \Can be out of sync by roughly the `refresh_interval` \
-               \of the ES index."
+           ( Summary "Get the number of team members as an integer"
+               :> Description
+                    "Can be out of sync by roughly the `refresh_interval` \
+                    \of the ES index."
                :> CanThrow 'InvalidInvitationCode
                :> ZUser
                :> "teams"

@@ -91,7 +91,8 @@ let
   attrsets = lib.attrsets;
 
   pinnedPackages = import ./haskell-pins.nix {
-    fetchgit = pkgs.fetchgit;
+    inherit pkgs;
+    inherit (pkgs) fetchgit;
     inherit lib;
   };
 
@@ -140,7 +141,7 @@ let
       bench
     ];
   manualOverrides = import ./manual-overrides.nix (with pkgs; {
-    inherit hlib libsodium protobuf mls-test-cli fetchpatch;
+    inherit hlib libsodium protobuf mls-test-cli fetchpatch pkgs;
   });
 
   executables = hself: hsuper:
@@ -153,7 +154,7 @@ let
       )
       executablesMap;
 
-  hPkgs = localMods@{ enableOptimization, enableDocs, enableTests }: pkgs.haskell.packages.ghc92.override {
+  hPkgs = localMods@{ enableOptimization, enableDocs, enableTests }: pkgs.haskell.packages.ghc94.override {
     overrides = lib.composeManyExtensions [
       pinnedPackages
       (localPackages localMods)
@@ -389,16 +390,7 @@ let
     };
   };
 
-  # FIXME: when upgrading the ghc version, we
-  # should have to upgrade ormolu to support
-  # the new parser and get rid of these (then unnecessary)
-  # overrides
-  inherit (pkgs.haskell.packages.ghc92.override {
-    overrides = hfinal: hprev: {
-      ormolu = hfinal.ormolu_0_5_0_1;
-      ghc-lib-parser = hprev.ghc-lib-parser_9_2_8_20230729;
-    };
-  }) ormolu;
+  ormolu = pkgs.haskell.packages.ghc94.ormolu_0_5_2_0;
 
   # Tools common between CI and developers
   commonTools = [
@@ -410,13 +402,12 @@ let
     pkgs.kubernetes-helm
     pkgs.helmfile
     pkgs.hlint
-    (hlib.justStaticExecutables pkgs.haskellPackages.apply-refact)
     pkgs.jq
     pkgs.kubectl
     pkgs.kubelogin-oidc
     pkgs.nixpkgs-fmt
     pkgs.openssl
-    ormolu
+    (hlib.justStaticExecutables ormolu)
     pkgs.shellcheck
     pkgs.treefmt
     pkgs.gawk
@@ -470,7 +461,6 @@ let
   };
 in
 {
-
   inherit ciImage hoogleImage;
 
   images = images localModsEnableAll;
@@ -486,15 +476,17 @@ in
 
   devEnv = pkgs.buildEnv {
     name = "wire-server-dev-env";
+    ignoreCollisions = true;
     paths = commonTools ++ [
       pkgs.bash
       pkgs.crate2nix
       pkgs.dash
-      (pkgs.haskell-language-server.override { supportedGhcVersions = [ "92" ]; })
+      (pkgs.haskell-language-server.override { supportedGhcVersions = [ "94" ]; })
       pkgs.ghcid
       pkgs.kind
       pkgs.netcat
       pkgs.niv
+      (hlib.justStaticExecutables pkgs.haskellPackages.apply-refact)
       (pkgs.python3.withPackages
         (ps: with ps; [
           black
@@ -530,7 +522,6 @@ in
   inherit brig-templates;
   haskellPackages = hPkgs localModsEnableAll;
   haskellPackagesUnoptimizedNoDocs = hPkgs localModsOnlyTests;
-
   allLocalPackages = pkgs.symlinkJoin {
     name = "all-local-packages";
     paths = map (e: (hPkgs localModsEnableAll).${e}) wireServerPackages;

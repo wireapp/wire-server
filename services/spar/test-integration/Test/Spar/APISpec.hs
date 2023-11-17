@@ -1463,7 +1463,7 @@ specAux = do
                         . header "Z-User" (toByteString' $ if tryowner then owner else newmember)
                         . expect2xx
                     )
-              parsedResp <- either (error . show) pure $ selfUser <$> Intra.parseResponse @SelfProfile "brig" rawResp
+              parsedResp <- either (error . show) (pure . selfUser) (Intra.parseResponse @SelfProfile "brig" rawResp)
               liftIO $ userTeam parsedResp `shouldSatisfy` isJust
           permses :: [Permissions]
           permses =

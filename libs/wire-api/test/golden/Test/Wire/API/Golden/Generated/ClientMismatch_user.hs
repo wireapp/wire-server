@@ -19,7 +19,7 @@
 
 module Test.Wire.API.Golden.Generated.ClientMismatch_user where
 
-import Data.Id (ClientId (ClientId, client), Id (Id))
+import Data.Id
 import Data.Json.Util (toUTCTimeMillis)
 import Data.UUID qualified as UUID (fromString)
 import GHC.Exts (IsList (fromList))
@@ -34,7 +34,7 @@ testObject_ClientMismatch_user_1 =
         { userClients =
             fromList
               [ ( Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000002")),
-                  fromList [ClientId {client = "0"}, ClientId {client = "1"}]
+                  fromList [ClientId 0, ClientId 1]
                 ),
                 ( Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000200000000")),
                   fromList []
@@ -47,10 +47,10 @@ testObject_ClientMismatch_user_1 =
         { userClients =
             fromList
               [ ( Id (fromJust (UUID.fromString "00000004-0000-0004-0000-000700000000")),
-                  fromList [ClientId {client = "0"}, ClientId {client = "1"}]
+                  fromList [ClientId 0, ClientId 1]
                 ),
                 ( Id (fromJust (UUID.fromString "00000005-0000-0000-0000-000600000008")),
-                  fromList [ClientId {client = "0"}, ClientId {client = "1"}]
+                  fromList [ClientId 0, ClientId 1]
                 )
               ]
         }

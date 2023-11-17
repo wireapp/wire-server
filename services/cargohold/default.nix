@@ -18,7 +18,7 @@
 , conduit
 , conduit-extra
 , containers
-, cryptonite
+, crypton
 , data-default
 , errors
 , exceptions
@@ -93,7 +93,7 @@ mkDerivation {
     conduit
     conduit-extra
     containers
-    cryptonite
+    crypton
     data-default
     errors
     exceptions
@@ -141,7 +141,7 @@ mkDerivation {
     cargohold-types
     conduit
     containers
-    cryptonite
+    crypton
     federator
     HsOpenSSL
     http-api-data

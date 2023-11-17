@@ -962,7 +962,7 @@ somePrekeys =
 
 -- | The client ID of the first of 'someLastPrekeys'
 someClientId :: ClientId
-someClientId = ClientId "1dbfbe22c8a35cb2"
+someClientId = ClientId 0x1dbfbe22c8a35cb2
 
 someLastPrekeys :: [LastPrekey]
 someLastPrekeys =

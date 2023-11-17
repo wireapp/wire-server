@@ -381,7 +381,7 @@ send n pp =
     check r =
       r
         { Http.checkResponse = \rq rs ->
-            when (responseStatus rs `notElem` [status200, status410]) $
+            unless (responseStatus rs `elem` [status200, status410]) $
               let ex = StatusCodeException (rs {responseBody = ()}) mempty
                in throwM $ HttpExceptionRequest rq ex
         }

@@ -675,7 +675,7 @@ addBot zuid zcon cid add = do
   bid <- BotId <$> randomId
   domain <- viewFederationDomain
   btk <- Text.decodeLatin1 . toByteString' <$> ZAuth.newBotToken pid bid cid
-  let bcl = newClientId (fromIntegral (hash bid))
+  let bcl = ClientId (fromIntegral (hash bid))
   -- Ask the external service to create a bot
   let zQualifiedUid = Qualified zuid domain
   let origmem = OtherMember zQualifiedUid Nothing roleNameWireAdmin

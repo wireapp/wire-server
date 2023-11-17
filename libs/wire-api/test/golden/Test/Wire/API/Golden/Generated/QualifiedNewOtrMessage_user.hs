@@ -30,7 +30,7 @@ import Wire.API.User.Client
 testObject_QualifiedNewOtrMessage_user_1 :: QualifiedNewOtrMessage
 testObject_QualifiedNewOtrMessage_user_1 =
   QualifiedNewOtrMessage
-    { qualifiedNewOtrSender = ClientId {client = "2"},
+    { qualifiedNewOtrSender = ClientId 2,
       qualifiedNewOtrRecipients =
         QualifiedOtrRecipients
           { qualifiedOtrRecipientsMap =
@@ -76,7 +76,7 @@ testObject_QualifiedNewOtrMessage_user_1 =
 testObject_QualifiedNewOtrMessage_user_2 :: QualifiedNewOtrMessage
 testObject_QualifiedNewOtrMessage_user_2 =
   QualifiedNewOtrMessage
-    { qualifiedNewOtrSender = ClientId {client = "7"},
+    { qualifiedNewOtrSender = ClientId 7,
       qualifiedNewOtrRecipients =
         QualifiedOtrRecipients {qualifiedOtrRecipientsMap = QualifiedUserClientMap Map.empty},
       qualifiedNewOtrNativePush = True,
@@ -89,7 +89,7 @@ testObject_QualifiedNewOtrMessage_user_2 =
 testObject_QualifiedNewOtrMessage_user_3 :: QualifiedNewOtrMessage
 testObject_QualifiedNewOtrMessage_user_3 =
   QualifiedNewOtrMessage
-    { qualifiedNewOtrSender = ClientId {client = "5"},
+    { qualifiedNewOtrSender = ClientId 5,
       qualifiedNewOtrRecipients =
         QualifiedOtrRecipients {qualifiedOtrRecipientsMap = QualifiedUserClientMap Map.empty},
       qualifiedNewOtrNativePush = True,
@@ -102,7 +102,7 @@ testObject_QualifiedNewOtrMessage_user_3 =
 testObject_QualifiedNewOtrMessage_user_4 :: QualifiedNewOtrMessage
 testObject_QualifiedNewOtrMessage_user_4 =
   QualifiedNewOtrMessage
-    { qualifiedNewOtrSender = ClientId {client = "7"},
+    { qualifiedNewOtrSender = ClientId 7,
       qualifiedNewOtrRecipients =
         QualifiedOtrRecipients {qualifiedOtrRecipientsMap = QualifiedUserClientMap Map.empty},
       qualifiedNewOtrNativePush = True,
@@ -115,7 +115,7 @@ testObject_QualifiedNewOtrMessage_user_4 =
 testObject_QualifiedNewOtrMessage_user_5 :: QualifiedNewOtrMessage
 testObject_QualifiedNewOtrMessage_user_5 =
   QualifiedNewOtrMessage
-    { qualifiedNewOtrSender = ClientId {client = "0"},
+    { qualifiedNewOtrSender = ClientId 0,
       qualifiedNewOtrRecipients =
         QualifiedOtrRecipients
           { qualifiedOtrRecipientsMap =
@@ -124,7 +124,7 @@ testObject_QualifiedNewOtrMessage_user_5 =
                     [ ( Domain "74.w-5v9",
                         Map.fromList
                           [ ( Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000400000004")),
-                              Map.fromList [(ClientId {client = "7"}, "\229")]
+                              Map.fromList [(ClientId 7, "\229")]
                             )
                           ]
                       )
@@ -149,7 +149,7 @@ testObject_QualifiedNewOtrMessage_user_5 =
 testObject_QualifiedNewOtrMessage_user_6 :: QualifiedNewOtrMessage
 testObject_QualifiedNewOtrMessage_user_6 =
   QualifiedNewOtrMessage
-    { qualifiedNewOtrSender = ClientId {client = "3"},
+    { qualifiedNewOtrSender = ClientId 3,
       qualifiedNewOtrRecipients =
         QualifiedOtrRecipients {qualifiedOtrRecipientsMap = QualifiedUserClientMap Map.empty},
       qualifiedNewOtrNativePush = False,
@@ -162,7 +162,7 @@ testObject_QualifiedNewOtrMessage_user_6 =
 testObject_QualifiedNewOtrMessage_user_7 :: QualifiedNewOtrMessage
 testObject_QualifiedNewOtrMessage_user_7 =
   QualifiedNewOtrMessage
-    { qualifiedNewOtrSender = ClientId {client = "1"},
+    { qualifiedNewOtrSender = ClientId 1,
       qualifiedNewOtrRecipients =
         QualifiedOtrRecipients
           { qualifiedOtrRecipientsMap =
@@ -171,7 +171,7 @@ testObject_QualifiedNewOtrMessage_user_7 =
                     [ ( Domain "9mns-s.ww-ph5oy",
                         Map.fromList
                           [ ( Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000100000001")),
-                              Map.fromList [(ClientId {client = "0"}, ""), (ClientId {client = "1"}, "")]
+                              Map.fromList [(ClientId 0, ""), (ClientId 1, "")]
                             ),
                             (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000")), Map.empty)
                           ]
@@ -189,7 +189,7 @@ testObject_QualifiedNewOtrMessage_user_7 =
 testObject_QualifiedNewOtrMessage_user_8 :: QualifiedNewOtrMessage
 testObject_QualifiedNewOtrMessage_user_8 =
   QualifiedNewOtrMessage
-    { qualifiedNewOtrSender = ClientId {client = "4"},
+    { qualifiedNewOtrSender = ClientId 4,
       qualifiedNewOtrRecipients =
         QualifiedOtrRecipients
           { qualifiedOtrRecipientsMap = QualifiedUserClientMap (Map.fromList [(Domain "cg7t2.rf-2", Map.empty)])
@@ -204,7 +204,7 @@ testObject_QualifiedNewOtrMessage_user_8 =
 testObject_QualifiedNewOtrMessage_user_9 :: QualifiedNewOtrMessage
 testObject_QualifiedNewOtrMessage_user_9 =
   QualifiedNewOtrMessage
-    { qualifiedNewOtrSender = ClientId {client = "5"},
+    { qualifiedNewOtrSender = ClientId 5,
       qualifiedNewOtrRecipients =
         QualifiedOtrRecipients
           { qualifiedOtrRecipientsMap =
@@ -229,7 +229,7 @@ testObject_QualifiedNewOtrMessage_user_9 =
 testObject_QualifiedNewOtrMessage_user_10 :: QualifiedNewOtrMessage
 testObject_QualifiedNewOtrMessage_user_10 =
   QualifiedNewOtrMessage
-    { qualifiedNewOtrSender = ClientId {client = "8"},
+    { qualifiedNewOtrSender = ClientId 8,
       qualifiedNewOtrRecipients =
         QualifiedOtrRecipients
           { qualifiedOtrRecipientsMap =
@@ -254,7 +254,7 @@ testObject_QualifiedNewOtrMessage_user_10 =
 testObject_QualifiedNewOtrMessage_user_11 :: QualifiedNewOtrMessage
 testObject_QualifiedNewOtrMessage_user_11 =
   QualifiedNewOtrMessage
-    { qualifiedNewOtrSender = ClientId {client = "7"},
+    { qualifiedNewOtrSender = ClientId 7,
       qualifiedNewOtrRecipients =
         QualifiedOtrRecipients {qualifiedOtrRecipientsMap = QualifiedUserClientMap Map.empty},
       qualifiedNewOtrNativePush = False,
@@ -277,7 +277,7 @@ testObject_QualifiedNewOtrMessage_user_11 =
 testObject_QualifiedNewOtrMessage_user_12 :: QualifiedNewOtrMessage
 testObject_QualifiedNewOtrMessage_user_12 =
   QualifiedNewOtrMessage
-    { qualifiedNewOtrSender = ClientId {client = "6"},
+    { qualifiedNewOtrSender = ClientId 6,
       qualifiedNewOtrRecipients =
         QualifiedOtrRecipients {qualifiedOtrRecipientsMap = QualifiedUserClientMap Map.empty},
       qualifiedNewOtrNativePush = False,
@@ -301,7 +301,7 @@ testObject_QualifiedNewOtrMessage_user_12 =
 testObject_QualifiedNewOtrMessage_user_13 :: QualifiedNewOtrMessage
 testObject_QualifiedNewOtrMessage_user_13 =
   QualifiedNewOtrMessage
-    { qualifiedNewOtrSender = ClientId {client = "8"},
+    { qualifiedNewOtrSender = ClientId 8,
       qualifiedNewOtrRecipients =
         QualifiedOtrRecipients
           { qualifiedOtrRecipientsMap =
@@ -332,7 +332,7 @@ testObject_QualifiedNewOtrMessage_user_13 =
 testObject_QualifiedNewOtrMessage_user_14 :: QualifiedNewOtrMessage
 testObject_QualifiedNewOtrMessage_user_14 =
   QualifiedNewOtrMessage
-    { qualifiedNewOtrSender = ClientId {client = "0"},
+    { qualifiedNewOtrSender = ClientId 0,
       qualifiedNewOtrRecipients =
         QualifiedOtrRecipients {qualifiedOtrRecipientsMap = QualifiedUserClientMap Map.empty},
       qualifiedNewOtrNativePush = True,
@@ -345,7 +345,7 @@ testObject_QualifiedNewOtrMessage_user_14 =
 testObject_QualifiedNewOtrMessage_user_15 :: QualifiedNewOtrMessage
 testObject_QualifiedNewOtrMessage_user_15 =
   QualifiedNewOtrMessage
-    { qualifiedNewOtrSender = ClientId {client = "2"},
+    { qualifiedNewOtrSender = ClientId 2,
       qualifiedNewOtrRecipients =
         QualifiedOtrRecipients
           { qualifiedOtrRecipientsMap =
@@ -354,7 +354,7 @@ testObject_QualifiedNewOtrMessage_user_15 =
                     [ ( Domain "32-d.o0t410.de1kn",
                         Map.fromList
                           [ ( Id (fromJust (UUID.fromString "00000000-0000-0004-0000-000400000002")),
-                              Map.fromList [(ClientId {client = "1"}, "")]
+                              Map.fromList [(ClientId 1, "")]
                             )
                           ]
                       )
@@ -371,7 +371,7 @@ testObject_QualifiedNewOtrMessage_user_15 =
 testObject_QualifiedNewOtrMessage_user_16 :: QualifiedNewOtrMessage
 testObject_QualifiedNewOtrMessage_user_16 =
   QualifiedNewOtrMessage
-    { qualifiedNewOtrSender = ClientId {client = "1"},
+    { qualifiedNewOtrSender = ClientId 1,
       qualifiedNewOtrRecipients =
         QualifiedOtrRecipients
           { qualifiedOtrRecipientsMap =
@@ -404,7 +404,7 @@ testObject_QualifiedNewOtrMessage_user_16 =
 testObject_QualifiedNewOtrMessage_user_17 :: QualifiedNewOtrMessage
 testObject_QualifiedNewOtrMessage_user_17 =
   QualifiedNewOtrMessage
-    { qualifiedNewOtrSender = ClientId {client = "8"},
+    { qualifiedNewOtrSender = ClientId 8,
       qualifiedNewOtrRecipients =
         QualifiedOtrRecipients {qualifiedOtrRecipientsMap = QualifiedUserClientMap Map.empty},
       qualifiedNewOtrNativePush = True,
@@ -424,7 +424,7 @@ testObject_QualifiedNewOtrMessage_user_17 =
 testObject_QualifiedNewOtrMessage_user_18 :: QualifiedNewOtrMessage
 testObject_QualifiedNewOtrMessage_user_18 =
   QualifiedNewOtrMessage
-    { qualifiedNewOtrSender = ClientId {client = "7"},
+    { qualifiedNewOtrSender = ClientId 7,
       qualifiedNewOtrRecipients =
         QualifiedOtrRecipients
           { qualifiedOtrRecipientsMap =
@@ -451,7 +451,7 @@ testObject_QualifiedNewOtrMessage_user_18 =
 testObject_QualifiedNewOtrMessage_user_19 :: QualifiedNewOtrMessage
 testObject_QualifiedNewOtrMessage_user_19 =
   QualifiedNewOtrMessage
-    { qualifiedNewOtrSender = ClientId {client = "0"},
+    { qualifiedNewOtrSender = ClientId 0,
       qualifiedNewOtrRecipients =
         QualifiedOtrRecipients
           { qualifiedOtrRecipientsMap =
@@ -461,7 +461,7 @@ testObject_QualifiedNewOtrMessage_user_19 =
                       ( Domain "8hhm.a-77q6",
                         Map.fromList
                           [ ( Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000100000000")),
-                              Map.fromList [(ClientId {client = "0"}, ""), (ClientId {client = "1"}, "")]
+                              Map.fromList [(ClientId 0, ""), (ClientId 1, "")]
                             )
                           ]
                       )
@@ -485,7 +485,7 @@ testObject_QualifiedNewOtrMessage_user_19 =
 testObject_QualifiedNewOtrMessage_user_20 :: QualifiedNewOtrMessage
 testObject_QualifiedNewOtrMessage_user_20 =
   QualifiedNewOtrMessage
-    { qualifiedNewOtrSender = ClientId {client = "5"},
+    { qualifiedNewOtrSender = ClientId 5,
       qualifiedNewOtrRecipients =
         QualifiedOtrRecipients
           { qualifiedOtrRecipientsMap =

@@ -62,6 +62,8 @@ module Data.Misc
 
     -- * Typesafe FUTUREWORKS
     FutureWork (..),
+    from64,
+    readT,
   )
 where
 
@@ -329,7 +331,7 @@ instance ToSchema (Fingerprint Rsa) where
       p :: Chars.Parser (Fingerprint Rsa)
       p = do
         bs <- parser
-        either fail pure (Fingerprint <$> B64.decode bs)
+        either fail (pure . Fingerprint) (B64.decode bs)
 
 instance Cql (Fingerprint a) where
   ctype = Tagged BlobColumn
@@ -397,3 +399,17 @@ instance (KnownNat (n :: Nat), Within Text n 1024) => Arbitrary (PlainTextPasswo
 -- >>> let (FutureWork @'LegalholdPlusFederationNotImplemented -> _remoteUsers, localUsers)
 -- >>>      = partitionQualified domain qualifiedUids
 newtype FutureWork label payload = FutureWork payload
+
+-------------------------------------------------------------------------------
+
+-- | Same as 'read' but works on 'Text'
+readT :: Read a => Text -> Maybe a
+readT = readMaybe . Text.unpack
+{-# INLINE readT #-}
+
+-- | Decodes a base64 'Text' to a regular 'ByteString' (if possible)
+from64 :: Text -> Maybe ByteString
+from64 = hush . B64.decode . encodeUtf8
+  where
+    hush = either (const Nothing) Just
+{-# INLINE from64 #-}

@@ -1,4 +1,4 @@
-{ libsodium, protobuf, hlib, mls-test-cli, fetchpatch }:
+{ libsodium, protobuf, hlib, mls-test-cli, fetchpatch, ... }:
 # FUTUREWORK: Figure out a way to detect if some of these packages are not
 # actually marked broken, so we can cleanup this file on every nixpkgs bump.
 hself: hsuper: {
@@ -10,7 +10,12 @@ hself: hsuper: {
     url = "https://gitlab.com/twittner/cql/-/merge_requests/11.patch";
     sha256 = "sha256-qfcCRkKjSS1TEqPRVBU9Ox2DjsdGsYG/F3DrZ5JGoEI=";
   });
+  ghc-source-gen = hlib.markUnbroken (hlib.doJailbreak hsuper.ghc-source-gen);
+  proto-lens-protoc = hlib.doJailbreak hsuper.proto-lens-protoc;
+  proto-lens-setup = hlib.doJailbreak hsuper.proto-lens-setup;
   hashtables = hsuper.hashtables_1_3;
+  # in case everything breaks with the hashable update, use this 
+  # hashable = hsuper.callHackage "hashable" "1.4.2.0" {};
   invertible = hlib.markUnbroken hsuper.invertible;
   lens-datetime = hlib.markUnbroken (hlib.doJailbreak hsuper.lens-datetime);
   monoidal-containers = hlib.doJailbreak hsuper.monoidal-containers;
@@ -33,14 +38,20 @@ hself: hsuper: {
   sodium-crypto-sign = hlib.addPkgconfigDepend hsuper.sodium-crypto-sign libsodium.dev;
   text-icu-translit = hlib.markUnbroken (hlib.dontCheck hsuper.text-icu-translit);
   text-short = hlib.dontCheck hsuper.text-short;
-  template = hlib.markUnbroken hsuper.template;
+  template = hlib.markUnbroken (hlib.doJailbreak hsuper.template);
   type-errors = hlib.dontCheck hsuper.type-errors;
   th-abstraction = hsuper.th-abstraction_0_5_0_0;
   th-desugar = hlib.doJailbreak hsuper.th-desugar;
   wai-middleware-prometheus = hlib.doJailbreak hsuper.wai-middleware-prometheus;
   wai-predicates = hlib.markUnbroken hsuper.wai-predicates;
-
+  # transitive-anns has flaky tests
+  transitive-anns = hlib.dontCheck hsuper.transitive-anns;
   http2-manager = hlib.enableCabalFlag hsuper.http2-manager "-f-test-trailing-dot";
+
+  crypton-connection = hlib.markUnbroken hsuper.crypton-connection;
+  # Patched dependency on crypton-connection
+  HaskellNet-SSL = hsuper.HaskellNet-SSL;
+  warp = hlib.dontCheck hsuper.warp;
 
   # PR with fix: https://github.com/freckle/hspec-junit-formatter/pull/23
   hspec-junit-formatter = hlib.markUnbroken (hlib.dontCheck hsuper.hspec-junit-formatter);
@@ -56,6 +67,7 @@ hself: hsuper: {
   # Explicitly enable haddock because cabal2nix disables it for packages with
   # internal libraries
   cql-io = hlib.doHaddock (hlib.dontCheck hsuper.cql-io);
+  amqp = hlib.dontCheck hsuper.amqp;
 
   # Needs network access to running ES
   # also the test suite doesn't compile https://github.com/NixOS/nixpkgs/pull/167957

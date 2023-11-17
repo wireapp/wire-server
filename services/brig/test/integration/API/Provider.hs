@@ -43,7 +43,7 @@ import Data.ByteString.Lazy.Char8 qualified as LC8
 import Data.Domain
 import Data.Handle (Handle (Handle))
 import Data.HashMap.Strict qualified as HashMap
-import Data.Id hiding (client)
+import Data.Id
 import Data.Json.Util (toBase64Text)
 import Data.List1 (List1)
 import Data.List1 qualified as List1

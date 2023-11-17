@@ -838,7 +838,9 @@ assertExternalIdInAllowedValues allowedValues errmsg tid uauthid = do
   urefGood <-
     maybe
       (pure True)
-      (\uref -> lift $ getUserByUrefUnsafe uref <&> (`elem` allowedValues) . fmap userId)
+      _ -- alternatives:
+      -- (\uref -> lift $ getUserByUrefUnsafe uref <&> (`elem` allowedValues) . fmap userId)
+      -- (fmap ((`elem` allowedValues) . fmap userId) . getUserByUrefUnsafe)
       (uaSamlId uauthid)
 
   eidGood <-

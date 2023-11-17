@@ -115,7 +115,7 @@ testObject_Event_conversation_6 =
       evtSubConv = Nothing,
       evtFrom = Qualified {qUnqualified = Id (fromJust (UUID.fromString "2126ea99-ca79-43ea-ad99-a59616468e8e")), qDomain = Domain {_domainText = "8.0-6.t7pxv"}},
       evtTime = UTCTime {utctDay = ModifiedJulianDay 58119, utctDayTime = 0},
-      evtData = EdOtrMessage (OtrMessage {otrSender = ClientId {client = "1"}, otrRecipient = ClientId {client = "1"}, otrCiphertext = "", otrData = Just "I\68655"})
+      evtData = EdOtrMessage (OtrMessage {otrSender = ClientId 1, otrRecipient = ClientId 1, otrCiphertext = "", otrData = Just "I\68655"})
     }
 
 testObject_Event_conversation_7 :: Event
@@ -125,7 +125,7 @@ testObject_Event_conversation_7 =
       evtSubConv = Nothing,
       evtFrom = Qualified {qUnqualified = Id (fromJust (UUID.fromString "2126ea99-ca79-43ea-ad99-a59616468e8e")), qDomain = Domain {_domainText = "64b3--h.u"}},
       evtTime = UTCTime {utctDay = ModifiedJulianDay 58119, utctDayTime = 0},
-      evtData = EdOtrMessage (OtrMessage {otrSender = ClientId {client = "3"}, otrRecipient = ClientId {client = "3"}, otrCiphertext = "%\SI", otrData = Nothing})
+      evtData = EdOtrMessage (OtrMessage {otrSender = ClientId 3, otrRecipient = ClientId 3, otrCiphertext = "%\SI", otrData = Nothing})
     }
 
 testObject_Event_conversation_8 :: Event

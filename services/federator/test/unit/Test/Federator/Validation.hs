@@ -62,9 +62,9 @@ scaffoldingFederationDomainConfigs :: FederationDomainConfigs
 scaffoldingFederationDomainConfigs =
   FederationDomainConfigs
     AllowDynamic
-    [ FederationDomainConfig (Domain "foo.example.com") FullSearch,
-      FederationDomainConfig (Domain "example.com") FullSearch,
-      FederationDomainConfig (Domain "federator.example.com") FullSearch
+    [ FederationDomainConfig (Domain "foo.example.com") FullSearch FederationRestrictionAllowAll,
+      FederationDomainConfig (Domain "example.com") FullSearch FederationRestrictionAllowAll,
+      FederationDomainConfig (Domain "federator.example.com") FullSearch FederationRestrictionAllowAll
     ]
     10
 
@@ -100,7 +100,7 @@ federateWithAllowListSuccess =
     runM
       . assertNoError @ValidationError
       . runInputConst settings
-      . runInputConst (FederationDomainConfigs AllowDynamic [FederationDomainConfig (Domain "hello.world") FullSearch] 0)
+      . runInputConst (FederationDomainConfigs AllowDynamic [FederationDomainConfig (Domain "hello.world") FullSearch FederationRestrictionAllowAll] 0)
       $ ensureCanFederateWith (Domain "hello.world")
 
 federateWithAllowListFail :: TestTree
@@ -111,7 +111,7 @@ federateWithAllowListFail =
       runM
         . runError @ValidationError
         . runInputConst settings
-        . runInputConst (FederationDomainConfigs AllowDynamic [FederationDomainConfig (Domain "only.other.domain") FullSearch] 0)
+        . runInputConst (FederationDomainConfigs AllowDynamic [FederationDomainConfig (Domain "only.other.domain") FullSearch FederationRestrictionAllowAll] 0)
         $ ensureCanFederateWith (Domain "hello.world")
     assertBool "federating should not be allowed" (isLeft eith)
 
@@ -129,7 +129,7 @@ validateDomainAllowListFail =
         . assertNoError @DiscoveryFailure
         . mockDiscoveryTrivial
         . runInputConst settings
-        . runInputConst (FederationDomainConfigs AllowDynamic [FederationDomainConfig (Domain "only.other.domain") FullSearch] 0)
+        . runInputConst (FederationDomainConfigs AllowDynamic [FederationDomainConfig (Domain "only.other.domain") FullSearch FederationRestrictionAllowAll] 0)
         $ validateDomain exampleCert (Domain "localhost.example.com")
     res @?= Left (FederationDenied (Domain "localhost.example.com"))
 
@@ -147,7 +147,7 @@ validateDomainAllowListSuccess =
         . assertNoError @DiscoveryFailure
         . mockDiscoveryTrivial
         . runInputConst settings
-        . runInputConst (FederationDomainConfigs AllowDynamic [FederationDomainConfig domain FullSearch] 0)
+        . runInputConst (FederationDomainConfigs AllowDynamic [FederationDomainConfig domain FullSearch FederationRestrictionAllowAll] 0)
         $ validateDomain exampleCert domain
     assertEqual "validateDomain should give 'localhost.example.com' as domain" domain res
 

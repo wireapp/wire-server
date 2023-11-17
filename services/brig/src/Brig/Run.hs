@@ -197,16 +197,18 @@ pendingActivationCleanup = do
             )
 
       API.deleteUsersNoVerify $
-        catMaybes
-          ( uids <&> \(isExpired, isPendingInvitation, uid) ->
+        mapMaybe
+          ( \(isExpired, isPendingInvitation, uid) ->
               if isExpired && isPendingInvitation then Just uid else Nothing
           )
+          uids
 
       liftSem . UsersPendingActivationStore.removeMultiple $
-        catMaybes
-          ( uids <&> \(isExpired, _isPendingInvitation, uid) ->
+        mapMaybe
+          ( \(isExpired, _isPendingInvitation, uid) ->
               if isExpired then Just uid else Nothing
           )
+          uids
 
     threadDelayRandom
   where

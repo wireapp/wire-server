@@ -296,6 +296,7 @@ instance HasOpt doc => FieldFunctor doc Maybe where
 
 -- | A schema for a one-field JSON object.
 field ::
+  forall doc' doc a b.
   HasField doc' doc =>
   Text ->
   SchemaP doc' A.Value A.Value a b ->
@@ -304,6 +305,7 @@ field = fieldOver id
 
 -- | A schema for a JSON object with a single optional field.
 optField ::
+  forall doc doc' a b.
   (HasOpt doc, HasField doc' doc) =>
   Text ->
   SchemaP doc' A.Value A.Value a b ->
@@ -312,6 +314,7 @@ optField = fieldF
 
 -- | Generalization of 'optField' with 'FieldFunctor'.
 fieldF ::
+  forall doc' doc f a b.
   (HasField doc' doc, FieldFunctor doc f) =>
   Text ->
   SchemaP doc' A.Value A.Value a b ->
@@ -362,32 +365,35 @@ fieldOver l name = fmap runIdentity . fieldOverF l name
 -- | Like 'field', but apply an arbitrary function to the
 -- documentation of the field.
 fieldWithDocModifier ::
+  forall doc' doc a b.
   HasField doc' doc =>
   Text ->
   (doc' -> doc') ->
   SchemaP doc' A.Value A.Value a b ->
   SchemaP doc A.Object [A.Pair] a b
-fieldWithDocModifier name modify sch = field name (over doc modify sch)
+fieldWithDocModifier name modify sch = field @doc' @doc name (over doc modify sch)
 
 -- | Like 'optField', but apply an arbitrary function to the
 -- documentation of the field.
 optFieldWithDocModifier ::
+  forall doc doc' a b.
   (HasOpt doc, HasField doc' doc) =>
   Text ->
   (doc' -> doc') ->
   SchemaP doc' A.Value A.Value a b ->
   SchemaP doc A.Object [A.Pair] a (Maybe b)
-optFieldWithDocModifier name modify sch = optField name (over doc modify sch)
+optFieldWithDocModifier name modify sch = optField @doc @doc' name (over doc modify sch)
 
 -- | Like 'fieldF', but apply an arbitrary function to the
 -- documentation of the field.
 fieldWithDocModifierF ::
+  forall doc' doc f a b.
   (HasField doc' doc, FieldFunctor doc f) =>
   Text ->
   (doc' -> doc') ->
   SchemaP doc' A.Value A.Value a b ->
   SchemaP doc A.Object [A.Pair] a (f b)
-fieldWithDocModifierF name modify sch = fieldF name (over doc modify sch)
+fieldWithDocModifierF name modify sch = fieldF @doc' @doc name (over doc modify sch)
 
 -- | Change the input type of a schema.
 (.=) :: Profunctor p => (a -> a') -> p a' b -> p a b

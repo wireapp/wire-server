@@ -73,7 +73,7 @@ tests m opts brig cannon fedBrigClient =
         test m "POST /federation/get-user-by-handle : NotFound" (testGetUserByHandleNotFound opts),
         test m "POST /federation/get-users-by-ids : 200 all found" (testGetUsersByIdsSuccess brig fedBrigClient),
         test m "POST /federation/get-users-by-ids : 200 partially found" (testGetUsersByIdsPartial brig fedBrigClient),
-        test m "POST /federation/get-users-by-ids : 200 none found" (testGetUsersByIdsNoneFound fedBrigClient),
+        test m "POST /federation/get-users-by-ids : 200 none found" (testGetUsersByIdsFederationRestrictionAllowAllFound fedBrigClient),
         test m "POST /federation/claim-prekey : 200" (testClaimPrekeySuccess brig fedBrigClient),
         test m "POST /federation/claim-prekey-bundle : 200" (testClaimPrekeyBundleSuccess brig fedBrigClient),
         test m "POST /federation/claim-multi-prekey-bundle : 200" (testClaimMultiPrekeyBundleSuccess brig fedBrigClient),
@@ -85,7 +85,7 @@ tests m opts brig cannon fedBrigClient =
 
 allowFullSearch :: Domain -> Opt.Opts -> Opt.Opts
 allowFullSearch domain opts =
-  opts & Opt.optionSettings . Opt.federationDomainConfigs ?~ [FD.FederationDomainConfig domain FullSearch]
+  opts & Opt.optionSettings . Opt.federationDomainConfigs ?~ [Opt.ImplicitNoFederationRestriction $ FD.FederationDomainConfig domain FullSearch FederationRestrictionAllowAll]
 
 testSearchSuccess :: Opt.Opts -> Brig -> Http ()
 testSearchSuccess opts brig = do
@@ -184,9 +184,9 @@ testSearchRestrictions opts brig = do
   let opts' =
         opts
           & Opt.optionSettings . Opt.federationDomainConfigs
-            ?~ [ FD.FederationDomainConfig domainNoSearch NoSearch,
-                 FD.FederationDomainConfig domainExactHandle ExactHandleSearch,
-                 FD.FederationDomainConfig domainFullSearch FullSearch
+            ?~ [ Opt.ImplicitNoFederationRestriction $ FD.FederationDomainConfig domainNoSearch NoSearch FederationRestrictionAllowAll,
+                 Opt.ImplicitNoFederationRestriction $ FD.FederationDomainConfig domainExactHandle ExactHandleSearch FederationRestrictionAllowAll,
+                 Opt.ImplicitNoFederationRestriction $ FD.FederationDomainConfig domainFullSearch FullSearch FederationRestrictionAllowAll
                ]
 
   let expectSearch :: HasCallStack => Domain -> Either Handle Name -> Maybe (Qualified UserId) -> FederatedUserSearchPolicy -> WaiTest.Session ()
@@ -228,9 +228,9 @@ testGetUserByHandleRestrictions opts brig = do
   let opts' =
         opts
           & Opt.optionSettings . Opt.federationDomainConfigs
-            ?~ [ FD.FederationDomainConfig domainNoSearch NoSearch,
-                 FD.FederationDomainConfig domainExactHandle ExactHandleSearch,
-                 FD.FederationDomainConfig domainFullSearch FullSearch
+            ?~ [ Opt.ImplicitNoFederationRestriction $ FD.FederationDomainConfig domainNoSearch NoSearch FederationRestrictionAllowAll,
+                 Opt.ImplicitNoFederationRestriction $ FD.FederationDomainConfig domainExactHandle ExactHandleSearch FederationRestrictionAllowAll,
+                 Opt.ImplicitNoFederationRestriction $ FD.FederationDomainConfig domainFullSearch FullSearch FederationRestrictionAllowAll
                ]
 
   let expectSearch domain expectedUser = do
@@ -298,8 +298,8 @@ testGetUsersByIdsPartial brig fedBrigClient = do
   liftIO $
     assertEqual "should return the present user and skip the absent ones" [userQualifiedId presentUser] (profileQualifiedId <$> profiles)
 
-testGetUsersByIdsNoneFound :: FedClient 'Brig -> Http ()
-testGetUsersByIdsNoneFound fedBrigClient = do
+testGetUsersByIdsFederationRestrictionAllowAllFound :: FedClient 'Brig -> Http ()
+testGetUsersByIdsFederationRestrictionAllowAllFound fedBrigClient = do
   absentUserId1 :: UserId <- Id <$> lift UUIDv4.nextRandom
   absentUserId2 :: UserId <- Id <$> lift UUIDv4.nextRandom
   profiles <- runFedClient @"get-users-by-ids" fedBrigClient (Domain "example.com") [absentUserId1, absentUserId2]

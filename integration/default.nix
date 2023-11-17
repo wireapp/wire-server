@@ -17,7 +17,7 @@
 , containers
 , cql
 , cql-io
-, cryptonite
+, crypton
 , data-default
 , data-timeout
 , deriving-aeson
@@ -90,7 +90,7 @@ mkDerivation {
     containers
     cql
     cql-io
-    cryptonite
+    crypton
     data-default
     data-timeout
     deriving-aeson

@@ -11,7 +11,7 @@ import Imports
 import Text.RawString.QQ
 
 migration :: Migration
-migration = Migration 81 "Support less insane recording of spar UAuthId* (formerly UserSSOId)" $ do
+migration = Migration 82 "Support less insane recording of spar UAuthId* (formerly UserSSOId)" $ do
   schema'
     [r| ALTER TABLE user ADD (
           saml_entity_id text, -- issuer from UserRef, stored in its xml encoding so we keep all data, can be null

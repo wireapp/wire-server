@@ -17,7 +17,7 @@
 , containers
 , cryptohash-md5
 , cryptohash-sha1
-, cryptonite
+, crypton
 , currency-codes
 , data-default
 , generic-random
@@ -73,7 +73,7 @@ mkDerivation {
     containers
     cryptohash-md5
     cryptohash-sha1
-    cryptonite
+    crypton
     currency-codes
     data-default
     generic-random

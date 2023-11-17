@@ -52,6 +52,7 @@ import Data.Qualified (Qualified (..))
 import Data.Range (unsafeRange)
 import Data.Set qualified as Set
 import Data.Text.Ascii (AsciiChars (validate), encodeBase64UrlUnpadded, toText)
+import Data.Text.Encoding qualified as T
 import Data.Time (addUTCTime)
 import Data.Time.Clock.POSIX
 import Data.UUID (toByteString)
@@ -478,7 +479,9 @@ testClientsWithoutPrekeys brig cannon db opts = do
       let ob = Object $ List1.head (ntfPayload n)
       ob ^? key "type" . _String
         @?= Just "user.client-remove"
-      fmap ClientId (ob ^? key "client" . key "id" . _String)
+      ( fromByteString . T.encodeUtf8
+          =<< (ob ^? key "client" . key "id" . _String)
+        )
         @?= Just (clientId c11)
 
   post
@@ -568,7 +571,7 @@ testClientsWithoutPrekeysV4 brig cannon db opts = do
       let ob = Object $ List1.head (ntfPayload n)
       ob ^? key "type" . _String
         @?= Just "user.client-remove"
-      fmap ClientId (ob ^? key "client" . key "id" . _String)
+      (fromByteString . T.encodeUtf8 =<< (ob ^? key "client" . key "id" . _String))
         @?= Just (clientId c11)
 
   post
@@ -670,7 +673,7 @@ testClientsWithoutPrekeysFailToListV4 brig cannon db opts = do
       let ob = Object $ List1.head (ntfPayload n)
       ob ^? key "type" . _String
         @?= Just "user.client-remove"
-      fmap ClientId (ob ^? key "client" . key "id" . _String)
+      (fromByteString . T.encodeUtf8 =<< (ob ^? key "client" . key "id" . _String))
         @?= Just (clientId c11)
 
   post
@@ -1015,7 +1018,7 @@ testRemoveClient hasPwd brig cannon = do
       let etype = j ^? key "type" . _String
       let eclient = j ^? key "client" . key "id" . _String
       etype @?= Just "user.client-remove"
-      fmap ClientId eclient @?= Just (clientId c)
+      (fromByteString . T.encodeUtf8 =<< eclient) @?= Just (clientId c)
   -- Not found on retry
   deleteClient brig uid (clientId c) Nothing !!! const 404 === statusCode
   -- Prekeys are gone
@@ -1334,7 +1337,7 @@ testAddMultipleTemporary brig galley cannon = do
       let etype = j ^? key "type" . _String
       let eclient = j ^? key "client" . key "id" . _String
       etype @?= Just "user.client-remove"
-      fmap ClientId eclient @?= Just (clientId client)
+      (fromByteString . T.encodeUtf8 =<< eclient) @?= Just (clientId client)
 
   galleyClients2 <- numOfGalleyClients uid
   liftIO $ assertEqual "Too many clients found" (Just 1) galleyClients2
