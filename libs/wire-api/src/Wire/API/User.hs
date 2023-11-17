@@ -68,7 +68,6 @@ module Wire.API.User
     newUserSSOId,
     isNewUserEphemeral,
     isNewUserTeamMember,
-    patchSampleNewUser,
 
     -- * NewUserOrigin
     NewUserOrigin (..),
@@ -1008,7 +1007,7 @@ errFromEither (Right e) = CreateUserSparRegistrationError e
 
 data NewUserSpar = NewUserSpar
   { newUserSparUUID :: UUID,
-    newUserSparSSOId :: PartialUAuthId,
+    newUserSparUAuthId :: PartialUAuthId,
     newUserSparDisplayName :: Name,
     newUserSparTeamId :: TeamId,
     newUserSparManagedBy :: ManagedBy,
@@ -1020,35 +1019,115 @@ data NewUserSpar = NewUserSpar
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema NewUserSpar)
 
+-- | This type is only for translating the deprecated `newUserSparSSOId` field into
+-- `newUserSparRawUAuthId`.  Once we're confident the former won't occur on the wire any more,
+-- this type can be removed.
+data NewUserSparRaw = NewUserSparRaw
+  { newUserSparRawUUID :: UUID,
+    newUserSparRawUAuthId :: Maybe PartialUAuthId,
+    newUserSparRawSSOId :: Maybe LegacyUserSSOId,
+    newUserSparRawDisplayName :: Name,
+    newUserSparRawTeamId :: TeamId,
+    newUserSparRawManagedBy :: ManagedBy,
+    newUserSparRawHandle :: Maybe Handle,
+    newUserSparRawRichInfo :: Maybe RichInfo,
+    newUserSparRawLocale :: Maybe Locale,
+    newUserSparRawRole :: Role
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema NewUserSparRaw)
+
 instance ToSchema NewUserSpar where
-  schema =
-    object "NewUserSpar" $
+  schema = object "NewUserSpar" $ newUserSparToRaw .= withParser newUserSparRawObjectSchema newUserSparFromRaw
+
+newUserSparRawObjectSchema :: ObjectSchema SwaggerDoc NewUserSparRaw
+newUserSparRawObjectSchema =
+  NewUserSparRaw
+    <$> newUserSparRawUUID
+      .= field "newUserSparUUID" genericToSchema
+    <*> newUserSparRawUAuthId
+      .= maybe_ (optField "newUserSparUAuthId" genericToSchema)
+    <*> newUserSparRawSSOId
+      .= maybe_ (optField "newUserSparSSOId" genericToSchema)
+    <*> newUserSparRawDisplayName
+      .= field "newUserSparDisplayName" schema
+    <*> newUserSparRawTeamId
+      .= field "newUserSparTeamId" schema
+    <*> newUserSparRawManagedBy
+      .= field "newUserSparManagedBy" schema
+    <*> newUserSparRawHandle
+      .= maybe_ (optField "newUserSparHandle" schema)
+    <*> newUserSparRawRichInfo
+      .= maybe_ (optField "newUserSparRichInfo" schema)
+    <*> newUserSparRawLocale
+      .= maybe_ (optField "newUserSparLocale" schema)
+    <*> newUserSparRawRole
+      .= field "newUserSparRole" schema
+
+instance ToSchema NewUserSparRaw where
+  schema = object "NewUserSparRaw" newUserSparRawObjectSchema
+
+newUserSparToRaw :: NewUserSpar -> NewUserSparRaw
+newUserSparToRaw
+  NewUserSpar
+    { newUserSparUUID,
+      newUserSparUAuthId,
+      newUserSparDisplayName,
+      newUserSparTeamId,
+      newUserSparManagedBy,
+      newUserSparHandle,
+      newUserSparRichInfo,
+      newUserSparLocale,
+      newUserSparRole
+    } =
+    NewUserSparRaw
+      newUserSparUUID
+      (Just newUserSparUAuthId)
+      Nothing
+      newUserSparDisplayName
+      newUserSparTeamId
+      newUserSparManagedBy
+      newUserSparHandle
+      newUserSparRichInfo
+      newUserSparLocale
+      newUserSparRole
+
+newUserSparFromRaw :: NewUserSparRaw -> A.Parser NewUserSpar
+newUserSparFromRaw
+  NewUserSparRaw
+    { newUserSparRawUUID,
+      newUserSparRawUAuthId,
+      newUserSparRawSSOId,
+      newUserSparRawDisplayName,
+      newUserSparRawTeamId,
+      newUserSparRawManagedBy,
+      newUserSparRawHandle,
+      newUserSparRawRichInfo,
+      newUserSparRawLocale,
+      newUserSparRawRole
+    } = do
+    ua <- case (newUserSparRawUAuthId, newUserSparRawSSOId) of
+      (Just ua, _) -> pure ua
+      (Nothing, Just old) -> pure $ legacyUserSSOIdToUAuthId old newUserSparRawTeamId newUserSparRawManagedBy Nothing
+      (Nothing, Nothing) -> fail "NewUserSpar: no UAuthId"
+    pure $
       NewUserSpar
-        <$> newUserSparUUID
-          .= field "newUserSparUUID" genericToSchema
-        <*> newUserSparSSOId
-          .= field "newUserSparSSOId" genericToSchema
-        <*> newUserSparDisplayName
-          .= field "newUserSparDisplayName" schema
-        <*> newUserSparTeamId
-          .= field "newUserSparTeamId" schema
-        <*> newUserSparManagedBy
-          .= field "newUserSparManagedBy" schema
-        <*> newUserSparHandle
-          .= maybe_ (optField "newUserSparHandle" schema)
-        <*> newUserSparRichInfo
-          .= maybe_ (optField "newUserSparRichInfo" schema)
-        <*> newUserSparLocale
-          .= maybe_ (optField "newUserSparLocale" schema)
-        <*> newUserSparRole
-          .= field "newUserSparRole" schema
+        newUserSparRawUUID
+        ua
+        newUserSparRawDisplayName
+        newUserSparRawTeamId
+        newUserSparRawManagedBy
+        newUserSparRawHandle
+        newUserSparRawRichInfo
+        newUserSparRawLocale
+        newUserSparRawRole
 
 newUserFromSpar :: NewUserSpar -> NewUser
 newUserFromSpar new =
   NewUser
     { newUserDisplayName = newUserSparDisplayName new,
       newUserUUID = Just $ newUserSparUUID new,
-      newUserIdentity = Just $ UAuthIdentity (newUserSparSSOId new) Nothing,
+      newUserIdentity = Just $ UAuthIdentity (newUserSparUAuthId new) Nothing,
       newUserPict = Nothing,
       newUserAssets = [],
       newUserAccentId = Nothing,
@@ -1301,12 +1380,6 @@ instance Arbitrary NewUser where
         if isTeamUser && not hasSSOId then Just <$> arbitrary else arbitrary
       genUserExpiresIn newUserIdentity =
         if isJust newUserIdentity then pure Nothing else arbitrary
-
--- | Sanitize output from quickcheck-generator so the result can always be parsed
--- successfully.  This is only for testing!  The result does not always make sense in the
--- application logic.
-patchSampleNewUser :: NewUser -> NewUser
-patchSampleNewUser = undefined
 
 newUserInvitationCode :: NewUser -> Maybe InvitationCode
 newUserInvitationCode nu = case newUserOrigin nu of

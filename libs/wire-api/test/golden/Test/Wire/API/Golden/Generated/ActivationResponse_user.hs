@@ -84,7 +84,7 @@ testObject_ActivationResponse_user_5 =
 testObject_ActivationResponse_user_6 :: ActivationResponse
 testObject_ActivationResponse_user_6 =
   ActivationResponse
-    { activatedIdentity = UAuthIdentity (UAuthId Nothing (Just sampleExtId) Nothing sampleTeamId) Nothing,
+    { activatedIdentity = UAuthIdentity (UAuthId Nothing (Just sampleExtId) (Just sampleEmail) sampleTeamId) Nothing,
       activatedFirst = False
     }
 
@@ -134,7 +134,7 @@ testObject_ActivationResponse_user_12 =
 testObject_ActivationResponse_user_14 :: ActivationResponse
 testObject_ActivationResponse_user_14 =
   ActivationResponse
-    { activatedIdentity = UAuthIdentity (UAuthId Nothing (Just "me") Nothing sampleTeamId) (Just sampleEmail2),
+    { activatedIdentity = UAuthIdentity (UAuthId Nothing (Just "me") (Just sampleEmail) sampleTeamId) (Just sampleEmail2),
       activatedFirst = False
     }
 

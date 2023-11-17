@@ -1,0 +1,5 @@
+[WIP]
+
+- useridentity has new field uauth_id that contains consistent and complete user-identifying info from spar.
+- related parsers has more error cases now.
+- managed_by is not a database field any more.

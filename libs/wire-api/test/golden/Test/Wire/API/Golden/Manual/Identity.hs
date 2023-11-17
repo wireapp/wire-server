@@ -59,7 +59,7 @@ sampleTeamId :: TeamId
 Right sampleTeamId = parseUrlPiece "579edcd0-6f1b-11ee-b49a-e770ab99392a"
 
 testObject_UAuthId_1 :: PartialUAuthId
-testObject_UAuthId_1 = UAuthId Nothing (Just sampleExtId) Nothing sampleTeamId
+testObject_UAuthId_1 = UAuthId Nothing (Just sampleExtId) (Just sampleEmail) sampleTeamId
 
 testObject_UAuthId_2 :: PartialUAuthId
 testObject_UAuthId_2 = UAuthId (Just sampleUref) Nothing Nothing sampleTeamId

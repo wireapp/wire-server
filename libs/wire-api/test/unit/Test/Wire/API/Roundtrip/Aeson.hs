@@ -426,11 +426,18 @@ coherenizeNewUser = fixUAuth >=> matchOrigin
         _ -> nu
 
 coherenizeUser :: User.User -> Gen User.User
-coherenizeUser = fixUAuth
+coherenizeUser = fixUAuth >=> matchTeam
   where
     fixUAuth u = do
       ua' <- mapM coherenizeUserIdentity (User.userIdentity u)
       pure u {User.userIdentity = ua'}
+
+    matchTeam u = pure $ do
+      case (User.userIdentity u, User.userTeam u) of
+        (Just (User.Identity.UAuthIdentity (User.Identity.UAuthId saml scim eml tid) mbemail), Just tid')
+          | tid /= tid' ->
+              u {User.userIdentity = Just (User.Identity.UAuthIdentity (User.Identity.UAuthId saml scim eml tid') mbemail)}
+        _ -> u
 
 coherenizeUserIdentity :: User.Identity.UserIdentity tf -> Gen (User.Identity.UserIdentity tf)
 coherenizeUserIdentity (User.Identity.UAuthIdentity ua eml) =
@@ -438,7 +445,9 @@ coherenizeUserIdentity (User.Identity.UAuthIdentity ua eml) =
 coherenizeUserIdentity u = pure u
 
 coherenizeUAuthId :: User.PartialUAuthId -> Gen User.PartialUAuthId
-coherenizeUAuthId = nonEmptyId >=> scimNeedsEmail
+coherenizeUAuthId =
+  nonEmptyId
+    >=> scimNeedsEmail
   where
     nonEmptyId (User.Identity.UAuthId Nothing Nothing eml tid) = do
       scim <- arbitrary
