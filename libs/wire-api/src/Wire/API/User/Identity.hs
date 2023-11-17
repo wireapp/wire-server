@@ -173,6 +173,10 @@ userIdentityComponentsObjectSchema =
            -- eg. EmailIdentity, we need to recover from failures here.  Bad news is that
            -- there won't be any parse errors even if legitimate, but I can't think of a good
            -- way to solve this.
+           --
+           -- TODO: write a test case that parses a User with differing team id in
+           -- UAuthIdentity, and expect the corresp. failure (not userIdentity = Nothing).
+           --
            maybe_ (optField "uauth_id" genericToSchema) <|> pure Nothing
          )
     <*> (\(_, _, _, a, _, _) -> a) .= maybe_ (optField "sso_id" genericToSchema)

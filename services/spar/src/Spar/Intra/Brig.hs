@@ -67,7 +67,6 @@ import Wire.API.User
 import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Auth.Sso
 import Wire.API.User.RichInfo as RichInfo
-import Wire.API.User.Scim (ValidExternalId (..), runValidExternalIdEither)
 
 ----------------------------------------------------------------------
 
@@ -106,7 +105,7 @@ createBrigUserSAML uref (Id buid) teamid name managedBy handle richInfo mLocale 
         NewUserSpar
           { newUserSparUUID = buid,
             newUserSparDisplayName = name,
-            newUserSparSSOId = UserSSOId uref,
+            newUserSparUAuthId = _,
             newUserSparTeamId = teamid,
             newUserSparManagedBy = managedBy,
             newUserSparHandle = handle,

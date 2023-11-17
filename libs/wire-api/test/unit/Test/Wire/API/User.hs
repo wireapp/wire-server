@@ -206,7 +206,8 @@ parseIdentityTests =
                          )
                        ]
                 uaid = UAuthId (Just uref3) (Just "<NameID xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" xmlns:samla=\"urn:oasis:names:tc:SAML:2.0:assertion\" xmlns:samlm=\"urn:oasis:names:tc:SAML:2.0:metadata\" xmlns:ds=\"http://www.w3.org/2000/09/xmldsig#\" Format=\"urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified\" xmlns=\"urn:oasis:names:tc:SAML:2.0:assertion\">nick</NameID>") (Just ews3) tid
-             in mkUAuthIdentityTestCase "7" jsonIn haskellIn jsonOut mbBrigEmail,
+             in -- TODO: ist scim_external_id wirklich so, wie es soll? und sso_id?  sollte das nicht *entweder oder* sein?
+                mkUAuthIdentityTestCase "7" jsonIn haskellIn jsonOut mbBrigEmail,
             -- {saml, eid, email, team}
             let jsonIn =
                   [ ( "uauth_id",
@@ -235,10 +236,21 @@ parseIdentityTests =
                                     }|]
                          )
                        ]
-             in mkUAuthIdentityTestCase "8" jsonIn haskellIn jsonOut mbBrigEmail,
-            testCase "..." $
-              error "ok, what else?"
-          ]
+             in mkUAuthIdentityTestCase "8" jsonIn haskellIn jsonOut mbBrigEmail
+          ],
+    testGroup
+      "translation: sso_id => uauth_id" -- this works like group "parse Identity: UAuthIdentity"
+      [ -- lsso: UserSSOId SAML.UserRef | UserScimExternalId Text
+        -- email: matching, not matching, none
+        -- mby: [minBound..]
+
+        -- enumerate cross product and call function that takes apart all the cases.  this way
+        -- we see that we've covered everything.
+
+        -- (mbemail, Nothing, Nothing, Just lsso, Just teamid, fromMaybe ManagedByWire -> mby) ->
+        -- Right $ UAuthIdentity (legacyUserSSOIdToUAuthId lsso teamid mby mbemail) mbemail
+        undefined
+      ]
   ]
   where
     -- render jsonIn into a UAuthId parser error.

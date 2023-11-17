@@ -689,6 +689,7 @@ data User = User
     userTeam :: Maybe TeamId,
     -- | How is the user profile managed (e.g. if it's via SCIM then the user profile
     -- can't be edited via normal means)
+    -- TODO: replace this with a function that inpsects UserIdentity!
     userManagedBy :: ManagedBy,
     userSupportedProtocols :: Set BaseProtocolTag
   }
