@@ -25,10 +25,10 @@ import Data.ByteString.Conversion
 import Data.ByteString.Lazy qualified as LBS
 import Data.ByteString.Lazy qualified as Lazy
 import Data.ByteString.Lazy.Char8 qualified as Lazy8
+import Data.CaseInsensitive
 import Data.String.Conversions
 import Data.Text qualified as T
-import Data.Text.Encoding (decodeLatin1)
-import Data.Text.Lazy.Encoding (encodeUtf8Builder)
+import Data.Text.Encoding (decodeLatin1, decodeUtf8, encodeUtf8Builder)
 import GHC.Stack
 import Network.HTTP.Client (Request (requestHeaders))
 import Network.HTTP.Client qualified as HTTP
@@ -41,8 +41,9 @@ uploadSimple ::
   settings ->
   (MIME.MIMEType, String) ->
   App Response
-uploadSimple usr sts (ct, bs) =
-  uploadRaw usr $ buildMultipartBody sts (Lazy8.pack bs) ct
+uploadSimple usr sts (ct, bs) = do
+  body <- buildMultipartBody sts (Lazy8.pack bs) ct
+  uploadRaw usr body
 
 decodeHeaderOrFail :: (HasCallStack, FromByteString a) => HeaderName -> Response -> a
 decodeHeaderOrFail h =
@@ -71,13 +72,13 @@ uploadRaw usr bs = do
       & (\r -> r {HTTP.requestBody = HTTP.RequestBodyLBS bs})
 
 getContentType :: Response -> Maybe MIME.Type
-getContentType = MIME.parseContentType . decodeLatin1 . getHeader' (cs "Content-Type")
+getContentType = MIME.parseContentType . decodeLatin1 . getHeader' (mk $ cs "Content-Type")
 
 applicationText :: MIME.Type
 applicationText = MIME.Type (MIME.Application $ cs "text") []
 
-applicationOctetStream :: MIME.Type
-applicationOctetStream = MIME.Type (MIME.Application $ cs "octet-stream") []
+applicationOctetStream :: MIME.MIMEType
+applicationOctetStream = MIME.Application $ cs "octet-stream"
 
 deleteAssetV3 :: (HasCallStack, MakesValue user, MakesValue key) => user -> key -> App Response
 deleteAssetV3 user key = do
@@ -92,15 +93,12 @@ deleteAsset user key = do
   req <- baseRequest user Cargohold Versioned $ "/assets/" <> d <> "/" <> show k
   submit "DELETE" req
 
-class IsAssetToken tok where
-  tokenParam :: tok -> HTTP.Request -> HTTP.Request
+tokenParam :: Maybe String -> Request -> Request
+tokenParam = maybe id (header "Asset-Token")
 
-instance IsAssetToken (Maybe String) where
-  tokenParam = maybe id (header "Asset-Token")
-
-header :: String -> Request -> Request
-header name req =
-  req {requestHeaders = (cs name, _) : requestHeaders req}
+header :: String -> String -> Request -> Request
+header name value req =
+  req {requestHeaders = (mk $ cs name, cs value) : requestHeaders req}
 
 downloadAssetWithAssetKey ::
   (HasCallStack, MakesValue user) =>
@@ -110,9 +108,7 @@ downloadAssetWithAssetKey ::
   App Response
 downloadAssetWithAssetKey r user tok = do
   req <- baseRequest user Cargohold (ExplicitVersion 1) $ "asserts/v3/" <> tok
-  submit "GET" $
-    req
-      & tokenParam tok
+  submit "GET" $ r $ req & tokenParam (pure tok)
 
 downloadAssetWithQualifiedAssetKey ::
   (HasCallStack, MakesValue tok, MakesValue user) =>
@@ -140,65 +136,70 @@ deleteToken user key = do
 
 -- | Build a complete @multipart/mixed@ request body for a one-shot,
 -- non-resumable asset upload.
-buildMultipartBody :: Value -> Lazy.ByteString -> MIME.MIMEType -> Lazy.ByteString
-buildMultipartBody header body bodyMimeType = toLazyByteString render
-  where
-    headerJson = Aeson.encode header
+buildMultipartBody :: (HasCallStack, MakesValue header) => header -> Lazy.ByteString -> MIME.MIMEType -> App Lazy.ByteString
+buildMultipartBody header' body bodyMimeType = do
+  h <- make header'
+  let headerJson = Aeson.encode h
 
-    render :: Builder
-    render = renderBody <> endMultipartBody
+      render :: Builder
+      render = renderBody <> endMultipartBody
 
-    endMultipartBody :: Builder
-    endMultipartBody = lineBreak <> boundary <> stringUtf8 "--" <> lineBreak
+      endMultipartBody :: Builder
+      endMultipartBody = lineBreak <> boundary <> stringUtf8 "--" <> lineBreak
 
-    renderBody :: Builder
-    renderBody = mconcat $ map renderPart multipartContent
+      renderBody :: Builder
+      renderBody = mconcat $ renderPart <$> multipartContent
 
-    renderPart :: MIME.MIMEValue -> Builder
-    renderPart v =
-      boundary
-        <> lineBreak
-        <> (contentType . MIME.mime_val_type) v
-        <> lineBreak
-        <> (headers . MIME.mime_val_headers) v
-        <> lineBreak
-        <> lineBreak
-        <> (content . MIME.mime_val_content) v
-        <> lineBreak
+      renderPart :: MIME.MIMEValue -> Builder
+      renderPart v =
+        boundary
+          <> lineBreak
+          <> (contentType . MIME.mime_val_type) v
+          <> lineBreak
+          <> (headers . MIME.mime_val_headers) v
+          <> lineBreak
+          <> lineBreak
+          <> (content . MIME.mime_val_content) v
+          <> lineBreak
 
-    boundary :: Builder
-    boundary = stringUtf8 "--" <> stringUtf8 multipartBoundary
+      boundary :: Builder
+      boundary = stringUtf8 "--" <> stringUtf8 multipartBoundary
 
-    lineBreak :: Builder
-    lineBreak = stringUtf8 "\r\n"
+      lineBreak :: Builder
+      lineBreak = stringUtf8 "\r\n"
 
-    contentType :: MIME.Type -> Builder
-    contentType t = stringUtf8 "Content-Type: " <> (encodeUtf8Builder . MIME.showType) t
+      contentType :: MIME.Type -> Builder
+      contentType t = stringUtf8 "Content-Type: " <> (encodeUtf8Builder . MIME.showType) t
 
-    headers :: [MIME.MIMEParam] -> Builder
-    headers [] = mempty
-    headers (x : xs) = renderHeader x <> headers xs
+      headers :: [MIME.MIMEParam] -> Builder
+      headers [] = mempty
+      headers (x : xs) = renderHeader x <> headers xs
 
-    renderHeader :: MIME.MIMEParam -> Builder
-    renderHeader p =
-      encodeUtf8Builder (MIME.paramName p)
-        <> stringUtf8 ": "
-        <> encodeUtf8Builder (MIME.paramValue p)
+      renderHeader :: MIME.MIMEParam -> Builder
+      renderHeader p =
+        encodeUtf8Builder (MIME.paramName p)
+          <> stringUtf8 ": "
+          <> encodeUtf8Builder (MIME.paramValue p)
 
-    content :: MIME.MIMEContent -> Builder
-    content (MIME.Single c) = encodeUtf8Builder c
-    content (MIME.Multi _) = error "Not implemented."
+      content :: MIME.MIMEContent -> Builder
+      content (MIME.Single c) = encodeUtf8Builder c
+      content (MIME.Multi _) = error "Not implemented."
 
-    multipartContent :: [MIME.MIMEValue]
-    multipartContent =
-      [ part (MIME.Application (T.pack "json")) headerJson,
-        part bodyMimeType body
-      ]
+      multipartContent :: [MIME.MIMEValue]
+      multipartContent =
+        [ part (MIME.Application (T.pack "json")) headerJson,
+          part bodyMimeType body
+        ]
 
-    part :: MIME.MIMEType -> Lazy.ByteString -> MIME.MIMEValue
-    part mtype c =
-      MIME.nullMIMEValue
-        { MIME.mime_val_type = MIME.Type mtype [],
-          MIME.mime_val_headers = [MIME.MIMEParam (T.pack "Content-Length") ((T.pack . show . LBS.length) c)],
-          MIME.mime_val_content = MIME.Single ((decodeUtf8 . LBS.toStrict) c)
-        }
+      part :: MIME.MIMEType -> Lazy.ByteString -> MIME.MIMEValue
+      part mtype c =
+        MIME.nullMIMEValue
+          { MIME.mime_val_type = MIME.Type mtype [],
+            MIME.mime_val_headers = [MIME.MIMEParam (T.pack "Content-Length") ((T.pack . show . LBS.length) c)],
+            MIME.mime_val_content = MIME.Single ((decodeUtf8 . LBS.toStrict) c)
+          }
+
+  pure $ toLazyByteString render
+
+multipartBoundary :: String
+multipartBoundary = "frontier"

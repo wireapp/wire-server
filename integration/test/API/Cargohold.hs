@@ -2,29 +2,27 @@ module API.Cargohold where
 
 import Codec.MIME.Type qualified as MIME
 import Data.Aeson qualified as Aeson
-import Data.ByteString.Builder
 import Data.ByteString.Lazy qualified as LBS
 import Data.ByteString.Lazy.Char8 qualified as LBSC
 import Data.Text qualified as T
-import Data.Text.Encoding
-import Data.Time.Clock
 import GHC.Stack
 import Network.HTTP.Client qualified as HTTP
 import Test.Cargohold.API.Util
 import Testlib.Prelude
+import UnliftIO (catch)
 
 type LByteString = LBS.ByteString
 
-uploadAssetV3 :: (HasCallStack, MakesValue user) => user -> Bool -> Maybe NominalDiffTime -> MIME.MIMEType -> LByteString -> App Response
+uploadAssetV3 :: (HasCallStack, MakesValue user, MakesValue assetRetention) => user -> Bool -> assetRetention -> MIME.MIMEType -> LByteString -> App Response
 uploadAssetV3 user isPublic retention mimeType bdy = do
   uid <- user & objId
   req <- baseRequest user Cargohold (ExplicitVersion 1) "/assets/v3"
+  body <- buildUploadAssetRequestBody isPublic retention bdy mimeType
   submit "POST" $
     req
       & zUser uid
       & addBody body multipartMixedMime
   where
-    body = buildUploadAssetRequestBody isPublic retention bdy mimeType
     multipartMixedMime :: String
     multipartMixedMime = "multipart/mixed; boundary=" <> multipartBoundary
 
@@ -32,16 +30,17 @@ uploadAsset :: (HasCallStack, MakesValue user) => user -> App Response
 uploadAsset user = do
   uid <- user & objId
   req <- baseRequest user Cargohold Versioned "/assets"
+  bdy <- txtAsset
   submit "POST" $
     req
       & zUser uid
-      & addBody txtAsset multipartMixedMime
+      & addBody bdy multipartMixedMime
   where
-    txtAsset :: HTTP.RequestBody
+    txtAsset :: HasCallStack => App HTTP.RequestBody
     txtAsset =
       buildUploadAssetRequestBody
         True
-        Nothing
+        (Nothing :: Maybe String)
         (LBSC.pack "Hello World!")
         textPlainMime
 
@@ -56,28 +55,31 @@ uploadAsset user = do
 mimeTypeToString :: MIME.MIMEType -> String
 mimeTypeToString = T.unpack . MIME.showMIMEType
 
-buildUploadAssetRequestBody :: Bool -> Maybe NominalDiffTime -> LByteString -> MIME.MIMEType -> HTTP.RequestBody
-buildUploadAssetRequestBody isPublic mbRetention body mimeType =
-  buildMultipartBody header body mimeType
-  where
-    header :: Aeson.Value
-    header =
-      Aeson.object
-        [ "public" .= isPublic,
-          "retention" .= mbRetention
-        ]
+buildUploadAssetRequestBody ::
+  (HasCallStack, MakesValue assetRetention) =>
+  Bool ->
+  assetRetention ->
+  LByteString ->
+  MIME.MIMEType ->
+  App HTTP.RequestBody
+buildUploadAssetRequestBody isPublic retention body mimeType = do
+  mbRetention <- make retention
+  let header' :: Aeson.Value
+      header' =
+        Aeson.object
+          [ "public" .= isPublic,
+            "retention" .= mbRetention
+          ]
+  HTTP.RequestBodyLBS <$> buildMultipartBody header' body mimeType
 
-multipartBoundary :: String
-multipartBoundary = "frontier"
-
-downloadAsset :: (HasCallStack, MakesValue user, MakesValue key, MakesValue assetDomain) => user -> assetDomain -> key -> String -> (HTTP.Request -> HTTP.Request) -> App Response
-downloadAsset user assetDomain key zHostHeader trans = do
+downloadAsset :: (HasCallStack, MakesValue user, MakesValue key, MakesValue tok) => user -> key -> tok -> App Response
+downloadAsset user key tok = do
   uid <- objId user
-  domain <- objDomain assetDomain
-  key' <- asString key
-  req <- baseRequest user Cargohold Versioned $ "/assets/" ++ domain ++ "/" ++ key'
+  domain <- (pure <$> objDomain key) `catch` (\(_e@(AssertionFailure {})) -> pure Nothing)
+  key' <- (key %. "id" & asString) `catch` (\(_e@(AssertionFailure {})) -> asString key)
+  tok' <- pure <$> asString tok
+  req <- baseRequest user Cargohold Versioned $ "/assets" ++ (maybe "" (\d -> "/" ++ d) domain) ++ "/" ++ key'
   submit "GET" $
     req
       & zUser uid
-      & zHost zHostHeader
-      & trans
+      & tokenParam tok'

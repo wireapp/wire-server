@@ -19,16 +19,19 @@
 
 module Test.Cargohold.API.V3 where
 
-import Control.Lens hiding (sets, (.=))
+import API.Cargohold
+import Codec.MIME.Type (mimeType, showMIMEType)
+import Data.Aeson.KeyMap qualified as KM
 import Data.ByteString.Char8 qualified as C8
-import Data.Time.Clock
+import Data.CaseInsensitive
+import Data.String.Conversions
+import Data.Text.Encoding (encodeUtf8)
+import Data.Time.Clock (UTCTime)
 import Data.Time.Format
-import Network.HTTP.Client (parseUrlThrow, requestBody)
-import Network.HTTP.Types.Status (status200)
+import Network.HTTP.Client
 import SetupHelpers
 import Test.Cargohold.API.Util
 import Testlib.Prelude
-import Testlib.Types
 
 --------------------------------------------------------------------------------
 -- Simple (single-step) uploads
@@ -39,52 +42,61 @@ testSimpleRoundtrip = do
         [ "public" .= False
         ]
   let rets = ["eternal", "persistent", "volatile", "eternal-infrequent_access", "expiring"]
-  let sets =
+  let allSets =
         fmap object $
-          defSettings : map (\r -> defSettings <> ["retention" .= r]) rets
-  mapM_ simpleRoundtrip sets
+          defSettings : fmap (\r -> defSettings <> ["retention" .= r]) rets
+  mapM_ simpleRoundtrip allSets
   where
+    simpleRoundtrip :: HasCallStack => Value -> App ()
     simpleRoundtrip sets = do
       uid <- randomUser OwnDomain def
       uid2 <- randomId
       -- Initial upload
-      let bdy = (applicationText, "Hello World")
-      r1 <-
-        uploadSimple uid sets bdy
-          <!! const 201
-          === statusCode
+      let bdy = (mimeType applicationText, "Hello World")
+      r1 <- uploadSimple uid sets bdy
+      r1.status `shouldMatchInt` 201
       -- use v3 path instead of the one returned in the header
       (key, tok, expires) <-
         (,,)
           <$> r1.json %. "key"
-          <*> r1.json %. "token"
-          <*> r1.json %. "expires"
+          <*> (r1.json %. "token" >>= asString)
+          <*> (lookupField r1.json "expires" >>= maybe (pure Nothing) (fmap pure . asString))
       -- Check mandatory Date header
-      let Just date = C8.unpack <$> lookup "Date" (responseHeaders r1)
-      let utc = parseTimeOrError False defaultTimeLocale rfc822DateFormat date :: UTCTime
+      let Just date = C8.unpack <$> lookup (mk $ cs "Date") r1.headers
+          parseTime = parseTimeOrError False defaultTimeLocale rfc822DateFormat
+          utc = parseTime date :: UTCTime
+          expires' = parseTime <$> expires :: Maybe UTCTime
       -- Potentially check for the expires header
-      when (isJust $ assetRetentionSeconds =<< (sets ^. setAssetRetention)) $ do
-        liftIO $ assertBool "invalid expiration" (Just utc < expires)
+      case sets of
+        -- We don't care what the rentention value is here,
+        -- we're just checking to see if other checks need
+        -- to be done.
+        Object o -> case KM.lookup (fromString "retention") o of
+          Nothing -> pure ()
+          Just r -> do
+            assertBool "invalid expiration" (Just utc < expires')
+        _ -> pure ()
       -- Lookup with token and download via redirect.
-      r2 <-
-        downloadAsset uid key (Just tok) <!! do
-          const 302 === statusCode
-          const Nothing === responseBody
-      r3 <- flip get' id =<< parseUrlThrow (C8.unpack (getHeader' "Location" r2))
-      liftIO $ do
-        assertEqual "status" status200 (responseStatus r3)
-        assertEqual "content-type should always be application/octet-stream" (Just applicationOctetStream) (getContentType r3)
-        assertEqual "token mismatch" tok (decodeHeaderOrFail "x-amz-meta-token" r3)
-        assertEqual "user mismatch" uid (decodeHeaderOrFail "x-amz-meta-user" r3)
-        assertEqual "data mismatch" (Just "Hello World") (responseBody r3)
+      r2 <- downloadAsset uid key tok
+      r2.status `shouldMatchInt` 302
+      assertBool "Response body should be empty" $ r2.body == mempty
+
+      let locReq = C8.unpack (getHeader' (mk $ cs "Location") r2)
+      req <- liftIO $ parseRequest locReq
+      r3 <- submit "GET" req
+      r3.status `shouldMatchInt` 200
+      assertBool "content-type should always be application/octet-stream" $
+        getHeader (mk $ cs "content-type") r3 == Just (encodeUtf8 $ showMIMEType applicationOctetStream)
+      assertBool "Token mismatch" $ getHeader (mk $ cs "x-amz-meta-token") r3 == pure (cs tok)
+      uid' <- uid %. "id" >>= asString
+      assertBool "User mismatch" $ getHeader (mk $ cs "x-amz-meta-user") r3 == pure (cs uid')
+      assertBool "Data mismatch" $ r3.body == cs "Hello World"
       -- Delete (forbidden for other users)
-      deleteAssetV3 uid2 key !!! const 403 === statusCode
+      deleteAssetV3 uid2 key >>= \r -> r.status `shouldMatchInt` 403
       -- Delete (allowed for creator)
-      deleteAssetV3 uid key !!! const 200 === statusCode
-      r4 <-
-        downloadAsset uid key (Just tok)
-          <!! const 404
-          === statusCode
-      let Just date' = C8.unpack <$> lookup "Date" (responseHeaders r4)
+      deleteAssetV3 uid key >>= \r -> r.status `shouldMatchInt` 200
+      r4 <- downloadAsset uid key tok
+      r4.status `shouldMatchInt` 404
+      let Just date' = C8.unpack <$> lookup (mk $ cs "Date") r4.headers
       let utc' = parseTimeOrError False defaultTimeLocale rfc822DateFormat date' :: UTCTime
-      liftIO $ assertBool "bad date" (utc' >= utc)
+      assertBool "bad date" (utc' >= utc)
