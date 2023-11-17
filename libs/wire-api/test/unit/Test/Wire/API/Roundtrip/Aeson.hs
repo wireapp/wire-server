@@ -23,7 +23,7 @@ import Data.Id (ConvId)
 import Data.OpenApi (ToSchema, validatePrettyToJSON)
 import Imports
 import Test.Tasty qualified as T
-import Test.Tasty.QuickCheck (Arbitrary (..), counterexample, testProperty, (.&&.), (===))
+import Test.Tasty.QuickCheck (Arbitrary (..), Gen, counterexample, testProperty, (.&&.), (===))
 import Type.Reflection (typeRep)
 import Wire.API.Asset qualified as Asset
 import Wire.API.Call.Config qualified as Call.Config
@@ -387,16 +387,65 @@ instance FromJSON a => FromJSON (WithSanitizedUserIdentity a) where
   parseJSON = fmap WithSanitizedUserIdentity . parseJSON
 
 instance Arbitrary (WithSanitizedUserIdentity User.NewUser) where
-  arbitrary = undefined
+  arbitrary = (arbitrary >>= coherenizeNewUser) <&> WithSanitizedUserIdentity
 
 instance Arbitrary (WithSanitizedUserIdentity User.User) where
-  arbitrary = undefined
+  arbitrary = (arbitrary >>= coherenizeUser) <&> WithSanitizedUserIdentity
 
 instance Arbitrary (WithSanitizedUserIdentity User.SelfProfile) where
-  arbitrary = undefined
+  arbitrary =
+    ( arbitrary >>= \(User.SelfProfile u) ->
+        User.SelfProfile <$> coherenizeUser u
+    )
+      <&> WithSanitizedUserIdentity
 
 instance Arbitrary (WithSanitizedUserIdentity User.Activation.ActivationResponse) where
-  arbitrary = undefined
+  arbitrary =
+    ( arbitrary >>= \(User.Activation.ActivationResponse ui af) ->
+        (`User.Activation.ActivationResponse` af) <$> coherenizeUserIdentity ui
+    )
+      <&> WithSanitizedUserIdentity
 
 instance Arbitrary (WithSanitizedUserIdentity User.Identity.PartialUAuthId) where
-  arbitrary = undefined
+  arbitrary = (arbitrary >>= coherenizeUAuthId) <&> WithSanitizedUserIdentity
+
+coherenizeNewUser :: User.NewUser -> Gen User.NewUser
+coherenizeNewUser = fixUAuth >=> matchOrigin
+  where
+    fixUAuth nu = do
+      ua' <- mapM coherenizeUserIdentity (User.newUserIdentity nu)
+      pure nu {User.newUserIdentity = ua'}
+
+    matchOrigin nu = pure $ do
+      case (User.newUserIdentity nu, User.newUserOrigin nu) of
+        ( Just (User.Identity.UAuthIdentity (User.Identity.UAuthId saml scim eml tid) mbemail),
+          Just (User.NewUserOriginTeamUser (User.NewTeamMemberSSO tid'))
+          )
+            | tid /= tid' ->
+                nu {User.newUserIdentity = Just (User.Identity.UAuthIdentity (User.Identity.UAuthId saml scim eml tid') mbemail)}
+        _ -> nu
+
+coherenizeUser :: User.User -> Gen User.User
+coherenizeUser = fixUAuth
+  where
+    fixUAuth u = do
+      ua' <- mapM coherenizeUserIdentity (User.userIdentity u)
+      pure u {User.userIdentity = ua'}
+
+coherenizeUserIdentity :: User.Identity.UserIdentity tf -> Gen (User.Identity.UserIdentity tf)
+coherenizeUserIdentity (User.Identity.UAuthIdentity ua eml) =
+  (`User.Identity.UAuthIdentity` eml) <$> coherenizeUAuthId ua
+coherenizeUserIdentity u = pure u
+
+coherenizeUAuthId :: User.PartialUAuthId -> Gen User.PartialUAuthId
+coherenizeUAuthId = nonEmptyId >=> scimNeedsEmail
+  where
+    nonEmptyId (User.Identity.UAuthId Nothing Nothing eml tid) = do
+      scim <- arbitrary
+      pure $ User.Identity.UAuthId Nothing (Just scim) eml tid
+    nonEmptyId u = pure u
+
+    scimNeedsEmail (User.Identity.UAuthId Nothing (Just scim) Nothing tid) = do
+      eml <- arbitrary
+      pure $ User.Identity.UAuthId Nothing (Just scim) (Just eml) tid
+    scimNeedsEmail u = pure u
