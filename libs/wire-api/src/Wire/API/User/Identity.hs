@@ -184,7 +184,6 @@ data UserIdentityFromComponentsParseErrors
   | UserIdentityFromComponentsNoPhoneAllowedForUAuthId
   | UserIdentityFromComponentsUAuthIdWithoutTeam
   | UserIdentityFromComponentsUAuthIdTeamMismatch
-  | UserIdentityFromComponentsEmailAndSourceMustComeTogetherForLegacyMigration
   deriving (Eq, Show)
 
 eUserIdentityFromComponents :: UserIdentityComponents tf -> Either UserIdentityFromComponentsParseErrors (UserIdentity tf)

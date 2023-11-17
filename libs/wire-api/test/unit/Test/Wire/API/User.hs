@@ -33,7 +33,6 @@ import Data.Qualified
 import Data.Schema (schema, schemaIn)
 import Data.UUID.V4 qualified as UUID
 import Imports
-import Servant.API (parseUrlPiece)
 import Test.Tasty
 import Test.Tasty.HUnit
 import Wire.API.User
@@ -98,6 +97,22 @@ parseIdentityTests =
                         "team": "226923f0-6f15-11ee-96bd-33644427c814"}|]
             err = "Error in $: scim_external_id requires either email address or saml_id to be present"
          in mkUAuthIdTestCase "3" jsonIn err
+      ],
+    testGroup
+      "eUserIdentityFromComponents: error cases"
+      [ testCase "UserIdentityFromComponentsNoFields" $ do
+          (Nothing, Nothing, Nothing, Nothing, Nothing, Nothing) =###= UserIdentityFromComponentsNoFields
+          (Nothing, Nothing, Nothing, Nothing, Nothing, Just ManagedByWire) =###= UserIdentityFromComponentsNoFields
+          (Nothing, Nothing, Nothing, Nothing, Just tid, Nothing) =###= UserIdentityFromComponentsNoFields
+          (Nothing, Nothing, Nothing, Nothing, Nothing, Just ManagedByWire) =###= UserIdentityFromComponentsNoFields,
+        testCase "UserIdentityFromComponentsNoPhoneAllowedForUAuthId" $ do
+          (Nothing, Just phn1, Just (UAuthId Nothing (Just eid1) (Just ews1) tid), Nothing, Just tid, Nothing) =###= UserIdentityFromComponentsNoPhoneAllowedForUAuthId
+          (Nothing, Just phn1, Nothing, Just (UserSSOId uref1), Just tid, Nothing) =###= UserIdentityFromComponentsNoPhoneAllowedForUAuthId,
+        testCase "UserIdentityFromComponentsUAuthIdWithoutTeam" $ do
+          -- NB: (Nothing, Nothing, Just (UAuthId Nothing (Just eid1) (Just ews1) tid), Nothing, Nothing, Nothing) is fine, we already have a team id!
+          (Nothing, Nothing, Nothing, Just (UserSSOId uref1), Nothing, Nothing) =###= UserIdentityFromComponentsUAuthIdWithoutTeam,
+        testCase "UserIdentityFromComponentsUAuthIdTeamMismatch" $ do
+          (Nothing, Nothing, Just (UAuthId Nothing (Just eid1) (Just ews1) tid), Nothing, Just tid2, Nothing) =###= UserIdentityFromComponentsUAuthIdTeamMismatch
       ],
     testGroup
       "parse Identity: UAuthIdentity"
@@ -278,7 +293,7 @@ parseIdentityTests =
     (=#=) _ _ = error $ "=#=: impossible"
 
     (=###=) :: HasCallStack => (UserIdentityComponents "team_id") -> UserIdentityFromComponentsParseErrors -> Assertion
-    (=###=) comps err = assertEqual "=###=" (eUserIdentityFromComponents comps) (Left err)
+    (=###=) comps err = assertEqual "=###=" (Left err) (eUserIdentityFromComponents comps)
 
     email1 = Email "me" "example.com"
     email2 = Email "other" "example.com"
@@ -292,4 +307,7 @@ parseIdentityTests =
     uref1 = mkBasicSampleUref "http://example.com/wef" eid1
     uref3 = mkBasicSampleUref "http://example.com/wef" "nick"
 
-    Right tid = parseUrlPiece "226923f0-6f15-11ee-96bd-33644427c814"
+    phn1 = Phone "+123456789"
+
+    tid = read "226923f0-6f15-11ee-96bd-33644427c814"
+    tid2 = read "8298c71e-855c-11ee-9ff6-5f1a496da735"
