@@ -44,6 +44,7 @@ interpretFederationDomainConfig =
       UpdateFederationConfig cnf -> updateFederationConfig' cnf
       AddFederationRemoteTeam d t -> addFederationRemoteTeam' d t
       RemoveFederationRemoteTeam d t -> removeFederationRemoteTeam' d t
+      GetFederationRemoteTeams d -> getFederationRemoteTeams' d
 
 getFederationConfigs' :: forall m. MonadClient m => m [FederationDomainConfig]
 getFederationConfigs' = do
@@ -52,7 +53,7 @@ getFederationConfigs' = do
     API.FederationDomainConfig d p API.FederationRestrictionAllowAll ->
       pure $ FederationDomainConfig d p FederationRestrictionAllowAll
     API.FederationDomainConfig d p API.FederationRestrictionByTeam ->
-      FederationDomainConfig d p . FederationRestrictionByTeam . fmap API.teamId <$> getFederationRemoteTeams d
+      FederationDomainConfig d p . FederationRestrictionByTeam . fmap API.teamId <$> getFederationRemoteTeams' d
 
 maxKnownNodes :: Int
 maxKnownNodes = 10000
@@ -60,7 +61,7 @@ maxKnownNodes = 10000
 getFederationConfig' :: MonadClient m => Domain -> m (Maybe FederationDomainConfig)
 getFederationConfig' rDomain = do
   mCnf <- retry x1 (query1 q (params LocalQuorum (Identity rDomain)))
-  teams <- fmap API.teamId <$> getFederationRemoteTeams rDomain
+  teams <- fmap API.teamId <$> getFederationRemoteTeams' rDomain
   pure $
     mCnf <&> \case
       (sp, API.FederationRestrictionAllowAll) -> FederationDomainConfig rDomain sp FederationRestrictionAllowAll
@@ -105,8 +106,8 @@ addFederationRemoteTeam' rDomain tid =
     add :: PrepQuery W (Domain, TeamId) ()
     add = "INSERT INTO federation_remote_teams (domain, team) VALUES (?, ?)"
 
-getFederationRemoteTeams :: MonadClient m => Domain -> m [API.FederationRemoteTeam]
-getFederationRemoteTeams rDomain = do
+getFederationRemoteTeams' :: MonadClient m => Domain -> m [API.FederationRemoteTeam]
+getFederationRemoteTeams' rDomain = do
   fmap (API.FederationRemoteTeam . runIdentity) <$> retry x1 (query get (params LocalQuorum (Identity rDomain)))
   where
     get :: PrepQuery R (Identity Domain) (Identity TeamId)
