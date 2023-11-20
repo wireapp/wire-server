@@ -23,6 +23,7 @@ import Brig.API.Client qualified as API
 import Brig.API.Connection.Remote (performRemoteAction)
 import Brig.API.Error
 import Brig.API.Handler (Handler)
+import Brig.API.Internal hiding (getMLSClients)
 import Brig.API.Internal qualified as Internal
 import Brig.API.MLS.CipherSuite
 import Brig.API.MLS.KeyPackages
@@ -32,7 +33,6 @@ import Brig.App
 import Brig.Data.Connection qualified as Data
 import Brig.Data.User qualified as Data
 import Brig.Effects.FederationConfigStore (FederationConfigStore)
-import Brig.Effects.FederationConfigStore qualified as FederationConfigStore
 import Brig.Effects.GalleyProvider (GalleyProvider)
 import Brig.IO.Intra (notify)
 import Brig.Options
@@ -104,7 +104,7 @@ getFederationStatus _ request = do
   case setFederationStrategy (cfg ^. settings) of
     Just AllowAll -> pure $ NonConnectedBackends mempty
     _ -> do
-      fedDomains <- fromList . fmap (.domain) <$> lift (liftSem $ FederationConfigStore.getFederationConfigs)
+      fedDomains <- fromList . fmap (.domain) . (.remotes) <$> getFederationRemotes
       pure $ NonConnectedBackends (request.domains \\ fedDomains)
 
 sendConnectionAction :: Domain -> NewConnectionRequest -> Handler r NewConnectionResponse
@@ -248,6 +248,6 @@ onUserDeleted origDomain udcn = lift $ do
 -- | If domain is not configured fall back to `NoSearch`
 lookupSearchPolicy :: (Member FederationConfigStore r) => Domain -> (Handler r) FederatedUserSearchPolicy
 lookupSearchPolicy domain = do
-  domainConfigs <- lift $ liftSem $ FederationConfigStore.getFederationConfigs
-  let mConfig = find ((== domain) . (.domain)) domainConfigs
-  pure $ maybe NoSearch (.searchPolicy) mConfig
+  domainConfigs <- getFederationRemotes
+  let mConfig = find ((== domain) . FD.domain) (domainConfigs.remotes)
+  pure $ maybe NoSearch FD.searchPolicy mConfig

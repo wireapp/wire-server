@@ -228,13 +228,13 @@ deleteFederationRemoteTeam :: (Member FederationConfigStore r) => Domain -> Team
 deleteFederationRemoteTeam domain teamId =
   lift $ liftSem $ FederationConfigStore.removeFederationRemoteTeam domain teamId
 
-getFederationRemoteTeams :: Domain -> (Handler r) [FederationRemoteTeam]
-getFederationRemoteTeams _domain =
-  error "todo"
+getFederationRemoteTeams :: (Member FederationConfigStore r) => Domain -> (Handler r) [FederationRemoteTeam]
+getFederationRemoteTeams domain =
+  lift $ liftSem $ FederationConfigStore.getFederationRemoteTeams domain
 
-addFederationRemoteTeam :: Domain -> FederationRemoteTeam -> (Handler r) ()
+addFederationRemoteTeam :: (Member FederationConfigStore r) => Domain -> FederationRemoteTeam -> (Handler r) ()
 addFederationRemoteTeam domain rt =
-  addFederationRemoteTeam domain rt
+  lift $ liftSem $ FederationConfigStore.addFederationRemoteTeam domain rt.teamId
 
 addFederationRemote :: (Member FederationConfigStore r) => FederationDomainConfig -> ExceptT Brig.API.Error.Error (AppT r) ()
 addFederationRemote fedDomConf = do
