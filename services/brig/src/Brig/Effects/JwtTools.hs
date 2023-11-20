@@ -13,7 +13,6 @@ import Data.Nonce (Nonce)
 import Data.PEMKeys
 import Imports
 import Network.HTTP.Types (StdMethod (..))
-import Numeric (readHex)
 import Polysemy
 import Wire.API.MLS.Credential (ClientIdentity (..))
 import Wire.API.MLS.Epoch (Epoch (..))
@@ -46,23 +45,21 @@ data JwtTools m a where
 makeSem ''JwtTools
 
 interpretJwtTools :: Member (Embed IO) r => Sem (JwtTools ': r) a -> Sem r a
-interpretJwtTools = interpret $ \(GenerateDPoPAccessToken pr ci n uri method skew ex now pem) -> do
-  case readHex @Word64 (cs $ clientToText $ ciClient ci) of
-    [(parsedClientId, "")] ->
-      mapLeft RustError
-        <$> runExceptT
-          ( DPoPAccessToken
-              <$> Jwt.generateDpopToken
-                (Jwt.Proof (toByteString' pr))
-                (Jwt.UserId (toByteString' (ciUser ci)))
-                (Jwt.ClientId parsedClientId)
-                (Jwt.Domain (toByteString' (ciDomain ci)))
-                (Jwt.Nonce (toByteString' n))
-                (Jwt.Uri (toByteString' uri))
-                method
-                (Jwt.MaxSkewSecs skew)
-                (Jwt.ExpiryEpoch (epochNumber ex))
-                (Jwt.NowEpoch (epochNumber now))
-                (Jwt.PemBundle (toByteString' pem))
-          )
-    _ -> pure $ Left ClientIdSyntaxError
+interpretJwtTools = interpret $ \case
+  GenerateDPoPAccessToken pr ci n uri method skew ex now pem ->
+    mapLeft RustError
+      <$> runExceptT
+        ( DPoPAccessToken
+            <$> Jwt.generateDpopToken
+              (Jwt.Proof (toByteString' pr))
+              (Jwt.UserId (toByteString' (ciUser ci)))
+              (Jwt.ClientId (clientToWord64 (ciClient ci)))
+              (Jwt.Domain (toByteString' (ciDomain ci)))
+              (Jwt.Nonce (toByteString' n))
+              (Jwt.Uri (toByteString' uri))
+              method
+              (Jwt.MaxSkewSecs skew)
+              (Jwt.ExpiryEpoch (epochNumber ex))
+              (Jwt.NowEpoch (epochNumber now))
+              (Jwt.PemBundle (toByteString' pem))
+        )
