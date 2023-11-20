@@ -44,7 +44,7 @@ import Wire.API.UserMap (UserMap)
 import Wire.API.Util.Aeson (CustomEncoded (..))
 import Wire.Arbitrary (GenericUniform (..))
 
-newtype SearchRequest = SearchRequest {term :: Text}
+data SearchRequest = SearchRequest {term :: Text, onlyInTeams :: Maybe [TeamId]}
   deriving (Show, Eq, Generic, Typeable)
   deriving (Arbitrary) via (GenericUniform SearchRequest)
 

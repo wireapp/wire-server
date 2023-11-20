@@ -28,6 +28,7 @@ import Brig.API.Error (fedError)
 import Brig.API.Handler
 import Brig.App
 import Brig.Data.User qualified as DB
+import Brig.Effects.FederationConfigStore (FederationConfigStore, getFederationConfigs)
 import Brig.Effects.GalleyProvider (GalleyProvider)
 import Brig.Effects.GalleyProvider qualified as GalleyProvider
 import Brig.Federation.Client qualified as Federation
@@ -78,12 +79,13 @@ search searcherId searchTerm maybeDomain maybeMaxResults = do
     then searchLocally searcherId searchTerm maybeMaxResults
     else searchRemotely queryDomain searchTerm
 
-searchRemotely :: Domain -> Text -> (Handler r) (Public.SearchResult Public.Contact)
+searchRemotely :: (Member FederationConfigStore r) => Domain -> Text -> (Handler r) (Public.SearchResult Public.Contact)
 searchRemotely domain searchTerm = do
   lift . Log.info $
     msg (val "searchRemotely")
       ~~ field "domain" (show domain)
       ~~ field "searchTerm" searchTerm
+  cfgs <- getFederationConfigs
   searchResponse <- Federation.searchUsers domain (FedBrig.SearchRequest searchTerm) !>> fedError
   let contacts = S.contacts searchResponse
   let count = length contacts

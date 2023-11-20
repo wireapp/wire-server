@@ -178,9 +178,7 @@ fedClaimKeyPackages domain ckpr =
         claimLocalKeyPackages (tUntagged rusr) Nothing suite ltarget
     False -> pure Nothing
 
--- | Searching for federated users on a remote backend should
--- only search by exact handle search, not in elasticsearch.
--- (This decision may change in the future)
+-- | Searching for federated users on a remote backend
 searchUsers ::
   forall r.
   ( Member GalleyProvider r,

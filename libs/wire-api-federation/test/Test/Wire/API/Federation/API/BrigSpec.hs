@@ -33,7 +33,7 @@ spec = describe "Wire.API.Federation.API.Brig" $ do
   describe "RoundTripTests" $ do
     jsonRoundTrip @SearchRequest
   describe "JSON Golden Tests" $ do
-    jsonGoldenTest "SearchRequest" [aesonQQ|{"term": "searchedThing"}|] (SearchRequest "searchedThing")
+    jsonGoldenTest "SearchRequest" [aesonQQ|{"term": "searchedThing"}|] (SearchRequest "searchedThing" Nothing)
 
 -- | FUTUREWORK: Extract this into a library so it is not repeated everywhere.
 jsonRoundTrip :: forall a. (Arbitrary a, Typeable a, ToJSON a, FromJSON a, Eq a, Show a) => Spec
