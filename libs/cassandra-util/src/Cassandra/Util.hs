@@ -17,20 +17,23 @@
 
 module Cassandra.Util
   ( defInitCassandra,
+    initCassandraForService,
     Writetime (..),
     writetimeToInt64,
   )
 where
 
-import Cassandra (ClientState, init)
 import Cassandra.CQL
-import Cassandra.Settings (defSettings, setContacts, setKeyspace, setLogger, setPortNumber, setSSLContext)
+import Cassandra.Schema
+import Cassandra.Settings (dcFilterPolicyIfConfigured, initialContactsDisco, initialContactsPlain, mkLogger)
 import Data.Aeson
 import Data.Fixed
-import Data.Text (unpack)
+import Data.List.NonEmpty qualified as NE
+import Data.Text (pack, unpack)
 import Data.Time (UTCTime, nominalDiffTimeToSeconds)
 import Data.Time.Clock (secondsToNominalDiffTime)
 import Data.Time.Clock.POSIX
+import Database.CQL.IO
 import Database.CQL.IO.Tinylog qualified as CT
 import Imports hiding (init)
 import OpenSSL.Session qualified as OpenSSL
@@ -61,6 +64,67 @@ defInitCassandra ks h p mbCertPath lg = do
           }
       pure $ Just sslContext
     createSSLContext Nothing = pure Nothing
+
+-- | Create Cassandra `ClientState` ("connection") for a service
+--
+-- Unfortunately, we have to deal with many function arguments here, because
+-- @CassandraOpts@ is defined in @types-common@ which depends on
+-- @cassandra-util@ (this package.)
+initCassandraForService ::
+  Text ->
+  Word16 ->
+  String ->
+  Text ->
+  Maybe FilePath ->
+  Maybe Text ->
+  Maybe Text ->
+  Maybe Int32 ->
+  Log.Logger ->
+  IO ClientState
+initCassandraForService host port serviceName keyspace mbTlsCertPath filterNodesByDatacentre discoUrl mbSchemaVersion logger = do
+  c <-
+    maybe
+      (initialContactsPlain host)
+      (initialContactsDisco ("cassandra_" ++ serviceName) . unpack)
+      discoUrl
+  mbSSLContext <- createSSLContext mbTlsCertPath
+  let basicCasSettings =
+        setLogger (mkLogger (Log.clone (Just (pack ("cassandra." ++ serviceName))) logger))
+          . setContacts (NE.head c) (NE.tail c)
+          . setPortNumber (fromIntegral port)
+          . setKeyspace (Keyspace keyspace)
+          . setMaxConnections 4
+          . setPoolStripes 4
+          . setSendTimeout 3
+          -- TODO: setMaxStreams needed?
+          . setResponseTimeout 10
+          . setProtocolVersion V4
+          . setPolicy (dcFilterPolicyIfConfigured logger filterNodesByDatacentre)
+          $ defSettings
+      casSettings = maybe basicCasSettings (\sslCtx -> setSSLContext sslCtx basicCasSettings) mbSSLContext
+  p <- init casSettings
+  maybe (pure ()) (\v -> runClient p $ (versionCheck v)) mbSchemaVersion
+  pure p
+  where
+    -- TODO: Re-consider logging
+    createSSLContext :: Maybe FilePath -> IO (Maybe OpenSSL.SSLContext)
+    createSSLContext (Just certFile) = do
+      void . liftIO $ Log.debug logger (Log.msg ("TLS cert file path: " <> show certFile))
+      fileExists <- doesFileExist certFile
+      void . liftIO $ Log.debug logger (Log.msg ("TLS cert file exists: " <> show fileExists))
+      sslContext <- OpenSSL.context
+      OpenSSL.contextSetCAFile sslContext certFile
+      OpenSSL.contextSetVerificationMode
+        sslContext
+        OpenSSL.VerifyPeer
+          { vpFailIfNoPeerCert = True,
+            vpClientOnce = True,
+            vpCallback = Nothing
+          }
+      pure $ Just sslContext
+    createSSLContext Nothing = do
+      void . liftIO $ Log.debug logger (Log.msg ("No TLS cert file path configured." :: Text))
+      pure Nothing
 
 -- | Read cassandra's writetimes https://docs.datastax.com/en/dse/5.1/cql/cql/cql_using/useWritetime.html
 -- as UTCTime values without any loss of precision

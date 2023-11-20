@@ -106,10 +106,9 @@ import Brig.User.Search.Index (IndexEnv (..), MonadIndexIO (..), runIndexIO)
 import Brig.User.Template
 import Brig.ZAuth (MonadZAuth (..), runZAuth)
 import Brig.ZAuth qualified as ZAuth
-import Cassandra (Keyspace (Keyspace), runClient)
+import Cassandra (runClient)
 import Cassandra qualified as Cas
-import Cassandra.Schema (versionCheck)
-import Cassandra.Settings qualified as Cas
+import Cassandra.Util (initCassandraForService)
 import Control.AutoUpdate
 import Control.Error
 import Control.Exception.Enclosed (handleAny)
@@ -120,12 +119,10 @@ import Data.ByteString.Conversion
 import Data.Domain
 import Data.GeoIP2 qualified as GeoIp
 import Data.IP
-import Data.List.NonEmpty qualified as NE
 import Data.Metrics (Metrics)
 import Data.Metrics.Middleware qualified as Metrics
 import Data.Misc
 import Data.Qualified
-import Data.Text (unpack)
 import Data.Text qualified as Text
 import Data.Text.Encoding (encodeUtf8)
 import Data.Text.Encoding qualified as Text
@@ -141,7 +138,6 @@ import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.OpenSSL
 import OpenSSL.EVP.Digest (Digest, getDigestByName)
 import OpenSSL.Session (SSLOption (..))
-import OpenSSL.Session qualified as OpenSSL
 import OpenSSL.Session qualified as SSL
 import Polysemy
 import Polysemy.Final
@@ -425,54 +421,17 @@ initExtGetManager = do
        in verifyRsaFingerprint sha pinset
 
 initCassandra :: Opts -> Logger -> IO Cas.ClientState
-initCassandra o g = do
-  c <-
-    maybe
-      (Cas.initialContactsPlain (Opt.cassandra o ^. endpoint . host))
-      (Cas.initialContactsDisco "cassandra_brig" . unpack)
-      (Opt.discoUrl o)
-  mbSSLContext <- createSSLContext (Opt.cassandra o) g
-  let basicCasSettings =
-        Cas.setLogger (Cas.mkLogger (Log.clone (Just "cassandra.brig") g))
-          . Cas.setContacts (NE.head c) (NE.tail c)
-          . Cas.setPortNumber (fromIntegral (Opt.cassandra o ^. endpoint . port))
-          . Cas.setKeyspace (Keyspace (Opt.cassandra o ^. keyspace))
-          . Cas.setMaxConnections 4
-          . Cas.setPoolStripes 4
-          . Cas.setSendTimeout 3
-          . Cas.setResponseTimeout 10
-          . Cas.setProtocolVersion Cas.V4
-          . Cas.setPolicy (Cas.dcFilterPolicyIfConfigured g (Opt.cassandra o ^. filterNodesByDatacentre))
-          $ Cas.defSettings
-      casSettings = maybe basicCasSettings (\sslCtx -> Cas.setSSLContext sslCtx basicCasSettings) mbSSLContext
-  p <- Cas.init casSettings
-  runClient p $ versionCheck schemaVersion
-  pure p
-  where
-    -- TODO: Re-consider logging
-    createSSLContext :: CassandraOpts -> Logger -> IO (Maybe OpenSSL.SSLContext)
-    createSSLContext cassOpts logger
-      | cassOpts ^. useTLS = do
-          sslContext <- OpenSSL.context
-          let mbTlsCertPath = cassOpts ^. tlsCert
-          void . liftIO $ Log.debug logger (Log.msg ("TLS cert file path: " <> show mbTlsCertPath))
-          maybe
-            (pure ())
-            ( \certFile -> do
-                fileExists <- doesFileExist certFile
-                void . liftIO $ Log.debug logger (Log.msg ("TLS cert file exists: " <> show fileExists))
-                OpenSSL.contextSetCAFile sslContext certFile
-            )
-            mbTlsCertPath
-          OpenSSL.contextSetVerificationMode
-            sslContext
-            OpenSSL.VerifyPeer
-              { vpFailIfNoPeerCert = True,
-                vpClientOnce = True,
-                vpCallback = Nothing
-              }
-          pure $ Just sslContext
-      | otherwise = pure Nothing
+initCassandra o g =
+  initCassandraForService
+    (Opt.cassandra o ^. endpoint . host)
+    (Opt.cassandra o ^. endpoint . port)
+    "brig"
+    (Opt.cassandra o ^. keyspace)
+    (Opt.cassandra o ^. tlsCert)
+    (Opt.cassandra o ^. filterNodesByDatacentre)
+    (Opt.discoUrl o)
+    (Just schemaVersion)
+    g
 
 initCredentials :: (FromJSON a) => FilePathSecrets -> IO a
 initCredentials secretFile = do

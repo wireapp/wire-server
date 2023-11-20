@@ -130,7 +130,6 @@ library
     , extra                  >=1.1
     , gundeck-types          >=1.0
     , hedis                  >=0.14.0
-    , HsOpenSSL
     , http-client            >=0.7
     , http-client-tls        >=0.3
     , http-types             >=0.8

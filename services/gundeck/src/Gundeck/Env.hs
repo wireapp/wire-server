@@ -20,14 +20,12 @@
 module Gundeck.Env where
 
 import Bilge hiding (host, port)
-import Cassandra (ClientState, Keyspace (..))
-import Cassandra qualified as C
-import Cassandra.Settings qualified as C
+import Cassandra (ClientState)
+import Cassandra.Util (initCassandraForService)
 import Control.AutoUpdate
 import Control.Concurrent.Async (Async)
 import Control.Lens (makeLenses, (^.))
 import Control.Retry (capDelay, exponentialBackoff)
-import Data.List.NonEmpty qualified as NE
 import Data.Metrics.Middleware (Metrics)
 import Data.Misc (Milliseconds (..))
 import Data.Text (unpack)
@@ -43,7 +41,6 @@ import Gundeck.ThreadBudget
 import Imports
 import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.TLS (tlsManagerSettings)
-import OpenSSL.Session qualified as OpenSSL
 import System.Logger qualified as Log
 import System.Logger.Extended qualified as Logger
 import Util.Options
@@ -70,11 +67,6 @@ schemaVersion = 7
 createEnv :: Metrics -> Opts -> IO ([Async ()], Env)
 createEnv m o = do
   l <- Logger.mkLogger (o ^. logLevel) (o ^. logNetStrings) (o ^. logFormat)
-  c <-
-    maybe
-      (C.initialContactsPlain (o ^. cassandra . endpoint . host))
-      (C.initialContactsDisco "cassandra_gundeck" . unpack)
-      (o ^. discoUrl)
   n <-
     newManager
       tlsManagerSettings
@@ -91,23 +83,18 @@ createEnv m o = do
       (rAddThread, rAdd) <- createRedisPool l additionalRedis "additional-write-redis"
       pure ([rAddThread], Just rAdd)
 
-  mbSSLContext <- createSSLContext (o ^. cassandra)
-  let basicCasSettings =
-        C.setLogger (C.mkLogger (Logger.clone (Just "cassandra.gundeck") l))
-          . C.setContacts (NE.head c) (NE.tail c)
-          . C.setPortNumber (fromIntegral $ o ^. cassandra . endpoint . port)
-          . C.setKeyspace (Keyspace (o ^. cassandra . keyspace))
-          . C.setMaxConnections 4
-          . C.setMaxStreams 128
-          . C.setPoolStripes 4
-          . C.setSendTimeout 3
-          . C.setResponseTimeout 10
-          . C.setProtocolVersion C.V4
-          . C.setPolicy (C.dcFilterPolicyIfConfigured l (o ^. cassandra . filterNodesByDatacentre))
-          $ C.defSettings
-      casSettings = maybe basicCasSettings (\sslCtx -> C.setSSLContext sslCtx basicCasSettings) mbSSLContext
+  p <-
+    initCassandraForService
+      (o ^. cassandra . endpoint . host)
+      (o ^. cassandra . endpoint . port)
+      "gundeck"
+      (o ^. cassandra . keyspace)
+      (o ^. cassandra . tlsCert)
+      (o ^. cassandra . filterNodesByDatacentre)
+      (o ^. discoUrl)
+      Nothing
+      l
 
-  p <- C.init casSettings
   a <- Aws.mkEnv l o n
   io <-
     mkAutoUpdate
@@ -116,21 +103,6 @@ createEnv m o = do
         }
   mtbs <- mkThreadBudgetState `mapM` (o ^. settings . maxConcurrentNativePushes)
   pure $! (rThread : rAdditionalThreads,) $! Env (RequestId "N/A") m o l n p r rAdditional a io mtbs
-  where
-    createSSLContext :: CassandraOpts -> IO (Maybe OpenSSL.SSLContext)
-    createSSLContext cassOpts
-      | cassOpts ^. useTLS = do
-          sslContext <- OpenSSL.context
-          maybe (pure ()) (OpenSSL.contextSetCAFile sslContext) (cassOpts ^. tlsCert)
-          OpenSSL.contextSetVerificationMode
-            sslContext
-            OpenSSL.VerifyPeer
-              { vpFailIfNoPeerCert = True,
-                vpClientOnce = True,
-                vpCallback = Nothing
-              }
-          pure $ Just sslContext
-      | otherwise = pure Nothing
 
 reqIdMsg :: RequestId -> Logger.Msg -> Logger.Msg
 reqIdMsg = ("request" Logger..=) . unRequestId
