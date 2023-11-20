@@ -211,7 +211,7 @@ postUser' ::
   Text ->
   Bool ->
   Bool ->
-  Maybe LegacyUserSSOId ->
+  Maybe UserSSOId ->
   Maybe TeamId ->
   BrigReq ->
   m ResponseLBS
@@ -230,7 +230,7 @@ postUserWithEmail ::
   Text ->
   Maybe Email ->
   Bool ->
-  Maybe LegacyUserSSOId ->
+  Maybe UserSSOId ->
   Maybe TeamId ->
   BrigReq ->
   m ResponseLBS

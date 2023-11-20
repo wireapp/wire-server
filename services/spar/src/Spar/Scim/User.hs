@@ -312,7 +312,7 @@ validateScimUser' errloc midp richInfoLimit user = do
             }
       pure richInfo
 
--- | Given an 'externalId' and the necessary context, construct a 'PartialUAuthId'.  Needed
+-- | Given an 'externalId' and the necessary context, construct a 'PratialUAuthId'.  Needed
 -- primarily in 'validateScimUser'.
 mkValidExternalId ::
   forall m.
@@ -496,7 +496,7 @@ createValidScimUserBrig stiTeam veid name handl richInfo language role = do
   buid <- case (uaSamlId veid, uaEmail veid) of
     (Just uref, _) -> lift $ do
       uid <- Id <$> Random.uuid
-      BrigAccess.createSAML uref (Just (error "eid", error "email")) uid stiTeam name ManagedByScim (Just handl) (Just richInfo) language (fromMaybe defaultRole role)
+      BrigAccess.createSAML uref uid stiTeam name ManagedByScim (Just handl) (Just richInfo) language (fromMaybe defaultRole role)
     (Nothing, Just (EmailWithSource email _)) -> lift $ do
       buid <- BrigAccess.createNoSAML email stiTeam name language (fromMaybe defaultRole role)
       BrigAccess.setHandle buid handl
@@ -1043,9 +1043,7 @@ getUserById midp stiTeam eUidUacc = do
       Just (FullIdentity _ _) -> True
       Just (EmailIdentity _) -> True
       Just (PhoneIdentity _) -> True
-      Just (UAuthIdentity uauthid' _mbemail) ->
-        -- TODO: what if _mbemail changes?
-        partialToScimUAuthId uauthid' /= Just uauthid
+      Just (UAuthIdentity uauthid') -> partialToScimUAuthId uauthid' /= Just uauthid
 
     managedByChanged :: User -> Bool
     managedByChanged usr = userManagedBy usr /= ManagedByScim

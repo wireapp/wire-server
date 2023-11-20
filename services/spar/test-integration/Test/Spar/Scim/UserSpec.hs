@@ -2054,13 +2054,9 @@ specDeleteUser = do
       uref :: SAML.UserRef <- do
         usr <- runSpar $ Intra.getBrigUser Intra.WithPendingInvitations uid
         let err = error . ("brig user without UserRef: " <>) . show
-        () <- do
-          {-
-          case (`Intra.veidFromBrigUser` Nothing) <$> usr of
-            bad@(Just (Right veid)) -> runValidExternalIdEither pure (const $ err bad) veid
-            bad -> err bad
-          -}
-          error ""
+        case (`Intra.veidFromBrigUser` Nothing) <$> usr of
+          bad@(Just (Right veid)) -> runValidExternalIdEither pure (const $ err bad) veid
+          bad -> err bad
       spar <- view teSpar
       deleteUser_ (Just tok) (Just uid) spar
         !!! const 204 === statusCode
