@@ -168,12 +168,14 @@ userIdentityComponentsObjectSchema =
     <$> (\(a, _, _, _, _, _) -> a) .= maybe_ (optField "email" schema)
     <*> (\(_, a, _, _, _, _) -> a) .= maybe_ (optField "phone" schema)
     <*> (\(_, _, a, _, _, _) -> a)
-      .= ( -- FUTUREWORK(fisx): The UAuthId aeson parser succeeds iff team and either sso or
-           -- saml id are present.  Since this is not the case for user components leading to
-           -- eg. EmailIdentity, we need to recover from failures here.  Bad news is that
-           -- there won't be any parse errors even if legitimate, but I can't think of a good
-           -- way to solve this.
-           maybe_ (optField "uauth_id" genericToSchema) <|> pure Nothing
+      .= ( maybe_
+             ( withParser (optFieldWithError "uauth_id" genericToSchema) $
+                 \case
+                   -- UserIdentityComponents without UAuthId are allowed!  (Email-, Phone-, Full-)
+                   Left "at least one of saml_id, scim_external_id must be present" -> pure Nothing
+                   Left err -> fail err
+                   Right v -> pure (Just v)
+             )
          )
     <*> (\(_, _, _, a, _, _) -> a) .= maybe_ (optField "sso_id" genericToSchema)
     <*> (\(_, _, _, _, a, _) -> a) .= maybe_ (optField (cs $ symbolVal (Proxy @tf)) genericToSchema)

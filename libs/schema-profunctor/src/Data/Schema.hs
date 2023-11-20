@@ -307,9 +307,12 @@ explicitParseFieldEither' :: (A.Value -> A.Parser a) -> A.Object -> A.Key -> A.P
 explicitParseFieldEither' p obj key = case KM.lookup key obj of
   Nothing -> pure (Left $ "key missing: " <> show key)
   Just v ->
+    {-
     Aeson.Internal.runParser {- not exported :( -} (p v A.<?> A.Key key) >>= \case
       A.Error e -> pure $ Left e
       A.Success v -> pure $ Right v
+    -}
+    undefined
 
 -- copied from aeson to sort out import issues.  will be removed once this all works!
 _explicitParseFieldMaybe :: (A.Value -> A.Parser a) -> A.Object -> A.Key -> A.Parser (Maybe a)
