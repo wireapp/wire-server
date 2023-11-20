@@ -47,6 +47,7 @@ defInitCassandra ks h p mbCertPath lg = do
           . setPortNumber (fromIntegral p)
           . setContacts (unpack h) []
           . setKeyspace (Keyspace ks)
+          . setProtocolVersion V4
           $ defSettings
       casSettings = maybe basicCasSettings (\sslCtx -> setSSLContext sslCtx basicCasSettings) mbSSLContext
   init casSettings

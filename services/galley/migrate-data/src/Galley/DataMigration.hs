@@ -18,13 +18,12 @@
 module Galley.DataMigration (cassandraSettingsParser, migrate) where
 
 import Cassandra qualified as C
-import Cassandra.Settings qualified as C
+import Cassandra.Util (defInitCassandra)
 import Control.Monad.Catch (finally)
 import Data.Text qualified as Text
 import Data.Time (UTCTime, getCurrentTime)
 import Galley.DataMigration.Types
 import Imports
-import OpenSSL.Session qualified as OpenSSL
 import Options.Applicative (Parser)
 import Options.Applicative qualified as Opts
 import System.Logger.Class (Logger)
@@ -76,33 +75,14 @@ mkEnv l cas =
     <$> initCassandra
     <*> initLogger
   where
-    initCassandra = do
-      mbSSLContext <- createSSLContext (cTlsCert cas)
-      let basicCasSettings =
-            C.setLogger (C.mkLogger l)
-              . C.setContacts (cHost cas) []
-              . C.setPortNumber (fromIntegral (cPort cas))
-              . C.setKeyspace (cKeyspace cas)
-              . C.setProtocolVersion C.V4
-              $ C.defSettings
-          casSettings = maybe basicCasSettings (\sslCtx -> C.setSSLContext sslCtx basicCasSettings) mbSSLContext
-
-      C.init casSettings
+    initCassandra =
+      defInitCassandra
+        ((C.unKeyspace . cKeyspace) cas)
+        ((Text.pack . cHost) cas)
+        (cPort cas)
+        (cTlsCert cas)
+        l
     initLogger = pure l
-
-    createSSLContext :: Maybe FilePath -> IO (Maybe OpenSSL.SSLContext)
-    createSSLContext (Just tlsCertPath) = do
-      sslContext <- OpenSSL.context
-      OpenSSL.contextSetCAFile sslContext tlsCertPath
-      OpenSSL.contextSetVerificationMode
-        sslContext
-        OpenSSL.VerifyPeer
-          { vpFailIfNoPeerCert = True,
-            vpClientOnce = True,
-            vpCallback = Nothing
-          }
-      pure $ Just sslContext
-    createSSLContext Nothing = pure Nothing
 
 -- | Runs only the migrations which need to run
 runMigrations :: [Migration] -> MigrationActionT IO ()
