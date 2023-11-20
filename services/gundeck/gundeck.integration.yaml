@@ -12,7 +12,6 @@ cassandra:
     port: 9042
   keyspace: gundeck_test
   # filterNodesByDatacentre: datacenter1
-  useTLS: true
   tlsCert: ../../hack/cassandra.cert.pem
 
 redis:
