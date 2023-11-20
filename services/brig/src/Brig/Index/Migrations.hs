@@ -24,17 +24,15 @@ import Brig.Index.Migrations.Types
 import Brig.Index.Options qualified as Opts
 import Brig.User.Search.Index qualified as Search
 import Cassandra qualified as C
-import Cassandra.Settings qualified as C
+import Cassandra.Util (defInitCassandra)
 import Control.Lens (view, (^.))
 import Control.Monad.Catch (MonadThrow, catchAll, finally, throwM)
 import Data.Aeson (Value, object, (.=))
 import Data.Metrics qualified as Metrics
 import Data.Text qualified as Text
 import Database.Bloodhound qualified as ES
-import Debug.Trace
 import Imports
 import Network.HTTP.Client qualified as HTTP
-import OpenSSL.Session qualified as OpenSSL
 import System.Logger.Class (Logger)
 import System.Logger.Class qualified as Log
 import System.Logger.Extended (runWithLogger)
@@ -89,32 +87,12 @@ mkEnv l es cas galleyEndpoint = do
     <*> pure galleyEndpoint
   where
     initCassandra =
-      do
-        mbSSLContext <- createSSLContext (cas ^. Opts.cTlsCert)
-        let basicCasSettings =
-              C.setLogger (C.mkLogger l)
-                . C.setContacts (view Opts.cHost cas) []
-                . C.setPortNumber (fromIntegral (view Opts.cPort cas))
-                . C.setKeyspace (view Opts.cKeyspace cas)
-                . C.setProtocolVersion C.V4
-                $ C.defSettings
-            casSettings = maybe basicCasSettings (\sslCtx -> C.setSSLContext sslCtx basicCasSettings) mbSSLContext
-        C.init casSettings
-
-    createSSLContext :: Maybe FilePath -> IO (Maybe OpenSSL.SSLContext)
-    createSSLContext (Just tlsCertPath) = do
-      traceM $ "brig-index: " ++ show tlsCertPath
-      sslContext <- OpenSSL.context
-      OpenSSL.contextSetCAFile sslContext tlsCertPath
-      OpenSSL.contextSetVerificationMode
-        sslContext
-        OpenSSL.VerifyPeer
-          { vpFailIfNoPeerCert = True,
-            vpClientOnce = True,
-            vpCallback = Nothing
-          }
-      pure $ Just sslContext
-    createSSLContext Nothing = pure Nothing
+      defInitCassandra
+        (C.unKeyspace (cas ^. Opts.cKeyspace))
+        (Text.pack (cas ^. Opts.cHost))
+        (cas ^. Opts.cPort)
+        (cas ^. Opts.cTlsCert)
+        l
 
     initLogger = pure l
 
