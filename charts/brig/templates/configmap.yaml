@@ -28,13 +28,8 @@ data:
       {{- if hasKey .cassandra "filterNodesByDatacentre" }}
       filterNodesByDatacentre: {{ .cassandra.filterNodesByDatacentre }}
       {{- end }}
-      {{- if (include "useCassandraTLS" .)}}
-      useTLS: true
       {{- if (include "useCassandraCA" .) }}
       tlsCert: /etc/wire/brig/cassandra/ca.pem
-      {{- end }}
-      {{- else }}
-      useTLS: false
       {{- end }}
 
     elasticsearch:
