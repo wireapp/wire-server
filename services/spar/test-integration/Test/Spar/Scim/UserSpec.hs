@@ -1196,7 +1196,7 @@ testFindSamlAutoProvisionedUserMigratedWithEmailInTeamWithSSO = do
     runSpar $ BrigAccess.setHandle uid handle
     pure usr
   let memberIdWithSSO = userId memberWithSSO
-      externalId = undefined -- either error id $ veidToText =<< Intra.veidFromBrigUser memberWithSSO Nothing
+      externalId = either error id $ veidToText =<< Intra.veidFromBrigUser memberWithSSO Nothing
 
   -- NOTE: once SCIM is enabled, SSO auto-provisioning is disabled
   tok <- registerScimToken teamid (Just (idp ^. SAML.idpId))
@@ -2061,13 +2061,9 @@ specDeleteUser = do
       uref :: SAML.UserRef <- do
         usr <- runSpar $ Intra.getBrigUser Intra.WithPendingInvitations uid
         let err = error . ("brig user without UserRef: " <>) . show
-        () <- do
-          {-
-          case (`Intra.veidFromBrigUser` Nothing) <$> usr of
-            bad@(Just (Right veid)) -> runValidExternalIdEither pure (const $ err bad) veid
-            bad -> err bad
-          -}
-          error ""
+        case (`Intra.veidFromBrigUser` Nothing) <$> usr of
+          bad@(Just (Right veid)) -> runValidExternalIdEither pure (const $ err bad) veid
+          bad -> err bad
       spar <- view teSpar
       deleteUser_ (Just tok) (Just uid) spar
         !!! const 204 === statusCode
