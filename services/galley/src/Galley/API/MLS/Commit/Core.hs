@@ -53,7 +53,9 @@ import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
+import Wire.API.Federation.Endpoint
 import Wire.API.Federation.Error
+import Wire.API.Federation.Version
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Commit
 import Wire.API.MLS.Credential
@@ -148,12 +150,14 @@ getRemoteMLSClients ::
   CipherSuiteTag ->
   Sem r (Either FederationError (Set ClientInfo))
 getRemoteMLSClients rusr suite = do
+  let mcr =
+        MLSClientsRequest
+          { userId = tUnqualified rusr,
+            cipherSuite = tagCipherSuite suite
+          }
   runFederatedEither rusr $
-    fedClient @'Brig @"get-mls-clients" $
-      MLSClientsRequest
-        { userId = tUnqualified rusr,
-          cipherSuite = tagCipherSuite suite
-        }
+    fedClient @'Brig @"get-mls-clients" mcr
+      <|> fedClient @'Brig @(Versioned 'V0 "get-mls-clients") (mlsClientsRequestToV0 mcr)
 
 --------------------------------------------------------------------------------
 -- Error handling of proposal execution

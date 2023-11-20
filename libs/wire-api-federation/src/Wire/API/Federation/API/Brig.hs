@@ -85,6 +85,7 @@ type BrigApi =
     -- (handles can be up to 256 chars currently)
     :<|> FedEndpoint "search-users" SearchRequest SearchResponse
     :<|> FedEndpoint "get-user-clients" GetUserClients (UserMap (Set PubClient))
+    :<|> FedEndpoint (Versioned 'V0 "get-mls-clients") MLSClientsRequestV0 (Set ClientInfo)
     :<|> FedEndpoint "get-mls-clients" MLSClientsRequest (Set ClientInfo)
     :<|> FedEndpoint "send-connection-action" NewConnectionRequest NewConnectionResponse
     :<|> FedEndpoint "claim-key-packages" ClaimKeyPackageRequest (Maybe KeyPackageBundle)
@@ -120,6 +121,15 @@ newtype GetUserClients = GetUserClients
 
 instance ToSchema GetUserClients
 
+data MLSClientsRequestV0 = MLSClientsRequestV0
+  { userId :: UserId, -- implicitly qualified by the local domain
+    signatureScheme :: SignatureSchemeTag
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON) via (CustomEncoded MLSClientsRequestV0)
+
+instance ToSchema MLSClientsRequestV0
+
 data MLSClientsRequest = MLSClientsRequest
   { userId :: UserId, -- implicitly qualified by the local domain
     cipherSuite :: CipherSuite
@@ -128,6 +138,20 @@ data MLSClientsRequest = MLSClientsRequest
   deriving (ToJSON, FromJSON) via (CustomEncoded MLSClientsRequest)
 
 instance ToSchema MLSClientsRequest
+
+mlsClientsRequestToV0 :: MLSClientsRequest -> MLSClientsRequestV0
+mlsClientsRequestToV0 mcr =
+  MLSClientsRequestV0
+    { userId = mcr.userId,
+      signatureScheme = Ed25519
+    }
+
+mlsClientsRequestFromV0 :: MLSClientsRequestV0 -> MLSClientsRequest
+mlsClientsRequestFromV0 mcr =
+  MLSClientsRequest
+    { userId = mcr.userId,
+      cipherSuite = tagCipherSuite MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
+    }
 
 -- NOTE: ConversationId for remote connections
 --

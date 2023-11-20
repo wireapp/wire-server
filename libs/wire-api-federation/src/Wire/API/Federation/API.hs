@@ -48,6 +48,7 @@ import Wire.API.Federation.API.Galley
 import Wire.API.Federation.BackendNotifications
 import Wire.API.Federation.Client
 import Wire.API.Federation.Component
+import Wire.API.Federation.Endpoint
 import Wire.API.Federation.HasNotificationEndpoint
 import Wire.API.MakesFederatedCall
 import Wire.API.Routes.Named
@@ -77,8 +78,13 @@ type HasUnsafeFedEndpoint comp api name = 'Just api ~ LookupEndpoint (FedApi com
 -- 'Wire.API.MakesFederatedCall.exposeAnnotations' for a better understanding
 -- of the information flow here.
 fedClient ::
-  forall (comp :: Component) (name :: Symbol) m (showcomp :: Symbol) api x.
-  (AddAnnotation 'Remote showcomp name x, showcomp ~ ShowComponent comp, HasFedEndpoint comp api name, HasClient m api, m ~ FederatorClient comp) =>
+  forall (comp :: Component) name m (showcomp :: Symbol) api x.
+  ( AddAnnotation 'Remote showcomp (FedPath name) x,
+    showcomp ~ ShowComponent comp,
+    HasFedEndpoint comp api name,
+    HasClient m api,
+    m ~ FederatorClient comp
+  ) =>
   Client m api
 fedClient = clientIn (Proxy @api) (Proxy @m)
 
