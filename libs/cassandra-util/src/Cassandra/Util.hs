@@ -32,7 +32,6 @@ import Data.Time (UTCTime, nominalDiffTimeToSeconds)
 import Data.Time.Clock (secondsToNominalDiffTime)
 import Data.Time.Clock.POSIX
 import Database.CQL.IO.Tinylog qualified as CT
-import Debug.Trace
 import Imports hiding (init)
 import OpenSSL.Session qualified as OpenSSL
 import System.Logger qualified as Log
@@ -51,7 +50,6 @@ defInitCassandra ks h p mbCertPath lg = do
   where
     createSSLContext :: Maybe FilePath -> IO (Maybe OpenSSL.SSLContext)
     createSSLContext (Just tlsCertPath) = do
-      traceM $ "cassandra-util: " ++ show tlsCertPath
       sslContext <- OpenSSL.context
       OpenSSL.contextSetCAFile sslContext tlsCertPath
       OpenSSL.contextSetVerificationMode
