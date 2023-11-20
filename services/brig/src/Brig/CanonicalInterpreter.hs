@@ -7,6 +7,8 @@ import Brig.Effects.BlacklistStore (BlacklistStore)
 import Brig.Effects.BlacklistStore.Cassandra (interpretBlacklistStoreToCassandra)
 import Brig.Effects.CodeStore (CodeStore)
 import Brig.Effects.CodeStore.Cassandra (codeStoreToCassandra, interpretClientToIO)
+import Brig.Effects.FederationConfigStore (FederationConfigStore)
+import Brig.Effects.FederationConfigStore.Cassandra (interpretFederationDomainConfig)
 import Brig.Effects.GalleyProvider (GalleyProvider)
 import Brig.Effects.GalleyProvider.RPC (interpretGalleyProviderToRPC)
 import Brig.Effects.JwtTools
@@ -36,7 +38,8 @@ import Wire.Sem.Now.IO (nowToIOAction)
 import Wire.Sem.Paging.Cassandra (InternalPaging)
 
 type BrigCanonicalEffects =
-  '[ Jwk,
+  '[ FederationConfigStore,
+     Jwk,
      PublicKeyBundle,
      JwtTools,
      BlacklistPhonePrefixStore,
@@ -79,6 +82,7 @@ runBrigToIO e (AppT ma) = do
               . interpretJwtTools
               . interpretPublicKeyBundle
               . interpretJwk
+              . interpretFederationDomainConfig
           )
     )
     $ runReaderT ma e

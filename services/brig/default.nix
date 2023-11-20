@@ -242,7 +242,6 @@ mkDerivation {
     polysemy-plugin
     polysemy-wire-zoo
     proto-lens
-    random
     random-shuffle
     raw-strings-qq
     resource-pool

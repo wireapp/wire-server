@@ -38,20 +38,36 @@ interpretFederationDomainConfig :: forall m r a. (MonadClient m, Member (Embed m
 interpretFederationDomainConfig =
   interpret $
     embed @m . \case
-      GetFederationConfig _ -> undefined
+      GetFederationConfig d -> getFederationConfig' d
       GetFederationConfigs -> getFederationConfigs'
-      AddFederationConfig _ -> pure ()
-      UpdateFederationConfig _ -> pure False
-      AddFederationRemoteTeam _ _ -> pure ()
-      RemoveFederationRemoteTeam _ _ -> pure ()
+      AddFederationConfig cnf -> addFederationConfig' cnf
+      UpdateFederationConfig cnf -> updateFederationConfig' cnf
+      AddFederationRemoteTeam d t -> addFederationRemoteTeam' d t
+      RemoveFederationRemoteTeam d t -> removeFederationRemoteTeam' d t
 
 getFederationConfigs' :: forall m. MonadClient m => m [FederationDomainConfig]
 getFederationConfigs' = do
-  _xs <- getFederationRemotes
-  pure undefined
+  xs <- getFederationRemotes
+  forM xs $ \case
+    API.FederationDomainConfig d p API.FederationRestrictionAllowAll ->
+      pure $ FederationDomainConfig d p FederationRestrictionAllowAll
+    API.FederationDomainConfig d p API.FederationRestrictionByTeam ->
+      FederationDomainConfig d p . FederationRestrictionByTeam . fmap API.teamId <$> getFederationRemoteTeams d
 
 maxKnownNodes :: Int
 maxKnownNodes = 10000
+
+getFederationConfig' :: MonadClient m => Domain -> m (Maybe FederationDomainConfig)
+getFederationConfig' rDomain = do
+  mCnf <- retry x1 (query1 q (params LocalQuorum (Identity rDomain)))
+  teams <- fmap API.teamId <$> getFederationRemoteTeams rDomain
+  pure $
+    mCnf <&> \case
+      (sp, API.FederationRestrictionAllowAll) -> FederationDomainConfig rDomain sp FederationRestrictionAllowAll
+      (sp, API.FederationRestrictionByTeam) -> FederationDomainConfig rDomain sp (FederationRestrictionByTeam teams)
+  where
+    q :: PrepQuery R (Identity Domain) (FederatedUserSearchPolicy, API.FederationRestriction)
+    q = "SELECT search_policy, restriction FROM federation_remotes WHERE domain = ?"
 
 getFederationRemotes :: forall m. MonadClient m => m [API.FederationDomainConfig]
 getFederationRemotes = (\(d, p, r) -> API.FederationDomainConfig d p r) <$$> qry
@@ -62,10 +78,8 @@ getFederationRemotes = (\(d, p, r) -> API.FederationDomainConfig d p r) <$$> qry
     get :: PrepQuery R () (Domain, FederatedUserSearchPolicy, API.FederationRestriction)
     get = fromString $ "SELECT domain, search_policy, restriction FROM federation_remotes LIMIT " <> show maxKnownNodes
 
-data AddFederationRemoteResult = AddFederationRemoteSuccess | AddFederationRemoteMaxRemotesReached
-
-_addFederationRemote :: MonadClient m => API.FederationDomainConfig -> m AddFederationRemoteResult
-_addFederationRemote (API.FederationDomainConfig rDomain searchPolicy restriction) = do
+addFederationConfig' :: MonadClient m => API.FederationDomainConfig -> m AddFederationRemoteResult
+addFederationConfig' (API.FederationDomainConfig rDomain searchPolicy restriction) = do
   l <- length <$> getFederationRemotes
   if l >= maxKnownNodes
     then pure AddFederationRemoteMaxRemotesReached
@@ -74,8 +88,8 @@ _addFederationRemote (API.FederationDomainConfig rDomain searchPolicy restrictio
     add :: PrepQuery W (Domain, FederatedUserSearchPolicy, API.FederationRestriction) ()
     add = "INSERT INTO federation_remotes (domain, search_policy, restriction) VALUES (?, ?, ?)"
 
-_updateFederationRemote :: MonadClient m => API.FederationDomainConfig -> m Bool
-_updateFederationRemote (API.FederationDomainConfig rDomain searchPolicy restriction) = do
+updateFederationConfig' :: MonadClient m => API.FederationDomainConfig -> m Bool
+updateFederationConfig' (API.FederationDomainConfig rDomain searchPolicy restriction) = do
   retry x1 (trans upd (params LocalQuorum (searchPolicy, restriction, rDomain)) {serialConsistency = Just LocalSerialConsistency}) >>= \case
     [] -> pure False
     [_] -> pure True
@@ -84,29 +98,22 @@ _updateFederationRemote (API.FederationDomainConfig rDomain searchPolicy restric
     upd :: PrepQuery W (FederatedUserSearchPolicy, API.FederationRestriction, Domain) x
     upd = "UPDATE federation_remotes SET search_policy = ?, restriction = ? WHERE domain = ? IF EXISTS"
 
-_deleteFederationRemote :: MonadClient m => Domain -> m ()
-_deleteFederationRemote rDomain =
-  retry x1 $ write delete (params LocalQuorum (Identity rDomain))
-  where
-    delete :: PrepQuery W (Identity Domain) ()
-    delete = "DELETE FROM federation_remotes WHERE domain = ?"
-
-_addFederationRemoteTeam :: MonadClient m => Domain -> API.FederationRemoteTeam -> m ()
-_addFederationRemoteTeam rDomain rteam =
-  retry x1 $ write add (params LocalQuorum (rDomain, rteam.teamId))
+addFederationRemoteTeam' :: MonadClient m => Domain -> TeamId -> m ()
+addFederationRemoteTeam' rDomain tid =
+  retry x1 $ write add (params LocalQuorum (rDomain, tid))
   where
     add :: PrepQuery W (Domain, TeamId) ()
     add = "INSERT INTO federation_remote_teams (domain, team) VALUES (?, ?)"
 
-_getFederationRemoteTeams :: MonadClient m => Domain -> m [API.FederationRemoteTeam]
-_getFederationRemoteTeams rDomain = do
+getFederationRemoteTeams :: MonadClient m => Domain -> m [API.FederationRemoteTeam]
+getFederationRemoteTeams rDomain = do
   fmap (API.FederationRemoteTeam . runIdentity) <$> retry x1 (query get (params LocalQuorum (Identity rDomain)))
   where
     get :: PrepQuery R (Identity Domain) (Identity TeamId)
     get = "SELECT team FROM federation_remote_teams WHERE domain = ?"
 
-_deleteFederationRemoteTeam :: MonadClient m => Domain -> TeamId -> m ()
-_deleteFederationRemoteTeam rDomain rteam =
+removeFederationRemoteTeam' :: MonadClient m => Domain -> TeamId -> m ()
+removeFederationRemoteTeam' rDomain rteam =
   retry x1 $ write delete (params LocalQuorum (rDomain, rteam))
   where
     delete :: PrepQuery W (Domain, TeamId) ()
