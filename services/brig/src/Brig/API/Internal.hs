@@ -236,7 +236,7 @@ addFederationRemoteTeam :: (Member FederationConfigStore r) => Domain -> Federat
 addFederationRemoteTeam domain rt =
   lift $ liftSem $ FederationConfigStore.addFederationRemoteTeam domain rt.teamId
 
-addFederationRemote :: (Member FederationConfigStore r) => FederationDomainConfig -> ExceptT Brig.API.Error.Error (AppT r) ()
+addFederationRemote :: (Member FederationConfigStore r) => FederationDomainConfig -> (Handler r) ()
 addFederationRemote fedDomConf = do
   assertNoDivergingDomainInConfigFiles fedDomConf
   result <- lift $ liftSem $ FederationConfigStore.addFederationConfig fedDomConf
@@ -259,14 +259,9 @@ remotesMapFromCfgFile = do
           else error $ "error in config file: conflicting parameters on domain: " <> show (c, c')
   pure $ Map.fromListWith merge dict
 
--- | Return the config file list.  Use this to make sure the config file is consistent (ie.,
--- no two entries for the same domain).  Based on `remotesMapFromCfgFile`.
-remotesListFromCfgFile :: AppT r [FederationDomainConfig]
-remotesListFromCfgFile = Map.elems <$> remotesMapFromCfgFile
-
 -- | If remote domain is registered in config file, the version that can be added to the
 -- database must be the same.
-assertNoDivergingDomainInConfigFiles :: FederationDomainConfig -> ExceptT Brig.API.Error.Error (AppT r) ()
+assertNoDivergingDomainInConfigFiles :: FederationDomainConfig -> (Handler r) ()
 assertNoDivergingDomainInConfigFiles fedComConf = do
   cfg <- lift remotesMapFromCfgFile
   let diverges = case Map.lookup (domain fedComConf) cfg of
@@ -284,7 +279,7 @@ assertNoDivergingDomainInConfigFiles fedComConf = do
                <> cs (show (Map.lookup (domain fedComConf) cfg))
            )
 
-getFederationRemotes :: (Member FederationConfigStore r) => ExceptT Brig.API.Error.Error (AppT r) FederationDomainConfigs
+getFederationRemotes :: (Member FederationConfigStore r) => (Handler r) FederationDomainConfigs
 getFederationRemotes = lift $ do
   -- FUTUREWORK: we should solely rely on `db` in the future for remote domains; merging
   -- remote domains from `cfg` is just for providing an easier, more robust migration path.
@@ -292,22 +287,16 @@ getFederationRemotes = lift $ do
   -- https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections,
   -- http://docs.wire.com/developer/developer/federation-design-aspects.html#configuring-remote-connections-dev-perspective
   db <- liftSem $ FederationConfigStore.getFederationConfigs
-  (ms :: Maybe FederationStrategy, mf :: [FederationDomainConfig], mu :: Maybe Int) <- do
+  ms :: Maybe FederationStrategy <- do
     cfg <- ask
-    domcfgs <- remotesListFromCfgFile -- (it's not very elegant to prove the env twice here, but this code is transitory.)
-    pure
-      ( setFederationStrategy (cfg ^. settings),
-        domcfgs,
-        setFederationDomainConfigsUpdateFreq (cfg ^. settings)
-      )
+    pure (setFederationStrategy (cfg ^. settings))
 
   defFederationDomainConfigs
     & maybe id (\v cfg -> cfg {strategy = v}) ms
-    & (\cfg -> cfg {remotes = nub $ (fmap FederationConfigStore.fromFederationDomainConfig db) <> mf})
-    & maybe id (\v cfg -> cfg {updateInterval = min 1 v}) mu
+    & (\cfg -> cfg {remotes = fmap FederationConfigStore.fromFederationDomainConfig db})
     & pure
 
-updateFederationRemote :: (Member FederationConfigStore r) => Domain -> FederationDomainConfig -> ExceptT Brig.API.Error.Error (AppT r) ()
+updateFederationRemote :: (Member FederationConfigStore r) => Domain -> FederationDomainConfig -> (Handler r) ()
 updateFederationRemote dom fedcfg = do
   assertDomainIsNotUpdated dom fedcfg
   assertNoDomainsFromConfigFiles dom
@@ -317,14 +306,14 @@ updateFederationRemote dom fedcfg = do
       throwError . fedError . FederationUnexpectedError . cs $
         "federation domain does not exist and cannot be updated: " <> show (dom, fedcfg)
 
-assertDomainIsNotUpdated :: Domain -> FederationDomainConfig -> ExceptT Brig.API.Error.Error (AppT r) ()
+assertDomainIsNotUpdated :: Domain -> FederationDomainConfig -> (Handler r) ()
 assertDomainIsNotUpdated dom fedcfg = do
   when (dom /= domain fedcfg) $
     throwError . fedError . FederationUnexpectedError . cs $
       "federation domain of a given peer cannot be changed from " <> show (domain fedcfg) <> " to " <> show dom <> "."
 
 -- | FUTUREWORK: should go away in the future; see 'getFederationRemotes'.
-assertNoDomainsFromConfigFiles :: Domain -> ExceptT Brig.API.Error.Error (AppT r) ()
+assertNoDomainsFromConfigFiles :: Domain -> (Handler r) ()
 assertNoDomainsFromConfigFiles dom = do
   cfg <- fmap (.federationDomainConfig) <$> asks (fromMaybe [] . setFederationDomainConfigs . view settings)
   when (dom `elem` (domain <$> cfg)) $ do

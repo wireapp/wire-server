@@ -19,7 +19,7 @@ data FederationDomainConfig = FederationDomainConfig
     searchPolicy :: FederatedUserSearchPolicy,
     restriction :: FederationRestriction
   }
-  deriving stock (Show)
+  deriving stock (Show, Eq)
 
 fromFederationDomainConfig :: FederationDomainConfig -> API.FederationDomainConfig
 fromFederationDomainConfig (FederationDomainConfig d p FederationRestrictionAllowAll) = API.FederationDomainConfig d p API.FederationRestrictionAllowAll
