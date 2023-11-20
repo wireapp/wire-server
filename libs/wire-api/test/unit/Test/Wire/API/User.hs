@@ -235,10 +235,9 @@ parseIdentityTests =
                                     }|]
                          )
                        ]
-             in mkUAuthIdentityTestCase "8" jsonIn haskellIn jsonOut mbBrigEmail,
-            testCase "..." $
-              error "ok, what else?"
-          ]
+             in mkUAuthIdentityTestCase "8" jsonIn haskellIn jsonOut mbBrigEmail
+          ],
+    testSSOIdToUAuthIdMigrations
   ]
   where
     -- render jsonIn into a UAuthId parser error.
@@ -311,3 +310,97 @@ parseIdentityTests =
 
     tid = read "226923f0-6f15-11ee-96bd-33644427c814"
     tid2 = read "8298c71e-855c-11ee-9ff6-5f1a496da735"
+
+    -- First enumerate all interesting test cases, then case-match them and handle them
+    -- individually in `testSSOIdToUAuthIdMigration`.  this makes for marginally more LOC, but
+    -- separates a list of what we want to test nicely from the actual tests, making it easier
+    -- to see whether we've missed a spot.
+    testSSOIdToUAuthIdMigrations :: TestTree
+    testSSOIdToUAuthIdMigrations =
+      testGroup "translation: sso_id => uauth_id" $
+        []
+          <> ( testSSOIdToUAuthIdMigration
+                 <$> [UserSSOId uref1, UserScimExternalId eid1]
+                 <*> [minBound ..]
+                 <*> [Nothing, Just email1]
+             )
+          <> ( testSSOIdToUAuthIdMigration
+                 <$> [UserSSOId uref3, UserScimExternalId eid3]
+                 <*> [minBound ..]
+                 <*> [Nothing, Just email2]
+             )
+
+    abbreviateMsg :: LegacyUserSSOId -> Text
+    abbreviateMsg (UserSSOId uref') | uref' == uref1 = "UserSSOId uref1"
+    abbreviateMsg (UserSSOId uref') | uref' == uref3 = "UserSSOId uref3"
+    abbreviateMsg (UserScimExternalId eid') | eid' == eid1 = "UserScimExternalId eid1"
+    abbreviateMsg (UserScimExternalId eid') | eid' == eid3 = "UserScimExternalId eid3"
+
+    testSSOIdToUAuthIdMigration :: LegacyUserSSOId -> ManagedBy -> Maybe Email -> TestTree
+    testSSOIdToUAuthIdMigration lsso@(UserSSOId uref') mby@ManagedByWire mbemail@Nothing
+      | uref' == uref1 =
+          testCase (cs (encode (abbreviateMsg lsso, mby, mbemail))) $
+            UAuthId (Just uref1) Nothing ((`EmailWithSource` EmailFromSamlNameId) <$> mbemail) tid @=? legacyUserSSOIdToUAuthId lsso tid mby mbemail
+    testSSOIdToUAuthIdMigration lsso@(UserSSOId uref') mby@ManagedByWire mbemail@(Just email')
+      | uref' == uref1 && email' == email1 =
+          testCase (cs (encode (abbreviateMsg lsso, mby, mbemail))) $
+            UAuthId (Just uref1) Nothing ((`EmailWithSource` EmailFromSamlNameId) <$> mbemail) tid @=? legacyUserSSOIdToUAuthId lsso tid mby mbemail
+    testSSOIdToUAuthIdMigration lsso@(UserSSOId uref') mby@ManagedByScim mbemail@Nothing
+      | uref' == uref1 =
+          testCase (cs (encode (abbreviateMsg lsso, mby, mbemail))) $
+            UAuthId (Just uref1) (Just eid1) ((`EmailWithSource` EmailFromSamlNameId) <$> mbemail) tid @=? legacyUserSSOIdToUAuthId lsso tid mby mbemail
+    testSSOIdToUAuthIdMigration lsso@(UserSSOId uref') mby@ManagedByScim mbemail@(Just email')
+      | uref' == uref1 && email' == email1 =
+          testCase (cs (encode (abbreviateMsg lsso, mby, mbemail))) $
+            UAuthId (Just uref1) (Just eid1) ((`EmailWithSource` EmailFromScimExternalIdField) <$> mbemail) tid @=? legacyUserSSOIdToUAuthId lsso tid mby mbemail
+    --
+    testSSOIdToUAuthIdMigration lsso@(UserScimExternalId eid') mby@ManagedByWire mbemail@Nothing
+      | eid' == eid1 =
+          testCase (cs (encode (abbreviateMsg lsso, mby, mbemail))) $
+            UAuthId Nothing (Just eid1) ((`EmailWithSource` EmailFromSamlNameId) <$> mbemail) tid @=? legacyUserSSOIdToUAuthId lsso tid mby mbemail
+    testSSOIdToUAuthIdMigration lsso@(UserScimExternalId eid') mby@ManagedByWire mbemail@(Just email')
+      | eid' == eid1 && email' == email1 =
+          testCase (cs (encode (abbreviateMsg lsso, mby, mbemail))) $
+            UAuthId Nothing (Just eid1) ((`EmailWithSource` EmailFromSamlNameId) <$> mbemail) tid @=? legacyUserSSOIdToUAuthId lsso tid mby mbemail
+    testSSOIdToUAuthIdMigration lsso@(UserScimExternalId eid') mby@ManagedByScim mbemail@Nothing
+      | eid' == eid1 =
+          testCase (cs (encode (abbreviateMsg lsso, mby, mbemail))) $
+            UAuthId Nothing (Just eid1) ((`EmailWithSource` EmailFromSamlNameId) <$> mbemail) tid @=? legacyUserSSOIdToUAuthId lsso tid mby mbemail
+    testSSOIdToUAuthIdMigration lsso@(UserScimExternalId eid') mby@ManagedByScim mbemail@(Just email')
+      | eid' == eid1 && email' == email1 =
+          testCase (cs (encode (abbreviateMsg lsso, mby, mbemail))) $
+            UAuthId Nothing (Just eid1) ((`EmailWithSource` EmailFromScimExternalIdField) <$> mbemail) tid @=? legacyUserSSOIdToUAuthId lsso tid mby mbemail
+    --
+    testSSOIdToUAuthIdMigration lsso@(UserSSOId uref') mby@ManagedByWire mbemail@Nothing
+      | uref' == uref3 =
+          testCase (cs (encode (abbreviateMsg lsso, mby, mbemail))) $
+            UAuthId (Just uref3) Nothing ((`EmailWithSource` EmailFromSamlNameId) <$> mbemail) tid @=? legacyUserSSOIdToUAuthId lsso tid mby mbemail
+    testSSOIdToUAuthIdMigration lsso@(UserSSOId uref') mby@ManagedByWire mbemail@(Just email')
+      | uref' == uref3 && email' == email2 =
+          testCase (cs (encode (abbreviateMsg lsso, mby, mbemail))) $
+            UAuthId (Just uref3) Nothing ((`EmailWithSource` EmailFromSamlNameId) <$> mbemail) tid @=? legacyUserSSOIdToUAuthId lsso tid mby mbemail
+    testSSOIdToUAuthIdMigration lsso@(UserSSOId uref') mby@ManagedByScim mbemail@Nothing
+      | uref' == uref3 =
+          testCase (cs (encode (abbreviateMsg lsso, mby, mbemail))) $
+            UAuthId (Just uref3) (Just eid3) ((`EmailWithSource` EmailFromSamlNameId) <$> mbemail) tid @=? legacyUserSSOIdToUAuthId lsso tid mby mbemail
+    testSSOIdToUAuthIdMigration lsso@(UserSSOId uref') mby@ManagedByScim mbemail@(Just email')
+      | uref' == uref3 && email' == email2 =
+          testCase (cs (encode (abbreviateMsg lsso, mby, mbemail))) $
+            UAuthId (Just uref3) (Just eid3) ((`EmailWithSource` EmailFromScimExternalIdField) <$> mbemail) tid @=? legacyUserSSOIdToUAuthId lsso tid mby mbemail
+    --
+    testSSOIdToUAuthIdMigration lsso@(UserScimExternalId eid') mby@ManagedByWire mbemail@Nothing
+      | eid' == eid3 =
+          testCase (cs (encode (abbreviateMsg lsso, mby, mbemail))) $
+            UAuthId Nothing (Just eid3) ((`EmailWithSource` EmailFromSamlNameId) <$> mbemail) tid @=? legacyUserSSOIdToUAuthId lsso tid mby mbemail
+    testSSOIdToUAuthIdMigration lsso@(UserScimExternalId eid') mby@ManagedByWire mbemail@(Just email')
+      | eid' == eid3 && email' == email2 =
+          testCase (cs (encode (abbreviateMsg lsso, mby, mbemail))) $
+            UAuthId Nothing (Just eid3) ((`EmailWithSource` EmailFromSamlNameId) <$> mbemail) tid @=? legacyUserSSOIdToUAuthId lsso tid mby mbemail
+    testSSOIdToUAuthIdMigration lsso@(UserScimExternalId eid') mby@ManagedByScim mbemail@Nothing
+      | eid' == eid3 =
+          testCase (cs (encode (abbreviateMsg lsso, mby, mbemail))) $
+            UAuthId Nothing (Just eid3) ((`EmailWithSource` EmailFromSamlNameId) <$> mbemail) tid @=? legacyUserSSOIdToUAuthId lsso tid mby mbemail
+    testSSOIdToUAuthIdMigration lsso@(UserScimExternalId eid') mby@ManagedByScim mbemail@(Just email')
+      | eid' == eid3 && email' == email2 =
+          testCase (cs (encode (abbreviateMsg lsso, mby, mbemail))) $
+            UAuthId Nothing (Just eid3) ((`EmailWithSource` EmailFromScimExternalIdField) <$> mbemail) tid @=? legacyUserSSOIdToUAuthId lsso tid mby mbemail
