@@ -63,7 +63,6 @@ data MigrationOpts = MigrationOpts
     migKeyspace :: Text,
     migRepl :: ReplicationStrategy,
     migReset :: Bool,
-    migUseTLS :: Bool,
     migTLSCert :: Maybe FilePath
   }
   deriving (Eq, Show, Generic)
@@ -189,10 +188,6 @@ migrationOptsParser =
     <*> switch
       ( long "reset"
           <> help "Reset the keyspace before running migrations"
-      )
-    <*> switch
-      ( long "use-tls"
-          <> help "Use TLS to connect to Cassandra"
       )
     <*> ( (optional . strOption)
             ( long "tls-certificate-file"

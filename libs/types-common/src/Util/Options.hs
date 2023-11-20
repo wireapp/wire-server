@@ -92,7 +92,6 @@ data CassandraOpts = CassandraOpts
     -- This option is most likely only necessary during a cassandra DC migration
     -- FUTUREWORK: remove this option again, or support a datacentre migration feature
     _filterNodesByDatacentre :: !(Maybe Text),
-    _useTLS :: Bool,
     _tlsCert :: Maybe FilePath
   }
   deriving (Show, Generic)
