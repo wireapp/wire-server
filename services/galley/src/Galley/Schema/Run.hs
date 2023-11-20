@@ -17,6 +17,7 @@
 
 module Galley.Schema.Run where
 
+import Cassandra.MigrateSchema (migrateSchema)
 import Cassandra.Schema
 import Control.Exception (finally)
 import Galley.Schema.V20 qualified as V20

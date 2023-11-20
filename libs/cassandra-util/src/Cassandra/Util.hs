@@ -18,6 +18,7 @@
 module Cassandra.Util
   ( defInitCassandra,
     initCassandraForService,
+    initCassandra,
     Writetime (..),
     writetimeToInt64,
   )
@@ -40,31 +41,15 @@ import OpenSSL.Session qualified as OpenSSL
 import System.Logger qualified as Log
 
 defInitCassandra :: Text -> Text -> Word16 -> Maybe FilePath -> Log.Logger -> IO ClientState
-defInitCassandra ks h p mbCertPath lg = do
-  mbSSLContext <- createSSLContext mbCertPath
+defInitCassandra ks h p mbTlsCertPath logger = do
   let basicCasSettings =
-        setLogger (CT.mkLogger lg)
+        setLogger (CT.mkLogger logger)
           . setPortNumber (fromIntegral p)
           . setContacts (unpack h) []
           . setKeyspace (Keyspace ks)
           . setProtocolVersion V4
           $ defSettings
-      casSettings = maybe basicCasSettings (\sslCtx -> setSSLContext sslCtx basicCasSettings) mbSSLContext
-  init casSettings
-  where
-    createSSLContext :: Maybe FilePath -> IO (Maybe OpenSSL.SSLContext)
-    createSSLContext (Just tlsCertPath) = do
-      sslContext <- OpenSSL.context
-      OpenSSL.contextSetCAFile sslContext tlsCertPath
-      OpenSSL.contextSetVerificationMode
-        sslContext
-        OpenSSL.VerifyPeer
-          { vpFailIfNoPeerCert = True,
-            vpClientOnce = True,
-            vpCallback = Nothing
-          }
-      pure $ Just sslContext
-    createSSLContext Nothing = pure Nothing
+  initCassandra basicCasSettings mbTlsCertPath logger
 
 -- | Create Cassandra `ClientState` ("connection") for a service
 --
@@ -88,7 +73,6 @@ initCassandraForService host port serviceName keyspace mbTlsCertPath filterNodes
       (initialContactsPlain host)
       (initialContactsDisco ("cassandra_" ++ serviceName) . unpack)
       discoUrl
-  mbSSLContext <- createSSLContext mbTlsCertPath
   let basicCasSettings =
         setLogger (mkLogger (Log.clone (Just (pack ("cassandra." ++ serviceName))) logger))
           . setContacts (NE.head c) (NE.tail c)
@@ -102,17 +86,19 @@ initCassandraForService host port serviceName keyspace mbTlsCertPath filterNodes
           . setProtocolVersion V4
           . setPolicy (dcFilterPolicyIfConfigured logger filterNodesByDatacentre)
           $ defSettings
-      casSettings = maybe basicCasSettings (\sslCtx -> setSSLContext sslCtx basicCasSettings) mbSSLContext
-  p <- init casSettings
+  p <- initCassandra basicCasSettings mbTlsCertPath logger
   maybe (pure ()) (\v -> runClient p $ (versionCheck v)) mbSchemaVersion
   pure p
+
+initCassandra :: Settings -> Maybe FilePath -> Log.Logger -> IO ClientState
+initCassandra settings (Just tlsCertPath) logger = do
+  sslContext <- createSSLContext tlsCertPath
+  let settings' = setSSLContext sslContext settings
+  init settings'
   where
-    -- TODO: Re-consider logging
-    createSSLContext :: Maybe FilePath -> IO (Maybe OpenSSL.SSLContext)
-    createSSLContext (Just certFile) = do
+    createSSLContext :: FilePath -> IO OpenSSL.SSLContext
+    createSSLContext certFile = do
       void . liftIO $ Log.debug logger (Log.msg ("TLS cert file path: " <> show certFile))
-      fileExists <- doesFileExist certFile
-      void . liftIO $ Log.debug logger (Log.msg ("TLS cert file exists: " <> show fileExists))
       sslContext <- OpenSSL.context
       OpenSSL.contextSetCAFile sslContext certFile
       OpenSSL.contextSetVerificationMode
@@ -122,10 +108,10 @@ initCassandraForService host port serviceName keyspace mbTlsCertPath filterNodes
             vpClientOnce = True,
             vpCallback = Nothing
           }
-      pure $ Just sslContext
-    createSSLContext Nothing = do
-      void . liftIO $ Log.debug logger (Log.msg ("No TLS cert file path configured." :: Text))
-      pure Nothing
+      pure sslContext
+initCassandra settings Nothing logger = do
+  void . liftIO $ Log.debug logger (Log.msg ("No TLS cert file path configured." :: Text))
+  init settings
 
 -- | Read cassandra's writetimes https://docs.datastax.com/en/dse/5.1/cql/cql/cql_using/useWritetime.html
 -- as UTCTime values without any loss of precision

@@ -15,6 +15,7 @@ library
     Cassandra
     Cassandra.CQL
     Cassandra.Exec
+    Cassandra.MigrateSchema
     Cassandra.Schema
     Cassandra.Settings
     Cassandra.Util
