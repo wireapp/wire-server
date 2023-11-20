@@ -666,7 +666,7 @@ deleteFromPhonePrefixH prefix = lift $ NoContent <$ API.phonePrefixDelete prefix
 addPhonePrefixH :: Member BlacklistPhonePrefixStore r => ExcludedPrefix -> (Handler r) NoContent
 addPhonePrefixH prefix = lift $ NoContent <$ API.phonePrefixInsert prefix
 
-updateSSOIdH :: UserId -> UserSSOId -> (Handler r) UpdateSSOIdResponse
+updateSSOIdH :: UserId -> LegacyUserSSOId -> (Handler r) UpdateSSOIdResponse
 updateSSOIdH uid ssoid = do
   success <- lift $ wrapClient $ Data.updateSSOId uid (Just ssoid)
   if success
