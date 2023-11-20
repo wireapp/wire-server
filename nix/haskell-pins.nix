@@ -106,6 +106,8 @@ let
         sha256 = "0dgizj1kc135yzzqdf5l7f5ax0qpvrr8mxvg7s1dbm01cf11aqzn";
       };
     };
+
+    # https://github.com/dpwright/HaskellNet-SSL/pull/33
     HaskellNet-SSL = {
       src = fetchgit {
         url = "https://github.com/MangoIV/HaskellNet-SSL";
