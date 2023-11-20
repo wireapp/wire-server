@@ -165,19 +165,27 @@ partialToScimUAuthId (UAuthId _ Nothing _ _) = Nothing
 scimToPartialUAuthId :: ScimUAuthId -> PartialUAuthId
 scimToPartialUAuthId (UAuthId saml (Identity eid) eml tid) = UAuthId saml (Just eid) eml tid
 
+partialUAuthIdSchema :: ValueSchema NamedSwaggerDoc PartialUAuthId
+partialUAuthIdSchema =
+  object "PartialUAuthId" $
+    UAuthId
+      <$> uaSamlId .= maybe_ (optField "saml_id" userRefSchema)
+      <*> uaScimExternalId .= maybe_ (optField "scim_external_id" schema)
+      <*> uaEmail .= maybe_ (optField "email" schema)
+      <*> uaTeamId .= field "team" schema
+
 instance ToSchema PartialUAuthId where
-  schema = withParser scm $ \case
+  schema = withParser partialUAuthIdSchema $ \case
     UAuthId Nothing Nothing _ _ -> fail "at least one of saml_id, scim_external_id must be present"
     UAuthId Nothing (Just _) Nothing _ -> fail "scim_external_id requires either email address or saml_id to be present"
     ok -> pure ok
-    where
-      scm =
-        object "PartialUAuthId" $
-          UAuthId
-            <$> uaSamlId .= maybe_ (optField "saml_id" userRefSchema)
-            <*> uaScimExternalId .= maybe_ (optField "scim_external_id" schema)
-            <*> uaEmail .= maybe_ (optField "email" schema)
-            <*> uaTeamId .= field "team" schema
+
+-- | needed e.g. for parsing `UserIdentity`, where it's ok to have team id but no `UAuthId`.
+optPartialUAuthIdSchema :: ValueSchemaP NamedSwaggerDoc PartialUAuthId (Maybe PartialUAuthId)
+optPartialUAuthIdSchema = withParser partialUAuthIdSchema $ \case
+  UAuthId Nothing Nothing _ _ -> pure Nothing
+  UAuthId Nothing (Just _) Nothing _ -> fail "scim_external_id requires either email address or saml_id to be present"
+  ok -> pure $ Just ok
 
 instance ToSchema ScimUAuthId where
   schema =

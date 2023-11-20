@@ -57,7 +57,6 @@ module Data.Schema
     fieldWithDocModifier,
     fieldOver,
     optField,
-    optFieldWithError,
     optFieldWithDocModifier,
     fieldF,
     fieldOverF,
@@ -69,7 +68,6 @@ module Data.Schema
     mapWithKeys,
     enum,
     maybe_,
-    either_,
     maybeWithDefault,
     bind,
     dispatch,
@@ -96,7 +94,6 @@ import Control.Lens hiding (element, enum, set, (.=))
 import Control.Lens qualified as Lens
 import Control.Monad.Trans.Cont
 import Data.Aeson.Key qualified as Key
-import Data.Aeson.KeyMap qualified as KM
 import Data.Aeson.Types qualified as A
 import Data.Bifunctor.Joker
 import Data.List.NonEmpty (NonEmpty)
@@ -297,32 +294,6 @@ instance HasOpt doc => FieldFunctor doc Maybe where
   parseFieldF f obj key = A.explicitParseFieldMaybe f obj (Key.fromText key)
   mkDocF = mkOpt
 
-instance HasOpt doc => FieldFunctor doc (Either String) where
-  parseFieldF f obj key = explicitParseFieldEither' f obj (Key.fromText key)
-  mkDocF = mkOpt
-
--- | Variant of `A.explicitParseFieldMaybe'`, but returns `Left err` instead of `Nothing`,
--- where `err` is the error obtained by running the first arg on the second.
-explicitParseFieldEither' :: (A.Value -> A.Parser a) -> A.Object -> A.Key -> A.Parser (Either String a)
-explicitParseFieldEither' p obj key = case KM.lookup key obj of
-  Nothing -> pure (Left $ "key missing: " <> show key)
-  Just v ->
-    {-
-    Aeson.Internal.runParser {- not exported :( -} (p v A.<?> A.Key key) >>= \case
-      A.Error e -> pure $ Left e
-      A.Success v -> pure $ Right v
-    -}
-    undefined
-
--- copied from aeson to sort out import issues.  will be removed once this all works!
-_explicitParseFieldMaybe :: (A.Value -> A.Parser a) -> A.Object -> A.Key -> A.Parser (Maybe a)
-_explicitParseFieldMaybe p obj key = case KM.lookup key obj of
-  Nothing -> pure Nothing
-  Just v -> liftParseJSON p (A.listParser p) v A.<?> A.Key key
-
-liftParseJSON :: (A.Value -> A.Parser a) -> (A.Value -> A.Parser [a]) -> A.Value -> A.Parser (f a)
-liftParseJSON = undefined -- should be exported from aeson!  :(
-
 -- | A schema for a one-field JSON object.
 field ::
   forall doc' doc a b.
@@ -340,15 +311,6 @@ optField ::
   SchemaP doc' A.Value A.Value a b ->
   SchemaP doc A.Object [A.Pair] a (Maybe b)
 optField = fieldF
-
--- | Like `fieldF`, but without the Functor constraint.
-optFieldWithError ::
-  forall doc doc' a b.
-  (HasOpt doc, HasField doc' doc) =>
-  Text ->
-  SchemaP doc' A.Value A.Value a b ->
-  SchemaP doc A.Object [A.Pair] a (Either String b)
-optFieldWithError = fieldF
 
 -- | Generalization of 'optField' with 'FieldFunctor'.
 fieldF ::
@@ -614,10 +576,6 @@ enum name sch = SchemaP (SchemaDoc d) (SchemaIn i) (SchemaOut o)
 -- to be omitted from the output of the serialiser.
 maybe_ :: Monoid w => SchemaP d v w a b -> SchemaP d v w (Maybe a) b
 maybe_ = maybeWithDefault mempty
-
-either_ :: Monoid w => SchemaP d v w a b -> SchemaP d v w (Either String a) b
-either_ (SchemaP (SchemaDoc d) (SchemaIn i) (SchemaOut o)) =
-  SchemaP (SchemaDoc d) (SchemaIn i) (SchemaOut (either (const Nothing) o))
 
 -- | A schema for 'Maybe', producing the given default value on serialisation.
 maybeWithDefault :: w -> SchemaP d v w a b -> SchemaP d v w (Maybe a) b

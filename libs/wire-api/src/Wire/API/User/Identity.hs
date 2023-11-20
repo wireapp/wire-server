@@ -167,16 +167,7 @@ userIdentityComponentsObjectSchema =
   (,,,,,)
     <$> (\(a, _, _, _, _, _) -> a) .= maybe_ (optField "email" schema)
     <*> (\(_, a, _, _, _, _) -> a) .= maybe_ (optField "phone" schema)
-    <*> (\(_, _, a, _, _, _) -> a)
-      .= ( maybe_
-             ( withParser (optFieldWithError "uauth_id" genericToSchema) $
-                 \case
-                   -- UserIdentityComponents without UAuthId are allowed!  (Email-, Phone-, Full-)
-                   Left "at least one of saml_id, scim_external_id must be present" -> pure Nothing
-                   Left err -> fail err
-                   Right v -> pure (Just v)
-             )
-         )
+    <*> (\(_, _, a, _, _, _) -> a) .= maybe_ (field "uauth_id" optPartialUAuthIdSchema)
     <*> (\(_, _, _, a, _, _) -> a) .= maybe_ (optField "sso_id" genericToSchema)
     <*> (\(_, _, _, _, a, _) -> a) .= maybe_ (optField (cs $ symbolVal (Proxy @tf)) genericToSchema)
     <*> (\(_, _, _, _, _, a) -> a) .= maybe_ (optField "managed_by" genericToSchema)
