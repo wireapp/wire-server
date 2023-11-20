@@ -159,7 +159,7 @@ newAccount u inv tid mbHandle = do
     locale defLoc = fromMaybe defLoc (newUserLocale u)
     managedBy = fromMaybe defaultManagedBy (newUserManagedBy u)
     prots = fromMaybe defSupportedProtocols (newUserSupportedProtocols u)
-    user uid domain l e = User uid (Qualified uid domain) ident name pict assets colour False l Nothing mbHandle e tid managedBy prots
+    user uid domain l e = User uid (Qualified uid domain) (castUserIdentityTeamFieldName <$> ident) name pict assets colour False l Nothing mbHandle e tid managedBy prots
 
 newAccountInviteViaScim :: MonadReader Env m => UserId -> TeamId -> Maybe Locale -> Name -> Email -> m UserAccount
 newAccountInviteViaScim uid tid locale name email = do
@@ -224,7 +224,7 @@ isSamlUser :: (MonadClient m, MonadReader Env m) => UserId -> m Bool
 isSamlUser uid = do
   account <- lookupAccount uid
   pure $ case userIdentity . accountUser =<< account of
-    Just (UAuthIdentity (Just _) (Just _) _) -> True
+    Just (UAuthIdentity (UAuthId (Just _) _ _ _) _) -> True
     _ -> False
 
 insertAccount ::
@@ -394,7 +394,7 @@ filterActive us =
 lookupUser :: (MonadClient m, MonadReader Env m) => HavePendingInvitations -> UserId -> m (Maybe User)
 lookupUser hpi u = listToMaybe <$> lookupUsers hpi [u]
 
-activateUser :: MonadClient m => UserId -> UserIdentity -> m ()
+activateUser :: MonadClient m => UserId -> UserIdentity tf -> m ()
 activateUser u ident = do
   let email = emailIdentity ident
   let phone = phoneIdentity ident

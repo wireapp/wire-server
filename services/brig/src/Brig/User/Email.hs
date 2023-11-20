@@ -113,7 +113,7 @@ sendActivationMail ::
   Name ->
   ActivationPair ->
   Maybe Locale ->
-  Maybe UserIdentity ->
+  Maybe (UserIdentity tf) ->
   m ()
 sendActivationMail to name pair loc ident = do
   tpl <- selectTemplate . snd <$> userTemplates loc

@@ -22,6 +22,7 @@
 module Wire.API.User.Identity
   ( -- * UserIdentity
     UserIdentity (..),
+    castUserIdentityTeamFieldName,
     newIdentity,
     emailIdentity,
     phoneIdentity,
@@ -86,6 +87,7 @@ import Data.Schema
 import Data.Text qualified as Text
 import Data.Text.Encoding (decodeUtf8', encodeUtf8)
 import Data.Time.Clock
+import GHC.Prim (coerce)
 import GHC.TypeLits
 import Imports
 import SAML2.WebSSO.Test.Arbitrary ()
@@ -126,6 +128,9 @@ data UserIdentity (tf :: Symbol)
   | UAuthIdentity PartialUAuthId (Maybe Email {- from `brig.user.email`, which may differ from the email address inside UAuthId -})
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform (UserIdentity tf))
+
+castUserIdentityTeamFieldName :: UserIdentity tf -> UserIdentity tf'
+castUserIdentityTeamFieldName = coerce
 
 -- | The unparsed data as retrieved from cassandra or json.  See source code and
 -- `userIdentityComponentsObjectSchema`, `maybeUserIdentityFromComponents`,

@@ -71,7 +71,7 @@ data CreateUserTeam = CreateUserTeam
 
 data ActivationResult
   = -- | The key/code was valid and successfully activated.
-    ActivationSuccess !(Maybe UserIdentity) !Bool
+    ActivationSuccess !(Maybe (UserIdentity "team_id")) !Bool
   | -- | The key/code was valid but already recently activated.
     ActivationPass
 

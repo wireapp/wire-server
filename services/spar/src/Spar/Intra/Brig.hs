@@ -67,7 +67,6 @@ import Wire.API.User
 import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Auth.Sso
 import Wire.API.User.RichInfo as RichInfo
-import Wire.API.User.Scim (ValidExternalId (..), runValidExternalIdEither)
 
 ----------------------------------------------------------------------
 
@@ -90,6 +89,7 @@ class (Log.MonadLogger m, MonadError SparError m) => MonadSparToBrig m where
 createBrigUserSAML ::
   (HasCallStack, MonadSparToBrig m) =>
   SAML.UserRef ->
+  Maybe (Text {- scim external id -}, EmailWithSource) ->
   UserId ->
   TeamId ->
   -- | User name
@@ -101,12 +101,13 @@ createBrigUserSAML ::
   Maybe Locale ->
   Role ->
   m UserId
-createBrigUserSAML uref (Id buid) teamid name managedBy handle richInfo mLocale role = do
-  let newUser =
+createBrigUserSAML uref mbscim (Id buid) teamid name managedBy handle richInfo mLocale role = do
+  let (mbEid, mbEmail) = (maybe Nothing (Just . fst) mbscim, maybe Nothing (Just . snd) mbscim)
+      newUser =
         NewUserSpar
           { newUserSparUUID = buid,
             newUserSparDisplayName = name,
-            newUserSparSSOId = UserSSOId uref,
+            newUserSparUAuthId = UAuthId (Just uref) mbEid mbEmail teamid,
             newUserSparTeamId = teamid,
             newUserSparManagedBy = managedBy,
             newUserSparHandle = handle,

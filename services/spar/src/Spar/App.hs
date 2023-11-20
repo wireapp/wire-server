@@ -85,10 +85,10 @@ import qualified System.Logger as TinyLog
 import URI.ByteString as URI
 import Web.Cookie (SetCookie, renderSetCookie)
 import Wire.API.Team.Role (Role, defaultRole)
-import Wire.API.User hiding (validateEmail)
+import Wire.API.User
+import Wire.API.User.Identity
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
-import Wire.API.User.Scim (ValidExternalId (..))
 import Wire.Sem.Logger (Logger)
 import qualified Wire.Sem.Logger as Logger
 import Wire.Sem.Random (Random)
@@ -158,7 +158,7 @@ createSamlUserWithId ::
   Sem r ()
 createSamlUserWithId teamid buid suid role = do
   uname <- either (throwSparSem . SparBadUserName . cs) pure $ mkUserNameSaml Nothing (UAuthId (pure suid) Nothing Nothing teamid)
-  buid' <- BrigAccess.createSAML suid buid teamid uname ManagedByWire Nothing Nothing Nothing role
+  buid' <- BrigAccess.createSAML suid Nothing buid teamid uname ManagedByWire Nothing Nothing Nothing role --
   assert (buid == buid') $ pure ()
   SAMLUserStore.insert suid buid
 

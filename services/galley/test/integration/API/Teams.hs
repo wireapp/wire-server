@@ -281,9 +281,8 @@ testListTeamMembersCsv numMembers = do
       assertEqual "tExportNumDevices: " (Map.findWithDefault (-1) (U.userId user) numClientMappings) (tExportNumDevices export)
   where
     userToIdPIssuer :: HasCallStack => U.User -> Maybe HttpsUrl
-    userToIdPIssuer usr = case (U.userIdentity >=> U.ssoIdentity) usr of
-      Just (U.UserSSOId (SAML.UserRef (SAML.Issuer issuer) _)) -> either (const $ error "shouldn't happen") Just $ mkHttpsUrl issuer
-      Just _ -> Nothing
+    userToIdPIssuer usr = case U.userPartialUAuthId usr >>= U.uaSamlId of
+      Just (SAML.UserRef (SAML.Issuer issuer) _) -> either (const $ error "shouldn't happen") Just $ mkHttpsUrl issuer
       Nothing -> Nothing
 
     decodeCSV :: FromNamedRecord a => LByteString -> Either String [a]

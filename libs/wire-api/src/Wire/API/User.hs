@@ -37,7 +37,7 @@ module Wire.API.User
     User (..),
     userEmail,
     userPhone,
-    userSSOId,
+    userPartialUAuthId,
     userIssuer,
     userSCIMExternalId,
     scimExternalId,
@@ -65,7 +65,7 @@ module Wire.API.User
     newUserTeam,
     newUserEmail,
     newUserPhone,
-    newUserSSOId,
+    newUserUAuthId,
     isNewUserEphemeral,
     isNewUserTeamMember,
 
@@ -739,11 +739,11 @@ userEmail = emailIdentity <=< userIdentity
 userPhone :: User -> Maybe Phone
 userPhone = phoneIdentity <=< userIdentity
 
-userSSOId :: User -> Maybe PartialUAuthId
-userSSOId = uauthIdentity <=< userIdentity
+userPartialUAuthId :: User -> Maybe PartialUAuthId
+userPartialUAuthId = uauthIdentity <=< userIdentity
 
 userSCIMExternalId :: User -> Maybe Text
-userSCIMExternalId usr = scimExternalId (userManagedBy usr) =<< userSSOId usr
+userSCIMExternalId usr = scimExternalId (userManagedBy usr) =<< userPartialUAuthId usr
 
 -- FUTUREWORK: this is only ignoring case in the email format, and emails should be
 -- handled case-insensitively.  https://wearezeta.atlassian.net/browse/SQSERVICES-909
@@ -761,7 +761,7 @@ ssoIssuerAndNameId (UAuthId (Just (SAML.UserRef (SAML.Issuer uri) nameIdXML)) _ 
 ssoIssuerAndNameId (UAuthId {}) = Nothing
 
 userIssuer :: User -> Maybe SAML.Issuer
-userIssuer user = userSSOId user >>= fromSSOId
+userIssuer user = userPartialUAuthId user >>= fromSSOId
   where
     fromSSOId :: PartialUAuthId -> Maybe SAML.Issuer
     fromSSOId (UAuthId (Just (SAML.UserRef issuer _)) _ _ _) = Just issuer
@@ -851,7 +851,7 @@ instance ToSchema NewUserPublic where
 
 validateNewUserPublic :: NewUser -> Either String NewUserPublic
 validateNewUserPublic nu
-  | isJust (newUserSSOId nu) =
+  | isJust (newUserUAuthId nu) =
       Left "SSO-managed users are not allowed here."
   | isJust (newUserUUID nu) =
       Left "it is not allowed to provide a UUID for the users here."
@@ -1397,8 +1397,8 @@ newUserEmail = emailIdentity <=< newUserIdentity
 newUserPhone :: NewUser -> Maybe Phone
 newUserPhone = phoneIdentity <=< newUserIdentity
 
-newUserSSOId :: NewUser -> Maybe PartialUAuthId
-newUserSSOId = uauthIdentity <=< newUserIdentity
+newUserUAuthId :: NewUser -> Maybe PartialUAuthId
+newUserUAuthId = uauthIdentity <=< newUserIdentity
 
 --------------------------------------------------------------------------------
 -- NewUserOrigin

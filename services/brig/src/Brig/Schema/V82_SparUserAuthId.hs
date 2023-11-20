@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
 
-module Brig.Schema.V81_SparUserAuthId
+module Brig.Schema.V82_SparUserAuthId
   ( migration,
   )
 where

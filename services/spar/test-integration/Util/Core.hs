@@ -123,8 +123,8 @@ module Util.Core
     runSpar,
     runSparE,
     type CanonicalEffs,
-    getSsoidViaSelf,
-    getSsoidViaSelf',
+    getUAuthIdViaSelf,
+    getUAuthIdViaSelf',
     getUserIdViaRef,
     getUserIdViaRef',
     callGetDefaultSsoCode,
@@ -1269,18 +1269,13 @@ runSparE action = do
   ctx <- (^. teSparEnv) <$> ask
   liftIO $ runSparToIO ctx action
 
-getSsoidViaSelf :: HasCallStack => UserId -> TestSpar PartialUAuthId
-getSsoidViaSelf uid = maybe (error "not found") pure =<< getSsoidViaSelf' uid
+getUAuthIdViaSelf :: HasCallStack => UserId -> TestSpar PartialUAuthId
+getUAuthIdViaSelf uid = maybe (error "not found") pure =<< getUAuthIdViaSelf' uid
 
-getSsoidViaSelf' :: HasCallStack => UserId -> TestSpar (Maybe PartialUAuthId)
-getSsoidViaSelf' uid = do
+getUAuthIdViaSelf' :: HasCallStack => UserId -> TestSpar (Maybe PartialUAuthId)
+getUAuthIdViaSelf' uid = do
   musr <- aFewTimes (runSpar $ Intra.getBrigUser Intra.NoPendingInvitations uid) isJust
-  pure $ case userIdentity =<< musr of
-    Just (UAuthIdentity uauthid) -> Just uauthid
-    Just (FullIdentity _ _) -> Nothing
-    Just (EmailIdentity _) -> Nothing
-    Just (PhoneIdentity _) -> Nothing
-    Nothing -> Nothing
+  pure $ userPartialUAuthId =<< musr
 
 getUserIdViaRef :: HasCallStack => UserRef -> TestSpar UserId
 getUserIdViaRef uref = maybe (error "not found") pure =<< getUserIdViaRef' uref

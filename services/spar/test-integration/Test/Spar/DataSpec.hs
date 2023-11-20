@@ -32,7 +32,6 @@ import Polysemy
 import SAML2.WebSSO as SAML
 import Spar.App as App
 import Spar.Error (IdpDbError (IdpNotFound), SparCustomError (IdpDbError))
-import Spar.Intra.BrigApp (veidFromUserSSOId)
 import Spar.Options
 import qualified Spar.Sem.AReqIDStore as AReqIDStore
 import qualified Spar.Sem.AssIDStore as AssIDStore
@@ -232,8 +231,8 @@ testDeleteTeam = it "cleans up all the right tables after deletion" $ do
   storedUser2 <- createUser tok user2
   -- Resolve the users' SSO ids
   let getUid = Scim.Common.id . Scim.Meta.thing
-  ssoid1 <- getSsoidViaSelf (getUid storedUser1)
-  ssoid2 <- getSsoidViaSelf (getUid storedUser2)
+  uauthid1 <- getUAuthIdViaSelf (getUid storedUser1)
+  uauthid2 <- getUAuthIdViaSelf (getUid storedUser2)
   -- Delete the team
   runSpar $ App.deleteTeam tid
   -- See that everything got cleaned up.

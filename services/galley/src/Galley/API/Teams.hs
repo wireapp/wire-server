@@ -144,10 +144,10 @@ import Wire.API.Team.Permission (Perm (..), Permissions (..), SPerm (..), copy, 
 import Wire.API.Team.Role
 import Wire.API.Team.SearchVisibility
 import Wire.API.Team.SearchVisibility qualified as Public
-import Wire.API.User (ScimUserInfo (..), User, UserIdList, UserSSOId (UserScimExternalId), userSCIMExternalId, userSSOId)
+import Wire.API.User (ScimUserInfo (..), User, UserIdList, userPartialUAuthId, userSCIMExternalId)
 import Wire.API.User qualified as U
-import Wire.API.User.Identity (UserSSOId (UserSSOId))
 import Wire.API.User.RichInfo (RichInfo)
+import Wire.API.User.Types
 import Wire.Sem.Paging qualified as E
 import Wire.Sem.Paging.Cassandra
 
@@ -608,8 +608,8 @@ getTeamMembersCSV lusr tid = do
       pure (`M.lookup` userMap)
 
     userToIdPIssuer :: U.User -> Maybe HttpsUrl
-    userToIdPIssuer usr = case (U.userIdentity >=> U.ssoIdentity) usr of
-      Just (U.UserSSOId (SAML.UserRef issuer _)) -> either (const Nothing) Just . mkHttpsUrl $ issuer ^. SAML.fromIssuer
+    userToIdPIssuer usr = case (U.userIdentity >=> U.uauthIdentity) usr of
+      Just (U.UAuthId (Just (SAML.UserRef issuer _)) _ _ _) -> either (const Nothing) Just . mkHttpsUrl $ issuer ^. SAML.fromIssuer
       Just _ -> Nothing
       Nothing -> Nothing
 
@@ -626,10 +626,7 @@ getTeamMembersCSV lusr tid = do
     lookupClients userClients uid = maybe 0 length (M.lookup uid (Conv.userClients userClients))
 
     samlNamedId :: User -> Maybe Text
-    samlNamedId =
-      userSSOId >=> \case
-        (UserSSOId (SAML.UserRef _idp nameId)) -> Just . CI.original . SAML.unsafeShowNameID $ nameId
-        (UserScimExternalId _) -> Nothing
+    samlNamedId = fmap (CI.original . SAML.unsafeShowNameID . view SAML.uidSubject) . (uaSamlId <=< userPartialUAuthId)
 
 -- | like 'getTeamMembers', but with an explicit list of users we are to return.
 bulkGetTeamMembers ::

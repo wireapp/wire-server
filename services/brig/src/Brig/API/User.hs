@@ -321,7 +321,7 @@ createUser new = do
 
   let (new', mbHandle) = case mbExistingAccount of
         Nothing ->
-          ( new {newUserIdentity = newIdentity email phone (newUserSSOId new)},
+          ( new {newUserIdentity = newIdentity email phone (newUserUAuthId new)},
             Nothing
           )
         Just existingAccount ->
@@ -377,7 +377,7 @@ createUser new = do
       Nothing -> pure Nothing
 
     joinedTeamSSO <- case (newUserIdentity new', tid) of
-      (Just ident@(SSOIdentity (UserSSOId _) _ _), Just tid') -> Just <$> addUserToTeamSSO account tid' ident
+      (Just ident@(UAuthIdentity _), Just tid') -> Just <$> addUserToTeamSSO account tid' ident
       _ -> pure Nothing
 
     pure (activatedTeam <|> joinedTeamInvite <|> joinedTeamSSO)
@@ -1188,19 +1188,22 @@ deleteSelfUser uid pwd = do
         Just tid -> do
           isOwner <- lift $ liftSem $ GalleyProvider.memberIsTeamOwner tid uid
           when isOwner $ throwE DeleteUserOwnerDeletingSelf
+
     go a = maybe (byIdentity a) (byPassword a) pwd
+
     getEmailOrPhone :: UserIdentity -> Maybe (Either Email Phone)
-    getEmailOrPhone (FullIdentity e _) = Just $ Left e
     getEmailOrPhone (EmailIdentity e) = Just $ Left e
-    getEmailOrPhone (SSOIdentity _ (Just e) _) = Just $ Left e
     getEmailOrPhone (PhoneIdentity p) = Just $ Right p
-    getEmailOrPhone (SSOIdentity _ _ (Just p)) = Just $ Right p
-    getEmailOrPhone (SSOIdentity _ Nothing Nothing) = Nothing
+    getEmailOrPhone (FullIdentity e _) = Just $ Left e
+    getEmailOrPhone (UAuthIdentity (UAuthId _ _ (Just (EmailWithSource e _)) _)) = Just $ Left e
+    getEmailOrPhone (UAuthIdentity (UAuthId _ _ Nothing _)) = Nothing
+
     byIdentity a = case getEmailOrPhone =<< userIdentity (accountUser a) of
       Just emailOrPhone -> sendCode a emailOrPhone
       Nothing -> case pwd of
         Just _ -> throwE DeleteUserMissingPassword
         Nothing -> lift $ wrapHttpClient $ deleteAccount a >> pure Nothing
+
     byPassword a pw = do
       lift . Log.info $
         field "user" (toByteString uid)
@@ -1212,6 +1215,7 @@ deleteSelfUser uid pwd = do
           unless (verifyPassword pw p) $
             throwE DeleteUserInvalidPassword
           lift $ wrapHttpClient $ deleteAccount a >> pure Nothing
+
     sendCode a target = do
       gen <- Code.mkGen (either Code.ForEmail Code.ForPhone target)
       pending <- lift . wrapClient $ Code.lookup (Code.genKey gen) Code.AccountDeletion

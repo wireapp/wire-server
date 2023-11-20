@@ -647,7 +647,7 @@ testCreateUserNoIdP = do
     liftIO $ accountStatus brigUserAccount `shouldBe` PendingInvitation
     liftIO $ userEmail brigUser `shouldBe` Just email
     liftIO $ userManagedBy brigUser `shouldBe` ManagedByScim
-    liftIO $ userSSOId brigUser `shouldBe` Nothing
+    liftIO $ userPartialUAuthId brigUser `shouldBe` Nothing
 
   -- searching user in brig should fail
   -- >>> searchUser brig owner userName False
@@ -685,7 +685,7 @@ testCreateUserNoIdP = do
     liftIO $ accountStatus brigUser `shouldBe` Active
     liftIO $ userManagedBy (accountUser brigUser) `shouldBe` ManagedByScim
     liftIO $ userHandle (accountUser brigUser) `shouldBe` Just handle
-    liftIO $ userSSOId (accountUser brigUser) `shouldBe` Just (UserScimExternalId (fromEmail email))
+    liftIO $ userPartialUAuthId (accountUser brigUser) `shouldBe` Just (UAuthId Nothing (Just (fromEmail email)) (EmailWithSource email EmailFromScimExternalIdField))
     susr <- getUser tok userid
     let usr = Scim.value . Scim.thing $ susr
     liftIO $ Scim.User.active usr `shouldNotBe` Just (Scim.ScimBool False)
@@ -1196,7 +1196,7 @@ testFindSamlAutoProvisionedUserMigratedWithEmailInTeamWithSSO = do
     runSpar $ BrigAccess.setHandle uid handle
     pure usr
   let memberIdWithSSO = userId memberWithSSO
-      externalId = either error id $ veidToText =<< Intra.veidFromBrigUser memberWithSSO Nothing
+      externalId = fromMaybe (error "didn't expect that") $ userSCIMExternalId memberWithSSO
 
   -- NOTE: once SCIM is enabled, SSO auto-provisioning is disabled
   tok <- registerScimToken teamid (Just (idp ^. SAML.idpId))
@@ -1206,13 +1206,6 @@ testFindSamlAutoProvisionedUserMigratedWithEmailInTeamWithSSO = do
   liftIO $ (scimUserId <$> users) `shouldContain` [memberIdWithSSO]
   Just brigUser' <- runSpar $ Intra.getBrigUser Intra.NoPendingInvitations memberIdWithSSO
   liftIO $ userManagedBy brigUser' `shouldBe` ManagedByScim
-  where
-    veidToText :: MonadError String m => ValidExternalId -> m Text
-    veidToText veid =
-      runValidExternalIdEither
-        (\(SAML.UserRef _ subj) -> maybe (throwError "bad uref from brig") (pure . CI.original) $ SAML.shortShowNameID subj)
-        (pure . fromEmail)
-        veid
 
 testFindTeamSettingsInvitedUserMigratedWithEmailInTeamWithSSO :: TestSpar ()
 testFindTeamSettingsInvitedUserMigratedWithEmailInTeamWithSSO = do
@@ -1737,7 +1730,7 @@ testUpdateExternalIdOfUnregisteredAccount = do
     muserid' `shouldBe` Just userid
   eventually $ checkEmail userid (Just otherEmail)
 
-lookupByValidExternalId :: TeamId -> ValidExternalId -> TestSpar (Maybe UserId)
+lookupByValidExternalId :: TeamId -> ScimUAuthId -> TestSpar (Maybe UserId)
 lookupByValidExternalId tid =
   runValidExternalIdEither
     (runSpar . SAMLUserStore.get)
