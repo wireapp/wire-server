@@ -485,6 +485,7 @@ in
       pkgs.ghcid
       pkgs.kind
       pkgs.netcat
+      pkgs.parallel
       pkgs.niv
       (hlib.justStaticExecutables pkgs.haskellPackages.apply-refact)
       (pkgs.python3.withPackages
