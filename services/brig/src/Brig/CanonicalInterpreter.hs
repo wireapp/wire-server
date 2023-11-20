@@ -21,6 +21,7 @@ import Brig.Effects.ServiceRPC (Service (Galley), ServiceRPC)
 import Brig.Effects.ServiceRPC.IO (interpretServiceRpcToRpc)
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import Brig.Effects.UserPendingActivationStore.Cassandra (userPendingActivationStoreToCassandra)
+import Brig.Options (ImplicitNoFederationRestriction (federationDomainConfig), federationDomainConfigs)
 import Brig.RPC (ParseException)
 import Cassandra qualified as Cas
 import Control.Lens ((^.))
@@ -82,7 +83,7 @@ runBrigToIO e (AppT ma) = do
               . interpretJwtTools
               . interpretPublicKeyBundle
               . interpretJwk
-              . interpretFederationDomainConfig
+              . interpretFederationDomainConfig (maybe [] (fmap (.federationDomainConfig)) (e ^. settings . federationDomainConfigs))
           )
     )
     $ runReaderT ma e

@@ -25,45 +25,75 @@ import Brig.Data.Instances ()
 import Brig.Effects.FederationConfigStore
 import Cassandra
 import Control.Exception (ErrorCall (ErrorCall))
+import Control.Lens
 import Control.Monad.Catch (throwM)
 import Data.Domain
 import Data.Id
+import Data.Map qualified as Map
 import Database.CQL.Protocol (SerialConsistency (LocalSerialConsistency), serialConsistency)
 import Imports
 import Polysemy
 import Wire.API.Routes.FederationDomainConfig qualified as API
 import Wire.API.User.Search
 
-interpretFederationDomainConfig :: forall m r a. (MonadClient m, Member (Embed m) r) => Sem (FederationConfigStore ': r) a -> Sem r a
-interpretFederationDomainConfig =
+interpretFederationDomainConfig ::
+  forall m r a.
+  ( MonadClient m,
+    Member (Embed m) r
+  ) =>
+  [API.FederationDomainConfig] ->
+  Sem (FederationConfigStore ': r) a ->
+  Sem r a
+interpretFederationDomainConfig cfgs =
   interpret $
     embed @m . \case
-      GetFederationConfig d -> getFederationConfig' d
-      GetFederationConfigs -> getFederationConfigs'
+      GetFederationConfig d -> getFederationConfig' cfgs d
+      GetFederationConfigs -> getFederationConfigs' cfgs
       AddFederationConfig cnf -> addFederationConfig' cnf
       UpdateFederationConfig cnf -> updateFederationConfig' cnf
       AddFederationRemoteTeam d t -> addFederationRemoteTeam' d t
       RemoveFederationRemoteTeam d t -> removeFederationRemoteTeam' d t
       GetFederationRemoteTeams d -> getFederationRemoteTeams' d
 
-getFederationConfigs' :: forall m. MonadClient m => m [FederationDomainConfig]
-getFederationConfigs' = do
+-- | Compile config file list into a map indexed by domains.  Use this to make sure the config
+-- file is consistent (ie., no two entries for the same domain).
+remotesMapFromCfgFile :: (Monad m) => [API.FederationDomainConfig] -> m (Map Domain API.FederationDomainConfig)
+remotesMapFromCfgFile cfg = do
+  let dict = [(cnf.domain, cnf) | cnf <- cfg]
+      merge c c' =
+        if c == c'
+          then c
+          else error $ "error in config file: conflicting parameters on domain: " <> show (c, c')
+  pure $ Map.fromListWith merge dict
+
+-- | Return the config file list.  Use this to make sure the config file is consistent (ie.,
+-- no two entries for the same domain).  Based on `remotesMapFromCfgFile`.
+remotesListFromCfgFile :: Monad m => [API.FederationDomainConfig] -> m [API.FederationDomainConfig]
+remotesListFromCfgFile cfgs = Map.elems <$> remotesMapFromCfgFile cfgs
+
+getFederationConfigs' :: forall m. (MonadClient m) => [API.FederationDomainConfig] -> m [FederationDomainConfig]
+getFederationConfigs' cfgs = do
   xs <- getFederationRemotes
-  forM xs $ \case
-    API.FederationDomainConfig d p API.FederationRestrictionAllowAll ->
-      pure $ FederationDomainConfig d p FederationRestrictionAllowAll
-    API.FederationDomainConfig d p API.FederationRestrictionByTeam ->
-      FederationDomainConfig d p . FederationRestrictionByTeam . fmap API.teamId <$> getFederationRemoteTeams' d
+  ys <- remotesListFromCfgFile cfgs
+  configs <-
+    forM (xs <> ys) $
+      \case
+        API.FederationDomainConfig d p API.FederationRestrictionAllowAll ->
+          pure $ FederationDomainConfig d p FederationRestrictionAllowAll
+        API.FederationDomainConfig d p API.FederationRestrictionByTeam ->
+          FederationDomainConfig d p . FederationRestrictionByTeam . fmap API.teamId <$> getFederationRemoteTeams' d
+  pure $ nub configs
 
 maxKnownNodes :: Int
 maxKnownNodes = 10000
 
-getFederationConfig' :: MonadClient m => Domain -> m (Maybe FederationDomainConfig)
-getFederationConfig' rDomain = do
+getFederationConfig' :: MonadClient m => [API.FederationDomainConfig] -> Domain -> m (Maybe FederationDomainConfig)
+getFederationConfig' cfgs rDomain = do
+  let mFromCfgFile = (\c -> (c.searchPolicy, c.restriction)) <$> find ((== rDomain) . API.domain) cfgs
   mCnf <- retry x1 (query1 q (params LocalQuorum (Identity rDomain)))
   teams <- fmap API.teamId <$> getFederationRemoteTeams' rDomain
   pure $
-    mCnf <&> \case
+    (mFromCfgFile <|> mCnf) <&> \case
       (sp, API.FederationRestrictionAllowAll) -> FederationDomainConfig rDomain sp FederationRestrictionAllowAll
       (sp, API.FederationRestrictionByTeam) -> FederationDomainConfig rDomain sp (FederationRestrictionByTeam teams)
   where
