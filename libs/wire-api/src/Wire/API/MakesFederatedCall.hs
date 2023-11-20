@@ -349,7 +349,7 @@ appendName :: String -> FedCallFrom -> FedCallFrom
 appendName toAppend s = s {name = pure $ maybe toAppend (<> toAppend) $ name s}
 
 -- All of the boring instances live here.
-instance (RenderableSymbol name, HasFeds rest) => HasFeds (UntypedNamed name rest) where
+instance (RenderableSymbol name, HasFeds rest) => HasFeds (Named name rest) where
   getFedCalls _ = getFedCalls $ Proxy @rest
 
 instance HasFeds rest => HasFeds (Header' mods name a :> rest) where

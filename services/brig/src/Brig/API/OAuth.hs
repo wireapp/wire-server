@@ -48,7 +48,7 @@ import Wire.API.Error
 import Wire.API.OAuth as OAuth
 import Wire.API.Password (Password, mkSafePassword)
 import Wire.API.Routes.Internal.Brig.OAuth qualified as I
-import Wire.API.Routes.Named (UntypedNamed (Named))
+import Wire.API.Routes.Named (Named (Named))
 import Wire.API.Routes.Public.Brig.OAuth
 import Wire.Sem.Jwk
 import Wire.Sem.Jwk qualified as Jwk
