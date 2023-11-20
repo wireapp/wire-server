@@ -319,7 +319,6 @@ library
     , polysemy-plugin
     , polysemy-wire-zoo
     , proto-lens                 >=0.1
-    , random
     , random-shuffle             >=0.0.3
     , raw-strings-qq
     , resource-pool              >=0.2

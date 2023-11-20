@@ -43,6 +43,8 @@ import Brig.Data.User qualified as Data
 import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
 import Brig.Effects.BlacklistStore (BlacklistStore)
 import Brig.Effects.CodeStore (CodeStore)
+import Brig.Effects.FederationConfigStore (AddFederationRemoteResult (..), FederationConfigStore)
+import Brig.Effects.FederationConfigStore qualified as FederationConfigStore
 import Brig.Effects.GalleyProvider (GalleyProvider)
 import Brig.Effects.PasswordResetStore (PasswordResetStore)
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
@@ -77,7 +79,6 @@ import Polysemy
 import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.OpenApi.Internal.Orphans ()
 import System.Logger.Class qualified as Log
-import System.Random (randomRIO)
 import UnliftIO.Async
 import Wire.API.Connection
 import Wire.API.Error
@@ -105,7 +106,8 @@ servantSitemap ::
     Member BlacklistPhonePrefixStore r,
     Member PasswordResetStore r,
     Member GalleyProvider r,
-    Member (UserPendingActivationStore p) r
+    Member (UserPendingActivationStore p) r,
+    Member FederationConfigStore r
   ) =>
   ServerT BrigIRoutes.API (Handler r)
 servantSitemap =
@@ -213,7 +215,7 @@ authAPI =
     :<|> Named @"login-code" getLoginCode
     :<|> Named @"reauthenticate" reauthenticate
 
-federationRemotesAPI :: ServerT BrigIRoutes.FederationRemotesAPI (Handler r)
+federationRemotesAPI :: (Member FederationConfigStore r) => ServerT BrigIRoutes.FederationRemotesAPI (Handler r)
 federationRemotesAPI =
   Named @"add-federation-remotes" addFederationRemote
     :<|> Named @"get-federation-remotes" getFederationRemotes
@@ -222,25 +224,25 @@ federationRemotesAPI =
     :<|> Named @"get-federation-remote-teams" getFederationRemoteTeams
     :<|> Named @"delete-federation-remote-team" deleteFederationRemoteTeam
 
-deleteFederationRemoteTeam :: Domain -> TeamId -> (Handler r) ()
+deleteFederationRemoteTeam :: (Member FederationConfigStore r) => Domain -> TeamId -> (Handler r) ()
 deleteFederationRemoteTeam domain teamId =
-  lift . wrapClient $ Data.deleteFederationRemoteTeam domain teamId
+  lift $ liftSem $ FederationConfigStore.removeFederationRemoteTeam domain teamId
 
 getFederationRemoteTeams :: Domain -> (Handler r) [FederationRemoteTeam]
-getFederationRemoteTeams domain =
-  lift . wrapClient $ Data.getFederationRemoteTeams domain
+getFederationRemoteTeams _domain =
+  error "todo"
 
 addFederationRemoteTeam :: Domain -> FederationRemoteTeam -> (Handler r) ()
 addFederationRemoteTeam domain rt =
-  lift . wrapClient $ Data.addFederationRemoteTeam domain rt
+  addFederationRemoteTeam domain rt
 
-addFederationRemote :: FederationDomainConfig -> ExceptT Brig.API.Error.Error (AppT r) ()
+addFederationRemote :: (Member FederationConfigStore r) => FederationDomainConfig -> ExceptT Brig.API.Error.Error (AppT r) ()
 addFederationRemote fedDomConf = do
   assertNoDivergingDomainInConfigFiles fedDomConf
-  result <- lift . wrapClient $ Data.addFederationRemote fedDomConf
+  result <- lift $ liftSem $ FederationConfigStore.addFederationConfig fedDomConf
   case result of
-    Data.AddFederationRemoteSuccess -> pure ()
-    Data.AddFederationRemoteMaxRemotesReached ->
+    AddFederationRemoteSuccess -> pure ()
+    AddFederationRemoteMaxRemotesReached ->
       throwError . fedError . FederationUnexpectedError $
         "Maximum number of remote backends reached.  If you need to create more connections, \
         \please contact wire.com."
@@ -282,14 +284,14 @@ assertNoDivergingDomainInConfigFiles fedComConf = do
                <> cs (show (Map.lookup (domain fedComConf) cfg))
            )
 
-getFederationRemotes :: ExceptT Brig.API.Error.Error (AppT r) FederationDomainConfigs
+getFederationRemotes :: (Member FederationConfigStore r) => ExceptT Brig.API.Error.Error (AppT r) FederationDomainConfigs
 getFederationRemotes = lift $ do
   -- FUTUREWORK: we should solely rely on `db` in the future for remote domains; merging
   -- remote domains from `cfg` is just for providing an easier, more robust migration path.
   -- See
   -- https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections,
   -- http://docs.wire.com/developer/developer/federation-design-aspects.html#configuring-remote-connections-dev-perspective
-  db <- wrapClient Data.getFederationRemotes
+  db <- liftSem $ FederationConfigStore.getFederationConfigs
   (ms :: Maybe FederationStrategy, mf :: [FederationDomainConfig], mu :: Maybe Int) <- do
     cfg <- ask
     domcfgs <- remotesListFromCfgFile -- (it's not very elegant to prove the env twice here, but this code is transitory.)
@@ -299,25 +301,17 @@ getFederationRemotes = lift $ do
         setFederationDomainConfigsUpdateFreq (cfg ^. settings)
       )
 
-  -- update frequency settings of `<1` are interpreted as `1 second`.  only warn about this every now and
-  -- then, that'll be noise enough for the logs given the traffic on this end-point.
-  unless (maybe True (> 0) mu) $
-    randomRIO (0 :: Int, 1000)
-      >>= \case
-        0 -> Log.warn (Log.msg (Log.val "Invalid brig configuration: setFederationDomainConfigsUpdateFreq must be > 0.  setting to 1 second."))
-        _ -> pure ()
-
   defFederationDomainConfigs
     & maybe id (\v cfg -> cfg {strategy = v}) ms
-    & (\cfg -> cfg {remotes = nub $ db <> mf})
+    & (\cfg -> cfg {remotes = nub $ (fmap FederationConfigStore.fromFederationDomainConfig db) <> mf})
     & maybe id (\v cfg -> cfg {updateInterval = min 1 v}) mu
     & pure
 
-updateFederationRemote :: Domain -> FederationDomainConfig -> ExceptT Brig.API.Error.Error (AppT r) ()
+updateFederationRemote :: (Member FederationConfigStore r) => Domain -> FederationDomainConfig -> ExceptT Brig.API.Error.Error (AppT r) ()
 updateFederationRemote dom fedcfg = do
   assertDomainIsNotUpdated dom fedcfg
   assertNoDomainsFromConfigFiles dom
-  (lift . wrapClient . Data.updateFederationRemote $ fedcfg) >>= \case
+  (lift . liftSem . FederationConfigStore.updateFederationConfig $ fedcfg) >>= \case
     True -> pure ()
     False ->
       throwError . fedError . FederationUnexpectedError . cs $

@@ -10,7 +10,8 @@ import Wire.API.Routes.FederationDomainConfig qualified as API
 import Wire.API.User.Search (FederatedUserSearchPolicy)
 
 data FederationRestriction = FederationRestrictionAllowAll | FederationRestrictionByTeam [TeamId]
-  deriving (Eq, Show, Ord)
+
+data AddFederationRemoteResult = AddFederationRemoteSuccess | AddFederationRemoteMaxRemotesReached
 
 data FederationDomainConfig = FederationDomainConfig
   { domain :: Domain,
@@ -18,10 +19,14 @@ data FederationDomainConfig = FederationDomainConfig
     restriction :: FederationRestriction
   }
 
+fromFederationDomainConfig :: FederationDomainConfig -> API.FederationDomainConfig
+fromFederationDomainConfig (FederationDomainConfig d p FederationRestrictionAllowAll) = API.FederationDomainConfig d p API.FederationRestrictionAllowAll
+fromFederationDomainConfig (FederationDomainConfig d p (FederationRestrictionByTeam _)) = API.FederationDomainConfig d p API.FederationRestrictionByTeam
+
 data FederationConfigStore m a where
-  GetFederationConfig :: Domain -> FederationConfigStore m FederationDomainConfig
+  GetFederationConfig :: Domain -> FederationConfigStore m (Maybe FederationDomainConfig)
   GetFederationConfigs :: FederationConfigStore m [FederationDomainConfig]
-  AddFederationConfig :: API.FederationDomainConfig -> FederationConfigStore m ()
+  AddFederationConfig :: API.FederationDomainConfig -> FederationConfigStore m AddFederationRemoteResult
   UpdateFederationConfig :: API.FederationDomainConfig -> FederationConfigStore m Bool
   AddFederationRemoteTeam :: Domain -> TeamId -> FederationConfigStore m ()
   RemoveFederationRemoteTeam :: Domain -> TeamId -> FederationConfigStore m ()

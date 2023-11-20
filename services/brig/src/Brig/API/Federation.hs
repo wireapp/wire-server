@@ -23,7 +23,6 @@ import Brig.API.Client qualified as API
 import Brig.API.Connection.Remote (performRemoteAction)
 import Brig.API.Error
 import Brig.API.Handler (Handler)
-import Brig.API.Internal hiding (getMLSClients)
 import Brig.API.Internal qualified as Internal
 import Brig.API.MLS.CipherSuite
 import Brig.API.MLS.KeyPackages
@@ -32,6 +31,8 @@ import Brig.API.User qualified as API
 import Brig.App
 import Brig.Data.Connection qualified as Data
 import Brig.Data.User qualified as Data
+import Brig.Effects.FederationConfigStore (FederationConfigStore)
+import Brig.Effects.FederationConfigStore qualified as FederationConfigStore
 import Brig.Effects.GalleyProvider (GalleyProvider)
 import Brig.IO.Intra (notify)
 import Brig.Options
@@ -76,7 +77,8 @@ type FederationAPI = "federation" :> BrigApi
 
 federationSitemap ::
   ( Member GalleyProvider r,
-    Member (Concurrency 'Unsafe) r
+    Member (Concurrency 'Unsafe) r,
+    Member FederationConfigStore r
   ) =>
   ServerT FederationAPI (Handler r)
 federationSitemap =
@@ -96,13 +98,13 @@ federationSitemap =
 
 -- Allow remote domains to send their known remote federation instances, and respond
 -- with the subset of those we aren't connected to.
-getFederationStatus :: Domain -> DomainSet -> Handler r NonConnectedBackends
+getFederationStatus :: (Member FederationConfigStore r) => Domain -> DomainSet -> Handler r NonConnectedBackends
 getFederationStatus _ request = do
   cfg <- ask
   case setFederationStrategy (cfg ^. settings) of
     Just AllowAll -> pure $ NonConnectedBackends mempty
     _ -> do
-      fedDomains <- fromList . fmap (.domain) . (.remotes) <$> getFederationRemotes
+      fedDomains <- fromList . fmap (.domain) <$> lift (liftSem $ FederationConfigStore.getFederationConfigs)
       pure $ NonConnectedBackends (request.domains \\ fedDomains)
 
 sendConnectionAction :: Domain -> NewConnectionRequest -> Handler r NewConnectionResponse
@@ -118,7 +120,9 @@ sendConnectionAction originDomain NewConnectionRequest {..} = do
     else pure NewConnectionResponseUserNotActivated
 
 getUserByHandle ::
-  Member GalleyProvider r =>
+  ( Member GalleyProvider r,
+    Member FederationConfigStore r
+  ) =>
   Domain ->
   Handle ->
   ExceptT Error (AppT r) (Maybe UserProfile)
@@ -179,7 +183,9 @@ fedClaimKeyPackages domain ckpr =
 -- (This decision may change in the future)
 searchUsers ::
   forall r.
-  Member GalleyProvider r =>
+  ( Member GalleyProvider r,
+    Member FederationConfigStore r
+  ) =>
   Domain ->
   SearchRequest ->
   ExceptT Error (AppT r) SearchResponse
@@ -240,8 +246,8 @@ onUserDeleted origDomain udcn = lift $ do
   pure EmptyResponse
 
 -- | If domain is not configured fall back to `NoSearch`
-lookupSearchPolicy :: Domain -> (Handler r) FederatedUserSearchPolicy
+lookupSearchPolicy :: (Member FederationConfigStore r) => Domain -> (Handler r) FederatedUserSearchPolicy
 lookupSearchPolicy domain = do
-  domainConfigs <- getFederationRemotes
-  let mConfig = find ((== domain) . FD.domain) (domainConfigs.remotes)
-  pure $ maybe NoSearch FD.searchPolicy mConfig
+  domainConfigs <- lift $ liftSem $ FederationConfigStore.getFederationConfigs
+  let mConfig = find ((== domain) . (.domain)) domainConfigs
+  pure $ maybe NoSearch (.searchPolicy) mConfig
