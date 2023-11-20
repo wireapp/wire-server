@@ -44,14 +44,10 @@ spec:
              - --cassandra-keyspace-brig
              - brig
              {{- if (include "useTlsCertBrig" .)  }}
-             # TODO: This option does not exist, yet
-             # - --use-tls
              - --tls-certificate-file-brig
              - /certs/brig/ca.pem
              {{- end }}
              {{- if (include "useTlsCertSpar" .)  }}
-             # TODO: This option does not exist, yet
-             # - --use-tls
              - --tls-certificate-file-spar
              - /certs/spar/ca.pem
              {{- end }}

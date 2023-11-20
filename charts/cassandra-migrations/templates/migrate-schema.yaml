@@ -63,7 +63,6 @@ spec:
             - {{ template "cassandraGundeckReplicationType" . }}
             - "{{ template "cassandraGundeckReplicationArg" . }}"
             {{- if (include "useTlsCertGundeck" .) }}
-            - --use-tls
             - --tls-certificate-file
             - /certs/gundeck/ca.pem
             {{- end }}
@@ -94,7 +93,6 @@ spec:
             - {{ template "cassandraBrigReplicationType" . }}
             - "{{ template "cassandraBrigReplicationArg" . }}"
             {{- if (include "useTlsCertBrig" .) }}
-            - --use-tls
             - --tls-certificate-file
             - /certs/brig/ca.pem
             {{- end }}
@@ -125,7 +123,6 @@ spec:
             - {{ template "cassandraGalleyReplicationType" . }}
             - "{{ template "cassandraGalleyReplicationArg" . }}"
             {{- if (include "useTlsCertGalley" .) }}
-            - --use-tls
             - --tls-certificate-file
             - /certs/galley/ca.pem
             {{- end }}
@@ -156,7 +153,6 @@ spec:
             - {{ template "cassandraSparReplicationType" . }}
             - "{{ template "cassandraSparReplicationArg" . }}"
              {{- if (include "useTlsCertSpar" .) }}
-            - --use-tls
             - --tls-certificate-file
             - /certs/spar/ca.pem
             {{- end }}
