@@ -207,6 +207,27 @@ parseIdentityTests =
                        ]
                 uaid = UAuthId (Just uref3) (Just "<NameID xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" xmlns:samla=\"urn:oasis:names:tc:SAML:2.0:assertion\" xmlns:samlm=\"urn:oasis:names:tc:SAML:2.0:metadata\" xmlns:ds=\"http://www.w3.org/2000/09/xmldsig#\" Format=\"urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified\" xmlns=\"urn:oasis:names:tc:SAML:2.0:assertion\">nick</NameID>") (Just ews3) tid
              in mkUAuthIdentityTestCase "7" jsonIn haskellIn jsonOut mbBrigEmail,
+            let jsonIn =
+                  [ ( "uauth_id",
+                      [aesonQQ|{"scim_external_id": "nick",
+                                "saml_id": {
+                                    "subject": "<NameID xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" xmlns:samla=\"urn:oasis:names:tc:SAML:2.0:assertion\" xmlns:samlm=\"urn:oasis:names:tc:SAML:2.0:metadata\" xmlns:ds=\"http://www.w3.org/2000/09/xmldsig#\" Format=\"urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified\" xmlns=\"urn:oasis:names:tc:SAML:2.0:assertion\">nick</NameID>",
+                                    "tenant": "<Issuer xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" xmlns:samla=\"urn:oasis:names:tc:SAML:2.0:assertion\" xmlns:samlm=\"urn:oasis:names:tc:SAML:2.0:metadata\" xmlns:ds=\"http://www.w3.org/2000/09/xmldsig#\" xmlns=\"urn:oasis:names:tc:SAML:2.0:assertion\">http://example.com/wef</Issuer>"
+                                },
+                                "email": {"email": "other@example.com", "source": "scim_emails"},
+                                "team": "226923f0-6f15-11ee-96bd-33644427c814"}|]
+                    )
+                  ]
+                haskellIn = Right uaid
+                jsonOut =
+                  jsonIn
+                    <> [ ( "sso_id",
+                           [aesonQQ|{"subject": "<NameID xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" xmlns:samla=\"urn:oasis:names:tc:SAML:2.0:assertion\" xmlns:samlm=\"urn:oasis:names:tc:SAML:2.0:metadata\" xmlns:ds=\"http://www.w3.org/2000/09/xmldsig#\" Format=\"urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified\" xmlns=\"urn:oasis:names:tc:SAML:2.0:assertion\">nick</NameID>",
+                                     "tenant": "<Issuer xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" xmlns:samla=\"urn:oasis:names:tc:SAML:2.0:assertion\" xmlns:samlm=\"urn:oasis:names:tc:SAML:2.0:metadata\" xmlns:ds=\"http://www.w3.org/2000/09/xmldsig#\" xmlns=\"urn:oasis:names:tc:SAML:2.0:assertion\">http://example.com/wef</Issuer>"                                }|]
+                         )
+                       ]
+                uaid = UAuthId (Just uref3) (Just eid3) (Just ews3) tid
+             in mkUAuthIdentityTestCase "7.1" jsonIn haskellIn jsonOut mbBrigEmail,
             -- {saml, eid, email, team}
             let jsonIn =
                   [ ( "uauth_id",
