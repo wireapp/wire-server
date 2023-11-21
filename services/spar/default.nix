@@ -103,7 +103,6 @@ mkDerivation {
     extended
     galley-types
     hscim
-    HsOpenSSL
     hspec
     http-types
     imports
