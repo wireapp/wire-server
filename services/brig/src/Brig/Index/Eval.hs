@@ -107,7 +107,7 @@ runCommand l = \case
         (C.unKeyspace (cas ^. cKeyspace))
         (Text.pack (cas ^. cHost))
         (cas ^. cPort)
-        (cas ^. cTlsCert)
+        (cas ^. cTlsCa)
         l
 
 waitForTaskToComplete :: forall a m. (ES.MonadBH m, MonadThrow m, FromJSON a) => Int -> ES.TaskNodeId -> m ()

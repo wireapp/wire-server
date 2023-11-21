@@ -63,7 +63,7 @@ data CassandraSettings = CassandraSettings
   { _cHosts :: !String,
     _cPort :: !Word16,
     _cKeyspace :: !C.Keyspace,
-    _tlsCert :: Maybe FilePath
+    _tlsCa :: Maybe FilePath
   }
   deriving (Show)
 

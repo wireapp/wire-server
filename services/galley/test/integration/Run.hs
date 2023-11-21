@@ -127,9 +127,9 @@ main = withOpenSSL $ runTests go
       let ch = fromJust gConf ^. cassandra . endpoint . host
       let cp = fromJust gConf ^. cassandra . endpoint . port
       let ck = fromJust gConf ^. cassandra . keyspace
-      let cTlsCert = fromJust gConf ^. cassandra . tlsCert
+      let cTlsCa = fromJust gConf ^. cassandra . tlsCa
       lg <- Logger.new Logger.defSettings
-      db <- defInitCassandra ck ch cp cTlsCert lg
+      db <- defInitCassandra ck ch cp cTlsCa lg
       teamEventWatcher <- sequence $ SQS.watchSQSQueue <$> ((^. Aws.awsEnv) <$> awsEnv) <*> q
       pure $ TestSetup (fromJust gConf) (fromJust iConf) m g b c awsEnv convMaxSize db (FedClient m galleyEndpoint) teamEventWatcher
     queueName' = fmap (view queueName) . view journal

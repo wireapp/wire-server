@@ -176,7 +176,7 @@ initCassandra o l =
     (o ^. cassandra . endpoint . port)
     "galley"
     (o ^. cassandra . keyspace)
-    (o ^. cassandra . tlsCert)
+    (o ^. cassandra . tlsCa)
     (o ^. cassandra . filterNodesByDatacentre)
     (o ^. discoUrl)
     Nothing

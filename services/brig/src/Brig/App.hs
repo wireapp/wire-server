@@ -427,7 +427,7 @@ initCassandra o g =
     (Opt.cassandra o ^. endpoint . port)
     "brig"
     (Opt.cassandra o ^. keyspace)
-    (Opt.cassandra o ^. tlsCert)
+    (Opt.cassandra o ^. tlsCa)
     (Opt.cassandra o ^. filterNodesByDatacentre)
     (Opt.discoUrl o)
     (Just schemaVersion)

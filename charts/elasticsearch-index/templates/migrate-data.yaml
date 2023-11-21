@@ -43,7 +43,7 @@ spec:
             - "{{ required "missing elasticsearch-index.galley.host!" .Values.galley.host }}"
             - --galley-port
             - "{{ required "missing elasticsearch-index.galley.port!" .Values.galley.port }}"
-            {{- if (include "useTlsCertGundeck" .) }}
+            {{- if (include "useTlsCaGundeck" .) }}
             - --tls-certificate-file
             - /certs/ca.pem
             {{- end }}

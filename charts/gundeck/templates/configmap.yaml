@@ -26,7 +26,7 @@ data:
       filterNodesByDatacentre: {{ .cassandra.filterNodesByDatacentre }}
       {{- end }}
       {{- if (include "useCassandraCA" .) }}
-      tlsCert: /etc/wire/gundeck/cassandra/ca.pem
+      tlsCa: /etc/wire/gundeck/cassandra/ca.pem
       {{- end }}
 
     redis:

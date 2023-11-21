@@ -21,7 +21,7 @@ config:
   cassandra:
     host: aws-cassandra
 #   To enable TLS:
-#   tlsCert: <CA in PEM format (can be self-signed))
+#   tlsCa: <CA in PEM format (can be self-signed))
   redis:
     host: redis-ephemeral-master
     port: 6379

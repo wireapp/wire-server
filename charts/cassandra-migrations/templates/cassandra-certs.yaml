@@ -1,4 +1,4 @@
-{{- if (include "useTlsCertBrig" .) }}
+{{- if (include "useTlsCaBrig" .) }}
 apiVersion: v1
 kind: Secret
 metadata:
@@ -14,9 +14,9 @@ metadata:
     "helm.sh/hook-delete-policy": hook-succeeded,hook-failed
 type: Opaque
 data:
-  ca.pem: {{ include "tlsCertBrig" . | b64enc | quote }}
+  ca.pem: {{ include "tlsCaBrig" . | b64enc | quote }}
 {{- end}}
-{{- if (include "useTlsCertGalley" .) }}
+{{- if (include "useTlsCaGalley" .) }}
 ---
 apiVersion: v1
 kind: Secret
@@ -33,9 +33,9 @@ metadata:
     "helm.sh/hook-delete-policy": hook-succeeded,hook-failed
 type: Opaque
 data:
-  ca.pem: {{ include "tlsCertGalley" . | b64enc | quote }}
+  ca.pem: {{ include "tlsCaGalley" . | b64enc | quote }}
 {{- end}}
-{{- if (include "useTlsCertGundeck" .) }}
+{{- if (include "useTlsCaGundeck" .) }}
 ---
 apiVersion: v1
 kind: Secret
@@ -52,9 +52,9 @@ metadata:
     "helm.sh/hook-delete-policy": hook-succeeded,hook-failed
 type: Opaque
 data:
-  ca.pem: {{ include "tlsCertGundeck" . | b64enc | quote }}
+  ca.pem: {{ include "tlsCaGundeck" . | b64enc | quote }}
 {{- end}}
-{{- if (include "useTlsCertSpar" .) }}
+{{- if (include "useTlsCaSpar" .) }}
 ---
 apiVersion: v1
 kind: Secret
@@ -71,5 +71,5 @@ metadata:
     "helm.sh/hook-delete-policy": hook-succeeded,hook-failed
 type: Opaque
 data:
-  ca.pem: {{ include "tlsCertSpar" . | b64enc | quote }}
+  ca.pem: {{ include "tlsCaSpar" . | b64enc | quote }}
 {{- end}}

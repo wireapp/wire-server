@@ -42,7 +42,7 @@ migrateSchema l o ms = do
           . setResponseTimeout 50
           . setProtocolVersion V4
           $ defSettings
-  p <- initCassandra cqlSettings o.migTLSCert l
+  p <- initCassandra cqlSettings o.migTlsCa l
   runClient p $ do
     let keyspace = Keyspace . migKeyspace $ o
     when (migReset o) $ do

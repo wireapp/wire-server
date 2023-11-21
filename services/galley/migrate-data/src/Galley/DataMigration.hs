@@ -33,7 +33,7 @@ data CassandraSettings = CassandraSettings
   { cHost :: String,
     cPort :: Word16,
     cKeyspace :: C.Keyspace,
-    cTlsCert :: Maybe FilePath
+    cTlsCa :: Maybe FilePath
   }
 
 cassandraSettingsParser :: Parser CassandraSettings
@@ -80,7 +80,7 @@ mkEnv l cas =
         ((C.unKeyspace . cKeyspace) cas)
         ((Text.pack . cHost) cas)
         (cPort cas)
-        (cTlsCert cas)
+        (cTlsCa cas)
         l
     initLogger = pure l
 

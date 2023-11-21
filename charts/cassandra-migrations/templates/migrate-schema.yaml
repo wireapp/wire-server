@@ -23,22 +23,22 @@ spec:
       # to avoid 'Column family ID mismatch' / schema disagreements
       # see https://stackoverflow.com/questions/29030661/creating-new-table-with-cqlsh-on-existing-keyspace-column-family-id-mismatch#40325651 for details.
       volumes:
-        {{- if (include "useTlsCertGundeck" .) }}
+        {{- if (include "useTlsCaGundeck" .) }}
         - name: gundeck-cassandra-cert
           secret:
             secretName: gundeck-cassandra-cert
         {{- end }}
-        {{- if (include "useTlsCertBrig" .) }}
+        {{- if (include "useTlsCaBrig" .) }}
         - name: brig-cassandra-cert
           secret:
             secretName: brig-cassandra-cert
         {{- end }}
-        {{- if (include "useTlsCertGalley" .) }}
+        {{- if (include "useTlsCaGalley" .) }}
         - name: galley-cassandra-cert
           secret:
             secretName: galley-cassandra-cert
         {{- end }}
-        {{- if (include "useTlsCertSpar" .) }}
+        {{- if (include "useTlsCaSpar" .) }}
         - name: spar-cassandra-cert
           secret:
             secretName: spar-cassandra-cert
@@ -62,12 +62,12 @@ spec:
             - gundeck
             - {{ template "cassandraGundeckReplicationType" . }}
             - "{{ template "cassandraGundeckReplicationArg" . }}"
-            {{- if (include "useTlsCertGundeck" .) }}
+            {{- if (include "useTlsCaGundeck" .) }}
             - --tls-certificate-file
             - /certs/gundeck/ca.pem
             {{- end }}
 
-          {{- if (include "useTlsCertGundeck" .) }}
+          {{- if (include "useTlsCaGundeck" .) }}
           volumeMounts:
             - name: gundeck-cassandra-cert
               mountPath: "/certs/gundeck"
@@ -92,12 +92,12 @@ spec:
             - brig
             - {{ template "cassandraBrigReplicationType" . }}
             - "{{ template "cassandraBrigReplicationArg" . }}"
-            {{- if (include "useTlsCertBrig" .) }}
+            {{- if (include "useTlsCaBrig" .) }}
             - --tls-certificate-file
             - /certs/brig/ca.pem
             {{- end }}
 
-          {{- if (include "useTlsCertBrig" .) }}
+          {{- if (include "useTlsCaBrig" .) }}
           volumeMounts:
             - name: brig-cassandra-cert
               mountPath: "/certs/brig"
@@ -122,12 +122,12 @@ spec:
             - galley
             - {{ template "cassandraGalleyReplicationType" . }}
             - "{{ template "cassandraGalleyReplicationArg" . }}"
-            {{- if (include "useTlsCertGalley" .) }}
+            {{- if (include "useTlsCaGalley" .) }}
             - --tls-certificate-file
             - /certs/galley/ca.pem
             {{- end }}
 
-          {{- if (include "useTlsCertGalley" .) }}
+          {{- if (include "useTlsCaGalley" .) }}
           volumeMounts:
             - name: galley-cassandra-cert
               mountPath: "/certs/galley"
@@ -152,12 +152,12 @@ spec:
             - spar
             - {{ template "cassandraSparReplicationType" . }}
             - "{{ template "cassandraSparReplicationArg" . }}"
-             {{- if (include "useTlsCertSpar" .) }}
+             {{- if (include "useTlsCaSpar" .) }}
             - --tls-certificate-file
             - /certs/spar/ca.pem
             {{- end }}
 
-          {{- if (include "useTlsCertSpar" .) }}
+          {{- if (include "useTlsCaSpar" .) }}
           volumeMounts:
             - name: spar-cassandra-cert
               mountPath: "/certs/spar"

@@ -43,30 +43,30 @@ spec:
              - "9042"
              - --cassandra-keyspace-brig
              - brig
-             {{- if (include "useTlsCertBrig" .)  }}
+             {{- if (include "useTlsCaBrig" .)  }}
              - --tls-certificate-file-brig
              - /certs/brig/ca.pem
              {{- end }}
-             {{- if (include "useTlsCertSpar" .)  }}
+             {{- if (include "useTlsCaSpar" .)  }}
              - --tls-certificate-file-spar
              - /certs/spar/ca.pem
              {{- end }}
           volumeMounts:
-          {{- if (include "useTlsCertBrig" .) }}
+          {{- if (include "useTlsCaBrig" .) }}
             - name: brig-cassandra-cert
               mountPath: "/certs/brig"
           {{- end }}
-          {{- if (include "useTlsCertSpar" .) }}
+          {{- if (include "useTlsCaSpar" .) }}
             - name: spar-cassandra-cert
               mountPath: "/certs/spar"
           {{- end }}
       volumes:
-      {{- if (include "useTlsCertBrig" .) }}
+      {{- if (include "useTlsCaBrig" .) }}
         - name: brig-cassandra-cert
           secret:
             secretName: brig-cassandra-cert
       {{- end }}
-      {{- if (include "useTlsCertSpar" .) }}
+      {{- if (include "useTlsCaSpar" .) }}
         - name: spar-cassandra-cert
           secret:
             secretName: spar-cassandra-cert

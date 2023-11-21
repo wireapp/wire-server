@@ -107,59 +107,59 @@ Thus the order of priority is:
 {{- end -}}
 {{- end -}}
 
-{{- define "useTlsCertGalley" -}}
+{{- define "useTlsCaGalley" -}}
 {{ $cassandraGalley := default dict .Values.cassandraGalley }}
-{{- or .Values.cassandra.tlsCert $cassandraGalley.tlsCert -}}
+{{- or .Values.cassandra.tlsCa $cassandraGalley.tlsCa -}}
 {{- end -}}
 
-{{- define "tlsCertGalley" -}}
+{{- define "tlsCaGalley" -}}
 {{ $cassandraGalley := default dict .Values.cassandraGalley }}
-{{- if .Values.cassandra.tlsCert -}}
-{{ .Values.cassandra.tlsCert }}
+{{- if .Values.cassandra.tlsCa -}}
+{{ .Values.cassandra.tlsCa }}
 {{- else -}}
-{{ $cassandraGalley.tlsCert }}
+{{ $cassandraGalley.tlsCa }}
 {{- end -}}
 {{- end -}}
 
-{{- define "useTlsCertBrig" -}}
+{{- define "useTlsCaBrig" -}}
 {{ $cassandraBrig := default dict .Values.cassandraBrig }}
-{{- or .Values.cassandra.tlsCert $cassandraBrig.tlsCert -}}
+{{- or .Values.cassandra.tlsCa $cassandraBrig.tlsCa -}}
 {{- end -}}
 
-{{- define "tlsCertBrig" -}}
+{{- define "tlsCaBrig" -}}
 {{ $cassandraBrig := default dict .Values.cassandraBrig }}
-{{- if .Values.cassandra.tlsCert -}}
-{{ .Values.cassandra.tlsCert }}
+{{- if .Values.cassandra.tlsCa -}}
+{{ .Values.cassandra.tlsCa }}
 {{- else -}}
-{{ $cassandraBrig.tlsCert }}
+{{ $cassandraBrig.tlsCa }}
 {{- end -}}
 {{- end -}}
 
-{{- define "useTlsCertSpar" -}}
+{{- define "useTlsCaSpar" -}}
 {{ $cassandraSpar := default dict .Values.cassandraSpar }}
-{{- or .Values.cassandra.tlsCert $cassandraSpar.tlsCert -}}
+{{- or .Values.cassandra.tlsCa $cassandraSpar.tlsCa -}}
 {{- end -}}
 
-{{- define "tlsCertSpar" -}}
+{{- define "tlsCaSpar" -}}
 {{ $cassandraSpar := default dict .Values.cassandraSpar }}
-{{- if .Values.cassandra.tlsCert -}}
-{{ .Values.cassandra.tlsCert }}
+{{- if .Values.cassandra.tlsCa -}}
+{{ .Values.cassandra.tlsCa }}
 {{- else -}}
-{{ $cassandraSpar.tlsCert }}
+{{ $cassandraSpar.tlsCa }}
 {{- end -}}
 {{- end -}}
 
-{{- define "useTlsCertGundeck" -}}
+{{- define "useTlsCaGundeck" -}}
 {{ $cassandraGundeck := default dict .Values.cassandraGundeck }}
-{{- or .Values.cassandra.tlsCert $cassandraGundeck.tlsCert -}}
+{{- or .Values.cassandra.tlsCa $cassandraGundeck.tlsCa -}}
 {{- end -}}
 
-{{- define "tlsCertGundeck" -}}
+{{- define "tlsCaGundeck" -}}
 {{ $cassandraGundeck := default dict .Values.cassandraGundeck }}
-{{- if .Values.cassandra.tlsCert -}}
-{{ .Values.cassandra.tlsCert }}
+{{- if .Values.cassandra.tlsCa -}}
+{{ .Values.cassandra.tlsCa }}
 {{- else -}}
-{{ $cassandraGundeck.tlsCert }}
+{{ $cassandraGundeck.tlsCa }}
 {{- end -}}
 {{- end -}}
 

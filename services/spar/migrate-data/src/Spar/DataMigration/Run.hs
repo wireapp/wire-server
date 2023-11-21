@@ -72,7 +72,7 @@ mkEnv settings = do
         (C.unKeyspace (cas ^. cKeyspace))
         (Text.pack (cas ^. cHosts))
         (cas ^. cPort)
-        (cas ^. tlsCert)
+        (cas ^. tlsCa)
         l
 
 cleanup :: (MonadIO m) => Env -> m ()

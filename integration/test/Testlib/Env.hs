@@ -63,7 +63,7 @@ mkGlobalEnv cfgFile = do
                 then pure $ Just certFilePath
                 else maybe (pure Nothing) (\projectRoot -> (Just <$> (makeAbsolute) (combine projectRoot certFilePath))) devEnvProjectRoot
           )
-          intConfig.cassandra.cassTlsCert
+          intConfig.cassandra.cassTlsCa
 
   manager <- liftIO $ HTTP.newManager HTTP.defaultManagerSettings
 

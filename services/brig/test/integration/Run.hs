@@ -136,10 +136,10 @@ runTests iConf brigOpts otherArgs = do
       casHost = (\v -> Opts.cassandra v ^. endpoint . host) brigOpts
       casPort = (\v -> Opts.cassandra v ^. endpoint . port) brigOpts
       casKey = (\v -> Opts.cassandra v ^. keyspace) brigOpts
-      casTlsCert = (\v -> Opts.cassandra v ^. tlsCert) brigOpts
+      casTlsCa = (\v -> Opts.cassandra v ^. tlsCa) brigOpts
       awsOpts = Opts.aws brigOpts
   lg <- Logger.new Logger.defSettings -- TODO: use mkLogger'?
-  db <- defInitCassandra casKey casHost casPort casTlsCert lg
+  db <- defInitCassandra casKey casHost casPort casTlsCa lg
   mg <- newManager tlsManagerSettings
   let fedBrigClient = FedClient @'Brig mg (brig iConf)
   emailAWSOpts <- parseEmailAWSOpts

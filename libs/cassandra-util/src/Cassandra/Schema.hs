@@ -63,7 +63,7 @@ data MigrationOpts = MigrationOpts
     migKeyspace :: Text,
     migRepl :: ReplicationStrategy,
     migReset :: Bool,
-    migTLSCert :: Maybe FilePath
+    migTlsCa :: Maybe FilePath
   }
   deriving (Eq, Show, Generic)
 

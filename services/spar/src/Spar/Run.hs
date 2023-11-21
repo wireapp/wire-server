@@ -67,7 +67,7 @@ initCassandra opts lgr =
     (Opt.cassandra opts ^. endpoint . port)
     "spar"
     (Opt.cassandra opts ^. keyspace)
-    (Opt.cassandra opts ^. tlsCert)
+    (Opt.cassandra opts ^. tlsCa)
     (Opt.cassandra opts ^. filterNodesByDatacentre)
     (Opt.discoUrl opts)
     (Just Data.schemaVersion)

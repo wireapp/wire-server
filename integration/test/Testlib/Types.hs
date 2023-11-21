@@ -173,7 +173,7 @@ instance FromJSON HostPort
 data CassandraConfig = CassandraConfig
   { cassHost :: String,
     cassPort :: Word16,
-    cassTlsCert :: Maybe FilePath
+    cassTlsCa :: Maybe FilePath
   }
   deriving (Show, Generic)
 

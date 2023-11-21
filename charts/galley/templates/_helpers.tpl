@@ -9,5 +9,5 @@
 {{- end -}}
 
 {{- define "useCassandraCA" -}}
-{{ and (hasKey .cassandra "tlsCert") }}
+{{ and (hasKey .cassandra "tlsCa") }}
 {{- end -}}

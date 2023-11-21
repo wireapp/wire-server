@@ -18,7 +18,7 @@ config:
   cassandra:
     host: aws-cassandra
 #   To enable TLS:
-#   tlsCert: <CA in PEM format (can be self-signed))
+#   tlsCa: <CA in PEM format (can be self-signed))
   richInfoLimit: 5000
   maxScimTokens: 0
   logLevel: Info

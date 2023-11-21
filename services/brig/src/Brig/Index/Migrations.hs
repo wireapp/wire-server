@@ -91,7 +91,7 @@ mkEnv l es cas galleyEndpoint = do
         (C.unKeyspace (cas ^. Opts.cKeyspace))
         (Text.pack (cas ^. Opts.cHost))
         (cas ^. Opts.cPort)
-        (cas ^. Opts.cTlsCert)
+        (cas ^. Opts.cTlsCa)
         l
 
     initLogger = pure l

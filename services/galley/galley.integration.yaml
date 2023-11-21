@@ -8,7 +8,7 @@ cassandra:
     port: 9042
   keyspace: galley_test
   # filterNodesByDatacentre: datacenter1
-  tlsCert: ../../hack/cassandra.cert.pem
+  tlsCa: ../../hack/cassandra.cert.pem
 
 brig:
   host: 0.0.0.0

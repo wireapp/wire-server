@@ -41,7 +41,7 @@ import OpenSSL.Session qualified as OpenSSL
 import System.Logger qualified as Log
 
 defInitCassandra :: Text -> Text -> Word16 -> Maybe FilePath -> Log.Logger -> IO ClientState
-defInitCassandra ks h p mbTlsCertPath logger = do
+defInitCassandra ks h p mbTlsCaPath logger = do
   let basicCasSettings =
         setLogger (CT.mkLogger logger)
           . setPortNumber (fromIntegral p)
@@ -49,7 +49,7 @@ defInitCassandra ks h p mbTlsCertPath logger = do
           . setKeyspace (Keyspace ks)
           . setProtocolVersion V4
           $ defSettings
-  initCassandra basicCasSettings mbTlsCertPath logger
+  initCassandra basicCasSettings mbTlsCaPath logger
 
 -- | Create Cassandra `ClientState` ("connection") for a service
 --
@@ -67,7 +67,7 @@ initCassandraForService ::
   Maybe Int32 ->
   Log.Logger ->
   IO ClientState
-initCassandraForService host port serviceName keyspace mbTlsCertPath filterNodesByDatacentre discoUrl mbSchemaVersion logger = do
+initCassandraForService host port serviceName keyspace mbTlsCaPath filterNodesByDatacentre discoUrl mbSchemaVersion logger = do
   c <-
     maybe
       (initialContactsPlain host)
@@ -85,13 +85,13 @@ initCassandraForService host port serviceName keyspace mbTlsCertPath filterNodes
           . setProtocolVersion V4
           . setPolicy (dcFilterPolicyIfConfigured logger filterNodesByDatacentre)
           $ defSettings
-  p <- initCassandra basicCasSettings mbTlsCertPath logger
+  p <- initCassandra basicCasSettings mbTlsCaPath logger
   maybe (pure ()) (\v -> runClient p $ (versionCheck v)) mbSchemaVersion
   pure p
 
 initCassandra :: Settings -> Maybe FilePath -> Log.Logger -> IO ClientState
-initCassandra settings (Just tlsCertPath) logger = do
-  sslContext <- createSSLContext tlsCertPath
+initCassandra settings (Just tlsCaPath) logger = do
+  sslContext <- createSSLContext tlsCaPath
   let settings' = setSSLContext sslContext settings
   init settings'
   where

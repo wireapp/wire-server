@@ -31,7 +31,7 @@ module Brig.Index.Options
     CassandraSettings,
     cHost,
     cPort,
-    cTlsCert,
+    cTlsCa,
     cKeyspace,
     localElasticSettings,
     localCassandraSettings,
@@ -84,7 +84,7 @@ data CassandraSettings = CassandraSettings
   { _cHost :: String,
     _cPort :: Word16,
     _cKeyspace :: C.Keyspace,
-    _cTlsCert :: Maybe FilePath
+    _cTlsCa :: Maybe FilePath
   }
   deriving (Show)
 
@@ -128,7 +128,7 @@ localCassandraSettings =
     { _cHost = "localhost",
       _cPort = 9042,
       _cKeyspace = C.Keyspace "brig_test",
-      _cTlsCert = Nothing
+      _cTlsCa = Nothing
     }
 
 elasticServerParser :: Parser (URIRef Absolute)

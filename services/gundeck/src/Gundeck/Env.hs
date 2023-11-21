@@ -89,7 +89,7 @@ createEnv m o = do
       (o ^. cassandra . endpoint . port)
       "gundeck"
       (o ^. cassandra . keyspace)
-      (o ^. cassandra . tlsCert)
+      (o ^. cassandra . tlsCa)
       (o ^. cassandra . filterNodesByDatacentre)
       (o ^. discoUrl)
       Nothing
