@@ -14,7 +14,6 @@ import Data.Set (Set)
 import Data.Set qualified as Set
 import Data.Yaml qualified as Yaml
 import Database.CQL.IO qualified as Cassandra
-import Debug.Trace
 import Network.HTTP.Client qualified as HTTP
 import OpenSSL.Session qualified as OpenSSL
 import System.Directory
@@ -69,7 +68,6 @@ mkGlobalEnv cfgFile = do
   manager <- liftIO $ HTTP.newManager HTTP.defaultManagerSettings
 
   mbCassCertFilePath <- liftIO $ getCassCertFilePath
-  traceM $ "mbCassCertFilePath: " ++ show mbCassCertFilePath
   mbSSLContext <- liftIO $ createSSLContext mbCassCertFilePath
   let basicCassSettings =
         Cassandra.defSettings
