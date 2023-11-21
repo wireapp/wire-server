@@ -130,11 +130,6 @@ data UserIdentity (tf :: Symbol)
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform (UserIdentity tf))
 
-data BetterUserIdentity
-  = InternalUserIdentity (These Email Phone)
-  | ExternalNoSAML TeamId ScimExternalId EmailWithSource Email
-  | ExternalUserIdentity PartialUAuthId (Maybe Email)
-
 castUserIdentityTeamFieldName :: UserIdentity tf -> UserIdentity tf'
 castUserIdentityTeamFieldName = coerce
 

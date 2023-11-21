@@ -127,8 +127,6 @@ type Konst = Const ()
 --
 -- Read `test/unit/Test/Wire/API/User.hs` to get some intuition of allowed values and
 -- semantics.
---
--- TODO: rename to `ExternalId`
 data UAuthId (a :: Type -> Type) (b :: Type -> Type) (c :: Type -> Type) = UAuthId
   { uaSamlId :: a SAML.UserRef,
     uaScimExternalId :: b Text,

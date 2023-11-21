@@ -579,12 +579,12 @@ testActivateWithExpiry _ brig timeout = do
     Just kc -> do
       activate brig kc !!! do
         const 200 === statusCode
-        const (Just (userIdentity u, True)) === error "coerce" actualBody
+        const (Just (userIdentity u, True)) === actualBody
       -- Note: This value must be larger than the option passed as `activation-timeout`
       awaitExpiry (round timeout + 5) kc
       activate brig kc !!! const 404 === statusCode
   where
-    actualBody :: HasCallStack => ResponseLBS -> Maybe (Maybe (UserIdentity "team_id"), Bool)
+    actualBody :: HasCallStack => ResponseLBS -> Maybe (Maybe UserIdentity, Bool)
     actualBody rs = do
       a <- responseJsonMaybe rs
       Just (Just (activatedIdentity a), activatedFirst a)
@@ -1484,7 +1484,7 @@ testUpdateSSOId brig galley = do
         . Bilge.json (UserSSOId (mkSampleUref "1" "1"))
     )
     !!! const 404 === statusCode
-  let go :: HasCallStack => User -> LegacyUserSSOId -> Http ()
+  let go :: HasCallStack => User -> UserSSOId -> Http ()
       go user ssoid = do
         let uid = userId user
         put
@@ -1494,10 +1494,7 @@ testUpdateSSOId brig galley = do
           )
           !!! const 200 === statusCode
         profile :: SelfProfile <- responseJsonError =<< get (brig . path "/self" . zUser uid)
-        let -- Just (SSOIdentity ssoid' mEmail mPhone) = userIdentity . selfUser $ profile
-            ssoid' = undefined
-            mEmail = undefined
-            mPhone = undefined
+        let Just (SSOIdentity ssoid' mEmail mPhone) = userIdentity . selfUser $ profile
         liftIO $ do
           assertEqual "updateSSOId/ssoid" ssoid ssoid'
           assertEqual "updateSSOId/email" (userEmail user) mEmail

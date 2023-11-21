@@ -668,15 +668,9 @@ deleteFromPhonePrefixH prefix = lift $ NoContent <$ API.phonePrefixDelete prefix
 addPhonePrefixH :: Member BlacklistPhonePrefixStore r => ExcludedPrefix -> (Handler r) NoContent
 addPhonePrefixH prefix = lift $ NoContent <$ API.phonePrefixInsert prefix
 
-updateUAuthIdH :: UserId -> PartialUAuthId -> (Handler r) UpdateSSOIdResponse
-updateUAuthIdH = undefined
-
-deleteUAuthIdH :: UserId -> (Handler r) UpdateSSOIdResponse
-deleteUAuthIdH = undefined
-
-updateSSOIdH :: UserId -> LegacyUserSSOId -> (Handler r) UpdateSSOIdResponse
+updateSSOIdH :: UserId -> UserSSOId -> (Handler r) UpdateSSOIdResponse
 updateSSOIdH uid ssoid = do
-  success <- lift $ wrapClient $ error "Data.updateSSOId" uid (Just ssoid)
+  success <- lift $ wrapClient $ Data.updateSSOId uid (Just ssoid)
   if success
     then do
       lift $ wrapHttpClient $ Intra.onUserEvent uid Nothing (UserUpdated ((emptyUserUpdatedData uid) {eupSSOId = Just ssoid}))
@@ -685,7 +679,7 @@ updateSSOIdH uid ssoid = do
 
 deleteSSOIdH :: UserId -> (Handler r) UpdateSSOIdResponse
 deleteSSOIdH uid = do
-  success <- lift $ wrapClient $ error "Data.updateSSOId" uid Nothing
+  success <- lift $ wrapClient $ Data.updateSSOId uid Nothing
   if success
     then do
       lift $ wrapHttpClient $ Intra.onUserEvent uid Nothing (UserUpdated ((emptyUserUpdatedData uid) {eupSSOIdRemoved = True}))

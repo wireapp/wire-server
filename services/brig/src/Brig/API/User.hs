@@ -929,7 +929,7 @@ activateWithCurrency tgt code usr cur = do
       when first $
         lift $
           activateTeam uid
-      pure $ ActivationSuccess (castUserIdentityTeamFieldName <$> ident) first
+      pure $ ActivationSuccess ident first
   where
     activateTeam uid = do
       tid <- liftSem $ GalleyProvider.getTeamId uid
@@ -946,7 +946,7 @@ preverify tgt code = do
   key <- mkActivationKey tgt
   void $ Data.verifyCode key code
 
-onActivated :: ActivationEvent -> (AppT r) (UserId, Maybe (UserIdentity "team"), Bool)
+onActivated :: ActivationEvent -> (AppT r) (UserId, Maybe UserIdentity, Bool)
 onActivated (AccountActivated account) = do
   let uid = userId (accountUser account)
   Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.onActivated")
@@ -1192,8 +1192,8 @@ deleteSelfUser uid pwd = do
     getEmailOrPhone (EmailIdentity e) = Just $ Left e
     getEmailOrPhone (PhoneIdentity p) = Just $ Right p
     getEmailOrPhone (FullIdentity e _) = Just $ Left e
-    getEmailOrPhone (UAuthIdentity (UAuthId _ _ (Just (EmailWithSource e _)) _) _) = Just $ Left e -- TODO: validated or unvalidated email?  or both?  see also next case!
-    getEmailOrPhone (UAuthIdentity (UAuthId _ _ Nothing _) _) = Nothing
+    getEmailOrPhone (UAuthIdentity (UAuthId _ _ (Just (EmailWithSource e _)) _)) = Just $ Left e
+    getEmailOrPhone (UAuthIdentity (UAuthId _ _ Nothing _)) = Nothing
 
     byIdentity a = case getEmailOrPhone =<< userIdentity (accountUser a) of
       Just emailOrPhone -> sendCode a emailOrPhone

@@ -249,7 +249,7 @@ insertAccount (UserAccount u status) mbConv password activated = retry x5 . batc
       userAssets u,
       userEmail u,
       userPhone u,
-      undefined $ userPartialUAuthId u,
+      userSSOId u,
       userAccentId u,
       password,
       activated,
@@ -301,35 +301,13 @@ updateEmailUnvalidated u e = retry x5 $ write userEmailUnvalidatedUpdate (params
 updatePhone :: MonadClient m => UserId -> Phone -> m ()
 updatePhone u p = retry x5 $ write userPhoneUpdate (params LocalQuorum (p, u))
 
-updateSSOId :: MonadClient m => UserId -> LegacyUserSSOId -> m Bool
-updateSSOId  uid (Just uauthid) = do
-   mteamid <- lookupUserTeam uid
-   case mteamid of
-    Just _ -> do
-@@@
-
 updateUAuthId :: MonadClient m => UserId -> Maybe PartialUAuthId -> m Bool
-updateUAuthId _uid Nothing = undefined
-updateUAuthId uid (Just uauthid) = do
+updateUAuthId uid uauthid = do
+  -- NOTE(fisx): this probably doesn't compile yet, but the idea should be appearent?
   mteamid <- lookupUserTeam uid
   case mteamid of
-    Just tid | tid == uauthid.uaTeamId -> do
-      retry x5 $
-        write
-          uauthIdUpdate
-          -- TODO: does "Nothing" as email mean "remove email" or "keep email"?!
-          {-
-          ( params
-              LocalQuorum
-              ( uauthid.uaSamlId >>= (.issuer),
-                uauthid.uaSamlId >>= (.nameid),
-                uauthid.uaScimExternalId,
-                uauthid.uaTeamId,
-                uid
-              )
-          )
-          -}
-          undefined
+    Just _ -> do
+      retry x5 $ write uauthIdUpdate (params LocalQuorum (uauthid.samlId.issuer, uauthid.samlId.nameid, uauthid.scimExternalId, u))
       pure True
     Nothing -> pure False
 
@@ -546,7 +524,7 @@ type UserRow =
     Maybe Pict,
     Maybe Email,
     Maybe Phone,
-    Maybe LegacyUserSSOId, -- TODO: UAuthId?
+    Maybe UserSSOId,
     ColourId,
     Maybe [Asset],
     Activated,
@@ -569,7 +547,7 @@ type UserRowInsert =
     [Asset],
     Maybe Email,
     Maybe Phone,
-    Maybe LegacyUserSSOId,
+    Maybe UserSSOId,
     ColourId,
     Maybe Password,
     Activated,
@@ -668,7 +646,7 @@ userEmailUnvalidatedDelete = {- `IF EXISTS`, but that requires benchmarking -} "
 userPhoneUpdate :: PrepQuery W (Phone, UserId) ()
 userPhoneUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET phone = ? WHERE id = ?"
 
-uauthIdUpdate :: PrepQuery W (Maybe Text, Maybe Text, Maybe Text, TeamId, UserId) () -- TODO: doesn't work yet!
+uauthIdUpdate :: PrepQuery W (Maybe Text, Maybe Text, Maybe Text, UserId) ()
 uauthIdUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET saml_entity_id = ?, saml_name_id = ?, scim_external_id = ?, sso_id = null WHERE id = ?"
 
 userManagedByUpdate :: PrepQuery W (ManagedBy, UserId) ()
@@ -848,11 +826,11 @@ toIdentity ::
   Bool ->
   Maybe Email ->
   Maybe Phone ->
-  Maybe LegacyUserSSOId -> -- TODO: UAuthId?
-  Maybe (UserIdentity tf)
+  Maybe UserSSOId ->
+  Maybe UserIdentity
 toIdentity True (Just e) (Just p) Nothing = Just $! FullIdentity e p
 toIdentity True (Just e) Nothing Nothing = Just $! EmailIdentity e
 toIdentity True Nothing (Just p) Nothing = Just $! PhoneIdentity p
-toIdentity True email phone (Just ssoid) = Just $! UAuthIdentity (undefined ssoid email phone) undefined
+toIdentity True email phone (Just ssoid) = Just $! SSOIdentity ssoid email phone
 toIdentity True Nothing Nothing Nothing = Nothing
 toIdentity False _ _ _ = Nothing
