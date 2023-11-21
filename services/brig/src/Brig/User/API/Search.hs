@@ -28,7 +28,8 @@ import Brig.API.Error (fedError)
 import Brig.API.Handler
 import Brig.App
 import Brig.Data.User qualified as DB
-import Brig.Effects.FederationConfigStore (FederationConfigStore, getFederationConfigs)
+import Brig.Effects.FederationConfigStore
+import Brig.Effects.FederationConfigStore qualified as FederationConfigStore
 import Brig.Effects.GalleyProvider (GalleyProvider)
 import Brig.Effects.GalleyProvider qualified as GalleyProvider
 import Brig.Federation.Client qualified as Federation
@@ -61,7 +62,9 @@ import Wire.API.User.Search qualified as Public
 -- FUTUREWORK: Consider augmenting 'SearchResult' with full user profiles
 -- for all results. This is tracked in https://wearezeta.atlassian.net/browse/SQCORE-599
 search ::
-  (Member GalleyProvider r) =>
+  ( Member GalleyProvider r,
+    Member FederationConfigStore r
+  ) =>
   UserId ->
   Text ->
   Maybe Domain ->
@@ -74,19 +77,26 @@ search searcherId searchTerm maybeDomain maybeMaxResults = do
   -- looked up again.
   ensurePermissionsOrPersonalUser searcherId [SearchContacts]
   federationDomain <- viewFederationDomain
+  mSearcherTeamId <- lift $ wrapClient $ DB.lookupUserTeam searcherId
   let queryDomain = fromMaybe federationDomain maybeDomain
   if queryDomain == federationDomain
     then searchLocally searcherId searchTerm maybeMaxResults
-    else searchRemotely queryDomain searchTerm
+    else searchRemotely queryDomain mSearcherTeamId searchTerm
 
-searchRemotely :: (Member FederationConfigStore r) => Domain -> Text -> (Handler r) (Public.SearchResult Public.Contact)
-searchRemotely domain searchTerm = do
+searchRemotely :: (Member FederationConfigStore r) => Domain -> Maybe TeamId -> Text -> (Handler r) (Public.SearchResult Public.Contact)
+searchRemotely domain mTid searchTerm = do
   lift . Log.info $
     msg (val "searchRemotely")
       ~~ field "domain" (show domain)
       ~~ field "searchTerm" searchTerm
-  cfgs <- getFederationConfigs
-  searchResponse <- Federation.searchUsers domain (FedBrig.SearchRequest searchTerm) !>> fedError
+  mFedCnf <- lift $ liftSem $ FederationConfigStore.getFederationConfig domain
+  let onlyInTeams = case restriction <$> mFedCnf of
+        Just FederationRestrictionAllowAll -> Nothing
+        Just (FederationRestrictionByTeam teams) -> Just teams
+        -- if we are not federating at all, we also do not allow to search any remote teams
+        Nothing -> Just []
+
+  searchResponse <- Federation.searchUsers domain (FedBrig.SearchRequest searchTerm mTid onlyInTeams) !>> fedError
   let contacts = S.contacts searchResponse
   let count = length contacts
   pure

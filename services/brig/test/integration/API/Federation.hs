@@ -98,7 +98,7 @@ testSearchSuccess opts brig = do
   searchResponse <- withSettingsOverrides (allowFullSearch domain opts) $ do
     runWaiTestFedClient domain $
       createWaiTestFedClient @"search-users" @'Brig $
-        SearchRequest (fromHandle handle)
+        SearchRequest (fromHandle handle) Nothing Nothing
 
   liftIO $ do
     let contacts = contactQualifiedId <$> S.contacts searchResponse
@@ -115,7 +115,7 @@ testFulltextSearchSuccess opts brig = do
   searchResponse <- withSettingsOverrides (allowFullSearch domain opts) $ do
     runWaiTestFedClient domain $
       createWaiTestFedClient @"search-users" @'Brig $
-        SearchRequest (fromName $ userDisplayName user)
+        SearchRequest (fromName $ userDisplayName user) Nothing Nothing
 
   liftIO $ do
     let contacts = contactQualifiedId <$> S.contacts searchResponse
@@ -142,7 +142,7 @@ testFulltextSearchMultipleUsers opts brig = do
   searchResponse <- withSettingsOverrides (allowFullSearch domain opts) $ do
     runWaiTestFedClient domain $
       createWaiTestFedClient @"search-users" @'Brig $
-        SearchRequest (fromHandle handle)
+        SearchRequest (fromHandle handle) Nothing Nothing
 
   liftIO $ do
     let contacts = contactQualifiedId <$> S.contacts searchResponse
@@ -155,7 +155,7 @@ testSearchNotFound opts = do
   searchResponse <- withSettingsOverrides (allowFullSearch domain opts) $ do
     runWaiTestFedClient domain $
       createWaiTestFedClient @"search-users" @'Brig $
-        SearchRequest "this-handle-should-not-exist"
+        SearchRequest "this-handle-should-not-exist" Nothing Nothing
 
   liftIO $ assertEqual "should return empty array of users" [] (S.contacts searchResponse)
 
@@ -166,7 +166,7 @@ testSearchNotFoundEmpty opts = do
   searchResponse <- withSettingsOverrides (allowFullSearch domain opts) $ do
     runWaiTestFedClient domain $
       createWaiTestFedClient @"search-users" @'Brig $
-        SearchRequest "this-handle-should-not-exist"
+        SearchRequest "this-handle-should-not-exist" Nothing Nothing
 
   liftIO $ assertEqual "should return empty array of users" [] (S.contacts searchResponse)
 
@@ -194,7 +194,7 @@ testSearchRestrictions opts brig = do
         let squery = either fromHandle fromName handleOrName
         searchResponse <-
           runWaiTestFedClient domain $
-            createWaiTestFedClient @"search-users" @'Brig (SearchRequest squery)
+            createWaiTestFedClient @"search-users" @'Brig (SearchRequest squery Nothing Nothing)
         liftIO $ do
           case (mExpectedUser, handleOrName) of
             (Just expectedUser, Right _) ->
