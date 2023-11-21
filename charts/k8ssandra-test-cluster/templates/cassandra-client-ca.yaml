@@ -6,5 +6,5 @@ metadata:
   namespace: {{ .Release.Namespace }}
 type: Opaque
 data:
-  ca.pem: {{ .Values.client_encryption_options.ca | quote }}
+  ca.pem: {{ .Values.client_encryption_options.ca | b64enc | quote }}
 {{- end }}
