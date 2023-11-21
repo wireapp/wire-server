@@ -27,27 +27,59 @@ where
 
 import Control.Lens ((?~))
 import Data.Aeson (FromJSON, ToJSON)
+import Data.Aeson qualified as A
+import Data.Aeson.KeyMap as A
+import Data.Aeson.Types qualified as A
 import Data.Domain (Domain)
 import Data.Id
 import Data.OpenApi qualified as S
 import Data.Schema
+import Data.Text qualified as T
+import Data.Vector qualified as V
 import GHC.Generics
 import Imports
 import Wire.API.User.Search (FederatedUserSearchPolicy)
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
-data FederationRestriction = FederationRestrictionAllowAll | FederationRestrictionByTeam
+data FederationRestriction = FederationRestrictionAllowAll | FederationRestrictionByTeam [TeamId]
   deriving (Eq, Show, Generic, Ord)
   deriving (ToJSON, FromJSON, S.ToSchema) via Schema FederationRestriction
   deriving (Arbitrary) via (GenericUniform FederationRestriction)
 
 instance ToSchema FederationRestriction where
-  schema =
-    enum @Text "FederationRestriction" $
-      mconcat
-        [ element "allow_all" FederationRestrictionAllowAll,
-          element "restrict_by_team" FederationRestrictionByTeam
-        ]
+  schema = mkSchema resDoc toRes fromRes
+    where
+      resDoc = swaggerDoc @[TeamId] & S.schema . S.example ?~ "UUID team IDs"
+      toRes :: A.Value -> A.Parser FederationRestriction
+      toRes v = parseAllowAll v <|> parseByTeam v
+      parseAllowAll :: A.Value -> A.Parser FederationRestriction
+      parseAllowAll = A.withObject "FederationRestriction" $ \o -> do
+        tg <- o A..: tagKey
+        if tg == allowAll
+          then pure FederationRestrictionAllowAll
+          else A.parseFail $ "Expected '" <> T.unpack allowAll <> "'"
+      parseByTeam :: A.Value -> A.Parser FederationRestriction
+      parseByTeam = A.withObject "FederationRestriction" $ \o -> do
+        tg <- o A..: tagKey
+        if tg == byTeam
+          then do
+            teams <- o A..: teamsKey
+            pure . FederationRestrictionByTeam $ teams
+          else A.parseFail $ "Expected '" <> T.unpack byTeam <> "'"
+      fromRes :: FederationRestriction -> Maybe A.Value
+      fromRes FederationRestrictionAllowAll =
+        Just . A.Object $
+          A.singleton tagKey (A.String allowAll)
+      fromRes (FederationRestrictionByTeam teams) =
+        Just . A.Object $
+          A.fromList
+            [ (tagKey, A.String byTeam),
+              (teamsKey, A.Array . V.fromList $ A.toJSON <$> teams)
+            ]
+      tagKey :: A.Key = "restriction_tag"
+      teamsKey :: A.Key = "teams"
+      allowAll :: Text = "allow_all"
+      byTeam :: Text = "restrict_by_team"
 
 -- | Everything we need to know about a remote instance in order to federate with it.  Comes
 -- in `AllowedDomains` if `AllowStrategy` is `AllowDynamic`.  If `AllowAll`, we still use this

@@ -41,13 +41,38 @@ import Wire.API.User.Search
 maxKnownNodes :: Int
 maxKnownNodes = 10000
 
+data RestrictionException = RestrictionException Int32
+
+instance Show RestrictionException where
+  show (RestrictionException v) =
+    "Expected a RestrictionPolicy encoding, but found a value " <> show v
+
+instance Exception RestrictionException
+
+toRestriction :: MonadClient m => Domain -> Int32 -> m FederationRestriction
+toRestriction _ 0 = pure FederationRestrictionAllowAll
+toRestriction dom 1 =
+  fmap FederationRestrictionByTeam $
+    runIdentity <$$> retry x1 (query getTeams (params LocalQuorum (Identity dom)))
+  where
+    getTeams :: PrepQuery R (Identity Domain) (Identity TeamId)
+    getTeams = fromString $ "SELECT team FROM federation_remote_teams WHERE domain = ?"
+toRestriction _ v = throwM . RestrictionException $ v
+
+fromRestriction :: FederationRestriction -> Int32
+fromRestriction FederationRestrictionAllowAll = 0
+fromRestriction (FederationRestrictionByTeam _) = 1
+
 getFederationRemotes :: forall m. MonadClient m => m [FederationDomainConfig]
 getFederationRemotes = (\(d, p, r) -> FederationDomainConfig d p r) <$$> qry
   where
     qry :: m [(Domain, FederatedUserSearchPolicy, FederationRestriction)]
-    qry = retry x1 . query get $ params LocalQuorum ()
+    qry = do
+      res <- retry x1 . query get $ params LocalQuorum ()
+      forM res $ \(d, p, rInt) -> do
+        (d,p,) <$> toRestriction d rInt
 
-    get :: PrepQuery R () (Domain, FederatedUserSearchPolicy, FederationRestriction)
+    get :: PrepQuery R () (Domain, FederatedUserSearchPolicy, Int32)
     get = fromString $ "SELECT domain, search_policy, restriction FROM federation_remotes LIMIT " <> show maxKnownNodes
 
 data AddFederationRemoteResult = AddFederationRemoteSuccess | AddFederationRemoteMaxRemotesReached
@@ -57,19 +82,29 @@ addFederationRemote (FederationDomainConfig rDomain searchPolicy restriction) = 
   l <- length <$> getFederationRemotes
   if l >= maxKnownNodes
     then pure AddFederationRemoteMaxRemotesReached
-    else AddFederationRemoteSuccess <$ retry x5 (write add (params LocalQuorum (rDomain, searchPolicy, restriction)))
+    else
+      AddFederationRemoteSuccess
+        <$ retry x5 (write add (params LocalQuorum (rDomain, searchPolicy, fromRestriction restriction)))
   where
-    add :: PrepQuery W (Domain, FederatedUserSearchPolicy, FederationRestriction) ()
+    add :: PrepQuery W (Domain, FederatedUserSearchPolicy, Int32) ()
     add = "INSERT INTO federation_remotes (domain, search_policy, restriction) VALUES (?, ?, ?)"
 
 updateFederationRemote :: MonadClient m => FederationDomainConfig -> m Bool
 updateFederationRemote (FederationDomainConfig rDomain searchPolicy restriction) = do
-  retry x1 (trans upd (params LocalQuorum (searchPolicy, restriction, rDomain)) {serialConsistency = Just LocalSerialConsistency}) >>= \case
-    [] -> pure False
-    [_] -> pure True
-    _ -> throwM $ ErrorCall "Primary key violation detected federation_remotes"
+  retry
+    x1
+    ( trans
+        upd
+        (params LocalQuorum (searchPolicy, fromRestriction restriction, rDomain))
+          { serialConsistency = Just LocalSerialConsistency
+          }
+    )
+    >>= \case
+      [] -> pure False
+      [_] -> pure True
+      _ -> throwM $ ErrorCall "Primary key violation detected federation_remotes"
   where
-    upd :: PrepQuery W (FederatedUserSearchPolicy, FederationRestriction, Domain) x
+    upd :: PrepQuery W (FederatedUserSearchPolicy, Int32, Domain) x
     upd = "UPDATE federation_remotes SET search_policy = ?, restriction = ? WHERE domain = ? IF EXISTS"
 
 deleteFederationRemote :: MonadClient m => Domain -> m ()
