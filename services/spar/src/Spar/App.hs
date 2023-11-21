@@ -351,7 +351,7 @@ moveUserToNewIssuer ::
   Sem r ()
 moveUserToNewIssuer oldUserRef newUserRef uid = do
   SAMLUserStore.insert newUserRef uid
-  BrigAccess.setVeid uid (UrefOnly newUserRef)
+  BrigAccess.setVeid uid undefined -- (UrefOnly newUserRef) - we need to make sure we don't overwrite externalid, email, team here.
   SAMLUserStore.delete uid oldUserRef
 
 verdictHandlerResultCore ::
