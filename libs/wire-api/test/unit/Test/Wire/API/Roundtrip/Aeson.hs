@@ -14,6 +14,7 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 module Test.Wire.API.Roundtrip.Aeson (tests) where
 
@@ -23,7 +24,7 @@ import Data.Id (ConvId)
 import Data.OpenApi (ToSchema, validatePrettyToJSON)
 import Imports
 import Test.Tasty qualified as T
-import Test.Tasty.QuickCheck (Arbitrary (..), Gen, counterexample, testProperty, (.&&.), (===))
+import Test.Tasty.QuickCheck (Arbitrary (..), counterexample, testProperty, (.&&.), (===))
 import Type.Reflection (typeRep)
 import Wire.API.Asset qualified as Asset
 import Wire.API.Call.Config qualified as Call.Config
@@ -74,6 +75,7 @@ import Wire.API.User.Profile qualified as User.Profile
 import Wire.API.User.RichInfo qualified as User.RichInfo
 import Wire.API.User.Scim qualified as Scim
 import Wire.API.User.Search qualified as User.Search
+import Wire.API.User.Test
 import Wire.API.Wrapped qualified as Wrapped
 
 -- FUTUREWORK(#1446): fix tests marked as failing
@@ -373,19 +375,6 @@ testRoundTripWithSwagger = testProperty msg (trip .&&. scm)
         )
         $ isNothing (validatePrettyToJSON v)
 
--- | Some `UserIdentity` values, or values of types containing `UserIdentity`, just as
--- `NewUser`, have values that can be represented in Haskell, but lead to parse errors on the
--- way back in aeson roundtrip tests.  If you give a "sanitized" instance for those types
--- wrapped in `WithSanitizedUserIdentity`, you can run the roundtrip test on the wrapped type.
-data WithSanitizedUserIdentity a = WithSanitizedUserIdentity a
-  deriving (Eq, Show)
-
-instance ToJSON a => ToJSON (WithSanitizedUserIdentity a) where
-  toJSON (WithSanitizedUserIdentity a) = toJSON a
-
-instance FromJSON a => FromJSON (WithSanitizedUserIdentity a) where
-  parseJSON = fmap WithSanitizedUserIdentity . parseJSON
-
 instance Arbitrary (WithSanitizedUserIdentity User.NewUser) where
   arbitrary = (arbitrary >>= coherenizeNewUser) <&> WithSanitizedUserIdentity
 
@@ -408,53 +397,3 @@ instance Arbitrary (WithSanitizedUserIdentity User.Activation.ActivationResponse
 
 instance Arbitrary (WithSanitizedUserIdentity User.Identity.PartialUAuthId) where
   arbitrary = (arbitrary >>= coherenizeUAuthId) <&> WithSanitizedUserIdentity
-
-coherenizeNewUser :: User.NewUser -> Gen User.NewUser
-coherenizeNewUser = fixUAuth >=> matchOrigin
-  where
-    fixUAuth nu = do
-      ua' <- mapM coherenizeUserIdentity (User.newUserIdentity nu)
-      pure nu {User.newUserIdentity = ua'}
-
-    matchOrigin nu = pure $ do
-      case (User.newUserIdentity nu, User.newUserOrigin nu) of
-        ( Just (User.Identity.UAuthIdentity (User.Identity.UAuthId saml scim eml tid) mbemail),
-          Just (User.NewUserOriginTeamUser (User.NewTeamMemberSSO tid'))
-          )
-            | tid /= tid' ->
-                nu {User.newUserIdentity = Just (User.Identity.UAuthIdentity (User.Identity.UAuthId saml scim eml tid') mbemail)}
-        _ -> nu
-
-coherenizeUser :: User.User -> Gen User.User
-coherenizeUser = fixUAuth >=> matchTeam
-  where
-    fixUAuth u = do
-      ua' <- mapM coherenizeUserIdentity (User.userIdentity u)
-      pure u {User.userIdentity = ua'}
-
-    matchTeam u = pure $ do
-      case (User.userIdentity u, User.userTeam u) of
-        (Just (User.Identity.UAuthIdentity (User.Identity.UAuthId saml scim eml tid) mbemail), Just tid')
-          | tid /= tid' ->
-              u {User.userIdentity = Just (User.Identity.UAuthIdentity (User.Identity.UAuthId saml scim eml tid') mbemail)}
-        _ -> u
-
-coherenizeUserIdentity :: User.Identity.UserIdentity tf -> Gen (User.Identity.UserIdentity tf)
-coherenizeUserIdentity (User.Identity.UAuthIdentity ua eml) =
-  (`User.Identity.UAuthIdentity` eml) <$> coherenizeUAuthId ua
-coherenizeUserIdentity u = pure u
-
-coherenizeUAuthId :: User.PartialUAuthId -> Gen User.PartialUAuthId
-coherenizeUAuthId =
-  nonEmptyId
-    >=> scimNeedsEmail
-  where
-    nonEmptyId (User.Identity.UAuthId Nothing Nothing eml tid) = do
-      scim <- arbitrary
-      pure $ User.Identity.UAuthId Nothing (Just scim) eml tid
-    nonEmptyId u = pure u
-
-    scimNeedsEmail (User.Identity.UAuthId Nothing (Just scim) Nothing tid) = do
-      eml <- arbitrary
-      pure $ User.Identity.UAuthId Nothing (Just scim) (Just eml) tid
-    scimNeedsEmail u = pure u

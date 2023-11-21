@@ -230,6 +230,7 @@ library
     Wire.API.User.Saml
     Wire.API.User.Scim
     Wire.API.User.Search
+    Wire.API.User.Test
     Wire.API.User.Types
     Wire.API.UserMap
     Wire.API.Util.Aeson
