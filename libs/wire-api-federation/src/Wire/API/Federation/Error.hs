@@ -214,28 +214,28 @@ federationRemoteHTTP2Error domain path FederatorClientNoStatusCode =
           unexpectedFederationResponseStatus
           "federation-http2-error"
           "No status code in HTTP2 response"
-   in err {Wai.errorData = pure $ Wai.FederationErrorData domain path Nothing}
+   in err {Wai.errorData = pure $ Wai.FederationErrorData domain path}
 federationRemoteHTTP2Error domain path (FederatorClientHTTP2Exception e) =
   let err =
         Wai.mkError
           unexpectedFederationResponseStatus
           "federation-http2-error"
           (LT.pack (displayException e))
-   in err {Wai.errorData = pure $ Wai.FederationErrorData domain path Nothing}
+   in err {Wai.errorData = pure $ Wai.FederationErrorData domain path}
 federationRemoteHTTP2Error domain path (FederatorClientTLSException e) =
   let err =
         Wai.mkError
           (HTTP.mkStatus 525 "SSL Handshake Failure")
           "federation-tls-error"
           (LT.pack (displayException e))
-   in err {Wai.errorData = pure $ Wai.FederationErrorData domain path Nothing}
+   in err {Wai.errorData = pure $ Wai.FederationErrorData domain path}
 federationRemoteHTTP2Error domain path (FederatorClientConnectionError e) =
   let err =
         Wai.mkError
           federatorConnectionRefusedStatus
           "federation-connection-refused"
           (LT.pack (displayException e))
-   in err {Wai.errorData = pure $ Wai.FederationErrorData domain path Nothing}
+   in err {Wai.errorData = pure $ Wai.FederationErrorData domain path}
 
 federationClientHTTP2Error :: FederatorClientHTTP2Error -> Wai.Error
 federationClientHTTP2Error (FederatorClientConnectionError e) =
@@ -249,10 +249,10 @@ federationClientHTTP2Error e =
     "federation-local-error"
     (LT.pack (displayException e))
 
-federationRemoteResponseError :: Domain -> Text -> HTTP.Status -> LByteString -> Wai.Error
-federationRemoteResponseError domain path status resp =
+federationRemoteResponseError :: Domain -> Text -> HTTP.Status -> Wai.Error
+federationRemoteResponseError domain path status =
   err
-    { Wai.errorData = pure $ Wai.FederationErrorData domain path $ pure resp
+    { Wai.errorData = pure $ Wai.FederationErrorData domain path
     }
   where
     err =
