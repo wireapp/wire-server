@@ -130,7 +130,7 @@ specMisc = do
     it "spar /i/status" $ do
       env <- ask
       ping (env ^. teSpar) `shouldRespondWith` (== ())
-  describe "rule do disallow http idp urls." $ do
+  describe "disallow http idp urls." $ do
     let check :: Bool -> TestSpar ()
         check isHttps = do
           somemeta <- do

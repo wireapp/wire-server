@@ -386,7 +386,8 @@ createUserWithTeamDisableSSO brg gly = do
               "password" .= defPassword,
               "team" .= newTeam
             ]
-  bdy <- selfUser . responseJsonUnsafe <$> post (brg . path "/i/users" . contentJson . body p)
+  resp <- post (brg . path "/i/users" . contentJson . body p)
+  let bdy = maybe (error $ show resp) selfUser $ responseJsonMaybe resp
   let (uid, Just tid) = (userId bdy, userTeam bdy)
   (team' : _) <- (^. Galley.teamListTeams) <$> getTeams uid gly
   () <-
