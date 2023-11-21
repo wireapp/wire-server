@@ -37,6 +37,7 @@ module Wire.API.User.Identity
     UserIdentityFromComponentsParseErrors (..),
     LegacyUserSSOId (..),
     legacyUserSSOIdToUAuthId,
+    uAuthIdToLegacyUserSSOId,
 
     -- * Email
     Email (..),

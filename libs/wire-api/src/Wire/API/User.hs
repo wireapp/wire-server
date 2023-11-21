@@ -1083,7 +1083,7 @@ newUserSparToRaw
     NewUserSparRaw
       newUserSparUUID
       (Just newUserSparUAuthId)
-      Nothing
+      (uAuthIdToLegacyUserSSOId newUserSparUAuthId)
       newUserSparDisplayName
       newUserSparTeamId
       newUserSparManagedBy

@@ -36,7 +36,7 @@ module Spar.Scim.User
   ( validateScimUser',
     synthesizeScimUser,
     toScimStoredUser',
-    mkValidExternalId,
+    mkScimUAuthId,
     scimFindUserByEmail,
     deleteScimUser,
   )
@@ -248,7 +248,7 @@ validateScimUser' errloc midp richInfoLimit user = do
     throwError $ badRequest "Setting user passwords is not supported for security reasons."
   veid <-
     let teamid = undefined
-     in mkValidExternalId teamid midp (Scim.externalId user)
+     in mkScimUAuthId teamid midp (Scim.externalId user)
   handl <- validateHandle . Text.toLower . Scim.userName $ user
   -- FUTUREWORK: 'Scim.userName' should be case insensitive; then the toLower here would
   -- be a little less brittle.
@@ -312,21 +312,21 @@ validateScimUser' errloc midp richInfoLimit user = do
             }
       pure richInfo
 
--- | Given an 'externalId' and the necessary context, construct a 'PratialUAuthId'.  Needed
+-- | Given an 'externalId' and the necessary context, construct a 'PartialUAuthId'.  Needed
 -- primarily in 'validateScimUser'.
-mkValidExternalId ::
+mkScimUAuthId ::
   forall m.
   (MonadError Scim.ScimError m) =>
   TeamId ->
   Maybe IdP ->
   Maybe Text ->
   m ScimUAuthId
-mkValidExternalId _ _ Nothing =
+mkScimUAuthId _ _ Nothing =
   throwError $
     Scim.badRequest
       Scim.InvalidValue
       (Just "externalId is required")
-mkValidExternalId teamid Nothing (Just extid) = do
+mkScimUAuthId teamid Nothing (Just extid) = do
   let err =
         Scim.badRequest
           Scim.InvalidValue
@@ -335,7 +335,7 @@ mkValidExternalId teamid Nothing (Just extid) = do
     (throwError err)
     (\eml -> pure $ UAuthId Nothing (pure extid) (pure $ EmailWithSource eml EmailFromScimExternalIdField) teamid)
     $ parseEmail extid
-mkValidExternalId teamid (Just idp) (Just extid) = do
+mkScimUAuthId teamid (Just idp) (Just extid) = do
   let issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
   subject <- validateSubject extid
   let uref = SAML.UserRef issuer subject
@@ -1123,7 +1123,7 @@ scimFindUserByEmail ::
   Text ->
   MaybeT (Scim.ScimHandler (Sem r)) (Scim.StoredUser ST.SparTag)
 scimFindUserByEmail mIdpConfig stiTeam email = do
-  uauthid <- MaybeT (either (const Nothing) Just <$> runExceptT (mkValidExternalId stiTeam mIdpConfig (pure email)))
+  uauthid <- MaybeT (either (const Nothing) Just <$> runExceptT (mkScimUAuthId stiTeam mIdpConfig (pure email)))
   uid <- MaybeT . lift $ case (uaSamlId uauthid, uaEmail uauthid) of
     (Just uref, _) -> withUref uref
     (Nothing, Just (EmailWithSource email _)) -> withEmailOnly email

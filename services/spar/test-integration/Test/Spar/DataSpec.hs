@@ -1,5 +1,5 @@
 {-# LANGUAGE RecordWildCards #-}
-{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+{-# OPTIONS_GHC -Wno-incomplete-patterns -Wno-incomplete-uni-patterns #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -46,9 +46,9 @@ import Util.Scim
 import Util.Types
 import Web.Scim.Schema.Common as Scim.Common
 import Web.Scim.Schema.Meta as Scim.Meta
+import Wire.API.User.Identity
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
-import Wire.API.User.Scim
 
 spec :: SpecWith TestEnv
 spec = do
@@ -247,24 +247,10 @@ testDeleteTeam = it "cleans up all the right tables after deletion" $ do
     liftIO $ tokens `shouldBe` []
   -- The users from 'user':
   do
-    mbUser1 <- case veidFromUserSSOId ssoid1 of
-      Right veid ->
-        runSpar $
-          runValidExternalIdEither
-            SAMLUserStore.get
-            undefined -- could be @Data.lookupScimExternalId@, but we don't hit that path.
-            veid
-      Left _email -> undefined -- runSparCass . Data.lookupScimExternalId . fromEmail $ _email
+    mbUser1 <- case uaSamlId uauthid1 of Just saml -> runSpar $ SAMLUserStore.get saml
     liftIO $ mbUser1 `shouldBe` Nothing
   do
-    mbUser2 <- case veidFromUserSSOId ssoid2 of
-      Right veid ->
-        runSpar $
-          runValidExternalIdEither
-            SAMLUserStore.get
-            undefined
-            veid
-      Left _email -> undefined
+    mbUser2 <- case uaSamlId uauthid2 of Just saml -> runSpar $ SAMLUserStore.get saml
     liftIO $ mbUser2 `shouldBe` Nothing
   -- The config from 'idp':
   do

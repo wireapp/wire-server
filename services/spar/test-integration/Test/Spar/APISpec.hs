@@ -77,6 +77,7 @@ import Spar.Options
 import qualified Spar.Sem.AReqIDStore as AReqIDStore
 import qualified Spar.Sem.BrigAccess as BrigAccess
 import qualified Spar.Sem.IdPConfigStore as IdPEffect
+import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
 import Text.XML.DSig (SignPrivCreds, mkSignCredsWithCert)
 import qualified URI.ByteString as URI
 import URI.ByteString.QQ (uri)
@@ -514,7 +515,7 @@ specFinalizeLogin = do
               authnreq <- negotiateAuthnRequest idp
               authnresp <- runSimpleSP $ mkAuthnResponseWithSubj subj privcreds idp spmeta authnreq True
               loginSuccess =<< submitAuthnResponse tid authnresp
-              ssoid <- getSsoidViaAuthResp authnresp
+              ssoid <- getUAuthIdViaAuthResp authnresp
               ssoToUidSpar tid ssoid
 
         let createEmailSubject email = do
@@ -1318,8 +1319,8 @@ specScimAndSAML = do
     -- UserRef maps onto correct UserId in spar (and back).
     userid' <- getUserIdViaRef' userref
     liftIO $ ('i', userid') `shouldBe` ('i', Just userid)
-    userssoid <- getSsoidViaSelf' userid
-    liftIO $ ('r', preview veidUref <$$> (Intra.veidFromUserSSOId <$> userssoid)) `shouldBe` ('r', Just (Right (Just userref)))
+    uaid <- getUAuthIdViaSelf' userid
+    liftIO $ ('r', uaSamlId =<< uaid) `shouldBe` ('r', Just userref)
     -- login a user for the first time with the scim-supplied credentials
     authnreq <- negotiateAuthnRequest idp
     spmeta <- getTestSPMetadata tid
@@ -1367,7 +1368,7 @@ specScimAndSAML = do
     spmeta <- getTestSPMetadata (idp ^. idpExtraInfo . team)
     authnresp :: SignedAuthnResponse <- runSimpleSP $ mkAuthnResponseWithSubj subjectWithQualifier privcreds idp spmeta authnreq True
 
-    ssoid <- getSsoidViaAuthResp authnresp
+    ssoid <- getUAuthIdViaAuthResp authnresp
     mid <- ssoToUidSpar tid ssoid
 
     liftIO $ mid `shouldBe` Just (ScimT.scimUserId scimStoredUser)
@@ -1552,11 +1553,14 @@ specSsoSettings = do
 -- TODO: what else needs to be tested, beyond the pending tests listed here?
 -- TODO: what tests can go to saml2-web-sso package?
 
-getSsoidViaAuthResp :: HasCallStack => SignedAuthnResponse -> TestSpar UserSSOId
-getSsoidViaAuthResp aresp = do
+getUAuthIdViaAuthResp :: HasCallStack => SignedAuthnResponse -> TestSpar PartialUAuthId
+getUAuthIdViaAuthResp aresp = do
   parsed :: AuthnResponse <-
     either error pure . parseFromDocument $ fromSignedAuthnResponse aresp
-  either error (pure . Intra.veidToUserSSOId . UrefOnly) $ getUserRef parsed
+  uref :: SAML.UserRef <- either (error . show) pure $ getUserRef parsed
+  Just (uid :: UserId) <- runSpar $ SAMLUserStore.get uref
+  Just (accountUser -> usr) <- runSpar $ BrigAccess.getAccount WithPendingInvitations uid
+  pure . fromJust . userPartialUAuthId $ usr
 
 specSparUserMigration :: SpecWith TestEnv
 specSparUserMigration = do
@@ -1591,7 +1595,7 @@ specSparUserMigration = do
         authnresp <- runSimpleSP $ mkAuthnResponseWithSubj subject privcreds idp spmeta authnreq True
         sparresp <- submitAuthnResponse tid authnresp
         liftIO $ statusCode sparresp `shouldBe` 200
-        ssoid <- getSsoidViaAuthResp authnresp
+        ssoid <- getUAuthIdViaAuthResp authnresp
         ssoToUidSpar tid ssoid
 
       liftIO $ mbUserId `shouldBe` Just memberUid
