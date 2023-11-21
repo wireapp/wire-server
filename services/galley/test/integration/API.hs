@@ -1567,11 +1567,13 @@ postConvertTeamConv = do
   -- Create a team conversation with team-alice, team-bob, activated-eve
   -- Non-activated mallory can join
   (alice, tid) <- createBindingTeam
-  let qalice = Qualified alice localDomain
   bob <- view Teams.userId <$> addUserToTeam alice tid
+  let qalice = Qualified alice localDomain
+      qbob = Qualified bob localDomain
   assertTeamUpdate "team member (bob) join" tid 2 [alice]
   refreshIndex
   dave <- view Teams.userId <$> addUserToTeam alice tid
+  let qdave = Qualified dave localDomain
   assertTeamUpdate "team member (dave) join" tid 3 [alice]
   refreshIndex
   (eve, qeve) <- randomUserTuple
@@ -1612,6 +1614,35 @@ postConvertTeamConv = do
     postJoinCodeConv mallory j !!! const 403 === statusCode
     -- team members (dave) can still join
     postJoinCodeConv dave j !!! const 200 === statusCode
+    void . liftIO $
+      WS.assertMatchN (5 # Second) [wsA, wsB] $
+        wsAssertMemberJoinWithRole qconv qdave [qdave] roleNameWireMember
+
+    do
+      let teamAccessNew =
+            ConversationAccessData
+              (Set.fromList [InviteAccess, CodeAccess])
+              (Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole])
+      putQualifiedAccessUpdate alice qconv teamAccessNew !!! const 200 === statusCode
+      void . liftIO $
+        WS.assertMatchN (5 # Second) [wsA, wsB] $
+          wsAssertConvAccessUpdate qconv qalice teamAccessNew
+
+      postJoinCodeConv eve j !!! const 200 === statusCode
+      void . liftIO $
+        WS.assertMatchN (5 # Second) [wsA, wsB] $
+          wsAssertMemberJoinWithRole qconv qeve [qeve] roleNameWireMember
+
+      galley <- viewGalley
+      deleteTeamMember galley tid alice dave
+      -- Alice gets a team event as a team admin
+      checkTeamMemberLeave tid dave wsA
+      liftIO $ do
+        -- Alice gets no conversation event
+        WS.assertNoEvent (1 # Second) [wsA]
+        -- Bob and Eve get a conversation event
+        WS.assertMatchN_ (5 # Second) [wsB, wsE] $
+          wsAssertMemberLeave qconv qdave (pure qdave) EdReasonDeleted
 
 testTeamMemberCantJoinViaGuestLinkIfAccessRoleRemoved :: TestM ()
 testTeamMemberCantJoinViaGuestLinkIfAccessRoleRemoved = do
