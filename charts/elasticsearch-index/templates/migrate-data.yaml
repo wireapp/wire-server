@@ -44,8 +44,6 @@ spec:
             - --galley-port
             - "{{ required "missing elasticsearch-index.galley.port!" .Values.galley.port }}"
             {{- if (include "useTlsCertGundeck" .) }}
-            # - TODO: This option does not yet exists in brig-index (Brig.Index.Options)
-            # use-tls
             - --tls-certificate-file
             - /certs/ca.pem
             {{- end }}
