@@ -228,7 +228,9 @@ searchUsers domain (SearchRequest searchTerm mTeam mOnlyInTeams) = do
       | otherwise = pure []
 
     isTeamAllowed :: Maybe [TeamId] -> Maybe TeamId -> Bool
-    isTeamAllowed = undefined
+    isTeamAllowed Nothing _ = True
+    isTeamAllowed (Just _) Nothing = False
+    isTeamAllowed (Just teams) (Just tid) = tid `elem` teams
 
 getUserClients :: Domain -> GetUserClients -> (Handler r) (UserMap (Set PubClient))
 getUserClients _ (GetUserClients uids) = API.lookupLocalPubClientsBulk uids !>> clientError
