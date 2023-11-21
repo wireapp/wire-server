@@ -81,7 +81,6 @@ initCassandraForService host port serviceName keyspace mbTlsCertPath filterNodes
           . setMaxConnections 4
           . setPoolStripes 4
           . setSendTimeout 3
-          -- TODO: setMaxStreams needed?
           . setResponseTimeout 10
           . setProtocolVersion V4
           . setPolicy (dcFilterPolicyIfConfigured logger filterNodesByDatacentre)
