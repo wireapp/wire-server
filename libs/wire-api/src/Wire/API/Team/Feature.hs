@@ -460,7 +460,7 @@ instance FromHttpApiData (FeatureTTL' u) where
   parseQueryParam = maybeToEither invalidTTLErrorString . fromByteString . T.encodeUtf8
 
 instance S.ToParamSchema (FeatureTTL' u) where
-  toParamSchema _ = S.toParamSchema (Proxy @Int)
+  toParamSchema _ = S.toParamSchema (Proxy @Text)
 
 instance ToByteString (FeatureTTL' u) where
   builder FeatureTTLUnlimited = "unlimited"
