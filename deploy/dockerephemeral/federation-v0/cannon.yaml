@@ -9,11 +9,11 @@ cannon:
   # Each cannon instance advertises its own location (ip or dns name) to gundeck.
   # Either externalHost or externalHostFile must be set (externalHost takes precedence if both are defined)
   # externalHostFile expects a file with a single line containing the IP or dns name of this instance of cannon
-  externalHost: cannon
+  externalHost: cannon-federation-v0
   #externalHostFile: /etc/wire/cannon/cannon-host.txt
 
 gundeck:
-  host: gundeck
+  host: gundeck-federation-v0
   port: 8080
 
 drainOpts:

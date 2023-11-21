@@ -5,15 +5,15 @@ backgroundWorker:
   port: 8080
 
 federatorInternal:
-  host: federator
+  host: federator-federation-v0
   port: 8080
 
 galley:
-  host: galley
+  host: galley-federation-v0
   port: 8080
 
 brig:
-  host: brig
+  host: brig-federation-v0
   port: 8080
 
 rabbitmq:

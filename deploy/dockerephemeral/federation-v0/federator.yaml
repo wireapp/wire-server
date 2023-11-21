@@ -5,13 +5,13 @@ federatorExternal:
   host: 0.0.0.0
   port: 8081
 brig:
-  host: brig
+  host: brig-federation-v0
   port: 8080
 cargohold:
-  host: cargohold
+  host: cargohold-federation-v0
   port: 8080
 galley:
-  host: galley
+  host: galley-federation-v0
   port: 8080
 
 logLevel: Warn

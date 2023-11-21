@@ -10,19 +10,19 @@ cassandra:
   # filterNodesByDatacentre: datacenter1
 
 brig:
-  host: brig
+  host: brig-federation-v0
   port: 8080
 
 gundeck:
-  host: gundeck
+  host: gundeck-federation-v0
   port: 8080
 
 spar:
-  host: spar
+  host: spar-federation-v0
   port: 8080
 
 federator:
-  host: federator
+  host: federator-federation-v0
   port: 8080
 
 rabbitmq:

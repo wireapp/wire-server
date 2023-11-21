@@ -16,22 +16,22 @@ elasticsearch:
 rabbitmq:
   host: rabbitmq
   port: 5672
-  vHost: /
+  vHost: federation-v0
 
 cargohold:
-  host: cargohold
+  host: cargohold-federation-v0
   port: 8080
 
 galley:
-  host: galley
+  host: galley-federation-v0
   port: 8080
 
 gundeck:
-  host: gundeck
+  host: gundeck-federation-v0
   port: 8080
 
 federatorInternal:
-  host: federator
+  host: federator-federation-v0
   port: 8080
 
 # You can set up local SQS/Dynamo running e.g. `../../deploy/dockerephemeral/run.sh`

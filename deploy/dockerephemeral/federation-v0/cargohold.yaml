@@ -3,7 +3,7 @@ cargohold:
   port: 8080
 
 federator:
-  host: 127.0.0.1
+  host: federator-federation-v0
   port: 8080
 
 aws:
