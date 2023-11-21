@@ -33,6 +33,7 @@ import Brig.App
 import Brig.Data.Connection qualified as Data
 import Brig.Data.User qualified as Data
 import Brig.Effects.FederationConfigStore (FederationConfigStore)
+import Brig.Effects.FederationConfigStore qualified as FCS
 import Brig.Effects.GalleyProvider (GalleyProvider)
 import Brig.IO.Intra (notify)
 import Brig.Options
@@ -44,7 +45,7 @@ import Control.Lens ((^.))
 import Control.Monad.Trans.Except
 import Data.Domain
 import Data.Handle (Handle (..), parseHandle)
-import Data.Id (ClientId, UserId)
+import Data.Id (ClientId, TeamId, UserId)
 import Data.List.NonEmpty (nonEmpty)
 import Data.List1
 import Data.Qualified
@@ -127,6 +128,7 @@ getUserByHandle ::
   Handle ->
   ExceptT Error (AppT r) (Maybe UserProfile)
 getUserByHandle domain handle = do
+  -- TODO: should we do the team federation check here, too?
   searchPolicy <- lookupSearchPolicy domain
 
   let performHandleLookup =
@@ -187,8 +189,8 @@ searchUsers ::
   Domain ->
   SearchRequest ->
   ExceptT Error (AppT r) SearchResponse
-searchUsers domain (SearchRequest searchTerm _mTeam _mOnlyInTeams) = do
-  searchPolicy <- lookupSearchPolicy domain
+searchUsers domain (SearchRequest searchTerm mTeam mOnlyInTeams) = do
+  searchPolicy <- lookupSearchPolicyWithTeam domain mTeam
 
   let searches = case searchPolicy of
         NoSearch -> []
@@ -208,7 +210,7 @@ searchUsers domain (SearchRequest searchTerm _mTeam _mOnlyInTeams) = do
 
     fullSearch :: Int -> ExceptT Error (AppT r) [Contact]
     fullSearch n
-      | n > 0 = lift $ searchResults <$> Q.searchIndex Q.FederatedSearch searchTerm n
+      | n > 0 = lift $ searchResults <$> Q.searchIndex (Q.FederatedSearch mOnlyInTeams) searchTerm n
       | otherwise = pure []
 
     exactHandleSearch :: Int -> ExceptT Error (AppT r) [Contact]
@@ -218,8 +220,15 @@ searchUsers domain (SearchRequest searchTerm _mTeam _mOnlyInTeams) = do
           maybeOwnerId <- maybe (pure Nothing) (wrapHttpClientE . API.lookupHandle) maybeHandle
           case maybeOwnerId of
             Nothing -> pure []
-            Just foundUser -> lift $ contactFromProfile <$$> API.lookupLocalProfiles Nothing [foundUser]
+            Just foundUser -> do
+              mFoundUserTeamId <- lift $ wrapClient $ Data.lookupUserTeam foundUser
+              if isTeamAllowed mOnlyInTeams mFoundUserTeamId
+                then lift $ contactFromProfile <$$> API.lookupLocalProfiles Nothing [foundUser]
+                else pure []
       | otherwise = pure []
+
+    isTeamAllowed :: Maybe [TeamId] -> Maybe TeamId -> Bool
+    isTeamAllowed = undefined
 
 getUserClients :: Domain -> GetUserClients -> (Handler r) (UserMap (Set PubClient))
 getUserClients _ (GetUserClients uids) = API.lookupLocalPubClientsBulk uids !>> clientError
@@ -246,6 +255,18 @@ onUserDeleted origDomain udcn = lift $ do
 -- | If domain is not configured fall back to `NoSearch`
 lookupSearchPolicy :: (Member FederationConfigStore r) => Domain -> (Handler r) FederatedUserSearchPolicy
 lookupSearchPolicy domain = do
-  domainConfigs <- getFederationRemotes
-  let mConfig = find ((== domain) . FD.domain) (domainConfigs.remotes)
-  pure $ maybe NoSearch FD.searchPolicy mConfig
+  mConfig <- lift $ liftSem $ FCS.getFederationConfig domain
+  pure $ maybe NoSearch FCS.searchPolicy mConfig
+
+-- | If domain is not configured fall back to `NoSearch`
+-- if a team is provided, check if the team is allowed to search
+-- if no team is provided, and restriction is set by team, fall back to `NoSearch`
+lookupSearchPolicyWithTeam :: (Member FederationConfigStore r) => Domain -> Maybe TeamId -> (Handler r) FederatedUserSearchPolicy
+lookupSearchPolicyWithTeam domain mSearcherTeamId =
+  lift $
+    liftSem $
+      FCS.getFederationConfig domain <&> \case
+        Nothing -> NoSearch
+        Just (FCS.FederationDomainConfig _ sp FCS.FederationRestrictionAllowAll) -> sp
+        Just (FCS.FederationDomainConfig _ sp (FCS.FederationRestrictionByTeam teams)) ->
+          maybe NoSearch (\tid -> if tid `elem` teams then sp else NoSearch) $ mSearcherTeamId
