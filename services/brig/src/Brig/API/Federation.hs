@@ -187,7 +187,7 @@ searchUsers ::
   Domain ->
   SearchRequest ->
   ExceptT Error (AppT r) SearchResponse
-searchUsers domain (SearchRequest searchTerm) = do
+searchUsers domain (SearchRequest searchTerm _mTeam _mOnlyInTeams) = do
   searchPolicy <- lookupSearchPolicy domain
 
   let searches = case searchPolicy of
