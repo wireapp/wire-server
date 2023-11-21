@@ -373,7 +373,7 @@ mkSSLContextWithoutCert settings = do
     SSL.contextSetVerificationMode ctx $
       SSL.VerifyPeer
         { -- vpFailIfNoPeerCert and vpClientOnce are only relevant for servers
-          SSL.vpFailIfNoPeerCert = True,
+          SSL.vpFailIfNoPeerCert = False,
           SSL.vpClientOnce = False,
           SSL.vpCallback = Nothing
         }
