@@ -149,17 +149,15 @@ testSimpleS3ClosedConnectionReuse = go >> wait >> go
       let part2 = (MIME.Text $ cs "plain", replicate 100000 'c')
       uploadSimple uid sets part2 >>= \r -> r.status `shouldMatchInt` 201
 
-cargoholdOverride :: Value -> App Value
-cargoholdOverride v = case v of
-  Object o -> print o >> pure v
-  _ -> pure v
-
 testDownloadURLOverride :: HasCallStack => App ()
 testDownloadURLOverride = do
-  startDynamicBackends [def {cargoholdCfg = cargoholdOverride}] $ \[d] -> do
-    -- This is a .example domain, it shouldn't resolve. But it is also not
-    -- supposed to be used by cargohold to make connections.
-    let downloadEndpoint = "external-s3-url.example"
+  -- This is a .example domain, it shouldn't resolve. But it is also not
+  -- supposed to be used by cargohold to make connections.
+  let downloadEndpoint = "external-s3-url.example"
+      -- Stick the protocol on here, as the checks don't want to see it,
+      -- they are just looking for the host name.
+      f = setField "aws.s3DownloadEndpoint" ("https://" <> downloadEndpoint)
+  startDynamicBackends [def {cargoholdCfg = f}] $ \[d] -> do
     -- withSettingsOverrides (aws . s3DownloadEndpoint ?~ AWSEndpoint downloadEndpoint True 443) $ do
     uid <- randomUser d def
     -- Upload, should work, shouldn't try to use the S3DownloadEndpoint
@@ -174,8 +172,6 @@ testDownloadURLOverride = do
         <*> lookupField uploadRes.json "expires"
     -- Lookup with token and get download URL. Should return the
     -- S3DownloadEndpoint, but not try to use it.
-    print loc
-    print tok
     downloadURLRes <- downloadAsset' uid loc tok
     downloadURLRes.status `shouldMatchInt` 302
     cs @_ @String downloadURLRes.body `shouldMatch` ""

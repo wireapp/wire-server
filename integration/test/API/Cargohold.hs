@@ -7,6 +7,7 @@ import Data.ByteString.Lazy qualified as LBS
 import Data.ByteString.Lazy.Char8 qualified as LBSC
 import Data.Text qualified as T
 import GHC.Stack
+import Network.HTTP.Client (Request (redirectCount))
 import Network.HTTP.Client qualified as HTTP
 import Test.Cargohold.API.Util
 import Testlib.Prelude
@@ -100,11 +101,14 @@ instance MakesValue loc => IsAssetLocation loc where
         key <- asString v
         pure $ "v1/asssets/v3/" <> key
 
+noRedirect :: Request -> Request
+noRedirect r = r {redirectCount = 0}
+
 downloadAsset' :: (HasCallStack, MakesValue user, IsAssetLocation loc, IsAssetToken tok) => user -> loc -> tok -> App Response
 downloadAsset' user loc tok = do
   locPath <- locationPathFragment loc
   req <- baseRequest user Cargohold Unversioned $ locPath
-  let req' = req & tokenParam tok
+  let req' = req & tokenParam tok & noRedirect
   print req'
   submit "GET" req'
 

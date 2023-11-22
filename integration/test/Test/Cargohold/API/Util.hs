@@ -20,6 +20,7 @@ module Test.Cargohold.API.Util where
 import Codec.MIME.Parse qualified as MIME
 import Codec.MIME.Type qualified as MIME
 import Data.Aeson qualified as Aeson
+import Data.Aeson.KeyMap qualified as Aeson
 import Data.ByteString.Builder
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy qualified as LBS
@@ -34,7 +35,6 @@ import Network.HTTP.Client (Request (requestHeaders))
 import Network.HTTP.Client qualified as HTTP
 import Network.HTTP.Types.Header
 import Testlib.Prelude
-import qualified Data.Aeson.KeyMap as Aeson
 
 uploadSimple ::
   (HasCallStack, MakesValue user, MakesValue settings) =>
@@ -131,7 +131,6 @@ instance IsAssetToken Value where
 
 instance IsAssetToken (Request -> Request) where
   tokenParam = id
-
 
 downloadAssetWithQualifiedAssetKey ::
   (HasCallStack, IsAssetToken tok, MakesValue key, MakesValue user) =>
