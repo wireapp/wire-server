@@ -322,7 +322,7 @@ http {
 
         more_set_headers 'Access-Control-Allow-Origin: $cors_header';
 
-        more_set_headers 'Access-Control-Expose-Headers: Request-Id, Location';
+        more_set_headers 'Access-Control-Expose-Headers: Request-Id, Location, Replay-Nonce';
         more_set_headers 'Request-Id: $request_id';
         more_set_headers 'Strict-Transport-Security: max-age=31536000; preload';
     }

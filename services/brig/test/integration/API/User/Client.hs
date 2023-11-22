@@ -1378,7 +1378,7 @@ testNewNonce :: Brig -> Http ()
 testNewNonce brig = do
   n1 <- check Util.getNonce 204
   n2 <- check Util.headNonce 200
-  lift $ assertBool "nonces are should not be equal" (n1 /= n2)
+  lift $ assertBool "nonces should not be equal" (n1 /= n2)
   where
     check f status = do
       uid <- userId <$> randomUser brig
@@ -1435,7 +1435,7 @@ testCreateAccessToken opts n brig = do
       <!! const 200 === statusCode
   let t = decodeToken rs
   cid <- createClientForUser brig uid
-  nonceResponse <- Util.headNonce brig uid cid <!! const 200 === statusCode
+  nonceResponse <- Util.headNonceNginz n t cid <!! const 200 === statusCode
   let nonceBs = cs $ fromMaybe (error "invalid nonce") $ getHeader "Replay-Nonce" nonceResponse
   now <- liftIO $ posixSecondsToUTCTime . fromInteger <$> (floor <$> getPOSIXTime)
   let clientIdentity = cs $ "im:wireapp=" <> cs (toText uidB64) <> "/" <> toByteString' cid <> "@" <> toByteString' localDomain
@@ -1453,6 +1453,8 @@ testCreateAccessToken opts n brig = do
   case signedOrError of
     Left err -> liftIO $ assertFailure $ "failed to sign claims: " <> show err
     Right signed -> do
+      let accessControlExposeHeaders = maybe "" cs $ getHeader "Access-Control-Expose-Headers" nonceResponse
+      liftIO $ assertBool "Access-Control-Expose-Headers should contain Replay-Nonce" $ "Replay-Nonce" `isInfixOf` accessControlExposeHeaders
       let proof = Just $ Proof (cs signed)
       response <- Util.createAccessTokenNginz n t cid proof
       let accessToken = fromRight (error $ "failed to create token: " <> show response) $ responseJsonEither response
