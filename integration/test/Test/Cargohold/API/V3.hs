@@ -38,24 +38,21 @@ import Testlib.Prelude
 
 testSimpleRoundtrip :: HasCallStack => App ()
 testSimpleRoundtrip = do
-  let defSettings =
-        [ "public" .= False
-        ]
-  let rets = ["eternal", "persistent", "volatile", "eternal-infrequent_access", "expiring"]
-  let allSets =
-        fmap object $
-          defSettings : fmap (\r -> defSettings <> ["retention" .= r]) rets
+  let defSettings = ["public" .= False]
+      rets = ["eternal", "persistent", "volatile", "eternal-infrequent_access", "expiring"]
+      allSets = fmap (object . (\r -> defSettings <> ["retention" .= r])) rets
   mapM_ simpleRoundtrip allSets
   where
     simpleRoundtrip :: HasCallStack => Value -> App ()
     simpleRoundtrip sets = do
       uid <- randomUser OwnDomain def
-      uid2 <- randomId
+      uid2 <- randomUser OwnDomain def
       -- Initial upload
       let bdy = (applicationText, "Hello World")
       r1 <- uploadSimple uid sets bdy
       r1.status `shouldMatchInt` 201
-      print r1.jsonBody
+      print sets
+      print r1
       -- use v3 path instead of the one returned in the header
       (key, tok, expires) <-
         (,,)
@@ -75,11 +72,13 @@ testSimpleRoundtrip = do
         Object o -> case KM.lookup (fromString "retention") o of
           Nothing -> pure ()
           Just _r -> do
+            print utc
+            print expires'
             assertBool "invalid expiration" (Just utc < expires')
         _ -> pure ()
       -- Lookup with token and download via redirect.
       r2 <- downloadAsset' uid key tok
-      print r2.body
+      print r2
       r2.status `shouldMatchInt` 302
       assertBool "Response body should be empty" $ r2.body == mempty
 

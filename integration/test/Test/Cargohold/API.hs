@@ -22,7 +22,6 @@ module Test.Cargohold.API where
 import API.Cargohold
 import Codec.MIME.Type qualified as MIME
 import Control.Lens hiding (sets, (.=))
-import Data.Aeson qualified as Aeson
 import Data.Aeson.Types (Pair)
 import Data.ByteString.Char8 qualified as C8
 import Data.ByteString.Lazy qualified as LBS hiding (replicate)
@@ -42,8 +41,8 @@ import UnliftIO.Concurrent
 testDownloadWithAcceptHeader :: HasCallStack => App ()
 testDownloadWithAcceptHeader = do
   assetId <- randomId
-  uid <- randomId
-  domain <- make OtherDomain
+  uid <- randomUser OwnDomain def
+  domain <- make OwnDomain
   let key = "3-2-" <> assetId
       qkey = object ["domain" .= domain, "id" .= key]
   res <- downloadAssetWithQualifiedAssetKey (header "Accept" "image/jpeg") uid qkey ()
@@ -61,7 +60,7 @@ get' r f = submit "GET" $ f r
 testSimpleTokens :: HasCallStack => App ()
 testSimpleTokens = do
   uid <- randomUser OwnDomain def
-  uid2 <- randomId
+  uid2 <- randomUser OwnDomain def
   -- Initial upload
   let sets = object ["public" .= False, "rentention" .= "volatile"]
   let bdy = (applicationText, "Hello World")
@@ -70,12 +69,10 @@ testSimpleTokens = do
   loc <-
     maybe (assertFailure "Could not get \"Location\" header from the request") (pure . cs @_ @String) $
       getHeader (mk $ cs "Location") r1
-  (key, tok, _expires) <-
-    (,,)
-      <$> r1.json %. "key"
+  (key, tok) <-
+    (,)
+      <$> asString (r1.json %. "key")
       <*> r1.json %. "token"
-      <*> r1.json %. "expires"
-  qKey <- key %. "id" & asString
   -- No access without token from other user (opaque 404)
   downloadAsset' uid2 loc () >>= \r -> r.status `shouldMatchInt` 404
   -- No access with empty token query parameter from other user (opaque 404)
@@ -85,15 +82,15 @@ testSimpleTokens = do
   -- No access with wrong token as query parameter (opaque 404)
   downloadAsset' uid2 loc (queryItem (cs "asset_token") $ pure $ cs "acb123") >>= \r -> r.status `shouldMatchInt` 404
   -- Token renewal fails if not done by owner
-  postToken uid2 qKey >>= \r -> do
+  postToken uid2 key >>= \r -> do
     r.status `shouldMatchInt` 403
     label <- traverse ((%. "label") >=> asString) r.jsonBody
     label `shouldMatch` "unauthorised"
   -- Token renewal succeeds if done by owner
-  r2 <- postToken uid qKey
+  r2 <- postToken uid key
   r2.status `shouldMatchInt` 200
-  let Just tok' = r2.jsonBody <&> \t -> object ["token" .= t]
-  assertBool "token unchanged" (tok /= tok')
+  tok' <- r2.jsonBody %. "token" & asString
+  assertBool "token unchanged" (tok /= String (cs tok'))
   -- Download by owner with new token.
   r3 <- downloadAsset' uid loc tok'
   r3.status `shouldMatchInt` 302
@@ -102,27 +99,29 @@ testSimpleTokens = do
   r4.status `shouldMatchInt` 200
   let r4ContentType :: Maybe String
       r4ContentType = cs @_ @String <$> getHeader (mk $ cs "content-type") r4
-  r4ContentType `shouldMatch` Just (show applicationOctetStream)
+  r4ContentType `shouldMatch` Just (cs @_ @String $ MIME.showMIMEType applicationOctetStream)
   let r4Tok :: Maybe String
       r4Tok = cs @_ @String <$> getHeader (mk $ cs "x-amz-meta-token") r4
   r4Tok `shouldMatch` Just tok'
   let r4User :: Maybe String
       r4User = cs @_ @String <$> getHeader (mk $ cs "x-amz-meta-user") r4
-  r4User `shouldMatch` Just uid
+  r4User `shouldMatch` fmap Just (uid %. "id")
   cs @_ @String r4.body `shouldMatch` "Hello World"
   -- Verify access without token if the request comes from the creator.
   downloadAsset' uid loc () >>= \r -> r.status `shouldMatchInt` 302
   -- Verify access with new token from a different user.
   downloadAsset' uid2 loc tok' >>= \r -> r.status `shouldMatchInt` 302
   -- Verify access with new token as query parameter from a different user
-  downloadAsset' uid2 loc (queryItem (cs "asset_token") (pure . cs $ Aeson.encode tok')) >>= \r -> r.status `shouldMatchInt` 302
+  print tok'
+  downloadAsset' uid2 loc (queryItem (cs "asset_token") (pure $ cs tok'))
+    >>= \r -> r.status `shouldMatchInt` 302
   -- Delete Token fails if not done by owner
-  deleteToken uid2 qKey >>= \r -> do
+  deleteToken uid2 key >>= \r -> do
     r.status `shouldMatchInt` 403
     label <- traverse ((%. "label") >=> asString) r.jsonBody
     label `shouldMatch` "unauthorised"
   -- Delete Token succeeds by owner
-  deleteToken uid qKey >>= \r -> do
+  deleteToken uid key >>= \r -> do
     r.status `shouldMatchInt` 200
     cs @_ @String r.body `shouldMatch` ""
   -- Access without token from different user (asset is now "public")
@@ -204,7 +203,7 @@ testUploadCompatibility = do
   r3 <- flip get' id =<< parseUrlThrow (C8.unpack (getHeader' locHeader r2))
   r3.status `shouldMatchInt` 200
   assertBool "Content types should match" $ getContentType r3 == Just applicationOctetStream'
-  decodeHeaderOrFail @String (mk $ cs "x-amz-meta-user") r3 `shouldMatch` uid
+  decodeHeaderOrFail @String (mk $ cs "x-amz-meta-user") r3 `shouldMatch` (uid %. "id")
   cs @_ @String r3.body `shouldMatch` Just "test"
   where
     exampleMultipart :: LBS.ByteString
@@ -230,11 +229,11 @@ testUploadCompatibility = do
 testRemoteDownloadWrongDomain :: HasCallStack => App ()
 testRemoteDownloadWrongDomain = do
   assetId <- randomId
-  uid <- randomId
+  uid <- randomUser OwnDomain def
   let key = toJSON $ "3-2-" <> assetId
       qkey =
         object
-          [ "id" .= key,
+          [ "key" .= key,
             "domain" .= "invalid.example.com"
           ]
   res <- downloadAsset' uid qkey ()

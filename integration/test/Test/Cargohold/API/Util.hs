@@ -67,10 +67,9 @@ uploadRaw ::
   App Response
 uploadRaw usr bs = do
   req <- baseRequest usr Cargohold (ExplicitVersion 1) "assets/v3"
-  submit "POST" $
-    req
-      & contentTypeMixed
-      & (\r -> r {HTTP.requestBody = HTTP.RequestBodyLBS bs})
+  let req' = req & contentTypeMixed & (\r -> r {HTTP.requestBody = HTTP.RequestBodyLBS bs})
+  print req'
+  submit "POST" req'
 
 getContentType :: Response -> Maybe MIME.Type
 getContentType = MIME.parseContentType . decodeLatin1 . getHeader' (mk $ cs "Content-Type")
