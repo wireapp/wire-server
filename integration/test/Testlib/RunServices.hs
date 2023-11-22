@@ -11,6 +11,7 @@ import System.Process
 import Testlib.Prelude
 import Testlib.ResourcePool
 import Testlib.Run (createGlobalEnv)
+import Control.Monad.Extra (orM)
 
 parentDir :: FilePath -> Maybe FilePath
 parentDir path =
@@ -20,8 +21,9 @@ parentDir path =
         else Just $ joinPath (init dirs)
 
 containsGit :: FilePath -> IO Bool
-containsGit path =
-  doesDirectoryExist $ joinPath [path, ".git"]
+containsGit path = do
+  let gitPath = joinPath [path, ".git"]
+  orM [doesDirectoryExist gitPath, doesFileExist gitPath]
 
 findProjectRoot :: FilePath -> IO (Maybe FilePath)
 findProjectRoot path = do
