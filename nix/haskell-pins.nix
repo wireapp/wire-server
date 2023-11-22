@@ -125,8 +125,8 @@ let
     http-client = {
       src = fetchgit {
         url = "https://github.com/wireapp/http-client";
-        rev = "eabf64b4a8ff4c0fe6a3b39cb0f396ba8c2fb236";
-        sha256 = "sha256-8NPRVDlul9Xnj6IyUOUe6w7fDt/5WWZNjR07CaAp/Kk=";
+        rev = "03dad7bda78e3b4e809f5c72da30d73e230b9b69";
+        sha256 = "sha256-RF/jtmZ9uCgLCvHnYCqVNs6kmuals5GV8uaEfJk5XwY=";
       };
       packages = {
         http-client = "http-client";
