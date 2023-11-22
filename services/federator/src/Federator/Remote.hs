@@ -64,12 +64,10 @@ data RemoteError
   deriving (Show)
 
 instance AsWai RemoteError where
-  toWai (RemoteError target path e) =
-    let domain = Domain . decodeUtf8 $ target.srvTargetDomain
-     in federationRemoteHTTP2Error domain path e
-  toWai (RemoteErrorResponse target path status _) =
-    let domain = Domain . decodeUtf8 $ target.srvTargetDomain
-     in federationRemoteResponseError domain path status
+  toWai (RemoteError _ _ e) =
+    federationRemoteHTTP2Error e
+  toWai (RemoteErrorResponse _ _ status _) =
+    federationRemoteResponseError status
 
   waiErrorDescription (RemoteError tgt path e) =
     "Error while connecting to "
