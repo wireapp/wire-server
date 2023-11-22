@@ -120,6 +120,7 @@ library
     Test.Notifications
     Test.Presence
     Test.Roles
+    Test.Search
     Test.User
     Testlib.App
     Testlib.Assertions
