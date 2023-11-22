@@ -17,10 +17,12 @@ storageSize: 10G
 client_encryption_options:
   enabled: false
   optional: true
-  keystore: "<base64 encoded Java Key Store (JKS)>"
   keystorePassword: password
-  truststore:  "<base64 encoded Java Key Store (JKS)>"
   truststorePassword: password
 
   # TODO: This could be deduced from the keystore.
   ca: "<CA as PEM>"
+
+# TODO: Give structure. Can't these be generated, too?
+tlsCrt: ""
+tlsKey: ""

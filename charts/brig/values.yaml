@@ -22,6 +22,11 @@ config:
     host: aws-cassandra
 #   To enable TLS:
 #   tlsCa: <CA in PEM format (can be self-signed))
+#   Or:
+#   tlsCaSecretRef:
+#     name: <secret-name>
+#     key: <ca-attribute>
+
   elasticsearch:
     host: elasticsearch-client
     port: 9200

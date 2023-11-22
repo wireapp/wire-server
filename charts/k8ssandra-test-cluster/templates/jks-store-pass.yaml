@@ -1,0 +1,8 @@
+# TODO: Add conditional rendering
+apiVersion: v1
+kind: Secret
+metadata:
+  name: jks-password
+  namespace: {{ .Release.Namespace }}
+data:
+  keystore-pass: {{ .Values.client_encryption_options.keystorePassword | b64enc }}

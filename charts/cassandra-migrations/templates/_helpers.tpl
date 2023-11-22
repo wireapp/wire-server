@@ -107,59 +107,103 @@ Thus the order of priority is:
 {{- end -}}
 {{- end -}}
 
-{{- define "useTlsCaGalley" -}}
+{{- define "useTlsGalley" -}}
 {{ $cassandraGalley := default dict .Values.cassandraGalley }}
-{{- or .Values.cassandra.tlsCa $cassandraGalley.tlsCa -}}
+{{- or .Values.cassandra.tlsCa $cassandraGalley.tlsCa .Values.cassandra.tlsCaSecretRef $cassandraGalley.tlsCaSecretRef -}}
 {{- end -}}
 
 {{- define "tlsCaGalley" -}}
 {{ $cassandraGalley := default dict .Values.cassandraGalley }}
 {{- if .Values.cassandra.tlsCa -}}
-{{ .Values.cassandra.tlsCa }}
+{{ .Values.cassandra.tlsCa | toYaml }}
 {{- else -}}
-{{ $cassandraGalley.tlsCa }}
+{{ $cassandraGalley.tlsCa | toYaml }}
 {{- end -}}
 {{- end -}}
 
-{{- define "useTlsCaBrig" -}}
+{{- define "tlsSecretRefGalley" -}}
+{{ $cassandraGalley := default dict .Values.cassandraGalley }}
+{{- if .Values.cassandra.tlsCaSecretRef -}}
+{{ .Values.cassandra.tlsCaSecretRef | toYaml }}
+{{- else if $cassandraGalley.tlsCaSecretRef -}}
+{{ $cassandraGalley.tlsCaSecretRef | toYaml }}
+{{- else }}
+{{- dict "name" "galley-cassandra-cert" "key" "ca.pem" | toYaml -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "useTlsBrig" -}}
 {{ $cassandraBrig := default dict .Values.cassandraBrig }}
-{{- or .Values.cassandra.tlsCa $cassandraBrig.tlsCa -}}
+{{- or .Values.cassandra.tlsCa $cassandraBrig.tlsCa .Values.cassandra.tlsCaSecretRef $cassandraBrig.tlsCaSecretRef -}}
 {{- end -}}
 
 {{- define "tlsCaBrig" -}}
 {{ $cassandraBrig := default dict .Values.cassandraBrig }}
 {{- if .Values.cassandra.tlsCa -}}
-{{ .Values.cassandra.tlsCa }}
+{{ .Values.cassandra.tlsCa | toYaml }}
 {{- else -}}
-{{ $cassandraBrig.tlsCa }}
+{{ $cassandraBrig.tlsCa | toYaml }}
 {{- end -}}
 {{- end -}}
 
-{{- define "useTlsCaSpar" -}}
+{{- define "tlsSecretRefBrig" -}}
+{{ $cassandraBrig := default dict .Values.cassandraBrig }}
+{{- if .Values.cassandra.tlsCaSecretRef -}}
+{{ .Values.cassandra.tlsCaSecretRef | toYaml }}
+{{- else if $cassandraBrig.tlsCaSecretRef -}}
+{{ $cassandraBrig.tlsCaSecretRef | toYaml }}
+{{- else }}
+{{- dict "name" "brig-cassandra-cert" "key" "ca.pem" | toYaml -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "useTlsSpar" -}}
 {{ $cassandraSpar := default dict .Values.cassandraSpar }}
-{{- or .Values.cassandra.tlsCa $cassandraSpar.tlsCa -}}
+{{- or .Values.cassandra.tlsCa $cassandraSpar.tlsCa .Values.cassandra.tlsCaSecretRef $cassandraSpar.tlsCaSecretRef -}}
 {{- end -}}
 
 {{- define "tlsCaSpar" -}}
 {{ $cassandraSpar := default dict .Values.cassandraSpar }}
 {{- if .Values.cassandra.tlsCa -}}
-{{ .Values.cassandra.tlsCa }}
+{{ .Values.cassandra.tlsCa | toYaml }}
 {{- else -}}
-{{ $cassandraSpar.tlsCa }}
+{{ $cassandraSpar.tlsCa | toYaml }}
 {{- end -}}
 {{- end -}}
 
-{{- define "useTlsCaGundeck" -}}
+{{- define "tlsSecretRefSpar" -}}
+{{ $cassandraSpar := default dict .Values.cassandraSpar }}
+{{- if .Values.cassandra.tlsCaSecretRef -}}
+{{ .Values.cassandra.tlsCaSecretRef | toYaml }}
+{{- else if $cassandraSpar.tlsCaSecretRef -}}
+{{ $cassandraSpar.tlsCaSecretRef | toYaml }}
+{{- else }}
+{{- dict "name" "spar-cassandra-cert" "key" "ca.pem" | toYaml -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "useTlsGundeck" -}}
 {{ $cassandraGundeck := default dict .Values.cassandraGundeck }}
-{{- or .Values.cassandra.tlsCa $cassandraGundeck.tlsCa -}}
+{{- or .Values.cassandra.tlsCa $cassandraGundeck.tlsCa .Values.cassandra.tlsCaSecretRef $cassandraGundeck.tlsCaSecretRef -}}
 {{- end -}}
 
 {{- define "tlsCaGundeck" -}}
 {{ $cassandraGundeck := default dict .Values.cassandraGundeck }}
 {{- if .Values.cassandra.tlsCa -}}
-{{ .Values.cassandra.tlsCa }}
+{{ .Values.cassandra.tlsCa | toYaml }}
 {{- else -}}
-{{ $cassandraGundeck.tlsCa }}
+{{ $cassandraGundeck.tlsCa | toYaml }}
+{{- end -}}
+{{- end -}}
+
+{{- define "tlsSecretRefGundeck" -}}
+{{ $cassandraGundeck := default dict .Values.cassandraGundeck }}
+{{- if .Values.cassandra.tlsCaSecretRef -}}
+{{ .Values.cassandra.tlsCaSecretRef | toYaml }}
+{{- else if $cassandraGundeck.tlsCaSecretRef -}}
+{{ $cassandraGundeck.tlsCaSecretRef | toYaml }}
+{{- else }}
+{{- dict "name" "gundeck-cassandra-cert" "key" "ca.pem" | toYaml -}}
 {{- end -}}
 {{- end -}}
 

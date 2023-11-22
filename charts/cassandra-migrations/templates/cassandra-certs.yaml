@@ -1,4 +1,4 @@
-{{- if (include "useTlsCaBrig" .) }}
+{{- if (include "tlsCaBrig" . | fromYaml) }}
 apiVersion: v1
 kind: Secret
 metadata:
@@ -16,7 +16,7 @@ type: Opaque
 data:
   ca.pem: {{ include "tlsCaBrig" . | b64enc | quote }}
 {{- end}}
-{{- if (include "useTlsCaGalley" .) }}
+{{- if (include "tlsCaGalley" . | fromYaml) }}
 ---
 apiVersion: v1
 kind: Secret
@@ -35,7 +35,7 @@ type: Opaque
 data:
   ca.pem: {{ include "tlsCaGalley" . | b64enc | quote }}
 {{- end}}
-{{- if (include "useTlsCaGundeck" .) }}
+{{- if (include "tlsCaGundeck" . | fromYaml) }}
 ---
 apiVersion: v1
 kind: Secret
@@ -54,7 +54,7 @@ type: Opaque
 data:
   ca.pem: {{ include "tlsCaGundeck" . | b64enc | quote }}
 {{- end}}
-{{- if (include "useTlsCaSpar" .) }}
+{{- if (include "tlsCaSpar" . | fromYaml) }}
 ---
 apiVersion: v1
 kind: Secret

@@ -45,9 +45,17 @@ spec:
   {{- if .Values.client_encryption_options.enabled }}
     clientEncryptionStores:
       keystoreSecretRef:
-        name: client-encryption-stores
+        name: cassandra-jks-keystore
+        key: keystore.jks
+      keystorePasswordSecretRef:
+        key: keystore-pass
+        name: jks-password
       truststoreSecretRef:
-        name: client-encryption-stores
+        name: cassandra-jks-keystore
+        key: truststore.jks
+      truststorePasswordSecretRef:
+        key: keystore-pass
+        name: jks-password
   {{- end }}
   reaper:
     autoScheduling:

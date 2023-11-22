@@ -29,7 +29,7 @@ data:
       filterNodesByDatacentre: {{ .cassandra.filterNodesByDatacentre }}
       {{- end }}
       {{- if (include "useCassandraCA" .) }}
-      tlsCa: /etc/wire/brig/cassandra/ca.pem
+      tlsCa: /etc/wire/brig/cassandra/{{- (include "tlsSecretRef" . | fromYaml).key }}
       {{- end }}
 
     elasticsearch:

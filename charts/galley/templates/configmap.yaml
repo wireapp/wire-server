@@ -22,7 +22,7 @@ data:
       filterNodesByDatacentre: {{ .cassandra.filterNodesByDatacentre }}
       {{- end }}
       {{- if (include "useCassandraCA" .) }}
-      tlsCa: /etc/wire/galley/cassandra/ca.pem
+      tlsCa: /etc/wire/galley/cassandra/{{- (include "tlsSecretRef" . | fromYaml).key }}
       {{- end }}
 
     brig:

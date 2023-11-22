@@ -9,5 +9,13 @@
 {{- end -}}
 
 {{- define "useCassandraCA" -}}
-{{ and (hasKey .cassandra "tlsCa") }}
+{{ or (hasKey .cassandra "tlsCa") (hasKey .cassandra "tlsCaSecretRef") }}
+{{- end -}}
+
+{{- define "tlsSecretRef" -}}
+{{- if .cassandra.tlsCaSecretRef -}}
+{{ .cassandra.tlsCaSecretRef | toYaml }}
+{{- else }}
+{{- dict "name" "elasticsearch-index-migrate-cassandra-client-ca" "key" "ca.pem" | toYaml -}}
+{{- end -}}
 {{- end -}}

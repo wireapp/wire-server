@@ -26,7 +26,7 @@ data:
       filterNodesByDatacentre: {{ .cassandra.filterNodesByDatacentre }}
       {{- end }}
       {{- if (include "useCassandraCA" .) }}
-      tlsCa: /etc/wire/spar/cassandra/ca.pem
+      tlsCa: /etc/wire/spar/cassandra/{{- (include "tlsSecretRef" . | fromYaml).key }}
       {{- end }}
 
     maxttlAuthreq: {{ .maxttlAuthreq }}

@@ -43,32 +43,32 @@ spec:
              - "9042"
              - --cassandra-keyspace-brig
              - brig
-             {{- if (include "useTlsCaBrig" .)  }}
+             {{- if (include "useTlsBrig" .)  }}
              - --tls-certificate-file-brig
-             - /certs/brig/ca.pem
+             - /certs/brig/{{- (include "tlsSecretRefBrig" . | fromYaml).key }}
              {{- end }}
-             {{- if (include "useTlsCaSpar" .)  }}
+             {{- if (include "useTlsSpar" .)  }}
              - --tls-certificate-file-spar
-             - /certs/spar/ca.pem
+             - /certs/spar/{{- (include "tlsSecretRefSpar" . | fromYaml).key }}
              {{- end }}
           volumeMounts:
-          {{- if (include "useTlsCaBrig" .) }}
+          {{- if (include "useTlsBrig" .) }}
             - name: brig-cassandra-cert
               mountPath: "/certs/brig"
           {{- end }}
-          {{- if (include "useTlsCaSpar" .) }}
+          {{- if (include "useTlsSpar" .) }}
             - name: spar-cassandra-cert
               mountPath: "/certs/spar"
           {{- end }}
       volumes:
-      {{- if (include "useTlsCaBrig" .) }}
+      {{- if (include "useTlsBrig" .) }}
         - name: brig-cassandra-cert
           secret:
-            secretName: brig-cassandra-cert
+            secretName: {{ (include "tlsSecretRefBrig" . | fromYaml).name }}
       {{- end }}
-      {{- if (include "useTlsCaSpar" .) }}
+      {{- if (include "useTlsSpar" .) }}
         - name: spar-cassandra-cert
           secret:
-            secretName: spar-cassandra-cert
+            secretName: {{ (include "tlsSecretRefSpar" . | fromYaml).name }}
       {{- end }}
 {{- end }}

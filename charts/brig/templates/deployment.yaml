@@ -49,7 +49,7 @@ spec:
         {{- if (include "useCassandraCA" .Values.config) }}
         - name: "brig-cassandra"
           secret:
-            secretName: "brig-cassandra"
+            secretName: {{ (include "tlsSecretRef" .Values.config | fromYaml).name }}
         {{- end}}
       {{- if .Values.config.geoip.enabled }}
       # Brig needs GeoIP database to be downloaded before it can start.

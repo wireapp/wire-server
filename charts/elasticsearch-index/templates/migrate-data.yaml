@@ -43,9 +43,9 @@ spec:
             - "{{ required "missing elasticsearch-index.galley.host!" .Values.galley.host }}"
             - --galley-port
             - "{{ required "missing elasticsearch-index.galley.port!" .Values.galley.port }}"
-            {{- if (include "useTlsCaGundeck" .) }}
+            {{- if (include "useCassandraCA" .Values) }}
             - --tls-certificate-file
-            - /certs/ca.pem
+            - /certs/{{- (include "tlsSecretRef" .Values | fromYaml).key }}
             {{- end }}
           {{- if (include "useCassandraCA" .Values) }}
           volumeMounts:
@@ -56,5 +56,5 @@ spec:
       volumes:
         - name: elasticsearch-index-migrate-cassandra-client-ca
           secret:
-            secretName: elasticsearch-index-migrate-cassandra-client-ca
+            secretName: {{ (include "tlsSecretRef" .Values | fromYaml).name }}
         {{- end}}

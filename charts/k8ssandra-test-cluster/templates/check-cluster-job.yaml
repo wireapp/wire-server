@@ -18,14 +18,14 @@ spec:
         command: ["cqlsh", "--ssl", "k8ssandra-cluster-datacenter-1-service"]
         env:
           - name: SSL_CERTFILE
-            value:  "/certs/ca.pem"
+            value:  "/certs/ca.crt"
         volumeMounts:
-          - name: cassandra-cert
+          - name: cassandra-jks-keystore
             mountPath: "/certs"
       volumes:
-        - name: cassandra-cert
+        - name: cassandra-jks-keystore
           secret:
-            secretName: cassandra-client-ca
+            secretName: cassandra-jks-keystore
     {{- end }}
       restartPolicy: OnFailure
   # Default is 6 retries. 8 is a bit arbitrary, but should be sufficient for

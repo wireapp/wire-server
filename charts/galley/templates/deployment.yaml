@@ -39,7 +39,7 @@ spec:
         {{- if (include "useCassandraCA" .Values.config) }}
         - name: "galley-cassandra"
           secret:
-            secretName: galley-cassandra
+            secretName: {{ (include "tlsSecretRef" .Values.config | fromYaml).name }}
         {{- end }}
       containers:
         - name: galley

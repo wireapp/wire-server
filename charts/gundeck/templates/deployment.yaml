@@ -35,7 +35,7 @@ spec:
         {{- if (include "useCassandraCA" .Values.config) }}
         - name: "gundeck-cassandra"
           secret:
-            secretName: "gundeck-cassandra"
+            secretName: {{ (include "tlsSecretRef" .Values.config | fromYaml).name }}
         {{- end}}
       containers:
         - name: gundeck
