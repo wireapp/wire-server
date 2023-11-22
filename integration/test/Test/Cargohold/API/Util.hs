@@ -34,6 +34,7 @@ import Network.HTTP.Client (Request (requestHeaders))
 import Network.HTTP.Client qualified as HTTP
 import Network.HTTP.Types.Header
 import Testlib.Prelude
+import qualified Data.Aeson.KeyMap as Aeson
 
 uploadSimple ::
   (HasCallStack, MakesValue user, MakesValue settings) =>
@@ -74,11 +75,14 @@ uploadRaw usr bs = do
 getContentType :: Response -> Maybe MIME.Type
 getContentType = MIME.parseContentType . decodeLatin1 . getHeader' (mk $ cs "Content-Type")
 
-applicationText :: MIME.Type
-applicationText = MIME.Type (MIME.Application $ cs "text") []
+applicationText :: MIME.MIMEType
+applicationText = MIME.Application $ cs "text"
 
 applicationOctetStream :: MIME.MIMEType
 applicationOctetStream = MIME.Application $ cs "octet-stream"
+
+applicationOctetStream' :: MIME.Type
+applicationOctetStream' = MIME.Type applicationOctetStream []
 
 deleteAssetV3 :: (HasCallStack, MakesValue user, MakesValue key) => user -> key -> App Response
 deleteAssetV3 user key = do
@@ -93,9 +97,6 @@ deleteAsset user key = do
   req <- baseRequest user Cargohold Versioned $ "/assets/" <> d <> "/" <> show k
   submit "DELETE" req
 
-tokenParam :: Maybe String -> Request -> Request
-tokenParam = maybe id (header "Asset-Token")
-
 header :: String -> String -> Request -> Request
 header name value req =
   req {requestHeaders = (mk $ cs name, cs value) : requestHeaders req}
@@ -108,21 +109,45 @@ downloadAssetWithAssetKey ::
   App Response
 downloadAssetWithAssetKey r user tok = do
   req <- baseRequest user Cargohold (ExplicitVersion 1) $ "asserts/v3/" <> tok
-  submit "GET" $ r $ req & tokenParam (pure tok)
+  submit "GET" $ r $ req & tokenParam tok
+
+class IsAssetToken tok where
+  tokenParam :: tok -> Request -> Request
+
+instance IsAssetToken () where
+  tokenParam _ = id
+
+instance IsAssetToken String where
+  tokenParam = header "Asset-Token"
+
+instance IsAssetToken Value where
+  tokenParam v =
+    case v of
+      String s -> header h $ cs s
+      Object o -> maybe id tokenParam $ Aeson.lookup (fromString "token") o
+      _ -> error "Non-matching Asset-Token value"
+    where
+      h = "Asset-Token"
+
+instance IsAssetToken (Request -> Request) where
+  tokenParam = id
+
 
 downloadAssetWithQualifiedAssetKey ::
-  (HasCallStack, MakesValue tok, MakesValue user) =>
+  (HasCallStack, IsAssetToken tok, MakesValue key, MakesValue user) =>
   (HTTP.Request -> HTTP.Request) ->
   user ->
-  Maybe String ->
+  key ->
+  tok ->
   App Response
-downloadAssetWithQualifiedAssetKey r user tok = do
-  dom <- tok %. "domain" & asString
-  key <- tok %. "id" & asString
-  req <- baseRequest user Cargohold (ExplicitVersion 2) $ "assets/" <> dom <> "/" <> key
+downloadAssetWithQualifiedAssetKey r user key tok = do
+  dom <- key %. "domain" & asString
+  keyId <- key %. "id" & asString
+  req <- baseRequest user Cargohold (ExplicitVersion 2) $ "assets/" <> dom <> "/" <> keyId
   submit "GET" $
     req
       & tokenParam tok
+      & r
 
 postToken :: (MakesValue user, HasCallStack) => user -> String -> App Response
 postToken user key = do

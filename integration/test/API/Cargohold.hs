@@ -1,5 +1,6 @@
 module API.Cargohold where
 
+import API.Federator
 import Codec.MIME.Type qualified as MIME
 import Data.Aeson qualified as Aeson
 import Data.ByteString.Lazy qualified as LBS
@@ -12,6 +13,14 @@ import Testlib.Prelude
 import UnliftIO (catch)
 
 type LByteString = LBS.ByteString
+
+getFederationAsset :: (HasCallStack, MakesValue asset) => asset -> App Response
+getFederationAsset ga = do
+  req <- rawBaseRequestF OwnDomain cargohold "federation/get-asset"
+  bdy <- make ga
+  submit "POST" $
+    req
+      & addBody (HTTP.RequestBodyLBS $ encode bdy) "application/json"
 
 uploadAssetV3 :: (HasCallStack, MakesValue user, MakesValue assetRetention) => user -> Bool -> assetRetention -> MIME.MIMEType -> LByteString -> App Response
 uploadAssetV3 user isPublic retention mimeType bdy = do
@@ -72,14 +81,39 @@ buildUploadAssetRequestBody isPublic retention body mimeType = do
           ]
   HTTP.RequestBodyLBS <$> buildMultipartBody header' body mimeType
 
-downloadAsset :: (HasCallStack, MakesValue user, MakesValue key, MakesValue tok) => user -> key -> tok -> App Response
-downloadAsset user key tok = do
-  uid <- objId user
-  domain <- (pure <$> objDomain key) `catch` (\(_e@(AssertionFailure {})) -> pure Nothing)
-  key' <- (key %. "id" & asString) `catch` (\(_e@(AssertionFailure {})) -> asString key)
-  tok' <- pure <$> asString tok
-  req <- baseRequest user Cargohold Versioned $ "/assets" ++ (maybe "" (\d -> "/" ++ d) domain) ++ "/" ++ key'
+class IsAssetLocation key where
+  locationPathFragment :: key -> App String
+
+instance {-# OVERLAPS #-} IsAssetLocation String where
+  locationPathFragment = pure
+
+-- Pick out a path from the value
+instance MakesValue loc => IsAssetLocation loc where
+  locationPathFragment v =
+    qualifiedFrag `catch` (\(_e :: SomeException) -> unqualifiedFrag)
+    where
+      qualifiedFrag = do
+        domain <- v %. "domain" & asString
+        key <- v %. "key" & asString
+        pure $ "v2/assets/" <> domain <> "/" <> key
+      unqualifiedFrag = do
+        key <- asString v
+        pure $ "v1/asssets/v3/" <> key
+
+downloadAsset' :: (HasCallStack, MakesValue user, IsAssetLocation loc, IsAssetToken tok) => user -> loc -> tok -> App Response
+downloadAsset' user loc tok = do
+  locPath <- locationPathFragment loc
+  req <- baseRequest user Cargohold Unversioned $ locPath
+  let req' = req & tokenParam tok
+  print req'
+  submit "GET" req'
+
+downloadAsset :: (HasCallStack, MakesValue user, MakesValue key, MakesValue assetDomain) => user -> assetDomain -> key -> String -> (HTTP.Request -> HTTP.Request) -> App Response
+downloadAsset user assetDomain key zHostHeader trans = do
+  domain <- objDomain assetDomain
+  key' <- asString key
+  req <- baseRequest user Cargohold Versioned $ "/assets/" ++ domain ++ "/" ++ key'
   submit "GET" $
     req
-      & zUser uid
-      & tokenParam tok'
+      & zHost zHostHeader
+      & trans

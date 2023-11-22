@@ -15,66 +15,92 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Test.Cargohold.API.Federation where
+module API.Federation (tests) where
 
-import API.Cargohold
-import Control.Lens hiding ((.=))
+import API.Util
+import Bilge
+import Bilge.Assert
+import CargoHold.API.V3 (randToken)
+import Conduit
+import Control.Lens
 import Crypto.Random
-import Data.Aeson.Types hiding ((.=))
-import Data.String.Conversions
-import Data.Time
+import Data.Id
+import Data.Qualified
 import Data.UUID.V4
-import GHC.Stack
-import SetupHelpers
-import Test.Cargohold.API.Util
-import Testlib.Assertions
-import Testlib.Prelude
+import Imports
+import qualified Network.HTTP.Types as HTTP
+import qualified Network.Wai.Utilities.Error as Wai
+import Test.Tasty
+import Test.Tasty.HUnit
+import TestSetup
+import Wire.API.Asset
+import Wire.API.Federation.API
+import Wire.API.Federation.API.Cargohold
+import Wire.API.Routes.AssetBody
 
-testGetAssetAvailablePrivate :: HasCallStack => App ()
-testGetAssetAvailablePrivate = getAssetAvailable False
+tests :: IO TestSetup -> TestTree
+tests s =
+  testGroup
+    "API Federation"
+    [ testGroup
+        "get-asset"
+        [ test s "private asset is available" (testGetAssetAvailable False),
+          test s "public asset is available" (testGetAssetAvailable True),
+          test s "not available" testGetAssetNotAvailable,
+          test s "wrong token" testGetAssetWrongToken
+        ],
+      testGroup
+        "stream-asset"
+        [ test s "streaming large asset" testLargeAsset,
+          test s "stream an asset" testStreamAsset,
+          test s "stream asset not available" testStreamAssetNotAvailable,
+          test s "stream asset wrong token" testStreamAssetWrongToken
+        ]
+    ]
 
-testGetAssetAvailablePublic :: HasCallStack => App ()
-testGetAssetAvailablePublic = getAssetAvailable True
-
-getAssetAvailable :: HasCallStack => Bool -> App ()
-getAssetAvailable isPublicAsset = do
-  uid <- randomUser OwnDomain def
-  resp <- uploadAssetV3 uid isPublicAsset (Just assetVolatileSeconds) applicationOctetStream bdy
-  resp.status `shouldMatchInt` 201
-  ast <- resp.json
+testGetAssetAvailable :: Bool -> TestM ()
+testGetAssetAvailable isPublicAsset = do
+  -- Initial upload
+  let bdy = (applicationOctetStream, "Hello World")
+      settings =
+        defAssetSettings
+          & set setAssetRetention (Just AssetVolatile)
+          & set setAssetPublic isPublicAsset
+  uid <- randomUser
+  ast :: Asset <-
+    responseJsonError
+      =<< uploadSimple (path "/assets/v3") uid settings bdy
+        <!! const 201 === statusCode
 
   -- Call get-asset federation API
-  tok <- ast %. "token" & asString
-  qKey <- ast %. "key"
-  key <- qKey %. "id" & asString
+  let tok = view assetToken ast
+  let key = view assetKey ast
   let ga =
-        object
-          [ "user" .= toJSON uid,
-            "token" .= toJSON tok,
-            "key" .= toJSON key
-          ]
+        GetAsset
+          { user = uid,
+            token = tok,
+            key = qUnqualified key
+          }
   ok <-
     withFederationClient $
       available <$> runFederationClient (unsafeFedClientIn @'Cargohold @"get-asset" ga)
 
-  assertBool "check that asset is available" ok
-  where
-    assetVolatileSeconds :: NominalDiffTime
-    assetVolatileSeconds = 28 * 24 * 3600 -- 28 days
+  -- check that asset is available
+  liftIO $ ok @?= True
 
-testGetAssetNotAvailable :: HasCallStack => App ()
+testGetAssetNotAvailable :: TestM ()
 testGetAssetNotAvailable = do
-  uid <- randomId
+  uid <- liftIO $ Id <$> nextRandom
   token <- randToken
 
-  assetId <- randomId
+  assetId <- liftIO $ Id <$> nextRandom
   let key = AssetKeyV3 assetId AssetPersistent
   let ga =
-        object
-          [ "user" .= _ uid,
-            "token" .= _ (Just token),
-            "key" .= _ key
-          ]
+        GetAsset
+          { user = uid,
+            token = Just token,
+            key = key
+          }
   ok <-
     withFederationClient $
       available <$> runFederationClient (unsafeFedClientIn @'Cargohold @"get-asset" ga)
@@ -82,27 +108,26 @@ testGetAssetNotAvailable = do
   -- check that asset is not available
   liftIO $ ok @?= False
 
-testGetAssetWrongToken :: HasCallStack => App ()
+testGetAssetWrongToken :: TestM ()
 testGetAssetWrongToken = do
   -- Initial upload
   let bdy = (applicationOctetStream, "Hello World")
       settings = defAssetSettings & set setAssetRetention (Just AssetVolatile)
   uid <- randomUser
-  ast :: Value <-
+  ast :: Asset <-
     responseJsonError
       =<< uploadSimple (path "/assets/v3") uid settings bdy
-      <!! const 201
-      === statusCode
+        <!! const 201 === statusCode
 
   -- Call get-asset federation API with wrong (random) token
   tok <- randToken
   let key = view assetKey ast
   let ga =
-        object
-          [ "user" .= _ uid,
-            "token" .= _ (Just tok),
-            "key" .= _ (qUnqualified key)
-          ]
+        GetAsset
+          { user = uid,
+            token = Just tok,
+            key = qUnqualified key
+          }
   ok <-
     withFederationClient $
       available <$> runFederationClient (unsafeFedClientIn @'Cargohold @"get-asset" ga)
@@ -110,7 +135,7 @@ testGetAssetWrongToken = do
   -- check that asset is not available
   liftIO $ ok @?= False
 
-testLargeAsset :: HasCallStack => App ()
+testLargeAsset :: TestM ()
 testLargeAsset = do
   -- Initial upload
   let settings =
@@ -121,21 +146,20 @@ testLargeAsset = do
   let size = 1024 * 1024
   bs <- liftIO $ getRandomBytes size
 
-  ast :: Value <-
+  ast :: Asset <-
     responseJsonError
       =<< uploadSimple (path "/assets/v3") uid settings (applicationOctetStream, bs)
-      <!! const 201
-      === statusCode
+        <!! const 201 === statusCode
 
   -- Call get-asset federation API
-  tok <- ast %. "token" & asString
-  key <- ast %. "key" & asString
+  let tok = view assetToken ast
+  let key = view assetKey ast
   let ga =
-        object
-          [ "user" .= _ uid,
-            "token" .= _ tok,
-            "key" .= _ (qUnqualified key)
-          ]
+        GetAsset
+          { user = uid,
+            token = tok,
+            key = qUnqualified key
+          }
   chunks <- withFederationClient $ do
     source <- getAssetSource <$> runFederationClient (unsafeFedClientIn @'Cargohold @"stream-asset" ga)
     liftIO . runResourceT $ connect source sinkList
@@ -146,7 +170,7 @@ testLargeAsset = do
       (length chunks > minNumChunks)
     mconcat chunks @?= bs
 
-testStreamAsset :: HasCallStack => App ()
+testStreamAsset :: TestM ()
 testStreamAsset = do
   -- Initial upload
   let bdy = (applicationOctetStream, "Hello World")
@@ -154,66 +178,64 @@ testStreamAsset = do
         defAssetSettings
           & set setAssetRetention (Just AssetVolatile)
   uid <- randomUser
-  ast :: Value <-
+  ast :: Asset <-
     responseJsonError
       =<< uploadSimple (path "/assets/v3") uid settings bdy
-      <!! const 201
-      === statusCode
+        <!! const 201 === statusCode
 
   -- Call get-asset federation API
-  tok <- ast %. "token" & asString
-  key <- ast %. "key" & asString
+  let tok = view assetToken ast
+  let key = view assetKey ast
   let ga =
-        object
-          [ "user" .= _ uid,
-            "token" .= _ tok,
-            "key" .= _ (qUnqualified key)
-          ]
+        GetAsset
+          { user = uid,
+            token = tok,
+            key = qUnqualified key
+          }
   respBody <- withFederationClient $ do
     source <- getAssetSource <$> runFederationClient (unsafeFedClientIn @'Cargohold @"stream-asset" ga)
     liftIO . runResourceT $ connect source sinkLazy
   liftIO $ respBody @?= "Hello World"
 
-testStreamAssetNotAvailable :: HasCallStack => App ()
+testStreamAssetNotAvailable :: TestM ()
 testStreamAssetNotAvailable = do
   uid <- liftIO $ Id <$> nextRandom
   token <- randToken
 
   assetId <- liftIO $ Id <$> nextRandom
-  key <- ast %. "key" & asString
+  let key = AssetKeyV3 assetId AssetPersistent
   let ga =
-        object
-          [ "user" .= _ uid,
-            "token" .= _ (Just tok),
-            "key" .= _ key
-          ]
+        GetAsset
+          { user = uid,
+            token = Just token,
+            key = key
+          }
   err <- withFederationError $ do
     runFederationClient (unsafeFedClientIn @'Cargohold @"stream-asset" ga)
   liftIO $ do
     Wai.code err @?= HTTP.notFound404
     Wai.label err @?= "not-found"
 
-testStreamAssetWrongToken :: HasCallStack => App ()
+testStreamAssetWrongToken :: TestM ()
 testStreamAssetWrongToken = do
   -- Initial upload
   let bdy = (applicationOctetStream, "Hello World")
       settings = defAssetSettings & set setAssetRetention (Just AssetVolatile)
   uid <- randomUser
-  ast :: Value <-
+  ast :: Asset <-
     responseJsonError
       =<< uploadSimple (path "/assets/v3") uid settings bdy
-      <!! const 201
-      === statusCode
+        <!! const 201 === statusCode
 
   -- Call get-asset federation API with wrong (random) token
   tok <- randToken
-  key <- ast %. "key" %. "id" & asString
+  let key = view assetKey ast
   let ga =
-        object
-          [ "user" .= _ uid,
-            "token" .= _ (Just tok),
-            "key" .= _ key
-          ]
+        GetAsset
+          { user = uid,
+            token = Just tok,
+            key = qUnqualified key
+          }
   err <- withFederationError $ do
     runFederationClient (unsafeFedClientIn @'Cargohold @"stream-asset" ga)
   liftIO $ do

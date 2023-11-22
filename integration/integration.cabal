@@ -107,7 +107,6 @@ library
     Test.Brig
     Test.Cargohold
     Test.Cargohold.API
-    Test.Cargohold.API.Federation
     Test.Cargohold.API.Util
     Test.Cargohold.API.V3
     Test.Cargohold.App

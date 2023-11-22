@@ -20,7 +20,7 @@
 module Test.Cargohold.API.V3 where
 
 import API.Cargohold
-import Codec.MIME.Type (mimeType, showMIMEType)
+import Codec.MIME.Type (showMIMEType)
 import Data.Aeson.KeyMap qualified as KM
 import Data.ByteString.Char8 qualified as C8
 import Data.CaseInsensitive
@@ -52,9 +52,10 @@ testSimpleRoundtrip = do
       uid <- randomUser OwnDomain def
       uid2 <- randomId
       -- Initial upload
-      let bdy = (mimeType applicationText, "Hello World")
+      let bdy = (applicationText, "Hello World")
       r1 <- uploadSimple uid sets bdy
       r1.status `shouldMatchInt` 201
+      print r1.jsonBody
       -- use v3 path instead of the one returned in the header
       (key, tok, expires) <-
         (,,)
@@ -73,11 +74,12 @@ testSimpleRoundtrip = do
         -- to be done.
         Object o -> case KM.lookup (fromString "retention") o of
           Nothing -> pure ()
-          Just r -> do
+          Just _r -> do
             assertBool "invalid expiration" (Just utc < expires')
         _ -> pure ()
       -- Lookup with token and download via redirect.
-      r2 <- downloadAsset uid key tok
+      r2 <- downloadAsset' uid key tok
+      print r2.body
       r2.status `shouldMatchInt` 302
       assertBool "Response body should be empty" $ r2.body == mempty
 
@@ -95,7 +97,7 @@ testSimpleRoundtrip = do
       deleteAssetV3 uid2 key >>= \r -> r.status `shouldMatchInt` 403
       -- Delete (allowed for creator)
       deleteAssetV3 uid key >>= \r -> r.status `shouldMatchInt` 200
-      r4 <- downloadAsset uid key tok
+      r4 <- downloadAsset' uid key tok
       r4.status `shouldMatchInt` 404
       let Just date' = C8.unpack <$> lookup (mk $ cs "Date") r4.headers
       let utc' = parseTimeOrError False defaultTimeLocale rfc822DateFormat date' :: UTCTime
