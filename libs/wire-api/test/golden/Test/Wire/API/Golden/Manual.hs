@@ -30,6 +30,7 @@ import Test.Wire.API.Golden.Manual.ConversationsResponse
 import Test.Wire.API.Golden.Manual.CreateGroupConversation
 import Test.Wire.API.Golden.Manual.CreateScimToken
 import Test.Wire.API.Golden.Manual.FeatureConfigEvent
+import Test.Wire.API.Golden.Manual.FederationRestriction
 import Test.Wire.API.Golden.Manual.FederationStatus
 import Test.Wire.API.Golden.Manual.GetPaginatedConversationIds
 import Test.Wire.API.Golden.Manual.GroupId
@@ -172,5 +173,11 @@ tests =
         testObjects
           [ (testObject_RemoteDomains_1, "testObject_RemoteDomains_1.json"),
             (testObject_RemoteDomains_2, "testObject_RemoteDomains_2.json")
+          ],
+      testGroup "FederationRestriction" $
+        testObjects
+          [ (testObject_FederationRestriction_1, "testObject_FederationRestriction_1.json"),
+            (testObject_FederationRestriction_2, "testObject_FederationRestriction_2.json"),
+            (testObject_FederationRestriction_3, "testObject_FederationRestriction_3.json")
           ]
     ]
