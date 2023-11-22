@@ -640,20 +640,13 @@ checkReusableCode convCode = do
 
 updateConversationProtocolWithLocalUser ::
   forall r.
-  ( Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'ConvInvalidProtocolTransition) r,
-    Member (ErrorS ('ActionDenied 'LeaveConversation)) r,
-    Member (ErrorS 'InvalidOperation) r,
-    Member (Error FederationError) r,
-    Member (ErrorS 'MLSMigrationCriteriaNotSatisfied) r,
-    Member (ErrorS 'NotATeamMember) r,
-    Member (ErrorS OperationDenied) r,
-    Member (ErrorS 'TeamNotFound) r,
+  ( Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member (Input UTCTime) r,
     Member (Input Env) r,
     Member (Input (Local ())) r,
     Member (Input Opts) r,
+    Member (SomeErrorOfKind GalleyError) r,
     Member BackendNotificationQueueAccess r,
     Member BrigAccess r,
     Member ConversationStore r,
@@ -680,12 +673,32 @@ updateConversationProtocolWithLocalUser lusr conn qcnv (P.ProtocolUpdate newProt
       ( \lcnv -> do
           fmap (maybe Unchanged (Updated . lcuEvent) . hush)
             . runError @NoChanges
-            . updateLocalConversation @'ConversationUpdateProtocolTag lcnv (tUntagged lusr) (Just conn)
-            $ newProtocol
+            . mapManyToSomeError
+              @'[ InvalidOperation,
+                  ActionDenied LeaveConversation,
+                  OperationDenied,
+                  ConvNotFound,
+                  ConvInvalidProtocolTransition,
+                  MLSMigrationCriteriaNotSatisfied,
+                  NotATeamMember,
+                  TeamNotFound
+                ]
+              Proxy
+            $ updateLocalConversation @'ConversationUpdateProtocolTag lcnv (tUntagged lusr) (Just conn) newProtocol
       )
       ( \rcnv ->
-          updateRemoteConversation @'ConversationUpdateProtocolTag rcnv lusr conn $
-            newProtocol
+          mapToSomeError @(ActionDenied LeaveConversation)
+            . mapManyToSomeError
+              @[ MissingPermission Nothing,
+                 InvalidOperation,
+                 ConvNotFound,
+                 ConvInvalidProtocolTransition,
+                 MLSMigrationCriteriaNotSatisfied,
+                 NotATeamMember,
+                 TeamNotFound
+               ]
+              Proxy
+            $ updateRemoteConversation @'ConversationUpdateProtocolTag rcnv lusr conn newProtocol
       )
       qcnv
 

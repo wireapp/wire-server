@@ -17,6 +17,7 @@
 {-# LANGUAGE StandaloneKindSignatures #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# OPTIONS_GHC -Wno-unused-top-binds #-}
+{-# LANGUAGE QuantifiedConstraints #-}
 
 module Wire.API.Error.Galley
   ( GalleyError (..),
@@ -51,7 +52,7 @@ import Network.Wai.Utilities.Error qualified as Wai
 import Network.Wai.Utilities.JSONResponse
 import Polysemy
 import Polysemy.Error
-import Prelude.Singletons (Show_)
+import Prelude.Singletons (Show_, SomeSing)
 import Servant.API.ContentTypes (JSON, contentType)
 import Wire.API.Conversation.Role
 import Wire.API.Error
@@ -148,9 +149,9 @@ instance S.ToSchema GalleyError
 $(genSingletons [''GalleyError])
 
 instance (Typeable (MapError e), KnownError (MapError e)) => IsSwaggerError (e :: GalleyError) where
-  addToOpenApi = addStaticErrorToSwagger @(MapError e)
+  addToOpenApi _ = addStaticErrorToSwagger @(MapError e)
 
-instance KnownError (MapError e) => APIError (Tagged (e :: GalleyError) ()) where
+instance KnownError (MapError e) => APIError (Proxy (e :: GalleyError)) where
   toResponse _ = toResponse $ dynError @(MapError e)
 
 -- | Convenience synonym for an operation denied error with an unspecified permission.
@@ -168,6 +169,8 @@ type family GalleyErrorEffect (e :: GalleyError) :: Effect where
   GalleyErrorEffect e = ErrorS e
 
 type instance ErrorEffect (e :: GalleyError) = GalleyErrorEffect e
+
+type instance ErrorEffect (SomeSing k) = Error SomeStaticError
 
 type instance MapError 'InvalidAction = 'StaticError 400 "invalid-actions" "The specified actions are invalid"
 
@@ -338,7 +341,7 @@ type instance MapError 'VerificationCodeAuthFailed = 'StaticError 403 "code-auth
 type instance MapError 'VerificationCodeRequired = 'StaticError 403 "code-authentication-required" "Verification code required"
 
 instance IsSwaggerError AuthenticationError where
-  addToOpenApi =
+  addToOpenApi _ =
     addStaticErrorToSwagger @(MapError 'ReAuthFailed)
       . addStaticErrorToSwagger @(MapError 'VerificationCodeAuthFailed)
       . addStaticErrorToSwagger @(MapError 'VerificationCodeRequired)
@@ -366,7 +369,7 @@ data TeamFeatureError
 
 instance IsSwaggerError TeamFeatureError where
   -- Do not display in Swagger
-  addToOpenApi = id
+  addToOpenApi _ = id
 
 type instance MapError 'AppLockInactivityTimeoutTooLow = 'StaticError 400 "inactivity-timeout-too-low" "Applock inactivity timeout must be at least 30 seconds"
 
@@ -416,7 +419,7 @@ type instance ErrorEffect MLSProposalFailure = Error MLSProposalFailure
 
 -- Proposal failures are only reported generically in Swagger
 instance IsSwaggerError MLSProposalFailure where
-  addToOpenApi = S.allOperations . S.description %~ Just . (<> desc) . fold
+  addToOpenApi _ = S.allOperations . S.description %~ Just . (<> desc) . fold
     where
       desc =
         "\n\n**Note**: this endpoint can execute proposals, and therefore \
@@ -467,7 +470,7 @@ instance ToSchema NonFederatingBackends where
         nonFederatingBackendsFromList
 
 instance IsSwaggerError NonFederatingBackends where
-  addToOpenApi =
+  addToOpenApi _ =
     addErrorResponseToSwagger (HTTP.statusCode nonFederatingBackendsStatus) $
       mempty
         & S.description .~ "Adding members to the conversation is not possible because the backends involved do not form a fully connected graph"
@@ -509,7 +512,7 @@ instance ToSchema UnreachableBackends where
         <$> (.backends) .= field "unreachable_backends" (array schema)
 
 instance IsSwaggerError UnreachableBackends where
-  addToOpenApi =
+  addToOpenApi _ =
     addErrorResponseToSwagger (HTTP.statusCode unreachableBackendsStatus) $
       mempty
         & S.description .~ "Some domains are unreachable"

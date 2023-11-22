@@ -30,6 +30,7 @@ import Data.Json.Util
 import Data.List1 (List1 (..))
 import Data.Map qualified as Map
 import Data.Map.Lens (toMapOf)
+import Data.Proxy (Proxy)
 import Data.Qualified
 import Data.Range (Range (fromRange))
 import Data.Set qualified as Set
@@ -720,7 +721,7 @@ getOne2OneConversation ::
   Sem r GetOne2OneConversationResponse
 getOne2OneConversation domain (GetOne2OneConversationRequest self other) =
   fmap (Imports.fromRight GetOne2OneConversationNotConnected)
-    . runError @(Tagged 'NotConnected ())
+    . runError @(Proxy 'NotConnected)
     $ do
       lother <- qualifyLocal other
       let rself = toRemoteUnsafe domain self
@@ -779,7 +780,7 @@ onMLSMessageSent ::
 onMLSMessageSent domain rmm =
   (EmptyResponse <$)
     . (logError =<<)
-    . runError @(Tagged 'MLSNotEnabled ())
+    . runError @(Proxy 'MLSNotEnabled)
     $ do
       assertMLSEnabled
       loc <- qualifyLocal ()
@@ -810,7 +811,7 @@ onMLSMessageSent domain rmm =
       runMessagePush loc (Just (tUntagged rcnv)) $
         newMessagePush mempty Nothing rmm.metadata recipients e
   where
-    logError :: Member P.TinyLog r => Either (Tagged 'MLSNotEnabled ()) () -> Sem r ()
+    logError :: Member P.TinyLog r => Either (Proxy 'MLSNotEnabled) () -> Sem r ()
     logError (Left _) =
       P.warn $
         Log.field "conversation" (toByteString' rmm.conversation)
@@ -833,7 +834,7 @@ mlsSendWelcome ::
   Sem r MLSWelcomeResponse
 mlsSendWelcome origDomain req = do
   fmap (either (const MLSWelcomeMLSNotEnabled) (const MLSWelcomeSent))
-    . runError @(Tagged 'MLSNotEnabled ())
+    . runError @(Proxy 'MLSNotEnabled)
     $ do
       assertMLSEnabled
       loc <- qualifyLocal ()

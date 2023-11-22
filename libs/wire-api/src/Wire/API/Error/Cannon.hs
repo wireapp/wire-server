@@ -25,7 +25,7 @@ data CannonError
   | PresenceNotRegistered
 
 instance (Typeable (MapError e), KnownError (MapError e)) => IsSwaggerError (e :: CannonError) where
-  addToOpenApi = addStaticErrorToSwagger @(MapError e)
+  addToOpenApi _ = addStaticErrorToSwagger @(MapError e)
 
 type instance MapError 'ClientGone = 'StaticError 410 "general" "client gone"
 

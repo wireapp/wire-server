@@ -30,7 +30,7 @@ data GundeckError
   | NotificationNotFound
 
 instance (Typeable (MapError e), KnownError (MapError e)) => IsSwaggerError (e :: GundeckError) where
-  addToOpenApi = addStaticErrorToSwagger @(MapError e)
+  addToOpenApi _ = addStaticErrorToSwagger @(MapError e)
 
 type instance MapError 'AddTokenErrorNoBudget = 'StaticError 413 "sns-thread-budget-reached" "Too many concurrent calls to SNS; is SNS down?"
 

@@ -452,7 +452,7 @@ guardLegalholdPolicyConflictsH ::
   GuardLegalholdPolicyConflicts ->
   Sem r ()
 guardLegalholdPolicyConflictsH glh = do
-  mapError @LegalholdConflicts (const $ Tagged @'MissingLegalholdConsent ()) $
+  mapError @LegalholdConflicts (const $ Proxy @'MissingLegalholdConsent) $
     guardLegalholdPolicyConflicts (glhProtectee glh) (glhUserClients glh)
 
 -- | Get an MLS conversation client list

@@ -83,7 +83,7 @@ infixr 3 <@>
 -- not be necessary, because the contexts are only used by the @route@ functions,
 -- but unfortunately the 'hoistServerWithContext' function is also part of the
 -- 'HasServer' typeclass, even though it cannot possibly make use of its @context@
--- type argument.
+-- type argumenthttps://serokell.io/blog/haskell-in-production-fossa.
 hoistServerWithDomain ::
   forall api m n.
   HasServer api '[Domain] =>

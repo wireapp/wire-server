@@ -255,12 +255,12 @@ evalGalley e =
     . resourceToIOFinal
     . runError
     . embedToFinal @IO
-    . mapError toResponse
-    . mapError toResponse
-    . mapError toResponse
+    . mapError @FederationError toResponse
+    . mapError @InternalError toResponse
+    . mapError @InvalidInput toResponse
     . runInputConst e
     . runInputConst (e ^. cstate)
-    . mapError toResponse -- DynError
+    . mapError @DynError toResponse
     . interpretTinyLog e
     . interpretQueue (e ^. deleteQueue)
     . runInputSem (embed getCurrentTime) -- FUTUREWORK: could we take the time only once instead?

@@ -1,5 +1,4 @@
-{-# LANGUAGE DerivingStrategies #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE BlockArguments #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -19,7 +18,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Federator.App
-  ( AppT,
+  ( AppT (..),
     runAppT,
     embedApp,
   )
@@ -30,6 +29,7 @@ import Bilge.RPC (HasRequestId (..))
 import Control.Lens (view)
 import Control.Monad.Catch
 import Control.Monad.Except
+import Data.Kind (Type)
 import Federator.Env (Env, applog, httpManager, requestId)
 import Imports
 import Polysemy
@@ -39,10 +39,9 @@ import System.Logger.Extended qualified as Log
 
 -- FUTUREWORK(federation): this code re-occurs in every service.  introduce 'MkAppT' in types-common that
 -- takes 'Env' as one more argument.
-newtype AppT m a = AppT
-  { unAppT :: ReaderT Env m a
-  }
-  deriving newtype
+type AppT :: (Type -> Type) -> Type -> Type
+newtype AppT m a = AppT {unAppT :: Env -> m a}
+  deriving
     ( Functor,
       Applicative,
       Monad,
@@ -50,8 +49,10 @@ newtype AppT m a = AppT
       MonadThrow,
       MonadCatch,
       MonadMask,
-      MonadReader Env
+      MonadReader Env,
+      MonadUnliftIO
     )
+    via ReaderT Env m
 
 instance MonadIO m => LC.MonadLogger (AppT m) where
   log l m = do
@@ -65,14 +66,8 @@ instance MonadIO m => LC.MonadLogger (ExceptT err (AppT m)) where
 instance Monad m => HasRequestId (AppT m) where
   getRequestId = view requestId
 
-instance MonadUnliftIO m => MonadUnliftIO (AppT m) where
-  withRunInIO inner =
-    AppT . ReaderT $ \r ->
-      withRunInIO $ \runner ->
-        inner (runner . flip runReaderT r . unAppT)
-
 instance MonadTrans AppT where
-  lift = AppT . lift
+  lift = AppT . const
 
 instance MonadIO m => MonadHttp (AppT m) where
   handleRequestWithCont req handler = do
@@ -80,7 +75,7 @@ instance MonadIO m => MonadHttp (AppT m) where
     liftIO $ withResponse req manager handler
 
 runAppT :: forall m a. Env -> AppT m a -> m a
-runAppT e (AppT ma) = runReaderT ma e
+runAppT = flip unAppT
 
 embedApp ::
   ( Member (Embed m) r,
@@ -90,4 +85,4 @@ embedApp ::
   Sem r a
 embedApp (AppT action) = do
   env <- input
-  embed $ runReaderT action env
+  embed $ action env

@@ -14,6 +14,9 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE QuantifiedConstraints #-}
+{-# LANGUAGE ImpredicativeTypes #-}
 module Wire.API.Error
   ( -- * Static and dynamic error types
     DynError (..),
@@ -35,6 +38,7 @@ module Wire.API.Error
     addErrorResponseToSwagger,
     addStaticErrorToSwagger,
     IsSwaggerError (..),
+    SwaggerErrorWitnessC,
     ErrorResponse,
 
     -- * Static errors and Polysemy
@@ -45,6 +49,14 @@ module Wire.API.Error
     mapErrorS,
     mapToRuntimeError,
     mapToDynamicError,
+
+    -- ** existential static errors
+    SomeErrorOfKind,
+    mapToSomeError,
+    MapManyToSomeError (..),
+    mapManyToSomeError,
+    SomeStaticError (..),
+    withSomeStaticError
   )
 where
 
@@ -58,6 +70,8 @@ import Data.OpenApi qualified as S
 import Data.Proxy
 import Data.SOP
 import Data.Schema
+import Data.Singletons (SingI (sing), SomeSing (SomeSing), pattern Sing, withSomeSing, SingKind (Demote))
+import Data.Tagged (reproxy)
 import Data.Text qualified as Text
 import Data.Text.Lazy qualified as LT
 import GHC.TypeLits
@@ -67,6 +81,7 @@ import Network.Wai.Utilities.Error qualified as Wai
 import Network.Wai.Utilities.JSONResponse
 import Polysemy
 import Polysemy.Error
+import Polysemy.Internal.Kind (Append)
 import Servant
 import Servant.Client (HasClient (Client))
 import Servant.Client.Core.HasClient (hoistClientMonad)
@@ -126,6 +141,17 @@ class KnownError (e :: StaticError) where
 
 instance (KnownNat c, KnownSymbol l, KnownSymbol msg) => KnownError ('StaticError c l msg) where
   seSing = SStaticError Proxy Proxy Proxy
+
+data SomeStaticError where
+  MkSomeStaticError ::
+    (KnownNat c, KnownSymbol l, KnownSymbol msg) =>
+    Proxy c ->
+    Proxy l ->
+    Proxy msg ->
+    SomeStaticError
+
+withSomeStaticError :: SomeStaticError -> (forall e. SStaticError e -> r) -> r
+withSomeStaticError (MkSomeStaticError pc pl pmsg) k = k (SStaticError pc pl pmsg)
 
 dynError' :: SStaticError e -> DynError
 dynError' (SStaticError c l msg) = mkDynError c l msg
@@ -209,11 +235,11 @@ instance (HasServer api ctx) => HasServer (CanThrowMany es :> api) ctx where
   route _ = route (Proxy @api)
   hoistServerWithContext _ = hoistServerWithContext (Proxy @api)
 
-instance
-  (HasOpenApi api, IsSwaggerError e) =>
-  HasOpenApi (CanThrow e :> api)
-  where
-  toOpenApi _ = addToOpenApi @e (toOpenApi (Proxy @api))
+-- instance
+--   (HasOpenApi api, IsSwaggerError e) =>
+--   HasOpenApi (CanThrow e :> api)
+--   where
+--   toOpenApi _ = addToOpenApi @e _ (toOpenApi (Proxy @api))
 
 instance HasClient m api => HasClient m (CanThrow e :> api) where
   type Client m (CanThrow e :> api) = Client m api
@@ -227,11 +253,11 @@ type instance
 instance HasOpenApi api => HasOpenApi (CanThrowMany DN :> api) where
   toOpenApi _ = toOpenApi (Proxy @api)
 
-instance
-  (HasOpenApi (CanThrowMany (es ::* ess) :> api), IsSwaggerError e) =>
-  HasOpenApi (CanThrowMany ((e : es) ::* ess) :> api)
-  where
-  toOpenApi _ = addToOpenApi @e (toOpenApi (Proxy @(CanThrowMany (es ::* ess) :> api)))
+-- instance
+--   (HasOpenApi (CanThrowMany (es ::* ess) :> api), IsSwaggerError e) =>
+--   HasOpenApi (CanThrowMany ((e : es) ::* ess) :> api)
+--   where
+--   toOpenApi _ = addToOpenApi @e undefined (toOpenApi (Proxy @(CanThrowMany (es ::* ess) :> api)))
 
 instance
   (HasOpenApi (CanThrowMany ess :> api)) =>
@@ -290,26 +316,66 @@ type family MapError (e :: k) :: StaticError
 type family ErrorEffect (e :: k) :: Effect
 
 class IsSwaggerError e where
-  addToOpenApi :: S.OpenApi -> S.OpenApi
+  type SwaggerErrorWitness e :: Type
+  type SwaggerErrorWitness e = ()
+  addToOpenApi :: SwaggerErrorWitness e -> S.OpenApi -> S.OpenApi
+
+class SwaggerErrorWitness e ~ () => SwaggerErrorWitnessC e
+instance SwaggerErrorWitness e ~ () => SwaggerErrorWitnessC e
+
+instance (SingKind k, forall (e :: k). IsSwaggerError e, forall (e :: k). SwaggerErrorWitnessC e) => IsSwaggerError (SomeErrorOfKind k) where
+  type SwaggerErrorWitness (SomeErrorOfKind k) = Demote k
+  addToOpenApi err = withSomeSing err \(Sing @_ @a) -> addToOpenApi @(a :: k) ()
 
 -- | An effect for a static error type with no data.
-type ErrorS e = Error (Tagged e ())
+type ErrorS e = Error (Proxy e)
+
+type SomeErrorOfKind k = Error (SomeSing k)
 
 throwS :: forall e r a. (Member (ErrorS e) r) => Sem r a
-throwS = throw (Tagged @e ())
+throwS = throw (Proxy @e)
 
 noteS :: forall e r a. (Member (ErrorS e) r) => Maybe a -> Sem r a
-noteS = note (Tagged @e ())
+noteS = note (Proxy @e)
 
 mapErrorS ::
   forall e e' r a.
   (Member (ErrorS e') r) =>
   Sem (ErrorS e ': r) a ->
   Sem r a
-mapErrorS = mapError (Tagged @e' . unTagged)
+mapErrorS = mapError (reproxy @_ @e @e')
+
+mapToSomeError ::
+  forall {k} (e :: k) r a.
+  (Member (SomeErrorOfKind k) r, SingI e) =>
+  Sem (ErrorS e : r) a ->
+  Sem r a
+mapToSomeError = mapError (SomeSing @k @e . const sing)
+
+type family MapErrorS xs where
+  MapErrorS '[] = '[]
+  MapErrorS (x : xs) = (ErrorS x : MapErrorS xs)
+
+mapManyToSomeError ::
+  forall {k} (xs :: [k]) ys a proxy.
+  (Member (SomeErrorOfKind k) ys, MapManyToSomeError (MapErrorS xs) ys k) =>
+  proxy xs ->
+  Sem (Append (MapErrorS xs) ys) a ->
+  Sem ys a
+mapManyToSomeError _ = mapManyToSomeError' @(MapErrorS xs) @ys @k
+
+type MapManyToSomeError :: [Effect] -> [Effect] -> Type -> Constraint
+class MapManyToSomeError xs ys k where
+  mapManyToSomeError' :: Member (SomeErrorOfKind k) ys => Sem (Append xs ys) a -> Sem ys a
+
+instance MapManyToSomeError '[] ys k where
+  mapManyToSomeError' = subsume_
+
+instance (SingI e, MapManyToSomeError xs ys k, SListI xs, Member (SomeErrorOfKind k) (Append xs ys)) => MapManyToSomeError (ErrorS (e :: k) : xs) ys k where
+  mapManyToSomeError' = mapManyToSomeError' @xs @ys @k . mapToSomeError @e
 
 mapToRuntimeError ::
-  forall e e' r a. Member (Error e') r => e' -> Sem (ErrorS e ': r) a -> Sem r a
+  forall e e' r a. (Member (Error e') r) => e' -> Sem (ErrorS e ': r) a -> Sem r a
 mapToRuntimeError e' = mapError (const e')
 
 mapToDynamicError ::
@@ -338,6 +404,9 @@ instance APIError DynError where
 
 instance APIError (SStaticError e) where
   toResponse = toResponse . dynError'
+
+instance APIError SomeStaticError where
+  toResponse err = withSomeStaticError err toResponse
 
 --------------------------------------------------------------------------------
 -- MultiVerb support
