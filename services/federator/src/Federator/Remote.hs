@@ -63,8 +63,8 @@ data RemoteError
 instance AsWai RemoteError where
   toWai (RemoteError _ _ e) =
     federationRemoteHTTP2Error e
-  toWai (RemoteErrorResponse _ _ status _) =
-    federationRemoteResponseError status
+  toWai (RemoteErrorResponse _ _ status body) =
+    federationRemoteResponseError status body
 
 data Remote m a where
   DiscoverAndCall ::

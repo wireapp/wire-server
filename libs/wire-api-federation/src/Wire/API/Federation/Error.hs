@@ -83,6 +83,7 @@ module Wire.API.Federation.Error
   )
 where
 
+import Data.Aeson qualified as Aeson
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
 import Data.Text.Lazy qualified as LT
@@ -240,14 +241,17 @@ federationClientHTTP2Error e =
     "federation-local-error"
     (LT.pack (displayException e))
 
-federationRemoteResponseError :: HTTP.Status -> Wai.Error
-federationRemoteResponseError status =
-  Wai.mkError
-    unexpectedFederationResponseStatus
-    "federation-remote-error"
-    ( "A remote federator failed with status code "
-        <> LT.pack (show (HTTP.statusCode status))
-    )
+federationRemoteResponseError :: HTTP.Status -> LByteString -> Wai.Error
+federationRemoteResponseError status body =
+  ( Wai.mkError
+      unexpectedFederationResponseStatus
+      "federation-remote-error"
+      ( "A remote federator failed with status code "
+          <> LT.pack (show (HTTP.statusCode status))
+      )
+  )
+    { Wai.innerError = Aeson.decode body
+    }
 
 federationServantErrorToWai :: ClientError -> Wai.Error
 federationServantErrorToWai (DecodeFailure msg _) = federationInvalidBody msg
