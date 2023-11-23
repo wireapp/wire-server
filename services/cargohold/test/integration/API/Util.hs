@@ -204,10 +204,11 @@ postToken uid key = do
 deleteToken :: UserId -> AssetKey -> TestM (Response (Maybe LByteString))
 deleteToken uid key = do
   c <- viewCargohold
-  delete $
-    c
-      . zUser uid
-      . paths ["assets", toByteString' key, "token"]
+  fmap traceShowId $
+    delete $
+      c
+        . zUser uid
+        . paths ["assets", toByteString' key, "token"]
 
 viewFederationDomain :: TestM Domain
 viewFederationDomain = view (tsOpts . settings . federationDomain)

@@ -57,45 +57,69 @@ queryItem k v r =
 get' :: HTTP.Request -> (HTTP.Request -> HTTP.Request) -> App Response
 get' r f = submit "GET" $ f r
 
+foo :: Show a => String -> a -> App ()
+foo s a = putStrLn s *> print a
+
 testSimpleTokens :: HasCallStack => App ()
 testSimpleTokens = do
   uid <- randomUser OwnDomain def
   uid2 <- randomUser OwnDomain def
   -- Initial upload
-  let sets = object ["public" .= False, "rentention" .= "volatile"]
+  let sets = object ["public" .= False, "retention" .= "volatile"]
   let bdy = (applicationText, "Hello World")
+  putStrLn "----------------------------"
+  putStrLn "----------------------------"
+  putStrLn "----------------------------"
+  foo "sets" sets
+  foo "bdy" bdy
   r1 <- uploadSimple uid sets bdy
+  foo "r1" r1
   r1.status `shouldMatchInt` 201
   loc <-
-    maybe (assertFailure "Could not get \"Location\" header from the request") (pure . cs @_ @String) $
-      getHeader (mk $ cs "Location") r1
+    maybe
+      (assertFailure "Could not get \"Location\" header from the request")
+      (pure . cs @_ @String)
+      $ getHeader (mk $ cs "Location") r1
+  foo "loc" loc
   (key, tok) <-
     (,)
       <$> asString (r1.json %. "key")
       <*> r1.json %. "token"
   -- No access without token from other user (opaque 404)
-  downloadAsset' uid2 loc () >>= \r -> r.status `shouldMatchInt` 404
+  downloadAsset' uid2 loc () >>= \r -> do
+    foo "r' 1" r
+    r.status `shouldMatchInt` 404
   -- No access with empty token query parameter from other user (opaque 404)
-  downloadAsset' uid2 loc (queryItem (cs "asset_token") Nothing) >>= \r -> r.status `shouldMatchInt` 404
+  downloadAsset' uid2 loc (queryItem (cs "asset_token") Nothing) >>= \r -> do
+    foo "r' 2" r
+    r.status `shouldMatchInt` 404
   -- No access with wrong token (opaque 404)
-  downloadAsset' uid2 loc (header "Asset-Token" "abc123") >>= \r -> r.status `shouldMatchInt` 404
+  downloadAsset' uid2 loc (header "Asset-Token" "abc123") >>= \r -> do
+    foo "r' 3" r
+    r.status `shouldMatchInt` 404
   -- No access with wrong token as query parameter (opaque 404)
-  downloadAsset' uid2 loc (queryItem (cs "asset_token") $ pure $ cs "acb123") >>= \r -> r.status `shouldMatchInt` 404
+  downloadAsset' uid2 loc (queryItem (cs "asset_token") $ pure $ cs "acb123") >>= \r -> do
+    foo "r' 4" r
+    r.status `shouldMatchInt` 404
   -- Token renewal fails if not done by owner
   postToken uid2 key >>= \r -> do
+    foo "r' 5" r
     r.status `shouldMatchInt` 403
     label <- traverse ((%. "label") >=> asString) r.jsonBody
     label `shouldMatch` "unauthorised"
   -- Token renewal succeeds if done by owner
   r2 <- postToken uid key
+  foo "r2" r2
   r2.status `shouldMatchInt` 200
   tok' <- r2.jsonBody %. "token" & asString
   assertBool "token unchanged" (tok /= String (cs tok'))
   -- Download by owner with new token.
   r3 <- downloadAsset' uid loc tok'
+  foo "r3" r3
   r3.status `shouldMatchInt` 302
   cs @_ @String r3.body `shouldMatch` ""
   r4 <- flip get' id =<< parseUrlThrow (C8.unpack (getHeader' (mk $ cs "Location") r3))
+  foo "r4" r4
   r4.status `shouldMatchInt` 200
   let r4ContentType :: Maybe String
       r4ContentType = cs @_ @String <$> getHeader (mk $ cs "content-type") r4
@@ -108,24 +132,32 @@ testSimpleTokens = do
   r4User `shouldMatch` fmap Just (uid %. "id")
   cs @_ @String r4.body `shouldMatch` "Hello World"
   -- Verify access without token if the request comes from the creator.
-  downloadAsset' uid loc () >>= \r -> r.status `shouldMatchInt` 302
+  downloadAsset' uid loc () >>= \r -> do
+    foo "r' 6" r
+    r.status `shouldMatchInt` 302
   -- Verify access with new token from a different user.
-  downloadAsset' uid2 loc tok' >>= \r -> r.status `shouldMatchInt` 302
+  downloadAsset' uid2 loc tok' >>= \r -> do
+    foo "r' 7" r
+    r.status `shouldMatchInt` 302
   -- Verify access with new token as query parameter from a different user
   print tok'
-  downloadAsset' uid2 loc (queryItem (cs "asset_token") (pure $ cs tok'))
-    >>= \r -> r.status `shouldMatchInt` 302
+  downloadAsset' uid2 loc (queryItem (cs "asset_token") (pure $ cs tok')) >>= \r -> do
+    foo "r' 8" r
+    r.status `shouldMatchInt` 302
   -- Delete Token fails if not done by owner
   deleteToken uid2 key >>= \r -> do
+    foo "r' 9" r
     r.status `shouldMatchInt` 403
-    label <- traverse ((%. "label") >=> asString) r.jsonBody
-    label `shouldMatch` "unauthorised"
+    label' <- traverse ((%. "label") >=> asString) r.jsonBody
+    label' `shouldMatch` "unauthorised"
   -- Delete Token succeeds by owner
   deleteToken uid key >>= \r -> do
+    foo "r' 10" r
     r.status `shouldMatchInt` 200
     cs @_ @String r.body `shouldMatch` ""
   -- Access without token from different user (asset is now "public")
   downloadAsset' uid2 loc () >>= \r -> do
+    foo "r' 11" r
     r.status `shouldMatchInt` 302
     cs @_ @String r.body `shouldMatch` ""
 

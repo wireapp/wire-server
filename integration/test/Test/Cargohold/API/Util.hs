@@ -152,8 +152,11 @@ postToken user key = do
 
 deleteToken :: (MakesValue user, HasCallStack) => user -> String -> App Response
 deleteToken user key = do
-  req <- baseRequest user Cargohold Versioned $ "asserts/" <> key <> "/token"
+  req <- baseRequest user Cargohold Versioned $ "assets/" <> key <> "/token"
   submit "DELETE" req
+
+rmZConn :: Request -> Request
+rmZConn r = r {HTTP.requestHeaders = filter (\(n, _) -> n /= mk (cs "Z-Connection")) $ HTTP.requestHeaders r}
 
 -- | Build a complete @multipart/mixed@ request body for a one-shot,
 -- non-resumable asset upload.
