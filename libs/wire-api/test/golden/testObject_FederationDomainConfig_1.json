@@ -1,0 +1,8 @@
+{
+    "domain": "foo.example.com",
+    "restriction": {
+        "tag": "allow_all",
+        "value": null
+    },
+    "search_policy": "full_search"
+}

@@ -1,0 +1,11 @@
+{
+    "domain": "foo.example.com",
+    "restriction": {
+        "tag": "restrict_by_team",
+        "value": [
+            "0000304a-0000-0d5e-0000-3fac00003993",
+            "00003c90-0000-2207-0000-5249000018b1"
+        ]
+    },
+    "search_policy": "full_search"
+}

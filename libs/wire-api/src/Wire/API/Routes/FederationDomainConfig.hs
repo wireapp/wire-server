@@ -28,6 +28,7 @@ module Wire.API.Routes.FederationDomainConfig
 where
 
 import Control.Lens (makePrisms, (?~))
+import Control.Lens.Tuple (_1)
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Domain (Domain)
 import Data.Id
@@ -44,17 +45,41 @@ data FederationRestriction = FederationRestrictionAllowAll | FederationRestricti
 
 makePrisms ''FederationRestriction
 
+data FederationRestrictionTag = FederationRestrictionAllowAllTag | FederationRestrictionByTeamTag
+  deriving (Eq, Enum, Bounded)
+
+makePrisms ''FederationRestrictionTag
+
 deriving via Schema FederationRestriction instance (S.ToSchema FederationRestriction)
 
 deriving via Schema FederationRestriction instance (FromJSON FederationRestriction)
 
 deriving via Schema FederationRestriction instance (ToJSON FederationRestriction)
 
+tagSchema :: ValueSchema NamedSwaggerDoc FederationRestrictionTag
+tagSchema =
+  enum @Text "FederationRestrictionTag" $
+    mconcat [element "allow_all" FederationRestrictionAllowAllTag, element "restrict_by_team" FederationRestrictionByTeamTag]
+
 instance ToSchema FederationRestriction where
   schema =
-    named "FederationRestriction" $
-      tag _FederationRestrictionAllowAll null_
-        <> tag _FederationRestrictionByTeam (array schema)
+    object "FederationRestriction" $
+      fromTagged
+        <$> toTagged
+          .= bind
+            (fst .= field "tag" tagSchema)
+            (snd .= fieldOver _1 "value" untaggedSchema)
+    where
+      toTagged :: FederationRestriction -> (FederationRestrictionTag, FederationRestriction)
+      toTagged d@(FederationRestrictionAllowAll) = (FederationRestrictionAllowAllTag, d)
+      toTagged d@(FederationRestrictionByTeam _) = (FederationRestrictionByTeamTag, d)
+
+      fromTagged :: (FederationRestrictionTag, FederationRestriction) -> FederationRestriction
+      fromTagged = snd
+
+      untaggedSchema = dispatch $ \case
+        FederationRestrictionAllowAllTag -> tag _FederationRestrictionAllowAll null_
+        FederationRestrictionByTeamTag -> tag _FederationRestrictionByTeam (array schema)
 
 -- | Everything we need to know about a remote instance in order to federate with it.  Comes
 -- in `AllowedDomains` if `AllowStrategy` is `AllowDynamic`.  If `AllowAll`, we still use this

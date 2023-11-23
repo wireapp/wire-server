@@ -65,7 +65,13 @@ instance ToJSON FedConn where
     Aeson.object
       [ "domain" .= d,
         "search_policy" .= s,
-        "restriction" .= maybe Aeson.Null (\teams -> Aeson.Array (Vector.fromList (Aeson.String . cs <$> teams))) r
+        "restriction"
+          .= maybe
+            (Aeson.object ["tag" .= "allow_all", "value" .= Aeson.Null])
+            ( \teams ->
+                Aeson.object ["tag" .= "restrict_by_team", "value" .= Aeson.Array (Vector.fromList (Aeson.String . cs <$> teams))]
+            )
+            r
       ]
 
 instance MakesValue FedConn where
