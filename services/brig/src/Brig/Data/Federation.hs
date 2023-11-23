@@ -83,36 +83,58 @@ addFederationRemote (FederationDomainConfig rDomain searchPolicy restriction) = 
   if l >= maxKnownNodes
     then pure AddFederationRemoteMaxRemotesReached
     else
-      AddFederationRemoteSuccess
-        <$ retry x5 (write add (params LocalQuorum (rDomain, searchPolicy, fromRestriction restriction)))
+      AddFederationRemoteSuccess <$ do
+        retry x5 (write addConfig (params LocalQuorum (rDomain, searchPolicy, fromRestriction restriction)))
+        case restriction of
+          FederationRestrictionByTeam tids ->
+            retry x5 . batch . forM_ tids $ addPrepQuery addTeams . (rDomain,)
+          FederationRestrictionAllowAll -> pure ()
   where
-    add :: PrepQuery W (Domain, FederatedUserSearchPolicy, Int32) ()
-    add = "INSERT INTO federation_remotes (domain, search_policy, restriction) VALUES (?, ?, ?)"
+    addConfig :: PrepQuery W (Domain, FederatedUserSearchPolicy, Int32) ()
+    addConfig = "INSERT INTO federation_remotes (domain, search_policy, restriction) VALUES (?, ?, ?)"
+    addTeams :: PrepQuery W (Domain, TeamId) ()
+    addTeams = "INSERT INTO federation_remote_teams (domain, team) VALUES (?, ?)"
 
 updateFederationRemote :: MonadClient m => FederationDomainConfig -> m Bool
 updateFederationRemote (FederationDomainConfig rDomain searchPolicy restriction) = do
-  retry
-    x1
-    ( trans
-        upd
-        (params LocalQuorum (searchPolicy, fromRestriction restriction, rDomain))
+  let configParams =
+        ( params
+            LocalQuorum
+            (searchPolicy, fromRestriction restriction, rDomain)
+        )
           { serialConsistency = Just LocalSerialConsistency
           }
-    )
-    >>= \case
-      [] -> pure False
-      [_] -> pure True
-      _ -> throwM $ ErrorCall "Primary key violation detected federation_remotes"
+  r <- retry x1 (trans updateConfig configParams)
+  updateTeams
+  case r of
+    [] -> pure False
+    [_] -> pure True
+    _ -> throwM $ ErrorCall "Primary key violation detected federation_remotes"
   where
-    upd :: PrepQuery W (FederatedUserSearchPolicy, Int32, Domain) x
-    upd = "UPDATE federation_remotes SET search_policy = ?, restriction = ? WHERE domain = ? IF EXISTS"
+    updateConfig :: PrepQuery W (FederatedUserSearchPolicy, Int32, Domain) x
+    updateConfig = "UPDATE federation_remotes SET search_policy = ?, restriction = ? WHERE domain = ? IF EXISTS"
+    updateTeams = retry x5 $ do
+      write dropTeams (params LocalQuorum (Identity rDomain))
+      case restriction of
+        FederationRestrictionByTeam tids ->
+          batch . forM_ tids $ addPrepQuery insertTeam . (rDomain,)
+        FederationRestrictionAllowAll -> pure ()
+    dropTeams :: PrepQuery W (Identity Domain) ()
+    dropTeams = "DELETE FROM federation_remote_teams WHERE domain = ?"
+    insertTeam :: PrepQuery W (Domain, TeamId) ()
+    insertTeam = "INSERT INTO federation_remote_teams (domain, team) VALUES (?, ?)"
 
 deleteFederationRemote :: MonadClient m => Domain -> m ()
 deleteFederationRemote rDomain =
-  retry x1 $ write delete (params LocalQuorum (Identity rDomain))
+  retry x1 $ do
+    write deleteConfig p
+    write dropTeams p
   where
-    delete :: PrepQuery W (Identity Domain) ()
-    delete = "DELETE FROM federation_remotes WHERE domain = ?"
+    deleteConfig :: PrepQuery W (Identity Domain) ()
+    deleteConfig = "DELETE FROM federation_remotes WHERE domain = ?"
+    dropTeams :: PrepQuery W (Identity Domain) ()
+    dropTeams = "DELETE FROM federation_remote_teams WHERE domain = ?"
+    p = params LocalQuorum (Identity rDomain)
 
 addFederationRemoteTeam :: MonadClient m => Domain -> FederationRemoteTeam -> m ()
 addFederationRemoteTeam rDomain rteam =
