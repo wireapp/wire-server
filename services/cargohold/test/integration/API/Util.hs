@@ -36,6 +36,7 @@ import Data.Qualified
 import Data.Text.Encoding (decodeLatin1, encodeUtf8)
 import qualified Data.UUID as UUID
 import Data.UUID.V4 (nextRandom)
+import Debug.Trace
 import Federator.MockServer
 import Imports hiding (head)
 import qualified Network.HTTP.Media as HTTP
@@ -125,7 +126,7 @@ zConn = header "Z-Connection"
 deleteAssetV3 :: UserId -> Qualified AssetKey -> TestM (Response (Maybe Lazy.ByteString))
 deleteAssetV3 u k = do
   c <- viewUnversionedCargohold
-  delete $ apiVersion "v1" . c . zUser u . paths ["assets", "v3", toByteString' (qUnqualified k)]
+  delete $ traceShowId . apiVersion "v1" . c . zUser u . paths ["assets", "v3", toByteString' (qUnqualified k)]
 
 deleteAsset :: UserId -> Qualified AssetKey -> TestM (Response (Maybe Lazy.ByteString))
 deleteAsset u k = do

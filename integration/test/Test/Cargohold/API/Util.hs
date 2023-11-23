@@ -67,9 +67,7 @@ uploadRaw ::
   App Response
 uploadRaw usr bs = do
   req <- baseRequest usr Cargohold (ExplicitVersion 1) "assets/v3"
-  let req' = req & contentTypeMixed & (\r -> r {HTTP.requestBody = HTTP.RequestBodyLBS bs})
-  print req'
-  submit "POST" req'
+  submit "POST" $ req & contentTypeMixed & (\r -> r {HTTP.requestBody = HTTP.RequestBodyLBS bs})
 
 getContentType :: Response -> Maybe MIME.Type
 getContentType = MIME.parseContentType . decodeLatin1 . getHeader' (mk $ cs "Content-Type")
@@ -85,7 +83,7 @@ applicationOctetStream' = MIME.Type applicationOctetStream []
 
 deleteAssetV3 :: (HasCallStack, MakesValue user, MakesValue key) => user -> key -> App Response
 deleteAssetV3 user key = do
-  k <- key %. "id" & asString
+  k <- key %. "key" & asString
   req <- baseRequest user Cargohold (ExplicitVersion 1) $ "assets/v3/" <> k
   submit "DELETE" req
 

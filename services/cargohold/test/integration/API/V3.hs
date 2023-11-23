@@ -29,6 +29,7 @@ import Data.Qualified
 import Data.Time.Clock
 import Data.Time.Format
 import Data.UUID.V4
+import Debug.Trace (traceShowM)
 import Imports hiding (head)
 import Network.HTTP.Client (parseUrlThrow)
 import Network.HTTP.Types.Status (status200)
@@ -57,6 +58,11 @@ testSimpleRoundtrip = do
   mapM_ simpleRoundtrip sets
   where
     simpleRoundtrip sets = do
+      putStrLn "----------------------------------------------"
+      putStrLn "----------------------------------------------"
+      putStrLn "----------------------------------------------"
+      putStrLn "sets = "
+      traceShowM sets
       uid <- randomUser
       uid2 <- liftIO $ Id <$> nextRandom
       -- Initial upload
@@ -64,8 +70,12 @@ testSimpleRoundtrip = do
       r1 <-
         uploadSimple (path "/assets/v3") uid sets bdy
           <!! const 201 === statusCode
+      putStrLn "r1 = "
+      print r1
       -- use v3 path instead of the one returned in the header
       let Just ast = responseJsonMaybe @Asset r1
+      putStrLn "ast = "
+      print ast
       let key = qUnqualified (ast ^. assetKey)
       let Just tok = view assetToken ast
       -- Check mandatory Date header
@@ -73,13 +83,23 @@ testSimpleRoundtrip = do
       let utc = parseTimeOrError False defaultTimeLocale rfc822DateFormat date :: UTCTime
       -- Potentially check for the expires header
       when (isJust $ assetRetentionSeconds =<< (sets ^. setAssetRetention)) $ do
+        putStrLn "sets ^. setAssetRetention"
+        print $ sets ^. setAssetRetention
+        putStrLn "Just utc"
+        print $ Just utc
+        putStrLn "view assetExpires ast"
+        print $ view assetExpires ast
         liftIO $ assertBool "invalid expiration" (Just utc < view assetExpires ast)
       -- Lookup with token and download via redirect.
       r2 <-
         downloadAsset uid key (Just tok) <!! do
           const 302 === statusCode
           const Nothing === responseBody
+      putStrLn "r2 = "
+      print r2
       r3 <- flip get' id =<< parseUrlThrow (C8.unpack (getHeader' "Location" r2))
+      putStrLn "r3 = "
+      print r3
       liftIO $ do
         assertEqual "status" status200 (responseStatus r3)
         assertEqual "content-type should always be application/octet-stream" (Just applicationOctetStream) (getContentType r3)

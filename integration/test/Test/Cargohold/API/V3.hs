@@ -28,6 +28,7 @@ import Data.String.Conversions
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Clock (UTCTime)
 import Data.Time.Format
+import Data.Time.Format.ISO8601
 import Network.HTTP.Client
 import SetupHelpers
 import Test.Cargohold.API.Util
@@ -40,7 +41,7 @@ testSimpleRoundtrip :: HasCallStack => App ()
 testSimpleRoundtrip = do
   let defSettings = ["public" .= False]
       rets = ["eternal", "persistent", "volatile", "eternal-infrequent_access", "expiring"]
-      allSets = fmap (object . (\r -> defSettings <> ["retention" .= r])) rets
+      allSets = fmap object $ (defSettings :) $ (\r -> ["retention" .= r]) <$> rets
   mapM_ simpleRoundtrip allSets
   where
     simpleRoundtrip :: HasCallStack => Value -> App ()
@@ -51,7 +52,9 @@ testSimpleRoundtrip = do
       let bdy = (applicationText, "Hello World")
       r1 <- uploadSimple uid sets bdy
       r1.status `shouldMatchInt` 201
+      putStrLn "sets = "
       print sets
+      putStrLn "r1 = "
       print r1
       -- use v3 path instead of the one returned in the header
       (key, tok, expires) <-
@@ -62,8 +65,9 @@ testSimpleRoundtrip = do
       -- Check mandatory Date header
       let Just date = C8.unpack <$> lookup (mk $ cs "Date") r1.headers
           parseTime = parseTimeOrError False defaultTimeLocale rfc822DateFormat
+          parseTimeIso t = fromMaybe (error $ "Could not parse \"" <> t <> "\" as ISO8601") $ formatParseM (iso8601Format @UTCTime) t
           utc = parseTime date :: UTCTime
-          expires' = parseTime <$> expires :: Maybe UTCTime
+          expires' = parseTimeIso <$> expires :: Maybe UTCTime
       -- Potentially check for the expires header
       case sets of
         -- We don't care what the rentention value is here,
@@ -71,13 +75,19 @@ testSimpleRoundtrip = do
         -- to be done.
         Object o -> case KM.lookup (fromString "retention") o of
           Nothing -> pure ()
-          Just _r -> do
-            print utc
-            print expires'
-            assertBool "invalid expiration" (Just utc < expires')
+          Just r -> do
+            r' <- asString r
+            -- These retention policies never expire, so an expiration date isn't sent back
+            unless (r' == "eternal" || r' == "persistent" || r' == "eternal-infrequent_access") $ do
+              putStrLn "utc ="
+              print utc
+              putStrLn "expires' = "
+              print expires'
+              assertBool "invalid expiration" (Just utc < expires')
         _ -> pure ()
       -- Lookup with token and download via redirect.
-      r2 <- downloadAsset' uid key tok
+      r2 <- downloadAsset' uid r1.jsonBody tok
+      putStrLn "r2 = "
       print r2
       r2.status `shouldMatchInt` 302
       assertBool "Response body should be empty" $ r2.body == mempty
@@ -93,9 +103,9 @@ testSimpleRoundtrip = do
       assertBool "User mismatch" $ getHeader (mk $ cs "x-amz-meta-user") r3 == pure (cs uid')
       assertBool "Data mismatch" $ r3.body == cs "Hello World"
       -- Delete (forbidden for other users)
-      deleteAssetV3 uid2 key >>= \r -> r.status `shouldMatchInt` 403
+      deleteAssetV3 uid2 r1.jsonBody >>= \r -> r.status `shouldMatchInt` 403
       -- Delete (allowed for creator)
-      deleteAssetV3 uid key >>= \r -> r.status `shouldMatchInt` 200
+      deleteAssetV3 uid r1.jsonBody >>= \r -> r.status `shouldMatchInt` 200
       r4 <- downloadAsset' uid key tok
       r4.status `shouldMatchInt` 404
       let Just date' = C8.unpack <$> lookup (mk $ cs "Date") r4.headers

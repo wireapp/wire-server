@@ -108,9 +108,7 @@ downloadAsset' :: (HasCallStack, MakesValue user, IsAssetLocation loc, IsAssetTo
 downloadAsset' user loc tok = do
   locPath <- locationPathFragment loc
   req <- baseRequest user Cargohold Unversioned $ locPath
-  let req' = req & tokenParam tok & noRedirect
-  print req'
-  submit "GET" req'
+  submit "GET" $ req & tokenParam tok & noRedirect
 
 downloadAsset :: (HasCallStack, MakesValue user, MakesValue key, MakesValue assetDomain) => user -> assetDomain -> key -> String -> (HTTP.Request -> HTTP.Request) -> App Response
 downloadAsset user assetDomain key zHostHeader trans = do
