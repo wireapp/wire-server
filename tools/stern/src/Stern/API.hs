@@ -46,7 +46,7 @@ import GHC.TypeLits (KnownSymbol)
 import Imports hiding (head)
 import Network.HTTP.Types
 import Network.Wai
-import Network.Wai.Utilities
+import Network.Wai.Utilities as Wai
 import Network.Wai.Utilities.Server qualified as Server
 import Servant (NoContent (NoContent), ServerT, (:<|>) (..))
 import Servant qualified
@@ -107,8 +107,8 @@ sitemap env = Servant.Server.hoistServer (Proxy @SternAPI) nt sitemap'
       fmapL renderError <$> Stern.App.runAppT env (runExceptT m)
 
     renderError :: Error -> Servant.Server.ServerError
-    renderError (Error code label message _) =
-      Servant.Server.ServerError (statusCode code) (cs label) (cs message) [("Content-type", "application/json")]
+    renderError e =
+      Servant.Server.ServerError (statusCode (Wai.code e)) (cs (Wai.label e)) (cs (Wai.message e)) [("Content-type", "application/json")]
 
 sitemap' :: ServerT SternAPI Handler
 sitemap' =

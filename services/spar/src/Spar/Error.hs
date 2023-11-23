@@ -131,10 +131,10 @@ sparToServerError :: SparError -> ServerError
 sparToServerError = either id waiToServant . renderSparError
 
 waiToServant :: Wai.Error -> ServerError
-waiToServant waierr@(Wai.Error status label _ _) =
+waiToServant waierr =
   ServerError
-    { errHTTPCode = statusCode status,
-      errReasonPhrase = cs label,
+    { errHTTPCode = statusCode (Wai.code waierr),
+      errReasonPhrase = cs (Wai.label waierr),
       errBody = encode waierr,
       errHeaders = []
     }

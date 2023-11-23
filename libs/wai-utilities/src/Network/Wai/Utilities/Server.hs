@@ -392,11 +392,12 @@ logJSONResponse g mr e = do
       | otherwise = Log.debug
 
 logErrorMsg :: Wai.Error -> Msg -> Msg
-logErrorMsg (Wai.Error c l m md) =
+logErrorMsg (Wai.Error c l m md inner) =
   field "code" (statusCode c)
     . field "label" l
     . maybe id logErrorData md
     . msg (val "\"" +++ m +++ val "\"")
+    . maybe id logErrorMsg inner
   where
     logErrorData (Wai.FederationErrorData d p) =
       field "domain" (domainText d)

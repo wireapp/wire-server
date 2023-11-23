@@ -39,12 +39,13 @@ data Error = Error
   { code :: !Status,
     label :: !LText,
     message :: !LText,
-    errorData :: Maybe ErrorData
+    errorData :: Maybe ErrorData,
+    innerError :: Maybe Error
   }
   deriving (Eq, Show, Typeable)
 
 mkError :: Status -> LText -> LText -> Error
-mkError c l m = Error c l m Nothing
+mkError c l m = Error c l m Nothing Nothing
 
 instance Exception Error
 
@@ -56,7 +57,7 @@ data ErrorData = FederationErrorData
 
 instance ToJSON ErrorData where
   toJSON (FederationErrorData d p) =
-    object
+    object $
       [ "type" .= ("federation" :: Text),
         "domain" .= d,
         "path" .= p
@@ -70,16 +71,17 @@ instance FromJSON ErrorData where
 
 -- | Assumes UTF-8 encoding.
 byteStringError :: Status -> LByteString -> LByteString -> Error
-byteStringError s l m = Error s (decodeUtf8 l) (decodeUtf8 m) Nothing
+byteStringError s l m = mkError s (decodeUtf8 l) (decodeUtf8 m)
 
 instance ToJSON Error where
-  toJSON (Error c l m md) =
+  toJSON (Error c l m md inner) =
     object $
       [ "code" .= statusCode c,
         "label" .= l,
         "message" .= m
       ]
         ++ maybe [] dataFields md
+        ++ ["inner" .= e | e <- toList inner]
     where
       dataFields :: ErrorData -> [Pair]
       dataFields d = ["data" .= d]
@@ -91,6 +93,7 @@ instance FromJSON Error where
       <*> o .: "label"
       <*> o .: "message"
       <*> o .:? "data"
+      <*> o .:? "inner"
 
 -- FIXME: This should not live here.
 infixl 5 !>>
