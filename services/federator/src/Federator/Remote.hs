@@ -31,10 +31,7 @@ import Control.Monad.Codensity
 import Data.Binary.Builder
 import Data.ByteString.Lazy qualified as LBS
 import Data.Domain
-import Data.Text qualified as Text
 import Data.Text.Encoding (decodeUtf8)
-import Data.Text.Encoding qualified as Text
-import Data.Text.Encoding.Error qualified as Text
 import Federator.Discovery
 import Federator.Error
 import HTTP2.Client.Manager (Http2Manager)
@@ -68,29 +65,6 @@ instance AsWai RemoteError where
     federationRemoteHTTP2Error e
   toWai (RemoteErrorResponse _ _ status _) =
     federationRemoteResponseError status
-
-  waiErrorDescription (RemoteError tgt path e) =
-    "Error while connecting to "
-      <> displayTarget tgt
-      <> " on path "
-      <> path
-      <> ": "
-      <> Text.pack (displayException e)
-  waiErrorDescription (RemoteErrorResponse tgt path status body) =
-    "Federator at "
-      <> displayTarget tgt
-      <> " on path "
-      <> path
-      <> " failed with status code "
-      <> Text.pack (show (HTTP.statusCode status))
-      <> ": "
-      <> Text.decodeUtf8With Text.lenientDecode (LBS.toStrict body)
-
-displayTarget :: SrvTarget -> Text
-displayTarget (SrvTarget hostname port) =
-  Text.decodeUtf8With Text.lenientDecode hostname
-    <> ":"
-    <> Text.pack (show port)
 
 data Remote m a where
   DiscoverAndCall ::
