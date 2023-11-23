@@ -23,6 +23,8 @@ services:
       - demo_wire
     ports:
       - '127.0.0.1:21082:8080'
+    healthcheck: &haskell_health_check
+      test: "curl --fail localhost:8080/i/status"
     depends_on:
       brig_schema:
         condition: service_completed_successfully
@@ -57,6 +59,7 @@ services:
       - demo_wire
     ports:
       - '127.0.0.1:21085:8080'
+    healthcheck: *haskell_health_check
     depends_on:
       galley_schema:
         condition: service_completed_successfully
@@ -81,6 +84,7 @@ services:
       - demo_wire
     ports:
       - '127.0.0.1:21084:8080'
+    healthcheck: *haskell_health_check
     depends_on:
       aws_cli:
         condition: service_completed_successfully
@@ -109,6 +113,7 @@ services:
       - demo_wire
     ports:
       - '127.0.0.1:21086:8080'
+    healthcheck: *haskell_health_check
     depends_on:
       gundeck_schema:
         condition: service_completed_successfully
@@ -141,6 +146,7 @@ services:
       - demo_wire
     ports:
       - '127.0.0.1:21088:8080'
+    healthcheck: *haskell_health_check
     depends_on:
       spar_schema:
         condition: service_completed_successfully
@@ -154,6 +160,7 @@ services:
       - demo_wire
     ports:
       - '127.0.0.1:21083:8080'
+    healthcheck: *haskell_health_check
 
   federator:
     container_name: federator-federation-v0
@@ -166,6 +173,7 @@ services:
     ports:
       - '127.0.0.1:21097:8080'
       - '127.0.0.1:21098:8081'
+    healthcheck: *haskell_health_check
     depends_on:
       coredns-federation:
         condition: service_started
@@ -195,6 +203,7 @@ services:
       - demo_wire
     ports:
       - '127.0.0.1:21087:8080'
+    healthcheck: *haskell_health_check
 
   nginz:
     container_name: nginz-federation-v0
@@ -206,6 +215,23 @@ services:
     ports:
       - '127.0.0.1:21080:8080'
       - '127.0.0.1:21443:8443'
+    depends_on:
+      brig:
+        condition: service_healthy
+      galley:
+        condition: service_healthy
+      gundeck:
+        condition: service_healthy
+      cargohold:
+        condition: service_healthy
+      cannon:
+        condition: service_healthy
+      spar:
+        condition: service_healthy
+      federator:
+        condition: service_healthy
+      proxy:
+        condition: service_healthy
 
   # We have to run a separate redis instance for each version of wire-server we
   # want. This is because gundeck just assumes the whole redis is for itself
