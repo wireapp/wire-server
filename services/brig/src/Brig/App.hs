@@ -116,7 +116,8 @@ import Control.Lens hiding (index, (.=))
 import Control.Monad.Catch
 import Control.Monad.Trans.Resource
 import Data.ByteString.Conversion
-import Data.Domain
+import Data.Byteable (constEqBytes)
+import Data.Default (def)
 import Data.GeoIP2 qualified as GeoIp
 import Data.IP
 import Data.Metrics (Metrics)
@@ -137,8 +138,13 @@ import Network.AMQP.Extended qualified as Q
 import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.OpenSSL
 import OpenSSL.EVP.Digest (Digest, getDigestByName)
+import OpenSSL.EVP.PKey
+import OpenSSL.EVP.Verify
+import OpenSSL.RSA
 import OpenSSL.Session (SSLOption (..))
 import OpenSSL.Session qualified as SSL
+import OpenSSL.X509
+import OpenSSL.X509.Store
 import Polysemy
 import Polysemy.Final
 import Ropes.Nexmo qualified as Nexmo
@@ -179,7 +185,7 @@ data Env = Env
     _templateBranding :: TemplateBranding,
     _httpManager :: Manager,
     _http2Manager :: Http2Manager,
-    _extGetManager :: (Manager, [Fingerprint Rsa] -> SSL.SSL -> IO ()),
+    _extGetManager :: ([Fingerprint Rsa] -> IO Manager),
     _settings :: Settings,
     _nexmoCreds :: Nexmo.Credentials,
     _twilioCreds :: Twilio.Credentials,
@@ -396,29 +402,56 @@ initHttp2Manager = do
 -- faster. So, we reuse the context.
 
 -- TODO: somewhat duplicates Galley.App.initExtEnv
-initExtGetManager :: IO (Manager, [Fingerprint Rsa] -> SSL.SSL -> IO ())
-initExtGetManager = do
-  ctx <- SSL.context
-  SSL.contextAddOption ctx SSL_OP_NO_SSLv2
-  SSL.contextAddOption ctx SSL_OP_NO_SSLv3
-  SSL.contextSetCiphers ctx rsaCiphers
-  -- We use public key pinning with service providers and want to
-  -- support self-signed certificates as well, hence 'VerifyNone'.
-  SSL.contextSetVerificationMode ctx SSL.VerifyNone
-  SSL.contextSetDefaultVerifyPaths ctx
-  mgr <-
+initExtGetManager :: IO ([Fingerprint Rsa] -> IO Manager)
+initExtGetManager =
+  pure $ \fingerprints -> do
+    ctx <- SSL.context
+    Just sha <- getDigestByName "SHA256"
+
+    SSL.contextAddOption ctx SSL_OP_NO_SSLv2
+    SSL.contextAddOption ctx SSL_OP_NO_SSLv3
+    SSL.contextSetCiphers ctx rsaCiphers
+    -- We use public key pinning with service providers and want to
+    -- support self-signed certificates as well, hence 'VerifyNone'.
+    SSL.contextSetVerificationMode
+      ctx
+      SSL.VerifyPeer
+        { vpFailIfNoPeerCert = False,
+          vpClientOnce = False,
+          vpCallback =
+            Just
+              ( \_b ctx509store -> do
+                  cert <- getStoreCtxCert ctx509store
+                  pk <- getPublicKey cert
+                  let fprs = fingerprintBytes <$> fingerprints
+                  case toPublicKey pk of
+                    Nothing -> pure False
+                    Just k -> do
+                      fp <- rsaFingerprint sha (k :: RSAPubKey)
+                      if not (any (constEqBytes fp) fprs)
+                        then pure False
+                        else do
+                          -- Check if the certificate is self-signed.
+                          self <- verifyX509 cert pk
+                          if (self /= VerifySuccess)
+                            then pure False
+                            else do
+                              -- For completeness, perform a date check as well.
+                              now <- getCurrentTime
+                              notBefore <- getNotBefore cert
+                              notAfter <- getNotAfter cert
+                              pure (now >= notBefore && now <= notAfter)
+              )
+        }
+
+    SSL.contextSetDefaultVerifyPaths ctx
+
     newManager
       (opensslManagerSettings (pure ctx)) -- see Note [SSL context]
         { managerConnCount = 100,
           managerIdleConnectionCount = 512,
           managerResponseTimeout = responseTimeoutMicro 10000000
         }
-  Just sha <- getDigestByName "SHA256"
-  pure (mgr, mkVerify sha)
-  where
-    mkVerify sha fprs =
-      let pinset = map toByteString' fprs
-       in verifyRsaFingerprint sha pinset
 
 initCassandra :: Opts -> Logger -> IO Cas.ClientState
 initCassandra o g =

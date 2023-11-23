@@ -63,6 +63,8 @@ hself: hsuper: {
   hsaml2 = hlib.dontCheck hsuper.hsaml2;
   saml2-web-sso = hlib.dontCheck hsuper.saml2-web-sso;
   http2 = hlib.dontCheck hsuper.http2;
+  http-client-tls = hsuper.http-client-tls_0_3_6_3;
+  http-client = hsuper.http-client;
 
 
   # Disable tests because they need network access to a running cassandra

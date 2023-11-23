@@ -145,7 +145,7 @@ instance MonadIO m => MonadHttp (SessionT m) where
     wResponse :: WaiTest.SResponse <- liftSession $ WaiTest.srequest (WaiTest.SRequest wRequest reqBody)
     bodyReader <- liftIO $ trivialBodyReader $ LBS.toStrict $ WaiTest.simpleBody wResponse
     let bilgeResponse :: Response BodyReader
-        bilgeResponse = toBilgeResponse bodyReader wResponse
+        bilgeResponse = toBilgeResponse bodyReader wResponse req
 
     liftIO $ cont bilgeResponse
     where
@@ -162,8 +162,8 @@ instance MonadIO m => MonadHttp (SessionT m) where
               Wai.requestHeaderReferer = lookupHeader "REFERER" req,
               Wai.requestHeaderUserAgent = lookupHeader "USER-AGENT" req
             }
-      toBilgeResponse :: BodyReader -> WaiTest.SResponse -> Response BodyReader
-      toBilgeResponse bodyReader WaiTest.SResponse {WaiTest.simpleStatus, WaiTest.simpleHeaders} =
+      toBilgeResponse :: BodyReader -> WaiTest.SResponse -> Request -> Response BodyReader
+      toBilgeResponse bodyReader WaiTest.SResponse {WaiTest.simpleStatus, WaiTest.simpleHeaders} oReq =
         Client.Response
           { responseStatus = simpleStatus,
             -- I just picked an arbitrary version; shouldn't matter.
@@ -171,7 +171,8 @@ instance MonadIO m => MonadHttp (SessionT m) where
             responseHeaders = simpleHeaders,
             responseBody = bodyReader,
             Client.responseCookieJar = mempty,
-            Client.responseClose' = Client.ResponseClose $ pure ()
+            Client.responseClose' = Client.ResponseClose $ pure (),
+            responseOriginalRequest = oReq
           }
       lookupHeader :: CI ByteString -> Client.Request -> Maybe ByteString
       lookupHeader headerName r = lookup headerName (Client.requestHeaders r)

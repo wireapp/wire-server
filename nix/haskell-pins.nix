@@ -122,19 +122,19 @@ let
         sha256 = "sha256-jYJBhXBQ1MTLPI8JsiF2XUtgDxK+eniavNB2B1zaSQg=";
       };
     };
-    http-client = {
-      src = fetchgit {
-        url = "https://github.com/wireapp/http-client";
-        rev = "03dad7bda78e3b4e809f5c72da30d73e230b9b69";
-        sha256 = "sha256-RF/jtmZ9uCgLCvHnYCqVNs6kmuals5GV8uaEfJk5XwY=";
-      };
-      packages = {
-        http-client = "http-client";
-        http-client-openssl = "http-client-openssl";
-        http-client-tls = "http-client-tls";
-        http-conduit = "http-conduit";
-      };
-    };
+    # http-client = {
+    #   src = fetchgit {
+    #     url = "https://github.com/wireapp/http-client";
+    #     rev = "eabf64b4a8ff4c0fe6a3b39cb0f396ba8c2fb236";
+    #     sha256 = "sha256-8NPRVDlul9Xnj6IyUOUe6w7fDt/5WWZNjR07CaAp/Kk=";
+    #   };
+    #   packages = {
+    #     http-client = "http-client";
+    #     http-client-openssl = "http-client-openssl";
+    #     http-client-tls = "http-client-tls";
+    #     http-conduit = "http-conduit";
+    #   };
+    # };
     hspec-wai = {
       src = fetchgit {
         url = "https://github.com/wireapp/hspec-wai";

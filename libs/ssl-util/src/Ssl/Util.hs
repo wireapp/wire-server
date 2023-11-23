@@ -1,5 +1,3 @@
-{-# LANGUAGE TypeApplications #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -36,7 +34,6 @@ where
 import Control.Exception
 import Data.ByteString.Builder
 import Data.Byteable (constEqBytes)
-import Data.Dynamic (fromDynamic)
 import Data.Time.Clock (getCurrentTime)
 import Imports
 import Network.HTTP.Client.Internal
@@ -198,16 +195,19 @@ withVerifiedSslConnection ::
   --   connection
   (Request -> IO a) ->
   IO a
-withVerifiedSslConnection verify man reqBuilder act =
-  withConnection' req man Reuse $ \mConn -> do
-    -- If we see this connection for the first time, verify fingerprints
-    let conn = managedResource mConn
-        seen = managedReused mConn
-    unless seen $ case fromDynamic @SSL (connectionRaw conn) of
-      Nothing -> error ("withVerifiedSslConnection: only SSL allowed: " <> show req)
-      Just ssl -> verify ssl
-    -- Make a request using this connection and return it back to the
-    -- pool (that's what 'Reuse' is for)
-    act req {connectionOverride = Just mConn}
+withVerifiedSslConnection _verify man reqBuilder act =
+  withConnection req man $ \_ -> do
+    act req
   where
+    -- withConnection' req man Reuse $ \mConn -> do
+    -- If we see this connection for the first time, verify fingerprints
+    -- let conn = managedResource mConn
+    --     seen = managedReused mConn
+    -- unless seen $ case fromDynamic @SSL (connectionRaw conn) of
+    --   Nothing -> error ("withVerifiedSslConnection: only SSL allowed: " <> show req)
+    --   Just ssl -> verify ssl
+    -- -- Make a request using this connection and return it back to the
+    -- -- pool (that's what 'Reuse' is for)
+    -- act req {connectionOverride = Just mConn}
+
     req = reqBuilder defaultRequest
