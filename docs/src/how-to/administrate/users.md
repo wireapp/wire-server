@@ -629,9 +629,3 @@ Finally, you use that code to validate the user creation:
 ```sh
 curl --resolve nginz-https.MY_DOMAIN_NAME:31773:INGRESS_IP https://nginz-https.MY_DOMAIN_NAME:31773/activate -XPOST -H"Content-Type: application/json" --data '{"email":"YOUR_USER_EMAIL", "key":"AoL0FrCGSnurvAJFUv3x5YkiA4hFbpVDlKpwGTzAuNU=", "code": "607708"}' -k
 ```
-
-Where:
-
-- `MY_DOMAIN_NAME` is the domain name of your wire-server instance.
-- `INGRESS_IP` is ingress IP address.
-- `YOUR_USER_EMAIL` is the email address of the user you want to create.
