@@ -94,6 +94,7 @@ import Data.Range (fromRange)
 import Data.Time (addUTCTime)
 import Data.UUID.V4
 import Imports
+import SAML2.WebSSO.Types as SAML
 import Wire.API.Password
 import Wire.API.Provider.Service
 import Wire.API.Team.Feature qualified as ApiFt
@@ -227,6 +228,30 @@ isSamlUser uid = do
     Just (UAuthIdentity (UAuthId (Just _) _ _ _) _) -> True
     _ -> False
 
+instance Cql SAML.Issuer where
+  ctype = Tagged TextColumn
+
+  toCql = CqlBlob . LBS.fromStrict . unGroupId
+
+  fromCql (CqlBlob b) = Right . GroupId . LBS.toStrict $ b
+  fromCql _ = Left "group_id: blob expected"
+
+instance Cql SAML.NameID where
+  ctype = Tagged TextColumn
+
+  toCql = CqlBlob . LBS.fromStrict . unGroupId
+
+  fromCql (CqlBlob b) = Right . GroupId . LBS.toStrict $ b
+  fromCql _ = Left "group_id: blob expected"
+
+instance Cql EmailSource where
+  ctype = Tagged IntColumn
+
+  toCql = CqlInt 3
+
+  fromCql (CqlBlob b) = Right . GroupId . LBS.toStrict $ b
+  fromCql _ = Left "group_id: blob expected"
+
 insertAccount ::
   MonadClient m =>
   UserAccount ->
@@ -249,7 +274,11 @@ insertAccount (UserAccount u status) mbConv password activated = retry x5 . batc
       userAssets u,
       userEmail u,
       userPhone u,
-      userSSOId u,
+      fmap SAML._uidTenant $ uaSamlId =<< userPartialUAuthId u,
+      fmap SAML._uidSubject $ uaSamlId =<< userPartialUAuthId u,
+      uaScimExternalId =<< userPartialUAuthId u,
+      fmap ewsEmail $ uaEmail =<< userPartialUAuthId u,
+      fmap ewsEmailSource $ uaEmail =<< userPartialUAuthId u,
       userAccentId u,
       password,
       activated,
@@ -301,13 +330,39 @@ updateEmailUnvalidated u e = retry x5 $ write userEmailUnvalidatedUpdate (params
 updatePhone :: MonadClient m => UserId -> Phone -> m ()
 updatePhone u p = retry x5 $ write userPhoneUpdate (params LocalQuorum (p, u))
 
-updateUAuthId :: MonadClient m => UserId -> Maybe PartialUAuthId -> m Bool
-updateUAuthId uid uauthid = do
-  -- NOTE(fisx): this probably doesn't compile yet, but the idea should be appearent?
-  mteamid <- lookupUserTeam uid
+{-
+updateLegacySSOId :: MonadClient m => UserId -> Maybe LegacyUserSSOId -> m Bool
+updateLegacySSOId u ssoid = do
+  mteamid <- lookupUserTeam u
   case mteamid of
     Just _ -> do
-      retry x5 $ write uauthIdUpdate (params LocalQuorum (uauthid.samlId.issuer, uauthid.samlId.nameid, uauthid.scimExternalId, u))
+      retry x5 $ write userSSOIdUpdate (params LocalQuorum (ssoid, u))
+      pure True
+    Nothing -> pure False
+-}
+
+updateUAuthId :: MonadClient m => UserId -> Maybe PartialUAuthId -> m Bool
+updateUAuthId _uid Nothing = undefined
+updateUAuthId uid (Just uauthid) = do
+  mteamid <- lookupUserTeam uid
+  case mteamid of
+    Just tid | tid == uauthid.uaTeamId -> do
+      retry x5 $
+        write
+          uauthIdUpdate
+          -- TODO: does "Nothing" as email mean "remove email" or "keep email"?!
+          {-
+          ( params
+              LocalQuorum
+              ( uauthid.uaSamlId >>= (.issuer),
+                uauthid.uaSamlId >>= (.nameid),
+                uauthid.uaScimExternalId,
+                uauthid.uaTeamId,
+                uid
+              )
+          )
+          -}
+          undefined
       pure True
     Nothing -> pure False
 
@@ -524,7 +579,12 @@ type UserRow =
     Maybe Pict,
     Maybe Email,
     Maybe Phone,
-    Maybe UserSSOId,
+    Maybe SAML.Issuer,
+    Maybe SAML.NameID,
+    Maybe Text, -- scim external id
+    Maybe Email, -- scim email
+    Maybe EmailSource, -- scim email source
+    Maybe LegacyUserSSOId, -- TODO: UAuthId?
     ColourId,
     Maybe [Asset],
     Activated,
@@ -547,7 +607,11 @@ type UserRowInsert =
     [Asset],
     Maybe Email,
     Maybe Phone,
-    Maybe UserSSOId,
+    Maybe SAML.Issuer,
+    Maybe SAML.NameID,
+    Maybe Text, -- scim external id
+    Maybe Email, -- scim email
+    Maybe EmailSource, -- scim email source
     ColourId,
     Maybe Password,
     Activated,
@@ -570,7 +634,9 @@ type AccountRow = UserRow
 
 usersSelect :: PrepQuery R (Identity [UserId]) UserRow
 usersSelect =
-  "SELECT id, name, picture, email, phone, sso_id, accent_id, assets, \
+  "SELECT id, name, picture, email, phone, \
+  \saml_entity_id, saml_name_id, scim_external_id, scim_email, scim_email_source, \
+  \sso_id, accent_id, assets, \
   \activated, status, expires, language, country, provider, service, \
   \handle, team, managed_by, supported_protocols \
   \FROM user where id IN ?"
@@ -610,14 +676,17 @@ teamSelect = "SELECT team FROM user WHERE id = ?"
 
 accountsSelect :: PrepQuery R (Identity [UserId]) AccountRow
 accountsSelect =
-  "SELECT id, name, picture, email, phone, sso_id, accent_id, assets, \
+  "SELECT id, name, picture, email, phone, \
+  \saml_entity_id, saml_name_id, scim_external_id, scim_email, scim_email_source, \
+  \sso_id, accent_id, assets, \
   \activated, status, expires, language, country, provider, \
   \service, handle, team, managed_by, supported_protocols \
   \FROM user WHERE id IN ?"
 
 userInsert :: PrepQuery W UserRowInsert ()
 userInsert =
-  "INSERT INTO user (id, name, picture, assets, email, phone, sso_id, \
+  "INSERT INTO user (id, name, picture, assets, email, phone, \
+  \saml_entity_id, saml_name_id, scim_external_id, scim_email, scim_email_source, \
   \accent_id, password, activated, status, expires, language, \
   \country, provider, service, handle, team, managed_by, supported_protocols) \
   \VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
@@ -646,8 +715,10 @@ userEmailUnvalidatedDelete = {- `IF EXISTS`, but that requires benchmarking -} "
 userPhoneUpdate :: PrepQuery W (Phone, UserId) ()
 userPhoneUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET phone = ? WHERE id = ?"
 
-uauthIdUpdate :: PrepQuery W (Maybe Text, Maybe Text, Maybe Text, UserId) ()
-uauthIdUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET saml_entity_id = ?, saml_name_id = ?, scim_external_id = ?, sso_id = null WHERE id = ?"
+uauthIdUpdate :: PrepQuery W (Maybe Text, Maybe Text, Maybe Text, Maybe Text, Maybe EmailSource, UserId) ()
+uauthIdUpdate =
+  {- `IF EXISTS`, but that requires benchmarking -}
+  "UPDATE user SET saml_entity_id = ?, saml_name_id = ?, scim_external_id = ?, scim_email_id = ?, scim_email_source = ? WHERE id = ?"
 
 userManagedByUpdate :: PrepQuery W (ManagedBy, UserId) ()
 userManagedByUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET managed_by = ? WHERE id = ?"
@@ -695,6 +766,11 @@ toUserAccount
     pict,
     email,
     phone,
+    saml_entity_id,
+    saml_name_id,
+    scim_external_id,
+    scim_email,
+    scim_email_source,
     ssoid,
     accent,
     assets,
@@ -710,7 +786,7 @@ toUserAccount
     managed_by,
     prots
     ) =
-    let ident = toIdentity activated email phone ssoid
+    let ident = toIdentity activated email phone saml_entity_id saml_name_id scim_external_id scim_email scim_email_source ssoid
         deleted = Just Deleted == status
         expiration = if status == Just Ephemeral then expires else Nothing
         loc = toLocale defaultLocale (lan, con)
@@ -748,6 +824,11 @@ toUsers domain defaultLocale havePendingInvitations = fmap mk . filter fp
                _pict,
                _email,
                _phone,
+               _saml_entity_id,
+               _saml_name_id,
+               _scim_external_id,
+               _scim_email,
+               _scim_email_source,
                _ssoid,
                _accent,
                _assets,
@@ -772,6 +853,11 @@ toUsers domain defaultLocale havePendingInvitations = fmap mk . filter fp
         pict,
         email,
         phone,
+        saml_entity_id,
+        saml_name_id,
+        scim_external_id,
+        scim_email,
+        scim_email_source,
         ssoid,
         accent,
         assets,
@@ -787,7 +873,7 @@ toUsers domain defaultLocale havePendingInvitations = fmap mk . filter fp
         managed_by,
         prots
         ) =
-        let ident = toIdentity activated email phone ssoid
+        let ident = toIdentity activated email phone saml_entity_id saml_name_id scim_external_id scim_email scim_email_source ssoid
             deleted = Just Deleted == status
             expiration = if status == Just Ephemeral then expires else Nothing
             loc = toLocale defaultLocale (lan, con)
@@ -826,11 +912,16 @@ toIdentity ::
   Bool ->
   Maybe Email ->
   Maybe Phone ->
-  Maybe UserSSOId ->
-  Maybe UserIdentity
-toIdentity True (Just e) (Just p) Nothing = Just $! FullIdentity e p
-toIdentity True (Just e) Nothing Nothing = Just $! EmailIdentity e
-toIdentity True Nothing (Just p) Nothing = Just $! PhoneIdentity p
-toIdentity True email phone (Just ssoid) = Just $! SSOIdentity ssoid email phone
-toIdentity True Nothing Nothing Nothing = Nothing
-toIdentity False _ _ _ = Nothing
+  Maybe SAML.Issuer ->
+  Maybe SAML.NameID ->
+  Maybe Text -> -- scim external id
+  Maybe Email -> -- scim email
+  Maybe EmailSource -> -- scim email source
+  Maybe LegacyUserSSOId ->
+  Maybe (UserIdentity tf)
+toIdentity True (Just e) (Just p) Nothing Nothing Nothing Nothing Nothing Nothing = Just $! FullIdentity e p
+toIdentity True (Just e) Nothing Nothing Nothing Nothing Nothing Nothing Nothing = Just $! EmailIdentity e
+toIdentity True Nothing (Just p) Nothing Nothing Nothing Nothing Nothing Nothing = Just $! PhoneIdentity p
+-- toIdentity True email phone (Just ssoid) = Just $! UAuthIdentity (undefined ssoid email phone) undefined
+-- toIdentity True Nothing Nothing Nothing = Nothing
+toIdentity False _ _ _ _ _ _ _ _ = Nothing

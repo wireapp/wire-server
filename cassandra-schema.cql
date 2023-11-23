@@ -1854,7 +1854,7 @@ CREATE TABLE spar_test.bind_cookie (
     AND speculative_retry = '99PERCENTILE';
 
 CREATE TABLE spar_test.user_v2 (
-    issuer text,
+    issuer text, -- TODO: use idp uuid here instead, and do one more lookup to get to the uid in this table?
     normalized_uname_id text,
     sso_id text,
     uid uuid,
@@ -1934,7 +1934,7 @@ CREATE TABLE spar_test.idp_raw_metadata (
     AND speculative_retry = '99PERCENTILE';
 
 CREATE TABLE spar_test.issuer_idp (
-    issuer text PRIMARY KEY,
+    issuer text PRIMARY KEY, -- entity id
     idp uuid
 ) WITH bloom_filter_fp_chance = 0.1
     AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}

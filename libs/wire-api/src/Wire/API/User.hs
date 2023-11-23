@@ -437,12 +437,13 @@ instance ToSchema RichInfoUpdate where
 
 type PasswordResetPair = (PasswordResetKey, PasswordResetCode)
 
--- we recycle that for delete userssoid, too.  can't be bothered.
+-- TODO: we recycle that for delete userssoid, too?
+-- TODO: rename to UpdateUAuthIdResponse
 data UpdateSSOIdResponse = UpdateSSOIdSuccess | UpdateSSOIdNotFound
 
 instance
   AsUnion
-    '[ RespondEmpty 200 "UpdateSSOIdSuccess",
+    '[ RespondEmpty 200 "UpdateSSOIdSuccess", -- TODO: rename?  or is that too awkward?  later?
        RespondEmpty 404 "UpdateSSOIdNotFound"
      ]
     UpdateSSOIdResponse

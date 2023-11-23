@@ -652,15 +652,18 @@ instance IsUser User where
   maybeUserId = Just userId
   maybeHandle = Just userHandle
   maybeName = Just (Just . userDisplayName)
-  maybeTenant = Just $ \case
-    (userSSOId -> (UAuthId (Just (SAML.UserRef t _n) _ _))) -> Just t
-    _ -> Nothing
-  maybeSubject = Just $ \case
-    (userSSOId -> (UAuthId (Just (SAML.UserRef _t n) _ _))) -> Just n
-    _ -> Nothing
-  maybeScimExternalId = Just $ \case
-    (userSSOId -> (UAuthId _ (Just eid _))) -> Just eid
-    _ -> Nothing
+  maybeTenant =
+    {- Just $ \case
+    (userPartialUAuthId -> (UAuthId (Just (SAML.UserRef t _n) _ _))) -> Just t
+    _ -> Nothing -} undefined
+  maybeSubject =
+    {- Just $ \case
+    (userPartialUAuthId -> (UAuthId (Just (SAML.UserRef _t n) _ _))) -> Just n
+    _ -> Nothing -} undefined
+  maybeScimExternalId =
+    {- Just $ \case
+    (userPartialUAuthId -> (UAuthId _ (Just eid _))) -> Just eid
+    _ -> Nothing -} undefined
   maybeLocale = Just $ Just . userLocale
 
 -- | For all properties that are present in both @u1@ and @u2@, check that they match.
@@ -720,7 +723,7 @@ scimifyBrigUserHack :: User -> Email -> User
 scimifyBrigUserHack usr email =
   usr
     { userManagedBy = ManagedByScim,
-      userIdentity = Just (SSOIdentity (UserScimExternalId (fromEmail email)) (Just email) Nothing)
+      userIdentity = undefined -- Just (SSOIdentity (UserScimExternalId (fromEmail email)) (Just email) Nothing)
     }
 
 getDefaultUserLocale :: TestSpar Locale

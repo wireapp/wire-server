@@ -126,9 +126,35 @@ data UserIdentity (tf :: Symbol)
   = FullIdentity Email Phone
   | EmailIdentity Email
   | PhoneIdentity Phone
-  | UAuthIdentity PartialUAuthId (Maybe Email {- from `brig.user.email`, which may differ from the email address inside UAuthId -})
+  | UAuthIdentity
+      PartialUAuthId
+      ( Maybe Email {- the same email as in the above cases; may diverge from the one in UAuthId.  UAuthId may
+                       contain an unvalidated, more recent email address; in that case we also
+                       need the valid email address just like for `EmailIdentity` users. -}
+      )
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform (UserIdentity tf))
+
+{-
+
+data BetterUserIdentity
+  = InternalUserIdentity (These Email Phone)
+  | ExternalNoSAML TeamId ScimExternalId EmailWithSource Email
+  | ExternalUserIdentity PartialUAuthId (Maybe Email)
+
+split up UAuthId:
+
+uauth_id aka external_uid:
+    uaSamlId :: a SAML.UserRef
+
+scim_payload:
+    uaScimExternalId :: b Text
+    uaTeamId :: TeamId
+    uaEmail :: c EmailWithSource
+
+NEXT pr?
+
+-}
 
 castUserIdentityTeamFieldName :: UserIdentity tf -> UserIdentity tf'
 castUserIdentityTeamFieldName = coerce
