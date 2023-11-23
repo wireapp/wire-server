@@ -12,6 +12,9 @@ services:
     depends_on:
       cassandra:
         condition: service_healthy
+    deploy:
+      restart_policy:
+        condition: on-failure
     networks:
       - demo_wire
   brig:
@@ -47,6 +50,9 @@ services:
     depends_on:
       cassandra:
         condition: service_healthy
+    deploy:
+      restart_policy:
+        condition: on-failure
     networks:
       - demo_wire
 
@@ -101,6 +107,9 @@ services:
     depends_on:
       cassandra:
         condition: service_healthy
+    deploy:
+      restart_policy:
+        condition: on-failure
     networks:
       - demo_wire
 
@@ -134,6 +143,9 @@ services:
     depends_on:
       cassandra:
         condition: service_healthy
+    deploy:
+      restart_policy:
+        condition: on-failure
     networks:
       - demo_wire
 
