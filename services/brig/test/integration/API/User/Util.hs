@@ -584,6 +584,19 @@ nonce m brig uid cid =
         . zUser uid
     )
 
+headNonceNginz ::
+  MonadHttp m =>
+  Nginz ->
+  ZAuth.Token ZAuth.Access ->
+  ClientId ->
+  m ResponseLBS
+headNonceNginz nginz t cid =
+  Bilge.head
+    ( nginz
+        . paths ["clients", toByteString' cid, "nonce"]
+        . header "Authorization" ("Bearer " <> toByteString' t)
+    )
+
 createAccessToken :: (MonadHttp m, HasCallStack) => Brig -> UserId -> Text -> ClientId -> Maybe Proof -> m ResponseLBS
 createAccessToken brig uid h cid mProof =
   post $

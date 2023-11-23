@@ -21,7 +21,7 @@ parentDir path =
 
 containsGit :: FilePath -> IO Bool
 containsGit path =
-  doesDirectoryExist $ joinPath [path, ".git"]
+  doesPathExist $ joinPath [path, ".git"]
 
 findProjectRoot :: FilePath -> IO (Maybe FilePath)
 findProjectRoot path = do
