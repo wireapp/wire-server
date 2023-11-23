@@ -1078,7 +1078,7 @@ specCRUDIdentityProvider = do
                 user <-
                   if externalIdIsEmail
                     then fst <$> randomScimUserWithEmail
-                    else randomScimUser
+                    else fst <$> randomScimUserWithNick
                 scimStoredUser <- createUser tok user
                 pure $ Just (tok, scimStoredUser, user)
               else pure Nothing

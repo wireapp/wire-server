@@ -172,6 +172,19 @@ randomScimUserWithEmail = do
       email
     )
 
+randomScimUserWithNick :: MonadRandom m => m (Scim.User.User SparTag, Text)
+randomScimUserWithNick = do
+  suffix <- cs <$> replicateM 7 (getRandomR ('0', '9'))
+  let nick = "nick" <> suffix
+      externalId = nick
+  pure
+    ( (Scim.User.empty userSchemas ("scimuser_" <> suffix) (ScimUserExtra mempty))
+        { Scim.User.displayName = Just ("ScimUser" <> suffix),
+          Scim.User.externalId = Just externalId
+        },
+      nick
+    )
+
 randomScimEmail :: MonadRandom m => m Email.Email
 randomScimEmail = do
   let typ :: Maybe Text = Nothing
