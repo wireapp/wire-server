@@ -116,7 +116,7 @@ Terminal one:
 kubectl port-forward svc/brig 9999:8080
 ```
 
-Terminal two: Search for your user by name or handle or a prefix of that handle or name:
+Terminal two: Search user by name or handle or a prefix of that handle or name:
 
 ```sh
 NAMEORPREFIX=test7
@@ -588,3 +588,22 @@ Where:
 - `$EMAIL_CODE` is the validation code received by email after running the previous script/command
 - `$TEAM_CURRENCY` is the currency of the team
 - `$TEAM_NAME` is the name of the team
+
+
+## Deleting a team using the API
+
+If you want to delete a team using the  `API <https://staging-nginz-https.zinfra.io/api/swagger-ui/>`, 
+you need to use `curl` to call the `DELETE /teams/{tid} <https://staging-nginz-https.zinfra.io/api/swagger-ui/#/default/delete_teams__tid>` endpoint.
+
+You do this by running:
+
+```sh
+   curl -i -s --show-error -XDELETE "$GALLEY_HOST/teams/$TEAM_ID" -H'Content-type: application/json' -d'{"password":"$PASSWORD","verification_code":"$VERIFICATION_CODE"}}'
+```
+
+Where:
+
+* `$GALLEY_HOST` is the base URL for your galley service
+* `$TEAM_ID` is the id of the team you want to delete
+* `$PASSWORD` is the user password for that team admin
+* `$VERIFICATION_CODE` is required only if you have 2FA enabled
