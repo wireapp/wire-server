@@ -354,16 +354,11 @@ assertBrigCassandra uid tid uref usr (valemail, emailValidated) managedBy = do
 
         name = Name . fromMaybe (error "name") $ Scim.User.displayName usr
 
-        uaemail = Nothing -- Just $ EmailWithSource undefined undefined
-        email = Nothing -- Just undefined
-
-    {-
-    email = case (valemail, emailValidated) of
-      (Feature.FeatureStatusEnabled, True) ->
-        Just . fromJust . parseEmail . fromJust . Scim.User.externalId $ usr
-      _ ->
-        Nothing
-    -}
+        email = case (valemail, emailValidated) of
+          (Feature.FeatureStatusEnabled, True) ->
+            Just . fromJust . parseEmail . fromJust . Scim.User.externalId $ usr
+          _ ->
+            Nothing
 
     accountStatus acc `shouldBe` Active
     userId (accountUser acc) `shouldBe` uid

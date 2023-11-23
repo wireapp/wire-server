@@ -374,7 +374,7 @@ getConnection brig from to =
       . zConn "conn"
 
 -- | More flexible variant of 'createUser' (see above).
-postUser :: Text -> Bool -> Bool -> Maybe PartialUAuthId -> Maybe TeamId -> Brig -> Http ResponseLBS
+postUser :: Text -> Bool -> Bool -> Maybe UserSSOId -> Maybe TeamId -> Brig -> Http ResponseLBS
 postUser = postUser' True True
 
 -- | Use @postUser' True False@ instead of 'postUser' if you want to send broken bodies to test error
@@ -386,16 +386,16 @@ postUser' ::
   Text ->
   Bool ->
   Bool ->
-  Maybe PartialUAuthId ->
+  Maybe UserSSOId ->
   Maybe TeamId ->
   Brig ->
   m ResponseLBS
-postUser' hasPassword validateBody name haveEmail havePhone uaid teamid brig = do
+postUser' hasPassword validateBody name haveEmail havePhone ssoid teamid brig = do
   email <-
     if haveEmail
       then Just <$> randomEmail
       else pure Nothing
-  postUserWithEmail hasPassword validateBody name email havePhone uaid teamid brig
+  postUserWithEmail hasPassword validateBody name email havePhone ssoid teamid brig
 
 -- | More flexible variant of 'createUserUntrustedEmail' (see above).
 postUserWithEmail ::
@@ -405,11 +405,11 @@ postUserWithEmail ::
   Text ->
   Maybe Email ->
   Bool ->
-  Maybe PartialUAuthId ->
+  Maybe UserSSOId ->
   Maybe TeamId ->
   Brig ->
   m ResponseLBS
-postUserWithEmail hasPassword validateBody name email havePhone uaid teamid brig = do
+postUserWithEmail hasPassword validateBody name email havePhone ssoid teamid brig = do
   phone <-
     if havePhone
       then Just <$> randomPhone
@@ -420,7 +420,7 @@ postUserWithEmail hasPassword validateBody name email havePhone uaid teamid brig
             "email" .= (fromEmail <$> email),
             "phone" .= phone,
             "cookie" .= defCookieLabel,
-            "uauth_id" .= uaid,
+            "sso_id" .= ssoid,
             "team_id" .= teamid
           ]
             <> ["password" .= defPassword | hasPassword]

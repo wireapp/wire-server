@@ -84,7 +84,7 @@ deleteUserAndAssertDeletionInSpar acc tokenInfo = do
   ScimExternalIdStore.insert tid (fromEmail email) uid
   r <- runExceptT $ deleteScimUser tokenInfo uid
   lr <- ScimExternalIdStore.lookup tid (fromEmail email)
-  liftIO $ lr `shouldBe` Nothing -- _
+  liftIO $ lr `shouldBe` Nothing
   pure r
 
 type EffsWithoutBrigAccess =

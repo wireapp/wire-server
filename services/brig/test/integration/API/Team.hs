@@ -916,25 +916,25 @@ testConnectionSameTeam brig = do
 testCreateUserInternalSSO :: Brig -> Galley -> Http ()
 testCreateUserInternalSSO brig galley = do
   teamid <- snd <$> createUserWithTeam brig
-  let uaid = UAuthId (Just mkSimpleSampleUref) Nothing Nothing teamid
+  let ssoid = UserSSOId mkSimpleSampleUref
   -- creating users requires both sso_id and team_id
-  postUser' True False "dummy" True False (Just uaid) Nothing brig
+  postUser' True False "dummy" True False (Just ssoid) Nothing brig
     !!! const 400 === statusCode
   postUser' True False "dummy" True False Nothing (Just teamid) brig
     !!! const 400 === statusCode
-  -- creating user with uauth_id, team_id is ok
+  -- creating user with sso_id, team_id is ok
   resp <-
-    postUser "dummy" True False (Just uaid) (Just teamid) brig <!! do
+    postUser "dummy" True False (Just ssoid) (Just teamid) brig <!! do
       const 201 === statusCode
-      const (Just uaid) === (userPartialUAuthId . selfUser <=< responseJsonMaybe)
+      const (Just ssoid) === (userPartialUAuthId . selfUser <=< responseJsonMaybe)
   -- self profile contains sso id
   let Just uid = userId <$> responseJsonMaybe resp
   profile <- getSelfProfile brig uid
   liftIO $
     assertEqual
       "self profile user identity mismatch"
-      (Just uaid)
-      (undefined . userPartialUAuthId $ selfUser profile)
+      (Just ssoid)
+      (userPartialUAuthId $ selfUser profile)
   -- sso-managed users must have team id.
   let Just teamid' = userTeam $ selfUser profile
   liftIO $ assertEqual "bad team_id" teamid teamid'
@@ -947,11 +947,11 @@ testCreateUserInternalSSO brig galley = do
 testDeleteUserSSO :: Brig -> Galley -> Http ()
 testDeleteUserSSO brig galley = do
   (creator, tid) <- createUserWithTeam brig
-  let uaid = UAuthId (Just mkSimpleSampleUref) Nothing Nothing tid
+  let ssoid = UserSSOId mkSimpleSampleUref
       mkuser :: Bool -> Http (Maybe User)
       mkuser withemail =
         responseJsonMaybe
-          <$> ( postUser "dummy" withemail False (Just uaid) (Just tid) brig
+          <$> ( postUser "dummy" withemail False (Just ssoid) (Just tid) brig
                   <!! const 201 === statusCode
               )
   -- create and delete sso user (with email)
@@ -977,19 +977,17 @@ test2FaDisabledForSsoUser brig galley = do
   teamid <- snd <$> createUserWithTeam brig
   setTeamFeatureLockStatus @Public.SndFactorPasswordChallengeConfig galley teamid Public.LockStatusUnlocked
   setTeamSndFactorPasswordChallenge galley teamid Public.FeatureStatusEnabled
-  let uaid = UAuthId (Just mkSimpleSampleUref) Nothing Nothing teamid
+  let ssoid = UserSSOId mkSimpleSampleUref
   createUserResp <-
-    postUser "dummy" True False (Just uaid) (Just teamid) brig <!! do
+    postUser "dummy" True False (Just ssoid) (Just teamid) brig <!! do
       const 201 === statusCode
-      const (Just uaid)
-        === ( userPartialUAuthId . selfUser <=< responseJsonMaybe
-            )
+      const (Just ssoid) === (userPartialUAuthId . selfUser <=< responseJsonMaybe)
   let Just uid = userId <$> responseJsonMaybe createUserResp
   let verificationCode = Nothing
   addClient brig uid (defNewClientWithVerificationCode verificationCode PermanentClientType [head somePrekeys] (head someLastPrekeys))
     !!! const 201 === statusCode
 
--- FUTUREWORK:
+-- TODO:
 -- add sso service.  (we'll need a name for that now.)
 -- brig needs to notify the sso service about deletions!
 -- if the mock sso service disagrees with the deletion: 403 "sso-not-allowed" or something
