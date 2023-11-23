@@ -684,6 +684,8 @@ CREATE TABLE brig_test.user (
     saml_entity_id text,
     saml_name_id text,
     scim_external_id text,
+    scim_email text,
+    scim_email_source text,
     searchable boolean,
     service uuid,
     sso_id text,
