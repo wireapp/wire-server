@@ -1,4 +1,16 @@
 {
+    "bombon": {
+        "branch": "main",
+        "description": "Nix CycloneDX Software Bills of Materials (SBOMs)",
+        "homepage": "",
+        "owner": "nikstur",
+        "repo": "bombon",
+        "rev": "09dce0377beb87c24822f79501d6c76166105788",
+        "sha256": "1z80waaimga03m4b0nhc3djaca4y2bh0dq8mc1r8s59hqngc22ch",
+        "type": "tarball",
+        "url": "https://github.com/nikstur/bombon/archive/09dce0377beb87c24822f79501d6c76166105788.tar.gz",
+        "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
+    },
     "nixpkgs": {
         "branch": "nixpkgs-unstable",
         "description": "Nix Packages collection",

@@ -44,7 +44,7 @@
 # with nixpkgs' dockerTools to make derivations for docker images that we need.
 pkgs:
 let
-  lib = pkgs.lib;
+  inherit (pkgs) lib;
   hlib = pkgs.haskell.lib;
   withCleanedPath = drv:
     hlib.overrideCabal drv (old: {
@@ -459,9 +459,22 @@ let
       export LOCALE_ARCHIVE=${pkgs.glibcLocales}/lib/locale/locale-archive
     '';
   };
+  allLocalPackages = pkgs.symlinkJoin {
+    name = "all-local-packages";
+    paths = map (e: (hPkgs localModsEnableAll).${e}) wireServerPackages;
+  };
+
+  allImages = pkgs.linkFarm "all-images" (images localModsEnableAll) ;
+
+  allLocalPackagesBom = lib.buildBom allLocalPackages {
+    includeBuildtimeDependencies = true;
+  };
+  allImagesBom = lib.buildBom allImages {
+    includeBuildtimeDependencies = true;
+  };
 in
 {
-  inherit ciImage hoogleImage;
+  inherit ciImage hoogleImage allImages allImagesBom allLocalPackages allLocalPackagesBom;
 
   images = images localModsEnableAll;
   imagesUnoptimizedNoDocs = images localModsOnlyTests;
@@ -522,13 +535,4 @@ in
   inherit brig-templates;
   haskellPackages = hPkgs localModsEnableAll;
   haskellPackagesUnoptimizedNoDocs = hPkgs localModsOnlyTests;
-  allLocalPackages = pkgs.symlinkJoin {
-    name = "all-local-packages";
-    paths = map (e: (hPkgs localModsEnableAll).${e}) wireServerPackages;
-  };
-
-  allImages = pkgs.symlinkJoin {
-    name = "all-images";
-    paths = builtins.attrValues (images localModsEnableAll);
-  };
 } // attrsets.genAttrs wireServerPackages (e: (hPkgs localModsEnableAll).${e})
