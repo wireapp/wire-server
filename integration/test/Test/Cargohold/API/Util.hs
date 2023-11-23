@@ -105,7 +105,7 @@ downloadAssetWithAssetKey ::
   String ->
   App Response
 downloadAssetWithAssetKey r user tok = do
-  req <- baseRequest user Cargohold (ExplicitVersion 1) $ "asserts/v3/" <> tok
+  req <- baseRequest user Cargohold (ExplicitVersion 1) $ "assets/v3/" <> tok
   submit "GET" $ r $ req & tokenParam tok
 
 class IsAssetToken tok where
