@@ -603,7 +603,7 @@ Where:
 
 - `MY_DOMAIN_NAME` is the domain name of your wire-server instance.
 - `INGRESS_IP` is the ingress IP address.
-- `YOUR_USER_EMAIL` is the email address of the user you want to create.
+- `YOUR_USER_EMAIL` is the (dummy) email address of the user you want to create.
 - `YOUR_USER_NAME` is the display name of the user you want to create.
 
 This will result in an email being sent internally, but if you do not have an email server handling those, they simply stack up in the `demo-smtp` kubernetes pod.
