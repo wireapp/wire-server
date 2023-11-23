@@ -16,6 +16,6 @@
 {{- if .cassandra.tlsCaSecretRef -}}
 {{ .cassandra.tlsCaSecretRef | toYaml }}
 {{- else }}
-{{- dict "name" "gundeck-cassandra-cert" "key" "ca.pem" | toYaml -}}
+{{- dict "name" "gundeck-cassandra" "key" "ca.pem" | toYaml -}}
 {{- end -}}
 {{- end -}}

@@ -16,6 +16,6 @@
 {{- if .cassandra.tlsCaSecretRef -}}
 {{ .cassandra.tlsCaSecretRef | toYaml }}
 {{- else }}
-{{- dict "name" "brig-cassandra-cert" "key" "ca.pem" | toYaml -}}
+{{- dict "name" "brig-cassandra" "key" "ca.pem" | toYaml -}}
 {{- end -}}
 {{- end -}}

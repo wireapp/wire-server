@@ -115,9 +115,9 @@ Thus the order of priority is:
 {{- define "tlsCaGalley" -}}
 {{ $cassandraGalley := default dict .Values.cassandraGalley }}
 {{- if .Values.cassandra.tlsCa -}}
-{{ .Values.cassandra.tlsCa | toYaml }}
+{{ .Values.cassandra.tlsCa }}
 {{- else -}}
-{{ $cassandraGalley.tlsCa | toYaml }}
+{{ $cassandraGalley.tlsCa }}
 {{- end -}}
 {{- end -}}
 
@@ -140,9 +140,9 @@ Thus the order of priority is:
 {{- define "tlsCaBrig" -}}
 {{ $cassandraBrig := default dict .Values.cassandraBrig }}
 {{- if .Values.cassandra.tlsCa -}}
-{{ .Values.cassandra.tlsCa | toYaml }}
+{{ .Values.cassandra.tlsCa }}
 {{- else -}}
-{{ $cassandraBrig.tlsCa | toYaml }}
+{{ $cassandraBrig.tlsCa }}
 {{- end -}}
 {{- end -}}
 
@@ -165,9 +165,9 @@ Thus the order of priority is:
 {{- define "tlsCaSpar" -}}
 {{ $cassandraSpar := default dict .Values.cassandraSpar }}
 {{- if .Values.cassandra.tlsCa -}}
-{{ .Values.cassandra.tlsCa | toYaml }}
+{{ .Values.cassandra.tlsCa }}
 {{- else -}}
-{{ $cassandraSpar.tlsCa | toYaml }}
+{{ $cassandraSpar.tlsCa }}
 {{- end -}}
 {{- end -}}
 
@@ -190,9 +190,9 @@ Thus the order of priority is:
 {{- define "tlsCaGundeck" -}}
 {{ $cassandraGundeck := default dict .Values.cassandraGundeck }}
 {{- if .Values.cassandra.tlsCa -}}
-{{ .Values.cassandra.tlsCa | toYaml }}
+{{ .Values.cassandra.tlsCa }}
 {{- else -}}
-{{ $cassandraGundeck.tlsCa | toYaml }}
+{{ $cassandraGundeck.tlsCa }}
 {{- end -}}
 {{- end -}}
 
