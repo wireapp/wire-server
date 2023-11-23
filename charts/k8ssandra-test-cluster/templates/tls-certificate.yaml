@@ -1,4 +1,4 @@
-# TODO: Add conditional rendering
+{{- if .Values.client_encryption_options.enabled }}
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
@@ -10,7 +10,6 @@ spec:
   duration: 2160h # 90d
   renewBefore: 360h # 15d
   subject:
-    # TODO: Do we need something better here?
     organizations:
     - PIT squad
   # The use of the common name field has been deprecated since 2000 and is
@@ -42,3 +41,4 @@ spec:
       passwordSecretRef: # Password used to encrypt the keystore
         key: keystore-pass
         name: jks-password
+{{- end }}

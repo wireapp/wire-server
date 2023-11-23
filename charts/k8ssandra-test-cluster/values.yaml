@@ -17,12 +17,7 @@ storageSize: 10G
 client_encryption_options:
   enabled: false
   optional: true
+  # The password could be secured better. However, this chart is meant to be
+  # used as test setup. And, protecting a self-signed certificate isn't very
+  # useful.
   keystorePassword: password
-  truststorePassword: password
-
-  # TODO: This could be deduced from the keystore.
-  ca: "<CA as PEM>"
-
-# TODO: Give structure. Can't these be generated, too?
-tlsCrt: ""
-tlsKey: ""
