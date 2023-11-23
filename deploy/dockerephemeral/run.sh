@@ -11,7 +11,7 @@ cleanup () {
 }
 
 docker-compose --file "$DOCKER_FILE" --file "$SCRIPT_DIR/federation-v0.yaml" up -d
-echo "All Services started successfully, press Ctrl+C to stop them"
 trap cleanup EXIT
+echo "All Services started successfully, press Ctrl+C to stop them"
 # Wait for something to kill this
 while true; do sleep 100000000; done
