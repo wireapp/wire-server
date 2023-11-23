@@ -4,6 +4,8 @@ import API.Common
 import Data.Aeson qualified as Aeson
 import Data.Function
 import Data.Maybe
+import Data.String.Conversions (cs)
+import Data.Vector qualified as Vector
 import Testlib.Prelude
 
 data CreateUser = CreateUser
@@ -54,7 +56,7 @@ createUser domain cu = do
 data FedConn = FedConn
   { domain :: String,
     searchStrategy :: String,
-    restriction :: String
+    restriction :: Maybe [String]
   }
   deriving (Eq, Ord, Show)
 
@@ -63,7 +65,7 @@ instance ToJSON FedConn where
     Aeson.object
       [ "domain" .= d,
         "search_policy" .= s,
-        "restriction" .= r
+        "restriction" .= maybe Aeson.Null (\teams -> Aeson.Array (Vector.fromList (Aeson.String . cs <$> teams))) r
       ]
 
 instance MakesValue FedConn where

@@ -41,7 +41,6 @@ import Wire.API.Asset (AssetKey, assetKeyToText, nilAssetKey)
 import Wire.API.Connection (RelationWithHistory (..))
 import Wire.API.MLS.CipherSuite
 import Wire.API.Properties
-import Wire.API.Routes.FederationDomainConfig (FederationRestriction (..))
 import Wire.API.User
 import Wire.API.User.Activation
 import Wire.API.User.Client
@@ -301,16 +300,6 @@ instance Cql FederatedUserSearchPolicy where
   fromCql (CqlInt 1) = pure ExactHandleSearch
   fromCql (CqlInt 2) = pure FullSearch
   fromCql n = Left $ "Unexpected SearchVisibilityInbound: " ++ show n
-
-instance Cql FederationRestriction where
-  ctype = Tagged IntColumn
-
-  toCql FederationRestrictionAllowAll = CqlInt 0
-  toCql FederationRestrictionByTeam = CqlInt 1
-
-  fromCql (CqlInt 0) = pure FederationRestrictionAllowAll
-  fromCql (CqlInt 1) = pure FederationRestrictionByTeam
-  fromCql n = Left $ "Unexpected FederationRestriction: " ++ show n
 
 instance Cql (Imports.Set BaseProtocolTag) where
   ctype = Tagged IntColumn

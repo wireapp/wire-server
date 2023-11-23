@@ -286,14 +286,14 @@ getFederationRemotes = lift $ do
   -- See
   -- https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections,
   -- http://docs.wire.com/developer/developer/federation-design-aspects.html#configuring-remote-connections-dev-perspective
-  db <- liftSem $ FederationConfigStore.getFederationConfigs
+  remotes <- liftSem $ FederationConfigStore.getFederationConfigs
   ms :: Maybe FederationStrategy <- do
     cfg <- ask
     pure (setFederationStrategy (cfg ^. settings))
 
   defFederationDomainConfigs
     & maybe id (\v cfg -> cfg {strategy = v}) ms
-    & (\cfg -> cfg {remotes = fmap FederationConfigStore.fromFederationDomainConfig db})
+    & (\cfg -> cfg {remotes = remotes})
     & pure
 
 updateFederationRemote :: (Member FederationConfigStore r) => Domain -> FederationDomainConfig -> (Handler r) ()

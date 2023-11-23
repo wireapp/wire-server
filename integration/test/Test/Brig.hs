@@ -41,11 +41,11 @@ testCrudFederationRemotes = do
     dom1 :: String <- (<> ".example.com") . UUID.toString <$> liftIO UUID.nextRandom
 
     let remote1, remote1' :: BrigI.FedConn
-        remote1 = BrigI.FedConn dom1 "no_search" "allow_all"
-        remote1' = remote1 {BrigI.searchStrategy = "full_search", BrigI.restriction = "restrict_by_team"}
+        remote1 = BrigI.FedConn dom1 "no_search" Nothing
+        remote1' = remote1 {BrigI.searchStrategy = "full_search", BrigI.restriction = Just []}
 
         cfgRemotesExpect :: BrigI.FedConn
-        cfgRemotesExpect = BrigI.FedConn (cs otherDomain) "full_search" "allow_all"
+        cfgRemotesExpect = BrigI.FedConn (cs otherDomain) "full_search" Nothing
 
     cfgRemotes <- parseFedConns =<< BrigI.readFedConns ownDomain
     cfgRemotes `shouldMatch` ([] @Value)

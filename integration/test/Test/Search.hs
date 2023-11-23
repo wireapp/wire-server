@@ -29,8 +29,8 @@ testSearchContactForExternalUsers = do
 testRemoteUserSearch :: HasCallStack => App ()
 testRemoteUserSearch = do
   startDynamicBackends [def, def] $ \[d1, d2] -> do
-    void $ BrigI.createFedConn d2 (BrigI.FedConn d1 "full_search" "allow_all")
-    void $ BrigI.createFedConn d1 (BrigI.FedConn d2 "full_search" "allow_all")
+    void $ BrigI.createFedConn d2 (BrigI.FedConn d1 "full_search" Nothing)
+    void $ BrigI.createFedConn d1 (BrigI.FedConn d2 "full_search" Nothing)
 
     u1 <- randomUser d1 def
     u2 <- randomUser d2 def
@@ -47,8 +47,8 @@ testRemoteUserSearch = do
 testRemoteUserSearchExactHandle :: HasCallStack => App ()
 testRemoteUserSearchExactHandle = do
   startDynamicBackends [def, def] $ \[d1, d2] -> do
-    void $ BrigI.createFedConn d2 (BrigI.FedConn d1 "exact_handle_search" "allow_all")
-    void $ BrigI.createFedConn d1 (BrigI.FedConn d2 "exact_handle_search" "allow_all")
+    void $ BrigI.createFedConn d2 (BrigI.FedConn d1 "exact_handle_search" Nothing)
+    void $ BrigI.createFedConn d1 (BrigI.FedConn d2 "exact_handle_search" Nothing)
 
     u1 <- randomUser d1 def
     u2 <- randomUser d2 def
@@ -163,11 +163,11 @@ federatedUserSearch test = do
             then doc %. "id" `shouldMatch` uidD2
             else assertFailure $ "Expected an empty result, but got " <> show doc <> " for test case " <> show test
   where
-    restriction :: Restriction -> String
+    restriction :: Restriction -> Maybe [String]
     restriction = \case
-      AllowAll -> "allow_all"
-      TeamAllowed -> "restrict_by_team"
-      TeamNotAllowed -> "restrict_by_team"
+      AllowAll -> Nothing
+      TeamAllowed -> Just []
+      TeamNotAllowed -> Just []
 
     addTeamRestriction :: (MakesValue ownDomain, MakesValue remoteDomain, MakesValue remoteTeam) => ownDomain -> remoteDomain -> remoteTeam -> Restriction -> App ()
     addTeamRestriction ownDomain remoteDomain remoteTeam = \case
@@ -181,8 +181,8 @@ federatedUserSearch test = do
 testFederatedUserSearchNonTeamSearcher :: HasCallStack => App ()
 testFederatedUserSearchNonTeamSearcher = do
   startDynamicBackends [def, def] $ \[d1, d2] -> do
-    void $ BrigI.createFedConn d2 (BrigI.FedConn d1 "full_search" "restrict_by_team")
-    void $ BrigI.createFedConn d1 (BrigI.FedConn d2 "full_search" "allow_all")
+    void $ BrigI.createFedConn d2 (BrigI.FedConn d1 "full_search" (Just []))
+    void $ BrigI.createFedConn d1 (BrigI.FedConn d2 "full_search" Nothing)
 
     u1 <- randomUser d1 def
     u2 <- randomUser d2 def {BrigI.team = True}
@@ -212,8 +212,8 @@ testFederatedUserSearchNonTeamSearcher = do
 testFederatedSearchForNonTeamUser :: HasCallStack => App ()
 testFederatedSearchForNonTeamUser = do
   startDynamicBackends [def, def] $ \[d1, d2] -> do
-    void $ BrigI.createFedConn d2 (BrigI.FedConn d1 "full_search" "allow_all")
-    void $ BrigI.createFedConn d1 (BrigI.FedConn d2 "full_search" "restrict_by_team")
+    void $ BrigI.createFedConn d2 (BrigI.FedConn d1 "full_search" Nothing)
+    void $ BrigI.createFedConn d1 (BrigI.FedConn d2 "full_search" (Just []))
 
     u1 <- randomUser d1 def {BrigI.team = True}
     u2 <- randomUser d2 def

@@ -33,7 +33,7 @@ import Brig.App
 import Brig.Data.Connection qualified as Data
 import Brig.Data.User qualified as Data
 import Brig.Effects.FederationConfigStore (FederationConfigStore)
-import Brig.Effects.FederationConfigStore qualified as FCS
+import Brig.Effects.FederationConfigStore qualified as FederationConfigStore
 import Brig.Effects.GalleyProvider (GalleyProvider)
 import Brig.IO.Intra (notify)
 import Brig.Options
@@ -59,7 +59,7 @@ import Servant (ServerT)
 import Servant.API
 import UnliftIO.Async (pooledForConcurrentlyN_)
 import Wire.API.Connection
-import Wire.API.Federation.API.Brig
+import Wire.API.Federation.API.Brig hiding (searchPolicy)
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.Version
 import Wire.API.MLS.KeyPackage
@@ -70,7 +70,7 @@ import Wire.API.Team.LegalHold (LegalholdProtectee (LegalholdPlusFederationNotIm
 import Wire.API.User (UserProfile)
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
-import Wire.API.User.Search
+import Wire.API.User.Search hiding (searchPolicy)
 import Wire.API.UserMap (UserMap)
 import Wire.Sem.Concurrency
 
@@ -257,8 +257,8 @@ onUserDeleted origDomain udcn = lift $ do
 -- | If domain is not configured fall back to `NoSearch`
 lookupSearchPolicy :: (Member FederationConfigStore r) => Domain -> (Handler r) FederatedUserSearchPolicy
 lookupSearchPolicy domain = do
-  mConfig <- lift $ liftSem $ FCS.getFederationConfig domain
-  pure $ maybe NoSearch FCS.searchPolicy mConfig
+  mConfig <- lift $ liftSem $ FederationConfigStore.getFederationConfig domain
+  pure $ maybe NoSearch searchPolicy mConfig
 
 -- | If domain is not configured fall back to `NoSearch`
 -- if a team is provided, check if the team is allowed to search
@@ -267,8 +267,8 @@ lookupSearchPolicyWithTeam :: (Member FederationConfigStore r) => Domain -> Mayb
 lookupSearchPolicyWithTeam domain mSearcherTeamId =
   lift $
     liftSem $
-      FCS.getFederationConfig domain <&> \case
+      FederationConfigStore.getFederationConfig domain <&> \case
         Nothing -> NoSearch
-        Just (FCS.FederationDomainConfig _ sp FCS.FederationRestrictionAllowAll) -> sp
-        Just (FCS.FederationDomainConfig _ sp (FCS.FederationRestrictionByTeam teams)) ->
+        Just (FederationDomainConfig _ sp FederationRestrictionAllowAll) -> sp
+        Just (FederationDomainConfig _ sp (FederationRestrictionByTeam teams)) ->
           maybe NoSearch (\tid -> if tid `elem` teams then sp else NoSearch) $ mSearcherTeamId
