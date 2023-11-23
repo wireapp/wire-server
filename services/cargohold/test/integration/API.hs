@@ -151,8 +151,6 @@ testSimpleTokens = do
   r1 <-
     uploadSimple (path "/assets/v3") uid sets bdy
       <!! const 201 === statusCode
-  putStrLn "r1"
-  print r1
   let loc = decodeHeaderOrFail "Location" r1 :: ByteString
   let Just ast = responseJsonMaybe @V3.Asset r1
   let key = view V3.assetKey ast
@@ -199,18 +197,14 @@ testSimpleTokens = do
   downloadAsset uid2 loc (queryItem "asset_token" (toByteString' tok'))
     !!! const 302 === statusCode
   -- Delete Token fails if not done by owner
-  putStrLn "Delete Token fails if not done by owner"
-  print $ qUnqualified key
   deleteToken uid2 (qUnqualified key) !!! do
     const 403 === statusCode
     const (Just "unauthorised") === fmap label . responseJsonMaybe
   -- Delete Token succeeds by owner
-  putStrLn "Delete Token succeeds by owner"
   deleteToken uid (qUnqualified key) !!! do
     const 200 === statusCode
     const Nothing === responseBody
   -- Access without token from different user (asset is now "public")
-  putStrLn "Access without token from different user (asset is now \"public\")"
   downloadAsset uid2 loc () !!! do
     const 302 === statusCode
     const Nothing === responseBody

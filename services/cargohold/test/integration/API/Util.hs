@@ -36,7 +36,6 @@ import Data.Qualified
 import Data.Text.Encoding (decodeLatin1, encodeUtf8)
 import qualified Data.UUID as UUID
 import Data.UUID.V4 (nextRandom)
-import Debug.Trace
 import Federator.MockServer
 import Imports hiding (head)
 import qualified Network.HTTP.Media as HTTP
@@ -126,7 +125,7 @@ zConn = header "Z-Connection"
 deleteAssetV3 :: UserId -> Qualified AssetKey -> TestM (Response (Maybe Lazy.ByteString))
 deleteAssetV3 u k = do
   c <- viewUnversionedCargohold
-  delete $ traceShowId . apiVersion "v1" . c . zUser u . paths ["assets", "v3", toByteString' (qUnqualified k)]
+  delete $ apiVersion "v1" . c . zUser u . paths ["assets", "v3", toByteString' (qUnqualified k)]
 
 deleteAsset :: UserId -> Qualified AssetKey -> TestM (Response (Maybe Lazy.ByteString))
 deleteAsset u k = do
@@ -204,11 +203,10 @@ postToken uid key = do
 deleteToken :: UserId -> AssetKey -> TestM (Response (Maybe LByteString))
 deleteToken uid key = do
   c <- viewCargohold
-  fmap traceShowId $
-    delete $
-      c
-        . zUser uid
-        . paths ["assets", toByteString' key, "token"]
+  delete $
+    c
+      . zUser uid
+      . paths ["assets", toByteString' key, "token"]
 
 viewFederationDomain :: TestM Domain
 viewFederationDomain = view (tsOpts . settings . federationDomain)
