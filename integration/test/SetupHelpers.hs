@@ -168,7 +168,12 @@ createMLSOne2OnePartner domain other convDomain = loop
 
 -- Copied from `src/CargoHold/API/V3.hs` and inlined to avoid pulling in `types-common`
 randomToken :: HasCallStack => App String
-randomToken = liftIO (unpack . B64Url.encode <$> getRandomBytes 16)
+randomToken = map mkUrlSafe . unpack . B64Url.encode <$> liftIO (getRandomBytes 16)
+  where
+    mkUrlSafe :: Char -> Char
+    mkUrlSafe '/' = '_'
+    mkUrlSafe '+' = '-'
+    mkUrlSafe c = c
 
 randomId :: HasCallStack => App String
 randomId = liftIO (show <$> nextRandom)

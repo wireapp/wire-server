@@ -117,6 +117,9 @@ instance IsAssetToken () where
 instance IsAssetToken String where
   tokenParam = header "Asset-Token"
 
+instance (IsAssetToken a, IsAssetToken b) => IsAssetToken (Either a b) where
+  tokenParam = either tokenParam tokenParam
+
 instance IsAssetToken Value where
   tokenParam v =
     case v of

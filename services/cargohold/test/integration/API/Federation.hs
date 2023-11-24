@@ -43,13 +43,6 @@ tests s =
   testGroup
     "API Federation"
     [ testGroup
-        "get-asset"
-        [ test s "private asset is available" (testGetAssetAvailable False),
-          test s "public asset is available" (testGetAssetAvailable True),
-          test s "not available" testGetAssetNotAvailable,
-          test s "wrong token" testGetAssetWrongToken
-        ],
-      testGroup
         "stream-asset"
         [ test s "streaming large asset" testLargeAsset,
           test s "stream an asset" testStreamAsset,
@@ -57,83 +50,6 @@ tests s =
           test s "stream asset wrong token" testStreamAssetWrongToken
         ]
     ]
-
-testGetAssetAvailable :: Bool -> TestM ()
-testGetAssetAvailable isPublicAsset = do
-  -- Initial upload
-  let bdy = (applicationOctetStream, "Hello World")
-      settings =
-        defAssetSettings
-          & set setAssetRetention (Just AssetVolatile)
-          & set setAssetPublic isPublicAsset
-  uid <- randomUser
-  ast :: Asset <-
-    responseJsonError
-      =<< uploadSimple (path "/assets/v3") uid settings bdy
-        <!! const 201 === statusCode
-
-  -- Call get-asset federation API
-  let tok = view assetToken ast
-  let key = view assetKey ast
-  let ga =
-        GetAsset
-          { user = uid,
-            token = tok,
-            key = qUnqualified key
-          }
-  ok <-
-    withFederationClient $
-      available <$> runFederationClient (unsafeFedClientIn @'Cargohold @"get-asset" ga)
-
-  -- check that asset is available
-  liftIO $ ok @?= True
-
-testGetAssetNotAvailable :: TestM ()
-testGetAssetNotAvailable = do
-  uid <- liftIO $ Id <$> nextRandom
-  token <- randToken
-
-  assetId <- liftIO $ Id <$> nextRandom
-  let key = AssetKeyV3 assetId AssetPersistent
-  let ga =
-        GetAsset
-          { user = uid,
-            token = Just token,
-            key = key
-          }
-  ok <-
-    withFederationClient $
-      available <$> runFederationClient (unsafeFedClientIn @'Cargohold @"get-asset" ga)
-
-  -- check that asset is not available
-  liftIO $ ok @?= False
-
-testGetAssetWrongToken :: TestM ()
-testGetAssetWrongToken = do
-  -- Initial upload
-  let bdy = (applicationOctetStream, "Hello World")
-      settings = defAssetSettings & set setAssetRetention (Just AssetVolatile)
-  uid <- randomUser
-  ast :: Asset <-
-    responseJsonError
-      =<< uploadSimple (path "/assets/v3") uid settings bdy
-        <!! const 201 === statusCode
-
-  -- Call get-asset federation API with wrong (random) token
-  tok <- randToken
-  let key = view assetKey ast
-  let ga =
-        GetAsset
-          { user = uid,
-            token = Just tok,
-            key = qUnqualified key
-          }
-  ok <-
-    withFederationClient $
-      available <$> runFederationClient (unsafeFedClientIn @'Cargohold @"get-asset" ga)
-
-  -- check that asset is not available
-  liftIO $ ok @?= False
 
 testLargeAsset :: TestM ()
 testLargeAsset = do
