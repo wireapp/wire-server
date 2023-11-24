@@ -49,7 +49,7 @@ testSimpleRoundtrip = do
       uid <- randomUser OwnDomain def
       uid2 <- randomUser OwnDomain def
       -- Initial upload
-      let bdy = (applicationText, "Hello World")
+      let bdy = (applicationText, cs "Hello World")
       r1 <- uploadSimple uid sets bdy
       r1.status `shouldMatchInt` 201
       -- use v3 path instead of the one returned in the header

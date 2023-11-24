@@ -141,7 +141,6 @@ mkDerivation {
     cargohold-types
     conduit
     containers
-    crypton
     federator
     HsOpenSSL
     http-api-data

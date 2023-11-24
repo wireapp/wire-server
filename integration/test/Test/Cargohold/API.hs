@@ -26,6 +26,7 @@ import Data.Aeson.KeyMap qualified as KM
 import Data.Aeson.Types (Pair)
 import Data.ByteString.Char8 qualified as C8
 import Data.ByteString.Lazy qualified as LBS hiding (replicate)
+import Data.ByteString.Lazy.Char8 qualified as L8
 import Data.CaseInsensitive (mk)
 import Data.String.Conversions
 import Data.Time (UTCTime, defaultTimeLocale, parseTimeOrError, rfc822DateFormat)
@@ -54,7 +55,7 @@ testSimpleRoundtrip = do
       userId1 <- uid %. "id" & asString
       uid2 <- randomUser OwnDomain def
       -- Initial upload
-      let bdy = (applicationText, "Hello World")
+      let bdy = (applicationText, cs "Hello World")
       r1 <- uploadSimple uid sets bdy
       r1.status `shouldMatchInt` 201
       loc <- maybe (error "Could not find the Location header") (pure . cs @_ @String) $ lookup (mk $ cs "Location") r1.headers
@@ -122,7 +123,7 @@ testSimpleTokens = do
   uid2 <- randomUser OwnDomain def
   -- Initial upload
   let sets = object ["public" .= False, "retention" .= "volatile"]
-      bdy = (applicationText, "Hello World")
+      bdy = (applicationText, cs "Hello World")
   r1 <- uploadSimple uid sets bdy
   r1.status `shouldMatchInt` 201
   loc <-
@@ -205,7 +206,7 @@ testSimpleS3ClosedConnectionReuse = go >> wait >> go
     go = do
       uid <- randomUser OwnDomain def
       let sets = object $ defAssetSettings' <> ["retention" .= "volatile"]
-      let part2 = (MIME.Text $ cs "plain", replicate 100000 'c')
+      let part2 = (MIME.Text $ cs "plain", cs $ replicate 100000 'c')
       uploadSimple uid sets part2 >>= \r -> r.status `shouldMatchInt` 201
 
 testDownloadURLOverride :: HasCallStack => App ()
@@ -220,7 +221,7 @@ testDownloadURLOverride = do
     -- withSettingsOverrides (aws . s3DownloadEndpoint ?~ AWSEndpoint downloadEndpoint True 443) $ do
     uid <- randomUser d def
     -- Upload, should work, shouldn't try to use the S3DownloadEndpoint
-    let bdy = (applicationText, "Hello World")
+    let bdy = (applicationText, cs "Hello World")
     uploadRes <- uploadSimple uid defAssetSettings bdy
     uploadRes.status `shouldMatchInt` 201
     let loc = decodeHeaderOrFail (mk $ cs "Location") uploadRes :: String
@@ -337,7 +338,7 @@ testRemoteDownloadShort = remoteDownload "asset content"
 testRemoteDownloadLong :: HasCallStack => App ()
 testRemoteDownloadLong = remoteDownload $ concat $ replicate 20000 $ "hello world\n"
 
-remoteDownload :: (HasCallStack, ConvertibleStrings a String) => a -> App ()
+remoteDownload :: (HasCallStack, ConvertibleStrings a L8.ByteString, ConvertibleStrings a String) => a -> App ()
 remoteDownload content = do
   uid1 <- randomUser OwnDomain def
   uid2 <- randomUser OtherDomain def

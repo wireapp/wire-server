@@ -19,6 +19,9 @@ module Test.Cargohold.API.Federation where
 
 import API.Cargohold
 import Control.Lens hiding ((.=))
+import Crypto.Random (getRandomBytes)
+import Data.ByteString.Builder
+import Data.String.Conversions
 import SetupHelpers
 import Test.Cargohold.API.Util
 import Testlib.Prelude
@@ -32,7 +35,7 @@ testGetAssetAvailablePrivate = getAssetAvailable False
 getAssetAvailable :: HasCallStack => Bool -> App ()
 getAssetAvailable isPublicAsset = do
   -- Initial upload
-  let bdy = (applicationOctetStream, "Hello World")
+  let bdy = (applicationOctetStream, cs "Hello World")
       settings = object ["public" .= isPublicAsset, "retention" .= "volatile"]
   uid1 <- randomUser OwnDomain def
   uid2 <- randomUser OtherDomain def
@@ -67,7 +70,7 @@ testGetAssetNotAvailable = do
 testGetAssetWrongToken :: HasCallStack => App ()
 testGetAssetWrongToken = do
   -- Initial upload
-  let bdy = (applicationOctetStream, "Hello World")
+  let bdy = (applicationOctetStream, cs "Hello World")
       -- Make it a public token so that other users can potentially
       -- grab it across federation instances
       settings = object ["public" .= True, "retention" .= "volatile"]
@@ -93,41 +96,31 @@ testGetAssetWrongToken = do
   r2.status `shouldMatchInt` 404
   r2.jsonBody %. "message" `shouldMatch` "Asset not found"
 
--- testLargeAsset :: TestM ()
--- testLargeAsset = do
---   -- Initial upload
---   let settings =
---         defAssetSettings
---           & set setAssetRetention (Just AssetVolatile)
---   uid <- randomUser
---   -- generate random bytes
---   let size = 1024 * 1024
---   bs <- liftIO $ getRandomBytes size
---
---   ast :: Asset <-
---     responseJsonError
---       =<< uploadSimple (path "/assets/v3") uid settings (applicationOctetStream, bs)
---         <!! const 201 === statusCode
---
---   -- Call get-asset federation API
---   let tok = view assetToken ast
---   let key = view assetKey ast
---   let ga =
---         GetAsset
---           { user = uid,
---             token = tok,
---             key = qUnqualified key
---           }
---   chunks <- withFederationClient $ do
---     source <- getAssetSource <$> runFederationClient (unsafeFedClientIn @'Cargohold @"stream-asset" ga)
---     liftIO . runResourceT $ connect source sinkList
---   liftIO $ do
---     let minNumChunks = 8
---     assertBool
---       ("Expected at least " <> show minNumChunks <> " chunks, got " <> show (length chunks))
---       (length chunks > minNumChunks)
---     mconcat chunks @?= bs
---
+testLargeAsset :: HasCallStack => App ()
+testLargeAsset = do
+  -- Initial upload
+  let settings = object ["public" .= True, "retention" .= "volatile"]
+  uid <- randomUser OwnDomain def
+  domain <- uid %. "qualified_id" %. "domain" & asString
+  uid2 <- randomUser OtherDomain def
+  userId2 <- uid2 %. "id" & asString
+  -- generate random bytes
+  let size = 1024 * 1024
+  bs :: ByteString <- liftIO $ getRandomBytes size
+  let body = toLazyByteString $ buildMultipartBody' settings applicationOctetStream' (cs bs)
+  r1 <- uploadRaw uid body
+  r1.status `shouldMatchInt` 201
+  key <- r1.jsonBody %. "key" & asString
+  -- Call get-asset federation API
+  let ga =
+        object
+          [ "user" .= userId2,
+            "key" .= key,
+            "domain" .= domain
+          ]
+  r2 <- downloadAsset' uid2 ga ()
+  r2.status `shouldMatchInt` 200
+
 -- testStreamAsset :: TestM ()
 -- testStreamAsset = do
 --   -- Initial upload

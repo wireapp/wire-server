@@ -23,7 +23,6 @@ import Bilge.Assert
 import CargoHold.API.V3 (randToken)
 import Conduit
 import Control.Lens
-import Crypto.Random
 import Data.Id
 import Data.Qualified
 import Data.UUID.V4
@@ -44,47 +43,11 @@ tests s =
     "API Federation"
     [ testGroup
         "stream-asset"
-        [ test s "streaming large asset" testLargeAsset,
-          test s "stream an asset" testStreamAsset,
+        [ test s "stream an asset" testStreamAsset,
           test s "stream asset not available" testStreamAssetNotAvailable,
           test s "stream asset wrong token" testStreamAssetWrongToken
         ]
     ]
-
-testLargeAsset :: TestM ()
-testLargeAsset = do
-  -- Initial upload
-  let settings =
-        defAssetSettings
-          & set setAssetRetention (Just AssetVolatile)
-  uid <- randomUser
-  -- generate random bytes
-  let size = 1024 * 1024
-  bs <- liftIO $ getRandomBytes size
-
-  ast :: Asset <-
-    responseJsonError
-      =<< uploadSimple (path "/assets/v3") uid settings (applicationOctetStream, bs)
-        <!! const 201 === statusCode
-
-  -- Call get-asset federation API
-  let tok = view assetToken ast
-  let key = view assetKey ast
-  let ga =
-        GetAsset
-          { user = uid,
-            token = tok,
-            key = qUnqualified key
-          }
-  chunks <- withFederationClient $ do
-    source <- getAssetSource <$> runFederationClient (unsafeFedClientIn @'Cargohold @"stream-asset" ga)
-    liftIO . runResourceT $ connect source sinkList
-  liftIO $ do
-    let minNumChunks = 8
-    assertBool
-      ("Expected at least " <> show minNumChunks <> " chunks, got " <> show (length chunks))
-      (length chunks > minNumChunks)
-    mconcat chunks @?= bs
 
 testStreamAsset :: TestM ()
 testStreamAsset = do

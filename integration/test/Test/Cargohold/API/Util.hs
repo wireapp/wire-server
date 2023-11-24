@@ -29,21 +29,21 @@ import Data.ByteString.Lazy.Char8 qualified as Lazy8
 import Data.CaseInsensitive
 import Data.String.Conversions
 import Data.Text qualified as T
-import Data.Text.Encoding (decodeLatin1, decodeUtf8, encodeUtf8Builder)
+import Data.Text.Encoding (decodeLatin1, decodeUtf8, encodeUtf8, encodeUtf8Builder)
 import GHC.Stack
 import Network.HTTP.Client (Request (requestHeaders))
 import Network.HTTP.Client qualified as HTTP
-import Network.HTTP.Types.Header
+import Network.HTTP.Types.Header (HeaderName)
 import Testlib.Prelude
 
 uploadSimple ::
   (HasCallStack, MakesValue user, MakesValue settings) =>
   user ->
   settings ->
-  (MIME.MIMEType, String) ->
+  (MIME.MIMEType, Lazy8.ByteString) ->
   App Response
 uploadSimple usr sts (ct, bs) = do
-  body <- buildMultipartBody sts (Lazy8.pack bs) ct
+  body <- buildMultipartBody sts bs ct
   uploadRaw usr body
 
 decodeHeaderOrFail :: (HasCallStack, FromByteString a) => HeaderName -> Response -> a
@@ -227,3 +227,50 @@ buildMultipartBody header' body bodyMimeType = do
 
 multipartBoundary :: String
 multipartBoundary = "frontier"
+
+buildMultipartBody' :: Value -> MIME.Type -> LBS.ByteString -> Builder
+buildMultipartBody' sets typ bs =
+  beginMultipartBody sets typ (fromIntegral $ LBS.length bs) <> lazyByteString bs <> endMultipartBody'
+
+-- | Begin building a @multipart/mixed@ request body for a non-resumable upload.
+-- The returned 'Builder' can be immediately followed by the actual asset bytes.
+beginMultipartBody :: Value -> MIME.Type -> Word -> Builder
+beginMultipartBody sets t l =
+  byteString
+    ( cs
+        "--frontier\r\n\
+        \Content-Type: application/json\r\n\
+        \Content-Length: "
+    )
+    <> int64Dec (LBS.length settingsJson)
+    <> byteString
+      ( cs
+          "\r\n\
+          \\r\n"
+      )
+    <> lazyByteString settingsJson
+    <> byteString
+      ( cs
+          "\r\n\
+          \--frontier\r\n\
+          \Content-Type: "
+      )
+    <> byteString (encodeUtf8 (MIME.showType t))
+    <> byteString
+      ( cs
+          "\r\n\
+          \Content-Length: "
+      )
+    <> wordDec l
+    <> byteString
+      ( cs
+          "\r\n\
+          \\r\n"
+      )
+  where
+    settingsJson = Aeson.encode sets
+
+-- | The trailer of a non-resumable @multipart/mixed@ request body initiated
+-- via 'beginMultipartBody'.
+endMultipartBody' :: Builder
+endMultipartBody' = byteString $ cs "\r\n--frontier--\r\n"
