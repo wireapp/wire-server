@@ -35,7 +35,6 @@ import TestSetup
 import Wire.API.Asset
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Cargohold
-import Wire.API.Routes.AssetBody
 
 tests :: IO TestSetup -> TestTree
 tests s =
@@ -43,38 +42,10 @@ tests s =
     "API Federation"
     [ testGroup
         "stream-asset"
-        [ test s "stream an asset" testStreamAsset,
-          test s "stream asset not available" testStreamAssetNotAvailable,
+        [ test s "stream asset not available" testStreamAssetNotAvailable,
           test s "stream asset wrong token" testStreamAssetWrongToken
         ]
     ]
-
-testStreamAsset :: TestM ()
-testStreamAsset = do
-  -- Initial upload
-  let bdy = (applicationOctetStream, "Hello World")
-      settings =
-        defAssetSettings
-          & set setAssetRetention (Just AssetVolatile)
-  uid <- randomUser
-  ast :: Asset <-
-    responseJsonError
-      =<< uploadSimple (path "/assets/v3") uid settings bdy
-        <!! const 201 === statusCode
-
-  -- Call get-asset federation API
-  let tok = view assetToken ast
-  let key = view assetKey ast
-  let ga =
-        GetAsset
-          { user = uid,
-            token = tok,
-            key = qUnqualified key
-          }
-  respBody <- withFederationClient $ do
-    source <- getAssetSource <$> runFederationClient (unsafeFedClientIn @'Cargohold @"stream-asset" ga)
-    liftIO . runResourceT $ connect source sinkLazy
-  liftIO $ respBody @?= "Hello World"
 
 testStreamAssetNotAvailable :: TestM ()
 testStreamAssetNotAvailable = do

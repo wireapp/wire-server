@@ -18,6 +18,7 @@
 module Test.Cargohold.API.Federation where
 
 import API.Cargohold
+import Codec.MIME.Type qualified as MIME
 import Control.Lens hiding ((.=))
 import Crypto.Random (getRandomBytes)
 import Data.ByteString.Builder
@@ -71,9 +72,7 @@ testGetAssetWrongToken :: HasCallStack => App ()
 testGetAssetWrongToken = do
   -- Initial upload
   let bdy = (applicationOctetStream, cs "Hello World")
-      -- Make it a public token so that other users can potentially
-      -- grab it across federation instances
-      settings = object ["public" .= True, "retention" .= "volatile"]
+      settings = object ["public" .= False, "retention" .= "volatile"]
   uid1 <- randomUser OwnDomain def
   uid2 <- randomUser OtherDomain def
   userId2 <- uid2 %. "id" & asString
@@ -99,7 +98,7 @@ testGetAssetWrongToken = do
 testLargeAsset :: HasCallStack => App ()
 testLargeAsset = do
   -- Initial upload
-  let settings = object ["public" .= True, "retention" .= "volatile"]
+  let settings = object ["public" .= False, "retention" .= "volatile"]
   uid <- randomUser OwnDomain def
   domain <- uid %. "qualified_id" %. "domain" & asString
   uid2 <- randomUser OtherDomain def
@@ -110,44 +109,41 @@ testLargeAsset = do
   let body = toLazyByteString $ buildMultipartBody' settings applicationOctetStream' (cs bs)
   r1 <- uploadRaw uid body
   r1.status `shouldMatchInt` 201
+  tok <- r1.jsonBody %. "token" & asString
   key <- r1.jsonBody %. "key" & asString
   -- Call get-asset federation API
   let ga =
         object
           [ "user" .= userId2,
             "key" .= key,
-            "domain" .= domain
+            "domain" .= domain,
+            "token" .= tok
           ]
-  r2 <- downloadAsset' uid2 ga ()
+  r2 <- downloadAsset' uid2 ga ga
   r2.status `shouldMatchInt` 200
 
--- testStreamAsset :: TestM ()
--- testStreamAsset = do
---   -- Initial upload
---   let bdy = (applicationOctetStream, "Hello World")
---       settings =
---         defAssetSettings
---           & set setAssetRetention (Just AssetVolatile)
---   uid <- randomUser
---   ast :: Asset <-
---     responseJsonError
---       =<< uploadSimple (path "/assets/v3") uid settings bdy
---         <!! const 201 === statusCode
---
---   -- Call get-asset federation API
---   let tok = view assetToken ast
---   let key = view assetKey ast
---   let ga =
---         GetAsset
---           { user = uid,
---             token = tok,
---             key = qUnqualified key
---           }
---   respBody <- withFederationClient $ do
---     source <- getAssetSource <$> runFederationClient (unsafeFedClientIn @'Cargohold @"stream-asset" ga)
---     liftIO . runResourceT $ connect source sinkLazy
---   liftIO $ respBody @?= "Hello World"
---
+testStreamAsset :: HasCallStack => App ()
+testStreamAsset = do
+  -- Initial upload
+  uid <- randomUser OwnDomain def
+  uid2 <- randomUser OtherDomain def
+  userId <- uid %. "id" & asString
+  domain <- uid %. "qualified_id" %. "domain" & asString
+  r1 <- uploadSimple uid settings bdy
+  r1.status `shouldMatchInt` 201
+
+  -- Call get-asset federation API
+  tok <- r1.jsonBody %. "token" & asString
+  key <- r1.jsonBody %. "key" & asString
+  let ga = object ["user" .= userId, "token" .= tok, "key" .= key, "domain" .= domain]
+  r2 <- downloadAsset' uid2 ga ga
+  r2.status `shouldMatchInt` 200
+  cs @_ @String r2.body `shouldMatch` (snd bdy :: String)
+  where
+    bdy :: ConvertibleStrings String a => (MIME.MIMEType, a)
+    bdy = (applicationOctetStream, cs "Hello World")
+    settings = object ["public" .= False, "retention" .= "volatile"]
+
 -- testStreamAssetNotAvailable :: TestM ()
 -- testStreamAssetNotAvailable = do
 --   uid <- liftIO $ Id <$> nextRandom
