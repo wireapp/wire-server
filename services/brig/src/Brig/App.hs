@@ -232,8 +232,7 @@ newEnv o = do
   clock <- mkAutoUpdate defaultUpdateSettings {updateAction = getCurrentTime}
   w <-
     FS.startManagerConf $
-      -- FIXME: should this be changed from polling to OS based?
-      FS.defaultConfig {FS.confWatchMode = FS.WatchModePoll 10000000}
+      FS.defaultConfig {FS.confWatchMode = FS.WatchModeOS}
   g <- geoSetup lgr w $ Opt.geoDb o
   let turnOpts = Opt.turn o
   turnSecret <- Text.encodeUtf8 . Text.strip <$> Text.readFile (Opt.secret turnOpts)
