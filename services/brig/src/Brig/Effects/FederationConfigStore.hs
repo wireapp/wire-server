@@ -8,13 +8,22 @@ import Imports
 import Polysemy
 import Wire.API.Routes.FederationDomainConfig
 
-data AddFederationRemoteResult = AddFederationRemoteSuccess | AddFederationRemoteMaxRemotesReached
+data AddFederationRemoteResult
+  = AddFederationRemoteSuccess
+  | AddFederationRemoteMaxRemotesReached
+  | AddFederationRemoteDivergingConfig (Map Domain FederationDomainConfig)
+
+data UpdateFederationResult
+  = UpdateFederationSuccess
+  | UpdateFederationRemoteNotFound
+  | UpdateFederationRemoteDivergingConfig
+  | UpdateFederationRemoteDomainMismatch
 
 data FederationConfigStore m a where
   GetFederationConfig :: Domain -> FederationConfigStore m (Maybe FederationDomainConfig)
-  GetFederationConfigs :: FederationConfigStore m [FederationDomainConfig]
+  GetFederationConfigs :: FederationConfigStore m FederationDomainConfigs
   AddFederationConfig :: FederationDomainConfig -> FederationConfigStore m AddFederationRemoteResult
-  UpdateFederationConfig :: FederationDomainConfig -> FederationConfigStore m Bool
+  UpdateFederationConfig :: Domain -> FederationDomainConfig -> FederationConfigStore m UpdateFederationResult
   AddFederationRemoteTeam :: Domain -> TeamId -> FederationConfigStore m ()
   RemoveFederationRemoteTeam :: Domain -> TeamId -> FederationConfigStore m ()
   GetFederationRemoteTeams :: Domain -> FederationConfigStore m [FederationRemoteTeam]

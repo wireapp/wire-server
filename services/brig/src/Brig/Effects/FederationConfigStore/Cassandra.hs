@@ -41,16 +41,17 @@ interpretFederationDomainConfig ::
   ( MonadClient m,
     Member (Embed m) r
   ) =>
+  Maybe FederationStrategy ->
   [FederationDomainConfig] ->
   Sem (FederationConfigStore ': r) a ->
   Sem r a
-interpretFederationDomainConfig cfgs =
+interpretFederationDomainConfig mFedStrategy cfgs =
   interpret $
     embed @m . \case
       GetFederationConfig d -> getFederationConfig' cfgs d
-      GetFederationConfigs -> getFederationConfigs' cfgs
-      AddFederationConfig cnf -> addFederationConfig' cnf
-      UpdateFederationConfig cnf -> updateFederationConfig' cnf
+      GetFederationConfigs -> getFederationConfigs' mFedStrategy cfgs
+      AddFederationConfig cnf -> addFederationConfig' cfgs cnf
+      UpdateFederationConfig d cnf -> updateFederationConfig' cfgs d cnf
       AddFederationRemoteTeam d t -> addFederationRemoteTeam' d t
       RemoveFederationRemoteTeam d t -> removeFederationRemoteTeam' d t
       GetFederationRemoteTeams d -> getFederationRemoteTeams' d
@@ -71,11 +72,22 @@ remotesMapFromCfgFile cfg = do
 remotesListFromCfgFile :: Monad m => [FederationDomainConfig] -> m [FederationDomainConfig]
 remotesListFromCfgFile cfgs = Map.elems <$> remotesMapFromCfgFile cfgs
 
-getFederationConfigs' :: forall m. (MonadClient m) => [FederationDomainConfig] -> m [FederationDomainConfig]
-getFederationConfigs' cfgs =
-  (<>)
-    <$> getFederationRemotes
-    <*> remotesListFromCfgFile cfgs
+getFederationConfigs' :: forall m. (MonadClient m) => Maybe FederationStrategy -> [FederationDomainConfig] -> m FederationDomainConfigs
+getFederationConfigs' mFedStrategy cfgs = do
+  -- FUTUREWORK: we should solely rely on `db` in the future for remote domains; merging
+  -- remote domains from `cfg` is just for providing an easier, more robust migration path.
+  -- See
+  -- https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections,
+  -- http://docs.wire.com/developer/developer/federation-design-aspects.html#configuring-remote-connections-dev-perspective
+  remotes <-
+    (<>)
+      <$> getFederationRemotes
+      <*> remotesListFromCfgFile cfgs
+
+  defFederationDomainConfigs
+    & maybe id (\v cfg -> cfg {strategy = v}) mFedStrategy
+    & (\cfg -> cfg {remotes = remotes})
+    & pure
 
 maxKnownNodes :: Int
 maxKnownNodes = 10000
@@ -105,43 +117,64 @@ getFederationRemotes = (\(d, p, r) -> FederationDomainConfig d p r) <$$> qry
     get :: PrepQuery R () (Domain, FederatedUserSearchPolicy, Int32)
     get = fromString $ "SELECT domain, search_policy, restriction FROM federation_remotes LIMIT " <> show maxKnownNodes
 
-addFederationConfig' :: MonadClient m => FederationDomainConfig -> m AddFederationRemoteResult
-addFederationConfig' (FederationDomainConfig rDomain searchPolicy restriction) = do
-  l <- length <$> getFederationRemotes
-  if l >= maxKnownNodes
-    then pure AddFederationRemoteMaxRemotesReached
-    else
-      AddFederationRemoteSuccess <$ do
-        retry x5 (write addConfig (params LocalQuorum (rDomain, searchPolicy, fromRestriction restriction)))
-        case restriction of
-          FederationRestrictionByTeam tids ->
-            retry x5 . batch . forM_ tids $ addPrepQuery addTeams . (rDomain,)
-          FederationRestrictionAllowAll -> pure ()
+addFederationConfig' :: MonadClient m => [FederationDomainConfig] -> FederationDomainConfig -> m AddFederationRemoteResult
+addFederationConfig' cfgs (FederationDomainConfig rDomain searchPolicy restriction) = do
+  cfg <- remotesMapFromCfgFile cfgs
+  conflict <- domainExistsInConfig cfg (FederationDomainConfig rDomain searchPolicy restriction)
+  if conflict
+    then pure $ AddFederationRemoteDivergingConfig cfg
+    else do
+      l <- length <$> getFederationRemotes
+      if l >= maxKnownNodes
+        then pure AddFederationRemoteMaxRemotesReached
+        else
+          AddFederationRemoteSuccess <$ do
+            retry x5 (write addConfig (params LocalQuorum (rDomain, searchPolicy, fromRestriction restriction)))
+            case restriction of
+              FederationRestrictionByTeam tids ->
+                retry x5 . batch . forM_ tids $ addPrepQuery addTeams . (rDomain,)
+              FederationRestrictionAllowAll -> pure ()
   where
+    -- If remote domain is registered in config file, the version that can be added to the
+    -- database must be the same.
+    domainExistsInConfig :: (Monad m) => (Map Domain FederationDomainConfig) -> FederationDomainConfig -> m Bool
+    domainExistsInConfig cfg fedDomConf = do
+      pure $ case Map.lookup (domain fedDomConf) cfg of
+        Nothing -> False
+        Just fedDomConf' -> fedDomConf' /= fedDomConf
+
     addConfig :: PrepQuery W (Domain, FederatedUserSearchPolicy, Int32) ()
     addConfig = "INSERT INTO federation_remotes (domain, search_policy, restriction) VALUES (?, ?, ?)"
 
     addTeams :: PrepQuery W (Domain, TeamId) ()
     addTeams = "INSERT INTO federation_remote_teams (domain, team) VALUES (?, ?)"
 
-updateFederationConfig' :: MonadClient m => FederationDomainConfig -> m Bool
-updateFederationConfig' (FederationDomainConfig rDomain searchPolicy restriction) = do
-  let configParams =
-        ( params
-            LocalQuorum
-            (searchPolicy, fromRestriction restriction, rDomain)
-        )
-          { serialConsistency = Just LocalSerialConsistency
-          }
-  r <- retry x1 (trans updateConfig configParams)
-  updateTeams
-  case r of
-    [] -> pure False
-    [_] -> pure True
-    _ -> throwM $ ErrorCall "Primary key violation detected federation_remotes"
+updateFederationConfig' :: MonadClient m => [FederationDomainConfig] -> Domain -> FederationDomainConfig -> m UpdateFederationResult
+updateFederationConfig' cfgs dom (FederationDomainConfig rDomain searchPolicy restriction) = do
+  if dom /= rDomain
+    then pure UpdateFederationRemoteDomainMismatch
+    else
+      if dom `elem` (domain <$> cfgs)
+        then pure UpdateFederationRemoteDivergingConfig
+        else do
+          let configParams =
+                ( params
+                    LocalQuorum
+                    (searchPolicy, fromRestriction restriction, rDomain)
+                )
+                  { serialConsistency = Just LocalSerialConsistency
+                  }
+          r <- retry x1 (trans updateConfig configParams)
+          updateTeams
+          case r of
+            [] -> pure UpdateFederationRemoteNotFound
+            [_] -> pure UpdateFederationSuccess
+            _ -> throwM $ ErrorCall "Primary key violation detected federation_remotes"
   where
     updateConfig :: PrepQuery W (FederatedUserSearchPolicy, Int32, Domain) x
     updateConfig = "UPDATE federation_remotes SET search_policy = ?, restriction = ? WHERE domain = ? IF EXISTS"
+
+    updateTeams :: MonadClient m => m ()
     updateTeams = retry x5 $ do
       write dropTeams (params LocalQuorum (Identity rDomain))
       case restriction of

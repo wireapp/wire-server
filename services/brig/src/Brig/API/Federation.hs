@@ -23,7 +23,6 @@ import Brig.API.Client qualified as API
 import Brig.API.Connection.Remote (performRemoteAction)
 import Brig.API.Error
 import Brig.API.Handler (Handler)
-import Brig.API.Internal hiding (getMLSClients)
 import Brig.API.Internal qualified as Internal
 import Brig.API.MLS.CipherSuite
 import Brig.API.MLS.KeyPackages
@@ -105,7 +104,7 @@ getFederationStatus _ request = do
   case setFederationStrategy (cfg ^. settings) of
     Just AllowAll -> pure $ NonConnectedBackends mempty
     _ -> do
-      fedDomains <- fromList . fmap (.domain) . (.remotes) <$> getFederationRemotes
+      fedDomains <- fromList . fmap (.domain) . (.remotes) <$> lift (liftSem $ FederationConfigStore.getFederationConfigs)
       pure $ NonConnectedBackends (request.domains \\ fedDomains)
 
 sendConnectionAction :: Domain -> NewConnectionRequest -> Handler r NewConnectionResponse
