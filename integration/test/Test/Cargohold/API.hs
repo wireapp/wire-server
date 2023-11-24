@@ -299,100 +299,57 @@ testRemoteDownloadWrongDomain = do
   res <- downloadAsset' uid qkey ()
   res.status `shouldMatchInt` 422
 
--- testRemoteDownloadNoAsset :: HasCallStack => App ()
--- testRemoteDownloadNoAsset = do
---   assetId <- randomId
---   uid <- randomId
---   let key = "3-2-" <> assetId
---       qkey = object
---         [ "domain" .= "faraway.example.com"
---         , "id" .= key
---         ]
---       respond req
---         | frRPC req == "get-asset" =
---             pure ("application" // "json", Aeson.encode (GetAssetResponse False))
---         | otherwise =
---             throw
---               . MockErrorResponse HTTP.status404
---               . LText.decodeUtf8With Text.lenientDecode
---               . Aeson.encode
---               $ assetNotFound
---   (_, reqs) <- withMockFederator respond $ do
---     downloadAsset' uid qkey () !!! do
---       const 404 === statusCode
---   localDomain <- viewFederationDomain
---   liftIO $
---     reqs
---       @?= undefined
---         -- [ FederatedRequest
---         --      { frOriginDomain = localDomain,
---         --        frTargetDomain = Domain "faraway.example.com",
---         --        frComponent = Cargohold,
---         --        frRPC = "get-asset",
---         --        frBody = Aeson.encode (GetAsset uid key Nothing)
---         --      }
---         --  ]
+testRemoteDownloadNoAsset :: HasCallStack => App ()
+testRemoteDownloadNoAsset = do
+  assetId <- randomId
+  uid <- randomUser OwnDomain def
+  otherDomain <- make OtherDomain & asString
+  let key = "3-2-" <> assetId
+      qkey =
+        object
+          [ "domain" .= otherDomain,
+            "key" .= key
+          ]
+  res <- downloadAsset' uid qkey ()
+  res.status `shouldMatchInt` 404
 
--- testRemoteDownloadFederationFailure :: HasCallStack => App ()
--- testRemoteDownloadFederationFailure = do
---   assetId <- randomId
---   uid <- randomId
---   let key = "3-2-" <> assetId
---       qkey = object
---         [ "domain" .= "faraway.example.com"
---         , "id" .= key
---         ]
---       respond req
---         | frRPC req == "get-asset" =
---             pure ("application" // "json", Aeson.encode (GetAssetResponse True))
---         | otherwise = throw (MockErrorResponse HTTP.status500 "mock error")
---   -- (resp, _) <-
---   --   withMockFederator respond $ do
---   --     responseJsonError
---   res <- downloadAsset' uid qkey ()
---   res.status `shouldMatchInt` 500
---   resJ <- maybe (assertFailure "No JSON body") pure res.jsonBody
---   asString (resJ %. "label") `shouldMatch` "mock-error"
---   asString (resJ %. "message") `shouldMatch` "mock error"
+testRemoteDownloadFederationFailure :: HasCallStack => App ()
+testRemoteDownloadFederationFailure = do
+  assetId <- randomId
+  uid <- randomUser OwnDomain def
+  startDynamicBackends [def] $ \[remoteDomain] -> do
+    let key = "3-2-" <> assetId
+        qkey =
+          object
+            [ "domain" .= remoteDomain,
+              "key" .= key
+            ]
+    res <- downloadAsset' uid qkey ()
+    res.status `shouldMatchInt` 500
+    resJ <- maybe (assertFailure "No JSON body") pure res.jsonBody
+    asString (resJ %. "label") `shouldMatch` "mock-error"
+    asString (resJ %. "message") `shouldMatch` "mock error"
 
--- testRemoteDownloadShort :: HasCallStack => App ()
--- testRemoteDownloadShort = remoteDownload $ cs "asset content"
+testRemoteDownloadShort :: HasCallStack => App ()
+testRemoteDownloadShort = remoteDownload "asset content"
 
--- testRemoteDownloadLong :: HasCallStack => App ()
--- testRemoteDownloadLong = remoteDownload $ toLazyByteString $ mconcat $ replicate 20000 $ builder "hello world\n"
+testRemoteDownloadLong :: HasCallStack => App ()
+testRemoteDownloadLong = remoteDownload $ concat $ replicate 20000 $ "hello world\n"
 
--- remoteDownload :: HasCallStack => LBS.ByteString -> App ()
--- remoteDownload assetContent = do
---   assetId <- randomId
---   uid <- randomId
---
---   let key = "3-2-" <> assetId
---       qkey = object ["domain" .= "faraway.example.com", "id" .= key]
---       respond req
---         | frRPC req == "get-asset" =
---             pure ("application" // "json", Aeson.encode (GetAssetResponse True))
---         | otherwise = pure ("application" // "octet-stream", assetContent)
---   (_, reqs) <- withMockFederator respond $ do
---     res <- downloadAsset' uid qkey ()
---     res.status `shouldMatchInt` 200
---     res.responseBody `shouldMatch` assetContent
---
---   let ga = object [ "user" .= uid, "key" .= key ]
---   liftIO $
---     reqs
---       @?= undefined
---           -- [ FederatedRequest
---           --     { frOriginDomain = localDomain,
---           --       frTargetDomain = Domain "faraway.example.com",
---           --       frComponent = Cargohold,
---           --       frRPC = "get-asset",
---           --       frBody = ga
---           --     },
---           --   FederatedRequest
---           --     { frOriginDomain = localDomain,
---           --       frTargetDomain = Domain "faraway.example.com",
---           --       frComponent = Cargohold,
---           --       frRPC = "stream-asset",
---           --       frBody = ga
---           --     }
---           -- ]
+remoteDownload :: (HasCallStack, ConvertibleStrings a String) => a -> App ()
+remoteDownload content = do
+  uid1 <- randomUser OwnDomain def
+  uid2 <- randomUser OtherDomain def
+  r1 <- uploadSimple uid1 settings (applicationOctetStream, cs content)
+  r1.status `shouldMatchInt` 201
+  let locHeader = mk $ cs "Location"
+      loc = decodeHeaderOrFail @String locHeader r1
+  -- Lookup and download via redirect.
+  r2 <- downloadAsset' uid2 loc ()
+  print r2
+  r2.status `shouldMatchInt` 200
+  assertBool "Content types should match" $ getContentType r2 == Just applicationOctetStream'
+  -- decodeHeaderOrFail @String (mk $ cs "x-amz-meta-user") r3 `shouldMatch` (uid %. "id")
+  cs @_ @String r2.body `shouldMatch` Just (cs content :: String)
+  where
+    settings = object ["public" .= True]

@@ -163,7 +163,6 @@ mkDerivation {
     tasty-ant-xml
     tasty-hunit
     text
-    time
     types-common
     uuid
     wai-utilities

@@ -294,7 +294,6 @@ executable cargohold-integration
     , tasty-ant-xml
     , tasty-hunit            >=0.9
     , text                   >=1.1
-    , time                   >=1.5
     , types-common           >=0.7
     , uuid                   >=1.3
     , wai-utilities          >=0.12
