@@ -3,6 +3,7 @@
 
 module API.Galley where
 
+import API.Common
 import Control.Lens hiding ((.=))
 import Control.Monad.Reader
 import Data.Aeson qualified as Aeson
@@ -99,6 +100,21 @@ deleteTeamConversation tid qcnv user = do
   let path = joinHttpPath ["teams", tid, "conversations", cnv]
   req <- baseRequest user Galley Versioned path
   submit "DELETE" req
+
+deleteTeamMember ::
+  ( HasCallStack,
+    MakesValue owner,
+    MakesValue member
+  ) =>
+  String ->
+  owner ->
+  member ->
+  App Response
+deleteTeamMember tid owner mem = do
+  memId <- objId mem
+  let path = joinHttpPath ["teams", tid, "members", memId]
+  req <- baseRequest owner Galley Versioned path
+  submit "DELETE" (addJSONObject ["password" .= defPassword] req)
 
 putConversationProtocol ::
   ( HasCallStack,
