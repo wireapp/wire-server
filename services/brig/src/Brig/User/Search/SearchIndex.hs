@@ -199,6 +199,15 @@ restrictSearchSpace (FederatedSearch Nothing) =
             matchTeamMembersSearchableByAllTeams
           ]
       }
+restrictSearchSpace (FederatedSearch (Just [])) =
+  ES.QueryBoolQuery
+    boolQuery
+      { ES.boolQueryMustMatch =
+          [ -- if the list of allowed teams is empty, this is impossible to fulfill, and no results will be returned
+            -- this case should be handled earlier, so this is just a safety net
+            ES.TermQuery (ES.Term "team" "must not match any team") Nothing
+          ]
+      }
 restrictSearchSpace (FederatedSearch (Just teams)) =
   ES.QueryBoolQuery
     boolQuery

@@ -188,6 +188,9 @@ searchUsers ::
   Domain ->
   SearchRequest ->
   ExceptT Error (AppT r) SearchResponse
+searchUsers domain (SearchRequest _ mTeam (Just [])) = do
+  searchPolicy <- lookupSearchPolicyWithTeam domain mTeam
+  pure $ SearchResponse [] searchPolicy
 searchUsers domain (SearchRequest searchTerm mTeam mOnlyInTeams) = do
   searchPolicy <- lookupSearchPolicyWithTeam domain mTeam
 
