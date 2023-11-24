@@ -52,10 +52,6 @@ testSimpleRoundtrip = do
       let bdy = (applicationText, "Hello World")
       r1 <- uploadSimple uid sets bdy
       r1.status `shouldMatchInt` 201
-      putStrLn "sets = "
-      print sets
-      putStrLn "r1 = "
-      print r1
       -- use v3 path instead of the one returned in the header
       (key, tok, expires) <-
         (,,)
@@ -78,17 +74,11 @@ testSimpleRoundtrip = do
           Just r -> do
             r' <- asString r
             -- These retention policies never expire, so an expiration date isn't sent back
-            unless (r' == "eternal" || r' == "persistent" || r' == "eternal-infrequent_access") $ do
-              putStrLn "utc ="
-              print utc
-              putStrLn "expires' = "
-              print expires'
+            unless (r' == "eternal" || r' == "persistent" || r' == "eternal-infrequent_access") $
               assertBool "invalid expiration" (Just utc < expires')
         _ -> pure ()
       -- Lookup with token and download via redirect.
       r2 <- downloadAsset' uid r1.jsonBody tok
-      putStrLn "r2 = "
-      print r2
       r2.status `shouldMatchInt` 302
       assertBool "Response body should be empty" $ r2.body == mempty
 

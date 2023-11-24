@@ -22,11 +22,14 @@ module Test.Cargohold.API where
 import API.Cargohold
 import Codec.MIME.Type qualified as MIME
 import Control.Lens hiding (sets, (.=))
+import Data.Aeson.KeyMap qualified as KM
 import Data.Aeson.Types (Pair)
 import Data.ByteString.Char8 qualified as C8
 import Data.ByteString.Lazy qualified as LBS hiding (replicate)
 import Data.CaseInsensitive (mk)
 import Data.String.Conversions
+import Data.Time (UTCTime, defaultTimeLocale, parseTimeOrError, rfc822DateFormat)
+import Data.Time.Format.ISO8601 (formatParseM, iso8601Format)
 import Network.HTTP.Client (parseUrlThrow)
 import Network.HTTP.Client qualified as HTTP
 import Network.HTTP.Types qualified as HTTP
@@ -37,6 +40,62 @@ import UnliftIO.Concurrent
 
 --------------------------------------------------------------------------------
 -- Simple (single-step) uploads
+
+testSimpleRoundtrip :: HasCallStack => App ()
+testSimpleRoundtrip = do
+  let def' = ["public" .= False]
+      rets = ["eternal", "persistent", "volatile", "eternal-infrequent_access", "expiring"]
+      sets' = fmap object $ def' : fmap (\r -> "retention" .= r : def') rets
+  mapM_ simpleRoundtrip sets'
+  where
+    simpleRoundtrip :: HasCallStack => Value -> App ()
+    simpleRoundtrip sets = do
+      uid <- randomUser OwnDomain def
+      userId1 <- uid %. "id" & asString
+      uid2 <- randomUser OwnDomain def
+      -- Initial upload
+      let bdy = (applicationText, "Hello World")
+      r1 <- uploadSimple uid sets bdy
+      r1.status `shouldMatchInt` 201
+      loc <- maybe (error "Could not find the Location header") (pure . cs @_ @String) $ lookup (mk $ cs "Location") r1.headers
+      (tok, expires) <-
+        (,)
+          <$> asString (r1.json %. "token")
+          <*> (lookupField r1.json "expires" >>= maybe (pure Nothing) (fmap pure . asString))
+      -- Check mandatory Date header
+      let Just date = C8.unpack <$> lookup (mk $ cs "Date") r1.headers
+          utc = parseTimeOrError False defaultTimeLocale rfc822DateFormat date :: UTCTime
+          parseTimeIso t = fromMaybe (error $ "Could not parse \"" <> t <> "\" as ISO8601") $ formatParseM (iso8601Format @UTCTime) t
+          expires' = parseTimeIso <$> expires :: Maybe UTCTime
+      -- Potentially check for the expires header
+      case sets of
+        Object o -> case KM.lookup (fromString "retention") o of
+          Nothing -> pure ()
+          Just r -> do
+            r' <- asString r
+            -- These retention policies never expire, so an expiration date isn't sent back
+            unless (r' == "eternal" || r' == "persistent" || r' == "eternal-infrequent_access") $
+              assertBool "invalid expiration" (Just utc < expires')
+        _ -> pure ()
+      -- Lookup with token and download via redirect.
+      r2 <- downloadAsset' uid loc tok
+      r2.status `shouldMatchInt` 302
+      cs @_ @String r2.body `shouldMatch` ""
+      r3 <- flip get' id =<< parseUrlThrow (C8.unpack (getHeader' (mk $ cs "Location") r2))
+      r3.status `shouldMatchInt` 200
+      assertBool "content-type should always be application/octet-stream" $ Just applicationOctetStream == fmap MIME.mimeType (getContentType r3)
+      assertBool "token mismatch" $ tok == decodeHeaderOrFail (mk $ cs "x-amz-meta-token") r3
+      assertBool "user mismatch" $ userId1 == decodeHeaderOrFail (mk $ cs "x-amz-meta-user") r3
+      assertBool "data mismatch" $ cs "Hello World" == r3.body
+      -- Delete (forbidden for other users)
+      deleteAsset uid2 r1.jsonBody >>= \r -> r.status `shouldMatchInt` 403
+      -- Delete (allowed for creator)
+      deleteAsset uid r1.jsonBody >>= \r -> r.status `shouldMatchInt` 200
+      r4 <- downloadAsset' uid loc tok
+      r4.status `shouldMatchInt` 404
+      let Just date' = C8.unpack <$> lookup (mk $ cs "Date") r4.headers
+          utc' = parseTimeOrError False defaultTimeLocale rfc822DateFormat date' :: UTCTime
+      assertBool "bad date" (utc' >= utc)
 
 testDownloadWithAcceptHeader :: HasCallStack => App ()
 testDownloadWithAcceptHeader = do

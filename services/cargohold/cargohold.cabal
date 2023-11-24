@@ -210,7 +210,6 @@ executable cargohold-integration
     API
     API.Federation
     API.Util
-    API.V3
     App
     Metrics
     Paths_cargohold

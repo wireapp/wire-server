@@ -22,7 +22,6 @@ where
 
 import qualified API
 import API.Federation (tests)
-import qualified API.V3
 import qualified App
 import Data.Proxy
 import Data.Tagged
@@ -67,7 +66,6 @@ main = do
             testGroup
               "Cargohold"
               [ API.tests ts,
-                API.V3.tests ts,
                 Metrics.tests ts,
                 API.Federation.tests ts,
                 App.tests ts

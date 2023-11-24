@@ -89,9 +89,9 @@ deleteAssetV3 user key = do
 
 deleteAsset :: (HasCallStack, MakesValue user, MakesValue key) => user -> key -> App Response
 deleteAsset user key = do
-  k <- key %. "id" & asString
+  k <- key %. "key" & asString
   d <- key %. "domain" & asString
-  req <- baseRequest user Cargohold Versioned $ "/assets/" <> d <> "/" <> show k
+  req <- baseRequest user Cargohold Versioned $ "/assets/" <> d <> "/" <> k
   submit "DELETE" req
 
 header :: String -> String -> Request -> Request
