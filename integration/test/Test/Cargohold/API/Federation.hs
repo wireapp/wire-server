@@ -76,7 +76,7 @@ testGetAssetWrongToken = do
   uid1 <- randomUser OwnDomain def
   uid2 <- randomUser OtherDomain def
   userId2 <- uid2 %. "id" & asString
-  domain <- make OwnDomain & asString
+  domain <- uid1 %. "qualified_id" %. "domain" & asString
   r1 <- uploadSimple uid1 settings bdy
   r1.status `shouldMatchInt` 201
   key <- r1.jsonBody %. "key" & asString
@@ -144,47 +144,38 @@ testStreamAsset = do
     bdy = (applicationOctetStream, cs "Hello World")
     settings = object ["public" .= False, "retention" .= "volatile"]
 
--- testStreamAssetNotAvailable :: TestM ()
--- testStreamAssetNotAvailable = do
---   uid <- liftIO $ Id <$> nextRandom
---   token <- randToken
---
---   assetId <- liftIO $ Id <$> nextRandom
---   let key = AssetKeyV3 assetId AssetPersistent
---   let ga =
---         GetAsset
---           { user = uid,
---             token = Just token,
---             key = key
---           }
---   err <- withFederationError $ do
---     runFederationClient (unsafeFedClientIn @'Cargohold @"stream-asset" ga)
---   liftIO $ do
---     Wai.code err @?= HTTP.notFound404
---     Wai.label err @?= "not-found"
---
--- testStreamAssetWrongToken :: TestM ()
--- testStreamAssetWrongToken = do
---   -- Initial upload
---   let bdy = (applicationOctetStream, "Hello World")
---       settings = defAssetSettings & set setAssetRetention (Just AssetVolatile)
---   uid <- randomUser
---   ast :: Asset <-
---     responseJsonError
---       =<< uploadSimple (path "/assets/v3") uid settings bdy
---         <!! const 201 === statusCode
---
---   -- Call get-asset federation API with wrong (random) token
---   tok <- randToken
---   let key = view assetKey ast
---   let ga =
---         GetAsset
---           { user = uid,
---             token = Just tok,
---             key = qUnqualified key
---           }
---   err <- withFederationError $ do
---     runFederationClient (unsafeFedClientIn @'Cargohold @"stream-asset" ga)
---   liftIO $ do
---     Wai.code err @?= HTTP.notFound404
---     Wai.label err @?= "not-found"
+testStreamAssetNotAvailable :: HasCallStack => App ()
+testStreamAssetNotAvailable = do
+  uid <- randomUser OwnDomain def
+  uid2 <- randomUser OtherDomain def
+  userId <- uid2 %. "id" & asString
+  domain <- uid %. "qualified_id" %. "domain" & asString
+  token <- randomToken
+  assetId <- randomId
+  let key = "3-2-" <> assetId
+      ga = object ["user" .= userId, "token" .= token, "key" .= key, "domain" .= domain]
+  r <- downloadAsset' uid2 ga ga
+  r.status `shouldMatchInt` 404
+  r.jsonBody %. "message" `shouldMatch` "Asset not found"
+
+testStreamAssetWrongToken :: HasCallStack => App ()
+testStreamAssetWrongToken = do
+  -- Initial upload
+  uid <- randomUser OwnDomain def
+  uid2 <- randomUser OtherDomain def
+  userId2 <- uid2 %. "id" & asString
+  domain <- uid %. "qualified_id" %. "domain" & asString
+  r1 <- uploadSimple uid settings bdy
+  r1.status `shouldMatchInt` 201
+
+  -- Call get-asset federation API with wrong (random) token
+  tok <- randomToken
+  key <- r1.jsonBody %. "key" & asString
+  let ga = object ["user" .= userId2, "token" .= tok, "key" .= key, "domain" .= domain]
+  r2 <- downloadAsset' uid2 ga ga
+  r2.status `shouldMatchInt` 404
+  r2.jsonBody %. "message" `shouldMatch` "Asset not found"
+  where
+    bdy :: ConvertibleStrings String a => (MIME.MIMEType, a)
+    bdy = (applicationOctetStream, cs "Hello World")
+    settings = object ["public" .= False, "retention" .= "volatile"]

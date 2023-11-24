@@ -139,7 +139,6 @@ mkDerivation {
     bytestring
     bytestring-conversion
     cargohold-types
-    conduit
     containers
     federator
     HsOpenSSL

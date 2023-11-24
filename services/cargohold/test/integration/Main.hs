@@ -21,7 +21,6 @@ module Main
 where
 
 import qualified API
-import API.Federation (tests)
 import qualified App
 import Data.Proxy
 import Data.Tagged
@@ -67,7 +66,6 @@ main = do
               "Cargohold"
               [ API.tests ts,
                 Metrics.tests ts,
-                API.Federation.tests ts,
                 App.tests ts
               ]
   where

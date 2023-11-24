@@ -208,7 +208,6 @@ executable cargohold-integration
   main-is:            Main.hs
   other-modules:
     API
-    API.Federation
     API.Util
     App
     Metrics
@@ -271,7 +270,6 @@ executable cargohold-integration
     , bytestring-conversion  >=0.2
     , cargohold
     , cargohold-types
-    , conduit
     , containers
     , federator
     , http-api-data
