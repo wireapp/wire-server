@@ -2,6 +2,7 @@ module Test.Brig where
 
 import API.Brig qualified as BrigP
 import API.BrigInternal qualified as BrigI
+import API.Common (randomName)
 import Data.Aeson.Types hiding ((.=))
 import Data.Set qualified as Set
 import Data.String.Conversions
@@ -130,7 +131,13 @@ testCrudFederationRemoteTeams :: HasCallStack => App ()
 testCrudFederationRemoteTeams = do
   (_, tid, _) <- createTeam OwnDomain 1
   (_, tid2, _) <- createTeam OwnDomain 1
-  let rd = "some-remote-domain.wire.com"
+  rd <- (\n -> n <> ".wire.com") <$> randomName
+  bindResponse (BrigI.addFederationRemoteTeam' OwnDomain rd tid) $ \resp -> do
+    resp.status `shouldMatchInt` 533
+  void $ BrigI.createFedConn OwnDomain $ BrigI.FedConn rd "full_search" Nothing
+  bindResponse (BrigI.addFederationRemoteTeam' OwnDomain rd tid) $ \resp -> do
+    resp.status `shouldMatchInt` 533
+  void $ BrigI.updateFedConn OwnDomain rd $ BrigI.FedConn rd "full_search" (Just [])
   bindResponse (BrigI.getFederationRemoteTeams OwnDomain rd) $ \resp -> do
     resp.status `shouldMatchInt` 200
     checkAbsence resp [tid, tid2]

@@ -42,7 +42,7 @@ import Brig.Data.User qualified as Data
 import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
 import Brig.Effects.BlacklistStore (BlacklistStore)
 import Brig.Effects.CodeStore (CodeStore)
-import Brig.Effects.FederationConfigStore (AddFederationRemoteResult (..), FederationConfigStore, UpdateFederationResult (..))
+import Brig.Effects.FederationConfigStore (AddFederationRemoteResult (..), AddFederationRemoteTeamResult (..), FederationConfigStore, UpdateFederationResult (..))
 import Brig.Effects.FederationConfigStore qualified as FederationConfigStore
 import Brig.Effects.GalleyProvider (GalleyProvider)
 import Brig.Effects.PasswordResetStore (PasswordResetStore)
@@ -233,12 +233,22 @@ getFederationRemoteTeams domain =
 
 addFederationRemoteTeam :: (Member FederationConfigStore r) => Domain -> FederationRemoteTeam -> (Handler r) ()
 addFederationRemoteTeam domain rt =
-  lift $ liftSem $ FederationConfigStore.addFederationRemoteTeam domain rt.teamId
+  lift (liftSem $ FederationConfigStore.addFederationRemoteTeam domain rt.teamId) >>= \case
+    AddFederationRemoteTeamSuccess -> pure ()
+    AddFederationRemoteTeamDomainNotFound ->
+      throwError . fedError . FederationUnexpectedError $
+        "Federation domain does not exist.  Please add it first."
+    AddFederationRemoteTeamRestrictionAllowAll ->
+      throwError . fedError . FederationUnexpectedError $
+        "Federation is not configured to be restricted by teams. Therefore adding a team to a \
+        \remote domain is not allowed."
+
+getFederationRemotes :: (Member FederationConfigStore r) => (Handler r) FederationDomainConfigs
+getFederationRemotes = lift $ liftSem $ FederationConfigStore.getFederationConfigs
 
 addFederationRemote :: (Member FederationConfigStore r) => FederationDomainConfig -> (Handler r) ()
 addFederationRemote fedDomConf = do
-  result <- lift $ liftSem $ FederationConfigStore.addFederationConfig fedDomConf
-  case result of
+  lift (liftSem $ FederationConfigStore.addFederationConfig fedDomConf) >>= \case
     AddFederationRemoteSuccess -> pure ()
     AddFederationRemoteMaxRemotesReached ->
       throwError . fedError . FederationUnexpectedError $
@@ -255,9 +265,6 @@ addFederationRemote fedDomConf = do
           <> ( "got "
                  <> cs (show (Map.lookup (domain fedDomConf) cfg))
              )
-
-getFederationRemotes :: (Member FederationConfigStore r) => (Handler r) FederationDomainConfigs
-getFederationRemotes = lift $ liftSem $ FederationConfigStore.getFederationConfigs
 
 updateFederationRemote :: (Member FederationConfigStore r) => Domain -> FederationDomainConfig -> (Handler r) ()
 updateFederationRemote dom fedcfg = do

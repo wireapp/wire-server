@@ -167,11 +167,15 @@ connectWithRemoteUser userFrom userTo = do
 
 addFederationRemoteTeam :: (HasCallStack, MakesValue domain, MakesValue remoteDomain, MakesValue team) => domain -> remoteDomain -> team -> App ()
 addFederationRemoteTeam domain remoteDomain team = do
+  res <- addFederationRemoteTeam' domain remoteDomain team
+  res.status `shouldMatchInt` 200
+
+addFederationRemoteTeam' :: (HasCallStack, MakesValue domain, MakesValue remoteDomain, MakesValue team) => domain -> remoteDomain -> team -> App Response
+addFederationRemoteTeam' domain remoteDomain team = do
   d <- asString remoteDomain
   t <- make team
   req <- baseRequest domain Brig Unversioned $ joinHttpPath ["i", "federation", "remotes", d, "teams"]
-  res <- submit "POST" (req & addJSONObject ["team_id" .= t])
-  res.status `shouldMatchInt` 200
+  submit "POST" (req & addJSONObject ["team_id" .= t])
 
 getFederationRemoteTeams :: (HasCallStack, MakesValue domain, MakesValue remoteDomain) => domain -> remoteDomain -> App Response
 getFederationRemoteTeams domain remoteDomain = do

@@ -52,7 +52,7 @@ interpretFederationDomainConfig mFedStrategy cfgs =
       GetFederationConfigs -> getFederationConfigs' mFedStrategy cfgs
       AddFederationConfig cnf -> addFederationConfig' cfgs cnf
       UpdateFederationConfig d cnf -> updateFederationConfig' cfgs d cnf
-      AddFederationRemoteTeam d t -> addFederationRemoteTeam' d t
+      AddFederationRemoteTeam d t -> addFederationRemoteTeam' cfgs d t
       RemoveFederationRemoteTeam d t -> removeFederationRemoteTeam' d t
       GetFederationRemoteTeams d -> getFederationRemoteTeams' d
 
@@ -188,9 +188,17 @@ updateFederationConfig' cfgs dom (FederationDomainConfig rDomain searchPolicy re
     insertTeam :: PrepQuery W (Domain, TeamId) ()
     insertTeam = "INSERT INTO federation_remote_teams (domain, team) VALUES (?, ?)"
 
-addFederationRemoteTeam' :: MonadClient m => Domain -> TeamId -> m ()
-addFederationRemoteTeam' rDomain tid =
-  retry x1 $ write add (params LocalQuorum (rDomain, tid))
+addFederationRemoteTeam' :: MonadClient m => [FederationDomainConfig] -> Domain -> TeamId -> m AddFederationRemoteTeamResult
+addFederationRemoteTeam' cfgs rDomain tid = do
+  mDom <- getFederationConfig' cfgs rDomain
+  case mDom of
+    Nothing ->
+      pure AddFederationRemoteTeamDomainNotFound
+    Just (FederationDomainConfig _ _ FederationRestrictionAllowAll) ->
+      pure AddFederationRemoteTeamRestrictionAllowAll
+    Just _ -> do
+      retry x1 $ write add (params LocalQuorum (rDomain, tid))
+      pure AddFederationRemoteTeamSuccess
   where
     add :: PrepQuery W (Domain, TeamId) ()
     add = "INSERT INTO federation_remote_teams (domain, team) VALUES (?, ?)"
