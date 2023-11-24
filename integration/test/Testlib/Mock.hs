@@ -58,6 +58,6 @@ startMockServer config app = do
         ( \_ ->
             catch (Socket.close sock) (\(_ :: SomeException) -> pure ())
         )
-      $ \_ -> action
+      $ const action
 
   pure port
