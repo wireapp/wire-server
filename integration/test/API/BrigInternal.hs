@@ -4,8 +4,6 @@ import API.Common
 import Data.Aeson qualified as Aeson
 import Data.Function
 import Data.Maybe
-import Data.String.Conversions (cs)
-import Data.Vector qualified as Vector
 import Testlib.Prelude
 
 data CreateUser = CreateUser
@@ -69,7 +67,7 @@ instance ToJSON FedConn where
           .= maybe
             (Aeson.object ["tag" .= "allow_all", "value" .= Aeson.Null])
             ( \teams ->
-                Aeson.object ["tag" .= "restrict_by_team", "value" .= Aeson.Array (Vector.fromList (Aeson.String . cs <$> teams))]
+                Aeson.object ["tag" .= "restrict_by_team", "value" .= Aeson.toJSON teams]
             )
             r
       ]
