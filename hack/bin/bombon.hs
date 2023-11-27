@@ -9,15 +9,29 @@ import Data.Time.Clock.POSIX
 import Turtle
 
 main = do
-  nixDir <- options "Upload boms" do
-    optText "nixDir" 'd' "Where to find the nix code"
+  release <- options "Upload boms" do
+    optText "release" 't' "Which release tag to upload the artifacts to"
+
   with (mktempdir "." "tmp") \tmpDir -> do
-    bomName <- ("wire-server-bom-" <>) . T.pack . show . nominalDiffTimeToSeconds <$> getPOSIXTime
-    let bomPath = T.pack tmpDir <> "/" <> bomName
+    cd tmpDir
     proc
-      "nix"
-      ["build", "-f", nixDir, "wireServer.allLocalPackagesBom", "-o", bomPath]
+      "wget"
+      ["https://github.com/wireapp/wire-server/archive/refs/tags/chart/" <> release <> ".zip"]
       mempty
-    printf ("Copying " % s % " to s3\n") bomName
-    proc "aws" ["s3", "cp", bomPath, "s3://wire-server-bom/" <> bomName] mempty
+    proc "unzip" [release] mempty
+    bomName <- ("wire-server-bom-" <>) . T.pack . show . nominalDiffTimeToSeconds <$> getPOSIXTime
+    let bomPath = "./" <> bomName <> ".json"
+    ExitSuccess <-
+      proc
+        "nix"
+        [ "build",
+          "-f",
+          "wire-server-chart-" <> release <> "/nix",
+          "wireServer.allLocalPackagesBom",
+          "-o",
+          bomPath
+        ]
+        mempty
+    printf ("uploading " % s % " to release" % s % "\n") bomName release
+    proc "gh" ["release", "upload", release, bomPath] mempty
   pure ()

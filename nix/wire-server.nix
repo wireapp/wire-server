@@ -466,6 +466,7 @@ let
 
   allImages = pkgs.linkFarm "all-images" (images localModsEnableAll) ;
 
+  # BOM is an acronym for bill of materials
   allLocalPackagesBom = lib.buildBom allLocalPackages {
     includeBuildtimeDependencies = true;
   };
