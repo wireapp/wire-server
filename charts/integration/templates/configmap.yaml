@@ -120,4 +120,8 @@ data:
         federatorExternalPort: {{ $dynamicBackend.federatorExternalPort }}
       {{- end }}
     cassandra:
-{{ toYaml .Values.config.cassandra | indent 6}}
+      host: {{ .Values.config.cassandra.host }}
+      port: {{ .Values.config.cassandra.port }}
+      {{- if (include "useCassandraCA" .Values.config) }}
+      tlsCa: /etc/wire/galley/cassandra/{{- (include "tlsSecretRef" .Values.config | fromYaml).key }}
+      {{- end }}

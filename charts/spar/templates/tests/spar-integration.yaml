@@ -16,6 +16,11 @@ spec:
     - name: "spar-config"
       configMap:
         name: "spar"
+    {{- if (include "useCassandraCA" .Values.config) }}
+    - name: "spar-cassandra"
+      secret:
+        secretName: {{ (include "tlsSecretRef" .Values.config | fromYaml).name }}
+    {{- end}}
   containers:
   - name: integration
     image: "{{ .Values.image.repository }}-integration:{{ .Values.image.tag }}"
@@ -56,6 +61,10 @@ spec:
       mountPath: "/etc/wire/integration"
     - name: "spar-config"
       mountPath: "/etc/wire/spar/conf"
+    {{- if (include "useCassandraCA" .Values.config) }}
+    - name: "spar-cassandra"
+      mountPath: "/etc/wire/spar/cassandra"
+    {{- end }}
     resources:
       requests:
         memory: "512Mi"

@@ -37,3 +37,15 @@
 {{- define "integrationTestHelperNewLabels" -}}
   {{- (semverCompare ">= 1.23-0" (include "kubeVersion" .)) -}}
 {{- end -}}
+
+{{- define "useCassandraCA" -}}
+{{ or (hasKey .cassandra "tlsCa") (hasKey .cassandra "tlsCaSecretRef") }}
+{{- end -}}
+
+{{- define "tlsSecretRef" -}}
+{{- if .cassandra.tlsCaSecretRef -}}
+{{ .cassandra.tlsCaSecretRef | toYaml }}
+{{- else }}
+{{- dict "name" "integration-cassandra" "key" "ca.pem" | toYaml -}}
+{{- end -}}
+{{- end -}}
