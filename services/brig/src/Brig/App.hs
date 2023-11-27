@@ -416,11 +416,11 @@ initExtGetManager =
     SSL.contextSetVerificationMode
       ctx
       SSL.VerifyPeer
-        { vpFailIfNoPeerCert = False,
+        { vpFailIfNoPeerCert = True,
           vpClientOnce = False,
           vpCallback =
             Just
-              ( \_b ctx509store -> do
+              ( \_bool ctx509store -> do
                   cert <- getStoreCtxCert ctx509store
                   pk <- getPublicKey cert
                   let fprs = fingerprintBytes <$> fingerprints

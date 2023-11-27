@@ -97,7 +97,7 @@ initExtEnv = do
         Ssl.contextSetVerificationMode
           ctx
           Ssl.VerifyPeer
-            { vpFailIfNoPeerCert = False,
+            { vpFailIfNoPeerCert = True,
               vpClientOnce = False,
               vpCallback =
                 Just
