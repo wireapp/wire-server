@@ -165,7 +165,7 @@ connectWithRemoteUser userFrom userTo = do
 
 addFederationRemoteTeam :: (HasCallStack, MakesValue domain, MakesValue remoteDomain, MakesValue team) => domain -> remoteDomain -> team -> App ()
 addFederationRemoteTeam domain remoteDomain team = do
-void $ addFederationRemoteTeam' domain remoteDomain team >>= getBody 200
+  void $ addFederationRemoteTeam' domain remoteDomain team >>= getBody 200
 
 addFederationRemoteTeam' :: (HasCallStack, MakesValue domain, MakesValue remoteDomain, MakesValue team) => domain -> remoteDomain -> team -> App Response
 addFederationRemoteTeam' domain remoteDomain team = do
