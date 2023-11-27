@@ -14,7 +14,6 @@ import Data.Set (Set)
 import Data.Set qualified as Set
 import Data.Yaml qualified as Yaml
 import Database.CQL.IO qualified as Cassandra
-import Debug.Trace (traceM)
 import Network.HTTP.Client qualified as HTTP
 import OpenSSL.Session qualified as OpenSSL
 import System.Directory
@@ -68,10 +67,7 @@ mkGlobalEnv cfgFile = do
 
   manager <- liftIO $ HTTP.newManager HTTP.defaultManagerSettings
 
-  traceM $ "SSL: intConfig.cassandra.cassTlsCa " ++ show intConfig.cassandra.cassTlsCa
-
   mbCassCertFilePath <- liftIO $ getCassCertFilePath
-  traceM $ "SSL:  mbCassCertFilePath " ++ show mbCassCertFilePath
   mbSSLContext <- liftIO $ createSSLContext mbCassCertFilePath
   let basicCassSettings =
         Cassandra.defSettings
@@ -114,6 +110,7 @@ mkGlobalEnv cfgFile = do
   where
     createSSLContext :: Maybe FilePath -> IO (Maybe OpenSSL.SSLContext)
     createSSLContext (Just certFilePath) = do
+      print ("TLS: Connecting to Cassandra with TLS. Provided CA path:" ++ certFilePath)
       sslContext <- OpenSSL.context
       OpenSSL.contextSetCAFile sslContext certFilePath
       OpenSSL.contextSetVerificationMode
@@ -124,7 +121,9 @@ mkGlobalEnv cfgFile = do
             vpCallback = Nothing
           }
       pure $ Just sslContext
-    createSSLContext Nothing = pure Nothing
+    createSSLContext Nothing = do
+      print ("TLS: No TLS CA path provided. Connecting to Cassandra without TLS." :: String)
+      pure Nothing
 
 mkEnv :: GlobalEnv -> Codensity IO Env
 mkEnv ge = do
