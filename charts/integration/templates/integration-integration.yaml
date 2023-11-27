@@ -150,6 +150,8 @@ spec:
     - -c
     - |
       set -euo pipefail
+      # TODO: Remove after debugging
+      set -x
 
       if integration --config /etc/wire/integration/integration.yaml; then
         exit_code=$?
@@ -230,6 +232,18 @@ spec:
     {{- if (include "useCassandraCA" .Values.config)}}
     - name: "integration-cassandra"
       mountPath: "/certs"
+
+    - name: "integration-cassandra"
+      mountPath: "/etc/wire/brig/cassandra"
+
+    - name: "integration-cassandra"
+      mountPath: "/etc/wire/galley/cassandra"
+
+    - name: "integration-cassandra"
+      mountPath: "/etc/wire/gundeck/cassandra"
+
+    - name: "integration-cassandra"
+      mountPath: "/etc/wire/spar/cassandra"
     {{- end }}
 
     env:
