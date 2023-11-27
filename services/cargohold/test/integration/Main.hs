@@ -25,7 +25,6 @@ import qualified App
 import Data.Proxy
 import Data.Tagged
 import Imports hiding (local)
-import qualified Metrics
 import Options.Applicative
 import Test.Tasty
 import Test.Tasty.Ingredients
@@ -65,7 +64,6 @@ main = do
             testGroup
               "Cargohold"
               [ API.tests ts,
-                Metrics.tests ts,
                 App.tests ts
               ]
   where

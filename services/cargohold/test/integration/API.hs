@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -52,6 +51,10 @@ tests s =
 --------------------------------------------------------------------------------
 -- Federation behaviour
 
+-- This test doesn't fit in well with the `integration` style of tests. This is
+-- because setting up the asset to have the weird state where the asset key exists,
+-- but somehow the asset itself can't be downloaded is a bit beyond what the API
+-- integration setup allows. So this specific test can stay here for now.
 testRemoteDownloadFederationFailure :: TestM ()
 testRemoteDownloadFederationFailure = do
   assetId <- liftIO $ Id <$> nextRandom

@@ -314,24 +314,6 @@ testRemoteDownloadNoAsset = do
   res <- downloadAsset' uid qkey ()
   res.status `shouldMatchInt` 404
 
--- Deliberately causing a 500 error is tricky, and I can't see a nice way of doing it
--- testRemoteDownloadFederationFailure :: HasCallStack => App ()
--- testRemoteDownloadFederationFailure = do
---   assetId <- randomId
---   uid <- randomUser OwnDomain def
---   startDynamicBackends [def] $ \[remoteDomain] -> do
---     let key = "3-2-" <> assetId
---         qkey =
---           object
---             [ "domain" .= remoteDomain,
---               "key" .= key
---             ]
---     res <- downloadAsset' uid qkey ()
---     res.status `shouldMatchInt` 500
---     resJ <- maybe (assertFailure "No JSON body") pure res.jsonBody
---     asString (resJ %. "label") `shouldMatch` "mock-error"
---     asString (resJ %. "message") `shouldMatch` "mock error"
-
 testRemoteDownloadShort :: HasCallStack => App ()
 testRemoteDownloadShort = remoteDownload "asset content"
 

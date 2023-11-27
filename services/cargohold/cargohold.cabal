@@ -210,7 +210,6 @@ executable cargohold-integration
     API
     API.Util
     App
-    Metrics
     Paths_cargohold
     TestSetup
 
