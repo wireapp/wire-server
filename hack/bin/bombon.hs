@@ -1,10 +1,12 @@
 #!/usr/bin/env -S nix -Lv run github:wireapp/ghc-flakr/ecb1f45f1549e06c92d71164e305ce501eb0e36e
-{-# language BlockArguments, OverloadedStrings #-}
+{-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE ImportQualifiedPost #-}
+{-# LANGUAGE OverloadedStrings #-}
 
-import Turtle
 import Data.Text qualified as T
-import Data.Time.Clock.POSIX
 import Data.Time
+import Data.Time.Clock.POSIX
+import Turtle
 
 main = do
   nixDir <- options "Upload boms" do
@@ -16,6 +18,6 @@ main = do
       "nix"
       ["build", "-f", nixDir, "wireServer.allLocalPackagesBom", "-o", bomPath]
       mempty
-    printf ("Copying "%s%" to s3\n") bomName
+    printf ("Copying " % s % " to s3\n") bomName
     proc "aws" ["s3", "cp", bomPath, "s3://wire-server-bom/" <> bomName] mempty
   pure ()

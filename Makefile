@@ -545,4 +545,4 @@ helm-template-%: clean-charts charts-integration
 
 .PHONY: upload-bombon
 upload-bombon:
-	./hack/bin/bombon -- -d ./nix
+	./hack/bin/bombon.hs -- -d ./nix
