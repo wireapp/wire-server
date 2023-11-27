@@ -44,7 +44,13 @@ import Wire.API.UserMap (UserMap)
 import Wire.API.Util.Aeson (CustomEncoded (..))
 import Wire.Arbitrary (GenericUniform (..))
 
-data SearchRequest = SearchRequest {term :: Text, from :: Maybe TeamId, onlyInTeams :: Maybe [TeamId]}
+data SearchRequest = SearchRequest
+  { term :: Text,
+    -- | The searcher's team ID, used to matched against the remote backend's team federation policy.
+    from :: Maybe TeamId,
+    -- | The remote teams that the calling backend is allowed to federate with.
+    onlyInTeams :: Maybe [TeamId]
+  }
   deriving (Show, Eq, Generic, Typeable)
   deriving (Arbitrary) via (GenericUniform SearchRequest)
 
