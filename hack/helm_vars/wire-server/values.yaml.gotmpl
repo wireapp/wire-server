@@ -18,15 +18,22 @@ tags:
 cassandra-migrations:
   imagePullPolicy: {{ .Values.imagePullPolicy }}
   cassandra:
-    host: cassandra-ephemeral
+    host: k8ssandra-cluster-datacenter-1-service
     replicationFactor: 1
+    tlsCaSecretRef:
+        name: "cassandra-jks-keystore"
+        key: "ca.crt"
+
 elasticsearch-index:
   imagePullPolicy: {{ .Values.imagePullPolicy }}
   elasticsearch:
     host: elasticsearch-ephemeral
     index: directory_test
   cassandra:
-    host: cassandra-ephemeral
+    host: k8ssandra-cluster-datacenter-1-service
+    tlsCaSecretRef:
+        name: "cassandra-jks-keystore"
+        key: "ca.crt"
 
 brig:
   replicaCount: 1
@@ -41,8 +48,11 @@ brig:
       teamCreatorWelcome: https://teams.wire.com/login
       teamMemberWelcome: https://wire.com/download
     cassandra:
-      host: cassandra-ephemeral
+      host: k8ssandra-cluster-datacenter-1-service
       replicaCount: 1
+      tlsCaSecretRef:
+          name: "cassandra-jks-keystore"
+          key: "ca.crt"
     elasticsearch:
       host: elasticsearch-ephemeral
       index: directory_test
@@ -186,8 +196,11 @@ galley:
   imagePullPolicy: {{ .Values.imagePullPolicy }}
   config:
     cassandra:
-      host: cassandra-ephemeral
+      host: k8ssandra-cluster-datacenter-1-service
       replicaCount: 1
+      tlsCaSecretRef:
+          name: "cassandra-jks-keystore"
+          key: "ca.crt"
     enableFederation: true # keep in sync with brig.config.enableFederation, cargohold.config.enableFederation and tags.federator!
     settings:
       maxConvAndTeamSize: 16
@@ -248,8 +261,11 @@ gundeck:
       memory: 1024Mi
   config:
     cassandra:
-      host: cassandra-ephemeral
+      host: k8ssandra-cluster-datacenter-1-service
       replicaCount: 1
+      tlsCaSecretRef:
+          name: "cassandra-jks-keystore"
+          key: "ca.crt"
     redis:
       host: redis-ephemeral-master
       connectionMode: master
@@ -322,7 +338,10 @@ spar:
   config:
     tlsDisableCertValidation: true
     cassandra:
-      host: cassandra-ephemeral
+      host: k8ssandra-cluster-datacenter-1-service
+      tlsCaSecretRef:
+          name: "cassandra-jks-keystore"
+          key: "ca.crt"
     logLevel: Debug
     domain: zinfra.io
     appUri: http://spar:8080/
@@ -380,8 +399,15 @@ background-worker:
 integration:
   ingress:
     class: "nginx-{{ .Release.Namespace }}"
-  {{- if .Values.uploadXml }}
   config:
+    cassandra:
+      host: k8ssandra-cluster-datacenter-1-service
+      port: 9042
+      replicationFactor: 1
+      tlsCaSecretRef:
+        name: cassandra-jks-keystore
+        key: ca.crt
+  {{- if .Values.uploadXml }}
     uploadXml:
       baseUrl: {{ .Values.uploadXml.baseUrl }}
   secrets:

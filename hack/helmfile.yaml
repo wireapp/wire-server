@@ -46,7 +46,6 @@ releases:
     chart: '../.local/charts/fake-aws'
     values:
       - './helm_vars/fake-aws/values.yaml'
-
   - name: 'databases-ephemeral'
     namespace: '{{ .Values.namespace1 }}'
     chart: '../.local/charts/databases-ephemeral'
@@ -54,6 +53,34 @@ releases:
   - name: 'databases-ephemeral'
     namespace: '{{ .Values.namespace2 }}'
     chart: '../.local/charts/databases-ephemeral'
+
+#  - name: 'redis-ephemeral'
+#    namespace: '{{ .Values.namespace1 }}'
+#    chart: '../.local/charts/redis-ephemeral'
+#
+#  - name: 'redis-ephemeral'
+#    namespace: '{{ .Values.namespace2 }}'
+#    chart: '../.local/charts/redis-ephemeral'
+#
+#  - name: 'elasticsearch-ephemeral'
+#    namespace: '{{ .Values.namespace1 }}'
+#    chart: '../.local/charts/redis-ephemeral'
+#
+#  - name: 'elasticsearch-ephemeral'
+#    namespace: '{{ .Values.namespace2 }}'
+#    chart: '../.local/charts/redis-ephemeral'
+
+  - name: k8ssandra-test-cluster
+    chart: '../.local/charts/k8ssandra-test-cluster'
+    namespace: '{{ .Values.namespace1 }}'
+    values:
+      - './helm_vars/k8ssandra-test-cluster/values.yaml'
+
+  - name: k8ssandra-test-cluster
+    chart: '../.local/charts/k8ssandra-test-cluster'
+    namespace: '{{ .Values.namespace2 }}'
+    values:
+      - './helm_vars/k8ssandra-test-cluster/values.yaml'
 
   - name: 'rabbitmq'
     namespace: '{{ .Values.namespace1 }}'
@@ -128,7 +155,7 @@ releases:
       - name: cargohold.config.settings.federationDomain
         value: {{ .Values.federationDomain1 }}
     needs:
-      - 'databases-ephemeral'
+      - 'k8ssandra-test-cluster'
 
   - name: 'wire-server'
     namespace: '{{ .Values.namespace2 }}'
@@ -144,4 +171,4 @@ releases:
       - name: cargohold.config.settings.federationDomain
         value: {{ .Values.federationDomain2 }}
     needs:
-      - 'databases-ephemeral'
+      - 'k8ssandra-test-cluster'

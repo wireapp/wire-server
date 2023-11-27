@@ -1,0 +1,9 @@
+storageClassName: hcloud-volumes
+
+client_encryption_options:
+  enabled: true
+  optional: false
+  # The password could be secured better. However, this chart is meant to be
+  # used as test setup. And, protecting a self-signed certificate isn't very
+  # useful.
+  keystorePassword: p4ssw0rd
