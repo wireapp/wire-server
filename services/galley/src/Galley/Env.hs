@@ -22,11 +22,12 @@ module Galley.Env where
 
 import Cassandra
 import Control.Lens hiding ((.=))
-import Data.ByteString.Conversion (toByteString')
+import Data.Byteable
 import Data.Id
 import Data.Metrics.Middleware
-import Data.Misc (Fingerprint, HttpsUrl, Rsa)
+import Data.Misc (Fingerprint (..), HttpsUrl, Rsa)
 import Data.Range
+import Data.Time
 import Galley.Aws qualified as Aws
 import Galley.Options
 import Galley.Options qualified as O
@@ -37,7 +38,12 @@ import Network.AMQP qualified as Q
 import Network.HTTP.Client
 import Network.HTTP.Client.OpenSSL
 import OpenSSL.EVP.Digest
+import OpenSSL.EVP.PKey
+import OpenSSL.EVP.Verify
+import OpenSSL.RSA
 import OpenSSL.Session as Ssl
+import OpenSSL.X509
+import OpenSSL.X509.Store
 import Ssl.Util
 import System.Logger
 import Util.Options
@@ -70,7 +76,7 @@ data Env = Env
 -- | Environment specific to the communication with external
 -- service providers.
 data ExtEnv = ExtEnv
-  { _extGetManager :: (Manager, [Fingerprint Rsa] -> Ssl.SSL -> IO ())
+  { _extGetManager :: ([Fingerprint Rsa] -> IO Manager)
   }
 
 makeLenses ''Env
@@ -80,25 +86,50 @@ makeLenses ''ExtEnv
 -- TODO: somewhat duplicates Brig.App.initExtGetManager
 initExtEnv :: IO ExtEnv
 initExtEnv = do
-  ctx <- Ssl.context
-  Ssl.contextSetVerificationMode ctx Ssl.VerifyNone
-  Ssl.contextAddOption ctx SSL_OP_NO_SSLv2
-  Ssl.contextAddOption ctx SSL_OP_NO_SSLv3
-  Ssl.contextAddOption ctx SSL_OP_NO_TLSv1
-  Ssl.contextSetCiphers ctx rsaCiphers
-  Ssl.contextSetDefaultVerifyPaths ctx
-  mgr <-
-    newManager
-      (opensslManagerSettings (pure ctx))
-        { managerResponseTimeout = responseTimeoutMicro 10000000,
-          managerConnCount = 100
-        }
-  Just sha <- getDigestByName "SHA256"
-  pure $ ExtEnv (mgr, mkVerify sha)
-  where
-    mkVerify sha fprs =
-      let pinset = map toByteString' fprs
-       in verifyRsaFingerprint sha pinset
+  let mkMgr fingerprints = do
+        ctx <- Ssl.context
+        Just sha <- getDigestByName "SHA256"
+        Ssl.contextAddOption ctx SSL_OP_NO_SSLv2
+        Ssl.contextAddOption ctx SSL_OP_NO_SSLv3
+        Ssl.contextAddOption ctx SSL_OP_NO_TLSv1
+        Ssl.contextSetCiphers ctx rsaCiphers
+        Ssl.contextSetDefaultVerifyPaths ctx
+        Ssl.contextSetVerificationMode
+          ctx
+          Ssl.VerifyPeer
+            { vpFailIfNoPeerCert = False,
+              vpClientOnce = False,
+              vpCallback =
+                Just
+                  ( \_b ctx509store -> do
+                      cert <- getStoreCtxCert ctx509store
+                      pk <- getPublicKey cert
+                      let fprs = fingerprintBytes <$> fingerprints
+                      case toPublicKey pk of
+                        Nothing -> pure False
+                        Just k -> do
+                          fp <- rsaFingerprint sha (k :: RSAPubKey)
+                          if not (any (constEqBytes fp) fprs)
+                            then pure False
+                            else do
+                              -- Check if the certificate is self-signed.
+                              self <- verifyX509 cert pk
+                              if (self /= VerifySuccess)
+                                then pure False
+                                else do
+                                  -- For completeness, perform a date check as well.
+                                  now <- getCurrentTime
+                                  notBefore <- getNotBefore cert
+                                  notAfter <- getNotAfter cert
+                                  pure (now >= notBefore && now <= notAfter)
+                  )
+            }
+        newManager
+          (opensslManagerSettings (pure ctx))
+            { managerResponseTimeout = responseTimeoutMicro 10000000,
+              managerConnCount = 100
+            }
+  pure $ ExtEnv mkMgr
 
 reqIdMsg :: RequestId -> Msg -> Msg
 reqIdMsg = ("request" .=) . unRequestId

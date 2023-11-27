@@ -25,9 +25,6 @@ module Ssl.Util
 
     -- * Cipher suites
     rsaCiphers,
-
-    -- * Network
-    withVerifiedSslConnection,
   )
 where
 
@@ -36,7 +33,6 @@ import Data.ByteString.Builder
 import Data.Byteable (constEqBytes)
 import Data.Time.Clock (getCurrentTime)
 import Imports
-import Network.HTTP.Client.Internal
 import OpenSSL.BN (integerToMPI)
 import OpenSSL.EVP.Digest (Digest, digestLBS)
 import OpenSSL.EVP.PKey (SomePublicKey, toPublicKey)
@@ -166,48 +162,3 @@ verifyRsaFingerprint d = verifyFingerprint $ \pk ->
   case toPublicKey pk of
     Nothing -> pure Nothing
     Just k -> Just <$> rsaFingerprint d (k :: RSAPubKey)
-
--- [Note: Hostname verification]
--- Ideally, we would like to perform proper hostname verification, which
--- is not done automatically by OpenSSL [1]. However, the necessary APIs
--- are not yet available via HsOpenSSL. Note though that public key pinning
--- is already supposed to thwart attacks based on a lack of or incorrect
--- hostname verification (see [2] for many common attacks and mistakes).
---
--- [1] https://wiki.openssl.org/index.php/Hostname_validation
--- [2] https://www.cs.utexas.edu/~shmat/shmat_ccs12.pdf
-
--- Utilities -----------------------------------------------------------------
-
--- | Get an SSL connection that has definitely had its fingerprints checked
--- (internally it just grabs a connection from a pool and does verification
--- if it's a fresh one).
---
--- Throws an error for other types of connections.
-withVerifiedSslConnection ::
-  -- | A function to verify fingerprints given an SSL connection
-  (SSL -> IO ()) ->
-  Manager ->
-  -- | Request builder
-  (Request -> Request) ->
-  -- | This callback will be passed a modified
-  --   request that always uses the verified
-  --   connection
-  (Request -> IO a) ->
-  IO a
-withVerifiedSslConnection _verify man reqBuilder act =
-  withConnection req man $ \_ -> do
-    act req
-  where
-    -- withConnection' req man Reuse $ \mConn -> do
-    -- If we see this connection for the first time, verify fingerprints
-    -- let conn = managedResource mConn
-    --     seen = managedReused mConn
-    -- unless seen $ case fromDynamic @SSL (connectionRaw conn) of
-    --   Nothing -> error ("withVerifiedSslConnection: only SSL allowed: " <> show req)
-    --   Just ssl -> verify ssl
-    -- -- Make a request using this connection and return it back to the
-    -- -- pool (that's what 'Reuse' is for)
-    -- act req {connectionOverride = Just mConn}
-
-    req = reqBuilder defaultRequest
