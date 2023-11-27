@@ -235,19 +235,27 @@ sendMail m = do
 --------------------------------------------------------------------------------
 -- Utilities
 
-sendCatch :: AWSRequest r => r -> Amazon (Either AWS.Error (AWSResponse r))
+sendCatch :: (AWSRequest r, Typeable r, Typeable (AWSResponse r)) => r -> Amazon (Either AWS.Error (AWSResponse r))
 sendCatch req = do
   env <- view amazonkaEnv
   AWS.trying AWS._Error . AWS.send env $ req
 
-send :: AWSRequest r => r -> Amazon (AWSResponse r)
+send ::
+  (AWSRequest r, Typeable r, Typeable (AWSResponse r)) =>
+  r ->
+  Amazon (AWSResponse r)
 send r = throwA =<< sendCatch r
 
 throwA :: Either AWS.Error a -> Amazon a
 throwA = either (throwM . GeneralError) pure
 
 execCatch ::
-  (AWSRequest a, MonadUnliftIO m, MonadCatch m) =>
+  ( AWSRequest a,
+    Typeable a,
+    MonadUnliftIO m,
+    Typeable (AWSResponse a),
+    MonadCatch m
+  ) =>
   AWS.Env ->
   a ->
   m (Either AWS.Error (AWSResponse a))
@@ -257,7 +265,12 @@ execCatch e cmd =
       AWS.send e cmd
 
 exec ::
-  (AWSRequest a, MonadCatch m, MonadIO m) =>
+  ( AWSRequest a,
+    Typeable a,
+    Typeable (AWSResponse a),
+    MonadCatch m,
+    MonadIO m
+  ) =>
   AWS.Env ->
   a ->
   m (AWSResponse a)
