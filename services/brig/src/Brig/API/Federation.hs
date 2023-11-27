@@ -127,7 +127,6 @@ getUserByHandle ::
   Handle ->
   ExceptT Error (AppT r) (Maybe UserProfile)
 getUserByHandle domain handle = do
-  -- TODO: should we do the team federation check here, too?
   searchPolicy <- lookupSearchPolicy domain
 
   let performHandleLookup =
