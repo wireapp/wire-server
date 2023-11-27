@@ -36,7 +36,17 @@ import Prelude
 data HTTP2Conn = HTTP2Conn
   { backgroundThread :: Async (),
     disconnect :: IO (),
-    connectionActionMVar :: MVar ConnectionAction
+    connectionActionMVar :: MVar ConnectionAction,
+    -- Like TSem, but the blocking of waitTSem is undesirable for us
+    -- so we get to basically redo their code. Fun
+    requestSem :: TVar Int,
+    -- A sync variable to stop a thundering herd of requests from
+    -- filling up the max concurrent requests on a given connection,
+    -- and then having a bunch of threads creating new connections, most
+    -- of which will only have 1 or 2 requests, with one finally being
+    -- the long lived replacement. If requests are waiting on a new connection
+    -- they can loop until this resolves and they can use the new connection.
+    newConnectionBeingMade :: TVar Bool
   }
 
 type TLSEnabled = Bool
@@ -163,7 +173,47 @@ sendRequestWithConnection conn req k = do
 withHTTP2Request :: Http2Manager -> Target -> HTTP2.Request -> (HTTP2.Response -> IO a) -> IO a
 withHTTP2Request mgr target req k = do
   conn <- getOrMakeConnection mgr target
-  sendRequestWithConnection conn req k
+
+  -- This is the new version with new connections being made as required
+  let tReqSem = requestSem conn
+      tNewConn = newConnectionBeingMade conn
+  (canMakeConn, useCurrent) <- atomically $ do
+    -- Check if a new connection is being made
+    canMakeNewConn <- readTVar tNewConn
+    if canMakeNewConn
+      then do
+        -- Check if we can use the current connection
+        sem <- readTVar tReqSem
+        if sem <= 0
+          then do
+            -- Claim the newConnection flag
+            writeTVar tNewConn False
+            pure (canMakeNewConn, False)
+          else do
+            -- Claim a connection allocation
+            writeTVar tReqSem $! sem - 1
+            pure (canMakeNewConn, True)
+      else -- A new connection is being make, don't use existing connections
+        pure (canMakeNewConn, False)
+  if useCurrent
+    then do
+      sendRequestWithConnection conn req k
+        `finally` atomically (modifyTVar' tReqSem (+ 1))
+    else do
+      -- This is messy. When a thundering herd of requests is coming in, many
+      -- of them can get a negative semaphore check, which will then cause them
+      -- try to make new connections to the server. One of these will become
+      -- the replacement.
+      if canMakeConn
+        then do
+          -- Stop processing on the existing connection
+          disconnect conn
+          -- Drop the connection from the connection map so we can try again
+          atomically $ modifyTVar' (connections mgr) (Map.delete target)
+        else -- Can't make the new connection, so loop and maybe something
+        -- has freed up or the connection is ready to go.
+          threadDelay 1000
+      withHTTP2Request mgr target req k
 
 -- | Connects to a server if it is not already connected, useful when making
 -- many concurrent requests. This way the first few requests don't have to fight
@@ -175,9 +225,29 @@ connectIfNotAlreadyConnected mgr target = void $ getOrMakeConnection mgr target
 -- | Gets a connection if it exists and is alive, otherwise connects to the
 -- given 'Target'.
 getOrMakeConnection :: Http2Manager -> Target -> IO HTTP2Conn
-getOrMakeConnection mgr@Http2Manager {..} target = do
+getOrMakeConnection mgr target = do
   mConn <- atomically $ getConnection mgr target
-  maybe connect pure mConn
+  maybe (connect mgr target) pure mConn
+
+connect :: Http2Manager -> Target -> IO HTTP2Conn
+connect Http2Manager {..} target = do
+  sendReqMVar <- newEmptyMVar
+  thread <- liftIO . async $ startPersistentHTTP2Connection sslContext target cacheLimit sslRemoveTrailingDot tcpConnectionTimeout sendReqMVar
+  -- I've set this to be about half the value that run-time
+  -- testing shows to be the max. This is a safety buffer, and
+  -- in reality it _really_ needs to be handled at runtime where
+  -- it is read from the peer negotiation parameter `SETTINGS_MAX_CONCURRENT_STREAMS`
+  tReqSem <- newTVarIO 50
+  tNewConn <- newTVarIO True
+  let newConn = HTTP2Conn thread (putMVar sendReqMVar CloseConnection) sendReqMVar tReqSem tNewConn
+  (inserted, finalConn) <- atomically $ insertNewConn newConn
+  unless inserted $ do
+    -- It is possible that the connection won't leak because it is waiting
+    -- on an MVar and as soon as it gets removed from the map and GC collects
+    -- the 'HTTP2Conn', the connection thread _should_ in theory get
+    -- 'BlockedIndefinitelyOnMVar' exception. So perhaps this is useless?
+    disconnect newConn
+  pure finalConn
   where
     -- Ensures that any old connection is preserved. This is required to ensure
     -- that concurrent calls to this function don't cause the connections to
@@ -188,20 +258,6 @@ getOrMakeConnection mgr@Http2Manager {..} target = do
         case Map.lookup target conns of
           Nothing -> ((True, newConn), Map.insert target newConn conns)
           Just alreadyEstablishedConn -> ((False, alreadyEstablishedConn), conns)
-
-    connect :: IO HTTP2Conn
-    connect = do
-      sendReqMVar <- newEmptyMVar
-      thread <- liftIO . async $ startPersistentHTTP2Connection sslContext target cacheLimit sslRemoveTrailingDot tcpConnectionTimeout sendReqMVar
-      let newConn = HTTP2Conn thread (putMVar sendReqMVar CloseConnection) sendReqMVar
-      (inserted, finalConn) <- atomically $ insertNewConn newConn
-      unless inserted $ do
-        -- It is possible that the connection won't leak because it is waiting
-        -- on an MVar and as soon as it gets removed from the map and GC collects
-        -- the 'HTTP2Conn', the connection thread _should_ in theory get
-        -- 'BlockedIndefinitelyOnMVar' exception. So perhaps this is useless?
-        disconnect newConn
-      pure finalConn
 
 -- | Removes connection from map if it is not alive anymore
 getConnection :: Http2Manager -> Target -> STM (Maybe HTTP2Conn)
