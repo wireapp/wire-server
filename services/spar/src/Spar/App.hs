@@ -26,6 +26,7 @@ module Spar.App
     throwSparSem,
     verdictHandler,
     getUserByUrefUnsafe,
+    getUserByUrefViaOldIssuerUnsafe,
     getUserIdByScimExternalId,
     validateEmail,
     errorPage,
@@ -347,9 +348,7 @@ catchVerdictErrors = (`catch` hndlr)
 getUserByUrefViaOldIssuerUnsafe ::
   forall r.
   ( Member BrigAccess r,
-    Member IdPConfigStore r,
-    Member SAMLUserStore r,
-    Member (Error SparError) r
+    Member SAMLUserStore r
   ) =>
   IdP ->
   SAML.UserRef ->
