@@ -73,25 +73,25 @@ let
         sha256 = "sha256-ov85XFztGM0mEoj01lRZN9xYJttKa/crPnp0lh4A5DA=";
       };
     };
-    amazonka = {
-      src = fetchgit {
-        url = "https://github.com/brendanhay/amazonka";
-        rev = "cfe2584aef0b03c86650372d362c74f237925d8c";
-        sha256 = "sha256-ss8IuIN0BbS6LMjlaFmUdxUqQu+IHsA8ucsjxXJwbyg=";
-      };
-      packages = {
-        amazonka = "lib/amazonka";
-        amazonka-core = "lib/amazonka-core";
-        amazonka-cloudfront = "lib/services/amazonka-cloudfront";
-        amazonka-dynamodb = "lib/services/amazonka-dynamodb";
-        amazonka-s3 = "lib/services/amazonka-s3";
-        amazonka-ses = "lib/services/amazonka-ses";
-        amazonka-sns = "lib/services/amazonka-sns";
-        amazonka-sqs = "lib/services/amazonka-sqs";
-        amazonka-sso = "lib/services/amazonka-sso";
-        amazonka-sts = "lib/services/amazonka-sts";
-      };
-    };
+    # amazonka = {
+    #   src = fetchgit {
+    #     url = "https://github.com/brendanhay/amazonka";
+    #     rev = "cfe2584aef0b03c86650372d362c74f237925d8c";
+    #     sha256 = "sha256-ss8IuIN0BbS6LMjlaFmUdxUqQu+IHsA8ucsjxXJwbyg=";
+    #   };
+    #   packages = {
+    #     amazonka = "lib/amazonka";
+    #     amazonka-core = "lib/amazonka-core";
+    #     amazonka-cloudfront = "lib/services/amazonka-cloudfront";
+    #     amazonka-dynamodb = "lib/services/amazonka-dynamodb";
+    #     amazonka-s3 = "lib/services/amazonka-s3";
+    #     amazonka-ses = "lib/services/amazonka-ses";
+    #     amazonka-sns = "lib/services/amazonka-sns";
+    #     amazonka-sqs = "lib/services/amazonka-sqs";
+    #     amazonka-sso = "lib/services/amazonka-sso";
+    #     amazonka-sts = "lib/services/amazonka-sts";
+    #   };
+    # };
     bloodhound = {
       src = fetchgit {
         url = "https://github.com/wireapp/bloodhound";
