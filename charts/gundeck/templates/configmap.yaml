@@ -25,7 +25,7 @@ data:
       {{- if hasKey .cassandra "filterNodesByDatacentre" }}
       filterNodesByDatacentre: {{ .cassandra.filterNodesByDatacentre }}
       {{- end }}
-      {{- if (include "useCassandraCA" .) }}
+      {{- if eq (include "useCassandraCA" .) "true" }}
       tlsCa: /etc/wire/gundeck/cassandra/{{- (include "tlsSecretRef" . | fromYaml).key }}
       {{- end }}
 

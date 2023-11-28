@@ -44,7 +44,7 @@ spec:
     - name: "brig-integration-secrets"
       secret:
         secretName: "brig-integration"
-    {{- if (include "useCassandraCA" .Values.config) }}
+    {{- if eq (include "useCassandraCA" .Values.config) "true" }}
     - name: "brig-cassandra"
       secret:
         secretName: {{ (include "tlsSecretRef" .Values.config | fromYaml).name }}
@@ -106,7 +106,7 @@ spec:
       #       non-default locations
       #       (see corresp. TODO in galley.)
       mountPath: "/etc/wire/integration-secrets"
-    {{- if (include "useCassandraCA" .Values.config) }}
+    {{- if eq (include "useCassandraCA" .Values.config) "true" }}
     - name: "brig-cassandra"
       mountPath: "/etc/wire/brig/cassandra"
     {{- end }}

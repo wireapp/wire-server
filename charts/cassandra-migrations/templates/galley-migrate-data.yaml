@@ -42,16 +42,16 @@ spec:
            - "9042"
            - --cassandra-keyspace
            - galley
-           {{- if (include "useTlsGalley" .) }}
+           {{- if eq (include "useTlsGalley" .) "true" }}
            - --tls-certificate-file
            - /certs/galley/{{- (include "tlsSecretRefGalley" . | fromYaml).key }}
            {{- end }}
-          {{- if (include "useTlsGalley" .) }}
+          {{- if eq (include "useTlsGalley" .) "true" }}
           volumeMounts:
             - name: galley-cassandra-cert
               mountPath: "/certs/galley"
           {{- end }}
-      {{- if (include "useTlsGalley" .) }}
+      {{- if eq (include "useTlsGalley" .) "true" }}
       volumes:
         - name: galley-cassandra-cert
           secret:

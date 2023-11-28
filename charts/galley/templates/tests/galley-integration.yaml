@@ -40,7 +40,7 @@ spec:
     - name: "galley-secrets"
       secret:
         secretName: "galley"
-    {{- if (include "useCassandraCA" .Values.config) }}
+    {{- if eq (include "useCassandraCA" .Values.config) "true" }}
     - name: "galley-cassandra"
       secret:
         secretName: {{ (include "tlsSecretRef" .Values.config | fromYaml).name }}
@@ -89,7 +89,7 @@ spec:
       mountPath: "/etc/wire/integration-secrets"
     - name: "galley-secrets"
       mountPath: "/etc/wire/galley/secrets"
-    {{- if (include "useCassandraCA" .Values.config)}}
+    {{- if eq (include "useCassandraCA" .Values.config) "true" }}
     - name: "galley-cassandra"
       mountPath: "/etc/wire/galley/cassandra"
     {{- end }}

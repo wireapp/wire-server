@@ -1,4 +1,4 @@
-{{- if not (empty (include "tlsCaBrig" .)) }}
+{{- if ne (trim (include "tlsCaBrig" .)) "" }}
 apiVersion: v1
 kind: Secret
 metadata:
@@ -16,7 +16,7 @@ type: Opaque
 data:
   ca.pem: {{ include "tlsCaBrig" . | b64enc | quote }}
 {{- end}}
-{{- if not (empty (include "tlsCaGalley" .)) }}
+{{- if ne (trim (include "tlsCaGalley" .)) "" }}
 ---
 apiVersion: v1
 kind: Secret
@@ -35,7 +35,7 @@ type: Opaque
 data:
   ca.pem: {{ include "tlsCaGalley" . | b64enc | quote }}
 {{- end}}
-{{- if not (empty (include "tlsCaGundeck" .)) }}
+{{- if ne (trim (include "tlsCaGundeck" .)) "" }}
 ---
 apiVersion: v1
 kind: Secret
@@ -54,7 +54,7 @@ type: Opaque
 data:
   ca.pem: {{ include "tlsCaGundeck" . | b64enc | quote }}
 {{- end}}
-{{- if not (empty (include "tlsCaSpar" .)) }}
+{{- if ne (trim (include "tlsCaSpar" .)) "" }}
 ---
 apiVersion: v1
 kind: Secret

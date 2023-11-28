@@ -109,15 +109,20 @@ Thus the order of priority is:
 
 {{- define "useTlsGalley" -}}
 {{ $cassandraGalley := default dict .Values.cassandraGalley }}
-{{- or .Values.cassandra.tlsCa $cassandraGalley.tlsCa .Values.cassandra.tlsCaSecretRef $cassandraGalley.tlsCaSecretRef -}}
+{{- if or .Values.cassandra.tlsCa $cassandraGalley.tlsCa .Values.cassandra.tlsCaSecretRef $cassandraGalley.tlsCaSecretRef -}}
+true
+{{- else}}
+false
+{{- end }}
 {{- end -}}
 
 {{- define "tlsCaGalley" -}}
 {{ $cassandraGalley := default dict .Values.cassandraGalley }}
-{{- if .Values.cassandra.tlsCa -}}
-{{ .Values.cassandra.tlsCa }}
-{{- else -}}
-{{ $cassandraGalley.tlsCa }}
+{{- if hasKey .Values.cassandra "tlsCa" -}}
+{{- .Values.cassandra.tlsCa }}
+{{- else if hasKey $cassandraGalley "tlsCa" -}}
+{{- $cassandraGalley.tlsCa }}
+{{ else }}
 {{- end -}}
 {{- end -}}
 
@@ -134,15 +139,20 @@ Thus the order of priority is:
 
 {{- define "useTlsBrig" -}}
 {{ $cassandraBrig := default dict .Values.cassandraBrig }}
-{{- or .Values.cassandra.tlsCa $cassandraBrig.tlsCa .Values.cassandra.tlsCaSecretRef $cassandraBrig.tlsCaSecretRef -}}
+{{- if or .Values.cassandra.tlsCa $cassandraBrig.tlsCa .Values.cassandra.tlsCaSecretRef $cassandraBrig.tlsCaSecretRef -}}
+true
+{{- else}}
+false
+{{- end }}
 {{- end -}}
 
 {{- define "tlsCaBrig" -}}
 {{ $cassandraBrig := default dict .Values.cassandraBrig }}
-{{- if .Values.cassandra.tlsCa -}}
-{{ .Values.cassandra.tlsCa }}
-{{- else -}}
-{{ $cassandraBrig.tlsCa }}
+{{- if hasKey .Values.cassandra "tlsCa" -}}
+{{- .Values.cassandra.tlsCa }}
+{{- else if hasKey $cassandraBrig "tlsCa" -}}
+{{- $cassandraBrig.tlsCa }}
+{{ else }}
 {{- end -}}
 {{- end -}}
 
@@ -159,18 +169,22 @@ Thus the order of priority is:
 
 {{- define "useTlsSpar" -}}
 {{ $cassandraSpar := default dict .Values.cassandraSpar }}
-{{- or .Values.cassandra.tlsCa $cassandraSpar.tlsCa .Values.cassandra.tlsCaSecretRef $cassandraSpar.tlsCaSecretRef -}}
+{{- if or .Values.cassandra.tlsCa $cassandraSpar.tlsCa .Values.cassandra.tlsCaSecretRef $cassandraSpar.tlsCaSecretRef -}}
+true
+{{- else}}
+false
+{{- end }}
 {{- end -}}
 
 {{- define "tlsCaSpar" -}}
 {{ $cassandraSpar := default dict .Values.cassandraSpar }}
-{{- if .Values.cassandra.tlsCa -}}
-{{ .Values.cassandra.tlsCa }}
-{{- else -}}
-{{ $cassandraSpar.tlsCa }}
+{{- if hasKey .Values.cassandra "tlsCa" -}}
+{{- .Values.cassandra.tlsCa }}
+{{- else if hasKey $cassandraSpar "tlsCa" -}}
+{{- $cassandraSpar.tlsCa }}
+{{ else }}
 {{- end -}}
 {{- end -}}
-
 {{- define "tlsSecretRefSpar" -}}
 {{ $cassandraSpar := default dict .Values.cassandraSpar }}
 {{- if .Values.cassandra.tlsCaSecretRef -}}
@@ -184,15 +198,20 @@ Thus the order of priority is:
 
 {{- define "useTlsGundeck" -}}
 {{ $cassandraGundeck := default dict .Values.cassandraGundeck }}
-{{- or .Values.cassandra.tlsCa $cassandraGundeck.tlsCa .Values.cassandra.tlsCaSecretRef $cassandraGundeck.tlsCaSecretRef -}}
+{{- if or .Values.cassandra.tlsCa $cassandraGundeck.tlsCa .Values.cassandra.tlsCaSecretRef $cassandraGundeck.tlsCaSecretRef -}}
+true
+{{- else}}
+false
+{{- end }}
 {{- end -}}
 
 {{- define "tlsCaGundeck" -}}
 {{ $cassandraGundeck := default dict .Values.cassandraGundeck }}
-{{- if .Values.cassandra.tlsCa -}}
-{{ .Values.cassandra.tlsCa }}
-{{- else -}}
-{{ $cassandraGundeck.tlsCa }}
+{{- if hasKey .Values.cassandra "tlsCa" -}}
+{{- .Values.cassandra.tlsCa }}
+{{- else if hasKey $cassandraGundeck "tlsCa" -}}
+{{- $cassandraGundeck.tlsCa }}
+{{ else }}
 {{- end -}}
 {{- end -}}
 

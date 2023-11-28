@@ -122,6 +122,6 @@ data:
     cassandra:
       host: {{ .Values.config.cassandra.host }}
       port: {{ .Values.config.cassandra.port }}
-      {{- if (include "useCassandraCA" .Values.config) }}
+      {{- if eq (include "useCassandraCA" .Values.config) "true" }}
       tlsCa: /etc/wire/galley/cassandra/{{- (include "tlsSecretRef" .Values.config | fromYaml).key }}
       {{- end }}

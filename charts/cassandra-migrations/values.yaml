@@ -86,11 +86,3 @@ podSecurityContext:
   runAsNonRoot: true
   seccompProfile:
     type: RuntimeDefault
-
-#cassandra:
-#  host: cassandra-external
-#  replicationFactor: 3
-##  tlsCa: "foo"
-#  tlsCaSecretRef:
-#    name: refN
-#    key: refK

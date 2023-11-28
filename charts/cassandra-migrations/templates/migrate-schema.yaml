@@ -23,22 +23,22 @@ spec:
       # to avoid 'Column family ID mismatch' / schema disagreements
       # see https://stackoverflow.com/questions/29030661/creating-new-table-with-cqlsh-on-existing-keyspace-column-family-id-mismatch#40325651 for details.
       volumes:
-        {{- if (include "useTlsGundeck" .) }}
+        {{- if eq (include "useTlsGundeck" .) "true" }}
         - name: gundeck-cassandra-cert
           secret:
             secretName: {{ (include "tlsSecretRefGundeck" . | fromYaml).name }}
         {{- end }}
-        {{- if (include "useTlsBrig" .) }}
+        {{- if eq (include "useTlsBrig" .) "true" }}
         - name: brig-cassandra-cert
           secret:
             secretName: {{ (include "tlsSecretRefBrig" . | fromYaml).name }}
         {{- end }}
-        {{- if (include "useTlsGalley" .) }}
+        {{- if eq (include "useTlsGalley" .) "true" }}
         - name: galley-cassandra-cert
           secret:
             secretName: {{ (include "tlsSecretRefGalley" . | fromYaml).name }}
         {{- end }}
-        {{- if (include "useTlsSpar" .) }}
+        {{- if eq (include "useTlsSpar" .) "true" }}
         - name: spar-cassandra-cert
           secret:
             secretName: {{ (include "tlsSecretRefSpar" . | fromYaml).name }}
@@ -62,12 +62,12 @@ spec:
             - gundeck
             - {{ template "cassandraGundeckReplicationType" . }}
             - "{{ template "cassandraGundeckReplicationArg" . }}"
-            {{- if (include "useTlsGundeck" .) }}
+            {{- if eq (include "useTlsGundeck" .) "true" }}
             - --tls-certificate-file
             - /certs/gundeck/{{- (include "tlsSecretRefGundeck" . | fromYaml).key }}
             {{- end }}
 
-          {{- if (include "useTlsGundeck" .) }}
+          {{- if eq (include "useTlsGundeck" .) "true" }}
           volumeMounts:
             - name: gundeck-cassandra-cert
               mountPath: "/certs/gundeck"
@@ -92,12 +92,12 @@ spec:
             - brig
             - {{ template "cassandraBrigReplicationType" . }}
             - "{{ template "cassandraBrigReplicationArg" . }}"
-            {{- if (include "useTlsBrig" .) }}
+            {{- if eq (include "useTlsBrig" .) "true" }}
             - --tls-certificate-file
             - /certs/brig/{{- (include "tlsSecretRefBrig" . | fromYaml).key }}
             {{- end }}
 
-          {{- if (include "useTlsBrig" .) }}
+          {{- if eq (include "useTlsBrig" .) "true" }}
           volumeMounts:
             - name: brig-cassandra-cert
               mountPath: "/certs/brig"
@@ -122,12 +122,12 @@ spec:
             - galley
             - {{ template "cassandraGalleyReplicationType" . }}
             - "{{ template "cassandraGalleyReplicationArg" . }}"
-            {{- if (include "useTlsGalley" .) }}
+            {{- if eq (include "useTlsGalley" .) "true" }}
             - --tls-certificate-file
             - /certs/galley/{{- (include "tlsSecretRefGalley" . | fromYaml).key }}
             {{- end }}
 
-          {{- if (include "useTlsGalley" .) }}
+          {{- if eq (include "useTlsGalley" .) "true" }}
           volumeMounts:
             - name: galley-cassandra-cert
               mountPath: "/certs/galley"
@@ -152,12 +152,12 @@ spec:
             - spar
             - {{ template "cassandraSparReplicationType" . }}
             - "{{ template "cassandraSparReplicationArg" . }}"
-             {{- if (include "useTlsSpar" .) }}
+             {{- if eq (include "useTlsSpar" .) "true" }}
             - --tls-certificate-file
             - /certs/spar/{{- (include "tlsSecretRefGalley" . | fromYaml).key }}
             {{- end }}
 
-          {{- if (include "useTlsSpar" .) }}
+          {{- if eq (include "useTlsSpar" .) "true" }}
           volumeMounts:
             - name: spar-cassandra-cert
               mountPath: "/certs/spar"
