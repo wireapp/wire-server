@@ -36,7 +36,7 @@ federatorInternal:
 
 # You can set up local SQS/Dynamo running e.g. `../../deploy/dockerephemeral/run.sh`
 aws:
-  userJournalQueue: integration-user-events.fifo-federation-v0
+  userJournalQueue: integration-user-events-federation-v0.fifo
   # ^ Comment this out if you don't want to journal user events
   prekeyTable: integration-brig-prekeys-federation-v0
   sqsEndpoint: http://fake_sqs:4568 # https://sqs.eu-west-1.amazonaws.com

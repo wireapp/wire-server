@@ -34,10 +34,12 @@ services:
 
   fake_sqs:
     container_name: demo_wire_sqs
-#    image: airdock/fake-sqs:0.3.1
-    image: julialongtin/airdock_fakesqs:0.0.9
+    image: softwaremill/elasticmq-native:1.5.2
     ports:
       - 127.0.0.1:4568:4568
+      - 127.0.0.1:9325:9325
+    volumes:
+      - ./docker/elasticmq.conf:/opt/elasticmq.conf
     networks:
       - demo_wire
 

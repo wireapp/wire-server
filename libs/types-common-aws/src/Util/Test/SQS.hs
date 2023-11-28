@@ -54,14 +54,18 @@ data SQSWatcher a = SQSWatcher
 -- the queue has too many things in it before the tests start.
 -- Note that the purgeQueue command is not guaranteed to be instant (can take up to 60 seconds)
 -- Hopefully, the fake-aws implementation used during tests is fast enough.
-watchSQSQueue :: Message a => AWS.Env -> Text -> IO (SQSWatcher a)
-watchSQSQueue env queueUrl = do
+watchSQSQueue :: (Message a) => AWS.Env -> Text -> IO (SQSWatcher a)
+watchSQSQueue env queueName = do
   eventsRef <- newIORef []
-  ensureEmpty
-  process <- async $ recieveLoop eventsRef
+
+  queueUrlRes <- execute env . sendEnv $ SQS.newGetQueueUrl queueName
+  let queueUrl = view SQS.getQueueUrlResponse_queueUrl queueUrlRes
+
+  ensureEmpty queueUrl
+  process <- async $ recieveLoop queueUrl eventsRef
   pure $ SQSWatcher process eventsRef
   where
-    recieveLoop ref = do
+    recieveLoop queueUrl ref = do
       let rcvReq =
             SQS.newReceiveMessage queueUrl
               & set SQS.receiveMessage_waitTimeSeconds (Just 100)
@@ -74,10 +78,10 @@ watchSQSQueue env queueUrl = do
         [] -> pure ()
         _ -> atomicModifyIORef ref $ \xs ->
           (parsedMsgs <> xs, ())
-      recieveLoop ref
+      recieveLoop queueUrl ref
 
-    ensureEmpty :: IO ()
-    ensureEmpty = void $ execute env $ sendEnv (SQS.newPurgeQueue queueUrl)
+    ensureEmpty :: Text -> IO ()
+    ensureEmpty queueUrl = void $ execute env $ sendEnv (SQS.newPurgeQueue queueUrl)
 
 -- | Waits for a message matching a predicate for a given number of seconds.
 waitForMessage :: (MonadUnliftIO m, Eq a) => SQSWatcher a -> Int -> (a -> Bool) -> m (Maybe a)
@@ -95,7 +99,7 @@ waitForMessage watcher seconds predicate = timeout (seconds * 1_000_000) poll
 -- an assertion on such a message.
 assertMessage :: (MonadUnliftIO m, Eq a, HasCallStack) => SQSWatcher a -> String -> (a -> Bool) -> (String -> Maybe a -> m ()) -> m ()
 assertMessage watcher label predicate callback = do
-  matched <- waitForMessage watcher 10 predicate
+  matched <- waitForMessage watcher 5 predicate
   callback label matched
 
 -----------------------------------------------------------------------------

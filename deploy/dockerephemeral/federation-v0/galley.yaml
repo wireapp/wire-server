@@ -88,6 +88,6 @@ logLevel: Warn
 logNetStrings: false
 
 journal: # if set, journals; if not set, disables journaling
-  queueName: integration-team-events.fifo-federation-v0
+  queueName: integration-team-events-federation-v0.fifo
   endpoint: http://demo_wire_sqs:4568 # https://sqs.eu-west-1.amazonaws.com
   region: eu-west-1
