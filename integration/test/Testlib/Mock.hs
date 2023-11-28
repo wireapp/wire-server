@@ -34,29 +34,30 @@ startMockServer config app = do
           & Warp.setGracefulCloseTimeout2 0
           & Warp.setBeforeMainLoop (putMVar serverStarted ())
 
-  -- Start server in a separate thread. Here it's fine to fire and forget,
-  -- because the server is linked to the socket, and closing the socket will
-  -- shutdown the server.
-  void . liftIO . async $
-    if config.tls
-      then
-        Warp.runTLSSocket
-          ( Warp.tlsSettings
-              "services/federator/test/resources/integration-leaf.pem"
-              "services/federator/test/resources/integration-leaf-key.pem"
-          )
-          wsettings
-          sock
-          app
-      else Warp.runSettingsSocket wsettings sock app
+  -- Action to start server in a separate thread.
+  let startServer = async $ do
+        if config.tls
+          then
+            Warp.runTLSSocket
+              ( Warp.tlsSettings
+                  "services/federator/test/resources/integration-leaf.pem"
+                  "services/federator/test/resources/integration-leaf-key.pem"
+              )
+              wsettings
+              sock
+              app
+          else Warp.runSettingsSocket wsettings sock app
 
   Codensity $ \k -> do
     action <- appToIO (k ())
     liftIO
       $ bracket
-        (readMVar serverStarted)
-        ( \_ ->
+        (startServer <* readMVar serverStarted)
+        ( \serverAsync -> do
+            -- close the socket
             catch (Socket.close sock) (\(_ :: SomeException) -> pure ())
+            -- kill the thread running the server
+            cancel serverAsync
         )
       $ const action
 

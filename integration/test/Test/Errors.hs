@@ -31,9 +31,7 @@ testNestedError = do
             tls = True
           }
       $ codensityApp
-      $ \_req -> do
-        liftIO $ putStrLn "received request"
-        pure $ Wai.responseLBS HTTP.status400 mempty $ Aeson.encode innerError
+      $ \_req -> pure $ Wai.responseLBS HTTP.status400 mempty $ Aeson.encode innerError
 
     -- get remote user
     lift $ do
