@@ -11,7 +11,7 @@ where
 
 import Control.Concurrent
 import Control.Concurrent.Async
-import Control.Exception (bracket, finally)
+import Control.Exception (finally)
 import Control.Exception qualified as E
 import Control.Monad.Catch (catch, throwM)
 import Control.Monad.Codensity
@@ -50,6 +50,7 @@ import Testlib.Printing
 import Testlib.ResourcePool
 import Testlib.Types
 import Text.RawString.QQ
+import UnliftIO.Exception qualified as UnliftIO
 import Prelude
 
 withModifiedBackend :: HasCallStack => ServiceOverrides -> (HasCallStack => String -> App a) -> App a
@@ -238,7 +239,7 @@ startBackend ::
 startBackend resource overrides services = do
   let domain = resource.berDomain
 
-  let updateServiceMapInConfig :: Service -> Value -> App Value
+      updateServiceMapInConfig :: Service -> Value -> App Value
       updateServiceMapInConfig forSrv config =
         foldlM
           ( \c (srv, port) -> do
@@ -264,7 +265,7 @@ startBackend resource overrides services = do
           config
           [(srv, berInternalServicePorts resource srv :: Int) | srv <- services]
 
-  let serviceMap =
+      serviceMap =
         let g srv = HostPort "127.0.0.1" (berInternalServicePorts resource srv)
          in ServiceMap
               { brig = g Brig,
@@ -282,16 +283,15 @@ startBackend resource overrides services = do
                 stern = g Stern
               }
 
-  let initService :: MVar () -> Service -> App RunningService
+      initService :: MVar () -> Service -> App RunningService
       initService lock original = do
         -- start up the service
         running <- case original of
-          Nginz -> do
-            env <- ask
-            case env.servicesCwdBase of
+          Nginz ->
+            asks servicesCwdBase >>= \case
               Nothing -> startNginzK8s domain serviceMap
               Just _ -> startNginzLocal domain resource.berNginzHttp2Port resource.berNginzSslPort serviceMap
-          srv -> do
+          srv ->
             readServiceConfig srv
               >>= updateServiceMapInConfig srv
               >>= lookupConfigOverride overrides srv
@@ -307,74 +307,81 @@ startBackend resource overrides services = do
                   pure (res.status `elem` [200, 204])
                 eith <- liftIO (E.try checkStatus)
                 pure $ either (\(_e :: HTTP.HttpException) -> False) id eith
+
         waitForService <-
           appToIOKleisli
             \srv ->
               retryRequestUntil
-                (checkServiceIsUp srv)
-                (show srv)
+                do checkServiceIsUp srv
+                do show srv
 
-        liftIO do
-          waitForService original
+        liftIO do waitForService original
         ensureReachable resource.berDomain
 
-        liftIO do
-          putMVar lock ()
+        -- the service has come up, we can safely put the lock in
+        liftIO do putMVar lock ()
 
         -- return the running service
         pure running
 
+      -- run a service to completion
       waitService :: RunningService -> App ExitCode
-      waitService running = liftIO do
-        waitForProcess running.processHandle
+      waitService = liftIO . waitForProcess . processHandle
 
+      -- terminate a process
       closeService :: RunningService -> IO ()
       closeService runningProcess = do
+        -- acquire handles for the running process
+        -- (stdout, stderr, process handle)
         let hdls = extractHandles runningProcess
             ph = processHandle runningProcess
             path = configPath runningProcess
+        -- try killing the process while cleaning up the handlers
         cleanupProcess hdls
         timeout 50000 (waitForProcess ph) >>= \case
           Just _ -> pure ()
           Nothing -> do
+            putStrLn "Process has not terminated before timing out the first time"
             timeout 100000 (waitForProcess ph) >>= \case
               Just _ -> pure ()
               Nothing -> do
+                putStrLn "Process has not terminated before timing out the second time"
                 mPid <- getPid ph
                 for_ mPid (signalProcess killProcess)
                 void $ waitForProcess ph
         whenM (doesFileExist path) $ removeFile path
         whenM (doesDirectoryExist path) $ removeDirectoryRecursive path
 
-      bracketApp :: App a -> (a -> App b) -> (a -> App c) -> App c
-      bracketApp initF cleanup act = do
-        ioInit <- appToIO initF
-        ioCleanup <- appToIOKleisli cleanup
-        ioAct <- appToIOKleisli act
-        liftIO do
-          bracket ioInit ioCleanup ioAct
-
+      -- bracketing services with a lock
+      -- the three arguments work as follows
+      -- - acquire a lock by starting up a service and waiting for it to come up
+      -- - kill the process (upon completion or error)
+      -- - wait for either
+      --   - the lock to be released (asking for the service to be terminated)
+      --   - the process to run to completion
       bracketServiceWithLock lock ser =
-        bracketApp
+        UnliftIO.bracket
           do initService lock ser
           do liftIO . closeService
           \running -> do
             waitServiceIO <- appToIO do
               waitService running
             liftIO do
+              -- racing termination from the outside
+              -- and the actual service
               race
                 -- wait for the lock to be freed again (meaning release the process)
                 do putMVar lock ()
                 -- run the process to finish
                 do waitServiceIO
-              >>= liftIO . \case
-                Left () -> putStrLn "process has been terminated"
-                Right code -> putStrLn do
+              >>= liftIO . either
+                do const (putStrLn "process has been terminated")
+                \code -> putStrLn do
                   "process finished with exit code " <> show code
 
-  let modifyEnv env = env {serviceMap = Map.insert resource.berDomain serviceMap env.serviceMap}
+      modifyEnv env = env {serviceMap = Map.insert domain serviceMap env.serviceMap}
 
-  lift $ local modifyEnv $ do
+  lift $ local modifyEnv do
     bracketServiceWithLockIO <- appToIOKleisli (uncurry bracketServiceWithLock)
 
     liftIO do
