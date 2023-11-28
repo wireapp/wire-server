@@ -302,15 +302,15 @@ db-reset: c
 # Migrate all keyspaces and reset the ES index
 .PHONY: db-migrate
 db-migrate: c
-	./dist/brig-schema --keyspace brig_test --replication-factor 1 --tls-certificate-file "./hack/cassandra.cert.pem" > /dev/null
-	./dist/galley-schema --keyspace galley_test --replication-factor 1 --tls-certificate-file "./hack/cassandra.cert.pem" > /dev/null
-	./dist/gundeck-schema --keyspace gundeck_test --replication-factor 1 --tls-certificate-file "./hack/cassandra.cert.pem" > /dev/null
-	./dist/spar-schema --keyspace spar_test --replication-factor 1 --tls-certificate-file "./hack/cassandra.cert.pem" > /dev/null
-	./dist/brig-schema --keyspace brig_test2 --replication-factor 1 --tls-certificate-file "./hack/cassandra.cert.pem" > /dev/null
-	./dist/galley-schema --keyspace galley_test2 --replication-factor 1 --tls-certificate-file "./hack/cassandra.cert.pem" > /dev/null
-	./dist/gundeck-schema --keyspace gundeck_test2 --replication-factor 1 --tls-certificate-file "./hack/cassandra.cert.pem" > /dev/null
-	./dist/spar-schema --keyspace spar_test2 --replication-factor 1 --tls-certificate-file "./hack/cassandra.cert.pem" > /dev/null
-	./integration/scripts/integration-dynamic-backends-db-schemas.sh --replication-factor 1 --tls-certificate-file "./hack/cassandra.cert.pem" > /dev/null
+	./dist/brig-schema --keyspace brig_test --replication-factor 1 > /dev/null
+	./dist/galley-schema --keyspace galley_test --replication-factor 1 > /dev/null
+	./dist/gundeck-schema --keyspace gundeck_test --replication-factor 1 > /dev/null
+	./dist/spar-schema --keyspace spar_test --replication-factor 1 > /dev/null
+	./dist/brig-schema --keyspace brig_test2 --replication-factor 1 > /dev/null
+	./dist/galley-schema --keyspace galley_test2 --replication-factor 1 > /dev/null
+	./dist/gundeck-schema --keyspace gundeck_test2 --replication-factor 1 > /dev/null
+	./dist/spar-schema --keyspace spar_test2 --replication-factor 1 > /dev/null
+	./integration/scripts/integration-dynamic-backends-db-schemas.sh --replication-factor 1 > /dev/null
 	./dist/brig-index reset --elasticsearch-index-prefix directory --elasticsearch-server http://localhost:9200 > /dev/null
 	./dist/brig-index reset --elasticsearch-index-prefix directory2 --elasticsearch-server http://localhost:9200 > /dev/null
 	./integration/scripts/integration-dynamic-backends-brig-index.sh --elasticsearch-server http://localhost:9200 > /dev/null
