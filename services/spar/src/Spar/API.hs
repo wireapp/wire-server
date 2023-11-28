@@ -403,8 +403,7 @@ idpDelete mbzusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (co
   let issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
   whenM (idpDoesAuthSelf idp zusr) $ throwSparSem SparIdPCannotDeleteOwnIdp
   SAMLUserStore.getAllByIssuerPaginated issuer >>= assertEmptyOrPurge teamId
-  updateOldIssuers idp
-  updateReplacingIdP idp
+  deleteOldIssuers idp
   -- Delete tokens associated with given IdP (we rely on the fact that
   -- each IdP has exactly one team so we can look up all tokens
   -- associated with the team and then filter them)
@@ -432,22 +431,15 @@ idpDelete mbzusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (co
       when (Cas.hasMore page) $
         SAMLUserStore.nextPage page >>= assertEmptyOrPurge teamId
 
-    updateOldIssuers :: IdP -> Sem r ()
-    updateOldIssuers _ = pure ()
-    -- we *could* update @idp ^. SAML.idpExtraInfo . wiReplacedBy@ to not keep the idp about
-    -- to be deleted in its old issuers list, but it's tricky to avoid race conditions, and
-    -- there is little to be gained here: we only use old issuers to find users that have not
-    -- been migrated yet, and if an old user points to a deleted idp, it just means that we
-    -- won't find any users to migrate.  still, doesn't hurt mucht to look either.  so we
-    -- leave old issuers dangling for now.
-
-    updateReplacingIdP :: IdP -> Sem r ()
-    updateReplacingIdP idp = forM_ (idp ^. SAML.idpExtraInfo . oldIssuers) $ \oldIssuer -> do
-      iid <-
+    deleteOldIssuers :: IdP -> Sem r ()
+    deleteOldIssuers idp = forM_ (idp ^. SAML.idpExtraInfo . oldIssuers) $ \oldIssuer -> do
+      oldid <-
         view SAML.idpId <$> case fromMaybe defWireIdPAPIVersion $ idp ^. SAML.idpExtraInfo . apiVersion of
           WireIdPAPIV1 -> IdPConfigStore.getIdPByIssuerV1 oldIssuer
           WireIdPAPIV2 -> IdPConfigStore.getIdPByIssuerV2 oldIssuer (idp ^. SAML.idpExtraInfo . team)
-      IdPConfigStore.clearReplacedBy $ Replaced iid
+      oldidp <- IdPConfigStore.getConfig oldid
+      IdPConfigStore.deleteConfig oldidp
+      IdPRawMetadataStore.delete oldid
 
     idpDoesAuthSelf :: IdP -> UserId -> Sem r Bool
     idpDoesAuthSelf idp uid = do
