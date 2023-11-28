@@ -742,9 +742,15 @@ specCRUDIdentityProvider = do
         (SampleIdP metadata2 _ _ _) <- makeSampleIdPMetadata
         callIdpUpdate (env ^. teSpar) (Just owner) (idp1 ^. idpId) (IdPMetadataValue (cs $ SAML.encode metadata2) undefined)
           `shouldRespondWith` ((== 200) . statusCode)
-        -- create a new idp with the first metadata (should succeed)
+        -- create a new idp with the first metadata (should fail)
         callIdpCreate' (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just owner) metadata1
-          `shouldRespondWith` ((== 201) . statusCode)
+          `shouldRespondWith` ((== 400) . statusCode)
+        -- revert update on existing idp (should succeed)
+        callIdpUpdate (env ^. teSpar) (Just owner) (idp1 ^. idpId) (IdPMetadataValue (cs $ SAML.encode metadata1) undefined)
+          `shouldRespondWith` ((== 200) . statusCode)
+        -- create a new idp with the second metadata, setting replaced-by to the previous idp (should succeed)
+        callIdpCreate'Replaces (Just $ idp1 ^. idpId) (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just owner) metadata2
+          `shouldRespondWith` ((== 400) . statusCode)
 
       context "invalid body" $ do
         it "rejects" $ do

@@ -107,6 +107,7 @@ module Util.Core
     callIdpGetAll',
     callIdpCreate,
     callIdpCreate',
+    callIdpCreate'Replaces,
     callIdpCreateRaw,
     callIdpCreateRaw',
     callIdpCreateReplace,
@@ -1079,7 +1080,10 @@ callIdpCreate apiversion sparreq_ muid metadata = do
     responseJsonEither @IdP resp
 
 callIdpCreate' :: (MonadIO m, MonadHttp m) => WireIdPAPIVersion -> SparReq -> Maybe UserId -> SAML.IdPMetadata -> m ResponseLBS
-callIdpCreate' apiversion sparreq_ muid metadata = do
+callIdpCreate' = callIdpCreate'Replaces Nothing
+
+callIdpCreate'Replaces :: (MonadIO m, MonadHttp m) => Maybe SAML.IdPId -> WireIdPAPIVersion -> SparReq -> Maybe UserId -> SAML.IdPMetadata -> m ResponseLBS
+callIdpCreate'Replaces mbReplaces apiversion sparreq_ muid metadata = do
   explicitQueryParam <- do
     -- `&api_version=v1` is implicit and can be omitted from the query, but we want to test
     -- both, and not spend extra time on it.
@@ -1091,6 +1095,10 @@ callIdpCreate' apiversion sparreq_ muid metadata = do
       . ( case apiversion of
             WireIdPAPIV1 -> Bilge.query [("api_version", Just "v1") | explicitQueryParam]
             WireIdPAPIV2 -> Bilge.query [("api_version", Just "v2")]
+        )
+      . ( case mbReplaces of
+            Nothing -> id
+            Just i -> Bilge.query [("replaces", Just $ cs $ show i)]
         )
       . body (RequestBodyLBS . cs $ SAML.encode metadata)
       . header "Content-Type" "application/xml"

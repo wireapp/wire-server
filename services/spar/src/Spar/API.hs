@@ -624,12 +624,6 @@ idpUpdateXML zusr raw idpmeta idpid mHandle = withDebugLog "idpUpdateXML" (Just 
   -- structured idp config.  since this will lead to a 5xx response, the client is expected to
   -- try again, which would clean up cassandra state.)
   IdPConfigStore.insertConfig idp'
-  -- if the IdP issuer is updated, the old issuer must be removed explicitly.
-  -- if this step is ommitted (due to a crash) resending the update request should fix the inconsistent state.
-  let mbteamid = case fromMaybe defWireIdPAPIVersion $ idp' ^. SAML.idpExtraInfo . apiVersion of
-        WireIdPAPIV1 -> Nothing
-        WireIdPAPIV2 -> Just teamid
-  forM_ (idp' ^. SAML.idpExtraInfo . oldIssuers) (flip IdPConfigStore.deleteIssuer mbteamid)
   pure idp'
 
 -- | Check that: idp id is valid; calling user is admin in that idp's home team; team id in
@@ -669,7 +663,10 @@ validateIdPUpdate zusr _idpMetadata _idpId = withDebugLog "validateIdPUpdate" (J
               WireIdPAPIV2 -> IdPConfigStore.getIdPByIssuerV2Maybe newIssuer teamId
             )
             <&> ( \case
-                    Just idpFound -> idpFound ^. SAML.idpId /= _idpId
+                    Just idpFound ->
+                      let notIt = idpFound ^. SAML.idpId /= _idpId
+                          notReplacedByIt = idpFound ^. SAML.idpExtraInfo . replacedBy /= Just _idpId
+                       in notIt && notReplacedByIt
                     Nothing -> False
                 )
         if idpIssuerInUse
