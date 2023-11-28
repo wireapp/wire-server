@@ -4,8 +4,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 import Data.Text qualified as T
-import Data.Time
-import Data.Time.Clock.POSIX
 import Turtle
 
 main = do
@@ -15,11 +13,10 @@ main = do
   with (mktempdir "." "tmp") \tmpDir -> do
     cd tmpDir
     let git l = proc "git" l mempty
-    git ["clone", "https://github.com/wireapp/wire-server", "."]
+    git ["clone", "https://github.com/mangoiv/wire-server", "."]
     git ["checkout", release]
     git ["submodule", "update", "--init", "--recursive"]
-    bomName <- ("wire-server-bom-" <>) . T.pack . show . nominalDiffTimeToSeconds <$> getPOSIXTime
-    let bomPath = "./" <> bomName <> ".json"
+    let bomName = "wire-server-bom-" <> release <> ".json"
     ExitSuccess <-
       proc
         "nix"
@@ -28,18 +25,18 @@ main = do
           "nix",
           "wireServer.allLocalPackagesBom",
           "-o",
-          bomPath
+          bomName
         ]
         mempty
     printf ("uploading " % s % " to release " % s % "\n") bomName ("chart/" <> release)
     proc
       "gh"
       [ "-R",
-        "wireapp/wire-server",
+        "mangoiv/wire-server",
         "release",
         "upload",
         "chart/" <> release,
-        bomPath
+        bomName
       ]
       mempty
   pure ()
