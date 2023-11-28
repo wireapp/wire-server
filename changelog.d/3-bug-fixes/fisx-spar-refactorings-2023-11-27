@@ -1,0 +1,1 @@
+Do not remove updated/replaced issuers from issuers index, but gc issuers index when deleting the currnet idp.
