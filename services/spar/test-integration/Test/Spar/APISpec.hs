@@ -81,7 +81,7 @@ import Text.XML.DSig (SignPrivCreds, mkSignCredsWithCert)
 import qualified URI.ByteString as URI
 import URI.ByteString.QQ (uri)
 import Util.Core
-import Util.Scim (createUser, filterBy, listUsers, randomScimUser, randomScimUserWithEmail, registerScimToken)
+import Util.Scim (createUser, filterBy, listUsers, randomScimUserWithEmail, randomScimUserWithNick, registerScimToken)
 import qualified Util.Scim as ScimT
 import Util.Types
 import qualified Web.Cookie as Cky
@@ -1077,7 +1077,7 @@ specCRUDIdentityProvider = do
                 user <-
                   if externalIdIsEmail
                     then fst <$> randomScimUserWithEmail
-                    else randomScimUser
+                    else fst <$> randomScimUserWithNick
                 scimStoredUser <- createUser tok user
                 pure $ Just (tok, scimStoredUser, user)
               else pure Nothing
