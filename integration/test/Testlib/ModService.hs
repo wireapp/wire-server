@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE StrictData #-}
 
 module Testlib.ModService
   ( withModifiedBackend,
@@ -10,7 +11,7 @@ where
 
 import Control.Concurrent
 import Control.Concurrent.Async
-import Control.Exception (finally)
+import Control.Exception (bracket, finally)
 import Control.Exception qualified as E
 import Control.Monad.Catch (catch, throwM)
 import Control.Monad.Codensity
@@ -36,11 +37,12 @@ import Data.Yaml qualified as Yaml
 import GHC.Stack
 import Network.HTTP.Client qualified as HTTP
 import System.Directory (copyFile, createDirectoryIfMissing, doesDirectoryExist, doesFileExist, listDirectory, removeDirectoryRecursive, removeFile)
+import System.Exit (ExitCode)
 import System.FilePath
 import System.IO
 import System.IO.Temp (createTempDirectory, writeTempFile)
 import System.Posix (killProcess, signalProcess)
-import System.Process (CreateProcess (..), ProcessHandle, StdStream (..), createProcess, getPid, proc, terminateProcess, waitForProcess)
+import System.Process (CreateProcess (..), ProcessHandle, StdStream (..), cleanupProcess, createProcess, getPid, proc, waitForProcess)
 import System.Timeout (timeout)
 import Testlib.App
 import Testlib.HTTP
@@ -281,63 +283,113 @@ startBackend resource overrides services = do
                 stern = g Stern
               }
 
-  instances <- lift $ do
-    for services $ \case
-      Nginz -> do
-        env <- ask
-        case env.servicesCwdBase of
-          Nothing -> startNginzK8s domain serviceMap
-          Just _ -> startNginzLocal domain resource.berNginzHttp2Port resource.berNginzSslPort serviceMap
-      srv -> do
-        readServiceConfig srv
-          >>= updateServiceMapInConfig srv
-          >>= lookupConfigOverride overrides srv
-          >>= startProcess domain srv
+  let initService :: MVar () -> Service -> App RunningService
+      initService lock original = do
+        -- start up the service
+        running <- case original of
+          Nginz -> do
+            env <- ask
+            case env.servicesCwdBase of
+              Nothing -> startNginzK8s domain serviceMap
+              Just _ -> startNginzLocal domain resource.berNginzHttp2Port resource.berNginzSslPort serviceMap
+          srv -> do
+            readServiceConfig srv
+              >>= updateServiceMapInConfig srv
+              >>= lookupConfigOverride overrides srv
+              >>= startProcess domain srv
 
-  let stopInstances = liftIO $ do
-        -- Running waitForProcess would hang for 30 seconds when the test suite
-        -- is run from within ghci, so we don't wait here.
-        for_ instances $ \(ph, path) -> do
-          terminateProcess ph
-          timeout 50000 (waitForProcess ph) >>= \case
-            Just _ -> pure ()
-            Nothing -> do
-              timeout 100000 (waitForProcess ph) >>= \case
-                Just _ -> pure ()
-                Nothing -> do
-                  mPid <- getPid ph
-                  for_ mPid (signalProcess killProcess)
-                  void $ waitForProcess ph
-          whenM (doesFileExist path) $ removeFile path
-          whenM (doesDirectoryExist path) $ removeDirectoryRecursive path
+        -- wait for the service to come up
+        let checkServiceIsUp = \case
+              Nginz -> pure True
+              srv -> do
+                req <- baseRequest domain srv Unversioned "/i/status"
+                checkStatus <- appToIO $ do
+                  res <- submit "GET" req
+                  pure (res.status `elem` [200, 204])
+                eith <- liftIO (E.try checkStatus)
+                pure $ either (\(_e :: HTTP.HttpException) -> False) id eith
+        waitForService <-
+          appToIOKleisli
+            \srv ->
+              retryRequestUntil
+                (checkServiceIsUp srv)
+                (show srv)
+
+        liftIO do
+          waitForService original
+        ensureReachable resource.berDomain
+
+        liftIO do
+          putMVar lock ()
+
+        -- return the running service
+        pure running
+
+      waitService :: RunningService -> App ExitCode
+      waitService running = liftIO do
+        waitForProcess running.processHandle
+
+      closeService :: RunningService -> IO ()
+      closeService runningProcess = do
+        let hdls = extractHandles runningProcess
+            ph = processHandle runningProcess
+            path = configPath runningProcess
+        cleanupProcess hdls
+        timeout 50000 (waitForProcess ph) >>= \case
+          Just _ -> pure ()
+          Nothing -> do
+            timeout 100000 (waitForProcess ph) >>= \case
+              Just _ -> pure ()
+              Nothing -> do
+                mPid <- getPid ph
+                for_ mPid (signalProcess killProcess)
+                void $ waitForProcess ph
+        whenM (doesFileExist path) $ removeFile path
+        whenM (doesDirectoryExist path) $ removeDirectoryRecursive path
+
+      bracketApp :: App a -> (a -> App b) -> (a -> App c) -> App c
+      bracketApp initF cleanup act = do
+        ioInit <- appToIO initF
+        ioCleanup <- appToIOKleisli cleanup
+        ioAct <- appToIOKleisli act
+        liftIO do
+          bracket ioInit ioCleanup ioAct
+
+      bracketServiceWithLock lock ser =
+        bracketApp
+          do initService lock ser
+          do liftIO . closeService
+          \running -> do
+            waitServiceIO <- appToIO do
+              waitService running
+            liftIO do
+              race
+                -- wait for the lock to be freed again (meaning release the process)
+                do putMVar lock ()
+                -- run the process to finish
+                do waitServiceIO
+              >>= liftIO . \case
+                Left () -> putStrLn "process has been terminated"
+                Right code -> putStrLn do
+                  "process finished with exit code " <> show code
 
   let modifyEnv env = env {serviceMap = Map.insert resource.berDomain serviceMap env.serviceMap}
-      checkServiceIsUp = \case
-        Nginz -> pure True
-        srv -> do
-          req <- baseRequest domain srv Unversioned "/i/status"
-          checkStatus <- appToIO $ do
-            res <- submit "GET" req
-            pure (res.status `elem` [200, 204])
-          eith <- liftIO (E.try checkStatus)
-          pure $ either (\(_e :: HTTP.HttpException) -> False) id eith
 
-  Codensity $ \action -> local modifyEnv $ do
-    waitForService <-
-      appToIOKleisli
-        ( \srv ->
-            retryRequestUntil
-              (checkServiceIsUp srv)
-              (show srv)
-        )
-    ioAction <- appToIO (action ())
-    ioEnsureReachable <- appToIO (ensureReachable resource.berDomain)
-    liftIO $
-      ( mapConcurrently_ waitForService services
-          >> ioEnsureReachable
-          >> ioAction
-      )
-        `finally` stopInstances
+  lift $ local modifyEnv $ do
+    bracketServiceWithLockIO <- appToIOKleisli (uncurry bracketServiceWithLock)
+
+    liftIO do
+      -- acquire empty locks that will later be filled by starting up the services
+      locks :: [(MVar (), Service)] <- for services \service -> do
+        lock <- liftIO newEmptyMVar
+        pure (lock, service)
+
+      -- for each lock, fill the lock and continue
+      mapConcurrently_ bracketServiceWithLockIO locks
+        -- if running the services throws an exception, we empty all locks
+        -- and allow the race with the actual services to succeed and hence
+        -- terminate the service
+        `finally` traverse (takeMVar . fst) locks
 
   pure modifyEnv
   where
@@ -376,7 +428,7 @@ startBackend resource overrides services = do
       when ((domain /= env.domain1) && (domain /= env.domain2)) $ do
         retryRequestUntil checkServiceIsUpReq "Federator ingress"
 
-startProcess :: String -> Service -> Value -> App (ProcessHandle, FilePath)
+startProcess :: String -> Service -> Value -> App RunningService
 startProcess domain srv = startProcess' domain (configName srv)
 
 processColors :: [(String, String -> String)]
@@ -392,7 +444,22 @@ processColors =
     ("nginx", colored purpleish)
   ]
 
-startProcess' :: String -> String -> Value -> App (ProcessHandle, FilePath)
+data RunningService = MkRunningService
+  { -- | the process handle of the process
+    processHandle :: ProcessHandle,
+    -- | the path in /tmp where the config file of the service lives
+    configPath :: FilePath,
+    -- | the stdout handler usually created by 'startProcess''
+    stdoutHdl :: Handle,
+    -- | the stderr handler usually created by 'startProcess''
+    stderrHdl :: Handle
+  }
+
+extractHandles :: RunningService -> (Maybe Handle, Maybe Handle, Maybe Handle, ProcessHandle)
+extractHandles MkRunningService {processHandle, stdoutHdl, stderrHdl} =
+  (Nothing, Just stdoutHdl, Just stderrHdl, processHandle)
+
+startProcess' :: String -> String -> Value -> App RunningService
 startProcess' domain execName config = do
   tempFile <- liftIO $ writeTempFile "/tmp" (execName <> "-" <> domain <> "-" <> ".yaml") (cs $ Yaml.encode config)
 
@@ -407,7 +474,7 @@ startProcess' domain execName config = do
   let colorize = fromMaybe id (lookup execName processColors)
   void $ liftIO $ forkIO $ logToConsole colorize prefix stdoutHdl
   void $ liftIO $ forkIO $ logToConsole colorize prefix stderrHdl
-  pure (ph, tempFile)
+  pure (MkRunningService ph tempFile stdoutHdl stderrHdl)
 
 logToConsole :: (String -> String) -> String -> Handle -> IO ()
 logToConsole colorize prefix hdl = do
@@ -430,7 +497,7 @@ retryRequestUntil reqAction err = do
   unless isUp $
     failApp ("Timed out waiting for service " <> err <> " to come up")
 
-startNginzK8s :: String -> ServiceMap -> App (ProcessHandle, FilePath)
+startNginzK8s :: String -> ServiceMap -> App RunningService
 startNginzK8s domain sm = do
   tmpDir <- liftIO $ createTempDirectory "/tmp" ("nginz" <> "-" <> domain)
   liftIO $
@@ -450,10 +517,11 @@ startNginzK8s domain sm = do
           & Text.replace ("/etc/wire/nginz/upstreams/upstreams.conf") (cs upstreamsCfg)
       )
   createUpstreamsCfg upstreamsCfg sm
-  ph <- startNginz domain nginxConfFile "/"
-  pure (ph, tmpDir)
+  (ph, stdoutHdl, stderrHdl) <- startNginz domain nginxConfFile "/"
+  pure do
+    MkRunningService ph tmpDir stdoutHdl stderrHdl
 
-startNginzLocal :: String -> Word16 -> Word16 -> ServiceMap -> App (ProcessHandle, FilePath)
+startNginzLocal :: String -> Word16 -> Word16 -> ServiceMap -> App RunningService
 startNginzLocal domain http2Port sslPort sm = do
   -- Create a whole temporary directory and copy all nginx's config files.
   -- This is necessary because nginx assumes local imports are relative to
@@ -519,10 +587,11 @@ server 127.0.0.1:{port} max_fails=3 weight=1;
     writeFile pidConfigFile (cs $ "pid " <> pid <> ";")
 
   -- start service
-  ph <- startNginz domain nginxConfFile tmpDir
+  (ph, stdoutHdl, stderrHdl) <- startNginz domain nginxConfFile tmpDir
 
   -- return handle and nginx tmp dir path
-  pure (ph, tmpDir)
+  pure do
+    MkRunningService ph tmpDir stdoutHdl stderrHdl
 
 createUpstreamsCfg :: String -> ServiceMap -> App ()
 createUpstreamsCfg upstreamsCfg sm = do
@@ -553,7 +622,7 @@ server 127.0.0.1:{port} max_fails=3 weight=1;
                 & Text.replace "{port}" (cs $ show p)
         liftIO $ appendFile upstreamsCfg (cs upstream)
 
-startNginz :: String -> FilePath -> FilePath -> App ProcessHandle
+startNginz :: String -> FilePath -> FilePath -> App (ProcessHandle, Handle, Handle)
 startNginz domain conf workingDir = do
   (_, Just stdoutHdl, Just stderrHdl, ph) <-
     liftIO $
@@ -570,4 +639,4 @@ startNginz domain conf workingDir = do
   void $ liftIO $ forkIO $ logToConsole colorize prefix stderrHdl
 
   -- return handle and nginx tmp dir path
-  pure ph
+  pure (ph, stdoutHdl, stderrHdl)
