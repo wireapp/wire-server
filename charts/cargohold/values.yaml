@@ -28,7 +28,7 @@ config:
     #   - nginz-https.green.example.com: assets.green.example.com
   proxy: {}
   settings:
-    maxTotalBytes: 5368709120
+    maxTotalBytes: 104857600 # limit to 100MiB
     downloadLinkTTL: 300 # Seconds
     # Disable one ore more API versions. Please make sure the configuration value is the same in all these charts:
     # brig, cannon, cargohold, galley, gundeck, proxy, spar.
