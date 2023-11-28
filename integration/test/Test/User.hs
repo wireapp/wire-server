@@ -1,9 +1,31 @@
 module Test.User where
 
 import API.Brig
+  ( getUser,
+    getUserSupportedProtocols,
+    putUserSupportedProtocols,
+  )
 import API.BrigInternal
-import SetupHelpers
+  ( CreateUser (supportedProtocols),
+    createUser,
+  )
+import SetupHelpers (randomUser)
 import Testlib.Prelude
+  ( App,
+    Default (def),
+    Domain (OwnDomain),
+    HasCallStack,
+    Maybe (Just),
+    Monad ((>>=)),
+    Response (status),
+    bindResponse,
+    getJSON,
+    shouldMatch,
+    shouldMatchInt,
+    shouldMatchSet,
+    ($),
+    (%.),
+  )
 
 testSupportedProtocols :: HasCallStack => Domain -> App ()
 testSupportedProtocols bobDomain = do

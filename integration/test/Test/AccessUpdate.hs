@@ -27,7 +27,18 @@ import SetupHelpers
 import Testlib.Prelude
 import Testlib.ResourcePool
 
--- @SF.Federation @SF.Separation @TSFI.RESTfulAPI @S2
+testFoo :: HasCallStack => App ()
+testFoo = pure ()
+
+-- testBar :: HasCallStack => App ()
+-- testBar = pure ()
+
+{-
+testBaz :: HasCallStack => App ()
+testBaz = pure ()
+-}
+
+-- | @SF.Federation @SF.Separation @TSFI.RESTfulAPI @S2
 --
 -- The test asserts that, among others, remote users are removed from a
 -- conversation when an access update occurs that disallows guests from

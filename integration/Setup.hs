@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE LambdaCase #-}
 {-# OPTIONS_GHC -Wall #-}
 
@@ -12,18 +13,21 @@ import Data.Maybe
 import Data.Monoid
 import qualified Data.Set as Set
 import Data.String
-import Distribution.Simple hiding (Module (..))
+import Distribution.Simple hiding (Language (..), Module (..))
 import Distribution.Simple.BuildPaths
 import Distribution.Simple.LocalBuildInfo
 import Distribution.Types.BuildInfo
 import Distribution.Types.Library
+import Distribution.Types.PackageDescription
 import Distribution.Utils.Path
+import Language.Haskell.Exts (Comment (..), Decl (TypeSig), Language (..), Module (..), Name (..), ParseMode (..), SrcSpanInfo, associateHaddock, fromParseResult, parseFileWithComments)
+import qualified Language.Haskell.Exts as Exts
 import System.Directory
 import System.FilePath
 import Prelude
 
-collectTests :: [FilePath] -> IO [(String, String, String, String)]
-collectTests roots = do
+collectTests :: FilePath -> [FilePath] -> IO [(String, String, String, String)]
+collectTests pkgRoot roots =
   concat <$> traverse (findAllTests . (<> "/Test")) roots
   where
     findAllTests :: FilePath -> IO [(String, String, String, String)]
@@ -34,7 +38,7 @@ collectTests roots = do
     findModuleTests :: FilePath -> FilePath -> IO [(String, String, String, String)]
     findModuleTests root path = do
       let modl = "Test." <> toModule root path
-      tests <- collectTestsInModule path
+      tests <- collectTestsInModule pkgRoot path
       pure $ map (\(testName, summary, full) -> (modl, testName, summary, full)) tests
 
     toModule :: FilePath -> FilePath -> String
@@ -52,41 +56,102 @@ collectTests roots = do
           concat <$> traverse (findPaths . (d </>)) entries
         else pure [d]
 
-contexts :: [a] -> [([a], a)]
-contexts = go [] []
-  where
-    go _ctx res [] = res
-    go ctx res (x : xs) = go (x : ctx) ((ctx, x) : res) xs
-
 stripHaddock :: String -> String
 stripHaddock = \case
-  '-' : '-' : ' ' : '|' : ' ' : xs -> xs
-  '-' : '-' : ' ' : '|' : xs -> xs
-  '-' : '-' : ' ' : xs -> xs
-  '-' : '-' : xs -> xs
+  ' ' : '|' : ' ' : xs -> xs
+  ' ' : '|' : xs -> xs
+  ' ' : '^' : ' ' : xs -> xs
+  ' ' : '^' : xs -> xs
+  ' ' : xs -> xs
   xs -> xs
 
 collectDescription :: [String] -> (String, String)
-collectDescription revLines =
-  let comments = reverse (map stripHaddock (takeWhile isComment revLines))
-   in case uncons comments of
-        Nothing -> ("", "")
-        Just (summary, rest) -> (summary, unlines (dropWhile null rest))
+collectDescription ls =
+  case uncons $ stripHaddock <$> ls of
+    Nothing -> ("", "")
+    Just (summary, rest) -> (summary, unlines (dropWhile null rest))
 
-isComment :: String -> Bool
-isComment ('-' : '-' : _) = True
-isComment _ = False
-
-collectTestsInModule :: FilePath -> IO [(String, String, String)]
-collectTestsInModule fn = do
-  s <- readFile fn
-  let xs = contexts (lines s)
-  pure $ flip mapMaybe xs $ \(previousLines, line) -> do
-    case words line of
-      (name@('t' : 'e' : 's' : 't' : _) : "::" : _) -> do
-        let (summary, fullDesc) = collectDescription previousLines
-        pure (name, summary, fullDesc)
-      _ -> Nothing
+collectTestsInModule :: FilePath -> FilePath -> IO [(String, String, String)]
+collectTestsInModule pkgRoot fn = do
+  -- associateHaddock requires all comments that we want to stick onto a test
+  -- should be in the Haddock style, otherwise they won't make it through the parser.
+  res <-
+    associateHaddock . fromParseResult
+      <$> parseFileWithComments
+        -- Haskell2010 is the closest we have to getting haskell-src-exts to
+        -- playing nicely with GHC2021. One annoying feature it can't handle is
+        -- ImportQualifiedPost, so all of our tests have to use traditional
+        -- qualified import syntax.
+        (ParseMode fn Haskell2010 extensions False False Nothing False)
+        absolutePath
+  case res of
+    Module _ _ _ _ decs ->
+      pure $
+        decs >>= \case
+          TypeSig _ names _ -> mapMaybe testName names
+          _ -> []
+    _ -> error "XmlPage and XmlHybrid handling not set up. Please fix me!"
+  where
+    extractComment :: Comment -> String
+    extractComment (Comment _ _ s) = s
+    testName :: Name (SrcSpanInfo, [Comment]) -> Maybe (String, String, String)
+    testName name =
+      let (n', comments) =
+            case name of
+              Ident (_, cs) n -> (n, extractComment <$> cs)
+              Symbol (_, cs) n -> (n, extractComment <$> cs)
+       in if "test" `isPrefixOf` n'
+            then
+              let (summary, rest) = collectDescription comments
+               in pure (n', summary, rest)
+            else Nothing
+    absolutePath = pkgRoot </> fn
+    -- All of the haskell-src-exts supported extensions that we are using.
+    -- Several that are in the cabal file couldn't be directly copied over,
+    -- but they aren't cauing trouble at the moment.
+    -- ImportQualifiedPost is an important one we use elsewhere in this repo
+    -- that we can't use in `integration` as haskell-src-exts doesn't support
+    -- it currently.
+    extensions =
+      [ Exts.EnableExtension Exts.BangPatterns,
+        Exts.EnableExtension Exts.BlockArguments,
+        Exts.EnableExtension Exts.ConstraintKinds,
+        Exts.EnableExtension Exts.DataKinds,
+        Exts.EnableExtension Exts.DefaultSignatures,
+        Exts.EnableExtension Exts.DeriveFunctor,
+        Exts.EnableExtension Exts.DeriveGeneric,
+        Exts.EnableExtension Exts.DeriveTraversable,
+        Exts.EnableExtension Exts.DerivingStrategies,
+        Exts.EnableExtension Exts.DerivingVia,
+        Exts.EnableExtension Exts.EmptyCase,
+        Exts.EnableExtension Exts.FlexibleContexts,
+        Exts.EnableExtension Exts.FlexibleInstances,
+        Exts.EnableExtension Exts.FunctionalDependencies,
+        Exts.EnableExtension Exts.GADTs,
+        Exts.EnableExtension Exts.GeneralizedNewtypeDeriving,
+        Exts.EnableExtension Exts.InstanceSigs,
+        Exts.EnableExtension Exts.KindSignatures,
+        Exts.EnableExtension Exts.LambdaCase,
+        Exts.EnableExtension Exts.MultiParamTypeClasses,
+        Exts.EnableExtension Exts.MultiWayIf,
+        Exts.EnableExtension Exts.NamedFieldPuns,
+        Exts.EnableExtension Exts.OverloadedLabels,
+        Exts.EnableExtension Exts.PackageImports,
+        Exts.EnableExtension Exts.PatternSynonyms,
+        Exts.EnableExtension Exts.PolyKinds,
+        Exts.EnableExtension Exts.QuasiQuotes,
+        Exts.EnableExtension Exts.RankNTypes,
+        Exts.EnableExtension Exts.RecordWildCards,
+        Exts.EnableExtension Exts.ScopedTypeVariables,
+        Exts.EnableExtension Exts.StandaloneDeriving,
+        Exts.EnableExtension Exts.TupleSections,
+        Exts.EnableExtension Exts.TypeApplications,
+        Exts.EnableExtension Exts.TypeFamilies,
+        Exts.EnableExtension Exts.TypeFamilyDependencies,
+        Exts.EnableExtension Exts.TypeOperators,
+        Exts.EnableExtension Exts.UndecidableInstances,
+        Exts.EnableExtension Exts.ViewPatterns
+      ]
 
 testHooks :: UserHooks -> UserHooks
 testHooks hooks =
@@ -104,7 +169,7 @@ testHooks hooks =
       for_ (Map.lookup cname (componentNameMap l)) $ \compBIs -> do
         for_ compBIs $ \compBI -> do
           let dest = autogenComponentModulesDir l compBI </> "RunAllTests.hs"
-          tests <- collectTests roots
+          tests <- collectTests (dataDir p) roots
           let modules = Set.toList (Set.fromList (map (\(m, _, _, _) -> m) tests))
           createDirectoryIfMissing True (takeDirectory dest)
           writeFile
