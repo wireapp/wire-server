@@ -11,7 +11,7 @@ import Control.Monad.Reader
 import Crypto.Random (getRandomBytes)
 import Data.Aeson hiding ((.=))
 import Data.Aeson.Types qualified as Aeson
-import Data.ByteString.Base64 qualified as B64Url
+import Data.ByteString.Base64.URL qualified as B64Url
 import Data.ByteString.Char8 (unpack)
 import Data.Default
 import Data.Function
@@ -168,12 +168,7 @@ createMLSOne2OnePartner domain other convDomain = loop
 
 -- Copied from `src/CargoHold/API/V3.hs` and inlined to avoid pulling in `types-common`
 randomToken :: HasCallStack => App String
-randomToken = map mkUrlSafe . unpack . B64Url.encode <$> liftIO (getRandomBytes 16)
-  where
-    mkUrlSafe :: Char -> Char
-    mkUrlSafe '/' = '_'
-    mkUrlSafe '+' = '-'
-    mkUrlSafe c = c
+randomToken = unpack . B64Url.encode <$> liftIO (getRandomBytes 16)
 
 randomId :: HasCallStack => App String
 randomId = liftIO (show <$> nextRandom)
