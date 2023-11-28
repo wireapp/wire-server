@@ -1104,6 +1104,8 @@ scimFindUserByEmail mIdpConfig stiTeam email = do
   -- a UUID, or any other text that is valid according to SCIM.
   veid <- MaybeT . lift $ either (const Nothing) Just <$> runError @Scim.ScimError (mkValidExternalId mIdpConfig (pure email))
   uid <- MaybeT . lift $ ST.runValidExternalIdEither withUref withEmailOnly veid
+  -- since gc on `spar.users{,_v2}` is unreliable, we need to double-check with brig if the
+  -- user we found actually exists.
   brigUser <- MaybeT . lift . BrigAccess.getAccount Brig.WithPendingInvitations $ uid
   getUserById mIdpConfig stiTeam . userId . accountUser $ brigUser
   where
