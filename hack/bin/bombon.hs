@@ -14,11 +14,10 @@ main = do
 
   with (mktempdir "." "tmp") \tmpDir -> do
     cd tmpDir
-    proc
-      "wget"
-      ["https://github.com/wireapp/wire-server/archive/refs/tags/chart/" <> release <> ".zip"]
-      mempty
-    proc "unzip" [release] mempty
+    let git l = proc "git" l mempty
+    git ["clone", "https://github.com/wireapp/wire-server", "."]
+    git ["checkout", release]
+    git ["submodule", "update", "--init", "--recursive"]
     bomName <- ("wire-server-bom-" <>) . T.pack . show . nominalDiffTimeToSeconds <$> getPOSIXTime
     let bomPath = "./" <> bomName <> ".json"
     ExitSuccess <-
@@ -26,12 +25,21 @@ main = do
         "nix"
         [ "build",
           "-f",
-          "wire-server-chart-" <> release <> "/nix",
+          "nix",
           "wireServer.allLocalPackagesBom",
           "-o",
           bomPath
         ]
         mempty
-    printf ("uploading " % s % " to release" % s % "\n") bomName release
-    proc "gh" ["release", "upload", release, bomPath] mempty
+    printf ("uploading " % s % " to release " % s % "\n") bomName ("chart/" <> release)
+    proc
+      "gh"
+      [ "-R",
+        "wireapp/wire-server",
+        "release",
+        "upload",
+        "chart/" <> release,
+        bomPath
+      ]
+      mempty
   pure ()
