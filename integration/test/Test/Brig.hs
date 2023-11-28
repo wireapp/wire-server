@@ -1,14 +1,14 @@
 module Test.Brig where
 
-import API.Brig qualified as BrigP
-import API.BrigInternal qualified as BrigI
-import API.Common qualified as API
-import API.GalleyInternal qualified as GalleyI
+import qualified API.Brig as BrigP
+import qualified API.BrigInternal as BrigI
+import qualified API.Common as API
+import qualified API.GalleyInternal as GalleyI
 import Data.Aeson.Types hiding ((.=))
-import Data.Set qualified as Set
+import qualified Data.Set as Set
 import Data.String.Conversions
-import Data.UUID qualified as UUID
-import Data.UUID.V4 qualified as UUID
+import qualified Data.UUID as UUID
+import qualified Data.UUID.V4 as UUID
 import GHC.Stack
 import SetupHelpers
 import Testlib.Assertions

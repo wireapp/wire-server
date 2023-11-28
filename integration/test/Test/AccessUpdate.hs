@@ -27,8 +27,8 @@ import SetupHelpers
 import Testlib.Prelude
 import Testlib.ResourcePool
 
-testFoo :: HasCallStack => App ()
-testFoo = pure ()
+-- These two commented out tests exist to test the Setup.hs code.
+-- Both of these tests should not appear in the output.
 
 -- testBar :: HasCallStack => App ()
 -- testBar = pure ()

@@ -18,16 +18,16 @@ import Data.Foldable (for_)
 import Data.Function ((&))
 import Data.Functor
 import Data.IORef
-import Data.Set qualified as Set
+import qualified Data.Set as Set
 import Data.String
-import Data.Text qualified as T
+import qualified Data.Text as T
 import Data.Tuple
 import Database.CQL.IO
 import GHC.Stack (HasCallStack)
 import Network.AMQP.Extended
 import Network.RabbitMqAdmin
 import System.IO
-import Testlib.Ports qualified as Ports
+import qualified Testlib.Ports as Ports
 import Testlib.Types
 import Prelude
 

@@ -8,13 +8,13 @@ import Data.Default
 import Data.Function ((&))
 import Data.Functor
 import Data.IORef
-import Data.Map qualified as Map
+import qualified Data.Map as Map
 import Data.Maybe (fromMaybe)
 import Data.Set (Set)
-import Data.Set qualified as Set
-import Data.Yaml qualified as Yaml
-import Database.CQL.IO qualified as Cassandra
-import Network.HTTP.Client qualified as HTTP
+import qualified Data.Set as Set
+import qualified Data.Yaml as Yaml
+import qualified Database.CQL.IO as Cassandra
+import qualified Network.HTTP.Client as HTTP
 import System.Environment (lookupEnv)
 import System.Exit
 import System.FilePath

@@ -11,30 +11,30 @@ where
 import Control.Concurrent
 import Control.Concurrent.Async
 import Control.Exception (finally)
-import Control.Exception qualified as E
+import qualified Control.Exception as E
 import Control.Monad.Catch (catch, throwM)
 import Control.Monad.Codensity
 import Control.Monad.Extra
 import Control.Monad.Reader
 import Control.Retry (fibonacciBackoff, limitRetriesByCumulativeDelay, retrying)
 import Data.Aeson hiding ((.=))
-import Data.Aeson.KeyMap qualified as Aeson
+import qualified Data.Aeson.KeyMap as Aeson
 import Data.Default
 import Data.Foldable
 import Data.Function
 import Data.Functor
-import Data.Map.Strict qualified as Map
+import qualified Data.Map.Strict as Map
 import Data.Maybe
 import Data.Monoid
 import Data.String
 import Data.String.Conversions (cs)
-import Data.Text qualified as Text
-import Data.Text.IO qualified as Text
+import qualified Data.Text as Text
+import qualified Data.Text.IO as Text
 import Data.Traversable
 import Data.Word (Word16)
-import Data.Yaml qualified as Yaml
+import qualified Data.Yaml as Yaml
 import GHC.Stack
-import Network.HTTP.Client qualified as HTTP
+import qualified Network.HTTP.Client as HTTP
 import System.Directory (copyFile, createDirectoryIfMissing, doesDirectoryExist, doesFileExist, listDirectory, removeDirectoryRecursive, removeFile)
 import System.FilePath
 import System.IO

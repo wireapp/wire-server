@@ -27,8 +27,8 @@ import Control.Applicative
 import Control.Concurrent (threadDelay)
 import Control.Monad.Codensity
 import Control.Monad.Reader
-import Data.Aeson qualified as Aeson
-import Data.Text qualified as T
+import qualified Data.Aeson as Aeson
+import qualified Data.Text as T
 import GHC.Stack
 import Notifications
 import SetupHelpers hiding (deleteUser)

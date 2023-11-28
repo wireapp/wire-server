@@ -1,8 +1,8 @@
 module API.GalleyInternal where
 
-import Data.Aeson qualified as Aeson
+import qualified Data.Aeson as Aeson
 import Data.String.Conversions (cs)
-import Data.Vector qualified as Vector
+import qualified Data.Vector as Vector
 import GHC.Stack
 import Testlib.Prelude
 

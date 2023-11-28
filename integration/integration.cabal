@@ -26,6 +26,7 @@ common common-all
 
   default-extensions:
     NoImplicitPrelude
+    NoImportQualifiedPost
     AllowAmbiguousTypes
     BangPatterns
     BlockArguments
@@ -69,6 +70,7 @@ common common-all
     UndecidableInstances
     ViewPatterns
 
+-- This is required so that ormolo doesn't rewrite all of the imports and break haskell-src-exts' parsing
 executable integration
   import:        common-all
   main-is:       ./main.hs
