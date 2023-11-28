@@ -151,7 +151,7 @@ urlPort (HttpsUrl u) = do
 
 sendMessage :: [Fingerprint Rsa] -> (Request -> Request) -> App ()
 sendMessage fprs reqBuilder = do
-  mkMgr <- view (extEnv . extGetManager)
+  mkMgr <- view extGetManager
   man <- liftIO $ mkMgr fprs
   let req = reqBuilder defaultRequest
   liftIO $ withConnection req man $ \_conn ->

@@ -78,7 +78,7 @@ makeVerifiedRequest ::
   (Http.Request -> Http.Request) ->
   App (Http.Response LC8.ByteString)
 makeVerifiedRequest fpr url reqBuilder = do
-  mkMgr <- view (extEnv . extGetManager)
+  mkMgr <- view extGetManager
   mgr <- liftIO $ mkMgr [fpr]
   makeVerifiedRequestWithManager mgr url reqBuilder
 
@@ -92,6 +92,6 @@ makeVerifiedRequestFreshManager ::
   (Http.Request -> Http.Request) ->
   App (Http.Response LC8.ByteString)
 makeVerifiedRequestFreshManager fpr url reqBuilder = do
-  ExtEnv (mkMgr) <- liftIO initExtEnv
+  mkMgr <- liftIO initExtEnv
   mgr <- liftIO $ mkMgr [fpr]
   makeVerifiedRequestWithManager mgr url reqBuilder

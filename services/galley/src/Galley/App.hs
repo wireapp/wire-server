@@ -30,9 +30,7 @@ module Galley.App
     cstate,
     deleteQueue,
     createEnv,
-    extEnv,
     aEnv,
-    ExtEnv (..),
     extGetManager,
 
     -- * Running Galley effects
