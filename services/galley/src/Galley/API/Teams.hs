@@ -991,7 +991,8 @@ uncheckedDeleteTeamMember lusr zcon tid remove admins = do
   now <- input
   pushMemberLeaveEvent now
   E.deleteTeamMember tid remove
-  removeFromConvsAndPushConvLeaveEvent True now
+  -- notify all conversation members not in this team.
+  removeFromConvsAndPushConvLeaveEvent lusr zcon tid remove admins True now
   where
     -- notify team admins
     pushMemberLeaveEvent :: UTCTime -> Sem r ()
@@ -1004,20 +1005,36 @@ uncheckedDeleteTeamMember lusr zcon tid remove admins = do
                 (filter (/= (tUnqualified lusr)) admins)
       E.push1 $
         newPushLocal1 ListComplete (tUnqualified lusr) (TeamEvent e) r & pushConn .~ zcon & pushTransient .~ True
-    -- notify all conversation members not in this team.
-    removeFromConvsAndPushConvLeaveEvent :: Bool -> UTCTime -> Sem r ()
-    removeFromConvsAndPushConvLeaveEvent shouldRemove now = do
-      let tmids = Set.fromList admins
-      let edata = Conv.EdMembersLeave Conv.EdReasonDeleted (Conv.QualifiedUserIdList [tUntagged (qualifyAs lusr remove)])
-      cc <- E.getTeamConversations tid
-      for_ cc $ \c ->
-        E.getConversation (c ^. conversationId) >>= \conv ->
-          for_ conv $ \dc -> when (remove `isMember` Data.convLocalMembers dc) $ do
-            when shouldRemove $
-              E.deleteMembers (c ^. conversationId) (UserList [remove] [])
-            pushEvent tmids edata now dc
-    pushEvent :: Set UserId -> Conv.EventData -> UTCTime -> Data.Conversation -> Sem r ()
-    pushEvent exceptTo edata now dc = do
+
+removeFromConvsAndPushConvLeaveEvent ::
+  forall r.
+  ( Member ConversationStore r,
+    Member ExternalAccess r,
+    Member GundeckAccess r,
+    Member MemberStore r,
+    Member TeamStore r
+  ) =>
+  Local UserId ->
+  Maybe ConnId ->
+  TeamId ->
+  UserId ->
+  [UserId] ->
+  Bool ->
+  UTCTime ->
+  Sem r ()
+removeFromConvsAndPushConvLeaveEvent lusr zcon tid remove admins shouldRemove now = do
+  let tmids = Set.fromList admins
+  let edata = Conv.EdMembersLeave Conv.EdReasonDeleted (Conv.QualifiedUserIdList [tUntagged (qualifyAs lusr remove)])
+  cc <- E.getTeamConversations tid
+  for_ cc $ \c ->
+    E.getConversation (c ^. conversationId) >>= \conv ->
+      for_ conv $ \dc -> when (remove `isMember` Data.convLocalMembers dc) $ do
+        when shouldRemove $
+          E.deleteMembers (c ^. conversationId) (UserList [remove] [])
+        pushEvent tmids edata dc
+  where
+    pushEvent :: Set UserId -> Conv.EventData -> Data.Conversation -> Sem r ()
+    pushEvent exceptTo edata dc = do
       let qconvId = tUntagged $ qualifyAs lusr (Data.convId dc)
       let (bots, users) = localBotsAndUsers (Data.convLocalMembers dc)
       let x = filter (\m -> not (Conv.lmId m `Set.member` exceptTo)) users
