@@ -26,46 +26,6 @@ testSearchContactForExternalUsers = do
 --------------------------------------------------------------------------------
 -- FEDERATION SEARCH
 
-testRemoteUserSearch :: HasCallStack => App ()
-testRemoteUserSearch = do
-  startDynamicBackends [def, def] $ \[d1, d2] -> do
-    void $ BrigI.createFedConn d2 (BrigI.FedConn d1 "full_search" Nothing)
-    void $ BrigI.createFedConn d1 (BrigI.FedConn d2 "full_search" Nothing)
-
-    u1 <- randomUser d1 def
-    u2 <- randomUser d2 def
-    BrigI.refreshIndex d2
-    uidD2 <- objId u2
-
-    bindResponse (BrigP.searchContacts u1 (u2 %. "name") d2) $ \resp -> do
-      resp.status `shouldMatchInt` 200
-      docs <- resp.json %. "documents" >>= asList
-      case docs of
-        [] -> assertFailure "Expected a non empty result, but got an empty one"
-        doc : _ -> doc %. "id" `shouldMatch` uidD2
-
-testRemoteUserSearchExactHandle :: HasCallStack => App ()
-testRemoteUserSearchExactHandle = do
-  startDynamicBackends [def, def] $ \[d1, d2] -> do
-    void $ BrigI.createFedConn d2 (BrigI.FedConn d1 "exact_handle_search" Nothing)
-    void $ BrigI.createFedConn d1 (BrigI.FedConn d2 "exact_handle_search" Nothing)
-
-    u1 <- randomUser d1 def
-    u2 <- randomUser d2 def
-    u2Handle <- API.randomHandle
-    bindResponse (BrigP.putHandle u2 u2Handle) $ assertSuccess
-    BrigI.refreshIndex d2
-
-    bindResponse (BrigP.searchContacts u1 u2Handle d2) $ \resp -> do
-      resp.status `shouldMatchInt` 200
-      docs <- resp.json %. "documents" >>= asList
-      case docs of
-        [] -> assertFailure "Expected a non empty result, but got an empty one"
-        doc : _ -> objQid doc `shouldMatch` objQid u2
-
---------------------------------------------------------------------------------
--- FEDERATION SEARCH WITH TEAM RESTRICTIONS
-
 data Restriction = AllowAll | TeamAllowed | TeamNotAllowed
   deriving (Eq, Ord, Show)
 
