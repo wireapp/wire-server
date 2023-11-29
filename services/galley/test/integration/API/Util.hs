@@ -2761,7 +2761,7 @@ checkUserDeleteEvent uid timeout_ w = WS.assertMatch_ timeout_ w $ \notif -> do
   euser @?= Just (UUID.toText (toUUID uid))
 
 checkTeamMemberJoin :: HasCallStack => TeamId -> UserId -> WS.WebSocket -> TestM ()
-checkTeamMemberJoin tid uid w = WS.awaitMatch_ checkTimeout w $ \notif -> do
+checkTeamMemberJoin tid uid w = WS.assertMatch_ checkTimeout w $ \notif -> do
   ntfTransient notif @?= True
   let e = List1.head (WS.unpackPayload notif)
   e ^. eventTeam @?= tid
