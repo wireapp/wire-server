@@ -12,6 +12,7 @@ where
 
 import Control.Concurrent
 import Control.Concurrent.Async
+import Control.Concurrent.Timeout (timeout)
 import Control.Exception (finally)
 import Control.Exception qualified as E
 import Control.Monad.Catch (catch, throwM)
@@ -41,7 +42,8 @@ import System.Exit (ExitCode)
 import System.FilePath
 import System.IO
 import System.IO.Temp (createTempDirectory, writeTempFile)
-import System.Process (CreateProcess (..), ProcessHandle, StdStream (..), cleanupProcess, createProcess, proc, waitForProcess, getPid)
+import System.Posix (keyboardSignal, killProcess, sigINT, sigKILL, signalProcess)
+import System.Process (CreateProcess (..), ProcessHandle, StdStream (..), cleanupProcess, createProcess, getPid, proc, waitForProcess)
 import Testlib.App
 import Testlib.HTTP
 import Testlib.JSON
@@ -51,8 +53,6 @@ import Testlib.Types
 import Text.RawString.QQ
 import UnliftIO.Exception qualified as UnliftIO
 import Prelude
-import Control.Concurrent.Timeout (timeout)
-import System.Posix (signalProcess, sigINT, sigKILL)
 
 withModifiedBackend :: HasCallStack => ServiceOverrides -> (HasCallStack => String -> App a) -> App a
 withModifiedBackend overrides k =
@@ -154,7 +154,7 @@ startDynamicBackend resource beOverrides = do
             setLogLevel,
             beOverrides
           ]
-  startBackend resource overrides allServices
+  startBackend resource overrides
   where
     setAwsConfigs :: ServiceOverrides
     setAwsConfigs =
@@ -230,41 +230,39 @@ startDynamicBackend resource beOverrides = do
           federatorInternalCfg = setField "logLevel" ("Warn" :: String)
         }
 
+updateServiceMapInConfig :: BackendResource -> Service -> Value -> App Value
+updateServiceMapInConfig resource forSrv config =
+  foldlM
+    ( \c (srv, port) -> do
+        overridden <-
+          c
+            & setField
+              (serviceName srv)
+              ( object
+                  ( [ "host" .= ("127.0.0.1" :: String),
+                      "port" .= port
+                    ]
+                      <> (["externalHost" .= ("127.0.0.1" :: String) | srv == Cannon])
+                  )
+              )
+        case (srv, forSrv) of
+          (Spar, Spar) -> do
+            overridden
+              -- FUTUREWORK: override "saml.spAppUri" and "saml.spSsoUri" with correct port, too?
+              & setField "saml.spHost" ("127.0.0.1" :: String)
+              & setField "saml.spPort" port
+          _ -> pure overridden
+    )
+    config
+    [(srv, berInternalServicePorts resource srv :: Int) | srv <- allServices]
+
 startBackend ::
   HasCallStack =>
   BackendResource ->
   ServiceOverrides ->
-  [Service] ->
   Codensity App (Env -> Env)
-startBackend resource overrides services = do
+startBackend resource overrides = do
   let domain = resource.berDomain
-
-      updateServiceMapInConfig :: Service -> Value -> App Value
-      updateServiceMapInConfig forSrv config =
-        foldlM
-          ( \c (srv, port) -> do
-              overridden <-
-                c
-                  & setField
-                    (serviceName srv)
-                    ( object
-                        ( [ "host" .= ("127.0.0.1" :: String),
-                            "port" .= port
-                          ]
-                            <> (["externalHost" .= ("127.0.0.1" :: String) | srv == Cannon])
-                        )
-                    )
-              case (srv, forSrv) of
-                (Spar, Spar) -> do
-                  overridden
-                    -- FUTUREWORK: override "saml.spAppUri" and "saml.spSsoUri" with correct port, too?
-                    & setField "saml.spHost" ("127.0.0.1" :: String)
-                    & setField "saml.spPort" port
-                _ -> pure overridden
-          )
-          config
-          [(srv, berInternalServicePorts resource srv :: Int) | srv <- services]
-
       serviceMap =
         let g srv = HostPort "127.0.0.1" (berInternalServicePorts resource srv)
          in ServiceMap
@@ -289,11 +287,11 @@ startBackend resource overrides services = do
         running <- case original of
           Nginz ->
             asks servicesCwdBase >>= \case
-              Nothing -> startNginzK8s domain serviceMap
+              Nothing -> liftIO $ startNginzK8s domain serviceMap
               Just _ -> startNginzLocal domain resource.berNginzHttp2Port resource.berNginzSslPort serviceMap
           srv ->
             readServiceConfig srv
-              >>= updateServiceMapInConfig srv
+              >>= updateServiceMapInConfig resource srv
               >>= lookupConfigOverride overrides srv
               >>= startProcess domain srv
 
@@ -341,8 +339,9 @@ startBackend resource overrides services = do
 
         cleanupProcess hdls
         getPid ph >>= traverse_ \pid -> do
-          let timeoutSignal sig =  timeout 1_000_000 (waitForProcess ph)
-                      >>= maybe (signalProcess sig pid) (const (pure ()))
+          let timeoutSignal sig =
+                timeout 1_000_000 (waitForProcess ph)
+                  >>= maybe (signalProcess sig pid) (const (pure ()))
           timeoutSignal sigINT
           timeoutSignal sigINT
           timeoutSignal sigKILL
@@ -382,7 +381,7 @@ startBackend resource overrides services = do
 
     liftIO do
       -- acquire empty locks that will later be filled by starting up the services
-      locks :: [(MVar (), Service)] <- for services \service -> do
+      locks :: [(MVar (), Service)] <- for allServices \service -> do
         lock <- liftIO newEmptyMVar
         pure (lock, service)
 
@@ -440,9 +439,6 @@ startBackend resource overrides services = do
       when ((domain /= env.domain1) && (domain /= env.domain2)) $ do
         retryRequestUntil checkServiceIsUpReq "Federator ingress"
 
-startProcess :: String -> Service -> Value -> App RunningService
-startProcess domain srv = startProcess' domain (configName srv)
-
 processColors :: [(String, String -> String)]
 processColors =
   [ ("brig", colored green),
@@ -471,8 +467,53 @@ extractHandles :: RunningService -> (Maybe Handle, Maybe Handle, Maybe Handle, P
 extractHandles MkRunningService {processHandle, stdoutHdl, stderrHdl} =
   (Nothing, Just stdoutHdl, Just stderrHdl, processHandle)
 
-startProcess' :: String -> String -> Value -> App RunningService
-startProcess' domain execName config = do
+cleanupService :: RunningService -> IO ()
+cleanupService s = do
+  mPid <- getPid s.processHandle
+  for_ mPid (signalProcess keyboardSignal)
+  timeout 1000000 (waitForProcess s.processHandle) >>= \case
+    Just _ -> pure ()
+    Nothing -> do
+      putStrLn $ "forcefully killing " <> s.configPath
+      for_ mPid (signalProcess killProcess)
+      void $ waitForProcess s.processHandle
+
+withProcess :: BackendResource -> ServiceMap -> ServiceOverrides -> Service -> Value -> Codensity App RunningService
+withProcess resource serviceMap overrides service config = do
+  let domain = berDomain resource
+  config <-
+    lift $
+      readServiceConfig service
+        >>= updateServiceMapInConfig resource service
+        >>= lookupConfigOverride overrides service
+  let execName = configName service
+  (cwd, exe) <-
+    lift $ asks \env -> case env.servicesCwdBase of
+      Nothing -> (Nothing, execName)
+      Just dir ->
+        (Just (dir </> execName), "../../dist" </> execName)
+
+  startNginzLocalIO <- lift $ appToIO $ startNginzLocal domain resource.berNginzHttp2Port resource.berNginzHttp2Port serviceMap
+
+  let initProcess = case (service, cwd) of
+        (Nginz, Nothing) -> startNginzK8s domain serviceMap
+        (Nginz, Just _) -> startNginzLocalIO
+        _ -> do
+          tempFile <- writeTempFile "/tmp" (execName <> "-" <> domain <> "-" <> ".yaml") (cs $ Yaml.encode config)
+          (_, Just stdoutHdl, Just stderrHdl, ph) <- createProcess (proc exe ["-c", tempFile]) {cwd = cwd, std_out = CreatePipe, std_err = CreatePipe}
+          let prefix = "[" <> execName <> "@" <> domain <> "] "
+          let colorize = fromMaybe id (lookup execName processColors)
+          void $ forkIO $ logToConsole colorize prefix stdoutHdl
+          void $ forkIO $ logToConsole colorize prefix stderrHdl
+          pure (MkRunningService ph tempFile stdoutHdl stderrHdl)
+
+  Codensity $ \k -> do
+    iok <- appToIOKleisli k
+    liftIO $ E.bracket initProcess cleanupService iok
+
+startProcess :: String -> Service -> Value -> App RunningService
+startProcess domain service config = do
+  let execName = configName service
   tempFile <- liftIO $ writeTempFile "/tmp" (execName <> "-" <> domain <> "-" <> ".yaml") (cs $ Yaml.encode config)
 
   (cwd, exe) <-
@@ -508,7 +549,7 @@ retryRequestUntil reqAction err = do
   unless isUp $
     failApp ("Timed out waiting for service " <> err <> " to come up")
 
-startNginzK8s :: String -> ServiceMap -> App RunningService
+startNginzK8s :: String -> ServiceMap -> IO RunningService
 startNginzK8s domain sm = do
   tmpDir <- liftIO $ createTempDirectory "/tmp" ("nginz" <> "-" <> domain)
   liftIO $
@@ -576,7 +617,7 @@ listen [::]:{ssl_port} ssl http2;
 
   -- override upstreams
   let upstreamsCfg = tmpDir </> "conf" </> "nginz" </> "upstreams"
-  createUpstreamsCfg upstreamsCfg sm
+  liftIO $ createUpstreamsCfg upstreamsCfg sm
   let upstreamFederatorTemplate =
         [r|upstream {name} {
 server 127.0.0.1:{port} max_fails=3 weight=1;
@@ -598,13 +639,13 @@ server 127.0.0.1:{port} max_fails=3 weight=1;
     writeFile pidConfigFile (cs $ "pid " <> pid <> ";")
 
   -- start service
-  (ph, stdoutHdl, stderrHdl) <- startNginz domain nginxConfFile tmpDir
+  (ph, stdoutHdl, stderrHdl) <- liftIO $ startNginz domain nginxConfFile tmpDir
 
   -- return handle and nginx tmp dir path
   pure do
     MkRunningService ph tmpDir stdoutHdl stderrHdl
 
-createUpstreamsCfg :: String -> ServiceMap -> App ()
+createUpstreamsCfg :: String -> ServiceMap -> IO ()
 createUpstreamsCfg upstreamsCfg sm = do
   liftIO $ whenM (doesFileExist upstreamsCfg) $ removeFile upstreamsCfg
   let upstreamTemplate =
@@ -633,7 +674,7 @@ server 127.0.0.1:{port} max_fails=3 weight=1;
                 & Text.replace "{port}" (cs $ show p)
         liftIO $ appendFile upstreamsCfg (cs upstream)
 
-startNginz :: String -> FilePath -> FilePath -> App (ProcessHandle, Handle, Handle)
+startNginz :: String -> FilePath -> FilePath -> IO (ProcessHandle, Handle, Handle)
 startNginz domain conf workingDir = do
   (_, Just stdoutHdl, Just stderrHdl, ph) <-
     liftIO $
