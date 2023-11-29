@@ -17,7 +17,6 @@ data UpdateFederationResult
   = UpdateFederationSuccess
   | UpdateFederationRemoteNotFound
   | UpdateFederationRemoteDivergingConfig
-  | UpdateFederationRemoteDomainMismatch
 
 data AddFederationRemoteTeamResult
   = AddFederationRemoteTeamSuccess
@@ -28,7 +27,7 @@ data FederationConfigStore m a where
   GetFederationConfig :: Domain -> FederationConfigStore m (Maybe FederationDomainConfig)
   GetFederationConfigs :: FederationConfigStore m FederationDomainConfigs
   AddFederationConfig :: FederationDomainConfig -> FederationConfigStore m AddFederationRemoteResult
-  UpdateFederationConfig :: Domain -> FederationDomainConfig -> FederationConfigStore m UpdateFederationResult
+  UpdateFederationConfig :: FederationDomainConfig -> FederationConfigStore m UpdateFederationResult
   AddFederationRemoteTeam :: Domain -> TeamId -> FederationConfigStore m AddFederationRemoteTeamResult
   RemoveFederationRemoteTeam :: Domain -> TeamId -> FederationConfigStore m ()
   GetFederationRemoteTeams :: Domain -> FederationConfigStore m [FederationRemoteTeam]

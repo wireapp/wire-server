@@ -51,7 +51,7 @@ interpretFederationDomainConfig mFedStrategy cfgs =
       GetFederationConfig d -> getFederationConfig' cfgs d
       GetFederationConfigs -> getFederationConfigs' mFedStrategy cfgs
       AddFederationConfig cnf -> addFederationConfig' cfgs cnf
-      UpdateFederationConfig d cnf -> updateFederationConfig' cfgs d cnf
+      UpdateFederationConfig cnf -> updateFederationConfig' cfgs cnf
       AddFederationRemoteTeam d t -> addFederationRemoteTeam' cfgs d t
       RemoveFederationRemoteTeam d t -> removeFederationRemoteTeam' d t
       GetFederationRemoteTeams d -> getFederationRemoteTeams' d
@@ -148,27 +148,24 @@ addFederationConfig' cfgs (FederationDomainConfig rDomain searchPolicy restricti
     addTeams :: PrepQuery W (Domain, TeamId) ()
     addTeams = "INSERT INTO federation_remote_teams (domain, team) VALUES (?, ?)"
 
-updateFederationConfig' :: MonadClient m => [FederationDomainConfig] -> Domain -> FederationDomainConfig -> m UpdateFederationResult
-updateFederationConfig' cfgs dom (FederationDomainConfig rDomain searchPolicy restriction) = do
-  if dom /= rDomain
-    then pure UpdateFederationRemoteDomainMismatch
-    else
-      if dom `elem` (domain <$> cfgs)
-        then pure UpdateFederationRemoteDivergingConfig
-        else do
-          let configParams =
-                ( params
-                    LocalQuorum
-                    (searchPolicy, fromRestriction restriction, rDomain)
-                )
-                  { serialConsistency = Just LocalSerialConsistency
-                  }
-          r <- retry x1 (trans updateConfig configParams)
-          updateTeams
-          case r of
-            [] -> pure UpdateFederationRemoteNotFound
-            [_] -> pure UpdateFederationSuccess
-            _ -> throwM $ ErrorCall "Primary key violation detected federation_remotes"
+updateFederationConfig' :: MonadClient m => [FederationDomainConfig] -> FederationDomainConfig -> m UpdateFederationResult
+updateFederationConfig' cfgs (FederationDomainConfig rDomain searchPolicy restriction) = do
+  if rDomain `elem` (domain <$> cfgs)
+    then pure UpdateFederationRemoteDivergingConfig
+    else do
+      let configParams =
+            ( params
+                LocalQuorum
+                (searchPolicy, fromRestriction restriction, rDomain)
+            )
+              { serialConsistency = Just LocalSerialConsistency
+              }
+      r <- retry x1 (trans updateConfig configParams)
+      updateTeams
+      case r of
+        [] -> pure UpdateFederationRemoteNotFound
+        [_] -> pure UpdateFederationSuccess
+        _ -> throwM $ ErrorCall "Primary key violation detected federation_remotes"
   where
     updateConfig :: PrepQuery W (FederatedUserSearchPolicy, Int32, Domain) x
     updateConfig = "UPDATE federation_remotes SET search_policy = ?, restriction = ? WHERE domain = ? IF EXISTS"

@@ -268,18 +268,20 @@ addFederationRemote fedDomConf = do
 
 updateFederationRemote :: (Member FederationConfigStore r) => Domain -> FederationDomainConfig -> (Handler r) ()
 updateFederationRemote dom fedcfg = do
-  lift (liftSem (FederationConfigStore.updateFederationConfig dom fedcfg)) >>= \case
-    UpdateFederationSuccess -> pure ()
-    UpdateFederationRemoteNotFound ->
-      throwError . fedError . FederationUnexpectedError . cs $
-        "federation domain does not exist and cannot be updated: " <> show (dom, fedcfg)
-    UpdateFederationRemoteDivergingConfig ->
-      throwError . fedError . FederationUnexpectedError $
-        "keeping track of remote domains in the brig config file is deprecated, but as long as we \
-        \do that, removing or updating items listed in the config file is not allowed."
-    UpdateFederationRemoteDomainMismatch ->
+  if (dom /= fedcfg.domain)
+    then
       throwError . fedError . FederationUnexpectedError . cs $
         "federation domain of a given peer cannot be changed from " <> show (domain fedcfg) <> " to " <> show dom <> "."
+    else
+      lift (liftSem (FederationConfigStore.updateFederationConfig fedcfg)) >>= \case
+        UpdateFederationSuccess -> pure ()
+        UpdateFederationRemoteNotFound ->
+          throwError . fedError . FederationUnexpectedError . cs $
+            "federation domain does not exist and cannot be updated: " <> show (dom, fedcfg)
+        UpdateFederationRemoteDivergingConfig ->
+          throwError . fedError . FederationUnexpectedError $
+            "keeping track of remote domains in the brig config file is deprecated, but as long as we \
+            \do that, removing or updating items listed in the config file is not allowed."
 
 -- | Responds with 'Nothing' if field is NULL in existing user or user does not exist.
 getAccountConferenceCallingConfig :: UserId -> (Handler r) (ApiFt.WithStatusNoLock ApiFt.ConferenceCallingConfig)
