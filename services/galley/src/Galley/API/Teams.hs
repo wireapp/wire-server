@@ -89,7 +89,6 @@ import Galley.API.Update qualified as API
 import Galley.API.Util
 import Galley.App
 import Galley.Data.Conversation qualified as Data
-import Galley.Data.Conversation.Types
 import Galley.Data.Services (BotMember)
 import Galley.Effects
 import Galley.Effects.BrigAccess qualified as E
@@ -486,7 +485,6 @@ getTeamConversationRoles zusr tid = do
 getTeamMembers ::
   ( Member (ErrorS 'NotATeamMember) r,
     Member TeamStore r,
-    Member ConversationStore r,
     Member (TeamMemberStore CassandraPaging) r
   ) =>
   Local UserId ->
@@ -503,13 +501,9 @@ getTeamMembers lzusr tid mbMaxResults mbPagingState = do
     then E.listTeamMembers @CassandraPaging tid mState mLimit <&> toTeamMembersPage member
     else do
       -- If the user does not have the SearchContacts permission (e.g. the external partner),
-      -- we only return the team members they are in a conversation with plus the invitee
-      teamCids <- fmap (\tConv -> tConv ^. conversationId) <$> E.getTeamConversations tid
-      userTeamCids <- E.selectConversations uid teamCids
-      convs <- E.getConversations userTeamCids
-      let lConvMems = Conv.lmId <$> (convs >>= convLocalMembers)
+      -- we only return the person who invited them and the self user.
       let invitee = member ^. invitation <&> fst
-      let uids = nub (maybe (uid : lConvMems) (: uid : lConvMems) invitee)
+      let uids = maybe [uid] (: [uid]) invitee
       E.selectTeamMembersPaginated tid uids mState mLimit <&> toTeamMembersPage member
   where
     toTeamMembersPage :: TeamMember -> C.PageWithState TeamMember -> TeamMembersPage
