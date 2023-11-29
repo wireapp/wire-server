@@ -37,6 +37,13 @@ import Polysemy
 import Wire.API.Routes.FederationDomainConfig
 import Wire.API.User.Search
 
+-- | Interpreter for getting the federation config from the database and the config file.
+-- The config file is injected into the interpreter and has precedence over the database.
+-- The config file is static and can only be changed by restarting the service.
+-- If a domain is configured in the config file, it is not allowed to add it to the database.
+-- If a domain is configured in the config file, it is not allowed to update it in the database.
+-- If a domain is configured in the config file, it is not allowed to add a team restriction to it in the database.
+-- In the future the config file will be removed and the database will be the only source of truth.
 interpretFederationDomainConfig ::
   forall m r a.
   ( MonadClient m,
@@ -59,6 +66,7 @@ interpretFederationDomainConfig mFedStrategy fedCfgs =
 
 -- | Compile config file list into a map indexed by domains.  Use this to make sure the config
 -- file is consistent (ie., no two entries for the same domain).
+-- This is called during initialization of the interpreter and the service will fail if the config is not consistent.
 remotesMapFromCfgFile :: [FederationDomainConfig] -> Map Domain FederationDomainConfig
 remotesMapFromCfgFile cfg =
   let dict = [(cnf.domain, cnf) | cnf <- cfg]
@@ -75,9 +83,10 @@ getFederationConfigs' mFedStrategy cfgs = do
   -- See
   -- https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections,
   -- http://docs.wire.com/developer/developer/federation-design-aspects.html#configuring-remote-connections-dev-perspective
+  -- (because the creation and update of a federation config is guarded, we can safely merge the two configs here)
   remotes <-
     (<>)
-      <$> getFederationRemotes
+      <$> getFederationRemotesFromDb
       <*> pure (Map.elems cfgs)
 
   defFederationDomainConfigs
@@ -90,7 +99,7 @@ maxKnownNodes = 10000
 
 getFederationConfig' :: MonadClient m => Map Domain FederationDomainConfig -> Domain -> m (Maybe FederationDomainConfig)
 getFederationConfig' cfgs rDomain = case find ((== rDomain) . domain) cfgs of
-  Just cfg -> pure . Just $ cfg -- the configuration from the file has precedence
+  Just cfg -> pure . Just $ cfg -- the configuration from the file has precedence (if exists there should not be a db entry at all)
   Nothing -> do
     mCnf <- retry x1 (query1 q (params LocalQuorum (Identity rDomain)))
     case mCnf of
@@ -100,8 +109,8 @@ getFederationConfig' cfgs rDomain = case find ((== rDomain) . domain) cfgs of
     q :: PrepQuery R (Identity Domain) (FederatedUserSearchPolicy, Int32)
     q = "SELECT search_policy, restriction FROM federation_remotes WHERE domain = ?"
 
-getFederationRemotes :: forall m. MonadClient m => m [FederationDomainConfig]
-getFederationRemotes = (\(d, p, r) -> FederationDomainConfig d p r) <$$> qry
+getFederationRemotesFromDb :: forall m. MonadClient m => m [FederationDomainConfig]
+getFederationRemotesFromDb = (\(d, p, r) -> FederationDomainConfig d p r) <$$> qry
   where
     qry :: m [(Domain, FederatedUserSearchPolicy, FederationRestriction)]
     qry = do
@@ -114,11 +123,12 @@ getFederationRemotes = (\(d, p, r) -> FederationDomainConfig d p r) <$$> qry
 
 addFederationConfig' :: MonadClient m => Map Domain FederationDomainConfig -> FederationDomainConfig -> m AddFederationRemoteResult
 addFederationConfig' cfg (FederationDomainConfig rDomain searchPolicy restriction) = do
+  -- if a domain already exists in a config, we do not allow to add it to the database
   conflict <- domainExistsInConfig (FederationDomainConfig rDomain searchPolicy restriction)
   if conflict
     then pure $ AddFederationRemoteDivergingConfig cfg
     else do
-      l <- length <$> getFederationRemotes
+      l <- length <$> getFederationRemotesFromDb
       if l >= maxKnownNodes
         then pure AddFederationRemoteMaxRemotesReached
         else
@@ -145,6 +155,7 @@ addFederationConfig' cfg (FederationDomainConfig rDomain searchPolicy restrictio
 
 updateFederationConfig' :: MonadClient m => Map Domain FederationDomainConfig -> FederationDomainConfig -> m UpdateFederationResult
 updateFederationConfig' cfgs (FederationDomainConfig rDomain searchPolicy restriction) = do
+  -- if a domain already exists in a config, we do not allow update it
   if rDomain `elem` (domain <$> cfgs)
     then pure UpdateFederationRemoteDivergingConfig
     else do
