@@ -53,7 +53,7 @@ nginx_conf:
   - /search/top
   - /search/common
 
-  default_client_max_body_size: "256k"
+  default_client_max_body_size: "512k"
   rate_limit_reqs_per_user: "30r/s"
   rate_limit_reqs_per_addr: "15r/m"
 
