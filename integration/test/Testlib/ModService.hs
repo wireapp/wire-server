@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE StrictData #-}
+{-# OPTIONS_GHC -Wwarn #-}
 
 module Testlib.ModService
   ( withModifiedBackend,
@@ -40,9 +41,7 @@ import System.Exit (ExitCode)
 import System.FilePath
 import System.IO
 import System.IO.Temp (createTempDirectory, writeTempFile)
-import System.Posix (killProcess, signalProcess)
-import System.Process (CreateProcess (..), ProcessHandle, StdStream (..), cleanupProcess, createProcess, getPid, proc, waitForProcess)
-import System.Timeout (timeout)
+import System.Process (CreateProcess (..), ProcessHandle, StdStream (..), cleanupProcess, createProcess, proc, waitForProcess)
 import Testlib.App
 import Testlib.HTTP
 import Testlib.JSON
@@ -134,13 +133,12 @@ traverseConcurrentlyCodensity f args = do
 startDynamicBackends :: HasCallStack => [ServiceOverrides] -> (HasCallStack => [String] -> App a) -> App a
 startDynamicBackends beOverrides k =
   runCodensity
-    ( do
-        when (Prelude.length beOverrides > 3) $ lift $ failApp "Too many backends. Currently only 3 are supported."
-        pool <- asks (.resourcePool)
-        resources <- acquireResources (Prelude.length beOverrides) pool
-        void $ traverseConcurrentlyCodensity (uncurry startDynamicBackend) (zip resources beOverrides)
-        pure $ map (.berDomain) resources
-    )
+    do
+      when (Prelude.length beOverrides > 3) $ lift $ failApp "Too many backends. Currently only 3 are supported."
+      pool <- asks (.resourcePool)
+      resources <- acquireResources (Prelude.length beOverrides) pool
+      void $ traverseConcurrentlyCodensity (uncurry startDynamicBackend) (zip resources beOverrides)
+      pure $ map (.berDomain) resources
     k
 
 startDynamicBackend :: HasCallStack => BackendResource -> ServiceOverrides -> Codensity App (Env -> Env)
@@ -319,14 +317,15 @@ startBackend resource overrides services = do
         ensureReachable resource.berDomain
 
         -- the service has come up, we can safely put the lock in
-        liftIO do putMVar lock ()
+        liftIO do
+          putMVar lock ()
 
         -- return the running service
         pure running
 
       -- run a service to completion
-      waitService :: RunningService -> App ExitCode
-      waitService = liftIO . waitForProcess . processHandle
+      waitService :: RunningService -> IO ExitCode
+      waitService = waitForProcess . processHandle
 
       -- terminate a process
       closeService :: RunningService -> IO ()
@@ -336,19 +335,10 @@ startBackend resource overrides services = do
         let hdls = extractHandles runningProcess
             ph = processHandle runningProcess
             path = configPath runningProcess
-        -- try killing the process while cleaning up the handlers
+
         cleanupProcess hdls
-        timeout 50000 (waitForProcess ph) >>= \case
-          Just _ -> pure ()
-          Nothing -> do
-            putStrLn "Process has not terminated before timing out the first time"
-            timeout 100000 (waitForProcess ph) >>= \case
-              Just _ -> pure ()
-              Nothing -> do
-                putStrLn "Process has not terminated before timing out the second time"
-                mPid <- getPid ph
-                for_ mPid (signalProcess killProcess)
-                void $ waitForProcess ph
+        _ <- waitForProcess ph
+
         whenM (doesFileExist path) $ removeFile path
         whenM (doesDirectoryExist path) $ removeDirectoryRecursive path
 
@@ -364,8 +354,6 @@ startBackend resource overrides services = do
           do initService lock ser
           do liftIO . closeService
           \running -> do
-            waitServiceIO <- appToIO do
-              waitService running
             liftIO do
               -- racing termination from the outside
               -- and the actual service
@@ -373,15 +361,12 @@ startBackend resource overrides services = do
                 -- wait for the lock to be freed again (meaning release the process)
                 do putMVar lock ()
                 -- run the process to finish
-                do waitServiceIO
-              >>= liftIO . either
-                do const (putStrLn "process has been terminated")
-                \code -> putStrLn do
-                  "process finished with exit code " <> show code
+                do waitService running
 
       modifyEnv env = env {serviceMap = Map.insert domain serviceMap env.serviceMap}
 
-  lift $ local modifyEnv do
+  Codensity \act -> local modifyEnv do
+    actIO <- appToIOKleisli act
     bracketServiceWithLockIO <- appToIOKleisli (uncurry bracketServiceWithLock)
 
     liftIO do
@@ -391,7 +376,18 @@ startBackend resource overrides services = do
         pure (lock, service)
 
       -- for each lock, fill the lock and continue
-      mapConcurrently_ bracketServiceWithLockIO locks
+      run <- do
+        race
+          -- fill the lock as soon as the service has come up
+          do mapConcurrently_ bracketServiceWithLockIO locks
+          -- meanwhile wait for all locks to be filled
+          do
+            traverse_ (readMVar . fst) locks
+            -- if they're fille, run the tests
+            actIO ()
+      case run of
+        Left () -> fail "services never came up for the action to run"
+        Right b -> pure b
         -- if running the services throws an exception, we empty all locks
         -- and allow the race with the actual services to succeed and hence
         -- terminate the service
@@ -481,11 +477,10 @@ startProcess' domain execName config = do
 logToConsole :: (String -> String) -> String -> Handle -> IO ()
 logToConsole colorize prefix hdl = do
   let go =
-        ( do
-            line <- hGetLine hdl
-            putStrLn (colorize (prefix <> line))
-            go
-        )
+        do
+          line <- hGetLine hdl
+          putStrLn (colorize (prefix <> line))
+          go
           `E.catch` (\(_ :: E.IOException) -> pure ())
   go
 
