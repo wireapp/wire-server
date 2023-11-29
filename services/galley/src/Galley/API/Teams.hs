@@ -991,7 +991,7 @@ uncheckedDeleteTeamMember lusr zcon tid remove admins = do
   now <- input
   pushMemberLeaveEvent now
   E.deleteTeamMember tid remove
-  removeFromConvsAndPushConvLeaveEvent now
+  removeFromConvsAndPushConvLeaveEvent True now
   where
     -- notify team admins
     pushMemberLeaveEvent :: UTCTime -> Sem r ()
@@ -1005,15 +1005,16 @@ uncheckedDeleteTeamMember lusr zcon tid remove admins = do
       E.push1 $
         newPushLocal1 ListComplete (tUnqualified lusr) (TeamEvent e) r & pushConn .~ zcon & pushTransient .~ True
     -- notify all conversation members not in this team.
-    removeFromConvsAndPushConvLeaveEvent :: UTCTime -> Sem r ()
-    removeFromConvsAndPushConvLeaveEvent now = do
+    removeFromConvsAndPushConvLeaveEvent :: Bool -> UTCTime -> Sem r ()
+    removeFromConvsAndPushConvLeaveEvent shouldRemove now = do
       let tmids = Set.fromList admins
       let edata = Conv.EdMembersLeave Conv.EdReasonDeleted (Conv.QualifiedUserIdList [tUntagged (qualifyAs lusr remove)])
       cc <- E.getTeamConversations tid
       for_ cc $ \c ->
         E.getConversation (c ^. conversationId) >>= \conv ->
           for_ conv $ \dc -> when (remove `isMember` Data.convLocalMembers dc) $ do
-            E.deleteMembers (c ^. conversationId) (UserList [remove] [])
+            when shouldRemove $
+              E.deleteMembers (c ^. conversationId) (UserList [remove] [])
             pushEvent tmids edata now dc
     pushEvent :: Set UserId -> Conv.EventData -> UTCTime -> Data.Conversation -> Sem r ()
     pushEvent exceptTo edata now dc = do
