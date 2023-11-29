@@ -26,12 +26,15 @@ testSearchContactForExternalUsers = do
 --------------------------------------------------------------------------------
 -- FEDERATION SEARCH
 
+-- | Enumeration of the possible restrictions that can be applied to a federated user search
 data Restriction = AllowAll | TeamAllowed | TeamNotAllowed
   deriving (Eq, Ord, Show)
 
 data FedUserSearchTestCase = FedUserSearchTestCase
   { searchPolicy :: String,
+    -- restriction settings of the calling backend
     restrictionD1D2 :: Restriction,
+    -- restriction settings of the remote backend
     restrictionD2D1 :: Restriction,
     exactHandleSearchExpectFound :: Bool,
     fullSearchExpectFound :: Bool
@@ -117,6 +120,7 @@ federatedUserSearch d1 d2 test = do
       AllowAll ->
         pure ()
       TeamNotAllowed ->
+        -- if the team is not allowed, the restriction was set to by team earlier and we do not need to do anything
         pure ()
       TeamAllowed -> do
         BrigI.addFederationRemoteTeam ownDomain remoteDomain remoteTeam
