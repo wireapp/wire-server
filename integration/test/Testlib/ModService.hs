@@ -42,7 +42,7 @@ import System.Exit (ExitCode)
 import System.FilePath
 import System.IO
 import System.IO.Temp (createTempDirectory, writeTempFile)
-import System.Process (CreateProcess (..), ProcessHandle, StdStream (..), cleanupProcess, createProcess, proc, waitForProcess)
+import System.Process (CreateProcess (..), ProcessHandle, StdStream (..), cleanupProcess, createProcess, proc, waitForProcess, getPid)
 import Testlib.App
 import Testlib.HTTP
 import Testlib.JSON
@@ -52,6 +52,8 @@ import Testlib.Types
 import Text.RawString.QQ
 import UnliftIO.Exception qualified as UnliftIO
 import Prelude
+import Control.Concurrent.Timeout (timeout)
+import System.Posix (signalProcess, sigINT, sigKILL)
 
 withModifiedBackend :: HasCallStack => ServiceOverrides -> (HasCallStack => String -> App a) -> App a
 withModifiedBackend overrides k =
@@ -319,6 +321,7 @@ startBackend resource overrides services = do
 
         -- the service has come up, we can safely put the lock in
         liftIO do
+          putStrLn (show original <> ": process started")
           putMVar lock ()
 
         -- return the running service
@@ -329,8 +332,8 @@ startBackend resource overrides services = do
       waitService = waitForProcess . processHandle
 
       -- terminate a process
-      closeService :: RunningService -> IO ()
-      closeService runningProcess = do
+      closeService :: Service -> RunningService -> IO ()
+      closeService ser runningProcess = do
         -- acquire handles for the running process
         -- (stdout, stderr, process handle)
         let hdls = extractHandles runningProcess
@@ -338,7 +341,15 @@ startBackend resource overrides services = do
             path = configPath runningProcess
 
         cleanupProcess hdls
+        getPid ph >>= traverse_ \pid -> do
+          let timeoutSignal sig =  timeout 1_000_000 (waitForProcess ph)
+                      >>= maybe (signalProcess sig pid) (const (pure ()))
+          timeoutSignal sigINT
+          timeoutSignal sigINT
+          timeoutSignal sigKILL
+
         _ <- waitForProcess ph
+        putStrLn (show ser <> ": process cleaned up")
 
         whenM (doesFileExist path) $ removeFile path
         whenM (doesDirectoryExist path) $ removeDirectoryRecursive path
@@ -353,7 +364,7 @@ startBackend resource overrides services = do
       bracketServiceWithLock lock ser =
         UnliftIO.bracket
           do initService lock ser
-          do liftIO . closeService
+          do liftIO . (closeService ser)
           \running -> do
             liftIO do
               -- racing termination from the outside
@@ -383,8 +394,11 @@ startBackend resource overrides services = do
           do mapConcurrently_ bracketServiceWithLockIO locks
           -- meanwhile wait for all locks to be filled
           do
-            traverse_ (readMVar . fst) locks
-            -- if they're fille, run the tests
+            forConcurrently_ locks \(lock, ser) -> do
+              readMVar lock
+              putStrLn (show ser <> " has been detected to be ready")
+            -- if they're filled, run the tests
+            putStrLn "all services ready, running test"
             actIO ()
       case run of
         Left () -> fail "services never came up for the action to run"
