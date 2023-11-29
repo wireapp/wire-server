@@ -281,163 +281,42 @@ startBackend resource overrides = do
                 stern = g Stern
               }
 
-      initService :: MVar () -> Service -> App RunningService
-      initService lock original = do
-        -- start up the service
-        running <- case original of
-          Nginz ->
-            asks servicesCwdBase >>= \case
-              Nothing -> liftIO $ startNginzK8s domain serviceMap
-              Just _ -> startNginzLocal domain resource.berNginzHttp2Port resource.berNginzSslPort serviceMap
-          srv ->
-            readServiceConfig srv
-              >>= updateServiceMapInConfig resource srv
-              >>= lookupConfigOverride overrides srv
-              >>= startProcess domain srv
+  instances <- traverse (withProcess resource serviceMap overrides) allServices
+  liftIO $ traverse_ joinInstance instances
+  lift $ ensureBackendReachable resource.berDomain
+  pure $ \env -> env {serviceMap = Map.insert domain serviceMap env.serviceMap}
 
-        -- wait for the service to come up
-        let checkServiceIsUp = \case
-              Nginz -> pure True
-              srv -> do
-                req <- baseRequest domain srv Unversioned "/i/status"
-                checkStatus <- appToIO $ do
-                  res <- submit "GET" req
-                  pure (res.status `elem` [200, 204])
-                eith <- liftIO (E.try checkStatus)
-                pure $ either (\(_e :: HTTP.HttpException) -> False) id eith
+ensureBackendReachable :: String -> App ()
+ensureBackendReachable domain = do
+  env <- ask
+  let checkServiceIsUpReq = do
+        req <-
+          rawBaseRequest
+            env.domain1
+            FederatorInternal
+            Unversioned
+            ("/rpc/" <> domain <> "/brig/api-version")
+            <&> (addHeader "Wire-Origin-Domain" env.domain1)
+              . (addJSONObject [])
+        checkStatus <- appToIO $ do
+          res <- submit "POST" req
 
-        waitForService <-
-          appToIOKleisli
-            \srv ->
-              retryRequestUntil
-                do checkServiceIsUp srv
-                do show srv
+          -- If we get 533 here it means federation is not available between domains
+          -- but ingress is working, since we're processing the request.
+          let is200 = res.status == 200
+          mInner <- lookupField res.json "inner"
+          isFedDenied <- case mInner of
+            Nothing -> pure False
+            Just inner -> do
+              label <- inner %. "label" & asString
+              pure $ res.status == 533 && label == "federation-denied"
 
-        liftIO do waitForService original
-        ensureReachable resource.berDomain
+          pure (is200 || isFedDenied)
+        eith <- liftIO (E.try checkStatus)
+        pure $ either (\(_e :: HTTP.HttpException) -> False) id eith
 
-        -- the service has come up, we can safely put the lock in
-        liftIO do
-          putStrLn (show original <> ": process started")
-          putMVar lock ()
-
-        -- return the running service
-        pure running
-
-      -- run a service to completion
-      waitService :: RunningService -> IO ExitCode
-      waitService = waitForProcess . processHandle
-
-      -- terminate a process
-      closeService :: Service -> RunningService -> IO ()
-      closeService ser runningProcess = do
-        -- acquire handles for the running process
-        -- (stdout, stderr, process handle)
-        let hdls = extractHandles runningProcess
-            ph = processHandle runningProcess
-            path = configPath runningProcess
-
-        cleanupProcess hdls
-        getPid ph >>= traverse_ \pid -> do
-          let timeoutSignal sig =
-                timeout 1_000_000 (waitForProcess ph)
-                  >>= maybe (signalProcess sig pid) (const (pure ()))
-          timeoutSignal sigINT
-          timeoutSignal sigINT
-          timeoutSignal sigKILL
-
-        _ <- waitForProcess ph
-        putStrLn (show ser <> ": process cleaned up")
-
-        whenM (doesFileExist path) $ removeFile path
-        whenM (doesDirectoryExist path) $ removeDirectoryRecursive path
-
-      -- bracketing services with a lock
-      -- the three arguments work as follows
-      -- - acquire a lock by starting up a service and waiting for it to come up
-      -- - kill the process (upon completion or error)
-      -- - wait for either
-      --   - the lock to be released (asking for the service to be terminated)
-      --   - the process to run to completion
-      bracketServiceWithLock lock ser =
-        UnliftIO.bracket
-          do initService lock ser
-          do liftIO . (closeService ser)
-          \running -> do
-            liftIO do
-              -- racing termination from the outside
-              -- and the actual service
-              race
-                -- wait for the lock to be freed again (meaning release the process)
-                do putMVar lock ()
-                -- run the process to finish
-                do waitService running
-
-      modifyEnv env = env {serviceMap = Map.insert domain serviceMap env.serviceMap}
-
-  Codensity \act -> local modifyEnv do
-    actIO <- appToIOKleisli act
-    bracketServiceWithLockIO <- appToIOKleisli (uncurry bracketServiceWithLock)
-
-    liftIO do
-      -- acquire empty locks that will later be filled by starting up the services
-      locks :: [(MVar (), Service)] <- for allServices \service -> do
-        lock <- liftIO newEmptyMVar
-        pure (lock, service)
-
-      -- for each lock, fill the lock and continue
-      run <- do
-        race
-          -- fill the lock as soon as the service has come up
-          do mapConcurrently_ bracketServiceWithLockIO locks
-          -- meanwhile wait for all locks to be filled
-          do
-            forConcurrently_ locks \(lock, ser) -> do
-              readMVar lock
-              putStrLn (show ser <> " has been detected to be ready")
-            -- if they're filled, run the tests
-            putStrLn "all services ready, running test"
-            actIO ()
-      case run of
-        Left () -> fail "services never came up for the action to run"
-        Right b -> pure b
-        -- if running the services throws an exception, we empty all locks
-        -- and allow the race with the actual services to succeed and hence
-        -- terminate the service
-        `finally` traverse (takeMVar . fst) locks
-
-  pure modifyEnv
-  where
-    ensureReachable :: String -> App ()
-    ensureReachable domain = do
-      env <- ask
-      let checkServiceIsUpReq = do
-            req <-
-              rawBaseRequest
-                env.domain1
-                FederatorInternal
-                Unversioned
-                ("/rpc/" <> domain <> "/brig/api-version")
-                <&> (addHeader "Wire-Origin-Domain" env.domain1)
-                  . (addJSONObject [])
-            checkStatus <- appToIO $ do
-              res <- submit "POST" req
-              -- If we get 533 here it means federation is not available between domains
-              -- but ingress is working, since we're processing the request.
-              let is200 = res.status == 200
-              mInner <- lookupField res.json "inner"
-              isFedDenied <- case mInner of
-                Nothing -> pure False
-                Just inner -> do
-                  label <- inner %. "label" & asString
-                  pure $ res.status == 533 && label == "federation-denied"
-
-              pure (is200 || isFedDenied)
-            eith <- liftIO (E.try checkStatus)
-            pure $ either (\(_e :: HTTP.HttpException) -> False) id eith
-
-      when ((domain /= env.domain1) && (domain /= env.domain2)) $ do
-        retryRequestUntil checkServiceIsUpReq "Federator ingress"
+  when ((domain /= env.domain1) && (domain /= env.domain2)) $ do
+    retryRequestUntil checkServiceIsUpReq "Federator ingress"
 
 processColors :: [(String, String -> String)]
 processColors =
@@ -463,26 +342,57 @@ data RunningService = MkRunningService
     stderrHdl :: Handle
   }
 
+data ServiceInstance = ServiceInstance
+  { handle :: ProcessHandle,
+    config :: FilePath,
+    ready :: MVar (Maybe E.SomeException)
+  }
+
+joinInstance :: ServiceInstance -> IO ()
+joinInstance inst = do
+  mExc <- takeMVar inst.ready
+  traverse_ E.throw mExc
+
 extractHandles :: RunningService -> (Maybe Handle, Maybe Handle, Maybe Handle, ProcessHandle)
 extractHandles MkRunningService {processHandle, stdoutHdl, stderrHdl} =
   (Nothing, Just stdoutHdl, Just stderrHdl, processHandle)
 
-cleanupService :: RunningService -> IO ()
-cleanupService s = do
-  mPid <- getPid s.processHandle
+cleanupService :: ServiceInstance -> IO ()
+cleanupService inst = do
+  mPid <- getPid inst.handle
   for_ mPid (signalProcess keyboardSignal)
-  timeout 1000000 (waitForProcess s.processHandle) >>= \case
+  timeout 10000000 (waitForProcess inst.handle) >>= \case
     Just _ -> pure ()
     Nothing -> do
-      putStrLn $ "forcefully killing " <> s.configPath
+      putStrLn $ "forcefully killing " <> inst.config
       for_ mPid (signalProcess killProcess)
-      void $ waitForProcess s.processHandle
+      void $ waitForProcess inst.handle
+  whenM (doesFileExist inst.config) $ removeFile inst.config
+  whenM (doesDirectoryExist inst.config) $ removeDirectoryRecursive inst.config
 
-withProcess :: BackendResource -> ServiceMap -> ServiceOverrides -> Service -> Value -> Codensity App RunningService
-withProcess resource serviceMap overrides service config = do
+-- | Wait for a service to come up.
+waitUntilServiceIsUp :: String -> Service -> App ()
+waitUntilServiceIsUp domain srv =
+  retryRequestUntil
+    (checkServiceIsUp domain srv)
+    (show srv)
+
+-- | Check if a service is up and running.
+checkServiceIsUp :: String -> Service -> App Bool
+checkServiceIsUp _ Nginz = pure True
+checkServiceIsUp domain srv = do
+  req <- baseRequest domain srv Unversioned "/i/status"
+  checkStatus <- appToIO $ do
+    res <- submit "GET" req
+    pure (res.status `elem` [200, 204])
+  eith <- liftIO (E.try checkStatus)
+  pure $ either (\(_e :: HTTP.HttpException) -> False) id eith
+
+withProcess :: BackendResource -> ServiceMap -> ServiceOverrides -> Service -> Codensity App ServiceInstance
+withProcess resource serviceMap overrides service = do
   let domain = berDomain resource
-  config <-
-    lift $
+  getConfig <-
+    lift . appToIO $
       readServiceConfig service
         >>= updateServiceMapInConfig resource service
         >>= lookupConfigOverride overrides service
@@ -499,6 +409,8 @@ withProcess resource serviceMap overrides service config = do
         (Nginz, Nothing) -> startNginzK8s domain serviceMap
         (Nginz, Just _) -> startNginzLocalIO
         _ -> do
+          putStrLn $ "starting " <> show service
+          config <- getConfig
           tempFile <- writeTempFile "/tmp" (execName <> "-" <> domain <> "-" <> ".yaml") (cs $ Yaml.encode config)
           (_, Just stdoutHdl, Just stderrHdl, ph) <- createProcess (proc exe ["-c", tempFile]) {cwd = cwd, std_out = CreatePipe, std_err = CreatePipe}
           let prefix = "[" <> execName <> "@" <> domain <> "] "
@@ -507,9 +419,27 @@ withProcess resource serviceMap overrides service config = do
           void $ forkIO $ logToConsole colorize prefix stderrHdl
           pure (MkRunningService ph tempFile stdoutHdl stderrHdl)
 
-  Codensity $ \k -> do
+  ready <- liftIO newEmptyMVar
+  check <- lift . appToIO $ waitUntilServiceIsUp domain service
+
+  let mkInstance = do
+        rs <- initProcess
+        pure
+          ServiceInstance
+            { handle = rs.processHandle,
+              config = rs.configPath,
+              ready = ready
+            }
+
+  liftIO . void . async $ do
+    E.catch check $ \(e :: E.SomeException) -> void $ tryPutMVar ready (Just e)
+    tryPutMVar ready Nothing
+
+  inst <- Codensity $ \k -> do
     iok <- appToIOKleisli k
-    liftIO $ E.bracket initProcess cleanupService iok
+    liftIO $ E.bracket mkInstance cleanupService iok
+
+  pure inst
 
 startProcess :: String -> Service -> Value -> App RunningService
 startProcess domain service config = do
