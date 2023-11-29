@@ -97,7 +97,9 @@ getFederationConfig' cfgs rDomain = case find ((== rDomain) . domain) cfgs of
   Just cfg -> pure . Just $ cfg -- the configuration from the file has precedence
   Nothing -> do
     mCnf <- retry x1 (query1 q (params LocalQuorum (Identity rDomain)))
-    pure $ fmap (\(p, rInt) -> FederationDomainConfig rDomain p (toRestriction rDomain rInt)) mCnf
+    case mCnf of
+      Just (p, r) -> Just . FederationDomainConfig rDomain p <$> toRestriction rDomain r
+      Nothing -> pure Nothing
   where
     q :: PrepQuery R (Identity Domain) (FederatedUserSearchPolicy, Int32)
     q = "SELECT search_policy, restriction FROM federation_remotes WHERE domain = ?"
