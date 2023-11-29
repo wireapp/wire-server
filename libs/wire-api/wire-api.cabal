@@ -230,6 +230,8 @@ library
     Wire.API.User.Saml
     Wire.API.User.Scim
     Wire.API.User.Search
+    Wire.API.User.Test
+    Wire.API.User.Types
     Wire.API.UserMap
     Wire.API.Util.Aeson
     Wire.API.VersionInfo
@@ -574,6 +576,7 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Manual.FederationStatus
     Test.Wire.API.Golden.Manual.GetPaginatedConversationIds
     Test.Wire.API.Golden.Manual.GroupId
+    Test.Wire.API.Golden.Manual.Identity
     Test.Wire.API.Golden.Manual.ListConversations
     Test.Wire.API.Golden.Manual.ListUsersById
     Test.Wire.API.Golden.Manual.QualifiedUserClientPrekeyMap
@@ -599,12 +602,15 @@ test-suite wire-api-golden-tests
     , crypton
     , currency-codes
     , either
+    , http-api-data
     , imports
     , iso3166-country-codes
     , iso639
     , lens
     , pem
     , proto-lens
+    , saml2-web-sso
+    , schema-profunctor
     , tasty
     , tasty-hunit
     , text
@@ -669,6 +675,7 @@ test-suite wire-api-tests
     , hspec-wai
     , http-types
     , imports
+    , lens
     , memory
     , metrics-wai
     , openapi3

@@ -169,6 +169,8 @@ accountAPI =
     :<|> Named @"iPostPhonePrefix" addPhonePrefixH
     :<|> Named @"iPutUserSsoId" updateSSOIdH
     :<|> Named @"iDeleteUserSsoId" deleteSSOIdH
+    :<|> Named @"iPutUAuthId" updateUAuthIdH
+    :<|> Named @"iDeleteUAuthId" deleteUAuthIdH
     :<|> Named @"iPutManagedBy" updateManagedByH
     :<|> Named @"iPutRichInfo" updateRichInfoH
     :<|> Named @"iPutHandle" updateHandleH

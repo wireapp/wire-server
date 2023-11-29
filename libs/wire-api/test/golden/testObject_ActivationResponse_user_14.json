@@ -1,7 +1,15 @@
 {
-    "email": "𐇦@\u0007􈀯",
+    "email": "other@2.example.com",
     "first": false,
     "sso_id": {
-        "scim_external_id": "\u0000\u001f\u0017Y"
+        "scim_external_id": "me"
+    },
+    "uauth_id": {
+        "email": {
+            "email": "me@example.com",
+            "source": "scim_emails"
+        },
+        "scim_external_id": "me",
+        "team": "579edcd0-6f1b-11ee-b49a-e770ab99392a"
     }
 }

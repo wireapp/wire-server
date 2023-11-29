@@ -26,15 +26,14 @@ module Spar.Sem.ScimExternalIdStore
 where
 
 import Data.Id (TeamId, UserId)
-import Imports (Maybe, Show)
+import Imports (Maybe, Show, Text)
 import Polysemy
 import Polysemy.Check (deriveGenericK)
-import Wire.API.User.Identity (Email)
 
 data ScimExternalIdStore m a where
-  Insert :: TeamId -> Email -> UserId -> ScimExternalIdStore m ()
-  Lookup :: TeamId -> Email -> ScimExternalIdStore m (Maybe UserId)
-  Delete :: TeamId -> Email -> ScimExternalIdStore m ()
+  Insert :: TeamId -> Text -> UserId -> ScimExternalIdStore m ()
+  Lookup :: TeamId -> Text -> ScimExternalIdStore m (Maybe UserId)
+  Delete :: TeamId -> Text -> ScimExternalIdStore m ()
 
 deriving instance Show (ScimExternalIdStore m a)
 

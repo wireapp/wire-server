@@ -55,7 +55,7 @@ module Brig.Data.User
     updateEmail,
     updateEmailUnvalidated,
     updatePhone,
-    updateSSOId,
+    updateUAuthId,
     updateManagedBy,
     activateUser,
     deactivateUser,
@@ -159,7 +159,7 @@ newAccount u inv tid mbHandle = do
     locale defLoc = fromMaybe defLoc (newUserLocale u)
     managedBy = fromMaybe defaultManagedBy (newUserManagedBy u)
     prots = fromMaybe defSupportedProtocols (newUserSupportedProtocols u)
-    user uid domain l e = User uid (Qualified uid domain) ident name pict assets colour False l Nothing mbHandle e tid managedBy prots
+    user uid domain l e = User uid (Qualified uid domain) (castUserIdentityTeamFieldName <$> ident) name pict assets colour False l Nothing mbHandle e tid managedBy prots
 
 newAccountInviteViaScim :: MonadReader Env m => UserId -> TeamId -> Maybe Locale -> Name -> Email -> m UserAccount
 newAccountInviteViaScim uid tid locale name email = do
@@ -223,9 +223,9 @@ reauthenticate u pw =
 isSamlUser :: (MonadClient m, MonadReader Env m) => UserId -> m Bool
 isSamlUser uid = do
   account <- lookupAccount uid
-  case userIdentity . accountUser =<< account of
-    Just (SSOIdentity (UserSSOId _) _ _) -> pure True
-    _ -> pure False
+  pure $ case userIdentity . accountUser =<< account of
+    Just (UAuthIdentity (UAuthId (Just _) _ _ _) _) -> True
+    _ -> False
 
 insertAccount ::
   MonadClient m =>
@@ -301,12 +301,13 @@ updateEmailUnvalidated u e = retry x5 $ write userEmailUnvalidatedUpdate (params
 updatePhone :: MonadClient m => UserId -> Phone -> m ()
 updatePhone u p = retry x5 $ write userPhoneUpdate (params LocalQuorum (p, u))
 
-updateSSOId :: MonadClient m => UserId -> Maybe UserSSOId -> m Bool
-updateSSOId u ssoid = do
-  mteamid <- lookupUserTeam u
+updateUAuthId :: MonadClient m => UserId -> Maybe PartialUAuthId -> m Bool
+updateUAuthId uid uauthid = do
+  -- NOTE(fisx): this probably doesn't compile yet, but the idea should be appearent?
+  mteamid <- lookupUserTeam uid
   case mteamid of
     Just _ -> do
-      retry x5 $ write userSSOIdUpdate (params LocalQuorum (ssoid, u))
+      retry x5 $ write uauthIdUpdate (params LocalQuorum (uauthid.samlId.issuer, uauthid.samlId.nameid, uauthid.scimExternalId, u))
       pure True
     Nothing -> pure False
 
@@ -393,7 +394,7 @@ filterActive us =
 lookupUser :: (MonadClient m, MonadReader Env m) => HavePendingInvitations -> UserId -> m (Maybe User)
 lookupUser hpi u = listToMaybe <$> lookupUsers hpi [u]
 
-activateUser :: MonadClient m => UserId -> UserIdentity -> m ()
+activateUser :: MonadClient m => UserId -> UserIdentity tf -> m ()
 activateUser u ident = do
   let email = emailIdentity ident
   let phone = phoneIdentity ident
@@ -645,8 +646,8 @@ userEmailUnvalidatedDelete = {- `IF EXISTS`, but that requires benchmarking -} "
 userPhoneUpdate :: PrepQuery W (Phone, UserId) ()
 userPhoneUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET phone = ? WHERE id = ?"
 
-userSSOIdUpdate :: PrepQuery W (Maybe UserSSOId, UserId) ()
-userSSOIdUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET sso_id = ? WHERE id = ?"
+uauthIdUpdate :: PrepQuery W (Maybe Text, Maybe Text, Maybe Text, UserId) ()
+uauthIdUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET saml_entity_id = ?, saml_name_id = ?, scim_external_id = ?, sso_id = null WHERE id = ?"
 
 userManagedByUpdate :: PrepQuery W (ManagedBy, UserId) ()
 userManagedByUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET managed_by = ? WHERE id = ?"

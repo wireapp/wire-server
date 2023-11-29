@@ -27,7 +27,6 @@ import Brig.Types.Common
 import Brig.Types.Search
 import Cassandra.CQL
 import Control.Error (note)
-import Data.Aeson (eitherDecode, encode)
 import Data.Aeson qualified as JSON
 import Data.ByteString.Conversion
 import Data.Domain (Domain, domainText, mkDomain)
@@ -81,15 +80,15 @@ instance Cql Email where
 
   toCql = toCql . fromEmail
 
-instance Cql UserSSOId where
+instance Cql LegacyUserSSOId where
   ctype = Tagged TextColumn
 
-  fromCql (CqlText t) = case eitherDecode $ cs t of
+  fromCql (CqlText t) = case JSON.eitherDecode $ cs t of
     Right i -> pure i
-    Left msg -> Left $ "fromCql: Invalid UserSSOId: " ++ msg
-  fromCql _ = Left "fromCql: UserSSOId: CqlText expected"
+    Left msg -> Left $ "fromCql: Invalid LegacyUserSSOId: " ++ msg
+  fromCql _ = Left "fromCql: LegacyUserSSOId: CqlText expected"
 
-  toCql = toCql . cs @LByteString @Text . encode
+  toCql = toCql . cs @LByteString @Text . JSON.encode
 
 instance Cql RelationWithHistory where
   ctype = Tagged IntColumn

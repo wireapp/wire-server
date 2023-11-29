@@ -62,6 +62,7 @@ import Servant.OpenApi (HasOpenApi (toOpenApi))
 import Servant.OpenApi.Internal.Orphans ()
 import Util.Options
 import Wire.API.Connection
+import Wire.API.Deprecated
 import Wire.API.Error
 import Wire.API.Error.Brig
 import Wire.API.MLS.CipherSuite
@@ -347,10 +348,11 @@ type AccountAPI =
            )
     :<|> Named
            "iPutUserSsoId"
-           ( "users"
+           ( Deprecated -- use `iPutUAuthId` instead
+               :> "users"
                :> Capture "uid" UserId
                :> "sso-id"
-               :> ReqBody '[Servant.JSON] UserSSOId
+               :> ReqBody '[Servant.JSON] LegacyUserSSOId
                :> MultiVerb
                     'PUT
                     '[Servant.JSON]
@@ -361,9 +363,37 @@ type AccountAPI =
            )
     :<|> Named
            "iDeleteUserSsoId"
-           ( "users"
+           ( Deprecated -- use `iDeleteUAuthId` instead
+               :> "users"
                :> Capture "uid" UserId
                :> "sso-id"
+               :> MultiVerb
+                    'DELETE
+                    '[Servant.JSON]
+                    '[ RespondEmpty 200 "UpdateSSOIdSuccess",
+                       RespondEmpty 404 "UpdateSSOIdNotFound"
+                     ]
+                    UpdateSSOIdResponse
+           )
+    :<|> Named
+           "iPutUAuthId"
+           ( "users"
+               :> Capture "uid" UserId
+               :> "uauthid"
+               :> ReqBody '[Servant.JSON] PartialUAuthId
+               :> MultiVerb
+                    'PUT
+                    '[Servant.JSON]
+                    '[ RespondEmpty 200 "UpdateSSOIdSuccess",
+                       RespondEmpty 404 "UpdateSSOIdNotFound"
+                     ]
+                    UpdateSSOIdResponse
+           )
+    :<|> Named
+           "iDeleteUAuthId"
+           ( "users"
+               :> Capture "uid" UserId
+               :> "uauthid"
                :> MultiVerb
                     'DELETE
                     '[Servant.JSON]

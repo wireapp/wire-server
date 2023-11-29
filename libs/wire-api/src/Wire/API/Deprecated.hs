@@ -30,6 +30,8 @@ import Servant.Client
 import Servant.OpenApi
 
 -- Annotate that the route is deprecated
+--
+-- FUTUREWORK: give this a message string that explains how to migrate away from the deprecated end-point!
 data Deprecated deriving (Typeable)
 
 -- All of these instances are very similar to the instances

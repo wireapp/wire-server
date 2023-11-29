@@ -33,6 +33,7 @@ import Test.Wire.API.Golden.Manual.FeatureConfigEvent
 import Test.Wire.API.Golden.Manual.FederationStatus
 import Test.Wire.API.Golden.Manual.GetPaginatedConversationIds
 import Test.Wire.API.Golden.Manual.GroupId
+import Test.Wire.API.Golden.Manual.Identity
 import Test.Wire.API.Golden.Manual.ListConversations
 import Test.Wire.API.Golden.Manual.ListUsersById
 import Test.Wire.API.Golden.Manual.QualifiedUserClientPrekeyMap
@@ -49,7 +50,26 @@ tests :: TestTree
 tests =
   testGroup
     "Manual golden tests"
-    [ testGroup "UserClientPrekeyMap" $
+    [ testGroup "PartialUAuthId" $
+        testObjects
+          [ (testObject_UAuthId_1, "testObject_UAuthId_1.json"),
+            (testObject_UAuthId_2, "testObject_UAuthId_2.json"),
+            (testObject_UAuthId_3, "testObject_UAuthId_3.json"),
+            (testObject_UAuthId_4, "testObject_UAuthId_4.json")
+          ],
+      testGroup "ScimUAuthId" $
+        testObjects
+          [ (testObject_UAuthId_5, "testObject_UAuthId_5.json"),
+            (testObject_UAuthId_6, "testObject_UAuthId_6.json")
+          ],
+      testGroup "UserIdentity" $
+        testObjects
+          [ (testObject_UserIdentity_1, "testObject_UserIdentity_1.json"),
+            (testObject_UserIdentity_2, "testObject_UserIdentity_2.json"),
+            (testObject_UserIdentity_3, "testObject_UserIdentity_3.json"),
+            (testObject_UserIdentity_4, "testObject_UserIdentity_4.json")
+          ],
+      testGroup "UserClientPrekeyMap" $
         testObjects
           [ (testObject_UserClientPrekeyMap_1, "testObject_UserClientPrekeyMap_1.json"),
             (testObject_UserClientPrekeyMap_2, "testObject_UserClientPrekeyMap_2.json"),

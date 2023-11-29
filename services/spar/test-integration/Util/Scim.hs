@@ -172,6 +172,19 @@ randomScimUserWithEmail = do
       email
     )
 
+randomScimUserWithNick :: MonadRandom m => m (Scim.User.User SparTag, Text)
+randomScimUserWithNick = do
+  suffix <- cs <$> replicateM 7 (getRandomR ('0', '9'))
+  let nick = "nick" <> suffix
+      externalId = nick
+  pure
+    ( (Scim.User.empty userSchemas ("scimuser_" <> suffix) (ScimUserExtra mempty))
+        { Scim.User.displayName = Just ("ScimUser" <> suffix),
+          Scim.User.externalId = Just externalId
+        },
+      nick
+    )
+
 randomScimEmail :: MonadRandom m => m Email.Email
 randomScimEmail = do
   let typ :: Maybe Text = Nothing
@@ -602,9 +615,9 @@ instance IsUser ValidScimUser where
   maybeUserId = Nothing
   maybeHandle = Just (Just . view vsuHandle)
   maybeName = Just (Just . view vsuName)
-  maybeTenant = Just (^? (vsuExternalId . veidUref . SAML.uidTenant))
-  maybeSubject = Just (^? (vsuExternalId . veidUref . SAML.uidSubject))
-  maybeScimExternalId = Just (runValidExternalIdEither Intra.urefToExternalId (Just . fromEmail) . view vsuExternalId)
+  maybeTenant = Just (^? (vsuExternalId . to uaSamlId . _Just . SAML.uidTenant))
+  maybeSubject = Just (^? (vsuExternalId . to uaSamlId . _Just . SAML.uidSubject))
+  maybeScimExternalId = Just (Just . runIdentity . uaScimExternalId . view vsuExternalId)
   maybeLocale = Just (view vsuLocale)
 
 instance IsUser (WrappedScimStoredUser SparTag) where
@@ -639,21 +652,15 @@ instance IsUser User where
   maybeUserId = Just userId
   maybeHandle = Just userHandle
   maybeName = Just (Just . userDisplayName)
-  maybeTenant = Just $ \usr ->
-    Intra.veidFromBrigUser usr Nothing
-      & either
-        (const Nothing)
-        (preview (veidUref . SAML.uidTenant))
-  maybeSubject = Just $ \usr ->
-    Intra.veidFromBrigUser usr Nothing
-      & either
-        (const Nothing)
-        (preview (veidUref . SAML.uidSubject))
-  maybeScimExternalId = Just $ \usr ->
-    Intra.veidFromBrigUser usr Nothing
-      & either
-        (const Nothing)
-        (runValidExternalIdEither Intra.urefToExternalId (Just . fromEmail))
+  maybeTenant = Just $ \case
+    (userSSOId -> (UAuthId (Just (SAML.UserRef t _n) _ _))) -> Just t
+    _ -> Nothing
+  maybeSubject = Just $ \case
+    (userSSOId -> (UAuthId (Just (SAML.UserRef _t n) _ _))) -> Just n
+    _ -> Nothing
+  maybeScimExternalId = Just $ \case
+    (userSSOId -> (UAuthId _ (Just eid _))) -> Just eid
+    _ -> Nothing
   maybeLocale = Just $ Just . userLocale
 
 -- | For all properties that are present in both @u1@ and @u2@, check that they match.

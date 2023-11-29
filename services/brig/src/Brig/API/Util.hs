@@ -70,7 +70,7 @@ lookupProfilesMaybeFilterSameTeamOnly self us = do
     Just team -> filter (\x -> profileTeam x == Just team) us
     Nothing -> us
 
-fetchUserIdentity :: UserId -> (AppT r) (Maybe UserIdentity)
+fetchUserIdentity :: UserId -> (AppT r) (Maybe (UserIdentity "team"))
 fetchUserIdentity uid =
   lookupSelfProfile uid
     >>= maybe

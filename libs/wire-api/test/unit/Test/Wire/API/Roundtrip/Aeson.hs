@@ -14,6 +14,7 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 module Test.Wire.API.Roundtrip.Aeson (tests) where
 
@@ -23,7 +24,7 @@ import Data.Id (ConvId)
 import Data.OpenApi (ToSchema, validatePrettyToJSON)
 import Imports
 import Test.Tasty qualified as T
-import Test.Tasty.QuickCheck (Arbitrary, counterexample, testProperty, (.&&.), (===))
+import Test.Tasty.QuickCheck (Arbitrary (..), counterexample, testProperty, (.&&.), (===))
 import Type.Reflection (typeRep)
 import Wire.API.Asset qualified as Asset
 import Wire.API.Call.Config qualified as Call.Config
@@ -74,6 +75,7 @@ import Wire.API.User.Profile qualified as User.Profile
 import Wire.API.User.RichInfo qualified as User.RichInfo
 import Wire.API.User.Scim qualified as Scim
 import Wire.API.User.Search qualified as User.Search
+import Wire.API.User.Test
 import Wire.API.Wrapped qualified as Wrapped
 
 -- FUTUREWORK(#1446): fix tests marked as failing
@@ -243,14 +245,14 @@ tests =
       testRoundTrip @Team.SearchVisibility.TeamSearchVisibility,
       testRoundTrip @Team.SearchVisibility.TeamSearchVisibilityView,
       testRoundTrip @User.NameUpdate,
-      testRoundTrip @User.NewUser,
+      testRoundTrip @(WithSanitizedUserIdentity User.NewUser),
       testRoundTrip @User.NewUserPublic,
       testRoundTrip @User.UserIdList,
       testRoundTrip @(User.LimitedQualifiedUserIdList 20),
       testRoundTrip @User.UserProfile,
-      testRoundTrip @User.User,
+      testRoundTrip @(WithSanitizedUserIdentity User.User),
       testRoundTrip @User.UserSet,
-      testRoundTrip @User.SelfProfile,
+      testRoundTrip @(WithSanitizedUserIdentity User.SelfProfile),
       testRoundTrip @User.InvitationCode,
       testRoundTrip @User.BindingNewTeamUser,
       -- FUTUREWORK: this should probably be tested individually,
@@ -273,7 +275,7 @@ tests =
       -- testRoundTrip @User.Activation.ActivationTarget,
       testRoundTrip @User.Activation.ActivationCode,
       testRoundTrip @User.Activation.Activate,
-      testRoundTrip @User.Activation.ActivationResponse,
+      testRoundTrip @(WithSanitizedUserIdentity User.Activation.ActivationResponse),
       testRoundTrip @User.Activation.SendActivationCode,
       testRoundTrip @User.Auth.LoginId,
       testRoundTrip @User.Auth.LoginCode,
@@ -310,7 +312,8 @@ tests =
       testRoundTrip @User.Handle.CheckHandles,
       testRoundTrip @User.Identity.Email,
       testRoundTrip @User.Identity.Phone,
-      testRoundTrip @User.Identity.UserSSOId,
+      testRoundTrip @User.Identity.LegacyUserSSOId,
+      testRoundTrip @(WithSanitizedUserIdentity User.Identity.PartialUAuthId),
       testRoundTrip @User.Password.NewPasswordReset,
       testRoundTrip @User.Password.PasswordResetKey,
       -- FUTUREWORK: this should probably be tested individually,
@@ -371,3 +374,26 @@ testRoundTripWithSwagger = testProperty msg (trip .&&. scm)
             validatePrettyToJSON v
         )
         $ isNothing (validatePrettyToJSON v)
+
+instance Arbitrary (WithSanitizedUserIdentity User.NewUser) where
+  arbitrary = (arbitrary >>= coherenizeNewUser) <&> WithSanitizedUserIdentity
+
+instance Arbitrary (WithSanitizedUserIdentity User.User) where
+  arbitrary = (arbitrary >>= coherenizeUser) <&> WithSanitizedUserIdentity
+
+instance Arbitrary (WithSanitizedUserIdentity User.SelfProfile) where
+  arbitrary =
+    ( arbitrary >>= \(User.SelfProfile u) ->
+        User.SelfProfile <$> coherenizeUser u
+    )
+      <&> WithSanitizedUserIdentity
+
+instance Arbitrary (WithSanitizedUserIdentity User.Activation.ActivationResponse) where
+  arbitrary =
+    ( arbitrary >>= \(User.Activation.ActivationResponse ui af) ->
+        (`User.Activation.ActivationResponse` af) <$> coherenizeUserIdentity ui
+    )
+      <&> WithSanitizedUserIdentity
+
+instance Arbitrary (WithSanitizedUserIdentity User.Identity.PartialUAuthId) where
+  arbitrary = (arbitrary >>= coherenizeUAuthId) <&> WithSanitizedUserIdentity

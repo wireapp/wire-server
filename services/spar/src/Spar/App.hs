@@ -26,8 +26,7 @@ module Spar.App
     throwSparSem,
     verdictHandler,
     getUserByUrefUnsafe,
-    getUserIdByScimExternalId,
-    validateEmail,
+    makeBrigValidateEmail,
     errorPage,
     deleteTeam,
     sparToServerErrorWithLogging,
@@ -78,8 +77,6 @@ import Spar.Sem.Reporter (Reporter)
 import qualified Spar.Sem.Reporter as Reporter
 import Spar.Sem.SAMLUserStore (SAMLUserStore)
 import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
-import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore)
-import qualified Spar.Sem.ScimExternalIdStore as ScimExternalIdStore
 import Spar.Sem.ScimTokenStore (ScimTokenStore)
 import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
 import Spar.Sem.VerdictFormatStore (VerdictFormatStore)
@@ -88,10 +85,10 @@ import qualified System.Logger as TinyLog
 import URI.ByteString as URI
 import Web.Cookie (SetCookie, renderSetCookie)
 import Wire.API.Team.Role (Role, defaultRole)
-import Wire.API.User hiding (validateEmail)
+import Wire.API.User
+import Wire.API.User.Identity
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
-import Wire.API.User.Scim (ValidExternalId (..))
 import Wire.Sem.Logger (Logger)
 import qualified Wire.Sem.Logger as Logger
 import Wire.Sem.Random (Random)
@@ -123,10 +120,6 @@ data Env = Env
 -- password handshake have not been completed; it's still ok for the user to gain access to
 -- the team with valid SAML credentials.
 --
--- FUTUREWORK: Remove and reinstate getUser, in AuthID refactoring PR.  (in
--- https://github.com/wireapp/wire-server/pull/1410, undo
--- https://github.com/wireapp/wire-server/pull/1418)
---
 -- FUTUREWORK: https://wearezeta.atlassian.net/browse/SQSERVICES-1655
 getUserByUrefUnsafe ::
   ( Member BrigAccess r,
@@ -136,23 +129,6 @@ getUserByUrefUnsafe ::
   Sem r (Maybe User)
 getUserByUrefUnsafe uref = do
   maybe (pure Nothing) (Intra.getBrigUser Intra.WithPendingInvitations) =<< SAMLUserStore.get uref
-
--- FUTUREWORK: Remove and reinstatate getUser, in AuthID refactoring PR
-getUserIdByScimExternalId ::
-  ( Member BrigAccess r,
-    Member ScimExternalIdStore r
-  ) =>
-  TeamId ->
-  Email ->
-  Sem r (Maybe UserId)
-getUserIdByScimExternalId tid email = do
-  muid <- ScimExternalIdStore.lookup tid email
-  case muid of
-    Nothing -> pure Nothing
-    Just uid -> do
-      let withpending = Intra.WithPendingInvitations -- see haddocks above
-      itis <- isJust <$> Intra.getBrigUserTeam withpending uid
-      pure $ if itis then Just uid else Nothing
 
 -- | Create a fresh 'UserId', store it on C* locally together with 'SAML.UserRef', then
 -- create user on brig.
@@ -181,8 +157,8 @@ createSamlUserWithId ::
   Role ->
   Sem r ()
 createSamlUserWithId teamid buid suid role = do
-  uname <- either (throwSparSem . SparBadUserName . cs) pure $ Intra.mkUserName Nothing (UrefOnly suid)
-  buid' <- BrigAccess.createSAML suid buid teamid uname ManagedByWire Nothing Nothing Nothing role
+  uname <- either (throwSparSem . SparBadUserName . cs) pure $ mkUserNameSaml Nothing (UAuthId (pure suid) Nothing Nothing teamid)
+  buid' <- BrigAccess.createSAML suid Nothing buid teamid uname ManagedByWire Nothing Nothing Nothing role --
   assert (buid == buid') $ pure ()
   SAMLUserStore.insert suid buid
 
@@ -222,8 +198,8 @@ autoprovisionSamlUser idp buid suid = do
         throwSparSem SparSamlCredentialsNotFound
 
 -- | If user's 'NameID' is an email address and the team has email validation for SSO enabled,
--- make brig initiate the email validate procedure.
-validateEmailIfExists ::
+-- make brig initiate the email-validation-via-code procedure.
+makeBrigValidateEmailIfExists ::
   forall r.
   ( Member GalleyAccess r,
     Member BrigAccess r
@@ -231,13 +207,13 @@ validateEmailIfExists ::
   UserId ->
   SAML.UserRef ->
   Sem r ()
-validateEmailIfExists uid = \case
+makeBrigValidateEmailIfExists uid = \case
   (SAML.UserRef _ (view SAML.nameID -> UNameIDEmail email)) -> do
     mbTid <- Intra.getBrigUserTeam Intra.NoPendingInvitations uid
-    validateEmail mbTid uid . Intra.emailFromSAML . CI.original $ email
+    makeBrigValidateEmail mbTid uid . Intra.emailFromSAML . CI.original $ email
   _ -> pure ()
 
-validateEmail ::
+makeBrigValidateEmail ::
   forall r.
   ( Member GalleyAccess r,
     Member BrigAccess r
@@ -246,7 +222,7 @@ validateEmail ::
   UserId ->
   Email ->
   Sem r ()
-validateEmail mbTid uid email = do
+makeBrigValidateEmail mbTid uid email = do
   enabled <- maybe (pure False) GalleyAccess.isEmailValidationEnabledTeam mbTid
   when enabled $ do
     BrigAccess.updateEmail uid email
@@ -414,7 +390,7 @@ verdictHandlerResultCore idp = \case
             Nothing -> do
               buid <- Id <$> Random.uuid
               autoprovisionSamlUser idp buid uref
-              validateEmailIfExists buid uref
+              makeBrigValidateEmailIfExists buid uref
               pure buid
 
     Logger.log Logger.Debug ("granting sso login for " <> show uid)

@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -17,29 +19,37 @@
 
 module Test.Wire.API.Golden.Generated.ActivationResponse_user where
 
-import Imports (Bool (False, True), Maybe (Just, Nothing))
+import Data.Id
+import Imports
+import SAML2.WebSSO.Types qualified as SAML
+import Web.HttpApiData (parseUrlPiece)
 import Wire.API.User
   ( Email (Email, emailDomain, emailLocal),
     Phone (Phone, fromPhone),
-    UserIdentity
-      ( EmailIdentity,
-        FullIdentity,
-        PhoneIdentity,
-        SSOIdentity
-      ),
-    UserSSOId (UserSSOId, UserScimExternalId),
+    UserIdentity (EmailIdentity, FullIdentity, PhoneIdentity, UAuthIdentity),
   )
 import Wire.API.User.Activation (ActivationResponse (..))
-import Wire.API.User.Identity (mkSimpleSampleUref)
+import Wire.API.User.Identity (EmailSource (..), EmailWithSource (..), UAuthId (..), mkSimpleSampleUref)
+
+sampleUref :: SAML.UserRef
+sampleUref = mkSimpleSampleUref
+
+sampleExtId :: Text
+sampleExtId = "me@example.com"
+
+sampleEmail :: EmailWithSource
+sampleEmail = EmailWithSource (Email "me" "example.com") EmailFromScimEmailsField
+
+sampleEmail2 :: Email
+sampleEmail2 = Email "other" "2.example.com"
+
+sampleTeamId :: TeamId
+Right sampleTeamId = parseUrlPiece "579edcd0-6f1b-11ee-b49a-e770ab99392a"
 
 testObject_ActivationResponse_user_1 :: ActivationResponse
 testObject_ActivationResponse_user_1 =
   ActivationResponse
-    { activatedIdentity =
-        SSOIdentity
-          (UserSSOId mkSimpleSampleUref)
-          (Just (Email {emailLocal = "\165918\rZ\a\ESC", emailDomain = "p\131777\62344"}))
-          Nothing,
+    { activatedIdentity = UAuthIdentity (UAuthId (Just sampleUref) Nothing (Just sampleEmail) sampleTeamId) (Just sampleEmail2),
       activatedFirst = False
     }
 
@@ -74,7 +84,7 @@ testObject_ActivationResponse_user_5 =
 testObject_ActivationResponse_user_6 :: ActivationResponse
 testObject_ActivationResponse_user_6 =
   ActivationResponse
-    { activatedIdentity = SSOIdentity (UserScimExternalId "\an|") Nothing Nothing,
+    { activatedIdentity = UAuthIdentity (UAuthId Nothing (Just sampleExtId) (Just sampleEmail) sampleTeamId) Nothing,
       activatedFirst = False
     }
 
@@ -121,21 +131,10 @@ testObject_ActivationResponse_user_12 =
       activatedFirst = False
     }
 
-testObject_ActivationResponse_user_13 :: ActivationResponse
-testObject_ActivationResponse_user_13 =
-  ActivationResponse
-    { activatedIdentity = SSOIdentity (UserScimExternalId "#") Nothing (Just (Phone {fromPhone = "+6124426658"})),
-      activatedFirst = False
-    }
-
 testObject_ActivationResponse_user_14 :: ActivationResponse
 testObject_ActivationResponse_user_14 =
   ActivationResponse
-    { activatedIdentity =
-        SSOIdentity
-          (UserScimExternalId "\NUL\US\ETBY")
-          (Just (Email {emailLocal = "\66022", emailDomain = "\a\1081391"}))
-          Nothing,
+    { activatedIdentity = UAuthIdentity (UAuthId Nothing (Just "me") (Just sampleEmail) sampleTeamId) (Just sampleEmail2),
       activatedFirst = False
     }
 
@@ -151,27 +150,9 @@ testObject_ActivationResponse_user_16 =
       activatedFirst = False
     }
 
-testObject_ActivationResponse_user_17 :: ActivationResponse
-testObject_ActivationResponse_user_17 =
-  ActivationResponse
-    { activatedIdentity =
-        SSOIdentity
-          (UserScimExternalId "")
-          (Just (Email {emailLocal = "\155143", emailDomain = "+)"}))
-          (Just (Phone {fromPhone = "+703448141"})),
-      activatedFirst = True
-    }
-
 testObject_ActivationResponse_user_18 :: ActivationResponse
 testObject_ActivationResponse_user_18 =
   ActivationResponse {activatedIdentity = PhoneIdentity (Phone {fromPhone = "+974462685543005"}), activatedFirst = True}
-
-testObject_ActivationResponse_user_19 :: ActivationResponse
-testObject_ActivationResponse_user_19 =
-  ActivationResponse
-    { activatedIdentity = SSOIdentity (UserSSOId mkSimpleSampleUref) (Just (Email {emailLocal = "R", emailDomain = "K"})) Nothing,
-      activatedFirst = False
-    }
 
 testObject_ActivationResponse_user_20 :: ActivationResponse
 testObject_ActivationResponse_user_20 =

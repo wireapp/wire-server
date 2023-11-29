@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedLists #-}
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -29,7 +30,7 @@ import Data.ISO3166_CountryCodes
         UA
       ),
   )
-import Data.Id (Id (Id))
+import Data.Id
 import Data.Json.Util (readUTCTimeMillis)
 import Data.LanguageCodes qualified
   ( ISO639_1
@@ -42,9 +43,19 @@ import Data.LanguageCodes qualified
 import Data.Qualified (Qualified (Qualified, qDomain, qUnqualified))
 import Data.UUID qualified as UUID (fromString)
 import Imports
+import Web.HttpApiData (parseUrlPiece)
 import Wire.API.Asset
 import Wire.API.Provider.Service (ServiceRef (ServiceRef, _serviceRefId, _serviceRefProvider))
 import Wire.API.User
+
+sampleExtId :: Text
+sampleExtId = "it"
+
+sampleEmail :: EmailWithSource
+sampleEmail = EmailWithSource (Email "it" "example.com") EmailFromScimEmailsField
+
+sampleTeamId :: TeamId
+Right sampleTeamId = parseUrlPiece "579edcd0-6f1b-11ee-b49a-e770ab99392a"
 
 testObject_User_user_1 :: User
 testObject_User_user_1 =
@@ -149,7 +160,7 @@ testObject_User_user_4 =
             qDomain = Domain {_domainText = "28b.cqb"}
           },
       userIdentity =
-        Just (SSOIdentity (UserScimExternalId "") (Just (Email {emailLocal = "", emailDomain = ""})) Nothing),
+        Just (UAuthIdentity (UAuthId Nothing (Just sampleExtId) (Just sampleEmail) sampleTeamId) Nothing),
       userDisplayName =
         Name
           { fromName =
@@ -175,7 +186,7 @@ testObject_User_user_4 =
               }
           ),
       userExpire = Just (fromJust (readUTCTimeMillis "1864-05-09T14:25:26.089Z")),
-      userTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000002"))),
+      userTeam = Just sampleTeamId,
       userManagedBy = ManagedByScim,
       userSupportedProtocols = defSupportedProtocols
     }

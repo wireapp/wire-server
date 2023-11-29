@@ -2498,7 +2498,7 @@ refreshIndex = do
   brig <- viewBrig
   post (brig . path "/i/index/refresh") !!! const 200 === statusCode
 
-postSSOUser :: Text -> Bool -> UserSSOId -> TeamId -> TestM ResponseLBS
+postSSOUser :: Text -> Bool -> LegacyUserSSOId -> TeamId -> TestM ResponseLBS
 postSSOUser name hasEmail ssoid teamid = do
   brig <- viewBrig
   email <- randomEmail

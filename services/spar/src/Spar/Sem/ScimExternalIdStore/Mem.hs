@@ -28,13 +28,12 @@ import Imports
 import Polysemy
 import Polysemy.State
 import Spar.Sem.ScimExternalIdStore
-import Wire.API.User.Identity (Email)
 
 scimExternalIdStoreToMem ::
   Sem (ScimExternalIdStore ': r) a ->
-  Sem r (Map (TeamId, Email) UserId, a)
+  Sem r (Map (TeamId, Text) UserId, a)
 scimExternalIdStoreToMem = (runState mempty .) $
   reinterpret $ \case
-    Insert tid em uid -> modify $ M.insert (tid, em) uid
-    Lookup tid em -> gets $ M.lookup (tid, em)
-    Delete tid em -> modify $ M.delete (tid, em)
+    Insert tid eid uid -> modify $ M.insert (tid, eid) uid
+    Lookup tid eid -> gets $ M.lookup (tid, eid)
+    Delete tid eid -> modify $ M.delete (tid, eid)

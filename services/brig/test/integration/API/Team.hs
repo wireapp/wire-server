@@ -926,7 +926,7 @@ testCreateUserInternalSSO brig galley = do
   resp <-
     postUser "dummy" True False (Just ssoid) (Just teamid) brig <!! do
       const 201 === statusCode
-      const (Just ssoid) === (userSSOId . selfUser <=< responseJsonMaybe)
+      const (Just ssoid) === (userPartialUAuthId . selfUser <=< responseJsonMaybe)
   -- self profile contains sso id
   let Just uid = userId <$> responseJsonMaybe resp
   profile <- getSelfProfile brig uid
@@ -934,7 +934,7 @@ testCreateUserInternalSSO brig galley = do
     assertEqual
       "self profile user identity mismatch"
       (Just ssoid)
-      (userSSOId $ selfUser profile)
+      (userPartialUAuthId $ selfUser profile)
   -- sso-managed users must have team id.
   let Just teamid' = userTeam $ selfUser profile
   liftIO $ assertEqual "bad team_id" teamid teamid'
@@ -981,7 +981,7 @@ test2FaDisabledForSsoUser brig galley = do
   createUserResp <-
     postUser "dummy" True False (Just ssoid) (Just teamid) brig <!! do
       const 201 === statusCode
-      const (Just ssoid) === (userSSOId . selfUser <=< responseJsonMaybe)
+      const (Just ssoid) === (userPartialUAuthId . selfUser <=< responseJsonMaybe)
   let Just uid = userId <$> responseJsonMaybe createUserResp
   let verificationCode = Nothing
   addClient brig uid (defNewClientWithVerificationCode verificationCode PermanentClientType [head somePrekeys] (head someLastPrekeys))

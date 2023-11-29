@@ -166,9 +166,14 @@ instance ToSchema Activate where
         ActivateEmail email -> (Nothing, Nothing, Just email)
 
 -- | Information returned as part of a successful activation.
+--
+-- NB[fisx): in the non-scim-non-saml activation flow, we don't have a `TeamId` here because
+-- we there is no `UAuthId` we could extract one from.  The phantom type for `UserIdentity` is
+-- still required, but luckily only for parsing values, which never happens here: we only
+-- construct `ActivationResponse` values from already-parsed `UserIdentity` values.
 data ActivationResponse = ActivationResponse
   { -- | The activated / verified user identity.
-    activatedIdentity :: UserIdentity,
+    activatedIdentity :: UserIdentity "team_id",
     -- | Whether this is the first verified identity of the account.
     activatedFirst :: Bool
   }

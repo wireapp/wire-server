@@ -37,6 +37,7 @@ import Test.Tasty
 import Test.Tasty.HUnit
 import Wire.API.Routes.Internal.Brig.EJPD (EJPDRequestBody (..), EJPDResponseBody (..))
 import Wire.API.User.Auth.ReAuth
+import Wire.API.User.Test
 
 tests :: TestTree
 tests = testGroup "User (types vs. aeson)" $ roundtripTests
@@ -51,13 +52,16 @@ roundtripTests =
     testRoundTripWithSwagger @EJPDResponseBody,
     testRoundTrip @UpdateConnectionsInternal,
     testRoundTrip @SearchVisibilityInbound,
-    testRoundTripWithSwagger @UserAccount,
+    testRoundTripWithSwagger @(WithSanitizedUserIdentity UserAccount),
     testGroup "golden tests" $
       [testCaseUserAccount]
   ]
 
 instance Arbitrary ReAuthUser where
   arbitrary = ReAuthUser <$> arbitrary <*> arbitrary <*> arbitrary
+
+instance Arbitrary (WithSanitizedUserIdentity UserAccount) where
+  arbitrary = (arbitrary >>= coherenizeUserAccount) <&> WithSanitizedUserIdentity
 
 testCaseUserAccount :: TestTree
 testCaseUserAccount = testCase "UserAcccount" $ do

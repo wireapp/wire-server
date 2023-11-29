@@ -1,5 +1,5 @@
 {-# LANGUAGE RecordWildCards #-}
-{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+{-# OPTIONS_GHC -Wno-incomplete-patterns -Wno-incomplete-uni-patterns #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -32,7 +32,6 @@ import Polysemy
 import SAML2.WebSSO as SAML
 import Spar.App as App
 import Spar.Error (IdpDbError (IdpNotFound), SparCustomError (IdpDbError))
-import Spar.Intra.BrigApp (veidFromUserSSOId)
 import Spar.Options
 import qualified Spar.Sem.AReqIDStore as AReqIDStore
 import qualified Spar.Sem.AssIDStore as AssIDStore
@@ -47,9 +46,9 @@ import Util.Scim
 import Util.Types
 import Web.Scim.Schema.Common as Scim.Common
 import Web.Scim.Schema.Meta as Scim.Meta
+import Wire.API.User.Identity
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
-import Wire.API.User.Scim
 
 spec :: SpecWith TestEnv
 spec = do
@@ -232,8 +231,8 @@ testDeleteTeam = it "cleans up all the right tables after deletion" $ do
   storedUser2 <- createUser tok user2
   -- Resolve the users' SSO ids
   let getUid = Scim.Common.id . Scim.Meta.thing
-  ssoid1 <- getSsoidViaSelf (getUid storedUser1)
-  ssoid2 <- getSsoidViaSelf (getUid storedUser2)
+  uauthid1 <- getUAuthIdViaSelf (getUid storedUser1)
+  uauthid2 <- getUAuthIdViaSelf (getUid storedUser2)
   -- Delete the team
   runSpar $ App.deleteTeam tid
   -- See that everything got cleaned up.
@@ -248,24 +247,10 @@ testDeleteTeam = it "cleans up all the right tables after deletion" $ do
     liftIO $ tokens `shouldBe` []
   -- The users from 'user':
   do
-    mbUser1 <- case veidFromUserSSOId ssoid1 of
-      Right veid ->
-        runSpar $
-          runValidExternalIdEither
-            SAMLUserStore.get
-            undefined -- could be @Data.lookupScimExternalId@, but we don't hit that path.
-            veid
-      Left _email -> undefined -- runSparCass . Data.lookupScimExternalId . fromEmail $ _email
+    mbUser1 <- case uaSamlId uauthid1 of Just saml -> runSpar $ SAMLUserStore.get saml
     liftIO $ mbUser1 `shouldBe` Nothing
   do
-    mbUser2 <- case veidFromUserSSOId ssoid2 of
-      Right veid ->
-        runSpar $
-          runValidExternalIdEither
-            SAMLUserStore.get
-            undefined
-            veid
-      Left _email -> undefined
+    mbUser2 <- case uaSamlId uauthid2 of Just saml -> runSpar $ SAMLUserStore.get saml
     liftIO $ mbUser2 `shouldBe` Nothing
   -- The config from 'idp':
   do

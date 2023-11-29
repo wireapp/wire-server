@@ -37,7 +37,7 @@ module Wire.API.User
     User (..),
     userEmail,
     userPhone,
-    userSSOId,
+    userPartialUAuthId,
     userIssuer,
     userSCIMExternalId,
     scimExternalId,
@@ -65,7 +65,7 @@ module Wire.API.User
     newUserTeam,
     newUserEmail,
     newUserPhone,
-    newUserSSOId,
+    newUserUAuthId,
     isNewUserEphemeral,
     isNewUserTeamMember,
 
@@ -669,7 +669,7 @@ data User = User
     -- | User identity. For endpoints like @/self@, it will be present in the response iff
     -- the user is activated, and the email/phone contained in it will be guaranteedly
     -- verified. {#RefActivation}
-    userIdentity :: Maybe UserIdentity,
+    userIdentity :: Maybe (UserIdentity "team"),
     -- | required; non-unique
     userDisplayName :: Name,
     -- | DEPRECATED
@@ -696,8 +696,8 @@ data User = User
   deriving (Arbitrary) via (GenericUniform User)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema User)
 
--- -- FUTUREWORK:
--- -- disentangle json serializations for 'User', 'NewUser', 'UserIdentity', 'NewUserOrigin'.
+-- FUTUREWORK: disentangle json serializations for 'User', 'NewUser', 'UserIdentity',
+-- 'NewUserOrigin'.
 instance ToSchema User where
   schema = object "User" userObjectSchema
 
@@ -739,31 +739,32 @@ userEmail = emailIdentity <=< userIdentity
 userPhone :: User -> Maybe Phone
 userPhone = phoneIdentity <=< userIdentity
 
-userSSOId :: User -> Maybe UserSSOId
-userSSOId = ssoIdentity <=< userIdentity
+userPartialUAuthId :: User -> Maybe PartialUAuthId
+userPartialUAuthId = uauthIdentity <=< userIdentity
 
 userSCIMExternalId :: User -> Maybe Text
-userSCIMExternalId usr = scimExternalId (userManagedBy usr) =<< userSSOId usr
+userSCIMExternalId usr = scimExternalId (userManagedBy usr) =<< userPartialUAuthId usr
 
 -- FUTUREWORK: this is only ignoring case in the email format, and emails should be
 -- handled case-insensitively.  https://wearezeta.atlassian.net/browse/SQSERVICES-909
-scimExternalId :: ManagedBy -> UserSSOId -> Maybe Text
-scimExternalId _ (UserScimExternalId extId) = Just extId
-scimExternalId ManagedByScim (UserSSOId (SAML.UserRef _ nameIdXML)) = Just . CI.original . SAML.unsafeShowNameID $ nameIdXML
-scimExternalId ManagedByWire (UserSSOId _) = Nothing
+scimExternalId :: ManagedBy -> PartialUAuthId -> Maybe Text
+scimExternalId _ (UAuthId _ (Just extId) _ _) = Just extId
+scimExternalId ManagedByScim (UAuthId (Just (SAML.UserRef _ nameIdXML)) _ _ _) = Just . CI.original . SAML.unsafeShowNameID $ nameIdXML
+scimExternalId ManagedByWire (UAuthId {}) = Nothing
+scimExternalId _ _ = Nothing
 
-ssoIssuerAndNameId :: UserSSOId -> Maybe (Text, Text)
-ssoIssuerAndNameId (UserSSOId (SAML.UserRef (SAML.Issuer uri) nameIdXML)) = Just (fromUri uri, fromNameId nameIdXML)
+ssoIssuerAndNameId :: PartialUAuthId -> Maybe (Text, Text)
+ssoIssuerAndNameId (UAuthId (Just (SAML.UserRef (SAML.Issuer uri) nameIdXML)) _ _ _) = Just (fromUri uri, fromNameId nameIdXML)
   where
     fromUri = cs . toLazyByteString . serializeURIRef
     fromNameId = CI.original . SAML.unsafeShowNameID
-ssoIssuerAndNameId (UserScimExternalId _) = Nothing
+ssoIssuerAndNameId (UAuthId {}) = Nothing
 
 userIssuer :: User -> Maybe SAML.Issuer
-userIssuer user = userSSOId user >>= fromSSOId
+userIssuer user = userPartialUAuthId user >>= fromSSOId
   where
-    fromSSOId :: UserSSOId -> Maybe SAML.Issuer
-    fromSSOId (UserSSOId (SAML.UserRef issuer _)) = Just issuer
+    fromSSOId :: PartialUAuthId -> Maybe SAML.Issuer
+    fromSSOId (UAuthId (Just (SAML.UserRef issuer _)) _ _ _) = Just issuer
     fromSSOId _ = Nothing
 
 connectedProfile :: User -> UserLegalHoldStatus -> UserProfile
@@ -850,7 +851,7 @@ instance ToSchema NewUserPublic where
 
 validateNewUserPublic :: NewUser -> Either String NewUserPublic
 validateNewUserPublic nu
-  | isJust (newUserSSOId nu) =
+  | isJust (newUserUAuthId nu) =
       Left "SSO-managed users are not allowed here."
   | isJust (newUserUUID nu) =
       Left "it is not allowed to provide a UUID for the users here."
@@ -1006,7 +1007,7 @@ errFromEither (Right e) = CreateUserSparRegistrationError e
 
 data NewUserSpar = NewUserSpar
   { newUserSparUUID :: UUID,
-    newUserSparSSOId :: UserSSOId,
+    newUserSparUAuthId :: PartialUAuthId,
     newUserSparDisplayName :: Name,
     newUserSparTeamId :: TeamId,
     newUserSparManagedBy :: ManagedBy,
@@ -1018,35 +1019,115 @@ data NewUserSpar = NewUserSpar
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema NewUserSpar)
 
+-- | This type is only for translating the deprecated `newUserSparSSOId` field into
+-- `newUserSparRawUAuthId`.  Once we're confident the former won't occur on the wire any more,
+-- this type can be removed.
+data NewUserSparRaw = NewUserSparRaw
+  { newUserSparRawUUID :: UUID,
+    newUserSparRawUAuthId :: Maybe PartialUAuthId,
+    newUserSparRawSSOId :: Maybe LegacyUserSSOId,
+    newUserSparRawDisplayName :: Name,
+    newUserSparRawTeamId :: TeamId,
+    newUserSparRawManagedBy :: ManagedBy,
+    newUserSparRawHandle :: Maybe Handle,
+    newUserSparRawRichInfo :: Maybe RichInfo,
+    newUserSparRawLocale :: Maybe Locale,
+    newUserSparRawRole :: Role
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema NewUserSparRaw)
+
 instance ToSchema NewUserSpar where
-  schema =
-    object "NewUserSpar" $
+  schema = object "NewUserSpar" $ newUserSparToRaw .= withParser newUserSparRawObjectSchema newUserSparFromRaw
+
+newUserSparRawObjectSchema :: ObjectSchema SwaggerDoc NewUserSparRaw
+newUserSparRawObjectSchema =
+  NewUserSparRaw
+    <$> newUserSparRawUUID
+      .= field "newUserSparUUID" genericToSchema
+    <*> newUserSparRawUAuthId
+      .= maybe_ (optField "newUserSparUAuthId" genericToSchema)
+    <*> newUserSparRawSSOId
+      .= maybe_ (optField "newUserSparSSOId" genericToSchema)
+    <*> newUserSparRawDisplayName
+      .= field "newUserSparDisplayName" schema
+    <*> newUserSparRawTeamId
+      .= field "newUserSparTeamId" schema
+    <*> newUserSparRawManagedBy
+      .= field "newUserSparManagedBy" schema
+    <*> newUserSparRawHandle
+      .= maybe_ (optField "newUserSparHandle" schema)
+    <*> newUserSparRawRichInfo
+      .= maybe_ (optField "newUserSparRichInfo" schema)
+    <*> newUserSparRawLocale
+      .= maybe_ (optField "newUserSparLocale" schema)
+    <*> newUserSparRawRole
+      .= field "newUserSparRole" schema
+
+instance ToSchema NewUserSparRaw where
+  schema = object "NewUserSparRaw" newUserSparRawObjectSchema
+
+newUserSparToRaw :: NewUserSpar -> NewUserSparRaw
+newUserSparToRaw
+  NewUserSpar
+    { newUserSparUUID,
+      newUserSparUAuthId,
+      newUserSparDisplayName,
+      newUserSparTeamId,
+      newUserSparManagedBy,
+      newUserSparHandle,
+      newUserSparRichInfo,
+      newUserSparLocale,
+      newUserSparRole
+    } =
+    NewUserSparRaw
+      newUserSparUUID
+      (Just newUserSparUAuthId)
+      (uAuthIdToLegacyUserSSOId newUserSparUAuthId)
+      newUserSparDisplayName
+      newUserSparTeamId
+      newUserSparManagedBy
+      newUserSparHandle
+      newUserSparRichInfo
+      newUserSparLocale
+      newUserSparRole
+
+newUserSparFromRaw :: NewUserSparRaw -> A.Parser NewUserSpar
+newUserSparFromRaw
+  NewUserSparRaw
+    { newUserSparRawUUID,
+      newUserSparRawUAuthId,
+      newUserSparRawSSOId,
+      newUserSparRawDisplayName,
+      newUserSparRawTeamId,
+      newUserSparRawManagedBy,
+      newUserSparRawHandle,
+      newUserSparRawRichInfo,
+      newUserSparRawLocale,
+      newUserSparRawRole
+    } = do
+    ua <- case (newUserSparRawUAuthId, newUserSparRawSSOId) of
+      (Just ua, _) -> pure ua
+      (Nothing, Just old) -> pure $ legacyUserSSOIdToUAuthId old newUserSparRawTeamId newUserSparRawManagedBy Nothing
+      (Nothing, Nothing) -> fail "NewUserSpar: no UAuthId"
+    pure $
       NewUserSpar
-        <$> newUserSparUUID
-          .= field "newUserSparUUID" genericToSchema
-        <*> newUserSparSSOId
-          .= field "newUserSparSSOId" genericToSchema
-        <*> newUserSparDisplayName
-          .= field "newUserSparDisplayName" schema
-        <*> newUserSparTeamId
-          .= field "newUserSparTeamId" schema
-        <*> newUserSparManagedBy
-          .= field "newUserSparManagedBy" schema
-        <*> newUserSparHandle
-          .= maybe_ (optField "newUserSparHandle" schema)
-        <*> newUserSparRichInfo
-          .= maybe_ (optField "newUserSparRichInfo" schema)
-        <*> newUserSparLocale
-          .= maybe_ (optField "newUserSparLocale" schema)
-        <*> newUserSparRole
-          .= field "newUserSparRole" schema
+        newUserSparRawUUID
+        ua
+        newUserSparRawDisplayName
+        newUserSparRawTeamId
+        newUserSparRawManagedBy
+        newUserSparRawHandle
+        newUserSparRawRichInfo
+        newUserSparRawLocale
+        newUserSparRawRole
 
 newUserFromSpar :: NewUserSpar -> NewUser
 newUserFromSpar new =
   NewUser
     { newUserDisplayName = newUserSparDisplayName new,
       newUserUUID = Just $ newUserSparUUID new,
-      newUserIdentity = Just $ SSOIdentity (newUserSparSSOId new) Nothing Nothing,
+      newUserIdentity = Just $ UAuthIdentity (newUserSparUAuthId new) Nothing,
       newUserPict = Nothing,
       newUserAssets = [],
       newUserAccentId = Nothing,
@@ -1065,7 +1146,7 @@ data NewUser = NewUser
   { newUserDisplayName :: Name,
     -- | use this as 'UserId' (if 'Nothing', call 'Data.UUID.nextRandom').
     newUserUUID :: Maybe UUID,
-    newUserIdentity :: Maybe UserIdentity,
+    newUserIdentity :: Maybe (UserIdentity "team_id"),
     -- | DEPRECATED
     newUserPict :: Maybe Pict,
     newUserAssets :: [Asset],
@@ -1112,9 +1193,15 @@ data NewUserRaw = NewUserRaw
     newUserRawUUID :: Maybe UUID,
     newUserRawEmail :: Maybe Email,
     newUserRawPhone :: Maybe Phone,
-    newUserRawSSOId :: Maybe UserSSOId,
-    -- | DEPRECATED
-    newUserRawPict :: Maybe Pict,
+    newUserRawSSOId ::
+      -- DEPRECATED (use newUserRawUAuthId instead)
+      Maybe LegacyUserSSOId,
+    newUserRawUAuthId ::
+      -- NOTE(fisx): This defines a json object under a json field, just like newUserRawSSOId.  no inlining!
+      Maybe PartialUAuthId,
+    newUserRawPict ::
+      -- DEPRECATED
+      Maybe Pict,
     newUserRawAssets :: [Asset],
     newUserRawAccentId :: Maybe ColourId,
     newUserRawEmailCode :: Maybe ActivationCode,
@@ -1144,6 +1231,8 @@ newUserRawObjectSchema =
       .= maybe_ (optField "phone" schema)
     <*> newUserRawSSOId
       .= maybe_ (optField "sso_id" genericToSchema)
+    <*> newUserRawUAuthId
+      .= maybe_ (optField "uauthid" genericToSchema)
     <*> newUserRawPict
       .= maybe_ (optField "picture" schema)
     <*> newUserRawAssets
@@ -1187,7 +1276,8 @@ newUserToRaw NewUser {..} =
           newUserRawUUID = newUserUUID,
           newUserRawEmail = emailIdentity =<< newUserIdentity,
           newUserRawPhone = phoneIdentity =<< newUserIdentity,
-          newUserRawSSOId = ssoIdentity =<< newUserIdentity,
+          newUserRawSSOId = legacySsoIdentity =<< newUserIdentity,
+          newUserRawUAuthId = uauthIdentity =<< newUserIdentity,
           newUserRawPict = newUserPict,
           newUserRawAssets = newUserAssets,
           newUserRawAccentId = newUserAccentId,
@@ -1213,7 +1303,19 @@ newUserFromRaw NewUserRaw {..} = do
         (isJust newUserRawPassword)
         (isJust newUserRawSSOId)
         (newUserRawInvitationCode, newUserRawTeamCode, newUserRawTeam, newUserRawTeamId)
-  let identity = maybeUserIdentityFromComponents (newUserRawEmail, newUserRawPhone, newUserRawSSOId)
+  identity <-
+    let hdl = \case
+          UserIdentityFromComponentsNoFields -> pure Nothing
+          other -> fail (show other)
+     in either hdl (pure . Just) $
+          eUserIdentityFromComponents
+            ( newUserRawEmail,
+              newUserRawPhone,
+              newUserRawUAuthId,
+              newUserRawSSOId,
+              newUserRawTeamId,
+              newUserRawManagedBy
+            )
   expiresIn <-
     case (newUserRawExpiresIn, identity) of
       (Just _, Just _) -> fail "Only users without an identity can expire"
@@ -1260,7 +1362,7 @@ instance Arbitrary NewUser where
       genUserOrigin newUserIdentity = do
         teamid <- arbitrary
         let hasSSOId = case newUserIdentity of
-              Just SSOIdentity {} -> True
+              Just UAuthIdentity {} -> True
               _ -> False
             ssoOrigin = Just (NewUserOriginTeamUser (NewTeamMemberSSO teamid))
             isSsoOrigin (Just (NewUserOriginTeamUser (NewTeamMemberSSO _))) = True
@@ -1270,7 +1372,7 @@ instance Arbitrary NewUser where
           else arbitrary `QC.suchThat` (not . isSsoOrigin)
       genUserPassword newUserIdentity newUserOrigin = do
         let hasSSOId = case newUserIdentity of
-              Just SSOIdentity {} -> True
+              Just UAuthIdentity {} -> True
               _ -> False
             isTeamUser = case newUserOrigin of
               Just (NewUserOriginTeamUser _) -> True
@@ -1295,8 +1397,8 @@ newUserEmail = emailIdentity <=< newUserIdentity
 newUserPhone :: NewUser -> Maybe Phone
 newUserPhone = phoneIdentity <=< newUserIdentity
 
-newUserSSOId :: NewUser -> Maybe UserSSOId
-newUserSSOId = ssoIdentity <=< newUserIdentity
+newUserUAuthId :: NewUser -> Maybe PartialUAuthId
+newUserUAuthId = uauthIdentity <=< newUserIdentity
 
 --------------------------------------------------------------------------------
 -- NewUserOrigin

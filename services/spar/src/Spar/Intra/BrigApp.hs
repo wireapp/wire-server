@@ -21,13 +21,8 @@
 
 -- | Client functions for interacting with the Brig API.
 module Spar.Intra.BrigApp
-  ( veidToUserSSOId,
-    urefToExternalId,
+  ( urefToExternalId,
     urefToEmail,
-    veidFromBrigUser,
-    veidFromUserSSOId,
-    mkUserName,
-    renderValidExternalId,
     HavePendingInvitations (..),
     getBrigUser,
     getBrigUserTeam,
@@ -63,53 +58,7 @@ import qualified Spar.Sem.BrigAccess as BrigAccess
 import Spar.Sem.GalleyAccess (GalleyAccess)
 import qualified Spar.Sem.GalleyAccess as GalleyAccess
 import Wire.API.User
-import Wire.API.User.Scim (ValidExternalId (..), runValidExternalIdEither)
-
-----------------------------------------------------------------------
-
--- | FUTUREWORK: this is redundantly defined in "Spar.Intra.Brig"
-veidToUserSSOId :: ValidExternalId -> UserSSOId
-veidToUserSSOId = runValidExternalIdEither UserSSOId (UserScimExternalId . fromEmail)
-
-veidFromUserSSOId :: MonadError String m => UserSSOId -> m ValidExternalId
-veidFromUserSSOId = \case
-  UserSSOId uref ->
-    case urefToEmail uref of
-      Nothing -> pure $ UrefOnly uref
-      Just email -> pure $ EmailAndUref email uref
-  UserScimExternalId email ->
-    maybe
-      (throwError "externalId not an email and no issuer")
-      (pure . EmailOnly)
-      (parseEmail email)
-
--- | If the brig user has a 'UserSSOId', transform that into a 'ValidExternalId' (this is a
--- total function as long as brig obeys the api).  Otherwise, if the user has an email, we can
--- construct a return value from that (and an optional saml issuer).  If a user only has a
--- phone number, or no identity at all, throw an error.
---
--- Note: the saml issuer is only needed in the case where a user has been invited via team
--- settings and is now onboarded to saml/scim.  If this case can safely be ruled out, it's ok
--- to just set it to 'Nothing'.
-veidFromBrigUser :: MonadError String m => User -> Maybe SAML.Issuer -> m ValidExternalId
-veidFromBrigUser usr mIssuer = case (userSSOId usr, userEmail usr, mIssuer) of
-  (Just ssoid, _, _) -> veidFromUserSSOId ssoid
-  (Nothing, Just email, Just issuer) -> pure $ EmailAndUref email (SAML.UserRef issuer (emailToSAMLNameID email))
-  (Nothing, Just email, Nothing) -> pure $ EmailOnly email
-  (Nothing, Nothing, _) -> throwError "user has neither ssoIdentity nor userEmail"
-
--- | Take a maybe text, construct a 'Name' from what we have in a scim user.  If the text
--- isn't present, use an email address or a saml subject (usually also an email address).  If
--- both are 'Nothing', fail.
-mkUserName :: Maybe Text -> ValidExternalId -> Either String Name
-mkUserName (Just n) = const $ mkName n
-mkUserName Nothing =
-  runValidExternalIdEither
-    (\uref -> mkName (CI.original . SAML.unsafeShowNameID $ uref ^. SAML.uidSubject))
-    (mkName . fromEmail)
-
-renderValidExternalId :: ValidExternalId -> Maybe Text
-renderValidExternalId = runValidExternalIdEither urefToExternalId (Just . fromEmail)
+import Wire.API.User.Types
 
 ----------------------------------------------------------------------
 
