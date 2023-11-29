@@ -1,4 +1,4 @@
-module Testlib.Mock where
+module Testlib.Mock (startMockServer, MockServerConfig (..), codensityApp) where
 
 import Control.Concurrent.Async
 import Control.Concurrent.MVar
@@ -23,6 +23,23 @@ data MockServerConfig = MockServerConfig
 instance Default MockServerConfig where
   def = MockServerConfig {port = Nothing, tls = False}
 
+spawnServer :: Bool -> Warp.Settings -> Socket.Socket -> Wai.Application -> App ()
+spawnServer False wsettings sock app = liftIO $ Warp.runSettingsSocket wsettings sock app
+spawnServer True wsettings sock app = do
+  (cert, key) <-
+    asks (.servicesCwdBase) >>= \case
+      Nothing ->
+        pure
+          ( "/etc/wire/federator/secrets/tls.crt",
+            "/etc/wire/federator/secrets/tls.key"
+          )
+      Just base ->
+        pure
+          ( base <> "/federator/test/resources/integration-leaf.pem",
+            base <> "/federator/test/resources/integration-leaf-key.pem"
+          )
+  liftIO $ Warp.runTLSSocket (Warp.tlsSettings cert key) wsettings sock app
+
 startMockServer :: MockServerConfig -> Wai.Application -> Codensity App Warp.Port
 startMockServer config app = do
   let closeSocket sock = catch (Socket.close sock) (\(_ :: SomeException) -> pure ())
@@ -44,19 +61,7 @@ startMockServer config app = do
           & Warp.setBeforeMainLoop (putMVar serverStarted Nothing)
 
   -- Action to start server in a separate thread.
-  base <- asks (fromMaybe "." . ((.servicesCwdBase)))
-  let startServer = do
-        if config.tls
-          then
-            Warp.runTLSSocket
-              ( Warp.tlsSettings
-                  (base <> "/federator/test/resources/integration-leaf.pem")
-                  (base <> "/federator/test/resources/integration-leaf-key.pem")
-              )
-              wsettings
-              sock
-              app
-          else Warp.runSettingsSocket wsettings sock app
+  startServer <- lift . appToIO $ spawnServer config.tls wsettings sock app
   let startServerAsync = do
         a <- async $ do
           catch startServer $ \(e :: SomeException) ->
