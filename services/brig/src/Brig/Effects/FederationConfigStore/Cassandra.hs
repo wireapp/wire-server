@@ -93,14 +93,11 @@ maxKnownNodes :: Int
 maxKnownNodes = 10000
 
 getFederationConfig' :: MonadClient m => [FederationDomainConfig] -> Domain -> m (Maybe FederationDomainConfig)
-getFederationConfig' cfgs rDomain = do
-  let mFromCfgFile = find ((== rDomain) . domain) cfgs
-  mCnf <- retry x1 (query1 q (params LocalQuorum (Identity rDomain)))
-  case mCnf of
-    Nothing -> pure mFromCfgFile
-    Just (p, rInt) -> do
-      r <- toRestriction rDomain rInt
-      pure $ Just $ FederationDomainConfig rDomain p r
+getFederationConfig' cfgs rDomain = case find ((== rDomain) . domain) cfgs of
+  Just cfg -> pure . Just $ cfg -- the configuration from the file has precedence
+  Nothing -> do
+    mCnf <- retry x1 (query1 q (params LocalQuorum (Identity rDomain)))
+    pure $ fmap (\(p, rInt) -> FederationDomainConfig rDomain p (toRestriction rDomain rInt)) mCnf
   where
     q :: PrepQuery R (Identity Domain) (FederatedUserSearchPolicy, Int32)
     q = "SELECT search_policy, restriction FROM federation_remotes WHERE domain = ?"
