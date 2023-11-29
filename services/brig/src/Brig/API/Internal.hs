@@ -19,7 +19,6 @@ module Brig.API.Internal
     servantSitemap,
     BrigIRoutes.API,
     getMLSClients,
-    getFederationRemotes,
   )
 where
 
@@ -38,12 +37,13 @@ import Brig.Code qualified as Code
 import Brig.Data.Activation
 import Brig.Data.Client qualified as Data
 import Brig.Data.Connection qualified as Data
-import Brig.Data.Federation qualified as Data
 import Brig.Data.MLS.KeyPackage qualified as Data
 import Brig.Data.User qualified as Data
 import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
 import Brig.Effects.BlacklistStore (BlacklistStore)
 import Brig.Effects.CodeStore (CodeStore)
+import Brig.Effects.FederationConfigStore (AddFederationRemoteResult (..), AddFederationRemoteTeamResult (..), FederationConfigStore, UpdateFederationResult (..))
+import Brig.Effects.FederationConfigStore qualified as E
 import Brig.Effects.GalleyProvider (GalleyProvider)
 import Brig.Effects.PasswordResetStore (PasswordResetStore)
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
@@ -62,7 +62,7 @@ import Brig.User.API.Search qualified as Search
 import Brig.User.EJPD qualified
 import Brig.User.Search.Index qualified as Index
 import Control.Error hiding (bool)
-import Control.Lens (view, (^.))
+import Control.Lens (view)
 import Data.CommaSeparatedList
 import Data.Domain (Domain)
 import Data.Handle
@@ -78,7 +78,6 @@ import Polysemy
 import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.OpenApi.Internal.Orphans ()
 import System.Logger.Class qualified as Log
-import System.Random (randomRIO)
 import UnliftIO.Async
 import Wire.API.Connection
 import Wire.API.Error
@@ -106,7 +105,8 @@ servantSitemap ::
     Member BlacklistPhonePrefixStore r,
     Member PasswordResetStore r,
     Member GalleyProvider r,
-    Member (UserPendingActivationStore p) r
+    Member (UserPendingActivationStore p) r,
+    Member FederationConfigStore r
   ) =>
   ServerT BrigIRoutes.API (Handler r)
 servantSitemap =
@@ -214,7 +214,7 @@ authAPI =
     :<|> Named @"login-code" getLoginCode
     :<|> Named @"reauthenticate" reauthenticate
 
-federationRemotesAPI :: ServerT BrigIRoutes.FederationRemotesAPI (Handler r)
+federationRemotesAPI :: (Member FederationConfigStore r) => ServerT BrigIRoutes.FederationRemotesAPI (Handler r)
 federationRemotesAPI =
   Named @"add-federation-remotes" addFederationRemote
     :<|> Named @"get-federation-remotes" getFederationRemotes
@@ -223,121 +223,65 @@ federationRemotesAPI =
     :<|> Named @"get-federation-remote-teams" getFederationRemoteTeams
     :<|> Named @"delete-federation-remote-team" deleteFederationRemoteTeam
 
-deleteFederationRemoteTeam :: Domain -> TeamId -> (Handler r) ()
+deleteFederationRemoteTeam :: (Member FederationConfigStore r) => Domain -> TeamId -> (Handler r) ()
 deleteFederationRemoteTeam domain teamId =
-  lift . wrapClient $ Data.deleteFederationRemoteTeam domain teamId
+  lift $ liftSem $ E.removeFederationRemoteTeam domain teamId
 
-getFederationRemoteTeams :: Domain -> (Handler r) [FederationRemoteTeam]
+getFederationRemoteTeams :: (Member FederationConfigStore r) => Domain -> (Handler r) [FederationRemoteTeam]
 getFederationRemoteTeams domain =
-  lift . wrapClient $ Data.getFederationRemoteTeams domain
+  lift $ liftSem $ E.getFederationRemoteTeams domain
 
-addFederationRemoteTeam :: Domain -> FederationRemoteTeam -> (Handler r) ()
+addFederationRemoteTeam :: (Member FederationConfigStore r) => Domain -> FederationRemoteTeam -> (Handler r) ()
 addFederationRemoteTeam domain rt =
-  lift . wrapClient $ Data.addFederationRemoteTeam domain rt
+  lift (liftSem $ E.addFederationRemoteTeam domain rt.teamId) >>= \case
+    AddFederationRemoteTeamSuccess -> pure ()
+    AddFederationRemoteTeamDomainNotFound ->
+      throwError . fedError . FederationUnexpectedError $
+        "Federation domain does not exist.  Please add it first."
+    AddFederationRemoteTeamRestrictionAllowAll ->
+      throwError . fedError . FederationUnexpectedError $
+        "Federation is not configured to be restricted by teams. Therefore adding a team to a \
+        \remote domain is not allowed."
 
-addFederationRemote :: FederationDomainConfig -> ExceptT Brig.API.Error.Error (AppT r) ()
+getFederationRemotes :: (Member FederationConfigStore r) => (Handler r) FederationDomainConfigs
+getFederationRemotes = lift $ liftSem $ E.getFederationConfigs
+
+addFederationRemote :: (Member FederationConfigStore r) => FederationDomainConfig -> (Handler r) ()
 addFederationRemote fedDomConf = do
-  assertNoDivergingDomainInConfigFiles fedDomConf
-  result <- lift . wrapClient $ Data.addFederationRemote fedDomConf
-  case result of
-    Data.AddFederationRemoteSuccess -> pure ()
-    Data.AddFederationRemoteMaxRemotesReached ->
+  lift (liftSem $ E.addFederationConfig fedDomConf) >>= \case
+    AddFederationRemoteSuccess -> pure ()
+    AddFederationRemoteMaxRemotesReached ->
       throwError . fedError . FederationUnexpectedError $
         "Maximum number of remote backends reached.  If you need to create more connections, \
         \please contact wire.com."
+    AddFederationRemoteDivergingConfig cfg ->
+      throwError . fedError . FederationUnexpectedError $
+        "keeping track of remote domains in the brig config file is deprecated, but as long as we \
+        \do that, adding a domain with different settings than in the config file is not allowed.  want "
+          <> ( "Just "
+                 <> cs (show fedDomConf)
+                 <> "or Nothing, "
+             )
+          <> ( "got "
+                 <> cs (show (Map.lookup (domain fedDomConf) cfg))
+             )
 
--- | Compile config file list into a map indexed by domains.  Use this to make sure the config
--- file is consistent (ie., no two entries for the same domain).
-remotesMapFromCfgFile :: AppT r (Map Domain FederationDomainConfig)
-remotesMapFromCfgFile = do
-  cfg <- fmap (.federationDomainConfig) <$> asks (fromMaybe [] . setFederationDomainConfigs . view settings)
-  let dict = [(cnf.domain, cnf) | cnf <- cfg]
-      merge c c' =
-        if c == c'
-          then c
-          else error $ "error in config file: conflicting parameters on domain: " <> show (c, c')
-  pure $ Map.fromListWith merge dict
-
--- | Return the config file list.  Use this to make sure the config file is consistent (ie.,
--- no two entries for the same domain).  Based on `remotesMapFromCfgFile`.
-remotesListFromCfgFile :: AppT r [FederationDomainConfig]
-remotesListFromCfgFile = Map.elems <$> remotesMapFromCfgFile
-
--- | If remote domain is registered in config file, the version that can be added to the
--- database must be the same.
-assertNoDivergingDomainInConfigFiles :: FederationDomainConfig -> ExceptT Brig.API.Error.Error (AppT r) ()
-assertNoDivergingDomainInConfigFiles fedComConf = do
-  cfg <- lift remotesMapFromCfgFile
-  let diverges = case Map.lookup (domain fedComConf) cfg of
-        Nothing -> False
-        Just fedComConf' -> fedComConf' /= fedComConf
-  when diverges $ do
-    throwError . fedError . FederationUnexpectedError $
-      "keeping track of remote domains in the brig config file is deprecated, but as long as we \
-      \do that, adding a domain with different settings than in the config file is nto allowed.  want "
-        <> ( "Just "
-               <> cs (show fedComConf)
-               <> "or Nothing, "
-           )
-        <> ( "got "
-               <> cs (show (Map.lookup (domain fedComConf) cfg))
-           )
-
-getFederationRemotes :: ExceptT Brig.API.Error.Error (AppT r) FederationDomainConfigs
-getFederationRemotes = lift $ do
-  -- FUTUREWORK: we should solely rely on `db` in the future for remote domains; merging
-  -- remote domains from `cfg` is just for providing an easier, more robust migration path.
-  -- See
-  -- https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections,
-  -- http://docs.wire.com/developer/developer/federation-design-aspects.html#configuring-remote-connections-dev-perspective
-  db <- wrapClient Data.getFederationRemotes
-  (ms :: Maybe FederationStrategy, mf :: [FederationDomainConfig], mu :: Maybe Int) <- do
-    cfg <- ask
-    domcfgs <- remotesListFromCfgFile -- (it's not very elegant to prove the env twice here, but this code is transitory.)
-    pure
-      ( setFederationStrategy (cfg ^. settings),
-        domcfgs,
-        setFederationDomainConfigsUpdateFreq (cfg ^. settings)
-      )
-
-  -- update frequency settings of `<1` are interpreted as `1 second`.  only warn about this every now and
-  -- then, that'll be noise enough for the logs given the traffic on this end-point.
-  unless (maybe True (> 0) mu) $
-    randomRIO (0 :: Int, 1000)
-      >>= \case
-        0 -> Log.warn (Log.msg (Log.val "Invalid brig configuration: setFederationDomainConfigsUpdateFreq must be > 0.  setting to 1 second."))
-        _ -> pure ()
-
-  defFederationDomainConfigs
-    & maybe id (\v cfg -> cfg {strategy = v}) ms
-    & (\cfg -> cfg {remotes = nub $ db <> mf})
-    & maybe id (\v cfg -> cfg {updateInterval = min 1 v}) mu
-    & pure
-
-updateFederationRemote :: Domain -> FederationDomainConfig -> ExceptT Brig.API.Error.Error (AppT r) ()
+updateFederationRemote :: (Member FederationConfigStore r) => Domain -> FederationDomainConfig -> (Handler r) ()
 updateFederationRemote dom fedcfg = do
-  assertDomainIsNotUpdated dom fedcfg
-  assertNoDomainsFromConfigFiles dom
-  (lift . wrapClient . Data.updateFederationRemote $ fedcfg) >>= \case
-    True -> pure ()
-    False ->
+  if (dom /= fedcfg.domain)
+    then
       throwError . fedError . FederationUnexpectedError . cs $
-        "federation domain does not exist and cannot be updated: " <> show (dom, fedcfg)
-
-assertDomainIsNotUpdated :: Domain -> FederationDomainConfig -> ExceptT Brig.API.Error.Error (AppT r) ()
-assertDomainIsNotUpdated dom fedcfg = do
-  when (dom /= domain fedcfg) $
-    throwError . fedError . FederationUnexpectedError . cs $
-      "federation domain of a given peer cannot be changed from " <> show (domain fedcfg) <> " to " <> show dom <> "."
-
--- | FUTUREWORK: should go away in the future; see 'getFederationRemotes'.
-assertNoDomainsFromConfigFiles :: Domain -> ExceptT Brig.API.Error.Error (AppT r) ()
-assertNoDomainsFromConfigFiles dom = do
-  cfg <- fmap (.federationDomainConfig) <$> asks (fromMaybe [] . setFederationDomainConfigs . view settings)
-  when (dom `elem` (domain <$> cfg)) $ do
-    throwError . fedError . FederationUnexpectedError $
-      "keeping track of remote domains in the brig config file is deprecated, but as long as we \
-      \do that, removing or updating items listed in the config file is not allowed."
+        "federation domain of a given peer cannot be changed from " <> show (domain fedcfg) <> " to " <> show dom <> "."
+    else
+      lift (liftSem (E.updateFederationConfig fedcfg)) >>= \case
+        UpdateFederationSuccess -> pure ()
+        UpdateFederationRemoteNotFound ->
+          throwError . fedError . FederationUnexpectedError . cs $
+            "federation domain does not exist and cannot be updated: " <> show (dom, fedcfg)
+        UpdateFederationRemoteDivergingConfig ->
+          throwError . fedError . FederationUnexpectedError $
+            "keeping track of remote domains in the brig config file is deprecated, but as long as we \
+            \do that, removing or updating items listed in the config file is not allowed."
 
 -- | Responds with 'Nothing' if field is NULL in existing user or user does not exist.
 getAccountConferenceCallingConfig :: UserId -> (Handler r) (ApiFt.WithStatusNoLock ApiFt.ConferenceCallingConfig)

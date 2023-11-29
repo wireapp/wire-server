@@ -7,6 +7,8 @@ import Brig.Effects.BlacklistStore (BlacklistStore)
 import Brig.Effects.BlacklistStore.Cassandra (interpretBlacklistStoreToCassandra)
 import Brig.Effects.CodeStore (CodeStore)
 import Brig.Effects.CodeStore.Cassandra (codeStoreToCassandra, interpretClientToIO)
+import Brig.Effects.FederationConfigStore (FederationConfigStore)
+import Brig.Effects.FederationConfigStore.Cassandra (interpretFederationDomainConfig, remotesMapFromCfgFile)
 import Brig.Effects.GalleyProvider (GalleyProvider)
 import Brig.Effects.GalleyProvider.RPC (interpretGalleyProviderToRPC)
 import Brig.Effects.JwtTools
@@ -19,6 +21,7 @@ import Brig.Effects.ServiceRPC (Service (Galley), ServiceRPC)
 import Brig.Effects.ServiceRPC.IO (interpretServiceRpcToRpc)
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import Brig.Effects.UserPendingActivationStore.Cassandra (userPendingActivationStoreToCassandra)
+import Brig.Options (ImplicitNoFederationRestriction (federationDomainConfig), federationDomainConfigs, federationStrategy)
 import Brig.RPC (ParseException)
 import Cassandra qualified as Cas
 import Control.Lens ((^.))
@@ -36,7 +39,8 @@ import Wire.Sem.Now.IO (nowToIOAction)
 import Wire.Sem.Paging.Cassandra (InternalPaging)
 
 type BrigCanonicalEffects =
-  '[ Jwk,
+  '[ FederationConfigStore,
+     Jwk,
      PublicKeyBundle,
      JwtTools,
      BlacklistPhonePrefixStore,
@@ -79,6 +83,7 @@ runBrigToIO e (AppT ma) = do
               . interpretJwtTools
               . interpretPublicKeyBundle
               . interpretJwk
+              . interpretFederationDomainConfig (e ^. settings . federationStrategy) (foldMap (remotesMapFromCfgFile . fmap (.federationDomainConfig)) (e ^. settings . federationDomainConfigs))
           )
     )
     $ runReaderT ma e

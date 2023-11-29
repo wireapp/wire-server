@@ -54,7 +54,7 @@ createUser domain cu = do
 data FedConn = FedConn
   { domain :: String,
     searchStrategy :: String,
-    restriction :: String
+    restriction :: Maybe [String]
   }
   deriving (Eq, Ord, Show)
 
@@ -63,7 +63,13 @@ instance ToJSON FedConn where
     Aeson.object
       [ "domain" .= d,
         "search_policy" .= s,
-        "restriction" .= r
+        "restriction"
+          .= maybe
+            (Aeson.object ["tag" .= "allow_all", "value" .= Aeson.Null])
+            ( \teams ->
+                Aeson.object ["tag" .= "restrict_by_team", "value" .= Aeson.toJSON teams]
+            )
+            r
       ]
 
 instance MakesValue FedConn where
@@ -159,11 +165,14 @@ connectWithRemoteUser userFrom userTo = do
 
 addFederationRemoteTeam :: (HasCallStack, MakesValue domain, MakesValue remoteDomain, MakesValue team) => domain -> remoteDomain -> team -> App ()
 addFederationRemoteTeam domain remoteDomain team = do
+  void $ addFederationRemoteTeam' domain remoteDomain team >>= getBody 200
+
+addFederationRemoteTeam' :: (HasCallStack, MakesValue domain, MakesValue remoteDomain, MakesValue team) => domain -> remoteDomain -> team -> App Response
+addFederationRemoteTeam' domain remoteDomain team = do
   d <- asString remoteDomain
   t <- make team
   req <- baseRequest domain Brig Unversioned $ joinHttpPath ["i", "federation", "remotes", d, "teams"]
-  res <- submit "POST" (req & addJSONObject ["team_id" .= t])
-  res.status `shouldMatchInt` 200
+  submit "POST" (req & addJSONObject ["team_id" .= t])
 
 getFederationRemoteTeams :: (HasCallStack, MakesValue domain, MakesValue remoteDomain) => domain -> remoteDomain -> App Response
 getFederationRemoteTeams domain remoteDomain = do
