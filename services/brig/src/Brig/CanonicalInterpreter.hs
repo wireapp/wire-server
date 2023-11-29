@@ -8,7 +8,7 @@ import Brig.Effects.BlacklistStore.Cassandra (interpretBlacklistStoreToCassandra
 import Brig.Effects.CodeStore (CodeStore)
 import Brig.Effects.CodeStore.Cassandra (codeStoreToCassandra, interpretClientToIO)
 import Brig.Effects.FederationConfigStore (FederationConfigStore)
-import Brig.Effects.FederationConfigStore.Cassandra (interpretFederationDomainConfig)
+import Brig.Effects.FederationConfigStore.Cassandra (interpretFederationDomainConfig, remotesMapFromCfgFile)
 import Brig.Effects.GalleyProvider (GalleyProvider)
 import Brig.Effects.GalleyProvider.RPC (interpretGalleyProviderToRPC)
 import Brig.Effects.JwtTools
@@ -83,7 +83,7 @@ runBrigToIO e (AppT ma) = do
               . interpretJwtTools
               . interpretPublicKeyBundle
               . interpretJwk
-              . interpretFederationDomainConfig (e ^. settings . federationStrategy) (maybe [] (fmap (.federationDomainConfig)) (e ^. settings . federationDomainConfigs))
+              . interpretFederationDomainConfig (e ^. settings . federationStrategy) (maybe mempty (remotesMapFromCfgFile . fmap (.federationDomainConfig)) (e ^. settings . federationDomainConfigs))
           )
     )
     $ runReaderT ma e

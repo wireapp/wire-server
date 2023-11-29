@@ -17,6 +17,7 @@
 
 module Brig.Effects.FederationConfigStore.Cassandra
   ( interpretFederationDomainConfig,
+    remotesMapFromCfgFile,
     AddFederationRemoteResult (..),
   )
 where
@@ -42,37 +43,32 @@ interpretFederationDomainConfig ::
     Member (Embed m) r
   ) =>
   Maybe FederationStrategy ->
-  [FederationDomainConfig] ->
+  Map Domain FederationDomainConfig ->
   Sem (FederationConfigStore ': r) a ->
   Sem r a
-interpretFederationDomainConfig mFedStrategy cfgs =
+interpretFederationDomainConfig mFedStrategy fedCfgs =
   interpret $
     embed @m . \case
-      GetFederationConfig d -> getFederationConfig' cfgs d
-      GetFederationConfigs -> getFederationConfigs' mFedStrategy cfgs
-      AddFederationConfig cnf -> addFederationConfig' cfgs cnf
-      UpdateFederationConfig cnf -> updateFederationConfig' cfgs cnf
-      AddFederationRemoteTeam d t -> addFederationRemoteTeam' cfgs d t
+      GetFederationConfig d -> getFederationConfig' fedCfgs d
+      GetFederationConfigs -> getFederationConfigs' mFedStrategy fedCfgs
+      AddFederationConfig cnf -> addFederationConfig' fedCfgs cnf
+      UpdateFederationConfig cnf -> updateFederationConfig' fedCfgs cnf
+      AddFederationRemoteTeam d t -> addFederationRemoteTeam' fedCfgs d t
       RemoveFederationRemoteTeam d t -> removeFederationRemoteTeam' d t
       GetFederationRemoteTeams d -> getFederationRemoteTeams' d
 
 -- | Compile config file list into a map indexed by domains.  Use this to make sure the config
 -- file is consistent (ie., no two entries for the same domain).
-remotesMapFromCfgFile :: (Monad m) => [FederationDomainConfig] -> m (Map Domain FederationDomainConfig)
-remotesMapFromCfgFile cfg = do
+remotesMapFromCfgFile :: [FederationDomainConfig] -> Map Domain FederationDomainConfig
+remotesMapFromCfgFile cfg =
   let dict = [(cnf.domain, cnf) | cnf <- cfg]
       merge c c' =
         if c == c'
           then c
           else error $ "error in config file: conflicting parameters on domain: " <> show (c, c')
-  pure $ Map.fromListWith merge dict
+   in Map.fromListWith merge dict
 
--- | Return the config file list.  Use this to make sure the config file is consistent (ie.,
--- no two entries for the same domain).  Based on `remotesMapFromCfgFile`.
-remotesListFromCfgFile :: Monad m => [FederationDomainConfig] -> m [FederationDomainConfig]
-remotesListFromCfgFile cfgs = Map.elems <$> remotesMapFromCfgFile cfgs
-
-getFederationConfigs' :: forall m. (MonadClient m) => Maybe FederationStrategy -> [FederationDomainConfig] -> m FederationDomainConfigs
+getFederationConfigs' :: forall m. (MonadClient m) => Maybe FederationStrategy -> Map Domain FederationDomainConfig -> m FederationDomainConfigs
 getFederationConfigs' mFedStrategy cfgs = do
   -- FUTUREWORK: we should solely rely on `db` in the future for remote domains; merging
   -- remote domains from `cfg` is just for providing an easier, more robust migration path.
@@ -82,7 +78,7 @@ getFederationConfigs' mFedStrategy cfgs = do
   remotes <-
     (<>)
       <$> getFederationRemotes
-      <*> remotesListFromCfgFile cfgs
+      <*> pure (Map.elems cfgs)
 
   defFederationDomainConfigs
     & maybe id (\v cfg -> cfg {strategy = v}) mFedStrategy
@@ -92,7 +88,7 @@ getFederationConfigs' mFedStrategy cfgs = do
 maxKnownNodes :: Int
 maxKnownNodes = 10000
 
-getFederationConfig' :: MonadClient m => [FederationDomainConfig] -> Domain -> m (Maybe FederationDomainConfig)
+getFederationConfig' :: MonadClient m => Map Domain FederationDomainConfig -> Domain -> m (Maybe FederationDomainConfig)
 getFederationConfig' cfgs rDomain = case find ((== rDomain) . domain) cfgs of
   Just cfg -> pure . Just $ cfg -- the configuration from the file has precedence
   Nothing -> do
@@ -116,10 +112,9 @@ getFederationRemotes = (\(d, p, r) -> FederationDomainConfig d p r) <$$> qry
     get :: PrepQuery R () (Domain, FederatedUserSearchPolicy, Int32)
     get = fromString $ "SELECT domain, search_policy, restriction FROM federation_remotes LIMIT " <> show maxKnownNodes
 
-addFederationConfig' :: MonadClient m => [FederationDomainConfig] -> FederationDomainConfig -> m AddFederationRemoteResult
-addFederationConfig' cfgs (FederationDomainConfig rDomain searchPolicy restriction) = do
-  cfg <- remotesMapFromCfgFile cfgs
-  conflict <- domainExistsInConfig cfg (FederationDomainConfig rDomain searchPolicy restriction)
+addFederationConfig' :: MonadClient m => Map Domain FederationDomainConfig -> FederationDomainConfig -> m AddFederationRemoteResult
+addFederationConfig' cfg (FederationDomainConfig rDomain searchPolicy restriction) = do
+  conflict <- domainExistsInConfig (FederationDomainConfig rDomain searchPolicy restriction)
   if conflict
     then pure $ AddFederationRemoteDivergingConfig cfg
     else do
@@ -136,8 +131,8 @@ addFederationConfig' cfgs (FederationDomainConfig rDomain searchPolicy restricti
   where
     -- If remote domain is registered in config file, the version that can be added to the
     -- database must be the same.
-    domainExistsInConfig :: (Monad m) => (Map Domain FederationDomainConfig) -> FederationDomainConfig -> m Bool
-    domainExistsInConfig cfg fedDomConf = do
+    domainExistsInConfig :: (Monad m) => FederationDomainConfig -> m Bool
+    domainExistsInConfig fedDomConf = do
       pure $ case Map.lookup (domain fedDomConf) cfg of
         Nothing -> False
         Just fedDomConf' -> fedDomConf' /= fedDomConf
@@ -148,7 +143,7 @@ addFederationConfig' cfgs (FederationDomainConfig rDomain searchPolicy restricti
     addTeams :: PrepQuery W (Domain, TeamId) ()
     addTeams = "INSERT INTO federation_remote_teams (domain, team) VALUES (?, ?)"
 
-updateFederationConfig' :: MonadClient m => [FederationDomainConfig] -> FederationDomainConfig -> m UpdateFederationResult
+updateFederationConfig' :: MonadClient m => Map Domain FederationDomainConfig -> FederationDomainConfig -> m UpdateFederationResult
 updateFederationConfig' cfgs (FederationDomainConfig rDomain searchPolicy restriction) = do
   if rDomain `elem` (domain <$> cfgs)
     then pure UpdateFederationRemoteDivergingConfig
@@ -184,7 +179,7 @@ updateFederationConfig' cfgs (FederationDomainConfig rDomain searchPolicy restri
     insertTeam :: PrepQuery W (Domain, TeamId) ()
     insertTeam = "INSERT INTO federation_remote_teams (domain, team) VALUES (?, ?)"
 
-addFederationRemoteTeam' :: MonadClient m => [FederationDomainConfig] -> Domain -> TeamId -> m AddFederationRemoteTeamResult
+addFederationRemoteTeam' :: MonadClient m => Map Domain FederationDomainConfig -> Domain -> TeamId -> m AddFederationRemoteTeamResult
 addFederationRemoteTeam' cfgs rDomain tid = do
   mDom <- getFederationConfig' cfgs rDomain
   case mDom of
