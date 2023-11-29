@@ -29,7 +29,7 @@ import Brig.API.Handler
 import Brig.App
 import Brig.Data.User qualified as DB
 import Brig.Effects.FederationConfigStore
-import Brig.Effects.FederationConfigStore qualified as FederationConfigStore
+import Brig.Effects.FederationConfigStore qualified as E
 import Brig.Effects.GalleyProvider (GalleyProvider)
 import Brig.Effects.GalleyProvider qualified as GalleyProvider
 import Brig.Federation.Client qualified as Federation
@@ -90,7 +90,7 @@ searchRemotely domain mTid searchTerm = do
     msg (val "searchRemotely")
       ~~ field "domain" (show domain)
       ~~ field "searchTerm" searchTerm
-  mFedCnf <- lift $ liftSem $ FederationConfigStore.getFederationConfig domain
+  mFedCnf <- lift $ liftSem $ E.getFederationConfig domain
   let onlyInTeams = case restriction <$> mFedCnf of
         Just FederationRestrictionAllowAll -> Nothing
         Just (FederationRestrictionByTeam teams) -> Just teams

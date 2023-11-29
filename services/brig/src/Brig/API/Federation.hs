@@ -32,7 +32,7 @@ import Brig.App
 import Brig.Data.Connection qualified as Data
 import Brig.Data.User qualified as Data
 import Brig.Effects.FederationConfigStore (FederationConfigStore)
-import Brig.Effects.FederationConfigStore qualified as FederationConfigStore
+import Brig.Effects.FederationConfigStore qualified as E
 import Brig.Effects.GalleyProvider (GalleyProvider)
 import Brig.IO.Intra (notify)
 import Brig.Options
@@ -104,7 +104,7 @@ getFederationStatus _ request = do
   case setFederationStrategy (cfg ^. settings) of
     Just AllowAll -> pure $ NonConnectedBackends mempty
     _ -> do
-      fedDomains <- fromList . fmap (.domain) . (.remotes) <$> lift (liftSem $ FederationConfigStore.getFederationConfigs)
+      fedDomains <- fromList . fmap (.domain) . (.remotes) <$> lift (liftSem $ E.getFederationConfigs)
       pure $ NonConnectedBackends (request.domains \\ fedDomains)
 
 sendConnectionAction :: Domain -> NewConnectionRequest -> Handler r NewConnectionResponse
@@ -258,7 +258,7 @@ onUserDeleted origDomain udcn = lift $ do
 -- | If domain is not configured fall back to `NoSearch`
 lookupSearchPolicy :: (Member FederationConfigStore r) => Domain -> (Handler r) FederatedUserSearchPolicy
 lookupSearchPolicy domain = do
-  mConfig <- lift $ liftSem $ FederationConfigStore.getFederationConfig domain
+  mConfig <- lift $ liftSem $ E.getFederationConfig domain
   pure $ maybe NoSearch searchPolicy mConfig
 
 -- | If domain is not configured fall back to `NoSearch`
@@ -268,7 +268,7 @@ lookupSearchPolicyWithTeam :: (Member FederationConfigStore r) => Domain -> Mayb
 lookupSearchPolicyWithTeam domain mSearcherTeamId =
   lift $
     liftSem $
-      FederationConfigStore.getFederationConfig domain <&> \case
+      E.getFederationConfig domain <&> \case
         Nothing -> NoSearch
         Just (FederationDomainConfig _ sp FederationRestrictionAllowAll) -> sp
         Just (FederationDomainConfig _ sp (FederationRestrictionByTeam teams)) ->
