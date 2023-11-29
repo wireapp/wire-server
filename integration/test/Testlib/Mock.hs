@@ -44,7 +44,7 @@ startMockServer config app = do
           & Warp.setBeforeMainLoop (putMVar serverStarted Nothing)
 
   -- Action to start server in a separate thread.
-  base <- fromMaybe "." <$> asks (.servicesCwdBase)
+  base <- asks (fromMaybe "." . ((.servicesCwdBase)))
   let startServer = do
         if config.tls
           then
