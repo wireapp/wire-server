@@ -83,7 +83,7 @@ runBrigToIO e (AppT ma) = do
               . interpretJwtTools
               . interpretPublicKeyBundle
               . interpretJwk
-              . interpretFederationDomainConfig (e ^. settings . federationStrategy) (maybe mempty (remotesMapFromCfgFile . fmap (.federationDomainConfig)) (e ^. settings . federationDomainConfigs))
+              . interpretFederationDomainConfig (e ^. settings . federationStrategy) (foldMap (remotesMapFromCfgFile . fmap (.federationDomainConfig)) (e ^. settings . federationDomainConfigs))
           )
     )
     $ runReaderT ma e
