@@ -257,7 +257,7 @@ addFederationRemote fedDomConf = do
     AddFederationRemoteDivergingConfig cfg ->
       throwError . fedError . FederationUnexpectedError $
         "keeping track of remote domains in the brig config file is deprecated, but as long as we \
-        \do that, adding a domain with different settings than in the config file is nto allowed.  want "
+        \do that, adding a domain with different settings than in the config file is not allowed.  want "
           <> ( "Just "
                  <> cs (show fedDomConf)
                  <> "or Nothing, "
