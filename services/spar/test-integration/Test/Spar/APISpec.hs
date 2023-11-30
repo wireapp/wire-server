@@ -1061,15 +1061,14 @@ specCRUDIdentityProvider = do
 
     describe "replaces an existing idp"
       $ forM_
-        [ (p, u, e)
-          | p <- [False, True], -- are users scim provisioned or via team management invitations?
-            u <- [False, True], -- do we use update-by-put or update-by-post?  (see below)
-            (p, u) /= (True, False), -- scim doesn't not work with more than one idp (https://wearezeta.atlassian.net/browse/WPB-689)
+        [ (u, e)
+          | u <- [False, True], -- do we use update-by-put or update-by-post?  (see below)
             e <- [False, True] -- is the externalId an email address?  (if not, it's a uuidv4, and the email address is stored in `emails`)
         ]
-      $ \(provisionViaScim, updateNotReplace, externalIdIsEmail) -> do
-        let updateOrReplaceIdps :: (TestEnv, UserId, IdP, SAML.IdPMetadata) -> TestSpar ()
-            updateOrReplaceIdps (env, owner1, idp1, idpmeta1) = do
+      $ \(updateNotReplace, externalIdIsEmail) -> do
+        let updateOrReplaceIdps :: (UserId, IdP, SAML.IdPMetadata) -> TestSpar ()
+            updateOrReplaceIdps (owner1, idp1, idpmeta1) = do
+              env <- ask
               issuer2 <- makeIssuer
               idp2 <- do
                 let idpmeta2 = idpmeta1 & edIssuer .~ issuer2
@@ -1117,45 +1116,25 @@ specCRUDIdentityProvider = do
                         . (idpExtraInfo . handle .~ (idp1 ^. idpExtraInfo . handle))
                  in erase idp1 `shouldBe` erase idp2
 
-        it ("creates new idp, setting old_issuer; sets replaced_by in old idp; scim user search still works: provisionViaScim=" <> show provisionViaScim <> ", updateNotReplace=" <> show updateNotReplace <> ", externalIdIsEmail=" <> show externalIdIsEmail) $ do
-          env <- ask
-          (owner1, teamid, idp1, (IdPMetadataValue _ idpmeta1, privcreds)) <- registerTestIdPWithMeta
+        -- scim doesn't not work with more than one idp, so we can't test the post variant
+        -- that creates a second idp (https://wearezeta.atlassian.net/browse/WPB-689)
+        when updateNotReplace . it ("creates new idp, setting old_issuer; sets replaced_by in old idp; scim user search still works: provisionViaScim=True, updateNotReplace=" <> show updateNotReplace <> ", externalIdIsEmail=" <> show externalIdIsEmail) $ do
+          (owner1, teamid, idp1, (IdPMetadataValue _ idpmeta1, _)) <- registerTestIdPWithMeta
           let idp1id = idp1 ^. idpId
 
-          (tok, userStuff) :: (ScimToken, Either (UserId, Maybe Text, Text) (Scim.StoredUser SparTag, Scim.User SparTag)) <- do
-            if provisionViaScim
-              then do
-                tok <- registerScimToken teamid (Just idp1id)
-                user <-
-                  if externalIdIsEmail
-                    then fst <$> randomScimUserWithEmail
-                    else fst <$> randomScimUserWithNick
-                scimStoredUser <- createUser tok user
-                pure (tok, Right (scimStoredUser, user))
-              else do
-                stuff <- do
-                  spmeta <- getTestSPMetadata teamid
-                  authnreq <- negotiateAuthnRequest idp1
-                  authnresp <- runSimpleSP $ mkAuthnResponse privcreds idp1 spmeta authnreq True
-                  sparresp <- submitAuthnResponse teamid authnresp
-                  liftIO $ statusCode sparresp `shouldBe` 200
-                  ssoid <- getSsoidViaAuthResp authnresp
-                  Just uid <- ssoToUidSpar teamid ssoid
-                  setRandomHandleBrig uid
-                  Just usr <- getUserBrig uid
-                  let eml = fromEmail <$> (emailIdentity =<< userIdentity usr)
-                      Just hdl = fromHandle <$> userHandle usr
-                  pure (uid, eml, hdl)
-
-                tok <- registerScimToken teamid (Just idp1id)
-                pure (tok, Left stuff)
+          tok <- registerScimToken teamid (Just idp1id)
+          scimUser <-
+            if externalIdIsEmail
+              then fst <$> randomScimUserWithEmail
+              else fst <$> randomScimUserWithNick
+          scimStoredUser <- createUser tok scimUser
 
           let checkScimSearch ::
                 HasCallStack =>
-                Either (UserId, Maybe Text, Text) (Scim.StoredUser SparTag, Scim.User SparTag) ->
+                Scim.StoredUser SparTag ->
+                Scim.User SparTag ->
                 ReaderT TestEnv IO ()
-              -- search users provisioned by scim
-              checkScimSearch (Right (target, searchKeys)) = do
+              checkScimSearch target searchKeys = do
                 let Just externalId = Scim.externalId searchKeys
                     handle' = Scim.userName searchKeys
                 respId <- listUsers tok (Just (filterBy "externalId" externalId))
@@ -1163,19 +1142,41 @@ specCRUDIdentityProvider = do
                 liftIO $ do
                   respId `shouldBe` [target]
                   respHandle `shouldBe` [target]
-              -- search users provisioned by saml
-              checkScimSearch (Left (uid, mbEmail, hdl)) = do
-                respHandle <- listUsers tok (Just (filterBy "userName" hdl))
-                liftIO $ ((Scim.id . Scim.thing) <$> respHandle) `shouldBe` [uid]
-                (`mapM_` mbEmail) $ \eml -> do
-                  respId <- listUsers tok (Just (filterBy "externalId" eml))
-                  liftIO $ ((Scim.id . Scim.thing) <$> respId) `shouldBe` [uid]
 
-          -- if user is created via saml, don't do anything here until we have updated the idp
-          -- to make things more interesting.
-          either (const $ pure ()) (checkScimSearch . Right) userStuff
-          updateOrReplaceIdps (env, owner1, idp1, idpmeta1)
-          checkScimSearch userStuff
+          checkScimSearch scimStoredUser scimUser
+          updateOrReplaceIdps (owner1, idp1, idpmeta1)
+          checkScimSearch scimStoredUser scimUser
+
+        it ("creates new idp, setting old_issuer; sets replaced_by in old idp; scim user search still works: provisionViaScim=False, updateNotReplace=" <> show updateNotReplace <> ", externalIdIsEmail=" <> show externalIdIsEmail) $ do
+          (owner1, teamid, idp1, (IdPMetadataValue _ idpmeta1, privcreds)) <- registerTestIdPWithMeta
+          let idp1id = idp1 ^. idpId
+
+          (uid, mbEmail, hdl) :: (UserId, Maybe Text, Text) <- do
+            spmeta <- getTestSPMetadata teamid
+            authnreq <- negotiateAuthnRequest idp1
+            authnresp <- runSimpleSP $ mkAuthnResponse privcreds idp1 spmeta authnreq True
+            sparresp <- submitAuthnResponse teamid authnresp
+            liftIO $ statusCode sparresp `shouldBe` 200
+            ssoid <- getSsoidViaAuthResp authnresp
+            Just uid <- ssoToUidSpar teamid ssoid
+            setRandomHandleBrig uid
+            Just usr <- getUserBrig uid
+            let eml = fromEmail <$> (emailIdentity =<< userIdentity usr)
+                Just hdl = fromHandle <$> userHandle usr
+            pure (uid, eml, hdl)
+
+          -- if user is created via saml, don't call checkScimSearch here until we have
+          -- updated the idp; otherwise, the interesting second call would only find a
+          -- scim-imported user and this test would be redundant..
+          updateOrReplaceIdps (owner1, idp1, idpmeta1)
+
+          -- checkScimSearch
+          tok <- registerScimToken teamid (Just idp1id)
+          respHandle <- listUsers tok (Just (filterBy "userName" hdl))
+          liftIO $ ((Scim.id . Scim.thing) <$> respHandle) `shouldBe` [uid]
+          (`mapM_` mbEmail) $ \eml -> do
+            respId <- listUsers tok (Just (filterBy "externalId" eml))
+            liftIO $ ((Scim.id . Scim.thing) <$> respId) `shouldBe` [uid]
 
     describe "replaces an existing idp (cont.)" $ do
       it "users can still login on old idp as before" $ do
