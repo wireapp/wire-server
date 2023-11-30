@@ -971,6 +971,7 @@ type ConnectionAPI =
     :<|> Named
            "create-connection"
            ( Summary "Create a connection to another user"
+               :> MakesFederatedCall 'Brig "get-users-by-ids"
                :> MakesFederatedCall 'Brig "send-connection-action"
                :> CanThrow 'MissingLegalholdConsent
                :> CanThrow 'InvalidUser
@@ -1078,6 +1079,7 @@ type ConnectionAPI =
     Named
       "update-connection"
       ( Summary "Update a connection to another user"
+          :> MakesFederatedCall 'Brig "get-users-by-ids"
           :> MakesFederatedCall 'Brig "send-connection-action"
           :> CanThrow 'MissingLegalholdConsent
           :> CanThrow 'InvalidUser

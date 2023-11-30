@@ -23,7 +23,7 @@ module Brig.API.Connection.Remote
   )
 where
 
-import Brig.API.Connection.Util (ConnectionM, checkLimit)
+import Brig.API.Connection.Util
 import Brig.API.Types (ConnectionError (..))
 import Brig.App
 import Brig.Data.Connection qualified as Data
@@ -254,21 +254,26 @@ performRemoteAction self other mconnection action = do
     reaction _ = Nothing
 
 createConnectionToRemoteUser ::
+  Member FederationConfigStore r =>
   Local UserId ->
   ConnId ->
   Remote UserId ->
-  (ConnectionM r) (ResponseForExistedCreated UserConnection)
+  ConnectionM r (ResponseForExistedCreated UserConnection)
 createConnectionToRemoteUser self zcon other = do
+  ensureNotSameAndActivated self (tUntagged other)
+  ensureFederatesWith other
   mconnection <- lift . wrapClient $ Data.lookupConnection self (tUntagged other)
   fst <$> performLocalAction self (Just zcon) other mconnection LocalConnect
 
 updateConnectionToRemoteUser ::
+  Member FederationConfigStore r =>
   Local UserId ->
   Remote UserId ->
   Relation ->
   Maybe ConnId ->
   (ConnectionM r) (Maybe UserConnection)
 updateConnectionToRemoteUser self other rel1 zcon = do
+  ensureFederatesWith other
   mconnection <- lift . wrapClient $ Data.lookupConnection self (tUntagged other)
   action <-
     actionForTransition rel1

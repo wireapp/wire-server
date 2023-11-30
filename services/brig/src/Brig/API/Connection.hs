@@ -21,7 +21,9 @@
 module Brig.API.Connection
   ( -- * Connections
     createConnection,
+    createConnectionToLocalUser,
     updateConnection,
+    updateConnectionToLocalUser,
     UpdateConnectionsInternal (..),
     updateConnectionInternal,
     lookupConnections,
@@ -39,6 +41,7 @@ import Brig.App
 import Brig.Data.Connection qualified as Data
 import Brig.Data.Types (resultHasMore, resultList)
 import Brig.Data.User qualified as Data
+import Brig.Effects.FederationConfigStore
 import Brig.Effects.GalleyProvider (GalleyProvider)
 import Brig.Effects.GalleyProvider qualified as GalleyProvider
 import Brig.IO.Intra qualified as Intra
@@ -62,11 +65,6 @@ import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
 import Wire.API.Routes.Public.Util (ResponseForExistedCreated (..))
 
-ensureIsActivated :: Local UserId -> MaybeT (AppT r) ()
-ensureIsActivated lusr = do
-  active <- lift . wrapClient $ Data.isActivated (tUnqualified lusr)
-  guard active
-
 ensureNotSameTeam :: Member GalleyProvider r => Local UserId -> Local UserId -> (ConnectionM r) ()
 ensureNotSameTeam self target = do
   selfTeam <- lift $ liftSem $ GalleyProvider.getTeamId (tUnqualified self)
@@ -75,18 +73,14 @@ ensureNotSameTeam self target = do
     throwE ConnectSameBindingTeamUsers
 
 createConnection ::
-  (Member GalleyProvider r) =>
+  ( Member FederationConfigStore r,
+    Member GalleyProvider r
+  ) =>
   Local UserId ->
   ConnId ->
   Qualified UserId ->
-  (ConnectionM r) (ResponseForExistedCreated UserConnection)
+  ConnectionM r (ResponseForExistedCreated UserConnection)
 createConnection self con target = do
-  -- basic checks: no need to distinguish between local and remote at this point
-  when (tUntagged self == target) $
-    throwE (InvalidUser target)
-  noteT ConnectNoIdentity $
-    ensureIsActivated self
-
   -- branch according to whether we are connecting to a local or remote user
   foldQualified
     self
@@ -99,8 +93,9 @@ createConnectionToLocalUser ::
   Local UserId ->
   ConnId ->
   Local UserId ->
-  (ConnectionM r) (ResponseForExistedCreated UserConnection)
+  ConnectionM r (ResponseForExistedCreated UserConnection)
 createConnectionToLocalUser self conn target = do
+  ensureNotSameAndActivated self (tUntagged target)
   noteT (InvalidUser (tUntagged target)) $
     ensureIsActivated target
   checkLegalholdPolicyConflict (tUnqualified self) (tUnqualified target)
@@ -210,6 +205,7 @@ checkLegalholdPolicyConflict uid1 uid2 = do
   oneway status2 status1
 
 updateConnection ::
+  Member FederationConfigStore r =>
   Local UserId ->
   Qualified UserId ->
   Relation ->
