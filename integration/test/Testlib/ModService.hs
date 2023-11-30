@@ -42,7 +42,7 @@ import System.FilePath
 import System.IO
 import System.IO.Temp (createTempDirectory, writeTempFile)
 import System.Posix (keyboardSignal, killProcess, sigINT, sigKILL, signalProcess)
-import System.Process (CreateProcess (..), ProcessHandle, StdStream (..), cleanupProcess, createProcess, getPid, proc, waitForProcess)
+import System.Process
 import Testlib.App
 import Testlib.HTTP
 import Testlib.JSON
@@ -105,13 +105,13 @@ traverseConcurrentlyCodensity f args = do
       k' <- appToIOKleisli k
       liftIO $ withAsync (runAction x) k'
 
-  -- Wait for all the threads to return environment changes in their result
-  -- variables. Any exception is rethrown here, and aborts the overall function.
+  -- Wait for all the threads set their result variables. Any exception is
+  -- rethrown here, and aborts the overall function.
   fs <- liftIO $ for vars $ \(result, _) ->
     takeMVar result >>= maybe (pure ()) throwM
 
   Codensity $ \k -> do
-    -- Now run the continuation.
+    -- Now run the main continuation.
     result <- k ()
 
     -- Finally, signal all threads that it is time to clean up, and wait for
@@ -121,6 +121,7 @@ traverseConcurrentlyCodensity f args = do
     -- cancelled in that case.
     liftIO $ traverse_ (\(_, d) -> putMVar d ()) vars
     liftIO $ traverse_ wait asyncs
+
     pure result
 
 startDynamicBackends :: HasCallStack => [ServiceOverrides] -> (HasCallStack => [String] -> App a) -> App a
@@ -254,8 +255,7 @@ startBackend ::
   Codensity App ()
 startBackend resource overrides = do
   let domain = resource.berDomain
-  instances <- traverse (withProcess resource overrides) allServices
-  liftIO $ traverse_ joinInstance instances
+  traverseConcurrentlyCodensity (withProcess resource overrides) allServices
   lift $ ensureBackendReachable resource.berDomain
   liftIO . putStrLn $ "backend " <> berDomain resource <> " started"
 
@@ -317,14 +317,8 @@ data RunningService = MkRunningService
 
 data ServiceInstance = ServiceInstance
   { handle :: ProcessHandle,
-    config :: FilePath,
-    ready :: MVar (Maybe E.SomeException)
+    config :: FilePath
   }
-
-joinInstance :: ServiceInstance -> IO ()
-joinInstance inst = do
-  mExc <- takeMVar inst.ready
-  traverse_ E.throw mExc
 
 extractHandles :: RunningService -> (Maybe Handle, Maybe Handle, Maybe Handle, ProcessHandle)
 extractHandles MkRunningService {processHandle, stdoutHdl, stderrHdl} =
@@ -335,14 +329,15 @@ timeout usecs action = either (const Nothing) Just <$> race (threadDelay usecs) 
 
 cleanupService :: ServiceInstance -> IO ()
 cleanupService inst = do
-  mPid <- getPid inst.handle
-  for_ mPid (signalProcess keyboardSignal)
-  timeout 10000 (waitForProcess inst.handle) >>= \case
-    Just _ -> pure ()
-    Nothing -> do
-      putStrLn $ "forcefully killing " <> inst.config
-      for_ mPid (signalProcess killProcess)
-      void $ waitForProcess inst.handle
+  let ignoreExceptions action = E.catch action $ \(_ :: E.SomeException) -> pure ()
+  ignoreExceptions $ do
+    mPid <- getPid inst.handle
+    for_ mPid (signalProcess keyboardSignal)
+    timeout 50000 (waitForProcess inst.handle) >>= \case
+      Just _ -> pure ()
+      Nothing -> do
+        for_ mPid (signalProcess killProcess)
+        void $ waitForProcess inst.handle
   whenM (doesFileExist inst.config) $ removeFile inst.config
   whenM (doesDirectoryExist inst.config) $ removeDirectoryRecursive inst.config
 
@@ -364,7 +359,7 @@ checkServiceIsUp domain srv = do
   eith <- liftIO (E.try checkStatus)
   pure $ either (\(_e :: HTTP.HttpException) -> False) id eith
 
-withProcess :: BackendResource -> ServiceOverrides -> Service -> Codensity App ServiceInstance
+withProcess :: BackendResource -> ServiceOverrides -> Service -> Codensity App ()
 withProcess resource overrides service = do
   let domain = berDomain resource
   sm <- lift $ getServiceMap domain
@@ -396,27 +391,19 @@ withProcess resource overrides service = do
           void $ forkIO $ logToConsole colorize prefix stderrHdl
           pure (MkRunningService ph tempFile stdoutHdl stderrHdl)
 
-  ready <- liftIO newEmptyMVar
-  check <- lift . appToIO $ waitUntilServiceIsUp domain service
-
   let mkInstance = do
         rs <- initProcess
         pure
           ServiceInstance
             { handle = rs.processHandle,
-              config = rs.configPath,
-              ready = ready
+              config = rs.configPath
             }
-
-  liftIO . void . async $ do
-    E.catch check $ \(e :: E.SomeException) -> void $ tryPutMVar ready (Just e)
-    tryPutMVar ready Nothing
 
   inst <- Codensity $ \k -> do
     iok <- appToIOKleisli k
     liftIO $ E.bracket mkInstance cleanupService iok
 
-  pure inst
+  lift $ waitUntilServiceIsUp domain service
 
 startProcess :: String -> Service -> Value -> App RunningService
 startProcess domain service config = do
