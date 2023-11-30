@@ -12,7 +12,6 @@ where
 
 import Control.Concurrent
 import Control.Concurrent.Async
-import Control.Exception (finally)
 import Control.Exception qualified as E
 import Control.Monad.Catch (catch, throwM)
 import Control.Monad.Codensity
@@ -24,7 +23,6 @@ import Data.Default
 import Data.Foldable
 import Data.Function
 import Data.Functor
-import Data.Map.Strict qualified as Map
 import Data.Maybe
 import Data.Monoid
 import Data.String
@@ -32,16 +30,14 @@ import Data.String.Conversions (cs)
 import Data.Text qualified as Text
 import Data.Text.IO qualified as Text
 import Data.Traversable
-import Data.Word (Word16)
 import Data.Yaml qualified as Yaml
 import GHC.Stack
 import Network.HTTP.Client qualified as HTTP
 import System.Directory (copyFile, createDirectoryIfMissing, doesDirectoryExist, doesFileExist, listDirectory, removeDirectoryRecursive, removeFile)
-import System.Exit (ExitCode)
 import System.FilePath
 import System.IO
 import System.IO.Temp (createTempDirectory, writeTempFile)
-import System.Posix (keyboardSignal, killProcess, sigINT, sigKILL, signalProcess)
+import System.Posix (keyboardSignal, killProcess, signalProcess)
 import System.Process
 import Testlib.App
 import Testlib.HTTP
@@ -50,7 +46,6 @@ import Testlib.Printing
 import Testlib.ResourcePool
 import Testlib.Types
 import Text.RawString.QQ
-import UnliftIO.Exception qualified as UnliftIO
 import Prelude
 
 withModifiedBackend :: HasCallStack => ServiceOverrides -> (HasCallStack => String -> App a) -> App a
@@ -88,7 +83,7 @@ traverseConcurrentlyCodensity f args = do
   -- two variables. This arrow will later be used to spawn a thread.
   runAction <- lift $ appToIOKleisli $ \((result, done), arg) ->
     catch
-      ( runCodensity (f arg) $ \a -> liftIO $ do
+      ( runCodensity (f arg) $ \_ -> liftIO $ do
           putMVar result Nothing
           takeMVar done
       )
@@ -107,7 +102,7 @@ traverseConcurrentlyCodensity f args = do
 
   -- Wait for all the threads set their result variables. Any exception is
   -- rethrown here, and aborts the overall function.
-  fs <- liftIO $ for vars $ \(result, _) ->
+  liftIO $ for_ vars $ \(result, _) ->
     takeMVar result >>= maybe (pure ()) throwM
 
   Codensity $ \k -> do
@@ -254,10 +249,8 @@ startBackend ::
   ServiceOverrides ->
   Codensity App ()
 startBackend resource overrides = do
-  let domain = resource.berDomain
   traverseConcurrentlyCodensity (withProcess resource overrides) allServices
   lift $ ensureBackendReachable resource.berDomain
-  liftIO . putStrLn $ "backend " <> berDomain resource <> " started"
 
 ensureBackendReachable :: String -> App ()
 ensureBackendReachable domain = do
@@ -304,25 +297,10 @@ processColors =
     ("nginx", colored purpleish)
   ]
 
-data RunningService = MkRunningService
-  { -- | the process handle of the process
-    processHandle :: ProcessHandle,
-    -- | the path in /tmp where the config file of the service lives
-    configPath :: FilePath,
-    -- | the stdout handler usually created by 'startProcess''
-    stdoutHdl :: Handle,
-    -- | the stderr handler usually created by 'startProcess''
-    stderrHdl :: Handle
-  }
-
 data ServiceInstance = ServiceInstance
   { handle :: ProcessHandle,
     config :: FilePath
   }
-
-extractHandles :: RunningService -> (Maybe Handle, Maybe Handle, Maybe Handle, ProcessHandle)
-extractHandles MkRunningService {processHandle, stdoutHdl, stderrHdl} =
-  (Nothing, Just stdoutHdl, Just stderrHdl, processHandle)
 
 timeout :: Int -> IO a -> IO (Maybe a)
 timeout usecs action = either (const Nothing) Just <$> race (threadDelay usecs) action
@@ -381,7 +359,6 @@ withProcess resource overrides service = do
         (Nginz, Nothing) -> startNginzK8s domain sm
         (Nginz, Just _) -> startNginzLocalIO
         _ -> do
-          putStrLn $ "starting " <> show service
           config <- getConfig
           tempFile <- writeTempFile "/tmp" (execName <> "-" <> domain <> "-" <> ".yaml") (cs $ Yaml.encode config)
           (_, Just stdoutHdl, Just stderrHdl, ph) <- createProcess (proc exe ["-c", tempFile]) {cwd = cwd, std_out = CreatePipe, std_err = CreatePipe}
@@ -389,39 +366,13 @@ withProcess resource overrides service = do
           let colorize = fromMaybe id (lookup execName processColors)
           void $ forkIO $ logToConsole colorize prefix stdoutHdl
           void $ forkIO $ logToConsole colorize prefix stderrHdl
-          pure (MkRunningService ph tempFile stdoutHdl stderrHdl)
+          pure $ ServiceInstance ph tempFile
 
-  let mkInstance = do
-        rs <- initProcess
-        pure
-          ServiceInstance
-            { handle = rs.processHandle,
-              config = rs.configPath
-            }
-
-  inst <- Codensity $ \k -> do
+  void $ Codensity $ \k -> do
     iok <- appToIOKleisli k
-    liftIO $ E.bracket mkInstance cleanupService iok
+    liftIO $ E.bracket initProcess cleanupService iok
 
   lift $ waitUntilServiceIsUp domain service
-
-startProcess :: String -> Service -> Value -> App RunningService
-startProcess domain service config = do
-  let execName = configName service
-  tempFile <- liftIO $ writeTempFile "/tmp" (execName <> "-" <> domain <> "-" <> ".yaml") (cs $ Yaml.encode config)
-
-  (cwd, exe) <-
-    asks \env -> case env.servicesCwdBase of
-      Nothing -> (Nothing, execName)
-      Just dir ->
-        (Just (dir </> execName), "../../dist" </> execName)
-
-  (_, Just stdoutHdl, Just stderrHdl, ph) <- liftIO $ createProcess (proc exe ["-c", tempFile]) {cwd = cwd, std_out = CreatePipe, std_err = CreatePipe}
-  let prefix = "[" <> execName <> "@" <> domain <> "] "
-  let colorize = fromMaybe id (lookup execName processColors)
-  void $ liftIO $ forkIO $ logToConsole colorize prefix stdoutHdl
-  void $ liftIO $ forkIO $ logToConsole colorize prefix stderrHdl
-  pure (MkRunningService ph tempFile stdoutHdl stderrHdl)
 
 logToConsole :: (String -> String) -> String -> Handle -> IO ()
 logToConsole colorize prefix hdl = do
@@ -443,7 +394,7 @@ retryRequestUntil reqAction err = do
   unless isUp $
     failApp ("Timed out waiting for service " <> err <> " to come up")
 
-startNginzK8s :: String -> ServiceMap -> IO RunningService
+startNginzK8s :: String -> ServiceMap -> IO ServiceInstance
 startNginzK8s domain sm = do
   tmpDir <- liftIO $ createTempDirectory "/tmp" ("nginz" <> "-" <> domain)
   liftIO $
@@ -463,11 +414,10 @@ startNginzK8s domain sm = do
           & Text.replace ("/etc/wire/nginz/upstreams/upstreams.conf") (cs upstreamsCfg)
       )
   createUpstreamsCfg upstreamsCfg sm
-  (ph, stdoutHdl, stderrHdl) <- startNginz domain nginxConfFile "/"
-  pure do
-    MkRunningService ph tmpDir stdoutHdl stderrHdl
+  ph <- startNginz domain nginxConfFile "/"
+  pure $ ServiceInstance ph tmpDir
 
-startNginzLocal :: BackendResource -> App RunningService
+startNginzLocal :: BackendResource -> App ServiceInstance
 startNginzLocal resource = do
   let domain = berDomain resource
       http2Port = berNginzHttp2Port resource
@@ -538,11 +488,10 @@ server 127.0.0.1:{port} max_fails=3 weight=1;
     writeFile pidConfigFile (cs $ "pid " <> pid <> ";")
 
   -- start service
-  (ph, stdoutHdl, stderrHdl) <- liftIO $ startNginz domain nginxConfFile tmpDir
+  ph <- liftIO $ startNginz domain nginxConfFile tmpDir
 
   -- return handle and nginx tmp dir path
-  pure do
-    MkRunningService ph tmpDir stdoutHdl stderrHdl
+  pure $ ServiceInstance ph tmpDir
 
 createUpstreamsCfg :: String -> ServiceMap -> IO ()
 createUpstreamsCfg upstreamsCfg sm = do
@@ -573,7 +522,7 @@ server 127.0.0.1:{port} max_fails=3 weight=1;
                 & Text.replace "{port}" (cs $ show p)
         liftIO $ appendFile upstreamsCfg (cs upstream)
 
-startNginz :: String -> FilePath -> FilePath -> IO (ProcessHandle, Handle, Handle)
+startNginz :: String -> FilePath -> FilePath -> IO ProcessHandle
 startNginz domain conf workingDir = do
   (_, Just stdoutHdl, Just stderrHdl, ph) <-
     liftIO $
@@ -589,5 +538,4 @@ startNginz domain conf workingDir = do
   void $ liftIO $ forkIO $ logToConsole colorize prefix stdoutHdl
   void $ liftIO $ forkIO $ logToConsole colorize prefix stderrHdl
 
-  -- return handle and nginx tmp dir path
-  pure (ph, stdoutHdl, stderrHdl)
+  pure ph
