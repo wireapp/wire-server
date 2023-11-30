@@ -1,0 +1,60 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ template "fullname" . }}
+  labels:
+    app: {{ template "fullname" . }}
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+data:
+  elasticmq.conf: |
+    include classpath("application.conf")
+
+    # What is the outside visible address of this ElasticMQ node
+    # Used to create the queue URL (may be different from bind address!)
+    node-address {
+      protocol = http
+      host = localhost
+      port = {{ .Values.service.httpPort }}
+      context-path = ""
+    }
+
+    rest-sqs {
+      enabled = true
+      bind-port = {{ .Values.service.httpPort }}
+      bind-hostname = "0.0.0.0"
+      # Possible values: relaxed, strict
+      sqs-limits = strict
+    }
+
+    rest-stats {
+      enabled = true
+      bind-port = 9325
+      bind-hostname = "0.0.0.0"
+    }
+
+    # Should the node-address be generated from the bind port/hostname
+    # Set this to true e.g. when assigning port automatically by using port 0.
+    generate-node-address = false
+
+    queues {
+    {{- range $i, $queueName := .Values.queueNames }}
+      "{{ $queueName }}" {
+      {{- if hasSuffix ".fifo" $queueName }}
+        fifo = true
+      {{- end }}
+      }
+    {{- end }}
+    }
+
+    messages-storage {
+      enabled = true
+      uri = "jdbc:h2:/data/elasticmq.db"
+    }
+
+    # Region and accountId which will be included in resource ids
+    aws {
+      region = eu-west-1
+      accountId = 000000000000
+    }
