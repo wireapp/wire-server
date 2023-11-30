@@ -70,17 +70,12 @@ copyDirectoryRecursively from to = do
       else copyFile fromPath toPath
 
 -- | Concurrent traverse in the 'Codensity App' monad.
---
--- Every action is assumed to return an environment modification function. All
--- actions are started concurrently, and once they all yield control to their
--- continuation, the main continuation is run in an environment that
--- accumulates all the individual environment changes.
 traverseConcurrentlyCodensity ::
-  (HasCallStack => a -> Codensity App (Env -> Env)) ->
-  (HasCallStack => [a] -> Codensity App (Env -> Env))
+  (HasCallStack => a -> Codensity App ()) ->
+  (HasCallStack => [a] -> Codensity App ())
 traverseConcurrentlyCodensity f args = do
   -- Create variables for synchronisation of the various threads:
-  --  * @result@ is used to store the environment change, or possibly an exception
+  --  * @result@ is used to store a possible exception
   --  * @done@ is used to signal that the main continuation has finished, so
   --    the thread can resume and move on to the cleanup phase.
   -- There is one pair of @(result, done)@ variables for each thread.
@@ -94,11 +89,11 @@ traverseConcurrentlyCodensity f args = do
   runAction <- lift $ appToIOKleisli $ \((result, done), arg) ->
     catch
       ( runCodensity (f arg) $ \a -> liftIO $ do
-          putMVar result (Right a)
+          putMVar result Nothing
           takeMVar done
       )
       $ \(e :: E.SomeException) ->
-        void . liftIO $ tryPutMVar result (Left e)
+        void . liftIO $ tryPutMVar result (Just e)
 
   -- Spawn threads. Here we use the fact that 'withAsync' implicitly returns a
   -- 'Codensity' action, and use the 'Monad' instance of 'Codensity' to
@@ -113,14 +108,11 @@ traverseConcurrentlyCodensity f args = do
   -- Wait for all the threads to return environment changes in their result
   -- variables. Any exception is rethrown here, and aborts the overall function.
   fs <- liftIO $ for vars $ \(result, _) ->
-    takeMVar result >>= either throwM pure
+    takeMVar result >>= maybe (pure ()) throwM
 
   Codensity $ \k -> do
-    -- Now compose all environment changes in some arbitrary order (they
-    -- should mostly commute, anyway). Then apply these changes to the actual
-    -- environment and also pass it to the main continuation @k@.
-    let modifyEnv = appEndo (foldMap Endo fs)
-    result <- local modifyEnv (k modifyEnv)
+    -- Now run the continuation.
+    result <- k ()
 
     -- Finally, signal all threads that it is time to clean up, and wait for
     -- them to finish. Note that this last block might not be executed in case
@@ -142,7 +134,7 @@ startDynamicBackends beOverrides k =
       pure $ map (.berDomain) resources
     k
 
-startDynamicBackend :: HasCallStack => BackendResource -> ServiceOverrides -> Codensity App (Env -> Env)
+startDynamicBackend :: HasCallStack => BackendResource -> ServiceOverrides -> Codensity App ()
 startDynamicBackend resource beOverrides = do
   let overrides =
         mconcat
@@ -259,32 +251,13 @@ startBackend ::
   HasCallStack =>
   BackendResource ->
   ServiceOverrides ->
-  Codensity App (Env -> Env)
+  Codensity App ()
 startBackend resource overrides = do
   let domain = resource.berDomain
-      serviceMap =
-        let g srv = HostPort "127.0.0.1" (berInternalServicePorts resource srv)
-         in ServiceMap
-              { brig = g Brig,
-                backgroundWorker = g BackgroundWorker,
-                cannon = g Cannon,
-                cargohold = g Cargohold,
-                federatorInternal = g FederatorInternal,
-                federatorExternal = HostPort "127.0.0.1" resource.berFederatorExternal,
-                galley = g Galley,
-                gundeck = g Gundeck,
-                nginz = g Nginz,
-                spar = g Spar,
-                -- FUTUREWORK: Set to g Proxy, when we add Proxy to spawned services
-                proxy = HostPort "127.0.0.1" 9087,
-                stern = g Stern
-              }
-
-  instances <- traverse (withProcess resource serviceMap overrides) allServices
+  instances <- traverse (withProcess resource overrides) allServices
   liftIO $ traverse_ joinInstance instances
   lift $ ensureBackendReachable resource.berDomain
   liftIO . putStrLn $ "backend " <> berDomain resource <> " started"
-  pure $ \env -> env {serviceMap = Map.insert domain serviceMap env.serviceMap}
 
 ensureBackendReachable :: String -> App ()
 ensureBackendReachable domain = do
@@ -364,7 +337,7 @@ cleanupService :: ServiceInstance -> IO ()
 cleanupService inst = do
   mPid <- getPid inst.handle
   for_ mPid (signalProcess keyboardSignal)
-  timeout 1000000 (waitForProcess inst.handle) >>= \case
+  timeout 10000 (waitForProcess inst.handle) >>= \case
     Just _ -> pure ()
     Nothing -> do
       putStrLn $ "forcefully killing " <> inst.config
@@ -374,27 +347,27 @@ cleanupService inst = do
   whenM (doesDirectoryExist inst.config) $ removeDirectoryRecursive inst.config
 
 -- | Wait for a service to come up.
-waitUntilServiceIsUp :: String -> ServiceMap -> Service -> App ()
-waitUntilServiceIsUp domain serviceMap srv =
+waitUntilServiceIsUp :: String -> Service -> App ()
+waitUntilServiceIsUp domain srv =
   retryRequestUntil
-    (checkServiceIsUp domain serviceMap srv)
+    (checkServiceIsUp domain srv)
     (show srv)
 
 -- | Check if a service is up and running.
-checkServiceIsUp :: String -> ServiceMap -> Service -> App Bool
-checkServiceIsUp _ _ Nginz = pure True
-checkServiceIsUp domain serviceMap srv =
-  local (\env -> env {serviceMap = Map.insert domain serviceMap env.serviceMap}) $ do
-    req <- baseRequest domain srv Unversioned "/i/status"
-    checkStatus <- appToIO $ do
-      res <- submit "GET" req
-      pure (res.status `elem` [200, 204])
-    eith <- liftIO (E.try checkStatus)
-    pure $ either (\(_e :: HTTP.HttpException) -> False) id eith
+checkServiceIsUp :: String -> Service -> App Bool
+checkServiceIsUp _ Nginz = pure True
+checkServiceIsUp domain srv = do
+  req <- baseRequest domain srv Unversioned "/i/status"
+  checkStatus <- appToIO $ do
+    res <- submit "GET" req
+    pure (res.status `elem` [200, 204])
+  eith <- liftIO (E.try checkStatus)
+  pure $ either (\(_e :: HTTP.HttpException) -> False) id eith
 
-withProcess :: BackendResource -> ServiceMap -> ServiceOverrides -> Service -> Codensity App ServiceInstance
-withProcess resource serviceMap overrides service = do
+withProcess :: BackendResource -> ServiceOverrides -> Service -> Codensity App ServiceInstance
+withProcess resource overrides service = do
   let domain = berDomain resource
+  sm <- lift $ getServiceMap domain
   getConfig <-
     lift . appToIO $
       readServiceConfig service
@@ -407,10 +380,10 @@ withProcess resource serviceMap overrides service = do
       Just dir ->
         (Just (dir </> execName), "../../dist" </> execName)
 
-  startNginzLocalIO <- lift $ appToIO $ startNginzLocal domain resource.berNginzHttp2Port resource.berNginzSslPort serviceMap
+  startNginzLocalIO <- lift $ appToIO $ startNginzLocal resource
 
   let initProcess = case (service, cwd) of
-        (Nginz, Nothing) -> startNginzK8s domain serviceMap
+        (Nginz, Nothing) -> startNginzK8s domain sm
         (Nginz, Just _) -> startNginzLocalIO
         _ -> do
           putStrLn $ "starting " <> show service
@@ -424,7 +397,7 @@ withProcess resource serviceMap overrides service = do
           pure (MkRunningService ph tempFile stdoutHdl stderrHdl)
 
   ready <- liftIO newEmptyMVar
-  check <- lift . appToIO $ waitUntilServiceIsUp domain serviceMap service
+  check <- lift . appToIO $ waitUntilServiceIsUp domain service
 
   let mkInstance = do
         rs <- initProcess
@@ -507,8 +480,13 @@ startNginzK8s domain sm = do
   pure do
     MkRunningService ph tmpDir stdoutHdl stderrHdl
 
-startNginzLocal :: String -> Word16 -> Word16 -> ServiceMap -> App RunningService
-startNginzLocal domain http2Port sslPort sm = do
+startNginzLocal :: BackendResource -> App RunningService
+startNginzLocal resource = do
+  let domain = berDomain resource
+      http2Port = berNginzHttp2Port resource
+      sslPort = berNginzSslPort resource
+  sm <- getServiceMap domain
+
   -- Create a whole temporary directory and copy all nginx's config files.
   -- This is necessary because nginx assumes local imports are relative to
   -- the location of the main configuration file.
