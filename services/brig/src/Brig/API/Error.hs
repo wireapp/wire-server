@@ -73,6 +73,7 @@ connError ConnectInvalidPhone {} = StdError (errorToWai @'E.InvalidPhone)
 connError ConnectSameBindingTeamUsers = StdError sameBindingTeamUsers
 connError ConnectMissingLegalholdConsent = StdError (errorToWai @'E.MissingLegalholdConsent)
 connError (ConnectFederationError e) = fedError e
+connError ConnectTeamFederationError = StdError (errorToWai @'E.TeamsNotFederating)
 
 actError :: ActivationError -> Error
 actError (UserKeyExists _) = StdError (errorToWai @'E.UserKeyExists)
