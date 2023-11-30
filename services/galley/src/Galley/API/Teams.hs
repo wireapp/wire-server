@@ -503,7 +503,7 @@ getTeamMembers lzusr tid mbMaxResults mbPagingState = do
       -- If the user does not have the SearchContacts permission (e.g. the external partner),
       -- we only return the person who invited them and the self user.
       let invitee = member ^. invitation <&> fst
-      let uids = maybe [uid] (: [uid]) invitee
+      let uids = uid : maybeToList invitee
       E.selectTeamMembersPaginated tid uids mState mLimit <&> toTeamMembersPage member
   where
     toTeamMembersPage :: TeamMember -> C.PageWithState TeamMember -> TeamMembersPage
