@@ -103,10 +103,10 @@ getFederationConfig' cfgs rDomain = case find ((== rDomain) . domain) cfgs of
   Nothing -> do
     mCnf <- retry x1 (query1 q (params LocalQuorum (Identity rDomain)))
     case mCnf of
-      Just (p, r) -> Just . FederationDomainConfig rDomain p <$> toRestriction rDomain r
+      Just (p, r) -> Just . FederationDomainConfig rDomain p <$> toRestriction rDomain (fromMaybe 0 r)
       Nothing -> pure Nothing
   where
-    q :: PrepQuery R (Identity Domain) (FederatedUserSearchPolicy, Int32)
+    q :: PrepQuery R (Identity Domain) (FederatedUserSearchPolicy, Maybe Int32)
     q = "SELECT search_policy, restriction FROM federation_remotes WHERE domain = ?"
 
 getFederationRemotesFromDb :: forall m. MonadClient m => m [FederationDomainConfig]
@@ -116,9 +116,9 @@ getFederationRemotesFromDb = (\(d, p, r) -> FederationDomainConfig d p r) <$$> q
     qry = do
       res <- retry x1 . query get $ params LocalQuorum ()
       forM res $ \(d, p, rInt) -> do
-        (d,p,) <$> toRestriction d rInt
+        (d,p,) <$> toRestriction d (fromMaybe 0 rInt)
 
-    get :: PrepQuery R () (Domain, FederatedUserSearchPolicy, Int32)
+    get :: PrepQuery R () (Domain, FederatedUserSearchPolicy, Maybe Int32)
     get = fromString $ "SELECT domain, search_policy, restriction FROM federation_remotes LIMIT " <> show maxKnownNodes
 
 addFederationConfig' :: MonadClient m => Map Domain FederationDomainConfig -> FederationDomainConfig -> m AddFederationRemoteResult
