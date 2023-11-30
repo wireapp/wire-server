@@ -24,7 +24,6 @@ common common-all
     -Wall -Wpartial-fields -fwarn-tabs -Wno-incomplete-uni-patterns
 
   default-extensions:
-    NoImplicitPrelude
     AllowAmbiguousTypes
     BangPatterns
     BlockArguments
@@ -50,6 +49,7 @@ common common-all
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NoImplicitPrelude
     OverloadedLabels
     OverloadedRecordDot
     PackageImports
@@ -110,6 +110,7 @@ library
     Test.Conversation
     Test.Demo
     Test.Errors
+    Test.ExternalPartner
     Test.Federation
     Test.Federator
     Test.MessageTimer

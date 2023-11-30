@@ -91,6 +91,7 @@ import Galley.Env (Env)
 import Galley.Intra.Push
 import Galley.Options
 import Galley.Types.Conversations.Members
+import Galley.Types.Teams (IsPerm (hasPermission))
 import Galley.Types.UserList
 import Galley.Validation
 import Imports hiding ((\\))
@@ -122,6 +123,7 @@ import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Team.Feature
 import Wire.API.Team.LegalHold
 import Wire.API.Team.Member
+import Wire.API.Team.Permission (Perm (DoNotUseDeprecatedAddRemoveConvMember))
 import Wire.API.User qualified as User
 
 data NoChanges = NoChanges
@@ -520,7 +522,7 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
   checkLHPolicyConflictsLocal (ulLocals newMembers)
   checkLHPolicyConflictsRemote (FutureWork (ulRemotes newMembers))
   checkRemoteBackendsConnected lusr
-
+  checkTeamMemberAddPermissions lusr newMembers
   addMembersToLocalConversation (fmap (.convId) lconv) newMembers role
   where
     checkRemoteBackendsConnected :: Local x -> Sem r ()
@@ -608,6 +610,22 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
       FutureWork 'LegalholdPlusFederationNotImplemented [Remote UserId] ->
       Sem r ()
     checkLHPolicyConflictsRemote _remotes = pure ()
+
+    -- In teams we don't have 1:1 conversations, only regular conversations. We want
+    -- users without the 'AddRemoveConvMember' permission to still be able to create
+    -- regular conversations, therefore we check for 'AddRemoveConvMember' only if
+    -- there are going to be more than two users in the conversation.
+    checkTeamMemberAddPermissions :: Local UserId -> UserList a -> Sem r ()
+    checkTeamMemberAddPermissions lusr newMembers = do
+      zusrMembership <- join <$> forM (cnvmTeam (convMetadata conv)) (flip E.getTeamMember (tUnqualified lusr))
+      case zusrMembership of
+        Nothing -> pure ()
+        Just tm -> do
+          let total = length (ulAll lusr newMembers) + length (convLocalMembers conv) + length (convRemoteMembers conv)
+          when (total > 2) $
+            if tm `hasPermission` DoNotUseDeprecatedAddRemoveConvMember
+              then pure ()
+              else throwS @'InvalidOperation
 
 performConversationAccessData ::
   ( HasConversationActionEffects 'ConversationAccessDataTag r,
