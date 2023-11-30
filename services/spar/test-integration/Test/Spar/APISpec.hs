@@ -1068,6 +1068,55 @@ specCRUDIdentityProvider = do
             e <- [False, True] -- is the externalId an email address?  (if not, it's a uuidv4, and the email address is stored in `emails`)
         ]
       $ \(provisionViaScim, updateNotReplace, externalIdIsEmail) -> do
+        let updateOrReplaceIdps :: (TestEnv, UserId, IdP, SAML.IdPMetadata) -> TestSpar ()
+            updateOrReplaceIdps (env, owner1, idp1, idpmeta1) = do
+              issuer2 <- makeIssuer
+              idp2 <- do
+                let idpmeta2 = idpmeta1 & edIssuer .~ issuer2
+                 in call $
+                      -- There are two mechanisms for re-aligning your team when your IdP metadata
+                      -- has changed: POST (create a new one, and mark it as replacing the old one),
+                      -- and PUT (updating the existing IdP's metadata).  The reason for having two
+                      -- ways to do this has been lost in history, but we're testing both here.
+                      --
+                      -- FUTUREWORK: deprecate POST!
+                      if updateNotReplace
+                        then callIdpUpdate' (env ^. teSpar) (Just owner1) (idp1 ^. SAML.idpId) (idPMetadataToInfo idpmeta2)
+                        else callIdpCreateReplace (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just owner1) idpmeta2 (idp1 ^. SAML.idpId)
+
+              idp1' <- call $ callIdpGet (env ^. teSpar) (Just owner1) (idp1 ^. SAML.idpId)
+              idp2' <- call $ callIdpGet (env ^. teSpar) (Just owner1) (idp2 ^. SAML.idpId)
+              liftIO $ do
+                let updateIdp1 = updateCurrentIssuer . updateOldIssuers
+                      where
+                        updateCurrentIssuer = idpMetadata . edIssuer .~ (idp2' ^. idpMetadata . edIssuer)
+                        updateOldIssuers = idpExtraInfo . oldIssuers .~ [idp1 ^. idpMetadata . edIssuer]
+                    replaceIdp1 =
+                      idpExtraInfo . replacedBy .~ idp1' ^. idpExtraInfo . replacedBy
+                 in idp1' `shouldBe` (idp1 & if updateNotReplace then updateIdp1 else replaceIdp1)
+
+                idp2' `shouldBe` idp2
+                idp1 ^. idpMetadata . SAML.edIssuer `shouldBe` (idpmeta1 ^. SAML.edIssuer)
+                idp2 ^. idpMetadata . SAML.edIssuer `shouldBe` issuer2
+
+                if updateNotReplace
+                  then idp2 ^. idpId `shouldBe` idp1 ^. idpId
+                  else idp2 ^. idpId `shouldNotBe` idp1 ^. idpId
+
+                idp2 ^. idpExtraInfo . oldIssuers `shouldBe` [idpmeta1 ^. edIssuer]
+                idp1' ^. idpExtraInfo . replacedBy `shouldBe` if updateNotReplace then Nothing else Just (idp2 ^. idpId)
+
+                -- erase everything that is supposed to be different between idp1, idp2, and make
+                -- sure the result is equal.
+                let erase :: IdP -> IdP
+                    erase =
+                      (idpId .~ (idp1 ^. idpId))
+                        . (idpMetadata . edIssuer .~ (idp1 ^. idpMetadata . edIssuer))
+                        . (idpExtraInfo . oldIssuers .~ (idp1 ^. idpExtraInfo . oldIssuers))
+                        . (idpExtraInfo . replacedBy .~ (idp1 ^. idpExtraInfo . replacedBy))
+                        . (idpExtraInfo . handle .~ (idp1 ^. idpExtraInfo . handle))
+                 in erase idp1 `shouldBe` erase idp2
+
         it ("creates new idp, setting old_issuer; sets replaced_by in old idp; scim user search still works: provisionViaScim=" <> show provisionViaScim <> ", updateNotReplace=" <> show updateNotReplace <> ", externalIdIsEmail=" <> show externalIdIsEmail) $ do
           env <- ask
           (owner1, teamid, idp1, (IdPMetadataValue _ idpmeta1, privcreds)) <- registerTestIdPWithMeta
@@ -1125,54 +1174,7 @@ specCRUDIdentityProvider = do
           -- if user is created via saml, don't do anything here until we have updated the idp
           -- to make things more interesting.
           either (const $ pure ()) (checkScimSearch . Right) userStuff
-
-          issuer2 <- makeIssuer
-          idp2 <- do
-            let idpmeta2 = idpmeta1 & edIssuer .~ issuer2
-             in call $
-                  -- There are two mechanisms for re-aligning your team when your IdP metadata
-                  -- has changed: POST (create a new one, and mark it as replacing the old one),
-                  -- and PUT (updating the existing IdP's metadata).  The reason for having two
-                  -- ways to do this has been lost in history, but we're testing both here.
-                  --
-                  -- FUTUREWORK: deprecate POST!
-                  if updateNotReplace
-                    then callIdpUpdate' (env ^. teSpar) (Just owner1) (idp1 ^. SAML.idpId) (idPMetadataToInfo idpmeta2)
-                    else callIdpCreateReplace (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just owner1) idpmeta2 (idp1 ^. SAML.idpId)
-
-          idp1' <- call $ callIdpGet (env ^. teSpar) (Just owner1) (idp1 ^. SAML.idpId)
-          idp2' <- call $ callIdpGet (env ^. teSpar) (Just owner1) (idp2 ^. SAML.idpId)
-          liftIO $ do
-            let updateIdp1 = updateCurrentIssuer . updateOldIssuers
-                  where
-                    updateCurrentIssuer = idpMetadata . edIssuer .~ (idp2' ^. idpMetadata . edIssuer)
-                    updateOldIssuers = idpExtraInfo . oldIssuers .~ [idp1 ^. idpMetadata . edIssuer]
-                replaceIdp1 =
-                  idpExtraInfo . replacedBy .~ idp1' ^. idpExtraInfo . replacedBy
-             in idp1' `shouldBe` (idp1 & if updateNotReplace then updateIdp1 else replaceIdp1)
-
-            idp2' `shouldBe` idp2
-            idp1 ^. idpMetadata . SAML.edIssuer `shouldBe` (idpmeta1 ^. SAML.edIssuer)
-            idp2 ^. idpMetadata . SAML.edIssuer `shouldBe` issuer2
-
-            if updateNotReplace
-              then idp2 ^. idpId `shouldBe` idp1 ^. idpId
-              else idp2 ^. idpId `shouldNotBe` idp1 ^. idpId
-
-            idp2 ^. idpExtraInfo . oldIssuers `shouldBe` [idpmeta1 ^. edIssuer]
-            idp1' ^. idpExtraInfo . replacedBy `shouldBe` if updateNotReplace then Nothing else Just (idp2 ^. idpId)
-
-            -- erase everything that is supposed to be different between idp1, idp2, and make
-            -- sure the result is equal.
-            let erase :: IdP -> IdP
-                erase =
-                  (idpId .~ (idp1 ^. idpId))
-                    . (idpMetadata . edIssuer .~ (idp1 ^. idpMetadata . edIssuer))
-                    . (idpExtraInfo . oldIssuers .~ (idp1 ^. idpExtraInfo . oldIssuers))
-                    . (idpExtraInfo . replacedBy .~ (idp1 ^. idpExtraInfo . replacedBy))
-                    . (idpExtraInfo . handle .~ (idp1 ^. idpExtraInfo . handle))
-             in erase idp1 `shouldBe` erase idp2
-
+          updateOrReplaceIdps (env, owner1, idp1, idpmeta1)
           checkScimSearch userStuff
 
     describe "replaces an existing idp (cont.)" $ do
