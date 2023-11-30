@@ -284,6 +284,7 @@ startBackend resource overrides = do
   instances <- traverse (withProcess resource serviceMap overrides) allServices
   liftIO $ traverse_ joinInstance instances
   lift $ ensureBackendReachable resource.berDomain
+  liftIO . putStrLn $ "backend " <> berDomain resource <> " started"
   pure $ \env -> env {serviceMap = Map.insert domain serviceMap env.serviceMap}
 
 ensureBackendReachable :: String -> App ()
@@ -361,32 +362,35 @@ cleanupService :: ServiceInstance -> IO ()
 cleanupService inst = do
   mPid <- getPid inst.handle
   for_ mPid (signalProcess keyboardSignal)
-  timeout 10000000 (waitForProcess inst.handle) >>= \case
-    Just _ -> pure ()
-    Nothing -> do
-      putStrLn $ "forcefully killing " <> inst.config
-      for_ mPid (signalProcess killProcess)
-      void $ waitForProcess inst.handle
+  waitForProcess inst.handle
+  -- TODO: timeout doesn't work here, why?
+  -- timeout 1000000 (waitForProcess inst.handle) >>= \case
+  --   Just _ -> pure ()
+  --   Nothing -> do
+  --     putStrLn $ "forcefully killing " <> inst.config
+  --     for_ mPid (signalProcess killProcess)
+  --     void $ waitForProcess inst.handle
   whenM (doesFileExist inst.config) $ removeFile inst.config
   whenM (doesDirectoryExist inst.config) $ removeDirectoryRecursive inst.config
 
 -- | Wait for a service to come up.
-waitUntilServiceIsUp :: String -> Service -> App ()
-waitUntilServiceIsUp domain srv =
+waitUntilServiceIsUp :: String -> ServiceMap -> Service -> App ()
+waitUntilServiceIsUp domain serviceMap srv =
   retryRequestUntil
-    (checkServiceIsUp domain srv)
+    (checkServiceIsUp domain serviceMap srv)
     (show srv)
 
 -- | Check if a service is up and running.
-checkServiceIsUp :: String -> Service -> App Bool
-checkServiceIsUp _ Nginz = pure True
-checkServiceIsUp domain srv = do
-  req <- baseRequest domain srv Unversioned "/i/status"
-  checkStatus <- appToIO $ do
-    res <- submit "GET" req
-    pure (res.status `elem` [200, 204])
-  eith <- liftIO (E.try checkStatus)
-  pure $ either (\(_e :: HTTP.HttpException) -> False) id eith
+checkServiceIsUp :: String -> ServiceMap -> Service -> App Bool
+checkServiceIsUp _ _ Nginz = pure True
+checkServiceIsUp domain serviceMap srv =
+  local (\env -> env {serviceMap = Map.insert domain serviceMap env.serviceMap}) $ do
+    req <- baseRequest domain srv Unversioned "/i/status"
+    checkStatus <- appToIO $ do
+      res <- submit "GET" req
+      pure (res.status `elem` [200, 204])
+    eith <- liftIO (E.try checkStatus)
+    pure $ either (\(_e :: HTTP.HttpException) -> False) id eith
 
 withProcess :: BackendResource -> ServiceMap -> ServiceOverrides -> Service -> Codensity App ServiceInstance
 withProcess resource serviceMap overrides service = do
@@ -403,7 +407,7 @@ withProcess resource serviceMap overrides service = do
       Just dir ->
         (Just (dir </> execName), "../../dist" </> execName)
 
-  startNginzLocalIO <- lift $ appToIO $ startNginzLocal domain resource.berNginzHttp2Port resource.berNginzHttp2Port serviceMap
+  startNginzLocalIO <- lift $ appToIO $ startNginzLocal domain resource.berNginzHttp2Port resource.berNginzSslPort serviceMap
 
   let initProcess = case (service, cwd) of
         (Nginz, Nothing) -> startNginzK8s domain serviceMap
@@ -420,7 +424,7 @@ withProcess resource serviceMap overrides service = do
           pure (MkRunningService ph tempFile stdoutHdl stderrHdl)
 
   ready <- liftIO newEmptyMVar
-  check <- lift . appToIO $ waitUntilServiceIsUp domain service
+  check <- lift . appToIO $ waitUntilServiceIsUp domain serviceMap service
 
   let mkInstance = do
         rs <- initProcess
