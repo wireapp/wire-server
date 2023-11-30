@@ -44,7 +44,7 @@ testSearchContactForExternalUsers = do
   -- the team owner creates a conversation with the partner and another team member
   void $ postConversation owner (defProteus {qualifiedUsers = [tm1, partner], team = Just tid}) >>= getJSON 201
 
-  -- now the external partner should still only the person who invited them
+  -- now the external partner should still only see the person who invited them
   bindResponse (Galley.getTeamMembers partner tid) $ \resp -> do
     resp.status `shouldMatchInt` 200
     assertContainsUserIds resp [owner, partner]
