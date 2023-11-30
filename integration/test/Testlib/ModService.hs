@@ -12,7 +12,6 @@ where
 
 import Control.Concurrent
 import Control.Concurrent.Async
-import Control.Concurrent.Timeout (timeout)
 import Control.Exception (finally)
 import Control.Exception qualified as E
 import Control.Monad.Catch (catch, throwM)
@@ -358,18 +357,19 @@ extractHandles :: RunningService -> (Maybe Handle, Maybe Handle, Maybe Handle, P
 extractHandles MkRunningService {processHandle, stdoutHdl, stderrHdl} =
   (Nothing, Just stdoutHdl, Just stderrHdl, processHandle)
 
+timeout :: Int -> IO a -> IO (Maybe a)
+timeout usecs action = either (const Nothing) Just <$> race (threadDelay usecs) action
+
 cleanupService :: ServiceInstance -> IO ()
 cleanupService inst = do
   mPid <- getPid inst.handle
   for_ mPid (signalProcess keyboardSignal)
-  waitForProcess inst.handle
-  -- TODO: timeout doesn't work here, why?
-  -- timeout 1000000 (waitForProcess inst.handle) >>= \case
-  --   Just _ -> pure ()
-  --   Nothing -> do
-  --     putStrLn $ "forcefully killing " <> inst.config
-  --     for_ mPid (signalProcess killProcess)
-  --     void $ waitForProcess inst.handle
+  timeout 1000000 (waitForProcess inst.handle) >>= \case
+    Just _ -> pure ()
+    Nothing -> do
+      putStrLn $ "forcefully killing " <> inst.config
+      for_ mPid (signalProcess killProcess)
+      void $ waitForProcess inst.handle
   whenM (doesFileExist inst.config) $ removeFile inst.config
   whenM (doesDirectoryExist inst.config) $ removeDirectoryRecursive inst.config
 
