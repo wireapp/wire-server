@@ -9,7 +9,11 @@ cassandra:
   port: 9042
   keyspace: brig
 #  To enable TLS:
-#  tlsCa: <CA in PEM format (can be self-signed))
+#  tlsCa: <CA in PEM format (can be self-signed)>
+#   Or:
+#   tlsCaSecretRef:
+#     name: <secret-name>
+#     key: <ca-attribute>
 galley:
   host: galley
   port: 8080

@@ -21,7 +21,7 @@ config:
   cassandra:
     host: aws-cassandra
 #   To enable TLS:
-#   tlsCa: <CA in PEM format (can be self-signed))
+#   tlsCa: <CA in PEM format (can be self-signed)>
 #   Or:
 #   tlsCaSecretRef:
 #     name: <secret-name>
