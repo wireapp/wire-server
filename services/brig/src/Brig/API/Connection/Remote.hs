@@ -27,16 +27,18 @@ import Brig.API.Connection.Util (ConnectionM, checkLimit)
 import Brig.API.Types (ConnectionError (..))
 import Brig.App
 import Brig.Data.Connection qualified as Data
-import Brig.Federation.Client (sendConnectionAction)
+import Brig.Effects.FederationConfigStore
+import Brig.Federation.Client
 import Brig.IO.Intra qualified as Intra
 import Brig.Types.User.Event
 import Control.Comonad
 import Control.Error.Util ((??))
-import Control.Monad.Trans.Except (runExceptT, throwE)
+import Control.Monad.Trans.Except
 import Data.Id as Id
 import Data.Qualified
 import Imports
 import Network.Wai.Utilities.Error
+import Polysemy
 import Wire.API.Connection
 import Wire.API.Federation.API.Brig
   ( NewConnectionResponse (..),
@@ -44,6 +46,7 @@ import Wire.API.Federation.API.Brig
   )
 import Wire.API.Routes.Internal.Galley.ConversationsIntra (Actor (..), DesiredMembership (..), UpsertOne2OneConversationRequest (..), UpsertOne2OneConversationResponse (uuorConvId))
 import Wire.API.Routes.Public.Util (ResponseForExistedCreated (..))
+import Wire.API.User
 
 data LocalConnectionAction
   = LocalConnect
@@ -285,3 +288,29 @@ checkLimitForLocalAction :: Local UserId -> Relation -> LocalConnectionAction ->
 checkLimitForLocalAction u oldRel action =
   when (oldRel `notElem` [Accepted, Sent] && (action == LocalConnect)) $
     checkLimit u
+
+class HasTeam a where
+  -- | Find out the team ID of a remote entity.
+  teamId :: Remote a -> ConnectionM r (Remote (Maybe TeamId))
+
+instance HasTeam TeamId where
+  teamId = pure . fmap Just
+
+instance HasTeam UserId where
+  teamId remote = do
+    profiles <-
+      withExceptT ConnectFederationError $
+        getUsersByIds (tDomain remote) [tUnqualified remote]
+    pure . qualifyAs remote $ profileTeam =<< listToMaybe profiles
+
+-- | Check if the local backend federates with the remote user's team. Throw an
+-- exception if it does not federate.
+ensureFederatesWith ::
+  Member FederationConfigStore r =>
+  HasTeam a =>
+  Remote a ->
+  ConnectionM r ()
+ensureFederatesWith remote = do
+  rTeam <- teamId remote
+  unlessM (lift . liftSem . backendFederatesWith $ rTeam) $
+    throwE ConnectTeamFederationError
