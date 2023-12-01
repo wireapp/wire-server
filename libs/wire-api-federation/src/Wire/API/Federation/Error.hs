@@ -86,7 +86,9 @@ where
 import Data.Aeson qualified as Aeson
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
+import Data.Text.Encoding.Error qualified as T
 import Data.Text.Lazy qualified as LT
+import Data.Text.Lazy.Encoding qualified as LT
 import Imports
 import Network.HTTP.Types.Status
 import Network.HTTP.Types.Status qualified as HTTP
@@ -246,11 +248,19 @@ federationRemoteResponseError status body =
   ( Wai.mkError
       unexpectedFederationResponseStatus
       "federation-remote-error"
-      ( "A remote federator failed with status code "
+      ( "A remote federator failed with status code: "
           <> LT.pack (show (HTTP.statusCode status))
       )
   )
-    { Wai.innerError = Aeson.decode body
+    { Wai.innerError =
+        Just $
+          fromMaybe
+            ( Wai.mkError
+                status
+                "unknown-error"
+                (LT.decodeUtf8With T.lenientDecode body)
+            )
+            (Aeson.decode body)
     }
 
 federationServantErrorToWai :: ClientError -> Wai.Error
