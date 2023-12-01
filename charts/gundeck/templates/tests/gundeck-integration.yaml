@@ -13,7 +13,7 @@ spec:
     - name: "gundeck-config"
       configMap:
         name: "gundeck"
-    {{- if eq (include "useCassandraCA" .Values.config) "true" }}
+    {{- if eq (include "useCassandraTLS" .Values.config) "true" }}
     - name: "gundeck-cassandra"
       secret:
         secretName: {{ (include "tlsSecretRef" .Values.config | fromYaml).name }}
@@ -59,7 +59,7 @@ spec:
       mountPath: "/etc/wire/integration"
     - name: "gundeck-config"
       mountPath: "/etc/wire/gundeck/conf"
-    {{- if eq (include "useCassandraCA" .Values.config) "true" }}
+    {{- if eq (include "useCassandraTLS" .Values.config) "true" }}
     - name: "gundeck-cassandra"
       mountPath: "/etc/wire/gundeck/cassandra"
     {{- end }}

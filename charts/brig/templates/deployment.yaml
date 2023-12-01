@@ -46,7 +46,7 @@ spec:
         - name: "geoip"
           emptyDir: {}
         {{- end }}
-        {{- if eq (include "useCassandraCA" .Values.config) "true" }}
+        {{- if eq (include "useCassandraTLS" .Values.config) "true" }}
         - name: "brig-cassandra"
           secret:
             secretName: {{ (include "tlsSecretRef" .Values.config | fromYaml).name }}
@@ -107,7 +107,7 @@ spec:
           - name: "geoip"
             mountPath: "/usr/share/GeoIP"
           {{- end }}
-          {{- if eq (include "useCassandraCA" .Values.config) "true" }}
+          {{- if eq (include "useCassandraTLS" .Values.config) "true" }}
           - name: "brig-cassandra"
             mountPath: "/etc/wire/brig/cassandra"
           {{- end }}
