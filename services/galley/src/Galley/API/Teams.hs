@@ -495,10 +495,18 @@ getTeamMembers ::
   Maybe TeamMembersPagingState ->
   Sem r TeamMembersPage
 getTeamMembers lzusr tid mbMaxResults mbPagingState = do
-  member <- E.getTeamMember tid (tUnqualified lzusr) >>= noteS @'NotATeamMember
+  let uid = tUnqualified lzusr
+  member <- E.getTeamMember tid uid >>= noteS @'NotATeamMember
   let mState = C.PagingState . LBS.fromStrict <$> (mbPagingState >>= mtpsState)
   let mLimit = fromMaybe (unsafeRange Public.hardTruncationLimit) mbMaxResults
-  E.listTeamMembers @CassandraPaging tid mState mLimit <&> toTeamMembersPage member
+  if member `hasPermission` SearchContacts
+    then E.listTeamMembers @CassandraPaging tid mState mLimit <&> toTeamMembersPage member
+    else do
+      -- If the user does not have the SearchContacts permission (e.g. the external partner),
+      -- we only return the person who invited them and the self user.
+      let invitee = member ^. invitation <&> fst
+      let uids = uid : maybeToList invitee
+      E.selectTeamMembersPaginated tid uids mState mLimit <&> toTeamMembersPage member
   where
     toTeamMembersPage :: TeamMember -> C.PageWithState TeamMember -> TeamMembersPage
     toTeamMembersPage member p =
