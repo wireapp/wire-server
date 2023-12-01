@@ -19,7 +19,7 @@ spec:
         release: {{ .Release.Name }}
     spec:
       restartPolicy: OnFailure
-            # specifying cassandra-migrations as initContainers executes them sequentially, rather than in parallel
+      # specifying cassandra-migrations as initContainers executes them sequentially, rather than in parallel
       # to avoid 'Column family ID mismatch' / schema disagreements
       # see https://stackoverflow.com/questions/29030661/creating-new-table-with-cqlsh-on-existing-keyspace-column-family-id-mismatch#40325651 for details.
       volumes:
