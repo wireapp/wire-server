@@ -24,14 +24,25 @@ testNestedError = do
   resourcePool <- asks resourcePool
   lowerCodensity $ do
     [res] <- acquireResources 1 resourcePool
-    void
-      $ startMockServer
-        def
-          { port = Just (fromIntegral res.berNginzSslPort),
-            tls = True
-          }
-      $ codensityApp
-      $ \_req -> pure $ Wai.responseLBS HTTP.status400 mempty $ Aeson.encode innerError
+    mockConfig <- do
+      mBase <- asks (.servicesCwdBase)
+      pure $ case mBase of
+        Just _ ->
+          -- when running locally, spawn a fake ingress returning an error
+          def
+            { port = Just (fromIntegral res.berNginzSslPort),
+              tls = True
+            }
+        Nothing -> do
+          -- on CI, the real federation ingress is available, so we spawn its federator upstream instead
+          def
+            { port = Just (fromIntegral res.berFederatorExternal),
+              tls = False
+            }
+    void $
+      startMockServer mockConfig $
+        codensityApp $
+          \_req -> pure $ Wai.responseLBS HTTP.status400 mempty $ Aeson.encode innerError
 
     -- get remote user
     lift $ do
