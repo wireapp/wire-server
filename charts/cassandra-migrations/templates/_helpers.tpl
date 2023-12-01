@@ -107,9 +107,24 @@ Thus the order of priority is:
 {{- end -}}
 {{- end -}}
 
+{{/* NOTE: Cassandra TLS helpers
+
+Cassandra connections can be configured per service or with a general configuration.
+Thus, there are three functions per service that fallback to the general
+configuration if the specific one does not exist:
+
+- useTls<service-name> -> Bool: Do we use Cassandra TLS connections for this
+  service?
+
+- tlsCa<service-name> -> String: TLS CA PEM string (if configured)
+
+- tlsSecretRefGalley<service-name> -> YAML: Dict with keys `name` (name of the
+  secret to use) and `key` (name of the entry in the secret)
+*/}}
+
 {{- define "useTlsGalley" -}}
-{{ $cassandraGalley := default dict .Values.cassandraGalley }}
-{{- if or .Values.cassandra.tlsCa $cassandraGalley.tlsCa .Values.cassandra.tlsCaSecretRef $cassandraGalley.tlsCaSecretRef -}}
+{{ $cassandraGalley := default .Values.cassandra .Values.cassandraGalley }}
+{{- if or $cassandraGalley.tlsCa $cassandraGalley.tlsCaSecretRef -}}
 true
 {{- else}}
 false
@@ -117,20 +132,16 @@ false
 {{- end -}}
 
 {{- define "tlsCaGalley" -}}
-{{ $cassandraGalley := default dict .Values.cassandraGalley }}
-{{- if hasKey .Values.cassandra "tlsCa" -}}
-{{- .Values.cassandra.tlsCa }}
-{{- else if hasKey $cassandraGalley "tlsCa" -}}
+{{ $cassandraGalley := default .Values.cassandra .Values.cassandraGalley }}
+{{- if hasKey $cassandraGalley "tlsCa" -}}
 {{- $cassandraGalley.tlsCa }}
 {{ else }}
 {{- end -}}
 {{- end -}}
 
 {{- define "tlsSecretRefGalley" -}}
-{{ $cassandraGalley := default dict .Values.cassandraGalley }}
-{{- if .Values.cassandra.tlsCaSecretRef -}}
-{{ .Values.cassandra.tlsCaSecretRef | toYaml }}
-{{- else if $cassandraGalley.tlsCaSecretRef -}}
+{{ $cassandraGalley := default .Values.cassandra .Values.cassandraGalley }}
+{{- if $cassandraGalley.tlsCaSecretRef -}}
 {{ $cassandraGalley.tlsCaSecretRef | toYaml }}
 {{- else }}
 {{- dict "name" "galley-cassandra-cert" "key" "ca.pem" | toYaml -}}
@@ -138,8 +149,8 @@ false
 {{- end -}}
 
 {{- define "useTlsBrig" -}}
-{{ $cassandraBrig := default dict .Values.cassandraBrig }}
-{{- if or .Values.cassandra.tlsCa $cassandraBrig.tlsCa .Values.cassandra.tlsCaSecretRef $cassandraBrig.tlsCaSecretRef -}}
+{{ $cassandraBrig := default .Values.cassandra .Values.cassandraBrig }}
+{{- if or $cassandraBrig.tlsCa $cassandraBrig.tlsCaSecretRef -}}
 true
 {{- else}}
 false
@@ -147,20 +158,16 @@ false
 {{- end -}}
 
 {{- define "tlsCaBrig" -}}
-{{ $cassandraBrig := default dict .Values.cassandraBrig }}
-{{- if hasKey .Values.cassandra "tlsCa" -}}
-{{- .Values.cassandra.tlsCa }}
-{{- else if hasKey $cassandraBrig "tlsCa" -}}
+{{ $cassandraBrig := default .Values.cassandra .Values.cassandraBrig }}
+{{- if hasKey $cassandraBrig "tlsCa" -}}
 {{- $cassandraBrig.tlsCa }}
 {{ else }}
 {{- end -}}
 {{- end -}}
 
 {{- define "tlsSecretRefBrig" -}}
-{{ $cassandraBrig := default dict .Values.cassandraBrig }}
-{{- if .Values.cassandra.tlsCaSecretRef -}}
-{{ .Values.cassandra.tlsCaSecretRef | toYaml }}
-{{- else if $cassandraBrig.tlsCaSecretRef -}}
+{{ $cassandraBrig := default .Values.cassandra .Values.cassandraBrig }}
+{{- if $cassandraBrig.tlsCaSecretRef -}}
 {{ $cassandraBrig.tlsCaSecretRef | toYaml }}
 {{- else }}
 {{- dict "name" "brig-cassandra-cert" "key" "ca.pem" | toYaml -}}
@@ -168,8 +175,8 @@ false
 {{- end -}}
 
 {{- define "useTlsSpar" -}}
-{{ $cassandraSpar := default dict .Values.cassandraSpar }}
-{{- if or .Values.cassandra.tlsCa $cassandraSpar.tlsCa .Values.cassandra.tlsCaSecretRef $cassandraSpar.tlsCaSecretRef -}}
+{{ $cassandraSpar := default .Values.cassandra .Values.cassandraSpar }}
+{{- if or $cassandraSpar.tlsCa $cassandraSpar.tlsCaSecretRef -}}
 true
 {{- else}}
 false
@@ -177,19 +184,16 @@ false
 {{- end -}}
 
 {{- define "tlsCaSpar" -}}
-{{ $cassandraSpar := default dict .Values.cassandraSpar }}
-{{- if hasKey .Values.cassandra "tlsCa" -}}
-{{- .Values.cassandra.tlsCa }}
-{{- else if hasKey $cassandraSpar "tlsCa" -}}
+{{ $cassandraSpar := default .Values.cassandra .Values.cassandraSpar }}
+{{- if hasKey $cassandraSpar "tlsCa" -}}
 {{- $cassandraSpar.tlsCa }}
 {{ else }}
 {{- end -}}
 {{- end -}}
+
 {{- define "tlsSecretRefSpar" -}}
-{{ $cassandraSpar := default dict .Values.cassandraSpar }}
-{{- if .Values.cassandra.tlsCaSecretRef -}}
-{{ .Values.cassandra.tlsCaSecretRef | toYaml }}
-{{- else if $cassandraSpar.tlsCaSecretRef -}}
+{{ $cassandraSpar := default .Values.cassandra .Values.cassandraSpar }}
+{{- if $cassandraSpar.tlsCaSecretRef -}}
 {{ $cassandraSpar.tlsCaSecretRef | toYaml }}
 {{- else }}
 {{- dict "name" "spar-cassandra-cert" "key" "ca.pem" | toYaml -}}
@@ -197,8 +201,8 @@ false
 {{- end -}}
 
 {{- define "useTlsGundeck" -}}
-{{ $cassandraGundeck := default dict .Values.cassandraGundeck }}
-{{- if or .Values.cassandra.tlsCa $cassandraGundeck.tlsCa .Values.cassandra.tlsCaSecretRef $cassandraGundeck.tlsCaSecretRef -}}
+{{ $cassandraGundeck := default .Values.cassandra .Values.cassandraGundeck }}
+{{- if or $cassandraGundeck.tlsCa $cassandraGundeck.tlsCaSecretRef -}}
 true
 {{- else}}
 false
@@ -206,20 +210,16 @@ false
 {{- end -}}
 
 {{- define "tlsCaGundeck" -}}
-{{ $cassandraGundeck := default dict .Values.cassandraGundeck }}
-{{- if hasKey .Values.cassandra "tlsCa" -}}
-{{- .Values.cassandra.tlsCa }}
-{{- else if hasKey $cassandraGundeck "tlsCa" -}}
+{{ $cassandraGundeck := default .Values.cassandra .Values.cassandraGundeck }}
+{{- if hasKey $cassandraGundeck "tlsCa" -}}
 {{- $cassandraGundeck.tlsCa }}
 {{ else }}
 {{- end -}}
 {{- end -}}
 
 {{- define "tlsSecretRefGundeck" -}}
-{{ $cassandraGundeck := default dict .Values.cassandraGundeck }}
-{{- if .Values.cassandra.tlsCaSecretRef -}}
-{{ .Values.cassandra.tlsCaSecretRef | toYaml }}
-{{- else if $cassandraGundeck.tlsCaSecretRef -}}
+{{ $cassandraGundeck := default .Values.cassandra .Values.cassandraGundeck }}
+{{- if $cassandraGundeck.tlsCaSecretRef -}}
 {{ $cassandraGundeck.tlsCaSecretRef | toYaml }}
 {{- else }}
 {{- dict "name" "gundeck-cassandra-cert" "key" "ca.pem" | toYaml -}}
