@@ -118,7 +118,7 @@ configuration if the specific one does not exist:
 
 - tlsCa<service-name> -> String: TLS CA PEM string (if configured)
 
-- tlsSecretRefGalley<service-name> -> YAML: Dict with keys `name` (name of the
+- tlsSecretRef<service-name> -> YAML: Dict with keys `name` (name of the
   secret to use) and `key` (name of the entry in the secret)
 */}}
 
