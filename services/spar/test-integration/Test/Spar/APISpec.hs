@@ -1242,7 +1242,7 @@ specCRUDIdentityProvider = do
 
 specDeleteCornerCases :: SpecWith TestEnv
 specDeleteCornerCases = describe "delete corner cases" $ do
-  it "deleting the replacing idp2 before it has users does not block logins on idp1" $ do
+  it "deleting the replacing idp2 also deletes replaced idp1" $ do
     env <- ask
     (owner1, _, idp1, (IdPMetadataValue _ idpmeta1, privkey1)) <- registerTestIdPWithMeta
     let issuer1 = idpmeta1 ^. edIssuer
@@ -1256,27 +1256,30 @@ specDeleteCornerCases = describe "delete corner cases" $ do
     idp2 <-
       let idpmeta2 = idpmeta1 & edIssuer .~ issuer2
        in call $ callIdpCreateReplace (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just owner1) idpmeta2 (idp1 ^. SAML.idpId)
-    call $ callIdpDelete (env ^. teSpar) (pure owner1) (idp2 ^. idpId)
-    uref' <- tryLogin privkey1 idp1 userSubject
-    uid' <- getUserIdViaRef' uref'
-    liftIO $ do
-      uid' `shouldBe` uid
-      uref' `shouldBe` SAML.UserRef issuer1 userSubject
-  it "deleting the replacing idp2 before it has users does not block registrations on idp1" $ do
-    env <- ask
-    (owner1, _, idp1, (IdPMetadataValue _ idpmeta1, privkey1)) <- registerTestIdPWithMeta
-    let issuer1 = idpmeta1 ^. edIssuer
-    issuer2 <- makeIssuer
-    idp2 <-
-      let idpmeta2 = idpmeta1 & edIssuer .~ issuer2
-       in call $ callIdpCreateReplace (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just owner1) idpmeta2 (idp1 ^. SAML.idpId)
-    call $ callIdpDelete (env ^. teSpar) (pure owner1) (idp2 ^. idpId)
-    let userSubject = SAML.unspecifiedNameID "bloob"
-    uref <- tryLogin privkey1 idp1 userSubject
-    uid <- getUserIdViaRef' uref
-    liftIO $ do
-      uid `shouldSatisfy` isJust
-      uref `shouldBe` SAML.UserRef issuer1 userSubject
+    -- without purge: error
+    do
+      resp <- call $ callIdpDelete' (env ^. teSpar) (pure owner1) (idp2 ^. idpId)
+      liftIO $ statusCode resp `shouldBe` 412
+    void $ tryLogin privkey1 idp1 userSubject
+    -- with purge: works, and user is gone, too.
+    do
+      resp <- call $ callIdpDeletePurge' (env ^. teSpar) (pure owner1) (idp2 ^. idpId)
+      liftIO $ statusCode resp `shouldBe` 204
+    liftIO $ threadDelay 1000000
+    do
+      resp <- call $ callIdpGet' (env ^. teSpar) (Just owner1) (idp1 ^. SAML.idpId)
+      liftIO $ statusCode resp `shouldBe` 200 -- Weird, yes.  See haddocks for `Spar.API.idpDelete`.
+    do
+      resp <- call $ callIdpGet' (env ^. teSpar) (Just owner1) (idp2 ^. SAML.idpId)
+      liftIO $ statusCode resp `shouldBe` 404
+    do
+      allIdps <- call $ callIdpGetAll (env ^. teSpar) (pure owner1)
+      liftIO $ do
+        allIdps ^? providers . ix 0 . SAML.idpExtraInfo . handle `shouldBe` Just (IdPHandle "IdP 1")
+
+    tryLoginFail404 privkey1 idp1 userSubject
+    tryLoginFail404 privkey1 idp2 userSubject
+
   it "create user1 via idp1 (saml); delete user1; create user via newly created idp2 (saml)" $ do
     pending
   it "create user1 via saml; delete user1; create via scim (in same team)" $ do

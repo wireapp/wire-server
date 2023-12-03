@@ -87,6 +87,7 @@ module Util.Core
     registerTestIdPFrom,
     tryLogin,
     tryLoginFail,
+    tryLoginFail404,
     negotiateAuthnRequest,
     negotiateAuthnRequest',
     getCookie,
@@ -886,6 +887,21 @@ tryLoginFail privkey idp userSubject bodyShouldContain = do
   liftIO $ do
     let bdy = maybe "" (cs @LByteString @String) (responseBody sparresp)
     bdy `shouldContain` bodyShouldContain
+
+tryLoginFail404 :: HasCallStack => SignPrivCreds -> IdP -> NameID -> TestSpar ()
+tryLoginFail404 privkey idp userSubject = do
+  env <- ask
+  let tid = idp ^. idpExtraInfo . team
+  spmeta <- getTestSPMetadata tid
+  resp <- call $ callAuthnReq' (env ^. teSpar) (idp ^. SAML.idpId)
+  case statusCode resp of
+    404 -> pure ()
+    200 -> do
+      (_, authnreq) <- call $ callAuthnReq (env ^. teSpar) (idp ^. SAML.idpId)
+      idpresp <- runSimpleSP $ mkAuthnResponseWithSubj userSubject privkey idp spmeta authnreq True
+      sparresp <- submitAuthnResponse tid idpresp
+      liftIO $ statusCode sparresp `shouldBe` 404
+    bad -> error $ "tryLoginFail404: " <> show bad
 
 -- | see also: 'callAuthnReq'
 negotiateAuthnRequest ::

@@ -381,6 +381,11 @@ idpGetAll zusr = withDebugLog "idpGetAll" (const Nothing) $ do
 -- matter what the team size, it shouldn't choke any servers, just the client (which is
 -- probably curl running locally on one of the spar instances).
 -- https://github.com/zinfra/backend-issues/issues/1314
+--
+-- FUTUREWORK: replaced idps should be deleted with the replacing idps, but we don't have the
+-- references in the database schema to do that (we only have "replaced_by", not "replaces").
+-- WORK-AROUND: remove replaced idps manually.  FIX: discontinue replaced_by query param.  we
+-- have PUT now to update existing IdPs, no need to post replacing new idps..
 idpDelete ::
   forall r.
   ( Member Random r,
@@ -400,46 +405,46 @@ idpDelete ::
 idpDelete mbzusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (const Nothing) $ do
   idp <- IdPConfigStore.getConfig idpid
   (zusr, teamId) <- authorizeIdP mbzusr idp
-  let issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
   whenM (idpDoesAuthSelf idp zusr) $ throwSparSem SparIdPCannotDeleteOwnIdp
-  SAMLUserStore.getAllByIssuerPaginated issuer >>= assertEmptyOrPurge teamId
-  deleteOldIssuers idp
-  -- Delete tokens associated with given IdP (we rely on the fact that
-  -- each IdP has exactly one team so we can look up all tokens
-  -- associated with the team and then filter them)
-  tokens <- ScimTokenStore.lookupByTeam teamId
-  for_ tokens $ \ScimTokenInfo {..} ->
-    when (stiIdP == Just idpid) $ ScimTokenStore.delete teamId stiId
-  -- Delete IdP config
-  do
-    IdPConfigStore.deleteConfig idp
-    IdPRawMetadataStore.delete idpid
+  assertEmptyOrPurge idp
+  actuallyDelete idp teamId
   pure NoContent
   where
-    assertEmptyOrPurge :: TeamId -> Cas.Page (SAML.UserRef, UserId) -> Sem r ()
-    assertEmptyOrPurge teamId page = do
-      forM_ (Cas.result page) $ \(uref, uid) -> do
-        mAccount <- BrigAccess.getAccount NoPendingInvitations uid
-        let mUserTeam = userTeam . accountUser =<< mAccount
-        when (mUserTeam == Just teamId) $ do
-          if purge
-            then do
-              SAMLUserStore.delete uid uref
-              void $ BrigAccess.deleteUser uid
-            else do
-              throwSparSem SparIdPHasBoundUsers
-      when (Cas.hasMore page) $
-        SAMLUserStore.nextPage page >>= assertEmptyOrPurge teamId
+    allIssuers :: IdP -> [SAML.Issuer]
+    allIssuers idp = (idp ^. SAML.idpMetadata . SAML.edIssuer) : (idp ^. SAML.idpExtraInfo . oldIssuers)
 
-    deleteOldIssuers :: IdP -> Sem r ()
-    deleteOldIssuers idp = forM_ (idp ^. SAML.idpExtraInfo . oldIssuers) $ \oldIssuer -> do
-      oldid <-
-        view SAML.idpId <$> case fromMaybe defWireIdPAPIVersion $ idp ^. SAML.idpExtraInfo . apiVersion of
-          WireIdPAPIV1 -> IdPConfigStore.getIdPByIssuerV1 oldIssuer
-          WireIdPAPIV2 -> IdPConfigStore.getIdPByIssuerV2 oldIssuer (idp ^. SAML.idpExtraInfo . team)
-      oldidp <- IdPConfigStore.getConfig oldid
-      IdPConfigStore.deleteConfig oldidp
-      IdPRawMetadataStore.delete oldid
+    assertEmptyOrPurge :: IdP -> Sem r ()
+    assertEmptyOrPurge idp = do
+      forM_ (allIssuers idp) $ \issuer -> do
+        page <- SAMLUserStore.getAllByIssuerPaginated issuer
+        cont page
+      where
+        cont :: Cas.Page (SAML.UserRef, UserId) -> Sem r ()
+        cont page = do
+          forM_ (Cas.result page) $ \(uref, uid) -> do
+            mbAccount <- BrigAccess.getAccount NoPendingInvitations uid
+            let mUserTeam = userTeam . accountUser =<< mbAccount
+            -- See comment on 'getAllSAMLUsersByIssuerPaginated' for why we need to filter for team here.
+            when (mUserTeam == Just (idp ^. SAML.idpExtraInfo . team)) $ do
+              if purge
+                then void $ BrigAccess.deleteUser uid >> SAMLUserStore.delete uid uref
+                else throwSparSem (SparIdPHasBoundUsers (cs $ show $ idp ^. SAML.idpId))
+          when (Cas.hasMore page) $
+            SAMLUserStore.nextPage page >>= cont
+
+    actuallyDelete :: IdP -> TeamId -> Sem r ()
+    actuallyDelete idp teamId = do
+      -- Delete tokens associated with given IdP (we rely on the fact that
+      -- each IdP has exactly one team so we can look up all tokens
+      -- associated with the team and then filter them)
+      tokens <- ScimTokenStore.lookupByTeam teamId
+      for_ tokens $ \ScimTokenInfo {..} ->
+        when (stiIdP == Just idpid) $ ScimTokenStore.delete teamId stiId
+      -- Delete IdP config
+      IdPConfigStore.deleteConfig idp
+      IdPRawMetadataStore.delete idpid
+      -- old issuers
+      forM_ (allIssuers idp) $ \iss -> IdPConfigStore.deleteIssuer iss (Just $ idp ^. SAML.idpExtraInfo . team)
 
     idpDoesAuthSelf :: IdP -> UserId -> Sem r Bool
     idpDoesAuthSelf idp uid = do
