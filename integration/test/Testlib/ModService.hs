@@ -1,6 +1,4 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE StrictData #-}
-{-# OPTIONS_GHC -Wwarn #-}
 
 module Testlib.ModService
   ( withModifiedBackend,
@@ -525,17 +523,16 @@ server 127.0.0.1:{port} max_fails=3 weight=1;
 startNginz :: String -> FilePath -> FilePath -> IO ProcessHandle
 startNginz domain conf workingDir = do
   (_, Just stdoutHdl, Just stderrHdl, ph) <-
-    liftIO $
-      createProcess
-        (proc "nginx" ["-c", conf, "-g", "daemon off;", "-e", "/dev/stdout"])
-          { cwd = Just workingDir,
-            std_out = CreatePipe,
-            std_err = CreatePipe
-          }
+    createProcess
+      (proc "nginx" ["-c", conf, "-g", "daemon off;", "-e", "/dev/stdout"])
+        { cwd = Just workingDir,
+          std_out = CreatePipe,
+          std_err = CreatePipe
+        }
 
   let prefix = "[" <> "nginz" <> "@" <> domain <> "] "
   let colorize = fromMaybe id (lookup "nginx" processColors)
-  void $ liftIO $ forkIO $ logToConsole colorize prefix stdoutHdl
-  void $ liftIO $ forkIO $ logToConsole colorize prefix stderrHdl
+  void $ forkIO $ logToConsole colorize prefix stdoutHdl
+  void $ forkIO $ logToConsole colorize prefix stderrHdl
 
   pure ph
