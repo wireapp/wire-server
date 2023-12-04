@@ -154,7 +154,7 @@ spec:
             - "{{ template "cassandraSparReplicationArg" . }}"
              {{- if eq (include "useTlsSpar" .) "true" }}
             - --tls-certificate-file
-            - /certs/spar/{{- (include "tlsSecretRefGalley" . | fromYaml).key }}
+            - /certs/spar/{{- (include "tlsSecretRefSpar" . | fromYaml).key }}
             {{- end }}
 
           {{- if eq (include "useTlsSpar" .) "true" }}
