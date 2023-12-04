@@ -1,3 +1,29 @@
 fake-aws-ses:
   enabled: true
   sesSender: "backend-integrationk8s@wire.com"
+
+fake-aws-sqs:
+  queueNames:
+  - "integration-brig-events"
+  - "integration-brig-events-internal"
+  - "integration-gundeck-events"
+  - "integration-user-events.fifo"
+  - "integration-team-events.fifo"
+
+  - "integration-brig-events3"
+  - "integration-brig-events-internal3"
+  - "integration-gundeck-events3"
+  - "integration-user-events3.fifo"
+  - "integration-team-events3.fifo"
+
+  - "integration-brig-events4"
+  - "integration-brig-events-internal4"
+  - "integration-gundeck-events4"
+  - "integration-user-events4.fifo"
+  - "integration-team-events4.fifo"
+
+  - "integration-brig-events5"
+  - "integration-brig-events-internal5"
+  - "integration-gundeck-events5"
+  - "integration-user-events5.fifo"
+  - "integration-team-events5.fifo"
