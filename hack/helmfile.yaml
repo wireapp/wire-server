@@ -163,7 +163,7 @@ releases:
       - name: cargohold.config.settings.federationDomain
         value: {{ .Values.federationDomain1 }}
     needs:
-      - 'k8ssandra-test-cluster'
+      - 'databases-ephemeral'
 
   - name: 'wire-server'
     namespace: '{{ .Values.namespace2 }}'
@@ -179,4 +179,4 @@ releases:
       - name: cargohold.config.settings.federationDomain
         value: {{ .Values.federationDomain2 }}
     needs:
-      - 'k8ssandra-test-cluster'
+      - 'databases-ephemeral'
