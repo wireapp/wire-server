@@ -110,7 +110,6 @@ library
     Brig.Data.Activation
     Brig.Data.Client
     Brig.Data.Connection
-    Brig.Data.Federation
     Brig.Data.Instances
     Brig.Data.LoginCode
     Brig.Data.MLS.KeyPackage
@@ -126,6 +125,8 @@ library
     Brig.Effects.CodeStore
     Brig.Effects.CodeStore.Cassandra
     Brig.Effects.Delay
+    Brig.Effects.FederationConfigStore
+    Brig.Effects.FederationConfigStore.Cassandra
     Brig.Effects.GalleyProvider
     Brig.Effects.GalleyProvider.RPC
     Brig.Effects.JwtTools
@@ -318,7 +319,6 @@ library
     , polysemy-plugin
     , polysemy-wire-zoo
     , proto-lens                 >=0.1
-    , random
     , random-shuffle             >=0.0.3
     , raw-strings-qq
     , resource-pool              >=0.2

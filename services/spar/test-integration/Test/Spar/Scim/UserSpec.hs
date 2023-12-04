@@ -55,6 +55,8 @@ import qualified Data.Vector as V
 import qualified Data.ZAuth.Token as ZAuth
 import Imports
 import qualified Network.Wai.Utilities.Error as Wai
+import Polysemy
+import Polysemy.Error
 import qualified SAML2.WebSSO as SAML
 import qualified SAML2.WebSSO.Test.MockResponse as SAML
 import SAML2.WebSSO.Test.Util.TestSP (makeSampleIdPMetadata)
@@ -75,6 +77,7 @@ import Util.Invitation
 import qualified Web.Scim.Class.User as Scim.UserC
 import qualified Web.Scim.Filter as Filter
 import qualified Web.Scim.Schema.Common as Scim
+import qualified Web.Scim.Schema.Error as Scim
 import qualified Web.Scim.Schema.ListResponse as Scim
 import qualified Web.Scim.Schema.Meta as Scim
 import Web.Scim.Schema.PatchOp (Operation)
@@ -1581,8 +1584,9 @@ testScimSideIsUpdated = do
   -- Check that the updated user also matches the data that we sent with
   -- 'updateUser'
   richInfoLimit <- view (teOpts . to richInfoLimit)
+  expectedUser <- setDefaultRoleIfEmpty <$$> whatSparReturnsFor idp richInfoLimit (setPreferredLanguage defLang user')
   liftIO $ do
-    Right (Scim.value (Scim.thing storedUser')) `shouldBe` (whatSparReturnsFor idp richInfoLimit (setPreferredLanguage defLang user') <&> setDefaultRoleIfEmpty)
+    Right (Scim.value (Scim.thing storedUser')) `shouldBe` expectedUser
     Scim.id (Scim.thing storedUser') `shouldBe` Scim.id (Scim.thing storedUser)
     let meta = Scim.meta storedUser
         meta' = Scim.meta storedUser'
@@ -1637,8 +1641,9 @@ testUpdateSameHandle = do
   liftIO $ updatedUser `shouldBe` storedUser'
   -- Check that the updated user also matches the data that we sent with 'updateUser'
   richInfoLimit <- view (teOpts . to richInfoLimit)
+  expectedUser <- setDefaultRoleIfEmpty <$$> whatSparReturnsFor idp richInfoLimit (setPreferredLanguage defLang user')
   liftIO $ do
-    Right (Scim.value (Scim.thing storedUser')) `shouldBe` (whatSparReturnsFor idp richInfoLimit (setPreferredLanguage defLang user') <&> setDefaultRoleIfEmpty)
+    Right (Scim.value (Scim.thing storedUser')) `shouldBe` expectedUser
     Scim.id (Scim.thing storedUser') `shouldBe` Scim.id (Scim.thing storedUser)
     let meta = Scim.meta storedUser
         meta' = Scim.meta storedUser'
@@ -1646,6 +1651,9 @@ testUpdateSameHandle = do
     Scim.resourceType meta `shouldBe` Scim.resourceType meta'
     Scim.created meta `shouldBe` Scim.created meta'
     Scim.location meta `shouldBe` Scim.location meta'
+
+runScimErrorUnsafe :: Sem (Error Scim.ScimError ': r) a -> Sem r a
+runScimErrorUnsafe action = either (error . show) pure =<< runError action
 
 -- | Test that when a user's external id is updated, the relevant indices are also updated in
 -- brig and spar, and spar can find the user by that external id.
@@ -1673,7 +1681,8 @@ testUpdateExternalId withidp = do
           then call $ activateEmail brig email
           else registerUser brig tid email
         veid :: ValidExternalId <-
-          either (error . show) pure $ mkValidExternalId midp (Scim.User.externalId user)
+          runSpar . runScimErrorUnsafe $
+            mkValidExternalId midp (Scim.User.externalId user)
         -- Overwrite the user with another randomly-generated user (only controlling externalId)
         otherEmail <- randomEmail
         user' <- do
@@ -1685,7 +1694,9 @@ testUpdateExternalId withidp = do
                         else Scim.User.externalId user
                   }
           randomScimUser <&> upd
-        let veid' = either (error . show) id $ mkValidExternalId midp (Scim.User.externalId user')
+        veid' <-
+          runSpar . runScimErrorUnsafe $
+            mkValidExternalId midp (Scim.User.externalId user')
 
         _ <- updateUser tok userid user'
 
@@ -1717,14 +1728,17 @@ testUpdateExternalIdOfUnregisteredAccount = do
   storedUser <- createUser tok user
   let userid = scimUserId storedUser
   veid :: ValidExternalId <-
-    either (error . show) pure $ mkValidExternalId Nothing (Scim.User.externalId user)
+    runSpar . runScimErrorUnsafe $
+      mkValidExternalId Nothing (Scim.User.externalId user)
   -- Overwrite the user with another randomly-generated user (only controlling externalId)
   -- And update the user before they have registered their account
   otherEmail <- randomEmail
   user' <- do
     let upd u = u {Scim.User.externalId = Just $ fromEmail otherEmail}
     randomScimUser <&> upd
-  let veid' = either (error . show) id $ mkValidExternalId Nothing (Scim.User.externalId user')
+  veid' <-
+    runSpar . runScimErrorUnsafe $
+      mkValidExternalId Nothing (Scim.User.externalId user')
   _ <- updateUser tok userid user'
   -- Now the user registers their account (via old email)
   registerUser brig tid email
@@ -1767,7 +1781,9 @@ testBrigSideIsUpdated = do
   user' <- randomScimUser
   let userid = scimUserId storedUser
   _ <- updateUser tok userid user'
-  validScimUser <- either (error . show) pure $ validateScimUser' "testBrigSideIsUpdated" (Just idp) 999999 user'
+  validScimUser <-
+    runSpar . runScimErrorUnsafe $
+      validateScimUser' "testBrigSideIsUpdated" (Just idp) 999999 user'
   brigUser <- maybe (error "no brig user") pure =<< runSpar (Intra.getBrigUser Intra.WithPendingInvitations userid)
   let scimUserWithDefLocale = validScimUser {Spar.Types._vsuLocale = Spar.Types._vsuLocale validScimUser <|> Just (Locale (Language EN) Nothing)}
   brigUser `userShouldMatch` scimUserWithDefLocale
@@ -2227,11 +2243,11 @@ specEmailValidation = do
             else setSamlEmailValidation teamid Feature.FeatureStatusDisabled
           (user, email) <- randomScimUserWithEmail
           scimStoredUser <- createUser tok user
-          uref :: SAML.UserRef <-
-            either (error . show) (pure . (^?! veidUref)) $
+          veid <-
+            runSpar . runScimErrorUnsafe $
               mkValidExternalId (Just idp) (Scim.User.externalId . Scim.value . Scim.thing $ scimStoredUser)
           uid :: UserId <-
-            getUserIdViaRef uref
+            getUserIdViaRef (veid ^?! veidUref)
           brig <- view teBrig
           -- we intentionally activate the email even if it's not set up to work, to make sure
           -- it doesn't if the feature is disabled.

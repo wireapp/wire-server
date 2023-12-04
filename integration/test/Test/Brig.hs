@@ -2,8 +2,7 @@ module Test.Brig where
 
 import API.Brig qualified as BrigP
 import API.BrigInternal qualified as BrigI
-import API.Common qualified as API
-import API.GalleyInternal qualified as GalleyI
+import API.Common (randomName)
 import Data.Aeson.Types hiding ((.=))
 import Data.Set qualified as Set
 import Data.String.Conversions
@@ -13,17 +12,6 @@ import GHC.Stack
 import SetupHelpers
 import Testlib.Assertions
 import Testlib.Prelude
-
-testSearchContactForExternalUsers :: HasCallStack => App ()
-testSearchContactForExternalUsers = do
-  owner <- randomUser OwnDomain def {BrigI.team = True}
-  partner <- randomUser OwnDomain def {BrigI.team = True}
-
-  bindResponse (GalleyI.putTeamMember partner (partner %. "team") (API.teamRole "partner")) $ \resp ->
-    resp.status `shouldMatchInt` 200
-
-  bindResponse (BrigP.searchContacts partner (owner %. "name") OwnDomain) $ \resp ->
-    resp.status `shouldMatchInt` 403
 
 testCrudFederationRemotes :: HasCallStack => App ()
 testCrudFederationRemotes = do
@@ -54,11 +42,11 @@ testCrudFederationRemotes = do
     dom1 :: String <- (<> ".example.com") . UUID.toString <$> liftIO UUID.nextRandom
 
     let remote1, remote1' :: BrigI.FedConn
-        remote1 = BrigI.FedConn dom1 "no_search" "allow_all"
-        remote1' = remote1 {BrigI.searchStrategy = "full_search", BrigI.restriction = "restrict_by_team"}
+        remote1 = BrigI.FedConn dom1 "no_search" Nothing
+        remote1' = remote1 {BrigI.searchStrategy = "full_search", BrigI.restriction = Just []}
 
         cfgRemotesExpect :: BrigI.FedConn
-        cfgRemotesExpect = BrigI.FedConn (cs otherDomain) "full_search" "allow_all"
+        cfgRemotesExpect = BrigI.FedConn (cs otherDomain) "full_search" Nothing
 
     cfgRemotes <- parseFedConns =<< BrigI.readFedConns ownDomain
     cfgRemotes `shouldMatch` ([] @Value)
@@ -139,46 +127,17 @@ testSwagger = do
       resp.status `shouldMatchInt` 200
       void resp.json
 
-testRemoteUserSearch :: HasCallStack => App ()
-testRemoteUserSearch = do
-  startDynamicBackends [def, def] $ \[d1, d2] -> do
-    void $ BrigI.createFedConn d2 (BrigI.FedConn d1 "full_search" "allow_all")
-
-    u1 <- randomUser d1 def
-    u2 <- randomUser d2 def
-    BrigI.refreshIndex d2
-    uidD2 <- objId u2
-
-    bindResponse (BrigP.searchContacts u1 (u2 %. "name") d2) $ \resp -> do
-      resp.status `shouldMatchInt` 200
-      docs <- resp.json %. "documents" >>= asList
-      case docs of
-        [] -> assertFailure "Expected a non empty result, but got an empty one"
-        doc : _ -> doc %. "id" `shouldMatch` uidD2
-
-testRemoteUserSearchExactHandle :: HasCallStack => App ()
-testRemoteUserSearchExactHandle = do
-  startDynamicBackends [def, def] $ \[d1, d2] -> do
-    void $ BrigI.createFedConn d2 (BrigI.FedConn d1 "exact_handle_search" "allow_all")
-
-    u1 <- randomUser d1 def
-    u2 <- randomUser d2 def
-    u2Handle <- API.randomHandle
-    bindResponse (BrigP.putHandle u2 u2Handle) $ assertSuccess
-    BrigI.refreshIndex d2
-
-    bindResponse (BrigP.searchContacts u1 u2Handle d2) $ \resp -> do
-      resp.status `shouldMatchInt` 200
-      docs <- resp.json %. "documents" >>= asList
-      case docs of
-        [] -> assertFailure "Expected a non empty result, but got an empty one"
-        doc : _ -> objQid doc `shouldMatch` objQid u2
-
 testCrudFederationRemoteTeams :: HasCallStack => App ()
 testCrudFederationRemoteTeams = do
   (_, tid, _) <- createTeam OwnDomain 1
   (_, tid2, _) <- createTeam OwnDomain 1
-  let rd = "some-remote-domain.wire.com"
+  rd <- (\n -> n <> ".wire.com") <$> randomName
+  bindResponse (BrigI.addFederationRemoteTeam' OwnDomain rd tid) $ \resp -> do
+    resp.status `shouldMatchInt` 533
+  void $ BrigI.createFedConn OwnDomain $ BrigI.FedConn rd "full_search" Nothing
+  bindResponse (BrigI.addFederationRemoteTeam' OwnDomain rd tid) $ \resp -> do
+    resp.status `shouldMatchInt` 533
+  void $ BrigI.updateFedConn OwnDomain rd $ BrigI.FedConn rd "full_search" (Just [])
   bindResponse (BrigI.getFederationRemoteTeams OwnDomain rd) $ \resp -> do
     resp.status `shouldMatchInt` 200
     checkAbsence resp [tid, tid2]

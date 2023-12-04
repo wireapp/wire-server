@@ -44,14 +44,14 @@ import Wire.API.User.Search
 -- Team of user that is performing the search
 -- Outgoing search restrictions
 data SearchSetting
-  = FederatedSearch
+  = FederatedSearch (Maybe [TeamId])
   | LocalSearch
       UserId
       (Maybe TeamId)
       TeamSearchInfo
 
 searchSettingTeam :: SearchSetting -> Maybe TeamId
-searchSettingTeam FederatedSearch = Nothing
+searchSettingTeam (FederatedSearch _) = Nothing
 searchSettingTeam (LocalSearch _ mbTeam _) = mbTeam
 
 searchIndex ::
@@ -186,12 +186,12 @@ termQ f v =
     Nothing
 
 matchSelf :: SearchSetting -> Maybe ES.Query
-matchSelf FederatedSearch = Nothing
+matchSelf (FederatedSearch _) = Nothing
 matchSelf (LocalSearch searcher _tid _searchInfo) = Just (termQ "_id" (review _TextId searcher))
 
 -- | See 'TeamSearchInfo'
 restrictSearchSpace :: SearchSetting -> ES.Query
-restrictSearchSpace FederatedSearch =
+restrictSearchSpace (FederatedSearch Nothing) =
   ES.QueryBoolQuery
     boolQuery
       { ES.boolQueryShouldMatch =
@@ -199,6 +199,25 @@ restrictSearchSpace FederatedSearch =
             matchTeamMembersSearchableByAllTeams
           ]
       }
+restrictSearchSpace (FederatedSearch (Just [])) =
+  ES.QueryBoolQuery
+    boolQuery
+      { ES.boolQueryMustMatch =
+          [ -- if the list of allowed teams is empty, this is impossible to fulfill, and no results will be returned
+            -- this case should be handled earlier, so this is just a safety net
+            ES.TermQuery (ES.Term "team" "must not match any team") Nothing
+          ]
+      }
+restrictSearchSpace (FederatedSearch (Just teams)) =
+  ES.QueryBoolQuery
+    boolQuery
+      { ES.boolQueryMustMatch =
+          [ matchTeamMembersSearchableByAllTeams,
+            onlyInTeams
+          ]
+      }
+  where
+    onlyInTeams = ES.QueryBoolQuery boolQuery {ES.boolQueryShouldMatch = map matchTeamMembersOf teams}
 restrictSearchSpace (LocalSearch _uid mteam searchInfo) =
   case (mteam, searchInfo) of
     (Nothing, _) -> matchNonTeamMemberUsers
@@ -216,8 +235,9 @@ restrictSearchSpace (LocalSearch _uid mteam searchInfo) =
                 matchTeamMembersOf searcherTeam
               ]
           }
-  where
-    matchTeamMembersOf team = ES.TermQuery (ES.Term "team" $ idToText team) Nothing
+
+matchTeamMembersOf :: TeamId -> ES.Query
+matchTeamMembersOf team = ES.TermQuery (ES.Term "team" $ idToText team) Nothing
 
 matchTeamMembersSearchableByAllTeams :: ES.Query
 matchTeamMembersSearchableByAllTeams =

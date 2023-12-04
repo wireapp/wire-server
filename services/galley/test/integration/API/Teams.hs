@@ -747,13 +747,12 @@ testAddTeamConvLegacy = do
 testAddTeamConvWithRole :: TestM ()
 testAddTeamConvWithRole = do
   c <- view tsCannon
-  (tid, owner, mem2 : _) <- Util.createBindingTeamWithMembers 2
+  (owner, tid) <- Util.createBindingTeam
   qOwner <- Qualified owner <$> viewFederationDomain
   extern <- Util.randomUser
   qExtern <- Qualified extern <$> viewFederationDomain
   Util.connectUsers owner (list1 extern [])
-  Util.connectUsers mem2 (list1 extern [])
-  WS.bracketRN c [owner, extern, mem2] $ \[wsOwner, wsExtern, wsMem2] -> do
+  WS.bracketRN c [owner, extern] $ \[wsOwner, wsExtern] -> do
     -- Regular conversation:
     cid2 <- Util.createTeamConvWithRole owner tid [extern] (Just "blaa") Nothing Nothing roleNameWireAdmin
     checkConvCreateEvent cid2 wsOwner
@@ -770,7 +769,6 @@ testAddTeamConvWithRole = do
 
     mem1 <- Util.addUserToTeam owner tid
     checkTeamMemberJoin tid (mem1 ^. userId) wsOwner
-    checkTeamMemberJoin tid (mem1 ^. userId) wsMem2
     -- ... but not to regular ones.
     Util.assertNotConvMember (mem1 ^. userId) cid2
 

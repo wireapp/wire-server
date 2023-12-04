@@ -48,6 +48,7 @@ import Brig.Data.UserKey qualified as UserKey
 import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
 import Brig.Effects.BlacklistStore (BlacklistStore)
 import Brig.Effects.CodeStore (CodeStore)
+import Brig.Effects.FederationConfigStore (FederationConfigStore)
 import Brig.Effects.GalleyProvider (GalleyProvider)
 import Brig.Effects.GalleyProvider qualified as GalleyProvider
 import Brig.Effects.JwtTools (JwtTools)
@@ -268,7 +269,8 @@ servantSitemap ::
     Member PasswordResetStore r,
     Member PublicKeyBundle r,
     Member (UserPendingActivationStore p) r,
-    Member Jwk r
+    Member Jwk r,
+    Member FederationConfigStore r
   ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =

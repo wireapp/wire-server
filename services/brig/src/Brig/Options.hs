@@ -928,6 +928,7 @@ Lens.makeLensesFor
     ("setSftStaticUrl", "sftStaticUrl"),
     ("setSftListAllServers", "sftListAllServers"),
     ("setFederationDomainConfigs", "federationDomainConfigs"),
+    ("setFederationStrategy", "federationStrategy"),
     ("setEnableDevelopmentVersions", "enableDevelopmentVersions"),
     ("setRestrictUserCreation", "restrictUserCreation"),
     ("setEnableMLS", "enableMLS"),

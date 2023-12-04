@@ -43,9 +43,17 @@ createTeamMember ::
   inviter ->
   String ->
   App Value
-createTeamMember inviter tid = do
+createTeamMember inviter tid = createTeamMemberWithRole inviter tid "member"
+
+createTeamMemberWithRole ::
+  (HasCallStack, MakesValue inviter) =>
+  inviter ->
+  String ->
+  String ->
+  App Value
+createTeamMemberWithRole inviter tid role = do
   newUserEmail <- randomEmail
-  let invitationJSON = ["role" .= "member", "email" .= newUserEmail]
+  let invitationJSON = ["role" .= role, "email" .= newUserEmail]
   invitationReq <-
     baseRequest inviter Brig Versioned $
       joinHttpPath ["teams", tid, "invitations"]
