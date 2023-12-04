@@ -46,6 +46,7 @@ module Stern.Intra
     setBlacklistStatus,
     getTeamFeatureFlag,
     setTeamFeatureFlag,
+    setTeamFeatureLockStatus,
     getTeamData,
     getSearchVisibility,
     setSearchVisibility,
@@ -86,12 +87,13 @@ import Data.Id
 import Data.Int
 import Data.List.Split (chunksOf)
 import Data.Map qualified as Map
+import Data.Proxy (Proxy (Proxy))
 import Data.Qualified (qUnqualified)
 import Data.Text (strip)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Text.Lazy (pack)
 import Data.Text.Lazy.Encoding qualified as TL
-import GHC.TypeLits (KnownSymbol)
+import GHC.TypeLits (KnownSymbol, symbolVal)
 import Imports
 import Network.HTTP.Types (urlEncode)
 import Network.HTTP.Types.Method
@@ -570,6 +572,34 @@ setTeamFeatureFlag tid status = do
           throwE (mkError status400 "bad-data" (cs $ "ttl limit is " <> show daysLimit <> " days; I got " <> show days <> "."))
       where
         daysLimit = 2000
+
+setTeamFeatureLockStatus ::
+  forall cfg.
+  ( KnownSymbol (Public.FeatureSymbol cfg)
+  ) =>
+  TeamId ->
+  LockStatus ->
+  Handler ()
+setTeamFeatureLockStatus tid lstat = do
+  info $ msg ("Setting lock status: " <> show (symbolVal (Proxy @(Public.FeatureSymbol cfg)), lstat))
+  gly <- view galley
+  fromResponseBody <=< catchRpcErrors $
+    rpc'
+      "galley"
+      gly
+      ( method PUT
+          . Bilge.paths
+            [ "i",
+              "teams",
+              toByteString' tid,
+              "features",
+              Public.featureNameBS @cfg,
+              toByteString' lstat
+            ]
+      )
+  where
+    fromResponseBody :: Response (Maybe LByteString) -> Handler ()
+    fromResponseBody resp = parseResponse (mkError status502 "bad-upstream") resp
 
 getSearchVisibility :: TeamId -> Handler TeamSearchVisibilityView
 getSearchVisibility tid = do
