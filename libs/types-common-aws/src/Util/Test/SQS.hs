@@ -61,7 +61,15 @@ watchSQSQueue env queueName = do
   let queueUrl = view SQS.getQueueUrlResponse_queueUrl queueUrlRes
 
   ensureEmpty queueUrl
-  process <- async $ recieveLoop queueUrl eventsRef
+  process <- async $ do
+    loop1 <- async $ recieveLoop queueUrl eventsRef
+    loop2 <- async $ recieveLoop queueUrl eventsRef
+    loop3 <- async $ recieveLoop queueUrl eventsRef
+    loop4 <- async $ recieveLoop queueUrl eventsRef
+    loop5 <- async $ recieveLoop queueUrl eventsRef
+    _ <- Async.waitAny [loop1, loop2, loop3, loop4, loop5]
+    throwIO $ BackgroundThreadNotRunning $ "One of the SQS recieve loops finished, all of them are supposed to run forever"
+
   pure $ SQSWatcher process eventsRef
   where
     recieveLoop queueUrl ref = do
