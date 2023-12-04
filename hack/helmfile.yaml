@@ -11,7 +11,6 @@ helmDefaults:
   timeout: 600
   devel: true
   createNamespace: true
-# k8ssandra-cluster-datacenter-1-service
 environments:
   default:
     values:
