@@ -68,7 +68,7 @@ watchSQSQueue env queueName = do
     recieveLoop queueUrl ref = do
       let rcvReq =
             SQS.newReceiveMessage queueUrl
-              & set SQS.receiveMessage_waitTimeSeconds (Just 100)
+              & set SQS.receiveMessage_waitTimeSeconds (Just 10)
                 . set SQS.receiveMessage_maxNumberOfMessages (Just 1)
                 . set SQS.receiveMessage_visibilityTimeout (Just 1)
       rcvRes <- execute env $ sendEnv rcvReq
