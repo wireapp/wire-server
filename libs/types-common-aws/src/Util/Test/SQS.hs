@@ -5,8 +5,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
--- Disabling for HasCallStack
-{-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -37,7 +35,8 @@ import Data.ProtoLens
 import Data.Text.Encoding qualified as Text
 import Imports
 import Safe (headDef)
-import UnliftIO (Async, async)
+import UnliftIO (Async, async, throwIO)
+import UnliftIO.Async qualified as Async
 import UnliftIO.Resource (MonadResource, ResourceT)
 import UnliftIO.Timeout (timeout)
 
@@ -83,11 +82,22 @@ watchSQSQueue env queueName = do
     ensureEmpty :: Text -> IO ()
     ensureEmpty queueUrl = void $ execute env $ sendEnv (SQS.newPurgeQueue queueUrl)
 
+data SQSWatcherError = BackgroundThreadNotRunning String
+  deriving (Show)
+
+instance Exception SQSWatcherError
+
 -- | Waits for a message matching a predicate for a given number of seconds.
-waitForMessage :: (MonadUnliftIO m, Eq a) => SQSWatcher a -> Int -> (a -> Bool) -> m (Maybe a)
+waitForMessage :: forall m a. (MonadUnliftIO m, Eq a, HasCallStack) => SQSWatcher a -> Int -> (a -> Bool) -> m (Maybe a)
 waitForMessage watcher seconds predicate = timeout (seconds * 1_000_000) poll
   where
+    poll :: (HasCallStack) => m a
     poll = do
+      -- Check if the background thread is still alive. If not fail with a nicer error
+      Async.poll watcher.watcherProcess >>= \case
+        Nothing -> pure ()
+        Just (Left err) -> throwIO $ BackgroundThreadNotRunning $ "Thread finished with exception: " <> show err
+        Just (Right ()) -> throwIO $ BackgroundThreadNotRunning "Thread finished without any exceptions when it was supposed to run forever"
       matched <- atomicModifyIORef (events watcher) $ \events ->
         case filter predicate events of
           [] -> (events, Nothing)
