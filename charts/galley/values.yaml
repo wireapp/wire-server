@@ -22,9 +22,10 @@ config:
   cassandra:
     host: aws-cassandra
     replicaCount: 3
-#   To enable TLS:
+#   To enable TLS provide a CA:
 #   tlsCa: <CA in PEM format (can be self-signed)>
-#   Or:
+#
+#   Or refer to an existing secret (containing the CA):
 #   tlsCaSecretRef:
 #     name: <secret-name>
 #     key: <ca-attribute>
