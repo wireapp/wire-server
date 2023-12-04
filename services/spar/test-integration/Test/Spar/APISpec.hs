@@ -1116,7 +1116,7 @@ specCRUDIdentityProvider = do
                         . (idpExtraInfo . handle .~ (idp1 ^. idpExtraInfo . handle))
                  in erase idp1 `shouldBe` erase idp2
 
-        -- scim doesn't not work with more than one idp, so we can't test the post variant
+        -- scim doesn't work with more than one idp, so we can't test the post variant
         -- that creates a second idp (https://wearezeta.atlassian.net/browse/WPB-689)
         when updateNotReplace . it ("creates new idp, setting old_issuer; sets replaced_by in old idp; scim user search still works: provisionViaScim=True, updateNotReplace=" <> show updateNotReplace <> ", externalIdIsEmail=" <> show externalIdIsEmail) $ do
           (owner1, teamid, idp1, (IdPMetadataValue _ idpmeta1, _)) <- registerTestIdPWithMeta
