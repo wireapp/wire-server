@@ -194,13 +194,15 @@ withTestService ::
   TestM a
 withTestService mkApp go = withFreePortAnyAddr $ \(sPort, sock) -> do
   config <- view (tsIConf . to provider)
+  serverStarted <- newEmptyMVar
   let tlss = Warp.tlsSettings (cert config) (privateKey config)
-  let defs = Warp.defaultSettings {Warp.settingsPort = sPort}
+  let defs = Warp.defaultSettings {Warp.settingsPort = sPort, Warp.settingsBeforeMainLoop = putMVar serverStarted ()}
   buf <- liftIO newChan
   srv <-
     liftIO . Async.async $
       Warp.runTLSSocket tlss defs sock $
         mkApp buf
+  takeMVar serverStarted
   go sPort buf `finally` liftIO (Async.cancel srv)
 
 publicKeyNotMatchingService :: PEM
