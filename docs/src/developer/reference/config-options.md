@@ -291,11 +291,11 @@ sndFactorPasswordChallenge:
 
 ### MLS
 
-This feature specifies how should behave. It has no effect on the server's behaviour.
+If this feature is enabled then clients that support the MLS feature will allow its user to switch between Proteus and the MLS protocol provided the user is listed in `protocolToggleUsers`. The default protocol that clients will create new conversations with is specified in `defaultProtocol`. The `supportedProtocols` array is an ordered list of protocols which may be used by the client. It is used to determine the protocol to use for 1:1 conversations. It must contain the `defaultProtocol`.
 
-If this feature is enabled then clients that support this feature will allowing its user to switch between Proteus and the MLS protocol provided the user is listed ini `protocolToggleUsers`. The default protocol that clients will create new conversations with is specified in `defaultProtocol`. The `defaultCipherSuite` and `allowedCipherSuites` contain the default ciphersuite and the allowed ciphersuites that clients should be using. The numerical values should correspond to the indices (starting at 1) specified here https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol.html#table-5
+The `defaultCipherSuite` and `allowedCipherSuites` contain the default ciphersuite and the allowed ciphersuites that clients should be using. The numerical values should correspond to the indices (starting at 1) specified [here](https://www.rfc-editor.org/rfc/rfc9420.html#table-6).
 
-If this feature is disabled then clients will use the Proteus protocol with this backend.
+If the MLS feature is disabled then clients will use the Proteus protocol with this backend.
 
 The default configuration that applies to all teams that didn't explicitly change their feature configuration can be given in galley's `featureFlags` section in the config file:
 
@@ -307,9 +307,9 @@ mls:
     config:
       protocolToggleUsers: []
       defaultProtocol: mls
+      supportedProtocols: [proteus, mls] # must contain defaultProtocol
       allowedCipherSuites: [1]
       defaultCipherSuite: 1
-      supportedProtocols: [proteus, mls] # must contain defaultProtocol
     lockStatus: locked
 ```
 
