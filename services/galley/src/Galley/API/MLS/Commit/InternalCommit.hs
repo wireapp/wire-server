@@ -53,6 +53,7 @@ import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
+import Wire.API.Event.LeaveReason
 import Wire.API.MLS.Commit
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Proposal qualified as Proposal
@@ -303,6 +304,7 @@ removeMembers qusr con lConvOrSub users = case tUnqualified lConvOrSub of
           . handleMLSProposalFailures @ProposalErrors
           . fmap pure
           . updateLocalConversationUnchecked @'ConversationRemoveMembersTag lconv qusr con
+          . flip ConversationRemoveMembers EdReasonRemoved
       )
       . nonEmpty
       . filter (flip Set.member (existingMembers lconv))

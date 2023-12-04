@@ -123,11 +123,13 @@ import Polysemy.TinyLog qualified as P
 import SAML2.WebSSO qualified as SAML
 import System.Logger (Msg)
 import System.Logger qualified as Log
+import Wire.API.Conversation (ConversationRemoveMembers (..))
 import Wire.API.Conversation.Role (Action (DeleteConversation), wireConvRoles)
 import Wire.API.Conversation.Role qualified as Public
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation qualified as Conv
+import Wire.API.Event.LeaveReason
 import Wire.API.Event.Team
 import Wire.API.Federation.Error
 import Wire.API.Message qualified as Conv
@@ -1064,7 +1066,10 @@ removeFromConvsAndPushConvLeaveEvent lusr zcon tid remove admins = do
               zcon
               (qualifyAs lusr dc)
               targets
-              (pure . tUntagged . qualifyAs lusr $ remove)
+              ( ConversationRemoveMembers
+                  (pure . tUntagged . qualifyAs lusr $ remove)
+                  EdReasonDeleted
+              )
 
 getTeamConversations ::
   ( Member (ErrorS 'NotATeamMember) r,

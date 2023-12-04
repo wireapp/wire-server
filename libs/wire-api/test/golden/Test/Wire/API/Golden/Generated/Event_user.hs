@@ -34,6 +34,7 @@ import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role (parseRoleName)
 import Wire.API.Conversation.Typing
 import Wire.API.Event.Conversation
+import Wire.API.Event.LeaveReason
 import Wire.API.Provider.Service (ServiceRef (ServiceRef, _serviceRefId, _serviceRefProvider))
 
 domain :: Domain
