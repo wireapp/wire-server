@@ -494,12 +494,9 @@ invalidTTLErrorString = "Invalid FeatureTTLSeconds: must be a positive integer o
 -- LockStatus
 
 data LockStatus = LockStatusLocked | LockStatusUnlocked
-  deriving stock (Eq, Generic)
+  deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform LockStatus)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema LockStatus)
-
-instance Show LockStatus where
-  show = cs . toByteString'
 
 instance FromHttpApiData LockStatus where
   parseUrlPiece = maybeToEither "Invalid lock status" . fromByteString . cs
