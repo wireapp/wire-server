@@ -10,6 +10,13 @@ fake-aws-sqs:
   - "integration-user-events.fifo"
   - "integration-team-events.fifo"
 
+  # No need for the set of queues with "2" as the suffix because the second
+  # deployment of wire-server runs in a separate namespace (the "-fed2"
+  # namespace) with its own fake-aws-sqs.
+  #
+  # In that namespace these extra queues will be unused, but its easier to
+  # create them and not use them than to not create them. It shouldn't create
+  # any significant perfomance degradation.
   - "integration-brig-events3"
   - "integration-brig-events-internal3"
   - "integration-gundeck-events3"
