@@ -509,7 +509,8 @@ instance ToSchema LockStatus where
           element "unlocked" LockStatusUnlocked
         ]
 
-instance S.ToParamSchema LockStatus
+instance S.ToParamSchema LockStatus where
+  toParamSchema _ = mempty & S.type_ ?~ S.OpenApiString & S.enum_ ?~ ["locked", "unlocked"]
 
 instance ToByteString LockStatus where
   builder LockStatusLocked = "locked"
