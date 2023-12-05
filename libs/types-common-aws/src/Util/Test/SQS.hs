@@ -66,17 +66,17 @@ watchSQSQueue env queueName = do
     -- ~3 notifications per second. Which makes tests reallly slow. SQS scales
     -- pretty well with multiple consumers, so we start 5 consumers here to bump
     -- the max throughput to about ~15 notifications per second.
-    loop1 <- async $ recieveLoop queueUrl eventsRef
-    loop2 <- async $ recieveLoop queueUrl eventsRef
-    loop3 <- async $ recieveLoop queueUrl eventsRef
-    loop4 <- async $ recieveLoop queueUrl eventsRef
-    loop5 <- async $ recieveLoop queueUrl eventsRef
+    loop1 <- async $ receiveLoop queueUrl eventsRef
+    loop2 <- async $ receiveLoop queueUrl eventsRef
+    loop3 <- async $ receiveLoop queueUrl eventsRef
+    loop4 <- async $ receiveLoop queueUrl eventsRef
+    loop5 <- async $ receiveLoop queueUrl eventsRef
     _ <- Async.waitAny [loop1, loop2, loop3, loop4, loop5]
-    throwIO $ BackgroundThreadNotRunning $ "One of the SQS recieve loops finished, all of them are supposed to run forever"
+    throwIO $ BackgroundThreadNotRunning $ "One of the SQS receive loops finished, all of them are supposed to run forever"
 
   pure $ SQSWatcher process eventsRef
   where
-    recieveLoop queueUrl ref = do
+    receiveLoop queueUrl ref = do
       let rcvReq =
             SQS.newReceiveMessage queueUrl
               & set SQS.receiveMessage_waitTimeSeconds (Just 10)
@@ -89,7 +89,7 @@ watchSQSQueue env queueName = do
         [] -> pure ()
         _ -> atomicModifyIORef ref $ \xs ->
           (parsedMsgs <> xs, ())
-      recieveLoop queueUrl ref
+      receiveLoop queueUrl ref
 
     ensureEmpty :: Text -> IO ()
     ensureEmpty queueUrl = void $ execute env $ sendEnv (SQS.newPurgeQueue queueUrl)
