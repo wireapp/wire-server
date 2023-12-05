@@ -37,7 +37,39 @@ import Network.HTTP.Types qualified as HTTP
 import SetupHelpers (randomId, randomUser)
 import Test.Cargohold.API.Util
 import Testlib.Prelude
+import UnliftIO (replicateConcurrently_)
 import UnliftIO.Concurrent
+
+testRateLimiting :: HasCallStack => App ()
+testRateLimiting = do
+  let settings = object ["public" .= False, "retention" .= "persistent"]
+  simpleRateLimiting settings
+  where
+    concurrentN = 100
+    sequentialN = 100
+    simpleRateLimiting :: HasCallStack => Value -> App ()
+    simpleRateLimiting sets = do
+      uid <- randomUser OwnDomain def
+      uid2 <- randomUser OwnDomain def
+      userId2 <- uid2 %. "id" & asString
+      -- Initial upload
+      let bdy = (applicationText, cs "Hello World")
+      r1 <- uploadSimple uid sets bdy
+      r1.status `shouldMatchInt` 201
+      loc <- maybe (error "Could not find the Location header") (pure . cs @_ @String) $ lookup (mk $ cs "Location") r1.headers
+      tok <- asString (r1.json %. "token")
+
+      replicateConcurrently_ concurrentN $ replicateM_ sequentialN $ do
+        -- Lookup with token and download via redirect.
+        r2 <- downloadAssetV4Nginz uid2 loc tok
+        r2.status `shouldMatchInt` 302
+        cs @_ @String r2.body `shouldMatch` ""
+        r3 <- flip get' id =<< parseUrlThrow (C8.unpack (getHeader' (mk $ cs "Location") r2))
+        r3.status `shouldMatchInt` 200
+        assertBool "content-type should always be application/octet-stream" $ Just applicationOctetStream == fmap MIME.mimeType (getContentType r3)
+        assertBool "token mismatch" $ tok == decodeHeaderOrFail (mk $ cs "x-amz-meta-token") r3
+        assertBool "user mismatch" $ userId2 == decodeHeaderOrFail (mk $ cs "x-amz-meta-user") r3
+        assertBool "data mismatch" $ cs "Hello World" == r3.body
 
 --------------------------------------------------------------------------------
 -- Simple (single-step) uploads
