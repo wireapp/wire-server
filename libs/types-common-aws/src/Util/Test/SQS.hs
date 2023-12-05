@@ -62,6 +62,10 @@ watchSQSQueue env queueName = do
 
   ensureEmpty queueUrl
   process <- async $ do
+    -- Every receive request takes ~300ms (on my machine). This puts a limit of
+    -- ~3 notifications per second. Which makes tests reallly slow. SQS scales
+    -- pretty well with multiple consumers, so we start 5 consumers here to bump
+    -- the max throughput to about ~15 notifications per second.
     loop1 <- async $ recieveLoop queueUrl eventsRef
     loop2 <- async $ recieveLoop queueUrl eventsRef
     loop3 <- async $ recieveLoop queueUrl eventsRef
