@@ -30,6 +30,7 @@ import Data.ByteString qualified as BS
 import Data.ByteString.Builder
 import Data.ByteString.Lazy qualified as LBS
 import Data.Domain
+import Data.Id (RequestId)
 import Data.Metrics.Servant qualified as Metrics
 import Data.Proxy (Proxy (Proxy))
 import Data.Sequence qualified as Seq
@@ -86,6 +87,7 @@ data API mode = API
         :- "federation"
           :> Capture "component" Component
           :> Capture "rpc" RPC
+          :> Header "Wire-Origin-Request-Id" RequestId
           :> Header' '[Required, Strict] OriginDomainHeaderName Domain
           :> Header' '[Required, Strict] "X-SSL-Certificate" CertHeader
           :> Endpath
@@ -114,8 +116,8 @@ server ::
 server mgr intPort interpreter =
   API
     { status = Health.status mgr "internal server" intPort,
-      externalRequest = \component rpc remoteDomain remoteCert ->
-        Tagged $ \req respond -> runCodensity (interpreter (callInward component rpc remoteDomain remoteCert req)) respond
+      externalRequest = \component rpc mReqId remoteDomain remoteCert ->
+        Tagged $ \req respond -> runCodensity (interpreter (callInward component rpc mReqId remoteDomain remoteCert req)) respond
     }
 
 -- FUTUREWORK(federation): Versioning of the federation API.
@@ -132,11 +134,12 @@ callInward ::
   ) =>
   Component ->
   RPC ->
+  Maybe RequestId ->
   Domain ->
   CertHeader ->
   Wai.Request ->
   Sem r Wai.Response
-callInward component (RPC rpc) originDomain (CertHeader cert) wreq = do
+callInward component (RPC rpc) mReqId originDomain (CertHeader cert) wreq = do
   incomingCounterIncr originDomain
   -- only POST is supported
   when (Wai.requestMethod wreq /= HTTP.methodPost) $
@@ -151,16 +154,18 @@ callInward component (RPC rpc) originDomain (CertHeader cert) wreq = do
       . Log.field "originDomain" (domainText originDomain)
       . Log.field "component" (show component)
       . Log.field "rpc" rpc
+      . Log.field "requestId" (maybe "N/A" show mReqId)
 
   validatedDomain <- validateDomain cert originDomain
 
   let path = LBS.toStrict (toLazyByteString (HTTP.encodePathSegments ["federation", rpc]))
 
   body <- embed $ Wai.lazyRequestBody wreq
-  resp <- serviceCall component path body validatedDomain
+  resp <- serviceCall component path body mReqId validatedDomain
   Log.debug $
     Log.msg ("Inward Request response" :: ByteString)
       . Log.field "status" (show (responseStatusCode resp))
+      . Log.field "requestId" (maybe "N/A" show mReqId)
   pure $
     streamingResponseToWai
       resp

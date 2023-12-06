@@ -6,6 +6,7 @@ import Data.ByteString.Base64 qualified as Base64
 import Data.Foldable
 import Data.Function
 import Data.Text.Encoding qualified as T
+import Data.UUID.V1 (nextUUID)
 import GHC.Stack
 import Testlib.Prelude
 
@@ -206,10 +207,11 @@ searchContacts ::
   domain ->
   App Response
 searchContacts user searchTerm domain = do
+  rid <- show . fromJust <$> liftIO nextUUID
   req <- baseRequest user Brig Versioned "/search/contacts"
   q <- asString searchTerm
   d <- objDomain domain
-  submit "GET" (req & addQueryParams [("q", q), ("domain", d)])
+  submit "GET" (req & addQueryParams [("q", q), ("domain", d)] & addHeader "Request-Id" rid)
 
 getAPIVersion :: (HasCallStack, MakesValue domain) => domain -> App Response
 getAPIVersion domain = do

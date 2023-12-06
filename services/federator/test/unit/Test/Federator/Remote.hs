@@ -89,7 +89,7 @@ mkTestCall sslCtx hostname port = do
     . discoverLocalhost hostname port
     . assertNoError @DiscoveryFailure
     . interpretRemote
-    $ discoverAndCall (Domain "localhost") Brig "test" [] mempty
+    $ discoverAndCall Nothing (Domain "localhost") Brig "test" [] mempty
 
 withMockServer :: Warp.TLSSettings -> (Warp.Port -> IO a) -> IO a
 withMockServer tls k =

@@ -151,4 +151,4 @@ inwardBrigCallViaIngressWithSettings sslCtx requestPath payload =
       . assertNoError @DiscoveryFailure
       . discoverConst target
       . interpretRemote
-      $ discoverAndCall (Domain "example.com") Brig requestPath headers payload
+      $ discoverAndCall Nothing (Domain "example.com") Brig requestPath headers payload

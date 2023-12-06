@@ -437,6 +437,9 @@ instance EncodeWire RequestId where
 instance DecodeWire RequestId where
   decodeWire = fmap RequestId . decodeWire
 
+instance FromHttpApiData RequestId where
+  parseUrlPiece = Right . RequestId . encodeUtf8
+
 -- Rendering Id values in JSON objects -----------------------------------------
 
 newtype IdObject a = IdObject {fromIdObject :: a}

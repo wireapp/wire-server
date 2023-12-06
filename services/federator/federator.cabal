@@ -413,6 +413,7 @@ test-suite federator-tests
     , transformers
     , types-common
     , unix
+    , uuid
     , wai
     , wai-extra
     , wai-utilities
