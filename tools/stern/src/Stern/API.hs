@@ -157,6 +157,7 @@ sitemap' =
     :<|> Named @"get-search-visibility" getSearchVisibility
     :<|> Named @"put-search-visibility" setSearchVisibility
     :<|> Named @"get-route-outlook-cal-config" (mkFeatureGetRoute @OutlookCalIntegrationConfig)
+    :<|> Named @"lock-unlock-route-outlook-cal-config" (mkFeatureLockUnlockRouteTrivialConfigNoTTL @OutlookCalIntegrationConfig)
     :<|> Named @"put-route-outlook-cal-config" (mkFeaturePutRouteTrivialConfigNoTTL @OutlookCalIntegrationConfig)
     :<|> Named @"get-team-invoice" getTeamInvoice
     :<|> Named @"get-team-billing-info" getTeamBillingInfo
@@ -334,6 +335,10 @@ type MkFeaturePutConstraints cfg =
 mkFeaturePutRouteTrivialConfigNoTTL ::
   forall cfg. (MkFeaturePutConstraints cfg) => TeamId -> FeatureStatus -> Handler NoContent
 mkFeaturePutRouteTrivialConfigNoTTL tid status = mkFeaturePutRouteTrivialConfig @cfg tid status Nothing
+
+mkFeatureLockUnlockRouteTrivialConfigNoTTL ::
+  forall cfg. (MkFeaturePutConstraints cfg) => TeamId -> LockStatus -> Handler NoContent
+mkFeatureLockUnlockRouteTrivialConfigNoTTL tid lstat = NoContent <$ Intra.setTeamFeatureLockStatus @cfg tid lstat
 
 mkFeaturePutRouteTrivialConfigWithTTL ::
   forall cfg. (MkFeaturePutConstraints cfg) => TeamId -> FeatureStatus -> FeatureTTLDays -> Handler NoContent
