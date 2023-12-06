@@ -1,0 +1,9 @@
+{
+    "reason": "removed",
+    "targets": [
+        {
+            "domain": "test.net",
+            "id": "eb48b095-d96f-4a94-b4ec-2a1d61447e13"
+        }
+    ]
+}

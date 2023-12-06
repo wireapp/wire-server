@@ -1,0 +1,13 @@
+{
+    "reason": "user-deleted",
+    "targets": [
+        {
+            "domain": "example.com",
+            "id": "4f201a43-935e-4e19-8fe0-0a878d3d6e74"
+        },
+        {
+            "domain": "test.net",
+            "id": "eb48b095-d96f-4a94-b4ec-2a1d61447e13"
+        }
+    ]
+}
