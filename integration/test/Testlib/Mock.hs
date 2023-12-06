@@ -23,19 +23,21 @@ data MockServerConfig = MockServerConfig
 instance Default MockServerConfig where
   def = MockServerConfig {port = Nothing, tls = False}
 
-spawnServer :: Bool -> Warp.Settings -> Socket.Socket -> Wai.Application -> App ()
-spawnServer False wsettings sock app = liftIO $ Warp.runSettingsSocket wsettings sock app
-spawnServer True wsettings sock app = do
+spawnServer :: Warp.Settings -> Socket.Socket -> Wai.Application -> App ()
+spawnServer wsettings sock app = liftIO $ Warp.runSettingsSocket wsettings sock app
+
+spawnTLSServer :: Warp.Settings -> Socket.Socket -> Wai.Application -> App ()
+spawnTLSServer wsettings sock app = do
   (cert, key) <-
     asks (.servicesCwdBase) <&> \case
       Nothing ->
-          ( "/etc/wire/federator/secrets/tls.crt",
-            "/etc/wire/federator/secrets/tls.key"
-          )
+        ( "/etc/wire/federator/secrets/tls.crt",
+          "/etc/wire/federator/secrets/tls.key"
+        )
       Just base ->
-          ( base <> "/federator/test/resources/integration-leaf.pem",
-            base <> "/federator/test/resources/integration-leaf-key.pem"
-          )
+        ( base <> "/federator/test/resources/integration-leaf.pem",
+          base <> "/federator/test/resources/integration-leaf-key.pem"
+        )
   liftIO $ Warp.runTLSSocket (Warp.tlsSettings cert key) wsettings sock app
 
 startMockServer :: MockServerConfig -> Wai.Application -> Codensity App Warp.Port
@@ -59,7 +61,7 @@ startMockServer config app = do
           & Warp.setBeforeMainLoop (putMVar serverStarted Nothing)
 
   -- Action to start server in a separate thread.
-  startServer <- lift . appToIO $ spawnServer config.tls wsettings sock app
+  startServer <- lift . appToIO $ (if config.tls then spawnTLSServer else spawnServer) wsettings sock app
   let startServerAsync = do
         a <- async $ do
           catch startServer $ \(e :: SomeException) ->
