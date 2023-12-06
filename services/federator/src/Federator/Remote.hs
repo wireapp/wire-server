@@ -125,7 +125,9 @@ interpretRemote = interpret $ \case
             HTTP.encodePathSegments ["federation", componentName component, rpc]
         pathT = decodeUtf8 path
         -- filter out Host header, because the HTTP2 client adds it back
-        headers' = filter ((/= "Host") . fst) headers <> [((RPC.requestIdName, maybe "N/A" RPC.unRequestId mReqId))]
+        headers' =
+          filter ((/= "Host") . fst) headers
+            <> [(RPC.requestIdName, rid) | RequestId rid <- maybeToList mReqId]
         req' = HTTP2.requestBuilder HTTP.methodPost path headers' body
 
     mgr <- input

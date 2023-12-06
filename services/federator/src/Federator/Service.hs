@@ -95,7 +95,7 @@ interpretServiceHTTP = interpret $ \case
                 [ ("Content-Type", "application/json"),
                   (originDomainHeaderName, cs (domainText domain))
                 ]
-                  <> maybe [] (\(RequestId rid) -> [(RPC.requestIdName, rid)]) mReqId
+                  <> [(RPC.requestIdName, rid) | RequestId rid <- maybeToList mReqId]
             }
 
     embed $

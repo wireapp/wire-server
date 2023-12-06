@@ -46,17 +46,20 @@ enqueueSingleNotification remoteDomain deliveryMode chanVar action = do
   recovering policy handlers (const $ go ownDomain)
   where
     logError willRetry (SomeException e) status = do
+      rid <- view reqId
       Log.err $
         Log.msg @Text "failed to enqueue notification in RabbitMQ"
           . Log.field "error" (displayException e)
           . Log.field "willRetry" willRetry
           . Log.field "retryCount" status.rsIterNumber
+          . Log.field "request" (show rid)
     go ownDomain = do
+      rid <- view reqId
       mChan <- timeout 1_000_000 (readMVar chanVar)
       case mChan of
         Nothing -> throwM NoRabbitMqChannel
         Just chan -> do
-          liftIO $ enqueue chan ownDomain remoteDomain deliveryMode action
+          liftIO $ enqueue chan (Just rid) ownDomain remoteDomain deliveryMode action
 
 enqueueNotification :: Domain -> Q.DeliveryMode -> FedQueueClient c a -> ExceptT FederationError App a
 enqueueNotification remoteDomain deliveryMode action = do

@@ -7,6 +7,7 @@ import Control.Exception
 import Control.Monad.Except
 import Data.Aeson
 import Data.Domain
+import Data.Id (RequestId)
 import Data.Map qualified as Map
 import Data.Text qualified as Text
 import Data.Text.Lazy.Encoding qualified as TL
@@ -31,7 +32,8 @@ data BackendNotification = BackendNotification
     -- this body, which could be very large and completely useless to the
     -- pusher. This also makes development less clunky as we don't have to
     -- create a sum type here for all types of notifications that could exist.
-    body :: RawJson
+    body :: RawJson,
+    requestId :: Maybe RequestId
   }
   deriving (Show, Eq)
 
@@ -41,7 +43,8 @@ instance ToJSON BackendNotification where
       [ "ownDomain" .= notif.ownDomain,
         "targetComponent" .= notif.targetComponent,
         "path" .= notif.path,
-        "body" .= TL.decodeUtf8 notif.body.rawJsonBytes
+        "body" .= TL.decodeUtf8 notif.body.rawJsonBytes,
+        "requestId" .= notif.requestId
       ]
 
 instance FromJSON BackendNotification where
@@ -51,6 +54,7 @@ instance FromJSON BackendNotification where
       <*> o .: "targetComponent"
       <*> o .: "path"
       <*> (RawJson . TL.encodeUtf8 <$> o .: "body")
+      <*> o .:? "requestId"
 
 type BackendNotificationAPI = Capture "name" Text :> ReqBody '[JSON] RawJson :> Post '[JSON] EmptyResponse
 
@@ -70,8 +74,8 @@ sendNotification env component path body =
       runFederatorClient env . void $
         clientIn (Proxy @BackendNotificationAPI) (Proxy @(FederatorClient c)) (withoutFirstSlash path) body
 
-enqueue :: Q.Channel -> Domain -> Domain -> Q.DeliveryMode -> FedQueueClient c a -> IO a
-enqueue channel originDomain targetDomain deliveryMode (FedQueueClient action) =
+enqueue :: Q.Channel -> Maybe RequestId -> Domain -> Domain -> Q.DeliveryMode -> FedQueueClient c a -> IO a
+enqueue channel requestId originDomain targetDomain deliveryMode (FedQueueClient action) =
   runReaderT action FedQueueEnv {..}
 
 routingKey :: Text -> Text
@@ -127,7 +131,8 @@ data FedQueueEnv = FedQueueEnv
   { channel :: Q.Channel,
     originDomain :: Domain,
     targetDomain :: Domain,
-    deliveryMode :: Q.DeliveryMode
+    deliveryMode :: Q.DeliveryMode,
+    requestId :: Maybe RequestId
   }
 
 data EnqueueError = EnqueueError String
