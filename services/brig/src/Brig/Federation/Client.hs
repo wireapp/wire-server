@@ -173,7 +173,7 @@ enqueueNotification ownDomain remoteDomain deliveryMode chanVar action = do
           . Log.field "error" (displayException e)
           . Log.field "willRetry" willRetry
           . Log.field "retryCount" status.rsIterNumber
-          . Log.field "requestId" (show rid)
+          . Log.field "request" rid
     go = do
       rid <- view Brig.requestId
       mChan <- timeout (1 :: Second) (readMVar chanVar)

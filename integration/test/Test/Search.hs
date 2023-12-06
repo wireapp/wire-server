@@ -217,15 +217,3 @@ testFederatedUserSearchForNonTeamUser = do
         [] -> pure ()
         doc : _ ->
           assertFailure $ "Expected an empty result, but got " <> show doc <> " for test case "
-
-
-testRequestIdFederatedUserSearch :: HasCallStack => App ()
-testRequestIdFederatedUserSearch = do
-  let testCases =
-        [
-          FedUserSearchTestCase "full_search" AllowAll AllowAll True True
-        ]
-  startDynamicBackends [def, def] $ \[d1, d2] -> do
-    void $ BrigI.createFedConn d2 (BrigI.FedConn d1 "full_search" Nothing)
-    void $ BrigI.createFedConn d1 (BrigI.FedConn d2 "full_search" Nothing)
-    forM_ testCases (federatedUserSearch d1 d2)

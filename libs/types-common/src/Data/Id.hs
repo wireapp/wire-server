@@ -88,6 +88,7 @@ import Data.UUID qualified as UUID
 import Data.UUID.V4
 import Imports
 import Servant (FromHttpApiData (..), ToHttpApiData (..))
+import System.Logger (ToBytes)
 import Test.QuickCheck
 import Test.QuickCheck.Instances ()
 
@@ -413,7 +414,8 @@ newtype RequestId = RequestId
       ToByteString,
       Hashable,
       NFData,
-      Generic
+      Generic,
+      ToBytes
     )
 
 instance ToSchema RequestId where
