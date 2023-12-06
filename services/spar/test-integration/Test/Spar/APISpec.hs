@@ -32,6 +32,7 @@ import Control.Monad.Random.Class (getRandomR)
 import Data.Aeson as Aeson
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
+import Data.Handle (fromHandle)
 import Data.Id
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Misc
@@ -81,11 +82,13 @@ import Text.XML.DSig (SignPrivCreds, mkSignCredsWithCert)
 import qualified URI.ByteString as URI
 import URI.ByteString.QQ (uri)
 import Util.Core
-import Util.Scim (createUser, filterBy, listUsers, randomScimUser, randomScimUserWithEmail, registerScimToken)
+import Util.Scim (createUser, filterBy, listUsers, randomScimUserWithEmail, randomScimUserWithNick, registerScimToken)
 import qualified Util.Scim as ScimT
 import Util.Types
 import qualified Web.Cookie as Cky
 import qualified Web.Scim.Class.User as Scim
+import qualified Web.Scim.Schema.Common as Scim
+import qualified Web.Scim.Schema.Meta as Scim
 import qualified Web.Scim.Schema.User as Scim
 import Wire.API.Team.Member (newTeamMemberDeleteData)
 import Wire.API.Team.Permission hiding (self)
@@ -1058,35 +1061,80 @@ specCRUDIdentityProvider = do
 
     describe "replaces an existing idp"
       $ forM_
-        [ (h, u, e)
-          | h <- [False, True], -- are users scim provisioned or via team management invitations?
-            u <- [False, True], -- do we use update-by-put or update-by-post?  (see below)
-            (h, u) /= (True, False), -- scim doesn't not work with more than one idp (https://wearezeta.atlassian.net/browse/WPB-689)
+        [ (u, e)
+          | u <- [False, True], -- do we use update-by-put or update-by-post?  (see below)
             e <- [False, True] -- is the externalId an email address?  (if not, it's a uuidv4, and the email address is stored in `emails`)
         ]
-      $ \(haveScim, updateNotReplace, externalIdIsEmail) -> do
-        it ("creates new idp, setting old_issuer; sets replaced_by in old idp; scim user search still works: haveScim=" <> show haveScim <> ", updateNotReplace=" <> show updateNotReplace <> ", externalIdIsEmail=" <> show externalIdIsEmail) $ do
-          env <- ask
-          (owner1, teamid, idp1, (IdPMetadataValue _ idpmeta1, _privCreds)) <- registerTestIdPWithMeta
+      $ \(updateNotReplace, externalIdIsEmail) -> do
+        let updateOrReplaceIdps :: (UserId, IdP, SAML.IdPMetadata) -> TestSpar ()
+            updateOrReplaceIdps (owner1, idp1, idpmeta1) = do
+              env <- ask
+              issuer2 <- makeIssuer
+              idp2 <- do
+                let idpmeta2 = idpmeta1 & edIssuer .~ issuer2
+                 in call $
+                      -- There are two mechanisms for re-aligning your team when your IdP metadata
+                      -- has changed: POST (create a new one, and mark it as replacing the old one),
+                      -- and PUT (updating the existing IdP's metadata).  The reason for having two
+                      -- ways to do this has been lost in history, but we're testing both here.
+                      --
+                      -- FUTUREWORK: deprecate POST!
+                      if updateNotReplace
+                        then callIdpUpdate' (env ^. teSpar) (Just owner1) (idp1 ^. SAML.idpId) (idPMetadataToInfo idpmeta2)
+                        else callIdpCreateReplace (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just owner1) idpmeta2 (idp1 ^. SAML.idpId)
+
+              idp1' <- call $ callIdpGet (env ^. teSpar) (Just owner1) (idp1 ^. SAML.idpId)
+              idp2' <- call $ callIdpGet (env ^. teSpar) (Just owner1) (idp2 ^. SAML.idpId)
+              liftIO $ do
+                let updateIdp1 = updateCurrentIssuer . updateOldIssuers
+                      where
+                        updateCurrentIssuer = idpMetadata . edIssuer .~ (idp2' ^. idpMetadata . edIssuer)
+                        updateOldIssuers = idpExtraInfo . oldIssuers .~ [idp1 ^. idpMetadata . edIssuer]
+                    replaceIdp1 =
+                      idpExtraInfo . replacedBy .~ idp1' ^. idpExtraInfo . replacedBy
+                 in idp1' `shouldBe` (idp1 & if updateNotReplace then updateIdp1 else replaceIdp1)
+
+                idp2' `shouldBe` idp2
+                idp1 ^. idpMetadata . SAML.edIssuer `shouldBe` (idpmeta1 ^. SAML.edIssuer)
+                idp2 ^. idpMetadata . SAML.edIssuer `shouldBe` issuer2
+
+                if updateNotReplace
+                  then idp2 ^. idpId `shouldBe` idp1 ^. idpId
+                  else idp2 ^. idpId `shouldNotBe` idp1 ^. idpId
+
+                idp2 ^. idpExtraInfo . oldIssuers `shouldBe` [idpmeta1 ^. edIssuer]
+                idp1' ^. idpExtraInfo . replacedBy `shouldBe` if updateNotReplace then Nothing else Just (idp2 ^. idpId)
+
+                -- erase everything that is supposed to be different between idp1, idp2, and make
+                -- sure the result is equal.
+                let erase :: IdP -> IdP
+                    erase =
+                      (idpId .~ (idp1 ^. idpId))
+                        . (idpMetadata . edIssuer .~ (idp1 ^. idpMetadata . edIssuer))
+                        . (idpExtraInfo . oldIssuers .~ (idp1 ^. idpExtraInfo . oldIssuers))
+                        . (idpExtraInfo . replacedBy .~ (idp1 ^. idpExtraInfo . replacedBy))
+                        . (idpExtraInfo . handle .~ (idp1 ^. idpExtraInfo . handle))
+                 in erase idp1 `shouldBe` erase idp2
+
+        -- scim doesn't work with more than one idp, so we can't test the post variant
+        -- that creates a second idp (https://wearezeta.atlassian.net/browse/WPB-689)
+        when updateNotReplace . it ("creates new idp, setting old_issuer; sets replaced_by in old idp; scim user search still works: provisionViaScim=True, updateNotReplace=" <> show updateNotReplace <> ", externalIdIsEmail=" <> show externalIdIsEmail) $ do
+          (owner1, teamid, idp1, (IdPMetadataValue _ idpmeta1, _)) <- registerTestIdPWithMeta
           let idp1id = idp1 ^. idpId
 
-          mbScimStuff :: Maybe (ScimToken, Scim.StoredUser SparTag, Scim.User SparTag) <-
-            if haveScim
-              then do
-                tok <- registerScimToken teamid (Just idp1id)
-                user <-
-                  if externalIdIsEmail
-                    then fst <$> randomScimUserWithEmail
-                    else randomScimUser
-                scimStoredUser <- createUser tok user
-                pure $ Just (tok, scimStoredUser, user)
-              else pure Nothing
+          tok <- registerScimToken teamid (Just idp1id)
+          scimUser <-
+            if externalIdIsEmail
+              then fst <$> randomScimUserWithEmail
+              else fst <$> randomScimUserWithNick
+          scimStoredUser <- createUser tok scimUser
 
           let checkScimSearch ::
                 HasCallStack =>
-                (ScimToken, Scim.StoredUser SparTag, Scim.User SparTag) ->
+                Scim.StoredUser SparTag ->
+                Scim.User SparTag ->
                 ReaderT TestEnv IO ()
-              checkScimSearch (tok, target, searchKeys) = do
+              checkScimSearch target searchKeys = do
                 let Just externalId = Scim.externalId searchKeys
                     handle' = Scim.userName searchKeys
                 respId <- listUsers tok (Just (filterBy "externalId" externalId))
@@ -1095,56 +1143,40 @@ specCRUDIdentityProvider = do
                   respId `shouldBe` [target]
                   respHandle `shouldBe` [target]
 
-          checkScimSearch `mapM_` mbScimStuff
+          checkScimSearch scimStoredUser scimUser
+          updateOrReplaceIdps (owner1, idp1, idpmeta1)
+          checkScimSearch scimStoredUser scimUser
 
-          issuer2 <- makeIssuer
-          idp2 <- do
-            let idpmeta2 = idpmeta1 & edIssuer .~ issuer2
-             in call $
-                  -- There are two mechanisms for re-aligning your team when your IdP metadata
-                  -- has changed: POST (create a new one, and mark it as replacing the old one),
-                  -- and PUT (updating the existing IdP's metadata).  The reason for having two
-                  -- ways to do this has been lost in history, but we're testing both here.
-                  --
-                  -- FUTUREWORK: deprecate POST!
-                  if updateNotReplace
-                    then callIdpUpdate' (env ^. teSpar) (Just owner1) (idp1 ^. SAML.idpId) (idPMetadataToInfo idpmeta2)
-                    else callIdpCreateReplace (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just owner1) idpmeta2 (idp1 ^. SAML.idpId)
+        it ("creates new idp, setting old_issuer; sets replaced_by in old idp; scim user search still works: provisionViaScim=False, updateNotReplace=" <> show updateNotReplace <> ", externalIdIsEmail=" <> show externalIdIsEmail) $ do
+          (owner1, teamid, idp1, (IdPMetadataValue _ idpmeta1, privcreds)) <- registerTestIdPWithMeta
+          let idp1id = idp1 ^. idpId
 
-          idp1' <- call $ callIdpGet (env ^. teSpar) (Just owner1) (idp1 ^. SAML.idpId)
-          idp2' <- call $ callIdpGet (env ^. teSpar) (Just owner1) (idp2 ^. SAML.idpId)
-          liftIO $ do
-            let updateIdp1 = updateCurrentIssuer . updateOldIssuers
-                  where
-                    updateCurrentIssuer = idpMetadata . edIssuer .~ (idp2' ^. idpMetadata . edIssuer)
-                    updateOldIssuers = idpExtraInfo . oldIssuers .~ [idp1 ^. idpMetadata . edIssuer]
-                replaceIdp1 =
-                  idpExtraInfo . replacedBy .~ idp1' ^. idpExtraInfo . replacedBy
-             in idp1' `shouldBe` (idp1 & if updateNotReplace then updateIdp1 else replaceIdp1)
+          (uid, mbEmail, hdl) :: (UserId, Maybe Text, Text) <- do
+            spmeta <- getTestSPMetadata teamid
+            authnreq <- negotiateAuthnRequest idp1
+            authnresp <- runSimpleSP $ mkAuthnResponse privcreds idp1 spmeta authnreq True
+            sparresp <- submitAuthnResponse teamid authnresp
+            liftIO $ statusCode sparresp `shouldBe` 200
+            ssoid <- getSsoidViaAuthResp authnresp
+            Just uid <- ssoToUidSpar teamid ssoid
+            setRandomHandleBrig uid
+            Just usr <- getUserBrig uid
+            let eml = fromEmail <$> (emailIdentity =<< userIdentity usr)
+                Just hdl = fromHandle <$> userHandle usr
+            pure (uid, eml, hdl)
 
-            idp2' `shouldBe` idp2
-            idp1 ^. idpMetadata . SAML.edIssuer `shouldBe` (idpmeta1 ^. SAML.edIssuer)
-            idp2 ^. idpMetadata . SAML.edIssuer `shouldBe` issuer2
+          -- if user is created via saml, don't call checkScimSearch here until we have
+          -- updated the idp; otherwise, the interesting second call would only find a
+          -- scim-imported user and this test would be redundant..
+          updateOrReplaceIdps (owner1, idp1, idpmeta1)
 
-            if updateNotReplace
-              then idp2 ^. idpId `shouldBe` idp1 ^. idpId
-              else idp2 ^. idpId `shouldNotBe` idp1 ^. idpId
-
-            idp2 ^. idpExtraInfo . oldIssuers `shouldBe` [idpmeta1 ^. edIssuer]
-            idp1' ^. idpExtraInfo . replacedBy `shouldBe` if updateNotReplace then Nothing else Just (idp2 ^. idpId)
-
-            -- erase everything that is supposed to be different between idp1, idp2, and make
-            -- sure the result is equal.
-            let erase :: IdP -> IdP
-                erase =
-                  (idpId .~ (idp1 ^. idpId))
-                    . (idpMetadata . edIssuer .~ (idp1 ^. idpMetadata . edIssuer))
-                    . (idpExtraInfo . oldIssuers .~ (idp1 ^. idpExtraInfo . oldIssuers))
-                    . (idpExtraInfo . replacedBy .~ (idp1 ^. idpExtraInfo . replacedBy))
-                    . (idpExtraInfo . handle .~ (idp1 ^. idpExtraInfo . handle))
-             in erase idp1 `shouldBe` erase idp2
-
-          checkScimSearch `mapM_` mbScimStuff
+          -- checkScimSearch
+          tok <- registerScimToken teamid (Just idp1id)
+          respHandle <- listUsers tok (Just (filterBy "userName" hdl))
+          liftIO $ ((Scim.id . Scim.thing) <$> respHandle) `shouldBe` [uid]
+          (`mapM_` mbEmail) $ \eml -> do
+            respId <- listUsers tok (Just (filterBy "externalId" eml))
+            liftIO $ ((Scim.id . Scim.thing) <$> respId) `shouldBe` [uid]
 
     describe "replaces an existing idp (cont.)" $ do
       it "users can still login on old idp as before" $ do
