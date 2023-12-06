@@ -202,7 +202,7 @@ runBrigFederatorClient targetDomain action = do
             ceTargetDomain = targetDomain,
             ceFederator = endpoint,
             ceHttp2Manager = mgr,
-            ceOriginRequestId = rid
+            ceOriginRequestId = Just rid
           }
   liftIO (runFederatorClient env action)
     >>= either (throwE . FederationCallFailure) pure

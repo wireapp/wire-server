@@ -76,7 +76,7 @@ data FederatorClientEnv = FederatorClientEnv
     ceTargetDomain :: Domain,
     ceFederator :: Endpoint,
     ceHttp2Manager :: Http2Manager,
-    ceOriginRequestId :: RequestId
+    ceOriginRequestId :: Maybe RequestId
   }
 
 data FederatorClientVersionedEnv = FederatorClientVersionedEnv
@@ -217,7 +217,7 @@ withHTTP2StreamingRequest successfulStatus req handleResponse = do
         toList (requestHeaders req)
           <> [(originDomainHeaderName, toByteString' (ceOriginDomain env))]
           <> [(HTTP.hAccept, HTTP.renderHeader (toList $ req.requestAccept))]
-          <> [("Wire-Origin-Request-Id", toByteString' (ceOriginRequestId env))]
+          <> [("Wire-Origin-Request-Id", rid) | rid <- toByteString' <$> maybeToList (ceOriginRequestId env)]
       req' =
         HTTP2.requestBuilder
           (requestMethod req)

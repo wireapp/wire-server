@@ -96,7 +96,7 @@ pushNotification runningFlag targetDomain (msg, envelope) = do
         ceHttp2Manager <- asks http2Manager
         let ceOriginDomain = notif.ownDomain
             ceTargetDomain = targetDomain
-            ceOriginRequestId = error "todo(leif): requestId not set"
+            ceOriginRequestId = notif.requestId
             fcEnv = FederatorClientEnv {..}
         liftIO $ either throwM pure =<< sendNotification fcEnv notif.targetComponent notif.path notif.body
         lift $ ack envelope

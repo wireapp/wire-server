@@ -69,7 +69,7 @@ runFederatedEither (tDomain -> remoteDomain) rpc = do
                 ceTargetDomain = remoteDomain,
                 ceFederator = fedEndpoint,
                 ceHttp2Manager = mgr,
-                ceOriginRequestId = rid
+                ceOriginRequestId = Just rid
               }
       liftIO . fmap (first FederationCallFailure) $ runFederatorClient ce rpc
 
