@@ -29,6 +29,7 @@ import Data.Bifunctor
 import Data.ByteString qualified as BS
 import Data.ByteString.Builder
 import Data.ByteString.Lazy qualified as LBS
+import Data.Default (Default (def))
 import Data.Domain
 import Data.Id (RequestId)
 import Data.Metrics.Servant qualified as Metrics
@@ -154,7 +155,7 @@ callInward component (RPC rpc) mReqId originDomain (CertHeader cert) wreq = do
       . Log.field "originDomain" (domainText originDomain)
       . Log.field "component" (show component)
       . Log.field "rpc" rpc
-      . Log.field "requestId" (maybe "N/A" show mReqId)
+      . Log.field "request" (fromMaybe def mReqId)
 
   validatedDomain <- validateDomain cert originDomain
 
@@ -165,7 +166,7 @@ callInward component (RPC rpc) mReqId originDomain (CertHeader cert) wreq = do
   Log.debug $
     Log.msg ("Inward Request response" :: ByteString)
       . Log.field "status" (show (responseStatusCode resp))
-      . Log.field "requestId" (maybe "N/A" show mReqId)
+      . Log.field "request" (fromMaybe def mReqId)
   pure $
     streamingResponseToWai
       resp
