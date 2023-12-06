@@ -27,14 +27,12 @@ spawnServer :: Bool -> Warp.Settings -> Socket.Socket -> Wai.Application -> App 
 spawnServer False wsettings sock app = liftIO $ Warp.runSettingsSocket wsettings sock app
 spawnServer True wsettings sock app = do
   (cert, key) <-
-    asks (.servicesCwdBase) >>= \case
+    asks (.servicesCwdBase) <&> \case
       Nothing ->
-        pure
           ( "/etc/wire/federator/secrets/tls.crt",
             "/etc/wire/federator/secrets/tls.key"
           )
       Just base ->
-        pure
           ( base <> "/federator/test/resources/integration-leaf.pem",
             base <> "/federator/test/resources/integration-leaf-key.pem"
           )
