@@ -464,18 +464,15 @@ let
     paths = map (e: (hPkgs localModsEnableAll).${e}) wireServerPackages;
   };
 
-  allImages = pkgs.linkFarm "all-images" (images localModsEnableAll) ;
+  allImages = pkgs.linkFarm "all-images" (images localModsEnableAll);
 
   # BOM is an acronym for bill of materials
   allLocalPackagesBom = lib.buildBom allLocalPackages {
     includeBuildtimeDependencies = true;
   };
-  allImagesBom = lib.buildBom allImages {
-    includeBuildtimeDependencies = true;
-  };
 in
 {
-  inherit ciImage hoogleImage allImages allImagesBom allLocalPackages allLocalPackagesBom;
+  inherit ciImage hoogleImage allImages allLocalPackages allLocalPackagesBom;
 
   images = images localModsEnableAll;
   imagesUnoptimizedNoDocs = images localModsOnlyTests;
