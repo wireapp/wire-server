@@ -26,11 +26,10 @@ import Data.Bifunctor (first)
 import Data.ByteString qualified as BS
 import Data.ByteString.Builder (Builder, byteString, toLazyByteString)
 import Data.ByteString.Lazy qualified as LBS
+import Data.Default (Default (def))
 import Data.Domain
-import Data.Id (RequestId (RequestId))
 import Data.Proxy
 import Data.Text.Encoding qualified as Text
-import Data.UUID.V1 (nextUUID)
 import Federator.MockServer
 import HTTP2.Client.Manager (defaultHttp2Manager, withHTTP2Request)
 import Imports
@@ -94,14 +93,13 @@ withMockFederatorClient ::
   IO (Either ResponseFailure a, [FederatedRequest])
 withMockFederatorClient headers resp action = withTempMockFederator headers resp $ \port -> do
   mgr <- defaultHttp2Manager
-  rid <- RequestId . cs . show . fromJust <$> liftIO nextUUID
   let env =
         FederatorClientEnv
           { ceOriginDomain = originDomain,
             ceTargetDomain = targetDomain,
             ceFederator = Endpoint "127.0.0.1" (fromIntegral port),
             ceHttp2Manager = mgr,
-            ceOriginRequestId = Just rid
+            ceOriginRequestId = Just def
           }
   a <- runFederatorClient env action
   case a of
@@ -136,14 +134,13 @@ type StreamingAPI = StreamGet NewlineFraming PlainText (SourceIO Text)
 testClientStreaming :: IO ()
 testClientStreaming = withInfiniteMockServer $ \port -> do
   mgr <- defaultHttp2Manager
-  rid <- RequestId . cs . show . fromJust <$> liftIO nextUUID
   let env =
         FederatorClientEnv
           { ceOriginDomain = originDomain,
             ceTargetDomain = targetDomain,
             ceFederator = Endpoint "127.0.0.1" (fromIntegral port),
             ceHttp2Manager = mgr,
-            ceOriginRequestId = Just rid
+            ceOriginRequestId = Just def
           }
       venv = FederatorClientVersionedEnv env Nothing
   let c = clientIn (Proxy @StreamingAPI) (Proxy @(FederatorClient 'Brig))
@@ -204,14 +201,13 @@ testClientConnectionError :: IO ()
 testClientConnectionError = do
   handle <- generate arbitrary
   mgr <- defaultHttp2Manager
-  rid <- RequestId . cs . show . fromJust <$> liftIO nextUUID
   let env =
         FederatorClientEnv
           { ceOriginDomain = originDomain,
             ceTargetDomain = targetDomain,
             ceFederator = Endpoint "127.0.0.1" 1,
             ceHttp2Manager = mgr,
-            ceOriginRequestId = Just rid
+            ceOriginRequestId = Just def
           }
   result <- runFederatorClient env (fedClient @'Brig @"get-user-by-handle" handle)
   case result of

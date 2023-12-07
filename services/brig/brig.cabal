@@ -519,7 +519,6 @@ executable brig-integration
     , unliftio
     , unordered-containers
     , uri-bytestring         >=0.2
-    , uuid
     , vector                 >=0.10
     , wai
     , wai-extra

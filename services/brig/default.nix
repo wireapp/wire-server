@@ -369,7 +369,6 @@ mkDerivation {
     unliftio
     unordered-containers
     uri-bytestring
-    uuid
     vector
     wai
     wai-extra
