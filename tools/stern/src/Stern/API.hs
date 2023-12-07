@@ -46,7 +46,7 @@ import GHC.TypeLits (KnownSymbol)
 import Imports hiding (head)
 import Network.HTTP.Types
 import Network.Wai
-import Network.Wai.Utilities
+import Network.Wai.Utilities as Wai
 import Network.Wai.Utilities.Server qualified as Server
 import Servant (NoContent (NoContent), ServerT, (:<|>) (..))
 import Servant qualified
@@ -107,7 +107,7 @@ sitemap env = Servant.Server.hoistServer (Proxy @SternAPI) nt sitemap'
       fmapL renderError <$> Stern.App.runAppT env (runExceptT m)
 
     renderError :: Error -> Servant.Server.ServerError
-    renderError (Error code label message _) =
+    renderError (Error code label message _ _) =
       Servant.Server.ServerError (statusCode code) (cs label) (cs message) [("Content-type", "application/json")]
 
 sitemap' :: ServerT SternAPI Handler
@@ -157,6 +157,7 @@ sitemap' =
     :<|> Named @"get-search-visibility" getSearchVisibility
     :<|> Named @"put-search-visibility" setSearchVisibility
     :<|> Named @"get-route-outlook-cal-config" (mkFeatureGetRoute @OutlookCalIntegrationConfig)
+    :<|> Named @"lock-unlock-route-outlook-cal-config" (mkFeatureLockUnlockRouteTrivialConfigNoTTL @OutlookCalIntegrationConfig)
     :<|> Named @"put-route-outlook-cal-config" (mkFeaturePutRouteTrivialConfigNoTTL @OutlookCalIntegrationConfig)
     :<|> Named @"get-team-invoice" getTeamInvoice
     :<|> Named @"get-team-billing-info" getTeamBillingInfo
@@ -334,6 +335,10 @@ type MkFeaturePutConstraints cfg =
 mkFeaturePutRouteTrivialConfigNoTTL ::
   forall cfg. (MkFeaturePutConstraints cfg) => TeamId -> FeatureStatus -> Handler NoContent
 mkFeaturePutRouteTrivialConfigNoTTL tid status = mkFeaturePutRouteTrivialConfig @cfg tid status Nothing
+
+mkFeatureLockUnlockRouteTrivialConfigNoTTL ::
+  forall cfg. (MkFeaturePutConstraints cfg) => TeamId -> LockStatus -> Handler NoContent
+mkFeatureLockUnlockRouteTrivialConfigNoTTL tid lstat = NoContent <$ Intra.setTeamFeatureLockStatus @cfg tid lstat
 
 mkFeaturePutRouteTrivialConfigWithTTL ::
   forall cfg. (MkFeaturePutConstraints cfg) => TeamId -> FeatureStatus -> FeatureTTLDays -> Handler NoContent

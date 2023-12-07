@@ -17,7 +17,6 @@
 
 module Federator.Response
   ( defaultHeaders,
-    serve,
     serveServant,
     runFederator,
     runWaiError,
@@ -108,20 +107,6 @@ runWaiError =
     logError e = do
       err $ Wai.logErrorMsg e
       throw e
-
-serve ::
-  (Wai.Request -> Sem AllEffects Wai.Response) ->
-  Env ->
-  Int ->
-  IO ()
-serve action env port =
-  Warp.run port
-    . Wai.catchErrors (view applog env) []
-    $ app
-  where
-    app :: Wai.Application
-    app req respond =
-      runCodensity (runFederator env (action req)) respond
 
 serveServant ::
   forall routes.

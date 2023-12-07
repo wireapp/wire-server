@@ -110,6 +110,7 @@ import Wire.API.Conversation.Typing
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
+import Wire.API.Event.LeaveReason
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Galley
@@ -431,7 +432,7 @@ performAction tag origUser lconv action = do
       traverse_ (removeUser lconv' RemoveUserIncludeMain) victims
       pure (mempty, action)
     SConversationRemoveMembersTag -> do
-      let presentVictims = filter (isConvMemberL lconv) (toList action)
+      let presentVictims = filter (isConvMemberL lconv) (toList . crmTargets $ action)
       when (null presentVictims) noChanges
       traverse_ (convDeleteMembers (toUserList lconv presentVictims)) lconv
       -- send remove proposals in the MLS case
@@ -946,7 +947,7 @@ updateLocalStateOfRemoteConv rcu con = do
         E.deleteMembersInRemoteConversation rconvId users
         pure (Just sca, [])
       SConversationRemoveMembersTag -> do
-        let localUsers = getLocalUsers (tDomain loc) action
+        let localUsers = getLocalUsers (tDomain loc) . crmTargets $ action
         E.deleteMembersInRemoteConversation rconvId localUsers
         pure (Just sca, [])
       SConversationMemberUpdateTag ->
@@ -1052,7 +1053,7 @@ kickMember qusr lconv targets victim = void . runError @NoChanges $ do
     Nothing
     lconv
     (targets <> extraTargets)
-    (pure victim)
+    (ConversationRemoveMembers (pure victim) EdReasonRemoved)
 
 notifyTypingIndicator ::
   ( Member (Input UTCTime) r,

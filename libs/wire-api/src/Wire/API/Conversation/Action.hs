@@ -37,7 +37,6 @@ import Data.Aeson qualified as A
 import Data.Aeson.KeyMap qualified as A
 import Data.Id
 import Data.Kind
-import Data.List.NonEmpty qualified as NonEmptyList
 import Data.OpenApi qualified as S
 import Data.Qualified (Qualified)
 import Data.Schema hiding (tag)
@@ -49,6 +48,7 @@ import Wire.API.Conversation.Action.Tag
 import Wire.API.Conversation.Protocol (ProtocolTag)
 import Wire.API.Conversation.Role
 import Wire.API.Event.Conversation
+import Wire.API.Event.LeaveReason
 import Wire.API.MLS.SubConversation
 import Wire.Arbitrary (Arbitrary (..))
 
@@ -63,7 +63,7 @@ type family ConversationAction (tag :: ConversationActionTag) :: Type where
   ConversationAction 'ConversationMessageTimerUpdateTag = ConversationMessageTimerUpdate
   ConversationAction 'ConversationReceiptModeUpdateTag = ConversationReceiptModeUpdate
   ConversationAction 'ConversationAccessDataTag = ConversationAccessData
-  ConversationAction 'ConversationRemoveMembersTag = NonEmptyList.NonEmpty (Qualified UserId)
+  ConversationAction 'ConversationRemoveMembersTag = ConversationRemoveMembers
   ConversationAction 'ConversationUpdateProtocolTag = ProtocolTag
 
 data SomeConversationAction where
@@ -98,7 +98,7 @@ instance S.ToSchema SomeConversationAction where
     conversationMessageTimerUpdate <- S.declareSchemaRef (Proxy :: Proxy ConversationMessageTimerUpdate)
     conversationReceiptModeUpdate <- S.declareSchemaRef (Proxy :: Proxy ConversationReceiptModeUpdate)
     conversationAccessData <- S.declareSchemaRef (Proxy :: Proxy ConversationAccessData)
-    nonEmptyListNonEmptyQualifiedUserId <- S.declareSchemaRef (Proxy :: Proxy (NonEmptyList.NonEmpty (Qualified UserId)))
+    conversationRemoveMembers <- S.declareSchemaRef (Proxy :: Proxy ConversationRemoveMembers)
     protocolTag <- S.declareSchemaRef (Proxy :: Proxy ProtocolTag)
     let schemas =
           [ (toJSON ConversationJoinTag, conversationJoin),
@@ -109,7 +109,7 @@ instance S.ToSchema SomeConversationAction where
             (toJSON ConversationMessageTimerUpdateTag, conversationMessageTimerUpdate),
             (toJSON ConversationReceiptModeUpdateTag, conversationReceiptModeUpdate),
             (toJSON ConversationAccessDataTag, conversationAccessData),
-            (toJSON ConversationRemoveMembersTag, nonEmptyListNonEmptyQualifiedUserId),
+            (toJSON ConversationRemoveMembersTag, conversationRemoveMembers),
             (toJSON ConversationUpdateProtocolTag, protocolTag)
           ]
             <&> \(t, a) ->
@@ -130,11 +130,7 @@ conversationActionSchema SConversationLeaveTag =
     "ConversationLeave"
     (S.description ?~ "The action of some users leaving a conversation on their own")
     $ pure ()
-conversationActionSchema SConversationRemoveMembersTag =
-  objectWithDocModifier
-    "ConversationRemoveMembers"
-    (S.description ?~ "The action of some users being removed from a conversation")
-    $ field "targets" (nonEmptyArray schema)
+conversationActionSchema SConversationRemoveMembersTag = schema
 conversationActionSchema SConversationMemberUpdateTag = schema @ConversationMemberUpdate
 conversationActionSchema SConversationDeleteTag =
   objectWithDocModifier
@@ -198,7 +194,7 @@ conversationActionToEvent tag now quid qcnv subconv action =
         SConversationLeaveTag ->
           EdMembersLeave EdReasonLeft (QualifiedUserIdList [quid])
         SConversationRemoveMembersTag ->
-          EdMembersLeave EdReasonRemoved (QualifiedUserIdList (toList action))
+          EdMembersLeave (crmReason action) (QualifiedUserIdList . toList . crmTargets $ action)
         SConversationMemberUpdateTag ->
           let ConversationMemberUpdate target (OtherMemberUpdate role) = action
               update = MemberUpdateData target Nothing Nothing Nothing Nothing Nothing Nothing role

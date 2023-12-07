@@ -56,6 +56,7 @@ module Util.Core
     defPassword,
     getUserBrig,
     changeHandleBrig,
+    setRandomHandleBrig,
     updateProfileBrig,
     createUserWithTeam,
     createUserWithTeamDisableSSO,
@@ -1314,6 +1315,16 @@ stdInvitationRequest = stdInvitationRequest' Nothing Nothing
 stdInvitationRequest' :: Maybe User.Locale -> Maybe Role -> User.Email -> TeamInvitation.InvitationRequest
 stdInvitationRequest' loc role email =
   TeamInvitation.InvitationRequest loc role Nothing email Nothing
+
+setRandomHandleBrig :: HasCallStack => UserId -> TestSpar ()
+setRandomHandleBrig uid = do
+  env <- ask
+  call (changeHandleBrig (env ^. teBrig) uid =<< liftIO randomHandle)
+    !!! (const 200 === statusCode)
+  where
+    randomHandle = liftIO $ do
+      nrs <- replicateM 21 (randomRIO (97, 122)) -- a-z
+      pure (cs (chr <$> nrs))
 
 changeHandleBrig ::
   (MonadHttp m, HasCallStack) =>

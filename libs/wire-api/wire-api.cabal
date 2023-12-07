@@ -93,6 +93,7 @@ library
     Wire.API.Event.Conversation
     Wire.API.Event.FeatureConfig
     Wire.API.Event.Federation
+    Wire.API.Event.LeaveReason
     Wire.API.Event.Team
     Wire.API.FederationStatus
     Wire.API.FederationUpdate
@@ -566,6 +567,7 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Manual.ConversationCoverView
     Test.Wire.API.Golden.Manual.ConversationEvent
     Test.Wire.API.Golden.Manual.ConversationPagingState
+    Test.Wire.API.Golden.Manual.ConversationRemoveMembers
     Test.Wire.API.Golden.Manual.ConversationsResponse
     Test.Wire.API.Golden.Manual.ConvIdsPage
     Test.Wire.API.Golden.Manual.CreateGroupConversation

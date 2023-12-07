@@ -83,10 +83,12 @@ module Wire.API.Federation.Error
   )
 where
 
-import Data.Domain (Domain (..))
+import Data.Aeson qualified as Aeson
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
+import Data.Text.Encoding.Error qualified as T
 import Data.Text.Lazy qualified as LT
+import Data.Text.Lazy.Encoding qualified as LT
 import Imports
 import Network.HTTP.Types.Status
 import Network.HTTP.Types.Status qualified as HTTP
@@ -207,35 +209,27 @@ federationClientErrorToWai FederatorClientVersionMismatch =
     "internal-error"
     "Endpoint version mismatch in federation client"
 
-federationRemoteHTTP2Error :: Domain -> Text -> FederatorClientHTTP2Error -> Wai.Error
-federationRemoteHTTP2Error domain path FederatorClientNoStatusCode =
-  let err =
-        Wai.mkError
-          unexpectedFederationResponseStatus
-          "federation-http2-error"
-          "No status code in HTTP2 response"
-   in err {Wai.errorData = pure $ Wai.FederationErrorData domain path Nothing}
-federationRemoteHTTP2Error domain path (FederatorClientHTTP2Exception e) =
-  let err =
-        Wai.mkError
-          unexpectedFederationResponseStatus
-          "federation-http2-error"
-          (LT.pack (displayException e))
-   in err {Wai.errorData = pure $ Wai.FederationErrorData domain path Nothing}
-federationRemoteHTTP2Error domain path (FederatorClientTLSException e) =
-  let err =
-        Wai.mkError
-          (HTTP.mkStatus 525 "SSL Handshake Failure")
-          "federation-tls-error"
-          (LT.pack (displayException e))
-   in err {Wai.errorData = pure $ Wai.FederationErrorData domain path Nothing}
-federationRemoteHTTP2Error domain path (FederatorClientConnectionError e) =
-  let err =
-        Wai.mkError
-          federatorConnectionRefusedStatus
-          "federation-connection-refused"
-          (LT.pack (displayException e))
-   in err {Wai.errorData = pure $ Wai.FederationErrorData domain path Nothing}
+federationRemoteHTTP2Error :: FederatorClientHTTP2Error -> Wai.Error
+federationRemoteHTTP2Error FederatorClientNoStatusCode =
+  Wai.mkError
+    unexpectedFederationResponseStatus
+    "federation-http2-error"
+    "No status code in HTTP2 response"
+federationRemoteHTTP2Error (FederatorClientHTTP2Exception e) =
+  Wai.mkError
+    unexpectedFederationResponseStatus
+    "federation-http2-error"
+    (LT.pack (displayException e))
+federationRemoteHTTP2Error (FederatorClientTLSException e) =
+  Wai.mkError
+    (HTTP.mkStatus 525 "SSL Handshake Failure")
+    "federation-tls-error"
+    (LT.pack (displayException e))
+federationRemoteHTTP2Error (FederatorClientConnectionError e) =
+  Wai.mkError
+    federatorConnectionRefusedStatus
+    "federation-connection-refused"
+    (LT.pack (displayException e))
 
 federationClientHTTP2Error :: FederatorClientHTTP2Error -> Wai.Error
 federationClientHTTP2Error (FederatorClientConnectionError e) =
@@ -249,21 +243,25 @@ federationClientHTTP2Error e =
     "federation-local-error"
     (LT.pack (displayException e))
 
-federationRemoteResponseError :: Domain -> Text -> HTTP.Status -> LByteString -> Wai.Error
-federationRemoteResponseError domain path status resp =
-  err
-    { Wai.errorData = pure $ Wai.FederationErrorData domain path $ pure resp
+federationRemoteResponseError :: HTTP.Status -> LByteString -> Wai.Error
+federationRemoteResponseError status body =
+  ( Wai.mkError
+      unexpectedFederationResponseStatus
+      "federation-remote-error"
+      ( "A remote federator failed with status code: "
+          <> LT.pack (show (HTTP.statusCode status))
+      )
+  )
+    { Wai.innerError =
+        Just $
+          fromMaybe
+            ( Wai.mkError
+                status
+                "unknown-error"
+                (LT.decodeUtf8With T.lenientDecode body)
+            )
+            (Aeson.decode body)
     }
-  where
-    err =
-      Wai.mkError
-        unexpectedFederationResponseStatus
-        "federation-remote-error"
-        ( "A remote federator ("
-            <> LT.fromStrict domain._domainText
-            <> ") failed with status code "
-            <> LT.pack (show (HTTP.statusCode status))
-        )
 
 federationServantErrorToWai :: ClientError -> Wai.Error
 federationServantErrorToWai (DecodeFailure msg _) = federationInvalidBody msg

@@ -52,6 +52,7 @@ import Wire.API.Conversation qualified as Conv
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Role
 import Wire.API.Event.Conversation
+import Wire.API.Event.LeaveReason
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley
@@ -409,7 +410,9 @@ removeRemoteUser = do
             FedGalley.cuConvId = conv,
             FedGalley.cuAlreadyPresentUsers = [alice, charlie, dee],
             FedGalley.cuAction =
-              SomeConversationAction (sing @'ConversationRemoveMembersTag) (pure user)
+              SomeConversationAction
+                (sing @'ConversationRemoveMembersTag)
+                (ConversationRemoveMembers (pure user) EdReasonRemoved)
           }
 
   WS.bracketRN c [alice, charlie, dee, flo] $ \[wsA, wsC, wsD, wsF] -> do

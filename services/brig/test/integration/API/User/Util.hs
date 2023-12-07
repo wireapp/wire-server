@@ -60,8 +60,8 @@ import Test.Tasty.HUnit
 import Util
 import Wire.API.Asset
 import Wire.API.Connection
-import Wire.API.Event.Conversation (EdMemberLeftReason)
 import Wire.API.Event.Conversation qualified as Conv
+import Wire.API.Event.LeaveReason
 import Wire.API.Federation.API.Brig qualified as F
 import Wire.API.Federation.Component
 import Wire.API.Internal.Notification (Notification (..))
