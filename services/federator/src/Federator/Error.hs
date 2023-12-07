@@ -22,14 +22,12 @@ module Federator.Error
 where
 
 import Data.Aeson qualified as A
-import Imports
 import Network.HTTP.Types.Header
 import Network.Wai qualified as Wai
 import Network.Wai.Utilities.Error qualified as Wai
 
 class AsWai e where
   toWai :: e -> Wai.Error
-  waiErrorDescription :: e -> Text
 
 errorResponse :: [Header] -> Wai.Error -> Wai.Response
 errorResponse hdrs e = Wai.responseLBS (Wai.code e) hdrs (A.encode e)

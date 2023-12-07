@@ -53,6 +53,7 @@
 , scientific
 , split
 , stm
+, streaming-commons
 , string-conversions
 , tagged
 , temporary
@@ -64,6 +65,9 @@
 , unliftio
 , uuid
 , vector
+, wai
+, warp
+, warp-tls
 , websockets
 , wire-message-proto-lens
 , xml
@@ -124,6 +128,7 @@ mkDerivation {
     scientific
     split
     stm
+    streaming-commons
     string-conversions
     tagged
     temporary
@@ -135,6 +140,9 @@ mkDerivation {
     unliftio
     uuid
     vector
+    wai
+    warp
+    warp-tls
     websockets
     wire-message-proto-lens
     xml

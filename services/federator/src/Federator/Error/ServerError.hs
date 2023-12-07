@@ -34,12 +34,13 @@ instance Exception ServerError
 
 instance AsWai ServerError where
   toWai e@InvalidRoute =
-    Wai.mkError HTTP.status403 "invalid-endpoint" (LText.fromStrict (waiErrorDescription e))
+    Wai.mkError HTTP.status403 "invalid-endpoint" (LText.fromStrict (serverErrorDescription e))
   toWai e@(UnknownComponent _) =
-    Wai.mkError HTTP.status403 "unknown-component" (LText.fromStrict (waiErrorDescription e))
+    Wai.mkError HTTP.status403 "unknown-component" (LText.fromStrict (serverErrorDescription e))
   toWai e@NoOriginDomain =
-    Wai.mkError HTTP.status403 "no-origin-domain" (LText.fromStrict (waiErrorDescription e))
+    Wai.mkError HTTP.status403 "no-origin-domain" (LText.fromStrict (serverErrorDescription e))
 
-  waiErrorDescription InvalidRoute = "The requested endpoint does not exist"
-  waiErrorDescription (UnknownComponent name) = "No such component: " <> name
-  waiErrorDescription NoOriginDomain = "No " <> originDomainHeaderName <> " header"
+serverErrorDescription :: ServerError -> Text
+serverErrorDescription InvalidRoute = "The requested endpoint does not exist"
+serverErrorDescription (UnknownComponent name) = "No such component: " <> name
+serverErrorDescription NoOriginDomain = "No " <> originDomainHeaderName <> " header"
