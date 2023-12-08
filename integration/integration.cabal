@@ -114,6 +114,7 @@ library
     Test.Client
     Test.Conversation
     Test.Demo
+    Test.Errors
     Test.Federation
     Test.Federator
     Test.MessageTimer
@@ -134,6 +135,7 @@ library
     Testlib.Env
     Testlib.HTTP
     Testlib.JSON
+    Testlib.Mock
     Testlib.ModService
     Testlib.One2One
     Testlib.Options
@@ -196,6 +198,7 @@ library
     , scientific
     , split
     , stm
+    , streaming-commons
     , string-conversions
     , tagged
     , temporary
@@ -207,6 +210,9 @@ library
     , unliftio
     , uuid
     , vector
+    , wai
+    , warp
+    , warp-tls
     , websockets
     , wire-message-proto-lens
     , xml

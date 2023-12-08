@@ -26,6 +26,7 @@ import Test.Wire.API.Golden.Manual.ConvIdsPage
 import Test.Wire.API.Golden.Manual.ConversationCoverView
 import Test.Wire.API.Golden.Manual.ConversationEvent
 import Test.Wire.API.Golden.Manual.ConversationPagingState
+import Test.Wire.API.Golden.Manual.ConversationRemoveMembers
 import Test.Wire.API.Golden.Manual.ConversationsResponse
 import Test.Wire.API.Golden.Manual.CreateGroupConversation
 import Test.Wire.API.Golden.Manual.CreateScimToken
@@ -186,5 +187,11 @@ tests =
           [ (testObject_FederationRestriction_1, "testObject_FederationRestriction_1.json"),
             (testObject_FederationRestriction_2, "testObject_FederationRestriction_2.json"),
             (testObject_FederationRestriction_3, "testObject_FederationRestriction_3.json")
+          ],
+      testGroup "ConversationRemoveMembers" $
+        testObjects
+          [ (testObject_ConversationRemoveMembers_1, "testObject_ConversationRemoveMembers_1.json"),
+            (testObject_ConversationRemoveMembers_2, "testObject_ConversationRemoveMembers_2.json"),
+            (testObject_ConversationRemoveMembers_3, "testObject_ConversationRemoveMembers_3.json")
           ]
     ]

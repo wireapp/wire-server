@@ -52,6 +52,7 @@ import Wire.API.Conversation
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing
 import Wire.API.Event.Conversation
+import Wire.API.Event.LeaveReason
 import Wire.API.Internal.Notification
 import Wire.API.MLS.KeyPackage
 import Wire.API.Message

@@ -86,6 +86,7 @@ import Wire.API.Conversation
 import Wire.API.Conversation.Bot
 import Wire.API.Conversation.Role
 import Wire.API.Event.Conversation
+import Wire.API.Event.LeaveReason
 import Wire.API.Internal.Notification
 import Wire.API.Provider
 import Wire.API.Provider.Bot qualified as Ext

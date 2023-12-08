@@ -78,6 +78,7 @@ module Wire.API.Conversation
     ConversationMessageTimerUpdate (..),
     ConversationJoin (..),
     ConversationMemberUpdate (..),
+    ConversationRemoveMembers (..),
 
     -- * re-exports
     module Wire.API.Conversation.Member,
@@ -111,6 +112,7 @@ import System.Random (randomRIO)
 import Wire.API.Conversation.Member
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role (RoleName, roleNameWireAdmin)
+import Wire.API.Event.LeaveReason
 import Wire.API.MLS.Group
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.Routes.MultiVerb
@@ -912,6 +914,23 @@ instance ToSchema ConversationMemberUpdate where
       $ ConversationMemberUpdate
         <$> cmuTarget .= field "target" schema
         <*> cmuUpdate .= field "update" schema
+
+data ConversationRemoveMembers = ConversationRemoveMembers
+  { crmTargets :: NonEmpty (Qualified UserId),
+    crmReason :: EdMemberLeftReason
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ConversationRemoveMembers)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConversationRemoveMembers
+
+instance ToSchema ConversationRemoveMembers where
+  schema =
+    objectWithDocModifier
+      "ConversationRemoveMembers"
+      (description ?~ "The action of removing members from a conversation")
+      $ ConversationRemoveMembers
+        <$> crmTargets .= field "targets" (nonEmptyArray schema)
+        <*> crmReason .= field "reason" schema
 
 -- | The id of the MLS self conversation for a given user
 mlsSelfConvId :: UserId -> ConvId

@@ -2,7 +2,6 @@ module Testlib.ResourcePool
   ( ResourcePool,
     BackendResource (..),
     DynamicBackendConfig (..),
-    backendResources,
     createBackendResourcePool,
     acquireResources,
     backendA,

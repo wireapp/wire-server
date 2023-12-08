@@ -62,19 +62,19 @@ instance AsWai ValidationError where
   toWai err =
     Wai.mkError (validationErrorStatus err) (validationErrorLabel err)
       . LText.fromStrict
-      $ waiErrorDescription err
+      $ validationErrorDescription err
 
-  waiErrorDescription :: ValidationError -> Text
-  waiErrorDescription NoClientCertificate = "no client certificate provided"
-  waiErrorDescription (CertificateParseError reason) =
-    "certificate parse failure: " <> reason
-  waiErrorDescription (DomainParseError domain) =
-    "domain parse failure for [" <> domain <> "]"
-  waiErrorDescription (AuthenticationFailure errs) =
-    "none of the domain names match the certificate, errors: "
-      <> Text.pack (show (toList errs))
-  waiErrorDescription (FederationDenied domain) =
-    "origin domain [" <> domainText domain <> "] not in the federation allow list"
+validationErrorDescription :: ValidationError -> Text
+validationErrorDescription NoClientCertificate = "no client certificate provided"
+validationErrorDescription (CertificateParseError reason) =
+  "certificate parse failure: " <> reason
+validationErrorDescription (DomainParseError domain) =
+  "domain parse failure for [" <> domain <> "]"
+validationErrorDescription (AuthenticationFailure errs) =
+  "none of the domain names match the certificate, errors: "
+    <> Text.pack (show (toList errs))
+validationErrorDescription (FederationDenied domain) =
+  "origin domain [" <> domainText domain <> "] not in the federation allow list"
 
 validationErrorLabel :: ValidationError -> LText
 validationErrorLabel NoClientCertificate = "no-client-certificate"
