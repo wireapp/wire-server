@@ -2,6 +2,8 @@ module Testlib.ResourcePool
   ( ResourcePool,
     BackendResource (..),
     DynamicBackendConfig (..),
+    resourceServiceMap,
+    backendResources,
     createBackendResourcePool,
     acquireResources,
     backendA,
@@ -14,7 +16,6 @@ import Control.Monad.Catch
 import Control.Monad.Codensity
 import Control.Monad.IO.Class
 import Data.Foldable (for_)
-import Data.Function ((&))
 import Data.Functor
 import Data.IORef
 import Data.Set qualified as Set
@@ -29,6 +30,25 @@ import System.IO
 import Testlib.Ports qualified as Ports
 import Testlib.Types
 import Prelude
+
+resourceServiceMap :: BackendResource -> ServiceMap
+resourceServiceMap resource =
+  let g srv = HostPort "127.0.0.1" (berInternalServicePorts resource srv)
+   in ServiceMap
+        { brig = g Brig,
+          backgroundWorker = g BackgroundWorker,
+          cannon = g Cannon,
+          cargohold = g Cargohold,
+          federatorInternal = g FederatorInternal,
+          federatorExternal = HostPort "127.0.0.1" resource.berFederatorExternal,
+          galley = g Galley,
+          gundeck = g Gundeck,
+          nginz = g Nginz,
+          spar = g Spar,
+          -- FUTUREWORK: Set to g Proxy, when we add Proxy to spawned services
+          proxy = HostPort "127.0.0.1" 9087,
+          stern = g Stern
+        }
 
 acquireResources :: forall m a. (Ord a, MonadIO m, MonadMask m, HasCallStack) => Int -> ResourcePool a -> Codensity m [a]
 acquireResources n pool = Codensity $ \f -> bracket acquire release $ \s -> do
@@ -46,16 +66,15 @@ acquireResources n pool = Codensity $ \f -> bracket acquire release $ \s -> do
       waitQSemN pool.sem n
       atomicModifyIORef pool.resources $ swap . Set.splitAt n
 
-createBackendResourcePool :: [DynamicBackendConfig] -> RabbitMQConfig -> ClientState -> IO (ResourcePool BackendResource)
-createBackendResourcePool dynConfs rabbitmq cassClient =
-  let resources = backendResources dynConfs
-      cleanupBackend :: BackendResource -> IO ()
+createBackendResourcePool :: [BackendResource] -> RabbitMQConfig -> ClientState -> IO (ResourcePool BackendResource)
+createBackendResourcePool resources rabbitmq cassClient =
+  let cleanupBackend :: BackendResource -> IO ()
       cleanupBackend resource = do
         deleteAllRabbitMQQueues rabbitmq resource
         runClient cassClient $ deleteAllDynamicBackendConfigs resource
    in ResourcePool
-        <$> newQSemN (length dynConfs)
-        <*> newIORef resources
+        <$> newQSemN (length resources)
+        <*> newIORef (Set.fromList resources)
         <*> pure cleanupBackend
 
 deleteAllRabbitMQQueues :: RabbitMQConfig -> BackendResource -> IO ()
@@ -78,7 +97,7 @@ deleteAllDynamicBackendConfigs resource = write cql (defQueryParams LocalQuorum 
     cql :: PrepQuery W () ()
     cql = fromString $ "TRUNCATE " <> resource.berBrigKeyspace <> ".federation_remotes"
 
-backendResources :: [DynamicBackendConfig] -> Set.Set BackendResource
+backendResources :: [DynamicBackendConfig] -> [BackendResource]
 backendResources dynConfs =
   (zip dynConfs [1 ..])
     <&> ( \(dynConf, i) ->
@@ -107,7 +126,6 @@ backendResources dynConfs =
                     berInternalServicePorts = Ports.internalServicePorts name
                   }
         )
-    & Set.fromList
   where
     suffix :: (Show a, Num a) => a -> String
     suffix i = show $ i + 2
