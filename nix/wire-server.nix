@@ -223,13 +223,6 @@ let
     checkPhase = "";
   };
 
-  integration-dynamic-backends-sqs = pkgs.writeShellApplication {
-    name = "integration-dynamic-backends-sqs.sh";
-    text = "${builtins.readFile ../integration/scripts/integration-dynamic-backends-sqs.sh}";
-    runtimeInputs = [ pkgs.parallel pkgs.awscli2 ];
-    checkPhase = "";
-  };
-
   integration-dynamic-backends-ses = pkgs.writeShellApplication {
     name = "integration-dynamic-backends-ses.sh";
     text = "${builtins.readFile ../integration/scripts/integration-dynamic-backends-ses.sh}";
@@ -286,7 +279,6 @@ let
       pkgs.awscli2
       integration-dynamic-backends-db-schemas
       integration-dynamic-backends-brig-index
-      integration-dynamic-backends-sqs
       integration-dynamic-backends-ses
       integration-dynamic-backends-s3
       integration-dynamic-backends-vhosts
