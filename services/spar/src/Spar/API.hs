@@ -382,10 +382,8 @@ idpGetAll zusr = withDebugLog "idpGetAll" (const Nothing) $ do
 -- probably curl running locally on one of the spar instances).
 -- https://github.com/zinfra/backend-issues/issues/1314
 --
--- FUTUREWORK: replaced idps should be deleted with the replacing idps, but we don't have the
--- references in the database schema to do that (we only have "replaced_by", not "replaces").
--- WORK-AROUND: remove replaced idps manually.  FIX: discontinue replaced_by query param.  we
--- have PUT now to update existing IdPs, no need to post replacing new idps..
+-- FUTUREWORK: discontinue POST with `replaced_by` query param.  we have PUT now to update
+-- existing IdPs in-place, no need to post replacing new idps..
 idpDelete ::
   forall r.
   ( Member Random r,
