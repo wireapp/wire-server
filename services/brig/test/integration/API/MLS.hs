@@ -45,7 +45,6 @@ tests m b opts =
   testGroup
     "MLS"
     [ -- FUTUREWORK test m "GET /mls/key-packages/self/:client/count (expired package)" (testKeyPackageExpired b),
-      test m "GET /mls/key-packages/claim/local/:user - self claim" (testKeyPackageSelfClaim b),
       test m "GET /mls/key-packages/claim/remote/:user" (testKeyPackageRemoteClaim opts b)
     ]
 
@@ -69,53 +68,6 @@ testKeyPackageExpired brig = do
   for_ [(c1, 0), (c2, 1)] $ \(cid, expectedCount) -> do
     count <- getKeyPackageCount brig u cid
     liftIO $ count @?= expectedCount
-
-testKeyPackageSelfClaim :: Brig -> Http ()
-testKeyPackageSelfClaim brig = do
-  -- setup a user u with two clients c1 and c2
-  u <- userQualifiedId <$> randomUser brig
-  [c1, c2] <- for [0, 1] $ \i -> do
-    c <- createClient brig u i
-    -- upload 3 key packages for each client
-    withSystemTempDirectory "mls" $ \tmp ->
-      uploadKeyPackages brig tmp def u c 3
-    pure c
-
-  -- claim own packages but skip the first
-  do
-    bundle :: KeyPackageBundle <-
-      responseJsonError
-        =<< post
-          ( brig
-              . paths ["mls", "key-packages", "claim", toByteString' (qDomain u), toByteString' (qUnqualified u)]
-              . zUser (qUnqualified u)
-              . zClient c1
-          )
-          <!! const 200 === statusCode
-    liftIO $ Set.map (\e -> (e.user, e.client)) bundle.entries @?= Set.fromList [(u, c2)]
-
-    -- check that we still have all keypackages for client c1
-    count <- getKeyPackageCount brig u c1
-    liftIO $ count @?= 3
-
-  -- if another user sets skip_own, nothing is skipped
-  do
-    u' <- userQualifiedId <$> randomUser brig
-    bundle :: KeyPackageBundle <-
-      responseJsonError
-        =<< post
-          ( brig
-              . paths ["mls", "key-packages", "claim", toByteString' (qDomain u), toByteString' (qUnqualified u)]
-              . queryItem "skip_own" (toByteString' c1)
-              . zUser (qUnqualified u')
-          )
-          <!! const 200 === statusCode
-    liftIO $ Set.map (\e -> (e.user, e.client)) bundle.entries @?= Set.fromList [(u, c1), (u, c2)]
-
-  -- check package counts again
-  for_ [(c1, 2), (c2, 1)] $ \(c, n) -> do
-    count <- getKeyPackageCount brig u c
-    liftIO $ count @?= n
 
 testKeyPackageRemoteClaim :: Opts -> Brig -> Http ()
 testKeyPackageRemoteClaim opts brig = do

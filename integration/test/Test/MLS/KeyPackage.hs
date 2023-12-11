@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wwarn #-}
+
 module Test.MLS.KeyPackage where
 
 import API.Brig
@@ -101,14 +103,55 @@ testKeyPackageClaim = do
       -- claiming keypckages should return 200
       resp.status `shouldMatchInt` 200
 
-  mls <- getMLSState
-  let cs = mls.ciphersuite
-
   -- bob has claimed all keypackages by alice, so there should
   -- be none left
-  countKeyPackages cs alice1 `bindResponse` \resp -> do
+  countKeyPackages def alice1 `bindResponse` \resp -> do
     resp.json %. "count" `shouldMatchInt` 0
     resp.status `shouldMatchInt` 200
+
+testKeyPackageSelfClaim :: App ()
+testKeyPackageSelfClaim = do
+  alice <- randomUser OwnDomain def
+  alices@[alice1, alice2] <- replicateM 2 do
+    createMLSClient def alice
+  for_ alices \alicei -> replicateM 3 do
+    uploadNewKeyPackage alicei
+
+  -- claim own keypackages
+  claimKeyPackages def alice1 alice `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+
+    resp.json %. "key_packages"
+      & asList
+      -- the keypackage claimed by client 1 should be issued by
+      -- client 2
+      >>= (\[v] -> v %. "client" `shouldMatch` alice2.client)
+
+  -- - the keypackages of client 1 (claimer) should still be there
+  -- - two of the keypackages of client 2 (claimee) should be stil
+  --   there
+  for_ (zip alices [3, 2]) \(alicei, n) ->
+    countKeyPackages def alicei `bindResponse` \resp -> do
+      resp.json %. "count" `shouldMatchInt` n
+      resp.status `shouldMatchInt` 200
+
+  bob <- randomUser OwnDomain def
+  bobs <- replicateM 2 do
+    createMLSClient def bob
+
+  -- skip own should only apply to own keypackages, hence
+  -- bob claiming alices keypackages should work as normal
+  a1s <- alice1 %. "client_id" & asString
+  for_ bobs \bobi ->
+    claimKeyPackagesWithParams def bobi alice [("skip_own", a1s)] `bindResponse` \resp -> do
+      (resp.json %. "key_packages" & asList <&> length) `shouldMatchInt` 2
+      resp.status `shouldMatchInt` 200
+
+  -- alices keypackages should be gone after bob claimed them
+  for_ (zip alices [1, 0]) \(alicei, n) ->
+    countKeyPackages def alicei `bindResponse` \resp -> do
+      resp.json %. "count" `shouldMatchInt` n
+      resp.status `shouldMatchInt` 200
 
 testKeyPackageCount :: HasCallStack => Ciphersuite -> App ()
 testKeyPackageCount cs = do
