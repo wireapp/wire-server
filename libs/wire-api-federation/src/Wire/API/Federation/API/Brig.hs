@@ -43,6 +43,7 @@ import Wire.API.User.Client.Prekey (ClientPrekey, PrekeyBundle)
 import Wire.API.User.Search
 import Wire.API.UserMap (UserMap)
 import Wire.API.Util.Aeson (CustomEncoded (..))
+import Wire.API.VersionInfo
 import Wire.Arbitrary (GenericUniform (..))
 
 data SearchRequest = SearchRequest
@@ -85,7 +86,7 @@ type BrigApi =
     -- (handles can be up to 256 chars currently)
     :<|> FedEndpoint "search-users" SearchRequest SearchResponse
     :<|> FedEndpoint "get-user-clients" GetUserClients (UserMap (Set PubClient))
-    :<|> FedEndpoint (Versioned 'V0 "get-mls-clients") MLSClientsRequestV0 (Set ClientInfo)
+    :<|> FedEndpointWithMods '[Until V1] (Versioned 'V0 "get-mls-clients") MLSClientsRequestV0 (Set ClientInfo)
     :<|> FedEndpoint "get-mls-clients" MLSClientsRequest (Set ClientInfo)
     :<|> FedEndpoint "send-connection-action" NewConnectionRequest NewConnectionResponse
     :<|> FedEndpoint "claim-key-packages" ClaimKeyPackageRequest (Maybe KeyPackageBundle)
