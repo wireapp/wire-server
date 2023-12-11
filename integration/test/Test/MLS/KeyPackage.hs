@@ -1,3 +1,6 @@
+-- FUTUREWORK:
+-- GET /mls/key-packages/self/:client/count should be
+-- tested with expired package
 
 module Test.MLS.KeyPackage where
 
@@ -56,10 +59,7 @@ testKeyPackageUploadNoKey = do
     initMLSClient def cid
     pure cid
 
-  mls <- getMLSState
-  let cs = mls.ciphersuite
-
-  (kp, _) <- generateKeyPackage alice1 cs
+  (kp, _) <- generateKeyPackage alice1 def
 
   -- if we upload a keypackage without a key,
   -- we get a bad request
@@ -68,7 +68,7 @@ testKeyPackageUploadNoKey = do
 
   -- there should be no keypackages after getting
   -- a rejection by the backend
-  countKeyPackages cs alice1 `bindResponse` \resp -> do
+  countKeyPackages def alice1 `bindResponse` \resp -> do
     resp.json %. "count" `shouldMatchInt` 0
     resp.status `shouldMatchInt` 200
 
@@ -124,7 +124,7 @@ testKeyPackageSelfClaim = do
       & asList
       -- the keypackage claimed by client 1 should be issued by
       -- client 2
-      >>= (\[v] -> v %. "client" `shouldMatch` alice2.client)
+      >>= \[v] -> v %. "client" `shouldMatch` alice2.client
 
   -- - the keypackages of client 1 (claimer) should still be there
   -- - two of the keypackages of client 2 (claimee) should be stil

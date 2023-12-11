@@ -242,13 +242,13 @@ testGetMlsClients brig = do
 
 createClient :: Brig -> Qualified UserId -> Int -> Http ClientId
 createClient brig u i =
- fmap clientId $
-   responseJsonError
-     =<< addClient
-       brig
-       (qUnqualified u)
-       (defNewClient PermanentClientType [somePrekeys !! i] (someLastPrekeys !! i))
-       <!! const 201 === statusCode
+  fmap clientId $
+    responseJsonError
+      =<< addClient
+        brig
+        (qUnqualified u)
+        (defNewClient PermanentClientType [somePrekeys !! i] (someLastPrekeys !! i))
+        <!! const 201 === statusCode
 
 getFeatureConfig :: forall cfg m. (MonadHttp m, HasCallStack, KnownSymbol (ApiFt.FeatureSymbol cfg)) => (Request -> Request) -> UserId -> m ResponseLBS
 getFeatureConfig galley uid = do
