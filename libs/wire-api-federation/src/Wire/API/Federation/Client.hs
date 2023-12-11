@@ -46,6 +46,7 @@ import Data.ByteString.Conversion (toByteString')
 import Data.ByteString.Lazy qualified as LBS
 import Data.Domain
 import Data.Id
+import Data.Sequence (pattern (:<|))
 import Data.Sequence qualified as Seq
 import Data.Set qualified as Set
 import Data.Text.Encoding qualified as Text
@@ -168,7 +169,11 @@ instance KnownComponent c => RunClient (FederatorClient c) where
             (HTTP.statusIsSuccessful status)
             (elem status)
             expectedStatuses
-    withHTTP2StreamingRequest successfulStatus req $ \resp -> do
+
+    v <- asks cveVersion
+    let vreq = req {requestHeaders = (versionHeader, toByteString' (versionInt (fromMaybe V0 v))) :<| requestHeaders req}
+
+    withHTTP2StreamingRequest successfulStatus vreq $ \resp -> do
       bdy <-
         fmap (either (const mempty) (toLazyByteString . foldMap byteString))
           . runExceptT

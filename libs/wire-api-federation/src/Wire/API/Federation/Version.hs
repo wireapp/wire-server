@@ -32,6 +32,10 @@ data Version = V0 | V1
   deriving stock (Eq, Ord, Bounded, Enum, Show, Generic)
   deriving (FromJSON, ToJSON) via (Schema Version)
 
+versionInt :: Version -> Int
+versionInt V0 = 0
+versionInt V1 = 1
+
 instance ToSchema Version where
   schema =
     enum @Integer "Version" . mconcat $
