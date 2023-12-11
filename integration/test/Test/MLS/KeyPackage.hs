@@ -70,7 +70,45 @@ testKeyPackageUploadNoKey = do
   countKeyPackages cs alice1 `bindResponse` \resp -> do
     resp.json %. "count" `shouldMatchInt` 0
     resp.status `shouldMatchInt` 200
+
+testKeyPackageClaim :: App ()
+testKeyPackageClaim = do
+  alice <- randomUser OwnDomain def
+  alices@[alice1, _alice2] <- replicateM 2 do
+    createMLSClient def alice
+
+  for_ alices \alicei -> replicateM 3 do
+    uploadNewKeyPackage alicei
+
+  bob <- randomUser OwnDomain def
+  bobs <- replicateM 3 do
+    createMLSClient def bob
+
+  for_ bobs \bobi ->
+    claimKeyPackages def bobi alice `bindResponse` \resp -> do
+      ks <- resp.json %. "key_packages" & asList
+
+      -- all of the keypackages should by issued by alice
+      for_ ks \k ->
+        (k %. "user") `shouldMatch` (alice %. "id")
+
+      -- every claimed keypackage bundle should contain
+      -- exactly one of each of the keypackages issued by
+      -- alice
+      for ks (%. "client")
+        >>= (`shouldMatchSet` map (.client) alices)
+
+      -- claiming keypckages should return 200
+      resp.status `shouldMatchInt` 200
+
+  mls <- getMLSState
+  let cs = mls.ciphersuite
+
+  -- bob has claimed all keypackages by alice, so there should
+  -- be none left
+  countKeyPackages cs alice1 `bindResponse` \resp -> do
     resp.json %. "count" `shouldMatchInt` 0
+    resp.status `shouldMatchInt` 200
 
 testKeyPackageCount :: HasCallStack => Ciphersuite -> App ()
 testKeyPackageCount cs = do
