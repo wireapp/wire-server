@@ -753,6 +753,20 @@ instance ToGalleyRuntimeError '[] r where
   mapToGalleyError = Imports.id
 
 instance
+  forall (err :: MessagingAPIError) effs r.
+  ( ToGalleyRuntimeError effs r,
+    SingI err,
+    Member (Error GalleyError) (Append effs r)
+  ) =>
+  ToGalleyRuntimeError (ErrorS err ': effs) r
+  where
+  mapToGalleyError act =
+    mapToGalleyError @effs @r $
+      runError act >>= \case
+        Left _ -> throw (MessagingAPIError (demote @err))
+        Right res -> pure res
+
+instance
   forall (err :: GalleyError) effs r.
   ( ToGalleyRuntimeError effs r,
     SingI err,

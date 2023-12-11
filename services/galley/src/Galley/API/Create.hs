@@ -303,13 +303,13 @@ createOne2OneConversation ::
     Member (Error InternalError) r,
     Member (Error InvalidInput) r,
     Member (ErrorS 'NotATeamMember) r,
-    Member (ErrorS 'NonBindingTeam) r,
     Member (ErrorS 'NoBindingTeamMembers) r,
     Member (ErrorS OperationDenied) r,
-    Member (ErrorS 'TeamNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
     Member (ErrorS 'NotConnected) r,
     Member (Error UnreachableBackendsLegacy) r,
+    Member (ErrorS ('MessagingAPIError 'NonBindingTeam)) r,
+    Member (ErrorS ('MessagingAPIError 'TeamNotFound)) r,
     Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
@@ -330,7 +330,11 @@ createOne2OneConversation lusr zcon j =
       Just ti -> do
         foldQualified
           lusr
-          (\lother -> checkBindingTeamPermissions lother (cnvTeamId ti))
+          ( \lother ->
+              wrapInto @'MessagingAPIError @TeamNotFound
+                . wrapInto @'MessagingAPIError @NonBindingTeam
+                $ checkBindingTeamPermissions lother (cnvTeamId ti)
+          )
           (const (pure Nothing))
           other
       Nothing -> ensureConnected lusr allUsers $> Nothing

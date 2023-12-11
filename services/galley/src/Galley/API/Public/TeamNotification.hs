@@ -25,7 +25,7 @@ type SizeRange = Range 1 10000 Int32
 -- See haddocks of module "Galley.API.TeamNotifications" for details.
 getTeamNotifications ::
   ( Member BrigAccess r,
-    Member (ErrorS 'TeamNotFound) r,
+    Member (ErrorS ('MessagingAPIError 'TeamNotFound)) r,
     Member (ErrorS 'InvalidTeamNotificationId) r,
     Member TeamNotificationStore r
   ) =>
@@ -35,10 +35,11 @@ getTeamNotifications ::
   Sem r QueuedNotificationList
 getTeamNotifications uid since size = do
   since' <- checkSince since
-  APITeamQueue.getTeamNotifications
-    uid
-    since'
-    (fromMaybe defaultSize size)
+  wrapInto @'MessagingAPIError @TeamNotFound $
+    APITeamQueue.getTeamNotifications
+      uid
+      since'
+      (fromMaybe defaultSize size)
   where
     checkSince ::
       Member (ErrorS 'InvalidTeamNotificationId) r =>

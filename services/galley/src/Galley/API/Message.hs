@@ -45,6 +45,7 @@ import Data.Id
 import Data.Json.Util
 import Data.Map qualified as Map
 import Data.Map.Lens (toMapOf)
+import Data.Proxy (Proxy (Proxy))
 import Data.Qualified
 import Data.Range
 import Data.Set qualified as Set
@@ -252,9 +253,7 @@ postRemoteOtrMessage sender conv rawMsg = do
 postBroadcast ::
   ( Member BrigAccess r,
     Member ClientStore r,
-    Member (ErrorS 'TeamNotFound) r,
-    Member (ErrorS 'NonBindingTeam) r,
-    Member (ErrorS 'BroadcastLimitExceeded) r,
+    Member (SomeErrorOfKind MessagingAPIError) r,
     Member GundeckAccess r,
     Member ExternalAccess r,
     Member (Input Opts) r,
@@ -266,77 +265,78 @@ postBroadcast ::
   Maybe ConnId ->
   QualifiedNewOtrMessage ->
   Sem r (PostOtrResponse MessageSendingStatus)
-postBroadcast lusr con msg = runError $ do
-  let senderClient = qualifiedNewOtrSender msg
-      senderDomain = tDomain lusr
-      senderUser = tUnqualified lusr
-      rcps =
-        Map.findWithDefault mempty senderDomain
-          . qualifiedUserClientMap
-          . qualifiedOtrRecipientsMap
-          . qualifiedNewOtrRecipients
-          $ msg
-  now <- input
+postBroadcast lusr con msg = runError $
+  mapToSomeError @'BroadcastLimitExceeded $ do
+    let senderClient = qualifiedNewOtrSender msg
+        senderDomain = tDomain lusr
+        senderUser = tUnqualified lusr
+        rcps =
+          Map.findWithDefault mempty senderDomain
+            . qualifiedUserClientMap
+            . qualifiedOtrRecipientsMap
+            . qualifiedNewOtrRecipients
+            $ msg
+    now <- input
 
-  tid <- lookupBindingTeam senderUser
-  limit <- fromIntegral . fromRange <$> fanoutLimit
-  -- If we are going to fan this out to more than limit, we want to fail early
-  unless (Map.size rcps <= limit) $
-    throwS @'BroadcastLimitExceeded
-  -- In large teams, we may still use the broadcast endpoint but only if `report_missing`
-  -- is used and length `report_missing` < limit since we cannot fetch larger teams than
-  -- that.
-  tMembers <-
-    fmap (view Wire.API.Team.Member.userId) <$> case qualifiedNewOtrClientMismatchStrategy msg of
-      -- Note: remote ids are not in a local team
-      MismatchReportOnly qus ->
-        maybeFetchLimitedTeamMemberList
-          limit
-          tid
-          (fst (partitionQualified lusr qus))
-          rcps
-      _ -> maybeFetchAllMembersInTeam tid
-  contacts <- getContactList senderUser
-  let users = toList $ Set.union (Set.fromList tMembers) (Set.fromList contacts)
+    tid <- mapManyToSomeError @[TeamNotFound, NonBindingTeam] Proxy $ lookupBindingTeam senderUser
+    limit <- fromIntegral . fromRange <$> fanoutLimit
+    -- If we are going to fan this out to more than limit, we want to fail early
+    unless (Map.size rcps <= limit) $
+      throwS @'BroadcastLimitExceeded
+    -- In large teams, we may still use the broadcast endpoint but only if `report_missing`
+    -- is used and length `report_missing` < limit since we cannot fetch larger teams than
+    -- that.
+    tMembers <-
+      fmap (view Wire.API.Team.Member.userId) <$> case qualifiedNewOtrClientMismatchStrategy msg of
+        -- Note: remote ids are not in a local team
+        MismatchReportOnly qus ->
+          maybeFetchLimitedTeamMemberList
+            limit
+            tid
+            (fst (partitionQualified lusr qus))
+            rcps
+        _ -> maybeFetchAllMembersInTeam tid
+    contacts <- getContactList senderUser
+    let users = toList $ Set.union (Set.fromList tMembers) (Set.fromList contacts)
 
-  isInternal <- useIntraClientListing
-  localClients <-
-    if isInternal
-      then Clients.fromUserClients <$> lookupClients users
-      else getClients users
-  let qualifiedLocalClients =
-        Map.mapKeys (tDomain lusr,)
-          . makeUserMap (Set.fromList users)
-          . Clients.toMap
-          $ localClients
+    isInternal <- useIntraClientListing
+    localClients <-
+      if isInternal
+        then Clients.fromUserClients <$> lookupClients users
+        else getClients users
+    let qualifiedLocalClients =
+          Map.mapKeys (tDomain lusr,)
+            . makeUserMap (Set.fromList users)
+            . Clients.toMap
+            $ localClients
 
-  let (sendMessage, validMessages, mismatch) =
-        checkMessageClients
-          (senderDomain, senderUser, senderClient)
-          qualifiedLocalClients
-          (flattenMap $ qualifiedNewOtrRecipients msg)
-          (qualifiedNewOtrClientMismatchStrategy msg)
-      otrResult = mkMessageSendingStatus (toUTCTimeMillis now) mismatch
-  unless sendMessage $ do
-    let lhProtectee = qualifiedUserToProtectee (tDomain lusr) User (tUntagged lusr)
-        missingClients = qmMissing mismatch
+    let (sendMessage, validMessages, mismatch) =
+          checkMessageClients
+            (senderDomain, senderUser, senderClient)
+            qualifiedLocalClients
+            (flattenMap $ qualifiedNewOtrRecipients msg)
+            (qualifiedNewOtrClientMismatchStrategy msg)
+        otrResult = mkMessageSendingStatus (toUTCTimeMillis now) mismatch
+    unless sendMessage $ do
+      let lhProtectee = qualifiedUserToProtectee (tDomain lusr) User (tUntagged lusr)
+          missingClients = qmMissing mismatch
 
-    mapError @LegalholdConflicts @(MessageNotSent MessageSendingStatus)
-      (const MessageNotSentLegalhold)
-      $ runLocalInput lusr
-      $ guardQualifiedLegalholdPolicyConflicts lhProtectee missingClients
-    throw $ MessageNotSentClientMissing otrResult
+      mapError @LegalholdConflicts @(MessageNotSent MessageSendingStatus)
+        (const MessageNotSentLegalhold)
+        $ runLocalInput lusr
+        $ guardQualifiedLegalholdPolicyConflicts lhProtectee missingClients
+      throw $ MessageNotSentClientMissing otrResult
 
-  failedToSend <-
-    sendBroadcastMessages
-      lusr
-      now
-      (tUntagged lusr)
-      senderClient
-      con
-      (qualifiedNewOtrMetadata msg)
-      validMessages
-  pure otrResult {mssFailedToSend = failedToSend}
+    failedToSend <-
+      sendBroadcastMessages
+        lusr
+        now
+        (tUntagged lusr)
+        senderClient
+        con
+        (qualifiedNewOtrMetadata msg)
+        validMessages
+    pure otrResult {mssFailedToSend = failedToSend}
   where
     maybeFetchLimitedTeamMemberList ::
       ( Member (ErrorS 'BroadcastLimitExceeded) r,

@@ -63,9 +63,7 @@ type MessagingAPI =
                :> Description PostOtrDescriptionUnqualified
                :> ZLocalUser
                :> ZConn
-               :> CanThrow 'TeamNotFound
-               :> CanThrow 'BroadcastLimitExceeded
-               :> CanThrow 'NonBindingTeam
+               :> CanThrowManyOfKind MessagingAPIError
                :> "broadcast"
                :> "otr"
                :> "messages"

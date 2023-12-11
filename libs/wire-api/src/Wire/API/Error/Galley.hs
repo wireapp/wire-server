@@ -17,10 +17,10 @@
 {-# LANGUAGE StandaloneKindSignatures #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# OPTIONS_GHC -Wno-unused-top-binds #-}
-{-# LANGUAGE QuantifiedConstraints #-}
 
 module Wire.API.Error.Galley
   ( GalleyError (..),
+    MessagingAPIError (..),
     OperationDenied,
     MLSProtocolError,
     mlsProtocolError,
@@ -43,7 +43,7 @@ import Data.OpenApi qualified as S
 import Data.Proxy
 import Data.Qualified
 import Data.Schema
-import Data.Singletons.TH (genSingletons)
+import Data.Singletons.Base.TH (genSingletons)
 import Data.Tagged
 import GHC.TypeLits
 import Imports
@@ -52,7 +52,7 @@ import Network.Wai.Utilities.Error qualified as Wai
 import Network.Wai.Utilities.JSONResponse
 import Polysemy
 import Polysemy.Error
-import Prelude.Singletons (Show_, SomeSing)
+import Prelude.Singletons (Show_)
 import Servant.API.ContentTypes (JSON, contentType)
 import Wire.API.Conversation.Role
 import Wire.API.Error
@@ -63,14 +63,30 @@ import Wire.API.Team.Permission
 import Wire.API.Unreachable
 import Wire.API.Util.Aeson (CustomEncoded (..))
 
+-- | galley errors appearing bundled in Public.Galley.Messaging
+data MessagingAPIError
+  = TeamNotFound
+  | BroadcastLimitExceeded
+  | NonBindingTeam
+  deriving stock (Show, Eq, Generic, Enum, Bounded)
+  deriving (FromJSON, ToJSON) via CustomEncoded MessagingAPIError
+
+$(genSingletonsAndUnfoldings [''MessagingAPIError])
+
+instance S.ToSchema MessagingAPIError
+
+instance (Typeable (MapError e), KnownError (MapError e)) => IsSwaggerError (e :: MessagingAPIError) where
+  addToOpenApi = addStaticErrorToSwagger @(MapError e)
+
+instance KnownError (MapError e) => APIError (Proxy (e :: MessagingAPIError)) where
+  toResponse _ = toResponse $ dynError @(MapError e)
+
 data GalleyError
   = InvalidAction
   | InvalidTargetAccess
-  | TeamNotFound
+  | MessagingAPIError MessagingAPIError
   | TeamMemberNotFound
   | NotATeamMember
-  | NonBindingTeam
-  | BroadcastLimitExceeded
   | UserBindingExists
   | NoAddToBinding
   | TooManyTeamMembers
@@ -149,7 +165,7 @@ instance S.ToSchema GalleyError
 $(genSingletons [''GalleyError])
 
 instance (Typeable (MapError e), KnownError (MapError e)) => IsSwaggerError (e :: GalleyError) where
-  addToOpenApi _ = addStaticErrorToSwagger @(MapError e)
+  addToOpenApi = addStaticErrorToSwagger @(MapError e)
 
 instance KnownError (MapError e) => APIError (Proxy (e :: GalleyError)) where
   toResponse _ = toResponse $ dynError @(MapError e)
@@ -170,7 +186,7 @@ type family GalleyErrorEffect (e :: GalleyError) :: Effect where
 
 type instance ErrorEffect (e :: GalleyError) = GalleyErrorEffect e
 
-type instance ErrorEffect (SomeSing k) = Error SomeStaticError
+type instance ErrorEffect (e :: MessagingAPIError) = ErrorS ('MessagingAPIError e)
 
 type instance MapError 'InvalidAction = 'StaticError 400 "invalid-actions" "The specified actions are invalid"
 
@@ -181,6 +197,8 @@ type instance MapError 'TeamNotFound = 'StaticError 404 "no-team" "Team not foun
 type instance MapError 'NonBindingTeam = 'StaticError 404 "non-binding-team" "Not a member of a binding team"
 
 type instance MapError 'BroadcastLimitExceeded = 'StaticError 400 "too-many-users-to-broadcast" "Too many users to fan out the broadcast event to"
+
+type instance MapError ('MessagingAPIError e) = MapError e
 
 type instance MapError 'TeamMemberNotFound = 'StaticError 404 "no-team-member" "Team member not found"
 
@@ -341,7 +359,7 @@ type instance MapError 'VerificationCodeAuthFailed = 'StaticError 403 "code-auth
 type instance MapError 'VerificationCodeRequired = 'StaticError 403 "code-authentication-required" "Verification code required"
 
 instance IsSwaggerError AuthenticationError where
-  addToOpenApi _ =
+  addToOpenApi =
     addStaticErrorToSwagger @(MapError 'ReAuthFailed)
       . addStaticErrorToSwagger @(MapError 'VerificationCodeAuthFailed)
       . addStaticErrorToSwagger @(MapError 'VerificationCodeRequired)
@@ -369,7 +387,7 @@ data TeamFeatureError
 
 instance IsSwaggerError TeamFeatureError where
   -- Do not display in Swagger
-  addToOpenApi _ = id
+  addToOpenApi = id
 
 type instance MapError 'AppLockInactivityTimeoutTooLow = 'StaticError 400 "inactivity-timeout-too-low" "Applock inactivity timeout must be at least 30 seconds"
 
@@ -419,7 +437,7 @@ type instance ErrorEffect MLSProposalFailure = Error MLSProposalFailure
 
 -- Proposal failures are only reported generically in Swagger
 instance IsSwaggerError MLSProposalFailure where
-  addToOpenApi _ = S.allOperations . S.description %~ Just . (<> desc) . fold
+  addToOpenApi = S.allOperations . S.description %~ Just . (<> desc) . fold
     where
       desc =
         "\n\n**Note**: this endpoint can execute proposals, and therefore \
@@ -470,7 +488,7 @@ instance ToSchema NonFederatingBackends where
         nonFederatingBackendsFromList
 
 instance IsSwaggerError NonFederatingBackends where
-  addToOpenApi _ =
+  addToOpenApi =
     addErrorResponseToSwagger (HTTP.statusCode nonFederatingBackendsStatus) $
       mempty
         & S.description .~ "Adding members to the conversation is not possible because the backends involved do not form a fully connected graph"
@@ -512,7 +530,7 @@ instance ToSchema UnreachableBackends where
         <$> (.backends) .= field "unreachable_backends" (array schema)
 
 instance IsSwaggerError UnreachableBackends where
-  addToOpenApi _ =
+  addToOpenApi =
     addErrorResponseToSwagger (HTTP.statusCode unreachableBackendsStatus) $
       mempty
         & S.description .~ "Some domains are unreachable"

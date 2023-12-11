@@ -15,8 +15,8 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 {-# LANGUAGE BlockArguments #-}
-{-# LANGUAGE QuantifiedConstraints #-}
-{-# LANGUAGE ImpredicativeTypes #-}
+{-# LANGUAGE TemplateHaskell #-}
+
 module Wire.API.Error
   ( -- * Static and dynamic error types
     DynError (..),
@@ -32,13 +32,13 @@ module Wire.API.Error
     -- * Static errors and Servant
     CanThrow,
     CanThrowMany,
+    CanThrowManyOfKind,
     DL (..),
     T,
     DeclaredErrorEffects,
     addErrorResponseToSwagger,
     addStaticErrorToSwagger,
     IsSwaggerError (..),
-    SwaggerErrorWitnessC,
     ErrorResponse,
 
     -- * Static errors and Polysemy
@@ -56,7 +56,13 @@ module Wire.API.Error
     MapManyToSomeError (..),
     mapManyToSomeError,
     SomeStaticError (..),
-    withSomeStaticError
+    withSomeStaticError,
+    UnfoldKind,
+    UnfoldConstraints,
+    genUnfolding,
+    genUnfoldings,
+    genSingletonsAndUnfoldings,
+    wrapInto,
   )
 where
 
@@ -70,12 +76,15 @@ import Data.OpenApi qualified as S
 import Data.Proxy
 import Data.SOP
 import Data.Schema
-import Data.Singletons (SingI (sing), SomeSing (SomeSing), pattern Sing, withSomeSing, SingKind (Demote))
+import Data.Singletons (Sing, SingI (sing), SingKind, SomeSing (SomeSing), withSomeSing)
+import Data.Singletons.TH (genSingletons)
 import Data.Tagged (reproxy)
 import Data.Text qualified as Text
 import Data.Text.Lazy qualified as LT
 import GHC.TypeLits
 import Imports hiding (All)
+import Language.Haskell.TH (Con (InfixC, NormalC, RecC), Dec (DataD, NewtypeD), Info (TyConI), Name, Q)
+import Language.Haskell.TH qualified as TH
 import Network.HTTP.Types.Status qualified as HTTP
 import Network.Wai.Utilities.Error qualified as Wai
 import Network.Wai.Utilities.JSONResponse
@@ -209,6 +218,11 @@ infixr 5 ::*
 type CanThrowMany :: forall xs. DL xs -> Type
 data CanThrowMany errs
 
+-- | this is used to unfold a kind into its constructors if the
+--   actual error can be one of many at runtime
+type CanThrowManyOfKind :: Type -> Type
+type CanThrowManyOfKind l = CanThrowMany (UnfoldKind l ::* DN)
+
 -- | Identity where the type of the list depends on the argument
 type T :: forall k -> [k] -> [k]
 type T typ l = l
@@ -235,11 +249,11 @@ instance (HasServer api ctx) => HasServer (CanThrowMany es :> api) ctx where
   route _ = route (Proxy @api)
   hoistServerWithContext _ = hoistServerWithContext (Proxy @api)
 
--- instance
---   (HasOpenApi api, IsSwaggerError e) =>
---   HasOpenApi (CanThrow e :> api)
---   where
---   toOpenApi _ = addToOpenApi @e _ (toOpenApi (Proxy @api))
+instance
+  (HasOpenApi api, IsSwaggerError e) =>
+  HasOpenApi (CanThrow e :> api)
+  where
+  toOpenApi _ = addToOpenApi @e (toOpenApi (Proxy @api))
 
 instance HasClient m api => HasClient m (CanThrow e :> api) where
   type Client m (CanThrow e :> api) = Client m api
@@ -253,11 +267,11 @@ type instance
 instance HasOpenApi api => HasOpenApi (CanThrowMany DN :> api) where
   toOpenApi _ = toOpenApi (Proxy @api)
 
--- instance
---   (HasOpenApi (CanThrowMany (es ::* ess) :> api), IsSwaggerError e) =>
---   HasOpenApi (CanThrowMany ((e : es) ::* ess) :> api)
---   where
---   toOpenApi _ = addToOpenApi @e undefined (toOpenApi (Proxy @(CanThrowMany (es ::* ess) :> api)))
+instance
+  (HasOpenApi (CanThrowMany (es ::* ess) :> api), IsSwaggerError e) =>
+  HasOpenApi (CanThrowMany ((e : es) ::* ess) :> api)
+  where
+  toOpenApi _ = addToOpenApi @e (toOpenApi (Proxy @(CanThrowMany (es ::* ess) :> api)))
 
 instance
   (HasOpenApi (CanThrowMany ess :> api)) =>
@@ -265,8 +279,67 @@ instance
   where
   toOpenApi _ = toOpenApi (Proxy @(CanThrowMany ess :> api))
 
+type UnfoldKind :: forall k -> [k]
+type family UnfoldKind k
+
+dataOrNewtypeD :: Info -> Q (TH.Type, [Con])
+dataOrNewtypeD = \case
+  TyConI (DataD _ctx name _bindrs _k cons _derivs) -> pure (TH.ConT name, cons)
+  TyConI (NewtypeD _ctx name _bindrs _k con _derivs) -> pure (TH.ConT name, [con])
+  _ -> fail "Cannot generate an unfolding for non-datatypes"
+
+dataCName :: Con -> Q Name
+dataCName = \case
+  NormalC n _ -> pure n
+  RecC n _ -> pure n
+  InfixC _ n _ -> pure n
+  _ -> fail "Cannot get Name of non-vanilla datatype constructors"
+
+consToPromotedList :: [Con] -> Q TH.Type
+consToPromotedList xs =
+  Imports.foldr
+    do
+      \x t -> do
+        t' <- t
+        cname <- dataCName x
+        pure (TH.PromotedConsT `TH.AppT` TH.PromotedT cname `TH.AppT` t')
+    do pure TH.PromotedNilT
+    xs
+
+-- | for any vanilla datatype that is to be used as a kind, generated a list of
+-- all of its constructors
+genUnfolding :: Name -> Q [Dec]
+genUnfolding t = do
+  (tc, dcs) <- dataOrNewtypeD =<< TH.reify t
+  [d|
+    type instance UnfoldKind $(pure tc) = $(consToPromotedList dcs)
+    |]
+
+genUnfoldings :: [Name] -> Q [Dec]
+genUnfoldings = fmap concat . traverse genUnfolding
+
+genSingletonsAndUnfoldings :: [Name] -> Q [Dec]
+genSingletonsAndUnfoldings ns = do
+  ss <- genSingletons ns
+  us <- genUnfoldings ns
+  pure (ss ++ us)
+
+-- type UnfoldConstraints l r = Members (MapErrorS (UnfoldKind l)) r
+
+type UnfoldConstraints :: forall k. [k] -> EffectRow -> Constraint
+class UnfoldConstraints l r where
+  unfoldWitness :: Sem (MapErrorS l `Append` r) a -> Sem r a
+
+instance UnfoldConstraints '[] r where
+  unfoldWitness = id
+
+instance UnfoldConstraints (x : xs) r where
+  unfoldWitness = undefined -- mapError (_)
+
+-- instance Unfold
+
 type family DeclaredErrorEffects api :: EffectRow where
-  DeclaredErrorEffects (CanThrow e :> api) = (ErrorEffect e ': DeclaredErrorEffects api)
+  DeclaredErrorEffects (CanThrow e :> api) = ErrorEffect e : DeclaredErrorEffects api
   DeclaredErrorEffects (CanThrowMany ((e : es) ::* ess) :> api) =
     DeclaredErrorEffects (CanThrow e :> CanThrowMany (es ::* ess) :> api)
   DeclaredErrorEffects (CanThrowMany ('[] ::* es) :> api) =
@@ -316,16 +389,7 @@ type family MapError (e :: k) :: StaticError
 type family ErrorEffect (e :: k) :: Effect
 
 class IsSwaggerError e where
-  type SwaggerErrorWitness e :: Type
-  type SwaggerErrorWitness e = ()
-  addToOpenApi :: SwaggerErrorWitness e -> S.OpenApi -> S.OpenApi
-
-class SwaggerErrorWitness e ~ () => SwaggerErrorWitnessC e
-instance SwaggerErrorWitness e ~ () => SwaggerErrorWitnessC e
-
-instance (SingKind k, forall (e :: k). IsSwaggerError e, forall (e :: k). SwaggerErrorWitnessC e) => IsSwaggerError (SomeErrorOfKind k) where
-  type SwaggerErrorWitness (SomeErrorOfKind k) = Demote k
-  addToOpenApi err = withSomeSing err \(Sing @_ @a) -> addToOpenApi @(a :: k) ()
+  addToOpenApi :: S.OpenApi -> S.OpenApi
 
 -- | An effect for a static error type with no data.
 type ErrorS e = Error (Proxy e)
@@ -345,6 +409,13 @@ mapErrorS ::
   Sem r a
 mapErrorS = mapError (reproxy @_ @e @e')
 
+wrapInto ::
+  forall f e r a.
+  (Member (ErrorS (f e)) r) =>
+  Sem (ErrorS e : r) a ->
+  Sem r a
+wrapInto = mapErrorS @e @(f e)
+
 mapToSomeError ::
   forall {k} (e :: k) r a.
   (Member (SomeErrorOfKind k) r, SingI e) =>
@@ -352,6 +423,7 @@ mapToSomeError ::
   Sem r a
 mapToSomeError = mapError (SomeSing @k @e . const sing)
 
+type MapErrorS :: [k] -> EffectRow
 type family MapErrorS xs where
   MapErrorS '[] = '[]
   MapErrorS (x : xs) = (ErrorS x : MapErrorS xs)

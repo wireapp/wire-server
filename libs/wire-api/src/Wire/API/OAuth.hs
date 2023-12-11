@@ -641,7 +641,7 @@ data OAuthError
   | OAuthInvalidGrant
 
 instance (Typeable (MapError e), KnownError (MapError e)) => IsSwaggerError (e :: OAuthError) where
-  addToOpenApi _ = addStaticErrorToSwagger @(MapError e)
+  addToOpenApi = addStaticErrorToSwagger @(MapError e)
 
 type instance MapError 'OAuthClientNotFound = 'StaticError 404 "not-found" "OAuth client not found"
 

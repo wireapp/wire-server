@@ -30,7 +30,7 @@ data CargoholdError
   | UserNotFound
 
 instance (Typeable (MapError e), KnownError (MapError e)) => IsSwaggerError (e :: CargoholdError) where
-  addToOpenApi _ = addStaticErrorToSwagger @(MapError e)
+  addToOpenApi = addStaticErrorToSwagger @(MapError e)
 
 type instance MapError 'AssetNotFound = 'StaticError 404 "not-found" "Asset not found"
 

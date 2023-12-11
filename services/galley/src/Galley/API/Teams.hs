@@ -155,12 +155,12 @@ import Wire.Sem.Paging.Cassandra
 
 getTeamH ::
   forall r.
-  (Member (ErrorS 'TeamNotFound) r, Member (Queue DeleteItem) r, Member TeamStore r) =>
+  (Member (ErrorS ('MessagingAPIError 'TeamNotFound)) r, Member (Queue DeleteItem) r, Member TeamStore r) =>
   UserId ->
   TeamId ->
   Sem r Public.Team
 getTeamH zusr tid =
-  maybe (throwS @'TeamNotFound) pure =<< lookupTeam zusr tid
+  maybe (throwS @('MessagingAPIError 'TeamNotFound)) pure =<< lookupTeam zusr tid
 
 getTeamInternalH ::
   ( Member (ErrorS 'TeamNotFound) r,
@@ -346,7 +346,7 @@ deleteTeam ::
     Member (ErrorS 'DeleteQueueFull) r,
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
-    Member (ErrorS 'TeamNotFound) r,
+    Member (ErrorS ('MessagingAPIError 'TeamNotFound)) r,
     Member (Queue DeleteItem) r,
     Member TeamStore r
   ) =>
@@ -356,9 +356,9 @@ deleteTeam ::
   Public.TeamDeleteData ->
   Sem r ()
 deleteTeam zusr zcon tid body = do
-  team <- E.getTeam tid >>= noteS @'TeamNotFound
+  team <- E.getTeam tid >>= noteS @('MessagingAPIError TeamNotFound)
   case tdStatus team of
-    Deleted -> throwS @'TeamNotFound
+    Deleted -> throwS @('MessagingAPIError TeamNotFound)
     PendingDelete ->
       queueTeamDeletion tid zusr (Just zcon)
     _ -> do
@@ -712,7 +712,7 @@ addTeamMember ::
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS 'NotConnected) r,
     Member (ErrorS OperationDenied) r,
-    Member (ErrorS 'TeamNotFound) r,
+    Member (ErrorS ('MessagingAPIError TeamNotFound)) r,
     Member (ErrorS 'TooManyTeamMembers) r,
     Member (ErrorS 'TooManyTeamAdmins) r,
     Member (ErrorS 'UserBindingExists) r,
@@ -742,7 +742,8 @@ addTeamMember lzusr zcon tid nmem = do
       >>= permissionCheck AddTeamMember
   let targetPermissions = nmem ^. nPermissions
   targetPermissions `ensureNotElevated` zusrMembership
-  ensureNonBindingTeam tid
+  wrapInto @'MessagingAPIError @TeamNotFound $
+    ensureNonBindingTeam tid
   ensureUnboundUsers [uid]
   ensureConnectedToLocals zusr [uid]
   (TeamSize sizeBeforeJoin) <- E.getSize tid
@@ -827,7 +828,7 @@ updateTeamMember ::
   ( Member BrigAccess r,
     Member (ErrorS 'AccessDenied) r,
     Member (ErrorS 'InvalidPermissions) r,
-    Member (ErrorS 'TeamNotFound) r,
+    Member (ErrorS ('MessagingAPIError 'TeamNotFound)) r,
     Member (ErrorS 'TeamMemberNotFound) r,
     Member (ErrorS 'TooManyTeamAdmins) r,
     Member (ErrorS 'NotATeamMember) r,
@@ -866,7 +867,8 @@ updateTeamMember lzusr zcon tid newMember = do
     )
     $ throwS @'AccessDenied
 
-  uncheckedUpdateTeamMember (Just lzusr) (Just zcon) tid newMember
+  wrapInto @'MessagingAPIError @TeamNotFound $
+    uncheckedUpdateTeamMember (Just lzusr) (Just zcon) tid newMember
   where
     canDowngradeOwner = canDeleteMember
 
@@ -883,7 +885,7 @@ deleteTeamMember ::
     Member (Error InvalidInput) r,
     Member (ErrorS 'AccessDenied) r,
     Member (ErrorS 'TeamMemberNotFound) r,
-    Member (ErrorS 'TeamNotFound) r,
+    Member (ErrorS ('MessagingAPIError 'TeamNotFound)) r,
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
     Member ExternalAccess r,
@@ -909,7 +911,7 @@ deleteNonBindingTeamMember ::
     Member (Error InvalidInput) r,
     Member (ErrorS 'AccessDenied) r,
     Member (ErrorS 'TeamMemberNotFound) r,
-    Member (ErrorS 'TeamNotFound) r,
+    Member (ErrorS ('MessagingAPIError 'TeamNotFound)) r,
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
     Member ExternalAccess r,
@@ -935,7 +937,7 @@ deleteTeamMember' ::
     Member (Error InvalidInput) r,
     Member (ErrorS 'AccessDenied) r,
     Member (ErrorS 'TeamMemberNotFound) r,
-    Member (ErrorS 'TeamNotFound) r,
+    Member (ErrorS ('MessagingAPIError TeamNotFound)) r,
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
     Member ExternalAccess r,
@@ -962,7 +964,7 @@ deleteTeamMember' lusr zcon tid remove mBody = do
     dm <- noteS @'NotATeamMember zusrMember
     tm <- noteS @'TeamMemberNotFound targetMember
     unless (canDeleteMember dm tm) $ throwS @'AccessDenied
-  team <- fmap tdTeam $ E.getTeam tid >>= noteS @'TeamNotFound
+  team <- fmap tdTeam $ E.getTeam tid >>= noteS @('MessagingAPIError TeamNotFound)
   if team ^. teamBinding == Binding && isJust targetMember
     then do
       body <- mBody & note (InvalidPayload "missing request body")

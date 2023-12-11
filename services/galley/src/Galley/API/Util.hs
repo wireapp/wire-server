@@ -1049,17 +1049,29 @@ instance (Member (Error FederationError) r) => RethrowErrors '[] r where
   rethrowErrors err' = throw (FederationUnexpectedError (T.pack . show $ err'))
 
 instance
-  ( SingI (e :: GalleyError),
+  ( SingI e,
     Member (ErrorS e) r,
     RethrowErrors effs r
   ) =>
-  RethrowErrors (ErrorS e ': effs) r
+  RethrowErrors (ErrorS (e :: GalleyError) ': effs) r
   where
   rethrowErrors :: GalleyError -> Sem r a
   rethrowErrors err' =
     if err' == demote @e
       then throwS @e
       else rethrowErrors @effs @r err'
+
+instance
+  ( SingI e,
+    RethrowErrors effs r,
+    Member (ErrorS e) r
+  ) =>
+  RethrowErrors (ErrorS (e :: MessagingAPIError) : effs) r
+  where
+  rethrowErrors e =
+    if e == MessagingAPIError (demote @e)
+      then throwS @e
+      else rethrowErrors @effs @r e
 
 logRemoteNotificationError ::
   forall rpc r.

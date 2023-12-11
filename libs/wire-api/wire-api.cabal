@@ -310,6 +310,7 @@ library
     , singletons
     , singletons-base
     , singletons-th
+    , template-haskell
     , sop-core
     , tagged
     , text                       >=0.11

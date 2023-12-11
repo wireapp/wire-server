@@ -93,7 +93,7 @@ data BrigError
   | ProviderNotFound
 
 instance (Typeable (MapError e), KnownError (MapError e)) => IsSwaggerError (e :: BrigError) where
-  addToOpenApi _ = addStaticErrorToSwagger @(MapError e)
+  addToOpenApi = addStaticErrorToSwagger @(MapError e)
 
 type instance MapError 'ServiceNotFound = 'StaticError 404 "not-found" "Service not found."
 

@@ -646,7 +646,14 @@ updateConversationProtocolWithLocalUser ::
     Member (Input Env) r,
     Member (Input (Local ())) r,
     Member (Input Opts) r,
-    Member (SomeErrorOfKind GalleyError) r,
+    Member (ErrorS (ActionDenied LeaveConversation)) r,
+    Member (ErrorS OperationDenied) r,
+    Member (ErrorS InvalidOperation) r,
+    Member (ErrorS ConvNotFound) r,
+    Member (ErrorS ConvInvalidProtocolTransition) r,
+    Member (ErrorS MLSMigrationCriteriaNotSatisfied) r,
+    Member (ErrorS NotATeamMember) r,
+    Member (ErrorS ('MessagingAPIError TeamNotFound)) r,
     Member BackendNotificationQueueAccess r,
     Member BrigAccess r,
     Member ConversationStore r,
@@ -673,32 +680,12 @@ updateConversationProtocolWithLocalUser lusr conn qcnv (P.ProtocolUpdate newProt
       ( \lcnv -> do
           fmap (maybe Unchanged (Updated . lcuEvent) . hush)
             . runError @NoChanges
-            . mapManyToSomeError
-              @'[ InvalidOperation,
-                  ActionDenied LeaveConversation,
-                  OperationDenied,
-                  ConvNotFound,
-                  ConvInvalidProtocolTransition,
-                  MLSMigrationCriteriaNotSatisfied,
-                  NotATeamMember,
-                  TeamNotFound
-                ]
-              Proxy
+            . wrapInto @'MessagingAPIError @TeamNotFound
             $ updateLocalConversation @'ConversationUpdateProtocolTag lcnv (tUntagged lusr) (Just conn) newProtocol
       )
       ( \rcnv ->
-          mapToSomeError @(ActionDenied LeaveConversation)
-            . mapManyToSomeError
-              @[ MissingPermission Nothing,
-                 InvalidOperation,
-                 ConvNotFound,
-                 ConvInvalidProtocolTransition,
-                 MLSMigrationCriteriaNotSatisfied,
-                 NotATeamMember,
-                 TeamNotFound
-               ]
-              Proxy
-            $ updateRemoteConversation @'ConversationUpdateProtocolTag rcnv lusr conn newProtocol
+          wrapInto @'MessagingAPIError @TeamNotFound $
+            updateRemoteConversation @'ConversationUpdateProtocolTag rcnv lusr conn newProtocol
       )
       qcnv
 
@@ -1247,9 +1234,7 @@ postProteusMessage sender zcon conv msg = runLocalInput sender $ do
 postProteusBroadcast ::
   ( Member BrigAccess r,
     Member ClientStore r,
-    Member (ErrorS 'TeamNotFound) r,
-    Member (ErrorS 'NonBindingTeam) r,
-    Member (ErrorS 'BroadcastLimitExceeded) r,
+    Member (SomeErrorOfKind MessagingAPIError) r,
     Member GundeckAccess r,
     Member ExternalAccess r,
     Member (Input Opts) r,
@@ -1327,9 +1312,7 @@ postBotMessageUnqualified sender cnv ignoreMissing reportMissing message = do
 postOtrBroadcastUnqualified ::
   ( Member BrigAccess r,
     Member ClientStore r,
-    Member (ErrorS 'TeamNotFound) r,
-    Member (ErrorS 'NonBindingTeam) r,
-    Member (ErrorS 'BroadcastLimitExceeded) r,
+    Member (SomeErrorOfKind MessagingAPIError) r,
     Member GundeckAccess r,
     Member ExternalAccess r,
     Member (Input Opts) r,
