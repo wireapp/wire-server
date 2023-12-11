@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wwarn #-}
 
 module Test.MLS.KeyPackage where
 
@@ -152,6 +151,36 @@ testKeyPackageSelfClaim = do
     countKeyPackages def alicei `bindResponse` \resp -> do
       resp.json %. "count" `shouldMatchInt` n
       resp.status `shouldMatchInt` 200
+
+testKeyPackageRemoteClaim :: App ()
+testKeyPackageRemoteClaim = do
+  alice <- randomUser OwnDomain def
+  alice1 <- createMLSClient def alice
+
+  charlie <- randomUser OtherDomain def
+  charlie1 <- createMLSClient def charlie
+
+  refCharlie <- uploadNewKeyPackage charlie1
+  refAlice <- uploadNewKeyPackage alice1
+
+  -- the user should be able to claim the keypackage of
+  -- a remote user and vice versa
+  for_
+    [ (alice1, charlie, charlie1, refCharlie),
+      (charlie1, alice, alice1, refAlice)
+    ]
+    \(claimer, claimee, uploader, reference) -> do
+      claimKeyPackages def claimer claimee `bindResponse` \resp -> do
+        -- make sure that the reference match on the keypackages
+        [kp] <- resp.json %. "key_packages" & asList
+        kp %. "key_package_ref" `shouldMatch` reference
+        resp.status `shouldMatchInt` 200
+
+      -- the key package of the uploading client should be gone
+      -- after claiming
+      countKeyPackages def uploader `bindResponse` \resp -> do
+        resp.json %. "count" `shouldMatchInt` 0
+        resp.status `shouldMatchInt` 200
 
 testKeyPackageCount :: HasCallStack => Ciphersuite -> App ()
 testKeyPackageCount cs = do

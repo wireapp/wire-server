@@ -405,7 +405,6 @@ executable brig-integration
     API.Internal
     API.Internal.Util
     API.Metrics
-    API.MLS
     API.MLS.Util
     API.OAuth
     API.Provider
