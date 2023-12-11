@@ -40,6 +40,7 @@ import Federator.Env
 import Imports
 import Network.HTTP.Client
 import Network.HTTP.Types qualified as HTTP
+import Network.HTTP.Types.Header
 import Polysemy
 import Polysemy.Input
 import Servant.Client.Core qualified as Servant
@@ -52,7 +53,7 @@ type ServiceStreaming = Service (SourceT IO ByteString)
 
 data Service body m a where
   -- | Returns status, headers and body, 'HTTP.Response' is not nice to work with in tests
-  ServiceCall :: Component -> ByteString -> LByteString -> RequestId -> Domain -> Service body m (Servant.ResponseF body)
+  ServiceCall :: Component -> ByteString -> RequestHeaders -> LByteString -> RequestId -> Domain -> Service body m (Servant.ResponseF body)
 
 makeSem ''Service
 
@@ -81,7 +82,7 @@ interpretServiceHTTP ::
   Sem (ServiceStreaming ': r) a ->
   Sem r a
 interpretServiceHTTP = interpret $ \case
-  ServiceCall component rpcPath body rid domain -> do
+  ServiceCall component rpcPath headers body rid domain -> do
     Endpoint serviceHost servicePort <- inputs (view service) <*> pure component
     manager <- inputs (view httpManager)
     let req =
@@ -93,9 +94,10 @@ interpretServiceHTTP = interpret $ \case
               path = rpcPath,
               requestHeaders =
                 [ ("Content-Type", "application/json"),
-                  (originDomainHeaderName, cs (domainText domain))
+                  (originDomainHeaderName, cs (domainText domain)),
+                  (RPC.requestIdName, unRequestId rid)
                 ]
-                  <> [(RPC.requestIdName, unRequestId rid)]
+                  <> headers
             }
 
     embed $

@@ -23,6 +23,7 @@ import Control.Monad.Codensity
 import Data.ByteString qualified as BS
 import Data.Default
 import Data.Domain
+import Data.Sequence as Seq
 import Data.Text.Encoding qualified as Text
 import Federator.Discovery
 import Federator.Error.ServerError (ServerError (..))
@@ -90,6 +91,7 @@ exampleRequest certFile path = do
 data Call = Call
   { cComponent :: Component,
     cPath :: ByteString,
+    cHeaders :: RequestHeaders,
     cBody :: LByteString,
     cDomain :: Domain
   }
@@ -101,12 +103,12 @@ mockService ::
   Sem (ServiceStreaming ': r) a ->
   Sem r a
 mockService status = interpret $ \case
-  ServiceCall comp path body _mReqId domain -> do
-    output (Call comp path body domain)
+  ServiceCall comp path headers body _mReqId domain -> do
+    output (Call comp path headers body domain)
     pure
       Servant.Response
         { Servant.responseStatusCode = status,
-          Servant.responseHeaders = mempty,
+          Servant.responseHeaders = Seq.fromList headers,
           Servant.responseHttpVersion = HTTP.http11,
           Servant.responseBody = source ["\"bar\""]
         }
@@ -138,7 +140,7 @@ requestBrigSuccess =
         . runInputConst noClientCertSettings
         . runInputConst scaffoldingFederationDomainConfigs
         $ callInward Brig (RPC "get-user-by-handle") Nothing aValidDomain (CertHeader cert) request
-    let expectedCall = Call Brig "/federation/get-user-by-handle" "\"foo\"" aValidDomain
+    let expectedCall = Call Brig "/federation/get-user-by-handle" [] "\"foo\"" aValidDomain
     assertEqual "one call to brig should be made" [expectedCall] actualCalls
     Wai.responseStatus res @?= HTTP.status200
     body <- Wai.lazyResponseBody res
@@ -167,7 +169,7 @@ requestBrigFailure =
         . runInputConst scaffoldingFederationDomainConfigs
         $ callInward Brig (RPC "get-user-by-handle") Nothing aValidDomain (CertHeader cert) request
 
-    let expectedCall = Call Brig "/federation/get-user-by-handle" "\"foo\"" aValidDomain
+    let expectedCall = Call Brig "/federation/get-user-by-handle" [] "\"foo\"" aValidDomain
     assertEqual "one call to brig should be made" [expectedCall] actualCalls
     Wai.responseStatus res @?= HTTP.notFound404
     body <- Wai.lazyResponseBody res
@@ -196,7 +198,7 @@ requestGalleySuccess =
           . runInputConst noClientCertSettings
           . runInputConst scaffoldingFederationDomainConfigs
           $ callInward Galley (RPC "get-conversations") Nothing aValidDomain (CertHeader cert) request
-      let expectedCall = Call Galley "/federation/get-conversations" "\"foo\"" aValidDomain
+      let expectedCall = Call Galley "/federation/get-conversations" [] "\"foo\"" aValidDomain
       embed $ assertEqual "one call to galley should be made" [expectedCall] actualCalls
       embed $ Wai.responseStatus res @?= HTTP.status200
       body <- embed $ Wai.lazyResponseBody res
