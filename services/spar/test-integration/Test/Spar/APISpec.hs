@@ -1260,12 +1260,13 @@ specDeleteCornerCases = describe "delete corner cases" $ do
     do
       resp <- call $ callIdpDelete' (env ^. teSpar) (pure owner1) (idp2 ^. idpId)
       liftIO $ statusCode resp `shouldBe` 412
-    void $ tryLogin privkey1 idp1 userSubject
+      void $ tryLogin privkey1 idp1 userSubject
     -- with purge: works, and user is gone, too.
     do
       resp <- call $ callIdpDeletePurge' (env ^. teSpar) (pure owner1) (idp2 ^. idpId)
       liftIO $ statusCode resp `shouldBe` 204
-    liftIO $ threadDelay 1000000
+      tryLoginFail404 privkey1 idp2 userSubject
+      tryLoginFail404 privkey1 idp1 userSubject
     do
       resp <- call $ callIdpGet' (env ^. teSpar) (Just owner1) (idp1 ^. SAML.idpId)
       liftIO $ statusCode resp `shouldBe` 200 -- Weird, yes.  See haddocks for `Spar.API.idpDelete`.
@@ -1276,9 +1277,6 @@ specDeleteCornerCases = describe "delete corner cases" $ do
       allIdps <- call $ callIdpGetAll (env ^. teSpar) (pure owner1)
       liftIO $ do
         allIdps ^? providers . ix 0 . SAML.idpExtraInfo . handle `shouldBe` Just (IdPHandle "IdP 1")
-
-    tryLoginFail404 privkey1 idp1 userSubject
-    tryLoginFail404 privkey1 idp2 userSubject
 
   it "create user1 via idp1 (saml); delete user1; create user via newly created idp2 (saml)" $ do
     pending
