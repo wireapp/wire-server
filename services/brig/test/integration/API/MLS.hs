@@ -44,22 +44,11 @@ tests :: Manager -> Brig -> Opts -> TestTree
 tests m b opts =
   testGroup
     "MLS"
-    [ test m "POST /mls/key-packages/self/:client (no public keys)" (testKeyPackageUploadNoKey b),
-      -- FUTUREWORK test m "GET /mls/key-packages/self/:client/count (expired package)" (testKeyPackageExpired b),
+    [ -- FUTUREWORK test m "GET /mls/key-packages/self/:client/count (expired package)" (testKeyPackageExpired b),
       test m "GET /mls/key-packages/claim/local/:user" (testKeyPackageClaim b),
       test m "GET /mls/key-packages/claim/local/:user - self claim" (testKeyPackageSelfClaim b),
       test m "GET /mls/key-packages/claim/remote/:user" (testKeyPackageRemoteClaim opts b)
     ]
-
-testKeyPackageUploadNoKey :: Brig -> Http ()
-testKeyPackageUploadNoKey brig = do
-  u <- userQualifiedId <$> randomUser brig
-  c <- createClient brig u 0
-  withSystemTempDirectory "mls" $ \tmp ->
-    uploadKeyPackages brig tmp def {kiSetKey = DontSetKey} u c 5
-
-  count <- getKeyPackageCount brig u c
-  liftIO $ count @?= 0
 
 testKeyPackageExpired :: Brig -> Http ()
 testKeyPackageExpired brig = do

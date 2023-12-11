@@ -47,6 +47,31 @@ testKeyPackageMultipleCiphersuites = do
     resp.status `shouldMatchInt` 200
     resp.json %. "count" `shouldMatchInt` 1
 
+testKeyPackageUploadNoKey :: App ()
+testKeyPackageUploadNoKey = do
+  alice <- randomUser OwnDomain def
+  alice1 <- do
+    cid <- createWireClient alice
+    initMLSClient def cid
+    pure cid
+
+  mls <- getMLSState
+  let cs = mls.ciphersuite
+
+  (kp, _) <- generateKeyPackage alice1 cs
+
+  -- if we upload a keypackage without a key,
+  -- we get a bad request
+  uploadKeyPackages alice1 [kp] `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 400
+
+  -- there should be no keypackages after getting
+  -- a rejection by the backend
+  countKeyPackages cs alice1 `bindResponse` \resp -> do
+    resp.json %. "count" `shouldMatchInt` 0
+    resp.status `shouldMatchInt` 200
+    resp.json %. "count" `shouldMatchInt` 0
+
 testKeyPackageCount :: HasCallStack => Ciphersuite -> App ()
 testKeyPackageCount cs = do
   alice <- randomUser OwnDomain def
