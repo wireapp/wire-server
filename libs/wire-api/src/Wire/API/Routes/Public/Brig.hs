@@ -844,19 +844,39 @@ type NewNonce name method statusCode =
              method
              '[JSON]
              ( WithHeaders
-                 '[Header "Replay-Nonce" NonceHeader, Header "Cache-Control" CacheControl]
+                 -- The response contains explicit 'Content-Length' header to
+                 -- get around https://github.com/yesodweb/wai/issues/956
+                 '[Header "Replay-Nonce" NonceHeader, Header "Cache-Control" CacheControl, Header "Content-Length" ZeroContentLength]
                  (Nonce, CacheControl)
                  (RespondEmpty statusCode "No Content")
              )
     )
 
+-- | Used to get around https://github.com/yesodweb/wai/issues/956
+data ZeroContentLength = ZeroContentLength
+
+instance S.ToParamSchema ZeroContentLength where
+  toParamSchema _ =
+    mempty
+      & S.description ?~ "This field exists to get around a server bug, please do not use."
+      & S.type_ ?~ S.OpenApiInteger
+      & S.minimum_ ?~ 0
+      & S.maximum_ ?~ 0
+
+instance FromHttpApiData ZeroContentLength where
+  parseUrlPiece "0" = Right ZeroContentLength
+  parseUrlPiece x = Left $ "Expected ZeroContentLength to only be 0, got: " <> x
+
+instance ToHttpApiData ZeroContentLength where
+  toUrlPiece ZeroContentLength = "0"
+
 newtype NonceHeader = NonceHeader Nonce
   deriving (Eq, Show)
   deriving newtype (FromByteString, ToByteString, ToParamSchema, ToHttpApiData, FromHttpApiData)
 
-instance AsHeaders '[NonceHeader, CacheControl] () (Nonce, CacheControl) where
-  fromHeaders (I (NonceHeader n) :* (I cc :* Nil), ()) = (n, cc)
-  toHeaders (n, cc) = (I (NonceHeader n) :* (I cc :* Nil), ())
+instance AsHeaders '[NonceHeader, CacheControl, ZeroContentLength] () (Nonce, CacheControl) where
+  fromHeaders (I (NonceHeader n) :* (I cc :* (I _ :* Nil)), ()) = (n, cc)
+  toHeaders (n, cc) = (I (NonceHeader n) :* (I cc :* (I ZeroContentLength :* Nil)), ())
 
 type ClientAPI =
   Named
