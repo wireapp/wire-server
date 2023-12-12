@@ -69,6 +69,7 @@ import Util.Options
 import Util.Test.SQS qualified as SQS
 import Wire.API.Federation.API
 import Wire.API.Federation.Domain
+import Wire.API.Federation.Version
 import Wire.API.VersionInfo
 
 type GalleyR = Request -> Request
@@ -169,5 +170,8 @@ runFedClient (FedClient mgr ep) domain =
       let req' = Servant.defaultMakeClientRequest burl req
        in req'
             { HTTP.requestHeaders =
-                HTTP.requestHeaders req' <> [(originDomainHeaderName, toByteString' originDomain)]
+                HTTP.requestHeaders req'
+                  <> [ (originDomainHeaderName, toByteString' originDomain),
+                       (versionHeader, toByteString' (versionInt (maxBound :: Version)))
+                     ]
             }
