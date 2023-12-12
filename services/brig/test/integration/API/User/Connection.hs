@@ -99,7 +99,6 @@ tests cl _at opts p b _c g fedBrigClient fedGalleyClient db =
       test p "Remote connections: connect OK" (testConnectOK b g fedBrigClient),
       test p "Remote connections: connect with Anon" (testConnectWithAnon b fedBrigClient),
       test p "Remote connections: connection from Anon" (testConnectFromAnon b),
-      test p "Remote connections: mutual Connect - local action then remote action" (testConnectMutualLocalActionThenRemoteAction opts b g fedBrigClient),
       test p "Remote connections: mutual Connect - remote action then local action" (testConnectMutualRemoteActionThenLocalAction opts b fedBrigClient fedGalleyClient),
       test p "Remote connections: connect twice" (testConnectFromPending b fedBrigClient),
       test p "Remote connections: ignore then accept" (testConnectFromIgnored opts b fedBrigClient),
@@ -749,35 +748,6 @@ testConnectFromAnon brig = do
   anonUser <- (.userId) <$> createAnonUser "anon1234" brig
   remoteUser <- fakeRemoteUser
   postConnectionQualified brig anonUser remoteUser !!! const 403 === statusCode
-
-testConnectMutualLocalActionThenRemoteAction :: Opt.Opts -> Brig -> Galley -> FedClient 'Brig -> Http ()
-testConnectMutualLocalActionThenRemoteAction opts brig galley fedBrigClient = do
-  let convIsLocal = True
-  (uid1, quid2, convId) <- localAndRemoteUserWithConvId brig convIsLocal
-
-  -- First create a connection request from local to remote user, as this test
-  -- aims to test the behaviour of recieving a mutual request from remote
-  sendConnectionAction brig opts uid1 quid2 Nothing Sent
-
-  do
-    res <-
-      getConversationQualified galley uid1 convId <!! do
-        statusCode === const 200
-    conv <- responseJsonError res
-    liftIO $
-      (fmap omQualifiedId . cmOthers . cnvMembers) conv @?= []
-
-  -- The response should have 'RemoteConnect' as action, because we cannot be
-  -- sure if the remote was previously in Ignored state or not
-  receiveConnectionAction brig fedBrigClient uid1 quid2 RemoteConnect (Just RemoteConnect) Accepted
-
-  do
-    res <-
-      getConversationQualified galley uid1 convId <!! do
-        statusCode === const 200
-    conv <- responseJsonError res
-    liftIO $
-      (fmap omQualifiedId . cmOthers . cnvMembers) conv @?= [quid2]
 
 testConnectMutualRemoteActionThenLocalAction :: Opt.Opts -> Brig -> FedClient 'Brig -> FedClient 'Galley -> Http ()
 testConnectMutualRemoteActionThenLocalAction opts brig fedBrigClient fedGalleyClient = do

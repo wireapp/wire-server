@@ -106,6 +106,7 @@ library
     Test.B2B
     Test.Brig
     Test.Client
+    Test.Connection
     Test.Conversation
     Test.Demo
     Test.Errors
