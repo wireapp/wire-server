@@ -38,7 +38,6 @@ tests p opts brig =
     "version"
     [ test p "GET /api-version" $ testVersion brig,
       test p "GET /v1/api-version" $ testVersionV1 brig,
-      test p "GET /api-version (with dev)" $ testDevVersion opts brig,
       test p "GET /v500/api-version" $ testUnsupportedVersion brig,
       test p "GET /api-version (federation info)" $ testFederationDomain opts brig,
       test p "Disabled version is unsupported" $ testDisabledVersionIsUnsupported opts brig,
@@ -63,17 +62,6 @@ testVersionV1 brig = do
         <!! const 200 === statusCode
   liftIO $
     (fromVersionNumber <$> vinfoSupported vinfo) @?= supportedVersions \\ developmentVersions
-
-testDevVersion :: Opts -> Brig -> Http ()
-testDevVersion opts brig = withSettingsOverrides
-  (opts & optionSettings . enableDevelopmentVersions ?~ True)
-  $ do
-    vinfo <-
-      responseJsonError
-        =<< get (brig . path "/api-version")
-          <!! const 200 === statusCode
-    liftIO $
-      (fromVersionNumber <$> vinfoSupported vinfo) @?= supportedVersions
 
 testUnsupportedVersion :: Brig -> Http ()
 testUnsupportedVersion brig = do

@@ -563,10 +563,6 @@ See {ref}`configure-federation-strategy-in-brig` (since [PR#3260](https://github
 
 ### API Versioning
 
-#### `setEnableDevelopmentVersions`
-
-This options determines whether development versions should be enabled. If set to `False`, all development versions are removed from the `supported` field of the `/api-version` endpoint. Note that they are still listed in the `development` field, and continue to work normally.
-
 ### OAuth
 
 For more information on OAuth please refer to <https://docs.wire.com/developer/reference/oauth.html>.

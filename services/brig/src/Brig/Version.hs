@@ -31,13 +31,10 @@ versionAPI :: ServerT VersionAPI (Handler r)
 versionAPI = Named $ do
   fed <- view federator
   dom <- viewFederationDomain
-  dev <- view (settings . enableDevelopmentVersions . to (fromMaybe False))
   disabledVersions <- view (settings . disabledAPIVersions . traverse)
   let allVersions = Set.difference (Set.fromList supportedVersions) disabledVersions
       devVersions = Set.difference (Set.fromList developmentVersions) disabledVersions
-      supported
-        | dev = allVersions
-        | otherwise = Set.difference allVersions devVersions
+      supported = Set.difference allVersions devVersions
   pure $
     VersionInfo
       { vinfoSupported = VersionNumber <$> toList supported,

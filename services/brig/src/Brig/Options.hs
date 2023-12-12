@@ -590,8 +590,6 @@ data Settings = Settings
     setSftListAllServers :: Maybe ListAllSFTServers,
     setEnableMLS :: Maybe Bool,
     setKeyPackageMaximumLifetime :: Maybe NominalDiffTime,
-    -- | When set, development API versions are advertised to clients as supported.
-    setEnableDevelopmentVersions :: Maybe Bool,
     -- | Disabled versions are not advertised and are completely disabled.
     setDisabledAPIVersions :: Maybe (Set Version),
     -- | Minimum delay in seconds between consecutive attempts to generate a new verification code.
@@ -930,7 +928,6 @@ Lens.makeLensesFor
     ("setSftListAllServers", "sftListAllServers"),
     ("setFederationDomainConfigs", "federationDomainConfigs"),
     ("setFederationStrategy", "federationStrategy"),
-    ("setEnableDevelopmentVersions", "enableDevelopmentVersions"),
     ("setRestrictUserCreation", "restrictUserCreation"),
     ("setEnableMLS", "enableMLS"),
     ("setOAuthEnabledInternal", "oauthEnabledInternal"),
