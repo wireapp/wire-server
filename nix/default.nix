@@ -7,6 +7,7 @@ let
       # All wire-server specific packages
       (import ./overlay.nix)
       (import ./overlay-docs.nix)
+      (self: super: { lib = super.lib // (import sources.bombon).lib.${super.system}; })
     ];
   };
 

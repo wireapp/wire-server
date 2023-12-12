@@ -542,3 +542,7 @@ kind-restart-%: .local/kind-kubeconfig
 #   make helm-template-wire-server
 helm-template-%: clean-charts charts-integration
 	./hack/bin/helm-template.sh $(*)
+
+.PHONY: upload-bombon
+upload-bombon:
+	./hack/bin/bombon.hs -- "$@"
