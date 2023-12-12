@@ -280,15 +280,18 @@ uploadKeyPackages cid kps = do
         & addJSONObject ["key_packages" .= map (T.decodeUtf8 . Base64.encode) kps]
     )
 
-claimKeyPackages :: (MakesValue u, MakesValue v) => Ciphersuite -> u -> v -> App Response
-claimKeyPackages suite u v = do
+claimKeyPackagesWithParams :: (MakesValue u, MakesValue v) => Ciphersuite -> u -> v -> [(String, String)] -> App Response
+claimKeyPackagesWithParams suite u v params = do
   (targetDom, targetUid) <- objQid v
   req <-
     baseRequest u Brig Versioned $
       "/mls/key-packages/claim/" <> targetDom <> "/" <> targetUid
   submit "POST" $
     req
-      & addQueryParams [("ciphersuite", suite.code)]
+      & addQueryParams ([("ciphersuite", suite.code)] <> params)
+
+claimKeyPackages :: (MakesValue u, MakesValue v) => Ciphersuite -> u -> v -> App Response
+claimKeyPackages suite u v = claimKeyPackagesWithParams suite u v []
 
 countKeyPackages :: Ciphersuite -> ClientIdentity -> App Response
 countKeyPackages suite cid = do

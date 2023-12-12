@@ -23,7 +23,6 @@ where
 import API.Calling qualified as Calling
 import API.Federation qualified
 import API.Internal qualified
-import API.MLS qualified as MLS
 import API.Metrics qualified as Metrics
 import API.OAuth qualified
 import API.Provider qualified as Provider
@@ -164,7 +163,6 @@ runTests iConf brigOpts otherArgs = do
   let smtp = SMTP.tests mg lg
       versionApi = API.Version.tests mg brigOpts b
       swaggerApi = API.Swagger.tests mg brigOpts brigNoImplicitVersion
-      mlsApi = MLS.tests mg b brigOpts
       oauthAPI = API.OAuth.tests mg db b n brigOpts
 
   withArgs otherArgs . defaultMainWithIngredients (listingTests : (composeReporters antXMLRunner consoleTestReporter) : defaultIngredients)
@@ -190,7 +188,6 @@ runTests iConf brigOpts otherArgs = do
         internalApi,
         versionApi,
         swaggerApi,
-        mlsApi,
         smtp,
         oauthAPI,
         federationEnd2End
