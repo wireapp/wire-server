@@ -264,6 +264,17 @@ let
         sha256 = "sha256-xcGZ11ocdlB8ks20QAhtPZ+4ggmV4Om4CPHH/M6NjXk=";
       };
     };
+    # PR: https://github.com/yesodweb/wai/pull/958
+    warp = {
+      src = fetchgit {
+        url = "https://github.com/wireapp/wai";
+        rev = "bedd6a835f6d98128880465c30e8115fa986e3f6";
+        sha256 = "sha256-0r/d9YwcKZIZd10EhL2TP+W14Wjk0/S8Q4pVvZuZLaY=";
+      };
+      packages = {
+        "warp" = "warp";
+      };
+    };
   };
   hackagePins = {
     # Major re-write upstream, we should get rid of this dependency rather than
@@ -291,10 +302,6 @@ let
     network-conduit-tls = {
       version = "1.4.0";
       sha256 = "sha256-zPT/FMxAiR94NReqNIDa/RS7dtiNWCRe3SZi8P11GDk=";
-    };
-    warp = {
-      version = "3.3.30";
-      sha256 = "sha256-VrK27a2wFtezh9qabcXGe2tw9EwBmI8mKwmpCtXq9rc=";
     };
     warp-tls = {
       version = "3.4.3";
