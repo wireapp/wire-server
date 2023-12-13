@@ -184,3 +184,13 @@ testSentFromBlocked = do
   -- transitions to "sent"
   void $ putConnection alice bob "accepted" >>= getBody 200
   assertConnectionStatus alice bob "sent"
+
+testCancel :: HasCallStack => App ()
+testCancel = do
+  [alice, bob] <- forM [OwnDomain, OtherDomain] $ flip randomUser def
+
+  void $ postConnection alice bob >>= getBody 201
+  assertConnectionStatus alice bob "sent"
+
+  void $ putConnection alice bob "cancelled" >>= getBody 200
+  assertConnectionStatus alice bob "cancelled"

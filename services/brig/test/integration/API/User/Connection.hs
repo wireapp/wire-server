@@ -99,7 +99,6 @@ tests cl _at opts p b _c g fedBrigClient _fedGalleyClient db =
       test p "Remote connections: connect with Anon" (testConnectWithAnon b fedBrigClient),
       test p "Remote connections: connection from Anon" (testConnectFromAnon b),
       test p "Remote connections: connect twice" (testConnectFromPending b fedBrigClient),
-      test p "Remote connections: send then cancel" (testCancel opts b),
       test p "Remote connections: limits" (testConnectionLimits opts b fedBrigClient),
       test p "post /users/connections-status/v2 : All connections" (testInternalGetConnStatusesAll b opts fedBrigClient)
     ]
@@ -749,13 +748,6 @@ testConnectFromPending brig fedBrigClient = do
   receiveConnectionAction brig fedBrigClient uid1 quid2 RemoteConnect Nothing Pending
   receiveConnectionAction brig fedBrigClient uid1 quid2 RemoteConnect Nothing Pending
   receiveConnectionAction brig fedBrigClient uid1 quid2 RemoteRescind Nothing Cancelled
-
-testCancel :: Opt.Opts -> Brig -> Http ()
-testCancel opts brig = do
-  (uid1, quid2) <- localAndRemoteUser brig
-
-  sendConnectionAction brig opts uid1 quid2 Nothing Sent
-  sendConnectionUpdateAction brig opts uid1 quid2 Nothing Cancelled
 
 testConnectionLimits :: Opt.Opts -> Brig -> FedClient 'Brig -> Http ()
 testConnectionLimits opts brig fedBrigClient = do
