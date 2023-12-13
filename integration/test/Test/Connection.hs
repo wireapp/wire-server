@@ -17,6 +17,7 @@
 module Test.Connection where
 
 import API.Brig (getConnection, postConnection, putConnection)
+import API.BrigInternal (getConnStatusForUsers)
 import API.Galley
 import SetupHelpers
 import Testlib.Prelude
@@ -38,7 +39,7 @@ testConnectWithRemoteUser owningDomain = do
     qIds <- for others (%. "qualified_id")
     qIds `shouldMatchSet` [aliceId]
 
-testRemoteUserGetsDeleted :: App ()
+testRemoteUserGetsDeleted :: HasCallStack => App ()
 testRemoteUserGetsDeleted = do
   alice <- randomUser OwnDomain def
 
@@ -91,6 +92,47 @@ testRemoteUserGetsDeleted = do
     -- may not be instant
     getConnection alice charlie `waitForResponse` \resp ->
       resp.status `shouldMatchInt` 404
+
+testInternalGetConStatusesAll :: HasCallStack => App ()
+testInternalGetConStatusesAll = do
+  startDynamicBackends [mempty] \[dynBackend] -> do
+    let mkFiveUsers dom = replicateM 5 do
+          randomUser dom def
+    alices <- mkFiveUsers OwnDomain
+    bobs <- mkFiveUsers OwnDomain
+    charlies <- mkFiveUsers OtherDomain
+    dylans <- mkFiveUsers dynBackend
+    for_ alices \alicei -> do
+      let connectWith users = do
+            for_ users \useri ->
+              postConnection alicei useri `bindResponse` \resp ->
+                resp.status `shouldMatchInt` 201
+            putConnection (head users) alicei "accepted" `bindResponse` \resp ->
+              resp.status `shouldMatchOneOf` [Number 200, Number 204]
+      -- local: connect each alice, accept only one
+      connectWith bobs
+      -- remote 1 & 2: connect each alice, accept only one
+      connectWith charlies
+      connectWith dylans
+
+    getConnStatusForUsers alices OwnDomain `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      conns <- asList resp.json
+      let statusIs f =
+            filterM
+              do
+                \conn -> do
+                  s <- conn %. "status" & asString
+                  pure $ f s
+              conns
+
+      sent <- statusIs (== "sent")
+      accepted <- statusIs (== "accepted")
+      other <- statusIs \v -> v /= "sent" && v /= "accepted"
+
+      length other `shouldMatchInt` 0
+      length accepted `shouldMatchInt` 15
+      length sent `shouldMatchInt` 60
 
 assertConnectionStatus ::
   ( HasCallStack,

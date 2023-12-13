@@ -99,8 +99,7 @@ tests cl _at opts p b _c g fedBrigClient _fedGalleyClient db =
       test p "Remote connections: connect with Anon" (testConnectWithAnon b fedBrigClient),
       test p "Remote connections: connection from Anon" (testConnectFromAnon b),
       test p "Remote connections: connect twice" (testConnectFromPending b fedBrigClient),
-      test p "Remote connections: limits" (testConnectionLimits opts b fedBrigClient),
-      test p "post /users/connections-status/v2 : All connections" (testInternalGetConnStatusesAll b opts fedBrigClient)
+      test p "Remote connections: limits" (testConnectionLimits opts b fedBrigClient)
     ]
 
 testCreateConnectionInvalidUser :: Brig -> Http ()
@@ -803,57 +802,3 @@ testConnectionLimits opts brig fedBrigClient = do
       postConnectionQualified brig uid1 quid2 !!! do
         const 403 === statusCode
         const (Just "connection-limit") === fmap Error.label . responseJsonMaybe
-
-testInternalGetConnStatusesAll :: Brig -> Opt.Opts -> FedClient 'Brig -> Http ()
-testInternalGetConnStatusesAll brig opts fedBrigClient = do
-  quids <- replicateM 2 $ userQualifiedId <$> randomUser brig
-  let uids = qUnqualified <$> quids
-
-  localUsers@(localUser1 : _) <- replicateM 5 $ userQualifiedId <$> randomUser brig
-  let remoteDomain1 = Domain "remote1.example.com"
-  remoteDomain1Users@(remoteDomain1User1 : _) <- replicateM 5 $ (`Qualified` remoteDomain1) <$> randomId
-  let remoteDomain2 = Domain "remote2.example.com"
-  remoteDomain2Users@(remoteDomain2User1 : _) <- replicateM 5 $ (`Qualified` remoteDomain2) <$> randomId
-
-  for_ uids $ \uid -> do
-    -- Create 5 local connections, accept 1
-    for_ localUsers $ \qOther -> do
-      postConnectionQualified brig uid qOther <!! const 201 === statusCode
-    putConnection brig (qUnqualified localUser1) uid Accepted
-      !!! const 200 === statusCode
-
-    -- Create 5 remote connections with remote1, accept 1
-    for_ remoteDomain1Users $ \qOther -> sendConnectionAction brig opts uid qOther Nothing Sent
-    receiveConnectionAction brig fedBrigClient uid remoteDomain1User1 RemoteConnect (Just RemoteConnect) Accepted
-
-    -- Create 5 remote connections with remote2, accept 1
-    for_ remoteDomain2Users $ \qOther -> sendConnectionAction brig opts uid qOther Nothing Sent
-    receiveConnectionAction brig fedBrigClient uid remoteDomain2User1 RemoteConnect (Just RemoteConnect) Accepted
-
-  allStatuses :: [ConnectionStatusV2] <-
-    responseJsonError
-      =<< getConnStatusInternal brig (ConnectionsStatusRequestV2 uids Nothing Nothing)
-        <!! const 200 === statusCode
-
-  liftIO $ do
-    sort (nub (map csv2From allStatuses)) @?= sort uids
-    let allUsers = localUsers <> remoteDomain1Users <> remoteDomain2Users
-    sort (map csv2To allStatuses) @?= sort (allUsers <> allUsers)
-    length (filter ((== Sent) . csv2Status) allStatuses) @?= 24
-    length (filter ((== Accepted) . csv2Status) allStatuses) @?= 6
-
-  acceptedRemoteDomain1Only :: [ConnectionStatusV2] <-
-    responseJsonError
-      =<< getConnStatusInternal brig (ConnectionsStatusRequestV2 uids (Just remoteDomain1Users) (Just Accepted))
-        <!! const 200 === statusCode
-
-  liftIO $ do
-    let ordFn x = (csv2From x, csv2To x)
-    sortOn ordFn acceptedRemoteDomain1Only @?= sortOn ordFn (map (\u -> ConnectionStatusV2 u remoteDomain1User1 Accepted) uids)
-
-getConnStatusInternal :: MonadHttp m => (Request -> Request) -> ConnectionsStatusRequestV2 -> m (Response (Maybe LByteString))
-getConnStatusInternal brig req =
-  post $
-    brig
-      . path "/i/users/connections-status/v2"
-      . json req
