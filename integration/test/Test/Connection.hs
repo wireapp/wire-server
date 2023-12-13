@@ -14,13 +14,13 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-
 module Test.Connection where
 
-import API.Brig
+import API.Brig (getConnection, postConnection, putConnection)
 import API.Galley
 import SetupHelpers
 import Testlib.Prelude
+import UnliftIO.Async (forConcurrently_)
 
 testConnectWithRemoteUser :: HasCallStack => Domain -> App ()
 testConnectWithRemoteUser owningDomain = do
@@ -37,3 +37,57 @@ testConnectWithRemoteUser owningDomain = do
     others <- resp.json %. "members.others" & asList
     qIds <- for others (%. "qualified_id")
     qIds `shouldMatchSet` [aliceId]
+
+testRemoteUserGetsDeleted :: App ()
+testRemoteUserGetsDeleted = do
+  alice <- randomUser OwnDomain def
+
+  charlieConnected <- do
+    charlie <- randomUser OtherDomain def
+    connectTwoUsers alice charlie
+    pure charlie
+
+  charliePending <- do
+    charlie <- randomUser OtherDomain def
+    -- the connection should be pending here
+    postConnection alice charlie `bindResponse` \resp ->
+      resp.status `shouldMatchInt` 201
+
+    getConnection alice charlie `bindResponse` \resp -> do
+      resp.json %. "status" `shouldMatch` "sent"
+      resp.status `shouldMatchInt` 200
+
+    getConnection charlie alice `waitForResponse` \resp -> do
+      resp.json %. "status" `shouldMatch` "pending"
+      resp.status `shouldMatchInt` 200
+
+    pure charlie
+
+  charlieBlocked <- do
+    charlie <- randomUser OtherDomain def
+    postConnection alice charlie `bindResponse` \resp ->
+      resp.status `shouldMatchInt` 201
+
+    putConnection charlie alice "blocked" `bindResponse` \resp ->
+      resp.status `shouldMatchInt` 200
+
+    getConnection charlie alice `bindResponse` \resp -> do
+      resp.json %. "status" `shouldMatch` "blocked"
+      resp.status `shouldMatchInt` 200
+
+    pure charlie
+
+  charlieUnconnected <- do
+    randomUser OtherDomain def
+
+  forConcurrently_ [charliePending, charlieConnected, charlieBlocked, charlieUnconnected] \charlie -> do
+    deleteUser charlie
+
+    -- charlie is on their local backend, so asking should be instant
+    getConnection charlie alice `bindResponse` \resp ->
+      resp.status `shouldMatchInt` 404
+
+    -- for alice, charlie is on the remote backend, so the status change
+    -- may not be instant
+    getConnection alice charlie `waitForResponse` \resp ->
+      resp.status `shouldMatchInt` 404
