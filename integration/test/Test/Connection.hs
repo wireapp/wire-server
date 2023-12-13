@@ -91,3 +91,17 @@ testRemoteUserGetsDeleted = do
     -- may not be instant
     getConnection alice charlie `waitForResponse` \resp ->
       resp.status `shouldMatchInt` 404
+
+assertConnectionStatus ::
+  ( HasCallStack,
+    MakesValue userFrom,
+    MakesValue userTo
+  ) =>
+  userFrom ->
+  userTo ->
+  String ->
+  App ()
+assertConnectionStatus userFrom userTo connStatus =
+  getConnection userFrom userTo `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "status" `shouldMatch` connStatus
