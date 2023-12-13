@@ -124,3 +124,20 @@ testConnectFromIgnored = do
   putConnection alice bob "accepted" `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "status" `shouldMatch` "accepted"
+
+testSentFromIgnored :: HasCallStack => App ()
+testSentFromIgnored = do
+  [alice, bob] <- forM [OwnDomain, OtherDomain] $ flip randomUser def
+  -- set up an initial "ignored" state
+  void $ postConnection bob alice >>= getBody 201
+  void $ putConnection alice bob "ignored" >>= getBody 200
+  assertConnectionStatus alice bob "ignored"
+
+  -- if Bob rescinds, Alice stays in "ignored"
+  void $ putConnection bob alice "cancelled" >>= getBody 200
+  assertConnectionStatus alice bob "ignored"
+
+  -- if Alice accepts, and Bob does not want to connect anymore, Alice
+  -- transitions to "sent"
+  void $ putConnection alice bob "accepted" >>= getBody 200
+  assertConnectionStatus alice bob "sent"
