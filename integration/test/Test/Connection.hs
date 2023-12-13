@@ -167,3 +167,20 @@ testConnectFromBlocked = do
     others <- resp.json %. "members.others" & asList
     qIds <- for others (%. "qualified_id")
     qIds `shouldMatchSet` [bobId]
+
+testSentFromBlocked :: HasCallStack => App ()
+testSentFromBlocked = do
+  [alice, bob] <- forM [OwnDomain, OtherDomain] $ flip randomUser def
+  -- set up an initial "blocked" state
+  void $ postConnection bob alice >>= getBody 201
+  void $ putConnection alice bob "blocked" >>= getBody 200
+  assertConnectionStatus alice bob "blocked"
+
+  -- if Bob rescinds, Alice stays in "blocked"
+  void $ putConnection bob alice "cancelled" >>= getBody 200
+  assertConnectionStatus alice bob "blocked"
+
+  -- if Alice accepts, and Bob does not want to connect anymore, Alice
+  -- transitions to "sent"
+  void $ putConnection alice bob "accepted" >>= getBody 200
+  assertConnectionStatus alice bob "sent"
