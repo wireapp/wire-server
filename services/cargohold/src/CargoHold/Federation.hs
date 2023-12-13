@@ -87,7 +87,7 @@ mkFederatorClientEnv remote = do
         ceTargetDomain = tDomain remote,
         ceFederator = endpoint,
         ceHttp2Manager = mgr,
-        ceOriginRequestId = Just rid
+        ceOriginRequestId = rid
       }
 
 executeFederated :: Remote x -> FederatorClient 'Cargohold a -> Handler a

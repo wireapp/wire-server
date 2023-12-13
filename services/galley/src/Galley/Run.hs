@@ -32,7 +32,6 @@ import Control.Exception (finally)
 import Control.Lens (view, (.~), (^.))
 import Control.Monad.Codensity
 import Data.Aeson qualified as Aeson
-import Data.Default
 import Data.Id
 import Data.Metrics (Metrics)
 import Data.Metrics.AWS (gaugeTokenRemaing)
@@ -123,7 +122,7 @@ mkApp opts =
             r
 
     lookupReqId :: Request -> RequestId
-    lookupReqId = maybe def RequestId . lookup requestIdName . requestHeaders
+    lookupReqId = maybe (RequestId "N/A") RequestId . lookup requestIdName . requestHeaders
 
 closeApp :: Env -> IO ()
 closeApp env = do

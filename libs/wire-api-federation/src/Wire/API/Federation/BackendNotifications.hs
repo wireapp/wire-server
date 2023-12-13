@@ -33,7 +33,7 @@ data BackendNotification = BackendNotification
     -- pusher. This also makes development less clunky as we don't have to
     -- create a sum type here for all types of notifications that could exist.
     body :: RawJson,
-    requestId :: Maybe RequestId
+    requestId :: RequestId
   }
   deriving (Show, Eq)
 
@@ -54,7 +54,7 @@ instance FromJSON BackendNotification where
       <*> o .: "targetComponent"
       <*> o .: "path"
       <*> (RawJson . TL.encodeUtf8 <$> o .: "body")
-      <*> o .:? "requestId"
+      <*> o .: "requestId"
 
 type BackendNotificationAPI = Capture "name" Text :> ReqBody '[JSON] RawJson :> Post '[JSON] EmptyResponse
 
@@ -74,7 +74,7 @@ sendNotification env component path body =
       runFederatorClient env . void $
         clientIn (Proxy @BackendNotificationAPI) (Proxy @(FederatorClient c)) (withoutFirstSlash path) body
 
-enqueue :: Q.Channel -> Maybe RequestId -> Domain -> Domain -> Q.DeliveryMode -> FedQueueClient c a -> IO a
+enqueue :: Q.Channel -> RequestId -> Domain -> Domain -> Q.DeliveryMode -> FedQueueClient c a -> IO a
 enqueue channel requestId originDomain targetDomain deliveryMode (FedQueueClient action) =
   runReaderT action FedQueueEnv {..}
 
@@ -132,7 +132,7 @@ data FedQueueEnv = FedQueueEnv
     originDomain :: Domain,
     targetDomain :: Domain,
     deliveryMode :: Q.DeliveryMode,
-    requestId :: Maybe RequestId
+    requestId :: RequestId
   }
 
 data EnqueueError = EnqueueError String

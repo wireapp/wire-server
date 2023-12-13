@@ -32,7 +32,6 @@ import CargoHold.Options hiding (aws)
 import Control.Exception (bracket)
 import Control.Lens (set, (^.))
 import Control.Monad.Codensity
-import Data.Default
 import Data.Id
 import Data.Metrics (Metrics)
 import Data.Metrics.AWS (gaugeTokenRemaing)
@@ -84,7 +83,7 @@ mkApp o = Codensity $ \k ->
         . catchErrors (e ^. appLogger) [Right $ e ^. metrics]
     servantApp :: Env -> Application
     servantApp e0 r = do
-      let e = set requestId (maybe def RequestId (lookupRequestId r)) e0
+      let e = set requestId (RequestId $ fromMaybe "N/A" (lookupRequestId r)) e0
       Servant.serveWithContext
         (Proxy @CombinedAPI)
         ((o ^. settings . federationDomain) :. Servant.EmptyContext)

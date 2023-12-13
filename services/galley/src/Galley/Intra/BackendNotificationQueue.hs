@@ -59,7 +59,7 @@ enqueueSingleNotification remoteDomain deliveryMode chanVar action = do
       case mChan of
         Nothing -> throwM NoRabbitMqChannel
         Just chan -> do
-          liftIO $ enqueue chan (Just rid) ownDomain remoteDomain deliveryMode action
+          liftIO $ enqueue chan rid ownDomain remoteDomain deliveryMode action
 
 enqueueNotification :: Domain -> Q.DeliveryMode -> FedQueueClient c a -> ExceptT FederationError App a
 enqueueNotification remoteDomain deliveryMode action = do

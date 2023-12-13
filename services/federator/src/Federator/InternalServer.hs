@@ -92,7 +92,7 @@ server mgr extPort interpreter =
   API
     { status = Health.status mgr "external server" extPort,
       internalRequest = \mReqId remoteDomain component rpc ->
-        Tagged $ \req respond -> runCodensity (interpreter (callOutward mReqId remoteDomain component rpc req)) respond
+        Tagged $ \req respond -> runCodensity (interpreter (callOutward (fromMaybe (RequestId "N/A") mReqId) remoteDomain component rpc req)) respond
     }
 
 callOutward ::
@@ -104,7 +104,7 @@ callOutward ::
     Member Metrics r,
     Member (Logger (Log.Msg -> Log.Msg)) r
   ) =>
-  Maybe RequestId ->
+  RequestId ->
   Domain ->
   Component ->
   RPC ->

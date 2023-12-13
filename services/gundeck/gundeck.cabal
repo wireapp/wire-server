@@ -124,7 +124,6 @@ library
     , bytestring-conversion  >=0.2
     , cassandra-util         >=0.16.2
     , containers             >=0.5
-    , data-default           >=0.5
     , errors                 >=2.0
     , exceptions             >=0.4
     , extended

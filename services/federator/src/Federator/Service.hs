@@ -52,7 +52,7 @@ type ServiceStreaming = Service (SourceT IO ByteString)
 
 data Service body m a where
   -- | Returns status, headers and body, 'HTTP.Response' is not nice to work with in tests
-  ServiceCall :: Component -> ByteString -> LByteString -> Maybe RequestId -> Domain -> Service body m (Servant.ResponseF body)
+  ServiceCall :: Component -> ByteString -> LByteString -> RequestId -> Domain -> Service body m (Servant.ResponseF body)
 
 makeSem ''Service
 
@@ -81,7 +81,7 @@ interpretServiceHTTP ::
   Sem (ServiceStreaming ': r) a ->
   Sem r a
 interpretServiceHTTP = interpret $ \case
-  ServiceCall component rpcPath body mReqId domain -> do
+  ServiceCall component rpcPath body rid domain -> do
     Endpoint serviceHost servicePort <- inputs (view service) <*> pure component
     manager <- inputs (view httpManager)
     let req =
@@ -95,7 +95,7 @@ interpretServiceHTTP = interpret $ \case
                 [ ("Content-Type", "application/json"),
                   (originDomainHeaderName, cs (domainText domain))
                 ]
-                  <> [(RPC.requestIdName, rid) | RequestId rid <- maybeToList mReqId]
+                  <> [(RPC.requestIdName, unRequestId rid)]
             }
 
     embed $

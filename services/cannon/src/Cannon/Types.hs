@@ -47,7 +47,6 @@ import Cannon.WS qualified as WS
 import Control.Concurrent.Async (mapConcurrently)
 import Control.Lens
 import Control.Monad.Catch
-import Data.Default (def)
 import Data.Metrics.Middleware
 import Data.Text.Encoding
 import Imports
@@ -108,7 +107,7 @@ mkEnv ::
   Clock ->
   Env
 mkEnv m external o l d p g t =
-  Env m o l d def $
+  Env m o l d (RequestId "N/A") $
     WS.env external (o ^. cannon . port) (encodeUtf8 $ o ^. gundeck . host) (o ^. gundeck . port) l p d g t (o ^. drainOpts)
 
 runCannon :: Env -> Cannon a -> Request -> IO a
@@ -120,7 +119,7 @@ runCannon' :: Env -> Cannon a -> IO a
 runCannon' e c = runReaderT (unCannon c) e
 
 lookupReqId :: Request -> RequestId
-lookupReqId = maybe def RequestId . lookup requestIdName . requestHeaders
+lookupReqId = RequestId . fromMaybe "N/A" . lookup requestIdName . requestHeaders
 {-# INLINE lookupReqId #-}
 
 options :: Cannon Opts

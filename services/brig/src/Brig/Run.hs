@@ -46,12 +46,13 @@ import Control.Lens (view, (.~), (^.))
 import Control.Monad.Catch (MonadCatch, finally)
 import Control.Monad.Random (randomRIO)
 import Data.Aeson qualified as Aeson
-import Data.Default (Default (def))
 import Data.Id (RequestId (..))
 import Data.Metrics.AWS (gaugeTokenRemaing)
 import Data.Metrics.Servant qualified as Metrics
 import Data.Proxy (Proxy (Proxy))
 import Data.Text (unpack)
+import Data.UUID as UUID
+import Data.UUID.V4 as UUID
 import Imports hiding (head)
 import Network.HTTP.Media qualified as HTTPMedia
 import Network.HTTP.Types qualified as HTTP
@@ -66,7 +67,8 @@ import Network.Wai.Utilities.Server qualified as Server
 import Polysemy (Member)
 import Servant (Context ((:.)), (:<|>) (..))
 import Servant qualified
-import System.Logger (msg, val, (.=), (~~))
+import System.Logger (Logger, msg, val, (.=), (~~))
+import System.Logger qualified as Log
 import System.Logger.Class (MonadLogger, err)
 import Util.Options
 import Wire.API.Federation.API
@@ -129,7 +131,9 @@ mkApp o = do
         . GZip.gunzip
         . GZip.gzip GZip.def
         . catchErrors (e ^. applog) [Right $ e ^. metrics]
-        . lookupRequestIdMiddleware
+        . lookupRequestIdMiddleware (e ^. applog)
+
+    app :: Env -> Wai.Request -> (Wai.Response -> IO Wai.ResponseReceived) -> IO Wai.ResponseReceived
     app e r k = runHandler e r (Server.route rtree r k) k
 
     -- the servant API wraps the one defined using wai-routing
@@ -156,10 +160,15 @@ type ServantCombinedAPI =
       :<|> Servant.Raw
   )
 
-lookupRequestIdMiddleware :: (RequestId -> Wai.Application) -> Wai.Application
-lookupRequestIdMiddleware mkapp req cont = do
-  let reqid = maybe def RequestId $ lookupRequestId req
-  mkapp reqid req cont
+lookupRequestIdMiddleware :: Logger -> (RequestId -> Wai.Application) -> Wai.Application
+lookupRequestIdMiddleware logger mkapp req cont = do
+  case lookupRequestId req of
+    Just rid -> do
+      mkapp (RequestId rid) req cont
+    Nothing -> do
+      localRid <- RequestId . cs . UUID.toByteString <$> UUID.nextRandom
+      Log.info logger $ "request-id" .= localRid ~~ "request" .= (show req) ~~ msg (val "generated a new request id for local request")
+      mkapp localRid req cont
 
 customFormatters :: Servant.ErrorFormatters
 customFormatters =

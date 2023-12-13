@@ -11,7 +11,6 @@
 , bytestring-conversion
 , containers
 , cookie
-, data-default
 , errors
 , exceptions
 , extended
@@ -68,7 +67,6 @@ mkDerivation {
     bytestring
     bytestring-conversion
     containers
-    data-default
     errors
     exceptions
     extended

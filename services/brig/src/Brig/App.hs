@@ -117,7 +117,6 @@ import Control.Lens hiding (index, (.=))
 import Control.Monad.Catch
 import Control.Monad.Trans.Resource
 import Data.ByteString.Conversion
-import Data.Default (def)
 import Data.Domain
 import Data.GeoIP2 qualified as GeoIp
 import Data.IP
@@ -274,7 +273,7 @@ newEnv o = do
         _metrics = mtr,
         _applog = lgr,
         _internalEvents = eventsQueue,
-        _requestId = def,
+        _requestId = RequestId "N/A",
         _usrTemplates = utp,
         _provTemplates = ptp,
         _tmTemplates = ttp,

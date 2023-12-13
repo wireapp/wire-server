@@ -27,7 +27,6 @@ import Bilge.Request (requestIdName)
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch
 import Control.Monad.IO.Unlift ()
-import Data.Default (def)
 import Data.Id (RequestId (..))
 import Imports
 import Network.Wai
@@ -61,4 +60,4 @@ reqIdMsg = ("request" .=) . unRequestId
 {-# INLINE reqIdMsg #-}
 
 lookupReqId :: Request -> RequestId
-lookupReqId = maybe def RequestId . lookup requestIdName . requestHeaders
+lookupReqId = RequestId . fromMaybe "N/A" . lookup requestIdName . requestHeaders

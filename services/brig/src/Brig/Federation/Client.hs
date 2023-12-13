@@ -27,7 +27,7 @@ import Control.Retry
 import Control.Timeout
 import Data.Domain
 import Data.Handle
-import Data.Id (ClientId, UserId)
+import Data.Id
 import Data.Qualified
 import Data.Range (Range)
 import Data.Text qualified as T
@@ -179,7 +179,7 @@ enqueueNotification ownDomain remoteDomain deliveryMode chanVar action = do
       mChan <- timeout (1 :: Second) (readMVar chanVar)
       case mChan of
         Nothing -> throwM NoRabbitMqChannel
-        Just chan -> liftIO $ enqueue chan (Just rid) ownDomain remoteDomain deliveryMode action
+        Just chan -> liftIO $ enqueue chan rid ownDomain remoteDomain deliveryMode action
 
 data NoRabbitMqChannel = NoRabbitMqChannel
   deriving (Show)
@@ -202,7 +202,7 @@ runBrigFederatorClient targetDomain action = do
             ceTargetDomain = targetDomain,
             ceFederator = endpoint,
             ceHttp2Manager = mgr,
-            ceOriginRequestId = Just rid
+            ceOriginRequestId = rid
           }
   liftIO (runFederatorClient env action)
     >>= either (throwE . FederationCallFailure) pure

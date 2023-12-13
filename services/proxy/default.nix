@@ -9,7 +9,6 @@
 , bytestring
 , case-insensitive
 , configurator
-, data-default
 , exceptions
 , extended
 , gitignoreSource
@@ -45,7 +44,6 @@ mkDerivation {
     bytestring
     case-insensitive
     configurator
-    data-default
     exceptions
     extended
     http-client

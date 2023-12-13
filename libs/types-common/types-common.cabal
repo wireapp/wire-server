@@ -105,7 +105,6 @@ library
     , cryptohash-sha1        >=0.11.7.2
     , crypton                >=0.26
     , currency-codes         >=3.0.0.1
-    , data-default           >=0.5
     , generic-random         >=1.4.0.0
     , hashable               >=1.2
     , http-api-data

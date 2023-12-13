@@ -192,7 +192,6 @@ mkDerivation {
     cql
     cryptobox-haskell
     currency-codes
-    data-default
     data-timeout
     dns
     dns-util
@@ -369,6 +368,7 @@ mkDerivation {
     unliftio
     unordered-containers
     uri-bytestring
+    uuid
     vector
     wai
     wai-extra

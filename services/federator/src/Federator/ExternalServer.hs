@@ -29,9 +29,8 @@ import Data.Bifunctor
 import Data.ByteString qualified as BS
 import Data.ByteString.Builder
 import Data.ByteString.Lazy qualified as LBS
-import Data.Default (Default (def))
 import Data.Domain
-import Data.Id (RequestId)
+import Data.Id (RequestId (..))
 import Data.Metrics.Servant qualified as Metrics
 import Data.Proxy (Proxy (Proxy))
 import Data.Sequence qualified as Seq
@@ -118,7 +117,7 @@ server mgr intPort interpreter =
   API
     { status = Health.status mgr "internal server" intPort,
       externalRequest = \component rpc mReqId remoteDomain remoteCert ->
-        Tagged $ \req respond -> runCodensity (interpreter (callInward component rpc mReqId remoteDomain remoteCert req)) respond
+        Tagged $ \req respond -> runCodensity (interpreter (callInward component rpc (fromMaybe (RequestId "N/A") mReqId) remoteDomain remoteCert req)) respond
     }
 
 -- FUTUREWORK(federation): Versioning of the federation API.
@@ -135,12 +134,12 @@ callInward ::
   ) =>
   Component ->
   RPC ->
-  Maybe RequestId ->
+  RequestId ->
   Domain ->
   CertHeader ->
   Wai.Request ->
   Sem r Wai.Response
-callInward component (RPC rpc) mReqId originDomain (CertHeader cert) wreq = do
+callInward component (RPC rpc) rid originDomain (CertHeader cert) wreq = do
   incomingCounterIncr originDomain
   -- only POST is supported
   when (Wai.requestMethod wreq /= HTTP.methodPost) $
@@ -155,18 +154,18 @@ callInward component (RPC rpc) mReqId originDomain (CertHeader cert) wreq = do
       . Log.field "originDomain" (domainText originDomain)
       . Log.field "component" (show component)
       . Log.field "rpc" rpc
-      . Log.field "request" (fromMaybe def mReqId)
+      . Log.field "request" rid
 
   validatedDomain <- validateDomain cert originDomain
 
   let path = LBS.toStrict (toLazyByteString (HTTP.encodePathSegments ["federation", rpc]))
 
   body <- embed $ Wai.lazyRequestBody wreq
-  resp <- serviceCall component path body mReqId validatedDomain
+  resp <- serviceCall component path body rid validatedDomain
   Log.debug $
     Log.msg ("Inward Request response" :: ByteString)
       . Log.field "status" (show (responseStatusCode resp))
-      . Log.field "request" (fromMaybe def mReqId)
+      . Log.field "request" rid
   pure $
     streamingResponseToWai
       resp

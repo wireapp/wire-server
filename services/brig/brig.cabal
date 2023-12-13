@@ -269,7 +269,6 @@ library
     , cql
     , cryptobox-haskell          >=0.1.1
     , currency-codes             >=2.0
-    , data-default               >=0.5
     , data-timeout               >=0.3
     , dns
     , dns-util
@@ -519,6 +518,7 @@ executable brig-integration
     , unliftio
     , unordered-containers
     , uri-bytestring         >=0.2
+    , uuid
     , vector                 >=0.10
     , wai
     , wai-extra

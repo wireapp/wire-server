@@ -33,7 +33,7 @@ import Cassandra as Cas
 import qualified Cassandra.Schema as Cas
 import qualified Cassandra.Settings as Cas
 import Control.Lens
-import Data.Default (def)
+import Data.Id
 import Data.List.NonEmpty as NE
 import Data.Metrics.Servant (servantPrometheusMiddleware)
 import Data.Proxy (Proxy (Proxy))
@@ -135,5 +135,5 @@ mkApp sparCtxOpts = do
 
 lookupRequestIdMiddleware :: (Bilge.RequestId -> Application) -> Application
 lookupRequestIdMiddleware mkapp req cont = do
-  let reqid = maybe def Bilge.RequestId $ lookupRequestId req
+  let reqid = RequestId . fromMaybe "N/A" $ lookupRequestId req
   mkapp reqid req cont

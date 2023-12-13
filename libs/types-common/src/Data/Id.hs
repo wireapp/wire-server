@@ -71,7 +71,6 @@ import Data.ByteString.Char8 qualified as B8
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy qualified as L
 import Data.Char qualified as Char
-import Data.Default (Default (..))
 import Data.Hashable (Hashable)
 import Data.OpenApi qualified as S
 import Data.OpenApi.Internal.ParamSchema (ToParamSchema (..))
@@ -422,10 +421,6 @@ instance ToSchema RequestId where
   schema =
     RequestId . encodeUtf8
       <$> (decodeUtf8 . unRequestId) .= text "RequestId"
-
--- | Returns "N/A"
-instance Default RequestId where
-  def = RequestId "N/A"
 
 instance ToJSON RequestId where
   toJSON (RequestId r) = A.String (decodeUtf8 r)

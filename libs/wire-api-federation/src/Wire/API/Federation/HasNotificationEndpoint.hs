@@ -47,7 +47,7 @@ fedNotifToBackendNotif ::
   KnownSymbol (NotificationPath tag) =>
   KnownComponent (NotificationComponent k) =>
   ToJSON (Payload tag) =>
-  Maybe RequestId ->
+  RequestId ->
   Domain ->
   Payload tag ->
   BackendNotification

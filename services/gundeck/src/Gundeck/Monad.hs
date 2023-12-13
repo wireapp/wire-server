@@ -51,7 +51,6 @@ import Control.Exception (throwIO)
 import Control.Lens
 import Control.Monad.Catch hiding (tryJust)
 import Data.Aeson (FromJSON)
-import Data.Default (def)
 import Data.Misc (Milliseconds (..))
 import Database.Redis qualified as Redis
 import Gundeck.Env
@@ -182,7 +181,7 @@ runDirect e m =
             )
 
 lookupReqId :: Request -> RequestId
-lookupReqId = maybe def RequestId . lookup requestIdName . requestHeaders
+lookupReqId = RequestId . fromMaybe "N/A" . lookup requestIdName . requestHeaders
 {-# INLINE lookupReqId #-}
 
 fromJsonBody :: FromJSON a => JsonRequest a -> Gundeck a

@@ -70,7 +70,7 @@ instance AsWai RemoteError where
 
 data Remote m a where
   DiscoverAndCall ::
-    Maybe RequestId ->
+    RequestId ->
     Domain ->
     Component ->
     Text ->
@@ -90,7 +90,7 @@ interpretRemote ::
   Sem (Remote ': r) a ->
   Sem r a
 interpretRemote = interpret $ \case
-  DiscoverAndCall mReqId domain component rpc headers body -> do
+  DiscoverAndCall rid domain component rpc headers body -> do
     target@(SrvTarget hostname port) <- discoverFederatorWithError domain
     let path =
           LBS.toStrict . toLazyByteString $
@@ -99,7 +99,7 @@ interpretRemote = interpret $ \case
         -- filter out Host header, because the HTTP2 client adds it back
         headers' =
           filter ((/= "Host") . fst) headers
-            <> [(RPC.requestIdName, rid) | RequestId rid <- maybeToList mReqId]
+            <> [(RPC.requestIdName, unRequestId rid)]
         req' = HTTP2.requestBuilder HTTP.methodPost path headers' body
 
     mgr <- input
