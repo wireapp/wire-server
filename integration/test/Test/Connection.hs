@@ -105,3 +105,22 @@ assertConnectionStatus userFrom userTo connStatus =
   getConnection userFrom userTo `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "status" `shouldMatch` connStatus
+
+testConnectFromIgnored :: HasCallStack => App ()
+testConnectFromIgnored = do
+  [alice, bob] <- forM [OwnDomain, OtherDomain] $ flip randomUser def
+  void $ postConnection bob alice >>= getBody 201
+  -- set up an initial "ignored" state on Alice's side
+  assertConnectionStatus alice bob "pending"
+  void $ putConnection alice bob "ignored" >>= getBody 200
+  assertConnectionStatus alice bob "ignored"
+
+  -- if Bob sends a new connection request, Alice goes back to "pending"
+  void $ postConnection bob alice >>= getBody 200
+  assertConnectionStatus alice bob "pending"
+
+  -- if Alice accepts, and Bob still wants to connect, Alice transitions to
+  -- "accepted"
+  putConnection alice bob "accepted" `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "status" `shouldMatch` "accepted"

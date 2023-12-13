@@ -99,7 +99,6 @@ tests cl _at opts p b _c g fedBrigClient _fedGalleyClient db =
       test p "Remote connections: connect with Anon" (testConnectWithAnon b fedBrigClient),
       test p "Remote connections: connection from Anon" (testConnectFromAnon b),
       test p "Remote connections: connect twice" (testConnectFromPending b fedBrigClient),
-      test p "Remote connections: ignore then accept" (testConnectFromIgnored opts b fedBrigClient),
       test p "Remote connections: ignore, remote cancels, then accept" (testSentFromIgnored opts b fedBrigClient),
       test p "Remote connections: block then accept" (testConnectFromBlocked opts b g fedBrigClient),
       test p "Remote connections: block, remote cancels, then accept" (testSentFromBlocked opts b fedBrigClient),
@@ -753,21 +752,6 @@ testConnectFromPending brig fedBrigClient = do
   receiveConnectionAction brig fedBrigClient uid1 quid2 RemoteConnect Nothing Pending
   receiveConnectionAction brig fedBrigClient uid1 quid2 RemoteConnect Nothing Pending
   receiveConnectionAction brig fedBrigClient uid1 quid2 RemoteRescind Nothing Cancelled
-
-testConnectFromIgnored :: Opt.Opts -> Brig -> FedClient 'Brig -> Http ()
-testConnectFromIgnored opts brig fedBrigClient = do
-  (uid1, quid2) <- localAndRemoteUser brig
-
-  -- set up an initial 'Ignored' state
-  receiveConnectionAction brig fedBrigClient uid1 quid2 RemoteConnect Nothing Pending
-  putConnectionQualified brig uid1 quid2 Ignored !!! statusCode === const 200
-  assertConnectionQualified brig uid1 quid2 Ignored
-
-  -- if the remote side sends a new connection request, we go back to 'Pending'
-  receiveConnectionAction brig fedBrigClient uid1 quid2 RemoteConnect Nothing Pending
-
-  -- if we accept, and the remote side still wants to connect, we transition to 'Accepted'
-  sendConnectionAction brig opts uid1 quid2 (Just RemoteConnect) Accepted
 
 testSentFromIgnored :: Opt.Opts -> Brig -> FedClient 'Brig -> Http ()
 testSentFromIgnored opts brig fedBrigClient = do
