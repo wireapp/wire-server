@@ -94,7 +94,7 @@ testRemoteUserGetsDeleted = do
       resp.status `shouldMatchInt` 404
 
 testInternalGetConStatusesAll :: HasCallStack => App ()
-testInternalGetConStatusesAll = do
+testInternalGetConStatusesAll =
   startDynamicBackends [mempty] \[dynBackend] -> do
     let mkFiveUsers dom = replicateM 5 do
           randomUser dom def
@@ -236,3 +236,73 @@ testCancel = do
 
   void $ putConnection alice bob "cancelled" >>= getBody 200
   assertConnectionStatus alice bob "cancelled"
+
+testConnectionLimits :: HasCallStack => App ()
+testConnectionLimits = do
+  let connectionLimit = 16
+
+  alice <- randomUser OwnDomain def
+  [charlie1, charlie2, charlie3, charlie4] <- replicateM 4 do
+    randomUser OtherDomain def
+  -- connect to connectionLimit - 1 many users
+  (charlie5 : _) <- replicateM (connectionLimit - 1) do
+    charlie <- randomUser OtherDomain def
+    postConnection alice charlie `bindResponse` \resp ->
+      resp.status `shouldMatchInt` 201
+    pure charlie
+
+  -- CHARLIE 1
+
+  -- accepting one more connection should be fine
+  postConnection charlie1 alice `bindResponse` \resp ->
+    resp.status `shouldMatchInt` 201
+  putConnection alice charlie1 "accepted" `waitForResponse` \resp ->
+    resp.status `shouldMatchInt` 200
+
+  -- resending a connection accept should be idempotent
+  putConnection alice charlie1 "accepted" `waitForResponse` \resp ->
+    resp.status `shouldMatchInt` 200
+
+  -- CHARLIE 2
+
+  -- an incoming connection beyond the limit should make it
+  -- impossible for alice to accept
+  postConnection charlie2 alice `bindResponse` \resp ->
+    resp.status `shouldMatchInt` 201
+
+  putConnection alice charlie2 "accepted" `waitForResponse` \resp -> do
+    resp.json %. "label" `shouldMatch` "connection-limit"
+    resp.status `shouldMatchInt` 403
+
+  -- the status should stay pending
+  getConnection alice charlie2 `bindResponse` \resp -> do
+    resp.json %. "status" `shouldMatch` "pending"
+    resp.status `shouldMatchInt` 200
+
+  -- CHARLIE 5
+
+  -- the remote should be able to accept
+  putConnection charlie5 alice "accepted" `waitForResponse` \resp ->
+    resp.status `shouldMatchInt` 200
+
+  -- the status should change for alice as well
+  getConnection alice charlie5 `waitForResponse` \resp -> do
+    resp.json %. "status" `shouldMatch` "accepted"
+    resp.status `shouldMatchInt` 200
+
+  -- CHARLIE 3
+
+  -- attempting to send a new connection request should also hit the limit
+  postConnection alice charlie3 `waitForResponse` \resp -> do
+    resp.json %. "label" `shouldMatch` "connection-limit"
+    resp.status `shouldMatchInt` 403
+
+  -- CHARLIE 4
+
+  -- blocking should not count towards the connection limit, so after blocking
+  -- charlie 1, we should be able establish another connection
+  putConnection alice charlie1 "blocked" `bindResponse` \resp ->
+    resp.status `shouldMatchInt` 200
+
+  postConnection alice charlie4 `bindResponse` \resp ->
+    resp.status `shouldMatchInt` 201

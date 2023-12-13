@@ -52,7 +52,6 @@ import Wire.API.User
 tests ::
   ConnectionLimit ->
   Opt.Timeout ->
-  Opt.Opts ->
   Manager ->
   Brig ->
   Cannon ->
@@ -61,7 +60,7 @@ tests ::
   FedClient 'Galley ->
   DB.ClientState ->
   TestTree
-tests cl _at opts p b _c g fedBrigClient _fedGalleyClient db =
+tests cl _at p b _c g fedBrigClient _fedGalleyClient db =
   testGroup
     "connection"
     [ test p "post /connections" $ testCreateManualConnections b,
@@ -98,8 +97,7 @@ tests cl _at opts p b _c g fedBrigClient _fedGalleyClient db =
       test p "Remote connections: connect OK" (testConnectOK b g fedBrigClient),
       test p "Remote connections: connect with Anon" (testConnectWithAnon b fedBrigClient),
       test p "Remote connections: connection from Anon" (testConnectFromAnon b),
-      test p "Remote connections: connect twice" (testConnectFromPending b fedBrigClient),
-      test p "Remote connections: limits" (testConnectionLimits opts b fedBrigClient)
+      test p "Remote connections: connect twice" (testConnectFromPending b fedBrigClient)
     ]
 
 testCreateConnectionInvalidUser :: Brig -> Http ()
@@ -747,58 +745,3 @@ testConnectFromPending brig fedBrigClient = do
   receiveConnectionAction brig fedBrigClient uid1 quid2 RemoteConnect Nothing Pending
   receiveConnectionAction brig fedBrigClient uid1 quid2 RemoteConnect Nothing Pending
   receiveConnectionAction brig fedBrigClient uid1 quid2 RemoteRescind Nothing Cancelled
-
-testConnectionLimits :: Opt.Opts -> Brig -> FedClient 'Brig -> Http ()
-testConnectionLimits opts brig fedBrigClient = do
-  let connectionLimit = Opt.setUserMaxConnections (Opt.optSettings opts)
-  (uid1, quid2) <- localAndRemoteUser brig
-  [quid3, quid4, quid5] <- replicateM 3 fakeRemoteUser
-
-  -- set up N-1 connections from uid1 to remote users
-  (quid6Sent : _) <- replicateM (fromIntegral connectionLimit - 1) (newConn uid1)
-
-  -- accepting another one should be allowed
-  receiveConnectionAction brig fedBrigClient uid1 quid2 RemoteConnect Nothing Pending
-  sendConnectionAction brig opts uid1 quid2 (Just RemoteConnect) Accepted
-
-  -- get an incoming connection requests beyond the limit, This connection
-  -- cannot be accepted. This is also the behaviour without federation, if the
-  -- user wants to accept this one, they have to either sacrifice another
-  -- connection or ask the backend operator to increase the limit.
-  receiveConnectionAction brig fedBrigClient uid1 quid3 RemoteConnect Nothing Pending
-
-  -- accepting the second one hits the limit (and relation stays Pending):
-  sendConnectionActionExpectLimit uid1 quid3 (Just RemoteConnect)
-  assertConnectionQualified brig uid1 quid3 Pending
-
-  -- When a remote accepts, it is allowed, this does not break the limit as a
-  -- Sent becomes an Accepted.
-  assertConnectionQualified brig uid1 quid6Sent Sent
-  receiveConnectionAction brig fedBrigClient uid1 quid6Sent RemoteConnect (Just RemoteConnect) Accepted
-
-  -- attempting to send an own new connection request also hits the limit
-  sendConnectionActionExpectLimit uid1 quid4 (Just RemoteConnect)
-  getConnectionQualified brig uid1 quid4 !!! const 404 === statusCode
-
-  -- (re-)sending an already accepted connection does not affect the limit
-  sendConnectionAction brig opts uid1 quid2 (Just RemoteConnect) Accepted
-
-  -- blocked connections do not count towards the limit
-  putConnectionQualified brig uid1 quid2 Blocked !!! statusCode === const 200
-  assertConnectionQualified brig uid1 quid2 Blocked
-
-  -- after blocking quid2, we can now accept another connection request
-  receiveConnectionAction brig fedBrigClient uid1 quid5 RemoteConnect Nothing Pending
-  sendConnectionAction brig opts uid1 quid5 (Just RemoteConnect) Accepted
-  where
-    newConn :: UserId -> Http (Qualified UserId)
-    newConn from = do
-      to <- fakeRemoteUser
-      sendConnectionAction brig opts from to Nothing Sent
-      pure to
-
-    sendConnectionActionExpectLimit :: HasCallStack => UserId -> Qualified UserId -> Maybe RemoteConnectionAction -> Http ()
-    sendConnectionActionExpectLimit uid1 quid2 _reaction = do
-      postConnectionQualified brig uid1 quid2 !!! do
-        const 403 === statusCode
-        const (Just "connection-limit") === fmap Error.label . responseJsonMaybe
