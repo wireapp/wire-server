@@ -40,6 +40,8 @@ import Data.Metrics.Servant (servantPlusWAIPrometheusMiddleware)
 import Data.Misc (portNumber)
 import Data.Singletons
 import Data.Text (unpack)
+import Data.UUID as UUID
+import Data.UUID.V4 as UUID
 import Galley.API qualified as API
 import Galley.API.Federation
 import Galley.API.Internal
@@ -58,6 +60,7 @@ import Network.Wai.Middleware.Gunzip qualified as GZip
 import Network.Wai.Middleware.Gzip qualified as GZip
 import Network.Wai.Utilities.Server
 import Servant hiding (route)
+import System.Logger (Logger, msg, val, (.=), (~~))
 import System.Logger qualified as Log
 import System.Logger.Extended (mkLogger)
 import Util.Options
@@ -105,24 +108,33 @@ mkApp opts =
   where
     rtree = compile API.waiSitemap
     runGalley e r k = evalGalleyToIO e (route rtree r k)
-    -- the servant API wraps the one defined using wai-routing
-    servantApp e0 r =
-      let e = reqId .~ lookupReqId r $ e0
-       in Servant.serveWithContext
-            (Proxy @CombinedAPI)
-            ( view (options . settings . federationDomain) e
-                :. customFormatters
-                :. Servant.EmptyContext
-            )
-            ( hoistAPIHandler (toServantHandler e) API.servantSitemap
-                :<|> hoistAPIHandler (toServantHandler e) internalAPI
-                :<|> hoistServerWithDomain @FederationAPI (toServantHandler e) federationSitemap
-                :<|> Servant.Tagged (runGalley e)
-            )
-            r
 
-    lookupReqId :: Request -> RequestId
-    lookupReqId = maybe (RequestId "N/A") RequestId . lookup requestIdName . requestHeaders
+    -- the servant API wraps the one defined using wai-routing
+    servantApp :: Env -> Application
+    servantApp e0 r cont = do
+      rid <- lookupReqId (e0 ^. applog) r
+      let e = reqId .~ rid $ e0
+      Servant.serveWithContext
+        (Proxy @CombinedAPI)
+        ( view (options . settings . federationDomain) e
+            :. customFormatters
+            :. Servant.EmptyContext
+        )
+        ( hoistAPIHandler (toServantHandler e) API.servantSitemap
+            :<|> hoistAPIHandler (toServantHandler e) internalAPI
+            :<|> hoistServerWithDomain @FederationAPI (toServantHandler e) federationSitemap
+            :<|> Servant.Tagged (runGalley e)
+        )
+        r
+        cont
+
+    lookupReqId :: Logger -> Request -> IO RequestId
+    lookupReqId l r = case lookup requestIdName $ requestHeaders r of
+      Just rid -> pure $ RequestId rid
+      Nothing -> do
+        localRid <- RequestId . cs . UUID.toByteString <$> UUID.nextRandom
+        Log.info l $ "request-id" .= localRid ~~ "request" .= (show r) ~~ msg (val "generated a new request id for local request")
+        pure localRid
 
 closeApp :: Env -> IO ()
 closeApp env = do
