@@ -18,7 +18,7 @@ import Control.Concurrent.Timeout hiding (threadDelay)
 import Control.Exception (asyncExceptionFromException)
 import Control.Lens hiding ((#))
 import Control.Monad.Catch
-import Control.Retry (RetryPolicy, RetryStatus, exponentialBackoff, limitRetries, retrying)
+import Control.Retry
 import Data.Aeson qualified as Aeson
 import Data.Aeson.Types (FromJSON, withObject, (.:))
 import Data.ByteString qualified as BS
@@ -330,7 +330,7 @@ postSettings uid tid new =
         . json new
   where
     policy :: RetryPolicy
-    policy = exponentialBackoff 50 <> limitRetries 5
+    policy = limitRetriesByCumulativeDelay 5_000_000 $ exponentialBackoff 50
     only412 :: RetryStatus -> ResponseLBS -> TestM Bool
     only412 _ resp = pure $ statusCode resp == 412
 
