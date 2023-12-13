@@ -719,15 +719,8 @@ testOnUserDeletedConversations = do
     [alice, alex, bob, bart, chad] <- createUsers [ownDomain, ownDomain, otherDomain, otherDomain, dynDomain]
     forM_ [alex, bob, bart, chad] $ connectTwoUsers alice
     bobId <- bob %. "qualified_id"
-    ooConvId <- do
-      l <- getAllConvs alice
-      let isWith users c = do
-            t <- (==) <$> (c %. "type" & asInt) <*> pure 2
-            others <- c %. "members.others" & asList
-            qIds <- for others (%. "qualified_id")
-            pure $ qIds == users && t
-      c <- head <$> filterM (isWith [bobId]) l
-      c %. "qualified_id"
+    ooConvId <-
+      getOne2OneConversation alice bobId Established >>= (%. "qualified_id")
 
     mainConvBefore <-
       postConversation alice (defProteus {qualifiedUsers = [alex, bob, bart, chad]})
