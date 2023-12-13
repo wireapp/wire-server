@@ -147,6 +147,9 @@ instance ToSchema MLSClientsRequest
 data NewConnectionRequest = NewConnectionRequest
   { -- | The 'from' userId is understood to always have the domain of the backend making the connection request
     from :: UserId,
+    -- | The team ID of the 'from' user. If the user is not in a team, it is set
+    -- to 'Nothing'. It is implicitly qualified the same as the 'from' user.
+    fromTeam :: Maybe TeamId,
     -- | The 'to' userId is understood to always have the domain of the receiving backend.
     to :: UserId,
     action :: RemoteConnectionAction

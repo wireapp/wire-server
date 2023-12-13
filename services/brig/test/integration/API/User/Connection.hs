@@ -731,7 +731,7 @@ testConnectWithAnon brig fedBrigClient = do
   toUser <- (.userId) <$> createAnonUser "anon1234" brig
   res <-
     runFedClient @"send-connection-action" fedBrigClient (Domain "far-away.example.com") $
-      NewConnectionRequest fromUser toUser RemoteConnect
+      NewConnectionRequest fromUser Nothing toUser RemoteConnect
   liftIO $
     assertEqual "The response should specify that the user is not activated" NewConnectionResponseUserNotActivated res
 

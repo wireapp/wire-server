@@ -27,7 +27,7 @@ import Control.Retry
 import Control.Timeout
 import Data.Domain
 import Data.Handle
-import Data.Id (ClientId, UserId)
+import Data.Id
 import Data.Qualified
 import Data.Range (Range)
 import Data.Text qualified as T
@@ -127,11 +127,17 @@ getUserClients domain guc = do
 sendConnectionAction ::
   (MonadReader Env m, MonadIO m, Log.MonadLogger m) =>
   Local UserId ->
+  Maybe (Local TeamId) ->
   Remote UserId ->
   RemoteConnectionAction ->
   ExceptT FederationError m NewConnectionResponse
-sendConnectionAction self (tUntagged -> other) action = do
-  let req = NewConnectionRequest (tUnqualified self) (qUnqualified other) action
+sendConnectionAction self mSelfTeam (tUntagged -> other) action = do
+  let req =
+        NewConnectionRequest
+          (tUnqualified self)
+          (tUnqualified <$> mSelfTeam)
+          (qUnqualified other)
+          action
   lift $ Log.info $ Log.msg @Text "Brig-federation: sending connection action to remote backend"
   runBrigFederatorClient (qDomain other) $ fedClient @'Brig @"send-connection-action" req
 

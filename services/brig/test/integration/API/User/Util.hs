@@ -392,7 +392,7 @@ receiveConnectionAction ::
 receiveConnectionAction brig fedBrigClient uid1 quid2 action expectedReaction expectedRel = do
   res <-
     runFedClient @"send-connection-action" fedBrigClient (qDomain quid2) $
-      F.NewConnectionRequest (qUnqualified quid2) uid1 action
+      F.NewConnectionRequest (qUnqualified quid2) Nothing uid1 action
   liftIO $ do
     res @?= F.NewConnectionResponseOk expectedReaction
   assertConnectionQualified brig uid1 quid2 expectedRel
@@ -419,7 +419,7 @@ sendConnectionAction brig opts uid1 quid2 reaction expectedRel = do
     frComponent req @?= Brig
     frRPC req @?= "send-connection-action"
     eitherDecode (frBody req)
-      @?= Right (F.NewConnectionRequest uid1 (qUnqualified quid2) F.RemoteConnect)
+      @?= Right (F.NewConnectionRequest uid1 Nothing (qUnqualified quid2) F.RemoteConnect)
 
   liftIO $ assertBool "postConnectionQualified failed" $ statusCode res `elem` [200, 201]
   assertConnectionQualified brig uid1 quid2 expectedRel

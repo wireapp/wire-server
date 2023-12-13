@@ -27,6 +27,7 @@ import Brig.API.Connection.Util
 import Brig.API.Types (ConnectionError (..))
 import Brig.App
 import Brig.Data.Connection qualified as Data
+import Brig.Data.User qualified as Data
 import Brig.Effects.FederationConfigStore
 import Brig.Federation.Client
 import Brig.IO.Intra qualified as Intra
@@ -201,7 +202,14 @@ performLocalAction self mzcon other mconnection action = do
   checkLimitForLocalAction self rel0 action
   mrel2 <- for (transition (LCA action) rel0) $ \rel1 -> do
     mreaction <- fmap join . for (remoteAction action) $ \ra -> do
-      response <- sendConnectionAction self other ra !>> ConnectFederationError
+      mSelfTeam <- lift . wrapClient . Data.lookupUserTeam . tUnqualified $ self
+      response <-
+        sendConnectionAction
+          self
+          (qualifyAs self <$> mSelfTeam)
+          other
+          ra
+          !>> ConnectFederationError
       case (response :: NewConnectionResponse) of
         NewConnectionResponseOk reaction -> pure reaction
         NewConnectionResponseUserNotActivated -> throwE (InvalidUser (tUntagged other))
