@@ -205,6 +205,7 @@ library
     Brig.Schema.V80_KeyPackageCiphersuite
     Brig.Schema.V81_AddFederationRemoteTeams
     Brig.Schema.V_FUTUREWORK
+    Brig.Search
     Brig.SMTP
     Brig.Team.API
     Brig.Team.DB
