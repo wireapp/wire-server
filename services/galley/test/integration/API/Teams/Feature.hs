@@ -1057,7 +1057,8 @@ testAllFeatures = do
           afcExposeInvitationURLsToTeamAdmin = withStatus FeatureStatusDisabled LockStatusLocked ExposeInvitationURLsToTeamAdminConfig FeatureTTLUnlimited,
           afcOutlookCalIntegration = withStatus FeatureStatusDisabled LockStatusLocked OutlookCalIntegrationConfig FeatureTTLUnlimited,
           afcMlsE2EId = withStatus FeatureStatusDisabled LockStatusUnlocked (wsConfig defFeatureStatus) FeatureTTLUnlimited,
-          afcMlsMigration = defaultMlsMigrationConfig
+          afcMlsMigration = defaultMlsMigrationConfig,
+          afcEnforceFileDownloadLocation = defaultEnforceFileDownloadLocationConfig
         }
 
 testFeatureConfigConsistency :: TestM ()
@@ -1533,4 +1534,12 @@ defaultMlsMigrationConfig =
       { startTime = fmap fromUTCTimeMillis (readUTCTimeMillis "2029-05-16T10:11:12.123Z"),
         finaliseRegardlessAfter = fmap fromUTCTimeMillis (readUTCTimeMillis "2029-10-17T00:00:00.000Z")
       }
+    FeatureTTLUnlimited
+
+defaultEnforceFileDownloadLocationConfig :: WithStatus EnforceFileDownloadLocationConfig
+defaultEnforceFileDownloadLocationConfig =
+  withStatus
+    FeatureStatusDisabled
+    LockStatusLocked
+    (EnforceFileDownloadLocationConfig "*")
     FeatureTTLUnlimited

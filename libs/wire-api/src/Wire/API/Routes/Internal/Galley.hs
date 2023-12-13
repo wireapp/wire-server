@@ -160,6 +160,11 @@ type IFeatureAPI =
     :<|> IFeatureStatusPut '[] '() MlsMigrationConfig
     :<|> IFeatureStatusPatch '[] '() MlsMigrationConfig
     :<|> IFeatureStatusLockStatusPut MlsMigrationConfig
+    -- EnforceFileDownloadLocationConfig
+    :<|> IFeatureStatusGet EnforceFileDownloadLocationConfig
+    :<|> IFeatureStatusPut '[] '() EnforceFileDownloadLocationConfig
+    :<|> IFeatureStatusPatch '[] '() EnforceFileDownloadLocationConfig
+    :<|> IFeatureStatusLockStatusPut EnforceFileDownloadLocationConfig
     -- all feature configs
     :<|> Named
            "feature-configs-internal"
