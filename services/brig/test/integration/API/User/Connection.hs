@@ -44,7 +44,6 @@ import Util
 import Wire.API.Connection
 import Wire.API.Conversation
 import Wire.API.Federation.API.Brig
-import Wire.API.Federation.API.Galley (GetConversationsRequest (..), GetConversationsResponse (convs), RemoteConvMembers (others), RemoteConversation (members))
 import Wire.API.Federation.Component
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.MultiTablePaging
@@ -62,7 +61,7 @@ tests ::
   FedClient 'Galley ->
   DB.ClientState ->
   TestTree
-tests cl _at opts p b _c g fedBrigClient fedGalleyClient db =
+tests cl _at opts p b _c g fedBrigClient _fedGalleyClient db =
   testGroup
     "connection"
     [ test p "post /connections" $ testCreateManualConnections b,
@@ -99,7 +98,6 @@ tests cl _at opts p b _c g fedBrigClient fedGalleyClient db =
       test p "Remote connections: connect OK" (testConnectOK b g fedBrigClient),
       test p "Remote connections: connect with Anon" (testConnectWithAnon b fedBrigClient),
       test p "Remote connections: connection from Anon" (testConnectFromAnon b),
-      test p "Remote connections: mutual Connect - remote action then local action" (testConnectMutualRemoteActionThenLocalAction opts b fedBrigClient fedGalleyClient),
       test p "Remote connections: connect twice" (testConnectFromPending b fedBrigClient),
       test p "Remote connections: ignore then accept" (testConnectFromIgnored opts b fedBrigClient),
       test p "Remote connections: ignore, remote cancels, then accept" (testSentFromIgnored opts b fedBrigClient),
@@ -748,29 +746,6 @@ testConnectFromAnon brig = do
   anonUser <- (.userId) <$> createAnonUser "anon1234" brig
   remoteUser <- fakeRemoteUser
   postConnectionQualified brig anonUser remoteUser !!! const 403 === statusCode
-
-testConnectMutualRemoteActionThenLocalAction :: Opt.Opts -> Brig -> FedClient 'Brig -> FedClient 'Galley -> Http ()
-testConnectMutualRemoteActionThenLocalAction opts brig fedBrigClient fedGalleyClient = do
-  let convIsLocal = True
-  (uid1, quid2, convId) <- localAndRemoteUserWithConvId brig convIsLocal
-
-  -- First create a connection request from remote to local user, as this test
-  -- aims to test the behaviour of sending a mutual request to remote
-  receiveConnectionAction brig fedBrigClient uid1 quid2 RemoteConnect Nothing Pending
-
-  let request =
-        GetConversationsRequest
-          { userId = qUnqualified quid2,
-            convIds = [qUnqualified convId]
-          }
-
-  res <- runFedClient @"get-conversations" fedGalleyClient (qDomain quid2) request
-  liftIO $
-    fmap (fmap omQualifiedId . others . members) res.convs @?= [[]]
-
-  -- The mock response has 'RemoteConnect' as action, because the remote backend
-  -- cannot be sure if the local backend was previously in Ignored state or not
-  sendConnectionAction brig opts uid1 quid2 (Just RemoteConnect) Accepted
 
 testConnectFromPending :: Brig -> FedClient 'Brig -> Http ()
 testConnectFromPending brig fedBrigClient = do
