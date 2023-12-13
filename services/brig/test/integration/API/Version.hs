@@ -23,7 +23,6 @@ import Brig.Options
 import Brig.Options qualified as Opt
 import Control.Lens ((?~))
 import Control.Monad.Catch (MonadCatch)
-import Data.Set qualified as Set
 import Imports
 import Network.Wai.Utilities.Error qualified as Wai
 import Test.Tasty
@@ -93,7 +92,7 @@ testDisabledVersionIsUnsupported opts brig = do
     ( opts
         & Opt.optionSettings
           . Opt.disabledAPIVersions
-          ?~ Set.fromList [V2]
+          ?~ [VersionExpConst V2]
     )
     $ do
       err <-
@@ -131,7 +130,7 @@ disabledVersionIsNotAdvertised opts brig version =
     ( opts
         & Opt.optionSettings
           . Opt.disabledAPIVersions
-          ?~ Set.fromList [version]
+          ?~ [VersionExpConst version]
     )
     $ do
       vinfo <- getVersionInfo brig

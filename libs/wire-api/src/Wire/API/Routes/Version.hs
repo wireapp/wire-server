@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StandaloneKindSignatures #-}
 {-# LANGUAGE TemplateHaskell #-}
@@ -30,9 +31,11 @@ module Wire.API.Routes.Version
     -- * Version
     Version (..),
     VersionNumber (..),
+    VersionExp (..),
     supportedVersions,
     isDevelopmentVersion,
     developmentVersions,
+    expandVersionExp,
 
     -- * Servant combinators
     Until,
@@ -54,6 +57,7 @@ import Data.ByteString.Lazy qualified as LBS
 import Data.Domain
 import Data.OpenApi qualified as S
 import Data.Schema
+import Data.Set qualified as Set
 import Data.Singletons.Base.TH
 import Data.Text qualified as Text
 import Data.Text.Encoding as Text
@@ -200,6 +204,22 @@ isDevelopmentVersion _ = True
 
 developmentVersions :: [Version]
 developmentVersions = filter isDevelopmentVersion supportedVersions
+
+-- Version keywords
+
+-- | A version "expression" which can be used when disabling versions in a
+-- configuration file.
+data VersionExp
+  = -- | A fixed version.
+    VersionExpConst Version
+  | -- | All development versions.
+    VersionExpDevelopment
+  deriving (Show, Eq, Ord, Generic, FromJSON)
+
+-- | Expand a version expression into a set of versions.
+expandVersionExp :: VersionExp -> Set Version
+expandVersionExp (VersionExpConst v) = Set.singleton v
+expandVersionExp (VersionExpDevelopment) = Set.fromList developmentVersions
 
 -- Version-aware swagger generation
 

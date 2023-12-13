@@ -64,6 +64,7 @@ module Brig.App
     keyPackageLocalLock,
     rabbitmqChannel,
     fsWatcher,
+    disabledVersions,
 
     -- * App Monad
     AppT (..),
@@ -154,6 +155,7 @@ import System.Logger.Class hiding (Settings, settings)
 import System.Logger.Class qualified as LC
 import System.Logger.Extended qualified as Log
 import Util.Options
+import Wire.API.Routes.Version
 import Wire.API.User.Identity (Email)
 import Wire.API.User.Profile (Locale)
 
@@ -198,7 +200,8 @@ data Env = Env
     _indexEnv :: IndexEnv,
     _randomPrekeyLocalLock :: Maybe (MVar ()),
     _keyPackageLocalLock :: MVar (),
-    _rabbitmqChannel :: Maybe (MVar Q.Channel)
+    _rabbitmqChannel :: Maybe (MVar Q.Channel),
+    _disabledVersions :: Set Version
   }
 
 makeLenses ''Env
@@ -260,6 +263,9 @@ newEnv o = do
       pure Nothing
   kpLock <- newMVar ()
   rabbitChan <- traverse (Q.mkRabbitMqChannelMVar lgr) o.rabbitmq
+  let disabledVersionExps = fold (Opt.setDisabledAPIVersions sett)
+      allDisabledVersions = mconcat $ map expandVersionExp disabledVersionExps
+
   pure $!
     Env
       { _cargohold = mkEndpoint $ Opt.cargohold o,
@@ -296,7 +302,8 @@ newEnv o = do
         _indexEnv = mkIndexEnv o lgr mgr mtr (Opt.galley o),
         _randomPrekeyLocalLock = prekeyLocalLock,
         _keyPackageLocalLock = kpLock,
-        _rabbitmqChannel = rabbitChan
+        _rabbitmqChannel = rabbitChan,
+        _disabledVersions = allDisabledVersions
       }
   where
     emailConn _ (Opt.EmailAWS aws) = pure (Just aws, Nothing)
