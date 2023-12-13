@@ -141,3 +141,29 @@ testSentFromIgnored = do
   -- transitions to "sent"
   void $ putConnection alice bob "accepted" >>= getBody 200
   assertConnectionStatus alice bob "sent"
+
+testConnectFromBlocked :: HasCallStack => App ()
+testConnectFromBlocked = do
+  (alice, bob, one2oneId) <- createOne2OneConversation OwnDomain
+  bobId <- bob %. "qualified_id"
+
+  -- set up an initial "blocked" state
+  void $ postConnection bob alice >>= getBody 200
+  void $ putConnection alice bob "blocked" >>= getBody 200
+  assertConnectionStatus alice bob "blocked"
+  getConversation alice one2oneId `bindResponse` \resp ->
+    resp.status `shouldMatchInt` 403
+
+  -- If Bob sends a new connection request, Alice ignores it
+  void $ postConnection bob alice >>= getBody 200
+  assertConnectionStatus alice bob "blocked"
+
+  -- if Alice accepts (or sends a connection request), and Bob still
+  -- wants to connect, Alice transitions to "accepted"
+  void $ postConnection alice bob >>= getBody 200
+  assertConnectionStatus alice bob "accepted"
+  getConversation alice one2oneId `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    others <- resp.json %. "members.others" & asList
+    qIds <- for others (%. "qualified_id")
+    qIds `shouldMatchSet` [bobId]

@@ -99,7 +99,6 @@ tests cl _at opts p b _c g fedBrigClient _fedGalleyClient db =
       test p "Remote connections: connect with Anon" (testConnectWithAnon b fedBrigClient),
       test p "Remote connections: connection from Anon" (testConnectFromAnon b),
       test p "Remote connections: connect twice" (testConnectFromPending b fedBrigClient),
-      test p "Remote connections: block then accept" (testConnectFromBlocked opts b g fedBrigClient),
       test p "Remote connections: block, remote cancels, then accept" (testSentFromBlocked opts b fedBrigClient),
       test p "Remote connections: send then cancel" (testCancel opts b),
       test p "Remote connections: limits" (testConnectionLimits opts b fedBrigClient),
@@ -751,34 +750,6 @@ testConnectFromPending brig fedBrigClient = do
   receiveConnectionAction brig fedBrigClient uid1 quid2 RemoteConnect Nothing Pending
   receiveConnectionAction brig fedBrigClient uid1 quid2 RemoteConnect Nothing Pending
   receiveConnectionAction brig fedBrigClient uid1 quid2 RemoteRescind Nothing Cancelled
-
-testConnectFromBlocked :: Opt.Opts -> Brig -> Galley -> FedClient 'Brig -> Http ()
-testConnectFromBlocked opts brig galley fedBrigClient = do
-  let convIsLocal = True
-  (uid1, quid2, convId) <- localAndRemoteUserWithConvId brig convIsLocal
-
-  -- set up an initial 'Blocked' state
-  receiveConnectionAction brig fedBrigClient uid1 quid2 RemoteConnect Nothing Pending
-  putConnectionQualified brig uid1 quid2 Blocked !!! statusCode === const 200
-  assertConnectionQualified brig uid1 quid2 Blocked
-
-  getConversationQualified galley uid1 convId
-    !!! statusCode === const 403
-
-  -- if the remote side sends a new connection request, we ignore it
-  receiveConnectionAction brig fedBrigClient uid1 quid2 RemoteConnect Nothing Blocked
-
-  -- if we accept (or send a connection request), and the remote side still
-  -- wants to connect, we transition to 'Accepted'
-  sendConnectionAction brig opts uid1 quid2 (Just RemoteConnect) Accepted
-
-  do
-    res <-
-      getConversationQualified galley uid1 convId <!! do
-        statusCode === const 200
-    conv <- responseJsonError res
-    liftIO $
-      (fmap omQualifiedId . cmOthers . cnvMembers) conv @?= [quid2]
 
 testSentFromBlocked :: Opt.Opts -> Brig -> FedClient 'Brig -> Http ()
 testSentFromBlocked opts brig fedBrigClient = do
