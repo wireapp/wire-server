@@ -209,21 +209,6 @@ searchContacts user searchTerm domain = do
   req <- baseRequest user Brig Versioned "/search/contacts"
   q <- asString searchTerm
   d <- objDomain domain
-  submit "GET" (req & addQueryParams [("q", q), ("domain", d)] & addHeader "Request-Id" "1234567890")
-
-searchContacts' ::
-  ( MakesValue user,
-    MakesValue searchTerm,
-    MakesValue domain
-  ) =>
-  user ->
-  searchTerm ->
-  domain ->
-  App Response
-searchContacts' user searchTerm domain = do
-  req <- baseRequest user Brig Versioned "/search/contacts"
-  q <- asString searchTerm
-  d <- objDomain domain
   submit "GET" (req & addQueryParams [("q", q), ("domain", d)])
 
 getAPIVersion :: (HasCallStack, MakesValue domain) => domain -> App Response

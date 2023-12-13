@@ -217,29 +217,3 @@ testFederatedUserSearchForNonTeamUser = do
         [] -> pure ()
         doc : _ ->
           assertFailure $ "Expected an empty result, but got " <> show doc <> " for test case "
-
-testX2 :: HasCallStack => App ()
-testX2 = do
-  u1 <- randomUser OwnDomain def {BrigI.team = True}
-  u2 <- randomUser OtherDomain def {BrigI.team = True}
-  team2 <- u2 %. "team"
-  GalleyI.setTeamFeatureStatus OtherDomain team2 "searchVisibilityInbound" "enabled"
-
-  u2Handle <- API.randomHandle
-  bindResponse (BrigP.putHandle u2 u2Handle) $ assertSuccess
-  BrigI.refreshIndex OtherDomain
-
-  void $ BrigP.searchContacts u1 u2Handle OtherDomain >>= getJSON 200
-
-testX1 :: HasCallStack => App ()
-testX1 = do
-  u1 <- randomUser OwnDomain def {BrigI.team = True}
-  u2 <- randomUser OtherDomain def {BrigI.team = True}
-  team2 <- u2 %. "team"
-  GalleyI.setTeamFeatureStatus OtherDomain team2 "searchVisibilityInbound" "enabled"
-
-  u2Handle <- API.randomHandle
-  bindResponse (BrigP.putHandle u2 u2Handle) $ assertSuccess
-  BrigI.refreshIndex OtherDomain
-
-  void $ BrigP.searchContacts' u1 u2Handle OtherDomain >>= getJSON 200
