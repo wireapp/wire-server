@@ -47,7 +47,7 @@ module Wire.API.Routes.Version
 where
 
 import Control.Error (note)
-import Control.Lens ((?~))
+import Control.Lens (makePrisms, (?~))
 import Data.Aeson (FromJSON, ToJSON (..))
 import Data.Aeson qualified as Aeson
 import Data.Bifunctor
@@ -67,7 +67,7 @@ import Servant
 import Servant.API.Extended.RawM
 import Wire.API.Deprecated
 import Wire.API.Routes.MultiVerb
-import Wire.API.Routes.Named
+import Wire.API.Routes.Named hiding (unnamed)
 import Wire.API.VersionInfo
 import Wire.Arbitrary (Arbitrary, GenericUniform (GenericUniform))
 
@@ -214,7 +214,22 @@ data VersionExp
     VersionExpConst Version
   | -- | All development versions.
     VersionExpDevelopment
-  deriving (Show, Eq, Ord, Generic, FromJSON)
+  deriving (Show, Eq, Ord, Generic)
+
+$(makePrisms ''VersionExp)
+
+instance ToSchema VersionExp where
+  schema =
+    named "VersionExp" $
+      tag _VersionExpConst (unnamed schema)
+        <> tag
+          _VersionExpDevelopment
+          ( unnamed
+              ( enum @Text "VersionExpDevelopment" (element "development" ())
+              )
+          )
+
+deriving via Schema VersionExp instance (FromJSON VersionExp)
 
 -- | Expand a version expression into a set of versions.
 expandVersionExp :: VersionExp -> Set Version
