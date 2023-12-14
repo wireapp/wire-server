@@ -18,11 +18,12 @@
 module Wire.API.Routes.Public.Galley.Messaging where
 
 import Data.Id
+import Data.OpenApi qualified as S
 import Data.SOP
 import Generics.SOP qualified as GSOP
 import Imports
 import Servant hiding (WithStatus)
-import Servant.Swagger.Internal.Orphans ()
+import Servant.OpenApi.Internal.Orphans ()
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as BrigError
 import Wire.API.Error.Galley
@@ -128,6 +129,8 @@ data MessageNotSent a
     via (GenericAsUnion (MessageNotSentResponses a) (MessageNotSent a))
 
 instance GSOP.Generic (MessageNotSent a)
+
+instance S.ToSchema a => S.ToSchema (MessageNotSent a)
 
 type MessageNotSentResponses a =
   '[ ErrorResponse 'ConvNotFound,

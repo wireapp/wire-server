@@ -86,6 +86,7 @@ import Data.Set qualified as Set
 import Imports hiding (cs)
 import Wire.API.Message (Priority (..))
 import Wire.API.Push.V2.Token
+import Wire.Arbitrary
 
 -----------------------------------------------------------------------------
 -- Route
@@ -97,7 +98,8 @@ data Route
     RouteAny
   | -- | Avoids causing push notification for mobile clients.
     RouteDirect
-  deriving (Eq, Ord, Enum, Bounded, Show)
+  deriving (Eq, Ord, Enum, Bounded, Show, Generic)
+  deriving (Arbitrary) via GenericUniform Route
 
 instance FromJSON Route where
   parseJSON (String "any") = pure RouteAny
@@ -116,14 +118,21 @@ data Recipient = Recipient
     _recipientRoute :: !Route,
     _recipientClients :: !RecipientClients
   }
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Generic)
 
 data RecipientClients
   = -- | All clients of some user
     RecipientClientsAll
   | -- | An explicit list of clients
     RecipientClientsSome (List1 ClientId)
-  deriving (Eq, Show, Ord)
+  deriving (Eq, Show, Ord, Generic)
+  deriving (Arbitrary) via GenericUniform RecipientClients
+
+instance Semigroup RecipientClients where
+  RecipientClientsAll <> _ = RecipientClientsAll
+  _ <> RecipientClientsAll = RecipientClientsAll
+  RecipientClientsSome cs1 <> RecipientClientsSome cs2 =
+    RecipientClientsSome (cs1 <> cs2)
 
 makeLenses ''Recipient
 
@@ -169,16 +178,13 @@ newtype ApsLocKey = ApsLocKey {fromLocKey :: Text}
 
 data ApsPreference
   = ApsStdPreference
-  | ApsVoIPPreference
   deriving (Eq, Show)
 
 instance ToJSON ApsPreference where
-  toJSON ApsVoIPPreference = "voip"
   toJSON ApsStdPreference = "std"
 
 instance FromJSON ApsPreference where
   parseJSON = withText "ApsPreference" $ \case
-    "voip" -> pure ApsVoIPPreference
     "std" -> pure ApsStdPreference
     x -> fail $ "Invalid preference: " ++ show x
 
@@ -303,9 +309,9 @@ instance ToJSON Push where
         # "origin" .= _pushOrigin p
         # "connections" .= ifNot Set.null (_pushConnections p)
         # "origin_connection" .= _pushOriginConnection p
-        # "transient" .= ifNot (== False) (_pushTransient p)
-        # "native_include_origin" .= ifNot (== True) (_pushNativeIncludeOrigin p)
-        # "native_encrypt" .= ifNot (== True) (_pushNativeEncrypt p)
+        # "transient" .= ifNot not (_pushTransient p)
+        # "native_include_origin" .= ifNot id (_pushNativeIncludeOrigin p)
+        # "native_encrypt" .= ifNot id (_pushNativeEncrypt p)
         # "native_aps" .= _pushNativeAps p
         # "native_priority" .= ifNot (== HighPriority) (_pushNativePriority p)
         # "payload" .= _pushPayload p

@@ -1,6 +1,7 @@
 {-
 NOTE: Don't import any other Testlib modules here. Use this module to break dependency cycles.
 -}
+
 module Testlib.Types where
 
 import Control.Concurrent (QSemN)
@@ -22,10 +23,12 @@ import Data.IORef
 import Data.List
 import Data.Map
 import Data.Map qualified as Map
+import Data.Set (Set)
 import Data.Set qualified as Set
 import Data.String
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
+import Data.Time
 import Data.Word
 import GHC.Generics (Generic)
 import GHC.Records
@@ -104,14 +107,17 @@ data GlobalEnv = GlobalEnv
     gServicesCwdBase :: Maybe FilePath,
     gRemovalKeyPath :: FilePath,
     gBackendResourcePool :: ResourcePool BackendResource,
-    gRabbitMQConfig :: RabbitMQConfig
+    gRabbitMQConfig :: RabbitMQConfig,
+    gTempDir :: FilePath,
+    gTimeOutSeconds :: Int
   }
 
 data IntegrationConfig = IntegrationConfig
   { backendOne :: BackendConfig,
     backendTwo :: BackendConfig,
     dynamicBackends :: Map String DynamicBackendConfig,
-    rabbitmq :: RabbitMQConfig
+    rabbitmq :: RabbitMQConfig,
+    cassandra :: HostPort
   }
   deriving (Show, Generic)
 
@@ -123,6 +129,7 @@ instance FromJSON IntegrationConfig where
         <*> o .: fromString "backendTwo"
         <*> o .: fromString "dynamicBackends"
         <*> o .: fromString "rabbitmq"
+        <*> o .: fromString "cassandra"
 
 data ServiceMap = ServiceMap
   { brig :: HostPort,
@@ -176,7 +183,8 @@ data Env = Env
     lastPrekeys :: IORef [String],
     mls :: IORef MLSState,
     resourcePool :: ResourcePool BackendResource,
-    rabbitMQConfig :: RabbitMQConfig
+    rabbitMQConfig :: RabbitMQConfig,
+    timeOutSeconds :: Int
   }
 
 data Response = Response
@@ -186,7 +194,7 @@ data Response = Response
     headers :: [HTTP.Header],
     request :: HTTP.Request
   }
-  deriving (Show)
+  deriving stock (Show)
 
 instance HasField "json" Response (App Aeson.Value) where
   getField response = maybe (assertFailure "Response has no json body") pure response.jsonBody
@@ -196,17 +204,34 @@ data ClientIdentity = ClientIdentity
     user :: String,
     client :: String
   }
-  deriving (Show, Eq, Ord)
+  deriving stock (Show, Eq, Ord, Generic)
+
+newtype Ciphersuite = Ciphersuite {code :: String}
+  deriving (Eq, Ord, Show)
+
+instance Default Ciphersuite where
+  def = Ciphersuite "0x0001"
+
+data ClientGroupState = ClientGroupState
+  { group :: Maybe ByteString,
+    keystore :: Maybe ByteString
+  }
+  deriving (Show)
+
+data MLSProtocol = MLSProtocolMLS | MLSProtocolMixed
+  deriving (Eq, Show)
 
 data MLSState = MLSState
   { baseDir :: FilePath,
-    members :: Set.Set ClientIdentity,
+    members :: Set ClientIdentity,
     -- | users expected to receive a welcome message after the next commit
-    newMembers :: Set.Set ClientIdentity,
+    newMembers :: Set ClientIdentity,
     groupId :: Maybe String,
     convId :: Maybe Value,
-    clientGroupState :: Map ClientIdentity ByteString,
-    epoch :: Word64
+    clientGroupState :: Map ClientIdentity ClientGroupState,
+    epoch :: Word64,
+    ciphersuite :: Ciphersuite,
+    protocol :: MLSProtocol
   }
   deriving (Show)
 
@@ -241,7 +266,7 @@ instance Exception AssertionFailure where
   displayException (AssertionFailure _ _ msg) = msg
 
 newtype App a = App {unApp :: ReaderT Env IO a}
-  deriving
+  deriving newtype
     ( Functor,
       Applicative,
       Monad,
@@ -272,7 +297,7 @@ appToIOKleisli k = do
 getServiceMap :: HasCallStack => String -> App ServiceMap
 getServiceMap fedDomain = do
   env <- ask
-  assertJust ("Could not find service map for federation domain: " <> fedDomain) (Map.lookup fedDomain (env.serviceMap))
+  assertJust ("Could not find service map for federation domain: " <> fedDomain) (Map.lookup fedDomain env.serviceMap)
 
 getMLSState :: App MLSState
 getMLSState = do
@@ -440,3 +465,17 @@ data BackendName
 
 allServices :: [Service]
 allServices = [minBound .. maxBound]
+
+newtype TestSuiteReport = TestSuiteReport {cases :: [TestCaseReport]}
+  deriving (Eq, Show)
+  deriving newtype (Semigroup, Monoid)
+
+data TestCaseReport = TestCaseReport
+  { name :: String,
+    result :: TestResult,
+    time :: NominalDiffTime
+  }
+  deriving (Eq, Show)
+
+data TestResult = TestSuccess | TestFailure String
+  deriving (Eq, Show)

@@ -1,6 +1,6 @@
 image:
-  repository: airdock/fake-sqs
-  tag: 0.3.1
+  repository: softwaremill/elasticmq-native
+  tag: 1.5.2
 
 # TODO: in a wire-server chart, these queue names should match the ones defined in galley/brig/gundeck (i.e. only be defined once)
 queueNames:

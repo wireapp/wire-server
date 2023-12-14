@@ -22,6 +22,7 @@
 module Wire.API.Conversation.Action.Tag where
 
 import Data.Aeson (FromJSON (..), ToJSON (..))
+import Data.OpenApi qualified as S
 import Data.Schema hiding (tag)
 import Data.Singletons.TH
 import Imports
@@ -38,6 +39,7 @@ data ConversationActionTag
   | ConversationMessageTimerUpdateTag
   | ConversationReceiptModeUpdateTag
   | ConversationAccessDataTag
+  | ConversationUpdateProtocolTag
   deriving (Show, Eq, Generic, Bounded, Enum)
 
 instance Arbitrary ConversationActionTag where
@@ -55,7 +57,8 @@ instance ToSchema ConversationActionTag where
           element "ConversationRenameTag" ConversationRenameTag,
           element "ConversationMessageTimerUpdateTag" ConversationMessageTimerUpdateTag,
           element "ConversationReceiptModeUpdateTag" ConversationReceiptModeUpdateTag,
-          element "ConversationAccessDataTag" ConversationAccessDataTag
+          element "ConversationAccessDataTag" ConversationAccessDataTag,
+          element "ConversationUpdateProtocolTag" ConversationUpdateProtocolTag
         ]
 
 instance ToJSON ConversationActionTag where
@@ -63,6 +66,9 @@ instance ToJSON ConversationActionTag where
 
 instance FromJSON ConversationActionTag where
   parseJSON = schemaParseJSON
+
+instance S.ToSchema ConversationActionTag where
+  declareNamedSchema = schemaToSwagger
 
 $(genSingletons [''ConversationActionTag])
 

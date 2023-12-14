@@ -18,7 +18,7 @@
 module Test.Wire.API.Swagger (tests) where
 
 import Data.Aeson (ToJSON)
-import Data.Swagger (ToSchema, validatePrettyToJSON)
+import Data.OpenApi (ToSchema, validatePrettyToJSON)
 import Imports
 import Test.Tasty qualified as T
 import Test.Tasty.QuickCheck (Arbitrary, counterexample, testProperty)
@@ -56,7 +56,7 @@ tests =
       testToJSON @(Wrapped.Wrapped "some_user" User.User)
     ]
 
-testToJSON :: forall a. (Arbitrary a, Typeable a, ToJSON a, ToSchema a, Show a) => T.TestTree
+testToJSON :: forall a. (Arbitrary a, ToJSON a, ToSchema a, Show a) => T.TestTree
 testToJSON = testProperty msg trip
   where
     msg = show (typeRep @a)

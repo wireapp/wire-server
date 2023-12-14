@@ -18,6 +18,10 @@ data:
       port: 8080
     {{- end }}
 
+    brig:
+      host: brig
+      port: 8080
+
     aws:
       {{- with .Values.config.aws }}
       s3Bucket: {{ .s3Bucket }}

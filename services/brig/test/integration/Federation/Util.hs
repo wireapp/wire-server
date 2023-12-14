@@ -33,12 +33,14 @@ import Control.Monad.Trans.Except
 import Control.Retry
 import Data.Aeson (FromJSON, Value, decode, (.=))
 import Data.Aeson qualified as Aeson
+import Data.ByteString qualified as BS
 import Data.ByteString.Conversion (toByteString')
 import Data.Domain (Domain (Domain))
 import Data.Handle (fromHandle)
 import Data.Id
 import Data.Map.Strict qualified as Map
 import Data.Qualified (Qualified (..))
+import Data.Text qualified as T
 import Data.Text qualified as Text
 import Database.Bloodhound qualified as ES
 import Federator.MockServer qualified as Mock
@@ -51,6 +53,7 @@ import Network.Socket
 import Network.Wai.Handler.Warp (Port)
 import Network.Wai.Test (Session)
 import Network.Wai.Test qualified as WaiTest
+import System.FilePath
 import Test.QuickCheck (Arbitrary (arbitrary), generate)
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -62,6 +65,9 @@ import Wire.API.Connection
 import Wire.API.Conversation (Conversation (cnvMembers))
 import Wire.API.Conversation.Member (OtherMember (OtherMember), cmOthers)
 import Wire.API.Conversation.Role (roleNameWireAdmin)
+import Wire.API.MLS.CommitBundle
+import Wire.API.MLS.Message
+import Wire.API.MLS.Serialisation
 import Wire.API.Team.Feature (FeatureStatus (..))
 import Wire.API.User
 import Wire.API.User.Client
@@ -110,3 +116,32 @@ connectUsersEnd2End brig1 brig2 quid1 quid2 = do
     !!! const 201 === statusCode
   putConnectionQualified brig2 (qUnqualified quid2) quid1 Accepted
     !!! const 200 === statusCode
+
+sendCommitBundle :: HasCallStack => FilePath -> FilePath -> Maybe FilePath -> Galley -> UserId -> ClientId -> ByteString -> Http ()
+sendCommitBundle tmp subGroupStateFn welcomeFn galley uid cid commit = do
+  subGroupStateRaw <- liftIO $ BS.readFile $ tmp </> subGroupStateFn
+  subGroupState <- either (liftIO . assertFailure . T.unpack) pure . decodeMLS' $ subGroupStateRaw
+  subCommit <- either (liftIO . assertFailure . T.unpack) pure . decodeMLS' $ commit
+  mbWelcome <-
+    for
+      welcomeFn
+      $ \fn -> do
+        bs <- liftIO $ BS.readFile $ tmp </> fn
+        msg :: Message <- either (liftIO . assertFailure . T.unpack) pure . decodeMLS' $ bs
+        case msg.content of
+          MessageWelcome welcome -> pure welcome
+          _ -> liftIO . assertFailure $ "Expected a welcome"
+
+  let subGroupBundle = CommitBundle subCommit mbWelcome subGroupState
+  post
+    ( galley
+        . paths
+          ["mls", "commit-bundles"]
+        . zUser uid
+        . zClient cid
+        . zConn "conn"
+        . header "Z-Type" "access"
+        . Bilge.content "message/mls"
+        . lbytes (encodeMLS subGroupBundle)
+    )
+    !!! const 201 === statusCode

@@ -34,7 +34,7 @@ user1 = Id . fromJust $ UUID.fromString "44f9c51e-0dce-4e7f-85ba-b4e5a545ce68"
 user2 = Id . fromJust $ UUID.fromString "284c4e8f-78ef-43f4-a77a-015c22e37960"
 
 clientId :: ClientId
-clientId = ClientId "0123456789ABCEF"
+clientId = ClientId 0x0123456789abcef
 
 testObject_QualifiedUserClientPrekeyMapV4_user_1 :: QualifiedUserClientPrekeyMapV4
 testObject_QualifiedUserClientPrekeyMapV4_user_1 =

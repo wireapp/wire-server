@@ -28,10 +28,10 @@ module Galley.Effects.ConversationStore
 
     -- * Read conversation
     getConversation,
-    getConversationIdByGroupId,
+    getConversationEpoch,
     getConversations,
     getConversationMetadata,
-    getPublicGroupState,
+    getGroupInfo,
     isConversationAlive,
     getRemoteConversationStatus,
     selectConversations,
@@ -43,9 +43,11 @@ module Galley.Effects.ConversationStore
     setConversationReceiptMode,
     setConversationMessageTimer,
     setConversationEpoch,
+    setConversationCipherSuite,
     acceptConnectConversation,
-    setGroupId,
-    setPublicGroupState,
+    setGroupInfo,
+    updateToMixedProtocol,
+    updateToMLSProtocol,
 
     -- * Delete conversation
     deleteConversation,
@@ -60,15 +62,16 @@ import Data.Id
 import Data.Misc
 import Data.Qualified
 import Data.Range
-import Data.Time (NominalDiffTime)
+import Data.Time.Clock
 import Galley.Data.Conversation
 import Galley.Data.Types
 import Galley.Types.Conversations.Members
 import Imports
 import Polysemy
 import Wire.API.Conversation hiding (Conversation, Member)
-import Wire.API.MLS.Epoch
-import Wire.API.MLS.PublicGroupState
+import Wire.API.Conversation.Protocol
+import Wire.API.MLS.CipherSuite (CipherSuiteTag)
+import Wire.API.MLS.GroupInfo
 
 data ConversationStore m a where
   CreateConversationId :: ConversationStore m ConvId
@@ -78,12 +81,10 @@ data ConversationStore m a where
     ConversationStore m Conversation
   DeleteConversation :: ConvId -> ConversationStore m ()
   GetConversation :: ConvId -> ConversationStore m (Maybe Conversation)
-  GetConversationIdByGroupId :: GroupId -> ConversationStore m (Maybe (Qualified ConvId))
+  GetConversationEpoch :: ConvId -> ConversationStore m (Maybe Epoch)
   GetConversations :: [ConvId] -> ConversationStore m [Conversation]
   GetConversationMetadata :: ConvId -> ConversationStore m (Maybe ConversationMetadata)
-  GetPublicGroupState ::
-    ConvId ->
-    ConversationStore m (Maybe OpaquePublicGroupState)
+  GetGroupInfo :: ConvId -> ConversationStore m (Maybe GroupInfoData)
   IsConversationAlive :: ConvId -> ConversationStore m Bool
   GetRemoteConversationStatus ::
     UserId ->
@@ -96,13 +97,12 @@ data ConversationStore m a where
   SetConversationReceiptMode :: ConvId -> ReceiptMode -> ConversationStore m ()
   SetConversationMessageTimer :: ConvId -> Maybe Milliseconds -> ConversationStore m ()
   SetConversationEpoch :: ConvId -> Epoch -> ConversationStore m ()
-  SetGroupId :: GroupId -> Qualified ConvId -> ConversationStore m ()
-  SetPublicGroupState ::
-    ConvId ->
-    OpaquePublicGroupState ->
-    ConversationStore m ()
+  SetConversationCipherSuite :: ConvId -> CipherSuiteTag -> ConversationStore m ()
+  SetGroupInfo :: ConvId -> GroupInfoData -> ConversationStore m ()
   AcquireCommitLock :: GroupId -> Epoch -> NominalDiffTime -> ConversationStore m LockAcquired
   ReleaseCommitLock :: GroupId -> Epoch -> ConversationStore m ()
+  UpdateToMixedProtocol :: Local ConvId -> ConvType -> CipherSuiteTag -> ConversationStore m ()
+  UpdateToMLSProtocol :: Local ConvId -> ConversationStore m ()
 
 makeSem ''ConversationStore
 

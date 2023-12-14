@@ -81,9 +81,6 @@ instance AsWai MockException where
   toWai (MockErrorResponse status message) = Wai.mkError status "mock-error" message
   toWai (MockUnreachableBackendErrorResponse d) =
     Wai.mkError HTTP.status503 "mock-error" (unreachableMsg d)
-  waiErrorDescription (MockErrorResponse _ message) = LText.toStrict message
-  waiErrorDescription (MockUnreachableBackendErrorResponse d) =
-    LText.toStrict . unreachableMsg $ d
 
 unreachableMsg :: Domain -> LText
 unreachableMsg (LText.fromStrict . domainText -> d) =

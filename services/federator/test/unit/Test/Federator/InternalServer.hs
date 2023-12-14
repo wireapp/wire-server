@@ -100,7 +100,7 @@ federatedRequestSuccess =
         . assertNoError @ServerError
         . discardTinyLogs
         . runInputConst settings
-        . runInputConst (FederationDomainConfigs AllowDynamic [FederationDomainConfig (Domain "target.example.com") FullSearch] 10)
+        . runInputConst (FederationDomainConfigs AllowDynamic [FederationDomainConfig (Domain "target.example.com") FullSearch FederationRestrictionAllowAll] 10)
         . assertMetrics
         $ callOutward targetDomain Brig (RPC "get-user-by-handle") request
     Wai.responseStatus res @?= HTTP.status200
@@ -146,7 +146,7 @@ federatedRequestFailureAllowList =
         . assertNoError @ServerError
         . discardTinyLogs
         . runInputConst settings
-        . runInputConst (FederationDomainConfigs AllowDynamic [FederationDomainConfig (Domain "hello.world") FullSearch] 10)
+        . runInputConst (FederationDomainConfigs AllowDynamic [FederationDomainConfig (Domain "hello.world") FullSearch FederationRestrictionAllowAll] 10)
         . interpretMetricsEmpty
         $ callOutward targetDomain Brig (RPC "get-user-by-handle") request
     eith @?= Left (FederationDenied targetDomain)

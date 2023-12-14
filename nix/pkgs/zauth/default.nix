@@ -1,35 +1,28 @@
-{ fetchFromGitHub
+{ pkgs
 , lib
-, libsodium
-, nix-gitignore
-, pkg-config
-, rustPlatform
-, stdenv
-, gitMinimal
 }:
 
-rustPlatform.buildRustPackage rec {
-  name = "libzauth-${version}";
-  version = "3.0.0";
-  nativeBuildInputs = [ pkg-config gitMinimal ];
-  buildInputs = [ libsodium ];
-  src = nix-gitignore.gitignoreSourcePure [ ../../../.gitignore ] ../../../libs/libzauth;
-  sourceRoot = "libzauth/libzauth-c";
+let
+  # load the crate2nix crate tree
+  crates = import ../../../libs/libzauth/libzauth-c/Cargo.nix {
+    inherit pkgs;
+    nixpkgs = pkgs.path;
 
-  cargoSha256 = "sha256-f/MNUrEQaPzSUHtnZ0jARMwBswS+Sh0Swe+2D+hpHF4=";
+    # per-crate overrides
+    defaultCrateOverrides = pkgs.defaultCrateOverrides // {
+      zauth-c = prev: {
+        postFixup = ''
+          find ${prev.src}
+          mkdir -p $lib/include $lib/lib/pkgconfig
+          sed -e "s~<<VERSION>>~${prev.version}~" \
+            -e "s~<<PREFIX>>~$lib~" \
+            ${prev.src}/src/libzauth.pc > $lib/lib/pkgconfig/libzauth.pc
+          
+          cp ${prev.src}/src/zauth.h $lib/include/
+        '';
+      };
+    };
+  };
 
-  patchLibs = lib.optionalString stdenv.isDarwin ''
-    install_name_tool -id $out/lib/libzauth.dylib $out/lib/libzauth.dylib
-  '';
-
-  postInstall = ''
-    mkdir -p $out/lib/pkgconfig
-    mkdir -p $out/include
-    cp src/zauth.h $out/include
-    sed -e "s~<<VERSION>>~${version}~" \
-      -e "s~<<PREFIX>>~$out~" \
-      src/libzauth.pc > $out/lib/pkgconfig/libzauth.pc
-    cp target/release-tmp/libzauth.* $out/lib/
-    ${patchLibs}
-  '';
-}
+in
+crates.rootCrate.build

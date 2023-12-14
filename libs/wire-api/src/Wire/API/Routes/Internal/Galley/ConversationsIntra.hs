@@ -26,9 +26,9 @@ where
 import Data.Aeson qualified as A
 import Data.Aeson.Types (FromJSON, ToJSON)
 import Data.Id (ConvId, UserId)
+import Data.OpenApi qualified as Swagger
 import Data.Qualified
 import Data.Schema
-import Data.Swagger qualified as Swagger
 import Imports
 
 data DesiredMembership = Included | Excluded

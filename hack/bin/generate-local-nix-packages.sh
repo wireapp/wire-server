@@ -4,7 +4,7 @@ set -euo pipefail
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 ROOT_DIR=$(cd -- "$SCRIPT_DIR/../../" &> /dev/null && pwd)
-cabalFiles=$(find  -L "$ROOT_DIR" -name '*.cabal' \
+cabalFiles=$(find  "$ROOT_DIR" -name '*.cabal' \
                  | grep -v dist-newstyle | sort)
 
 warningFile=$(mktemp)

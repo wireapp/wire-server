@@ -24,28 +24,26 @@ module API.Internal
 where
 
 import API.Internal.Util
+import API.MLS.Util
 import Bilge
 import Bilge.Assert
-import Brig.Data.Connection
 import Brig.Data.User (lookupFeatureConferenceCalling, lookupStatus, userExists)
 import Brig.Options qualified as Opt
 import Cassandra qualified as C
 import Cassandra qualified as Cass
-import Cassandra.Exec (x1)
 import Cassandra.Util
 import Control.Exception (ErrorCall (ErrorCall), throwIO)
 import Control.Lens ((^.), (^?!))
 import Data.Aeson.Lens qualified as Aeson
 import Data.Aeson.Types qualified as Aeson
 import Data.ByteString.Conversion (toByteString')
-import Data.Domain
+import Data.Default
 import Data.Id
-import Data.Json.Util (toUTCTimeMillis)
 import Data.Qualified
 import Data.Set qualified as Set
-import Data.Time
 import GHC.TypeLits (KnownSymbol)
 import Imports
+import System.IO.Temp
 import Test.Tasty
 import Test.Tasty.HUnit
 import Util
@@ -56,6 +54,7 @@ import Wire.API.Team.Feature
 import Wire.API.Team.Feature qualified as ApiFt
 import Wire.API.Team.Member qualified as Team
 import Wire.API.User
+import Wire.API.User.Client
 
 tests :: Opt.Opts -> Manager -> Cass.ClientState -> Brig -> Endpoint -> Gundeck -> Galley -> IO TestTree
 tests opts mgr db brig brigep gundeck galley = do
@@ -67,73 +66,9 @@ tests opts mgr db brig brigep gundeck galley = do
         test mgr "suspend and unsuspend user" $ testSuspendUser db brig,
         test mgr "suspend non existing user and verify no db entry" $
           testSuspendNonExistingUser db brig,
-        test mgr "writetimeToInt64" $ testWritetimeRepresentation opts mgr db brig brigep galley,
-        test mgr "delete-federation-remote-galley" $ testDeleteFederationRemoteGalley db brig
+        test mgr "mls/clients" $ testGetMlsClients brig,
+        test mgr "writetimeToInt64" $ testWritetimeRepresentation opts mgr db brig brigep galley
       ]
-
-testDeleteFederationRemoteGalley :: forall m. (TestConstraints m) => Cass.ClientState -> Brig -> m ()
-testDeleteFederationRemoteGalley db brig = do
-  let remoteDomain1 = Domain "far-away.example.com"
-      remoteDomain2 = Domain "far-away-two.example.com"
-      isRemote1 = (== remoteDomain1)
-      isRemote2 = (== remoteDomain2)
-  localUser <- randomUser brig
-  let localUserId = userId localUser
-  remoteUserId1 <- randomId
-  remoteUserId2 <- randomId
-  now <- liftIO $ getCurrentTime
-  convId <- randomId
-
-  -- Write the local and remote users into 'connection_remote'
-  let params1 = (localUserId, remoteDomain1, remoteUserId1, Conn.AcceptedWithHistory, toUTCTimeMillis now, remoteDomain1, convId)
-  liftIO $
-    Cass.runClient db $
-      Cass.retry x1 $
-        Cass.write remoteConnectionInsert (Cass.params Cass.LocalQuorum params1)
-  let params2 = (localUserId, remoteDomain2, remoteUserId2, Conn.AcceptedWithHistory, toUTCTimeMillis now, remoteDomain1, convId)
-  liftIO $
-    Cass.runClient db $
-      Cass.retry x1 $
-        Cass.write remoteConnectionInsert (Cass.params Cass.LocalQuorum params2)
-
-  -- Check that the value exists in the DB as expected.
-  -- Remote 1
-  liftIO
-    ( Cass.runClient db $
-        Cass.retry x1 $
-          Cass.query remoteConnectionsSelectUsers (Cass.params Cass.LocalQuorum $ pure localUserId)
-    )
-    >>= liftIO . assertBool "connection_remote entry should exist for the user" . any (isRemote1 . fst)
-  -- Remote 2
-  liftIO
-    ( Cass.runClient db $
-        Cass.retry x1 $
-          Cass.query remoteConnectionsSelectUsers (Cass.params Cass.LocalQuorum $ pure localUserId)
-    )
-    >>= liftIO . assertBool "connection_remote entry should exist for the user" . any (isRemote2 . fst)
-
-  -- Make the API call to delete remote domain 1
-  delete
-    ( brig
-        . paths ["i", "federation", "remote", toByteString' $ domainText remoteDomain1, "galley"]
-    )
-    !!! const 200 === statusCode
-
-  -- Check 'connection_remote' for the local user and ensure
-  -- that there are no conversations for the remote domain.
-  liftIO
-    ( Cass.runClient db $
-        Cass.retry x1 $
-          Cass.query remoteConnectionsSelectUsers (Cass.params Cass.LocalQuorum $ pure localUserId)
-    )
-    >>= liftIO . assertBool "connection_remote entry should NOT exist for the user" . not . any (isRemote1 . fst)
-  -- But remote domain 2 is still listed
-  liftIO
-    ( Cass.runClient db $
-        Cass.retry x1 $
-          Cass.query remoteConnectionsSelectUsers (Cass.params Cass.LocalQuorum $ pure localUserId)
-    )
-    >>= liftIO . assertBool "connection_remote entry should exist for the user" . any (isRemote2 . fst)
 
 testSuspendUser :: forall m. (TestConstraints m) => Cass.ClientState -> Brig -> m ()
 testSuspendUser db brig = do
@@ -280,6 +215,40 @@ testFeatureConferenceCallingByAccount (Opt.optSettings -> settings) mgr db brig 
   check $ ApiFt.WithStatusNoLock ApiFt.FeatureStatusEnabled ApiFt.ConferenceCallingConfig ApiFt.FeatureTTLUnlimited
   check $ ApiFt.WithStatusNoLock ApiFt.FeatureStatusDisabled ApiFt.ConferenceCallingConfig ApiFt.FeatureTTLUnlimited
   check'
+
+testGetMlsClients :: Brig -> Http ()
+testGetMlsClients brig = do
+  qusr <- userQualifiedId <$> randomUser brig
+  c <- createClient brig qusr 0
+
+  let getClients :: Http (Set ClientInfo)
+      getClients =
+        responseJsonError
+          =<< get
+            ( brig
+                . paths ["i", "mls", "clients", toByteString' (qUnqualified qusr)]
+                . queryItem "ciphersuite" "0x0001"
+            )
+            <!! const 200 === statusCode
+
+  cs0 <- getClients
+  liftIO $ toList cs0 @?= [ClientInfo c False]
+
+  withSystemTempDirectory "mls" $ \tmp ->
+    uploadKeyPackages brig tmp def qusr c 2
+
+  cs1 <- getClients
+  liftIO $ toList cs1 @?= [ClientInfo c True]
+
+createClient :: Brig -> Qualified UserId -> Int -> Http ClientId
+createClient brig u i =
+  fmap clientId $
+    responseJsonError
+      =<< addClient
+        brig
+        (qUnqualified u)
+        (defNewClient PermanentClientType [somePrekeys !! i] (someLastPrekeys !! i))
+        <!! const 201 === statusCode
 
 getFeatureConfig :: forall cfg m. (MonadHttp m, HasCallStack, KnownSymbol (ApiFt.FeatureSymbol cfg)) => (Request -> Request) -> UserId -> m ResponseLBS
 getFeatureConfig galley uid = do

@@ -35,6 +35,12 @@ invalidLength = errorToWai @'InvalidLength
 assetNotFound :: Error
 assetNotFound = errorToWai @'AssetNotFound
 
+unverifiedUser :: Error
+unverifiedUser = errorToWai @'UnverifiedUser
+
+userNotFound :: Error
+userNotFound = errorToWai @'UserNotFound
+
 invalidMD5 :: Error
 invalidMD5 = mkError status400 "client-error" "Invalid MD5."
 

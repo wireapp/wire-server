@@ -52,8 +52,6 @@ import System.Logger qualified as Log
 import System.Logger.Extended qualified as LogExt
 import Util.Options
 import Wire.API.Federation.Component
-import Wire.API.FederationUpdate
-import Wire.API.Routes.FederationDomainConfig
 import Wire.Network.DNS.Helper qualified as DNS
 
 ------------------------------------------------------------------------------
@@ -65,14 +63,13 @@ run opts = do
   let resolvConf = mkResolvConf (optSettings opts) DNS.defaultResolvConf
   DNS.withCachingResolver resolvConf $ \res -> do
     logger <- LogExt.mkLogger (Opt.logLevel opts) (Opt.logNetStrings opts) (Opt.logFormat opts)
-    (ioref, updateFedDomainsThread) <- syncFedDomainConfigs (brig opts) logger emptySyncFedDomainConfigsCallback
-    bracket (newEnv opts res logger ioref) closeEnv $ \env -> do
+    bracket (newEnv opts res logger) closeEnv $ \env -> do
       let externalServer = serveInward env portExternal
           internalServer = serveOutward env portInternal
       withMonitor logger (onNewSSLContext env) (optSettings opts) $ do
         internalServerThread <- async internalServer
         externalServerThread <- async externalServer
-        void $ waitAnyCancel [updateFedDomainsThread, internalServerThread, externalServerThread]
+        void $ waitAnyCancel [internalServerThread, externalServerThread]
   where
     endpointInternal = federatorInternal opts
     portInternal = fromIntegral $ endpointInternal ^. port
@@ -92,8 +89,8 @@ run opts = do
 -------------------------------------------------------------------------------
 -- Environment
 
-newEnv :: Opts -> DNS.Resolver -> Log.Logger -> IORef FederationDomainConfigs -> IO Env
-newEnv o _dnsResolver _applog _domainConfigs = do
+newEnv :: Opts -> DNS.Resolver -> Log.Logger -> IO Env
+newEnv o _dnsResolver _applog = do
   _metrics <- Metrics.metrics
   let _requestId = def
       _runSettings = Opt.optSettings o
@@ -104,7 +101,7 @@ newEnv o _dnsResolver _applog _domainConfigs = do
       _internalPort = o.federatorInternal._port
   _httpManager <- initHttpManager
   sslContext <- mkTLSSettingsOrThrow _runSettings
-  _http2Manager <- newIORef =<< mkHttp2Manager sslContext
+  _http2Manager <- newIORef =<< mkHttp2Manager o.optSettings.tcpConnectionTimeout sslContext
   _federatorMetrics <- mkFederatorMetrics
   pure Env {..}
 

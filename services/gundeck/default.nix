@@ -59,6 +59,7 @@
 , servant-server
 , tagged
 , tasty
+, tasty-ant-xml
 , tasty-hunit
 , tasty-quickcheck
 , text
@@ -119,6 +120,7 @@ mkDerivation {
     mtl
     network-uri
     psqueues
+    raw-strings-qq
     resourcet
     retry
     safe-exceptions
@@ -152,7 +154,6 @@ mkDerivation {
     cassandra-util
     containers
     exceptions
-    extended
     gundeck-types
     HsOpenSSL
     http-client
@@ -166,11 +167,11 @@ mkDerivation {
     network-uri
     optparse-applicative
     random
-    raw-strings-qq
     retry
     safe
     tagged
     tasty
+    tasty-ant-xml
     tasty-hunit
     text
     tinylog
@@ -187,6 +188,7 @@ mkDerivation {
     amazonka
     async
     base
+    bytestring-conversion
     containers
     exceptions
     gundeck-types

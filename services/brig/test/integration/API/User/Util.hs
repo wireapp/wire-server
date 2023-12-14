@@ -41,7 +41,7 @@ import Data.ByteString.Conversion
 import Data.ByteString.Lazy qualified as LB
 import Data.Domain
 import Data.Handle (Handle (Handle))
-import Data.Id hiding (client)
+import Data.Id
 import Data.Kind
 import Data.List1 qualified as List1
 import Data.Misc
@@ -61,6 +61,7 @@ import Util
 import Wire.API.Asset
 import Wire.API.Connection
 import Wire.API.Event.Conversation qualified as Conv
+import Wire.API.Event.LeaveReason
 import Wire.API.Federation.API.Brig qualified as F
 import Wire.API.Federation.Component
 import Wire.API.Internal.Notification (Notification (..))
@@ -512,16 +513,16 @@ matchDeleteUserNotification quid n = do
   eUnqualifiedId @?= Just (qUnqualified quid)
   eQualifiedId @?= Just quid
 
-matchConvLeaveNotification :: Qualified ConvId -> Qualified UserId -> [Qualified UserId] -> Notification -> IO ()
-matchConvLeaveNotification conv remover removeds n = do
+matchConvLeaveNotification :: Qualified ConvId -> Qualified UserId -> [Qualified UserId] -> EdMemberLeftReason -> Notification -> IO ()
+matchConvLeaveNotification conv remover removeds reason n = do
   let e = List1.head (WS.unpackPayload n)
   ntfTransient n @?= False
   Conv.evtConv e @?= conv
   Conv.evtType e @?= Conv.MemberLeave
   Conv.evtFrom e @?= remover
-  sorted (Conv.evtData e) @?= sorted (Conv.EdMembersLeave (Conv.QualifiedUserIdList removeds))
+  sorted (Conv.evtData e) @?= sorted (Conv.EdMembersLeave reason (Conv.QualifiedUserIdList removeds))
   where
-    sorted (Conv.EdMembersLeave (Conv.QualifiedUserIdList m)) = Conv.EdMembersLeave (Conv.QualifiedUserIdList (sort m))
+    sorted (Conv.EdMembersLeave r (Conv.QualifiedUserIdList m)) = Conv.EdMembersLeave r (Conv.QualifiedUserIdList (sort m))
     sorted x = x
 
 generateVerificationCode :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> Public.SendVerificationCode -> m ()
@@ -581,6 +582,19 @@ nonce m brig uid cid =
     ( brig
         . paths ["clients", toByteString' cid, "nonce"]
         . zUser uid
+    )
+
+headNonceNginz ::
+  MonadHttp m =>
+  Nginz ->
+  ZAuth.Token ZAuth.Access ->
+  ClientId ->
+  m ResponseLBS
+headNonceNginz nginz t cid =
+  Bilge.head
+    ( nginz
+        . paths ["clients", toByteString' cid, "nonce"]
+        . header "Authorization" ("Bearer " <> toByteString' t)
     )
 
 createAccessToken :: (MonadHttp m, HasCallStack) => Brig -> UserId -> Text -> ClientId -> Maybe Proof -> m ResponseLBS

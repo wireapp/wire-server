@@ -94,7 +94,7 @@ mkApp opts =
     lift $ runClient (env ^. cstate) $ versionCheck schemaVersion
     let middlewares =
           versionMiddleware (opts ^. settings . disabledAPIVersions . traverse)
-            . servantPlusWAIPrometheusMiddleware API.sitemap (Proxy @CombinedAPI)
+            . servantPlusWAIPrometheusMiddleware API.waiSitemap (Proxy @CombinedAPI)
             . GZip.gunzip
             . GZip.gzip GZip.def
             . catchErrors logger [Right metrics]
@@ -104,7 +104,7 @@ mkApp opts =
       Log.close logger
     pure (middlewares $ servantApp env, env)
   where
-    rtree = compile API.sitemap
+    rtree = compile API.waiSitemap
     runGalley e r k = evalGalleyToIO e (route rtree r k)
     -- the servant API wraps the one defined using wai-routing
     servantApp e0 r =

@@ -34,7 +34,7 @@ import Data.List.Extra qualified as List
 import Data.Monoid
 import Data.Qualified
 import Data.Set qualified as Set
-import Galley.API.MLS.Types
+import Galley.Cassandra.Conversation.MLS
 import Galley.Cassandra.Instances ()
 import Galley.Cassandra.Queries qualified as Cql
 import Galley.Cassandra.Services
@@ -49,8 +49,9 @@ import Polysemy.Input
 import UnliftIO qualified
 import Wire.API.Conversation.Member hiding (Member)
 import Wire.API.Conversation.Role
+import Wire.API.MLS.Credential
 import Wire.API.MLS.Group
-import Wire.API.MLS.KeyPackage
+import Wire.API.MLS.LeafNode (LeafIndex)
 import Wire.API.Provider.Service
 
 -- | Add members to a local conversation.
@@ -208,31 +209,13 @@ lookupRemoteMembers conv = do
 
 lookupRemoteMembersByDomain :: Domain -> Client [(ConvId, RemoteMember)]
 lookupRemoteMembersByDomain dom = do
-  mkConvMem <$$$> retry x1 $ query Cql.selectRemoteMembersByDomain (params LocalQuorum (Identity dom))
+  fmap (fmap mkConvMem) . retry x1 $ query Cql.selectRemoteMembersByDomain (params LocalQuorum (Identity dom))
   where
     mkConvMem (convId, usr, role) = (convId, RemoteMember (toRemoteUnsafe dom usr) role)
-
-lookupRemoteMembersByConvAndDomain :: ConvId -> Domain -> Client [RemoteMember]
-lookupRemoteMembersByConvAndDomain conv dom = do
-  mkMem <$$$> retry x1 $ query Cql.selectRemoteMembersByConvAndDomain (params LocalQuorum (conv, dom))
-  where
-    mkMem (usr, role) = RemoteMember (toRemoteUnsafe dom usr) role
 
 lookupLocalMembersByDomain :: Domain -> Client [(ConvId, UserId)]
 lookupLocalMembersByDomain dom = do
   retry x1 $ query Cql.selectLocalMembersByDomain (params LocalQuorum (Identity dom))
-
-removeRemoteDomain :: ConvId -> Domain -> Client ()
-removeRemoteDomain convId dom = do
-  retry x1 $ write Cql.removeRemoteDomain $ params LocalQuorum (convId, dom)
-
-selectConvIdsByRemoteDomain :: Domain -> Client [ConvId]
-selectConvIdsByRemoteDomain dom = do
-  runIdentity <$$$> retry x1 $ query Cql.selectConvIdsByRemoteDomain $ params LocalQuorum $ Identity dom
-
-checkConvForRemoteDomain :: ConvId -> Domain -> Client (Maybe ConvId)
-checkConvForRemoteDomain convId dom = do
-  runIdentity <$$$> retry x1 $ query1 Cql.checkConvForRemoteDomain $ params LocalQuorum (convId, dom)
 
 member ::
   ConvId ->
@@ -377,12 +360,22 @@ removeLocalMembersFromRemoteConv (tUntagged -> Qualified conv convDomain) victim
     setConsistency LocalQuorum
     for_ victims $ \u -> addPrepQuery Cql.deleteUserRemoteConv (u, convDomain, conv)
 
-addMLSClients :: GroupId -> Qualified UserId -> Set.Set (ClientId, KeyPackageRef) -> Client ()
+addMLSClients :: GroupId -> Qualified UserId -> Set.Set (ClientId, LeafIndex) -> Client ()
 addMLSClients groupId (Qualified usr domain) cs = retry x5 . batch $ do
   setType BatchLogged
   setConsistency LocalQuorum
-  for_ cs $ \(c, kpr) ->
-    addPrepQuery Cql.addMLSClient (groupId, domain, usr, c, kpr)
+  for_ cs $ \(c, idx) ->
+    addPrepQuery Cql.addMLSClient (groupId, domain, usr, c, fromIntegral idx)
+
+planMLSClientRemoval :: Foldable f => GroupId -> f ClientIdentity -> Client ()
+planMLSClientRemoval groupId cids =
+  retry x5 . batch $ do
+    setType BatchLogged
+    setConsistency LocalQuorum
+    for_ cids $ \cid -> do
+      addPrepQuery
+        Cql.planMLSClientRemoval
+        (groupId, ciDomain cid, ciUser cid, ciClient cid)
 
 removeMLSClients :: GroupId -> Qualified UserId -> Set.Set ClientId -> Client ()
 removeMLSClients groupId (Qualified usr domain) cs = retry x5 . batch $ do
@@ -391,12 +384,9 @@ removeMLSClients groupId (Qualified usr domain) cs = retry x5 . batch $ do
   for_ cs $ \c ->
     addPrepQuery Cql.removeMLSClient (groupId, domain, usr, c)
 
-lookupMLSClients :: GroupId -> Client ClientMap
-lookupMLSClients groupId =
-  mkClientMap
-    <$> retry
-      x5
-      (query Cql.lookupMLSClients (params LocalQuorum (Identity groupId)))
+removeAllMLSClients :: GroupId -> Client ()
+removeAllMLSClients groupId = do
+  retry x5 $ write Cql.removeAllMLSClients (params LocalQuorum (Identity groupId))
 
 interpretMemberStoreToCassandra ::
   ( Member (Embed IO) r,
@@ -424,11 +414,10 @@ interpretMemberStoreToCassandra = interpret $ \case
     embedClient $
       removeLocalMembersFromRemoteConv rcnv uids
   AddMLSClients lcnv quid cs -> embedClient $ addMLSClients lcnv quid cs
+  PlanClientRemoval lcnv cids -> embedClient $ planMLSClientRemoval lcnv cids
   RemoveMLSClients lcnv quid cs -> embedClient $ removeMLSClients lcnv quid cs
+  RemoveAllMLSClients gid -> embedClient $ removeAllMLSClients gid
   LookupMLSClients lcnv -> embedClient $ lookupMLSClients lcnv
+  LookupMLSClientLeafIndices lcnv -> embedClient $ lookupMLSClientLeafIndices lcnv
   GetRemoteMembersByDomain dom -> embedClient $ lookupRemoteMembersByDomain dom
-  GetRemoteMembersByConvAndDomain conv dom -> embedClient $ lookupRemoteMembersByConvAndDomain conv dom
   GetLocalMembersByDomain dom -> embedClient $ lookupLocalMembersByDomain dom
-  RemoveRemoteDomain convId dom -> embedClient $ removeRemoteDomain convId dom
-  SelectConvIdsByRemoteDomain dom -> embedClient $ selectConvIdsByRemoteDomain dom
-  CheckConvForRemoteDomain convId dom -> embedClient $ checkConvForRemoteDomain convId dom

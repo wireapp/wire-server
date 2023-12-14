@@ -28,7 +28,7 @@ import Control.Lens (view, (^?))
 import Control.Monad.Catch (MonadCatch)
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
-import Data.Id hiding (client)
+import Data.Id
 import qualified Data.Misc as Misc
 import qualified Data.Text.Ascii as Ascii
 import Data.Text.Encoding (encodeUtf8)

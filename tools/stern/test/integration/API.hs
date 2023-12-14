@@ -92,6 +92,7 @@ tests s =
       test s "/teams/:tid/features/mls" $ testFeatureConfig @MLSConfig,
       test s "GET /teams/:tid/features/classifiedDomains" $ testGetFeatureConfig @ClassifiedDomainsConfig (Just FeatureStatusEnabled),
       test s "GET /teams/:tid/features/outlookCalIntegration" $ testFeatureStatus @OutlookCalIntegrationConfig,
+      test s "PUT /teams/:tid/features/outlookCalIntegration{,'?lockOrUnlock'}" $ testFeatureStatusWithLock @OutlookCalIntegrationConfig,
       test s "GET /i/consent" testGetConsentLog,
       test s "GET /teams/:id" testGetTeamInfo,
       test s "GET i/user/meta-info?id=..." testGetUserMetaInfo,
@@ -337,6 +338,46 @@ testFeatureStatusOptTtl mTtl = do
   cfg' <- getFeatureConfig @cfg tid
   liftIO $ wsStatus cfg' @?= newStatus
 
+testFeatureStatusWithLock ::
+  forall cfg.
+  ( KnownSymbol (FeatureSymbol cfg),
+    ToSchema cfg,
+    Typeable cfg,
+    IsFeatureConfig cfg,
+    Eq cfg,
+    Show cfg
+  ) =>
+  TestM ()
+testFeatureStatusWithLock = do
+  let mTtl = Nothing -- this function can become a variant of `testFeatureStatusOptTtl` if we need one.
+  (_, tid, _) <- createTeamWithNMembers 10
+  getFeatureConfig @cfg tid >>= \cfg -> liftIO $ do
+    cfg @?= defFeatureStatus @cfg
+    -- if either of these two lines fails, it's probably because the default is surprising.
+    -- in that case, make the text more flexible.
+    wsLockStatus cfg @?= LockStatusLocked
+    wsStatus cfg @?= FeatureStatusDisabled
+
+  void $ putFeatureStatusLock @cfg tid LockStatusUnlocked mTtl
+  getFeatureConfig @cfg tid >>= \cfg -> liftIO $ do
+    wsLockStatus cfg @?= LockStatusUnlocked
+    wsStatus cfg @?= FeatureStatusDisabled
+
+  void $ putFeatureStatus @cfg tid FeatureStatusEnabled Nothing
+  getFeatureConfig @cfg tid >>= \cfg -> liftIO $ do
+    wsLockStatus cfg @?= LockStatusUnlocked
+    wsStatus cfg @?= FeatureStatusEnabled
+
+  void $ putFeatureStatusLock @cfg tid LockStatusLocked mTtl
+  getFeatureConfig @cfg tid >>= \cfg -> liftIO $ do
+    wsLockStatus cfg @?= LockStatusLocked
+    wsStatus cfg @?= FeatureStatusDisabled
+
+  void $ putFeatureStatusLock @cfg tid LockStatusUnlocked mTtl
+  getFeatureConfig @cfg tid >>= \cfg -> liftIO $ do
+    wsLockStatus cfg @?= LockStatusUnlocked
+    wsStatus cfg @?= FeatureStatusEnabled
+
 testGetConsentLog :: TestM ()
 testGetConsentLog = do
   (_, email) <- randomEmailUser
@@ -563,7 +604,7 @@ ejpdInfo includeContacts handles = do
 userBlacklistHead :: Either Email Phone -> TestM ResponseLBS
 userBlacklistHead emailOrPhone = do
   s <- view tsStern
-  Bilge.head (s . paths ["users", "blacklist"] . mkQueryParam emailOrPhone)
+  Bilge.get (s . paths ["users", "blacklist"] . mkQueryParam emailOrPhone)
 
 postUserBlacklist :: Either Email Phone -> TestM ()
 postUserBlacklist emailOrPhone = do
@@ -615,6 +656,31 @@ putFeatureStatus ::
 putFeatureStatus tid status mTtl = do
   s <- view tsStern
   put (s . paths ["teams", toByteString' tid, "features", Public.featureNameBS @cfg] . queryItem "status" (toByteString' status) . mkTtlQueryParam mTtl . contentJson)
+  where
+    mkTtlQueryParam :: Maybe FeatureTTL -> Request -> Request
+    mkTtlQueryParam = maybe id (queryItem "ttl" . toByteString')
+
+putFeatureStatusLock ::
+  forall cfg.
+  ( KnownSymbol (FeatureSymbol cfg),
+    ToSchema cfg,
+    Typeable cfg,
+    IsFeatureConfig cfg
+  ) =>
+  TeamId ->
+  LockStatus ->
+  Maybe FeatureTTL ->
+  TestM ResponseLBS
+putFeatureStatusLock tid lockStatus mTtl = do
+  s <- view tsStern
+  put
+    ( s
+        . paths ["teams", toByteString' tid, "features", Public.featureNameBS @cfg, "lockOrUnlock"]
+        . queryItem "lock-status" (toByteString' lockStatus)
+        . mkTtlQueryParam mTtl
+        . contentJson
+        . expect2xx
+    )
   where
     mkTtlQueryParam :: Maybe FeatureTTL -> Request -> Request
     mkTtlQueryParam = maybe id (queryItem "ttl" . toByteString')

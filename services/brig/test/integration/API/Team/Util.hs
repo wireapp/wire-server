@@ -29,7 +29,7 @@ import Control.Monad.Catch (MonadCatch)
 import Data.Aeson hiding (json)
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
-import Data.Id hiding (client)
+import Data.Id
 import Data.Misc (Milliseconds)
 import Data.Range
 import Data.Set qualified as Set
@@ -40,7 +40,6 @@ import Test.Tasty.HUnit
 import Util
 import Web.Cookie (parseSetCookie, setCookieName)
 import Wire.API.Conversation
-import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
 import Wire.API.Team hiding (newTeam)
@@ -65,7 +64,7 @@ createPopulatedBindingTeamWithNamesAndHandles ::
   Int ->
   m (TeamId, User, [User])
 createPopulatedBindingTeamWithNamesAndHandles brig numMembers = do
-  names <- forM [1 .. numMembers] $ const randomName
+  names <- replicateM numMembers randomName
   (tid, owner, mems) <- createPopulatedBindingTeamWithNames brig names
   membersWithHandle <- mapM (setRandomHandle brig) mems
   ownerWithHandle <- setRandomHandle brig owner
@@ -77,7 +76,7 @@ createPopulatedBindingTeam ::
   Int ->
   m (TeamId, UserId, [User])
 createPopulatedBindingTeam brig numMembers = do
-  names <- forM [1 .. numMembers] $ const randomName
+  names <- replicateM numMembers randomName
   (tid, owner, others) <- createPopulatedBindingTeamWithNames brig names
   pure (tid, userId owner, others)
 
@@ -235,7 +234,7 @@ createTeamConvWithRole role g tid u us mtimer = do
           mtimer
           Nothing
           role
-          ProtocolProteusTag
+          BaseProtocolProteusTag
   r <-
     post
       ( g

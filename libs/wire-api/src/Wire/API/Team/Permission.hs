@@ -48,10 +48,10 @@ import Control.Error.Util qualified as Err
 import Control.Lens (makeLenses, (?~), (^.))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Bits (testBit, (.|.))
+import Data.OpenApi qualified as S
 import Data.Schema
 import Data.Set qualified as Set
 import Data.Singletons.Base.TH
-import Data.Swagger qualified as S
 import Imports
 import Wire.API.Util.Aeson (CustomEncoded (..))
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
@@ -146,6 +146,8 @@ data Perm
   deriving stock (Eq, Ord, Show, Enum, Bounded, Generic)
   deriving (Arbitrary) via (GenericUniform Perm)
   deriving (FromJSON, ToJSON) via (CustomEncoded Perm)
+
+instance S.ToSchema Perm
 
 permsToInt :: Set Perm -> Word64
 permsToInt = Set.foldr' (\p n -> n .|. permToInt p) 0

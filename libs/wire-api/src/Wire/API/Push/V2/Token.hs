@@ -47,10 +47,10 @@ import Data.Aeson qualified as A
 import Data.Attoparsec.ByteString (takeByteString)
 import Data.ByteString.Conversion
 import Data.Id
+import Data.OpenApi (ToParamSchema)
+import Data.OpenApi qualified as S
 import Data.SOP
 import Data.Schema
-import Data.Swagger (ToParamSchema)
-import Data.Swagger qualified as S
 import Generics.SOP qualified as GSOP
 import Imports
 import Servant
@@ -115,8 +115,6 @@ data Transport
   = GCM
   | APNS
   | APNSSandbox
-  | APNSVoIP
-  | APNSVoIPSandbox
   deriving stock (Eq, Ord, Show, Bounded, Enum, Generic)
   deriving (Arbitrary) via (GenericUniform Transport)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema Transport)
@@ -127,9 +125,7 @@ instance ToSchema Transport where
       mconcat
         [ element "GCM" GCM,
           element "APNS" APNS,
-          element "APNS_SANDBOX" APNSSandbox,
-          element "APNS_VOIP" APNSVoIP,
-          element "APNS_VOIP_SANDBOX" APNSVoIPSandbox
+          element "APNS_SANDBOX" APNSSandbox
         ]
 
 instance FromByteString Transport where
@@ -138,8 +134,6 @@ instance FromByteString Transport where
       "GCM" -> pure GCM
       "APNS" -> pure APNS
       "APNS_SANDBOX" -> pure APNSSandbox
-      "APNS_VOIP" -> pure APNSVoIP
-      "APNS_VOIP_SANDBOX" -> pure APNSVoIPSandbox
       x -> fail $ "Invalid push transport: " <> show x
 
 newtype Token = Token

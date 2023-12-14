@@ -103,7 +103,7 @@ library
     , containers             >=0.5
     , cryptohash-md5         >=0.11.7.2
     , cryptohash-sha1        >=0.11.7.2
-    , cryptonite             >=0.26
+    , crypton                >=0.26
     , currency-codes         >=3.0.0.1
     , data-default           >=0.5
     , generic-random         >=1.4.0.0
@@ -116,6 +116,7 @@ library
     , lens                   >=4.10
     , lens-datetime          >=0.3
     , mime                   >=0.4.0.2
+    , openapi3
     , optparse-applicative   >=0.10
     , pem
     , protobuf               >=0.2
@@ -124,7 +125,6 @@ library
     , random                 >=1.1
     , schema-profunctor
     , servant-server
-    , swagger2
     , tagged                 >=0.8
     , tasty                  >=0.11
     , tasty-hunit

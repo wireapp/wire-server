@@ -1,0 +1,3 @@
+Swagger generation no longer adds tags containing information about federation calls.
+
+Added the federation calling graph to the Federation API Conventions page.

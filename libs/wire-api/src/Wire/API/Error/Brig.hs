@@ -17,6 +17,7 @@
 
 module Wire.API.Error.Brig where
 
+import Data.Data
 import Wire.API.Error
 
 data BrigError
@@ -85,9 +86,28 @@ data BrigError
   | TooManyConversationMembers
   | ServiceDisabled
   | InvalidBot
+  | InvalidServiceKey
+  | ServiceNotFound
+  | VerificationCodeThrottled
+  | InvalidProvider
+  | ProviderNotFound
 
-instance KnownError (MapError e) => IsSwaggerError (e :: BrigError) where
-  addToSwagger = addStaticErrorToSwagger @(MapError e)
+instance (Typeable (MapError e), KnownError (MapError e)) => IsSwaggerError (e :: BrigError) where
+  addToOpenApi = addStaticErrorToSwagger @(MapError e)
+
+type instance MapError 'ServiceNotFound = 'StaticError 404 "not-found" "Service not found."
+
+type instance MapError 'InvalidServiceKey = 'StaticError 400 "invalid-service-key" "Invalid service key."
+
+type instance MapError 'ProviderNotFound = 'StaticError 404 "not-found" "Provider not found."
+
+type instance MapError 'InvalidProvider = 'StaticError 403 "invalid-provider" "The provider does not exist."
+
+type instance MapError 'VerificationCodeThrottled = 'StaticError 429 "too-many-requests" "Too many request to generate a verification code."
+
+type instance MapError 'ServiceDisabled = 'StaticError 403 "service-disabled" "The desired service is currently disabled."
+
+type instance MapError 'InvalidBot = 'StaticError 403 "invalid-bot" "The targeted user is not a bot."
 
 type instance MapError 'ServiceDisabled = 'StaticError 403 "service-disabled" "The desired service is currently disabled."
 

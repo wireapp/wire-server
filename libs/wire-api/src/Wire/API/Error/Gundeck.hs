@@ -17,6 +17,7 @@
 
 module Wire.API.Error.Gundeck where
 
+import Data.Typeable
 import Wire.API.Error
 
 data GundeckError
@@ -28,8 +29,8 @@ data GundeckError
   | TokenNotFound
   | NotificationNotFound
 
-instance KnownError (MapError e) => IsSwaggerError (e :: GundeckError) where
-  addToSwagger = addStaticErrorToSwagger @(MapError e)
+instance (Typeable (MapError e), KnownError (MapError e)) => IsSwaggerError (e :: GundeckError) where
+  addToOpenApi = addStaticErrorToSwagger @(MapError e)
 
 type instance MapError 'AddTokenErrorNoBudget = 'StaticError 413 "sns-thread-budget-reached" "Too many concurrent calls to SNS; is SNS down?"
 

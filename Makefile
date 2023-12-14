@@ -13,7 +13,7 @@ CHARTS_INTEGRATION    := wire-server databases-ephemeral redis-cluster rabbitmq 
 # (e.g. move charts/brig to charts/wire-server/brig)
 # this list could be generated from the folder names under ./charts/ like so:
 # CHARTS_RELEASE := $(shell find charts/ -maxdepth 1 -type d | xargs -n 1 basename | grep -v charts)
-CHARTS_RELEASE := wire-server redis-ephemeral redis-cluster rabbitmq databases-ephemeral	\
+CHARTS_RELEASE := wire-server redis-ephemeral redis-cluster rabbitmq rabbitmq-external databases-ephemeral	\
 fake-aws fake-aws-s3 fake-aws-sqs aws-ingress fluent-bit kibana backoffice		\
 calling-test demo-smtp elasticsearch-curator elasticsearch-external				\
 elasticsearch-ephemeral minio-external cassandra-external						\
@@ -35,7 +35,7 @@ EXE_SCHEMA := ./dist/$(package)-schema
 # Additionally, if stack is being used with nix, environment variables do not
 # make it into the shell where hspec is run, to tackle that this variable is
 # also exported in stack-deps.nix.
-export HSPEC_OPTIONS ?= --fail-on-focused
+export HSPEC_OPTIONS ?= --fail-on=focused
 
 default: install
 
@@ -542,3 +542,7 @@ kind-restart-%: .local/kind-kubeconfig
 #   make helm-template-wire-server
 helm-template-%: clean-charts charts-integration
 	./hack/bin/helm-template.sh $(*)
+
+.PHONY: upload-bombon
+upload-bombon:
+	./hack/bin/bombon.hs -- "$@"

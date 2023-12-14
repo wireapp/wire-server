@@ -23,14 +23,16 @@ import Brig.API.Client qualified as API
 import Brig.API.Connection.Remote (performRemoteAction)
 import Brig.API.Error
 import Brig.API.Handler (Handler)
-import Brig.API.Internal hiding (getMLSClients)
 import Brig.API.Internal qualified as Internal
+import Brig.API.MLS.CipherSuite
 import Brig.API.MLS.KeyPackages
 import Brig.API.MLS.Util
 import Brig.API.User qualified as API
 import Brig.App
 import Brig.Data.Connection qualified as Data
 import Brig.Data.User qualified as Data
+import Brig.Effects.FederationConfigStore (FederationConfigStore)
+import Brig.Effects.FederationConfigStore qualified as E
 import Brig.Effects.GalleyProvider (GalleyProvider)
 import Brig.IO.Intra (notify)
 import Brig.Options
@@ -42,7 +44,7 @@ import Control.Lens ((^.))
 import Control.Monad.Trans.Except
 import Data.Domain
 import Data.Handle (Handle (..), parseHandle)
-import Data.Id (ClientId, UserId)
+import Data.Id (ClientId, TeamId, UserId)
 import Data.List.NonEmpty (nonEmpty)
 import Data.List1
 import Data.Qualified
@@ -56,7 +58,7 @@ import Servant (ServerT)
 import Servant.API
 import UnliftIO.Async (pooledForConcurrentlyN_)
 import Wire.API.Connection
-import Wire.API.Federation.API.Brig
+import Wire.API.Federation.API.Brig hiding (searchPolicy)
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.Version
 import Wire.API.MLS.KeyPackage
@@ -67,7 +69,7 @@ import Wire.API.Team.LegalHold (LegalholdProtectee (LegalholdPlusFederationNotIm
 import Wire.API.User (UserProfile)
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
-import Wire.API.User.Search
+import Wire.API.User.Search hiding (searchPolicy)
 import Wire.API.UserMap (UserMap)
 import Wire.Sem.Concurrency
 
@@ -75,7 +77,8 @@ type FederationAPI = "federation" :> BrigApi
 
 federationSitemap ::
   ( Member GalleyProvider r,
-    Member (Concurrency 'Unsafe) r
+    Member (Concurrency 'Unsafe) r,
+    Member FederationConfigStore r
   ) =>
   ServerT FederationAPI (Handler r)
 federationSitemap =
@@ -89,19 +92,19 @@ federationSitemap =
     :<|> Named @"get-user-clients" getUserClients
     :<|> Named @"get-mls-clients" getMLSClients
     :<|> Named @"send-connection-action" sendConnectionAction
-    :<|> Named @"on-user-deleted-connections" onUserDeleted
     :<|> Named @"claim-key-packages" fedClaimKeyPackages
     :<|> Named @"get-not-fully-connected-backends" getFederationStatus
+    :<|> Named @"on-user-deleted-connections" onUserDeleted
 
 -- Allow remote domains to send their known remote federation instances, and respond
 -- with the subset of those we aren't connected to.
-getFederationStatus :: Domain -> DomainSet -> Handler r NonConnectedBackends
+getFederationStatus :: (Member FederationConfigStore r) => Domain -> DomainSet -> Handler r NonConnectedBackends
 getFederationStatus _ request = do
   cfg <- ask
   case setFederationStrategy (cfg ^. settings) of
     Just AllowAll -> pure $ NonConnectedBackends mempty
     _ -> do
-      fedDomains <- fromList . fmap (.domain) . (.remotes) <$> getFederationRemotes
+      fedDomains <- fromList . fmap (.domain) . (.remotes) <$> lift (liftSem $ E.getFederationConfigs)
       pure $ NonConnectedBackends (request.domains \\ fedDomains)
 
 sendConnectionAction :: Domain -> NewConnectionRequest -> Handler r NewConnectionResponse
@@ -117,7 +120,9 @@ sendConnectionAction originDomain NewConnectionRequest {..} = do
     else pure NewConnectionResponseUserNotActivated
 
 getUserByHandle ::
-  Member GalleyProvider r =>
+  ( Member GalleyProvider r,
+    Member FederationConfigStore r
+  ) =>
   Domain ->
   Handle ->
   ExceptT Error (AppT r) (Maybe UserProfile)
@@ -166,23 +171,27 @@ fedClaimKeyPackages :: Domain -> ClaimKeyPackageRequest -> Handler r (Maybe KeyP
 fedClaimKeyPackages domain ckpr =
   isMLSEnabled >>= \case
     True -> do
+      suite <- getCipherSuite (Just ckpr.cipherSuite)
       ltarget <- qualifyLocal ckpr.target
       let rusr = toRemoteUnsafe domain ckpr.claimant
       lift . fmap hush . runExceptT $
-        claimLocalKeyPackages (tUntagged rusr) Nothing ltarget
+        claimLocalKeyPackages (tUntagged rusr) Nothing suite ltarget
     False -> pure Nothing
 
--- | Searching for federated users on a remote backend should
--- only search by exact handle search, not in elasticsearch.
--- (This decision may change in the future)
+-- | Searching for federated users on a remote backend
 searchUsers ::
   forall r.
-  Member GalleyProvider r =>
+  ( Member GalleyProvider r,
+    Member FederationConfigStore r
+  ) =>
   Domain ->
   SearchRequest ->
   ExceptT Error (AppT r) SearchResponse
-searchUsers domain (SearchRequest searchTerm) = do
-  searchPolicy <- lookupSearchPolicy domain
+searchUsers domain (SearchRequest _ mTeam (Just [])) = do
+  searchPolicy <- lookupSearchPolicyWithTeam domain mTeam
+  pure $ SearchResponse [] searchPolicy
+searchUsers domain (SearchRequest searchTerm mTeam mOnlyInTeams) = do
+  searchPolicy <- lookupSearchPolicyWithTeam domain mTeam
 
   let searches = case searchPolicy of
         NoSearch -> []
@@ -202,7 +211,7 @@ searchUsers domain (SearchRequest searchTerm) = do
 
     fullSearch :: Int -> ExceptT Error (AppT r) [Contact]
     fullSearch n
-      | n > 0 = lift $ searchResults <$> Q.searchIndex Q.FederatedSearch searchTerm n
+      | n > 0 = lift $ searchResults <$> Q.searchIndex (Q.FederatedSearch mOnlyInTeams) searchTerm n
       | otherwise = pure []
 
     exactHandleSearch :: Int -> ExceptT Error (AppT r) [Contact]
@@ -212,15 +221,24 @@ searchUsers domain (SearchRequest searchTerm) = do
           maybeOwnerId <- maybe (pure Nothing) (wrapHttpClientE . API.lookupHandle) maybeHandle
           case maybeOwnerId of
             Nothing -> pure []
-            Just foundUser -> lift $ contactFromProfile <$$> API.lookupLocalProfiles Nothing [foundUser]
+            Just foundUser -> do
+              mFoundUserTeamId <- lift $ wrapClient $ Data.lookupUserTeam foundUser
+              if isTeamAllowed mOnlyInTeams mFoundUserTeamId
+                then lift $ contactFromProfile <$$> API.lookupLocalProfiles Nothing [foundUser]
+                else pure []
       | otherwise = pure []
+
+    isTeamAllowed :: Maybe [TeamId] -> Maybe TeamId -> Bool
+    isTeamAllowed Nothing _ = True
+    isTeamAllowed (Just _) Nothing = False
+    isTeamAllowed (Just teams) (Just tid) = tid `elem` teams
 
 getUserClients :: Domain -> GetUserClients -> (Handler r) (UserMap (Set PubClient))
 getUserClients _ (GetUserClients uids) = API.lookupLocalPubClientsBulk uids !>> clientError
 
 getMLSClients :: Domain -> MLSClientsRequest -> Handler r (Set ClientInfo)
 getMLSClients _domain mcr = do
-  Internal.getMLSClients mcr.userId mcr.signatureScheme
+  Internal.getMLSClients mcr.userId mcr.cipherSuite
 
 onUserDeleted :: Domain -> UserDeletedConnectionsNotification -> (Handler r) EmptyResponse
 onUserDeleted origDomain udcn = lift $ do
@@ -238,8 +256,20 @@ onUserDeleted origDomain udcn = lift $ do
   pure EmptyResponse
 
 -- | If domain is not configured fall back to `NoSearch`
-lookupSearchPolicy :: Domain -> (Handler r) FederatedUserSearchPolicy
+lookupSearchPolicy :: (Member FederationConfigStore r) => Domain -> (Handler r) FederatedUserSearchPolicy
 lookupSearchPolicy domain = do
-  domainConfigs <- getFederationRemotes
-  let mConfig = find ((== domain) . FD.domain) (domainConfigs.remotes)
-  pure $ maybe NoSearch FD.cfgSearchPolicy mConfig
+  mConfig <- lift $ liftSem $ E.getFederationConfig domain
+  pure $ maybe NoSearch searchPolicy mConfig
+
+-- | If domain is not configured fall back to `NoSearch`
+-- if a team is provided, check if the team is allowed to search
+-- if no team is provided, and restriction is set by team, fall back to `NoSearch`
+lookupSearchPolicyWithTeam :: (Member FederationConfigStore r) => Domain -> Maybe TeamId -> (Handler r) FederatedUserSearchPolicy
+lookupSearchPolicyWithTeam domain mSearcherTeamId =
+  lift $
+    liftSem $
+      E.getFederationConfig domain <&> \case
+        Nothing -> NoSearch
+        Just (FederationDomainConfig _ sp FederationRestrictionAllowAll) -> sp
+        Just (FederationDomainConfig _ sp (FederationRestrictionByTeam teams)) ->
+          maybe NoSearch (\tid -> if tid `elem` teams then sp else NoSearch) $ mSearcherTeamId

@@ -46,7 +46,7 @@ import Data.ByteString.Char8 (pack)
 import Data.ByteString.Conversion
 import Data.Domain
 import Data.Handle
-import Data.Id hiding (client)
+import Data.Id
 import Data.Json.Util (fromUTCTimeMillis)
 import Data.LegalHold
 import Data.List.NonEmpty qualified as NonEmpty
@@ -1454,7 +1454,9 @@ testDeleteAnonUser brig = do
 
 testDeleteWithProfilePic :: Brig -> CargoHold -> Http ()
 testDeleteWithProfilePic brig cargohold = do
-  uid <- userId <$> createAnonUser "anon" brig
+  email <- randomEmail
+  -- Users need to be verified if they want to upload assets, so email it is!
+  uid <- userId <$> createUserWithEmail "anon" email brig
   ast <- responseJsonError =<< uploadAsset cargohold uid Asset.defAssetSettings "this is my profile pic"
   -- Ensure that the asset is there
   downloadAsset cargohold uid (ast ^. Asset.assetKey) !!! const 200 === statusCode
@@ -1469,7 +1471,7 @@ testDeleteWithProfilePic brig cargohold = do
   -- Update profile with the uploaded asset
   put (brig . path "/self" . contentJson . zUser uid . zConn "c" . body update)
     !!! const 200 === statusCode
-  deleteUser uid Nothing brig !!! const 200 === statusCode
+  deleteUser uid (pure defPassword) brig !!! const 200 === statusCode
   -- Check that the asset gets deleted
   downloadAsset cargohold uid (ast ^. Asset.assetKey) !!! const 404 === statusCode
 

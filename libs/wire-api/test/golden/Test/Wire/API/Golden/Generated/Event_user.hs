@@ -20,7 +20,7 @@
 module Test.Wire.API.Golden.Generated.Event_user where
 
 import Data.Domain
-import Data.Id (ClientId (ClientId, client), Id (Id))
+import Data.Id
 import Data.Misc (Milliseconds (Ms, ms))
 import Data.Qualified
 import Data.Range (unsafeRange)
@@ -34,6 +34,7 @@ import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role (parseRoleName)
 import Wire.API.Conversation.Typing
 import Wire.API.Event.Conversation
+import Wire.API.Event.LeaveReason
 import Wire.API.Provider.Service (ServiceRef (ServiceRef, _serviceRefId, _serviceRefProvider))
 
 domain :: Domain
@@ -72,8 +73,8 @@ testObject_Event_user_3 =
     (read "1864-04-27 15:44:23.844 UTC")
     ( EdOtrMessage
         ( OtrMessage
-            { otrSender = ClientId {client = "c"},
-              otrRecipient = ClientId {client = "f"},
+            { otrSender = ClientId 0xc,
+              otrRecipient = ClientId 0xf,
               otrCiphertext = "",
               otrData = Just ">\33032\SI\30584"
             }
@@ -148,7 +149,7 @@ testObject_Event_user_8 =
               cnvMetadata =
                 ConversationMetadata
                   { cnvmType = RegularConv,
-                    cnvmCreator = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000200000001")),
+                    cnvmCreator = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000200000001"))),
                     cnvmAccess =
                       [InviteAccess, PrivateAccess, LinkAccess, InviteAccess, InviteAccess, InviteAccess, LinkAccess],
                     cnvmAccessRoles = Set.fromList [TeamMemberAccessRole, GuestAccessRole, ServiceAccessRole],
@@ -236,6 +237,7 @@ testObject_Event_user_11 =
     (Qualified (Id (fromJust (UUID.fromString "000043a6-0000-1627-0000-490300002017"))) (Domain "faraway.example.com"))
     (read "1864-04-12 01:28:25.705 UTC")
     ( EdMembersLeave
+        EdReasonLeft
         ( QualifiedUserIdList
             { qualifiedUserIdList =
                 [ Qualified (Id (fromJust (UUID.fromString "00003fab-0000-40b8-0000-3b0c000014ef"))) (Domain "faraway.example.com"),

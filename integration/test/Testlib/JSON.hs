@@ -3,6 +3,7 @@ module Testlib.JSON where
 import Control.Monad
 import Control.Monad.Catch
 import Control.Monad.IO.Class
+import Control.Monad.Trans.Class
 import Control.Monad.Trans.Maybe
 import Data.Aeson hiding ((.=))
 import Data.Aeson qualified as Aeson
@@ -10,14 +11,18 @@ import Data.Aeson.Encode.Pretty qualified as Aeson
 import Data.Aeson.Key qualified as KM
 import Data.Aeson.KeyMap qualified as KM
 import Data.Aeson.Types qualified as Aeson
+import Data.ByteString (ByteString)
+import Data.ByteString.Base64 qualified as Base64
 import Data.ByteString.Lazy.Char8 qualified as LC8
 import Data.Foldable
 import Data.Function
 import Data.Functor
 import Data.List.Split (splitOn)
+import Data.Maybe (fromMaybe)
 import Data.Scientific qualified as Sci
 import Data.String
 import Data.Text qualified as T
+import Data.Text.Encoding qualified as T
 import Data.Vector ((!?))
 import GHC.Stack
 import Testlib.Types
@@ -66,6 +71,14 @@ noValue = Nothing
 (.=?) :: ToJSON a => String -> Maybe a -> Maybe Aeson.Pair
 (.=?) k v = (Aeson..=) (fromString k) <$> v
 
+-- | Convert JSON null to Nothing.
+asOptional :: HasCallStack => MakesValue a => a -> App (Maybe Value)
+asOptional x = do
+  v <- make x
+  pure $ case v of
+    Null -> Nothing
+    _ -> Just v
+
 asString :: HasCallStack => MakesValue a => a -> App String
 asString x =
   make x >>= \case
@@ -81,6 +94,14 @@ asStringM x =
     (String s) -> pure (Just (T.unpack s))
     _ -> pure Nothing
 
+asByteString :: (HasCallStack, MakesValue a) => a -> App ByteString
+asByteString x = do
+  s <- asString x
+  let bs = T.encodeUtf8 (T.pack s)
+  case Base64.decode bs of
+    Left _ -> assertFailure "Could not base64 decode"
+    Right a -> pure a
+
 asObject :: HasCallStack => MakesValue a => a -> App Object
 asObject x =
   make x >>= \case
@@ -88,7 +109,10 @@ asObject x =
     v -> assertFailureWithJSON x ("Object" `typeWasExpectedButGot` v)
 
 asInt :: HasCallStack => MakesValue a => a -> App Int
-asInt x =
+asInt = asIntegral
+
+asIntegral :: (Integral i, HasCallStack) => MakesValue a => a -> App i
+asIntegral x =
   make x >>= \case
     (Number n) ->
       case Sci.floatingOrInteger n of
@@ -150,6 +174,13 @@ fieldEquals a fieldSelector b = do
 assertField :: (HasCallStack, MakesValue a) => a -> String -> Maybe Value -> App Value
 assertField x k Nothing = assertFailureWithJSON x $ "Field \"" <> k <> "\" is missing from object:"
 assertField _ _ (Just x) = pure x
+
+-- rename a field if it exists, else return the old object
+renameField :: String -> String -> Value -> App Value
+renameField old new obj =
+  fromMaybe obj <$> runMaybeT do
+    o :: Value <- maybe mzero pure =<< lift (lookupField obj old)
+    lift (removeField old obj >>= setField new o)
 
 -- | Look up (nested) field of a JSON object
 --
@@ -256,7 +287,7 @@ printJSON = prettyJSON >=> liftIO . putStrLn
 
 prettyJSON :: MakesValue a => a -> App String
 prettyJSON x =
-  make x <&> Aeson.encodePretty <&> LC8.unpack
+  make x <&> LC8.unpack . Aeson.encodePretty
 
 jsonType :: Value -> String
 jsonType (Object _) = "Object"
@@ -346,17 +377,14 @@ objDomain x = do
 -- is also supported.
 objSubConv :: (HasCallStack, MakesValue a) => a -> App (Value, Maybe String)
 objSubConv x = do
-  mParent <- lookupField x "parent_qualified_id"
-  case mParent of
-    Nothing -> do
-      obj <- objQidObject x
-      subValue <- lookupField x "subconv_id"
-      sub <- traverse asString subValue
-      pure (obj, sub)
-    Just parent -> do
-      obj <- objQidObject parent
-      sub <- x %. "subconv_id" & asString
-      pure (obj, Just sub)
+  v <- make x
+  mParent <- lookupField v "parent_qualified_id"
+  obj <- objQidObject $ fromMaybe v mParent
+  sub <- runMaybeT $ do
+    sub <- MaybeT $ lookupField v "subconv_id"
+    sub' <- MaybeT $ asOptional sub
+    lift $ asString sub'
+  pure (obj, sub)
 
 -- | Turn an object parseable by 'objSubConv' into a canonical flat representation.
 objSubConvObject :: (HasCallStack, MakesValue a) => a -> App Value

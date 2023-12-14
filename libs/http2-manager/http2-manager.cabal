@@ -48,6 +48,10 @@ library
 
   default-language: Haskell2010
 
+flag test-trailing-dot
+  description: "Whether or not include the trailing dot test"
+  default:     True
+
 test-suite http2-manager-tests
   type:               exitcode-stdio-1.0
   main-is:            Main.hs
@@ -56,6 +60,9 @@ test-suite http2-manager-tests
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
     -Wredundant-constraints -Wunused-packages -threaded
     -with-rtsopts=-N
+
+  if flag(test-trailing-dot)
+    cpp-options: -DENABLE-TRAILING-DOT-TEST
 
   -- cabal-fmt: expand test
   other-modules:

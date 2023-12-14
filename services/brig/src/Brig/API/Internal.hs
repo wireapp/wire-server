@@ -19,7 +19,6 @@ module Brig.API.Internal
     servantSitemap,
     BrigIRoutes.API,
     getMLSClients,
-    getFederationRemotes,
   )
 where
 
@@ -38,12 +37,13 @@ import Brig.Code qualified as Code
 import Brig.Data.Activation
 import Brig.Data.Client qualified as Data
 import Brig.Data.Connection qualified as Data
-import Brig.Data.Federation qualified as Data
 import Brig.Data.MLS.KeyPackage qualified as Data
 import Brig.Data.User qualified as Data
 import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
 import Brig.Effects.BlacklistStore (BlacklistStore)
 import Brig.Effects.CodeStore (CodeStore)
+import Brig.Effects.FederationConfigStore (AddFederationRemoteResult (..), AddFederationRemoteTeamResult (..), FederationConfigStore, UpdateFederationResult (..))
+import Brig.Effects.FederationConfigStore qualified as E
 import Brig.Effects.GalleyProvider (GalleyProvider)
 import Brig.Effects.PasswordResetStore (PasswordResetStore)
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
@@ -62,10 +62,9 @@ import Brig.User.API.Search qualified as Search
 import Brig.User.EJPD qualified
 import Brig.User.Search.Index qualified as Index
 import Control.Error hiding (bool)
-import Control.Lens (view, (^.))
-import Data.Aeson hiding (json)
+import Control.Lens (view)
 import Data.CommaSeparatedList
-import Data.Domain (Domain, domainText)
+import Data.Domain (Domain)
 import Data.Handle
 import Data.Id as Id
 import Data.Map.Strict qualified as Map
@@ -73,27 +72,20 @@ import Data.Qualified
 import Data.Set qualified as Set
 import Data.Time.Clock.System
 import Imports hiding (head)
-import Network.AMQP qualified as Q
 import Network.Wai.Routing hiding (toList)
 import Network.Wai.Utilities as Utilities
 import Polysemy
 import Servant hiding (Handler, JSON, addHeader, respond)
-import Servant.Swagger.Internal.Orphans ()
-import System.Logger qualified as Lg
+import Servant.OpenApi.Internal.Orphans ()
 import System.Logger.Class qualified as Log
-import System.Random (randomRIO)
 import UnliftIO.Async
 import Wire.API.Connection
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
 import Wire.API.Federation.API
-import Wire.API.Federation.BackendNotifications
 import Wire.API.Federation.Error (FederationError (..))
-import Wire.API.MLS.Credential
-import Wire.API.MLS.KeyPackage
-import Wire.API.MLS.Serialisation
+import Wire.API.MLS.CipherSuite
 import Wire.API.Routes.FederationDomainConfig
-import Wire.API.Routes.Internal.Brig
 import Wire.API.Routes.Internal.Brig qualified as BrigIRoutes
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Named
@@ -113,7 +105,8 @@ servantSitemap ::
     Member BlacklistPhonePrefixStore r,
     Member PasswordResetStore r,
     Member GalleyProvider r,
-    Member (UserPendingActivationStore p) r
+    Member (UserPendingActivationStore p) r,
+    Member FederationConfigStore r
   ) =>
   ServerT BrigIRoutes.API (Handler r)
 servantSitemap =
@@ -145,18 +138,7 @@ ejpdAPI =
     :<|> getConnectionsStatus
 
 mlsAPI :: ServerT BrigIRoutes.MLSAPI (Handler r)
-mlsAPI =
-  ( \ref ->
-      Named @"get-client-by-key-package-ref" (getClientByKeyPackageRef ref)
-        :<|> ( Named @"put-conversation-by-key-package-ref" (putConvIdByKeyPackageRef ref)
-                 :<|> Named @"get-conversation-by-key-package-ref" (getConvIdByKeyPackageRef ref)
-             )
-        :<|> Named @"put-key-package-ref" (putKeyPackageRef ref)
-        :<|> Named @"post-key-package-ref" (postKeyPackageRef ref)
-  )
-    :<|> getMLSClients
-    :<|> mapKeyPackageRefsInternal
-    :<|> Named @"put-key-package-add" upsertKeyPackage
+mlsAPI = getMLSClients
 
 accountAPI ::
   ( Member BlacklistStore r,
@@ -201,8 +183,20 @@ accountAPI =
     :<|> Named @"iLegalholdAddClient" legalHoldClientRequestedH
     :<|> Named @"iLegalholdDeleteClient" removeLegalHoldClientH
 
-teamsAPI :: ServerT BrigIRoutes.TeamsAPI (Handler r)
-teamsAPI = Named @"updateSearchVisibilityInbound" Index.updateSearchVisibilityInbound
+teamsAPI ::
+  ( Member GalleyProvider r,
+    Member (UserPendingActivationStore p) r,
+    Member BlacklistStore r
+  ) =>
+  ServerT BrigIRoutes.TeamsAPI (Handler r)
+teamsAPI =
+  Named @"updateSearchVisibilityInbound" Index.updateSearchVisibilityInbound
+    :<|> Named @"get-invitation-by-email" Team.getInvitationByEmail
+    :<|> Named @"get-invitation-code" Team.getInvitationCode
+    :<|> Named @"suspend-team" Team.suspendTeam
+    :<|> Named @"unsuspend-team" Team.unsuspendTeam
+    :<|> Named @"team-size" Team.teamSize
+    :<|> Named @"create-invitations-via-scim" Team.createInvitationViaScim
 
 userAPI :: ServerT BrigIRoutes.UserAPI (Handler r)
 userAPI =
@@ -220,170 +214,74 @@ authAPI =
     :<|> Named @"login-code" getLoginCode
     :<|> Named @"reauthenticate" reauthenticate
 
-federationRemotesAPI :: ServerT BrigIRoutes.FederationRemotesAPI (Handler r)
+federationRemotesAPI :: (Member FederationConfigStore r) => ServerT BrigIRoutes.FederationRemotesAPI (Handler r)
 federationRemotesAPI =
   Named @"add-federation-remotes" addFederationRemote
     :<|> Named @"get-federation-remotes" getFederationRemotes
     :<|> Named @"update-federation-remotes" updateFederationRemote
-    :<|> Named @"delete-federation-remotes" deleteFederationRemote
-    :<|> Named @"delete-federation-remote-from-galley" deleteFederationRemoteGalley
+    :<|> Named @"add-federation-remote-team" addFederationRemoteTeam
+    :<|> Named @"get-federation-remote-teams" getFederationRemoteTeams
+    :<|> Named @"delete-federation-remote-team" deleteFederationRemoteTeam
 
-addFederationRemote :: FederationDomainConfig -> ExceptT Brig.API.Error.Error (AppT r) ()
+deleteFederationRemoteTeam :: (Member FederationConfigStore r) => Domain -> TeamId -> (Handler r) ()
+deleteFederationRemoteTeam domain teamId =
+  lift $ liftSem $ E.removeFederationRemoteTeam domain teamId
+
+getFederationRemoteTeams :: (Member FederationConfigStore r) => Domain -> (Handler r) [FederationRemoteTeam]
+getFederationRemoteTeams domain =
+  lift $ liftSem $ E.getFederationRemoteTeams domain
+
+addFederationRemoteTeam :: (Member FederationConfigStore r) => Domain -> FederationRemoteTeam -> (Handler r) ()
+addFederationRemoteTeam domain rt =
+  lift (liftSem $ E.addFederationRemoteTeam domain rt.teamId) >>= \case
+    AddFederationRemoteTeamSuccess -> pure ()
+    AddFederationRemoteTeamDomainNotFound ->
+      throwError . fedError . FederationUnexpectedError $
+        "Federation domain does not exist.  Please add it first."
+    AddFederationRemoteTeamRestrictionAllowAll ->
+      throwError . fedError . FederationUnexpectedError $
+        "Federation is not configured to be restricted by teams. Therefore adding a team to a \
+        \remote domain is not allowed."
+
+getFederationRemotes :: (Member FederationConfigStore r) => (Handler r) FederationDomainConfigs
+getFederationRemotes = lift $ liftSem $ E.getFederationConfigs
+
+addFederationRemote :: (Member FederationConfigStore r) => FederationDomainConfig -> (Handler r) ()
 addFederationRemote fedDomConf = do
-  assertNoDivergingDomainInConfigFiles fedDomConf
-  result <- lift . wrapClient $ Data.addFederationRemote fedDomConf
-  case result of
-    Data.AddFederationRemoteSuccess -> pure ()
-    Data.AddFederationRemoteMaxRemotesReached ->
+  lift (liftSem $ E.addFederationConfig fedDomConf) >>= \case
+    AddFederationRemoteSuccess -> pure ()
+    AddFederationRemoteMaxRemotesReached ->
       throwError . fedError . FederationUnexpectedError $
         "Maximum number of remote backends reached.  If you need to create more connections, \
         \please contact wire.com."
+    AddFederationRemoteDivergingConfig cfg ->
+      throwError . fedError . FederationUnexpectedError $
+        "keeping track of remote domains in the brig config file is deprecated, but as long as we \
+        \do that, adding a domain with different settings than in the config file is not allowed.  want "
+          <> ( "Just "
+                 <> cs (show fedDomConf)
+                 <> "or Nothing, "
+             )
+          <> ( "got "
+                 <> cs (show (Map.lookup (domain fedDomConf) cfg))
+             )
 
--- | Compile config file list into a map indexed by domains.  Use this to make sure the config
--- file is consistent (ie., no two entries for the same domain).
-remotesMapFromCfgFile :: AppT r (Map Domain FederationDomainConfig)
-remotesMapFromCfgFile = do
-  cfg <- asks (fromMaybe [] . setFederationDomainConfigs . view settings)
-  let dict = [(domain cnf, cnf) | cnf <- cfg]
-      merge c c' =
-        if c == c'
-          then c
-          else error $ "error in config file: conflicting parameters on domain: " <> show (c, c')
-  pure $ Map.fromListWith merge dict
-
--- | Return the config file list.  Use this to make sure the config file is consistent (ie.,
--- no two entries for the same domain).  Based on `remotesMapFromCfgFile`.
-remotesListFromCfgFile :: AppT r [FederationDomainConfig]
-remotesListFromCfgFile = Map.elems <$> remotesMapFromCfgFile
-
--- | If remote domain is registered in config file, the version that can be added to the
--- database must be the same.
-assertNoDivergingDomainInConfigFiles :: FederationDomainConfig -> ExceptT Brig.API.Error.Error (AppT r) ()
-assertNoDivergingDomainInConfigFiles fedComConf = do
-  cfg <- lift remotesMapFromCfgFile
-  let diverges = case Map.lookup (domain fedComConf) cfg of
-        Nothing -> False
-        Just fedComConf' -> fedComConf' /= fedComConf
-  when diverges $ do
-    throwError . fedError . FederationUnexpectedError $
-      "keeping track of remote domains in the brig config file is deprecated, but as long as we \
-      \do that, adding a domain with different settings than in the config file is nto allowed.  want "
-        <> ( "Just "
-               <> cs (show fedComConf)
-               <> "or Nothing, "
-           )
-        <> ( "got "
-               <> cs (show (Map.lookup (domain fedComConf) cfg))
-           )
-
-getFederationRemotes :: ExceptT Brig.API.Error.Error (AppT r) FederationDomainConfigs
-getFederationRemotes = lift $ do
-  -- FUTUREWORK: we should solely rely on `db` in the future for remote domains; merging
-  -- remote domains from `cfg` is just for providing an easier, more robust migration path.
-  -- See
-  -- https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections,
-  -- http://docs.wire.com/developer/developer/federation-design-aspects.html#configuring-remote-connections-dev-perspective
-  db <- wrapClient Data.getFederationRemotes
-  (ms :: Maybe FederationStrategy, mf :: [FederationDomainConfig], mu :: Maybe Int) <- do
-    cfg <- ask
-    domcfgs <- remotesListFromCfgFile -- (it's not very elegant to prove the env twice here, but this code is transitory.)
-    pure
-      ( setFederationStrategy (cfg ^. settings),
-        domcfgs,
-        setFederationDomainConfigsUpdateFreq (cfg ^. settings)
-      )
-
-  -- update frequency settings of `<1` are interpreted as `1 second`.  only warn about this every now and
-  -- then, that'll be noise enough for the logs given the traffic on this end-point.
-  unless (maybe True (> 0) mu) $
-    randomRIO (0 :: Int, 1000)
-      >>= \case
-        0 -> Log.warn (Log.msg (Log.val "Invalid brig configuration: setFederationDomainConfigsUpdateFreq must be > 0.  setting to 1 second."))
-        _ -> pure ()
-
-  defFederationDomainConfigs
-    & maybe id (\v cfg -> cfg {strategy = v}) ms
-    & (\cfg -> cfg {remotes = nub $ db <> mf})
-    & maybe id (\v cfg -> cfg {updateInterval = min 1 v}) mu
-    & pure
-
-updateFederationRemote :: Domain -> FederationDomainConfig -> ExceptT Brig.API.Error.Error (AppT r) ()
+updateFederationRemote :: (Member FederationConfigStore r) => Domain -> FederationDomainConfig -> (Handler r) ()
 updateFederationRemote dom fedcfg = do
-  assertDomainIsNotUpdated dom fedcfg
-  assertNoDomainsFromConfigFiles dom
-  (lift . wrapClient . Data.updateFederationRemote $ fedcfg) >>= \case
-    True -> pure ()
-    False ->
+  if (dom /= fedcfg.domain)
+    then
       throwError . fedError . FederationUnexpectedError . cs $
-        "federation domain does not exist and cannot be updated: " <> show (dom, fedcfg)
-
-assertDomainIsNotUpdated :: Domain -> FederationDomainConfig -> ExceptT Brig.API.Error.Error (AppT r) ()
-assertDomainIsNotUpdated dom fedcfg = do
-  when (dom /= domain fedcfg) $
-    throwError . fedError . FederationUnexpectedError . cs $
-      "federation domain of a given peer cannot be changed from " <> show (domain fedcfg) <> " to " <> show dom <> "."
-
--- | FUTUREWORK: should go away in the future; see 'getFederationRemotes'.
-assertNoDomainsFromConfigFiles :: Domain -> ExceptT Brig.API.Error.Error (AppT r) ()
-assertNoDomainsFromConfigFiles dom = do
-  cfg <- asks (fromMaybe [] . setFederationDomainConfigs . view settings)
-  when (dom `elem` (domain <$> cfg)) $ do
-    throwError . fedError . FederationUnexpectedError $
-      "keeping track of remote domains in the brig config file is deprecated, but as long as we \
-      \do that, removing or updating items listed in the config file is not allowed."
-
--- | Remove the entry from the database if present (or do nothing if not).  This responds with
--- 533 if the entry was also present in the config file, but only *after* it has removed the
--- entry from cassandra.
---
--- The ordering on this delete then check seems weird, but allows us to default all the
--- way back to config file state for a federation domain.
-deleteFederationRemote :: Domain -> ExceptT Brig.API.Error.Error (AppT r) ()
-deleteFederationRemote dom = do
-  lift . wrapClient . Data.deleteFederationRemote $ dom
-  assertNoDomainsFromConfigFiles dom
-  env <- ask
-  ownDomain <- viewFederationDomain
-  remoteDomains <- fmap domain . remotes <$> getFederationRemotes
-  for_ (env ^. rabbitmqChannel) $ \chan -> liftIO . withMVar chan $ \chan' -> do
-    -- ensureQueue uses routingKey internally
-    ensureQueue chan' defederationQueue
-    void $
-      Q.publishMsg chan' "" queue $
-        Q.newMsg
-          { -- Check that this message type is compatible with what
-            -- background worker is expecting
-            Q.msgBody = encode @DefederationDomain dom,
-            Q.msgDeliveryMode = pure Q.Persistent,
-            Q.msgContentType = pure "application/json"
-          }
-    -- Send a notification to remaining federation servers, telling them
-    -- that we are defederating from a given domain, and that they should
-    -- clean up their conversations and notify clients.
-    -- Just to be safe!
-    for_ (filter (/= dom) remoteDomains) $ \remoteDomain -> do
-      ensureQueue chan' $ domainText remoteDomain
-      liftIO
-        $ enqueue chan' ownDomain remoteDomain Q.Persistent
-          . void
-        $ fedQueueClient @'Galley @"on-connection-removed" dom
-    -- Drop the notification queue for the domain.
-    -- This will also drop all of the messages in the queue
-    -- as we will no longer be able to communicate with this
-    -- domain.
-    num <- Q.deleteQueue chan' . routingKey $ domainText dom
-    Lg.info (env ^. applog) $ Log.msg @String "Dropped Notifications" . Log.field "domain" (domainText dom) . Log.field "count" (show num)
-  where
-    -- Ensure that this is kept in sync with background worker
-    queue = routingKey defederationQueue
-
--- | Remove one-on-one conversations for the given remote domain. This is called from Galley as
--- part of the defederation process, and should not be called during the initial domain removal
--- call to brig. This is so we can ensure that domains are correctly cleaned up if a service
--- falls over for whatever reason.
-deleteFederationRemoteGalley :: Domain -> ExceptT Brig.API.Error.Error (AppT r) ()
-deleteFederationRemoteGalley dom = do
-  lift . wrapClient . Data.deleteRemoteConnectionsDomain $ dom
+        "federation domain of a given peer cannot be changed from " <> show (domain fedcfg) <> " to " <> show dom <> "."
+    else
+      lift (liftSem (E.updateFederationConfig fedcfg)) >>= \case
+        UpdateFederationSuccess -> pure ()
+        UpdateFederationRemoteNotFound ->
+          throwError . fedError . FederationUnexpectedError . cs $
+            "federation domain does not exist and cannot be updated: " <> show (dom, fedcfg)
+        UpdateFederationRemoteDivergingConfig ->
+          throwError . fedError . FederationUnexpectedError $
+            "keeping track of remote domains in the brig config file is deprecated, but as long as we \
+            \do that, removing or updating items listed in the config file is not allowed."
 
 -- | Responds with 'Nothing' if field is NULL in existing user or user does not exist.
 getAccountConferenceCallingConfig :: UserId -> (Handler r) (ApiFt.WithStatusNoLock ApiFt.ConferenceCallingConfig)
@@ -399,64 +297,12 @@ deleteAccountConferenceCallingConfig :: UserId -> (Handler r) NoContent
 deleteAccountConferenceCallingConfig uid =
   lift $ wrapClient $ Data.updateFeatureConferenceCalling uid Nothing $> NoContent
 
-getClientByKeyPackageRef :: KeyPackageRef -> Handler r (Maybe ClientIdentity)
-getClientByKeyPackageRef = runMaybeT . mapMaybeT wrapClientE . Data.derefKeyPackage
-
--- Used by galley to update conversation id in mls_key_package_ref
-putConvIdByKeyPackageRef :: KeyPackageRef -> Qualified ConvId -> Handler r Bool
-putConvIdByKeyPackageRef ref = lift . wrapClient . Data.keyPackageRefSetConvId ref
-
--- Used by galley to create a new record in mls_key_package_ref
-putKeyPackageRef :: KeyPackageRef -> NewKeyPackageRef -> Handler r ()
-putKeyPackageRef ref = lift . wrapClient . Data.addKeyPackageRef ref
-
--- Used by galley to retrieve conversation id from mls_key_package_ref
-getConvIdByKeyPackageRef :: KeyPackageRef -> Handler r (Maybe (Qualified ConvId))
-getConvIdByKeyPackageRef = runMaybeT . mapMaybeT wrapClientE . Data.keyPackageRefConvId
-
--- Used by galley to update key packages in mls_key_package_ref on commits with update_path
-postKeyPackageRef :: KeyPackageRef -> KeyPackageRef -> Handler r ()
-postKeyPackageRef ref = lift . wrapClient . Data.updateKeyPackageRef ref
-
--- Used by galley to update key package refs and also validate
-upsertKeyPackage :: NewKeyPackage -> Handler r NewKeyPackageResult
-upsertKeyPackage nkp = do
-  kp <-
-    either
-      (const $ mlsProtocolError "upsertKeyPackage: Cannot decocode KeyPackage")
-      pure
-      $ decodeMLS' @(RawMLS KeyPackage) (kpData . nkpKeyPackage $ nkp)
-  ref <- kpRef' kp & noteH "upsertKeyPackage: Unsupported CipherSuite"
-
-  identity <-
-    either
-      (const $ mlsProtocolError "upsertKeyPackage: Cannot decode ClientIdentity")
-      pure
-      $ kpIdentity (rmValue kp)
-  mp <- lift . wrapClient . runMaybeT $ Data.derefKeyPackage ref
-  when (isNothing mp) $ do
-    void $ validateKeyPackage identity kp
-    lift . wrapClient $
-      Data.addKeyPackageRef
-        ref
-        ( NewKeyPackageRef
-            (fst <$> cidQualifiedClient identity)
-            (ciClient identity)
-            (nkpConversation nkp)
-        )
-
-  pure $ NewKeyPackageResult identity ref
-  where
-    noteH :: Text -> Maybe a -> Handler r a
-    noteH errMsg Nothing = mlsProtocolError errMsg
-    noteH _ (Just y) = pure y
-
-getMLSClients :: UserId -> SignatureSchemeTag -> Handler r (Set ClientInfo)
-getMLSClients usr _ss = do
-  -- FUTUREWORK: check existence of key packages with a given ciphersuite
+getMLSClients :: UserId -> CipherSuite -> Handler r (Set ClientInfo)
+getMLSClients usr suite = do
   lusr <- qualifyLocal usr
+  suiteTag <- maybe (mlsProtocolError "Unknown ciphersuite") pure (cipherSuiteTag suite)
   allClients <- lift (wrapClient (API.lookupUsersClientIds (pure usr))) >>= getResult
-  clientInfo <- lift . wrapClient $ pooledMapConcurrentlyN 16 (getValidity lusr) (toList allClients)
+  clientInfo <- lift . wrapClient $ pooledMapConcurrentlyN 16 (\c -> getValidity lusr c suiteTag) (toList allClients)
   pure . Set.fromList . map (uncurry ClientInfo) $ clientInfo
   where
     getResult [] = pure mempty
@@ -464,15 +310,9 @@ getMLSClients usr _ss = do
       | u == usr = pure cs'
       | otherwise = getResult rs
 
-    getValidity lusr cid =
+    getValidity lusr cid suiteTag =
       (cid,) . (> 0)
-        <$> Data.countKeyPackages lusr cid
-
-mapKeyPackageRefsInternal :: KeyPackageBundle -> Handler r ()
-mapKeyPackageRefsInternal bundle = do
-  wrapClientE $
-    for_ (kpbEntries bundle) $ \e ->
-      Data.mapKeyPackageRef (kpbeRef e) (kpbeUser e) (kpbeClient e)
+        <$> Data.countKeyPackages lusr cid suiteTag
 
 getVerificationCode :: UserId -> VerificationAction -> Handler r (Maybe Code.Value)
 getVerificationCode uid action = do
@@ -495,14 +335,11 @@ internalSearchIndexAPI =
 -- Sitemap (wai-route)
 
 sitemap ::
-  ( Member BlacklistStore r,
-    Member GalleyProvider r,
-    Member (UserPendingActivationStore p) r
+  ( Member GalleyProvider r
   ) =>
   Routes a (Handler r) ()
 sitemap = unsafeCallsFed @'Brig @"on-user-deleted-connections" $ do
   Provider.routesInternal
-  Team.routesInternal
 
 ---------------------------------------------------------------------------
 -- Handlers

@@ -99,6 +99,7 @@ import Brig.Provider.Template
 import Brig.Queue.Stomp qualified as Stomp
 import Brig.Queue.Types (Queue (..))
 import Brig.SMTP qualified as SMTP
+import Brig.Schema.Run qualified as Migrations
 import Brig.Team.Template
 import Brig.Template (Localised, TemplateBranding, forLocale, genTemplateBranding)
 import Brig.User.Search.Index (IndexEnv (..), MonadIndexIO (..), runIndexIO)
@@ -157,7 +158,7 @@ import Wire.API.User.Identity (Email)
 import Wire.API.User.Profile (Locale)
 
 schemaVersion :: Int32
-schemaVersion = 79
+schemaVersion = Migrations.lastSchemaVersion
 
 -------------------------------------------------------------------------------
 -- Environment
@@ -231,7 +232,7 @@ newEnv o = do
   clock <- mkAutoUpdate defaultUpdateSettings {updateAction = getCurrentTime}
   w <-
     FS.startManagerConf $
-      FS.defaultConfig {FS.confDebounce = FS.Debounce 0.5, FS.confPollInterval = 10000000}
+      FS.defaultConfig {FS.confWatchMode = FS.WatchModeOS}
   g <- geoSetup lgr w $ Opt.geoDb o
   let turnOpts = Opt.turn o
   turnSecret <- Text.encodeUtf8 . Text.strip <$> Text.readFile (Opt.secret turnOpts)
@@ -334,6 +335,9 @@ startWatching w p = void . FS.watchDir w (Path.dropFileName p) predicate
     predicate (FS.Modified f _ _) = Path.equalFilePath f p
     predicate FS.Removed {} = False
     predicate FS.Unknown {} = False
+    predicate FS.ModifiedAttributes {} = False
+    predicate FS.WatchedDirectoryRemoved {} = False
+    predicate FS.CloseWrite {} = False
 
 replaceGeoDb :: Logger -> IORef GeoIp.GeoDB -> FS.Event -> IO ()
 replaceGeoDb g ref e = do
@@ -448,13 +452,13 @@ initCredentials secretFile = do
   dat <- loadSecret secretFile
   pure $ either (\e -> error $ "Could not load secrets from " ++ show secretFile ++ ": " ++ e) id dat
 
-userTemplates :: MonadReader Env m => Maybe Locale -> m (Locale, UserTemplates)
+userTemplates :: (MonadReader Env m) => Maybe Locale -> m (Locale, UserTemplates)
 userTemplates l = forLocale l <$> view usrTemplates
 
-providerTemplates :: MonadReader Env m => Maybe Locale -> m (Locale, ProviderTemplates)
+providerTemplates :: (MonadReader Env m) => Maybe Locale -> m (Locale, ProviderTemplates)
 providerTemplates l = forLocale l <$> view provTemplates
 
-teamTemplates :: MonadReader Env m => Maybe Locale -> m (Locale, TeamTemplates)
+teamTemplates :: (MonadReader Env m) => Maybe Locale -> m (Locale, TeamTemplates)
 teamTemplates l = forLocale l <$> view tmTemplates
 
 closeEnv :: Env -> IO ()
@@ -468,7 +472,7 @@ closeEnv e = do
 -- App Monad
 
 newtype AppT r a = AppT
-  { unAppT :: Member (Final IO) r => ReaderT Env (Sem r) a
+  { unAppT :: (Member (Final IO) r) => ReaderT Env (Sem r) a
   }
   deriving
     ( Semigroup,
@@ -476,7 +480,7 @@ newtype AppT r a = AppT
     )
     via (Ap (AppT r) a)
 
-lowerAppT :: Member (Final IO) r => Env -> AppT r a -> Sem r a
+lowerAppT :: (Member (Final IO) r) => Env -> AppT r a -> Sem r a
 lowerAppT env (AppT r) = runReaderT r env
 
 temporaryGetEnv :: AppT r Env
@@ -498,10 +502,10 @@ instance MonadIO (AppT r) where
 instance MonadThrow (AppT r) where
   throwM = liftIO . throwM
 
-instance Member (Final IO) r => MonadThrow (Sem r) where
+instance (Member (Final IO) r) => MonadThrow (Sem r) where
   throwM = embedFinal . throwM @IO
 
-instance Member (Final IO) r => MonadCatch (Sem r) where
+instance (Member (Final IO) r) => MonadCatch (Sem r) where
   catch m handler = withStrategicToFinal @IO $ do
     m' <- runS m
     st <- getInitialStateS
@@ -520,7 +524,7 @@ instance MonadReader Env (AppT r) where
 liftSem :: Sem r a -> AppT r a
 liftSem sem = AppT $ lift sem
 
-instance MonadIO m => MonadLogger (ReaderT Env m) where
+instance (MonadIO m) => MonadLogger (ReaderT Env m) where
   log l m = do
     g <- view applog
     r <- view requestId
@@ -612,14 +616,14 @@ wrapHttpClient = wrapHttp
 wrapHttpClientE :: ExceptT e HttpClientIO a -> ExceptT e (AppT r) a
 wrapHttpClientE = mapExceptT wrapHttpClient
 
-instance MonadIO m => MonadIndexIO (ReaderT Env m) where
+instance (MonadIO m) => MonadIndexIO (ReaderT Env m) where
   liftIndexIO m = view indexEnv >>= \e -> runIndexIO e m
 
 instance MonadIndexIO (AppT r) where
   liftIndexIO m = do
     AppT $ mapReaderT (embedToFinal @IO) $ liftIndexIO m
 
-instance MonadIndexIO (AppT r) => MonadIndexIO (ExceptT err (AppT r)) where
+instance (MonadIndexIO (AppT r)) => MonadIndexIO (ExceptT err (AppT r)) where
   liftIndexIO m = view indexEnv >>= \e -> runIndexIO e m
 
 instance HasRequestId (AppT r) where
@@ -638,8 +642,8 @@ locationOf ip =
 --------------------------------------------------------------------------------
 -- Federation
 
-viewFederationDomain :: MonadReader Env m => m Domain
+viewFederationDomain :: (MonadReader Env m) => m Domain
 viewFederationDomain = view (settings . Opt.federationDomain)
 
-qualifyLocal :: MonadReader Env m => a -> m (Local a)
+qualifyLocal :: (MonadReader Env m) => a -> m (Local a)
 qualifyLocal a = toLocalUnsafe <$> viewFederationDomain <*> pure a

@@ -1,4 +1,5 @@
 {
+  "basePath": "/v3",
   "definitions": {
     "": {
       "description": "Username to use for authenticating against the given TURN servers",
@@ -13,9 +14,7 @@
       "enum": [
         "GCM",
         "APNS",
-        "APNS_SANDBOX",
-        "APNS_VOIP",
-        "APNS_VOIP_SANDBOX"
+        "APNS_SANDBOX"
       ],
       "type": "string"
     },

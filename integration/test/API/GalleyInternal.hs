@@ -12,7 +12,7 @@ putTeamMember user team perms = do
   tid <- asString team
   req <-
     baseRequest
-      OwnDomain
+      user
       Galley
       Unversioned
       ("/i/teams/" <> tid <> "/members")
@@ -37,6 +37,13 @@ getTeamFeature domain_ featureName tid = do
   req <- baseRequest domain_ Galley Unversioned $ joinHttpPath ["i", "teams", tid, "features", featureName]
   submit "GET" $ req
 
+setTeamFeatureStatus :: (HasCallStack, MakesValue domain, MakesValue team) => domain -> team -> String -> String -> App ()
+setTeamFeatureStatus domain team featureName status = do
+  tid <- asString team
+  req <- baseRequest domain Galley Unversioned $ joinHttpPath ["i", "teams", tid, "features", featureName]
+  res <- submit "PATCH" $ req & addJSONObject ["status" .= status]
+  res.status `shouldMatchInt` 200
+
 getFederationStatus ::
   ( HasCallStack,
     MakesValue user
@@ -51,12 +58,3 @@ getFederationStatus user domains =
         submit
           "GET"
           $ req & addJSONObject ["domains" .= domainList]
-
-deleteFederationDomain ::
-  ( HasCallStack
-  ) =>
-  String ->
-  App Response
-deleteFederationDomain domain = do
-  req <- rawBaseRequest OwnDomain Galley Unversioned $ joinHttpPath ["i", "federation", domain]
-  submit "DELETE" req

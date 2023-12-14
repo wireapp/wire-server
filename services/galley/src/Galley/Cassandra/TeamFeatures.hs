@@ -26,7 +26,7 @@ import Cassandra qualified as C
 import Control.Monad.Trans.Maybe
 import Data.Id
 import Data.Misc (HttpsUrl)
-import Data.Time (NominalDiffTime)
+import Data.Time
 import Galley.Cassandra.Instances ()
 import Galley.Cassandra.Store
 import Galley.Effects.TeamFeatureStore qualified as TFS
@@ -105,7 +105,7 @@ getFeatureConfig FeatureSingletonMLSConfig tid = do
   m <- retry x1 $ query1 select (params LocalQuorum (Identity tid))
   pure $ case m of
     Nothing -> Nothing
-    Just (status, defaultProtocol, protocolToggleUsers, allowedCipherSuites, defaultCipherSuite) ->
+    Just (status, defaultProtocol, protocolToggleUsers, allowedCipherSuites, defaultCipherSuite, supportedProtocols) ->
       WithStatusNoLock
         <$> status
         <*> ( MLSConfig
@@ -113,13 +113,14 @@ getFeatureConfig FeatureSingletonMLSConfig tid = do
                 <*> defaultProtocol
                 <*> maybe (Just []) (Just . C.fromSet) allowedCipherSuites
                 <*> defaultCipherSuite
+                <*> maybe (Just []) (Just . C.fromSet) supportedProtocols
             )
         <*> Just FeatureTTLUnlimited
   where
-    select :: PrepQuery R (Identity TeamId) (Maybe FeatureStatus, Maybe ProtocolTag, Maybe (C.Set UserId), Maybe (C.Set CipherSuiteTag), Maybe CipherSuiteTag)
+    select :: PrepQuery R (Identity TeamId) (Maybe FeatureStatus, Maybe ProtocolTag, Maybe (C.Set UserId), Maybe (C.Set CipherSuiteTag), Maybe CipherSuiteTag, Maybe (C.Set ProtocolTag))
     select =
       "select mls_status, mls_default_protocol, mls_protocol_toggle_users, mls_allowed_ciphersuites, \
-      \mls_default_ciphersuite from team_features where team_id = ?"
+      \mls_default_ciphersuite, mls_supported_protocols from team_features where team_id = ?"
 getFeatureConfig FeatureSingletonMlsE2EIdConfig tid = do
   let q = query1 select (params LocalQuorum (Identity tid))
   retry x1 q <&> \case
@@ -139,6 +140,23 @@ getFeatureConfig FeatureSingletonMlsE2EIdConfig tid = do
     select =
       fromString $
         "select mls_e2eid_status, mls_e2eid_grace_period, mls_e2eid_acme_discovery_url from team_features where team_id = ?"
+getFeatureConfig FeatureSingletonMlsMigration tid = do
+  let q = query1 select (params LocalQuorum (Identity tid))
+  retry x1 q <&> \case
+    Nothing -> Nothing
+    Just (Nothing, _, _) -> Nothing
+    Just (Just fs, startTime, finaliseRegardlessAfter) ->
+      Just $
+        WithStatusNoLock
+          fs
+          MlsMigrationConfig
+            { startTime = startTime,
+              finaliseRegardlessAfter = finaliseRegardlessAfter
+            }
+          FeatureTTLUnlimited
+  where
+    select :: PrepQuery R (Identity TeamId) (Maybe FeatureStatus, Maybe UTCTime, Maybe UTCTime)
+    select = "select mls_migration_status, mls_migration_start_time, mls_migration_finalise_regardless_after from team_features where team_id = ?"
 getFeatureConfig FeatureSingletonExposeInvitationURLsToTeamAdminConfig tid = getTrivialConfigC "expose_invitation_urls_to_team_admin" tid
 getFeatureConfig FeatureSingletonOutlookCalIntegrationConfig tid = getTrivialConfigC "outlook_cal_integration_status" tid
 
@@ -188,7 +206,7 @@ setFeatureConfig FeatureSingletonSndFactorPasswordChallengeConfig tid statusNoLo
 setFeatureConfig FeatureSingletonSearchVisibilityInboundConfig tid statusNoLock = setFeatureStatusC "search_visibility_status" tid (wssStatus statusNoLock)
 setFeatureConfig FeatureSingletonMLSConfig tid statusNoLock = do
   let status = wssStatus statusNoLock
-  let MLSConfig protocolToggleUsers defaultProtocol allowedCipherSuites defaultCipherSuite = wssConfig statusNoLock
+  let MLSConfig protocolToggleUsers defaultProtocol allowedCipherSuites defaultCipherSuite supportedProtocols = wssConfig statusNoLock
   retry x5 $
     write
       insert
@@ -199,14 +217,15 @@ setFeatureConfig FeatureSingletonMLSConfig tid statusNoLock = do
             defaultProtocol,
             C.Set protocolToggleUsers,
             C.Set allowedCipherSuites,
-            defaultCipherSuite
+            defaultCipherSuite,
+            C.Set supportedProtocols
           )
       )
   where
-    insert :: PrepQuery W (TeamId, FeatureStatus, ProtocolTag, C.Set UserId, C.Set CipherSuiteTag, CipherSuiteTag) ()
+    insert :: PrepQuery W (TeamId, FeatureStatus, ProtocolTag, C.Set UserId, C.Set CipherSuiteTag, CipherSuiteTag, C.Set ProtocolTag) ()
     insert =
       "insert into team_features (team_id, mls_status, mls_default_protocol, \
-      \mls_protocol_toggle_users, mls_allowed_ciphersuites, mls_default_ciphersuite) values (?, ?, ?, ?, ?, ?)"
+      \mls_protocol_toggle_users, mls_allowed_ciphersuites, mls_default_ciphersuite, mls_supported_protocols) values (?, ?, ?, ?, ?, ?, ?)"
 setFeatureConfig FeatureSingletonMlsE2EIdConfig tid status = do
   let statusValue = wssStatus status
       vex = verificationExpiration . wssConfig $ status
@@ -216,6 +235,15 @@ setFeatureConfig FeatureSingletonMlsE2EIdConfig tid status = do
     insert :: PrepQuery W (TeamId, FeatureStatus, Int32, Maybe HttpsUrl) ()
     insert =
       "insert into team_features (team_id, mls_e2eid_status, mls_e2eid_grace_period, mls_e2eid_acme_discovery_url) values (?, ?, ?, ?)"
+setFeatureConfig FeatureSingletonMlsMigration tid status = do
+  let statusValue = wssStatus status
+      config = wssConfig status
+
+  retry x5 $ write insert (params LocalQuorum (tid, statusValue, config.startTime, config.finaliseRegardlessAfter))
+  where
+    insert :: PrepQuery W (TeamId, FeatureStatus, Maybe UTCTime, Maybe UTCTime) ()
+    insert =
+      "insert into team_features (team_id, mls_migration_status, mls_migration_start_time, mls_migration_finalise_regardless_after) values (?, ?, ?, ?)"
 setFeatureConfig FeatureSingletonExposeInvitationURLsToTeamAdminConfig tid statusNoLock = setFeatureStatusC "expose_invitation_urls_to_team_admin" tid (wssStatus statusNoLock)
 setFeatureConfig FeatureSingletonOutlookCalIntegrationConfig tid statusNoLock = setFeatureStatusC "outlook_cal_integration_status" tid (wssStatus statusNoLock)
 
@@ -225,7 +253,9 @@ getFeatureLockStatus FeatureSingletonSelfDeletingMessagesConfig tid = getLockSta
 getFeatureLockStatus FeatureSingletonGuestLinksConfig tid = getLockStatusC "guest_links_lock_status" tid
 getFeatureLockStatus FeatureSingletonSndFactorPasswordChallengeConfig tid = getLockStatusC "snd_factor_password_challenge_lock_status" tid
 getFeatureLockStatus FeatureSingletonMlsE2EIdConfig tid = getLockStatusC "mls_e2eid_lock_status" tid
+getFeatureLockStatus FeatureSingletonMlsMigration tid = getLockStatusC "mls_migration_lock_status" tid
 getFeatureLockStatus FeatureSingletonOutlookCalIntegrationConfig tid = getLockStatusC "outlook_cal_integration_lock_status" tid
+getFeatureLockStatus FeatureSingletonMLSConfig tid = getLockStatusC "mls_lock_status" tid
 getFeatureLockStatus _ _ = pure Nothing
 
 setFeatureLockStatus :: MonadClient m => FeatureSingleton cfg -> TeamId -> LockStatus -> m ()
@@ -234,7 +264,9 @@ setFeatureLockStatus FeatureSingletonSelfDeletingMessagesConfig tid status = set
 setFeatureLockStatus FeatureSingletonGuestLinksConfig tid status = setLockStatusC "guest_links_lock_status" tid status
 setFeatureLockStatus FeatureSingletonSndFactorPasswordChallengeConfig tid status = setLockStatusC "snd_factor_password_challenge_lock_status" tid status
 setFeatureLockStatus FeatureSingletonMlsE2EIdConfig tid status = setLockStatusC "mls_e2eid_lock_status" tid status
+setFeatureLockStatus FeatureSingletonMlsMigration tid status = setLockStatusC "mls_migration_lock_status" tid status
 setFeatureLockStatus FeatureSingletonOutlookCalIntegrationConfig tid status = setLockStatusC "outlook_cal_integration_lock_status" tid status
+setFeatureLockStatus FeatureSingletonMLSConfig tid status = setLockStatusC "mls_lock_status" tid status
 setFeatureLockStatus _ _tid _status = pure ()
 
 getTrivialConfigC ::

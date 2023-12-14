@@ -26,8 +26,8 @@ import Data.Set qualified as Set (fromList)
 import Data.UUID qualified as UUID (fromString)
 import Imports
 import Wire.API.Conversation
-import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
+import Wire.API.User
 
 testDomain :: Domain
 testDomain = Domain "testdomain.example.com"
@@ -52,7 +52,7 @@ testObject_NewConv_user_1 =
       newConvMessageTimer = Just (Ms {ms = 3320987366258987}),
       newConvReceiptMode = Just (ReceiptMode {unReceiptMode = 1}),
       newConvUsersRole = fromJust (parseRoleName "8tp2gs7b6"),
-      newConvProtocol = ProtocolProteusTag
+      newConvProtocol = BaseProtocolProteusTag
     }
 
 testObject_NewConv_user_3 :: NewConv
@@ -71,5 +71,5 @@ testObject_NewConv_user_3 =
           ( parseRoleName
               "y3otpiwu615lvvccxsq0315jj75jquw01flhtuf49t6mzfurvwe3_sh51f4s257e2x47zo85rif_xyiyfldpan3g4r6zr35rbwnzm0k"
           ),
-      newConvProtocol = ProtocolMLSTag
+      newConvProtocol = BaseProtocolMLSTag
     }

@@ -36,10 +36,10 @@ missing =
           [ ( Domain "golden.example.com",
               fromList
                 [ ( Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000002")),
-                    fromList [ClientId {client = "0"}, ClientId {client = "1"}]
+                    fromList [ClientId 0, ClientId 1]
                   ),
                   ( Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000200000000")),
-                    fromList [ClientId {client = "0"}]
+                    fromList [ClientId 0]
                   )
                 ]
             )
@@ -54,10 +54,10 @@ redundant =
           [ ( Domain "golden.example.com",
               fromList
                 [ ( Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000003")),
-                    fromList [ClientId {client = "0"}, ClientId {client = "1"}]
+                    fromList [ClientId 0, ClientId 1]
                   ),
                   ( Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000200000004")),
-                    fromList [ClientId {client = "0"}]
+                    fromList [ClientId 0]
                   )
                 ]
             )
@@ -72,10 +72,10 @@ deleted =
           [ ( Domain "golden.example.com",
               fromList
                 [ ( Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000005")),
-                    fromList [ClientId {client = "0"}, ClientId {client = "1"}]
+                    fromList [ClientId 0, ClientId 1]
                   ),
                   ( Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000200000006")),
-                    fromList [ClientId {client = "0"}]
+                    fromList [ClientId 0]
                   )
                 ]
             )
@@ -90,10 +90,10 @@ failed =
           [ ( Domain "golden.example.com",
               fromList
                 [ ( Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000007")),
-                    fromList [ClientId {client = "0"}, ClientId {client = "1"}]
+                    fromList [ClientId 0, ClientId 1]
                   ),
                   ( Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000200000008")),
-                    fromList [ClientId {client = "0"}]
+                    fromList [ClientId 0]
                   )
                 ]
             )
@@ -108,10 +108,10 @@ failedToConfirm =
           [ ( Domain "golden.example.com",
               fromList
                 [ ( Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000009")),
-                    fromList [ClientId {client = "0"}, ClientId {client = "1"}]
+                    fromList [ClientId 0, ClientId 1]
                   ),
                   ( Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000200000010")),
-                    fromList [ClientId {client = "0"}]
+                    fromList [ClientId 0]
                   )
                 ]
             )

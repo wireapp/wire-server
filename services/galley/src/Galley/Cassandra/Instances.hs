@@ -37,9 +37,10 @@ import Wire.API.Asset (AssetKey, assetKeyToText)
 import Wire.API.Conversation
 import Wire.API.Conversation.Protocol
 import Wire.API.MLS.CipherSuite
+import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.Proposal
-import Wire.API.MLS.PublicGroupState
 import Wire.API.MLS.Serialisation
+import Wire.API.MLS.SubConversation
 import Wire.API.Routes.Internal.Galley.TeamsIntra
 import Wire.API.Team
 import Wire.API.Team.Feature qualified as Public
@@ -200,12 +201,12 @@ instance Cql GroupId where
   fromCql (CqlBlob b) = Right . GroupId . LBS.toStrict $ b
   fromCql _ = Left "group_id: blob expected"
 
-instance Cql OpaquePublicGroupState where
+instance Cql GroupInfoData where
   ctype = Tagged BlobColumn
 
-  toCql = CqlBlob . LBS.fromStrict . unOpaquePublicGroupState
-  fromCql (CqlBlob b) = Right $ OpaquePublicGroupState (LBS.toStrict b)
-  fromCql _ = Left "OpaquePublicGroupState: blob expected"
+  toCql = CqlBlob . LBS.fromStrict . unGroupInfoData
+  fromCql (CqlBlob b) = Right $ GroupInfoData (LBS.toStrict b)
+  fromCql _ = Left "GroupInfoData: blob expected"
 
 instance Cql Icon where
   ctype = Tagged TextColumn
@@ -243,7 +244,7 @@ instance Cql ProposalRef where
 
 instance Cql (RawMLS Proposal) where
   ctype = Tagged BlobColumn
-  toCql = CqlBlob . LBS.fromStrict . rmRaw
+  toCql = CqlBlob . LBS.fromStrict . raw
   fromCql (CqlBlob b) = mapLeft T.unpack $ decodeMLS b
   fromCql _ = Left "Proposal: blob expected"
 
@@ -255,3 +256,9 @@ instance Cql CipherSuite where
       then Right . CipherSuite . fromIntegral $ i
       else Left "CipherSuite: an out of bounds value for Word16"
   fromCql _ = Left "CipherSuite: int expected"
+
+instance Cql SubConvId where
+  ctype = Tagged TextColumn
+  toCql = CqlText . unSubConvId
+  fromCql (CqlText txt) = Right (SubConvId txt)
+  fromCql _ = Left "SubConvId: Text expected"

@@ -34,6 +34,7 @@ module Wire.API.Routes.Public
     DescriptionOAuthScope,
     ZHostOpt,
     ZHostValue,
+    ZAuthServant,
   )
 where
 
@@ -44,18 +45,19 @@ import Data.HashMap.Strict.InsOrd qualified as InsOrdHashMap
 import Data.Id as Id
 import Data.Kind
 import Data.Metrics.Servant
+import Data.OpenApi hiding (HasServer, Header, Server)
+import Data.OpenApi qualified as S
 import Data.Qualified
-import Data.Swagger hiding (Header)
 import GHC.Base (Symbol)
 import GHC.TypeLits (KnownSymbol)
 import Imports hiding (All, head)
 import Network.Wai qualified as Wai
 import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.API.Modifiers
+import Servant.OpenApi (HasOpenApi (toOpenApi))
 import Servant.Server.Internal.Delayed
 import Servant.Server.Internal.DelayedIO
 import Servant.Server.Internal.Router (Router)
-import Servant.Swagger (HasSwagger (toSwagger))
 import Wire.API.OAuth qualified as OAuth
 import Wire.API.Routes.Version
 
@@ -223,15 +225,15 @@ type ZHostValue = Text
 type ZOptHostHeader =
   Header' '[Servant.Optional, Strict] "Z-Host" ZHostValue
 
-instance HasSwagger api => HasSwagger (ZHostOpt :> api) where
-  toSwagger _ = toSwagger (Proxy @api)
+instance HasOpenApi api => HasOpenApi (ZHostOpt :> api) where
+  toOpenApi _ = toOpenApi (Proxy @api)
 
 type instance SpecialiseToVersion v (ZHostOpt :> api) = ZHostOpt :> SpecialiseToVersion v api
 
-addZAuthSwagger :: Swagger -> Swagger
+addZAuthSwagger :: OpenApi -> OpenApi
 addZAuthSwagger s =
   s
-    & securityDefinitions <>~ SecurityDefinitions (InsOrdHashMap.singleton "ZAuth" secScheme)
+    & S.components . S.securitySchemes <>~ SecurityDefinitions (InsOrdHashMap.singleton "ZAuth" secScheme)
     & security <>~ [SecurityRequirement $ InsOrdHashMap.singleton "ZAuth" []]
   where
     secScheme =
@@ -244,11 +246,11 @@ type instance
   SpecialiseToVersion v (ZAuthServant t opts :> api) =
     ZAuthServant t opts :> SpecialiseToVersion v api
 
-instance HasSwagger api => HasSwagger (ZAuthServant 'ZAuthUser _opts :> api) where
-  toSwagger _ = addZAuthSwagger (toSwagger (Proxy @api))
+instance HasOpenApi api => HasOpenApi (ZAuthServant 'ZAuthUser _opts :> api) where
+  toOpenApi _ = addZAuthSwagger (toOpenApi (Proxy @api))
 
-instance HasSwagger api => HasSwagger (ZAuthServant 'ZLocalAuthUser opts :> api) where
-  toSwagger _ = addZAuthSwagger (toSwagger (Proxy @api))
+instance HasOpenApi api => HasOpenApi (ZAuthServant 'ZLocalAuthUser opts :> api) where
+  toOpenApi _ = addZAuthSwagger (toOpenApi (Proxy @api))
 
 instance HasLink endpoint => HasLink (ZAuthServant usr opts :> endpoint) where
   type MkLink (ZAuthServant _ _ :> endpoint) a = MkLink endpoint a
@@ -256,10 +258,10 @@ instance HasLink endpoint => HasLink (ZAuthServant usr opts :> endpoint) where
 
 instance
   {-# OVERLAPPABLE #-}
-  HasSwagger api =>
-  HasSwagger (ZAuthServant ztype _opts :> api)
+  HasOpenApi api =>
+  HasOpenApi (ZAuthServant ztype _opts :> api)
   where
-  toSwagger _ = toSwagger (Proxy @api)
+  toOpenApi _ = toOpenApi (Proxy @api)
 
 instance
   ( HasContextEntry (ctx .++ DefaultErrorFormatters) ErrorFormatters,
@@ -301,8 +303,8 @@ instance
       checkType :: Maybe ByteString -> Wai.Request -> DelayedIO ()
       checkType token req =
         case (token, lookup "Z-Type" (Wai.requestHeaders req)) of
-          (Just t, value)
-            | value /= Just t ->
+          (Just t, v)
+            | v /= Just t ->
                 delayedFail
                   ServerError
                     { errHTTPCode = 403,
@@ -321,7 +323,7 @@ instance RoutesToPaths api => RoutesToPaths (ZHostOpt :> api) where
   getRoutes = getRoutes @api
 
 -- FUTUREWORK: Make a PR to the servant-swagger package with this instance
-instance ToSchema a => ToSchema (Headers ls a) where
+instance (Typeable ls, ToSchema a) => ToSchema (Headers ls a) where
   declareNamedSchema _ = declareNamedSchema (Proxy @a)
 
 data DescriptionOAuthScope (scope :: OAuth.OAuthScope)
@@ -331,12 +333,12 @@ type instance
     DescriptionOAuthScope scope :> SpecialiseToVersion v api
 
 instance
-  (HasSwagger api, OAuth.IsOAuthScope scope) =>
-  HasSwagger (DescriptionOAuthScope scope :> api)
+  (HasOpenApi api, OAuth.IsOAuthScope scope) =>
+  HasOpenApi (DescriptionOAuthScope scope :> api)
   where
-  toSwagger _ = addScopeDescription @scope (toSwagger (Proxy @api))
+  toOpenApi _ = addScopeDescription @scope (toOpenApi (Proxy @api))
 
-addScopeDescription :: forall scope. OAuth.IsOAuthScope scope => Swagger -> Swagger
+addScopeDescription :: forall scope. OAuth.IsOAuthScope scope => OpenApi -> OpenApi
 addScopeDescription = allOperations . description %~ Just . (<> "\nOAuth scope: `" <> cs (toByteString (OAuth.toOAuthScope @scope)) <> "`") . fold
 
 instance (HasServer api ctx) => HasServer (DescriptionOAuthScope scope :> api) ctx where

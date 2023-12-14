@@ -4,13 +4,18 @@ module Testlib.Env where
 
 import Control.Monad.Codensity
 import Control.Monad.IO.Class
+import Data.Default
+import Data.Function ((&))
 import Data.Functor
 import Data.IORef
 import Data.Map qualified as Map
+import Data.Maybe (fromMaybe)
 import Data.Set (Set)
 import Data.Set qualified as Set
 import Data.Yaml qualified as Yaml
+import Database.CQL.IO qualified as Cassandra
 import Network.HTTP.Client qualified as HTTP
+import System.Environment (lookupEnv)
 import System.Exit
 import System.FilePath
 import System.IO
@@ -18,6 +23,7 @@ import System.IO.Temp
 import Testlib.Prekeys
 import Testlib.ResourcePool
 import Testlib.Types
+import Text.Read (readMaybe)
 import Prelude
 
 serviceHostPort :: ServiceMap -> Service -> HostPort
@@ -32,10 +38,10 @@ serviceHostPort m BackgroundWorker = m.backgroundWorker
 serviceHostPort m Stern = m.stern
 serviceHostPort m FederatorInternal = m.federatorInternal
 
-mkGlobalEnv :: FilePath -> IO GlobalEnv
+mkGlobalEnv :: FilePath -> Codensity IO GlobalEnv
 mkGlobalEnv cfgFile = do
-  eith <- Yaml.decodeFileEither cfgFile
-  intConfig <- case eith of
+  eith <- liftIO $ Yaml.decodeFileEither cfgFile
+  intConfig <- liftIO $ case eith of
     Left err -> do
       hPutStrLn stderr $ "Could not parse " <> cfgFile <> ": " <> Yaml.prettyPrintParseException err
       exitFailure
@@ -48,18 +54,32 @@ mkGlobalEnv cfgFile = do
             then Just (joinPath (init ps))
             else Nothing
 
-  manager <- HTTP.newManager HTTP.defaultManagerSettings
+  manager <- liftIO $ HTTP.newManager HTTP.defaultManagerSettings
+  let cassSettings =
+        Cassandra.defSettings
+          & Cassandra.setContacts intConfig.cassandra.host []
+          & Cassandra.setPortNumber (fromIntegral intConfig.cassandra.port)
+  cassClient <- Cassandra.init cassSettings
+  let resources = backendResources (Map.elems intConfig.dynamicBackends)
   resourcePool <-
-    createBackendResourcePool
-      (Map.elems intConfig.dynamicBackends)
-      intConfig.rabbitmq
+    liftIO $
+      createBackendResourcePool
+        resources
+        intConfig.rabbitmq
+        cassClient
+  let sm =
+        Map.fromList $
+          [ (intConfig.backendOne.originDomain, intConfig.backendOne.beServiceMap),
+            (intConfig.backendTwo.originDomain, intConfig.backendTwo.beServiceMap)
+          ]
+            <> [(berDomain resource, resourceServiceMap resource) | resource <- resources]
+  tempDir <- Codensity $ withSystemTempDirectory "test"
+  timeOutSeconds <-
+    liftIO $
+      fromMaybe 10 . (readMaybe @Int =<<) <$> (lookupEnv "TEST_TIMEOUT_SECONDS")
   pure
     GlobalEnv
-      { gServiceMap =
-          Map.fromList
-            [ (intConfig.backendOne.originDomain, intConfig.backendOne.beServiceMap),
-              (intConfig.backendTwo.originDomain, intConfig.backendTwo.beServiceMap)
-            ],
+      { gServiceMap = sm,
         gDomain1 = intConfig.backendOne.originDomain,
         gDomain2 = intConfig.backendTwo.originDomain,
         gDynamicDomains = (.domain) <$> Map.elems intConfig.dynamicBackends,
@@ -68,7 +88,9 @@ mkGlobalEnv cfgFile = do
         gServicesCwdBase = devEnvProjectRoot <&> (</> "services"),
         gRemovalKeyPath = error "Uninitialised removal key path",
         gBackendResourcePool = resourcePool,
-        gRabbitMQConfig = intConfig.rabbitmq
+        gRabbitMQConfig = intConfig.rabbitmq,
+        gTempDir = tempDir,
+        gTimeOutSeconds = timeOutSeconds
       }
 
 mkEnv :: GlobalEnv -> Codensity IO Env
@@ -91,7 +113,8 @@ mkEnv ge = do
           lastPrekeys = lpks,
           mls = mls,
           resourcePool = ge.gBackendResourcePool,
-          rabbitMQConfig = ge.gRabbitMQConfig
+          rabbitMQConfig = ge.gRabbitMQConfig,
+          timeOutSeconds = ge.gTimeOutSeconds
         }
 
 destroy :: IORef (Set BackendResource) -> BackendResource -> IO ()
@@ -106,6 +129,12 @@ create ioRef =
         Nothing -> error "No resources available"
         Just (r, s') -> (s', r)
 
+emptyClientGroupState :: ClientGroupState
+emptyClientGroupState = ClientGroupState Nothing Nothing
+
+allCiphersuites :: [Ciphersuite]
+allCiphersuites = map Ciphersuite ["0x0001", "0xf031"]
+
 mkMLSState :: Codensity IO MLSState
 mkMLSState = Codensity $ \k ->
   withSystemTempDirectory "mls" $ \tmp -> do
@@ -117,5 +146,7 @@ mkMLSState = Codensity $ \k ->
           groupId = Nothing,
           convId = Nothing,
           clientGroupState = mempty,
-          epoch = 0
+          epoch = 0,
+          ciphersuite = def,
+          protocol = MLSProtocolMLS
         }

@@ -21,16 +21,16 @@ import Control.Lens
 import Control.Monad.Trans.Resource
 import Data.HashMap.Strict.InsOrd
 import Data.Metrics.Servant
+import Data.OpenApi hiding (HasServer)
 import Data.Proxy
-import Data.Swagger
 import Imports
 import Network.Wai.Handler.WebSockets
 import Network.WebSockets
+import Servant.OpenApi
 import Servant.Server hiding (respond)
 import Servant.Server.Internal.Delayed
 import Servant.Server.Internal.RouteResult
 import Servant.Server.Internal.Router
-import Servant.Swagger
 import Wire.API.Routes.Version
 
 -- | A websocket that relates to a 'PendingConnection'
@@ -65,8 +65,8 @@ instance HasServer WebSocketPending ctx where
 
 type instance SpecialiseToVersion v WebSocketPending = WebSocketPending
 
-instance HasSwagger WebSocketPending where
-  toSwagger _ =
+instance HasOpenApi WebSocketPending where
+  toOpenApi _ =
     mempty
       & paths
         . at "/"
@@ -82,7 +82,7 @@ instance HasSwagger WebSocketPending where
                     )
            )
     where
-      resps :: InsOrdHashMap HttpStatusCode (Referenced Data.Swagger.Response)
+      resps :: InsOrdHashMap HttpStatusCode (Referenced Data.OpenApi.Response)
       resps =
         mempty
           & at 101 ?~ Inline (mempty & description .~ "Connection upgraded.")

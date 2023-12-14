@@ -45,7 +45,7 @@ where
 import qualified Control.Applicative as Applicative (empty)
 import Control.Lens hiding (op)
 import Control.Monad.Error.Class (MonadError)
-import Control.Monad.Except (runExceptT, throwError)
+import Control.Monad.Except (throwError)
 import Control.Monad.Trans.Except (mapExceptT)
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
 import Crypto.Hash (Digest, SHA256, hashlazy)
@@ -61,9 +61,10 @@ import qualified Galley.Types.Teams as Galley
 import Imports
 import Network.URI (URI, parseURI)
 import Polysemy
+import Polysemy.Error (Error, runError, throw)
 import Polysemy.Input
 import qualified SAML2.WebSSO as SAML
-import Spar.App (getUserByUrefUnsafe, getUserIdByScimExternalId)
+import Spar.App (getUserByUrefUnsafe, getUserByUrefViaOldIssuerUnsafe, getUserIdByScimExternalId)
 import qualified Spar.App
 import qualified Spar.Intra.BrigApp as Brig
 import Spar.Options
@@ -193,31 +194,35 @@ instance
 -- | Validate a raw SCIM user record and extract data that we care about. See also:
 -- 'ValidScimUser''.
 validateScimUser ::
-  forall m r.
-  (m ~ Scim.ScimHandler (Sem r)) =>
-  ( Member (Input Opts) r,
+  forall r.
+  ( Member SAMLUserStore r,
+    Member BrigAccess r,
+    Member (Input Opts) r,
     Member IdPConfigStore r
   ) =>
   Text ->
   -- | Used to decide what IdP to assign the user to
   ScimTokenInfo ->
   Scim.User ST.SparTag ->
-  m ST.ValidScimUser
+  Scim.ScimHandler (Sem r) ST.ValidScimUser
 validateScimUser errloc tokinfo user = do
   mIdpConfig <- tokenInfoToIdP tokinfo
   richInfoLimit <- lift $ inputs richInfoLimit
-  validateScimUser' errloc mIdpConfig richInfoLimit user
+  eitherUser <- lift $ runError $ validateScimUser' errloc mIdpConfig richInfoLimit user
+  case eitherUser of
+    Left err -> throwError err
+    Right validatedUser -> pure validatedUser
 
 tokenInfoToIdP :: Member IdPConfigStore r => ScimTokenInfo -> Scim.ScimHandler (Sem r) (Maybe IdP)
 tokenInfoToIdP ScimTokenInfo {stiIdP} =
   mapM (lift . IdPConfigStore.getConfig) stiIdP
 
 -- | Validate a handle (@userName@).
-validateHandle :: MonadError Scim.ScimError m => Text -> m Handle
+validateHandle :: Member (Error Scim.ScimError) r => Text -> Sem r Handle
 validateHandle txt = case parseHandle txt of
   Just h -> pure h
   Nothing ->
-    throwError $
+    throw $
       Scim.badRequest
         Scim.InvalidValue
         (Just (txt <> "is not a valid Wire handle"))
@@ -247,8 +252,11 @@ validateHandle txt = case parseHandle txt of
 -- that we haven't made yet. We store them in our SCIM blobs, but don't syncronize them with
 -- Brig. See <https://github.com/wireapp/wire-server/pull/559#discussion_r247466760>.
 validateScimUser' ::
-  forall m.
-  (MonadError Scim.ScimError m) =>
+  forall r.
+  ( Member (Error Scim.ScimError) r,
+    Member BrigAccess r,
+    Member SAMLUserStore r
+  ) =>
   -- | Error location (call site, for debugging)
   Text ->
   -- | IdP that the resulting user will be assigned to
@@ -256,19 +264,19 @@ validateScimUser' ::
   -- | Rich info limit
   Int ->
   Scim.User ST.SparTag ->
-  m ST.ValidScimUser
+  Sem r ST.ValidScimUser
 validateScimUser' errloc midp richInfoLimit user = do
-  unless (isNothing $ Scim.password user) $ throwError $ badRequest "Setting user passwords is not supported for security reasons."
+  unless (isNothing $ Scim.password user) $ throw $ badRequest "Setting user passwords is not supported for security reasons."
   veid <- mkValidExternalId midp (Scim.externalId user)
   handl <- validateHandle . Text.toLower . Scim.userName $ user
   -- FUTUREWORK: 'Scim.userName' should be case insensitive; then the toLower here would
   -- be a little less brittle.
   uname <- do
-    let err msg = throwError . Scim.badRequest Scim.InvalidValue . Just $ cs msg <> " (" <> errloc <> ")"
+    let err msg = throw . Scim.badRequest Scim.InvalidValue . Just $ cs msg <> " (" <> errloc <> ")"
     either err pure $ Brig.mkUserName (Scim.displayName user) veid
   richInfo <- validateRichInfo (Scim.extra user ^. ST.sueRichInfo)
   let active = Scim.active user
-  lang <- maybe (throwError $ badRequest "Could not parse language. Expected format is ISO 639-1.") pure $ mapM parseLanguage $ Scim.preferredLanguage user
+  lang <- maybe (throw $ badRequest "Could not parse language. Expected format is ISO 639-1.") pure $ mapM parseLanguage $ Scim.preferredLanguage user
   mRole <- validateRole user
   pure $ ST.ValidScimUser veid handl uname richInfo (maybe True Scim.unScimBool active) (flip Locale Nothing <$> lang) mRole
   where
@@ -280,10 +288,10 @@ validateScimUser' errloc midp richInfoLimit user = do
         [] -> pure Nothing
         [roleName] ->
           maybe
-            (throwError $ badRequest $ "The role '" <> roleName <> "' is not valid. Valid roles are " <> validRoleNames <> ".")
+            (throw $ badRequest $ "The role '" <> roleName <> "' is not valid. Valid roles are " <> validRoleNames <> ".")
             (pure . Just)
             (fromByteString $ cs roleName)
-        (_ : _ : _) -> throwError $ badRequest "A user cannot have more than one role."
+        (_ : _ : _) -> throw $ badRequest "A user cannot have more than one role."
 
     badRequest :: Text -> Scim.ScimError
     badRequest msg =
@@ -292,11 +300,11 @@ validateScimUser' errloc midp richInfoLimit user = do
         (Just $ msg <> " (" <> errloc <> ")")
 
     -- Validate rich info (@richInfo@). It must not exceed the rich info limit.
-    validateRichInfo :: RI.RichInfo -> m RI.RichInfo
+    validateRichInfo :: RI.RichInfo -> Sem r RI.RichInfo
     validateRichInfo richInfo = do
       let sze = RI.richInfoSize richInfo
       when (sze > richInfoLimit) $
-        throwError $
+        throw $
           ( Scim.badRequest
               Scim.InvalidValue
               ( Just . cs $
@@ -319,13 +327,16 @@ validateScimUser' errloc midp richInfoLimit user = do
 -- This is needed primarily in 'validateScimUser', but also in 'updateValidScimUser' to
 -- recover the 'SAML.UserRef' of the scim user before the update from the database.
 mkValidExternalId ::
-  forall m.
-  (MonadError Scim.ScimError m) =>
+  forall r.
+  ( Member BrigAccess r,
+    Member SAMLUserStore r,
+    Member (Error Scim.ScimError) r
+  ) =>
   Maybe IdP ->
   Maybe Text ->
-  m ST.ValidExternalId
+  Sem r ST.ValidExternalId
 mkValidExternalId _ Nothing =
-  throwError $
+  throw $
     Scim.badRequest
       Scim.InvalidValue
       (Just "externalId is required")
@@ -334,17 +345,30 @@ mkValidExternalId Nothing (Just extid) = do
         Scim.badRequest
           Scim.InvalidValue
           (Just "externalId must be a valid email address or (if there is a SAML IdP) a valid SAML NameID")
-  maybe (throwError err) (pure . ST.EmailOnly) $ parseEmail extid
+  maybe (throw err) (pure . ST.EmailOnly) $ parseEmail extid
 mkValidExternalId (Just idp) (Just extid) = do
   let issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
   subject <- validateSubject extid
   let uref = SAML.UserRef issuer subject
+  -- The index for URef -> user id depends on name of the issuer, which can be
+  -- updated by the team admin. This update is not applied immediately to all
+  -- users. So, we have to find which URef is actaully pointing to the user.
+  indexedUref <-
+    getUserByUrefUnsafe uref >>= \case
+      Just _ -> pure uref
+      Nothing ->
+        getUserByUrefViaOldIssuerUnsafe idp uref >>= \case
+          Just (olduref, _) -> pure olduref
+          Nothing ->
+            -- The entry in spar.user_v2 does not exist yet during user
+            -- creation. So we just assume that it will exist momentarily.
+            pure uref
   pure $ case parseEmail extid of
-    Just email -> ST.EmailAndUref email uref
-    Nothing -> ST.UrefOnly uref
+    Just email -> ST.EmailAndUref email indexedUref
+    Nothing -> ST.UrefOnly indexedUref
   where
     -- Validate a subject ID (@externalId@).
-    validateSubject :: Text -> m SAML.NameID
+    validateSubject :: Text -> Sem r SAML.NameID
     validateSubject txt = do
       unameId :: SAML.UnqualifiedNameID <- do
         let eEmail = SAML.mkUNameIDEmail txt
@@ -353,7 +377,7 @@ mkValidExternalId (Just idp) (Just extid) = do
       case SAML.mkNameID unameId Nothing Nothing Nothing of
         Right nameId -> pure nameId
         Left err ->
-          throwError $
+          throw $
             Scim.badRequest
               Scim.InvalidValue
               (Just $ "Can't construct a subject ID from externalId: " <> Text.pack err)
@@ -845,7 +869,7 @@ assertExternalIdInAllowedValues allowedValues errmsg tid veid = do
     lift $
       ST.runValidExternalIdBoth
         (\ma mb -> (&&) <$> ma <*> mb)
-        (\uref -> getUserByUrefUnsafe uref <&> (`elem` allowedValues) . fmap userId)
+        (fmap ((`elem` allowedValues) . fmap userId) . getUserByUrefUnsafe)
         (fmap (`elem` allowedValues) . getUserIdByScimExternalId tid)
         veid
   unless isGood $
@@ -1078,8 +1102,10 @@ scimFindUserByEmail mIdpConfig stiTeam email = do
   -- https://wearezeta.atlassian.net/browse/SQSERVICES-157; once it is fixed, we should go back to
   -- throwing errors returned by 'mkValidExternalId' here, but *not* throw an error if the externalId is
   -- a UUID, or any other text that is valid according to SCIM.
-  veid <- MaybeT (either (const Nothing) Just <$> runExceptT (mkValidExternalId mIdpConfig (pure email)))
+  veid <- MaybeT . lift $ either (const Nothing) Just <$> runError @Scim.ScimError (mkValidExternalId mIdpConfig (pure email))
   uid <- MaybeT . lift $ ST.runValidExternalIdEither withUref withEmailOnly veid
+  -- since gc on `spar.users{,_v2}` is unreliable, we need to double-check with brig if the
+  -- user we found actually exists.
   brigUser <- MaybeT . lift . BrigAccess.getAccount Brig.WithPendingInvitations $ uid
   getUserById mIdpConfig stiTeam . userId . accountUser $ brigUser
   where

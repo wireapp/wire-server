@@ -70,6 +70,7 @@ import Galley.Cassandra.LegalHold
 import Galley.Cassandra.Proposal
 import Galley.Cassandra.SearchVisibility
 import Galley.Cassandra.Services
+import Galley.Cassandra.SubConversation (interpretSubConversationStoreToCassandra)
 import Galley.Cassandra.Team
 import Galley.Cassandra.TeamFeatures
 import Galley.Cassandra.TeamNotifications
@@ -107,9 +108,12 @@ import System.Logger.Class (Logger)
 import System.Logger.Extended qualified as Logger
 import UnliftIO.Exception qualified as UnliftIO
 import Util.Options
+import Wire.API.Conversation.Protocol
 import Wire.API.Error
 import Wire.API.Federation.Error
+import Wire.API.Team.Feature
 import Wire.Sem.Logger qualified
+import Wire.Sem.Random.IO
 
 -- Effects needed by the interpretation of other effects
 type GalleyEffects0 =
@@ -141,6 +145,13 @@ validateOptions o = do
     (Nothing, Just _) -> error "RabbitMQ config is specified and federator is not, please specify both or none"
     (Just _, Nothing) -> error "Federator is specified and RabbitMQ config is not, please specify both or none"
     _ -> pure ()
+  let mlsFlag = settings' ^. featureFlags . Teams.flagMLS . Teams.unDefaults
+      mlsConfig = wsConfig mlsFlag
+      migrationStatus = wsStatus $ settings' ^. featureFlags . Teams.flagMlsMigration . Teams.unDefaults
+  when (migrationStatus == FeatureStatusEnabled && ProtocolMLSTag `notElem` mlsSupportedProtocols mlsConfig) $
+    error "For starting MLS migration, MLS must be included in the supportedProtocol list"
+  unless (mlsDefaultProtocol mlsConfig `elem` mlsSupportedProtocols mlsConfig) $
+    error "The list 'settings.featureFlags.mls.supportedProtocols' must include the value in the field 'settings.featureFlags.mls.defaultProtocol'"
   let errMsg = "Either conversationCodeURI or multiIngress needs to be set."
   case (settings' ^. conversationCodeURI, settings' ^. multiIngress) of
     (Nothing, Nothing) -> error errMsg
@@ -271,6 +282,8 @@ evalGalley e =
     . interpretMemberStoreToCassandra
     . interpretLegalHoldStoreToCassandra lh
     . interpretCustomBackendStoreToCassandra
+    . randomToIO
+    . interpretSubConversationStoreToCassandra
     . interpretConversationStoreToCassandra
     . interpretProposalStoreToCassandra
     . interpretCodeStoreToCassandra
@@ -281,7 +294,6 @@ evalGalley e =
     . interpretFederatorAccess
     . interpretExternalAccess
     . interpretGundeckAccess
-    . interpretDefederationNotifications
     . interpretSparAccess
     . interpretBrigAccess
   where

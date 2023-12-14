@@ -85,6 +85,7 @@
 , network
 , network-conduit-tls
 , network-uri
+, openapi3
 , optparse-applicative
 , pem
 , pipes
@@ -110,8 +111,8 @@
 , servant
 , servant-client
 , servant-client-core
+, servant-openapi3
 , servant-server
-, servant-swagger
 , servant-swagger-ui
 , sodium-crypto-sign
 , spar
@@ -120,8 +121,8 @@
 , statistics
 , stomp-queue
 , streaming-commons
-, swagger2
 , tasty
+, tasty-ant-xml
 , tasty-cannon
 , tasty-hunit
 , tasty-quickcheck
@@ -235,13 +236,14 @@ mkDerivation {
     mwc-random
     network
     network-conduit-tls
+    openapi3
     optparse-applicative
     polysemy
     polysemy-plugin
     polysemy-wire-zoo
     proto-lens
-    random
     random-shuffle
+    raw-strings-qq
     resource-pool
     resourcet
     retry
@@ -251,15 +253,14 @@ mkDerivation {
     schema-profunctor
     scientific
     servant
+    servant-openapi3
     servant-server
-    servant-swagger
     servant-swagger-ui
     sodium-crypto-sign
     split
     ssl-util
     statistics
     stomp-queue
-    swagger2
     template
     template-haskell
     text
@@ -353,6 +354,7 @@ mkDerivation {
     spar
     streaming-commons
     tasty
+    tasty-ant-xml
     tasty-cannon
     tasty-hunit
     temporary
@@ -384,6 +386,7 @@ mkDerivation {
     aeson
     base
     binary
+    brig-types
     bytestring
     containers
     data-timeout

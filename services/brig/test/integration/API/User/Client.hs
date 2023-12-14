@@ -52,6 +52,7 @@ import Data.Qualified (Qualified (..))
 import Data.Range (unsafeRange)
 import Data.Set qualified as Set
 import Data.Text.Ascii (AsciiChars (validate), encodeBase64UrlUnpadded, toText)
+import Data.Text.Encoding qualified as T
 import Data.Time (addUTCTime)
 import Data.Time.Clock.POSIX
 import Data.UUID (toByteString)
@@ -67,7 +68,7 @@ import Test.Tasty.HUnit
 import UnliftIO (mapConcurrently)
 import Util
 import Wire.API.Internal.Notification
-import Wire.API.MLS.Credential
+import Wire.API.MLS.CipherSuite
 import Wire.API.Team.Feature qualified as Public
 import Wire.API.User
 import Wire.API.User qualified as Public
@@ -478,7 +479,9 @@ testClientsWithoutPrekeys brig cannon db opts = do
       let ob = Object $ List1.head (ntfPayload n)
       ob ^? key "type" . _String
         @?= Just "user.client-remove"
-      fmap ClientId (ob ^? key "client" . key "id" . _String)
+      ( fromByteString . T.encodeUtf8
+          =<< (ob ^? key "client" . key "id" . _String)
+        )
         @?= Just (clientId c11)
 
   post
@@ -568,7 +571,7 @@ testClientsWithoutPrekeysV4 brig cannon db opts = do
       let ob = Object $ List1.head (ntfPayload n)
       ob ^? key "type" . _String
         @?= Just "user.client-remove"
-      fmap ClientId (ob ^? key "client" . key "id" . _String)
+      (fromByteString . T.encodeUtf8 =<< (ob ^? key "client" . key "id" . _String))
         @?= Just (clientId c11)
 
   post
@@ -670,7 +673,7 @@ testClientsWithoutPrekeysFailToListV4 brig cannon db opts = do
       let ob = Object $ List1.head (ntfPayload n)
       ob ^? key "type" . _String
         @?= Just "user.client-remove"
-      fmap ClientId (ob ^? key "client" . key "id" . _String)
+      (fromByteString . T.encodeUtf8 =<< (ob ^? key "client" . key "id" . _String))
         @?= Just (clientId c11)
 
   post
@@ -1015,7 +1018,7 @@ testRemoveClient hasPwd brig cannon = do
       let etype = j ^? key "type" . _String
       let eclient = j ^? key "client" . key "id" . _String
       etype @?= Just "user.client-remove"
-      fmap ClientId eclient @?= Just (clientId c)
+      (fromByteString . T.encodeUtf8 =<< eclient) @?= Just (clientId c)
   -- Not found on retry
   deleteClient brig uid (clientId c) Nothing !!! const 404 === statusCode
   -- Prekeys are gone
@@ -1334,7 +1337,7 @@ testAddMultipleTemporary brig galley cannon = do
       let etype = j ^? key "type" . _String
       let eclient = j ^? key "client" . key "id" . _String
       etype @?= Just "user.client-remove"
-      fmap ClientId eclient @?= Just (clientId client)
+      (fromByteString . T.encodeUtf8 =<< eclient) @?= Just (clientId client)
 
   galleyClients2 <- numOfGalleyClients uid
   liftIO $ assertEqual "Too many clients found" (Just 1) galleyClients2
@@ -1375,7 +1378,7 @@ testNewNonce :: Brig -> Http ()
 testNewNonce brig = do
   n1 <- check Util.getNonce 204
   n2 <- check Util.headNonce 200
-  lift $ assertBool "nonces are should not be equal" (n1 /= n2)
+  lift $ assertBool "nonces should not be equal" (n1 /= n2)
   where
     check f status = do
       uid <- userId <$> randomUser brig
@@ -1432,7 +1435,7 @@ testCreateAccessToken opts n brig = do
       <!! const 200 === statusCode
   let t = decodeToken rs
   cid <- createClientForUser brig uid
-  nonceResponse <- Util.headNonce brig uid cid <!! const 200 === statusCode
+  nonceResponse <- Util.headNonceNginz n t cid <!! const 200 === statusCode
   let nonceBs = cs $ fromMaybe (error "invalid nonce") $ getHeader "Replay-Nonce" nonceResponse
   now <- liftIO $ posixSecondsToUTCTime . fromInteger <$> (floor <$> getPOSIXTime)
   let clientIdentity = cs $ "im:wireapp=" <> cs (toText uidB64) <> "/" <> toByteString' cid <> "@" <> toByteString' localDomain
@@ -1450,6 +1453,8 @@ testCreateAccessToken opts n brig = do
   case signedOrError of
     Left err -> liftIO $ assertFailure $ "failed to sign claims: " <> show err
     Right signed -> do
+      let accessControlExposeHeaders = maybe "" cs $ getHeader "Access-Control-Expose-Headers" nonceResponse
+      liftIO $ assertBool "Access-Control-Expose-Headers should contain Replay-Nonce" $ "Replay-Nonce" `isInfixOf` accessControlExposeHeaders
       let proof = Just $ Proof (cs signed)
       response <- Util.createAccessTokenNginz n t cid proof
       let accessToken = fromRight (error $ "failed to create token: " <> show response) $ responseJsonEither response

@@ -21,6 +21,7 @@ module TestSetup
   ( test,
     tsManager,
     tsEndpoint,
+    tsBrig,
     tsOpts,
     TestSetup (..),
     Cargohold,
@@ -75,6 +76,7 @@ mkRequest (Endpoint h p) = Bilge.host (encodeUtf8 h) . Bilge.port p
 data TestSetup = TestSetup
   { _tsManager :: Manager,
     _tsEndpoint :: Endpoint,
+    _tsBrig :: Endpoint,
     _tsOpts :: Opts
   }
 
@@ -134,7 +136,8 @@ test s name action = testCase name $ do
 
 data IntegrationConfig = IntegrationConfig
   -- internal endpoint
-  { cargohold :: Endpoint
+  { cargohold :: Endpoint,
+    brig :: Endpoint
   }
   deriving (Show, Generic)
 
@@ -155,10 +158,12 @@ createTestSetup optsPath configPath = do
   iConf <- handleParseError =<< decodeFileEither configPath
   opts <- decodeFileThrow optsPath
   endpoint <- optOrEnv @IntegrationConfig (.cargohold) iConf (localEndpoint . read) "CARGOHOLD_WEB_PORT"
+  brigEndpoint <- optOrEnv @IntegrationConfig (.brig) iConf (localEndpoint . read) "BRIG_WEB_PORT"
   pure $
     TestSetup
       { _tsManager = m,
         _tsEndpoint = endpoint,
+        _tsBrig = brigEndpoint,
         _tsOpts = opts
       }
 

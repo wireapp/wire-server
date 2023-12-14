@@ -62,6 +62,8 @@ module Data.Misc
 
     -- * Typesafe FUTUREWORKS
     FutureWork (..),
+    from64,
+    readT,
   )
 where
 
@@ -77,9 +79,9 @@ import Data.ByteString.Char8 (unpack)
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (toStrict)
 import Data.IP (IP (IPv4, IPv6), toIPv4, toIPv6b)
+import Data.OpenApi qualified as S
 import Data.Range
 import Data.Schema
-import Data.Swagger qualified as S
 import Data.Text qualified as Text
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import GHC.TypeLits (Nat)
@@ -100,7 +102,7 @@ newtype IpAddr = IpAddr {ipAddr :: IP}
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema IpAddr)
 
 instance S.ToParamSchema IpAddr where
-  toParamSchema _ = mempty & S.type_ ?~ S.SwaggerString
+  toParamSchema _ = mempty & S.type_ ?~ S.OpenApiString
 
 instance FromHttpApiData IpAddr where
   parseQueryParam p = first Text.pack (runParser parser (encodeUtf8 p))
@@ -296,7 +298,7 @@ data Rsa
 newtype Fingerprint a = Fingerprint
   { fingerprintBytes :: ByteString
   }
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic, Typeable)
   deriving newtype (FromByteString, ToByteString, NFData)
 
 deriving via
@@ -314,7 +316,7 @@ deriving via
 deriving via
   (Schema (Fingerprint a))
   instance
-    (ToSchema (Fingerprint a)) =>
+    (Typeable (Fingerprint a), ToSchema (Fingerprint a)) =>
     S.ToSchema (Fingerprint a)
 
 instance ToSchema (Fingerprint Rsa) where
@@ -329,7 +331,7 @@ instance ToSchema (Fingerprint Rsa) where
       p :: Chars.Parser (Fingerprint Rsa)
       p = do
         bs <- parser
-        either fail pure (Fingerprint <$> B64.decode bs)
+        either fail (pure . Fingerprint) (B64.decode bs)
 
 instance Cql (Fingerprint a) where
   ctype = Tagged BlobColumn
@@ -378,7 +380,7 @@ deriving via (Schema (PlainTextPassword' tag)) instance ToSchema (PlainTextPassw
 
 deriving via (Schema (PlainTextPassword' tag)) instance ToSchema (PlainTextPassword' tag) => ToJSON (PlainTextPassword' tag)
 
-deriving via (Schema (PlainTextPassword' tag)) instance ToSchema (PlainTextPassword' tag) => S.ToSchema (PlainTextPassword' tag)
+deriving via (Schema (PlainTextPassword' tag)) instance (KnownNat tag, ToSchema (PlainTextPassword' tag)) => S.ToSchema (PlainTextPassword' tag)
 
 instance Show (PlainTextPassword' minLen) where
   show _ = "PlainTextPassword' <hidden>"
@@ -397,3 +399,17 @@ instance (KnownNat (n :: Nat), Within Text n 1024) => Arbitrary (PlainTextPasswo
 -- >>> let (FutureWork @'LegalholdPlusFederationNotImplemented -> _remoteUsers, localUsers)
 -- >>>      = partitionQualified domain qualifiedUids
 newtype FutureWork label payload = FutureWork payload
+
+-------------------------------------------------------------------------------
+
+-- | Same as 'read' but works on 'Text'
+readT :: Read a => Text -> Maybe a
+readT = readMaybe . Text.unpack
+{-# INLINE readT #-}
+
+-- | Decodes a base64 'Text' to a regular 'ByteString' (if possible)
+from64 :: Text -> Maybe ByteString
+from64 = hush . B64.decode . encodeUtf8
+  where
+    hush = either (const Nothing) Just
+{-# INLINE from64 #-}

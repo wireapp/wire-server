@@ -33,6 +33,7 @@ import Brig.Types.Intra (UserSet (..))
 import Brig.Types.Test.Arbitrary ()
 import Brig.Types.User.Event qualified as Ev
 import Cassandra.Exec qualified as Cql
+import Control.Category ((>>>))
 import Control.Concurrent.Chan
 import Control.Lens
 import Data.Id
@@ -647,13 +648,14 @@ testOldClientsBlockDeviceHandshake = do
         approveLegalHoldDevice (Just defPassword) uid uid tid !!! testResponse 200 Nothing
         UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped uid tid
         liftIO $ assertEqual "approving should change status" UserLegalHoldEnabled userStatus
-        getInternalClientsFull (UserSet $ Set.fromList [uid])
-          <&> userClientsFull
-          <&> Map.elems
-          <&> Set.unions
-          <&> Set.toList
-          <&> (\[x] -> x)
-          <&> clientId
+        getInternalClientsFull (UserSet $ Set.singleton uid)
+          <&> do
+            userClientsFull
+              >>> Map.elems
+              >>> Set.unions
+              >>> Set.toList
+              >>> head
+              >>> clientId
 
   withDummyTestServiceForTeam' legalholder tid $ \_ _chan -> do
     grantConsent tid legalholder
@@ -724,13 +726,14 @@ testClaimKeys testcase = do
         approveLegalHoldDevice (Just defPassword) uid uid team !!! testResponse 200 Nothing
         UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped uid team
         liftIO $ assertEqual "approving should change status" UserLegalHoldEnabled userStatus
-        getInternalClientsFull (UserSet $ Set.fromList [uid])
-          <&> userClientsFull
-          <&> Map.elems
-          <&> Set.unions
-          <&> Set.toList
-          <&> (\[x] -> x)
-          <&> clientId
+        getInternalClientsFull (UserSet $ Set.singleton uid)
+          <&> do
+            userClientsFull
+              >>> Map.elems
+              >>> Set.unions
+              >>> Set.toList
+              >>> head
+              >>> clientId
 
   let makePeerClient :: TestM ()
       makePeerClient = case testcase of

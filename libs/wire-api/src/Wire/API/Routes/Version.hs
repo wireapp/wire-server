@@ -52,15 +52,16 @@ import Data.Binary.Builder qualified as Builder
 import Data.ByteString.Conversion (ToByteString (builder), toByteString')
 import Data.ByteString.Lazy qualified as LBS
 import Data.Domain
+import Data.OpenApi qualified as S
 import Data.Schema
 import Data.Singletons.Base.TH
-import Data.Swagger qualified as S
 import Data.Text qualified as Text
 import Data.Text.Encoding as Text
 import GHC.TypeLits
 import Imports
 import Servant
 import Servant.API.Extended.RawM
+import Wire.API.Deprecated
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.VersionInfo
@@ -219,7 +220,7 @@ type instance
     s :> SpecialiseToVersion v api
 
 type instance
-  SpecialiseToVersion v (Named n api) =
+  SpecialiseToVersion v (UntypedNamed n api) =
     Named n (SpecialiseToVersion v api)
 
 type instance
@@ -229,6 +230,10 @@ type instance
 type instance
   SpecialiseToVersion v (Summary s :> api) =
     Summary s :> SpecialiseToVersion v api
+
+type instance
+  SpecialiseToVersion v (Deprecated :> api) =
+    Deprecated :> SpecialiseToVersion v api
 
 type instance
   SpecialiseToVersion v (Verb m s t r) =

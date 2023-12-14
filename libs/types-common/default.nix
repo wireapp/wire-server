@@ -17,7 +17,7 @@
 , containers
 , cryptohash-md5
 , cryptohash-sha1
-, cryptonite
+, crypton
 , currency-codes
 , data-default
 , generic-random
@@ -32,6 +32,7 @@
 , lens-datetime
 , lib
 , mime
+, openapi3
 , optparse-applicative
 , pem
 , protobuf
@@ -40,7 +41,6 @@
 , random
 , schema-profunctor
 , servant-server
-, swagger2
 , tagged
 , tasty
 , tasty-hunit
@@ -73,7 +73,7 @@ mkDerivation {
     containers
     cryptohash-md5
     cryptohash-sha1
-    cryptonite
+    crypton
     currency-codes
     data-default
     generic-random
@@ -86,6 +86,7 @@ mkDerivation {
     lens
     lens-datetime
     mime
+    openapi3
     optparse-applicative
     pem
     protobuf
@@ -94,7 +95,6 @@ mkDerivation {
     random
     schema-profunctor
     servant-server
-    swagger2
     tagged
     tasty
     tasty-hunit

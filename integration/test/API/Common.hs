@@ -18,12 +18,24 @@ defPassword :: String
 defPassword = "hunter2!"
 
 randomEmail :: App String
-randomEmail = liftIO $ do
-  n <- randomRIO (8, 15)
-  u <- replicateM n pick
+randomEmail = do
+  u <- randomName
   pure $ u <> "@example.com"
+
+randomName :: App String
+randomName = liftIO $ do
+  n <- randomRIO (8, 15)
+  replicateM n pick
   where
     chars = mkArray $ ['A' .. 'Z'] <> ['a' .. 'z'] <> ['0' .. '9']
+    pick = (chars !) <$> randomRIO (Array.bounds chars)
+
+randomHandle :: App String
+randomHandle = liftIO $ do
+  n <- randomRIO (50, 256)
+  replicateM n pick
+  where
+    chars = mkArray $ ['a' .. 'z'] <> ['0' .. '9'] <> "_-."
     pick = (chars !) <$> randomRIO (Array.bounds chars)
 
 randomHex :: Int -> App String

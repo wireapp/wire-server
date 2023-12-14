@@ -17,6 +17,9 @@
 
 module Wire.API.Routes.Internal.Brig
   ( API,
+    BrigInternalClient,
+    brigInternalClient,
+    runBrigInternalClient,
     IStatusAPI,
     EJPD_API,
     AccountAPI,
@@ -33,9 +36,7 @@ module Wire.API.Routes.Internal.Brig
     DeleteAccountConferenceCallingConfig,
     swaggerDoc,
     module Wire.API.Routes.Internal.Brig.EJPD,
-    NewKeyPackageRef (..),
-    NewKeyPackage (..),
-    NewKeyPackageResult (..),
+    FoundInvitationCode (..),
   )
 where
 
@@ -46,19 +47,24 @@ import Data.CommaSeparatedList
 import Data.Domain (Domain)
 import Data.Handle (Handle)
 import Data.Id as Id
+import Data.OpenApi (HasInfo (info), HasTitle (title), OpenApi)
+import Data.OpenApi qualified as S
 import Data.Qualified (Qualified)
 import Data.Schema hiding (swaggerDoc)
-import Data.Swagger (HasInfo (info), HasTitle (title), Swagger)
-import Data.Swagger qualified as S
+import Data.Text qualified as Text
+import GHC.TypeLits
 import Imports hiding (head)
+import Network.HTTP.Client qualified as HTTP
 import Servant hiding (Handler, WithStatus, addHeader, respond)
-import Servant.Swagger (HasSwagger (toSwagger))
-import Servant.Swagger.Internal.Orphans ()
+import Servant.Client qualified as Servant
+import Servant.Client.Core qualified as Servant
+import Servant.OpenApi (HasOpenApi (toOpenApi))
+import Servant.OpenApi.Internal.Orphans ()
+import Util.Options
 import Wire.API.Connection
 import Wire.API.Error
 import Wire.API.Error.Brig
-import Wire.API.MLS.Credential
-import Wire.API.MLS.KeyPackage
+import Wire.API.MLS.CipherSuite
 import Wire.API.MakesFederatedCall
 import Wire.API.Routes.FederationDomainConfig
 import Wire.API.Routes.Internal.Brig.Connection
@@ -68,10 +74,13 @@ import Wire.API.Routes.Internal.Brig.SearchIndex (ISearchIndexAPI)
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti qualified as Multi
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
-import Wire.API.Routes.Public (ZUser {- yes, this is a bit weird -})
+import Wire.API.Routes.Public (ZUser)
 import Wire.API.Team.Feature
+import Wire.API.Team.Invitation (Invitation)
 import Wire.API.Team.LegalHold.Internal
-import Wire.API.User
+import Wire.API.Team.Size qualified as Teamsize
+import Wire.API.User hiding (InvitationCode)
+import Wire.API.User qualified as User
 import Wire.API.User.Auth
 import Wire.API.User.Auth.LegalHold
 import Wire.API.User.Auth.ReAuth
@@ -283,7 +292,7 @@ type AccountAPI =
                :> QueryParam' [Optional, Strict] "email" Email
                :> QueryParam' [Optional, Strict] "phone" Phone
                :> MultiVerb
-                    'HEAD
+                    'GET
                     '[Servant.JSON]
                     '[ Respond 404 "Not blacklisted" (),
                        Respond 200 "Yes blacklisted" ()
@@ -497,133 +506,18 @@ instance ToSchema NewKeyPackageRef where
         <*> nkprClientId .= field "client_id" schema
         <*> nkprConversation .= field "conversation" schema
 
-data NewKeyPackage = NewKeyPackage
-  { nkpConversation :: Qualified ConvId,
-    nkpKeyPackage :: KeyPackageData
-  }
-  deriving stock (Eq, Show, Generic)
-  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema NewKeyPackage)
-
-instance ToSchema NewKeyPackage where
-  schema =
-    object "NewKeyPackage" $
-      NewKeyPackage
-        <$> nkpConversation .= field "conversation" schema
-        <*> nkpKeyPackage .= field "key_package" schema
-
-data NewKeyPackageResult = NewKeyPackageResult
-  { nkpresClientIdentity :: ClientIdentity,
-    nkpresKeyPackageRef :: KeyPackageRef
-  }
-  deriving stock (Eq, Show, Generic)
-  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema NewKeyPackageResult)
-
-instance ToSchema NewKeyPackageResult where
-  schema =
-    object "NewKeyPackageResult" $
-      NewKeyPackageResult
-        <$> nkpresClientIdentity .= field "client_identity" schema
-        <*> nkpresKeyPackageRef .= field "key_package_ref" schema
-
-type MLSAPI =
-  "mls"
-    :> ( ( "key-packages"
-             :> Capture "ref" KeyPackageRef
-             :> ( Named
-                    "get-client-by-key-package-ref"
-                    ( Summary "Resolve an MLS key package ref to a qualified client ID"
-                        :> MultiVerb
-                             'GET
-                             '[Servant.JSON]
-                             '[ RespondEmpty 404 "Key package ref not found",
-                                Respond 200 "Key package ref found" ClientIdentity
-                              ]
-                             (Maybe ClientIdentity)
-                    )
-                    :<|> ( "conversation"
-                             :> ( PutConversationByKeyPackageRef
-                                    :<|> GetConversationByKeyPackageRef
-                                )
-                         )
-                    :<|> Named
-                           "put-key-package-ref"
-                           ( Summary "Create a new KeyPackageRef mapping"
-                               :> ReqBody '[Servant.JSON] NewKeyPackageRef
-                               :> MultiVerb
-                                    'PUT
-                                    '[Servant.JSON]
-                                    '[RespondEmpty 201 "Key package ref mapping created"]
-                                    ()
-                           )
-                    :<|> Named
-                           "post-key-package-ref"
-                           ( Summary "Update a KeyPackageRef in mapping"
-                               :> ReqBody '[Servant.JSON] KeyPackageRef
-                               :> MultiVerb
-                                    'POST
-                                    '[Servant.JSON]
-                                    '[RespondEmpty 201 "Key package ref mapping updated"]
-                                    ()
-                           )
-                )
-         )
-           :<|> GetMLSClients
-           :<|> MapKeyPackageRefs
-           :<|> Named
-                  "put-key-package-add"
-                  ( "key-package-add"
-                      :> ReqBody '[Servant.JSON] NewKeyPackage
-                      :> MultiVerb1
-                           'PUT
-                           '[Servant.JSON]
-                           (Respond 200 "Key package ref mapping updated" NewKeyPackageResult)
-                  )
-       )
-
-type PutConversationByKeyPackageRef =
-  Named
-    "put-conversation-by-key-package-ref"
-    ( Summary "Associate a conversation with a key package"
-        :> ReqBody '[Servant.JSON] (Qualified ConvId)
-        :> MultiVerb
-             'PUT
-             '[Servant.JSON]
-             [ RespondEmpty 404 "No key package found by reference",
-               RespondEmpty 204 "Converstaion associated"
-             ]
-             Bool
-    )
-
-type GetConversationByKeyPackageRef =
-  Named
-    "get-conversation-by-key-package-ref"
-    ( Summary
-        "Retrieve the conversation associated with a key package"
-        :> MultiVerb
-             'GET
-             '[Servant.JSON]
-             [ RespondEmpty 404 "No associated conversation or bad key package",
-               Respond 200 "Conversation found" (Qualified ConvId)
-             ]
-             (Maybe (Qualified ConvId))
-    )
+type MLSAPI = "mls" :> GetMLSClients
 
 type GetMLSClients =
   Summary "Return all clients and all MLS-capable clients of a user"
     :> "clients"
     :> CanThrow 'UserNotFound
     :> Capture "user" UserId
-    :> QueryParam' '[Required, Strict] "sig_scheme" SignatureSchemeTag
+    :> QueryParam' '[Required, Strict] "ciphersuite" CipherSuite
     :> MultiVerb1
          'GET
          '[Servant.JSON]
          (Respond 200 "MLS clients" (Set ClientInfo))
-
-type MapKeyPackageRefs =
-  Summary "Insert bundle into the KeyPackage ref mapping. Only for tests."
-    :> "key-package-refs"
-    :> ReqBody '[Servant.JSON] KeyPackageBundle
-    :> MultiVerb 'PUT '[Servant.JSON] '[RespondEmpty 204 "Mapping was updated"] ()
 
 type GetVerificationCode =
   Summary "Get verification code for a given email and action"
@@ -663,6 +557,82 @@ type TeamsAPI =
     ( "teams"
         :> ReqBody '[Servant.JSON] (Multi.TeamStatus SearchVisibilityInboundConfig)
         :> Post '[Servant.JSON] ()
+    )
+    :<|> InvitationByEmail
+    :<|> InvitationCode
+    :<|> SuspendTeam
+    :<|> UnsuspendTeam
+    :<|> TeamSize
+    :<|> TeamInvitations
+
+type InvitationByEmail =
+  Named
+    "get-invitation-by-email"
+    ( "teams"
+        :> "invitations"
+        :> "by-email"
+        :> QueryParam' [Required, Strict] "email" Email
+        :> Get '[Servant.JSON] Invitation
+    )
+
+type InvitationCode =
+  Named
+    "get-invitation-code"
+    ( "teams"
+        :> "invitation-code"
+        :> QueryParam' [Required, Strict] "team" TeamId
+        :> QueryParam' [Required, Strict] "invitation_id" InvitationId
+        :> Get '[Servant.JSON] FoundInvitationCode
+    )
+
+newtype FoundInvitationCode = FoundInvitationCode {getFoundInvitationCode :: User.InvitationCode}
+  deriving stock (Eq, Show, Generic)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema FoundInvitationCode)
+
+instance ToSchema FoundInvitationCode where
+  schema =
+    FoundInvitationCode
+      <$> getFoundInvitationCode .= object "FoundInvitationCode" (field "code" (schema @User.InvitationCode))
+
+type SuspendTeam =
+  Named
+    "suspend-team"
+    ( "teams"
+        :> Capture "tid" TeamId
+        :> "suspend"
+        :> Post
+             '[Servant.JSON]
+             NoContent
+    )
+
+type UnsuspendTeam =
+  Named
+    "unsuspend-team"
+    ( "teams"
+        :> Capture "tid" TeamId
+        :> "unsuspend"
+        :> Post
+             '[Servant.JSON]
+             NoContent
+    )
+
+type TeamSize =
+  Named
+    "team-size"
+    ( "teams"
+        :> Capture "tid" TeamId
+        :> "size"
+        :> Get '[JSON] Teamsize.TeamSize
+    )
+
+type TeamInvitations =
+  Named
+    "create-invitations-via-scim"
+    ( "teams"
+        :> Capture "tid" TeamId
+        :> "invitations"
+        :> Servant.ReqBody '[JSON] NewUserScimInvitation
+        :> Post '[JSON] UserAccount
     )
 
 type UserAPI =
@@ -765,40 +735,54 @@ type FederationRemotesAPI =
                :> Put '[JSON] ()
            )
     :<|> Named
-           "delete-federation-remotes"
-           ( Description FederationRemotesAPIDescription
-               :> Description FederationRemotesAPIDeleteDescription
+           "add-federation-remote-team"
+           ( Description
+               "Add a remote team to the list of teams that are allowed to federate with our domain"
                :> "federation"
                :> "remotes"
                :> Capture "domain" Domain
-               :> Delete '[JSON] ()
+               :> "teams"
+               :> ReqBody '[JSON] FederationRemoteTeam
+               :> Post '[JSON] ()
            )
-    -- This is nominally similar to delete-federation-remotes,
-    -- but is called from Galley to delete the one-on-one coversations.
-    -- This is needed as Galley doesn't have access to the tables
-    -- that hold these values. We don't want these deletes to happen
-    -- in delete-federation-remotes as brig might fall over and leave
-    -- some records hanging around. Galley uses a Rabbit queue to track
-    -- what is has done and can recover from a service falling over.
     :<|> Named
-           "delete-federation-remote-from-galley"
-           ( Description FederationRemotesAPIDescription
-               :> Description FederationRemotesAPIDeleteDescription
+           "get-federation-remote-teams"
+           ( Description
+               "Get a list of teams from a remote domain that our backend is allowed to federate with."
                :> "federation"
-               :> "remote"
+               :> "remotes"
                :> Capture "domain" Domain
-               :> "galley"
+               :> "teams"
+               :> Get '[JSON] [FederationRemoteTeam]
+           )
+    :<|> Named
+           "delete-federation-remote-team"
+           ( Description
+               "Remove a remote team from the list of teams that are allowed to federate with our domain"
+               :> "federation"
+               :> "remotes"
+               :> Capture "domain" Domain
+               :> "teams"
+               :> Capture "team" TeamId
                :> Delete '[JSON] ()
            )
 
 type FederationRemotesAPIDescription =
   "See https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections for background. "
 
-type FederationRemotesAPIDeleteDescription =
-  "**WARNING!** If you remove a remote connection, all users from that remote will be removed from local conversations, and all \
-  \group conversations hosted by that remote will be removed from the local backend. This cannot be reverted! "
-
-swaggerDoc :: Swagger
+swaggerDoc :: OpenApi
 swaggerDoc =
-  toSwagger (Proxy @API)
+  toOpenApi (Proxy @API)
     & info . title .~ "Wire-Server internal brig API"
+
+newtype BrigInternalClient a = BrigInternalClient (Servant.ClientM a)
+  deriving newtype (Functor, Applicative, Monad, Servant.RunClient)
+
+brigInternalClient :: forall (name :: Symbol) endpoint. (HasEndpoint API endpoint name, Servant.HasClient BrigInternalClient endpoint) => Servant.Client BrigInternalClient endpoint
+brigInternalClient = namedClient @API @name @BrigInternalClient
+
+runBrigInternalClient :: HTTP.Manager -> Endpoint -> BrigInternalClient a -> IO (Either Servant.ClientError a)
+runBrigInternalClient httpMgr (Endpoint brigHost brigPort) (BrigInternalClient action) = do
+  let baseUrl = Servant.BaseUrl Servant.Http (Text.unpack brigHost) (fromIntegral brigPort) ""
+      clientEnv = Servant.ClientEnv httpMgr baseUrl Nothing Servant.defaultMakeClientRequest
+  Servant.runClientM action clientEnv

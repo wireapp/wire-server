@@ -88,7 +88,7 @@ import System.CryptoBox qualified as CryptoBox
 import System.Logger.Class (field, msg, val)
 import System.Logger.Class qualified as Log
 import UnliftIO (pooledMapConcurrentlyN)
-import Wire.API.MLS.Credential
+import Wire.API.MLS.CipherSuite
 import Wire.API.User.Auth
 import Wire.API.User.Client hiding (UpdateClient (..))
 import Wire.API.User.Client.Prekey
@@ -486,7 +486,7 @@ ddbVersion :: Text
 ddbVersion = "version"
 
 ddbKey :: UserId -> ClientId -> AWS.AttributeValue
-ddbKey u c = AWS.S (UUID.toText (toUUID u) <> "." <> client c)
+ddbKey u c = AWS.S (UUID.toText (toUUID u) <> "." <> clientToText c)
 
 key :: UserId -> ClientId -> HashMap Text AWS.AttributeValue
 key u c = HashMap.singleton ddbClient (ddbKey u c)

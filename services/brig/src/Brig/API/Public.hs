@@ -19,8 +19,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Brig.API.Public
-  ( sitemap,
-    servantSitemap,
+  ( servantSitemap,
     docsAPI,
     DocsAPI,
   )
@@ -31,6 +30,7 @@ import Brig.API.Client qualified as API
 import Brig.API.Connection qualified as API
 import Brig.API.Error
 import Brig.API.Handler
+import Brig.API.MLS.KeyPackages
 import Brig.API.OAuth (oauthAPI)
 import Brig.API.Properties qualified as API
 import Brig.API.Public.Swagger
@@ -48,6 +48,7 @@ import Brig.Data.UserKey qualified as UserKey
 import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
 import Brig.Effects.BlacklistStore (BlacklistStore)
 import Brig.Effects.CodeStore (CodeStore)
+import Brig.Effects.FederationConfigStore (FederationConfigStore)
 import Brig.Effects.GalleyProvider (GalleyProvider)
 import Brig.Effects.GalleyProvider qualified as GalleyProvider
 import Brig.Effects.JwtTools (JwtTools)
@@ -55,8 +56,7 @@ import Brig.Effects.PasswordResetStore (PasswordResetStore)
 import Brig.Effects.PublicKeyBundle (PublicKeyBundle)
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import Brig.Options hiding (internalEvents, sesQueue)
-import Brig.Provider.API (botAPI)
-import Brig.Provider.API qualified as Provider
+import Brig.Provider.API
 import Brig.Team.API qualified as Team
 import Brig.Team.Email qualified as Team
 import Brig.Types.Activation (ActivationPair)
@@ -82,14 +82,16 @@ import Data.CommaSeparatedList
 import Data.Domain
 import Data.FileEmbed
 import Data.Handle (Handle, parseHandle)
-import Data.Id as Id
+import Data.Id
+import Data.Id qualified as Id
 import Data.List.NonEmpty (nonEmpty)
 import Data.Map.Strict qualified as Map
 import Data.Misc (IpAddr (..))
 import Data.Nonce (Nonce, randomNonce)
+import Data.OpenApi qualified as S
 import Data.Qualified
 import Data.Range
-import Data.Swagger qualified as S
+import Data.Schema ()
 import Data.Text qualified as Text
 import Data.Text.Ascii qualified as Ascii
 import Data.Text.Lazy (pack)
@@ -98,12 +100,11 @@ import FileEmbedLzma
 import Galley.Types.Teams (HiddenPerm (..), hasPermission)
 import Imports hiding (head)
 import Network.Socket (PortNumber)
-import Network.Wai.Routing
 import Network.Wai.Utilities as Utilities
 import Polysemy
 import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant qualified
-import Servant.Swagger.Internal.Orphans ()
+import Servant.OpenApi.Internal.Orphans ()
 import Servant.Swagger.UI
 import System.Logger.Class qualified as Log
 import Util.Logging (logFunction, logHandle, logTeam, logUser)
@@ -111,6 +112,9 @@ import Wire.API.Connection qualified as Public
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
 import Wire.API.Federation.API
+import Wire.API.Federation.API.Brig qualified as BrigFederationAPI
+import Wire.API.Federation.API.Cargohold qualified as CargoholdFederationAPI
+import Wire.API.Federation.API.Galley qualified as GalleyFederationAPI
 import Wire.API.Federation.Error
 import Wire.API.Properties qualified as Public
 import Wire.API.Routes.API
@@ -120,9 +124,8 @@ import Wire.API.Routes.Internal.Cargohold qualified as CargoholdInternalAPI
 import Wire.API.Routes.Internal.Galley qualified as GalleyInternalAPI
 import Wire.API.Routes.Internal.Spar qualified as SparInternalAPI
 import Wire.API.Routes.MultiTablePaging qualified as Public
-import Wire.API.Routes.Named (Named (Named))
+import Wire.API.Routes.Named (UntypedNamed (Named))
 import Wire.API.Routes.Public.Brig
-import Wire.API.Routes.Public.Brig.Bot
 import Wire.API.Routes.Public.Brig.OAuth
 import Wire.API.Routes.Public.Cannon
 import Wire.API.Routes.Public.Cargohold
@@ -158,11 +161,22 @@ docsAPI :: Servant.Server DocsAPI
 docsAPI =
   versionedSwaggerDocsAPI
     :<|> pure eventNotificationSchemas
-    :<|> internalEndpointsSwaggerDocsAPI "brig" 9082 BrigInternalAPI.swaggerDoc
-    :<|> internalEndpointsSwaggerDocsAPI "cannon" 9093 CannonInternalAPI.swaggerDoc
-    :<|> internalEndpointsSwaggerDocsAPI "cargohold" 9094 CargoholdInternalAPI.swaggerDoc
-    :<|> internalEndpointsSwaggerDocsAPI "galley" 9095 GalleyInternalAPI.swaggerDoc
-    :<|> internalEndpointsSwaggerDocsAPI "spar" 9098 SparInternalAPI.swaggerDoc
+    :<|> internalEndpointsSwaggerDocsAPIs
+    :<|> federatedEndpointsSwaggerDocsAPIs
+
+federatedEndpointsSwaggerDocsAPIs :: Servant.Server FederationSwaggerDocsAPI
+federatedEndpointsSwaggerDocsAPIs =
+  swaggerSchemaUIServer (adjustSwaggerForFederationEndpoints "brig" BrigFederationAPI.swaggerDoc)
+    :<|> swaggerSchemaUIServer (adjustSwaggerForFederationEndpoints "galley" GalleyFederationAPI.swaggerDoc)
+    :<|> swaggerSchemaUIServer (adjustSwaggerForFederationEndpoints "cargohold" CargoholdFederationAPI.swaggerDoc)
+
+internalEndpointsSwaggerDocsAPIs :: Servant.Server InternalEndpointsSwaggerDocsAPI
+internalEndpointsSwaggerDocsAPIs =
+  internalEndpointsSwaggerDocsAPI @"brig" "brig" 9082 BrigInternalAPI.swaggerDoc
+    :<|> internalEndpointsSwaggerDocsAPI @"cannon" "cannon" 9093 CannonInternalAPI.swaggerDoc
+    :<|> internalEndpointsSwaggerDocsAPI @"cargohold" "cargohold" 9094 CargoholdInternalAPI.swaggerDoc
+    :<|> internalEndpointsSwaggerDocsAPI @"galley" "galley" 9095 GalleyInternalAPI.swaggerDoc
+    :<|> internalEndpointsSwaggerDocsAPI @"spar" "spar" 9098 SparInternalAPI.swaggerDoc
 
 -- | Serves Swagger docs for public endpoints
 --
@@ -179,10 +193,10 @@ versionedSwaggerDocsAPI (Just (VersionNumber V5)) =
         <> serviceSwagger @GundeckAPITag @'V5
         <> serviceSwagger @ProxyAPITag @'V5
         <> serviceSwagger @OAuthAPITag @'V5
-        <> serviceSwagger @BotAPITag @'V5
     )
       & S.info . S.title .~ "Wire-Server API"
       & S.info . S.description ?~ $(embedText =<< makeRelativeToProject "docs/swagger.md")
+      & S.servers .~ [S.Server ("/" <> toUrlPiece V5) Nothing mempty]
       & cleanupSwagger
 versionedSwaggerDocsAPI (Just (VersionNumber V0)) = swaggerPregenUIServer $(pregenSwagger V0)
 versionedSwaggerDocsAPI (Just (VersionNumber V1)) = swaggerPregenUIServer $(pregenSwagger V1)
@@ -217,10 +231,14 @@ versionedSwaggerDocsAPI Nothing = allroutes (throwError listAllVersionsResp)
 -- empty. It would have been too tedious to create them. Please add
 -- pre-generated docs on version increase as it's done in
 -- `versionedSwaggerDocsAPI`.
+--
+-- If you're having issues with this function not typechecking when it should,
+-- be sure to supply the type argument explicitly
 internalEndpointsSwaggerDocsAPI ::
+  forall service.
   String ->
   PortNumber ->
-  S.Swagger ->
+  S.OpenApi ->
   Servant.Server (VersionedSwaggerDocsAPIBase service)
 internalEndpointsSwaggerDocsAPI service examplePort swagger (Just (VersionNumber V5)) =
   swaggerSchemaUIServer $
@@ -251,7 +269,8 @@ servantSitemap ::
     Member PasswordResetStore r,
     Member PublicKeyBundle r,
     Member (UserPendingActivationStore p) r,
-    Member Jwk r
+    Member Jwk r,
+    Member FederationConfigStore r
   ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =
@@ -263,6 +282,7 @@ servantSitemap =
     :<|> userClientAPI
     :<|> connectionAPI
     :<|> propertiesAPI
+    :<|> mlsAPI
     :<|> userHandleAPI
     :<|> searchAPI
     :<|> authAPI
@@ -271,6 +291,8 @@ servantSitemap =
     :<|> systemSettingsAPI
     :<|> oauthAPI
     :<|> botAPI
+    :<|> servicesAPI
+    :<|> providerAPI
   where
     userAPI :: ServerT UserAPI (Handler r)
     userAPI =
@@ -369,6 +391,14 @@ servantSitemap =
       )
         :<|> Named @"list-properties" listPropertyKeysAndValues
 
+    mlsAPI :: ServerT MLSAPI (Handler r)
+    mlsAPI =
+      Named @"mls-key-packages-upload" uploadKeyPackages
+        :<|> Named @"mls-key-packages-replace" replaceKeyPackages
+        :<|> Named @"mls-key-packages-claim" claimKeyPackages
+        :<|> Named @"mls-key-packages-count" countKeyPackages
+        :<|> Named @"mls-key-packages-delete" deleteKeyPackages
+
     userHandleAPI :: ServerT UserHandleAPI (Handler r)
     userHandleAPI =
       Named @"check-user-handles" checkHandles
@@ -404,13 +434,6 @@ servantSitemap =
 -- This leads to the following events being sent:
 -- - UserDeleted event to contacts of the user
 -- - MemberLeave event to members for all conversations the user was in (via galley)
-
-sitemap ::
-  ( Member GalleyProvider r
-  ) =>
-  Routes () (Handler r) ()
-sitemap = do
-  Provider.routesPublic
 
 ---------------------------------------------------------------------------
 -- Handlers
@@ -628,7 +651,7 @@ newNonce :: UserId -> ClientId -> (Handler r) (Nonce, CacheControl)
 newNonce uid cid = do
   ttl <- setNonceTtlSecs <$> view settings
   nonce <- randomNonce
-  lift $ wrapClient $ Nonce.insertNonce ttl uid (client cid) nonce
+  lift $ wrapClient $ Nonce.insertNonce ttl uid (Id.clientToText cid) nonce
   pure (nonce, NoStore)
 
 createAccessToken ::
@@ -1063,7 +1086,7 @@ deleteSelfUser ::
   UserId ->
   Public.DeleteUser ->
   (Handler r) (Maybe Code.Timeout)
-deleteSelfUser u body =
+deleteSelfUser u body = do
   API.deleteSelfUser u (Public.deleteUserPassword body) !>> deleteUserError
 
 verifyDeleteUser :: Public.VerifyDeleteUser -> Handler r ()

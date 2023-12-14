@@ -32,14 +32,14 @@ import Data.Aeson qualified as A
 import Data.Handle
 import Data.Id
 import Data.Kind
+import Data.OpenApi qualified as S
 import Data.Schema qualified as Schema
-import Data.Swagger qualified as S
 import Imports hiding (head)
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities
 import Servant hiding (Handler, WithStatus (..), addHeader, respond)
-import Servant.Swagger (HasSwagger (toSwagger))
-import Servant.Swagger.Internal.Orphans ()
+import Servant.OpenApi (HasOpenApi (toOpenApi))
+import Servant.OpenApi.Internal.Orphans ()
 import Servant.Swagger.UI
 import Stern.Types
 import Wire.API.CustomBackend
@@ -233,7 +233,7 @@ type SternAPI =
                :> "blacklist"
                :> QueryParam' [Optional, Strict, Description "A verified email address"] "email" Email
                :> QueryParam' [Optional, Strict, Description "A verified phone number (E.164 format)."] "phone" Phone
-               :> Verb 'HEAD 200 '[JSON] NoContent
+               :> Verb 'GET 200 '[JSON] NoContent
            )
     :<|> Named
            "post-user-blacklist"
@@ -320,6 +320,7 @@ type SternAPI =
                :> Put '[JSON] NoContent
            )
     :<|> Named "get-route-outlook-cal-config" (MkFeatureGetRoute OutlookCalIntegrationConfig)
+    :<|> Named "lock-unlock-route-outlook-cal-config" (MkFeatureLockUnlockRouteTrivialConfigNoTTL OutlookCalIntegrationConfig)
     :<|> Named "put-route-outlook-cal-config" (MkFeaturePutRouteTrivialConfigNoTTL OutlookCalIntegrationConfig)
     :<|> Named
            "get-team-invoice"
@@ -455,7 +456,7 @@ type SwaggerDocsAPI = SwaggerSchemaUI "swagger-ui" "swagger.json"
 swaggerDocs :: Servant.Server SwaggerDocsAPI
 swaggerDocs =
   swaggerSchemaUIServer $
-    toSwagger (Proxy @SternAPI)
+    toOpenApi (Proxy @SternAPI)
       & S.info . S.title .~ "Stern API"
       & cleanupSwagger
 
@@ -517,6 +518,16 @@ type MkFeaturePutRouteTrivialConfigWithTTL (feature :: Type) =
     :> FeatureSymbol feature
     :> QueryParam' [Required, Strict] "status" FeatureStatus
     :> QueryParam' [Required, Strict, Description "team feature time to live, given in days, or 'unlimited' (default)."] "ttl" FeatureTTLDays
+    :> Put '[JSON] NoContent
+
+type MkFeatureLockUnlockRouteTrivialConfigNoTTL (feature :: Type) =
+  Summary "Lock / unlock status for a given feature / team (en-/disable should happen in team settings)"
+    :> "teams"
+    :> Capture "tid" TeamId
+    :> "features"
+    :> FeatureSymbol feature
+    :> "lockOrUnlock"
+    :> QueryParam' [Required, Strict] "lock-status" LockStatus
     :> Put '[JSON] NoContent
 
 type MkFeaturePutRoute (feature :: Type) =

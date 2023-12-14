@@ -83,16 +83,16 @@ mkApp o = Codensity $ \k ->
         . GZip.gzip GZip.def
         . catchErrors (e ^. appLogger) [Right $ e ^. metrics]
     servantApp :: Env -> Application
-    servantApp e0 r =
+    servantApp e0 r = do
       let e = set requestId (maybe def RequestId (lookupRequestId r)) e0
-       in Servant.serveWithContext
-            (Proxy @CombinedAPI)
-            ((o ^. settings . federationDomain) :. Servant.EmptyContext)
-            ( hoistServerWithDomain @FederationAPI (toServantHandler e) federationSitemap
-                :<|> hoistServerWithDomain @CargoholdAPI (toServantHandler e) servantSitemap
-                :<|> hoistServerWithDomain @InternalAPI (toServantHandler e) internalSitemap
-            )
-            r
+      Servant.serveWithContext
+        (Proxy @CombinedAPI)
+        ((o ^. settings . federationDomain) :. Servant.EmptyContext)
+        ( hoistServerWithDomain @FederationAPI (toServantHandler e) federationSitemap
+            :<|> hoistServerWithDomain @CargoholdAPI (toServantHandler e) servantSitemap
+            :<|> hoistServerWithDomain @InternalAPI (toServantHandler e) internalSitemap
+        )
+        r
 
 toServantHandler :: Env -> Handler a -> Servant.Handler a
 toServantHandler env = liftIO . runHandler env

@@ -1,0 +1,9 @@
+{
+    "reason": "left",
+    "targets": [
+        {
+            "domain": "example.com",
+            "id": "4f201a43-935e-4e19-8fe0-0a878d3d6e74"
+        }
+    ]
+}

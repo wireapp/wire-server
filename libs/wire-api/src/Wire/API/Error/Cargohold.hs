@@ -17,6 +17,7 @@
 
 module Wire.API.Error.Cargohold where
 
+import Data.Typeable
 import Wire.API.Error
 
 data CargoholdError
@@ -25,9 +26,11 @@ data CargoholdError
   | AssetTooLarge
   | InvalidLength
   | NoMatchingAssetEndpoint
+  | UnverifiedUser
+  | UserNotFound
 
-instance KnownError (MapError e) => IsSwaggerError (e :: CargoholdError) where
-  addToSwagger = addStaticErrorToSwagger @(MapError e)
+instance (Typeable (MapError e), KnownError (MapError e)) => IsSwaggerError (e :: CargoholdError) where
+  addToOpenApi = addStaticErrorToSwagger @(MapError e)
 
 type instance MapError 'AssetNotFound = 'StaticError 404 "not-found" "Asset not found"
 
@@ -36,6 +39,10 @@ type instance MapError 'Unauthorised = 'StaticError 403 "unauthorised" "Unauthor
 type instance MapError 'AssetTooLarge = 'StaticError 413 "client-error" "Asset too large"
 
 type instance MapError 'InvalidLength = 'StaticError 400 "invalid-length" "Invalid content length"
+
+type instance MapError 'UnverifiedUser = 'StaticError 403 "unverified-user" "Unverified user"
+
+type instance MapError 'UserNotFound = 'StaticError 403 "not-found" "User not found"
 
 -- | Return `AssetNotFound` to hide there's a multi-ingress setup.
 type instance MapError 'NoMatchingAssetEndpoint = MapError 'AssetNotFound

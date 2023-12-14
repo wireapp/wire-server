@@ -41,6 +41,7 @@ module Galley.Types.Teams
     flagOutlookCalIntegration,
     flagMLS,
     flagMlsE2EId,
+    flagMlsMigration,
     Defaults (..),
     ImplicitLockStatus (..),
     unImplicitLockStatus,
@@ -161,9 +162,10 @@ data FeatureFlags = FeatureFlags
     _flagsTeamFeatureValidateSAMLEmailsStatus :: !(Defaults (ImplicitLockStatus ValidateSAMLEmailsConfig)),
     _flagTeamFeatureSndFactorPasswordChallengeStatus :: !(Defaults (WithStatus SndFactorPasswordChallengeConfig)),
     _flagTeamFeatureSearchVisibilityInbound :: !(Defaults (ImplicitLockStatus SearchVisibilityInboundConfig)),
-    _flagMLS :: !(Defaults (ImplicitLockStatus MLSConfig)),
+    _flagMLS :: !(Defaults (WithStatus MLSConfig)),
     _flagOutlookCalIntegration :: !(Defaults (WithStatus OutlookCalIntegrationConfig)),
-    _flagMlsE2EId :: !(Defaults (WithStatus MlsE2EIdConfig))
+    _flagMlsE2EId :: !(Defaults (WithStatus MlsE2EIdConfig)),
+    _flagMlsMigration :: !(Defaults (WithStatus MlsMigrationConfig))
   }
   deriving (Eq, Show, Generic)
 
@@ -212,9 +214,10 @@ instance FromJSON FeatureFlags where
       <*> withImplicitLockStatusOrDefault obj "validateSAMLEmails"
       <*> (fromMaybe (Defaults (defFeatureStatus @SndFactorPasswordChallengeConfig)) <$> (obj .:? "sndFactorPasswordChallenge"))
       <*> withImplicitLockStatusOrDefault obj "searchVisibilityInbound"
-      <*> withImplicitLockStatusOrDefault obj "mls"
+      <*> (fromMaybe (Defaults (defFeatureStatus @MLSConfig)) <$> (obj .:? "mls"))
       <*> (fromMaybe (Defaults (defFeatureStatus @OutlookCalIntegrationConfig)) <$> (obj .:? "outlookCalIntegration"))
       <*> (fromMaybe (Defaults (defFeatureStatus @MlsE2EIdConfig)) <$> (obj .:? "mlsE2EId"))
+      <*> (fromMaybe (Defaults (defFeatureStatus @MlsMigrationConfig)) <$> (obj .:? "mlsMigration"))
     where
       withImplicitLockStatusOrDefault :: forall cfg. (IsFeatureConfig cfg, Schema.ToSchema cfg) => Object -> Key -> A.Parser (Defaults (ImplicitLockStatus cfg))
       withImplicitLockStatusOrDefault obj fieldName = fromMaybe (Defaults (ImplicitLockStatus (defFeatureStatus @cfg))) <$> obj .:? fieldName
@@ -237,6 +240,7 @@ instance ToJSON FeatureFlags where
         mls
         outlookCalIntegration
         mlsE2EId
+        mlsMigration
       ) =
       object
         [ "sso" .= sso,
@@ -253,7 +257,8 @@ instance ToJSON FeatureFlags where
           "searchVisibilityInbound" .= searchVisibilityInbound,
           "mls" .= mls,
           "outlookCalIntegration" .= outlookCalIntegration,
-          "mlsE2EId" .= mlsE2EId
+          "mlsE2EId" .= mlsE2EId,
+          "mlsMigration" .= mlsMigration
         ]
 
 instance FromJSON FeatureSSO where

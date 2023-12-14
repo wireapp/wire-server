@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -23,25 +24,14 @@ module Main
 where
 
 import Control.Exception (assert)
-import Data.Aeson as A
-import Data.Aeson.Types qualified as A
-import Data.HashMap.Strict.InsOrd qualified as HM
+import Control.Lens
+import Control.Monad.State (evalState)
+import Data.Data (Proxy (Proxy))
 import Data.Map qualified as M
-import Data.Swagger
-  ( PathItem,
-    Swagger,
-    _operationExtensions,
-    _pathItemDelete,
-    _pathItemGet,
-    _pathItemHead,
-    _pathItemOptions,
-    _pathItemPatch,
-    _pathItemPost,
-    _pathItemPut,
-    _swaggerPaths,
-  )
 import Imports
 import Language.Dot as D
+import Servant.API
+import Wire.API.MakesFederatedCall (Calls (..), FedCallFrom' (..), HasFeds (..))
 import Wire.API.Routes.API
 import Wire.API.Routes.Internal.Brig qualified as BrigIRoutes
 import Wire.API.Routes.Public.Brig
@@ -63,29 +53,25 @@ main = do
 calls :: [MakesCallTo]
 calls = assert (calls' == nub calls') calls'
   where
-    calls' = mconcat $ parse <$> swaggers
+    calls' = parse $ Proxy @Swaggers
 
-swaggers :: [Swagger]
-swaggers =
-  [ -- TODO: introduce allSwaggerDocs in wire-api that collects these for all
-    -- services, use that in /services/brig/src/Brig/API/Public.hs instead of
-    -- doing it by hand.
+type Swaggers =
+  -- TODO: introduce allSwaggerApis in wire-api that collects these for all
+  -- services, use that in /services/brig/src/Brig/API/Public.hs instead of
+  -- doing it by hand.
+  SpecialisedAPIRoutes 'V5 BrigAPITag
+    :<|> SpecialisedAPIRoutes 'V5 CannonAPITag
+    :<|> SpecialisedAPIRoutes 'V5 CargoholdAPITag
+    :<|> SpecialisedAPIRoutes 'V5 GalleyAPITag
+    :<|> SpecialisedAPIRoutes 'V5 GundeckAPITag
+    :<|> SpecialisedAPIRoutes 'V5 ProxyAPITag
+    :<|> SpecialisedAPIRoutes 'V5 SparAPITag
+    -- TODO: collect all internal apis somewhere else (brig?)
+    :<|> BrigIRoutes.API
 
-    serviceSwagger @BrigAPITag @'V5,
-    serviceSwagger @CannonAPITag @'V5,
-    serviceSwagger @CargoholdAPITag @'V5,
-    serviceSwagger @GalleyAPITag @'V5,
-    serviceSwagger @GundeckAPITag @'V5,
-    serviceSwagger @ProxyAPITag @'V5,
-    serviceSwagger @SparAPITag @'V5,
-    -- TODO: collect all internal apis somewhere else (brig?), and expose them
-    -- via an internal swagger api end-point.
-
-    BrigIRoutes.swaggerDoc
-    -- CannonIRoutes.swaggerDoc,
-    -- CargoholdIRoutes.swaggerDoc,
-    -- LegalHoldIRoutes.swaggerDoc
-  ]
+-- :<|> CannonIRoutes.API
+-- :<|> CargoholdIRoutes.API
+-- :<|> LegalHoldIRoutes.API
 
 ------------------------------
 
@@ -101,37 +87,27 @@ data MakesCallTo = MakesCallTo
 
 ------------------------------
 
-parse :: Swagger -> [MakesCallTo]
-parse =
-  mconcat
-    . fmap parseOperationExtensions
-    . mconcat
-    . fmap flattenPathItems
-    . HM.toList
-    . _swaggerPaths
+fromFedCall :: FedCallFrom' Identity -> [MakesCallTo]
+fromFedCall FedCallFrom {..} = do
+  (comp, names) <- M.assocs $ unCalls fedCalls
+  MakesCallTo
+    (runIdentity name)
+    (runIdentity method)
+    comp
+    <$> names
 
--- | extract path, method, and operation extensions
-flattenPathItems :: (FilePath, PathItem) -> [((FilePath, String), HM.InsOrdHashMap Text Value)]
-flattenPathItems (path, item) =
-  filter ((/= mempty) . snd) $
-    catMaybes
-      [ ((path, "get"),) . _operationExtensions <$> _pathItemGet item,
-        ((path, "put"),) . _operationExtensions <$> _pathItemPut item,
-        ((path, "post"),) . _operationExtensions <$> _pathItemPost item,
-        ((path, "delete"),) . _operationExtensions <$> _pathItemDelete item,
-        ((path, "options"),) . _operationExtensions <$> _pathItemOptions item,
-        ((path, "head"),) . _operationExtensions <$> _pathItemHead item,
-        ((path, "patch"),) . _operationExtensions <$> _pathItemPatch item
-      ]
+filterCalls :: FedCallFrom' Maybe -> Maybe (FedCallFrom' Identity)
+filterCalls fedCall =
+  FedCallFrom
+    <$> fmap pure (name fedCall)
+    <*> fmap pure (method fedCall)
+    <*> pure (fedCalls fedCall)
 
-parseOperationExtensions :: ((FilePath, String), HM.InsOrdHashMap Text Value) -> [MakesCallTo]
-parseOperationExtensions ((path, method), hm) = uncurry (MakesCallTo path method) <$> findCallsFedInfo hm
-
-findCallsFedInfo :: HM.InsOrdHashMap Text Value -> [(String, String)]
-findCallsFedInfo hm = case A.parse parseJSON <$> HM.lookup "wire-makes-federated-call-to" hm of
-  Just (A.Success (fedcalls :: [(String, String)])) -> fedcalls
-  Just bad -> error $ "invalid extension `wire-makes-federated-call-to`: expected `[(comp, name), ...]`, got " <> show bad
-  Nothing -> []
+parse :: HasFeds api => Proxy api -> [MakesCallTo]
+parse p = do
+  fedCallM <- evalState (getFedCalls p) mempty
+  fedCallI <- maybeToList $ filterCalls fedCallM
+  fromFedCall fedCallI
 
 ------------------------------
 
@@ -158,7 +134,7 @@ mkDotGraph inbound = Graph StrictGraph DirectedGraph Nothing (mods <> nodes <> e
     itemSourceNode (MakesCallTo path method _ _) = method <> " " <> path
 
     itemTargetNode :: MakesCallTo -> String
-    itemTargetNode (MakesCallTo _ _ comp name) = "[" <> comp <> "]:" <> name
+    itemTargetNode (MakesCallTo _ _ comp rpcName) = "[" <> comp <> "]:" <> rpcName
 
     callingNodes :: Map String Integer
     callingNodes =

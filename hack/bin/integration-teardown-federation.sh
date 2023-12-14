@@ -22,7 +22,6 @@ else
 fi
 
 . "$DIR/helm_overrides.sh"
-helmfile --file "${TOP_LEVEL}/hack/helmfile.yaml" destroy --skip-deps --skip-charts --concurrency 0
+helmfile --file "${TOP_LEVEL}/hack/helmfile.yaml" destroy --skip-deps --skip-charts --concurrency 0 || echo "Failed to delete helm deployments, ignoring this failure as next steps will the destroy namespaces anyway."
 
-kubectl delete namespace "$NAMESPACE_1"
-kubectl delete namespace "$NAMESPACE_2"
+kubectl delete namespace "$NAMESPACE_1" "$NAMESPACE_2"

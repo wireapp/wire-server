@@ -53,7 +53,6 @@ import Galley.App
 import Galley.Effects
 import Galley.Effects.BrigAccess (updateSearchVisibilityInbound)
 import Galley.Effects.GundeckAccess
-import Galley.Effects.ProposalStore
 import Galley.Effects.SearchVisibilityStore qualified as SearchVisibilityData
 import Galley.Effects.TeamFeatureStore
 import Galley.Effects.TeamFeatureStore qualified as TeamFeatures
@@ -93,10 +92,13 @@ patchFeatureStatusInternal ::
   WithStatusPatch cfg ->
   Sem r (WithStatus cfg)
 patchFeatureStatusInternal tid patch = do
+  assertTeamExists tid
   currentFeatureStatus <- getFeatureStatus @cfg DontDoAuth tid
   let newFeatureStatus = applyPatch currentFeatureStatus
+  -- setting the config can fail, so we need to do it first
+  void $ setConfigForTeam @cfg tid (forgetLock newFeatureStatus)
   when (isJust $ wspLockStatus patch) $ void $ updateLockStatus @cfg tid (wsLockStatus newFeatureStatus)
-  setConfigForTeam @cfg tid (forgetLock newFeatureStatus)
+  getFeatureStatus @cfg DontDoAuth tid
   where
     applyPatch :: WithStatus cfg -> WithStatus cfg
     applyPatch current =
@@ -284,6 +286,7 @@ instance SetFeatureConfig LegalholdConfig where
   type
     SetConfigForTeamConstraints LegalholdConfig (r :: EffectRow) =
       ( Bounded (PagingBounds InternalPaging TeamMember),
+        Member BackendNotificationQueueAccess r,
         Member BotAccess r,
         Member BrigAccess r,
         Member CodeStore r,
@@ -311,6 +314,7 @@ instance SetFeatureConfig LegalholdConfig where
         Member (ListItems LegacyPaging ConvId) r,
         Member MemberStore r,
         Member ProposalStore r,
+        Member SubConversationStore r,
         Member TeamFeatureStore r,
         Member TeamStore r,
         Member (TeamMemberStore InternalPaging) r,
@@ -360,10 +364,32 @@ instance SetFeatureConfig SearchVisibilityInboundConfig where
     updateSearchVisibilityInbound $ toTeamStatus tid wsnl
     persistAndPushEvent tid wsnl
 
-instance SetFeatureConfig MLSConfig
+instance SetFeatureConfig MLSConfig where
+  type SetConfigForTeamConstraints MLSConfig (r :: EffectRow) = (Member (Error TeamFeatureError) r)
+  setConfigForTeam tid wsnl = do
+    mlsMigrationConfig <- getConfigForTeam @MlsMigrationConfig tid
+    unless
+      ( -- default protocol needs to be included in supported protocols
+        mlsDefaultProtocol (wssConfig wsnl) `elem` mlsSupportedProtocols (wssConfig wsnl)
+          -- when MLS migration is enabled, MLS needs to be enabled as well
+          && (wsStatus mlsMigrationConfig == FeatureStatusDisabled || wssStatus wsnl == FeatureStatusEnabled)
+      )
+      $ throw MLSProtocolMismatch
+    persistAndPushEvent tid wsnl
 
 instance SetFeatureConfig ExposeInvitationURLsToTeamAdminConfig
 
 instance SetFeatureConfig OutlookCalIntegrationConfig
 
 instance SetFeatureConfig MlsE2EIdConfig
+
+instance SetFeatureConfig MlsMigrationConfig where
+  type SetConfigForTeamConstraints MlsMigrationConfig (r :: EffectRow) = (Member (Error TeamFeatureError) r)
+  setConfigForTeam tid wsnl = do
+    mlsConfig <- getConfigForTeam @MLSConfig tid
+    unless
+      ( -- when MLS migration is enabled, MLS needs to be enabled as well
+        wssStatus wsnl == FeatureStatusDisabled || wsStatus mlsConfig == FeatureStatusEnabled
+      )
+      $ throw MLSProtocolMismatch
+    persistAndPushEvent tid wsnl

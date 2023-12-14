@@ -41,6 +41,7 @@ module CargoHold.App
     App,
     runAppT,
     runAppResourceT,
+    executeBrigInteral,
 
     -- * Handler Monad
     Handler,
@@ -53,7 +54,7 @@ import Bilge (Manager, MonadHttp, RequestId (..), newManager, withResponse)
 import qualified Bilge
 import Bilge.RPC (HasRequestId (..))
 import qualified CargoHold.AWS as AWS
-import CargoHold.Options (AWSOpts, Opts, S3Compatibility (..))
+import CargoHold.Options (AWSOpts, Opts, S3Compatibility (..), brig)
 import qualified CargoHold.Options as Opt
 import Control.Error (ExceptT, exceptT)
 import Control.Exception (throw)
@@ -72,9 +73,12 @@ import Network.HTTP.Client.OpenSSL
 import Network.Wai.Utilities (Error (..))
 import OpenSSL.Session (SSLContext, SSLOption (..))
 import qualified OpenSSL.Session as SSL
+import qualified Servant.Client as Servant
 import System.Logger.Class hiding (settings)
 import qualified System.Logger.Extended as Log
 import Util.Options
+import Wire.API.Routes.Internal.Brig (BrigInternalClient)
+import qualified Wire.API.Routes.Internal.Brig as IBrig
 
 -------------------------------------------------------------------------------
 -- Environment
@@ -97,28 +101,28 @@ settings :: Lens' Env Opt.Settings
 settings = options . Opt.settings
 
 newEnv :: Opts -> IO Env
-newEnv o = do
-  met <- Metrics.metrics
-  lgr <- Log.mkLogger (o ^. Opt.logLevel) (o ^. Opt.logNetStrings) (o ^. Opt.logFormat)
-  checkOpts o lgr
-  mgr <- initHttpManager (o ^. Opt.aws . Opt.s3Compatibility)
-  h2mgr <- initHttp2Manager
-  ama <- initAws (o ^. Opt.aws) lgr mgr
-  multiIngressAWS <- initMultiIngressAWS lgr mgr
-  let loc = toLocalUnsafe (o ^. Opt.settings . Opt.federationDomain) ()
-  pure $ Env ama met lgr mgr h2mgr def o loc multiIngressAWS
+newEnv opts = do
+  metricsStorage <- Metrics.metrics
+  logger <- Log.mkLogger (opts ^. Opt.logLevel) (opts ^. Opt.logNetStrings) (opts ^. Opt.logFormat)
+  checkOpts opts logger
+  httpMgr <- initHttpManager (opts ^. Opt.aws . Opt.s3Compatibility)
+  http2Mgr <- initHttp2Manager
+  awsEnv <- initAws (opts ^. Opt.aws) logger httpMgr
+  multiIngressAWS <- initMultiIngressAWS logger httpMgr
+  let localDomain = toLocalUnsafe (opts ^. Opt.settings . Opt.federationDomain) ()
+  pure $ Env awsEnv metricsStorage logger httpMgr http2Mgr def opts localDomain multiIngressAWS
   where
     initMultiIngressAWS :: Logger -> Manager -> IO (Map String AWS.Env)
-    initMultiIngressAWS lgr mgr =
+    initMultiIngressAWS logger httpMgr =
       Map.fromList
         <$> mapM
           ( \(k, v) ->
-              initAws (patchS3DownloadEndpoint v) lgr mgr >>= \v' -> pure (k, v')
+              initAws (patchS3DownloadEndpoint v) logger httpMgr >>= \v' -> pure (k, v')
           )
-          (Map.assocs (o ^. Opt.aws . Opt.multiIngress . non Map.empty))
+          (Map.assocs (opts ^. Opt.aws . Opt.multiIngress . non Map.empty))
 
     patchS3DownloadEndpoint :: AWSEndpoint -> AWSOpts
-    patchS3DownloadEndpoint e = (o ^. Opt.aws) & Opt.s3DownloadEndpoint ?~ e
+    patchS3DownloadEndpoint e = (opts ^. Opt.aws) & Opt.s3DownloadEndpoint ?~ e
 
 -- | Validate (some) options (`Opts`)
 --
@@ -235,6 +239,12 @@ runAppT e (AppT a) = runReaderT a e
 
 runAppResourceT :: MonadIO m => Env -> ResourceT App a -> m a
 runAppResourceT e rma = liftIO . runResourceT $ transResourceT (runAppT e) rma
+
+executeBrigInteral :: BrigInternalClient a -> App (Either Servant.ClientError a)
+executeBrigInteral action = do
+  httpMgr <- view httpManager
+  brigEndpoint <- view (options . brig)
+  liftIO $ IBrig.runBrigInternalClient httpMgr brigEndpoint action
 
 -------------------------------------------------------------------------------
 -- Handler Monad

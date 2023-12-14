@@ -1,3 +1,5 @@
+{-# LANGUAGE TemplateHaskell #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -20,25 +22,72 @@ module Wire.API.Routes.FederationDomainConfig
     FederationDomainConfigs (..),
     defFederationDomainConfigs,
     FederationStrategy (..),
+    FederationRemoteTeam (..),
+    FederationRestriction (..),
   )
 where
 
-import Control.Lens ((?~))
+import Control.Lens (makePrisms, (?~))
+import Control.Lens.Tuple (_1)
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Domain (Domain)
+import Data.Id
+import Data.OpenApi qualified as S
 import Data.Schema
-import Data.Swagger qualified as S
 import GHC.Generics
 import Imports
 import Wire.API.User.Search (FederatedUserSearchPolicy)
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
+
+data FederationRestriction = FederationRestrictionAllowAll | FederationRestrictionByTeam [TeamId]
+  deriving (Eq, Show, Generic, Ord)
+  deriving (Arbitrary) via (GenericUniform FederationRestriction)
+
+makePrisms ''FederationRestriction
+
+data FederationRestrictionTag = FederationRestrictionAllowAllTag | FederationRestrictionByTeamTag
+  deriving (Eq, Enum, Bounded)
+
+makePrisms ''FederationRestrictionTag
+
+deriving via Schema FederationRestriction instance (S.ToSchema FederationRestriction)
+
+deriving via Schema FederationRestriction instance (FromJSON FederationRestriction)
+
+deriving via Schema FederationRestriction instance (ToJSON FederationRestriction)
+
+tagSchema :: ValueSchema NamedSwaggerDoc FederationRestrictionTag
+tagSchema =
+  enum @Text "FederationRestrictionTag" $
+    mconcat [element "allow_all" FederationRestrictionAllowAllTag, element "restrict_by_team" FederationRestrictionByTeamTag]
+
+instance ToSchema FederationRestriction where
+  schema =
+    object "FederationRestriction" $
+      fromTagged
+        <$> toTagged
+          .= bind
+            (fst .= field "tag" tagSchema)
+            (snd .= fieldOver _1 "value" untaggedSchema)
+    where
+      toTagged :: FederationRestriction -> (FederationRestrictionTag, FederationRestriction)
+      toTagged d@(FederationRestrictionAllowAll) = (FederationRestrictionAllowAllTag, d)
+      toTagged d@(FederationRestrictionByTeam _) = (FederationRestrictionByTeamTag, d)
+
+      fromTagged :: (FederationRestrictionTag, FederationRestriction) -> FederationRestriction
+      fromTagged = snd
+
+      untaggedSchema = dispatch $ \case
+        FederationRestrictionAllowAllTag -> tag _FederationRestrictionAllowAll null_
+        FederationRestrictionByTeamTag -> tag _FederationRestrictionByTeam (array schema)
 
 -- | Everything we need to know about a remote instance in order to federate with it.  Comes
 -- in `AllowedDomains` if `AllowStrategy` is `AllowDynamic`.  If `AllowAll`, we still use this
 -- information for search policy.
 data FederationDomainConfig = FederationDomainConfig
   { domain :: Domain,
-    cfgSearchPolicy :: FederatedUserSearchPolicy
+    searchPolicy :: FederatedUserSearchPolicy,
+    restriction :: FederationRestriction
   }
   deriving (Eq, Ord, Show, Generic)
   deriving (ToJSON, FromJSON, S.ToSchema) via Schema FederationDomainConfig
@@ -49,7 +98,8 @@ instance ToSchema FederationDomainConfig where
     object "FederationDomainConfig" $
       FederationDomainConfig
         <$> domain .= field "domain" schema
-        <*> cfgSearchPolicy .= field "search_policy" schema
+        <*> searchPolicy .= field "search_policy" schema
+        <*> restriction .= field "restriction" schema
 
 data FederationDomainConfigs = FederationDomainConfigs
   { strategy :: FederationStrategy,
@@ -98,3 +148,16 @@ instance ToSchema FederationStrategy where
           element "allowAll" AllowAll,
           element "allowDynamic" AllowDynamic
         ]
+
+newtype FederationRemoteTeam = FederationRemoteTeam
+  { teamId :: TeamId
+  }
+  deriving (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema FederationRemoteTeam
+  deriving (Arbitrary) via (GenericUniform FederationRemoteTeam)
+
+instance ToSchema FederationRemoteTeam where
+  schema =
+    object "FederationRemoteTeam" $
+      FederationRemoteTeam
+        <$> teamId .= field "team_id" schema

@@ -24,6 +24,7 @@ where
 
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Aeson qualified as A
+import Data.OpenApi qualified as S
 import Data.Schema
 import Imports
 import Network.HTTP.Types.Status
@@ -43,7 +44,7 @@ data JSONResponse = JSONResponse
     value :: A.Value
   }
   deriving (Eq, Ord, Show)
-  deriving (FromJSON, ToJSON) via Schema JSONResponse
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema JSONResponse
 
 instance ToSchema JSONResponse where
   schema =

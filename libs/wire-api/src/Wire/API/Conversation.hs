@@ -78,6 +78,7 @@ module Wire.API.Conversation
     ConversationMessageTimerUpdate (..),
     ConversationJoin (..),
     ConversationMemberUpdate (..),
+    ConversationRemoveMembers (..),
 
     -- * re-exports
     module Wire.API.Conversation.Member,
@@ -96,12 +97,13 @@ import Data.List.NonEmpty (NonEmpty)
 import Data.List1
 import Data.Map qualified as Map
 import Data.Misc
+import Data.OpenApi (deprecated)
+import Data.OpenApi qualified as S
 import Data.Qualified
 import Data.Range (Range, fromRange, rangedSchema)
 import Data.SOP
 import Data.Schema
 import Data.Set qualified as Set
-import Data.Swagger qualified as S
 import Data.UUID qualified as UUID
 import Data.UUID.V5 qualified as UUIDV5
 import Imports
@@ -110,11 +112,13 @@ import System.Random (randomRIO)
 import Wire.API.Conversation.Member
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role (RoleName, roleNameWireAdmin)
+import Wire.API.Event.LeaveReason
 import Wire.API.MLS.Group
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Version
 import Wire.API.Routes.Versioned
+import Wire.API.User
 import Wire.Arbitrary
 
 --------------------------------------------------------------------------------
@@ -123,7 +127,7 @@ import Wire.Arbitrary
 data ConversationMetadata = ConversationMetadata
   { cnvmType :: ConvType,
     -- FUTUREWORK: Make this a qualified user ID.
-    cnvmCreator :: UserId,
+    cnvmCreator :: Maybe UserId,
     cnvmAccess :: [Access],
     cnvmAccessRoles :: Set AccessRole,
     cnvmName :: Maybe Text,
@@ -135,13 +139,13 @@ data ConversationMetadata = ConversationMetadata
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConversationMetadata)
-  deriving (FromJSON, ToJSON) via Schema ConversationMetadata
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConversationMetadata
 
-defConversationMetadata :: UserId -> ConversationMetadata
-defConversationMetadata creator =
+defConversationMetadata :: Maybe UserId -> ConversationMetadata
+defConversationMetadata mCreator =
   ConversationMetadata
     { cnvmType = RegularConv,
-      cnvmCreator = creator,
+      cnvmCreator = mCreator,
       cnvmAccess = [PrivateAccess],
       cnvmAccessRoles = mempty,
       cnvmName = Nothing,
@@ -190,10 +194,10 @@ conversationMetadataObjectSchema sch =
   ConversationMetadata
     <$> cnvmType .= field "type" schema
     <*> cnvmCreator
-      .= fieldWithDocModifier
+      .= optFieldWithDocModifier
         "creator"
         (description ?~ "The creator's user ID")
-        schema
+        (maybeWithDefault A.Null schema)
     <*> cnvmAccess .= field "access" (array schema)
     <*> cnvmAccessRoles .= sch
     <*> cnvmName .= optField "name" (maybeWithDefault A.Null schema)
@@ -239,7 +243,7 @@ data Conversation = Conversation
 cnvType :: Conversation -> ConvType
 cnvType = cnvmType . cnvMetadata
 
-cnvCreator :: Conversation -> UserId
+cnvCreator :: Conversation -> Maybe UserId
 cnvCreator = cnvmCreator . cnvMetadata
 
 cnvAccess :: Conversation -> [Access]
@@ -567,14 +571,15 @@ instance ToSchema AccessRole where
 
 instance ToSchema AccessRoleLegacy where
   schema =
-    (S.schema . description ?~ desc) $
-      enum @Text "AccessRoleLegacy" $
-        mconcat
-          [ element "private" PrivateAccessRole,
-            element "team" TeamAccessRole,
-            element "activated" ActivatedAccessRole,
-            element "non_activated" NonActivatedAccessRole
-          ]
+    (S.schema . S.deprecated ?~ True) $
+      (S.schema . description ?~ desc) $
+        enum @Text "AccessRoleLegacy" $
+          mconcat
+            [ element "private" PrivateAccessRole,
+              element "team" TeamAccessRole,
+              element "activated" ActivatedAccessRole,
+              element "non_activated" NonActivatedAccessRole
+            ]
     where
       desc =
         "Which users can join conversations (deprecated, use `access_role_v2` instead).\
@@ -596,7 +601,7 @@ data ConvType
   | SelfConv
   | One2OneConv
   | ConnectConv
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Show, Enum, Generic)
   deriving (Arbitrary) via (GenericUniform ConvType)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConvType
 
@@ -645,7 +650,7 @@ data NewConv = NewConv
     -- | Every member except for the creator will have this role
     newConvUsersRole :: RoleName,
     -- | The protocol of the conversation. It can be Proteus or MLS (1.0).
-    newConvProtocol :: ProtocolTag
+    newConvProtocol :: BaseProtocolTag
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform NewConv)
@@ -670,7 +675,9 @@ newConvSchema sch =
       <$> newConvUsers
         .= ( fieldWithDocModifier
                "users"
-               (description ?~ usersDesc)
+               ( (deprecated ?~ True)
+                   . (description ?~ usersDesc)
+               )
                (array schema)
                <|> pure []
            )
@@ -704,7 +711,10 @@ newConvSchema sch =
         .= ( fieldWithDocModifier "conversation_role" (description ?~ usersRoleDesc) schema
                <|> pure roleNameWireAdmin
            )
-      <*> newConvProtocol .= protocolTagSchema
+      <*> newConvProtocol
+        .= fmap
+          (fromMaybe BaseProtocolProteusTag)
+          (optField "protocol" schema)
   where
     usersDesc =
       "List of user IDs (excluding the requestor) to be \
@@ -904,6 +914,23 @@ instance ToSchema ConversationMemberUpdate where
       $ ConversationMemberUpdate
         <$> cmuTarget .= field "target" schema
         <*> cmuUpdate .= field "update" schema
+
+data ConversationRemoveMembers = ConversationRemoveMembers
+  { crmTargets :: NonEmpty (Qualified UserId),
+    crmReason :: EdMemberLeftReason
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ConversationRemoveMembers)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConversationRemoveMembers
+
+instance ToSchema ConversationRemoveMembers where
+  schema =
+    objectWithDocModifier
+      "ConversationRemoveMembers"
+      (description ?~ "The action of removing members from a conversation")
+      $ ConversationRemoveMembers
+        <$> crmTargets .= field "targets" (nonEmptyArray schema)
+        <*> crmReason .= field "reason" schema
 
 -- | The id of the MLS self conversation for a given user
 mlsSelfConvId :: UserId -> ConvId

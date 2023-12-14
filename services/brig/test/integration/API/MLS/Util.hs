@@ -34,6 +34,7 @@ import System.FilePath
 import System.Process
 import Test.Tasty.HUnit
 import Util
+import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Serialisation
@@ -50,9 +51,10 @@ data KeyingInfo = KeyingInfo
 instance Default KeyingInfo where
   def = KeyingInfo SetKey Nothing
 
-cliCmd :: FilePath -> ClientIdentity -> [String]
-cliCmd tmp qcid =
-  ["mls-test-cli", "--store", tmp </> (show qcid <> ".db")]
+cliCmd :: FilePath -> ClientIdentity -> [String] -> CreateProcess
+cliCmd tmp qcid cmnds =
+  proc "mls-test-cli" $
+    ["--store", tmp </> (show qcid <> ".db")] <> cmnds
 
 initStore ::
   HasCallStack =>
@@ -61,9 +63,8 @@ initStore ::
   ClientIdentity ->
   m ()
 initStore tmp qcid = do
-  let cmd0 = cliCmd tmp qcid
-  void . liftIO . flip spawn Nothing . shell . unwords $
-    cmd0 <> ["init", show qcid]
+  void . liftIO . flip spawn Nothing $
+    cliCmd tmp qcid ["init", show qcid]
 
 generateKeyPackage ::
   HasCallStack =>
@@ -73,13 +74,12 @@ generateKeyPackage ::
   Maybe Timeout ->
   m (RawMLS KeyPackage, KeyPackageRef)
 generateKeyPackage tmp qcid lifetime = do
-  let cmd0 = cliCmd tmp qcid
   kp <-
     liftIO $
-      decodeMLSError <=< (flip spawn Nothing . shell . unwords) $
-        cmd0
-          <> ["key-package", "create"]
-          <> (("--lifetime " <>) . show . (#> Second) <$> maybeToList lifetime)
+      decodeMLSError <=< flip spawn Nothing $
+        cliCmd tmp qcid $
+          ["key-package", "create"]
+            <> (("--lifetime " <>) . show . (#> Second) <$> maybeToList lifetime)
   let ref = fromJust (kpRef' kp)
   pure (kp, ref)
 
@@ -93,30 +93,31 @@ uploadKeyPackages ::
   Int ->
   Http ()
 uploadKeyPackages brig tmp KeyingInfo {..} u c n = do
-  let cmd0 = cliCmd tmp cid
-      cid = mkClientIdentity u c
+  let cid = mkClientIdentity u c
   initStore tmp cid
   kps <- replicateM n (fst <$> generateKeyPackage tmp cid kiLifetime)
   when (kiSetKey == SetKey) $
     do
       pk <-
-        liftIO . flip spawn Nothing . shell . unwords $
-          cmd0 <> ["public-key"]
+        liftIO . flip spawn Nothing $
+          cliCmd tmp cid ["public-key"]
       put
         ( brig
             . paths ["clients", toByteString' c]
             . zUser (qUnqualified u)
             . json defUpdateClient {updateClientMLSPublicKeys = Map.fromList [(Ed25519, pk)]}
         )
-      !!! const 200 === statusCode
-  let upload = object ["key_packages" .= toJSON (map (Base64ByteString . rmRaw) kps)]
+      !!! const 200
+        === statusCode
+  let upload = object ["key_packages" .= toJSON (map (Base64ByteString . raw) kps)]
   post
     ( brig
         . paths ["mls", "key-packages", "self", toByteString' c]
         . zUser (qUnqualified u)
         . json upload
     )
-    !!! const (case kiSetKey of SetKey -> 201; DontSetKey -> 400) === statusCode
+    !!! const (case kiSetKey of SetKey -> 201; DontSetKey -> 400)
+      === statusCode
 
 getKeyPackageCount :: HasCallStack => Brig -> Qualified UserId -> ClientId -> Http KeyPackageCount
 getKeyPackageCount brig u c =
@@ -126,7 +127,8 @@ getKeyPackageCount brig u c =
           . paths ["mls", "key-packages", "self", toByteString' c, "count"]
           . zUser (qUnqualified u)
       )
-      <!! const 200 === statusCode
+      <!! const 200
+        === statusCode
 
 decodeMLSError :: ParseMLS a => ByteString -> IO a
 decodeMLSError s = case decodeMLS' s of

@@ -26,8 +26,8 @@ import Data.Char
 import Data.Currency qualified as Currency
 import Data.ISO3166_CountryCodes
 import Data.LanguageCodes
+import Data.OpenApi
 import Data.Proxy
-import Data.Swagger
 import Data.UUID
 import Data.X509 as X509
 import Imports
@@ -35,7 +35,7 @@ import SAML2.WebSSO qualified as SAML
 import SAML2.WebSSO.Types.TH (deriveJSONOptions)
 import Servant.API ((:>))
 import Servant.Multipart qualified as SM
-import Servant.Swagger
+import Servant.OpenApi
 import URI.ByteString
 
 deriving instance Generic ISO639_1
@@ -58,7 +58,11 @@ instance ToSchema CountryCode
 -- FUTUREWORK: Ticket for these changes https://wearezeta.atlassian.net/browse/WPB-3972
 -- Preserve the old prefix semantics for types that are coming from outside of this repo.
 samlSchemaOptions :: SchemaOptions
-samlSchemaOptions = fromAesonOptions $ deriveJSONOptions {A.fieldLabelModifier = fieldMod . dropPrefix}
+samlSchemaOptions =
+  fromAesonOptions $
+    deriveJSONOptions
+      { A.fieldLabelModifier = fieldMod . dropPrefix
+      }
   where
     fieldMod = A.fieldLabelModifier deriveJSONOptions
     dropPrefix = dropWhile (not . isUpper)
@@ -94,7 +98,7 @@ instance ToSchema (SAML.FormRedirect SAML.AuthnRequest) where
     pure $
       NamedSchema (Just "FormRedirect") $
         mempty
-          & type_ ?~ SwaggerObject
+          & type_ ?~ OpenApiObject
           & properties . at "uri" ?~ Inline (toSchema (Proxy @Text))
           & properties . at "xml" ?~ authnReqSchema
 
@@ -110,14 +114,11 @@ instance ToSchema SAML.SPMetadata where
 instance ToSchema Void where
   declareNamedSchema _ = declareNamedSchema (Proxy @String)
 
-instance HasSwagger route => HasSwagger (SM.MultipartForm SM.Mem resp :> route) where
-  toSwagger _proxy = toSwagger (Proxy @route)
+instance HasOpenApi route => HasOpenApi (SM.MultipartForm SM.Mem resp :> route) where
+  toOpenApi _proxy = toOpenApi (Proxy @route)
 
 instance ToSchema SAML.IdPId where
   declareNamedSchema _ = declareNamedSchema (Proxy @UUID)
-
-instance ToSchema SAML.IdPMetadata where
-  declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
 
 instance ToSchema a => ToSchema (SAML.IdPConfig a) where
   declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
@@ -133,6 +134,9 @@ instance ToParamSchema URI where
 
 instance ToSchema X509.SignedCertificate where
   declareNamedSchema _ = declareNamedSchema (Proxy @String)
+
+instance ToSchema SAML.IdPMetadata where
+  declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
 
 instance ToSchema Currency.Alpha where
   declareNamedSchema = genericDeclareNamedSchema defaultSchemaOptions

@@ -20,15 +20,15 @@ module Wire.API.Routes.Versioned where
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Kind
 import Data.Metrics.Servant
+import Data.OpenApi qualified as S
 import Data.Schema
 import Data.Singletons
-import Data.Swagger qualified as S
 import GHC.TypeLits
 import Imports
 import Servant
 import Servant.API.ContentTypes
-import Servant.Swagger
-import Servant.Swagger.Internal
+import Servant.OpenApi
+import Servant.OpenApi.Internal
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Version
 
@@ -63,12 +63,12 @@ type instance
 
 instance
   ( S.ToSchema (Versioned v a),
-    HasSwagger api,
+    HasOpenApi api,
     AllAccept cts
   ) =>
-  HasSwagger (VersionedReqBody v cts a :> api)
+  HasOpenApi (VersionedReqBody v cts a :> api)
   where
-  toSwagger _ = toSwagger (Proxy @(ReqBody cts (Versioned v a) :> api))
+  toOpenApi _ = toOpenApi (Proxy @(ReqBody cts (Versioned v a) :> api))
 
 --------------------------------------------------------------------------------
 -- Versioned responses
@@ -92,7 +92,7 @@ instance
   (KnownSymbol desc, S.ToSchema a) =>
   IsSwaggerResponse (VersionedRespond v s desc a)
   where
-  responseSwagger = simpleResponseSwagger @a @desc
+  responseSwagger = simpleResponseSwagger @a @'[JSON] @desc
 
 -------------------------------------------------------------------------------
 -- Versioned newtype wrapper
@@ -111,7 +111,7 @@ deriving via Schema (Versioned v a) instance ToSchema (Versioned v a) => FromJSO
 deriving via Schema (Versioned v a) instance ToSchema (Versioned v a) => ToJSON (Versioned v a)
 
 -- add version suffix to swagger schema to prevent collisions
-instance (SingI v, ToSchema (Versioned v a)) => S.ToSchema (Versioned v a) where
+instance (SingI v, ToSchema (Versioned v a), Typeable a, Typeable v) => S.ToSchema (Versioned v a) where
   declareNamedSchema _ = do
     S.NamedSchema n s <- schemaToSwagger (Proxy @(Versioned v a))
     pure $ S.NamedSchema (fmap (<> toUrlPiece (demote @v)) n) s
