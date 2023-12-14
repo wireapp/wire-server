@@ -133,7 +133,11 @@ mkApp opts =
       Just rid -> pure $ RequestId rid
       Nothing -> do
         localRid <- RequestId . cs . UUID.toByteString <$> UUID.nextRandom
-        Log.info l $ "request-id" .= localRid ~~ "request" .= (show r) ~~ msg (val "generated a new request id for local request")
+        Log.info l $
+          "request-id" .= localRid
+            ~~ "method" .= requestMethod r
+            ~~ "path" .= rawPathInfo r
+            ~~ msg (val "generated a new request id for local request")
         pure localRid
 
 closeApp :: Env -> IO ()

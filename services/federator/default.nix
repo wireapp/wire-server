@@ -119,6 +119,7 @@ mkDerivation {
     transformers
     types-common
     unix
+    uuid
     wai
     wai-utilities
     warp

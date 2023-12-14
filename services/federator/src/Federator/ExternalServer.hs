@@ -36,6 +36,8 @@ import Data.Proxy (Proxy (Proxy))
 import Data.Sequence qualified as Seq
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
+import Data.UUID as UUID
+import Data.UUID.V4 as UUID
 import Data.X509 qualified as X509
 import Federator.Discovery
 import Federator.Env
@@ -117,7 +119,7 @@ server mgr intPort interpreter =
   API
     { status = Health.status mgr "internal server" intPort,
       externalRequest = \component rpc mReqId remoteDomain remoteCert ->
-        Tagged $ \req respond -> runCodensity (interpreter (callInward component rpc (fromMaybe (RequestId "N/A") mReqId) remoteDomain remoteCert req)) respond
+        Tagged $ \req respond -> runCodensity (interpreter (callInward component rpc mReqId remoteDomain remoteCert req)) respond
     }
 
 -- FUTUREWORK(federation): Versioning of the federation API.
@@ -134,12 +136,13 @@ callInward ::
   ) =>
   Component ->
   RPC ->
-  RequestId ->
+  Maybe RequestId ->
   Domain ->
   CertHeader ->
   Wai.Request ->
   Sem r Wai.Response
-callInward component (RPC rpc) rid originDomain (CertHeader cert) wreq = do
+callInward component (RPC rpc) mReqId originDomain (CertHeader cert) wreq = do
+  rid <- liftIO $ maybe (RequestId . cs . UUID.toText <$> UUID.nextRandom) pure mReqId
   incomingCounterIncr originDomain
   -- only POST is supported
   when (Wai.requestMethod wreq /= HTTP.methodPost) $
