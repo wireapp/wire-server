@@ -11,6 +11,18 @@
         "url": "https://github.com/nikstur/bombon/archive/09dce0377beb87c24822f79501d6c76166105788.tar.gz",
         "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
     },
+    "crate2nix": {
+        "branch": "master",
+        "description": "nix build file generator for rust crates",
+        "homepage": "https://github.com/nix-community/crate2nix",
+        "owner": "nix-community",
+        "repo": "crate2nix",
+        "rev": "252ca6b353700650b8deaf76079708b833c11e54",
+        "sha256": "1apg2cskcqv92fa7ycyiwxg3f4ja750s7zianq0w7jhky2kk8vqv",
+        "type": "tarball",
+        "url": "https://github.com/nix-community/crate2nix/archive/252ca6b353700650b8deaf76079708b833c11e54.tar.gz",
+        "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
+    },
     "nixpkgs": {
         "branch": "nixpkgs-unstable",
         "description": "Nix Packages collection",

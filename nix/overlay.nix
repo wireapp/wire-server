@@ -54,6 +54,8 @@ let
 in
 
 self: super: {
+  # use crate2nix from our pin, the version in our nixpkgs is too old
+  crate2nix = ((import sources.crate2nix) { pkgs = super; });
 
   cryptobox = self.callPackage ./pkgs/cryptobox { };
   zauth = self.callPackage ./pkgs/zauth { };
