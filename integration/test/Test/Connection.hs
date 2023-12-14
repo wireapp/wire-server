@@ -322,6 +322,25 @@ testNonFederatingRemoteTeam =
       resp.json %. "label" `shouldMatch` "team-not-federating"
   where
     defSearchPolicy = "full_search"
+
+testNonMutualFederationConnectionAttempt :: HasCallStack => App ()
+testNonMutualFederationConnectionAttempt =
+  withFederatingBackendsAllowDynamic $ \(domainA, domainB, _) -> do
+    sequence_
+      [ createFedConn domainA (FedConn domainB defSearchPolicy Nothing),
+        createFedConn domainB (FedConn domainA defSearchPolicy Nothing)
+      ]
+    alice <- randomUser domainA def
+    bob <- randomUser domainB def {API.BrigInternal.team = True}
+
+    -- Alice's backend federates with Bob's team
+    void $ updateFedConn domainA domainB (FedConn domainB defSearchPolicy $ Just [])
+    bobTeamId <- bob %. "team"
+    addFederationRemoteTeam domainA domainB bobTeamId
+
+    -- Bob's backend federates with no team on Alice's backend
+    void $ updateFedConn domainB domainA (FedConn domainA defSearchPolicy $ Just [])
+
     postConnection alice bob `bindResponse` \resp -> do
       resp.status `shouldMatchInt` 403
       resp.json %. "label" `shouldMatch` "team-not-federating"
