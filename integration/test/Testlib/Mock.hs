@@ -1,5 +1,6 @@
 module Testlib.Mock (startMockServer, MockServerConfig (..), codensityApp) where
 
+import Control.Arrow ((>>>))
 import Control.Concurrent.Async
 import Control.Concurrent.MVar
 import Control.Exception
@@ -29,15 +30,16 @@ spawnServer wsettings sock app = liftIO $ Warp.runSettingsSocket wsettings sock 
 spawnTLSServer :: Warp.Settings -> Socket.Socket -> Wai.Application -> App ()
 spawnTLSServer wsettings sock app = do
   (cert, key) <-
-    asks (.servicesCwdBase) <&> \case
-      Nothing ->
-        ( "/etc/wire/federator/secrets/tls.crt",
-          "/etc/wire/federator/secrets/tls.key"
-        )
-      Just base ->
-        ( base <> "/federator/test/resources/integration-leaf.pem",
-          base <> "/federator/test/resources/integration-leaf-key.pem"
-        )
+    asks do
+      servicesCwdBase >>> \case
+        Nothing ->
+          ( "/etc/wire/federator/secrets/tls.crt",
+            "/etc/wire/federator/secrets/tls.key"
+          )
+        Just base ->
+          ( base <> "/federator/test/resources/integration-leaf.pem",
+            base <> "/federator/test/resources/integration-leaf-key.pem"
+          )
   liftIO $ Warp.runTLSSocket (Warp.tlsSettings cert key) wsettings sock app
 
 startMockServer :: MockServerConfig -> Wai.Application -> Codensity App Warp.Port
