@@ -361,7 +361,6 @@ onError g m r k e = liftIO $ do
   when (code >= 500) $
     either Prm.incCounter (counterIncr (path "net.errors")) `mapM_` m
   flushRequestBody r
-  Log.flush g
   k (jsonResponseToWai resp)
 
 -- | Log an 'Error' response for debugging purposes.
