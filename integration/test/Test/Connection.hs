@@ -346,3 +346,14 @@ testNonMutualFederationConnectionAttempt =
       resp.json %. "label" `shouldMatch` "team-not-federating"
   where
     defSearchPolicy = "full_search"
+
+testFederationAllowAllConnectWithRemote :: HasCallStack => App ()
+testFederationAllowAllConnectWithRemote =
+  withFederatingBackendsAllowDynamic $ \(domainA, domainB, _) -> do
+    sequence_
+      [ createFedConn domainA (FedConn domainB defSearchPolicy Nothing),
+        createFedConn domainB (FedConn domainA defSearchPolicy Nothing)
+      ]
+    void $ createAndConnectUsers [domainA, domainB]
+  where
+    defSearchPolicy = "full_search"
