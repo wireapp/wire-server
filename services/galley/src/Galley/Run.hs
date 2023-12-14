@@ -132,7 +132,7 @@ mkApp opts =
     lookupReqId l r = case lookup requestIdName $ requestHeaders r of
       Just rid -> pure $ RequestId rid
       Nothing -> do
-        localRid <- RequestId . cs . UUID.toByteString <$> UUID.nextRandom
+        localRid <- RequestId . cs . UUID.toText <$> UUID.nextRandom
         Log.info l $
           "request-id" .= localRid
             ~~ "method" .= requestMethod r
