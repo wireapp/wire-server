@@ -107,17 +107,26 @@ getFederationStatus _ request = do
       fedDomains <- fromList . fmap (.domain) . (.remotes) <$> lift (liftSem $ E.getFederationConfigs)
       pure $ NonConnectedBackends (request.domains \\ fedDomains)
 
-sendConnectionAction :: Domain -> NewConnectionRequest -> Handler r NewConnectionResponse
+sendConnectionAction ::
+  Member FederationConfigStore r =>
+  Domain ->
+  NewConnectionRequest ->
+  Handler r NewConnectionResponse
 sendConnectionAction originDomain NewConnectionRequest {..} = do
-  active <- lift $ wrapClient $ Data.isActivated to
-  if active
+  let rTeam = qTagUnsafe (Qualified fromTeam originDomain)
+  federates <- lift . liftSem . E.backendFederatesWith $ rTeam
+  if federates
     then do
-      self <- qualifyLocal to
-      let other = toRemoteUnsafe originDomain from
-      mconnection <- lift . wrapClient $ Data.lookupConnection self (tUntagged other)
-      maction <- lift $ performRemoteAction self other mconnection action
-      pure $ NewConnectionResponseOk maction
-    else pure NewConnectionResponseUserNotActivated
+      active <- lift $ wrapClient $ Data.isActivated to
+      if active
+        then do
+          self <- qualifyLocal to
+          let other = toRemoteUnsafe originDomain from
+          mconnection <- lift . wrapClient $ Data.lookupConnection self (tUntagged other)
+          maction <- lift $ performRemoteAction self other mconnection action
+          pure $ NewConnectionResponseOk maction
+        else pure NewConnectionResponseUserNotActivated
+    else pure NewConnectionResponseNotFederating
 
 getUserByHandle ::
   ( Member GalleyProvider r,

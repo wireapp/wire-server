@@ -212,6 +212,7 @@ performLocalAction self mzcon other mconnection action = do
           !>> ConnectFederationError
       case (response :: NewConnectionResponse) of
         NewConnectionResponseOk reaction -> pure reaction
+        NewConnectionResponseNotFederating -> throwE ConnectTeamFederationError
         NewConnectionResponseUserNotActivated -> throwE (InvalidUser (tUntagged other))
     pure $
       fromMaybe rel1 $ do
@@ -302,28 +303,16 @@ checkLimitForLocalAction u oldRel action =
   when (oldRel `notElem` [Accepted, Sent] && (action == LocalConnect)) $
     checkLimit u
 
-class HasTeam a where
-  -- | Find out the team ID of a remote entity.
-  teamId :: Remote a -> ConnectionM r (Remote (Maybe TeamId))
-
-instance HasTeam TeamId where
-  teamId = pure . fmap Just
-
-instance HasTeam UserId where
-  teamId remote = do
-    profiles <-
-      withExceptT ConnectFederationError $
-        getUsersByIds (tDomain remote) [tUnqualified remote]
-    pure . qualifyAs remote $ profileTeam =<< listToMaybe profiles
-
 -- | Check if the local backend federates with the remote user's team. Throw an
 -- exception if it does not federate.
 ensureFederatesWith ::
   Member FederationConfigStore r =>
-  HasTeam a =>
-  Remote a ->
+  Remote UserId ->
   ConnectionM r ()
 ensureFederatesWith remote = do
-  rTeam <- teamId remote
+  profiles <-
+    withExceptT ConnectFederationError $
+      getUsersByIds (tDomain remote) [tUnqualified remote]
+  let rTeam = qualifyAs remote $ profileTeam =<< listToMaybe profiles
   unlessM (lift . liftSem . backendFederatesWith $ rTeam) $
     throwE ConnectTeamFederationError

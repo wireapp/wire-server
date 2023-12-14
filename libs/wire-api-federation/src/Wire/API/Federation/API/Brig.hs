@@ -171,6 +171,7 @@ instance ToSchema RemoteConnectionAction
 
 data NewConnectionResponse
   = NewConnectionResponseUserNotActivated
+  | NewConnectionResponseNotFederating
   | NewConnectionResponseOk (Maybe RemoteConnectionAction)
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform NewConnectionResponse)
