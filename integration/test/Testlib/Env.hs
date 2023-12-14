@@ -60,23 +60,26 @@ mkGlobalEnv cfgFile = do
           & Cassandra.setContacts intConfig.cassandra.host []
           & Cassandra.setPortNumber (fromIntegral intConfig.cassandra.port)
   cassClient <- Cassandra.init cassSettings
+  let resources = backendResources (Map.elems intConfig.dynamicBackends)
   resourcePool <-
     liftIO $
       createBackendResourcePool
-        (Map.elems intConfig.dynamicBackends)
+        resources
         intConfig.rabbitmq
         cassClient
+  let sm =
+        Map.fromList $
+          [ (intConfig.backendOne.originDomain, intConfig.backendOne.beServiceMap),
+            (intConfig.backendTwo.originDomain, intConfig.backendTwo.beServiceMap)
+          ]
+            <> [(berDomain resource, resourceServiceMap resource) | resource <- resources]
   tempDir <- Codensity $ withSystemTempDirectory "test"
   timeOutSeconds <-
     liftIO $
       fromMaybe 10 . (readMaybe @Int =<<) <$> (lookupEnv "TEST_TIMEOUT_SECONDS")
   pure
     GlobalEnv
-      { gServiceMap =
-          Map.fromList
-            [ (intConfig.backendOne.originDomain, intConfig.backendOne.beServiceMap),
-              (intConfig.backendTwo.originDomain, intConfig.backendTwo.beServiceMap)
-            ],
+      { gServiceMap = sm,
         gDomain1 = intConfig.backendOne.originDomain,
         gDomain2 = intConfig.backendTwo.originDomain,
         gDynamicDomains = (.domain) <$> Map.elems intConfig.dynamicBackends,

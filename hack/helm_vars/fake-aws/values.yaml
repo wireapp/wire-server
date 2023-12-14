@@ -1,3 +1,36 @@
 fake-aws-ses:
   enabled: true
   sesSender: "backend-integrationk8s@wire.com"
+
+fake-aws-sqs:
+  queueNames:
+  - "integration-brig-events"
+  - "integration-brig-events-internal"
+  - "integration-gundeck-events"
+  - "integration-user-events.fifo"
+  - "integration-team-events.fifo"
+
+  # No need for the set of queues with "2" as the suffix because the second
+  # deployment of wire-server runs in a separate namespace (the "-fed2"
+  # namespace) with its own fake-aws-sqs.
+  #
+  # In that namespace these extra queues will be unused, but its easier to
+  # create them and not use them than to not create them. It shouldn't create
+  # any significant perfomance degradation.
+  - "integration-brig-events3"
+  - "integration-brig-events-internal3"
+  - "integration-gundeck-events3"
+  - "integration-user-events3.fifo"
+  - "integration-team-events3.fifo"
+
+  - "integration-brig-events4"
+  - "integration-brig-events-internal4"
+  - "integration-gundeck-events4"
+  - "integration-user-events4.fifo"
+  - "integration-team-events4.fifo"
+
+  - "integration-brig-events5"
+  - "integration-brig-events-internal5"
+  - "integration-gundeck-events5"
+  - "integration-user-events5.fifo"
+  - "integration-team-events5.fifo"

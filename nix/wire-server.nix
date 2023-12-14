@@ -44,7 +44,7 @@
 # with nixpkgs' dockerTools to make derivations for docker images that we need.
 pkgs:
 let
-  lib = pkgs.lib;
+  inherit (pkgs) lib;
   hlib = pkgs.haskell.lib;
   withCleanedPath = drv:
     hlib.overrideCabal drv (old: {
@@ -223,13 +223,6 @@ let
     checkPhase = "";
   };
 
-  integration-dynamic-backends-sqs = pkgs.writeShellApplication {
-    name = "integration-dynamic-backends-sqs.sh";
-    text = "${builtins.readFile ../integration/scripts/integration-dynamic-backends-sqs.sh}";
-    runtimeInputs = [ pkgs.parallel pkgs.awscli2 ];
-    checkPhase = "";
-  };
-
   integration-dynamic-backends-ses = pkgs.writeShellApplication {
     name = "integration-dynamic-backends-ses.sh";
     text = "${builtins.readFile ../integration/scripts/integration-dynamic-backends-ses.sh}";
@@ -286,7 +279,6 @@ let
       pkgs.awscli2
       integration-dynamic-backends-db-schemas
       integration-dynamic-backends-brig-index
-      integration-dynamic-backends-sqs
       integration-dynamic-backends-ses
       integration-dynamic-backends-s3
       integration-dynamic-backends-vhosts
@@ -459,9 +451,20 @@ let
       export LOCALE_ARCHIVE=${pkgs.glibcLocales}/lib/locale/locale-archive
     '';
   };
+  allLocalPackages = pkgs.symlinkJoin {
+    name = "all-local-packages";
+    paths = map (e: (hPkgs localModsEnableAll).${e}) wireServerPackages;
+  };
+
+  allImages = pkgs.linkFarm "all-images" (images localModsEnableAll);
+
+  # BOM is an acronym for bill of materials
+  allLocalPackagesBom = lib.buildBom allLocalPackages {
+    includeBuildtimeDependencies = true;
+  };
 in
 {
-  inherit ciImage hoogleImage;
+  inherit ciImage hoogleImage allImages allLocalPackages allLocalPackagesBom;
 
   images = images localModsEnableAll;
   imagesUnoptimizedNoDocs = images localModsOnlyTests;
@@ -522,13 +525,4 @@ in
   inherit brig-templates;
   haskellPackages = hPkgs localModsEnableAll;
   haskellPackagesUnoptimizedNoDocs = hPkgs localModsOnlyTests;
-  allLocalPackages = pkgs.symlinkJoin {
-    name = "all-local-packages";
-    paths = map (e: (hPkgs localModsEnableAll).${e}) wireServerPackages;
-  };
-
-  allImages = pkgs.symlinkJoin {
-    name = "all-images";
-    paths = builtins.attrValues (images localModsEnableAll);
-  };
 } // attrsets.genAttrs wireServerPackages (e: (hPkgs localModsEnableAll).${e})
