@@ -357,3 +357,27 @@ testFederationAllowAllConnectWithRemote =
     void $ createAndConnectUsers [domainA, domainB]
   where
     defSearchPolicy = "full_search"
+
+testFederationAllowDynamicConnectWithRemote :: HasCallStack => App ()
+testFederationAllowDynamicConnectWithRemote =
+  withFederatingBackendsAllowDynamic $ \(domainA, domainB, _) -> do
+    sequence_
+      [ createFedConn domainA (FedConn domainB defSearchPolicy Nothing),
+        createFedConn domainB (FedConn domainA defSearchPolicy Nothing)
+      ]
+    alice <- randomUser domainA def {API.BrigInternal.team = True}
+    bob <- randomUser domainB def {API.BrigInternal.team = True}
+
+    -- Alice's backend federates with Bob's team
+    void $ updateFedConn domainA domainB (FedConn domainB defSearchPolicy $ Just [])
+    bobTeamId <- bob %. "team"
+    addFederationRemoteTeam domainA domainB bobTeamId
+
+    -- Bob's backend federates with Alice's team
+    void $ updateFedConn domainB domainA (FedConn domainA defSearchPolicy $ Just [])
+    aliceTeamId <- alice %. "team"
+    addFederationRemoteTeam domainB domainA aliceTeamId
+
+    connectTwoUsers alice bob
+  where
+    defSearchPolicy = "full_search"
