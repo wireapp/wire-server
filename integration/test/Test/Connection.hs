@@ -17,7 +17,7 @@
 module Test.Connection where
 
 import API.Brig (getConnection, postConnection, putConnection)
-import API.BrigInternal (getConnStatusForUsers)
+import API.BrigInternal
 import API.Galley
 import SetupHelpers
 import Testlib.Prelude
@@ -306,3 +306,24 @@ testConnectionLimits = do
 
   postConnection alice charlie4 `bindResponse` \resp ->
     resp.status `shouldMatchInt` 201
+
+testNonFederatingRemoteTeam :: HasCallStack => App ()
+testNonFederatingRemoteTeam =
+  withFederatingBackendsAllowDynamic $ \(domainA, domainB, _) -> do
+    sequence_
+      [ createFedConn domainA (FedConn domainB defSearchPolicy Nothing),
+        createFedConn domainB (FedConn domainA defSearchPolicy Nothing)
+      ]
+    void $ updateFedConn domainA domainB (FedConn domainB defSearchPolicy $ Just [])
+    alice <- randomUser domainA def
+    bob <- randomUser domainB def
+    postConnection alice bob `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 403
+      resp.json %. "label" `shouldMatch` "team-not-federating"
+  where
+    defSearchPolicy = "full_search"
+    postConnection alice bob `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 403
+      resp.json %. "label" `shouldMatch` "team-not-federating"
+  where
+    defSearchPolicy = "full_search"
