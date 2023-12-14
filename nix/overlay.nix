@@ -50,7 +50,6 @@ let
     };
 
   sources = import ./sources.nix;
-  pkgsCargo = import sources.nixpkgs-cargo { };
 in
 
 self: super: {
