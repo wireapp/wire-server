@@ -33,7 +33,7 @@ data BackendNotification = BackendNotification
     -- pusher. This also makes development less clunky as we don't have to
     -- create a sum type here for all types of notifications that could exist.
     body :: RawJson,
-    requestId :: RequestId
+    requestId :: Maybe RequestId
   }
   deriving (Show, Eq)
 
@@ -54,7 +54,7 @@ instance FromJSON BackendNotification where
       <*> o .: "targetComponent"
       <*> o .: "path"
       <*> (RawJson . TL.encodeUtf8 <$> o .: "body")
-      <*> o .: "requestId"
+      <*> o .:? "requestId"
 
 type BackendNotificationAPI = Capture "name" Text :> ReqBody '[JSON] RawJson :> Post '[JSON] EmptyResponse
 

@@ -7,6 +7,7 @@ import Control.Monad.Catch
 import Control.Retry
 import Data.Aeson qualified as A
 import Data.Domain
+import Data.Id
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as Text
@@ -96,7 +97,7 @@ pushNotification runningFlag targetDomain (msg, envelope) = do
         ceHttp2Manager <- asks http2Manager
         let ceOriginDomain = notif.ownDomain
             ceTargetDomain = targetDomain
-            ceOriginRequestId = notif.requestId
+            ceOriginRequestId = fromMaybe (RequestId "N/A") notif.requestId
             fcEnv = FederatorClientEnv {..}
         liftIO $ either throwM pure =<< sendNotification fcEnv notif.targetComponent notif.path notif.body
         lift $ ack envelope

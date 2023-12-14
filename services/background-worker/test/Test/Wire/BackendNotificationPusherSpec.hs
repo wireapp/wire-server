@@ -64,7 +64,7 @@ spec = do
                 ownDomain = origDomain,
                 path = "/on-user-deleted-connections",
                 body = RawJson $ Aeson.encode notifContent,
-                requestId = RequestId "N/A"
+                requestId = Just $ RequestId "N/A"
               }
       envelope <- newMockEnvelope
       let msg =
@@ -131,7 +131,7 @@ spec = do
                 ownDomain = origDomain,
                 path = "/on-user-deleted-connections",
                 body = RawJson $ Aeson.encode notifContent,
-                requestId = RequestId "N/A"
+                requestId = Just $ RequestId "N/A"
               }
       envelope <- newMockEnvelope
       let msg =

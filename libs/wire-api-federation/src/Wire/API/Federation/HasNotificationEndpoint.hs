@@ -51,7 +51,7 @@ fedNotifToBackendNotif ::
   Domain ->
   Payload tag ->
   BackendNotification
-fedNotifToBackendNotif mReqId ownDomain payload =
+fedNotifToBackendNotif rid ownDomain payload =
   let p = T.pack . symbolVal $ Proxy @(NotificationPath tag)
       b = RawJson . encode $ payload
    in toNotif p b
@@ -63,5 +63,5 @@ fedNotifToBackendNotif mReqId ownDomain payload =
           targetComponent = componentVal @(NotificationComponent k),
           path = path,
           body = body,
-          requestId = mReqId
+          requestId = Just rid
         }
