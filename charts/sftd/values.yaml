@@ -60,7 +60,7 @@ tolerations: []
 
 affinity: {}
 
-# allowOrigin:  https://webapp.example.com
+# allowOrigin:  https://webapp.wire.example
 # host:
 tls: {}
   # {key,crt} and issuerRef are mutally exclusive

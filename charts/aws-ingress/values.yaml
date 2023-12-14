@@ -9,26 +9,26 @@ ingress:
   webapp:
     https:
       externalPort: 443
-      sslCert: arn:aws:iam::00000-accountnumber-00000:server-certificate/example.com
+      sslCert: arn:aws:iam::00000-accountnumber-00000:server-certificate/wire.example
       sslPolicy: ELBSecurityPolicy-TLS-1-2-2017-01
-      hostname: webapp.example.com
+      hostname: webapp.wire.example
       ttl: 300
     http:
       webappPort: 8080
   nginz:
     https:
       externalPort: 443
-      sslCert: arn:aws:iam::00000-accountnumber-00000:server-certificate/example.com
+      sslCert: arn:aws:iam::00000-accountnumber-00000:server-certificate/wire.example
       sslPolicy: ELBSecurityPolicy-TLS-1-2-2017-01
-      hostname: nginz-https.example.com
+      hostname: nginz-https.wire.example
       ttl: 300
     http:
       httpPort: 8080
     wss:
       externalPort: 443
-      sslCert: arn:aws:iam::00000-accountnumber-00000:server-certificate/example.com
+      sslCert: arn:aws:iam::00000-accountnumber-00000:server-certificate/wire.example
       sslPolicy: ELBSecurityPolicy-TLS-1-2-2017-01
-      hostname: nginz-ssl.example.com
+      hostname: nginz-ssl.wire.example
       ttl: 300
     ws:
       wsPort: 8081
@@ -36,9 +36,9 @@ ingress:
     enabled: false # set to true if you wish to use minio on AWS instead of using real S3
     https:
       externalPort: 443
-      sslCert: arn:aws:iam::00000-accountnumber-00000:server-certificate/example.com
+      sslCert: arn:aws:iam::00000-accountnumber-00000:server-certificate/wire.example
       sslPolicy: ELBSecurityPolicy-TLS-1-2-2017-01
-      hostname: assets.example.com
+      hostname: assets.wire.example
       ttl: 300
     http:
       s3Port: 9000
@@ -48,18 +48,18 @@ ingress:
   teamSettings:
     https:
       externalPort: 443
-      sslCert: arn:aws:iam::00000-accountnumber-00000:server-certificate/example.com
+      sslCert: arn:aws:iam::00000-accountnumber-00000:server-certificate/wire.example
       sslPolicy: ELBSecurityPolicy-TLS-1-2-2017-01
-      hostname: teams.example.com
+      hostname: teams.wire.example
       ttl: 300
     http:
       teamSettingsPort: 8080
   accountPages:
     https:
       externalPort: 443
-      sslCert: arn:aws:iam::00000-accountnumber-00000:server-certificate/example.com
+      sslCert: arn:aws:iam::00000-accountnumber-00000:server-certificate/wire.example
       sslPolicy: ELBSecurityPolicy-TLS-1-2-2017-01
-      hostname: account.example.com
+      hostname: account.wire.example
       ttl: 300
     http:
       accountPagesPort: 8080
