@@ -56,6 +56,9 @@ hself: hsuper: {
   # PR with fix: https://github.com/freckle/hspec-junit-formatter/pull/23
   hspec-junit-formatter = hlib.markUnbroken (hlib.dontCheck hsuper.hspec-junit-formatter);
 
+  # fails doctest
+  markov-chain-usage-model = hlib.markUnbroken (hlib.dontCheck hsuper.markov-chain-usage-model);
+
   # Some test seems to be broken
   hsaml2 = hlib.dontCheck hsuper.hsaml2;
   saml2-web-sso = hlib.dontCheck hsuper.saml2-web-sso;
