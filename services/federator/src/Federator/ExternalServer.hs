@@ -62,10 +62,12 @@ import Servant.API.Extended.Endpath
 import Servant.Client.Core
 import Servant.Server (Tagged (..))
 import Servant.Server.Generic
+import System.Logger (msg, val, (.=), (~~))
 import System.Logger.Message qualified as Log
 import Wire.API.Federation.Component
 import Wire.API.Federation.Domain
 import Wire.API.Routes.FederationDomainConfig
+import Wire.Sem.Logger (info)
 
 -- | Used to get PEM encoded certificate out of an HTTP header
 newtype CertHeader = CertHeader X509.Certificate
@@ -142,7 +144,16 @@ callInward ::
   Wai.Request ->
   Sem r Wai.Response
 callInward component (RPC rpc) mReqId originDomain (CertHeader cert) wreq = do
-  rid <- liftIO $ maybe (RequestId . cs . UUID.toText <$> UUID.nextRandom) pure mReqId
+  rid <- case mReqId of
+    Just r -> pure r
+    Nothing -> do
+      localRid <- liftIO $ RequestId . cs . UUID.toText <$> UUID.nextRandom
+      info $
+        "request-id" .= localRid
+          ~~ "method" .= Wai.requestMethod wreq
+          ~~ "path" .= Wai.rawPathInfo wreq
+          ~~ msg (val "generated a new request id for local request")
+      pure localRid
   incomingCounterIncr originDomain
   -- only POST is supported
   when (Wai.requestMethod wreq /= HTTP.methodPost) $
