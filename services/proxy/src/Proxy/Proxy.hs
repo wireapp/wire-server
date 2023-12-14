@@ -28,9 +28,12 @@ import Control.Lens hiding ((.=))
 import Control.Monad.Catch
 import Control.Monad.IO.Unlift ()
 import Data.Id (RequestId (..))
+import Data.UUID as UUID
+import Data.UUID.V4 as UUID
 import Imports
 import Network.Wai
 import Proxy.Env
+import System.Logger qualified as Log
 import System.Logger qualified as Logger
 import System.Logger.Class hiding (Error, info)
 
@@ -53,11 +56,22 @@ instance MonadLogger Proxy where
   log l m = ask >>= \e -> Logger.log (e ^. applog) l (reqIdMsg (e ^. reqId) . m)
 
 runProxy :: Env -> Request -> Proxy ResponseReceived -> IO ResponseReceived
-runProxy e r m = runReaderT (unProxy m) (reqId .~ lookupReqId r $ e)
+runProxy e r m = do
+  rid <- lookupReqId (e ^. applog) r
+  runReaderT (unProxy m) (reqId .~ rid $ e)
 
 reqIdMsg :: RequestId -> Msg -> Msg
 reqIdMsg = ("request" .=) . unRequestId
 {-# INLINE reqIdMsg #-}
 
-lookupReqId :: Request -> RequestId
-lookupReqId = RequestId . fromMaybe "N/A" . lookup requestIdName . requestHeaders
+lookupReqId :: Logger -> Request -> IO RequestId
+lookupReqId l r = case lookup requestIdName (requestHeaders r) of
+  Just rid -> pure $ RequestId rid
+  Nothing -> do
+    localRid <- RequestId . cs . UUID.toText <$> UUID.nextRandom
+    Log.info l $
+      "request-id" .= localRid
+        ~~ "method" .= requestMethod r
+        ~~ "path" .= rawPathInfo r
+        ~~ msg (val "generated a new request id for local request")
+    pure localRid

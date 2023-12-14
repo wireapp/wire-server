@@ -25,6 +25,7 @@
 , tinylog
 , types-common
 , unliftio-core
+, uuid
 , wai
 , wai-predicates
 , wai-routing
@@ -58,6 +59,7 @@ mkDerivation {
     tinylog
     types-common
     unliftio-core
+    uuid
     wai
     wai-predicates
     wai-routing

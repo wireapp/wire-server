@@ -94,6 +94,7 @@ library
     , tinylog             >=0.12
     , types-common        >=0.8
     , unliftio-core
+    , uuid
     , wai                 >=3.2
     , wai-predicates      >=0.8
     , wai-routing         >=0.12
