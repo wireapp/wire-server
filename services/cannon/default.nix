@@ -87,6 +87,7 @@ mkDerivation {
     types-common
     unix
     unliftio
+    uuid
     vector
     wai
     wai-extra

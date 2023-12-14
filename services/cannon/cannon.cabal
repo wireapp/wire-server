@@ -107,6 +107,7 @@ library
     , types-common           >=0.16
     , unix
     , unliftio
+    , uuid
     , vector                 >=0.10
     , wai                    >=3.0
     , wai-extra              >=3.0

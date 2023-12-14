@@ -104,7 +104,11 @@ mkApp o = Codensity $ \k ->
       Just rid -> pure $ RequestId rid
       Nothing -> do
         localRid <- RequestId . cs . UUID.toText <$> UUID.nextRandom
-        Log.info l $ "request-id" .= localRid ~~ "request" .= (show r) ~~ msg (val "generated a new request id for local request")
+        Log.info l $
+          "request-id" .= localRid
+            ~~ "method" .= Wai.requestMethod r
+            ~~ "path" .= Wai.rawPathInfo r
+            ~~ msg (val "generated a new request id for local request")
         pure localRid
 
 toServantHandler :: Env -> Handler a -> Servant.Handler a

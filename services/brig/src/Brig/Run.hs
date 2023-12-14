@@ -167,7 +167,11 @@ lookupRequestIdMiddleware logger mkapp req cont = do
       mkapp (RequestId rid) req cont
     Nothing -> do
       localRid <- RequestId . cs . UUID.toText <$> UUID.nextRandom
-      Log.info logger $ "request-id" .= localRid ~~ "request" .= (show req) ~~ msg (val "generated a new request id for local request")
+      Log.info logger $
+        "request-id" .= localRid
+          ~~ "method" .= Wai.requestMethod req
+          ~~ "path" .= Wai.rawPathInfo req
+          ~~ msg (val "generated a new request id for local request")
       mkapp localRid req cont
 
 customFormatters :: Servant.ErrorFormatters
