@@ -57,10 +57,9 @@ tests ::
   Cannon ->
   Galley ->
   FedClient 'Brig ->
-  FedClient 'Galley ->
   DB.ClientState ->
   TestTree
-tests cl _at p b _c g fedBrigClient _fedGalleyClient db =
+tests cl _at p b _c g fedBrigClient db =
   testGroup
     "connection"
     [ test p "post /connections" $ testCreateManualConnections b,
