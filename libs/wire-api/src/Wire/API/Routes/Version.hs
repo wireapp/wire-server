@@ -231,6 +231,8 @@ instance ToSchema VersionExp where
 
 deriving via Schema VersionExp instance (FromJSON VersionExp)
 
+deriving via Schema VersionExp instance (ToJSON VersionExp)
+
 -- | Expand a version expression into a set of versions.
 expandVersionExp :: VersionExp -> Set Version
 expandVersionExp (VersionExpConst v) = Set.singleton v

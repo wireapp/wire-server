@@ -64,6 +64,7 @@ import System.Logger.Extended (mkLogger)
 import Util.Options
 import Wire.API.Routes.API
 import Wire.API.Routes.Public.Galley
+import Wire.API.Routes.Version
 import Wire.API.Routes.Version.Wai
 
 run :: Opts -> IO ()
@@ -93,7 +94,7 @@ mkApp opts =
     env <- lift $ App.createEnv metrics opts logger
     lift $ runClient (env ^. cstate) $ versionCheck schemaVersion
     let middlewares =
-          versionMiddleware (opts ^. settings . disabledAPIVersions . traverse)
+          versionMiddleware (foldMap expandVersionExp (fold (opts ^. settings . disabledAPIVersions)))
             . servantPlusWAIPrometheusMiddleware API.waiSitemap (Proxy @CombinedAPI)
             . GZip.gunzip
             . GZip.gzip GZip.def

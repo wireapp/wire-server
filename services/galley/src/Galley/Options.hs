@@ -129,7 +129,7 @@ data Settings = Settings
     _mlsPrivateKeyPaths :: !(Maybe MLSPrivateKeyPaths),
     -- | FUTUREWORK: 'setFeatureFlags' should be renamed to 'setFeatureConfigs' in all types.
     _featureFlags :: !FeatureFlags,
-    _disabledAPIVersions :: Maybe (Set Version)
+    _disabledAPIVersions :: Maybe [VersionExp]
   }
   deriving (Show, Generic)
 

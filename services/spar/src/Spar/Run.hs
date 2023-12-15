@@ -53,6 +53,7 @@ import Spar.Orphans ()
 import System.Logger.Class (Logger)
 import qualified System.Logger.Extended as Log
 import Util.Options (endpoint, filterNodesByDatacentre, host, keyspace, port)
+import Wire.API.Routes.Version (expandVersionExp)
 import Wire.API.Routes.Version.Wai
 import Wire.Sem.Logger.TinyLog
 
@@ -114,7 +115,7 @@ mkApp sparCtxOpts = do
           . Bilge.port (sparCtxOpts ^. to galley . port)
           $ Bilge.empty
   let wrappedApp =
-        versionMiddleware (fold (disabledAPIVersions sparCtxOpts))
+        versionMiddleware (foldMap expandVersionExp (fold (disabledAPIVersions sparCtxOpts)))
           . WU.heavyDebugLogging heavyLogOnly logLevel sparCtxLogger
           . servantPrometheusMiddleware (Proxy @SparAPI)
           . WU.catchErrors sparCtxLogger []
