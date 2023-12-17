@@ -1,0 +1,6 @@
+{
+  "biscuit 0.6.0-beta1 (git+https://github.com/beltram/biscuit?tag=v0.6.2-pre.core-crypto-0.7.0#fe28ef69c3e0b2a42a9e736a7cde8bdd448ffe69)": "1f1s16l5l1sva30a4s0w1piimqm1gyc7a5jcxh903v7y97hxp3ly",
+  "jwt-simple 0.11.4 (git+https://github.com/wireapp/rust-jwt-simple?tag=v0.11.4-pre.core-crypto-1.0.0-pre.1#5a35177ae37c06d65225df4ba2c2b065917748c5)": "1fkv1w82dy681qbw9wwja2dapgg1m8d01j5i2zxn1vccpsy89cnc",
+  "rcgen 0.9.2 (git+https://github.com/wireapp/rcgen?tag=v1.2.2-pre.core-crypto-0.7.0#173fcc2771429c2c10bdbdb4b80b213fc8287e08)": "0ny49dlaiskjpy46y7y6gnbncp9c9mp5dxp2nxl51k0xghi76cfy",
+  "ring 0.17.0-not-released-yet (git+https://github.com/briansmith/ring.git?rev=450ada28#450ada288f1805795140097ec96396b890bcf722)": "02hfp87xqifs0p4z39pgq48z8pm27sgdh98ggxszf9xqirk35zsc"
+}

@@ -1,0 +1,10 @@
+{
+  "sources": {
+    "rusty-jwt-tools": {
+      "type": "Git",
+      "url": "https://github.com/wireapp/rusty-jwt-tools",
+      "rev": "15f9d7cd15e4654ff7e79d2014e45a37b8f6c9bb",
+      "sha256": "0b27nnl5sd8s7z8x2gbn813dqrf8akhg3z9x5q80vbddv5v8226m"
+    }
+  }
+}

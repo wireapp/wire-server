@@ -50,19 +50,18 @@ let
     };
 
   sources = import ./sources.nix;
-  pkgsCargo = import sources.nixpkgs-cargo { };
 in
 
 self: super: {
+  # use crate2nix from our pin, the version in our nixpkgs is too old
+  crate2nix = ((import sources.crate2nix) { pkgs = super; });
 
   cryptobox = self.callPackage ./pkgs/cryptobox { };
   zauth = self.callPackage ./pkgs/zauth { };
   mls-test-cli = self.callPackage ./pkgs/mls-test-cli { };
 
   # Named like this so cabal2nix can find it
-  rusty_jwt_tools_ffi = self.callPackage ./pkgs/rusty_jwt_tools_ffi {
-    inherit (pkgsCargo) rustPlatform;
-  };
+  rusty_jwt_tools_ffi = self.callPackage ./pkgs/rusty_jwt_tools_ffi { };
 
   nginxModules = super.nginxModules // {
     zauth = {
