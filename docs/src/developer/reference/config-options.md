@@ -819,7 +819,7 @@ The ways differ regarding the kind of program:
 - *CLI commands* (e.g. migrations) accept a `--tls-ca-certificate-file <filepath>` parameter.
 
 When a CA PEM file is configured, all Cassandra connections are opened with TLS
-encryption. I.e. there is no fallback to unencrypted connections. This ensures
+encryption i.e. there is no fallback to unencrypted connections. This ensures
 that connections that are expected to be secure, would not silently and
 unnoticed be insecure.
 
