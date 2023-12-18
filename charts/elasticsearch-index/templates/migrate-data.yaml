@@ -52,9 +52,9 @@ spec:
             - name: elasticsearch-index-migrate-cassandra-client-ca
               mountPath: "/certs"
           {{- end }}
-        {{- if eq (include "useCassandraTLS" .Values) "true" }}
+      {{- if eq (include "useCassandraTLS" .Values) "true" }}
       volumes:
         - name: elasticsearch-index-migrate-cassandra-client-ca
           secret:
             secretName: {{ (include "tlsSecretRef" .Values | fromYaml).name }}
-        {{- end}}
+      {{- end}}
