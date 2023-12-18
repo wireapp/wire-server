@@ -20,10 +20,15 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Util.Options where
+module Util.Options
+  ( module Util.Options,
+    -- TODO: Switch denpendees to the original module?
+    module Cassandra.Options,
+  )
+where
 
+import Cassandra.Options
 import Control.Lens
-import Data.Aeson.TH
 import Data.ByteString.Char8 qualified as BS
 import Data.ByteString.Conversion
 import Data.Text.Encoding (encodeUtf8)
@@ -48,17 +53,17 @@ instance FromByteString AWSEndpoint where
       "https" -> pure True
       "http" -> pure False
       x -> fail ("Unsupported scheme: " ++ show x)
-    host <- case url ^. authorityL <&> view (authorityHostL . hostBSL) of
+    awsHost <- case url ^. authorityL <&> view (authorityHostL . hostBSL) of
       Just h -> pure h
       Nothing -> fail ("No host in: " ++ show url)
-    port <- case urlPort url of
+    awsPort <- case urlPort url of
       Just p -> pure p
       Nothing ->
         pure $
           if secure
             then 443
             else 80
-    pure $ AWSEndpoint host secure port
+    pure $ AWSEndpoint awsHost secure awsPort
 
 instance FromJSON AWSEndpoint where
   parseJSON =
@@ -72,33 +77,6 @@ urlPort u = do
   pure (fromIntegral (p ^. portNumberL))
 
 makeLenses ''AWSEndpoint
-
-data Endpoint = Endpoint
-  { _host :: !Text,
-    _port :: !Word16
-  }
-  deriving (Show, Generic)
-
-deriveFromJSON toOptionFieldName ''Endpoint
-
-makeLenses ''Endpoint
-
-data CassandraOpts = CassandraOpts
-  { _endpoint :: !Endpoint,
-    _keyspace :: !Text,
-    -- | If this option is unset, use all available nodes.
-    -- If this option is set, use only cassandra nodes in the given datacentre
-    --
-    -- This option is most likely only necessary during a cassandra DC migration
-    -- FUTUREWORK: remove this option again, or support a datacentre migration feature
-    _filterNodesByDatacentre :: !(Maybe Text),
-    _tlsCa :: Maybe FilePath
-  }
-  deriving (Show, Generic)
-
-deriveFromJSON toOptionFieldName ''CassandraOpts
-
-makeLenses ''CassandraOpts
 
 newtype FilePathSecrets = FilePathSecrets FilePath
   deriving (Eq, Show, FromJSON)
