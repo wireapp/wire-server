@@ -77,7 +77,7 @@ cabal.project.local:
 
 # Usage: make c package=brig test=1
 .PHONY: c
-c: cabal-fmt
+c: treefmt
 	cabal build $(WIRE_CABAL_BUILD_OPTIONS) $(package) || ( make clean-hint; false )
 ifeq ($(test), 1)
 	./hack/bin/cabal-run-tests.sh $(package) $(testargs)
@@ -141,13 +141,9 @@ list-flaky-tests:
 	@git grep -Hne '\bflakyTestCase \"'
 	@git grep -Hne '[^^]\bflakyTest\b'
 
-.PHONY: cabal-fmt
-cabal-fmt:
-	./hack/bin/cabal-fmt.sh $(package)
-
 # Get a ghci environment running for the given package.
 .PHONY: repl
-repl: cabal-fmt
+repl: treefmt
 	cabal repl $(WIRE_CABAL_BUILD_OPTIONS) $(package)
 
 # Use ghcid to watch a particular package.
