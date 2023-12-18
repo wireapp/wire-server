@@ -154,14 +154,14 @@ parseDeleteMessage url m = do
   evt <- case decodedMessage <$> (m ^. SQS.message_body) of
     Just (Right e) -> pure (Just e)
     _ -> do
-      liftIO $ print ("Failed to parse SQS message or event" :: String)
+      liftIO $ putStrLn "Failed to parse SQS message or event"
       pure Nothing
   deleteMessage url m
     `catch` \case
       (fromException @SomeAsyncException -> Just asyncExc) ->
         throwIO asyncExc
       e ->
-        liftIO $ print ("Failed to delete message, this error will be ignored. Message: " <> show m <> ", exception: " <> displayException e)
+        liftIO $ putStrLn $ "Failed to delete message, this error will be ignored. Message: " <> show m <> ", Exception: " <> displayException e
   pure evt
 
 sendEnv :: (MonadReader AWS.Env m, MonadResource m, AWS.AWSRequest a) => a -> m (AWS.AWSResponse a)
