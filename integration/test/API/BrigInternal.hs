@@ -2,6 +2,7 @@ module API.BrigInternal where
 
 import API.Common
 import Data.Aeson qualified as Aeson
+import Data.Aeson.Types (Pair)
 import Data.Function
 import Data.Maybe
 import Testlib.Prelude
@@ -187,3 +188,20 @@ deleteFederationRemoteTeam domain remoteDomain team = do
   req <- baseRequest domain Brig Unversioned $ joinHttpPath ["i", "federation", "remotes", d, "teams", t]
   res <- submit "DELETE" req
   res.status `shouldMatchInt` 200
+
+getConnStatusForUsers :: (HasCallStack, MakesValue users) => users -> Domain -> App Response
+getConnStatusForUsers users domain = do
+  usersList <-
+    asList users >>= \us -> do
+      dom <- us `for` (%. "qualified_id.domain")
+      dom `for_` (`shouldMatch` make domain)
+      us `for` (%. "id")
+  usersJSON <- make usersList
+  getConnStatusInternal ["from" .= usersJSON] domain
+
+getConnStatusInternal :: (HasCallStack) => [Pair] -> Domain -> App Response
+getConnStatusInternal body dom = do
+  req <- baseRequest dom Brig Unversioned do
+    joinHttpPath ["i", "users", "connections-status", "v2"]
+  submit "POST" do
+    req & addJSONObject body

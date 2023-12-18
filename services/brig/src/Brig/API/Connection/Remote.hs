@@ -23,20 +23,23 @@ module Brig.API.Connection.Remote
   )
 where
 
-import Brig.API.Connection.Util (ConnectionM, checkLimit)
+import Brig.API.Connection.Util
 import Brig.API.Types (ConnectionError (..))
 import Brig.App
 import Brig.Data.Connection qualified as Data
-import Brig.Federation.Client (sendConnectionAction)
+import Brig.Data.User qualified as Data
+import Brig.Effects.FederationConfigStore
+import Brig.Federation.Client
 import Brig.IO.Intra qualified as Intra
 import Brig.Types.User.Event
 import Control.Comonad
 import Control.Error.Util ((??))
-import Control.Monad.Trans.Except (runExceptT, throwE)
+import Control.Monad.Trans.Except
 import Data.Id as Id
 import Data.Qualified
 import Imports
 import Network.Wai.Utilities.Error
+import Polysemy
 import Wire.API.Connection
 import Wire.API.Federation.API.Brig
   ( NewConnectionResponse (..),
@@ -44,6 +47,7 @@ import Wire.API.Federation.API.Brig
   )
 import Wire.API.Routes.Internal.Galley.ConversationsIntra (Actor (..), DesiredMembership (..), UpsertOne2OneConversationRequest (..), UpsertOne2OneConversationResponse (uuorConvId))
 import Wire.API.Routes.Public.Util (ResponseForExistedCreated (..))
+import Wire.API.User
 
 data LocalConnectionAction
   = LocalConnect
@@ -198,9 +202,17 @@ performLocalAction self mzcon other mconnection action = do
   checkLimitForLocalAction self rel0 action
   mrel2 <- for (transition (LCA action) rel0) $ \rel1 -> do
     mreaction <- fmap join . for (remoteAction action) $ \ra -> do
-      response <- sendConnectionAction self other ra !>> ConnectFederationError
+      mSelfTeam <- lift . wrapClient . Data.lookupUserTeam . tUnqualified $ self
+      response <-
+        sendConnectionAction
+          self
+          (qualifyAs self <$> mSelfTeam)
+          other
+          ra
+          !>> ConnectFederationError
       case (response :: NewConnectionResponse) of
         NewConnectionResponseOk reaction -> pure reaction
+        NewConnectionResponseNotFederating -> throwE ConnectTeamFederationError
         NewConnectionResponseUserNotActivated -> throwE (InvalidUser (tUntagged other))
     pure $
       fromMaybe rel1 $ do
@@ -251,21 +263,26 @@ performRemoteAction self other mconnection action = do
     reaction _ = Nothing
 
 createConnectionToRemoteUser ::
+  Member FederationConfigStore r =>
   Local UserId ->
   ConnId ->
   Remote UserId ->
-  (ConnectionM r) (ResponseForExistedCreated UserConnection)
+  ConnectionM r (ResponseForExistedCreated UserConnection)
 createConnectionToRemoteUser self zcon other = do
+  ensureNotSameAndActivated self (tUntagged other)
+  ensureFederatesWith other
   mconnection <- lift . wrapClient $ Data.lookupConnection self (tUntagged other)
   fst <$> performLocalAction self (Just zcon) other mconnection LocalConnect
 
 updateConnectionToRemoteUser ::
+  Member FederationConfigStore r =>
   Local UserId ->
   Remote UserId ->
   Relation ->
   Maybe ConnId ->
   (ConnectionM r) (Maybe UserConnection)
 updateConnectionToRemoteUser self other rel1 zcon = do
+  ensureFederatesWith other
   mconnection <- lift . wrapClient $ Data.lookupConnection self (tUntagged other)
   action <-
     actionForTransition rel1
@@ -285,3 +302,17 @@ checkLimitForLocalAction :: Local UserId -> Relation -> LocalConnectionAction ->
 checkLimitForLocalAction u oldRel action =
   when (oldRel `notElem` [Accepted, Sent] && (action == LocalConnect)) $
     checkLimit u
+
+-- | Check if the local backend federates with the remote user's team. Throw an
+-- exception if it does not federate.
+ensureFederatesWith ::
+  Member FederationConfigStore r =>
+  Remote UserId ->
+  ConnectionM r ()
+ensureFederatesWith remote = do
+  profiles <-
+    withExceptT ConnectFederationError $
+      getUsersByIds (tDomain remote) [tUnqualified remote]
+  let rTeam = qualifyAs remote $ profileTeam =<< listToMaybe profiles
+  unlessM (lift . liftSem . backendFederatesWith $ rTeam) $
+    throwE ConnectTeamFederationError

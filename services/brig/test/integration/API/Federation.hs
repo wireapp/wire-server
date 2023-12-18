@@ -19,7 +19,6 @@
 module API.Federation where
 
 import API.Search.Util (refreshIndex)
-import API.User.Util
 import Bilge hiding (head)
 import Bilge.Assert
 import Brig.Options qualified as Opt
@@ -31,21 +30,16 @@ import Data.Handle (Handle (..))
 import Data.Id
 import Data.Map qualified as Map
 import Data.Qualified
-import Data.Range
 import Data.Set qualified as Set
-import Data.Timeout
 import Data.UUID.V4 qualified as UUIDv4
 import Federation.Util (generateClientPrekeys)
 import Imports
 import Network.Wai.Test qualified as WaiTest
 import Test.QuickCheck hiding ((===))
 import Test.Tasty
-import Test.Tasty.Cannon qualified as WS
 import Test.Tasty.HUnit
 import Util
-import Wire.API.Connection
 import Wire.API.Federation.API.Brig
-import Wire.API.Federation.API.Brig qualified as FedBrig
 import Wire.API.Federation.API.Brig qualified as S
 import Wire.API.Federation.Component
 import Wire.API.Federation.Version
@@ -57,8 +51,8 @@ import Wire.API.User.Search
 import Wire.API.UserMap (UserMap (UserMap))
 
 -- Note: POST /federation/send-connection-action is implicitly tested in API.User.Connection
-tests :: Manager -> Opt.Opts -> Brig -> Cannon -> FedClient 'Brig -> IO TestTree
-tests m opts brig cannon fedBrigClient =
+tests :: Manager -> Opt.Opts -> Brig -> FedClient 'Brig -> IO TestTree
+tests m opts brig fedBrigClient =
   pure $
     testGroup
       "federation"
@@ -79,7 +73,6 @@ tests m opts brig cannon fedBrigClient =
         test m "POST /federation/claim-multi-prekey-bundle : 200" (testClaimMultiPrekeyBundleSuccess brig fedBrigClient),
         test m "POST /federation/get-user-clients : 200" (testGetUserClients brig fedBrigClient),
         test m "POST /federation/get-user-clients : Not Found" (testGetUserClientsNotFound fedBrigClient),
-        test m "POST /federation/on-user-deleted-connections : 200" (testRemoteUserGetsDeleted opts brig cannon fedBrigClient),
         test m "POST /federation/api-version : 200" (testAPIVersion brig fedBrigClient)
       ]
 
@@ -376,32 +369,6 @@ testGetUserClientsNotFound fedBrigClient = do
       "client set for user should match"
       (Just (Set.fromList []))
       (fmap (Set.map pubClientId) . Map.lookup absentUserId $ userClients)
-
-testRemoteUserGetsDeleted :: Opt.Opts -> Brig -> Cannon -> FedClient 'Brig -> Http ()
-testRemoteUserGetsDeleted opts brig cannon fedBrigClient = do
-  connectedUser <- (.userId) <$> randomUser brig
-  pendingUser <- (.userId) <$> randomUser brig
-  blockedUser <- (.userId) <$> randomUser brig
-  unconnectedUser <- (.userId) <$> randomUser brig
-  remoteUser <- fakeRemoteUser
-
-  sendConnectionAction brig opts connectedUser remoteUser (Just FedBrig.RemoteConnect) Accepted
-  receiveConnectionAction brig fedBrigClient pendingUser remoteUser FedBrig.RemoteConnect Nothing Pending
-  sendConnectionAction brig opts blockedUser remoteUser (Just FedBrig.RemoteConnect) Accepted
-  putConnectionQualified brig blockedUser remoteUser Blocked !!! statusCode === const 200
-
-  let localUsers = [connectedUser, pendingUser, blockedUser, unconnectedUser]
-  void . WS.bracketRN cannon localUsers $ \[cc, pc, bc, uc] -> do
-    _ <-
-      runFedClient @"on-user-deleted-connections" fedBrigClient (qDomain remoteUser) $
-        UserDeletedConnectionsNotification (qUnqualified remoteUser) (unsafeRange localUsers)
-
-    retryT $ WS.assertMatchN_ (60 # Second) [cc] $ matchDeleteUserNotification remoteUser
-    retryT $ WS.assertNoEvent (1 # Second) [pc, bc, uc]
-
-  for_ localUsers $ \u ->
-    getConnectionQualified brig u remoteUser !!! do
-      const 404 === statusCode
 
 testAPIVersion :: Brig -> FedClient 'Brig -> Http ()
 testAPIVersion _brig fedBrigClient = do

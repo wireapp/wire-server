@@ -141,11 +141,10 @@ runTests iConf brigOpts otherArgs = do
   db <- defInitCassandra casKey casHost casPort lg
   mg <- newManager tlsManagerSettings
   let fedBrigClient = FedClient @'Brig mg (brig iConf)
-  let fedGalleyClient = FedClient @'Galley mg (galley iConf)
   emailAWSOpts <- parseEmailAWSOpts
   awsEnv <- AWS.mkEnv lg awsOpts emailAWSOpts mg
   mUserJournalWatcher <- for (Opts.userJournalQueue awsOpts) $ SQS.watchSQSQueue (view AWS.amazonkaEnv awsEnv)
-  userApi <- User.tests brigOpts fedBrigClient fedGalleyClient mg b c ch g n awsEnv db mUserJournalWatcher
+  userApi <- User.tests brigOpts fedBrigClient mg b c ch g n awsEnv db mUserJournalWatcher
   providerApi <- Provider.tests localDomain (provider iConf) mg db b c g n
   searchApis <- Search.tests brigOpts mg g b
   teamApis <- Team.tests brigOpts mg n b c g mUserJournalWatcher
@@ -157,7 +156,7 @@ runTests iConf brigOpts otherArgs = do
   browseTeam <- TeamUserSearch.tests brigOpts mg g b
   userPendingActivation <- UserPendingActivation.tests brigOpts mg db b g s
   federationEnd2End <- Federation.End2end.spec brigOpts mg b g ch c f brigTwo galleyTwo ch2 cannonTwo
-  federationEndpoints <- API.Federation.tests mg brigOpts b c fedBrigClient
+  federationEndpoints <- API.Federation.tests mg brigOpts b fedBrigClient
   internalApi <- API.Internal.tests brigOpts mg db b (brig iConf) gd g
 
   let smtp = SMTP.tests mg lg

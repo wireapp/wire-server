@@ -133,7 +133,7 @@ import Wire.API.Routes.Public.Galley
 import Wire.API.Routes.Public.Gundeck
 import Wire.API.Routes.Public.Proxy
 import Wire.API.Routes.Public.Spar
-import Wire.API.Routes.Public.Util qualified as Public
+import Wire.API.Routes.Public.Util
 import Wire.API.Routes.Version
 import Wire.API.SwaggerHelper (cleanupSwagger)
 import Wire.API.SystemSettings
@@ -995,33 +995,47 @@ createConnectionUnqualified ::
   UserId ->
   ConnId ->
   Public.ConnectionRequest ->
-  (Handler r) (Public.ResponseForExistedCreated Public.UserConnection)
+  Handler r (ResponseForExistedCreated Public.UserConnection)
 createConnectionUnqualified self conn cr = do
   lself <- qualifyLocal self
   target <- qualifyLocal (Public.crUser cr)
-  API.createConnection lself conn (tUntagged target) !>> connError
+  API.createConnectionToLocalUser lself conn target !>> connError
 
 createConnection ::
-  (Member GalleyProvider r) =>
+  ( Member FederationConfigStore r,
+    Member GalleyProvider r
+  ) =>
   UserId ->
   ConnId ->
   Qualified UserId ->
-  (Handler r) (Public.ResponseForExistedCreated Public.UserConnection)
+  Handler r (ResponseForExistedCreated Public.UserConnection)
 createConnection self conn target = do
   lself <- qualifyLocal self
   API.createConnection lself conn target !>> connError
 
-updateLocalConnection :: UserId -> ConnId -> UserId -> Public.ConnectionUpdate -> (Handler r) (Public.UpdateResult Public.UserConnection)
-updateLocalConnection self conn other update = do
-  lother <- qualifyLocal other
-  updateConnection self conn (tUntagged lother) update
-
-updateConnection :: UserId -> ConnId -> Qualified UserId -> Public.ConnectionUpdate -> (Handler r) (Public.UpdateResult Public.UserConnection)
-updateConnection self conn other update = do
-  let newStatus = Public.cuStatus update
+updateLocalConnection ::
+  UserId ->
+  ConnId ->
+  UserId ->
+  Public.ConnectionUpdate ->
+  Handler r (UpdateResult Public.UserConnection)
+updateLocalConnection self conn other (Public.cuStatus -> newStatus) = do
   lself <- qualifyLocal self
-  mc <- API.updateConnection lself other newStatus (Just conn) !>> connError
-  pure $ maybe Public.Unchanged Public.Updated mc
+  lother <- qualifyLocal other
+  mkUpdateResult
+    <$> API.updateConnectionToLocalUser lself lother newStatus (Just conn) !>> connError
+
+updateConnection ::
+  Member FederationConfigStore r =>
+  UserId ->
+  ConnId ->
+  Qualified UserId ->
+  Public.ConnectionUpdate ->
+  Handler r (UpdateResult Public.UserConnection)
+updateConnection self conn other (Public.cuStatus -> newStatus) = do
+  lself <- qualifyLocal self
+  mkUpdateResult
+    <$> API.updateConnection lself other newStatus (Just conn) !>> connError
 
 listLocalConnections :: UserId -> Maybe UserId -> Maybe (Range 1 500 Int32) -> (Handler r) Public.UserConnectionList
 listLocalConnections uid start msize = do
