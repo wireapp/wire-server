@@ -240,7 +240,7 @@ getOne2OneConversation user1 user2 cnvState = do
         -- The conversation type 2 is for 1-to-1 conversations. Type 3 is for
         -- the connection conversation, which is the state of the conversation
         -- before the connection is fully established.
-        t <- (== (toConvType cnvState)) <$> (c %. "type" & asInt)
+        t <- (== toConvType cnvState) <$> (c %. "type" & asInt)
         others <- c %. "members.others" & asList
         qIds <- for others (%. "qualified_id")
         pure $ qIds == users && t
