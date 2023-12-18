@@ -89,13 +89,7 @@ type Push = PushTo UserId
 
 push :: Foldable f => f Push -> App ()
 push ps = do
-  let pushes = foldMap (toList . mkPushTo) ps
-  traverse_ pushLocal (nonEmpty pushes)
-  where
-    mkPushTo :: PushTo a -> Maybe (PushTo a)
-    mkPushTo p =
-      nonEmpty (toList (_pushRecipients p)) <&> \nonEmptyRecipients ->
-        p {_pushRecipients = List1 nonEmptyRecipients}
+  traverse_ pushLocal (nonEmpty $ toList ps)
 
 -- | Split a list of pushes into chunks with the given maximum number of
 -- recipients. maxRecipients must be strictly positive. Note that the order of

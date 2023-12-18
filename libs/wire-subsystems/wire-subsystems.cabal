@@ -69,7 +69,18 @@ library
   exposed-modules:  Wire.Notification
   hs-source-dirs:   src
   build-depends:
+    , aeson
     , base
+    , gundeck-types
     , imports
+    , lens
+    , QuickCheck
+    , types-common
+    , wire-api
+    , polysemy
+    , http-client
+    , bilge
+    , text
+    , http-types
 
   default-language: GHC2021

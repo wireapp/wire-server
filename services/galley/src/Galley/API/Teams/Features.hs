@@ -189,6 +189,8 @@ persistAndPushEvent tid wsnl = do
   pushFeatureConfigEvent tid (Event.mkUpdateEvent fs)
   pure fs
 
+-- TODO: This looks like a bug. These notifications are actually never sent.
+-- If it is a bug we probably don't need the list type field in the PushTo type.
 pushFeatureConfigEvent ::
   ( Member GundeckAccess r,
     Member TeamStore r,
