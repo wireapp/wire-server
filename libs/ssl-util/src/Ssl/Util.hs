@@ -162,3 +162,13 @@ verifyRsaFingerprint d = verifyFingerprint $ \pk ->
   case toPublicKey pk of
     Nothing -> pure Nothing
     Just k -> Just <$> rsaFingerprint d (k :: RSAPubKey)
+
+-- [Note: Hostname verification]
+-- Ideally, we would like to perform proper hostname verification, which
+-- is not done automatically by OpenSSL [1]. However, the necessary APIs
+-- are not yet available via HsOpenSSL. Note though that public key pinning
+-- is already supposed to thwart attacks based on a lack of or incorrect
+-- hostname verification (see [2] for many common attacks and mistakes).
+--
+-- [1] https://wiki.openssl.org/index.php/Hostname_validation
+-- [2] https://www.cs.utexas.edu/~shmat/shmat_ccs12.pdf

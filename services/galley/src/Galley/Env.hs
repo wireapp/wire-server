@@ -66,7 +66,7 @@ data Env = Env
     _brig :: Endpoint, -- FUTUREWORK: see _federator
     _cstate :: ClientState,
     _deleteQueue :: Q.Queue DeleteItem,
-    _extGetManager :: ([Fingerprint Rsa] -> IO Manager),
+    _extGetManager :: [Fingerprint Rsa] -> IO Manager,
     _aEnv :: Maybe Aws.Env,
     _mlsKeys :: SignaturePurpose -> MLSKeys,
     _rabbitmqChannel :: Maybe (MVar Q.Channel),
@@ -76,53 +76,52 @@ data Env = Env
 makeLenses ''Env
 
 -- TODO: somewhat duplicates Brig.App.initExtGetManager
-initExtEnv :: IO ([Fingerprint Rsa] -> IO Manager)
-initExtEnv =
-  pure $ \fingerprints -> do
-    ctx <- Ssl.context
-    Just sha <- getDigestByName "SHA256"
-    Ssl.contextAddOption ctx SSL_OP_NO_SSLv2
-    Ssl.contextAddOption ctx SSL_OP_NO_SSLv3
-    Ssl.contextAddOption ctx SSL_OP_NO_TLSv1
-    Ssl.contextSetCiphers ctx rsaCiphers
-    Ssl.contextSetVerificationMode
-      ctx
-      Ssl.VerifyPeer
-        { vpFailIfNoPeerCert = True,
-          vpClientOnce = False,
-          vpCallback =
-            Just
-              ( \_b ctx509store -> do
-                  cert <- getStoreCtxCert ctx509store
-                  pk <- getPublicKey cert
-                  let fprs = fingerprintBytes <$> fingerprints
-                  case toPublicKey pk of
-                    Nothing -> pure False
-                    Just k -> do
-                      fp <- rsaFingerprint sha (k :: RSAPubKey)
-                      if not (any (constEqBytes fp) fprs)
-                        then pure False
-                        else do
-                          -- Check if the certificate is self-signed.
-                          self <- verifyX509 cert pk
-                          if (self /= VerifySuccess)
-                            then pure False
-                            else do
-                              -- For completeness, perform a date check as well.
-                              now <- getCurrentTime
-                              notBefore <- getNotBefore cert
-                              notAfter <- getNotAfter cert
-                              pure (now >= notBefore && now <= notAfter)
-              )
-        }
+initExtEnv :: [Fingerprint Rsa] -> IO Manager
+initExtEnv fingerprints = do
+  ctx <- Ssl.context
+  Just sha <- getDigestByName "SHA256"
+  Ssl.contextAddOption ctx SSL_OP_NO_SSLv2
+  Ssl.contextAddOption ctx SSL_OP_NO_SSLv3
+  Ssl.contextAddOption ctx SSL_OP_NO_TLSv1
+  Ssl.contextSetCiphers ctx rsaCiphers
+  Ssl.contextSetVerificationMode
+    ctx
+    Ssl.VerifyPeer
+      { vpFailIfNoPeerCert = True,
+        vpClientOnce = False,
+        vpCallback =
+          Just
+            ( \_b ctx509store -> do
+                cert <- getStoreCtxCert ctx509store
+                pk <- getPublicKey cert
+                let fprs = fingerprintBytes <$> fingerprints
+                case toPublicKey pk of
+                  Nothing -> pure False
+                  Just k -> do
+                    fp <- rsaFingerprint sha (k :: RSAPubKey)
+                    if not (any (constEqBytes fp) fprs)
+                      then pure False
+                      else do
+                        -- Check if the certificate is self-signed.
+                        self <- verifyX509 cert pk
+                        if (self /= VerifySuccess)
+                          then pure False
+                          else do
+                            -- For completeness, perform a date check as well.
+                            now <- getCurrentTime
+                            notBefore <- getNotBefore cert
+                            notAfter <- getNotAfter cert
+                            pure (now >= notBefore && now <= notAfter)
+            )
+      }
 
-    Ssl.contextSetDefaultVerifyPaths ctx
+  Ssl.contextSetDefaultVerifyPaths ctx
 
-    newManager
-      (opensslManagerSettings (pure ctx))
-        { managerResponseTimeout = responseTimeoutMicro 10000000,
-          managerConnCount = 100
-        }
+  newManager
+    (opensslManagerSettings (pure ctx))
+      { managerResponseTimeout = responseTimeoutMicro 10000000,
+        managerConnCount = 100
+      }
 
 reqIdMsg :: RequestId -> Msg -> Msg
 reqIdMsg = ("request" .=) . unRequestId

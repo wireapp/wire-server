@@ -115,9 +115,7 @@ import Control.Exception.Enclosed (handleAny)
 import Control.Lens hiding (index, (.=))
 import Control.Monad.Catch
 import Control.Monad.Trans.Resource
-import Data.ByteString.Conversion
 import Data.Byteable (constEqBytes)
-import Data.Default (def)
 import Data.GeoIP2 qualified as GeoIp
 import Data.IP
 import Data.Metrics (Metrics)
@@ -158,6 +156,7 @@ import System.Logger.Extended qualified as Log
 import Util.Options
 import Wire.API.User.Identity (Email)
 import Wire.API.User.Profile (Locale)
+import Data.Domain (Domain)
 
 schemaVersion :: Int32
 schemaVersion = Migrations.lastSchemaVersion
@@ -185,7 +184,7 @@ data Env = Env
     _templateBranding :: TemplateBranding,
     _httpManager :: Manager,
     _http2Manager :: Http2Manager,
-    _extGetManager :: ([Fingerprint Rsa] -> IO Manager),
+    _extGetManager :: [Fingerprint Rsa] -> IO Manager,
     _settings :: Settings,
     _nexmoCreds :: Nexmo.Credentials,
     _twilioCreds :: Twilio.Credentials,
@@ -223,7 +222,6 @@ newEnv o = do
   cas <- initCassandra o lgr
   mgr <- initHttpManager
   h2Mgr <- initHttp2Manager
-  ext <- initExtGetManager
   utp <- loadUserTemplates o
   ptp <- loadProviderTemplates o
   ttp <- loadTeamTemplates o
@@ -283,7 +281,7 @@ newEnv o = do
         _templateBranding = branding,
         _httpManager = mgr,
         _http2Manager = h2Mgr,
-        _extGetManager = ext,
+        _extGetManager = initExtGetManager,
         _settings = sett,
         _nexmoCreds = nxm,
         _twilioCreds = twl,
@@ -402,56 +400,53 @@ initHttp2Manager = do
 -- faster. So, we reuse the context.
 
 -- TODO: somewhat duplicates Galley.App.initExtEnv
-initExtGetManager :: IO ([Fingerprint Rsa] -> IO Manager)
-initExtGetManager =
-  pure $ \fingerprints -> do
-    ctx <- SSL.context
-    Just sha <- getDigestByName "SHA256"
+initExtGetManager :: [Fingerprint Rsa] -> IO Manager
+initExtGetManager fingerprints = do
+  ctx <- SSL.context
+  Just sha <- getDigestByName "SHA256"
 
-    SSL.contextAddOption ctx SSL_OP_NO_SSLv2
-    SSL.contextAddOption ctx SSL_OP_NO_SSLv3
-    SSL.contextSetCiphers ctx rsaCiphers
-    -- We use public key pinning with service providers and want to
-    -- support self-signed certificates as well, hence 'VerifyNone'.
-    SSL.contextSetVerificationMode
-      ctx
-      SSL.VerifyPeer
-        { vpFailIfNoPeerCert = True,
-          vpClientOnce = False,
-          vpCallback =
-            Just
-              ( \_bool ctx509store -> do
-                  cert <- getStoreCtxCert ctx509store
-                  pk <- getPublicKey cert
-                  let fprs = fingerprintBytes <$> fingerprints
-                  case toPublicKey pk of
-                    Nothing -> pure False
-                    Just k -> do
-                      fp <- rsaFingerprint sha (k :: RSAPubKey)
-                      if not (any (constEqBytes fp) fprs)
-                        then pure False
-                        else do
-                          -- Check if the certificate is self-signed.
-                          self <- verifyX509 cert pk
-                          if (self /= VerifySuccess)
-                            then pure False
-                            else do
-                              -- For completeness, perform a date check as well.
-                              now <- getCurrentTime
-                              notBefore <- getNotBefore cert
-                              notAfter <- getNotAfter cert
-                              pure (now >= notBefore && now <= notAfter)
-              )
-        }
+  SSL.contextAddOption ctx SSL_OP_NO_SSLv2
+  SSL.contextAddOption ctx SSL_OP_NO_SSLv3
+  SSL.contextSetCiphers ctx rsaCiphers
+  SSL.contextSetVerificationMode
+    ctx
+    SSL.VerifyPeer
+      { vpFailIfNoPeerCert = True,
+        vpClientOnce = False,
+        vpCallback =
+          Just
+            ( \_bool ctx509store -> do
+                cert <- getStoreCtxCert ctx509store
+                pk <- getPublicKey cert
+                let fprs = fingerprintBytes <$> fingerprints
+                case toPublicKey pk of
+                  Nothing -> pure False
+                  Just k -> do
+                    fp <- rsaFingerprint sha (k :: RSAPubKey)
+                    if not (any (constEqBytes fp) fprs)
+                      then pure False
+                      else do
+                        -- Check if the certificate is self-signed.
+                        self <- verifyX509 cert pk
+                        if (self /= VerifySuccess)
+                          then pure False
+                          else do
+                            -- For completeness, perform a date check as well.
+                            now <- getCurrentTime
+                            notBefore <- getNotBefore cert
+                            notAfter <- getNotAfter cert
+                            pure (now >= notBefore && now <= notAfter)
+            )
+      }
 
-    SSL.contextSetDefaultVerifyPaths ctx
+  SSL.contextSetDefaultVerifyPaths ctx
 
-    newManager
-      (opensslManagerSettings (pure ctx)) -- see Note [SSL context]
-        { managerConnCount = 100,
-          managerIdleConnectionCount = 512,
-          managerResponseTimeout = responseTimeoutMicro 10000000
-        }
+  newManager
+    (opensslManagerSettings (pure ctx)) -- see Note [SSL context]
+      { managerConnCount = 100,
+        managerIdleConnectionCount = 512,
+        managerResponseTimeout = responseTimeoutMicro 10000000
+      }
 
 initCassandra :: Opts -> Logger -> IO Cas.ClientState
 initCassandra o g =

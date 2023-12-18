@@ -70,6 +70,7 @@ common common-all
     UndecidableInstances
     ViewPatterns
 
+-- (sic!)
 executable integration
   import:        common-all
   main-is:       ./main.hs

@@ -163,16 +163,16 @@ instance MonadIO m => MonadHttp (SessionT m) where
               Wai.requestHeaderUserAgent = lookupHeader "USER-AGENT" req
             }
       toBilgeResponse :: BodyReader -> WaiTest.SResponse -> Request -> Response BodyReader
-      toBilgeResponse bodyReader WaiTest.SResponse {WaiTest.simpleStatus, WaiTest.simpleHeaders} oReq =
+      toBilgeResponse bodyReader WaiTest.SResponse {WaiTest.simpleStatus, WaiTest.simpleHeaders} originalReq =
         Client.Response
           { responseStatus = simpleStatus,
             -- I just picked an arbitrary version; shouldn't matter.
             responseVersion = http11,
             responseHeaders = simpleHeaders,
             responseBody = bodyReader,
+            responseOriginalRequest = originalReq,
             Client.responseCookieJar = mempty,
-            Client.responseClose' = Client.ResponseClose $ pure (),
-            responseOriginalRequest = oReq
+            Client.responseClose' = Client.ResponseClose $ pure ()
           }
       lookupHeader :: CI ByteString -> Client.Request -> Maybe ByteString
       lookupHeader headerName r = lookup headerName (Client.requestHeaders r)
