@@ -61,7 +61,7 @@ mkGlobalEnv cfgFile = do
           ( \certFilePath ->
               if isAbsolute certFilePath
                 then pure $ Just certFilePath
-                else maybe (pure Nothing) (\projectRoot -> (Just <$> (makeAbsolute) (combine projectRoot certFilePath))) devEnvProjectRoot
+                else for devEnvProjectRoot $ \projectRoot -> makeAbsolute $ combine projectRoot certFilePath
           )
           intConfig.cassandra.cassTlsCa
 
