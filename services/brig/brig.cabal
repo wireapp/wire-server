@@ -25,7 +25,6 @@ common common-all
     -Wredundant-constraints
 
   default-extensions:
-    NoImplicitPrelude
     AllowAmbiguousTypes
     BangPatterns
     BlockArguments
@@ -51,6 +50,7 @@ common common-all
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NoImplicitPrelude
     NumericUnderscores
     OverloadedLabels
     OverloadedRecordDot
