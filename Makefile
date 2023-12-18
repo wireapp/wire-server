@@ -154,7 +154,7 @@ ghcid:
 
 # Used by CI
 .PHONY: lint-all
-lint-all: formatc hlint-check-all check-local-nix-derivations treefmt
+lint-all: formatc hlint-check-all check-local-nix-derivations treefmt-check
 
 .PHONY: hlint-check-all
 hlint-check-all:
@@ -224,6 +224,10 @@ add-license:
 .PHONY: treefmt
 treefmt:
 	treefmt
+
+.PHONY: treefmt-check
+treefmt-check:
+	treefmt --fail-on-change
 
 #################################
 ## docker targets
