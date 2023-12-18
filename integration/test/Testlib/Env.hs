@@ -12,6 +12,7 @@ import Data.Map qualified as Map
 import Data.Maybe (fromMaybe)
 import Data.Set (Set)
 import Data.Set qualified as Set
+import Data.Traversable (for)
 import Data.Yaml qualified as Yaml
 import Database.CQL.IO qualified as Cassandra
 import Network.HTTP.Client qualified as HTTP
