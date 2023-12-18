@@ -18,6 +18,7 @@
 module Galley.DataMigration (cassandraSettingsParser, migrate) where
 
 import Cassandra qualified as C
+import Cassandra.Options
 import Cassandra.Util (defInitCassandra)
 import Control.Monad.Catch (finally)
 import Data.Text qualified as Text
@@ -35,6 +36,15 @@ data CassandraSettings = CassandraSettings
     cKeyspace :: C.Keyspace,
     cTlsCa :: Maybe FilePath
   }
+
+toCassandraOpts :: CassandraSettings -> CassandraOpts
+toCassandraOpts cas =
+  CassandraOpts
+    { _endpoint = Endpoint (Text.pack (cas.cHost)) (cas.cPort),
+      _keyspace = C.unKeyspace (cas.cKeyspace),
+      _filterNodesByDatacentre = Nothing,
+      _tlsCa = cas.cTlsCa
+    }
 
 cassandraSettingsParser :: Parser CassandraSettings
 cassandraSettingsParser =
@@ -75,13 +85,7 @@ mkEnv l cas =
     <$> initCassandra
     <*> initLogger
   where
-    initCassandra =
-      defInitCassandra
-        ((C.unKeyspace . cKeyspace) cas)
-        ((Text.pack . cHost) cas)
-        (cPort cas)
-        (cTlsCa cas)
-        l
+    initCassandra = defInitCassandra (toCassandraOpts cas) l
     initLogger = pure l
 
 -- | Runs only the migrations which need to run

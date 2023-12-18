@@ -25,8 +25,10 @@ module Cassandra.Util
 where
 
 import Cassandra.CQL
+import Cassandra.Options
 import Cassandra.Schema
 import Cassandra.Settings (dcFilterPolicyIfConfigured, initialContactsDisco, initialContactsPlain, mkLogger)
+import Control.Lens
 import Data.Aeson
 import Data.Fixed
 import Data.List.NonEmpty qualified as NE
@@ -40,52 +42,44 @@ import Imports hiding (init)
 import OpenSSL.Session qualified as OpenSSL
 import System.Logger qualified as Log
 
-defInitCassandra :: Text -> Text -> Word16 -> Maybe FilePath -> Log.Logger -> IO ClientState
-defInitCassandra ks h p mbTlsCaPath logger = do
+defInitCassandra :: CassandraOpts -> Log.Logger -> IO ClientState
+defInitCassandra opts logger = do
   let basicCasSettings =
         setLogger (CT.mkLogger logger)
-          . setPortNumber (fromIntegral p)
-          . setContacts (unpack h) []
-          . setKeyspace (Keyspace ks)
+          . setPortNumber (fromIntegral (opts ^. endpoint . port))
+          . setContacts (unpack (opts ^. endpoint . host)) []
+          . setKeyspace (Keyspace (opts ^. keyspace))
           . setProtocolVersion V4
           $ defSettings
-  initCassandra basicCasSettings mbTlsCaPath logger
+  initCassandra basicCasSettings (opts ^. tlsCa) logger
 
 -- | Create Cassandra `ClientState` ("connection") for a service
---
--- Unfortunately, we have to deal with many function arguments here, because
--- @CassandraOpts@ is defined in @types-common@ which depends on
--- @cassandra-util@ (this package.)
 initCassandraForService ::
-  Text ->
-  Word16 ->
+  CassandraOpts ->
   String ->
-  Text ->
-  Maybe FilePath ->
-  Maybe Text ->
   Maybe Text ->
   Maybe Int32 ->
   Log.Logger ->
   IO ClientState
-initCassandraForService host port serviceName keyspace mbTlsCaPath filterNodesByDatacentre discoUrl mbSchemaVersion logger = do
+initCassandraForService opts serviceName discoUrl mbSchemaVersion logger = do
   c <-
     maybe
-      (initialContactsPlain host)
+      (initialContactsPlain (opts ^. endpoint . host))
       (initialContactsDisco ("cassandra_" ++ serviceName) . unpack)
       discoUrl
   let basicCasSettings =
         setLogger (mkLogger (Log.clone (Just (pack ("cassandra." ++ serviceName))) logger))
           . setContacts (NE.head c) (NE.tail c)
-          . setPortNumber (fromIntegral port)
-          . setKeyspace (Keyspace keyspace)
+          . setPortNumber (fromIntegral (opts ^. endpoint . port))
+          . setKeyspace (Keyspace (opts ^. keyspace))
           . setMaxConnections 4
           . setPoolStripes 4
           . setSendTimeout 3
           . setResponseTimeout 10
           . setProtocolVersion V4
-          . setPolicy (dcFilterPolicyIfConfigured logger filterNodesByDatacentre)
+          . setPolicy (dcFilterPolicyIfConfigured logger (opts ^. filterNodesByDatacentre))
           $ defSettings
-  p <- initCassandra basicCasSettings mbTlsCaPath logger
+  p <- initCassandra basicCasSettings (opts ^. tlsCa) logger
   maybe (pure ()) (\v -> runClient p $ (versionCheck v)) mbSchemaVersion
   pure p
 

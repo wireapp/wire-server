@@ -29,6 +29,7 @@ module Brig.Index.Options
     esIndexRefreshInterval,
     esDeleteTemplate,
     CassandraSettings,
+    toCassandraOpts,
     cHost,
     cPort,
     cTlsCa,
@@ -50,6 +51,7 @@ import Brig.Index.Types (CreateIndexSettings (..))
 import Cassandra qualified as C
 import Control.Lens
 import Data.ByteString.Lens
+import Data.Text qualified as Text
 import Data.Text.Strict.Lens
 import Data.Time.Clock (NominalDiffTime)
 import Database.Bloodhound qualified as ES
@@ -57,7 +59,7 @@ import Imports
 import Options.Applicative
 import URI.ByteString
 import URI.ByteString.QQ
-import Util.Options (Endpoint (..))
+import Util.Options (CassandraOpts (..), Endpoint (..))
 
 data Command
   = Create ElasticSettings Endpoint
@@ -101,6 +103,15 @@ makeLenses ''ElasticSettings
 makeLenses ''CassandraSettings
 
 makeLenses ''ReindexFromAnotherIndexSettings
+
+toCassandraOpts :: CassandraSettings -> CassandraOpts
+toCassandraOpts cas =
+  CassandraOpts
+    { _endpoint = Endpoint (Text.pack (cas ^. cHost)) (cas ^. cPort),
+      _keyspace = C.unKeyspace (cas ^. cKeyspace),
+      _filterNodesByDatacentre = Nothing,
+      _tlsCa = cas ^. cTlsCa
+    }
 
 mkCreateIndexSettings :: ElasticSettings -> CreateIndexSettings
 mkCreateIndexSettings es =

@@ -43,7 +43,6 @@ import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.TLS (tlsManagerSettings)
 import System.Logger qualified as Log
 import System.Logger.Extended qualified as Logger
-import Util.Options
 
 data Env = Env
   { _reqId :: !RequestId,
@@ -85,12 +84,8 @@ createEnv m o = do
 
   p <-
     initCassandraForService
-      (o ^. cassandra . endpoint . host)
-      (o ^. cassandra . endpoint . port)
+      (o ^. cassandra)
       "gundeck"
-      (o ^. cassandra . keyspace)
-      (o ^. cassandra . tlsCa)
-      (o ^. cassandra . filterNodesByDatacentre)
       (o ^. discoUrl)
       Nothing
       l

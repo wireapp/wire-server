@@ -33,7 +33,6 @@ import Control.Retry
 import Data.Aeson (FromJSON)
 import Data.Aeson qualified as Aeson
 import Data.Metrics qualified as Metrics
-import Data.Text qualified as Text
 import Database.Bloodhound qualified as ES
 import Imports
 import Network.HTTP.Client as HTTP
@@ -102,13 +101,7 @@ runCommand l = \case
         <*> pure mgr
     initES esURI mgr =
       ES.mkBHEnv (toESServer esURI) mgr
-    initDb cas =
-      defInitCassandra
-        (C.unKeyspace (cas ^. cKeyspace))
-        (Text.pack (cas ^. cHost))
-        (cas ^. cPort)
-        (cas ^. cTlsCa)
-        l
+    initDb cas = defInitCassandra (toCassandraOpts cas) l
 
 waitForTaskToComplete :: forall a m. (ES.MonadBH m, MonadThrow m, FromJSON a) => Int -> ES.TaskNodeId -> m ()
 waitForTaskToComplete timeoutSeconds taskNodeId = do

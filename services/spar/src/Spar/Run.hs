@@ -63,12 +63,8 @@ import Wire.Sem.Logger.TinyLog
 initCassandra :: Opts -> Logger -> IO ClientState
 initCassandra opts lgr =
   initCassandraForService
-    (Opt.cassandra opts ^. endpoint . host)
-    (Opt.cassandra opts ^. endpoint . port)
+    (Opt.cassandra opts)
     "spar"
-    (Opt.cassandra opts ^. keyspace)
-    (Opt.cassandra opts ^. tlsCa)
-    (Opt.cassandra opts ^. filterNodesByDatacentre)
     (Opt.discoUrl opts)
     (Just Data.schemaVersion)
     lgr

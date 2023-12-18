@@ -67,13 +67,7 @@ mkEnv settings = do
         $ Log.defSettings
 
     initCassandra :: CassandraSettings -> Log.Logger -> IO ClientState
-    initCassandra cas l =
-      defInitCassandra
-        (C.unKeyspace (cas ^. cKeyspace))
-        (Text.pack (cas ^. cHosts))
-        (cas ^. cPort)
-        (cas ^. tlsCa)
-        l
+    initCassandra cas l = defInitCassandra (toCassandraOpts cas) l
 
 cleanup :: (MonadIO m) => Env -> m ()
 cleanup env = do

@@ -133,13 +133,9 @@ runTests iConf brigOpts otherArgs = do
         Opts.TurnSourceFiles files -> files
         Opts.TurnSourceDNS _ -> error "The integration tests can only be run when TurnServers are sourced from files"
       localDomain = brigOpts ^. Opts.optionSettings . Opts.federationDomain
-      casHost = (\v -> Opts.cassandra v ^. endpoint . host) brigOpts
-      casPort = (\v -> Opts.cassandra v ^. endpoint . port) brigOpts
-      casKey = (\v -> Opts.cassandra v ^. keyspace) brigOpts
-      casTlsCa = (\v -> Opts.cassandra v ^. tlsCa) brigOpts
       awsOpts = Opts.aws brigOpts
   lg <- Logger.new Logger.defSettings -- TODO: use mkLogger'?
-  db <- defInitCassandra casKey casHost casPort casTlsCa lg
+  db <- defInitCassandra (brigOpts.cassandra) lg
   mg <- newManager tlsManagerSettings
   let fedBrigClient = FedClient @'Brig mg (brig iConf)
   emailAWSOpts <- parseEmailAWSOpts

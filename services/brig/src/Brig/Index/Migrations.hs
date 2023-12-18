@@ -23,7 +23,6 @@ where
 import Brig.Index.Migrations.Types
 import Brig.Index.Options qualified as Opts
 import Brig.User.Search.Index qualified as Search
-import Cassandra qualified as C
 import Cassandra.Util (defInitCassandra)
 import Control.Lens (view, (^.))
 import Control.Monad.Catch (MonadThrow, catchAll, finally, throwM)
@@ -86,13 +85,7 @@ mkEnv l es cas galleyEndpoint = do
     <*> pure mgr
     <*> pure galleyEndpoint
   where
-    initCassandra =
-      defInitCassandra
-        (C.unKeyspace (cas ^. Opts.cKeyspace))
-        (Text.pack (cas ^. Opts.cHost))
-        (cas ^. Opts.cPort)
-        (cas ^. Opts.cTlsCa)
-        l
+    initCassandra = defInitCassandra (Opts.toCassandraOpts cas) l
 
     initLogger = pure l
 

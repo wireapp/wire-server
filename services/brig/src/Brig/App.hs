@@ -423,12 +423,8 @@ initExtGetManager = do
 initCassandra :: Opts -> Logger -> IO Cas.ClientState
 initCassandra o g =
   initCassandraForService
-    (Opt.cassandra o ^. endpoint . host)
-    (Opt.cassandra o ^. endpoint . port)
+    (Opt.cassandra o)
     "brig"
-    (Opt.cassandra o ^. keyspace)
-    (Opt.cassandra o ^. tlsCa)
-    (Opt.cassandra o ^. filterNodesByDatacentre)
     (Opt.discoUrl o)
     (Just schemaVersion)
     g

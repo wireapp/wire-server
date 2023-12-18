@@ -103,7 +103,6 @@ import System.Logger qualified as Log
 import System.Logger.Class (Logger)
 import System.Logger.Extended qualified as Logger
 import UnliftIO.Exception qualified as UnliftIO
-import Util.Options
 import Wire.API.Conversation.Protocol
 import Wire.API.Error
 import Wire.API.Federation.Error
@@ -172,12 +171,8 @@ createEnv m o l = do
 initCassandra :: Opts -> Logger -> IO ClientState
 initCassandra o l =
   initCassandraForService
-    (o ^. cassandra . endpoint . host)
-    (o ^. cassandra . endpoint . port)
+    (o ^. cassandra)
     "galley"
-    (o ^. cassandra . keyspace)
-    (o ^. cassandra . tlsCa)
-    (o ^. cassandra . filterNodesByDatacentre)
     (o ^. discoUrl)
     Nothing
     l
