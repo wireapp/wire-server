@@ -253,7 +253,6 @@ cassandraSettingsParser =
     <*> ( (optional . strOption)
             ( long "tls-ca-certificate-file"
                 <> help "Location of a PEM encoded list of CA certificates to be used when verifying the Cassandra server's certificate"
-                <> showDefault
             )
         )
 
