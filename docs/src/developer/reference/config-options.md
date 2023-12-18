@@ -816,7 +816,7 @@ client), a **C**ertificate **A**uthority in PEM format needs to be configured.
 
 The ways differ regarding the kind of program:
 - *Services* expect a `cassandra.tlsCa: <filepath>` attribute in their config file.
-- *CLI commands* (e.g. migrations) accept a `--tls-certificate-file <filepath>` parameter.
+- *CLI commands* (e.g. migrations) accept a `--tls-ca-certificate-file <filepath>` parameter.
 
 When a CA PEM file is configured, all Cassandra connections are opened with TLS
 encryption. I.e. there is no fallback to unencrypted connections. This ensures

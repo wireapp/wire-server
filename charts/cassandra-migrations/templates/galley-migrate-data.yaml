@@ -43,7 +43,7 @@ spec:
            - --cassandra-keyspace
            - galley
            {{- if eq (include "useTlsGalley" .) "true" }}
-           - --tls-certificate-file
+           - --tls-ca-certificate-file
            - /certs/galley/{{- (include "tlsSecretRefGalley" . | fromYaml).key }}
            {{- end }}
           {{- if eq (include "useTlsGalley" .) "true" }}

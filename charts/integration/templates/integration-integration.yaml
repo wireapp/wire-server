@@ -125,7 +125,7 @@ spec:
           --port {{ .Values.config.cassandra.port }} \
           --replication-factor {{ .Values.config.cassandra.replicationFactor }}\
           {{- if eq (include "useCassandraTLS" .Values.config) "true" }}
-          --tls-certificate-file /certs/{{- (include "tlsSecretRef" .Values.config | fromYaml).key }}
+          --tls-ca-certificate-file /certs/{{- (include "tlsSecretRef" .Values.config | fromYaml).key }}
           {{- else }}
           
           {{- end}}

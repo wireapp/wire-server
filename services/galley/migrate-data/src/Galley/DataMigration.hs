@@ -55,7 +55,7 @@ cassandraSettingsParser =
               )
         )
     <*> ( (Opts.optional . Opts.strOption)
-            ( Opts.long "tls-certificate-file"
+            ( Opts.long "tls-ca-certificate-file"
                 <> Opts.help "Location of a PEM encoded list of CA certificates to be used when verifying the Cassandra server's certificate"
             )
         )

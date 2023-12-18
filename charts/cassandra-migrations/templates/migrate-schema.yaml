@@ -63,7 +63,7 @@ spec:
             - {{ template "cassandraGundeckReplicationType" . }}
             - "{{ template "cassandraGundeckReplicationArg" . }}"
             {{- if eq (include "useTlsGundeck" .) "true" }}
-            - --tls-certificate-file
+            - --tls-ca-certificate-file
             - /certs/gundeck/{{- (include "tlsSecretRefGundeck" . | fromYaml).key }}
             {{- end }}
 
@@ -93,7 +93,7 @@ spec:
             - {{ template "cassandraBrigReplicationType" . }}
             - "{{ template "cassandraBrigReplicationArg" . }}"
             {{- if eq (include "useTlsBrig" .) "true" }}
-            - --tls-certificate-file
+            - --tls-ca-certificate-file
             - /certs/brig/{{- (include "tlsSecretRefBrig" . | fromYaml).key }}
             {{- end }}
 
@@ -123,7 +123,7 @@ spec:
             - {{ template "cassandraGalleyReplicationType" . }}
             - "{{ template "cassandraGalleyReplicationArg" . }}"
             {{- if eq (include "useTlsGalley" .) "true" }}
-            - --tls-certificate-file
+            - --tls-ca-certificate-file
             - /certs/galley/{{- (include "tlsSecretRefGalley" . | fromYaml).key }}
             {{- end }}
 
@@ -153,7 +153,7 @@ spec:
             - {{ template "cassandraSparReplicationType" . }}
             - "{{ template "cassandraSparReplicationArg" . }}"
              {{- if eq (include "useTlsSpar" .) "true" }}
-            - --tls-certificate-file
+            - --tls-ca-certificate-file
             - /certs/spar/{{- (include "tlsSecretRefSpar" . | fromYaml).key }}
             {{- end }}
 

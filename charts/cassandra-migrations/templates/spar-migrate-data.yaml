@@ -44,11 +44,11 @@ spec:
              - --cassandra-keyspace-brig
              - brig
              {{- if eq (include "useTlsBrig" .) "true" }}
-             - --tls-certificate-file-brig
+             - --tls-ca-certificate-file-brig
              - /certs/brig/{{- (include "tlsSecretRefBrig" . | fromYaml).key }}
              {{- end }}
              {{- if eq (include "useTlsSpar" .) "true" }}
-             - --tls-certificate-file-spar
+             - --tls-ca-certificate-file-spar
              - /certs/spar/{{- (include "tlsSecretRefSpar" . | fromYaml).key }}
              {{- end }}
           volumeMounts:
