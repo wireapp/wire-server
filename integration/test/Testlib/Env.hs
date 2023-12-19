@@ -122,9 +122,7 @@ mkGlobalEnv cfgFile = do
             vpCallback = Nothing
           }
       pure $ Just sslContext
-    createSSLContext Nothing = do
-      putStrLn "TLS: No TLS CA path provided. Connecting to Cassandra without TLS."
-      pure Nothing
+    createSSLContext Nothing = pure Nothing
 
 mkEnv :: GlobalEnv -> Codensity IO Env
 mkEnv ge = do
