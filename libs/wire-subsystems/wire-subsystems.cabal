@@ -20,6 +20,7 @@ common common-all
   default-extensions:
     AllowAmbiguousTypes
     BangPatterns
+    BlockArguments
     ConstraintKinds
     DataKinds
     DefaultSignatures
@@ -71,6 +72,7 @@ library
   build-depends:
     , aeson
     , base
+    , containers
     , gundeck-types
     , imports
     , lens
@@ -78,9 +80,21 @@ library
     , types-common
     , wire-api
     , polysemy
+    , polysemy-wire-zoo
     , http-client
     , bilge
     , text
     , http-types
 
   default-language: GHC2021
+
+test-suite wire-subsystems-tests
+  import: common-all
+  type: exitcode-stdio-1.0
+  main-is: Main.hs
+
+  other-modules: 
+  hs-source-dirs: test
+  build-depends:
+    , wire-subsystems 
+    , base
