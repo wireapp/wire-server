@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Brig.Effects.Delay where
+module Wire.Sem.Delay where
 
 import Imports
 import Polysemy

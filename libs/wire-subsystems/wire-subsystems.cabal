@@ -72,42 +72,41 @@ library
   build-depends:
     , aeson
     , base
+    , bilge
     , containers
     , gundeck-types
+    , http-client
+    , http-types
     , imports
     , lens
-    , QuickCheck
-    , types-common
-    , wire-api
     , polysemy
     , polysemy-wire-zoo
-    , http-client
-    , bilge
+    , QuickCheck
     , text
-    , http-types
+    , types-common
+    , wire-api
 
   default-language: GHC2021
 
 test-suite wire-subsystems-tests
-  import: common-all
-  type: exitcode-stdio-1.0
-  main-is: Main.hs
+  import:           common-all
+  type:             exitcode-stdio-1.0
+  main-is:          Main.hs
   default-language: GHC2021
-
-  other-modules: Test.Wire.Notification
-  hs-source-dirs: test
+  other-modules:    Test.Wire.Notification
+  hs-source-dirs:   test
   build-depends:
-    , wire-subsystems 
+    , aeson
     , base
     , bytestring
-    , aeson
     , containers
-    , imports
+    , gundeck-types
     , hspec
-    , QuickCheck
-    , quickcheck-instances
-    , wire-api
-    , types-common
+    , imports
     , polysemy
     , polysemy-wire-zoo
-    , gundeck-types
+    , QuickCheck
+    , quickcheck-instances
+    , types-common
+    , wire-api
+    , wire-subsystems

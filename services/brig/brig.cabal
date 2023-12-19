@@ -125,7 +125,6 @@ library
     Brig.Effects.BlacklistStore.Cassandra
     Brig.Effects.CodeStore
     Brig.Effects.CodeStore.Cassandra
-    Brig.Effects.Delay
     Brig.Effects.FederationConfigStore
     Brig.Effects.FederationConfigStore.Cassandra
     Brig.Effects.GalleyProvider

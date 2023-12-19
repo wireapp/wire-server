@@ -23,6 +23,7 @@ import Polysemy.Async (Async, sequenceConcurrently)
 import Util.Options
 import Wire.API.Team.Member
 import Wire.Arbitrary
+import Wire.Sem.Delay (Delay, delay)
 
 data RecipientBy user = Recipient
   { _recipientUserId :: user,
@@ -74,7 +75,8 @@ makeSem ''GundeckAPIAccess
 -- | We interpret this using 'GundeckAPIAccess' so we can mock it out for testing.
 runNotificationSubsystemGundeck ::
   ( Member (GundeckAPIAccess) r,
-    Member Async r
+    Member Async r,
+    Member Delay r
   ) =>
   Sem (NotificationSubsystem : r) a ->
   Sem r a
@@ -157,13 +159,18 @@ chunkPushes maxRecipients
 
 pushSlowlyImpl ::
   ( Member GundeckAPIAccess r,
-    Member Async r
+    Member Async r,
+    Member Delay r
   ) =>
   [PushToUser] ->
   Sem r ()
 pushSlowlyImpl ps = do
-  -- mmillis <- view
-  pushImpl ps
+  -- TODO this comes from the Reader TM
+  let mmillies = 10000
+      d = 1000 * mmillies
+  for_ ps \p -> do
+    delay d
+    pushImpl [p]
 
 -- TODO: Test manually if this even works.
 runGundeckAPIAccess :: Member (Embed IO) r => GundeckAccessDetails -> Sem (GundeckAPIAccess : r) a -> Sem r a
