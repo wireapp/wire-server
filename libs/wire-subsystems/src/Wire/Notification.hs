@@ -47,7 +47,7 @@ data PushTo user = PushTo
     -- we probably don't rely on the list type
     -- pushRecipientListType :: ListType
   }
-  deriving stock (Eq, Generic, Functor, Foldable, Traversable, Show)
+  deriving stock (Eq, Ord, Generic, Functor, Foldable, Traversable, Show)
   deriving (Arbitrary) via GenericUniform (PushTo user)
 
 makeLenses ''PushTo
@@ -133,7 +133,9 @@ fromV2Push p =
 
 {-# INLINE chunkPushes #-}
 chunkPushes :: Natural -> [PushTo a] -> [[PushTo a]]
-chunkPushes maxRecipients = go 0 []
+chunkPushes maxRecipients
+  | maxRecipients > 0 = go 0 []
+  | otherwise = const []
   where
     go _ [] [] = []
     go _ acc [] = [acc]

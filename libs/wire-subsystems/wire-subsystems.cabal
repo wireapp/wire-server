@@ -92,9 +92,22 @@ test-suite wire-subsystems-tests
   import: common-all
   type: exitcode-stdio-1.0
   main-is: Main.hs
+  default-language: GHC2021
 
-  other-modules: 
+  other-modules: Test.Wire.Notification
   hs-source-dirs: test
   build-depends:
     , wire-subsystems 
     , base
+    , bytestring
+    , aeson
+    , containers
+    , imports
+    , hspec
+    , QuickCheck
+    , quickcheck-instances
+    , wire-api
+    , types-common
+    , polysemy
+    , polysemy-wire-zoo
+    , gundeck-types
