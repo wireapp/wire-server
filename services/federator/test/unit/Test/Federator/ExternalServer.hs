@@ -116,10 +116,17 @@ mockService status = interpret $ \case
 requestBrigSuccess :: TestTree
 requestBrigSuccess =
   testCase "should forward response from brig when status is 200" $ do
-    request <-
+    request0 <-
       exampleRequest
         "test/resources/unit/localhost.example.com.pem"
         "/federation/brig/get-user-by-handle"
+    let request =
+          request0
+            { Wai.requestHeaders =
+                ("Invalid-Header", "foo")
+                  : ("X-Wire-API-Version", "v0")
+                  : Wai.requestHeaders request0
+            }
     Right cert <- decodeCertificate <$> BS.readFile "test/resources/unit/localhost.example.com.pem"
 
     let assertMetrics :: Member (Embed IO) r => Sem (Metrics ': r) a -> Sem r a
@@ -140,7 +147,7 @@ requestBrigSuccess =
         . runInputConst noClientCertSettings
         . runInputConst scaffoldingFederationDomainConfigs
         $ callInward Brig (RPC "get-user-by-handle") Nothing aValidDomain (CertHeader cert) request
-    let expectedCall = Call Brig "/federation/get-user-by-handle" [] "\"foo\"" aValidDomain
+    let expectedCall = Call Brig "/federation/get-user-by-handle" [("X-Wire-API-Version", "v0")] "\"foo\"" aValidDomain
     assertEqual "one call to brig should be made" [expectedCall] actualCalls
     Wai.responseStatus res @?= HTTP.status200
     body <- Wai.lazyResponseBody res
