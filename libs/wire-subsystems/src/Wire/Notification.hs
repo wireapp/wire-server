@@ -13,7 +13,6 @@ import Data.Proxy (Proxy (..))
 import Data.Range (Range, fromRange, toRange, unsafeRange)
 import Data.Set qualified as Set
 import Data.Text.Encoding (encodeUtf8)
-import Debug.Trace
 import Gundeck.Types hiding (Push (..))
 import Gundeck.Types.Push.V2 qualified as V2
 import Imports
@@ -83,9 +82,7 @@ runNotificationSubsystemGundeck = interpret $ \case
   Push ps -> pushImpl ps
   PushSlowly ps -> pushSlowlyImpl ps
 
--- TODO: write a test which says all listed notification are sent
--- TODO: write a test which tests the chunking of notifications
--- TODO: write a test for listtype and maximum fanout limit thing
+-- TODO: write a test for listtype
 pushImpl ::
   forall r.
   ( Member (GundeckAPIAccess) r,
@@ -95,15 +92,12 @@ pushImpl ::
   Sem r ()
 pushImpl ps = do
   -- TODO: where from do we get the configuration
-  let currentFanoutLimit :: Range 1 HardTruncationLimit Int32 = toRange (Proxy @16) -- undefined
+  let currentFanoutLimit :: Range 1 HardTruncationLimit Int32 = toRange (Proxy @16)
       pushChunkSize :: Natural = 128
 
       pushes :: [[V2.Push]] =
         mkPushes pushChunkSize $
           removeIfLargeFanout currentFanoutLimit ps
-
-  traceShowM pushes
-
   void $
     sequenceConcurrently $
       pushV2 <$> pushes
@@ -167,7 +161,9 @@ pushSlowlyImpl ::
   ) =>
   [PushToUser] ->
   Sem r ()
-pushSlowlyImpl _ = pushImpl []
+pushSlowlyImpl ps = do
+  -- mmillis <- view
+  pushImpl ps
 
 -- TODO: Test manually if this even works.
 runGundeckAPIAccess :: Member (Embed IO) r => GundeckAccessDetails -> Sem (GundeckAPIAccess : r) a -> Sem r a

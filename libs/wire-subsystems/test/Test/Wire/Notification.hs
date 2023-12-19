@@ -8,12 +8,14 @@ import Imports
 import Numeric.Natural (Natural)
 import Polysemy
 import Polysemy.Async (asyncToIOFinal)
-import Polysemy.Writer (Writer, tell, writerToIOFinal)
+import Polysemy.Writer (tell, writerToIOFinal)
 import Test.Hspec
 import Test.QuickCheck
 import Test.QuickCheck.Instances ()
+import Test.QuickCheck.Monadic (assertWith, monadicIO, pre)
+import Test.QuickCheck.Monadic qualified as QC
 import Wire.API.Team.Member (HardTruncationLimit)
-import Wire.Notification (GundeckAPIAccess (PushV2), PushTo (..), PushToUser, chunkPushes, pushImpl, removeIfLargeFanout, _pushRecipients)
+import Wire.Notification (GundeckAPIAccess (PushV2), PushTo (..), chunkPushes, pushImpl, removeIfLargeFanout, _pushRecipients)
 
 spec :: Spec
 spec = describe "notification subsystem behaves correctly" do
@@ -21,23 +23,37 @@ spec = describe "notification subsystem behaves correctly" do
   it "respects maximum fanout limit" maximumFanoutlimitRespected
   describe "chunks notficiations correctly" notificationsCorrectlyChunked
 
-runGundeckAPIAccessMock :: Member (Writer [V2.Push]) r => Sem (GundeckAPIAccess : r) a -> Sem r a
-runGundeckAPIAccessMock = interpret \case
-  PushV2 pushes -> tell pushes
+runGundeckAPIAccessMock :: Member (Final IO) r => Sem (GundeckAPIAccess : r) a -> Sem r [V2.Push]
+runGundeckAPIAccessMock =
+  fmap fst . writerToIOFinal . reinterpret \case
+    PushV2 pushes -> tell pushes
 
-allNotificationsSent :: Expectation
-allNotificationsSent = do
-  pushes :: [PushToUser] <- generate (arbitrary `suchThat` \l -> nubOrdOn pushJson l == l)
+allNotificationsSent :: Property
+allNotificationsSent = property \(NonEmpty pushes) -> monadicIO do
+  pre (nubOrdOn pushJson pushes == pushes)
+  pre (nubOrdOn id pushes == pushes)
+  -- FIXME: the 16 should be reflecting the actual fanout limit
+  pre (all (\p -> length p._pushRecipients <= 16) pushes)
 
-  mockPushes :: [V2.Push] <-
-    fst <$> do
+  mockPushes <-
+    nubOrdOn V2._pushPayload <$> QC.run do
       runFinal
         . asyncToIOFinal
-        . writerToIOFinal
         . runGundeckAPIAccessMock
         $ pushImpl pushes
 
-  length (nubOrdOn V2._pushPayload mockPushes) `shouldBe` length pushes
+  let c =
+        unlines
+          [ "Expected:",
+            show pushes,
+            "\nwith length:",
+            show (length pushes),
+            "\nBut got:",
+            show mockPushes,
+            "\nwith length:",
+            show (length mockPushes)
+          ]
+  assertWith (length pushes == length mockPushes) c
 
 -- TODO: this doesn't really make sense; it is similar to the actual implementation and is basically testing filter
 maximumFanoutlimitRespected :: Property
