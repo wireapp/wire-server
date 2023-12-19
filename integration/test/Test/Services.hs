@@ -18,7 +18,6 @@
 module Test.Services where
 
 import API.Brig
-import API.BrigInternal
 import API.Common
 import SetupHelpers
 import Testlib.Prelude
@@ -28,26 +27,16 @@ testUpdateServiceUpdateAcceptHeader = do
   let dom = OwnDomain
   email <- randomEmail
   alice <- randomUser dom def
-  provider <- newProvider alice def {newProviderEmail = email}
-  providerId <- provider %. "id" & asString
-  pass <- provider %. "password" & asString
-  (key, code) <- do
-    pair <-
-      getProviderActivationCodeInternal dom email `bindResponse` \resp -> do
-        resp.status `shouldMatchInt` 200
-        resp.json
-    k <- pair %. "key" & asString
-    c <- pair %. "code" & asString
-    pure (k, c)
-  activateProvider dom key code
-  void $ loginProvider dom email pass
-  service <- newService dom providerId def
-  serviceId <- service %. "id"
+  provider <- setupProvider alice def {newProviderEmail = email}
+  pId <- provider %. "id" & asString
+  service <- newService dom pId def
+  sId <- service %. "id"
   void $
-    updateService
-      dom
-      providerId
-      serviceId
-      (Just "application/json")
-      (Just "brand new service")
+    updateService dom pId sId (Just "application/json") (Just "brand new service")
+      >>= getBody 200
+  void $
+    updateService dom pId sId (Just "text/plain") (Just "even newer service")
+      >>= getBody 200
+  void $
+    updateService dom pId sId Nothing (Just "really old service")
       >>= getBody 200
