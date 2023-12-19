@@ -397,15 +397,19 @@ data TLSParams = TLSParams
 
 mkTransport :: NS.Socket -> Maybe TLSParams -> IO Transport
 mkTransport sock Nothing = pure $ InsecureTransport sock
-mkTransport sock (Just TLSParams {..}) = do
-  ssl <- SSL.connection context sock
-  let hostnameStr = Text.unpack $ Text.decodeUtf8 hostname
-  -- Perhaps a hook at enable/disable or customize this would be nice.
-  -- OpenSSL also supports a callback.
-  SSL.setTlsextHostName ssl hostnameStr
-  SSL.enableHostnameValidation ssl hostnameStr
-  SSL.connect ssl
-  pure $ SecureTransport ssl
+mkTransport sock (Just TLSParams {..}) =
+  SSL.withContextSetKeylogCallback context keylog $ do
+    ssl <- SSL.connection context sock
+    let hostnameStr = Text.unpack $ Text.decodeUtf8 hostname
+    -- Perhaps a hook at enable/disable or customize this would be nice.
+    -- OpenSSL also supports a callback.
+    SSL.setTlsextHostName ssl hostnameStr
+    SSL.enableHostnameValidation ssl hostnameStr
+    SSL.connect ssl
+    pure $ SecureTransport ssl
+
+keylog :: String -> IO ()
+keylog str = Prelude.appendFile "/tmp/sslkeylog" (str <> "\n")
 
 cleanupTransport :: Transport -> IO ()
 cleanupTransport (InsecureTransport _) = pure ()
