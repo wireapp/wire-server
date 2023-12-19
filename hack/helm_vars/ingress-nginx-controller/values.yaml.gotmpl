@@ -19,3 +19,5 @@ ingress-nginx:
     # prevent new kind:Ingress resources to be created in the cluster.
     admissionWebhooks:
       enabled: false
+    config:
+      http2-max-requests: 10000
