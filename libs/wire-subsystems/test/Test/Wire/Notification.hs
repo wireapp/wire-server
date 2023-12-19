@@ -1,19 +1,19 @@
 module Test.Wire.Notification (spec) where
 
+import Data.Containers.ListUtils (nubOrdOn)
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Range (Range, fromRange)
 import Gundeck.Types.Push.V2 qualified as V2
 import Imports
 import Numeric.Natural (Natural)
 import Polysemy
-import Polysemy.Writer (Writer, runWriter, tell)
+import Polysemy.Async (asyncToIOFinal)
+import Polysemy.Writer (Writer, tell, writerToIOFinal)
 import Test.Hspec
 import Test.QuickCheck
 import Test.QuickCheck.Instances ()
 import Wire.API.Team.Member (HardTruncationLimit)
 import Wire.Notification (GundeckAPIAccess (PushV2), PushTo (..), PushToUser, chunkPushes, pushImpl, removeIfLargeFanout, _pushRecipients)
-import Wire.Sem.Concurrency.IO (performConcurrency)
-import Data.Containers.ListUtils (nubOrdOn)
 
 spec :: Spec
 spec = describe "notification subsystem behaves correctly" do
@@ -29,14 +29,15 @@ allNotificationsSent :: Expectation
 allNotificationsSent = do
   pushes :: [PushToUser] <- generate (arbitrary `suchThat` \l -> nubOrdOn pushJson l == l)
 
-  mockPushes :: ([V2.Push], ()) <-
-    runFinal
-      . performConcurrency
-      . runWriter
-      . runGundeckAPIAccessMock
-      $ pushImpl pushes
-  print mockPushes
-  length (nubOrdOn V2._pushPayload (fst mockPushes)) `shouldBe` length pushes
+  mockPushes :: [V2.Push] <-
+    fst <$> do
+      runFinal
+        . asyncToIOFinal
+        . writerToIOFinal
+        . runGundeckAPIAccessMock
+        $ pushImpl pushes
+
+  length (nubOrdOn V2._pushPayload mockPushes) `shouldBe` length pushes
 
 -- TODO: this doesn't really make sense; it is similar to the actual implementation and is basically testing filter
 maximumFanoutlimitRespected :: Property
