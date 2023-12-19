@@ -91,7 +91,7 @@ testSwagger = do
       internalApis :: [String]
       internalApis = ["brig", "cannon", "cargohold", "cannon", "spar"]
 
-  bindResponse BrigP.getApiVersions $ \resp -> do
+  bindResponse (BrigP.getAPIVersion OwnDomain) $ \resp -> do
     resp.status `shouldMatchInt` 200
     actualVersions :: [Int] <- do
       sup <- resp.json %. "supported" & asListOf asIntegral

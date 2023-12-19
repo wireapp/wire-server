@@ -124,6 +124,7 @@ library
     Test.Roles
     Test.Search
     Test.User
+    Test.Version
     Testlib.App
     Testlib.Assertions
     Testlib.Cannon

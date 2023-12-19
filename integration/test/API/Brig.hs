@@ -211,10 +211,13 @@ searchContacts user searchTerm domain = do
   d <- objDomain domain
   submit "GET" (req & addQueryParams [("q", q), ("domain", d)])
 
-getAPIVersion :: (HasCallStack, MakesValue domain) => domain -> App Response
-getAPIVersion domain = do
-  req <- baseRequest domain Brig Unversioned $ "/api-version"
+getAPIVersionWithVersion :: (HasCallStack, MakesValue domain) => domain -> Versioned -> App Response
+getAPIVersionWithVersion domain v = do
+  req <- baseRequest domain Brig v $ "/api-version"
   submit "GET" req
+
+getAPIVersion :: (HasCallStack, MakesValue domain) => domain -> App Response
+getAPIVersion domain = getAPIVersionWithVersion domain Unversioned
 
 postConnection ::
   ( HasCallStack,
@@ -315,11 +318,11 @@ replaceKeyPackages cid suites kps = do
       & addQueryParams [("ciphersuites", intercalate "," (map (.code) suites))]
       & addJSONObject ["key_packages" .= map (T.decodeUtf8 . Base64.encode) kps]
 
-getSelf :: HasCallStack => String -> String -> App Response
-getSelf domain uid = do
-  let user = object ["domain" .= domain, "id" .= uid]
-  req <- baseRequest user Brig Versioned "/self"
-  submit "GET" req
+getSelf :: (HasCallStack, MakesValue user) => user -> App Response
+getSelf = getSelfWithVersion Versioned
+
+getSelfWithVersion :: (HasCallStack, MakesValue user) => Versioned -> user -> App Response
+getSelfWithVersion v user = baseRequest user Brig v "/self" >>= submit "GET"
 
 getUserSupportedProtocols ::
   (HasCallStack, MakesValue user, MakesValue target) =>
@@ -364,13 +367,6 @@ postInvitation user inv = do
   email <- maybe randomEmail pure inv.email
   submit "POST" $
     req & addJSONObject ["email" .= email]
-
-getApiVersions :: HasCallStack => App Response
-getApiVersions = do
-  req <-
-    rawBaseRequest OwnDomain Brig Unversioned $
-      joinHttpPath ["api-version"]
-  submit "GET" req
 
 getSwaggerPublicTOC :: HasCallStack => App Response
 getSwaggerPublicTOC = do
