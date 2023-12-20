@@ -628,8 +628,9 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
         Nothing -> pure ()
         Just tm -> do
           unless (tm `hasPermission` DoNotUseDeprecatedAddRemoveConvMember) $ do
-            let total = length (ulAll lusr newMembers) + length (convLocalMembers conv) + length (convRemoteMembers conv)
+            let total = ulLength newMembers + length (convLocalMembers conv) + length (convRemoteMembers conv)
             when (total > 2) $ throwS @'InvalidOperation
+            when (total == 2) $ void $ E.setOtherMember (fmap (.convId) lconv) qusr (OtherMemberUpdate (Just roleNameWireMember))
 
 performConversationAccessData ::
   ( HasConversationActionEffects 'ConversationAccessDataTag r,

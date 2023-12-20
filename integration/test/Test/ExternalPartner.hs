@@ -42,6 +42,13 @@ testExternalPartnerPermissions = do
     bindResponse (addMembers partner conv def {users = [u2]}) $ \resp -> do
       resp.status `shouldMatchInt` 403
 
+    -- the other member in the conversation gets deleted
+    deleteUser u1
+
+    -- now they still should not be able to add another member
+    bindResponse (addMembers partner conv def {users = [u2]}) $ \resp -> do
+      resp.status `shouldMatchInt` 403
+
   -- they should be able to create an empty conversation and add a member
   -- because this is the conversation creation flow for MLS conversations
   do
@@ -50,11 +57,15 @@ testExternalPartnerPermissions = do
       resp.status `shouldMatchInt` 200
 
     -- now they should not be able to add another member
-    bindResponse (addMembers partner conv def {users = [u1]}) $ \resp -> do
+    bindResponse (addMembers partner conv def {users = [u2]}) $ \resp -> do
       resp.status `shouldMatchInt` 403
 
--- FUTUREWORK: handle deletion of members
--- deleteUser u3
+    -- the other member in the conversation gets deleted
+    deleteUser u3
+
+    -- now they still should not be able to add another member
+    bindResponse (addMembers partner conv def {users = [u2]}) $ \resp -> do
+      resp.status `shouldMatchInt` 403
 
 testExternalPartnerPermissionsConvName :: HasCallStack => App ()
 testExternalPartnerPermissionsConvName = do
