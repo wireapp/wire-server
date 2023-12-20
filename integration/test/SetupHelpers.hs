@@ -245,3 +245,27 @@ getOne2OneConversation user1 user2 cnvState = do
         qIds <- for others (%. "qualified_id")
         pure $ qIds == users && t
   head <$> filterM (isWith [user2]) l
+
+-- | Create a provider, get an activation code, activate the provider and log it
+-- in. The return value is the created provider.
+setupProvider ::
+  ( HasCallStack,
+    MakesValue user
+  ) =>
+  user ->
+  NewProvider ->
+  App Value
+setupProvider u np@(NewProvider {..}) = do
+  dom <- objDomain u
+  provider <- newProvider u np
+  pass <- provider %. "password" & asString
+  (key, code) <- do
+    pair <-
+      getProviderActivationCodeInternal dom newProviderEmail `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 200
+        resp.json
+    k <- pair %. "key" & asString
+    c <- pair %. "code" & asString
+    pure (k, c)
+  activateProvider dom key code
+  loginProvider dom newProviderEmail pass $> provider
