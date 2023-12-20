@@ -9,8 +9,7 @@ import Data.Id
 import Data.List.NonEmpty (NonEmpty, nonEmpty)
 import Data.List1 (List1)
 import Data.List1 qualified as List1
-import Data.Proxy (Proxy (..))
-import Data.Range (Range, fromRange, toRange, unsafeRange)
+import Data.Range (Range, fromRange, unsafeRange)
 import Data.Set qualified as Set
 import Data.Text.Encoding (encodeUtf8)
 import Gundeck.Types hiding (Push (..))
@@ -20,6 +19,7 @@ import Network.HTTP.Client qualified as HTTP
 import Numeric.Natural (Natural)
 import Polysemy
 import Polysemy.Async (Async, sequenceConcurrently)
+import Polysemy.Input
 import Util.Options
 import Wire.API.Team.Member
 import Wire.Arbitrary
@@ -74,37 +74,38 @@ makeSem ''GundeckAPIAccess
 -- | We interpret this using 'GundeckAPIAccess' so we can mock it out for testing.
 runNotificationSubsystemGundeck ::
   ( Member (GundeckAPIAccess) r,
-    Member Async r
+    Member Async r,
+    Member (Input NotificationSubsystemConfig) r
   ) =>
   Sem (NotificationSubsystem : r) a ->
   Sem r a
 runNotificationSubsystemGundeck = interpret $ \case
   Push ps -> pushImpl ps
 
+data NotificationSubsystemConfig = NotificationSubsystemConfig
+  { fanoutLimit :: Range 1 HardTruncationLimit Int32,
+    chunkSize :: Natural
+  }
+
 -- TODO: write a test for listtype
 pushImpl ::
   forall r.
   ( Member (GundeckAPIAccess) r,
+    Member (Input NotificationSubsystemConfig) r,
     Member (Async) r
   ) =>
   [PushToUser] ->
   Sem r ()
 pushImpl ps = do
-  -- TODO: where from do we get the configuration
-  let currentFanoutLimit :: Range 1 HardTruncationLimit Int32 = toRange (Proxy @16)
-      pushChunkSize :: Natural = 128
+  currentFanoutLimit <- inputs fanoutLimit
+  pushChunkSize <- inputs chunkSize
 
-      pushes :: [[V2.Push]] =
+  let pushes :: [[V2.Push]] =
         mkPushes pushChunkSize $
           removeIfLargeFanout currentFanoutLimit ps
   void $
     sequenceConcurrently $
       pushV2 <$> pushes
-
--- TODO: something about this is odd; we cannot really interpret anything that
--- is asynchronounsly run; everything would have to be in IO having to provide an
--- interpreter for the effect; Async seems so much easier; almost too easy
--- pooledMapConcurrentlyN_ maxThreads (_ . pushV2 @r) pushes
 
 removeIfLargeFanout :: Range n m Int32 -> [PushTo user] -> [PushTo user]
 removeIfLargeFanout limit = filter \PushTo {_pushRecipients} -> length _pushRecipients <= fromIntegral (fromRange limit)
