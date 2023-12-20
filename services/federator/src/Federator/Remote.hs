@@ -101,7 +101,7 @@ interpretRemote = interpret $ \case
     resp <- mapError (RemoteError target pathT) . (fromEither @FederatorClientHTTP2Error =<<) . embed $
       Codensity $ \k ->
         E.catches
-          (H2Manager.withHTTP2Request mgr (True, hostname, fromIntegral port) req' (consumeStreamingResponseWith $ k . Right))
+          (H2Manager.withHTTP2RequestOnSingleUseConn mgr (True, hostname, fromIntegral port) req' (consumeStreamingResponseWith $ k . Right))
           [ E.Handler $ k . Left,
             E.Handler $ k . Left . FederatorClientTLSException,
             E.Handler $ k . Left . FederatorClientHTTP2Exception,
