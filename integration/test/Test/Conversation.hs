@@ -671,11 +671,12 @@ testDeleteTeamMember = do
   conv <- postConversation alice nc >>= getJSON 201
   withWebSockets [alice, amy, bob] $ \[wsAlice, wsAmy, wsBob] -> do
     void $ deleteTeamMember team alice alex >>= getBody 202
+    assertConvLeaveNotif wsAmy alexId
     do
       n <- awaitMatch isTeamMemberLeaveNotif wsAlice
       alexUId <- alex %. "id"
       nPayload n %. "data.user" `shouldMatch` alexUId
-    assertConvLeaveNotif wsAmy alexId
+      assertConvLeaveNotif wsAlice alexId
     do
       bindResponse (getConversation bob conv) $ \resp -> do
         resp.status `shouldMatchInt` 200
