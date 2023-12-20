@@ -123,12 +123,10 @@ spec:
         integration-dynamic-backends-db-schemas.sh \
           --host {{ .Values.config.cassandra.host }} \
           --port {{ .Values.config.cassandra.port }} \
-          --replication-factor {{ .Values.config.cassandra.replicationFactor }}\
+          --replication-factor {{ .Values.config.cassandra.replicationFactor }} \
           {{- if eq (include "useCassandraTLS" .Values.config) "true" }}
           --tls-ca-certificate-file /certs/{{- (include "tlsSecretRef" .Values.config | fromYaml).key }}
-          {{- else }}
-          
-          {{- end}}
+          {{- end }}
         integration-dynamic-backends-brig-index.sh --elasticsearch-server http://{{ .Values.config.elasticsearch.host }}:9200
         integration-dynamic-backends-ses.sh {{ .Values.config.sesEndpointUrl }}
         integration-dynamic-backends-s3.sh {{ .Values.config.s3EndpointUrl }}
