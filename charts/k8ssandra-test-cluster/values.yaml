@@ -21,3 +21,12 @@ client_encryption_options:
   # used as test setup. And, protecting a self-signed certificate isn't very
   # useful.
   keystorePassword: password
+
+# Guard the private key by syncing only the CA certificate to
+# `k8ssandra-test-cluster-tls-ca-certificate` secrets. Requires `trust-manager`
+# Helm chart to be installed (including CDRs.)
+syncCACertToSecret: false
+
+# Limit syncing to this namespace. Otherwise, the secret is synced to all
+# namespaces.
+# syncCACertNamespace: <namespace-name>
