@@ -58,7 +58,6 @@ type PushToUser = PushTo UserId
 
 data NotificationSubsystem m a where
   Push :: [PushToUser] -> NotificationSubsystem m ()
-  PushSlowly :: [PushToUser] -> NotificationSubsystem m ()
 
 makeSem ''NotificationSubsystem
 
@@ -75,14 +74,12 @@ makeSem ''GundeckAPIAccess
 -- | We interpret this using 'GundeckAPIAccess' so we can mock it out for testing.
 runNotificationSubsystemGundeck ::
   ( Member (GundeckAPIAccess) r,
-    Member Async r,
-    Member Delay r
+    Member Async r
   ) =>
   Sem (NotificationSubsystem : r) a ->
   Sem r a
 runNotificationSubsystemGundeck = interpret $ \case
   Push ps -> pushImpl ps
-  PushSlowly ps -> pushSlowlyImpl ps
 
 -- TODO: write a test for listtype
 pushImpl ::
@@ -113,11 +110,11 @@ removeIfLargeFanout :: Range n m Int32 -> [PushTo user] -> [PushTo user]
 removeIfLargeFanout limit = filter \PushTo {_pushRecipients} -> length _pushRecipients <= fromIntegral (fromRange limit)
 
 mkPushes :: Natural -> [PushToUser] -> [[V2.Push]]
-mkPushes chunkSize = map (map fromV2Push) . chunkPushes chunkSize
+mkPushes chunkSize = map (map toV2Push) . chunkPushes chunkSize
 
-{-# INLINE fromV2Push #-}
-fromV2Push :: PushToUser -> V2.Push
-fromV2Push p =
+{-# INLINE [1] toV2Push #-}
+toV2Push :: PushToUser -> V2.Push
+toV2Push p =
   (newPush p.pushOrigin (unsafeRange (Set.fromList recipients)) pload)
     & V2.pushOriginConnection .~ _pushConn p
     & V2.pushTransient .~ _pushTransient p
@@ -133,7 +130,7 @@ fromV2Push p =
         { V2._recipientClients = r._recipientClients
         }
 
-{-# INLINE chunkPushes #-}
+{-# INLINE [1] chunkPushes #-}
 chunkPushes :: Natural -> [PushTo a] -> [[PushTo a]]
 chunkPushes maxRecipients
   | maxRecipients > 0 = go 0 []
@@ -157,20 +154,20 @@ chunkPushes maxRecipients
       let (r1, r2) = splitAt (fromIntegral n) (toList p._pushRecipients)
        in (p {_pushRecipients = fromJust $ nonEmpty r1}, p {_pushRecipients = fromJust $ nonEmpty r2})
 
-pushSlowlyImpl ::
-  ( Member GundeckAPIAccess r,
-    Member Async r,
+-- TODO: Test
+pushSlowly ::
+  ( Member NotificationSubsystem r,
     Member Delay r
   ) =>
   [PushToUser] ->
   Sem r ()
-pushSlowlyImpl ps = do
-  -- TODO this comes from the Reader TM
+pushSlowly ps = do
+  -- TODO this comes from the app configuration
   let mmillies = 10000
       d = 1000 * mmillies
   for_ ps \p -> do
     delay d
-    pushImpl [p]
+    push [p]
 
 -- TODO: Test manually if this even works.
 runGundeckAPIAccess :: Member (Embed IO) r => GundeckAccessDetails -> Sem (GundeckAPIAccess : r) a -> Sem r a
