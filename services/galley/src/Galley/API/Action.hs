@@ -621,11 +621,9 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
       case zusrMembership of
         Nothing -> pure ()
         Just tm -> do
-          let total = length (ulAll lusr newMembers) + length (convLocalMembers conv) + length (convRemoteMembers conv)
-          when (total > 2) $
-            if tm `hasPermission` DoNotUseDeprecatedAddRemoveConvMember
-              then pure ()
-              else throwS @'InvalidOperation
+          unless (tm `hasPermission` DoNotUseDeprecatedAddRemoveConvMember) $ do
+            let total = length (ulAll lusr newMembers) + length (convLocalMembers conv) + length (convRemoteMembers conv)
+            when (total > 2) $ throwS @'InvalidOperation
 
 performConversationAccessData ::
   ( HasConversationActionEffects 'ConversationAccessDataTag r,
