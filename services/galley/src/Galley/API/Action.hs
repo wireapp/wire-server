@@ -123,7 +123,7 @@ import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Team.Feature
 import Wire.API.Team.LegalHold
 import Wire.API.Team.Member
-import Wire.API.Team.Permission (Perm (DoNotUseDeprecatedAddRemoveConvMember))
+import Wire.API.Team.Permission (Perm (DoNotUseDeprecatedAddRemoveConvMember, DoNotUseDeprecatedModifyConvName))
 import Wire.API.User qualified as User
 
 data NoChanges = NoChanges
@@ -204,7 +204,9 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
     )
   HasConversationActionEffects 'ConversationRenameTag r =
     ( Member (Error InvalidInput) r,
-      Member ConversationStore r
+      Member ConversationStore r,
+      Member TeamStore r,
+      Member (ErrorS InvalidOperation) r
     )
   HasConversationActionEffects 'ConversationAccessDataTag r =
     ( Member BotAccess r,
@@ -466,6 +468,10 @@ performAction tag origUser lconv action = do
 
       pure (mempty, action)
     SConversationRenameTag -> do
+      zusrMembership <- join <$> forM (cnvmTeam (convMetadata conv)) (flip E.getTeamMember (qUnqualified origUser))
+      case zusrMembership of
+        Just tm -> unless (tm `hasPermission` DoNotUseDeprecatedModifyConvName) $ throwS @'InvalidOperation
+        Nothing -> pure ()
       cn <- rangeChecked (cupName action)
       E.setConversationName (tUnqualified lcnv) cn
       pure (mempty, action)

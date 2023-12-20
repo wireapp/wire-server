@@ -55,3 +55,14 @@ testExternalPartnerPermissions = do
 
 -- FUTUREWORK: handle deletion of members
 -- deleteUser u3
+
+testExternalPartnerPermissionsConvName :: HasCallStack => App ()
+testExternalPartnerPermissionsConvName = do
+  (owner, tid, u1 : _) <- createTeam OwnDomain 2
+
+  partner <- createTeamMemberWithRole owner tid "partner"
+
+  conv <- postConversation partner (defProteus {team = Just tid, qualifiedUsers = [u1]}) >>= getJSON 201
+
+  bindResponse (changeConversationName partner conv "new name") $ \resp -> do
+    resp.status `shouldMatchInt` 403

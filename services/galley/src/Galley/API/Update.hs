@@ -1375,7 +1375,8 @@ updateConversationName ::
     Member ExternalAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
-    Member (Logger (Msg -> Msg)) r
+    Member (Logger (Msg -> Msg)) r,
+    Member TeamStore r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1401,7 +1402,8 @@ updateUnqualifiedConversationName ::
     Member ExternalAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
-    Member (Logger (Msg -> Msg)) r
+    Member (Logger (Msg -> Msg)) r,
+    Member TeamStore r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1423,7 +1425,8 @@ updateLocalConversationName ::
     Member ExternalAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
-    Member (Logger (Msg -> Msg)) r
+    Member (Logger (Msg -> Msg)) r,
+    Member TeamStore r
   ) =>
   Local UserId ->
   ConnId ->
