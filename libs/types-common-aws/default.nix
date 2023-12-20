@@ -14,7 +14,6 @@
 , lib
 , proto-lens
 , resourcet
-, safe
 , text
 , time
 , unliftio
@@ -33,7 +32,6 @@ mkDerivation {
     lens
     proto-lens
     resourcet
-    safe
     text
     time
     unliftio
