@@ -5,6 +5,14 @@ excludes = [
   "nix/sources.nix" # managed by niv.
 ]
 
+[formatter.cabal-fmt]
+command = "cabal-fmt"
+options = [ "--inplace" ]
+includes = [ "*.cabal" ]
+excludes = [
+  "dist-newstyle/"
+]
+
 [formatter.shellcheck]
 command = "shellcheck"
 includes = ["*.sh"]

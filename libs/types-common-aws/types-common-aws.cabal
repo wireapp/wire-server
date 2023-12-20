@@ -86,7 +86,6 @@ library
     , lens               >=4.10
     , proto-lens
     , resourcet
-    , safe               >=0.3
     , text               >=0.11
     , time
     , unliftio
