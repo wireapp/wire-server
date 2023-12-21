@@ -60,7 +60,7 @@ import Galley.Effects.TeamStore qualified as E
 import Galley.Intra.Push
 import Galley.Options
 import Galley.Types.Conversations.Members
-import Galley.Types.Teams (IsPerm (hasPermission), notTeamMember)
+import Galley.Types.Teams (notTeamMember)
 import Galley.Types.ToUserRole
 import Galley.Types.UserList
 import Galley.Validation
@@ -70,7 +70,6 @@ import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog qualified as P
 import Wire.API.Conversation hiding (Conversation, Member)
-import Wire.API.Conversation.Role (roleNameWireMember)
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
@@ -195,12 +194,8 @@ createGroupConversationGeneric ::
   NewConv ->
   Sem r Conversation
 createGroupConversationGeneric lusr conn newConv = do
+  (nc, fromConvSize -> allUsers) <- newRegularConversation lusr newConv
   let tinfo = newConvTeam newConv
-  hasAddMembersPermission <- do
-    join <$> forM (cnvTeamId <$> tinfo) (flip E.getTeamMember (tUnqualified lusr)) <&> \case
-      Just tm -> tm `hasPermission` DoNotUseDeprecatedAddRemoveConvMember
-      Nothing -> True
-  (nc, fromConvSize -> allUsers) <- newRegularConversation lusr newConv hasAddMembersPermission
   checkCreateConvPermissions lusr newConv tinfo allUsers
   ensureNoLegalholdConflicts allUsers
 
@@ -595,9 +590,8 @@ newRegularConversation ::
   ) =>
   Local UserId ->
   NewConv ->
-  Bool ->
   Sem r (NewConversation, ConvSizeChecked UserList UserId)
-newRegularConversation lusr newConv hasTeamAddMemberPermission = do
+newRegularConversation lusr newConv = do
   o <- input
   let uncheckedUsers = newConvMembers lusr newConv
   users <- case newConvProtocol newConv of
@@ -605,17 +599,6 @@ newRegularConversation lusr newConv hasTeamAddMemberPermission = do
     BaseProtocolMLSTag -> do
       unless (null uncheckedUsers) $ throwS @'MLSNonEmptyMemberList
       pure mempty
-  let creatorWithRole =
-        -- In case the creator has no permission to add members (e.g. external partner)
-        -- we set their conversation role to 'member' to ensure they can't add/remove any members from the conversation
-        -- even if the other members got removed (e.g. because they were deleted by the team admin).
-        -- If the conversation is empty, we don't set the role to 'member'
-        -- because we want to allow the creator to add at least one member to the conversation later.
-        -- This is due to the fact that in teams we do not have 1:1 conversations,
-        -- only regular conversations that are interpreted as 1:1 conversations.
-        if not hasTeamAddMemberPermission && ulLength (fromConvSize users) > 0
-          then (tUnqualified lusr, roleNameWireMember)
-          else (toUserRole (tUnqualified lusr))
   let nc =
         NewConversation
           { ncMetadata =
@@ -629,7 +612,7 @@ newRegularConversation lusr newConv hasTeamAddMemberPermission = do
                   cnvmReceiptMode = newConvReceiptMode newConv,
                   cnvmTeam = fmap cnvTeamId (newConvTeam newConv)
                 },
-            ncUsers = ulAddLocal creatorWithRole (fmap (,newConvUsersRole newConv) (fromConvSize users)),
+            ncUsers = ulAddLocal (toUserRole (tUnqualified lusr)) (fmap (,newConvUsersRole newConv) (fromConvSize users)),
             ncProtocol = newConvProtocol newConv
           }
   pure (nc, users)

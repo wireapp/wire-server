@@ -19,7 +19,6 @@
 
 module Test.ExternalPartner where
 
--- import API.Brig (getConnection)
 import API.Galley
 import GHC.Stack
 import SetupHelpers
@@ -34,8 +33,8 @@ testExternalPartnerPermissions = do
   -- a partner should not be able to create conversation with more than 2 users
   void $ postConversation partner (defProteus {team = Just tid, qualifiedUsers = [u1, u2]}) >>= getJSON 403
 
-  -- a partner can create a one to one conversation with a user from the same team
   do
+    -- a partner can create a one to one conversation with a user from the same team
     conv <- postConversation partner (defProteus {team = Just tid, qualifiedUsers = [u1]}) >>= getJSON 201
 
     -- they should not be able to add another team member to the one to one conversation
@@ -49,22 +48,10 @@ testExternalPartnerPermissions = do
     bindResponse (addMembers partner conv def {users = [u2]}) $ \resp -> do
       resp.status `shouldMatchInt` 403
 
-  -- they should be able to create an empty conversation and add a member
-  -- because this is the conversation creation flow for MLS conversations
   do
+    -- also an external partner cannot add someone to a conversation, even if it is empty
     conv <- postConversation partner (defProteus {team = Just tid}) >>= getJSON 201
     bindResponse (addMembers partner conv def {users = [u3]}) $ \resp -> do
-      resp.status `shouldMatchInt` 200
-
-    -- now they should not be able to add another member
-    bindResponse (addMembers partner conv def {users = [u2]}) $ \resp -> do
-      resp.status `shouldMatchInt` 403
-
-    -- the other member in the conversation gets deleted
-    deleteUser u3
-
-    -- now they still should not be able to add another member
-    bindResponse (addMembers partner conv def {users = [u2]}) $ \resp -> do
       resp.status `shouldMatchInt` 403
 
 testExternalPartnerPermissionsConvName :: HasCallStack => App ()

@@ -528,7 +528,7 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
   checkLHPolicyConflictsLocal (ulLocals newMembers)
   checkLHPolicyConflictsRemote (FutureWork (ulRemotes newMembers))
   checkRemoteBackendsConnected lusr
-  checkTeamMemberAddPermissions lusr newMembers
+  checkTeamMemberAddPermissions lusr
   addMembersToLocalConversation (fmap (.convId) lconv) newMembers role
   where
     checkRemoteBackendsConnected :: Local x -> Sem r ()
@@ -617,20 +617,11 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
       Sem r ()
     checkLHPolicyConflictsRemote _remotes = pure ()
 
-    -- In teams we don't have 1:1 conversations, only regular conversations. We want
-    -- users without the 'AddRemoveConvMember' permission to still be able to create
-    -- regular conversations, therefore we check for 'AddRemoveConvMember' only if
-    -- there are going to be more than two users in the conversation.
-    checkTeamMemberAddPermissions :: Local UserId -> UserList a -> Sem r ()
-    checkTeamMemberAddPermissions lusr newMembers = do
-      zusrMembership <- join <$> forM (cnvmTeam (convMetadata conv)) (flip E.getTeamMember (tUnqualified lusr))
-      case zusrMembership of
-        Nothing -> pure ()
-        Just tm -> do
-          unless (tm `hasPermission` DoNotUseDeprecatedAddRemoveConvMember) $ do
-            let total = ulLength newMembers + length (convLocalMembers conv) + length (convRemoteMembers conv)
-            when (total > 2) $ throwS @'InvalidOperation
-            when (total == 2) $ void $ E.setOtherMember (fmap (.convId) lconv) qusr (OtherMemberUpdate (Just roleNameWireMember))
+    checkTeamMemberAddPermissions :: Local UserId -> Sem r ()
+    checkTeamMemberAddPermissions lusr =
+      forM (cnvmTeam (convMetadata conv)) (flip E.getTeamMember (tUnqualified lusr))
+        >>= (maybe (pure ()) (\tm -> unless (tm `hasPermission` DoNotUseDeprecatedAddRemoveConvMember) $ throwS @'InvalidOperation))
+          . join
 
 performConversationAccessData ::
   ( HasConversationActionEffects 'ConversationAccessDataTag r,
