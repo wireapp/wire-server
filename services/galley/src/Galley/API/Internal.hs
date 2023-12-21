@@ -27,7 +27,7 @@ where
 import Control.Exception.Safe (catchAny)
 import Control.Lens hiding (Getter, Setter, (.=))
 import Data.Id as Id
-import Data.List1 (maybeList1)
+import Data.Json.Util (ToJSONObject (toJSONObject))
 import Data.Map qualified as Map
 import Data.Qualified
 import Data.Range
@@ -57,12 +57,10 @@ import Galley.Effects.BackendNotificationQueueAccess
 import Galley.Effects.ClientStore
 import Galley.Effects.ConversationStore
 import Galley.Effects.FederatorAccess
-import Galley.Effects.GundeckAccess
 import Galley.Effects.LegalHoldStore as LegalHoldStore
 import Galley.Effects.MemberStore qualified as E
 import Galley.Effects.TeamStore
 import Galley.Effects.TeamStore qualified as E
-import Galley.Intra.Push qualified as Intra
 import Galley.Monad
 import Galley.Options hiding (brig)
 import Galley.Queue qualified as Q
@@ -70,6 +68,7 @@ import Galley.Types.Bot (AddBot, RemoveBot)
 import Galley.Types.Bot.Service
 import Galley.Types.Conversations.Members (RemoteMember (rmId))
 import Galley.Types.UserList
+import Gundeck.Types.Push.V2 qualified as PushV2
 import Imports hiding (head)
 import Network.AMQP qualified as Q
 import Network.Wai.Predicate hiding (Error, err, result, setStatus)
@@ -99,8 +98,9 @@ import Wire.API.Routes.Internal.Galley
 import Wire.API.Routes.Internal.Galley.TeamsIntra
 import Wire.API.Routes.MultiTablePaging (mtpHasMore, mtpPagingState, mtpResults)
 import Wire.API.Team.Feature hiding (setStatus)
-import Wire.API.Team.Member
 import Wire.API.User.Client
+import Wire.NotificationSubsystem
+import Wire.NotificationSubsystem qualified as NotificationSubsystem
 import Wire.Sem.Paging
 import Wire.Sem.Paging.Cassandra
 
@@ -305,7 +305,7 @@ rmUser ::
     Member (Error InternalError) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input Env) r,
     Member (Input Opts) r,
     Member (Input UTCTime) r,
@@ -395,14 +395,12 @@ rmUser lusr conn = do
                       (EdMembersLeave EdReasonDeleted (QualifiedUserIdList [qUser]))
               for_ (bucketRemote (fmap rmId (Data.convRemoteMembers c))) $ notifyRemoteMembers now qUser (Data.convId c)
               pure $
-                Intra.newPushLocal ListComplete (tUnqualified lusr) (Intra.ConvEvent e) (Intra.recipient <$> Data.convLocalMembers c)
-                  <&> set Intra.pushConn conn
-                    . set Intra.pushRoute Intra.RouteDirect
+                newPushLocal (tUnqualified lusr) (toJSONObject e) (localMemberToRecipient <$> Data.convLocalMembers c)
+                  <&> set pushConn conn
+                    . set pushRoute PushV2.RouteDirect
           | otherwise -> pure Nothing
 
-      for_
-        (maybeList1 (catMaybes pp))
-        Galley.Effects.GundeckAccess.push
+      NotificationSubsystem.push (catMaybes pp)
 
     -- FUTUREWORK: This could be optimized to reduce the number of RPCs
     -- made. When a team is deleted the burst of RPCs created here could

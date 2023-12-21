@@ -51,6 +51,7 @@ import Control.Lens
 import Data.ByteString.Conversion (toByteString')
 import Data.Domain (Domain (..))
 import Data.Id
+import Data.Json.Util
 import Data.Kind
 import Data.List qualified as List
 import Data.List.Extra (nubOrd)
@@ -82,18 +83,17 @@ import Galley.Effects.CodeStore qualified as E
 import Galley.Effects.ConversationStore qualified as E
 import Galley.Effects.FederatorAccess qualified as E
 import Galley.Effects.FireAndForget qualified as E
-import Galley.Effects.GundeckAccess
 import Galley.Effects.MemberStore qualified as E
 import Galley.Effects.ProposalStore qualified as E
 import Galley.Effects.SubConversationStore qualified as E
 import Galley.Effects.TeamStore qualified as E
 import Galley.Env (Env)
-import Galley.Intra.Push
 import Galley.Options
 import Galley.Types.Conversations.Members
 import Galley.Types.Teams (IsPerm (hasPermission))
 import Galley.Types.UserList
 import Galley.Validation
+import Gundeck.Types.Push.V2 qualified as PushV2
 import Imports hiding ((\\))
 import Network.AMQP qualified as Q
 import Polysemy
@@ -125,6 +125,8 @@ import Wire.API.Team.LegalHold
 import Wire.API.Team.Member
 import Wire.API.Team.Permission (Perm (AddRemoveConvMember, ModifyConvName))
 import Wire.API.User qualified as User
+import Wire.NotificationSubsystem
+import Wire.NotificationSubsystem qualified as NotificationSubsystem
 
 data NoChanges = NoChanges
 
@@ -146,7 +148,7 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member (Error UnreachableBackends) r,
       Member ExternalAccess r,
       Member FederatorAccess r,
-      Member GundeckAccess r,
+      Member NotificationSubsystem r,
       Member (Input Env) r,
       Member (Input Opts) r,
       Member (Input UTCTime) r,
@@ -165,7 +167,7 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member (Error NoChanges) r,
       Member ExternalAccess r,
       Member FederatorAccess r,
-      Member GundeckAccess r,
+      Member NotificationSubsystem r,
       Member (Input UTCTime) r,
       Member (Input Env) r,
       Member ProposalStore r,
@@ -181,7 +183,7 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member (Input UTCTime) r,
       Member ExternalAccess r,
       Member FederatorAccess r,
-      Member GundeckAccess r,
+      Member NotificationSubsystem r,
       Member (Error InternalError) r,
       Member TinyLog r,
       Member (Error NoChanges) r
@@ -220,7 +222,7 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member ExternalAccess r,
       Member FederatorAccess r,
       Member FireAndForget r,
-      Member GundeckAccess r,
+      Member NotificationSubsystem r,
       Member (Input Env) r,
       Member MemberStore r,
       Member ProposalStore r,
@@ -249,7 +251,7 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member BrigAccess r,
       Member ExternalAccess r,
       Member FederatorAccess r,
-      Member GundeckAccess r,
+      Member NotificationSubsystem r,
       Member (Input Env) r,
       Member (Input Opts) r,
       Member (Input UTCTime) r,
@@ -717,7 +719,7 @@ updateLocalConversation ::
     Member (ErrorS 'InvalidOperation) r,
     Member (ErrorS 'ConvNotFound) r,
     Member ExternalAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input UTCTime) r,
     Member (Logger (Log.Msg -> Log.Msg)) r,
     HasConversationActionEffects tag r,
@@ -757,7 +759,7 @@ updateLocalConversationUnchecked ::
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
     Member ExternalAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input UTCTime) r,
     Member (Logger (Log.Msg -> Log.Msg)) r,
     HasConversationActionEffects tag r
@@ -860,7 +862,7 @@ notifyConversationAction ::
   forall tag r.
   ( Member BackendNotificationQueueAccess r,
     Member ExternalAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input UTCTime) r,
     Member (Logger (Log.Msg -> Log.Msg)) r
   ) =>
@@ -911,7 +913,7 @@ notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
 -- or leaving. Finally, push out notifications to local users.
 updateLocalStateOfRemoteConv ::
   ( Member BrigAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member ExternalAccess r,
     Member (Input (Local ())) r,
     Member MemberStore r,
@@ -1038,7 +1040,7 @@ kickMember ::
     Member (Error InternalError) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member ProposalStore r,
     Member (Input UTCTime) r,
     Member (Input Env) r,
@@ -1070,7 +1072,7 @@ kickMember qusr lconv targets victim = void . runError @NoChanges $ do
 notifyTypingIndicator ::
   ( Member (Input UTCTime) r,
     Member (Input (Local ())) r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member FederatorAccess r
   ) =>
   Conversation ->
@@ -1101,7 +1103,7 @@ notifyTypingIndicator conv qusr mcon ts = do
   pure (tdu (fmap (tUnqualified . rmId) remoteMemsOrig))
 
 pushTypingIndicatorEvents ::
-  (Member GundeckAccess r) =>
+  (Member NotificationSubsystem r) =>
   Qualified UserId ->
   UTCTime ->
   [UserId] ->
@@ -1111,9 +1113,10 @@ pushTypingIndicatorEvents ::
   Sem r ()
 pushTypingIndicatorEvents qusr tEvent users mcon qcnv ts = do
   let e = Event qcnv Nothing qusr tEvent (EdTyping ts)
-  for_ (newPushLocal ListComplete (qUnqualified qusr) (ConvEvent e) (userRecipient <$> users)) $ \p ->
-    push1 $
-      p
-        & pushConn .~ mcon
-        & pushRoute .~ RouteDirect
-        & pushTransient .~ True
+  for_ (newPushLocal (qUnqualified qusr) (toJSONObject e) (userRecipient <$> users)) $ \p ->
+    NotificationSubsystem.push
+      [ p
+          & pushConn .~ mcon
+          & pushRoute .~ PushV2.RouteDirect
+          & pushTransient .~ True
+      ]

@@ -71,8 +71,10 @@ import Data.CaseInsensitive qualified as CI
 import Data.Csv (EncodeOptions (..), Quoting (QuoteAll), encodeDefaultOrderedByNameWith)
 import Data.Handle qualified as Handle
 import Data.Id
+import Data.Json.Util
 import Data.LegalHold qualified as LH
 import Data.List.Extra qualified as List
+import Data.List.NonEmpty (NonEmpty (..))
 import Data.List1 (list1)
 import Data.Map qualified as Map
 import Data.Map.Strict qualified as M
@@ -97,7 +99,6 @@ import Galley.Effects
 import Galley.Effects.BrigAccess qualified as E
 import Galley.Effects.ConversationStore qualified as E
 import Galley.Effects.ExternalAccess qualified as E
-import Galley.Effects.GundeckAccess qualified as E
 import Galley.Effects.LegalHoldStore qualified as Data
 import Galley.Effects.ListItems qualified as E
 import Galley.Effects.MemberStore qualified as E
@@ -107,7 +108,6 @@ import Galley.Effects.SparAccess qualified as Spar
 import Galley.Effects.TeamMemberStore qualified as E
 import Galley.Effects.TeamStore qualified as E
 import Galley.Intra.Journal qualified as Journal
-import Galley.Intra.Push
 import Galley.Options
 import Galley.Types.Conversations.Members qualified as Conv
 import Galley.Types.Teams
@@ -154,6 +154,9 @@ import Wire.API.User (ScimUserInfo (..), User, UserIdList, UserSSOId (UserScimEx
 import Wire.API.User qualified as U
 import Wire.API.User.Identity (UserSSOId (UserSSOId))
 import Wire.API.User.RichInfo (RichInfo)
+import Wire.NotificationSubsystem
+import Wire.NotificationSubsystem qualified as NotificationSubsystem
+import Wire.Sem.Delay
 import Wire.Sem.Paging qualified as E
 import Wire.Sem.Paging.Cassandra
 
@@ -234,7 +237,7 @@ createNonBindingTeamH ::
   ( Member BrigAccess r,
     Member (ErrorS 'UserBindingExists) r,
     Member (ErrorS 'NotConnected) r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input UTCTime) r,
     Member P.TinyLog r,
     Member TeamStore r
@@ -267,7 +270,7 @@ createNonBindingTeamH zusr zcon (Public.NonBindingNewTeam body) = do
   pure (team ^. teamId)
 
 createBindingTeam ::
-  ( Member GundeckAccess r,
+  ( Member NotificationSubsystem r,
     Member (Input UTCTime) r,
     Member TeamStore r
   ) =>
@@ -324,7 +327,7 @@ updateTeamStatus tid (TeamStatusUpdate newStatus cur) = do
 updateTeamH ::
   ( Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS ('MissingPermission ('Just 'SetTeamData))) r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input UTCTime) r,
     Member TeamStore r
   ) =>
@@ -340,8 +343,8 @@ updateTeamH zusr zcon tid updateData = do
   now <- input
   admins <- E.getTeamAdmins tid
   let e = newEvent tid now (EdTeamUpdate updateData)
-  let r = list1 (userRecipient zusr) (map userRecipient (filter (/= zusr) admins))
-  E.push1 $ newPushLocal1 ListComplete zusr (TeamEvent e) r & pushConn ?~ zcon & pushTransient .~ True
+  let r = userRecipient zusr :| map userRecipient (filter (/= zusr) admins)
+  NotificationSubsystem.push [newPushLocal1 zusr (toJSONObject e) r & pushConn ?~ zcon & pushTransient .~ True]
 
 deleteTeam ::
   forall r.
@@ -404,13 +407,14 @@ uncheckedDeleteTeam ::
   forall r.
   ( Member BrigAccess r,
     Member ExternalAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input Opts) r,
     Member (Input UTCTime) r,
     Member LegalHoldStore r,
     Member MemberStore r,
     Member SparAccess r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member Delay r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -441,7 +445,7 @@ uncheckedDeleteTeam lusr zcon tid = do
     Data.unsetTeamLegalholdWhitelisted tid
     E.deleteTeam tid
   where
-    pushDeleteEvents :: [TeamMember] -> Event -> [Push] -> Sem r ()
+    pushDeleteEvents :: [TeamMember] -> Event -> [PushToUser] -> Sem r ()
     pushDeleteEvents membs e ue = do
       o <- inputs (view settings)
       let r = list1 (userRecipient (tUnqualified lusr)) (membersToRecipients (Just (tUnqualified lusr)) membs)
@@ -452,15 +456,15 @@ uncheckedDeleteTeam lusr zcon tid = do
         [] -> pure ()
         -- push TeamDelete events. Note that despite having a complete list, we are guaranteed in the
         -- push module to never fan this out to more than the limit
-        x : xs -> E.push1 (newPushLocal1 ListComplete (tUnqualified lusr) (TeamEvent e) (list1 x xs) & pushConn .~ zcon)
+        x : xs -> NotificationSubsystem.push [newPushLocal1 (tUnqualified lusr) (toJSONObject e) (x :| xs) & pushConn .~ zcon]
       -- To avoid DoS on gundeck, send conversation deletion events slowly
-      E.pushSlowly ue
+      NotificationSubsystem.pushSlowly ue
     createConvDeleteEvents ::
       UTCTime ->
       [TeamMember] ->
       TeamConversation ->
-      ([Push], [(BotMember, Conv.Event)]) ->
-      Sem r ([Push], [(BotMember, Conv.Event)])
+      ([PushToUser], [(BotMember, Conv.Event)]) ->
+      Sem r ([PushToUser], [(BotMember, Conv.Event)])
     createConvDeleteEvents now teamMembs c (pp, ee) = do
       let qconvId = tUntagged $ qualifyAs lusr (c ^. conversationId)
       (bots, convMembs) <- localBotsAndUsers <$> E.getLocalMembers (c ^. conversationId)
@@ -470,7 +474,7 @@ uncheckedDeleteTeam lusr zcon tid = do
       let mm = nonTeamMembers convMembs teamMembs
       let e = Conv.Event qconvId Nothing (tUntagged lusr) now Conv.EdConvDelete
       -- This event always contains all the required recipients
-      let p = newPushLocal ListComplete (tUnqualified lusr) (ConvEvent e) (map recipient mm)
+      let p = newPushLocal (tUnqualified lusr) (toJSONObject e) (map localMemberToRecipient mm)
       let ee' = map (,e) bots
       let pp' = maybe pp (\x -> (x & pushConn .~ zcon) : pp) p
       pure (pp', ee' ++ ee)
@@ -710,7 +714,7 @@ uncheckedGetTeamMembers = E.getTeamMembersWithLimit
 addTeamMember ::
   forall r.
   ( Member BrigAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (ErrorS 'InvalidPermissions) r,
     Member (ErrorS 'NoAddToBinding) r,
     Member (ErrorS 'NotATeamMember) r,
@@ -757,7 +761,7 @@ addTeamMember lzusr zcon tid nmem = do
 uncheckedAddTeamMember ::
   forall r.
   ( Member BrigAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (ErrorS 'TooManyTeamMembers) r,
     Member (ErrorS 'TooManyTeamAdmins) r,
     Member (ErrorS 'TooManyTeamMembersOnTeamWithLegalhold) r,
@@ -785,7 +789,7 @@ uncheckedUpdateTeamMember ::
     Member (ErrorS 'TeamNotFound) r,
     Member (ErrorS 'TeamMemberNotFound) r,
     Member (ErrorS 'TooManyTeamAdmins) r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input UTCTime) r,
     Member P.TinyLog r,
     Member TeamStore r
@@ -823,8 +827,8 @@ uncheckedUpdateTeamMember mlzusr mZcon tid newMember = do
 
   now <- input
   let event = newEvent tid now (EdMemberUpdate targetId (Just targetPermissions))
-  let pushPriv = newPush ListComplete mZusr (TeamEvent event) (map userRecipient admins')
-  for_ pushPriv (\p -> E.push1 (p & pushConn .~ mZcon & pushTransient .~ True))
+  let pushPriv = newPush mZusr (toJSONObject event) (map userRecipient admins')
+  for_ pushPriv (\p -> NotificationSubsystem.push [p & pushConn .~ mZcon & pushTransient .~ True])
 
 updateTeamMember ::
   forall r.
@@ -836,7 +840,7 @@ updateTeamMember ::
     Member (ErrorS 'TooManyTeamAdmins) r,
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input UTCTime) r,
     Member P.TinyLog r,
     Member TeamStore r
@@ -893,7 +897,7 @@ deleteTeamMember ::
     Member ExternalAccess r,
     Member (Input Opts) r,
     Member (Input UTCTime) r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member MemberStore r,
     Member TeamFeatureStore r,
     Member TeamStore r,
@@ -921,7 +925,7 @@ deleteNonBindingTeamMember ::
     Member ExternalAccess r,
     Member (Input Opts) r,
     Member (Input UTCTime) r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member MemberStore r,
     Member TeamFeatureStore r,
     Member TeamStore r,
@@ -949,7 +953,7 @@ deleteTeamMember' ::
     Member ExternalAccess r,
     Member (Input Opts) r,
     Member (Input UTCTime) r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member MemberStore r,
     Member TeamFeatureStore r,
     Member TeamStore r,
@@ -1007,7 +1011,7 @@ uncheckedDeleteTeamMember ::
   forall r.
   ( Member BackendNotificationQueueAccess r,
     Member ConversationStore r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member ExternalAccess r,
     Member (Input UTCTime) r,
     Member (P.Logger (Log.Msg -> Log.Msg)) r,
@@ -1033,11 +1037,9 @@ uncheckedDeleteTeamMember lusr zcon tid remove (Left admins) = do
       let e = newEvent tid now (EdMemberLeave remove)
       let r =
             userRecipient
-              <$> list1
-                (tUnqualified lusr)
-                (filter (/= (tUnqualified lusr)) admins)
-      E.push1 $
-        newPushLocal1 ListComplete (tUnqualified lusr) (TeamEvent e) r & pushConn .~ zcon & pushTransient .~ True
+              <$> (tUnqualified lusr :| filter (/= (tUnqualified lusr)) admins)
+      NotificationSubsystem.push
+        [newPushLocal1 (tUnqualified lusr) (toJSONObject e) r & pushConn .~ zcon & pushTransient .~ True]
 uncheckedDeleteTeamMember lusr zcon tid remove (Right mems) = do
   now <- input
   pushMemberLeaveEventToAll now
@@ -1051,19 +1053,17 @@ uncheckedDeleteTeamMember lusr zcon tid remove (Right mems) = do
     pushMemberLeaveEventToAll :: UTCTime -> Sem r ()
     pushMemberLeaveEventToAll now = do
       let e = newEvent tid now (EdMemberLeave remove)
-      let r =
-            list1
-              (userRecipient (tUnqualified lusr))
-              (membersToRecipients (Just (tUnqualified lusr)) (mems ^. teamMembers))
-      E.push1 $
-        newPushLocal1 (mems ^. teamMemberListType) (tUnqualified lusr) (TeamEvent e) r & pushTransient .~ True
+      let r = userRecipient (tUnqualified lusr) :| membersToRecipients (Just (tUnqualified lusr)) (mems ^. teamMembers)
+      when (mems ^. teamMemberListType == ListComplete) $ do
+        NotificationSubsystem.push
+          [newPushLocal1 (tUnqualified lusr) (toJSONObject e) r & pushTransient .~ True]
 
 removeFromConvsAndPushConvLeaveEvent ::
   forall r.
   ( Member BackendNotificationQueueAccess r,
     Member ConversationStore r,
     Member ExternalAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input UTCTime) r,
     Member (P.Logger (Log.Msg -> Log.Msg)) r,
     Member MemberStore r,
@@ -1149,7 +1149,7 @@ deleteTeamConversation ::
     Member MemberStore r,
     Member ProposalStore r,
     Member ExternalAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input UTCTime) r,
     Member SubConversationStore r,
     Member TeamStore r,
@@ -1307,7 +1307,7 @@ addTeamMemberInternal ::
   ( Member BrigAccess r,
     Member (ErrorS 'TooManyTeamMembers) r,
     Member (ErrorS 'TooManyTeamAdmins) r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input Opts) r,
     Member (Input UTCTime) r,
     Member TeamNotificationStore r,
@@ -1334,16 +1334,19 @@ addTeamMemberInternal tid origin originConn (ntmNewTeamMember -> new) = do
   now <- input
   let e = newEvent tid now (EdMemberJoin (new ^. userId))
   let rs = case origin of
-        Just o -> userRecipient <$> list1 o (filter (/= o) ((new ^. userId) : admins'))
-        Nothing -> userRecipient <$> list1 (new ^. userId) (admins')
-  E.push1 $
-    newPushLocal1 ListComplete (new ^. userId) (TeamEvent e) rs & pushConn .~ originConn & pushTransient .~ True
+        Just o -> userRecipient <$> o :| filter (/= o) ((new ^. userId) : admins')
+        Nothing -> userRecipient <$> new ^. userId :| admins'
+  NotificationSubsystem.push
+    [ newPushLocal1 (new ^. userId) (toJSONObject e) rs
+        & pushConn .~ originConn
+        & pushTransient .~ True
+    ]
 
   APITeamQueue.pushTeamEvent tid e
   pure sizeBeforeAdd
 
 finishCreateTeam ::
-  ( Member GundeckAccess r,
+  ( Member NotificationSubsystem r,
     Member (Input UTCTime) r,
     Member TeamStore r
   ) =>
@@ -1359,7 +1362,10 @@ finishCreateTeam team owner others zcon = do
   now <- input
   let e = newEvent (team ^. teamId) now (EdTeamCreate team)
   let r = membersToRecipients Nothing others
-  E.push1 $ newPushLocal1 ListComplete zusr (TeamEvent e) (list1 (userRecipient zusr) r) & pushConn .~ zcon
+  NotificationSubsystem.push
+    [ newPushLocal1 zusr (toJSONObject e) (userRecipient zusr :| r)
+        & pushConn .~ zcon
+    ]
 
 getBindingTeamIdH ::
   ( Member (ErrorS 'TeamNotFound) r,

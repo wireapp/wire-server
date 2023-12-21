@@ -79,6 +79,7 @@ import Wire.API.Team.LegalHold qualified as Public
 import Wire.API.Team.LegalHold.External hiding (userId)
 import Wire.API.Team.Member
 import Wire.API.User.Client.Prekey
+import Wire.NotificationSubsystem
 import Wire.Sem.Paging
 import Wire.Sem.Paging.Cassandra
 
@@ -155,7 +156,7 @@ removeSettingsInternalPaging ::
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member FireAndForget r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input Env) r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
@@ -199,7 +200,7 @@ removeSettings ::
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member FireAndForget r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input Env) r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
@@ -251,7 +252,7 @@ removeSettings' ::
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member FireAndForget r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input UTCTime) r,
     Member (Input (Local ())) r,
     Member (Input Env) r,
@@ -339,7 +340,7 @@ grantConsent ::
     Member (ErrorS 'UserLegalHoldIllegalOperation) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input Env) r,
     Member (Input UTCTime) r,
     Member LegalHoldStore r,
@@ -385,7 +386,7 @@ requestDevice ::
     Member (ErrorS 'UserLegalHoldIllegalOperation) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member (Input Env) r,
     Member (Input UTCTime) r,
@@ -465,7 +466,7 @@ approveDevice ::
     Member (ErrorS 'UserLegalHoldNotPending) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member (Input Env) r,
     Member (Input UTCTime) r,
@@ -541,7 +542,7 @@ disableForUser ::
     Member (ErrorS 'UserLegalHoldIllegalOperation) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input Env) r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
@@ -596,7 +597,7 @@ changeLegalholdStatus ::
     Member (ErrorS 'UserLegalHoldIllegalOperation) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input Env) r,
     Member (Input UTCTime) r,
     Member LegalHoldStore r,
@@ -712,7 +713,7 @@ handleGroupConvPolicyConflicts ::
     Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input Env) r,
     Member (Input UTCTime) r,
     Member (ListItems LegacyPaging ConvId) r,

@@ -22,13 +22,13 @@ import Wire.NotificationSubsystem
 -- | We interpret this using 'GundeckAPIAccess' so we can mock it out for testing.
 runNotificationSubsystemGundeck ::
   ( Member (GundeckAPIAccess) r,
-    Member Async r,
-    Member (Input NotificationSubsystemConfig) r
+    Member Async r
   ) =>
+  NotificationSubsystemConfig ->
   Sem (NotificationSubsystem : r) a ->
   Sem r a
-runNotificationSubsystemGundeck = interpret $ \case
-  Push ps -> pushImpl ps
+runNotificationSubsystemGundeck cfg = interpret $ \case
+  Push ps -> runInputConst cfg $ pushImpl ps
 
 data NotificationSubsystemConfig = NotificationSubsystemConfig
   { fanoutLimit :: Range 1 HardTruncationLimit Int32,

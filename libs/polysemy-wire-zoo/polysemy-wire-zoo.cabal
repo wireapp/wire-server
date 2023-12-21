@@ -109,7 +109,6 @@ test-suite spec
   main-is:            Spec.hs
   other-modules:
     Paths_polysemy_wire_zoo
-    Test.DelaySpec
     Test.IntersperseSpec
 
   hs-source-dirs:     test

@@ -67,6 +67,7 @@ import Wire.API.MLS.Credential
 import Wire.API.MLS.Group.Serialisation
 import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.SubConversation
+import Wire.NotificationSubsystem
 
 type MLSGetSubConvStaticErrors =
   '[ ErrorS 'ConvNotFound,
@@ -329,7 +330,7 @@ type HasLeaveSubConversationEffects r =
          ConversationStore,
          ExternalAccess,
          FederatorAccess,
-         GundeckAccess,
+         NotificationSubsystem,
          Input Env,
          Input UTCTime,
          MemberStore,
