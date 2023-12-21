@@ -76,13 +76,12 @@ spec = describe "NotificationSubsystem.Interpreter" do
           $ pushImpl pushes
 
       let expectedPushes =
-            Set.fromList $
-              map toV2Push
-                <$>
-                -- It's ok to use chunkPushes here because we're testing
-                -- that separately
-                chunkPushes mockConfig.chunkSize pushes
-      Set.fromList actualPushes `shouldBe` expectedPushes
+            map toV2Push
+              <$>
+              -- It's ok to use chunkPushes here because we're testing
+              -- that separately
+              chunkPushes mockConfig.chunkSize pushes
+      actualPushes `shouldBe` expectedPushes
 
     it "respects maximum fanout limit" do
       let mockConfig =
@@ -131,13 +130,12 @@ spec = describe "NotificationSubsystem.Interpreter" do
           $ pushImpl pushes
 
       let expectedPushes =
-            Set.fromList $
-              map toV2Push
-                <$>
-                -- It's ok to use chunkPushes here because we're testing
-                -- that separately
-                chunkPushes mockConfig.chunkSize [pushSmallerThanFanoutLimit]
-      Set.fromList actualPushes `shouldBe` expectedPushes
+            map toV2Push
+              <$>
+              -- It's ok to use chunkPushes here because we're testing
+              -- that separately
+              chunkPushes mockConfig.chunkSize [pushSmallerThanFanoutLimit]
+      actualPushes `shouldBe` expectedPushes
 
   describe "toV2Push" do
     it "does the transformation correctly" $ property \(pushToUser :: PushToUser) ->
