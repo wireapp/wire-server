@@ -10,7 +10,6 @@ import Gundeck.Types hiding (Push (..), Recipient, newPush)
 import Imports
 import Polysemy
 import Wire.Arbitrary
-import Wire.Sem.Delay (Delay, delay)
 
 data RecipientBy user = Recipient
   { _recipientUserId :: user,
@@ -41,23 +40,9 @@ type PushToUser = PushTo UserId
 
 data NotificationSubsystem m a where
   Push :: [PushToUser] -> NotificationSubsystem m ()
+  PushSlowly :: [PushToUser] -> NotificationSubsystem m ()
 
 makeSem ''NotificationSubsystem
-
--- TODO: Test
-pushSlowly ::
-  ( Member NotificationSubsystem r,
-    Member Delay r
-  ) =>
-  [PushToUser] ->
-  Sem r ()
-pushSlowly ps = do
-  -- TODO this comes from the app configuration
-  let mmillies = 10000
-      d = 1000 * mmillies
-  for_ ps \p -> do
-    delay d
-    push [p]
 
 newPush1 :: Maybe UserId -> Object -> NonEmpty Recipient -> PushToUser
 newPush1 from e rr =

@@ -1,5 +1,6 @@
 module Wire.NotificationSubsystem.InterpreterSpec (spec) where
 
+import Control.Concurrent.Async (async, wait)
 import Data.Data (Proxy (Proxy))
 import Data.List.NonEmpty (NonEmpty ((:|)), fromList)
 import Data.List1 qualified as List1
@@ -9,15 +10,16 @@ import Gundeck.Types.Push.V2 qualified as V2
 import Imports
 import Numeric.Natural (Natural)
 import Polysemy
-import Polysemy.Async (asyncToIOFinal)
+import Polysemy.Async (Async, asyncToIOFinal)
 import Polysemy.Input
-import Polysemy.Writer (tell, writerToIOFinal)
+import System.Timeout (timeout)
 import Test.Hspec
 import Test.QuickCheck
 import Test.QuickCheck.Instances ()
 import Wire.GundeckAPIAccess
 import Wire.NotificationSubsystem
 import Wire.NotificationSubsystem.Interpreter
+import Wire.Sem.Delay
 
 spec :: Spec
 spec = describe "NotificationSubsystem.Interpreter" do
@@ -26,7 +28,8 @@ spec = describe "NotificationSubsystem.Interpreter" do
       let mockConfig =
             NotificationSubsystemConfig
               { fanoutLimit = toRange $ Proxy @30,
-                chunkSize = 12
+                chunkSize = 12,
+                slowPushDelay = 0
               }
 
       connId2 <- generate arbitrary
@@ -68,12 +71,7 @@ spec = describe "NotificationSubsystem.Interpreter" do
               largePush
             ]
 
-      actualPushes <-
-        runFinal
-          . asyncToIOFinal
-          . runGundeckAPIAccessMock
-          . runInputConst mockConfig
-          $ pushImpl pushes
+      (_, actualPushes) <- runMockStack mockConfig $ pushImpl pushes
 
       let expectedPushes =
             map toV2Push
@@ -87,7 +85,8 @@ spec = describe "NotificationSubsystem.Interpreter" do
       let mockConfig =
             NotificationSubsystemConfig
               { fanoutLimit = toRange $ Proxy @30,
-                chunkSize = 12
+                chunkSize = 12,
+                slowPushDelay = 0
               }
 
       connId2 <- generate arbitrary
@@ -122,12 +121,7 @@ spec = describe "NotificationSubsystem.Interpreter" do
               pushSmallerThanFanoutLimit
             ]
 
-      actualPushes <-
-        runFinal
-          . asyncToIOFinal
-          . runGundeckAPIAccessMock
-          . runInputConst mockConfig
-          $ pushImpl pushes
+      (_, actualPushes) <- runMockStack mockConfig $ pushImpl pushes
 
       let expectedPushes =
             map toV2Push
@@ -136,6 +130,61 @@ spec = describe "NotificationSubsystem.Interpreter" do
               -- that separately
               chunkPushes mockConfig.chunkSize [pushSmallerThanFanoutLimit]
       actualPushes `shouldBe` expectedPushes
+
+  describe "pushSlowlyImpl" do
+    it "sends each push one by one with a delay" do
+      let mockConfig =
+            NotificationSubsystemConfig
+              { fanoutLimit = toRange $ Proxy @30,
+                chunkSize = 12,
+                slowPushDelay = 1
+              }
+
+      connId2 <- generate arbitrary
+      origin2 <- generate arbitrary
+      (user1, user21, user22) <- generate arbitrary
+      (payload1, payload2) <- generate $ resize 1 arbitrary
+      clients1 <- generate $ resize 3 arbitrary
+      let push1 =
+            PushTo
+              { _pushConn = Nothing,
+                _pushTransient = True,
+                _pushRoute = V2.RouteDirect,
+                _pushNativePriority = Nothing,
+                pushOrigin = Nothing,
+                _pushRecipients = Recipient user1 (V2.RecipientClientsSome clients1) :| [],
+                pushJson = payload1
+              }
+          push2 =
+            PushTo
+              { _pushConn = Just connId2,
+                _pushTransient = True,
+                _pushRoute = V2.RouteAny,
+                _pushNativePriority = Just V2.LowPriority,
+                pushOrigin = Just origin2,
+                _pushRecipients =
+                  Recipient user21 V2.RecipientClientsAll
+                    :| [Recipient user22 V2.RecipientClientsAll],
+                pushJson = payload2
+              }
+          pushes = [push1, push2]
+
+      actualPushesRef <- newIORef []
+      delayControl <- newEmptyMVar
+      slowPushThread <-
+        async $
+          runMockStackWithControlledDelay mockConfig delayControl actualPushesRef $
+            pushSlowlyImpl pushes
+
+      putMVar delayControl mockConfig.slowPushDelay
+      actualPushes1 <- timeout 100_000 $ (waitUntilPushes actualPushesRef 1)
+      actualPushes1 `shouldBe` Just [[toV2Push push1]]
+
+      putMVar delayControl mockConfig.slowPushDelay
+      actualPushes2 <- timeout 100_000 $ (waitUntilPushes actualPushesRef 2)
+      actualPushes2 `shouldBe` Just [[toV2Push push1], [toV2Push push2]]
+
+      timeout 100_000 (wait slowPushThread) `shouldReturn` Just ()
 
   describe "toV2Push" do
     it "does the transformation correctly" $ property \(pushToUser :: PushToUser) ->
@@ -166,10 +215,44 @@ spec = describe "NotificationSubsystem.Interpreter" do
     it "respects the chunkSize limit" $ property \limit (pushes :: [PushTo Int]) ->
       all ((<= limit) . sizeOfChunks) (chunkPushes limit pushes)
 
-runGundeckAPIAccessMock :: Member (Final IO) r => Sem (GundeckAPIAccess : r) a -> Sem r [[V2.Push]]
-runGundeckAPIAccessMock =
-  fmap fst . writerToIOFinal . reinterpret \case
-    PushV2 pushes -> tell [pushes]
+runMockStack :: NotificationSubsystemConfig -> Sem [Input NotificationSubsystemConfig, Delay, GundeckAPIAccess, Embed IO, Async, Final IO] a -> IO (a, [[V2.Push]])
+runMockStack mockConfig action = do
+  actualPushesRef <- newIORef []
+  x <-
+    runFinal
+      . asyncToIOFinal
+      . embedToFinal @IO
+      . runGundeckAPIAccessIORef actualPushesRef
+      . runDelayInstantly
+      . runInputConst mockConfig
+      $ action
+  (x,) <$> readIORef actualPushesRef
+
+runMockStackWithControlledDelay ::
+  NotificationSubsystemConfig ->
+  MVar Int ->
+  IORef [[V2.Push]] ->
+  Sem [Input NotificationSubsystemConfig, Delay, GundeckAPIAccess, Embed IO, Async, Final IO] a ->
+  IO a
+runMockStackWithControlledDelay mockConfig delayControl actualPushesRef = do
+  runFinal
+    . asyncToIOFinal
+    . embedToFinal @IO
+    . runGundeckAPIAccessIORef actualPushesRef
+    . runControlledDelay delayControl
+    . runInputConst mockConfig
+
+runGundeckAPIAccessIORef :: Member (Embed IO) r => IORef [[V2.Push]] -> Sem (GundeckAPIAccess : r) a -> Sem r a
+runGundeckAPIAccessIORef pushesRef =
+  interpret \case
+    PushV2 pushes -> modifyIORef pushesRef (<> [pushes])
+
+waitUntilPushes :: IORef [a] -> Int -> IO [a]
+waitUntilPushes pushesRef n = do
+  ps <- readIORef pushesRef
+  if length ps >= n
+    then pure ps
+    else threadDelay 1000 >> waitUntilPushes pushesRef n
 
 normalisePush :: PushTo a -> [PushTo a]
 normalisePush p =

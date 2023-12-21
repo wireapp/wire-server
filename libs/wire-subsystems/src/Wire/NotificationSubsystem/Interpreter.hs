@@ -18,21 +18,26 @@ import Polysemy.Input
 import Wire.API.Team.Member
 import Wire.GundeckAPIAccess
 import Wire.NotificationSubsystem
+import Wire.Sem.Delay
 
 -- | We interpret this using 'GundeckAPIAccess' so we can mock it out for testing.
 runNotificationSubsystemGundeck ::
   ( Member (GundeckAPIAccess) r,
-    Member Async r
+    Member Async r,
+    Member Delay r
   ) =>
   NotificationSubsystemConfig ->
   Sem (NotificationSubsystem : r) a ->
   Sem r a
 runNotificationSubsystemGundeck cfg = interpret $ \case
   Push ps -> runInputConst cfg $ pushImpl ps
+  PushSlowly ps -> runInputConst cfg $ pushSlowlyImpl ps
 
 data NotificationSubsystemConfig = NotificationSubsystemConfig
   { fanoutLimit :: Range 1 HardTruncationLimit Int32,
-    chunkSize :: Natural
+    chunkSize :: Natural,
+    -- | Microseconds
+    slowPushDelay :: Int
   }
 
 -- TODO: write a test for listtype
@@ -104,3 +109,16 @@ chunkPushes maxRecipients
     splitPush n p =
       let (r1, r2) = splitAt (fromIntegral n) (toList p._pushRecipients)
        in (p {_pushRecipients = fromJust $ nonEmpty r1}, p {_pushRecipients = fromJust $ nonEmpty r2})
+
+pushSlowlyImpl ::
+  ( Member Delay r,
+    Member (Input NotificationSubsystemConfig) r,
+    Member GundeckAPIAccess r,
+    Member Async r
+  ) =>
+  [PushToUser] ->
+  Sem r ()
+pushSlowlyImpl ps =
+  for_ ps \p -> do
+    delay =<< inputs slowPushDelay
+    pushImpl [p]

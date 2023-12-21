@@ -123,5 +123,6 @@ notificationSubssystemConfig :: Env -> NotificationSubsystemConfig
 notificationSubssystemConfig env =
   NotificationSubsystemConfig
     { chunkSize = 128,
-      fanoutLimit = currentFanoutLimit env._options
+      fanoutLimit = currentFanoutLimit env._options,
+      slowPushDelay = 1000 * fromMaybe defDeleteConvThrottleMillis (env ^. options . O.settings . deleteConvThrottleMillis)
     }

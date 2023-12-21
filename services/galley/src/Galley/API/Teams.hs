@@ -156,7 +156,6 @@ import Wire.API.User.Identity (UserSSOId (UserSSOId))
 import Wire.API.User.RichInfo (RichInfo)
 import Wire.NotificationSubsystem
 import Wire.NotificationSubsystem qualified as NotificationSubsystem
-import Wire.Sem.Delay
 import Wire.Sem.Paging qualified as E
 import Wire.Sem.Paging.Cassandra
 
@@ -413,8 +412,7 @@ uncheckedDeleteTeam ::
     Member LegalHoldStore r,
     Member MemberStore r,
     Member SparAccess r,
-    Member TeamStore r,
-    Member Delay r
+    Member TeamStore r
   ) =>
   Local UserId ->
   Maybe ConnId ->

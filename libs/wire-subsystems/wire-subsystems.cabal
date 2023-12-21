@@ -107,6 +107,7 @@ test-suite wire-subsystems-tests
   build-tool-depends: hspec-discover:hspec-discover
   build-depends:
     , aeson
+    , async
     , base
     , bytestring
     , containers
