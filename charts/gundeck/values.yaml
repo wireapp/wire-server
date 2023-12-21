@@ -20,6 +20,13 @@ config:
   logNetStrings: false
   cassandra:
     host: aws-cassandra
+#   To enable TLS provide a CA:
+#   tlsCa: <CA in PEM format (can be self-signed)>
+#
+#   Or refer to an existing secret (containing the CA):
+#   tlsCaSecretRef:
+#     name: <secret-name>
+#     key: <ca-attribute>
   redis:
     host: redis-ephemeral-master
     port: 6379

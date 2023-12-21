@@ -22,6 +22,13 @@ config:
   cassandra:
     host: aws-cassandra
     replicaCount: 3
+#   To enable TLS provide a CA:
+#   tlsCa: <CA in PEM format (can be self-signed)>
+#
+#   Or refer to an existing secret (containing the CA):
+#   tlsCaSecretRef:
+#     name: <secret-name>
+#     key: <ca-attribute>
   enableFederation: false # keep enableFederation default in sync with brig and cargohold chart's config.enableFederation as well as wire-server chart's tags.federation
   # Not used if enableFederation is false
   rabbitmq:

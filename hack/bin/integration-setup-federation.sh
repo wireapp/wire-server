@@ -5,6 +5,7 @@ set -euo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TOP_LEVEL="$DIR/../.."
 export NAMESPACE=${NAMESPACE:-test-integration}
+# Available $HELMFILE_ENV profiles: default, default-ssl, kind, kind-ssl
 HELMFILE_ENV=${HELMFILE_ENV:-default}
 CHARTS_DIR="${TOP_LEVEL}/.local/charts"
 HELM_PARALLELISM=${HELM_PARALLELISM:-1}

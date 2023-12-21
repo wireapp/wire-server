@@ -18,7 +18,8 @@
 module Galley.DataMigration (cassandraSettingsParser, migrate) where
 
 import Cassandra qualified as C
-import Cassandra.Settings qualified as C
+import Cassandra.Options
+import Cassandra.Util (defInitCassandra)
 import Control.Monad.Catch (finally)
 import Data.Text qualified as Text
 import Data.Time (UTCTime, getCurrentTime)
@@ -32,8 +33,18 @@ import System.Logger.Class qualified as Log
 data CassandraSettings = CassandraSettings
   { cHost :: String,
     cPort :: Word16,
-    cKeyspace :: C.Keyspace
+    cKeyspace :: C.Keyspace,
+    cTlsCa :: Maybe FilePath
   }
+
+toCassandraOpts :: CassandraSettings -> CassandraOpts
+toCassandraOpts cas =
+  CassandraOpts
+    { _endpoint = Endpoint (Text.pack (cas.cHost)) (cas.cPort),
+      _keyspace = C.unKeyspace (cas.cKeyspace),
+      _filterNodesByDatacentre = Nothing,
+      _tlsCa = cas.cTlsCa
+    }
 
 cassandraSettingsParser :: Parser CassandraSettings
 cassandraSettingsParser =
@@ -53,6 +64,11 @@ cassandraSettingsParser =
                   <> Opts.value "galley_test"
               )
         )
+    <*> ( (Opts.optional . Opts.strOption)
+            ( Opts.long "tls-ca-certificate-file"
+                <> Opts.help "Location of a PEM encoded list of CA certificates to be used when verifying the Cassandra server's certificate"
+            )
+        )
 
 migrate :: Logger -> CassandraSettings -> [Migration] -> IO ()
 migrate l cas ms = do
@@ -69,14 +85,7 @@ mkEnv l cas =
     <$> initCassandra
     <*> initLogger
   where
-    initCassandra =
-      C.init
-        $ C.setLogger (C.mkLogger l)
-          . C.setContacts (cHost cas) []
-          . C.setPortNumber (fromIntegral (cPort cas))
-          . C.setKeyspace (cKeyspace cas)
-          . C.setProtocolVersion C.V4
-        $ C.defSettings
+    initCassandra = defInitCassandra (toCassandraOpts cas) l
     initLogger = pure l
 
 -- | Runs only the migrations which need to run

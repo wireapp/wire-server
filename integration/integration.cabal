@@ -171,6 +171,7 @@ library
     , extra
     , filepath
     , hex
+    , HsOpenSSL
     , http-client
     , http-types
     , kan-extensions

@@ -28,6 +28,9 @@ data:
       {{- if hasKey .cassandra "filterNodesByDatacentre" }}
       filterNodesByDatacentre: {{ .cassandra.filterNodesByDatacentre }}
       {{- end }}
+      {{- if eq (include "useCassandraTLS" .) "true" }}
+      tlsCa: /etc/wire/brig/cassandra/{{- (include "tlsSecretRef" . | fromYaml).key }}
+      {{- end }}
 
     elasticsearch:
       url: http://{{ .elasticsearch.host }}:{{ .elasticsearch.port }}

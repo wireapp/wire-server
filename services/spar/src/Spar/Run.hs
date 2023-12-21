@@ -30,11 +30,9 @@ where
 
 import qualified Bilge
 import Cassandra as Cas
-import qualified Cassandra.Schema as Cas
-import qualified Cassandra.Settings as Cas
+import Cassandra.Util (initCassandraForService)
 import Control.Lens (to, (^.))
 import Data.Id
-import Data.List.NonEmpty as NE
 import Data.Metrics.Servant (servantPrometheusMiddleware)
 import Data.Proxy (Proxy (Proxy))
 import qualified Data.UUID as UUID
@@ -50,12 +48,12 @@ import Spar.API (SparAPI, app)
 import Spar.App
 import qualified Spar.Data as Data
 import Spar.Data.Instances ()
-import Spar.Options
+import Spar.Options as Opt
 import Spar.Orphans ()
 import System.Logger (Logger, msg, val, (.=), (~~))
 import qualified System.Logger as Log
 import qualified System.Logger.Extended as Log
-import Util.Options (endpoint, filterNodesByDatacentre, host, keyspace, port)
+import Util.Options
 import Wire.API.Routes.Version.Wai
 import Wire.Sem.Logger.TinyLog
 
@@ -63,29 +61,13 @@ import Wire.Sem.Logger.TinyLog
 -- cassandra
 
 initCassandra :: Opts -> Logger -> IO ClientState
-initCassandra opts lgr = do
-  let cassOpts = cassandra opts
-  connectString <-
-    maybe
-      (Cas.initialContactsPlain (cassOpts ^. endpoint . host))
-      (Cas.initialContactsDisco "cassandra_spar" . cs)
-      (discoUrl opts)
-  cas <-
-    Cas.init $
-      Cas.defSettings
-        & Cas.setLogger (Cas.mkLogger (Log.clone (Just "cassandra.spar") lgr))
-        & Cas.setContacts (NE.head connectString) (NE.tail connectString)
-        & Cas.setPortNumber (fromIntegral $ cassOpts ^. endpoint . port)
-        & Cas.setKeyspace (Keyspace $ cassOpts ^. keyspace)
-        & Cas.setMaxConnections 4
-        & Cas.setMaxStreams 128
-        & Cas.setPoolStripes 4
-        & Cas.setSendTimeout 3
-        & Cas.setResponseTimeout 10
-        & Cas.setProtocolVersion V4
-        & Cas.setPolicy (Cas.dcFilterPolicyIfConfigured lgr (cassOpts ^. filterNodesByDatacentre))
-  runClient cas $ Cas.versionCheck Data.schemaVersion
-  pure cas
+initCassandra opts lgr =
+  initCassandraForService
+    (Opt.cassandra opts)
+    "spar"
+    (Opt.discoUrl opts)
+    (Just Data.schemaVersion)
+    lgr
 
 ----------------------------------------------------------------------
 -- servant / wai / warp
