@@ -45,6 +45,7 @@ import Data.ByteString.Builder
 import Data.ByteString.Conversion (toByteString')
 import Data.ByteString.Lazy qualified as LBS
 import Data.Domain
+import Data.Id
 import Data.Sequence qualified as Seq
 import Data.Set qualified as Set
 import Data.Text.Encoding qualified as Text
@@ -74,7 +75,8 @@ data FederatorClientEnv = FederatorClientEnv
   { ceOriginDomain :: Domain,
     ceTargetDomain :: Domain,
     ceFederator :: Endpoint,
-    ceHttp2Manager :: Http2Manager
+    ceHttp2Manager :: Http2Manager,
+    ceOriginRequestId :: RequestId
   }
 
 data FederatorClientVersionedEnv = FederatorClientVersionedEnv
@@ -215,6 +217,7 @@ withHTTP2StreamingRequest successfulStatus req handleResponse = do
         toList (requestHeaders req)
           <> [(originDomainHeaderName, toByteString' (ceOriginDomain env))]
           <> [(HTTP.hAccept, HTTP.renderHeader (toList $ req.requestAccept))]
+          <> [("Wire-Origin-Request-Id", toByteString' $ ceOriginRequestId env)]
       req' =
         HTTP2.requestBuilder
           (requestMethod req)

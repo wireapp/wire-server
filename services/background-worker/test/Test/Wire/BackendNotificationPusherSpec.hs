@@ -10,6 +10,7 @@ import Data.Aeson qualified as Aeson
 import Data.ByteString.Builder qualified as Builder
 import Data.ByteString.Lazy qualified as LBS
 import Data.Domain
+import Data.Id
 import Data.Range
 import Data.Sequence qualified as Seq
 import Data.Text qualified as Text
@@ -62,7 +63,8 @@ spec = do
               { targetComponent = Brig,
                 ownDomain = origDomain,
                 path = "/on-user-deleted-connections",
-                body = RawJson $ Aeson.encode notifContent
+                body = RawJson $ Aeson.encode notifContent,
+                requestId = Just $ RequestId "N/A"
               }
       envelope <- newMockEnvelope
       let msg =
@@ -128,7 +130,8 @@ spec = do
               { targetComponent = Brig,
                 ownDomain = origDomain,
                 path = "/on-user-deleted-connections",
-                body = RawJson $ Aeson.encode notifContent
+                body = RawJson $ Aeson.encode notifContent,
+                requestId = Just $ RequestId "N/A"
               }
       envelope <- newMockEnvelope
       let msg =

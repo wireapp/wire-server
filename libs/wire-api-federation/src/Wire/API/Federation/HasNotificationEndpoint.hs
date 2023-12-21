@@ -19,6 +19,7 @@ module Wire.API.Federation.HasNotificationEndpoint where
 
 import Data.Aeson
 import Data.Domain
+import Data.Id
 import Data.Kind
 import Data.Proxy
 import Data.Text qualified as T
@@ -46,10 +47,11 @@ fedNotifToBackendNotif ::
   KnownSymbol (NotificationPath tag) =>
   KnownComponent (NotificationComponent k) =>
   ToJSON (Payload tag) =>
+  RequestId ->
   Domain ->
   Payload tag ->
   BackendNotification
-fedNotifToBackendNotif ownDomain payload =
+fedNotifToBackendNotif rid ownDomain payload =
   let p = T.pack . symbolVal $ Proxy @(NotificationPath tag)
       b = RawJson . encode $ payload
    in toNotif p b
@@ -60,5 +62,6 @@ fedNotifToBackendNotif ownDomain payload =
         { ownDomain = ownDomain,
           targetComponent = componentVal @(NotificationComponent k),
           path = path,
-          body = body
+          body = body,
+          requestId = Just rid
         }

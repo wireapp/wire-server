@@ -93,7 +93,7 @@ fedQueueClient ::
   FedQueueClient (NotificationComponent k) ()
 fedQueueClient payload = do
   env <- ask
-  let notif = fedNotifToBackendNotif @tag env.originDomain payload
+  let notif = fedNotifToBackendNotif @tag env.requestId env.originDomain payload
       msg =
         newMsg
           { msgBody = encode notif,

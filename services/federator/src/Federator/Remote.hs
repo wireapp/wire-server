@@ -26,11 +26,13 @@ module Federator.Remote
   )
 where
 
+import Bilge.Request qualified as RPC
 import Control.Exception qualified as E
 import Control.Monad.Codensity
 import Data.Binary.Builder
 import Data.ByteString.Lazy qualified as LBS
 import Data.Domain
+import Data.Id
 import Data.Text.Encoding (decodeUtf8)
 import Federator.Discovery
 import Federator.Error
@@ -68,6 +70,7 @@ instance AsWai RemoteError where
 
 data Remote m a where
   DiscoverAndCall ::
+    RequestId ->
     Domain ->
     Component ->
     Text ->
@@ -87,14 +90,16 @@ interpretRemote ::
   Sem (Remote ': r) a ->
   Sem r a
 interpretRemote = interpret $ \case
-  DiscoverAndCall domain component rpc headers body -> do
+  DiscoverAndCall rid domain component rpc headers body -> do
     target@(SrvTarget hostname port) <- discoverFederatorWithError domain
     let path =
           LBS.toStrict . toLazyByteString $
             HTTP.encodePathSegments ["federation", componentName component, rpc]
         pathT = decodeUtf8 path
         -- filter out Host header, because the HTTP2 client adds it back
-        headers' = filter ((/= "Host") . fst) headers
+        headers' =
+          filter ((/= "Host") . fst) headers
+            <> [(RPC.requestIdName, unRequestId rid)]
         req' = HTTP2.requestBuilder HTTP.methodPost path headers' body
 
     mgr <- input

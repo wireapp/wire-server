@@ -20,6 +20,7 @@ module Test.Federator.Remote where
 import Control.Exception (bracket)
 import Control.Monad.Codensity
 import Data.Domain
+import Data.Id
 import Federator.Discovery
 import Federator.Env (mkHttp2Manager)
 import Federator.Options
@@ -89,7 +90,7 @@ mkTestCall sslCtx hostname port = do
     . discoverLocalhost hostname port
     . assertNoError @DiscoveryFailure
     . interpretRemote
-    $ discoverAndCall (Domain "localhost") Brig "test" [] mempty
+    $ discoverAndCall (RequestId "N/A") (Domain "localhost") Brig "test" [] mempty
 
 withMockServer :: Warp.TLSSettings -> (Warp.Port -> IO a) -> IO a
 withMockServer tls k =

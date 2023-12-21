@@ -160,7 +160,6 @@ library
     , cookie
     , crypton
     , crypton-x509
-    , data-default
     , exceptions
     , extended
     , galley-types

@@ -20,7 +20,6 @@
 , cookie
 , crypton
 , crypton-x509
-, data-default
 , email-validate
 , exceptions
 , extended
@@ -100,7 +99,6 @@ mkDerivation {
     cookie
     crypton
     crypton-x509
-    data-default
     exceptions
     extended
     galley-types
