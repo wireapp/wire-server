@@ -166,7 +166,6 @@ library
     Galley.Effects.ExternalAccess
     Galley.Effects.FederatorAccess
     Galley.Effects.FireAndForget
-    Galley.Effects.GundeckAccess
     Galley.Effects.LegalHoldStore
     Galley.Effects.ListItems
     Galley.Effects.MemberStore
@@ -192,8 +191,6 @@ library
     Galley.Intra.Effects
     Galley.Intra.Federator
     Galley.Intra.Journal
-    Galley.Intra.Push
-    Galley.Intra.Push.Internal
     Galley.Intra.Spar
     Galley.Intra.Team
     Galley.Intra.User
