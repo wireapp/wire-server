@@ -21,6 +21,7 @@ module Test.ExternalPartner where
 
 import API.Galley
 import GHC.Stack
+import MLS.Util
 import SetupHelpers
 import Testlib.Prelude
 
@@ -53,6 +54,15 @@ testExternalPartnerPermissions = do
     conv <- postConversation partner (defProteus {team = Just tid}) >>= getJSON 201
     bindResponse (addMembers partner conv def {users = [u3]}) $ \resp -> do
       resp.status `shouldMatchInt` 403
+
+testExternalPartnerPermissionsMls :: HasCallStack => App ()
+testExternalPartnerPermissionsMls = do
+  -- external partners should not be able to create MLS conversations
+  (owner, tid, _) <- createTeam OwnDomain 2
+  bobExt <- createTeamMemberWithRole owner tid "partner"
+  bobExtClient <- createMLSClient def bobExt
+  bindResponse (postConversation bobExtClient defMLS) $ \resp -> do
+    resp.status `shouldMatchInt` 403
 
 testExternalPartnerPermissionsConvName :: HasCallStack => App ()
 testExternalPartnerPermissionsConvName = do

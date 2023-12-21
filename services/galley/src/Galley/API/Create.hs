@@ -31,6 +31,7 @@ module Galley.API.Create
   )
 where
 
+import Control.Error (headMay)
 import Control.Lens hiding ((??))
 import Data.Id
 import Data.List1 (list1)
@@ -244,10 +245,15 @@ checkCreateConvPermissions ::
 checkCreateConvPermissions lusr _newConv Nothing allUsers = do
   activated <- listToMaybe <$> lookupActivatedUsers [tUnqualified lusr]
   void $ noteS @OperationDenied activated
+  -- an external partner is not allowed to create group conversations (except 1:1 team conversations that are handled below)
+  zusrMembership <- getTeamMember (tUnqualified lusr) Nothing
+  case zusrMembership of
+    Just tm -> void $ permissionCheck DoNotUseDeprecatedAddRemoveConvMember (Just tm)
+    Nothing -> pure ()
   ensureConnected lusr allUsers
 checkCreateConvPermissions lusr newConv (Just tinfo) allUsers = do
   let convTeam = cnvTeamId tinfo
-  zusrMembership <- E.getTeamMember convTeam (tUnqualified lusr)
+  zusrMembership <- getTeamMember (tUnqualified lusr) (Just convTeam)
   void $ permissionCheck CreateConversation zusrMembership
   convLocalMemberships <- mapM (E.getTeamMember convTeam) (ulLocals allUsers)
   ensureAccessRole (accessRoles newConv) (zip (ulLocals allUsers) convLocalMemberships)
@@ -261,13 +267,17 @@ checkCreateConvPermissions lusr newConv (Just tinfo) allUsers = do
   -- Not sure at the moment how to best solve this but it is unlikely
   -- we can ever get rid of the team permission model anyway - the only thing I can
   -- think of is that 'partners' can create convs but not be admins...
-  when (length allUsers > 1) $ do
+  when (length allUsers > 1 || newConv.newConvProtocol == BaseProtocolMLSTag) $ do
     void $ permissionCheck DoNotUseDeprecatedAddRemoveConvMember zusrMembership
 
   -- Team members are always considered to be connected, so we only check
   -- 'ensureConnected' for non-team-members.
   ensureConnectedToLocals (tUnqualified lusr) (notTeamMember (ulLocals allUsers) (catMaybes convLocalMemberships))
   ensureConnectedToRemotes lusr (ulRemotes allUsers)
+
+getTeamMember :: Member TeamStore r => UserId -> Maybe TeamId -> Sem r (Maybe TeamMember)
+getTeamMember uid (Just tid) = E.getTeamMember tid uid
+getTeamMember uid Nothing = E.getUserTeams uid >>= maybe (pure Nothing) (flip E.getTeamMember uid) . headMay
 
 ----------------------------------------------------------------------------
 -- Other kinds of conversations
