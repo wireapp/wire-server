@@ -124,6 +124,7 @@ library
     Test.Presence
     Test.Roles
     Test.Search
+    Test.Services
     Test.User
     Testlib.App
     Testlib.Assertions

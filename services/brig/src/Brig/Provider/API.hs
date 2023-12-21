@@ -92,7 +92,7 @@ import OpenSSL.PEM qualified as SSL
 import OpenSSL.RSA qualified as SSL
 import OpenSSL.Random (randBytes)
 import Polysemy
-import Servant (NoContent (..), ServerT, (:<|>) (..))
+import Servant (ServerT, (:<|>) (..))
 import Ssl.Util qualified as SSL
 import System.Logger.Class (MonadLogger)
 import UnliftIO.Async (pooledMapConcurrentlyN_)
@@ -392,7 +392,7 @@ updateService ::
   ProviderId ->
   ServiceId ->
   Public.UpdateService ->
-  (Handler r) NoContent
+  Handler r ()
 updateService pid sid upd = do
   guardSecondFactorDisabled Nothing
   _ <- wrapClientE (DB.lookupAccount pid) >>= maybeInvalidProvider
@@ -420,14 +420,13 @@ updateService pid sid upd = do
       newAssets
       tagsChange
       (serviceEnabled svc)
-      $> NoContent
 
 updateServiceConn ::
   Member GalleyProvider r =>
   ProviderId ->
   ServiceId ->
   Public.UpdateServiceConn ->
-  (Handler r) NoContent
+  Handler r ()
 updateServiceConn pid sid upd = do
   guardSecondFactorDisabled Nothing
   pass <- wrapClientE (DB.lookupPassword pid) >>= maybeBadCredentials
@@ -461,7 +460,6 @@ updateServiceConn pid sid upd = do
         if sconEnabled scon
           then DB.deleteServiceIndexes pid sid name tags
           else DB.insertServiceIndexes pid sid name tags
-  pure NoContent
 
 -- TODO: Send informational email to provider.
 

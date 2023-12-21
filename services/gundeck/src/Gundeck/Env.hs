@@ -27,7 +27,6 @@ import Control.AutoUpdate
 import Control.Concurrent.Async (Async)
 import Control.Lens (makeLenses, (^.))
 import Control.Retry (capDelay, exponentialBackoff)
-import Data.Default (def)
 import Data.List.NonEmpty qualified as NE
 import Data.Metrics.Middleware (Metrics)
 import Data.Misc (Milliseconds (..))
@@ -112,7 +111,7 @@ createEnv m o = do
         { updateAction = Ms . round . (* 1000) <$> getPOSIXTime
         }
   mtbs <- mkThreadBudgetState `mapM` (o ^. settings . maxConcurrentNativePushes)
-  pure $! (rThread : rAdditionalThreads,) $! Env def m o l n p r rAdditional a io mtbs
+  pure $! (rThread : rAdditionalThreads,) $! Env (RequestId "N/A") m o l n p r rAdditional a io mtbs
 
 reqIdMsg :: RequestId -> Logger.Msg -> Logger.Msg
 reqIdMsg = ("request" Logger..=) . unRequestId

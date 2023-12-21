@@ -101,7 +101,7 @@ mockService ::
   Sem (ServiceStreaming ': r) a ->
   Sem r a
 mockService status = interpret $ \case
-  ServiceCall comp path body domain -> do
+  ServiceCall comp path body _mReqId domain -> do
     output (Call comp path body domain)
     pure
       Servant.Response
@@ -137,7 +137,7 @@ requestBrigSuccess =
         . mockDiscoveryTrivial
         . runInputConst noClientCertSettings
         . runInputConst scaffoldingFederationDomainConfigs
-        $ callInward Brig (RPC "get-user-by-handle") aValidDomain (CertHeader cert) request
+        $ callInward Brig (RPC "get-user-by-handle") Nothing aValidDomain (CertHeader cert) request
     let expectedCall = Call Brig "/federation/get-user-by-handle" "\"foo\"" aValidDomain
     assertEqual "one call to brig should be made" [expectedCall] actualCalls
     Wai.responseStatus res @?= HTTP.status200
@@ -165,7 +165,7 @@ requestBrigFailure =
         . mockDiscoveryTrivial
         . runInputConst noClientCertSettings
         . runInputConst scaffoldingFederationDomainConfigs
-        $ callInward Brig (RPC "get-user-by-handle") aValidDomain (CertHeader cert) request
+        $ callInward Brig (RPC "get-user-by-handle") Nothing aValidDomain (CertHeader cert) request
 
     let expectedCall = Call Brig "/federation/get-user-by-handle" "\"foo\"" aValidDomain
     assertEqual "one call to brig should be made" [expectedCall] actualCalls
@@ -195,7 +195,7 @@ requestGalleySuccess =
           . mockDiscoveryTrivial
           . runInputConst noClientCertSettings
           . runInputConst scaffoldingFederationDomainConfigs
-          $ callInward Galley (RPC "get-conversations") aValidDomain (CertHeader cert) request
+          $ callInward Galley (RPC "get-conversations") Nothing aValidDomain (CertHeader cert) request
       let expectedCall = Call Galley "/federation/get-conversations" "\"foo\"" aValidDomain
       embed $ assertEqual "one call to galley should be made" [expectedCall] actualCalls
       embed $ Wai.responseStatus res @?= HTTP.status200

@@ -32,11 +32,13 @@ import qualified Bilge
 import Cassandra as Cas
 import qualified Cassandra.Schema as Cas
 import qualified Cassandra.Settings as Cas
-import Control.Lens
-import Data.Default (def)
+import Control.Lens (to, (^.))
+import Data.Id
 import Data.List.NonEmpty as NE
 import Data.Metrics.Servant (servantPrometheusMiddleware)
 import Data.Proxy (Proxy (Proxy))
+import qualified Data.UUID as UUID
+import Data.UUID.V4 as UUID
 import Imports
 import Network.Wai (Application)
 import qualified Network.Wai as Wai
@@ -50,7 +52,8 @@ import qualified Spar.Data as Data
 import Spar.Data.Instances ()
 import Spar.Options
 import Spar.Orphans ()
-import System.Logger.Class (Logger)
+import System.Logger (Logger, msg, val, (.=), (~~))
+import qualified System.Logger as Log
 import qualified System.Logger.Extended as Log
 import Util.Options (endpoint, filterNodesByDatacentre, host, keyspace, port)
 import Wire.API.Routes.Version.Wai
@@ -124,7 +127,7 @@ mkApp sparCtxOpts = do
           -- still here for errors outside the power of the 'Application', like network
           -- outages.
           . SAML.setHttpCachePolicy
-          . lookupRequestIdMiddleware
+          . lookupRequestIdMiddleware sparCtxLogger
           $ \sparCtxRequestId -> app Env {..}
       heavyLogOnly :: (Wai.Request, LByteString) -> Maybe (Wai.Request, LByteString)
       heavyLogOnly out@(req, _) =
@@ -133,7 +136,12 @@ mkApp sparCtxOpts = do
           else Nothing
   pure (wrappedApp, let sparCtxRequestId = Bilge.RequestId "N/A" in Env {..})
 
-lookupRequestIdMiddleware :: (Bilge.RequestId -> Application) -> Application
-lookupRequestIdMiddleware mkapp req cont = do
-  let reqid = maybe def Bilge.RequestId $ lookupRequestId req
-  mkapp reqid req cont
+lookupRequestIdMiddleware :: Logger -> (RequestId -> Wai.Application) -> Wai.Application
+lookupRequestIdMiddleware logger mkapp req cont = do
+  case lookupRequestId req of
+    Just rid -> do
+      mkapp (RequestId rid) req cont
+    Nothing -> do
+      localRid <- RequestId . cs . UUID.toText <$> UUID.nextRandom
+      Log.info logger $ "request-id" .= localRid ~~ "request" .= (show req) ~~ msg (val "generated a new request id for local request")
+      mkapp localRid req cont

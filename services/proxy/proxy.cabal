@@ -80,7 +80,6 @@ library
     , bytestring          >=0.10
     , case-insensitive    >=1.2
     , configurator        >=0.3
-    , data-default        >=0.5
     , exceptions          >=0.8
     , extended
     , http-client         >=0.7
@@ -95,6 +94,7 @@ library
     , tinylog             >=0.12
     , types-common        >=0.8
     , unliftio-core
+    , uuid
     , wai                 >=3.2
     , wai-predicates      >=0.8
     , wai-routing         >=0.12

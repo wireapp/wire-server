@@ -71,7 +71,6 @@ import Data.ByteString.Char8 qualified as B8
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy qualified as L
 import Data.Char qualified as Char
-import Data.Default (Default (..))
 import Data.Hashable (Hashable)
 import Data.OpenApi qualified as S
 import Data.OpenApi.Internal.ParamSchema (ToParamSchema (..))
@@ -88,6 +87,7 @@ import Data.UUID qualified as UUID
 import Data.UUID.V4
 import Imports
 import Servant (FromHttpApiData (..), ToHttpApiData (..))
+import System.Logger (ToBytes)
 import Test.QuickCheck
 import Test.QuickCheck.Instances ()
 
@@ -413,17 +413,14 @@ newtype RequestId = RequestId
       ToByteString,
       Hashable,
       NFData,
-      Generic
+      Generic,
+      ToBytes
     )
 
 instance ToSchema RequestId where
   schema =
     RequestId . encodeUtf8
       <$> (decodeUtf8 . unRequestId) .= text "RequestId"
-
--- | Returns "N/A"
-instance Default RequestId where
-  def = RequestId "N/A"
 
 instance ToJSON RequestId where
   toJSON (RequestId r) = A.String (decodeUtf8 r)
@@ -436,6 +433,9 @@ instance EncodeWire RequestId where
 
 instance DecodeWire RequestId where
   decodeWire = fmap RequestId . decodeWire
+
+instance FromHttpApiData RequestId where
+  parseUrlPiece = Right . RequestId . encodeUtf8
 
 -- Rendering Id values in JSON objects -----------------------------------------
 

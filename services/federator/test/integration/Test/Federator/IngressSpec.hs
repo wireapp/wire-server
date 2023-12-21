@@ -23,6 +23,7 @@ import Control.Monad.Codensity
 import Data.Aeson qualified as Aeson
 import Data.Binary.Builder
 import Data.Domain
+import Data.Id
 import Data.LegalHold (UserLegalHoldStatus (UserLegalHoldNoConsent))
 import Data.Text.Encoding qualified as Text
 import Federator.Discovery
@@ -151,4 +152,4 @@ inwardBrigCallViaIngressWithSettings sslCtx requestPath payload =
       . assertNoError @DiscoveryFailure
       . discoverConst target
       . interpretRemote
-      $ discoverAndCall (Domain "example.com") Brig requestPath headers payload
+      $ discoverAndCall (RequestId "N/A") (Domain "example.com") Brig requestPath headers payload

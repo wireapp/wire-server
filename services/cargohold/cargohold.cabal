@@ -101,7 +101,6 @@ library
     , conduit-extra          >=1.1.5
     , containers
     , crypton                >=0.20
-    , data-default           >=0.5
     , errors                 >=1.4
     , exceptions             >=0.6
     , extended

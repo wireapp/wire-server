@@ -73,7 +73,7 @@ type ServicesAPI =
                :> "services"
                :> Capture "service-id" ServiceId
                :> ReqBody '[JSON] Public.UpdateService
-               :> Put '[PlainText] NoContent
+               :> MultiVerb1 'PUT '[PlainText, JSON] (RespondEmpty 200 "Provider service updated")
            )
     :<|> Named
            "put-provider-services-connection-by-service-id"
@@ -88,7 +88,7 @@ type ServicesAPI =
                :> Capture "service-id" ServiceId
                :> "connection"
                :> ReqBody '[JSON] Public.UpdateServiceConn
-               :> Put '[PlainText] NoContent
+               :> MultiVerb1 'PUT '[PlainText, JSON] (RespondEmpty 200 "Provider service connection updated")
            )
     :<|> Named
            "delete-provider-services-by-service-id"
