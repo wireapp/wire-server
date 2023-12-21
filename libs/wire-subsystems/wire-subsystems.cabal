@@ -67,7 +67,10 @@ library
   import:           common-all
 
   -- cabal-fmt: expand src
-  exposed-modules:  Wire.Notification
+  exposed-modules:
+    Wire.GundeckAPIAccess
+    Wire.NotificationSubsystem
+
   hs-source-dirs:   src
   build-depends:
     , aeson
@@ -89,12 +92,18 @@ library
   default-language: GHC2021
 
 test-suite wire-subsystems-tests
-  import:           common-all
-  type:             exitcode-stdio-1.0
-  main-is:          Main.hs
-  default-language: GHC2021
-  other-modules:    Test.Wire.Notification
-  hs-source-dirs:   test
+  import:             common-all
+  type:               exitcode-stdio-1.0
+  default-language:   GHC2021
+  hs-source-dirs:     test/unit
+  main-is:            ../Main.hs
+
+  -- cabal-fmt: expand test/unit
+  other-modules:
+    Spec
+    Wire.NotificationSubsystemSpec
+
+  build-tool-depends: hspec-discover:hspec-discover
   build-depends:
     , aeson
     , base

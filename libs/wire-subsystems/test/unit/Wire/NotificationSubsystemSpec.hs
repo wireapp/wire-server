@@ -1,4 +1,4 @@
-module Test.Wire.Notification (spec) where
+module Wire.NotificationSubsystemSpec (spec) where
 
 import Data.Data (Proxy (Proxy))
 import Data.List.NonEmpty (NonEmpty ((:|)), fromList)
@@ -15,7 +15,8 @@ import Polysemy.Writer (tell, writerToIOFinal)
 import Test.Hspec
 import Test.QuickCheck
 import Test.QuickCheck.Instances ()
-import Wire.Notification
+import Wire.GundeckAPIAccess
+import Wire.NotificationSubsystem
 
 spec :: Spec
 spec = describe "NotificationSubsystem" do

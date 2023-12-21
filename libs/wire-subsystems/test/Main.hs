@@ -1,9 +1,8 @@
 module Main where
 
 import Imports
+import Spec
 import Test.Hspec
-import Test.Wire.Notification qualified as Notification
 
 main :: IO ()
-main = hspec do
-  Notification.spec
+main = hspec Spec.spec

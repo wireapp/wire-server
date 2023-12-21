@@ -1,28 +1,25 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Wire.Notification where
+module Wire.NotificationSubsystem where
 
-import Bilge as B
-import Control.Lens
+import Control.Lens (makeLenses, set, (.~))
 import Data.Aeson
 import Data.Id
-import Data.List.NonEmpty (NonEmpty, nonEmpty)
+import Data.List.NonEmpty (NonEmpty ((:|)), nonEmpty)
 import Data.List1 (List1)
 import Data.List1 qualified as List1
 import Data.Range (Range, fromRange, unsafeRange)
 import Data.Set qualified as Set
-import Data.Text.Encoding (encodeUtf8)
-import Gundeck.Types hiding (Push (..))
+import Gundeck.Types hiding (Push (..), Recipient, newPush)
 import Gundeck.Types.Push.V2 qualified as V2
 import Imports
-import Network.HTTP.Client qualified as HTTP
 import Numeric.Natural (Natural)
 import Polysemy
 import Polysemy.Async (Async, sequenceConcurrently)
 import Polysemy.Input
-import Util.Options
 import Wire.API.Team.Member
 import Wire.Arbitrary
+import Wire.GundeckAPIAccess
 import Wire.Sem.Delay (Delay, delay)
 
 data RecipientBy user = Recipient
@@ -61,16 +58,6 @@ data NotificationSubsystem m a where
 
 makeSem ''NotificationSubsystem
 
-data GundeckAccessDetails = GundeckAccessDetails
-  { endpoint :: Endpoint,
-    httpManager :: HTTP.Manager
-  }
-
-data GundeckAPIAccess m a where
-  PushV2 :: [V2.Push] -> GundeckAPIAccess m ()
-
-makeSem ''GundeckAPIAccess
-
 -- | We interpret this using 'GundeckAPIAccess' so we can mock it out for testing.
 runNotificationSubsystemGundeck ::
   ( Member (GundeckAPIAccess) r,
@@ -108,7 +95,9 @@ pushImpl ps = do
       pushV2 <$> pushes
 
 removeIfLargeFanout :: Range n m Int32 -> [PushTo user] -> [PushTo user]
-removeIfLargeFanout limit = filter \PushTo {_pushRecipients} -> length _pushRecipients <= fromIntegral (fromRange limit)
+removeIfLargeFanout limit =
+  filter \PushTo {_pushRecipients} ->
+    length _pushRecipients <= fromIntegral (fromRange limit)
 
 mkPushes :: Natural -> [PushToUser] -> [[V2.Push]]
 mkPushes chunkSize = map (map toV2Push) . chunkPushes chunkSize
@@ -116,7 +105,7 @@ mkPushes chunkSize = map (map toV2Push) . chunkPushes chunkSize
 {-# INLINE [1] toV2Push #-}
 toV2Push :: PushToUser -> V2.Push
 toV2Push p =
-  (newPush p.pushOrigin (unsafeRange (Set.fromList recipients)) pload)
+  (V2.newPush p.pushOrigin (unsafeRange (Set.fromList recipients)) pload)
     & V2.pushOriginConnection .~ _pushConn p
     & V2.pushTransient .~ _pushTransient p
     & maybe id (set V2.pushNativePriority) p._pushNativePriority
@@ -170,18 +159,26 @@ pushSlowly ps = do
     delay d
     push [p]
 
--- TODO: Test manually if this even works.
-runGundeckAPIAccess :: Member (Embed IO) r => GundeckAccessDetails -> Sem (GundeckAPIAccess : r) a -> Sem r a
-runGundeckAPIAccess accessDetails = interpret $ \case
-  PushV2 pushes -> do
-    chunkedReq <- jsonChunkedIO pushes
-    let req =
-          B.host (encodeUtf8 accessDetails.endpoint._host)
-            . B.port accessDetails.endpoint._port
-            . path "/i/push/v2"
-            . expect2xx
-            . chunkedReq
-    B.runHttpT accessDetails.httpManager $
-      -- Because of 'expect2xx' we don't actually need to check the response
-      void $
-        B.post req
+newPush1 :: Maybe UserId -> Object -> NonEmpty Recipient -> PushToUser
+newPush1 from e rr =
+  PushTo
+    { _pushConn = Nothing,
+      _pushTransient = False,
+      _pushRoute = RouteAny,
+      _pushNativePriority = Nothing,
+      -- _pushAsync = False,
+      -- pushRecipientListType = recipientListType,
+      pushJson = e,
+      pushOrigin = from,
+      _pushRecipients = rr
+    }
+
+newPush :: Maybe UserId -> Object -> [Recipient] -> Maybe PushToUser
+newPush _ _ [] = Nothing
+newPush u e (r : rr) = Just $ newPush1 u e (r :| rr)
+
+newPushLocal :: UserId -> Object -> [Recipient] -> Maybe PushToUser
+newPushLocal uid = newPush (Just uid)
+
+newPushLocal1 :: UserId -> Object -> NonEmpty Recipient -> PushToUser
+newPushLocal1 uid = newPush1 (Just uid)
