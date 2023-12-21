@@ -1009,7 +1009,7 @@ uncheckedDeleteTeamMember lusr zcon tid remove admins = do
   pushMemberLeaveEvent now
   E.deleteTeamMember tid remove
   -- notify all conversation members not in this team.
-  removeFromConvsAndPushConvLeaveEvent lusr zcon tid remove admins
+  removeFromConvsAndPushConvLeaveEvent lusr zcon tid remove
   where
     -- notify team admins
     pushMemberLeaveEvent :: UTCTime -> Sem r ()
@@ -1038,10 +1038,8 @@ removeFromConvsAndPushConvLeaveEvent ::
   Maybe ConnId ->
   TeamId ->
   UserId ->
-  [UserId] ->
   Sem r ()
-removeFromConvsAndPushConvLeaveEvent lusr zcon tid remove admins = do
-  let teamAdmins = Set.fromList admins
+removeFromConvsAndPushConvLeaveEvent lusr zcon tid remove = do
   cc <- E.getTeamConversations tid
   for_ cc $ \c ->
     E.getConversation (c ^. conversationId) >>= \conv ->
@@ -1049,13 +1047,9 @@ removeFromConvsAndPushConvLeaveEvent lusr zcon tid remove admins = do
         when (remove `isMember` Data.convLocalMembers dc) $ do
           E.deleteMembers (c ^. conversationId) (UserList [remove] [])
           let (bots, allLocUsers) = localBotsAndUsers (Data.convLocalMembers dc)
-              notAdmins =
-                foldMap
-                  (\m -> guard (not (Conv.lmId m `Set.member` teamAdmins)) $> Conv.lmId m)
-                  allLocUsers
               targets =
                 BotsAndMembers
-                  (Set.fromList notAdmins)
+                  (Set.fromList $ Conv.lmId <$> allLocUsers)
                   (Set.fromList $ Conv.rmId <$> Data.convRemoteMembers dc)
                   (Set.fromList bots)
           void $
