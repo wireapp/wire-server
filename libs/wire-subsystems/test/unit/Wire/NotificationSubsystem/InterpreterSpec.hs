@@ -1,4 +1,4 @@
-module Wire.NotificationSubsystemSpec (spec) where
+module Wire.NotificationSubsystem.InterpreterSpec (spec) where
 
 import Data.Data (Proxy (Proxy))
 import Data.List.NonEmpty (NonEmpty ((:|)), fromList)
@@ -17,9 +17,10 @@ import Test.QuickCheck
 import Test.QuickCheck.Instances ()
 import Wire.GundeckAPIAccess
 import Wire.NotificationSubsystem
+import Wire.NotificationSubsystem.Interpreter
 
 spec :: Spec
-spec = describe "NotificationSubsystem" do
+spec = describe "NotificationSubsystem.Interpreter" do
   describe "pushImpl" do
     it "chunks and sends all notifications" do
       let mockConfig =

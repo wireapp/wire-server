@@ -70,6 +70,7 @@ library
   exposed-modules:
     Wire.GundeckAPIAccess
     Wire.NotificationSubsystem
+    Wire.NotificationSubsystem.Interpreter
 
   hs-source-dirs:   src
   build-depends:
@@ -101,7 +102,7 @@ test-suite wire-subsystems-tests
   -- cabal-fmt: expand test/unit
   other-modules:
     Spec
-    Wire.NotificationSubsystemSpec
+    Wire.NotificationSubsystem.InterpreterSpec
 
   build-tool-depends: hspec-discover:hspec-discover
   build-depends:
