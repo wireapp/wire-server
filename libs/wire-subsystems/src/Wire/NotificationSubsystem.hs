@@ -28,13 +28,9 @@ data PushTo user = PushTo
     _pushTransient :: Bool,
     _pushRoute :: Route,
     _pushNativePriority :: Maybe Priority,
-    -- we never push asynchronounsly
-    -- _pushAsync :: Bool,
     pushOrigin :: Maybe UserId,
     _pushRecipients :: NonEmpty (RecipientBy user),
     pushJson :: Object
-    -- we probably don't rely on the list type
-    -- pushRecipientListType :: ListType
   }
   deriving stock (Eq, Ord, Generic, Functor, Foldable, Traversable, Show)
   deriving (Arbitrary) via GenericUniform (PushTo user)
@@ -70,8 +66,6 @@ newPush1 from e rr =
       _pushTransient = False,
       _pushRoute = RouteAny,
       _pushNativePriority = Nothing,
-      -- _pushAsync = False,
-      -- pushRecipientListType = recipientListType,
       pushJson = e,
       pushOrigin = from,
       _pushRecipients = rr
