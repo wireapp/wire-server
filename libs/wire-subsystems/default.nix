@@ -11,6 +11,7 @@
 , gitignoreSource
 , gundeck-types
 , hspec
+, hspec-discover
 , http-client
 , http-types
 , imports
@@ -60,5 +61,6 @@ mkDerivation {
     types-common
     wire-api
   ];
+  testToolDepends = [ hspec-discover ];
   license = lib.licenses.agpl3Only;
 }
