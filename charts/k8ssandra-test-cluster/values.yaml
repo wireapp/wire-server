@@ -24,7 +24,7 @@ client_encryption_options:
 
 # Guard the private key by syncing only the CA certificate to
 # `k8ssandra-test-cluster-tls-ca-certificate` secrets. Requires `trust-manager`
-# Helm chart to be installed (including CDRs.)
+# Helm chart to be installed (including CRDs.)
 syncCACertToSecret: false
 
 # Limit syncing to this namespace. Otherwise, the secret is synced to all
