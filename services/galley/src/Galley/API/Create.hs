@@ -267,6 +267,8 @@ checkCreateConvPermissions lusr newConv (Just tinfo) allUsers = do
   -- Not sure at the moment how to best solve this but it is unlikely
   -- we can ever get rid of the team permission model anyway - the only thing I can
   -- think of is that 'partners' can create convs but not be admins...
+  -- this only applies to proteus conversations, because in MLS we have proper 1:1 conversations,
+  -- so we don't allow an external partner to create an MLS group conversation at all
   when (length allUsers > 1 || newConv.newConvProtocol == BaseProtocolMLSTag) $ do
     void $ permissionCheck DoNotUseDeprecatedAddRemoveConvMember zusrMembership
 

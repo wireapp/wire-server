@@ -57,7 +57,7 @@ testExternalPartnerPermissions = do
 
 testExternalPartnerPermissionsMls :: HasCallStack => App ()
 testExternalPartnerPermissionsMls = do
-  -- external partners should not be able to create MLS conversations
+  -- external partners should not be able to create (MLS) conversations
   (owner, tid, _) <- createTeam OwnDomain 2
   bobExt <- createTeamMemberWithRole owner tid "partner"
   bobExtClient <- createMLSClient def bobExt
