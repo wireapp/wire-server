@@ -322,6 +322,8 @@ type SternAPI =
     :<|> Named "get-route-outlook-cal-config" (MkFeatureGetRoute OutlookCalIntegrationConfig)
     :<|> Named "lock-unlock-route-outlook-cal-config" (MkFeatureLockUnlockRouteTrivialConfigNoTTL OutlookCalIntegrationConfig)
     :<|> Named "put-route-outlook-cal-config" (MkFeaturePutRouteTrivialConfigNoTTL OutlookCalIntegrationConfig)
+    :<|> Named "get-route-enforce-file-download-location" (MkFeatureGetRoute EnforceFileDownloadLocationConfig)
+    :<|> Named "put-route-enforce-file-download-location" (MkFeaturePutRoute EnforceFileDownloadLocationConfig)
     :<|> Named
            "get-team-invoice"
            ( Summary "Get a specific invoice by Number"

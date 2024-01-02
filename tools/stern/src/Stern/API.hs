@@ -159,6 +159,8 @@ sitemap' =
     :<|> Named @"get-route-outlook-cal-config" (mkFeatureGetRoute @OutlookCalIntegrationConfig)
     :<|> Named @"lock-unlock-route-outlook-cal-config" (mkFeatureLockUnlockRouteTrivialConfigNoTTL @OutlookCalIntegrationConfig)
     :<|> Named @"put-route-outlook-cal-config" (mkFeaturePutRouteTrivialConfigNoTTL @OutlookCalIntegrationConfig)
+    :<|> Named @"get-route-enforce-file-download-location" (mkFeatureGetRoute @EnforceFileDownloadLocationConfig)
+    :<|> Named @"put-route-enforce-file-download-location" (mkFeaturePutRoute @EnforceFileDownloadLocationConfig)
     :<|> Named @"get-team-invoice" getTeamInvoice
     :<|> Named @"get-team-billing-info" getTeamBillingInfo
     :<|> Named @"put-team-billing-info" updateTeamBillingInfo
