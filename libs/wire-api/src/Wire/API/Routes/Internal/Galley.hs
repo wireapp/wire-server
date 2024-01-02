@@ -161,10 +161,10 @@ type IFeatureAPI =
     :<|> IFeatureStatusPatch '[] '() MlsMigrationConfig
     :<|> IFeatureStatusLockStatusPut MlsMigrationConfig
     -- EnforceFileDownloadLocationConfig
-    :<|> IFeatureStatusGet EnforceFileDownloadLocationConfig
-    :<|> IFeatureStatusPut '[] '() EnforceFileDownloadLocationConfig
-    :<|> IFeatureStatusPatch '[] '() EnforceFileDownloadLocationConfig
-    :<|> IFeatureStatusLockStatusPut EnforceFileDownloadLocationConfig
+    :<|> IFeatureStatusGetWithDesc EnforceFileDownloadLocationConfig "<p><b>Custom feature: only supported for some decidated on-prem systems.</b></p>"
+    :<|> IFeatureStatusPutWithDesc '[] '() EnforceFileDownloadLocationConfig "<p><b>Custom feature: only supported for some decidated on-prem systems.</b></p>"
+    :<|> IFeatureStatusPatchWithDesc '[] '() EnforceFileDownloadLocationConfig "<p><b>Custom feature: only supported for some decidated on-prem systems.</b></p>"
+    :<|> IFeatureStatusLockStatusPutWithDesc EnforceFileDownloadLocationConfig "<p><b>Custom feature: only supported for some decidated on-prem systems.</b></p>"
     -- all feature configs
     :<|> Named
            "feature-configs-internal"
@@ -377,11 +377,17 @@ type ITeamsAPIBase =
                     )
          )
 
-type IFeatureStatusGet f = Named '("iget", f) (FeatureStatusBaseGet f)
+type IFeatureStatusGet f = IFeatureStatusGetWithDesc f ""
 
-type IFeatureStatusPut calls errs f = Named '("iput", f) (ApplyMods calls (FeatureStatusBasePutInternal errs f))
+type IFeatureStatusGetWithDesc f desc = Named '("iget", f) (Description desc :> FeatureStatusBaseGet f)
 
-type IFeatureStatusPatch calls errs f = Named '("ipatch", f) (ApplyMods calls (FeatureStatusBasePatchInternal errs f))
+type IFeatureStatusPut calls errs f = IFeatureStatusPutWithDesc calls errs f ""
+
+type IFeatureStatusPutWithDesc calls errs f desc = Named '("iput", f) (ApplyMods calls (Description desc :> FeatureStatusBasePutInternal errs f))
+
+type IFeatureStatusPatch calls errs f = IFeatureStatusPatchWithDesc calls errs f ""
+
+type IFeatureStatusPatchWithDesc calls errs f desc = Named '("ipatch", f) (ApplyMods calls (Description desc :> FeatureStatusBasePatchInternal errs f))
 
 type FeatureStatusBasePutInternal errs featureConfig =
   FeatureStatusBaseInternal
@@ -414,10 +420,13 @@ type FeatureStatusBaseInternal desc errs featureConfig a =
     :> FeatureSymbol featureConfig
     :> a
 
-type IFeatureStatusLockStatusPut featureName =
+type IFeatureStatusLockStatusPut featureName = IFeatureStatusLockStatusPutWithDesc featureName ""
+
+type IFeatureStatusLockStatusPutWithDesc featureName desc =
   Named
     '("ilock", featureName)
     ( Summary (AppendSymbol "(Un-)lock " (FeatureSymbol featureName))
+        :> Description desc
         :> CanThrow 'NotATeamMember
         :> CanThrow 'TeamNotFound
         :> "teams"

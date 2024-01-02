@@ -91,8 +91,16 @@ type FeatureAPI =
     :<|> From 'V5 ::> FeatureStatusPut '[] '() MlsE2EIdConfig
     :<|> From 'V5 ::> FeatureStatusGet MlsMigrationConfig
     :<|> From 'V5 ::> FeatureStatusPut '[] '() MlsMigrationConfig
-    :<|> From 'V5 ::> FeatureStatusGet EnforceFileDownloadLocationConfig
-    :<|> From 'V5 ::> FeatureStatusPut '[] '() EnforceFileDownloadLocationConfig
+    :<|> From 'V5
+      ::> FeatureStatusGetWithDesc
+            EnforceFileDownloadLocationConfig
+            "<p><b>Custom feature: only supported for some decidated on-prem systems.</b></p>"
+    :<|> From 'V5
+      ::> FeatureStatusPutWithDesc
+            '[]
+            '()
+            EnforceFileDownloadLocationConfig
+            "<p><b>Custom feature: only supported for some decidated on-prem systems.</b></p>"
     :<|> AllFeatureConfigsUserGet
     :<|> AllFeatureConfigsTeamGet
     :<|> FeatureConfigDeprecatedGet "The usage of this endpoint was removed in iOS in version 3.101. It is not used by team management, or webapp, and is potentially used by the old Android client as of June 2022" LegalholdConfig
@@ -109,15 +117,23 @@ type FeatureAPI =
     :<|> FeatureConfigDeprecatedGet "The usage of this endpoint was removed in iOS in version 3.101. It is used by team management, webapp, and potentially the old Android client as of June 2022" SndFactorPasswordChallengeConfig
     :<|> FeatureConfigDeprecatedGet "The usage of this endpoint was removed in iOS in version 3.101. It is used by team management, webapp, and potentially the old Android client as of June 2022" MLSConfig
 
-type FeatureStatusGet f =
+type FeatureStatusGet f = FeatureStatusGetWithDesc f ""
+
+type FeatureStatusGetWithDesc f desc =
   Named
     '("get", f)
-    (ZUser :> FeatureStatusBaseGet f)
+    ( Description desc
+        :> (ZUser :> FeatureStatusBaseGet f)
+    )
 
-type FeatureStatusPut segs errs f =
+type FeatureStatusPut segs errs f = FeatureStatusPutWithDesc segs errs f ""
+
+type FeatureStatusPutWithDesc segs errs f desc =
   Named
     '("put", f)
-    (ApplyMods segs (ZUser :> FeatureStatusBasePutPublic errs f))
+    ( Description desc
+        :> (ApplyMods segs (ZUser :> FeatureStatusBasePutPublic errs f))
+    )
 
 type FeatureStatusDeprecatedGet d f =
   Named
