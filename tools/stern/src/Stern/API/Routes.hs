@@ -323,6 +323,7 @@ type SternAPI =
     :<|> Named "lock-unlock-route-outlook-cal-config" (MkFeatureLockUnlockRouteTrivialConfigNoTTL OutlookCalIntegrationConfig)
     :<|> Named "put-route-outlook-cal-config" (MkFeaturePutRouteTrivialConfigNoTTL OutlookCalIntegrationConfig)
     :<|> Named "get-route-enforce-file-download-location" (MkFeatureGetRoute EnforceFileDownloadLocationConfig)
+    :<|> Named "lock-unlock-route-enforce-file-download-location" (MkFeatureLockUnlockRouteTrivialConfigNoTTL EnforceFileDownloadLocationConfig)
     :<|> Named "put-route-enforce-file-download-location" (MkFeaturePutRoute EnforceFileDownloadLocationConfig)
     :<|> Named
            "get-team-invoice"
