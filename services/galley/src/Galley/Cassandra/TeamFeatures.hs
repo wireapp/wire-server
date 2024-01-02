@@ -159,7 +159,7 @@ getFeatureConfig FeatureSingletonMlsMigration tid = do
     select = "select mls_migration_status, mls_migration_start_time, mls_migration_finalise_regardless_after from team_features where team_id = ?"
 getFeatureConfig FeatureSingletonExposeInvitationURLsToTeamAdminConfig tid = getTrivialConfigC "expose_invitation_urls_to_team_admin" tid
 getFeatureConfig FeatureSingletonOutlookCalIntegrationConfig tid = getTrivialConfigC "outlook_cal_integration_status" tid
-getFeatureConfig FeatureSingletonEnforceFileDownloadLocation tid = do
+getFeatureConfig FeatureSingletonEnforceFileDownloadLocationConfig tid = do
   let q = query1 select (params LocalQuorum (Identity tid))
   retry x1 q <&> \case
     Nothing -> Nothing
@@ -256,7 +256,7 @@ setFeatureConfig FeatureSingletonMlsMigration tid status = do
       "insert into team_features (team_id, mls_migration_status, mls_migration_start_time, mls_migration_finalise_regardless_after) values (?, ?, ?, ?)"
 setFeatureConfig FeatureSingletonExposeInvitationURLsToTeamAdminConfig tid statusNoLock = setFeatureStatusC "expose_invitation_urls_to_team_admin" tid (wssStatus statusNoLock)
 setFeatureConfig FeatureSingletonOutlookCalIntegrationConfig tid statusNoLock = setFeatureStatusC "outlook_cal_integration_status" tid (wssStatus statusNoLock)
-setFeatureConfig FeatureSingletonEnforceFileDownloadLocation tid status = do
+setFeatureConfig FeatureSingletonEnforceFileDownloadLocationConfig tid status = do
   let statusValue = wssStatus status
       config = wssConfig status
 
@@ -275,7 +275,7 @@ getFeatureLockStatus FeatureSingletonMlsE2EIdConfig tid = getLockStatusC "mls_e2
 getFeatureLockStatus FeatureSingletonMlsMigration tid = getLockStatusC "mls_migration_lock_status" tid
 getFeatureLockStatus FeatureSingletonOutlookCalIntegrationConfig tid = getLockStatusC "outlook_cal_integration_lock_status" tid
 getFeatureLockStatus FeatureSingletonMLSConfig tid = getLockStatusC "mls_lock_status" tid
-getFeatureLockStatus FeatureSingletonEnforceFileDownloadLocation tid = getLockStatusC "enforce_file_download_location_lock_status" tid
+getFeatureLockStatus FeatureSingletonEnforceFileDownloadLocationConfig tid = getLockStatusC "enforce_file_download_location_lock_status" tid
 getFeatureLockStatus _ _ = pure Nothing
 
 setFeatureLockStatus :: MonadClient m => FeatureSingleton cfg -> TeamId -> LockStatus -> m ()
@@ -287,7 +287,7 @@ setFeatureLockStatus FeatureSingletonMlsE2EIdConfig tid status = setLockStatusC 
 setFeatureLockStatus FeatureSingletonMlsMigration tid status = setLockStatusC "mls_migration_lock_status" tid status
 setFeatureLockStatus FeatureSingletonOutlookCalIntegrationConfig tid status = setLockStatusC "outlook_cal_integration_lock_status" tid status
 setFeatureLockStatus FeatureSingletonMLSConfig tid status = setLockStatusC "mls_lock_status" tid status
-setFeatureLockStatus FeatureSingletonEnforceFileDownloadLocation tid status = setLockStatusC "enforce_file_download_location_lock_status" tid status
+setFeatureLockStatus FeatureSingletonEnforceFileDownloadLocationConfig tid status = setLockStatusC "enforce_file_download_location_lock_status" tid status
 setFeatureLockStatus _ _tid _status = pure ()
 
 getTrivialConfigC ::

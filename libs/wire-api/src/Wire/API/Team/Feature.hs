@@ -166,16 +166,16 @@ import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 -- (https://github.com/wireapp/wire-server/pull/1811,
 -- https://github.com/wireapp/wire-server/pull/1818)
 --
--- 10. Extend the integration tests with cases
+-- 10. Extend the integration tests with cases.
 --
--- 11. Edit/update the configurations:
+-- 11. If applicable, edit/update the configurations:
 --     - optionally add the config for local integration tests to 'galley.integration.yaml'
 --     - add a config mapping to 'charts/galley/templates/configmap.yaml'
 --     - add the defaults to 'charts/galley/values.yaml'
 --     - optionally add config for CI to 'hack/helm_vars/wire-server/values.yaml'
 --
 -- 12. Add a section to the documentation at an appropriate place
--- (e.g. 'docs/src/developer/reference/config-options.md' or
+-- (e.g. 'docs/src/developer/reference/config-options.md' (if applicable) or
 -- 'docs/src/understand/team-feature-settings.md')
 class IsFeatureConfig cfg where
   type FeatureSymbol cfg :: Symbol
@@ -206,8 +206,11 @@ data FeatureSingleton cfg where
   FeatureSingletonExposeInvitationURLsToTeamAdminConfig :: FeatureSingleton ExposeInvitationURLsToTeamAdminConfig
   FeatureSingletonOutlookCalIntegrationConfig :: FeatureSingleton OutlookCalIntegrationConfig
   FeatureSingletonMlsE2EIdConfig :: FeatureSingleton MlsE2EIdConfig
-  FeatureSingletonMlsMigration :: FeatureSingleton MlsMigrationConfig
-  FeatureSingletonEnforceFileDownloadLocation :: FeatureSingleton EnforceFileDownloadLocationConfig
+  FeatureSingletonMlsMigration ::
+    -- FUTUREWORK: rename to `FeatureSingletonMlsMigrationConfig` (or drop the `Config` from
+    -- all other constructors)
+    FeatureSingleton MlsMigrationConfig
+  FeatureSingletonEnforceFileDownloadLocationConfig :: FeatureSingleton EnforceFileDownloadLocationConfig
 
 class FeatureTrivialConfig cfg where
   trivialConfig :: cfg
@@ -1112,7 +1115,7 @@ instance ToSchema EnforceFileDownloadLocationConfig where
 instance IsFeatureConfig EnforceFileDownloadLocationConfig where
   type FeatureSymbol EnforceFileDownloadLocationConfig = "enforceFileDownloadLocation"
   defFeatureStatus = withStatus FeatureStatusDisabled LockStatusLocked (EnforceFileDownloadLocationConfig Nothing) FeatureTTLUnlimited
-  featureSingleton = FeatureSingletonEnforceFileDownloadLocation
+  featureSingleton = FeatureSingletonEnforceFileDownloadLocationConfig
   objectSchema = field "config" schema
 
 ----------------------------------------------------------------------

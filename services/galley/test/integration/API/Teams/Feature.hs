@@ -110,6 +110,8 @@ tests s =
           ),
       test s "MlsMigration feature config" $
         testNonTrivialConfigNoTTL defaultMlsMigrationConfig,
+      test s "EnforceFileDownloadLocation feature config" $
+        testNonTrivialConfigNoTTL (defFeatureStatus @EnforceFileDownloadLocationConfig),
       testGroup
         "Patch"
         [ -- Note: `SSOConfig` and `LegalHoldConfig` may not be able to be reset
@@ -150,7 +152,10 @@ tests s =
             testPatch AssertLockStatusChange FeatureStatusEnabled (SelfDeletingMessagesConfig 0),
           test s (unpack $ featureNameBS @OutlookCalIntegrationConfig) $
             testPatch AssertLockStatusChange FeatureStatusDisabled OutlookCalIntegrationConfig,
-          test s (unpack $ featureNameBS @MlsE2EIdConfig) $ testPatchWithArbitrary AssertLockStatusChange FeatureStatusDisabled (wsConfig (defFeatureStatus @MlsE2EIdConfig))
+          test s (unpack $ featureNameBS @MlsE2EIdConfig) $
+            testPatchWithArbitrary AssertLockStatusChange FeatureStatusDisabled (wsConfig (defFeatureStatus @MlsE2EIdConfig)),
+          test s (unpack $ featureNameBS @EnforceFileDownloadLocationConfig) $
+            testPatchWithArbitrary AssertLockStatusChange FeatureStatusDisabled (wsConfig (defFeatureStatus @EnforceFileDownloadLocationConfig))
         ],
       testGroup
         "ExposeInvitationURLsToTeamAdmin"
