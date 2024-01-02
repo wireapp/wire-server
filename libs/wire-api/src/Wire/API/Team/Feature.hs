@@ -1093,7 +1093,7 @@ instance IsFeatureConfig MlsMigrationConfig where
 -- EnforceFileDownloadLocationConfig
 
 data EnforceFileDownloadLocationConfig = EnforceFileDownloadLocationConfig
-  { enforcedDownloadLocation :: Text
+  { enforcedDownloadLocation :: Maybe Text
   }
   deriving stock (Eq, Show, Generic)
 
@@ -1101,17 +1101,17 @@ instance RenderableSymbol EnforceFileDownloadLocationConfig where
   renderSymbol = "EnforceFileDownloadLocationConfig"
 
 instance Arbitrary EnforceFileDownloadLocationConfig where
-  arbitrary = EnforceFileDownloadLocationConfig . cs . getPrintableString <$> arbitrary
+  arbitrary = EnforceFileDownloadLocationConfig . fmap (cs . getPrintableString) <$> arbitrary
 
 instance ToSchema EnforceFileDownloadLocationConfig where
   schema =
     object "EnforceFileDownloadLocation" $
       EnforceFileDownloadLocationConfig
-        <$> enforcedDownloadLocation .= field "enforcedDownloadLocation" schema
+        <$> enforcedDownloadLocation .= maybe_ (optField "enforcedDownloadLocation" schema)
 
 instance IsFeatureConfig EnforceFileDownloadLocationConfig where
   type FeatureSymbol EnforceFileDownloadLocationConfig = "enforceFileDownloadLocation"
-  defFeatureStatus = withStatus FeatureStatusDisabled LockStatusLocked (EnforceFileDownloadLocationConfig "") FeatureTTLUnlimited
+  defFeatureStatus = withStatus FeatureStatusDisabled LockStatusLocked (EnforceFileDownloadLocationConfig Nothing) FeatureTTLUnlimited
   featureSingleton = FeatureSingletonEnforceFileDownloadLocation
   objectSchema = field "config" schema
 

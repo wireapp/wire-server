@@ -1541,5 +1541,5 @@ defaultEnforceFileDownloadLocationConfig =
   withStatus
     FeatureStatusDisabled
     LockStatusLocked
-    (EnforceFileDownloadLocationConfig "*")
+    (EnforceFileDownloadLocationConfig Nothing)
     FeatureTTLUnlimited
