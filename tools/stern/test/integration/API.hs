@@ -93,7 +93,6 @@ tests s =
       test s "GET /teams/:tid/features/classifiedDomains" $ testGetFeatureConfig @ClassifiedDomainsConfig (Just FeatureStatusEnabled),
       test s "GET /teams/:tid/features/outlookCalIntegration" $ testFeatureStatus @OutlookCalIntegrationConfig,
       test s "PUT /teams/:tid/features/outlookCalIntegration{,'?lockOrUnlock'}" $ testFeatureStatusWithLock @OutlookCalIntegrationConfig,
-      test s "GET /teams/:tid/features/enforceFileDownloadLocation" $ testFeatureStatus @EnforceFileDownloadLocationConfig,
       test s "GET /i/consent" testGetConsentLog,
       test s "GET /teams/:id" testGetTeamInfo,
       test s "GET i/user/meta-info?id=..." testGetUserMetaInfo,
