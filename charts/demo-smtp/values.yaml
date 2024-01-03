@@ -1,6 +1,6 @@
 fullnameOverride: demo-smtp
 replicaCount: 1
-image: "quay.io/wire/namshi-smtp:aa63b8"
+image: "quay.io/wire/ixdotai-smtp:6fc2f5"
 
 service:
   port: 25
