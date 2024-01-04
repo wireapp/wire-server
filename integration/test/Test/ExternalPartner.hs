@@ -64,6 +64,12 @@ testExternalPartnerPermissionsMls = do
   bindResponse (postConversation bobExtClient defMLS) $ \resp -> do
     resp.status `shouldMatchInt` 403
 
+testExternalPartnerPermissionMlsOne2One :: HasCallStack => App ()
+testExternalPartnerPermissionMlsOne2One = do
+  (owner, tid, alice : _) <- createTeam OwnDomain 2
+  bobExternal <- createTeamMemberWithRole owner tid "partner"
+  void $ getMLSOne2OneConversation alice bobExternal >>= getJSON 200
+
 testExternalPartnerPermissionsConvName :: HasCallStack => App ()
 testExternalPartnerPermissionsConvName = do
   (owner, tid, u1 : _) <- createTeam OwnDomain 2
