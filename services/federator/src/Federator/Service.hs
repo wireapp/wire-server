@@ -33,12 +33,14 @@ import Control.Lens (view)
 import Control.Monad.Codensity
 import Data.ByteString qualified as BS
 import Data.Domain
+import Data.Id
 import Data.Sequence qualified as Seq
 import Data.Text.Encoding qualified as Text
 import Federator.Env
 import Imports
 import Network.HTTP.Client
 import Network.HTTP.Types qualified as HTTP
+import Network.HTTP.Types.Header
 import Polysemy
 import Polysemy.Input
 import Servant.Client.Core qualified as Servant
@@ -51,7 +53,7 @@ type ServiceStreaming = Service (SourceT IO ByteString)
 
 data Service body m a where
   -- | Returns status, headers and body, 'HTTP.Response' is not nice to work with in tests
-  ServiceCall :: Component -> ByteString -> LByteString -> Domain -> Service body m (Servant.ResponseF body)
+  ServiceCall :: Component -> ByteString -> RequestHeaders -> LByteString -> RequestId -> Domain -> Service body m (Servant.ResponseF body)
 
 makeSem ''Service
 
@@ -80,10 +82,9 @@ interpretServiceHTTP ::
   Sem (ServiceStreaming ': r) a ->
   Sem r a
 interpretServiceHTTP = interpret $ \case
-  ServiceCall component rpcPath body domain -> do
+  ServiceCall component rpcPath headers body rid domain -> do
     Endpoint serviceHost servicePort <- inputs (view service) <*> pure component
     manager <- inputs (view httpManager)
-    reqId <- inputs (view requestId)
     let req =
           defaultRequest
             { method = HTTP.methodPost,
@@ -94,8 +95,9 @@ interpretServiceHTTP = interpret $ \case
               requestHeaders =
                 [ ("Content-Type", "application/json"),
                   (originDomainHeaderName, cs (domainText domain)),
-                  (RPC.requestIdName, RPC.unRequestId reqId)
+                  (RPC.requestIdName, unRequestId rid)
                 ]
+                  <> headers
             }
 
     embed $

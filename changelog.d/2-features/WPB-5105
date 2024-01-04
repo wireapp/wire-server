@@ -1,3 +1,4 @@
 Allowlist for who on cloud can connect to on-prem:
 - Internal API to configure allowlist
-(#3697)
+- Restrict federated user search according to team federation policy
+(#3697, #3732, #3758)

@@ -40,9 +40,17 @@ createTeamMember ::
   inviter ->
   String ->
   App Value
-createTeamMember inviter tid = do
+createTeamMember inviter tid = createTeamMemberWithRole inviter tid "member"
+
+createTeamMemberWithRole ::
+  (HasCallStack, MakesValue inviter) =>
+  inviter ->
+  String ->
+  String ->
+  App Value
+createTeamMemberWithRole inviter tid role = do
   newUserEmail <- randomEmail
-  let invitationJSON = ["role" .= "member", "email" .= newUserEmail]
+  let invitationJSON = ["role" .= role, "email" .= newUserEmail]
   invitationReq <-
     baseRequest inviter Brig Versioned $
       joinHttpPath ["teams", tid, "invitations"]
@@ -186,3 +194,78 @@ withFederatingBackendsAllowDynamic k = do
       def {brigCfg = setFederationConfig}
     ]
     $ \[domainA, domainB, domainC] -> k (domainA, domainB, domainC)
+
+-- | Create two users on different domains such that the one-to-one
+-- conversation, once finalised, will be hosted on the backend given by the
+-- input domain.
+createOne2OneConversation :: HasCallStack => Domain -> App (Value, Value, Value)
+createOne2OneConversation owningDomain = do
+  owningUser <- randomUser owningDomain def
+  domainName <- owningUser %. "qualified_id.domain"
+  let otherDomain = case owningDomain of
+        OwnDomain -> OtherDomain
+        OtherDomain -> OwnDomain
+  let go = do
+        otherUser <- randomUser otherDomain def
+        otherUserId <- otherUser %. "qualified_id"
+        conn <-
+          postConnection owningUser otherUser `bindResponse` \resp -> do
+            resp.status `shouldMatchInt` 201
+            payload <- resp.json
+            payload %. "status" `shouldMatch` "sent"
+            payload %. "qualified_to" `shouldMatch` otherUserId
+            pure payload
+        one2one <- conn %. "qualified_conversation"
+        one2oneDomain <- one2one %. "domain"
+        if domainName == one2oneDomain
+          then pure (owningUser, otherUser, one2one)
+          else SetupHelpers.deleteUser otherUser >> go
+  go
+
+data One2OneConvState = Established | Connect
+
+-- | Converts to an integer corresponding to the numeric representation of the
+-- 'Wire.API.Conversation.ConvType' type.
+toConvType :: One2OneConvState -> Int
+toConvType = \case
+  Established -> 2
+  Connect -> 3
+
+-- | Fetch the one-to-one conversation between the two users that is in one of
+-- two possible states.
+getOne2OneConversation :: HasCallStack => Value -> Value -> One2OneConvState -> App Value
+getOne2OneConversation user1 user2 cnvState = do
+  l <- getAllConvs user1
+  let isWith users c = do
+        -- The conversation type 2 is for 1-to-1 conversations. Type 3 is for
+        -- the connection conversation, which is the state of the conversation
+        -- before the connection is fully established.
+        t <- (== toConvType cnvState) <$> (c %. "type" & asInt)
+        others <- c %. "members.others" & asList
+        qIds <- for others (%. "qualified_id")
+        pure $ qIds == users && t
+  head <$> filterM (isWith [user2]) l
+
+-- | Create a provider, get an activation code, activate the provider and log it
+-- in. The return value is the created provider.
+setupProvider ::
+  ( HasCallStack,
+    MakesValue user
+  ) =>
+  user ->
+  NewProvider ->
+  App Value
+setupProvider u np@(NewProvider {..}) = do
+  dom <- objDomain u
+  provider <- newProvider u np
+  pass <- provider %. "password" & asString
+  (key, code) <- do
+    pair <-
+      getProviderActivationCodeInternal dom newProviderEmail `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 200
+        resp.json
+    k <- pair %. "key" & asString
+    c <- pair %. "code" & asString
+    pure (k, c)
+  activateProvider dom key code
+  loginProvider dom newProviderEmail pass $> provider

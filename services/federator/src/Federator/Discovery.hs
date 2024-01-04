@@ -45,16 +45,17 @@ data DiscoveryFailure
 instance Exception DiscoveryFailure
 
 instance AsWai DiscoveryFailure where
-  toWai e = Wai.mkError status label (LText.fromStrict (waiErrorDescription e))
+  toWai e = Wai.mkError status label (LText.fromStrict (discoveryErrorDescription e))
     where
       (status, label) = case e of
         DiscoveryFailureSrvNotAvailable _ -> (HTTP.status422, "invalid-domain")
         DiscoveryFailureDNSError _ -> (HTTP.status400, "discovery-failure")
-  waiErrorDescription :: DiscoveryFailure -> Text
-  waiErrorDescription (DiscoveryFailureSrvNotAvailable msg) =
-    "srv record not found: " <> Text.decodeUtf8 msg
-  waiErrorDescription (DiscoveryFailureDNSError msg) =
-    "DNS error: " <> Text.decodeUtf8 msg
+
+discoveryErrorDescription :: DiscoveryFailure -> Text
+discoveryErrorDescription (DiscoveryFailureSrvNotAvailable msg) =
+  "srv record not found: " <> Text.decodeUtf8 msg
+discoveryErrorDescription (DiscoveryFailureDNSError msg) =
+  "DNS error: " <> Text.decodeUtf8 msg
 
 data DiscoverFederator m a where
   DiscoverFederator :: Domain -> DiscoverFederator m (Either DiscoveryFailure SrvTarget)

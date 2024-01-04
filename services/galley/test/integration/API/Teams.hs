@@ -404,7 +404,7 @@ testEnableSSOPerTeam = do
   let putSSOEnabledInternalCheckNotImplemented :: HasCallStack => TestM ()
       putSSOEnabledInternalCheckNotImplemented = do
         g <- viewGalley
-        Wai.Error status label _ _ <-
+        waierr <-
           responseJsonUnsafe
             <$> put
               ( g
@@ -412,8 +412,8 @@ testEnableSSOPerTeam = do
                   . json (Public.WithStatusNoLock Public.FeatureStatusDisabled Public.SSOConfig Public.FeatureTTLUnlimited)
               )
         liftIO $ do
-          assertEqual "bad status" status403 status
-          assertEqual "bad label" "not-implemented" label
+          assertEqual "bad status" status403 (Wai.code waierr)
+          assertEqual "bad label" "not-implemented" (Wai.label waierr)
   featureSSO <- view (tsGConf . settings . featureFlags . flagSSO)
   case featureSSO of
     FeatureSSOEnabledByDefault -> check "Teams should start with SSO enabled" Public.FeatureStatusEnabled
@@ -435,10 +435,10 @@ testEnableTeamSearchVisibilityPerTeam = do
   let putSearchVisibilityCheckNotAllowed :: TestM ()
       putSearchVisibilityCheckNotAllowed = do
         g <- viewGalley
-        Wai.Error status label _ _ <- responseJsonUnsafe <$> putSearchVisibility g owner tid SearchVisibilityNoNameOutsideTeam
+        waierr <- responseJsonUnsafe <$> putSearchVisibility g owner tid SearchVisibilityNoNameOutsideTeam
         liftIO $ do
-          assertEqual "bad status" status403 status
-          assertEqual "bad label" "team-search-visibility-not-enabled" label
+          assertEqual "bad status" status403 (Wai.code waierr)
+          assertEqual "bad label" "team-search-visibility-not-enabled" (Wai.label waierr)
   let getSearchVisibilityCheck :: TeamSearchVisibility -> TestM ()
       getSearchVisibilityCheck vis = do
         g <- viewGalley
@@ -747,13 +747,12 @@ testAddTeamConvLegacy = do
 testAddTeamConvWithRole :: TestM ()
 testAddTeamConvWithRole = do
   c <- view tsCannon
-  (tid, owner, mem2 : _) <- Util.createBindingTeamWithMembers 2
+  (owner, tid) <- Util.createBindingTeam
   qOwner <- Qualified owner <$> viewFederationDomain
   extern <- Util.randomUser
   qExtern <- Qualified extern <$> viewFederationDomain
   Util.connectUsers owner (list1 extern [])
-  Util.connectUsers mem2 (list1 extern [])
-  WS.bracketRN c [owner, extern, mem2] $ \[wsOwner, wsExtern, wsMem2] -> do
+  WS.bracketRN c [owner, extern] $ \[wsOwner, wsExtern] -> do
     -- Regular conversation:
     cid2 <- Util.createTeamConvWithRole owner tid [extern] (Just "blaa") Nothing Nothing roleNameWireAdmin
     checkConvCreateEvent cid2 wsOwner
@@ -770,7 +769,6 @@ testAddTeamConvWithRole = do
 
     mem1 <- Util.addUserToTeam owner tid
     checkTeamMemberJoin tid (mem1 ^. userId) wsOwner
-    checkTeamMemberJoin tid (mem1 ^. userId) wsMem2
     -- ... but not to regular ones.
     Util.assertNotConvMember (mem1 ^. userId) cid2
 

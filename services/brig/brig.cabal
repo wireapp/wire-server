@@ -25,7 +25,6 @@ common common-all
     -Wredundant-constraints
 
   default-extensions:
-    NoImplicitPrelude
     AllowAmbiguousTypes
     BangPatterns
     BlockArguments
@@ -51,6 +50,7 @@ common common-all
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NoImplicitPrelude
     NumericUnderscores
     OverloadedLabels
     OverloadedRecordDot
@@ -110,7 +110,6 @@ library
     Brig.Data.Activation
     Brig.Data.Client
     Brig.Data.Connection
-    Brig.Data.Federation
     Brig.Data.Instances
     Brig.Data.LoginCode
     Brig.Data.MLS.KeyPackage
@@ -126,6 +125,8 @@ library
     Brig.Effects.CodeStore
     Brig.Effects.CodeStore.Cassandra
     Brig.Effects.Delay
+    Brig.Effects.FederationConfigStore
+    Brig.Effects.FederationConfigStore.Cassandra
     Brig.Effects.GalleyProvider
     Brig.Effects.GalleyProvider.RPC
     Brig.Effects.JwtTools
@@ -268,7 +269,6 @@ library
     , cql
     , cryptobox-haskell          >=0.1.1
     , currency-codes             >=2.0
-    , data-default               >=0.5
     , data-timeout               >=0.3
     , dns
     , dns-util
@@ -318,7 +318,6 @@ library
     , polysemy-plugin
     , polysemy-wire-zoo
     , proto-lens                 >=0.1
-    , random
     , random-shuffle             >=0.0.3
     , raw-strings-qq
     , resource-pool              >=0.2
@@ -405,7 +404,6 @@ executable brig-integration
     API.Internal
     API.Internal.Util
     API.Metrics
-    API.MLS
     API.MLS.Util
     API.OAuth
     API.Provider
@@ -536,7 +534,7 @@ executable brig-schema
   import:             common-all
   main-is:            Main.hs
   hs-source-dirs:     schema
-  ghc-options:        -funbox-strict-fields -Wredundant-constraints
+  ghc-options:        -funbox-strict-fields -Wredundant-constraints -threaded
   default-extensions: TemplateHaskell
   build-depends:
     , base

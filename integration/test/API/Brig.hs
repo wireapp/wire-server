@@ -3,9 +3,12 @@ module API.Brig where
 import API.Common
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Base64 as Base64
+import qualified Data.CaseInsensitive as CI
 import Data.Foldable
 import Data.Function
+import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
+import qualified Data.Vector as V
 import GHC.Stack
 import Testlib.Prelude
 
@@ -18,6 +21,80 @@ data AddUser = AddUser
 
 instance Default AddUser where
   def = AddUser Nothing Nothing Nothing Nothing
+
+data NewProvider = NewProvider
+  { newProviderName :: String,
+    newProviderDesc :: String,
+    newProviderEmail :: String,
+    newProviderPassword :: Maybe String,
+    newProviderUrl :: String
+  }
+
+instance Default NewProvider where
+  def =
+    NewProvider
+      "New Provider"
+      "Just a provider"
+      "provider@example.com"
+      Nothing
+      "https://example.com"
+
+instance ToJSON NewProvider where
+  toJSON NewProvider {..} =
+    Aeson.object
+      [ "name" .= newProviderName,
+        "description" .= newProviderDesc,
+        "email" .= newProviderEmail,
+        "password" .= newProviderPassword,
+        "url" .= newProviderUrl
+      ]
+
+data NewService = NewService
+  { newServiceName :: String,
+    newServiceSummary :: String,
+    newServiceDescr :: String,
+    newServiceUrl :: String,
+    newServiceKey :: ByteString,
+    newServiceToken :: Maybe String,
+    newServiceAssets :: [String],
+    newServiceTags :: [String]
+  }
+
+instance Default NewService where
+  def =
+    NewService
+      "New Service"
+      "Just a service"
+      "Just a service description"
+      "https://example.com"
+      ( T.encodeUtf8 . T.unlines . fmap T.pack $
+          [ "-----BEGIN PUBLIC KEY-----",
+            "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu+Kg/PHHU3atXrUbKnw0",
+            "G06FliXcNt3lMwl2os5twEDcPPFw/feGiAKymxp+7JqZDrseS5D9THGrW+OQRIPH",
+            "WvUBdiLfGrZqJO223DB6D8K2Su/odmnjZJ2z23rhXoEArTplu+Dg9K+c2LVeXTKV",
+            "VPOaOzgtAB21XKRiQ4ermqgi3/njr03rXyq/qNkuNd6tNcg+HAfGxfGvvCSYBfiS",
+            "bUKr/BeArYRcjzr/h5m1In6fG/if9GEI6m8dxHT9JbY53wiksowy6ajCuqskIFg8",
+            "7X883H+LA/d6X5CTiPv1VMxXdBUiGPuC9IT/6CNQ1/LFt0P37ax58+LGYlaFo7la",
+            "nQIDAQAB",
+            "-----END PUBLIC KEY-----"
+          ]
+      )
+      (Just "secret-token")
+      []
+      ["music", "quiz", "weather"]
+
+instance ToJSON NewService where
+  toJSON NewService {..} =
+    Aeson.object
+      [ "name" .= newServiceName,
+        "summary" .= newServiceSummary,
+        "description" .= newServiceDescr,
+        "base_url" .= newServiceUrl,
+        "public_key" .= (T.unpack . T.decodeUtf8) newServiceKey,
+        "auth_token" .= newServiceToken,
+        "assets" .= Aeson.Array (V.fromList (Aeson.String . T.pack <$> newServiceAssets)),
+        "tags" .= Aeson.Array (V.fromList (Aeson.String . T.pack <$> newServiceTags))
+      ]
 
 addUser :: (HasCallStack, MakesValue dom) => dom -> AddUser -> App Response
 addUser dom opts = do
@@ -280,15 +357,18 @@ uploadKeyPackages cid kps = do
         & addJSONObject ["key_packages" .= map (T.decodeUtf8 . Base64.encode) kps]
     )
 
-claimKeyPackages :: (MakesValue u, MakesValue v) => Ciphersuite -> u -> v -> App Response
-claimKeyPackages suite u v = do
+claimKeyPackagesWithParams :: (MakesValue u, MakesValue v) => Ciphersuite -> u -> v -> [(String, String)] -> App Response
+claimKeyPackagesWithParams suite u v params = do
   (targetDom, targetUid) <- objQid v
   req <-
     baseRequest u Brig Versioned $
       "/mls/key-packages/claim/" <> targetDom <> "/" <> targetUid
   submit "POST" $
     req
-      & addQueryParams [("ciphersuite", suite.code)]
+      & addQueryParams ([("ciphersuite", suite.code)] <> params)
+
+claimKeyPackages :: (MakesValue u, MakesValue v) => Ciphersuite -> u -> v -> App Response
+claimKeyPackages suite u v = claimKeyPackagesWithParams suite u v []
 
 countKeyPackages :: Ciphersuite -> ClientIdentity -> App Response
 countKeyPackages suite cid = do
@@ -406,3 +486,105 @@ getSwaggerInternalJson service = do
     rawBaseRequest OwnDomain Nginz Unversioned $
       joinHttpPath ["api-internal", "swagger-ui", service <> "-swagger.json"]
   submit "GET" req
+
+newProvider ::
+  ( HasCallStack,
+    MakesValue provider,
+    MakesValue user
+  ) =>
+  user ->
+  provider ->
+  App Value
+newProvider user provider = do
+  p <- make provider
+  req <-
+    baseRequest user Brig Versioned $
+      joinHttpPath ["provider", "register"]
+  submit "POST" (addJSON p req) `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 201
+    resp.json
+
+activateProvider ::
+  ( HasCallStack,
+    MakesValue dom
+  ) =>
+  dom ->
+  String ->
+  String ->
+  App ()
+activateProvider dom key code = do
+  d <- make dom
+  req <-
+    rawBaseRequest d Brig Versioned $
+      joinHttpPath ["provider", "activate"]
+  let ps = [("key", key), ("code", code)]
+  submit "GET" (addQueryParams ps req) `bindResponse` \resp -> do
+    resp.status `shouldMatchOneOf` [Number 200, Number 204]
+
+-- | Returns the value of the Set-Cookie header that is to be used to
+-- authenticate to provider endpoints.
+loginProvider ::
+  ( HasCallStack,
+    MakesValue dom
+  ) =>
+  dom ->
+  String ->
+  String ->
+  App ByteString
+loginProvider dom email pass = do
+  d <- asString dom
+  req <-
+    rawBaseRequest d Brig Versioned $
+      joinHttpPath ["provider", "login"]
+  submit "POST" (addJSONObject ["email" .= email, "password" .= pass] req) `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    let hs = headers resp
+        setCookieHeader = CI.mk (T.encodeUtf8 . T.pack $ "Set-Cookie")
+    pure . fromJust . foldMap (\(k, v) -> guard (k == setCookieHeader) $> v) $ hs
+
+newService ::
+  ( HasCallStack,
+    MakesValue dom
+  ) =>
+  dom ->
+  String ->
+  NewService ->
+  App Value
+newService dom providerId service = do
+  s <- make service
+  domain <- asString dom
+  req <-
+    rawBaseRequest domain Brig Versioned $
+      joinHttpPath ["provider", "services"]
+  let addHdrs =
+        addHeader "Z-Type" "provider"
+          . addHeader "Z-Provider" providerId
+  submit "POST" (addJSON s . addHdrs $ req) `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 201
+    resp.json
+
+updateService ::
+  ( HasCallStack,
+    MakesValue dom,
+    MakesValue serviceId
+  ) =>
+  dom ->
+  String ->
+  serviceId ->
+  Maybe String ->
+  Maybe String ->
+  App Response
+updateService dom providerId serviceId mAcceptHeader newName = do
+  sId <- asString serviceId
+  domain <- asString dom
+  req <-
+    rawBaseRequest domain Brig Versioned $
+      joinHttpPath ["provider", "services", sId]
+  let addHdrs =
+        addHeader "Z-Type" "provider"
+          . addHeader "Z-Provider" providerId
+          . maybe id (addHeader "Accept") mAcceptHeader
+  submit "PUT"
+    . addHdrs
+    . addJSONObject ["name" .= n | n <- maybeToList newName]
+    $ req

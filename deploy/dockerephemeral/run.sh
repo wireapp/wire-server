@@ -6,5 +6,12 @@ set -x
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 DOCKER_FILE="$SCRIPT_DIR/docker-compose.yaml"
 
-docker-compose --file "$DOCKER_FILE" up
-docker-compose --file "$DOCKER_FILE" down
+cleanup () {
+   docker-compose --file "$DOCKER_FILE" --file "$SCRIPT_DIR/federation-v0.yaml" down
+}
+
+docker-compose --file "$DOCKER_FILE" --file "$SCRIPT_DIR/federation-v0.yaml" up -d
+trap cleanup EXIT
+echo "All Services started successfully, press Ctrl+C to stop them"
+# Wait for something to kill this
+while true; do sleep 100000000; done

@@ -23,7 +23,6 @@ where
 import API.Calling qualified as Calling
 import API.Federation qualified
 import API.Internal qualified
-import API.MLS qualified as MLS
 import API.Metrics qualified as Metrics
 import API.OAuth qualified
 import API.Provider qualified as Provider
@@ -134,19 +133,15 @@ runTests iConf brigOpts otherArgs = do
         Opts.TurnSourceFiles files -> files
         Opts.TurnSourceDNS _ -> error "The integration tests can only be run when TurnServers are sourced from files"
       localDomain = brigOpts ^. Opts.optionSettings . Opts.federationDomain
-      casHost = (\v -> Opts.cassandra v ^. endpoint . host) brigOpts
-      casPort = (\v -> Opts.cassandra v ^. endpoint . port) brigOpts
-      casKey = (\v -> Opts.cassandra v ^. keyspace) brigOpts
       awsOpts = Opts.aws brigOpts
   lg <- Logger.new Logger.defSettings -- TODO: use mkLogger'?
-  db <- defInitCassandra casKey casHost casPort lg
+  db <- defInitCassandra (brigOpts.cassandra) lg
   mg <- newManager tlsManagerSettings
   let fedBrigClient = FedClient @'Brig mg (brig iConf)
-  let fedGalleyClient = FedClient @'Galley mg (galley iConf)
   emailAWSOpts <- parseEmailAWSOpts
   awsEnv <- AWS.mkEnv lg awsOpts emailAWSOpts mg
-  mUserJournalWatcher <- for (view AWS.userJournalQueue awsEnv) $ SQS.watchSQSQueue (view AWS.amazonkaEnv awsEnv)
-  userApi <- User.tests brigOpts fedBrigClient fedGalleyClient mg b c ch g n awsEnv db mUserJournalWatcher
+  mUserJournalWatcher <- for (Opts.userJournalQueue awsOpts) $ SQS.watchSQSQueue (view AWS.amazonkaEnv awsEnv)
+  userApi <- User.tests brigOpts fedBrigClient mg b c ch g n awsEnv db mUserJournalWatcher
   providerApi <- Provider.tests localDomain (provider iConf) mg db b c g n
   searchApis <- Search.tests brigOpts mg g b
   teamApis <- Team.tests brigOpts mg n b c g mUserJournalWatcher
@@ -158,13 +153,12 @@ runTests iConf brigOpts otherArgs = do
   browseTeam <- TeamUserSearch.tests brigOpts mg g b
   userPendingActivation <- UserPendingActivation.tests brigOpts mg db b g s
   federationEnd2End <- Federation.End2end.spec brigOpts mg b g ch c f brigTwo galleyTwo ch2 cannonTwo
-  federationEndpoints <- API.Federation.tests mg brigOpts b c fedBrigClient
+  federationEndpoints <- API.Federation.tests mg brigOpts b fedBrigClient
   internalApi <- API.Internal.tests brigOpts mg db b (brig iConf) gd g
 
   let smtp = SMTP.tests mg lg
       versionApi = API.Version.tests mg brigOpts b
       swaggerApi = API.Swagger.tests mg brigOpts brigNoImplicitVersion
-      mlsApi = MLS.tests mg b brigOpts
       oauthAPI = API.OAuth.tests mg db b n brigOpts
 
   withArgs otherArgs . defaultMainWithIngredients (listingTests : (composeReporters antXMLRunner consoleTestReporter) : defaultIngredients)
@@ -190,7 +184,6 @@ runTests iConf brigOpts otherArgs = do
         internalApi,
         versionApi,
         swaggerApi,
-        mlsApi,
         smtp,
         oauthAPI,
         federationEnd2End

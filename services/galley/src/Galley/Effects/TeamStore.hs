@@ -61,6 +61,7 @@ module Galley.Effects.TeamStore
     getBillingTeamMembers,
     getTeamAdmins,
     selectTeamMembers,
+    selectTeamMembersPaginated,
 
     -- ** Update team members
     setTeamMemberPermissions,
@@ -92,6 +93,7 @@ import Wire.API.Team.Conversation
 import Wire.API.Team.Member (HardTruncationLimit, TeamMember, TeamMemberList)
 import Wire.API.Team.Permission
 import Wire.Sem.Paging
+import Wire.Sem.Paging.Cassandra (CassandraPaging)
 
 data TeamStore m a where
   CreateTeamMember :: TeamId -> TeamMember -> TeamStore m ()
@@ -116,6 +118,12 @@ data TeamStore m a where
   GetTeamMembersWithLimit :: TeamId -> Range 1 HardTruncationLimit Int32 -> TeamStore m TeamMemberList
   GetTeamMembers :: TeamId -> TeamStore m [TeamMember]
   SelectTeamMembers :: TeamId -> [UserId] -> TeamStore m [TeamMember]
+  SelectTeamMembersPaginated ::
+    TeamId ->
+    [UserId] ->
+    Maybe (PagingState CassandraPaging TeamMember) ->
+    PagingBounds CassandraPaging TeamMember ->
+    TeamStore m (Page CassandraPaging TeamMember)
   GetUserTeams :: UserId -> TeamStore m [TeamId]
   GetUsersTeams :: [UserId] -> TeamStore m (Map UserId TeamId)
   GetOneUserTeam :: UserId -> TeamStore m (Maybe TeamId)

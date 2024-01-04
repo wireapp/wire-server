@@ -53,7 +53,10 @@ nginx_conf:
   - /search/top
   - /search/common
 
-  default_client_max_body_size: "256k"
+  # `default_client_max_body_size` is increased from 256k to 512k because
+  # client requests like listing users, conversations, filling or getting prekeys and other various MLS requests
+  # apparently may have bodies larger than 256k.
+  default_client_max_body_size: "512k"
   rate_limit_reqs_per_user: "30r/s"
   rate_limit_reqs_per_addr: "15r/m"
 

@@ -129,6 +129,8 @@ data ConnectionError
     ConnectMissingLegalholdConsent
   | -- | Remote connection creation or update failed because of a federation error
     ConnectFederationError FederationError
+  | -- | The teams of the users that want to connect do not federate
+    ConnectTeamFederationError
 
 data PasswordResetError
   = PasswordResetInProgress (Maybe Timeout)

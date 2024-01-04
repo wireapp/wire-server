@@ -26,6 +26,7 @@ testObject_NewConnectionRequest1 :: NewConnectionRequest
 testObject_NewConnectionRequest1 =
   NewConnectionRequest
     { from = Id (fromJust (UUID.fromString "69f66843-6cf1-48fb-8c05-1cf58c23566a")),
+      fromTeam = Just . Id . fromJust . UUID.fromString $ "59f66843-6af1-48fb-8c05-1cf58c23566b",
       to = Id (fromJust (UUID.fromString "1669240c-c510-43e0-bf1a-33378fa4ba55")),
       action = RemoteConnect
     }
@@ -34,6 +35,7 @@ testObject_NewConnectionRequest2 :: NewConnectionRequest
 testObject_NewConnectionRequest2 =
   NewConnectionRequest
     { from = Id (fromJust (UUID.fromString "69f66843-6cf1-48fb-8c05-1cf58c23566a")),
+      fromTeam = Nothing,
       to = Id (fromJust (UUID.fromString "1669240c-c510-43e0-bf1a-33378fa4ba55")),
       action = RemoteRescind
     }

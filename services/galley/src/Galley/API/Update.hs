@@ -131,6 +131,7 @@ import Wire.API.Conversation.Typing
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
+import Wire.API.Event.LeaveReason
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
@@ -1200,9 +1201,11 @@ removeMemberFromLocalConv lcnv lusr con victim
   | otherwise =
       fmap (fmap lcuEvent . hush)
         . runError @NoChanges
-        . updateLocalConversation @'ConversationRemoveMembersTag lcnv (tUntagged lusr) con
-        . pure
-        $ victim
+        $ updateLocalConversation @'ConversationRemoveMembersTag
+          lcnv
+          (tUntagged lusr)
+          con
+          (ConversationRemoveMembers (pure victim) EdReasonRemoved)
 
 -- OTR
 

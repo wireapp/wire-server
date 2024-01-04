@@ -45,6 +45,8 @@ import Data.ByteString.Builder
 import Data.ByteString.Conversion (toByteString')
 import Data.ByteString.Lazy qualified as LBS
 import Data.Domain
+import Data.Id
+import Data.Sequence (pattern (:<|))
 import Data.Sequence qualified as Seq
 import Data.Set qualified as Set
 import Data.Text.Encoding qualified as Text
@@ -74,7 +76,8 @@ data FederatorClientEnv = FederatorClientEnv
   { ceOriginDomain :: Domain,
     ceTargetDomain :: Domain,
     ceFederator :: Endpoint,
-    ceHttp2Manager :: Http2Manager
+    ceHttp2Manager :: Http2Manager,
+    ceOriginRequestId :: RequestId
   }
 
 data FederatorClientVersionedEnv = FederatorClientVersionedEnv
@@ -166,7 +169,11 @@ instance KnownComponent c => RunClient (FederatorClient c) where
             (HTTP.statusIsSuccessful status)
             (elem status)
             expectedStatuses
-    withHTTP2StreamingRequest successfulStatus req $ \resp -> do
+
+    v <- asks cveVersion
+    let vreq = req {requestHeaders = (versionHeader, toByteString' (versionInt (fromMaybe V0 v))) :<| requestHeaders req}
+
+    withHTTP2StreamingRequest successfulStatus vreq $ \resp -> do
       bdy <-
         fmap (either (const mempty) (toLazyByteString . foldMap byteString))
           . runExceptT
@@ -215,6 +222,7 @@ withHTTP2StreamingRequest successfulStatus req handleResponse = do
         toList (requestHeaders req)
           <> [(originDomainHeaderName, toByteString' (ceOriginDomain env))]
           <> [(HTTP.hAccept, HTTP.renderHeader (toList $ req.requestAccept))]
+          <> [("Wire-Origin-Request-Id", toByteString' $ ceOriginRequestId env)]
       req' =
         HTTP2.requestBuilder
           (requestMethod req)
@@ -270,8 +278,7 @@ mkFailureResponse status domain path body
                 { Wai.federrDomain = domain,
                   Wai.federrPath =
                     "/federation"
-                      <> Text.decodeUtf8With Text.lenientDecode (LBS.toStrict path),
-                  Wai.federrResp = pure body
+                      <> Text.decodeUtf8With Text.lenientDecode (LBS.toStrict path)
                 }
         }
   where

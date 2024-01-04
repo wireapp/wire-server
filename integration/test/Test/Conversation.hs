@@ -78,7 +78,7 @@ testDynamicBackendsFullyConnectedWhenAllowDynamic = do
     -- Allowing 'full_search' or any type of search is how we enable federation
     -- between backends when the federation strategy is 'allowDynamic'.
     sequence_
-      [ createFedConn x (FedConn y "full_search" "allow_all")
+      [ createFedConn x (FedConn y "full_search" Nothing)
         | x <- [domainA, domainB, domainC],
           y <- [domainA, domainB, domainC],
           x /= y
@@ -100,10 +100,10 @@ testDynamicBackendsNotFullyConnected :: HasCallStack => App ()
 testDynamicBackendsNotFullyConnected = do
   withFederatingBackendsAllowDynamic $ \(domainA, domainB, domainC) -> do
     -- A is connected to B and C, but B and C are not connected to each other
-    void $ createFedConn domainA $ FedConn domainB "full_search" "allow_all"
-    void $ createFedConn domainB $ FedConn domainA "full_search" "allow_all"
-    void $ createFedConn domainA $ FedConn domainC "full_search" "allow_all"
-    void $ createFedConn domainC $ FedConn domainA "full_search" "allow_all"
+    void $ createFedConn domainA $ FedConn domainB "full_search" Nothing
+    void $ createFedConn domainB $ FedConn domainA "full_search" Nothing
+    void $ createFedConn domainA $ FedConn domainC "full_search" Nothing
+    void $ createFedConn domainC $ FedConn domainA "full_search" Nothing
     uidA <- randomUser domainA def {team = True}
     retryT
       $ bindResponse
@@ -149,10 +149,10 @@ testCreateConversationNonFullyConnected :: HasCallStack => App ()
 testCreateConversationNonFullyConnected = do
   withFederatingBackendsAllowDynamic $ \(domainA, domainB, domainC) -> do
     -- A is connected to B and C, but B and C are not connected to each other
-    void $ createFedConn domainA $ FedConn domainB "full_search" "allow_all"
-    void $ createFedConn domainB $ FedConn domainA "full_search" "allow_all"
-    void $ createFedConn domainA $ FedConn domainC "full_search" "allow_all"
-    void $ createFedConn domainC $ FedConn domainA "full_search" "allow_all"
+    void $ createFedConn domainA $ FedConn domainB "full_search" Nothing
+    void $ createFedConn domainB $ FedConn domainA "full_search" Nothing
+    void $ createFedConn domainA $ FedConn domainC "full_search" Nothing
+    void $ createFedConn domainC $ FedConn domainA "full_search" Nothing
     liftIO $ threadDelay (2 * 1000 * 1000)
 
     u1 <- randomUser domainA def
@@ -184,10 +184,10 @@ testAddMembersFullyConnectedProteus = do
 testAddMembersNonFullyConnectedProteus :: HasCallStack => App ()
 testAddMembersNonFullyConnectedProteus = do
   withFederatingBackendsAllowDynamic $ \(domainA, domainB, domainC) -> do
-    void $ createFedConn domainA (FedConn domainB "full_search" "allow_all")
-    void $ createFedConn domainB (FedConn domainA "full_search" "allow_all")
-    void $ createFedConn domainA (FedConn domainC "full_search" "allow_all")
-    void $ createFedConn domainC (FedConn domainA "full_search" "allow_all")
+    void $ createFedConn domainA (FedConn domainB "full_search" Nothing)
+    void $ createFedConn domainB (FedConn domainA "full_search" Nothing)
+    void $ createFedConn domainA (FedConn domainC "full_search" Nothing)
+    void $ createFedConn domainC (FedConn domainA "full_search" Nothing)
     liftIO $ threadDelay (2 * 1000 * 1000) -- wait for federation status to be updated
 
     -- add users
@@ -386,7 +386,7 @@ testAddingUserNonFullyConnectedFederation = do
 
     -- Ensure that dynamic backend only federates with own domain, but not other
     -- domain.
-    void $ createFedConn dynBackend (FedConn own "full_search" "allow_all")
+    void $ createFedConn dynBackend (FedConn own "full_search" Nothing)
 
     alice <- randomUser own def
     bob <- randomUser other def
@@ -660,6 +660,37 @@ testDeleteTeamConversationWithUnreachableRemoteMembers = do
       notif <- awaitNotification bob bobClient noValue isConvDeleteNotif
       assertNotification notif
 
+testDeleteTeamMember :: HasCallStack => App ()
+testDeleteTeamMember = do
+  (alice, team, [alex]) <- createTeam OwnDomain 2
+  [amy, bob] <- for [OwnDomain, OtherDomain] $ flip randomUser def
+  forM_ [amy, bob] $ connectTwoUsers alice
+  [aliceId, alexId, amyId, bobId] <-
+    forM [alice, alex, amy, bob] (%. "qualified_id")
+  let nc = (defProteus {qualifiedUsers = [alexId, amyId, bobId], team = Just team})
+  conv <- postConversation alice nc >>= getJSON 201
+  withWebSockets [alice, amy, bob] $ \[wsAlice, wsAmy, wsBob] -> do
+    void $ deleteTeamMember team alice alex >>= getBody 202
+    assertConvLeaveNotif wsAmy alexId
+    do
+      n <- awaitMatch isTeamMemberLeaveNotif wsAlice
+      alexUId <- alex %. "id"
+      nPayload n %. "data.user" `shouldMatch` alexUId
+      assertConvLeaveNotif wsAlice alexId
+    do
+      bindResponse (getConversation bob conv) $ \resp -> do
+        resp.status `shouldMatchInt` 200
+        mems <- resp.json %. "members.others" & asList
+        memIds <- forM mems (%. "qualified_id")
+        memIds `shouldMatchSet` [aliceId, amyId]
+      assertConvLeaveNotif wsBob alexId
+  where
+    assertConvLeaveNotif :: MakesValue leaverId => WebSocket -> leaverId -> App ()
+    assertConvLeaveNotif ws leaverId = do
+      n <- awaitMatch isConvLeaveNotif ws
+      nPayload n %. "data.qualified_user_ids.0" `shouldMatch` leaverId
+      nPayload n %. "data.reason" `shouldMatch` "user-deleted"
+
 testLeaveConversationSuccess :: HasCallStack => App ()
 testLeaveConversationSuccess = do
   [alice, bob, chad, dee] <- createUsers [OwnDomain, OwnDomain, OtherDomain, OtherDomain]
@@ -689,15 +720,8 @@ testOnUserDeletedConversations = do
     [alice, alex, bob, bart, chad] <- createUsers [ownDomain, ownDomain, otherDomain, otherDomain, dynDomain]
     forM_ [alex, bob, bart, chad] $ connectTwoUsers alice
     bobId <- bob %. "qualified_id"
-    ooConvId <- do
-      l <- getAllConvs alice
-      let isWith users c = do
-            t <- (==) <$> (c %. "type" & asInt) <*> pure 2
-            others <- c %. "members.others" & asList
-            qIds <- for others (%. "qualified_id")
-            pure $ qIds == users && t
-      c <- head <$> filterM (isWith [bobId]) l
-      c %. "qualified_id"
+    ooConvId <-
+      getOne2OneConversation alice bobId Established >>= (%. "qualified_id")
 
     mainConvBefore <-
       postConversation alice (defProteus {qualifiedUsers = [alex, bob, bart, chad]})

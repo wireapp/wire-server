@@ -2,6 +2,7 @@ module API.BrigInternal where
 
 import API.Common
 import qualified Data.Aeson as Aeson
+import Data.Aeson.Types (Pair)
 import Data.Function
 import Data.Maybe
 import Testlib.Prelude
@@ -54,7 +55,7 @@ createUser domain cu = do
 data FedConn = FedConn
   { domain :: String,
     searchStrategy :: String,
-    restriction :: String
+    restriction :: Maybe [String]
   }
   deriving (Eq, Ord, Show)
 
@@ -63,7 +64,13 @@ instance ToJSON FedConn where
     Aeson.object
       [ "domain" .= d,
         "search_policy" .= s,
-        "restriction" .= r
+        "restriction"
+          .= maybe
+            (Aeson.object ["tag" .= "allow_all", "value" .= Aeson.Null])
+            ( \teams ->
+                Aeson.object ["tag" .= "restrict_by_team", "value" .= Aeson.toJSON teams]
+            )
+            r
       ]
 
 instance MakesValue FedConn where
@@ -159,11 +166,14 @@ connectWithRemoteUser userFrom userTo = do
 
 addFederationRemoteTeam :: (HasCallStack, MakesValue domain, MakesValue remoteDomain, MakesValue team) => domain -> remoteDomain -> team -> App ()
 addFederationRemoteTeam domain remoteDomain team = do
+  void $ addFederationRemoteTeam' domain remoteDomain team >>= getBody 200
+
+addFederationRemoteTeam' :: (HasCallStack, MakesValue domain, MakesValue remoteDomain, MakesValue team) => domain -> remoteDomain -> team -> App Response
+addFederationRemoteTeam' domain remoteDomain team = do
   d <- asString remoteDomain
   t <- make team
   req <- baseRequest domain Brig Unversioned $ joinHttpPath ["i", "federation", "remotes", d, "teams"]
-  res <- submit "POST" (req & addJSONObject ["team_id" .= t])
-  res.status `shouldMatchInt` 200
+  submit "POST" (req & addJSONObject ["team_id" .= t])
 
 getFederationRemoteTeams :: (HasCallStack, MakesValue domain, MakesValue remoteDomain) => domain -> remoteDomain -> App Response
 getFederationRemoteTeams domain remoteDomain = do
@@ -178,3 +188,32 @@ deleteFederationRemoteTeam domain remoteDomain team = do
   req <- baseRequest domain Brig Unversioned $ joinHttpPath ["i", "federation", "remotes", d, "teams", t]
   res <- submit "DELETE" req
   res.status `shouldMatchInt` 200
+
+getConnStatusForUsers :: (HasCallStack, MakesValue users) => users -> Domain -> App Response
+getConnStatusForUsers users domain = do
+  usersList <-
+    asList users >>= \us -> do
+      dom <- us `for` (%. "qualified_id.domain")
+      dom `for_` (`shouldMatch` make domain)
+      us `for` (%. "id")
+  usersJSON <- make usersList
+  getConnStatusInternal ["from" .= usersJSON] domain
+
+getConnStatusInternal :: (HasCallStack) => [Pair] -> Domain -> App Response
+getConnStatusInternal body dom = do
+  req <- baseRequest dom Brig Unversioned do
+    joinHttpPath ["i", "users", "connections-status", "v2"]
+  submit "POST" do
+    req & addJSONObject body
+
+getProviderActivationCodeInternal ::
+  (HasCallStack, MakesValue dom) =>
+  dom ->
+  String ->
+  App Response
+getProviderActivationCodeInternal dom email = do
+  d <- make dom
+  req <-
+    rawBaseRequest d Brig Unversioned $
+      joinHttpPath ["i", "provider", "activation-code"]
+  submit "GET" (addQueryParams [("email", email)] req)

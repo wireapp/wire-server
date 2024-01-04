@@ -1,13 +1,22 @@
 version: '2'
 networks:
-  demo_wire:
-    external: false
-
   redis:
     driver: bridge
     ipam:
       config:
         - subnet: 172.20.0.0/24
+
+  coredns:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.1.0/24
+
+  demo_wire:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.2.0/24
 
 services:
   fake_dynamodb:
@@ -25,10 +34,12 @@ services:
 
   fake_sqs:
     container_name: demo_wire_sqs
-#    image: airdock/fake-sqs:0.3.1
-    image: julialongtin/airdock_fakesqs:0.0.9
+    image: softwaremill/elasticmq-native:1.5.2
     ports:
       - 127.0.0.1:4568:4568
+      - 127.0.0.1:9325:9325
+    volumes:
+      - ./docker/elasticmq.conf:/opt/elasticmq.conf
     networks:
       - demo_wire
 
@@ -64,20 +75,6 @@ services:
       MINIO_ACCESS_KEY: dummykey
       MINIO_SECRET_KEY: dummysecret # minio requires a secret of at least 8 chars
     command: server /tmp
-    networks:
-      - demo_wire
-
-  # activemq:
-  #   image: rmohr/activemq:5.15.4
-  #   ports:
-  #     - "61613:61613"
-
-  # FIXME: replace redis image with one we build.
-  redis:
-    container_name: demo_wire_redis
-    image: redis:3.0.7-alpine
-    ports:
-      - "127.0.0.1:6379:6379"
     networks:
       - demo_wire
 
@@ -197,6 +194,12 @@ services:
     environment:
       - "CS_JVM_OPTIONS=-Xmx1024M -Xms1024M -Xmn200M"
 
+    healthcheck:
+      test: "nodetool status"
+      interval: 10s
+      start_period: 20s
+      timeout: 2s
+
       # on nixos, you also may need to run
       #   sysctl -w vm.max_map_count=1048576
       # or add that to your `configuration.nix`
@@ -247,6 +250,7 @@ services:
       - ./:/scripts
     networks:
       - demo_wire
+
   coredns:
     image: docker.io/coredns/coredns:1.8.4
     volumes:
@@ -258,6 +262,9 @@ services:
     ports:
       - "9053:53"
       - "9053:53/udp"
+    networks:
+      coredns:
+        ipv4_address: 172.20.1.2
 
 volumes:
   redis-node-1-data:

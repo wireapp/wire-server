@@ -17,6 +17,7 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as C8
 import qualified Data.ByteString.Lazy as L
 import qualified Data.CaseInsensitive as CI
+import Data.Char (toLower)
 import Data.Default
 import Data.Functor
 import Data.IORef
@@ -117,7 +118,7 @@ data IntegrationConfig = IntegrationConfig
     backendTwo :: BackendConfig,
     dynamicBackends :: Map String DynamicBackendConfig,
     rabbitmq :: RabbitMQConfig,
-    cassandra :: HostPort
+    cassandra :: CassandraConfig
   }
   deriving (Show, Generic)
 
@@ -168,6 +169,23 @@ data HostPort = HostPort
   deriving (Show, Generic)
 
 instance FromJSON HostPort
+
+data CassandraConfig = CassandraConfig
+  { cassHost :: String,
+    cassPort :: Word16,
+    cassTlsCa :: Maybe FilePath
+  }
+  deriving (Show, Generic)
+
+instance FromJSON CassandraConfig where
+  parseJSON = genericParseJSON defaultOptions {fieldLabelModifier = lowerFirst . dropPrefix}
+    where
+      lowerFirst :: String -> String
+      lowerFirst (x : xs) = toLower x : xs
+      lowerFirst [] = ""
+
+      dropPrefix :: String -> String
+      dropPrefix = Prelude.drop (length "cass")
 
 -- | Initialised once per test.
 data Env = Env

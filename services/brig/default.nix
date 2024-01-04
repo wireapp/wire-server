@@ -192,7 +192,6 @@ mkDerivation {
     cql
     cryptobox-haskell
     currency-codes
-    data-default
     data-timeout
     dns
     dns-util
@@ -242,7 +241,6 @@ mkDerivation {
     polysemy-plugin
     polysemy-wire-zoo
     proto-lens
-    random
     random-shuffle
     raw-strings-qq
     resource-pool

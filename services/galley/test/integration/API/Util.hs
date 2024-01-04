@@ -116,6 +116,7 @@ import Wire.API.Conversation.Typing
 import Wire.API.Event.Conversation
 import Wire.API.Event.Conversation qualified as Conv
 import Wire.API.Event.Federation qualified as Fed
+import Wire.API.Event.LeaveReason
 import Wire.API.Event.Team
 import Wire.API.Event.Team qualified as TE
 import Wire.API.Federation.API
@@ -1900,7 +1901,10 @@ assertRemoveUpdate req qconvId remover alreadyPresentUsers victim = liftIO $ do
   cuOrigUserId cu @?= remover
   cuConvId cu @?= qUnqualified qconvId
   sort (cuAlreadyPresentUsers cu) @?= sort alreadyPresentUsers
-  cuAction cu @?= SomeConversationAction (sing @'ConversationRemoveMembersTag) (pure victim)
+  cuAction cu
+    @?= SomeConversationAction
+      (sing @'ConversationRemoveMembersTag)
+      (ConversationRemoveMembers (pure victim) EdReasonRemoved)
 
 assertLeaveUpdate :: (MonadIO m, HasCallStack) => FederatedRequest -> Qualified ConvId -> Qualified UserId -> [UserId] -> m ()
 assertLeaveUpdate req qconvId remover alreadyPresentUsers = liftIO $ do
@@ -2761,7 +2765,7 @@ checkUserDeleteEvent uid timeout_ w = WS.assertMatch_ timeout_ w $ \notif -> do
   euser @?= Just (UUID.toText (toUUID uid))
 
 checkTeamMemberJoin :: HasCallStack => TeamId -> UserId -> WS.WebSocket -> TestM ()
-checkTeamMemberJoin tid uid w = WS.awaitMatch_ checkTimeout w $ \notif -> do
+checkTeamMemberJoin tid uid w = WS.assertMatch_ checkTimeout w $ \notif -> do
   ntfTransient notif @?= True
   let e = List1.head (WS.unpackPayload notif)
   e ^. eventTeam @?= tid

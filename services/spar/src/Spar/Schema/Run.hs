@@ -17,6 +17,7 @@
 
 module Spar.Schema.Run where
 
+import Cassandra.MigrateSchema (migrateSchema)
 import Cassandra.Schema
 import Control.Exception (finally)
 import Imports

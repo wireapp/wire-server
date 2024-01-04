@@ -18,7 +18,6 @@ common common-all
     -Wredundant-constraints
 
   default-extensions:
-    NoImplicitPrelude
     AllowAmbiguousTypes
     BangPatterns
     ConstraintKinds
@@ -43,6 +42,7 @@ common common-all
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NoImplicitPrelude
     NumericUnderscores
     OverloadedLabels
     OverloadedRecordDot
@@ -93,6 +93,7 @@ library
     Wire.API.Event.Conversation
     Wire.API.Event.FeatureConfig
     Wire.API.Event.Federation
+    Wire.API.Event.LeaveReason
     Wire.API.Event.Team
     Wire.API.FederationStatus
     Wire.API.FederationUpdate
@@ -189,6 +190,7 @@ library
     Wire.API.Routes.Public.Spar
     Wire.API.Routes.Public.Util
     Wire.API.Routes.QualifiedCapture
+    Wire.API.Routes.SpecialiseToVersion
     Wire.API.Routes.Version
     Wire.API.Routes.Version.Wai
     Wire.API.Routes.Versioned
@@ -566,11 +568,14 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Manual.ConversationCoverView
     Test.Wire.API.Golden.Manual.ConversationEvent
     Test.Wire.API.Golden.Manual.ConversationPagingState
+    Test.Wire.API.Golden.Manual.ConversationRemoveMembers
     Test.Wire.API.Golden.Manual.ConversationsResponse
     Test.Wire.API.Golden.Manual.ConvIdsPage
     Test.Wire.API.Golden.Manual.CreateGroupConversation
     Test.Wire.API.Golden.Manual.CreateScimToken
     Test.Wire.API.Golden.Manual.FeatureConfigEvent
+    Test.Wire.API.Golden.Manual.FederationDomainConfig
+    Test.Wire.API.Golden.Manual.FederationRestriction
     Test.Wire.API.Golden.Manual.FederationStatus
     Test.Wire.API.Golden.Manual.GetPaginatedConversationIds
     Test.Wire.API.Golden.Manual.GroupId

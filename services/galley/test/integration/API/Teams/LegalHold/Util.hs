@@ -18,7 +18,7 @@ import Control.Concurrent.Timeout hiding (threadDelay)
 import Control.Exception (asyncExceptionFromException)
 import Control.Lens hiding ((#))
 import Control.Monad.Catch
-import Control.Retry (RetryPolicy, RetryStatus, exponentialBackoff, limitRetries, retrying)
+import Control.Retry
 import Data.Aeson qualified as Aeson
 import Data.Aeson.Types (FromJSON, withObject, (.:))
 import Data.ByteString qualified as BS
@@ -194,13 +194,15 @@ withTestService ::
   TestM a
 withTestService mkApp go = withFreePortAnyAddr $ \(sPort, sock) -> do
   config <- view (tsIConf . to provider)
+  serverStarted <- newEmptyMVar
   let tlss = Warp.tlsSettings (cert config) (privateKey config)
-  let defs = Warp.defaultSettings {Warp.settingsPort = sPort}
+  let defs = Warp.defaultSettings {Warp.settingsPort = sPort, Warp.settingsBeforeMainLoop = putMVar serverStarted ()}
   buf <- liftIO newChan
   srv <-
     liftIO . Async.async $
       Warp.runTLSSocket tlss defs sock $
         mkApp buf
+  takeMVar serverStarted
   go sPort buf `finally` liftIO (Async.cancel srv)
 
 publicKeyNotMatchingService :: PEM
@@ -328,7 +330,7 @@ postSettings uid tid new =
         . json new
   where
     policy :: RetryPolicy
-    policy = exponentialBackoff 50 <> limitRetries 5
+    policy = limitRetriesByCumulativeDelay 5_000_000 $ exponentialBackoff 50
     only412 :: RetryStatus -> ResponseLBS -> TestM Bool
     only412 _ resp = pure $ statusCode resp == 412
 

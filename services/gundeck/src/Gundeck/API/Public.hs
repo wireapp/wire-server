@@ -31,7 +31,7 @@ import Gundeck.Push qualified as Push
 import Imports
 import Servant (HasServer (..), (:<|>) (..))
 import Wire.API.Notification qualified as Public
-import Wire.API.Routes.Named (UntypedNamed (Named))
+import Wire.API.Routes.Named (Named (Named))
 import Wire.API.Routes.Public.Gundeck
 
 -------------------------------------------------------------------------------

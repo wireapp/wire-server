@@ -124,11 +124,8 @@ main = withOpenSSL $ runTests go
       convMaxSize <- optOrEnv maxSize gConf read "CONV_MAX_SIZE"
       awsEnv <- initAwsEnv e q
       -- Initialize cassandra
-      let ch = fromJust gConf ^. cassandra . endpoint . host
-      let cp = fromJust gConf ^. cassandra . endpoint . port
-      let ck = fromJust gConf ^. cassandra . keyspace
       lg <- Logger.new Logger.defSettings
-      db <- defInitCassandra ck ch cp lg
+      db <- defInitCassandra (fromJust gConf ^. cassandra) lg
       teamEventWatcher <- sequence $ SQS.watchSQSQueue <$> ((^. Aws.awsEnv) <$> awsEnv) <*> q
       pure $ TestSetup (fromJust gConf) (fromJust iConf) m g b c awsEnv convMaxSize db (FedClient m galleyEndpoint) teamEventWatcher
     queueName' = fmap (view queueName) . view journal

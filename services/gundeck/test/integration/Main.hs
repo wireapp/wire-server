@@ -112,11 +112,8 @@ main = withOpenSSL $ runTests go
           c = CannonR . mkRequest $ cannon iConf
           c2 = CannonR . mkRequest $ cannon2 iConf
           b = BrigR $ mkRequest iConf.brig
-          ch = gConf ^. cassandra . endpoint . host
-          cp = gConf ^. cassandra . endpoint . port
-          ck = gConf ^. cassandra . keyspace
       lg <- Logger.new Logger.defSettings
-      db <- defInitCassandra ck ch cp lg
+      db <- defInitCassandra (gConf ^. cassandra) lg
       pure $ TestSetup m g c c2 b db lg gConf (redis2 iConf)
     releaseOpts _ = pure ()
     mkRequest (Endpoint h p) = Bilge.host (encodeUtf8 h) . Bilge.port p

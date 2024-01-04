@@ -25,8 +25,6 @@ common common-all
     -Wall -Wpartial-fields -fwarn-tabs -Wno-incomplete-uni-patterns
 
   default-extensions:
-    NoImplicitPrelude
-    NoImportQualifiedPost
     AllowAmbiguousTypes
     BangPatterns
     BlockArguments
@@ -52,6 +50,8 @@ common common-all
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NoImplicitPrelude
+    NoImportQualifiedPost
     OverloadedLabels
     OverloadedRecordDot
     PackageImports
@@ -108,8 +108,10 @@ library
     Test.B2B
     Test.Brig
     Test.Client
+    Test.Connection
     Test.Conversation
     Test.Demo
+    Test.Errors
     Test.Federation
     Test.Federator
     Test.MessageTimer
@@ -122,6 +124,8 @@ library
     Test.Notifications
     Test.Presence
     Test.Roles
+    Test.Search
+    Test.Services
     Test.User
     Testlib.App
     Testlib.Assertions
@@ -129,6 +133,7 @@ library
     Testlib.Env
     Testlib.HTTP
     Testlib.JSON
+    Testlib.Mock
     Testlib.ModService
     Testlib.One2One
     Testlib.Options
@@ -168,6 +173,7 @@ library
     , extra
     , filepath
     , hex
+    , HsOpenSSL
     , http-client
     , http-types
     , kan-extensions
@@ -191,6 +197,7 @@ library
     , scientific
     , split
     , stm
+    , streaming-commons
     , string-conversions
     , tagged
     , temporary
@@ -202,6 +209,9 @@ library
     , unliftio
     , uuid
     , vector
+    , wai
+    , warp
+    , warp-tls
     , websockets
     , wire-message-proto-lens
     , xml

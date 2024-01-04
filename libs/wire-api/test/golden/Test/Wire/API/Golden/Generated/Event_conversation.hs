@@ -35,6 +35,7 @@ import Wire.API.Conversation.Code
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing
 import Wire.API.Event.Conversation
+import Wire.API.Event.LeaveReason
 
 testObject_Event_conversation_1 :: Event
 testObject_Event_conversation_1 =

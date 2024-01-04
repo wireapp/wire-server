@@ -30,6 +30,7 @@
 , gitignoreSource
 , haskell-src-exts
 , hex
+, HsOpenSSL
 , http-client
 , http-types
 , kan-extensions
@@ -54,6 +55,7 @@
 , scientific
 , split
 , stm
+, streaming-commons
 , string-conversions
 , tagged
 , temporary
@@ -65,6 +67,9 @@
 , unliftio
 , uuid
 , vector
+, wai
+, warp
+, warp-tls
 , websockets
 , wire-message-proto-lens
 , xml
@@ -109,6 +114,7 @@ mkDerivation {
     extra
     filepath
     hex
+    HsOpenSSL
     http-client
     http-types
     kan-extensions
@@ -132,6 +138,7 @@ mkDerivation {
     scientific
     split
     stm
+    streaming-commons
     string-conversions
     tagged
     temporary
@@ -143,6 +150,9 @@ mkDerivation {
     unliftio
     uuid
     vector
+    wai
+    warp
+    warp-tls
     websockets
     wire-message-proto-lens
     xml

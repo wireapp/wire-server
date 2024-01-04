@@ -807,3 +807,37 @@ CSP_EXTRA_SCRIPT_SRC:                             https://*.[[hostname]]
 CSP_EXTRA_STYLE_SRC:                              https://*.[[hostname]]
 CSP_EXTRA_WORKER_SRC:                             https://*.[[hostname]]
 ```
+
+## TLS-encrypted Cassandra connections
+
+By default, all connections to Cassandra by the Wire backend are unencrypted. To
+configure client-side TLS-encrypted connections (where the Wire backend is the
+client), a **C**ertificate **A**uthority in PEM format needs to be configured.
+
+The ways differ regarding the kind of program:
+- *Services* expect a `cassandra.tlsCa: <filepath>` attribute in their config file.
+- *CLI commands* (e.g. migrations) accept a `--tls-ca-certificate-file <filepath>` parameter.
+
+When a CA PEM file is configured, all Cassandra connections are opened with TLS
+encryption i.e. there is no fallback to unencrypted connections. This ensures
+that connections that are expected to be secure, would not silently and
+unnoticed be insecure.
+
+In Helm charts, the CA PEM is either provided as multiline string in the
+`cassandra.tlsCa` attribute or as a reference to a `Secret` in
+`cassandra.tlsCaSecretRef.name` and `cassandra.tlsCaSecretRef.key`. The `name`
+is the name of the `Secret`, the `key` is the entry in it. Such a `Secret` can
+e.g. be created by `cert-manager`.
+
+The CA may be self-signed. It is used to validate the certificate of the
+Cassandra server.
+
+How to configure Cassandra to accept TLS-encrypted connections in general is
+beyond the scope of this document. The `k8ssandra-test-cluster` Helm chart
+provides an example how to do this for the Kubernetes solution *K8ssandra*. In
+the example `cert-manager` generates a `Certificate` including Java KeyStores,
+then `trust-manager` creates synchronized `Secret`s to make only the CA PEM
+accessible to services (and not the private key.)
+
+The corresponding Cassandra options are described in Cassandra's documentation:
+[client_encryption_options](https://cassandra.apache.org/doc/stable/cassandra/configuration/cass_yaml_file.html#client_encryption_options)

@@ -49,7 +49,6 @@ module Test.Tasty.Cannon
     MatchFailure (..),
     await,
     awaitMatch,
-    awaitMatch_,
     awaitMatchN,
     assertMatch,
     assertMatch_,
@@ -310,14 +309,6 @@ awaitMatch t ws match = go [] []
           refill buf
           pure (Left (MatchTimeout errs))
     refill = mapM_ (liftIO . atomically . writeTChan (wsChan ws))
-
-awaitMatch_ ::
-  (HasCallStack, MonadIO m, MonadCatch m) =>
-  Timeout ->
-  WebSocket ->
-  (Notification -> Assertion) ->
-  m ()
-awaitMatch_ t w = void . awaitMatch t w
 
 assertMatch ::
   (HasCallStack, MonadIO m, MonadCatch m) =>

@@ -640,7 +640,8 @@ instance FromJSON ImplicitNoFederationRestriction where
       ( \obj -> do
           domain <- obj Aeson..: "domain"
           searchPolicy <- obj Aeson..: "search_policy"
-          pure $ ImplicitNoFederationRestriction $ FederationDomainConfig domain searchPolicy FederationRestrictionAllowAll
+          pure . ImplicitNoFederationRestriction $
+            FederationDomainConfig domain searchPolicy FederationRestrictionAllowAll
       )
 
 defaultTemplateLocale :: Locale
@@ -928,6 +929,7 @@ Lens.makeLensesFor
     ("setSftStaticUrl", "sftStaticUrl"),
     ("setSftListAllServers", "sftListAllServers"),
     ("setFederationDomainConfigs", "federationDomainConfigs"),
+    ("setFederationStrategy", "federationStrategy"),
     ("setEnableDevelopmentVersions", "enableDevelopmentVersions"),
     ("setRestrictUserCreation", "restrictUserCreation"),
     ("setEnableMLS", "enableMLS"),

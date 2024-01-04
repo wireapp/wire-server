@@ -36,6 +36,7 @@ module Testlib.Cannon
     nPayload,
     printAwaitResult,
     printAwaitAtLeastResult,
+    waitForResponse,
   )
 where
 
@@ -43,6 +44,7 @@ import Control.Concurrent
 import Control.Concurrent.Async
 import Control.Concurrent.STM.TChan
 import Control.Exception (throwIO)
+import qualified Control.Exception as E
 import Control.Monad
 import Control.Monad.Catch hiding (bracket)
 import qualified Control.Monad.Catch as Catch
@@ -70,6 +72,7 @@ import Testlib.HTTP
 import Testlib.JSON
 import Testlib.Printing
 import Testlib.Types
+import UnliftIO (withRunInIO)
 import Prelude
 
 data WebSocket = WebSocket
@@ -463,3 +466,17 @@ nPayload :: MakesValue a => a -> App Value
 nPayload event = do
   payloads <- event %. "payload" & asList
   assertOne payloads
+
+-- | waits for an http response to satisfy a predicate
+waitForResponse :: HasCallStack => App Response -> (Response -> App r) -> App r
+waitForResponse act p = do
+  tSecs <- asks timeOutSeconds
+  r <- withRunInIO \inIO ->
+    timeout (1000 * 1000 * tSecs) do
+      let go = do
+            inIO (bindResponse act p) `E.catch` \(_ :: AssertionFailure) -> do
+              threadDelay 1000
+              go
+      go
+  let err = unwords ["Expected event didn't come true after", show tSecs, "seconds"]
+  maybe (assertFailure err) pure r

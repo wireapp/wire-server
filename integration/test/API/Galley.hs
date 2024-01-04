@@ -3,6 +3,7 @@
 
 module API.Galley where
 
+import API.Common
 import Control.Lens hiding ((.=))
 import Control.Monad.Reader
 import qualified Data.Aeson as Aeson
@@ -99,6 +100,21 @@ deleteTeamConversation tid qcnv user = do
   let path = joinHttpPath ["teams", tid, "conversations", cnv]
   req <- baseRequest user Galley Versioned path
   submit "DELETE" req
+
+deleteTeamMember ::
+  ( HasCallStack,
+    MakesValue owner,
+    MakesValue member
+  ) =>
+  String ->
+  owner ->
+  member ->
+  App Response
+deleteTeamMember tid owner mem = do
+  memId <- objId mem
+  let path = joinHttpPath ["teams", tid, "members", memId]
+  req <- baseRequest owner Galley Versioned path
+  submit "DELETE" (addJSONObject ["password" .= defPassword] req)
 
 putConversationProtocol ::
   ( HasCallStack,
@@ -485,3 +501,9 @@ updateMessageTimer user qcnv update = do
   let path = joinHttpPath ["conversations", cnvDomain, cnvId, "message-timer"]
   req <- baseRequest user Galley Versioned path
   submit "PUT" (addJSONObject ["message_timer" .= updateReq] req)
+
+getTeamMembers :: (HasCallStack, MakesValue user, MakesValue tid) => user -> tid -> App Response
+getTeamMembers user tid = do
+  tidStr <- asString tid
+  req <- baseRequest user Galley Versioned (joinHttpPath ["teams", tidStr, "members"])
+  submit "GET" req

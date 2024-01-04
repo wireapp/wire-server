@@ -844,7 +844,8 @@ upsertOne2OneConversation urequest = do
 -------------------------------------------------------------------------------
 -- User management
 
--- | Calls 'Galley.API.rmUserH', as well as gundeck and cargohold.
+-- | Calls Galley's endpoint with the internal route ID "delete-user", as well
+-- as gundeck and cargohold.
 rmUser ::
   ( MonadReader Env m,
     MonadIO m,
