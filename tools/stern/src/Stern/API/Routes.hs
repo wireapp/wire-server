@@ -323,6 +323,24 @@ type SternAPI =
     :<|> Named "lock-unlock-route-outlook-cal-config" (MkFeatureLockUnlockRouteTrivialConfigNoTTL OutlookCalIntegrationConfig)
     :<|> Named "put-route-outlook-cal-config" (MkFeaturePutRouteTrivialConfigNoTTL OutlookCalIntegrationConfig)
     :<|> Named
+           "get-route-enforce-file-download-location"
+           ( Description
+               "<p><b>Custom feature: only supported for some decidated on-prem systems.</b></p>"
+               :> MkFeatureGetRoute EnforceFileDownloadLocationConfig
+           )
+    :<|> Named
+           "lock-unlock-route-enforce-file-download-location"
+           ( Description
+               "<p><b>Custom feature: only supported for some decidated on-prem systems.</b></p>"
+               :> MkFeatureLockUnlockRouteTrivialConfigNoTTL EnforceFileDownloadLocationConfig
+           )
+    :<|> Named
+           "put-route-enforce-file-download-location"
+           ( Description
+               "<p><b>Custom feature: only supported for some dedicated on-prem systems.</b></p>"
+               :> MkFeaturePutRoute EnforceFileDownloadLocationConfig
+           )
+    :<|> Named
            "get-team-invoice"
            ( Summary "Get a specific invoice by Number"
                :> Description "Relevant only internally at Wire"

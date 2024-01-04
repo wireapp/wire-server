@@ -81,6 +81,7 @@ module Wire.API.Team.Feature
     OutlookCalIntegrationConfig (..),
     MlsE2EIdConfig (..),
     MlsMigrationConfig (..),
+    EnforceFileDownloadLocationConfig (..),
     AllFeatureConfigs (..),
     unImplicitLockStatus,
     ImplicitLockStatus (..),
@@ -112,6 +113,7 @@ import Deriving.Aeson
 import GHC.TypeLits
 import Imports
 import Servant (FromHttpApiData (..), ToHttpApiData (..))
+import Test.QuickCheck (getPrintableString)
 import Test.QuickCheck.Arbitrary (arbitrary)
 import Test.QuickCheck.Gen (suchThat)
 import Wire.API.Conversation.Protocol
@@ -128,11 +130,11 @@ import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 -- **<NameOfFeature>Config**. If your feature doesn't have a config besides
 -- being enabled/disabled, locked/unlocked, then the config should be a unit
 -- type, e.g. **data MyFeatureConfig = MyFeatureConfig**. Add a singleton for
--- the new data type. Implement type classes 'ToSchema', 'IsFeatureConfig' and
--- 'Arbitrary'. If your feature doesn't have a config implement
--- 'FeatureTrivialConfig'.
+-- the new data type. Implement type classes 'RenderableSymbol', 'ToSchema',
+-- 'IsFeatureConfig' and 'Arbitrary'. If your feature doesn't have a config
+-- implement 'FeatureTrivialConfig'.
 --
--- 2. Add the config to to 'AllFeatureConfigs'.
+-- 2. Add the config to 'AllFeatureConfigs'.
 --
 -- 3. If your feature is configurable on a per-team basis, add a schema
 -- migration in galley and extend 'getFeatureStatus' and similar functions in
@@ -147,7 +149,7 @@ import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 -- and setting (with side-effects). Note that we don't have to check the
 -- lockstatus inside 'setConfigForTeam' because the lockstatus is checked in
 -- 'setFeatureStatus' before which is the public API for setting the feature
--- status. Also extend FeaturePersistentAllFeatures.
+-- status.
 --
 -- 6. Add public routes to Wire.API.Routes.Public.Galley.Feature:
 -- 'FeatureStatusGet', 'FeatureStatusPut' (optional). Then implement them in
@@ -164,15 +166,17 @@ import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 -- (https://github.com/wireapp/wire-server/pull/1811,
 -- https://github.com/wireapp/wire-server/pull/1818)
 --
--- 10. Extend the integration tests with cases
+-- 10. Extend the integration tests with cases.
 --
--- 11. Edit/update the configurations:
+-- 11. If applicable, edit/update the configurations:
 --     - optionally add the config for local integration tests to 'galley.integration.yaml'
 --     - add a config mapping to 'charts/galley/templates/configmap.yaml'
 --     - add the defaults to 'charts/galley/values.yaml'
 --     - optionally add config for CI to 'hack/helm_vars/wire-server/values.yaml'
 --
--- 12. Add a section to the documentation at an appropriate place (e.g. 'docs/src/developer/reference/config-options.md' or 'docs/src/understand/team-feature-settings.md')
+-- 12. Add a section to the documentation at an appropriate place
+-- (e.g. 'docs/src/developer/reference/config-options.md' (if applicable) or
+-- 'docs/src/understand/team-feature-settings.md')
 class IsFeatureConfig cfg where
   type FeatureSymbol cfg :: Symbol
   defFeatureStatus :: WithStatus cfg
@@ -202,7 +206,11 @@ data FeatureSingleton cfg where
   FeatureSingletonExposeInvitationURLsToTeamAdminConfig :: FeatureSingleton ExposeInvitationURLsToTeamAdminConfig
   FeatureSingletonOutlookCalIntegrationConfig :: FeatureSingleton OutlookCalIntegrationConfig
   FeatureSingletonMlsE2EIdConfig :: FeatureSingleton MlsE2EIdConfig
-  FeatureSingletonMlsMigration :: FeatureSingleton MlsMigrationConfig
+  FeatureSingletonMlsMigration ::
+    -- FUTUREWORK: rename to `FeatureSingletonMlsMigrationConfig` (or drop the `Config` from
+    -- all other constructors)
+    FeatureSingleton MlsMigrationConfig
+  FeatureSingletonEnforceFileDownloadLocationConfig :: FeatureSingleton EnforceFileDownloadLocationConfig
 
 class FeatureTrivialConfig cfg where
   trivialConfig :: cfg
@@ -1085,6 +1093,32 @@ instance IsFeatureConfig MlsMigrationConfig where
   objectSchema = field "config" schema
 
 ----------------------------------------------------------------------
+-- EnforceFileDownloadLocationConfig
+
+data EnforceFileDownloadLocationConfig = EnforceFileDownloadLocationConfig
+  { enforcedDownloadLocation :: Maybe Text
+  }
+  deriving stock (Eq, Show, Generic)
+
+instance RenderableSymbol EnforceFileDownloadLocationConfig where
+  renderSymbol = "EnforceFileDownloadLocationConfig"
+
+instance Arbitrary EnforceFileDownloadLocationConfig where
+  arbitrary = EnforceFileDownloadLocationConfig . fmap (cs . getPrintableString) <$> arbitrary
+
+instance ToSchema EnforceFileDownloadLocationConfig where
+  schema =
+    object "EnforceFileDownloadLocation" $
+      EnforceFileDownloadLocationConfig
+        <$> enforcedDownloadLocation .= maybe_ (optField "enforcedDownloadLocation" schema)
+
+instance IsFeatureConfig EnforceFileDownloadLocationConfig where
+  type FeatureSymbol EnforceFileDownloadLocationConfig = "enforceFileDownloadLocation"
+  defFeatureStatus = withStatus FeatureStatusDisabled LockStatusLocked (EnforceFileDownloadLocationConfig Nothing) FeatureTTLUnlimited
+  featureSingleton = FeatureSingletonEnforceFileDownloadLocationConfig
+  objectSchema = field "config" schema
+
+----------------------------------------------------------------------
 -- FeatureStatus
 
 data FeatureStatus
@@ -1161,7 +1195,8 @@ data AllFeatureConfigs = AllFeatureConfigs
     afcExposeInvitationURLsToTeamAdmin :: WithStatus ExposeInvitationURLsToTeamAdminConfig,
     afcOutlookCalIntegration :: WithStatus OutlookCalIntegrationConfig,
     afcMlsE2EId :: WithStatus MlsE2EIdConfig,
-    afcMlsMigration :: WithStatus MlsMigrationConfig
+    afcMlsMigration :: WithStatus MlsMigrationConfig,
+    afcEnforceFileDownloadLocation :: WithStatus EnforceFileDownloadLocationConfig
   }
   deriving stock (Eq, Show)
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema AllFeatureConfigs)
@@ -1188,6 +1223,7 @@ instance ToSchema AllFeatureConfigs where
         <*> afcOutlookCalIntegration .= featureField
         <*> afcMlsE2EId .= featureField
         <*> afcMlsMigration .= featureField
+        <*> afcEnforceFileDownloadLocation .= featureField
     where
       featureField ::
         forall cfg.
@@ -1199,6 +1235,7 @@ instance Arbitrary AllFeatureConfigs where
   arbitrary =
     AllFeatureConfigs
       <$> arbitrary
+      <*> arbitrary
       <*> arbitrary
       <*> arbitrary
       <*> arbitrary

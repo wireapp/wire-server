@@ -238,6 +238,7 @@ getAllFeatureConfigsForServer =
     <*> getConfigForServer @OutlookCalIntegrationConfig
     <*> getConfigForServer @MlsE2EIdConfig
     <*> getConfigForServer @MlsMigrationConfig
+    <*> getConfigForServer @EnforceFileDownloadLocationConfig
 
 getAllFeatureConfigsUser ::
   forall r.
@@ -272,6 +273,7 @@ getAllFeatureConfigsUser uid =
     <*> getConfigForUser @OutlookCalIntegrationConfig uid
     <*> getConfigForUser @MlsE2EIdConfig uid
     <*> getConfigForUser @MlsMigrationConfig uid
+    <*> getConfigForUser @EnforceFileDownloadLocationConfig uid
 
 getAllFeatureConfigsTeam ::
   forall r.
@@ -302,6 +304,7 @@ getAllFeatureConfigsTeam tid =
     <*> getConfigForTeam @OutlookCalIntegrationConfig tid
     <*> getConfigForTeam @MlsE2EIdConfig tid
     <*> getConfigForTeam @MlsMigrationConfig tid
+    <*> getConfigForTeam @EnforceFileDownloadLocationConfig tid
 
 -- | Note: this is an internal function which doesn't cover all features, e.g. LegalholdConfig
 genericGetConfigForTeam ::
@@ -490,8 +493,14 @@ instance GetFeatureConfig MlsMigrationConfig where
   getConfigForServer =
     input <&> view (settings . featureFlags . flagMlsMigration . unDefaults)
 
--- -- | If second factor auth is enabled, make sure that end-points that don't support it, but should, are blocked completely.  (This is a workaround until we have 2FA for those end-points as well.)
--- --
+instance GetFeatureConfig EnforceFileDownloadLocationConfig where
+  getConfigForServer =
+    input <&> view (settings . featureFlags . flagEnforceFileDownloadLocation . unDefaults)
+
+-- | If second factor auth is enabled, make sure that end-points that don't support it, but
+-- should, are blocked completely.  (This is a workaround until we have 2FA for those
+-- end-points as well.)
+--
 -- This function exists to resolve a cyclic dependency.
 guardSecondFactorDisabled ::
   forall r a.

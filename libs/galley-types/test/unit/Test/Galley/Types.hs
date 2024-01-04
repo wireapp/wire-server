@@ -99,6 +99,7 @@ instance Arbitrary FeatureFlags where
       <*> arbitrary
       <*> arbitrary
       <*> arbitrary
+      <*> arbitrary
     where
       unlocked :: ImplicitLockStatus a -> ImplicitLockStatus a
       unlocked = ImplicitLockStatus . Public.setLockStatus Public.LockStatusUnlocked . _unImplicitLockStatus
