@@ -26,7 +26,7 @@ deleteUser :: (HasCallStack, MakesValue user) => user -> App ()
 deleteUser user = bindResponse (API.Brig.deleteUser user) $ \resp -> do
   resp.status `shouldMatchInt` 200
 
--- | returns (user, team id, members)
+-- | returns (owner, team id, members)
 createTeam :: (HasCallStack, MakesValue domain) => domain -> Int -> App (Value, String, [Value])
 createTeam domain memberCount = do
   res <- createUser domain def {team = True}
