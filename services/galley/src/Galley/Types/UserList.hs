@@ -23,7 +23,6 @@ module Galley.Types.UserList
     ulFromLocals,
     ulFromRemotes,
     ulDiff,
-    ulLength,
   )
 where
 
@@ -65,6 +64,3 @@ ulDiff (UserList lA rA) (UserList lB rB) =
   UserList
     (filter (`notElem` lB) lA)
     (filter (`notElem` rB) rA)
-
-ulLength :: UserList a -> Int
-ulLength (UserList locals remotes) = length locals + length remotes
