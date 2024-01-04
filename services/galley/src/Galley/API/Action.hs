@@ -469,9 +469,7 @@ performAction tag origUser lconv action = do
       pure (mempty, action)
     SConversationRenameTag -> do
       zusrMembership <- join <$> forM (cnvmTeam (convMetadata conv)) (flip E.getTeamMember (qUnqualified origUser))
-      case zusrMembership of
-        Just tm -> unless (tm `hasPermission` DoNotUseDeprecatedModifyConvName) $ throwS @'InvalidOperation
-        Nothing -> pure ()
+      for_ zusrMembership $ \tm -> unless (tm `hasPermission` DoNotUseDeprecatedModifyConvName) $ throwS @'InvalidOperation
       cn <- rangeChecked (cupName action)
       E.setConversationName (tUnqualified lcnv) cn
       pure (mempty, action)
