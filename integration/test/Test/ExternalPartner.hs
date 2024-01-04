@@ -27,7 +27,7 @@ import Testlib.Prelude
 
 testExternalPartnerPermissions :: HasCallStack => App ()
 testExternalPartnerPermissions = do
-  (owner, tid, u1 : u2 : u3 : _) <- createTeam OwnDomain 6
+  (owner, tid, u1 : u2 : u3 : _) <- createTeam OwnDomain 4
 
   partner <- createTeamMemberWithRole owner tid "partner"
 
