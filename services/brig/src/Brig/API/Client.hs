@@ -79,7 +79,6 @@ import Data.ByteString.Conversion
 import Data.Code as Code
 import Data.Domain
 import Data.Either.Extra (mapLeft)
-import Data.IP (IP)
 import Data.Id (ClientId, ConnId, UserId)
 import Data.List.Split (chunksOf)
 import Data.Map.Strict qualified as Map
@@ -156,7 +155,6 @@ addClient ::
   (Member GalleyProvider r) =>
   UserId ->
   Maybe ConnId ->
-  Maybe IP ->
   NewClient ->
   ExceptT ClientError (AppT r) Client
 addClient = addClientWithReAuthPolicy Data.reAuthForNewClients
@@ -169,13 +167,11 @@ addClientWithReAuthPolicy ::
   Data.ReAuthPolicy ->
   UserId ->
   Maybe ConnId ->
-  Maybe IP ->
   NewClient ->
   ExceptT ClientError (AppT r) Client
-addClientWithReAuthPolicy policy u con ip new = do
+addClientWithReAuthPolicy policy u con new = do
   acc <- lift (wrapClient $ Data.lookupAccount u) >>= maybe (throwE (ClientUserNotFound u)) pure
   verifyCode (newClientVerificationCode new) (userId . accountUser $ acc)
-  loc <- maybe (pure Nothing) locationOf ip
   maxPermClients <- fromMaybe Opt.defUserMaxPermClients . Opt.setUserMaxPermClients <$> view settings
   let caps :: Maybe (Set ClientCapability)
       caps = updlhdev $ newClientCapabilities new
@@ -187,7 +183,7 @@ addClientWithReAuthPolicy policy u con ip new = do
           lhcaps = ClientSupportsLegalholdImplicitConsent
   (clt0, old, count) <-
     wrapClientE
-      (Data.addClientWithReAuthPolicy policy u clientId' new maxPermClients loc caps)
+      (Data.addClientWithReAuthPolicy policy u clientId' new maxPermClients caps)
       !>> ClientDataError
   let clt = clt0 {clientMLSPublicKeys = newClientMLSPublicKeys new}
   let usr = accountUser acc

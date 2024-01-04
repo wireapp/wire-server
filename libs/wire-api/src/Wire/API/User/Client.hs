@@ -473,7 +473,6 @@ data Client = Client
     clientClass :: Maybe ClientClass,
     clientLabel :: Maybe Text,
     clientCookie :: Maybe CookieLabel,
-    clientLocation :: Maybe Location,
     clientModel :: Maybe Text,
     clientCapabilities :: ClientCapabilityList,
     clientMLSPublicKeys :: MLSPublicKeys,
@@ -513,7 +512,6 @@ instance ToSchema Client where
         <*> clientClass .= maybe_ (optField "class" schema)
         <*> clientLabel .= maybe_ (optField "label" schema)
         <*> clientCookie .= maybe_ (optField "cookie" schema)
-        <*> clientLocation .= maybe_ (optField "location" schema)
         <*> clientModel .= maybe_ (optField "model" schema)
         <*> clientCapabilities .= (fromMaybe mempty <$> optField "capabilities" schema)
         <*> clientMLSPublicKeys .= mlsPublicKeysFieldSchema
