@@ -31,6 +31,7 @@ import Control.Monad.Catch (throwM)
 import Data.Domain
 import Data.Id
 import Data.Map qualified as Map
+import Data.Qualified
 import Database.CQL.Protocol (SerialConsistency (LocalSerialConsistency), serialConsistency)
 import Imports
 import Polysemy
@@ -63,6 +64,7 @@ interpretFederationDomainConfig mFedStrategy fedCfgs =
       AddFederationRemoteTeam d t -> addFederationRemoteTeam' fedCfgs d t
       RemoveFederationRemoteTeam d t -> removeFederationRemoteTeam' d t
       GetFederationRemoteTeams d -> getFederationRemoteTeams' d
+      BackendFederatesWith mtid -> backendFederatesWithImpl mtid fedCfgs mFedStrategy
 
 -- | Compile config file list into a map indexed by domains.  Use this to make sure the config
 -- file is consistent (ie., no two entries for the same domain).
@@ -76,7 +78,12 @@ remotesMapFromCfgFile cfg =
           else error $ "error in config file: conflicting parameters on domain: " <> show (c, c')
    in Map.fromListWith merge dict
 
-getFederationConfigs' :: forall m. (MonadClient m) => Maybe FederationStrategy -> Map Domain FederationDomainConfig -> m FederationDomainConfigs
+getFederationConfigs' ::
+  forall m.
+  (MonadClient m) =>
+  Maybe FederationStrategy ->
+  Map Domain FederationDomainConfig ->
+  m FederationDomainConfigs
 getFederationConfigs' mFedStrategy cfgs = do
   -- FUTUREWORK: we should solely rely on `db` in the future for remote domains; merging
   -- remote domains from `cfg` is just for providing an easier, more robust migration path.
@@ -218,6 +225,31 @@ removeFederationRemoteTeam' rDomain rteam =
   where
     delete :: PrepQuery W (Domain, TeamId) ()
     delete = "DELETE FROM federation_remote_teams WHERE domain = ? AND team = ?"
+
+backendFederatesWithImpl ::
+  MonadClient m =>
+  Remote (Maybe TeamId) ->
+  Map Domain FederationDomainConfig ->
+  Maybe FederationStrategy ->
+  m Bool
+backendFederatesWithImpl (tUntagged -> Qualified Nothing rDomain) staticCfgs = \case
+  Nothing -> pure False
+  Just AllowNone -> pure False
+  Just AllowAll -> pure True
+  Just AllowDynamic -> do
+    getFederationConfig' staticCfgs rDomain >>= \case
+      Nothing -> pure False
+      Just c -> pure $ restriction c == FederationRestrictionAllowAll
+backendFederatesWithImpl (tUntagged -> Qualified (Just rTeam) rDomain) staticCfgs = \case
+  Nothing -> pure False
+  Just AllowNone -> pure False
+  Just AllowAll -> pure True
+  Just AllowDynamic ->
+    getFederationConfig' staticCfgs rDomain >>= \case
+      Nothing -> pure False
+      Just (FederationDomainConfig _ _ FederationRestrictionAllowAll) ->
+        pure True
+      Just (FederationDomainConfig _ _ (FederationRestrictionByTeam ts)) -> pure $ rTeam `elem` ts
 
 data RestrictionException = RestrictionException Int32
 

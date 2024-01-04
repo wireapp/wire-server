@@ -19,7 +19,6 @@
 , conduit-extra
 , containers
 , crypton
-, data-default
 , errors
 , exceptions
 , extended
@@ -94,7 +93,6 @@ mkDerivation {
     conduit-extra
     containers
     crypton
-    data-default
     errors
     exceptions
     extended

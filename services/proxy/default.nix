@@ -9,7 +9,6 @@
 , bytestring
 , case-insensitive
 , configurator
-, data-default
 , exceptions
 , extended
 , gitignoreSource
@@ -26,6 +25,7 @@
 , tinylog
 , types-common
 , unliftio-core
+, uuid
 , wai
 , wai-predicates
 , wai-routing
@@ -45,7 +45,6 @@ mkDerivation {
     bytestring
     case-insensitive
     configurator
-    data-default
     exceptions
     extended
     http-client
@@ -60,6 +59,7 @@ mkDerivation {
     tinylog
     types-common
     unliftio-core
+    uuid
     wai
     wai-predicates
     wai-routing

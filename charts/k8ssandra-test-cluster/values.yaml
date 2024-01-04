@@ -11,3 +11,22 @@ storageClassName: hcloud-volumes-encrypted
 # storage, it's fine to request 10GB. The memory units are described here:
 # https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#meaning-of-memory
 storageSize: 10G
+
+#  These options relate to the client_encryption_options described in:
+#  https://cassandra.apache.org/doc/stable/cassandra/configuration/cass_yaml_file.html#client_encryption_options
+client_encryption_options:
+  enabled: false
+  optional: true
+  # The password could be secured better. However, this chart is meant to be
+  # used as test setup. And, protecting a self-signed certificate isn't very
+  # useful.
+  keystorePassword: password
+
+# Guard the private key by syncing only the CA certificate to
+# `k8ssandra-test-cluster-tls-ca-certificate` secrets. Requires `trust-manager`
+# Helm chart to be installed (including CRDs.)
+syncCACertToSecret: false
+
+# Limit syncing to this namespace. Otherwise, the secret is synced to all
+# namespaces.
+# syncCACertNamespace: <namespace-name>

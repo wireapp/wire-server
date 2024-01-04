@@ -25,7 +25,6 @@ common common-all
     -Wredundant-constraints
 
   default-extensions:
-    NoImplicitPrelude
     AllowAmbiguousTypes
     BangPatterns
     BlockArguments
@@ -51,6 +50,7 @@ common common-all
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NoImplicitPrelude
     NumericUnderscores
     OverloadedLabels
     OverloadedRecordDot
@@ -269,7 +269,6 @@ library
     , cql
     , cryptobox-haskell          >=0.1.1
     , currency-codes             >=2.0
-    , data-default               >=0.5
     , data-timeout               >=0.3
     , dns
     , dns-util
@@ -535,7 +534,7 @@ executable brig-schema
   import:             common-all
   main-is:            Main.hs
   hs-source-dirs:     schema
-  ghc-options:        -funbox-strict-fields -Wredundant-constraints
+  ghc-options:        -funbox-strict-fields -Wredundant-constraints -threaded
   default-extensions: TemplateHaskell
   build-depends:
     , base

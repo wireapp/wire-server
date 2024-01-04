@@ -12,7 +12,6 @@
 , bytestring-conversion
 , conduit
 , criterion
-, data-default
 , data-timeout
 , exceptions
 , extended
@@ -66,7 +65,6 @@ mkDerivation {
     bytestring
     bytestring-conversion
     conduit
-    data-default
     data-timeout
     exceptions
     extended
@@ -89,6 +87,7 @@ mkDerivation {
     types-common
     unix
     unliftio
+    uuid
     vector
     wai
     wai-extra

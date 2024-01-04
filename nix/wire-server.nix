@@ -436,8 +436,8 @@ let
 
   inherit (pkgs.haskellPackages.override {
     overrides = _hfinal: hprev: {
-      base-compat = hprev.base-compat_0_13_0;
-      base-compat-batteries = hprev.base-compat-batteries_0_13_0;
+      base-compat = hprev.base-compat_0_13_1;
+      base-compat-batteries = hprev.base-compat-batteries_0_13_1;
       cabal-plan = hlib.markUnbroken (hlib.doJailbreak hprev.cabal-plan);
     };
   }) cabal-plan;

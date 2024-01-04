@@ -61,7 +61,6 @@ import Control.Exception (throw)
 import Control.Lens (Lens', makeLenses, non, view, (?~), (^.))
 import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow)
 import Control.Monad.Trans.Resource (ResourceT, runResourceT, transResourceT)
-import Data.Default (def)
 import qualified Data.Map as Map
 import Data.Metrics.Middleware (Metrics)
 import qualified Data.Metrics.Middleware as Metrics
@@ -110,7 +109,7 @@ newEnv opts = do
   awsEnv <- initAws (opts ^. Opt.aws) logger httpMgr
   multiIngressAWS <- initMultiIngressAWS logger httpMgr
   let localDomain = toLocalUnsafe (opts ^. Opt.settings . Opt.federationDomain) ()
-  pure $ Env awsEnv metricsStorage logger httpMgr http2Mgr def opts localDomain multiIngressAWS
+  pure $ Env awsEnv metricsStorage logger httpMgr http2Mgr (RequestId "N/A") opts localDomain multiIngressAWS
   where
     initMultiIngressAWS :: Logger -> Manager -> IO (Map String AWS.Env)
     initMultiIngressAWS logger httpMgr =

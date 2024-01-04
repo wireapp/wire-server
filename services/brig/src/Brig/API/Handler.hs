@@ -42,13 +42,12 @@ import Brig.Options (setAllowlistEmailDomains, setAllowlistPhonePrefixes)
 import Brig.Phone (Phone, PhoneException (..))
 import Control.Error
 import Control.Exception (throwIO)
-import Control.Lens (set, view)
+import Control.Lens (view)
 import Control.Monad.Catch (catches, throwM)
 import Control.Monad.Catch qualified as Catch
 import Control.Monad.Except (MonadError, throwError)
 import Data.Aeson (FromJSON)
 import Data.Aeson qualified as Aeson
-import Data.Default (def)
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Data.ZAuth.Validation qualified as ZV
@@ -59,7 +58,7 @@ import Network.Wai.Predicate (Media)
 import Network.Wai.Routing (Continue)
 import Network.Wai.Utilities.Error ((!>>))
 import Network.Wai.Utilities.Error qualified as WaiError
-import Network.Wai.Utilities.Request (JsonRequest, lookupRequestId, parseBody)
+import Network.Wai.Utilities.Request (JsonRequest, parseBody)
 import Network.Wai.Utilities.Response (addHeader, json, setStatus)
 import Network.Wai.Utilities.Server qualified as Server
 import Servant qualified
@@ -80,11 +79,10 @@ runHandler ::
   Continue IO ->
   IO ResponseReceived
 runHandler e r h k = do
-  let e' = set requestId (maybe def RequestId (lookupRequestId r)) e
   a <-
-    runBrigToIO e' (runExceptT h)
+    runBrigToIO e (runExceptT h)
       `catches` brigErrorHandlers (view applog e) (unRequestId (view requestId e))
-  either (onError (view applog e') r k) pure a
+  either (onError (view applog e) r k) pure a
 
 toServantHandler :: Env -> (Handler BrigCanonicalEffects) a -> Servant.Handler a
 toServantHandler env action = do

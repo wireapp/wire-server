@@ -106,10 +106,9 @@ import Brig.User.Search.Index (IndexEnv (..), MonadIndexIO (..), runIndexIO)
 import Brig.User.Template
 import Brig.ZAuth (MonadZAuth (..), runZAuth)
 import Brig.ZAuth qualified as ZAuth
-import Cassandra (Keyspace (Keyspace), runClient)
+import Cassandra (runClient)
 import Cassandra qualified as Cas
-import Cassandra.Schema (versionCheck)
-import Cassandra.Settings qualified as Cas
+import Cassandra.Util (initCassandraForService)
 import Control.AutoUpdate
 import Control.Error
 import Control.Exception.Enclosed (handleAny)
@@ -117,16 +116,13 @@ import Control.Lens hiding (index, (.=))
 import Control.Monad.Catch
 import Control.Monad.Trans.Resource
 import Data.ByteString.Conversion
-import Data.Default (def)
 import Data.Domain
 import Data.GeoIP2 qualified as GeoIp
 import Data.IP
-import Data.List.NonEmpty qualified as NE
 import Data.Metrics (Metrics)
 import Data.Metrics.Middleware qualified as Metrics
 import Data.Misc
 import Data.Qualified
-import Data.Text (unpack)
 import Data.Text qualified as Text
 import Data.Text.Encoding (encodeUtf8)
 import Data.Text.Encoding qualified as Text
@@ -274,7 +270,7 @@ newEnv o = do
         _metrics = mtr,
         _applog = lgr,
         _internalEvents = eventsQueue,
-        _requestId = def,
+        _requestId = RequestId "N/A",
         _usrTemplates = utp,
         _provTemplates = ptp,
         _tmTemplates = ttp,
@@ -425,27 +421,13 @@ initExtGetManager = do
        in verifyRsaFingerprint sha pinset
 
 initCassandra :: Opts -> Logger -> IO Cas.ClientState
-initCassandra o g = do
-  c <-
-    maybe
-      (Cas.initialContactsPlain (Opt.cassandra o ^. endpoint . host))
-      (Cas.initialContactsDisco "cassandra_brig" . unpack)
-      (Opt.discoUrl o)
-  p <-
-    Cas.init
-      $ Cas.setLogger (Cas.mkLogger (Log.clone (Just "cassandra.brig") g))
-        . Cas.setContacts (NE.head c) (NE.tail c)
-        . Cas.setPortNumber (fromIntegral (Opt.cassandra o ^. endpoint . port))
-        . Cas.setKeyspace (Keyspace (Opt.cassandra o ^. keyspace))
-        . Cas.setMaxConnections 4
-        . Cas.setPoolStripes 4
-        . Cas.setSendTimeout 3
-        . Cas.setResponseTimeout 10
-        . Cas.setProtocolVersion Cas.V4
-        . Cas.setPolicy (Cas.dcFilterPolicyIfConfigured g (Opt.cassandra o ^. filterNodesByDatacentre))
-      $ Cas.defSettings
-  runClient p $ versionCheck schemaVersion
-  pure p
+initCassandra o g =
+  initCassandraForService
+    (Opt.cassandra o)
+    "brig"
+    (Opt.discoUrl o)
+    (Just schemaVersion)
+    g
 
 initCredentials :: (FromJSON a) => FilePathSecrets -> IO a
 initCredentials secretFile = do

@@ -46,7 +46,6 @@ import Wire.API.Federation.Component
 tests ::
   Opt.Opts ->
   FedClient 'Brig ->
-  FedClient 'Galley ->
   Manager ->
   Brig ->
   Cannon ->
@@ -57,7 +56,7 @@ tests ::
   DB.ClientState ->
   UserJournalWatcher ->
   IO TestTree
-tests conf fbc fgc p b c ch g n aws db userJournalWatcher = do
+tests conf fbc p b c ch g n aws db userJournalWatcher = do
   let cl = ConnectionLimit $ Opt.setUserMaxConnections (Opt.optSettings conf)
   let at = Opt.setActivationTimeout (Opt.optSettings conf)
   z <- mkZAuthEnv (Just conf)
@@ -67,7 +66,7 @@ tests conf fbc fgc p b c ch g n aws db userJournalWatcher = do
       [ API.User.Client.tests cl at conf p db n b c g,
         API.User.Account.tests cl at conf p b c ch g aws userJournalWatcher,
         API.User.Auth.tests conf p z db b g n,
-        API.User.Connection.tests cl at conf p b c g fbc fgc db,
+        API.User.Connection.tests cl at p b c g fbc db,
         API.User.Handles.tests cl at conf p b c g,
         API.User.PasswordReset.tests db cl at conf p b c g,
         API.User.Property.tests cl at conf p b c g,

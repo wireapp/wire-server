@@ -91,6 +91,7 @@ data BrigError
   | VerificationCodeThrottled
   | InvalidProvider
   | ProviderNotFound
+  | TeamsNotFederating
 
 instance (Typeable (MapError e), KnownError (MapError e)) => IsSwaggerError (e :: BrigError) where
   addToOpenApi = addStaticErrorToSwagger @(MapError e)
@@ -272,3 +273,5 @@ type instance MapError 'NotificationNotFound = 'StaticError 404 "not-found" "Not
 type instance MapError 'PendingInvitationNotFound = 'StaticError 404 "not-found" "No pending invitations exists."
 
 type instance MapError 'ConflictingInvitations = 'StaticError 409 "conflicting-invitations" "Multiple conflicting invitations to different teams exists."
+
+type instance MapError 'TeamsNotFederating = 'StaticError 403 "team-not-federating" "The target user is owned by a federated backend, but is not in an allow-listed team"

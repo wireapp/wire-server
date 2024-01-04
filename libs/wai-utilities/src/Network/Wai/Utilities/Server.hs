@@ -220,9 +220,9 @@ errorHandlers =
       ZlibException _ ->
         pure . Left $
           Wai.mkError status500 "server-error" "Server Error",
-    Handler $ \(_ :: SomeException) ->
+    Handler $ \(e :: SomeException) ->
       pure . Left $
-        Wai.mkError status500 "server-error" "Server Error"
+        Wai.mkError status500 "server-error" ("Server Error. " <> cs (displayException e))
   ]
 {-# INLINE errorHandlers #-}
 

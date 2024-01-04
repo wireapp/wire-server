@@ -31,6 +31,7 @@ import Servant.OpenApi (HasOpenApi (toOpenApi))
 import Servant.Server
 import Servant.Server.Internal (MkContextWithErrorFormatter)
 import Wire.API.Routes.ClientAlgebra
+import Wire.API.Routes.SpecialiseToVersion
 
 type OriginDomainHeaderName = "Wire-Origin-Domain" :: Symbol
 
@@ -38,6 +39,10 @@ data OriginDomainHeader
 
 instance RoutesToPaths api => RoutesToPaths (OriginDomainHeader :> api) where
   getRoutes = getRoutes @api
+
+type instance
+  SpecialiseToVersion v (OriginDomainHeader :> api) =
+    OriginDomainHeader :> SpecialiseToVersion v api
 
 instance HasClient m api => HasClient m (OriginDomainHeader :> api) where
   type Client m (OriginDomainHeader :> api) = Client m api

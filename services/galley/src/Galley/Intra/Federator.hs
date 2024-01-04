@@ -59,6 +59,7 @@ runFederatedEither (tDomain -> remoteDomain) rpc = do
   ownDomain <- view (options . settings . federationDomain)
   mfedEndpoint <- view E.federator
   mgr <- view http2Manager
+  rid <- view reqId
   case mfedEndpoint of
     Nothing -> pure (Left FederationNotConfigured)
     Just fedEndpoint -> do
@@ -67,7 +68,8 @@ runFederatedEither (tDomain -> remoteDomain) rpc = do
               { ceOriginDomain = ownDomain,
                 ceTargetDomain = remoteDomain,
                 ceFederator = fedEndpoint,
-                ceHttp2Manager = mgr
+                ceHttp2Manager = mgr,
+                ceOriginRequestId = rid
               }
       liftIO . fmap (first FederationCallFailure) $ runFederatorClient ce rpc
 

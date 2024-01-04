@@ -29,6 +29,7 @@
 , filepath
 , gitignoreSource
 , hex
+, HsOpenSSL
 , http-client
 , http-types
 , kan-extensions
@@ -105,6 +106,7 @@ mkDerivation {
     extra
     filepath
     hex
+    HsOpenSSL
     http-client
     http-types
     kan-extensions

@@ -36,6 +36,11 @@ spec:
         - name: "galley-secrets"
           secret:
             secretName: "galley"
+        {{- if eq (include "useCassandraTLS" .Values.config) "true" }}
+        - name: "galley-cassandra"
+          secret:
+            secretName: {{ (include "tlsSecretRef" .Values.config | fromYaml).name }}
+        {{- end }}
       containers:
         - name: galley
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -49,6 +54,10 @@ spec:
             mountPath: "/etc/wire/galley/conf"
           - name: "galley-secrets"
             mountPath: "/etc/wire/galley/secrets"
+          {{- if eq (include "useCassandraTLS" .Values.config) "true" }}
+          - name: "galley-cassandra"
+            mountPath: "/etc/wire/galley/cassandra"
+          {{- end }}
           env:
           {{- if hasKey .Values.secrets "awsKeyId" }}
           - name: AWS_ACCESS_KEY_ID

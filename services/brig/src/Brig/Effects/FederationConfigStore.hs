@@ -4,6 +4,7 @@ module Brig.Effects.FederationConfigStore where
 
 import Data.Domain
 import Data.Id
+import Data.Qualified
 import Imports
 import Polysemy
 import Wire.API.Routes.FederationDomainConfig
@@ -31,5 +32,7 @@ data FederationConfigStore m a where
   AddFederationRemoteTeam :: Domain -> TeamId -> FederationConfigStore m AddFederationRemoteTeamResult
   RemoveFederationRemoteTeam :: Domain -> TeamId -> FederationConfigStore m ()
   GetFederationRemoteTeams :: Domain -> FederationConfigStore m [FederationRemoteTeam]
+  -- | Check if the local backend federates with a remote team.
+  BackendFederatesWith :: Remote (Maybe TeamId) -> FederationConfigStore m Bool
 
 makeSem ''FederationConfigStore

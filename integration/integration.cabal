@@ -24,7 +24,6 @@ common common-all
     -Wall -Wpartial-fields -fwarn-tabs -Wno-incomplete-uni-patterns
 
   default-extensions:
-    NoImplicitPrelude
     AllowAmbiguousTypes
     BangPatterns
     BlockArguments
@@ -50,6 +49,7 @@ common common-all
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NoImplicitPrelude
     OverloadedLabels
     OverloadedRecordDot
     PackageImports
@@ -112,6 +112,7 @@ library
     Test.Cargohold.API.V3
     Test.Cargohold.Metrics
     Test.Client
+    Test.Connection
     Test.Conversation
     Test.Demo
     Test.Errors
@@ -128,6 +129,7 @@ library
     Test.Presence
     Test.Roles
     Test.Search
+    Test.Services
     Test.User
     Testlib.App
     Testlib.Assertions
@@ -175,6 +177,7 @@ library
     , extra
     , filepath
     , hex
+    , HsOpenSSL
     , http-client
     , http-types
     , kan-extensions

@@ -21,6 +21,9 @@ data:
       {{- if hasKey .cassandra "filterNodesByDatacentre" }}
       filterNodesByDatacentre: {{ .cassandra.filterNodesByDatacentre }}
       {{- end }}
+      {{- if eq (include "useCassandraTLS" .) "true" }}
+      tlsCa: /etc/wire/galley/cassandra/{{- (include "tlsSecretRef" . | fromYaml).key }}
+      {{- end }}
 
     brig:
       host: brig

@@ -592,7 +592,15 @@ claimRemoteKeyPackages brig1 brig2 = do
     Set.map (\e -> (e.user, e.client)) bundle.entries
       @?= Set.fromList [(bob, c) | c <- bobClients]
 
-testRemoteTypingIndicator :: Brig -> Brig -> Galley -> Galley -> Cannon -> Cannon -> Http ()
+testRemoteTypingIndicator ::
+  HasCallStack =>
+  Brig ->
+  Brig ->
+  Galley ->
+  Galley ->
+  Cannon ->
+  Cannon ->
+  Http ()
 testRemoteTypingIndicator brig1 brig2 galley1 galley2 cannon1 cannon2 = do
   alice <- randomUser brig1
   bob <- randomUser brig2

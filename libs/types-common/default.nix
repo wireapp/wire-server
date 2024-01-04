@@ -19,7 +19,6 @@
 , cryptohash-sha1
 , crypton
 , currency-codes
-, data-default
 , generic-random
 , gitignoreSource
 , hashable
@@ -75,7 +74,6 @@ mkDerivation {
     cryptohash-sha1
     crypton
     currency-codes
-    data-default
     generic-random
     hashable
     http-api-data

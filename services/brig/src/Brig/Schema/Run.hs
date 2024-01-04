@@ -56,6 +56,7 @@ import Brig.Schema.V78_ClientLastActive qualified as V78_ClientLastActive
 import Brig.Schema.V79_ConnectionRemoteIndex qualified as V79_ConnectionRemoteIndex
 import Brig.Schema.V80_KeyPackageCiphersuite qualified as V80_KeyPackageCiphersuite
 import Brig.Schema.V81_AddFederationRemoteTeams qualified as V81_AddFederationRemoteTeams
+import Cassandra.MigrateSchema (migrateSchema)
 import Cassandra.Schema
 import Control.Exception (finally)
 import Imports

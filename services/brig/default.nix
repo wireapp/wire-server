@@ -192,7 +192,6 @@ mkDerivation {
     cql
     cryptobox-haskell
     currency-codes
-    data-default
     data-timeout
     dns
     dns-util

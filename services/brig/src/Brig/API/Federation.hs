@@ -60,6 +60,7 @@ import UnliftIO.Async (pooledForConcurrentlyN_)
 import Wire.API.Connection
 import Wire.API.Federation.API.Brig hiding (searchPolicy)
 import Wire.API.Federation.API.Common
+import Wire.API.Federation.Endpoint
 import Wire.API.Federation.Version
 import Wire.API.MLS.KeyPackage
 import Wire.API.Routes.FederationDomainConfig as FD
@@ -90,6 +91,7 @@ federationSitemap =
     :<|> Named @"claim-multi-prekey-bundle" claimMultiPrekeyBundle
     :<|> Named @"search-users" (\d sr -> searchUsers d sr)
     :<|> Named @"get-user-clients" getUserClients
+    :<|> Named @(Versioned 'V0 "get-mls-clients") getMLSClientsV0
     :<|> Named @"get-mls-clients" getMLSClients
     :<|> Named @"send-connection-action" sendConnectionAction
     :<|> Named @"claim-key-packages" fedClaimKeyPackages
@@ -107,17 +109,26 @@ getFederationStatus _ request = do
       fedDomains <- fromList . fmap (.domain) . (.remotes) <$> lift (liftSem $ E.getFederationConfigs)
       pure $ NonConnectedBackends (request.domains \\ fedDomains)
 
-sendConnectionAction :: Domain -> NewConnectionRequest -> Handler r NewConnectionResponse
+sendConnectionAction ::
+  Member FederationConfigStore r =>
+  Domain ->
+  NewConnectionRequest ->
+  Handler r NewConnectionResponse
 sendConnectionAction originDomain NewConnectionRequest {..} = do
-  active <- lift $ wrapClient $ Data.isActivated to
-  if active
+  let rTeam = qTagUnsafe (Qualified fromTeam originDomain)
+  federates <- lift . liftSem . E.backendFederatesWith $ rTeam
+  if federates
     then do
-      self <- qualifyLocal to
-      let other = toRemoteUnsafe originDomain from
-      mconnection <- lift . wrapClient $ Data.lookupConnection self (tUntagged other)
-      maction <- lift $ performRemoteAction self other mconnection action
-      pure $ NewConnectionResponseOk maction
-    else pure NewConnectionResponseUserNotActivated
+      active <- lift $ wrapClient $ Data.isActivated to
+      if active
+        then do
+          self <- qualifyLocal to
+          let other = toRemoteUnsafe originDomain from
+          mconnection <- lift . wrapClient $ Data.lookupConnection self (tUntagged other)
+          maction <- lift $ performRemoteAction self other mconnection action
+          pure $ NewConnectionResponseOk maction
+        else pure NewConnectionResponseUserNotActivated
+    else pure NewConnectionResponseNotFederating
 
 getUserByHandle ::
   ( Member GalleyProvider r,
@@ -239,6 +250,9 @@ getUserClients _ (GetUserClients uids) = API.lookupLocalPubClientsBulk uids !>> 
 getMLSClients :: Domain -> MLSClientsRequest -> Handler r (Set ClientInfo)
 getMLSClients _domain mcr = do
   Internal.getMLSClients mcr.userId mcr.cipherSuite
+
+getMLSClientsV0 :: Domain -> MLSClientsRequestV0 -> Handler r (Set ClientInfo)
+getMLSClientsV0 domain mcr0 = getMLSClients domain (mlsClientsRequestFromV0 mcr0)
 
 onUserDeleted :: Domain -> UserDeletedConnectionsNotification -> (Handler r) EmptyResponse
 onUserDeleted origDomain udcn = lift $ do

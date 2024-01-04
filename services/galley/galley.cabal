@@ -23,7 +23,6 @@ common common-all
     -Wredundant-constraints -Wunused-packages
 
   default-extensions:
-    NoImplicitPrelude
     AllowAmbiguousTypes
     BangPatterns
     ConstraintKinds
@@ -48,6 +47,7 @@ common common-all
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NoImplicitPrelude
     NumericUnderscores
     OverloadedLabels
     OverloadedRecordDot
@@ -305,7 +305,6 @@ library
     , crypton
     , crypton-x509
     , currency-codes         >=2.0
-    , data-default           >=0.5
     , data-timeout
     , either
     , enclosed-exceptions    >=1.0
@@ -416,7 +415,6 @@ executable galley-integration
   hs-source-dirs:     test/integration
   hs-source-dirs:     test/integration
   default-extensions:
-    NoImplicitPrelude
     AllowAmbiguousTypes
     BangPatterns
     ConstraintKinds
@@ -440,6 +438,7 @@ executable galley-integration
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NoImplicitPrelude
     NumericUnderscores
     OverloadedRecordDot
     OverloadedStrings
@@ -557,6 +556,7 @@ executable galley-integration
 executable galley-migrate-data
   import:         common-all
   main-is:        ../main.hs
+  ghc-options:    -threaded
 
   -- cabal-fmt: expand migrate-data/src
   other-modules:
@@ -592,6 +592,7 @@ executable galley-schema
   import:             common-all
   main-is:            Main.hs
   hs-source-dirs:     schema
+  ghc-options:        -threaded
   default-extensions: TemplateHaskell
   build-depends:
     , galley

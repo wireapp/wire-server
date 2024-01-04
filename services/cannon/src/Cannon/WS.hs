@@ -61,7 +61,6 @@ import Data.Aeson hiding (Error, Key)
 import Data.ByteString.Char8 (pack)
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy qualified as L
-import Data.Default (def)
 import Data.Hashable
 import Data.Id (ClientId, ConnId (..), UserId)
 import Data.List.Extra (chunksOf)
@@ -193,7 +192,7 @@ env ::
   Clock ->
   DrainOpts ->
   Env
-env leh lp gh gp = Env leh lp (host gh . port gp $ empty) def
+env leh lp gh gp = Env leh lp (host gh . port gp $ empty) (RequestId "N/A")
 
 runWS :: MonadIO m => Env -> WS a -> m a
 runWS e m = liftIO $ runReaderT (_conn m) e
