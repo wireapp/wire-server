@@ -50,7 +50,6 @@ module Brig.App
     twilioCreds,
     settings,
     currentTime,
-    geoDb,
     zauthEnv,
     digestSHA256,
     digestMD5,
@@ -67,7 +66,6 @@ module Brig.App
 
     -- * App Monad
     AppT (..),
-    locationOf,
     viewFederationDomain,
     qualifyLocal,
 
@@ -111,14 +109,11 @@ import Cassandra qualified as Cas
 import Cassandra.Util (initCassandraForService)
 import Control.AutoUpdate
 import Control.Error
-import Control.Exception.Enclosed (handleAny)
 import Control.Lens hiding (index, (.=))
 import Control.Monad.Catch
 import Control.Monad.Trans.Resource
 import Data.ByteString.Conversion
 import Data.Domain
-import Data.GeoIP2 qualified as GeoIp
-import Data.IP
 import Data.Metrics (Metrics)
 import Data.Metrics.Middleware qualified as Metrics
 import Data.Misc
@@ -145,7 +140,6 @@ import Ropes.Nexmo qualified as Nexmo
 import Ropes.Twilio qualified as Twilio
 import Ssl.Util
 import System.FSNotify qualified as FS
-import System.FilePath qualified as Path
 import System.Logger.Class hiding (Settings, settings)
 import System.Logger.Class qualified as LC
 import System.Logger.Extended qualified as Log
@@ -183,7 +177,6 @@ data Env = Env
     _settings :: Settings,
     _nexmoCreds :: Nexmo.Credentials,
     _twilioCreds :: Twilio.Credentials,
-    _geoDb :: Maybe (IORef GeoIp.GeoDB),
     _fsWatcher :: FS.WatchManager,
     _turnEnv :: Calling.TurnEnv,
     _sftEnv :: Maybe Calling.SFTEnv,
@@ -229,7 +222,6 @@ newEnv o = do
   w <-
     FS.startManagerConf $
       FS.defaultConfig {FS.confWatchMode = FS.WatchModeOS}
-  g <- geoSetup lgr w $ Opt.geoDb o
   let turnOpts = Opt.turn o
   turnSecret <- Text.encodeUtf8 . Text.strip <$> Text.readFile (Opt.secret turnOpts)
   turn <- Calling.mkTurnEnv (Opt.serversSource turnOpts) (Opt.tokenTTL turnOpts) (Opt.configTTL turnOpts) turnSecret sha512
@@ -281,7 +273,6 @@ newEnv o = do
         _settings = sett,
         _nexmoCreds = nxm,
         _twilioCreds = twl,
-        _geoDb = g,
         _turnEnv = turn,
         _sftEnv = mSFTEnv,
         _fsWatcher = w,
@@ -315,32 +306,6 @@ mkIndexEnv o lgr mgr mtr galleyEndpoint =
       additionalIndex = ES.IndexName <$> Opt.additionalWriteIndex (Opt.elasticsearch o)
       additionalBhe = flip ES.mkBHEnv mgr . ES.Server <$> Opt.additionalWriteIndexUrl (Opt.elasticsearch o)
    in IndexEnv mtr lgr' bhe Nothing mainIndex additionalIndex additionalBhe galleyEndpoint mgr
-
-geoSetup :: Logger -> FS.WatchManager -> Maybe FilePath -> IO (Maybe (IORef GeoIp.GeoDB))
-geoSetup _ _ Nothing = pure Nothing
-geoSetup lgr w (Just db) = do
-  path <- canonicalizePath db
-  geodb <- newIORef =<< GeoIp.openGeoDB path
-  startWatching w path (replaceGeoDb lgr geodb)
-  pure $ Just geodb
-
-startWatching :: FS.WatchManager -> FilePath -> FS.Action -> IO ()
-startWatching w p = void . FS.watchDir w (Path.dropFileName p) predicate
-  where
-    predicate (FS.Added f _ _) = Path.equalFilePath f p
-    predicate (FS.Modified f _ _) = Path.equalFilePath f p
-    predicate FS.Removed {} = False
-    predicate FS.Unknown {} = False
-    predicate FS.ModifiedAttributes {} = False
-    predicate FS.WatchedDirectoryRemoved {} = False
-    predicate FS.CloseWrite {} = False
-
-replaceGeoDb :: Logger -> IORef GeoIp.GeoDB -> FS.Event -> IO ()
-replaceGeoDb g ref e = do
-  let logErr x = Log.err g (msg $ val "Error loading GeoIP database: " +++ show x)
-  handleAny logErr $ do
-    GeoIp.openGeoDB (FS.eventPath e) >>= atomicWriteIORef ref
-    Log.info g (msg $ val "New GeoIP database loaded.")
 
 initZAuth :: Opts -> IO ZAuth.Env
 initZAuth o = do
@@ -610,16 +575,6 @@ instance (MonadIndexIO (AppT r)) => MonadIndexIO (ExceptT err (AppT r)) where
 
 instance HasRequestId (AppT r) where
   getRequestId = view requestId
-
-locationOf :: (MonadIO m, MonadReader Env m) => IP -> m (Maybe Location)
-locationOf ip =
-  view geoDb >>= \case
-    Just g -> do
-      database <- liftIO $ readIORef g
-      pure $! do
-        loc <- GeoIp.geoLocation =<< hush (GeoIp.findGeoData database "en" ip)
-        pure $ location (Latitude $ GeoIp.locationLatitude loc) (Longitude $ GeoIp.locationLongitude loc)
-    Nothing -> pure Nothing
 
 --------------------------------------------------------------------------------
 -- Federation
