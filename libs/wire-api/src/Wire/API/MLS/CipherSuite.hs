@@ -268,3 +268,6 @@ instance ToJSON SignatureSchemeTag where
 
 instance ToJSONKey SignatureSchemeTag where
   toJSONKey = Aeson.toJSONKeyText signatureSchemeName
+
+instance S.ToSchema SignatureSchemeTag where
+  declareNamedSchema _ = S.declareNamedSchema (Proxy @Text)

@@ -67,6 +67,7 @@ import System.Logger.Message qualified as Log
 import Wire.API.Federation.Component
 import Wire.API.Federation.Domain
 import Wire.API.Routes.FederationDomainConfig
+import Wire.API.VersionInfo
 import Wire.Sem.Logger (info)
 
 -- | Used to get PEM encoded certificate out of an HTTP header
@@ -175,7 +176,8 @@ callInward component (RPC rpc) mReqId originDomain (CertHeader cert) wreq = do
   let path = LBS.toStrict (toLazyByteString (HTTP.encodePathSegments ["federation", rpc]))
 
   body <- embed $ Wai.lazyRequestBody wreq
-  resp <- serviceCall component path body rid validatedDomain
+  let headers = filter ((== versionHeader) . fst) (Wai.requestHeaders wreq)
+  resp <- serviceCall component path headers body rid validatedDomain
   Log.debug $
     Log.msg ("Inward Request response" :: ByteString)
       . Log.field "status" (show (responseStatusCode resp))
