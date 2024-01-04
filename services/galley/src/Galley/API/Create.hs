@@ -246,10 +246,8 @@ checkCreateConvPermissions lusr _newConv Nothing allUsers = do
   activated <- listToMaybe <$> lookupActivatedUsers [tUnqualified lusr]
   void $ noteS @OperationDenied activated
   -- an external partner is not allowed to create group conversations (except 1:1 team conversations that are handled below)
-  zusrMembership <- getTeamMember (tUnqualified lusr) Nothing
-  case zusrMembership of
-    Just tm -> void $ permissionCheck DoNotUseDeprecatedAddRemoveConvMember (Just tm)
-    Nothing -> pure ()
+  forM_ (getTeamMember (tUnqualified lusr) Nothing) $
+    void . permissionCheck DoNotUseDeprecatedAddRemoveConvMember . Just
   ensureConnected lusr allUsers
 checkCreateConvPermissions lusr newConv (Just tinfo) allUsers = do
   let convTeam = cnvTeamId tinfo
