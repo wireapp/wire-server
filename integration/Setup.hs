@@ -108,7 +108,7 @@ collectTestsInModule pkgRoot fn = do
     absolutePath = pkgRoot </> fn
     -- All of the haskell-src-exts supported extensions that we are using.
     -- Several that are in the cabal file couldn't be directly copied over,
-    -- but they aren't cauing trouble at the moment.
+    -- but they aren't causing trouble at the moment.
     -- ImportQualifiedPost is an important one we use elsewhere in this repo
     -- that we can't use in `integration` as haskell-src-exts doesn't support
     -- it currently.
