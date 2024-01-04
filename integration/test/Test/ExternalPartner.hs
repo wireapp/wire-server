@@ -31,7 +31,7 @@ testExternalPartnerPermissions = do
 
   partner <- createTeamMemberWithRole owner tid "partner"
 
-  -- a partner should not be able to create conversation with more than 2 users
+  -- a partner should not be able to create conversation with 2 additional users or more
   void $ postConversation partner (defProteus {team = Just tid, qualifiedUsers = [u1, u2]}) >>= getJSON 403
 
   do
