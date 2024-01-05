@@ -58,3 +58,15 @@ getFederationStatus user domains =
         submit
           "GET"
           $ req & addJSONObject ["domains" .= domainList]
+
+legalholdWhitelistTeam :: (HasCallStack, MakesValue uid, MakesValue tid) => uid -> tid -> App Response
+legalholdWhitelistTeam uid tid = do
+  tidStr <- asString tid
+  req <- baseRequest uid Galley Unversioned $ joinHttpPath ["i", "legalhold", "whitelisted-teams", tidStr]
+  submit "PUT" req
+
+legalholdIsTeamInWhitelist :: (HasCallStack, MakesValue uid, MakesValue tid) => uid -> tid -> App Response
+legalholdIsTeamInWhitelist uid tid = do
+  tidStr <- asString tid
+  req <- baseRequest uid Galley Unversioned $ joinHttpPath ["i", "legalhold", "whitelisted-teams", tidStr]
+  submit "GET" req

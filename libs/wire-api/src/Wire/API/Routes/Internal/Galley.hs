@@ -243,6 +243,7 @@ type InternalAPIBase =
            "guard-legalhold-policy-conflicts"
            ( "guard-legalhold-policy-conflicts"
                :> CanThrow 'MissingLegalholdConsent
+               :> CanThrow 'MissingLegalholdConsentOldClients
                :> ReqBody '[Servant.JSON] GuardLegalholdPolicyConflicts
                :> MultiVerb1 'PUT '[Servant.JSON] (RespondEmpty 200 "Guard Legalhold Policy")
            )

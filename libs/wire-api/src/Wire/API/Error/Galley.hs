@@ -124,6 +124,7 @@ data GalleyError
   | -- Legal hold Error
     -- FUTUREWORK: make LegalHoldError more static and documented
     MissingLegalholdConsent
+  | MissingLegalholdConsentOldClients
   | NoUserLegalHoldConsent
   | LegalHoldNotEnabled
   | LegalHoldDisableUnimplemented
@@ -297,6 +298,8 @@ type instance MapError 'TooManyTeamMembersOnTeamWithLegalhold = 'StaticError 403
 type instance MapError 'LegalHoldServiceInvalidKey = 'StaticError 400 "legalhold-invalid-key" "legal hold service pubkey is invalid"
 
 type instance MapError 'MissingLegalholdConsent = 'StaticError 403 "missing-legalhold-consent" "Failed to connect to a user or to invite a user to a group because somebody is under legalhold and somebody else has not granted consent"
+
+type instance MapError 'MissingLegalholdConsentOldClients = 'StaticError 403 "missing-legalhold-consent-old-clients" "Failed to connect to a user or to invite a user to a group because somebody is under legalhold and somebody else has old clients that do not support legalhold's UI requirements"
 
 type instance MapError 'LegalHoldServiceNotRegistered = 'StaticError 400 "legalhold-not-registered" "legal hold service has not been registered for this team"
 

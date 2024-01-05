@@ -122,6 +122,7 @@ library
     Test.FeatureFlags
     Test.Federation
     Test.Federator
+    Test.LegalHold
     Test.MessageTimer
     Test.MLS
     Test.MLS.KeyPackage
@@ -142,6 +143,7 @@ library
     Testlib.HTTP
     Testlib.JSON
     Testlib.Mock
+    Testlib.MockIntegrationService
     Testlib.ModService
     Testlib.One2One
     Testlib.Options

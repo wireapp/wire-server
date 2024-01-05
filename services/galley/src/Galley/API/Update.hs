@@ -1232,7 +1232,7 @@ postProteusMessage sender zcon conv msg = runLocalInput sender $ do
   foldQualified
     sender
     (\c -> postQualifiedOtrMessage User (tUntagged sender) (Just zcon) c (rpValue msg))
-    (\c -> postRemoteOtrMessage (tUntagged sender) c (rpRaw msg))
+    (\c -> postRemoteOtrMessage sender c (rpRaw msg))
     conv
 
 postProteusBroadcast ::
