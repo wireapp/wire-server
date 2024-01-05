@@ -110,11 +110,6 @@ downloadAsset' user loc tok = do
   req <- baseRequest user Cargohold Unversioned $ locPath
   submit "GET" $ req & tokenParam tok & noRedirect
 
-downloadAssetV4Nginz :: (HasCallStack, MakesValue user, IsAssetToken tok) => user -> String -> tok -> App Response
-downloadAssetV4Nginz user loc tok = do
-  req <- baseRequest user Nginz (ExplicitVersion 1) loc
-  submit "GET" $ req & tokenParam tok & noRedirect
-
 downloadAsset :: (HasCallStack, MakesValue user, MakesValue key, MakesValue assetDomain) => user -> assetDomain -> key -> String -> (HTTP.Request -> HTTP.Request) -> App Response
 downloadAsset user assetDomain key zHostHeader trans = do
   domain <- objDomain assetDomain
