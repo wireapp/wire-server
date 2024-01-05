@@ -133,9 +133,9 @@ rolePerms RoleAdmin =
 rolePerms RoleMember =
   rolePerms RoleExternalPartner
     <> Set.fromList
-      [ DoNotUseDeprecatedDeleteConversation,
-        DoNotUseDeprecatedAddRemoveConvMember,
-        DoNotUseDeprecatedModifyConvName,
+      [ DeleteConversation,
+        AddRemoveConvMember,
+        ModifyConvName,
         GetMemberPermissions
       ]
 rolePerms RoleExternalPartner =

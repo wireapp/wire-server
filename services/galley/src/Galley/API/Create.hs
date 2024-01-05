@@ -248,7 +248,7 @@ checkCreateConvPermissions lusr _newConv Nothing allUsers = do
   -- an external partner is not allowed to create group conversations (except 1:1 team conversations that are handled below)
   tm <- getTeamMember (tUnqualified lusr) Nothing
   for_ tm $
-    permissionCheck DoNotUseDeprecatedAddRemoveConvMember . Just
+    permissionCheck AddRemoveConvMember . Just
   ensureConnected lusr allUsers
 checkCreateConvPermissions lusr newConv (Just tinfo) allUsers = do
   let convTeam = cnvTeamId tinfo
@@ -269,7 +269,7 @@ checkCreateConvPermissions lusr newConv (Just tinfo) allUsers = do
   -- this only applies to proteus conversations, because in MLS we have proper 1:1 conversations,
   -- so we don't allow an external partner to create an MLS group conversation at all
   when (length allUsers > 1 || newConv.newConvProtocol == BaseProtocolMLSTag) $ do
-    void $ permissionCheck DoNotUseDeprecatedAddRemoveConvMember zusrMembership
+    void $ permissionCheck AddRemoveConvMember zusrMembership
 
   -- Team members are always considered to be connected, so we only check
   -- 'ensureConnected' for non-team-members.

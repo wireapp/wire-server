@@ -30,9 +30,9 @@ import Wire.API.Team.Permission
       ( AddTeamMember,
         CreateConversation,
         DeleteTeam,
-        DoNotUseDeprecatedAddRemoveConvMember,
-        DoNotUseDeprecatedDeleteConversation,
-        DoNotUseDeprecatedModifyConvName,
+        AddRemoveConvMember,
+        DeleteConversation,
+        ModifyConvName,
         GetBilling,
         GetMemberPermissions,
         GetTeamConversations,
@@ -63,13 +63,13 @@ testObject_NewTeamMember_team_2 =
         { _self =
             fromList
               [ CreateConversation,
-                DoNotUseDeprecatedDeleteConversation,
+                DeleteConversation,
                 AddTeamMember,
                 RemoveTeamMember,
-                DoNotUseDeprecatedAddRemoveConvMember,
-                DoNotUseDeprecatedModifyConvName
+                AddRemoveConvMember,
+                ModifyConvName
               ],
-          _copy = fromList [DoNotUseDeprecatedDeleteConversation, DoNotUseDeprecatedAddRemoveConvMember]
+          _copy = fromList [DeleteConversation, AddRemoveConvMember]
         }
     )
     ( Just
@@ -85,8 +85,8 @@ testObject_NewTeamMember_team_3 =
     ( Permissions
         { _self =
             fromList
-              [CreateConversation, DoNotUseDeprecatedDeleteConversation, RemoveTeamMember, GetBilling, DeleteTeam],
-          _copy = fromList [CreateConversation, DoNotUseDeprecatedDeleteConversation, GetBilling]
+              [CreateConversation, DeleteConversation, RemoveTeamMember, GetBilling, DeleteTeam],
+          _copy = fromList [CreateConversation, DeleteConversation, GetBilling]
         }
     )
     ( Just
@@ -124,7 +124,7 @@ testObject_NewTeamMember_team_6 =
     ( Permissions
         { _self =
             fromList
-              [CreateConversation, DoNotUseDeprecatedDeleteConversation, GetBilling, SetTeamData, SetMemberPermissions],
+              [CreateConversation, DeleteConversation, GetBilling, SetTeamData, SetMemberPermissions],
           _copy = fromList [CreateConversation, GetBilling]
         }
     )
@@ -141,7 +141,7 @@ testObject_NewTeamMember_team_7 =
     ( Permissions
         { _self =
             fromList
-              [AddTeamMember, RemoveTeamMember, DoNotUseDeprecatedModifyConvName, GetTeamConversations, DeleteTeam],
+              [AddTeamMember, RemoveTeamMember, ModifyConvName, GetTeamConversations, DeleteTeam],
           _copy = fromList [AddTeamMember]
         }
     )
@@ -156,8 +156,8 @@ testObject_NewTeamMember_team_8 =
   mkNewTeamMember
     (Id (fromJust (UUID.fromString "00000008-0000-0003-0000-000200000003")))
     ( Permissions
-        { _self = fromList [DoNotUseDeprecatedModifyConvName],
-          _copy = fromList [DoNotUseDeprecatedModifyConvName]
+        { _self = fromList [ModifyConvName],
+          _copy = fromList [ModifyConvName]
         }
     )
     ( Just
@@ -193,7 +193,7 @@ testObject_NewTeamMember_team_11 =
   mkNewTeamMember
     (Id (fromJust (UUID.fromString "00000006-0000-0005-0000-000000000002")))
     ( Permissions
-        { _self = fromList [CreateConversation, DoNotUseDeprecatedModifyConvName, SetTeamData],
+        { _self = fromList [CreateConversation, ModifyConvName, SetTeamData],
           _copy = fromList []
         }
     )
@@ -215,8 +215,8 @@ testObject_NewTeamMember_team_13 =
   mkNewTeamMember
     (Id (fromJust (UUID.fromString "00000002-0000-0004-0000-000600000001")))
     ( Permissions
-        { _self = fromList [AddTeamMember, DoNotUseDeprecatedAddRemoveConvMember, SetTeamData, GetTeamConversations],
-          _copy = fromList [AddTeamMember, DoNotUseDeprecatedAddRemoveConvMember, GetTeamConversations]
+        { _self = fromList [AddTeamMember, AddRemoveConvMember, SetTeamData, GetTeamConversations],
+          _copy = fromList [AddTeamMember, AddRemoveConvMember, GetTeamConversations]
         }
     )
     Nothing
@@ -228,7 +228,7 @@ testObject_NewTeamMember_team_14 =
     ( Permissions
         { _self =
             fromList
-              [CreateConversation, DoNotUseDeprecatedDeleteConversation, DoNotUseDeprecatedModifyConvName, GetBilling],
+              [CreateConversation, DeleteConversation, ModifyConvName, GetBilling],
           _copy = fromList []
         }
     )
@@ -291,8 +291,8 @@ testObject_NewTeamMember_team_19 =
   mkNewTeamMember
     (Id (fromJust (UUID.fromString "00000004-0000-0005-0000-000100000008")))
     ( Permissions
-        { _self = fromList [DoNotUseDeprecatedDeleteConversation, RemoveTeamMember, SetBilling, SetMemberPermissions],
-          _copy = fromList [DoNotUseDeprecatedDeleteConversation, SetBilling]
+        { _self = fromList [DeleteConversation, RemoveTeamMember, SetBilling, SetMemberPermissions],
+          _copy = fromList [DeleteConversation, SetBilling]
         }
     )
     Nothing
@@ -305,8 +305,8 @@ testObject_NewTeamMember_team_20 =
         { _self =
             fromList
               [ AddTeamMember,
-                DoNotUseDeprecatedAddRemoveConvMember,
-                DoNotUseDeprecatedModifyConvName,
+                AddRemoveConvMember,
+                ModifyConvName,
                 SetBilling,
                 GetMemberPermissions,
                 GetTeamConversations

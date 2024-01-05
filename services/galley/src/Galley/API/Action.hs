@@ -123,7 +123,7 @@ import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Team.Feature
 import Wire.API.Team.LegalHold
 import Wire.API.Team.Member
-import Wire.API.Team.Permission (Perm (DoNotUseDeprecatedAddRemoveConvMember, DoNotUseDeprecatedModifyConvName))
+import Wire.API.Team.Permission (Perm (AddRemoveConvMember, ModifyConvName))
 import Wire.API.User qualified as User
 
 data NoChanges = NoChanges
@@ -469,7 +469,7 @@ performAction tag origUser lconv action = do
       pure (mempty, action)
     SConversationRenameTag -> do
       zusrMembership <- join <$> forM (cnvmTeam (convMetadata conv)) (flip E.getTeamMember (qUnqualified origUser))
-      for_ zusrMembership $ \tm -> unless (tm `hasPermission` DoNotUseDeprecatedModifyConvName) $ throwS @'InvalidOperation
+      for_ zusrMembership $ \tm -> unless (tm `hasPermission` ModifyConvName) $ throwS @'InvalidOperation
       cn <- rangeChecked (cupName action)
       E.setConversationName (tUnqualified lcnv) cn
       pure (mempty, action)
@@ -618,7 +618,7 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
     checkTeamMemberAddPermissions :: Local UserId -> Sem r ()
     checkTeamMemberAddPermissions lusr =
       forM (cnvmTeam (convMetadata conv)) (flip E.getTeamMember (tUnqualified lusr))
-        >>= (maybe (pure ()) (\tm -> unless (tm `hasPermission` DoNotUseDeprecatedAddRemoveConvMember) $ throwS @'InvalidOperation))
+        >>= (maybe (pure ()) (\tm -> unless (tm `hasPermission` AddRemoveConvMember) $ throwS @'InvalidOperation))
           . join
 
 performConversationAccessData ::
