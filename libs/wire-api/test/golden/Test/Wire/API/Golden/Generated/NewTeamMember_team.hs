@@ -27,15 +27,15 @@ import Imports (Maybe (Just, Nothing), fromJust)
 import Wire.API.Team.Member (NewTeamMember, mkNewTeamMember)
 import Wire.API.Team.Permission
   ( Perm
-      ( AddTeamMember,
+      ( AddRemoveConvMember,
+        AddTeamMember,
         CreateConversation,
-        DeleteTeam,
-        AddRemoveConvMember,
         DeleteConversation,
-        ModifyConvName,
+        DeleteTeam,
         GetBilling,
         GetMemberPermissions,
         GetTeamConversations,
+        ModifyConvName,
         RemoveTeamMember,
         SetBilling,
         SetMemberPermissions,

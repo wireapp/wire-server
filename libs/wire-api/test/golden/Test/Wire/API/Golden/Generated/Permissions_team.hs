@@ -22,15 +22,15 @@ module Test.Wire.API.Golden.Generated.Permissions_team where
 import GHC.Exts (IsList (fromList))
 import Wire.API.Team.Permission
   ( Perm
-      ( AddTeamMember,
+      ( AddRemoveConvMember,
+        AddTeamMember,
         CreateConversation,
-        DeleteTeam,
-        AddRemoveConvMember,
         DeleteConversation,
-        ModifyConvName,
+        DeleteTeam,
         GetBilling,
         GetMemberPermissions,
         GetTeamConversations,
+        ModifyConvName,
         RemoveTeamMember,
         SetBilling,
         SetMemberPermissions,
