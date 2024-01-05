@@ -89,7 +89,7 @@ import Wire.API.Team.Member
 import Wire.API.Team.Member qualified as Member
 import Wire.API.Team.Member qualified as TM
 import Wire.API.Team.Member qualified as Teams
-import Wire.API.Team.Permission
+import Wire.API.Team.Permission as P
 import Wire.API.Team.Role
 import Wire.API.Team.SearchVisibility
 import Wire.API.User qualified as Public
@@ -473,8 +473,8 @@ testEnableTeamSearchVisibilityPerTeam = do
 testCreateOne2OneFailForNonTeamMembers :: TestM ()
 testCreateOne2OneFailForNonTeamMembers = do
   owner <- Util.randomUser
-  let p1 = Util.symmPermissions [CreateConversation, DoNotUseDeprecatedAddRemoveConvMember]
-  let p2 = Util.symmPermissions [CreateConversation, DoNotUseDeprecatedAddRemoveConvMember, AddTeamMember]
+  let p1 = Util.symmPermissions [CreateConversation, AddRemoveConvMember]
+  let p2 = Util.symmPermissions [CreateConversation, AddRemoveConvMember, AddTeamMember]
   mem1 <- newTeamMember' p1 <$> Util.randomUser
   mem2 <- newTeamMember' p2 <$> Util.randomUser
   Util.connectUsers owner (list1 (mem1 ^. userId) [mem2 ^. userId])
@@ -732,7 +732,7 @@ testAddTeamConvLegacy = do
   c <- view tsCannon
   (owner, tid) <- Util.createBindingTeam
   extern <- Util.randomUser
-  let p = Util.symmPermissions [CreateConversation, DoNotUseDeprecatedAddRemoveConvMember]
+  let p = Util.symmPermissions [CreateConversation, AddRemoveConvMember]
   mem1 <- newTeamMember' p <$> Util.randomUser
   mem2 <- newTeamMember' p <$> Util.randomUser
   Util.connectUsers owner (list1 (mem1 ^. userId) [extern, mem2 ^. userId])
@@ -826,7 +826,7 @@ testAddTeamMemberToConv :: TestM ()
 testAddTeamMemberToConv = do
   personalUser <- Util.randomUser
   (ownerT1, qOwnerT1) <- Util.randomUserTuple
-  let p = Util.symmPermissions [DoNotUseDeprecatedAddRemoveConvMember]
+  let p = Util.symmPermissions [AddRemoveConvMember]
   mem1T1 <- Util.randomUser
   qMem1T1 <- Qualified mem1T1 <$> viewFederationDomain
   mem2T1 <- Util.randomUser
@@ -858,7 +858,7 @@ testAddTeamMemberToConv = do
   qcidPersonal <- Qualified cidPersonal <$> viewFederationDomain
   -- NOTE: This functionality was _changed_ as there was no need for it...
   -- mem1T1 (who is *not* a member of the new conversation) can *not* add other team members
-  -- despite being a team member and having the permission `DoNotUseDeprecatedAddRemoveConvMember`.
+  -- despite being a team member and having the permission `AddRemoveConvMember`.
   Util.assertNotConvMember mem1T1 cidT1
   Util.postMembers mem1T1 (pure qMem2T1) qcidT1 !!! const 404 === statusCode
   Util.assertNotConvMember mem2T1 cidT1
@@ -1235,7 +1235,7 @@ testDeleteTeamConv = do
   c <- view tsCannon
   (tid, owner, _) <- Util.createBindingTeamWithMembers 2
   qOwner <- Qualified owner <$> viewFederationDomain
-  let p = Util.symmPermissions [DoNotUseDeprecatedDeleteConversation]
+  let p = Util.symmPermissions [P.DeleteConversation]
   member <- newTeamMember' p <$> Util.randomUser
   qMember <- Qualified (member ^. userId) <$> viewFederationDomain
   Util.addTeamMemberInternal tid (member ^. userId) (member ^. permissions) Nothing

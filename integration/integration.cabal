@@ -117,6 +117,7 @@ library
     Test.Conversation
     Test.Demo
     Test.Errors
+    Test.ExternalPartner
     Test.Federation
     Test.Federator
     Test.MessageTimer

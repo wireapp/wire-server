@@ -124,7 +124,7 @@ import SAML2.WebSSO qualified as SAML
 import System.Logger (Msg)
 import System.Logger qualified as Log
 import Wire.API.Conversation (ConversationRemoveMembers (..))
-import Wire.API.Conversation.Role (Action (DeleteConversation), wireConvRoles)
+import Wire.API.Conversation.Role (wireConvRoles)
 import Wire.API.Conversation.Role qualified as Public
 import Wire.API.Error
 import Wire.API.Error.Galley
@@ -1109,7 +1109,7 @@ deleteTeamConversation ::
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
     Member (ErrorS 'NotATeamMember) r,
-    Member (ErrorS ('ActionDenied 'DeleteConversation)) r,
+    Member (ErrorS ('ActionDenied 'Public.DeleteConversation)) r,
     Member FederatorAccess r,
     Member MemberStore r,
     Member ProposalStore r,
