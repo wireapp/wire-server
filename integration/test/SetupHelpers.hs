@@ -10,8 +10,8 @@ import API.Galley
 import Control.Monad.Reader
 import Crypto.Random (getRandomBytes)
 import Data.Aeson hiding ((.=))
-import Data.Aeson.Types qualified as Aeson
-import Data.ByteString.Base64.URL qualified as B64Url
+import qualified Data.Aeson.Types as Aeson
+import qualified Data.ByteString.Base64.URL as B64Url
 import Data.ByteString.Char8 (unpack)
 import Data.Default
 import Data.Function

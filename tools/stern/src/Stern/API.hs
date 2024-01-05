@@ -159,6 +159,9 @@ sitemap' =
     :<|> Named @"get-route-outlook-cal-config" (mkFeatureGetRoute @OutlookCalIntegrationConfig)
     :<|> Named @"lock-unlock-route-outlook-cal-config" (mkFeatureLockUnlockRouteTrivialConfigNoTTL @OutlookCalIntegrationConfig)
     :<|> Named @"put-route-outlook-cal-config" (mkFeaturePutRouteTrivialConfigNoTTL @OutlookCalIntegrationConfig)
+    :<|> Named @"get-route-enforce-file-download-location" (mkFeatureGetRoute @EnforceFileDownloadLocationConfig)
+    :<|> Named @"lock-unlock-route-enforce-file-download-location" (mkFeatureLockUnlockRouteTrivialConfigNoTTL @EnforceFileDownloadLocationConfig)
+    :<|> Named @"put-route-enforce-file-download-location" (mkFeaturePutRoute @EnforceFileDownloadLocationConfig)
     :<|> Named @"get-team-invoice" getTeamInvoice
     :<|> Named @"get-team-billing-info" getTeamBillingInfo
     :<|> Named @"put-team-billing-info" updateTeamBillingInfo
@@ -323,8 +326,12 @@ mkFeaturePutRoute ::
 mkFeaturePutRoute tid payload = NoContent <$ Intra.setTeamFeatureFlag @cfg tid payload
 
 type MkFeaturePutConstraints cfg =
+  ( MkFeaturePutLockConstraints cfg,
+    FeatureTrivialConfig cfg
+  )
+
+type MkFeaturePutLockConstraints cfg =
   ( IsFeatureConfig cfg,
-    FeatureTrivialConfig cfg,
     KnownSymbol (FeatureSymbol cfg),
     ToSchema cfg,
     FromJSON (WithStatusNoLock cfg),
@@ -337,7 +344,7 @@ mkFeaturePutRouteTrivialConfigNoTTL ::
 mkFeaturePutRouteTrivialConfigNoTTL tid status = mkFeaturePutRouteTrivialConfig @cfg tid status Nothing
 
 mkFeatureLockUnlockRouteTrivialConfigNoTTL ::
-  forall cfg. (MkFeaturePutConstraints cfg) => TeamId -> LockStatus -> Handler NoContent
+  forall cfg. (MkFeaturePutLockConstraints cfg) => TeamId -> LockStatus -> Handler NoContent
 mkFeatureLockUnlockRouteTrivialConfigNoTTL tid lstat = NoContent <$ Intra.setTeamFeatureLockStatus @cfg tid lstat
 
 mkFeaturePutRouteTrivialConfigWithTTL ::

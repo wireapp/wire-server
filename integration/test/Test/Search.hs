@@ -1,11 +1,11 @@
 module Test.Search where
 
-import API.Brig qualified as BrigP
-import API.BrigInternal qualified as BrigI
-import API.Common qualified as API
+import qualified API.Brig as BrigP
+import qualified API.BrigInternal as BrigI
+import qualified API.Common as API
 import API.Galley
-import API.Galley qualified as Galley
-import API.GalleyInternal qualified as GalleyI
+import qualified API.Galley as Galley
+import qualified API.GalleyInternal as GalleyI
 import GHC.Stack
 import SetupHelpers
 import Testlib.Assertions

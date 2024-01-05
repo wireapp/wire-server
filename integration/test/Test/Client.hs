@@ -3,7 +3,7 @@
 module Test.Client where
 
 import API.Brig
-import API.Brig qualified as API
+import qualified API.Brig as API
 import API.Gundeck
 import Control.Lens hiding ((.=))
 import Control.Monad.Codensity

@@ -1,14 +1,14 @@
 module API.Cargohold where
 
 import API.Federator
-import Codec.MIME.Type qualified as MIME
-import Data.Aeson qualified as Aeson
-import Data.ByteString.Lazy qualified as LBS
-import Data.ByteString.Lazy.Char8 qualified as LBSC
-import Data.Text qualified as T
+import qualified Codec.MIME.Type as MIME
+import qualified Data.Aeson as Aeson
+import qualified Data.ByteString.Lazy as LBS
+import qualified Data.ByteString.Lazy.Char8 as LBSC
+import qualified Data.Text as T
 import GHC.Stack
 import Network.HTTP.Client (Request (redirectCount))
-import Network.HTTP.Client qualified as HTTP
+import qualified Network.HTTP.Client as HTTP
 import Test.Cargohold.API.Util
 import Testlib.Prelude
 import UnliftIO (catch)

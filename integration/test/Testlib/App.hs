@@ -1,11 +1,11 @@
 module Testlib.App where
 
 import Control.Monad.Reader
-import Control.Retry qualified as Retry
+import qualified Control.Retry as Retry
 import Data.Aeson hiding ((.=))
 import Data.IORef
-import Data.Text qualified as T
-import Data.Yaml qualified as Yaml
+import qualified Data.Text as T
+import qualified Data.Yaml as Yaml
 import GHC.Exception
 import GHC.Stack (HasCallStack)
 import System.FilePath

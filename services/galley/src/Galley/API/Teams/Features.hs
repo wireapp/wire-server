@@ -393,3 +393,5 @@ instance SetFeatureConfig MlsMigrationConfig where
       )
       $ throw MLSProtocolMismatch
     persistAndPushEvent tid wsnl
+
+instance SetFeatureConfig EnforceFileDownloadLocationConfig

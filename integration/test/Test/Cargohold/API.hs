@@ -20,20 +20,20 @@
 module Test.Cargohold.API where
 
 import API.Cargohold
-import Codec.MIME.Type qualified as MIME
+import qualified Codec.MIME.Type as MIME
 import Control.Lens hiding (sets, (.=))
-import Data.Aeson.KeyMap qualified as KM
+import qualified Data.Aeson.KeyMap as KM
 import Data.Aeson.Types (Pair)
-import Data.ByteString.Char8 qualified as C8
-import Data.ByteString.Lazy qualified as LBS hiding (replicate)
-import Data.ByteString.Lazy.Char8 qualified as L8
+import qualified Data.ByteString.Char8 as C8
+import qualified Data.ByteString.Lazy as LBS hiding (replicate)
+import qualified Data.ByteString.Lazy.Char8 as L8
 import Data.CaseInsensitive (mk)
 import Data.String.Conversions
 import Data.Time (UTCTime, defaultTimeLocale, parseTimeOrError, rfc822DateFormat)
 import Data.Time.Format.ISO8601 (formatParseM, iso8601Format)
 import Network.HTTP.Client (parseUrlThrow)
-import Network.HTTP.Client qualified as HTTP
-import Network.HTTP.Types qualified as HTTP
+import qualified Network.HTTP.Client as HTTP
+import qualified Network.HTTP.Types as HTTP
 import SetupHelpers (randomId, randomUser)
 import Test.Cargohold.API.Util
 import Testlib.Prelude
