@@ -395,3 +395,5 @@ instance SetFeatureConfig MlsMigrationConfig where
     persistAndPushEvent tid wsnl
 
 instance SetFeatureConfig EnforceFileDownloadLocationConfig
+
+instance SetFeatureConfig LimitedEventFanoutConfig

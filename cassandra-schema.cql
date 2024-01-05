@@ -1200,6 +1200,7 @@ CREATE TABLE galley_test.team_features (
     guest_links_lock_status int,
     guest_links_status int,
     legalhold_status int,
+    limited_event_fanout_status int,
     mls_allowed_ciphersuites set<int>,
     mls_default_ciphersuite int,
     mls_default_protocol int,

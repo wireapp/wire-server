@@ -276,6 +276,7 @@ library
     Galley.Schema.V88_RemoveMemberClientAndTruncateMLSGroupMemberClient
     Galley.Schema.V89_MlsLockStatus
     Galley.Schema.V90_EnforceFileDownloadLocationConfig
+    Galley.Schema.V91_TeamMemberDeletedLimitedEventFanout
     Galley.Types.Clients
     Galley.Types.ToUserRole
     Galley.Types.UserList

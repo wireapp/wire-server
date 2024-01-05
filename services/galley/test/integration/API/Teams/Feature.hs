@@ -1063,7 +1063,9 @@ testAllFeatures = do
           afcOutlookCalIntegration = withStatus FeatureStatusDisabled LockStatusLocked OutlookCalIntegrationConfig FeatureTTLUnlimited,
           afcMlsE2EId = withStatus FeatureStatusDisabled LockStatusUnlocked (wsConfig defFeatureStatus) FeatureTTLUnlimited,
           afcMlsMigration = defaultMlsMigrationConfig,
-          afcEnforceFileDownloadLocation = defaultEnforceFileDownloadLocationConfig
+          afcEnforceFileDownloadLocation = defaultEnforceFileDownloadLocationConfig,
+          afcLimitedEventFanout =
+            withStatus FeatureStatusDisabled LockStatusLocked LimitedEventFanoutConfig FeatureTTLUnlimited
         }
 
 testFeatureConfigConsistency :: TestM ()

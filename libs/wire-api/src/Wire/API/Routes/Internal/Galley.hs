@@ -165,6 +165,10 @@ type IFeatureAPI =
     :<|> IFeatureStatusPutWithDesc '[] '() EnforceFileDownloadLocationConfig "<p><b>Custom feature: only supported for some decidated on-prem systems.</b></p>"
     :<|> IFeatureStatusPatchWithDesc '[] '() EnforceFileDownloadLocationConfig "<p><b>Custom feature: only supported for some decidated on-prem systems.</b></p>"
     :<|> IFeatureStatusLockStatusPutWithDesc EnforceFileDownloadLocationConfig "<p><b>Custom feature: only supported for some decidated on-prem systems.</b></p>"
+    -- LimitedEventFanoutConfig
+    :<|> IFeatureStatusGet LimitedEventFanoutConfig
+    :<|> IFeatureStatusPut '[] '() LimitedEventFanoutConfig
+    :<|> IFeatureStatusPatch '[] '() LimitedEventFanoutConfig
     -- all feature configs
     :<|> Named
            "feature-configs-internal"

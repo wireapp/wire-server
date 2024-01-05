@@ -141,5 +141,9 @@ data:
         mlsMigration:
           {{- toYaml .settings.featureFlags.mlsMigration | nindent 10 }}
         {{- end }}
+        {{- if .settings.featureFlags.limitedEventFanout }}
+        limitedEventFanout:
+          {{- toYaml .settings.featureFlags.limitedEventFanout | nindent 10 }}
+        {{- end }}
       {{- end }}
   {{- end }}
