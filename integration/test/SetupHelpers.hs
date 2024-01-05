@@ -9,7 +9,7 @@ import API.Common
 import API.Galley
 import Control.Monad.Reader
 import Data.Aeson hiding ((.=))
-import Data.Aeson.Types qualified as Aeson
+import qualified Data.Aeson.Types as Aeson
 import Data.Default
 import Data.Function
 import Data.UUID.V1 (nextUUID)

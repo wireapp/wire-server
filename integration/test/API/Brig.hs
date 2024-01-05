@@ -1,14 +1,14 @@
 module API.Brig where
 
 import API.Common
-import Data.Aeson qualified as Aeson
-import Data.ByteString.Base64 qualified as Base64
-import Data.CaseInsensitive qualified as CI
+import qualified Data.Aeson as Aeson
+import qualified Data.ByteString.Base64 as Base64
+import qualified Data.CaseInsensitive as CI
 import Data.Foldable
 import Data.Function
-import Data.Text qualified as T
-import Data.Text.Encoding qualified as T
-import Data.Vector qualified as V
+import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
+import qualified Data.Vector as V
 import GHC.Stack
 import Testlib.Prelude
 

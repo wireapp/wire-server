@@ -7,9 +7,9 @@ import Control.Monad.Codensity
 import Control.Monad.IO.Class
 import Control.Monad.Reader
 import Crypto.Error
-import Crypto.PubKey.Ed25519 qualified as Ed25519
+import qualified Crypto.PubKey.Ed25519 as Ed25519
 import Data.ByteArray (convert)
-import Data.ByteString qualified as B
+import qualified Data.ByteString as B
 import Data.Foldable
 import Data.Function
 import Data.Functor

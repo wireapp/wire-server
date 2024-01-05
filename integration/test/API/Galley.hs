@@ -6,15 +6,15 @@ module API.Galley where
 import API.Common
 import Control.Lens hiding ((.=))
 import Control.Monad.Reader
-import Data.Aeson qualified as Aeson
-import Data.Aeson.Types qualified as Aeson
-import Data.ByteString.Base64 qualified as B64
-import Data.ByteString.Base64.URL qualified as B64U
-import Data.ByteString.Char8 qualified as BS
-import Data.ByteString.Lazy qualified as LBS
-import Data.ProtoLens qualified as Proto
+import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Types as Aeson
+import qualified Data.ByteString.Base64 as B64
+import qualified Data.ByteString.Base64.URL as B64U
+import qualified Data.ByteString.Char8 as BS
+import qualified Data.ByteString.Lazy as LBS
+import qualified Data.ProtoLens as Proto
 import Data.ProtoLens.Labels ()
-import Data.UUID qualified as UUID
+import qualified Data.UUID as UUID
 import Numeric.Lens
 import Proto.Otr as Proto
 import Testlib.Prelude

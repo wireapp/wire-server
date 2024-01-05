@@ -2,17 +2,17 @@
 
 module Test.Federation where
 
-import API.Brig qualified as BrigP
+import qualified API.Brig as BrigP
 import API.Galley
 import Control.Lens
 import Control.Monad.Codensity
 import Control.Monad.Reader
-import Data.ProtoLens qualified as Proto
+import qualified Data.ProtoLens as Proto
 import Data.ProtoLens.Labels ()
 import Notifications
 import Numeric.Lens
-import Proto.Otr qualified as Proto
-import Proto.Otr_Fields qualified as Proto
+import qualified Proto.Otr as Proto
+import qualified Proto.Otr_Fields as Proto
 import SetupHelpers
 import Testlib.Prelude
 import Testlib.ResourcePool

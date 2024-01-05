@@ -7,10 +7,10 @@ import Control.Exception
 import Control.Monad.Codensity
 import Control.Monad.Reader
 import Data.Streaming.Network
-import Network.Socket qualified as Socket
-import Network.Wai qualified as Wai
-import Network.Wai.Handler.Warp qualified as Warp
-import Network.Wai.Handler.WarpTLS qualified as Warp
+import qualified Network.Socket as Socket
+import qualified Network.Wai as Wai
+import qualified Network.Wai.Handler.Warp as Warp
+import qualified Network.Wai.Handler.WarpTLS as Warp
 import Testlib.Prelude
 
 codensityApp :: (Wai.Request -> Codensity IO Wai.Response) -> Wai.Application

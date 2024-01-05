@@ -28,6 +28,7 @@
 , extra
 , filepath
 , gitignoreSource
+, haskell-src-exts
 , hex
 , HsOpenSSL
 , http-client
@@ -80,7 +81,14 @@ mkDerivation {
   src = gitignoreSource ./.;
   isLibrary = true;
   isExecutable = true;
-  setupHaskellDepends = [ base Cabal containers directory filepath ];
+  setupHaskellDepends = [
+    base
+    Cabal
+    containers
+    directory
+    filepath
+    haskell-src-exts
+  ];
   libraryHaskellDepends = [
     aeson
     aeson-pretty

@@ -169,7 +169,7 @@ import Prelude
     (^),
     (^^),
   )
-import Prelude qualified as P
+import qualified Prelude as P
 
 ----------------------------------------------------------------------------
 -- Lifted functions from Prelude

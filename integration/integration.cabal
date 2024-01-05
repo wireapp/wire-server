@@ -17,6 +17,7 @@ custom-setup
     , containers
     , directory
     , filepath
+    , haskell-src-exts
 
 common common-all
   default-language:   GHC2021
@@ -50,6 +51,7 @@ common common-all
     MultiWayIf
     NamedFieldPuns
     NoImplicitPrelude
+    NoImportQualifiedPost
     OverloadedLabels
     OverloadedRecordDot
     PackageImports

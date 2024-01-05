@@ -8,15 +8,15 @@ import Data.Default
 import Data.Function ((&))
 import Data.Functor
 import Data.IORef
-import Data.Map qualified as Map
+import qualified Data.Map as Map
 import Data.Maybe (fromMaybe)
 import Data.Set (Set)
-import Data.Set qualified as Set
+import qualified Data.Set as Set
 import Data.Traversable (for)
-import Data.Yaml qualified as Yaml
-import Database.CQL.IO qualified as Cassandra
-import Network.HTTP.Client qualified as HTTP
-import OpenSSL.Session qualified as OpenSSL
+import qualified Data.Yaml as Yaml
+import qualified Database.CQL.IO as Cassandra
+import qualified Network.HTTP.Client as HTTP
+import qualified OpenSSL.Session as OpenSSL
 import System.Directory
 import System.Environment (lookupEnv)
 import System.Exit
