@@ -51,7 +51,6 @@ common common-all
     MultiWayIf
     NamedFieldPuns
     NoImplicitPrelude
-    NoImportQualifiedPost
     OverloadedLabels
     OverloadedRecordDot
     PackageImports
