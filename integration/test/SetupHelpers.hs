@@ -8,8 +8,11 @@ import API.BrigInternal
 import API.Common
 import API.Galley
 import Control.Monad.Reader
+import Crypto.Random (getRandomBytes)
 import Data.Aeson hiding ((.=))
 import qualified Data.Aeson.Types as Aeson
+import qualified Data.ByteString.Base64.URL as B64Url
+import Data.ByteString.Char8 (unpack)
 import Data.Default
 import Data.Function
 import Data.UUID.V1 (nextUUID)
@@ -170,6 +173,10 @@ createMLSOne2OnePartner domain other convDomain = loop
       if desiredConvDomain == actualConvDomain
         then pure u
         else loop
+
+-- Copied from `src/CargoHold/API/V3.hs` and inlined to avoid pulling in `types-common`
+randomToken :: HasCallStack => App String
+randomToken = unpack . B64Url.encode <$> liftIO (getRandomBytes 16)
 
 randomId :: HasCallStack => App String
 randomId = liftIO (show <$> nextRandom)

@@ -21,13 +21,10 @@ module Main
 where
 
 import qualified API
-import API.Federation (tests)
-import qualified API.V3
 import qualified App
 import Data.Proxy
 import Data.Tagged
 import Imports hiding (local)
-import qualified Metrics
 import Options.Applicative
 import Test.Tasty
 import Test.Tasty.Ingredients
@@ -67,9 +64,6 @@ main = do
             testGroup
               "Cargohold"
               [ API.tests ts,
-                API.V3.tests ts,
-                Metrics.tests ts,
-                API.Federation.tests ts,
                 App.tests ts
               ]
   where

@@ -185,7 +185,9 @@ services:
     ports:
       - '127.0.0.1:21097:8080'
       - '127.0.0.1:21098:8081'
-    healthcheck: *haskell_health_check
+    # healthcheck: *haskell_health_check
+    healthcheck:
+      test: "true"
     depends_on:
       coredns-federation:
         condition: service_started

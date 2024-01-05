@@ -15,24 +15,15 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Metrics
-  ( tests,
-  )
-where
+module Test.Cargohold.Metrics where
 
-import Bilge
-import Bilge.Assert
-import Imports
-import Test.Tasty
-import TestSetup
+import Data.String.Conversions
+import Testlib.Prelude
 
-tests :: IO TestSetup -> TestTree
-tests s = testGroup "Metrics" [test s "prometheus" testPrometheusMetrics]
-
-testPrometheusMetrics :: TestM ()
+testPrometheusMetrics :: HasCallStack => App ()
 testPrometheusMetrics = do
-  cargohold <- viewUnversionedCargohold
-  get (cargohold . path "/i/metrics") !!! do
-    const 200 === statusCode
-    -- Should contain the request duration metric in its output
-    const (Just "TYPE http_request_duration_seconds histogram") =~= responseBody
+  req <- baseRequest OwnDomain Cargohold Unversioned "i/metrics"
+  resp <- submit "GET" req
+  withResponse resp $ \r -> do
+    r.status `shouldMatchInt` 200
+    cs r.body `shouldContainString` "TYPE http_request_duration_seconds histogram"

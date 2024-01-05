@@ -137,9 +137,7 @@ mkDerivation {
     bytestring
     bytestring-conversion
     cargohold-types
-    conduit
     containers
-    crypton
     federator
     HsOpenSSL
     http-api-data
@@ -161,7 +159,6 @@ mkDerivation {
     tasty-ant-xml
     tasty-hunit
     text
-    time
     types-common
     uuid
     wai-utilities

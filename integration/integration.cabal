@@ -107,6 +107,11 @@ library
     Test.AssetUpload
     Test.B2B
     Test.Brig
+    Test.Cargohold.API
+    Test.Cargohold.API.Federation
+    Test.Cargohold.API.Util
+    Test.Cargohold.API.V3
+    Test.Cargohold.Metrics
     Test.Client
     Test.Connection
     Test.Conversation
