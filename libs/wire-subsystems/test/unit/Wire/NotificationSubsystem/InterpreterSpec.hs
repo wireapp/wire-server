@@ -39,7 +39,7 @@ spec = describe "NotificationSubsystem.Interpreter" do
       clients1 <- generate $ resize 3 arbitrary
       lotOfRecipients <- generate $ resize 24 arbitrary
       let push1 =
-            PushTo
+            Push
               { _pushConn = Nothing,
                 _pushTransient = True,
                 _pushRoute = V2.RouteDirect,
@@ -49,7 +49,7 @@ spec = describe "NotificationSubsystem.Interpreter" do
                 pushJson = payload1
               }
           push2 =
-            PushTo
+            Push
               { _pushConn = Just connId2,
                 _pushTransient = True,
                 _pushRoute = V2.RouteAny,
@@ -63,7 +63,7 @@ spec = describe "NotificationSubsystem.Interpreter" do
           duplicatePush = push2
           duplicatePushWithPush1Recipients = push2 {_pushRecipients = _pushRecipients push1}
           largePush = push2 {_pushRecipients = lotOfRecipients}
-          pushes :: [PushToUser] =
+          pushes :: [Push] =
             [ push1,
               push2,
               duplicatePush,
@@ -95,7 +95,7 @@ spec = describe "NotificationSubsystem.Interpreter" do
       (payload1, payload2) <- generate $ resize 1 arbitrary
       lotOfRecipients <- fromList <$> replicateM 31 (generate arbitrary)
       let pushBiggerThanFanoutLimit =
-            PushTo
+            Push
               { _pushConn = Nothing,
                 _pushTransient = True,
                 _pushRoute = V2.RouteDirect,
@@ -105,7 +105,7 @@ spec = describe "NotificationSubsystem.Interpreter" do
                 pushJson = payload1
               }
           pushSmallerThanFanoutLimit =
-            PushTo
+            Push
               { _pushConn = Just connId2,
                 _pushTransient = True,
                 _pushRoute = V2.RouteAny,
@@ -116,7 +116,7 @@ spec = describe "NotificationSubsystem.Interpreter" do
                     :| [Recipient user22 V2.RecipientClientsAll],
                 pushJson = payload2
               }
-          pushes :: [PushToUser] =
+          pushes =
             [ pushBiggerThanFanoutLimit,
               pushSmallerThanFanoutLimit
             ]
@@ -146,7 +146,7 @@ spec = describe "NotificationSubsystem.Interpreter" do
       (payload1, payload2) <- generate $ resize 1 arbitrary
       clients1 <- generate $ resize 3 arbitrary
       let push1 =
-            PushTo
+            Push
               { _pushConn = Nothing,
                 _pushTransient = True,
                 _pushRoute = V2.RouteDirect,
@@ -156,7 +156,7 @@ spec = describe "NotificationSubsystem.Interpreter" do
                 pushJson = payload1
               }
           push2 =
-            PushTo
+            Push
               { _pushConn = Just connId2,
                 _pushTransient = True,
                 _pushRoute = V2.RouteAny,
@@ -187,7 +187,7 @@ spec = describe "NotificationSubsystem.Interpreter" do
       timeout 100_000 (wait slowPushThread) `shouldReturn` Just ()
 
   describe "toV2Push" do
-    it "does the transformation correctly" $ property \(pushToUser :: PushToUser) ->
+    it "does the transformation correctly" $ property \(pushToUser :: Push) ->
       let v2Push = toV2Push pushToUser
        in -- Statically determined
           v2Push._pushConnections === mempty
@@ -206,13 +206,13 @@ spec = describe "NotificationSubsystem.Interpreter" do
 
   describe "chunkPushes" do
     it "allows empty push" $ property \limit ->
-      chunkPushes limit [] === ([] :: [[PushTo ()]])
-    it "produces no empty chunks" $ property \limit (pushes :: [PushTo Int]) ->
+      chunkPushes limit [] === []
+    it "produces no empty chunks" $ property \limit pushes ->
       not (any null (chunkPushes limit pushes))
-    it "allows concatenation if number was non-zero" $ property \(Positive limit) (pushes :: [PushTo Int]) ->
+    it "allows concatenation if number was non-zero" $ property \(Positive limit) pushes ->
       (chunkPushes limit pushes >>= reverse >>= normalisePush)
         === (pushes >>= normalisePush)
-    it "respects the chunkSize limit" $ property \limit (pushes :: [PushTo Int]) ->
+    it "respects the chunkSize limit" $ property \limit pushes ->
       all ((<= limit) . sizeOfChunks) (chunkPushes limit pushes)
 
 runMockStack :: NotificationSubsystemConfig -> Sem [Input NotificationSubsystemConfig, Delay, GundeckAPIAccess, Embed IO, Async, Final IO] a -> IO (a, [[V2.Push]])
@@ -254,11 +254,11 @@ waitUntilPushes pushesRef n = do
     then pure ps
     else threadDelay 1000 >> waitUntilPushes pushesRef n
 
-normalisePush :: PushTo a -> [PushTo a]
+normalisePush :: Push -> [Push]
 normalisePush p =
   map
     (\r -> p {_pushRecipients = r :| []})
     (toList (_pushRecipients p))
 
-sizeOfChunks :: [PushTo a] -> Natural
+sizeOfChunks :: [Push] -> Natural
 sizeOfChunks = fromIntegral . sum . map (length . _pushRecipients)

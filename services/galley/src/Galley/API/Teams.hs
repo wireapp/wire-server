@@ -155,7 +155,6 @@ import Wire.API.User qualified as U
 import Wire.API.User.Identity (UserSSOId (UserSSOId))
 import Wire.API.User.RichInfo (RichInfo)
 import Wire.NotificationSubsystem
-import Wire.NotificationSubsystem qualified as NotificationSubsystem
 import Wire.Sem.Paging qualified as E
 import Wire.Sem.Paging.Cassandra
 
@@ -343,7 +342,7 @@ updateTeamH zusr zcon tid updateData = do
   admins <- E.getTeamAdmins tid
   let e = newEvent tid now (EdTeamUpdate updateData)
   let r = userRecipient zusr :| map userRecipient (filter (/= zusr) admins)
-  NotificationSubsystem.push [newPushLocal1 zusr (toJSONObject e) r & pushConn ?~ zcon & pushTransient .~ True]
+  pushNotifications [newPushLocal1 zusr (toJSONObject e) r & pushConn ?~ zcon & pushTransient .~ True]
 
 deleteTeam ::
   forall r.
@@ -443,7 +442,7 @@ uncheckedDeleteTeam lusr zcon tid = do
     Data.unsetTeamLegalholdWhitelisted tid
     E.deleteTeam tid
   where
-    pushDeleteEvents :: [TeamMember] -> Event -> [PushToUser] -> Sem r ()
+    pushDeleteEvents :: [TeamMember] -> Event -> [Push] -> Sem r ()
     pushDeleteEvents membs e ue = do
       o <- inputs (view settings)
       let r = list1 (userRecipient (tUnqualified lusr)) (membersToRecipients (Just (tUnqualified lusr)) membs)
@@ -454,15 +453,15 @@ uncheckedDeleteTeam lusr zcon tid = do
         [] -> pure ()
         -- push TeamDelete events. Note that despite having a complete list, we are guaranteed in the
         -- push module to never fan this out to more than the limit
-        x : xs -> NotificationSubsystem.push [newPushLocal1 (tUnqualified lusr) (toJSONObject e) (x :| xs) & pushConn .~ zcon]
+        x : xs -> pushNotifications [newPushLocal1 (tUnqualified lusr) (toJSONObject e) (x :| xs) & pushConn .~ zcon]
       -- To avoid DoS on gundeck, send conversation deletion events slowly
-      NotificationSubsystem.pushSlowly ue
+      pushNotificationsSlowly ue
     createConvDeleteEvents ::
       UTCTime ->
       [TeamMember] ->
       TeamConversation ->
-      ([PushToUser], [(BotMember, Conv.Event)]) ->
-      Sem r ([PushToUser], [(BotMember, Conv.Event)])
+      ([Push], [(BotMember, Conv.Event)]) ->
+      Sem r ([Push], [(BotMember, Conv.Event)])
     createConvDeleteEvents now teamMembs c (pp, ee) = do
       let qconvId = tUntagged $ qualifyAs lusr (c ^. conversationId)
       (bots, convMembs) <- localBotsAndUsers <$> E.getLocalMembers (c ^. conversationId)
@@ -826,7 +825,7 @@ uncheckedUpdateTeamMember mlzusr mZcon tid newMember = do
   now <- input
   let event = newEvent tid now (EdMemberUpdate targetId (Just targetPermissions))
   let pushPriv = newPush mZusr (toJSONObject event) (map userRecipient admins')
-  for_ pushPriv (\p -> NotificationSubsystem.push [p & pushConn .~ mZcon & pushTransient .~ True])
+  for_ pushPriv (\p -> pushNotifications [p & pushConn .~ mZcon & pushTransient .~ True])
 
 updateTeamMember ::
   forall r.
@@ -1036,7 +1035,7 @@ uncheckedDeleteTeamMember lusr zcon tid remove (Left admins) = do
       let r =
             userRecipient
               <$> (tUnqualified lusr :| filter (/= (tUnqualified lusr)) admins)
-      NotificationSubsystem.push
+      pushNotifications
         [newPushLocal1 (tUnqualified lusr) (toJSONObject e) r & pushConn .~ zcon & pushTransient .~ True]
 uncheckedDeleteTeamMember lusr zcon tid remove (Right mems) = do
   now <- input
@@ -1334,7 +1333,7 @@ addTeamMemberInternal tid origin originConn (ntmNewTeamMember -> new) = do
   let rs = case origin of
         Just o -> userRecipient <$> o :| filter (/= o) ((new ^. userId) : admins')
         Nothing -> userRecipient <$> new ^. userId :| admins'
-  NotificationSubsystem.push
+  pushNotifications
     [ newPushLocal1 (new ^. userId) (toJSONObject e) rs
         & pushConn .~ originConn
         & pushTransient .~ True
@@ -1360,7 +1359,7 @@ finishCreateTeam team owner others zcon = do
   now <- input
   let e = newEvent (team ^. teamId) now (EdTeamCreate team)
   let r = membersToRecipients Nothing others
-  NotificationSubsystem.push
+  pushNotifications
     [ newPushLocal1 zusr (toJSONObject e) (userRecipient zusr :| r)
         & pushConn .~ zcon
     ]

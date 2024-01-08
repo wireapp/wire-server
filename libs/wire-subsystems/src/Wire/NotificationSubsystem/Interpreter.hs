@@ -29,8 +29,8 @@ runNotificationSubsystemGundeck ::
   Sem (NotificationSubsystem : r) a ->
   Sem r a
 runNotificationSubsystemGundeck cfg = interpret $ \case
-  Push ps -> runInputConst cfg $ pushImpl ps
-  PushSlowly ps -> runInputConst cfg $ pushSlowlyImpl ps
+  PushNotifications ps -> runInputConst cfg $ pushImpl ps
+  PushNotificationsSlowly ps -> runInputConst cfg $ pushSlowlyImpl ps
 
 data NotificationSubsystemConfig = NotificationSubsystemConfig
   { fanoutLimit :: Range 1 HardTruncationLimit Int32,
@@ -46,7 +46,7 @@ pushImpl ::
     Member (Input NotificationSubsystemConfig) r,
     Member (Async) r
   ) =>
-  [PushToUser] ->
+  [Push] ->
   Sem r ()
 pushImpl ps = do
   currentFanoutLimit <- inputs fanoutLimit
@@ -59,16 +59,16 @@ pushImpl ps = do
     sequenceConcurrently $
       pushV2 <$> pushes
 
-removeIfLargeFanout :: Range n m Int32 -> [PushTo user] -> [PushTo user]
+removeIfLargeFanout :: Range n m Int32 -> [Push] -> [Push]
 removeIfLargeFanout limit =
-  filter \PushTo {_pushRecipients} ->
+  filter \Push {_pushRecipients} ->
     length _pushRecipients <= fromIntegral (fromRange limit)
 
-mkPushes :: Natural -> [PushToUser] -> [[V2.Push]]
+mkPushes :: Natural -> [Push] -> [[V2.Push]]
 mkPushes chunkSize = map (map toV2Push) . chunkPushes chunkSize
 
 {-# INLINE [1] toV2Push #-}
-toV2Push :: PushToUser -> V2.Push
+toV2Push :: Push -> V2.Push
 toV2Push p =
   (V2.newPush p.pushOrigin (unsafeRange (Set.fromList recipients)) pload)
     & V2.pushOriginConnection .~ _pushConn p
@@ -86,7 +86,7 @@ toV2Push p =
         }
 
 {-# INLINE [1] chunkPushes #-}
-chunkPushes :: Natural -> [PushTo a] -> [[PushTo a]]
+chunkPushes :: Natural -> [Push] -> [[Push]]
 chunkPushes maxRecipients
   | maxRecipients > 0 = go 0 []
   | otherwise = const []
@@ -104,7 +104,7 @@ chunkPushes maxRecipients
                 else go totalLength (y : acc) ys
 
     -- n must be strictly > 0 and < length (_pushRecipients p)
-    splitPush :: Natural -> PushTo a -> (PushTo a, PushTo a)
+    splitPush :: Natural -> Push -> (Push, Push)
     splitPush n p =
       let (r1, r2) = splitAt (fromIntegral n) (toList p._pushRecipients)
        in (p {_pushRecipients = fromJust $ nonEmpty r1}, p {_pushRecipients = fromJust $ nonEmpty r2})
@@ -115,7 +115,7 @@ pushSlowlyImpl ::
     Member GundeckAPIAccess r,
     Member Async r
   ) =>
-  [PushToUser] ->
+  [Push] ->
   Sem r ()
 pushSlowlyImpl ps =
   for_ ps \p -> do

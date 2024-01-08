@@ -100,7 +100,6 @@ import Wire.API.Routes.MultiTablePaging (mtpHasMore, mtpPagingState, mtpResults)
 import Wire.API.Team.Feature hiding (setStatus)
 import Wire.API.User.Client
 import Wire.NotificationSubsystem
-import Wire.NotificationSubsystem qualified as NotificationSubsystem
 import Wire.Sem.Paging
 import Wire.Sem.Paging.Cassandra
 
@@ -400,7 +399,7 @@ rmUser lusr conn = do
                     . set pushRoute PushV2.RouteDirect
           | otherwise -> pure Nothing
 
-      NotificationSubsystem.push (catMaybes pp)
+      pushNotifications (catMaybes pp)
 
     -- FUTUREWORK: This could be optimized to reduce the number of RPCs
     -- made. When a team is deleted the burst of RPCs created here could

@@ -142,7 +142,6 @@ import Wire.API.Routes.Public.Util (UpdateResult (..))
 import Wire.API.ServantProto (RawProto (..))
 import Wire.API.User.Client
 import Wire.NotificationSubsystem
-import Wire.NotificationSubsystem qualified as NotificationSubsystem
 
 acceptConv ::
   ( Member ConversationStore r,
@@ -1576,7 +1575,7 @@ addBot lusr zcon b = do
               )
           )
   for_ (newPushLocal (tUnqualified lusr) (toJSONObject e) (localMemberToRecipient <$> users)) $ \p ->
-    NotificationSubsystem.push [p & pushConn ?~ zcon]
+    pushNotifications [p & pushConn ?~ zcon]
   E.deliverAsync (map (,e) (bm : bots))
   pure e
   where
@@ -1648,7 +1647,7 @@ rmBot lusr zcon b = do
         let evd = EdMembersLeaveRemoved (QualifiedUserIdList [tUntagged (qualifyAs lusr (botUserId (b ^. rmBotId)))])
         let e = Event (tUntagged lcnv) Nothing (tUntagged lusr) t evd
         for_ (newPushLocal (tUnqualified lusr) (toJSONObject e) (localMemberToRecipient <$> users)) $ \p ->
-          NotificationSubsystem.push [p & pushConn .~ zcon]
+          pushNotifications [p & pushConn .~ zcon]
         E.deleteMembers (Data.convId c) (UserList [botUserId (b ^. rmBotId)] [])
         E.deleteClients (botUserId (b ^. rmBotId))
         E.deliverAsync (map (,e) bots)

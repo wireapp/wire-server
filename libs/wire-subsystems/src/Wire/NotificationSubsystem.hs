@@ -20,7 +20,7 @@ data Recipient = Recipient
 
 makeLenses ''Recipient
 
-data PushTo = PushTo
+data Push = Push
   { _pushConn :: Maybe ConnId,
     _pushTransient :: Bool,
     _pushRoute :: Route,
@@ -30,21 +30,19 @@ data PushTo = PushTo
     pushJson :: Object
   }
   deriving stock (Eq, Ord, Generic, Show)
-  deriving (Arbitrary) via GenericUniform PushTo
+  deriving (Arbitrary) via GenericUniform Push
 
-makeLenses ''PushTo
-
-type PushToUser = PushTo
+makeLenses ''Push
 
 data NotificationSubsystem m a where
-  Push :: [PushToUser] -> NotificationSubsystem m ()
-  PushSlowly :: [PushToUser] -> NotificationSubsystem m ()
+  PushNotifications :: [Push] -> NotificationSubsystem m ()
+  PushNotificationsSlowly :: [Push] -> NotificationSubsystem m ()
 
 makeSem ''NotificationSubsystem
 
-newPush1 :: Maybe UserId -> Object -> NonEmpty Recipient -> PushToUser
+newPush1 :: Maybe UserId -> Object -> NonEmpty Recipient -> Push
 newPush1 from e rr =
-  PushTo
+  Push
     { _pushConn = Nothing,
       _pushTransient = False,
       _pushRoute = RouteAny,
@@ -54,12 +52,12 @@ newPush1 from e rr =
       _pushRecipients = rr
     }
 
-newPush :: Maybe UserId -> Object -> [Recipient] -> Maybe PushToUser
+newPush :: Maybe UserId -> Object -> [Recipient] -> Maybe Push
 newPush _ _ [] = Nothing
 newPush u e (r : rr) = Just $ newPush1 u e (r :| rr)
 
-newPushLocal :: UserId -> Object -> [Recipient] -> Maybe PushToUser
+newPushLocal :: UserId -> Object -> [Recipient] -> Maybe Push
 newPushLocal uid = newPush (Just uid)
 
-newPushLocal1 :: UserId -> Object -> NonEmpty Recipient -> PushToUser
+newPushLocal1 :: UserId -> Object -> NonEmpty Recipient -> Push
 newPushLocal1 uid = newPush1 (Just uid)

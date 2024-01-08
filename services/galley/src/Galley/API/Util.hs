@@ -89,7 +89,7 @@ import Wire.API.Team.Member qualified as Mem
 import Wire.API.Team.Role
 import Wire.API.User hiding (userId)
 import Wire.API.User.Auth.ReAuth
-import Wire.NotificationSubsystem as NotificationSubsystem
+import Wire.NotificationSubsystem
 
 type JSON = Media "application" "json"
 
@@ -346,7 +346,7 @@ acceptOne2One lusr conv conn = do
         conv' <- if isJust (find ((tUnqualified lusr /=) . lmId) mems) then promote else pure conv
         let mems' = mems <> toList mm
         for_ (newPushLocal (tUnqualified lusr) (toJSONObject e) (localMemberToRecipient <$> mems')) $ \p ->
-          NotificationSubsystem.push [p & pushConn .~ conn & pushRoute .~ PushV2.RouteDirect]
+          pushNotifications [p & pushConn .~ conn & pushRoute .~ PushV2.RouteDirect]
         pure conv' {Data.convLocalMembers = mems'}
     _ -> throwS @'InvalidOperation
   where
@@ -648,10 +648,10 @@ pushConversationEvent ::
   Sem r ()
 pushConversationEvent conn e lusers bots = do
   for_ (newConversationEventPush e (fmap toList lusers)) $ \p ->
-    NotificationSubsystem.push [p & set pushConn conn]
+    pushNotifications [p & set pushConn conn]
   deliverAsync (map (,e) (toList bots))
 
-newConversationEventPush :: Event -> Local [UserId] -> Maybe PushToUser
+newConversationEventPush :: Event -> Local [UserId] -> Maybe Push
 newConversationEventPush e users =
   let musr = guard (tDomain users == qDomain (evtFrom e)) $> qUnqualified (evtFrom e)
    in newPush musr (toJSONObject e) (map userRecipient (tUnqualified users))

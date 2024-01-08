@@ -126,7 +126,6 @@ import Wire.API.Team.Member
 import Wire.API.Team.Permission (Perm (AddRemoveConvMember, ModifyConvName))
 import Wire.API.User qualified as User
 import Wire.NotificationSubsystem
-import Wire.NotificationSubsystem qualified as NotificationSubsystem
 
 data NoChanges = NoChanges
 
@@ -1114,7 +1113,7 @@ pushTypingIndicatorEvents ::
 pushTypingIndicatorEvents qusr tEvent users mcon qcnv ts = do
   let e = Event qcnv Nothing qusr tEvent (EdTyping ts)
   for_ (newPushLocal (qUnqualified qusr) (toJSONObject e) (userRecipient <$> users)) $ \p ->
-    NotificationSubsystem.push
+    pushNotifications
       [ p
           & pushConn .~ mcon
           & pushRoute .~ PushV2.RouteDirect

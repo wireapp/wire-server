@@ -84,7 +84,6 @@ import Wire.API.Team.Member
 import Wire.API.Team.Permission hiding (self)
 import Wire.API.User
 import Wire.NotificationSubsystem
-import Wire.NotificationSubsystem qualified as NotificationSubsystem
 
 ----------------------------------------------------------------------------
 -- Group conversations
@@ -546,7 +545,7 @@ createConnectConversation lusr conn j = do
       let e = Event (tUntagged lcnv) Nothing (tUntagged lusr) now (EdConnect j)
       notifyCreatedConversation lusr conn c
       for_ (newPushLocal (tUnqualified lusr) (toJSONObject e) (localMemberToRecipient <$> Data.convLocalMembers c)) $ \p ->
-        NotificationSubsystem.push
+        pushNotifications
           [ p
               & pushRoute .~ PushV2.RouteDirect
               & pushConn .~ conn
@@ -586,7 +585,7 @@ createConnectConversation lusr conn j = do
           t <- input
           let e = Event (tUntagged lcnv) Nothing (tUntagged lusr) t (EdConnect j)
           for_ (newPushLocal (tUnqualified lusr) (toJSONObject e) (localMemberToRecipient <$> Data.convLocalMembers conv)) $ \p ->
-            NotificationSubsystem.push
+            pushNotifications
               [ p
                   & pushRoute .~ PushV2.RouteDirect
                   & pushConn .~ conn
@@ -672,7 +671,7 @@ notifyCreatedConversation lusr conn c = do
       throw FederationNotConfigured
 
   -- Notify local users
-  NotificationSubsystem.push =<< mapM (toPush now) (Data.convLocalMembers c)
+  pushNotifications =<< mapM (toPush now) (Data.convLocalMembers c)
   where
     route
       | Data.convType c == RegularConv = PushV2.RouteAny
