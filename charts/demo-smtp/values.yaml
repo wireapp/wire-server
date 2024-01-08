@@ -1,6 +1,6 @@
 fullnameOverride: demo-smtp
 replicaCount: 1
-image: "quay.io/wire/ixdotai-smtp:6fc2f5"
+image: "quay.io/wire/ixdotai-smtp"
 
 service:
   port: 25
@@ -15,7 +15,7 @@ resources:
 
 # Some relevant environment options can be
 # passed to the SMTP docker image, check
-# https://hub.docker.com/r/namshi/smtp/
+# https://hub.docker.com/r/ixdotai/smtp/
 # for more details
 # NOTE: Without an empty dictionary, you will
 # see warnings when overriding envVars
