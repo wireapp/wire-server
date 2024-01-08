@@ -83,7 +83,6 @@ spec:
   restartPolicy: Never
 
   initContainers:
-  # FUTUREWORK: reproduce brig's initContainers (despite geoip removed?)
   - name: integration-setup
     image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
         {{- if eq (include "includeSecurityContext" .) "true" }}
