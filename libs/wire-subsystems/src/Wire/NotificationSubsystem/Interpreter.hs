@@ -2,7 +2,6 @@ module Wire.NotificationSubsystem.Interpreter where
 
 import Control.Lens (set, (.~))
 import Data.Aeson
-import Data.Id
 import Data.List.NonEmpty (nonEmpty)
 import Data.List1 (List1)
 import Data.List1 qualified as List1
@@ -80,7 +79,7 @@ toV2Push p =
     pload = List1.singleton (pushJson p)
     recipients :: [V2.Recipient]
     recipients = map toRecipient $ toList p._pushRecipients
-    toRecipient :: RecipientBy UserId -> V2.Recipient
+    toRecipient :: Recipient -> V2.Recipient
     toRecipient r =
       (recipient r._recipientUserId p._pushRoute)
         { V2._recipientClients = r._recipientClients

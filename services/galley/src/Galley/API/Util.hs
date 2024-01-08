@@ -359,7 +359,7 @@ acceptOne2One lusr conv conn = do
 localMemberToRecipient :: LocalMember -> Recipient
 localMemberToRecipient = userRecipient . lmId
 
-userRecipient :: user -> RecipientBy user
+userRecipient :: UserId -> Recipient
 userRecipient u = Recipient u PushV2.RecipientClientsAll
 
 memberJoinEvent ::

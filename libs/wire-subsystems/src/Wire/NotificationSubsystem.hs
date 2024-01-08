@@ -11,32 +11,30 @@ import Imports
 import Polysemy
 import Wire.Arbitrary
 
-data RecipientBy user = Recipient
-  { _recipientUserId :: user,
+data Recipient = Recipient
+  { _recipientUserId :: UserId,
     _recipientClients :: RecipientClients
   }
-  deriving stock (Functor, Foldable, Traversable, Show, Ord, Eq, Generic)
-  deriving (Arbitrary) via GenericUniform (RecipientBy user)
+  deriving stock (Show, Ord, Eq, Generic)
+  deriving (Arbitrary) via GenericUniform Recipient
 
-makeLenses ''RecipientBy
+makeLenses ''Recipient
 
-type Recipient = RecipientBy UserId
-
-data PushTo user = PushTo
+data PushTo = PushTo
   { _pushConn :: Maybe ConnId,
     _pushTransient :: Bool,
     _pushRoute :: Route,
     _pushNativePriority :: Maybe Priority,
     pushOrigin :: Maybe UserId,
-    _pushRecipients :: NonEmpty (RecipientBy user),
+    _pushRecipients :: NonEmpty Recipient,
     pushJson :: Object
   }
-  deriving stock (Eq, Ord, Generic, Functor, Foldable, Traversable, Show)
-  deriving (Arbitrary) via GenericUniform (PushTo user)
+  deriving stock (Eq, Ord, Generic, Show)
+  deriving (Arbitrary) via GenericUniform PushTo
 
 makeLenses ''PushTo
 
-type PushToUser = PushTo UserId
+type PushToUser = PushTo
 
 data NotificationSubsystem m a where
   Push :: [PushToUser] -> NotificationSubsystem m ()
