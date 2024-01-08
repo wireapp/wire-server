@@ -1,1 +1,4 @@
-Do not remove updated/replaced issuers from issuers index, but gc issuers index when deleting the current idp.
+Clean up some corner-cases around replacing / updating SAML IdPs.
+- do not remove updated / replaced issuers from issuers index in the course of the update / replace operation.
+- garbage-collect old issuers index when deleting the current idp (for both update / replace).
+- effectively block issuer url (aka entity id) of updated / replaced IdP from being reused for creating other idps (until all associated updates / replacements have been removed).
