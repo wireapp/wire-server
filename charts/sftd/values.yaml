@@ -21,6 +21,10 @@ imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
 
+metrics:
+  serviceMonitor:
+    enabled: false
+
 # The time to wait after terminating an sft node before shutting it down. No
 # new calls will be initiated whilst a pod is being terminated.
 terminationGracePeriodSeconds: 10
