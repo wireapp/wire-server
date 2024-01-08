@@ -116,6 +116,7 @@ import Control.Lens hiding (index, (.=))
 import Control.Monad.Catch
 import Control.Monad.Trans.Resource
 import Data.Byteable (constEqBytes)
+import Data.Domain (Domain)
 import Data.GeoIP2 qualified as GeoIp
 import Data.IP
 import Data.Metrics (Metrics)
@@ -156,7 +157,6 @@ import System.Logger.Extended qualified as Log
 import Util.Options
 import Wire.API.User.Identity (Email)
 import Wire.API.User.Profile (Locale)
-import Data.Domain (Domain)
 
 schemaVersion :: Int32
 schemaVersion = Migrations.lastSchemaVersion

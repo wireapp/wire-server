@@ -24,6 +24,7 @@ common common-all
   ghc-options:
     -Wall -Wpartial-fields -fwarn-tabs -Wno-incomplete-uni-patterns
 
+  -- NoImportQualifiedPost is required
   default-extensions:
     AllowAmbiguousTypes
     BangPatterns
@@ -70,7 +71,6 @@ common common-all
     UndecidableInstances
     ViewPatterns
 
--- (sic!)
 executable integration
   import:        common-all
   main-is:       ./main.hs
