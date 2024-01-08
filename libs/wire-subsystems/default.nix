@@ -4,6 +4,7 @@
 # dependencies are added or removed.
 { mkDerivation
 , aeson
+, async
 , base
 , bilge
 , bytestring
@@ -48,6 +49,7 @@ mkDerivation {
   ];
   testHaskellDepends = [
     aeson
+    async
     base
     bytestring
     containers
