@@ -197,8 +197,13 @@ authenticate u pw =
     Just (_, PendingInvitation) -> throwE AuthPendingInvitation
     Just (Nothing, _) -> throwE AuthInvalidCredentials
     Just (Just pw', Active) ->
-      unless (verifyPassword pw pw') $
-        throwE AuthInvalidCredentials
+      case verifyPasswordWithStatus pw pw' of
+        (False, _) -> throwE AuthInvalidCredentials
+        (True, PasswordStatusNeedsUpdate) -> do
+          case plainTextPassword8 . fromPlainTextPassword $ pw of
+            Nothing -> throwE AuthInvalidCredentials -- TODO(elland): Add new error type
+            Just pw8 -> updatePassword u pw8 -- update pwd in place
+        (True, _) -> pure ()
 
 -- | Password reauthentication. If the account has a password, reauthentication
 -- is mandatory. If the account has no password, or is an SSO user, and no password is given,
