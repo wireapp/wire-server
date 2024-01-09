@@ -50,6 +50,7 @@ settings:
   mlsPrivateKeyPaths:
     removal:
       ed25519: test/resources/ed25519.pem
+  guestLinkTTLDays: 7
 
   featureFlags:  # see #RefConfigOptions in `/docs/reference`
     sso: disabled-by-default

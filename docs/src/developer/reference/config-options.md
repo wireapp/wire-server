@@ -425,7 +425,7 @@ federator:
     clientPrivateKey: client-key.pem
 ```
 
-## Outlook calalendar integration
+### Outlook calalendar integration
 
 This feature setting only applies to the Outlook Calendar extension for Wire. As it is an external service, it should only be configured through this feature flag and otherwise ignored by the backend.
 
@@ -437,6 +437,17 @@ outlookCalIntegration:
   defaults:
     status: disabled
     lockStatus: locked
+```
+
+### Guest Link Lifetime
+
+To set the validity duration of conversation guest links set `guestLinkTTLDays` to the desired number of days, a value x, x ∈ (0, 365] and x ∈ R. E.g.
+
+```yaml
+# galley.yaml
+config:
+  settings:
+    guestLinkTTLDays: 7
 ```
 
 ## Settings in brig

@@ -84,6 +84,9 @@ data:
       disabledAPIVersions: {{ .settings.disabledAPIVersions }}
       {{- end }}
       {{- if .settings.featureFlags }}
+      {{- if .settings.guestLinkTTLDays }}
+      guestLinkTTLDays: {{ .settings.guestLinkTTLDays }}
+      {{- end }}
       featureFlags:
         sso: {{ .settings.featureFlags.sso }}
         legalhold: {{ .settings.featureFlags.legalhold }}

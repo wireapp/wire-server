@@ -53,10 +53,14 @@ module Galley.Options
     logLevel,
     logNetStrings,
     logFormat,
+    guestLinkTTLDays,
+    defGuestLinkTTLDays,
   )
 where
 
 import Control.Lens hiding (Level, (.=))
+import Data.Aeson (FromJSON (..))
+import Data.Aeson qualified as Aeson
 import Data.Aeson.TH (deriveFromJSON)
 import Data.Domain (Domain)
 import Data.Id (TeamId)
@@ -71,6 +75,17 @@ import Util.Options hiding (endpoint)
 import Util.Options.Common
 import Wire.API.Routes.Version
 import Wire.API.Team.Member
+
+newtype GuestLinkTTLDays = GuestLinkTTLDays
+  { unGuestLinkTTLDays :: Double
+  }
+  deriving (Show, Generic)
+
+instance FromJSON GuestLinkTTLDays where
+  parseJSON (Aeson.Number n) = case realToFrac n of
+    d | d > 0 && d <= 365 -> pure $ GuestLinkTTLDays d
+    _ -> fail "GuestLinkTTLDays must be a number in (0, 365]"
+  parseJSON _ = fail "GuestLinkTTLDays must be a number"
 
 data Settings = Settings
   { -- | Number of connections for the HTTP client pool
@@ -129,7 +144,10 @@ data Settings = Settings
     _mlsPrivateKeyPaths :: !(Maybe MLSPrivateKeyPaths),
     -- | FUTUREWORK: 'setFeatureFlags' should be renamed to 'setFeatureConfigs' in all types.
     _featureFlags :: !FeatureFlags,
-    _disabledAPIVersions :: Maybe (Set Version)
+    _disabledAPIVersions :: Maybe (Set Version),
+    -- | The lifetime of a conversation guest link in days (x, x ∈ (0, 365] and x ∈ R)
+    -- If not set it use the default `defGuestLinkTTLDays`
+    _guestLinkTTLDays :: !(Maybe GuestLinkTTLDays)
   }
   deriving (Show, Generic)
 
@@ -145,6 +163,10 @@ defDeleteConvThrottleMillis = 20
 
 defFanoutLimit :: Range 1 HardTruncationLimit Int32
 defFanoutLimit = unsafeRange hardTruncationLimit
+
+-- | Default guest link TTL in days. 365 days if not set.
+defGuestLinkTTLDays :: GuestLinkTTLDays
+defGuestLinkTTLDays = GuestLinkTTLDays 365.0 -- 1 year
 
 data JournalOpts = JournalOpts
   { -- | SQS queue name to send team events
