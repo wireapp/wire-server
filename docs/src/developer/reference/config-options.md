@@ -425,7 +425,7 @@ federator:
     clientPrivateKey: client-key.pem
 ```
 
-### Outlook calalendar integration
+### Outlook calendar integration
 
 This feature setting only applies to the Outlook Calendar extension for Wire. As it is an external service, it should only be configured through this feature flag and otherwise ignored by the backend.
 
@@ -448,6 +448,23 @@ To set the validity duration of conversation guest links set `guestLinkTTLSecond
 config:
   settings:
     GuestLinkTTLSeconds: 604800
+```
+
+### Limited Event Fanout
+
+To maintain compatibility with clients and their versions that do not implement
+the limited event fanout when a team member is deleted, the limited event fanout
+flag is used. Its default value `disabled` means that the old-style full event
+fanout will take place when a team member is deleted. Set the flag to `enabled`
+to send team events only to team owners and administrators.
+
+Example configuration:
+
+```yaml
+# galley.yaml
+limitedEventFanout:
+  defaults:
+    status: disabled
 ```
 
 ## Settings in brig
