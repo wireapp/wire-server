@@ -46,7 +46,6 @@ import Data.Domain
 import Data.Handle (Handle (..), parseHandle)
 import Data.Id (ClientId, TeamId, UserId)
 import Data.List.NonEmpty (nonEmpty)
-import Data.List1
 import Data.Qualified
 import Data.Range
 import Data.Set (fromList, (\\))
@@ -54,9 +53,9 @@ import Gundeck.Types.Push qualified as Push
 import Imports hiding ((\\))
 import Network.Wai.Utilities.Error ((!>>))
 import Polysemy
+import Polysemy.Async
 import Servant (ServerT)
 import Servant.API
-import UnliftIO.Async (pooledForConcurrentlyN_)
 import Wire.API.Connection
 import Wire.API.Federation.API.Brig hiding (searchPolicy)
 import Wire.API.Federation.API.Common
@@ -72,6 +71,7 @@ import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
 import Wire.API.User.Search hiding (searchPolicy)
 import Wire.API.UserMap (UserMap)
+import Wire.NotificationSubsystem
 import Wire.Sem.Concurrency
 
 type FederationAPI = "federation" :> BrigApi
@@ -79,7 +79,9 @@ type FederationAPI = "federation" :> BrigApi
 federationSitemap ::
   ( Member GalleyProvider r,
     Member (Concurrency 'Unsafe) r,
-    Member FederationConfigStore r
+    Member FederationConfigStore r,
+    Member NotificationSubsystem r,
+    Member Async r
   ) =>
   ServerT FederationAPI (Handler r)
 federationSitemap =
@@ -110,7 +112,10 @@ getFederationStatus _ request = do
       pure $ NonConnectedBackends (request.domains \\ fedDomains)
 
 sendConnectionAction ::
-  Member FederationConfigStore r =>
+  ( Member FederationConfigStore r,
+    Member NotificationSubsystem r,
+    Member Async r
+  ) =>
   Domain ->
   NewConnectionRequest ->
   Handler r NewConnectionResponse
@@ -254,7 +259,14 @@ getMLSClients _domain mcr = do
 getMLSClientsV0 :: Domain -> MLSClientsRequestV0 -> Handler r (Set ClientInfo)
 getMLSClientsV0 domain mcr0 = getMLSClients domain (mlsClientsRequestFromV0 mcr0)
 
-onUserDeleted :: Domain -> UserDeletedConnectionsNotification -> (Handler r) EmptyResponse
+onUserDeleted ::
+  ( Member (Concurrency 'Unsafe) r,
+    Member NotificationSubsystem r,
+    Member Async r
+  ) =>
+  Domain ->
+  UserDeletedConnectionsNotification ->
+  (Handler r) EmptyResponse
 onUserDeleted origDomain udcn = lift $ do
   let deletedUser = toRemoteUnsafe origDomain udcn.user
       connections = udcn.connections
@@ -263,8 +275,8 @@ onUserDeleted origDomain udcn = lift $ do
     map csv2From
       . filter (\x -> csv2Status x == Accepted)
       <$> wrapClient (Data.lookupRemoteConnectionStatuses (fromRange connections) (fmap pure deletedUser))
-  wrapHttp $
-    pooledForConcurrentlyN_ 16 (nonEmpty acceptedLocals) $ \(List1 -> recipients) ->
+  liftSem $
+    unsafePooledForConcurrentlyN_ 16 (nonEmpty acceptedLocals) $ \recipients ->
       notify event (tUnqualified deletedUser) Push.RouteDirect Nothing (pure recipients)
   wrapClient $ Data.deleteRemoteConnections deletedUser connections
   pure EmptyResponse

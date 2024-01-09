@@ -57,6 +57,7 @@ import Data.Range
 import Data.UUID.V4 qualified as UUID
 import Imports
 import Polysemy (Member)
+import Polysemy.Async (Async)
 import System.Logger.Class qualified as Log
 import System.Logger.Message
 import Wire.API.Connection hiding (relationWithHistory)
@@ -64,6 +65,7 @@ import Wire.API.Conversation hiding (Member)
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
 import Wire.API.Routes.Public.Util (ResponseForExistedCreated (..))
+import Wire.NotificationSubsystem
 
 ensureNotSameTeam :: Member GalleyProvider r => Local UserId -> Local UserId -> (ConnectionM r) ()
 ensureNotSameTeam self target = do
@@ -74,7 +76,9 @@ ensureNotSameTeam self target = do
 
 createConnection ::
   ( Member FederationConfigStore r,
-    Member GalleyProvider r
+    Member GalleyProvider r,
+    Member NotificationSubsystem r,
+    Member Async r
   ) =>
   Local UserId ->
   ConnId ->
@@ -89,7 +93,11 @@ createConnection self con target = do
     target
 
 createConnectionToLocalUser ::
-  Member GalleyProvider r =>
+  forall r.
+  ( Member GalleyProvider r,
+    Member NotificationSubsystem r,
+    Member Async r
+  ) =>
   Local UserId ->
   ConnId ->
   Local UserId ->
@@ -121,7 +129,7 @@ createConnectionToLocalUser self conn target = do
         ConnectionUpdated o2s' (ucStatus <$> o2s)
           <$> wrapClient (Data.lookupName (tUnqualified self))
       let e2s = ConnectionUpdated s2o' (ucStatus <$> s2o) Nothing
-      mapM_ (Intra.onConnectionEvent (tUnqualified self) (Just conn)) [e2o, e2s]
+      liftSem $ mapM_ (Intra.onConnectionEvent (tUnqualified self) (Just conn)) [e2o, e2s]
       pure s2o'
 
     update :: UserConnection -> UserConnection -> ExceptT ConnectionError (AppT r) (ResponseForExistedCreated UserConnection)
@@ -158,7 +166,7 @@ createConnectionToLocalUser self conn target = do
           ConnectionUpdated o2s' (Just $ ucStatus o2s)
             <$> Data.lookupName (tUnqualified self)
       let e2s = ConnectionUpdated s2o' (Just $ ucStatus s2o) Nothing
-      lift $ mapM_ (Intra.onConnectionEvent (tUnqualified self) (Just conn)) [e2o, e2s]
+      lift $ liftSem $ mapM_ (Intra.onConnectionEvent (tUnqualified self) (Just conn)) [e2o, e2s]
       pure $ Existed s2o'
 
     resend :: UserConnection -> UserConnection -> ExceptT ConnectionError (AppT r) (ResponseForExistedCreated UserConnection)
@@ -205,7 +213,10 @@ checkLegalholdPolicyConflict uid1 uid2 = do
   oneway status2 status1
 
 updateConnection ::
-  Member FederationConfigStore r =>
+  ( Member FederationConfigStore r,
+    Member NotificationSubsystem r,
+    Member Async r
+  ) =>
   Local UserId ->
   Qualified UserId ->
   Relation ->
@@ -225,6 +236,10 @@ updateConnection self other newStatus conn =
 -- because a connection between two team members can not exist in the first place.
 -- {#RefConnectionTeam}
 updateConnectionToLocalUser ::
+  forall r.
+  ( Member NotificationSubsystem r,
+    Member Async r
+  ) =>
   -- | From
   Local UserId ->
   -- | To
@@ -279,7 +294,7 @@ updateConnectionToLocalUser self other newStatus conn = do
     -- invalid
     _ -> throwE $ InvalidTransition (tUnqualified self)
   let s2oUserConn = s2o'
-  lift . for_ s2oUserConn $ \c ->
+  lift . liftSem . for_ s2oUserConn $ \c ->
     let e2s = ConnectionUpdated c (Just $ ucStatus s2o) Nothing
      in Intra.onConnectionEvent (tUnqualified self) conn e2s
   pure s2oUserConn
@@ -304,7 +319,7 @@ updateConnectionToLocalUser self other newStatus conn = do
         e2o <-
           ConnectionUpdated o2s' (Just $ ucStatus o2s)
             <$> wrapClient (Data.lookupName (tUnqualified self))
-        Intra.onConnectionEvent (tUnqualified self) conn e2o
+        liftSem $ Intra.onConnectionEvent (tUnqualified self) conn e2o
       lift . wrapClient $ Just <$> Data.updateConnection s2o AcceptedWithHistory
 
     block :: UserConnection -> ExceptT ConnectionError (AppT r) (Maybe UserConnection)
@@ -335,7 +350,7 @@ updateConnectionToLocalUser self other newStatus conn = do
             ConnectionUpdated o2s' (Just $ ucStatus o2s)
               <$> Data.lookupName (tUnqualified self)
         -- TODO: is this correct? shouldnt o2s be sent to other?
-        Intra.onConnectionEvent (tUnqualified self) conn e2o
+        liftSem $ Intra.onConnectionEvent (tUnqualified self) conn e2o
       lift . wrapClient $ Just <$> Data.updateConnection s2o (mkRelationWithHistory (error "impossible") new)
 
     cancel :: UserConnection -> UserConnection -> ExceptT ConnectionError (AppT r) (Maybe UserConnection)
@@ -347,7 +362,7 @@ updateConnectionToLocalUser self other newStatus conn = do
       lift $ traverse_ (wrapHttp . Intra.blockConv lfrom conn) (ucConvId s2o)
       o2s' <- lift . wrapClient $ Data.updateConnection o2s CancelledWithHistory
       let e2o = ConnectionUpdated o2s' (Just $ ucStatus o2s) Nothing
-      lift $ Intra.onConnectionEvent (tUnqualified self) conn e2o
+      lift $ liftSem $ Intra.onConnectionEvent (tUnqualified self) conn e2o
       change s2o Cancelled
 
     change :: UserConnection -> Relation -> ExceptT ConnectionError (AppT r) (Maybe UserConnection)
@@ -383,6 +398,9 @@ mkRelationWithHistory oldRel = \case
 
 updateConnectionInternal ::
   forall r.
+  ( Member NotificationSubsystem r,
+    Member Async r
+  ) =>
   UpdateConnectionsInternal ->
   ExceptT ConnectionError (AppT r) ()
 updateConnectionInternal = \case
@@ -414,7 +432,7 @@ updateConnectionInternal = \case
           traverse_ (wrapHttp . Intra.blockConv lfrom Nothing) (ucConvId uconn)
           uconn' <- wrapClient $ Data.updateConnection uconn (mkRelationWithHistory (ucStatus uconn) MissingLegalholdConsent)
           let ev = ConnectionUpdated uconn' (Just $ ucStatus uconn) Nothing
-          Intra.onConnectionEvent (tUnqualified self) Nothing ev
+          liftSem $ Intra.onConnectionEvent (tUnqualified self) Nothing ev
 
     removeLHBlocksInvolving :: Local UserId -> ExceptT ConnectionError (AppT r) ()
     removeLHBlocksInvolving self =
@@ -456,7 +474,7 @@ updateConnectionInternal = \case
                     ucPrev = Just $ ucStatus uconnRev,
                     ucName = connName
                   }
-          lift $ Intra.onConnectionEvent (ucFrom uconn) Nothing connEvent
+          lift $ liftSem $ Intra.onConnectionEvent (ucFrom uconn) Nothing connEvent
 
     relationWithHistory ::
       Local UserId ->

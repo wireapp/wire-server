@@ -101,6 +101,8 @@ import Imports hiding (head)
 import Network.Socket (PortNumber)
 import Network.Wai.Utilities as Utilities
 import Polysemy
+import Polysemy.Async
+import Polysemy.TinyLog (TinyLog)
 import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant qualified
 import Servant.OpenApi.Internal.Orphans ()
@@ -150,6 +152,7 @@ import Wire.API.User.Password qualified as Public
 import Wire.API.User.RichInfo qualified as Public
 import Wire.API.UserMap qualified as Public
 import Wire.API.Wrapped qualified as Public
+import Wire.NotificationSubsystem
 import Wire.Sem.Concurrency
 import Wire.Sem.Jwk (Jwk)
 import Wire.Sem.Now (Now)
@@ -271,7 +274,11 @@ servantSitemap ::
     Member PublicKeyBundle r,
     Member (UserPendingActivationStore p) r,
     Member Jwk r,
-    Member FederationConfigStore r
+    Member FederationConfigStore r,
+    Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member Async r,
+    Member TinyLog r
   ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =
@@ -437,7 +444,7 @@ servantSitemap =
 ---------------------------------------------------------------------------
 -- Handlers
 
-setProperty :: UserId -> ConnId -> Public.PropertyKey -> Public.RawPropertyValue -> Handler r ()
+setProperty :: (Member NotificationSubsystem r, Member Async r) => UserId -> ConnId -> Public.PropertyKey -> Public.RawPropertyValue -> Handler r ()
 setProperty u c key raw = do
   checkPropertyKey key
   val <- safeParsePropertyValue raw
@@ -476,10 +483,10 @@ parseStoredPropertyValue raw = case propertyValueFromRaw raw of
         . Log.field "parse_error" e
     throwStd internalServerError
 
-deleteProperty :: UserId -> ConnId -> Public.PropertyKey -> Handler r ()
+deleteProperty :: (Member NotificationSubsystem r, Member Async r) => UserId -> ConnId -> Public.PropertyKey -> Handler r ()
 deleteProperty u c k = lift (API.deleteProperty u c k)
 
-clearProperties :: UserId -> ConnId -> Handler r ()
+clearProperties :: (Member NotificationSubsystem r, Member Async r) => UserId -> ConnId -> Handler r ()
 clearProperties u c = lift (API.clearProperties u c)
 
 getProperty :: UserId -> Public.PropertyKey -> Handler r (Maybe Public.RawPropertyValue)
@@ -555,7 +562,11 @@ getMultiUserPrekeyBundleH zusr qualUserClients = do
   API.claimMultiPrekeyBundles (ProtectedUser zusr) qualUserClients !>> clientError
 
 addClient ::
-  (Member GalleyProvider r) =>
+  ( Member GalleyProvider r,
+    Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member Async r
+  ) =>
   UserId ->
   ConnId ->
   Public.NewClient ->
@@ -674,7 +685,11 @@ createAccessToken method luid cid proof = do
 createUser ::
   ( Member BlacklistStore r,
     Member GalleyProvider r,
-    Member (UserPendingActivationStore p) r
+    Member (UserPendingActivationStore p) r,
+    Member TinyLog r,
+    Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member Async r
   ) =>
   Public.NewUserPublic ->
   (Handler r) (Either Public.RegisterError Public.RegisterSuccess)
@@ -862,7 +877,16 @@ newtype GetActivationCodeResp
 instance ToJSON GetActivationCodeResp where
   toJSON (GetActivationCodeResp (k, c)) = object ["key" .= k, "code" .= c]
 
-updateUser :: Member GalleyProvider r => UserId -> ConnId -> Public.UserUpdate -> (Handler r) (Maybe Public.UpdateProfileError)
+updateUser ::
+  ( Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member Async r,
+    Member GalleyProvider r
+  ) =>
+  UserId ->
+  ConnId ->
+  Public.UserUpdate ->
+  (Handler r) (Maybe Public.UpdateProfileError)
 updateUser uid conn uu = do
   eithErr <- lift $ runExceptT $ API.updateUser uid (Just conn) uu API.ForbidSCIMUpdates
   pure $ either Just (const Nothing) eithErr
@@ -881,11 +905,25 @@ changePhone u _ (Public.puPhone -> phone) = lift . exceptTToMaybe $ do
   let apair = (activationKey adata, activationCode adata)
   lift . wrapClient $ sendActivationSms pn apair loc
 
-removePhone :: UserId -> ConnId -> (Handler r) (Maybe Public.RemoveIdentityError)
+removePhone ::
+  ( Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member Async r
+  ) =>
+  UserId ->
+  ConnId ->
+  (Handler r) (Maybe Public.RemoveIdentityError)
 removePhone self conn =
   lift . exceptTToMaybe $ API.removePhone self conn
 
-removeEmail :: UserId -> ConnId -> (Handler r) (Maybe Public.RemoveIdentityError)
+removeEmail ::
+  ( Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member Async r
+  ) =>
+  UserId ->
+  ConnId ->
+  (Handler r) (Maybe Public.RemoveIdentityError)
 removeEmail self conn =
   lift . exceptTToMaybe $ API.removeEmail self conn
 
@@ -895,10 +933,26 @@ checkPasswordExists = fmap isJust . lift . wrapClient . API.lookupPassword
 changePassword :: UserId -> Public.PasswordChange -> (Handler r) (Maybe Public.ChangePasswordError)
 changePassword u cp = lift . exceptTToMaybe $ API.changePassword u cp
 
-changeLocale :: UserId -> ConnId -> Public.LocaleUpdate -> (Handler r) ()
+changeLocale ::
+  ( Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member Async r
+  ) =>
+  UserId ->
+  ConnId ->
+  Public.LocaleUpdate ->
+  (Handler r) ()
 changeLocale u conn l = lift $ API.changeLocale u conn l
 
-changeSupportedProtocols :: Local UserId -> ConnId -> Public.SupportedProtocolUpdate -> Handler r ()
+changeSupportedProtocols ::
+  ( Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member Async r
+  ) =>
+  Local UserId ->
+  ConnId ->
+  Public.SupportedProtocolUpdate ->
+  Handler r ()
 changeSupportedProtocols (tUnqualified -> u) conn (Public.SupportedProtocolUpdate prots) =
   lift $ API.changeSupportedProtocols u conn prots
 
@@ -933,13 +987,22 @@ getHandleInfoUnqualifiedH self handle = do
   Public.UserHandleInfo . Public.profileQualifiedId
     <$$> Handle.getHandleInfo self (Qualified handle domain)
 
-changeHandle :: Member GalleyProvider r => UserId -> ConnId -> Public.HandleUpdate -> (Handler r) (Maybe Public.ChangeHandleError)
+changeHandle ::
+  ( Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member Async r,
+    Member GalleyProvider r
+  ) =>
+  UserId ->
+  ConnId ->
+  Public.HandleUpdate ->
+  (Handler r) (Maybe Public.ChangeHandleError)
 changeHandle u conn (Public.HandleUpdate h) = lift . exceptTToMaybe $ do
   handle <- maybe (throwError Public.ChangeHandleInvalid) pure $ parseHandle h
   API.changeHandle u (Just conn) handle API.ForbidSCIMUpdates
 
 beginPasswordReset ::
-  Member PasswordResetStore r =>
+  (Member PasswordResetStore r, Member TinyLog r) =>
   Public.NewPasswordReset ->
   (Handler r) ()
 beginPasswordReset (Public.NewPasswordReset target) = do
@@ -952,7 +1015,8 @@ beginPasswordReset (Public.NewPasswordReset target) = do
 
 completePasswordReset ::
   ( Member CodeStore r,
-    Member PasswordResetStore r
+    Member PasswordResetStore r,
+    Member TinyLog r
   ) =>
   Public.CompletePasswordReset ->
   (Handler r) ()
@@ -990,7 +1054,10 @@ customerExtensionCheckBlockedDomains email = do
             customerExtensionBlockedDomain domain
 
 createConnectionUnqualified ::
-  (Member GalleyProvider r) =>
+  ( Member GalleyProvider r,
+    Member NotificationSubsystem r,
+    Member Async r
+  ) =>
   UserId ->
   ConnId ->
   Public.ConnectionRequest ->
@@ -1002,7 +1069,9 @@ createConnectionUnqualified self conn cr = do
 
 createConnection ::
   ( Member FederationConfigStore r,
-    Member GalleyProvider r
+    Member GalleyProvider r,
+    Member NotificationSubsystem r,
+    Member Async r
   ) =>
   UserId ->
   ConnId ->
@@ -1013,6 +1082,9 @@ createConnection self conn target = do
   API.createConnection lself conn target !>> connError
 
 updateLocalConnection ::
+  ( Member NotificationSubsystem r,
+    Member Async r
+  ) =>
   UserId ->
   ConnId ->
   UserId ->
@@ -1025,7 +1097,10 @@ updateLocalConnection self conn other (Public.cuStatus -> newStatus) = do
     <$> API.updateConnectionToLocalUser lself lother newStatus (Just conn) !>> connError
 
 updateConnection ::
-  Member FederationConfigStore r =>
+  ( Member FederationConfigStore r,
+    Member NotificationSubsystem r,
+    Member Async r
+  ) =>
   UserId ->
   ConnId ->
   Qualified UserId ->
@@ -1095,14 +1170,26 @@ getConnection self other = do
   lift . wrapClient $ Data.lookupConnection lself other
 
 deleteSelfUser ::
-  (Member GalleyProvider r) =>
+  ( Member GalleyProvider r,
+    Member TinyLog r,
+    Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member Async r
+  ) =>
   UserId ->
   Public.DeleteUser ->
   (Handler r) (Maybe Code.Timeout)
 deleteSelfUser u body = do
   API.deleteSelfUser u (Public.deleteUserPassword body) !>> deleteUserError
 
-verifyDeleteUser :: Public.VerifyDeleteUser -> Handler r ()
+verifyDeleteUser ::
+  ( Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member Async r,
+    Member TinyLog r
+  ) =>
+  Public.VerifyDeleteUser ->
+  Handler r ()
 verifyDeleteUser body = API.verifyDeleteUser body !>> deleteUserError
 
 updateUserEmail ::
@@ -1137,7 +1224,12 @@ updateUserEmail zuserId emailOwnerId (Public.EmailUpdate email) = do
 -- activation
 
 activate ::
-  (Member GalleyProvider r) =>
+  ( Member GalleyProvider r,
+    Member TinyLog r,
+    Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member Async r
+  ) =>
   Public.ActivationKey ->
   Public.ActivationCode ->
   (Handler r) ActivationRespWithStatus
@@ -1147,7 +1239,12 @@ activate k c = do
 
 -- docs/reference/user/activation.md {#RefActivationSubmit}
 activateKey ::
-  (Member GalleyProvider r) =>
+  ( Member GalleyProvider r,
+    Member TinyLog r,
+    Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member Async r
+  ) =>
   Public.Activate ->
   (Handler r) ActivationRespWithStatus
 activateKey (Public.Activate tgt code dryrun)
@@ -1226,7 +1323,8 @@ deprecatedOnboarding _ _ = pure DeprecatedMatchingResult
 
 deprecatedCompletePasswordReset ::
   ( Member CodeStore r,
-    Member PasswordResetStore r
+    Member PasswordResetStore r,
+    Member TinyLog r
   ) =>
   Public.PasswordResetKey ->
   Public.PasswordReset ->

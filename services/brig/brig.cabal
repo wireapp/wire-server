@@ -314,7 +314,9 @@ library
     , openapi3
     , optparse-applicative       >=0.11
     , polysemy
+    , polysemy-conc
     , polysemy-plugin
+    , polysemy-time
     , polysemy-wire-zoo
     , proto-lens                 >=0.1
     , random-shuffle             >=0.0.3
@@ -362,6 +364,7 @@ library
     , wai-utilities              >=0.16
     , wire-api
     , wire-api-federation
+    , wire-subsystems
     , yaml                       >=0.8.22
     , zauth                      >=0.10.3
 

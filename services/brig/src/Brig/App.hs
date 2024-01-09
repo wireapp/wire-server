@@ -36,6 +36,7 @@ module Brig.App
     cargohold,
     galley,
     gundeck,
+    gundeckEndpoint,
     federator,
     casClient,
     userTemplates,
@@ -80,6 +81,7 @@ module Brig.App
     wrapHttpClientE,
     wrapHttp,
     HttpClientIO (..),
+    runHttpClientIO,
     liftSem,
     lowerAppT,
     temporaryGetEnv,
@@ -159,6 +161,7 @@ data Env = Env
   { _cargohold :: RPC.Request,
     _galley :: RPC.Request,
     _gundeck :: RPC.Request,
+    _gundeckEndpoint :: Endpoint,
     _federator :: Maybe Endpoint, -- FUTUREWORK: should we use a better type here? E.g. to avoid fresh connections all the time?
     _casClient :: Cas.ClientState,
     _smtpEnv :: Maybe SMTP.SMTP,
@@ -258,6 +261,7 @@ newEnv o = do
       { _cargohold = mkEndpoint $ Opt.cargohold o,
         _galley = mkEndpoint $ Opt.galley o,
         _gundeck = mkEndpoint $ Opt.gundeck o,
+        _gundeckEndpoint = Opt.gundeck o,
         _federator = Opt.federatorInternal o,
         _casClient = cas,
         _smtpEnv = emailSMTP,
@@ -525,14 +529,12 @@ wrapClientM = mapMaybeT wrapClient
 wrapHttp ::
   HttpClientIO a ->
   AppT r a
-wrapHttp (HttpClientIO m) = do
-  c <- view casClient
+wrapHttp action = do
   env <- ask
-  manager <- view httpManager
-  liftIO . runClient c . runHttpT manager $ runReaderT m env
+  runHttpClientIO env action
 
 newtype HttpClientIO a = HttpClientIO
-  { runHttpClientIO :: ReaderT Env (HttpT Cas.Client) a
+  { unHttpClientIO :: ReaderT Env (HttpT Cas.Client) a
   }
   deriving newtype
     ( Functor,
@@ -548,6 +550,13 @@ newtype HttpClientIO a = HttpClientIO
       MonadUnliftIO,
       MonadIndexIO
     )
+
+runHttpClientIO :: MonadIO m => Env -> HttpClientIO a -> m a
+runHttpClientIO env =
+  runClient (env ^. casClient)
+    . runHttpT (env ^. httpManager)
+    . flip runReaderT env
+    . unHttpClientIO
 
 instance MonadZAuth HttpClientIO where
   liftZAuth za = view zauthEnv >>= flip runZAuth za

@@ -76,11 +76,12 @@ import Imports hiding (head)
 import Network.Wai.Routing hiding (toList)
 import Network.Wai.Utilities as Utilities
 import Polysemy
+import Polysemy.Async
+import Polysemy.TinyLog (TinyLog)
 import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.OpenApi.Internal.Orphans ()
 import System.Logger.Class qualified as Log
-import System.Logger.Message as Log
-import UnliftIO.Async
+import UnliftIO.Async (pooledMapConcurrentlyN)
 import Wire.API.Connection
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
@@ -96,6 +97,8 @@ import Wire.API.User
 import Wire.API.User.Activation
 import Wire.API.User.Client
 import Wire.API.User.RichInfo
+import Wire.NotificationSubsystem
+import Wire.Sem.Concurrency
 
 ---------------------------------------------------------------------------
 -- Sitemap (servant)
@@ -108,7 +111,12 @@ servantSitemap ::
     Member PasswordResetStore r,
     Member GalleyProvider r,
     Member (UserPendingActivationStore p) r,
-    Member FederationConfigStore r
+    Member FederationConfigStore r,
+    Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member Async r,
+    Member TinyLog r,
+    Member (Concurrency 'Unsafe) r
   ) =>
   ServerT BrigIRoutes.API (Handler r)
 servantSitemap =
@@ -148,7 +156,11 @@ accountAPI ::
     Member BlacklistPhonePrefixStore r,
     Member PasswordResetStore r,
     Member GalleyProvider r,
-    Member (UserPendingActivationStore p) r
+    Member (UserPendingActivationStore p) r,
+    Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member Async r,
+    Member TinyLog r
   ) =>
   ServerT BrigIRoutes.AccountAPI (Handler r)
 accountAPI =
@@ -188,7 +200,12 @@ accountAPI =
 teamsAPI ::
   ( Member GalleyProvider r,
     Member (UserPendingActivationStore p) r,
-    Member BlacklistStore r
+    Member BlacklistStore r,
+    Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member Async r,
+    Member (Concurrency 'Unsafe) r,
+    Member TinyLog r
   ) =>
   ServerT BrigIRoutes.TeamsAPI (Handler r)
 teamsAPI =
@@ -209,7 +226,14 @@ userAPI =
 clientAPI :: ServerT BrigIRoutes.ClientAPI (Handler r)
 clientAPI = Named @"update-client-last-active" updateClientLastActive
 
-authAPI :: (Member GalleyProvider r) => ServerT BrigIRoutes.AuthAPI (Handler r)
+authAPI ::
+  ( Member GalleyProvider r,
+    Member TinyLog r,
+    Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member Async r
+  ) =>
+  ServerT BrigIRoutes.AuthAPI (Handler r)
 authAPI =
   Named @"legalhold-login" (callsFed (exposeAnnotations legalHoldLogin))
     :<|> Named @"sso-login" (callsFed (exposeAnnotations ssoLogin))
@@ -304,7 +328,7 @@ getMLSClients usr suite = do
   lusr <- qualifyLocal usr
   suiteTag <- maybe (mlsProtocolError "Unknown ciphersuite") pure (cipherSuiteTag suite)
   allClients <- lift (wrapClient (API.lookupUsersClientIds (pure usr))) >>= getResult
-  clientInfo <- lift . wrapClient $ pooledMapConcurrentlyN 16 (\c -> getValidity lusr c suiteTag) (toList allClients)
+  clientInfo <- lift . wrapClient $ UnliftIO.Async.pooledMapConcurrentlyN 16 (\c -> getValidity lusr c suiteTag) (toList allClients)
   pure . Set.fromList . map (uncurry ClientInfo) $ clientInfo
   where
     getResult [] = pure mempty
@@ -348,7 +372,11 @@ sitemap = unsafeCallsFed @'Brig @"on-user-deleted-connections" $ do
 
 -- | Add a client without authentication checks
 addClientInternalH ::
-  (Member GalleyProvider r) =>
+  ( Member GalleyProvider r,
+    Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member Async r
+  ) =>
   UserId ->
   Maybe Bool ->
   NewClient ->
@@ -360,11 +388,24 @@ addClientInternalH usr mSkipReAuth new connId = do
         | otherwise = Data.reAuthForNewClients
   API.addClientWithReAuthPolicy policy usr connId new !>> clientError
 
-legalHoldClientRequestedH :: UserId -> LegalHoldClientRequest -> (Handler r) NoContent
+legalHoldClientRequestedH ::
+  ( Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member Async r
+  ) =>
+  UserId ->
+  LegalHoldClientRequest ->
+  (Handler r) NoContent
 legalHoldClientRequestedH targetUser clientRequest = do
   lift $ NoContent <$ API.legalHoldClientRequested targetUser clientRequest
 
-removeLegalHoldClientH :: UserId -> (Handler r) NoContent
+removeLegalHoldClientH ::
+  ( Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member Async r
+  ) =>
+  UserId ->
+  (Handler r) NoContent
 removeLegalHoldClientH uid = do
   lift $ NoContent <$ API.removeLegalHoldClient uid
 
@@ -380,7 +421,11 @@ internalListFullClientsH (UserSet usrs) = lift $ do
 createUserNoVerify ::
   ( Member BlacklistStore r,
     Member GalleyProvider r,
-    Member (UserPendingActivationStore p) r
+    Member (UserPendingActivationStore p) r,
+    Member TinyLog r,
+    Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member Async r
   ) =>
   NewUser ->
   (Handler r) (Either RegisterError SelfProfile)
@@ -398,7 +443,12 @@ createUserNoVerify uData = lift . runExceptT $ do
   pure . SelfProfile $ usr
 
 createUserNoVerifySpar ::
-  (Member GalleyProvider r) =>
+  ( Member GalleyProvider r,
+    Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member Async r,
+    Member TinyLog r
+  ) =>
   NewUserSpar ->
   (Handler r) (Either CreateUserSparError SelfProfile)
 createUserNoVerifySpar uData =
@@ -415,9 +465,16 @@ createUserNoVerifySpar uData =
        in API.activate key code (Just uid) !>> CreateUserSparRegistrationError . activationErrorToRegisterError
     pure . SelfProfile $ usr
 
-deleteUserNoAuthH :: UserId -> (Handler r) DeleteUserResponse
+deleteUserNoAuthH ::
+  ( Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member Async r,
+    Member TinyLog r
+  ) =>
+  UserId ->
+  (Handler r) DeleteUserResponse
 deleteUserNoAuthH uid = do
-  r <- lift $ wrapHttp $ API.ensureAccountDeleted uid
+  r <- lift $ API.ensureAccountDeleted uid
   case r of
     NoUser -> throwStd (errorToWai @'E.UserNotFound)
     AccountAlreadyDeleted -> pure UserResponseAccountAlreadyDeleted
@@ -525,10 +582,17 @@ getPasswordResetCode ::
 getPasswordResetCode emailOrPhone =
   (GetPasswordResetCodeResp <$$> lift (API.lookupPasswordResetCode emailOrPhone)) >>= maybe (throwStd (errorToWai @'E.InvalidPasswordResetKey)) pure
 
-changeAccountStatusH :: UserId -> AccountStatusUpdate -> (Handler r) NoContent
+changeAccountStatusH ::
+  ( Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member Async r
+  ) =>
+  UserId ->
+  AccountStatusUpdate ->
+  (Handler r) NoContent
 changeAccountStatusH usr (suStatus -> status) = do
-  Log.info $ (Log.msg (Log.val "Change Account Status")) ~~ Log.field "usr" (toByteString usr) ~~ Log.field "status" (show status)
-  wrapHttpClientE (API.changeSingleAccountStatus usr status) !>> accountStatusError -- FUTUREWORK: use CanThrow and related machinery
+  Log.info $ (Log.msg (Log.val "Change Account Status")) . Log.field "usr" (toByteString usr) . Log.field "status" (show status)
+  API.changeSingleAccountStatus usr status !>> accountStatusError -- FUTUREWORK: use CanThrow and related machinery
   pure NoContent
 
 getAccountStatusH :: UserId -> (Handler r) AccountStatusResp
@@ -563,12 +627,24 @@ getConnectionsStatus (ConnectionsStatusRequestV2 froms mtos mrel) = do
   where
     filterByRelation l rel = filter ((== rel) . csv2Status) l
 
-revokeIdentityH :: Maybe Email -> Maybe Phone -> (Handler r) NoContent
+revokeIdentityH ::
+  ( Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member Async r
+  ) =>
+  Maybe Email ->
+  Maybe Phone ->
+  (Handler r) NoContent
 revokeIdentityH (Just email) Nothing = lift $ NoContent <$ API.revokeIdentity (Left email)
 revokeIdentityH Nothing (Just phone) = lift $ NoContent <$ API.revokeIdentity (Right phone)
 revokeIdentityH bade badp = throwStd (badRequest ("need exactly one of email, phone: " <> Imports.cs (show (bade, badp))))
 
-updateConnectionInternalH :: UpdateConnectionsInternal -> (Handler r) NoContent
+updateConnectionInternalH ::
+  ( Member NotificationSubsystem r,
+    Member Async r
+  ) =>
+  UpdateConnectionsInternal ->
+  (Handler r) NoContent
 updateConnectionInternalH updateConn = do
   API.updateConnectionInternal updateConn !>> connError
   pure NoContent
@@ -613,21 +689,34 @@ deleteFromPhonePrefixH prefix = lift $ NoContent <$ API.phonePrefixDelete prefix
 addPhonePrefixH :: Member BlacklistPhonePrefixStore r => ExcludedPrefix -> (Handler r) NoContent
 addPhonePrefixH prefix = lift $ NoContent <$ API.phonePrefixInsert prefix
 
-updateSSOIdH :: UserId -> UserSSOId -> (Handler r) UpdateSSOIdResponse
+updateSSOIdH ::
+  ( Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member Async r
+  ) =>
+  UserId ->
+  UserSSOId ->
+  (Handler r) UpdateSSOIdResponse
 updateSSOIdH uid ssoid = do
   success <- lift $ wrapClient $ Data.updateSSOId uid (Just ssoid)
   if success
     then do
-      lift $ wrapHttpClient $ Intra.onUserEvent uid Nothing (UserUpdated ((emptyUserUpdatedData uid) {eupSSOId = Just ssoid}))
+      lift $ liftSem $ Intra.onUserEvent uid Nothing (UserUpdated ((emptyUserUpdatedData uid) {eupSSOId = Just ssoid}))
       pure UpdateSSOIdSuccess
     else pure UpdateSSOIdNotFound
 
-deleteSSOIdH :: UserId -> (Handler r) UpdateSSOIdResponse
+deleteSSOIdH ::
+  ( Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member Async r
+  ) =>
+  UserId ->
+  (Handler r) UpdateSSOIdResponse
 deleteSSOIdH uid = do
   success <- lift $ wrapClient $ Data.updateSSOId uid Nothing
   if success
     then do
-      lift $ wrapHttpClient $ Intra.onUserEvent uid Nothing (UserUpdated ((emptyUserUpdatedData uid) {eupSSOIdRemoved = True}))
+      lift $ liftSem $ Intra.onUserEvent uid Nothing (UserUpdated ((emptyUserUpdatedData uid) {eupSSOIdRemoved = True}))
       pure UpdateSSOIdSuccess
     else pure UpdateSSOIdNotFound
 
@@ -680,13 +769,29 @@ getRichInfoMultiH :: Maybe (CommaSeparatedList UserId) -> (Handler r) [(UserId, 
 getRichInfoMultiH (maybe [] fromCommaSeparatedList -> uids) =
   lift $ wrapClient $ API.lookupRichInfoMultiUsers uids
 
-updateHandleH :: Member GalleyProvider r => UserId -> HandleUpdate -> (Handler r) NoContent
+updateHandleH ::
+  ( Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member Async r,
+    Member GalleyProvider r
+  ) =>
+  UserId ->
+  HandleUpdate ->
+  (Handler r) NoContent
 updateHandleH uid (HandleUpdate handleUpd) =
   NoContent <$ do
     handle <- validateHandle handleUpd
     API.changeHandle uid Nothing handle API.AllowSCIMUpdates !>> changeHandleError
 
-updateUserNameH :: Member GalleyProvider r => UserId -> NameUpdate -> (Handler r) NoContent
+updateUserNameH ::
+  ( Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member Async r,
+    Member GalleyProvider r
+  ) =>
+  UserId ->
+  NameUpdate ->
+  (Handler r) NoContent
 updateUserNameH uid (NameUpdate nameUpd) =
   NoContent <$ do
     name <- either (const $ throwStd (errorToWai @'E.InvalidUser)) pure $ mkName nameUpd

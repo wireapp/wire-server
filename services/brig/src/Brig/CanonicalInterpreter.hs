@@ -28,10 +28,17 @@ import Control.Lens ((^.))
 import Control.Monad.Catch (throwM)
 import Imports
 import Polysemy (Embed, Final, embedToFinal, runFinal)
+import Polysemy.Async
+import Polysemy.Conc
+import Polysemy.Embed (runEmbedded)
 import Polysemy.Error (Error, mapError, runError)
 import Polysemy.TinyLog (TinyLog)
+import Wire.GundeckAPIAccess hiding (httpManager)
+import Wire.NotificationSubsystem
+import Wire.NotificationSubsystem.Interpreter
 import Wire.Sem.Concurrency
 import Wire.Sem.Concurrency.IO
+import Wire.Sem.Delay
 import Wire.Sem.Jwk
 import Wire.Sem.Logger.TinyLog (loggerToTinyLog)
 import Wire.Sem.Now (Now)
@@ -39,7 +46,9 @@ import Wire.Sem.Now.IO (nowToIOAction)
 import Wire.Sem.Paging.Cassandra (InternalPaging)
 
 type BrigCanonicalEffects =
-  '[ FederationConfigStore,
+  '[ NotificationSubsystem,
+     GundeckAPIAccess,
+     FederationConfigStore,
      Jwk,
      PublicKeyBundle,
      JwtTools,
@@ -48,6 +57,7 @@ type BrigCanonicalEffects =
      PasswordResetStore,
      UserPendingActivationStore InternalPaging,
      Now,
+     Delay,
      CodeStore,
      GalleyProvider,
      ServiceRPC 'Galley,
@@ -56,7 +66,10 @@ type BrigCanonicalEffects =
      Error ParseException,
      Error SomeException,
      TinyLog,
+     Embed HttpClientIO,
      Embed IO,
+     Race,
+     Async,
      Concurrency 'Unsafe,
      Final IO
    ]
@@ -66,7 +79,10 @@ runBrigToIO e (AppT ma) = do
   ( either throwM pure
       <=< ( runFinal
               . unsafelyPerformConcurrency
+              . asyncToIOFinal
+              . interpretRace
               . embedToFinal
+              . runEmbedded (runHttpClientIO e)
               . loggerToTinyLog (e ^. applog)
               . runError @SomeException
               . mapError @ParseException SomeException
@@ -75,6 +91,7 @@ runBrigToIO e (AppT ma) = do
               . interpretServiceRpcToRpc @'Galley "galley" (e ^. galley)
               . interpretGalleyProviderToRPC (e ^. disabledVersions)
               . codeStoreToCassandra @Cas.Client
+              . runDelay
               . nowToIOAction (e ^. currentTime)
               . userPendingActivationStoreToCassandra
               . passwordResetStoreToCodeStore
@@ -84,6 +101,8 @@ runBrigToIO e (AppT ma) = do
               . interpretPublicKeyBundle
               . interpretJwk
               . interpretFederationDomainConfig (e ^. settings . federationStrategy) (foldMap (remotesMapFromCfgFile . fmap (.federationDomainConfig)) (e ^. settings . federationDomainConfigs))
+              . runGundeckAPIAccess (GundeckAccessDetails (e ^. gundeckEndpoint) (e ^. httpManager))
+              . runNotificationSubsystemGundeck defaultNotificationSubsystemConfig
           )
     )
     $ runReaderT ma e

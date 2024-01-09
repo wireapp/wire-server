@@ -60,15 +60,13 @@ import Brig.Federation.Client (notifyUserDeleted)
 import Brig.IO.Journal qualified as Journal
 import Brig.RPC
 import Brig.Types.User.Event
-import Brig.User.Search.Index (MonadIndexIO)
 import Brig.User.Search.Index qualified as Search
 import Cassandra (MonadClient)
 import Conduit (runConduit, (.|))
 import Control.Error (ExceptT)
-import Control.Error.Util
 import Control.Lens (view, (.~), (?~), (^.), (^?))
 import Control.Monad.Catch
-import Control.Monad.Trans.Except (runExceptT, throwE)
+import Control.Monad.Trans.Except (throwE)
 import Control.Retry
 import Data.Aeson hiding (json)
 import Data.Aeson.KeyMap qualified as KeyMap
@@ -78,22 +76,22 @@ import Data.ByteString.Lazy qualified as BL
 import Data.Conduit.List qualified as C
 import Data.Id
 import Data.Json.Util ((#))
-import Data.List.Split (chunksOf)
-import Data.List1 (List1, list1, singleton)
+import Data.List.NonEmpty (NonEmpty (..))
+import Data.List1 (List1, singleton)
 import Data.Proxy
 import Data.Qualified
 import Data.Range
-import Data.Set qualified as Set
 import GHC.TypeLits
-import Gundeck.Types.Push.V2
-import Gundeck.Types.Push.V2 qualified as Push
+import Gundeck.Types.Push.V2 (RecipientClients (RecipientClientsAll))
+import Gundeck.Types.Push.V2 qualified as V2
 import Imports
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
+import Polysemy
+import Polysemy.Async
 import System.Logger.Class as Log hiding (name, (.=))
-import System.Logger.Extended qualified as ExLog
 import Wire.API.Connection
-import Wire.API.Conversation
+import Wire.API.Conversation hiding (Member)
 import Wire.API.Event.Conversation (Connect (Connect))
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.Error
@@ -104,95 +102,85 @@ import Wire.API.Team.LegalHold (LegalholdProtectee)
 import Wire.API.Team.Member qualified as Team
 import Wire.API.User
 import Wire.API.User.Client
+import Wire.NotificationSubsystem
 
 -----------------------------------------------------------------------------
 -- Event Handlers
 
 onUserEvent ::
-  ( MonadLogger m,
-    MonadIndexIO m,
-    MonadReader Env m,
-    MonadMask m,
-    MonadHttp m,
-    HasRequestId m,
-    MonadUnliftIO m,
-    MonadClient m
+  ( Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member Async r
   ) =>
   UserId ->
   Maybe ConnId ->
   UserEvent ->
-  m ()
+  Sem r ()
 onUserEvent orig conn e =
   updateSearchIndex orig e
     *> dispatchNotifications orig conn e
-    *> journalEvent orig e
+    *> embed (journalEvent orig e)
 
 onConnectionEvent ::
+  ( Member NotificationSubsystem r,
+    Member Async r
+  ) =>
   -- | Originator of the event.
   UserId ->
   -- | Client connection ID, if any.
   Maybe ConnId ->
   -- | The event.
   ConnectionEvent ->
-  (AppT r) ()
+  Sem r ()
 onConnectionEvent orig conn evt = do
   let from = ucFrom (ucConn evt)
-  wrapHttp $
-    notify
-      (singleton $ ConnectionEvent evt)
-      orig
-      Push.RouteAny
-      conn
-      (pure $ list1 from [])
+  notify
+    (singleton $ ConnectionEvent evt)
+    orig
+    V2.RouteAny
+    conn
+    (pure $ from :| [])
 
 onPropertyEvent ::
+  (Member NotificationSubsystem r, Member Async r) =>
   -- | Originator of the event.
   UserId ->
   -- | Client connection ID.
   ConnId ->
   PropertyEvent ->
-  (AppT r) ()
+  Sem r ()
 onPropertyEvent orig conn e =
-  wrapHttp $
-    notify
-      (singleton $ PropertyEvent e)
-      orig
-      Push.RouteDirect
-      (Just conn)
-      (pure $ list1 orig [])
+  notify
+    (singleton $ PropertyEvent e)
+    orig
+    V2.RouteDirect
+    (Just conn)
+    (pure $ orig :| [])
 
 onClientEvent ::
-  ( MonadIO m,
-    Log.MonadLogger m,
-    MonadReader Env m,
-    MonadMask m,
-    MonadHttp m,
-    HasRequestId m
-  ) =>
+  (Member NotificationSubsystem r) =>
   -- | Originator of the event.
   UserId ->
   -- | Client connection ID.
   Maybe ConnId ->
   -- | The event.
   ClientEvent ->
-  m ()
+  Sem r ()
 onClientEvent orig conn e = do
-  let events = singleton (ClientEvent e)
-  let rcps = list1 orig []
-  -- Synchronous push for better delivery guarantees of these
-  -- events and to make sure new clients have a first notification
-  -- in the stream.
-  push events rcps orig Push.RouteAny conn
+  let event = ClientEvent e
+  let rcps = Recipient orig V2.RecipientClientsAll :| []
+  pushNotifications
+    [ newPush1 (Just orig) (toPushFormat event) rcps
+        & pushConn .~ conn
+        & pushApsData .~ toApsData event
+    ]
 
 updateSearchIndex ::
-  ( MonadClient m,
-    MonadLogger m,
-    MonadIndexIO m
-  ) =>
+  Member (Embed HttpClientIO) r =>
   UserId ->
   UserEvent ->
-  m ()
-updateSearchIndex orig e = case e of
+  Sem r ()
+updateSearchIndex orig e = embed $ case e of
   -- no-ops
   UserCreated {} -> pure ()
   UserIdentityUpdated UserIdentityUpdatedData {..} -> do
@@ -240,56 +228,48 @@ journalEvent orig e = case e of
 -- as well as his other clients about a change to his user account
 -- or profile.
 dispatchNotifications ::
-  ( Log.MonadLogger m,
-    MonadReader Env m,
-    MonadMask m,
-    MonadHttp m,
-    HasRequestId m,
-    MonadUnliftIO m,
-    MonadClient m
+  ( Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member Async r
   ) =>
   UserId ->
   Maybe ConnId ->
   UserEvent ->
-  m ()
+  Sem r ()
 dispatchNotifications orig conn e = case e of
   UserCreated {} -> pure ()
   UserSuspended {} -> pure ()
   UserResumed {} -> pure ()
-  LegalHoldClientRequested {} -> notifyContacts event orig Push.RouteAny conn
-  UserLegalHoldDisabled {} -> notifyContacts event orig Push.RouteAny conn
-  UserLegalHoldEnabled {} -> notifyContacts event orig Push.RouteAny conn
+  LegalHoldClientRequested {} -> notifyContacts event orig V2.RouteAny conn
+  UserLegalHoldDisabled {} -> notifyContacts event orig V2.RouteAny conn
+  UserLegalHoldEnabled {} -> notifyContacts event orig V2.RouteAny conn
   UserUpdated UserUpdatedData {..}
     -- This relies on the fact that we never change the locale AND something else.
-    | isJust eupLocale -> notifySelf event orig Push.RouteDirect conn
-    | otherwise -> notifyContacts event orig Push.RouteDirect conn
-  UserActivated {} -> notifySelf event orig Push.RouteAny conn
-  UserIdentityUpdated {} -> notifySelf event orig Push.RouteDirect conn
-  UserIdentityRemoved {} -> notifySelf event orig Push.RouteDirect conn
+    | isJust eupLocale -> notifySelf event orig V2.RouteDirect conn
+    | otherwise -> notifyContacts event orig V2.RouteDirect conn
+  UserActivated {} -> notifySelf event orig V2.RouteAny conn
+  UserIdentityUpdated {} -> notifySelf event orig V2.RouteDirect conn
+  UserIdentityRemoved {} -> notifySelf event orig V2.RouteDirect conn
   UserDeleted {} -> do
     -- n.b. Synchronously fetch the contact list on the current thread.
     -- If done asynchronously, the connections may already have been deleted.
     notifyUserDeletionLocals orig conn event
-    notifyUserDeletionRemotes orig
+    embed $ notifyUserDeletionRemotes orig
   where
     event = singleton $ UserEvent e
 
 notifyUserDeletionLocals ::
-  ( Log.MonadLogger m,
-    MonadReader Env m,
-    MonadMask m,
-    MonadHttp m,
-    HasRequestId m,
-    MonadUnliftIO m,
-    MonadClient m
+  ( Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member Async r
   ) =>
   UserId ->
   Maybe ConnId ->
   List1 Event ->
-  m ()
+  Sem r ()
 notifyUserDeletionLocals deleted conn event = do
-  recipients <- list1 deleted <$> lookupContactList deleted
-  notify event deleted Push.RouteDirect conn (pure recipients)
+  recipients <- (:|) deleted <$> embed (lookupContactList deleted)
+  notify event deleted V2.RouteDirect conn (pure recipients)
 
 notifyUserDeletionRemotes ::
   forall m.
@@ -319,176 +299,66 @@ notifyUserDeletionRemotes deleted = do
           luidDeleted <- qualifyLocal deleted
           notifyUserDeleted luidDeleted (qualifyAs uids rangedUids)
 
--- | Push events to other users.
-push ::
-  ( MonadIO m,
-    Log.MonadLogger m,
-    MonadReader Env m,
-    MonadMask m,
-    MonadHttp m,
-    HasRequestId m
-  ) =>
-  -- | The events to push.
-  List1 Event ->
-  -- | The users to push to.
-  List1 UserId ->
-  -- | The originator of the events.
-  UserId ->
-  -- | The push routing strategy.
-  Push.Route ->
-  -- | The originating device connection.
-  Maybe ConnId ->
-  m ()
-push (toList -> events) usrs orig route conn =
-  case mapMaybe toPushData events of
-    [] -> pure ()
-    x : xs -> rawPush (list1 x xs) usrs orig route conn
-  where
-    toPushData :: Event -> Maybe (Builder, (Object, Maybe ApsData))
-    toPushData e = case toPushFormat e of
-      Just o -> Just (Log.bytes e, (o, toApsData e))
-      Nothing -> Nothing
-
--- | Push encoded events to other users. Useful if you want to push
--- something that's not defined in Brig.
-rawPush ::
-  ( MonadIO m,
-    Log.MonadLogger m,
-    MonadReader Env m,
-    MonadMask m,
-    MonadHttp m,
-    HasRequestId m
-  ) =>
-  -- | The events to push.
-  List1 (Builder, (Object, Maybe ApsData)) ->
-  -- | The users to push to.
-  List1 UserId ->
-  -- | The originator of the events.
-  UserId ->
-  -- | The push routing strategy.
-  Push.Route ->
-  -- | The originating device connection.
-  Maybe ConnId ->
-  m ()
--- TODO: if we decide to have service whitelist events in Brig instead of
--- Galley, let's merge 'push' and 'rawPush' back. See Note [whitelist events].
-rawPush (toList -> events) usrs orig route conn = do
-  for_ events $ \e -> debug $ remote "gundeck" . msg (fst e)
-  g <- view gundeck
-  forM_ recipients $ \rcps ->
-    void . recovering x3 rpcHandlers $
-      const $
-        rpc'
-          "gundeck"
-          g
-          ( method POST
-              . path "/i/push/v2"
-              . zUser orig -- FUTUREWORK: Remove, because gundeck handler ignores this.
-              . json (map (mkPush rcps . snd) events)
-              . expect2xx
-          )
-  where
-    recipients :: [Range 1 1024 (Set.Set Recipient)]
-    recipients =
-      map (unsafeRange . Set.fromList) $
-        chunksOf 512 $
-          map (`recipient` route) $
-            toList usrs
-    mkPush :: Range 1 1024 (Set.Set Recipient) -> (Object, Maybe ApsData) -> Push
-    mkPush rcps (o, aps) =
-      newPush
-        (Just orig)
-        rcps
-        (singletonPayload o)
-        & pushOriginConnection .~ conn
-        & pushNativeAps .~ aps
-
 -- | (Asynchronously) notifies other users of events.
 notify ::
-  ( Log.MonadLogger m,
-    MonadReader Env m,
-    MonadMask m,
-    MonadHttp m,
-    HasRequestId m,
-    MonadUnliftIO m
-  ) =>
+  (Member NotificationSubsystem r, Member Async r) =>
   List1 Event ->
   -- | Origin user, TODO: Delete
   UserId ->
   -- | Push routing strategy.
-  Push.Route ->
+  V2.Route ->
   -- | Origin device connection, if any.
   Maybe ConnId ->
   -- | Users to notify.
-  m (List1 UserId) ->
-  m ()
-notify events orig route conn recipients = fork (Just orig) $ do
-  rs <- recipients
-  push events rs orig route conn
-
-fork ::
-  (MonadUnliftIO m, MonadReader Env m) =>
-  Maybe UserId ->
-  m a ->
-  m ()
-fork u ma = do
-  g <- view applog
-  r <- view requestId
-  let logErr e = ExLog.err g $ request r ~~ user u ~~ msg (show e)
-  withRunInIO $ \lower ->
-    void . liftIO . forkIO $
-      either logErr (const $ pure ())
-        =<< runExceptT (syncIO $ lower ma)
-  where
-    request = field "request" . unRequestId
-    user = maybe id (field "user" . toByteString)
+  Sem r (NonEmpty UserId) ->
+  Sem r ()
+notify (toList -> events) orig route conn recipients =
+  -- TODO: This async doesn't log errors if the push fails. Make it do so.
+  void . async $ do
+    rs <- (\u -> Recipient u RecipientClientsAll) <$$> recipients
+    let pushes = flip map events $ \event ->
+          newPush1 (Just orig) (toPushFormat event) rs
+            & pushConn .~ conn
+            & pushRoute .~ route
+            & pushApsData .~ toApsData event
+    pushNotifications pushes
 
 notifySelf ::
-  ( Log.MonadLogger m,
-    MonadReader Env m,
-    MonadMask m,
-    MonadHttp m,
-    HasRequestId m,
-    MonadUnliftIO m
-  ) =>
+  (Member NotificationSubsystem r, Member Async r) =>
   List1 Event ->
   -- | Origin user.
   UserId ->
   -- | Push routing strategy.
-  Push.Route ->
+  V2.Route ->
   -- | Origin device connection, if any.
   Maybe ConnId ->
-  m ()
+  Sem r ()
 notifySelf events orig route conn =
-  notify events orig route conn (pure (singleton orig))
+  notify events orig route conn (pure (orig :| []))
 
 notifyContacts ::
-  forall m.
-  ( MonadReader Env m,
-    MonadMask m,
-    MonadHttp m,
-    HasRequestId m,
-    MonadLogger m,
-    MonadClient m,
-    MonadUnliftIO m
+  forall r.
+  ( Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member Async r
   ) =>
   List1 Event ->
   -- | Origin user.
   UserId ->
   -- | Push routing strategy.
-  Push.Route ->
+  V2.Route ->
   -- | Origin device connection, if any.
   Maybe ConnId ->
-  m ()
+  Sem r ()
 notifyContacts events orig route conn = do
   notify events orig route conn $
-    list1 orig <$> liftA2 (++) contacts teamContacts
+    (:|) orig <$> liftA2 (++) contacts teamContacts
   where
-    contacts :: m [UserId]
-    contacts = lookupContactList orig
+    contacts :: Sem r [UserId]
+    contacts = embed $ lookupContactList orig
 
-    teamContacts :: m [UserId]
-    teamContacts = screenMemberList <$> getTeamContacts orig
+    teamContacts :: Sem r [UserId]
+    teamContacts = embed $ screenMemberList <$> getTeamContacts orig
     -- If we have a truncated team, we just ignore it all together to avoid very large fanouts
     --
     screenMemberList :: Maybe Team.TeamMemberList -> [UserId]
@@ -499,144 +369,127 @@ notifyContacts events orig route conn = do
 
 -- Event Serialisation:
 
-toPushFormat :: Event -> Maybe Object
+toPushFormat :: Event -> Object
 toPushFormat (UserEvent (UserCreated u)) =
-  Just $
-    KeyMap.fromList
-      [ "type" .= ("user.new" :: Text),
-        "user" .= SelfProfile (u {userIdentity = Nothing})
-      ]
+  KeyMap.fromList
+    [ "type" .= ("user.new" :: Text),
+      "user" .= SelfProfile (u {userIdentity = Nothing})
+    ]
 toPushFormat (UserEvent (UserActivated u)) =
-  Just $
-    KeyMap.fromList
-      [ "type" .= ("user.activate" :: Text),
-        "user" .= SelfProfile u
-      ]
+  KeyMap.fromList
+    [ "type" .= ("user.activate" :: Text),
+      "user" .= SelfProfile u
+    ]
 toPushFormat (UserEvent (UserUpdated (UserUpdatedData i n pic acc ass hdl loc mb ssoId ssoIdDel prots))) =
-  Just $
-    KeyMap.fromList
-      [ "type" .= ("user.update" :: Text),
-        "user"
-          .= object
-            ( "id" .= i
-                # "name" .= n
-                # "picture" .= pic -- DEPRECATED
-                # "accent_id" .= acc
-                # "assets" .= ass
-                # "handle" .= hdl
-                # "locale" .= loc
-                # "managed_by" .= mb
-                # "sso_id" .= ssoId
-                # "sso_id_deleted" .= ssoIdDel
-                # "supported_protocols" .= prots
-                # []
-            )
-      ]
+  KeyMap.fromList
+    [ "type" .= ("user.update" :: Text),
+      "user"
+        .= object
+          ( "id" .= i
+              # "name" .= n
+              # "picture" .= pic -- DEPRECATED
+              # "accent_id" .= acc
+              # "assets" .= ass
+              # "handle" .= hdl
+              # "locale" .= loc
+              # "managed_by" .= mb
+              # "sso_id" .= ssoId
+              # "sso_id_deleted" .= ssoIdDel
+              # "supported_protocols" .= prots
+              # []
+          )
+    ]
 toPushFormat (UserEvent (UserIdentityUpdated UserIdentityUpdatedData {..})) =
-  Just $
-    KeyMap.fromList
-      [ "type" .= ("user.update" :: Text),
-        "user"
-          .= object
-            ( "id" .= eiuId
-                # "email" .= eiuEmail
-                # "phone" .= eiuPhone
-                # []
-            )
-      ]
+  KeyMap.fromList
+    [ "type" .= ("user.update" :: Text),
+      "user"
+        .= object
+          ( "id" .= eiuId
+              # "email" .= eiuEmail
+              # "phone" .= eiuPhone
+              # []
+          )
+    ]
 toPushFormat (UserEvent (UserIdentityRemoved (UserIdentityRemovedData i e p))) =
-  Just $
-    KeyMap.fromList
-      [ "type" .= ("user.identity-remove" :: Text),
-        "user"
-          .= object
-            ( "id" .= i
-                # "email" .= e
-                # "phone" .= p
-                # []
-            )
-      ]
+  KeyMap.fromList
+    [ "type" .= ("user.identity-remove" :: Text),
+      "user"
+        .= object
+          ( "id" .= i
+              # "email" .= e
+              # "phone" .= p
+              # []
+          )
+    ]
 toPushFormat (ConnectionEvent (ConnectionUpdated uc _ name)) =
-  Just $
-    KeyMap.fromList $
-      "type" .= ("user.connection" :: Text)
-        # "connection" .= uc
-        # "user" .= case name of
-          Just n -> Just $ object ["name" .= n]
-          Nothing -> Nothing
-        # []
+  KeyMap.fromList $
+    "type" .= ("user.connection" :: Text)
+      # "connection" .= uc
+      # "user" .= case name of
+        Just n -> Just $ object ["name" .= n]
+        Nothing -> Nothing
+      # []
 toPushFormat (UserEvent (UserSuspended i)) =
-  Just $
-    KeyMap.fromList
-      [ "type" .= ("user.suspend" :: Text),
-        "id" .= i
-      ]
+  KeyMap.fromList
+    [ "type" .= ("user.suspend" :: Text),
+      "id" .= i
+    ]
 toPushFormat (UserEvent (UserResumed i)) =
-  Just $
-    KeyMap.fromList
-      [ "type" .= ("user.resume" :: Text),
-        "id" .= i
-      ]
+  KeyMap.fromList
+    [ "type" .= ("user.resume" :: Text),
+      "id" .= i
+    ]
 toPushFormat (UserEvent (UserDeleted qid)) =
-  Just $
-    KeyMap.fromList
-      [ "type" .= ("user.delete" :: Text),
-        "id" .= qUnqualified qid,
-        "qualified_id" .= qid
-      ]
+  KeyMap.fromList
+    [ "type" .= ("user.delete" :: Text),
+      "id" .= qUnqualified qid,
+      "qualified_id" .= qid
+    ]
 toPushFormat (UserEvent (UserLegalHoldDisabled i)) =
-  Just $
-    KeyMap.fromList
-      [ "type" .= ("user.legalhold-disable" :: Text),
-        "id" .= i
-      ]
+  KeyMap.fromList
+    [ "type" .= ("user.legalhold-disable" :: Text),
+      "id" .= i
+    ]
 toPushFormat (UserEvent (UserLegalHoldEnabled i)) =
-  Just $
-    KeyMap.fromList
-      [ "type" .= ("user.legalhold-enable" :: Text),
-        "id" .= i
-      ]
+  KeyMap.fromList
+    [ "type" .= ("user.legalhold-enable" :: Text),
+      "id" .= i
+    ]
 toPushFormat (PropertyEvent (PropertySet _ k v)) =
-  Just $
-    KeyMap.fromList
-      [ "type" .= ("user.properties-set" :: Text),
-        "key" .= k,
-        "value" .= propertyValue v
-      ]
+  KeyMap.fromList
+    [ "type" .= ("user.properties-set" :: Text),
+      "key" .= k,
+      "value" .= propertyValue v
+    ]
 toPushFormat (PropertyEvent (PropertyDeleted _ k)) =
-  Just $
-    KeyMap.fromList
-      [ "type" .= ("user.properties-delete" :: Text),
-        "key" .= k
-      ]
+  KeyMap.fromList
+    [ "type" .= ("user.properties-delete" :: Text),
+      "key" .= k
+    ]
 toPushFormat (PropertyEvent (PropertiesCleared _)) =
-  Just $
-    KeyMap.fromList
-      [ "type" .= ("user.properties-clear" :: Text)
-      ]
+  KeyMap.fromList
+    [ "type" .= ("user.properties-clear" :: Text)
+    ]
 toPushFormat (ClientEvent (ClientAdded _ c)) =
-  Just $
-    KeyMap.fromList
-      [ "type" .= ("user.client-add" :: Text),
-        "client" .= c
-      ]
+  KeyMap.fromList
+    [ "type" .= ("user.client-add" :: Text),
+      "client" .= c
+    ]
 toPushFormat (ClientEvent (ClientRemoved _ clientId)) =
-  Just $
-    KeyMap.fromList
-      [ "type" .= ("user.client-remove" :: Text),
-        "client" .= IdObject clientId
-      ]
+  KeyMap.fromList
+    [ "type" .= ("user.client-remove" :: Text),
+      "client" .= IdObject clientId
+    ]
 toPushFormat (UserEvent (LegalHoldClientRequested payload)) =
   let LegalHoldClientRequestedData targetUser lastPrekey' clientId = payload
-   in Just $
-        KeyMap.fromList
-          [ "type" .= ("user.legalhold-request" :: Text),
-            "id" .= targetUser,
-            "last_prekey" .= lastPrekey',
-            "client" .= IdObject clientId
-          ]
+   in KeyMap.fromList
+        [ "type" .= ("user.legalhold-request" :: Text),
+          "id" .= targetUser,
+          "last_prekey" .= lastPrekey',
+          "client" .= IdObject clientId
+        ]
 
-toApsData :: Event -> Maybe ApsData
+toApsData :: Event -> Maybe V2.ApsData
 toApsData (ConnectionEvent (ConnectionUpdated uc _ name)) =
   case (ucStatus uc, name) of
     (MissingLegalholdConsent, _) -> Nothing
@@ -648,11 +501,11 @@ toApsData (ConnectionEvent (ConnectionUpdated uc _ name)) =
     (Cancelled, _) -> Nothing
   where
     apsConnRequest n =
-      apsData (ApsLocKey "push.notification.connection.request") [fromName n]
-        & apsSound ?~ ApsSound "new_message_apns.caf"
+      V2.apsData (V2.ApsLocKey "push.notification.connection.request") [fromName n]
+        & V2.apsSound ?~ V2.ApsSound "new_message_apns.caf"
     apsConnAccept n =
-      apsData (ApsLocKey "push.notification.connection.accepted") [fromName n]
-        & apsSound ?~ ApsSound "new_message_apns.caf"
+      V2.apsData (V2.ApsLocKey "push.notification.connection.accepted") [fromName n]
+        & V2.apsSound ?~ V2.ApsSound "new_message_apns.caf"
 toApsData _ = Nothing
 
 -------------------------------------------------------------------------------
@@ -931,7 +784,7 @@ lookupPushToken ::
     HasRequestId m
   ) =>
   UserId ->
-  m [Push.PushToken]
+  m [V2.PushToken]
 lookupPushToken uid = do
   g <- view gundeck
   rsp <-
@@ -943,7 +796,7 @@ lookupPushToken uid = do
           . zUser uid
           . expect2xx
       )
-  responseJsonMaybe rsp & maybe (pure []) (pure . pushTokens)
+  responseJsonMaybe rsp & maybe (pure []) (pure . V2.pushTokens)
 
 -------------------------------------------------------------------------------
 -- Team Management
