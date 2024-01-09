@@ -201,9 +201,9 @@ authenticate u pw =
       case verifyPasswordWithStatus pw pw' of
         (False, _) -> throwE AuthInvalidCredentials
         (True, PasswordStatusNeedsUpdate) -> do
-          case plainTextPassword8 . fromPlainTextPassword $ pw of
-            Nothing -> pure () -- throwE AuthStalePassword -- TODO(elland): allowed for now
-            Just pw8 -> updatePassword u pw8 -- update pwd in place
+          -- TODO(elland): 6char pwd allowed for now
+          -- throwE AuthStalePassword in the future
+          for_ (plainTextPassword8 . fromPlainTextPassword $ pw) (updatePassword u)
         (True, _) -> pure ()
 
 -- | Password reauthentication. If the account has a password, reauthentication
