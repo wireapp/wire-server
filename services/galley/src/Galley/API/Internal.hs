@@ -344,7 +344,7 @@ rmUser lusr conn = do
 
     leaveTeams page = for_ (pageItems page) $ \tid -> do
       admins <- E.getTeamAdmins tid
-      uncheckedDeleteTeamMember lusr conn tid (tUnqualified lusr) admins
+      uncheckedDeleteTeamMember lusr conn tid (tUnqualified lusr) (Left admins)
       page' <- listTeams @p2 (tUnqualified lusr) (Just (pageState page)) maxBound
       leaveTeams page'
 
