@@ -153,6 +153,7 @@ data LoginError
   | LoginBlocked RetryAfter
   | LoginCodeRequired
   | LoginCodeInvalid
+  | LoginPasswordUpdateRequired
 
 data VerificationCodeError
   = VerificationCodeRequired

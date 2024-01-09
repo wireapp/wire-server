@@ -107,6 +107,7 @@ data AuthError
   | AuthSuspended
   | AuthEphemeral
   | AuthPendingInvitation
+  | AuthStalePassword
 
 -- | Re-authentication errors.
 data ReAuthError
@@ -201,7 +202,7 @@ authenticate u pw =
         (False, _) -> throwE AuthInvalidCredentials
         (True, PasswordStatusNeedsUpdate) -> do
           case plainTextPassword8 . fromPlainTextPassword $ pw of
-            Nothing -> throwE AuthInvalidCredentials -- TODO(elland): Add new error type
+            Nothing -> pure () -- throwE AuthStalePassword -- TODO(elland): allowed for now
             Just pw8 -> updatePassword u pw8 -- update pwd in place
         (True, _) -> pure ()
 

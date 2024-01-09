@@ -125,6 +125,7 @@ loginError LoginFailed = StdError (errorToWai @'E.BadCredentials)
 loginError LoginSuspended = StdError (errorToWai @'E.AccountSuspended)
 loginError LoginEphemeral = StdError (errorToWai @'E.AccountEphemeral)
 loginError LoginPendingActivation = StdError (errorToWai @'E.AccountPending)
+loginError LoginPasswordUpdateRequired = StdError (errorToWai @'E.PasswordIsStale)
 loginError (LoginThrottled wait) =
   RichError
     loginsTooFrequent
@@ -144,6 +145,7 @@ authError AuthInvalidCredentials = StdError (errorToWai @'E.BadCredentials)
 authError AuthSuspended = StdError (errorToWai @'E.AccountSuspended)
 authError AuthEphemeral = StdError (errorToWai @'E.AccountEphemeral)
 authError AuthPendingInvitation = StdError (errorToWai @'E.AccountPending)
+authError AuthStalePassword = StdError (errorToWai @'E.PasswordIsStale)
 
 reauthError :: ReAuthError -> Error
 reauthError ReAuthMissingPassword = StdError (errorToWai @'E.MissingAuth)
