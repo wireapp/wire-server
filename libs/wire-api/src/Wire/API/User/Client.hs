@@ -59,10 +59,6 @@ module Wire.API.User.Client
     RmClient (..),
 
     -- * re-exports
-    Location,
-    location,
-    latitude,
-    longitude,
     Latitude (..),
     Longitude (..),
 
@@ -85,7 +81,7 @@ import Data.Domain (Domain)
 import Data.Id
 import Data.Json.Util
 import Data.Map.Strict qualified as Map
-import Data.Misc (Latitude (..), Location, Longitude (..), PlainTextPassword6, latitude, location, longitude)
+import Data.Misc (Latitude (..), Longitude (..), PlainTextPassword6)
 import Data.OpenApi hiding (Schema, ToSchema, nullable, schema)
 import Data.OpenApi qualified as Swagger hiding (nullable)
 import Data.Qualified
