@@ -358,7 +358,7 @@ addClientInternalH usr mSkipReAuth new connId = do
   let policy
         | mSkipReAuth == Just True = \_ _ -> False
         | otherwise = Data.reAuthForNewClients
-  API.addClientWithReAuthPolicy policy usr connId Nothing new !>> clientError
+  API.addClientWithReAuthPolicy policy usr connId new !>> clientError
 
 legalHoldClientRequestedH :: UserId -> LegalHoldClientRequest -> (Handler r) NoContent
 legalHoldClientRequestedH targetUser clientRequest = do

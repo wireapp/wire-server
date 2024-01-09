@@ -48,7 +48,6 @@
 , filepath
 , fsnotify
 , galley-types
-, geoip2
 , gitignoreSource
 , gundeck-types
 , hashable
@@ -205,7 +204,6 @@ mkDerivation {
     filepath
     fsnotify
     galley-types
-    geoip2
     gundeck-types
     hashable
     HaskellNet

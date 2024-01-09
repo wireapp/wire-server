@@ -65,7 +65,7 @@ including `cryptobox-c`. If new system dependencies are needed, add them to the
 ### Fedora:
 
 ```bash
-sudo dnf install -y pkgconfig haskell-platform libstdc++-devel libstdc++-static gcc-c++ libtool automake openssl-devel libsodium-devel ncurses-compat-libs libicu-devel GeoIP-devel libxml2-devel snappy-devel protobuf-compiler
+sudo dnf install -y pkgconfig haskell-platform libstdc++-devel libstdc++-static gcc-c++ libtool automake openssl-devel libsodium-devel ncurses-compat-libs libicu-devel libxml2-devel snappy-devel protobuf-compiler
 ```
 
 ### Ubuntu / Debian:
@@ -73,7 +73,7 @@ sudo dnf install -y pkgconfig haskell-platform libstdc++-devel libstdc++-static 
 _Note_: Debian is not recommended due to this issue when running local integration tests: [#327](https://github.com/wireapp/wire-server/issues/327). This issue does not occur with Ubuntu.
 
 ```bash
-sudo apt install pkg-config libsodium-dev openssl-dev libtool automake build-essential libicu-dev libsnappy-dev libgeoip-dev protobuf-compiler libxml2-dev zlib1g-dev libtinfo-dev liblzma-dev libpcre3 libpcre3-dev -y
+sudo apt install pkg-config libsodium-dev openssl-dev libtool automake build-essential libicu-dev libsnappy-dev protobuf-compiler libxml2-dev zlib1g-dev libtinfo-dev liblzma-dev libpcre3 libpcre3-dev -y
 ```
 
 If `openssl-dev` does not work for you, try `libssl-dev`.
@@ -83,13 +83,13 @@ If `openssl-dev` does not work for you, try `libssl-dev`.
     ```
     # You might also need 'sudo pacman -S base-devel' if you haven't
     # installed the base-devel group already.
-    sudo pacman -S geoip snappy icu openssl ncurses-compat-libs
+    sudo pacman -S snappy icu openssl ncurses-compat-libs
     ```
 
 ### macOS:
 
 ```bash
-brew install pkg-config libsodium openssl automake icu4c geoip snappy protobuf
+brew install pkg-config libsodium openssl automake icu4c snappy protobuf
 ```
 
 _Note_: macOS users will need to make sure to link Haskell services against a more recent version of OpenSSL than what ships with the OS by default. Additionally, `icu4c` is installed in a non-standard location by `homebrew`. Add the following to your `.stack/config.yaml`:
