@@ -16,7 +16,6 @@
 , bilge
 , binary
 , brig-types
-, byteable
 , bytestring
 , bytestring-conversion
 , call-stack
@@ -143,7 +142,6 @@ mkDerivation {
     base64-bytestring
     bilge
     brig-types
-    byteable
     bytestring
     bytestring-conversion
     case-insensitive

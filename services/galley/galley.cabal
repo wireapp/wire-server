@@ -25,6 +25,7 @@ common common-all
   default-extensions:
     AllowAmbiguousTypes
     BangPatterns
+    BlockArguments
     ConstraintKinds
     DataKinds
     DefaultSignatures
@@ -295,7 +296,6 @@ library
     , base64-bytestring      >=1.0
     , bilge                  >=0.21.1
     , brig-types             >=0.73.1
-    , byteable
     , bytestring             >=0.9
     , bytestring-conversion  >=0.2
     , case-insensitive

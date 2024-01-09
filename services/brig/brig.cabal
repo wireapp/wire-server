@@ -259,7 +259,6 @@ library
     , bilge                      >=0.21.1
     , bloodhound                 >=0.13
     , brig-types                 >=0.91.1
-    , byteable
     , bytestring                 >=0.10
     , bytestring-conversion      >=0.2
     , cassandra-util             >=0.16.2

@@ -21,7 +21,6 @@
 , binary
 , bloodhound
 , brig-types
-, byteable
 , bytestring
 , bytestring-conversion
 , case-insensitive
@@ -183,7 +182,6 @@ mkDerivation {
     bilge
     bloodhound
     brig-types
-    byteable
     bytestring
     bytestring-conversion
     cassandra-util

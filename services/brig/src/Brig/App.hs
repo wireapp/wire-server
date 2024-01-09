@@ -115,7 +115,6 @@ import Control.Exception.Enclosed (handleAny)
 import Control.Lens hiding (index, (.=))
 import Control.Monad.Catch
 import Control.Monad.Trans.Resource
-import Data.Byteable (constEqBytes)
 import Data.Domain (Domain)
 import Data.GeoIP2 qualified as GeoIp
 import Data.IP
@@ -137,13 +136,8 @@ import Network.AMQP.Extended qualified as Q
 import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.OpenSSL
 import OpenSSL.EVP.Digest (Digest, getDigestByName)
-import OpenSSL.EVP.PKey
-import OpenSSL.EVP.Verify
-import OpenSSL.RSA
 import OpenSSL.Session (SSLOption (..))
 import OpenSSL.Session qualified as SSL
-import OpenSSL.X509
-import OpenSSL.X509.Store
 import Polysemy
 import Polysemy.Final
 import Ropes.Nexmo qualified as Nexmo
@@ -403,8 +397,6 @@ initHttp2Manager = do
 initExtGetManager :: [Fingerprint Rsa] -> IO Manager
 initExtGetManager fingerprints = do
   ctx <- SSL.context
-  Just sha <- getDigestByName "SHA256"
-
   SSL.contextAddOption ctx SSL_OP_NO_SSLv2
   SSL.contextAddOption ctx SSL_OP_NO_SSLv3
   SSL.contextSetCiphers ctx rsaCiphers
@@ -413,30 +405,7 @@ initExtGetManager fingerprints = do
     SSL.VerifyPeer
       { vpFailIfNoPeerCert = True,
         vpClientOnce = False,
-        vpCallback =
-          Just
-            ( \_bool ctx509store -> do
-                cert <- getStoreCtxCert ctx509store
-                pk <- getPublicKey cert
-                let fprs = fingerprintBytes <$> fingerprints
-                case toPublicKey pk of
-                  Nothing -> pure False
-                  Just k -> do
-                    fp <- rsaFingerprint sha (k :: RSAPubKey)
-                    if not (any (constEqBytes fp) fprs)
-                      then pure False
-                      else do
-                        -- Check if the certificate is self-signed.
-                        self <- verifyX509 cert pk
-                        if (self /= VerifySuccess)
-                          then pure False
-                          else do
-                            -- For completeness, perform a date check as well.
-                            now <- getCurrentTime
-                            notBefore <- getNotBefore cert
-                            notAfter <- getNotAfter cert
-                            pure (now >= notBefore && now <= notAfter)
-            )
+        vpCallback = Just \_b -> extEnvCallback fingerprints
       }
 
   SSL.contextSetDefaultVerifyPaths ctx

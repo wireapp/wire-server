@@ -25,21 +25,28 @@ module Ssl.Util
 
     -- * Cipher suites
     rsaCiphers,
+
+    -- * to be used when initializing SSL Contexts to obtain SSL enabled
+
+    --   'Network.HTTP.Client.ManagerSettings'
+    extEnvCallback,
   )
 where
 
 import Control.Exception
 import Data.ByteString.Builder
 import Data.Byteable (constEqBytes)
+import Data.Misc (Fingerprint (fingerprintBytes), Rsa)
 import Data.Time.Clock (getCurrentTime)
 import Imports
 import OpenSSL.BN (integerToMPI)
-import OpenSSL.EVP.Digest (Digest, digestLBS)
+import OpenSSL.EVP.Digest (Digest, digestLBS, getDigestByName)
 import OpenSSL.EVP.PKey (SomePublicKey, toPublicKey)
 import OpenSSL.EVP.Verify (VerifyStatus (..))
 import OpenSSL.RSA
 import OpenSSL.Session as SSL
 import OpenSSL.X509 as X509
+import OpenSSL.X509.Store (X509StoreCtx, getStoreCtxCert)
 
 -- Cipher Suites ------------------------------------------------------------
 
@@ -172,3 +179,29 @@ verifyRsaFingerprint d = verifyFingerprint $ \pk ->
 --
 -- [1] https://wiki.openssl.org/index.php/Hostname_validation
 -- [2] https://www.cs.utexas.edu/~shmat/shmat_ccs12.pdf
+
+-- | this is used as a 'OpenSSL.Session.vpCallback' in 'Brig.App.initExtGetManager'
+--   and 'Galley.Env.initExtEnv'
+extEnvCallback :: [Fingerprint Rsa] -> X509StoreCtx -> IO Bool
+extEnvCallback fingerprints store = do
+  Just sha <- getDigestByName "SHA256"
+  cert <- getStoreCtxCert store
+  pk <- getPublicKey cert
+  case toPublicKey @RSAPubKey pk of
+    Nothing -> pure False
+    Just k -> do
+      fp <- rsaFingerprint sha k
+      -- find at least one matching fingerprint to continue
+      if not (any (constEqBytes fp . fingerprintBytes) fingerprints)
+        then pure False
+        else do
+          -- Check if the certificate is self-signed.
+          self <- verifyX509 cert pk
+          if (self /= VerifySuccess)
+            then pure False
+            else do
+              -- For completeness, perform a date check as well.
+              now <- getCurrentTime
+              notBefore <- getNotBefore cert
+              notAfter <- getNotAfter cert
+              pure (now >= notBefore && now <= notAfter)

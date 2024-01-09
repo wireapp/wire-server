@@ -11,6 +11,7 @@
 , imports
 , lib
 , time
+, types-common
 }:
 mkDerivation {
   pname = "ssl-util";
@@ -23,6 +24,7 @@ mkDerivation {
     HsOpenSSL
     imports
     time
+    types-common
   ];
   description = "SSL-related utilities";
   license = lib.licenses.agpl3Only;
