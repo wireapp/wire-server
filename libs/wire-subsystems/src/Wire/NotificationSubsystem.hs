@@ -27,9 +27,10 @@ data Push = Push
     _pushNativePriority :: Maybe Priority,
     pushOrigin :: Maybe UserId,
     _pushRecipients :: NonEmpty Recipient,
-    pushJson :: Object
+    pushJson :: Object,
+    _pushApsData :: Maybe ApsData
   }
-  deriving stock (Eq, Ord, Generic, Show)
+  deriving stock (Eq, Generic, Show)
   deriving (Arbitrary) via GenericUniform Push
 
 makeLenses ''Push
@@ -47,6 +48,7 @@ newPush1 from e rr =
       _pushTransient = False,
       _pushRoute = RouteAny,
       _pushNativePriority = Nothing,
+      _pushApsData = Nothing,
       pushJson = e,
       pushOrigin = from,
       _pushRecipients = rr

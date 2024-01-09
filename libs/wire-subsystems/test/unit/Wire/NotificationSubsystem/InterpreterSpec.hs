@@ -38,6 +38,7 @@ spec = describe "NotificationSubsystem.Interpreter" do
       (payload1, payload2) <- generate $ resize 1 arbitrary
       clients1 <- generate $ resize 3 arbitrary
       lotOfRecipients <- generate $ resize 24 arbitrary
+      apsData <- generate arbitrary
       let push1 =
             Push
               { _pushConn = Nothing,
@@ -46,7 +47,8 @@ spec = describe "NotificationSubsystem.Interpreter" do
                 _pushNativePriority = Nothing,
                 pushOrigin = Nothing,
                 _pushRecipients = Recipient user1 (V2.RecipientClientsSome clients1) :| [],
-                pushJson = payload1
+                pushJson = payload1,
+                _pushApsData = Nothing
               }
           push2 =
             Push
@@ -58,7 +60,8 @@ spec = describe "NotificationSubsystem.Interpreter" do
                 _pushRecipients =
                   Recipient user21 V2.RecipientClientsAll
                     :| [Recipient user22 V2.RecipientClientsAll],
-                pushJson = payload2
+                pushJson = payload2,
+                _pushApsData = Just apsData
               }
           duplicatePush = push2
           duplicatePushWithPush1Recipients = push2 {_pushRecipients = _pushRecipients push1}
@@ -94,6 +97,7 @@ spec = describe "NotificationSubsystem.Interpreter" do
       (user21, user22) <- generate arbitrary
       (payload1, payload2) <- generate $ resize 1 arbitrary
       lotOfRecipients <- fromList <$> replicateM 31 (generate arbitrary)
+      apsData <- generate arbitrary
       let pushBiggerThanFanoutLimit =
             Push
               { _pushConn = Nothing,
@@ -102,7 +106,8 @@ spec = describe "NotificationSubsystem.Interpreter" do
                 _pushNativePriority = Nothing,
                 pushOrigin = Nothing,
                 _pushRecipients = lotOfRecipients,
-                pushJson = payload1
+                pushJson = payload1,
+                _pushApsData = Nothing
               }
           pushSmallerThanFanoutLimit =
             Push
@@ -114,7 +119,8 @@ spec = describe "NotificationSubsystem.Interpreter" do
                 _pushRecipients =
                   Recipient user21 V2.RecipientClientsAll
                     :| [Recipient user22 V2.RecipientClientsAll],
-                pushJson = payload2
+                pushJson = payload2,
+                _pushApsData = Just apsData
               }
           pushes =
             [ pushBiggerThanFanoutLimit,
@@ -153,7 +159,8 @@ spec = describe "NotificationSubsystem.Interpreter" do
                 _pushNativePriority = Nothing,
                 pushOrigin = Nothing,
                 _pushRecipients = Recipient user1 (V2.RecipientClientsSome clients1) :| [],
-                pushJson = payload1
+                pushJson = payload1,
+                _pushApsData = Nothing
               }
           push2 =
             Push
@@ -165,7 +172,8 @@ spec = describe "NotificationSubsystem.Interpreter" do
                 _pushRecipients =
                   Recipient user21 V2.RecipientClientsAll
                     :| [Recipient user22 V2.RecipientClientsAll],
-                pushJson = payload2
+                pushJson = payload2,
+                _pushApsData = Nothing
               }
           pushes = [push1, push2]
 
