@@ -55,6 +55,7 @@ module Galley.Options
     logFormat,
     guestLinkTTLDays,
     defGuestLinkTTLDays,
+    GuestLinkTTLDays (..),
   )
 where
 

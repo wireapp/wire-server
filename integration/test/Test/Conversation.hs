@@ -764,3 +764,34 @@ testGuestCreatesConversation = do
   bindResponse (postConversation alice defProteus) $ \resp -> do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "operation-denied"
+
+testGuestLinksSuccess :: HasCallStack => App ()
+testGuestLinksSuccess = do
+  (user, _, tm : _) <- createTeam OwnDomain 2
+  conv <- postConversation user (allowGuests defProteus) >>= getJSON 201
+  (k, v) <- bindResponse (postConversationCode user conv Nothing Nothing) $ \resp -> do
+    res <- getJSON 201 resp
+    k <- res %. "data.key" & asString
+    v <- res %. "data.code" & asString
+    pure (k, v)
+  bindResponse (getJoinCodeConv tm k v) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "id" `shouldMatch` objId conv
+
+testGuestLinksExpired :: HasCallStack => App ()
+testGuestLinksExpired = do
+  withModifiedBackend
+    -- 0.0000116 days is a little more than 1 second and will be rounded to 1 second
+    def {galleyCfg = setField "settings.guestLinkTTLDays" (0.0000116 :: Double)}
+    $ \domain -> do
+      (user, _, tm : _) <- createTeam domain 2
+      conv <- postConversation user (allowGuests defProteus) >>= getJSON 201
+      (k, v) <- bindResponse (postConversationCode user conv Nothing Nothing) $ \resp -> do
+        res <- getJSON 201 resp
+        k <- res %. "data.key" & asString
+        v <- res %. "data.code" & asString
+        pure (k, v)
+      -- let's wait a little longer than 1 second for the guest link to expire
+      liftIO $ threadDelay (1_100_000)
+      bindResponse (getJoinCodeConv tm k v) $ \resp -> do
+        resp.status `shouldMatchInt` 404

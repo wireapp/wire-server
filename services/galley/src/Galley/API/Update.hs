@@ -530,7 +530,8 @@ addCode lusr mbZHost mZcon lcnv mReq = do
   key <- E.makeKey (tUnqualified lcnv)
   E.getCode key ReusableCode >>= \case
     Nothing -> do
-      code <- E.generateCode (tUnqualified lcnv) ReusableCode (Timeout 3600 * 24 * 365) -- one year FUTUREWORK: configurable
+      ttl <- realToFrac . (\days -> 60 * 60 * 24 * days) . unGuestLinkTTLDays . fromMaybe defGuestLinkTTLDays . view (settings . guestLinkTTLDays) <$> input
+      code <- E.generateCode (tUnqualified lcnv) ReusableCode (Timeout ttl)
       mPw <- for (mReq >>= (.password)) mkSafePassword
       E.createCode code mPw
       now <- input
