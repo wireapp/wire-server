@@ -5,7 +5,8 @@ import Data.Aeson
 import Data.List.NonEmpty (nonEmpty)
 import Data.List1 (List1)
 import Data.List1 qualified as List1
-import Data.Range (Range, fromRange, unsafeRange)
+import Data.Proxy
+import Data.Range
 import Data.Set qualified as Set
 import Gundeck.Types hiding (Push (..), Recipient, newPush)
 import Gundeck.Types.Push.V2 qualified as V2
@@ -38,6 +39,19 @@ data NotificationSubsystemConfig = NotificationSubsystemConfig
     -- | Microseconds
     slowPushDelay :: Int
   }
+
+defaultNotificationSubsystemConfig :: NotificationSubsystemConfig
+defaultNotificationSubsystemConfig =
+  NotificationSubsystemConfig defaultFanoutLimit defaultChunkSize defaultSlowPushDelay
+
+defaultFanoutLimit :: Range 1 HardTruncationLimit Int32
+defaultFanoutLimit = toRange (Proxy @HardTruncationLimit)
+
+defaultChunkSize :: Natural
+defaultChunkSize = 128
+
+defaultSlowPushDelay :: Int
+defaultSlowPushDelay = 20_000
 
 -- TODO: write a test for listtype
 pushImpl ::

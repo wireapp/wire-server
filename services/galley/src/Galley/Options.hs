@@ -34,8 +34,6 @@ module Galley.Options
     mlsPrivateKeyPaths,
     featureFlags,
     defConcurrentDeletionEvents,
-    defDeleteConvThrottleMillis,
-    defFanoutLimit,
     JournalOpts (JournalOpts),
     queueName,
     endpoint,
@@ -158,12 +156,6 @@ makeLenses ''Settings
 
 defConcurrentDeletionEvents :: Int
 defConcurrentDeletionEvents = 128
-
-defDeleteConvThrottleMillis :: Int
-defDeleteConvThrottleMillis = 20
-
-defFanoutLimit :: Range 1 HardTruncationLimit Int32
-defFanoutLimit = unsafeRange hardTruncationLimit
 
 -- | Default guest link TTL in days. 365 days if not set.
 defGuestLinkTTLSeconds :: GuestLinkTTLSeconds

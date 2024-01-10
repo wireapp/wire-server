@@ -108,7 +108,7 @@ reqIdMsg = ("request" .=) . unRequestId
 
 currentFanoutLimit :: Opts -> Range 1 HardTruncationLimit Int32
 currentFanoutLimit o = do
-  let optFanoutLimit = fromIntegral . fromRange $ fromMaybe defFanoutLimit (o ^. (O.settings . maxFanoutSize))
+  let optFanoutLimit = fromIntegral . fromRange $ fromMaybe defaultFanoutLimit (o ^. (O.settings . maxFanoutSize))
   let maxSize = fromIntegral (o ^. (O.settings . maxTeamSize))
   unsafeRange (min maxSize optFanoutLimit)
 
@@ -122,7 +122,7 @@ gundeckAccessDetails env =
 notificationSubssystemConfig :: Env -> NotificationSubsystemConfig
 notificationSubssystemConfig env =
   NotificationSubsystemConfig
-    { chunkSize = 128,
+    { chunkSize = defaultChunkSize,
       fanoutLimit = currentFanoutLimit env._options,
-      slowPushDelay = 1000 * fromMaybe defDeleteConvThrottleMillis (env ^. options . O.settings . deleteConvThrottleMillis)
+      slowPushDelay = 1000 * fromMaybe defaultSlowPushDelay (env ^. options . O.settings . deleteConvThrottleMillis)
     }
