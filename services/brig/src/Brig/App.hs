@@ -113,7 +113,6 @@ import Control.Lens hiding (index, (.=))
 import Control.Monad.Catch
 import Control.Monad.Trans.Resource
 import Data.Domain (Domain)
-import Data.IP
 import Data.Metrics (Metrics)
 import Data.Metrics.Middleware qualified as Metrics
 import Data.Misc
