@@ -8,10 +8,10 @@
 , bytestring
 , gitignoreSource
 , HsOpenSSL
-, http-client
 , imports
 , lib
 , time
+, types-common
 }:
 mkDerivation {
   pname = "ssl-util";
@@ -22,9 +22,9 @@ mkDerivation {
     byteable
     bytestring
     HsOpenSSL
-    http-client
     imports
     time
+    types-common
   ];
   description = "SSL-related utilities";
   license = lib.licenses.agpl3Only;

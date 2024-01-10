@@ -112,8 +112,7 @@ import Control.Error
 import Control.Lens hiding (index, (.=))
 import Control.Monad.Catch
 import Control.Monad.Trans.Resource
-import Data.ByteString.Conversion
-import Data.Domain
+import Data.Domain (Domain)
 import Data.Metrics (Metrics)
 import Data.Metrics.Middleware qualified as Metrics
 import Data.Misc
@@ -173,7 +172,7 @@ data Env = Env
     _templateBranding :: TemplateBranding,
     _httpManager :: Manager,
     _http2Manager :: Http2Manager,
-    _extGetManager :: (Manager, [Fingerprint Rsa] -> SSL.SSL -> IO ()),
+    _extGetManager :: [Fingerprint Rsa] -> IO Manager,
     _settings :: Settings,
     _nexmoCreds :: Nexmo.Credentials,
     _twilioCreds :: Twilio.Credentials,
@@ -210,7 +209,6 @@ newEnv o = do
   cas <- initCassandra o lgr
   mgr <- initHttpManager
   h2Mgr <- initHttp2Manager
-  ext <- initExtGetManager
   utp <- loadUserTemplates o
   ptp <- loadProviderTemplates o
   ttp <- loadTeamTemplates o
@@ -269,7 +267,7 @@ newEnv o = do
         _templateBranding = branding,
         _httpManager = mgr,
         _http2Manager = h2Mgr,
-        _extGetManager = ext,
+        _extGetManager = initExtGetManager,
         _settings = sett,
         _nexmoCreds = nxm,
         _twilioCreds = twl,
@@ -361,29 +359,28 @@ initHttp2Manager = do
 -- faster. So, we reuse the context.
 
 -- TODO: somewhat duplicates Galley.App.initExtEnv
-initExtGetManager :: IO (Manager, [Fingerprint Rsa] -> SSL.SSL -> IO ())
-initExtGetManager = do
+initExtGetManager :: [Fingerprint Rsa] -> IO Manager
+initExtGetManager fingerprints = do
   ctx <- SSL.context
   SSL.contextAddOption ctx SSL_OP_NO_SSLv2
   SSL.contextAddOption ctx SSL_OP_NO_SSLv3
   SSL.contextSetCiphers ctx rsaCiphers
-  -- We use public key pinning with service providers and want to
-  -- support self-signed certificates as well, hence 'VerifyNone'.
-  SSL.contextSetVerificationMode ctx SSL.VerifyNone
+  SSL.contextSetVerificationMode
+    ctx
+    SSL.VerifyPeer
+      { vpFailIfNoPeerCert = True,
+        vpClientOnce = False,
+        vpCallback = Just \_b -> extEnvCallback fingerprints
+      }
+
   SSL.contextSetDefaultVerifyPaths ctx
-  mgr <-
-    newManager
-      (opensslManagerSettings (pure ctx)) -- see Note [SSL context]
-        { managerConnCount = 100,
-          managerIdleConnectionCount = 512,
-          managerResponseTimeout = responseTimeoutMicro 10000000
-        }
-  Just sha <- getDigestByName "SHA256"
-  pure (mgr, mkVerify sha)
-  where
-    mkVerify sha fprs =
-      let pinset = map toByteString' fprs
-       in verifyRsaFingerprint sha pinset
+
+  newManager
+    (opensslManagerSettings (pure ctx)) -- see Note [SSL context]
+      { managerConnCount = 100,
+        managerIdleConnectionCount = 512,
+        managerResponseTimeout = responseTimeoutMicro 10000000
+      }
 
 initCassandra :: Opts -> Logger -> IO Cas.ClientState
 initCassandra o g =

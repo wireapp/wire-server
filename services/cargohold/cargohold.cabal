@@ -272,7 +272,7 @@ executable cargohold-integration
     , federator
     , http-api-data
     , http-client            >=0.7
-    , http-client-tls        >=0.3
+    , http-client-tls        >=0.3.6.3
     , http-media
     , http-types             >=0.8
     , imports

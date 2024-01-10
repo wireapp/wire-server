@@ -30,9 +30,7 @@ module Galley.App
     cstate,
     deleteQueue,
     createEnv,
-    extEnv,
     aEnv,
-    ExtEnv (..),
     extGetManager,
 
     -- * Running Galley effects
@@ -162,7 +160,7 @@ createEnv m o l = do
   codeURIcfg <- validateOptions o
   Env (RequestId "N/A") m o l mgr h2mgr (o ^. O.federator) (o ^. O.brig) cass
     <$> Q.new 16000
-    <*> initExtEnv
+    <*> pure initExtEnv
     <*> maybe (pure Nothing) (fmap Just . Aws.mkEnv l mgr) (o ^. journal)
     <*> loadAllMLSKeys (fold (o ^. settings . mlsPrivateKeyPaths))
     <*> traverse (mkRabbitMqChannelMVar l) (o ^. rabbitmq)

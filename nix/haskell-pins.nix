@@ -73,25 +73,6 @@ let
         sha256 = "sha256-ov85XFztGM0mEoj01lRZN9xYJttKa/crPnp0lh4A5DA=";
       };
     };
-    amazonka = {
-      src = fetchgit {
-        url = "https://github.com/brendanhay/amazonka";
-        rev = "cfe2584aef0b03c86650372d362c74f237925d8c";
-        sha256 = "sha256-ss8IuIN0BbS6LMjlaFmUdxUqQu+IHsA8ucsjxXJwbyg=";
-      };
-      packages = {
-        amazonka = "lib/amazonka";
-        amazonka-core = "lib/amazonka-core";
-        amazonka-cloudfront = "lib/services/amazonka-cloudfront";
-        amazonka-dynamodb = "lib/services/amazonka-dynamodb";
-        amazonka-s3 = "lib/services/amazonka-s3";
-        amazonka-ses = "lib/services/amazonka-ses";
-        amazonka-sns = "lib/services/amazonka-sns";
-        amazonka-sqs = "lib/services/amazonka-sqs";
-        amazonka-sso = "lib/services/amazonka-sso";
-        amazonka-sts = "lib/services/amazonka-sts";
-      };
-    };
     bloodhound = {
       src = fetchgit {
         url = "https://github.com/wireapp/bloodhound";
@@ -120,19 +101,6 @@ let
         url = "https://github.com/wireapp/hsaml2";
         rev = "51d1fcecebf2417e658b9a78943c84a76a0ed347";
         sha256 = "sha256-jYJBhXBQ1MTLPI8JsiF2XUtgDxK+eniavNB2B1zaSQg=";
-      };
-    };
-    http-client = {
-      src = fetchgit {
-        url = "https://github.com/wireapp/http-client";
-        rev = "eabf64b4a8ff4c0fe6a3b39cb0f396ba8c2fb236";
-        sha256 = "sha256-8NPRVDlul9Xnj6IyUOUe6w7fDt/5WWZNjR07CaAp/Kk=";
-      };
-      packages = {
-        http-client = "http-client";
-        http-client-openssl = "http-client-openssl";
-        http-client-tls = "http-client-tls";
-        http-conduit = "http-conduit";
       };
     };
     hspec-wai = {
