@@ -441,13 +441,13 @@ outlookCalIntegration:
 
 ### Guest Link Lifetime
 
-To set the validity duration of conversation guest links set `guestLinkTTLDays` to the desired number of days, a value x, x ∈ (0, 365] and x ∈ R. E.g.
+To set the validity duration of conversation guest links set `guestLinkTTLSeconds` to the desired number of seconds, maximum 1 year, a value ∈ (0, 31536000]. E.g.
 
 ```yaml
 # galley.yaml
 config:
   settings:
-    guestLinkTTLDays: 7
+    GuestLinkTTLSeconds: 604800
 ```
 
 ## Settings in brig

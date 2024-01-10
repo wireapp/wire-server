@@ -84,8 +84,8 @@ data:
       disabledAPIVersions: {{ .settings.disabledAPIVersions }}
       {{- end }}
       {{- if .settings.featureFlags }}
-      {{- if .settings.guestLinkTTLDays }}
-      guestLinkTTLDays: {{ .settings.guestLinkTTLDays }}
+      {{- if .settings.guestLinkTTLSeconds }}
+      guestLinkTTLSeconds: {{ .settings.guestLinkTTLSeconds }}
       {{- end }}
       featureFlags:
         sso: {{ .settings.featureFlags.sso }}
