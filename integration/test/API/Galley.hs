@@ -416,6 +416,11 @@ getConversationCode user conv mbZHost = do
         & maybe id zHost mbZHost
     )
 
+getJoinCodeConv :: (HasCallStack, MakesValue user) => user -> String -> String -> App Response
+getJoinCodeConv u k v = do
+  req <- baseRequest u Galley Versioned (joinHttpPath ["conversations", "join"])
+  submit "GET" (req & addQueryParams [("key", k), ("code", v)])
+
 -- https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/put_conversations__cnv_domain___cnv__name
 changeConversationName ::
   (HasCallStack, MakesValue user, MakesValue conv, MakesValue name) =>
