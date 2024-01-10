@@ -53,7 +53,6 @@ defaultChunkSize = 128
 defaultSlowPushDelay :: Int
 defaultSlowPushDelay = 20_000
 
--- TODO: write a test for listtype
 pushImpl ::
   forall r.
   ( Member (GundeckAPIAccess) r,
