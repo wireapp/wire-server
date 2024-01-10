@@ -702,7 +702,7 @@ addBot zuid zcon cid add = do
       -- if we want to protect bots against lh, 'addClient' cannot just send lh capability
       -- implicitly in the next line.
       pure $ FutureWork @'UnprotectedBot undefined
-    wrapClientE (User.addClient (botUserId bid) bcl newClt maxPermClients Nothing (Just $ Set.singleton Public.ClientSupportsLegalholdImplicitConsent))
+    wrapClientE (User.addClient (botUserId bid) bcl newClt maxPermClients (Just $ Set.singleton Public.ClientSupportsLegalholdImplicitConsent))
       !>> const (StdError badGateway) -- MalformedPrekeys
 
   -- Add the bot to the conversation

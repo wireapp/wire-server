@@ -86,7 +86,6 @@ import Data.Id
 import Data.Id qualified as Id
 import Data.List.NonEmpty (nonEmpty)
 import Data.Map.Strict qualified as Map
-import Data.Misc (IpAddr (..))
 import Data.Nonce (Nonce, randomNonce)
 import Data.OpenApi qualified as S
 import Data.Qualified
@@ -559,15 +558,14 @@ addClient ::
   (Member GalleyProvider r) =>
   UserId ->
   ConnId ->
-  Maybe IpAddr ->
   Public.NewClient ->
   (Handler r) NewClientResponse
-addClient usr con ip new = do
+addClient usr con new = do
   -- Users can't add legal hold clients
   when (Public.newClientType new == Public.LegalHoldClientType) $
     throwE (clientError ClientLegalHoldCannotBeAdded)
   clientResponse
-    <$> API.addClient usr (Just con) (ipAddr <$> ip) new
+    <$> API.addClient usr (Just con) new
       !>> clientError
   where
     clientResponse :: Public.Client -> NewClientResponse

@@ -77,7 +77,6 @@ import Data.Id
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import Data.Map qualified as Map
 import Data.Metrics qualified as Metrics
-import Data.Misc
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.Time.Clock
@@ -124,7 +123,6 @@ addClient ::
   ClientId ->
   NewClient ->
   Int ->
-  Maybe Location ->
   Maybe (Imports.Set ClientCapability) ->
   ExceptT ClientDataError m (Client, [Client], Word)
 addClient = addClientWithReAuthPolicy reAuthForNewClients
@@ -136,10 +134,9 @@ addClientWithReAuthPolicy ::
   ClientId ->
   NewClient ->
   Int ->
-  Maybe Location ->
   Maybe (Imports.Set ClientCapability) ->
   ExceptT ClientDataError m (Client, [Client], Word)
-addClientWithReAuthPolicy reAuthPolicy u newId c maxPermClients loc cps = do
+addClientWithReAuthPolicy reAuthPolicy u newId c maxPermClients cps = do
   clients <- lookupClients u
   let typed = filter ((== newClientType c) . clientType) clients
   let count = length typed
@@ -170,10 +167,8 @@ addClientWithReAuthPolicy reAuthPolicy u newId c maxPermClients loc cps = do
       now <- toUTCTimeMillis <$> (liftIO =<< view currentTime)
       let keys = unpackLastPrekey (newClientLastKey c) : newClientPrekeys c
       updatePrekeys u newId keys
-      let lat = Latitude . view latitude <$> loc
-          lon = Longitude . view longitude <$> loc
-          mdl = newClientModel c
-          prm = (u, newId, now, newClientType c, newClientLabel c, newClientClass c, newClientCookie c, lat, lon, mdl, C.Set . Set.toList <$> cps)
+      let mdl = newClientModel c
+          prm = (u, newId, now, newClientType c, newClientLabel c, newClientClass c, newClientCookie c, Nothing, Nothing, mdl, C.Set . Set.toList <$> cps)
       retry x5 $ write insertClient (params LocalQuorum prm)
       addMLSPublicKeys u newId (Map.assocs (newClientMLSPublicKeys c))
       pure $!
@@ -184,7 +179,6 @@ addClientWithReAuthPolicy reAuthPolicy u newId c maxPermClients loc cps = do
             clientClass = newClientClass c,
             clientLabel = newClientLabel c,
             clientCookie = newClientCookie c,
-            clientLocation = loc,
             clientModel = mdl,
             clientCapabilities = ClientCapabilityList (fromMaybe mempty cps),
             clientMLSPublicKeys = mempty,
@@ -393,14 +387,14 @@ updateClientLastActiveQuery = "UPDATE clients SET last_active = ? WHERE user = ?
 selectClientIds :: PrepQuery R (Identity UserId) (Identity ClientId)
 selectClientIds = "SELECT client from clients where user = ?"
 
-selectClients :: PrepQuery R (Identity UserId) (ClientId, ClientType, UTCTimeMillis, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe Latitude, Maybe Longitude, Maybe Text, Maybe (C.Set ClientCapability), Maybe UTCTime)
-selectClients = "SELECT client, type, tstamp, label, class, cookie, lat, lon, model, capabilities, last_active from clients where user = ?"
+selectClients :: PrepQuery R (Identity UserId) (ClientId, ClientType, UTCTimeMillis, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe Text, Maybe (C.Set ClientCapability), Maybe UTCTime)
+selectClients = "SELECT client, type, tstamp, label, class, cookie, model, capabilities, last_active from clients where user = ?"
 
 selectPubClients :: PrepQuery R (Identity UserId) (ClientId, Maybe ClientClass)
 selectPubClients = "SELECT client, class from clients where user = ?"
 
-selectClient :: PrepQuery R (UserId, ClientId) (ClientId, ClientType, UTCTimeMillis, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe Latitude, Maybe Longitude, Maybe Text, Maybe (C.Set ClientCapability), Maybe UTCTime)
-selectClient = "SELECT client, type, tstamp, label, class, cookie, lat, lon, model, capabilities, last_active from clients where user = ? and client = ?"
+selectClient :: PrepQuery R (UserId, ClientId) (ClientId, ClientType, UTCTimeMillis, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe Text, Maybe (C.Set ClientCapability), Maybe UTCTime)
+selectClient = "SELECT client, type, tstamp, label, class, cookie, model, capabilities, last_active from clients where user = ? and client = ?"
 
 insertClientKey :: PrepQuery W (UserId, ClientId, PrekeyId, Text) ()
 insertClientKey = "INSERT INTO prekeys (user, client, key, data) VALUES (?, ?, ?, ?)"
@@ -451,14 +445,12 @@ toClient ::
     Maybe Text,
     Maybe ClientClass,
     Maybe CookieLabel,
-    Maybe Latitude,
-    Maybe Longitude,
     Maybe Text,
     Maybe (C.Set ClientCapability),
     Maybe UTCTime
   ) ->
   Client
-toClient keys (cid, cty, tme, lbl, cls, cok, lat, lon, mdl, cps, lastActive) =
+toClient keys (cid, cty, tme, lbl, cls, cok, mdl, cps, lastActive) =
   Client
     { clientId = cid,
       clientType = cty,
@@ -466,7 +458,6 @@ toClient keys (cid, cty, tme, lbl, cls, cok, lat, lon, mdl, cps, lastActive) =
       clientClass = cls,
       clientLabel = lbl,
       clientCookie = cok,
-      clientLocation = location <$> lat <*> lon,
       clientModel = mdl,
       clientCapabilities = ClientCapabilityList $ maybe Set.empty (Set.fromList . C.fromSet) cps,
       clientMLSPublicKeys = fmap (LBS.toStrict . fromBlob) (Map.fromList keys),
