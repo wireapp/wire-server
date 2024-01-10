@@ -986,8 +986,17 @@ deleteTeamMember' lusr zcon tid remove mBody = do
               then 0
               else sizeBeforeDelete - 1
       E.deleteUser remove
-      owners <- E.getBillingTeamMembers tid
-      Journal.teamUpdate tid sizeAfterDelete $ filter (/= remove) owners
+      toNotify <-
+        wsStatus <$> getFeatureStatus @LimitedEventFanoutConfig DontDoAuth tid >>= \case
+          FeatureStatusEnabled -> E.getBillingTeamMembers tid
+          FeatureStatusDisabled -> do
+            let filterFromMembers list =
+                  view userId <$> filter (`hasPermission` SetBilling) (list ^. teamMembers)
+            -- fmap (view userId) $ (list ^. teamMembers)
+            mems <- getTeamMembersForFanout tid
+            let res = filterFromMembers mems
+            pure res
+      Journal.teamUpdate tid sizeAfterDelete $ filter (/= remove) toNotify
       pure TeamMemberDeleteAccepted
     else do
       wsStatus <$> getFeatureStatus @LimitedEventFanoutConfig DontDoAuth tid >>= \case

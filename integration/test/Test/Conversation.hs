@@ -660,36 +660,65 @@ testDeleteTeamConversationWithUnreachableRemoteMembers = do
       notif <- awaitNotification bob bobClient noValue isConvDeleteNotif
       assertNotification notif
 
-testDeleteTeamMember :: HasCallStack => App ()
-testDeleteTeamMember = do
-  (alice, team, [alex]) <- createTeam OwnDomain 2
+testDeleteTeamMemberLimitedEventFanout :: HasCallStack => App ()
+testDeleteTeamMemberLimitedEventFanout = do
+  -- Alex will get removed from the team
+  (alice, team, [alex, alison]) <- createTeam OwnDomain 3
+  ana <- createTeamMemberWithRole alice team "admin"
   [amy, bob] <- for [OwnDomain, OtherDomain] $ flip randomUser def
   forM_ [amy, bob] $ connectTwoUsers alice
-  [aliceId, alexId, amyId, bobId] <-
-    forM [alice, alex, amy, bob] (%. "qualified_id")
-  let nc = (defProteus {qualifiedUsers = [alexId, amyId, bobId], team = Just team})
+  [aliceId, alexId, amyId, alisonId, anaId, bobId] <- do
+    forM [alice, alex, amy, alison, ana, bob] (%. "qualified_id")
+  let nc =
+        ( defProteus
+            { qualifiedUsers =
+                [alexId, amyId, alisonId, anaId, bobId],
+              team = Just team
+            }
+        )
   conv <- postConversation alice nc >>= getJSON 201
-  withWebSockets [alice, amy, bob] $ \[wsAlice, wsAmy, wsBob] -> do
-    void $ deleteTeamMember team alice alex >>= getBody 202
-    assertConvLeaveNotif wsAmy alexId
-    do
-      n <- awaitMatch isTeamMemberLeaveNotif wsAlice
+  memsBefore <- getMembers team aliceId
+
+  -- Only the team admins will get the team-level event about Alex being removed
+  -- from the team
+  setTeamFeatureStatus OwnDomain team "limitedEventFanout" "enabled"
+
+  withWebSockets [alice, amy, bob, alison, ana] $
+    \[wsAlice, wsAmy, wsBob, wsAlison, wsAna] -> do
+      void $ deleteTeamMember team alice alex >>= getBody 202
+
+      memsAfter <- getMembers team aliceId
+      memsAfter `shouldNotMatch` memsBefore
+
+      assertConvLeaveNotif wsAmy alexId
+      assertConvLeaveNotif wsAlison alexId
+
       alexUId <- alex %. "id"
-      nPayload n %. "data.user" `shouldMatch` alexUId
-      assertConvLeaveNotif wsAlice alexId
-    do
-      bindResponse (getConversation bob conv) $ \resp -> do
-        resp.status `shouldMatchInt` 200
-        mems <- resp.json %. "members.others" & asList
-        memIds <- forM mems (%. "qualified_id")
-        memIds `shouldMatchSet` [aliceId, amyId]
-      assertConvLeaveNotif wsBob alexId
+      do
+        n <- awaitMatch isTeamMemberLeaveNotif wsAlice
+        nPayload n %. "data.user" `shouldMatch` alexUId
+        assertConvLeaveNotif wsAlice alexId
+      do
+        n <- awaitMatch isTeamMemberLeaveNotif wsAna
+        nPayload n %. "data.user" `shouldMatch` alexUId
+        assertConvLeaveNotif wsAna alexId
+      do
+        bindResponse (getConversation bob conv) $ \resp -> do
+          resp.status `shouldMatchInt` 200
+          mems <- resp.json %. "members.others" & asList
+          memIds <- forM mems (%. "qualified_id")
+          memIds `shouldMatchSet` [aliceId, alisonId, amyId, anaId]
+        assertConvLeaveNotif wsBob alexId
   where
     assertConvLeaveNotif :: MakesValue leaverId => WebSocket -> leaverId -> App ()
     assertConvLeaveNotif ws leaverId = do
       n <- awaitMatch isConvLeaveNotif ws
       nPayload n %. "data.qualified_user_ids.0" `shouldMatch` leaverId
       nPayload n %. "data.reason" `shouldMatch` "user-deleted"
+    getMembers tid usr = bindResponse (getTeamMembers usr tid) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      ms <- resp.json %. "members" & asList
+      forM ms $ (%. "user")
 
 testLeaveConversationSuccess :: HasCallStack => App ()
 testLeaveConversationSuccess = do
