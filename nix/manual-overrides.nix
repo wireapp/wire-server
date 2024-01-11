@@ -63,8 +63,6 @@ hself: hsuper: {
   hsaml2 = hlib.dontCheck hsuper.hsaml2;
   saml2-web-sso = hlib.dontCheck hsuper.saml2-web-sso;
   http2 = hlib.dontCheck hsuper.http2;
-  http-client-tls = hsuper.http-client-tls_0_3_6_3;
-  http-client = hsuper.http-client;
 
 
   # Disable tests because they need network access to a running cassandra
@@ -78,6 +76,19 @@ hself: hsuper: {
   # also the test suite doesn't compile https://github.com/NixOS/nixpkgs/pull/167957
   # due to related broken quickcheck-arbitrary-template
   bloodhound = hlib.dontCheck hsuper.bloodhound;
+
+  # These tests require newer version on hspec-wai, which doesn't work with some of the wire-server packages.
+  amazonka = hlib.doJailbreak (hlib.dontCheck hsuper.amazonka);
+  amazonka-cloudfront = hlib.dontCheck hsuper.amazonka-cloudfront;
+  amazonka-core = hlib.doJailbreak (hlib.dontCheck hsuper.amazonka-core);
+  amazonka-dynamodb = hlib.dontCheck hsuper.amazonka-dynamodb;
+  amazonka-s3 = hlib.dontCheck hsuper.amazonka-s3;
+  amazonka-ses = hlib.dontCheck hsuper.amazonka-ses;
+  amazonka-sns = hlib.dontCheck hsuper.amazonka-sns;
+  amazonka-sqs = hlib.dontCheck hsuper.amazonka-sqs;
+  amazonka-sso = hlib.dontCheck hsuper.amazonka-sso;
+  amazonka-sts = hlib.dontCheck hsuper.amazonka-sts;
+  servant-server = hlib.dontCheck hsuper.servant-server;
 
   # Build toool dependencies of local packages
   types-common-journal = hlib.addBuildTool hsuper.types-common-journal protobuf;
