@@ -35,7 +35,6 @@ module Brig.App
     stompEnv,
     cargohold,
     galley,
-    gundeck,
     gundeckEndpoint,
     federator,
     casClient,
@@ -160,7 +159,6 @@ schemaVersion = Migrations.lastSchemaVersion
 data Env = Env
   { _cargohold :: RPC.Request,
     _galley :: RPC.Request,
-    _gundeck :: RPC.Request,
     _gundeckEndpoint :: Endpoint,
     _federator :: Maybe Endpoint, -- FUTUREWORK: should we use a better type here? E.g. to avoid fresh connections all the time?
     _casClient :: Cas.ClientState,
@@ -260,7 +258,6 @@ newEnv o = do
     Env
       { _cargohold = mkEndpoint $ Opt.cargohold o,
         _galley = mkEndpoint $ Opt.galley o,
-        _gundeck = mkEndpoint $ Opt.gundeck o,
         _gundeckEndpoint = Opt.gundeck o,
         _federator = Opt.federatorInternal o,
         _casClient = cas,

@@ -73,13 +73,6 @@ galleyRequest ::
   m (Response (Maybe BL.ByteString))
 galleyRequest = serviceRequest "galley" galley
 
-gundeckRequest ::
-  (MonadReader Env m, MonadIO m, MonadMask m, MonadHttp m, HasRequestId m) =>
-  StdMethod ->
-  (Request -> Request) ->
-  m (Response (Maybe BL.ByteString))
-gundeckRequest = serviceRequest "gundeck" gundeck
-
 serviceRequest ::
   (MonadReader Env m, MonadIO m, MonadMask m, MonadHttp m, HasRequestId m) =>
   LT.Text ->
