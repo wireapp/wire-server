@@ -215,10 +215,14 @@ certEnrollmentError (RustError InvalidBackendKeys) = StdError $ Wai.mkError stat
 certEnrollmentError (RustError InvalidClientId) = StdError $ Wai.mkError status400 "invalid-client-id" "Bubbling up errors"
 certEnrollmentError (RustError UnsupportedApiVersion) = StdError $ Wai.mkError status400 "unsupported-api-version" "Bubbling up errors"
 certEnrollmentError (RustError UnsupportedScope) = StdError $ Wai.mkError status400 "unsupported-scope" "Bubbling up errors"
+certEnrollmentError (RustError DpopHandleMismatch) = StdError $ Wai.mkError status400 "dpop-handle-mismatch" "Bubbling up errors"
+certEnrollmentError (RustError DpopTeamMismatch) = StdError $ Wai.mkError status400 "dpop-team-mismatch" "Bubbling up errors"
 certEnrollmentError NonceNotFound = StdError $ Wai.mkError status400 "client-token-bad-nonce" "The client sent an unacceptable anti-replay nonce"
 certEnrollmentError MisconfiguredRequestUrl = StdError $ Wai.mkError status500 "misconfigured-request-url" "The request url cannot be derived from optSettings.setFederationDomain in brig.yaml"
 certEnrollmentError KeyBundleError = StdError $ Wai.mkError status404 "no-server-key-bundle" "The key bundle required for the certificate enrollment process could not be found"
 certEnrollmentError ClientIdSyntaxError = StdError $ Wai.mkError status400 "client-token-id-parse-error" "The client id could not be parsed"
+certEnrollmentError NotATeamUser = StdError $ Wai.mkError status400 "not-a-team-user" "The user is not a team user"
+certEnrollmentError MissingHandle = StdError $ Wai.mkError status400 "missing-handle" "The user has no handle"
 
 fedError :: FederationError -> Error
 fedError = StdError . federationErrorToWai

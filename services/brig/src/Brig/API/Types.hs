@@ -208,6 +208,8 @@ data CertEnrollmentError
   | KeyBundleError
   | MisconfiguredRequestUrl
   | ClientIdSyntaxError
+  | NotATeamUser
+  | MissingHandle
 
 -------------------------------------------------------------------------------
 -- Exceptions

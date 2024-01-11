@@ -26,6 +26,10 @@ data JwtTools m a where
     Proof ->
     -- | The qualified client ID associated with the currently logged on user
     ClientIdentity ->
+    -- | The user's handle
+    Text ->
+    -- | The user's team ID
+    TeamId ->
     -- | The most recent DPoP nonce provided by the backend to the current client
     Nonce ->
     -- |  The HTTPS URI on the backend for the DPoP auth token endpoint
@@ -46,7 +50,7 @@ makeSem ''JwtTools
 
 interpretJwtTools :: Member (Embed IO) r => Sem (JwtTools ': r) a -> Sem r a
 interpretJwtTools = interpret $ \case
-  GenerateDPoPAccessToken pr ci n uri method skew ex now pem ->
+  GenerateDPoPAccessToken pr ci h t n uri method skew ex now pem ->
     mapLeft RustError
       <$> runExceptT
         ( DPoPAccessToken
@@ -54,6 +58,8 @@ interpretJwtTools = interpret $ \case
               (Jwt.Proof (toByteString' pr))
               (Jwt.UserId (toByteString' (ciUser ci)))
               (Jwt.ClientId (clientToWord64 (ciClient ci)))
+              (Jwt.Handle (toByteString' h))
+              (Jwt.TeamId (toByteString' t))
               (Jwt.Domain (toByteString' (ciDomain ci)))
               (Jwt.Nonce (toByteString' n))
               (Jwt.Uri (toByteString' uri))

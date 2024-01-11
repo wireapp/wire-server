@@ -24,20 +24,11 @@ main :: IO ()
 main = hspec $ do
   describe "generateDpopToken FFI when passing valid inputs" $ do
     it "should return an access token" $ do
-      -- FUTUREWORK(leif): fix this test, we need new valid test data,
-      -- this test exists mainly for debugging purposes
-      -- a functionality test is also coverd in the integration tests in services/brig/test/integration/API/User/Client.hs (`testCreateAccessToken`)
-      pending
-      actual <- runExceptT $ generateDpopToken proof uid cid domain nonce uri method maxSkewSecs expires now pem
-      print actual
+      actual <- runExceptT $ generateDpopToken proof uid cid handle tid domain nonce uri method maxSkewSecs expires now pem
       isRight actual `shouldBe` True
   describe "generateDpopToken FFI when passing a wrong nonce value" $ do
     it "should return BackendNonceMismatchError" $ do
-      -- FUTUREWORK(leif): fix this test, we need new valid test data,
-      -- this test exists mainly for debugging purposes
-      -- a functionality test is also coverd in the integration tests in services/brig/test/integration/API/User/Client.hs (`testCreateAccessToken`)
-      pending
-      actual <- runExceptT $ generateDpopToken proof uid cid domain (Nonce "foobar") uri method maxSkewSecs expires now pem
+      actual <- runExceptT $ generateDpopToken proof uid cid handle tid domain (Nonce "foobar") uri method maxSkewSecs expires now pem
       actual `shouldBe` Left BackendNonceMismatchError
   describe "toResult" $ do
     it "should convert to correct error" $ do
@@ -81,16 +72,16 @@ main = hspec $ do
       toResult Nothing Nothing `shouldBe` Left UnknownError
   where
     token = ""
-    proof = Proof "eyJhbGciOiJFZERTQSIsInR5cCI6ImRwb3Arand0IiwiandrIjp7Imt0eSI6Ik9LUCIsImNydiI6IkVkMjU1MTkiLCJ4IjoidXE2c1hXcDdUM1E3YlNtUFd3eFNlRHJoUHFid1RfcTd4SFBQeGpGT0g5VSJ9fQ.eyJpYXQiOjE2OTQxMTc0MjgsImV4cCI6MTY5NDcyMjIyOCwibmJmIjoxNjk0MTE3NDIzLCJzdWIiOiJpbTp3aXJlYXBwPUlHOVl2enVXUUlLVWFSazEyRjVDSVEvOGUxODk2MjZlYWUwMTExZEBlbG5hLndpcmUubGluayIsImp0aSI6ImM0OGZmOTAyLTc5OGEtNDNjYi04YTk2LTE3NzM0NTgxNjIyMCIsIm5vbmNlIjoiR0FxNG5SajlSWVNzUnhoOVh1MWFtQSIsImh0bSI6IlBPU1QiLCJodHUiOiJodHRwczovL2VsbmEud2lyZS5saW5rL2NsaWVudHMvOGUxODk2MjZlYWUwMTExZC9hY2Nlc3MtdG9rZW4iLCJjaGFsIjoiMkxLbEFWMjR2VGtIMHlaaFdacEZrT01mSEE1d3lGQkgifQ.FW5i40CvndSSo3wQdA1DMUkGRmxk86cORAllwC2PCejVuk7TsdZuIKuJZFVa1VTJKWwNCPqPZ05Gsxxeh1DiDA"
-    uid = UserId "206f58bf-3b96-4082-9469-1935d85e4221"
-    cid = ClientId 10239098846720299293
-    domain = Domain "wire.com"
-    nonce = Nonce "GAq4nRj9RYSsRxh9Xu1amA"
-    uri = Uri "https://elna.wire.link/clients/10239098846720299293/access-token"
+    proof = Proof "eyJhbGciOiJFZERTQSIsImp3ayI6eyJjcnYiOiJFZDI1NTE5Iiwia3R5IjoiT0tQIiwieCI6Im5MSkdOLU9hNkpzcTNLY2xaZ2dMbDdVdkFWZG1CMFE2QzNONUJDZ3BoSHcifSwidHlwIjoiZHBvcCtqd3QifQ.eyJjaGFsIjoid2EyVnJrQ3RXMXNhdUoyRDN1S1k4cmM3eTRrbDR1c0giLCJleHAiOjE4MzExMjYxNjMsImhhbmRsZSI6IndpcmVhcHA6Ly8lNDBwaHVoaGliZGhxYnF4cnpibnNhZndAZXhhbXBsZS5jb20iLCJodG0iOiJQT1NUIiwiaHR1IjoiaHR0cHM6Ly9leGFtcGxlLmNvbS9jbGllbnRzL2NjNmU2NDBlMjk2ZThiYmEvYWNjZXNzLXRva2VuIiwiaWF0IjoxNzA0OTgyMTYzLCJqdGkiOiI2ZmM1OWU3Zi1iNjY2LTRmZmMtYjczOC00ZjQ3NjBjODg0Y2EiLCJuYmYiOjE3MDQ5ODIxNjMsIm5vbmNlIjoiVnZHYnc2ZVZUTkdTUWJLNVNlaVNiQSIsInN1YiI6IndpcmVhcHA6Ly9zZ3VNZUxKdFE2U3ZKUGNxUExiMkJnIWNjNmU2NDBlMjk2ZThiYmFAZXhhbXBsZS5jb20iLCJ0ZWFtIjoiNDAyNTE2ODAtMzVlMS00Mzc0LWIzYWEtNzU2MDBkZTc5ZTMzIn0.JgVXD2_E4j4sLcvD284Fj4z_6xmwA0czcP8wzHZmqPpel60HUqDVKDx5GmiWbFWix-E7ZXvYfvZ7NmxlDrgmAg"
+    uid = UserId "b20b8c78-b26d-43a4-af24-f72a3cb6f606"
+    cid = ClientId 14730821443162901434
+    domain = Domain "example.com"
+    nonce = Nonce "VvGbw6eVTNGSQbK5SeiSbA"
+    uri = Uri "https://example.com/clients/cc6e640e296e8bba/access-token"
     method = POST
-    maxSkewSecs = MaxSkewSecs 5
-    now = NowEpoch 360
-    expires = ExpiryEpoch 2136351646
+    maxSkewSecs = MaxSkewSecs 1
+    now = NowEpoch 1704982162
+    expires = ExpiryEpoch 1831212562
     pem =
       PemBundle $
         "-----BEGIN PRIVATE KEY-----\n\
@@ -99,3 +90,5 @@ main = hspec $ do
         \-----BEGIN PUBLIC KEY-----\n\
         \MCowBQYDK2VwAyEAdYI38UdxksC0K4Qx6E9JK9YfGm+ehnY18oKmHL2YsZk=\n\
         \-----END PUBLIC KEY-----\n"
+    handle = Handle "phuhhibdhqbqxrzbnsafw"
+    tid = TeamId "40251680-35e1-4374-b3aa-75600de79e33"
