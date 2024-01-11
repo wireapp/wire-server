@@ -35,6 +35,7 @@ module Brig.App
     stompEnv,
     cargohold,
     galley,
+    galleyEndpoint,
     gundeckEndpoint,
     federator,
     casClient,
@@ -159,6 +160,7 @@ schemaVersion = Migrations.lastSchemaVersion
 data Env = Env
   { _cargohold :: RPC.Request,
     _galley :: RPC.Request,
+    _galleyEndpoint :: Endpoint,
     _gundeckEndpoint :: Endpoint,
     _federator :: Maybe Endpoint, -- FUTUREWORK: should we use a better type here? E.g. to avoid fresh connections all the time?
     _casClient :: Cas.ClientState,
@@ -258,6 +260,7 @@ newEnv o = do
     Env
       { _cargohold = mkEndpoint $ Opt.cargohold o,
         _galley = mkEndpoint $ Opt.galley o,
+        _galleyEndpoint = Opt.galley o,
         _gundeckEndpoint = Opt.gundeck o,
         _federator = Opt.federatorInternal o,
         _casClient = cas,
@@ -306,13 +309,13 @@ newEnv o = do
     mkEndpoint service = RPC.host (encodeUtf8 (service ^. host)) . RPC.port (service ^. port) $ RPC.empty
 
 mkIndexEnv :: Opts -> Logger -> Manager -> Metrics -> Endpoint -> IndexEnv
-mkIndexEnv o lgr mgr mtr galleyEndpoint =
+mkIndexEnv o lgr mgr mtr galleyEp =
   let bhe = ES.mkBHEnv (ES.Server (Opt.url (Opt.elasticsearch o))) mgr
       lgr' = Log.clone (Just "index.brig") lgr
       mainIndex = ES.IndexName $ Opt.index (Opt.elasticsearch o)
       additionalIndex = ES.IndexName <$> Opt.additionalWriteIndex (Opt.elasticsearch o)
       additionalBhe = flip ES.mkBHEnv mgr . ES.Server <$> Opt.additionalWriteIndexUrl (Opt.elasticsearch o)
-   in IndexEnv mtr lgr' bhe Nothing mainIndex additionalIndex additionalBhe galleyEndpoint mgr
+   in IndexEnv mtr lgr' bhe Nothing mainIndex additionalIndex additionalBhe galleyEp mgr
 
 initZAuth :: Opts -> IO ZAuth.Env
 initZAuth o = do
