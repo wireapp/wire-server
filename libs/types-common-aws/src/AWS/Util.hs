@@ -18,7 +18,6 @@
 module AWS.Util where
 
 import Amazonka qualified as AWS
-import Amazonka.Data.Time qualified as AWS
 import Data.Time
 import Imports
 
