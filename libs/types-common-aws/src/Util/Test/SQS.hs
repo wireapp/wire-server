@@ -164,13 +164,5 @@ parseDeleteMessage url m = do
         liftIO $ putStrLn $ "Failed to delete message, this error will be ignored. Message: " <> show m <> ", Exception: " <> displayException e
   pure evt
 
-sendEnv ::
-  ( MonadReader AWS.Env m,
-    MonadResource m,
-    Typeable a,
-    Typeable (AWS.AWSResponse a),
-    AWS.AWSRequest a
-  ) =>
-  a ->
-  m (AWS.AWSResponse a)
+sendEnv :: (MonadReader AWS.Env m, MonadResource m, AWS.AWSRequest a) => a -> m (AWS.AWSResponse a)
 sendEnv x = flip AWS.send x =<< ask
