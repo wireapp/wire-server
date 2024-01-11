@@ -17,6 +17,7 @@ import Test.Hspec
 import Test.QuickCheck
 import Test.QuickCheck.Instances ()
 import Wire.GundeckAPIAccess
+import Wire.GundeckAPIAccess qualified as GundeckAPIAccess
 import Wire.NotificationSubsystem
 import Wire.NotificationSubsystem.Interpreter
 import Wire.Sem.Delay
@@ -254,6 +255,13 @@ runGundeckAPIAccessIORef :: Member (Embed IO) r => IORef [[V2.Push]] -> Sem (Gun
 runGundeckAPIAccessIORef pushesRef =
   interpret \case
     PushV2 pushes -> modifyIORef pushesRef (<> [pushes])
+    GundeckAPIAccess.UserDeleted uid ->
+      liftIO $ expectationFailure $ "Unexpected call to GundeckAPI: UserDeleted " <> show uid
+    GundeckAPIAccess.UnregisterPushClient uid cid ->
+      liftIO $ expectationFailure $ "Unexpected call to GundeckAPI: UnregisterPushClient " <> show uid <> " " <> show cid
+    GundeckAPIAccess.GetPushTokens uid -> do
+      liftIO $ expectationFailure $ "Unexpected call to GundeckAPI: GetPushTokens " <> show uid
+      error "impossible"
 
 waitUntilPushes :: IORef [a] -> Int -> IO [a]
 waitUntilPushes pushesRef n = do

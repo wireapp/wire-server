@@ -16,8 +16,10 @@ import Polysemy
 import Polysemy.Async (Async, sequenceConcurrently)
 import Polysemy.Input
 import Wire.API.Team.Member
-import Wire.GundeckAPIAccess
+import Wire.GundeckAPIAccess (GundeckAPIAccess)
+import Wire.GundeckAPIAccess qualified as GundeckAPIAccess
 import Wire.NotificationSubsystem
+import Wire.NotificationSubsystem.Internal
 import Wire.Sem.Delay
 
 -- | We interpret this using 'GundeckAPIAccess' so we can mock it out for testing.
@@ -32,6 +34,9 @@ runNotificationSubsystemGundeck ::
 runNotificationSubsystemGundeck cfg = interpret $ \case
   PushNotifications ps -> runInputConst cfg $ pushImpl ps
   PushNotificationsSlowly ps -> runInputConst cfg $ pushSlowlyImpl ps
+  UserDeleted uid -> GundeckAPIAccess.userDeleted uid
+  UnregisterPushClient uid cid -> GundeckAPIAccess.unregisterPushClient uid cid
+  GetPushTokens uid -> GundeckAPIAccess.getPushTokens uid
 
 data NotificationSubsystemConfig = NotificationSubsystemConfig
   { fanoutLimit :: Range 1 HardTruncationLimit Int32,
@@ -70,7 +75,7 @@ pushImpl ps = do
           removeIfLargeFanout currentFanoutLimit ps
   void $
     sequenceConcurrently $
-      pushV2 <$> pushes
+      GundeckAPIAccess.pushV2 <$> pushes
 
 removeIfLargeFanout :: Range n m Int32 -> [Push] -> [Push]
 removeIfLargeFanout limit =

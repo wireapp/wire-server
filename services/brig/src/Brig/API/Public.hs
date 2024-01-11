@@ -565,7 +565,8 @@ addClient ::
   ( Member GalleyProvider r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r
+    Member Async r,
+    Member TinyLog r
   ) =>
   UserId ->
   ConnId ->
@@ -881,7 +882,8 @@ updateUser ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
     Member Async r,
-    Member GalleyProvider r
+    Member GalleyProvider r,
+    Member TinyLog r
   ) =>
   UserId ->
   ConnId ->
@@ -908,7 +910,8 @@ changePhone u _ (Public.puPhone -> phone) = lift . exceptTToMaybe $ do
 removePhone ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r
+    Member Async r,
+    Member TinyLog r
   ) =>
   UserId ->
   ConnId ->
@@ -919,7 +922,8 @@ removePhone self conn =
 removeEmail ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r
+    Member Async r,
+    Member TinyLog r
   ) =>
   UserId ->
   ConnId ->
@@ -936,7 +940,8 @@ changePassword u cp = lift . exceptTToMaybe $ API.changePassword u cp
 changeLocale ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r
+    Member Async r,
+    Member TinyLog r
   ) =>
   UserId ->
   ConnId ->
@@ -947,7 +952,8 @@ changeLocale u conn l = lift $ API.changeLocale u conn l
 changeSupportedProtocols ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r
+    Member Async r,
+    Member TinyLog r
   ) =>
   Local UserId ->
   ConnId ->
@@ -991,7 +997,8 @@ changeHandle ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
     Member Async r,
-    Member GalleyProvider r
+    Member GalleyProvider r,
+    Member TinyLog r
   ) =>
   UserId ->
   ConnId ->
@@ -1056,7 +1063,9 @@ customerExtensionCheckBlockedDomains email = do
 createConnectionUnqualified ::
   ( Member GalleyProvider r,
     Member NotificationSubsystem r,
-    Member Async r
+    Member Async r,
+    Member TinyLog r,
+    Member (Embed HttpClientIO) r
   ) =>
   UserId ->
   ConnId ->
@@ -1071,7 +1080,9 @@ createConnection ::
   ( Member FederationConfigStore r,
     Member GalleyProvider r,
     Member NotificationSubsystem r,
-    Member Async r
+    Member Async r,
+    Member TinyLog r,
+    Member (Embed HttpClientIO) r
   ) =>
   UserId ->
   ConnId ->
@@ -1083,7 +1094,9 @@ createConnection self conn target = do
 
 updateLocalConnection ::
   ( Member NotificationSubsystem r,
-    Member Async r
+    Member Async r,
+    Member TinyLog r,
+    Member (Embed HttpClientIO) r
   ) =>
   UserId ->
   ConnId ->
@@ -1099,7 +1112,9 @@ updateLocalConnection self conn other (Public.cuStatus -> newStatus) = do
 updateConnection ::
   ( Member FederationConfigStore r,
     Member NotificationSubsystem r,
-    Member Async r
+    Member Async r,
+    Member TinyLog r,
+    Member (Embed HttpClientIO) r
   ) =>
   UserId ->
   ConnId ->

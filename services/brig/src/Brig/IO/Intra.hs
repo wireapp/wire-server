@@ -34,7 +34,6 @@ module Brig.IO.Intra
 
     -- * Clients
     rmClient,
-    lookupPushToken,
 
     -- * Account Deletion
     rmUser,
@@ -49,7 +48,6 @@ where
 
 import Bilge hiding (head, options, requestId)
 import Bilge.RPC
-import Bilge.Retry
 import Brig.API.Error (internalServerError)
 import Brig.API.Types
 import Brig.API.Util
@@ -67,7 +65,6 @@ import Control.Error (ExceptT)
 import Control.Lens (view, (.~), (?~), (^.), (^?))
 import Control.Monad.Catch
 import Control.Monad.Trans.Except (throwE)
-import Control.Retry
 import Data.Aeson hiding (json)
 import Data.Aeson.KeyMap qualified as KeyMap
 import Data.Aeson.Lens
@@ -89,7 +86,9 @@ import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import Polysemy
 import Polysemy.Async
-import System.Logger.Class as Log hiding (name, (.=))
+import Polysemy.TinyLog (TinyLog)
+import System.Logger.Class (MonadLogger)
+import System.Logger.Message hiding ((.=))
 import Wire.API.Connection
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Event.Conversation (Connect (Connect))
@@ -102,7 +101,8 @@ import Wire.API.Team.LegalHold (LegalholdProtectee)
 import Wire.API.Team.Member qualified as Team
 import Wire.API.User
 import Wire.API.User.Client
-import Wire.NotificationSubsystem
+import Wire.NotificationSubsystem as NotificationSubsystem
+import Wire.Sem.Logger qualified as Log
 
 -----------------------------------------------------------------------------
 -- Event Handlers
@@ -110,7 +110,8 @@ import Wire.NotificationSubsystem
 onUserEvent ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r
+    Member Async r,
+    Member TinyLog r
   ) =>
   UserId ->
   Maybe ConnId ->
@@ -230,7 +231,8 @@ journalEvent orig e = case e of
 dispatchNotifications ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r
+    Member Async r,
+    Member TinyLog r
   ) =>
   UserId ->
   Maybe ConnId ->
@@ -340,7 +342,8 @@ notifyContacts ::
   forall r.
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r
+    Member Async r,
+    Member TinyLog r
   ) =>
   List1 Event ->
   -- | Origin user.
@@ -358,7 +361,7 @@ notifyContacts events orig route conn = do
     contacts = embed $ lookupContactList orig
 
     teamContacts :: Sem r [UserId]
-    teamContacts = embed $ screenMemberList <$> getTeamContacts orig
+    teamContacts = screenMemberList <$> getTeamContacts orig
     -- If we have a truncated team, we just ignore it all together to avoid very large fanouts
     --
     screenMemberList :: Maybe Team.TeamMemberList -> [UserId]
@@ -513,20 +516,16 @@ toApsData _ = Nothing
 
 -- | Calls 'Galley.API.Create.createConnectConversation'.
 createLocalConnectConv ::
-  ( MonadReader Env m,
-    MonadIO m,
-    MonadMask m,
-    MonadHttp m,
-    HasRequestId m,
-    MonadLogger m
+  ( Member (Embed HttpClientIO) r,
+    Member TinyLog r
   ) =>
   Local UserId ->
   Local UserId ->
   Maybe Text ->
   Maybe ConnId ->
-  m ConvId
+  Sem r ConvId
 createLocalConnectConv from to cname conn = do
-  debug $
+  Log.debug $
     logConnection (tUnqualified from) (tUntagged to)
       . remote "galley"
       . msg (val "Creating connect conversation")
@@ -537,12 +536,15 @@ createLocalConnectConv from to cname conn = do
           . contentJson
           . lbytes (encode $ Connect (tUntagged to) Nothing cname Nothing)
           . expect2xx
-  r <- galleyRequest POST req
+  r <- embed $ galleyRequest POST req
   maybe (error "invalid conv id") pure $
     fromByteString $
       getHeader' "Location" r
 
 createConnectConv ::
+  ( Member (Embed HttpClientIO) r,
+    Member TinyLog r
+  ) =>
   Qualified UserId ->
   Qualified UserId ->
   Maybe Text ->
@@ -552,27 +554,21 @@ createConnectConv from to cname conn = do
   lfrom <- ensureLocal from
   lto <- ensureLocal to
   tUntagged . qualifyAs lfrom
-    <$> wrapHttp (createLocalConnectConv lfrom lto cname conn)
+    <$> liftSem (createLocalConnectConv lfrom lto cname conn)
 
 -- | Calls 'Galley.API.acceptConvH'.
 acceptLocalConnectConv ::
-  ( MonadReader Env m,
-    MonadIO m,
-    MonadMask m,
-    MonadHttp m,
-    HasRequestId m,
-    MonadLogger m
-  ) =>
+  (Member (Embed HttpClientIO) r, Member TinyLog r) =>
   Local UserId ->
   Maybe ConnId ->
   ConvId ->
-  m Conversation
+  Sem r Conversation
 acceptLocalConnectConv from conn cnv = do
-  debug $
+  Log.debug $
     remote "galley"
       . field "conv" (toByteString cnv)
       . msg (val "Accepting connect conversation")
-  galleyRequest PUT req >>= decodeBody "galley"
+  embed $ galleyRequest PUT req >>= decodeBody "galley"
   where
     req =
       paths ["/i/conversations", toByteString' cnv, "accept", "v2"]
@@ -580,32 +576,35 @@ acceptLocalConnectConv from conn cnv = do
         . maybe id (header "Z-Connection" . fromConnId) conn
         . expect2xx
 
-acceptConnectConv :: Local UserId -> Maybe ConnId -> Qualified ConvId -> AppT r Conversation
+acceptConnectConv ::
+  ( Member (Embed HttpClientIO) r,
+    Member TinyLog r
+  ) =>
+  Local UserId ->
+  Maybe ConnId ->
+  Qualified ConvId ->
+  AppT r Conversation
 acceptConnectConv from conn =
   foldQualified
     from
-    (wrapHttp . acceptLocalConnectConv from conn . tUnqualified)
+    (liftSem . acceptLocalConnectConv from conn . tUnqualified)
     (const (throwM federationNotImplemented))
 
 -- | Calls 'Galley.API.blockConvH'.
 blockLocalConv ::
-  ( MonadReader Env m,
-    MonadIO m,
-    MonadMask m,
-    MonadHttp m,
-    HasRequestId m,
-    MonadLogger m
+  ( Member (Embed HttpClientIO) r,
+    Member TinyLog r
   ) =>
   Local UserId ->
   Maybe ConnId ->
   ConvId ->
-  m ()
+  Sem r ()
 blockLocalConv lusr conn cnv = do
-  debug $
+  Log.debug $
     remote "galley"
       . field "conv" (toByteString cnv)
       . msg (val "Blocking conversation")
-  void $ galleyRequest PUT req
+  embed $ void $ galleyRequest PUT req
   where
     req =
       paths ["/i/conversations", toByteString' cnv, "block"]
@@ -614,42 +613,34 @@ blockLocalConv lusr conn cnv = do
         . expect2xx
 
 blockConv ::
-  ( MonadReader Env m,
-    MonadIO m,
-    MonadMask m,
-    MonadHttp m,
-    HasRequestId m,
-    MonadLogger m
+  ( Member (Embed HttpClientIO) r,
+    Member TinyLog r
   ) =>
   Local UserId ->
   Maybe ConnId ->
   Qualified ConvId ->
-  m ()
+  AppT r ()
 blockConv lusr conn =
   foldQualified
     lusr
-    (blockLocalConv lusr conn . tUnqualified)
+    (liftSem . blockLocalConv lusr conn . tUnqualified)
     (const (throwM federationNotImplemented))
 
 -- | Calls 'Galley.API.unblockConvH'.
 unblockLocalConv ::
-  ( MonadReader Env m,
-    MonadIO m,
-    MonadMask m,
-    MonadHttp m,
-    HasRequestId m,
-    MonadLogger m
+  ( Member (Embed HttpClientIO) r,
+    Member TinyLog r
   ) =>
   Local UserId ->
   Maybe ConnId ->
   ConvId ->
-  m Conversation
+  Sem r Conversation
 unblockLocalConv lusr conn cnv = do
-  debug $
+  Log.debug $
     remote "galley"
       . field "conv" (toByteString cnv)
       . msg (val "Unblocking conversation")
-  galleyRequest PUT req >>= decodeBody "galley"
+  embed $ galleyRequest PUT req >>= decodeBody "galley"
   where
     req =
       paths ["/i/conversations", toByteString' cnv, "unblock"]
@@ -658,21 +649,17 @@ unblockLocalConv lusr conn cnv = do
         . expect2xx
 
 unblockConv ::
-  ( MonadReader Env m,
-    MonadIO m,
-    MonadMask m,
-    MonadHttp m,
-    HasRequestId m,
-    MonadLogger m
+  ( Member (Embed HttpClientIO) r,
+    Member TinyLog r
   ) =>
   Local UserId ->
   Maybe ConnId ->
   Qualified ConvId ->
-  m Conversation
+  AppT r Conversation
 unblockConv luid conn =
   foldQualified
     luid
-    (unblockLocalConv luid conn . tUnqualified)
+    (liftSem . unblockLocalConv luid conn . tUnqualified)
     (const (throwM federationNotImplemented))
 
 upsertOne2OneConversation ::
@@ -701,35 +688,32 @@ upsertOne2OneConversation urequest = do
 -- | Calls Galley's endpoint with the internal route ID "delete-user", as well
 -- as gundeck and cargohold.
 rmUser ::
-  ( MonadReader Env m,
-    MonadIO m,
-    MonadMask m,
-    MonadHttp m,
-    HasRequestId m,
-    MonadLogger m
+  ( Member TinyLog r,
+    Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r
   ) =>
   UserId ->
   [Asset] ->
-  m ()
+  Sem r ()
 rmUser usr asts = do
-  debug $
+  Log.debug $
     remote "gundeck"
       . field "user" (toByteString usr)
       . msg (val "remove user")
-  void $ gundeckRequest DELETE (path "/i/user" . zUser usr . expect2xx)
-  debug $
+  NotificationSubsystem.userDeleted usr
+  Log.debug $
     remote "galley"
       . field "user" (toByteString usr)
       . msg (val "remove user")
-  void $ galleyRequest DELETE (path "/i/user" . zUser usr . expect2xx)
-  debug $
+  embed $ void $ galleyRequest DELETE (path "/i/user" . zUser usr . expect2xx)
+  Log.debug $
     remote "cargohold"
       . field "user" (toByteString usr)
       . msg (val "remove profile assets")
   -- Note that we _may_ not get a 2xx response code from cargohold (e.g., client has
   -- deleted the asset "directly" with cargohold; on our side, we just do our best to
   -- delete it in case it is still there
-  forM_ asts $ \ast ->
+  embed $ forM_ asts $ \ast ->
     cargoholdRequest DELETE (paths ["assets/v3", toByteString' $ assetKey ast] . zUser usr)
 
 -------------------------------------------------------------------------------
@@ -737,66 +721,31 @@ rmUser usr asts = do
 
 -- | Calls 'Galley.API.rmClientH', as well as gundeck.
 rmClient ::
-  ( MonadReader Env m,
-    MonadIO m,
-    MonadMask m,
-    MonadHttp m,
-    HasRequestId m,
-    MonadLogger m
+  ( Member TinyLog r,
+    Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r
   ) =>
   UserId ->
   ClientId ->
-  m ()
+  Sem r ()
 rmClient u c = do
   let cid = toByteString' c
-  debug $
+  Log.debug $
     remote "galley"
       . field "user" (toByteString u)
       . field "client" (BL.fromStrict cid)
       . msg (val "remove client")
   let p = paths ["i", "clients", cid]
-  void $ galleyRequest DELETE (p . zUser u . expect expected)
+  embed $ void $ galleyRequest DELETE (p . zUser u . expect expected)
   -- for_ clabel rmClientCookie
-  debug $
+  Log.debug $
     remote "gundeck"
       . field "user" (toByteString u)
       . field "client" (BL.fromStrict cid)
       . msg (val "unregister push client")
-  g <- view gundeck
-  void . recovering x3 rpcHandlers $
-    const $
-      rpc'
-        "gundeck"
-        g
-        ( method DELETE
-            . paths ["i", "clients", cid]
-            . zUser u
-            . expect expected
-        )
+  unregisterPushClient u c
   where
     expected = [status200, status204, status404]
-
-lookupPushToken ::
-  ( MonadReader Env m,
-    MonadIO m,
-    MonadMask m,
-    MonadHttp m,
-    HasRequestId m
-  ) =>
-  UserId ->
-  m [V2.PushToken]
-lookupPushToken uid = do
-  g <- view gundeck
-  rsp <-
-    rpc'
-      "gundeck"
-      (g :: Request)
-      ( method GET
-          . paths ["i", "push-tokens", toByteString' uid]
-          . zUser uid
-          . expect2xx
-      )
-  responseJsonMaybe rsp & maybe (pure []) (pure . V2.pushTokens)
 
 -------------------------------------------------------------------------------
 -- Team Management
@@ -805,19 +754,15 @@ lookupPushToken uid = do
 --
 -- Calls 'Galley.API.getBindingTeamMembersH'.
 getTeamContacts ::
-  ( MonadReader Env m,
-    MonadIO m,
-    MonadMask m,
-    MonadHttp m,
-    HasRequestId m,
-    MonadLogger m
+  ( Member TinyLog r,
+    Member (Embed HttpClientIO) r
   ) =>
   UserId ->
-  m (Maybe Team.TeamMemberList)
+  Sem r (Maybe Team.TeamMemberList)
 getTeamContacts u = do
-  debug $ remote "galley" . msg (val "Get team contacts")
-  rs <- galleyRequest GET req
-  case Bilge.statusCode rs of
+  Log.debug $ remote "galley" . msg (val "Get team contacts")
+  rs <- embed $ galleyRequest GET req
+  embed $ case Bilge.statusCode rs of
     200 -> Just <$> decodeBody "galley" rs
     _ -> pure Nothing
   where

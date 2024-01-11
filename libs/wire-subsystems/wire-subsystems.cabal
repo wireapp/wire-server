@@ -70,14 +70,18 @@ library
   exposed-modules:
     Wire.GundeckAPIAccess
     Wire.NotificationSubsystem
+    Wire.NotificationSubsystem.Internal
     Wire.NotificationSubsystem.Interpreter
+    Wire.Rpc
 
   hs-source-dirs:   src
   build-depends:
     , aeson
     , base
     , bilge
+    , bytestring-conversion
     , containers
+    , exceptions
     , gundeck-types
     , http-client
     , http-types
@@ -86,6 +90,7 @@ library
     , polysemy
     , polysemy-wire-zoo
     , QuickCheck
+    , retry
     , text
     , types-common
     , wire-api

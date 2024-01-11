@@ -33,9 +33,10 @@ import Polysemy.Conc
 import Polysemy.Embed (runEmbedded)
 import Polysemy.Error (Error, mapError, runError)
 import Polysemy.TinyLog (TinyLog)
-import Wire.GundeckAPIAccess hiding (httpManager)
+import Wire.GundeckAPIAccess
 import Wire.NotificationSubsystem
 import Wire.NotificationSubsystem.Interpreter
+import Wire.Rpc
 import Wire.Sem.Concurrency
 import Wire.Sem.Concurrency.IO
 import Wire.Sem.Delay
@@ -48,6 +49,7 @@ import Wire.Sem.Paging.Cassandra (InternalPaging)
 type BrigCanonicalEffects =
   '[ NotificationSubsystem,
      GundeckAPIAccess,
+     Rpc,
      FederationConfigStore,
      Jwk,
      PublicKeyBundle,
@@ -101,7 +103,8 @@ runBrigToIO e (AppT ma) = do
               . interpretPublicKeyBundle
               . interpretJwk
               . interpretFederationDomainConfig (e ^. settings . federationStrategy) (foldMap (remotesMapFromCfgFile . fmap (.federationDomainConfig)) (e ^. settings . federationDomainConfigs))
-              . runGundeckAPIAccess (GundeckAccessDetails (e ^. gundeckEndpoint) (e ^. httpManager))
+              . runRpcWithHttp (e ^. httpManager) (e ^. requestId)
+              . runGundeckAPIAccess (e ^. gundeckEndpoint)
               . runNotificationSubsystemGundeck defaultNotificationSubsystemConfig
           )
     )

@@ -91,6 +91,7 @@ import Network.HTTP.Types.Method (StdMethod)
 import Network.Wai.Utilities
 import Polysemy
 import Polysemy.Async
+import Polysemy.TinyLog
 import Servant (Link, ToHttpApiData (toUrlPiece))
 import System.Logger.Class (field, msg, val, (~~))
 import System.Logger.Class qualified as Log
@@ -158,7 +159,8 @@ addClient ::
   ( Member GalleyProvider r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r
+    Member Async r,
+    Member TinyLog r
   ) =>
   UserId ->
   Maybe ConnId ->
@@ -173,7 +175,8 @@ addClientWithReAuthPolicy ::
   ( Member GalleyProvider r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r
+    Member Async r,
+    Member TinyLog r
   ) =>
   Data.ReAuthPolicy ->
   UserId ->
@@ -475,7 +478,8 @@ pubClient c =
 legalHoldClientRequested ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r
+    Member Async r,
+    Member TinyLog r
   ) =>
   UserId ->
   LegalHoldClientRequest ->
@@ -493,7 +497,8 @@ legalHoldClientRequested targetUser (LegalHoldClientRequest _requester lastPreke
 removeLegalHoldClient ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r
+    Member Async r,
+    Member TinyLog r
   ) =>
   UserId ->
   AppT r ()

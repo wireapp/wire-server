@@ -313,7 +313,8 @@ suspendTeam ::
     Member NotificationSubsystem r,
     Member Async r,
     Member (Concurrency 'Unsafe) r,
-    Member GalleyProvider r
+    Member GalleyProvider r,
+    Member TinyLog r
   ) =>
   TeamId ->
   (Handler r) NoContent
@@ -329,7 +330,8 @@ unsuspendTeam ::
     Member NotificationSubsystem r,
     Member Async r,
     Member (Concurrency 'Unsafe) r,
-    Member GalleyProvider r
+    Member GalleyProvider r,
+    Member TinyLog r
   ) =>
   TeamId ->
   (Handler r) NoContent
@@ -346,7 +348,8 @@ changeTeamAccountStatuses ::
     Member NotificationSubsystem r,
     Member Async r,
     Member (Concurrency 'Unsafe) r,
-    Member GalleyProvider r
+    Member GalleyProvider r,
+    Member TinyLog r
   ) =>
   TeamId ->
   AccountStatus ->

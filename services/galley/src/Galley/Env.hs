@@ -44,7 +44,6 @@ import Util.Options
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Keys
 import Wire.API.Team.Member
-import Wire.GundeckAPIAccess
 import Wire.NotificationSubsystem.Interpreter
 
 data DeleteItem = TeamItem TeamId UserId (Maybe ConnId)
@@ -111,13 +110,6 @@ currentFanoutLimit o = do
   let optFanoutLimit = fromIntegral . fromRange $ fromMaybe defaultFanoutLimit (o ^. (O.settings . maxFanoutSize))
   let maxSize = fromIntegral (o ^. (O.settings . maxTeamSize))
   unsafeRange (min maxSize optFanoutLimit)
-
-gundeckAccessDetails :: Env -> GundeckAccessDetails
-gundeckAccessDetails env =
-  GundeckAccessDetails
-    { endpoint = env ^. options . gundeck,
-      httpManager = env._manager
-    }
 
 notificationSubssystemConfig :: Env -> NotificationSubsystemConfig
 notificationSubssystemConfig env =

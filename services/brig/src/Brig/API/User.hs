@@ -594,7 +594,8 @@ updateUser ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
     Member Async r,
-    Member GalleyProvider r
+    Member GalleyProvider r,
+    Member TinyLog r
   ) =>
   UserId ->
   Maybe ConnId ->
@@ -625,7 +626,8 @@ updateUser uid mconn uu allowScim = do
 changeLocale ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r
+    Member Async r,
+    Member TinyLog r
   ) =>
   UserId ->
   ConnId ->
@@ -641,7 +643,8 @@ changeLocale uid conn (LocaleUpdate loc) = do
 changeManagedBy ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r
+    Member Async r,
+    Member TinyLog r
   ) =>
   UserId ->
   ConnId ->
@@ -657,7 +660,8 @@ changeManagedBy uid conn (ManagedByUpdate mb) = do
 changeSupportedProtocols ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r
+    Member Async r,
+    Member TinyLog r
   ) =>
   UserId ->
   ConnId ->
@@ -674,7 +678,8 @@ changeHandle ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
     Member Async r,
-    Member GalleyProvider r
+    Member GalleyProvider r,
+    Member TinyLog r
   ) =>
   UserId ->
   Maybe ConnId ->
@@ -842,7 +847,8 @@ changePhone u phone = do
 removeEmail ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r
+    Member Async r,
+    Member TinyLog r
   ) =>
   UserId ->
   ConnId ->
@@ -863,7 +869,8 @@ removeEmail uid conn = do
 removePhone ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r
+    Member Async r,
+    Member TinyLog r
   ) =>
   UserId ->
   ConnId ->
@@ -889,7 +896,8 @@ revokeIdentity ::
   forall r.
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r
+    Member Async r,
+    Member TinyLog r
   ) =>
   Either Email Phone ->
   AppT r ()
@@ -932,7 +940,8 @@ changeAccountStatus ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
     Member Async r,
-    Member (Concurrency 'Unsafe) r
+    Member (Concurrency 'Unsafe) r,
+    Member TinyLog r
   ) =>
   List1 UserId ->
   AccountStatus ->
@@ -952,7 +961,8 @@ changeAccountStatus usrs status = do
 changeSingleAccountStatus ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r
+    Member Async r,
+    Member TinyLog r
   ) =>
   UserId ->
   AccountStatus ->
@@ -1429,8 +1439,8 @@ deleteAccount account@(accountUser -> user) = do
     Data.clearProperties uid
     tombstone <- mkTombstone
     Data.insertAccount tombstone Nothing Nothing False
-    Intra.rmUser uid (userAssets user)
-    Data.lookupClients uid >>= mapM_ (Data.rmClient uid . clientId)
+  Intra.rmUser uid (userAssets user)
+  embed $ Data.lookupClients uid >>= mapM_ (Data.rmClient uid . clientId)
   luid <- embed $ qualifyLocal uid
   Intra.onUserEvent uid Nothing (UserDeleted (tUntagged luid))
   embed $ do

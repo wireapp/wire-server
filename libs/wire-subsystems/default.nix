@@ -8,7 +8,9 @@
 , base
 , bilge
 , bytestring
+, bytestring-conversion
 , containers
+, exceptions
 , gitignoreSource
 , gundeck-types
 , hspec
@@ -22,6 +24,7 @@
 , polysemy-wire-zoo
 , QuickCheck
 , quickcheck-instances
+, retry
 , text
 , types-common
 , wire-api
@@ -34,7 +37,9 @@ mkDerivation {
     aeson
     base
     bilge
+    bytestring-conversion
     containers
+    exceptions
     gundeck-types
     http-client
     http-types
@@ -43,6 +48,7 @@ mkDerivation {
     polysemy
     polysemy-wire-zoo
     QuickCheck
+    retry
     text
     types-common
     wire-api

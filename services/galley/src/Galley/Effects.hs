@@ -99,6 +99,7 @@ import Polysemy.TinyLog
 import Wire.API.Error
 import Wire.GundeckAPIAccess
 import Wire.NotificationSubsystem
+import Wire.Rpc
 import Wire.Sem.Paging.Cassandra
 import Wire.Sem.Random
 
@@ -108,6 +109,7 @@ type GalleyEffects1 =
      SparAccess,
      NotificationSubsystem,
      GundeckAPIAccess,
+     Rpc,
      ExternalAccess,
      FederatorAccess,
      BackendNotificationQueueAccess,

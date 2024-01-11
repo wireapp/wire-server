@@ -22,12 +22,11 @@ module Brig.User.EJPD (ejpdRequest) where
 
 import Brig.API.Handler
 import Brig.API.User (lookupHandle)
-import Brig.App (AppT, liftSem, wrapClient, wrapHttp)
+import Brig.App
 import Brig.Data.Connection qualified as Conn
 import Brig.Data.User (lookupUser)
 import Brig.Effects.GalleyProvider (GalleyProvider)
 import Brig.Effects.GalleyProvider qualified as GalleyProvider
-import Brig.IO.Intra qualified as Intra
 import Brig.Types.User (HavePendingInvitations (NoPendingInvitations))
 import Control.Error hiding (bool)
 import Control.Lens (view, (^.))
@@ -35,15 +34,23 @@ import Data.Handle (Handle)
 import Data.Id (UserId)
 import Data.Set qualified as Set
 import Imports hiding (head)
-import Polysemy (Member)
+import Polysemy
 import Servant.OpenApi.Internal.Orphans ()
 import Wire.API.Connection (Relation, RelationWithHistory (..), relationDropHistory)
 import Wire.API.Push.Token qualified as PushTok
 import Wire.API.Routes.Internal.Brig.EJPD (EJPDRequestBody (EJPDRequestBody), EJPDResponseBody (EJPDResponseBody), EJPDResponseItem (EJPDResponseItem))
 import Wire.API.Team.Member qualified as Team
 import Wire.API.User (User, userDisplayName, userEmail, userHandle, userId, userPhone, userTeam)
+import Wire.NotificationSubsystem as NotificationSubsystem
 
-ejpdRequest :: forall r. Member GalleyProvider r => Maybe Bool -> EJPDRequestBody -> (Handler r) EJPDResponseBody
+ejpdRequest ::
+  forall r.
+  ( Member GalleyProvider r,
+    Member NotificationSubsystem r
+  ) =>
+  Maybe Bool ->
+  EJPDRequestBody ->
+  Handler r EJPDResponseBody
 ejpdRequest includeContacts (EJPDRequestBody handles) = do
   ExceptT $ Right . EJPDResponseBody . catMaybes <$> forM handles (go1 (fromMaybe False includeContacts))
   where
@@ -60,7 +67,7 @@ ejpdRequest includeContacts (EJPDRequestBody handles) = do
       let uid = userId target
 
       ptoks <-
-        PushTok.tokenText . view PushTok.token <$$> wrapHttp (Intra.lookupPushToken uid)
+        PushTok.tokenText . view PushTok.token <$$> liftSem (NotificationSubsystem.getPushTokens uid)
 
       mbContacts <-
         if includeContacts'

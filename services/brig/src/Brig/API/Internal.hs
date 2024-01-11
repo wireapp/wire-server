@@ -137,7 +137,7 @@ istatusAPI :: forall r. ServerT BrigIRoutes.IStatusAPI (Handler r)
 istatusAPI = Named @"get-status" (pure NoContent)
 
 ejpdAPI ::
-  (Member GalleyProvider r) =>
+  (Member GalleyProvider r, Member NotificationSubsystem r) =>
   ServerT BrigIRoutes.EJPD_API (Handler r)
 ejpdAPI =
   Brig.User.EJPD.ejpdRequest
@@ -375,7 +375,8 @@ addClientInternalH ::
   ( Member GalleyProvider r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r
+    Member Async r,
+    Member TinyLog r
   ) =>
   UserId ->
   Maybe Bool ->
@@ -391,7 +392,8 @@ addClientInternalH usr mSkipReAuth new connId = do
 legalHoldClientRequestedH ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r
+    Member Async r,
+    Member TinyLog r
   ) =>
   UserId ->
   LegalHoldClientRequest ->
@@ -402,7 +404,8 @@ legalHoldClientRequestedH targetUser clientRequest = do
 removeLegalHoldClientH ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r
+    Member Async r,
+    Member TinyLog r
   ) =>
   UserId ->
   (Handler r) NoContent
@@ -585,7 +588,8 @@ getPasswordResetCode emailOrPhone =
 changeAccountStatusH ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r
+    Member Async r,
+    Member TinyLog r
   ) =>
   UserId ->
   AccountStatusUpdate ->
@@ -630,7 +634,8 @@ getConnectionsStatus (ConnectionsStatusRequestV2 froms mtos mrel) = do
 revokeIdentityH ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r
+    Member Async r,
+    Member TinyLog r
   ) =>
   Maybe Email ->
   Maybe Phone ->
@@ -641,7 +646,9 @@ revokeIdentityH bade badp = throwStd (badRequest ("need exactly one of email, ph
 
 updateConnectionInternalH ::
   ( Member NotificationSubsystem r,
-    Member Async r
+    Member Async r,
+    Member TinyLog r,
+    Member (Embed HttpClientIO) r
   ) =>
   UpdateConnectionsInternal ->
   (Handler r) NoContent
@@ -692,7 +699,8 @@ addPhonePrefixH prefix = lift $ NoContent <$ API.phonePrefixInsert prefix
 updateSSOIdH ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r
+    Member Async r,
+    Member TinyLog r
   ) =>
   UserId ->
   UserSSOId ->
@@ -708,7 +716,8 @@ updateSSOIdH uid ssoid = do
 deleteSSOIdH ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r
+    Member Async r,
+    Member TinyLog r
   ) =>
   UserId ->
   (Handler r) UpdateSSOIdResponse
@@ -773,7 +782,8 @@ updateHandleH ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
     Member Async r,
-    Member GalleyProvider r
+    Member GalleyProvider r,
+    Member TinyLog r
   ) =>
   UserId ->
   HandleUpdate ->
@@ -787,7 +797,8 @@ updateUserNameH ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
     Member Async r,
-    Member GalleyProvider r
+    Member GalleyProvider r,
+    Member TinyLog r
   ) =>
   UserId ->
   NameUpdate ->

@@ -56,8 +56,9 @@ import Data.Qualified
 import Data.Range
 import Data.UUID.V4 qualified as UUID
 import Imports
-import Polysemy (Member)
+import Polysemy
 import Polysemy.Async (Async)
+import Polysemy.TinyLog
 import System.Logger.Class qualified as Log
 import System.Logger.Message
 import Wire.API.Connection hiding (relationWithHistory)
@@ -78,7 +79,9 @@ createConnection ::
   ( Member FederationConfigStore r,
     Member GalleyProvider r,
     Member NotificationSubsystem r,
-    Member Async r
+    Member Async r,
+    Member TinyLog r,
+    Member (Embed HttpClientIO) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -96,7 +99,9 @@ createConnectionToLocalUser ::
   forall r.
   ( Member GalleyProvider r,
     Member NotificationSubsystem r,
-    Member Async r
+    Member Async r,
+    Member TinyLog r,
+    Member (Embed HttpClientIO) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -215,7 +220,9 @@ checkLegalholdPolicyConflict uid1 uid2 = do
 updateConnection ::
   ( Member FederationConfigStore r,
     Member NotificationSubsystem r,
-    Member Async r
+    Member Async r,
+    Member TinyLog r,
+    Member (Embed HttpClientIO) r
   ) =>
   Local UserId ->
   Qualified UserId ->
@@ -238,7 +245,9 @@ updateConnection self other newStatus conn =
 updateConnectionToLocalUser ::
   forall r.
   ( Member NotificationSubsystem r,
-    Member Async r
+    Member Async r,
+    Member TinyLog r,
+    Member (Embed HttpClientIO) r
   ) =>
   -- | From
   Local UserId ->
@@ -327,7 +336,7 @@ updateConnectionToLocalUser self other newStatus conn = do
       Log.info $
         logLocalConnection (tUnqualified self) (qUnqualified (ucTo s2o))
           . msg (val "Blocking connection")
-      traverse_ (wrapHttp . Intra.blockConv self conn) (ucConvId s2o)
+      traverse_ (Intra.blockConv self conn) (ucConvId s2o)
       wrapClient $ Just <$> Data.updateConnection s2o BlockedWithHistory
 
     unblock :: UserConnection -> UserConnection -> Relation -> ExceptT ConnectionError (AppT r) (Maybe UserConnection)
@@ -338,7 +347,7 @@ updateConnectionToLocalUser self other newStatus conn = do
       lift . Log.info $
         logLocalConnection (tUnqualified self) (qUnqualified (ucTo s2o))
           . msg (val "Unblocking connection")
-      cnv <- lift $ traverse (wrapHttp . Intra.unblockConv self conn) (ucConvId s2o)
+      cnv <- lift $ traverse (Intra.unblockConv self conn) (ucConvId s2o)
       when (ucStatus o2s == Sent && new == Accepted) . lift $ do
         o2s' <-
           wrapClient $
@@ -359,7 +368,7 @@ updateConnectionToLocalUser self other newStatus conn = do
         logLocalConnection (tUnqualified self) (qUnqualified (ucTo s2o))
           . msg (val "Cancelling connection")
       lfrom <- qualifyLocal (ucFrom s2o)
-      lift $ traverse_ (wrapHttp . Intra.blockConv lfrom conn) (ucConvId s2o)
+      lift $ traverse_ (Intra.blockConv lfrom conn) (ucConvId s2o)
       o2s' <- lift . wrapClient $ Data.updateConnection o2s CancelledWithHistory
       let e2o = ConnectionUpdated o2s' (Just $ ucStatus o2s) Nothing
       lift $ liftSem $ Intra.onConnectionEvent (tUnqualified self) conn e2o
@@ -399,7 +408,9 @@ mkRelationWithHistory oldRel = \case
 updateConnectionInternal ::
   forall r.
   ( Member NotificationSubsystem r,
-    Member Async r
+    Member Async r,
+    Member TinyLog r,
+    Member (Embed HttpClientIO) r
   ) =>
   UpdateConnectionsInternal ->
   ExceptT ConnectionError (AppT r) ()
@@ -429,7 +440,7 @@ updateConnectionInternal = \case
         o2s <- localConnection other self
         for_ [s2o, o2s] $ \(uconn :: UserConnection) -> lift $ do
           lfrom <- qualifyLocal (ucFrom uconn)
-          traverse_ (wrapHttp . Intra.blockConv lfrom Nothing) (ucConvId uconn)
+          traverse_ (Intra.blockConv lfrom Nothing) (ucConvId uconn)
           uconn' <- wrapClient $ Data.updateConnection uconn (mkRelationWithHistory (ucStatus uconn) MissingLegalholdConsent)
           let ev = ConnectionUpdated uconn' (Just $ ucStatus uconn) Nothing
           liftSem $ Intra.onConnectionEvent (tUnqualified self) Nothing ev
@@ -464,7 +475,7 @@ updateConnectionInternal = \case
         unblockDirected :: UserConnection -> UserConnection -> ExceptT ConnectionError (AppT r) ()
         unblockDirected uconn uconnRev = do
           lfrom <- qualifyLocal (ucFrom uconnRev)
-          void . lift . for (ucConvId uconn) $ wrapHttp . Intra.unblockConv lfrom Nothing
+          void . lift . for (ucConvId uconn) $ Intra.unblockConv lfrom Nothing
           uconnRevRel :: RelationWithHistory <- relationWithHistory lfrom (ucTo uconnRev)
           uconnRev' <- lift . wrapClient $ Data.updateConnection uconnRev (undoRelationHistory uconnRevRel)
           connName <- lift . wrapClient $ Data.lookupName (tUnqualified lfrom)

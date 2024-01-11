@@ -56,7 +56,7 @@ onEvent ::
   Sem r ()
 onEvent n = handleTimeout $ case n of
   DeleteClient clientId uid mcon -> do
-    embed $ rmClient uid clientId
+    rmClient uid clientId
     Intra.onClientEvent uid mcon (ClientRemoved uid clientId)
   DeleteUser uid -> do
     Log.info $

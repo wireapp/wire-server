@@ -110,6 +110,7 @@ import Wire.API.Federation.Error
 import Wire.API.Team.Feature
 import Wire.GundeckAPIAccess (runGundeckAPIAccess)
 import Wire.NotificationSubsystem.Interpreter (runNotificationSubsystemGundeck)
+import Wire.Rpc
 import Wire.Sem.Delay
 import Wire.Sem.Logger qualified
 import Wire.Sem.Random.IO
@@ -284,7 +285,8 @@ evalGalley e =
     . interpretBackendNotificationQueueAccess
     . interpretFederatorAccess
     . interpretExternalAccess
-    . runGundeckAPIAccess (gundeckAccessDetails e)
+    . runRpcWithHttp (e ^. manager) (e ^. reqId)
+    . runGundeckAPIAccess (e ^. options . gundeck)
     . runNotificationSubsystemGundeck (notificationSubssystemConfig e)
     . interpretSparAccess
     . interpretBrigAccess
