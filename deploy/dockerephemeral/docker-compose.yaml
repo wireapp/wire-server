@@ -59,9 +59,7 @@ services:
 
   basic_smtp: # needed for demo setup
     container_name: demo_wire_smtp
-#    image: namshi/smtp
-#    image: julialongtin/smtp:0.0.9
-    image: ixdotai/smtp
+    image: ixdotai/smtp:v0.5.2
     ports:
         - 127.0.0.1:2500:25
     networks:
