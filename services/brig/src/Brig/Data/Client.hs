@@ -168,7 +168,7 @@ addClientWithReAuthPolicy reAuthPolicy u newId c maxPermClients cps = do
       let keys = unpackLastPrekey (newClientLastKey c) : newClientPrekeys c
       updatePrekeys u newId keys
       let mdl = newClientModel c
-          prm = (u, newId, now, newClientType c, newClientLabel c, newClientClass c, newClientCookie c, Nothing, Nothing, mdl, C.Set . Set.toList <$> cps)
+          prm = (u, newId, now, newClientType c, newClientLabel c, newClientClass c, newClientCookie c, mdl, C.Set . Set.toList <$> cps)
       retry x5 $ write insertClient (params LocalQuorum prm)
       addMLSPublicKeys u newId (Map.assocs (newClientMLSPublicKeys c))
       pure $!
@@ -372,8 +372,8 @@ addMLSPublicKey u c ss pk = do
 -------------------------------------------------------------------------------
 -- Queries
 
-insertClient :: PrepQuery W (UserId, ClientId, UTCTimeMillis, ClientType, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe Latitude, Maybe Longitude, Maybe Text, Maybe (C.Set ClientCapability)) ()
-insertClient = "INSERT INTO clients (user, client, tstamp, type, label, class, cookie, lat, lon, model, capabilities) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+insertClient :: PrepQuery W (UserId, ClientId, UTCTimeMillis, ClientType, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe Text, Maybe (C.Set ClientCapability)) ()
+insertClient = "INSERT INTO clients (user, client, tstamp, type, label, class, cookie, model, capabilities) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
 updateClientLabelQuery :: PrepQuery W (Maybe Text, UserId, ClientId) ()
 updateClientLabelQuery = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE clients SET label = ? WHERE user = ? AND client = ?"
