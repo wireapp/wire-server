@@ -73,9 +73,7 @@ interpretLegalHoldStoreToCassandra lh = interpret $ \case
   SetTeamLegalholdWhitelisted tid -> embedClient $ setTeamLegalholdWhitelisted tid
   UnsetTeamLegalholdWhitelisted tid -> embedClient $ unsetTeamLegalholdWhitelisted tid
   IsTeamLegalholdWhitelisted tid -> embedClient $ isTeamLegalholdWhitelisted lh tid
-  -- FUTUREWORK: should this action be part of a separate effect?
-  MakeVerifiedRequestFreshManager fpr url r ->
-    embedApp $ makeVerifiedRequestFreshManager fpr url r
+  -- -- FUTUREWORK: should this action be part of a separate effect?
   MakeVerifiedRequest fpr url r ->
     embedApp $ makeVerifiedRequest fpr url r
   ValidateServiceKey sk -> embed @IO $ validateServiceKey sk

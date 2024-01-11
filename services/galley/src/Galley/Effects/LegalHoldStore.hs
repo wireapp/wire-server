@@ -36,7 +36,6 @@ module Galley.Effects.LegalHoldStore
 
     -- * Intra actions
     makeVerifiedRequest,
-    makeVerifiedRequestFreshManager,
   )
 where
 
@@ -62,12 +61,7 @@ data LegalHoldStore m a where
   SetTeamLegalholdWhitelisted :: TeamId -> LegalHoldStore m ()
   UnsetTeamLegalholdWhitelisted :: TeamId -> LegalHoldStore m ()
   IsTeamLegalholdWhitelisted :: TeamId -> LegalHoldStore m Bool
-  -- intra actions
-  MakeVerifiedRequestFreshManager ::
-    Fingerprint Rsa ->
-    HttpsUrl ->
-    (Http.Request -> Http.Request) ->
-    LegalHoldStore m (Http.Response LC8.ByteString)
+  -- -- intra actions
   MakeVerifiedRequest ::
     Fingerprint Rsa ->
     HttpsUrl ->
