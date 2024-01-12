@@ -742,6 +742,36 @@ testLeaveConversationSuccess = do
     assertLeaveNotification chad conv bob bClient chad
     assertLeaveNotification chad conv eve eClient chad
 
+testDeleteTeamMemberFullEventFanout :: HasCallStack => App ()
+testDeleteTeamMemberFullEventFanout = do
+  (alice, team, [alex, alison]) <- createTeam OwnDomain 3
+  [amy, bob] <- for [OwnDomain, OtherDomain] $ flip randomUser def
+  forM_ [amy, bob] $ connectTwoUsers alice
+  [aliceId, alexId, alisonId, amyId, bobId] <-
+    forM [alice, alex, alison, amy, bob] (%. "qualified_id")
+  let nc = (defProteus {qualifiedUsers = [alexId, alisonId, amyId, bobId], team = Just team})
+  conv <- postConversation alice nc >>= getJSON 201
+  withWebSockets [alice, alison, amy, bob] $ \[wsAlice, wsAlison, wsAmy, wsBob] -> do
+    void $ deleteTeamMember team alice alex >>= getBody 202
+    alexUId <- alex %. "id"
+    do
+      n <- awaitMatch isTeamMemberLeaveNotif wsAlice
+      nPayload n %. "data.user" `shouldMatch` alexUId
+    do
+      n <- awaitMatch isTeamMemberLeaveNotif wsAlison
+      nPayload n %. "data.user" `shouldMatch` alexUId
+    do
+      n <- awaitMatch isConvLeaveNotif wsAmy
+      nPayload n %. "data.qualified_user_ids" `shouldMatch` [alexId]
+    do
+      bindResponse (getConversation bob conv) $ \resp -> do
+        resp.status `shouldMatchInt` 200
+        mems <- resp.json %. "members.others" & asList
+        memIds <- forM mems (%. "qualified_id")
+        memIds `shouldMatchSet` [aliceId, alisonId, amyId]
+      n <- awaitMatch isConvLeaveNotif wsBob
+      nPayload n %. "data.qualified_user_ids.0" `shouldMatch` alexId
+
 testOnUserDeletedConversations :: HasCallStack => App ()
 testOnUserDeletedConversations = do
   startDynamicBackends [def] $ \[dynDomain] -> do
