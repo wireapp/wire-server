@@ -18,14 +18,19 @@
 import Control.Monad.Trans.Except
 import Data.Jwt.Tools
 import Imports
+import Data.ByteString.Char8 (split)
 import Test.Hspec
 
 main :: IO ()
 main = hspec $ do
   describe "generateDpopToken FFI when passing valid inputs" $ do
-    it "should return an access token" $ do
+    it "should return an access token with the correct header" $ do
       actual <- runExceptT $ generateDpopToken proof uid cid handle tid domain nonce uri method maxSkewSecs expires now pem
-      isRight actual `shouldBe` True
+      -- The actual payload of the DPoP token is not deterministic as it depends on the current time.
+      -- We therefore only check the header, because if the header is correct, it means the token creation was successful.s
+      let expectedHeader = "eyJhbGciOiJFZERTQSIsInR5cCI6ImF0K2p3dCIsImp3ayI6eyJrdHkiOiJPS1AiLCJjcnYiOiJFZDI1NTE5IiwieCI6ImRZSTM4VWR4a3NDMEs0UXg2RTlKSzlZZkdtLWVoblkxOG9LbUhMMllzWmsifX0"
+      let actualHeader = either (const "") (head . split '.') actual
+      actualHeader `shouldBe` expectedHeader
   describe "generateDpopToken FFI when passing a wrong nonce value" $ do
     it "should return BackendNonceMismatchError" $ do
       actual <- runExceptT $ generateDpopToken proof uid cid handle tid domain (Nonce "foobar") uri method maxSkewSecs expires now pem
