@@ -742,6 +742,10 @@ testLeaveConversationSuccess = do
     assertLeaveNotification chad conv bob bClient chad
     assertLeaveNotification chad conv eve eClient chad
 
+-- The test relies on the default value for the 'limitedEventFanout' flag, which
+-- is disabled by default. The counterpart test
+-- 'testDeleteTeamMemberLimitedEventFanout' enables the flag and tests the
+-- limited fanout.
 testDeleteTeamMemberFullEventFanout :: HasCallStack => App ()
 testDeleteTeamMemberFullEventFanout = do
   (alice, team, [alex, alison]) <- createTeam OwnDomain 3
@@ -758,8 +762,10 @@ testDeleteTeamMemberFullEventFanout = do
       n <- awaitMatch isTeamMemberLeaveNotif wsAlice
       nPayload n %. "data.user" `shouldMatch` alexUId
     do
-      n <- awaitMatch isTeamMemberLeaveNotif wsAlison
-      nPayload n %. "data.user" `shouldMatch` alexUId
+      t <- awaitMatch isTeamMemberLeaveNotif wsAlison
+      nPayload t %. "data.user" `shouldMatch` alexUId
+      c <- awaitMatch isConvLeaveNotif wsAlison
+      nPayload c %. "data.qualified_user_ids" `shouldMatch` [alexId]
     do
       n <- awaitMatch isConvLeaveNotif wsAmy
       nPayload n %. "data.qualified_user_ids" `shouldMatch` [alexId]

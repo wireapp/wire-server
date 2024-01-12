@@ -115,8 +115,7 @@ getFeatureStatus ::
   forall cfg r.
   ( GetFeatureConfig cfg,
     GetConfigForTeamConstraints cfg r,
-    ( Member (ErrorS OperationDenied) r,
-      Member (ErrorS 'NotATeamMember) r,
+    ( Member (ErrorS 'NotATeamMember) r,
       Member (ErrorS 'TeamNotFound) r,
       Member TeamStore r
     )

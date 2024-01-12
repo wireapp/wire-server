@@ -992,10 +992,7 @@ deleteTeamMember' lusr zcon tid remove mBody = do
           FeatureStatusDisabled -> do
             let filterFromMembers list =
                   view userId <$> filter (`hasPermission` SetBilling) (list ^. teamMembers)
-            -- fmap (view userId) $ (list ^. teamMembers)
-            mems <- getTeamMembersForFanout tid
-            let res = filterFromMembers mems
-            pure res
+            filterFromMembers <$> getTeamMembersForFanout tid
       Journal.teamUpdate tid sizeAfterDelete $ filter (/= remove) toNotify
       pure TeamMemberDeleteAccepted
     else do
