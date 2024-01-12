@@ -1,5 +1,6 @@
 module API.Galley where
 
+import API.Common
 import qualified Data.Aeson as Aeson
 import Testlib.Prelude
 
@@ -165,3 +166,18 @@ getGroupInfo user conv = do
         Just sub -> ["conversations", convDomain, convId, "subconversations", sub, "groupinfo"]
   req <- baseRequest user Galley Versioned path
   submit "GET" req
+
+deleteTeamMember ::
+  ( HasCallStack,
+    MakesValue owner,
+    MakesValue member
+  ) =>
+  String ->
+  owner ->
+  member ->
+  App Response
+deleteTeamMember tid owner mem = do
+  memId <- objId mem
+  let path = joinHttpPath ["teams", tid, "members", memId]
+  req <- baseRequest owner Galley Versioned path
+  submit "DELETE" (addJSONObject ["password" .= defPassword] req)

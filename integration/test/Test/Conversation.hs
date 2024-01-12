@@ -1,12 +1,15 @@
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+
 module Test.Conversation where
 
 import qualified API.BrigInternal as Internal
-import API.Galley (defProteus, postConversation, qualifiedUsers)
+import API.Galley
 import qualified API.GalleyInternal as API
 import Control.Applicative
 import qualified Data.Aeson as Aeson
 import GHC.Stack
 import SetupHelpers
+import Test.Notifications
 import Testlib.Prelude
 
 testDynamicBackendsFullyConnectedWhenAllowAll :: HasCallStack => App ()
@@ -177,3 +180,34 @@ testCreateConversationNonFullyConnected = do
       bindResponse (postConversation u1 (defProteus {qualifiedUsers = [u2, u3]})) $ \resp -> do
         resp.status `shouldMatchInt` 409
         resp.json %. "non_federating_backends" `shouldMatchSet` [domainB, domainC]
+
+testDeleteTeamMemberFullEventFanout :: HasCallStack => App ()
+testDeleteTeamMemberFullEventFanout = do
+  (alice, team, [alex, alison]) <- createTeamFuture OwnDomain 3
+  [amy, bob] <- for [OwnDomain, OtherDomain] $ flip randomUser def
+  forM_ [amy, bob] $ connectUsers alice
+  [aliceId, alexId, alisonId, amyId, bobId] <-
+    forM [alice, alex, alison, amy, bob] (%. "qualified_id")
+  let nc = (defProteus {qualifiedUsers = [alexId, alisonId, amyId, bobId], team = Just team})
+  conv <- postConversation alice nc >>= getJSON 201
+  withWebSockets [alice, alison, amy, bob] $ \[wsAlice, wsAlison, wsAmy, wsBob] -> do
+    void $ deleteTeamMember team alice alex >>= getBody 202
+    alexUId <- alex %. "id"
+    do
+      n <- awaitMatch 5 isTeamMemberLeaveNotif wsAlice
+      nPayload n %. "data.user" `shouldMatch` alexUId
+    do
+      n <- awaitMatch 5 isTeamMemberLeaveNotif wsAlison
+      nPayload n %. "data.user" `shouldMatch` alexUId
+    do
+      n <- awaitMatch 3 isConvLeaveNotif wsAmy
+      nPayload n %. "data.qualified_user_ids" `shouldMatch` [alexId]
+
+-- do
+--   bindResponse (getConversation bob conv) $ \resp -> do
+--     resp.status `shouldMatchInt` 200
+--     mems <- resp.json %. "members.others" & asList
+--     memIds <- forM mems (%. "qualified_id")
+--     memIds `shouldMatchSet` [aliceId, alisonId, amyId]
+--   n <- awaitMatch 5 isConvLeaveNotif wsBob
+--   nPayload n %. "data.qualified_user_ids.0" `shouldMatch` alexId

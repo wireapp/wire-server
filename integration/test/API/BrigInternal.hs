@@ -11,6 +11,7 @@ data CreateUser = CreateUser
     password :: Maybe String,
     name :: Maybe String,
     team :: Bool,
+    activate :: Bool,
     supportedProtocols :: Maybe [String]
   }
 
@@ -21,23 +22,25 @@ instance Default CreateUser where
         password = Nothing,
         name = Nothing,
         team = False,
+        activate = True,
         supportedProtocols = Nothing
       }
 
 createUser :: (HasCallStack, MakesValue domain) => domain -> CreateUser -> App Response
 createUser domain cu = do
-  email <- maybe randomEmail pure cu.email
+  re <- randomEmail
+  let email :: Maybe String = guard cu.activate $> fromMaybe re cu.email
   let password = fromMaybe defPassword cu.password
-      name = fromMaybe email cu.name
+      name = fromMaybe "default" (cu.name <|> email)
   req <- baseRequest domain Brig Unversioned "/i/users"
   submit "POST" $
     req
       & addJSONObject
-        ( [ "email" .= email,
-            "name" .= name,
-            "password" .= password,
-            "icon" .= "default"
-          ]
+        ( ["email" .= e | e <- toList email]
+            <> [ "name" .= name,
+                 "password" .= password,
+                 "icon" .= "default"
+               ]
             <> ["supported_protocols" .= prots | prots <- toList cu.supportedProtocols]
             <> [ "team"
                    .= object

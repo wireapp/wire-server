@@ -2,6 +2,7 @@ module SetupHelpers where
 
 import qualified API.Brig as Public
 import qualified API.BrigInternal as Internal
+import API.Common
 import API.Galley
 import Control.Concurrent (threadDelay)
 import Data.Aeson hiding ((.=))
@@ -33,6 +34,24 @@ createTeam domain = do
   -- SQS.assertTeamActivate "create team" tid
   -- refreshIndex
   pure (user, tid)
+
+-- | returns (owner, team id, members)
+createTeamFuture :: (HasCallStack, MakesValue domain) => domain -> Int -> App (Value, String, [Value])
+createTeamFuture domain memberCount = do
+  let defUser =
+        Internal.CreateUser
+          { email = Nothing,
+            password = Nothing,
+            name = Nothing,
+            team = True,
+            activate = True,
+            supportedProtocols = Nothing
+          }
+  res <- Internal.createUser domain $ defUser
+  owner <- res.json
+  tid <- owner %. "team" & asString
+  members <- for [2 .. memberCount] $ \_ -> createTeamMember owner tid
+  pure (owner, tid, members)
 
 connectUsers ::
   ( HasCallStack,
@@ -104,3 +123,41 @@ fullSearchWithAll =
         ownDomain <- asString =<< val %. "optSettings.setFederationDomain"
         addFullSearchFor (remoteDomains ownDomain) val
     }
+
+createTeamMember ::
+  (HasCallStack, MakesValue inviter) =>
+  inviter ->
+  String ->
+  App Value
+createTeamMember inviter tid = createTeamMemberWithRole inviter tid "member"
+
+createTeamMemberWithRole ::
+  (HasCallStack, MakesValue inviter) =>
+  inviter ->
+  String ->
+  String ->
+  App Value
+createTeamMemberWithRole inviter tid role = do
+  newUserEmail <- randomEmail
+  let invitationJSON = ["role" .= role, "email" .= newUserEmail]
+  invitationReq <-
+    baseRequest inviter Brig Versioned $
+      joinHttpPath ["teams", tid, "invitations"]
+  invitation <- getJSON 201 =<< submit "POST" (addJSONObject invitationJSON invitationReq)
+  invitationId <- objId invitation
+  invitationCodeReq <-
+    rawBaseRequest inviter Brig Unversioned "/i/teams/invitation-code"
+      <&> addQueryParams [("team", tid), ("invitation_id", invitationId)]
+  invitationCode <- bindResponse (submit "GET" invitationCodeReq) $ \res -> do
+    res.status `shouldMatchInt` 200
+    res.json %. "code" & asString
+  let registerJSON =
+        [ "name" .= newUserEmail,
+          "email" .= newUserEmail,
+          "password" .= defPassword,
+          "team_code" .= invitationCode
+        ]
+  registerReq <-
+    rawBaseRequest inviter Brig Versioned "/register"
+      <&> addJSONObject registerJSON
+  getJSON 201 =<< submit "POST" registerReq

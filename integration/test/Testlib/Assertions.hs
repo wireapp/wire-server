@@ -3,6 +3,7 @@
 module Testlib.Assertions where
 
 import Control.Exception as E
+import Control.Monad.Catch (catchAll)
 import Control.Monad.Reader
 import Data.Aeson (Value)
 import Data.Char
@@ -231,3 +232,11 @@ getLineNumber lineNo s =
   case drop (lineNo - 1) (lines s) of
     [] -> Nothing
     (l : _) -> pure l
+
+fieldEquals :: (HasCallStack, MakesValue a, MakesValue b) => a -> String -> b -> App Bool
+fieldEquals a fieldSelector b = do
+  ma <- lookupField a fieldSelector `catchAll` const (pure Nothing)
+  case ma of
+    Nothing -> pure False
+    Just f ->
+      f `isEqual` b

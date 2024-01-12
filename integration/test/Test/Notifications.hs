@@ -61,3 +61,9 @@ testLastNotification = do
 
   lastNotif <- getLastNotification user "c" >>= getJSON 200
   lastNotif %. "payload" `shouldMatch` [object ["client" .= "c"]]
+
+isConvLeaveNotif :: (HasCallStack, MakesValue a) => a -> App Bool
+isConvLeaveNotif n = nPayload n %. "type" `isEqual` "conversation.member-leave"
+
+isTeamMemberLeaveNotif :: MakesValue a => a -> App Bool
+isTeamMemberLeaveNotif n = nPayload n %. "type" `isEqual` "team.member-leave"
