@@ -527,6 +527,12 @@ nginx_conf:
     - path: /teams/([^/]*)/features/([^/])*
       envs:
       - all
+    - path: /i/teams/([^/]*)/features/enforceFileDownloadLocation/([^/])*
+      envs:
+      - staging
+      disable_zauth: true
+      basic_auth: true
+      versioned: false
     - path: /i/teams/([^/]*)/features/([^/]*)
       envs:
       - staging
