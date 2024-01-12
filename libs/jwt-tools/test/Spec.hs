@@ -16,9 +16,9 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 import Control.Monad.Trans.Except
+import Data.ByteString.Char8 (split)
 import Data.Jwt.Tools
 import Imports
-import Data.ByteString.Char8 (split)
 import Test.Hspec
 
 main :: IO ()
