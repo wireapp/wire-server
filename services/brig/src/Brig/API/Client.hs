@@ -80,7 +80,6 @@ import Data.ByteString.Conversion
 import Data.Code as Code
 import Data.Domain
 import Data.Either.Extra (mapLeft)
-import Data.Handle (fromHandle)
 import Data.Id (ClientId, ConnId, UserId)
 import Data.List.Split (chunksOf)
 import Data.Map.Strict qualified as Map
@@ -88,7 +87,6 @@ import Data.Misc (PlainTextPassword6)
 import Data.Qualified
 import Data.Set qualified as Set
 import Imports
-import Network.HTTP.Types qualified as HTTP
 import Network.HTTP.Types.Method (StdMethod)
 import Network.Wai.Utilities
 import Polysemy (Member)
@@ -500,7 +498,7 @@ createAccessToken luid cid method link proof = do
     except $
       (,)
         <$> note NotATeamUser (userTeam =<< mUser)
-        <*> (urlEncode . fromHandle <$> (note MissingHandle (userHandle =<< mUser)))
+        <*> note MissingHandle (userHandle =<< mUser)
   nonce <- ExceptT $ note NonceNotFound <$> wrapClient (Nonce.lookupAndDeleteNonce uid (cs $ toByteString cid))
   httpsUrl <- except $ note MisconfiguredRequestUrl $ fromByteString $ "https://" <> toByteString' domain <> "/" <> cs (toUrlPiece link)
   maxSkewSeconds <- Opt.setDpopMaxSkewSecs <$> view settings
@@ -526,6 +524,3 @@ createAccessToken luid cid method link proof = do
           now
           pubKeyBundle
   pure $ (DPoPAccessTokenResponse token DPoP expiresIn, NoStore)
-  where
-    urlEncode :: Text -> Text
-    urlEncode = cs . HTTP.urlEncode False . cs
