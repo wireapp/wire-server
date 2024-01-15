@@ -987,22 +987,22 @@ deleteTeamMember' lusr zcon tid remove mBody = do
               else sizeBeforeDelete - 1
       E.deleteUser remove
       toNotify <-
-        wsStatus <$> getFeatureStatus @LimitedEventFanoutConfig DontDoAuth tid >>= \case
+        getFeatureStatus @LimitedEventFanoutConfig DontDoAuth tid >>= (\case
           FeatureStatusEnabled -> E.getBillingTeamMembers tid
           FeatureStatusDisabled -> do
             let filterFromMembers list =
                   view userId <$> filter (`hasPermission` SetBilling) (list ^. teamMembers)
-            filterFromMembers <$> getTeamMembersForFanout tid
+            filterFromMembers <$> getTeamMembersForFanout tid) . wsStatus
       Journal.teamUpdate tid sizeAfterDelete $ filter (/= remove) toNotify
       pure TeamMemberDeleteAccepted
     else do
-      wsStatus <$> getFeatureStatus @LimitedEventFanoutConfig DontDoAuth tid >>= \case
+      getFeatureStatus @LimitedEventFanoutConfig DontDoAuth tid >>= (\case
         FeatureStatusEnabled -> do
           admins <- E.getTeamAdmins tid
           uncheckedDeleteTeamMember lusr (Just zcon) tid remove (Left admins)
         FeatureStatusDisabled -> do
           mems <- getTeamMembersForFanout tid
-          uncheckedDeleteTeamMember lusr (Just zcon) tid remove (Right mems)
+          uncheckedDeleteTeamMember lusr (Just zcon) tid remove (Right mems)) . wsStatus
       pure TeamMemberDeleteCompleted
 
 -- This function is "unchecked" because it does not validate that the user has the `RemoveTeamMember` permission.
