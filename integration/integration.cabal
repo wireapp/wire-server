@@ -17,14 +17,15 @@ custom-setup
     , containers
     , directory
     , filepath
+    , haskell-src-exts
 
 common common-all
   default-language:   GHC2021
   ghc-options:
     -Wall -Wpartial-fields -fwarn-tabs -Wno-incomplete-uni-patterns
 
+  -- NoImportQualifiedPost is required
   default-extensions:
-    NoImplicitPrelude
     AllowAmbiguousTypes
     BangPatterns
     BlockArguments
@@ -50,6 +51,8 @@ common common-all
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NoImplicitPrelude
+    NoImportQualifiedPost
     OverloadedLabels
     OverloadedRecordDot
     PackageImports
@@ -105,11 +108,17 @@ library
     Test.AssetUpload
     Test.B2B
     Test.Brig
+    Test.Cargohold.API
+    Test.Cargohold.API.Federation
+    Test.Cargohold.API.Util
+    Test.Cargohold.API.V3
+    Test.Cargohold.Metrics
     Test.Client
     Test.Connection
     Test.Conversation
     Test.Demo
     Test.Errors
+    Test.ExternalPartner
     Test.Federation
     Test.Federator
     Test.MessageTimer
@@ -123,6 +132,7 @@ library
     Test.Presence
     Test.Roles
     Test.Search
+    Test.Services
     Test.User
     Test.Version
     Testlib.App
@@ -171,6 +181,7 @@ library
     , extra
     , filepath
     , hex
+    , HsOpenSSL
     , http-client
     , http-types
     , kan-extensions

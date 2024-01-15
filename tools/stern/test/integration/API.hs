@@ -99,7 +99,7 @@ tests s =
       test s "/teams/:tid/search-visibility" testSearchVisibility,
       test s "/sso-domain-redirect" testRudSsoDomainRedirect,
       test s "i/oauth/clients" testCrudOAuthClient
-      -- The following endpoints can not be tested because they require ibis:
+      -- The following endpoints can not be tested here because they require ibis:
       -- - `GET /teams/:tid/billing`
       -- - `GET /teams/:tid/invoice/:inr`
       -- - `PUT /teams/:tid/billing`
@@ -334,7 +334,7 @@ testFeatureStatusOptTtl mTtl = do
   liftIO $ cfg @?= defFeatureStatus @cfg
   when (wsLockStatus cfg == LockStatusLocked) $ unlockFeature @cfg tid
   let newStatus = if wsStatus cfg == FeatureStatusEnabled then FeatureStatusDisabled else FeatureStatusEnabled
-  void $ putFeatureStatus @cfg tid newStatus mTtl
+  putFeatureStatus @cfg tid newStatus mTtl !!! const 200 === statusCode
   cfg' <- getFeatureConfig @cfg tid
   liftIO $ wsStatus cfg' @?= newStatus
 

@@ -15,7 +15,19 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module API.Util where
+module API.Util
+  ( randomUser,
+    uploadSimple,
+    decodeHeaderOrFail,
+    getContentType,
+    applicationText,
+    applicationOctetStream,
+    deleteAssetV3,
+    deleteAsset,
+    downloadAsset,
+    withMockFederator,
+  )
+where
 
 import Bilge hiding (body, host, port)
 import qualified Bilge
@@ -30,7 +42,6 @@ import Data.ByteString.Builder
 import qualified Data.ByteString.Char8 as C
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as Lazy
-import Data.Domain
 import Data.Id
 import Data.Qualified
 import Data.Text.Encoding (decodeLatin1, encodeUtf8)
@@ -191,25 +202,6 @@ downloadAsset ::
   tok ->
   TestM (Response (Maybe LByteString))
 downloadAsset = downloadAssetWith id
-
-postToken :: UserId -> AssetKey -> TestM (Response (Maybe LByteString))
-postToken uid key = do
-  c <- viewCargohold
-  post $
-    c
-      . zUser uid
-      . paths ["assets", toByteString' key, "token"]
-
-deleteToken :: UserId -> AssetKey -> TestM (Response (Maybe LByteString))
-deleteToken uid key = do
-  c <- viewCargohold
-  delete $
-    c
-      . zUser uid
-      . paths ["assets", toByteString' key, "token"]
-
-viewFederationDomain :: TestM Domain
-viewFederationDomain = view (tsOpts . settings . federationDomain)
 
 --------------------------------------------------------------------------------
 -- Mocking utilities

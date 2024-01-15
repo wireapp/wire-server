@@ -530,7 +530,8 @@ addCode lusr mbZHost mZcon lcnv mReq = do
   key <- E.makeKey (tUnqualified lcnv)
   E.getCode key ReusableCode >>= \case
     Nothing -> do
-      code <- E.generateCode (tUnqualified lcnv) ReusableCode (Timeout 3600 * 24 * 365) -- one year FUTUREWORK: configurable
+      ttl <- realToFrac . unGuestLinkTTLSeconds . fromMaybe defGuestLinkTTLSeconds . view (settings . guestLinkTTLSeconds) <$> input
+      code <- E.generateCode (tUnqualified lcnv) ReusableCode (Timeout ttl)
       mPw <- for (mReq >>= (.password)) mkSafePassword
       E.createCode code mPw
       now <- input
@@ -1375,7 +1376,8 @@ updateConversationName ::
     Member ExternalAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
-    Member (Logger (Msg -> Msg)) r
+    Member (Logger (Msg -> Msg)) r,
+    Member TeamStore r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1401,7 +1403,8 @@ updateUnqualifiedConversationName ::
     Member ExternalAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
-    Member (Logger (Msg -> Msg)) r
+    Member (Logger (Msg -> Msg)) r,
+    Member TeamStore r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1423,7 +1426,8 @@ updateLocalConversationName ::
     Member ExternalAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
-    Member (Logger (Msg -> Msg)) r
+    Member (Logger (Msg -> Msg)) r,
+    Member TeamStore r
   ) =>
   Local UserId ->
   ConnId ->

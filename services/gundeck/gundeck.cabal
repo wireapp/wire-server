@@ -63,7 +63,6 @@ library
   other-modules:      Paths_gundeck
   hs-source-dirs:     src
   default-extensions:
-    NoImplicitPrelude
     AllowAmbiguousTypes
     BangPatterns
     ConstraintKinds
@@ -87,6 +86,7 @@ library
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NoImplicitPrelude
     OverloadedRecordDot
     OverloadedStrings
     PackageImports
@@ -124,7 +124,6 @@ library
     , bytestring-conversion  >=0.2
     , cassandra-util         >=0.16.2
     , containers             >=0.5
-    , data-default           >=0.5
     , errors                 >=2.0
     , exceptions             >=0.4
     , extended
@@ -132,7 +131,7 @@ library
     , gundeck-types          >=1.0
     , hedis                  >=0.14.0
     , http-client            >=0.7
-    , http-client-tls        >=0.3
+    , http-client-tls        >=0.3.6.3
     , http-types             >=0.8
     , imports
     , lens                   >=4.4
@@ -171,7 +170,6 @@ executable gundeck
   main-is:            exec/Main.hs
   other-modules:      Paths_gundeck
   default-extensions:
-    NoImplicitPrelude
     AllowAmbiguousTypes
     BangPatterns
     ConstraintKinds
@@ -195,6 +193,7 @@ executable gundeck
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NoImplicitPrelude
     OverloadedRecordDot
     OverloadedStrings
     PackageImports
@@ -241,7 +240,6 @@ executable gundeck-integration
 
   hs-source-dirs:     test/integration
   default-extensions:
-    NoImplicitPrelude
     AllowAmbiguousTypes
     BangPatterns
     ConstraintKinds
@@ -265,6 +263,7 @@ executable gundeck-integration
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NoImplicitPrelude
     OverloadedRecordDot
     OverloadedStrings
     PackageImports
@@ -333,7 +332,6 @@ executable gundeck-schema
   main-is:            Main.hs
   hs-source-dirs:     schema
   default-extensions:
-    NoImplicitPrelude
     AllowAmbiguousTypes
     BangPatterns
     ConstraintKinds
@@ -357,6 +355,7 @@ executable gundeck-schema
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NoImplicitPrelude
     OverloadedRecordDot
     OverloadedStrings
     PackageImports
@@ -403,7 +402,6 @@ test-suite gundeck-tests
 
   hs-source-dirs:     test/unit
   default-extensions:
-    NoImplicitPrelude
     AllowAmbiguousTypes
     BangPatterns
     ConstraintKinds
@@ -427,6 +425,7 @@ test-suite gundeck-tests
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NoImplicitPrelude
     OverloadedRecordDot
     OverloadedStrings
     PackageImports
@@ -490,7 +489,6 @@ benchmark gundeck-bench
   other-modules:      Paths_gundeck
   hs-source-dirs:     test/bench
   default-extensions:
-    NoImplicitPrelude
     AllowAmbiguousTypes
     BangPatterns
     ConstraintKinds
@@ -514,6 +512,7 @@ benchmark gundeck-bench
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NoImplicitPrelude
     OverloadedRecordDot
     OverloadedStrings
     PackageImports

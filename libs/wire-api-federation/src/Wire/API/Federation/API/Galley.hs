@@ -43,11 +43,14 @@ import Wire.API.Error.Galley
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley.Notifications as Notifications
 import Wire.API.Federation.Endpoint
+import Wire.API.Federation.Version
 import Wire.API.MLS.SubConversation
 import Wire.API.MakesFederatedCall
 import Wire.API.Message
 import Wire.API.Routes.Public.Galley.Messaging
+import Wire.API.Routes.SpecialiseToVersion
 import Wire.API.Util.Aeson (CustomEncoded (..))
+import Wire.API.VersionInfo
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
 -- FUTUREWORK: data types, json instances, more endpoints. See
@@ -121,20 +124,27 @@ type GalleyApi =
            TypingDataUpdateRequest
            TypingDataUpdateResponse
     :<|> FedEndpoint "on-typing-indicator-updated" TypingDataUpdated EmptyResponse
-    :<|> FedEndpoint "get-sub-conversation" GetSubConversationsRequest GetSubConversationsResponse
     :<|> FedEndpointWithMods
-           '[
+           '[ From 'V1
+            ]
+           "get-sub-conversation"
+           GetSubConversationsRequest
+           GetSubConversationsResponse
+    :<|> FedEndpointWithMods
+           '[ From 'V1
             ]
            "delete-sub-conversation"
            DeleteSubConversationFedRequest
            DeleteSubConversationResponse
     :<|> FedEndpointWithMods
-           '[ MakesFederatedCall 'Galley "on-mls-message-sent"
+           '[ MakesFederatedCall 'Galley "on-mls-message-sent",
+              From 'V1
             ]
            "leave-sub-conversation"
            LeaveSubConversationRequest
            LeaveSubConversationResponse
-    :<|> FedEndpoint
+    :<|> FedEndpointWithMods
+           '[From 'V1]
            "get-one2one-conversation"
            GetOne2OneConversationRequest
            GetOne2OneConversationResponse
@@ -514,4 +524,4 @@ data DeleteSubConversationResponse
 instance ToSchema DeleteSubConversationResponse
 
 swaggerDoc :: OpenApi
-swaggerDoc = toOpenApi (Proxy @GalleyApi)
+swaggerDoc = toOpenApi (Proxy @(SpecialiseToVersion 'V1 GalleyApi))

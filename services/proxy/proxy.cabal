@@ -27,7 +27,6 @@ library
   other-modules:      Paths_proxy
   hs-source-dirs:     src
   default-extensions:
-    NoImplicitPrelude
     AllowAmbiguousTypes
     BangPatterns
     ConstraintKinds
@@ -51,6 +50,7 @@ library
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NoImplicitPrelude
     OverloadedRecordDot
     OverloadedStrings
     PackageImports
@@ -80,11 +80,10 @@ library
     , bytestring          >=0.10
     , case-insensitive    >=1.2
     , configurator        >=0.3
-    , data-default        >=0.5
     , exceptions          >=0.8
     , extended
     , http-client         >=0.7
-    , http-client-tls     >=0.3
+    , http-client-tls     >=0.3.6.3
     , http-reverse-proxy  >=0.4
     , http-types          >=0.9
     , imports
@@ -95,6 +94,7 @@ library
     , tinylog             >=0.12
     , types-common        >=0.8
     , unliftio-core
+    , uuid
     , wai                 >=3.2
     , wai-predicates      >=0.8
     , wai-routing         >=0.12
@@ -107,7 +107,6 @@ executable proxy
   main-is:            exec/Main.hs
   other-modules:      Paths_proxy
   default-extensions:
-    NoImplicitPrelude
     AllowAmbiguousTypes
     BangPatterns
     ConstraintKinds
@@ -131,6 +130,7 @@ executable proxy
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NoImplicitPrelude
     OverloadedRecordDot
     OverloadedStrings
     PackageImports

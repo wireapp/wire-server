@@ -27,8 +27,8 @@ import Control.Applicative
 import Control.Concurrent (threadDelay)
 import Control.Monad.Codensity
 import Control.Monad.Reader
-import Data.Aeson qualified as Aeson
-import Data.Text qualified as T
+import qualified Data.Aeson as Aeson
+import qualified Data.Text as T
 import GHC.Stack
 import Notifications
 import SetupHelpers hiding (deleteUser)
@@ -671,11 +671,12 @@ testDeleteTeamMember = do
   conv <- postConversation alice nc >>= getJSON 201
   withWebSockets [alice, amy, bob] $ \[wsAlice, wsAmy, wsBob] -> do
     void $ deleteTeamMember team alice alex >>= getBody 202
+    assertConvLeaveNotif wsAmy alexId
     do
       n <- awaitMatch isTeamMemberLeaveNotif wsAlice
       alexUId <- alex %. "id"
       nPayload n %. "data.user" `shouldMatch` alexUId
-    assertConvLeaveNotif wsAmy alexId
+      assertConvLeaveNotif wsAlice alexId
     do
       bindResponse (getConversation bob conv) $ \resp -> do
         resp.status `shouldMatchInt` 200
@@ -763,3 +764,31 @@ testGuestCreatesConversation = do
   bindResponse (postConversation alice defProteus) $ \resp -> do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "operation-denied"
+
+testGuestLinksSuccess :: HasCallStack => App ()
+testGuestLinksSuccess = do
+  (user, _, tm : _) <- createTeam OwnDomain 2
+  conv <- postConversation user (allowGuests defProteus) >>= getJSON 201
+  (k, v) <- bindResponse (postConversationCode user conv Nothing Nothing) $ \resp -> do
+    res <- getJSON 201 resp
+    k <- res %. "data.key" & asString
+    v <- res %. "data.code" & asString
+    pure (k, v)
+  bindResponse (getJoinCodeConv tm k v) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "id" `shouldMatch` objId conv
+
+testGuestLinksExpired :: HasCallStack => App ()
+testGuestLinksExpired = do
+  withModifiedBackend
+    def {galleyCfg = setField "settings.guestLinkTTLSeconds" (1 :: Int)}
+    $ \domain -> do
+      (user, _, tm : _) <- createTeam domain 2
+      conv <- postConversation user (allowGuests defProteus) >>= getJSON 201
+      (k, v) <- bindResponse (postConversationCode user conv Nothing Nothing) $ \resp -> do
+        res <- getJSON 201 resp
+        (,) <$> asString (res %. "data.key") <*> asString (res %. "data.code")
+      -- let's wait a little longer than 1 second for the guest link to expire
+      liftIO $ threadDelay (1_100_000)
+      bindResponse (getJoinCodeConv tm k v) $ \resp -> do
+        resp.status `shouldMatchInt` 404

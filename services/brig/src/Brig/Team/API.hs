@@ -50,7 +50,7 @@ import Brig.Types.Team (TeamSize)
 import Brig.User.Search.TeamSize qualified as TeamSize
 import Control.Lens (view, (^.))
 import Control.Monad.Trans.Except (mapExceptT)
-import Data.ByteString.Conversion (toByteString')
+import Data.ByteString.Conversion (toByteString, toByteString')
 import Data.Id
 import Data.List1 qualified as List1
 import Data.Range
@@ -59,8 +59,8 @@ import Imports hiding (head)
 import Network.Wai.Utilities hiding (code, message)
 import Polysemy (Member)
 import Servant hiding (Handler, JSON, addHeader)
-import System.Logger (Msg)
 import System.Logger.Class qualified as Log
+import System.Logger.Message as Log
 import Util.Logging (logFunction, logTeam)
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
@@ -305,6 +305,7 @@ getInvitationByEmail email = do
 
 suspendTeam :: (Member GalleyProvider r) => TeamId -> (Handler r) NoContent
 suspendTeam tid = do
+  Log.info $ Log.msg (Log.val "Team suspended") ~~ Log.field "team" (toByteString tid)
   changeTeamAccountStatuses tid Suspended
   lift $ wrapClient $ DB.deleteInvitations tid
   lift $ liftSem $ GalleyProvider.changeTeamStatus tid Team.Suspended Nothing

@@ -1,25 +1,25 @@
 module Testlib.HTTP where
 
-import Control.Exception qualified as E
+import qualified Control.Exception as E
 import Control.Monad.Reader
-import Data.Aeson qualified as Aeson
-import Data.Aeson.Types qualified as Aeson
+import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Types as Aeson
 import Data.ByteString (ByteString)
-import Data.ByteString.Char8 qualified as C8
-import Data.ByteString.Lazy qualified as L
-import Data.CaseInsensitive qualified as CI
+import qualified Data.ByteString.Char8 as C8
+import qualified Data.ByteString.Lazy as L
+import qualified Data.CaseInsensitive as CI
 import Data.Function
 import Data.List
 import Data.List.Split (splitOn)
 import Data.Maybe
 import Data.String
 import Data.String.Conversions (cs)
-import Data.Text qualified as T
-import Data.Text.Encoding qualified as T
+import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
 import GHC.Stack
-import Network.HTTP.Client qualified as HTTP
+import qualified Network.HTTP.Client as HTTP
 import Network.HTTP.Types (hLocation)
-import Network.HTTP.Types qualified as HTTP
+import qualified Network.HTTP.Types as HTTP
 import Network.URI (URI (..), URIAuth (..), parseURI)
 import Testlib.Assertions
 import Testlib.Env
@@ -78,6 +78,9 @@ addQueryParams params req =
 
 contentTypeJSON :: HTTP.Request -> HTTP.Request
 contentTypeJSON = addHeader "Content-Type" "application/json"
+
+contentTypeMixed :: HTTP.Request -> HTTP.Request
+contentTypeMixed = addHeader "Content-Type" "multipart/mixed"
 
 bindResponse :: HasCallStack => App Response -> (Response -> App a) -> App a
 bindResponse m k = m >>= \r -> withResponse r k

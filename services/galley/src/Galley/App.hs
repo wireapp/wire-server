@@ -30,9 +30,7 @@ module Galley.App
     cstate,
     deleteQueue,
     createEnv,
-    extEnv,
     aEnv,
-    ExtEnv (..),
     extGetManager,
 
     -- * Running Galley effects
@@ -46,17 +44,13 @@ where
 
 import Bilge hiding (Request, header, host, options, port, statusCode, statusMessage)
 import Cassandra hiding (Set)
-import Cassandra qualified as C
-import Cassandra.Settings qualified as C
+import Cassandra.Util (initCassandraForService)
 import Control.Error hiding (err)
 import Control.Lens hiding ((.=))
-import Data.Default (def)
-import Data.List.NonEmpty qualified as NE
 import Data.Metrics.Middleware
 import Data.Misc
 import Data.Qualified
 import Data.Range
-import Data.Text (unpack)
 import Data.Time.Clock
 import Galley.API.Error
 import Galley.Aws qualified as Aws
@@ -107,7 +101,6 @@ import System.Logger qualified as Log
 import System.Logger.Class (Logger)
 import System.Logger.Extended qualified as Logger
 import UnliftIO.Exception qualified as UnliftIO
-import Util.Options
 import Wire.API.Conversation.Protocol
 import Wire.API.Error
 import Wire.API.Federation.Error
@@ -165,34 +158,22 @@ createEnv m o l = do
   mgr <- initHttpManager o
   h2mgr <- initHttp2Manager
   codeURIcfg <- validateOptions o
-  Env def m o l mgr h2mgr (o ^. O.federator) (o ^. O.brig) cass
+  Env (RequestId "N/A") m o l mgr h2mgr (o ^. O.federator) (o ^. O.brig) cass
     <$> Q.new 16000
-    <*> initExtEnv
+    <*> pure initExtEnv
     <*> maybe (pure Nothing) (fmap Just . Aws.mkEnv l mgr) (o ^. journal)
     <*> loadAllMLSKeys (fold (o ^. settings . mlsPrivateKeyPaths))
     <*> traverse (mkRabbitMqChannelMVar l) (o ^. rabbitmq)
     <*> pure codeURIcfg
 
 initCassandra :: Opts -> Logger -> IO ClientState
-initCassandra o l = do
-  c <-
-    maybe
-      (C.initialContactsPlain (o ^. cassandra . endpoint . host))
-      (C.initialContactsDisco "cassandra_galley" . unpack)
-      (o ^. discoUrl)
-  C.init
-    . C.setLogger (C.mkLogger (Logger.clone (Just "cassandra.galley") l))
-    . C.setContacts (NE.head c) (NE.tail c)
-    . C.setPortNumber (fromIntegral $ o ^. cassandra . endpoint . port)
-    . C.setKeyspace (Keyspace $ o ^. cassandra . keyspace)
-    . C.setMaxConnections 4
-    . C.setMaxStreams 128
-    . C.setPoolStripes 4
-    . C.setSendTimeout 3
-    . C.setResponseTimeout 10
-    . C.setProtocolVersion C.V4
-    . C.setPolicy (C.dcFilterPolicyIfConfigured l (o ^. cassandra . filterNodesByDatacentre))
-    $ C.defSettings
+initCassandra o l =
+  initCassandraForService
+    (o ^. cassandra)
+    "galley"
+    (o ^. discoUrl)
+    Nothing
+    l
 
 initHttpManager :: Opts -> IO Manager
 initHttpManager o = do

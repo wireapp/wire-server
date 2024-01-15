@@ -1,11 +1,11 @@
 module Testlib.XML where
 
-import Data.Array qualified as Array
+import qualified Data.Array as Array
 import Data.Fixed
 import Data.Time
 import Testlib.Types
-import Text.Regex.Base qualified as Regex
-import Text.Regex.TDFA.String qualified as Regex
+import qualified Text.Regex.Base as Regex
+import qualified Text.Regex.TDFA.String as Regex
 import Text.XML.Light
 import Prelude
 

@@ -42,6 +42,7 @@ module Galley.Types.Teams
     flagMLS,
     flagMlsE2EId,
     flagMlsMigration,
+    flagEnforceFileDownloadLocation,
     Defaults (..),
     ImplicitLockStatus (..),
     unImplicitLockStatus,
@@ -133,9 +134,9 @@ rolePerms RoleAdmin =
 rolePerms RoleMember =
   rolePerms RoleExternalPartner
     <> Set.fromList
-      [ DoNotUseDeprecatedDeleteConversation,
-        DoNotUseDeprecatedAddRemoveConvMember,
-        DoNotUseDeprecatedModifyConvName,
+      [ DeleteConversation,
+        AddRemoveConvMember,
+        ModifyConvName,
         GetMemberPermissions
       ]
 rolePerms RoleExternalPartner =
@@ -165,7 +166,8 @@ data FeatureFlags = FeatureFlags
     _flagMLS :: !(Defaults (WithStatus MLSConfig)),
     _flagOutlookCalIntegration :: !(Defaults (WithStatus OutlookCalIntegrationConfig)),
     _flagMlsE2EId :: !(Defaults (WithStatus MlsE2EIdConfig)),
-    _flagMlsMigration :: !(Defaults (WithStatus MlsMigrationConfig))
+    _flagMlsMigration :: !(Defaults (WithStatus MlsMigrationConfig)),
+    _flagEnforceFileDownloadLocation :: !(Defaults (WithStatus EnforceFileDownloadLocationConfig))
   }
   deriving (Eq, Show, Generic)
 
@@ -218,6 +220,7 @@ instance FromJSON FeatureFlags where
       <*> (fromMaybe (Defaults (defFeatureStatus @OutlookCalIntegrationConfig)) <$> (obj .:? "outlookCalIntegration"))
       <*> (fromMaybe (Defaults (defFeatureStatus @MlsE2EIdConfig)) <$> (obj .:? "mlsE2EId"))
       <*> (fromMaybe (Defaults (defFeatureStatus @MlsMigrationConfig)) <$> (obj .:? "mlsMigration"))
+      <*> (fromMaybe (Defaults (defFeatureStatus @EnforceFileDownloadLocationConfig)) <$> (obj .:? "enforceFileDownloadLocation"))
     where
       withImplicitLockStatusOrDefault :: forall cfg. (IsFeatureConfig cfg, Schema.ToSchema cfg) => Object -> Key -> A.Parser (Defaults (ImplicitLockStatus cfg))
       withImplicitLockStatusOrDefault obj fieldName = fromMaybe (Defaults (ImplicitLockStatus (defFeatureStatus @cfg))) <$> obj .:? fieldName
@@ -241,6 +244,7 @@ instance ToJSON FeatureFlags where
         outlookCalIntegration
         mlsE2EId
         mlsMigration
+        enforceFileDownloadLocation
       ) =
       object
         [ "sso" .= sso,
@@ -258,7 +262,8 @@ instance ToJSON FeatureFlags where
           "mls" .= mls,
           "outlookCalIntegration" .= outlookCalIntegration,
           "mlsE2EId" .= mlsE2EId,
-          "mlsMigration" .= mlsMigration
+          "mlsMigration" .= mlsMigration,
+          "enforceFileDownloadLocation" .= enforceFileDownloadLocation
         ]
 
 instance FromJSON FeatureSSO where

@@ -11,18 +11,39 @@ helmDefaults:
   timeout: 600
   devel: true
   createNamespace: true
-
 environments:
   default:
     values:
       - ./helm_vars/common.yaml.gotmpl
       - imagePullPolicy: Always
       - storageClass: hcloud-volumes
+      - cassandraHost: cassandra-ephemeral
+      - useK8ssandraSSL:
+          enabled: false
+  default-ssl:
+    values:
+      - ./helm_vars/common.yaml.gotmpl
+      - imagePullPolicy: Always
+      - storageClass: hcloud-volumes
+      - cassandraHost: k8ssandra-cluster-datacenter-1-service
+      - useK8ssandraSSL:
+          enabled: true
   kind:
     values:
       - ./helm_vars/common.yaml.gotmpl
       - imagePullPolicy: Never
       - storageClass: standard
+      - cassandraHost: cassandra-ephemeral
+      - useK8ssandraSSL:
+          enabled: false
+  kind-ssl:
+    values:
+      - ./helm_vars/common.yaml.gotmpl
+      - imagePullPolicy: Never
+      - storageClass: standard
+      - cassandraHost: k8ssandra-cluster-datacenter-1-service
+      - useK8ssandraSSL:
+          enabled: true
 ---
 repositories:
   - name: stable
@@ -46,7 +67,6 @@ releases:
     chart: '../.local/charts/fake-aws'
     values:
       - './helm_vars/fake-aws/values.yaml'
-
   - name: 'databases-ephemeral'
     namespace: '{{ .Values.namespace1 }}'
     chart: '../.local/charts/databases-ephemeral'
@@ -54,6 +74,20 @@ releases:
   - name: 'databases-ephemeral'
     namespace: '{{ .Values.namespace2 }}'
     chart: '../.local/charts/databases-ephemeral'
+
+  - name: k8ssandra-test-cluster
+    chart: '../.local/charts/k8ssandra-test-cluster'
+    namespace: '{{ .Values.namespace1 }}'
+    values:
+      - './helm_vars/k8ssandra-test-cluster/values.yaml.gotmpl'
+    condition: useK8ssandraSSL.enabled
+
+  - name: k8ssandra-test-cluster
+    chart: '../.local/charts/k8ssandra-test-cluster'
+    namespace: '{{ .Values.namespace2 }}'
+    values:
+      - './helm_vars/k8ssandra-test-cluster/values.yaml.gotmpl'
+    condition: useK8ssandraSSL.enabled
 
   - name: 'rabbitmq'
     namespace: '{{ .Values.namespace1 }}'

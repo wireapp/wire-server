@@ -235,6 +235,10 @@ featureAPI =
     <@> mkNamedAPI @'("iput", MlsMigrationConfig) setFeatureStatusInternal
     <@> mkNamedAPI @'("ipatch", MlsMigrationConfig) patchFeatureStatusInternal
     <@> mkNamedAPI @'("ilock", MlsMigrationConfig) (updateLockStatus @MlsMigrationConfig)
+    <@> mkNamedAPI @'("iget", EnforceFileDownloadLocationConfig) (getFeatureStatus DontDoAuth)
+    <@> mkNamedAPI @'("iput", EnforceFileDownloadLocationConfig) setFeatureStatusInternal
+    <@> mkNamedAPI @'("ipatch", EnforceFileDownloadLocationConfig) patchFeatureStatusInternal
+    <@> mkNamedAPI @'("ilock", EnforceFileDownloadLocationConfig) (updateLockStatus @EnforceFileDownloadLocationConfig)
     <@> mkNamedAPI @"feature-configs-internal" (maybe getAllFeatureConfigsForServer getAllFeatureConfigsForUser)
 
 waiInternalSitemap :: Routes a (Sem GalleyEffects) ()

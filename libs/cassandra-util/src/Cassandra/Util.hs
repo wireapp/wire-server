@@ -17,32 +17,94 @@
 
 module Cassandra.Util
   ( defInitCassandra,
+    initCassandraForService,
+    initCassandra,
     Writetime (..),
     writetimeToInt64,
   )
 where
 
-import Cassandra (ClientState, init)
 import Cassandra.CQL
-import Cassandra.Settings (defSettings, setContacts, setKeyspace, setLogger, setPortNumber)
+import Cassandra.Options
+import Cassandra.Schema
+import Cassandra.Settings (dcFilterPolicyIfConfigured, initialContactsDisco, initialContactsPlain, mkLogger)
+import Control.Lens
 import Data.Aeson
 import Data.Fixed
-import Data.Text (unpack)
+import Data.List.NonEmpty qualified as NE
+import Data.Text (pack, unpack)
 import Data.Time (UTCTime, nominalDiffTimeToSeconds)
 import Data.Time.Clock (secondsToNominalDiffTime)
 import Data.Time.Clock.POSIX
+import Database.CQL.IO
 import Database.CQL.IO.Tinylog qualified as CT
 import Imports hiding (init)
+import OpenSSL.Session qualified as OpenSSL
 import System.Logger qualified as Log
 
-defInitCassandra :: Text -> Text -> Word16 -> Log.Logger -> IO ClientState
-defInitCassandra ks h p lg =
-  init
-    $ setLogger (CT.mkLogger lg)
-      . setPortNumber (fromIntegral p)
-      . setContacts (unpack h) []
-      . setKeyspace (Keyspace ks)
-    $ defSettings
+defInitCassandra :: CassandraOpts -> Log.Logger -> IO ClientState
+defInitCassandra opts logger = do
+  let basicCasSettings =
+        setLogger (CT.mkLogger logger)
+          . setPortNumber (fromIntegral (opts ^. endpoint . port))
+          . setContacts (unpack (opts ^. endpoint . host)) []
+          . setKeyspace (Keyspace (opts ^. keyspace))
+          . setProtocolVersion V4
+          $ defSettings
+  initCassandra basicCasSettings (opts ^. tlsCa) logger
+
+-- | Create Cassandra `ClientState` ("connection") for a service
+initCassandraForService ::
+  CassandraOpts ->
+  String ->
+  Maybe Text ->
+  Maybe Int32 ->
+  Log.Logger ->
+  IO ClientState
+initCassandraForService opts serviceName discoUrl mbSchemaVersion logger = do
+  c <-
+    maybe
+      (initialContactsPlain (opts ^. endpoint . host))
+      (initialContactsDisco ("cassandra_" ++ serviceName) . unpack)
+      discoUrl
+  let basicCasSettings =
+        setLogger (mkLogger (Log.clone (Just (pack ("cassandra." ++ serviceName))) logger))
+          . setContacts (NE.head c) (NE.tail c)
+          . setPortNumber (fromIntegral (opts ^. endpoint . port))
+          . setKeyspace (Keyspace (opts ^. keyspace))
+          . setMaxConnections 4
+          . setPoolStripes 4
+          . setSendTimeout 3
+          . setResponseTimeout 10
+          . setProtocolVersion V4
+          . setPolicy (dcFilterPolicyIfConfigured logger (opts ^. filterNodesByDatacentre))
+          $ defSettings
+  p <- initCassandra basicCasSettings (opts ^. tlsCa) logger
+  maybe (pure ()) (\v -> runClient p $ (versionCheck v)) mbSchemaVersion
+  pure p
+
+initCassandra :: Settings -> Maybe FilePath -> Log.Logger -> IO ClientState
+initCassandra settings (Just tlsCaPath) logger = do
+  sslContext <- createSSLContext tlsCaPath
+  let settings' = setSSLContext sslContext settings
+  init settings'
+  where
+    createSSLContext :: FilePath -> IO OpenSSL.SSLContext
+    createSSLContext certFile = do
+      void . liftIO $ Log.debug logger (Log.msg ("TLS cert file path: " <> show certFile))
+      sslContext <- OpenSSL.context
+      OpenSSL.contextSetCAFile sslContext certFile
+      OpenSSL.contextSetVerificationMode
+        sslContext
+        OpenSSL.VerifyPeer
+          { vpFailIfNoPeerCert = True,
+            vpClientOnce = True,
+            vpCallback = Nothing
+          }
+      pure sslContext
+initCassandra settings Nothing logger = do
+  void . liftIO $ Log.debug logger (Log.msg ("No TLS cert file path configured." :: Text))
+  init settings
 
 -- | Read cassandra's writetimes https://docs.datastax.com/en/dse/5.1/cql/cql/cql_using/useWritetime.html
 -- as UTCTime values without any loss of precision

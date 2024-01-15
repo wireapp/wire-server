@@ -30,6 +30,7 @@ module Wire.API.Routes.Version
 
     -- * Version
     Version (..),
+    versionInt,
     VersionNumber (..),
     VersionExp (..),
     supportedVersions,
@@ -257,7 +258,7 @@ type instance
     s :> SpecialiseToVersion v api
 
 type instance
-  SpecialiseToVersion v (UntypedNamed n api) =
+  SpecialiseToVersion v (Named n api) =
     Named n (SpecialiseToVersion v api)
 
 type instance

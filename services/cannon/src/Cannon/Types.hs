@@ -45,14 +45,16 @@ import Cannon.Options
 import Cannon.WS (Clock, Key, Websocket)
 import Cannon.WS qualified as WS
 import Control.Concurrent.Async (mapConcurrently)
-import Control.Lens
+import Control.Lens ((^.))
 import Control.Monad.Catch
-import Data.Default (def)
 import Data.Metrics.Middleware
 import Data.Text.Encoding
+import Data.UUID as UUID
+import Data.UUID.V4 as UUID
 import Imports
 import Network.Wai
 import Servant qualified
+import System.Logger qualified as Log
 import System.Logger qualified as Logger
 import System.Logger.Class hiding (info)
 import System.Random.MWC (GenIO)
@@ -108,20 +110,29 @@ mkEnv ::
   Clock ->
   Env
 mkEnv m external o l d p g t =
-  Env m o l d def $
+  Env m o l d (RequestId "N/A") $
     WS.env external (o ^. cannon . port) (encodeUtf8 $ o ^. gundeck . host) (o ^. gundeck . port) l p d g t (o ^. drainOpts)
 
 runCannon :: Env -> Cannon a -> Request -> IO a
-runCannon e c r =
-  let e' = e {reqId = lookupReqId r}
-   in runCannon' e' c
+runCannon e c r = do
+  rid <- lookupReqId e.applog r
+  let e' = e {reqId = rid}
+  runCannon' e' c
 
 runCannon' :: Env -> Cannon a -> IO a
 runCannon' e c = runReaderT (unCannon c) e
 
-lookupReqId :: Request -> RequestId
-lookupReqId = maybe def RequestId . lookup requestIdName . requestHeaders
-{-# INLINE lookupReqId #-}
+lookupReqId :: Logger -> Request -> IO RequestId
+lookupReqId l r = case lookup requestIdName (requestHeaders r) of
+  Just rid -> pure $ RequestId rid
+  Nothing -> do
+    localRid <- RequestId . cs . UUID.toText <$> UUID.nextRandom
+    Log.info l $
+      "request-id" .= localRid
+        ~~ "method" .= requestMethod r
+        ~~ "path" .= rawPathInfo r
+        ~~ msg (val "generated a new request id for local request")
+    pure localRid
 
 options :: Cannon Opts
 options = Cannon $ asks opts

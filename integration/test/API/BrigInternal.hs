@@ -1,7 +1,7 @@
 module API.BrigInternal where
 
 import API.Common
-import Data.Aeson qualified as Aeson
+import qualified Data.Aeson as Aeson
 import Data.Aeson.Types (Pair)
 import Data.Function
 import Data.Maybe
@@ -205,3 +205,15 @@ getConnStatusInternal body dom = do
     joinHttpPath ["i", "users", "connections-status", "v2"]
   submit "POST" do
     req & addJSONObject body
+
+getProviderActivationCodeInternal ::
+  (HasCallStack, MakesValue dom) =>
+  dom ->
+  String ->
+  App Response
+getProviderActivationCodeInternal dom email = do
+  d <- make dom
+  req <-
+    rawBaseRequest d Brig Unversioned $
+      joinHttpPath ["i", "provider", "activation-code"]
+  submit "GET" (addQueryParams [("email", email)] req)

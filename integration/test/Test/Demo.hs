@@ -3,10 +3,10 @@
 -- | This module is meant to show how Testlib can be used
 module Test.Demo where
 
-import API.Brig qualified as BrigP
-import API.BrigInternal qualified as BrigI
-import API.GalleyInternal qualified as GalleyI
-import API.Nginz qualified as Nginz
+import qualified API.Brig as BrigP
+import qualified API.BrigInternal as BrigI
+import qualified API.GalleyInternal as GalleyI
+import qualified API.Nginz as Nginz
 import Control.Monad.Cont
 import GHC.Stack
 import SetupHelpers

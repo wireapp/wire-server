@@ -47,7 +47,7 @@ testAddUsersSomeReachable = do
     resp.status `shouldMatchInt` 533
     (resp.json %. "unreachable_backends" & asList) `shouldMatch` [d]
 
--- There is analogous counterpart for Proteus in the 'Test.Conversation' module.
+-- | There is analogous counterpart for Proteus in the 'Test.Conversation' module.
 testAddUserWithUnreachableRemoteUsers :: HasCallStack => App ()
 testAddUserWithUnreachableRemoteUsers = do
   resourcePool <- asks resourcePool

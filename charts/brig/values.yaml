@@ -20,6 +20,14 @@ config:
   logNetStrings: false
   cassandra:
     host: aws-cassandra
+#   To enable TLS provide a CA:
+#   tlsCa: <CA in PEM format (can be self-signed)>
+#
+#   Or refer to an existing secret (containing the CA):
+#   tlsCaSecretRef:
+#     name: <secret-name>
+#     key: <ca-attribute>
+
   elasticsearch:
     host: elasticsearch-client
     port: 9200
@@ -106,13 +114,6 @@ config:
     passwordFile: /etc/wire/brig/secrets/smtp-password.txt
   proxy: {}
 
-  geoip:
-    # When enabling this, .secrets.geoip.accountId, .secrets.geoip.licenseKey and
-    # .secret.geoip.editionIds must be provided.
-    enabled: false
-    image:
-      repository: docker.io/maxmindinc/geoipupdate
-      tag: v5.1.1
 turnStatic:
   v1:
   - turn:localhost:3478

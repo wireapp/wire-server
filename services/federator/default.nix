@@ -88,7 +88,6 @@ mkDerivation {
     containers
     crypton-x509
     crypton-x509-validation
-    data-default
     dns
     dns-util
     exceptions
@@ -120,6 +119,7 @@ mkDerivation {
     transformers
     types-common
     unix
+    uuid
     wai
     wai-utilities
     warp

@@ -21,6 +21,9 @@ data:
       {{- if hasKey .cassandra "filterNodesByDatacentre" }}
       filterNodesByDatacentre: {{ .cassandra.filterNodesByDatacentre }}
       {{- end }}
+      {{- if eq (include "useCassandraTLS" .) "true" }}
+      tlsCa: /etc/wire/galley/cassandra/{{- (include "tlsSecretRef" . | fromYaml).key }}
+      {{- end }}
 
     brig:
       host: brig
@@ -81,6 +84,9 @@ data:
       disabledAPIVersions: {{ .settings.disabledAPIVersions }}
       {{- end }}
       {{- if .settings.featureFlags }}
+      {{- if .settings.guestLinkTTLSeconds }}
+      guestLinkTTLSeconds: {{ .settings.guestLinkTTLSeconds }}
+      {{- end }}
       featureFlags:
         sso: {{ .settings.featureFlags.sso }}
         legalhold: {{ .settings.featureFlags.legalhold }}

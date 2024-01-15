@@ -11,22 +11,22 @@ import Control.Monad.Codensity
 import Control.Monad.Cont
 import Control.Monad.Reader
 import Control.Monad.Trans.Maybe
-import Data.Aeson qualified as A
-import Data.Aeson qualified as Aeson
-import Data.ByteString qualified as BS
-import Data.ByteString.Base64 qualified as Base64
-import Data.ByteString.Char8 qualified as B8
-import Data.ByteString.Char8 qualified as C8
+import qualified Data.Aeson as A
+import qualified Data.Aeson as Aeson
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Base64 as Base64
+import qualified Data.ByteString.Char8 as B8
+import qualified Data.ByteString.Char8 as C8
 import Data.Default
 import Data.Foldable
 import Data.Function
-import Data.Map qualified as Map
+import qualified Data.Map as Map
 import Data.Maybe
-import Data.Set qualified as Set
-import Data.Text.Encoding qualified as T
+import qualified Data.Set as Set
+import qualified Data.Text.Encoding as T
 import Data.Traversable
-import Data.UUID qualified as UUID
-import Data.UUID.V4 qualified as UUIDV4
+import qualified Data.UUID as UUID
+import qualified Data.UUID.V4 as UUIDV4
 import GHC.Stack
 import Notifications
 import System.Directory

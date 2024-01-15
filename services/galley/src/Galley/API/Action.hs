@@ -91,6 +91,7 @@ import Galley.Env (Env)
 import Galley.Intra.Push
 import Galley.Options
 import Galley.Types.Conversations.Members
+import Galley.Types.Teams (IsPerm (hasPermission))
 import Galley.Types.UserList
 import Galley.Validation
 import Imports hiding ((\\))
@@ -122,6 +123,7 @@ import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Team.Feature
 import Wire.API.Team.LegalHold
 import Wire.API.Team.Member
+import Wire.API.Team.Permission (Perm (AddRemoveConvMember, ModifyConvName))
 import Wire.API.User qualified as User
 
 data NoChanges = NoChanges
@@ -202,7 +204,9 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
     )
   HasConversationActionEffects 'ConversationRenameTag r =
     ( Member (Error InvalidInput) r,
-      Member ConversationStore r
+      Member ConversationStore r,
+      Member TeamStore r,
+      Member (ErrorS InvalidOperation) r
     )
   HasConversationActionEffects 'ConversationAccessDataTag r =
     ( Member BotAccess r,
@@ -464,6 +468,8 @@ performAction tag origUser lconv action = do
 
       pure (mempty, action)
     SConversationRenameTag -> do
+      zusrMembership <- join <$> forM (cnvmTeam (convMetadata conv)) (flip E.getTeamMember (qUnqualified origUser))
+      for_ zusrMembership $ \tm -> unless (tm `hasPermission` ModifyConvName) $ throwS @'InvalidOperation
       cn <- rangeChecked (cupName action)
       E.setConversationName (tUnqualified lcnv) cn
       pure (mempty, action)
@@ -520,7 +526,7 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
   checkLHPolicyConflictsLocal (ulLocals newMembers)
   checkLHPolicyConflictsRemote (FutureWork (ulRemotes newMembers))
   checkRemoteBackendsConnected lusr
-
+  checkTeamMemberAddPermissions lusr
   addMembersToLocalConversation (fmap (.convId) lconv) newMembers role
   where
     checkRemoteBackendsConnected :: Local x -> Sem r ()
@@ -608,6 +614,12 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
       FutureWork 'LegalholdPlusFederationNotImplemented [Remote UserId] ->
       Sem r ()
     checkLHPolicyConflictsRemote _remotes = pure ()
+
+    checkTeamMemberAddPermissions :: Local UserId -> Sem r ()
+    checkTeamMemberAddPermissions lusr =
+      forM (cnvmTeam (convMetadata conv)) (flip E.getTeamMember (tUnqualified lusr))
+        >>= (maybe (pure ()) (\tm -> unless (tm `hasPermission` AddRemoveConvMember) $ throwS @'InvalidOperation))
+          . join
 
 performConversationAccessData ::
   ( HasConversationActionEffects 'ConversationAccessDataTag r,

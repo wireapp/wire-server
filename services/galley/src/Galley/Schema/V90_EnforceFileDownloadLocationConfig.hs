@@ -1,6 +1,6 @@
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2023 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -14,25 +14,22 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-
-module Metrics
-  ( tests,
+module Galley.Schema.V90_EnforceFileDownloadLocationConfig
+  ( migration,
   )
 where
 
-import Bilge
-import Bilge.Assert
+import Cassandra.Schema
 import Imports
-import Test.Tasty
-import TestSetup
+import Text.RawString.QQ
 
-tests :: IO TestSetup -> TestTree
-tests s = testGroup "Metrics" [test s "prometheus" testPrometheusMetrics]
-
-testPrometheusMetrics :: TestM ()
-testPrometheusMetrics = do
-  cargohold <- viewUnversionedCargohold
-  get (cargohold . path "/i/metrics") !!! do
-    const 200 === statusCode
-    -- Should contain the request duration metric in its output
-    const (Just "TYPE http_request_duration_seconds histogram") =~= responseBody
+migration :: Migration
+migration =
+  Migration 90 "Add fields for EnforceFileDownloadLocationConfig" $
+    schema'
+      [r| ALTER TABLE team_features ADD (
+            enforce_file_download_location_lock_status int,
+            enforce_file_download_location_status int,
+            enforce_file_download_location text
+        )
+     |]

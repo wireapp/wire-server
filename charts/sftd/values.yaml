@@ -21,6 +21,10 @@ imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
 
+metrics:
+  serviceMonitor:
+    enabled: false
+
 # The time to wait after terminating an sft node before shutting it down. No
 # new calls will be initiated whilst a pod is being terminated.
 terminationGracePeriodSeconds: 10
@@ -82,7 +86,7 @@ joinCall:
     repository: nginxinc/nginx-unprivileged
     pullPolicy: IfNotPresent
     # Overrides the image tag whose default is the chart appVersion.
-    tag: "1.19.5"
+    tag: "1.25.3"
 
 # Allow SFT instances to choose/consider using a TURN server for themselves as a proxy when
 # trying to establish a connection to clients
