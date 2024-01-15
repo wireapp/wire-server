@@ -75,6 +75,7 @@ import Brig.User.Email
 import Cassandra (MonadClient)
 import Control.Error
 import Control.Lens (view)
+import Control.Monad.Trans.Except (except)
 import Data.ByteString.Conversion
 import Data.Code as Code
 import Data.Domain
@@ -492,22 +493,29 @@ createAccessToken ::
 createAccessToken luid cid method link proof = do
   let domain = tDomain luid
   let uid = tUnqualified luid
+  (tid, handle) <- do
+    mUser <- lift $ wrapClient (Data.lookupUser NoPendingInvitations uid)
+    except $
+      (,)
+        <$> note NotATeamUser (userTeam =<< mUser)
+        <*> note MissingHandle (userHandle =<< mUser)
   nonce <- ExceptT $ note NonceNotFound <$> wrapClient (Nonce.lookupAndDeleteNonce uid (cs $ toByteString cid))
-  httpsUrl <- do
-    let urlBs = "https://" <> toByteString' domain <> "/" <> cs (toUrlPiece link)
-    maybe (throwE MisconfiguredRequestUrl) pure $ fromByteString $ urlBs
+  httpsUrl <- except $ note MisconfiguredRequestUrl $ fromByteString $ "https://" <> toByteString' domain <> "/" <> cs (toUrlPiece link)
   maxSkewSeconds <- Opt.setDpopMaxSkewSecs <$> view settings
   expiresIn <- Opt.setDpopTokenExpirationTimeSecs <$> view settings
   now <- fromUTCTime <$> lift (liftSem Now.get)
   let expiresAt = now & addToEpoch expiresIn
-  pathToKeys <- ExceptT $ note KeyBundleError . Opt.setPublicKeyBundle <$> view settings
-  pubKeyBundle <- ExceptT $ note KeyBundleError <$> liftSem (PublicKeyBundle.get pathToKeys)
+  pubKeyBundle <- do
+    pathToKeys <- ExceptT $ note KeyBundleError . Opt.setPublicKeyBundle <$> view settings
+    ExceptT $ note KeyBundleError <$> liftSem (PublicKeyBundle.get pathToKeys)
   token <-
     ExceptT $
       liftSem $
         JwtTools.generateDPoPAccessToken
           proof
           (ClientIdentity domain uid cid)
+          handle
+          tid
           nonce
           httpsUrl
           method

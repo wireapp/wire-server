@@ -33,10 +33,12 @@ module Data.Jwt.Tools
     ExpiryEpoch (..),
     NowEpoch (..),
     PemBundle (..),
+    Handle (..),
+    TeamId (..),
   )
 where
 
-import Control.Exception
+import Control.Exception hiding (handle)
 import Control.Monad.Trans.Except
 import Data.ByteString.Conversion
 import Foreign.C.String (CString, newCString, peekCString)
@@ -49,6 +51,10 @@ data HsResult
 type ProofCStr = CString
 
 type UserIdCStr = CString
+
+type TeamIdCStr = CString
+
+type HandleCStr = CString
 
 type ClientIdWord64 = Word64
 
@@ -73,6 +79,8 @@ foreign import ccall unsafe "generate_dpop_access_token"
     ProofCStr ->
     UserIdCStr ->
     ClientIdWord64 ->
+    HandleCStr ->
+    TeamIdCStr ->
     DomainCStr ->
     NonceCStr ->
     UrlCStr ->
@@ -93,6 +101,8 @@ generateDpopAccessTokenFfi ::
   ProofCStr ->
   UserIdCStr ->
   ClientIdWord64 ->
+  HandleCStr ->
+  TeamIdCStr ->
   DomainCStr ->
   NonceCStr ->
   UrlCStr ->
@@ -102,8 +112,8 @@ generateDpopAccessTokenFfi ::
   EpochWord64 ->
   BackendBundleCStr ->
   IO (Maybe (Ptr HsResult))
-generateDpopAccessTokenFfi dpopProof user client domain nonce uri method maxSkewSecs expiration now backendKeys = do
-  ptr <- generate_dpop_access_token dpopProof user client domain nonce uri method maxSkewSecs expiration now backendKeys
+generateDpopAccessTokenFfi dpopProof user client handle tid domain nonce uri method maxSkewSecs expiration now backendKeys = do
+  ptr <- generate_dpop_access_token dpopProof user client handle tid domain nonce uri method maxSkewSecs expiration now backendKeys
   if ptr /= nullPtr
     then pure $ Just ptr
     else pure Nothing
@@ -127,6 +137,8 @@ generateDpopToken ::
   Proof ->
   UserId ->
   ClientId ->
+  Handle ->
+  TeamId ->
   Domain ->
   Nonce ->
   Uri ->
@@ -136,9 +148,11 @@ generateDpopToken ::
   NowEpoch ->
   PemBundle ->
   ExceptT DPoPTokenGenerationError m ByteString
-generateDpopToken dpopProof uid cid domain nonce uri method maxSkewSecs maxExpiration now backendPubkeyBundle = do
+generateDpopToken dpopProof uid cid handle tid domain nonce uri method maxSkewSecs maxExpiration now backendPubkeyBundle = do
   dpopProofCStr <- toCStr dpopProof
   uidCStr <- toCStr uid
+  handleCStr <- toCStr handle
+  tidCStr <- toCStr tid
   domainCStr <- toCStr domain
   nonceCStr <- toCStr nonce
   uriCStr <- toCStr uri
@@ -150,6 +164,8 @@ generateDpopToken dpopProof uid cid domain nonce uri method maxSkewSecs maxExpir
           dpopProofCStr
           uidCStr
           (_unClientId cid)
+          handleCStr
+          tidCStr
           domainCStr
           nonceCStr
           uriCStr
@@ -210,6 +226,14 @@ newtype UserId = UserId {_unUserId :: ByteString}
   deriving newtype (ToByteString)
 
 newtype ClientId = ClientId {_unClientId :: Word64}
+  deriving (Eq, Show)
+  deriving newtype (ToByteString)
+
+newtype Handle = Handle {_unHandle :: ByteString}
+  deriving (Eq, Show)
+  deriving newtype (ToByteString)
+
+newtype TeamId = TeamId {_unTeamId :: ByteString}
   deriving (Eq, Show)
   deriving newtype (ToByteString)
 
@@ -323,4 +347,8 @@ data DPoPTokenGenerationError
     UnsupportedApiVersion
   | -- Bubbling up errors
     UnsupportedScope
+  | -- Client handle does not match the supplied handle
+    DpopHandleMismatch
+  | -- Client team does not match the supplied team
+    DpopTeamMismatch
   deriving (Eq, Show, Generic, Bounded, Enum)

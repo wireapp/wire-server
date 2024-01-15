@@ -10,14 +10,14 @@
 # Cargo.lock file in its root (not at the ffi/ subpath).
 
 let
-  version = "0.5.0";
+  version = "0.8.0";
   src = fetchFromGitHub {
     owner = "wireapp";
     repo = "rusty-jwt-tools";
-    rev = "6704e08376bb49168133d8f4ce66155adeb6bfb0";
-    sha256 = "sha256-ocmeFXjU3psCO+hpDuEAIzYIm4QzP+jHJR/V8yyw6Lw=";
+    rev = "064d531b6f0d0b502755dceb3ab73f0f9ad02143";
+    sha256 = "sha256-OqL4ue6swci3JqQKNmzcvpGxQAMhF8bHTXMp6dvIn9o=";
   };
-  cargoLockFile = builtins.toFile "cargo.lock" (builtins.readFile "${src}/ffi/Cargo.lock");
+  cargoLockFile = builtins.toFile "cargo.lock" (builtins.readFile "${src}/Cargo.lock");
 
 in
 rustPlatform.buildRustPackage {
@@ -29,7 +29,12 @@ rustPlatform.buildRustPackage {
     outputHashes = {
       # if any of these need updating, replace / create new key with
       # lib.fakeSha256, rebuild, and replace with actual hash.
-      "jwt-simple-0.11.4" = "sha256-zLKEvL6M7WD7F7HIABqq4b2rmlCS88QXDsj4JhAPe7o=";
+      "biscuit-0.6.0-beta1" = "sha256-no7b4Un+7AES7EwWdZh/oeIa4w0caKLAUFsHWqgJOrg=";
+      "certval-0.1.4" = "sha256-mUg3Kx1I/r9zBoB7tDaZsykFkE+tsN+Rem6DjUOZbuU=";
+      "jwt-simple-0.12.1" = "sha256-5PAOwulL8j6f4Ycoa5Q+1dqEA24uN8rJt+i2RebL6eo=";
+      "rcgen-0.9.2" = "sha256-3jFzInwdzFBot+L2Vm5NLF1ml33GH2+Iv3LqqGhLxFs=";
+      "ring-0.17.0-not-released-yet" = "sha256-TP8yZo64J/d1fw8l2J4+ol70EcHvpvHJBdpF3A+6Dgo=";
+      "x509-ocsp-0.2.1" = "sha256-Tdswn977QtS+i69q82dF/nkXIblUaCsqPD2SqUIYLWc=";
     };
   };
 

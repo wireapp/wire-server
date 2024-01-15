@@ -79,7 +79,8 @@ test-suite jwt-tools-tests
   main-is:            Spec.hs
   type:               exitcode-stdio-1.0
   build-depends:
-      hspec
+      bytestring
+    , hspec
     , imports
     , jwt-tools
     , transformers

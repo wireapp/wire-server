@@ -44,6 +44,7 @@ import Data.ByteString.Conversion
 import Data.Coerce (coerce)
 import Data.Default
 import Data.Domain (Domain (..))
+import Data.Handle
 import Data.Id
 import Data.List1 qualified as List1
 import Data.Map qualified as Map
@@ -56,6 +57,7 @@ import Data.Text.Encoding qualified as T
 import Data.Time (addUTCTime)
 import Data.Time.Clock.POSIX
 import Data.UUID (toByteString)
+import Data.UUID qualified as UUID
 import Data.Vector qualified as Vec
 import Imports
 import Network.Wai.Utilities.Error qualified as Error
@@ -1395,7 +1397,9 @@ data DPoPClaimsSet = DPoPClaimsSet
     claimNonce :: Text,
     claimHtm :: Text,
     claimHtu :: Text,
-    claimChal :: Text
+    claimChal :: Text,
+    claimHandle :: Text,
+    claimTeamId :: Text
   }
   deriving (Eq, Show, Generic)
 
@@ -1410,6 +1414,8 @@ instance A.FromJSON DPoPClaimsSet where
       <*> o A..: "htm"
       <*> o A..: "htu"
       <*> o A..: "chal"
+      <*> o A..: "handle"
+      <*> o A..: "team"
 
 instance A.ToJSON DPoPClaimsSet where
   toJSON s =
@@ -1417,6 +1423,8 @@ instance A.ToJSON DPoPClaimsSet where
       & ins "htm" (claimHtm s)
       & ins "htu" (claimHtu s)
       & ins "chal" (claimChal s)
+      & ins "handle" (claimHandle s)
+      & ins "team" (claimTeamId s)
     where
       ins k v (Object o) = Object $ M.insert k (A.toJSON v) o
       ins _ _ a = a
@@ -1424,12 +1432,15 @@ instance A.ToJSON DPoPClaimsSet where
 testCreateAccessToken :: Opts.Opts -> Nginz -> Brig -> Http ()
 testCreateAccessToken opts n brig = do
   let localDomain = opts ^. Opt.optionSettings & Opt.setFederationDomain
-  u <- randomUser brig
+  (u, tid) <- Util.createUserWithTeam' brig
+  handle <- do
+    Just h <- userHandle <$> Util.setRandomHandle brig u
+    pure $ "wireapp://%40" <> fromHandle h <> "@" <> cs (toByteString' localDomain)
   let uid = userId u
+  let Just email = userEmail u
   -- convert the user Id into 16 octets of binary and then base64url
   let uidBS = Data.UUID.toByteString (toUUID uid)
   let uidB64 = encodeBase64UrlUnpadded (cs uidBS)
-  let email = fromMaybe (error "invalid email") $ userEmail u
   rs <-
     login n (defEmailLogin email) PersistentCookie
       <!! const 200 === statusCode
@@ -1438,9 +1449,9 @@ testCreateAccessToken opts n brig = do
   nonceResponse <- Util.headNonceNginz n t cid <!! const 200 === statusCode
   let nonceBs = cs $ fromMaybe (error "invalid nonce") $ getHeader "Replay-Nonce" nonceResponse
   now <- liftIO $ posixSecondsToUTCTime . fromInteger <$> (floor <$> getPOSIXTime)
-  let clientIdentity = cs $ "im:wireapp=" <> cs (toText uidB64) <> "/" <> toByteString' cid <> "@" <> toByteString' localDomain
+  let clientIdentity = cs $ "wireapp://" <> cs (toText uidB64) <> "!" <> toByteString' cid <> "@" <> toByteString' localDomain
   let httpsUrl = cs $ "https://" <> toByteString' localDomain <> "/clients/" <> toByteString' cid <> "/access-token"
-  let expClaim = NumericDate (addUTCTime 10 now)
+  let expClaim = NumericDate $ addUTCTime 10 now
   let claimsSet' =
         emptyClaimsSet
           & claimIat ?~ NumericDate now
@@ -1448,7 +1459,7 @@ testCreateAccessToken opts n brig = do
           & claimNbf ?~ NumericDate now
           & claimSub ?~ fromMaybe (error "invalid sub claim") ((clientIdentity :: Text) ^? stringOrUri)
           & claimJti ?~ "6fc59e7f-b666-4ffc-b738-4f4760c884ca"
-  let dpopClaims = DPoPClaimsSet claimsSet' nonceBs "POST" httpsUrl "wa2VrkCtW1sauJ2D3uKY8rc7y4kl4usH"
+  let dpopClaims = DPoPClaimsSet claimsSet' nonceBs "POST" httpsUrl "wa2VrkCtW1sauJ2D3uKY8rc7y4kl4usH" handle (UUID.toText (toUUID tid))
   signedOrError <- fmap encodeCompact <$> liftIO (signAccessToken dpopClaims)
   case signedOrError of
     Left err -> liftIO $ assertFailure $ "failed to sign claims: " <> show err
@@ -1490,7 +1501,9 @@ testCreateAccessTokenMissingProof brig = do
 
 testCreateAccessTokenNoNonce :: Brig -> Http ()
 testCreateAccessTokenNoNonce brig = do
-  uid <- userId <$> randomUser brig
+  (u, _) <- Util.createUserWithTeam' brig
+  void $ Util.setRandomHandle brig u
+  let uid = userId u
   cid <- createClientForUser brig uid
   Util.createAccessToken brig uid "some_host_name" cid (Just $ Proof "xxxx.yyyy.zzzz")
     !!! do
