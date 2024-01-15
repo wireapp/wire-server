@@ -720,28 +720,6 @@ testDeleteTeamMemberLimitedEventFanout = do
       ms <- resp.json %. "members" & asList
       forM ms $ (%. "user")
 
-testLeaveConversationSuccess :: HasCallStack => App ()
-testLeaveConversationSuccess = do
-  [alice, bob, chad, dee] <- createUsers [OwnDomain, OwnDomain, OtherDomain, OtherDomain]
-  [aClient, bClient] <- forM [alice, bob] $ \user ->
-    objId $ bindResponse (addClient user def) $ getJSON 201
-  startDynamicBackends [def] $ \[dynDomain] -> do
-    eve <- randomUser dynDomain def
-    eClient <- objId $ bindResponse (addClient eve def) $ getJSON 201
-    forM_ [bob, chad, dee, eve] $ connectTwoUsers alice
-    conv <-
-      postConversation
-        alice
-        ( defProteus
-            { qualifiedUsers = [bob, chad, dee, eve]
-            }
-        )
-        >>= getJSON 201
-    void $ removeMember chad conv chad >>= getBody 200
-    assertLeaveNotification chad conv alice aClient chad
-    assertLeaveNotification chad conv bob bClient chad
-    assertLeaveNotification chad conv eve eClient chad
-
 -- The test relies on the default value for the 'limitedEventFanout' flag, which
 -- is disabled by default. The counterpart test
 -- 'testDeleteTeamMemberLimitedEventFanout' enables the flag and tests the
@@ -777,6 +755,28 @@ testDeleteTeamMemberFullEventFanout = do
         memIds `shouldMatchSet` [aliceId, alisonId, amyId]
       n <- awaitMatch isConvLeaveNotif wsBob
       nPayload n %. "data.qualified_user_ids.0" `shouldMatch` alexId
+
+testLeaveConversationSuccess :: HasCallStack => App ()
+testLeaveConversationSuccess = do
+  [alice, bob, chad, dee] <- createUsers [OwnDomain, OwnDomain, OtherDomain, OtherDomain]
+  [aClient, bClient] <- forM [alice, bob] $ \user ->
+    objId $ bindResponse (addClient user def) $ getJSON 201
+  startDynamicBackends [def] $ \[dynDomain] -> do
+    eve <- randomUser dynDomain def
+    eClient <- objId $ bindResponse (addClient eve def) $ getJSON 201
+    forM_ [bob, chad, dee, eve] $ connectTwoUsers alice
+    conv <-
+      postConversation
+        alice
+        ( defProteus
+            { qualifiedUsers = [bob, chad, dee, eve]
+            }
+        )
+        >>= getJSON 201
+    void $ removeMember chad conv chad >>= getBody 200
+    assertLeaveNotification chad conv alice aClient chad
+    assertLeaveNotification chad conv bob bClient chad
+    assertLeaveNotification chad conv eve eClient chad
 
 testOnUserDeletedConversations :: HasCallStack => App ()
 testOnUserDeletedConversations = do
