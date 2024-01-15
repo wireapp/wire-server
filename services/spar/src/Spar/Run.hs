@@ -53,8 +53,8 @@ import Spar.Orphans ()
 import System.Logger (Logger, msg, val, (.=), (~~))
 import qualified System.Logger as Log
 import qualified System.Logger.Extended as Log
-import Wire.API.Routes.Version (expandVersionExp)
 import Util.Options
+import Wire.API.Routes.Version (expandVersionExp)
 import Wire.API.Routes.Version.Wai
 import Wire.Sem.Logger.TinyLog
 

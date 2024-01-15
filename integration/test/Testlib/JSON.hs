@@ -19,8 +19,8 @@ import Data.Function
 import Data.Functor
 import Data.List.Split (splitOn)
 import Data.Maybe (fromMaybe)
-import qualified Data.Set as Set
 import qualified Data.Scientific as Sci
+import qualified Data.Set as Set
 import Data.String
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T

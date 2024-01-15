@@ -633,7 +633,6 @@ It is possible to disable one ore more API versions. When an API version is disa
 
 Each of the services brig, cannon, cargohold, galley, gundeck, proxy, spar should to be configured with the same set of disable API versions in each service's values.yaml config files.
 
-
 For example to disable API version v3, you need to configure:
 
 ```
