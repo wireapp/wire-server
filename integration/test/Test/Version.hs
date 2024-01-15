@@ -49,32 +49,6 @@ testDisabledVersion = withModifiedBackend
         resp.status `shouldMatchInt` 404
         resp.json %. "label" `shouldMatch` "unsupported-version"
 
--- testDisabledVersionIsUnsupported :: Opts -> Brig -> Http ()
--- testDisabledVersionIsUnsupported opts brig = do
---   uid <- userId <$> randomUser brig
---
---   get (apiVersion "v2" . brig . path "/self" . zUser uid)
---     !!! const 200 === statusCode
---
---   withSettingsOverrides
---     ( opts
---         & Opt.optionSettings
---           . Opt.disabledAPIVersions
---           ?~ [VersionExpConst V2]
---     )
---     $ do
---       err <-
---         responseJsonError
---           =<< get (apiVersion "v2" . brig . path "/self" . zUser uid)
---             <!! const 404 === statusCode
---       liftIO $
---         Wai.label err @?= "unsupported-version"
---
---       get (apiVersion "v1" . brig . path "/self" . zUser uid)
---         !!! const 200 === statusCode
---
---       get (apiVersion "v3" . brig . path "/self" . zUser uid)
---         !!! const 200 === statusCode
---
---       get (unversioned . brig . path "/self" . zUser uid)
---         !!! const 200 === statusCode
+      void $ getSelfWithVersion (ExplicitVersion 1) user >>= getJSON 200
+      void $ getSelfWithVersion (ExplicitVersion 3) user >>= getJSON 200
+      void $ getSelfWithVersion Unversioned user >>= getJSON 200
