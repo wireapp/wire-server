@@ -249,7 +249,7 @@ newEnv o = do
       pure Nothing
   kpLock <- newMVar ()
   rabbitChan <- traverse (Q.mkRabbitMqChannelMVar lgr) o.rabbitmq
-  let disabledVersionExps = fold (Opt.setDisabledAPIVersions sett)
+  let disabledVersionExps = unVersionExpList $ fold (Opt.setDisabledAPIVersions sett)
       allDisabledVersions = foldMap expandVersionExp disabledVersionExps
 
   pure $!

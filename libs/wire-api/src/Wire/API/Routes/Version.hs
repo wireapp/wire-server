@@ -44,6 +44,7 @@ module Wire.API.Routes.Version
 
     -- * Swagger instances
     SpecialiseToVersion,
+    VersionExpList (..),
   )
 where
 
@@ -238,6 +239,16 @@ deriving via Schema VersionExp instance (ToJSON VersionExp)
 expandVersionExp :: VersionExp -> Set Version
 expandVersionExp (VersionExpConst v) = Set.singleton v
 expandVersionExp VersionExpDevelopment = Set.fromList developmentVersions
+
+newtype VersionExpList = VersionExpList {unVersionExpList :: [VersionExp]}
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving newtype (FromJSON, ToJSON)
+
+instance Semigroup VersionExpList where
+  VersionExpList xs <> VersionExpList ys = VersionExpList (xs <> ys)
+
+instance Monoid VersionExpList where
+  mempty = VersionExpList [VersionExpDevelopment]
 
 -- Version-aware swagger generation
 

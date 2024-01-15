@@ -6,19 +6,22 @@ import SetupHelpers
 import Testlib.Prelude
 
 _testVersion :: Versioned -> App ()
-_testVersion v = bindResponse (getAPIVersionWithVersion OwnDomain v) $ \resp -> do
-  resp.status `shouldMatchInt` 200
-  dev <- resp.json %. "development" & asSet
-  supported <- resp.json %. "supported" & asSet
-  domain <- resp.json %. "domain" & asString
-  federation <- resp.json %. "federation" & asBool
+_testVersion v = withModifiedBackend
+  def {brigCfg = setField "optSettings.setDisabledAPIVersions" ([] :: [String])}
+  $ \dom ->
+    bindResponse (getAPIVersionWithVersion dom v) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      dev <- resp.json %. "development" & asSet
+      supported <- resp.json %. "supported" & asSet
+      domain <- resp.json %. "domain" & asString
+      federation <- resp.json %. "federation" & asBool
 
-  length dev `shouldMatchInt` 1
-  domain `shouldMatch` OwnDomain
-  federation `shouldMatch` True
+      length dev `shouldMatchInt` 1
+      domain `shouldMatch` dom
+      federation `shouldMatch` True
 
-  unless (null (Set.intersection supported dev)) $
-    assertFailure "development and supported versions should not overlap"
+      unless (null (Set.intersection supported dev)) $
+        assertFailure "development and supported versions should not overlap"
 
 testVersion :: App ()
 testVersion = _testVersion Unversioned
@@ -82,8 +85,20 @@ testDisabledDevVersionsNotAdvertised = withModifiedBackend
   $ \domain -> do
     bindResponse (getAPIVersionWithVersion domain Unversioned) $ \resp -> do
       resp.status `shouldMatchInt` 200
-      dev <- resp.json %. "development" & asList >>= traverse asInt
-      supported <- resp.json %. "supported" & asList >>= traverse asInt
+      dev <- resp.json %. "development" & asList
+      supported <- resp.json %. "supported" & asList
+
+      assertBool "supported versions should not be empty" $ not (null supported)
+      assertBool "development versions should be empty" $ null dev
+
+testDevVersionDisabledPerDefault :: App ()
+testDevVersionDisabledPerDefault = withModifiedBackend
+  def {brigCfg = removeField "optSettings.setDisabledAPIVersions"}
+  $ \domain -> do
+    bindResponse (getAPIVersionWithVersion domain Unversioned) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      dev <- resp.json %. "development" & asList
+      supported <- resp.json %. "supported" & asList
 
       assertBool "supported versions should not be empty" $ not (null supported)
       assertBool "development versions should be empty" $ null dev
