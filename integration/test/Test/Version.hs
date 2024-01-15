@@ -51,4 +51,39 @@ testDisabledVersion = withModifiedBackend
 
       void $ getSelfWithVersion (ExplicitVersion 1) user >>= getJSON 200
       void $ getSelfWithVersion (ExplicitVersion 3) user >>= getJSON 200
+      void $ getSelfWithVersion (ExplicitVersion 4) user >>= getJSON 200
+      void $ getSelfWithVersion (ExplicitVersion 5) user >>= getJSON 200
       void $ getSelfWithVersion Unversioned user >>= getJSON 200
+
+testDisabledVersionNotAdvertised :: App ()
+testDisabledVersionNotAdvertised = do
+  allVersions <- bindResponse (getAPIVersionWithVersion OwnDomain Versioned) $ \resp ->
+    (<>)
+      <$> (resp.json %. "development" & asList >>= traverse asInt)
+      <*> (resp.json %. "supported" & asList >>= traverse asInt)
+  forM_ allVersions _testDisabledVersionNotAdvertised
+
+_testDisabledVersionNotAdvertised :: Int -> App ()
+_testDisabledVersionNotAdvertised v = withModifiedBackend
+  def {brigCfg = setField "optSettings.setDisabledAPIVersions" ["v" <> show v]}
+  $ \domain -> do
+    bindResponse (getAPIVersionWithVersion domain Unversioned) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      dev <- resp.json %. "development" & asList >>= traverse asInt
+      supported <- resp.json %. "supported" & asList >>= traverse asInt
+
+      assertBool "supported versions should not be empty" $ not (null supported)
+      assertBool "the disabled version should not be propagated as dev version" $ v `notElem` dev
+      assertBool "the disabled version should not be propagated as supported version" $ v `notElem` supported
+
+testDisabledDevVersionsNotAdvertised :: App ()
+testDisabledDevVersionsNotAdvertised = withModifiedBackend
+  def {brigCfg = setField "optSettings.setDisabledAPIVersions" ["development"]}
+  $ \domain -> do
+    bindResponse (getAPIVersionWithVersion domain Unversioned) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      dev <- resp.json %. "development" & asList >>= traverse asInt
+      supported <- resp.json %. "supported" & asList >>= traverse asInt
+
+      assertBool "supported versions should not be empty" $ not (null supported)
+      assertBool "development versions should be empty" $ null dev
