@@ -60,7 +60,7 @@ checkLegalHoldServiceStatus ::
   HttpsUrl ->
   Sem r ()
 checkLegalHoldServiceStatus fpr url = do
-  resp <- makeVerifiedRequestFreshManager fpr url reqBuilder
+  resp <- makeVerifiedRequest fpr url reqBuilder
   if Bilge.statusCode resp < 400
     then pure ()
     else do
