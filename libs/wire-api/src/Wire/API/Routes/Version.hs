@@ -237,7 +237,7 @@ deriving via Schema VersionExp instance (ToJSON VersionExp)
 -- | Expand a version expression into a set of versions.
 expandVersionExp :: VersionExp -> Set Version
 expandVersionExp (VersionExpConst v) = Set.singleton v
-expandVersionExp (VersionExpDevelopment) = Set.fromList developmentVersions
+expandVersionExp VersionExpDevelopment  = Set.fromList developmentVersions
 
 -- Version-aware swagger generation
 

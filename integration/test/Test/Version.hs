@@ -17,7 +17,7 @@ _testVersion v = bindResponse (getAPIVersionWithVersion OwnDomain v) $ \resp -> 
   domain `shouldMatch` OwnDomain
   federation `shouldMatch` True
 
-  when (not (null (Set.intersection supported dev))) $
+  unless (null (Set.intersection supported dev)) $
     assertFailure "development and supported versions should not overlap"
 
 testVersion :: App ()
@@ -37,15 +37,13 @@ testUnsupportedVersion = bindResponse (getAPIVersionWithVersion OwnDomain (Expli
 
 testDisabledVersion :: App ()
 testDisabledVersion = withModifiedBackend
-  def {brigCfg = setField "optSettings.disabledAPIVersions" ["v2"]}
+  def {brigCfg = setField "optSettings.setDisabledAPIVersions" ["v2"]}
   $ \domain -> do
     do
       user <- randomUser OwnDomain def
       void $ getSelfWithVersion (ExplicitVersion 2) user >>= getJSON 200
 
     do
-      getAPIVersion domain >>= getJSON 200 >>= printJSON
-
       user <- randomUser domain def
       bindResponse (getSelfWithVersion (ExplicitVersion 2) user) $ \resp -> do
         resp.status `shouldMatchInt` 404
