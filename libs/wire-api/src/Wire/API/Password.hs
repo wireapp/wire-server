@@ -144,8 +144,7 @@ verifyPasswordWithStatus :: PlainTextPassword' t -> Password -> (Bool, PasswordS
 verifyPasswordWithStatus plain opaque =
   let actual = fromPlainTextPassword plain
       expected = fromPassword opaque
-   in -- TODO(elland): We'll use the pwd status later to update the hash behind the scenes
-      checkPassword actual expected
+   in checkPassword actual expected
 
 hashPasswordArgon2id :: MonadIO m => ByteString -> m Text
 hashPasswordArgon2id pwd = do
