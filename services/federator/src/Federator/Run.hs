@@ -48,6 +48,7 @@ import Imports
 import Network.DNS qualified as DNS
 import Network.HTTP.Client qualified as HTTP
 import Prometheus
+import Servant.Client qualified as Servant
 import System.Logger qualified as Log
 import System.Logger.Extended qualified as LogExt
 import Util.Options
@@ -103,6 +104,8 @@ newEnv o _dnsResolver _applog = do
   sslContext <- mkTLSSettingsOrThrow _runSettings
   _http2Manager <- newIORef =<< mkHttp2Manager o.optSettings.tcpConnectionTimeout sslContext
   _federatorMetrics <- mkFederatorMetrics
+  let brigBaseUrl = Servant.BaseUrl Servant.Http (cs o.brig._host) (fromIntegral o.brig._port) ""
+      _brigClientEnv = Servant.mkClientEnv _httpManager brigBaseUrl
   pure Env {..}
 
 mkFederatorMetrics :: IO FederatorMetrics
