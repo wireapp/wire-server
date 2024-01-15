@@ -17,7 +17,6 @@
 
 module Galley.External.LegalHoldService.Internal
   ( makeVerifiedRequest,
-    makeVerifiedRequestFreshManager,
   )
 where
 
@@ -34,23 +33,20 @@ import Galley.Env
 import Galley.Monad
 import Imports
 import Network.HTTP.Client qualified as Http
-import OpenSSL.Session qualified as SSL
-import Ssl.Util
 import System.Logger.Class qualified as Log
 import URI.ByteString (uriPath)
 
 -- | Check that the given fingerprint is valid and make the request over ssl.
 -- If the team has a device registered use 'makeLegalHoldServiceRequest' instead.
-makeVerifiedRequestWithManager :: Http.Manager -> ([Fingerprint Rsa] -> SSL.SSL -> IO ()) -> Fingerprint Rsa -> HttpsUrl -> (Http.Request -> Http.Request) -> App (Http.Response LC8.ByteString)
-makeVerifiedRequestWithManager mgr verifyFingerprints fpr (HttpsUrl url) reqBuilder = do
-  let verified = verifyFingerprints [fpr]
+makeVerifiedRequestWithManager :: Http.Manager -> HttpsUrl -> (Http.Request -> Http.Request) -> App (Http.Response LC8.ByteString)
+makeVerifiedRequestWithManager mgr (HttpsUrl url) reqBuilder = do
+  let req = reqBuilderMods . reqBuilder $ Http.defaultRequest
   extHandleAll errHandler $ do
     recovering x3 httpHandlers $
       const $
         liftIO $
-          withVerifiedSslConnection verified mgr (reqBuilderMods . reqBuilder) $
-            \req ->
-              Http.httpLbs req mgr
+          Http.withConnection req mgr $ \_conn ->
+            Http.httpLbs req mgr
   where
     reqBuilderMods =
       maybe id Bilge.host (Bilge.extHost url)
@@ -81,18 +77,6 @@ makeVerifiedRequest ::
   (Http.Request -> Http.Request) ->
   App (Http.Response LC8.ByteString)
 makeVerifiedRequest fpr url reqBuilder = do
-  (mgr, verifyFingerprints) <- view (extEnv . extGetManager)
-  makeVerifiedRequestWithManager mgr verifyFingerprints fpr url reqBuilder
-
--- | NOTE: Use this function wisely - this creates a new manager _every_ time it is called.
---   We should really _only_ use it in `checkLegalHoldServiceStatus` for the time being because
---   this is where we check for signatures, etc. If we reuse the manager, we are likely to reuse
---   an existing connection which will _not_ cause the new public key to be verified.
-makeVerifiedRequestFreshManager ::
-  Fingerprint Rsa ->
-  HttpsUrl ->
-  (Http.Request -> Http.Request) ->
-  App (Http.Response LC8.ByteString)
-makeVerifiedRequestFreshManager fpr url reqBuilder = do
-  ExtEnv (mgr, verifyFingerprints) <- liftIO initExtEnv
-  makeVerifiedRequestWithManager mgr verifyFingerprints fpr url reqBuilder
+  mkMgr <- view extGetManager
+  mgr <- liftIO $ mkMgr [fpr]
+  makeVerifiedRequestWithManager mgr url reqBuilder

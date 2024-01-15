@@ -516,11 +516,11 @@ withOptLock u c ma = go (10 :: Int)
         Nothing -> reportFailureAndLogError >> pure a
         Just _ -> pure a
     version :: AWS.GetItemResponse -> Maybe Word32
-    version v = conv =<< HashMap.lookup ddbVersion (view AWS.getItemResponse_item v)
+    version v = conv . HashMap.lookup ddbVersion =<< (view AWS.getItemResponse_item v)
       where
-        conv :: AWS.AttributeValue -> Maybe Word32
+        conv :: Maybe AWS.AttributeValue -> Maybe Word32
         conv = \case
-          AWS.N t -> readMaybe $ Text.unpack t
+          Just (AWS.N t) -> readMaybe $ Text.unpack t
           _ -> Nothing
     get :: Text -> AWS.GetItem
     get t =
@@ -555,7 +555,12 @@ withOptLock u c ma = go (10 :: Int)
           . Log.field "client" (toByteString' c)
           . msg (val "PreKeys: Optimistic lock failed")
       Metrics.counterIncr (Metrics.path "client.opt_lock.optimistic_lock_failed") =<< view metrics
-    execDyn :: forall r x. (AWS.AWSRequest r) => (AWS.AWSResponse r -> Maybe x) -> (Text -> r) -> m (Maybe x)
+    execDyn ::
+      forall r x.
+      (AWS.AWSRequest r, Typeable r, Typeable (AWS.AWSResponse r)) =>
+      (AWS.AWSResponse r -> Maybe x) ->
+      (Text -> r) ->
+      m (Maybe x)
     execDyn cnv mkCmd = do
       cmd <- mkCmd <$> view (awsEnv . prekeyTable)
       e <- view (awsEnv . amazonkaEnv)
@@ -564,7 +569,7 @@ withOptLock u c ma = go (10 :: Int)
       where
         execDyn' ::
           forall y p.
-          AWS.AWSRequest p =>
+          (AWS.AWSRequest p, Typeable (AWS.AWSResponse p), Typeable p) =>
           AWS.Env ->
           Metrics.Metrics ->
           (AWS.AWSResponse p -> Maybe y) ->
