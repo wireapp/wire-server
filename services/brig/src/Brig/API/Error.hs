@@ -145,7 +145,6 @@ authError AuthInvalidCredentials = StdError (errorToWai @'E.BadCredentials)
 authError AuthSuspended = StdError (errorToWai @'E.AccountSuspended)
 authError AuthEphemeral = StdError (errorToWai @'E.AccountEphemeral)
 authError AuthPendingInvitation = StdError (errorToWai @'E.AccountPending)
-authError AuthStalePassword = StdError (errorToWai @'E.PasswordIsStale)
 
 reauthError :: ReAuthError -> Error
 reauthError ReAuthMissingPassword = StdError (errorToWai @'E.MissingAuth)

@@ -107,7 +107,6 @@ data AuthError
   | AuthSuspended
   | AuthEphemeral
   | AuthPendingInvitation
-  | AuthStalePassword
 
 -- | Re-authentication errors.
 data ReAuthError

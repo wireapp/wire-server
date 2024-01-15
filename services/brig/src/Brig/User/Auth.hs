@@ -146,7 +146,6 @@ login (PasswordLogin (PasswordLoginData li pw label code)) typ = do
     Data.authenticate uid pw `catchE` \case
       AuthInvalidUser -> loginFailed uid
       AuthInvalidCredentials -> loginFailed uid
-      AuthStalePassword -> loginFailedWith LoginPasswordUpdateRequired uid
       AuthSuspended -> throwE LoginSuspended
       AuthEphemeral -> throwE LoginEphemeral
       AuthPendingInvitation -> throwE LoginPendingActivation
@@ -456,7 +455,6 @@ ssoLogin (SsoLogin uid label) typ = do
     ReAuthError e -> case e of
       AuthInvalidUser -> throwE LoginFailed
       AuthInvalidCredentials -> pure ()
-      AuthStalePassword -> pure ()
       AuthSuspended -> throwE LoginSuspended
       AuthEphemeral -> throwE LoginEphemeral
       AuthPendingInvitation -> throwE LoginPendingActivation

@@ -161,7 +161,7 @@ hashPasswordArgon2id pwd = do
     "$argon2"
       <> Text.intercalate
         "$"
-        [ variantToLetter defaultOptions.variant,
+        [ variantToCode defaultOptions.variant,
           "v=" <> versionToNum defaultOptions.version,
           opts,
           encodeWithoutPadding salt,
@@ -266,6 +266,9 @@ parseScryptPasswordHashParams passwordHash = do
 hashPasswordWithOptions :: Argon2idOptions -> ByteString -> ByteString -> ByteString
 hashPasswordWithOptions opts password salt =
   case (Argon2.hash opts password salt 64) of
+    -- CryptoFailed occurs when salt, output or input are too small/big.
+    -- since we control those values ourselves, it should never have a runtime error
+    -- unless we've caused it ourselves.
     CryptoFailed cErr -> error $ "Impossible error: " <> show cErr
     CryptoPassed hash -> hash
 
@@ -282,8 +285,8 @@ hashPasswordWithParams parameters password salt = convert (generate (fromScrypt 
 --------------------------------------------------------------------------------
 
 -- | Makes a letter out of the variant
-variantToLetter :: Argon2.Variant -> Text
-variantToLetter = \case
+variantToCode :: Argon2.Variant -> Text
+variantToCode = \case
   Argon2.Argon2i -> "i"
   Argon2.Argon2d -> "d"
   Argon2.Argon2id -> "id"
