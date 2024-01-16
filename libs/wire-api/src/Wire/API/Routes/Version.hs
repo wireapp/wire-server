@@ -44,7 +44,7 @@ module Wire.API.Routes.Version
 
     -- * Swagger instances
     SpecialiseToVersion,
-    VersionExpList (..),
+    VersionExpSetDefaultDev (..),
   )
 where
 
@@ -59,6 +59,7 @@ import Data.ByteString.Lazy qualified as LBS
 import Data.Domain
 import Data.OpenApi qualified as S
 import Data.Schema
+import Data.Set qualified as Data
 import Data.Set qualified as Set
 import Data.Singletons.Base.TH
 import Data.Text qualified as Text
@@ -240,15 +241,15 @@ expandVersionExp :: VersionExp -> Set Version
 expandVersionExp (VersionExpConst v) = Set.singleton v
 expandVersionExp VersionExpDevelopment = Set.fromList developmentVersions
 
-newtype VersionExpList = VersionExpList {unVersionExpList :: [VersionExp]}
+newtype VersionExpSetDefaultDev = VersionExpSetDefaultDev {unVersionExpSetDefaultDev :: Data.Set VersionExp}
   deriving stock (Eq, Ord, Show, Generic)
   deriving newtype (FromJSON, ToJSON)
 
-instance Semigroup VersionExpList where
-  VersionExpList xs <> VersionExpList ys = VersionExpList (xs <> ys)
+instance Semigroup VersionExpSetDefaultDev where
+  VersionExpSetDefaultDev xs <> VersionExpSetDefaultDev ys = VersionExpSetDefaultDev (xs <> ys)
 
-instance Monoid VersionExpList where
-  mempty = VersionExpList [VersionExpDevelopment]
+instance Monoid VersionExpSetDefaultDev where
+  mempty = VersionExpSetDefaultDev $ Set.singleton VersionExpDevelopment
 
 -- Version-aware swagger generation
 

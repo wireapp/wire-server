@@ -32,14 +32,14 @@ testVersionV1 = _testVersion (ExplicitVersion 1)
 testVersionVersioned :: App ()
 testVersionVersioned = _testVersion Versioned
 
-testUnsupportedVersion :: App ()
-testUnsupportedVersion = bindResponse (getAPIVersionWithVersion OwnDomain (ExplicitVersion 500)) $
+testVersionUnsupported :: App ()
+testVersionUnsupported = bindResponse (getAPIVersionWithVersion OwnDomain (ExplicitVersion 500)) $
   \resp -> do
     resp.status `shouldMatchInt` 404
     resp.json %. "label" `shouldMatch` "unsupported-version"
 
-testDisabledVersion :: App ()
-testDisabledVersion = withModifiedBackend
+testVersionDisabled :: App ()
+testVersionDisabled = withModifiedBackend
   def {brigCfg = setField "optSettings.setDisabledAPIVersions" ["v2"]}
   $ \domain -> do
     do
@@ -58,16 +58,16 @@ testDisabledVersion = withModifiedBackend
       void $ getSelfWithVersion (ExplicitVersion 5) user >>= getJSON 200
       void $ getSelfWithVersion Unversioned user >>= getJSON 200
 
-testDisabledVersionNotAdvertised :: App ()
-testDisabledVersionNotAdvertised = do
-  allVersions <- bindResponse (getAPIVersionWithVersion OwnDomain Versioned) $ \resp ->
+testVersionDisabledNotAdvertised :: App ()
+testVersionDisabledNotAdvertised = do
+  allVersions <- bindResponse (getAPIVersionWithVersion OwnDomain Unversioned) $ \resp ->
     (<>)
       <$> (resp.json %. "development" & asList >>= traverse asInt)
       <*> (resp.json %. "supported" & asList >>= traverse asInt)
-  forM_ allVersions _testDisabledVersionNotAdvertised
+  forM_ allVersions _testVersionDisabledNotAdvertised
 
-_testDisabledVersionNotAdvertised :: Int -> App ()
-_testDisabledVersionNotAdvertised v = withModifiedBackend
+_testVersionDisabledNotAdvertised :: Int -> App ()
+_testVersionDisabledNotAdvertised v = withModifiedBackend
   def {brigCfg = setField "optSettings.setDisabledAPIVersions" ["v" <> show v]}
   $ \domain -> do
     bindResponse (getAPIVersionWithVersion domain Unversioned) $ \resp -> do
@@ -79,8 +79,8 @@ _testDisabledVersionNotAdvertised v = withModifiedBackend
       assertBool "the disabled version should not be propagated as dev version" $ v `notElem` dev
       assertBool "the disabled version should not be propagated as supported version" $ v `notElem` supported
 
-testDisabledDevVersionsNotAdvertised :: App ()
-testDisabledDevVersionsNotAdvertised = withModifiedBackend
+testVersionDisabledDevNotAdvertised :: App ()
+testVersionDisabledDevNotAdvertised = withModifiedBackend
   def {brigCfg = setField "optSettings.setDisabledAPIVersions" ["development"]}
   $ \domain -> do
     bindResponse (getAPIVersionWithVersion domain Unversioned) $ \resp -> do
@@ -91,8 +91,8 @@ testDisabledDevVersionsNotAdvertised = withModifiedBackend
       assertBool "supported versions should not be empty" $ not (null supported)
       assertBool "development versions should be empty" $ null dev
 
-testDevVersionDisabledPerDefault :: App ()
-testDevVersionDisabledPerDefault = withModifiedBackend
+testVersionDevDisabledPerDefault :: App ()
+testVersionDevDisabledPerDefault = withModifiedBackend
   def {brigCfg = removeField "optSettings.setDisabledAPIVersions"}
   $ \domain -> do
     bindResponse (getAPIVersionWithVersion domain Unversioned) $ \resp -> do
