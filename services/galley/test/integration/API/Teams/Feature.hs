@@ -1065,7 +1065,7 @@ testAllFeatures = do
           afcMlsMigration = defaultMlsMigrationConfig,
           afcEnforceFileDownloadLocation = defaultEnforceFileDownloadLocationConfig,
           afcLimitedEventFanout =
-            withStatus FeatureStatusDisabled LockStatusLocked LimitedEventFanoutConfig FeatureTTLUnlimited
+            withStatus FeatureStatusDisabled LockStatusUnlocked LimitedEventFanoutConfig FeatureTTLUnlimited
         }
 
 testFeatureConfigConsistency :: TestM ()
