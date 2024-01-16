@@ -194,6 +194,7 @@ optSettings:
   setFederationDomainConfigs:
     - domain: example.com
       search_policy: full_search
+  setDisabledAPIVersions: []
   set2FACodeGenerationDelaySecs: 5
   setNonceTtlSecs: 5
   setDpopMaxSkewSecs: 1

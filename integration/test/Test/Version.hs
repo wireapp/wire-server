@@ -60,7 +60,7 @@ testVersionDisabled = withModifiedBackend
 
 testVersionDisabledNotAdvertised :: App ()
 testVersionDisabledNotAdvertised = do
-  allVersions <- bindResponse (getAPIVersionWithVersion OwnDomain Unversioned) $ \resp ->
+  allVersions <- bindResponse (getAPIVersionWithVersion OwnDomain Versioned) $ \resp ->
     (<>)
       <$> (resp.json %. "development" & asList >>= traverse asInt)
       <*> (resp.json %. "supported" & asList >>= traverse asInt)
