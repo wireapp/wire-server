@@ -211,7 +211,7 @@ let
         owner = "wireapp";
         repo = "text-icu-translit";
         rev = "317bbd27ea5ae4e7f93836ee9ca664f9bde7c583";
-        hash = "sha256-9uVqUTkLkE7U19FDjn5xt8JEHyJmosLPSnmW7kYbe5w=";
+        hash = "sha256-E35PVxi/4iJFfWts3td52KKZKQt4dj9KFP3SvWG77Cc=";
       };
     };
 
