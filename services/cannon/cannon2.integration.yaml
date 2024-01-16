@@ -21,5 +21,7 @@ drainOpts:
   millisecondsBetweenBatches: 5
   minBatchSize: 100
 
+disabledAPIVersions: []
+
 logLevel: Info
 logNetStrings: false

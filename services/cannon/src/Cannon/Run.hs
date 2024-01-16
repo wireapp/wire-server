@@ -81,7 +81,7 @@ run o = do
 
   let middleware :: Wai.Middleware
       middleware =
-        versionMiddleware (foldMap expandVersionExp (fold (o ^. disabledAPIVersions)))
+        versionMiddleware (foldMap expandVersionExp (unVersionExpSetDefaultDev (fold (o ^. disabledAPIVersions))))
           . servantPrometheusMiddleware (Proxy @CombinedAPI)
           . Gzip.gzip Gzip.def
           . catchErrors g [Right m]
