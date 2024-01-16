@@ -61,6 +61,7 @@ full-clean: clean
 clean:
 	cabal clean
 	-rm -rf dist
+	-rm -f "bill-of-materials.$(HELM_SEMVER).json"
 
 .PHONY: clean-hint
 clean-hint:
