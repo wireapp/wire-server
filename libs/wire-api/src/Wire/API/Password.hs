@@ -100,6 +100,7 @@ defaultParams =
       outputLength = 64
     }
 
+-- | These are the default values suggested, as extracted from the crypton library.
 defaultOptions :: Argon2idOptions
 defaultOptions =
   Argon2.Options
