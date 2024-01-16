@@ -38,7 +38,7 @@ testHashPasswordArgon2id = do
   hashed <- mkSafePasswordArgon2id pwd
   let (correct, status) = verifyPasswordWithStatus pwd hashed
   assertBool "Password could not be verified" correct
-  assertBool "Password could not be verified" (status == PasswordStatusOk)
+  assertEqual "Password could not be verified" status PasswordStatusOk
 
 testUpdateHash :: IO ()
 testUpdateHash = do
@@ -51,12 +51,12 @@ testUpdateHash = do
       (correct, status) = verifyPasswordWithStatus orig expected
 
   assertBool "Password did not match hash." correct
-  assertBool "Password could not be verified" (status == PasswordStatusNeedsUpdate)
+  assertEqual "Password could not be verified" status PasswordStatusNeedsUpdate
 
   -- verify again with argon2id
   let (correctNew, statusNew) = verifyPasswordWithStatus orig newHash
   assertBool "Password hash update failed." correctNew
-  assertBool "Password could not be verified" (statusNew == PasswordStatusOk)
+  assertEqual "Password could not be verified" statusNew PasswordStatusOk
 
 testHashingOldScrypt :: IO ()
 testHashingOldScrypt =
@@ -65,7 +65,7 @@ testHashingOldScrypt =
         expected = unsafeMkPassword (snd pwd)
         (correct, status) = verifyPasswordWithStatus orig expected
     assertBool "Password did not match hash." correct
-    assertBool "Password could not be verified" (status == PasswordStatusNeedsUpdate)
+    assertEqual "Password could not be verified" status PasswordStatusNeedsUpdate
   where
     -- Password and hashes generated using the old code, but verified using the new one.
     pwds =
