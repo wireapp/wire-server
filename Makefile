@@ -543,6 +543,12 @@ kind-restart-%: .local/kind-kubeconfig
 helm-template-%: clean-charts charts-integration
 	./hack/bin/helm-template.sh $(*)
 
+# Ask the security team for the `DEPENDENCY_TRACK_API_KEY` (if you need it)
 .PHONY: upload-bombon
 upload-bombon:
-	./hack/bin/bombon.hs -- "$@"
+	nix build -f nix wireServer.allLocalPackagesBom -o "bill-of-materials.$(HELM_SEMVER).json"
+	./hack/bin/bombon.hs -- \
+		--bom-filepath "./bill-of-materials.$(HELM_SEMVER).json" \
+		--project-version $(HELM_SEMVER) \
+		--api-key $(DEPENDENCY_TRACK_API_KEY) \
+		--auto-create
