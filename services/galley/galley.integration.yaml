@@ -51,6 +51,7 @@ settings:
     removal:
       ed25519: test/resources/ed25519.pem
   guestLinkTTLSeconds: 604800
+  disabledAPIVersions: []
 
   featureFlags:  # see #RefConfigOptions in `/docs/reference`
     sso: disabled-by-default

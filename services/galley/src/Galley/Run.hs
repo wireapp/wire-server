@@ -96,7 +96,7 @@ mkApp opts =
     env <- lift $ App.createEnv metrics opts logger
     lift $ runClient (env ^. cstate) $ versionCheck schemaVersion
     let middlewares =
-          versionMiddleware (foldMap expandVersionExp (fold (opts ^. settings . disabledAPIVersions)))
+          versionMiddleware (foldMap expandVersionExp (unVersionExpSetDefaultDev (fold (opts ^. settings . disabledAPIVersions))))
             . servantPlusWAIPrometheusMiddleware API.waiSitemap (Proxy @CombinedAPI)
             . GZip.gunzip
             . GZip.gzip GZip.def
