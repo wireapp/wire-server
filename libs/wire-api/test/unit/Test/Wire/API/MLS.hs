@@ -61,8 +61,15 @@ tests =
       testCase "parse application message" testParseApplication,
       testCase "parse welcome and groupinfo message" testParseWelcomeAndGroupInfo,
       testCase "key package ref" testKeyPackageRef,
-      testCase "create signed remove proposal" testRemoveProposalMessageSignature
+      testCase "create signed remove proposal" testRemoveProposalMessageSignature,
+      testCase "parse client identity" testParseClientIdentity
     ]
+
+testParseClientIdentity :: IO ()
+testParseClientIdentity = do
+  let cid = "wireapp://qHiDLsbkT2-p9uSJsmrZ_A%217f39900830740008@wire.com"
+  let actual = sanIdentity cid
+  show <$> actual @?= Right "a878832e-c6e4-4f6f-a9f6-e489b26ad9fc:7f39900830740008@wire.com"
 
 testParseKeyPackage :: IO ()
 testParseKeyPackage = do
@@ -123,7 +130,7 @@ testParseApplication = do
   msgData <- withSystemTempDirectory "mls" $ \tmp -> do
     void $ spawn (cli qcid tmp ["init", qcid]) Nothing
     groupJSON <- spawn (cli qcid tmp ["group", "create", "Zm9v"]) Nothing
-    spawn (cli qcid tmp ["message", "--group-in", "-", "hello"]) (Just groupJSON)
+    spawn (cli qcid tmp ["message", "--group", "-", "hello"]) (Just groupJSON)
 
   msg <- case decodeMLS' @Message msgData of
     Left err -> assertFailure (T.unpack err)

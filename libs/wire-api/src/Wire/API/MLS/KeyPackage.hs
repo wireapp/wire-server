@@ -29,6 +29,7 @@ module Wire.API.MLS.KeyPackage
     kpRef',
     KeyPackageTBS (..),
     KeyPackageRef (..),
+    sanIdentity,
   )
 where
 
