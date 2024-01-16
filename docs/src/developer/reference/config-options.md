@@ -635,7 +635,7 @@ Each of the services brig, cannon, cargohold, galley, gundeck, proxy, spar shoul
 
 For example to disable API version v3, you need to configure:
 
-```
+```yaml
 # brig's values.yaml
 config.optSettings.setDisabledAPIVersions: [ v3 ]
 
@@ -658,7 +658,7 @@ config.disabledAPIVersions: [ v3 ]
 config.disabledAPIVersions: [ v3 ]
 ```
 
-The default setting is that no API version is disabled.
+The default setting (in case the value is not present in the server configuration) is that all development versions are disabled while all other supported versions are enabled. To enabled all versions including the development version set the value to be empty: `[]`.
 
 ## Settings in cargohold
 
