@@ -93,6 +93,9 @@ settings:
           usersThreshold: 100
           clientsThreshold: 50
         lockStatus: locked
+    limitedEventFanout:
+      defaults:
+        status: disabled
 
 logLevel: Warn
 logNetStrings: false

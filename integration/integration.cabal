@@ -119,6 +119,7 @@ library
     Test.Demo
     Test.Errors
     Test.ExternalPartner
+    Test.FeatureFlags
     Test.Federation
     Test.Federator
     Test.MessageTimer

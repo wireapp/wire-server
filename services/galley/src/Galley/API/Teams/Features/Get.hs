@@ -115,8 +115,7 @@ getFeatureStatus ::
   forall cfg r.
   ( GetFeatureConfig cfg,
     GetConfigForTeamConstraints cfg r,
-    ( Member (ErrorS OperationDenied) r,
-      Member (ErrorS 'NotATeamMember) r,
+    ( Member (ErrorS 'NotATeamMember) r,
       Member (ErrorS 'TeamNotFound) r,
       Member TeamStore r
     )
@@ -239,6 +238,7 @@ getAllFeatureConfigsForServer =
     <*> getConfigForServer @MlsE2EIdConfig
     <*> getConfigForServer @MlsMigrationConfig
     <*> getConfigForServer @EnforceFileDownloadLocationConfig
+    <*> getConfigForServer @LimitedEventFanoutConfig
 
 getAllFeatureConfigsUser ::
   forall r.
@@ -274,6 +274,7 @@ getAllFeatureConfigsUser uid =
     <*> getConfigForUser @MlsE2EIdConfig uid
     <*> getConfigForUser @MlsMigrationConfig uid
     <*> getConfigForUser @EnforceFileDownloadLocationConfig uid
+    <*> getConfigForUser @LimitedEventFanoutConfig uid
 
 getAllFeatureConfigsTeam ::
   forall r.
@@ -305,6 +306,7 @@ getAllFeatureConfigsTeam tid =
     <*> getConfigForTeam @MlsE2EIdConfig tid
     <*> getConfigForTeam @MlsMigrationConfig tid
     <*> getConfigForTeam @EnforceFileDownloadLocationConfig tid
+    <*> getConfigForTeam @LimitedEventFanoutConfig tid
 
 -- | Note: this is an internal function which doesn't cover all features, e.g. LegalholdConfig
 genericGetConfigForTeam ::
@@ -496,6 +498,10 @@ instance GetFeatureConfig MlsMigrationConfig where
 instance GetFeatureConfig EnforceFileDownloadLocationConfig where
   getConfigForServer =
     input <&> view (settings . featureFlags . flagEnforceFileDownloadLocation . unDefaults)
+
+instance GetFeatureConfig LimitedEventFanoutConfig where
+  getConfigForServer =
+    input <&> view (settings . featureFlags . flagLimitedEventFanout . unDefaults . unImplicitLockStatus)
 
 -- | If second factor auth is enabled, make sure that end-points that don't support it, but
 -- should, are blocked completely.  (This is a workaround until we have 2FA for those

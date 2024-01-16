@@ -82,6 +82,7 @@ module Wire.API.Team.Feature
     MlsE2EIdConfig (..),
     MlsMigrationConfig (..),
     EnforceFileDownloadLocationConfig (..),
+    LimitedEventFanoutConfig (..),
     AllFeatureConfigs (..),
     unImplicitLockStatus,
     ImplicitLockStatus (..),
@@ -211,6 +212,7 @@ data FeatureSingleton cfg where
     -- all other constructors)
     FeatureSingleton MlsMigrationConfig
   FeatureSingletonEnforceFileDownloadLocationConfig :: FeatureSingleton EnforceFileDownloadLocationConfig
+  FeatureSingletonLimitedEventFanoutConfig :: FeatureSingleton LimitedEventFanoutConfig
 
 class FeatureTrivialConfig cfg where
   trivialConfig :: cfg
@@ -1119,6 +1121,32 @@ instance IsFeatureConfig EnforceFileDownloadLocationConfig where
   objectSchema = field "config" schema
 
 ----------------------------------------------------------------------
+-- Guarding the fanout of events when a team member is deleted.
+--
+-- FUTUREWORK: This is a transient flag that is to be removed after about 6
+-- months of its introduction, namely once all clients get a chance to adapt to
+-- a limited event fanout.
+
+data LimitedEventFanoutConfig = LimitedEventFanoutConfig
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform LimitedEventFanoutConfig)
+
+instance RenderableSymbol LimitedEventFanoutConfig where
+  renderSymbol = "LimitedEventFanoutConfig"
+
+instance IsFeatureConfig LimitedEventFanoutConfig where
+  type FeatureSymbol LimitedEventFanoutConfig = "limitedEventFanout"
+  defFeatureStatus = withStatus FeatureStatusEnabled LockStatusUnlocked LimitedEventFanoutConfig FeatureTTLUnlimited
+  featureSingleton = FeatureSingletonLimitedEventFanoutConfig
+  objectSchema = pure LimitedEventFanoutConfig
+
+instance ToSchema LimitedEventFanoutConfig where
+  schema = object "LimitedEventFanoutConfig" objectSchema
+
+instance FeatureTrivialConfig LimitedEventFanoutConfig where
+  trivialConfig = LimitedEventFanoutConfig
+
+----------------------------------------------------------------------
 -- FeatureStatus
 
 data FeatureStatus
@@ -1196,7 +1224,8 @@ data AllFeatureConfigs = AllFeatureConfigs
     afcOutlookCalIntegration :: WithStatus OutlookCalIntegrationConfig,
     afcMlsE2EId :: WithStatus MlsE2EIdConfig,
     afcMlsMigration :: WithStatus MlsMigrationConfig,
-    afcEnforceFileDownloadLocation :: WithStatus EnforceFileDownloadLocationConfig
+    afcEnforceFileDownloadLocation :: WithStatus EnforceFileDownloadLocationConfig,
+    afcLimitedEventFanout :: WithStatus LimitedEventFanoutConfig
   }
   deriving stock (Eq, Show)
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema AllFeatureConfigs)
@@ -1224,6 +1253,7 @@ instance ToSchema AllFeatureConfigs where
         <*> afcMlsE2EId .= featureField
         <*> afcMlsMigration .= featureField
         <*> afcEnforceFileDownloadLocation .= featureField
+        <*> afcLimitedEventFanout .= featureField
     where
       featureField ::
         forall cfg.
@@ -1235,6 +1265,7 @@ instance Arbitrary AllFeatureConfigs where
   arbitrary =
     AllFeatureConfigs
       <$> arbitrary
+      <*> arbitrary
       <*> arbitrary
       <*> arbitrary
       <*> arbitrary

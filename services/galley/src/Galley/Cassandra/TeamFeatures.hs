@@ -169,6 +169,8 @@ getFeatureConfig FeatureSingletonEnforceFileDownloadLocationConfig tid = do
   where
     select :: PrepQuery R (Identity TeamId) (Maybe FeatureStatus, Maybe Text)
     select = "select enforce_file_download_location_status, enforce_file_download_location from team_features where team_id = ?"
+getFeatureConfig FeatureSingletonLimitedEventFanoutConfig tid =
+  getTrivialConfigC "limited_event_fanout_status" tid
 
 setFeatureConfig :: MonadClient m => FeatureSingleton cfg -> TeamId -> WithStatusNoLock cfg -> m ()
 setFeatureConfig FeatureSingletonLegalholdConfig tid statusNoLock = setFeatureStatusC "legalhold_status" tid (wssStatus statusNoLock)
@@ -265,6 +267,8 @@ setFeatureConfig FeatureSingletonEnforceFileDownloadLocationConfig tid status = 
     insert :: PrepQuery W (TeamId, FeatureStatus, Maybe Text) ()
     insert =
       "insert into team_features (team_id, enforce_file_download_location_status, enforce_file_download_location) values (?, ?, ?)"
+setFeatureConfig FeatureSingletonLimitedEventFanoutConfig tid statusNoLock =
+  setFeatureStatusC "limited_event_fanout_status" tid (wssStatus statusNoLock)
 
 getFeatureLockStatus :: MonadClient m => FeatureSingleton cfg -> TeamId -> m (Maybe LockStatus)
 getFeatureLockStatus FeatureSingletonFileSharingConfig tid = getLockStatusC "file_sharing_lock_status" tid

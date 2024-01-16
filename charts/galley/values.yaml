@@ -132,6 +132,9 @@ config:
             usersThreshold: 100
             clientsThreshold: 100
           lockStatus: locked
+      limitedEventFanout:
+        defaults:
+          status: disabled
 
   aws:
     region: "eu-west-1"
