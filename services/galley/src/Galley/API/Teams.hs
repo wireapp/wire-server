@@ -1065,7 +1065,7 @@ uncheckedDeleteTeamMember lusr zcon tid remove (Right mems) = do
               (userRecipient (tUnqualified lusr))
               (membersToRecipients (Just (tUnqualified lusr)) (mems ^. teamMembers))
       E.push1 $
-        newPushLocal1 (mems ^. teamMemberListType) (tUnqualified lusr) (TeamEvent e) r & pushConn .~ zcon
+        newPushLocal1 (mems ^. teamMemberListType) (tUnqualified lusr) (TeamEvent e) r & pushTransient .~ True
 
 removeFromConvsAndPushConvLeaveEvent ::
   forall r.
