@@ -690,31 +690,26 @@ testDeleteTeamMemberLimitedEventFanout = do
       memsAfter <- getMembers team aliceId
       memsAfter `shouldNotMatch` memsBefore
 
-      assertConvLeaveNotif wsAmy alexId
-      assertConvLeaveNotif wsAlison alexId
+      assertConvUserDeletedNotif wsAmy alexId
+      assertConvUserDeletedNotif wsAlison alexId
 
       alexUId <- alex %. "id"
       do
         n <- awaitMatch isTeamMemberLeaveNotif wsAlice
         nPayload n %. "data.user" `shouldMatch` alexUId
-        assertConvLeaveNotif wsAlice alexId
+        assertConvUserDeletedNotif wsAlice alexId
       do
         n <- awaitMatch isTeamMemberLeaveNotif wsAna
         nPayload n %. "data.user" `shouldMatch` alexUId
-        assertConvLeaveNotif wsAna alexId
+        assertConvUserDeletedNotif wsAna alexId
       do
         bindResponse (getConversation bob conv) $ \resp -> do
           resp.status `shouldMatchInt` 200
           mems <- resp.json %. "members.others" & asList
           memIds <- forM mems (%. "qualified_id")
           memIds `shouldMatchSet` [aliceId, alisonId, amyId, anaId]
-        assertConvLeaveNotif wsBob alexId
+        assertConvUserDeletedNotif wsBob alexId
   where
-    assertConvLeaveNotif :: MakesValue leaverId => WebSocket -> leaverId -> App ()
-    assertConvLeaveNotif ws leaverId = do
-      n <- awaitMatch isConvLeaveNotif ws
-      nPayload n %. "data.qualified_user_ids.0" `shouldMatch` leaverId
-      nPayload n %. "data.reason" `shouldMatch` "user-deleted"
     getMembers tid usr = bindResponse (getTeamMembers usr tid) $ \resp -> do
       resp.status `shouldMatchInt` 200
       ms <- resp.json %. "members" & asList
@@ -742,19 +737,17 @@ testDeleteTeamMemberFullEventFanout = do
     do
       t <- awaitMatch isTeamMemberLeaveNotif wsAlison
       nPayload t %. "data.user" `shouldMatch` alexUId
-      c <- awaitMatch isConvLeaveNotif wsAlison
-      nPayload c %. "data.qualified_user_ids" `shouldMatch` [alexId]
-    do
-      n <- awaitMatch isConvLeaveNotif wsAmy
-      nPayload n %. "data.qualified_user_ids" `shouldMatch` [alexId]
+      assertConvUserDeletedNotif wsAlison alexId
+
+    assertConvUserDeletedNotif wsAmy alexId
+
     do
       bindResponse (getConversation bob conv) $ \resp -> do
         resp.status `shouldMatchInt` 200
         mems <- resp.json %. "members.others" & asList
         memIds <- forM mems (%. "qualified_id")
         memIds `shouldMatchSet` [aliceId, alisonId, amyId]
-      n <- awaitMatch isConvLeaveNotif wsBob
-      nPayload n %. "data.qualified_user_ids.0" `shouldMatch` alexId
+      assertConvUserDeletedNotif wsBob alexId
 
 testLeaveConversationSuccess :: HasCallStack => App ()
 testLeaveConversationSuccess = do
