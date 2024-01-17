@@ -1,4 +1,4 @@
-{ libsodium, protobuf, hlib, mls-test-cli, fetchpatch, ... }:
+{ libsodium, protobuf, hlib, mls-test-cli, ... }:
 # FUTUREWORK: Figure out a way to detect if some of these packages are not
 # actually marked broken, so we can cleanup this file on every nixpkgs bump.
 hself: hsuper: {
@@ -19,6 +19,8 @@ hself: hsuper: {
   openapi3 = hlib.markUnbroken (hlib.dontCheck hsuper.openapi3);
   quickcheck-state-machine = hlib.dontCheck hsuper.quickcheck-state-machine;
   saml2-web-sso = hlib.dontCheck hsuper.saml2-web-sso;
+  # one of the tests is flaky
+  transitive-anns = hlib.dontCheck hsuper.transitive-anns;
   warp = hlib.dontCheck hsuper.warp;
 
   # ---------------------
@@ -58,10 +60,6 @@ hself: hsuper: {
   # (these are fine)
   # -----------------
   # Make hoogle static to reduce size of the hoogle image
-  cql = hlib.appendPatch (hlib.markUnbroken hsuper.cql) (fetchpatch {
-    url = "https://gitlab.com/twittner/cql/-/merge_requests/11.patch";
-    sha256 = "sha256-qfcCRkKjSS1TEqPRVBU9Ox2DjsdGsYG/F3DrZ5JGoEI=";
-  });
   hoogle = hlib.justStaticExecutables hsuper.hoogle;
   http2-manager = hlib.enableCabalFlag hsuper.http2-manager "-f-test-trailing-dot";
   sodium-crypto-sign = hlib.addPkgconfigDepend hsuper.sodium-crypto-sign libsodium.dev;

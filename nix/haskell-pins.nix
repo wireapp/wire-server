@@ -125,6 +125,15 @@ let
       };
     };
 
+    # PR: https://gitlab.com/twittner/cql/-/merge_requests/11
+    cql = {
+      src = fetchgit {
+        url = "https://gitlab.com/wireapp/forks/cql";
+        rev = "abbd2739969d17a909800f282d10d42a254c4e3b";
+        sha256 = "sha256-2MYwZKiTdwgjJdLNvECi7gtcIo+3H4z1nYzen5x0lgU=";
+      };
+    };
+
     # PR: https://gitlab.com/twittner/cql-io/-/merge_requests/20
     cql-io = {
       src = fetchgit {
