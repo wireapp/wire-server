@@ -1086,6 +1086,7 @@ changePassword uid cp = do
     (Nothing, _) -> lift . wrapClient $ Data.updatePassword uid newpw
     (Just _, Nothing) -> throwE InvalidCurrentPassword
     (Just pw, Just pw') -> do
+      -- We are updating the pwd here anyway, so we don't care about the pwd status
       unless (verifyPassword pw' pw) $
         throwE InvalidCurrentPassword
       when (verifyPassword newpw pw) $
@@ -1135,7 +1136,8 @@ checkNewIsDifferent :: UserId -> PlainTextPassword' t -> ExceptT PasswordResetEr
 checkNewIsDifferent uid pw = do
   mcurrpw <- lift . wrapClient $ Data.lookupPassword uid
   case mcurrpw of
-    Just currpw | verifyPassword pw currpw -> throwE ResetPasswordMustDiffer
+    Just currpw
+      | (verifyPassword pw currpw) -> throwE ResetPasswordMustDiffer
     _ -> pure ()
 
 mkPasswordResetKey ::
@@ -1209,6 +1211,7 @@ deleteSelfUser uid pwd = do
       case actual of
         Nothing -> throwE DeleteUserInvalidPassword
         Just p -> do
+          -- We're deleting a user, no sense in updating their pwd, so we ignore pwd status
           unless (verifyPassword pw p) $
             throwE DeleteUserInvalidPassword
           lift $ wrapHttpClient $ deleteAccount a >> pure Nothing

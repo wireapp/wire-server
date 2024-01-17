@@ -92,6 +92,7 @@ data BrigError
   | InvalidProvider
   | ProviderNotFound
   | TeamsNotFederating
+  | PasswordIsStale
 
 instance (Typeable (MapError e), KnownError (MapError e)) => IsSwaggerError (e :: BrigError) where
   addToOpenApi = addStaticErrorToSwagger @(MapError e)
@@ -275,3 +276,5 @@ type instance MapError 'PendingInvitationNotFound = 'StaticError 404 "not-found"
 type instance MapError 'ConflictingInvitations = 'StaticError 409 "conflicting-invitations" "Multiple conflicting invitations to different teams exists."
 
 type instance MapError 'TeamsNotFederating = 'StaticError 403 "team-not-federating" "The target user is owned by a federated backend, but is not in an allow-listed team"
+
+type instance MapError 'PasswordIsStale = 'StaticError 403 "password-is-stale" "The password is too old, please update your password."

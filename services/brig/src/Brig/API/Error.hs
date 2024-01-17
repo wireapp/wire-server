@@ -125,6 +125,7 @@ loginError LoginFailed = StdError (errorToWai @'E.BadCredentials)
 loginError LoginSuspended = StdError (errorToWai @'E.AccountSuspended)
 loginError LoginEphemeral = StdError (errorToWai @'E.AccountEphemeral)
 loginError LoginPendingActivation = StdError (errorToWai @'E.AccountPending)
+loginError LoginPasswordUpdateRequired = StdError (errorToWai @'E.PasswordIsStale)
 loginError (LoginThrottled wait) =
   RichError
     loginsTooFrequent
