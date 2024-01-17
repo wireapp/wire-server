@@ -1,5 +1,6 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -Wall #-}
 
 import Control.Applicative
@@ -33,7 +34,16 @@ collectTests pkgRoot roots =
     findAllTests :: FilePath -> IO [(String, String, String, String)]
     findAllTests root = do
       paths <- findPaths root
-      concat <$> traverse (findModuleTests root) paths
+      concat <$> traverse (findModuleTests root) (filter (not . noise) paths)
+
+    -- don't touch emacs auto-save or backup files
+    noise :: FilePath -> Bool
+    noise (last . splitDirectories -> fn) = autosave fn || backup fn
+      where
+        backup = (== '~') . last
+        autosave ('.' : '#' : _) = True
+        autosave ('#' : _) = True -- (if you want to make this pattern more strict: there is also a '#' at the end.)
+        autosave _ = False
 
     findModuleTests :: FilePath -> FilePath -> IO [(String, String, String, String)]
     findModuleTests root path = do
