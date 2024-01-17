@@ -33,6 +33,7 @@ data BrigError
   | CodeAuthenticationFailed
   | CodeAuthenticationRequired
   | MissingLegalholdConsent
+  | MissingLegalholdConsentOldClients
   | ConnectionLimitReached
   | UnknownClient
   | ClientNotFound
@@ -142,6 +143,13 @@ type instance MapError 'MalformedPrekeys = 'StaticError 400 "bad-request" "Malfo
 type instance MapError 'CodeAuthenticationFailed = 'StaticError 403 "code-authentication-failed" "Code authentication failed"
 
 type instance MapError 'CodeAuthenticationRequired = 'StaticError 403 "code-authentication-required" "Code authentication is required"
+
+type instance
+  MapError 'MissingLegalholdConsentOldClients =
+    'StaticError
+      403
+      "missing-legalhold-consent-old-clients"
+      "Failed to connect to a user or to invite a user to a group because somebody is under legalhold and somebody else has old clients that do not support legalhold's UI requirements"
 
 type instance
   MapError 'MissingLegalholdConsent =

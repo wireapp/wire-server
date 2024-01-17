@@ -478,13 +478,15 @@ guardLegalholdPolicyConflictsH ::
     Member (Input Opts) r,
     Member TeamStore r,
     Member P.TinyLog r,
-    Member (ErrorS 'MissingLegalholdConsent) r
+    Member (ErrorS 'MissingLegalholdConsent) r,
+    Member (ErrorS 'MissingLegalholdConsentOldClients) r
   ) =>
   GuardLegalholdPolicyConflicts ->
   Sem r ()
 guardLegalholdPolicyConflictsH glh = do
   mapError @LegalholdConflicts (const $ Tagged @'MissingLegalholdConsent ()) $
-    guardLegalholdPolicyConflicts (glhProtectee glh) (glhUserClients glh)
+    mapError @LegalholdConflictsOldClients (const $ Tagged @'MissingLegalholdConsentOldClients ()) $
+      guardLegalholdPolicyConflicts (glhProtectee glh) (glhUserClients glh)
 
 -- | Get an MLS conversation client list
 iGetMLSClientListForConv ::

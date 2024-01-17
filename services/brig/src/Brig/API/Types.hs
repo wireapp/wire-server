@@ -127,6 +127,8 @@ data ConnectionError
     ConnectSameBindingTeamUsers
   | -- | Something doesn't work because somebody has a LH device and somebody else has not granted consent.
     ConnectMissingLegalholdConsent
+  | -- | Same as above, but because old clients that don't support LH are still in the game.
+    ConnectMissingLegalholdConsentOldClients
   | -- | Remote connection creation or update failed because of a federation error
     ConnectFederationError FederationError
   | -- | The teams of the users that want to connect do not federate
@@ -183,6 +185,7 @@ data ClientError
   | ClientLegalHoldCannotBeAdded
   | ClientFederationError FederationError
   | ClientCapabilitiesCannotBeRemoved
+  | ClientMissingLegalholdConsentOldClients
   | ClientMissingLegalholdConsent
   | ClientCodeAuthenticationFailed
   | ClientCodeAuthenticationRequired

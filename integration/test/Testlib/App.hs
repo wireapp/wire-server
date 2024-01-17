@@ -31,7 +31,7 @@ getLastPrekey = App $ do
   lpk <- liftIO $ atomicModifyIORef pks getPK
   pure $ object ["id" .= lastPrekeyId, "key" .= lpk]
   where
-    getPK [] = error "Out of prekeys"
+    getPK [] = error "No last prekey left"
     getPK (k : ks) = (ks, k)
 
     lastPrekeyId :: Int

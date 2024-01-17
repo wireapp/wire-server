@@ -160,7 +160,8 @@ data AddClient = AddClient
     model :: String,
     prekeys :: Maybe [Value],
     lastPrekey :: Maybe Value,
-    password :: String
+    password :: String,
+    acapabilities :: Maybe [String]
   }
 
 instance Default AddClient where
@@ -172,9 +173,11 @@ instance Default AddClient where
         model = "Test Model",
         prekeys = Nothing,
         lastPrekey = Nothing,
-        password = defPassword
+        password = defPassword,
+        acapabilities = Just ["legalhold-implicit-consent"]
       }
 
+-- | https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/#/brig/post_i_clients__uid_
 addClient ::
   (HasCallStack, MakesValue user) =>
   user ->
@@ -193,14 +196,15 @@ addClient user args = do
           "type" .= args.ctype,
           "label" .= args.clabel,
           "model" .= args.model,
-          "password" .= args.password
+          "password" .= args.password,
+          "capabilities" .= args.acapabilities
         ]
 
 data UpdateClient = UpdateClient
   { prekeys :: [Value],
     lastPrekey :: Maybe Value,
     label :: Maybe String,
-    capabilities :: Maybe [Value],
+    capabilities :: Maybe [String],
     mlsPublicKeys :: Maybe Value
   }
 
@@ -245,6 +249,7 @@ deleteClient user client = do
         [ "password" .= defPassword
         ]
 
+-- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/get_users__uid_domain___uid__clients
 getClientsQualified ::
   ( HasCallStack,
     MakesValue user,
@@ -267,6 +272,7 @@ getClientsQualified user domain otherUser = do
         <> "/clients"
   submit "GET" req
 
+-- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/post_users_list_clients
 listUsersClients :: (HasCallStack, MakesValue user, MakesValue qualifiedUserIds) => user -> [qualifiedUserIds] -> App Response
 listUsersClients usr qualifiedUserIds = do
   qUsers <- mapM objQidObject qualifiedUserIds
@@ -588,3 +594,25 @@ updateService dom providerId serviceId mAcceptHeader newName = do
     . addHdrs
     . addJSONObject ["name" .= n | n <- maybeToList newName]
     $ req
+
+-- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/get_users__uid_domain___uid__prekeys__client_
+getUsersPrekeysClient :: (HasCallStack, MakesValue caller, MakesValue targetUser) => caller -> targetUser -> String -> App Response
+getUsersPrekeysClient caller targetUser targetClient = do
+  dom <- asString $ targetUser %. "domain"
+  uid <- asString $ targetUser %. "id"
+  req <- baseRequest caller Brig Versioned $ joinHttpPath ["users", dom, uid, "prekeys", targetClient]
+  submit "GET" req
+
+-- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/get_users__uid_domain___uid__prekeys
+getUsersPrekeyBundle :: (HasCallStack, MakesValue caller, MakesValue targetUser) => caller -> targetUser -> App Response
+getUsersPrekeyBundle caller targetUser = do
+  dom <- asString $ targetUser %. "domain"
+  uid <- asString $ targetUser %. "id"
+  req <- baseRequest caller Brig Versioned $ joinHttpPath ["users", dom, uid, "prekeys"]
+  submit "GET" req
+
+-- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/post_users_list_prekeys
+getMultiUserPrekeyBundle :: (HasCallStack, MakesValue caller, ToJSON userClients) => caller -> userClients -> App Response
+getMultiUserPrekeyBundle caller userClients = do
+  req <- baseRequest caller Brig Versioned $ joinHttpPath ["users", "list-prekeys"]
+  submit "POST" (addJSON userClients req)
