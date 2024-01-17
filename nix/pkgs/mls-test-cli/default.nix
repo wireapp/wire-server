@@ -7,8 +7,8 @@ rustPlatform.buildRustPackage rec {
   src = fetchFromGitHub {
     owner = "wireapp";
     repo = "mls-test-cli";
-    rev = "c03e0f21a27f30a4aeb6381ffd43910a69b5dc19";
-    sha256 = "sha256-BFdkGm+HUNaWbKu5p32C9oJXNo4wYDfYCG8OGAVZPDc=";
+    rev = "7d97772f52f8dfaae79d4c73de2e32b551d2d0bf";
+    sha256 = "sha256-OU/bEz98Gh/HPVymGpoQ2K4ccpTZIV0xwsgEEnakOws=";
   };
   pname = "mls-test-cli";
   version = "0.10.2";
@@ -16,8 +16,8 @@ rustPlatform.buildRustPackage rec {
     lockFile = "${src}/Cargo.lock";
     outputHashes = {
       "hpke-0.10.0" = "sha256-T1+BFwX6allljNZ/8T3mrWhOejnUU27BiWQetqU+0fY=";
-      "openmls-1.0.0" = "sha256-s1ejM/aicFGvsKY7ajEun1Mc645/k8QVrE8YSbyD3Fg=";
-      "safe_pqc_kyber-0.6.0" = "sha256-Ch1LA+by+ezf5RV0LDSQGC1o+IWKXk8IPvkwSrAos68=";
+      "openmls-1.0.0" = "sha256-nyIMAlTy7CTV0bVQ0ytamKHpERgtsVKTX4zv7aHzemo=";
+      "safe_pqc_kyber-0.6.2" = "sha256-9t+IIohCJcMIWRtqLA0idyMmjev82BtpST15Tthlge4=";
       "tls_codec-0.3.0" = "sha256-IO6tenXKkC14EoUDp/+DtFNOVzDfOlLu8K1EJI7sOzs=";
     };
   };
