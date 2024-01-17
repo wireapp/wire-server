@@ -135,13 +135,13 @@ instance ParseMLS ClientIdentity where
       either fail pure . (mkDomain . T.pack) =<< many' anyChar
     pure $ ClientIdentity dom uid cid
 
--- format of the x509 client identity: {userid}!{deviceid}@{host}
+-- format of the x509 client identity: {userid}%21{deviceid}@{host}
 parseX509ClientIdentity :: Get ClientIdentity
 parseX509ClientIdentity = do
   b64uuid <- getByteString 22
   uidBytes <- either fail pure $ B64URL.decodeUnpadded b64uuid
   uid <- maybe (fail "Invalid UUID") (pure . Id) $ fromByteString (L.fromStrict uidBytes)
-  char '!'
+  string "%21"
   cid <- ClientId <$> hexadecimal
   char '@'
   dom <-
