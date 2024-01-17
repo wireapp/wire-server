@@ -41,10 +41,10 @@ I build a docker image from a Dockerfile, and I build other images from slightly
 
 ##### What does this look like?
 
-All of us on the team are using AMD64 based machines, so in this example, we're going to build one image for AMD64, and one for it's predecessor architecture, I386. We're going to build the SMTP server image we depend on, from https://hub.docker.com/r/namshi/smtp. We're going to use a known safe git revision, and use some minor GNU sed to generate architecture dependent Dockerfiles from the Dockerfile in git. Everyone should be able to do this on your laptops.
+All of us on the team are using AMD64 based machines, so in this example, we're going to build one image for AMD64, and one for it's predecessor architecture, I386. We're going to build the SMTP server image we depend on, from https://hub.docker.com/r/ixdotai/smtp. We're going to use a known safe git revision, and use some minor GNU sed to generate architecture dependent Dockerfiles from the Dockerfile in git. Everyone should be able to do this on your laptops.
 
 ```bash
-$ git clone https://github.com/namshi/docker-smtp.git smtp
+$ git clone https://github.com/ix-ai/smtp.git smtp
 Cloning into 'smtp'...
 remote: Enumerating objects: 4, done.
 remote: Counting objects: 100% (4/4), done.
@@ -53,8 +53,8 @@ remote: Total 126 (delta 0), reused 0 (delta 0), pack-reused 122
 Receiving objects: 100% (126/126), 26.57 KiB | 269.00 KiB/s, done.
 Resolving deltas: 100% (61/61), done.
 $ cd smtp
-$ git reset --hard 8ad8b849855be2cb6a11d97d332d27ba3e47483f
-HEAD is now at 8ad8b84 Merge pull request #48 from zzzsochi/master
+$ git reset --hard 04460f5a1e795f223ca6d8a711b6c743908c8fec
+HEAD is now at 04460f5 Merge branch '30-check-keys' into 'master'
 $ cat Dockerfile | sed "s/^\(MAINTAINER\).*/\1 Julia Longtin \"julia.longtin@wire.com\"/" | sed "s=^\(FROM \)\(.*\)$=\1i386/\2=" > Dockerfile-386
 $ cat Dockerfile | sed "s/^\(MAINTAINER\).*/\1 Julia Longtin \"julia.longtin@wire.com\"/" | sed "s=^\(FROM \)\(.*\)$=\1\2=" > Dockerfile-amd64
 $ docker build -t julialongtin/smtp:0.0.9-amd64 -f Dockerfile-amd64
@@ -83,10 +83,10 @@ The sed commands used above accomplished two things. One, they changed out the M
 Docker creates manifest files, and stores them in your local docker. I haven't found a good way to remove them, so instead, I add --amend, so that if one already exists, docker overwrites the locally stored file, instead of just telling you one already exists, and exiting with an error.
 
 ###### What does a manifest file look like?
-to look at a manifest file (local or remote), use 'docker manifest inspect'. for example, here's the original namshi/smtp manifest.
+to look at a manifest file (local or remote), use 'docker manifest inspect'. for example, here's the original ixdotai/smtp manifest.
 
 ```bash
-$ docker manifest inspect namshi/smtp
+$ docker manifest inspect ixdotai/smtp
 {
         "schemaVersion": 2,
         "mediaType": "application/vnd.docker.distribution.manifest.v2+json",
@@ -125,7 +125,7 @@ $ docker manifest inspect namshi/smtp
 }
 ```
 
-This shows us the layers for the image, but says nothing about architecture, as namshi/smtp is shipped only for AMD64. note that there is nothing indicating this is for AMD64, so docker users on other architectures will end up downloading it, trying to run it, and having horrible crashes, instead of the smtp server they are looking for.
+This shows us the layers for the image, but says nothing about architecture, as ixdotai/smtp is shipped only for AMD64. note that there is nothing indicating this is for AMD64, so docker users on other architectures will end up downloading it, trying to run it, and having horrible crashes, instead of the smtp server they are looking for.
 
 Now, let's look at the manifest for the image we just uploaded:
 ```
@@ -836,7 +836,7 @@ There are a lot of these, of various complexities, so let's start with the simpl
 ```bash
 $ cat Makefile | sed -n -E '/^(smtp|dynamo|minio)/{:n;N;s/\n\t/\n        /;tn;p}'
 smtp/Dockerfile:
-        git clone https://github.com/namshi/docker-smtp.git smtp
+        git clone https://github.com/ix-ai/smtp.git smtp
         cd smtp && git reset --hard $(SMTP_COMMIT)
 
 dynamodb_local/Dockerfile:
