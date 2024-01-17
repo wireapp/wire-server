@@ -2,17 +2,17 @@
 {-# LANGUAGE DataKinds #-}
 
 import Data.Aeson
-import qualified Data.ByteString.Lazy.Char8 as BL
 import qualified Data.ByteString.Base64.Lazy as Base64
+import qualified Data.ByteString.Lazy.Char8 as BL
 import Data.Proxy
+import Data.Text.Lazy
+import Data.Text.Lazy.Encoding
 import GHC.Generics
-import Network.HTTP.Client qualified as HTTP
+import qualified Network.HTTP.Client as HTTP
 import Network.HTTP.Client.TLS (tlsManagerSettings)
 import Options.Applicative
 import Servant.API
 import Servant.Client
-import Data.Text.Lazy
-import Data.Text.Lazy.Encoding
 
 data Payload = Payload
   { bom :: Text,
