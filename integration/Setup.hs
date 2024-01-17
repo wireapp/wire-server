@@ -1,5 +1,6 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -Wall #-}
 
 import Control.Applicative
@@ -33,7 +34,16 @@ collectTests pkgRoot roots =
     findAllTests :: FilePath -> IO [(String, String, String, String)]
     findAllTests root = do
       paths <- findPaths root
-      concat <$> traverse (findModuleTests root) paths
+      concat <$> traverse (findModuleTests root) (filter (not . noise) paths)
+
+    -- don't touch emacs auto-save or backup files
+    noise :: FilePath -> Bool
+    noise (last . splitDirectories -> fn) = autosave fn || backup fn
+      where
+        backup = (== '~') . last
+        autosave ('.' : '#' : _) = True
+        autosave ('#' : _) = True -- (if you want to make this pattern more strict: there is also a '#' at the end.)
+        autosave _ = False
 
     findModuleTests :: FilePath -> FilePath -> IO [(String, String, String, String)]
     findModuleTests root path = do
@@ -94,6 +104,7 @@ collectTestsInModule pkgRoot fn = do
   where
     extractComment :: Comment -> String
     extractComment (Comment _ _ s) = s
+
     testName :: Name (SrcSpanInfo, [Comment]) -> Maybe (String, String, String)
     testName name =
       let (n', comments) =
@@ -105,7 +116,9 @@ collectTestsInModule pkgRoot fn = do
               let (summary, rest) = collectDescription comments
                in pure (n', summary, rest)
             else Nothing
+
     absolutePath = pkgRoot </> fn
+
     -- All of the haskell-src-exts supported extensions that we are using.
     -- Several that are in the cabal file couldn't be directly copied over,
     -- but they aren't causing trouble at the moment.
