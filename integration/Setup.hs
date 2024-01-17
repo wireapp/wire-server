@@ -94,6 +94,7 @@ collectTestsInModule pkgRoot fn = do
   where
     extractComment :: Comment -> String
     extractComment (Comment _ _ s) = s
+
     testName :: Name (SrcSpanInfo, [Comment]) -> Maybe (String, String, String)
     testName name =
       let (n', comments) =
@@ -105,7 +106,9 @@ collectTestsInModule pkgRoot fn = do
               let (summary, rest) = collectDescription comments
                in pure (n', summary, rest)
             else Nothing
+
     absolutePath = pkgRoot </> fn
+
     -- All of the haskell-src-exts supported extensions that we are using.
     -- Several that are in the cabal file couldn't be directly copied over,
     -- but they aren't causing trouble at the moment.
