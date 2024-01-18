@@ -11,7 +11,7 @@ rustPlatform.buildRustPackage rec {
     sha256 = "sha256-HgwR6vuVL3eN7NVox+iClPxqsat3Znc9+ZtENuEJKSU=";
   };
   pname = "mls-test-cli";
-  version = "0.9.1";
+  version = "0.10.3";
   cargoLock = {
     lockFile = "${src}/Cargo.lock";
     outputHashes = {

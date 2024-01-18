@@ -164,7 +164,7 @@ emptyClientGroupState :: ClientGroupState
 emptyClientGroupState = ClientGroupState Nothing Nothing
 
 allCiphersuites :: [Ciphersuite]
-allCiphersuites = [Ciphersuite "0x0001"] -- , "0xf031"
+allCiphersuites = [Ciphersuite "0x0001"] -- TODO fix testsMLS.testAddUserSimple for "0xf031"
 
 mkMLSState :: Codensity IO MLSState
 mkMLSState = Codensity $ \k ->
