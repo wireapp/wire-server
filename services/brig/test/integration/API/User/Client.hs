@@ -1459,6 +1459,7 @@ testCreateAccessToken opts n brig = do
           & claimNbf ?~ NumericDate now
           & claimSub ?~ fromMaybe (error "invalid sub claim") ((clientIdentity :: Text) ^? stringOrUri)
           & claimJti ?~ "6fc59e7f-b666-4ffc-b738-4f4760c884ca"
+          & claimAud ?~ (maybe (error "invalid sub claim") (Audience . (: [])) (("https://wire.com/acme/challenge/abcd" :: Text) ^? stringOrUri))
   let dpopClaims = DPoPClaimsSet claimsSet' nonceBs "POST" httpsUrl "wa2VrkCtW1sauJ2D3uKY8rc7y4kl4usH" handle (UUID.toText (toUUID tid))
   signedOrError <- fmap encodeCompact <$> liftIO (signAccessToken dpopClaims)
   case signedOrError of
