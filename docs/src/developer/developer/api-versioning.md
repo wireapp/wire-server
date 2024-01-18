@@ -109,7 +109,7 @@ When making the client API version bump, i.e., when finalising a version, there
 are several steps to make apart from deciding what endpoint changes are part of
 the version. In these example we assume that version V6 should be finalized and V7 should be created:
 
-- Run wire-server and download the `swagger.json` of the current development version, e.g. with the following command: `curl localhost:8080/v6/api/swagger.json | jq > swagger-v6.json` and copy the file to `services/brig/docs`.
+- Run wire-server and download the `swagger.json` of the current development version, e.g. with the following command: `curl localhost:8080/v6/api/swagger.json | jq > swagger-v6.json` and copy the file to `services/brig/docs/swagger-v6.json`.
 - In `wire-api` extend the `Version` type with a new version by appending the
   new version to the end.
 - In the same `Version` module update the `developmentVersions` value to list
