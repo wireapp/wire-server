@@ -134,6 +134,7 @@ library
     Test.Roles
     Test.Search
     Test.Services
+    Test.Swagger
     Test.User
     Testlib.App
     Testlib.Assertions
