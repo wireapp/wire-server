@@ -34,6 +34,7 @@ import Wire.API.Conversation.Action
 import Wire.API.Federation.Component
 import Wire.API.Federation.Endpoint
 import Wire.API.Federation.HasNotificationEndpoint
+import Wire.API.Federation.Version
 import Wire.API.MLS.SubConversation
 import Wire.API.Message
 import Wire.API.Util.Aeson
@@ -53,26 +54,31 @@ instance IsNotificationTag GalleyNotificationTag where
 instance HasNotificationEndpoint 'OnClientRemovedTag where
   type Payload 'OnClientRemovedTag = ClientRemovedRequest
   type NotificationPath 'OnClientRemovedTag = "on-client-removed"
+  versionRange = AllVersions
 
 -- used to notify this backend that a new message has been posted to a
 -- remote conversation
 instance HasNotificationEndpoint 'OnMessageSentTag where
   type Payload 'OnMessageSentTag = RemoteMessage ConvId
   type NotificationPath 'OnMessageSentTag = "on-message-sent"
+  versionRange = AllVersions
 
 instance HasNotificationEndpoint 'OnMLSMessageSentTag where
   type Payload 'OnMLSMessageSentTag = RemoteMLSMessage
   type NotificationPath 'OnMLSMessageSentTag = "on-mls-message-sent"
+  versionRange = AllVersions
 
 -- used by the backend that owns a conversation to inform this backend of
 -- changes to the conversation
 instance HasNotificationEndpoint 'OnConversationUpdatedTag where
   type Payload 'OnConversationUpdatedTag = ConversationUpdate
   type NotificationPath 'OnConversationUpdatedTag = "on-conversation-updated"
+  versionRange = AllVersions
 
 instance HasNotificationEndpoint 'OnUserDeletedConversationsTag where
   type Payload 'OnUserDeletedConversationsTag = UserDeletedConversationsNotification
   type NotificationPath 'OnUserDeletedConversationsTag = "on-user-deleted-conversations"
+  versionRange = AllVersions
 
 -- | All the notification endpoints return an 'EmptyResponse'.
 type GalleyNotificationAPI =
