@@ -20,6 +20,7 @@ import Wire.API.Federation.API.Common
 import Wire.API.Federation.Client
 import Wire.API.Federation.Component
 import Wire.API.Federation.Error
+import Wire.API.Federation.Version
 import Wire.API.RawJson
 
 -- | NOTE: Stored in RabbitMQ, any changes to serialization of this object could cause
@@ -33,6 +34,9 @@ data BackendNotification = BackendNotification
     -- pusher. This also makes development less clunky as we don't have to
     -- create a sum type here for all types of notifications that could exist.
     body :: RawJson,
+    -- | The federation API versions that the 'body' corresponds to. The field
+    -- is optional so that messages already in the queue are not lost.
+    bodyVersions :: Maybe VersionRange,
     requestId :: Maybe RequestId
   }
   deriving (Show, Eq)
@@ -44,6 +48,7 @@ instance ToJSON BackendNotification where
         "targetComponent" .= notif.targetComponent,
         "path" .= notif.path,
         "body" .= TL.decodeUtf8 notif.body.rawJsonBytes,
+        "bodyVersions" .= notif.bodyVersions,
         "requestId" .= notif.requestId
       ]
 
@@ -54,6 +59,7 @@ instance FromJSON BackendNotification where
       <*> o .: "targetComponent"
       <*> o .: "path"
       <*> (RawJson . TL.encodeUtf8 <$> o .: "body")
+      <*> o .:? "bodyVersions"
       <*> o .:? "requestId"
 
 type BackendNotificationAPI = Capture "name" Text :> ReqBody '[JSON] RawJson :> Post '[JSON] EmptyResponse

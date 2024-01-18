@@ -114,6 +114,8 @@ data VersionRange
 
 deriving instance Eq VersionRange
 
+deriving instance Show VersionRange
+
 deriving instance Ord VersionRange
 
 makePrisms ''VersionRange
