@@ -107,15 +107,20 @@ non-overlapping version ranges.
 
 When making the client API version bump, i.e., when finalising a version, there
 are several steps to make apart from deciding what endpoint changes are part of
-the version:
+the version. In these example we assume that version V6 should be finalized and V7 should be created:
 
- - In `wire-api` extend the `Version` type with a new version by appending the
-   new version to the end, e.g., by adding `V6`.
- - In the same `Version` module update the `developmentVersions` value to list
-   only the new version,
- - Consider updating the `backendApiVersion` value in Stern, which is
-   unit-tested by checking if it is listed as supported in the response to `GET
-   /api-version`.
+- Run wire-server and download the `swagger.json` of the current development version, e.g. with the following command: `curl localhost:8080/v6/api/swagger.json | jq > swagger-v6.json` and copy the file to `services/brig/docs`.
+- In `wire-api` extend the `Version` type with a new version by appending the
+  new version to the end.
+- In the same `Version` module update the `developmentVersions` value to list
+  only the new version.
+- In `services/brig/src/Brig/API/Public.hs`
+  - update `versionedSwaggerDocsAPI` so that the finalized version points to the pregenerated swagger
+  - and `internalEndpointsSwaggerDocsAPI` so that the finalized version V6, the new version V7, as well as the unversioned path point to the swagger of the internal API, and the previous latest stable version V5 points to an empty swagger.
+- Set the version for `gDefaultAPIVersion` in `integration/test/Testlib/Env.hs` to 7.
+- Consider updating the `backendApiVersion` value in Stern, which is
+  unit-tested by checking if it is listed as supported in the response to `GET
+  /api-version`.
 
 ### Examples of endpoint evolution
 

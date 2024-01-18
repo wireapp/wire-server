@@ -250,15 +250,11 @@ internalEndpointsSwaggerDocsAPI service examplePort swagger (Just (VersionNumber
     swagger
       & adjustSwaggerForInternalEndpoint service examplePort
       & cleanupSwagger
-internalEndpointsSwaggerDocsAPI service examplePort swagger (Just (VersionNumber V4)) =
-  swaggerSchemaUIServer $
-    swagger
-      & adjustSwaggerForInternalEndpoint service examplePort
-      & cleanupSwagger
 internalEndpointsSwaggerDocsAPI _ _ _ (Just (VersionNumber V0)) = emptySwagger
 internalEndpointsSwaggerDocsAPI _ _ _ (Just (VersionNumber V1)) = emptySwagger
 internalEndpointsSwaggerDocsAPI _ _ _ (Just (VersionNumber V2)) = emptySwagger
 internalEndpointsSwaggerDocsAPI _ _ _ (Just (VersionNumber V3)) = emptySwagger
+internalEndpointsSwaggerDocsAPI _ _ _ (Just (VersionNumber V4)) = emptySwagger
 internalEndpointsSwaggerDocsAPI service examplePort swagger Nothing =
   internalEndpointsSwaggerDocsAPI service examplePort swagger (Just maxBound)
 

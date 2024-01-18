@@ -127,7 +127,7 @@ emptySwagger =
   swaggerSchemaUIServer $
     mempty @S.OpenApi
       & S.info . S.description
-        ?~ "There is no Swagger documentation for this version. Please refer to v3 or later."
+        ?~ "There is no Swagger documentation for this version. Please refer to v5 or later."
 
 {- FUTUREWORK(fisx): there are a few things that need to be fixed before this schema collection
    is of any practical use!
