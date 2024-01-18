@@ -1,0 +1,4 @@
+cleanup the haskell-pins
+- remove many pins
+- remove many overrides
+- restructure the files such that it's easier to see what is going on
