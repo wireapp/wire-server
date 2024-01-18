@@ -7,8 +7,8 @@ rustPlatform.buildRustPackage rec {
   src = fetchFromGitHub {
     owner = "wireapp";
     repo = "mls-test-cli";
-    rev = "30417661eb4e006972ffbdbac80fce6ec64fa90e";
-    sha256 = "sha256-VYSzPejf+Oc5goyxOqlZTwbPj6kqGM6eotefH4eskKE=";
+    rev = "a18470061977211ecf81911de0f2632eefc81efd";
+    sha256 = "sha256-HgwR6vuVL3eN7NVox+iClPxqsat3Znc9+ZtENuEJKSU=";
   };
   pname = "mls-test-cli";
   version = "0.9.1";
