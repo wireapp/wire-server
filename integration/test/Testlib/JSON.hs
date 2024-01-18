@@ -20,6 +20,7 @@ import Data.Functor
 import Data.List.Split (splitOn)
 import Data.Maybe (fromMaybe)
 import qualified Data.Scientific as Sci
+import qualified Data.Set as Set
 import Data.String
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
@@ -129,6 +130,9 @@ asList x =
 asListOf :: HasCallStack => (Value -> App b) -> MakesValue a => a -> App [b]
 asListOf makeElem x =
   asList x >>= mapM makeElem
+
+asSetOf :: (HasCallStack, Ord b) => (Value -> App b) -> MakesValue a => a -> App (Set.Set b)
+asSetOf makeElem x = Set.fromList <$> asListOf makeElem x
 
 asBool :: HasCallStack => MakesValue a => a -> App Bool
 asBool x =

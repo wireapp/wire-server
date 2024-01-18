@@ -85,23 +85,23 @@ testCrudOAuthClient = do
 -- | See https://docs.wire.com/understand/api-client-perspective/swagger.html
 testSwagger :: HasCallStack => App ()
 testSwagger = do
-  let existingVersions :: [Int]
-      existingVersions = [0, 1, 2, 3, 4, 5]
+  let existingVersions :: Set Int
+      existingVersions = Set.fromList [0, 1, 2, 3, 4, 5, 6]
 
-      internalApis :: [String]
-      internalApis = ["brig", "cannon", "cargohold", "cannon", "spar"]
+      internalApis :: Set String
+      internalApis = Set.fromList ["brig", "cannon", "cargohold", "cannon", "spar"]
 
   bindResponse BrigP.getApiVersions $ \resp -> do
     resp.status `shouldMatchInt` 200
-    actualVersions :: [Int] <- do
-      sup <- resp.json %. "supported" & asListOf asIntegral
-      dev <- resp.json %. "development" & asListOf asIntegral
+    actualVersions :: Set Int <- do
+      sup <- resp.json %. "supported" & asSetOf asIntegral
+      dev <- resp.json %. "development" & asSetOf asIntegral
       pure $ sup <> dev
     assertBool ("unexpected actually existing versions: " <> show actualVersions) $
       -- make sure nobody has added a new version without adding it to `existingVersions`.
       -- ("subset" because blocked versions like v3 are not actually existing, but still
       -- documented.)
-      Set.fromList actualVersions `Set.isSubsetOf` Set.fromList existingVersions
+      actualVersions `Set.isSubsetOf` existingVersions
 
   bindResponse BrigP.getSwaggerPublicTOC $ \resp -> do
     resp.status `shouldMatchInt` 200
