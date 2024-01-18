@@ -181,27 +181,28 @@ internalEndpointsSwaggerDocsAPIs =
 --
 -- Dual to `internalEndpointsSwaggerDocsAPI`.
 versionedSwaggerDocsAPI :: Servant.Server VersionedSwaggerDocsAPI
-versionedSwaggerDocsAPI (Just (VersionNumber V5)) =
+versionedSwaggerDocsAPI (Just (VersionNumber V6)) =
   swaggerSchemaUIServer $
-    ( serviceSwagger @VersionAPITag @'V5
-        <> serviceSwagger @BrigAPITag @'V5
-        <> serviceSwagger @GalleyAPITag @'V5
-        <> serviceSwagger @SparAPITag @'V5
-        <> serviceSwagger @CargoholdAPITag @'V5
-        <> serviceSwagger @CannonAPITag @'V5
-        <> serviceSwagger @GundeckAPITag @'V5
-        <> serviceSwagger @ProxyAPITag @'V5
-        <> serviceSwagger @OAuthAPITag @'V5
+    ( serviceSwagger @VersionAPITag @'V6
+        <> serviceSwagger @BrigAPITag @'V6
+        <> serviceSwagger @GalleyAPITag @'V6
+        <> serviceSwagger @SparAPITag @'V6
+        <> serviceSwagger @CargoholdAPITag @'V6
+        <> serviceSwagger @CannonAPITag @'V6
+        <> serviceSwagger @GundeckAPITag @'V6
+        <> serviceSwagger @ProxyAPITag @'V6
+        <> serviceSwagger @OAuthAPITag @'V6
     )
       & S.info . S.title .~ "Wire-Server API"
       & S.info . S.description ?~ $(embedText =<< makeRelativeToProject "docs/swagger.md")
-      & S.servers .~ [S.Server ("/" <> toUrlPiece V5) Nothing mempty]
+      & S.servers .~ [S.Server ("/" <> toUrlPiece V6) Nothing mempty]
       & cleanupSwagger
 versionedSwaggerDocsAPI (Just (VersionNumber V0)) = swaggerPregenUIServer $(pregenSwagger V0)
 versionedSwaggerDocsAPI (Just (VersionNumber V1)) = swaggerPregenUIServer $(pregenSwagger V1)
 versionedSwaggerDocsAPI (Just (VersionNumber V2)) = swaggerPregenUIServer $(pregenSwagger V2)
 versionedSwaggerDocsAPI (Just (VersionNumber V3)) = swaggerPregenUIServer $(pregenSwagger V3)
 versionedSwaggerDocsAPI (Just (VersionNumber V4)) = swaggerPregenUIServer $(pregenSwagger V4)
+versionedSwaggerDocsAPI (Just (VersionNumber V5)) = swaggerPregenUIServer $(pregenSwagger V5)
 versionedSwaggerDocsAPI Nothing = allroutes (throwError listAllVersionsResp)
   where
     allroutes ::
@@ -239,6 +240,11 @@ internalEndpointsSwaggerDocsAPI ::
   PortNumber ->
   S.OpenApi ->
   Servant.Server (VersionedSwaggerDocsAPIBase service)
+internalEndpointsSwaggerDocsAPI service examplePort swagger (Just (VersionNumber V6)) =
+  swaggerSchemaUIServer $
+    swagger
+      & adjustSwaggerForInternalEndpoint service examplePort
+      & cleanupSwagger
 internalEndpointsSwaggerDocsAPI service examplePort swagger (Just (VersionNumber V5)) =
   swaggerSchemaUIServer $
     swagger

@@ -15,6 +15,7 @@ extra-source-files:
   docs/swagger-v2.json
   docs/swagger-v3.json
   docs/swagger-v4.json
+  docs/swagger-v5.json
   docs/swagger.md
 
 common common-all
@@ -410,7 +411,6 @@ executable brig-integration
     API.Search
     API.Search.Util
     API.Settings
-    API.Swagger
     API.SystemSettings
     API.Team
     API.Team.Util
