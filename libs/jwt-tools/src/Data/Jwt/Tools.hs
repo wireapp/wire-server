@@ -159,6 +159,14 @@ generateDpopToken dpopProof uid cid handle tid domain nonce uri method maxSkewSe
   methodCStr <- liftIO $ newCString $ cs $ methodToBS method
   backendPubkeyBundleCStr <- toCStr backendPubkeyBundle
 
+  -- log all variable inputs (can comment in if need to generate new test data)
+  -- traceM $ "proof = Proof \"" <> show (_unProof dpopProof) <> "\""
+  -- traceM $ "uid = UserId \"" <> show (_unUserId uid) <> "\""
+  -- traceM $ "nonce = Nonce \"" <> show (_unNonce nonce) <> "\""
+  -- traceM $ "expires = ExpiryEpoch " <> show (_unExpiryEpoch maxExpiration)
+  -- traceM $ "handle = Handle \"" <> show (_unHandle handle) <> "\""
+  -- traceM $ "tid = TeamId \"" <> show (_unTeamId tid) <> "\""
+
   let before =
         generateDpopAccessTokenFfi
           dpopProofCStr
