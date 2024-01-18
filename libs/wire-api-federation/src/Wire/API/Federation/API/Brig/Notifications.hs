@@ -25,6 +25,7 @@ import Imports
 import Wire.API.Federation.Component
 import Wire.API.Federation.Endpoint
 import Wire.API.Federation.HasNotificationEndpoint
+import Wire.API.Federation.Version
 import Wire.API.Util.Aeson
 import Wire.Arbitrary
 
@@ -49,6 +50,7 @@ instance IsNotificationTag BrigNotificationTag where
 instance HasNotificationEndpoint 'OnUserDeletedConnectionsTag where
   type Payload 'OnUserDeletedConnectionsTag = UserDeletedConnectionsNotification
   type NotificationPath 'OnUserDeletedConnectionsTag = "on-user-deleted-connections"
+  versionRange = AllVersions
 
 instance ToSchema UserDeletedConnectionsNotification
 

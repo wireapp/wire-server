@@ -27,6 +27,7 @@ import GHC.TypeLits
 import Imports
 import Wire.API.Federation.BackendNotifications
 import Wire.API.Federation.Component
+import Wire.API.Federation.Version
 import Wire.API.RawJson
 
 class IsNotificationTag k where
@@ -40,6 +41,9 @@ class HasNotificationEndpoint t where
   -- "on-conversation-updated".
   type NotificationPath t :: Symbol
 
+  -- | The federation API version range this endpoint is supported in.
+  versionRange :: VersionRange
+
 -- | Convert a federation endpoint to a backend notification to be enqueued to a
 -- RabbitMQ queue.
 fedNotifToBackendNotif ::
@@ -47,13 +51,14 @@ fedNotifToBackendNotif ::
   KnownSymbol (NotificationPath tag) =>
   KnownComponent (NotificationComponent k) =>
   ToJSON (Payload tag) =>
+  HasNotificationEndpoint tag =>
   RequestId ->
   Domain ->
   Payload tag ->
   BackendNotification
 fedNotifToBackendNotif rid ownDomain payload =
   let p = T.pack . symbolVal $ Proxy @(NotificationPath tag)
-      b = RawJson . encode $ payload
+      b = RawJson . encode $ (payload, versionRange @tag)
    in toNotif p b
   where
     toNotif :: Text -> RawJson -> BackendNotification
