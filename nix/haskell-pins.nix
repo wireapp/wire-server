@@ -143,7 +143,8 @@ let
       };
     };
 
-    # missing upstream PR 
+    # missing upstream PR, this will get removed when completing
+    # servantification
     wai-predicates = {
       src = fetchgit {
         url = "https://gitlab.com/wireapp/forks/wai-predicates";
@@ -230,7 +231,7 @@ let
   };
   hackagePins = {
     # Major re-write upstream, we should get rid of this dependency rather than
-    # adapt to upstream.
+    # adapt to upstream, this will go away when completing servantification.
     wai-route = {
       version = "0.4.0";
       sha256 = "sha256-DSMckKIeVE/buSMg8Mq+mUm1bYPYB7veA11Ns7vTBbc=";

@@ -26,6 +26,7 @@ hself: hsuper: {
   # ---------------------
   # need to be jailbroken
   # (these need to be fixed upstream eventually)
+  # FUTUREWORK: fix the dependency bounds upstream
   # ---------------------
   binary-parsers = hlib.markUnbroken (hlib.doJailbreak hsuper.binary-parsers);
   bytestring-arbitrary = hlib.markUnbroken (hlib.doJailbreak hsuper.bytestring-arbitrary);
