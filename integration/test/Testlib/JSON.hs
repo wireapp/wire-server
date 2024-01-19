@@ -134,6 +134,9 @@ asListOf makeElem x =
 asSet :: HasCallStack => MakesValue a => a -> App (Set.Set Value)
 asSet = fmap Set.fromList . asList
 
+asSetOf :: (HasCallStack, Ord b) => (Value -> App b) -> MakesValue a => a -> App (Set.Set b)
+asSetOf makeElem x = Set.fromList <$> asListOf makeElem x
+
 asBool :: HasCallStack => MakesValue a => a -> App Bool
 asBool x =
   make x >>= \case

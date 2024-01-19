@@ -66,12 +66,13 @@ import Cassandra (MonadClient)
 import Conduit (runConduit, (.|))
 import Control.Error (ExceptT)
 import Control.Error.Util
-import Control.Lens (view, (.~), (?~), (^.))
+import Control.Lens (view, (.~), (?~), (^.), (^?))
 import Control.Monad.Catch
 import Control.Monad.Trans.Except (runExceptT, throwE)
 import Control.Retry
 import Data.Aeson hiding (json)
 import Data.Aeson.KeyMap qualified as KeyMap
+import Data.Aeson.Lens
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy qualified as BL
 import Data.Conduit.List qualified as C
@@ -979,7 +980,14 @@ guardLegalhold protectee userClients = do
   res <- lift . wrapHttp $ galleyRequest PUT req
   case Bilge.statusCode res of
     200 -> pure ()
-    403 -> throwE ClientMissingLegalholdConsent
+    403 -> case Bilge.responseJsonMaybe @Value res >>= (^? key "label") of
+      Just "missing-legalhold-consent" -> throwE ClientMissingLegalholdConsent
+      Just "missing-legalhold-consent-old-clients" -> throwE ClientMissingLegalholdConsentOldClients
+      _ ->
+        -- only happens if galley misbehaves (fisx: this could also be a parse error if we
+        -- used a more constraining type to send back & forth between brig and galley, but
+        -- merging brig and galley would make this train of thought go away more naturally).
+        throwE ClientMissingLegalholdConsent
     404 -> pure () -- allow for galley not to be ready, so the set of valid deployment orders is non-empty.
     _ -> throwM internalServerError
   where

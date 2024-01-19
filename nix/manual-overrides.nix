@@ -1,95 +1,70 @@
-{ libsodium, protobuf, hlib, mls-test-cli, fetchpatch, ... }:
+{ libsodium, protobuf, hlib, mls-test-cli, ... }:
 # FUTUREWORK: Figure out a way to detect if some of these packages are not
 # actually marked broken, so we can cleanup this file on every nixpkgs bump.
 hself: hsuper: {
-  binary-parsers = hlib.markUnbroken (hlib.doJailbreak hsuper.binary-parsers);
-  bytestring-arbitrary = hlib.markUnbroken (hlib.doJailbreak hsuper.bytestring-arbitrary);
-  bytestring-conversion = hlib.markUnbroken (hsuper.bytestring-conversion);
+  # ----------------
+  # tests don't pass
+  # (these are in general not fine they need to be investigated)
+  # FUTUREWORK: investigate whether all of these tests need to fail
+  # ----------------
+  amqp = hlib.dontCheck hsuper.amqp_0_22_2;
+  # test suite doesn't compile and needs network access
+  bloodhound = hlib.dontCheck hsuper.bloodhound;
+  # tests need network access, cabal2nix disables haddocks
+  cql-io = hlib.doHaddock (hlib.dontCheck hsuper.cql-io);
+  # PR with fix: https://github.com/freckle/hspec-junit-formatter/pull/23
+  # the PR has been merged, but has not arrived in nixpkgs
+  hspec-junit-formatter = hlib.markUnbroken (hlib.dontCheck hsuper.hspec-junit-formatter);
+  markov-chain-usage-model = hlib.markUnbroken (hlib.dontCheck hsuper.markov-chain-usage-model);
   openapi3 = hlib.markUnbroken (hlib.dontCheck hsuper.openapi3);
-  cql = hlib.appendPatch (hlib.markUnbroken hsuper.cql) (fetchpatch {
-    url = "https://gitlab.com/twittner/cql/-/merge_requests/11.patch";
-    sha256 = "sha256-qfcCRkKjSS1TEqPRVBU9Ox2DjsdGsYG/F3DrZ5JGoEI=";
-  });
-  ghc-source-gen = hlib.markUnbroken (hlib.doJailbreak hsuper.ghc-source-gen);
-  proto-lens-protoc = hlib.doJailbreak hsuper.proto-lens-protoc;
-  proto-lens-setup = hlib.doJailbreak hsuper.proto-lens-setup;
-  hashtables = hsuper.hashtables_1_3;
-  # in case everything breaks with the hashable update, use this 
-  # hashable = hsuper.callHackage "hashable" "1.4.2.0" {};
-  invertible = hlib.markUnbroken hsuper.invertible;
-  lens-datetime = hlib.markUnbroken (hlib.doJailbreak hsuper.lens-datetime);
-  monoidal-containers = hlib.doJailbreak hsuper.monoidal-containers;
-  network-arbitrary = hlib.markUnbroken (hlib.doJailbreak hsuper.network-arbitrary);
-  one-liner = hlib.doJailbreak hsuper.one-liner;
-  linear-generics = hsuper.linear-generics_0_2_2;
-  polysemy = hlib.doJailbreak hsuper.polysemy;
-  polysemy-check = hlib.markUnbroken (hlib.doJailbreak hsuper.polysemy-check);
-  polysemy-plugin = hlib.doJailbreak hsuper.polysemy-plugin;
   quickcheck-state-machine = hlib.dontCheck hsuper.quickcheck-state-machine;
-  servant = hlib.doJailbreak hsuper.servant;
-  servant-client = hlib.doJailbreak hsuper.servant-client;
-  servant-client-core = hlib.doJailbreak hsuper.servant-client-core;
-  servant-foreign = hlib.doJailbreak hsuper.servant-foreign;
-  servant-multipart = hlib.doJailbreak hsuper.servant-multipart;
-  servant-swagger-ui = hlib.doJailbreak hsuper.servant-swagger-ui;
-  servant-swagger-ui-core = hlib.doJailbreak hsuper.servant-swagger-ui-core;
-  singletons-th = hlib.doJailbreak hsuper.singletons-th;
-  singletons-base = hlib.dontCheck (hlib.doJailbreak hsuper.singletons-base);
-  sodium-crypto-sign = hlib.addPkgconfigDepend hsuper.sodium-crypto-sign libsodium.dev;
-  text-icu-translit = hlib.markUnbroken (hlib.dontCheck hsuper.text-icu-translit);
-  text-short = hlib.dontCheck hsuper.text-short;
-  template = hlib.markUnbroken (hlib.doJailbreak hsuper.template);
-  type-errors = hlib.dontCheck hsuper.type-errors;
-  th-abstraction = hsuper.th-abstraction_0_5_0_0;
-  th-desugar = hlib.doJailbreak hsuper.th-desugar;
-  wai-middleware-prometheus = hlib.doJailbreak hsuper.wai-middleware-prometheus;
-  wai-predicates = hlib.markUnbroken hsuper.wai-predicates;
-  # transitive-anns has flaky tests
+  saml2-web-sso = hlib.dontCheck hsuper.saml2-web-sso;
+  # one of the tests is flaky
   transitive-anns = hlib.dontCheck hsuper.transitive-anns;
-  http2-manager = hlib.enableCabalFlag hsuper.http2-manager "-f-test-trailing-dot";
-
-  crypton-connection = hlib.markUnbroken hsuper.crypton-connection;
-  # Patched dependency on crypton-connection
-  HaskellNet-SSL = hsuper.HaskellNet-SSL;
   warp = hlib.dontCheck hsuper.warp;
 
-  # PR with fix: https://github.com/freckle/hspec-junit-formatter/pull/23
-  hspec-junit-formatter = hlib.markUnbroken (hlib.dontCheck hsuper.hspec-junit-formatter);
+  # ---------------------
+  # need to be jailbroken
+  # (these need to be fixed upstream eventually)
+  # FUTUREWORK: fix the dependency bounds upstream
+  # ---------------------
+  binary-parsers = hlib.markUnbroken (hlib.doJailbreak hsuper.binary-parsers);
+  bytestring-arbitrary = hlib.markUnbroken (hlib.doJailbreak hsuper.bytestring-arbitrary);
+  lens-datetime = hlib.markUnbroken (hlib.doJailbreak hsuper.lens-datetime);
+  network-arbitrary = hlib.markUnbroken (hlib.doJailbreak hsuper.network-arbitrary);
+  proto-lens-protoc = hlib.doJailbreak hsuper.proto-lens-protoc;
+  proto-lens-setup = hlib.doJailbreak hsuper.proto-lens-setup;
+  th-desugar = hlib.doJailbreak hsuper.th-desugar;
 
-  # fails doctest
-  markov-chain-usage-model = hlib.markUnbroken (hlib.dontCheck hsuper.markov-chain-usage-model);
+  # ------------------------------------
+  # okay but marked broken (nixpkgs bug)
+  # (we can unfortunately not do anything here but update nixpkgs)
+  # ------------------------------------
+  bytestring-conversion = hlib.markUnbroken hsuper.bytestring-conversion;
+  template = hlib.markUnbroken hsuper.template;
 
-  # Some test seems to be broken
-  hsaml2 = hlib.dontCheck hsuper.hsaml2;
-  saml2-web-sso = hlib.dontCheck hsuper.saml2-web-sso;
-  http2 = hlib.dontCheck hsuper.http2;
+  # -----------------
+  # version overrides
+  # (these are fine but will probably need to be adjusted in a future nixpkgs update)
+  # -----------------
+  hpack = hsuper.hpack_0_36_0;
   http-client-tls = hsuper.http-client-tls_0_3_6_3;
-  http-client = hsuper.http-client;
+  linear-generics = hsuper.linear-generics_0_2_2;
+  network-conduit-tls = hsuper.network-conduit-tls_1_4_0;
+  optparse-generic = hsuper.optparse-generic_1_5_2;
+  th-abstraction = hsuper.th-abstraction_0_5_0_0;
+  tls = hsuper.tls_1_9_0;
+  warp-tls = hsuper.warp-tls_3_4_3;
 
-
-  # Disable tests because they need network access to a running cassandra
-  #
-  # Explicitly enable haddock because cabal2nix disables it for packages with
-  # internal libraries
-  cql-io = hlib.doHaddock (hlib.dontCheck hsuper.cql-io);
-  amqp = hlib.dontCheck hsuper.amqp;
-
-  # Needs network access to running ES
-  # also the test suite doesn't compile https://github.com/NixOS/nixpkgs/pull/167957
-  # due to related broken quickcheck-arbitrary-template
-  bloodhound = hlib.dontCheck hsuper.bloodhound;
-
-  # Build toool dependencies of local packages
+  # -----------------
+  # flags and patches
+  # (these are fine)
+  # -----------------
+  # Make hoogle static to reduce size of the hoogle image
+  hoogle = hlib.justStaticExecutables hsuper.hoogle;
+  http2-manager = hlib.enableCabalFlag hsuper.http2-manager "-f-test-trailing-dot";
+  sodium-crypto-sign = hlib.addPkgconfigDepend hsuper.sodium-crypto-sign libsodium.dev;
   types-common-journal = hlib.addBuildTool hsuper.types-common-journal protobuf;
   wire-api = hlib.addBuildTool hsuper.wire-api mls-test-cli;
   wire-message-proto-lens = hlib.addBuildTool hsuper.wire-message-proto-lens protobuf;
-
-  # Make hoogle static to reduce size of the hoogle image
-  hoogle = hlib.justStaticExecutables hsuper.hoogle;
-
-  # Postie has been fixed upstream (master)
-  postie = hlib.markUnbroken (hlib.doJailbreak hsuper.postie);
-
-  # This would not be necessary if we could pull revision -r1 from 0.2.2.3
-  kind-generics-th = hlib.doJailbreak hsuper.kind-generics-th;
 }

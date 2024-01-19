@@ -91,6 +91,7 @@ import Galley.Schema.V87_TeamFeatureSupportedProtocols qualified as V87_TeamFeat
 import Galley.Schema.V88_RemoveMemberClientAndTruncateMLSGroupMemberClient qualified as V88_RemoveMemberClientAndTruncateMLSGroupMemberClient
 import Galley.Schema.V89_MlsLockStatus qualified as V89_MlsLockStatus
 import Galley.Schema.V90_EnforceFileDownloadLocationConfig qualified as V90_EnforceFileDownloadLocationConfig
+import Galley.Schema.V91_TeamMemberDeletedLimitedEventFanout qualified as V91_TeamMemberDeletedLimitedEventFanout
 import Imports
 import Options.Applicative
 import System.Logger.Extended qualified as Log
@@ -182,7 +183,8 @@ migrations =
     V87_TeamFeatureSupportedProtocols.migration,
     V88_RemoveMemberClientAndTruncateMLSGroupMemberClient.migration,
     V89_MlsLockStatus.migration,
-    V90_EnforceFileDownloadLocationConfig.migration
+    V90_EnforceFileDownloadLocationConfig.migration,
+    V91_TeamMemberDeletedLimitedEventFanout.migration
     -- FUTUREWORK: once #1726 has made its way to master/production,
     -- the 'message' field in connections table can be dropped.
     -- See also https://github.com/wireapp/wire-server/pull/1747/files

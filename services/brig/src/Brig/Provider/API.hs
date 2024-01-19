@@ -477,6 +477,7 @@ deleteService ::
 deleteService pid sid del = do
   guardSecondFactorDisabled Nothing
   pass <- wrapClientE (DB.lookupPassword pid) >>= maybeBadCredentials
+  -- We don't care about pwd status when deleting things
   unless (verifyPassword (deleteServicePassword del) pass) $
     throwStd (errorToWai @'E.BadCredentials)
   _ <- wrapClientE (DB.lookupService pid sid) >>= maybeServiceNotFound
@@ -521,6 +522,7 @@ deleteAccount pid del = do
   guardSecondFactorDisabled Nothing
   prov <- wrapClientE (DB.lookupAccount pid) >>= maybeInvalidProvider
   pass <- wrapClientE (DB.lookupPassword pid) >>= maybeBadCredentials
+  -- We don't care about pwd status when deleting things
   unless (verifyPassword (deleteProviderPassword del) pass) $
     throwStd (errorToWai @'E.BadCredentials)
   svcs <- wrapClientE $ DB.listServices pid

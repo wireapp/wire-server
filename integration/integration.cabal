@@ -119,8 +119,10 @@ library
     Test.Demo
     Test.Errors
     Test.ExternalPartner
+    Test.FeatureFlags
     Test.Federation
     Test.Federator
+    Test.LegalHold
     Test.MessageTimer
     Test.MLS
     Test.MLS.KeyPackage
@@ -133,6 +135,7 @@ library
     Test.Roles
     Test.Search
     Test.Services
+    Test.Swagger
     Test.User
     Test.Version
     Testlib.App
@@ -142,6 +145,7 @@ library
     Testlib.HTTP
     Testlib.JSON
     Testlib.Mock
+    Testlib.MockIntegrationService
     Testlib.ModService
     Testlib.One2One
     Testlib.Options

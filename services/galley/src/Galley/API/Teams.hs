@@ -86,6 +86,7 @@ import Data.Time.Clock (UTCTime)
 import Galley.API.Action
 import Galley.API.Error as Galley
 import Galley.API.LegalHold.Team
+import Galley.API.Teams.Features.Get
 import Galley.API.Teams.Notifications qualified as APITeamQueue
 import Galley.API.Update qualified as API
 import Galley.API.Util
@@ -141,6 +142,7 @@ import Wire.API.Team qualified as Public
 import Wire.API.Team.Conversation
 import Wire.API.Team.Conversation qualified as Public
 import Wire.API.Team.Export (TeamExportUser (..))
+import Wire.API.Team.Feature
 import Wire.API.Team.Member
 import Wire.API.Team.Member qualified as M
 import Wire.API.Team.Member qualified as Public
@@ -889,9 +891,11 @@ deleteTeamMember ::
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
     Member ExternalAccess r,
+    Member (Input Opts) r,
     Member (Input UTCTime) r,
     Member GundeckAccess r,
     Member MemberStore r,
+    Member TeamFeatureStore r,
     Member TeamStore r,
     Member P.TinyLog r
   ) =>
@@ -915,9 +919,11 @@ deleteNonBindingTeamMember ::
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
     Member ExternalAccess r,
+    Member (Input Opts) r,
     Member (Input UTCTime) r,
     Member GundeckAccess r,
     Member MemberStore r,
+    Member TeamFeatureStore r,
     Member TeamStore r,
     Member P.TinyLog r
   ) =>
@@ -941,9 +947,11 @@ deleteTeamMember' ::
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
     Member ExternalAccess r,
+    Member (Input Opts) r,
     Member (Input UTCTime) r,
     Member GundeckAccess r,
     Member MemberStore r,
+    Member TeamFeatureStore r,
     Member TeamStore r,
     Member P.TinyLog r
   ) =>
@@ -982,8 +990,16 @@ deleteTeamMember' lusr zcon tid remove mBody = do
       Journal.teamUpdate tid sizeAfterDelete $ filter (/= remove) owners
       pure TeamMemberDeleteAccepted
     else do
-      admins <- E.getTeamAdmins tid
-      uncheckedDeleteTeamMember lusr (Just zcon) tid remove admins
+      getFeatureStatus @LimitedEventFanoutConfig DontDoAuth tid
+        >>= ( \case
+                FeatureStatusEnabled -> do
+                  admins <- E.getTeamAdmins tid
+                  uncheckedDeleteTeamMember lusr (Just zcon) tid remove (Left admins)
+                FeatureStatusDisabled -> do
+                  mems <- getTeamMembersForFanout tid
+                  uncheckedDeleteTeamMember lusr (Just zcon) tid remove (Right mems)
+            )
+          . wsStatus
       pure TeamMemberDeleteCompleted
 
 -- This function is "unchecked" because it does not validate that the user has the `RemoveTeamMember` permission.
@@ -1002,9 +1018,9 @@ uncheckedDeleteTeamMember ::
   Maybe ConnId ->
   TeamId ->
   UserId ->
-  [UserId] ->
+  Either [UserId] TeamMemberList ->
   Sem r ()
-uncheckedDeleteTeamMember lusr zcon tid remove admins = do
+uncheckedDeleteTeamMember lusr zcon tid remove (Left admins) = do
   now <- input
   pushMemberLeaveEvent now
   E.deleteTeamMember tid remove
@@ -1022,6 +1038,25 @@ uncheckedDeleteTeamMember lusr zcon tid remove admins = do
                 (filter (/= (tUnqualified lusr)) admins)
       E.push1 $
         newPushLocal1 ListComplete (tUnqualified lusr) (TeamEvent e) r & pushConn .~ zcon & pushTransient .~ True
+uncheckedDeleteTeamMember lusr zcon tid remove (Right mems) = do
+  now <- input
+  pushMemberLeaveEventToAll now
+  E.deleteTeamMember tid remove
+  -- notify all conversation members not in this team.
+  removeFromConvsAndPushConvLeaveEvent lusr zcon tid remove
+  where
+    -- notify all team members. This is to maintain compatibility with clients
+    -- relying on these events, but eventually they will catch up and this
+    -- function, and the corresponding feature flag, will be ready for removal.
+    pushMemberLeaveEventToAll :: UTCTime -> Sem r ()
+    pushMemberLeaveEventToAll now = do
+      let e = newEvent tid now (EdMemberLeave remove)
+      let r =
+            list1
+              (userRecipient (tUnqualified lusr))
+              (membersToRecipients (Just (tUnqualified lusr)) (mems ^. teamMembers))
+      E.push1 $
+        newPushLocal1 (mems ^. teamMemberListType) (tUnqualified lusr) (TeamEvent e) r & pushTransient .~ True
 
 removeFromConvsAndPushConvLeaveEvent ::
   forall r.

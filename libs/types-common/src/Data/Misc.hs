@@ -59,6 +59,7 @@ module Data.Misc
     FutureWork (..),
     from64,
     readT,
+    showT,
   )
 where
 
@@ -366,6 +367,11 @@ newtype FutureWork label payload = FutureWork payload
 readT :: Read a => Text -> Maybe a
 readT = readMaybe . Text.unpack
 {-# INLINE readT #-}
+
+-- | Same as 'show' but works on 'Text'
+showT :: Show a => a -> Text
+showT = Text.pack . show
+{-# INLINE showT #-}
 
 -- | Decodes a base64 'Text' to a regular 'ByteString' (if possible)
 from64 :: Text -> Maybe ByteString

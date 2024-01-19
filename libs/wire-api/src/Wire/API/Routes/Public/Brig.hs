@@ -947,6 +947,7 @@ type ConnectionAPI =
     ( Summary "Create a connection to another user"
         :> Until 'V2
         :> MakesFederatedCall 'Brig "send-connection-action"
+        :> CanThrow 'MissingLegalholdConsentOldClients
         :> CanThrow 'MissingLegalholdConsent
         :> CanThrow 'InvalidUser
         :> CanThrow 'ConnectionLimitReached
@@ -971,6 +972,7 @@ type ConnectionAPI =
            ( Summary "Create a connection to another user"
                :> MakesFederatedCall 'Brig "get-users-by-ids"
                :> MakesFederatedCall 'Brig "send-connection-action"
+               :> CanThrow 'MissingLegalholdConsentOldClients
                :> CanThrow 'MissingLegalholdConsent
                :> CanThrow 'InvalidUser
                :> CanThrow 'ConnectionLimitReached
@@ -1050,6 +1052,7 @@ type ConnectionAPI =
       ( Summary "Update a connection to another user"
           :> Until 'V2
           :> MakesFederatedCall 'Brig "send-connection-action"
+          :> CanThrow 'MissingLegalholdConsentOldClients
           :> CanThrow 'MissingLegalholdConsent
           :> CanThrow 'InvalidUser
           :> CanThrow 'ConnectionLimitReached
@@ -1079,6 +1082,7 @@ type ConnectionAPI =
       ( Summary "Update a connection to another user"
           :> MakesFederatedCall 'Brig "get-users-by-ids"
           :> MakesFederatedCall 'Brig "send-connection-action"
+          :> CanThrow 'MissingLegalholdConsentOldClients
           :> CanThrow 'MissingLegalholdConsent
           :> CanThrow 'InvalidUser
           :> CanThrow 'ConnectionLimitReached

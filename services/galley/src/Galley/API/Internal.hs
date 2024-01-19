@@ -239,6 +239,9 @@ featureAPI =
     <@> mkNamedAPI @'("iput", EnforceFileDownloadLocationConfig) setFeatureStatusInternal
     <@> mkNamedAPI @'("ipatch", EnforceFileDownloadLocationConfig) patchFeatureStatusInternal
     <@> mkNamedAPI @'("ilock", EnforceFileDownloadLocationConfig) (updateLockStatus @EnforceFileDownloadLocationConfig)
+    <@> mkNamedAPI @'("iget", LimitedEventFanoutConfig) (getFeatureStatus DontDoAuth)
+    <@> mkNamedAPI @'("iput", LimitedEventFanoutConfig) setFeatureStatusInternal
+    <@> mkNamedAPI @'("ipatch", LimitedEventFanoutConfig) patchFeatureStatusInternal
     <@> mkNamedAPI @"feature-configs-internal" (maybe getAllFeatureConfigsForServer getAllFeatureConfigsForUser)
 
 waiInternalSitemap :: Routes a (Sem GalleyEffects) ()
@@ -295,26 +298,26 @@ rmUser ::
   forall p1 p2 r.
   ( p1 ~ CassandraPaging,
     p2 ~ InternalPaging,
-    ( Member BackendNotificationQueueAccess r,
-      Member BrigAccess r,
-      Member ClientStore r,
-      Member ConversationStore r,
-      Member (Error InternalError) r,
-      Member ExternalAccess r,
-      Member FederatorAccess r,
-      Member GundeckAccess r,
-      Member (Input Env) r,
-      Member (Input (Local ())) r,
-      Member (Input UTCTime) r,
-      Member (ListItems p1 ConvId) r,
-      Member (ListItems p1 (Remote ConvId)) r,
-      Member (ListItems p2 TeamId) r,
-      Member MemberStore r,
-      Member ProposalStore r,
-      Member P.TinyLog r,
-      Member SubConversationStore r,
-      Member TeamStore r
-    )
+    Member BackendNotificationQueueAccess r,
+    Member ClientStore r,
+    Member ConversationStore r,
+    Member (Error DynError) r,
+    Member (Error InternalError) r,
+    Member ExternalAccess r,
+    Member FederatorAccess r,
+    Member GundeckAccess r,
+    Member (Input Env) r,
+    Member (Input Opts) r,
+    Member (Input UTCTime) r,
+    Member (ListItems p1 ConvId) r,
+    Member (ListItems p1 (Remote ConvId)) r,
+    Member (ListItems p2 TeamId) r,
+    Member MemberStore r,
+    Member ProposalStore r,
+    Member P.TinyLog r,
+    Member SubConversationStore r,
+    Member TeamFeatureStore r,
+    Member TeamStore r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -340,10 +343,33 @@ rmUser lusr conn = do
         goConvPages range newCids
 
     leaveTeams page = for_ (pageItems page) $ \tid -> do
-      admins <- E.getTeamAdmins tid
-      uncheckedDeleteTeamMember lusr conn tid (tUnqualified lusr) admins
+      toNotify <-
+        handleImpossibleErrors $
+          getFeatureStatus @LimitedEventFanoutConfig DontDoAuth tid
+            >>= ( \case
+                    FeatureStatusEnabled -> Left <$> E.getTeamAdmins tid
+                    FeatureStatusDisabled -> Right <$> getTeamMembersForFanout tid
+                )
+              . wsStatus
+      uncheckedDeleteTeamMember lusr conn tid (tUnqualified lusr) toNotify
       page' <- listTeams @p2 (tUnqualified lusr) (Just (pageState page)) maxBound
       leaveTeams page'
+
+    -- The @'NotATeamMember@ and @'TeamNotFound@ errors cannot happen at this
+    -- point: the user is a team member because we fetched the list of teams
+    -- they are member of, and conversely the list of teams was fetched exactly
+    -- for this user so it cannot be that the team is not found. Therefore, this
+    -- helper just drops the errors.
+    handleImpossibleErrors ::
+      Sem
+        ( ErrorS 'NotATeamMember
+            ': ErrorS 'TeamNotFound
+            ': r
+        )
+        a ->
+      Sem r a
+    handleImpossibleErrors action =
+      mapToDynamicError @'TeamNotFound (mapToDynamicError @'NotATeamMember action)
 
     leaveLocalConversations :: [ConvId] -> Sem r ()
     leaveLocalConversations ids = do
@@ -452,13 +478,15 @@ guardLegalholdPolicyConflictsH ::
     Member (Input Opts) r,
     Member TeamStore r,
     Member P.TinyLog r,
-    Member (ErrorS 'MissingLegalholdConsent) r
+    Member (ErrorS 'MissingLegalholdConsent) r,
+    Member (ErrorS 'MissingLegalholdConsentOldClients) r
   ) =>
   GuardLegalholdPolicyConflicts ->
   Sem r ()
 guardLegalholdPolicyConflictsH glh = do
   mapError @LegalholdConflicts (const $ Tagged @'MissingLegalholdConsent ()) $
-    guardLegalholdPolicyConflicts (glhProtectee glh) (glhUserClients glh)
+    mapError @LegalholdConflictsOldClients (const $ Tagged @'MissingLegalholdConsentOldClients ()) $
+      guardLegalholdPolicyConflicts (glhProtectee glh) (glhUserClients glh)
 
 -- | Get an MLS conversation client list
 iGetMLSClientListForConv ::

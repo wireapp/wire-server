@@ -240,6 +240,9 @@ galley:
               usersThreshold: 100
               clientsThreshold: 50
             lockStatus: locked
+        limitedEventFanout:
+            defaults:
+            status: disabled
     journal:
       endpoint: http://fake-aws-sqs:4568
       queueName: integration-team-events.fifo
