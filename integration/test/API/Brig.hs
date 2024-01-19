@@ -294,13 +294,10 @@ searchContacts user searchTerm domain = do
   d <- objDomain domain
   submit "GET" (req & addQueryParams [("q", q), ("domain", d)])
 
-getAPIVersionWithVersion :: (HasCallStack, MakesValue domain) => domain -> Versioned -> App Response
-getAPIVersionWithVersion domain v = do
-  req <- baseRequest domain Brig v $ "/api-version"
-  submit "GET" req
-
 getAPIVersion :: (HasCallStack, MakesValue domain) => domain -> App Response
-getAPIVersion domain = getAPIVersionWithVersion domain Unversioned
+getAPIVersion domain = do
+  req <- baseRequest domain Brig Unversioned $ "/api-version"
+  submit "GET" req
 
 postConnection ::
   ( HasCallStack,

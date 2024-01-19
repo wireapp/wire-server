@@ -245,10 +245,7 @@ expandVersionExp VersionExpDevelopment = Set.fromList developmentVersions
 
 newtype VersionExpSetDefaultDev = VersionExpSetDefaultDev {unVersionExpSetDefaultDev :: Data.Set VersionExp}
   deriving stock (Eq, Ord, Show, Generic)
-  deriving newtype (FromJSON, ToJSON)
-
-instance Semigroup VersionExpSetDefaultDev where
-  VersionExpSetDefaultDev xs <> VersionExpSetDefaultDev ys = VersionExpSetDefaultDev (xs <> ys)
+  deriving newtype (FromJSON, ToJSON, Semigroup)
 
 instance Monoid VersionExpSetDefaultDev where
   mempty = VersionExpSetDefaultDev $ Set.singleton VersionExpDevelopment

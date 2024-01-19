@@ -9,7 +9,7 @@ _testVersion :: Versioned -> App ()
 _testVersion v = withModifiedBackend
   def {brigCfg = setField "optSettings.setDisabledAPIVersions" ([] :: [String])}
   $ \dom ->
-    bindResponse (getAPIVersionWithVersion dom v) $ \resp -> do
+    bindResponse (baseRequest dom Brig v "/api-version" >>= submit "GET") $ \resp -> do
       resp.status `shouldMatchInt` 200
       dev <- resp.json %. "development" & asSet
       supported <- resp.json %. "supported" & asSet
@@ -33,7 +33,7 @@ testVersionVersioned :: App ()
 testVersionVersioned = _testVersion Versioned
 
 testVersionUnsupported :: App ()
-testVersionUnsupported = bindResponse (getAPIVersionWithVersion OwnDomain (ExplicitVersion 500)) $
+testVersionUnsupported = bindResponse (baseRequest OwnDomain Brig (ExplicitVersion 500) "/api-version" >>= submit "GET") $
   \resp -> do
     resp.status `shouldMatchInt` 404
     resp.json %. "label" `shouldMatch` "unsupported-version"
@@ -56,11 +56,12 @@ testVersionDisabled = withModifiedBackend
       void $ getSelfWithVersion (ExplicitVersion 3) user >>= getJSON 200
       void $ getSelfWithVersion (ExplicitVersion 4) user >>= getJSON 200
       void $ getSelfWithVersion (ExplicitVersion 5) user >>= getJSON 200
+      void $ getSelfWithVersion (ExplicitVersion 6) user >>= getJSON 200
       void $ getSelfWithVersion Unversioned user >>= getJSON 200
 
 testVersionDisabledNotAdvertised :: App ()
 testVersionDisabledNotAdvertised = do
-  allVersions <- bindResponse (getAPIVersionWithVersion OwnDomain Versioned) $ \resp ->
+  allVersions <- bindResponse (baseRequest OwnDomain Brig Versioned "/api-version" >>= submit "GET") $ \resp ->
     (<>)
       <$> (resp.json %. "development" & asList >>= traverse asInt)
       <*> (resp.json %. "supported" & asList >>= traverse asInt)
@@ -70,7 +71,7 @@ _testVersionDisabledNotAdvertised :: Int -> App ()
 _testVersionDisabledNotAdvertised v = withModifiedBackend
   def {brigCfg = setField "optSettings.setDisabledAPIVersions" ["v" <> show v]}
   $ \domain -> do
-    bindResponse (getAPIVersionWithVersion domain Unversioned) $ \resp -> do
+    bindResponse (getAPIVersion domain) $ \resp -> do
       resp.status `shouldMatchInt` 200
       dev <- resp.json %. "development" & asList >>= traverse asInt
       supported <- resp.json %. "supported" & asList >>= traverse asInt
@@ -83,7 +84,7 @@ testVersionDisabledDevNotAdvertised :: App ()
 testVersionDisabledDevNotAdvertised = withModifiedBackend
   def {brigCfg = setField "optSettings.setDisabledAPIVersions" ["development"]}
   $ \domain -> do
-    bindResponse (getAPIVersionWithVersion domain Unversioned) $ \resp -> do
+    bindResponse (getAPIVersion domain) $ \resp -> do
       resp.status `shouldMatchInt` 200
       dev <- resp.json %. "development" & asList
       supported <- resp.json %. "supported" & asList
@@ -95,7 +96,7 @@ testVersionDevDisabledPerDefault :: App ()
 testVersionDevDisabledPerDefault = withModifiedBackend
   def {brigCfg = removeField "optSettings.setDisabledAPIVersions"}
   $ \domain -> do
-    bindResponse (getAPIVersionWithVersion domain Unversioned) $ \resp -> do
+    bindResponse (getAPIVersion domain) $ \resp -> do
       resp.status `shouldMatchInt` 200
       dev <- resp.json %. "development" & asList
       supported <- resp.json %. "supported" & asList
