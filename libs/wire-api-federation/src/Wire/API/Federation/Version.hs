@@ -26,6 +26,7 @@ module Wire.API.Federation.Version
     VersionInfo (..),
     versionInfo,
     VersionRange (..),
+    versionInCommon,
   )
 where
 
@@ -46,6 +47,9 @@ data Version = V0 | V1
 versionInt :: Version -> Int
 versionInt V0 = 0
 versionInt V1 = 1
+
+intToVersion :: Int -> Maybe Version
+intToVersion intV = find (\v -> versionInt v == intV) [minBound .. maxBound]
 
 instance ToSchema Version where
   schema =
@@ -147,6 +151,40 @@ instance ToSchema VersionRange where
 deriving via Schema VersionRange instance ToJSON VersionRange
 
 deriving via Schema VersionRange instance FromJSON VersionRange
+
+-- | Compute the lower and upper boundary of a version range. The first
+-- component of the pair is the lower boundary, while the second component is
+-- the upper boundary. The upper boundary is inclusive.
+versionRangeToBoundaries :: VersionRange -> (Version, Version)
+versionRangeToBoundaries AllVersions = (minBound @Version, maxBound @Version)
+versionRangeToBoundaries (FromVersion fv) = (fv, maxBound @Version)
+versionRangeToBoundaries (UntilVersion uv) = (minBound @Version, pred uv)
+versionRangeToBoundaries (FromUntilVersion fv uv) = (fv, pred uv)
+
+-- | Checks if a version is within a given version range.
+inVersionRange :: Version -> VersionRange -> Bool
+inVersionRange v vr =
+  let (lo, hi) = versionRangeToBoundaries vr
+   in lo <= v && v < hi
+
+-- | For a version range of a local backend and for a set of versions that a
+-- remote backend supports, compute the newest version supported by both. The
+-- remote versions are given as integers as the range of versions supported by
+-- the remote backend can include a version unknown to the local backend. If
+-- there is no version in common, the return value is 'Nothing'.
+versionInCommon :: VersionRange -> Set Int -> Maybe Version
+versionInCommon localVersions remoteVersions =
+  foldl' f Nothing (Set.map inRange remoteVersions)
+  where
+    inRange :: Int -> Maybe Version
+    inRange i = do
+      v <- intToVersion i
+      guard (v `inVersionRange` localVersions) $> v
+
+    f :: Maybe Version -> Maybe Version -> Maybe Version
+    f Nothing mv = mv
+    f (Just m) (Just v) = Just $ m `max` v
+    f v Nothing = v
 
 $(genSingletons [''Version])
 
