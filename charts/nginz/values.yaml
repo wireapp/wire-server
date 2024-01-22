@@ -1,10 +1,10 @@
 replicaCount: 3
 resources:
   requests:
-    memory: "256Mi"
+    memory: "850Mi"
     cpu: "100m"
   limits:
-    memory: "800Mi"
+    memory: "1200Mi"
 metrics:
   serviceMonitor:
     enabled: false
