@@ -675,6 +675,12 @@ config.disabledAPIVersions: [ v3 ]
 config.disabledAPIVersions: [ v3 ]
 ```
 
+The development API version(s) can be disabled either explicitly or by adding the `development` keyword to the list of disabled API versions. E.g.:
+
+```yaml
+config.disabledAPIVersions: [ v3, development ]
+```
+
 The default setting (in case the value is not present in the server configuration) is that all development versions are disabled while all other supported versions are enabled. To enable all versions including the development version set the value to be empty: `[]`.
 
 ## Settings in cargohold
