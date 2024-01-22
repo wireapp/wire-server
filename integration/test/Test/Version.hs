@@ -5,8 +5,19 @@ import qualified Data.Set as Set
 import SetupHelpers
 import Testlib.Prelude
 
-_testVersion :: Versioned -> App ()
-_testVersion v = withModifiedBackend
+newtype Versioned' = Versioned' Versioned
+
+-- | This instance is used to generate tests for some of the versions. (Not checking all of them for time efficiency reasons)
+instance HasTests x => HasTests (Versioned' -> x) where
+  mkTests m n s f x =
+    mkTests m (n <> "[version=unversioned]") s f (x (Versioned' Unversioned))
+      <> mkTests m (n <> "[version=versioned]") s f (x (Versioned' Versioned))
+      <> mkTests m (n <> "[version=v1]") s f (x (Versioned' (ExplicitVersion 1)))
+      <> mkTests m (n <> "[version=v3]") s f (x (Versioned' (ExplicitVersion 3)))
+      <> mkTests m (n <> "[version=v6]") s f (x (Versioned' (ExplicitVersion 6)))
+
+testVersion :: Versioned' -> App ()
+testVersion (Versioned' v) = withModifiedBackend
   def {brigCfg = setField "optSettings.setDisabledAPIVersions" ([] :: [String])}
   $ \dom ->
     bindResponse (baseRequest dom Brig v "/api-version" >>= submit "GET") $ \resp -> do
@@ -22,15 +33,6 @@ _testVersion v = withModifiedBackend
 
       unless (null (Set.intersection supported dev)) $
         assertFailure "development and supported versions should not overlap"
-
-testVersion :: App ()
-testVersion = _testVersion Unversioned
-
-testVersionV1 :: App ()
-testVersionV1 = _testVersion (ExplicitVersion 1)
-
-testVersionVersioned :: App ()
-testVersionVersioned = _testVersion Versioned
 
 testVersionUnsupported :: App ()
 testVersionUnsupported = bindResponse (baseRequest OwnDomain Brig (ExplicitVersion 500) "/api-version" >>= submit "GET") $
