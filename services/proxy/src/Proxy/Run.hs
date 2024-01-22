@@ -41,7 +41,7 @@ run o = do
   let rtree = compile (sitemap e)
   let app r k = runProxy e r (route rtree r k)
   let middleware =
-        versionMiddleware (foldMap expandVersionExp (fold (o ^. disabledAPIVersions)))
+        versionMiddleware (foldMap expandVersionExp (foldMap unVersionExpSetDefaultDev (o ^. disabledAPIVersions)))
           . waiPrometheusMiddleware (sitemap e)
           . catchErrors (e ^. applog) [Right m]
   runSettingsWithShutdown s (middleware app) Nothing `finally` destroyEnv e
