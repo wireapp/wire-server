@@ -99,6 +99,7 @@ library
     API.Gundeck
     API.GundeckInternal
     API.Nginz
+    API.Spar
     MLS.Util
     Notifications
     RunAllTests
