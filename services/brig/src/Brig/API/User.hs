@@ -587,7 +587,7 @@ updateUser uid mconn uu allowScim = do
           || allowScim == AllowSCIMUpdates
       )
       $ throwE DisplayNameManagedByScim
-    hasE2EId <- lift . liftSem . userUnderE2EID $ uid
+    hasE2EId <- lift . liftSem . userUnderE2EId $ uid
     when (hasE2EId && uupName uu `notElem` [Nothing, Just $ userDisplayName user]) $
       throwE DisplayNameManagedByScim
 
@@ -636,7 +636,7 @@ changeHandle uid mconn hdl allowScim = do
             || allowScim == AllowSCIMUpdates
         )
         $ throwE ChangeHandleManagedByScim
-      hasE2EId <- lift . liftSem . userUnderE2EID . userId $ u
+      hasE2EId <- lift . liftSem . userUnderE2EId . userId $ u
       when (hasE2EId && userHandle u `notElem` [Nothing, Just hdl]) $
         throwE ChangeHandleManagedByScim
       claim u
@@ -1624,8 +1624,8 @@ phonePrefixDelete = liftSem . BlacklistPhonePrefixStore.delete
 phonePrefixInsert :: Member BlacklistPhonePrefixStore r => ExcludedPrefix -> (AppT r) ()
 phonePrefixInsert = liftSem . BlacklistPhonePrefixStore.insert
 
-userUnderE2EID :: Member GalleyProvider r => UserId -> Sem r Bool
-userUnderE2EID uid = do
+userUnderE2EId :: Member GalleyProvider r => UserId -> Sem r Bool
+userUnderE2EId uid = do
   wsStatus . afcMlsE2EId <$> getAllFeatureConfigsForUser (Just uid) <&> \case
     FeatureStatusEnabled -> True
     FeatureStatusDisabled -> False
