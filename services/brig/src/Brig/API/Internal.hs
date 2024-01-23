@@ -680,13 +680,13 @@ getRichInfoMultiH :: Maybe (CommaSeparatedList UserId) -> (Handler r) [(UserId, 
 getRichInfoMultiH (maybe [] fromCommaSeparatedList -> uids) =
   lift $ wrapClient $ API.lookupRichInfoMultiUsers uids
 
-updateHandleH :: UserId -> HandleUpdate -> (Handler r) NoContent
+updateHandleH :: Member GalleyProvider r => UserId -> HandleUpdate -> (Handler r) NoContent
 updateHandleH uid (HandleUpdate handleUpd) =
   NoContent <$ do
     handle <- validateHandle handleUpd
     API.changeHandle uid Nothing handle API.AllowSCIMUpdates !>> changeHandleError
 
-updateUserNameH :: UserId -> NameUpdate -> (Handler r) NoContent
+updateUserNameH :: Member GalleyProvider r => UserId -> NameUpdate -> (Handler r) NoContent
 updateUserNameH uid (NameUpdate nameUpd) =
   NoContent <$ do
     name <- either (const $ throwStd (errorToWai @'E.InvalidUser)) pure $ mkName nameUpd

@@ -116,7 +116,7 @@ import Brig.Effects.BlacklistStore (BlacklistStore)
 import Brig.Effects.BlacklistStore qualified as BlacklistStore
 import Brig.Effects.CodeStore (CodeStore)
 import Brig.Effects.CodeStore qualified as E
-import Brig.Effects.GalleyProvider (GalleyProvider)
+import Brig.Effects.GalleyProvider
 import Brig.Effects.GalleyProvider qualified as GalleyProvider
 import Brig.Effects.PasswordResetStore (PasswordResetStore)
 import Brig.Effects.PasswordResetStore qualified as E
@@ -176,7 +176,7 @@ import Wire.API.Password
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
 import Wire.API.Team hiding (newTeam)
-import Wire.API.Team.Feature (forgetLock)
+import Wire.API.Team.Feature
 import Wire.API.Team.Invitation
 import Wire.API.Team.Invitation qualified as Team
 import Wire.API.Team.Member (TeamMember, legalHoldStatus)
@@ -575,7 +575,7 @@ checkRestrictedUserCreation new = do
 -------------------------------------------------------------------------------
 -- Update Profile
 
-updateUser :: UserId -> Maybe ConnId -> UserUpdate -> AllowSCIMUpdates -> ExceptT UpdateProfileError (AppT r) ()
+updateUser :: Member GalleyProvider r => UserId -> Maybe ConnId -> UserUpdate -> AllowSCIMUpdates -> ExceptT UpdateProfileError (AppT r) ()
 updateUser uid mconn uu allowScim = do
   for_ (uupName uu) $ \newName -> do
     mbUser <- lift . wrapClient $ Data.lookupUser WithPendingInvitations uid
@@ -586,6 +586,10 @@ updateUser uid mconn uu allowScim = do
           || allowScim == AllowSCIMUpdates
       )
       $ throwE DisplayNameManagedByScim
+    hasE2EId <- lift . liftSem . userUnderE2EID $ uid
+    when (hasE2EId && uupName uu `notElem` [Nothing, Just $ userDisplayName user]) $
+      throwE DisplayNameManagedByScim
+
   lift $ do
     wrapClient $ Data.updateUser uid uu
     wrapHttpClient $ Intra.onUserEvent uid mconn (profileUpdated uid uu)
@@ -617,7 +621,7 @@ changeSupportedProtocols uid conn prots = do
 --------------------------------------------------------------------------------
 -- Change Handle
 
-changeHandle :: UserId -> Maybe ConnId -> Handle -> AllowSCIMUpdates -> ExceptT ChangeHandleError (AppT r) ()
+changeHandle :: Member GalleyProvider r => UserId -> Maybe ConnId -> Handle -> AllowSCIMUpdates -> ExceptT ChangeHandleError (AppT r) ()
 changeHandle uid mconn hdl allowScim = do
   when (isBlacklistedHandle hdl) $
     throwE ChangeHandleInvalid
@@ -631,6 +635,9 @@ changeHandle uid mconn hdl allowScim = do
             || allowScim == AllowSCIMUpdates
         )
         $ throwE ChangeHandleManagedByScim
+      hasE2EId <- lift . liftSem . userUnderE2EID . userId $ u
+      when (hasE2EId && userHandle u `notElem` [Nothing, Just hdl]) $
+        throwE ChangeHandleManagedByScim
       claim u
   where
     claim u = do
@@ -1615,3 +1622,9 @@ phonePrefixDelete = liftSem . BlacklistPhonePrefixStore.delete
 
 phonePrefixInsert :: Member BlacklistPhonePrefixStore r => ExcludedPrefix -> (AppT r) ()
 phonePrefixInsert = liftSem . BlacklistPhonePrefixStore.insert
+
+userUnderE2EID :: Member GalleyProvider r => UserId -> Sem r Bool
+userUnderE2EID uid = do
+  wsStatus . afcMlsE2EId <$> getAllFeatureConfigsForUser (Just uid) <&> \case
+    FeatureStatusEnabled -> True
+    FeatureStatusDisabled -> False
