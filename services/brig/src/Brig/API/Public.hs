@@ -746,10 +746,11 @@ createUser (Public.NewUserPublic new) = lift . runExceptT $ do
       Public.NewTeamMemberSSO _ ->
         Team.sendMemberWelcomeMail e t n l
 
-getSelf :: UserId -> (Handler r) Public.SelfProfile
+getSelf :: Member GalleyProvider r => UserId -> (Handler r) Public.SelfProfile
 getSelf self =
   lift (API.lookupSelfProfile self)
     >>= ifNothing (errorToWai @'E.UserNotFound)
+    >>= lift . liftSem . API.hackForBlockingHandleChangeForE2EIdTeams
 
 getUserUnqualifiedH ::
   (Member GalleyProvider r) =>

@@ -89,6 +89,7 @@ module Brig.API.User
 
     -- * Utilities
     fetchUserIdentity,
+    hackForBlockingHandleChangeForE2EIdTeams,
   )
 where
 
@@ -1628,3 +1629,18 @@ userUnderE2EID uid = do
   wsStatus . afcMlsE2EId <$> getAllFeatureConfigsForUser (Just uid) <&> \case
     FeatureStatusEnabled -> True
     FeatureStatusDisabled -> False
+
+-- | This is a hack!
+--
+-- Background:
+-- - https://wearezeta.atlassian.net/browse/WPB-6189.
+-- - comments in `testUpdateHandle` in `/integration`.
+--
+-- FUTUREWORK: figure out a better way for clients to detect E2EId (V6?)
+hackForBlockingHandleChangeForE2EIdTeams :: Member GalleyProvider r => SelfProfile -> Sem r SelfProfile
+hackForBlockingHandleChangeForE2EIdTeams (SelfProfile user) = do
+  hasE2EId <- userUnderE2EID . userId $ user
+  pure . SelfProfile $
+    if (hasE2EId && isJust (userHandle user))
+      then user {userManagedBy = ManagedByScim}
+      else user
