@@ -103,7 +103,7 @@ testUpdateHandle = do
   -- now self thinks it is managed by "scim", so clients can block change attempts to handle,
   -- display name without adding E2EId-specific logic.  this is just a hack, though: `GET
   -- /self` is the only place where this is happening, other end-points still report the truth
-  -- as it is stored in the DB.
+  -- that is still stored correctly in the DB.
   --
   -- details: https://wearezeta.atlassian.net/browse/WPB-6189.
   -- FUTUREWORK: figure out a better way for clients to detect E2EId (V6?)
