@@ -162,7 +162,7 @@ instance MonadIO m => MonadHttp (SessionT m) where
               Wai.requestHeaderReferer = lookupHeader "REFERER" req,
               Wai.requestHeaderUserAgent = lookupHeader "USER-AGENT" req
             }
-      toBilgeResponse :: BodyReader -> WaiTest.SResponse -> Request -> Response BodyReader
+      toBilgeResponse :: BodyReader -> WaiTest.SResponse -> Client.Request -> Response BodyReader
       toBilgeResponse bodyReader WaiTest.SResponse {WaiTest.simpleStatus, WaiTest.simpleHeaders} originalReq =
         Client.Response
           { responseStatus = simpleStatus,
