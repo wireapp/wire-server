@@ -60,7 +60,6 @@ testUpdateHandle :: HasCallStack => App ()
 testUpdateHandle = do
   -- create team with one member, without scim, but with `mlsE2EId` enabled.
   (owner, team, [mem1]) <- createTeam OwnDomain 2
-  dom <- asString $ owner %. "qualified_id.domain"
   mem1id <- asString $ mem1 %. "id"
 
   let featureName = "mlsE2EId"
@@ -74,7 +73,7 @@ testUpdateHandle = do
 
   -- all as expected here.  (see the second time we check this at the end of the test for an
   -- explanation why we care.)
-  bindResponse (getSelf dom mem1id) $ \resp -> do
+  bindResponse (getSelf mem1) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "managed_by" `shouldMatch` "wire"
   bindResponse (getUsersId owner [mem1id]) $ \resp -> do
@@ -107,7 +106,7 @@ testUpdateHandle = do
   --
   -- details: https://wearezeta.atlassian.net/browse/WPB-6189.
   -- FUTUREWORK: figure out a better way for clients to detect E2EId (V6?)
-  bindResponse (getSelf dom mem1id) $ \resp -> do
+  bindResponse (getSelf mem1) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "managed_by" `shouldMatch` "scim"
   bindResponse (getUsersId owner [mem1id]) $ \resp -> do
@@ -125,8 +124,6 @@ testUpdateSelf :: HasCallStack => TestUpdateSelfMode -> App ()
 testUpdateSelf mode = do
   -- create team with one member, without scim, but with `mlsE2EId` enabled.
   (owner, team, [mem1]) <- createTeam OwnDomain 2
-  dom <- asString $ owner %. "qualified_id.domain"
-  mem1id <- asString $ mem1 %. "id"
 
   let featureName = "mlsE2EId"
   bindResponse (getTeamFeature owner featureName team) $ \resp -> do
@@ -141,11 +138,11 @@ testUpdateSelf mode = do
     TestUpdateDisplayName -> do
       -- blocked unconditionally
       someDisplayName <- UUID.toString <$> liftIO UUID.nextRandom
-      before <- getSelf dom mem1id
+      before <- getSelf mem1
       bindResponse (putSelf mem1 def {name = Just someDisplayName}) $ \resp -> do
         resp.status `shouldMatchInt` 403
         resp.json %. "label" `shouldMatch` "managed-by-scim"
-      after <- getSelf dom mem1id
+      after <- getSelf mem1
       void $ (before.json %. "name") `shouldMatch` (after.json %. "name")
     TestUpdateEmailAddress -> do
       -- allowed unconditionally *for owner* (this is a bit off-topic: team members can't

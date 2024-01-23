@@ -394,9 +394,15 @@ replaceKeyPackages cid suites kps = do
       & addJSONObject ["key_packages" .= map (T.decodeUtf8 . Base64.encode) kps]
 
 -- | https://staging-nginz-https.zinfra.io/v6/api/swagger-ui/#/default/get_self
--- FUTUREWORK: change signature to match that of `putSelf` below
-getSelf :: HasCallStack => String -> String -> App Response
-getSelf domain uid = do
+getSelf :: (HasCallStack, MakesValue caller) => caller -> App Response
+getSelf caller = do
+  req <- baseRequest caller Brig Versioned "/self"
+  submit "GET" req
+
+-- | https://staging-nginz-https.zinfra.io/v6/api/swagger-ui/#/default/get_self
+-- this is a low-level version of `getSelf` for testing some error conditions.
+getSelf' :: HasCallStack => String -> String -> App Response
+getSelf' domain uid = do
   let user = object ["domain" .= domain, "id" .= uid]
   req <- baseRequest user Brig Versioned "/self"
   submit "GET" req
