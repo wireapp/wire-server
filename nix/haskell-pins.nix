@@ -59,18 +59,27 @@
 { lib, fetchgit, pkgs }: hself: hsuper:
 let
   gitPins = {
-    # ----------------
-    # maintained by us
-    # ----------------
-
     transitive-anns = {
       src = fetchgit {
         url = "https://github.com/wireapp/transitive-anns";
-        rev = "95ee8b5f9c47fe04f8f0d1321f0ade261ab9af54";
-        sha256 = "sha256-8NEAHkCBlGO6xnG2K3Lllb2xiCHSYf/dSV1YrmBkOW8=";
+        rev = "7caf82f8d1be0f994a557e0cdc87fde8e32d5420";
+        sha256 = "sha256-rDIAbYpNGMBDOOE1hqLneRSVkCnj3cCQVYGKkhw8t7w=";
       };
     };
-
+    amqp = {
+      src = fetchgit {
+        url = "https://github.com/hreinhardt/amqp";
+        rev = "b5dfe4362b14b58d51ec306d6871d347751f3d47";
+        sha256 = "sha256-ov85XFztGM0mEoj01lRZN9xYJttKa/crPnp0lh4A5DA=";
+      };
+    };
+    bloodhound = {
+      src = fetchgit {
+        url = "https://github.com/wireapp/bloodhound";
+        rev = "abf819a4a6ec7601f1e58cb8da13b2fdad377d9e";
+        sha256 = "sha256-m1O+F/mOJN5z5WNChmeyHP4dtmLRkl2YnLlTuwzRelk=";
+      };
+    };
     cryptobox-haskell = {
       src = fetchgit {
         url = "https://github.com/wireapp/cryptobox-haskell";
@@ -79,27 +88,7 @@ let
       };
     };
 
-    saml2-web-sso = {
-      src = fetchgit {
-        url = "https://github.com/wireapp/saml2-web-sso";
-        rev = "d50bddadf9bd9a96dd6036dad0e2dda27567ec1a";
-        sha256 = "sha256-IKovI1h2Wkm3Y7Sz6XsxLOv654SgUasaWsDX6gi9hZw=";
-      };
-    };
-
-    # --------------------
-    # END maintained by us
-    # --------------------
-
-    bloodhound = {
-      src = fetchgit {
-        url = "https://github.com/wireapp/bloodhound";
-        rev = "abf819a4a6ec7601f1e58cb8da13b2fdad377d9e";
-        sha256 = "sha256-m1O+F/mOJN5z5WNChmeyHP4dtmLRkl2YnLlTuwzRelk=";
-      };
-    };
-
-    # PR: https://github.com/dpwright/HaskellNet-SSL/pull/33
+    # https://github.com/dpwright/HaskellNet-SSL/pull/33
     HaskellNet-SSL = {
       src = fetchgit {
         url = "https://github.com/MangoIV/HaskellNet-SSL";
@@ -107,34 +96,28 @@ let
         sha256 = "sha256-1mu/yEAWr3POY4MHRomum0DDvs5Qty1JvP3v5GS2u64=";
       };
     };
-
     hsaml2 = {
       src = fetchgit {
         url = "https://github.com/wireapp/hsaml2";
-        rev = "723b377fcd759c8be9ad4b2e159a6a06df0d17c9";
-        sha256 = "sha256-rPfztTu+NR/5FuoYWGMCfJFhrMn4o09bMcEKoerNX4A=";
+        rev = "51d1fcecebf2417e658b9a78943c84a76a0ed347";
+        sha256 = "sha256-jYJBhXBQ1MTLPI8JsiF2XUtgDxK+eniavNB2B1zaSQg=";
       };
     };
-
-    # PR: https://github.com/hspec/hspec-wai/pull/49
     hspec-wai = {
       src = fetchgit {
         url = "https://github.com/wireapp/hspec-wai";
-        rev = "08176f07fa893922e2e78dcaf996c33d79d23ce2";
-        sha256 = "sha256-Nc5POjA+mJt7Vi3drczEivGsv9PXeVOCSwp21lLmz58=";
+        rev = "6984a06b0c6294677c49d59382d48f975a8733d4";
+        sha256 = "sha256-6FLTMMqvL0xFa5zsMnjVAmdpghmdeBl813bWcOyQo5E=";
       };
     };
-
-    # PR: https://gitlab.com/twittner/cql/-/merge_requests/11
-    cql = {
+    saml2-web-sso = {
       src = fetchgit {
-        url = "https://gitlab.com/wireapp/forks/cql";
-        rev = "abbd2739969d17a909800f282d10d42a254c4e3b";
-        sha256 = "sha256-2MYwZKiTdwgjJdLNvECi7gtcIo+3H4z1nYzen5x0lgU=";
+        url = "https://github.com/wireapp/saml2-web-sso";
+        rev = "ac46ea888026711860cf784b5bda206873c87333";
+        sha256 = "sha256-IKovI1h2Wkm3Y7Sz6XsxLOv654SgUasaWsDX6gi9hZw=";
       };
     };
-
-    # PR: https://gitlab.com/twittner/cql-io/-/merge_requests/20
+    # MR: https://gitlab.com/twittner/cql-io/-/merge_requests/20
     cql-io = {
       src = fetchgit {
         url = "https://gitlab.com/wireapp/forks/cql-io";
@@ -142,18 +125,13 @@ let
         sha256 = "sha256-DMRWUq4yorG5QFw2ZyF/DWnRjfnzGupx0njTiOyLzPI=";
       };
     };
-
-    # missing upstream PR, this will get removed when completing
-    # servantification
     wai-predicates = {
       src = fetchgit {
-        url = "https://gitlab.com/wireapp/forks/wai-predicates";
+        url = "https://gitlab.com/wireapp/forks/wai-predicates.git";
         rev = "ff95282a982ab45cced70656475eaf2cefaa26ea";
         sha256 = "sha256-x2XSv2+/+DG9FXN8hfUWGNIO7V4iBhlzYz19WWKaLKQ=";
       };
     };
-
-    # we use upstream, but has not been uploaded to hackage since 2016
     wai-routing = {
       src = fetchgit {
         url = "https://gitlab.com/twittner/wai-routing";
@@ -161,7 +139,6 @@ let
         sha256 = "18icwks9jc6sy42vcvj2ysaip2s0dsrpvm9sy608b6nq6kk1ahlk";
       };
     };
-
     # PR: https://github.com/UnkindPartition/tasty/pull/351
     tasty = {
       src = fetchgit {
@@ -173,25 +150,46 @@ let
         tasty-hunit = "hunit";
       };
     };
-
-    # sets the required flag for HTTP request bodies.
-    # PR: https://github.com/biocad/servant-openapi3/pull/49
+    jose = {
+      src = fetchgit {
+        url = "https://github.com/frasertweedale/hs-jose";
+        rev = "a7f919b19f667dfbb4d5c989ce620d3e75af8247";
+        sha256 = "sha256-SKEE9ZqhjBxHYUKQaoB4IpN4/Ui3tS4S98FgZqj7WlY=";
+      };
+    };
     servant-openapi3 = {
       src = fetchgit {
+        # This is a patched version of the library that sets the required flag for HTTP request bodies.
+        # A PR for these changes has been made for the upstream library. biocad/servant-openapi3#49
         url = "https://github.com/lepsa/servant-openapi3";
         rev = "5cdb2783f15058f753c41b800415d4ba1149a78b";
         sha256 = "sha256-8FM3IAA3ewCuv9Mar8aWmzbyfKK9eLXIJPMHzmYb1zE=";
       };
     };
-
+    # This can be removed once postie with TLS 1.9 is on nixpkgs.
+    # https://github.com/alexbiehl/postie/pull/4
     postie = {
       src = fetchgit {
         url = "https://github.com/wireapp/postie.git";
-        rev = "7321b977a2b427e0be782b7239901e4edfbb027f";
+        rev = "43b6d1d21d56e567077c194d49efb92e777e7628";
         sha256 = "sha256-DKugy4EpRsSgaGvybdh2tLa7HCtoxId+7RAAAw43llA=";
       };
     };
-
+    # Not tested/relased yet
+    # https://github.com/dylex/invertible/commit/e203c6a729fde87b1f903c3f468f739a085fb446
+    invertible = {
+      src = fetchgit {
+        url = "https://github.com/dylex/invertible.git";
+        rev = "e203c6a729fde87b1f903c3f468f739a085fb446";
+        sha256 = "sha256-G6PX5lpU18oWLkwIityN4Hs0HuwQrq9T51kxbsdpK3M=";
+      };
+    };
+    tls = {
+      src = fetchTarball {
+        url = "https://hackage.haskell.org/package/tls-1.9.0/tls-1.9.0.tar.gz";
+        sha256 = "sha256:1gyc6yfygswg4pjj9hxw3pashq56viivf8m321b4f0bsd2yf372s";
+      };
+    };
     tinylog = {
       src = fetchgit {
         url = "https://gitlab.com/wireapp/forks/tinylog.git";
@@ -199,7 +197,6 @@ let
         sha256 = "sha256-htEIJY+LmIMACVZrflU60+X42/g14NxUyFM7VJs4E6w=";
       };
     };
-
     # PR: https://github.com/ocharles/tasty-ant-xml/pull/32
     tasty-ant-xml = {
       src = fetchgit {
@@ -217,6 +214,24 @@ let
         hash = "sha256-E35PVxi/4iJFfWts3td52KKZKQt4dj9KFP3SvWG77Cc=";
       };
     };
+
+    # PR at https://github.com/google/ghc-source-gen/pull/102
+    ghc-source-gen = {
+      version = "0.4.4.0";
+      src = pkgs.fetchFromGitHub {
+        owner = "circuithub";
+        repo = "ghc-source-gen";
+        rev = "7a6aac047b706508e85ba2054b5bedbecfd7eb7a";
+        hash = "sha256-DZu3XAOYLKcSpOYhjpb6IuXMvRHtGohTkL0nsCb/dT0=";
+      };
+    };
+    hoogle = {
+      src = fetchgit {
+        url = "https://github.com/ndmitchell/hoogle";
+        rev = "0be38ee5e078e31ef7eabeaba255aed12ce7055d";
+        sha256 = "sha256-xcGZ11ocdlB8ks20QAhtPZ+4ggmV4Om4CPHH/M6NjXk=";
+      };
+    };
     # PR: https://github.com/yesodweb/wai/pull/958
     warp = {
       src = fetchgit {
@@ -231,25 +246,42 @@ let
   };
   hackagePins = {
     # Major re-write upstream, we should get rid of this dependency rather than
-    # adapt to upstream, this will go away when completing servantification.
+    # adapt to upstream.
     wai-route = {
       version = "0.4.0";
       sha256 = "sha256-DSMckKIeVE/buSMg8Mq+mUm1bYPYB7veA11Ns7vTBbc=";
     };
-
-    # these are not yet in nixpkgs
-    ghc-source-gen = {
-      version = "0.4.4.0";
-      sha256 = "sha256-ZSJGF4sdr7tOCv6IUCjIiTrFYL+5gF4W3U6adjBODrE=";
+    polysemy = {
+      version = "1.8.0.0";
+      sha256 = "sha256-AdxxKWXdUjZiHLDj6iswMWpycs7mFB8eKhBR4ljF6kk=";
     };
-    hoogle = {
-      version = "5.0.18.4";
-      sha256 = "sha256-gIc4hpdUfTS33rZPfzwLfVcXkQaglmsljqViyYdihdk=";
+    hpack = {
+      version = "0.36.0";
+      sha256 = "sha256-a8jKkzO3CWIoBg+Uaw5TtpDwmeajWCTW1zJNrlpBKPU=";
     };
-    # dependency of hoogle 
-    safe = {
-      version = "0.3.20";
-      sha256 = "sha256-PGwjhrRnkH8cLhd7fHTZFd6ts9abp0w5sLlV8ke1yXU=";
+    HsOpenSSL = {
+      version = "0.11.7.5";
+      sha256 = "sha256-CfH1YJSGuF4O1aUfdJwUZKRrVzv5nSPhwoI7mf9ewEg=";
+    };
+    http2 = {
+      version = "4.1.0";
+      sha256 = "sha256-D6RWYBguoj+W1LwNeX04h4csXV69rrs0tZpeNr7ZBqE=";
+    };
+    network-conduit-tls = {
+      version = "1.4.0";
+      sha256 = "sha256-zPT/FMxAiR94NReqNIDa/RS7dtiNWCRe3SZi8P11GDk=";
+    };
+    warp-tls = {
+      version = "3.4.3";
+      sha256 = "sha256-6MjlCKGC8v+7OiSuMFGwO8sgcA3gp0OfOnneI2wSpWI=";
+    };
+    optparse-generic = {
+      version = "1.5.1";
+      sha256 = "sha256-TS3T6AtYfdzmPkG6SwvN/tr2Vdr4eTdGRRH2Xbd8fzM=";
+    };
+    crypton-connection = {
+      version = "0.3.1";
+      sha256 = "sha256-TrRdD56cNIXMlDrHBO0VxQYkJ30pRXe4yVkEILsbMro=";
     };
   };
   # Name -> Source -> Maybe Subpath -> Drv
