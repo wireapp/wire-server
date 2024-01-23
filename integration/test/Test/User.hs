@@ -77,7 +77,7 @@ testUpdateHandle = do
   bindResponse (getSelf dom mem1id) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "managed_by" `shouldMatch` "wire"
-  bindResponse (getUsersID owner [mem1id]) $ \resp -> do
+  bindResponse (getUsersId owner [mem1id]) $ \resp -> do
     resp.status `shouldMatchInt` 200
     mb <- (assertOne =<< asList resp.json) %. "managed_by"
     mb `shouldMatch` "wire"
@@ -110,7 +110,7 @@ testUpdateHandle = do
   bindResponse (getSelf dom mem1id) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "managed_by" `shouldMatch` "scim"
-  bindResponse (getUsersID owner [mem1id]) $ \resp -> do
+  bindResponse (getUsersId owner [mem1id]) $ \resp -> do
     resp.status `shouldMatchInt` 200
     mb <- (assertOne =<< asList resp.json) %. "managed_by"
     mb `shouldMatch` "wire"

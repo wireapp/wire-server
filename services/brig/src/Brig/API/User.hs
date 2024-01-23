@@ -1639,7 +1639,7 @@ userUnderE2EId uid = do
 -- FUTUREWORK: figure out a better way for clients to detect E2EId (V6?)
 hackForBlockingHandleChangeForE2EIdTeams :: Member GalleyProvider r => SelfProfile -> Sem r SelfProfile
 hackForBlockingHandleChangeForE2EIdTeams (SelfProfile user) = do
-  hasE2EId <- userUnderE2EID . userId $ user
+  hasE2EId <- userUnderE2EId . userId $ user
   pure . SelfProfile $
     if (hasE2EId && isJust (userHandle user))
       then user {userManagedBy = ManagedByScim}
