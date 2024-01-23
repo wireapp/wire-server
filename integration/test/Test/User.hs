@@ -125,6 +125,9 @@ testUpdateSelf :: HasCallStack => TestUpdateSelfMode -> App ()
 testUpdateSelf mode = do
   -- create team with one member, without scim, but with `mlsE2EId` enabled.
   (owner, team, [mem1]) <- createTeam OwnDomain 2
+  dom <- asString $ owner %. "qualified_id.domain"
+  mem1id <- asString $ mem1 %. "id"
+
   let featureName = "mlsE2EId"
   bindResponse (getTeamFeature owner featureName team) $ \resp -> do
     resp.status `shouldMatchInt` 200
@@ -138,9 +141,12 @@ testUpdateSelf mode = do
     TestUpdateDisplayName -> do
       -- blocked unconditionally
       someDisplayName <- UUID.toString <$> liftIO UUID.nextRandom
+      before <- getSelf dom mem1id
       bindResponse (putSelf mem1 def {name = Just someDisplayName}) $ \resp -> do
         resp.status `shouldMatchInt` 403
         resp.json %. "label" `shouldMatch` "managed-by-scim"
+      after <- getSelf dom mem1id
+      void $ (before.json %. "name") `shouldMatch` (after.json %. "name")
     TestUpdateEmailAddress -> do
       -- allowed unconditionally *for owner* (this is a bit off-topic: team members can't
       -- change their email addresses themselves under any conditions)
