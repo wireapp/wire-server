@@ -588,7 +588,7 @@ updateUser uid mconn uu allowScim = do
       )
       $ throwE DisplayNameManagedByScim
     hasE2EId <- lift . liftSem . userUnderE2EId $ uid
-    when (hasE2EId && uupName uu `notElem` [Nothing, Just $ userDisplayName user]) $
+    when (hasE2EId && newName /= userDisplayName user]) $
       throwE DisplayNameManagedByScim
 
   lift $ do
