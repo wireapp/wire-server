@@ -64,11 +64,11 @@ testUpdateHandle = do
   mem1id <- asString $ mem1 %. "id"
 
   let featureName = "mlsE2EId"
-  bindResponse (getTeamFeature OwnDomain featureName team) $ \resp -> do
+  bindResponse (getTeamFeature owner featureName team) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "status" `shouldMatch` "disabled"
-  setTeamFeatureStatus OwnDomain team featureName "enabled"
-  bindResponse (getTeamFeature OwnDomain featureName team) $ \resp -> do
+  setTeamFeatureStatus owner team featureName "enabled"
+  bindResponse (getTeamFeature owner featureName team) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "status" `shouldMatch` "enabled"
 
@@ -126,11 +126,11 @@ abstractTestUpdateSelf mode = do
   -- create team with one member, without scim, but with `mlsE2EId` enabled.
   (owner, team, [mem1]) <- createTeam OwnDomain 2
   let featureName = "mlsE2EId"
-  bindResponse (getTeamFeature OwnDomain featureName team) $ \resp -> do
+  bindResponse (getTeamFeature owner featureName team) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "status" `shouldMatch` "disabled"
-  setTeamFeatureStatus OwnDomain team featureName "enabled"
-  bindResponse (getTeamFeature OwnDomain featureName team) $ \resp -> do
+  setTeamFeatureStatus owner team featureName "enabled"
+  bindResponse (getTeamFeature owner featureName team) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "status" `shouldMatch` "enabled"
 
