@@ -121,8 +121,8 @@ testUpdateHandle = do
 -- | For now this only tests attempts to update one's own display name, email address, or
 -- language in E2EId-enabled teams (ie., everything except handle).  More tests can be found
 -- under `/services/brig/test/integration` (and should be moved here).
-abstractTestUpdateSelf :: HasCallStack => TestUpdateSelfMode -> App ()
-abstractTestUpdateSelf mode = do
+testUpdateSelf :: HasCallStack => TestUpdateSelfMode -> App ()
+testUpdateSelf mode = do
   -- create team with one member, without scim, but with `mlsE2EId` enabled.
   (owner, team, [mem1]) <- createTeam OwnDomain 2
   let featureName = "mlsE2EId"
@@ -159,12 +159,11 @@ data TestUpdateSelfMode
   = TestUpdateDisplayName
   | TestUpdateEmailAddress
   | TestUpdateLocale
+  deriving (Eq, Show, Bounded, Enum)
 
-testUpdateDisplayName :: HasCallStack => App ()
-testUpdateDisplayName = abstractTestUpdateSelf TestUpdateDisplayName
-
-testUpdateEmailAddress :: HasCallStack => App ()
-testUpdateEmailAddress = abstractTestUpdateSelf TestUpdateEmailAddress
-
-testUpdateLocale :: HasCallStack => App ()
-testUpdateLocale = abstractTestUpdateSelf TestUpdateLocale
+instance HasTests x => HasTests (TestUpdateSelfMode -> x) where
+  mkTests m n s f x =
+    mconcat
+      [ mkTests m (n <> "[mode=" <> show mode <> "]") s f (x mode)
+        | mode <- [minBound ..]
+      ]
