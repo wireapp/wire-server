@@ -79,6 +79,20 @@ let
       };
     };
 
+    http-client = {
+      src = fetchgit {
+        url = "https://github.com/elland/http-client";
+        rev = "a2854c7e96d6cd4324904a4565c0d555141c1063";
+        sha256 = "sha256-gEbQFhXYjkamH+EXAP522Sks7bkC+3slOj0+Zci8fuY=";
+      };
+      packages = {
+        http-client = "http-client";
+        http-client-openssl = "http-client-openssl";
+        http-client-tls = "http-client-tls";
+        http-conduit = "http-conduit";
+      };
+    };
+
     saml2-web-sso = {
       src = fetchgit {
         url = "https://github.com/wireapp/saml2-web-sso";
