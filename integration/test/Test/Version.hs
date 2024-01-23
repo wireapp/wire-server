@@ -27,6 +27,8 @@ testVersion (Versioned' v) = withModifiedBackend
       domain <- resp.json %. "domain" & asString
       federation <- resp.json %. "federation" & asBool
 
+      -- currently there is only one development version
+      -- it is however theoretically possible to have multiple development versions
       length dev `shouldMatchInt` 1
       domain `shouldMatch` dom
       federation `shouldMatch` True
@@ -67,20 +69,20 @@ testVersionDisabledNotAdvertised = do
     (<>)
       <$> (resp.json %. "development" & asList >>= traverse asInt)
       <*> (resp.json %. "supported" & asList >>= traverse asInt)
-  forM_ allVersions _testVersionDisabledNotAdvertised
+  forM_ allVersions testWithVersion
+  where
+    testWithVersion :: Int -> App ()
+    testWithVersion v = withModifiedBackend
+      def {brigCfg = setField "optSettings.setDisabledAPIVersions" ["v" <> show v]}
+      $ \domain -> do
+        bindResponse (getAPIVersion domain) $ \resp -> do
+          resp.status `shouldMatchInt` 200
+          dev <- resp.json %. "development" & asList >>= traverse asInt
+          supported <- resp.json %. "supported" & asList >>= traverse asInt
 
-_testVersionDisabledNotAdvertised :: Int -> App ()
-_testVersionDisabledNotAdvertised v = withModifiedBackend
-  def {brigCfg = setField "optSettings.setDisabledAPIVersions" ["v" <> show v]}
-  $ \domain -> do
-    bindResponse (getAPIVersion domain) $ \resp -> do
-      resp.status `shouldMatchInt` 200
-      dev <- resp.json %. "development" & asList >>= traverse asInt
-      supported <- resp.json %. "supported" & asList >>= traverse asInt
-
-      assertBool "supported versions should not be empty" $ not (null supported)
-      assertBool "the disabled version should not be propagated as dev version" $ v `notElem` dev
-      assertBool "the disabled version should not be propagated as supported version" $ v `notElem` supported
+          assertBool "supported versions should not be empty" $ not (null supported)
+          assertBool "the disabled version should not be propagated as dev version" $ v `notElem` dev
+          assertBool "the disabled version should not be propagated as supported version" $ v `notElem` supported
 
 testVersionDisabledDevNotAdvertised :: App ()
 testVersionDisabledDevNotAdvertised = withModifiedBackend
