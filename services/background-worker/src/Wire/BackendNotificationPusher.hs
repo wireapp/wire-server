@@ -19,8 +19,10 @@ import Network.RabbitMqAdmin
 import Prometheus
 import System.Logger.Class qualified as Log
 import UnliftIO
+import Wire.API.Federation.API
 import Wire.API.Federation.BackendNotifications
 import Wire.API.Federation.Client
+import Wire.API.Federation.Version
 import Wire.BackgroundWorker.Env
 import Wire.BackgroundWorker.Options
 import Wire.BackgroundWorker.Util
@@ -78,32 +80,100 @@ pushNotification runningFlag targetDomain (msg, envelope) = do
         UnliftIO.bracket_ (takeMVar runningFlag) (putMVar runningFlag ()) go
   where
     go :: AppT IO ()
-    go = case A.eitherDecode @BackendNotification (Q.msgBody msg) of
+    -- go = case A.eitherDecode @BackendNotification (Q.msgBody msg) of
+    go = case A.eitherDecode @(PayloadBundle _) (Q.msgBody msg) of
       Left e -> do
-        Log.err $
-          Log.msg (Log.val "Failed to parse notification, the notification will be ignored")
-            . Log.field "domain" (domainText targetDomain)
-            . Log.field "error" e
-
-        -- FUTUREWORK: This rejects the message without any requeueing. This is
-        -- dangerous as it could happen that a new type of notification is
-        -- introduced and an old instance of this worker is running, in which case
-        -- the notification will just get dropped. On the other hand not dropping
-        -- this message blocks the whole queue. Perhaps there is a better way to
-        -- deal with this.
-        lift $ reject envelope False
-      Right notif -> do
-        ceFederator <- asks (.federatorInternal)
-        ceHttp2Manager <- asks http2Manager
-        let ceOriginDomain = notif.ownDomain
-            ceTargetDomain = targetDomain
-            ceOriginRequestId = fromMaybe (RequestId "N/A") notif.requestId
-            fcEnv = FederatorClientEnv {..}
-        liftIO $ either throwM pure =<< sendNotification fcEnv notif.targetComponent notif.path notif.body
-        lift $ ack envelope
-        metrics <- asks backendNotificationMetrics
-        withLabel metrics.pushedCounter (domainText targetDomain) incCounter
-        withLabel metrics.stuckQueuesGauge (domainText targetDomain) (flip setGauge 0)
+        case A.eitherDecode @BackendNotification (Q.msgBody msg) of
+          Left eBN -> do
+            Log.err $
+              Log.msg
+                ( Log.val "Cannot parse a queued message as s notification "
+                    <> "nor as a bundle; the message will be ignored"
+                )
+                . Log.field "domain" (domainText targetDomain)
+                . Log.field "error-notification" eBN
+                . Log.field
+                  "error-bundle"
+                  e
+            -- FUTUREWORK: This rejects the message without any requeueing. This is
+            -- dangerous as it could happen that a new type of notification is
+            -- introduced and an old instance of this worker is running, in which case
+            -- the notification will just get dropped. On the other hand not dropping
+            -- this message blocks the whole queue. Perhaps there is a better way to
+            -- deal with this.
+            lift $ reject envelope False
+          Right notif -> do
+            ceFederator <- asks (.federatorInternal)
+            ceHttp2Manager <- asks http2Manager
+            let ceOriginDomain = notif.ownDomain
+                ceTargetDomain = targetDomain
+                ceOriginRequestId = fromMaybe (RequestId "N/A") notif.requestId
+                cveEnv = FederatorClientEnv {..}
+                cveVersion = Just V0 -- V0 is assumed for non-versioned queue messages
+                fcEnv = FederatorClientVersionedEnv {..}
+            liftIO $ either throwM pure =<< sendNotification fcEnv notif.targetComponent notif.path notif.body
+            lift $ ack envelope
+            metrics <- asks backendNotificationMetrics
+            withLabel metrics.pushedCounter (domainText targetDomain) incCounter
+            withLabel metrics.stuckQueuesGauge (domainText targetDomain) (flip setGauge 0)
+      Right bundle -> do
+        federator <- asks (.federatorInternal)
+        manager <- asks http2Manager
+        let env =
+              FederatorClientEnv
+                { ceOriginDomain = bundle.originDomain,
+                  ceTargetDomain = bundle.targetDomain,
+                  ceFederator = federator,
+                  ceHttp2Manager = manager,
+                  ceOriginRequestId = RequestId "N/A"
+                }
+        remoteVersions :: Set Int <-
+          liftIO
+            ( runFederatorClient @'Brig env $
+                fedClientIn @'Brig @"api-version" ()
+            )
+            >>= \case
+              Left e -> do
+                Log.err $
+                  Log.msg (Log.val "Failed to get supported API versions, the notification will be ignored")
+                    . Log.field "domain" (domainText targetDomain)
+                    . Log.field "error" (displayException e)
+                throwM e
+              Right vi -> pure . Set.fromList . fmap versionInt . vinfoSupported $ vi
+        let mostRecentNotif = foldl' combine Nothing (notifications bundle)
+            combine ::
+              Maybe (BackendNotification, Version) ->
+              BackendNotification ->
+              Maybe (BackendNotification, Version)
+            combine greatest notif =
+              let notifGreatest = bodyVersions notif >>= flip latestCommonVersion remoteVersions
+               in case (greatest, notifGreatest) of
+                    (Nothing, Nothing) -> Nothing
+                    (Nothing, Just v) -> Just (notif, v)
+                    (Just (gn, gv), Nothing) -> Just (gn, gv)
+                    (Just (gn, gv), Just v) ->
+                      if v > gv
+                        then Just (notif, v)
+                        else Just (gn, gv)
+        case mostRecentNotif of
+          Nothing ->
+            -- TODO(md): do more severe logging warning the site operator
+            Log.err $
+              Log.msg (Log.val "No federation API version in common, the notification will be ignored")
+                . Log.field "domain" (domainText targetDomain)
+          Just (notif, Just -> cveVersion) -> do
+            ceFederator <- asks (.federatorInternal)
+            ceHttp2Manager <- asks http2Manager
+            let ceOriginDomain = notif.ownDomain
+                ceTargetDomain = targetDomain
+                ceOriginRequestId = fromMaybe (RequestId "N/A") notif.requestId
+                cveEnv = FederatorClientEnv {..}
+                fcEnv = FederatorClientVersionedEnv {..}
+            liftIO $ either throwM pure =<< sendNotification fcEnv notif.targetComponent notif.path notif.body
+            lift $ ack envelope
+            metrics <- asks backendNotificationMetrics
+            withLabel metrics.pushedCounter (domainText targetDomain) incCounter
+            withLabel metrics.stuckQueuesGauge (domainText targetDomain) (flip setGauge 0)
 
 -- FUTUREWORK: Recosider using 1 channel for many consumers. It shouldn't matter
 -- for a handful of remote domains.

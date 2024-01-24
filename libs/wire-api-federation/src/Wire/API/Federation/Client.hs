@@ -171,7 +171,16 @@ instance KnownComponent c => RunClient (FederatorClient c) where
             expectedStatuses
 
     v <- asks cveVersion
-    let vreq = req {requestHeaders = (versionHeader, toByteString' (versionInt (fromMaybe V0 v))) :<| requestHeaders req}
+    let vreq =
+          req
+            { requestHeaders =
+                ( versionHeader,
+                  toByteString'
+                    ( versionInt (fromMaybe V0 v)
+                    )
+                )
+                  :<| requestHeaders req
+            }
 
     withHTTP2StreamingRequest successfulStatus vreq $ \resp -> do
       bdy <-
