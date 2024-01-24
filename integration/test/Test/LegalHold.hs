@@ -35,6 +35,56 @@ import Testlib.MockIntegrationService
 import Testlib.Prekeys
 import Testlib.Prelude
 
+testLHPreventAddingGuests :: App ()
+testLHPreventAddingGuests = do
+  startDynamicBackends [mempty] $ \[dom] -> do
+    withMockServer lhMockApp $ \lhPort _chan -> do
+      (owner, tid, [mem1, mem2]) <- createTeam dom 3
+
+      void $ legalholdWhitelistTeam owner tid >>= assertSuccess
+      void $ legalholdIsTeamInWhitelist owner tid >>= assertSuccess
+      void $ postLegalHoldSettings owner tid (mkLegalHoldSettings lhPort) >>= getJSON 201
+
+      guest <- randomUser dom def
+      guestQId <- guest %. "qualified_id"
+      connectUsers =<< forM [mem1, guest] make
+      conv <- postConversation mem1 (defProteus {qualifiedUsers = [mem2], team = Just tid}) >>= getJSON 201
+
+      -- the guest should be added to the conversation
+      bindResponse (addMembers mem1 conv def {users = [guestQId]}) $ \resp -> do
+        resp.status `shouldMatchInt` 200
+        resp.json %. "type" `shouldMatch` "conversation.member-join"
+
+      -- assert that the guest is in the conversation
+      bindResponse (getConversation mem1 conv) $ \resp -> do
+        resp.status `shouldMatchInt` 200
+        mems <-
+          resp.json %. "members.others" & asList >>= traverse \m -> do
+            m %. "qualified_id"
+        mems `shouldMatchSet` forM [mem2, guest] (\m -> m %. "qualified_id")
+
+      -- now enable legal hold for members of the conversation
+      requestLegalHoldDevice tid owner mem1 >>= assertSuccess
+      requestLegalHoldDevice tid owner mem2 >>= assertSuccess
+      approveLegalHoldDevice tid (mem1 %. "qualified_id") defPassword >>= assertSuccess
+      approveLegalHoldDevice tid (mem2 %. "qualified_id") defPassword >>= assertSuccess
+
+      -- the guest should be removed from the conversation
+      bindResponse (getConversation mem1 conv) $ \resp -> do
+        resp.status `shouldMatchInt` 200
+        mems <-
+          resp.json %. "members.others" & asList >>= traverse \m -> do
+            m %. "qualified_id"
+        mems `shouldMatchSet` forM [mem2] (\m -> m %. "qualified_id")
+
+      -- it should not be possible to add another guest
+      guest2 <- randomUser dom def
+      guest2QId <- guest2 %. "qualified_id"
+      connectUsers =<< forM [mem1, guest2] make
+      bindResponse (addMembers mem1 conv def {users = [guest2QId]}) $ \resp -> do
+        resp.status `shouldMatchInt` 403
+        resp.json %. "label" `shouldMatch` "missing-legalhold-consent"
+
 abstractTestLHMessageExchange :: HasCallStack => String -> Int -> Bool -> Bool -> Bool -> Bool -> App ()
 abstractTestLHMessageExchange dom lhPort clients1New clients2New consentFrom1 consentFrom2 = do
   (owner, tid, [mem1, mem2]) <- createTeam dom 3
