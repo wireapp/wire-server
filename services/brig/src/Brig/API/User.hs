@@ -89,6 +89,7 @@ module Brig.API.User
 
     -- * Utilities
     fetchUserIdentity,
+    hackForBlockingHandleChangeForE2EIdTeams,
   )
 where
 
@@ -116,7 +117,7 @@ import Brig.Effects.BlacklistStore (BlacklistStore)
 import Brig.Effects.BlacklistStore qualified as BlacklistStore
 import Brig.Effects.CodeStore (CodeStore)
 import Brig.Effects.CodeStore qualified as E
-import Brig.Effects.GalleyProvider (GalleyProvider)
+import Brig.Effects.GalleyProvider
 import Brig.Effects.GalleyProvider qualified as GalleyProvider
 import Brig.Effects.PasswordResetStore (PasswordResetStore)
 import Brig.Effects.PasswordResetStore qualified as E
@@ -176,7 +177,7 @@ import Wire.API.Password
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
 import Wire.API.Team hiding (newTeam)
-import Wire.API.Team.Feature (forgetLock)
+import Wire.API.Team.Feature
 import Wire.API.Team.Invitation
 import Wire.API.Team.Invitation qualified as Team
 import Wire.API.Team.Member (TeamMember, legalHoldStatus)
@@ -575,7 +576,7 @@ checkRestrictedUserCreation new = do
 -------------------------------------------------------------------------------
 -- Update Profile
 
-updateUser :: UserId -> Maybe ConnId -> UserUpdate -> AllowSCIMUpdates -> ExceptT UpdateProfileError (AppT r) ()
+updateUser :: Member GalleyProvider r => UserId -> Maybe ConnId -> UserUpdate -> AllowSCIMUpdates -> ExceptT UpdateProfileError (AppT r) ()
 updateUser uid mconn uu allowScim = do
   for_ (uupName uu) $ \newName -> do
     mbUser <- lift . wrapClient $ Data.lookupUser WithPendingInvitations uid
@@ -586,6 +587,10 @@ updateUser uid mconn uu allowScim = do
           || allowScim == AllowSCIMUpdates
       )
       $ throwE DisplayNameManagedByScim
+    hasE2EId <- lift . liftSem . userUnderE2EId $ uid
+    when (hasE2EId && newName /= userDisplayName user) $
+      throwE DisplayNameManagedByScim
+
   lift $ do
     wrapClient $ Data.updateUser uid uu
     wrapHttpClient $ Intra.onUserEvent uid mconn (profileUpdated uid uu)
@@ -617,7 +622,7 @@ changeSupportedProtocols uid conn prots = do
 --------------------------------------------------------------------------------
 -- Change Handle
 
-changeHandle :: UserId -> Maybe ConnId -> Handle -> AllowSCIMUpdates -> ExceptT ChangeHandleError (AppT r) ()
+changeHandle :: Member GalleyProvider r => UserId -> Maybe ConnId -> Handle -> AllowSCIMUpdates -> ExceptT ChangeHandleError (AppT r) ()
 changeHandle uid mconn hdl allowScim = do
   when (isBlacklistedHandle hdl) $
     throwE ChangeHandleInvalid
@@ -631,6 +636,9 @@ changeHandle uid mconn hdl allowScim = do
             || allowScim == AllowSCIMUpdates
         )
         $ throwE ChangeHandleManagedByScim
+      hasE2EId <- lift . liftSem . userUnderE2EId . userId $ u
+      when (hasE2EId && userHandle u `notElem` [Nothing, Just hdl]) $
+        throwE ChangeHandleManagedByScim
       claim u
   where
     claim u = do
@@ -1615,3 +1623,24 @@ phonePrefixDelete = liftSem . BlacklistPhonePrefixStore.delete
 
 phonePrefixInsert :: Member BlacklistPhonePrefixStore r => ExcludedPrefix -> (AppT r) ()
 phonePrefixInsert = liftSem . BlacklistPhonePrefixStore.insert
+
+userUnderE2EId :: Member GalleyProvider r => UserId -> Sem r Bool
+userUnderE2EId uid = do
+  wsStatus . afcMlsE2EId <$> getAllFeatureConfigsForUser (Just uid) <&> \case
+    FeatureStatusEnabled -> True
+    FeatureStatusDisabled -> False
+
+-- | This is a hack!
+--
+-- Background:
+-- - https://wearezeta.atlassian.net/browse/WPB-6189.
+-- - comments in `testUpdateHandle` in `/integration`.
+--
+-- FUTUREWORK: figure out a better way for clients to detect E2EId (V6?)
+hackForBlockingHandleChangeForE2EIdTeams :: Member GalleyProvider r => SelfProfile -> Sem r SelfProfile
+hackForBlockingHandleChangeForE2EIdTeams (SelfProfile user) = do
+  hasE2EId <- userUnderE2EId . userId $ user
+  pure . SelfProfile $
+    if (hasE2EId && isJust (userHandle user))
+      then user {userManagedBy = ManagedByScim}
+      else user

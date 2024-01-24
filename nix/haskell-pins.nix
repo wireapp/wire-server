@@ -166,8 +166,8 @@ let
     tasty = {
       src = fetchgit {
         url = "https://github.com/wireapp/tasty";
-        rev = "394943c7672e5ad269e5587528b7678caf3b0720";
-        sha256 = "sha256-rKvWGCLJUyKPmzeYaTj5J0VAExXYIpwJ5J2lJTcuXJI=";
+        rev = "97df5c1db305b626ffa0b80055361b7b28e69cec";
+        sha256 = "sha256-oACehxazeKgRr993gASRbQMf74heh5g0B+70ceAg17I=";
       };
       packages = {
         tasty-hunit = "hunit";

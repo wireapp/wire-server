@@ -117,8 +117,7 @@ testDynamicBackend = do
         resp.json %. "setRestrictUserCreation" `shouldMatch` False
 
     -- user created in own domain should not be found in dynamic backend
-    let user' = object ["domain" .= dynDomain, "id" .= uid]
-    bindResponse (BrigP.getSelf user') $ \resp -> do
+    bindResponse (BrigP.getSelf' dynDomain uid) $ \resp -> do
       resp.status `shouldMatchInt` 404
 
     -- now create a user in the dynamic backend
@@ -129,8 +128,7 @@ testDynamicBackend = do
       (resp.json %. "id") `shouldMatch` objId userD1
 
     -- the d1 user should not be found in the own domain
-    let userD1' = object ["domain" .= ownDomain, "id" .= uidD1]
-    bindResponse (BrigP.getSelf userD1') $ \resp -> do
+    bindResponse (BrigP.getSelf' ownDomain uidD1) $ \resp -> do
       resp.status `shouldMatchInt` 404
 
 testStartMultipleDynamicBackends :: HasCallStack => App ()
