@@ -53,7 +53,7 @@ settings:
   guestLinkTTLSeconds: 604800
   # We explicitly do not disable any API version. Please make sure the configuration value is the same in all these configs:
   # brig, cannon, cargohold, galley, gundeck, proxy, spar.
-  disabledAPIVersions: []
+u disabledAPIVersions: []
 
   featureFlags:  # see #RefConfigOptions in `/docs/reference`
     sso: disabled-by-default
