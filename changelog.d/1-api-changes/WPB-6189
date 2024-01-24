@@ -1,1 +1,0 @@
-Block changes of userDisplayName, userHandle in mlsE2EI-enabled teams on the backend without SCIM; report `"managed_by" == "scim"` in `GET /self`, but only there

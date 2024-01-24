@@ -109,7 +109,6 @@ addUser dom opts = do
           "password" .= fromMaybe defPassword opts.password
         ]
 
--- | https://staging-nginz-https.zinfra.io/v6/api/swagger-ui/#/default/get_users__uid_domain___uid_
 getUser ::
   (HasCallStack, MakesValue user, MakesValue target) =>
   user ->
@@ -147,6 +146,12 @@ deleteUser user = do
   req <- baseRequest user Brig Versioned "/self"
   submit "DELETE" $
     req & addJSONObject ["password" .= defPassword]
+
+putHandle :: (HasCallStack, MakesValue user) => user -> String -> App Response
+putHandle user handle = do
+  req <- baseRequest user Brig Versioned "/self/handle"
+  submit "PUT" $
+    req & addJSONObject ["handle" .= handle]
 
 data AddClient = AddClient
   { ctype :: String,
@@ -393,66 +398,11 @@ replaceKeyPackages cid suites kps = do
       & addQueryParams [("ciphersuites", intercalate "," (map (.code) suites))]
       & addJSONObject ["key_packages" .= map (T.decodeUtf8 . Base64.encode) kps]
 
--- | https://staging-nginz-https.zinfra.io/v6/api/swagger-ui/#/default/get_self
-getSelf :: (HasCallStack, MakesValue caller) => caller -> App Response
-getSelf caller = do
-  req <- baseRequest caller Brig Versioned "/self"
-  submit "GET" req
-
--- | https://staging-nginz-https.zinfra.io/v6/api/swagger-ui/#/default/get_self
--- this is a low-level version of `getSelf` for testing some error conditions.
-getSelf' :: HasCallStack => String -> String -> App Response
-getSelf' domain uid = do
+getSelf :: HasCallStack => String -> String -> App Response
+getSelf domain uid = do
   let user = object ["domain" .= domain, "id" .= uid]
   req <- baseRequest user Brig Versioned "/self"
   submit "GET" req
-
-data PutSelf = PutSelf
-  { accent :: Maybe Int,
-    assets :: Maybe [Value], -- [{"key":"string", "size":"string", "type":"string"}]
-    name :: Maybe String,
-    picture :: Maybe [String]
-  }
-
-instance Default PutSelf where
-  def = PutSelf Nothing Nothing Nothing Nothing
-
--- | https://staging-nginz-https.zinfra.io/v6/api/swagger-ui/#/default/put_self
-putSelf :: (HasCallStack, MakesValue caller) => caller -> PutSelf -> App Response
-putSelf caller body = do
-  req <- baseRequest caller Brig Versioned "/self"
-  submit "PUT" $
-    req
-      & addJSONObject
-        [ "accent_id" .= body.accent,
-          "assets" .= body.assets,
-          "name" .= body.name,
-          "picture" .= body.picture
-        ]
-
--- | https://staging-nginz-https.zinfra.io/v6/api/swagger-ui/#/default/put_self_locale
-putSelfLocale :: (HasCallStack, MakesValue caller) => caller -> String -> App Response
-putSelfLocale caller locale = do
-  req <- baseRequest caller Brig Versioned "/self/locale"
-  submit "PUT" $ req & addJSONObject ["locale" .= locale]
-
--- | https://staging-nginz-https.zinfra.io/v6/api/swagger-ui/#/default/put_users__uid__email
---
--- NOTE: the full process of changing (and confirming) the email address is more complicated.
--- see /services/brig/test/integration for details.
-putSelfEmail :: (HasCallStack, MakesValue caller) => caller -> String -> App Response
-putSelfEmail caller emailAddress = do
-  callerid <- asString $ caller %. "id"
-  req <- baseRequest caller Brig Versioned $ joinHttpPath ["users", callerid, "email"]
-  submit "PUT" $ req & addJSONObject ["email" .= emailAddress]
-
--- | https://staging-nginz-https.zinfra.io/v6/api/swagger-ui/#/default/put_self_handle
--- FUTUREWORK: rename to putSelfHandle for consistency
-putHandle :: (HasCallStack, MakesValue user) => user -> String -> App Response
-putHandle user handle = do
-  req <- baseRequest user Brig Versioned "/self/handle"
-  submit "PUT" $
-    req & addJSONObject ["handle" .= handle]
 
 getUserSupportedProtocols ::
   (HasCallStack, MakesValue user, MakesValue target) =>
