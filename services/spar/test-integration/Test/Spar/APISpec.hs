@@ -732,7 +732,8 @@ specCRUDIdentityProvider = do
           `shouldRespondWith` ((== 200) . statusCode)
         callIdpGet (env ^. teSpar) (Just owner) (idp ^. idpId)
           `shouldRespondWith` ((== expected) . (\idp' -> idp' ^. (SAML.idpExtraInfo . handle)))
-      it "updates IdP metadata and creates a new IdP with the first metadata" $ do
+
+      focus . it "updates IdP metadata and creates a new IdP with the first metadata" $ do
         env <- ask
         (owner, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
         -- create new idp
@@ -748,9 +749,17 @@ specCRUDIdentityProvider = do
         -- revert update on existing idp (should succeed)
         callIdpUpdate (env ^. teSpar) (Just owner) (idp1 ^. idpId) (IdPMetadataValue (cs $ SAML.encode metadata1) undefined)
           `shouldRespondWith` ((== 200) . statusCode)
-        -- create a new idp with the second metadata, setting replaced-by to the previous idp (should succeed)
-        callIdpCreate'Replaces (Just $ idp1 ^. idpId) (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just owner) metadata2
+        -- create a new idp with the second metadata (should fail)
+        callIdpCreate' (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just owner) metadata2
           `shouldRespondWith` ((== 400) . statusCode)
+        -- TODO: delete idp1 and then succeed with the above 2 lines.
+        -- create a new idp with the second metadata, setting replaced-by to the previous idp (should succeed)
+        callIdpCreate'Replaces (Just $ idp1 ^. idpId) (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just owner) metadata1
+          `shouldRespondWith` ((== 200) . statusCode)
+        -- TODO @fisx: "replaces" *should* be obsolete, so maybe we can just allow this to fail here, and whenever somebody falls over this tell them to use update?
+        -- TODO @fisx: or maybe drop "replaces" altogether?  if not: why not?
+        callIdpCreate'Replaces (Just $ idp1 ^. idpId) (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just owner) metadata2
+          `shouldRespondWith` ((== 200) . statusCode)
 
       context "invalid body" $ do
         it "rejects" $ do

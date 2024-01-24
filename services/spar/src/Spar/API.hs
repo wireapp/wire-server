@@ -520,10 +520,14 @@ assertNoScimOrNoIdP teamid = do
       SparProvisioningMoreThanOneIdP
         "Teams with SCIM tokens can only have at most one IdP"
 
--- | Check that issuer is not used anywhere in the system ('WireIdPAPIV1', here it is a
--- database key for finding IdPs), or anywhere in this team ('WireIdPAPIV2'), that request
--- URI is https, that the replacement IdPId, if present, points to our team, and possibly
--- other things (see source code for the definitive answer).
+-- | Does a number of things:
+--
+-- * Create IdPId (uuidv4)
+-- * Check that request URI is https;
+-- * Check that issuer is not used anywhere in the system ('WireIdPAPIV1', here it is a
+--   database key for finding IdPs), or anywhere in this team ('WireIdPAPIV2');
+-- * Check that all replaced IdPIds, if present, point to our team.
+-- * ...  (read source code to make sure this comment is up to date!)
 --
 -- About the @mReplaces@ argument: the information whether the idp is replacing an old one is
 -- in query parameter, because the body can be both XML and JSON.  The JSON body could carry
@@ -531,15 +535,7 @@ assertNoScimOrNoIdP teamid = do
 -- changed.  NB: if you want to replace an IdP by one with the same issuer, you probably
 -- want to use `PUT` instead of `POST`.
 --
--- FUTUREWORK: find out if anybody uses the XML body type and drop it if not.
---
--- FUTUREWORK: using the same issuer for two teams even in `WireIdPAPIV1` may be possible, but
--- only if we stop supporting implicit user creating via SAML.  If unknown users present IdP
--- credentials, the issuer is our only way of finding the team in which the user must be
--- created.
---
--- FUTUREWORK: move this to the saml2-web-sso package.  (same probably goes for get, create,
--- update, delete of idps.)
+-- FUTUREWORK: deprecate XML body type.
 validateNewIdP ::
   forall m r.
   (HasCallStack, m ~ Sem r) =>
@@ -556,31 +552,44 @@ validateNewIdP ::
   m IdP
 validateNewIdP apiversion _idpMetadata teamId mReplaces idHandle = withDebugLog "validateNewIdP" (Just . show . (^. SAML.idpId)) $ do
   _idpId <- SAML.IdPId <$> Random.uuid
-  oldIssuersList :: [SAML.Issuer] <- case mReplaces of
-    Nothing -> pure []
-    Just replaces -> do
-      idp <- IdPConfigStore.getConfig replaces
-      pure $ (idp ^. SAML.idpMetadata . SAML.edIssuer) : (idp ^. SAML.idpExtraInfo . oldIssuers)
   let requri = _idpMetadata ^. SAML.edRequestURI
       _idpExtraInfo = WireIdP teamId (Just apiversion) oldIssuersList Nothing idHandle
+
   enforceHttps requri
-  mbIdp <- case apiversion of
-    WireIdPAPIV1 -> IdPConfigStore.getIdPByIssuerV1Maybe (_idpMetadata ^. SAML.edIssuer)
-    WireIdPAPIV2 -> IdPConfigStore.getIdPByIssuerV2Maybe (_idpMetadata ^. SAML.edIssuer) teamId
-  Logger.log Logger.Debug $ show (apiversion, _idpMetadata, teamId, mReplaces)
-  Logger.log Logger.Debug $ show (_idpId, oldIssuersList, mbIdp)
+  checkNotInUse
 
-  let failWithIdPClash :: m ()
-      failWithIdPClash = throwSparSem . SparNewIdPAlreadyInUse $ case apiversion of
-        WireIdPAPIV1 ->
-          "you can't create an IdP with api_version v1 if the issuer is already in use on the wire instance."
-        WireIdPAPIV2 ->
-          -- idp was found by lookup with teamid, so it's in the same team.
-          "you can't create an IdP with api_version v1 if the issuer is already in use in your team."
-
-  unless (isNothing mbIdp) failWithIdPClash
+  mOldIdP <- IdPConfigStore.getConfig `mapM` mReplaces
+  let oldIssuersList :: [SAML.Issuer]
+      oldIssuersList = case mOldIdP of
+        Nothing -> []
+        Just oldIdP -> (oldIdP ^. SAML.idpMetadata . SAML.edIssuer) : (oldIdP ^. SAML.idpExtraInfo . oldIssuers)
 
   pure SAML.IdPConfig {..}
+  where
+    checkNotInUse :: m IdP
+    checkNotInUse = do
+      mbPreviousIdP <- case apiversion of
+        WireIdPAPIV1 -> IdPConfigStore.getIdPByIssuerV1Maybe (_idpMetadata ^. SAML.edIssuer)
+        WireIdPAPIV2 -> IdPConfigStore.getIdPByIssuerV2Maybe (_idpMetadata ^. SAML.edIssuer) teamId
+      Logger.log Logger.Debug $ show (apiversion, _idpMetadata, teamId, mReplaces)
+      Logger.log Logger.Debug $ show (_idpId, oldIssuersList, mbPreviousIdP)
+      let idpIssuerInUse = case (mbPreviousIdP, mReplaces) of
+            (Nothing, Nothing) -> False
+            (Nothing, Just _) -> False -- this is unexpected, though: caller is referencing a replacee that doesn't exist.
+            (Just _, Nothing) -> True
+            (Just previousIdP, Just previousId) -> previousIdP ^. SAML.idpId /= previousId
+      when idpIssuerInUse $ failWithIdPClash apiversion "create" _idpId (_idpMetadata ^. SAML.edIssuer)
+
+failWithIdPClash :: (Member (Error SparError) r) => WireIdPAPIVersion -> LText -> SAML.IdPId -> SAML.Issuer -> Sem r ()
+failWithIdPClash apiversion operation iid iissuer = throwSparSem . SparIdPIssuerInUse $ msg <> ctx
+  where
+    ctx = " idp id: " <> (cs . SAML.idPIdToST $ iid) <> "; issuer: " <> (cs . SAML.renderURI . view SAML.fromIssuer $ iissuer) <> "."
+    msg = case apiversion of
+      WireIdPAPIV1 ->
+        "You can't " <> operation <> " an IdP with api_version v1 if the issuer is already in use on your wire instance."
+      WireIdPAPIV2 ->
+        -- idp was found by lookup with teamid, so it's in the same team.
+        "You can't " <> operation <> " an IdP with api_version v2 if the issuer is already in use in your team."
 
 -- | FUTUREWORK: 'idpUpdateXML' is only factored out of this function for symmetry with
 -- 'idpCreate', which is not a good reason.  make this one function and pass around
@@ -629,10 +638,7 @@ idpUpdateXML zusr raw idpmeta idpid mHandle = withDebugLog "idpUpdateXML" (Just 
   IdPConfigStore.insertConfig idp'
   pure idp'
 
--- | Check that: idp id is valid; calling user is admin in that idp's home team; team id in
--- new metainfo doesn't change; new issuer (if changed) is not in use anywhere else (except as
--- an earlier IdP under the same ID); request uri is https.  Keep track of old issuer in extra
--- info if issuer has changed.
+-- Construct a validated `IdP` from `IdPMetadata`.
 validateIdPUpdate ::
   forall m r.
   (HasCallStack, m ~ Sem r) =>
@@ -649,19 +655,21 @@ validateIdPUpdate ::
   m (TeamId, IdP)
 validateIdPUpdate zusr _idpMetadata _idpId = withDebugLog "validateIdPUpdate" (Just . show . (_2 %~ (^. SAML.idpId))) $ do
   previousIdP <- IdPConfigStore.getConfig _idpId
+  let apiversion = fromMaybe defWireIdPAPIVersion $ previousIdP ^. SAML.idpExtraInfo . apiVersion
+      newIssuer = _idpMetadata ^. SAML.edIssuer
   (_, teamId) <- authorizeIdP zusr previousIdP
   unless (previousIdP ^. SAML.idpExtraInfo . team == teamId) $
     throw errUnknownIdP
+  let previousIssuer = previousIdP ^. SAML.idpMetadata . SAML.edIssuer
+      allPreviousIssuers = nub $ previousIssuer : previousIdP ^. SAML.idpExtraInfo . oldIssuers
   _idpExtraInfo <- do
-    let previousIssuer = previousIdP ^. SAML.idpMetadata . SAML.edIssuer
-        newIssuer = _idpMetadata ^. SAML.edIssuer
     if previousIssuer == newIssuer
       then do
         -- idempotency
         pure $ previousIdP ^. SAML.idpExtraInfo
       else do
         idpIssuerInUse <-
-          ( case fromMaybe defWireIdPAPIVersion $ previousIdP ^. SAML.idpExtraInfo . apiVersion of
+          ( case apiversion of
               WireIdPAPIV1 -> IdPConfigStore.getIdPByIssuerV1Maybe newIssuer
               WireIdPAPIV2 -> IdPConfigStore.getIdPByIssuerV2Maybe newIssuer teamId
             )
@@ -672,9 +680,8 @@ validateIdPUpdate zusr _idpMetadata _idpId = withDebugLog "validateIdPUpdate" (J
                        in notIt && notReplacedByIt
                     Nothing -> False
                 )
-        if idpIssuerInUse
-          then throwSparSem SparIdPIssuerInUse
-          else pure $ previousIdP ^. SAML.idpExtraInfo & oldIssuers %~ nub . (previousIssuer :)
+        when idpIssuerInUse $ failWithIdPClash apiversion "update" _idpId newIssuer
+        pure $ previousIdP ^. SAML.idpExtraInfo & oldIssuers .~ allPreviousIssuers
 
   let requri = _idpMetadata ^. SAML.edRequestURI
   enforceHttps requri
