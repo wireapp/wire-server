@@ -398,11 +398,17 @@ replaceKeyPackages cid suites kps = do
       & addQueryParams [("ciphersuites", intercalate "," (map (.code) suites))]
       & addJSONObject ["key_packages" .= map (T.decodeUtf8 . Base64.encode) kps]
 
-getSelf :: HasCallStack => String -> String -> App Response
-getSelf domain uid = do
-  let user = object ["domain" .= domain, "id" .= uid]
-  req <- baseRequest user Brig Versioned "/self"
-  submit "GET" req
+-- | https://staging-nginz-https.zinfra.io/v6/api/swagger-ui/#/default/get_self
+getSelf :: (HasCallStack, MakesValue user) => user -> App Response
+getSelf = getSelfWithVersion Versioned
+
+getSelfWithVersion :: (HasCallStack, MakesValue user) => Versioned -> user -> App Response
+getSelfWithVersion v user = baseRequest user Brig v "/self" >>= submit "GET"
+
+-- | https://staging-nginz-https.zinfra.io/v6/api/swagger-ui/#/default/get_self
+-- this is a low-level version of `getSelf` for testing some error conditions.
+getSelf' :: HasCallStack => String -> String -> App Response
+getSelf' domain uid = getSelfWithVersion Versioned $ object ["domain" .= domain, "id" .= uid]
 
 getUserSupportedProtocols ::
   (HasCallStack, MakesValue user, MakesValue target) =>

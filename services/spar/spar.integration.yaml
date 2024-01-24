@@ -32,6 +32,10 @@ cassandra:
 # Wire/AWS specific, optional
 # discoUrl: "https://"
 
+# We explicitly do not disable any API version. Please make sure the configuration value is the same in all these configs:
+# brig, cannon, cargohold, galley, gundeck, proxy, spar.
+disabledAPIVersions: []
+
 maxttlAuthreq: 5  # seconds.  don't set this too large, it is also the run time of one TTL test.
 maxttlAuthresp: 7200  # seconds.  do not set this to 1h or less, as that is what the mock idp wants.
 
