@@ -24,6 +24,8 @@ module Wire.API.Federation.API
     HasUnsafeFedEndpoint,
     fedClient,
     fedQueueClient,
+    toBundle,
+    fedQueueClientBundle,
     fedClientIn,
     unsafeFedClientIn,
     module Wire.API.MakesFederatedCall,
@@ -88,6 +90,30 @@ fedClient ::
   Client m api
 fedClient = clientIn (Proxy @api) (Proxy @m)
 
+fedClientIn ::
+  forall (comp :: Component) (name :: Symbol) m api.
+  (HasFedEndpoint comp api name, HasClient m api) =>
+  Client m api
+fedClientIn = clientIn (Proxy @api) (Proxy @m)
+
+fedQueueClientBundle ::
+  KnownComponent c =>
+  PayloadBundle c ->
+  FedQueueClient c ()
+fedQueueClientBundle bundle = do
+  env <- ask
+  let msg =
+        newMsg
+          { msgBody = encode bundle,
+            msgDeliveryMode = Just (env.deliveryMode),
+            msgContentType = Just "application/json"
+          }
+      -- Empty string means default exchange
+      exchange = ""
+  liftIO $ do
+    ensureQueue env.channel env.targetDomain._domainText
+    void $ publishMsg env.channel exchange (routingKey env.targetDomain._domainText) msg
+
 fedQueueClient ::
   forall {k} (tag :: k).
   ( HasNotificationEndpoint tag,
@@ -111,12 +137,6 @@ fedQueueClient payload = do
   liftIO $ do
     ensureQueue env.channel env.targetDomain._domainText
     void $ publishMsg env.channel exchange (routingKey env.targetDomain._domainText) msg
-
-fedClientIn ::
-  forall (comp :: Component) (name :: Symbol) m api.
-  (HasFedEndpoint comp api name, HasClient m api) =>
-  Client m api
-fedClientIn = clientIn (Proxy @api) (Proxy @m)
 
 -- | Like 'fedClientIn', but doesn't propagate a 'CallsFed' constraint. Intended
 -- to be used in test situations only.

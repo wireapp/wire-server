@@ -5,10 +5,11 @@ module Wire.API.Federation.BackendNotifications where
 
 import Control.Exception
 import Control.Monad.Except
-import Data.Aeson
+import Data.Aeson qualified as A
 import Data.Domain
 import Data.Id (RequestId)
 import Data.Map qualified as Map
+import Data.Schema
 import Data.Text qualified as Text
 import Data.Text.Lazy.Encoding qualified as TL
 import Imports
@@ -20,6 +21,7 @@ import Wire.API.Federation.API.Common
 import Wire.API.Federation.Client
 import Wire.API.Federation.Component
 import Wire.API.Federation.Error
+import Wire.API.Federation.HasNotificationEndpoint
 import Wire.API.Federation.Version
 import Wire.API.RawJson
 
@@ -40,27 +42,67 @@ data BackendNotification = BackendNotification
     requestId :: Maybe RequestId
   }
   deriving (Show, Eq)
+  deriving (A.ToJSON, A.FromJSON) via (Schema BackendNotification)
 
-instance ToJSON BackendNotification where
-  toJSON notif =
-    object
-      [ "ownDomain" .= notif.ownDomain,
-        "targetComponent" .= notif.targetComponent,
-        "path" .= notif.path,
-        "body" .= TL.decodeUtf8 notif.body.rawJsonBytes,
-        "bodyVersions" .= notif.bodyVersions,
-        "requestId" .= notif.requestId
-      ]
+instance ToSchema BackendNotification where
+  schema =
+    object "BackendNotification" $
+      BackendNotification
+        <$> ownDomain .= field "ownDomain" schema
+        <*> targetComponent .= field "targetComponent" schema
+        <*> path .= field "path" schema
+        <*> (TL.decodeUtf8 . rawJsonBytes . body)
+          .= field "body" (RawJson . TL.encodeUtf8 <$> schema)
+        <*> bodyVersions .= maybe_ (optField "bodyVersions" schema)
+        <*> (.requestId) .= maybe_ (optField "requestId" schema)
 
-instance FromJSON BackendNotification where
-  parseJSON = withObject "BackendNotification" $ \o ->
-    BackendNotification
-      <$> o .: "ownDomain"
-      <*> o .: "targetComponent"
-      <*> o .: "path"
-      <*> (RawJson . TL.encodeUtf8 <$> o .: "body")
-      <*> o .:? "bodyVersions"
-      <*> o .:? "requestId"
+data PayloadBundle (c :: Component) = PayloadBundle
+  { originDomain :: Domain,
+    targetDomain :: Domain,
+    notifications :: [BackendNotification]
+  }
+  deriving (A.ToJSON, A.FromJSON) via (Schema (PayloadBundle c))
+
+-- | This instance is not ideal as it assumes that two bundles have the same
+-- origin domain and the same target domain. An alternative is not to define a
+-- function that can throw if either of the domains don't line up, as such a
+-- runtime error is a symptom of an application code bug. An alternative is to
+-- use two ghost type variables in the PayloadBundle type, but that would
+-- permeate other types too, including the FedQueueClient, which seems like a
+-- high price to pay for a bit of type safety gain in a few places.
+instance KnownComponent c => Semigroup (PayloadBundle c) where
+  b1 <> b2 =
+    PayloadBundle
+      { originDomain = b1.originDomain,
+        targetDomain = b1.targetDomain,
+        notifications = notifications b1 <> notifications b2
+      }
+
+instance ToSchema (PayloadBundle c) where
+  schema =
+    object "PayloadBundle" $
+      PayloadBundle
+        <$> (.originDomain) .= field "origin-domain" schema
+        <*> (.targetDomain) .= field "target-domain" schema
+        <*> notifications .= field "notifications" (array schema)
+
+toBundle ::
+  forall {k} (tag :: k).
+  ( HasNotificationEndpoint tag,
+    KnownSymbol (NotificationPath tag),
+    KnownComponent (NotificationComponent k),
+    ToJSON (Payload tag)
+  ) =>
+  FedQueueEnv ->
+  Payload tag ->
+  PayloadBundle (NotificationComponent k)
+toBundle env payload = do
+  let notif = fedNotifToBackendNotif @tag env.requestId env.originDomain payload
+  PayloadBundle
+    { originDomain = env.originDomain,
+      targetDomain = env.targetDomain,
+      notifications = [notif]
+    }
 
 type BackendNotificationAPI = Capture "name" Text :> ReqBody '[JSON] RawJson :> Post '[JSON] EmptyResponse
 
