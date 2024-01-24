@@ -34,9 +34,9 @@ import Galley.Monad
 import Imports
 import Network.HTTP.Client qualified as Http
 import OpenSSL.Session qualified as SSL
+import Ssl.Util
 import System.Logger.Class qualified as Log
 import URI.ByteString (uriPath)
-import Ssl.Util
 
 -- | Check that the given fingerprint is valid and make the request over ssl.
 -- If the team has a device registered use 'makeLegalHoldServiceRequest' instead.

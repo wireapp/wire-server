@@ -29,26 +29,24 @@ module Ssl.Util
     -- * to be used when initializing SSL Contexts to obtain SSL enabled
 
     --   'Network.HTTP.Client.ManagerSettings'
-    withVerifiedSslConnection
+    withVerifiedSslConnection,
   )
 where
 
 import Control.Exception
 import Data.ByteString.Builder
-import Network.HTTP.Client.Internal
 import Data.Byteable (constEqBytes)
 import Data.Dynamic (fromDynamic)
-import Data.Misc (Rsa)
 import Data.Time.Clock (getCurrentTime)
 import Imports
+import Network.HTTP.Client.Internal
 import OpenSSL.BN (integerToMPI)
-import OpenSSL.EVP.Digest (Digest, digestLBS, getDigestByName)
+import OpenSSL.EVP.Digest (Digest, digestLBS)
 import OpenSSL.EVP.PKey (SomePublicKey, toPublicKey)
 import OpenSSL.EVP.Verify (VerifyStatus (..))
 import OpenSSL.RSA
 import OpenSSL.Session as SSL
 import OpenSSL.X509 as X509
-import OpenSSL.X509.Store (X509StoreCtx, getStoreCtxCert)
 
 -- Cipher Suites ------------------------------------------------------------
 
@@ -190,7 +188,7 @@ verifyRsaFingerprint d = verifyFingerprint $ \pk ->
 --
 -- Throws an error for other types of connections.
 withVerifiedSslConnection ::
--- | A function to verify fingerprints given an SSL connection
+  -- \| A function to verify fingerprints given an SSL connection
   (SSL -> IO ()) ->
   Manager ->
   -- | Request builder
