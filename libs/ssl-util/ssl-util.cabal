@@ -67,6 +67,7 @@ library
     , byteable      >=0.1
     , bytestring    >=0.10
     , HsOpenSSL     >=0.11
+    , http-client
     , imports
     , time          >=1.5
     , types-common

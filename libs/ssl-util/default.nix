@@ -8,6 +8,7 @@
 , bytestring
 , gitignoreSource
 , HsOpenSSL
+, http-client
 , imports
 , lib
 , time
@@ -22,6 +23,7 @@ mkDerivation {
     byteable
     bytestring
     HsOpenSSL
+    http-client
     imports
     time
     types-common

@@ -34,12 +34,13 @@ import Galley.Intra.User
 import Galley.Monad
 import Galley.Types.Bot.Service (Service, serviceEnabled, serviceFingerprints, serviceToken, serviceUrl)
 import Imports
-import Network.HTTP.Client (defaultRequest, withConnection)
+import Network.HTTP.Client (defaultRequest, withConnection, withConnection')
 import Network.HTTP.Client qualified as Http
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status (status410)
 import Polysemy
 import Polysemy.Input
+import Ssl.Util
 import System.Logger.Class qualified as Log
 import System.Logger.Message (field, msg, val, (~~))
 import URI.ByteString
@@ -151,10 +152,8 @@ urlPort (HttpsUrl u) = do
 
 sendMessage :: [Fingerprint Rsa] -> (Request -> Request) -> App ()
 sendMessage fprs reqBuilder = do
-  mkMgr <- view extGetManager
-  man <- liftIO $ mkMgr fprs
-  let req = reqBuilder defaultRequest
-  liftIO $ withConnection req man $ \_conn ->
+  (man, verifyFingerprints) <- view extGetManager
+  liftIO . withVerifiedSslConnection (verifyFingerprints fprs) man reqBuilder $ \req ->
     Http.withResponse req man (const $ pure ())
 
 x3 :: RetryPolicy

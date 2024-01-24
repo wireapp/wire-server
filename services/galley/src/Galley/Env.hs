@@ -22,9 +22,10 @@ module Galley.Env where
 
 import Cassandra
 import Control.Lens hiding ((.=))
+import Data.ByteString.Conversion (toByteString')
 import Data.Id
 import Data.Metrics.Middleware
-import Data.Misc (Fingerprint (..), HttpsUrl, Rsa)
+import Data.Misc (Fingerprint, HttpsUrl, Rsa)
 import Data.Range
 import Galley.Aws qualified as Aws
 import Galley.Options
@@ -35,7 +36,9 @@ import Imports
 import Network.AMQP qualified as Q
 import Network.HTTP.Client
 import Network.HTTP.Client.OpenSSL
+import OpenSSL.EVP.Digest
 import OpenSSL.Session as Ssl
+import OpenSSL.Session qualified as SSL
 import Ssl.Util
 import System.Logger
 import Util.Options
@@ -58,7 +61,7 @@ data Env = Env
     _brig :: Endpoint, -- FUTUREWORK: see _federator
     _cstate :: ClientState,
     _deleteQueue :: Q.Queue DeleteItem,
-    _extGetManager :: [Fingerprint Rsa] -> IO Manager,
+    _extGetManager :: (Manager, [Fingerprint Rsa] -> SSL.SSL -> IO ()),
     _aEnv :: Maybe Aws.Env,
     _mlsKeys :: SignaturePurpose -> MLSKeys,
     _rabbitmqChannel :: Maybe (MVar Q.Channel),
@@ -68,28 +71,30 @@ data Env = Env
 makeLenses ''Env
 
 -- TODO: somewhat duplicates Brig.App.initExtGetManager
-initExtEnv :: [Fingerprint Rsa] -> IO Manager
-initExtEnv fingerprints = do
+initExtEnv :: IO (Manager, [Fingerprint Rsa] -> SSL.SSL -> IO ())
+initExtEnv = do
   ctx <- Ssl.context
   Ssl.contextAddOption ctx SSL_OP_NO_SSLv2
   Ssl.contextAddOption ctx SSL_OP_NO_SSLv3
   Ssl.contextAddOption ctx SSL_OP_NO_TLSv1
   Ssl.contextSetCiphers ctx rsaCiphers
-  Ssl.contextSetVerificationMode
-    ctx
-    Ssl.VerifyPeer
-      { vpFailIfNoPeerCert = True,
-        vpClientOnce = False,
-        vpCallback = Just \_b -> extEnvCallback fingerprints
-      }
-
+  -- We use public key pinning with service providers and want to
+  -- support self-signed certificates as well, hence 'VerifyNone
+  Ssl.contextSetVerificationMode ctx Ssl.VerifyNone
   Ssl.contextSetDefaultVerifyPaths ctx
 
-  newManager
-    (opensslManagerSettings (pure ctx))
-      { managerResponseTimeout = responseTimeoutMicro 10000000,
-        managerConnCount = 100
-      }
+  mgr <-
+    newManager
+      (opensslManagerSettings (pure ctx))
+        { managerResponseTimeout = responseTimeoutMicro 10000000,
+          managerConnCount = 100
+        }
+  Just sha <- getDigestByName "SHA256"
+  pure $ (mgr, mkVerify sha)
+  where
+    mkVerify sha fprs =
+      let pinset = map toByteString' fprs
+       in verifyRsaFingerprint sha pinset
 
 reqIdMsg :: RequestId -> Msg -> Msg
 reqIdMsg = ("request" .=) . unRequestId

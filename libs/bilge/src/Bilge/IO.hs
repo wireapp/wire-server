@@ -172,7 +172,8 @@ instance MonadIO m => MonadHttp (SessionT m) where
             responseBody = bodyReader,
             responseOriginalRequest = originalReq,
             Client.responseCookieJar = mempty,
-            Client.responseClose' = Client.ResponseClose $ pure ()
+            Client.responseClose' = Client.ResponseClose $ pure (),
+            Client.responseEarlyHints = mempty
           }
       lookupHeader :: CI ByteString -> Client.Request -> Maybe ByteString
       lookupHeader headerName r = lookup headerName (Client.requestHeaders r)

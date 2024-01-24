@@ -82,8 +82,8 @@ let
     http-client = {
       src = fetchgit {
         url = "https://github.com/elland/http-client";
-        rev = "a2854c7e96d6cd4324904a4565c0d555141c1063";
-        sha256 = "sha256-gEbQFhXYjkamH+EXAP522Sks7bkC+3slOj0+Zci8fuY=";
+        rev = "97ffd0b39ac4e2f7a381bb267a40de4a8e46158c";
+        sha256 = "sha256-2h9xoHmw/gjiZ0QDow4H8fPP8M7uxDSc0GhhnGHOwG0=";
       };
       packages = {
         http-client = "http-client";
