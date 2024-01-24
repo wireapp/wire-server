@@ -79,7 +79,7 @@ initExtEnv fingerprints = do
     ctx
     Ssl.VerifyPeer
       { vpFailIfNoPeerCert = True,
-        vpClientOnce = False,
+        vpClientOnce = True,
         vpCallback = Just \_b -> extEnvCallback fingerprints
       }
 

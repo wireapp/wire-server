@@ -369,7 +369,7 @@ initExtGetManager fingerprints = do
     ctx
     SSL.VerifyPeer
       { vpFailIfNoPeerCert = True,
-        vpClientOnce = False,
+        vpClientOnce = True,
         vpCallback = Just \_b -> extEnvCallback fingerprints
       }
 
