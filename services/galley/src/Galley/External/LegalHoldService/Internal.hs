@@ -77,6 +77,6 @@ makeVerifiedRequest ::
   (Http.Request -> Http.Request) ->
   App (Http.Response LC8.ByteString)
 makeVerifiedRequest fpr url reqBuilder = do
-  mkMgr <- view extGetManager
-  mgr <- liftIO $ mkMgr [fpr]
+  (mgr, fprVar) <- view extGetManager
+  modifyIORef' fprVar (nub . ([fpr] <>))
   makeVerifiedRequestWithManager mgr url reqBuilder

@@ -54,11 +54,11 @@ data Env = Env
     _applog :: Logger,
     _manager :: Manager,
     _http2Manager :: Http2Manager,
-    _federator :: Maybe Endpoint, -- FUTUREWORK: should we use a better type here? E.g. to avoid fresh connections all the time?
+    _federator :: Maybe Endpoint, -- FUTUREWORK: should we use a better type ----- LegalHold.testLHClaimKeys01 FAIL (34.01 s) -----here? E.g. to avoid fresh connections all the time?
     _brig :: Endpoint, -- FUTUREWORK: see _federator
     _cstate :: ClientState,
     _deleteQueue :: Q.Queue DeleteItem,
-    _extGetManager :: [Fingerprint Rsa] -> IO Manager,
+    _extGetManager :: (Manager, IORef [Fingerprint Rsa]),
     _aEnv :: Maybe Aws.Env,
     _mlsKeys :: SignaturePurpose -> MLSKeys,
     _rabbitmqChannel :: Maybe (MVar Q.Channel),
@@ -68,7 +68,7 @@ data Env = Env
 makeLenses ''Env
 
 -- TODO: somewhat duplicates Brig.App.initExtGetManager
-initExtEnv :: [Fingerprint Rsa] -> IO Manager
+initExtEnv :: IORef [Fingerprint Rsa] -> IO Manager
 initExtEnv fingerprints = do
   ctx <- Ssl.context
   Ssl.contextAddOption ctx SSL_OP_NO_SSLv2
@@ -79,7 +79,7 @@ initExtEnv fingerprints = do
     ctx
     Ssl.VerifyPeer
       { vpFailIfNoPeerCert = True,
-        vpClientOnce = False,
+        vpClientOnce = True,
         vpCallback = Just \_b -> extEnvCallback fingerprints
       }
 
