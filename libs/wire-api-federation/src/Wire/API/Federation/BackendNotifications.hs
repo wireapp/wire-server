@@ -4,6 +4,7 @@
 module Wire.API.Federation.BackendNotifications where
 
 import Control.Exception
+import Control.Monad.Codensity
 import Control.Monad.Except
 import Data.Aeson qualified as A
 import Data.Domain
@@ -100,9 +101,12 @@ data PayloadBundle (c :: Component) = PayloadBundle
 -- permeate other types too, including the FedQueueClient, which seems like a
 -- high price to pay for a bit of type safety gain in a few places.
 instance KnownComponent c => Semigroup (PayloadBundle c) where
+  -- TODO(md): replace the Semigroup instance by a custom function that can
+  -- fail.
   b1 <> b2 =
     PayloadBundle
       { originDomain = b1.originDomain,
+        -- the assumption is that b2 has the same origin and target domain.
         targetDomain = b1.targetDomain,
         notifications = notifications b1 <> notifications b2
       }
@@ -135,7 +139,7 @@ toBundle env payload = do
 
 type BackendNotificationAPI = Capture "name" Text :> ReqBody '[JSON] RawJson :> Post '[JSON] EmptyResponse
 
-sendNotification :: FederatorClientEnv -> Component -> Text -> RawJson -> IO (Either FederatorClientError ())
+sendNotification :: FederatorClientVersionedEnv -> Component -> Text -> RawJson -> IO (Either FederatorClientError ())
 sendNotification env component path body =
   case component of
     Brig -> go @'Brig
@@ -148,8 +152,11 @@ sendNotification env component path body =
 
     go :: forall c. (KnownComponent c) => IO (Either FederatorClientError ())
     go =
-      runFederatorClient env . void $
-        clientIn (Proxy @BackendNotificationAPI) (Proxy @(FederatorClient c)) (withoutFirstSlash path) body
+      lowerCodensity
+        . runExceptT
+        . runVersionedFederatorClientToCodensity env
+        . void
+        $ clientIn (Proxy @BackendNotificationAPI) (Proxy @(FederatorClient c)) (withoutFirstSlash path) body
 
 enqueue :: Q.Channel -> RequestId -> Domain -> Domain -> Q.DeliveryMode -> FedQueueClient c a -> IO a
 enqueue channel requestId originDomain targetDomain deliveryMode (FedQueueClient action) =

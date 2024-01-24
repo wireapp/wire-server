@@ -26,7 +26,7 @@ module Wire.API.Federation.Version
     VersionInfo (..),
     versionInfo,
     VersionRange (..),
-    versionInCommon,
+    latestCommonVersion,
   )
 where
 
@@ -172,8 +172,8 @@ inVersionRange v vr =
 -- remote versions are given as integers as the range of versions supported by
 -- the remote backend can include a version unknown to the local backend. If
 -- there is no version in common, the return value is 'Nothing'.
-versionInCommon :: VersionRange -> Set Int -> Maybe Version
-versionInCommon localVersions remoteVersions =
+latestCommonVersion :: VersionRange -> Set Int -> Maybe Version
+latestCommonVersion localVersions remoteVersions =
   foldl' f Nothing (Set.map inRange remoteVersions)
   where
     inRange :: Int -> Maybe Version
