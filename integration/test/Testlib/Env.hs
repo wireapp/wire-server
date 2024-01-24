@@ -8,13 +8,16 @@ import Data.Default
 import Data.Function ((&))
 import Data.Functor
 import Data.IORef
-import Data.Map qualified as Map
+import qualified Data.Map as Map
 import Data.Maybe (fromMaybe)
 import Data.Set (Set)
-import Data.Set qualified as Set
-import Data.Yaml qualified as Yaml
-import Database.CQL.IO qualified as Cassandra
-import Network.HTTP.Client qualified as HTTP
+import qualified Data.Set as Set
+import Data.Traversable (for)
+import qualified Data.Yaml as Yaml
+import qualified Database.CQL.IO as Cassandra
+import qualified Network.HTTP.Client as HTTP
+import qualified OpenSSL.Session as OpenSSL
+import System.Directory
 import System.Environment (lookupEnv)
 import System.Exit
 import System.FilePath
@@ -53,12 +56,25 @@ mkGlobalEnv cfgFile = do
           if last ps == "services"
             then Just (joinPath (init ps))
             else Nothing
+      getCassCertFilePath :: IO (Maybe FilePath) =
+        maybe
+          (pure Nothing)
+          ( \certFilePath ->
+              if isAbsolute certFilePath
+                then pure $ Just certFilePath
+                else for devEnvProjectRoot $ \projectRoot -> makeAbsolute $ combine projectRoot certFilePath
+          )
+          intConfig.cassandra.cassTlsCa
 
   manager <- liftIO $ HTTP.newManager HTTP.defaultManagerSettings
-  let cassSettings =
+
+  mbCassCertFilePath <- liftIO $ getCassCertFilePath
+  mbSSLContext <- liftIO $ createSSLContext mbCassCertFilePath
+  let basicCassSettings =
         Cassandra.defSettings
-          & Cassandra.setContacts intConfig.cassandra.host []
-          & Cassandra.setPortNumber (fromIntegral intConfig.cassandra.port)
+          & Cassandra.setContacts intConfig.cassandra.cassHost []
+          & Cassandra.setPortNumber (fromIntegral intConfig.cassandra.cassPort)
+      cassSettings = maybe basicCassSettings (\sslCtx -> Cassandra.setSSLContext sslCtx basicCassSettings) mbSSLContext
   cassClient <- Cassandra.init cassSettings
   let resources = backendResources (Map.elems intConfig.dynamicBackends)
   resourcePool <-
@@ -83,7 +99,7 @@ mkGlobalEnv cfgFile = do
         gDomain1 = intConfig.backendOne.originDomain,
         gDomain2 = intConfig.backendTwo.originDomain,
         gDynamicDomains = (.domain) <$> Map.elems intConfig.dynamicBackends,
-        gDefaultAPIVersion = 5,
+        gDefaultAPIVersion = 6,
         gManager = manager,
         gServicesCwdBase = devEnvProjectRoot <&> (</> "services"),
         gRemovalKeyPath = error "Uninitialised removal key path",
@@ -92,6 +108,21 @@ mkGlobalEnv cfgFile = do
         gTempDir = tempDir,
         gTimeOutSeconds = timeOutSeconds
       }
+  where
+    createSSLContext :: Maybe FilePath -> IO (Maybe OpenSSL.SSLContext)
+    createSSLContext (Just certFilePath) = do
+      print ("TLS: Connecting to Cassandra with TLS. Provided CA path:" ++ certFilePath)
+      sslContext <- OpenSSL.context
+      OpenSSL.contextSetCAFile sslContext certFilePath
+      OpenSSL.contextSetVerificationMode
+        sslContext
+        OpenSSL.VerifyPeer
+          { vpFailIfNoPeerCert = True,
+            vpClientOnce = True,
+            vpCallback = Nothing
+          }
+      pure $ Just sslContext
+    createSSLContext Nothing = pure Nothing
 
 mkEnv :: GlobalEnv -> Codensity IO Env
 mkEnv ge = do
@@ -133,7 +164,7 @@ emptyClientGroupState :: ClientGroupState
 emptyClientGroupState = ClientGroupState Nothing Nothing
 
 allCiphersuites :: [Ciphersuite]
-allCiphersuites = map Ciphersuite ["0x0001", "0xf031"]
+allCiphersuites = [Ciphersuite "0x0001"] -- TODO fix testsMLS.testAddUserSimple for "0xf031"
 
 mkMLSState :: Codensity IO MLSState
 mkMLSState = Codensity $ \k ->

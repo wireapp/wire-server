@@ -23,8 +23,7 @@ where
 import Brig.Index.Migrations.Types
 import Brig.Index.Options qualified as Opts
 import Brig.User.Search.Index qualified as Search
-import Cassandra qualified as C
-import Cassandra.Settings qualified as C
+import Cassandra.Util (defInitCassandra)
 import Control.Lens (view, (^.))
 import Control.Monad.Catch (MonadThrow, catchAll, finally, throwM)
 import Data.Aeson (Value, object, (.=))
@@ -86,14 +85,8 @@ mkEnv l es cas galleyEndpoint = do
     <*> pure mgr
     <*> pure galleyEndpoint
   where
-    initCassandra =
-      C.init
-        $ C.setLogger (C.mkLogger l)
-          . C.setContacts (view Opts.cHost cas) []
-          . C.setPortNumber (fromIntegral (view Opts.cPort cas))
-          . C.setKeyspace (view Opts.cKeyspace cas)
-          . C.setProtocolVersion C.V4
-        $ C.defSettings
+    initCassandra = defInitCassandra (Opts.toCassandraOpts cas) l
+
     initLogger = pure l
 
 createMigrationsIndexIfNotPresent :: (MonadThrow m, ES.MonadBH m, Log.MonadLogger m) => m ()

@@ -44,10 +44,10 @@ import Control.Concurrent
 import Control.Concurrent.Async
 import Control.Concurrent.STM.TChan
 import Control.Exception (throwIO)
-import Control.Exception qualified as E
+import qualified Control.Exception as E
 import Control.Monad
 import Control.Monad.Catch hiding (bracket)
-import Control.Monad.Catch qualified as Catch
+import qualified Control.Monad.Catch as Catch
 import Control.Monad.IO.Class
 import Control.Monad.Reader (asks)
 import Control.Monad.STM
@@ -60,9 +60,9 @@ import Data.Maybe
 import Data.Traversable
 import Data.Word
 import GHC.Stack
-import Network.HTTP.Client qualified as HTTP
-import Network.HTTP.Client qualified as Http
-import Network.WebSockets qualified as WS
+import qualified Network.HTTP.Client as HTTP
+import qualified Network.HTTP.Client as Http
+import qualified Network.WebSockets as WS
 import System.Random (randomIO)
 import System.Timeout (timeout)
 import Testlib.App

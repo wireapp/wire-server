@@ -18,7 +18,7 @@
 -- FUTUREWORK: Remove this module all together.
 module Brig.Federation.Client where
 
-import Brig.App
+import Brig.App as Brig
 import Control.Lens
 import Control.Monad
 import Control.Monad.Catch (MonadMask, throwM)
@@ -167,22 +167,25 @@ notifyUserDeleted self remotes = do
           . Log.field "error" (show FederationNotConfigured)
 
 -- | Enqueues notifications in RabbitMQ. Retries 3 times with a delay of 1s.
-enqueueNotification :: (MonadIO m, MonadMask m, Log.MonadLogger m) => Domain -> Domain -> Q.DeliveryMode -> MVar Q.Channel -> FedQueueClient c () -> m ()
+enqueueNotification :: (MonadIO m, MonadMask m, Log.MonadLogger m, MonadReader Env m) => Domain -> Domain -> Q.DeliveryMode -> MVar Q.Channel -> FedQueueClient c () -> m ()
 enqueueNotification ownDomain remoteDomain deliveryMode chanVar action = do
   let policy = limitRetries 3 <> constantDelay 1_000_000
   recovering policy [logRetries (const $ pure True) logError] (const go)
   where
     logError willRetry (SomeException e) status = do
+      rid <- view Brig.requestId
       Log.err $
         Log.msg @Text "failed to enqueue notification in RabbitMQ"
           . Log.field "error" (displayException e)
           . Log.field "willRetry" willRetry
           . Log.field "retryCount" status.rsIterNumber
+          . Log.field "request" rid
     go = do
+      rid <- view Brig.requestId
       mChan <- timeout (1 :: Second) (readMVar chanVar)
       case mChan of
         Nothing -> throwM NoRabbitMqChannel
-        Just chan -> liftIO $ enqueue chan ownDomain remoteDomain deliveryMode action
+        Just chan -> liftIO $ enqueue chan rid ownDomain remoteDomain deliveryMode action
 
 data NoRabbitMqChannel = NoRabbitMqChannel
   deriving (Show)
@@ -198,12 +201,14 @@ runBrigFederatorClient targetDomain action = do
   ownDomain <- viewFederationDomain
   endpoint <- view federator >>= maybe (throwE FederationNotConfigured) pure
   mgr <- view http2Manager
+  rid <- view Brig.requestId
   let env =
         FederatorClientEnv
           { ceOriginDomain = ownDomain,
             ceTargetDomain = targetDomain,
             ceFederator = endpoint,
-            ceHttp2Manager = mgr
+            ceHttp2Manager = mgr,
+            ceOriginRequestId = rid
           }
   liftIO (runFederatorClient env action)
     >>= either (throwE . FederationCallFailure) pure

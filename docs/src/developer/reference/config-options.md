@@ -291,11 +291,11 @@ sndFactorPasswordChallenge:
 
 ### MLS
 
-This feature specifies how should behave. It has no effect on the server's behaviour.
+If this feature is enabled then clients that support the MLS feature will allow its user to switch between Proteus and the MLS protocol provided the user is listed in `protocolToggleUsers`. The default protocol that clients will create new conversations with is specified in `defaultProtocol`. The `supportedProtocols` array is an ordered list of protocols which may be used by the client. It is used to determine the protocol to use for 1:1 conversations. It must contain the `defaultProtocol`.
 
-If this feature is enabled then clients that support this feature will allowing its user to switch between Proteus and the MLS protocol provided the user is listed ini `protocolToggleUsers`. The default protocol that clients will create new conversations with is specified in `defaultProtocol`. The `defaultCipherSuite` and `allowedCipherSuites` contain the default ciphersuite and the allowed ciphersuites that clients should be using. The numerical values should correspond to the indices (starting at 1) specified here https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol.html#table-5
+The `defaultCipherSuite` and `allowedCipherSuites` contain the default ciphersuite and the allowed ciphersuites that clients should be using. The numerical values should correspond to the indices (starting at 1) specified [here](https://www.rfc-editor.org/rfc/rfc9420.html#table-6).
 
-If this feature is disabled then clients will use the Proteus protocol with this backend.
+If the MLS feature is disabled then clients will use the Proteus protocol with this backend.
 
 The default configuration that applies to all teams that didn't explicitly change their feature configuration can be given in galley's `featureFlags` section in the config file:
 
@@ -307,9 +307,9 @@ mls:
     config:
       protocolToggleUsers: []
       defaultProtocol: mls
+      supportedProtocols: [proteus, mls] # must contain defaultProtocol
       allowedCipherSuites: [1]
       defaultCipherSuite: 1
-      supportedProtocols: [proteus, mls] # must contain defaultProtocol
     lockStatus: locked
 ```
 
@@ -425,7 +425,7 @@ federator:
     clientPrivateKey: client-key.pem
 ```
 
-## Outlook calalendar integration
+### Outlook calendar integration
 
 This feature setting only applies to the Outlook Calendar extension for Wire. As it is an external service, it should only be configured through this feature flag and otherwise ignored by the backend.
 
@@ -437,6 +437,34 @@ outlookCalIntegration:
   defaults:
     status: disabled
     lockStatus: locked
+```
+
+### Guest Link Lifetime
+
+To set the validity duration of conversation guest links set `guestLinkTTLSeconds` to the desired number of seconds, maximum 1 year, a value ∈ (0, 31536000]. E.g.
+
+```yaml
+# galley.yaml
+config:
+  settings:
+    GuestLinkTTLSeconds: 604800
+```
+
+### Limited Event Fanout
+
+To maintain compatibility with clients and their versions that do not implement
+the limited event fanout when a team member is deleted, the limited event fanout
+flag is used. Its default value `disabled` means that the old-style full event
+fanout will take place when a team member is deleted. Set the flag to `enabled`
+to send team events only to team owners and administrators.
+
+Example configuration:
+
+```yaml
+# galley.yaml
+limitedEventFanout:
+  defaults:
+    status: disabled
 ```
 
 ## Settings in brig
@@ -563,10 +591,6 @@ See {ref}`configure-federation-strategy-in-brig` (since [PR#3260](https://github
 
 ### API Versioning
 
-#### `setEnableDevelopmentVersions`
-
-This options determines whether development versions should be enabled. If set to `False`, all development versions are removed from the `supported` field of the `/api-version` endpoint. Note that they are still listed in the `development` field, and continue to work normally.
-
 ### OAuth
 
 For more information on OAuth please refer to <https://docs.wire.com/developer/reference/oauth.html>.
@@ -626,10 +650,9 @@ It is possible to disable one ore more API versions. When an API version is disa
 
 Each of the services brig, cannon, cargohold, galley, gundeck, proxy, spar should to be configured with the same set of disable API versions in each service's values.yaml config files.
 
-
 For example to disable API version v3, you need to configure:
 
-```
+```yaml
 # brig's values.yaml
 config.optSettings.setDisabledAPIVersions: [ v3 ]
 
@@ -652,7 +675,13 @@ config.disabledAPIVersions: [ v3 ]
 config.disabledAPIVersions: [ v3 ]
 ```
 
-The default setting is that no API version is disabled.
+The development API version(s) can be disabled either explicitly or by adding the `development` keyword to the list of disabled API versions. E.g.:
+
+```yaml
+config.disabledAPIVersions: [ v3, development ]
+```
+
+The default setting (in case the value is not present in the server configuration) is that all development versions are disabled while all other supported versions are enabled. To enable all versions including the development version set the value to be empty: `[]`.
 
 ## Settings in cargohold
 
@@ -807,3 +836,37 @@ CSP_EXTRA_SCRIPT_SRC:                             https://*.[[hostname]]
 CSP_EXTRA_STYLE_SRC:                              https://*.[[hostname]]
 CSP_EXTRA_WORKER_SRC:                             https://*.[[hostname]]
 ```
+
+## TLS-encrypted Cassandra connections
+
+By default, all connections to Cassandra by the Wire backend are unencrypted. To
+configure client-side TLS-encrypted connections (where the Wire backend is the
+client), a **C**ertificate **A**uthority in PEM format needs to be configured.
+
+The ways differ regarding the kind of program:
+- *Services* expect a `cassandra.tlsCa: <filepath>` attribute in their config file.
+- *CLI commands* (e.g. migrations) accept a `--tls-ca-certificate-file <filepath>` parameter.
+
+When a CA PEM file is configured, all Cassandra connections are opened with TLS
+encryption i.e. there is no fallback to unencrypted connections. This ensures
+that connections that are expected to be secure, would not silently and
+unnoticed be insecure.
+
+In Helm charts, the CA PEM is either provided as multiline string in the
+`cassandra.tlsCa` attribute or as a reference to a `Secret` in
+`cassandra.tlsCaSecretRef.name` and `cassandra.tlsCaSecretRef.key`. The `name`
+is the name of the `Secret`, the `key` is the entry in it. Such a `Secret` can
+e.g. be created by `cert-manager`.
+
+The CA may be self-signed. It is used to validate the certificate of the
+Cassandra server.
+
+How to configure Cassandra to accept TLS-encrypted connections in general is
+beyond the scope of this document. The `k8ssandra-test-cluster` Helm chart
+provides an example how to do this for the Kubernetes solution *K8ssandra*. In
+the example `cert-manager` generates a `Certificate` including Java KeyStores,
+then `trust-manager` creates synchronized `Secret`s to make only the CA PEM
+accessible to services (and not the private key.)
+
+The corresponding Cassandra options are described in Cassandra's documentation:
+[client_encryption_options](https://cassandra.apache.org/doc/stable/cassandra/configuration/cass_yaml_file.html#client_encryption_options)

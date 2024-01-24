@@ -151,3 +151,6 @@ testObject_MessageSendResponse4 = MessageSendResponse . Left $ MessageNotSentCon
 
 testObject_MessageSendResponse5 :: MessageSendResponse
 testObject_MessageSendResponse5 = MessageSendResponse . Left $ MessageNotSentUnknownClient
+
+testObject_MessageSendResponse6 :: MessageSendResponse
+testObject_MessageSendResponse6 = MessageSendResponse . Left $ MessageNotSentLegalholdOldClients

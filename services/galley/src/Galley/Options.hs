@@ -53,10 +53,14 @@ module Galley.Options
     logLevel,
     logNetStrings,
     logFormat,
+    guestLinkTTLSeconds,
+    defGuestLinkTTLSeconds,
+    GuestLinkTTLSeconds (..),
   )
 where
 
 import Control.Lens hiding (Level, (.=))
+import Data.Aeson (FromJSON (..))
 import Data.Aeson.TH (deriveFromJSON)
 import Data.Domain (Domain)
 import Data.Id (TeamId)
@@ -71,6 +75,18 @@ import Util.Options hiding (endpoint)
 import Util.Options.Common
 import Wire.API.Routes.Version
 import Wire.API.Team.Member
+
+newtype GuestLinkTTLSeconds = GuestLinkTTLSeconds
+  { unGuestLinkTTLSeconds :: Int
+  }
+  deriving (Show, Generic)
+
+instance FromJSON GuestLinkTTLSeconds where
+  parseJSON x = do
+    n <- parseJSON x
+    if n > 0 && n <= 31536000
+      then pure $ GuestLinkTTLSeconds n
+      else fail "GuestLinkTTLSeconds must be in (0, 31536000]"
 
 data Settings = Settings
   { -- | Number of connections for the HTTP client pool
@@ -129,7 +145,10 @@ data Settings = Settings
     _mlsPrivateKeyPaths :: !(Maybe MLSPrivateKeyPaths),
     -- | FUTUREWORK: 'setFeatureFlags' should be renamed to 'setFeatureConfigs' in all types.
     _featureFlags :: !FeatureFlags,
-    _disabledAPIVersions :: Maybe (Set Version)
+    _disabledAPIVersions :: !(Maybe VersionExpSetDefaultDev),
+    -- | The lifetime of a conversation guest link in seconds with the maximum of 1 year (31536000 seconds).
+    -- If not set use the default `defGuestLinkTTLSeconds`
+    _guestLinkTTLSeconds :: !(Maybe GuestLinkTTLSeconds)
   }
   deriving (Show, Generic)
 
@@ -145,6 +164,10 @@ defDeleteConvThrottleMillis = 20
 
 defFanoutLimit :: Range 1 HardTruncationLimit Int32
 defFanoutLimit = unsafeRange hardTruncationLimit
+
+-- | Default guest link TTL in days. 365 days if not set.
+defGuestLinkTTLSeconds :: GuestLinkTTLSeconds
+defGuestLinkTTLSeconds = GuestLinkTTLSeconds $ 60 * 60 * 24 * 365 -- 1 year
 
 data JournalOpts = JournalOpts
   { -- | SQS queue name to send team events

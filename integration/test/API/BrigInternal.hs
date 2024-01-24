@@ -1,7 +1,7 @@
 module API.BrigInternal where
 
 import API.Common
-import Data.Aeson qualified as Aeson
+import qualified Data.Aeson as Aeson
 import Data.Aeson.Types (Pair)
 import Data.Function
 import Data.Maybe
@@ -51,6 +51,12 @@ createUser domain cu = do
                  | cu.team
                ]
         )
+
+-- | https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/#/brig/get_i_users
+getUsersId :: (HasCallStack, MakesValue domain) => domain -> [String] -> App Response
+getUsersId domain ids = do
+  req <- baseRequest domain Brig Unversioned "/i/users"
+  submit "GET" $ req & addQueryParams [("ids", intercalate "," ids)]
 
 data FedConn = FedConn
   { domain :: String,
@@ -205,3 +211,15 @@ getConnStatusInternal body dom = do
     joinHttpPath ["i", "users", "connections-status", "v2"]
   submit "POST" do
     req & addJSONObject body
+
+getProviderActivationCodeInternal ::
+  (HasCallStack, MakesValue dom) =>
+  dom ->
+  String ->
+  App Response
+getProviderActivationCodeInternal dom email = do
+  d <- make dom
+  req <-
+    rawBaseRequest d Brig Unversioned $
+      joinHttpPath ["i", "provider", "activation-code"]
+  submit "GET" (addQueryParams [("email", email)] req)

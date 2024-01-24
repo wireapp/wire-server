@@ -36,7 +36,7 @@
 , servant-openapi3
 , servant-server
 , singletons
-, singletons-th
+, singletons-base
 , text
 , time
 , transformers
@@ -77,7 +77,7 @@ mkDerivation {
     servant-client-core
     servant-openapi3
     servant-server
-    singletons-th
+    singletons-base
     text
     time
     transformers

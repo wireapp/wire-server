@@ -20,15 +20,12 @@
 module Gundeck.Env where
 
 import Bilge hiding (host, port)
-import Cassandra (ClientState, Keyspace (..))
-import Cassandra qualified as C
-import Cassandra.Settings qualified as C
+import Cassandra (ClientState)
+import Cassandra.Util (initCassandraForService)
 import Control.AutoUpdate
 import Control.Concurrent.Async (Async)
 import Control.Lens (makeLenses, (^.))
 import Control.Retry (capDelay, exponentialBackoff)
-import Data.Default (def)
-import Data.List.NonEmpty qualified as NE
 import Data.Metrics.Middleware (Metrics)
 import Data.Misc (Milliseconds (..))
 import Data.Text (unpack)
@@ -46,7 +43,6 @@ import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.TLS (tlsManagerSettings)
 import System.Logger qualified as Log
 import System.Logger.Extended qualified as Logger
-import Util.Options
 
 data Env = Env
   { _reqId :: !RequestId,
@@ -70,11 +66,6 @@ schemaVersion = 7
 createEnv :: Metrics -> Opts -> IO ([Async ()], Env)
 createEnv m o = do
   l <- Logger.mkLogger (o ^. logLevel) (o ^. logNetStrings) (o ^. logFormat)
-  c <-
-    maybe
-      (C.initialContactsPlain (o ^. cassandra . endpoint . host))
-      (C.initialContactsDisco "cassandra_gundeck" . unpack)
-      (o ^. discoUrl)
   n <-
     newManager
       tlsManagerSettings
@@ -92,19 +83,13 @@ createEnv m o = do
       pure ([rAddThread], Just rAdd)
 
   p <-
-    C.init
-      $ C.setLogger (C.mkLogger (Logger.clone (Just "cassandra.gundeck") l))
-        . C.setContacts (NE.head c) (NE.tail c)
-        . C.setPortNumber (fromIntegral $ o ^. cassandra . endpoint . port)
-        . C.setKeyspace (Keyspace (o ^. cassandra . keyspace))
-        . C.setMaxConnections 4
-        . C.setMaxStreams 128
-        . C.setPoolStripes 4
-        . C.setSendTimeout 3
-        . C.setResponseTimeout 10
-        . C.setProtocolVersion C.V4
-        . C.setPolicy (C.dcFilterPolicyIfConfigured l (o ^. cassandra . filterNodesByDatacentre))
-      $ C.defSettings
+    initCassandraForService
+      (o ^. cassandra)
+      "gundeck"
+      (o ^. discoUrl)
+      Nothing
+      l
+
   a <- Aws.mkEnv l o n
   io <-
     mkAutoUpdate
@@ -112,7 +97,7 @@ createEnv m o = do
         { updateAction = Ms . round . (* 1000) <$> getPOSIXTime
         }
   mtbs <- mkThreadBudgetState `mapM` (o ^. settings . maxConcurrentNativePushes)
-  pure $! (rThread : rAdditionalThreads,) $! Env def m o l n p r rAdditional a io mtbs
+  pure $! (rThread : rAdditionalThreads,) $! Env (RequestId "N/A") m o l n p r rAdditional a io mtbs
 
 reqIdMsg :: RequestId -> Logger.Msg -> Logger.Msg
 reqIdMsg = ("request" Logger..=) . unRequestId

@@ -3,7 +3,7 @@ module Test.MLS.SubConversation where
 import API.Galley
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.Maybe (MaybeT (runMaybeT))
-import Data.Set qualified as Set
+import qualified Data.Set as Set
 import MLS.Util
 import Notifications
 import SetupHelpers

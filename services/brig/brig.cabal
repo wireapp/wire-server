@@ -15,6 +15,7 @@ extra-source-files:
   docs/swagger-v2.json
   docs/swagger-v3.json
   docs/swagger-v4.json
+  docs/swagger-v5.json
   docs/swagger.md
 
 common common-all
@@ -25,7 +26,6 @@ common common-all
     -Wredundant-constraints
 
   default-extensions:
-    NoImplicitPrelude
     AllowAmbiguousTypes
     BangPatterns
     BlockArguments
@@ -51,6 +51,7 @@ common common-all
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NoImplicitPrelude
     NumericUnderscores
     OverloadedLabels
     OverloadedRecordDot
@@ -269,7 +270,6 @@ library
     , cql
     , cryptobox-haskell          >=0.1.1
     , currency-codes             >=2.0
-    , data-default               >=0.5
     , data-timeout               >=0.3
     , dns
     , dns-util
@@ -283,7 +283,6 @@ library
     , filepath                   >=1.3
     , fsnotify                   >=0.4
     , galley-types               >=0.75.3
-    , geoip2                     >=0.3.1.0
     , gundeck-types              >=1.32.1
     , hashable                   >=1.2
     , HaskellNet                 >=0.3
@@ -412,7 +411,6 @@ executable brig-integration
     API.Search
     API.Search.Util
     API.Settings
-    API.Swagger
     API.SystemSettings
     API.Team
     API.Team.Util
@@ -428,7 +426,6 @@ executable brig-integration
     API.User.RichInfo
     API.User.Util
     API.UserPendingActivation
-    API.Version
     Federation.End2end
     Federation.Util
     Index.Create
@@ -467,7 +464,7 @@ executable brig-integration
     , HsOpenSSL
     , http-api-data
     , http-client
-    , http-client-tls        >=0.3
+    , http-client-tls        >=0.3.6.3
     , http-media
     , http-reverse-proxy
     , http-types
@@ -535,7 +532,7 @@ executable brig-schema
   import:             common-all
   main-is:            Main.hs
   hs-source-dirs:     schema
-  ghc-options:        -funbox-strict-fields -Wredundant-constraints
+  ghc-options:        -funbox-strict-fields -Wredundant-constraints -threaded
   default-extensions: TemplateHaskell
   build-depends:
     , base

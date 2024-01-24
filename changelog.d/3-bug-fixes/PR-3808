@@ -1,0 +1,1 @@
+The X509 client identity parser supports a new format: `wireapp://{userid}!{deviceid}@{host}`

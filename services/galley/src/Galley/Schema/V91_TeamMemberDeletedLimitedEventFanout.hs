@@ -1,6 +1,6 @@
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2023 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -14,25 +14,17 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+module Galley.Schema.V91_TeamMemberDeletedLimitedEventFanout where
 
-module Metrics
-  ( tests,
-  )
-where
-
-import Bilge
-import Bilge.Assert
+import Cassandra.Schema
 import Imports
-import Test.Tasty
-import TestSetup
+import Text.RawString.QQ
 
-tests :: IO TestSetup -> TestTree
-tests s = testGroup "Metrics" [test s "prometheus" testPrometheusMetrics]
-
-testPrometheusMetrics :: TestM ()
-testPrometheusMetrics = do
-  cargohold <- viewUnversionedCargohold
-  get (cargohold . path "/i/metrics") !!! do
-    const 200 === statusCode
-    -- Should contain the request duration metric in its output
-    const (Just "TYPE http_request_duration_seconds histogram") =~= responseBody
+migration :: Migration
+migration =
+  Migration 91 "Add a field for the team member deleted limited event fanout" $
+    schema'
+      [r| ALTER TABLE team_features ADD (
+            limited_event_fanout_status int
+        )
+     |]

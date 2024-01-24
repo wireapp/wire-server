@@ -5,7 +5,7 @@ module Test.Federator where
 import API.Brig
 import API.Federator (getMetrics)
 import Data.Attoparsec.Text
-import Data.ByteString qualified as BS
+import qualified Data.ByteString as BS
 import Data.String.Conversions
 import Data.Text
 import SetupHelpers (randomUser)
@@ -23,7 +23,7 @@ runFederatorMetrics getService = do
   where
     expectedString = "# TYPE http_request_duration_seconds histogram"
 
--- The metrics setup for both internal and external federator servers
+-- | The metrics setup for both internal and external federator servers
 -- are the same, so we can simply run the same test for both.
 testFederatorMetricsInternal :: App ()
 testFederatorMetricsInternal = runFederatorMetrics federatorInternal

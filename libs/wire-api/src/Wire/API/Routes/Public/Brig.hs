@@ -27,7 +27,6 @@ import Data.CommaSeparatedList (CommaSeparatedList)
 import Data.Domain
 import Data.Handle
 import Data.Id as Id
-import Data.Misc (IpAddr)
 import Data.Nonce (Nonce)
 import Data.OpenApi hiding (Contact, Header, Schema, ToSchema)
 import Data.OpenApi qualified as S
@@ -737,7 +736,6 @@ type UserClientAPI =
         :> ZUser
         :> ZConn
         :> "clients"
-        :> Header "X-Forwarded-For" IpAddr
         :> ReqBody '[JSON] NewClient
         :> Verb 'POST 201 '[JSON] NewClientResponse
     )
@@ -949,6 +947,7 @@ type ConnectionAPI =
     ( Summary "Create a connection to another user"
         :> Until 'V2
         :> MakesFederatedCall 'Brig "send-connection-action"
+        :> CanThrow 'MissingLegalholdConsentOldClients
         :> CanThrow 'MissingLegalholdConsent
         :> CanThrow 'InvalidUser
         :> CanThrow 'ConnectionLimitReached
@@ -973,6 +972,7 @@ type ConnectionAPI =
            ( Summary "Create a connection to another user"
                :> MakesFederatedCall 'Brig "get-users-by-ids"
                :> MakesFederatedCall 'Brig "send-connection-action"
+               :> CanThrow 'MissingLegalholdConsentOldClients
                :> CanThrow 'MissingLegalholdConsent
                :> CanThrow 'InvalidUser
                :> CanThrow 'ConnectionLimitReached
@@ -1052,6 +1052,7 @@ type ConnectionAPI =
       ( Summary "Update a connection to another user"
           :> Until 'V2
           :> MakesFederatedCall 'Brig "send-connection-action"
+          :> CanThrow 'MissingLegalholdConsentOldClients
           :> CanThrow 'MissingLegalholdConsent
           :> CanThrow 'InvalidUser
           :> CanThrow 'ConnectionLimitReached
@@ -1081,6 +1082,7 @@ type ConnectionAPI =
       ( Summary "Update a connection to another user"
           :> MakesFederatedCall 'Brig "get-users-by-ids"
           :> MakesFederatedCall 'Brig "send-connection-action"
+          :> CanThrow 'MissingLegalholdConsentOldClients
           :> CanThrow 'MissingLegalholdConsent
           :> CanThrow 'InvalidUser
           :> CanThrow 'ConnectionLimitReached

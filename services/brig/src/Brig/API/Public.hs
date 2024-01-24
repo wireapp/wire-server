@@ -86,7 +86,6 @@ import Data.Id
 import Data.Id qualified as Id
 import Data.List.NonEmpty (nonEmpty)
 import Data.Map.Strict qualified as Map
-import Data.Misc (IpAddr (..))
 import Data.Nonce (Nonce, randomNonce)
 import Data.OpenApi qualified as S
 import Data.Qualified
@@ -124,7 +123,7 @@ import Wire.API.Routes.Internal.Cargohold qualified as CargoholdInternalAPI
 import Wire.API.Routes.Internal.Galley qualified as GalleyInternalAPI
 import Wire.API.Routes.Internal.Spar qualified as SparInternalAPI
 import Wire.API.Routes.MultiTablePaging qualified as Public
-import Wire.API.Routes.Named (UntypedNamed (Named))
+import Wire.API.Routes.Named (Named (Named))
 import Wire.API.Routes.Public.Brig
 import Wire.API.Routes.Public.Brig.OAuth
 import Wire.API.Routes.Public.Cannon
@@ -182,27 +181,28 @@ internalEndpointsSwaggerDocsAPIs =
 --
 -- Dual to `internalEndpointsSwaggerDocsAPI`.
 versionedSwaggerDocsAPI :: Servant.Server VersionedSwaggerDocsAPI
-versionedSwaggerDocsAPI (Just (VersionNumber V5)) =
+versionedSwaggerDocsAPI (Just (VersionNumber V6)) =
   swaggerSchemaUIServer $
-    ( serviceSwagger @VersionAPITag @'V5
-        <> serviceSwagger @BrigAPITag @'V5
-        <> serviceSwagger @GalleyAPITag @'V5
-        <> serviceSwagger @SparAPITag @'V5
-        <> serviceSwagger @CargoholdAPITag @'V5
-        <> serviceSwagger @CannonAPITag @'V5
-        <> serviceSwagger @GundeckAPITag @'V5
-        <> serviceSwagger @ProxyAPITag @'V5
-        <> serviceSwagger @OAuthAPITag @'V5
+    ( serviceSwagger @VersionAPITag @'V6
+        <> serviceSwagger @BrigAPITag @'V6
+        <> serviceSwagger @GalleyAPITag @'V6
+        <> serviceSwagger @SparAPITag @'V6
+        <> serviceSwagger @CargoholdAPITag @'V6
+        <> serviceSwagger @CannonAPITag @'V6
+        <> serviceSwagger @GundeckAPITag @'V6
+        <> serviceSwagger @ProxyAPITag @'V6
+        <> serviceSwagger @OAuthAPITag @'V6
     )
       & S.info . S.title .~ "Wire-Server API"
       & S.info . S.description ?~ $(embedText =<< makeRelativeToProject "docs/swagger.md")
-      & S.servers .~ [S.Server ("/" <> toUrlPiece V5) Nothing mempty]
+      & S.servers .~ [S.Server ("/" <> toUrlPiece V6) Nothing mempty]
       & cleanupSwagger
-versionedSwaggerDocsAPI (Just (VersionNumber V0)) = swaggerPregenUIServer $(pregenSwagger V0)
-versionedSwaggerDocsAPI (Just (VersionNumber V1)) = swaggerPregenUIServer $(pregenSwagger V1)
-versionedSwaggerDocsAPI (Just (VersionNumber V2)) = swaggerPregenUIServer $(pregenSwagger V2)
-versionedSwaggerDocsAPI (Just (VersionNumber V3)) = swaggerPregenUIServer $(pregenSwagger V3)
+versionedSwaggerDocsAPI (Just (VersionNumber V5)) = swaggerPregenUIServer $(pregenSwagger V5)
 versionedSwaggerDocsAPI (Just (VersionNumber V4)) = swaggerPregenUIServer $(pregenSwagger V4)
+versionedSwaggerDocsAPI (Just (VersionNumber V3)) = swaggerPregenUIServer $(pregenSwagger V3)
+versionedSwaggerDocsAPI (Just (VersionNumber V2)) = swaggerPregenUIServer $(pregenSwagger V2)
+versionedSwaggerDocsAPI (Just (VersionNumber V1)) = swaggerPregenUIServer $(pregenSwagger V1)
+versionedSwaggerDocsAPI (Just (VersionNumber V0)) = swaggerPregenUIServer $(pregenSwagger V0)
 versionedSwaggerDocsAPI Nothing = allroutes (throwError listAllVersionsResp)
   where
     allroutes ::
@@ -240,20 +240,21 @@ internalEndpointsSwaggerDocsAPI ::
   PortNumber ->
   S.OpenApi ->
   Servant.Server (VersionedSwaggerDocsAPIBase service)
+internalEndpointsSwaggerDocsAPI service examplePort swagger (Just (VersionNumber V6)) =
+  swaggerSchemaUIServer $
+    swagger
+      & adjustSwaggerForInternalEndpoint service examplePort
+      & cleanupSwagger
 internalEndpointsSwaggerDocsAPI service examplePort swagger (Just (VersionNumber V5)) =
   swaggerSchemaUIServer $
     swagger
       & adjustSwaggerForInternalEndpoint service examplePort
       & cleanupSwagger
-internalEndpointsSwaggerDocsAPI service examplePort swagger (Just (VersionNumber V4)) =
-  swaggerSchemaUIServer $
-    swagger
-      & adjustSwaggerForInternalEndpoint service examplePort
-      & cleanupSwagger
-internalEndpointsSwaggerDocsAPI _ _ _ (Just (VersionNumber V0)) = emptySwagger
-internalEndpointsSwaggerDocsAPI _ _ _ (Just (VersionNumber V1)) = emptySwagger
-internalEndpointsSwaggerDocsAPI _ _ _ (Just (VersionNumber V2)) = emptySwagger
+internalEndpointsSwaggerDocsAPI _ _ _ (Just (VersionNumber V4)) = emptySwagger
 internalEndpointsSwaggerDocsAPI _ _ _ (Just (VersionNumber V3)) = emptySwagger
+internalEndpointsSwaggerDocsAPI _ _ _ (Just (VersionNumber V2)) = emptySwagger
+internalEndpointsSwaggerDocsAPI _ _ _ (Just (VersionNumber V1)) = emptySwagger
+internalEndpointsSwaggerDocsAPI _ _ _ (Just (VersionNumber V0)) = emptySwagger
 internalEndpointsSwaggerDocsAPI service examplePort swagger Nothing =
   internalEndpointsSwaggerDocsAPI service examplePort swagger (Just maxBound)
 
@@ -357,9 +358,7 @@ servantSitemap =
     userClientAPI :: ServerT UserClientAPI (Handler r)
     userClientAPI =
       Named @"add-client" (callsFed (exposeAnnotations addClient))
-        :<|> Named
-          @"update-client"
-          updateClient
+        :<|> Named @"update-client" updateClient
         :<|> Named @"delete-client" deleteClient
         :<|> Named @"list-clients" listClients
         :<|> Named @"get-client" getClient
@@ -559,15 +558,14 @@ addClient ::
   (Member GalleyProvider r) =>
   UserId ->
   ConnId ->
-  Maybe IpAddr ->
   Public.NewClient ->
   (Handler r) NewClientResponse
-addClient usr con ip new = do
+addClient usr con new = do
   -- Users can't add legal hold clients
   when (Public.newClientType new == Public.LegalHoldClientType) $
     throwE (clientError ClientLegalHoldCannotBeAdded)
   clientResponse
-    <$> API.addClient usr (Just con) (ipAddr <$> ip) new
+    <$> API.addClient usr (Just con) new
       !>> clientError
   where
     clientResponse :: Public.Client -> NewClientResponse
@@ -748,10 +746,11 @@ createUser (Public.NewUserPublic new) = lift . runExceptT $ do
       Public.NewTeamMemberSSO _ ->
         Team.sendMemberWelcomeMail e t n l
 
-getSelf :: UserId -> (Handler r) Public.SelfProfile
+getSelf :: Member GalleyProvider r => UserId -> (Handler r) Public.SelfProfile
 getSelf self =
   lift (API.lookupSelfProfile self)
     >>= ifNothing (errorToWai @'E.UserNotFound)
+    >>= lift . liftSem . API.hackForBlockingHandleChangeForE2EIdTeams
 
 getUserUnqualifiedH ::
   (Member GalleyProvider r) =>
@@ -863,7 +862,7 @@ newtype GetActivationCodeResp
 instance ToJSON GetActivationCodeResp where
   toJSON (GetActivationCodeResp (k, c)) = object ["key" .= k, "code" .= c]
 
-updateUser :: UserId -> ConnId -> Public.UserUpdate -> (Handler r) (Maybe Public.UpdateProfileError)
+updateUser :: Member GalleyProvider r => UserId -> ConnId -> Public.UserUpdate -> (Handler r) (Maybe Public.UpdateProfileError)
 updateUser uid conn uu = do
   eithErr <- lift $ runExceptT $ API.updateUser uid (Just conn) uu API.ForbidSCIMUpdates
   pure $ either Just (const Nothing) eithErr
@@ -934,7 +933,7 @@ getHandleInfoUnqualifiedH self handle = do
   Public.UserHandleInfo . Public.profileQualifiedId
     <$$> Handle.getHandleInfo self (Qualified handle domain)
 
-changeHandle :: UserId -> ConnId -> Public.HandleUpdate -> (Handler r) (Maybe Public.ChangeHandleError)
+changeHandle :: Member GalleyProvider r => UserId -> ConnId -> Public.HandleUpdate -> (Handler r) (Maybe Public.ChangeHandleError)
 changeHandle u conn (Public.HandleUpdate h) = lift . exceptTToMaybe $ do
   handle <- maybe (throwError Public.ChangeHandleInvalid) pure $ parseHandle h
   API.changeHandle u (Just conn) handle API.ForbidSCIMUpdates

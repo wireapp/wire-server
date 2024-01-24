@@ -629,7 +629,7 @@ testOldClientsBlockDeviceHandshake = do
   -- this specifically checks the place that handles otr messages and responds with status
   -- 412 and a list of missing clients.
   --
-  -- if any of those clients are LH, this test provodes a "missing-legalhold-consent" error
+  -- if any of those clients are LH, this test provides a "missing-legalhold-consent-old-clients" error
   -- instead, without any information about the LH clients.  the condition is actually "has
   -- old device or has not granted consent", but the latter part is blocked earlier in 1:1 and
   -- group conversations, and hard to test at the device level.)
@@ -705,7 +705,7 @@ testOldClientsBlockDeviceHandshake = do
     -- If user has a client without the ClientSupportsLegalholdImplicitConsent
     -- capability then message sending is prevented to legalhold devices.
     peerClient <- randomClient peer (someLastPrekeys !! 2)
-    runit peer peerClient >>= errWith 403 (\err -> Error.label err == "missing-legalhold-consent")
+    runit peer peerClient >>= errWith 403 (\err -> Error.label err == "missing-legalhold-consent-old-clients")
     upgradeClientToLH peer peerClient
     runit peer peerClient >>= errWith 412 (\(_ :: Msg.ClientMismatch) -> True)
 

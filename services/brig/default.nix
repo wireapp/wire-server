@@ -48,7 +48,6 @@
 , filepath
 , fsnotify
 , galley-types
-, geoip2
 , gitignoreSource
 , gundeck-types
 , hashable
@@ -192,7 +191,6 @@ mkDerivation {
     cql
     cryptobox-haskell
     currency-codes
-    data-default
     data-timeout
     dns
     dns-util
@@ -206,7 +204,6 @@ mkDerivation {
     filepath
     fsnotify
     galley-types
-    geoip2
     gundeck-types
     hashable
     HaskellNet

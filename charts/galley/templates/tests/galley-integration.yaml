@@ -40,6 +40,11 @@ spec:
     - name: "galley-secrets"
       secret:
         secretName: "galley"
+    {{- if eq (include "useCassandraTLS" .Values.config) "true" }}
+    - name: "galley-cassandra"
+      secret:
+        secretName: {{ (include "tlsSecretRef" .Values.config | fromYaml).name }}
+    {{- end }}
   containers:
   - name: integration
     image: "{{ .Values.image.repository }}-integration:{{ .Values.image.tag }}"
@@ -84,6 +89,10 @@ spec:
       mountPath: "/etc/wire/integration-secrets"
     - name: "galley-secrets"
       mountPath: "/etc/wire/galley/secrets"
+    {{- if eq (include "useCassandraTLS" .Values.config) "true" }}
+    - name: "galley-cassandra"
+      mountPath: "/etc/wire/galley/cassandra"
+    {{- end }}
     env:
     # these dummy values are necessary for Amazonka's "Discover"
     - name: AWS_ACCESS_KEY_ID

@@ -6,23 +6,24 @@ import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Maybe
 import Data.Aeson hiding ((.=))
-import Data.Aeson qualified as Aeson
-import Data.Aeson.Encode.Pretty qualified as Aeson
-import Data.Aeson.Key qualified as KM
-import Data.Aeson.KeyMap qualified as KM
-import Data.Aeson.Types qualified as Aeson
+import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Encode.Pretty as Aeson
+import qualified Data.Aeson.Key as KM
+import qualified Data.Aeson.KeyMap as KM
+import qualified Data.Aeson.Types as Aeson
 import Data.ByteString (ByteString)
-import Data.ByteString.Base64 qualified as Base64
-import Data.ByteString.Lazy.Char8 qualified as LC8
+import qualified Data.ByteString.Base64 as Base64
+import qualified Data.ByteString.Lazy.Char8 as LC8
 import Data.Foldable
 import Data.Function
 import Data.Functor
 import Data.List.Split (splitOn)
 import Data.Maybe (fromMaybe)
-import Data.Scientific qualified as Sci
+import qualified Data.Scientific as Sci
+import qualified Data.Set as Set
 import Data.String
-import Data.Text qualified as T
-import Data.Text.Encoding qualified as T
+import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
 import Data.Vector ((!?))
 import GHC.Stack
 import Testlib.Types
@@ -129,6 +130,12 @@ asList x =
 asListOf :: HasCallStack => (Value -> App b) -> MakesValue a => a -> App [b]
 asListOf makeElem x =
   asList x >>= mapM makeElem
+
+asSet :: HasCallStack => MakesValue a => a -> App (Set.Set Value)
+asSet = fmap Set.fromList . asList
+
+asSetOf :: (HasCallStack, Ord b) => (Value -> App b) -> MakesValue a => a -> App (Set.Set b)
+asSetOf makeElem x = Set.fromList <$> asListOf makeElem x
 
 asBool :: HasCallStack => MakesValue a => a -> App Bool
 asBool x =

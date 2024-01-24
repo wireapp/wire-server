@@ -4,7 +4,6 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
 
 -- This file is part of the Wire Server implementation.
@@ -30,10 +29,6 @@ module Data.Misc
     Port (..),
 
     -- * Location
-    Location,
-    location,
-    latitude,
-    longitude,
     Latitude (..),
     Longitude (..),
 
@@ -64,11 +59,12 @@ module Data.Misc
     FutureWork (..),
     from64,
     readT,
+    showT,
   )
 where
 
 import Cassandra
-import Control.Lens (makeLenses, (.~), (?~), (^.))
+import Control.Lens ((.~), (?~), (^.))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Aeson qualified as A
 import Data.Attoparsec.ByteString.Char8 qualified as Chars
@@ -154,45 +150,10 @@ instance ToSchema Port where
 --------------------------------------------------------------------------------
 -- Location
 
-data Location = Location
-  { _latitude :: !Double,
-    _longitude :: !Double
-  }
-  deriving stock (Eq, Ord, Generic)
-  deriving (FromJSON, ToJSON, S.ToSchema) via Schema Location
-
-instance ToSchema Location where
-  schema =
-    object "Location" $
-      Location
-        <$> _latitude
-          .= field "lat" genericToSchema
-        <*> _longitude
-          .= field "lon" genericToSchema
-
-instance Show Location where
-  show p =
-    showString "{latitude="
-      . shows (_latitude p)
-      . showString ", longitude="
-      . shows (_longitude p)
-      $ "}"
-
-instance NFData Location
-
-makeLenses ''Location
-
 -- FUTUREWORK: why not use these in 'Location'?
 newtype Latitude = Latitude Double deriving (NFData, Generic)
 
 newtype Longitude = Longitude Double deriving (NFData, Generic)
-
-location :: Latitude -> Longitude -> Location
-location (Latitude lat) (Longitude lon) =
-  Location {_latitude = lat, _longitude = lon}
-
-instance Arbitrary Location where
-  arbitrary = Location <$> arbitrary <*> arbitrary
 
 instance Cql Latitude where
   ctype = Tagged DoubleColumn
@@ -406,6 +367,11 @@ newtype FutureWork label payload = FutureWork payload
 readT :: Read a => Text -> Maybe a
 readT = readMaybe . Text.unpack
 {-# INLINE readT #-}
+
+-- | Same as 'show' but works on 'Text'
+showT :: Show a => a -> Text
+showT = Text.pack . show
+{-# INLINE showT #-}
 
 -- | Decodes a base64 'Text' to a regular 'ByteString' (if possible)
 from64 :: Text -> Maybe ByteString

@@ -74,7 +74,7 @@ federatedRequestSuccess =
           }
     let interpretCall :: Member (Embed IO) r => Sem (Remote ': r) a -> Sem r a
         interpretCall = interpret $ \case
-          DiscoverAndCall domain component rpc headers body -> embed @IO $ do
+          DiscoverAndCall _ domain component rpc headers body -> embed @IO $ do
             domain @?= targetDomain
             component @?= Brig
             rpc @?= "get-user-by-handle"
@@ -102,7 +102,7 @@ federatedRequestSuccess =
         . runInputConst settings
         . runInputConst (FederationDomainConfigs AllowDynamic [FederationDomainConfig (Domain "target.example.com") FullSearch FederationRestrictionAllowAll] 10)
         . assertMetrics
-        $ callOutward targetDomain Brig (RPC "get-user-by-handle") request
+        $ callOutward Nothing targetDomain Brig (RPC "get-user-by-handle") request
     Wai.responseStatus res @?= HTTP.status200
     body <- Wai.lazyResponseBody res
     body @?= "\"bar\""
@@ -148,7 +148,7 @@ federatedRequestFailureAllowList =
         . runInputConst settings
         . runInputConst (FederationDomainConfigs AllowDynamic [FederationDomainConfig (Domain "hello.world") FullSearch FederationRestrictionAllowAll] 10)
         . interpretMetricsEmpty
-        $ callOutward targetDomain Brig (RPC "get-user-by-handle") request
+        $ callOutward Nothing targetDomain Brig (RPC "get-user-by-handle") request
     eith @?= Left (FederationDenied targetDomain)
 
 -- @END

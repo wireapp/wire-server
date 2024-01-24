@@ -81,7 +81,6 @@ patchFeatureStatusInternal ::
     GetConfigForTeamConstraints cfg r,
     SetConfigForTeamConstraints cfg r,
     Member (ErrorS 'NotATeamMember) r,
-    Member (ErrorS OperationDenied) r,
     Member (ErrorS 'TeamNotFound) r,
     Member TeamStore r,
     Member TeamFeatureStore r,
@@ -393,3 +392,7 @@ instance SetFeatureConfig MlsMigrationConfig where
       )
       $ throw MLSProtocolMismatch
     persistAndPushEvent tid wsnl
+
+instance SetFeatureConfig EnforceFileDownloadLocationConfig
+
+instance SetFeatureConfig LimitedEventFanoutConfig

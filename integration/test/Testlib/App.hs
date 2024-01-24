@@ -1,11 +1,11 @@
 module Testlib.App where
 
 import Control.Monad.Reader
-import Control.Retry qualified as Retry
+import qualified Control.Retry as Retry
 import Data.Aeson hiding ((.=))
 import Data.IORef
-import Data.Text qualified as T
-import Data.Yaml qualified as Yaml
+import qualified Data.Text as T
+import qualified Data.Yaml as Yaml
 import GHC.Exception
 import GHC.Stack (HasCallStack)
 import System.FilePath
@@ -31,7 +31,7 @@ getLastPrekey = App $ do
   lpk <- liftIO $ atomicModifyIORef pks getPK
   pure $ object ["id" .= lastPrekeyId, "key" .= lpk]
   where
-    getPK [] = error "Out of prekeys"
+    getPK [] = error "No last prekey left"
     getPK (k : ks) = (ks, k)
 
     lastPrekeyId :: Int

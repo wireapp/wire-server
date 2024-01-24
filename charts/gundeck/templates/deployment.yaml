@@ -32,6 +32,11 @@ spec:
         - name: "gundeck-config"
           configMap:
             name: "gundeck"
+        {{- if eq (include "useCassandraTLS" .Values.config) "true" }}
+        - name: "gundeck-cassandra"
+          secret:
+            secretName: {{ (include "tlsSecretRef" .Values.config | fromYaml).name }}
+        {{- end}}
       containers:
         - name: gundeck
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -43,6 +48,10 @@ spec:
           volumeMounts:
           - name: "gundeck-config"
             mountPath: "/etc/wire/gundeck/conf"
+          {{- if eq (include "useCassandraTLS" .Values.config) "true" }}
+          - name: "gundeck-cassandra"
+            mountPath: "/etc/wire/gundeck/cassandra"
+          {{- end }}
           env:
           {{- if hasKey .Values.secrets "awsKeyId" }}
           - name: AWS_ACCESS_KEY_ID

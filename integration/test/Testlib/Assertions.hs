@@ -5,21 +5,21 @@ module Testlib.Assertions where
 import Control.Exception as E
 import Control.Monad.Reader
 import Data.Aeson (Value)
-import Data.Aeson qualified as Aeson
-import Data.Aeson.Encode.Pretty qualified as Aeson
-import Data.ByteString.Base64 qualified as B64
-import Data.ByteString.Lazy qualified as BS
+import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Encode.Pretty as Aeson
+import qualified Data.ByteString.Base64 as B64
+import qualified Data.ByteString.Lazy as BS
 import Data.Char
 import Data.Foldable
 import Data.Hex
 import Data.List
-import Data.Map qualified as Map
-import Data.Text qualified as Text
-import Data.Text.Encoding qualified as Text
-import Data.Text.Lazy qualified as TL
-import Data.Text.Lazy.Encoding qualified as TL
+import qualified Data.Map as Map
+import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
+import qualified Data.Text.Lazy as TL
+import qualified Data.Text.Lazy.Encoding as TL
 import GHC.Stack as Stack
-import Network.HTTP.Client qualified as HTTP
+import qualified Network.HTTP.Client as HTTP
 import System.FilePath
 import Testlib.JSON
 import Testlib.Printing

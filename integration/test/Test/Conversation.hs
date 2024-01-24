@@ -27,8 +27,8 @@ import Control.Applicative
 import Control.Concurrent (threadDelay)
 import Control.Monad.Codensity
 import Control.Monad.Reader
-import Data.Aeson qualified as Aeson
-import Data.Text qualified as T
+import qualified Data.Aeson as Aeson
+import qualified Data.Text as T
 import GHC.Stack
 import Notifications
 import SetupHelpers hiding (deleteUser)
@@ -660,35 +660,94 @@ testDeleteTeamConversationWithUnreachableRemoteMembers = do
       notif <- awaitNotification bob bobClient noValue isConvDeleteNotif
       assertNotification notif
 
-testDeleteTeamMember :: HasCallStack => App ()
-testDeleteTeamMember = do
-  (alice, team, [alex]) <- createTeam OwnDomain 2
+testDeleteTeamMemberLimitedEventFanout :: HasCallStack => App ()
+testDeleteTeamMemberLimitedEventFanout = do
+  -- Alex will get removed from the team
+  (alice, team, [alex, alison]) <- createTeam OwnDomain 3
+  ana <- createTeamMemberWithRole alice team "admin"
   [amy, bob] <- for [OwnDomain, OtherDomain] $ flip randomUser def
   forM_ [amy, bob] $ connectTwoUsers alice
-  [aliceId, alexId, amyId, bobId] <-
-    forM [alice, alex, amy, bob] (%. "qualified_id")
-  let nc = (defProteus {qualifiedUsers = [alexId, amyId, bobId], team = Just team})
+  [aliceId, alexId, amyId, alisonId, anaId, bobId] <- do
+    forM [alice, alex, amy, alison, ana, bob] (%. "qualified_id")
+  let nc =
+        ( defProteus
+            { qualifiedUsers =
+                [alexId, amyId, alisonId, anaId, bobId],
+              team = Just team
+            }
+        )
   conv <- postConversation alice nc >>= getJSON 201
-  withWebSockets [alice, amy, bob] $ \[wsAlice, wsAmy, wsBob] -> do
+  memsBefore <- getMembers team aliceId
+
+  -- Only the team admins will get the team-level event about Alex being removed
+  -- from the team
+  setTeamFeatureStatus OwnDomain team "limitedEventFanout" "enabled"
+
+  withWebSockets [alice, amy, bob, alison, ana] $
+    \[wsAlice, wsAmy, wsBob, wsAlison, wsAna] -> do
+      void $ deleteTeamMember team alice alex >>= getBody 202
+
+      memsAfter <- getMembers team aliceId
+      memsAfter `shouldNotMatch` memsBefore
+
+      assertConvUserDeletedNotif wsAmy alexId
+      assertConvUserDeletedNotif wsAlison alexId
+
+      alexUId <- alex %. "id"
+      do
+        n <- awaitMatch isTeamMemberLeaveNotif wsAlice
+        nPayload n %. "data.user" `shouldMatch` alexUId
+        assertConvUserDeletedNotif wsAlice alexId
+      do
+        n <- awaitMatch isTeamMemberLeaveNotif wsAna
+        nPayload n %. "data.user" `shouldMatch` alexUId
+        assertConvUserDeletedNotif wsAna alexId
+      do
+        bindResponse (getConversation bob conv) $ \resp -> do
+          resp.status `shouldMatchInt` 200
+          mems <- resp.json %. "members.others" & asList
+          memIds <- forM mems (%. "qualified_id")
+          memIds `shouldMatchSet` [aliceId, alisonId, amyId, anaId]
+        assertConvUserDeletedNotif wsBob alexId
+  where
+    getMembers tid usr = bindResponse (getTeamMembers usr tid) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      ms <- resp.json %. "members" & asList
+      forM ms $ (%. "user")
+
+-- The test relies on the default value for the 'limitedEventFanout' flag, which
+-- is disabled by default. The counterpart test
+-- 'testDeleteTeamMemberLimitedEventFanout' enables the flag and tests the
+-- limited fanout.
+testDeleteTeamMemberFullEventFanout :: HasCallStack => App ()
+testDeleteTeamMemberFullEventFanout = do
+  (alice, team, [alex, alison]) <- createTeam OwnDomain 3
+  [amy, bob] <- for [OwnDomain, OtherDomain] $ flip randomUser def
+  forM_ [amy, bob] $ connectTwoUsers alice
+  [aliceId, alexId, alisonId, amyId, bobId] <-
+    forM [alice, alex, alison, amy, bob] (%. "qualified_id")
+  let nc = (defProteus {qualifiedUsers = [alexId, alisonId, amyId, bobId], team = Just team})
+  conv <- postConversation alice nc >>= getJSON 201
+  withWebSockets [alice, alison, amy, bob] $ \[wsAlice, wsAlison, wsAmy, wsBob] -> do
     void $ deleteTeamMember team alice alex >>= getBody 202
+    alexUId <- alex %. "id"
     do
       n <- awaitMatch isTeamMemberLeaveNotif wsAlice
-      alexUId <- alex %. "id"
       nPayload n %. "data.user" `shouldMatch` alexUId
-    assertConvLeaveNotif wsAmy alexId
+    do
+      t <- awaitMatch isTeamMemberLeaveNotif wsAlison
+      nPayload t %. "data.user" `shouldMatch` alexUId
+      assertConvUserDeletedNotif wsAlison alexId
+
+    assertConvUserDeletedNotif wsAmy alexId
+
     do
       bindResponse (getConversation bob conv) $ \resp -> do
         resp.status `shouldMatchInt` 200
         mems <- resp.json %. "members.others" & asList
         memIds <- forM mems (%. "qualified_id")
-        memIds `shouldMatchSet` [aliceId, amyId]
-      assertConvLeaveNotif wsBob alexId
-  where
-    assertConvLeaveNotif :: MakesValue leaverId => WebSocket -> leaverId -> App ()
-    assertConvLeaveNotif ws leaverId = do
-      n <- awaitMatch isConvLeaveNotif ws
-      nPayload n %. "data.qualified_user_ids.0" `shouldMatch` leaverId
-      nPayload n %. "data.reason" `shouldMatch` "user-deleted"
+        memIds `shouldMatchSet` [aliceId, alisonId, amyId]
+      assertConvUserDeletedNotif wsBob alexId
 
 testLeaveConversationSuccess :: HasCallStack => App ()
 testLeaveConversationSuccess = do
@@ -763,3 +822,31 @@ testGuestCreatesConversation = do
   bindResponse (postConversation alice defProteus) $ \resp -> do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "operation-denied"
+
+testGuestLinksSuccess :: HasCallStack => App ()
+testGuestLinksSuccess = do
+  (user, _, tm : _) <- createTeam OwnDomain 2
+  conv <- postConversation user (allowGuests defProteus) >>= getJSON 201
+  (k, v) <- bindResponse (postConversationCode user conv Nothing Nothing) $ \resp -> do
+    res <- getJSON 201 resp
+    k <- res %. "data.key" & asString
+    v <- res %. "data.code" & asString
+    pure (k, v)
+  bindResponse (getJoinCodeConv tm k v) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "id" `shouldMatch` objId conv
+
+testGuestLinksExpired :: HasCallStack => App ()
+testGuestLinksExpired = do
+  withModifiedBackend
+    def {galleyCfg = setField "settings.guestLinkTTLSeconds" (1 :: Int)}
+    $ \domain -> do
+      (user, _, tm : _) <- createTeam domain 2
+      conv <- postConversation user (allowGuests defProteus) >>= getJSON 201
+      (k, v) <- bindResponse (postConversationCode user conv Nothing Nothing) $ \resp -> do
+        res <- getJSON 201 resp
+        (,) <$> asString (res %. "data.key") <*> asString (res %. "data.code")
+      -- let's wait a little longer than 1 second for the guest link to expire
+      liftIO $ threadDelay (1_100_000)
+      bindResponse (getJoinCodeConv tm k v) $ \resp -> do
+        resp.status `shouldMatchInt` 404

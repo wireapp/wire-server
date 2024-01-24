@@ -6,15 +6,16 @@ module API.Galley where
 import API.Common
 import Control.Lens hiding ((.=))
 import Control.Monad.Reader
-import Data.Aeson qualified as Aeson
-import Data.Aeson.Types qualified as Aeson
-import Data.ByteString.Base64 qualified as B64
-import Data.ByteString.Base64.URL qualified as B64U
-import Data.ByteString.Char8 qualified as BS
-import Data.ByteString.Lazy qualified as LBS
-import Data.ProtoLens qualified as Proto
+import Control.Retry
+import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Types as Aeson
+import qualified Data.ByteString.Base64 as B64
+import qualified Data.ByteString.Base64.URL as B64U
+import qualified Data.ByteString.Char8 as BS
+import qualified Data.ByteString.Lazy as LBS
+import qualified Data.ProtoLens as Proto
 import Data.ProtoLens.Labels ()
-import Data.UUID qualified as UUID
+import qualified Data.UUID as UUID
 import Numeric.Lens
 import Proto.Otr as Proto
 import Testlib.Prelude
@@ -416,6 +417,12 @@ getConversationCode user conv mbZHost = do
         & maybe id zHost mbZHost
     )
 
+getJoinCodeConv :: (HasCallStack, MakesValue user) => user -> String -> String -> App Response
+getJoinCodeConv u k v = do
+  req <- baseRequest u Galley Versioned (joinHttpPath ["conversations", "join"])
+  submit "GET" (req & addQueryParams [("key", k), ("code", v)])
+
+-- https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/put_conversations__cnv_domain___cnv__name
 changeConversationName ::
   (HasCallStack, MakesValue user, MakesValue conv, MakesValue name) =>
   user ->
@@ -506,4 +513,56 @@ getTeamMembers :: (HasCallStack, MakesValue user, MakesValue tid) => user -> tid
 getTeamMembers user tid = do
   tidStr <- asString tid
   req <- baseRequest user Galley Versioned (joinHttpPath ["teams", tidStr, "members"])
+  submit "GET" req
+
+-- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/post_teams__tid__legalhold_settings
+enableLegalHold :: (HasCallStack, MakesValue tid, MakesValue ownerid) => tid -> ownerid -> App Response
+enableLegalHold tid ownerid = do
+  tidStr <- asString tid
+  req <- baseRequest ownerid Galley Versioned (joinHttpPath ["teams", tidStr, "features", "legalhold"])
+  submit "PUT" (addJSONObject ["status" .= "enabled", "ttl" .= "unlimited"] req)
+
+-- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/post_teams__tid__legalhold_settings
+postLegalHoldSettings :: (HasCallStack, MakesValue owner, MakesValue tid, MakesValue newService) => owner -> tid -> newService -> App Response
+postLegalHoldSettings owner tid newSettings = retrying policy only412 $ \_ -> do
+  tidStr <- asString tid
+  req <- baseRequest owner Galley Versioned (joinHttpPath ["teams", tidStr, "legalhold", "settings"])
+  newSettingsObj <- make newSettings
+  submit "POST" (addJSON newSettingsObj req)
+  where
+    policy :: RetryPolicy
+    policy = limitRetriesByCumulativeDelay 5_000_000 $ exponentialBackoff 50
+
+    only412 :: RetryStatus -> Response -> App Bool
+    only412 _ resp = pure $ resp.status == 412
+
+-- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/post_teams__tid__legalhold__uid_
+requestLegalHoldDevice :: (HasCallStack, MakesValue tid, MakesValue ownerid, MakesValue uid) => tid -> ownerid -> uid -> App Response
+requestLegalHoldDevice tid ownerid uid = do
+  tidStr <- asString tid
+  uidStr <- objId uid
+  req <- baseRequest ownerid Galley Versioned (joinHttpPath ["teams", tidStr, "legalhold", uidStr])
+  submit "POST" req
+
+-- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/put_teams__tid__legalhold__uid__approve
+approveLegalHoldDevice :: (HasCallStack, MakesValue tid, MakesValue uid) => tid -> uid -> String -> App Response
+approveLegalHoldDevice tid uid pwd = do
+  tidStr <- asString tid
+  uidStr <- asString $ uid %. "id"
+  req <- baseRequest uid Galley Versioned (joinHttpPath ["teams", tidStr, "legalhold", uidStr, "approve"])
+  submit "PUT" (addJSONObject ["password" .= pwd] req)
+
+-- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/post_teams__tid__legalhold_consent
+consentToLegalHold :: (HasCallStack, MakesValue tid, MakesValue zusr) => tid -> zusr -> String -> App Response
+consentToLegalHold tid zusr pwd = do
+  tidStr <- asString tid
+  req <- baseRequest zusr Galley Versioned (joinHttpPath ["teams", tidStr, "legalhold", "consent"])
+  submit "POST" (addJSONObject ["password" .= pwd] req)
+
+-- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/get_teams__tid__legalhold__uid_
+getLegalHoldStatus :: (HasCallStack, MakesValue tid, MakesValue zusr) => tid -> zusr -> App Response
+getLegalHoldStatus tid zusr = do
+  tidStr <- asString tid
+  uidStr <- asString $ zusr %. "id"
+  req <- baseRequest zusr Galley Versioned (joinHttpPath ["teams", tidStr, "legalhold", uidStr])
   submit "GET" req

@@ -11,30 +11,31 @@ import Control.Monad.Catch
 import Control.Monad.Reader
 import Control.Monad.Trans.Control
 import Data.Aeson
-import Data.Aeson qualified as Aeson
+import qualified Data.Aeson as Aeson
 import Data.ByteString (ByteString)
-import Data.ByteString qualified as BS
-import Data.ByteString.Char8 qualified as C8
-import Data.ByteString.Lazy qualified as L
-import Data.CaseInsensitive qualified as CI
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Char8 as C8
+import qualified Data.ByteString.Lazy as L
+import qualified Data.CaseInsensitive as CI
+import Data.Char (toLower)
 import Data.Default
 import Data.Functor
 import Data.IORef
 import Data.List
 import Data.Map
-import Data.Map qualified as Map
+import qualified Data.Map as Map
 import Data.Set (Set)
-import Data.Set qualified as Set
+import qualified Data.Set as Set
 import Data.String
-import Data.Text qualified as T
-import Data.Text.Encoding qualified as T
+import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
 import Data.Time
 import Data.Word
 import GHC.Generics (Generic)
 import GHC.Records
 import GHC.Stack
-import Network.HTTP.Client qualified as HTTP
-import Network.HTTP.Types qualified as HTTP
+import qualified Network.HTTP.Client as HTTP
+import qualified Network.HTTP.Types as HTTP
 import Network.URI
 import UnliftIO (MonadUnliftIO)
 import Prelude
@@ -117,7 +118,7 @@ data IntegrationConfig = IntegrationConfig
     backendTwo :: BackendConfig,
     dynamicBackends :: Map String DynamicBackendConfig,
     rabbitmq :: RabbitMQConfig,
-    cassandra :: HostPort
+    cassandra :: CassandraConfig
   }
   deriving (Show, Generic)
 
@@ -168,6 +169,23 @@ data HostPort = HostPort
   deriving (Show, Generic)
 
 instance FromJSON HostPort
+
+data CassandraConfig = CassandraConfig
+  { cassHost :: String,
+    cassPort :: Word16,
+    cassTlsCa :: Maybe FilePath
+  }
+  deriving (Show, Generic)
+
+instance FromJSON CassandraConfig where
+  parseJSON = genericParseJSON defaultOptions {fieldLabelModifier = lowerFirst . dropPrefix}
+    where
+      lowerFirst :: String -> String
+      lowerFirst (x : xs) = toLower x : xs
+      lowerFirst [] = ""
+
+      dropPrefix :: String -> String
+      dropPrefix = Prelude.drop (length "cass")
 
 -- | Initialised once per test.
 data Env = Env

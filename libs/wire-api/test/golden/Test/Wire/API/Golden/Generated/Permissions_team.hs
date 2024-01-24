@@ -22,15 +22,15 @@ module Test.Wire.API.Golden.Generated.Permissions_team where
 import GHC.Exts (IsList (fromList))
 import Wire.API.Team.Permission
   ( Perm
-      ( AddTeamMember,
+      ( AddRemoveConvMember,
+        AddTeamMember,
         CreateConversation,
+        DeleteConversation,
         DeleteTeam,
-        DoNotUseDeprecatedAddRemoveConvMember,
-        DoNotUseDeprecatedDeleteConversation,
-        DoNotUseDeprecatedModifyConvName,
         GetBilling,
         GetMemberPermissions,
         GetTeamConversations,
+        ModifyConvName,
         RemoveTeamMember,
         SetBilling,
         SetMemberPermissions,
@@ -47,11 +47,11 @@ testObject_Permissions_team_2 =
   Permissions
     { _self =
         fromList
-          [ DoNotUseDeprecatedDeleteConversation,
+          [ DeleteConversation,
             AddTeamMember,
             RemoveTeamMember,
-            DoNotUseDeprecatedAddRemoveConvMember,
-            DoNotUseDeprecatedModifyConvName,
+            AddRemoveConvMember,
+            ModifyConvName,
             GetBilling,
             SetTeamData,
             SetMemberPermissions,
@@ -60,11 +60,11 @@ testObject_Permissions_team_2 =
           ],
       _copy =
         fromList
-          [ DoNotUseDeprecatedDeleteConversation,
+          [ DeleteConversation,
             AddTeamMember,
             RemoveTeamMember,
-            DoNotUseDeprecatedAddRemoveConvMember,
-            DoNotUseDeprecatedModifyConvName,
+            AddRemoveConvMember,
+            ModifyConvName,
             GetBilling,
             SetTeamData,
             SetMemberPermissions,
@@ -77,10 +77,10 @@ testObject_Permissions_team_3 =
   Permissions
     { _self =
         fromList
-          [ DoNotUseDeprecatedDeleteConversation,
+          [ DeleteConversation,
             AddTeamMember,
             RemoveTeamMember,
-            DoNotUseDeprecatedAddRemoveConvMember,
+            AddRemoveConvMember,
             SetBilling,
             GetMemberPermissions,
             SetMemberPermissions,
@@ -91,7 +91,7 @@ testObject_Permissions_team_3 =
         fromList
           [ AddTeamMember,
             RemoveTeamMember,
-            DoNotUseDeprecatedAddRemoveConvMember,
+            AddRemoveConvMember,
             GetMemberPermissions,
             SetMemberPermissions,
             GetTeamConversations,
@@ -104,9 +104,9 @@ testObject_Permissions_team_4 =
   Permissions
     { _self =
         fromList
-          [ DoNotUseDeprecatedDeleteConversation,
+          [ DeleteConversation,
             AddTeamMember,
-            DoNotUseDeprecatedAddRemoveConvMember,
+            AddRemoveConvMember,
             GetBilling,
             SetBilling,
             GetMemberPermissions,
@@ -124,7 +124,7 @@ testObject_Permissions_team_5 =
           [ CreateConversation,
             AddTeamMember,
             RemoveTeamMember,
-            DoNotUseDeprecatedModifyConvName,
+            ModifyConvName,
             GetBilling,
             SetTeamData,
             GetMemberPermissions,
@@ -135,7 +135,7 @@ testObject_Permissions_team_5 =
         fromList
           [ CreateConversation,
             RemoveTeamMember,
-            DoNotUseDeprecatedModifyConvName,
+            ModifyConvName,
             GetBilling,
             GetMemberPermissions,
             DeleteTeam
@@ -150,8 +150,8 @@ testObject_Permissions_team_6 =
           [ CreateConversation,
             AddTeamMember,
             RemoveTeamMember,
-            DoNotUseDeprecatedAddRemoveConvMember,
-            DoNotUseDeprecatedModifyConvName,
+            AddRemoveConvMember,
+            ModifyConvName,
             GetBilling,
             SetBilling,
             SetTeamData,
@@ -163,8 +163,8 @@ testObject_Permissions_team_6 =
           [ CreateConversation,
             AddTeamMember,
             RemoveTeamMember,
-            DoNotUseDeprecatedAddRemoveConvMember,
-            DoNotUseDeprecatedModifyConvName,
+            AddRemoveConvMember,
+            ModifyConvName,
             GetBilling,
             SetTeamData,
             GetMemberPermissions,
@@ -179,14 +179,14 @@ testObject_Permissions_team_7 =
         fromList
           [ AddTeamMember,
             RemoveTeamMember,
-            DoNotUseDeprecatedAddRemoveConvMember,
-            DoNotUseDeprecatedModifyConvName,
+            AddRemoveConvMember,
+            ModifyConvName,
             GetBilling,
             SetTeamData,
             GetTeamConversations,
             DeleteTeam
           ],
-      _copy = fromList [DoNotUseDeprecatedAddRemoveConvMember, GetBilling, DeleteTeam]
+      _copy = fromList [AddRemoveConvMember, GetBilling, DeleteTeam]
     }
 
 testObject_Permissions_team_8 :: Permissions
@@ -195,11 +195,11 @@ testObject_Permissions_team_8 =
     { _self =
         fromList
           [ CreateConversation,
-            DoNotUseDeprecatedDeleteConversation,
+            DeleteConversation,
             AddTeamMember,
             RemoveTeamMember,
-            DoNotUseDeprecatedAddRemoveConvMember,
-            DoNotUseDeprecatedModifyConvName,
+            AddRemoveConvMember,
+            ModifyConvName,
             GetBilling,
             SetBilling,
             SetTeamData,
@@ -211,8 +211,8 @@ testObject_Permissions_team_8 =
         fromList
           [ AddTeamMember,
             RemoveTeamMember,
-            DoNotUseDeprecatedAddRemoveConvMember,
-            DoNotUseDeprecatedModifyConvName,
+            AddRemoveConvMember,
+            ModifyConvName,
             GetBilling,
             GetMemberPermissions,
             SetMemberPermissions
@@ -225,11 +225,11 @@ testObject_Permissions_team_9 =
     { _self =
         fromList
           [ CreateConversation,
-            DoNotUseDeprecatedDeleteConversation,
-            DoNotUseDeprecatedAddRemoveConvMember,
+            DeleteConversation,
+            AddRemoveConvMember,
             GetMemberPermissions
           ],
-      _copy = fromList [CreateConversation, DoNotUseDeprecatedAddRemoveConvMember, GetMemberPermissions]
+      _copy = fromList [CreateConversation, AddRemoveConvMember, GetMemberPermissions]
     }
 
 testObject_Permissions_team_10 :: Permissions
@@ -238,10 +238,10 @@ testObject_Permissions_team_10 =
     { _self =
         fromList
           [ CreateConversation,
-            DoNotUseDeprecatedDeleteConversation,
+            DeleteConversation,
             AddTeamMember,
             RemoveTeamMember,
-            DoNotUseDeprecatedAddRemoveConvMember,
+            AddRemoveConvMember,
             SetBilling,
             SetMemberPermissions,
             GetTeamConversations,
@@ -250,10 +250,10 @@ testObject_Permissions_team_10 =
       _copy =
         fromList
           [ CreateConversation,
-            DoNotUseDeprecatedDeleteConversation,
+            DeleteConversation,
             AddTeamMember,
             RemoveTeamMember,
-            DoNotUseDeprecatedAddRemoveConvMember,
+            AddRemoveConvMember,
             SetBilling,
             SetMemberPermissions,
             GetTeamConversations,
@@ -266,7 +266,7 @@ testObject_Permissions_team_11 =
   Permissions
     { _self =
         fromList
-          [ DoNotUseDeprecatedDeleteConversation,
+          [ DeleteConversation,
             RemoveTeamMember,
             GetBilling,
             GetMemberPermissions,
@@ -283,10 +283,10 @@ testObject_Permissions_team_12 =
     { _self =
         fromList
           [ CreateConversation,
-            DoNotUseDeprecatedDeleteConversation,
+            DeleteConversation,
             RemoveTeamMember,
-            DoNotUseDeprecatedAddRemoveConvMember,
-            DoNotUseDeprecatedModifyConvName,
+            AddRemoveConvMember,
+            ModifyConvName,
             GetBilling,
             SetBilling,
             SetTeamData,
@@ -298,10 +298,10 @@ testObject_Permissions_team_12 =
       _copy =
         fromList
           [ CreateConversation,
-            DoNotUseDeprecatedDeleteConversation,
+            DeleteConversation,
             RemoveTeamMember,
-            DoNotUseDeprecatedAddRemoveConvMember,
-            DoNotUseDeprecatedModifyConvName,
+            AddRemoveConvMember,
+            ModifyConvName,
             GetBilling,
             SetBilling,
             SetTeamData,
@@ -319,7 +319,7 @@ testObject_Permissions_team_13 =
           [ CreateConversation,
             AddTeamMember,
             RemoveTeamMember,
-            DoNotUseDeprecatedModifyConvName,
+            ModifyConvName,
             GetBilling,
             SetTeamData,
             SetMemberPermissions
@@ -333,10 +333,10 @@ testObject_Permissions_team_14 =
     { _self =
         fromList
           [ CreateConversation,
-            DoNotUseDeprecatedDeleteConversation,
+            DeleteConversation,
             AddTeamMember,
-            DoNotUseDeprecatedAddRemoveConvMember,
-            DoNotUseDeprecatedModifyConvName,
+            AddRemoveConvMember,
+            ModifyConvName,
             SetBilling,
             SetTeamData,
             GetMemberPermissions,
@@ -345,10 +345,10 @@ testObject_Permissions_team_14 =
       _copy =
         fromList
           [ CreateConversation,
-            DoNotUseDeprecatedDeleteConversation,
+            DeleteConversation,
             AddTeamMember,
-            DoNotUseDeprecatedAddRemoveConvMember,
-            DoNotUseDeprecatedModifyConvName,
+            AddRemoveConvMember,
+            ModifyConvName,
             SetBilling,
             SetTeamData,
             GetMemberPermissions,
@@ -361,11 +361,11 @@ testObject_Permissions_team_15 =
   Permissions
     { _self =
         fromList
-          [ DoNotUseDeprecatedDeleteConversation,
+          [ DeleteConversation,
             AddTeamMember,
             RemoveTeamMember,
-            DoNotUseDeprecatedAddRemoveConvMember,
-            DoNotUseDeprecatedModifyConvName,
+            AddRemoveConvMember,
+            ModifyConvName,
             SetBilling,
             GetMemberPermissions,
             SetMemberPermissions,
@@ -379,8 +379,8 @@ testObject_Permissions_team_16 =
   Permissions
     { _self =
         fromList
-          [ DoNotUseDeprecatedDeleteConversation,
-            DoNotUseDeprecatedAddRemoveConvMember,
+          [ DeleteConversation,
+            AddRemoveConvMember,
             GetBilling,
             SetTeamData,
             SetMemberPermissions,
@@ -388,7 +388,7 @@ testObject_Permissions_team_16 =
           ],
       _copy =
         fromList
-          [DoNotUseDeprecatedDeleteConversation, GetBilling, SetTeamData, SetMemberPermissions, GetTeamConversations]
+          [DeleteConversation, GetBilling, SetTeamData, SetMemberPermissions, GetTeamConversations]
     }
 
 testObject_Permissions_team_17 :: Permissions
@@ -396,10 +396,10 @@ testObject_Permissions_team_17 =
   Permissions
     { _self =
         fromList
-          [ DoNotUseDeprecatedDeleteConversation,
+          [ DeleteConversation,
             AddTeamMember,
             RemoveTeamMember,
-            DoNotUseDeprecatedModifyConvName,
+            ModifyConvName,
             SetTeamData,
             GetMemberPermissions,
             SetMemberPermissions,
@@ -408,10 +408,10 @@ testObject_Permissions_team_17 =
           ],
       _copy =
         fromList
-          [ DoNotUseDeprecatedDeleteConversation,
+          [ DeleteConversation,
             AddTeamMember,
             RemoveTeamMember,
-            DoNotUseDeprecatedModifyConvName,
+            ModifyConvName,
             SetTeamData,
             GetMemberPermissions,
             SetMemberPermissions,
@@ -427,7 +427,7 @@ testObject_Permissions_team_18 =
         fromList
           [ CreateConversation,
             AddTeamMember,
-            DoNotUseDeprecatedAddRemoveConvMember,
+            AddRemoveConvMember,
             SetBilling,
             GetMemberPermissions,
             SetMemberPermissions,
@@ -437,7 +437,7 @@ testObject_Permissions_team_18 =
         fromList
           [ CreateConversation,
             AddTeamMember,
-            DoNotUseDeprecatedAddRemoveConvMember,
+            AddRemoveConvMember,
             SetBilling,
             GetMemberPermissions,
             DeleteTeam
@@ -450,11 +450,11 @@ testObject_Permissions_team_19 =
     { _self =
         fromList
           [ CreateConversation,
-            DoNotUseDeprecatedDeleteConversation,
+            DeleteConversation,
             AddTeamMember,
             RemoveTeamMember,
-            DoNotUseDeprecatedAddRemoveConvMember,
-            DoNotUseDeprecatedModifyConvName,
+            AddRemoveConvMember,
+            ModifyConvName,
             SetBilling,
             SetTeamData,
             GetMemberPermissions,
@@ -465,10 +465,10 @@ testObject_Permissions_team_19 =
       _copy =
         fromList
           [ CreateConversation,
-            DoNotUseDeprecatedDeleteConversation,
+            DeleteConversation,
             AddTeamMember,
             RemoveTeamMember,
-            DoNotUseDeprecatedAddRemoveConvMember,
+            AddRemoveConvMember,
             SetBilling,
             SetMemberPermissions,
             GetTeamConversations,
@@ -482,9 +482,9 @@ testObject_Permissions_team_20 =
     { _self =
         fromList
           [ CreateConversation,
-            DoNotUseDeprecatedDeleteConversation,
+            DeleteConversation,
             AddTeamMember,
-            DoNotUseDeprecatedModifyConvName,
+            ModifyConvName,
             GetBilling,
             SetBilling,
             SetTeamData,
@@ -493,9 +493,9 @@ testObject_Permissions_team_20 =
           ],
       _copy =
         fromList
-          [ DoNotUseDeprecatedDeleteConversation,
+          [ DeleteConversation,
             AddTeamMember,
-            DoNotUseDeprecatedModifyConvName,
+            ModifyConvName,
             GetBilling,
             SetBilling,
             SetTeamData,

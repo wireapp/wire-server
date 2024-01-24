@@ -34,9 +34,9 @@ import Data.List (delete)
 import Data.ProtoLens
 import Data.Text.Encoding qualified as Text
 import Imports
-import Safe (headDef)
-import UnliftIO (Async, async, throwIO)
+import UnliftIO (Async, async)
 import UnliftIO.Async qualified as Async
+import UnliftIO.Exception
 import UnliftIO.Resource (MonadResource, ResourceT)
 import UnliftIO.Timeout (timeout)
 
@@ -142,28 +142,35 @@ receive n url =
       . set SQS.receiveMessage_maxNumberOfMessages (Just n)
       . set SQS.receiveMessage_visibilityTimeout (Just 1)
 
-fetchMessage :: (Message a, MonadReader AWS.Env m, MonadResource m) => Text -> String -> (String -> Maybe a -> IO ()) -> m ()
-fetchMessage url label callback = do
-  msgs <- fromMaybe [] . view SQS.receiveMessageResponse_messages <$> sendEnv (receive 1 url)
-  events <- mapM (parseDeleteMessage url) msgs
-  liftIO $ callback label (headDef Nothing events)
-
 deleteMessage :: (MonadReader AWS.Env m, MonadResource m) => Text -> SQS.Message -> m ()
 deleteMessage url m = do
   for_
     (m ^. SQS.message_receiptHandle)
     (void . sendEnv . SQS.newDeleteMessage url)
 
-parseDeleteMessage :: (Message a, MonadReader AWS.Env m, MonadResource m) => Text -> SQS.Message -> m (Maybe a)
+parseDeleteMessage :: (Message a, MonadReader AWS.Env m, MonadResource m, MonadUnliftIO m) => Text -> SQS.Message -> m (Maybe a)
 parseDeleteMessage url m = do
   let decodedMessage = decodeMessage <=< (B64.decode . Text.encodeUtf8)
   evt <- case decodedMessage <$> (m ^. SQS.message_body) of
     Just (Right e) -> pure (Just e)
     _ -> do
-      liftIO $ print ("Failed to parse SQS message or event" :: String)
+      liftIO $ putStrLn "Failed to parse SQS message or event"
       pure Nothing
   deleteMessage url m
+    `catch` \case
+      (fromException @SomeAsyncException -> Just asyncExc) ->
+        throwIO asyncExc
+      e ->
+        liftIO $ putStrLn $ "Failed to delete message, this error will be ignored. Message: " <> show m <> ", Exception: " <> displayException e
   pure evt
 
-sendEnv :: (MonadReader AWS.Env m, MonadResource m, AWS.AWSRequest a) => a -> m (AWS.AWSResponse a)
+sendEnv ::
+  ( MonadReader AWS.Env m,
+    MonadResource m,
+    Typeable a,
+    Typeable (AWS.AWSResponse a),
+    AWS.AWSRequest a
+  ) =>
+  a ->
+  m (AWS.AWSResponse a)
 sendEnv x = flip AWS.send x =<< ask

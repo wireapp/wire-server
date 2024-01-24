@@ -8,8 +8,11 @@ import API.BrigInternal
 import API.Common
 import API.Galley
 import Control.Monad.Reader
+import Crypto.Random (getRandomBytes)
 import Data.Aeson hiding ((.=))
-import Data.Aeson.Types qualified as Aeson
+import qualified Data.Aeson.Types as Aeson
+import qualified Data.ByteString.Base64.URL as B64Url
+import Data.ByteString.Char8 (unpack)
 import Data.Default
 import Data.Function
 import Data.UUID.V1 (nextUUID)
@@ -26,7 +29,7 @@ deleteUser :: (HasCallStack, MakesValue user) => user -> App ()
 deleteUser user = bindResponse (API.Brig.deleteUser user) $ \resp -> do
   resp.status `shouldMatchInt` 200
 
--- | returns (user, team id)
+-- | returns (owner, team id, members)
 createTeam :: (HasCallStack, MakesValue domain) => domain -> Int -> App (Value, String, [Value])
 createTeam domain memberCount = do
   res <- createUser domain def {team = True}
@@ -171,6 +174,10 @@ createMLSOne2OnePartner domain other convDomain = loop
         then pure u
         else loop
 
+-- Copied from `src/CargoHold/API/V3.hs` and inlined to avoid pulling in `types-common`
+randomToken :: HasCallStack => App String
+randomToken = unpack . B64Url.encode <$> liftIO (getRandomBytes 16)
+
 randomId :: HasCallStack => App String
 randomId = liftIO (show <$> nextRandom)
 
@@ -245,3 +252,27 @@ getOne2OneConversation user1 user2 cnvState = do
         qIds <- for others (%. "qualified_id")
         pure $ qIds == users && t
   head <$> filterM (isWith [user2]) l
+
+-- | Create a provider, get an activation code, activate the provider and log it
+-- in. The return value is the created provider.
+setupProvider ::
+  ( HasCallStack,
+    MakesValue user
+  ) =>
+  user ->
+  NewProvider ->
+  App Value
+setupProvider u np@(NewProvider {..}) = do
+  dom <- objDomain u
+  provider <- newProvider u np
+  pass <- provider %. "password" & asString
+  (key, code) <- do
+    pair <-
+      getProviderActivationCodeInternal dom newProviderEmail `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 200
+        resp.json
+    k <- pair %. "key" & asString
+    c <- pair %. "code" & asString
+    pure (k, c)
+  activateProvider dom key code
+  loginProvider dom newProviderEmail pass $> provider

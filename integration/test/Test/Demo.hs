@@ -3,10 +3,10 @@
 -- | This module is meant to show how Testlib can be used
 module Test.Demo where
 
-import API.Brig qualified as BrigP
-import API.BrigInternal qualified as BrigI
-import API.GalleyInternal qualified as GalleyI
-import API.Nginz qualified as Nginz
+import qualified API.Brig as BrigP
+import qualified API.BrigInternal as BrigI
+import qualified API.GalleyInternal as GalleyI
+import qualified API.Nginz as Nginz
 import Control.Monad.Cont
 import GHC.Stack
 import SetupHelpers
@@ -105,7 +105,7 @@ testDynamicBackend = do
   ownDomain <- objDomain OwnDomain
   user <- randomUser OwnDomain def
   uid <- objId user
-  bindResponse (BrigP.getSelf ownDomain uid) $ \resp -> do
+  bindResponse (BrigP.getSelf user) $ \resp -> do
     resp.status `shouldMatchInt` 200
     (resp.json %. "id") `shouldMatch` objId user
 
@@ -117,18 +117,18 @@ testDynamicBackend = do
         resp.json %. "setRestrictUserCreation" `shouldMatch` False
 
     -- user created in own domain should not be found in dynamic backend
-    bindResponse (BrigP.getSelf dynDomain uid) $ \resp -> do
+    bindResponse (BrigP.getSelf' dynDomain uid) $ \resp -> do
       resp.status `shouldMatchInt` 404
 
     -- now create a user in the dynamic backend
     userD1 <- randomUser dynDomain def
     uidD1 <- objId userD1
-    bindResponse (BrigP.getSelf dynDomain uidD1) $ \resp -> do
+    bindResponse (BrigP.getSelf userD1) $ \resp -> do
       resp.status `shouldMatchInt` 200
       (resp.json %. "id") `shouldMatch` objId userD1
 
     -- the d1 user should not be found in the own domain
-    bindResponse (BrigP.getSelf ownDomain uidD1) $ \resp -> do
+    bindResponse (BrigP.getSelf' ownDomain uidD1) $ \resp -> do
       resp.status `shouldMatchInt` 404
 
 testStartMultipleDynamicBackends :: HasCallStack => App ()

@@ -27,23 +27,45 @@ import Wire.API.Password
 tests :: TestTree
 tests =
   testGroup "Password" $
-    [ testCase "hash password" testHashPassword,
-      testCase "verify compat" verifyPasswordHashingRemainsCompatible
+    [ testCase "hash password argon2id" testHashPasswordArgon2id,
+      testCase "update pwd hash" testUpdateHash,
+      testCase "verify old scrypt password still works" testHashingOldScrypt
     ]
 
-testHashPassword :: IO ()
-testHashPassword = do
+testHashPasswordArgon2id :: IO ()
+testHashPasswordArgon2id = do
   pwd <- genPassword
-  hashed <- mkSafePassword pwd
-  let correct = verifyPassword pwd hashed
+  hashed <- mkSafePasswordArgon2id pwd
+  let (correct, status) = verifyPasswordWithStatus pwd hashed
   assertBool "Password could not be verified" correct
+  assertEqual "Password could not be verified" status PasswordStatusOk
 
-verifyPasswordHashingRemainsCompatible :: IO ()
-verifyPasswordHashingRemainsCompatible = do
-  forConcurrently_ pwds $ \pwd ->
+testUpdateHash :: IO ()
+testUpdateHash = do
+  let orig = plainTextPassword8Unsafe "Test password scrypt to argon2id."
+      -- password hashed with scrypt and random salt
+      expected = unsafeMkPassword "14|8|1|ktYx5i1DMOEfm+tXpw9i7ZVPdeqbxgxYxUbmDVLSAzQ=|Fzy0sNfXQQnJW98ncyN51PUChFWH1tpVJCxjz5JRZEReVa0//zJ6MeopiEh84Ny8lzwdvRPHDqnSS/lkPEB7Ow=="
+      -- password re-hashed with argon2id and re-used salt for simplicity
+      newHash = unsafeMkPassword "$argon2id$v=19$m=131072,t=5,p=4$ktYx5i1DMOEfm+tXpw9i7ZVPdeqbxgxYxUbmDVLSAzQ=$iS/9tVk49W8bO/APETqNzMmREerdETTvSXcA7nSpqrsGrV1N33+MVaKnhWhBHqIxM92HFPsV5GP0dpgCUHmJRg=="
+      -- verify password with scrypt
+      (correct, status) = verifyPasswordWithStatus orig expected
+
+  assertBool "Password did not match hash." correct
+  assertEqual "Password could not be verified" status PasswordStatusNeedsUpdate
+
+  -- verify again with argon2id
+  let (correctNew, statusNew) = verifyPasswordWithStatus orig newHash
+  assertBool "Password hash update failed." correctNew
+  assertEqual "Password could not be verified" statusNew PasswordStatusOk
+
+testHashingOldScrypt :: IO ()
+testHashingOldScrypt =
+  forConcurrently_ pwds $ \pwd -> do
     let orig = plainTextPassword8Unsafe (fst pwd)
         expected = unsafeMkPassword (snd pwd)
-     in assertBool "Oops" (verifyPassword orig expected)
+        (correct, status) = verifyPasswordWithStatus orig expected
+    assertBool "Password did not match hash." correct
+    assertEqual "Password could not be verified" status PasswordStatusNeedsUpdate
   where
     -- Password and hashes generated using the old code, but verified using the new one.
     pwds =

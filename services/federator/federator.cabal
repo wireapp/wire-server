@@ -58,7 +58,6 @@ library
   other-modules:      Paths_federator
   hs-source-dirs:     src
   default-extensions:
-    NoImplicitPrelude
     AllowAmbiguousTypes
     BangPatterns
     ConstraintKinds
@@ -82,6 +81,7 @@ library
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NoImplicitPrelude
     OverloadedRecordDot
     OverloadedStrings
     PackageImports
@@ -115,7 +115,6 @@ library
     , containers
     , crypton-x509
     , crypton-x509-validation
-    , data-default
     , dns
     , dns-util
     , exceptions
@@ -147,6 +146,7 @@ library
     , transformers
     , types-common
     , unix
+    , uuid
     , wai
     , wai-utilities
     , warp
@@ -160,7 +160,6 @@ executable federator
   other-modules:      Paths_federator
   hs-source-dirs:     exec
   default-extensions:
-    NoImplicitPrelude
     AllowAmbiguousTypes
     BangPatterns
     ConstraintKinds
@@ -184,6 +183,7 @@ executable federator
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NoImplicitPrelude
     OverloadedRecordDot
     OverloadedStrings
     PackageImports
@@ -227,7 +227,6 @@ executable federator-integration
 
   hs-source-dirs:     test/integration
   default-extensions:
-    NoImplicitPrelude
     AllowAmbiguousTypes
     BangPatterns
     ConstraintKinds
@@ -251,6 +250,7 @@ executable federator-integration
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NoImplicitPrelude
     OverloadedRecordDot
     OverloadedStrings
     PackageImports
@@ -330,7 +330,6 @@ test-suite federator-tests
 
   hs-source-dirs:     test/unit
   default-extensions:
-    NoImplicitPrelude
     AllowAmbiguousTypes
     BangPatterns
     ConstraintKinds
@@ -354,6 +353,7 @@ test-suite federator-tests
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NoImplicitPrelude
     OverloadedRecordDot
     OverloadedStrings
     PackageImports

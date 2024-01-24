@@ -139,3 +139,9 @@ assertLeaveNotification fromUser conv user client leaver =
             isNotifFromUser fromUser
           ]
       )
+
+assertConvUserDeletedNotif :: MakesValue leaverId => WebSocket -> leaverId -> App ()
+assertConvUserDeletedNotif ws leaverId = do
+  n <- awaitMatch isConvLeaveNotif ws
+  nPayload n %. "data.qualified_user_ids.0" `shouldMatch` leaverId
+  nPayload n %. "data.reason" `shouldMatch` "user-deleted"

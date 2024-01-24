@@ -15,6 +15,9 @@ library
     Cassandra
     Cassandra.CQL
     Cassandra.Exec
+    Cassandra.Helpers
+    Cassandra.MigrateSchema
+    Cassandra.Options
     Cassandra.Schema
     Cassandra.Settings
     Cassandra.Util
@@ -22,7 +25,6 @@ library
   other-modules:      Paths_cassandra_util
   hs-source-dirs:     src
   default-extensions:
-    NoImplicitPrelude
     AllowAmbiguousTypes
     BangPatterns
     ConstraintKinds
@@ -46,6 +48,7 @@ library
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NoImplicitPrelude
     NumericUnderscores
     OverloadedRecordDot
     OverloadedStrings
@@ -77,6 +80,7 @@ library
     , cql-io                >=0.14
     , cql-io-tinylog
     , exceptions            >=0.6
+    , HsOpenSSL
     , imports
     , lens                  >=4.4
     , lens-aeson            >=1.0

@@ -63,6 +63,7 @@ import Brig.User.EJPD qualified
 import Brig.User.Search.Index qualified as Index
 import Control.Error hiding (bool)
 import Control.Lens (view)
+import Data.ByteString.Conversion (toByteString)
 import Data.CommaSeparatedList
 import Data.Domain (Domain)
 import Data.Handle
@@ -78,6 +79,7 @@ import Polysemy
 import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.OpenApi.Internal.Orphans ()
 import System.Logger.Class qualified as Log
+import System.Logger.Message as Log
 import UnliftIO.Async
 import Wire.API.Connection
 import Wire.API.Error
@@ -356,7 +358,7 @@ addClientInternalH usr mSkipReAuth new connId = do
   let policy
         | mSkipReAuth == Just True = \_ _ -> False
         | otherwise = Data.reAuthForNewClients
-  API.addClientWithReAuthPolicy policy usr connId Nothing new !>> clientError
+  API.addClientWithReAuthPolicy policy usr connId new !>> clientError
 
 legalHoldClientRequestedH :: UserId -> LegalHoldClientRequest -> (Handler r) NoContent
 legalHoldClientRequestedH targetUser clientRequest = do
@@ -525,6 +527,7 @@ getPasswordResetCode emailOrPhone =
 
 changeAccountStatusH :: UserId -> AccountStatusUpdate -> (Handler r) NoContent
 changeAccountStatusH usr (suStatus -> status) = do
+  Log.info $ (Log.msg (Log.val "Change Account Status")) ~~ Log.field "usr" (toByteString usr) ~~ Log.field "status" (show status)
   wrapHttpClientE (API.changeSingleAccountStatus usr status) !>> accountStatusError -- FUTUREWORK: use CanThrow and related machinery
   pure NoContent
 
@@ -677,13 +680,13 @@ getRichInfoMultiH :: Maybe (CommaSeparatedList UserId) -> (Handler r) [(UserId, 
 getRichInfoMultiH (maybe [] fromCommaSeparatedList -> uids) =
   lift $ wrapClient $ API.lookupRichInfoMultiUsers uids
 
-updateHandleH :: UserId -> HandleUpdate -> (Handler r) NoContent
+updateHandleH :: Member GalleyProvider r => UserId -> HandleUpdate -> (Handler r) NoContent
 updateHandleH uid (HandleUpdate handleUpd) =
   NoContent <$ do
     handle <- validateHandle handleUpd
     API.changeHandle uid Nothing handle API.AllowSCIMUpdates !>> changeHandleError
 
-updateUserNameH :: UserId -> NameUpdate -> (Handler r) NoContent
+updateUserNameH :: Member GalleyProvider r => UserId -> NameUpdate -> (Handler r) NoContent
 updateUserNameH uid (NameUpdate nameUpd) =
   NoContent <$ do
     name <- either (const $ throwStd (errorToWai @'E.InvalidUser)) pure $ mkName nameUpd

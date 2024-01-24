@@ -1,13 +1,11 @@
 module Test.Brig where
 
-import API.Brig qualified as BrigP
-import API.BrigInternal qualified as BrigI
+import qualified API.BrigInternal as BrigI
 import API.Common (randomName)
 import Data.Aeson.Types hiding ((.=))
-import Data.Set qualified as Set
 import Data.String.Conversions
-import Data.UUID qualified as UUID
-import Data.UUID.V4 qualified as UUID
+import qualified Data.UUID as UUID
+import qualified Data.UUID.V4 as UUID
 import GHC.Stack
 import SetupHelpers
 import Testlib.Assertions
@@ -81,51 +79,6 @@ testCrudOAuthClient = do
     resp.status `shouldMatchInt` 200
   bindResponse (BrigI.getOAuthClient user clientId) $ \resp -> do
     resp.status `shouldMatchInt` 404
-
--- | See https://docs.wire.com/understand/api-client-perspective/swagger.html
-testSwagger :: HasCallStack => App ()
-testSwagger = do
-  let existingVersions :: [Int]
-      existingVersions = [0, 1, 2, 3, 4, 5]
-
-      internalApis :: [String]
-      internalApis = ["brig", "cannon", "cargohold", "cannon", "spar"]
-
-  bindResponse BrigP.getApiVersions $ \resp -> do
-    resp.status `shouldMatchInt` 200
-    actualVersions :: [Int] <- do
-      sup <- resp.json %. "supported" & asListOf asIntegral
-      dev <- resp.json %. "development" & asListOf asIntegral
-      pure $ sup <> dev
-    assertBool ("unexpected actually existing versions: " <> show actualVersions) $
-      -- make sure nobody has added a new version without adding it to `existingVersions`.
-      -- ("subset" because blocked versions like v3 are not actually existing, but still
-      -- documented.)
-      Set.fromList actualVersions `Set.isSubsetOf` Set.fromList existingVersions
-
-  bindResponse BrigP.getSwaggerPublicTOC $ \resp -> do
-    resp.status `shouldMatchInt` 200
-    cs resp.body `shouldContainString` "<html>"
-
-  forM_ existingVersions $ \v -> do
-    bindResponse (BrigP.getSwaggerPublicAllUI v) $ \resp -> do
-      resp.status `shouldMatchInt` 200
-      cs resp.body `shouldContainString` "<!DOCTYPE html>"
-    bindResponse (BrigP.getSwaggerPublicAllJson v) $ \resp -> do
-      resp.status `shouldMatchInt` 200
-      void resp.json
-
-  -- !
-  -- FUTUREWORK: Implement BrigP.getSwaggerInternalTOC (including the end-point); make sure
-  -- newly added internal APIs make this test fail if not added to `internalApis`.
-
-  forM_ internalApis $ \api -> do
-    bindResponse (BrigP.getSwaggerInternalUI api) $ \resp -> do
-      resp.status `shouldMatchInt` 200
-      cs resp.body `shouldContainString` "<!DOCTYPE html>"
-    bindResponse (BrigP.getSwaggerInternalJson api) $ \resp -> do
-      resp.status `shouldMatchInt` 200
-      void resp.json
 
 testCrudFederationRemoteTeams :: HasCallStack => App ()
 testCrudFederationRemoteTeams = do

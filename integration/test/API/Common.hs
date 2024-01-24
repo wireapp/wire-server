@@ -3,7 +3,7 @@ module API.Common where
 import Control.Monad
 import Control.Monad.IO.Class
 import Data.Array ((!))
-import Data.Array qualified as Array
+import qualified Data.Array as Array
 import System.Random (randomRIO)
 import Testlib.Prelude
 

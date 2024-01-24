@@ -16,6 +16,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 import Control.Monad.Trans.Except
+import Data.ByteString.Char8 (split)
 import Data.Jwt.Tools
 import Imports
 import Test.Hspec
@@ -23,21 +24,16 @@ import Test.Hspec
 main :: IO ()
 main = hspec $ do
   describe "generateDpopToken FFI when passing valid inputs" $ do
-    it "should return an access token" $ do
-      -- FUTUREWORK(leif): fix this test, we need new valid test data,
-      -- this test exists mainly for debugging purposes
-      -- a functionality test is also coverd in the integration tests in services/brig/test/integration/API/User/Client.hs (`testCreateAccessToken`)
-      pending
-      actual <- runExceptT $ generateDpopToken proof uid cid domain nonce uri method maxSkewSecs expires now pem
-      print actual
-      isRight actual `shouldBe` True
+    it "should return an access token with the correct header" $ do
+      actual <- runExceptT $ generateDpopToken proof uid cid handle tid domain nonce uri method maxSkewSecs expires now pem
+      -- The actual payload of the DPoP token is not deterministic as it depends on the current time.
+      -- We therefore only check the header, because if the header is correct, it means the token creation was successful.s
+      let expectedHeader = "eyJhbGciOiJFZERTQSIsInR5cCI6ImF0K2p3dCIsImp3ayI6eyJrdHkiOiJPS1AiLCJjcnYiOiJFZDI1NTE5IiwieCI6ImRZSTM4VWR4a3NDMEs0UXg2RTlKSzlZZkdtLWVoblkxOG9LbUhMMllzWmsifX0"
+      let actualHeader = either (const "") (head . split '.') actual
+      actualHeader `shouldBe` expectedHeader
   describe "generateDpopToken FFI when passing a wrong nonce value" $ do
     it "should return BackendNonceMismatchError" $ do
-      -- FUTUREWORK(leif): fix this test, we need new valid test data,
-      -- this test exists mainly for debugging purposes
-      -- a functionality test is also coverd in the integration tests in services/brig/test/integration/API/User/Client.hs (`testCreateAccessToken`)
-      pending
-      actual <- runExceptT $ generateDpopToken proof uid cid domain (Nonce "foobar") uri method maxSkewSecs expires now pem
+      actual <- runExceptT $ generateDpopToken proof uid cid handle tid domain (Nonce "foobar") uri method maxSkewSecs expires now pem
       actual `shouldBe` Left BackendNonceMismatchError
   describe "toResult" $ do
     it "should convert to correct error" $ do
@@ -81,16 +77,19 @@ main = hspec $ do
       toResult Nothing Nothing `shouldBe` Left UnknownError
   where
     token = ""
-    proof = Proof "eyJhbGciOiJFZERTQSIsInR5cCI6ImRwb3Arand0IiwiandrIjp7Imt0eSI6Ik9LUCIsImNydiI6IkVkMjU1MTkiLCJ4IjoidXE2c1hXcDdUM1E3YlNtUFd3eFNlRHJoUHFid1RfcTd4SFBQeGpGT0g5VSJ9fQ.eyJpYXQiOjE2OTQxMTc0MjgsImV4cCI6MTY5NDcyMjIyOCwibmJmIjoxNjk0MTE3NDIzLCJzdWIiOiJpbTp3aXJlYXBwPUlHOVl2enVXUUlLVWFSazEyRjVDSVEvOGUxODk2MjZlYWUwMTExZEBlbG5hLndpcmUubGluayIsImp0aSI6ImM0OGZmOTAyLTc5OGEtNDNjYi04YTk2LTE3NzM0NTgxNjIyMCIsIm5vbmNlIjoiR0FxNG5SajlSWVNzUnhoOVh1MWFtQSIsImh0bSI6IlBPU1QiLCJodHUiOiJodHRwczovL2VsbmEud2lyZS5saW5rL2NsaWVudHMvOGUxODk2MjZlYWUwMTExZC9hY2Nlc3MtdG9rZW4iLCJjaGFsIjoiMkxLbEFWMjR2VGtIMHlaaFdacEZrT01mSEE1d3lGQkgifQ.FW5i40CvndSSo3wQdA1DMUkGRmxk86cORAllwC2PCejVuk7TsdZuIKuJZFVa1VTJKWwNCPqPZ05Gsxxeh1DiDA"
-    uid = UserId "206f58bf-3b96-4082-9469-1935d85e4221"
-    cid = ClientId 10239098846720299293
-    domain = Domain "wire.com"
-    nonce = Nonce "GAq4nRj9RYSsRxh9Xu1amA"
-    uri = Uri "https://elna.wire.link/clients/10239098846720299293/access-token"
+    proof = Proof "eyJhbGciOiJFZERTQSIsImp3ayI6eyJjcnYiOiJFZDI1NTE5Iiwia3R5IjoiT0tQIiwieCI6Im5MSkdOLU9hNkpzcTNLY2xaZ2dMbDdVdkFWZG1CMFE2QzNONUJDZ3BoSHcifSwidHlwIjoiZHBvcCtqd3QifQ.eyJhdWQiOiJodHRwczovL3dpcmUuY29tL2FjbWUvY2hhbGxlbmdlL2FiY2QiLCJjaGFsIjoid2EyVnJrQ3RXMXNhdUoyRDN1S1k4cmM3eTRrbDR1c0giLCJleHAiOjE4MzE3MzcyNzEsImhhbmRsZSI6IndpcmVhcHA6Ly8lNDB2bHVwZHlwbml4dm1vdnZzeW1ndHdAZXhhbXBsZS5jb20iLCJodG0iOiJQT1NUIiwiaHR1IjoiaHR0cHM6Ly9leGFtcGxlLmNvbS9jbGllbnRzL2NjNmU2NDBlMjk2ZThiYmEvYWNjZXNzLXRva2VuIiwiaWF0IjoxNzA1NTkzMjcxLCJqdGkiOiI2ZmM1OWU3Zi1iNjY2LTRmZmMtYjczOC00ZjQ3NjBjODg0Y2EiLCJuYmYiOjE3MDU1OTMyNzEsIm5vbmNlIjoibVJDdjNKQS1TNDI0dUJyLVk2QzFndyIsInN1YiI6IndpcmVhcHA6Ly9WNVc3ZnRNeVRJNlBNYlE0Y3ZkazRnIWNjNmU2NDBlMjk2ZThiYmFAZXhhbXBsZS5jb20iLCJ0ZWFtIjoiZmZhODY1ZmEtYjI0YS00Njk3LWFhMDUtMWZjM2YzNjU0ZGI5In0.BVdawX_84Mpmvzbs3v52t3GtCgSKzxgnFDkwf4QK6AusoyfsjhK6grs9GLEe2Lfb1eDrBUJgo-nobeIWmRumBQ"
+    uid = UserId "5795bb7e-d332-4c8e-8f31-b43872f764e2"
+    nonce = Nonce "mRCv3JA-S424uBr-Y6C1gw"
+    expires = ExpiryEpoch 1831823671
+    handle = Handle "vlupdypnixvmovvsymgtw"
+    tid = TeamId "ffa865fa-b24a-4697-aa05-1fc3f3654db9"
+
+    now = NowEpoch 1704982162
+    cid = ClientId 14730821443162901434
+    domain = Domain "example.com"
+    uri = Uri "https://example.com/clients/cc6e640e296e8bba/access-token"
     method = POST
-    maxSkewSecs = MaxSkewSecs 5
-    now = NowEpoch 360
-    expires = ExpiryEpoch 2136351646
+    maxSkewSecs = MaxSkewSecs 1
     pem =
       PemBundle $
         "-----BEGIN PRIVATE KEY-----\n\

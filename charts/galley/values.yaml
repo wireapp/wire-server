@@ -22,6 +22,13 @@ config:
   cassandra:
     host: aws-cassandra
     replicaCount: 3
+#   To enable TLS provide a CA:
+#   tlsCa: <CA in PEM format (can be self-signed)>
+#
+#   Or refer to an existing secret (containing the CA):
+#   tlsCaSecretRef:
+#     name: <secret-name>
+#     key: <ca-attribute>
   enableFederation: false # keep enableFederation default in sync with brig and cargohold chart's config.enableFederation as well as wire-server chart's tags.federation
   # Not used if enableFederation is false
   rabbitmq:
@@ -44,13 +51,17 @@ config:
     # Use this only if you want to expose the instance on multiple ingresses.
     # If set it must a map from `Z-Host` to URI prefix
     # Example:
-    # multiIngress: 
+    # multiIngress:
     #    wire.example: https://accounts.wire.example/conversation-join/
     #    example.net: https://accounts.example.net/conversation-join/
     multiIngress: null
     # Disable one ore more API versions. Please make sure the configuration value is the same in all these charts:
     # brig, cannon, cargohold, galley, gundeck, proxy, spar.
+    # The default value if not set is `["development"]` which disables the development API versions.
     # disabledAPIVersions: [ v3 ]
+    # The lifetime of a conversation guest link in seconds. Must be a value 0 < x <= 31536000 (365 days)
+    # Default is 31536000 (365 days) if not set
+    guestLinkTTLSeconds: 31536000
     featureFlags:  # see #RefConfigOptions in `/docs/reference` (https://github.com/wireapp/wire-server/)
       appLock:
         defaults:
@@ -122,6 +133,9 @@ config:
             usersThreshold: 100
             clientsThreshold: 100
           lockStatus: locked
+      limitedEventFanout:
+        defaults:
+          status: disabled
 
   aws:
     region: "eu-west-1"

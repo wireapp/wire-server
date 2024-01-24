@@ -28,13 +28,11 @@ import API.OAuth qualified
 import API.Provider qualified as Provider
 import API.Search qualified as Search
 import API.Settings qualified as Settings
-import API.Swagger qualified
 import API.SystemSettings qualified as SystemSettings
 import API.Team qualified as Team
 import API.TeamUserSearch qualified as TeamUserSearch
 import API.User qualified as User
 import API.UserPendingActivation qualified as UserPendingActivation
-import API.Version qualified
 import Bilge hiding (header, host, port)
 import Bilge qualified
 import Brig.API (sitemap)
@@ -116,7 +114,6 @@ instance FromJSON Config
 runTests :: Config -> Opts.Opts -> [String] -> IO ()
 runTests iConf brigOpts otherArgs = do
   let b = mkVersionedRequest $ brig iConf
-      brigNoImplicitVersion = mkRequest $ brig iConf
       c = mkVersionedRequest $ cannon iConf
       gd = mkVersionedRequest $ gundeck iConf
       ch = mkVersionedRequest $ cargohold iConf
@@ -133,12 +130,9 @@ runTests iConf brigOpts otherArgs = do
         Opts.TurnSourceFiles files -> files
         Opts.TurnSourceDNS _ -> error "The integration tests can only be run when TurnServers are sourced from files"
       localDomain = brigOpts ^. Opts.optionSettings . Opts.federationDomain
-      casHost = (\v -> Opts.cassandra v ^. endpoint . host) brigOpts
-      casPort = (\v -> Opts.cassandra v ^. endpoint . port) brigOpts
-      casKey = (\v -> Opts.cassandra v ^. keyspace) brigOpts
       awsOpts = Opts.aws brigOpts
   lg <- Logger.new Logger.defSettings -- TODO: use mkLogger'?
-  db <- defInitCassandra casKey casHost casPort lg
+  db <- defInitCassandra (brigOpts.cassandra) lg
   mg <- newManager tlsManagerSettings
   let fedBrigClient = FedClient @'Brig mg (brig iConf)
   emailAWSOpts <- parseEmailAWSOpts
@@ -160,8 +154,6 @@ runTests iConf brigOpts otherArgs = do
   internalApi <- API.Internal.tests brigOpts mg db b (brig iConf) gd g
 
   let smtp = SMTP.tests mg lg
-      versionApi = API.Version.tests mg brigOpts b
-      swaggerApi = API.Swagger.tests mg brigOpts brigNoImplicitVersion
       oauthAPI = API.OAuth.tests mg db b n brigOpts
 
   withArgs otherArgs . defaultMainWithIngredients (listingTests : (composeReporters antXMLRunner consoleTestReporter) : defaultIngredients)
@@ -185,8 +177,6 @@ runTests iConf brigOpts otherArgs = do
         browseTeam,
         federationEndpoints,
         internalApi,
-        versionApi,
-        swaggerApi,
         smtp,
         oauthAPI,
         federationEnd2End

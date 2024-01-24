@@ -153,7 +153,6 @@ mkDerivation {
     crypton
     crypton-x509
     currency-codes
-    data-default
     data-timeout
     either
     enclosed-exceptions

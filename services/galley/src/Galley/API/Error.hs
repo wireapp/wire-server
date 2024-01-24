@@ -99,8 +99,8 @@ badConvState cid =
     "Connect conversation with more than 2 members: "
       <> LT.pack (show cid)
 
-legalHoldServiceUnavailable :: Wai.Error
-legalHoldServiceUnavailable = Wai.mkError status412 "legalhold-unavailable" "legal hold service does not respond or tls handshake could not be completed (did you pin the wrong public key?)"
+legalHoldServiceUnavailable :: Show a => a -> Wai.Error
+legalHoldServiceUnavailable e = Wai.mkError status412 "legalhold-unavailable" ("legal hold service unavailable with underlying error: " <> (LT.pack . show $ e))
 
 invalidTeamNotificationId :: Wai.Error
 invalidTeamNotificationId = Wai.mkError status400 "invalid-notification-id" "Could not parse notification id (must be UUIDv1)."

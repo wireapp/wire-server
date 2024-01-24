@@ -37,7 +37,6 @@ library
   other-modules:      Paths_cargohold
   hs-source-dirs:     src
   default-extensions:
-    NoImplicitPrelude
     AllowAmbiguousTypes
     BangPatterns
     ConstraintKinds
@@ -61,6 +60,7 @@ library
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NoImplicitPrelude
     OverloadedRecordDot
     OverloadedStrings
     PackageImports
@@ -101,7 +101,6 @@ library
     , conduit-extra          >=1.1.5
     , containers
     , crypton                >=0.20
-    , data-default           >=0.5
     , errors                 >=1.4
     , exceptions             >=0.6
     , extended
@@ -145,7 +144,6 @@ executable cargohold
   main-is:            exec/Main.hs
   other-modules:      Paths_cargohold
   default-extensions:
-    NoImplicitPrelude
     AllowAmbiguousTypes
     BangPatterns
     ConstraintKinds
@@ -169,6 +167,7 @@ executable cargohold
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NoImplicitPrelude
     OverloadedRecordDot
     OverloadedStrings
     PackageImports
@@ -208,17 +207,13 @@ executable cargohold-integration
   main-is:            Main.hs
   other-modules:
     API
-    API.Federation
     API.Util
-    API.V3
     App
-    Metrics
     Paths_cargohold
     TestSetup
 
   hs-source-dirs:     test/integration
   default-extensions:
-    NoImplicitPrelude
     AllowAmbiguousTypes
     BangPatterns
     ConstraintKinds
@@ -242,6 +237,7 @@ executable cargohold-integration
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NoImplicitPrelude
     OverloadedRecordDot
     OverloadedStrings
     PackageImports
@@ -272,13 +268,11 @@ executable cargohold-integration
     , bytestring-conversion  >=0.2
     , cargohold
     , cargohold-types
-    , conduit
     , containers
-    , crypton
     , federator
     , http-api-data
     , http-client            >=0.7
-    , http-client-tls        >=0.3
+    , http-client-tls        >=0.3.6.3
     , http-media
     , http-types             >=0.8
     , imports
@@ -295,7 +289,6 @@ executable cargohold-integration
     , tasty-ant-xml
     , tasty-hunit            >=0.9
     , text                   >=1.1
-    , time                   >=1.5
     , types-common           >=0.7
     , uuid                   >=1.3
     , wai-utilities          >=0.12
