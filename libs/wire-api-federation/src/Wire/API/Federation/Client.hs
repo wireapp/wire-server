@@ -306,7 +306,7 @@ runFederatorClientToCodensity env action = runExceptT $ do
   v <-
     runVersionedFederatorClientToCodensity
       (FederatorClientVersionedEnv env Nothing)
-      versionNegotiation
+      (versionNegotiation supportedVersions)
   runVersionedFederatorClientToCodensity @c
     (FederatorClientVersionedEnv env (Just v))
     action
@@ -323,8 +323,8 @@ runVersionedFederatorClientToCodensity env =
   where
     unmaybe = (maybe (E.throw FederatorClientVersionMismatch) pure =<<)
 
-versionNegotiation :: FederatorClient 'Brig Version
-versionNegotiation =
+versionNegotiation :: Set Version -> FederatorClient 'Brig Version
+versionNegotiation localVersions =
   let req =
         defaultRequest
           { requestPath = "/api-version",
@@ -337,10 +337,10 @@ versionNegotiation =
         remoteVersions <- case Aeson.decode body of
           Nothing -> E.throw (FederatorClientVersionNegotiationError InvalidVersionInfo)
           Just info -> pure (Set.fromList (vinfoSupported info))
-        case Set.lookupMax (Set.intersection remoteVersions supportedVersions) of
+        case Set.lookupMax (Set.intersection remoteVersions localVersions) of
           Just v -> pure v
           Nothing ->
             E.throw . FederatorClientVersionNegotiationError $
-              if Set.lookupMax supportedVersions > Set.lookupMax remoteVersions
+              if Set.lookupMax localVersions > Set.lookupMax remoteVersions
                 then RemoteTooOld
                 else RemoteTooNew
