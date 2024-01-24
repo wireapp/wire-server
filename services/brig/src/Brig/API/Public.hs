@@ -746,10 +746,11 @@ createUser (Public.NewUserPublic new) = lift . runExceptT $ do
       Public.NewTeamMemberSSO _ ->
         Team.sendMemberWelcomeMail e t n l
 
-getSelf :: UserId -> (Handler r) Public.SelfProfile
+getSelf :: Member GalleyProvider r => UserId -> (Handler r) Public.SelfProfile
 getSelf self =
   lift (API.lookupSelfProfile self)
     >>= ifNothing (errorToWai @'E.UserNotFound)
+    >>= lift . liftSem . API.hackForBlockingHandleChangeForE2EIdTeams
 
 getUserUnqualifiedH ::
   (Member GalleyProvider r) =>
@@ -861,7 +862,7 @@ newtype GetActivationCodeResp
 instance ToJSON GetActivationCodeResp where
   toJSON (GetActivationCodeResp (k, c)) = object ["key" .= k, "code" .= c]
 
-updateUser :: UserId -> ConnId -> Public.UserUpdate -> (Handler r) (Maybe Public.UpdateProfileError)
+updateUser :: Member GalleyProvider r => UserId -> ConnId -> Public.UserUpdate -> (Handler r) (Maybe Public.UpdateProfileError)
 updateUser uid conn uu = do
   eithErr <- lift $ runExceptT $ API.updateUser uid (Just conn) uu API.ForbidSCIMUpdates
   pure $ either Just (const Nothing) eithErr
@@ -932,7 +933,7 @@ getHandleInfoUnqualifiedH self handle = do
   Public.UserHandleInfo . Public.profileQualifiedId
     <$$> Handle.getHandleInfo self (Qualified handle domain)
 
-changeHandle :: UserId -> ConnId -> Public.HandleUpdate -> (Handler r) (Maybe Public.ChangeHandleError)
+changeHandle :: Member GalleyProvider r => UserId -> ConnId -> Public.HandleUpdate -> (Handler r) (Maybe Public.ChangeHandleError)
 changeHandle u conn (Public.HandleUpdate h) = lift . exceptTToMaybe $ do
   handle <- maybe (throwError Public.ChangeHandleInvalid) pure $ parseHandle h
   API.changeHandle u (Just conn) handle API.ForbidSCIMUpdates
