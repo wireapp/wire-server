@@ -34,7 +34,6 @@ import Galley.Intra.User
 import Galley.Monad
 import Galley.Types.Bot.Service (Service, serviceEnabled, serviceFingerprints, serviceToken, serviceUrl)
 import Imports
-import Network.HTTP.Client (defaultRequest, withConnection, withConnection')
 import Network.HTTP.Client qualified as Http
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status (status410)
