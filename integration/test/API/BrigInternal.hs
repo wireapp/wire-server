@@ -52,6 +52,12 @@ createUser domain cu = do
                ]
         )
 
+-- | https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/#/brig/get_i_users
+getUsersId :: (HasCallStack, MakesValue domain) => domain -> [String] -> App Response
+getUsersId domain ids = do
+  req <- baseRequest domain Brig Unversioned "/i/users"
+  submit "GET" $ req & addQueryParams [("ids", intercalate "," ids)]
+
 data FedConn = FedConn
   { domain :: String,
     searchStrategy :: String,

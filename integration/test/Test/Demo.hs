@@ -105,7 +105,7 @@ testDynamicBackend = do
   ownDomain <- objDomain OwnDomain
   user <- randomUser OwnDomain def
   uid <- objId user
-  bindResponse (BrigP.getSelf user) $ \resp -> do
+  bindResponse (BrigP.getSelf' ownDomain uid) $ \resp -> do
     resp.status `shouldMatchInt` 200
     (resp.json %. "id") `shouldMatch` objId user
 
@@ -123,7 +123,7 @@ testDynamicBackend = do
     -- now create a user in the dynamic backend
     userD1 <- randomUser dynDomain def
     uidD1 <- objId userD1
-    bindResponse (BrigP.getSelf userD1) $ \resp -> do
+    bindResponse (BrigP.getSelf' dynDomain uidD1) $ \resp -> do
       resp.status `shouldMatchInt` 200
       (resp.json %. "id") `shouldMatch` objId userD1
 
