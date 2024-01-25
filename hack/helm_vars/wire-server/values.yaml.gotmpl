@@ -95,7 +95,6 @@ brig:
       setFederationDomain: integration.example.com
       setFederationStrategy: allowAll
       setFederationDomainConfigsUpdateFreq: 10
-      setDisabledAPIVersions: []
       set2FACodeGenerationDelaySecs: 5
       setNonceTtlSecs: 300
       setDpopMaxSkewSecs: 1
@@ -170,8 +169,6 @@ cannon:
     limits:
       memory: 512Mi
   drainTimeout: 0
-  config:
-    disabledAPIVersions: []
 cargohold:
   replicaCount: 1
   imagePullPolicy: {{ .Values.imagePullPolicy }}
@@ -187,7 +184,6 @@ cargohold:
     settings:
       # See helmfile for the real value
       federationDomain: integration.example.com
-      disabledAPIVersions: []
   secrets:
     awsKeyId: dummykey
     awsSecretKey: dummysecret
@@ -222,8 +218,6 @@ galley:
       conversationCodeURI: https://kube-staging-nginz-https.zinfra.io/conversation-join/
       # See helmfile for the real value
       federationDomain: integration.example.com
-      disabledAPIVersions: []
-
       featureFlags:
         sso: disabled-by-default  # this needs to be the default; tests can enable it when needed.
         legalhold: whitelist-teams-and-implicit-consent
@@ -299,7 +293,6 @@ gundeck:
     setMaxConcurrentNativePushes:
       hard: 30
       soft: 10
-    disabledAPIVersions: []
   secrets:
     awsKeyId: dummykey
     awsSecretKey: dummysecret
@@ -348,8 +341,6 @@ proxy:
               giphy      = "..."
               spotify    = "Basic ..."
        }
-  config:
-    disabledAPIVersions: []
 spar:
   replicaCount: 1
   imagePullPolicy: {{ .Values.imagePullPolicy }}
@@ -377,7 +368,6 @@ spar:
     - type: ContactSupport
       company: Example Company
       email: email:backend+spar@wire.com
-    disabledAPIVersions: []
   tests:
     {{- if .Values.uploadXml }}
     config:
