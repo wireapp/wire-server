@@ -46,6 +46,7 @@ module Brig.App
     httpManager,
     http2Manager,
     extGetManager,
+    initExtGetManager,
     nexmoCreds,
     twilioCreds,
     settings,
@@ -71,7 +72,7 @@ module Brig.App
 
     -- * Crutches that should be removed once Brig has been completely
 
-    -- * transitioned to Polysemy
+    -- transitioned to Polysemy
     wrapClient,
     wrapClientE,
     wrapClientM,

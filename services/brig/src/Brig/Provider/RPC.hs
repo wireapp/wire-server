@@ -35,7 +35,7 @@ import Brig.App
 import Brig.Provider.DB (ServiceConn (..))
 import Brig.RPC
 import Control.Error
-import Control.Lens (set, view, (^.))
+import Control.Lens (set, (^.))
 import Control.Monad.Catch
 import Control.Retry (recovering)
 import Data.Aeson
@@ -71,8 +71,10 @@ data ServiceError
 createBot :: ServiceConn -> NewBotRequest -> ExceptT ServiceError (AppT r) NewBotResponse
 createBot scon new = do
   let fprs = toList (sconFingerprints scon)
-  (man, fprVar) <- view extGetManager
-  atomicModifyIORef' fprVar \oldFprs -> (nub (fprs <> oldFprs), ())
+  -- (man, fprVar) <- view extGetManager
+  -- atomicModifyIORef' fprVar \oldFprs -> (nub (fprs <> oldFprs), ())
+  fprVar <- newIORef fprs
+  man <- liftIO $ initExtGetManager fprVar
   extHandleAll onExc $ do
     let req = reqBuilder Http.defaultRequest
     rs <- lift $
