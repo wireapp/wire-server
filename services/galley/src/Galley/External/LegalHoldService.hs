@@ -143,7 +143,7 @@ removeLegalHold tid uid = do
 -- helpers
 
 -- | Lookup legal hold service settings for a team and make a request to the service.  Pins
--- the TSL fingerprint via 'makeVerifiedRequest' and passes the token so the service can
+-- the TSL fingerprint via 'makeVerifiedRequestFreshManager' and passes the token so the service can
 -- authenticate the request.
 makeLegalHoldServiceRequest ::
   ( Member (ErrorS 'LegalHoldServiceNotRegistered) r,
@@ -162,7 +162,7 @@ makeLegalHoldServiceRequest tid reqBuilder = do
           legalHoldServiceFingerprint = fpr,
           legalHoldServiceToken = serviceToken
         } = lhSettings
-  makeVerifiedRequest fpr baseUrl $ mkReqBuilder serviceToken
+  makeVerifiedRequestFreshManager fpr baseUrl $ mkReqBuilder serviceToken
   where
     mkReqBuilder token =
       reqBuilder
