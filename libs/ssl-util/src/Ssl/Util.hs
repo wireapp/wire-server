@@ -38,6 +38,7 @@ import Data.ByteString.Builder
 import Data.Byteable (constEqBytes)
 import Data.Misc (Fingerprint (fingerprintBytes), Rsa)
 import Data.Time.Clock (getCurrentTime)
+import Debug.Trace (traceM)
 import Imports
 import OpenSSL.BN (integerToMPI)
 import OpenSSL.EVP.Digest (Digest, digestLBS, getDigestByName)
@@ -188,14 +189,18 @@ extEnvCallback fingerprints store = do
   cert <- getStoreCtxCert store
   pk <- getPublicKey cert
   fprs <- readIORef fingerprints
+  traceM (show fprs)
   case toPublicKey @RSAPubKey pk of
     Nothing -> pure False
     Just k -> do
       fp <- rsaFingerprint sha k
       -- find at least one matching fingerprint to continue
       if not (any (constEqBytes fp . fingerprintBytes) fprs)
-        then pure False
+        then do
+          traceM "fingerprint not contained in fprs"
+          pure False
         else do
+          traceM "fingerprint is contained in fprs"
           -- Check if the certificate is self-signed.
           self <- verifyX509 cert pk
           if (self /= VerifySuccess)

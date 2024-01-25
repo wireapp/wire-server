@@ -29,6 +29,7 @@ import Control.Retry
 import Data.ByteString qualified as BS
 import Data.ByteString.Lazy.Char8 qualified as LC8
 import Data.Misc
+import Debug.Trace
 import Galley.API.Error
 import Galley.Env
 import Galley.Monad
@@ -92,5 +93,6 @@ makeVerifiedRequestFreshManager ::
   (Http.Request -> Http.Request) ->
   App (Http.Response LC8.ByteString)
 makeVerifiedRequestFreshManager fpr url reqBuilder = do
+  traceM "makeVerifiedRequestFreshManager"
   mgr <- liftIO . initExtEnv =<< newIORef [fpr]
   makeVerifiedRequestWithManager mgr url reqBuilder
