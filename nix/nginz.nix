@@ -40,6 +40,12 @@ let
     mkdir -p $out/var/tmp
   '';
 
+  nsswitch-conf = writeTextFile {
+    name = "nsswitch.conf";
+    text = "hosts: dns files";
+    destination = "/etc/nsswitch.conf";
+  };
+
   nginzImage = dockerTools.streamLayeredImage {
     name = "quay.io/wire/nginz";
     maxLayers = 10;
@@ -53,6 +59,7 @@ let
       dockerTools.usrBinEnv
       nginz # so preStop lifecycle hook in cannon can nginx -c … quit
       tmpDir
+      nsswitch-conf
     ];
     # Any mkdir running in this step won't actually make it to the image,
     # hence we use the tmpDir derivation in the contents
