@@ -38,6 +38,7 @@ import Data.Misc
 import Galley.Effects.LegalHoldStore as LegalHoldData
 import Galley.External.LegalHoldService.Types
 import Imports
+import Network.HTTP.Client (Reuse (..))
 import Network.HTTP.Client qualified as Http
 import Network.HTTP.Types
 import Polysemy
@@ -60,7 +61,7 @@ checkLegalHoldServiceStatus ::
   HttpsUrl ->
   Sem r ()
 checkLegalHoldServiceStatus fpr url = do
-  resp <- makeVerifiedRequest fpr url reqBuilder
+  resp <- makeVerifiedRequest DontReuse fpr url reqBuilder
   if Bilge.statusCode resp < 400
     then pure ()
     else do
@@ -162,7 +163,7 @@ makeLegalHoldServiceRequest tid reqBuilder = do
           legalHoldServiceFingerprint = fpr,
           legalHoldServiceToken = serviceToken
         } = lhSettings
-  makeVerifiedRequest fpr baseUrl $ mkReqBuilder serviceToken
+  makeVerifiedRequest DontReuse fpr baseUrl $ mkReqBuilder serviceToken
   where
     mkReqBuilder token =
       reqBuilder

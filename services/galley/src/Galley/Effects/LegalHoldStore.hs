@@ -63,6 +63,7 @@ data LegalHoldStore m a where
   IsTeamLegalholdWhitelisted :: TeamId -> LegalHoldStore m Bool
   -- -- intra actions
   MakeVerifiedRequest ::
+    Http.Reuse ->
     Fingerprint Rsa ->
     HttpsUrl ->
     (Http.Request -> Http.Request) ->

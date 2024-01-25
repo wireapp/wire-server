@@ -75,10 +75,14 @@ makeVerifiedRequestWithManager mgr verifyFingerprints fpr (HttpsUrl url) reqBuil
         ]
 
 makeVerifiedRequest ::
+  Http.Reuse ->
   Fingerprint Rsa ->
   HttpsUrl ->
   (Http.Request -> Http.Request) ->
   App (Http.Response LC8.ByteString)
-makeVerifiedRequest fpr url reqBuilder = do
+makeVerifiedRequest Http.Reuse fpr url reqBuilder = do
   (mgr, verifyFingerprints) <- view extGetManager
+  makeVerifiedRequestWithManager mgr verifyFingerprints fpr url reqBuilder
+makeVerifiedRequest Http.DontReuse fpr url reqBuilder = do
+  (mgr, verifyFingerprints) <- liftIO initExtEnv
   makeVerifiedRequestWithManager mgr verifyFingerprints fpr url reqBuilder

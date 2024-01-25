@@ -448,10 +448,13 @@ testCreateLegalHoldTeamSettings = withTeam $ \owner tid -> do
             | pathInfo req /= ["legalhold", "status"] -> cont respondBad
             | requestMethod req /= "GET" -> cont respondBad
             | otherwise -> cont respondOk
+
       respondOk :: Wai.Response
       respondOk = responseLBS status200 mempty mempty
+
       respondBad :: Wai.Response
       respondBad = responseLBS status404 mempty mempty
+
       lhtest :: HasCallStack => IsWorking -> Warp.Port -> Chan Void -> TestM ()
       lhtest NotWorking _ _ = do
         postSettings owner tid brokenService !!! testResponse 412 (Just "legalhold-unavailable")
@@ -459,10 +462,12 @@ testCreateLegalHoldTeamSettings = withTeam $ \owner tid -> do
         let Right [k] = pemParseBS "-----BEGIN PUBLIC KEY-----\n\n-----END PUBLIC KEY-----"
         newService <- newLegalHoldService lhPort
         let badServiceBadKey = newService {newLegalHoldServiceKey = ServiceKeyPEM k}
+
         postSettings owner tid badServiceBadKey !!! testResponse 400 (Just "legalhold-invalid-key")
         postSettings owner tid newService !!! testResponse 201 Nothing
         postSettings owner tid newService !!! testResponse 201 Nothing -- it's idempotent
         ViewLegalHoldService service <- getSettingsTyped owner tid
+
         liftIO $ do
           Just (_, fpr) <- validateServiceKey (newLegalHoldServiceKey newService)
           assertEqual "viewLegalHoldTeam" tid (viewLegalHoldServiceTeam service)

@@ -73,8 +73,8 @@ interpretLegalHoldStoreToCassandra lh = interpret $ \case
   SetTeamLegalholdWhitelisted tid -> embedClient $ setTeamLegalholdWhitelisted tid
   UnsetTeamLegalholdWhitelisted tid -> embedClient $ unsetTeamLegalholdWhitelisted tid
   IsTeamLegalholdWhitelisted tid -> embedClient $ isTeamLegalholdWhitelisted lh tid
-  MakeVerifiedRequest fpr url r ->
-    embedApp $ makeVerifiedRequest fpr url r
+  MakeVerifiedRequest reuse fpr url r ->
+    embedApp $ makeVerifiedRequest reuse fpr url r
   ValidateServiceKey sk -> embed @IO $ validateServiceKey sk
 
 -- | Returns 'False' if legal hold is not enabled for this team
