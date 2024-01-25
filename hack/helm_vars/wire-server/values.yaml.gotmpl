@@ -170,7 +170,8 @@ cannon:
     limits:
       memory: 512Mi
   drainTimeout: 0
-  disabledAPIVersions: []
+  config:
+    disabledAPIVersions: []
 cargohold:
   replicaCount: 1
   imagePullPolicy: {{ .Values.imagePullPolicy }}
