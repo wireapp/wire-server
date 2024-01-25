@@ -12,6 +12,7 @@ import Data.Map qualified as Map
 import Data.Schema
 import Data.Text qualified as Text
 import Data.Text.Lazy.Encoding qualified as TL
+import GHC.TypeLits
 import Imports
 import Network.AMQP qualified as Q
 import Network.AMQP.Types qualified as Q
@@ -56,6 +57,34 @@ instance ToSchema BackendNotification where
         <*> bodyVersions .= maybe_ (optField "bodyVersions" schema)
         <*> (.requestId) .= maybe_ (optField "requestId" schema)
 
+-- | Convert a federation endpoint to a backend notification to be enqueued to a
+-- RabbitMQ queue.
+fedNotifToBackendNotif ::
+  forall {k} (tag :: k).
+  KnownSymbol (NotificationPath tag) =>
+  KnownComponent (NotificationComponent k) =>
+  A.ToJSON (Payload tag) =>
+  HasNotificationEndpoint tag =>
+  RequestId ->
+  Domain ->
+  Payload tag ->
+  BackendNotification
+fedNotifToBackendNotif rid ownDomain payload =
+  let p = Text.pack . symbolVal $ Proxy @(NotificationPath tag)
+      b = RawJson . A.encode $ payload
+   in toNotif p b
+  where
+    toNotif :: Text -> RawJson -> BackendNotification
+    toNotif path body =
+      BackendNotification
+        { ownDomain = ownDomain,
+          targetComponent = componentVal @(NotificationComponent k),
+          path = path,
+          body = body,
+          bodyVersions = Just $ versionRange @tag,
+          requestId = Just rid
+        }
+
 data PayloadBundle (c :: Component) = PayloadBundle
   { originDomain :: Domain,
     targetDomain :: Domain,
@@ -91,7 +120,7 @@ toBundle ::
   ( HasNotificationEndpoint tag,
     KnownSymbol (NotificationPath tag),
     KnownComponent (NotificationComponent k),
-    ToJSON (Payload tag)
+    A.ToJSON (Payload tag)
   ) =>
   FedQueueEnv ->
   Payload tag ->
