@@ -57,7 +57,6 @@ config:
     multiIngress: null
     # Disable one ore more API versions. Please make sure the configuration value is the same in all these charts:
     # brig, cannon, cargohold, galley, gundeck, proxy, spar.
-    # The default value if not set is `["development"]` which disables the development API versions.
     # disabledAPIVersions: [ v3 ]
     # The lifetime of a conversation guest link in seconds. Must be a value 0 < x <= 31536000 (365 days)
     # Default is 31536000 (365 days) if not set
