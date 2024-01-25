@@ -30,7 +30,6 @@ import Proxy.API (sitemap)
 import Proxy.Env
 import Proxy.Options
 import Proxy.Proxy
-import Wire.API.Routes.Version
 import Wire.API.Routes.Version.Wai
 
 run :: Opts -> IO ()
@@ -41,7 +40,7 @@ run o = do
   let rtree = compile (sitemap e)
   let app r k = runProxy e r (route rtree r k)
   let middleware =
-        versionMiddleware (foldMap expandVersionExp (foldMap unVersionExpSetDefaultDev (o ^. disabledAPIVersions)))
+        versionMiddleware (fold (o ^. disabledAPIVersions))
           . waiPrometheusMiddleware (sitemap e)
           . catchErrors (e ^. applog) [Right m]
   runSettingsWithShutdown s (middleware app) Nothing `finally` destroyEnv e

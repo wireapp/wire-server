@@ -194,7 +194,7 @@ optSettings:
   setFederationDomainConfigs:
     - domain: example.com
       search_policy: full_search
-  # We explicitly do not disable any API version. Please make sure the configuration value is the same in all these configs:
+  # Please make sure the configuration value is the same in all these configs:
   # brig, cannon, cargohold, galley, gundeck, proxy, spar.
   setDisabledAPIVersions: []
   set2FACodeGenerationDelaySecs: 5

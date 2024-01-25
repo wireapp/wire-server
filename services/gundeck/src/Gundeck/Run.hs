@@ -53,7 +53,6 @@ import System.Logger qualified as Log
 import UnliftIO.Async qualified as Async
 import Util.Options
 import Wire.API.Routes.Public.Gundeck (GundeckAPI)
-import Wire.API.Routes.Version
 import Wire.API.Routes.Version.Wai
 
 run :: Opts -> IO ()
@@ -82,7 +81,7 @@ run o = do
   where
     middleware :: Env -> Wai.Middleware
     middleware e =
-      versionMiddleware (foldMap expandVersionExp (foldMap unVersionExpSetDefaultDev (o ^. settings . disabledAPIVersions)))
+      versionMiddleware (fold (o ^. settings . disabledAPIVersions))
         . waiPrometheusMiddleware sitemap
         . GZip.gunzip
         . GZip.gzip GZip.def

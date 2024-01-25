@@ -84,18 +84,6 @@ testVersionDisabledNotAdvertised = do
           assertBool "the disabled version should not be propagated as dev version" $ v `notElem` dev
           assertBool "the disabled version should not be propagated as supported version" $ v `notElem` supported
 
-testVersionDisabledDevNotAdvertised :: App ()
-testVersionDisabledDevNotAdvertised = withModifiedBackend
-  def {brigCfg = setField "optSettings.setDisabledAPIVersions" ["development"]}
-  $ \domain -> do
-    bindResponse (getAPIVersion domain) $ \resp -> do
-      resp.status `shouldMatchInt` 200
-      dev <- resp.json %. "development" & asList
-      supported <- resp.json %. "supported" & asList
-
-      assertBool "supported versions should not be empty" $ not (null supported)
-      assertBool "development versions should be empty" $ null dev
-
 testVersionDevDisabledPerDefault :: App ()
 testVersionDevDisabledPerDefault = withModifiedBackend
   def {brigCfg = removeField "optSettings.setDisabledAPIVersions"}
