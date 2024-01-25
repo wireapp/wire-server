@@ -21,7 +21,7 @@ drainOpts:
   millisecondsBetweenBatches: 500
   minBatchSize: 5
 
-# We explicitly do not disable any API version. Please make sure the configuration value is the same in all these configs:
+# Please make sure the configuration value is the same in all these configs:
 # brig, cannon, cargohold, galley, gundeck, proxy, spar.
 disabledAPIVersions: []
 
