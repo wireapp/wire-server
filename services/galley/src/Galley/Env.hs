@@ -26,7 +26,6 @@ import Data.Id
 import Data.Metrics.Middleware
 import Data.Misc (Fingerprint (..), HttpsUrl, Rsa)
 import Data.Range
-import Debug.Trace
 import Galley.Aws qualified as Aws
 import Galley.Options
 import Galley.Options qualified as O
@@ -71,7 +70,6 @@ makeLenses ''Env
 -- TODO: somewhat duplicates Brig.App.initExtGetManager
 initExtEnv :: IORef [Fingerprint Rsa] -> IO Manager
 initExtEnv fingerprints = do
-  traceM "initExtEnv"
   ctx <- Ssl.context
   Ssl.contextAddOption ctx SSL_OP_NO_SSLv2
   Ssl.contextAddOption ctx SSL_OP_NO_SSLv3
@@ -81,7 +79,7 @@ initExtEnv fingerprints = do
     ctx
     Ssl.VerifyPeer
       { vpFailIfNoPeerCert = True,
-        vpClientOnce = True,
+        vpClientOnce = False,
         vpCallback = Just \_b -> extEnvCallback fingerprints
       }
 

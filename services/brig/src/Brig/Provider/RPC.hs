@@ -71,10 +71,9 @@ data ServiceError
 createBot :: ServiceConn -> NewBotRequest -> ExceptT ServiceError (AppT r) NewBotResponse
 createBot scon new = do
   let fprs = toList (sconFingerprints scon)
-  -- (man, fprVar) <- view extGetManager
-  -- atomicModifyIORef' fprVar \oldFprs -> (nub (fprs <> oldFprs), ())
-  fprVar <- newIORef fprs
-  man <- liftIO $ initExtGetManager fprVar
+  -- fresh http manager
+  man <- liftIO do
+    initExtGetManager =<< newIORef fprs
   extHandleAll onExc $ do
     let req = reqBuilder Http.defaultRequest
     rs <- lift $

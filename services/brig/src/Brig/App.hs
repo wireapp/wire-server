@@ -125,7 +125,6 @@ import Data.Text.IO qualified as Text
 import Data.Time.Clock
 import Data.Yaml (FromJSON)
 import Database.Bloodhound qualified as ES
-import Debug.Trace (traceM)
 import HTTP2.Client.Manager (Http2Manager, http2ManagerWithSSLCtx)
 import Imports
 import Network.AMQP qualified as Q
@@ -249,7 +248,6 @@ newEnv o = do
   kpLock <- newMVar ()
   rabbitChan <- traverse (Q.mkRabbitMqChannelMVar lgr) o.rabbitmq
   fprVar <- newIORef []
-  traceM "initExtGetManager brig"
   extMgr <- initExtGetManager fprVar
 
   pure $!
@@ -367,7 +365,6 @@ initHttp2Manager = do
 -- TODO: somewhat duplicates Galley.App.initExtEnv
 initExtGetManager :: IORef [Fingerprint Rsa] -> IO Manager
 initExtGetManager fprVar = do
-  traceM "in init extGetManager in brig"
   ctx <- SSL.context
   SSL.contextAddOption ctx SSL_OP_NO_SSLv2
   SSL.contextAddOption ctx SSL_OP_NO_SSLv3

@@ -29,7 +29,6 @@ import Control.Retry
 import Data.ByteString qualified as BS
 import Data.ByteString.Lazy.Char8 qualified as LC8
 import Data.Misc
-import Debug.Trace
 import Galley.API.Error
 import Galley.Env
 import Galley.Monad
@@ -80,7 +79,7 @@ makeVerifiedRequest ::
   App (Http.Response LC8.ByteString)
 makeVerifiedRequest fpr url reqBuilder = do
   (mgr, fprVar) <- view extGetManager
-  modifyIORef' fprVar (nub . ([fpr] <>))
+  modifyIORef' fprVar (nub . (fpr :))
   makeVerifiedRequestWithManager mgr url reqBuilder
 
 -- | NOTE: Use this function wisely - this creates a new manager _every_ time it is called.
@@ -93,6 +92,5 @@ makeVerifiedRequestFreshManager ::
   (Http.Request -> Http.Request) ->
   App (Http.Response LC8.ByteString)
 makeVerifiedRequestFreshManager fpr url reqBuilder = do
-  traceM "makeVerifiedRequestFreshManager"
   mgr <- liftIO . initExtEnv =<< newIORef [fpr]
   makeVerifiedRequestWithManager mgr url reqBuilder
