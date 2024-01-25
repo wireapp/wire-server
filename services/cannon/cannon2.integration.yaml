@@ -21,9 +21,5 @@ drainOpts:
   millisecondsBetweenBatches: 5
   minBatchSize: 100
 
-# Please make sure the configuration value is the same in all these configs:
-# brig, cannon, cargohold, galley, gundeck, proxy, spar.
-disabledAPIVersions: []
-
 logLevel: Info
 logNetStrings: false
