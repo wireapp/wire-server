@@ -186,7 +186,7 @@ let
 
     postie = {
       src = fetchgit {
-        url = "https://github.com/wireapp/postie.git";
+        url = "https://github.com/alexbiehl/postie";
         rev = "7321b977a2b427e0be782b7239901e4edfbb027f";
         sha256 = "sha256-DKugy4EpRsSgaGvybdh2tLa7HCtoxId+7RAAAw43llA=";
       };
