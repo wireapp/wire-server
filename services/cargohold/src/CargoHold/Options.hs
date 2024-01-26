@@ -143,7 +143,7 @@ data Settings = Settings
     -- https://docs.wire.com/how-to/install/configure-federation.html#choose-a-backend-domain-name
     _federationDomain :: !Domain,
     _disabledAPIVersions :: !(Maybe (Set Version)),
-    _enableDevAPI :: !(Maybe Bool)
+    _enableDevelopmentVersions :: !(Maybe Bool)
   }
   deriving (Show, Generic)
 

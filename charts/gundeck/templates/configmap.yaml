@@ -71,8 +71,8 @@ data:
         # hard: 30  # more than this number of threads will not be allowed
       maxPayloadLoadSize : {{ .maxPayloadLoadSize }}
       internalPageSize : {{ .internalPageSize }}
-      {{- if .enableDevAPI }}
-      enableDevAPI: {{ .enableDevAPI }}
+      {{- if .enableDevelopmentVersions }}
+      enableDevelopmentVersions: {{ .enableDevelopmentVersions }}
       {{- end }}
 
   {{- end }}

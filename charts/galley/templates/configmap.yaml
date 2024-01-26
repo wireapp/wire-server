@@ -87,8 +87,8 @@ data:
       {{- if .settings.guestLinkTTLSeconds }}
       guestLinkTTLSeconds: {{ .settings.guestLinkTTLSeconds }}
       {{- end }}
-      {{- if .settings.enableDevAPI }}
-      enableDevAPI: {{ .settings.enableDevAPI }}
+      {{- if .settings.enableDevelopmentVersions }}
+      enableDevelopmentVersions: {{ .settings.enableDevelopmentVersions }}
       {{- end }}
       featureFlags:
         sso: {{ .settings.featureFlags.sso }}

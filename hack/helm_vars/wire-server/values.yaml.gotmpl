@@ -105,7 +105,7 @@ brig:
       setOAuthEnabled: true
       setOAuthRefreshTokenExpirationTimeSecs: 14515200 # 24 weeks
       setOAuthMaxActiveRefreshTokens: 10
-      setEnableDevAPI: true
+      setEnableDevelopmentVersions: true
     aws:
       sesEndpoint: http://fake-aws-ses:4569
       sqsEndpoint: http://fake-aws-sqs:4568
@@ -171,7 +171,7 @@ cannon:
       memory: 512Mi
   drainTimeout: 0
   config:
-    enableDevAPI: true
+    enableDevelopmentVersions: true
 cargohold:
   replicaCount: 1
   imagePullPolicy: {{ .Values.imagePullPolicy }}
@@ -187,7 +187,7 @@ cargohold:
     settings:
       # See helmfile for the real value
       federationDomain: integration.example.com
-    enableDevAPI: true
+    enableDevelopmentVersions: true
   secrets:
     awsKeyId: dummykey
     awsSecretKey: dummysecret
@@ -222,7 +222,7 @@ galley:
       conversationCodeURI: https://kube-staging-nginz-https.zinfra.io/conversation-join/
       # See helmfile for the real value
       federationDomain: integration.example.com
-      enableDevAPI: true
+      enableDevelopmentVersions: true
       featureFlags:
         sso: disabled-by-default  # this needs to be the default; tests can enable it when needed.
         legalhold: whitelist-teams-and-implicit-consent
@@ -298,7 +298,7 @@ gundeck:
     setMaxConcurrentNativePushes:
       hard: 30
       soft: 10
-    enableDevAPI: true
+    enableDevelopmentVersions: true
   secrets:
     awsKeyId: dummykey
     awsSecretKey: dummysecret
@@ -339,7 +339,7 @@ proxy:
   replicaCount: 1
   imagePullPolicy: {{ .Values.imagePullPolicy }}
   config:
-    enableDevAPI: true
+    enableDevelopmentVersions: true
   secrets:
     proxy_config: |-
       secrets {
@@ -376,7 +376,7 @@ spar:
     - type: ContactSupport
       company: Example Company
       email: email:backend+spar@wire.com
-    enableDevAPI: true
+    enableDevelopmentVersions: true
   tests:
     {{- if .Values.uploadXml }}
     config:

@@ -100,7 +100,7 @@ mkApp sparCtxOpts = do
           . Bilge.port (sparCtxOpts ^. to galley . port)
           $ Bilge.empty
   let wrappedApp =
-        versionMiddleware (fold (disabledAPIVersions sparCtxOpts) <> toDisabledVersions (enableDevAPI sparCtxOpts))
+        versionMiddleware (fold (disabledAPIVersions sparCtxOpts) <> toDisabledVersions (enableDevelopmentVersions sparCtxOpts))
           . WU.heavyDebugLogging heavyLogOnly logLevel sparCtxLogger
           . servantPrometheusMiddleware (Proxy @SparAPI)
           . WU.catchErrors sparCtxLogger []

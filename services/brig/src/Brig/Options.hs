@@ -625,7 +625,7 @@ data Settings = Settings
     -- use `setOAuthMaxActiveRefreshTokens` as the getter function which always provides a default value
     setOAuthMaxActiveRefreshTokensInternal :: !(Maybe Word32),
     -- | En-/Disable the development API versions. This can be overridden by `setDisabledAPIVersions`.
-    setEnableDevAPI :: !(Maybe Bool)
+    setEnableDevelopmentVersions :: !(Maybe Bool)
   }
   deriving (Show, Generic)
 
