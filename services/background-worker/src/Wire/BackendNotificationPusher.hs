@@ -129,6 +129,7 @@ pushNotification runningFlag targetDomain (msg, envelope) = do
                   ceOriginRequestId =
                     fromMaybe (RequestId "N/A") . (.requestId) . NE.head $ bundle.notifications
                 }
+        -- TODO(md): pull this out into a separate function for redability and testability
         remoteVersions :: Set Int <-
           liftIO
             ( runFederatorClient @'Brig env $
