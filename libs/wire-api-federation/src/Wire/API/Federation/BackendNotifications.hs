@@ -107,11 +107,13 @@ toBundle ::
     KnownComponent (NotificationComponent k),
     A.ToJSON (Payload tag)
   ) =>
-  FedQueueEnv ->
+  RequestId ->
+  -- | The origin domain
+  Domain ->
   Payload tag ->
   PayloadBundle (NotificationComponent k)
-toBundle env payload = do
-  let notif = fedNotifToBackendNotif @tag env.requestId env.originDomain payload
+toBundle reqId originDomain payload = do
+  let notif = fedNotifToBackendNotif @tag reqId originDomain payload
   PayloadBundle . pure $ notif
 
 type BackendNotificationAPI = Capture "name" Text :> ReqBody '[JSON] RawJson :> Post '[JSON] EmptyResponse
