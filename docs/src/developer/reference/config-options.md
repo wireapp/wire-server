@@ -648,6 +648,35 @@ optSettings:
   setOAuthMaxActiveRefreshTokens: 10
 ```
 
+#### Enable Development API
+
+To enable the development API version(s), set the following flags to true for brig, cannon, cargohold, galley, gundeck, proxy, spar. This setting should be consistent across all services.
+
+```yaml
+# brig's values.yaml
+config.optSettings.setEnableDevAPI: true
+
+# cannon's values.yaml
+config.enableDevAPI: true
+
+# cargohold's values.yaml
+config.settings.enableDevAPI: true
+
+# galley's values.yaml
+config.settings.enableDevAPI: true
+
+# gundecks' values.yaml
+config.enableDevAPI: true
+
+# proxy's values.yaml
+config.enableDevAPI: true
+
+# spar's values.yaml
+config.enableDevAPI: true
+```
+
+Per default the development API version(s) are disabled. Disabling an API version explicitly (as described below) takes precedence over enabled development API versions.
+
 #### Disabling API versions
 
 It is possible to disable one ore more API versions. When an API version is disabled it won't be advertised on the `GET /api-version` endpoint, neither in the `supported`, nor in the `development` section. Requests made to any endpoint of a disabled API version will result in the same error response as a request made to an API version that does not exist.
@@ -656,7 +685,7 @@ Each of the services brig, cannon, cargohold, galley, gundeck, proxy, spar shoul
 
 For example to disable API version v3, you need to configure:
 
-```
+```yaml
 # brig's values.yaml
 config.optSettings.setDisabledAPIVersions: [ v3 ]
 

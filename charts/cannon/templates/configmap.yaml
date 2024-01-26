@@ -23,6 +23,10 @@ data:
     disabledAPIVersions: {{ .Values.config.disabledAPIVersions }}
     {{- end }}
 
+    {{- if .Values.config.enableDevAPI }}
+    enableDevAPI: {{ .Values.config.enableDevAPI }}
+    {{- end }}
+
 kind: ConfigMap
 metadata:
   name: cannon

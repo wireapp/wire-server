@@ -68,7 +68,8 @@ data Opts' a = Opts
     logNetStrings :: !(Maybe (Last Bool)),
     logFormat :: !(Maybe (Last LogFormat)),
     disabledAPIVersions :: !(Maybe (Set Version)),
-    derivedOpts :: !a
+    derivedOpts :: !a,
+    enableDevAPI :: !(Maybe Bool)
   }
   deriving (Functor, Show, Generic)
 

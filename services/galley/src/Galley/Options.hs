@@ -55,6 +55,7 @@ module Galley.Options
     logFormat,
     guestLinkTTLSeconds,
     defGuestLinkTTLSeconds,
+    enableDevAPI,
     GuestLinkTTLSeconds (..),
   )
 where
@@ -148,7 +149,8 @@ data Settings = Settings
     _disabledAPIVersions :: !(Maybe (Set Version)),
     -- | The lifetime of a conversation guest link in seconds with the maximum of 1 year (31536000 seconds).
     -- If not set use the default `defGuestLinkTTLSeconds`
-    _guestLinkTTLSeconds :: !(Maybe GuestLinkTTLSeconds)
+    _guestLinkTTLSeconds :: !(Maybe GuestLinkTTLSeconds),
+    _enableDevAPI :: !(Maybe Bool)
   }
   deriving (Show, Generic)
 

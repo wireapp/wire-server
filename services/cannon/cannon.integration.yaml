@@ -21,5 +21,7 @@ drainOpts:
   millisecondsBetweenBatches: 500
   minBatchSize: 5
 
+enableDevAPI: true
+
 logLevel: Warn
 logNetStrings: false

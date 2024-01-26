@@ -54,6 +54,7 @@ import System.Logger (Logger, msg, val, (.=), (~~))
 import qualified System.Logger as Log
 import qualified System.Logger.Extended as Log
 import Util.Options
+import Wire.API.Routes.Version
 import Wire.API.Routes.Version.Wai
 import Wire.Sem.Logger.TinyLog
 
@@ -99,7 +100,7 @@ mkApp sparCtxOpts = do
           . Bilge.port (sparCtxOpts ^. to galley . port)
           $ Bilge.empty
   let wrappedApp =
-        versionMiddleware (fold (disabledAPIVersions sparCtxOpts))
+        versionMiddleware (fold (disabledAPIVersions sparCtxOpts) <> toDisabledVersions (enableDevAPI sparCtxOpts))
           . WU.heavyDebugLogging heavyLogOnly logLevel sparCtxLogger
           . servantPrometheusMiddleware (Proxy @SparAPI)
           . WU.catchErrors sparCtxLogger []

@@ -142,7 +142,8 @@ data Settings = Settings
     -- This is referred to as the 'backend domain' in the public documentation; See
     -- https://docs.wire.com/how-to/install/configure-federation.html#choose-a-backend-domain-name
     _federationDomain :: !Domain,
-    _disabledAPIVersions :: !(Maybe (Set Version))
+    _disabledAPIVersions :: !(Maybe (Set Version)),
+    _enableDevAPI :: !(Maybe Bool)
   }
   deriving (Show, Generic)
 

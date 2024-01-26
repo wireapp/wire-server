@@ -63,7 +63,6 @@ data:
       {{- if .disabledAPIVersions }}
       disabledAPIVersions: {{ .disabledAPIVersions }}
       {{- end }}
-      # disabledAPIVersions: [ 2 ]
       maxConcurrentNativePushes:
         soft: {{ .maxConcurrentNativePushes.soft }}
         {{- if hasKey .maxConcurrentNativePushes "hard" }}
@@ -72,5 +71,8 @@ data:
         # hard: 30  # more than this number of threads will not be allowed
       maxPayloadLoadSize : {{ .maxPayloadLoadSize }}
       internalPageSize : {{ .internalPageSize }}
+      {{- if .enableDevAPI }}
+      enableDevAPI: {{ .enableDevAPI }}
+      {{- end }}
 
   {{- end }}
