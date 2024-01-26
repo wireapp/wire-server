@@ -35,6 +35,7 @@ module Wire.API.Routes.Version
     supportedVersions,
     isDevelopmentVersion,
     developmentVersions,
+    toDisabledVersions,
 
     -- * Servant combinators
     Until,
@@ -56,6 +57,7 @@ import Data.ByteString.Lazy qualified as LBS
 import Data.Domain
 import Data.OpenApi qualified as S
 import Data.Schema
+import Data.Set qualified as Set
 import Data.Singletons.Base.TH
 import Data.Text qualified as Text
 import Data.Text.Encoding as Text
@@ -204,6 +206,9 @@ isDevelopmentVersion _ = True
 
 developmentVersions :: [Version]
 developmentVersions = filter isDevelopmentVersion supportedVersions
+
+toDisabledVersions :: Maybe Bool -> Set Version
+toDisabledVersions mEnableDevAPI = Set.fromList $ maybe developmentVersions (const []) mEnableDevAPI
 
 -- Version-aware swagger generation
 
