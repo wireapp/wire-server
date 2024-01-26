@@ -8,6 +8,7 @@ import Control.Retry
 import Data.Aeson qualified as A
 import Data.Domain
 import Data.Id
+import Data.List.NonEmpty qualified as NE
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as Text
@@ -121,11 +122,12 @@ pushNotification runningFlag targetDomain (msg, envelope) = do
         manager <- asks http2Manager
         let env =
               FederatorClientEnv
-                { ceOriginDomain = bundle.originDomain,
+                { ceOriginDomain = ownDomain . NE.head $ bundle.notifications,
                   ceTargetDomain = targetDomain,
                   ceFederator = federator,
                   ceHttp2Manager = manager,
-                  ceOriginRequestId = RequestId "N/A"
+                  ceOriginRequestId =
+                    fromMaybe (RequestId "N/A") . (.requestId) . NE.head $ bundle.notifications
                 }
         remoteVersions :: Set Int <-
           liftIO
