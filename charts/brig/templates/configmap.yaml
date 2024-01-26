@@ -332,8 +332,8 @@ data:
       {{- if .setOAuthMaxActiveRefreshTokens }}
       setOAuthMaxActiveRefreshTokens: {{ .setOAuthMaxActiveRefreshTokens }}
       {{- end }}
-      {{- if .setEnableDevAPI }}
-      setEnableDevAPI: {{ .setEnableDevAPI }}
+      {{- if .setEnableDevelopmentVersions }}
+      setEnableDevelopmentVersions: {{ .setEnableDevelopmentVersions }}
       {{- end }}
     {{- end }}
   {{- end }}

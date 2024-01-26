@@ -69,7 +69,7 @@ data Opts' a = Opts
     logFormat :: !(Maybe (Last LogFormat)),
     disabledAPIVersions :: !(Maybe (Set Version)),
     derivedOpts :: !a,
-    enableDevAPI :: !(Maybe Bool)
+    enableDevelopmentVersions :: !(Maybe Bool)
   }
   deriving (Functor, Show, Generic)
 

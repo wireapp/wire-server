@@ -213,7 +213,7 @@ optSettings:
   setOAuthEnabled: true
   setOAuthRefreshTokenExpirationTimeSecs: 14515200 # 24 weeks
   setOAuthMaxActiveRefreshTokens: 10
-  setEnableDevAPI: true
+  setEnableDevelopmentVersions: true
 
 logLevel: Warn
 logNetStrings: false

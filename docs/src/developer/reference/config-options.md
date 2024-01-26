@@ -654,25 +654,25 @@ To enable the development API version(s), set the following flags to true for br
 
 ```yaml
 # brig's values.yaml
-config.optSettings.setEnableDevAPI: true
+config.optSettings.setEnableDevelopmentVersions: true
 
 # cannon's values.yaml
-config.enableDevAPI: true
+config.enableDevelopmentVersions: true
 
 # cargohold's values.yaml
-config.settings.enableDevAPI: true
+config.settings.enableDevelopmentVersions: true
 
 # galley's values.yaml
-config.settings.enableDevAPI: true
+config.settings.enableDevelopmentVersions: true
 
 # gundecks' values.yaml
-config.enableDevAPI: true
+config.enableDevelopmentVersions: true
 
 # proxy's values.yaml
-config.enableDevAPI: true
+config.enableDevelopmentVersions: true
 
 # spar's values.yaml
-config.enableDevAPI: true
+config.enableDevelopmentVersions: true
 ```
 
 Per default the development API version(s) are disabled. Disabling an API version explicitly (as described below) takes precedence over enabled development API versions.

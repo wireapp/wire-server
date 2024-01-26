@@ -85,7 +85,7 @@ data Settings = Settings
     -- reduce the amount by which setMaxPayloadLoadSize is exceeded when loading
     -- notifications from the database if notifications have inlined payloads.
     _internalPageSize :: Maybe Int32,
-    _enableDevAPI :: !(Maybe Bool)
+    _enableDevelopmentVersions :: !(Maybe Bool)
   }
   deriving (Show, Generic)
 

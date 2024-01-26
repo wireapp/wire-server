@@ -23,8 +23,8 @@ data:
     disabledAPIVersions: {{ .Values.config.disabledAPIVersions }}
     {{- end }}
 
-    {{- if .Values.config.enableDevAPI }}
-    enableDevAPI: {{ .Values.config.enableDevAPI }}
+    {{- if .Values.config.enableDevelopmentVersions }}
+    enableDevelopmentVersions: {{ .Values.config.enableDevelopmentVersions }}
     {{- end }}
 
 kind: ConfigMap
