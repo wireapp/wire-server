@@ -40,6 +40,7 @@ import Util.Options
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Common
+import Wire.API.Federation.API.Galley
 import Wire.API.Federation.BackendNotifications
 import Wire.API.RawJson
 import Wire.BackendNotificationPusher
@@ -87,6 +88,43 @@ spec = do
                          frOriginDomain = origDomain,
                          frComponent = Brig,
                          frRPC = "on-user-deleted-connections",
+                         frBody = Aeson.encode notifContent
+                       }
+                   ]
+      getVectorWith env.backendNotificationMetrics.pushedCounter getCounter
+        `shouldReturn` [(domainText targetDomain, 1)]
+
+    it "should push notification bundles" $ do
+      let returnSuccess _ = pure ("application/json", Aeson.encode EmptyResponse)
+      let origDomain = Domain "origin.example.com"
+          targetDomain = Domain "target.example.com"
+      -- Just using 'arbitrary' could generate a very big list, making tests very
+      -- slow. Make me wonder if notification pusher should even try to parse the
+      -- actual content, seems like wasted compute power.
+      notifContent <-
+        generate $
+          ClientRemovedRequest <$> arbitrary <*> arbitrary <*> arbitrary
+      let bundle = toBundle @'OnClientRemovedTag (RequestId "N/A") origDomain notifContent
+      envelope <- newMockEnvelope
+      let msg =
+            Q.newMsg
+              { Q.msgBody = Aeson.encode bundle,
+                Q.msgContentType = Just "application/json"
+              }
+      runningFlag <- newMVar ()
+      (env, fedReqs) <-
+        withTempMockFederator [] returnSuccess . runTestAppT $ do
+          wait =<< pushNotification runningFlag targetDomain (msg, envelope)
+          ask
+
+      readIORef envelope.acks `shouldReturn` 1
+      readIORef envelope.rejections `shouldReturn` []
+      fedReqs
+        `shouldBe` [ FederatedRequest
+                       { frTargetDomain = targetDomain,
+                         frOriginDomain = origDomain,
+                         frComponent = Galley,
+                         frRPC = "on-client-removed",
                          frBody = Aeson.encode notifContent
                        }
                    ]
