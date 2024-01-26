@@ -102,7 +102,7 @@ let
     # PR: https://github.com/dpwright/HaskellNet-SSL/pull/33
     HaskellNet-SSL = {
       src = fetchgit {
-        url = "https://github.com/MangoIV/HaskellNet-SSL";
+        url = "https://github.com/wireapp/HaskellNet-SSL";
         rev = "c2844b63a39f458ffbfe62f2ac824017f1f84453";
         sha256 = "sha256-1mu/yEAWr3POY4MHRomum0DDvs5Qty1JvP3v5GS2u64=";
       };
@@ -128,7 +128,7 @@ let
     # PR: https://gitlab.com/twittner/cql/-/merge_requests/11
     cql = {
       src = fetchgit {
-        url = "https://gitlab.com/wireapp/forks/cql";
+        url = "https://gitbug.com/wireapp/cql";
         rev = "abbd2739969d17a909800f282d10d42a254c4e3b";
         sha256 = "sha256-2MYwZKiTdwgjJdLNvECi7gtcIo+3H4z1nYzen5x0lgU=";
       };
@@ -137,7 +137,7 @@ let
     # PR: https://gitlab.com/twittner/cql-io/-/merge_requests/20
     cql-io = {
       src = fetchgit {
-        url = "https://gitlab.com/wireapp/forks/cql-io";
+        url = "https://github.com/wireapp/cql-io";
         rev = "c2b6aa995b5817ed7c78c53f72d5aa586ef87c36";
         sha256 = "sha256-DMRWUq4yorG5QFw2ZyF/DWnRjfnzGupx0njTiOyLzPI=";
       };
@@ -156,7 +156,7 @@ let
     # we use upstream, but has not been uploaded to hackage since 2016
     wai-routing = {
       src = fetchgit {
-        url = "https://gitlab.com/twittner/wai-routing";
+        url = "https://github.com/wireapp/wai-routing";
         rev = "7e996a93fec5901767f845a50316b3c18e51a61d";
         sha256 = "18icwks9jc6sy42vcvj2ysaip2s0dsrpvm9sy608b6nq6kk1ahlk";
       };
@@ -178,7 +178,7 @@ let
     # PR: https://github.com/biocad/servant-openapi3/pull/49
     servant-openapi3 = {
       src = fetchgit {
-        url = "https://github.com/lepsa/servant-openapi3";
+        url = "https://github.com/wireapp/servant-openapi3";
         rev = "5cdb2783f15058f753c41b800415d4ba1149a78b";
         sha256 = "sha256-8FM3IAA3ewCuv9Mar8aWmzbyfKK9eLXIJPMHzmYb1zE=";
       };
@@ -194,7 +194,7 @@ let
 
     tinylog = {
       src = fetchgit {
-        url = "https://gitlab.com/wireapp/forks/tinylog.git";
+        url = "https://github.com/wireapp/tinylog.git";
         rev = "9609104263e8cd2a631417c1c3ef23e090de0d09";
         sha256 = "sha256-htEIJY+LmIMACVZrflU60+X42/g14NxUyFM7VJs4E6w=";
       };
@@ -203,7 +203,7 @@ let
     # PR: https://github.com/ocharles/tasty-ant-xml/pull/32
     tasty-ant-xml = {
       src = fetchgit {
-        url = "https://github.com/akshaymankar/tasty-ant-xml";
+        url = "https://github.com/wireapp/tasty-ant-xml";
         rev = "34ff294d805e62e73678dccc0be9d3da13540fbe";
         sha256 = "sha256-+rHcS+BwEFsXqPAHX/KZDIgv9zfk1dZl0LlZJ57Com4=";
       };
