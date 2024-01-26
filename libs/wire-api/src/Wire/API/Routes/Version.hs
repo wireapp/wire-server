@@ -208,7 +208,9 @@ developmentVersions :: [Version]
 developmentVersions = filter isDevelopmentVersion supportedVersions
 
 toDisabledVersions :: Maybe Bool -> Set Version
-toDisabledVersions mEnableDevAPI = Set.fromList $ maybe developmentVersions (const []) mEnableDevAPI
+toDisabledVersions mEnableDevAPI = if enableDev then mempty else Set.fromList $ developmentVersions
+  where
+    enableDev = fromMaybe False mEnableDevAPI
 
 -- Version-aware swagger generation
 
