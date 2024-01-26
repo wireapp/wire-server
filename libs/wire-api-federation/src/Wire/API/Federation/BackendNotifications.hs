@@ -88,7 +88,6 @@ fedNotifToBackendNotif rid ownDomain payload =
 
 data PayloadBundle (c :: Component) = PayloadBundle
   { originDomain :: Domain,
-    targetDomain :: Domain,
     notifications :: [BackendNotification]
   }
   deriving (A.ToJSON, A.FromJSON) via (Schema (PayloadBundle c))
@@ -107,7 +106,6 @@ instance KnownComponent c => Semigroup (PayloadBundle c) where
     PayloadBundle
       { originDomain = b1.originDomain,
         -- the assumption is that b2 has the same origin and target domain.
-        targetDomain = b1.targetDomain,
         notifications = notifications b1 <> notifications b2
       }
 
@@ -116,7 +114,6 @@ instance ToSchema (PayloadBundle c) where
     object "PayloadBundle" $
       PayloadBundle
         <$> (.originDomain) .= field "origin-domain" schema
-        <*> (.targetDomain) .= field "target-domain" schema
         <*> notifications .= field "notifications" (array schema)
 
 toBundle ::
@@ -133,7 +130,6 @@ toBundle env payload = do
   let notif = fedNotifToBackendNotif @tag env.requestId env.originDomain payload
   PayloadBundle
     { originDomain = env.originDomain,
-      targetDomain = env.targetDomain,
       notifications = [notif]
     }
 

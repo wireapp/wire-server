@@ -122,7 +122,7 @@ pushNotification runningFlag targetDomain (msg, envelope) = do
         let env =
               FederatorClientEnv
                 { ceOriginDomain = bundle.originDomain,
-                  ceTargetDomain = bundle.targetDomain,
+                  ceTargetDomain = targetDomain,
                   ceFederator = federator,
                   ceHttp2Manager = manager,
                   ceOriginRequestId = RequestId "N/A"
