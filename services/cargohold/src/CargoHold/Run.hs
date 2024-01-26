@@ -56,6 +56,7 @@ import Util.Options
 import Wire.API.Routes.API
 import Wire.API.Routes.Internal.Cargohold
 import Wire.API.Routes.Public.Cargohold
+import Wire.API.Routes.Version
 import Wire.API.Routes.Version.Wai
 
 type CombinedAPI = FederationAPI :<|> CargoholdAPI :<|> InternalAPI
@@ -81,7 +82,7 @@ mkApp o = Codensity $ \k ->
   where
     middleware :: Env -> Wai.Middleware
     middleware e =
-      versionMiddleware (fold (o ^. settings . disabledAPIVersions))
+      versionMiddleware (fold (o ^. settings . disabledAPIVersions) <> toDisabledVersions (o ^. settings . enableDevAPI))
         . servantPrometheusMiddleware (Proxy @CombinedAPI)
         . GZip.gzip GZip.def
         . catchErrors (e ^. appLogger) [Right $ e ^. metrics]

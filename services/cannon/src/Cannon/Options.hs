@@ -35,6 +35,7 @@ module Cannon.Options
     millisecondsBetweenBatches,
     minBatchSize,
     disabledAPIVersions,
+    enableDevAPI,
     DrainOpts,
   )
 where
@@ -91,7 +92,8 @@ data Opts = Opts
     _optsLogNetStrings :: !(Maybe (Last Bool)),
     _optsLogFormat :: !(Maybe (Last LogFormat)),
     _optsDrainOpts :: DrainOpts,
-    _optsDisabledAPIVersions :: !(Maybe (Set Version))
+    _optsDisabledAPIVersions :: !(Maybe (Set Version)),
+    _optsEnableDevAPI :: !(Maybe Bool)
   }
   deriving (Eq, Show, Generic)
 

@@ -56,6 +56,7 @@ import System.Posix.Signals qualified as Signals
 import System.Random.MWC (createSystemRandom)
 import Wire.API.Routes.Internal.Cannon qualified as Internal
 import Wire.API.Routes.Public.Cannon
+import Wire.API.Routes.Version
 import Wire.API.Routes.Version.Wai
 
 type CombinedAPI = CannonAPI :<|> Internal.API
@@ -80,7 +81,7 @@ run o = do
 
   let middleware :: Wai.Middleware
       middleware =
-        versionMiddleware (fold (o ^. disabledAPIVersions))
+        versionMiddleware (fold (o ^. disabledAPIVersions) <> toDisabledVersions (o ^. enableDevAPI))
           . servantPrometheusMiddleware (Proxy @CombinedAPI)
           . Gzip.gzip Gzip.def
           . catchErrors g [Right m]

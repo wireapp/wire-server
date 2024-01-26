@@ -38,4 +38,6 @@ maxttlAuthresp: 7200  # seconds.  do not set this to 1h or less, as that is what
 maxScimTokens: 2     # Token limit {#RefScimToken}
 richInfoLimit: 5000  # should be in sync with Brig
 
+enableDevAPI: true
+
 logNetStrings: False # log using netstrings encoding (see http://cr.yp.to/proto/netstrings.txt)

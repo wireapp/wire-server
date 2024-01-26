@@ -27,6 +27,7 @@ settings:
   maxTotalBytes: 27262976
   downloadLinkTTL: 300    # Seconds
   federationDomain: example.com
+  enableDevAPI: true
 
 logLevel: Warn
 logNetStrings: false

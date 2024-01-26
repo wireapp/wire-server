@@ -39,6 +39,9 @@ data:
     {{- if .disabledAPIVersions }}
     disabledAPIVersions: {{ .disabledAPIVersions }}
     {{- end }}
+    {{- if .enableDevAPI }}
+    enableDevAPI: {{ .enableDevAPI }}
+    {{- end }}
 
     saml:
       version:     SAML2.0
