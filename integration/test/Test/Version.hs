@@ -86,7 +86,7 @@ testVersionDisabledNotAdvertised = do
 
 testVersionDevDisabledPerDefault :: App ()
 testVersionDevDisabledPerDefault = withModifiedBackend
-  def {brigCfg = removeField "optSettings.setDisabledAPIVersions"}
+  def {brigCfg = removeField "optSettings.setEnableDevAPI"}
   $ \domain -> do
     bindResponse (getAPIVersion domain) $ \resp -> do
       resp.status `shouldMatchInt` 200

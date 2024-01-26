@@ -623,7 +623,9 @@ data Settings = Settings
     setOAuthRefreshTokenExpirationTimeSecsInternal :: !(Maybe Word64),
     -- | The maximum number of active OAuth refresh tokens a user is allowed to have.
     -- use `setOAuthMaxActiveRefreshTokens` as the getter function which always provides a default value
-    setOAuthMaxActiveRefreshTokensInternal :: !(Maybe Word32)
+    setOAuthMaxActiveRefreshTokensInternal :: !(Maybe Word32),
+    -- | En-/Disable the development API versions. This can be overridden by `setDisabledAPIVersions`.
+    setEnableDevAPI :: !(Maybe Bool)
   }
   deriving (Show, Generic)
 
