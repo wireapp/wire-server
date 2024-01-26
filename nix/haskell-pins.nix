@@ -128,7 +128,7 @@ let
     # PR: https://gitlab.com/twittner/cql/-/merge_requests/11
     cql = {
       src = fetchgit {
-        url = "https://gitbug.com/wireapp/cql";
+        url = "https://github.com/wireapp/cql";
         rev = "abbd2739969d17a909800f282d10d42a254c4e3b";
         sha256 = "sha256-2MYwZKiTdwgjJdLNvECi7gtcIo+3H4z1nYzen5x0lgU=";
       };
