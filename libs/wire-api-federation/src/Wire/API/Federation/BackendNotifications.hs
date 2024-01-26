@@ -9,6 +9,7 @@ import Control.Monad.Except
 import Data.Aeson qualified as A
 import Data.Domain
 import Data.Id (RequestId)
+import Data.List.NonEmpty qualified as NE
 import Data.Map qualified as Map
 import Data.Schema
 import Data.Text qualified as Text
@@ -86,35 +87,17 @@ fedNotifToBackendNotif rid ownDomain payload =
           requestId = Just rid
         }
 
-data PayloadBundle (c :: Component) = PayloadBundle
-  { originDomain :: Domain,
-    notifications :: [BackendNotification]
+newtype PayloadBundle (c :: Component) = PayloadBundle
+  { notifications :: NE.NonEmpty BackendNotification
   }
   deriving (A.ToJSON, A.FromJSON) via (Schema (PayloadBundle c))
 
--- | This instance is not ideal as it assumes that two bundles have the same
--- origin domain and the same target domain. An alternative is not to define a
--- function that can throw if either of the domains don't line up, as such a
--- runtime error is a symptom of an application code bug. An alternative is to
--- use two ghost type variables in the PayloadBundle type, but that would
--- permeate other types too, including the FedQueueClient, which seems like a
--- high price to pay for a bit of type safety gain in a few places.
-instance KnownComponent c => Semigroup (PayloadBundle c) where
-  -- TODO(md): replace the Semigroup instance by a custom function that can
-  -- fail.
-  b1 <> b2 =
-    PayloadBundle
-      { originDomain = b1.originDomain,
-        -- the assumption is that b2 has the same origin and target domain.
-        notifications = notifications b1 <> notifications b2
-      }
-
+-- TODO(md): automatically derive this instance
 instance ToSchema (PayloadBundle c) where
   schema =
     object "PayloadBundle" $
       PayloadBundle
-        <$> (.originDomain) .= field "origin-domain" schema
-        <*> notifications .= field "notifications" (array schema)
+        <$> notifications .= field "notifications" (nonEmptyArray schema)
 
 toBundle ::
   forall {k} (tag :: k).
@@ -128,10 +111,7 @@ toBundle ::
   PayloadBundle (NotificationComponent k)
 toBundle env payload = do
   let notif = fedNotifToBackendNotif @tag env.requestId env.originDomain payload
-  PayloadBundle
-    { originDomain = env.originDomain,
-      notifications = [notif]
-    }
+  PayloadBundle . pure $ notif
 
 type BackendNotificationAPI = Capture "name" Text :> ReqBody '[JSON] RawJson :> Post '[JSON] EmptyResponse
 
