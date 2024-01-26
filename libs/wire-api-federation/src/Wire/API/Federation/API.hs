@@ -25,7 +25,6 @@ module Wire.API.Federation.API
     fedClient,
     fedQueueClient,
     toBundle,
-    fedQueueClientBundle,
     fedClientIn,
     unsafeFedClientIn,
     module Wire.API.MakesFederatedCall,
@@ -51,7 +50,6 @@ import Wire.API.Federation.BackendNotifications
 import Wire.API.Federation.Client
 import Wire.API.Federation.Component
 import Wire.API.Federation.Endpoint
-import Wire.API.Federation.HasNotificationEndpoint
 import Wire.API.MakesFederatedCall
 import Wire.API.Routes.Named
 
@@ -96,39 +94,15 @@ fedClientIn ::
   Client m api
 fedClientIn = clientIn (Proxy @api) (Proxy @m)
 
-fedQueueClientBundle ::
+fedQueueClient ::
   KnownComponent c =>
   PayloadBundle c ->
   FedQueueClient c ()
-fedQueueClientBundle bundle = do
+fedQueueClient bundle = do
   env <- ask
   let msg =
         newMsg
           { msgBody = encode bundle,
-            msgDeliveryMode = Just (env.deliveryMode),
-            msgContentType = Just "application/json"
-          }
-      -- Empty string means default exchange
-      exchange = ""
-  liftIO $ do
-    ensureQueue env.channel env.targetDomain._domainText
-    void $ publishMsg env.channel exchange (routingKey env.targetDomain._domainText) msg
-
-fedQueueClient ::
-  forall {k} (tag :: k).
-  ( HasNotificationEndpoint tag,
-    KnownSymbol (NotificationPath tag),
-    KnownComponent (NotificationComponent k),
-    ToJSON (Payload tag)
-  ) =>
-  Payload tag ->
-  FedQueueClient (NotificationComponent k) ()
-fedQueueClient payload = do
-  env <- ask
-  let notif = fedNotifToBackendNotif @tag env.requestId env.originDomain payload
-      msg =
-        newMsg
-          { msgBody = encode notif,
             msgDeliveryMode = Just (env.deliveryMode),
             msgContentType = Just "application/json"
           }

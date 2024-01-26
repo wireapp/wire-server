@@ -42,6 +42,7 @@ import Polysemy.TinyLog hiding (trace)
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
+import Wire.API.Federation.BackendNotifications
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Message
 import Wire.API.MLS.Serialisation
@@ -88,20 +89,25 @@ propagateMessage qusr mSenderClient lConvOrSub con msg cm = do
 
   -- send to remotes
   (either (logRemoteNotificationError @"on-mls-message-sent") (const (pure ())) <=< enqueueNotificationsConcurrently Q.Persistent (map remoteMemberQualify rmems)) $
-    \rs ->
-      fedQueueClient @'OnMLSMessageSentTag $
-        RemoteMLSMessage
-          { time = now,
-            sender = qusr,
-            metadata = mm,
-            conversation = qUnqualified qcnv,
-            subConversation = sconv,
-            recipients =
-              Map.fromList $
-                tUnqualified rs
-                  >>= toList . remoteMemberMLSClients,
-            message = Base64ByteString msg.raw
-          }
+    \rs -> do
+      (reqId, origin) <- reqOrigin
+      fedQueueClient $
+        toBundle @'OnMLSMessageSentTag
+          reqId
+          origin
+          ( RemoteMLSMessage
+              { time = now,
+                sender = qusr,
+                metadata = mm,
+                conversation = qUnqualified qcnv,
+                subConversation = sconv,
+                recipients =
+                  Map.fromList $
+                    tUnqualified rs
+                      >>= toList . remoteMemberMLSClients,
+                message = Base64ByteString msg.raw
+              }
+          )
   where
     cmWithoutSender = maybe cm (flip cmRemoveClient cm . mkClientIdentity qusr) mSenderClient
 

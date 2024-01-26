@@ -78,6 +78,7 @@ import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Galley
+import Wire.API.Federation.BackendNotifications
 import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
 import Wire.API.Message
@@ -697,7 +698,9 @@ sendRemoteMessages domain now sender senderClient lcnv metadata messages = (hand
             transient = mmTransient metadata,
             recipients = UserClientMap rcpts
           }
-  let rpc = void $ fedQueueClient @'OnMessageSentTag rm
+  let rpc = void $ do
+        (reqId, origin) <- reqOrigin
+        fedQueueClient $ toBundle @'OnMessageSentTag reqId origin rm
   enqueueNotification domain Q.Persistent rpc
   where
     handle :: Either FederationError a -> Sem r (Set (UserId, ClientId))
