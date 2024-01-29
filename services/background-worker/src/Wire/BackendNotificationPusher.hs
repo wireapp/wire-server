@@ -147,22 +147,7 @@ pushNotification runningFlag targetDomain (msg, envelope) = do
                     . Log.field "error" (displayException e)
                 throwM e
               Right vi -> pure . Set.fromList . fmap versionInt . vinfoSupported $ vi
-        let mostRecentNotif = foldl' combine Nothing (notifications bundle)
-            combine ::
-              Maybe (BackendNotification, Version) ->
-              BackendNotification ->
-              Maybe (BackendNotification, Version)
-            combine greatest notif =
-              let notifGreatest = bodyVersions notif >>= flip latestCommonVersion remoteVersions
-               in case (greatest, notifGreatest) of
-                    (Nothing, Nothing) -> Nothing
-                    (Nothing, Just v) -> Just (notif, v)
-                    (Just (gn, gv), Nothing) -> Just (gn, gv)
-                    (Just (gn, gv), Just v) ->
-                      if v > gv
-                        then Just (notif, v)
-                        else Just (gn, gv)
-        case mostRecentNotif of
+        case mostRecentNotif bundle remoteVersions of
           Nothing ->
             -- TODO(md): do more severe logging warning the site operator
             Log.err $
@@ -181,6 +166,24 @@ pushNotification runningFlag targetDomain (msg, envelope) = do
             metrics <- asks backendNotificationMetrics
             withLabel metrics.pushedCounter (domainText targetDomain) incCounter
             withLabel metrics.stuckQueuesGauge (domainText targetDomain) (flip setGauge 0)
+
+mostRecentNotif :: PayloadBundle c -> Set Int -> Maybe (BackendNotification, Version)
+mostRecentNotif bundle remoteVersions = foldl' combine Nothing (notifications bundle)
+  where
+    combine ::
+      Maybe (BackendNotification, Version) ->
+      BackendNotification ->
+      Maybe (BackendNotification, Version)
+    combine greatest notif =
+      let notifGreatest = bodyVersions notif >>= flip latestCommonVersion remoteVersions
+       in case (greatest, notifGreatest) of
+            (Nothing, Nothing) -> Nothing
+            (Nothing, Just v) -> Just (notif, v)
+            (Just (gn, gv), Nothing) -> Just (gn, gv)
+            (Just (gn, gv), Just v) ->
+              if v > gv
+                then Just (notif, v)
+                else Just (gn, gv)
 
 -- FUTUREWORK: Recosider using 1 channel for many consumers. It shouldn't matter
 -- for a handful of remote domains.
