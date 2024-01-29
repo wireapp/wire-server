@@ -591,7 +591,7 @@ data Settings = Settings
     setEnableMLS :: Maybe Bool,
     setKeyPackageMaximumLifetime :: Maybe NominalDiffTime,
     -- | Disabled versions are not advertised and are completely disabled.
-    setDisabledAPIVersions :: !(Maybe (Set Version)),
+    setDisabledAPIVersions :: Maybe VersionExpSetDefaultDev,
     -- | Minimum delay in seconds between consecutive attempts to generate a new verification code.
     -- use `set2FACodeGenerationDelaySecs` as the getter function which always provides a default value
     set2FACodeGenerationDelaySecsInternal :: !(Maybe Int),
@@ -623,9 +623,7 @@ data Settings = Settings
     setOAuthRefreshTokenExpirationTimeSecsInternal :: !(Maybe Word64),
     -- | The maximum number of active OAuth refresh tokens a user is allowed to have.
     -- use `setOAuthMaxActiveRefreshTokens` as the getter function which always provides a default value
-    setOAuthMaxActiveRefreshTokensInternal :: !(Maybe Word32),
-    -- | En-/Disable the development API versions. This can be overridden by `setDisabledAPIVersions`.
-    setEnableDevelopmentVersions :: !(Maybe Bool)
+    setOAuthMaxActiveRefreshTokensInternal :: !(Maybe Word32)
   }
   deriving (Show, Generic)
 

@@ -55,7 +55,6 @@ module Galley.Options
     logFormat,
     guestLinkTTLSeconds,
     defGuestLinkTTLSeconds,
-    enableDevelopmentVersions,
     GuestLinkTTLSeconds (..),
   )
 where
@@ -146,11 +145,10 @@ data Settings = Settings
     _mlsPrivateKeyPaths :: !(Maybe MLSPrivateKeyPaths),
     -- | FUTUREWORK: 'setFeatureFlags' should be renamed to 'setFeatureConfigs' in all types.
     _featureFlags :: !FeatureFlags,
-    _disabledAPIVersions :: !(Maybe (Set Version)),
+    _disabledAPIVersions :: !(Maybe VersionExpSetDefaultDev),
     -- | The lifetime of a conversation guest link in seconds with the maximum of 1 year (31536000 seconds).
     -- If not set use the default `defGuestLinkTTLSeconds`
-    _guestLinkTTLSeconds :: !(Maybe GuestLinkTTLSeconds),
-    _enableDevelopmentVersions :: !(Maybe Bool)
+    _guestLinkTTLSeconds :: !(Maybe GuestLinkTTLSeconds)
   }
   deriving (Show, Generic)
 

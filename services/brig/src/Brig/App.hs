@@ -249,7 +249,8 @@ newEnv o = do
       pure Nothing
   kpLock <- newMVar ()
   rabbitChan <- traverse (Q.mkRabbitMqChannelMVar lgr) o.rabbitmq
-  let disabledAPIVersions = fold (Opt.setDisabledAPIVersions sett) <> toDisabledVersions (Opt.setEnableDevelopmentVersions sett)
+  let disabledVersionExps = unVersionExpSetDefaultDev $ fold (Opt.setDisabledAPIVersions sett)
+      allDisabledVersions = foldMap expandVersionExp disabledVersionExps
 
   pure $!
     Env
@@ -287,7 +288,7 @@ newEnv o = do
         _randomPrekeyLocalLock = prekeyLocalLock,
         _keyPackageLocalLock = kpLock,
         _rabbitmqChannel = rabbitChan,
-        _disabledVersions = disabledAPIVersions
+        _disabledVersions = allDisabledVersions
       }
   where
     emailConn _ (Opt.EmailAWS aws) = pure (Just aws, Nothing)

@@ -32,10 +32,11 @@ module Wire.API.Routes.Version
     Version (..),
     versionInt,
     VersionNumber (..),
+    VersionExp (..),
     supportedVersions,
     isDevelopmentVersion,
     developmentVersions,
-    toDisabledVersions,
+    expandVersionExp,
 
     -- * Servant combinators
     Until,
@@ -43,11 +44,12 @@ module Wire.API.Routes.Version
 
     -- * Swagger instances
     SpecialiseToVersion,
+    VersionExpSetDefaultDev (..),
   )
 where
 
 import Control.Error (note)
-import Control.Lens ((?~))
+import Control.Lens (makePrisms, (?~))
 import Data.Aeson (FromJSON, ToJSON (..))
 import Data.Aeson qualified as Aeson
 import Data.Bifunctor
@@ -57,6 +59,7 @@ import Data.ByteString.Lazy qualified as LBS
 import Data.Domain
 import Data.OpenApi qualified as S
 import Data.Schema
+import Data.Set qualified as Data
 import Data.Set qualified as Set
 import Data.Singletons.Base.TH
 import Data.Text qualified as Text
@@ -207,10 +210,45 @@ isDevelopmentVersion _ = True
 developmentVersions :: [Version]
 developmentVersions = filter isDevelopmentVersion supportedVersions
 
-toDisabledVersions :: Maybe Bool -> Set Version
-toDisabledVersions mEnableDevAPI = if enableDev then mempty else Set.fromList $ developmentVersions
-  where
-    enableDev = fromMaybe False mEnableDevAPI
+-- Version keywords
+
+-- | A version "expression" which can be used when disabling versions in a
+-- configuration file.
+data VersionExp
+  = -- | A fixed version.
+    VersionExpConst Version
+  | -- | All development versions.
+    VersionExpDevelopment
+  deriving (Show, Eq, Ord, Generic)
+
+$(makePrisms ''VersionExp)
+
+instance ToSchema VersionExp where
+  schema =
+    named "VersionExp" $
+      tag _VersionExpConst (unnamed schema)
+        <> tag
+          _VersionExpDevelopment
+          ( unnamed
+              ( enum @Text "VersionExpDevelopment" (element "development" ())
+              )
+          )
+
+deriving via Schema VersionExp instance (FromJSON VersionExp)
+
+deriving via Schema VersionExp instance (ToJSON VersionExp)
+
+-- | Expand a version expression into a set of versions.
+expandVersionExp :: VersionExp -> Set Version
+expandVersionExp (VersionExpConst v) = Set.singleton v
+expandVersionExp VersionExpDevelopment = Set.fromList developmentVersions
+
+newtype VersionExpSetDefaultDev = VersionExpSetDefaultDev {unVersionExpSetDefaultDev :: Data.Set VersionExp}
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving newtype (FromJSON, ToJSON, Semigroup)
+
+instance Monoid VersionExpSetDefaultDev where
+  mempty = VersionExpSetDefaultDev $ Set.singleton VersionExpDevelopment
 
 -- Version-aware swagger generation
 

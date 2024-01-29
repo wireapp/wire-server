@@ -67,9 +67,8 @@ data Opts' a = Opts
     discoUrl :: !(Maybe Text),
     logNetStrings :: !(Maybe (Last Bool)),
     logFormat :: !(Maybe (Last LogFormat)),
-    disabledAPIVersions :: !(Maybe (Set Version)),
-    derivedOpts :: !a,
-    enableDevelopmentVersions :: !(Maybe Bool)
+    disabledAPIVersions :: !(Maybe VersionExpSetDefaultDev),
+    derivedOpts :: !a
   }
   deriving (Functor, Show, Generic)
 

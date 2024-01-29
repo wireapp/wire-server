@@ -40,7 +40,10 @@ settings:
   maxConcurrentNativePushes:
     hard: 30  # more than this number of threads will not be allowed
     soft: 10  # more than this number of threads will be warned about
-  enableDevelopmentVersions: true
+
+# We explicitly do not disable any API version. Please make sure the configuration value is the same in all these configs:
+# brig, cannon, cargohold, galley, gundeck, proxy, spar.
+disabledAPIVersions: []
 
 logLevel: Warn
 logNetStrings: false

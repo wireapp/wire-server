@@ -59,7 +59,4 @@ data:
       {{- if .disabledAPIVersions }}
       disabledAPIVersions: {{ .disabledAPIVersions }}
       {{- end }}
-      {{- if .enableDevelopmentVersions }}
-      enableDevelopmentVersions: {{ .enableDevelopmentVersions }}
-      {{- end }}
       {{- end }}
