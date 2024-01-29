@@ -147,7 +147,7 @@ let
     # servantification
     wai-predicates = {
       src = fetchgit {
-        url = "https://gitlab.com/wireapp/forks/wai-predicates";
+        url = "https://github.com/wireapp/wai-predicates";
         rev = "ff95282a982ab45cced70656475eaf2cefaa26ea";
         sha256 = "sha256-x2XSv2+/+DG9FXN8hfUWGNIO7V4iBhlzYz19WWKaLKQ=";
       };
