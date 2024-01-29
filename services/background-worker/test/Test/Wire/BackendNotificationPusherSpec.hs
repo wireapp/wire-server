@@ -1,6 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# OPTIONS_GHC -Wno-deprecations -Wno-incomplete-patterns #-}
 
 module Test.Wire.BackendNotificationPusherSpec where
 
@@ -13,7 +12,6 @@ import Data.Domain
 import Data.Id
 import Data.Range
 import Data.Sequence qualified as Seq
-import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Federator.MockServer
@@ -43,7 +41,6 @@ import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.BackendNotifications
-import Wire.API.Federation.Version
 import Wire.API.RawJson
 import Wire.BackendNotificationPusher
 import Wire.BackgroundWorker.Env
@@ -269,20 +266,6 @@ spec = do
       -- concurrency, so just assert that there were at least 2 calls.
       calls `shouldSatisfy` (\c -> length c >= 2)
       mapM_ (\vhost -> vhost `shouldBe` rabbitmqVHost) calls
-
-  describe "mostRecentNotif" $ do
-    let mostRecent = mostRecentTuple Just
-    -- FUTUREWORK: once we have more Version values, we may want to add some tests here.
-    it "[..] + [] = null" $ do
-      mostRecent [allVersions] (Set.fromList []) `shouldBe` Nothing
-    it "[0] + [1] = null" $ do
-      mostRecent [VersionRange V0 (Just V1)] (Set.fromList []) `shouldBe` Nothing
-    it "[1] + [0, 1] = 1" $ do
-      fmap snd (mostRecent [VersionRange V1 Nothing] (Set.fromList [0, 1])) `shouldBe` Just V1
-    it "[0] + [0, 1] = 0" $ do
-      fmap snd (mostRecent [VersionRange V0 (Just V1)] (Set.fromList [0, 1])) `shouldBe` Just V0
-    it "[..] + [1] = 1" $ do
-      fmap snd (mostRecent [VersionRange V0 (Just V1), VersionRange V1 Nothing] (Set.fromList [1])) `shouldBe` Just V1
 
 untilM :: (Monad m) => m Bool -> m ()
 untilM action = do
