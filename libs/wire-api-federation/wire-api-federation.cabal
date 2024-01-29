@@ -138,6 +138,7 @@ test-suite spec
     Test.Wire.API.Federation.Golden.NewConnectionRequest
     Test.Wire.API.Federation.Golden.NewConnectionResponse
     Test.Wire.API.Federation.Golden.Runner
+    Test.Wire.API.Federation.Version
 
   hs-source-dirs:     test
   default-extensions:

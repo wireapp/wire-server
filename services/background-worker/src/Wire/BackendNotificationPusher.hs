@@ -147,7 +147,7 @@ pushNotification runningFlag targetDomain (msg, envelope) = do
                     . Log.field "error" (displayException e)
                 throwM e
               Right vi -> pure . Set.fromList . fmap versionInt . vinfoSupported $ vi
-        case mostRecentNotif bundle remoteVersions of
+        case mostRecentTuple bodyVersions (notifications bundle) remoteVersions of
           Nothing ->
             -- TODO(md): do more severe logging warning the site operator
             Log.err $
@@ -166,30 +166,6 @@ pushNotification runningFlag targetDomain (msg, envelope) = do
             metrics <- asks backendNotificationMetrics
             withLabel metrics.pushedCounter (domainText targetDomain) incCounter
             withLabel metrics.stuckQueuesGauge (domainText targetDomain) (flip setGauge 0)
-
--- TODO(md): put this into BackendNotification.hs (and tests too)
---
--- FUTUREWORK(fisx): we could compute a Set Int from the bundle and do set
--- operations on remoteVersions and localVersions. would be slightly more
--- readable, possibly.
-mostRecentNotif :: PayloadBundle c -> Set Int -> Maybe (BackendNotification, Version)
-mostRecentNotif =
-  mostRecentTuple bodyVersions . (NE.toList . notifications)
-
-mostRecentTuple :: forall a. (a -> Maybe VersionRange) -> [a] -> Set Int -> Maybe (a, Version)
-mostRecentTuple pr as remoteVersions = foldl' combine Nothing as
-  where
-    combine :: Maybe (a, Version) -> a -> Maybe (a, Version)
-    combine greatest a =
-      let notifGreatest = pr a >>= flip latestCommonVersion remoteVersions
-       in case (greatest, notifGreatest) of
-            (Nothing, Nothing) -> Nothing
-            (Nothing, Just v) -> Just (a, v)
-            (Just (gn, gv), Nothing) -> Just (gn, gv)
-            (Just (gn, gv), Just v) ->
-              if v > gv
-                then Just (a, v)
-                else Just (gn, gv)
 
 -- FUTUREWORK: Recosider using 1 channel for many consumers. It shouldn't matter
 -- for a handful of remote domains.

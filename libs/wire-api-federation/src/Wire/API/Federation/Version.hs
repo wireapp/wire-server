@@ -35,11 +35,13 @@ module Wire.API.Federation.Version
     fromVersions,
     untilVersions,
     latestCommonVersion,
+    mostRecentTuple,
   )
 where
 
 import Control.Lens (makeLenses, (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
+import Data.List.NonEmpty qualified as NE
 import Data.OpenApi qualified as S
 import Data.Schema
 import Data.Set qualified as Set
@@ -139,6 +141,21 @@ enumVersionRange =
 latestCommonVersion :: VersionRange -> Set Int -> Maybe Version
 latestCommonVersion (Set.map versionInt . enumVersionRange -> localVersions) remoteVersions =
   intToVersion =<< Set.lookupMax (Set.intersection localVersions remoteVersions)
+
+mostRecentTuple :: forall a. (a -> Maybe VersionRange) -> NE.NonEmpty a -> Set Int -> Maybe (a, Version)
+mostRecentTuple pr (NE.toList -> as) remoteVersions = foldl' combine Nothing as
+  where
+    combine :: Maybe (a, Version) -> a -> Maybe (a, Version)
+    combine greatest a =
+      let notifGreatest = pr a >>= flip latestCommonVersion remoteVersions
+       in case (greatest, notifGreatest) of
+            (Nothing, Nothing) -> Nothing
+            (Nothing, Just v) -> Just (a, v)
+            (Just (gn, gv), Nothing) -> Just (gn, gv)
+            (Just (gn, gv), Just v) ->
+              if v > gv
+                then Just (a, v)
+                else Just (gn, gv)
 
 $(genSingletons [''Version])
 
