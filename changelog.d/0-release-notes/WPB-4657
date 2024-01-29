@@ -1,4 +1,3 @@
-The development API is now disabled by default.
-The old structure of the server config is compatible with this change. So it is safe to deploy this without changing the server config.
-However, if you want to disable the development API explicitly by adding the `development` keyword to the list of disabled APIs, this has to be done during or after the deployment of the services, not before.
+The settings `setDisabledAPIVersions` (brig) and `disabledAPIVersions` (in cannon, cargohold, galley, gundeck, proxy, and spar) are now required.
+The default defined in `charts/<service>/values.yaml` is set to `[ development ]` and disables all development API versions.
 For more information see <https://docs.wire.com/developer/reference/config-options.html#disabling-api-versions>
