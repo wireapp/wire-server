@@ -7,7 +7,7 @@ index 823072bd..c29407f6 100644
             -> IO a
  withSocket tweakSocket hostAddress' host' port' f = do
 -    let hints = NS.defaultHints { NS.addrSocketType = NS.Stream }
-+    let hints = NS.defaultHints { NS.addrSocketType = NS.Stream, NS.addrFlags = [ NS.AI_NUMERICSERV, NS.AI_ADDRCONFIG ] }
++    let hints = NS.defaultHints { NS.addrSocketType = NS.Stream, NS.addrFlags = [ NS.AI_NUMERICSERV ] }
      addrs <- case hostAddress' of
          Nothing ->
              NS.getAddrInfo (Just hints) (Just $ strippedHostName host') (Just $ show port')
