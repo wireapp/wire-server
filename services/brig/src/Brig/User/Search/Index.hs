@@ -19,8 +19,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Brig.User.Search.Index
-  ( mappingName,
-    boolQuery,
+  ( boolQuery,
     _TextId,
 
     -- * Monad
@@ -116,7 +115,7 @@ data IndexEnv = IndexEnv
   }
 
 newtype IndexIO a = IndexIO (ReaderT IndexEnv IO a)
-  deriving
+  deriving newtype
     ( Functor,
       Applicative,
       Monad,
@@ -187,10 +186,15 @@ updateIndex (IndexUpdateUser updateType iu) = liftIndexIO $ do
     indexDoc :: (MonadIndexIO m, MonadThrow m) => ES.IndexName -> ES.BH m ()
     indexDoc idx = do
       m <- lift . liftIndexIO $ asks idxMetrics
-      r <- ES.indexDocument idx mappingName versioning (indexToDoc iu) docId
-      unless (ES.isSuccess r || ES.isVersionConflict r) $ do
-        counterIncr (path "user.index.update.err") m
-        ES.parseEsResponse r >>= throwM . IndexUpdateError . either id id
+      r <- ES.indexDocument idx versioning (indexToDoc iu) docId
+      ES.parseEsResponse r >>= \case 
+        Right _ -> pure ()
+        -- TODO(mangoiv): investigate why we keep going here
+        -- we keep going on isVersionConflict https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-index_.html
+        Left (ES.EsError 409 _) -> pure ()
+        Left err ->  do
+         counterIncr (path "user.index.update.err") m
+         throwM (IndexUpdateError err)
       counterIncr (path "user.index.update.ok") m
     versioning =
       ES.defaultIndexDocumentSettings
@@ -207,9 +211,8 @@ updateIndex (IndexUpdateUsers updateType ius) = liftIndexIO $ do
   -- bulk API, thus we need to stitch everything together by hand.
   bhe <- ES.getBHEnv
   ES.IndexName idx <- asks idxName
-  let (ES.MappingName mpp) = mappingName
   let (ES.Server base) = ES.bhServer bhe
-  req <- parseRequest (view unpacked $ base <> "/" <> idx <> "/" <> mpp <> "/_bulk")
+  req <- parseRequest (view unpacked $ base <> "/" <> idx <> "/" <> mappingName <> "/_bulk")
   res <-
     liftIO $
       httpLbs
@@ -219,9 +222,9 @@ updateIndex (IndexUpdateUsers updateType ius) = liftIndexIO $ do
             requestBody = RequestBodyLBS (toLazyByteString (foldMap bulkEncode ius))
           }
         (ES.bhManager bhe)
-  unless (ES.isSuccess res) $ do
+  unless (ES.isSuccess (ES.BHResponse res)) $ do
     counterIncr (path "user.index.update.bulk.err") m
-    ES.parseEsResponse res >>= throwM . IndexUpdateError . either id id
+    ES.parseEsResponse (ES.BHResponse res) >>= throwM . IndexUpdateError . either id id
   counterIncr (path "user.index.update.bulk.ok") m
   for_ (statuses res) $ \(s, f) ->
     counterAdd
@@ -243,7 +246,7 @@ updateIndex (IndexUpdateUsers updateType ius) = liftIndexIO $ do
           <> "_version" .= v
           -- "external_gt or external_gte"
           <> "_version_type" .= indexUpdateToVersionControlText updateType
-    statuses :: ES.Reply -> [(Int, Int)] -- [(Status, Int)]
+    statuses :: Response BL.ByteString -> [(Int, Int)] -- [(Status, Int)]
     statuses =
       Map.toList
         . Map.fromListWith (+)
@@ -256,13 +259,14 @@ updateIndex (IndexDeleteUser u) = liftIndexIO $ do
     field "user" (Bytes.toByteString u)
       . msg (val "(Soft) deleting user from index")
   idx <- asks idxName
-  r <- ES.getDocument idx mappingName (ES.DocId (review _TextId u))
-  case statusCode (responseStatus r) of
-    200 -> case preview (key "_version" . _Integer) (responseBody r) of
-      Nothing -> throwM $ ES.EsProtocolException "'version' not found" (responseBody r)
-      Just v -> updateIndex . IndexUpdateUser IndexUpdateIfNewerVersion . mkIndexUser u =<< mkIndexVersion (v + 1)
-    404 -> pure ()
-    _ -> ES.parseEsResponse r >>= throwM . IndexUpdateError . either id id
+  bhr <- ES.getDocument @User idx (ES.DocId (review _TextId u))
+  ES.parseEsResponse bhr >>= \case
+    Right (ES.EsResult {foundResult = res}) -> case res of
+      Nothing -> throwM $ ES.EsProtocolException "'version' not found" (responseBody undefined)
+      Just (ES.EsResultFound {_version = v}) -> updateIndex . IndexUpdateUser IndexUpdateIfNewerVersion . mkIndexUser u
+        =<< mkIndexVersion (v.docVersionNumber + 1)
+    Left (ES.EsError{errorStatus = 404}) -> pure ()
+    Left err -> throwM (IndexUpdateError err)
 
 updateSearchVisibilityInbound :: (MonadIndexIO m) => Multi.TeamStatus SearchVisibilityInboundConfig -> m ()
 updateSearchVisibilityInbound status = liftIndexIO $ do
@@ -279,7 +283,7 @@ updateSearchVisibilityInbound status = liftIndexIO $ do
     query = ES.TermQuery (ES.Term "team" $ idToText (Multi.team status)) Nothing
 
     script :: ES.Script
-    script = ES.Script (Just (ES.ScriptLanguage "painless")) (Just (ES.ScriptInline scriptText)) Nothing Nothing
+    script = ES.Script (Just (ES.ScriptLanguage "painless")) (ES.ScriptInline scriptText) Nothing
 
     -- Unfortunately ES disallows updating ctx._version with a "Update By Query"
     scriptText =
@@ -341,7 +345,8 @@ createIndex' failIfExists (CreateIndexSettings settings shardCount mbDeleteTempl
       throwM (IndexError "Index creation failed.")
     mr <-
       traceES "Put mapping" $
-        ES.putMapping idx (ES.MappingName "user") indexMapping
+        -- ES.putMapping idx (ES.MappingName "user") indexMapping
+        undefined
     unless (ES.isSuccess mr) $
       throwM (IndexError "Put Mapping failed.")
 
@@ -370,7 +375,8 @@ updateMapping = liftIndexIO $ do
   -- https://github.com/wireapp/wire-server-deploy/blob/92311d189818ffc5e26ff589f81b95c95de8722c/charts/elasticsearch-index/templates/create-index.yaml
   void $
     traceES "Put mapping" $
-      ES.putMapping idx (ES.MappingName "user") indexMapping
+      -- ES.putMapping idx (ES.MappingName "user") indexMapping
+      undefined
 
 resetIndex ::
   MonadIndexIO m =>
@@ -424,12 +430,12 @@ indexUpdateToVersionControl :: IndexDocUpdateType -> (ES.ExternalDocVersion -> E
 indexUpdateToVersionControl IndexUpdateIfNewerVersion = ES.ExternalGT
 indexUpdateToVersionControl IndexUpdateIfSameOrNewerVersion = ES.ExternalGTE
 
-traceES :: MonadIndexIO m => ByteString -> IndexIO ES.Reply -> m ES.Reply
+traceES :: MonadIndexIO m => ByteString -> IndexIO (ES.BHResponse b) -> m (ES.BHResponse b)
 traceES descr act = liftIndexIO $ do
   info (msg descr)
-  r <- act
+  r <- ES.getResponse <$> act
   info . msg $ (r & statusCode . responseStatus) +++ val " - " +++ responseBody r
-  pure r
+  pure (ES.BHResponse r)
 
 -- | This mapping defines how elasticsearch will treat each field in a document. Here
 -- is how it treats each field:
@@ -675,8 +681,8 @@ boolQuery = ES.mkBoolQuery [] [] [] []
 _TextId :: Prism' Text (Id a)
 _TextId = prism' (UUID.toText . toUUID) (fmap Id . UUID.fromText)
 
-mappingName :: ES.MappingName
-mappingName = ES.MappingName "user"
+mappingName :: Text
+mappingName = "user"
 
 lookupIndexUser ::
   (MonadIndexIO m, C.MonadClient m) =>

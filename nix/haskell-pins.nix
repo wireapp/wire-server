@@ -1,7 +1,6 @@
 # How to add a git pin:
 #
-# 1. If your target git repository has only package with the cabal file at the
-# root, add it like this under 'gitPins':
+# 1. If your target git repository has only package with the cabal file at the root, add it like this under 'gitPins':
 #     <name-of-the-package> = {
 #       src = fetchgit {
 #          url = "<https-url-to-git>";
@@ -93,9 +92,9 @@ let
 
     bloodhound = {
       src = fetchgit {
-        url = "https://github.com/wireapp/bloodhound";
-        rev = "abf819a4a6ec7601f1e58cb8da13b2fdad377d9e";
-        sha256 = "sha256-m1O+F/mOJN5z5WNChmeyHP4dtmLRkl2YnLlTuwzRelk=";
+        url = "https://github.com/bitemyapp/bloodhound";
+        rev = "113303d7181a20f10b06ddb79bb2fd965729167d";
+        sha256 = "sha256-Rvc/GndQHYTpnNn03ArYW9hC/kFp1GAUuLGEflGFG48=";
       };
     };
 

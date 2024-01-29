@@ -37,13 +37,12 @@ import System.Logger (Logger)
 import System.Logger qualified as Log
 import Wire.API.User (AccountStatus (..))
 
-runCommand :: Logger -> ClientState -> ES.BHEnv -> String -> String -> IO ()
-runCommand l cas es indexStr mappingStr = do
+runCommand :: Logger -> ClientState -> ES.BHEnv -> String -> IO ()
+runCommand l cas es indexStr = do
   let index = ES.IndexName $ Text.pack indexStr
-      mapping = ES.MappingName $ Text.pack mappingStr
   runConduit $
     transPipe (ES.runBH es) $
-      getScrolled index mapping
+      getScrolled index
         .| C.iterM (logProgress l)
         .| C.mapM
           ( \uuids -> do
@@ -74,8 +73,8 @@ logUUID l f (uuid, _, time) =
       . Log.field "uuid" (show uuid)
       . Log.field "write time" (show $ writetimeToUTC <$> time)
 
-getScrolled :: (ES.MonadBH m, MonadThrow m) => ES.IndexName -> ES.MappingName -> ConduitM () [UUID] m ()
-getScrolled index mapping = processRes =<< lift (ES.getInitialScroll index mapping esSearch)
+getScrolled :: (ES.MonadBH m, MonadThrow m) => ES.IndexName -> ConduitT () [UUID] m ()
+getScrolled index = processRes =<< lift (ES.getInitialScroll index esSearch)
   where
     processRes :: (ES.MonadBH m, MonadThrow m) => Either ES.EsError (ES.SearchResult User) -> ConduitM () [UUID] m ()
     processRes = \case

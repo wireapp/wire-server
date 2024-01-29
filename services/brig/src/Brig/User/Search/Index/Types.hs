@@ -31,7 +31,6 @@ import Data.Text qualified as T
 import Data.Text.ICU.Translit (trans, transliterate)
 import Data.Time (UTCTime)
 import Database.Bloodhound hiding (key)
-import Database.Bloodhound.Internal.Client (DocVersion (DocVersion))
 import Imports
 import Wire.API.Team.Role (Role)
 import Wire.API.User
@@ -206,13 +205,13 @@ indexToDoc iu =
 normalized :: Text -> Text
 normalized = transliterate (trans "Any-Latin; Latin-ASCII; Lower")
 
-docToIndex :: UserDoc -> IndexUser
+docToIndex :: HasCallStack => UserDoc -> IndexUser
 docToIndex ud =
   -- (Don't use 'mkIndexUser' here!  With 'IndexUser', you get compiler warnings if you
   -- forget to add new fields here.)
   IndexUser
     { _iuUserId = udId ud,
-      _iuVersion = IndexVersion (DocVersion 1),
+      _iuVersion = IndexVersion (fromJust (mkDocVersion 1)),
       _iuTeam = udTeam ud,
       _iuName = udName ud,
       _iuHandle = udHandle ud,
