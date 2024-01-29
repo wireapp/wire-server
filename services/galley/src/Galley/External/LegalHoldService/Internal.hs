@@ -17,6 +17,7 @@
 
 module Galley.External.LegalHoldService.Internal
   ( makeVerifiedRequest,
+    makeVerifiedRequestFreshManager,
   )
 where
 
@@ -77,6 +78,19 @@ makeVerifiedRequest ::
   (Http.Request -> Http.Request) ->
   App (Http.Response LC8.ByteString)
 makeVerifiedRequest fpr url reqBuilder = do
-  mkMgr <- view extGetManager
-  mgr <- liftIO $ mkMgr [fpr]
+  (mgr, fprVar) <- view extGetManager
+  modifyIORef' fprVar (nub . (fpr :))
+  makeVerifiedRequestWithManager mgr url reqBuilder
+
+-- | NOTE: Use this function wisely - this creates a new manager _every_ time it is called.
+--   We should really _only_ use it in `checkLegalHoldServiceStatus` for the time being because
+--   this is where we check for signatures, etc. If we reuse the manager, we are likely to reuse
+--   an existing connection which will _not_ cause the new public key to be verified.
+makeVerifiedRequestFreshManager ::
+  Fingerprint Rsa ->
+  HttpsUrl ->
+  (Http.Request -> Http.Request) ->
+  App (Http.Response LC8.ByteString)
+makeVerifiedRequestFreshManager fpr url reqBuilder = do
+  mgr <- liftIO . initExtEnv =<< newIORef [fpr]
   makeVerifiedRequestWithManager mgr url reqBuilder

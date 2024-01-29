@@ -46,6 +46,7 @@ module Brig.App
     httpManager,
     http2Manager,
     extGetManager,
+    initExtGetManager,
     nexmoCreds,
     twilioCreds,
     settings,
@@ -71,7 +72,7 @@ module Brig.App
 
     -- * Crutches that should be removed once Brig has been completely
 
-    -- * transitioned to Polysemy
+    -- transitioned to Polysemy
     wrapClient,
     wrapClientE,
     wrapClientM,
@@ -172,7 +173,7 @@ data Env = Env
     _templateBranding :: TemplateBranding,
     _httpManager :: Manager,
     _http2Manager :: Http2Manager,
-    _extGetManager :: [Fingerprint Rsa] -> IO Manager,
+    _extGetManager :: (Manager, IORef [Fingerprint Rsa]),
     _settings :: Settings,
     _nexmoCreds :: Nexmo.Credentials,
     _twilioCreds :: Twilio.Credentials,
@@ -246,6 +247,9 @@ newEnv o = do
       pure Nothing
   kpLock <- newMVar ()
   rabbitChan <- traverse (Q.mkRabbitMqChannelMVar lgr) o.rabbitmq
+  fprVar <- newIORef []
+  extMgr <- initExtGetManager fprVar
+
   pure $!
     Env
       { _cargohold = mkEndpoint $ Opt.cargohold o,
@@ -267,7 +271,7 @@ newEnv o = do
         _templateBranding = branding,
         _httpManager = mgr,
         _http2Manager = h2Mgr,
-        _extGetManager = initExtGetManager,
+        _extGetManager = (extMgr, fprVar),
         _settings = sett,
         _nexmoCreds = nxm,
         _twilioCreds = twl,
@@ -359,8 +363,8 @@ initHttp2Manager = do
 -- faster. So, we reuse the context.
 
 -- TODO: somewhat duplicates Galley.App.initExtEnv
-initExtGetManager :: [Fingerprint Rsa] -> IO Manager
-initExtGetManager fingerprints = do
+initExtGetManager :: IORef [Fingerprint Rsa] -> IO Manager
+initExtGetManager fprVar = do
   ctx <- SSL.context
   SSL.contextAddOption ctx SSL_OP_NO_SSLv2
   SSL.contextAddOption ctx SSL_OP_NO_SSLv3
@@ -369,8 +373,8 @@ initExtGetManager fingerprints = do
     ctx
     SSL.VerifyPeer
       { vpFailIfNoPeerCert = True,
-        vpClientOnce = False,
-        vpCallback = Just \_b -> extEnvCallback fingerprints
+        vpClientOnce = True,
+        vpCallback = Just \_b -> extEnvCallback fprVar
       }
 
   SSL.contextSetDefaultVerifyPaths ctx

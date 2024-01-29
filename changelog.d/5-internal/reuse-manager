@@ -1,0 +1,4 @@
+- reuse the http manager wherever possible
+- don't reuse the http manager in legalhold scenarios
+- don't concurrently modify the ssl context in such ways that
+  it can create race conditions 
