@@ -34,7 +34,7 @@ runNotificationSubsystemGundeck ::
 runNotificationSubsystemGundeck cfg = interpret $ \case
   PushNotifications ps -> runInputConst cfg $ pushImpl ps
   PushNotificationsSlowly ps -> runInputConst cfg $ pushSlowlyImpl ps
-  UserDeleted uid -> GundeckAPIAccess.userDeleted uid
+  CleanupUser uid -> GundeckAPIAccess.userDeleted uid
   UnregisterPushClient uid cid -> GundeckAPIAccess.unregisterPushClient uid cid
   GetPushTokens uid -> GundeckAPIAccess.getPushTokens uid
 

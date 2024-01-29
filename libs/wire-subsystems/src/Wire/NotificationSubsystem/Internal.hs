@@ -35,10 +35,14 @@ data Push = Push
 
 makeLenses ''Push
 
+-- | This subsystem governs mechanisms to send notifications to users.
 data NotificationSubsystem m a where
+  -- | Bulk push notifications
   PushNotifications :: [Push] -> NotificationSubsystem m ()
+  -- | Bulk push notifications, but slowly. This should be used when there are
+  -- many notifications to be sent which could cause too much resource usage.
   PushNotificationsSlowly :: [Push] -> NotificationSubsystem m ()
-  UserDeleted :: UserId -> NotificationSubsystem m ()
+  CleanupUser :: UserId -> NotificationSubsystem m ()
   UnregisterPushClient :: UserId -> ClientId -> NotificationSubsystem m ()
   GetPushTokens :: UserId -> NotificationSubsystem m [PushToken]
 

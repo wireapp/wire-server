@@ -701,7 +701,7 @@ rmUser usr asts = do
     remote "gundeck"
       . field "user" (toByteString usr)
       . msg (val "remove user")
-  NotificationSubsystem.userDeleted usr
+  NotificationSubsystem.cleanupUser usr
   Log.debug $
     remote "galley"
       . field "user" (toByteString usr)
