@@ -1,0 +1,13 @@
+diff --git a/Network/HTTP/Client/Connection.hs b/Network/HTTP/Client/Connection.hs
+index 823072bd..c29407f6 100644
+--- a/Network/HTTP/Client/Connection.hs
++++ b/Network/HTTP/Client/Connection.hs
+@@ -193,7 +193,7 @@ withSocket :: (Socket -> IO ())
+            -> (Socket -> IO a)
+            -> IO a
+ withSocket tweakSocket hostAddress' host' port' f = do
+-    let hints = NS.defaultHints { NS.addrSocketType = NS.Stream }
++    let hints = NS.defaultHints { NS.addrSocketType = NS.Stream, NS.addrFlags = [ NS.AI_NUMERICSERV, NS.AI_ADDRCONFIG ] }
+     addrs <- case hostAddress' of
+         Nothing ->
+             NS.getAddrInfo (Just hints) (Just $ strippedHostName host') (Just $ show port')

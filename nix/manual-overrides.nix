@@ -1,4 +1,4 @@
-{ libsodium, protobuf, hlib, mls-test-cli, ... }:
+{ libsodium, protobuf, hlib, mls-test-cli, pkgs, ... }:
 # FUTUREWORK: Figure out a way to detect if some of these packages are not
 # actually marked broken, so we can cleanup this file on every nixpkgs bump.
 hself: hsuper: {
@@ -67,4 +67,5 @@ hself: hsuper: {
   types-common-journal = hlib.addBuildTool hsuper.types-common-journal protobuf;
   wire-api = hlib.addBuildTool hsuper.wire-api mls-test-cli;
   wire-message-proto-lens = hlib.addBuildTool hsuper.wire-message-proto-lens protobuf;
+  http-client = hlib.appendPatches hsuper.http-client [./use-ai-numerichost.patch];
 }
