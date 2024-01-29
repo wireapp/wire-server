@@ -7,8 +7,8 @@ rustPlatform.buildRustPackage rec {
   src = fetchFromGitHub {
     owner = "wireapp";
     repo = "mls-test-cli";
-    rev = "a18470061977211ecf81911de0f2632eefc81efd";
-    sha256 = "sha256-HgwR6vuVL3eN7NVox+iClPxqsat3Znc9+ZtENuEJKSU=";
+    rev = "809925460222bac415a67461bfd134d22137f030";
+    sha256 = "sha256-Tc1w8JPajvsiDJcjZPzd6r99U5eNsxtzkc+a77PuBwk=";
   };
   pname = "mls-test-cli";
   version = "0.10.3";
@@ -18,7 +18,7 @@ rustPlatform.buildRustPackage rec {
       "hpke-0.10.0" = "sha256-T1+BFwX6allljNZ/8T3mrWhOejnUU27BiWQetqU+0fY=";
       "openmls-1.0.0" = "sha256-nyIMAlTy7CTV0bVQ0ytamKHpERgtsVKTX4zv7aHzemo=";
       "safe_pqc_kyber-0.6.2" = "sha256-9t+IIohCJcMIWRtqLA0idyMmjev82BtpST15Tthlge4=";
-      "tls_codec-0.3.0" = "sha256-IO6tenXKkC14EoUDp/+DtFNOVzDfOlLu8K1EJI7sOzs=";
+      "tls_codec-0.4.0" = "sha256-2wCreWSfduxjUyfkGkXWqawLxZ2yb167msjv5PdGEpw=";
     };
   };
   doCheck = false;
