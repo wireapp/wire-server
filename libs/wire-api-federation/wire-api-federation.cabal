@@ -31,6 +31,7 @@ library
     Wire.API.Federation.Error
     Wire.API.Federation.HasNotificationEndpoint
     Wire.API.Federation.Version
+    Wire.API.Federation.VersionSpec
 
   other-modules:      Paths_wire_api_federation
   hs-source-dirs:     src
@@ -139,6 +140,7 @@ test-suite spec
     Test.Wire.API.Federation.Golden.NewConnectionResponse
     Test.Wire.API.Federation.Golden.Runner
     Test.Wire.API.Federation.Version
+    Test.Wire.API.Federation.VersionSpec
 
   hs-source-dirs:     test
   default-extensions:
