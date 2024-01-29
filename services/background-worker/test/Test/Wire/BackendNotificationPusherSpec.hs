@@ -284,16 +284,17 @@ spec = do
                   requestId = undefined
                 }
 
+    -- FUTUREWORK: once we have more Version values, we may want to add some tests here.
     it "[..] + [] = fail" $ do
-      mostRecentNotif (versionToBundle [AllVersions]) (Set.fromList []) `shouldBe` Nothing
+      mostRecentNotif (versionToBundle [allVersions]) (Set.fromList []) `shouldBe` Nothing
     it "[0] + [1] = fail" $ do
-      mostRecentNotif (versionToBundle [FromUntilVersion V0 V1]) (Set.fromList []) `shouldBe` Nothing
+      mostRecentNotif (versionToBundle [VersionRange (Just V0) (Just V1)]) (Set.fromList []) `shouldBe` Nothing
     focus . it "[1] + [0, 1] = 1" $ do
-      fmap snd (mostRecentNotif (versionToBundle [FromVersion V1]) (Set.fromList [0, 1])) `shouldBe` Just V1
+      fmap snd (mostRecentNotif (versionToBundle [VersionRange (Just V1) Nothing]) (Set.fromList [0, 1])) `shouldBe` Just V1
     it "[0] + [0, 1] = 0" $ do
-      fmap snd (mostRecentNotif (versionToBundle [FromVersion V0]) (Set.fromList [0, 1])) `shouldBe` Just V0
+      fmap snd (mostRecentNotif (versionToBundle [VersionRange (Just V0) (Just V1)]) (Set.fromList [0, 1])) `shouldBe` Just V0
     it "[..] + [1] = 1" $ do
-      fmap snd (mostRecentNotif (versionToBundle [UntilVersion V1, FromVersion V1]) (Set.fromList [1])) `shouldBe` Just V1
+      fmap snd (mostRecentNotif (versionToBundle [VersionRange Nothing (Just V1), VersionRange (Just V1) Nothing]) (Set.fromList [1])) `shouldBe` Just V1
 
 untilM :: (Monad m) => m Bool -> m ()
 untilM action = do

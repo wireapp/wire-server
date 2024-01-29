@@ -130,7 +130,7 @@ enumVersionRange =
   Set.fromList . \case
     (VersionRange Nothing Nothing) -> [minBound ..]
     (VersionRange (Just l) Nothing) -> [l ..]
-    (VersionRange Nothing (Just u)) -> [minBound .. u]
+    (VersionRange Nothing (Just u)) -> init [minBound .. u]
     (VersionRange (Just l) (Just u)) -> init [l .. u]
 
 -- | For a version range of a local backend and for a set of versions that a
