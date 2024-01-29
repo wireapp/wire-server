@@ -1,6 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# OPTIONS_GHC -Wno-deprecations #-}
+{-# OPTIONS_GHC -Wno-deprecations -Wno-incomplete-patterns #-}
 
 module Test.Wire.BackendNotificationPusherSpec where
 
@@ -11,8 +11,10 @@ import Data.ByteString.Builder qualified as Builder
 import Data.ByteString.Lazy qualified as LBS
 import Data.Domain
 import Data.Id
+import Data.List.NonEmpty qualified as NE
 import Data.Range
 import Data.Sequence qualified as Seq
+import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Federator.MockServer
@@ -42,6 +44,7 @@ import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.BackendNotifications
+import Wire.API.Federation.Version
 import Wire.API.RawJson
 import Wire.BackendNotificationPusher
 import Wire.BackgroundWorker.Env
@@ -267,6 +270,30 @@ spec = do
       -- concurrency, so just assert that there were at least 2 calls.
       calls `shouldSatisfy` (\c -> length c >= 2)
       mapM_ (\vhost -> vhost `shouldBe` rabbitmqVHost) calls
+
+  describe "mostRecentNotif" $ do
+    let versionToBundle (NE.nonEmpty -> Just (versionRanges :: NE.NonEmpty VersionRange)) = do
+          PayloadBundle $
+            flip fmap versionRanges $ \v ->
+              BackendNotification
+                { ownDomain = undefined,
+                  targetComponent = undefined,
+                  path = undefined,
+                  body = undefined,
+                  bodyVersions = Just v,
+                  requestId = undefined
+                }
+
+    it "[..] + [] = fail" $ do
+      mostRecentNotif (versionToBundle [AllVersions]) (Set.fromList []) `shouldBe` Nothing
+    it "[0] + [1] = fail" $ do
+      mostRecentNotif (versionToBundle [FromUntilVersion V0 V1]) (Set.fromList []) `shouldBe` Nothing
+    focus . it "[1] + [0, 1] = 1" $ do
+      fmap snd (mostRecentNotif (versionToBundle [FromVersion V1]) (Set.fromList [0, 1])) `shouldBe` Just V1
+    it "[0] + [0, 1] = 0" $ do
+      fmap snd (mostRecentNotif (versionToBundle [FromVersion V0]) (Set.fromList [0, 1])) `shouldBe` Just V0
+    it "[..] + [1] = 1" $ do
+      fmap snd (mostRecentNotif (versionToBundle [UntilVersion V1, FromVersion V1]) (Set.fromList [1])) `shouldBe` Just V1
 
 untilM :: (Monad m) => m Bool -> m ()
 untilM action = do
