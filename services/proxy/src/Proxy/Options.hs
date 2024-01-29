@@ -29,7 +29,6 @@ module Proxy.Options
     logFormat,
     mockOpts,
     disabledAPIVersions,
-    enableDevelopmentVersions,
   )
 where
 
@@ -58,8 +57,7 @@ data Opts = Opts
     _logNetStrings :: !(Maybe (Last Bool)),
     -- | choose Encoding
     _logFormat :: !(Maybe (Last LogFormat)),
-    _disabledAPIVersions :: !(Maybe (Set Version)),
-    _enableDevelopmentVersions :: !(Maybe Bool)
+    _disabledAPIVersions :: !(Maybe VersionExpSetDefaultDev)
   }
   deriving (Show, Generic)
 
@@ -79,6 +77,5 @@ mockOpts secrets =
       _logLevel = Debug,
       _logNetStrings = pure $ pure $ True,
       _logFormat = mempty,
-      _disabledAPIVersions = mempty,
-      _enableDevelopmentVersions = Nothing
+      _disabledAPIVersions = mempty
     }

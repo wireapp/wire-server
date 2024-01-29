@@ -82,7 +82,7 @@ mkApp o = Codensity $ \k ->
   where
     middleware :: Env -> Wai.Middleware
     middleware e =
-      versionMiddleware (fold (o ^. settings . disabledAPIVersions) <> toDisabledVersions (o ^. settings . enableDevelopmentVersions))
+      versionMiddleware (foldMap expandVersionExp (unVersionExpSetDefaultDev (fold (o ^. settings . disabledAPIVersions))))
         . servantPrometheusMiddleware (Proxy @CombinedAPI)
         . GZip.gzip GZip.def
         . catchErrors (e ^. appLogger) [Right $ e ^. metrics]
