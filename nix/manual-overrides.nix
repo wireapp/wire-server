@@ -67,5 +67,5 @@ hself: hsuper: {
   types-common-journal = hlib.addBuildTool hsuper.types-common-journal protobuf;
   wire-api = hlib.addBuildTool hsuper.wire-api mls-test-cli;
   wire-message-proto-lens = hlib.addBuildTool hsuper.wire-message-proto-lens protobuf;
-  http-client = hlib.appendPatches hsuper.http-client [./use-ai-numerichost.patch];
+  http-client = hlib.appendPatches hsuper.http-client [ ./use-ai-numerichost.patch ];
 }
