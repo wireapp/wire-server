@@ -1052,7 +1052,7 @@ uncheckedDeleteTeamMember lusr zcon tid remove (Right mems) = do
       let e = newEvent tid now (EdMemberLeave remove)
       let r = userRecipient (tUnqualified lusr) :| membersToRecipients (Just (tUnqualified lusr)) (mems ^. teamMembers)
       when (mems ^. teamMemberListType == ListComplete) $ do
-        NotificationSubsystem.push
+        pushNotifications
           [newPushLocal1 (tUnqualified lusr) (toJSONObject e) r & pushTransient .~ True]
 
 removeFromConvsAndPushConvLeaveEvent ::
