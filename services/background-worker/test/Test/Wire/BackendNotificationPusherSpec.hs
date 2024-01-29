@@ -11,7 +11,6 @@ import Data.ByteString.Builder qualified as Builder
 import Data.ByteString.Lazy qualified as LBS
 import Data.Domain
 import Data.Id
-import Data.List.NonEmpty qualified as NE
 import Data.Range
 import Data.Sequence qualified as Seq
 import Data.Set qualified as Set
@@ -272,29 +271,18 @@ spec = do
       mapM_ (\vhost -> vhost `shouldBe` rabbitmqVHost) calls
 
   describe "mostRecentNotif" $ do
-    let versionToBundle (NE.nonEmpty -> Just (versionRanges :: NE.NonEmpty VersionRange)) = do
-          PayloadBundle $
-            flip fmap versionRanges $ \v ->
-              BackendNotification
-                { ownDomain = undefined,
-                  targetComponent = undefined,
-                  path = undefined,
-                  body = undefined,
-                  bodyVersions = Just v,
-                  requestId = undefined
-                }
-
+    let mostRecent = mostRecentTuple Just
     -- FUTUREWORK: once we have more Version values, we may want to add some tests here.
     it "[..] + [] = null" $ do
-      mostRecentNotif (versionToBundle [allVersions]) (Set.fromList []) `shouldBe` Nothing
+      mostRecent [allVersions] (Set.fromList []) `shouldBe` Nothing
     it "[0] + [1] = null" $ do
-      mostRecentNotif (versionToBundle [VersionRange V0 (Just V1)]) (Set.fromList []) `shouldBe` Nothing
+      mostRecent [VersionRange V0 (Just V1)] (Set.fromList []) `shouldBe` Nothing
     it "[1] + [0, 1] = 1" $ do
-      fmap snd (mostRecentNotif (versionToBundle [VersionRange V1 Nothing]) (Set.fromList [0, 1])) `shouldBe` Just V1
+      fmap snd (mostRecent [VersionRange V1 Nothing] (Set.fromList [0, 1])) `shouldBe` Just V1
     it "[0] + [0, 1] = 0" $ do
-      fmap snd (mostRecentNotif (versionToBundle [VersionRange V0 (Just V1)]) (Set.fromList [0, 1])) `shouldBe` Just V0
+      fmap snd (mostRecent [VersionRange V0 (Just V1)] (Set.fromList [0, 1])) `shouldBe` Just V0
     it "[..] + [1] = 1" $ do
-      fmap snd (mostRecentNotif (versionToBundle [VersionRange V0 (Just V1), VersionRange V1 Nothing]) (Set.fromList [1])) `shouldBe` Just V1
+      fmap snd (mostRecent [VersionRange V0 (Just V1), VersionRange V1 Nothing] (Set.fromList [1])) `shouldBe` Just V1
 
 untilM :: (Monad m) => m Bool -> m ()
 untilM action = do

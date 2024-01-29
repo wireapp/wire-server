@@ -173,21 +173,25 @@ pushNotification runningFlag targetDomain (msg, envelope) = do
 -- operations on remoteVersions and localVersions. would be slightly more
 -- readable, possibly.
 mostRecentNotif :: PayloadBundle c -> Set Int -> Maybe (BackendNotification, Version)
-mostRecentNotif bundle remoteVersions = foldl' combine Nothing (notifications bundle)
+mostRecentNotif =
+  mostRecentTuple bodyVersions . (NE.toList . notifications)
+
+mostRecentTuple :: forall a. (a -> Maybe VersionRange) -> [a] -> Set Int -> Maybe (a, Version)
+mostRecentTuple pr as remoteVersions = foldl' combine Nothing as
   where
     combine ::
-      Maybe (BackendNotification, Version) ->
-      BackendNotification ->
-      Maybe (BackendNotification, Version)
-    combine greatest notif =
-      let notifGreatest = bodyVersions notif >>= flip latestCommonVersion remoteVersions
+      Maybe (a, Version) ->
+      a ->
+      Maybe (a, Version)
+    combine greatest a =
+      let notifGreatest = pr a >>= flip latestCommonVersion remoteVersions
        in case (greatest, notifGreatest) of
             (Nothing, Nothing) -> Nothing
-            (Nothing, Just v) -> Just (notif, v)
+            (Nothing, Just v) -> Just (a, v)
             (Just (gn, gv), Nothing) -> Just (gn, gv)
             (Just (gn, gv), Just v) ->
               if v > gv
-                then Just (notif, v)
+                then Just (a, v)
                 else Just (gn, gv)
 
 -- FUTUREWORK: Recosider using 1 channel for many consumers. It shouldn't matter
