@@ -179,10 +179,7 @@ mostRecentNotif =
 mostRecentTuple :: forall a. (a -> Maybe VersionRange) -> [a] -> Set Int -> Maybe (a, Version)
 mostRecentTuple pr as remoteVersions = foldl' combine Nothing as
   where
-    combine ::
-      Maybe (a, Version) ->
-      a ->
-      Maybe (a, Version)
+    combine :: Maybe (a, Version) -> a -> Maybe (a, Version)
     combine greatest a =
       let notifGreatest = pr a >>= flip latestCommonVersion remoteVersions
        in case (greatest, notifGreatest) of
