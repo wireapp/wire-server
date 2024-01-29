@@ -57,7 +57,7 @@ data Opts = Opts
     _logNetStrings :: !(Maybe (Last Bool)),
     -- | choose Encoding
     _logFormat :: !(Maybe (Last LogFormat)),
-    _disabledAPIVersions :: !(Maybe VersionExpSetDefaultDev)
+    _disabledAPIVersions :: !(Set VersionExp)
   }
   deriving (Show, Generic)
 
