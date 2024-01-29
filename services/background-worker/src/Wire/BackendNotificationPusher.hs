@@ -167,6 +167,11 @@ pushNotification runningFlag targetDomain (msg, envelope) = do
             withLabel metrics.pushedCounter (domainText targetDomain) incCounter
             withLabel metrics.stuckQueuesGauge (domainText targetDomain) (flip setGauge 0)
 
+-- TODO(md): put this into BackendNotification.hs (and tests too)
+--
+-- FUTUREWORK(fisx): we could compute a Set Int from the bundle and do set
+-- operations on remoteVersions and localVersions. would be slightly more
+-- readable, possibly.
 mostRecentNotif :: PayloadBundle c -> Set Int -> Maybe (BackendNotification, Version)
 mostRecentNotif bundle remoteVersions = foldl' combine Nothing (notifications bundle)
   where
