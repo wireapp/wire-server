@@ -104,6 +104,10 @@ pushNotification runningFlag targetDomain (msg, envelope) = do
             -- deal with this.
             lift $ reject envelope False
           Right notif -> do
+            -- FUTUREWORK: Drop support for parsing it as a
+            -- single notification as soon as we can guarantee
+            -- that the message queue does not contain any
+            -- 'BackendNotification's anymore.
             ceFederator <- asks (.federatorInternal)
             ceHttp2Manager <- asks http2Manager
             let ceOriginDomain = notif.ownDomain
