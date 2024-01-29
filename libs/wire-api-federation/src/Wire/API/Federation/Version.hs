@@ -34,7 +34,6 @@ module Wire.API.Federation.Version
     allVersions,
     fromVersions,
     untilVersions,
-    latestCommonVersion,
     mostRecentTuple,
   )
 where
