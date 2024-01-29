@@ -75,7 +75,7 @@ data Settings = Settings
     -- However, that parameter is not honoured when using fake-sqs
     -- (where throttling can thus make sense)
     _sqsThrottleMillis :: !(Maybe Int),
-    _disabledAPIVersions :: !(Maybe VersionExpSetDefaultDev),
+    _disabledAPIVersions :: !(Set VersionExp),
     -- | Maximum number of bytes loaded into memory when fetching (referenced) payloads.
     -- Gundeck will return a truncated page if the whole page's payload sizes would exceed this limit in total.
     -- Inlined payloads can cause greater payload sizes to be loaded into memory regardless of this setting.
