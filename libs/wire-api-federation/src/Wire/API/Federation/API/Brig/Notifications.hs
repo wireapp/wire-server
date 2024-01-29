@@ -50,7 +50,7 @@ instance IsNotificationTag BrigNotificationTag where
 instance HasNotificationEndpoint 'OnUserDeletedConnectionsTag where
   type Payload 'OnUserDeletedConnectionsTag = UserDeletedConnectionsNotification
   type NotificationPath 'OnUserDeletedConnectionsTag = "on-user-deleted-connections"
-  versionRange = AllVersions
+  versionRange = allVersions
 
 instance ToSchema UserDeletedConnectionsNotification
 

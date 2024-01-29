@@ -18,20 +18,28 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 module Wire.API.Federation.Version
-  ( Version (..),
+  ( -- * Version, VersionInfo
+    Version (..),
     V0Sym0,
     V1Sym0,
     versionInt,
     supportedVersions,
     VersionInfo (..),
     versionInfo,
+
+    -- * VersionRange
     VersionRange (..),
+    fromVersion,
+    toVersionExcl,
+    allVersions,
+    fromVersions,
+    untilVersions,
     latestCommonVersion,
+    mostRecentTuple,
   )
 where
 
-import Control.Lens (makePrisms, (?~))
-import Control.Lens.Tuple (_1)
+import Control.Lens (makeLenses, (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.OpenApi qualified as S
 import Data.Schema
@@ -83,38 +91,10 @@ versionInfo = VersionInfo (toList supportedVersions)
 
 ----------------------------------------------------------------------
 
-data VersionRangeTag
-  = VersionRangeTagAll
-  | VersionRangeTagFrom
-  | VersionRangeTagUntil
-  | VersionRangeTagFromUntil
-  deriving (Eq, Enum, Bounded)
-
-versionRangeTagSchema :: ValueSchema NamedSwaggerDoc VersionRangeTag
-versionRangeTagSchema =
-  enum @Text "VersionRange Tag" $
-    mconcat
-      [ element "all-versions" VersionRangeTagAll,
-        element "from" VersionRangeTagFrom,
-        element "until" VersionRangeTagUntil,
-        element "from-until" VersionRangeTagFromUntil
-      ]
-
-versionPairSchema :: ValueSchema NamedSwaggerDoc (Version, Version)
-versionPairSchema =
-  object "VersionPair" $
-    (,)
-      <$> fst .= field "from" schema
-      <*> snd .= field "until" schema
-
-data VersionRange
-  = AllVersions
-  | -- | The version in the argument represent an inclusive bound.
-    FromVersion Version
-  | -- | The version in the argument represent an exclusive bound.
-    UntilVersion Version
-  | -- | The second argument represents an exclusive upper bound.
-    FromUntilVersion Version Version
+data VersionRange = VersionRange
+  { _fromVersion :: Version,
+    _toVersionExcl :: Maybe Version
+  }
 
 deriving instance Eq VersionRange
 
@@ -122,50 +102,35 @@ deriving instance Show VersionRange
 
 deriving instance Ord VersionRange
 
-makePrisms ''VersionRange
+makeLenses ''VersionRange
 
 instance ToSchema VersionRange where
   schema =
     object "VersionRange" $
-      fromTagged
-        <$> toTagged
-          .= bind
-            (fst .= field "tag" versionRangeTagSchema)
-            (snd .= fieldOver _1 "value" untaggedSchema)
+      VersionRange
+        <$> _fromVersion .= field "from" schema
+        <*> _toVersionExcl .= maybe_ (optFieldWithDocModifier "until_excl" desc schema)
     where
-      toTagged :: VersionRange -> (VersionRangeTag, VersionRange)
-      toTagged d@AllVersions = (VersionRangeTagAll, d)
-      toTagged d@(FromVersion _) = (VersionRangeTagFrom, d)
-      toTagged d@(UntilVersion _) = (VersionRangeTagUntil, d)
-      toTagged d@(FromUntilVersion _ _) = (VersionRangeTagFromUntil, d)
-
-      fromTagged :: (VersionRangeTag, VersionRange) -> VersionRange
-      fromTagged = snd
-
-      untaggedSchema = dispatch $ \case
-        VersionRangeTagAll -> tag _AllVersions null_
-        VersionRangeTagFrom -> tag _FromVersion (unnamed schema)
-        VersionRangeTagUntil -> tag _UntilVersion (unnamed schema)
-        VersionRangeTagFromUntil -> tag _FromUntilVersion $ unnamed versionPairSchema
+      desc = description ?~ "exlusive upper version bound"
 
 deriving via Schema VersionRange instance ToJSON VersionRange
 
 deriving via Schema VersionRange instance FromJSON VersionRange
 
--- | Compute the lower and upper boundary of a version range. The first
--- component of the pair is the lower boundary, while the second component is
--- the upper boundary. The upper boundary is inclusive.
-versionRangeToBoundaries :: VersionRange -> (Version, Version)
-versionRangeToBoundaries AllVersions = (minBound @Version, maxBound @Version)
-versionRangeToBoundaries (FromVersion fv) = (fv, maxBound @Version)
-versionRangeToBoundaries (UntilVersion uv) = (minBound @Version, pred uv)
-versionRangeToBoundaries (FromUntilVersion fv uv) = (fv, pred uv)
+allVersions :: VersionRange
+allVersions = VersionRange minBound Nothing
 
--- | Checks if a version is within a given version range.
-inVersionRange :: Version -> VersionRange -> Bool
-inVersionRange v vr =
-  let (lo, hi) = versionRangeToBoundaries vr
-   in lo <= v && v < hi
+fromVersions :: Version -> VersionRange
+fromVersions v = VersionRange v Nothing
+
+untilVersions :: Version -> VersionRange
+untilVersions v = VersionRange minBound (Just v)
+
+enumVersionRange :: VersionRange -> Set Version
+enumVersionRange =
+  Set.fromList . \case
+    (VersionRange l Nothing) -> [l ..]
+    (VersionRange l (Just u)) -> init [l .. u]
 
 -- | For a version range of a local backend and for a set of versions that a
 -- remote backend supports, compute the newest version supported by both. The
@@ -173,18 +138,8 @@ inVersionRange v vr =
 -- the remote backend can include a version unknown to the local backend. If
 -- there is no version in common, the return value is 'Nothing'.
 latestCommonVersion :: VersionRange -> Set Int -> Maybe Version
-latestCommonVersion localVersions remoteVersions =
-  foldl' f Nothing (Set.map inRange remoteVersions)
-  where
-    inRange :: Int -> Maybe Version
-    inRange i = do
-      v <- intToVersion i
-      guard (v `inVersionRange` localVersions) $> v
-
-    f :: Maybe Version -> Maybe Version -> Maybe Version
-    f Nothing mv = mv
-    f (Just m) (Just v) = Just $ m `max` v
-    f v Nothing = v
+latestCommonVersion (Set.map versionInt . enumVersionRange -> localVersions) remoteVersions =
+  intToVersion =<< Set.lookupMax (Set.intersection localVersions remoteVersions)
 
 $(genSingletons [''Version])
 
