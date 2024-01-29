@@ -80,9 +80,7 @@ data:
           ed25519: "/etc/wire/galley/secrets/removal_ed25519.pem"
         {{- end }}
       {{- end -}}
-      {{- if .settings.disabledAPIVersions }}
       disabledAPIVersions: {{ .settings.disabledAPIVersions }}
-      {{- end }}
       {{- if .settings.featureFlags }}
       {{- if .settings.guestLinkTTLSeconds }}
       guestLinkTTLSeconds: {{ .settings.guestLinkTTLSeconds }}

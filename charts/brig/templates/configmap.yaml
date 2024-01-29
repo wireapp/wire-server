@@ -323,9 +323,7 @@ data:
       {{- if .setOAuthEnabled }}
       setOAuthEnabled: {{ .setOAuthEnabled }}
       {{- end }}
-      {{- if .setDisabledAPIVersions }}
       setDisabledAPIVersions: {{ .setDisabledAPIVersions }}
-      {{- end }}
       {{- if .setOAuthRefreshTokenExpirationTimeSecs }}
       setOAuthRefreshTokenExpirationTimeSecs: {{ .setOAuthRefreshTokenExpirationTimeSecs }}
       {{- end }}
