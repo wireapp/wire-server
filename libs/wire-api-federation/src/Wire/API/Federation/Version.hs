@@ -91,7 +91,7 @@ versionInfo = VersionInfo (toList supportedVersions)
 ----------------------------------------------------------------------
 
 data VersionRange = VersionRange
-  { _fromVersion :: Maybe Version,
+  { _fromVersion :: Version,
     _toVersionExcl :: Maybe Version
   }
 
@@ -107,7 +107,7 @@ instance ToSchema VersionRange where
   schema =
     object "VersionRange" $
       VersionRange
-        <$> _fromVersion .= maybe_ (optField "from" schema)
+        <$> _fromVersion .= field "from" schema
         <*> _toVersionExcl .= maybe_ (optFieldWithDocModifier "until_excl" desc schema)
     where
       desc = description ?~ "exlusive upper version bound"
@@ -117,21 +117,19 @@ deriving via Schema VersionRange instance ToJSON VersionRange
 deriving via Schema VersionRange instance FromJSON VersionRange
 
 allVersions :: VersionRange
-allVersions = VersionRange Nothing Nothing
+allVersions = VersionRange minBound Nothing
 
 fromVersions :: Version -> VersionRange
-fromVersions v = VersionRange (Just v) Nothing
+fromVersions v = VersionRange v Nothing
 
 untilVersions :: Version -> VersionRange
-untilVersions v = VersionRange Nothing (Just v)
+untilVersions v = VersionRange minBound (Just v)
 
 enumVersionRange :: VersionRange -> Set Version
 enumVersionRange =
   Set.fromList . \case
-    (VersionRange Nothing Nothing) -> [minBound ..]
-    (VersionRange (Just l) Nothing) -> [l ..]
-    (VersionRange Nothing (Just u)) -> init [minBound .. u]
-    (VersionRange (Just l) (Just u)) -> init [l .. u]
+    (VersionRange l Nothing) -> [l ..]
+    (VersionRange l (Just u)) -> init [l .. u]
 
 -- | For a version range of a local backend and for a set of versions that a
 -- remote backend supports, compute the newest version supported by both. The
