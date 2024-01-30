@@ -19,6 +19,7 @@ module Test.LegalHold where
 
 import API.Brig
 import API.BrigCommon
+import qualified API.BrigInternal as BrigI
 import API.Common
 import API.Galley
 import API.GalleyInternal
@@ -283,3 +284,28 @@ testLHClaimKeys testmode = do
       slmemid <- asString $ lmem %. "qualified_id.id"
       let userClients = Map.fromList [(slmemdom, Map.fromList [(slmemid, Set.fromList [llhdev])])]
       bindResponse (getMultiUserPrekeyBundle pmem userClients) $ assertResp
+
+testLHAddClientManually :: App ()
+testLHAddClientManually = do
+  (_owner, _tid, [mem1]) <- createTeam OwnDomain 2
+  bindResponse (addClient mem1 def {ctype = "legalhold"}) $ \resp -> do
+    resp.status `shouldMatchInt` 400
+    resp.json %. "label" `shouldMatch` "client-error"
+    -- we usually don't test the human-readable "message", but in this case it is important to
+    -- make sure the reason is the right one, and not eg. "LH service not present", or some
+    -- other unspecific client error.
+    resp.json %. "message" `shouldMatch` "LegalHold clients cannot be added manually. LegalHold must be enabled on this user by an admin"
+
+testLHDeleteClientManually :: App ()
+testLHDeleteClientManually = do
+  (_owner, _tid, [mem1]) <- createTeam OwnDomain 2
+  cid <- bindResponse (BrigI.addClient mem1 def {ctype = "legalhold"}) $ \resp -> do
+    resp.status `shouldMatchInt` 201
+    asString =<< resp.json %. "id"
+  bindResponse (deleteClient mem1 cid) $ \resp -> do
+    resp.status `shouldMatchInt` 400
+    resp.json %. "label" `shouldMatch` "client-error"
+    -- we usually don't test the human-readable "message", but in this case it is important to
+    -- make sure the reason is the right one, and not eg. "LH service not present", or some
+    -- other unspecific client error.
+    resp.json %. "message" `shouldMatch` "LegalHold clients cannot be deleted. LegalHold must be disabled on this user by an admin"

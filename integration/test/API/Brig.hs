@@ -156,8 +156,7 @@ addClient ::
   AddClient ->
   App Response
 addClient user args = do
-  uid <- objId user
-  req <- baseRequest user Brig Versioned $ "/clients/" <> uid
+  req <- baseRequest user Brig Versioned $ "/clients"
   val <- mkAddClientValue args
   submit "POST" $ req & addJSONObject val
 
