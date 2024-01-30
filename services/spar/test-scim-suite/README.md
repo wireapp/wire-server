@@ -4,7 +4,7 @@ The scripts in this directory allow to run the [SCIM Test Suite](https://github.
 
 How to run:
 ```sh
-./services/run-services
+./dist/run-services
 ./services/spar/test-scim-suite/runsuite.sh
 ```
 
