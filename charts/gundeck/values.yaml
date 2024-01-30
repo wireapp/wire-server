@@ -44,7 +44,7 @@ config:
     soft: 1000
   # Disable one ore more API versions. Please make sure the configuration value is the same in all these charts:
   # brig, cannon, cargohold, galley, gundeck, proxy, spar.
-  # disabledAPIVersions: [ v3 ]
+  disabledAPIVersions: [ development ]
 
   # Maximum number of bytes loaded into memory when fetching (referenced) payloads.
   # Gundeck will return a truncated page if the whole page's payload sizes would exceed this limit in total.

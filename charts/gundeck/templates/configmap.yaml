@@ -60,9 +60,7 @@ data:
       {{- if hasKey . "perNativePushConcurrency" }}
       perNativePushConcurrency: {{ .perNativePushConcurrency }}
       {{- end }}
-      {{- if .disabledAPIVersions }}
       disabledAPIVersions: {{ .disabledAPIVersions }}
-      {{- end }}
       # disabledAPIVersions: [ 2 ]
       maxConcurrentNativePushes:
         soft: {{ .maxConcurrentNativePushes.soft }}

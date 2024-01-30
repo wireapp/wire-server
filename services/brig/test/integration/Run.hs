@@ -33,7 +33,6 @@ import API.Team qualified as Team
 import API.TeamUserSearch qualified as TeamUserSearch
 import API.User qualified as User
 import API.UserPendingActivation qualified as UserPendingActivation
-import API.Version qualified
 import Bilge hiding (header, host, port)
 import Bilge qualified
 import Brig.API (sitemap)
@@ -155,7 +154,6 @@ runTests iConf brigOpts otherArgs = do
   internalApi <- API.Internal.tests brigOpts mg db b (brig iConf) gd g
 
   let smtp = SMTP.tests mg lg
-      versionApi = API.Version.tests mg brigOpts b
       oauthAPI = API.OAuth.tests mg db b n brigOpts
 
   withArgs otherArgs . defaultMainWithIngredients (listingTests : (composeReporters antXMLRunner consoleTestReporter) : defaultIngredients)
@@ -179,7 +177,6 @@ runTests iConf brigOpts otherArgs = do
         browseTeam,
         federationEndpoints,
         internalApi,
-        versionApi,
         smtp,
         oauthAPI,
         federationEnd2End

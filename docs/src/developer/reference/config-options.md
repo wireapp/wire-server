@@ -591,10 +591,6 @@ See {ref}`configure-federation-strategy-in-brig` (since [PR#3260](https://github
 
 ### API Versioning
 
-#### `setEnableDevelopmentVersions`
-
-This options determines whether development versions should be enabled. If set to `False`, all development versions are removed from the `supported` field of the `/api-version` endpoint. Note that they are still listed in the `development` field, and continue to work normally.
-
 ### OAuth
 
 For more information on OAuth please refer to <https://docs.wire.com/developer/reference/oauth.html>.
@@ -654,10 +650,9 @@ It is possible to disable one ore more API versions. When an API version is disa
 
 Each of the services brig, cannon, cargohold, galley, gundeck, proxy, spar should to be configured with the same set of disable API versions in each service's values.yaml config files.
 
-
 For example to disable API version v3, you need to configure:
 
-```
+```yaml
 # brig's values.yaml
 config.optSettings.setDisabledAPIVersions: [ v3 ]
 
@@ -671,7 +666,7 @@ config.settings.disabledAPIVersions: [ v3 ]
 config.settings.disabledAPIVersions: [ v3 ]
 
 # gundecks' values.yaml
-config.disabledAPIVersions: [ v3 ]
+config.settings.disabledAPIVersions: [ v3 ]
 
 # proxy's values.yaml
 config.disabledAPIVersions: [ v3 ]
@@ -680,7 +675,15 @@ config.disabledAPIVersions: [ v3 ]
 config.disabledAPIVersions: [ v3 ]
 ```
 
-The default setting is that no API version is disabled.
+The development API version(s) can be disabled either explicitly or by adding the `development` keyword to the list of disabled API versions. E.g.:
+
+```yaml
+config.disabledAPIVersions: [ v3, development ]
+```
+
+This setting is required to be present for all the services (brig, cannon, cargohold, galley, gundeck, proxy, and spar).
+
+The default value (provided under `charts/<service>/values.yaml`) is `[ development ]` and disables the development versions. To enable all versions including the development versions set the value to be empty: `[]`.
 
 ## Settings in cargohold
 

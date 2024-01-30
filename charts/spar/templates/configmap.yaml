@@ -36,9 +36,7 @@ data:
 
     maxScimTokens: {{ .maxScimTokens }}
 
-    {{- if .disabledAPIVersions }}
     disabledAPIVersions: {{ .disabledAPIVersions }}
-    {{- end }}
 
     saml:
       version:     SAML2.0
