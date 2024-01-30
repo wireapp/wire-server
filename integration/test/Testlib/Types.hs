@@ -116,6 +116,7 @@ data GlobalEnv = GlobalEnv
 data IntegrationConfig = IntegrationConfig
   { backendOne :: BackendConfig,
     backendTwo :: BackendConfig,
+    federationV0 :: BackendConfig,
     dynamicBackends :: Map String DynamicBackendConfig,
     rabbitmq :: RabbitMQConfig,
     cassandra :: CassandraConfig
@@ -128,6 +129,7 @@ instance FromJSON IntegrationConfig where
       IntegrationConfig
         <$> parseJSON (Object o)
         <*> o .: fromString "backendTwo"
+        <*> o .: fromString "federation-v0"
         <*> o .: fromString "dynamicBackends"
         <*> o .: fromString "rabbitmq"
         <*> o .: fromString "cassandra"

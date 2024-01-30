@@ -86,7 +86,8 @@ mkGlobalEnv cfgFile = do
   let sm =
         Map.fromList $
           [ (intConfig.backendOne.originDomain, intConfig.backendOne.beServiceMap),
-            (intConfig.backendTwo.originDomain, intConfig.backendTwo.beServiceMap)
+            (intConfig.backendTwo.originDomain, intConfig.backendTwo.beServiceMap),
+            (intConfig.federationV0.originDomain, intConfig.federationV0.beServiceMap)
           ]
             <> [(berDomain resource, resourceServiceMap resource) | resource <- resources]
   tempDir <- Codensity $ withSystemTempDirectory "test"
