@@ -19,7 +19,7 @@ TODO: This section is under construction
 
 ## How to run stern locally
 
-Start local services via `services/run-services`
+Start local services via `dist/run-services`
 
 Open <http://localhost:8091> in a browser.
 

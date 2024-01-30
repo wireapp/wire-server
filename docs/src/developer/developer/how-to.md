@@ -15,7 +15,7 @@ Terminal 1:
 * Set up backing services: `./deploy/dockerephemeral/run.sh`
 
 Terminal 2:
-* Build and start wire-server services: ` make c && ./services/run-services`
+* Build and start wire-server services: ` make c && ./dist/run-services`
 
 Open your browser at:
 [http://localhost:8080/api/swagger-ui](http://localhost:8080/api/swagger-ui) for a list of API verions.
