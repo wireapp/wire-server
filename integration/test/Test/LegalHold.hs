@@ -18,6 +18,7 @@
 module Test.LegalHold where
 
 import API.Brig
+import API.BrigCommon
 import API.Common
 import API.Galley
 import API.GalleyInternal

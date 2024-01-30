@@ -4,6 +4,7 @@
 module Test.Demo where
 
 import qualified API.Brig as BrigP
+import qualified API.BrigCommon as BrigC
 import qualified API.BrigInternal as BrigI
 import qualified API.GalleyInternal as GalleyI
 import qualified API.Nginz as Nginz
@@ -17,7 +18,7 @@ testCantDeleteLHClient :: HasCallStack => App ()
 testCantDeleteLHClient = do
   user <- randomUser OwnDomain def
   client <-
-    BrigI.iAddClient user def {BrigP.ctype = "legalhold", BrigP.internal = True}
+    BrigI.iAddClient user def {BrigC.ctype = "legalhold", BrigC.internal = True}
       >>= getJSON 201
 
   bindResponse (BrigP.deleteClient user client) $ \resp -> do
