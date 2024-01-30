@@ -117,7 +117,7 @@ ci:
 # Usage: make crun `OR` make crun package=galley
 .PHONY: cr
 cr: c db-migrate
-	./services/run-services
+	./dist/run-services
 
 # Run integration from new test suite
 # Usage: make devtest
