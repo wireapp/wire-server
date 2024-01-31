@@ -40,7 +40,7 @@ elasticsearch-index:
     {{- end }}
 
 brig:
-  replicaCount: 1
+  replicaCount: 2
   imagePullPolicy: {{ .Values.imagePullPolicy }}
   config:
     externalUrls:
@@ -194,7 +194,7 @@ cargohold:
     {{- end }}
 
 galley:
-  replicaCount: 1
+  replicaCount: 2
   imagePullPolicy: {{ .Values.imagePullPolicy }}
   config:
     cassandra:
@@ -262,7 +262,7 @@ galley:
     {{- end }}
 
 gundeck:
-  replicaCount: 1
+  replicaCount: 2
   imagePullPolicy: {{ .Values.imagePullPolicy }}
   config:
     cassandra:
@@ -302,7 +302,7 @@ gundeck:
     {{- end }}
 
 nginz:
-  replicaCount: 1
+  replicaCount: 2
   imagePullPolicy: {{ .Values.imagePullPolicy }}
   nginx_conf:
     env: staging
@@ -339,7 +339,7 @@ proxy:
   config:
     disabledAPIVersions: []
 spar:
-  replicaCount: 1
+  replicaCount: 2
   imagePullPolicy: {{ .Values.imagePullPolicy }}
   config:
     tlsDisableCertValidation: true
@@ -373,7 +373,7 @@ spar:
     {{- end }}
 
 federator:
-  replicaCount: 1
+  replicaCount: 2
   resources:
     requests: {}
   imagePullPolicy: {{ .Values.imagePullPolicy }}
@@ -391,7 +391,7 @@ federator:
     {{- end }}
 
 background-worker:
-  replicaCount: 1
+  replicaCount: 2
   resources:
     requests: {}
   imagePullPolicy: {{ .Values.imagePullPolicy }}
