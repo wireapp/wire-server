@@ -36,3 +36,17 @@ testTeamSettingsUpdate = do
   bindResponse (putAppLockSettings tid partner def) $ \resp -> do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "operation-denied"
+
+testTeamPropertiesUpdate :: HasCallStack => App ()
+testTeamPropertiesUpdate = do
+  (owner, tid, [mem]) <- createTeam OwnDomain 2
+  partner <- createTeamMemberWithRole owner tid "partner"
+
+  bindResponse (putTeamProperties tid owner def) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+  bindResponse (putTeamProperties tid mem def) $ \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "operation-denied"
+  bindResponse (putTeamProperties tid partner def) $ \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "operation-denied"
