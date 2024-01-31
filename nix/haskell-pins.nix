@@ -116,10 +116,11 @@ let
       };
     };
 
+    # Our fork because we need to a few special things
     http-client = {
       src = fetchgit {
         url = "https://github.com/wireapp/http-client";
-        rev = "e6beaccdcc8fac892d2437ebbff029fef3551a13";
+        rev = "37494bb9a89dd52f97a8dc582746c6ff52943934";
         sha256 = "sha256-z47GlT+tHsSlRX4ApSGQIpOpaZiBeqr72/tWuvzw8tc=";
       };
       packages = {
