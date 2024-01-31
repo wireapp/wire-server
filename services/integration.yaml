@@ -144,7 +144,7 @@ cassandra:
   port: 9042
 
 federation-v0:
-  originDomain: v0.example.com
+  originDomain: federation-v0.example.com
   brig:
     host: 127.0.0.1
     port: 21082
