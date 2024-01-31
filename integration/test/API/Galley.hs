@@ -515,6 +515,39 @@ getTeamMembers user tid = do
   req <- baseRequest user Galley Versioned (joinHttpPath ["teams", tidStr, "members"])
   submit "GET" req
 
+data AppLockSettings = AppLockSettings
+  { status :: String,
+    enforce :: Bool,
+    inactivityTimeoutSecs :: Int
+  }
+
+instance Default AppLockSettings where
+  def = AppLockSettings "disabled" False 60
+
+-- | https://staging-nginz-https.zinfra.io/v6/api/swagger-ui/#/default/put_teams__tid__features_appLock
+putAppLockSettings ::
+  (HasCallStack, MakesValue tid, MakesValue caller) =>
+  tid ->
+  caller ->
+  AppLockSettings ->
+  App Response
+putAppLockSettings tid caller settings = do
+  tidStr <- asString tid
+  req <- baseRequest caller Galley Versioned (joinHttpPath ["teams", tidStr, "features", "appLock"])
+  submit
+    "PUT"
+    ( addJSONObject
+        [ "status" .= settings.status,
+          "ttl" .= "unlimited",
+          "config"
+            .= object
+              [ "enforceAppLock" .= settings.enforce,
+                "inactivityTimeoutSecs" .= settings.inactivityTimeoutSecs
+              ]
+        ]
+        req
+    )
+
 -- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/post_teams__tid__legalhold_settings
 enableLegalHold :: (HasCallStack, MakesValue tid, MakesValue ownerid) => tid -> ownerid -> App Response
 enableLegalHold tid ownerid = do
