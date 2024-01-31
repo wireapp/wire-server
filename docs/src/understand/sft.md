@@ -94,6 +94,9 @@ Conferencing in a federated environment assumes that each domain participating i
 conference will use an SFT in its own domain. The SFT in the caller's domain is called
 the `anchor SFT`.
 
+<!-- Commenting out Multi-SFT architecture as-per WPB-2566 -->
+
+<!-- 
 ## Multi-SFT Architecture
 
 With support for federation, each domain participating in a conference is responsible to
@@ -152,3 +155,6 @@ calls.
 ```{figure} img/multi-sft-turn-dtls.png
 Multi-SFT conference with federated TURN servers with DTLS multiplexing
 ```
+
+-->
+
