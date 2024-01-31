@@ -379,7 +379,7 @@ initExtGetManager fprVar = do
     SSL.VerifyPeer
       { vpFailIfNoPeerCert = True,
         vpClientOnce = True,
-        vpCallback = Just \_b -> extEnvCallback fprVar
+        vpCallback = Just (extEnvCallback fprVar)
       }
 
   SSL.contextSetDefaultVerifyPaths ctx

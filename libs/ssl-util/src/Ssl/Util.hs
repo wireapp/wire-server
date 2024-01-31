@@ -182,27 +182,33 @@ verifyRsaFingerprint d = verifyFingerprint $ \pk ->
 
 -- | this is used as a 'OpenSSL.Session.vpCallback' in 'Brig.App.initExtGetManager'
 --   and 'Galley.Env.initExtEnv'
-extEnvCallback :: IORef [Fingerprint Rsa] -> X509StoreCtx -> IO Bool
-extEnvCallback fingerprints store = do
+extEnvCallback :: IORef [Fingerprint Rsa] -> Bool -> X509StoreCtx -> IO Bool
+extEnvCallback fingerprints preverifyOk store = do
   Just sha <- getDigestByName "SHA256"
   cert <- getStoreCtxCert store
-  pk <- getPublicKey cert
-  fprs <- readIORef fingerprints
-  case toPublicKey @RSAPubKey pk of
-    Nothing -> pure False
-    Just k -> do
-      fp <- rsaFingerprint sha k
-      -- find at least one matching fingerprint to continue
-      if not (any (constEqBytes fp . fingerprintBytes) fprs)
-        then pure False
-        else do
-          -- Check if the certificate is self-signed.
-          self <- verifyX509 cert pk
-          if (self /= VerifySuccess)
+  issuer <- getIssuerName cert True
+  print issuer
+
+  if preverifyOk
+    then do
+      pk <- getPublicKey cert
+      fprs <- readIORef fingerprints
+      case toPublicKey @RSAPubKey pk of
+        Nothing -> pure False
+        Just k -> do
+          fp <- rsaFingerprint sha k
+          -- find at least one matching fingerprint to continue
+          if not (any (constEqBytes fp . fingerprintBytes) fprs)
             then pure False
             else do
-              -- For completeness, perform a date check as well.
-              now <- getCurrentTime
-              notBefore <- getNotBefore cert
-              notAfter <- getNotAfter cert
-              pure (now >= notBefore && now <= notAfter)
+              -- Check if the certificate is self-signed.
+              self <- verifyX509 cert pk
+              if (self /= VerifySuccess)
+                then pure False
+                else do
+                  -- For completeness, perform a date check as well.
+                  now <- getCurrentTime
+                  notBefore <- getNotBefore cert
+                  notAfter <- getNotAfter cert
+                  pure (now >= notBefore && now <= notAfter)
+    else pure preverifyOk

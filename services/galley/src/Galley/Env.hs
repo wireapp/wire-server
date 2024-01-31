@@ -80,7 +80,7 @@ initExtEnv fingerprints = do
     Ssl.VerifyPeer
       { vpFailIfNoPeerCert = True,
         vpClientOnce = False,
-        vpCallback = Just \_b -> extEnvCallback fingerprints
+        vpCallback = Just (extEnvCallback fingerprints)
       }
 
   Ssl.contextSetDefaultVerifyPaths ctx
