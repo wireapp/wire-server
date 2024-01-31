@@ -401,3 +401,17 @@ testFederationAllowMixedConnectWithRemote =
     connectTwoUsers alice bob
   where
     defSearchPolicy = "full_search"
+
+-- TODO(leif): if there needs to be a change in backend behavior, this test can be the starting point
+_testPendingConnectionUserDeleted :: HasCallStack => App ()
+_testPendingConnectionUserDeleted = do
+  alice <- randomUser OwnDomain def
+  bob <- randomUser OwnDomain def
+
+  void $ postConnection alice bob >>= getBody 201
+
+  void $ deleteUser alice
+
+  bindResponse (putConnection bob alice "ignored") \resp -> do
+    putStrLn $ "status: " <> show (resp.status)
+    putStrLn =<< prettyJSON (resp.json)
