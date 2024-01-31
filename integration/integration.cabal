@@ -138,6 +138,7 @@ library
     Test.Services
     Test.Swagger
     Test.User
+    Test.Version
     Testlib.App
     Testlib.Assertions
     Testlib.Cannon

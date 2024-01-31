@@ -24,13 +24,6 @@ testSwagger = do
       pure $ sup <> dev
     assertBool ("unexpected actually existing versions: " <> show actualVersions) $
       -- make sure nobody has added a new version without adding it to `existingVersions`.
-      -- make sure nobody has added a new version without adding it to `existingVersions`.
-      -- ("subset" because blocked versions like v3 are not actually existing, but still
-      -- ("subset" because blocked versions like v3 are not actually existing, but still
-      -- documented.)
-      -- documented.)
-
-      -- make sure nobody has added a new version without adding it to `existingVersions`.
       -- ("subset" because blocked versions like v3 are not actually existing, but still
       -- documented.)
       actualVersions `Set.isSubsetOf` existingVersions

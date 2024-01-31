@@ -91,7 +91,7 @@ data Opts = Opts
     _optsLogNetStrings :: !(Maybe (Last Bool)),
     _optsLogFormat :: !(Maybe (Last LogFormat)),
     _optsDrainOpts :: DrainOpts,
-    _optsDisabledAPIVersions :: Maybe (Set Version)
+    _optsDisabledAPIVersions :: !(Set VersionExp)
   }
   deriving (Eq, Show, Generic)
 
