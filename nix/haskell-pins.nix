@@ -228,6 +228,20 @@ let
         "warp" = "warp";
       };
     };
+
+    http-client = {
+      src = fetchgit {
+        url = "https://github.com/wireapp/http-client";
+        rev = "e6beaccdcc8fac892d2437ebbff029fef3551a13";
+        sha256 = "sha256-z47GlT+tHsSlRX4ApSGQIpOpaZiBeqr72/tWuvzw8tc=";
+      };
+      packages = {
+        "http-client" = "http-client";
+        "http-client-tls" = "http-client-tls";
+        "http-client-openssl" = "http-client-openssl";
+        "http-conduit" = "http-conduit";
+      };
+    };
   };
   hackagePins = {
     # Major re-write upstream, we should get rid of this dependency rather than
