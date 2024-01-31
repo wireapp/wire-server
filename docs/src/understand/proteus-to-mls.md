@@ -1,0 +1,153 @@
+
+
+# Proteus to MLS Migration Guide
+
+## Introduction
+
+Wire is transitioning from the Proteus encryption protocol to the newer MLS (Messaging Layer Security) protocol.
+
+This document serves as a guide for backend administrators to manage the migration from Proteus to MLS.
+
+## Migration Overview
+
+### Key Concepts
+
+- **MLS**: The protocol replacing Proteus. See https://datatracker.ietf.org/doc/html/draft-ietf-mls-protocol-14
+- **Proteus**: The current/foundational protocol used by Wire. See https://github.com/wireapp/proteus
+- **KeyPackages**: Essential for clients to participate in MLS-encrypted conversations. See https://datatracker.ietf.org/doc/html/draft-ietf-mls-protocol-14#name-key-packages . Each KeyPackage includes a supported protocol version and ciphersuite, a unique public encryption key (init_key) for securing initial messages, and a signed leaf node representing the client's identity and cryptographic details. These packages, primarily used once for security, contain critical information for verifying client authenticity and facilitating secure group communication in MLS environments.
+- **Feature Flags**: Control the initiation and behavior of the migration process by allowing enabling or disabling specific features. 
+
+### Migration Behavior and Process
+
+The transition from Proteus to MLS involves both client-side and server-side mechanisms to ensure a smooth change to the MLS protocol.
+
+#### Client Setup and Registration
+
+- **MLS-Ready Clients**: Clients with API version 5 or higher are capable of MLS. These clients will register their public identity keys associated with MLS and upload their KeyPackages to the local backend, laying the groundwork for participating in MLS-encrypted conversations.
+- **Mixed group conversations**: For each conversation, clients will check if a "mixed" conversation already exists, create it if it doesn't, join it if it does. Once all participants in a "mixed" conversation have joined, the conversation is ready for "final" transition to MLS. "Mixed" conversations still use the Proteus protocol.
+- **One on one conversation migration**: Because they only have two participants, there is no need for the "mixed" conversation type for one-on-one conversations, thus they are migrated as soon as both users support MLS.
+- **Force migration time**: After a set time, the migration will be forced, regardless of whether all clients have joined the "mixed" conversation. This time is configurable via the `finaliseRegardlessAfter` feature config.
+
+#### Migration Initiation and Ongoing Monitoring
+
+- **Periodic Checks for Migration**: Clients will routinely check (at application startup and every 24 hours) for conversations that are ready to transition to the MLS protocol. This check initiates the client’s participation in the migration process.
+- **Client List Updates**: Continuously updating and maintaining the client list is crucial during the migration. This ensures that all participating clients are accounted for and properly transitioned to the new protocol.
+
+#### Conditions for migration to begin.
+
+1. Client supports api v5 or higher, and therefore MLS.
+2. MLS protocol supported by user's team (`mls` is included in "mls" feature config’s `supportedProtocols` list)
+3. Client supports MLS feature (for web, that means `FEATURE_ENABLE_MLS` set to `true`)
+4. MLS is enabled in the backend (the client checks by calling `/mls/public-keys` endpoint and checks for the `removal` key. If MLS is enabled, the client gets a code 400 `mls-not-enabled` error)
+5. The migration time (`mlsMigration`.`config`.`startTime`) has passed.
+
+#### Handling Edge Cases and Late Proteus Messages
+
+- **Managing Late Proteus Messages**: In scenarios involving federated environments, there may be instances where late Proteus messages are received. The system is designed to handle these occurrences to maintain the continuity and integrity of conversations, ensuring that all messages, even those delayed, are correctly processed and integrated into the ongoing communication.
+- **Seamless Transition**: Despite the potential for late messages, the migration process is structured to ensure a seamless transition from Proteus to MLS, with minimal disruption to ongoing conversations and communication security.
+
+#### TODO: Include flow diagram, get from https://wearezeta.atlassian.net/wiki/spaces/ENGINEERIN/pages/746488003/Proteus+to+MLS+Migration 
+
+## Configuration and Management
+
+### Feature Configuration
+
+#### MLS Feature Config
+
+Currently here are the only "mls" feature configurations configurable on a team-level:
+
+* `allowedCipherSuites` - configure a list of allowed cipher suites,
+* `defaultCipherSuite` - configure a default cipher suite to choose when creating a new MLS group,
+* `defaultProtocol` - configure a default protocol to use when creating a new MLS group,
+* `protocolToggleUsers` - define a list of users who are allowed to use non-default protocol,
+* `supportedProtocols` - define a list of communication protocols supported by your team 
+
+```{note}
+The numerical values for the cipher suites (`65535` in the example below) are defined in the list of indices at https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol.html#table-5 .
+```
+
+- Example configuration:
+
+```yaml
+mls:
+  config:
+    allowedCipherSuites:
+      - 65535
+    defaultCipherSuite: 65535
+    defaultProtocol: "proteus"
+    protocolToggleUsers:
+      - "99db9768-04e3-4b5d-9268-831b6a25c4ab"
+    supportedProtocols:
+      - "proteus"
+      - "mls"
+  lockStatus: "locked"
+  status: "enabled"
+  ttl: "unlimited"
+```
+
+```{note}
+This is configured like any other team feature config:
+It can be configured on the server in the configuration file and if that feature is unlocked it can be also overwritten on a team level by team admins.
+For more details see {ref}`the team feature settings documentation<team-feature-settings>`.
+```
+
+#### MLS Migration Feature Config
+
+For MLS migration there is a new, separate feature config field named `mlsMigration` (that will live next to "mls" field). 
+
+"mls" feature config will remain unchanged. 
+
+MLS migration feature configuration includes:
+
+1. Migration initialisation field:
+
+`startTime` - migration start date string (ISO 8601 format) - once this time arrives, clients will initialise migration process (no migration-related action will take place before that time). If migration feature is enabled, but startTime value is not set (or is set to null), migration is never started.
+
+2. Migration finalisation field:
+
+`finaliseRegardlessAfter` - date string (ISO 8601 format) until the migration has to finalise - protocol field changes to "mls", doesn’t matter if all the users (clients) have joined the MLS group. If this value is not set, migration is never forced.
+
+- Example configuration:
+
+```yaml
+mlsMigration:
+  config:
+    startTime: "2023-05-16T09:25:27.123Z"
+    finaliseRegardlessAfter: "2023-05-16T09:25:27.123Z"
+  lockStatus: "locked"
+  status: "enabled"
+  ttl: "unlimited"
+```
+
+### Team Management Panel
+
+The Team Management Admin Panel in Wire is undergoing significant updates, particularly concerning the user interface (UI) adjustments for managing the "mls" and "mlsMigration" feature configurations. 
+
+These changes are designed to enhance the control and visibility for team administrators, especially regarding the new MLS protocol implementation.
+
+#### Adjustments to "mls" Feature Configuration Interface
+
+1. **Handling of "mls" Feature When 'Locked'**:
+   - When the "mls" feature is enabled and set to "locked" status, its configuration remains visible within the Team Management feature customization panel. This visibility is contingent on the activation of a corresponding feature flag.
+   - In this locked state, the "mls" configuration settings become read-only. Team administrators can view the current configuration settings, including cipher suite and default protocol settings, but cannot make any modifications. This read-only mode is visually indicated by the greying out and disabling of all configuration fields.
+   - The locked status typically reflects settings that have been predefined at the backend level and are not subject to change at the team administration level.
+
+2. **Behavior of "mls" Feature When 'Unlocked'**:
+   - Conversely, if the "lockStatus" of the "mls" feature is set to "unlocked", the UI retains its traditional functionality.
+   - In this state, team administrators retain the ability to modify and save the configuration settings for the "mls" feature. This flexibility allows for dynamic adaptation to specific team needs.
+
+#### Introduction of "mlsMigration" Feature Configuration Panel
+
+1. **New Panel for "mlsMigration" Feature**:
+   - An addition to the Team Management UI is a new configuration panel dedicated to the "mlsMigration" feature.
+   - This panel is designed to allow team administrators to set up or update the settings pertinent to the MLS migration process.
+
+2. **Modifiability and Lock Status of "mlsMigration" Feature**:
+   - The modifiability of the "mlsMigration" feature configuration follows the same principles as other features in the Team Management panel.
+   - If the "mlsMigration" feature is "locked", the configuration becomes read-only, mirroring the behavior outlined for the "mls" feature under similar circumstances. In this state, team administrators can view but not alter the settings.
+   - The "unlocked" status of the "mlsMigration" feature permits the administrators to make changes to the migration settings, offering a level of customization and adaptability.
+
+3. **Environment Variable for Feature Visibility**:
+   - To manage the visibility of the "mlsMigration" feature within the Team Management UI, a new environment variable, `FEATURE_ENABLE_MLS_MIGRATION`, is introduced.
+   - This environment variable allows for the "mlsMigration" configuration to be either displayed or hidden within the team management settings, giving backend administrators control over the feature's accessibility to team managers.
+
