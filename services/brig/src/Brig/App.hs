@@ -46,7 +46,6 @@ module Brig.App
     httpManager,
     http2Manager,
     extGetManager,
-    initExtGetManager,
     nexmoCreds,
     twilioCreds,
     settings,
@@ -73,7 +72,7 @@ module Brig.App
 
     -- * Crutches that should be removed once Brig has been completely
 
-    -- transitioned to Polysemy
+    -- * transitioned to Polysemy
     wrapClient,
     wrapClientE,
     wrapClientM,
@@ -114,7 +113,8 @@ import Control.Error
 import Control.Lens hiding (index, (.=))
 import Control.Monad.Catch
 import Control.Monad.Trans.Resource
-import Data.Domain (Domain)
+import Data.ByteString.Conversion
+import Data.Domain
 import Data.Metrics (Metrics)
 import Data.Metrics.Middleware qualified as Metrics
 import Data.Misc
@@ -175,7 +175,7 @@ data Env = Env
     _templateBranding :: TemplateBranding,
     _httpManager :: Manager,
     _http2Manager :: Http2Manager,
-    _extGetManager :: (Manager, IORef [Fingerprint Rsa]),
+    _extGetManager :: (Manager, [Fingerprint Rsa] -> SSL.SSL -> IO ()),
     _settings :: Settings,
     _nexmoCreds :: Nexmo.Credentials,
     _twilioCreds :: Twilio.Credentials,
@@ -213,6 +213,7 @@ newEnv o = do
   cas <- initCassandra o lgr
   mgr <- initHttpManager
   h2Mgr <- initHttp2Manager
+  ext <- initExtGetManager
   utp <- loadUserTemplates o
   ptp <- loadProviderTemplates o
   ttp <- loadTeamTemplates o
@@ -250,8 +251,6 @@ newEnv o = do
       pure Nothing
   kpLock <- newMVar ()
   rabbitChan <- traverse (Q.mkRabbitMqChannelMVar lgr) o.rabbitmq
-  fprVar <- newIORef []
-  extMgr <- initExtGetManager fprVar
   let allDisabledVersions = foldMap expandVersionExp (Opt.setDisabledAPIVersions sett)
 
   pure $!
@@ -275,7 +274,7 @@ newEnv o = do
         _templateBranding = branding,
         _httpManager = mgr,
         _http2Manager = h2Mgr,
-        _extGetManager = (extMgr, fprVar),
+        _extGetManager = ext,
         _settings = sett,
         _nexmoCreds = nxm,
         _twilioCreds = twl,
@@ -368,28 +367,29 @@ initHttp2Manager = do
 -- faster. So, we reuse the context.
 
 -- TODO: somewhat duplicates Galley.App.initExtEnv
-initExtGetManager :: IORef [Fingerprint Rsa] -> IO Manager
-initExtGetManager fprVar = do
+initExtGetManager :: IO (Manager, [Fingerprint Rsa] -> SSL.SSL -> IO ())
+initExtGetManager = do
   ctx <- SSL.context
   SSL.contextAddOption ctx SSL_OP_NO_SSLv2
   SSL.contextAddOption ctx SSL_OP_NO_SSLv3
   SSL.contextSetCiphers ctx rsaCiphers
-  SSL.contextSetVerificationMode
-    ctx
-    SSL.VerifyPeer
-      { vpFailIfNoPeerCert = True,
-        vpClientOnce = True,
-        vpCallback = Just \_b -> extEnvCallback fprVar
-      }
-
+  -- We use public key pinning with service providers and want to
+  -- support self-signed certificates as well, hence 'VerifyNone'.
+  SSL.contextSetVerificationMode ctx SSL.VerifyNone
   SSL.contextSetDefaultVerifyPaths ctx
-
-  newManager
-    (opensslManagerSettings (pure ctx)) -- see Note [SSL context]
-      { managerConnCount = 100,
-        managerIdleConnectionCount = 512,
-        managerResponseTimeout = responseTimeoutMicro 10000000
-      }
+  mgr <-
+    newManager
+      (opensslManagerSettings (pure ctx)) -- see Note [SSL context]
+        { managerConnCount = 100,
+          managerIdleConnectionCount = 512,
+          managerResponseTimeout = responseTimeoutMicro 10000000
+        }
+  Just sha <- getDigestByName "SHA256"
+  pure (mgr, mkVerify sha)
+  where
+    mkVerify sha fprs =
+      let pinset = map toByteString' fprs
+       in verifyRsaFingerprint sha pinset
 
 initCassandra :: Opts -> Logger -> IO Cas.ClientState
 initCassandra o g =

@@ -116,6 +116,21 @@ let
       };
     };
 
+    # Our fork because we need to a few special things
+    http-client = {
+      src = fetchgit {
+        url = "https://github.com/wireapp/http-client";
+        rev = "37494bb9a89dd52f97a8dc582746c6ff52943934";
+        sha256 = "sha256-z47GlT+tHsSlRX4ApSGQIpOpaZiBeqr72/tWuvzw8tc=";
+      };
+      packages = {
+        "http-client" = "http-client";
+        "http-client-tls" = "http-client-tls";
+        "http-client-openssl" = "http-client-openssl";
+        "http-conduit" = "http-conduit";
+      };
+    };
+
     # PR: https://github.com/hspec/hspec-wai/pull/49
     hspec-wai = {
       src = fetchgit {

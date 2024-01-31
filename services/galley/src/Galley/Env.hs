@@ -22,9 +22,10 @@ module Galley.Env where
 
 import Cassandra
 import Control.Lens hiding ((.=))
+import Data.ByteString.Conversion (toByteString')
 import Data.Id
 import Data.Metrics.Middleware
-import Data.Misc (Fingerprint (..), HttpsUrl, Rsa)
+import Data.Misc (Fingerprint, HttpsUrl, Rsa)
 import Data.Range
 import Galley.Aws qualified as Aws
 import Galley.Options
@@ -35,6 +36,7 @@ import Imports
 import Network.AMQP qualified as Q
 import Network.HTTP.Client
 import Network.HTTP.Client.OpenSSL
+import OpenSSL.EVP.Digest
 import OpenSSL.Session as Ssl
 import Ssl.Util
 import System.Logger
@@ -54,42 +56,49 @@ data Env = Env
     _applog :: Logger,
     _manager :: Manager,
     _http2Manager :: Http2Manager,
-    _federator :: Maybe Endpoint, -- FUTUREWORK: should we use a better type ----- LegalHold.testLHClaimKeys01 FAIL (34.01 s) -----here? E.g. to avoid fresh connections all the time?
+    _federator :: Maybe Endpoint, -- FUTUREWORK: should we use a better type here? E.g. to avoid fresh connections all the time?
     _brig :: Endpoint, -- FUTUREWORK: see _federator
     _cstate :: ClientState,
     _deleteQueue :: Q.Queue DeleteItem,
-    _extGetManager :: (Manager, IORef [Fingerprint Rsa]),
+    _extEnv :: ExtEnv,
     _aEnv :: Maybe Aws.Env,
     _mlsKeys :: SignaturePurpose -> MLSKeys,
     _rabbitmqChannel :: Maybe (MVar Q.Channel),
     _convCodeURI :: Either HttpsUrl (Map Text HttpsUrl)
   }
 
+-- | Environment specific to the communication with external
+-- service providers.
+data ExtEnv = ExtEnv
+  { _extGetManager :: (Manager, [Fingerprint Rsa] -> Ssl.SSL -> IO ())
+  }
+
 makeLenses ''Env
 
+makeLenses ''ExtEnv
+
 -- TODO: somewhat duplicates Brig.App.initExtGetManager
-initExtEnv :: IORef [Fingerprint Rsa] -> IO Manager
-initExtEnv fingerprints = do
+initExtEnv :: IO ExtEnv
+initExtEnv = do
   ctx <- Ssl.context
+  Ssl.contextSetVerificationMode ctx Ssl.VerifyNone
   Ssl.contextAddOption ctx SSL_OP_NO_SSLv2
   Ssl.contextAddOption ctx SSL_OP_NO_SSLv3
   Ssl.contextAddOption ctx SSL_OP_NO_TLSv1
   Ssl.contextSetCiphers ctx rsaCiphers
-  Ssl.contextSetVerificationMode
-    ctx
-    Ssl.VerifyPeer
-      { vpFailIfNoPeerCert = True,
-        vpClientOnce = False,
-        vpCallback = Just \_b -> extEnvCallback fingerprints
-      }
-
   Ssl.contextSetDefaultVerifyPaths ctx
-
-  newManager
-    (opensslManagerSettings (pure ctx))
-      { managerResponseTimeout = responseTimeoutMicro 10000000,
-        managerConnCount = 100
-      }
+  mgr <-
+    newManager
+      (opensslManagerSettings (pure ctx))
+        { managerResponseTimeout = responseTimeoutMicro 10000000,
+          managerConnCount = 100
+        }
+  Just sha <- getDigestByName "SHA256"
+  pure $ ExtEnv (mgr, mkVerify sha)
+  where
+    mkVerify sha fprs =
+      let pinset = map toByteString' fprs
+       in verifyRsaFingerprint sha pinset
 
 reqIdMsg :: RequestId -> Msg -> Msg
 reqIdMsg = ("request" .=) . unRequestId

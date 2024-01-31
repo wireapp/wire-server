@@ -48,7 +48,6 @@ hself: hsuper: {
   # (these are fine but will probably need to be adjusted in a future nixpkgs update)
   # -----------------
   hpack = hsuper.hpack_0_36_0;
-  http-client-tls = hsuper.http-client-tls_0_3_6_3;
   linear-generics = hsuper.linear-generics_0_2_2;
   network-conduit-tls = hsuper.network-conduit-tls_1_4_0;
   optparse-generic = hsuper.optparse-generic_1_5_2;

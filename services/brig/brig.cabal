@@ -464,7 +464,7 @@ executable brig-integration
     , HsOpenSSL
     , http-api-data
     , http-client
-    , http-client-tls        >=0.3.6.3
+    , http-client-tls        >=0.3
     , http-media
     , http-reverse-proxy
     , http-types

@@ -1,3 +1,5 @@
+{-# LANGUAGE TypeApplications #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -26,27 +28,25 @@ module Ssl.Util
     -- * Cipher suites
     rsaCiphers,
 
-    -- * to be used when initializing SSL Contexts to obtain SSL enabled
-
-    --   'Network.HTTP.Client.ManagerSettings'
-    extEnvCallback,
+    -- * Network
+    withVerifiedSslConnection,
   )
 where
 
 import Control.Exception
 import Data.ByteString.Builder
 import Data.Byteable (constEqBytes)
-import Data.Misc (Fingerprint (fingerprintBytes), Rsa)
+import Data.Dynamic (fromDynamic)
 import Data.Time.Clock (getCurrentTime)
 import Imports
+import Network.HTTP.Client.Internal
 import OpenSSL.BN (integerToMPI)
-import OpenSSL.EVP.Digest (Digest, digestLBS, getDigestByName)
+import OpenSSL.EVP.Digest (Digest, digestLBS)
 import OpenSSL.EVP.PKey (SomePublicKey, toPublicKey)
 import OpenSSL.EVP.Verify (VerifyStatus (..))
 import OpenSSL.RSA
 import OpenSSL.Session as SSL
 import OpenSSL.X509 as X509
-import OpenSSL.X509.Store (X509StoreCtx, getStoreCtxCert)
 
 -- Cipher Suites ------------------------------------------------------------
 
@@ -180,29 +180,34 @@ verifyRsaFingerprint d = verifyFingerprint $ \pk ->
 -- [1] https://wiki.openssl.org/index.php/Hostname_validation
 -- [2] https://www.cs.utexas.edu/~shmat/shmat_ccs12.pdf
 
--- | this is used as a 'OpenSSL.Session.vpCallback' in 'Brig.App.initExtGetManager'
---   and 'Galley.Env.initExtEnv'
-extEnvCallback :: IORef [Fingerprint Rsa] -> X509StoreCtx -> IO Bool
-extEnvCallback fingerprints store = do
-  Just sha <- getDigestByName "SHA256"
-  cert <- getStoreCtxCert store
-  pk <- getPublicKey cert
-  fprs <- readIORef fingerprints
-  case toPublicKey @RSAPubKey pk of
-    Nothing -> pure False
-    Just k -> do
-      fp <- rsaFingerprint sha k
-      -- find at least one matching fingerprint to continue
-      if not (any (constEqBytes fp . fingerprintBytes) fprs)
-        then pure False
-        else do
-          -- Check if the certificate is self-signed.
-          self <- verifyX509 cert pk
-          if (self /= VerifySuccess)
-            then pure False
-            else do
-              -- For completeness, perform a date check as well.
-              now <- getCurrentTime
-              notBefore <- getNotBefore cert
-              notAfter <- getNotAfter cert
-              pure (now >= notBefore && now <= notAfter)
+-- Utilities -----------------------------------------------------------------
+
+-- | Get an SSL connection that has definitely had its fingerprints checked
+-- (internally it just grabs a connection from a pool and does verification
+-- if it's a fresh one).
+--
+-- Throws an error for other types of connections.
+withVerifiedSslConnection ::
+  -- | A function to verify fingerprints given an SSL connection
+  (SSL -> IO ()) ->
+  Manager ->
+  -- | Request builder
+  (Request -> Request) ->
+  -- | This callback will be passed a modified
+  --   request that always uses the verified
+  --   connection
+  (Request -> IO a) ->
+  IO a
+withVerifiedSslConnection verify man reqBuilder act =
+  withConnection' req man Reuse $ \mConn -> do
+    -- If we see this connection for the first time, verify fingerprints
+    let conn = managedResource mConn
+        seen = managedReused mConn
+    unless seen $ case fromDynamic @SSL (connectionRaw conn) of
+      Nothing -> error ("withVerifiedSslConnection: only SSL allowed: " <> show req)
+      Just ssl -> verify ssl
+    -- Make a request using this connection and return it back to the
+    -- pool (that's what 'Reuse' is for)
+    act req {connectionOverride = Just mConn}
+  where
+    req = reqBuilder defaultRequest
