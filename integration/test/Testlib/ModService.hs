@@ -351,7 +351,9 @@ withProcess resource overrides service = do
       Just dir ->
         (Just (dir </> execName), "../../dist" </> execName)
 
-  startNginzLocalIO <- lift $ appToIO $ startNginzLocal resource
+  startNginzLocalIO <- lift $ appToIO $ do
+    config <- lookupConfigOverride overrides service (object mempty)
+    startNginzLocal config resource
 
   let initProcess = case (service, cwd) of
         (Nginz, Nothing) -> startNginzK8s domain sm
@@ -415,8 +417,8 @@ startNginzK8s domain sm = do
   ph <- startNginz domain nginxConfFile "/"
   pure $ ServiceInstance ph tmpDir
 
-startNginzLocal :: BackendResource -> App ServiceInstance
-startNginzLocal resource = do
+startNginzLocal :: Value -> BackendResource -> App ServiceInstance
+startNginzLocal config resource = do
   let domain = berDomain resource
       http2Port = berNginzHttp2Port resource
       sslPort = berNginzSslPort resource
@@ -439,11 +441,14 @@ startNginzLocal resource = do
 
   -- hide access log
   let nginxConfFile = tmpDir </> "conf" </> "nginz" </> "nginx.conf"
+  mErrorLog <- lookupField config "error_log"
+  errorLog <- maybe (pure "/dev/null") asString mErrorLog
   liftIO $ do
     conf <- Text.readFile nginxConfFile
     Text.writeFile nginxConfFile $
       ( conf
           & Text.replace "access_log /dev/stdout" "access_log /dev/null"
+          & Text.replace "error_log stderr" ("error_log " <> Text.pack errorLog)
       )
 
   -- override port configuration

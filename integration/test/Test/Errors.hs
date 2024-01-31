@@ -8,6 +8,7 @@ import qualified Data.Aeson as Aeson
 import qualified Network.HTTP.Types as HTTP
 import qualified Network.Wai as Wai
 import SetupHelpers
+import System.IO.Temp
 import Testlib.Mock
 import Testlib.Prelude
 import Testlib.ResourcePool
@@ -52,3 +53,26 @@ testNestedError = do
       bindResponse (getUser user target) $ \resp -> do
         resp.status `shouldMatchInt` 533
         resp.json %. "inner" `shouldMatch` innerError
+
+testNginzLogs :: HasCallStack => App ()
+testNginzLogs = do
+  withSystemTempDirectory "nginz" $ \tmp -> do
+    let errorLog = tmp <> "nginz.log"
+        overrides =
+          def
+            { nginzCfg = setField "error_log" errorLog
+            }
+    withModifiedBackend overrides $ \domain -> do
+      alice <- randomUser domain def
+      req <- rawBaseRequest alice Nginz Versioned (joinHttpPath ["foo"])
+      void $
+        submit
+          "GET"
+          (addQueryParams [("access_token", "s3cret")] req)
+          >>= getBody 401
+
+    logContents <- readFile errorLog
+    for_ (lines logContents) $ \line -> do
+      assertBool
+        ("found secret in log:\n" <> line)
+        (not (isInfixOf "access_token=s3cret" line))
