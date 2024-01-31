@@ -35,7 +35,7 @@ import Brig.App
 import Brig.Provider.DB (ServiceConn (..))
 import Brig.RPC
 import Control.Error
-import Control.Lens (set, (^.))
+import Control.Lens (set, view, (^.))
 import Control.Monad.Catch
 import Control.Retry (recovering)
 import Data.Aeson
@@ -71,9 +71,8 @@ data ServiceError
 createBot :: ServiceConn -> NewBotRequest -> ExceptT ServiceError (AppT r) NewBotResponse
 createBot scon new = do
   let fprs = toList (sconFingerprints scon)
-  -- fresh http manager
-  man <- liftIO do
-    initExtGetManager =<< newIORef fprs
+  manF <- view extGetManager
+  man <- liftIO $ manF fprs
   extHandleAll onExc $ do
     let req = reqBuilder Http.defaultRequest
     rs <- lift $

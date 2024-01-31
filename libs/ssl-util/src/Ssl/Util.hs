@@ -182,18 +182,17 @@ verifyRsaFingerprint d = verifyFingerprint $ \pk ->
 
 -- | this is used as a 'OpenSSL.Session.vpCallback' in 'Brig.App.initExtGetManager'
 --   and 'Galley.Env.initExtEnv'
-extEnvCallback :: IORef [Fingerprint Rsa] -> X509StoreCtx -> IO Bool
+extEnvCallback :: [Fingerprint Rsa] -> X509StoreCtx -> IO Bool
 extEnvCallback fingerprints store = do
   Just sha <- getDigestByName "SHA256"
   cert <- getStoreCtxCert store
   pk <- getPublicKey cert
-  fprs <- readIORef fingerprints
   case toPublicKey @RSAPubKey pk of
     Nothing -> pure False
     Just k -> do
       fp <- rsaFingerprint sha k
       -- find at least one matching fingerprint to continue
-      if not (any (constEqBytes fp . fingerprintBytes) fprs)
+      if not (any (constEqBytes fp . fingerprintBytes) fingerprints)
         then pure False
         else do
           -- Check if the certificate is self-signed.
