@@ -50,27 +50,27 @@ ejpdRequest ::
   ) =>
   Maybe Bool ->
   EJPDRequestBody ->
-  Handler r EJPDResponseBody
-ejpdRequest includeContacts (EJPDRequestBody handles) = do
-  ExceptT $ Right . EJPDResponseBody . catMaybes <$> forM handles (go1 (fromMaybe False includeContacts))
+  (Handler r) EJPDResponseBody
+ejpdRequest (fromMaybe False -> includeContacts) (EJPDRequestBody handles) = do
+  ExceptT $ Right . EJPDResponseBody . catMaybes <$> forM handles go1
   where
     -- find uid given handle
-    go1 :: Bool -> Handle -> (AppT r) (Maybe EJPDResponseItem)
-    go1 includeContacts' handle = do
+    go1 :: Handle -> (AppT r) (Maybe EJPDResponseItem)
+    go1 handle = do
       mbUid <- wrapClient $ lookupHandle handle
       mbUsr <- maybe (pure Nothing) (wrapClient . lookupUser NoPendingInvitations) mbUid
-      maybe (pure Nothing) (fmap Just . go2 includeContacts') mbUsr
+      maybe (pure Nothing) (fmap Just . go2 includeContacts) mbUsr
 
     -- construct response item given uid
     go2 :: Bool -> User -> (AppT r) EJPDResponseItem
-    go2 includeContacts' target = do
+    go2 reallyIncludeContacts target = do
       let uid = userId target
 
       ptoks <-
         PushTok.tokenText . view PushTok.token <$$> liftSem (getPushTokens uid)
 
       mbContacts <-
-        if includeContacts'
+        if reallyIncludeContacts
           then do
             contacts :: [(UserId, RelationWithHistory)] <-
               wrapClient $ Conn.lookupContactListWithRelation uid
@@ -85,7 +85,7 @@ ejpdRequest includeContacts (EJPDRequestBody handles) = do
             pure Nothing
 
       mbTeamContacts <-
-        case (includeContacts', userTeam target) of
+        case (reallyIncludeContacts, userTeam target) of
           (True, Just tid) -> do
             memberList <- liftSem $ GalleyProvider.getTeamMembers tid
             let members = (view Team.userId <$> (memberList ^. Team.teamMembers)) \\ [uid]
