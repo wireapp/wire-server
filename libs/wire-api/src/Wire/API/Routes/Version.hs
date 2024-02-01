@@ -37,6 +37,7 @@ module Wire.API.Routes.Version
     isDevelopmentVersion,
     developmentVersions,
     expandVersionExp,
+    maxAvailableVersion,
 
     -- * Servant combinators
     Until,
@@ -58,12 +59,13 @@ import Data.ByteString.Lazy qualified as LBS
 import Data.Domain
 import Data.OpenApi qualified as S
 import Data.Schema
+import Data.Set ((\\))
 import Data.Set qualified as Set
 import Data.Singletons.Base.TH
 import Data.Text qualified as Text
 import Data.Text.Encoding as Text
 import GHC.TypeLits
-import Imports
+import Imports hiding ((\\))
 import Servant
 import Servant.API.Extended.RawM
 import Wire.API.Deprecated
@@ -102,6 +104,9 @@ versionInt V6 = 6
 
 supportedVersions :: [Version]
 supportedVersions = [minBound .. maxBound]
+
+maxAvailableVersion :: Set Version -> Maybe Version
+maxAvailableVersion disabled = Set.lookupMax $ Set.fromList supportedVersions \\ disabled
 
 ----------------------------------------------------------------------
 

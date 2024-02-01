@@ -73,7 +73,7 @@ runBrigToIO e (AppT ma) = do
               . interpretClientToIO (e ^. casClient)
               . interpretRpcToIO (e ^. httpManager) (e ^. requestId)
               . interpretServiceRpcToRpc @'Galley "galley" (e ^. galley)
-              . interpretGalleyProviderToRPC
+              . interpretGalleyProviderToRPC (e ^. disabledVersions)
               . codeStoreToCassandra @Cas.Client
               . nowToIOAction (e ^. currentTime)
               . userPendingActivationStoreToCassandra
