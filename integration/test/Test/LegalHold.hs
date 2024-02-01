@@ -35,6 +35,54 @@ import Testlib.MockIntegrationService
 import Testlib.Prekeys
 import Testlib.Prelude
 
+testLHPreventAddingNonConsentingUsers :: App ()
+testLHPreventAddingNonConsentingUsers = do
+  startDynamicBackends [mempty] $ \[dom] -> do
+    withMockServer lhMockApp $ \lhPort _chan -> do
+      (owner, tid, [alice, alex]) <- createTeam dom 3
+
+      void $ legalholdWhitelistTeam owner tid >>= assertSuccess
+      void $ legalholdIsTeamInWhitelist owner tid >>= assertSuccess
+      void $ postLegalHoldSettings owner tid (mkLegalHoldSettings lhPort) >>= getJSON 201
+
+      george <- randomUser dom def
+      georgeQId <- george %. "qualified_id"
+      connectUsers =<< forM [alice, george] make
+      connectUsers =<< forM [alex, george] make
+      conv <- postConversation alice (defProteus {qualifiedUsers = [alex], team = Just tid}) >>= getJSON 201
+
+      -- the guest should be added to the conversation
+      bindResponse (addMembers alice conv def {users = [georgeQId]}) $ \resp -> do
+        resp.status `shouldMatchInt` 200
+        resp.json %. "type" `shouldMatch` "conversation.member-join"
+
+      -- assert that the guest is in the conversation
+      checkConvHasOtherMembers conv alice [alex, george]
+
+      -- now request legalhold for alex (but not alice)
+      requestLegalHoldDevice tid owner alex >>= assertSuccess
+
+      -- the guest should be removed from the conversation
+      checkConvHasOtherMembers conv alice [alex]
+
+      -- it should not be possible neither for alex nor for alice to add the guest back
+      bindResponse (addMembers alex conv def {users = [georgeQId]}) $ \resp -> do
+        resp.status `shouldMatchInt` 403
+        resp.json %. "label" `shouldMatch` "not-connected"
+
+      bindResponse (addMembers alice conv def {users = [georgeQId]}) $ \resp -> do
+        resp.status `shouldMatchInt` 403
+        resp.json %. "label" `shouldMatch` "missing-legalhold-consent"
+  where
+    checkConvHasOtherMembers :: HasCallStack => Value -> Value -> [Value] -> App ()
+    checkConvHasOtherMembers conv u us =
+      bindResponse (getConversation u conv) $ \resp -> do
+        resp.status `shouldMatchInt` 200
+        mems <-
+          resp.json %. "members.others" & asList >>= traverse \m -> do
+            m %. "qualified_id"
+        mems `shouldMatchSet` forM us (\m -> m %. "qualified_id")
+
 abstractTestLHMessageExchange :: HasCallStack => String -> Int -> Bool -> Bool -> Bool -> Bool -> App ()
 abstractTestLHMessageExchange dom lhPort clients1New clients2New consentFrom1 consentFrom2 = do
   (owner, tid, [mem1, mem2]) <- createTeam dom 3
