@@ -44,8 +44,10 @@ import Control.Lens (view)
 import Data.Domain (Domain)
 import Data.Handle (parseHandle)
 import Data.Id
+import Data.Qualified
 import Data.Range
-import Galley.Types.Teams (HiddenPerm (SearchContacts))
+import Data.Set qualified as Set
+import Galley.Types.Teams
 import Imports
 import Network.Wai.Utilities ((!>>))
 import Polysemy
@@ -134,9 +136,11 @@ searchLocally searcherId searchTerm maybeMaxResults = do
       else pure $ SearchResult 0 0 0 [] FullSearch Nothing Nothing
 
   -- Prepend results matching exact handle and results from ES.
+  contacts <- enforceSearchFullTeam searcherId $ maybeToList maybeExactHandleMatch <> searchResults esResult
+
   pure $
     esResult
-      { searchResults = maybeToList maybeExactHandleMatch <> searchResults esResult,
+      { searchResults = contacts,
         searchFound = exactHandleMatchCount + searchFound esResult,
         searchReturned = exactHandleMatchCount + searchReturned esResult
       }
@@ -166,6 +170,37 @@ searchLocally searcherId searchTerm maybeMaxResults = do
         Just handle -> do
           HandleAPI.contactFromProfile
             <$$> HandleAPI.getLocalHandleInfo lsearcherId handle
+
+    enforceSearchFullTeam :: UserId -> [Contact] -> Handler r [Contact]
+    enforceSearchFullTeam uid contacts = do
+      yes <- hasSearchFullTeamPermission uid
+      fltr <-
+        if yes
+          then pure id
+          else do
+            keep <- Set.fromList <$> allContacts uid
+            pure $ filter ((`Set.member` keep) . qUnqualified . contactQualifiedId)
+      pure $ fltr contacts
+
+    hasSearchFullTeamPermission :: UserId -> Handler r Bool
+    hasSearchFullTeamPermission =
+      error "If user is not in a team, return False.  If she is, get TeamMember from C* and check 'hasPermission SearchFullTeam'."
+
+    allContacts :: UserId -> Handler r [UserId]
+    allContacts =
+      error
+        "\
+        \\n\
+        \maybe something like:\n\
+        \`select right from brig.connection where left = ?`\n\
+        \... but brig.connection does not track *implicit* connections between team mates.\n\
+        \\n\
+        \this would work:\n\
+        \`select user from galley.member where conv = (select conv from galley.user where user = ?)`\n\
+        \... but https://stackoverflow.com/questions/16790297/inner-join-in-cassandra-cql\n\
+        \\n\
+        \so this can be easily done, but performance may be an issue.\n\
+        \"
 
 teamUserSearch ::
   Member GalleyProvider r =>
