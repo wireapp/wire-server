@@ -172,15 +172,13 @@ instance Default AddClient where
         acapabilities = Just ["legalhold-implicit-consent"]
       }
 
--- | https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/#/brig/post_i_clients__uid_
 addClient ::
   (HasCallStack, MakesValue user) =>
   user ->
   AddClient ->
   App Response
 addClient user args = do
-  uid <- objId user
-  req <- baseRequest user Brig Unversioned $ "/i/clients/" <> uid
+  req <- baseRequest user Brig Versioned $ "/clients/"
   pks <- maybe (fmap pure getPrekey) pure args.prekeys
   lpk <- maybe getLastPrekey pure args.lastPrekey
   submit "POST" $

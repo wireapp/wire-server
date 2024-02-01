@@ -17,7 +17,7 @@ testCantDeleteLHClient :: HasCallStack => App ()
 testCantDeleteLHClient = do
   user <- randomUser OwnDomain def
   client <-
-    BrigP.addClient user def {BrigP.ctype = "legalhold", BrigP.internal = True}
+    BrigI.iAddClient user def {BrigP.ctype = "legalhold", BrigP.internal = True}
       >>= getJSON 201
 
   bindResponse (BrigP.deleteClient user client) $ \resp -> do
