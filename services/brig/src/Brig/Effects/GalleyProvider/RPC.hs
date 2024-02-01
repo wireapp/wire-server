@@ -62,44 +62,48 @@ interpretGalleyProviderToRPC ::
     Member (ServiceRPC 'Galley) r,
     Member (Logger (Msg -> Msg)) r
   ) =>
+  Set Version ->
   Sem (GalleyProvider ': r) a ->
   Sem r a
-interpretGalleyProviderToRPC = interpret $ \case
-  CreateSelfConv id' -> createSelfConv id'
-  GetConv id' id'' -> getConv id' id''
-  GetTeamConv id' id'' id'2 -> getTeamConv id' id'' id'2
-  NewClient id' ci -> newClient id' ci
-  CheckUserCanJoinTeam id' -> checkUserCanJoinTeam id'
-  AddTeamMember id' id'' x0 -> addTeamMember id' id'' x0
-  CreateTeam id' bnt id'' -> createTeam id' bnt id''
-  GetTeamMember id' id'' -> getTeamMember id' id''
-  GetTeamMembers id' -> getTeamMembers id'
-  GetTeamId id' -> getTeamId id'
-  GetTeam id' -> getTeam id'
-  GetTeamName id' -> getTeamName id'
-  GetTeamLegalHoldStatus id' -> getTeamLegalHoldStatus id'
-  GetTeamSearchVisibility id' -> getTeamSearchVisibility id'
-  ChangeTeamStatus id' ts m_al -> changeTeamStatus id' ts m_al
-  MemberIsTeamOwner id' id'' -> memberIsTeamOwner id' id''
-  GetAllFeatureConfigsForUser m_id' -> getAllFeatureConfigsForUser m_id'
-  GetVerificationCodeEnabled id' -> getVerificationCodeEnabled id'
-  GetExposeInvitationURLsToTeamAdmin id' -> getTeamExposeInvitationURLsToTeamAdmin id'
+interpretGalleyProviderToRPC disabledVersions =
+  let v = fromMaybe (error "service can't run with undefined API version") $ maxAvailableVersion disabledVersions
+   in interpret $ \case
+        CreateSelfConv id' -> createSelfConv v id'
+        GetConv id' id'' -> getConv v id' id''
+        GetTeamConv id' id'' id'2 -> getTeamConv v id' id'' id'2
+        NewClient id' ci -> newClient id' ci
+        CheckUserCanJoinTeam id' -> checkUserCanJoinTeam id'
+        AddTeamMember id' id'' x0 -> addTeamMember id' id'' x0
+        CreateTeam id' bnt id'' -> createTeam id' bnt id''
+        GetTeamMember id' id'' -> getTeamMember id' id''
+        GetTeamMembers id' -> getTeamMembers id'
+        GetTeamId id' -> getTeamId id'
+        GetTeam id' -> getTeam id'
+        GetTeamName id' -> getTeamName id'
+        GetTeamLegalHoldStatus id' -> getTeamLegalHoldStatus id'
+        GetTeamSearchVisibility id' -> getTeamSearchVisibility id'
+        ChangeTeamStatus id' ts m_al -> changeTeamStatus id' ts m_al
+        MemberIsTeamOwner id' id'' -> memberIsTeamOwner id' id''
+        GetAllFeatureConfigsForUser m_id' -> getAllFeatureConfigsForUser m_id'
+        GetVerificationCodeEnabled id' -> getVerificationCodeEnabled id'
+        GetExposeInvitationURLsToTeamAdmin id' -> getTeamExposeInvitationURLsToTeamAdmin id'
 
 -- | Calls 'Galley.API.createSelfConversationH'.
 createSelfConv ::
   ( Member (ServiceRPC 'Galley) r,
     Member (Logger (Msg -> Msg)) r
   ) =>
+  Version ->
   UserId ->
   Sem r ()
-createSelfConv u = do
+createSelfConv v u = do
   debug $
     remote "galley"
       . msg (val "Creating self conversation")
   void $ ServiceRPC.request @'Galley POST req
   where
     req =
-      paths [toHeader (maxBound :: Version), "conversations", "self"]
+      paths [toHeader v, "conversations", "self"]
         . zUser u
         . expect2xx
 
@@ -109,10 +113,11 @@ getConv ::
     Member (ServiceRPC 'Galley) r,
     Member (Logger (Msg -> Msg)) r
   ) =>
+  Version ->
   UserId ->
   Local ConvId ->
   Sem r (Maybe Conversation)
-getConv usr lcnv = do
+getConv v usr lcnv = do
   debug $
     remote "galley"
       . field "domain" (toByteString (tDomain lcnv))
@@ -125,7 +130,7 @@ getConv usr lcnv = do
   where
     req =
       paths
-        [ toHeader (maxBound :: Version),
+        [ toHeader v,
           "conversations",
           toByteString' (tDomain lcnv),
           toByteString' (tUnqualified lcnv)
@@ -139,11 +144,12 @@ getTeamConv ::
     Member (ServiceRPC 'Galley) r,
     Member (Logger (Msg -> Msg)) r
   ) =>
+  Version ->
   UserId ->
   TeamId ->
   ConvId ->
   Sem r (Maybe Conv.TeamConversation)
-getTeamConv usr tid cnv = do
+getTeamConv v usr tid cnv = do
   debug $
     remote "galley"
       . field "conv" (toByteString cnv)
@@ -155,7 +161,7 @@ getTeamConv usr tid cnv = do
   where
     req =
       paths
-        [ toHeader (maxBound :: Version),
+        [ toHeader v,
           "teams",
           toByteString' tid,
           "conversations",
