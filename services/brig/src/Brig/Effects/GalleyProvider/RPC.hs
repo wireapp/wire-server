@@ -103,7 +103,7 @@ createSelfConv v u = do
   void $ ServiceRPC.request @'Galley POST req
   where
     req =
-      paths [toHeader v, "self"]
+      paths [toHeader v, "conversations", "self"]
         . zUser u
         . expect2xx
 
