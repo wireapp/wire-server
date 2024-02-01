@@ -85,8 +85,14 @@ testLHPreventAddingNonConsentingUsers = do
             m %. "qualified_id"
         mems `shouldMatchSet` forM us (\m -> m %. "qualified_id")
 
-testLHMessageExchange :: HasCallStack => (Bool, Bool, Bool, Bool) -> App ()
-testLHMessageExchange (clients1New, clients2New, consentFrom1, consentFrom2) = do
+testLHMessageExchange ::
+  HasCallStack =>
+  TaggedBool "clients1New" ->
+  TaggedBool "clients2New" ->
+  TaggedBool "consentFrom1" ->
+  TaggedBool "consentFrom2" ->
+  App ()
+testLHMessageExchange (TaggedBool clients1New) (TaggedBool clients2New) (TaggedBool consentFrom1) (TaggedBool consentFrom2) = do
   startDynamicBackends [mempty] $ \[dom] -> do
     withMockServer lhMockApp $ \lhPort _chan -> do
       (owner, tid, [mem1, mem2]) <- createTeam dom 3
@@ -214,16 +220,9 @@ data TestClaimKeys
   | TCKConsentAndNewClients
   deriving (Show, Bounded, Enum)
 
-instance HasTests x => HasTests (TestClaimKeys -> x) where
-  mkTests m n s f x =
-    mconcat
-      [ mkTests m (n <> "[TestClaimKeys=" <> show tck <> "]") s f (x tck)
-        | tck <- [minBound ..]
-      ]
-
 -- | Cannot fetch prekeys of LH users if requester has not given consent or has old clients.
-testLHClaimKeys :: TestClaimKeys -> App ()
-testLHClaimKeys testmode = do
+testLHClaimKeys :: WithBoundedEnumArg TestClaimKeys (App ())
+testLHClaimKeys = WithBoundedEnumArg $ \testmode -> do
   startDynamicBackends [mempty] $ \[dom] -> do
     withMockServer lhMockApp $ \lhPort _chan -> do
       (lowner, ltid, [lmem]) <- createTeam dom 2
