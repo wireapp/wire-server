@@ -25,28 +25,38 @@ import Testlib.Prelude
 
 testTeamSettingsUpdate :: HasCallStack => App ()
 testTeamSettingsUpdate = do
-  (owner, tid, [mem]) <- createTeam OwnDomain 2
-  partner <- createTeamMemberWithRole owner tid "partner"
+  (ownerA, tidA, [mem]) <- createTeam OwnDomain 2
+  partner <- createTeamMemberWithRole ownerA tidA "partner"
 
-  bindResponse (putAppLockSettings tid owner def) $ \resp -> do
+  bindResponse (putAppLockSettings tidA ownerA def) $ \resp -> do
     resp.status `shouldMatchInt` 200
-  bindResponse (putAppLockSettings tid mem def) $ \resp -> do
+  bindResponse (putAppLockSettings tidA mem def) $ \resp -> do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "operation-denied"
-  bindResponse (putAppLockSettings tid partner def) $ \resp -> do
+  bindResponse (putAppLockSettings tidA partner def) $ \resp -> do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "operation-denied"
+
+  (ownerB, _tidB, []) <- createTeam OwnDomain 1
+  bindResponse (putAppLockSettings tidA ownerB def) $ \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "no-team-member"
 
 testTeamPropertiesUpdate :: HasCallStack => App ()
 testTeamPropertiesUpdate = do
-  (owner, tid, [mem]) <- createTeam OwnDomain 2
-  partner <- createTeamMemberWithRole owner tid "partner"
+  (ownerA, tidA, [mem]) <- createTeam OwnDomain 2
+  partner <- createTeamMemberWithRole ownerA tidA "partner"
 
-  bindResponse (putTeamProperties tid owner def) $ \resp -> do
+  bindResponse (putTeamProperties tidA ownerA def) $ \resp -> do
     resp.status `shouldMatchInt` 200
-  bindResponse (putTeamProperties tid mem def) $ \resp -> do
+  bindResponse (putTeamProperties tidA mem def) $ \resp -> do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "operation-denied"
-  bindResponse (putTeamProperties tid partner def) $ \resp -> do
+  bindResponse (putTeamProperties tidA partner def) $ \resp -> do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "operation-denied"
+
+  (ownerB, _tidB, []) <- createTeam OwnDomain 1
+  bindResponse (putTeamProperties tidA ownerB def) $ \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "no-team-member"
