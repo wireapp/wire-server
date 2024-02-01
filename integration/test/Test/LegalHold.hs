@@ -35,8 +35,8 @@ import Testlib.MockIntegrationService
 import Testlib.Prekeys
 import Testlib.Prelude
 
-testLHPreventAddingGuests :: App ()
-testLHPreventAddingGuests = do
+testLHPreventAddingNonConsentingUsers :: App ()
+testLHPreventAddingNonConsentingUsers = do
   startDynamicBackends [mempty] $ \[dom] -> do
     withMockServer lhMockApp $ \lhPort _chan -> do
       (owner, tid, [alice, alex]) <- createTeam dom 3
