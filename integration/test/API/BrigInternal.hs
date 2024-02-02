@@ -1,6 +1,6 @@
 module API.BrigInternal where
 
-import API.Brig (AddClient (..))
+import API.BrigCommon
 import API.Common
 import qualified Data.Aeson as Aeson
 import Data.Aeson.Types (Pair)
@@ -27,28 +27,6 @@ instance Default CreateUser where
         activate = True,
         supportedProtocols = Nothing
       }
-
-iAddClient ::
-  (HasCallStack, MakesValue user) =>
-  user ->
-  AddClient ->
-  App Response
-iAddClient user args = do
-  uid <- objId user
-  req <- baseRequest user Brig Unversioned $ "/i/clients/" <> uid
-  pks <- maybe (fmap pure getPrekey) pure args.prekeys
-  lpk <- maybe getLastPrekey pure args.lastPrekey
-  submit "POST" $
-    req
-      & addJSONObject
-        [ "prekeys" .= pks,
-          "lastkey" .= lpk,
-          "type" .= args.ctype,
-          "label" .= args.clabel,
-          "model" .= args.model,
-          "password" .= args.password,
-          "capabilities" .= args.acapabilities
-        ]
 
 createUser :: (HasCallStack, MakesValue domain) => domain -> CreateUser -> App Response
 createUser domain cu = do
@@ -246,3 +224,15 @@ getProviderActivationCodeInternal dom email = do
     rawBaseRequest d Brig Unversioned $
       joinHttpPath ["i", "provider", "activation-code"]
   submit "GET" (addQueryParams [("email", email)] req)
+
+-- | https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/#/brig/post_i_clients__uid_
+addClient ::
+  (HasCallStack, MakesValue user) =>
+  user ->
+  AddClient ->
+  App Response
+addClient user args = do
+  uid <- objId user
+  req <- baseRequest user Brig Unversioned $ "/i/clients/" <> uid
+  val <- mkAddClientValue args
+  submit "POST" $ req & addJSONObject val

@@ -20,7 +20,7 @@
 module Test.Conversation where
 
 import API.Brig
-import API.BrigInternal
+import qualified API.BrigInternal as BrigI
 import API.Galley
 import API.GalleyInternal
 import Control.Applicative
@@ -41,9 +41,9 @@ testDynamicBackendsFullyConnectedWhenAllowAll = do
   -- The default setting is 'allowAll'
   startDynamicBackends [def, def, def] $ \dynDomains -> do
     [domainA, domainB, domainC] <- pure dynDomains
-    uidA <- randomUser domainA def {team = True}
-    uidB <- randomUser domainA def {team = True}
-    uidC <- randomUser domainA def {team = True}
+    uidA <- randomUser domainA def {BrigI.team = True}
+    uidB <- randomUser domainA def {BrigI.team = True}
+    uidC <- randomUser domainA def {BrigI.team = True}
     assertConnected uidA domainB domainC
     assertConnected uidB domainA domainC
     assertConnected uidC domainA domainB
@@ -64,7 +64,7 @@ testDynamicBackendsNotFederating = do
               setField "optSettings.setFederationStrategy" "allowNone"
           }
   startDynamicBackends [overrides, overrides, overrides] $ \[domainA, domainB, domainC] -> do
-    uidA <- randomUser domainA def {team = True}
+    uidA <- randomUser domainA def {BrigI.team = True}
     retryT
       $ bindResponse
         (getFederationStatus uidA [domainB, domainC])
@@ -78,14 +78,14 @@ testDynamicBackendsFullyConnectedWhenAllowDynamic = do
     -- Allowing 'full_search' or any type of search is how we enable federation
     -- between backends when the federation strategy is 'allowDynamic'.
     sequence_
-      [ createFedConn x (FedConn y "full_search" Nothing)
+      [ BrigI.createFedConn x (BrigI.FedConn y "full_search" Nothing)
         | x <- [domainA, domainB, domainC],
           y <- [domainA, domainB, domainC],
           x /= y
       ]
-    uidA <- randomUser domainA def {team = True}
-    uidB <- randomUser domainB def {team = True}
-    uidC <- randomUser domainC def {team = True}
+    uidA <- randomUser domainA def {BrigI.team = True}
+    uidB <- randomUser domainB def {BrigI.team = True}
+    uidC <- randomUser domainC def {BrigI.team = True}
     let assertConnected u d d' =
           bindResponse
             (getFederationStatus u [d, d'])
@@ -100,11 +100,11 @@ testDynamicBackendsNotFullyConnected :: HasCallStack => App ()
 testDynamicBackendsNotFullyConnected = do
   withFederatingBackendsAllowDynamic $ \(domainA, domainB, domainC) -> do
     -- A is connected to B and C, but B and C are not connected to each other
-    void $ createFedConn domainA $ FedConn domainB "full_search" Nothing
-    void $ createFedConn domainB $ FedConn domainA "full_search" Nothing
-    void $ createFedConn domainA $ FedConn domainC "full_search" Nothing
-    void $ createFedConn domainC $ FedConn domainA "full_search" Nothing
-    uidA <- randomUser domainA def {team = True}
+    void $ BrigI.createFedConn domainA $ BrigI.FedConn domainB "full_search" Nothing
+    void $ BrigI.createFedConn domainB $ BrigI.FedConn domainA "full_search" Nothing
+    void $ BrigI.createFedConn domainA $ BrigI.FedConn domainC "full_search" Nothing
+    void $ BrigI.createFedConn domainC $ BrigI.FedConn domainA "full_search" Nothing
+    uidA <- randomUser domainA def {BrigI.team = True}
     retryT
       $ bindResponse
         (getFederationStatus uidA [domainB, domainC])
@@ -115,7 +115,7 @@ testDynamicBackendsNotFullyConnected = do
 
 testFederationStatus :: HasCallStack => App ()
 testFederationStatus = do
-  uid <- randomUser OwnDomain def {team = True}
+  uid <- randomUser OwnDomain def {BrigI.team = True}
   federatingRemoteDomain <- asString OtherDomain
   let invalidDomain = "c.example.com" -- Does not have any srv records
   bindResponse
@@ -149,10 +149,10 @@ testCreateConversationNonFullyConnected :: HasCallStack => App ()
 testCreateConversationNonFullyConnected = do
   withFederatingBackendsAllowDynamic $ \(domainA, domainB, domainC) -> do
     -- A is connected to B and C, but B and C are not connected to each other
-    void $ createFedConn domainA $ FedConn domainB "full_search" Nothing
-    void $ createFedConn domainB $ FedConn domainA "full_search" Nothing
-    void $ createFedConn domainA $ FedConn domainC "full_search" Nothing
-    void $ createFedConn domainC $ FedConn domainA "full_search" Nothing
+    void $ BrigI.createFedConn domainA $ BrigI.FedConn domainB "full_search" Nothing
+    void $ BrigI.createFedConn domainB $ BrigI.FedConn domainA "full_search" Nothing
+    void $ BrigI.createFedConn domainA $ BrigI.FedConn domainC "full_search" Nothing
+    void $ BrigI.createFedConn domainC $ BrigI.FedConn domainA "full_search" Nothing
     liftIO $ threadDelay (2 * 1000 * 1000)
 
     u1 <- randomUser domainA def
@@ -184,10 +184,10 @@ testAddMembersFullyConnectedProteus = do
 testAddMembersNonFullyConnectedProteus :: HasCallStack => App ()
 testAddMembersNonFullyConnectedProteus = do
   withFederatingBackendsAllowDynamic $ \(domainA, domainB, domainC) -> do
-    void $ createFedConn domainA (FedConn domainB "full_search" Nothing)
-    void $ createFedConn domainB (FedConn domainA "full_search" Nothing)
-    void $ createFedConn domainA (FedConn domainC "full_search" Nothing)
-    void $ createFedConn domainC (FedConn domainA "full_search" Nothing)
+    void $ BrigI.createFedConn domainA (BrigI.FedConn domainB "full_search" Nothing)
+    void $ BrigI.createFedConn domainB (BrigI.FedConn domainA "full_search" Nothing)
+    void $ BrigI.createFedConn domainA (BrigI.FedConn domainC "full_search" Nothing)
+    void $ BrigI.createFedConn domainC (BrigI.FedConn domainA "full_search" Nothing)
     liftIO $ threadDelay (2 * 1000 * 1000) -- wait for federation status to be updated
 
     -- add users
@@ -386,7 +386,7 @@ testAddingUserNonFullyConnectedFederation = do
 
     -- Ensure that dynamic backend only federates with own domain, but not other
     -- domain.
-    void $ createFedConn dynBackend (FedConn own "full_search" Nothing)
+    void $ BrigI.createFedConn dynBackend (BrigI.FedConn own "full_search" Nothing)
 
     alice <- randomUser own def
     bob <- randomUser other def
@@ -818,7 +818,7 @@ testUpdateConversationByRemoteAdmin = do
 
 testGuestCreatesConversation :: HasCallStack => App ()
 testGuestCreatesConversation = do
-  alice <- randomUser OwnDomain def {activate = False}
+  alice <- randomUser OwnDomain def {BrigI.activate = False}
   bindResponse (postConversation alice defProteus) $ \resp -> do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "operation-denied"
