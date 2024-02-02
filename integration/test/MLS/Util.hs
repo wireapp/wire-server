@@ -3,6 +3,7 @@
 module MLS.Util where
 
 import API.Brig
+import qualified API.BrigCommon as BrigC
 import API.Galley
 import Control.Concurrent.Async hiding (link)
 import Control.Monad
@@ -141,7 +142,7 @@ argSubst from to_ s =
 createWireClient :: (MakesValue u, HasCallStack) => u -> App ClientIdentity
 createWireClient u = do
   lpk <- getLastPrekey
-  c <- addClient u def {lastPrekey = Just lpk} >>= getJSON 201
+  c <- addClient u def {BrigC.lastPrekey = Just lpk} >>= getJSON 201
   mkClientIdentity u c
 
 -- data CredentialType = BasicCredentialType | X509CredentialType

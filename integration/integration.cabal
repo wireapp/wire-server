@@ -90,6 +90,7 @@ library
   -- cabal-fmt: expand test
   exposed-modules:
     API.Brig
+    API.BrigCommon
     API.BrigInternal
     API.Cargohold
     API.Common

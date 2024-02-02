@@ -1,5 +1,6 @@
 module API.BrigInternal where
 
+import API.BrigCommon
 import API.Common
 import qualified Data.Aeson as Aeson
 import Data.Aeson.Types (Pair)
@@ -223,3 +224,15 @@ getProviderActivationCodeInternal dom email = do
     rawBaseRequest d Brig Unversioned $
       joinHttpPath ["i", "provider", "activation-code"]
   submit "GET" (addQueryParams [("email", email)] req)
+
+-- | https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/#/brig/post_i_clients__uid_
+addClient ::
+  (HasCallStack, MakesValue user) =>
+  user ->
+  AddClient ->
+  App Response
+addClient user args = do
+  uid <- objId user
+  req <- baseRequest user Brig Unversioned $ "/i/clients/" <> uid
+  val <- mkAddClientValue args
+  submit "POST" $ req & addJSONObject val
