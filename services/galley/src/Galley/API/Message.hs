@@ -700,7 +700,8 @@ sendRemoteMessages domain now sender senderClient lcnv metadata messages = (hand
             recipients = UserClientMap rcpts
           }
   let rpc = void $ do
-        (reqId, origin) <- reqOrigin
+        reqId <- asks (.requestId)
+        origin <- asks (.originDomain)
         fedQueueClient $ toBundle @'OnMessageSentTag reqId origin rm
   enqueueNotification domain Q.Persistent rpc
   where

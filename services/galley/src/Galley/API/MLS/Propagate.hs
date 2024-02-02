@@ -90,7 +90,8 @@ propagateMessage qusr mSenderClient lConvOrSub con msg cm = do
   -- send to remotes
   (either (logRemoteNotificationError @"on-mls-message-sent") (const (pure ())) <=< enqueueNotificationsConcurrently Q.Persistent (map remoteMemberQualify rmems)) $
     \rs -> do
-      (reqId, origin) <- reqOrigin
+      reqId <- asks (.requestId)
+      origin <- asks (.originDomain)
       fedQueueClient $
         toBundle @'OnMLSMessageSentTag
           reqId

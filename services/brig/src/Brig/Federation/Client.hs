@@ -158,7 +158,8 @@ notifyUserDeleted self remotes = do
     Just chanVar -> do
       enqueueNotification (tDomain self) remoteDomain Q.Persistent chanVar $
         void $ do
-          (reqId, origin) <- reqOrigin
+          reqId <- asks (.requestId)
+          origin <- asks (.originDomain)
           fedQueueClient $ toBundle @'OnUserDeletedConnectionsTag reqId origin notif
     Nothing ->
       Log.err $
