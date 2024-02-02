@@ -195,12 +195,12 @@ testUnrace = do
   -}
   retryT $ True `shouldMatch` True
 
-testFedV0Instance :: App ()
+testFedV0Instance :: HasCallStack => App ()
 testFedV0Instance = do
   res <- BrigP.getAPIVersion FedV0Domain >>= getJSON 200
   res %. "domain" `shouldMatch` FedV0Domain
 
-testFedV0Federation :: App ()
+testFedV0Federation :: HasCallStack => App ()
 testFedV0Federation = do
   alice <- randomUser OwnDomain def
   bob <- randomUser FedV0Domain def
