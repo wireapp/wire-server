@@ -44,6 +44,7 @@ data GalleyNotificationTag
   = OnClientRemovedTag
   | OnMessageSentTag
   | OnMLSMessageSentTag
+  | OnConversationUpdatedTagV0
   | OnConversationUpdatedTag
   | OnUserDeletedConversationsTag
   deriving (Show, Eq, Generic, Bounded, Enum)
@@ -70,10 +71,15 @@ instance HasNotificationEndpoint 'OnMLSMessageSentTag where
 
 -- used by the backend that owns a conversation to inform this backend of
 -- changes to the conversation
+instance HasNotificationEndpoint 'OnConversationUpdatedTagV0 where
+  type Payload 'OnConversationUpdatedTagV0 = ConversationUpdateV0
+  type NotificationPath 'OnConversationUpdatedTagV0 = "on-conversation-updated"
+  versionRange = rangeUntilVersion V1
+
 instance HasNotificationEndpoint 'OnConversationUpdatedTag where
   type Payload 'OnConversationUpdatedTag = ConversationUpdate
   type NotificationPath 'OnConversationUpdatedTag = "on-conversation-updated"
-  versionRange = allVersions
+  versionRange = rangeFromVersion V1
 
 instance HasNotificationEndpoint 'OnUserDeletedConversationsTag where
   type Payload 'OnUserDeletedConversationsTag = UserDeletedConversationsNotification
@@ -135,7 +141,7 @@ data RemoteMLSMessage = RemoteMLSMessage
 
 instance ToSchema RemoteMLSMessage
 
-data ConversationUpdate = ConversationUpdate
+data ConversationUpdateV0 = ConversationUpdateV0
   { cuTime :: UTCTime,
     cuOrigUserId :: Qualified UserId,
     -- | The unqualified ID of the conversation where the update is happening.
@@ -153,11 +159,55 @@ data ConversationUpdate = ConversationUpdate
   }
   deriving (Eq, Show, Generic)
 
+instance ToJSON ConversationUpdateV0
+
+instance FromJSON ConversationUpdateV0
+
+instance ToSchema ConversationUpdateV0
+
+data ConversationUpdate = ConversationUpdate
+  { time :: UTCTime,
+    origUserId :: Qualified UserId,
+    -- | The unqualified ID of the conversation where the update is happening.
+    -- The ID is local to the sender to prevent putting arbitrary domain that
+    -- is different than that of the backend making a conversation membership
+    -- update request.
+    convId :: ConvId,
+    -- | A list of users from the receiving backend that need to be sent
+    -- notifications about this change. This is required as we do not expect a
+    -- non-conversation owning backend to have an indexed mapping of
+    -- conversation to users.
+    alreadyPresentUsers :: [UserId],
+    -- | Information on the specific action that caused the update.
+    action :: SomeConversationAction
+  }
+  deriving (Eq, Show, Generic)
+
 instance ToJSON ConversationUpdate
 
 instance FromJSON ConversationUpdate
 
 instance ToSchema ConversationUpdate
+
+conversationUpdateToV0 :: ConversationUpdate -> ConversationUpdateV0
+conversationUpdateToV0 cu =
+  ConversationUpdateV0
+    { cuTime = cu.time,
+      cuOrigUserId = cu.origUserId,
+      cuConvId = cu.convId,
+      cuAlreadyPresentUsers = cu.alreadyPresentUsers,
+      cuAction = cu.action
+    }
+
+conversationUpdateFromV0 :: ConversationUpdateV0 -> ConversationUpdate
+conversationUpdateFromV0 cu =
+  ConversationUpdate
+    { time = cu.cuTime,
+      origUserId = cu.cuOrigUserId,
+      convId = cu.cuConvId,
+      alreadyPresentUsers = cu.cuAlreadyPresentUsers,
+      action = cu.cuAction
+    }
 
 type UserDeletedNotificationMaxConvs = 1000
 

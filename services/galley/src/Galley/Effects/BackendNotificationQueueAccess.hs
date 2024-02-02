@@ -23,5 +23,11 @@ data BackendNotificationQueueAccess m a where
     f (Remote x) ->
     (Remote [x] -> FedQueueClient c a) ->
     BackendNotificationQueueAccess m (Either FederationError [Remote a])
+  EnqueueNotificationsConcurrentlyBuckets ::
+    (KnownComponent c, Foldable f, Functor f) =>
+    Q.DeliveryMode ->
+    f (Remote [x], y) -> -- FUTUREWORK: could just be `[Remote z]`, probably?  this would also make the intepreters way more elegant, maybe.
+    ((Remote [x], y) -> FedQueueClient c a) ->
+    BackendNotificationQueueAccess m (Either FederationError [Remote a])
 
 makeSem ''BackendNotificationQueueAccess

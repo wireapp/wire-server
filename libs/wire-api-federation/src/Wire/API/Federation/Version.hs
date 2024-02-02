@@ -32,9 +32,9 @@ module Wire.API.Federation.Version
     fromVersion,
     toVersionExcl,
     allVersions,
-    fromVersions,
-    untilVersions,
     latestCommonVersion,
+    rangeFromVersion,
+    rangeUntilVersion,
     mostRecentTuple,
   )
 where
@@ -94,6 +94,7 @@ versionInfo = VersionInfo (toList supportedVersions)
 
 data VersionRange = VersionRange
   { _fromVersion :: Version,
+    -- | 'Nothing' here means that 'maxBound' is included.
     _toVersionExcl :: Maybe Version
   }
 
@@ -121,11 +122,11 @@ deriving via Schema VersionRange instance FromJSON VersionRange
 allVersions :: VersionRange
 allVersions = VersionRange minBound Nothing
 
-fromVersions :: Version -> VersionRange
-fromVersions v = VersionRange v Nothing
+rangeFromVersion :: Version -> VersionRange
+rangeFromVersion v = VersionRange v Nothing
 
-untilVersions :: Version -> VersionRange
-untilVersions v = VersionRange minBound (Just v)
+rangeUntilVersion :: Version -> VersionRange
+rangeUntilVersion v = VersionRange minBound (Just v)
 
 enumVersionRange :: VersionRange -> Set Version
 enumVersionRange =

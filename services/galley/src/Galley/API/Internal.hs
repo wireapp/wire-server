@@ -412,11 +412,11 @@ rmUser lusr conn = do
     notifyRemoteMembers now qUser cid remotes = do
       let convUpdate =
             ConversationUpdate
-              { cuTime = now,
-                cuOrigUserId = qUser,
-                cuConvId = cid,
-                cuAlreadyPresentUsers = tUnqualified remotes,
-                cuAction = SomeConversationAction (sing @'ConversationLeaveTag) ()
+              { time = now,
+                origUserId = qUser,
+                convId = cid,
+                alreadyPresentUsers = tUnqualified remotes,
+                action = SomeConversationAction (sing @'ConversationLeaveTag) ()
               }
       let rpc = fedClient @'Galley @"on-conversation-updated" convUpdate
       runFederatedEither remotes rpc

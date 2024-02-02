@@ -32,6 +32,8 @@ interpretBackendNotificationQueueAccess = interpret $ \case
     embedApp . runExceptT $ enqueueNotification (tDomain remote) deliveryMode action
   EnqueueNotificationsConcurrently m xs rpc -> do
     embedApp . runExceptT $ enqueueNotificationsConcurrently m xs rpc
+  EnqueueNotificationsConcurrentlyBuckets m xs rpc -> do
+    embedApp . runExceptT $ enqueueNotificationsConcurrentlyBuckets m xs rpc
 
 getChannel :: ExceptT FederationError App (MVar Q.Channel)
 getChannel = view rabbitmqChannel >>= maybe (throwE FederationNotConfigured) pure
@@ -77,6 +79,18 @@ enqueueNotificationsConcurrently m xs f = do
   lift $ pooledForConcurrentlyN 8 (bucketRemote xs) $ \r ->
     qualifyAs r
       <$> enqueueSingleNotification (tDomain r) m chanVar (f r)
+
+enqueueNotificationsConcurrentlyBuckets ::
+  (Foldable f) =>
+  Q.DeliveryMode ->
+  f (Remote [x], y) ->
+  ((Remote [x], y) -> FedQueueClient c a) ->
+  ExceptT FederationError App [Remote a]
+enqueueNotificationsConcurrentlyBuckets m xs f = do
+  chanVar <- getChannel
+  lift $ pooledForConcurrentlyN 8 (toList xs) $ \(r, y) ->
+    qualifyAs r
+      <$> enqueueSingleNotification (tDomain r) m chanVar (f (r, y))
 
 data NoRabbitMqChannel = NoRabbitMqChannel
   deriving (Show)

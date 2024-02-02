@@ -928,14 +928,14 @@ updateLocalStateOfRemoteConv ::
 updateLocalStateOfRemoteConv rcu con = do
   loc <- qualifyLocal ()
   let cu = tUnqualified rcu
-      rconvId = fmap F.cuConvId rcu
+      rconvId = fmap (.convId) rcu
       qconvId = tUntagged rconvId
 
   -- Note: we generally do not send notifications to users that are not part of
   -- the conversation (from our point of view), to prevent spam from the remote
   -- backend. See also the comment below.
   (presentUsers, allUsersArePresent) <-
-    E.selectRemoteMembers (F.cuAlreadyPresentUsers cu) rconvId
+    E.selectRemoteMembers cu.alreadyPresentUsers rconvId
 
   -- Perform action, and determine extra notification targets.
   --
@@ -946,12 +946,12 @@ updateLocalStateOfRemoteConv rcu con = do
   -- updated, we do **not** add them to the list of targets, because we have no
   -- way to make sure that they are actually supposed to receive that notification.
 
-  (mActualAction, extraTargets) <- case F.cuAction cu of
+  (mActualAction, extraTargets) <- case cu.action of
     sca@(SomeConversationAction singTag action) -> case singTag of
       SConversationJoinTag -> do
         let ConversationJoin toAdd role = action
         let (localUsers, remoteUsers) = partitionQualified loc toAdd
-        addedLocalUsers <- Set.toList <$> addLocalUsersToRemoteConv rconvId (F.cuOrigUserId cu) localUsers
+        addedLocalUsers <- Set.toList <$> addLocalUsersToRemoteConv rconvId cu.origUserId localUsers
         let allAddedUsers = map (tUntagged . qualifyAs loc) addedLocalUsers <> map tUntagged remoteUsers
         pure $
           ( fmap
@@ -960,7 +960,7 @@ updateLocalStateOfRemoteConv rcu con = do
             addedLocalUsers
           )
       SConversationLeaveTag -> do
-        let users = foldQualified loc (pure . tUnqualified) (const []) (F.cuOrigUserId cu)
+        let users = foldQualified loc (pure . tUnqualified) (const []) cu.origUserId
         E.deleteMembersInRemoteConversation rconvId users
         pure (Just sca, [])
       SConversationRemoveMembersTag -> do
@@ -980,7 +980,7 @@ updateLocalStateOfRemoteConv rcu con = do
 
   unless allUsersArePresent $
     P.warn $
-      Log.field "conversation" (toByteString' (F.cuConvId cu))
+      Log.field "conversation" (toByteString' cu.convId)
         . Log.field "domain" (toByteString' (tDomain rcu))
         . Log.msg
           ( "Attempt to send notification about conversation update \
@@ -990,7 +990,7 @@ updateLocalStateOfRemoteConv rcu con = do
 
   -- Send notifications
   for mActualAction $ \(SomeConversationAction tag action) -> do
-    let event = conversationActionToEvent tag (F.cuTime cu) (F.cuOrigUserId cu) qconvId Nothing action
+    let event = conversationActionToEvent tag cu.time cu.origUserId qconvId Nothing action
         targets = nubOrd $ presentUsers <> extraTargets
     -- FUTUREWORK: support bots?
     pushConversationEvent con event (qualifyAs loc targets) [] $> event

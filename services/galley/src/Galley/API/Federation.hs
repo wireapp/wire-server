@@ -464,7 +464,7 @@ updateConversation origDomain updateRequest = do
   let rusr = toRemoteUnsafe origDomain updateRequest.user
       lcnv = qualifyAs loc updateRequest.convId
 
-  mkResponse $ case action updateRequest of
+  mkResponse $ case updateRequest.action of
     SomeConversationAction tag action -> case tag of
       SConversationJoinTag ->
         mapToGalleyError @(HasConversationActionGalleyErrors 'ConversationJoinTag)
