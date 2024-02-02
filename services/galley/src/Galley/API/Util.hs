@@ -884,11 +884,11 @@ registerRemoteConversationMemberships now lusr lc = deleteOnUnreachable $ do
     convUpdateJoin :: (QualifiedWithTag t [RemoteMember], NonEmpty (QualifiedWithTag t' UserId)) -> ConversationUpdate
     convUpdateJoin (toNotify, newMembers) =
       ConversationUpdate
-        { cuTime = now,
-          cuOrigUserId = tUntagged lusr,
-          cuConvId = DataTypes.convId (tUnqualified lc),
-          cuAlreadyPresentUsers = fmap (tUnqualified . rmId) . tUnqualified $ toNotify,
-          cuAction =
+        { time = now,
+          origUserId = tUntagged lusr,
+          convId = DataTypes.convId (tUnqualified lc),
+          alreadyPresentUsers = fmap (tUnqualified . rmId) . tUnqualified $ toNotify,
+          action =
             SomeConversationAction
               (sing @'ConversationJoinTag)
               -- FUTUREWORK(md): replace the member role with whatever is provided in
