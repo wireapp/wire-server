@@ -28,28 +28,6 @@ instance Default CreateUser where
         supportedProtocols = Nothing
       }
 
-iAddClient ::
-  (HasCallStack, MakesValue user) =>
-  user ->
-  AddClient ->
-  App Response
-iAddClient user args = do
-  uid <- objId user
-  req <- baseRequest user Brig Unversioned $ "/i/clients/" <> uid
-  pks <- maybe (fmap pure getPrekey) pure args.prekeys
-  lpk <- maybe getLastPrekey pure args.lastPrekey
-  submit "POST" $
-    req
-      & addJSONObject
-        [ "prekeys" .= pks,
-          "lastkey" .= lpk,
-          "type" .= args.ctype,
-          "label" .= args.clabel,
-          "model" .= args.model,
-          "password" .= args.password,
-          "capabilities" .= args.acapabilities
-        ]
-
 createUser :: (HasCallStack, MakesValue domain) => domain -> CreateUser -> App Response
 createUser domain cu = do
   re <- randomEmail
