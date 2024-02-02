@@ -899,7 +899,8 @@ notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
         -- itself using the ConversationUpdate returned by this function
         if notifyOrigDomain || tDomain ruids /= qDomain quid
           then do
-            (reqId, origin) <- reqOrigin
+            reqId <- asks (.requestId)
+            origin <- asks (.originDomain)
             fedQueueClient (toBundle @'OnConversationUpdatedTag reqId origin update) $> Nothing
           else pure (Just update)
 

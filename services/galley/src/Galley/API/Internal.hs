@@ -428,7 +428,8 @@ rmUser lusr conn = do
       for_ (bucketRemote (fromRange cids)) $ \remoteConvs -> do
         let userDelete = UserDeletedConversationsNotification (tUnqualified lusr) (unsafeRange (tUnqualified remoteConvs))
         let rpc = void $ do
-              (req, origin) <- reqOrigin
+              req <- asks (.requestId)
+              origin <- asks (.originDomain)
               fedQueueClient $
                 toBundle @'OnUserDeletedConversationsTag req origin userDelete
         enqueueNotification remoteConvs Q.Persistent rpc

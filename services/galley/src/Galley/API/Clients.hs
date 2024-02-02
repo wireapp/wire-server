@@ -139,7 +139,8 @@ rmClientH (usr ::: cid) = do
     removeRemoteMLSClients convIds = do
       for_ (bucketRemote (fromRange convIds)) $ \remoteConvs ->
         let rpc = void $ do
-              (req, origin) <- reqOrigin
+              req <- asks (.requestId)
+              origin <- asks (.originDomain)
               fedQueueClient
                 ( toBundle @'OnClientRemovedTag
                     req

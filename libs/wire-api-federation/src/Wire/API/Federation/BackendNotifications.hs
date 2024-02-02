@@ -190,12 +190,6 @@ ensureQueue chan queue = do
 newtype FedQueueClient c a = FedQueueClient (ReaderT FedQueueEnv IO a)
   deriving (Functor, Applicative, Monad, MonadIO, MonadReader FedQueueEnv)
 
-reqOrigin :: FedQueueClient c (RequestId, Domain)
-reqOrigin = do
-  reqId <- asks (.requestId)
-  origin <- asks (.originDomain)
-  pure (reqId, origin)
-
 data FedQueueEnv = FedQueueEnv
   { channel :: Q.Channel,
     originDomain :: Domain,
