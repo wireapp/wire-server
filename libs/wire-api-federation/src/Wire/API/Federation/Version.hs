@@ -58,7 +58,7 @@ versionInt V0 = 0
 versionInt V1 = 1
 
 intToVersion :: Int -> Maybe Version
-intToVersion intV = find (\v -> versionInt v == intV) [minBound .. maxBound]
+intToVersion intV = find (\v -> versionInt v == intV) [minBound ..]
 
 instance ToSchema Version where
   schema =
