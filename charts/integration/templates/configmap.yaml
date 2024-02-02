@@ -127,7 +127,7 @@ data:
       {{- end }}
 
     federation-v0:
-      originDomain: wire-federation-v0.svc.cluster.local
+      originDomain: federation-test-helper.wire-federation-v0.svc.cluster.local
       brig:
         host: brig.wire-federation-v0.svc.cluster.local
         port: 8080
