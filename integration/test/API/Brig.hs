@@ -803,19 +803,23 @@ data TestBotEvent
 
 defServiceApp :: Chan TestBotEvent -> Application
 defServiceApp buf =
-    Wai.route
-      [ ( "/bots",
-          onBotCreate
-        ),
-        ( "/bots/:bot/messages",
-          onBotMessage
-        )
-      ]
+  Wai.route
+    [ ( "/bots",
+        onBotCreate
+      ),
+      ( "/bots/:bot/messages",
+        onBotMessage
+      )
+    ]
   where
     onBotCreate _ rq k = do
       writeChan buf TestBotCreated
       -- TODO(elland): fix the responses
-      k $ responseLBS status201 [] ("{\"prekeys\": [], \"last_prekey\": {\"id\": 65535, \"key\": \"pQABARn//wKhAFggnCcZIK1pbtlJf4wRQ44h4w7/sfSgj5oWXMQaUGYAJ/sDoQChAFgglacihnqg/YQJHkuHNFU7QD6Pb3KN4FnubaCF2EVOgRkE9g==\"}}")
+      k $
+        responseLBS
+          status201
+          []
+          ("{\"prekeys\": [], \"last_prekey\": {\"id\": 65535, \"key\": \"pQABARn//wKhAFggnCcZIK1pbtlJf4wRQ44h4w7/sfSgj5oWXMQaUGYAJ/sDoQChAFgglacihnqg/YQJHkuHNFU7QD6Pb3KN4FnubaCF2EVOgRkE9g==\"}}")
 
     onBotMessage _ rq k = do
       print rq

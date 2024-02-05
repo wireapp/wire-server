@@ -284,8 +284,8 @@ withRunningService ::
   ) =>
   user ->
   teamId ->
-  ( String -> -- ^ ServiceID
-    String -> -- ^ ProviderId
+  ( String -> -- ServiceID
+    String -> -- ProviderId
     Chan TestBotEvent ->
     App a
   ) ->
