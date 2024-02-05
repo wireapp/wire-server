@@ -10,6 +10,7 @@ import Control.Monad.Catch hiding (handle)
 import Control.Monad.IO.Class
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Base64 as Base64
+import qualified Data.ByteString.Char8 as BS
 import qualified Data.CaseInsensitive as CI
 import Data.Foldable
 import Data.Function
@@ -731,7 +732,7 @@ runService ::
   m a
 runService port sock mkApp go = do
   -- TODO(elland): inject correct cert/key
-  let tlss = Warp.tlsSettings "/home/elland/wire-server/services/brig/test/resources/cert.pem" "/home/elland/wire-server/services/brig/test/resources/key.pem"
+  let tlss = Warp.tlsSettingsMemory (BS.pack cert) (BS.pack privateKey)
   let defs = Warp.defaultSettings {Warp.settingsPort = port}
   buf <- liftIO newChan
   srv <-
@@ -812,7 +813,7 @@ defServiceApp buf =
       )
     ]
   where
-    onBotCreate _ rq k = do
+    onBotCreate _ _ k = do
       writeChan buf TestBotCreated
       -- TODO(elland): fix the responses
       k $
@@ -821,7 +822,6 @@ defServiceApp buf =
           []
           ("{\"prekeys\": [], \"last_prekey\": {\"id\": 65535, \"key\": \"pQABARn//wKhAFggnCcZIK1pbtlJf4wRQ44h4w7/sfSgj5oWXMQaUGYAJ/sDoQChAFgglacihnqg/YQJHkuHNFU7QD6Pb3KN4FnubaCF2EVOgRkE9g==\"}}")
 
-    onBotMessage _ rq k = do
-      print rq
+    onBotMessage _ _ k = do
       writeChan buf (TestBotMessage "msg")
       k $ responseLBS status200 [] "success"

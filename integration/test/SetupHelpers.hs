@@ -11,7 +11,6 @@ import Control.Concurrent (Chan)
 import Control.Monad.Reader
 import Crypto.Random (getRandomBytes)
 import qualified Data.Aeson as Aeson
-import qualified Data.Aeson.Types as Aeson
 import qualified Data.ByteString.Base64.URL as B64Url
 import Data.ByteString.Char8 (unpack)
 import Data.Default
@@ -296,7 +295,6 @@ withRunningService user team go = withFreePortAnyAddr $ \(port, socket) -> do
   provider <- setupProvider user def {newProviderEmail = email}
   ppwd <- provider %. "password" & asString
   pid <- provider %. "id" & asString
-  ownDomain <- OwnDomain & asString
 
   let url = "https://localhost:" <> show port
 
