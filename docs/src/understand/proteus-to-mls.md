@@ -12,7 +12,7 @@ This document serves as a guide for backend administrators to manage the migrati
 
 ### Key Concepts
 
-- **MLS**: The protocol replacing Proteus. See https://datatracker.ietf.org/doc/html/draft-ietf-mls-protocol-14
+- **MLS**: The protocol replacing Proteus, standardized as RFC 9420. See https://www.rfc-editor.org/rfc/rfc9420.html
 - **Proteus**: The current/foundational protocol used by Wire. See https://github.com/wireapp/proteus
 - **KeyPackages**: Essential for clients to participate in MLS-encrypted conversations. See https://datatracker.ietf.org/doc/html/draft-ietf-mls-protocol-14#name-key-packages . Each KeyPackage includes a supported protocol version and ciphersuite, a unique public encryption key (init_key) for securing initial messages, and a signed leaf node representing the client's identity and cryptographic details. These packages, primarily used once for security, contain critical information for verifying client authenticity and facilitating secure group communication in MLS environments.
 - **Feature Flags**: Control the initiation and behavior of the migration process by allowing enabling or disabling specific features. 
