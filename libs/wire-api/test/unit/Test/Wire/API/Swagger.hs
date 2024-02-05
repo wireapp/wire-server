@@ -33,7 +33,7 @@ import Wire.API.Wrapped qualified as Wrapped
 
 tests :: T.TestTree
 tests =
-  T.localOption (T.Timeout (60 * 1000000) "60s") . T.testGroup "JSON roundtrip tests" $
+  T.localOption (T.Timeout (60 * 1000000) "60s") . T.testGroup "JSON/swagger roundtrip tests" $
     [ testToJSON @User.UserProfile,
       testToJSON @User.User,
       testToJSON @User.SelfProfile,
