@@ -57,7 +57,7 @@ The transition from Proteus to MLS involves both client-side and server-side mec
 
 #### MLS Feature Config
 
-Currently here are the only "mls" feature configurations configurable on a team-level:
+The following `mls` feature configuration items can be set at the team-level:
 
 * `allowedCipherSuites` - configure a list of allowed cipher suites,
 * `defaultCipherSuite` - configure a default cipher suite to choose when creating a new MLS group,
