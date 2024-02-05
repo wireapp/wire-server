@@ -75,8 +75,8 @@ The numerical values for the cipher suites (`1` in the example below) are define
 mls:
   config:
     allowedCipherSuites:
-      - 65535
-    defaultCipherSuite: 65535
+      - 1
+    defaultCipherSuite: 1
     defaultProtocol: "proteus"
     protocolToggleUsers:
       - "99db9768-04e3-4b5d-9268-831b6a25c4ab"
