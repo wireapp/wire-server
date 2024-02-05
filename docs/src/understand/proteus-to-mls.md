@@ -38,10 +38,10 @@ The transition from Proteus to MLS involves both client-side and server-side mec
 
 #### Conditions for migration to begin.
 
-1. Client supports api v5 or higher, and therefore MLS.
-2. MLS protocol supported by user's team (`mls` is included in "mls" feature config’s `supportedProtocols` list)
-3. Client supports MLS feature (for web, that means `FEATURE_ENABLE_MLS` set to `true`)
-4. MLS is enabled in the backend (the client checks by calling `/mls/public-keys` endpoint and checks for the `removal` key. If MLS is enabled, the client gets a code 400 `mls-not-enabled` error)
+1. MLS is enabled in the backend (the client checks by calling the `/mls/public-keys` endpoint and checks for the `removal` key. If MLS is not enabled, the client gets a code 400 `mls-not-enabled` error)
+2. Client supports api v5 or higher, and therefore MLS.
+3. Client support for the MLS feature in enabled (for web, that means `FEATURE_ENABLE_MLS` set to `true`)
+4. MLS protocol supported by user's team (`mls` is included in "mls" feature config’s `supportedProtocols` list)
 5. The migration time (`mlsMigration`.`config`.`startTime`) has passed.
 
 #### Handling Edge Cases and Late Proteus Messages
