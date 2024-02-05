@@ -105,7 +105,7 @@ data BrigAccess m a where
   GetRichInfoMultiUser :: [UserId] -> BrigAccess m [(UserId, RichInfo)]
   GetSize :: TeamId -> BrigAccess m TeamSize
   LookupClients :: [UserId] -> BrigAccess m UserClients
-  LookupClientsFull :: [UserId] -> BrigAccess m UserClientsFull
+  LookupClientsFull :: [UserId] -> BrigAccess m UserClientsFull'
   NotifyClientsAboutLegalHoldRequest ::
     UserId ->
     UserId ->

@@ -28,7 +28,7 @@ import Wire.API.MLS.CipherSuite
 import Wire.API.User.Auth (CookieLabel (CookieLabel, cookieLabelText))
 import Wire.API.User.Client
 
-testObject_Client_user_1 :: Client
+testObject_Client_user_1 :: Client'
 testObject_Client_user_1 =
   Client
     { clientId = ClientId 2,
@@ -43,7 +43,7 @@ testObject_Client_user_1 =
       clientLastActive = Nothing
     }
 
-testObject_Client_user_2 :: Client
+testObject_Client_user_2 :: Client'
 testObject_Client_user_2 =
   Client
     { clientId = ClientId 1,
@@ -58,7 +58,7 @@ testObject_Client_user_2 =
       clientLastActive = Nothing
     }
 
-testObject_Client_user_3 :: Client
+testObject_Client_user_3 :: Client'
 testObject_Client_user_3 =
   Client
     { clientId = ClientId 1,
@@ -73,7 +73,7 @@ testObject_Client_user_3 =
       clientLastActive = fmap fromUTCTimeMillis (readUTCTimeMillis "2023-07-04T09:35:32.000Z")
     }
 
-testObject_Client_user_4 :: Client
+testObject_Client_user_4 :: Client'
 testObject_Client_user_4 =
   Client
     { clientId = ClientId 3,
@@ -88,7 +88,7 @@ testObject_Client_user_4 =
       clientLastActive = Nothing
     }
 
-testObject_Client_user_5 :: Client
+testObject_Client_user_5 :: Client'
 testObject_Client_user_5 =
   Client
     { clientId = ClientId 0,
@@ -103,7 +103,7 @@ testObject_Client_user_5 =
       clientLastActive = Nothing
     }
 
-testObject_Client_user_6 :: Client
+testObject_Client_user_6 :: Client'
 testObject_Client_user_6 =
   Client
     { clientId = ClientId 4,
@@ -118,7 +118,7 @@ testObject_Client_user_6 =
       clientLastActive = fmap fromUTCTimeMillis (readUTCTimeMillis "2021-09-15T22:00:21.000Z")
     }
 
-testObject_Client_user_7 :: Client
+testObject_Client_user_7 :: Client'
 testObject_Client_user_7 =
   Client
     { clientId = ClientId 4,
@@ -133,7 +133,7 @@ testObject_Client_user_7 =
       clientLastActive = Nothing
     }
 
-testObject_Client_user_8 :: Client
+testObject_Client_user_8 :: Client'
 testObject_Client_user_8 =
   Client
     { clientId = ClientId 4,
@@ -148,7 +148,7 @@ testObject_Client_user_8 =
       clientLastActive = Nothing
     }
 
-testObject_Client_user_9 :: Client
+testObject_Client_user_9 :: Client'
 testObject_Client_user_9 =
   Client
     { clientId = ClientId 1,
@@ -163,7 +163,7 @@ testObject_Client_user_9 =
       clientLastActive = Nothing
     }
 
-testObject_Client_user_10 :: Client
+testObject_Client_user_10 :: Client'
 testObject_Client_user_10 =
   Client
     { clientId = ClientId 0,
@@ -178,7 +178,7 @@ testObject_Client_user_10 =
       clientLastActive = Nothing
     }
 
-testObject_Client_user_11 :: Client
+testObject_Client_user_11 :: Client'
 testObject_Client_user_11 =
   Client
     { clientId = ClientId 3,
@@ -193,7 +193,7 @@ testObject_Client_user_11 =
       clientLastActive = Nothing
     }
 
-testObject_Client_user_12 :: Client
+testObject_Client_user_12 :: Client'
 testObject_Client_user_12 =
   Client
     { clientId = ClientId 2,
@@ -208,7 +208,7 @@ testObject_Client_user_12 =
       clientLastActive = Nothing
     }
 
-testObject_Client_user_13 :: Client
+testObject_Client_user_13 :: Client'
 testObject_Client_user_13 =
   Client
     { clientId = ClientId 2,
@@ -223,7 +223,7 @@ testObject_Client_user_13 =
       clientLastActive = Nothing
     }
 
-testObject_Client_user_14 :: Client
+testObject_Client_user_14 :: Client'
 testObject_Client_user_14 =
   Client
     { clientId = ClientId 2,
@@ -238,7 +238,7 @@ testObject_Client_user_14 =
       clientLastActive = Nothing
     }
 
-testObject_Client_user_15 :: Client
+testObject_Client_user_15 :: Client'
 testObject_Client_user_15 =
   Client
     { clientId = ClientId 3,
@@ -253,7 +253,7 @@ testObject_Client_user_15 =
       clientLastActive = Nothing
     }
 
-testObject_Client_user_16 :: Client
+testObject_Client_user_16 :: Client'
 testObject_Client_user_16 =
   Client
     { clientId = ClientId 2,
@@ -268,7 +268,7 @@ testObject_Client_user_16 =
       clientLastActive = Nothing
     }
 
-testObject_Client_user_17 :: Client
+testObject_Client_user_17 :: Client'
 testObject_Client_user_17 =
   Client
     { clientId = ClientId 4,
@@ -283,7 +283,7 @@ testObject_Client_user_17 =
       clientLastActive = Nothing
     }
 
-testObject_Client_user_18 :: Client
+testObject_Client_user_18 :: Client'
 testObject_Client_user_18 =
   Client
     { clientId = ClientId 1,
@@ -298,7 +298,7 @@ testObject_Client_user_18 =
       clientLastActive = Nothing
     }
 
-testObject_Client_user_19 :: Client
+testObject_Client_user_19 :: Client'
 testObject_Client_user_19 =
   Client
     { clientId = ClientId 2,
@@ -313,7 +313,7 @@ testObject_Client_user_19 =
       clientLastActive = Nothing
     }
 
-testObject_Client_user_20 :: Client
+testObject_Client_user_20 :: Client'
 testObject_Client_user_20 =
   Client
     { clientId = ClientId 1,

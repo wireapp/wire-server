@@ -123,8 +123,7 @@ import Wire.API.Team.Permission
 import Wire.API.User hiding (cpNewPassword, cpOldPassword)
 import Wire.API.User qualified as Public (UserProfile, publicProfile)
 import Wire.API.User.Auth
-import Wire.API.User.Client
-import Wire.API.User.Client qualified as Public (Client, ClientCapability (ClientSupportsLegalholdImplicitConsent), PubClient (..), UserClientPrekeyMap, UserClients, userClients)
+import Wire.API.User.Client as Public
 import Wire.API.User.Client.Prekey qualified as Public (PrekeyId)
 import Wire.API.User.Identity qualified as Public (Email)
 import Wire.Sem.Concurrency (Concurrency, ConcurrencySafety (Unsafe))
@@ -141,7 +140,8 @@ botAPI =
     :<|> Named @"bot-delete-self" botDeleteSelf
     :<|> Named @"bot-list-prekeys" botListPrekeys
     :<|> Named @"bot-update-prekeys" botUpdatePrekeys
-    :<|> Named @"bot-get-client" botGetClient
+    :<|> Named @"bot-get-client-v6" botGetClientV5
+    :<|> Named @"bot-get-client@v6" botGetClient
     :<|> Named @"bot-claim-users-prekeys" botClaimUsersPrekeys
     :<|> Named @"bot-list-users" botListUserProfiles
     :<|> Named @"bot-get-user-clients" botGetUserClients
@@ -752,7 +752,10 @@ botGetSelf bot = do
   p <- lift $ wrapClient $ User.lookupUser NoPendingInvitations (botUserId bot)
   maybe (throwStd (errorToWai @'E.UserNotFound)) (pure . (`Public.publicProfile` UserLegalHoldNoConsent)) p
 
-botGetClient :: Member GalleyProvider r => BotId -> (Handler r) (Maybe Public.Client)
+botGetClientV5 :: Member GalleyProvider r => BotId -> (Handler r) (Maybe Public.ClientV5)
+botGetClientV5 bot = ClientV5 <$$> botGetClient bot
+
+botGetClient :: Member GalleyProvider r => BotId -> (Handler r) (Maybe Public.Client')
 botGetClient bot = do
   guardSecondFactorDisabled (Just (botUserId bot))
   lift $ listToMaybe <$> wrapClient (User.lookupClients (botUserId bot))

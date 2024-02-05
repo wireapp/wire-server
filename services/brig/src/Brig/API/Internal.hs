@@ -353,7 +353,7 @@ addClientInternalH ::
   Maybe Bool ->
   NewClient ->
   Maybe ConnId ->
-  (Handler r) Client
+  (Handler r) Client'
 addClientInternalH usr mSkipReAuth new connId = do
   let policy
         | mSkipReAuth == Just True = \_ _ -> False
@@ -373,7 +373,7 @@ internalListClientsH (UserSet usrs) = lift $ do
   UserClients . Map.fromList
     <$> wrapClient (API.lookupUsersClientIds (Set.toList usrs))
 
-internalListFullClientsH :: UserSet -> (Handler r) UserClientsFull
+internalListFullClientsH :: UserSet -> (Handler r) UserClientsFull'
 internalListFullClientsH (UserSet usrs) = lift $ do
   UserClientsFull <$> wrapClient (Data.lookupClientsBulk (Set.toList usrs))
 

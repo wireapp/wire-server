@@ -2228,7 +2228,7 @@ getClients u = do
       . zUser u
       . zConn "conn"
 
-getInternalClientsFull :: UserSet -> TestM UserClientsFull
+getInternalClientsFull :: UserSet -> TestM UserClientsFull'
 getInternalClientsFull userSet = do
   b <- viewBrig
   res <-

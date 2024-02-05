@@ -1759,7 +1759,7 @@ execAndAssertUserDeletion brig cannon u hdl others userJournalWatcher execDelete
   -- Clients are gone
   get (brig . path "clients" . zUser (userId u)) !!! do
     const 200 === statusCode
-    const (Just [] :: Maybe [Client]) === responseJsonMaybe
+    const (Just [] :: Maybe [Client']) === responseJsonMaybe
   -- Can no longer log in
   login brig (defEmailLogin email) PersistentCookie !!! do
     const 403 === statusCode

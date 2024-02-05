@@ -813,7 +813,7 @@ getUserConversations uid maxConvs = do
             )
       unVersioned @'V2 <$> parseResponse (mkError status502 "bad-upstream") r
 
-getUserClients :: UserId -> Handler [Client]
+getUserClients :: UserId -> Handler [Client']
 getUserClients uid = do
   info $ msg "Getting user clients"
   b <- view brig

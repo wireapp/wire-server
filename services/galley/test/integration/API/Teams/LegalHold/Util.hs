@@ -428,7 +428,7 @@ disableLegalHoldForUser' g mPassword tid zusr uid = do
 
 assertExactlyOneLegalHoldDevice :: HasCallStack => UserId -> TestM ()
 assertExactlyOneLegalHoldDevice uid = do
-  clients :: [Client] <-
+  clients :: [Client'] <-
     getClients uid >>= responseJsonError
   liftIO $ do
     let numdevs = length $ clientType <$> clients
@@ -436,7 +436,7 @@ assertExactlyOneLegalHoldDevice uid = do
 
 assertZeroLegalHoldDevices :: HasCallStack => UserId -> TestM ()
 assertZeroLegalHoldDevices uid = do
-  clients :: [Client] <-
+  clients :: [Client'] <-
     getClients uid >>= responseJsonError
   liftIO $ do
     let numdevs = length $ clientType <$> clients

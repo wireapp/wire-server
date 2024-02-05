@@ -581,7 +581,7 @@ testClaimUserPrekeys config db brig galley = withTestService config db brig defS
   addBotResponse :: AddBotResponse <- responseJsonError =<< addBot brig u1.userId pid sid cid <!! const 201 === statusCode
   let bid = addBotResponse.rsAddBotId
   let new = defNewClient TemporaryClientType (take 1 somePrekeys) (Imports.head someLastPrekeys)
-  c :: Client <- responseJsonError =<< addClient brig u1.userId new
+  c :: Client' <- responseJsonError =<< addClient brig u1.userId new
 
   let userClients = UserClients $ Map.fromList [(u1.userId, Set.fromList [c.clientId])]
   actual <- responseJsonError =<< claimUsersPrekeys brig bid userClients <!! const 200 === statusCode
@@ -617,7 +617,7 @@ testGetUserClients config db brig galley = withTestService config db brig defSer
   addBotResponse :: AddBotResponse <- responseJsonError =<< addBot brig u1.userId pid sid cid <!! const 201 === statusCode
   let bid = addBotResponse.rsAddBotId
   let new = defNewClient TemporaryClientType (take 1 somePrekeys) (Imports.head someLastPrekeys)
-  expected :: Client <- responseJsonError =<< addClient brig u1.userId new
+  expected :: Client' <- responseJsonError =<< addClient brig u1.userId new
   [actual] :: [PubClient] <- responseJsonError =<< getUserClients brig bid u1.userId <!! const 200 === statusCode
   liftIO $ actual.pubClientId @?= expected.clientId
 
@@ -2207,7 +2207,7 @@ testAddRemoveBotUtil localDomain pid sid cid u1 u2 h sref buf brig galley cannon
         qbuid = Qualified (botUserId bid) localDomain
     getBotSelf brig bid !!! const 200 === statusCode
     (randomId >>= getBotSelf brig . BotId) !!! const 404 === statusCode
-    botClient :: Client <- responseJsonError =<< getBotClient brig bid <!! const 200 === statusCode
+    botClient :: Client' <- responseJsonError =<< getBotClient brig bid <!! const 200 === statusCode
     liftIO $ assertEqual "bot client" rs.rsAddBotClient botClient.clientId
     (randomId >>= getBotClient brig . BotId) !!! const 404 === statusCode
     bot <- svcAssertBotCreated buf bid cid

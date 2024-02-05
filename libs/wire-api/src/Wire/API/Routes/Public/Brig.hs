@@ -126,7 +126,7 @@ type QualifiedCaptureUserId name = QualifiedCapture' '[Description "User Id"] na
 
 type CaptureClientId name = Capture' '[Description "ClientId"] name ClientId
 
-type NewClientResponse = Headers '[Header "Location" ClientId] Client
+type NewClientResponse client = Headers '[Header "Location" ClientId] client
 
 type DeleteSelfResponses =
   '[ RespondEmpty 200 "Deletion is initiated.",
@@ -726,8 +726,9 @@ type UserClientAPI =
   -- - ClientAdded event to self
   -- - ClientRemoved event to self, if removing old clients due to max number
   Named
-    "add-client"
+    "add-client-v6"
     ( Summary "Register a new client"
+        :> Until 'V6
         :> CanThrow 'TooManyClients
         :> CanThrow 'MissingAuth
         :> CanThrow 'MalformedPrekeys
@@ -737,8 +738,23 @@ type UserClientAPI =
         :> ZConn
         :> "clients"
         :> ReqBody '[JSON] NewClient
-        :> Verb 'POST 201 '[JSON] NewClientResponse
+        :> Verb 'POST 201 '[JSON] (NewClientResponse ClientV5)
     )
+    :<|> Named
+           "add-client@v6"
+           ( Summary "Register a new client"
+               :> From 'V6
+               :> CanThrow 'TooManyClients
+               :> CanThrow 'MissingAuth
+               :> CanThrow 'MalformedPrekeys
+               :> CanThrow 'CodeAuthenticationFailed
+               :> CanThrow 'CodeAuthenticationRequired
+               :> ZUser
+               :> ZConn
+               :> "clients"
+               :> ReqBody '[JSON] NewClient
+               :> Verb 'POST 201 '[JSON] (NewClientResponse Client')
+           )
     :<|> Named
            "update-client"
            ( Summary "Update a registered client"
@@ -763,15 +779,23 @@ type UserClientAPI =
           :> MultiVerb 'DELETE '[JSON] '[RespondEmpty 200 "Client deleted"] ()
       )
     :<|> Named
-           "list-clients"
+           "list-clients-v6"
            ( Summary "List the registered clients"
                :> ZUser
                :> "clients"
-               :> Get '[JSON] [Client]
+               :> Get '[JSON] [ClientV5]
            )
     :<|> Named
-           "get-client"
+           "list-clients@v6"
+           ( Summary "List the registered clients"
+               :> ZUser
+               :> "clients"
+               :> Get '[JSON] [Client']
+           )
+    :<|> Named
+           "get-client-v6"
            ( Summary "Get a registered client by ID"
+               :> Until 'V6
                :> ZUser
                :> "clients"
                :> CaptureClientId "client"
@@ -779,9 +803,24 @@ type UserClientAPI =
                     'GET
                     '[JSON]
                     '[ EmptyErrorForLegacyReasons 404 "Client not found",
-                       Respond 200 "Client found" Client
+                       Respond 200 "Client found" ClientV5
                      ]
-                    (Maybe Client)
+                    (Maybe ClientV5)
+           )
+    :<|> Named
+           "get-client@v6"
+           ( Summary "Get a registered client by ID"
+               :> From 'V6
+               :> ZUser
+               :> "clients"
+               :> CaptureClientId "client"
+               :> MultiVerb
+                    'GET
+                    '[JSON]
+                    '[ EmptyErrorForLegacyReasons 404 "Client not found",
+                       Respond 200 "Client found" Client'
+                     ]
+                    (Maybe Client')
            )
     :<|> Named
            "get-client-capabilities"

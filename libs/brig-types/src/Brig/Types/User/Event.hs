@@ -68,7 +68,7 @@ data PropertyEvent
   | PropertiesCleared !UserId
 
 data ClientEvent
-  = ClientAdded !UserId !Client
+  = ClientAdded !UserId !Client'
   | ClientRemoved !UserId !ClientId
 
 data UserUpdatedData = UserUpdatedData

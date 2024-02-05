@@ -357,11 +357,14 @@ servantSitemap =
 
     userClientAPI :: ServerT UserClientAPI (Handler r)
     userClientAPI =
-      Named @"add-client" (callsFed (exposeAnnotations addClient))
+      Named @"add-client-v6" (callsFed (exposeAnnotations addClientV5))
+        :<|> Named @"add-client@v6" (callsFed (exposeAnnotations addClient))
         :<|> Named @"update-client" updateClient
         :<|> Named @"delete-client" deleteClient
-        :<|> Named @"list-clients" listClients
-        :<|> Named @"get-client" getClient
+        :<|> Named @"list-clients-v6" listClientsV5
+        :<|> Named @"list-clients@v6" listClients
+        :<|> Named @"get-client-v6" getClientV5
+        :<|> Named @"get-client@v6" getClient
         :<|> Named @"get-client-capabilities" getClientCapabilities
         :<|> Named @"get-client-prekeys" getClientPrekeys
         :<|> Named @"head-nonce" newNonce
@@ -554,12 +557,28 @@ getMultiUserPrekeyBundleH zusr qualUserClients = do
   getMultiUserPrekeyBundleHInternal qualUserClients
   API.claimMultiPrekeyBundles (ProtectedUser zusr) qualUserClients !>> clientError
 
+addClientV5 ::
+  (Member GalleyProvider r) =>
+  UserId ->
+  ConnId ->
+  Public.NewClient ->
+  (Handler r) (NewClientResponse Public.ClientV5)
+addClientV5 usr con new = do
+  when (Public.newClientType new == Public.LegalHoldClientType) $
+    throwE (clientError ClientLegalHoldCannotBeAdded)
+  clientResponse
+    <$> API.addClient usr (Just con) new
+      !>> clientError
+  where
+    clientResponse :: Public.Client' -> NewClientResponse Public.ClientV5
+    clientResponse client = Servant.addHeader (Public.clientId client) (Public.ClientV5 client)
+
 addClient ::
   (Member GalleyProvider r) =>
   UserId ->
   ConnId ->
   Public.NewClient ->
-  (Handler r) NewClientResponse
+  (Handler r) (NewClientResponse Public.Client')
 addClient usr con new = do
   -- Users can't add legal hold clients
   when (Public.newClientType new == Public.LegalHoldClientType) $
@@ -568,7 +587,7 @@ addClient usr con new = do
     <$> API.addClient usr (Just con) new
       !>> clientError
   where
-    clientResponse :: Public.Client -> NewClientResponse
+    clientResponse :: Public.Client' -> NewClientResponse Public.Client'
     clientResponse client = Servant.addHeader (Public.clientId client) client
 
 deleteClient :: UserId -> ConnId -> ClientId -> Public.RmClient -> (Handler r) ()
@@ -578,11 +597,17 @@ deleteClient usr con clt body =
 updateClient :: UserId -> ClientId -> Public.UpdateClient -> (Handler r) ()
 updateClient usr clt upd = wrapClientE (API.updateClient usr clt upd) !>> clientError
 
-listClients :: UserId -> (Handler r) [Public.Client]
+listClientsV5 :: UserId -> (Handler r) [Public.ClientV5]
+listClientsV5 zusr = Public.ClientV5 <$$> listClients zusr
+
+listClients :: UserId -> (Handler r) [Public.Client']
 listClients zusr =
   lift $ API.lookupLocalClients zusr
 
-getClient :: UserId -> ClientId -> (Handler r) (Maybe Public.Client)
+getClientV5 :: UserId -> ClientId -> (Handler r) (Maybe Public.ClientV5)
+getClientV5 zusr clientId = Public.ClientV5 <$$> getClient zusr clientId
+
+getClient :: UserId -> ClientId -> (Handler r) (Maybe Public.Client')
 getClient zusr clientId = lift $ API.lookupLocalClient zusr clientId
 
 getUserClientsUnqualified :: UserId -> (Handler r) [Public.PubClient]

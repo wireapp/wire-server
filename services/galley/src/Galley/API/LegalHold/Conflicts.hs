@@ -115,9 +115,9 @@ guardLegalholdPolicyConflictsUid ::
   UserClients ->
   Sem r ()
 guardLegalholdPolicyConflictsUid self (Map.keys . userClients -> otherUids) = do
-  allClients :: UserClientsFull <- lookupClientsFull (nub $ self : otherUids)
+  allClients :: UserClientsFull' <- lookupClientsFull (nub $ self : otherUids)
 
-  let allClientsMetadata :: [Client.Client]
+  let allClientsMetadata :: [Client.Client']
       allClientsMetadata =
         allClients
           & Client.userClientsFull
@@ -131,7 +131,7 @@ guardLegalholdPolicyConflictsUid self (Map.keys . userClients -> otherUids) = do
       anyClientIsOld :: Bool
       anyClientIsOld = any isOld allClientsMetadata
         where
-          isOld :: Client.Client -> Bool
+          isOld :: Client.Client' -> Bool
           isOld =
             (Client.ClientSupportsLegalholdImplicitConsent `Set.notMember`)
               . Client.fromClientCapabilityList

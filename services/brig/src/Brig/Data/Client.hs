@@ -124,7 +124,7 @@ addClient ::
   NewClient ->
   Int ->
   Maybe (Imports.Set ClientCapability) ->
-  ExceptT ClientDataError m (Client, [Client], Word)
+  ExceptT ClientDataError m (Client', [Client'], Word)
 addClient = addClientWithReAuthPolicy reAuthForNewClients
 
 addClientWithReAuthPolicy ::
@@ -135,7 +135,7 @@ addClientWithReAuthPolicy ::
   NewClient ->
   Int ->
   Maybe (Imports.Set ClientCapability) ->
-  ExceptT ClientDataError m (Client, [Client], Word)
+  ExceptT ClientDataError m (Client', [Client'], Word)
 addClientWithReAuthPolicy reAuthPolicy u newId c maxPermClients cps = do
   clients <- lookupClients u
   let typed = filter ((== newClientType c) . clientType) clients
@@ -158,10 +158,10 @@ addClientWithReAuthPolicy reAuthPolicy u newId c maxPermClients cps = do
       TemporaryClientType -> Nothing
       LegalHoldClientType -> Nothing
 
-    exists :: Client -> Bool
+    exists :: Client' -> Bool
     exists = (==) newId . clientId
 
-    insert :: (MonadClient m, MonadReader Brig.App.Env m) => ExceptT ClientDataError m Client
+    insert :: (MonadClient m, MonadReader Brig.App.Env m) => ExceptT ClientDataError m Client'
     insert = do
       -- Is it possible to do this somewhere else? Otherwise we could use `MonadClient` instead
       now <- toUTCTimeMillis <$> (liftIO =<< view currentTime)
@@ -185,18 +185,18 @@ addClientWithReAuthPolicy reAuthPolicy u newId c maxPermClients cps = do
             clientLastActive = Nothing
           }
 
-lookupClient :: MonadClient m => UserId -> ClientId -> m (Maybe Client)
+lookupClient :: MonadClient m => UserId -> ClientId -> m (Maybe Client')
 lookupClient u c = do
   keys <- retry x1 (query selectMLSPublicKeys (params LocalQuorum (u, c)))
   fmap (toClient keys)
     <$> retry x1 (query1 selectClient (params LocalQuorum (u, c)))
 
-lookupClientsBulk :: (MonadClient m) => [UserId] -> m (Map UserId (Imports.Set Client))
+lookupClientsBulk :: (MonadClient m) => [UserId] -> m (Map UserId (Imports.Set Client'))
 lookupClientsBulk uids = liftClient $ do
   userClientTuples <- pooledMapConcurrentlyN 50 getClientSetWithUser uids
   pure $ Map.fromList userClientTuples
   where
-    getClientSetWithUser :: MonadClient m => UserId -> m (UserId, Imports.Set Client)
+    getClientSetWithUser :: MonadClient m => UserId -> m (UserId, Imports.Set Client')
     getClientSetWithUser u = fmap ((u,) . Set.fromList) . lookupClients $ u
 
 lookupPubClientsBulk :: (MonadClient m) => [UserId] -> m (UserMap (Imports.Set PubClient))
@@ -210,7 +210,7 @@ lookupPubClientsBulk uids = liftClient $ do
     executeQuery :: MonadClient m => UserId -> m [(ClientId, Maybe ClientClass)]
     executeQuery u = retry x1 (query selectPubClients (params LocalQuorum (Identity u)))
 
-lookupClients :: MonadClient m => UserId -> m [Client]
+lookupClients :: MonadClient m => UserId -> m [Client']
 lookupClients u = do
   keys <-
     (\(cid, ss, Blob b) -> (cid, [(ss, LBS.toStrict b)]))
@@ -449,7 +449,7 @@ toClient ::
     Maybe (C.Set ClientCapability),
     Maybe UTCTime
   ) ->
-  Client
+  Client'
 toClient keys (cid, cty, tme, lbl, cls, cok, mdl, cps, lastActive) =
   Client
     { clientId = cid,

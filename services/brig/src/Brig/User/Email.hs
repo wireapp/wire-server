@@ -161,7 +161,7 @@ sendNewClientEmail ::
   ) =>
   Name ->
   Email ->
-  Client ->
+  Client' ->
   Locale ->
   m ()
 sendNewClientEmail name email client locale = do
@@ -192,7 +192,7 @@ data NewClientEmail = NewClientEmail
   { nclLocale :: !Locale,
     nclTo :: !Email,
     nclName :: !Name,
-    nclClient :: !Client
+    nclClient :: !Client'
   }
 
 renderNewClientEmail :: NewClientEmailTemplate -> NewClientEmail -> TemplateBranding -> Mail

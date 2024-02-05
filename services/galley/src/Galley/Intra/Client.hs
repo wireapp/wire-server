@@ -73,7 +73,7 @@ lookupClients uids = do
 -- | Calls 'Brig.API.internalListClientsFullH'.
 lookupClientsFull ::
   [UserId] ->
-  App UserClientsFull
+  App UserClientsFull'
 lookupClientsFull uids = do
   r <-
     call Brig $
@@ -157,7 +157,7 @@ removeLegalHoldClientFromUser targetUid = do
       . expect2xx
 
 -- | Calls 'Brig.API.addClientInternalH'.
-brigAddClient :: UserId -> ConnId -> NewClient -> App (Either AuthenticationError Client)
+brigAddClient :: UserId -> ConnId -> NewClient -> App (Either AuthenticationError Client')
 brigAddClient uid connId client = do
   r <-
     call Brig $

@@ -35,7 +35,7 @@ module Wire.API.User.Client
     QualifiedUserClientPrekeyMapV4 (..),
     mkQualifiedUserClientPrekeyMap,
     qualifiedUserClientPrekeyMapFromList,
-    UserClientsFull (..),
+    UserClientsFull' (..),
     userClientsFullToUserClients,
     UserClients (..),
     mkUserClients,
@@ -45,7 +45,8 @@ module Wire.API.User.Client
     filterClientsFull,
 
     -- * Client
-    Client (..),
+    Client' (..),
+    ClientV5 (..),
     PubClient (..),
     ClientType (..),
     ClientClass (..),
@@ -352,8 +353,8 @@ instance ToSchema ClientInfo where
 --------------------------------------------------------------------------------
 -- UserClients
 
-newtype UserClientsFull = UserClientsFull
-  { userClientsFull :: Map UserId (Set Client)
+newtype UserClientsFull' = UserClientsFull
+  { userClientsFull :: Map UserId (Set Client')
   }
   deriving stock (Eq, Show, Generic)
   deriving newtype (Semigroup, Monoid)
@@ -361,7 +362,7 @@ newtype UserClientsFull = UserClientsFull
 -- | Json rendering of `UserClientsFull` is dynamic in the object fields, so it's unclear how
 -- machine-generated swagger would look like.  We just leave the manual aeson instances in
 -- place and write something in English into the docs here.
-instance Swagger.ToSchema UserClientsFull where
+instance Swagger.ToSchema UserClientsFull' where
   declareNamedSchema _ = do
     pure $
       NamedSchema (Just "UserClientsFull") $
@@ -370,7 +371,7 @@ instance Swagger.ToSchema UserClientsFull where
           & description ?~ "Dictionary object of `Client` objects indexed by `UserId`."
           & example ?~ "{\"1355c55a-0ac8-11ee-97ee-db1a6351f093\": <Client object>, ...}"
 
-instance ToJSON UserClientsFull where
+instance ToJSON UserClientsFull' where
   toJSON =
     toJSON . Map.foldrWithKey' fn Map.empty . userClientsFull
     where
@@ -378,16 +379,16 @@ instance ToJSON UserClientsFull where
         let k = Text.E.decodeLatin1 (toASCIIBytes (toUUID u))
          in Map.insert k c m
 
-instance FromJSON UserClientsFull where
+instance FromJSON UserClientsFull' where
   parseJSON =
     A.withObject "UserClientsFull" (fmap UserClientsFull . foldrM fn Map.empty . KeyMap.toList)
     where
       fn (k, v) m = Map.insert <$> parseJSON (A.String $ Key.toText k) <*> parseJSON v <*> pure m
 
-instance Arbitrary UserClientsFull where
+instance Arbitrary UserClientsFull' where
   arbitrary = UserClientsFull <$> mapOf' arbitrary (setOf' arbitrary)
 
-userClientsFullToUserClients :: UserClientsFull -> UserClients
+userClientsFullToUserClients :: UserClientsFull' -> UserClients
 userClientsFullToUserClients (UserClientsFull mp) = UserClients $ Set.map clientId <$> mp
 
 newtype UserClients = UserClients
@@ -421,7 +422,7 @@ instance Arbitrary UserClients where
 filterClients :: (Set ClientId -> Bool) -> UserClients -> UserClients
 filterClients p (UserClients c) = UserClients $ Map.filter p c
 
-filterClientsFull :: (Set Client -> Bool) -> UserClientsFull -> UserClientsFull
+filterClientsFull :: (Set Client' -> Bool) -> UserClientsFull' -> UserClientsFull'
 filterClientsFull p (UserClientsFull c) = UserClientsFull $ Map.filter p c
 
 newtype QualifiedUserClients = QualifiedUserClients
@@ -461,7 +462,7 @@ instance ToSchema QualifiedUserClients where
 --------------------------------------------------------------------------------
 -- Client
 
-data Client = Client
+data Client' = Client
   { clientId :: ClientId,
     clientType :: ClientType,
     clientTime :: UTCTimeMillis,
@@ -474,8 +475,44 @@ data Client = Client
     clientLastActive :: Maybe UTCTime
   }
   deriving stock (Eq, Show, Generic, Ord)
-  deriving (Arbitrary) via (GenericUniform Client)
-  deriving (FromJSON, ToJSON, Swagger.ToSchema) via Schema Client
+  deriving (Arbitrary) via (GenericUniform Client')
+  deriving (FromJSON, ToJSON, Swagger.ToSchema) via Schema Client'
+
+instance ToSchema Client' where
+  schema =
+    object "Client" $
+      Client
+        <$> clientId .= field "id" schema
+        <*> clientType .= field "type" schema
+        <*> clientTime .= field "time" schema
+        <*> clientClass .= maybe_ (optField "class" schema)
+        <*> clientLabel .= maybe_ (optField "label" schema)
+        <*> clientCookie .= maybe_ (optField "cookie" schema)
+        <*> clientModel .= maybe_ (optField "model" schema)
+        <*> (Just . fromClientCapabilityList . clientCapabilities) .= maybe_ (ClientCapabilityList . fromMaybe Set.empty <$> capabilitiesFieldSchema)
+        <*> clientMLSPublicKeys .= mlsPublicKeysFieldSchema
+        <*> clientLastActive .= maybe_ (optField "last_active" utcTimeSchema)
+
+newtype ClientV5 = ClientV5 {fromClientV5 :: Client'}
+  deriving newtype (Eq, Show, Generic, Ord, Arbitrary)
+  deriving (FromJSON, ToJSON, Swagger.ToSchema) via Schema ClientV5
+
+instance ToSchema ClientV5 where
+  schema =
+    ClientV5
+      <$> ( object "Client" $
+              Client
+                <$> (clientId . fromClientV5) .= field "id" schema
+                <*> (clientType . fromClientV5) .= field "type" schema
+                <*> (clientTime . fromClientV5) .= field "time" schema
+                <*> (clientClass . fromClientV5) .= maybe_ (optField "class" schema)
+                <*> (clientLabel . fromClientV5) .= maybe_ (optField "label" schema)
+                <*> (clientCookie . fromClientV5) .= maybe_ (optField "cookie" schema)
+                <*> (clientModel . fromClientV5) .= maybe_ (optField "model" schema)
+                <*> (clientCapabilities . fromClientV5) .= (fromMaybe mempty <$> optField "capabilities" schema)
+                <*> (clientMLSPublicKeys . fromClientV5) .= mlsPublicKeysFieldSchema
+                <*> (clientLastActive . fromClientV5) .= maybe_ (optField "last_active" utcTimeSchema)
+          )
 
 type MLSPublicKeys = Map SignatureSchemeTag ByteString
 
@@ -496,21 +533,6 @@ mlsPublicKeysSchema =
 
     mapSchema :: ValueSchema SwaggerDoc MLSPublicKeys
     mapSchema = map_ base64Schema
-
-instance ToSchema Client where
-  schema =
-    object "Client" $
-      Client
-        <$> clientId .= field "id" schema
-        <*> clientType .= field "type" schema
-        <*> clientTime .= field "time" schema
-        <*> clientClass .= maybe_ (optField "class" schema)
-        <*> clientLabel .= maybe_ (optField "label" schema)
-        <*> clientCookie .= maybe_ (optField "cookie" schema)
-        <*> clientModel .= maybe_ (optField "model" schema)
-        <*> (Just . fromClientCapabilityList . clientCapabilities) .= maybe_ (ClientCapabilityList . fromMaybe Set.empty <$> capabilitiesFieldSchema)
-        <*> clientMLSPublicKeys .= mlsPublicKeysFieldSchema
-        <*> clientLastActive .= maybe_ (optField "last_active" utcTimeSchema)
 
 mlsPublicKeysFieldSchema :: ObjectSchema SwaggerDoc MLSPublicKeys
 mlsPublicKeysFieldSchema = fromMaybe mempty <$> optField "mls_public_keys" mlsPublicKeysSchema

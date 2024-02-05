@@ -30,6 +30,7 @@ import Wire.API.Provider.Bot (BotUserView)
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named (Named)
 import Wire.API.Routes.Public
+import Wire.API.Routes.Version
 import Wire.API.User
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey (PrekeyId)
@@ -39,9 +40,9 @@ type DeleteResponses =
      Respond 200 "User found" RemoveBotResponse
    ]
 
-type GetClientResponses =
+type GetClientResponses client =
   '[ ErrorResponse 'ClientNotFound,
-     Respond 200 "Client found" Client
+     Respond 200 "Client found" client
    ]
 
 type BotAPI =
@@ -117,14 +118,26 @@ type BotAPI =
                :> MultiVerb1 'POST '[JSON] (RespondEmpty 200 "")
            )
     :<|> Named
-           "bot-get-client"
+           "bot-get-client-v6"
            ( Summary "Get client for bot"
+               :> Until 'V6
                :> CanThrow 'AccessDenied
                :> CanThrow 'ClientNotFound
                :> ZBot
                :> "bot"
                :> "client"
-               :> MultiVerb 'GET '[JSON] GetClientResponses (Maybe Client)
+               :> MultiVerb 'GET '[JSON] (GetClientResponses ClientV5) (Maybe ClientV5)
+           )
+    :<|> Named
+           "bot-get-client@v6"
+           ( Summary "Get client for bot"
+               :> From 'V6
+               :> CanThrow 'AccessDenied
+               :> CanThrow 'ClientNotFound
+               :> ZBot
+               :> "bot"
+               :> "client"
+               :> MultiVerb 'GET '[JSON] (GetClientResponses Client') (Maybe Client')
            )
     :<|> Named
            "bot-claim-users-prekeys"

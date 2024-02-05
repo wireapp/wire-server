@@ -342,17 +342,17 @@ testClaimMultiPrekeyBundleSuccess brig fedBrigClient = do
       ucm
       ucmResponse
 
-addTestClients :: Brig -> UserId -> [Int] -> Http [Client]
+addTestClients :: Brig -> UserId -> [Int] -> Http [Client']
 addTestClients brig uid idxs =
   for idxs $ \idx -> do
     let (pk, lk) = (somePrekeys !! idx, someLastPrekeys !! idx)
-    client :: Client <- responseJsonError =<< addClient brig uid (defNewClient PermanentClientType [pk] lk)
+    client :: Client' <- responseJsonError =<< addClient brig uid (defNewClient PermanentClientType [pk] lk)
     pure client
 
 testGetUserClients :: Brig -> FedClient 'Brig -> Http ()
 testGetUserClients brig fedBrigClient = do
   uid1 <- (.userId) <$> randomUser brig
-  clients :: [Client] <- addTestClients brig uid1 [0, 1, 2]
+  clients :: [Client'] <- addTestClients brig uid1 [0, 1, 2]
   UserMap userClients <- runFedClient @"get-user-clients" fedBrigClient (Domain "example.com") (GetUserClients [uid1])
   liftIO $
     assertEqual

@@ -109,10 +109,10 @@ import Wire.Sem.Concurrency
 import Wire.Sem.FromUTC (FromUTC (fromUTCTime))
 import Wire.Sem.Now as Now
 
-lookupLocalClient :: UserId -> ClientId -> (AppT r) (Maybe Client)
+lookupLocalClient :: UserId -> ClientId -> (AppT r) (Maybe Client')
 lookupLocalClient uid = wrapClient . Data.lookupClient uid
 
-lookupLocalClients :: UserId -> (AppT r) [Client]
+lookupLocalClients :: UserId -> (AppT r) [Client']
 lookupLocalClients = wrapClient . Data.lookupClients
 
 lookupPubClient :: Qualified UserId -> ClientId -> ExceptT ClientError (AppT r) (Maybe PubClient)
@@ -157,7 +157,7 @@ addClient ::
   UserId ->
   Maybe ConnId ->
   NewClient ->
-  ExceptT ClientError (AppT r) Client
+  ExceptT ClientError (AppT r) Client'
 addClient = addClientWithReAuthPolicy Data.reAuthForNewClients
 
 -- nb. We must ensure that the set of clients known to brig is always
@@ -169,7 +169,7 @@ addClientWithReAuthPolicy ::
   UserId ->
   Maybe ConnId ->
   NewClient ->
-  ExceptT ClientError (AppT r) Client
+  ExceptT ClientError (AppT r) Client'
 addClientWithReAuthPolicy policy u con new = do
   acc <- lift (wrapClient $ Data.lookupAccount u) >>= maybe (throwE (ClientUserNotFound u)) pure
   verifyCode (newClientVerificationCode new) (userId . accountUser $ acc)
@@ -424,7 +424,7 @@ claimLocalMultiPrekeyBundles protectee userClients = do
 -- Utilities
 
 -- | Enqueue an orderly deletion of an existing client.
-execDelete :: UserId -> Maybe ConnId -> Client -> (AppT r) ()
+execDelete :: UserId -> Maybe ConnId -> Client' -> (AppT r) ()
 execDelete u con c = do
   for_ (clientCookie c) $ \l -> wrapClient $ Auth.revokeCookies u [] [l]
   queue <- view internalEvents
@@ -455,7 +455,7 @@ noPrekeys u c = do
           ~~ msg (val "No prekey found. Deleting client.")
       execDelete u Nothing client
 
-pubClient :: Client -> PubClient
+pubClient :: Client' -> PubClient
 pubClient c =
   PubClient
     { pubClientId = clientId c,

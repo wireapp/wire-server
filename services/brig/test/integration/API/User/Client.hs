@@ -142,7 +142,7 @@ testAddGetClientVerificationCode db brig galley = do
   let uid = userId u
   let Just email = userEmail u
   let checkLoginSucceeds b = login brig b PersistentCookie !!! const 200 === statusCode
-  let addClient' :: Maybe Code.Value -> Http Client
+  let addClient' :: Maybe Code.Value -> Http Client'
       addClient' codeValue = responseJsonError =<< addClient brig uid (defNewClientWithVerificationCode codeValue PermanentClientType [head somePrekeys] (head someLastPrekeys))
 
   Util.setTeamFeatureLockStatus @Public.SndFactorPasswordChallengeConfig galley tid Public.LockStatusUnlocked
@@ -270,9 +270,9 @@ testGetUserClientsUnqualified _opts brig = do
   let (pk11, lk11) = (somePrekeys !! 0, someLastPrekeys !! 0)
   let (pk12, lk12) = (somePrekeys !! 1, someLastPrekeys !! 1)
   let (pk13, lk13) = (somePrekeys !! 2, someLastPrekeys !! 2)
-  _c11 :: Client <- responseJsonError =<< addClient brig uid1 (defNewClient PermanentClientType [pk11] lk11)
-  _c12 :: Client <- responseJsonError =<< addClient brig uid1 (defNewClient PermanentClientType [pk12] lk12)
-  _c13 :: Client <- responseJsonError =<< addClient brig uid1 (defNewClient TemporaryClientType [pk13] lk13)
+  _c11 :: Client' <- responseJsonError =<< addClient brig uid1 (defNewClient PermanentClientType [pk11] lk11)
+  _c12 :: Client' <- responseJsonError =<< addClient brig uid1 (defNewClient PermanentClientType [pk12] lk12)
+  _c13 :: Client' <- responseJsonError =<< addClient brig uid1 (defNewClient TemporaryClientType [pk13] lk13)
   getUserClientsUnqualified brig uid1 !!! do
     const 200 === statusCode
     assertTrue_ $ \res -> do
@@ -286,9 +286,9 @@ testGetUserClientsQualified opts brig = do
   let (pk11, lk11) = (somePrekeys !! 0, someLastPrekeys !! 0)
   let (pk12, lk12) = (somePrekeys !! 1, someLastPrekeys !! 1)
   let (pk13, lk13) = (somePrekeys !! 2, someLastPrekeys !! 2)
-  _c11 :: Client <- responseJsonError =<< addClient brig uid1 (defNewClient PermanentClientType [pk11] lk11)
-  _c12 :: Client <- responseJsonError =<< addClient brig uid1 (defNewClient PermanentClientType [pk12] lk12)
-  _c13 :: Client <- responseJsonError =<< addClient brig uid1 (defNewClient TemporaryClientType [pk13] lk13)
+  _c11 :: Client' <- responseJsonError =<< addClient brig uid1 (defNewClient PermanentClientType [pk11] lk11)
+  _c12 :: Client' <- responseJsonError =<< addClient brig uid1 (defNewClient PermanentClientType [pk12] lk12)
+  _c13 :: Client' <- responseJsonError =<< addClient brig uid1 (defNewClient TemporaryClientType [pk13] lk13)
   let localdomain = opts ^. Opt.optionSettings & Opt.setFederationDomain
   getUserClientsQualified brig uid2 localdomain uid1 !!! do
     const 200 === statusCode
@@ -748,7 +748,7 @@ testListPrekeyIds brig = do
       const 200 === statusCode
       const (Just pks) === fmap sort . responseJsonMaybe
 
-generateClients :: Int -> Brig -> Http [(UserId, Client, ClientPrekey, ClientPrekey)]
+generateClients :: Int -> Brig -> Http [(UserId, Client', ClientPrekey, ClientPrekey)]
 generateClients n brig = do
   for [1 .. n] $ \i -> do
     uid <- userId <$> randomUser brig
