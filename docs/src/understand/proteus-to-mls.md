@@ -14,7 +14,7 @@ This document serves as a guide for backend administrators to manage the migrati
 
 - **MLS**: The protocol replacing Proteus, standardized as RFC 9420. See https://www.rfc-editor.org/rfc/rfc9420.html
 - **Proteus**: The encryption protocol used by Wire since 2016. It is a variation of the DoubleRatchet family of protocols first introduced by Signal. See https://github.com/wireapp/proteus
-- **KeyPackages**: Essential for clients to participate in MLS-encrypted conversations. See https://datatracker.ietf.org/doc/html/draft-ietf-mls-protocol-14#name-key-packages . Each KeyPackage includes a supported protocol version and ciphersuite, a unique public encryption key (init_key) for securing initial messages, and a signed leaf node representing the client's identity and cryptographic details. These packages, primarily used once for security, contain critical information for verifying client authenticity and facilitating secure group communication in MLS environments.
+- **KeyPackages**: Provide the keying material needed for clients to participate in MLS-encrypted conversations. See https://www.rfc-editor.org/rfc/rfc9420.html#name-key-packages . Each KeyPackage includes a unique public encryption key (init_key) for securing initial messages. Unlike Proteus prekeys, only a single KeyPackage is needed for each client added to a conversation, but the same client requires a unique KeyPackage for each conversation to which they are added. Each KeyPackage in Wire's implementation is only used once.
 - **Feature Flags**: Control the initiation and behavior of the migration process by allowing enabling or disabling specific features. 
 
 ### Migration Behavior and Process
