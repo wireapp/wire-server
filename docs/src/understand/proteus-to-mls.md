@@ -123,7 +123,7 @@ mlsMigration:
 
 ### Team Management Panel
 
-The Team Management Admin Panel in Wire is undergoing significant updates, particularly concerning the user interface (UI) adjustments for managing the "mls" and "mlsMigration" feature configurations. 
+The Team Management Admin Panel in Wire saw significant updates, particularly concerning the user interface adjustments for managing the "mls" and "mlsMigration" feature configurations. 
 
 These changes are designed to enhance the control and visibility for team administrators, especially regarding the new MLS protocol implementation.
 
