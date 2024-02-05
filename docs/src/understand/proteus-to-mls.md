@@ -96,7 +96,7 @@ For more details see {ref}`the team feature settings documentation<team-feature-
 
 #### MLS Migration Feature Config
 
-For MLS migration there is a new, separate feature config field named `mlsMigration` (that will live next to "mls" field). 
+For MLS migration there is a new, separate feature config field named `mlsMigration` (parallel to the "mls" field). 
 
 "mls" feature config will remain unchanged. 
 
