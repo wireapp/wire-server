@@ -107,7 +107,7 @@ MLS migration feature configuration includes:
 
 2. Migration finalisation field:
 
-`finaliseRegardlessAfter` - date string (ISO 8601 format) until the migration has to finalise - protocol field changes to "mls", doesn’t matter if all the users (clients) have joined the MLS group. If this value is not set, migration is never forced.
+`finaliseRegardlessAfter` - a date string (ISO 8601 format). When that time arrives, the clients will finalise migration (change the protocol field changes to "mls"), regardless if some clients or users have not joined the MLS groups of their conversations. If this value is not set, migration is never forced.
 
 - Example configuration:
 
