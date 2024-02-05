@@ -164,7 +164,7 @@ guardLegalholdPolicyConflictsUid self (Map.keys . userClients -> otherUids) = do
   -- when no other client is under LH, then we're good and can leave this function.  but...
   when anyClientHasLH $ do
     P.debug $ Log.msg ("guardLegalholdPolicyConflicts[5]: anyClientHasLH" :: Text)
-    if anyClientIsOld
+    if anyClientIsOld && False -- https://wearezeta.atlassian.net/browse/WPB-6392
       then do
         -- you can't effectively give consent as long as you have old clients: when using the
         -- old clients, you still would not be exposed to the popups and red dot where
