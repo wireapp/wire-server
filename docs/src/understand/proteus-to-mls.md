@@ -114,8 +114,8 @@ MLS migration feature configuration includes:
 ```yaml
 mlsMigration:
   config:
-    startTime: "2023-05-16T09:25:27.123Z"
-    finaliseRegardlessAfter: "2023-05-16T09:25:27.123Z"
+    startTime: "2024-03-18T10:30:00.000Z"
+    finaliseRegardlessAfter: "2024-05-20T10:30:00.000Z"
   lockStatus: "locked"
   status: "enabled"
   ttl: "unlimited"
