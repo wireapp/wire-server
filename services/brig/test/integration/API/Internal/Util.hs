@@ -31,7 +31,7 @@ where
 
 import API.Team.Util (createPopulatedBindingTeamWithNamesAndHandles)
 import Bilge hiding (host, port)
-import Control.Lens (view, (^.))
+import Control.Lens (view, (%~), (^.), _2)
 import Control.Monad.Catch (MonadCatch, MonadThrow, throwM)
 import Data.ByteString.Base16 qualified as B16
 import Data.Handle (Handle)
@@ -59,6 +59,8 @@ type TestConstraints m = (MonadFail m, MonadCatch m, MonadIO m, MonadHttp m)
 type MkUsr =
   Maybe (Set (Relation, EJPDResponseItem)) ->
   Maybe (Set EJPDResponseItem, Team.NewListType) ->
+  Maybe (Set (Text, ConvId)) ->
+  Maybe (Set Text) ->
   EJPDResponseItem
 
 scaffolding ::
@@ -83,7 +85,7 @@ scaffolding brig gundeck = do
     )
   where
     mkUsr :: User -> Set Text -> MkUsr
-    mkUsr usr toks =
+    mkUsr usr toks rels =
       EJPDResponseItem
         (userId usr)
         (userTeam usr)
@@ -92,6 +94,10 @@ scaffolding brig gundeck = do
         (userEmail usr)
         (userPhone usr)
         toks
+        (Set.map (_2 %~ trim) <$> rels)
+
+    trim :: EJPDResponseItem -> EJPDResponseItem
+    trim i = i {ejpdResponseContacts = Nothing, ejpdResponseTeamContacts = Nothing}
 
     registerPushToken :: Gundeck -> UserId -> m Text
     registerPushToken gd u = do

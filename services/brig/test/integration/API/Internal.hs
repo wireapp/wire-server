@@ -102,47 +102,41 @@ testEJPDRequest :: (TestConstraints m) => Manager -> Brig -> Endpoint -> Gundeck
 testEJPDRequest mgr brig brigep gundeck = do
   (handle1, mkUsr1, handle2, mkUsr2, mkUsr3) <- scaffolding brig gundeck
 
+  convs1 <- pure Nothing
+  assets1 <- pure Nothing
+  convs2 <- pure Nothing
+  assets2 <- pure Nothing
+
   do
     let req = EJPDRequestBody [handle1]
-        want =
-          EJPDResponseBody
-            [ mkUsr1 Nothing Nothing
-            ]
+        usr1 = mkUsr1 Nothing Nothing convs1 assets1
+        want = EJPDResponseBody [usr1]
     have <- ejpdRequestClient brigep mgr Nothing req
     liftIO $ assertEqual "" want have
 
   do
     let req = EJPDRequestBody [handle1, handle2]
-        want =
-          EJPDResponseBody
-            [ mkUsr1 Nothing Nothing,
-              mkUsr2 Nothing Nothing
-            ]
+        usr1 = mkUsr1 Nothing Nothing convs1 assets1
+        usr2 = mkUsr2 Nothing Nothing convs2 assets2
+        want = EJPDResponseBody [usr1, usr2]
     have <- ejpdRequestClient brigep mgr Nothing req
     liftIO $ assertEqual "" want have
 
   do
     let req = EJPDRequestBody [handle2]
-        want =
-          EJPDResponseBody
-            [ mkUsr2
-                (Just (Set.fromList [(Conn.Accepted, mkUsr1 Nothing Nothing)]))
-                Nothing
-            ]
+        usr1 = mkUsr1 (Just (Set.fromList [(Conn.Accepted, usr2)])) Nothing convs1 assets1
+        usr2 = mkUsr2 (Just (Set.fromList [(Conn.Accepted, usr1)])) Nothing convs2 assets2
+        want = EJPDResponseBody [usr2]
+
     have <- ejpdRequestClient brigep mgr (Just True) req
     liftIO $ assertEqual "" want have
 
   do
     let req = EJPDRequestBody [handle1, handle2]
-        want =
-          EJPDResponseBody
-            [ mkUsr1
-                (Just (Set.fromList [(Conn.Accepted, mkUsr2 Nothing Nothing)]))
-                (Just (Set.fromList [mkUsr3 Nothing Nothing], Team.NewListComplete)),
-              mkUsr2
-                (Just (Set.fromList [(Conn.Accepted, mkUsr1 Nothing Nothing)]))
-                Nothing
-            ]
+        usr1 = mkUsr1 (Just (Set.fromList [(Conn.Accepted, usr2)])) (Just (Set.fromList [usr3], Team.NewListComplete)) convs1 assets1
+        usr2 = mkUsr2 (Just (Set.fromList [(Conn.Accepted, usr1)])) Nothing convs2 assets2
+        usr3 = mkUsr3 Nothing Nothing Nothing Nothing
+        want = EJPDResponseBody [usr1, usr2]
     have <- ejpdRequestClient brigep mgr (Just True) req
     liftIO $ assertEqual "" want have
 

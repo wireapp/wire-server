@@ -99,6 +99,12 @@ ejpdRequest (fromMaybe False -> includeContacts) (EJPDRequestBody handles) = do
           _ -> do
             pure Nothing
 
+      mbConversations <- do
+        pure Nothing
+
+      mbAssets <- do
+        pure Nothing
+
       pure $
         EJPDResponseItem
           uid
@@ -110,3 +116,5 @@ ejpdRequest (fromMaybe False -> includeContacts) (EJPDRequestBody handles) = do
           (Set.fromList ptoks)
           mbContacts
           mbTeamContacts
+          mbConversations
+          mbAssets
