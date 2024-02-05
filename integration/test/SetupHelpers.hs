@@ -7,9 +7,10 @@ import API.Brig
 import API.BrigInternal
 import API.Common
 import API.Galley
+import Control.Concurrent (Chan)
 import Control.Monad.Reader
 import Crypto.Random (getRandomBytes)
-import Data.Aeson hiding ((.=))
+import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson
 import qualified Data.ByteString.Base64.URL as B64Url
 import Data.ByteString.Char8 (unpack)
@@ -276,3 +277,32 @@ setupProvider u np@(NewProvider {..}) = do
     pure (k, c)
   activateProvider dom key code
   loginProvider dom newProviderEmail pass $> provider
+
+withRunningService ::
+  ( MakesValue user,
+    MakesValue teamId
+  ) =>
+  user ->
+  teamId ->
+  ( String -> -- ^ ServiceID
+    String -> -- ^ ProviderId
+    Chan TestBotEvent ->
+    App a
+  ) ->
+  App a
+withRunningService user team go = withFreePortAnyAddr $ \(port, socket) -> do
+  uid <- user %. "id" & asString
+  email <- randomEmail
+  provider <- setupProvider user def {newProviderEmail = email}
+  ppwd <- provider %. "password" & asString
+  pid <- provider %. "id" & asString
+  ownDomain <- OwnDomain & asString
+
+  let url = "https://localhost:" <> show port
+
+  service <- newService pid def {newServiceUrl = url}
+  sid <- service %. "id" & asString
+
+  void $ enableService uid team pid sid ppwd
+
+  runService port socket defServiceApp (go sid pid)

@@ -1,16 +1,31 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module API.Brig where
 
 import API.BrigCommon
 import API.Common
+import Control.Concurrent
+import qualified Control.Concurrent.Async as Async
+import Control.Monad.Catch hiding (handle)
+import Control.Monad.IO.Class
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.CaseInsensitive as CI
 import Data.Foldable
 import Data.Function
+import Data.Streaming.Network
+import Data.String.Conversions
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Vector as V
 import GHC.Stack
+import Network.HTTP.Types
+import qualified Network.Socket as Socket
+import Network.Wai (Application, responseLBS)
+import qualified Network.Wai.Handler.Warp as Warp
+import qualified Network.Wai.Handler.Warp.Internal as Warp
+import qualified Network.Wai.Handler.WarpTLS as Warp
+import qualified Network.Wai.Route as Wai
 import Testlib.Prelude
 
 data AddUser = AddUser
@@ -563,18 +578,15 @@ loginProvider dom email pass = do
     pure . fromJust . foldMap (\(k, v) -> guard (k == setCookieHeader) $> v) $ hs
 
 newService ::
-  ( HasCallStack,
-    MakesValue dom
+  ( HasCallStack
   ) =>
-  dom ->
   String ->
   NewService ->
   App Value
-newService dom providerId service = do
+newService providerId service = do
   s <- make service
-  domain <- asString dom
   req <-
-    rawBaseRequest domain Brig Versioned $
+    rawBaseRequest OwnDomain Brig Versioned $
       joinHttpPath ["provider", "services"]
   let addHdrs =
         addHeader "Z-Type" "provider"
@@ -609,6 +621,79 @@ updateService dom providerId serviceId mAcceptHeader newName = do
     . addJSONObject ["name" .= n | n <- maybeToList newName]
     $ req
 
+addBotToConv ::
+  ( HasCallStack,
+    MakesValue convId,
+    MakesValue creatorId,
+    MakesValue providerId,
+    MakesValue serviceId
+  ) =>
+  convId ->
+  creatorId ->
+  providerId ->
+  serviceId ->
+  App Response
+addBotToConv convId creatorId providerId serviceId = do
+  convIdS <- asString convId
+  serviceIdS <- asString serviceId
+  providerIdS <- asString providerId
+  creatorIdS <- asString creatorId
+  req <-
+    rawBaseRequest OwnDomain Brig Versioned $
+      joinHttpPath ["conversations", convIdS, "bots"]
+  let addHeaders =
+        addHeader "Z-User" creatorIdS
+          . addHeader "Z-Connection" "connId"
+          . addHeader "Z-Type" "access"
+          . addHeader "Accept" "application/json"
+
+  submit "POST"
+    . addHeaders
+    . addJSONObject ["provider" .= providerIdS, "service" .= serviceIdS]
+    $ req
+
+enableService ::
+  ( MakesValue creatorId,
+    MakesValue teamId,
+    MakesValue providerId,
+    MakesValue serviceId
+  ) =>
+  creatorId ->
+  teamId ->
+  providerId ->
+  serviceId ->
+  String ->
+  App Response
+enableService creatorId teamId providerId serviceId pwd = do
+  serviceIdS <- asString serviceId
+  providerIdS <- asString providerId
+  creatorIdS <- asString creatorId
+  teamIdS <- asString teamId
+  req <-
+    rawBaseRequest OwnDomain Brig Versioned $
+      joinHttpPath ["teams", teamIdS, "services", "whitelist"]
+  let addHeaders =
+        addHeader "Accept" "text/plain"
+          . addHeader "Z-User" creatorIdS
+          . addHeader "Z-Connection" "connId"
+  void
+    $ submit "POST"
+      . addJSONObject ["id" .= serviceIdS, "provider" .= providerIdS, "whitelisted" .= True]
+      . addHeaders
+    $ req
+  updateServiceConn OwnDomain providerIdS serviceIdS
+  where
+    updateServiceConn domain pid sid = do
+      req <-
+        rawBaseRequest domain Brig Versioned $
+          joinHttpPath ["provider", "services", sid, "connection"]
+      submit "PUT"
+        . addHeader "Z-Type" "provider"
+        . addHeader "Accept" "application/json"
+        . addHeader "Z-Provider" pid
+        . addJSONObject ["enabled" .= True, "password" .= pwd]
+        $ req
+
 -- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/get_users__uid_domain___uid__prekeys__client_
 getUsersPrekeysClient :: (HasCallStack, MakesValue caller, MakesValue targetUser) => caller -> targetUser -> String -> App Response
 getUsersPrekeysClient caller targetUser targetClient = do
@@ -630,3 +715,109 @@ getMultiUserPrekeyBundle :: (HasCallStack, MakesValue caller, ToJSON userClients
 getMultiUserPrekeyBundle caller userClients = do
   req <- baseRequest caller Brig Versioned $ joinHttpPath ["users", "list-prekeys"]
   submit "POST" (addJSON userClients req)
+
+withFreePortAnyAddr :: (MonadMask m, MonadIO m) => ((Warp.Port, Socket.Socket) -> m a) -> m a
+withFreePortAnyAddr = bracket bindingPort (liftIO . Socket.close . snd)
+  where
+    bindingPort :: MonadIO m => m (Warp.Port, Socket.Socket)
+    bindingPort = liftIO $ bindRandomPortTCP "*"
+
+runService ::
+  (MonadIO m, MonadMask m) =>
+  Warp.Port ->
+  Socket.Socket ->
+  (Chan e -> Application) ->
+  (Chan e -> m a) ->
+  m a
+runService port sock mkApp go = do
+  -- TODO(elland): inject correct cert/key
+  let tlss = Warp.tlsSettings "/home/elland/wire-server/services/brig/test/resources/cert.pem" "/home/elland/wire-server/services/brig/test/resources/key.pem"
+  let defs = Warp.defaultSettings {Warp.settingsPort = port}
+  buf <- liftIO newChan
+  srv <-
+    liftIO . Async.async $
+      Warp.runTLSSocket tlss defs sock $
+        mkApp buf
+  go buf `finally` liftIO (Async.cancel srv)
+  where
+    cert =
+      unlines
+        [ "-----BEGIN CERTIFICATE-----",
+          "MIIDdjCCAl4CCQCm0AiwERR/qjANBgkqhkiG9w0BAQsFADB9MQswCQYDVQQGEwJE",
+          "RTEPMA0GA1UECAwGQmVybGluMQ8wDQYDVQQHDAZCZXJsaW4xGDAWBgNVBAoMD1dp",
+          "cmUgU3dpc3MgR21iSDERMA8GA1UEAwwId2lyZS5jb20xHzAdBgkqhkiG9w0BCQEW",
+          "EGJhY2tlbmRAd2lyZS5jb20wHhcNMTYwODA0MTMxNDQyWhcNMzYwNzMwMTMxNDQy",
+          "WjB9MQswCQYDVQQGEwJERTEPMA0GA1UECAwGQmVybGluMQ8wDQYDVQQHDAZCZXJs",
+          "aW4xGDAWBgNVBAoMD1dpcmUgU3dpc3MgR21iSDERMA8GA1UEAwwId2lyZS5jb20x",
+          "HzAdBgkqhkiG9w0BCQEWEGJhY2tlbmRAd2lyZS5jb20wggEiMA0GCSqGSIb3DQEB",
+          "AQUAA4IBDwAwggEKAoIBAQC74qD88cdTdq1etRsqfDQbToWWJdw23eUzCXaizm3A",
+          "QNw88XD994aIArKbGn7smpkOux5LkP1Mcatb45BEg8da9QF2It8atmok7bbcMHoP",
+          "wrZK7+h2aeNknbPbeuFegQCtOmW74OD0r5zYtV5dMpVU85o7OC0AHbVcpGJDh6ua",
+          "qCLf+eOvTetfKr+o2S413q01yD4cB8bF8a+8JJgF+JJtQqv8F4CthFyPOv+HmbUi",
+          "fp8b+J/0YQjqbx3EdP0ltjnfCKSyjDLpqMK6qyQgWDztfzzcf4sD93pfkJOI+/VU",
+          "zFd0FSIY+4L0hP/oI1DX8sW3Q/ftrHnz4sZiVoWjuVqdAgMBAAEwDQYJKoZIhvcN",
+          "AQELBQADggEBAEuwlHElIGR56KVC1dJiw238mDGjMfQzSP76Wi4zWS6/zZwJUuog",
+          "BkC+vacfju8UAMvL+vdqkjOVUHor84/2wuq0qn91AjOITD7tRAZB+XLXxsikKv/v",
+          "OXE3A/lCiNi882NegPyXAfFPp/71CIiTQZps1eQkAvhD5t5WiFYPESxDlvEJrHFY",
+          "XP4+pp8fL8YPS7iZNIq+z+P8yVIw+B/Hs0ht7wFIYN0xACbU8m9+Rs08JMoT16c+",
+          "hZMuK3BWD3fzkQVfW0yMwz6fWRXB483ZmekGkgndOTDoJQMdJXZxHpI3t2FcxQYj",
+          "T45GXxRd18neXtuYa/OoAw9UQFDN5XfXN0g=",
+          "-----END CERTIFICATE-----"
+        ]
+
+    privateKey =
+      unlines
+        [ "-----BEGIN RSA PRIVATE KEY-----",
+          "MIIEpAIBAAKCAQEAu+Kg/PHHU3atXrUbKnw0G06FliXcNt3lMwl2os5twEDcPPFw",
+          "/feGiAKymxp+7JqZDrseS5D9THGrW+OQRIPHWvUBdiLfGrZqJO223DB6D8K2Su/o",
+          "dmnjZJ2z23rhXoEArTplu+Dg9K+c2LVeXTKVVPOaOzgtAB21XKRiQ4ermqgi3/nj",
+          "r03rXyq/qNkuNd6tNcg+HAfGxfGvvCSYBfiSbUKr/BeArYRcjzr/h5m1In6fG/if",
+          "9GEI6m8dxHT9JbY53wiksowy6ajCuqskIFg87X883H+LA/d6X5CTiPv1VMxXdBUi",
+          "GPuC9IT/6CNQ1/LFt0P37ax58+LGYlaFo7lanQIDAQABAoIBAQC0doVy7zgpLsBv",
+          "Sz0AnbPe1pjxEwRlntRbJSfSULySALqJvs5s4adSVGUBHX3z/LousAP1SRpCppuU",
+          "8wrLBFgjQVlaAzyQB84EEl+lNtrG8Jrvd2es9R/4sJDkqy50+yuPN5wnzWPFIjhg",
+          "3jP5CHDu29y0LMzsY5yjkzDe9B0bueXEZVU+guRjhpwHHKOFeAr9J9bugFUwgeAr",
+          "jF0TztzFAb0fsUNPiQAho1J5PyjSVgItaPfAPv/p30ROG+rz+Rd5NSSvBC5F+yOo",
+          "azb84zzwCg/knAfIz7SOMRrmBh2qhGZFZ8gXdq65UaYv+cpT/qo28mpAT2vOkyeD",
+          "aPZp0ysBAoGBAOQROoDipe/5BTHBcXYuUE1qa4RIj3wgql5I8igXr4K6ppYBmaOg",
+          "DL2rrnqD86chv0P4l/XOomKFwYhVGXtqRkeYnk6mQXwNVkgqcGbY5PSNyMg5+ekq",
+          "jSOOPHGzzTWKzYuUDUpB/Lf6jbTv8fq2GYW3ZYiqQ/xiugOvglZrTE7NAoGBANLl",
+          "irjByfxAWGhzCrDx0x5MBpsetadI9wUA8u1BDdymsRg73FDn3z7NipVUAMDXMGVj",
+          "lqbCRlHESO2yP4GaPEA4FM+MbTZSuhAYV+SY07mEPLHF64/nJas83Zp91r5rhaqJ",
+          "L9rWCl3KJ5OUnr3YizCnHIW72FxjwtpjxHJLupsRAoGAGIbhy8qUHeKh9F/hW9xP",
+          "NoQjW+6Rv7+jktA1eqpRbbW1BJzXcQldVWiJMxPNuEOg1iZ98SlvvTi1P3wnaWZc",
+          "eIapP7wRfs3QYaJuxCC/Pq2g0ieqALFazGAXkALOJtvujvw1Ea9XBlIjuzmyxEuh",
+          "Iwg+Gxx0g0f6yTquwax4YGECgYEAnpAK3qKFNO1ECzQDo8oNy0ep59MNDPtlDhQK",
+          "katJus5xdCD9oq7TQKrVOTTxZAvmzTQ1PqfuqueDVYOhD9Zg2n/P1cRlEGTek99Z",
+          "pfvppB/yak6+r3FA9yBKFS/r1zuMQg3nNweav62QV/tz5pT7AdeDMGFtaPlwtTYx",
+          "qyWY5aECgYBPySbPccNj+xxQzxcti2y/UXjC04RgOA/Hm1D0exa0vBqS9uxlOdG8",
+          "F47rKenpBrslvdfTVsCDB1xyP2ebWVzp6EqMycw6OLPxgo3fBfZ4pi6P+rByh0Cc",
+          "Lhfh+ET0CPnKCxtop3lUrn4ZvqchS0j3J+M0pDuqoWF5hfKxFhkEIw==",
+          "-----END RSA PRIVATE KEY-----"
+        ]
+
+data TestBotEvent
+  = TestBotCreated
+  | TestBotMessage String
+  deriving (Show, Eq)
+
+defServiceApp :: Chan TestBotEvent -> Application
+defServiceApp buf =
+    Wai.route
+      [ ( "/bots",
+          onBotCreate
+        ),
+        ( "/bots/:bot/messages",
+          onBotMessage
+        )
+      ]
+  where
+    onBotCreate _ rq k = do
+      writeChan buf TestBotCreated
+      -- TODO(elland): fix the responses
+      k $ responseLBS status201 [] ("{\"prekeys\": [], \"last_prekey\": {\"id\": 65535, \"key\": \"pQABARn//wKhAFggnCcZIK1pbtlJf4wRQ44h4w7/sfSgj5oWXMQaUGYAJ/sDoQChAFgglacihnqg/YQJHkuHNFU7QD6Pb3KN4FnubaCF2EVOgRkE9g==\"}}")
+
+    onBotMessage _ rq k = do
+      print rq
+      writeChan buf (TestBotMessage "msg")
+      k $ responseLBS status200 [] "success"

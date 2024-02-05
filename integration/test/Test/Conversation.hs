@@ -261,6 +261,20 @@ testAddMemberV1 domain = do
     users <- resp.json %. "data.users" >>= asList
     traverse (%. "qualified_id") users `shouldMatchSet` [bobId]
 
+testAddMemberBot :: HasCallStack => App ()
+testAddMemberBot = do
+  (alice, team, _) <- createTeam OwnDomain 1
+  withRunningService alice team $ \sid pid _buf -> do
+    aliceId <- alice %. "id" & asString
+    conv <- postConversation alice (defProteus {team = Just team}) >>= getJSON 201
+    convId <- conv %. "id" & asString
+
+    bindResponse (addBotToConv convId aliceId pid sid) $ \resp -> do
+      resp.status `shouldMatchInt` 201
+      resp.json %. "event.type" `shouldMatch` "conversation.member-join"
+      resp.json %. "event.qualified_from" `shouldMatch` objQidObject alice
+      resp.json %. "event.qualified_conversation" `shouldMatch` objQidObject conv
+
 testConvWithUnreachableRemoteUsers :: HasCallStack => App ()
 testConvWithUnreachableRemoteUsers = do
   ([alice, alex, bob, charlie, dylan], domains) <-
