@@ -35,7 +35,7 @@ module Wire.API.User.Client
     QualifiedUserClientPrekeyMapV4 (..),
     mkQualifiedUserClientPrekeyMap,
     qualifiedUserClientPrekeyMapFromList,
-    UserClientsFull' (..),
+    UserClientsFull (..),
     userClientsFullToUserClients,
     UserClients (..),
     mkUserClients,
@@ -85,6 +85,7 @@ import Data.Map.Strict qualified as Map
 import Data.Misc (Latitude (..), Longitude (..), PlainTextPassword6)
 import Data.OpenApi hiding (Schema, ToSchema, nullable, schema)
 import Data.OpenApi qualified as Swagger hiding (nullable)
+import Data.Proxy
 import Data.Qualified
 import Data.Schema
 import Data.Set qualified as Set
@@ -353,16 +354,19 @@ instance ToSchema ClientInfo where
 --------------------------------------------------------------------------------
 -- UserClients
 
-newtype UserClientsFull' = UserClientsFull
-  { userClientsFull :: Map UserId (Set Client')
+newtype UserClientsFull client = UserClientsFull
+  { userClientsFull :: Map UserId (Set client)
   }
   deriving stock (Eq, Show, Generic)
   deriving newtype (Semigroup, Monoid)
 
+instance Swagger.ToSchema (UserClientsFull ClientV5) where
+  declareNamedSchema _ = declareNamedSchema (Proxy @(UserClientsFull Client'))
+
 -- | Json rendering of `UserClientsFull` is dynamic in the object fields, so it's unclear how
 -- machine-generated swagger would look like.  We just leave the manual aeson instances in
 -- place and write something in English into the docs here.
-instance Swagger.ToSchema UserClientsFull' where
+instance Swagger.ToSchema (UserClientsFull Client') where
   declareNamedSchema _ = do
     pure $
       NamedSchema (Just "UserClientsFull") $
@@ -371,7 +375,7 @@ instance Swagger.ToSchema UserClientsFull' where
           & description ?~ "Dictionary object of `Client` objects indexed by `UserId`."
           & example ?~ "{\"1355c55a-0ac8-11ee-97ee-db1a6351f093\": <Client object>, ...}"
 
-instance ToJSON UserClientsFull' where
+instance (Ord client, ToJSON client) => ToJSON (UserClientsFull client) where
   toJSON =
     toJSON . Map.foldrWithKey' fn Map.empty . userClientsFull
     where
@@ -379,16 +383,16 @@ instance ToJSON UserClientsFull' where
         let k = Text.E.decodeLatin1 (toASCIIBytes (toUUID u))
          in Map.insert k c m
 
-instance FromJSON UserClientsFull' where
+instance (Ord client, FromJSON client) => FromJSON (UserClientsFull client) where
   parseJSON =
     A.withObject "UserClientsFull" (fmap UserClientsFull . foldrM fn Map.empty . KeyMap.toList)
     where
       fn (k, v) m = Map.insert <$> parseJSON (A.String $ Key.toText k) <*> parseJSON v <*> pure m
 
-instance Arbitrary UserClientsFull' where
+instance (Ord client, Arbitrary client) => Arbitrary (UserClientsFull client) where
   arbitrary = UserClientsFull <$> mapOf' arbitrary (setOf' arbitrary)
 
-userClientsFullToUserClients :: UserClientsFull' -> UserClients
+userClientsFullToUserClients :: UserClientsFull Client' -> UserClients
 userClientsFullToUserClients (UserClientsFull mp) = UserClients $ Set.map clientId <$> mp
 
 newtype UserClients = UserClients
@@ -422,7 +426,7 @@ instance Arbitrary UserClients where
 filterClients :: (Set ClientId -> Bool) -> UserClients -> UserClients
 filterClients p (UserClients c) = UserClients $ Map.filter p c
 
-filterClientsFull :: (Set Client' -> Bool) -> UserClientsFull' -> UserClientsFull'
+filterClientsFull :: (Set Client' -> Bool) -> UserClientsFull Client' -> UserClientsFull Client'
 filterClientsFull p (UserClientsFull c) = UserClientsFull $ Map.filter p c
 
 newtype QualifiedUserClients = QualifiedUserClients
@@ -489,9 +493,17 @@ instance ToSchema Client' where
         <*> clientLabel .= maybe_ (optField "label" schema)
         <*> clientCookie .= maybe_ (optField "cookie" schema)
         <*> clientModel .= maybe_ (optField "model" schema)
-        <*> (Just . fromClientCapabilityList . clientCapabilities) .= maybe_ (ClientCapabilityList . fromMaybe Set.empty <$> capabilitiesFieldSchema)
+        <*> caps
         <*> clientMLSPublicKeys .= mlsPublicKeysFieldSchema
         <*> clientLastActive .= maybe_ (optField "last_active" utcTimeSchema)
+    where
+      caps :: ObjectSchemaP SwaggerDoc Client' ClientCapabilityList
+      caps =
+        (Just . fromClientCapabilityList . clientCapabilities)
+          .= maybe_ ((ClientCapabilityList . fromMaybe Set.empty <$> capabilitiesFieldSchema) <|> legacySchema)
+
+      legacySchema :: ObjectSchemaP SwaggerDoc (Set ClientCapability) ClientCapabilityList
+      legacySchema = ClientCapabilityList .= field "capabilities" (schema @ClientCapabilityList)
 
 newtype ClientV5 = ClientV5 {fromClientV5 :: Client'}
   deriving newtype (Eq, Show, Generic, Ord, Arbitrary)

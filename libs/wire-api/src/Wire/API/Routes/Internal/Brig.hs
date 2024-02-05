@@ -450,7 +450,7 @@ type AccountAPI =
            ( "clients"
                :> "full"
                :> ReqBody '[Servant.JSON] UserSet
-               :> Post '[Servant.JSON] UserClientsFull'
+               :> Post '[Servant.JSON] (UserClientsFull ClientV5 {- for smooth upgrades around #3873; see 'addClientInternalH' for details -})
            )
     :<|> Named
            "iAddClient"
@@ -463,7 +463,7 @@ type AccountAPI =
                :> QueryParam' [Optional, Strict] "skip_reauth" Bool
                :> ReqBody '[Servant.JSON] NewClient
                :> Header' [Optional, Strict] "Z-Connection" ConnId
-               :> Verb 'POST 201 '[Servant.JSON] Client'
+               :> Verb 'POST 201 '[Servant.JSON] (ClientV5 {- for smooth upgrades around #3873; see 'addClientInternalH' for details -})
            )
     :<|> Named
            "iLegalholdAddClient"

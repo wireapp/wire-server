@@ -347,18 +347,26 @@ sitemap = unsafeCallsFed @'Brig @"on-user-deleted-connections" $ do
 -- Handlers
 
 -- | Add a client without authentication checks
+--
+-- This returns a 'ClientV5' instead of a 'Client' to avoid glitches during upgrades: brig
+-- will keep delivering legacy values after the upgrade, and the 'Client' parser makes sure
+-- that those legacy values can be understood by galley after the upgrade, so whether brig or
+-- galley is upgraded first is important: both combinations of pre- and post-#3873 work!
+--
+-- FUTUREWORK: change this back to 'Client' once everybody can be expected to have upgraded
+-- past this change.
 addClientInternalH ::
   (Member GalleyProvider r) =>
   UserId ->
   Maybe Bool ->
   NewClient ->
   Maybe ConnId ->
-  (Handler r) Client'
+  (Handler r) ClientV5
 addClientInternalH usr mSkipReAuth new connId = do
   let policy
         | mSkipReAuth == Just True = \_ _ -> False
         | otherwise = Data.reAuthForNewClients
-  API.addClientWithReAuthPolicy policy usr connId new !>> clientError
+  ClientV5 <$> API.addClientWithReAuthPolicy policy usr connId new !>> clientError
 
 legalHoldClientRequestedH :: UserId -> LegalHoldClientRequest -> (Handler r) NoContent
 legalHoldClientRequestedH targetUser clientRequest = do
@@ -373,6 +381,8 @@ internalListClientsH (UserSet usrs) = lift $ do
   UserClients . Map.fromList
     <$> wrapClient (API.lookupUsersClientIds (Set.toList usrs))
 
+-- | This returns a 'ClientV5' instead of a 'Client' to avoid glitches during upgrades (see
+-- 'addClientInternalH' for details).
 internalListFullClientsH :: UserSet -> (Handler r) UserClientsFull'
 internalListFullClientsH (UserSet usrs) = lift $ do
   UserClientsFull <$> wrapClient (Data.lookupClientsBulk (Set.toList usrs))
