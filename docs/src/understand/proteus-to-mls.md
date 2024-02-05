@@ -103,7 +103,7 @@ MLS migration feature configuration includes:
 
 1. Migration initialisation field:
 
-`startTime` - migration start date string (ISO 8601 format) - once this time arrives, clients will initialise migration process (no migration-related action will take place before that time). If migration feature is enabled, but startTime value is not set (or is set to null), migration is never started.
+`startTime` - migration start date string (in ISO 8601 format). Once this time arrives, clients will initialise the migration process (no migration-related action will take place before that time). If the migration feature is enabled, but startTime value is not set (or is set to null), migration is never started.
 
 2. Migration finalisation field:
 
