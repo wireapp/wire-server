@@ -502,15 +502,15 @@ postConvWithRemoteUsersOk rbs = do
     let fedReqsAdd = filter (\r -> frRPC r == "on-conversation-updated") federatedRequests
     fedReqAddBodies <- for fedReqsAdd $ assertRight . parseFedRequest
     forM_ fedReqAddBodies $ \(fedReqAddBody :: ConversationUpdate) -> liftIO $ do
-      fedReqAddBody.cuOrigUserId @?= qAlice
-      fedReqAddBody.cuConvId @?= cid
+      fedReqAddBody.origUserId @?= qAlice
+      fedReqAddBody.convId @?= cid
       -- This remote backend must already have their users in the conversation,
       -- otherwise they should not be receiving the conversation update message
       assertBool "The list of already present users should be non-empty"
         . not
         . null
-        $ fedReqAddBody.cuAlreadyPresentUsers
-      case fedReqAddBody.cuAction of
+        $ fedReqAddBody.alreadyPresentUsers
+      case fedReqAddBody.action of
         SomeConversationAction SConversationJoinTag _action -> pure ()
         _ -> assertFailure @() "Unexpected update action"
   where
@@ -1867,11 +1867,11 @@ paginateConvListIds = do
     conv <- randomId
     let cu =
           ConversationUpdate
-            { cuTime = now,
-              cuOrigUserId = qChad,
-              cuConvId = conv,
-              cuAlreadyPresentUsers = [],
-              cuAction = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qAlice) roleNameWireMember)
+            { time = now,
+              origUserId = qChad,
+              convId = conv,
+              alreadyPresentUsers = [],
+              action = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qAlice) roleNameWireMember)
             }
     void $ runFedClient @"on-conversation-updated" fedGalleyClient chadDomain cu
 
@@ -1883,11 +1883,11 @@ paginateConvListIds = do
     conv <- randomId
     let cu =
           ConversationUpdate
-            { cuTime = now,
-              cuOrigUserId = qDee,
-              cuConvId = conv,
-              cuAlreadyPresentUsers = [],
-              cuAction = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qAlice) roleNameWireMember)
+            { time = now,
+              origUserId = qDee,
+              convId = conv,
+              alreadyPresentUsers = [],
+              action = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qAlice) roleNameWireMember)
             }
     void $ runFedClient @"on-conversation-updated" fedGalleyClient deeDomain cu
 
@@ -1928,11 +1928,11 @@ paginateConvListIdsPageEndingAtLocalsAndDomain = do
     conv <- randomId
     let cu =
           ConversationUpdate
-            { cuTime = now,
-              cuOrigUserId = qChad,
-              cuConvId = conv,
-              cuAlreadyPresentUsers = [],
-              cuAction = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qAlice) roleNameWireMember)
+            { time = now,
+              origUserId = qChad,
+              convId = conv,
+              alreadyPresentUsers = [],
+              action = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qAlice) roleNameWireMember)
             }
     void $ runFedClient @"on-conversation-updated" fedGalleyClient chadDomain cu
 
@@ -1946,11 +1946,11 @@ paginateConvListIdsPageEndingAtLocalsAndDomain = do
     conv <- randomId
     let cu =
           ConversationUpdate
-            { cuTime = now,
-              cuOrigUserId = qDee,
-              cuConvId = conv,
-              cuAlreadyPresentUsers = [],
-              cuAction = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qAlice) roleNameWireMember)
+            { time = now,
+              origUserId = qDee,
+              convId = conv,
+              alreadyPresentUsers = [],
+              action = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qAlice) roleNameWireMember)
             }
     void $ runFedClient @"on-conversation-updated" fedGalleyClient deeDomain cu
 
@@ -3204,11 +3204,11 @@ putRemoteConvMemberOk update = do
   now <- liftIO getCurrentTime
   let cu =
         ConversationUpdate
-          { cuTime = now,
-            cuOrigUserId = qbob,
-            cuConvId = qUnqualified qconv,
-            cuAlreadyPresentUsers = [],
-            cuAction =
+          { time = now,
+            origUserId = qbob,
+            convId = qUnqualified qconv,
+            alreadyPresentUsers = [],
+            action =
               SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qalice) roleNameWireMember)
           }
   void $ runFedClient @"on-conversation-updated" fedGalleyClient remoteDomain cu
@@ -3349,11 +3349,11 @@ putRemoteReceiptModeOk = do
   now <- liftIO getCurrentTime
   let cuAddAlice =
         ConversationUpdate
-          { cuTime = now,
-            cuOrigUserId = qbob,
-            cuConvId = qUnqualified qconv,
-            cuAlreadyPresentUsers = [],
-            cuAction =
+          { time = now,
+            origUserId = qbob,
+            convId = qUnqualified qconv,
+            alreadyPresentUsers = [],
+            action =
               SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qalice) roleNameWireAdmin)
           }
   void $ runFedClient @"on-conversation-updated" fedGalleyClient remoteDomain cuAddAlice
@@ -3364,11 +3364,11 @@ putRemoteReceiptModeOk = do
   connectWithRemoteUser adam qbob
   let cuAddAdam =
         ConversationUpdate
-          { cuTime = now,
-            cuOrigUserId = qbob,
-            cuConvId = qUnqualified qconv,
-            cuAlreadyPresentUsers = [],
-            cuAction =
+          { time = now,
+            origUserId = qbob,
+            convId = qUnqualified qconv,
+            alreadyPresentUsers = [],
+            action =
               SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qadam) roleNameWireMember)
           }
   void $ runFedClient @"on-conversation-updated" fedGalleyClient remoteDomain cuAddAdam
@@ -3377,11 +3377,11 @@ putRemoteReceiptModeOk = do
   let action = ConversationReceiptModeUpdate newReceiptMode
   let responseConvUpdate =
         ConversationUpdate
-          { cuTime = now,
-            cuOrigUserId = qalice,
-            cuConvId = qUnqualified qconv,
-            cuAlreadyPresentUsers = [adam],
-            cuAction =
+          { time = now,
+            origUserId = qalice,
+            convId = qUnqualified qconv,
+            alreadyPresentUsers = [adam],
+            action =
               SomeConversationAction (sing @'ConversationReceiptModeUpdateTag) action
           }
   let mockResponse = mockReply (ConversationUpdateResponseUpdate responseConvUpdate)
@@ -3634,33 +3634,33 @@ removeUser = do
 
     liftIO $ do
       let bConvUpdateRPCs = filter (matchFedRequest bDomain "on-conversation-updated") fedRequests
-      bConvUpdates <- mapM (assertRight . eitherDecode . frBody) bConvUpdateRPCs
+      bConvUpdates :: [ConversationUpdate] <- mapM (assertRight . eitherDecode . frBody) bConvUpdateRPCs
 
-      bConvUpdatesA2 <- assertOne $ filter (\cu -> cuConvId cu == qUnqualified qconvA2) bConvUpdates
-      cuOrigUserId bConvUpdatesA2 @?= alexDel
-      cuAction bConvUpdatesA2 @?= SomeConversationAction (sing @'ConversationLeaveTag) ()
-      cuAlreadyPresentUsers bConvUpdatesA2 @?= [qUnqualified berta]
+      bConvUpdatesA2 <- assertOne $ filter (\cu -> cu.convId == qUnqualified qconvA2) bConvUpdates
+      bConvUpdatesA2.origUserId @?= alexDel
+      bConvUpdatesA2.action @?= SomeConversationAction (sing @'ConversationLeaveTag) ()
+      bConvUpdatesA2.alreadyPresentUsers  @?= [qUnqualified berta]
 
-      bConvUpdatesA4 <- assertOne $ filter (\cu -> cuConvId cu == qUnqualified qconvA4) bConvUpdates
-      cuOrigUserId bConvUpdatesA4 @?= alexDel
-      cuAction bConvUpdatesA4 @?= SomeConversationAction (sing @'ConversationLeaveTag) ()
-      cuAlreadyPresentUsers bConvUpdatesA4 @?= [qUnqualified bart]
+      bConvUpdatesA4 <- assertOne $ filter (\cu -> cu.convId == qUnqualified qconvA4) bConvUpdates
+      bConvUpdatesA4.origUserId  @?= alexDel
+      bConvUpdatesA4.action @?= SomeConversationAction (sing @'ConversationLeaveTag) ()
+      bConvUpdatesA4.alreadyPresentUsers @?= [qUnqualified bart]
 
     liftIO $ do
       cConvUpdateRPC <- assertOne $ filter (matchFedRequest cDomain "on-conversation-updated") fedRequests
-      Right convUpdate <- pure . eitherDecode . frBody $ cConvUpdateRPC
-      cuConvId convUpdate @?= qUnqualified qconvA4
-      cuOrigUserId convUpdate @?= alexDel
-      cuAction convUpdate @?= SomeConversationAction (sing @'ConversationLeaveTag) ()
-      cuAlreadyPresentUsers convUpdate @?= [qUnqualified carl]
+      Right (convUpdate :: ConversationUpdate) <- pure . eitherDecode . frBody $ cConvUpdateRPC
+      convUpdate.convId @?= qUnqualified qconvA4
+      convUpdate.origUserId @?= alexDel
+      convUpdate.action @?= SomeConversationAction (sing @'ConversationLeaveTag) ()
+      convUpdate.alreadyPresentUsers @?= [qUnqualified carl]
 
     liftIO $ do
       dConvUpdateRPC <- assertOne $ filter (matchFedRequest dDomain "on-conversation-updated") fedRequests
-      Right convUpdate <- pure . eitherDecode . frBody $ dConvUpdateRPC
-      cuConvId convUpdate @?= qUnqualified qconvA2
-      cuOrigUserId convUpdate @?= alexDel
-      cuAction convUpdate @?= SomeConversationAction (sing @'ConversationLeaveTag) ()
-      cuAlreadyPresentUsers convUpdate @?= [qUnqualified dwight]
+      Right (convUpdate :: ConversationUpdate) <- pure . eitherDecode . frBody $ dConvUpdateRPC
+      convUpdate.convId @?= qUnqualified qconvA2
+      convUpdate.origUserId @?= alexDel
+      convUpdate.action @?= SomeConversationAction (sing @'ConversationLeaveTag) ()
+      convUpdate.alreadyPresentUsers @?= [qUnqualified dwight]
 
   -- Check memberships
   mems1 <- fmap cnvMembers . responseJsonError =<< getConvQualified alice' qconvA1

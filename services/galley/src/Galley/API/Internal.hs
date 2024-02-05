@@ -91,7 +91,6 @@ import Wire.API.Event.Conversation
 import Wire.API.Event.LeaveReason
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
-import Wire.API.Federation.BackendNotifications
 import Wire.API.Federation.Error
 import Wire.API.Provider.Service hiding (Service)
 import Wire.API.Routes.API
@@ -426,11 +425,7 @@ rmUser lusr conn = do
     leaveRemoteConversations cids =
       for_ (bucketRemote (fromRange cids)) $ \remoteConvs -> do
         let userDelete = UserDeletedConversationsNotification (tUnqualified lusr) (unsafeRange (tUnqualified remoteConvs))
-        let rpc = void $ do
-              req <- asks (.requestId)
-              origin <- asks (.originDomain)
-              fedQueueClient $
-                toBundle @'OnUserDeletedConversationsTag req origin userDelete
+        let rpc = fedQueueClient @'OnUserDeletedConversationsTag userDelete
         enqueueNotification Q.Persistent remoteConvs rpc
 
     -- FUTUREWORK: Add a retry mechanism if there are federation errrors.

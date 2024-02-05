@@ -50,7 +50,6 @@ import Polysemy.TinyLog qualified as P
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
-import Wire.API.Federation.BackendNotifications
 import Wire.API.Routes.MultiTablePaging
 import Wire.NotificationSubsystem
 import Wire.Sem.Paging.Cassandra (CassandraPaging)
@@ -139,13 +138,8 @@ rmClientH (usr ::: cid) = do
     removeRemoteMLSClients :: Range 1 1000 [Remote ConvId] -> Sem r ()
     removeRemoteMLSClients convIds = do
       for_ (bucketRemote (fromRange convIds)) $ \remoteConvs ->
-        let rpc = void $ do
-              req <- asks (.requestId)
-              origin <- asks (.originDomain)
+        let rpc =
               fedQueueClient
-                ( toBundle @'OnClientRemovedTag
-                    req
-                    origin
-                    (ClientRemovedRequest usr cid (tUnqualified remoteConvs))
-                )
+                @'OnClientRemovedTag
+                (ClientRemovedRequest usr cid (tUnqualified remoteConvs))
          in enqueueNotification Q.Persistent remoteConvs rpc

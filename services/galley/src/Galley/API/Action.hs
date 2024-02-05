@@ -116,7 +116,6 @@ import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.API.Galley qualified as F
-import Wire.API.Federation.BackendNotifications
 import Wire.API.Federation.Error
 import Wire.API.FederationStatus
 import Wire.API.MLS.CipherSuite
@@ -899,10 +898,7 @@ notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
         -- because quid's backend will update local state and notify its users
         -- itself using the ConversationUpdate returned by this function
         if notifyOrigDomain || tDomain ruids /= qDomain quid
-          then do
-            reqId <- asks (.requestId)
-            origin <- asks (.originDomain)
-            fedQueueClient (toBundle @'OnConversationUpdatedTag reqId origin update) $> Nothing
+          then fedQueueClient @'OnConversationUpdatedTag update $> Nothing
           else pure (Just update)
 
   -- notify local participants and bots

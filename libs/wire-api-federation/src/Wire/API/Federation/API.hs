@@ -50,6 +50,7 @@ import Wire.API.Federation.BackendNotifications
 import Wire.API.Federation.Client
 import Wire.API.Federation.Component
 import Wire.API.Federation.Endpoint
+import Wire.API.Federation.HasNotificationEndpoint
 import Wire.API.MakesFederatedCall
 import Wire.API.Routes.Named
 
@@ -94,11 +95,11 @@ fedClientIn ::
   Client m api
 fedClientIn = clientIn (Proxy @api) (Proxy @m)
 
-fedQueueClient ::
+fedQueueClientFromBundle ::
   KnownComponent c =>
   PayloadBundle c ->
   FedQueueClient c ()
-fedQueueClient bundle = do
+fedQueueClientFromBundle bundle = do
   env <- ask
   let msg =
         newMsg
@@ -111,6 +112,18 @@ fedQueueClient bundle = do
   liftIO $ do
     ensureQueue env.channel env.targetDomain._domainText
     void $ publishMsg env.channel exchange (routingKey env.targetDomain._domainText) msg
+
+fedQueueClient ::
+  forall {k} (tag :: k) c.
+  ( HasNotificationEndpoint tag,
+    KnownSymbol (NotificationPath tag),
+    KnownComponent (NotificationComponent k),
+    ToJSON (Payload tag),
+    c ~ NotificationComponent k
+  ) =>
+  Payload tag ->
+  FedQueueClient c ()
+fedQueueClient payload = fedQueueClientFromBundle =<< makeBundle @tag payload
 
 -- | Like 'fedClientIn', but doesn't propagate a 'CallsFed' constraint. Intended
 -- to be used in test situations only.

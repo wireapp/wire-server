@@ -82,7 +82,6 @@ import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
-import Wire.API.Federation.BackendNotifications
 import Wire.API.Federation.Error
 import Wire.API.Password
 import Wire.API.Routes.Public.Galley.Conversation
@@ -877,10 +876,8 @@ registerRemoteConversationMemberships now lusr lc = deleteOnUnreachable $ do
           )
           joined
 
-  r <- enqueueNotificationsConcurrentlyBuckets Q.Persistent joinedCoupled $ \z -> do
-    reqId <- asks (.requestId)
-    origin <- asks (.originDomain)
-    fedQueueClient $ toBundle @'OnConversationUpdatedTag reqId origin (convUpdateJoin z)
+  r <- enqueueNotificationsConcurrentlyBuckets Q.Persistent joinedCoupled $ \z ->
+    fedQueueClient @'OnConversationUpdatedTag (convUpdateJoin z)
   either throw (void . pure) r
   where
     creator :: Maybe UserId

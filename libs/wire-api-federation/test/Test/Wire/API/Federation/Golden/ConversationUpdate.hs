@@ -50,27 +50,27 @@ dee = Id (fromJust (UUID.fromString "00000fff-0000-aaaa-0000-000100005007"))
 testObject_ConversationUpdate1 :: ConversationUpdate
 testObject_ConversationUpdate1 =
   ConversationUpdate
-    { cuTime = read "1864-04-12 12:22:43.673 UTC",
-      cuOrigUserId =
+    { time = read "1864-04-12 12:22:43.673 UTC",
+      origUserId =
         Qualified
           (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000007")))
           (Domain "golden.example.com"),
-      cuConvId =
+      convId =
         Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000006")),
-      cuAlreadyPresentUsers = [],
-      cuAction = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (qAlice :| [qBob]) roleNameWireAdmin)
+      alreadyPresentUsers = [],
+      action = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (qAlice :| [qBob]) roleNameWireAdmin)
     }
 
 testObject_ConversationUpdate2 :: ConversationUpdate
 testObject_ConversationUpdate2 =
   ConversationUpdate
-    { cuTime = read "1864-04-12 12:22:43.673 UTC",
-      cuOrigUserId =
+    { time = read "1864-04-12 12:22:43.673 UTC",
+      origUserId =
         Qualified
           (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000007")))
           (Domain "golden.example.com"),
-      cuConvId =
+      convId =
         Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000006")),
-      cuAlreadyPresentUsers = [chad, dee],
-      cuAction = SomeConversationAction (sing @'ConversationLeaveTag) ()
+      alreadyPresentUsers = [chad, dee],
+      action = SomeConversationAction (sing @'ConversationLeaveTag) ()
     }

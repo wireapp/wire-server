@@ -112,9 +112,24 @@ toBundle ::
   Domain ->
   Payload tag ->
   PayloadBundle (NotificationComponent k)
-toBundle reqId originDomain payload = do
+toBundle reqId originDomain payload =
   let notif = fedNotifToBackendNotif @tag reqId originDomain payload
-  PayloadBundle . pure $ notif
+   in PayloadBundle . pure $ notif
+
+makeBundle ::
+  forall {k} (tag :: k) c.
+  ( HasNotificationEndpoint tag,
+    KnownSymbol (NotificationPath tag),
+    KnownComponent (NotificationComponent k),
+    A.ToJSON (Payload tag),
+    c ~ NotificationComponent k
+  ) =>
+  Payload tag ->
+  FedQueueClient c (PayloadBundle c)
+makeBundle payload = do
+  reqId <- asks (.requestId)
+  origin <- asks (.originDomain)
+  pure $ toBundle @tag reqId origin payload
 
 type BackendNotificationAPI = Capture "name" Text :> ReqBody '[JSON] RawJson :> Post '[JSON] EmptyResponse
 
