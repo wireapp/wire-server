@@ -75,6 +75,7 @@ import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Aeson qualified as A
 import Data.Aeson.Key qualified as Key
 import Data.Aeson.KeyMap qualified as KeyMap
+import Data.Aeson.Types qualified as A
 import Data.Bifunctor (second)
 import Data.Code qualified as Code
 import Data.Coerce
@@ -480,7 +481,7 @@ data Client' = Client
   }
   deriving stock (Eq, Show, Generic, Ord)
   deriving (Arbitrary) via (GenericUniform Client')
-  deriving (FromJSON, ToJSON, Swagger.ToSchema) via Schema Client'
+  deriving (ToJSON, Swagger.ToSchema) via Schema Client'
 
 instance ToSchema Client' where
   schema =
@@ -493,17 +494,35 @@ instance ToSchema Client' where
         <*> clientLabel .= maybe_ (optField "label" schema)
         <*> clientCookie .= maybe_ (optField "cookie" schema)
         <*> clientModel .= maybe_ (optField "model" schema)
-        <*> caps
+        <*> (Just . fromClientCapabilityList . clientCapabilities) .= maybe_ (ClientCapabilityList . fromMaybe Set.empty <$> capabilitiesFieldSchema)
         <*> clientMLSPublicKeys .= mlsPublicKeysFieldSchema
         <*> clientLastActive .= maybe_ (optField "last_active" utcTimeSchema)
-    where
-      caps :: ObjectSchemaP SwaggerDoc Client' ClientCapabilityList
-      caps =
-        (Just . fromClientCapabilityList . clientCapabilities)
-          .= maybe_ ((ClientCapabilityList . fromMaybe Set.empty <$> capabilitiesFieldSchema) <|> legacySchema)
 
-      legacySchema :: ObjectSchemaP SwaggerDoc (Set ClientCapability) ClientCapabilityList
-      legacySchema = ClientCapabilityList .= field "capabilities" (schema @ClientCapabilityList)
+-- | For the time we grant users to upgrade accross #3873, this lenient parser parses both
+-- Client and ClientV5 as Client.  Once everybody has upgraded, we can go back to deriving
+-- this and failing on ClientV5 input.  (See 'addClientInternalH' for details.)
+instance FromJSON Client' where
+  parseJSON = A.withObject "Client" $ \obj -> do
+    Client
+      <$> obj A..: "id"
+      <*> obj A..: "type"
+      <*> obj A..: "time"
+      <*> obj A..:? "class"
+      <*> obj A..:? "label"
+      <*> obj A..:? "cookie"
+      <*> obj A..:? "model"
+      <*> (maybe (pure $ ClientCapabilityList Set.empty) parseCaps =<< obj A..:? "capabilities")
+      <*> _ -- (fromMaybe mempty <$> obj A..:? "mls_public_keys")
+      <*> obj A..:? "last_active"
+    where
+      -- TODO: it should be possible to base implementations for all 3 `_` on existing
+      -- `ToSchema` instances of Client', ClientV5.  but how?
+
+      parseCaps :: A.Value -> A.Parser ClientCapabilityList
+      parseCaps val = prs val <|> prsLegacy val
+        where
+          prs = _
+          prsLegacy = _
 
 newtype ClientV5 = ClientV5 {fromClientV5 :: Client'}
   deriving newtype (Eq, Show, Generic, Ord, Arbitrary)
