@@ -106,7 +106,9 @@ mkGlobalEnv cfgFile = do
         gBackendResourcePool = resourcePool,
         gRabbitMQConfig = intConfig.rabbitmq,
         gTempDir = tempDir,
-        gTimeOutSeconds = timeOutSeconds
+        gTimeOutSeconds = timeOutSeconds,
+        gProviderCert = intConfig.provider.cert,
+        gProviderKey = intConfig.provider.privateKey
       }
   where
     createSSLContext :: Maybe FilePath -> IO (Maybe OpenSSL.SSLContext)
@@ -145,7 +147,9 @@ mkEnv ge = do
           mls = mls,
           resourcePool = ge.gBackendResourcePool,
           rabbitMQConfig = ge.gRabbitMQConfig,
-          timeOutSeconds = ge.gTimeOutSeconds
+          timeOutSeconds = ge.gTimeOutSeconds,
+          botKey = ge.gProviderKey,
+          botCert = ge.gProviderCert
         }
 
 destroy :: IORef (Set BackendResource) -> BackendResource -> IO ()

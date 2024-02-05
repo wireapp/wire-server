@@ -14,7 +14,7 @@ import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Handler.Warp.Internal as Warp
 import qualified Network.Wai.Handler.WarpTLS as Warp
 import Testlib.Prekeys
-import Testlib.Prelude
+import Testlib.Prelude hiding (botHost)
 import UnliftIO.Async
 import UnliftIO.Chan
 import UnliftIO.MVar

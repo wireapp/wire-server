@@ -303,4 +303,7 @@ withRunningService user team go = withFreePortAnyAddr $ \(port, socket) -> do
 
   void $ enableService uid team pid sid ppwd
 
-  runService port socket defServiceApp (go sid pid)
+  cert <- asks (.botCert)
+  pkey <- asks (.botKey)
+  print $ "\n cert -> " <> show cert
+  runService cert pkey port socket defServiceApp (go sid pid)

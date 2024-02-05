@@ -110,7 +110,9 @@ data GlobalEnv = GlobalEnv
     gBackendResourcePool :: ResourcePool BackendResource,
     gRabbitMQConfig :: RabbitMQConfig,
     gTempDir :: FilePath,
-    gTimeOutSeconds :: Int
+    gTimeOutSeconds :: Int,
+    gProviderCert :: FilePath,
+    gProviderKey :: FilePath
   }
 
 data IntegrationConfig = IntegrationConfig
@@ -118,7 +120,8 @@ data IntegrationConfig = IntegrationConfig
     backendTwo :: BackendConfig,
     dynamicBackends :: Map String DynamicBackendConfig,
     rabbitmq :: RabbitMQConfig,
-    cassandra :: CassandraConfig
+    cassandra :: CassandraConfig,
+    provider :: ProviderConfig
   }
   deriving (Show, Generic)
 
@@ -131,6 +134,7 @@ instance FromJSON IntegrationConfig where
         <*> o .: fromString "dynamicBackends"
         <*> o .: fromString "rabbitmq"
         <*> o .: fromString "cassandra"
+        <*> o .: fromString "provider"
 
 data ServiceMap = ServiceMap
   { brig :: HostPort,
@@ -170,6 +174,16 @@ data HostPort = HostPort
 
 instance FromJSON HostPort
 
+data ProviderConfig = ProviderConfig
+  { privateKey :: FilePath,
+    publicKey :: FilePath,
+    cert :: FilePath,
+    botHost :: String
+  }
+  deriving (Show, Generic)
+
+instance FromJSON ProviderConfig
+
 data CassandraConfig = CassandraConfig
   { cassHost :: String,
     cassPort :: Word16,
@@ -202,7 +216,9 @@ data Env = Env
     mls :: IORef MLSState,
     resourcePool :: ResourcePool BackendResource,
     rabbitMQConfig :: RabbitMQConfig,
-    timeOutSeconds :: Int
+    timeOutSeconds :: Int,
+    botKey :: FilePath,
+    botCert :: FilePath
   }
 
 data Response = Response
