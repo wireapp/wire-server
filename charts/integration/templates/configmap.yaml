@@ -61,6 +61,12 @@ data:
       host: rabbitmq
       adminPort: 15672
 
+    provider:
+      privateKey: /etc/wire/integration-secrets/provider-privatekey.pem
+      publicKey: /etc/wire/integration-secrets/provider-publickey.pem
+      cert: /etc/wire/integration-secrets/provider-publiccert.pem
+      botHost: https://brig-integration
+
     backendTwo:
 
       brig:

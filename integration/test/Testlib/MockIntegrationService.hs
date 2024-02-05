@@ -4,15 +4,13 @@ import Control.Monad.Catch
 import Control.Monad.Reader
 import qualified Data.Aeson
 import qualified Data.ByteString.Lazy as LBS
-import Data.Streaming.Network
 import Data.String.Conversions (cs)
 import Network.HTTP.Types
-import Network.Socket
-import qualified Network.Socket as Socket
 import Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Handler.Warp.Internal as Warp
 import qualified Network.Wai.Handler.WarpTLS as Warp
+import SetupHelpers (withFreePortAnyAddr)
 import Testlib.Prekeys
 import Testlib.Prelude hiding (botHost)
 import UnliftIO.Async
@@ -88,12 +86,6 @@ mockServerCert =
 
 botHost :: String
 botHost = "localhost"
-
-withFreePortAnyAddr :: (MonadMask m, MonadIO m) => ((Warp.Port, Socket) -> m a) -> m a
-withFreePortAnyAddr = bracket openFreePortAnyAddr (liftIO . Socket.close . snd)
-
-openFreePortAnyAddr :: MonadIO m => m (Warp.Port, Socket)
-openFreePortAnyAddr = liftIO $ bindRandomPortTCP (fromString "*")
 
 withMockServer ::
   HasCallStack =>

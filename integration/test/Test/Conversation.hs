@@ -261,9 +261,12 @@ testAddMemberV1 domain = do
     users <- resp.json %. "data.users" >>= asList
     traverse (%. "qualified_id") users `shouldMatchSet` [bobId]
 
+-- Add a bot to a team conversation.
 testAddMemberBot :: HasCallStack => App ()
 testAddMemberBot = do
   (alice, team, _) <- createTeam OwnDomain 1
+  -- given a user with admin permissions and team, run a bot.
+  -- see function docs for details.
   withRunningService alice team $ \sid pid _buf -> do
     aliceId <- alice %. "id" & asString
     conv <- postConversation alice (defProteus {team = Just team}) >>= getJSON 201

@@ -8,6 +8,7 @@ import API.BrigInternal
 import API.Common
 import API.Galley
 import Control.Concurrent (Chan)
+import Control.Monad.Catch
 import Control.Monad.Reader
 import Crypto.Random (getRandomBytes)
 import qualified Data.Aeson as Aeson
@@ -15,10 +16,20 @@ import qualified Data.ByteString.Base64.URL as B64Url
 import Data.ByteString.Char8 (unpack)
 import Data.Default
 import Data.Function
+import Data.Streaming.Network (HostPreference, bindRandomPortTCP)
 import Data.UUID.V1 (nextUUID)
 import Data.UUID.V4 (nextRandom)
 import GHC.Stack
+import qualified Network.Socket as Socket
+import qualified Network.Wai.Handler.Warp as Warp
 import Testlib.Prelude
+
+-- | Helper function to bind a free port and socket with Socket.close as clean-up.
+withFreePortAnyAddr :: (MonadMask m, MonadIO m) => ((Warp.Port, Socket.Socket) -> m a) -> m a
+withFreePortAnyAddr = bracket bindingPort (liftIO . Socket.close . snd)
+  where
+    bindingPort :: MonadIO m => m (Warp.Port, Socket.Socket)
+    bindingPort = liftIO $ bindRandomPortTCP (fromString @HostPreference "*")
 
 randomUser :: (HasCallStack, MakesValue domain) => domain -> CreateUser -> App Value
 randomUser domain cu = bindResponse (createUser domain cu) $ \resp -> do
@@ -277,6 +288,11 @@ setupProvider u np@(NewProvider {..}) = do
   activateProvider dom key code
   loginProvider dom newProviderEmail pass $> provider
 
+-- | Allows us to run tests inside a context that contains a
+-- running service (a bot), with a give service and provider id.
+-- It requires the creator user and team to be created ahead and injected.
+-- This gives us more control over team and user setup, instead of having those
+-- being created here and passed down.
 withRunningService ::
   ( MakesValue user,
     MakesValue teamId
@@ -296,6 +312,7 @@ withRunningService user team go = withFreePortAnyAddr $ \(port, socket) -> do
   ppwd <- provider %. "password" & asString
   pid <- provider %. "id" & asString
 
+  --- FUTUREWORK(elland): use the env to get this value instead?
   let url = "https://localhost:" <> show port
 
   service <- newService pid def {newServiceUrl = url}
@@ -303,7 +320,10 @@ withRunningService user team go = withFreePortAnyAddr $ \(port, socket) -> do
 
   void $ enableService uid team pid sid ppwd
 
+  -- See Env.hs for details of how these are imported from the environment.
   cert <- asks (.botCert)
   pkey <- asks (.botKey)
 
+  -- Finally we run the serviced with a cert, private key, port, socket, a
+  -- dummy service function and our continuation.
   runService cert pkey port socket defServiceApp (go sid pid)

@@ -13,7 +13,6 @@ import qualified Data.ByteString.Base64 as Base64
 import qualified Data.CaseInsensitive as CI
 import Data.Foldable
 import Data.Function
-import Data.Streaming.Network
 import Data.String.Conversions
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
@@ -652,6 +651,9 @@ addBotToConv convId creatorId providerId serviceId = do
     . addJSONObject ["provider" .= providerIdS, "service" .= serviceIdS]
     $ req
 
+-- | Services need to be enabled (added to an allow-list for a given team)
+-- before they can be accessed / added to conversations. This is part of the
+-- 'add bot to conversation' flow.
 enableService ::
   ( MakesValue creatorId,
     MakesValue teamId,
@@ -716,12 +718,10 @@ getMultiUserPrekeyBundle caller userClients = do
   req <- baseRequest caller Brig Versioned $ joinHttpPath ["users", "list-prekeys"]
   submit "POST" (addJSON userClients req)
 
-withFreePortAnyAddr :: (MonadMask m, MonadIO m) => ((Warp.Port, Socket.Socket) -> m a) -> m a
-withFreePortAnyAddr = bracket bindingPort (liftIO . Socket.close . snd)
-  where
-    bindingPort :: MonadIO m => m (Warp.Port, Socket.Socket)
-    bindingPort = liftIO $ bindRandomPortTCP "*"
-
+-- | In order to test adding a bot to a conversation we need a running
+-- dummy bot that can respond to an SSL handshake. This function runs a TLS
+-- socket using the provided cert and private key within an Async context
+-- using Async.cancel as clean-up.
 runService ::
   (MonadIO m, MonadMask m) =>
   FilePath -> -- cert
@@ -732,7 +732,6 @@ runService ::
   (Chan e -> m a) ->
   m a
 runService cert pkey port sock mkApp go = do
-  -- TODO(elland): inject correct cert/key
   let tlss = Warp.tlsSettings cert pkey
   let defs = Warp.defaultSettings {Warp.settingsPort = port}
   buf <- liftIO newChan
@@ -747,6 +746,9 @@ data TestBotEvent
   | TestBotMessage String
   deriving (Show, Eq)
 
+-- | This is the default dummy bot, it responds with a hard-coded last_prekey
+-- so as to be properly validated and added to a conversation.
+-- FUTUREWORK: add tests for messaging a bot.
 defServiceApp :: Chan TestBotEvent -> Application
 defServiceApp buf =
   Wai.route
