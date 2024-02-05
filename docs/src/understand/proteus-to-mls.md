@@ -66,7 +66,7 @@ The following `mls` feature configuration items can be set at the team-level:
 * `supportedProtocols` - define a list of communication protocols supported by your team 
 
 ```{note}
-The numerical values for the cipher suites (`65535` in the example below) are defined in the list of indices at https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol.html#table-5 .
+The numerical values for the cipher suites (`1` in the example below) are defined in the list of indices at https://www.rfc-editor.org/rfc/rfc9420.html#table-6 .
 ```
 
 - Example configuration:
