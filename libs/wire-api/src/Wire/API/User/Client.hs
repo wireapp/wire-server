@@ -161,7 +161,6 @@ instance Cql.Cql ClientCapability where
     n -> Left $ "Unexpected ClientCapability value: " ++ show n
   fromCql _ = Left "ClientCapability value: int expected"
 
--- FUTUREWORK: add golden tests for this?
 newtype ClientCapabilityList = ClientCapabilityList {fromClientCapabilityList :: Set ClientCapability}
   deriving stock (Eq, Ord, Show, Generic)
   deriving newtype (Semigroup, Monoid)
@@ -509,7 +508,7 @@ instance ToSchema Client where
         <*> clientLabel .= maybe_ (optField "label" schema)
         <*> clientCookie .= maybe_ (optField "cookie" schema)
         <*> clientModel .= maybe_ (optField "model" schema)
-        <*> clientCapabilities .= (fromMaybe mempty <$> optField "capabilities" schema)
+        <*> (Just . fromClientCapabilityList . clientCapabilities) .= maybe_ (ClientCapabilityList . fromMaybe Set.empty <$> capabilitiesFieldSchema)
         <*> clientMLSPublicKeys .= mlsPublicKeysFieldSchema
         <*> clientLastActive .= maybe_ (optField "last_active" utcTimeSchema)
 

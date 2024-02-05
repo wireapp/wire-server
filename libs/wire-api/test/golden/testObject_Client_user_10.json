@@ -1,7 +1,5 @@
 {
-    "capabilities": {
-        "capabilities": []
-    },
+    "capabilities": [],
     "cookie": "L",
     "id": "0",
     "mls_public_keys": {
