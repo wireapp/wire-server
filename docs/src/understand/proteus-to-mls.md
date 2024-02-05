@@ -24,7 +24,9 @@ The transition from Proteus to MLS involves both client-side and server-side mec
 #### Client Setup and Registration
 
 - **MLS-Ready Clients**: Clients with API version 5 or higher are capable of MLS. These clients will register their public identity keys associated with MLS and upload their KeyPackages to the local backend, which allows them to participate in MLS-encrypted conversations.
-- **Mixed group conversations**: For each conversation, clients will check if a "mixed" conversation already exists, create it if it doesn't, join it if it does. Once all participants in a "mixed" conversation have joined, the conversation is ready for "final" transition to MLS. "Mixed" conversations still use the Proteus protocol.
+- **Proteus group-conversations**: Conversations which only support Proteus and have not started the process of migration.
+- **Mixed protocol group-conversations**: When migration is enabled, for each conversation, clients will check if a "mixed" conversation already exists, create it if it doesn't, or join it if it does. Once all participants in a "mixed" conversation have joined, the conversation is ready for "final" transition to MLS. "Mixed" conversations still use the Proteus protocol to send messages. The MLS group in a mixed conversation contains all the MLS-capable clients who are users in the conversation.
+- **MLS group-conversations**: Conversations which were either created as MLS conversations or which have completed (finalized) the migration process to MLS. All messages are sent using MLS. 
 - **One on one conversation migration**: Because they only have two participants, there is no need for the "mixed" conversation type for one-on-one conversations, thus they are migrated as soon as both users support MLS.
 - **Force migration time**: After a set time, the migration will be forced, regardless of whether all clients have joined the "mixed" conversation. This time is configurable via the `finaliseRegardlessAfter` feature config.
 
