@@ -42,7 +42,7 @@ The transition from Proteus to MLS involves both client-side and server-side mec
 2. Client supports api v5 or higher, and therefore MLS.
 3. Client support for the MLS feature in enabled (for web, that means `FEATURE_ENABLE_MLS` set to `true`)
 4. MLS protocol supported by user's team (`mls` is included in "mls" feature config’s `supportedProtocols` list)
-5. The migration time (`mlsMigration`.`config`.`startTime`) has passed.
+5. Proteus to MLS migration is enabled for the client's team, and the migration time for the team (`mlsMigration`.`config`.`startTime`) has passed.
 
 #### Handling Edge Cases and Late Proteus Messages
 
