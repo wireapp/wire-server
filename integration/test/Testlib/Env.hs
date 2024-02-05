@@ -132,6 +132,13 @@ mkEnv ge = do
   liftIO $ do
     pks <- newIORef (zip [1 ..] somePrekeys)
     lpks <- newIORef someLastPrekeys
+    botKey <- case ge.gServicesCwdBase of
+      Nothing -> pure ge.gProviderKey
+      Just _ -> pure $ "integration" </> ge.gProviderKey
+
+    botCert <- case ge.gServicesCwdBase of
+      Nothing -> pure ge.gProviderCert
+      Just _ -> pure $ "integration" </> ge.gProviderCert
     pure
       Env
         { serviceMap = gServiceMap ge,
@@ -148,8 +155,8 @@ mkEnv ge = do
           resourcePool = ge.gBackendResourcePool,
           rabbitMQConfig = ge.gRabbitMQConfig,
           timeOutSeconds = ge.gTimeOutSeconds,
-          botKey = ge.gProviderKey,
-          botCert = ge.gProviderCert
+          botKey = botKey,
+          botCert = botCert
         }
 
 destroy :: IORef (Set BackendResource) -> BackendResource -> IO ()
