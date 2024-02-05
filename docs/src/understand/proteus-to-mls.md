@@ -89,7 +89,7 @@ mls:
 ```
 
 ```{note}
-This is configured like any other team feature config:
+This is configured like many other team feature configs:
 It can be configured on the server in the configuration file and if that feature is unlocked it can be also overwritten on a team level by team admins.
 For more details see {ref}`the team feature settings documentation<team-feature-settings>`.
 ```
