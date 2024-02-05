@@ -15,23 +15,15 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.API.Federation.HasNotificationEndpoint where
+module Wire.API.Federation.API.Util where
 
-import Data.Kind
-import GHC.TypeLits
+import Imports
+import Wire.API.Federation.API.Galley.Notifications
+import Wire.API.Federation.BackendNotifications
 import Wire.API.Federation.Component
-import Wire.API.Federation.Version
 
-class IsNotificationTag k where
-  type NotificationComponent k = (c :: Component) | c -> k
-
-class HasNotificationEndpoint t where
-  -- | The type of the payload for this endpoint
-  type Payload t = (p :: Type) | p -> t
-
-  -- | The central path component of a notification endpoint, e.g.,
-  -- "on-conversation-updated".
-  type NotificationPath t :: Symbol
-
-  -- | The federation API version range this endpoint is supported in.
-  versionRange :: VersionRange
+makeConversationUpdateBundle ::
+  ConversationUpdate ->
+  FedQueueClient 'Galley (PayloadBundle 'Galley)
+makeConversationUpdateBundle update =
+  (<>) <$> makeBundle update <*> makeBundle (conversationUpdateToV0 update)

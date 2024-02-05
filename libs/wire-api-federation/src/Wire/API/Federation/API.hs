@@ -24,13 +24,14 @@ module Wire.API.Federation.API
     HasUnsafeFedEndpoint,
     fedClient,
     fedQueueClient,
-    toBundle,
+    sendBundle,
     fedClientIn,
     unsafeFedClientIn,
     module Wire.API.MakesFederatedCall,
 
     -- * Re-exports
     Component (..),
+    makeConversationUpdateBundle,
   )
 where
 
@@ -46,6 +47,7 @@ import Servant.Client.Core
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Cargohold
 import Wire.API.Federation.API.Galley
+import Wire.API.Federation.API.Util
 import Wire.API.Federation.BackendNotifications
 import Wire.API.Federation.Client
 import Wire.API.Federation.Component
@@ -95,11 +97,11 @@ fedClientIn ::
   Client m api
 fedClientIn = clientIn (Proxy @api) (Proxy @m)
 
-fedQueueClientFromBundle ::
+sendBundle ::
   KnownComponent c =>
   PayloadBundle c ->
   FedQueueClient c ()
-fedQueueClientFromBundle bundle = do
+sendBundle bundle = do
   env <- ask
   let msg =
         newMsg
@@ -123,7 +125,7 @@ fedQueueClient ::
   ) =>
   Payload tag ->
   FedQueueClient c ()
-fedQueueClient payload = fedQueueClientFromBundle =<< makeBundle @tag payload
+fedQueueClient payload = sendBundle =<< makeBundle @tag payload
 
 -- | Like 'fedClientIn', but doesn't propagate a 'CallsFed' constraint. Intended
 -- to be used in test situations only.

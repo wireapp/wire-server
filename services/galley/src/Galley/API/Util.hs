@@ -877,7 +877,7 @@ registerRemoteConversationMemberships now lusr lc = deleteOnUnreachable $ do
           joined
 
   r <- enqueueNotificationsConcurrentlyBuckets Q.Persistent joinedCoupled $ \z ->
-    fedQueueClient @'OnConversationUpdatedTag (convUpdateJoin z)
+    makeConversationUpdateBundle (convUpdateJoin z) >>= sendBundle
   either throw (void . pure) r
   where
     creator :: Maybe UserId
