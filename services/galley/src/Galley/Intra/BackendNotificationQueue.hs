@@ -28,8 +28,8 @@ interpretBackendNotificationQueueAccess ::
   Sem (BackendNotificationQueueAccess ': r) a ->
   Sem r a
 interpretBackendNotificationQueueAccess = interpret $ \case
-  EnqueueNotification remote deliveryMode action -> do
-    embedApp . runExceptT $ enqueueNotification (tDomain remote) deliveryMode action
+  EnqueueNotification deliveryMode remote action -> do
+    embedApp . runExceptT $ enqueueNotification deliveryMode (tDomain remote) action
   EnqueueNotificationsConcurrently m xs rpc -> do
     embedApp . runExceptT $ enqueueNotificationsConcurrently m xs rpc
   EnqueueNotificationsConcurrentlyBuckets m xs rpc -> do
@@ -63,8 +63,8 @@ enqueueSingleNotification remoteDomain deliveryMode chanVar action = do
         Just chan -> do
           liftIO $ enqueue chan rid ownDomain remoteDomain deliveryMode action
 
-enqueueNotification :: Domain -> Q.DeliveryMode -> FedQueueClient c a -> ExceptT FederationError App a
-enqueueNotification remoteDomain deliveryMode action = do
+enqueueNotification :: Q.DeliveryMode -> Domain -> FedQueueClient c a -> ExceptT FederationError App a
+enqueueNotification deliveryMode remoteDomain action = do
   chanVar <- getChannel
   lift $ enqueueSingleNotification remoteDomain deliveryMode chanVar action
 
@@ -83,14 +83,14 @@ enqueueNotificationsConcurrently m xs f = do
 enqueueNotificationsConcurrentlyBuckets ::
   (Foldable f) =>
   Q.DeliveryMode ->
-  f (Remote [x], y) ->
-  ((Remote [x], y) -> FedQueueClient c a) ->
+  f (Remote x) ->
+  (Remote x -> FedQueueClient c a) ->
   ExceptT FederationError App [Remote a]
 enqueueNotificationsConcurrentlyBuckets m xs f = do
   chanVar <- getChannel
-  lift $ pooledForConcurrentlyN 8 (toList xs) $ \(r, y) ->
+  lift $ pooledForConcurrentlyN 8 (toList xs) $ \r ->
     qualifyAs r
-      <$> enqueueSingleNotification (tDomain r) m chanVar (f (r, y))
+      <$> enqueueSingleNotification (tDomain r) m chanVar (f r)
 
 data NoRabbitMqChannel = NoRabbitMqChannel
   deriving (Show)

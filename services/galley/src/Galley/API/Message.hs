@@ -703,7 +703,7 @@ sendRemoteMessages domain now sender senderClient lcnv metadata messages = (hand
         reqId <- asks (.requestId)
         origin <- asks (.originDomain)
         fedQueueClient $ toBundle @'OnMessageSentTag reqId origin rm
-  enqueueNotification domain Q.Persistent rpc
+  enqueueNotification Q.Persistent domain rpc
   where
     handle :: Either FederationError a -> Sem r (Set (UserId, ClientId))
     handle (Right _) = pure mempty

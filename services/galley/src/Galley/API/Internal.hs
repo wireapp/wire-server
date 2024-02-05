@@ -431,7 +431,7 @@ rmUser lusr conn = do
               origin <- asks (.originDomain)
               fedQueueClient $
                 toBundle @'OnUserDeletedConversationsTag req origin userDelete
-        enqueueNotification remoteConvs Q.Persistent rpc
+        enqueueNotification Q.Persistent remoteConvs rpc
 
     -- FUTUREWORK: Add a retry mechanism if there are federation errrors.
     -- See https://wearezeta.atlassian.net/browse/SQCORE-1091

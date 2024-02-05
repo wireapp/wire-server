@@ -148,4 +148,4 @@ rmClientH (usr ::: cid) = do
                     origin
                     (ClientRemovedRequest usr cid (tUnqualified remoteConvs))
                 )
-         in enqueueNotification remoteConvs Q.Persistent rpc
+         in enqueueNotification Q.Persistent remoteConvs rpc

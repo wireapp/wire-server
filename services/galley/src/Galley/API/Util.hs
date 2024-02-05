@@ -864,7 +864,7 @@ registerRemoteConversationMemberships now lusr lc = deleteOnUnreachable $ do
 
   -- reachable members in buckets per remote domain
   let joined :: [Remote [RemoteMember]] = allRemoteBuckets
-      joinedCoupled :: [(Remote [RemoteMember], NonEmpty (Remote UserId))]
+      joinedCoupled :: [Remote ([RemoteMember], NonEmpty (Remote UserId))]
       joinedCoupled =
         foldMap
           ( \ruids ->
@@ -873,16 +873,9 @@ registerRemoteConversationMemberships now lusr lc = deleteOnUnreachable $ do
                       filter (\r -> tDomain r /= tDomain ruids) joined
                in case NE.nonEmpty nj of
                     Nothing -> []
-                    Just v -> [(ruids, v)]
+                    Just v -> [fmap (,v) ruids]
           )
           joined
-
-  -- Send an update to remotes about the final list of participants
-  -- runFederatedConcurrentlyBucketsEither joinedCoupled $
-  --     fedClient @'Galley @"on-conversation-updated" . convUpdateJoin
-
-  -- runFederatedConcurrentlyEither : does the bucketing
-  -- runFederatedConcurrentlyBucketsEither : takes a list of buckets
 
   r <- enqueueNotificationsConcurrentlyBuckets Q.Persistent joinedCoupled $ \z -> do
     reqId <- asks (.requestId)
@@ -905,13 +898,13 @@ registerRemoteConversationMemberships now lusr lc = deleteOnUnreachable $ do
     toMembers :: [RemoteMember] -> Set OtherMember
     toMembers rs = Set.fromList $ localNonCreators <> fmap remoteMemberToOther rs
 
-    convUpdateJoin :: (QualifiedWithTag t [RemoteMember], NonEmpty (QualifiedWithTag t' UserId)) -> ConversationUpdate
-    convUpdateJoin (toNotify, newMembers) =
+    convUpdateJoin :: Remote ([RemoteMember], NonEmpty (Remote UserId)) -> ConversationUpdate
+    convUpdateJoin (tUnqualified -> (toNotify, newMembers)) =
       ConversationUpdate
         { time = now,
           origUserId = tUntagged lusr,
           convId = DataTypes.convId (tUnqualified lc),
-          alreadyPresentUsers = fmap (tUnqualified . rmId) . tUnqualified $ toNotify,
+          alreadyPresentUsers = fmap (tUnqualified . rmId) toNotify,
           action =
             SomeConversationAction
               (sing @'ConversationJoinTag)
