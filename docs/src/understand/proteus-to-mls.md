@@ -34,7 +34,7 @@ The transition from Proteus to MLS involves both client-side and server-side mec
 #### Migration Initiation and Ongoing Monitoring
 
 - **Periodic Checks for Migration**: Clients will routinely check (at application startup and every 24 hours) for conversations that are ready to transition to the MLS protocol. This check initiates the client’s participation in the migration process.
-- **Client List Updates**: Continuously updating and maintaining the client list is crucial during the migration. This ensures that all participating clients are accounted for and properly transitioned to the new protocol.
+- **Client List Updates**: Each client continuously updates and maintains the list other clients of the same user. The client list is crucial during the migration. It ensures that all participating clients are accounted for and properly transitioned to the new protocol.
 
 #### Conditions for migration to begin.
 
