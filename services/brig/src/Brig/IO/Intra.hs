@@ -54,7 +54,7 @@ import Brig.API.Error (internalServerError)
 import Brig.API.Types
 import Brig.API.Util
 import Brig.App
-import Brig.Data.Connection (lookupContactList)
+import Brig.Data.Connection (resultList)
 import Brig.Data.Connection qualified as Data
 import Brig.Federation.Client (notifyUserDeleted)
 import Brig.IO.Journal qualified as Journal
@@ -77,13 +77,14 @@ import Data.ByteString.Conversion
 import Data.ByteString.Lazy qualified as BL
 import Data.Conduit.List qualified as C
 import Data.Id
-import Data.Json.Util ((#))
+import Data.Json.Util (toUTCTimeMillis, (#))
 import Data.List.Split (chunksOf)
 import Data.List1 (List1, list1, singleton)
 import Data.Proxy
 import Data.Qualified
 import Data.Range
 import Data.Set qualified as Set
+import Data.Time.Clock (getCurrentTime)
 import GHC.TypeLits
 import Gundeck.Types.Push.V2
 import Gundeck.Types.Push.V2 qualified as Push
@@ -128,22 +129,28 @@ onUserEvent orig conn e =
     *> journalEvent orig e
 
 onConnectionEvent ::
+  ( Log.MonadLogger m,
+    MonadReader Env m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadUnliftIO m
+  ) =>
   -- | Originator of the event.
   UserId ->
   -- | Client connection ID, if any.
   Maybe ConnId ->
   -- | The event.
   ConnectionEvent ->
-  (AppT r) ()
+  m ()
 onConnectionEvent orig conn evt = do
   let from = ucFrom (ucConn evt)
-  wrapHttp $
-    notify
-      (singleton $ ConnectionEvent evt)
-      orig
-      Push.RouteAny
-      conn
-      (pure $ list1 from [])
+  notify
+    (singleton $ ConnectionEvent evt)
+    orig
+    Push.RouteAny
+    conn
+    (pure $ list1 from [])
 
 onPropertyEvent ::
   -- | Originator of the event.
@@ -275,6 +282,7 @@ dispatchNotifications orig conn e = case e of
     event = singleton $ UserEvent e
 
 notifyUserDeletionLocals ::
+  forall m.
   ( Log.MonadLogger m,
     MonadReader Env m,
     MonadMask m,
@@ -288,8 +296,44 @@ notifyUserDeletionLocals ::
   List1 Event ->
   m ()
 notifyUserDeletionLocals deleted conn event = do
-  recipients <- list1 deleted <$> lookupContactList deleted
-  notify event deleted Push.RouteDirect conn (pure recipients)
+  luid <- qualifyLocal deleted
+  connectionPages Nothing luid (toRange (Proxy @500))
+  where
+    handler :: [UserConnection] -> m ()
+    handler connections = do
+      -- sent event to connections that are accepted
+      case qUnqualified . ucTo <$> filter ((==) Accepted . ucStatus) connections of
+        x : xs -> notify event deleted Push.RouteDirect conn (pure (list1 x xs))
+        [] -> pure ()
+      -- also send a connection cancelled event to connections that are pending
+      d <- viewFederationDomain
+      forM_
+        (filter ((==) Sent . ucStatus) connections)
+        ( \uc -> do
+            now <- liftIO $ toUTCTimeMillis <$> getCurrentTime
+            -- because the connections are going to be removed from the database anyway when a user gets deleted
+            -- we don't need to save the updated connection state in the database
+            -- note that we switch from and to users so that the "other" user becomes the recipient of the event
+            let ucCancelled =
+                  UserConnection
+                    (qUnqualified (ucTo uc))
+                    (Qualified (ucFrom uc) d)
+                    Cancelled
+                    now
+                    (ucConvId uc)
+            let e = ConnectionUpdated ucCancelled Nothing Nothing
+            onConnectionEvent deleted conn e
+        )
+
+    connectionPages :: Maybe UserId -> Local UserId -> Range 1 500 Int32 -> m ()
+    connectionPages mbStart user pageSize = do
+      page <- Data.lookupLocalConnections user mbStart pageSize
+      case resultList page of
+        [] -> pure ()
+        xs -> do
+          handler xs
+          when (Data.resultHasMore page) $
+            connectionPages (Just (maximum (qUnqualified . ucTo <$> xs))) user pageSize
 
 notifyUserDeletionRemotes ::
   forall m.
@@ -485,7 +529,7 @@ notifyContacts events orig route conn = do
     list1 orig <$> liftA2 (++) contacts teamContacts
   where
     contacts :: m [UserId]
-    contacts = lookupContactList orig
+    contacts = Data.lookupContactList orig
 
     teamContacts :: m [UserId]
     teamContacts = screenMemberList <$> getTeamContacts orig

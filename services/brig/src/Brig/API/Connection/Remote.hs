@@ -188,7 +188,7 @@ transitionTo self mzcon other (Just connection) (Just rel) actor = lift $ do
 pushEvent :: Local UserId -> Maybe ConnId -> UserConnection -> (AppT r) ()
 pushEvent self mzcon connection = do
   let event = ConnectionUpdated connection Nothing Nothing
-  Intra.onConnectionEvent (tUnqualified self) mzcon event
+  wrapHttp $ Intra.onConnectionEvent (tUnqualified self) mzcon event
 
 performLocalAction ::
   Local UserId ->

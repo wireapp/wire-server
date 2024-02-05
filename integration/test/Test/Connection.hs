@@ -19,6 +19,7 @@ module Test.Connection where
 import API.Brig (getConnection, postConnection, putConnection)
 import API.BrigInternal
 import API.Galley
+import Notifications
 import SetupHelpers
 import Testlib.Prelude
 import UnliftIO.Async (forConcurrently_)
@@ -402,16 +403,13 @@ testFederationAllowMixedConnectWithRemote =
   where
     defSearchPolicy = "full_search"
 
--- TODO(leif): if there needs to be a change in backend behavior, this test can be the starting point
-_testPendingConnectionUserDeleted :: HasCallStack => App ()
-_testPendingConnectionUserDeleted = do
+testPendingConnectionUserDeleted :: HasCallStack => App ()
+testPendingConnectionUserDeleted = do
   alice <- randomUser OwnDomain def
   bob <- randomUser OwnDomain def
 
-  void $ postConnection alice bob >>= getBody 201
-
-  void $ deleteUser alice
-
-  bindResponse (putConnection bob alice "ignored") \resp -> do
-    putStrLn $ "status: " <> show (resp.status)
-    putStrLn =<< prettyJSON (resp.json)
+  withWebSockets [bob] $ \[bobWs] -> do
+    void $ postConnection alice bob >>= getBody 201
+    void $ awaitMatch (isConnectionNotif "pending") bobWs
+    void $ deleteUser alice
+    void $ awaitMatch (isConnectionNotif "cancelled") bobWs

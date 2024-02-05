@@ -121,7 +121,7 @@ createConnectionToLocalUser self conn target = do
         ConnectionUpdated o2s' (ucStatus <$> o2s)
           <$> wrapClient (Data.lookupName (tUnqualified self))
       let e2s = ConnectionUpdated s2o' (ucStatus <$> s2o) Nothing
-      mapM_ (Intra.onConnectionEvent (tUnqualified self) (Just conn)) [e2o, e2s]
+      mapM_ (wrapHttp . Intra.onConnectionEvent (tUnqualified self) (Just conn)) [e2o, e2s]
       pure s2o'
 
     update :: UserConnection -> UserConnection -> ExceptT ConnectionError (AppT r) (ResponseForExistedCreated UserConnection)
@@ -158,7 +158,7 @@ createConnectionToLocalUser self conn target = do
           ConnectionUpdated o2s' (Just $ ucStatus o2s)
             <$> Data.lookupName (tUnqualified self)
       let e2s = ConnectionUpdated s2o' (Just $ ucStatus s2o) Nothing
-      lift $ mapM_ (Intra.onConnectionEvent (tUnqualified self) (Just conn)) [e2o, e2s]
+      lift $ mapM_ (wrapHttp . Intra.onConnectionEvent (tUnqualified self) (Just conn)) [e2o, e2s]
       pure $ Existed s2o'
 
     resend :: UserConnection -> UserConnection -> ExceptT ConnectionError (AppT r) (ResponseForExistedCreated UserConnection)
@@ -281,7 +281,7 @@ updateConnectionToLocalUser self other newStatus conn = do
   let s2oUserConn = s2o'
   lift . for_ s2oUserConn $ \c ->
     let e2s = ConnectionUpdated c (Just $ ucStatus s2o) Nothing
-     in Intra.onConnectionEvent (tUnqualified self) conn e2s
+     in wrapHttp $ Intra.onConnectionEvent (tUnqualified self) conn e2s
   pure s2oUserConn
   where
     accept :: UserConnection -> UserConnection -> ExceptT ConnectionError (AppT r) (Maybe UserConnection)
@@ -304,7 +304,7 @@ updateConnectionToLocalUser self other newStatus conn = do
         e2o <-
           ConnectionUpdated o2s' (Just $ ucStatus o2s)
             <$> wrapClient (Data.lookupName (tUnqualified self))
-        Intra.onConnectionEvent (tUnqualified self) conn e2o
+        wrapHttp $ Intra.onConnectionEvent (tUnqualified self) conn e2o
       lift . wrapClient $ Just <$> Data.updateConnection s2o AcceptedWithHistory
 
     block :: UserConnection -> ExceptT ConnectionError (AppT r) (Maybe UserConnection)
@@ -335,7 +335,7 @@ updateConnectionToLocalUser self other newStatus conn = do
             ConnectionUpdated o2s' (Just $ ucStatus o2s)
               <$> Data.lookupName (tUnqualified self)
         -- TODO: is this correct? shouldnt o2s be sent to other?
-        Intra.onConnectionEvent (tUnqualified self) conn e2o
+        wrapHttp $ Intra.onConnectionEvent (tUnqualified self) conn e2o
       lift . wrapClient $ Just <$> Data.updateConnection s2o (mkRelationWithHistory (error "impossible") new)
 
     cancel :: UserConnection -> UserConnection -> ExceptT ConnectionError (AppT r) (Maybe UserConnection)
@@ -347,7 +347,7 @@ updateConnectionToLocalUser self other newStatus conn = do
       lift $ traverse_ (wrapHttp . Intra.blockConv lfrom conn) (ucConvId s2o)
       o2s' <- lift . wrapClient $ Data.updateConnection o2s CancelledWithHistory
       let e2o = ConnectionUpdated o2s' (Just $ ucStatus o2s) Nothing
-      lift $ Intra.onConnectionEvent (tUnqualified self) conn e2o
+      lift $ wrapHttp $ Intra.onConnectionEvent (tUnqualified self) conn e2o
       change s2o Cancelled
 
     change :: UserConnection -> Relation -> ExceptT ConnectionError (AppT r) (Maybe UserConnection)
@@ -414,7 +414,7 @@ updateConnectionInternal = \case
           traverse_ (wrapHttp . Intra.blockConv lfrom Nothing) (ucConvId uconn)
           uconn' <- wrapClient $ Data.updateConnection uconn (mkRelationWithHistory (ucStatus uconn) MissingLegalholdConsent)
           let ev = ConnectionUpdated uconn' (Just $ ucStatus uconn) Nothing
-          Intra.onConnectionEvent (tUnqualified self) Nothing ev
+          wrapHttp $ Intra.onConnectionEvent (tUnqualified self) Nothing ev
 
     removeLHBlocksInvolving :: Local UserId -> ExceptT ConnectionError (AppT r) ()
     removeLHBlocksInvolving self =
@@ -456,7 +456,7 @@ updateConnectionInternal = \case
                     ucPrev = Just $ ucStatus uconnRev,
                     ucName = connName
                   }
-          lift $ Intra.onConnectionEvent (ucFrom uconn) Nothing connEvent
+          lift $ wrapHttp $ Intra.onConnectionEvent (ucFrom uconn) Nothing connEvent
 
     relationWithHistory ::
       Local UserId ->
