@@ -76,7 +76,6 @@ import Imports hiding (head)
 import Network.Wai.Routing hiding (toList)
 import Network.Wai.Utilities as Utilities
 import Polysemy
-import Polysemy.Async
 import Polysemy.TinyLog (TinyLog)
 import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.OpenApi.Internal.Orphans ()
@@ -114,7 +113,6 @@ servantSitemap ::
     Member FederationConfigStore r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r,
     Member TinyLog r,
     Member (Concurrency 'Unsafe) r
   ) =>
@@ -159,7 +157,6 @@ accountAPI ::
     Member (UserPendingActivationStore p) r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r,
     Member TinyLog r
   ) =>
   ServerT BrigIRoutes.AccountAPI (Handler r)
@@ -203,7 +200,6 @@ teamsAPI ::
     Member BlacklistStore r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r,
     Member (Concurrency 'Unsafe) r,
     Member TinyLog r
   ) =>
@@ -230,8 +226,7 @@ authAPI ::
   ( Member GalleyProvider r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member Async r
+    Member NotificationSubsystem r
   ) =>
   ServerT BrigIRoutes.AuthAPI (Handler r)
 authAPI =
@@ -375,7 +370,6 @@ addClientInternalH ::
   ( Member GalleyProvider r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r,
     Member TinyLog r
   ) =>
   UserId ->
@@ -392,7 +386,6 @@ addClientInternalH usr mSkipReAuth new connId = do
 legalHoldClientRequestedH ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r,
     Member TinyLog r
   ) =>
   UserId ->
@@ -404,7 +397,6 @@ legalHoldClientRequestedH targetUser clientRequest = do
 removeLegalHoldClientH ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r,
     Member TinyLog r
   ) =>
   UserId ->
@@ -427,8 +419,7 @@ createUserNoVerify ::
     Member (UserPendingActivationStore p) r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member Async r
+    Member NotificationSubsystem r
   ) =>
   NewUser ->
   (Handler r) (Either RegisterError SelfProfile)
@@ -449,7 +440,6 @@ createUserNoVerifySpar ::
   ( Member GalleyProvider r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r,
     Member TinyLog r
   ) =>
   NewUserSpar ->
@@ -471,7 +461,6 @@ createUserNoVerifySpar uData =
 deleteUserNoAuthH ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r,
     Member TinyLog r
   ) =>
   UserId ->
@@ -588,7 +577,6 @@ getPasswordResetCode emailOrPhone =
 changeAccountStatusH ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r,
     Member TinyLog r
   ) =>
   UserId ->
@@ -634,7 +622,6 @@ getConnectionsStatus (ConnectionsStatusRequestV2 froms mtos mrel) = do
 revokeIdentityH ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r,
     Member TinyLog r
   ) =>
   Maybe Email ->
@@ -646,7 +633,6 @@ revokeIdentityH bade badp = throwStd (badRequest ("need exactly one of email, ph
 
 updateConnectionInternalH ::
   ( Member NotificationSubsystem r,
-    Member Async r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r
   ) =>
@@ -699,7 +685,6 @@ addPhonePrefixH prefix = lift $ NoContent <$ API.phonePrefixInsert prefix
 updateSSOIdH ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r,
     Member TinyLog r
   ) =>
   UserId ->
@@ -716,7 +701,6 @@ updateSSOIdH uid ssoid = do
 deleteSSOIdH ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r,
     Member TinyLog r
   ) =>
   UserId ->
@@ -781,7 +765,6 @@ getRichInfoMultiH (maybe [] fromCommaSeparatedList -> uids) =
 updateHandleH ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r,
     Member GalleyProvider r,
     Member TinyLog r
   ) =>
@@ -796,7 +779,6 @@ updateHandleH uid (HandleUpdate handleUpd) =
 updateUserNameH ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r,
     Member GalleyProvider r,
     Member TinyLog r
   ) =>

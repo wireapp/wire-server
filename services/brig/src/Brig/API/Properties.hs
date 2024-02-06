@@ -35,21 +35,20 @@ import Control.Error
 import Data.Id
 import Imports
 import Polysemy
-import Polysemy.Async
 import Wire.API.Properties
 import Wire.NotificationSubsystem
 
-setProperty :: (Member NotificationSubsystem r, Member Async r) => UserId -> ConnId -> PropertyKey -> PropertyValue -> ExceptT PropertiesDataError (AppT r) ()
+setProperty :: (Member NotificationSubsystem r) => UserId -> ConnId -> PropertyKey -> PropertyValue -> ExceptT PropertiesDataError (AppT r) ()
 setProperty u c k v = do
   wrapClientE $ Data.insertProperty u k (propertyRaw v)
   lift $ liftSem $ Intra.onPropertyEvent u c (PropertySet u k v)
 
-deleteProperty :: (Member NotificationSubsystem r, Member Async r) => UserId -> ConnId -> PropertyKey -> AppT r ()
+deleteProperty :: (Member NotificationSubsystem r) => UserId -> ConnId -> PropertyKey -> AppT r ()
 deleteProperty u c k = do
   wrapClient $ Data.deleteProperty u k
   liftSem $ Intra.onPropertyEvent u c (PropertyDeleted u k)
 
-clearProperties :: (Member NotificationSubsystem r, Member Async r) => UserId -> ConnId -> AppT r ()
+clearProperties :: (Member NotificationSubsystem r) => UserId -> ConnId -> AppT r ()
 clearProperties u c = do
   wrapClient $ Data.clearProperties u
   liftSem $ Intra.onPropertyEvent u c (PropertiesCleared u)

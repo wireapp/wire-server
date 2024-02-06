@@ -43,7 +43,6 @@ import Network.HTTP.Types
 import Network.Wai.Utilities ((!>>))
 import Network.Wai.Utilities.Error qualified as Wai
 import Polysemy
-import Polysemy.Async
 import Polysemy.TinyLog (TinyLog)
 import Wire.API.User
 import Wire.API.User.Auth hiding (access)
@@ -55,8 +54,7 @@ import Wire.NotificationSubsystem
 accessH ::
   ( Member TinyLog r,
     Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member Async r
+    Member NotificationSubsystem r
   ) =>
   Maybe ClientId ->
   [Either Text SomeUserToken] ->
@@ -72,8 +70,7 @@ access ::
   ( TokenPair u a,
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member Async r
+    Member NotificationSubsystem r
   ) =>
   Maybe ClientId ->
   NonEmpty (Token u) ->
@@ -93,8 +90,7 @@ login ::
   ( Member GalleyProvider r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member Async r
+    Member NotificationSubsystem r
   ) =>
   Login ->
   Maybe Bool ->
@@ -154,7 +150,6 @@ legalHoldLogin ::
   ( Member GalleyProvider r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r,
     Member TinyLog r
   ) =>
   LegalHoldLogin ->
@@ -167,8 +162,7 @@ legalHoldLogin lhl = do
 ssoLogin ::
   ( Member TinyLog r,
     Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member Async r
+    Member NotificationSubsystem r
   ) =>
   SsoLogin ->
   Maybe Bool ->

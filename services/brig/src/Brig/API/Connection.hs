@@ -57,7 +57,6 @@ import Data.Range
 import Data.UUID.V4 qualified as UUID
 import Imports
 import Polysemy
-import Polysemy.Async (Async)
 import Polysemy.TinyLog
 import System.Logger.Class qualified as Log
 import System.Logger.Message
@@ -79,7 +78,6 @@ createConnection ::
   ( Member FederationConfigStore r,
     Member GalleyProvider r,
     Member NotificationSubsystem r,
-    Member Async r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r
   ) =>
@@ -99,7 +97,6 @@ createConnectionToLocalUser ::
   forall r.
   ( Member GalleyProvider r,
     Member NotificationSubsystem r,
-    Member Async r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r
   ) =>
@@ -220,7 +217,6 @@ checkLegalholdPolicyConflict uid1 uid2 = do
 updateConnection ::
   ( Member FederationConfigStore r,
     Member NotificationSubsystem r,
-    Member Async r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r
   ) =>
@@ -245,7 +241,6 @@ updateConnection self other newStatus conn =
 updateConnectionToLocalUser ::
   forall r.
   ( Member NotificationSubsystem r,
-    Member Async r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r
   ) =>
@@ -408,7 +403,6 @@ mkRelationWithHistory oldRel = \case
 updateConnectionInternal ::
   forall r.
   ( Member NotificationSubsystem r,
-    Member Async r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r
   ) =>

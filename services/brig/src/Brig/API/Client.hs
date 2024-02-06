@@ -90,7 +90,6 @@ import Imports
 import Network.HTTP.Types.Method (StdMethod)
 import Network.Wai.Utilities
 import Polysemy
-import Polysemy.Async
 import Polysemy.TinyLog
 import Servant (Link, ToHttpApiData (toUrlPiece))
 import System.Logger.Class (field, msg, val, (~~))
@@ -159,7 +158,6 @@ addClient ::
   ( Member GalleyProvider r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r,
     Member TinyLog r
   ) =>
   UserId ->
@@ -175,7 +173,6 @@ addClientWithReAuthPolicy ::
   ( Member GalleyProvider r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r,
     Member TinyLog r
   ) =>
   Data.ReAuthPolicy ->
@@ -478,7 +475,6 @@ pubClient c =
 legalHoldClientRequested ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r,
     Member TinyLog r
   ) =>
   UserId ->
@@ -497,7 +493,6 @@ legalHoldClientRequested targetUser (LegalHoldClientRequest _requester lastPreke
 removeLegalHoldClient ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r,
     Member TinyLog r
   ) =>
   UserId ->

@@ -53,7 +53,6 @@ import Gundeck.Types.Push qualified as Push
 import Imports hiding ((\\))
 import Network.Wai.Utilities.Error ((!>>))
 import Polysemy
-import Polysemy.Async
 import Servant (ServerT)
 import Servant.API
 import Wire.API.Connection
@@ -80,8 +79,7 @@ federationSitemap ::
   ( Member GalleyProvider r,
     Member (Concurrency 'Unsafe) r,
     Member FederationConfigStore r,
-    Member NotificationSubsystem r,
-    Member Async r
+    Member NotificationSubsystem r
   ) =>
   ServerT FederationAPI (Handler r)
 federationSitemap =
@@ -113,8 +111,7 @@ getFederationStatus _ request = do
 
 sendConnectionAction ::
   ( Member FederationConfigStore r,
-    Member NotificationSubsystem r,
-    Member Async r
+    Member NotificationSubsystem r
   ) =>
   Domain ->
   NewConnectionRequest ->
@@ -261,8 +258,7 @@ getMLSClientsV0 domain mcr0 = getMLSClients domain (mlsClientsRequestFromV0 mcr0
 
 onUserDeleted ::
   ( Member (Concurrency 'Unsafe) r,
-    Member NotificationSubsystem r,
-    Member Async r
+    Member NotificationSubsystem r
   ) =>
   Domain ->
   UserDeletedConnectionsNotification ->

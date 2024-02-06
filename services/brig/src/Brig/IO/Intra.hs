@@ -85,7 +85,6 @@ import Imports
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import Polysemy
-import Polysemy.Async
 import Polysemy.TinyLog (TinyLog)
 import System.Logger.Class (MonadLogger)
 import System.Logger.Message hiding ((.=))
@@ -111,7 +110,6 @@ import Wire.Sem.Logger qualified as Log
 onUserEvent ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r,
     Member TinyLog r
   ) =>
   UserId ->
@@ -124,9 +122,7 @@ onUserEvent orig conn e =
     *> embed (journalEvent orig e)
 
 onConnectionEvent ::
-  ( Member NotificationSubsystem r,
-    Member Async r
-  ) =>
+  (Member NotificationSubsystem r) =>
   -- | Originator of the event.
   UserId ->
   -- | Client connection ID, if any.
@@ -144,7 +140,7 @@ onConnectionEvent orig conn evt = do
     (pure $ from :| [])
 
 onPropertyEvent ::
-  (Member NotificationSubsystem r, Member Async r) =>
+  (Member NotificationSubsystem r) =>
   -- | Originator of the event.
   UserId ->
   -- | Client connection ID.
@@ -232,7 +228,6 @@ journalEvent orig e = case e of
 dispatchNotifications ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r,
     Member TinyLog r
   ) =>
   UserId ->
@@ -263,8 +258,7 @@ dispatchNotifications orig conn e = case e of
 
 notifyUserDeletionLocals ::
   ( Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member Async r
+    Member NotificationSubsystem r
   ) =>
   UserId ->
   Maybe ConnId ->
@@ -304,7 +298,7 @@ notifyUserDeletionRemotes deleted = do
 
 -- | (Asynchronously) notifies other users of events.
 notify ::
-  (Member NotificationSubsystem r, Member Async r) =>
+  (Member NotificationSubsystem r) =>
   List1 Event ->
   -- | Origin user, TODO: Delete
   UserId ->
@@ -315,19 +309,17 @@ notify ::
   -- | Users to notify.
   Sem r (NonEmpty UserId) ->
   Sem r ()
-notify (toList -> events) orig route conn recipients =
-  -- TODO: This async doesn't log errors if the push fails. Make it do so.
-  void . async $ do
-    rs <- (\u -> Recipient u RecipientClientsAll) <$$> recipients
-    let pushes = flip map events $ \event ->
-          newPush1 (Just orig) (toPushFormat event) rs
-            & pushConn .~ conn
-            & pushRoute .~ route
-            & pushApsData .~ toApsData event
-    pushNotifications pushes
+notify (toList -> events) orig route conn recipients = do
+  rs <- (\u -> Recipient u RecipientClientsAll) <$$> recipients
+  let pushes = flip map events $ \event ->
+        newPush1 (Just orig) (toPushFormat event) rs
+          & pushConn .~ conn
+          & pushRoute .~ route
+          & pushApsData .~ toApsData event
+  pushNotificationsAsync pushes
 
 notifySelf ::
-  (Member NotificationSubsystem r, Member Async r) =>
+  (Member NotificationSubsystem r) =>
   List1 Event ->
   -- | Origin user.
   UserId ->
@@ -343,7 +335,6 @@ notifyContacts ::
   forall r.
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r,
     Member TinyLog r
   ) =>
   List1 Event ->

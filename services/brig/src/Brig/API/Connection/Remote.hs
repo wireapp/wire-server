@@ -40,7 +40,6 @@ import Data.Qualified
 import Imports
 import Network.Wai.Utilities.Error
 import Polysemy
-import Polysemy.Async
 import Wire.API.Connection
 import Wire.API.Federation.API.Brig
   ( NewConnectionResponse (..),
@@ -147,9 +146,7 @@ updateOne2OneConv lUsr _mbConn remoteUser mbConvId rel actor = do
 --
 -- Returns the connection, and whether it was updated or not.
 transitionTo ::
-  ( Member NotificationSubsystem r,
-    Member Async r
-  ) =>
+  (Member NotificationSubsystem r) =>
   Local UserId ->
   Maybe ConnId ->
   Remote UserId ->
@@ -191,9 +188,7 @@ transitionTo self mzcon other (Just connection) (Just rel) actor = lift $ do
 
 -- | Send an event to the local user when the state of a connection changes.
 pushEvent ::
-  ( Member NotificationSubsystem r,
-    Member Async r
-  ) =>
+  (Member NotificationSubsystem r) =>
   Local UserId ->
   Maybe ConnId ->
   UserConnection ->
@@ -203,9 +198,7 @@ pushEvent self mzcon connection = do
   liftSem $ Intra.onConnectionEvent (tUnqualified self) mzcon event
 
 performLocalAction ::
-  ( Member NotificationSubsystem r,
-    Member Async r
-  ) =>
+  (Member NotificationSubsystem r) =>
   Local UserId ->
   Maybe ConnId ->
   Remote UserId ->
@@ -261,9 +254,7 @@ performLocalAction self mzcon other mconnection action = do
 -- B connects & A reacts:  Accepted  Accepted
 -- @
 performRemoteAction ::
-  ( Member NotificationSubsystem r,
-    Member Async r
-  ) =>
+  (Member NotificationSubsystem r) =>
   Local UserId ->
   Remote UserId ->
   Maybe UserConnection ->
@@ -282,8 +273,7 @@ performRemoteAction self other mconnection action = do
 
 createConnectionToRemoteUser ::
   ( Member FederationConfigStore r,
-    Member NotificationSubsystem r,
-    Member Async r
+    Member NotificationSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
@@ -297,7 +287,6 @@ createConnectionToRemoteUser self zcon other = do
 
 updateConnectionToRemoteUser ::
   ( Member NotificationSubsystem r,
-    Member Async r,
     Member FederationConfigStore r
   ) =>
   Local UserId ->

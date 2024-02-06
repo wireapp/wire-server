@@ -33,7 +33,6 @@ import Control.Monad.Catch
 import Data.ByteString.Conversion
 import Imports
 import Polysemy
-import Polysemy.Async
 import Polysemy.Conc
 import Polysemy.Time
 import Polysemy.TinyLog as Log
@@ -49,8 +48,7 @@ onEvent ::
     Member NotificationSubsystem r,
     Member TinyLog r,
     Member Delay r,
-    Member Race r,
-    Member Async r
+    Member Race r
   ) =>
   InternalNotification ->
   Sem r ()

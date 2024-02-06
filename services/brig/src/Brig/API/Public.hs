@@ -101,7 +101,6 @@ import Imports hiding (head)
 import Network.Socket (PortNumber)
 import Network.Wai.Utilities as Utilities
 import Polysemy
-import Polysemy.Async
 import Polysemy.TinyLog (TinyLog)
 import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant qualified
@@ -277,7 +276,6 @@ servantSitemap ::
     Member FederationConfigStore r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r,
     Member TinyLog r
   ) =>
   ServerT BrigAPI (Handler r)
@@ -444,7 +442,7 @@ servantSitemap =
 ---------------------------------------------------------------------------
 -- Handlers
 
-setProperty :: (Member NotificationSubsystem r, Member Async r) => UserId -> ConnId -> Public.PropertyKey -> Public.RawPropertyValue -> Handler r ()
+setProperty :: (Member NotificationSubsystem r) => UserId -> ConnId -> Public.PropertyKey -> Public.RawPropertyValue -> Handler r ()
 setProperty u c key raw = do
   checkPropertyKey key
   val <- safeParsePropertyValue raw
@@ -483,10 +481,10 @@ parseStoredPropertyValue raw = case propertyValueFromRaw raw of
         . Log.field "parse_error" e
     throwStd internalServerError
 
-deleteProperty :: (Member NotificationSubsystem r, Member Async r) => UserId -> ConnId -> Public.PropertyKey -> Handler r ()
+deleteProperty :: (Member NotificationSubsystem r) => UserId -> ConnId -> Public.PropertyKey -> Handler r ()
 deleteProperty u c k = lift (API.deleteProperty u c k)
 
-clearProperties :: (Member NotificationSubsystem r, Member Async r) => UserId -> ConnId -> Handler r ()
+clearProperties :: (Member NotificationSubsystem r) => UserId -> ConnId -> Handler r ()
 clearProperties u c = lift (API.clearProperties u c)
 
 getProperty :: UserId -> Public.PropertyKey -> Handler r (Maybe Public.RawPropertyValue)
@@ -565,7 +563,6 @@ addClient ::
   ( Member GalleyProvider r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r,
     Member TinyLog r
   ) =>
   UserId ->
@@ -689,8 +686,7 @@ createUser ::
     Member (UserPendingActivationStore p) r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member Async r
+    Member NotificationSubsystem r
   ) =>
   Public.NewUserPublic ->
   (Handler r) (Either Public.RegisterError Public.RegisterSuccess)
@@ -881,7 +877,6 @@ instance ToJSON GetActivationCodeResp where
 updateUser ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r,
     Member GalleyProvider r,
     Member TinyLog r
   ) =>
@@ -910,7 +905,6 @@ changePhone u _ (Public.puPhone -> phone) = lift . exceptTToMaybe $ do
 removePhone ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r,
     Member TinyLog r
   ) =>
   UserId ->
@@ -922,7 +916,6 @@ removePhone self conn =
 removeEmail ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r,
     Member TinyLog r
   ) =>
   UserId ->
@@ -940,7 +933,6 @@ changePassword u cp = lift . exceptTToMaybe $ API.changePassword u cp
 changeLocale ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r,
     Member TinyLog r
   ) =>
   UserId ->
@@ -952,7 +944,6 @@ changeLocale u conn l = lift $ API.changeLocale u conn l
 changeSupportedProtocols ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r,
     Member TinyLog r
   ) =>
   Local UserId ->
@@ -996,7 +987,6 @@ getHandleInfoUnqualifiedH self handle = do
 changeHandle ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r,
     Member GalleyProvider r,
     Member TinyLog r
   ) =>
@@ -1063,7 +1053,6 @@ customerExtensionCheckBlockedDomains email = do
 createConnectionUnqualified ::
   ( Member GalleyProvider r,
     Member NotificationSubsystem r,
-    Member Async r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r
   ) =>
@@ -1080,7 +1069,6 @@ createConnection ::
   ( Member FederationConfigStore r,
     Member GalleyProvider r,
     Member NotificationSubsystem r,
-    Member Async r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r
   ) =>
@@ -1094,7 +1082,6 @@ createConnection self conn target = do
 
 updateLocalConnection ::
   ( Member NotificationSubsystem r,
-    Member Async r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r
   ) =>
@@ -1112,7 +1099,6 @@ updateLocalConnection self conn other (Public.cuStatus -> newStatus) = do
 updateConnection ::
   ( Member FederationConfigStore r,
     Member NotificationSubsystem r,
-    Member Async r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r
   ) =>
@@ -1188,8 +1174,7 @@ deleteSelfUser ::
   ( Member GalleyProvider r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member Async r
+    Member NotificationSubsystem r
   ) =>
   UserId ->
   Public.DeleteUser ->
@@ -1200,7 +1185,6 @@ deleteSelfUser u body = do
 verifyDeleteUser ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r,
     Member TinyLog r
   ) =>
   Public.VerifyDeleteUser ->
@@ -1242,8 +1226,7 @@ activate ::
   ( Member GalleyProvider r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member Async r
+    Member NotificationSubsystem r
   ) =>
   Public.ActivationKey ->
   Public.ActivationCode ->
@@ -1257,8 +1240,7 @@ activateKey ::
   ( Member GalleyProvider r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member Async r
+    Member NotificationSubsystem r
   ) =>
   Public.Activate ->
   (Handler r) ActivationRespWithStatus

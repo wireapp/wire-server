@@ -162,7 +162,6 @@ import Galley.Types.Teams qualified as Team
 import Imports hiding (cs)
 import Network.Wai.Utilities
 import Polysemy
-import Polysemy.Async
 import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as Log
 import System.Logger.Class (MonadLogger)
@@ -232,7 +231,6 @@ createUserSpar ::
   ( Member GalleyProvider r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r,
     Member TinyLog r
   ) =>
   NewUserSpar ->
@@ -303,8 +301,7 @@ createUser ::
     Member (UserPendingActivationStore p) r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member Async r
+    Member NotificationSubsystem r
   ) =>
   NewUser ->
   ExceptT RegisterError (AppT r) CreateUserResult
@@ -593,7 +590,6 @@ checkRestrictedUserCreation new = do
 updateUser ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r,
     Member GalleyProvider r,
     Member TinyLog r
   ) =>
@@ -626,7 +622,6 @@ updateUser uid mconn uu allowScim = do
 changeLocale ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r,
     Member TinyLog r
   ) =>
   UserId ->
@@ -643,7 +638,6 @@ changeLocale uid conn (LocaleUpdate loc) = do
 changeManagedBy ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r,
     Member TinyLog r
   ) =>
   UserId ->
@@ -660,7 +654,6 @@ changeManagedBy uid conn (ManagedByUpdate mb) = do
 changeSupportedProtocols ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r,
     Member TinyLog r
   ) =>
   UserId ->
@@ -677,7 +670,6 @@ changeSupportedProtocols uid conn prots = do
 changeHandle ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r,
     Member GalleyProvider r,
     Member TinyLog r
   ) =>
@@ -847,7 +839,6 @@ changePhone u phone = do
 removeEmail ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r,
     Member TinyLog r
   ) =>
   UserId ->
@@ -869,7 +860,6 @@ removeEmail uid conn = do
 removePhone ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r,
     Member TinyLog r
   ) =>
   UserId ->
@@ -896,7 +886,6 @@ revokeIdentity ::
   forall r.
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r,
     Member TinyLog r
   ) =>
   Either Email Phone ->
@@ -939,7 +928,6 @@ changeAccountStatus ::
   forall r.
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r,
     Member (Concurrency 'Unsafe) r,
     Member TinyLog r
   ) =>
@@ -961,7 +949,6 @@ changeAccountStatus usrs status = do
 changeSingleAccountStatus ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r,
     Member TinyLog r
   ) =>
   UserId ->
@@ -992,8 +979,7 @@ activate ::
   ( Member GalleyProvider r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member Async r
+    Member NotificationSubsystem r
   ) =>
   ActivationTarget ->
   ActivationCode ->
@@ -1006,8 +992,7 @@ activateWithCurrency ::
   ( Member GalleyProvider r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member Async r
+    Member NotificationSubsystem r
   ) =>
   ActivationTarget ->
   ActivationCode ->
@@ -1051,8 +1036,7 @@ preverify tgt code = do
 onActivated ::
   ( Member TinyLog r,
     Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member Async r
+    Member NotificationSubsystem r
   ) =>
   ActivationEvent ->
   (AppT r) (UserId, Maybe UserIdentity, Bool)
@@ -1280,8 +1264,7 @@ deleteSelfUser ::
   ( Member GalleyProvider r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member Async r
+    Member NotificationSubsystem r
   ) =>
   UserId ->
   Maybe PlainTextPassword6 ->
@@ -1362,7 +1345,6 @@ deleteSelfUser uid pwd = do
 verifyDeleteUser ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r,
     Member TinyLog r
   ) =>
   VerifyDeleteUser ->
@@ -1381,7 +1363,6 @@ verifyDeleteUser d = do
 ensureAccountDeleted ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r,
     Member TinyLog r
   ) =>
   UserId ->
@@ -1422,7 +1403,6 @@ ensureAccountDeleted uid = do
 deleteAccount ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r,
     Member TinyLog r
   ) =>
   UserAccount ->

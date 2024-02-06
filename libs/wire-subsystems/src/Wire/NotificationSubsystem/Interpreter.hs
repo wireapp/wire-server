@@ -13,7 +13,7 @@ import Gundeck.Types.Push.V2 qualified as V2
 import Imports
 import Numeric.Natural (Natural)
 import Polysemy
-import Polysemy.Async (Async, sequenceConcurrently)
+import Polysemy.Async (Async, async, sequenceConcurrently)
 import Polysemy.Input
 import Wire.API.Team.Member
 import Wire.GundeckAPIAccess (GundeckAPIAccess)
@@ -33,6 +33,7 @@ runNotificationSubsystemGundeck ::
 runNotificationSubsystemGundeck cfg = interpret $ \case
   PushNotifications ps -> runInputConst cfg $ pushImpl ps
   PushNotificationsSlowly ps -> runInputConst cfg $ pushSlowlyImpl ps
+  PushNotificationsAsync ps -> runInputConst cfg $ pushAsyncImpl ps
   CleanupUser uid -> GundeckAPIAccess.userDeleted uid
   UnregisterPushClient uid cid -> GundeckAPIAccess.unregisterPushClient uid cid
   GetPushTokens uid -> GundeckAPIAccess.getPushTokens uid
@@ -56,6 +57,17 @@ defaultChunkSize = 128
 
 defaultSlowPushDelay :: Natural
 defaultSlowPushDelay = 20_000
+
+-- TODO: This async doesn't log errors if the push fails. Make it do so.
+pushAsyncImpl ::
+  forall r.
+  ( Member (GundeckAPIAccess) r,
+    Member (Input NotificationSubsystemConfig) r,
+    Member (Async) r
+  ) =>
+  [Push] ->
+  Sem r ()
+pushAsyncImpl ps = void $ async $ pushImpl ps
 
 pushImpl ::
   forall r.

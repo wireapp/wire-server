@@ -72,7 +72,6 @@ import Data.ZAuth.Token qualified as ZAuth
 import Imports
 import Network.Wai.Utilities.Error ((!>>))
 import Polysemy
-import Polysemy.Async
 import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as Log
 import System.Logger (field, msg, val, (~~))
@@ -129,8 +128,7 @@ login ::
   ( Member GalleyProvider r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member Async r
+    Member NotificationSubsystem r
   ) =>
   Login ->
   CookieType ->
@@ -239,8 +237,7 @@ renewAccess ::
   ( ZAuth.TokenPair u a,
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member Async r
+    Member NotificationSubsystem r
   ) =>
   List1 (ZAuth.Token u) ->
   Maybe (ZAuth.Token a) ->
@@ -273,7 +270,6 @@ revokeAccess u pw cc ll = do
 catchSuspendInactiveUser ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r,
     Member TinyLog r
   ) =>
   UserId ->
@@ -300,8 +296,7 @@ newAccess ::
   ( ZAuth.TokenPair u a,
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member Async r
+    Member NotificationSubsystem r
   ) =>
   UserId ->
   Maybe ClientId ->
@@ -412,8 +407,7 @@ validateToken ut at = do
 ssoLogin ::
   ( Member TinyLog r,
     Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member Async r
+    Member NotificationSubsystem r
   ) =>
   SsoLogin ->
   CookieType ->
@@ -437,7 +431,6 @@ legalHoldLogin ::
   ( Member GalleyProvider r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r,
     Member TinyLog r
   ) =>
   LegalHoldLogin ->

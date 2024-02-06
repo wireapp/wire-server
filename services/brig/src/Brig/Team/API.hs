@@ -58,7 +58,6 @@ import Galley.Types.Teams qualified as Team
 import Imports hiding (head)
 import Network.Wai.Utilities hiding (code, message)
 import Polysemy
-import Polysemy.Async
 import Polysemy.TinyLog (TinyLog)
 import Servant hiding (Handler, JSON, addHeader)
 import System.Logger.Class qualified as Log
@@ -311,7 +310,6 @@ getInvitationByEmail email = do
 suspendTeam ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r,
     Member (Concurrency 'Unsafe) r,
     Member GalleyProvider r,
     Member TinyLog r
@@ -328,7 +326,6 @@ suspendTeam tid = do
 unsuspendTeam ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r,
     Member (Concurrency 'Unsafe) r,
     Member GalleyProvider r,
     Member TinyLog r
@@ -346,7 +343,6 @@ unsuspendTeam tid = do
 changeTeamAccountStatuses ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member Async r,
     Member (Concurrency 'Unsafe) r,
     Member GalleyProvider r,
     Member TinyLog r

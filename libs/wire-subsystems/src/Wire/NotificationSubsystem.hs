@@ -42,6 +42,9 @@ data NotificationSubsystem m a where
   -- | Bulk push notifications, but slowly. This should be used when there are
   -- many notifications to be sent which could cause too much resource usage.
   PushNotificationsSlowly :: [Push] -> NotificationSubsystem m ()
+  -- | Bulk push notifications, but async. This should be used when failure to
+  -- send notifications is not critical.
+  PushNotificationsAsync :: [Push] -> NotificationSubsystem m ()
   CleanupUser :: UserId -> NotificationSubsystem m ()
   UnregisterPushClient :: UserId -> ClientId -> NotificationSubsystem m ()
   GetPushTokens :: UserId -> NotificationSubsystem m [PushToken]
