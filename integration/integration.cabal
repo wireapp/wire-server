@@ -118,6 +118,7 @@ library
     Test.Connection
     Test.Conversation
     Test.Demo
+    Test.EJPD
     Test.Errors
     Test.ExternalPartner
     Test.FeatureFlags

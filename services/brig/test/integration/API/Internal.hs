@@ -133,8 +133,8 @@ testEJPDRequest mgr brig brigep gundeck cargohold = do
       )
 
   (convs1, convs2) <- do
-    convs1 <- pure Nothing
-    convs2 <- pure Nothing
+    let convs1 = Nothing
+    let convs2 = Nothing
     pure (convs1, convs2)
 
   let check :: HasCallStack => EJPDResponseBody -> EJPDResponseBody -> m ()
@@ -167,7 +167,6 @@ testEJPDRequest mgr brig brigep gundeck cargohold = do
         usr1 = mkUsr1 Nothing Nothing convs1 assets1
         want = EJPDResponseBody [usr1]
     have <- ejpdRequestClient brigep mgr Nothing req
-    pure ()
     check want have
 
   do

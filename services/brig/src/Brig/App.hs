@@ -37,6 +37,7 @@ module Brig.App
     galley,
     galleyEndpoint,
     gundeckEndpoint,
+    cargoholdEndpoint,
     federator,
     casClient,
     userTemplates,
@@ -164,6 +165,7 @@ data Env = Env
     _galley :: RPC.Request,
     _galleyEndpoint :: Endpoint,
     _gundeckEndpoint :: Endpoint,
+    _cargoholdEndpoint :: Endpoint,
     _federator :: Maybe Endpoint, -- FUTUREWORK: should we use a better type here? E.g. to avoid fresh connections all the time?
     _casClient :: Cas.ClientState,
     _smtpEnv :: Maybe SMTP.SMTP,
@@ -264,6 +266,7 @@ newEnv o = do
         _galley = mkEndpoint $ Opt.galley o,
         _galleyEndpoint = Opt.galley o,
         _gundeckEndpoint = Opt.gundeck o,
+        _cargoholdEndpoint = Opt.cargohold o,
         _federator = Opt.federatorInternal o,
         _casClient = cas,
         _smtpEnv = emailSMTP,

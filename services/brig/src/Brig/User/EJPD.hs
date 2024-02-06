@@ -20,6 +20,8 @@
 -- manually.)
 module Brig.User.EJPD (ejpdRequest) where
 
+import Bilge.Request
+import Bilge.Response
 import Brig.API.Handler
 import Brig.API.User (lookupHandle)
 import Brig.App
@@ -27,26 +29,30 @@ import Brig.Data.Connection qualified as Conn
 import Brig.Data.User (lookupUser)
 import Brig.Effects.GalleyProvider (GalleyProvider)
 import Brig.Effects.GalleyProvider qualified as GalleyProvider
-import Brig.Types.User (HavePendingInvitations (NoPendingInvitations))
 import Control.Error hiding (bool)
 import Control.Lens (view, (^.))
+import Data.Aeson qualified as A
+import Data.ByteString.Conversion
 import Data.Handle (Handle)
 import Data.Id (UserId)
 import Data.Set qualified as Set
 import Imports hiding (head)
-import Polysemy
+import Network.HTTP.Types.Method
+import Polysemy (Member)
 import Servant.OpenApi.Internal.Orphans ()
 import Wire.API.Connection (Relation, RelationWithHistory (..), relationDropHistory)
 import Wire.API.Push.Token qualified as PushTok
 import Wire.API.Routes.Internal.Brig.EJPD (EJPDRequestBody (EJPDRequestBody), EJPDResponseBody (EJPDResponseBody), EJPDResponseItem (EJPDResponseItem))
 import Wire.API.Team.Member qualified as Team
-import Wire.API.User (User, userDisplayName, userEmail, userHandle, userId, userPhone, userTeam)
+import Wire.API.User
 import Wire.NotificationSubsystem
+import Wire.Rpc
 
 ejpdRequest ::
   forall r.
   ( Member GalleyProvider r,
-    Member NotificationSubsystem r
+    Member NotificationSubsystem r,
+    Member Rpc r
   ) =>
   Maybe Bool ->
   EJPDRequestBody ->
@@ -100,10 +106,26 @@ ejpdRequest (fromMaybe False -> includeContacts) (EJPDRequestBody handles) = do
             pure Nothing
 
       mbConversations <- do
+        -- FUTUREWORK(fisx)
         pure Nothing
 
       mbAssets <- do
-        pure Nothing
+        urls <- forM (userAssets target) $ \(asset :: Asset) -> do
+          cgh <- asks (view cargoholdEndpoint)
+          let key = toByteString' $ assetKey asset
+          resp <- liftSem $ rpcWithRetries "cargohold" cgh (method GET . paths ["/i/assets", key])
+          pure $
+            case (statusCode resp, responseJsonEither resp) of
+              (200, Right (A.String loc)) -> loc
+              _ ->
+                cs $
+                  "could not fetch asset: "
+                    <> show key
+                    <> ", error: "
+                    <> show (statusCode resp, responseBody resp)
+        pure $ case urls of
+          [] -> Nothing
+          something -> Just (Set.fromList something)
 
       pure $
         EJPDResponseItem
