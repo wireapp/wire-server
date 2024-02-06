@@ -90,18 +90,29 @@ withResponse r k = onFailureAddResponse r (k r)
 
 -- | Check response status code, then return body.
 getBody :: HasCallStack => Int -> Response -> App ByteString
-getBody status resp = withResponse resp $ \r -> do
-  r.status `shouldMatch` status
-  pure r.body
+getBody status = flip withResponse \resp -> do
+  resp.status `shouldMatch` status
+  pure resp.body
 
 -- | Check response status code, then return JSON body.
 getJSON :: HasCallStack => Int -> Response -> App Aeson.Value
-getJSON status resp = withResponse resp $ \r -> do
-  r.status `shouldMatch` status
-  r.json
+getJSON status = flip withResponse \resp -> do
+  resp.status `shouldMatch` status
+  resp.json
 
+-- | assert a response code in the 2** range
 assertSuccess :: HasCallStack => Response -> App ()
-assertSuccess resp = withResponse resp $ \r -> r.status `shouldMatchRange` (200, 299)
+assertSuccess = flip withResponse \resp -> resp.status `shouldMatchRange` (200, 299)
+
+-- | assert a response status code
+assertStatus :: HasCallStack => Int -> Response -> App ()
+assertStatus status = flip withResponse \resp -> resp.status `shouldMatchInt` status
+
+-- | assert a failure with some failure code and label
+assertLabel :: HasCallStack => Int -> String -> Response -> App ()
+assertLabel status label resp = do
+  j <- getJSON status resp
+  j %. "label" `shouldMatch` label
 
 onFailureAddResponse :: HasCallStack => Response -> App a -> App a
 onFailureAddResponse r m = App $ do

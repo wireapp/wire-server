@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wwarn #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2023 Wire Swiss GmbH <opensource@wire.com>
@@ -23,7 +25,9 @@ import qualified API.BrigInternal as BrigI
 import API.Common
 import API.Galley
 import API.GalleyInternal
+import Control.Error (MaybeT (MaybeT), runMaybeT)
 import Control.Lens ((.~), (^?!))
+import Control.Monad.Trans.Class (lift)
 import qualified Data.Map as Map
 import qualified Data.ProtoLens as Proto
 import Data.ProtoLens.Labels ()
@@ -37,6 +41,7 @@ import SetupHelpers
 import Testlib.MockIntegrationService
 import Testlib.Prekeys
 import Testlib.Prelude
+import UnliftIO (Chan, readChan, timeout)
 
 testLHPreventAddingNonConsentingUsers :: App ()
 testLHPreventAddingNonConsentingUsers = do
@@ -44,9 +49,9 @@ testLHPreventAddingNonConsentingUsers = do
     withMockServer lhMockApp $ \lhPort _chan -> do
       (owner, tid, [alice, alex]) <- createTeam dom 3
 
-      void $ legalholdWhitelistTeam owner tid >>= assertSuccess
-      void $ legalholdIsTeamInWhitelist owner tid >>= assertSuccess
-      void $ postLegalHoldSettings tid owner (mkLegalHoldSettings lhPort) >>= getJSON 201
+      legalholdWhitelistTeam tid owner >>= assertSuccess
+      legalholdIsTeamInWhitelist tid owner >>= assertSuccess
+      postLegalHoldSettings tid owner (mkLegalHoldSettings lhPort) >>= assertStatus 201
 
       george <- randomUser dom def
       georgeQId <- george %. "qualified_id"
@@ -69,13 +74,11 @@ testLHPreventAddingNonConsentingUsers = do
       checkConvHasOtherMembers conv alice [alex]
 
       -- it should not be possible neither for alex nor for alice to add the guest back
-      bindResponse (addMembers alex conv def {users = [georgeQId]}) $ \resp -> do
-        resp.status `shouldMatchInt` 403
-        resp.json %. "label" `shouldMatch` "not-connected"
+      addMembers alex conv def {users = [georgeQId]}
+        >>= assertLabel 403 "not-connected"
 
-      bindResponse (addMembers alice conv def {users = [georgeQId]}) $ \resp -> do
-        resp.status `shouldMatchInt` 403
-        resp.json %. "label" `shouldMatch` "missing-legalhold-consent"
+      addMembers alice conv def {users = [georgeQId]}
+        >>= assertLabel 403 "missing-legalhold-consent"
   where
     checkConvHasOtherMembers :: HasCallStack => Value -> Value -> [Value] -> App ()
     checkConvHasOtherMembers conv u us =
@@ -106,9 +109,9 @@ testLHMessageExchange (TaggedBool clients1New) (TaggedBool clients2New) (TaggedB
       client1 <- objId $ addClient (mem1 %. "qualified_id") (clientSettings clients1New) >>= getJSON 201
       _client2 <- objId $ addClient (mem2 %. "qualified_id") (clientSettings clients2New) >>= getJSON 201
 
-      void $ legalholdWhitelistTeam owner tid >>= assertSuccess
-      void $ legalholdIsTeamInWhitelist owner tid >>= assertSuccess
-      void $ postLegalHoldSettings tid owner (mkLegalHoldSettings lhPort) >>= getJSON 201
+      legalholdWhitelistTeam tid owner >>= assertSuccess
+      legalholdIsTeamInWhitelist tid owner >>= assertSuccess
+      postLegalHoldSettings tid owner (mkLegalHoldSettings lhPort) >>= assertStatus 201
 
       conv <- postConversation mem1 (defProteus {qualifiedUsers = [mem2], team = Just tid}) >>= getJSON 201
 
@@ -131,7 +134,7 @@ testLHMessageExchange (TaggedBool clients1New) (TaggedBool clients2New) (TaggedB
       length cs1 `shouldMatchInt` if consentFrom1 then 2 else 1
       length cs2 `shouldMatchInt` if consentFrom2 then 2 else 1
 
-      void $ do
+      do
         successfulMsgForOtherUsers <- mkProteusRecipients mem1 [(mem1, cs1), (mem2, cs2)] "hey there"
         let successfulMsg =
               Proto.defMessage @Proto.QualifiedNewOtrMessage
@@ -202,9 +205,9 @@ testLHClaimKeys = WithBoundedEnumArg $ \testmode -> do
       (lowner, ltid, [lmem]) <- createTeam dom 2
       (powner, ptid, [pmem]) <- createTeam dom 2
 
-      legalholdWhitelistTeam lowner ltid >>= assertSuccess
+      legalholdWhitelistTeam ltid lowner >>= assertSuccess
       legalholdIsTeamInWhitelist ltid lowner >>= assertSuccess
-      void $ postLegalHoldSettings ltid lowner (mkLegalHoldSettings lhPort) >>= getJSON 201
+      postLegalHoldSettings ltid lowner (mkLegalHoldSettings lhPort) >>= assertStatus 201
 
       requestLegalHoldDevice ltid lowner lmem >>= assertSuccess
       approveLegalHoldDevice ltid (lmem %. "qualified_id") defPassword >>= assertSuccess
@@ -221,8 +224,8 @@ testLHClaimKeys = WithBoundedEnumArg $ \testmode -> do
               addc $ Just ["legalhold-implicit-consent"]
             TCKConsentAndNewClients -> do
               addc $ Just ["legalhold-implicit-consent"]
-              void $ legalholdWhitelistTeam powner ptid >>= assertSuccess
-              void $ legalholdIsTeamInWhitelist powner ptid >>= assertSuccess
+              legalholdWhitelistTeam ptid powner >>= assertSuccess
+              legalholdIsTeamInWhitelist ptid powner >>= assertSuccess
 
       llhdev :: String <- do
         let getCls :: Value -> App [String]
@@ -255,8 +258,7 @@ testLHAddClientManually :: App ()
 testLHAddClientManually = do
   (_owner, _tid, [mem1]) <- createTeam OwnDomain 2
   bindResponse (addClient mem1 def {ctype = "legalhold"}) $ \resp -> do
-    resp.status `shouldMatchInt` 400
-    resp.json %. "label" `shouldMatch` "client-error"
+    assertLabel 400 "client-error" resp
     -- we usually don't test the human-readable "message", but in this case it is important to
     -- make sure the reason is the right one, and not eg. "LH service not present", or some
     -- other unspecific client error.
@@ -281,13 +283,12 @@ testLHRequestDevice =
   startDynamicBackends [mempty] $ \[dom] -> do
     (alice, tid, [bob]) <- createTeam dom 2
     let reqNotEnabled requester requestee =
-          requestLegalHoldDevice tid requester requestee `bindResponse` \resp -> do
-            resp.status `shouldMatchInt` 403
-            resp.json %. "label" `shouldMatch` "legalhold-not-enabled"
+          requestLegalHoldDevice tid requester requestee
+            >>= assertLabel 403 "legalhold-not-enabled"
 
     reqNotEnabled alice bob
 
-    withMockServer lhMockApp $ \lhPort _chan -> do
+    withMockServer lhMockApp \lhPort _chan -> do
       let statusShouldbe :: String -> App ()
           statusShouldbe status =
             legalholdUserStatus tid alice bob `bindResponse` \resp -> do
@@ -299,7 +300,7 @@ testLHRequestDevice =
         reqNotEnabled requester bob
         statusShouldbe "no_consent"
 
-      legalholdWhitelistTeam alice tid >>= assertSuccess
+      legalholdWhitelistTeam tid alice >>= assertSuccess
       postLegalHoldSettings tid alice (mkLegalHoldSettings lhPort) >>= assertSuccess
 
       statusShouldbe "disabled"
@@ -318,5 +319,56 @@ testLHRequestDevice =
       bobc <- objId $ addClient bob def `bindResponse` getJSON 201
       for_ [(alice, alicec), (bob, bobc)] \(user, client) ->
         awaitNotification user client noValue isUserActivateNotif >>= \notif -> do
-          printJSON notif
           notif %. "payload.0.user.managed_by" `shouldMatch` "wire"
+
+checkChan :: HasCallStack => Chan t -> (t -> App (Maybe a)) -> App a
+checkChan chan match =
+  maybe (assertFailure "checkChan: timed out") pure =<< timeout 5_000_000 do
+    let go = readChan chan >>= match >>= maybe go pure
+    go
+
+testLHApproveDevice :: App ()
+testLHApproveDevice = do
+  startDynamicBackends [mempty] \[dom] -> do
+    -- team users
+    -- alice (boss) and bob and charlie (member)
+    (alice, tid, [bob, charlie]) <- createTeam dom 3
+
+    -- ollie the outsider
+    ollie <- do
+      o <- randomUser dom def
+      connectTwoUsers o alice
+      pure o
+
+    -- sandy the stranger
+    sandy <- randomUser dom def
+
+    legalholdWhitelistTeam tid alice >>= assertStatus 200
+    -- TODO(mangoiv): it seems like correct behaviour to throw a 412
+    -- here, as we can only approve a device if we're in the pending
+    -- state. however, the old tests passed with a 403 which makes
+    -- this suspicious.
+    approveLegalHoldDevice tid (bob %. "qualified_id") defPassword
+      >>= assertLabel 412 "legalhold-not-pending"
+
+    withMockServer lhMockApp \lhPort chan -> do
+      legalholdWhitelistTeam tid alice
+        >>= assertStatus 200
+      postLegalHoldSettings tid alice (mkLegalHoldSettings lhPort)
+        >>= assertStatus 201
+      requestLegalHoldDevice tid alice bob
+        >>= assertStatus 201
+
+      let match bs = runMaybeT do
+            val <- MaybeT $ pure $ decode @Value bs
+            actual_tid <- MaybeT $ lookupField val "team_id"
+            actual_uid <- MaybeT $ lookupField val "user_id"
+            tidS <- lift $ asString actual_tid
+            uidS <- lift $ asString actual_uid
+            bobUid <- lift $ objId bob
+
+            case (tidS, uidS) `compare` (tid, bobUid) of
+              EQ -> pure ()
+              _ -> MaybeT $ pure Nothing
+
+      checkChan chan (match . snd)

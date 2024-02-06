@@ -49,7 +49,6 @@ import Data.Time.Clock qualified as Time
 import Data.Timeout
 import Galley.Cassandra.Client (lookupClients)
 import Galley.Cassandra.LegalHold
-import Galley.Cassandra.LegalHold qualified as LegalHoldData
 import Galley.Env qualified as Galley
 import Galley.Options (featureFlags, settings)
 import Galley.Types.Clients qualified as Clients
@@ -217,6 +216,7 @@ testApproveLegalHoldDevice = do
       liftIO . assertMatchJSON chan $ \(RequestNewLegalHoldClient userId' teamId') -> do
         assertEqual "userId == member" userId' member
         assertEqual "teamId == tid" teamId' tid
+      -- we're here
       -- Only the user themself can approve adding a LH device
       approveLegalHoldDevice (Just defPassword) owner member tid !!! testResponse 403 (Just "access-denied")
       -- Requires password
