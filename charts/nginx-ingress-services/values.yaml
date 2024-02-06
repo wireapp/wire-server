@@ -118,6 +118,8 @@ config:
 #     ^ fakeS3 is ignored if fakeS3.enabled == false
 #     federator: federator.<domain>
 #     ^ federator is ignored unless federator.enabled == true
+#     certificateDomain: federator.<domain>
+#     ^ domain to use in the CSR when using cert-manager
 #     teamSettings: teams.<domain>
 #     ^ teamSettings is ignored unless teamSettings.enabled == true
 #     accountPages: account.<domain>
