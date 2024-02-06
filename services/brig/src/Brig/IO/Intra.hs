@@ -56,7 +56,7 @@ import Brig.API.Util
 import Brig.App
 import Brig.Data.Connection (resultList)
 import Brig.Data.Connection qualified as Data
-import Brig.Federation.Client (notifyUserDeleted)
+import Brig.Federation.Client (notifyUserDeleted, sendConnectionAction)
 import Brig.IO.Journal qualified as Journal
 import Brig.RPC
 import Brig.Types.User.Event
@@ -345,23 +345,26 @@ notifyUserDeletionRemotes ::
   UserId ->
   m ()
 notifyUserDeletionRemotes deleted = do
+  luid <- qualifyLocal deleted
   runConduit $
-    Data.lookupRemoteConnectedUsersC deleted (fromInteger (natVal (Proxy @UserDeletedNotificationMaxConnections)))
+    Data.lookupRemoteConnectedUsersC luid (fromInteger (natVal (Proxy @UserDeletedNotificationMaxConnections)))
       .| C.mapM_ fanoutNotifications
   where
-    fanoutNotifications :: [Remote UserId] -> m ()
+    fanoutNotifications :: [Remote UserConnection] -> m ()
     fanoutNotifications = mapM_ notifyBackend . bucketRemote
 
-    notifyBackend :: Remote [UserId] -> m ()
-    notifyBackend uids = do
-      case tUnqualified (checked <$> uids) of
+    notifyBackend :: Remote [UserConnection] -> m ()
+    notifyBackend ucs = do
+      case tUnqualified (checked <$> ucs) of
         Nothing ->
           -- The user IDs cannot be more than 1000, so we can assume the range
           -- check will only fail because there are 0 User Ids.
           pure ()
-        Just rangedUids -> do
+        Just rangedUcs -> do
           luidDeleted <- qualifyLocal deleted
-          notifyUserDeleted luidDeleted (qualifyAs uids rangedUids)
+          notifyUserDeleted luidDeleted (qualifyAs ucs ((fmap (fmap (qUnqualified . ucTo))) rangedUcs))
+          -- also sent connection cancelled events to the connections that are pending
+          sendConnectionAction luidDeleted Nothing (tUntagged <$> ucs) Cancelled !>> ConnectFederationError
 
 -- | Push events to other users.
 push ::
