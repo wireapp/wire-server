@@ -112,7 +112,8 @@ data GlobalEnv = GlobalEnv
     gTempDir :: FilePath,
     gTimeOutSeconds :: Int,
     gProviderCert :: FilePath,
-    gProviderKey :: FilePath
+    gProviderKey :: FilePath,
+    gProviderHost :: String
   }
 
 data IntegrationConfig = IntegrationConfig
@@ -218,7 +219,8 @@ data Env = Env
     rabbitMQConfig :: RabbitMQConfig,
     timeOutSeconds :: Int,
     botKey :: FilePath,
-    botCert :: FilePath
+    botCert :: FilePath,
+    botHost :: String
   }
 
 data Response = Response

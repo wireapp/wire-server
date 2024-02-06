@@ -312,8 +312,8 @@ withRunningService user team go = withFreePortAnyAddr $ \(port, socket) -> do
   ppwd <- provider %. "password" & asString
   pid <- provider %. "id" & asString
 
-  --- FUTUREWORK(elland): use the env to get this value instead?
-  let url = "https://localhost:" <> show port
+  botHost <- asks (.botHost)
+  let url = botHost <> ":" <> show port
 
   service <- newService pid def {newServiceUrl = url}
   sid <- service %. "id" & asString

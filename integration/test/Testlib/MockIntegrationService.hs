@@ -12,7 +12,7 @@ import qualified Network.Wai.Handler.Warp.Internal as Warp
 import qualified Network.Wai.Handler.WarpTLS as Warp
 import SetupHelpers (withFreePortAnyAddr)
 import Testlib.Prekeys
-import Testlib.Prelude hiding (botHost)
+import Testlib.Prelude
 import UnliftIO.Async
 import UnliftIO.Chan
 import UnliftIO.MVar
@@ -84,9 +84,6 @@ mockServerCert =
   \T45GXxRd18neXtuYa/OoAw9UQFDN5XfXN0g=\n\
   \-----END CERTIFICATE-----"
 
-botHost :: String
-botHost = "localhost"
-
 withMockServer ::
   HasCallStack =>
   -- | the mock server
@@ -140,7 +137,7 @@ lhMockApp ch req cont = do
 mkLegalHoldSettings :: Warp.Port -> Value
 mkLegalHoldSettings lhPort =
   object
-    [ "base_url" .= ("https://" <> botHost <> ":" <> show lhPort <> "/legalhold"),
+    [ "base_url" .= ("https://localhost:" <> show lhPort <> "/legalhold"),
       "public_key" .= mockServerPubKey,
       "auth_token" .= "tok"
     ]
