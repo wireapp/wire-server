@@ -266,6 +266,8 @@ runGundeckAPIAccessIORef pushesRef =
 waitUntilPushes :: IORef [a] -> Int -> IO [a]
 waitUntilPushes pushesRef n = do
   ps <- readIORef pushesRef
+  -- This thread delay ensures that this function yields to other work as it
+  -- is really just waiting for other threads to do work.
   if length ps >= n
     then pure ps
     else threadDelay 1000 >> waitUntilPushes pushesRef n
