@@ -70,7 +70,6 @@ library
   exposed-modules:
     Wire.GundeckAPIAccess
     Wire.NotificationSubsystem
-    Wire.NotificationSubsystem.Internal
     Wire.NotificationSubsystem.Interpreter
     Wire.Rpc
 

@@ -19,7 +19,6 @@ import Wire.API.Team.Member
 import Wire.GundeckAPIAccess (GundeckAPIAccess)
 import Wire.GundeckAPIAccess qualified as GundeckAPIAccess
 import Wire.NotificationSubsystem
-import Wire.NotificationSubsystem.Internal
 import Wire.Sem.Delay
 
 -- | We interpret this using 'GundeckAPIAccess' so we can mock it out for testing.

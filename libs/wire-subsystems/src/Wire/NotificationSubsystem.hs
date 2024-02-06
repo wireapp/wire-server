@@ -1,22 +1,52 @@
-module Wire.NotificationSubsystem
-  ( module Wire.NotificationSubsystem.Internal,
-    newPush1,
-    newPush,
-    newPushLocal,
-    newPushLocal1,
-  )
-where
+{-# LANGUAGE TemplateHaskell #-}
 
+module Wire.NotificationSubsystem where
+
+import Control.Lens (makeLenses)
 import Data.Aeson
 import Data.Id
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Gundeck.Types hiding (Push (..), Recipient, newPush)
 import Imports
--- Importing like this hides only the constructors for NotificationSubsystem,
--- which are not very useful but have names which conflict with other
--- constructors
-import Wire.NotificationSubsystem.Internal (NotificationSubsystem)
-import Wire.NotificationSubsystem.Internal hiding (NotificationSubsystem (..))
+import Polysemy
+import Wire.Arbitrary
+
+data Recipient = Recipient
+  { _recipientUserId :: UserId,
+    _recipientClients :: RecipientClients
+  }
+  deriving stock (Show, Ord, Eq, Generic)
+  deriving (Arbitrary) via GenericUniform Recipient
+
+makeLenses ''Recipient
+
+data Push = Push
+  { _pushConn :: Maybe ConnId,
+    _pushTransient :: Bool,
+    _pushRoute :: Route,
+    _pushNativePriority :: Maybe Priority,
+    pushOrigin :: Maybe UserId,
+    _pushRecipients :: NonEmpty Recipient,
+    pushJson :: Object,
+    _pushApsData :: Maybe ApsData
+  }
+  deriving stock (Eq, Generic, Show)
+  deriving (Arbitrary) via GenericUniform Push
+
+makeLenses ''Push
+
+-- | This subsystem governs mechanisms to send notifications to users.
+data NotificationSubsystem m a where
+  -- | Bulk push notifications
+  PushNotifications :: [Push] -> NotificationSubsystem m ()
+  -- | Bulk push notifications, but slowly. This should be used when there are
+  -- many notifications to be sent which could cause too much resource usage.
+  PushNotificationsSlowly :: [Push] -> NotificationSubsystem m ()
+  CleanupUser :: UserId -> NotificationSubsystem m ()
+  UnregisterPushClient :: UserId -> ClientId -> NotificationSubsystem m ()
+  GetPushTokens :: UserId -> NotificationSubsystem m [PushToken]
+
+makeSem ''NotificationSubsystem
 
 newPush1 :: Maybe UserId -> Object -> NonEmpty Recipient -> Push
 newPush1 from e rr =
