@@ -185,11 +185,11 @@ spec = describe "NotificationSubsystem.Interpreter" do
           runMockStackWithControlledDelay mockConfig delayControl actualPushesRef $
             pushSlowlyImpl pushes
 
-      putMVar delayControl mockConfig.slowPushDelay
+      putMVar delayControl (fromIntegral mockConfig.slowPushDelay)
       actualPushes1 <- timeout 100_000 $ (waitUntilPushes actualPushesRef 1)
       actualPushes1 `shouldBe` Just [[toV2Push push1]]
 
-      putMVar delayControl mockConfig.slowPushDelay
+      putMVar delayControl (fromIntegral mockConfig.slowPushDelay)
       actualPushes2 <- timeout 100_000 $ (waitUntilPushes actualPushesRef 2)
       actualPushes2 `shouldBe` Just [[toV2Push push1], [toV2Push push2]]
 

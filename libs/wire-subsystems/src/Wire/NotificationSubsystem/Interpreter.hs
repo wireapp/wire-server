@@ -41,7 +41,7 @@ data NotificationSubsystemConfig = NotificationSubsystemConfig
   { fanoutLimit :: Range 1 HardTruncationLimit Int32,
     chunkSize :: Natural,
     -- | Microseconds
-    slowPushDelay :: Int
+    slowPushDelay :: Natural
   }
 
 defaultNotificationSubsystemConfig :: NotificationSubsystemConfig
@@ -54,7 +54,7 @@ defaultFanoutLimit = toRange (Proxy @HardTruncationLimit)
 defaultChunkSize :: Natural
 defaultChunkSize = 128
 
-defaultSlowPushDelay :: Int
+defaultSlowPushDelay :: Natural
 defaultSlowPushDelay = 20_000
 
 pushImpl ::
@@ -136,5 +136,5 @@ pushSlowlyImpl ::
   Sem r ()
 pushSlowlyImpl ps =
   for_ ps \p -> do
-    delay =<< inputs slowPushDelay
+    delay =<< inputs (fromIntegral . slowPushDelay)
     pushImpl [p]
