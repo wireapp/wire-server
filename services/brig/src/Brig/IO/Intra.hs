@@ -101,7 +101,7 @@ import Wire.API.Team.LegalHold (LegalholdProtectee)
 import Wire.API.Team.Member qualified as Team
 import Wire.API.User
 import Wire.API.User.Client
-import Wire.NotificationSubsystem as NotificationSubsystem
+import Wire.NotificationSubsystem
 import Wire.Rpc
 import Wire.Sem.Logger qualified as Log
 
@@ -701,7 +701,7 @@ rmUser usr asts = do
     remote "gundeck"
       . field "user" (toByteString usr)
       . msg (val "remove user")
-  NotificationSubsystem.cleanupUser usr
+  cleanupUser usr
   Log.debug $
     remote "galley"
       . field "user" (toByteString usr)

@@ -41,7 +41,7 @@ import Wire.API.Push.Token qualified as PushTok
 import Wire.API.Routes.Internal.Brig.EJPD (EJPDRequestBody (EJPDRequestBody), EJPDResponseBody (EJPDResponseBody), EJPDResponseItem (EJPDResponseItem))
 import Wire.API.Team.Member qualified as Team
 import Wire.API.User (User, userDisplayName, userEmail, userHandle, userId, userPhone, userTeam)
-import Wire.NotificationSubsystem as NotificationSubsystem
+import Wire.NotificationSubsystem
 
 ejpdRequest ::
   forall r.
@@ -67,7 +67,7 @@ ejpdRequest includeContacts (EJPDRequestBody handles) = do
       let uid = userId target
 
       ptoks <-
-        PushTok.tokenText . view PushTok.token <$$> liftSem (NotificationSubsystem.getPushTokens uid)
+        PushTok.tokenText . view PushTok.token <$$> liftSem (getPushTokens uid)
 
       mbContacts <-
         if includeContacts'
