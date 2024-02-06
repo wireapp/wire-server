@@ -151,7 +151,7 @@ runTests iConf brigOpts otherArgs = do
   userPendingActivation <- UserPendingActivation.tests brigOpts mg db b g s
   federationEnd2End <- Federation.End2end.spec brigOpts mg b g ch c f brigTwo galleyTwo ch2 cannonTwo
   federationEndpoints <- API.Federation.tests mg brigOpts b fedBrigClient
-  internalApi <- API.Internal.tests brigOpts mg db b (brig iConf) gd g
+  internalApi <- API.Internal.tests brigOpts mg db b (brig iConf) gd g ch
 
   let smtp = SMTP.tests mg lg
       oauthAPI = API.OAuth.tests mg db b n brigOpts

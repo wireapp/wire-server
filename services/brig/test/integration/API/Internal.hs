@@ -25,6 +25,7 @@ where
 
 import API.Internal.Util
 import API.MLS.Util
+import API.User.Util
 import Bilge
 import Bilge.Assert
 import Brig.Data.User (lookupFeatureConferenceCalling, lookupStatus, userExists)
@@ -33,7 +34,8 @@ import Cassandra qualified as C
 import Cassandra qualified as Cass
 import Cassandra.Util
 import Control.Exception (ErrorCall (ErrorCall), throwIO)
-import Control.Lens ((^.), (^?!))
+import Control.Lens ((%~), (^.), (^?!), _1, _2)
+import Data.Aeson qualified as Aeson
 import Data.Aeson.Lens qualified as Aeson
 import Data.Aeson.Types qualified as Aeson
 import Data.ByteString.Conversion (toByteString')
@@ -48,6 +50,7 @@ import Test.Tasty
 import Test.Tasty.HUnit
 import Util
 import Util.Options (Endpoint)
+import Wire.API.Asset qualified as Asset
 import Wire.API.Connection qualified as Conn
 import Wire.API.Routes.Internal.Brig
 import Wire.API.Team.Feature
@@ -56,11 +59,11 @@ import Wire.API.Team.Member qualified as Team
 import Wire.API.User
 import Wire.API.User.Client
 
-tests :: Opt.Opts -> Manager -> Cass.ClientState -> Brig -> Endpoint -> Gundeck -> Galley -> IO TestTree
-tests opts mgr db brig brigep gundeck galley = do
+tests :: Opt.Opts -> Manager -> Cass.ClientState -> Brig -> Endpoint -> Gundeck -> Galley -> CargoHold -> IO TestTree
+tests opts mgr db brig brigep gundeck galley cargohold = do
   pure $
     testGroup "api/internal" $
-      [ test mgr "ejpd requests" $ testEJPDRequest mgr brig brigep gundeck,
+      [ test mgr "ejpd requests" $ testEJPDRequest mgr brig brigep gundeck cargohold,
         test mgr "account features: conferenceCalling" $
           testFeatureConferenceCallingByAccount opts mgr db brig brigep galley,
         test mgr "suspend and unsuspend user" $ testSuspendUser db brig,
@@ -98,21 +101,74 @@ setAccountStatus brig u s =
         . json (AccountStatusUpdate s)
     )
 
-testEJPDRequest :: (TestConstraints m) => Manager -> Brig -> Endpoint -> Gundeck -> m ()
-testEJPDRequest mgr brig brigep gundeck = do
+testEJPDRequest :: forall m. (TestConstraints m) => Manager -> Brig -> Endpoint -> Gundeck -> CargoHold -> m ()
+testEJPDRequest mgr brig brigep gundeck cargohold = do
   (handle1, mkUsr1, handle2, mkUsr2, mkUsr3) <- scaffolding brig gundeck
+  (assets1, assets2) <- do
+    let uid1 = ejpdResponseUserId $ mkUsr1 undefined undefined undefined undefined
+        uid2 = ejpdResponseUserId $ mkUsr2 undefined undefined undefined undefined
 
-  convs1 <- pure Nothing
-  assets1 <- pure Nothing
-  convs2 <- pure Nothing
-  assets2 <- pure Nothing
+        addAsset :: ByteString -> UserId -> m Text
+        addAsset msg uid = do
+          let payload = msg <> ": profile pic of " <> toByteString' uid
+          ast <- responseJsonError =<< uploadAsset cargohold uid Asset.defAssetSettings payload
+          downloadAsset cargohold uid (ast ^. Asset.assetKey) !!! const 200 === statusCode
+          let newAssets =
+                Just
+                  [ ImageAsset
+                      (qUnqualified $ ast ^. Asset.assetKey)
+                      (Just AssetComplete)
+                  ]
+              userUpdate = UserUpdate Nothing Nothing newAssets Nothing
+              update = RequestBodyLBS . Aeson.encode $ userUpdate
+          put (brig . path "/self" . contentJson . zUser uid . zConn "c" . body update) !!! const 200 === statusCode
+          pure (cs payload)
+
+    asset11 <- addAsset "1" uid1
+    asset12 <- addAsset "2" uid1
+    asset21 <- addAsset "1" uid2
+    pure
+      ( Just $ Set.fromList [asset11, asset12],
+        Just $ Set.fromList [asset21]
+      )
+
+  (convs1, convs2) <- do
+    convs1 <- pure Nothing
+    convs2 <- pure Nothing
+    pure (convs1, convs2)
+
+  let check :: HasCallStack => EJPDResponseBody -> EJPDResponseBody -> m ()
+      check want have = do
+        liftIO $ assertEqual "" (withoutAssetsB want) (withoutAssetsB have)
+        checkAssets want have
+
+      withoutAssetsB :: EJPDResponseBody -> EJPDResponseBody
+      withoutAssetsB = EJPDResponseBody . fmap withoutAssetsI . ejpdResponseBody
+
+      withoutAssetsI :: EJPDResponseItem -> EJPDResponseItem
+      withoutAssetsI i =
+        i
+          { ejpdResponseAssets = Nothing,
+            ejpdResponseContacts = Set.map (_2 %~ withoutAssetsI) <$> ejpdResponseContacts i,
+            ejpdResponseTeamContacts = (_1 %~ Set.map withoutAssetsI) <$> ejpdResponseTeamContacts i
+          }
+
+      checkAssets :: EJPDResponseBody -> EJPDResponseBody -> m ()
+      checkAssets
+        (fmap ejpdResponseAssets . ejpdResponseBody -> (want :: [Maybe (Set Text)]))
+        (fmap ejpdResponseAssets . ejpdResponseBody -> (have :: [Maybe (Set Text)])) =
+          -- 1. find i-test in brig that pulls assets, try to do the same thing
+          -- 2. if that doesn't work: there are tests in /integration that do this, see if we can do the same thing here.
+          -- 3. if that doesn't work: translate the entire test.
+          error $ show (want, have)
 
   do
     let req = EJPDRequestBody [handle1]
         usr1 = mkUsr1 Nothing Nothing convs1 assets1
         want = EJPDResponseBody [usr1]
     have <- ejpdRequestClient brigep mgr Nothing req
-    liftIO $ assertEqual "" want have
+    pure ()
+    check want have
 
   do
     let req = EJPDRequestBody [handle1, handle2]
@@ -120,7 +176,7 @@ testEJPDRequest mgr brig brigep gundeck = do
         usr2 = mkUsr2 Nothing Nothing convs2 assets2
         want = EJPDResponseBody [usr1, usr2]
     have <- ejpdRequestClient brigep mgr Nothing req
-    liftIO $ assertEqual "" want have
+    check want have
 
   do
     let req = EJPDRequestBody [handle2]
@@ -129,7 +185,7 @@ testEJPDRequest mgr brig brigep gundeck = do
         want = EJPDResponseBody [usr2]
 
     have <- ejpdRequestClient brigep mgr (Just True) req
-    liftIO $ assertEqual "" want have
+    check want have
 
   do
     let req = EJPDRequestBody [handle1, handle2]
@@ -138,7 +194,7 @@ testEJPDRequest mgr brig brigep gundeck = do
         usr3 = mkUsr3 Nothing Nothing Nothing Nothing
         want = EJPDResponseBody [usr1, usr2]
     have <- ejpdRequestClient brigep mgr (Just True) req
-    liftIO $ assertEqual "" want have
+    check want have
 
 testFeatureConferenceCallingByAccount :: forall m. (TestConstraints m) => Opt.Opts -> Manager -> Cass.ClientState -> Brig -> Endpoint -> Galley -> m ()
 testFeatureConferenceCallingByAccount (Opt.optSettings -> settings) mgr db brig brigep galley = do
