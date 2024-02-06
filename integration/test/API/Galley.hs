@@ -579,6 +579,13 @@ putTeamProperties tid caller properties = do
         req
     )
 
+legalholdUserStatus :: (HasCallStack, MakesValue tid, MakesValue user, MakesValue owner) => tid -> owner -> user -> App Response
+legalholdUserStatus tid ownerid user = do
+  tidS <- asString tid
+  uid <- objId user
+  req <- baseRequest ownerid Galley Versioned (joinHttpPath ["teams", tidS, "legalhold", uid])
+  submit "GET" req
+
 -- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/post_teams__tid__legalhold_settings
 enableLegalHold :: (HasCallStack, MakesValue tid, MakesValue ownerid) => tid -> ownerid -> App Response
 enableLegalHold tid ownerid = do
@@ -587,8 +594,8 @@ enableLegalHold tid ownerid = do
   submit "PUT" (addJSONObject ["status" .= "enabled", "ttl" .= "unlimited"] req)
 
 -- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/post_teams__tid__legalhold_settings
-postLegalHoldSettings :: (HasCallStack, MakesValue owner, MakesValue tid, MakesValue newService) => owner -> tid -> newService -> App Response
-postLegalHoldSettings owner tid newSettings = retrying policy only412 $ \_ -> do
+postLegalHoldSettings :: (HasCallStack, MakesValue ownerid, MakesValue tid, MakesValue newService) => tid -> ownerid -> newService -> App Response
+postLegalHoldSettings tid owner newSettings = retrying policy only412 $ \_ -> do
   tidStr <- asString tid
   req <- baseRequest owner Galley Versioned (joinHttpPath ["teams", tidStr, "legalhold", "settings"])
   newSettingsObj <- make newSettings

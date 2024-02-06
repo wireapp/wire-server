@@ -113,6 +113,9 @@ isConvDeleteNotif n = fieldEquals n "payload.0.type" "conversation.delete"
 isTeamMemberLeaveNotif :: MakesValue a => a -> App Bool
 isTeamMemberLeaveNotif n = nPayload n %. "type" `isEqual` "team.member-leave"
 
+isUserActivateNotif :: MakesValue a => a -> App Bool
+isUserActivateNotif n = nPayload n %. "type" `isEqual` "user.activate"
+
 assertLeaveNotification ::
   ( HasCallStack,
     MakesValue fromUser,

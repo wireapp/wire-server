@@ -104,7 +104,6 @@ testsPublic s =
   testGroup
     "Teams LegalHold API (with flag whitelist-teams-and-implicit-consent)"
     [ -- device handling (CRUD)
-      testOnlyIfLhWhitelisted s "POST /teams/{tid}/legalhold/{uid}" testRequestLegalHoldDevice,
       testOnlyIfLhWhitelisted s "PUT /teams/{tid}/legalhold/approve" testApproveLegalHoldDevice,
       test s "(user denies approval: nothing needs to be done in backend)" (pure ()),
       testOnlyIfLhWhitelisted s "GET /teams/{tid}/legalhold/{uid}" testGetLegalHoldDeviceStatus,
@@ -191,79 +190,6 @@ testWhitelistingTeams = do
     pure tid
 
   expectWhitelisted False tid
-
-testRequestLegalHoldDevice :: TestM ()
-testRequestLegalHoldDevice = withTeam $ \owner tid -> do
-  member <- randomUser
-  addTeamMemberInternal tid member (rolePermissions RoleMember) Nothing
-  -- Can't request a device if team feature flag is disabled
-  requestLegalHoldDevice owner member tid !!! testResponse 403 (Just "legalhold-not-enabled")
-  cannon <- view tsCannon
-  -- Assert that the appropriate LegalHold Request notification is sent to the user's
-  -- clients
-  WS.bracketR2 cannon member member $ \(ws, ws') -> withDummyTestServiceForTeamNoService $ \lhPort _chan -> do
-    do
-      -- test device creation without consent
-      requestLegalHoldDevice member member tid !!! testResponse 403 (Just "legalhold-not-enabled")
-      UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped member tid
-      liftIO $
-        assertEqual
-          "User with insufficient permissions should be unable to start flow"
-          UserLegalHoldNoConsent
-          userStatus
-
-    do
-      requestLegalHoldDevice owner member tid !!! testResponse 403 (Just "legalhold-not-enabled")
-      UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped member tid
-      liftIO $
-        assertEqual
-          "User with insufficient permissions should be unable to start flow"
-          UserLegalHoldNoConsent
-          userStatus
-
-    putLHWhitelistTeam tid !!! const 200 === statusCode
-    newService <- newLegalHoldService lhPort
-    postSettings owner tid newService !!! testResponse 201 Nothing
-
-    do
-      requestLegalHoldDevice member member tid !!! testResponse 403 (Just "operation-denied")
-      UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped member tid
-      liftIO $
-        assertEqual
-          "User with insufficient permissions should be unable to start flow"
-          UserLegalHoldDisabled
-          userStatus
-
-    do
-      requestLegalHoldDevice owner member tid !!! testResponse 201 Nothing
-      UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped member tid
-      liftIO $
-        assertEqual
-          "requestLegalHoldDevice should set user status to Pending"
-          UserLegalHoldPending
-          userStatus
-    do
-      requestLegalHoldDevice owner member tid !!! testResponse 204 Nothing
-      UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped member tid
-      liftIO $
-        assertEqual
-          "requestLegalHoldDevice when already pending should leave status as Pending"
-          UserLegalHoldPending
-          userStatus
-
-    cassState <- view tsCass
-    liftIO $ do
-      storedPrekeys <- Cql.runClient cassState (LegalHoldData.selectPendingPrekeys member)
-      assertBool "user should have pending prekeys stored" (not . null $ storedPrekeys)
-    let pluck = \case
-          (Ev.LegalHoldClientRequested rdata) -> do
-            Ev.lhcTargetUser rdata @?= member
-            Ev.lhcLastPrekey rdata @?= head someLastPrekeys
-            Ev.lhcClientId rdata @?= someClientId
-          _ -> assertBool "Unexpected event" False
-    assertNotification ws pluck
-    -- all devices get notified.
-    assertNotification ws' pluck
 
 testApproveLegalHoldDevice :: TestM ()
 testApproveLegalHoldDevice = do

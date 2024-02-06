@@ -149,7 +149,6 @@ deleteUser user = do
   submit "DELETE" $
     req & addJSONObject ["password" .= defPassword]
 
--- | https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/#/brig/post_i_clients__uid_
 addClient ::
   (HasCallStack, MakesValue user) =>
   user ->

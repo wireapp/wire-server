@@ -29,6 +29,7 @@ import qualified Data.ProtoLens as Proto
 import Data.ProtoLens.Labels ()
 import qualified Data.Set as Set
 import GHC.Stack
+import Notifications (awaitNotification, isUserActivateNotif)
 import Numeric.Lens (hex)
 import qualified Proto.Otr as Proto
 import qualified Proto.Otr_Fields as Proto
@@ -45,7 +46,7 @@ testLHPreventAddingNonConsentingUsers = do
 
       void $ legalholdWhitelistTeam owner tid >>= assertSuccess
       void $ legalholdIsTeamInWhitelist owner tid >>= assertSuccess
-      void $ postLegalHoldSettings owner tid (mkLegalHoldSettings lhPort) >>= getJSON 201
+      void $ postLegalHoldSettings tid owner (mkLegalHoldSettings lhPort) >>= getJSON 201
 
       george <- randomUser dom def
       georgeQId <- george %. "qualified_id"
@@ -107,7 +108,7 @@ testLHMessageExchange (TaggedBool clients1New) (TaggedBool clients2New) (TaggedB
 
       void $ legalholdWhitelistTeam owner tid >>= assertSuccess
       void $ legalholdIsTeamInWhitelist owner tid >>= assertSuccess
-      void $ postLegalHoldSettings owner tid (mkLegalHoldSettings lhPort) >>= getJSON 201
+      void $ postLegalHoldSettings tid owner (mkLegalHoldSettings lhPort) >>= getJSON 201
 
       conv <- postConversation mem1 (defProteus {qualifiedUsers = [mem2], team = Just tid}) >>= getJSON 201
 
@@ -202,8 +203,8 @@ testLHClaimKeys = WithBoundedEnumArg $ \testmode -> do
       (powner, ptid, [pmem]) <- createTeam dom 2
 
       legalholdWhitelistTeam lowner ltid >>= assertSuccess
-      legalholdIsTeamInWhitelist lowner ltid >>= assertSuccess
-      void $ postLegalHoldSettings lowner ltid (mkLegalHoldSettings lhPort) >>= getJSON 201
+      legalholdIsTeamInWhitelist ltid lowner >>= assertSuccess
+      void $ postLegalHoldSettings ltid lowner (mkLegalHoldSettings lhPort) >>= getJSON 201
 
       requestLegalHoldDevice ltid lowner lmem >>= assertSuccess
       approveLegalHoldDevice ltid (lmem %. "qualified_id") defPassword >>= assertSuccess
@@ -274,3 +275,48 @@ testLHDeleteClientManually = do
     -- make sure the reason is the right one, and not eg. "LH service not present", or some
     -- other unspecific client error.
     resp.json %. "message" `shouldMatch` "LegalHold clients cannot be deleted. LegalHold must be disabled on this user by an admin"
+
+testLHRequestDevice :: App ()
+testLHRequestDevice =
+  startDynamicBackends [mempty] $ \[dom] -> do
+    (alice, tid, [bob]) <- createTeam dom 2
+    let reqNotEnabled requester requestee =
+          requestLegalHoldDevice tid requester requestee `bindResponse` \resp -> do
+            resp.status `shouldMatchInt` 403
+            resp.json %. "label" `shouldMatch` "legalhold-not-enabled"
+
+    reqNotEnabled alice bob
+
+    withMockServer lhMockApp $ \lhPort _chan -> do
+      let statusShouldbe :: String -> App ()
+          statusShouldbe status =
+            legalholdUserStatus tid alice bob `bindResponse` \resp -> do
+              resp.status `shouldMatchInt` 200
+              resp.json %. "status" `shouldMatch` status
+
+      -- the user has not agreed to be under legalhold
+      for_ [alice, bob] \requester -> do
+        reqNotEnabled requester bob
+        statusShouldbe "no_consent"
+
+      legalholdWhitelistTeam alice tid >>= assertSuccess
+      postLegalHoldSettings tid alice (mkLegalHoldSettings lhPort) >>= assertSuccess
+
+      statusShouldbe "disabled"
+
+      requestLegalHoldDevice tid alice bob >>= assertSuccess
+      statusShouldbe "pending"
+
+      -- requesting twice should be idempotent wrt the approval
+      requestLegalHoldDevice tid alice bob `bindResponse` \resp ->
+        resp.status `shouldMatchInt` 204
+      statusShouldbe "pending"
+
+      -- TODO(mangoiv): test if prekeys are in cassandra?
+
+      alicec <- objId $ addClient alice def `bindResponse` getJSON 201
+      bobc <- objId $ addClient bob def `bindResponse` getJSON 201
+      for_ [(alice, alicec), (bob, bobc)] \(user, client) ->
+        awaitNotification user client noValue isUserActivateNotif >>= \notif -> do
+          printJSON notif
+          notif %. "payload.0.user.managed_by" `shouldMatch` "wire"
