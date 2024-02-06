@@ -316,7 +316,7 @@ notify (toList -> events) orig route conn recipients = do
           & pushConn .~ conn
           & pushRoute .~ route
           & pushApsData .~ toApsData event
-  pushNotificationsAsync pushes
+  void $ pushNotificationsAsync pushes
 
 notifySelf ::
   (Member NotificationSubsystem r) =>

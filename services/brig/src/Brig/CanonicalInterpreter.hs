@@ -31,7 +31,7 @@ import Polysemy.Error (Error, mapError, runError)
 import Polysemy.TinyLog (TinyLog)
 import Wire.GundeckAPIAccess
 import Wire.NotificationSubsystem
-import Wire.NotificationSubsystem.Interpreter
+import Wire.NotificationSubsystem.Interpreter (defaultNotificationSubsystemConfig, runNotificationSubsystemGundeck)
 import Wire.Rpc
 import Wire.Sem.Concurrency
 import Wire.Sem.Concurrency.IO
@@ -97,7 +97,7 @@ runBrigToIO e (AppT ma) = do
               . interpretJwk
               . interpretFederationDomainConfig (e ^. settings . federationStrategy) (foldMap (remotesMapFromCfgFile . fmap (.federationDomainConfig)) (e ^. settings . federationDomainConfigs))
               . runGundeckAPIAccess (e ^. gundeckEndpoint)
-              . runNotificationSubsystemGundeck defaultNotificationSubsystemConfig
+              . runNotificationSubsystemGundeck (defaultNotificationSubsystemConfig (e ^. requestId))
           )
     )
     $ runReaderT ma e

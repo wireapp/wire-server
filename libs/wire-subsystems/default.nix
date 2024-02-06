@@ -26,6 +26,7 @@
 , quickcheck-instances
 , retry
 , text
+, tinylog
 , types-common
 , wire-api
 }:
@@ -50,6 +51,7 @@ mkDerivation {
     QuickCheck
     retry
     text
+    tinylog
     types-common
     wire-api
   ];

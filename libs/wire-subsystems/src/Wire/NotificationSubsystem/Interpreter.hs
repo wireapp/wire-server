@@ -1,5 +1,7 @@
 module Wire.NotificationSubsystem.Interpreter where
 
+import Bilge (RequestId)
+import Control.Concurrent.Async (Async)
 import Control.Lens (set, (.~))
 import Data.Aeson
 import Data.List.NonEmpty (nonEmpty)
@@ -13,8 +15,12 @@ import Gundeck.Types.Push.V2 qualified as V2
 import Imports
 import Numeric.Natural (Natural)
 import Polysemy
-import Polysemy.Async (Async, async, sequenceConcurrently)
+import Polysemy.Async (async, sequenceConcurrently)
+import Polysemy.Async qualified as P
+import Polysemy.Error
 import Polysemy.Input
+import Polysemy.TinyLog qualified as P
+import System.Logger.Class as Log
 import Wire.API.Team.Member
 import Wire.GundeckAPIAccess (GundeckAPIAccess)
 import Wire.GundeckAPIAccess qualified as GundeckAPIAccess
@@ -23,9 +29,11 @@ import Wire.Sem.Delay
 
 -- | We interpret this using 'GundeckAPIAccess' so we can mock it out for testing.
 runNotificationSubsystemGundeck ::
-  ( Member (GundeckAPIAccess) r,
-    Member Async r,
-    Member Delay r
+  ( Member GundeckAPIAccess r,
+    Member P.Async r,
+    Member Delay r,
+    Member (Final IO) r,
+    Member P.TinyLog r
   ) =>
   NotificationSubsystemConfig ->
   Sem (NotificationSubsystem : r) a ->
@@ -42,12 +50,13 @@ data NotificationSubsystemConfig = NotificationSubsystemConfig
   { fanoutLimit :: Range 1 HardTruncationLimit Int32,
     chunkSize :: Natural,
     -- | Microseconds
-    slowPushDelay :: Natural
+    slowPushDelay :: Natural,
+    requestId :: RequestId
   }
 
-defaultNotificationSubsystemConfig :: NotificationSubsystemConfig
-defaultNotificationSubsystemConfig =
-  NotificationSubsystemConfig defaultFanoutLimit defaultChunkSize defaultSlowPushDelay
+defaultNotificationSubsystemConfig :: RequestId -> NotificationSubsystemConfig
+defaultNotificationSubsystemConfig reqId =
+  NotificationSubsystemConfig defaultFanoutLimit defaultChunkSize defaultSlowPushDelay reqId
 
 defaultFanoutLimit :: Range 1 HardTruncationLimit Int32
 defaultFanoutLimit = toRange (Proxy @HardTruncationLimit)
@@ -58,22 +67,31 @@ defaultChunkSize = 128
 defaultSlowPushDelay :: Natural
 defaultSlowPushDelay = 20_000
 
--- TODO: This async doesn't log errors if the push fails. Make it do so.
 pushAsyncImpl ::
   forall r.
-  ( Member (GundeckAPIAccess) r,
+  ( Member GundeckAPIAccess r,
     Member (Input NotificationSubsystemConfig) r,
-    Member (Async) r
+    Member P.Async r,
+    Member (Final IO) r,
+    Member P.TinyLog r
   ) =>
   [Push] ->
-  Sem r ()
-pushAsyncImpl ps = void $ async $ pushImpl ps
+  Sem r (Async (Maybe ()))
+pushAsyncImpl ps = async $ do
+  reqId <- inputs requestId
+  errorToIOFinal @SomeException (fromExceptionSem @SomeException $ pushImpl ps) >>= \case
+    Left e ->
+      P.err $
+        Log.msg (Log.val "Error while pushing notifications")
+          . Log.field "requestId" reqId
+          . Log.field "error" (displayException e)
+    Right _ -> pure ()
 
 pushImpl ::
   forall r.
-  ( Member (GundeckAPIAccess) r,
+  ( Member GundeckAPIAccess r,
     Member (Input NotificationSubsystemConfig) r,
-    Member (Async) r
+    Member P.Async r
   ) =>
   [Push] ->
   Sem r ()
@@ -142,7 +160,7 @@ pushSlowlyImpl ::
   ( Member Delay r,
     Member (Input NotificationSubsystemConfig) r,
     Member GundeckAPIAccess r,
-    Member Async r
+    Member P.Async r
   ) =>
   [Push] ->
   Sem r ()

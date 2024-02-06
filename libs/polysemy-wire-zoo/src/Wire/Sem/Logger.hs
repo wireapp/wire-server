@@ -65,3 +65,4 @@ mapLogger f = interpret $ \case
 
 discardLogs :: Sem (Logger msg ': r) a -> Sem r a
 discardLogs = interpret $ \(Log _ _) -> pure ()
+

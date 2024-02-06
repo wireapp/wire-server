@@ -76,6 +76,7 @@ library
   hs-source-dirs:   src
   build-depends:
     , aeson
+    , async
     , base
     , bilge
     , bytestring-conversion
@@ -91,6 +92,7 @@ library
     , QuickCheck
     , retry
     , text
+    , tinylog
     , types-common
     , wire-api
 
@@ -113,6 +115,7 @@ test-suite wire-subsystems-tests
     , aeson
     , async
     , base
+    , bilge
     , bytestring
     , containers
     , gundeck-types

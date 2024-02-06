@@ -2,6 +2,7 @@
 
 module Wire.NotificationSubsystem where
 
+import Control.Concurrent.Async (Async)
 import Control.Lens (makeLenses)
 import Data.Aeson
 import Data.Id
@@ -44,7 +45,9 @@ data NotificationSubsystem m a where
   PushNotificationsSlowly :: [Push] -> NotificationSubsystem m ()
   -- | Bulk push notifications, but async. This should be used when failure to
   -- send notifications is not critical.
-  PushNotificationsAsync :: [Push] -> NotificationSubsystem m ()
+  --
+  -- See 'Polysemy.Async' to know more about the 'Maybe'
+  PushNotificationsAsync :: [Push] -> NotificationSubsystem m (Async (Maybe ()))
   CleanupUser :: UserId -> NotificationSubsystem m ()
   UnregisterPushClient :: UserId -> ClientId -> NotificationSubsystem m ()
   GetPushTokens :: UserId -> NotificationSubsystem m [PushToken]

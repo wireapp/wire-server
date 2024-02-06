@@ -1,6 +1,8 @@
 module Wire.NotificationSubsystem.InterpreterSpec (spec) where
 
+import Bilge (RequestId (..))
 import Control.Concurrent.Async (async, wait)
+import Control.Exception (throwIO)
 import Data.Data (Proxy (Proxy))
 import Data.List.NonEmpty (NonEmpty ((:|)), fromList)
 import Data.List1 qualified as List1
@@ -10,8 +12,9 @@ import Gundeck.Types.Push.V2 qualified as V2
 import Imports
 import Numeric.Natural (Natural)
 import Polysemy
-import Polysemy.Async (Async, asyncToIOFinal)
+import Polysemy.Async (Async, asyncToIOFinal, await)
 import Polysemy.Input
+import Polysemy.TinyLog qualified as P
 import System.Timeout (timeout)
 import Test.Hspec
 import Test.QuickCheck
@@ -21,6 +24,7 @@ import Wire.GundeckAPIAccess qualified as GundeckAPIAccess
 import Wire.NotificationSubsystem
 import Wire.NotificationSubsystem.Interpreter
 import Wire.Sem.Delay
+import Wire.Sem.Logger.TinyLog
 
 spec :: Spec
 spec = describe "NotificationSubsystem.Interpreter" do
@@ -30,7 +34,8 @@ spec = describe "NotificationSubsystem.Interpreter" do
             NotificationSubsystemConfig
               { fanoutLimit = toRange $ Proxy @30,
                 chunkSize = 12,
-                slowPushDelay = 0
+                slowPushDelay = 0,
+                requestId = RequestId "N/A"
               }
 
       connId2 <- generate arbitrary
@@ -90,7 +95,8 @@ spec = describe "NotificationSubsystem.Interpreter" do
             NotificationSubsystemConfig
               { fanoutLimit = toRange $ Proxy @30,
                 chunkSize = 12,
-                slowPushDelay = 0
+                slowPushDelay = 0,
+                requestId = RequestId "N/A"
               }
 
       connId2 <- generate arbitrary
@@ -144,7 +150,8 @@ spec = describe "NotificationSubsystem.Interpreter" do
             NotificationSubsystemConfig
               { fanoutLimit = toRange $ Proxy @30,
                 chunkSize = 12,
-                slowPushDelay = 1
+                slowPushDelay = 1,
+                requestId = RequestId "N/A"
               }
 
       connId2 <- generate arbitrary
@@ -195,6 +202,39 @@ spec = describe "NotificationSubsystem.Interpreter" do
 
       timeout 100_000 (wait slowPushThread) `shouldReturn` Just ()
 
+  describe "pushAsyncImpl" do
+    it "logs errors" do
+      let mockConfig =
+            NotificationSubsystemConfig
+              { fanoutLimit = toRange $ Proxy @30,
+                chunkSize = 12,
+                slowPushDelay = 1,
+                requestId = RequestId "N/A"
+              }
+
+      user1 <- generate arbitrary
+      payload1 <- generate $ resize 1 arbitrary
+      clients1 <- generate $ resize 3 arbitrary
+      let push1 =
+            Push
+              { _pushConn = Nothing,
+                _pushTransient = True,
+                _pushRoute = V2.RouteDirect,
+                _pushNativePriority = Nothing,
+                pushOrigin = Nothing,
+                _pushRecipients = Recipient user1 (V2.RecipientClientsSome clients1) :| [],
+                pushJson = payload1,
+                _pushApsData = Nothing
+              }
+          pushes = [push1]
+      (_, attemptedPushes, logs) <- runMockStackAsync mockConfig $ do
+        thread <- pushAsyncImpl pushes
+        await thread
+
+      attemptedPushes `shouldBe` [[toV2Push push1]]
+      map fst logs `shouldBe` [Error]
+      cs (map snd logs !! 0) `shouldContain` "error=TestException"
+
   describe "toV2Push" do
     it "does the transformation correctly" $ property \(pushToUser :: Push) ->
       let v2Push = toV2Push pushToUser
@@ -237,6 +277,21 @@ runMockStack mockConfig action = do
       $ action
   (x,) <$> readIORef actualPushesRef
 
+runMockStackAsync :: NotificationSubsystemConfig -> Sem [Input NotificationSubsystemConfig, Delay, GundeckAPIAccess, P.TinyLog, Embed IO, Async, Final IO] a -> IO (a, [[V2.Push]], [(Level, LByteString)])
+runMockStackAsync mockConfig action = do
+  actualPushesRef <- newIORef []
+  lr <- newLogRecorder
+  x <-
+    runFinal
+      . asyncToIOFinal
+      . embedToFinal @IO
+      . recordLogs lr
+      . runGundeckAPIAccessFailure actualPushesRef
+      . runDelayInstantly
+      . runInputConst mockConfig
+      $ action
+  (x,,) <$> readIORef actualPushesRef <*> readIORef lr.recordedLogs
+
 runMockStackWithControlledDelay ::
   NotificationSubsystemConfig ->
   MVar Int ->
@@ -250,6 +305,26 @@ runMockStackWithControlledDelay mockConfig delayControl actualPushesRef = do
     . runGundeckAPIAccessIORef actualPushesRef
     . runControlledDelay delayControl
     . runInputConst mockConfig
+
+runGundeckAPIAccessFailure :: Member (Embed IO) r => IORef [[V2.Push]] -> Sem (GundeckAPIAccess : r) a -> Sem r a
+runGundeckAPIAccessFailure pushesRef =
+  interpret $ \action -> do
+    case action of
+      PushV2 pushes -> liftIO $ do
+        modifyIORef pushesRef (<> [pushes])
+        throwIO TestException
+      GundeckAPIAccess.UserDeleted uid ->
+        liftIO $ expectationFailure $ "Unexpected call to GundeckAPI: UserDeleted " <> show uid
+      GundeckAPIAccess.UnregisterPushClient uid cid ->
+        liftIO $ expectationFailure $ "Unexpected call to GundeckAPI: UnregisterPushClient " <> show uid <> " " <> show cid
+      GundeckAPIAccess.GetPushTokens uid -> do
+        liftIO $ expectationFailure $ "Unexpected call to GundeckAPI: GetPushTokens " <> show uid
+        error "impossible"
+
+data TestException = TestException
+  deriving (Show)
+
+instance Exception TestException
 
 runGundeckAPIAccessIORef :: Member (Embed IO) r => IORef [[V2.Push]] -> Sem (GundeckAPIAccess : r) a -> Sem r a
 runGundeckAPIAccessIORef pushesRef =
