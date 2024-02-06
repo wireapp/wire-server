@@ -314,6 +314,7 @@ withRunningService user team go = withFreePortAnyAddr $ \(port, socket) -> do
 
   botHost <- asks (.botHost)
   let url = botHost <> ":" <> show port
+  print $ "\n -> BOT URL " <> show url
 
   service <- newService pid def {newServiceUrl = url}
   sid <- service %. "id" & asString
@@ -321,9 +322,16 @@ withRunningService user team go = withFreePortAnyAddr $ \(port, socket) -> do
   void $ enableService uid team pid sid ppwd
 
   -- See Env.hs for details of how these are imported from the environment.
-  cert <- asks (.botCert)
-  pkey <- asks (.botKey)
+  -- cert <- asks (.botCert)
+  -- pkey <- asks (.botKey)
+  --
+  -- certF <- readFile cert
+  -- pkeyF <- readFile pkey
+  --
+  -- putStrLn $ "->>>>>>>>>> cert: " <> show certF
+  -- putStrLn $ "->>>>>>>>>> pkey: " <> show pkeyF
+  -- putStrLn $ "->>>>>>>>>> host: " <> show botHost
 
   -- Finally we run the serviced with a cert, private key, port, socket, a
   -- dummy service function and our continuation.
-  runService cert pkey port socket defServiceApp (go sid pid)
+  runService port socket defServiceApp (go sid pid)

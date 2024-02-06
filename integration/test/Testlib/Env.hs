@@ -93,6 +93,7 @@ mkGlobalEnv cfgFile = do
   timeOutSeconds <-
     liftIO $
       fromMaybe 10 . (readMaybe @Int =<<) <$> (lookupEnv "TEST_TIMEOUT_SECONDS")
+  liftIO $ print $ "->>>>>> config: " <> show intConfig.provider
   pure
     GlobalEnv
       { gServiceMap = sm,

@@ -25,7 +25,9 @@ import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Handler.Warp.Internal as Warp
 import qualified Network.Wai.Handler.WarpTLS as Warp
 import qualified Network.Wai.Route as Wai
+import Testlib.Prekeys
 import Testlib.Prelude
+import UnliftIO.Timeout (timeout)
 
 data AddUser = AddUser
   { name :: Maybe String,
@@ -724,22 +726,26 @@ getMultiUserPrekeyBundle caller userClients = do
 -- using Async.cancel as clean-up.
 runService ::
   (MonadIO m, MonadMask m) =>
-  FilePath -> -- cert
-  FilePath -> -- priv key
+  -- FilePath -> -- cert
+  -- FilePath -> -- priv key
   Warp.Port ->
   Socket.Socket ->
   (Chan e -> Application) ->
   (Chan e -> m a) ->
   m a
-runService cert pkey port sock mkApp go = do
-  let tlss = Warp.tlsSettings cert pkey
-  let defs = Warp.defaultSettings {Warp.settingsPort = port}
+runService port sock mkApp go = do
+  serverStarted <- liftIO newEmptyMVar
+  let tlss = Warp.tlsSettingsMemory (cs someCert) (cs somePrivKey)
+  let defs = Warp.defaultSettings {Warp.settingsPort = port, Warp.settingsBeforeMainLoop = putMVar serverStarted ()}
   buf <- liftIO newChan
   srv <-
     liftIO . Async.async $
       Warp.runTLSSocket tlss defs sock $
         mkApp buf
-  go buf `finally` liftIO (Async.cancel srv)
+  srvMVar <- liftIO $ timeout 5_000_000 (liftIO $ takeMVar serverStarted)
+  case srvMVar of
+    Just () -> go buf `finally` liftIO (Async.cancel srv)
+    Nothing -> error . show =<< liftIO (Async.poll srv)
 
 data TestBotEvent
   = TestBotCreated

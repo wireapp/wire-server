@@ -42,6 +42,7 @@ import Data.Aeson
 import Data.ByteString.Conversion
 import Data.Id
 import Data.List1 qualified as List1
+import Debug.Trace as D
 import Galley.Types.Bot qualified as Galley
 import Galley.Types.Bot.Service (serviceEnabled)
 import Galley.Types.Bot.Service qualified as Galley
@@ -62,8 +63,8 @@ import Wire.API.Provider.Service qualified as Galley
 -- External RPC
 
 data ServiceError
-  = ServiceUnavailable
-  | ServiceBotConflict
+  = ServiceBotConflict
+  | ServiceUnavailableWith String
 
 -- | Request a new bot to be created by an external service.
 --
@@ -85,7 +86,7 @@ createBot scon new = do
     case Bilge.statusCode rs of
       201 -> decodeBytes "External" (responseBody rs)
       409 -> throwE ServiceBotConflict
-      _ -> lift (extLogError scon rs) >> throwE ServiceUnavailable
+      _ -> lift (extLogError scon rs) >> throwE (ServiceUnavailableWith $ show rs)
   where
     -- we can't use 'responseJsonEither' instead, because we have a @Response ByteString@
     -- here, not a @Response (Maybe ByteString)@.
@@ -96,7 +97,7 @@ createBot scon new = do
       extReq scon ["bots"]
         . method POST
         . Bilge.json new
-    onExc ex = lift (extLogError scon ex) >> throwE ServiceUnavailable
+    onExc ex = D.trace ("\n ---------- ex: " <> show ex) (lift (extLogError scon ex) >> throwE (ServiceUnavailableWith $ show ex))
 
 extReq :: ServiceConn -> [ByteString] -> Request -> Request
 extReq scon ps =

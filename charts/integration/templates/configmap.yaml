@@ -62,10 +62,10 @@ data:
       adminPort: 15672
 
     provider:
-      privateKey: /etc/wire/integration-secrets/provider-privatekey.pem
-      publicKey: /etc/wire/integration-secrets/provider-publickey.pem
-      cert: /etc/wire/integration-secrets/provider-publiccert.pem
-      botHost: https://integration-integration
+      privateKey: /etc/wire/brig/secrets/provider-privatekey.pem
+      publicKey: /etc/wire/brig/secrets/provider-publickey.pem
+      cert: /etc/wire/brig/secrets/provider-publiccert.pem
+      botHost: https://localhost
 
     backendTwo:
 

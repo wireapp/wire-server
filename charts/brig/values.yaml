@@ -15,7 +15,7 @@ metrics:
   serviceMonitor:
     enabled: false
 config:
-  logLevel: Info
+  logLevel: Debug
   logFormat: StructuredJSON
   logNetStrings: false
   cassandra:
