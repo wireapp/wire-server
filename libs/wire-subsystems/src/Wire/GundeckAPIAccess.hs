@@ -26,7 +26,7 @@ runGundeckAPIAccess ep = interpret $ \case
     chunkedReq <- jsonChunkedIO pushes
     -- No retries because the chunked request body cannot be replayed.
     void . rpc "gundeck" ep $
-      method DELETE
+      method POST
         . path "/i/push/v2"
         . expect2xx
         . chunkedReq
