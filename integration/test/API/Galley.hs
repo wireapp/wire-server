@@ -524,6 +524,33 @@ data AppLockSettings = AppLockSettings
 instance Default AppLockSettings where
   def = AppLockSettings "disabled" False 60
 
+getTeamFeature ::
+  (HasCallStack, MakesValue tid, MakesValue user) =>
+  String ->
+  user ->
+  tid ->
+  App Response
+getTeamFeature featureName user tid = do
+  tidStr <- asString tid
+  req <-
+    baseRequest user Galley Versioned $
+      joinHttpPath ["teams", tidStr, "features", featureName]
+  submit "GET" req
+
+extractTeamFeatureFromAll ::
+  (HasCallStack, MakesValue user) =>
+  String ->
+  user ->
+  App Value
+extractTeamFeatureFromAll featureName user = do
+  cfgs <- getAllFeatureConfigs user >>= getJSON 200
+  cfgs %. featureName
+
+getAllFeatureConfigs :: (HasCallStack, MakesValue user) => user -> App Response
+getAllFeatureConfigs user = do
+  req <- baseRequest user Galley Versioned "feature-configs"
+  submit "GET" req
+
 -- | https://staging-nginz-https.zinfra.io/v6/api/swagger-ui/#/default/put_teams__tid__features_appLock
 putAppLockSettings ::
   (HasCallStack, MakesValue tid, MakesValue caller) =>
