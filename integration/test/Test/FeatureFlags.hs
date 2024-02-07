@@ -20,7 +20,6 @@ module Test.FeatureFlags where
 import API.Galley
 import qualified API.GalleyInternal as I
 import qualified Data.Aeson as Aeson
-import qualified Data.Text as T
 import SetupHelpers
 import Testlib.HTTP
 import Testlib.Prelude
@@ -29,16 +28,17 @@ import Testlib.Prelude
 -- Helpers
 
 data FeatureStatus = Disabled | Enabled
-  deriving (Eq, Enum)
+  deriving (Eq)
+
+instance HasTests x => HasTests (FeatureStatus -> x) where
+  mkTests m n s f x =
+    mkTests m (n <> "[featureStatus=disabled]") s f (x Disabled)
+      <> mkTests m (n <> "[featureStatus=enabled]") s f (x Enabled)
 
 instance Show FeatureStatus where
   show = \case
     Disabled -> "disabled"
     Enabled -> "enabled"
-
-disabled, enabled :: String
-disabled = "disabled"
-enabled = "enabled"
 
 expectedStatus :: HasCallStack => FeatureStatus -> Aeson.Value
 expectedStatus fs =
@@ -86,30 +86,31 @@ testLimitedEventFanout = do
   I.setTeamFeatureStatus OwnDomain team featureName "enabled"
   assertFeatureInternal featureName OwnDomain team Enabled
 
-testSSOPut :: HasCallStack => App ()
-testSSOPut = do
-  let dom = OwnDomain
-      featureName = "sso"
-      setting = "settings.featureFlags." <> featureName
-  (_alice, team, alex : _) <- createTeam dom 2
-  nonMember <- randomUser dom def
+testSSOPut :: HasCallStack => FeatureStatus -> App ()
+testSSOPut status = withModifiedBackend cnf $ \domain -> do
+  (_alice, team, alex : _) <- createTeam domain 2
+  nonMember <- randomUser domain def
 
   getTeamFeature featureName nonMember team `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "no-team-member"
 
-  configuredSSO <- readServiceConfig Galley & (%. setting) & asText
-  if T.unpack configuredSSO == "disabled-by-default"
-    then do
-      assertFeature featureName alex team Disabled
-      assertFeatureInternal featureName dom team Disabled
-      assertFeatureFromAll featureName alex Disabled
+  assertFeature featureName alex team status
+  assertFeatureInternal featureName domain team status
+  assertFeatureFromAll featureName alex status
 
-      I.setTeamFeatureStatus OwnDomain team featureName "enabled"
-      assertFeature featureName alex team Enabled
-      assertFeatureInternal featureName dom team Enabled
-      assertFeatureFromAll featureName alex Enabled
-    else do
-      assertFeature featureName alex team Enabled
-      assertFeatureInternal featureName dom team Enabled
-      assertFeatureFromAll featureName alex Enabled
+  when (status == Disabled) $ do
+    let opposite = Enabled
+    I.setTeamFeatureStatus domain team featureName (show opposite)
+    assertFeature featureName alex team opposite
+    assertFeatureInternal featureName domain team opposite
+    assertFeatureFromAll featureName alex opposite
+  where
+    featureName = "sso"
+    setting = "settings.featureFlags." <> featureName
+    cnf =
+      def
+        { galleyCfg = \conf ->
+            conf
+              & setField setting (show status <> "-by-default")
+        }
