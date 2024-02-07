@@ -1,0 +1,1 @@
+replace runAsNonRoot with runAsUser and runAsGroup 1000
