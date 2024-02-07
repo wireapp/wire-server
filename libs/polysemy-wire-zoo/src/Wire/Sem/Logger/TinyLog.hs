@@ -1,4 +1,5 @@
 {-# LANGUAGE RecordWildCards #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -22,19 +23,19 @@ module Wire.Sem.Logger.TinyLog
     stringLoggerToTinyLog,
     discardTinyLogs,
     module Wire.Sem.Logger.Level,
-    LogRecorder(..),
+    LogRecorder (..),
     newLogRecorder,
-    recordLogs
+    recordLogs,
   )
 where
 
 import Data.Id
 import Imports
 import Polysemy
+import Polysemy.TinyLog (TinyLog)
 import qualified System.Logger as Log
 import Wire.Sem.Logger
 import Wire.Sem.Logger.Level
-import Polysemy.TinyLog (TinyLog)
 
 loggerToTinyLog ::
   Member (Embed IO) r =>

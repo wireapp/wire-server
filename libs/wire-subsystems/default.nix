@@ -36,6 +36,7 @@ mkDerivation {
   src = gitignoreSource ./.;
   libraryHaskellDepends = [
     aeson
+    async
     base
     bilge
     bytestring-conversion
@@ -59,6 +60,7 @@ mkDerivation {
     aeson
     async
     base
+    bilge
     bytestring
     containers
     gundeck-types
