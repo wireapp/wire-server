@@ -3,7 +3,7 @@ kind: Service
 metadata:
   name: "{{ .Release.Name }}-hold"
   annotations:
-    service.kubernetes.io/topology-aware-hints: auto
+    service.kubernetes.io/topology-mode: Auto
 spec:
   type: ClusterIP
   selector:
