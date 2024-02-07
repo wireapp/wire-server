@@ -3,7 +3,11 @@ kind: Service
 metadata:
   name: "{{ .Release.Name }}-hold"
   annotations:
+    {{- if ge (.Capabilities.KubeVersion.Minor|int) 26 }}
     service.kubernetes.io/topology-mode: Auto
+    {{- else }}
+    service.kubernetes.io/topology-aware-hints: auto
+    {{- end }}
 spec:
   type: ClusterIP
   selector:

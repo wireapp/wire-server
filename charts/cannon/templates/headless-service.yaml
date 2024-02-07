@@ -14,7 +14,11 @@ metadata:
     release: {{ .Release.Name }}
     heritage: {{ .Release.Service }}
   annotations:
+    {{- if ge (.Capabilities.KubeVersion.Minor|int) 26 }}
     service.kubernetes.io/topology-mode: Auto
+    {{- else }}
+    service.kubernetes.io/topology-aware-hints: auto
+    {{- end }}
 spec:
   type: ClusterIP
   # This is what makes it a Headless Service
