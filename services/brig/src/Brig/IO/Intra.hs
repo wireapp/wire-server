@@ -364,7 +364,15 @@ notifyUserDeletionRemotes deleted = do
           luidDeleted <- qualifyLocal deleted
           notifyUserDeleted luidDeleted (qualifyAs ucs ((fmap (fmap (qUnqualified . ucTo))) rangedUcs))
           -- also sent connection cancelled events to the connections that are pending
-          sendConnectionAction luidDeleted Nothing (tUntagged <$> ucs) Cancelled !>> ConnectFederationError
+          let remotePendingConnections = qualifyAs ucs <$> filter ((==) Sent . ucStatus) (fromRange rangedUcs)
+          forM_ remotePendingConnections $ sendCancelledEvent luidDeleted
+
+    sendCancelledEvent :: Local UserId -> Remote UserConnection -> m ()
+    sendCancelledEvent luidDeleted ruc = do
+      result <- runExceptT $ sendConnectionAction luidDeleted Nothing (qUnqualified . ucTo <$> ruc) RemoteRescind
+      case result of
+        Left _ -> pure () -- TODO: handle error
+        Right _ -> pure ()
 
 -- | Push events to other users.
 push ::
