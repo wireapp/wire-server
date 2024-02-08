@@ -26,38 +26,19 @@ import Control.Lens
 import Control.Monad.Catch
 import Control.Retry
 import Data.Aeson
-import Data.ByteString.Conversion
 import Data.ByteString.Lazy qualified as BL
-import Data.Id
 import Data.Text qualified as Text
 import Data.Text.Lazy qualified as LT
 import Imports
-import Network.HTTP.Client (HttpExceptionContent (..), checkResponse)
 import Network.HTTP.Types.Method
-import Network.HTTP.Types.Status
 import System.Logger.Class hiding (name, (.=))
-
-x3 :: RetryPolicy
-x3 = limitRetries 3 <> exponentialBackoff 100000
-
-zUser :: UserId -> Request -> Request
-zUser = header "Z-User" . toByteString'
+import Wire.Rpc (x3)
 
 remote :: ByteString -> Msg -> Msg
 remote = field "remote"
 
 decodeBody :: (Typeable a, FromJSON a, MonadThrow m) => Text -> Response (Maybe BL.ByteString) -> m a
 decodeBody ctx = responseJsonThrow (ParseException ctx)
-
-expect :: [Status] -> Request -> Request
-expect ss rq = rq {checkResponse = check}
-  where
-    check rq' rs = do
-      let s = responseStatus rs
-          rs' = rs {responseBody = ()}
-      when (statusIsServerError s || s `notElem` ss) $
-        throwM $
-          HttpExceptionRequest rq' (StatusCodeException rs' mempty)
 
 cargoholdRequest ::
   (MonadReader Env m, MonadIO m, MonadMask m, MonadHttp m, HasRequestId m) =>
@@ -72,13 +53,6 @@ galleyRequest ::
   (Request -> Request) ->
   m (Response (Maybe BL.ByteString))
 galleyRequest = serviceRequest "galley" galley
-
-gundeckRequest ::
-  (MonadReader Env m, MonadIO m, MonadMask m, MonadHttp m, HasRequestId m) =>
-  StdMethod ->
-  (Request -> Request) ->
-  m (Response (Maybe BL.ByteString))
-gundeckRequest = serviceRequest "gundeck" gundeck
 
 serviceRequest ::
   (MonadReader Env m, MonadIO m, MonadMask m, MonadHttp m, HasRequestId m) =>

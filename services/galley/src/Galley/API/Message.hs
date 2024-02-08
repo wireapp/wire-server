@@ -86,6 +86,7 @@ import Wire.API.Team.LegalHold
 import Wire.API.Team.Member
 import Wire.API.User.Client
 import Wire.API.UserMap (UserMap (..))
+import Wire.NotificationSubsystem (NotificationSubsystem)
 
 data UserType = User | Bot
 
@@ -253,12 +254,12 @@ postBroadcast ::
     Member (ErrorS 'TeamNotFound) r,
     Member (ErrorS 'NonBindingTeam) r,
     Member (ErrorS 'BroadcastLimitExceeded) r,
-    Member GundeckAccess r,
     Member ExternalAccess r,
     Member (Input Opts) r,
     Member (Input UTCTime) r,
     Member TeamStore r,
-    Member P.TinyLog r
+    Member P.TinyLog r,
+    Member NotificationSubsystem r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -366,12 +367,12 @@ postQualifiedOtrMessage ::
     Member ConversationStore r,
     Member FederatorAccess r,
     Member BackendNotificationQueueAccess r,
-    Member GundeckAccess r,
     Member ExternalAccess r,
     Member (Input Opts) r,
     Member (Input UTCTime) r,
     Member TeamStore r,
-    Member P.TinyLog r
+    Member P.TinyLog r,
+    Member NotificationSubsystem r
   ) =>
   UserType ->
   Qualified UserId ->
@@ -581,10 +582,10 @@ makeUserMap keys = (<> Map.fromSet (const mempty) keys)
 -- sending has failed.
 sendMessages ::
   forall r.
-  ( Member GundeckAccess r,
-    Member ExternalAccess r,
+  ( Member ExternalAccess r,
     Member BackendNotificationQueueAccess r,
-    Member P.TinyLog r
+    Member P.TinyLog r,
+    Member NotificationSubsystem r
   ) =>
   UTCTime ->
   Qualified UserId ->
@@ -606,9 +607,9 @@ sendMessages now sender senderClient mconn lcnv botMap metadata messages = do
   mkQualifiedUserClientsByDomain <$> Map.traverseWithKey send messageMap
 
 sendBroadcastMessages ::
-  ( Member GundeckAccess r,
-    Member ExternalAccess r,
-    Member P.TinyLog r
+  ( Member ExternalAccess r,
+    Member P.TinyLog r,
+    Member NotificationSubsystem r
   ) =>
   Local x ->
   UTCTime ->
@@ -633,8 +634,8 @@ byDomain =
 sendLocalMessages ::
   forall r x.
   ( Member ExternalAccess r,
-    Member GundeckAccess r,
-    Member P.TinyLog r
+    Member P.TinyLog r,
+    Member NotificationSubsystem r
   ) =>
   Local x ->
   UTCTime ->

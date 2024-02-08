@@ -80,6 +80,32 @@ unsafePooledMapConcurrentlyN_ n f as =
     (UnsafePooledMapConcurrentlyN_ n f as :: Concurrency 'Unsafe (Sem r) ())
 {-# INLINEABLE unsafePooledMapConcurrentlyN_ #-}
 
+unsafePooledForConcurrentlyN ::
+  forall r t a b.
+  (Member (Concurrency 'Unsafe) r, Foldable t) =>
+  -- | Max. number of threads. Should not be less than 1.
+  Int ->
+  t a ->
+  (a -> Sem r b) ->
+  Sem r [b]
+unsafePooledForConcurrentlyN n as f =
+  send
+    (UnsafePooledMapConcurrentlyN n f as :: Concurrency 'Unsafe (Sem r) [b])
+{-# INLINEABLE unsafePooledForConcurrentlyN #-}
+
+unsafePooledForConcurrentlyN_ ::
+  forall r t a b.
+  (Member (Concurrency 'Unsafe) r, Foldable t) =>
+  -- | Max. number of threads. Should not be less than 1.
+  Int ->
+  t a ->
+  (a -> Sem r b) ->
+  Sem r ()
+unsafePooledForConcurrentlyN_ n as f =
+  send
+    (UnsafePooledMapConcurrentlyN_ n f as :: Concurrency 'Unsafe (Sem r) ())
+{-# INLINEABLE unsafePooledForConcurrentlyN_ #-}
+
 pooledMapConcurrentlyN ::
   forall r' r t a b.
   r' ~ '[Final IO] =>
@@ -111,3 +137,35 @@ pooledMapConcurrentlyN_ n f as =
         Concurrency 'Safe (Sem r) ()
     )
 {-# INLINEABLE pooledMapConcurrentlyN_ #-}
+
+pooledForConcurrentlyN ::
+  forall r' r t a b.
+  r' ~ '[Final IO] =>
+  (Member (Concurrency 'Safe) r, Subsume r' r, Foldable t) =>
+  -- | Max. number of threads. Should not be less than 1.
+  Int ->
+  t a ->
+  (a -> Sem r' b) ->
+  Sem r [b]
+pooledForConcurrentlyN n as f =
+  send
+    ( UnsafePooledMapConcurrentlyN n (subsume_ @r' @r . f) as ::
+        Concurrency 'Safe (Sem r) [b]
+    )
+{-# INLINEABLE pooledForConcurrentlyN #-}
+
+pooledForConcurrentlyN_ ::
+  forall r' r t a b.
+  r' ~ '[Final IO] =>
+  (Member (Concurrency 'Safe) r, Subsume r' r, Foldable t) =>
+  -- | Max. number of threads. Should not be less than 1.
+  Int ->
+  t a ->
+  (a -> Sem r' b) ->
+  Sem r ()
+pooledForConcurrentlyN_ n as f =
+  send
+    ( UnsafePooledMapConcurrentlyN_ n (subsume_ @r' @r . f) as ::
+        Concurrency 'Safe (Sem r) ()
+    )
+{-# INLINEABLE pooledForConcurrentlyN_ #-}

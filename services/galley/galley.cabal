@@ -167,7 +167,6 @@ library
     Galley.Effects.ExternalAccess
     Galley.Effects.FederatorAccess
     Galley.Effects.FireAndForget
-    Galley.Effects.GundeckAccess
     Galley.Effects.LegalHoldStore
     Galley.Effects.ListItems
     Galley.Effects.MemberStore
@@ -193,8 +192,6 @@ library
     Galley.Intra.Effects
     Galley.Intra.Federator
     Galley.Intra.Journal
-    Galley.Intra.Push
-    Galley.Intra.Push.Internal
     Galley.Intra.Spar
     Galley.Intra.Team
     Galley.Intra.User
@@ -369,6 +366,7 @@ library
     , wai-utilities          >=0.16
     , wire-api
     , wire-api-federation
+    , wire-subsystems
 
 executable galley
   import:        common-all
@@ -614,7 +612,6 @@ test-suite galley-tests
     Test.Galley.API.Action
     Test.Galley.API.Message
     Test.Galley.API.One2One
-    Test.Galley.Intra.Push
     Test.Galley.Intra.User
     Test.Galley.Mapping
 
