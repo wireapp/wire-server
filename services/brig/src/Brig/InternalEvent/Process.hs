@@ -20,8 +20,6 @@ module Brig.InternalEvent.Process
   )
 where
 
-import Bilge.IO (MonadHttp)
-import Bilge.RPC (HasRequestId)
 import Brig.API.User qualified as API
 import Brig.App
 import Brig.IO.Intra (rmClient)
@@ -30,31 +28,30 @@ import Brig.InternalEvent.Types
 import Brig.Options (defDeleteThrottleMillis, setDeleteThrottleMillis)
 import Brig.Provider.API qualified as API
 import Brig.Types.User.Event
-import Brig.User.Search.Index (MonadIndexIO)
-import Cassandra (MonadClient)
 import Control.Lens (view)
 import Control.Monad.Catch
 import Data.ByteString.Conversion
 import Imports
+import Polysemy
+import Polysemy.Conc
+import Polysemy.Time
+import Polysemy.TinyLog as Log
 import System.Logger.Class (field, msg, val, (~~))
-import System.Logger.Class qualified as Log
-import UnliftIO (timeout)
+import Wire.NotificationSubsystem
+import Wire.Sem.Delay
 
 -- | Handle an internal event.
 --
 -- Has a one-minute timeout that should be enough for anything that it does.
 onEvent ::
-  ( Log.MonadLogger m,
-    MonadIndexIO m,
-    MonadReader Env m,
-    MonadMask m,
-    MonadHttp m,
-    HasRequestId m,
-    MonadUnliftIO m,
-    MonadClient m
+  ( Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member TinyLog r,
+    Member Delay r,
+    Member Race r
   ) =>
   InternalNotification ->
-  m ()
+  Sem r ()
 onEvent n = handleTimeout $ case n of
   DeleteClient clientId uid mcon -> do
     rmClient uid clientId
@@ -63,23 +60,23 @@ onEvent n = handleTimeout $ case n of
     Log.info $
       msg (val "Processing user delete event")
         ~~ field "user" (toByteString uid)
-    API.lookupAccount uid >>= mapM_ API.deleteAccount
+    embed (API.lookupAccount uid) >>= mapM_ API.deleteAccount
     -- As user deletions are expensive resource-wise in the context of
     -- bulk user deletions (e.g. during team deletions),
     -- wait 'delay' ms before processing the next event
-    delay <- fromMaybe defDeleteThrottleMillis . setDeleteThrottleMillis <$> view settings
-    liftIO $ threadDelay (1000 * delay)
+    deleteThrottleMillis <- embed $ fromMaybe defDeleteThrottleMillis . setDeleteThrottleMillis <$> view settings
+    delay (1000 * deleteThrottleMillis)
   DeleteService pid sid -> do
     Log.info $
       msg (val "Processing service delete event")
         ~~ field "provider" (toByteString pid)
         ~~ field "service" (toByteString sid)
-    API.finishDeleteService pid sid
+    embed $ API.finishDeleteService pid sid
   where
     handleTimeout act =
-      timeout 60000000 act >>= \case
-        Just x -> pure x
-        Nothing -> throwM (InternalEventTimeout n)
+      timeout (pure ()) (Seconds 60) act >>= \case
+        Right x -> pure x
+        Left _ -> embed $ throwM (InternalEventTimeout n)
 
 newtype InternalEventException
   = -- | 'onEvent' has timed out

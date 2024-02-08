@@ -27,6 +27,7 @@ import Data.Id
 import Data.Metrics.Middleware
 import Data.Misc (Fingerprint, HttpsUrl, Rsa)
 import Data.Range
+import Data.Time.Clock.DiffTime (millisecondsToDiffTime)
 import Galley.Aws qualified as Aws
 import Galley.Options
 import Galley.Options qualified as O
@@ -44,6 +45,7 @@ import Util.Options
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Keys
 import Wire.API.Team.Member
+import Wire.NotificationSubsystem.Interpreter
 
 data DeleteItem = TeamItem TeamId UserId (Maybe ConnId)
   deriving (Eq, Ord, Show)
@@ -106,6 +108,19 @@ reqIdMsg = ("request" .=) . unRequestId
 
 currentFanoutLimit :: Opts -> Range 1 HardTruncationLimit Int32
 currentFanoutLimit o = do
-  let optFanoutLimit = fromIntegral . fromRange $ fromMaybe defFanoutLimit (o ^. (O.settings . maxFanoutSize))
+  let optFanoutLimit = fromIntegral . fromRange $ fromMaybe defaultFanoutLimit (o ^. (O.settings . maxFanoutSize))
   let maxSize = fromIntegral (o ^. (O.settings . maxTeamSize))
   unsafeRange (min maxSize optFanoutLimit)
+
+notificationSubssystemConfig :: Env -> NotificationSubsystemConfig
+notificationSubssystemConfig env =
+  NotificationSubsystemConfig
+    { chunkSize = defaultChunkSize,
+      fanoutLimit = currentFanoutLimit env._options,
+      slowPushDelay =
+        maybe
+          defaultSlowPushDelay
+          (millisecondsToDiffTime . toInteger)
+          (env ^. options . O.settings . deleteConvThrottleMillis),
+      requestId = env ^. reqId
+    }

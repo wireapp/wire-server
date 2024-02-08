@@ -42,6 +42,7 @@ hself: hsuper: {
   # ------------------------------------
   bytestring-conversion = hlib.markUnbroken hsuper.bytestring-conversion;
   template = hlib.markUnbroken hsuper.template;
+  polysemy-test = hlib.markUnbroken hsuper.polysemy-test;
 
   # -----------------
   # version overrides

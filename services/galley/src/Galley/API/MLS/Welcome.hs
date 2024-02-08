@@ -31,7 +31,6 @@ import Data.Time
 import Galley.API.Push
 import Galley.Effects.ExternalAccess
 import Galley.Effects.FederatorAccess
-import Galley.Effects.GundeckAccess
 import Imports
 import Network.Wai.Utilities.JSONResponse
 import Polysemy
@@ -50,13 +49,14 @@ import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
 import Wire.API.MLS.Welcome
 import Wire.API.Message
+import Wire.NotificationSubsystem (NotificationSubsystem)
 
 sendWelcomes ::
   ( Member FederatorAccess r,
-    Member GundeckAccess r,
     Member ExternalAccess r,
     Member P.TinyLog r,
-    Member (Input UTCTime) r
+    Member (Input UTCTime) r,
+    Member NotificationSubsystem r
   ) =>
   Local ConvOrSubConvId ->
   Qualified UserId ->
@@ -76,9 +76,10 @@ sendWelcomes loc qusr con cids welcome = do
     convFrom (SubConv c _) = c
 
 sendLocalWelcomes ::
-  Member GundeckAccess r =>
-  Member P.TinyLog r =>
-  Member ExternalAccess r =>
+  ( Member P.TinyLog r,
+    Member ExternalAccess r,
+    Member NotificationSubsystem r
+  ) =>
   Qualified ConvId ->
   Qualified UserId ->
   Maybe ConnId ->

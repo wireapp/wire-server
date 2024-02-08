@@ -122,6 +122,7 @@
 , warp-tls
 , wire-api
 , wire-api-federation
+, wire-subsystems
 , yaml
 }:
 mkDerivation {
@@ -214,6 +215,7 @@ mkDerivation {
     wai-utilities
     wire-api
     wire-api-federation
+    wire-subsystems
   ];
   executableHaskellDepends = [
     aeson

@@ -92,6 +92,7 @@ import Network.HTTP.Client.OpenSSL
 import Network.Wai.Utilities.JSONResponse
 import OpenSSL.Session as Ssl
 import Polysemy
+import Polysemy.Async
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.Internal (Append)
@@ -107,6 +108,10 @@ import Wire.API.Conversation.Protocol
 import Wire.API.Error
 import Wire.API.Federation.Error
 import Wire.API.Team.Feature
+import Wire.GundeckAPIAccess (runGundeckAPIAccess)
+import Wire.NotificationSubsystem.Interpreter (runNotificationSubsystemGundeck)
+import Wire.Rpc
+import Wire.Sem.Delay
 import Wire.Sem.Logger qualified
 import Wire.Sem.Random.IO
 
@@ -119,6 +124,8 @@ type GalleyEffects0 =
      -- federation errors can be thrown by almost every endpoint, so we avoid
      -- having to declare it every single time, and simply handle it here
      Error FederationError,
+     Async,
+     Delay,
      Embed IO,
      Error JSONResponse,
      Resource,
@@ -238,6 +245,8 @@ evalGalley e =
     . resourceToIOFinal
     . runError
     . embedToFinal @IO
+    . runDelay
+    . asyncToIOFinal
     . mapError toResponse
     . mapError toResponse
     . mapError toResponse
@@ -276,7 +285,9 @@ evalGalley e =
     . interpretBackendNotificationQueueAccess
     . interpretFederatorAccess
     . interpretExternalAccess
-    . interpretGundeckAccess
+    . runRpcWithHttp (e ^. manager) (e ^. reqId)
+    . runGundeckAPIAccess (e ^. options . gundeck)
+    . runNotificationSubsystemGundeck (notificationSubssystemConfig e)
     . interpretSparAccess
     . interpretBrigAccess
   where

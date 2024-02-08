@@ -89,7 +89,9 @@
 , pem
 , pipes
 , polysemy
+, polysemy-conc
 , polysemy-plugin
+, polysemy-time
 , polysemy-wire-zoo
 , postie
 , process
@@ -155,6 +157,7 @@
 , warp-tls
 , wire-api
 , wire-api-federation
+, wire-subsystems
 , yaml
 , zauth
 }:
@@ -236,7 +239,9 @@ mkDerivation {
     openapi3
     optparse-applicative
     polysemy
+    polysemy-conc
     polysemy-plugin
+    polysemy-time
     polysemy-wire-zoo
     proto-lens
     random-shuffle
@@ -284,6 +289,7 @@ mkDerivation {
     wai-utilities
     wire-api
     wire-api-federation
+    wire-subsystems
     yaml
     zauth
   ];
