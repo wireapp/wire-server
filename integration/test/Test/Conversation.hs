@@ -681,7 +681,7 @@ testDeleteTeamMemberLimitedEventFanout = do
 
   -- Only the team admins will get the team-level event about Alex being removed
   -- from the team
-  setTeamFeatureStatus OwnDomain team "limitedEventFanout" "enabled"
+  setTeamFeatureStatus OwnDomain team "limitedEventFanout" Enabled
 
   withWebSockets [alice, amy, bob, alison, ana] $
     \[wsAlice, wsAmy, wsBob, wsAlison, wsAna] -> do

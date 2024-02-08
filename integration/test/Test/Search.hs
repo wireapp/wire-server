@@ -112,7 +112,7 @@ federatedUserSearch d1 d2 test = do
   u2 <- randomUser d2 def {BrigI.team = True}
   uidD2 <- objId u2
   team2 <- u2 %. "team"
-  GalleyI.setTeamFeatureStatus d2 team2 "searchVisibilityInbound" "enabled"
+  GalleyI.setTeamFeatureStatus d2 team2 "searchVisibilityInbound" GalleyI.Enabled
 
   addTeamRestriction d1 d2 team2 test.restrictionD1D2
   addTeamRestriction d2 d1 teamU1 test.restrictionD2D1
@@ -167,7 +167,7 @@ testFederatedUserSearchNonTeamSearcher = do
     u1 <- randomUser d1 def
     u2 <- randomUser d2 def {BrigI.team = True}
     team2 <- u2 %. "team"
-    GalleyI.setTeamFeatureStatus d2 team2 "searchVisibilityInbound" "enabled"
+    GalleyI.setTeamFeatureStatus d2 team2 "searchVisibilityInbound" GalleyI.Enabled
 
     u2Handle <- API.randomHandle
     bindResponse (BrigP.putHandle u2 u2Handle) $ assertSuccess

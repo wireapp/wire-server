@@ -18,6 +18,7 @@
 module Test.FeatureFlags where
 
 import API.Galley
+import API.GalleyInternal (FeatureStatus (..))
 import qualified API.GalleyInternal as I
 import qualified Data.Aeson as Aeson
 import SetupHelpers
@@ -26,19 +27,6 @@ import Testlib.Prelude
 
 --------------------------------------------------------------------------------
 -- Helpers
-
-data FeatureStatus = Disabled | Enabled
-  deriving (Eq)
-
-instance HasTests x => HasTests (FeatureStatus -> x) where
-  mkTests m n s f x =
-    mkTests m (n <> "[featureStatus=disabled]") s f (x Disabled)
-      <> mkTests m (n <> "[featureStatus=enabled]") s f (x Enabled)
-
-instance Show FeatureStatus where
-  show = \case
-    Disabled -> "disabled"
-    Enabled -> "enabled"
 
 expectedStatus :: HasCallStack => FeatureStatus -> Aeson.Value
 expectedStatus fs =
@@ -83,11 +71,28 @@ testLimitedEventFanout = do
   let featureName = "limitedEventFanout"
   (_alice, team, _) <- createTeam OwnDomain 1
   assertFeatureInternal featureName OwnDomain team Disabled
-  I.setTeamFeatureStatus OwnDomain team featureName "enabled"
+  I.setTeamFeatureStatus OwnDomain team featureName Enabled
   assertFeatureInternal featureName OwnDomain team Enabled
 
 testSSOPut :: HasCallStack => FeatureStatus -> App ()
-testSSOPut status = withModifiedBackend cnf $ \domain -> do
+testSSOPut = genericTestSSO putSSOInternal
+  where
+    putSSOInternal domain team status = do
+      let st = I.WithStatusNoLock status 0
+      I.putTeamFeatureStatus domain team "sso" st
+
+testSSOPatch :: HasCallStack => FeatureStatus -> App ()
+testSSOPatch = genericTestSSO patchSSOInternal
+  where
+    patchSSOInternal domain team status =
+      I.patchTeamFeatureStatus domain team "sso" status
+
+genericTestSSO ::
+  HasCallStack =>
+  (String -> String -> FeatureStatus -> App ()) ->
+  FeatureStatus ->
+  App ()
+genericTestSSO setter status = withModifiedBackend cnf $ \domain -> do
   (_alice, team, alex : _) <- createTeam domain 2
   nonMember <- randomUser domain def
 
@@ -101,7 +106,7 @@ testSSOPut status = withModifiedBackend cnf $ \domain -> do
 
   when (status == Disabled) $ do
     let opposite = Enabled
-    I.setTeamFeatureStatus domain team featureName (show opposite)
+    setter domain team opposite
     assertFeature featureName alex team opposite
     assertFeatureInternal featureName domain team opposite
     assertFeatureFromAll featureName alex opposite

@@ -66,7 +66,7 @@ testUpdateHandle = do
   bindResponse (getTeamFeature owner featureName team) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "status" `shouldMatch` "disabled"
-  setTeamFeatureStatus owner team featureName "enabled"
+  setTeamFeatureStatus owner team featureName Enabled
   bindResponse (getTeamFeature owner featureName team) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "status" `shouldMatch` "enabled"
@@ -129,7 +129,7 @@ testUpdateSelf (MkTagged mode) = do
   bindResponse (getTeamFeature owner featureName team) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "status" `shouldMatch` "disabled"
-  setTeamFeatureStatus owner team featureName "enabled"
+  setTeamFeatureStatus owner team featureName Enabled
   bindResponse (getTeamFeature owner featureName team) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "status" `shouldMatch` "enabled"
