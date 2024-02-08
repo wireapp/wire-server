@@ -117,6 +117,10 @@ notificationSubssystemConfig env =
   NotificationSubsystemConfig
     { chunkSize = defaultChunkSize,
       fanoutLimit = currentFanoutLimit env._options,
-      slowPushDelay = fromMaybe defaultSlowPushDelay (millisecondsToDiffTime . toInteger <$> env ^. options . O.settings . deleteConvThrottleMillis),
+      slowPushDelay =
+        maybe
+          defaultSlowPushDelay
+          (millisecondsToDiffTime . toInteger)
+          (env ^. options . O.settings . deleteConvThrottleMillis),
       requestId = env ^. reqId
     }
