@@ -233,7 +233,7 @@ spec = describe "NotificationSubsystem.Interpreter" do
 
       attemptedPushes `shouldBe` [[toV2Push push1]]
       map fst logs `shouldBe` [Error]
-      cs (map snd logs !! 0) `shouldContain` "error=TestException"
+      cs (head (map snd logs)) `shouldContain` "error=TestException"
 
   describe "toV2Push" do
     it "does the transformation correctly" $ property \(pushToUser :: Push) ->
