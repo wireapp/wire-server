@@ -56,5 +56,5 @@ data:
       downloadLinkTTL: {{ .downloadLinkTTL }}
       {{- end }}
       federationDomain: {{ .federationDomain }}
-      disabledAPIVersions: {{ .disabledAPIVersions }}
+      disabledAPIVersions: {{ toJson .disabledAPIVersions }}
       {{- end }}
