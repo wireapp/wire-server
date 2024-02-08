@@ -10,6 +10,7 @@ import Data.List1 qualified as List1
 import Data.Proxy
 import Data.Range
 import Data.Set qualified as Set
+import Data.Time.Clock.DiffTime
 import Gundeck.Types hiding (Push (..), Recipient, newPush)
 import Gundeck.Types.Push.V2 qualified as V2
 import Imports
@@ -49,8 +50,7 @@ runNotificationSubsystemGundeck cfg = interpret $ \case
 data NotificationSubsystemConfig = NotificationSubsystemConfig
   { fanoutLimit :: Range 1 HardTruncationLimit Int32,
     chunkSize :: Natural,
-    -- | Microseconds
-    slowPushDelay :: Natural,
+    slowPushDelay :: DiffTime,
     requestId :: RequestId
   }
 
@@ -64,8 +64,8 @@ defaultFanoutLimit = toRange (Proxy @HardTruncationLimit)
 defaultChunkSize :: Natural
 defaultChunkSize = 128
 
-defaultSlowPushDelay :: Natural
-defaultSlowPushDelay = 20_000
+defaultSlowPushDelay :: DiffTime
+defaultSlowPushDelay = millisecondsToDiffTime 20
 
 pushAsyncImpl ::
   forall r.
@@ -166,5 +166,5 @@ pushSlowlyImpl ::
   Sem r ()
 pushSlowlyImpl ps =
   for_ ps \p -> do
-    delay =<< inputs (fromIntegral . slowPushDelay)
+    delay =<< inputs (diffTimeToFullMicroseconds . slowPushDelay)
     pushImpl [p]

@@ -8,6 +8,7 @@ import Data.List.NonEmpty (NonEmpty ((:|)), fromList)
 import Data.List1 qualified as List1
 import Data.Range (fromRange, toRange)
 import Data.Set qualified as Set
+import Data.Time.Clock.DiffTime
 import Gundeck.Types.Push.V2 qualified as V2
 import Imports
 import Numeric.Natural (Natural)
@@ -192,11 +193,11 @@ spec = describe "NotificationSubsystem.Interpreter" do
           runMockStackWithControlledDelay mockConfig delayControl actualPushesRef $
             pushSlowlyImpl pushes
 
-      putMVar delayControl (fromIntegral mockConfig.slowPushDelay)
+      putMVar delayControl (diffTimeToFullMicroseconds mockConfig.slowPushDelay)
       actualPushes1 <- timeout 100_000 $ (waitUntilPushes actualPushesRef 1)
       actualPushes1 `shouldBe` Just [[toV2Push push1]]
 
-      putMVar delayControl (fromIntegral mockConfig.slowPushDelay)
+      putMVar delayControl (diffTimeToFullMicroseconds mockConfig.slowPushDelay)
       actualPushes2 <- timeout 100_000 $ (waitUntilPushes actualPushesRef 2)
       actualPushes2 `shouldBe` Just [[toV2Push push1], [toV2Push push2]]
 

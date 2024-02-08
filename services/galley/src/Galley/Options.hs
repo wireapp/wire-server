@@ -68,7 +68,6 @@ import Galley.Keys
 import Galley.Types.Teams
 import Imports
 import Network.AMQP.Extended
-import Numeric.Natural
 import System.Logger.Extended (Level, LogFormat)
 import Util.Options hiding (endpoint)
 import Util.Options.Common
@@ -122,7 +121,7 @@ data Settings = Settings
     -- | Throttling: limits to concurrent deletion events
     _concurrentDeletionEvents :: !(Maybe Int),
     -- | Throttling: delay between sending events upon team deletion
-    _deleteConvThrottleMillis :: !(Maybe Natural),
+    _deleteConvThrottleMillis :: !(Maybe Int),
     -- | FederationDomain is required, even when not wanting to federate with other backends
     -- (in that case the 'allowedDomains' can be set to empty in Federator)
     -- Federation domain is used to qualify local IDs and handles,

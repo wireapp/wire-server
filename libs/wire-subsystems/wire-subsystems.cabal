@@ -82,6 +82,7 @@ library
     , bytestring-conversion
     , containers
     , exceptions
+    , extended
     , gundeck-types
     , http-client
     , http-types
@@ -118,6 +119,7 @@ test-suite wire-subsystems-tests
     , bilge
     , bytestring
     , containers
+    , extended
     , gundeck-types
     , hspec
     , imports

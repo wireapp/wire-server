@@ -11,6 +11,7 @@
 , bytestring-conversion
 , containers
 , exceptions
+, extended
 , gitignoreSource
 , gundeck-types
 , hspec
@@ -42,6 +43,7 @@ mkDerivation {
     bytestring-conversion
     containers
     exceptions
+    extended
     gundeck-types
     http-client
     http-types
@@ -63,6 +65,7 @@ mkDerivation {
     bilge
     bytestring
     containers
+    extended
     gundeck-types
     hspec
     imports

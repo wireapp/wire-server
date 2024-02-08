@@ -27,6 +27,7 @@ import Data.Id
 import Data.Metrics.Middleware
 import Data.Misc (Fingerprint, HttpsUrl, Rsa)
 import Data.Range
+import Data.Time.Clock.DiffTime (millisecondsToDiffTime)
 import Galley.Aws qualified as Aws
 import Galley.Options
 import Galley.Options qualified as O
@@ -116,6 +117,6 @@ notificationSubssystemConfig env =
   NotificationSubsystemConfig
     { chunkSize = defaultChunkSize,
       fanoutLimit = currentFanoutLimit env._options,
-      slowPushDelay = 1000 * fromMaybe defaultSlowPushDelay (env ^. options . O.settings . deleteConvThrottleMillis),
+      slowPushDelay = fromMaybe defaultSlowPushDelay (millisecondsToDiffTime . toInteger <$> env ^. options . O.settings . deleteConvThrottleMillis),
       requestId = env ^. reqId
     }
