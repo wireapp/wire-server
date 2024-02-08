@@ -369,9 +369,12 @@ notifyUserDeletionRemotes deleted = do
 
     sendCancelledEvent :: Local UserId -> Remote UserConnection -> m ()
     sendCancelledEvent luidDeleted ruc = do
-      result <- runExceptT $ sendConnectionAction luidDeleted Nothing (qUnqualified . ucTo <$> ruc) RemoteRescind
-      case result of
-        Left _ -> pure () -- TODO: handle error
+      runExceptT (sendConnectionAction luidDeleted Nothing (qUnqualified . ucTo <$> ruc) RemoteRescind) >>= \case
+        -- I don't think we want to abort the operation since this is running asynchronously and cannot be retried anyway
+        Left e ->
+          Log.err $
+            field "error" (show e)
+              . msg (val "An error occurred while sending a connection cancelled event to a remote backend.")
         Right _ -> pure ()
 
 -- | Push events to other users.
