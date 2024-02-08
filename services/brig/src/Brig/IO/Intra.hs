@@ -297,6 +297,9 @@ notifyUserDeletionLocals ::
   m ()
 notifyUserDeletionLocals deleted conn event = do
   luid <- qualifyLocal deleted
+  -- first we send a notification to the deleted user's devices
+  notify event deleted Push.RouteDirect conn (pure (list1 deleted []))
+  -- then to all their connections
   connectionPages Nothing luid (toRange (Proxy @500))
   where
     handler :: [UserConnection] -> m ()
