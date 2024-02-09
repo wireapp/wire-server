@@ -181,6 +181,9 @@ isConnectionNotif status n =
     <$> nPayload n %. "type" `isEqual` "user.connection"
     <*> nPayload n %. "connection.status" `isEqual` status
 
+isFeatureConfigUpdateNotif :: MakesValue a => a -> App Bool
+isFeatureConfigUpdateNotif n = fieldEquals n "payload.0.type" "feature-config.update"
+
 assertLeaveNotification ::
   ( HasCallStack,
     MakesValue fromUser,

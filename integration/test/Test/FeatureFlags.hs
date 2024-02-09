@@ -21,6 +21,7 @@ import API.Galley
 import API.GalleyInternal (FeatureStatus (..))
 import qualified API.GalleyInternal as I
 import qualified Data.Aeson as Aeson
+import Notifications
 import SetupHelpers
 import Testlib.HTTP
 import Testlib.Prelude
@@ -291,3 +292,45 @@ testSearchVisibilityEnabledPut =
     putInternal domain team status = do
       let st = I.WithStatusNoLock status 0
       I.putTeamFeatureStatus domain team featurePath st
+
+checkSimpleFlag ::
+  HasCallStack =>
+  String ->
+  String ->
+  FeatureStatus ->
+  App ()
+checkSimpleFlag path name defStatus = do
+  let domain = OwnDomain
+  let opposite = I.oppositeStatus defStatus
+  (owner, team, mem : _) <- createTeam domain 2
+  do
+    nonMem <- randomUser domain def
+    getTeamFeature path nonMem team `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 403
+      resp.json %. "label" `shouldMatch` "no-team-member"
+  do
+    let status = defStatus
+    assertFeature path owner team status
+    assertFeatureInternal path domain team status
+    assertFeatureFromAll path mem status
+  do
+    let expStatus =
+          Aeson.object
+            [ "status" .= opposite,
+              "lockStatus" .= "unlocked",
+              "ttl" .= "unlimited"
+            ]
+    withWebSocket owner $ \ws -> do
+      I.setTeamFeatureStatus domain team path opposite
+      n <- awaitMatch isFeatureConfigUpdateNotif ws
+      n %. "payload.0.name" `shouldMatch` name
+      n %. "payload.0.data" `shouldMatch` expStatus
+  do
+    let status = opposite
+    assertFeature path owner team status
+    assertFeatureInternal path domain team status
+    assertFeatureFromAll path mem status
+
+testDigitalSignatures :: HasCallStack => App ()
+testDigitalSignatures = do
+  checkSimpleFlag "digitalSignatures" "digitalSignatures" Disabled
