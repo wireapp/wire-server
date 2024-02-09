@@ -75,16 +75,16 @@ testLimitedEventFanout = do
   assertFeatureInternal featureName OwnDomain team Enabled
 
 testSSOPut :: HasCallStack => FeatureStatus -> App ()
-testSSOPut = genericTestSSO putSSOInternal
+testSSOPut = genericTestSSO putInternal
   where
-    putSSOInternal domain team status = do
+    putInternal domain team status = do
       let st = I.WithStatusNoLock status 0
       I.putTeamFeatureStatus domain team "sso" st
 
 testSSOPatch :: HasCallStack => FeatureStatus -> App ()
-testSSOPatch = genericTestSSO patchSSOInternal
+testSSOPatch = genericTestSSO patchInternal
   where
-    patchSSOInternal domain team status =
+    patchInternal domain team status =
       I.patchTeamFeatureStatus domain team "sso" status
 
 genericTestSSO ::
@@ -119,3 +119,104 @@ genericTestSSO setter status = withModifiedBackend cnf $ \domain -> do
             conf
               & setField setting (show status <> "-by-default")
         }
+
+legalholdAssertions ::
+  (HasCallStack, MakesValue user) =>
+  String ->
+  String ->
+  user ->
+  App ()
+legalholdAssertions domain team mem = do
+  assertFeature featureName mem team Disabled
+  assertFeatureInternal featureName domain team Disabled
+  assertFeatureFromAll featureName mem Disabled
+  nonMem <- randomUser domain def
+  getTeamFeature featureName nonMem team `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "no-team-member"
+  where
+    featureName = "legalhold"
+
+legalholdDisabledByDefault ::
+  HasCallStack =>
+  (String -> String -> FeatureStatus -> App ()) ->
+  App ()
+legalholdDisabledByDefault setter = withModifiedBackend cnf $ \domain -> do
+  (_alice, team, alex : _) <- createTeam domain 2
+  legalholdAssertions domain team alex
+  setter domain team Enabled
+  assertFeature featureName alex team Enabled
+  assertFeatureInternal featureName domain team Enabled
+  assertFeatureFromAll featureName alex Enabled
+  where
+    cnf =
+      def
+        { galleyCfg = \conf ->
+            conf
+              -- & setField setting ("whitelist-teams-and-implicit-consent")
+              & setField setting ("disabled-by-default")
+        }
+    setting = "settings.featureFlags." <> featureName
+    featureName = "legalhold"
+
+testLegalholdDisabledByDefaultPut :: HasCallStack => App ()
+testLegalholdDisabledByDefaultPut = legalholdDisabledByDefault putInternal
+  where
+    putInternal domain team status = do
+      let st = I.WithStatusNoLock status 0
+      I.putTeamFeatureStatus domain team "legalhold" st
+
+testLegalholdDisabledByDefaultPatch :: HasCallStack => App ()
+testLegalholdDisabledByDefaultPatch = legalholdDisabledByDefault patchInternal
+  where
+    patchInternal domain team status =
+      I.patchTeamFeatureStatus domain team "legalhold" status
+
+legalholdFailToEnable ::
+  HasCallStack =>
+  (String -> String -> FeatureStatus -> App ()) ->
+  String ->
+  App ()
+legalholdFailToEnable setter confValue = withModifiedBackend cnf $ \domain -> do
+  (_alice, team, alex : _) <- createTeam domain 2
+  legalholdAssertions domain team alex
+  setter domain team Enabled
+  where
+    cnf =
+      def
+        { galleyCfg = \conf ->
+            conf
+              & setField setting confValue
+        }
+    setting = "settings.featureFlags." <> featureName
+    featureName = "legalhold"
+
+testLegalholdDisabledPermanentlyPatch :: HasCallStack => App ()
+testLegalholdDisabledPermanentlyPatch =
+  legalholdFailToEnable patchInternal "disabled-permanently"
+  where
+    patchInternal domain team status =
+      I.failToPatchTeamFeatureStatus domain team "legalhold" status
+
+testLegalholdDisabledPermanentlyPut :: HasCallStack => App ()
+testLegalholdDisabledPermanentlyPut =
+  legalholdFailToEnable putInternal "disabled-permanently"
+  where
+    putInternal domain team status = do
+      let st = I.WithStatusNoLock status 0
+      I.failToPutTeamFeatureStatus domain team "legalhold" st
+
+testLegalholdWhitelistImplicitConsentPatch :: HasCallStack => App ()
+testLegalholdWhitelistImplicitConsentPatch =
+  legalholdFailToEnable patchInternal "whitelist-teams-and-implicit-consent"
+  where
+    patchInternal domain team status =
+      I.failToPatchTeamFeatureStatus domain team "legalhold" status
+
+testLegalholdWhitelistImplicitConsentPut :: HasCallStack => App ()
+testLegalholdWhitelistImplicitConsentPut =
+  legalholdFailToEnable putInternal "whitelist-teams-and-implicit-consent"
+  where
+    putInternal domain team status = do
+      let st = I.WithStatusNoLock status 0
+      I.failToPutTeamFeatureStatus domain team "legalhold" st

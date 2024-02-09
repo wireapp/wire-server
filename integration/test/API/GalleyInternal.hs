@@ -60,6 +60,21 @@ patchTeamFeatureStatus domain team featureName status = do
   res <- submit "PATCH" $ addJSONObject ["status" .= show status] req
   res.status `shouldMatchInt` 200
 
+failToPatchTeamFeatureStatus ::
+  (HasCallStack, MakesValue domain, MakesValue team) =>
+  domain ->
+  team ->
+  String ->
+  FeatureStatus ->
+  App ()
+failToPatchTeamFeatureStatus domain team featureName status = do
+  tid <- asString team
+  req <-
+    baseRequest domain Galley Unversioned $
+      joinHttpPath ["i", "teams", tid, "features", featureName]
+  res <- submit "PATCH" $ addJSONObject ["status" .= show status] req
+  res.status `shouldMatchRange` (400, 499)
+
 -- | An alias for 'patchTeamFeatureStatus'
 setTeamFeatureStatus ::
   (HasCallStack, MakesValue domain, MakesValue team) =>
@@ -85,6 +100,22 @@ putTeamFeatureStatus domain team featureName status = do
       joinHttpPath ["i", "teams", tid, "features", featureName]
   res <- submit "PUT" $ addJSON body req
   res.status `shouldMatchInt` 200
+
+failToPutTeamFeatureStatus ::
+  (HasCallStack, MakesValue domain, MakesValue team) =>
+  domain ->
+  team ->
+  String ->
+  WithStatusNoLock ->
+  App ()
+failToPutTeamFeatureStatus domain team featureName status = do
+  tid <- asString team
+  body <- make status
+  req <-
+    baseRequest domain Galley Unversioned $
+      joinHttpPath ["i", "teams", tid, "features", featureName]
+  res <- submit "PUT" $ addJSON body req
+  res.status `shouldMatchRange` (400, 499)
 
 data FeatureStatus = Disabled | Enabled
   deriving (Eq)

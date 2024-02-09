@@ -64,9 +64,7 @@ tests :: IO TestSetup -> TestTree
 tests s =
   testGroup
     "Feature Config API and Team Features API"
-    [ test s "LegalHold - set with HTTP PUT" (testLegalHold putLegalHoldInternal),
-      test s "LegalHold - set with HTTP PATCH" (testLegalHold patchLegalHoldInternal),
-      test s "SearchVisibility" testSearchVisibility,
+    [ test s "SearchVisibility" testSearchVisibility,
       test s "DigitalSignatures" $ testSimpleFlag @DigitalSignaturesConfig FeatureStatusDisabled,
       test s "ValidateSAMLEmails" $ testSimpleFlag @ValidateSAMLEmailsConfig FeatureStatusEnabled,
       test s "FileSharing with lock status" $ testSimpleFlagWithLockStatus @FileSharingConfig FeatureStatusEnabled LockStatusUnlocked,
@@ -279,55 +277,6 @@ testPatch' testLockStatusChange rndFeatureConfig defStatus defConfig = do
         when (testLockStatusChange == AssertLockStatusChange) $
           wsLockStatus actual @?= fromMaybe (wsLockStatus original) (wspLockStatus rndFeatureConfig)
         wsConfig actual @?= fromMaybe (wsConfig original) (wspConfig rndFeatureConfig)
-
-testLegalHold :: ((Request -> Request) -> TeamId -> FeatureStatus -> TestM ()) -> TestM ()
-testLegalHold setLegalHoldInternal = do
-  (_owner, tid, member : _) <- createBindingTeamWithNMembers 1
-  nonMember <- randomUser
-  let getLegalHold :: HasCallStack => FeatureStatus -> TestM ()
-      getLegalHold = assertFlagNoConfig @LegalholdConfig $ getTeamFeatureFlag @LegalholdConfig member tid
-      getLegalHoldInternal :: HasCallStack => FeatureStatus -> TestM ()
-      getLegalHoldInternal = assertFlagNoConfig @LegalholdConfig $ getTeamFeatureFlagInternal @LegalholdConfig tid
-      getLegalHoldFeatureConfig expectedStatus = do
-        actual <- Util.getFeatureConfig @LegalholdConfig member
-        liftIO $ wsStatus actual @?= expectedStatus
-
-  getLegalHold FeatureStatusDisabled
-  getLegalHoldInternal FeatureStatusDisabled
-
-  assertFlagForbidden $ getTeamFeatureFlag @LegalholdConfig nonMember tid
-
-  -- FUTUREWORK: run two galleys, like below for custom search visibility.
-  featureLegalHold <- view (tsGConf . settings . featureFlags . flagLegalHold)
-  case featureLegalHold of
-    FeatureLegalHoldDisabledByDefault -> do
-      -- Test default
-      getLegalHold FeatureStatusDisabled
-      getLegalHoldInternal FeatureStatusDisabled
-      getLegalHoldFeatureConfig FeatureStatusDisabled
-
-      -- Test override
-      setLegalHoldInternal expect2xx tid FeatureStatusEnabled
-      getLegalHold FeatureStatusEnabled
-      getLegalHoldInternal FeatureStatusEnabled
-      getLegalHoldFeatureConfig FeatureStatusEnabled
-
-    -- turned off for instance
-    FeatureLegalHoldDisabledPermanently -> do
-      setLegalHoldInternal expect4xx tid FeatureStatusEnabled
-
-    -- turned off but for whitelisted teams with implicit consent
-    FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> do
-      setLegalHoldInternal expect4xx tid FeatureStatusEnabled
-
-putLegalHoldInternal :: HasCallStack => (Request -> Request) -> TeamId -> FeatureStatus -> TestM ()
-putLegalHoldInternal expectation tid =
-  void
-    . putTeamFeatureFlagInternal @LegalholdConfig expectation tid
-    . (\st -> WithStatusNoLock st LegalholdConfig FeatureTTLUnlimited)
-
-patchLegalHoldInternal :: HasCallStack => (Request -> Request) -> TeamId -> FeatureStatus -> TestM ()
-patchLegalHoldInternal expectation tid status = void $ patchFeatureStatusInternalWithMod @LegalholdConfig expectation tid (withStatus' (Just status) Nothing Nothing (Just FeatureTTLUnlimited))
 
 testSearchVisibility :: TestM ()
 testSearchVisibility = do
