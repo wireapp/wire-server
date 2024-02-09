@@ -91,7 +91,9 @@ import Wire.API.Event.Conversation
 import Wire.API.Event.LeaveReason
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
+import Wire.API.Federation.Endpoint
 import Wire.API.Federation.Error
+import Wire.API.Federation.Version
 import Wire.API.Provider.Service hiding (Service)
 import Wire.API.Routes.API
 import Wire.API.Routes.Internal.Galley
@@ -417,7 +419,8 @@ rmUser lusr conn = do
                 alreadyPresentUsers = tUnqualified remotes,
                 action = SomeConversationAction (sing @'ConversationLeaveTag) ()
               }
-      let rpc = fedClient @'Galley @"on-conversation-updated" convUpdate
+      -- TODO: use notification
+      let rpc = fedClient @'Galley @(Versioned 'V1 "on-conversation-updated") convUpdate
       runFederatedEither remotes rpc
         >>= logAndIgnoreError "Error in onConversationUpdated call" (qUnqualified qUser)
 

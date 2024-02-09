@@ -23,6 +23,7 @@ where
 
 import Data.Kind
 import GHC.TypeLits
+import Imports
 import Servant.API
 import Wire.API.ApplyMods
 import Wire.API.Federation.API.Common
@@ -41,21 +42,29 @@ type instance FedPath (name :: Symbol) = name
 
 type instance FedPath (Versioned v name) = name
 
+type UnnamedFedEndpointWithMods (mods :: [Type]) path input output =
+  ( ApplyMods
+      mods
+      (path :> OriginDomainHeader :> ReqBody '[JSON] input :> Post '[JSON] output)
+  )
+
 type FedEndpointWithMods (mods :: [Type]) name input output =
   Named
     name
-    ( ApplyMods
-        mods
-        (FedPath name :> OriginDomainHeader :> ReqBody '[JSON] input :> Post '[JSON] output)
+    ( UnnamedFedEndpointWithMods mods (FedPath name) input output
     )
-
-type NotificationFedEndpointWithMods (mods :: [Type]) name input =
-  FedEndpointWithMods mods name input EmptyResponse
 
 type FedEndpoint name input output = FedEndpointWithMods '[] name input output
 
+type NotificationFedEndpointWithMods (mods :: [Type]) name path input =
+  Named name (UnnamedFedEndpointWithMods mods path input EmptyResponse)
+
 type NotificationFedEndpoint tag =
-  FedEndpoint (NotificationPath tag) (Payload tag) EmptyResponse
+  MkNotificationFedEndpoint
+    '[]
+    (NotificationPath tag)
+    (NotificationVersionTag tag)
+    (Payload tag)
 
 type StreamingFedEndpoint name input output =
   Named
@@ -65,3 +74,18 @@ type StreamingFedEndpoint name input output =
         :> ReqBody '[JSON] input
         :> StreamPost NoFraming OctetStream output
     )
+
+type family
+  MkNotificationFedEndpoint
+    (m :: [Type])
+    (s :: Symbol)
+    (v :: Maybe k)
+    (p :: Type)
+
+type instance
+  MkNotificationFedEndpoint m s 'Nothing p =
+    NotificationFedEndpointWithMods m s s p
+
+type instance
+  MkNotificationFedEndpoint m s ('Just v) p =
+    NotificationFedEndpointWithMods m (Versioned v s) s p

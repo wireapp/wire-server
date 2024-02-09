@@ -65,6 +65,8 @@ import Wire.API.MLS.SubConversation
 import Wire.API.Message
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.Routes.Version
+import Wire.API.Federation.Endpoint
+import qualified Wire.API.Federation.Version as F
 
 tests :: IO TestSetup -> TestTree
 tests s =
@@ -887,7 +889,7 @@ testRemoteToRemoteInSub = do
             action =
               SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qalice) roleNameWireMember)
           }
-  void $ runFedClient @"on-conversation-updated" fedGalleyClient bdom cu
+  void $ runFedClient @(Versioned 'F.V1 "on-conversation-updated") fedGalleyClient bdom cu
 
   let txt = "Hello from another backend"
       rcpts = Map.fromList [(alice, aliceC1 :| [aliceC2]), (eve, eveC :| [])]

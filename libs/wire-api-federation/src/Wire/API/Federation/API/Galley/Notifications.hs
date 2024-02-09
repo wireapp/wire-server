@@ -74,11 +74,13 @@ instance HasNotificationEndpoint 'OnMLSMessageSentTag where
 instance HasNotificationEndpoint 'OnConversationUpdatedTagV0 where
   type Payload 'OnConversationUpdatedTagV0 = ConversationUpdateV0
   type NotificationPath 'OnConversationUpdatedTagV0 = "on-conversation-updated"
+  type NotificationVersionTag 'OnConversationUpdatedTagV0 = 'Just 'V0
   versionRange = rangeUntilVersion V1
 
 instance HasNotificationEndpoint 'OnConversationUpdatedTag where
   type Payload 'OnConversationUpdatedTag = ConversationUpdate
   type NotificationPath 'OnConversationUpdatedTag = "on-conversation-updated"
+  type NotificationVersionTag 'OnConversationUpdatedTag = 'Just 'V1
   versionRange = rangeFromVersion V1
 
 instance HasNotificationEndpoint 'OnUserDeletedConversationsTag where
@@ -91,6 +93,7 @@ type GalleyNotificationAPI =
   NotificationFedEndpoint 'OnClientRemovedTag
     :<|> NotificationFedEndpoint 'OnMessageSentTag
     :<|> NotificationFedEndpoint 'OnMLSMessageSentTag
+    :<|> NotificationFedEndpoint 'OnConversationUpdatedTagV0
     :<|> NotificationFedEndpoint 'OnConversationUpdatedTag
     :<|> NotificationFedEndpoint 'OnUserDeletedConversationsTag
 

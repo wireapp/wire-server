@@ -72,6 +72,8 @@ import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role (roleNameWireMember)
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API.Galley
+import Wire.API.Federation.Endpoint
+import Wire.API.Federation.Version
 import Wire.API.MLS.CipherSuite (SignatureSchemeTag (Ed25519))
 import Wire.API.MLS.CommitBundle
 import Wire.API.MLS.Credential
@@ -979,7 +981,7 @@ receiveOnConvUpdated conv origUser joiner = do
           }
   void $
     runFedClient
-      @"on-conversation-updated"
+      @(Versioned 'V1 "on-conversation-updated")
       client
       (qDomain conv)
       cu

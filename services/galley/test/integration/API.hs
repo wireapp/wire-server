@@ -108,6 +108,8 @@ import Wire.API.Team.Member qualified as Teams
 import Wire.API.User
 import Wire.API.User.Client
 import Wire.API.UserMap (UserMap (..))
+import qualified Wire.API.Federation.Endpoint as F
+import qualified Wire.API.Federation.Version as F
 
 tests :: IO TestSetup -> TestTree
 tests s =
@@ -1873,7 +1875,7 @@ paginateConvListIds = do
               alreadyPresentUsers = [],
               action = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qAlice) roleNameWireMember)
             }
-    void $ runFedClient @"on-conversation-updated" fedGalleyClient chadDomain cu
+    void $ runFedClient @(F.Versioned 'F.V1 "on-conversation-updated") fedGalleyClient chadDomain cu
 
   remoteDee <- randomId
   let deeDomain = Domain "dee.example.com"
@@ -1889,7 +1891,7 @@ paginateConvListIds = do
               alreadyPresentUsers = [],
               action = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qAlice) roleNameWireMember)
             }
-    void $ runFedClient @"on-conversation-updated" fedGalleyClient deeDomain cu
+    void $ runFedClient @(F.Versioned 'F.V1 "on-conversation-updated") fedGalleyClient deeDomain cu
 
   -- 1 Proteus self conv + 1 MLS self conv + 2 convs with bob and eve + 196
   -- local convs + 25 convs on chad.example.com + 31 on dee.example = 256 convs.
@@ -1934,7 +1936,7 @@ paginateConvListIdsPageEndingAtLocalsAndDomain = do
               alreadyPresentUsers = [],
               action = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qAlice) roleNameWireMember)
             }
-    void $ runFedClient @"on-conversation-updated" fedGalleyClient chadDomain cu
+    void $ runFedClient @(F.Versioned 'F.V1 "on-conversation-updated") fedGalleyClient chadDomain cu
 
   remoteDee <- randomId
   let deeDomain = Domain "dee.example.com"
@@ -1952,7 +1954,7 @@ paginateConvListIdsPageEndingAtLocalsAndDomain = do
               alreadyPresentUsers = [],
               action = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qAlice) roleNameWireMember)
             }
-    void $ runFedClient @"on-conversation-updated" fedGalleyClient deeDomain cu
+    void $ runFedClient @(F.Versioned 'F.V1 "on-conversation-updated") fedGalleyClient deeDomain cu
 
   foldM_ (getChunkedConvs 16 0 alice) Nothing [4, 3, 2, 1, 0 :: Int]
 
@@ -3211,7 +3213,7 @@ putRemoteConvMemberOk update = do
             action =
               SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qalice) roleNameWireMember)
           }
-  void $ runFedClient @"on-conversation-updated" fedGalleyClient remoteDomain cu
+  void $ runFedClient @(F.Versioned 'F.V1 "on-conversation-updated") fedGalleyClient remoteDomain cu
 
   -- Expected member state
   let memberAlice =
@@ -3356,7 +3358,7 @@ putRemoteReceiptModeOk = do
             action =
               SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qalice) roleNameWireAdmin)
           }
-  void $ runFedClient @"on-conversation-updated" fedGalleyClient remoteDomain cuAddAlice
+  void $ runFedClient @(F.Versioned 'F.V1 "on-conversation-updated") fedGalleyClient remoteDomain cuAddAlice
 
   -- add another user adam as member
   qadam <- randomQualifiedUser
@@ -3371,7 +3373,7 @@ putRemoteReceiptModeOk = do
             action =
               SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qadam) roleNameWireMember)
           }
-  void $ runFedClient @"on-conversation-updated" fedGalleyClient remoteDomain cuAddAdam
+  void $ runFedClient @(F.Versioned 'F.V1 "on-conversation-updated") fedGalleyClient remoteDomain cuAddAdam
 
   let newReceiptMode = ReceiptMode 42
   let action = ConversationReceiptModeUpdate newReceiptMode

@@ -84,7 +84,9 @@ import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Common (EmptyResponse (..))
 import Wire.API.Federation.API.Galley
+import Wire.API.Federation.Endpoint
 import Wire.API.Federation.Error
+import Wire.API.Federation.Version
 import Wire.API.MLS.Credential
 import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.Serialisation
@@ -119,7 +121,8 @@ federationSitemap =
     :<|> Named @"on-client-removed" onClientRemoved
     :<|> Named @"on-message-sent" onMessageSent
     :<|> Named @"on-mls-message-sent" onMLSMessageSent
-    :<|> Named @"on-conversation-updated" onConversationUpdated
+    :<|> Named @(Versioned 'V0 "on-conversation-updated") onConversationUpdatedV0
+    :<|> Named @(Versioned 'V1 "on-conversation-updated") onConversationUpdated
     :<|> Named @"on-user-deleted-conversations" onUserDeleted
 
 onClientRemoved ::
@@ -224,6 +227,20 @@ onConversationUpdated requestingDomain cu = do
   let rcu = toRemoteUnsafe requestingDomain cu
   void $ updateLocalStateOfRemoteConv rcu Nothing
   pure EmptyResponse
+
+onConversationUpdatedV0 ::
+  ( Member BrigAccess r,
+    Member NotificationSubsystem r,
+    Member ExternalAccess r,
+    Member (Input (Local ())) r,
+    Member MemberStore r,
+    Member P.TinyLog r
+  ) =>
+  Domain ->
+  ConversationUpdateV0 ->
+  Sem r EmptyResponse
+onConversationUpdatedV0 domain cu =
+  onConversationUpdated domain (conversationUpdateFromV0 cu)
 
 -- as of now this will not generate the necessary events on the leaver's domain
 leaveConversation ::

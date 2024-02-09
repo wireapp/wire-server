@@ -15,10 +15,18 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.API.Federation.HasNotificationEndpoint where
+module Wire.API.Federation.HasNotificationEndpoint
+  ( IsNotificationTag (..),
+    HasNotificationEndpoint (..),
+    HasFedPath,
+    fedPath,
+  )
+where
 
 import Data.Kind
+import Data.Proxy
 import GHC.TypeLits
+import Imports
 import Wire.API.Federation.Component
 import Wire.API.Federation.Version
 
@@ -33,5 +41,16 @@ class HasNotificationEndpoint t where
   -- "on-conversation-updated".
   type NotificationPath t :: Symbol
 
+  -- | An optional version tag to distinguish different versions of the same
+  -- endpoint.
+  type NotificationVersionTag t :: Maybe Version
+
+  type NotificationVersionTag t = 'Nothing
+
   -- | The federation API version range this endpoint is supported in.
   versionRange :: VersionRange
+
+type HasFedPath t = KnownSymbol (NotificationPath t)
+
+fedPath :: forall t. HasFedPath t => String
+fedPath = symbolVal (Proxy @(NotificationPath t))

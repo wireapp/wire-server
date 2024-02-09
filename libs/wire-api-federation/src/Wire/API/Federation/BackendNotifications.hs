@@ -14,7 +14,6 @@ import Data.Map qualified as Map
 import Data.Schema
 import Data.Text qualified as Text
 import Data.Text.Lazy.Encoding qualified as TL
-import GHC.TypeLits
 import Imports
 import Network.AMQP qualified as Q
 import Network.AMQP.Types qualified as Q
@@ -63,7 +62,7 @@ instance ToSchema BackendNotification where
 -- RabbitMQ queue.
 fedNotifToBackendNotif ::
   forall {k} (tag :: k).
-  KnownSymbol (NotificationPath tag) =>
+  HasFedPath tag =>
   KnownComponent (NotificationComponent k) =>
   A.ToJSON (Payload tag) =>
   HasNotificationEndpoint tag =>
@@ -72,7 +71,7 @@ fedNotifToBackendNotif ::
   Payload tag ->
   BackendNotification
 fedNotifToBackendNotif rid ownDomain payload =
-  let p = Text.pack . symbolVal $ Proxy @(NotificationPath tag)
+  let p = Text.pack $ fedPath @tag
       b = RawJson . A.encode $ payload
    in toNotif p b
   where
@@ -103,7 +102,7 @@ instance ToSchema (PayloadBundle c) where
 toBundle ::
   forall {k} (tag :: k).
   ( HasNotificationEndpoint tag,
-    KnownSymbol (NotificationPath tag),
+    HasFedPath tag,
     KnownComponent (NotificationComponent k),
     A.ToJSON (Payload tag)
   ) =>
@@ -119,7 +118,7 @@ toBundle reqId originDomain payload =
 makeBundle ::
   forall {k} (tag :: k) c.
   ( HasNotificationEndpoint tag,
-    KnownSymbol (NotificationPath tag),
+    HasFedPath tag,
     KnownComponent (NotificationComponent k),
     A.ToJSON (Payload tag),
     c ~ NotificationComponent k
