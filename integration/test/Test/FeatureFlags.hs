@@ -334,3 +334,7 @@ checkSimpleFlag path name defStatus = do
 testDigitalSignatures :: HasCallStack => App ()
 testDigitalSignatures = do
   checkSimpleFlag "digitalSignatures" "digitalSignatures" Disabled
+
+testValidateSAMLEmails :: HasCallStack => App ()
+testValidateSAMLEmails = do
+  checkSimpleFlag "validateSAMLemails" "validateSAMLemails" Enabled
