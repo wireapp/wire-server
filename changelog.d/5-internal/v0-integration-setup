@@ -1,0 +1,3 @@
+Setup federation-v0 environment for use in integration tests:
+ - add federation-v0 domain to test environment
+ - provision integration certificates with cert-manager
