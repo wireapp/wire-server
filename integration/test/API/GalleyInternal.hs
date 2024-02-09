@@ -133,6 +133,10 @@ instance Show FeatureStatus where
 instance ToJSON FeatureStatus where
   toJSON = Aeson.String . T.pack . show
 
+oppositeStatus :: FeatureStatus -> FeatureStatus
+oppositeStatus Disabled = Enabled
+oppositeStatus Enabled = Disabled
+
 data WithStatusNoLock = WithStatusNoLock
   { status :: FeatureStatus,
     ttl :: Word

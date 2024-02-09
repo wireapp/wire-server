@@ -220,3 +220,74 @@ testLegalholdWhitelistImplicitConsentPut =
     putInternal domain team status = do
       let st = I.WithStatusNoLock status 0
       I.failToPutTeamFeatureStatus domain team "legalhold" st
+
+genericSearchVisibility ::
+  HasCallStack =>
+  (String -> String -> FeatureStatus -> App ()) ->
+  FeatureStatus ->
+  App ()
+genericSearchVisibility setter status = withModifiedBackend cnf $ \domain -> do
+  (alice, team, alex : _) <- createTeam domain 2
+  nonMem <- randomUser domain def
+  getTeamFeature featurePath nonMem team `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "no-team-member"
+
+  assertFeature featurePath alice team status
+  assertFeatureInternal featurePath domain team status
+  assertFeatureFromAll featurePath alex status
+
+  let opposite = I.oppositeStatus status
+  setter domain team opposite
+  assertFeature featurePath alice team opposite
+  assertFeatureInternal featurePath domain team opposite
+  assertFeatureFromAll featurePath alex opposite
+
+  setter domain team status
+  assertFeature featurePath alice team status
+  assertFeatureInternal featurePath domain team status
+  assertFeatureFromAll featurePath alex status
+  where
+    cnf =
+      def
+        { galleyCfg = \conf ->
+            conf
+              & setField setting (show status <> "-by-default")
+        }
+    setting = "settings.featureFlags." <> featureName
+    featureName = "teamSearchVisibility"
+    featurePath = "searchVisibility"
+
+testSearchVisibilityDisabledPatch :: HasCallStack => App ()
+testSearchVisibilityDisabledPatch =
+  genericSearchVisibility patchInternal Disabled
+  where
+    featurePath = "searchVisibility"
+    patchInternal domain team status =
+      I.patchTeamFeatureStatus domain team featurePath status
+
+testSearchVisibilityDisabledPut :: HasCallStack => App ()
+testSearchVisibilityDisabledPut =
+  genericSearchVisibility putInternal Disabled
+  where
+    featurePath = "searchVisibility"
+    putInternal domain team status = do
+      let st = I.WithStatusNoLock status 0
+      I.putTeamFeatureStatus domain team featurePath st
+
+testSearchVisibilityEnabledPatch :: HasCallStack => App ()
+testSearchVisibilityEnabledPatch =
+  genericSearchVisibility patchInternal Enabled
+  where
+    featurePath = "searchVisibility"
+    patchInternal domain team status =
+      I.patchTeamFeatureStatus domain team featurePath status
+
+testSearchVisibilityEnabledPut :: HasCallStack => App ()
+testSearchVisibilityEnabledPut =
+  genericSearchVisibility putInternal Enabled
+  where
+    featurePath = "searchVisibility"
+    putInternal domain team status = do
+      let st = I.WithStatusNoLock status 0
+      I.putTeamFeatureStatus domain team featurePath st

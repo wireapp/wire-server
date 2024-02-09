@@ -64,8 +64,7 @@ tests :: IO TestSetup -> TestTree
 tests s =
   testGroup
     "Feature Config API and Team Features API"
-    [ test s "SearchVisibility" testSearchVisibility,
-      test s "DigitalSignatures" $ testSimpleFlag @DigitalSignaturesConfig FeatureStatusDisabled,
+    [ test s "DigitalSignatures" $ testSimpleFlag @DigitalSignaturesConfig FeatureStatusDisabled,
       test s "ValidateSAMLEmails" $ testSimpleFlag @ValidateSAMLEmailsConfig FeatureStatusEnabled,
       test s "FileSharing with lock status" $ testSimpleFlagWithLockStatus @FileSharingConfig FeatureStatusEnabled LockStatusUnlocked,
       test s "Classified Domains (enabled)" testClassifiedDomainsEnabled,
@@ -277,69 +276,6 @@ testPatch' testLockStatusChange rndFeatureConfig defStatus defConfig = do
         when (testLockStatusChange == AssertLockStatusChange) $
           wsLockStatus actual @?= fromMaybe (wsLockStatus original) (wspLockStatus rndFeatureConfig)
         wsConfig actual @?= fromMaybe (wsConfig original) (wspConfig rndFeatureConfig)
-
-testSearchVisibility :: TestM ()
-testSearchVisibility = do
-  let getTeamSearchVisibility :: TeamId -> UserId -> FeatureStatus -> TestM ()
-      getTeamSearchVisibility teamid uid expected = do
-        g <- viewGalley
-        getTeamSearchVisibilityAvailable g uid teamid !!! do
-          statusCode === const 200
-          responseJsonEither === const (Right (WithStatusNoLock expected SearchVisibilityAvailableConfig FeatureTTLUnlimited))
-
-  let getTeamSearchVisibilityInternal :: TeamId -> FeatureStatus -> TestM ()
-      getTeamSearchVisibilityInternal teamid expected = do
-        g <- viewGalley
-        getTeamSearchVisibilityAvailableInternal g teamid !!! do
-          statusCode === const 200
-          responseJsonEither === const (Right (WithStatusNoLock expected SearchVisibilityAvailableConfig FeatureTTLUnlimited))
-
-  let getTeamSearchVisibilityFeatureConfig :: UserId -> FeatureStatus -> TestM ()
-      getTeamSearchVisibilityFeatureConfig uid expected = do
-        actual <- Util.getFeatureConfig @SearchVisibilityAvailableConfig uid
-        liftIO $ wsStatus actual @?= expected
-
-  let setTeamSearchVisibilityInternal :: TeamId -> FeatureStatus -> TestM ()
-      setTeamSearchVisibilityInternal teamid val = do
-        g <- viewGalley
-        putTeamSearchVisibilityAvailableInternal g teamid val
-
-  (owner, tid, [member]) <- createBindingTeamWithNMembers 1
-  nonMember <- randomUser
-
-  assertFlagForbidden $ getTeamFeatureFlag @SearchVisibilityAvailableConfig nonMember tid
-
-  withCustomSearchFeature FeatureTeamSearchVisibilityUnavailableByDefault $ do
-    getTeamSearchVisibility tid owner FeatureStatusDisabled
-    getTeamSearchVisibilityInternal tid FeatureStatusDisabled
-    getTeamSearchVisibilityFeatureConfig member FeatureStatusDisabled
-
-    setTeamSearchVisibilityInternal tid FeatureStatusEnabled
-    getTeamSearchVisibility tid owner FeatureStatusEnabled
-    getTeamSearchVisibilityInternal tid FeatureStatusEnabled
-    getTeamSearchVisibilityFeatureConfig member FeatureStatusEnabled
-
-    setTeamSearchVisibilityInternal tid FeatureStatusDisabled
-    getTeamSearchVisibility tid owner FeatureStatusDisabled
-    getTeamSearchVisibilityInternal tid FeatureStatusDisabled
-    getTeamSearchVisibilityFeatureConfig member FeatureStatusDisabled
-
-  (owner2, tid2, team2member : _) <- createBindingTeamWithNMembers 1
-
-  withCustomSearchFeature FeatureTeamSearchVisibilityAvailableByDefault $ do
-    getTeamSearchVisibility tid2 owner2 FeatureStatusEnabled
-    getTeamSearchVisibilityInternal tid2 FeatureStatusEnabled
-    getTeamSearchVisibilityFeatureConfig team2member FeatureStatusEnabled
-
-    setTeamSearchVisibilityInternal tid2 FeatureStatusDisabled
-    getTeamSearchVisibility tid2 owner2 FeatureStatusDisabled
-    getTeamSearchVisibilityInternal tid2 FeatureStatusDisabled
-    getTeamSearchVisibilityFeatureConfig team2member FeatureStatusDisabled
-
-    setTeamSearchVisibilityInternal tid2 FeatureStatusEnabled
-    getTeamSearchVisibility tid2 owner2 FeatureStatusEnabled
-    getTeamSearchVisibilityInternal tid2 FeatureStatusEnabled
-    getTeamSearchVisibilityFeatureConfig team2member FeatureStatusEnabled
 
 getClassifiedDomains ::
   (HasCallStack, HasGalley m, MonadIO m, MonadHttp m, MonadCatch m) =>
