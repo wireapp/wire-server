@@ -37,7 +37,10 @@ uploadAssetV3 user isPublic retention mimeType bdy = do
     multipartMixedMime = "multipart/mixed; boundary=" <> multipartBoundary
 
 uploadAsset :: (HasCallStack, MakesValue user) => user -> App Response
-uploadAsset user = do
+uploadAsset = flip uploadFreshAsset "Hello World!"
+
+uploadFreshAsset :: (HasCallStack, MakesValue user) => user -> String -> App Response
+uploadFreshAsset user payload = do
   uid <- user & objId
   req <- baseRequest user Cargohold Versioned "/assets"
   bdy <- txtAsset
@@ -51,7 +54,7 @@ uploadAsset user = do
       buildUploadAssetRequestBody
         True
         (Nothing :: Maybe String)
-        (LBSC.pack "Hello World!")
+        (LBSC.pack payload)
         textPlainMime
 
     textPlainMime :: MIME.MIMEType

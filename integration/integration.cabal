@@ -167,6 +167,7 @@ library
 
   build-depends:
     , aeson
+    , aeson-diff
     , aeson-pretty
     , array
     , async
@@ -231,5 +232,6 @@ library
     , warp-tls
     , websockets
     , wire-message-proto-lens
+    , wreq
     , xml
     , yaml

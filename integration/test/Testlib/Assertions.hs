@@ -2,11 +2,17 @@
 
 module Testlib.Assertions where
 
+import Control.Applicative ((<|>))
 import Control.Exception as E
+import Control.Lens ((^?))
+import qualified Control.Lens.Plated as LP
 import Control.Monad.Reader
 import Data.Aeson (Value)
 import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Diff as AD
 import qualified Data.Aeson.Encode.Pretty as Aeson
+import qualified Data.Aeson.KeyMap as Aeson
+import Data.Aeson.Lens (_Array, _Object)
 import qualified Data.ByteString.Base64 as B64
 import qualified Data.ByteString.Lazy as BS
 import Data.Char
@@ -14,6 +20,7 @@ import Data.Foldable
 import Data.Hex
 import Data.List
 import qualified Data.Map as Map
+import Data.Maybe (isJust, mapMaybe)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Lazy as TL
@@ -52,13 +59,94 @@ shouldMatch ::
   -- | The expected value
   b ->
   App ()
-a `shouldMatch` b = do
+shouldMatch = shouldMatchWithMsg Nothing
+
+shouldMatchWithMsg ::
+  (MakesValue a, MakesValue b, HasCallStack) =>
+  -- | Message to be added to failure report
+  Maybe String ->
+  -- | The actual value
+  a ->
+  -- | The expected value
+  b ->
+  App ()
+shouldMatchWithMsg msg a b = do
   xa <- make a
   xb <- make b
   unless (xa == xb) do
     pa <- prettyJSON xa
     pb <- prettyJSON xb
-    assertFailure $ "Actual:\n" <> pa <> "\nExpected:\n" <> pb
+    diff <- -- show diff, but only in the interesting cases.
+      if (isJust (xa ^? _Object) && isJust (xb ^? _Object))
+        || (isJust (xa ^? _Array) && isJust (xb ^? _Array))
+        then ("\nDiff:\n" <>) <$> prettyJSON (AD.diff xa xb)
+        else pure ""
+    assertFailure $ (maybe "" (<> "\n") msg) <> "Actual:\n" <> pa <> "\nExpected:\n" <> pb <> diff
+
+-- | apply some canonicalization transformations that *usually* do not change semantics before
+-- comparing.
+shouldMatchLeniently :: (MakesValue a, MakesValue b, HasCallStack) => a -> b -> App ()
+shouldMatchLeniently = shouldMatchWithRules [EmptyArrayIsNull, RemoveNullFieldsFromObjects] (const $ pure Nothing)
+
+-- | apply *all* canonicalization transformations before comparing.  some of these may not be
+-- valid on your input, see 'LenientMatchRule' for details.
+shouldMatchSloppily :: (MakesValue a, MakesValue b, HasCallStack) => a -> b -> App ()
+shouldMatchSloppily = shouldMatchWithRules [minBound ..] (const $ pure Nothing)
+
+-- | apply *all* canonicalization transformations before comparing.  some of these may not be
+-- valid on your input, see 'LenientMatchRule' for details.
+shouldMatchALittle :: (MakesValue a, MakesValue b, HasCallStack) => (Aeson.Value -> App (Maybe Aeson.Value)) -> a -> b -> App ()
+shouldMatchALittle = shouldMatchWithRules [minBound ..]
+
+data LenientMatchRule
+  = EmptyArrayIsNull
+  | ArraysAreSets
+  | RemoveNullFieldsFromObjects
+  deriving (Eq, Ord, Show, Bounded, Enum)
+
+shouldMatchWithRules ::
+  (MakesValue a, MakesValue b, HasCallStack) =>
+  [LenientMatchRule] ->
+  (Aeson.Value -> App (Maybe Aeson.Value)) ->
+  a ->
+  b ->
+  App ()
+shouldMatchWithRules rules customRules a b = do
+  xa <- make a
+  xb <- make b
+  simplify xa `shouldMatch` simplify xb
+  where
+    simplify :: Aeson.Value -> App Aeson.Value
+    simplify = LP.rewriteM $ (\v -> foldM (tryApplyRule v) Nothing compiledRules)
+
+    tryApplyRule ::
+      Aeson.Value ->
+      Maybe Aeson.Value ->
+      (Aeson.Value -> App (Maybe Aeson.Value)) ->
+      App (Maybe Aeson.Value)
+    tryApplyRule v bresult arule = (bresult <|>) <$> arule v
+
+    compiledRules :: [Aeson.Value -> App (Maybe Aeson.Value)]
+    compiledRules = customRules : ((\r v -> pure $ runRule r v) <$> rules)
+
+    runRule :: LenientMatchRule -> Aeson.Value -> Maybe Aeson.Value
+    runRule EmptyArrayIsNull = \case
+      Aeson.Array arr
+        | arr == mempty ->
+            Just Aeson.Null
+      _ -> Nothing
+    runRule ArraysAreSets = \case
+      Aeson.Array (toList -> arr) ->
+        let arr' = sort arr
+         in if arr == arr' then Nothing else Just $ Aeson.toJSON arr'
+      _ -> Nothing
+    runRule RemoveNullFieldsFromObjects = \case
+      Aeson.Object (Aeson.toList -> obj)
+        | any ((== Aeson.Null) . snd) obj ->
+            let rmNulls (_, Aeson.Null) = Nothing
+                rmNulls (k, v) = Just (k, v)
+             in Just . Aeson.Object . Aeson.fromList $ mapMaybe rmNulls obj
+      _ -> Nothing
 
 shouldMatchBase64 ::
   (MakesValue a, MakesValue b, HasCallStack) =>
