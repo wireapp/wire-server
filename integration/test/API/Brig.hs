@@ -629,3 +629,9 @@ getMultiUserPrekeyBundle :: (HasCallStack, MakesValue caller, ToJSON userClients
 getMultiUserPrekeyBundle caller userClients = do
   req <- baseRequest caller Brig Versioned $ joinHttpPath ["users", "list-prekeys"]
   submit "POST" (addJSON userClients req)
+
+-- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/post_access
+renewToken :: (HasCallStack, MakesValue uid) => uid -> String -> App Response
+renewToken caller cookie = do
+  req <- baseRequest caller Brig Versioned "access"
+  submit "POST" (addHeader "Cookie" ("zuid=" <> cookie) req)

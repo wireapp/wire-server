@@ -24,12 +24,11 @@ awaitNotifications user client since0 n selector = do
     go 0 _ res = pure res
     go timeRemaining since res0 = do
       c <- make client & asString
-      notifs <- bindResponse
-        ( getNotifications
-            user
-            def {since = since, client = Just c}
-        )
-        $ \resp -> asList (resp.json %. "notifications")
+      notifs <-
+        getNotifications
+          user
+          def {since = since, client = Just c}
+          `bindResponse` \resp -> asList (resp.json %. "notifications")
       lastNotifId <- case notifs of
         [] -> pure since
         _ -> Just <$> objId (last notifs)
@@ -110,11 +109,23 @@ isConvCreateNotif n = fieldEquals n "payload.0.type" "conversation.create"
 isConvDeleteNotif :: MakesValue a => a -> App Bool
 isConvDeleteNotif n = fieldEquals n "payload.0.type" "conversation.delete"
 
+notifTypeIsEqual :: MakesValue a => String -> a -> App Bool
+notifTypeIsEqual typ n = nPayload n %. "type" `isEqual` typ
+
 isTeamMemberLeaveNotif :: MakesValue a => a -> App Bool
-isTeamMemberLeaveNotif n = nPayload n %. "type" `isEqual` "team.member-leave"
+isTeamMemberLeaveNotif = notifTypeIsEqual "team.member-leave"
 
 isUserActivateNotif :: MakesValue a => a -> App Bool
-isUserActivateNotif n = nPayload n %. "type" `isEqual` "user.activate"
+isUserActivateNotif = notifTypeIsEqual "user.activate"
+
+isUserClientAddNotif :: MakesValue a => a -> App Bool
+isUserClientAddNotif = notifTypeIsEqual "user.client-add"
+
+isUserLegalholdRequestNotif :: MakesValue a => a -> App Bool
+isUserLegalholdRequestNotif = notifTypeIsEqual "user.legalhold-request"
+
+isUserLegalholdEnabledNotif :: MakesValue a => a -> App Bool
+isUserLegalholdEnabledNotif = notifTypeIsEqual "user.legalhold-enable"
 
 assertLeaveNotification ::
   ( HasCallStack,

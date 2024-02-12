@@ -616,10 +616,16 @@ requestLegalHoldDevice tid ownerid uid = do
   submit "POST" req
 
 -- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/put_teams__tid__legalhold__uid__approve
+--
+--   like approveLegalHoldDevice' but approves for the requesting party
 approveLegalHoldDevice :: (HasCallStack, MakesValue tid, MakesValue uid) => tid -> uid -> String -> App Response
-approveLegalHoldDevice tid uid pwd = do
+approveLegalHoldDevice tid uid = approveLegalHoldDevice' tid uid uid
+
+-- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/put_teams__tid__legalhold__uid__approve
+approveLegalHoldDevice' :: (HasCallStack, MakesValue tid, MakesValue uid, MakesValue forUid) => tid -> uid -> forUid -> String -> App Response
+approveLegalHoldDevice' tid uid forUid pwd = do
   tidStr <- asString tid
-  uidStr <- asString $ uid %. "id"
+  uidStr <- asString $ forUid %. "id"
   req <- baseRequest uid Galley Versioned (joinHttpPath ["teams", tidStr, "legalhold", uidStr, "approve"])
   submit "PUT" (addJSONObject ["password" .= pwd] req)
 

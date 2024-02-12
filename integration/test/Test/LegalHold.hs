@@ -20,7 +20,7 @@
 module Test.LegalHold where
 
 import API.Brig
-import API.BrigCommon
+import API.BrigCommon as BrigC
 import qualified API.BrigInternal as BrigI
 import API.Common
 import API.Galley
@@ -28,12 +28,13 @@ import API.GalleyInternal
 import Control.Error (MaybeT (MaybeT), runMaybeT)
 import Control.Lens ((.~), (^?!))
 import Control.Monad.Trans.Class (lift)
+import Data.ByteString.Lazy (LazyByteString)
 import qualified Data.Map as Map
 import qualified Data.ProtoLens as Proto
 import Data.ProtoLens.Labels ()
 import qualified Data.Set as Set
 import GHC.Stack
-import Notifications (awaitNotification, isUserActivateNotif)
+import Notifications (awaitNotification, isUserClientAddNotif, isUserLegalholdEnabledNotif, isUserLegalholdRequestNotif)
 import Numeric.Lens (hex)
 import qualified Proto.Otr as Proto
 import qualified Proto.Otr_Fields as Proto
@@ -288,7 +289,10 @@ testLHRequestDevice =
 
     reqNotEnabled alice bob
 
-    withMockServer lhMockApp \lhPort _chan -> do
+    lpk <- getLastPrekey
+    pks <- replicateM 3 getPrekey
+
+    withMockServer (lhMockApp' $ Just (lpk, pks)) \lhPort _chan -> do
       let statusShouldbe :: String -> App ()
           statusShouldbe status =
             legalholdUserStatus tid alice bob `bindResponse` \resp -> do
@@ -305,27 +309,37 @@ testLHRequestDevice =
 
       statusShouldbe "disabled"
 
-      requestLegalHoldDevice tid alice bob >>= assertSuccess
+      requestLegalHoldDevice tid alice bob >>= assertStatus 201
       statusShouldbe "pending"
 
+      -- FIXME(mangoiv): we send two notifications to the client
+      -- which I'm pretty sure is not correct
+
       -- requesting twice should be idempotent wrt the approval
-      requestLegalHoldDevice tid alice bob `bindResponse` \resp ->
-        resp.status `shouldMatchInt` 204
+      requestLegalHoldDevice tid alice bob >>= assertStatus 204
       statusShouldbe "pending"
 
       -- TODO(mangoiv): test if prekeys are in cassandra?
 
-      alicec <- objId $ addClient alice def `bindResponse` getJSON 201
-      bobc <- objId $ addClient bob def `bindResponse` getJSON 201
-      for_ [(alice, alicec), (bob, bobc)] \(user, client) ->
-        awaitNotification user client noValue isUserActivateNotif >>= \notif -> do
-          notif %. "payload.0.user.managed_by" `shouldMatch` "wire"
+      [bobc1, bobc2] <- replicateM 2 do
+        objId $ addClient bob def `bindResponse` getJSON 201
+      for_ [bobc1, bobc2] \client ->
+        awaitNotification bob client noValue isUserLegalholdRequestNotif >>= \notif -> do
+          notif %. "payload.0.last_prekey" `shouldMatch` lpk
+          notif %. "payload.0.id" `shouldMatch` objId bob
 
+-- | pops a channel until it finds an event that returns a 'Just'
+--   upon running the matcher function
 checkChan :: HasCallStack => Chan t -> (t -> App (Maybe a)) -> App a
 checkChan chan match =
   maybe (assertFailure "checkChan: timed out") pure =<< timeout 5_000_000 do
     let go = readChan chan >>= match >>= maybe go pure
     go
+
+-- | like 'checkChan' but throws away the request and decodes the body
+checkChanVal :: HasCallStack => Chan (t, LazyByteString) -> (Value -> MaybeT App a) -> App a
+checkChanVal chan match = checkChan chan \(_, bs) -> runMaybeT do
+  MaybeT (pure (decode bs)) >>= match
 
 testLHApproveDevice :: App ()
 testLHApproveDevice = do
@@ -335,13 +349,15 @@ testLHApproveDevice = do
     (alice, tid, [bob, charlie]) <- createTeam dom 3
 
     -- ollie the outsider
-    ollie <- do
-      o <- randomUser dom def
-      connectTwoUsers o alice
-      pure o
+    -- ollie <- do
+    --   o <- randomUser dom def
+    --   connectTwoUsers o alice
+    --   pure o
 
     -- sandy the stranger
-    sandy <- randomUser dom def
+    -- sandy <- randomUser dom def
+    --
+    -- for sandy and ollie see below
 
     legalholdWhitelistTeam tid alice >>= assertStatus 200
     -- TODO(mangoiv): it seems like correct behaviour to throw a 412
@@ -359,16 +375,61 @@ testLHApproveDevice = do
       requestLegalHoldDevice tid alice bob
         >>= assertStatus 201
 
-      let match bs = runMaybeT do
-            val <- MaybeT $ pure $ decode @Value bs
-            actual_tid <- MaybeT $ lookupField val "team_id"
-            actual_uid <- MaybeT $ lookupField val "user_id"
-            tidS <- lift $ asString actual_tid
-            uidS <- lift $ asString actual_uid
+      let uidsAndTidMatch val = do
+            actualTid <-
+              MaybeT (lookupField val "team_id")
+                >>= lift . asString
+            actualUid <-
+              MaybeT (lookupField val "user_id")
+                >>= lift . asString
             bobUid <- lift $ objId bob
 
-            case (tidS, uidS) `compare` (tid, bobUid) of
-              EQ -> pure ()
-              _ -> MaybeT $ pure Nothing
+            -- we pass the check on equality
+            unless ((actualTid, actualUid) == (tid, bobUid)) do
+              mzero
 
-      checkChan chan (match . snd)
+      checkChanVal chan uidsAndTidMatch
+
+      -- the team owner cannot approve for bob
+      approveLegalHoldDevice' tid alice bob defPassword
+        >>= assertLabel 403 "access-denied"
+      -- bob needs to provide a password
+      approveLegalHoldDevice tid bob "wrong-password"
+        >>= assertLabel 403 "access-denied"
+      -- now bob finally found his password
+      approveLegalHoldDevice tid bob defPassword
+        >>= assertStatus 200
+
+      let matchAuthToken val =
+            MaybeT (val `lookupField` "refresh_token")
+              >>= lift . asString
+
+      checkChanVal chan matchAuthToken
+        >>= renewToken bob
+        >>= assertStatus 200
+
+      -- TODO(mangoiv): more CQL checks?
+      -- also look at whether it makes sense to check the client id of the
+      -- legalhold device...
+      legalholdUserStatus tid alice bob `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 200
+        resp.json %. "status" `shouldMatch` "enabled"
+
+      replicateM 2 do
+        objId $ addClient bob def `bindResponse` getJSON 201
+        >>= traverse_ \client ->
+          awaitNotification bob client noValue isUserClientAddNotif >>= \notif -> do
+            notif %. "payload.0.client.type" `shouldMatch` "legalhold"
+            notif %. "payload.0.client.class" `shouldMatch` "legalhold"
+
+      -- the other team members receive a notification about the
+      -- legalhold device being approved in their team
+      for_ [alice, charlie] \user -> do
+        client <- objId $ addClient user def `bindResponse` getJSON 201
+        printJSON =<< objId bob
+
+        awaitNotification user client noValue isUserLegalholdEnabledNotif >>= \notif -> do
+          notif %. "payload.0.id" `shouldMatch` objId bob
+
+-- TODO(mangoiv): there's no reasonable check that sandy and ollie don't get any notifs
+-- as we never know when to timeout as we don't have any consistency guarantees

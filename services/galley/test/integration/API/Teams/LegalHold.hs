@@ -32,14 +32,12 @@ import Bilge.Assert
 import Brig.Types.Intra (UserSet (..))
 import Brig.Types.Test.Arbitrary ()
 import Brig.Types.User.Event qualified as Ev
-import Cassandra.Exec qualified as Cql
 import Control.Category ((>>>))
 import Control.Concurrent.Chan
 import Control.Lens hiding ((#))
 import Data.Id
 import Data.LegalHold
 import Data.List.NonEmpty (NonEmpty (..))
-import Data.List1 qualified as List1
 import Data.Map.Strict qualified as Map
 import Data.PEM
 import Data.Qualified (Qualified (..))
@@ -47,11 +45,9 @@ import Data.Range
 import Data.Set qualified as Set
 import Data.Time.Clock qualified as Time
 import Data.Timeout
-import Galley.Cassandra.Client (lookupClients)
 import Galley.Cassandra.LegalHold
 import Galley.Env qualified as Galley
 import Galley.Options (featureFlags, settings)
-import Galley.Types.Clients qualified as Clients
 import Galley.Types.Teams
 import Imports
 import Network.HTTP.Types.Status (status200, status404)
@@ -72,7 +68,6 @@ import Wire.API.Provider.Service
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Team.Feature qualified as Public
 import Wire.API.Team.LegalHold
-import Wire.API.Team.LegalHold.External
 import Wire.API.Team.Member
 import Wire.API.Team.Member qualified as Team
 import Wire.API.Team.Permission
@@ -103,7 +98,6 @@ testsPublic s =
   testGroup
     "Teams LegalHold API (with flag whitelist-teams-and-implicit-consent)"
     [ -- device handling (CRUD)
-      testOnlyIfLhWhitelisted s "PUT /teams/{tid}/legalhold/approve" testApproveLegalHoldDevice,
       test s "(user denies approval: nothing needs to be done in backend)" (pure ()),
       testOnlyIfLhWhitelisted s "GET /teams/{tid}/legalhold/{uid}" testGetLegalHoldDeviceStatus,
       testOnlyIfLhWhitelisted s "DELETE /teams/{tid}/legalhold/{uid}" testDisableLegalHoldForUser,
@@ -189,72 +183,6 @@ testWhitelistingTeams = do
     pure tid
 
   expectWhitelisted False tid
-
-testApproveLegalHoldDevice :: TestM ()
-testApproveLegalHoldDevice = do
-  (owner, tid) <- createBindingTeam
-  member <- do
-    usr <- randomUser
-    addTeamMemberInternal tid usr (rolePermissions RoleMember) Nothing
-    pure usr
-  member2 <- do
-    usr <- randomUser
-    addTeamMemberInternal tid usr (rolePermissions RoleMember) Nothing
-    pure usr
-  outsideContact <- do
-    usr <- randomUser
-    connectUsers member (List1.singleton usr)
-    pure usr
-  stranger <- randomUser
-  putLHWhitelistTeam tid !!! const 200 === statusCode
-  approveLegalHoldDevice (Just defPassword) owner member tid
-    !!! testResponse 403 (Just "access-denied")
-  cannon <- view tsCannon
-  WS.bracketRN cannon [owner, member, member, member2, outsideContact, stranger] $
-    \[ows, mws, mws', member2Ws, outsideContactWs, strangerWs] -> withDummyTestServiceForTeam owner tid $ \chan -> do
-      requestLegalHoldDevice owner member tid !!! testResponse 201 Nothing
-      liftIO . assertMatchJSON chan $ \(RequestNewLegalHoldClient userId' teamId') -> do
-        assertEqual "userId == member" userId' member
-        assertEqual "teamId == tid" teamId' tid
-      -- we're here
-      -- Only the user themself can approve adding a LH device
-      approveLegalHoldDevice (Just defPassword) owner member tid !!! testResponse 403 (Just "access-denied")
-      -- Requires password
-      approveLegalHoldDevice Nothing member member tid !!! const 403 === statusCode
-      approveLegalHoldDevice (Just defPassword) member member tid !!! testResponse 200 Nothing
-      -- checks if the cookie we give to the legalhold service is actually valid
-      assertMatchJSON chan $ \(LegalHoldServiceConfirm _clientId _uid _tid authToken) ->
-        renewToken authToken
-      cassState <- view tsCass
-      liftIO $ do
-        clients' <- Cql.runClient cassState $ lookupClients [member]
-        assertBool "Expect clientId to be saved on the user" $
-          Clients.contains member someClientId clients'
-      UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped member tid
-      liftIO $
-        assertEqual
-          "After approval user legalhold status should be Enabled"
-          UserLegalHoldEnabled
-          userStatus
-      let pluck = \case
-            Ev.ClientAdded _ eClient -> do
-              clientId eClient @?= someClientId
-              clientType eClient @?= LegalHoldClientType
-              clientClass eClient @?= Just LegalHoldClient
-            _ -> assertBool "Unexpected event" False
-      assertNotification mws pluck
-      assertNotification mws' pluck
-      -- Other team users should get a user.legalhold-enable event
-      let pluck' = \case
-            Ev.UserLegalHoldEnabled eUser -> eUser @?= member
-            _ -> assertBool "Unexpected event" False
-      assertNotification ows pluck'
-      -- We send to all members of a team. which includes the team-settings
-      assertNotification member2Ws pluck'
-      when False $ do
-        -- this doesn't work any more since consent (personal users cannot grant consent).
-        assertNotification outsideContactWs pluck'
-      assertNoNotification strangerWs
 
 testGetLegalHoldDeviceStatus :: TestM ()
 testGetLegalHoldDeviceStatus = do
