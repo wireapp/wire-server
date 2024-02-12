@@ -95,6 +95,7 @@ library
     API.Common
     API.Federator
     API.Galley
+    API.GalleyCommon
     API.GalleyInternal
     API.Gundeck
     API.GundeckInternal

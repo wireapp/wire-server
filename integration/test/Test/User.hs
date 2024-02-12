@@ -4,6 +4,7 @@ module Test.User where
 
 import API.Brig
 import API.BrigInternal
+import API.GalleyCommon
 import API.GalleyInternal
 import API.Spar
 import qualified Data.UUID as UUID

@@ -22,6 +22,7 @@ module Test.Conversation where
 import API.Brig
 import qualified API.BrigInternal as BrigI
 import API.Galley
+import API.GalleyCommon
 import API.GalleyInternal
 import Control.Applicative
 import Control.Concurrent (threadDelay)

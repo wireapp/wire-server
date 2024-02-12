@@ -18,7 +18,7 @@
 module Test.FeatureFlags where
 
 import API.Galley
-import API.GalleyInternal (FeatureStatus (..))
+import API.GalleyCommon
 import qualified API.GalleyInternal as I
 import qualified Data.Aeson as Aeson
 import Notifications
@@ -29,9 +29,21 @@ import Testlib.Prelude
 --------------------------------------------------------------------------------
 -- Helpers
 
-expectedStatus :: HasCallStack => FeatureStatus -> Aeson.Value
-expectedStatus fs =
-  Aeson.object ["lockStatus" .= "unlocked", "status" .= show fs, "ttl" .= "unlimited"]
+expectedStatus :: HasCallStack => FeatureStatus -> String -> Aeson.Value
+expectedStatus fs lock =
+  Aeson.object ["lockStatus" .= lock, "status" .= show fs, "ttl" .= "unlimited"]
+
+assertFeatureLock ::
+  (HasCallStack, MakesValue user, MakesValue team) =>
+  String ->
+  String ->
+  user ->
+  team ->
+  FeatureStatus ->
+  App ()
+assertFeatureLock lock featureName user team expected = do
+  tf <- getTeamFeature featureName user team
+  assertSuccessMatchBody (expectedStatus expected lock) tf
 
 assertFeature ::
   (HasCallStack, MakesValue user, MakesValue team) =>
@@ -40,9 +52,7 @@ assertFeature ::
   team ->
   FeatureStatus ->
   App ()
-assertFeature featureName user team expected = do
-  tf <- getTeamFeature featureName user team
-  assertSuccessMatchBody (expectedStatus expected) tf
+assertFeature = assertFeatureLock "unlocked"
 
 assertFeatureFromAll ::
   (HasCallStack, MakesValue user) =>
@@ -50,9 +60,31 @@ assertFeatureFromAll ::
   user ->
   FeatureStatus ->
   App ()
-assertFeatureFromAll featureName user expected = do
+assertFeatureFromAll = assertFeatureFromAllLock Nothing
+
+assertFeatureFromAllLock ::
+  (HasCallStack, MakesValue user) =>
+  Maybe String ->
+  String ->
+  user ->
+  FeatureStatus ->
+  App ()
+assertFeatureFromAllLock mLock featureName user expected = do
   actual <- extractTeamFeatureFromAll featureName user
   actual %. "status" `shouldMatch` show expected
+  for_ mLock (actual %. "lockStatus" `shouldMatch`)
+
+assertFeatureInternalLock ::
+  (HasCallStack, MakesValue domain) =>
+  String ->
+  String ->
+  domain ->
+  String ->
+  FeatureStatus ->
+  App ()
+assertFeatureInternalLock lock featureName dom team expected = do
+  tf <- I.getTeamFeature dom featureName team
+  assertSuccessMatchBody (expectedStatus expected lock) tf
 
 assertFeatureInternal ::
   (HasCallStack, MakesValue domain) =>
@@ -61,9 +93,7 @@ assertFeatureInternal ::
   String ->
   FeatureStatus ->
   App ()
-assertFeatureInternal featureName dom team expected = do
-  tf <- I.getTeamFeature dom featureName team
-  assertSuccessMatchBody (expectedStatus expected) tf
+assertFeatureInternal = assertFeatureInternalLock "unlocked"
 
 --------------------------------------------------------------------------------
 
@@ -79,7 +109,7 @@ testSSOPut :: HasCallStack => FeatureStatus -> App ()
 testSSOPut = genericTestSSO putInternal
   where
     putInternal domain team status = do
-      let st = I.WithStatusNoLock status 0
+      let st = WithStatusNoLock status 0
       I.putTeamFeatureStatus domain team "sso" st
 
 testSSOPatch :: HasCallStack => FeatureStatus -> App ()
@@ -164,7 +194,7 @@ testLegalholdDisabledByDefaultPut :: HasCallStack => App ()
 testLegalholdDisabledByDefaultPut = legalholdDisabledByDefault putInternal
   where
     putInternal domain team status = do
-      let st = I.WithStatusNoLock status 0
+      let st = WithStatusNoLock status 0
       I.putTeamFeatureStatus domain team "legalhold" st
 
 testLegalholdDisabledByDefaultPatch :: HasCallStack => App ()
@@ -204,7 +234,7 @@ testLegalholdDisabledPermanentlyPut =
   legalholdFailToEnable putInternal "disabled-permanently"
   where
     putInternal domain team status = do
-      let st = I.WithStatusNoLock status 0
+      let st = WithStatusNoLock status 0
       I.failToPutTeamFeatureStatus domain team "legalhold" st
 
 testLegalholdWhitelistImplicitConsentPatch :: HasCallStack => App ()
@@ -219,7 +249,7 @@ testLegalholdWhitelistImplicitConsentPut =
   legalholdFailToEnable putInternal "whitelist-teams-and-implicit-consent"
   where
     putInternal domain team status = do
-      let st = I.WithStatusNoLock status 0
+      let st = WithStatusNoLock status 0
       I.failToPutTeamFeatureStatus domain team "legalhold" st
 
 genericSearchVisibility ::
@@ -238,7 +268,7 @@ genericSearchVisibility setter status = withModifiedBackend cnf $ \domain -> do
   assertFeatureInternal featurePath domain team status
   assertFeatureFromAll featurePath alex status
 
-  let opposite = I.oppositeStatus status
+  let opposite = oppositeStatus status
   setter domain team opposite
   assertFeature featurePath alice team opposite
   assertFeatureInternal featurePath domain team opposite
@@ -273,7 +303,7 @@ testSearchVisibilityDisabledPut =
   where
     featurePath = "searchVisibility"
     putInternal domain team status = do
-      let st = I.WithStatusNoLock status 0
+      let st = WithStatusNoLock status 0
       I.putTeamFeatureStatus domain team featurePath st
 
 testSearchVisibilityEnabledPatch :: HasCallStack => App ()
@@ -290,7 +320,7 @@ testSearchVisibilityEnabledPut =
   where
     featurePath = "searchVisibility"
     putInternal domain team status = do
-      let st = I.WithStatusNoLock status 0
+      let st = WithStatusNoLock status 0
       I.putTeamFeatureStatus domain team featurePath st
 
 checkSimpleFlag ::
@@ -301,7 +331,7 @@ checkSimpleFlag ::
   App ()
 checkSimpleFlag path name defStatus = do
   let domain = OwnDomain
-  let opposite = I.oppositeStatus defStatus
+  let opposite = oppositeStatus defStatus
   (owner, team, mem : _) <- createTeam domain 2
   do
     nonMem <- randomUser domain def
@@ -330,6 +360,50 @@ checkSimpleFlag path name defStatus = do
     assertFeature path owner team status
     assertFeatureInternal path domain team status
     assertFeatureFromAll path mem status
+
+checkSimpleFlagWithLockStatus ::
+  HasCallStack =>
+  String ->
+  String ->
+  FeatureStatus ->
+  String ->
+  App ()
+checkSimpleFlagWithLockStatus path name featStatus lockStatus = do
+  let domain = OwnDomain
+  (owner, team, mem : _) <- createTeam domain 2
+  let assertFlag st lock = do
+        assertFeatureLock lock path owner team st
+        assertFeatureInternalLock lock path domain team st
+        assertFeatureFromAllLock (Just lock) path mem st
+  do
+    nonMem <- randomUser domain def
+    getTeamFeature path nonMem team `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 403
+      resp.json %. "label" `shouldMatch` "no-team-member"
+  assertFlag featStatus lockStatus
+  -- unlock feature if it is locked
+  when (lockStatus == "locked") . void $
+    I.setTeamFeatureLockStatusInternal domain team path "unlocked" >>= getBody 200
+
+  let opposite = oppositeStatus featStatus
+  withWebSocket mem $ \ws -> do
+    let st = WithStatusNoLock opposite 0
+    void $ setTeamFeature path owner team st >>= getBody 200
+    let expStatus =
+          Aeson.object
+            [ "status" .= opposite,
+              "lockStatus" .= "unlocked",
+              "ttl" .= "unlimited"
+            ]
+    n <- awaitMatch isFeatureConfigUpdateNotif ws
+    n %. "payload.0.name" `shouldMatch` name
+    n %. "payload.0.data" `shouldMatch` expStatus
+
+  assertFlag opposite "unlocked"
+
+testFileSharing :: HasCallStack => App ()
+testFileSharing =
+  checkSimpleFlagWithLockStatus "fileSharing" "fileSharing" Enabled "unlocked"
 
 testDigitalSignatures :: HasCallStack => App ()
 testDigitalSignatures = do

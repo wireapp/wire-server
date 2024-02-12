@@ -64,8 +64,7 @@ tests :: IO TestSetup -> TestTree
 tests s =
   testGroup
     "Feature Config API and Team Features API"
-    [ test s "FileSharing with lock status" $ testSimpleFlagWithLockStatus @FileSharingConfig FeatureStatusEnabled LockStatusUnlocked,
-      test s "Classified Domains (enabled)" testClassifiedDomainsEnabled,
+    [ test s "Classified Domains (enabled)" testClassifiedDomainsEnabled,
       test s "Classified Domains (disabled)" testClassifiedDomainsDisabled,
       test s "All features" testAllFeatures,
       test s "Feature Configs / Team Features Consistency" testFeatureConfigConsistency,

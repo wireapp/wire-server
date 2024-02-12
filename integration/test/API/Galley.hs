@@ -4,6 +4,7 @@
 module API.Galley where
 
 import API.Common
+import API.GalleyCommon
 import Control.Lens hiding ((.=))
 import Control.Monad.Reader
 import Control.Retry
@@ -536,6 +537,21 @@ getTeamFeature featureName user tid = do
     baseRequest user Galley Versioned $
       joinHttpPath ["teams", tidStr, "features", featureName]
   submit "GET" req
+
+setTeamFeature ::
+  (HasCallStack, MakesValue tid, MakesValue user) =>
+  String ->
+  user ->
+  tid ->
+  WithStatusNoLock ->
+  App Response
+setTeamFeature featureName user tid status = do
+  tidStr <- asString tid
+  st <- make status
+  req <-
+    baseRequest user Galley Versioned $
+      joinHttpPath ["teams", tidStr, "features", featureName]
+  submit "PUT" $ addJSON st req
 
 extractTeamFeatureFromAll ::
   (HasCallStack, MakesValue user) =>

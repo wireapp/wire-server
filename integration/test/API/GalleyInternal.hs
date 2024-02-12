@@ -1,8 +1,8 @@
 module API.GalleyInternal where
 
+import API.GalleyCommon
 import qualified Data.Aeson as Aeson
 import Data.String.Conversions (cs)
-import qualified Data.Text as T
 import qualified Data.Vector as Vector
 import GHC.Stack
 import Testlib.Prelude
@@ -75,6 +75,20 @@ failToPatchTeamFeatureStatus domain team featureName status = do
   res <- submit "PATCH" $ addJSONObject ["status" .= show status] req
   res.status `shouldMatchRange` (400, 499)
 
+setTeamFeatureLockStatusInternal ::
+  (HasCallStack, MakesValue domain, MakesValue team) =>
+  domain ->
+  team ->
+  String ->
+  String ->
+  App Response
+setTeamFeatureLockStatusInternal domain team featureName lockStatus = do
+  tid <- asString team
+  req <-
+    baseRequest domain Galley Unversioned $
+      joinHttpPath ["i", "teams", tid, "features", featureName, lockStatus]
+  submit "PUT" req
+
 -- | An alias for 'patchTeamFeatureStatus'
 setTeamFeatureStatus ::
   (HasCallStack, MakesValue domain, MakesValue team) =>
@@ -116,43 +130,6 @@ failToPutTeamFeatureStatus domain team featureName status = do
       joinHttpPath ["i", "teams", tid, "features", featureName]
   res <- submit "PUT" $ addJSON body req
   res.status `shouldMatchRange` (400, 499)
-
-data FeatureStatus = Disabled | Enabled
-  deriving (Eq)
-
-instance HasTests x => HasTests (FeatureStatus -> x) where
-  mkTests m n s f x =
-    mkTests m (n <> "[featureStatus=disabled]") s f (x Disabled)
-      <> mkTests m (n <> "[featureStatus=enabled]") s f (x Enabled)
-
-instance Show FeatureStatus where
-  show = \case
-    Disabled -> "disabled"
-    Enabled -> "enabled"
-
-instance ToJSON FeatureStatus where
-  toJSON = Aeson.String . T.pack . show
-
-oppositeStatus :: FeatureStatus -> FeatureStatus
-oppositeStatus Disabled = Enabled
-oppositeStatus Enabled = Disabled
-
-data WithStatusNoLock = WithStatusNoLock
-  { status :: FeatureStatus,
-    ttl :: Word
-  }
-
-instance MakesValue WithStatusNoLock where
-  make = pure . toJSON
-
-instance ToJSON WithStatusNoLock where
-  toJSON (WithStatusNoLock s t) =
-    Aeson.object
-      [ "status" .= s,
-        "ttl" .= case t of
-          0 -> "unlimited"
-          n -> show n
-      ]
 
 getFederationStatus ::
   ( HasCallStack,
