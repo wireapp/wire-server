@@ -17,6 +17,7 @@
 
 module Test.MLS.One2One where
 
+import API.Brig
 import API.Galley
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Char8 as B8
@@ -53,6 +54,14 @@ testGetMLSOne2OneUnconnected otherDomain = do
 
   bindResponse (getMLSOne2OneConversation alice bob) $ \resp ->
     resp.status `shouldMatchInt` 403
+
+testMLSOne2OneBlocked :: HasCallStack => Domain -> App ()
+testMLSOne2OneBlocked otherDomain = do
+  [alice, bob] <- for [OwnDomain, otherDomain] $ flip randomUser def
+  void $ postConnection bob alice >>= getBody 201
+  void $ putConnection alice bob "blocked" >>= getBody 200
+  void $ getMLSOne2OneConversation alice bob >>= getJSON 403
+  void $ getMLSOne2OneConversation bob alice >>= getJSON 403
 
 testGetMLSOne2OneSameTeam :: App ()
 testGetMLSOne2OneSameTeam = do
