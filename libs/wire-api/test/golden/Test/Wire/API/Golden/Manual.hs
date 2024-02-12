@@ -42,6 +42,7 @@ import Test.Wire.API.Golden.Manual.QualifiedUserClientPrekeyMap
 import Test.Wire.API.Golden.Manual.SearchResultContact
 import Test.Wire.API.Golden.Manual.SubConversation
 import Test.Wire.API.Golden.Manual.TeamSize
+import Test.Wire.API.Golden.Manual.Token
 import Test.Wire.API.Golden.Manual.UserClientPrekeyMap
 import Test.Wire.API.Golden.Manual.UserIdList
 import Test.Wire.API.Golden.Runner
@@ -143,6 +144,9 @@ tests =
       testGroup "GroupId" $
         testObjects
           [(testObject_GroupId_1, "testObject_GroupId_1.json")],
+      testGroup "PushToken" $
+        testObjects
+          [(testObject_Token_1, "testObject_Token_1.json")],
       testGroup "TeamSize" $
         testObjects
           [ (testObject_TeamSize_1, "testObject_TeamSize_1.json"),
