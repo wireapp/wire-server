@@ -226,7 +226,7 @@
 
 * Allow to install the coturn chart multiple times in multiple namespaces on the same cluster. (#3698)
 
-* For some rust packages (cryptobox and libzauth-c), we now use crate2nix as a build tool, rather than the more coarse and FOD-based nixpkgs `rustPlatform.buildRustPackage` approach. (#PR_NOT_FOUND)
+* For some rust packages (cryptobox and libzauth-c), we now use crate2nix as a build tool, rather than the more coarse and FOD-based nixpkgs `rustPlatform.buildRustPackage` approach. (#3686)
 
 * Delete `shell.nix`. It has been broken for quite some time. The supported way to get a development nix environment is to use direnv. (#3726)
 
