@@ -1,4 +1,0 @@
-Upgrade webapp to 2023-12-11-production.0-v0.31.17-0-1e91445
-
-Beside using up-to-date versions in Helm charts is generally beneficial,
-this version also provides multi-ingress support.

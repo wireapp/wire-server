@@ -1,6 +1,0 @@
-Allow the configuration of TLS-secured connections to Cassandra. TLS is used
-when a certificate is provided. This is either done with
-`--tls-ca-certificate-file` for cli commands or the configuration attribute
-`cassandra.tlsCa` for services. In Helm charts, the certificate is provided as
-literal PEM string; either as attribute `cassandra.tlsCa` (analog to service
-configuration) or by a reference to a secret (`cassandra.tlsCaSecretRef`.)

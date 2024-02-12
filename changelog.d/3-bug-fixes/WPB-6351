@@ -1,1 +1,0 @@
-Intra-service calls from brig to galley's public API are now aware of disabled API versions

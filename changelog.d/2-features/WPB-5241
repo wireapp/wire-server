@@ -1,1 +1,0 @@
-add a uniform timeout to the integration test-suite set by the environment variable TEST_TIMEOUT_SECONDS with a default of 10 seconds if the variable isn't set
