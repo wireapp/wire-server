@@ -149,8 +149,7 @@ pushNotification runningFlag targetDomain (msg, envelope) = do
               Right vi -> pure . Set.fromList . fmap versionInt . vinfoSupported $ vi
         case mostRecentTuple bodyVersions (notifications bundle) remoteVersions of
           Nothing ->
-            -- TODO(md): do more severe logging warning the site operator
-            Log.err $
+            Log.fatal $
               Log.msg (Log.val "No federation API version in common, the notification will be ignored")
                 . Log.field "domain" (domainText targetDomain)
           Just (notif, Just -> cveVersion) -> do
