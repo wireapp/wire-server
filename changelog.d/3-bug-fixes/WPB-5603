@@ -1,1 +1,0 @@
-Fix a bug where non-team conversation members that are remote would not get a `conversation.member-leave` event (#3745, #3764)

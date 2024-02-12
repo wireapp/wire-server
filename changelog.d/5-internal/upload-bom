@@ -1,1 +1,0 @@
-add a Makefile target to make it possible to upload a bom of all services to s3 on every CI run

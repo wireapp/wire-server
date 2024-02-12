@@ -1,3 +1,0 @@
-Improved how tests are automatically extracted from the `integration` test suite.
-
-The test extractor parser has been improved to handle block comments, and to more strictly check for Haddock documentation for each test.

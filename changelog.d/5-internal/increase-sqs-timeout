@@ -1,1 +1,0 @@
-Increase timeout for waiting for SQS notifications in galley's integration tests

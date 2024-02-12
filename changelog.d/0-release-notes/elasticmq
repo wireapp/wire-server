@@ -1,8 +1,0 @@
-* Replace fake-sqs with ElasticMQ
-
-ElasticMQ is an actively maintained project, fake-sqs hasn't seen a commit since
-2018. This is not expected to have any noticeable effect on deployments that
-don't have any extra configurations for the SQS queues. If the fake-aws-sqs
-chart had configured custom queue names, they have couple of extra limitations:
-- The queue names must only contain alphanumeric characters and hyphens.
-- The FIFO queue names must end in `.fifo`.

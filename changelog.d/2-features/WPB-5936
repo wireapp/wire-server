@@ -1,1 +1,0 @@
-Send a `conversation.member-leave` event to team admins for each conversation the deleted team member used to be part of

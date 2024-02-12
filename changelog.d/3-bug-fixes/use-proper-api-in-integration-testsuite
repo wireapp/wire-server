@@ -1,1 +1,0 @@
-addClient used the internal brig API in the integration testsuite when it should use the public one

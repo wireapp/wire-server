@@ -1,3 +1,0 @@
-Ensure that HTTP 1.1 connections are grafully closed
-
-To fix this warp had to be patched to fix the bug upstream: https://github.com/yesodweb/wai/pull/958

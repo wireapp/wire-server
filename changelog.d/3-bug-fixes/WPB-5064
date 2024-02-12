@@ -1,1 +1,0 @@
-Updated `demo-smtp` Helm chart from deprecated docker image namshi/smtp to ixdotai/smtp

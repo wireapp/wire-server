@@ -1,5 +1,0 @@
-Various improvements around LH policy conflict detection:
-* Fix LH policy conflict detection logic when posting messages
-* Better policy conflict error messages (distinguish between old clients and missing consent)
-* Add first LH scaffolding and tests to `/integration`
-* Annotate some API functions in `/integration` with links to openapi3 docs
