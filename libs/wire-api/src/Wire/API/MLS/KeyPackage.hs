@@ -29,6 +29,7 @@ module Wire.API.MLS.KeyPackage
     kpRef',
     KeyPackageTBS (..),
     KeyPackageRef (..),
+    sanIdentity,
   )
 where
 
@@ -62,7 +63,8 @@ import Wire.API.MLS.Serialisation
 import Wire.Arbitrary
 
 data KeyPackageUpload = KeyPackageUpload
-  {keyPackages :: [RawMLS KeyPackage]}
+  { keyPackages :: [RawMLS KeyPackage]
+  }
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema KeyPackageUpload
 
 instance ToSchema KeyPackageUpload where
@@ -259,15 +261,16 @@ certificateIdentityAndKey cert =
         ((e : _), []) -> Left e
         _ -> Left "No SAN URIs found"
 
+-- client identity format: wireapp://{userid}!{deviceid}@{host}
 sanIdentity :: String -> Either Text ClientIdentity
-sanIdentity s = case break (== '=') s of
-  ("im:wireapp", '=' : s') ->
+sanIdentity s = case break (== ':') s of
+  ("wireapp", ':' : '/' : '/' : s') ->
     first (\e -> e <> " (while parsing identity string " <> T.pack (show s') <> ")")
       . decodeMLSWith' parseX509ClientIdentity
       . T.encodeUtf8
       . T.pack
       $ s'
-  _ -> Left "No im:wireapp label found"
+  _ -> Left "No wireapp label found"
 
 rawKeyPackageSchema :: ValueSchema NamedSwaggerDoc (RawMLS KeyPackage)
 rawKeyPackageSchema =

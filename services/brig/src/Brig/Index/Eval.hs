@@ -26,7 +26,7 @@ import Brig.Index.Migrations
 import Brig.Index.Options
 import Brig.User.Search.Index
 import Cassandra qualified as C
-import Cassandra.Settings qualified as C
+import Cassandra.Util (defInitCassandra)
 import Control.Lens
 import Control.Monad.Catch
 import Control.Retry
@@ -101,14 +101,7 @@ runCommand l = \case
         <*> pure mgr
     initES esURI mgr =
       ES.mkBHEnv (toESServer esURI) mgr
-    initDb cas =
-      C.init
-        $ C.setLogger (C.mkLogger l)
-          . C.setContacts (view cHost cas) []
-          . C.setPortNumber (fromIntegral (view cPort cas))
-          . C.setKeyspace (view cKeyspace cas)
-          . C.setProtocolVersion C.V4
-        $ C.defSettings
+    initDb cas = defInitCassandra (toCassandraOpts cas) l
 
 waitForTaskToComplete :: forall a m. (ES.MonadBH m, MonadThrow m, FromJSON a) => Int -> ES.TaskNodeId -> m ()
 waitForTaskToComplete timeoutSeconds taskNodeId = do

@@ -20,15 +20,15 @@
 module Test.Conversation where
 
 import API.Brig
-import API.BrigInternal
+import qualified API.BrigInternal as BrigI
 import API.Galley
 import API.GalleyInternal
 import Control.Applicative
 import Control.Concurrent (threadDelay)
 import Control.Monad.Codensity
 import Control.Monad.Reader
-import Data.Aeson qualified as Aeson
-import Data.Text qualified as T
+import qualified Data.Aeson as Aeson
+import qualified Data.Text as T
 import GHC.Stack
 import Notifications
 import SetupHelpers hiding (deleteUser)
@@ -41,9 +41,9 @@ testDynamicBackendsFullyConnectedWhenAllowAll = do
   -- The default setting is 'allowAll'
   startDynamicBackends [def, def, def] $ \dynDomains -> do
     [domainA, domainB, domainC] <- pure dynDomains
-    uidA <- randomUser domainA def {team = True}
-    uidB <- randomUser domainA def {team = True}
-    uidC <- randomUser domainA def {team = True}
+    uidA <- randomUser domainA def {BrigI.team = True}
+    uidB <- randomUser domainA def {BrigI.team = True}
+    uidC <- randomUser domainA def {BrigI.team = True}
     assertConnected uidA domainB domainC
     assertConnected uidB domainA domainC
     assertConnected uidC domainA domainB
@@ -64,7 +64,7 @@ testDynamicBackendsNotFederating = do
               setField "optSettings.setFederationStrategy" "allowNone"
           }
   startDynamicBackends [overrides, overrides, overrides] $ \[domainA, domainB, domainC] -> do
-    uidA <- randomUser domainA def {team = True}
+    uidA <- randomUser domainA def {BrigI.team = True}
     retryT
       $ bindResponse
         (getFederationStatus uidA [domainB, domainC])
@@ -78,14 +78,14 @@ testDynamicBackendsFullyConnectedWhenAllowDynamic = do
     -- Allowing 'full_search' or any type of search is how we enable federation
     -- between backends when the federation strategy is 'allowDynamic'.
     sequence_
-      [ createFedConn x (FedConn y "full_search")
+      [ BrigI.createFedConn x (BrigI.FedConn y "full_search" Nothing)
         | x <- [domainA, domainB, domainC],
           y <- [domainA, domainB, domainC],
           x /= y
       ]
-    uidA <- randomUser domainA def {team = True}
-    uidB <- randomUser domainB def {team = True}
-    uidC <- randomUser domainC def {team = True}
+    uidA <- randomUser domainA def {BrigI.team = True}
+    uidB <- randomUser domainB def {BrigI.team = True}
+    uidC <- randomUser domainC def {BrigI.team = True}
     let assertConnected u d d' =
           bindResponse
             (getFederationStatus u [d, d'])
@@ -100,11 +100,11 @@ testDynamicBackendsNotFullyConnected :: HasCallStack => App ()
 testDynamicBackendsNotFullyConnected = do
   withFederatingBackendsAllowDynamic $ \(domainA, domainB, domainC) -> do
     -- A is connected to B and C, but B and C are not connected to each other
-    void $ createFedConn domainA $ FedConn domainB "full_search"
-    void $ createFedConn domainB $ FedConn domainA "full_search"
-    void $ createFedConn domainA $ FedConn domainC "full_search"
-    void $ createFedConn domainC $ FedConn domainA "full_search"
-    uidA <- randomUser domainA def {team = True}
+    void $ BrigI.createFedConn domainA $ BrigI.FedConn domainB "full_search" Nothing
+    void $ BrigI.createFedConn domainB $ BrigI.FedConn domainA "full_search" Nothing
+    void $ BrigI.createFedConn domainA $ BrigI.FedConn domainC "full_search" Nothing
+    void $ BrigI.createFedConn domainC $ BrigI.FedConn domainA "full_search" Nothing
+    uidA <- randomUser domainA def {BrigI.team = True}
     retryT
       $ bindResponse
         (getFederationStatus uidA [domainB, domainC])
@@ -115,7 +115,7 @@ testDynamicBackendsNotFullyConnected = do
 
 testFederationStatus :: HasCallStack => App ()
 testFederationStatus = do
-  uid <- randomUser OwnDomain def {team = True}
+  uid <- randomUser OwnDomain def {BrigI.team = True}
   federatingRemoteDomain <- asString OtherDomain
   let invalidDomain = "c.example.com" -- Does not have any srv records
   bindResponse
@@ -149,10 +149,10 @@ testCreateConversationNonFullyConnected :: HasCallStack => App ()
 testCreateConversationNonFullyConnected = do
   withFederatingBackendsAllowDynamic $ \(domainA, domainB, domainC) -> do
     -- A is connected to B and C, but B and C are not connected to each other
-    void $ createFedConn domainA $ FedConn domainB "full_search"
-    void $ createFedConn domainB $ FedConn domainA "full_search"
-    void $ createFedConn domainA $ FedConn domainC "full_search"
-    void $ createFedConn domainC $ FedConn domainA "full_search"
+    void $ BrigI.createFedConn domainA $ BrigI.FedConn domainB "full_search" Nothing
+    void $ BrigI.createFedConn domainB $ BrigI.FedConn domainA "full_search" Nothing
+    void $ BrigI.createFedConn domainA $ BrigI.FedConn domainC "full_search" Nothing
+    void $ BrigI.createFedConn domainC $ BrigI.FedConn domainA "full_search" Nothing
     liftIO $ threadDelay (2 * 1000 * 1000)
 
     u1 <- randomUser domainA def
@@ -184,10 +184,10 @@ testAddMembersFullyConnectedProteus = do
 testAddMembersNonFullyConnectedProteus :: HasCallStack => App ()
 testAddMembersNonFullyConnectedProteus = do
   withFederatingBackendsAllowDynamic $ \(domainA, domainB, domainC) -> do
-    void $ createFedConn domainA (FedConn domainB "full_search")
-    void $ createFedConn domainB (FedConn domainA "full_search")
-    void $ createFedConn domainA (FedConn domainC "full_search")
-    void $ createFedConn domainC (FedConn domainA "full_search")
+    void $ BrigI.createFedConn domainA (BrigI.FedConn domainB "full_search" Nothing)
+    void $ BrigI.createFedConn domainB (BrigI.FedConn domainA "full_search" Nothing)
+    void $ BrigI.createFedConn domainA (BrigI.FedConn domainC "full_search" Nothing)
+    void $ BrigI.createFedConn domainC (BrigI.FedConn domainA "full_search" Nothing)
     liftIO $ threadDelay (2 * 1000 * 1000) -- wait for federation status to be updated
 
     -- add users
@@ -280,29 +280,60 @@ testConvWithUnreachableRemoteUsers = do
   regConvs <- filterM (\c -> (==) <$> (c %. "type" & asInt) <*> pure 0) convs
   regConvs `shouldMatch` ([] :: [Value])
 
-testAddReachableWithUnreachableRemoteUsers :: HasCallStack => App ()
-testAddReachableWithUnreachableRemoteUsers = do
-  ([alex, bob], conv, domains) <-
-    startDynamicBackends [def, def] $ \domains -> do
-      own <- make OwnDomain & asString
-      other <- make OtherDomain & asString
-      [alice, alex, bob, charlie, dylan] <- createUsers $ [own, own, other] <> domains
-      forM_ [alex, bob, charlie, dylan] $ connectTwoUsers alice
+testAddUserWithUnreachableRemoteUsers :: HasCallStack => App ()
+testAddUserWithUnreachableRemoteUsers = do
+  resourcePool <- asks resourcePool
+  own <- make OwnDomain & asString
+  other <- make OtherDomain & asString
+  runCodensity (acquireResources 1 resourcePool) $ \[cDom] -> do
+    ([alex, bobId, bradId, chrisId], conv) <- runCodensity (startDynamicBackend cDom mempty) $ \_ -> do
+      [alice, alex, bob, brad, charlie, chris] <-
+        createAndConnectUsers [own, own, other, other, cDom.berDomain, cDom.berDomain]
 
-      let newConv = defProteus {qualifiedUsers = [alex, charlie, dylan]}
+      let newConv = defProteus {qualifiedUsers = [alex, charlie]}
       conv <- postConversation alice newConv >>= getJSON 201
-      connectTwoUsers alex bob
-      pure ([alex, bob], conv, domains)
+      [bobId, bradId, chrisId] <- forM [bob, brad, chris] (%. "qualified_id")
+      pure ([alex, bobId, bradId, chrisId], conv)
 
-  bobId <- bob %. "qualified_id"
-  bindResponse (addMembers alex conv def {users = [bobId]}) $ \resp -> do
-    -- This test is updated to reflect the changes in `performConversationJoin`
-    -- `performConversationJoin` now does a full check between all federation members
-    -- that will be in the conversation when adding users to a conversation. This is
-    -- to ensure that users from domains that aren't federating are not directly
-    -- connected to each other.
-    resp.status `shouldMatchInt` 533
-    resp.jsonBody %. "unreachable_backends" `shouldMatchSet` domains
+    bindResponse (addMembers alex conv def {users = [bobId]}) $ \resp -> do
+      resp.status `shouldMatchInt` 533
+      resp.jsonBody %. "unreachable_backends" `shouldMatchSet` [cDom.berDomain]
+
+    runCodensity (startDynamicBackend cDom mempty) $ \_ ->
+      void $ addMembers alex conv def {users = [bobId]} >>= getBody 200
+
+    -- even though backend C is unreachable, we know B/OtherDomain and C
+    -- federate because Bob joined when C was reachable, hence it is OK to add
+    -- brad from B to the conversation.
+    void $ addMembers alex conv def {users = [bradId]} >>= getBody 200
+
+    -- assert an unreachable user cannot be added
+    bindResponse (addMembers alex conv def {users = [chrisId]}) $ \resp -> do
+      resp.status `shouldMatchInt` 533
+      resp.jsonBody %. "unreachable_backends" `shouldMatchSet` [cDom.berDomain]
+
+testAddUnreachableUserFromFederatingBackend :: HasCallStack => App ()
+testAddUnreachableUserFromFederatingBackend = do
+  resourcePool <- asks resourcePool
+  runCodensity (acquireResources 1 resourcePool) $ \[cDom] -> do
+    (alice, chadId, conv) <- runCodensity (startDynamicBackend cDom mempty) $ \_ -> do
+      ownDomain <- make OwnDomain & asString
+      otherDomain <- make OtherDomain & asString
+      [alice, bob, charlie, chad] <-
+        createAndConnectUsers [ownDomain, otherDomain, cDom.berDomain, cDom.berDomain]
+
+      conv <- withWebSockets [bob, charlie] $ \wss -> do
+        conv <-
+          postConversation alice (defProteus {qualifiedUsers = [bob, charlie]})
+            >>= getJSON 201
+        forM_ wss $ awaitMatch isMemberJoinNotif
+        pure conv
+      chadId <- chad %. "qualified_id"
+      pure (alice, chadId, conv)
+
+    bindResponse (addMembers alice conv def {users = [chadId]}) $ \resp -> do
+      resp.status `shouldMatchInt` 533
+      resp.jsonBody %. "unreachable_backends" `shouldMatchSet` [cDom.berDomain]
 
 testAddUnreachable :: HasCallStack => App ()
 testAddUnreachable = do
@@ -355,7 +386,7 @@ testAddingUserNonFullyConnectedFederation = do
 
     -- Ensure that dynamic backend only federates with own domain, but not other
     -- domain.
-    void $ createFedConn dynBackend (FedConn own "full_search")
+    void $ BrigI.createFedConn dynBackend (BrigI.FedConn own "full_search" Nothing)
 
     alice <- randomUser own def
     bob <- randomUser other def
@@ -474,10 +505,10 @@ testSynchroniseUserRemovalNotification = do
     bindResponse (removeMember alice conv charlie) $ \resp ->
       resp.status `shouldMatchInt` 200
     runCodensity (startDynamicBackend dynBackend mempty) $ \_ -> do
-      nameNotif <- awaitNotification charlie client noValue 2 isConvNameChangeNotif
+      nameNotif <- awaitNotification charlie client noValue isConvNameChangeNotif
       nameNotif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
       nameNotif %. "payload.0.data.name" `shouldMatch` newConvName
-      leaveNotif <- awaitNotification charlie client noValue 2 isConvLeaveNotif
+      leaveNotif <- awaitNotification charlie client noValue isConvLeaveNotif
       leaveNotif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
 
 testConvRenaming :: HasCallStack => App ()
@@ -490,7 +521,7 @@ testConvRenaming = do
   withWebSockets [alice, bob] $ \wss -> do
     for_ wss $ \ws -> do
       void $ changeConversationName alice conv newConvName >>= getBody 200
-      nameNotif <- awaitMatch 10 isConvNameChangeNotif ws
+      nameNotif <- awaitMatch isConvNameChangeNotif ws
       nameNotif %. "payload.0.data.name" `shouldMatch` newConvName
       nameNotif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
 
@@ -503,7 +534,7 @@ testReceiptModeWithRemotesOk = do
   withWebSockets [alice, bob] $ \wss -> do
     void $ updateReceiptMode alice conv (43 :: Int) >>= getBody 200
     for_ wss $ \ws -> do
-      notif <- awaitMatch 10 isReceiptModeUpdateNotif ws
+      notif <- awaitMatch isReceiptModeUpdateNotif ws
       notif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
       notif %. "payload.0.qualified_from" `shouldMatch` objQidObject alice
       notif %. "payload.0.data.receipt_mode" `shouldMatchInt` 43
@@ -519,7 +550,7 @@ testReceiptModeWithRemotesUnreachable = do
       >>= getJSON 201
   withWebSocket alice $ \ws -> do
     void $ updateReceiptMode alice conv (43 :: Int) >>= getBody 200
-    notif <- awaitMatch 10 isReceiptModeUpdateNotif ws
+    notif <- awaitMatch isReceiptModeUpdateNotif ws
     notif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
     notif %. "payload.0.qualified_from" `shouldMatch` objQidObject alice
     notif %. "payload.0.data.receipt_mode" `shouldMatchInt` 43
@@ -577,7 +608,7 @@ testDeleteRemoteMemberRemoteUnreachable = do
   void $ withWebSockets [alice, bob] $ \wss -> do
     void $ removeMember alice conv bob >>= getBody 200
     for wss $ \ws -> do
-      leaveNotif <- awaitMatch 10 isConvLeaveNotif ws
+      leaveNotif <- awaitMatch isConvLeaveNotif ws
       leaveNotif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
       leaveNotif %. "payload.0.qualified_from" `shouldMatch` objQidObject alice
       leaveNotif %. "payload.0.data.qualified_user_ids.0" `shouldMatch` objQidObject bob
@@ -598,7 +629,7 @@ testDeleteTeamConversationWithRemoteMembers = do
   void $ withWebSockets [alice, bob] $ \wss -> do
     void $ deleteTeamConversation team conv alice >>= getBody 200
     for wss $ \ws -> do
-      notif <- awaitMatch 10 isConvDeleteNotif ws
+      notif <- awaitMatch isConvDeleteNotif ws
       notif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
       notif %. "payload.0.qualified_from" `shouldMatch` objQidObject alice
 
@@ -623,11 +654,100 @@ testDeleteTeamConversationWithUnreachableRemoteMembers = do
       pure (bob, bobClient)
     withWebSocket alice $ \ws -> do
       void $ deleteTeamConversation team conv alice >>= getBody 200
-      notif <- awaitMatch 10 isConvDeleteNotif ws
+      notif <- awaitMatch isConvDeleteNotif ws
       assertNotification notif
     void $ runCodensity (startDynamicBackend dynBackend mempty) $ \_ -> do
-      notif <- awaitNotification bob bobClient noValue 2 isConvDeleteNotif
+      notif <- awaitNotification bob bobClient noValue isConvDeleteNotif
       assertNotification notif
+
+testDeleteTeamMemberLimitedEventFanout :: HasCallStack => App ()
+testDeleteTeamMemberLimitedEventFanout = do
+  -- Alex will get removed from the team
+  (alice, team, [alex, alison]) <- createTeam OwnDomain 3
+  ana <- createTeamMemberWithRole alice team "admin"
+  [amy, bob] <- for [OwnDomain, OtherDomain] $ flip randomUser def
+  forM_ [amy, bob] $ connectTwoUsers alice
+  [aliceId, alexId, amyId, alisonId, anaId, bobId] <- do
+    forM [alice, alex, amy, alison, ana, bob] (%. "qualified_id")
+  let nc =
+        ( defProteus
+            { qualifiedUsers =
+                [alexId, amyId, alisonId, anaId, bobId],
+              team = Just team
+            }
+        )
+  conv <- postConversation alice nc >>= getJSON 201
+  memsBefore <- getMembers team aliceId
+
+  -- Only the team admins will get the team-level event about Alex being removed
+  -- from the team
+  setTeamFeatureStatus OwnDomain team "limitedEventFanout" "enabled"
+
+  withWebSockets [alice, amy, bob, alison, ana] $
+    \[wsAlice, wsAmy, wsBob, wsAlison, wsAna] -> do
+      void $ deleteTeamMember team alice alex >>= getBody 202
+
+      memsAfter <- getMembers team aliceId
+      memsAfter `shouldNotMatch` memsBefore
+
+      assertConvUserDeletedNotif wsAmy alexId
+      assertConvUserDeletedNotif wsAlison alexId
+
+      alexUId <- alex %. "id"
+      do
+        n <- awaitMatch isTeamMemberLeaveNotif wsAlice
+        nPayload n %. "data.user" `shouldMatch` alexUId
+        assertConvUserDeletedNotif wsAlice alexId
+      do
+        n <- awaitMatch isTeamMemberLeaveNotif wsAna
+        nPayload n %. "data.user" `shouldMatch` alexUId
+        assertConvUserDeletedNotif wsAna alexId
+      do
+        bindResponse (getConversation bob conv) $ \resp -> do
+          resp.status `shouldMatchInt` 200
+          mems <- resp.json %. "members.others" & asList
+          memIds <- forM mems (%. "qualified_id")
+          memIds `shouldMatchSet` [aliceId, alisonId, amyId, anaId]
+        assertConvUserDeletedNotif wsBob alexId
+  where
+    getMembers tid usr = bindResponse (getTeamMembers usr tid) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      ms <- resp.json %. "members" & asList
+      forM ms $ (%. "user")
+
+-- The test relies on the default value for the 'limitedEventFanout' flag, which
+-- is disabled by default. The counterpart test
+-- 'testDeleteTeamMemberLimitedEventFanout' enables the flag and tests the
+-- limited fanout.
+testDeleteTeamMemberFullEventFanout :: HasCallStack => App ()
+testDeleteTeamMemberFullEventFanout = do
+  (alice, team, [alex, alison]) <- createTeam OwnDomain 3
+  [amy, bob] <- for [OwnDomain, OtherDomain] $ flip randomUser def
+  forM_ [amy, bob] $ connectTwoUsers alice
+  [aliceId, alexId, alisonId, amyId, bobId] <-
+    forM [alice, alex, alison, amy, bob] (%. "qualified_id")
+  let nc = (defProteus {qualifiedUsers = [alexId, alisonId, amyId, bobId], team = Just team})
+  conv <- postConversation alice nc >>= getJSON 201
+  withWebSockets [alice, alison, amy, bob] $ \[wsAlice, wsAlison, wsAmy, wsBob] -> do
+    void $ deleteTeamMember team alice alex >>= getBody 202
+    alexUId <- alex %. "id"
+    do
+      n <- awaitMatch isTeamMemberLeaveNotif wsAlice
+      nPayload n %. "data.user" `shouldMatch` alexUId
+    do
+      t <- awaitMatch isTeamMemberLeaveNotif wsAlison
+      nPayload t %. "data.user" `shouldMatch` alexUId
+      assertConvUserDeletedNotif wsAlison alexId
+
+    assertConvUserDeletedNotif wsAmy alexId
+
+    do
+      bindResponse (getConversation bob conv) $ \resp -> do
+        resp.status `shouldMatchInt` 200
+        mems <- resp.json %. "members.others" & asList
+        memIds <- forM mems (%. "qualified_id")
+        memIds `shouldMatchSet` [aliceId, alisonId, amyId]
+      assertConvUserDeletedNotif wsBob alexId
 
 testLeaveConversationSuccess :: HasCallStack => App ()
 testLeaveConversationSuccess = do
@@ -658,15 +778,8 @@ testOnUserDeletedConversations = do
     [alice, alex, bob, bart, chad] <- createUsers [ownDomain, ownDomain, otherDomain, otherDomain, dynDomain]
     forM_ [alex, bob, bart, chad] $ connectTwoUsers alice
     bobId <- bob %. "qualified_id"
-    ooConvId <- do
-      l <- getAllConvs alice
-      let isWith users c = do
-            t <- (==) <$> (c %. "type" & asInt) <*> pure 2
-            others <- c %. "members.others" & asList
-            qIds <- for others (%. "qualified_id")
-            pure $ qIds == users && t
-      c <- head <$> filterM (isWith [bobId]) l
-      c %. "qualified_id"
+    ooConvId <-
+      getOne2OneConversation alice bobId Established >>= (%. "qualified_id")
 
     mainConvBefore <-
       postConversation alice (defProteus {qualifiedUsers = [alex, bob, bart, chad]})
@@ -674,7 +787,7 @@ testOnUserDeletedConversations = do
 
     void $ withWebSocket alex $ \ws -> do
       void $ deleteUser bob >>= getBody 200
-      n <- awaitMatch 10 isConvLeaveNotif ws
+      n <- awaitMatch isConvLeaveNotif ws
       n %. "payload.0.qualified_from" `shouldMatch` bobId
       n %. "payload.0.qualified_conversation" `shouldMatch` (mainConvBefore %. "qualified_id")
 
@@ -701,11 +814,39 @@ testUpdateConversationByRemoteAdmin = do
   void $ updateRole alice bob "wire_admin" (conv %. "qualified_id") >>= getBody 200
   void $ withWebSockets [alice, bob, charlie] $ \wss -> do
     void $ updateReceiptMode bob conv (41 :: Int) >>= getBody 200
-    for_ wss $ \ws -> awaitMatch 10 isReceiptModeUpdateNotif ws
+    for_ wss $ \ws -> awaitMatch isReceiptModeUpdateNotif ws
 
 testGuestCreatesConversation :: HasCallStack => App ()
 testGuestCreatesConversation = do
-  alice <- randomUser OwnDomain def {activate = False}
+  alice <- randomUser OwnDomain def {BrigI.activate = False}
   bindResponse (postConversation alice defProteus) $ \resp -> do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "operation-denied"
+
+testGuestLinksSuccess :: HasCallStack => App ()
+testGuestLinksSuccess = do
+  (user, _, tm : _) <- createTeam OwnDomain 2
+  conv <- postConversation user (allowGuests defProteus) >>= getJSON 201
+  (k, v) <- bindResponse (postConversationCode user conv Nothing Nothing) $ \resp -> do
+    res <- getJSON 201 resp
+    k <- res %. "data.key" & asString
+    v <- res %. "data.code" & asString
+    pure (k, v)
+  bindResponse (getJoinCodeConv tm k v) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "id" `shouldMatch` objId conv
+
+testGuestLinksExpired :: HasCallStack => App ()
+testGuestLinksExpired = do
+  withModifiedBackend
+    def {galleyCfg = setField "settings.guestLinkTTLSeconds" (1 :: Int)}
+    $ \domain -> do
+      (user, _, tm : _) <- createTeam domain 2
+      conv <- postConversation user (allowGuests defProteus) >>= getJSON 201
+      (k, v) <- bindResponse (postConversationCode user conv Nothing Nothing) $ \resp -> do
+        res <- getJSON 201 resp
+        (,) <$> asString (res %. "data.key") <*> asString (res %. "data.code")
+      -- let's wait a little longer than 1 second for the guest link to expire
+      liftIO $ threadDelay (1_100_000)
+      bindResponse (getJoinCodeConv tm k v) $ \resp -> do
+        resp.status `shouldMatchInt` 404

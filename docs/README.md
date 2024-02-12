@@ -101,6 +101,21 @@ Run `make pdf` and look at files in `./build/pdf/`.
 
 You can use the `make dev-pdf` target to get auto-refreshing PDF files as you save source files. This is also acessible at `http://localhost:3000/wire_federation.pdf`.
 
+### Testing CI build locally
+
+In order to test changes to the deployment process (eg. nix changes, new grepinclude defaults), the build process can be invoked locally with
+
+```
+nix-build --no-out-link ./nix -A docs
+```
+
+If the command succeeds, the static content can be viewed in the browser directly from the nix build dir (adjust the build path)
+
+```
+firefox /nix/store/isjbzhmm34kr1i1xdgwfrrn98s4hgj43-wire-docs/html/index.html
+```
+
+
 ### Upload to S3
 
 CI is set up to do this automatically on a push to master. If for some reason you wish to upload manually to S3:

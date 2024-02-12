@@ -25,6 +25,9 @@ data:
       {{- if hasKey .cassandra "filterNodesByDatacentre" }}
       filterNodesByDatacentre: {{ .cassandra.filterNodesByDatacentre }}
       {{- end }}
+      {{- if eq (include "useCassandraTLS" .) "true" }}
+      tlsCa: /etc/wire/gundeck/cassandra/{{- (include "tlsSecretRef" . | fromYaml).key }}
+      {{- end }}
 
     redis:
       host: {{ .redis.host }}
@@ -57,9 +60,7 @@ data:
       {{- if hasKey . "perNativePushConcurrency" }}
       perNativePushConcurrency: {{ .perNativePushConcurrency }}
       {{- end }}
-      {{- if .disabledAPIVersions }}
-      disabledAPIVersions: {{ .disabledAPIVersions }}
-      {{- end }}
+      disabledAPIVersions: {{ toJson .disabledAPIVersions }}
       # disabledAPIVersions: [ 2 ]
       maxConcurrentNativePushes:
         soft: {{ .maxConcurrentNativePushes.soft }}

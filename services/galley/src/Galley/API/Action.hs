@@ -51,6 +51,7 @@ import Control.Lens
 import Data.ByteString.Conversion (toByteString')
 import Data.Domain (Domain (..))
 import Data.Id
+import Data.Json.Util
 import Data.Kind
 import Data.List qualified as List
 import Data.List.Extra (nubOrd)
@@ -82,17 +83,17 @@ import Galley.Effects.CodeStore qualified as E
 import Galley.Effects.ConversationStore qualified as E
 import Galley.Effects.FederatorAccess qualified as E
 import Galley.Effects.FireAndForget qualified as E
-import Galley.Effects.GundeckAccess
 import Galley.Effects.MemberStore qualified as E
 import Galley.Effects.ProposalStore qualified as E
 import Galley.Effects.SubConversationStore qualified as E
 import Galley.Effects.TeamStore qualified as E
 import Galley.Env (Env)
-import Galley.Intra.Push
 import Galley.Options
 import Galley.Types.Conversations.Members
+import Galley.Types.Teams (IsPerm (hasPermission))
 import Galley.Types.UserList
 import Galley.Validation
+import Gundeck.Types.Push.V2 qualified as PushV2
 import Imports hiding ((\\))
 import Network.AMQP qualified as Q
 import Polysemy
@@ -110,18 +111,21 @@ import Wire.API.Conversation.Typing
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
+import Wire.API.Event.LeaveReason
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.API.Galley qualified as F
 import Wire.API.Federation.Error
-import Wire.API.FederationStatus (FederationStatus (FullyConnected, NotConnectedDomains), RemoteDomains (..))
+import Wire.API.FederationStatus
 import Wire.API.MLS.CipherSuite
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Team.Feature
 import Wire.API.Team.LegalHold
 import Wire.API.Team.Member
+import Wire.API.Team.Permission (Perm (AddRemoveConvMember, ModifyConvName))
 import Wire.API.User qualified as User
+import Wire.NotificationSubsystem
 
 data NoChanges = NoChanges
 
@@ -143,7 +147,7 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member (Error UnreachableBackends) r,
       Member ExternalAccess r,
       Member FederatorAccess r,
-      Member GundeckAccess r,
+      Member NotificationSubsystem r,
       Member (Input Env) r,
       Member (Input Opts) r,
       Member (Input UTCTime) r,
@@ -162,7 +166,7 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member (Error NoChanges) r,
       Member ExternalAccess r,
       Member FederatorAccess r,
-      Member GundeckAccess r,
+      Member NotificationSubsystem r,
       Member (Input UTCTime) r,
       Member (Input Env) r,
       Member ProposalStore r,
@@ -178,7 +182,7 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member (Input UTCTime) r,
       Member ExternalAccess r,
       Member FederatorAccess r,
-      Member GundeckAccess r,
+      Member NotificationSubsystem r,
       Member (Error InternalError) r,
       Member TinyLog r,
       Member (Error NoChanges) r
@@ -201,7 +205,9 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
     )
   HasConversationActionEffects 'ConversationRenameTag r =
     ( Member (Error InvalidInput) r,
-      Member ConversationStore r
+      Member ConversationStore r,
+      Member TeamStore r,
+      Member (ErrorS InvalidOperation) r
     )
   HasConversationActionEffects 'ConversationAccessDataTag r =
     ( Member BotAccess r,
@@ -215,7 +221,7 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member ExternalAccess r,
       Member FederatorAccess r,
       Member FireAndForget r,
-      Member GundeckAccess r,
+      Member NotificationSubsystem r,
       Member (Input Env) r,
       Member MemberStore r,
       Member ProposalStore r,
@@ -244,7 +250,7 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member BrigAccess r,
       Member ExternalAccess r,
       Member FederatorAccess r,
-      Member GundeckAccess r,
+      Member NotificationSubsystem r,
       Member (Input Env) r,
       Member (Input Opts) r,
       Member (Input UTCTime) r,
@@ -346,8 +352,11 @@ getFederationStatus req = do
   fmap firstConflictOrFullyConnected
     . (ensureNoUnreachableBackends =<<)
     $ E.runFederatedConcurrentlyEither
-      (flip toRemoteUnsafe () <$> Set.toList req.rdDomains)
-      (\qds -> fedClient @'Brig @"get-not-fully-connected-backends" (DomainSet (tDomain qds `Set.delete` req.rdDomains)))
+      (Set.toList req.rdDomains)
+      ( \qds ->
+          fedClient @'Brig @"get-not-fully-connected-backends"
+            (DomainSet . Set.map tDomain $ void qds `Set.delete` req.rdDomains)
+      )
 
 -- | "conflict" here means two remote domains that we are connected to
 -- but are not connected to each other.
@@ -425,14 +434,14 @@ performAction tag origUser lconv action = do
       let victims = [origUser]
       lconv' <- traverse (convDeleteMembers (toUserList lconv victims)) lconv
       -- send remove proposals in the MLS case
-      traverse_ (removeUser lconv') victims
+      traverse_ (removeUser lconv' RemoveUserIncludeMain) victims
       pure (mempty, action)
     SConversationRemoveMembersTag -> do
-      let presentVictims = filter (isConvMemberL lconv) (toList action)
+      let presentVictims = filter (isConvMemberL lconv) (toList . crmTargets $ action)
       when (null presentVictims) noChanges
       traverse_ (convDeleteMembers (toUserList lconv presentVictims)) lconv
       -- send remove proposals in the MLS case
-      traverse_ (removeUser lconv) presentVictims
+      traverse_ (removeUser lconv RemoveUserExcludeMain) presentVictims
       pure (mempty, action) -- FUTUREWORK: should we return the filtered action here?
     SConversationMemberUpdateTag -> do
       void $ ensureOtherMember lconv (cmuTarget action) conv
@@ -460,6 +469,8 @@ performAction tag origUser lconv action = do
 
       pure (mempty, action)
     SConversationRenameTag -> do
+      zusrMembership <- join <$> forM (cnvmTeam (convMetadata conv)) (flip E.getTeamMember (qUnqualified origUser))
+      for_ zusrMembership $ \tm -> unless (tm `hasPermission` ModifyConvName) $ throwS @'InvalidOperation
       cn <- rangeChecked (cupName action)
       E.setConversationName (tUnqualified lcnv) cn
       pure (mempty, action)
@@ -516,16 +527,14 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
   checkLHPolicyConflictsLocal (ulLocals newMembers)
   checkLHPolicyConflictsRemote (FutureWork (ulRemotes newMembers))
   checkRemoteBackendsConnected lusr
-
+  checkTeamMemberAddPermissions lusr
   addMembersToLocalConversation (fmap (.convId) lconv) newMembers role
   where
-    checkRemoteBackendsConnected ::
-      Local UserId ->
-      Sem r ()
-    checkRemoteBackendsConnected lusr = do
-      let invitedRemoteUsers = filter ((/= tDomain lconv) . tDomain) $ snd (partitionQualified lusr $ NE.toList invited)
-          invitedRemoteDomains = Set.fromList $ tDomain <$> invitedRemoteUsers
-          existingRemoteDomains = Set.fromList $ tDomain . rmId <$> convRemoteMembers (tUnqualified lconv)
+    checkRemoteBackendsConnected :: Local x -> Sem r ()
+    checkRemoteBackendsConnected loc = do
+      let invitedRemoteUsers = snd . partitionQualified loc . NE.toList $ invited
+          invitedRemoteDomains = Set.fromList $ void <$> invitedRemoteUsers
+          existingRemoteDomains = Set.fromList $ void . rmId <$> convRemoteMembers (tUnqualified lconv)
           allInvitedAlreadyInConversation = null $ invitedRemoteDomains \\ existingRemoteDomains
 
       if not allInvitedAlreadyInConversation
@@ -551,7 +560,7 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
       ensureAccessRole (convAccessRoles conv) userMembershipMap
       ensureConnectedToLocalsOrSameTeam lusr newUsers
     checkLocals lusr Nothing newUsers = do
-      ensureAccessRole (convAccessRoles conv) (zip newUsers $ repeat Nothing)
+      ensureAccessRole (convAccessRoles conv) (map (,Nothing) newUsers)
       ensureConnectedToLocalsOrSameTeam lusr newUsers
 
     checkRemotes ::
@@ -606,6 +615,12 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
       FutureWork 'LegalholdPlusFederationNotImplemented [Remote UserId] ->
       Sem r ()
     checkLHPolicyConflictsRemote _remotes = pure ()
+
+    checkTeamMemberAddPermissions :: Local UserId -> Sem r ()
+    checkTeamMemberAddPermissions lusr =
+      forM (cnvmTeam (convMetadata conv)) (flip E.getTeamMember (tUnqualified lusr))
+        >>= (maybe (pure ()) (\tm -> unless (tm `hasPermission` AddRemoveConvMember) $ throwS @'InvalidOperation))
+          . join
 
 performConversationAccessData ::
   ( HasConversationActionEffects 'ConversationAccessDataTag r,
@@ -703,7 +718,7 @@ updateLocalConversation ::
     Member (ErrorS 'InvalidOperation) r,
     Member (ErrorS 'ConvNotFound) r,
     Member ExternalAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input UTCTime) r,
     Member (Logger (Log.Msg -> Log.Msg)) r,
     HasConversationActionEffects tag r,
@@ -743,7 +758,7 @@ updateLocalConversationUnchecked ::
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
     Member ExternalAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input UTCTime) r,
     Member (Logger (Log.Msg -> Log.Msg)) r,
     HasConversationActionEffects tag r
@@ -846,7 +861,7 @@ notifyConversationAction ::
   forall tag r.
   ( Member BackendNotificationQueueAccess r,
     Member ExternalAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input UTCTime) r,
     Member (Logger (Log.Msg -> Log.Msg)) r
   ) =>
@@ -897,7 +912,7 @@ notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
 -- or leaving. Finally, push out notifications to local users.
 updateLocalStateOfRemoteConv ::
   ( Member BrigAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member ExternalAccess r,
     Member (Input (Local ())) r,
     Member MemberStore r,
@@ -945,7 +960,7 @@ updateLocalStateOfRemoteConv rcu con = do
         E.deleteMembersInRemoteConversation rconvId users
         pure (Just sca, [])
       SConversationRemoveMembersTag -> do
-        let localUsers = getLocalUsers (tDomain loc) action
+        let localUsers = getLocalUsers (tDomain loc) . crmTargets $ action
         E.deleteMembersInRemoteConversation rconvId localUsers
         pure (Just sca, [])
       SConversationMemberUpdateTag ->
@@ -1024,7 +1039,7 @@ kickMember ::
     Member (Error InternalError) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member ProposalStore r,
     Member (Input UTCTime) r,
     Member (Input Env) r,
@@ -1051,12 +1066,12 @@ kickMember qusr lconv targets victim = void . runError @NoChanges $ do
     Nothing
     lconv
     (targets <> extraTargets)
-    (pure victim)
+    (ConversationRemoveMembers (pure victim) EdReasonRemoved)
 
 notifyTypingIndicator ::
   ( Member (Input UTCTime) r,
     Member (Input (Local ())) r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member FederatorAccess r
   ) =>
   Conversation ->
@@ -1087,7 +1102,7 @@ notifyTypingIndicator conv qusr mcon ts = do
   pure (tdu (fmap (tUnqualified . rmId) remoteMemsOrig))
 
 pushTypingIndicatorEvents ::
-  (Member GundeckAccess r) =>
+  (Member NotificationSubsystem r) =>
   Qualified UserId ->
   UTCTime ->
   [UserId] ->
@@ -1097,9 +1112,10 @@ pushTypingIndicatorEvents ::
   Sem r ()
 pushTypingIndicatorEvents qusr tEvent users mcon qcnv ts = do
   let e = Event qcnv Nothing qusr tEvent (EdTyping ts)
-  for_ (newPushLocal ListComplete (qUnqualified qusr) (ConvEvent e) (userRecipient <$> users)) $ \p ->
-    push1 $
-      p
-        & pushConn .~ mcon
-        & pushRoute .~ RouteDirect
-        & pushTransient .~ True
+  for_ (newPushLocal (qUnqualified qusr) (toJSONObject e) (userRecipient <$> users)) $ \p ->
+    pushNotifications
+      [ p
+          & pushConn .~ mcon
+          & pushRoute .~ PushV2.RouteDirect
+          & pushTransient .~ True
+      ]

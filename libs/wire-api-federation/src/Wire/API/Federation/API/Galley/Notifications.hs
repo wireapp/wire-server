@@ -24,6 +24,7 @@ import Data.Aeson
 import Data.Id
 import Data.Json.Util
 import Data.List.NonEmpty
+import Data.OpenApi (ToSchema)
 import Data.Qualified
 import Data.Range
 import Data.Time.Clock
@@ -34,7 +35,6 @@ import Wire.API.Federation.Component
 import Wire.API.Federation.Endpoint
 import Wire.API.Federation.HasNotificationEndpoint
 import Wire.API.MLS.SubConversation
-import Wire.API.MakesFederatedCall
 import Wire.API.Message
 import Wire.API.Util.Aeson
 import Wire.Arbitrary
@@ -47,63 +47,40 @@ data GalleyNotificationTag
   | OnUserDeletedConversationsTag
   deriving (Show, Eq, Generic, Bounded, Enum)
 
+instance IsNotificationTag GalleyNotificationTag where
+  type NotificationComponent _ = 'Galley
+
 instance HasNotificationEndpoint 'OnClientRemovedTag where
   type Payload 'OnClientRemovedTag = ClientRemovedRequest
   type NotificationPath 'OnClientRemovedTag = "on-client-removed"
-  type NotificationComponent 'OnClientRemovedTag = 'Galley
-  type
-    NotificationAPI 'OnClientRemovedTag 'Galley =
-      NotificationFedEndpointWithMods
-        '[ MakesFederatedCall 'Galley "on-mls-message-sent"
-         ]
-        (NotificationPath 'OnClientRemovedTag)
-        (Payload 'OnClientRemovedTag)
 
+-- used to notify this backend that a new message has been posted to a
+-- remote conversation
 instance HasNotificationEndpoint 'OnMessageSentTag where
   type Payload 'OnMessageSentTag = RemoteMessage ConvId
   type NotificationPath 'OnMessageSentTag = "on-message-sent"
-  type NotificationComponent 'OnMessageSentTag = 'Galley
-
-  -- used to notify this backend that a new message has been posted to a
-  -- remote conversation
-  type NotificationAPI 'OnMessageSentTag 'Galley = NotificationFedEndpoint 'OnMessageSentTag
 
 instance HasNotificationEndpoint 'OnMLSMessageSentTag where
   type Payload 'OnMLSMessageSentTag = RemoteMLSMessage
   type NotificationPath 'OnMLSMessageSentTag = "on-mls-message-sent"
-  type NotificationComponent 'OnMLSMessageSentTag = 'Galley
-  type NotificationAPI 'OnMLSMessageSentTag 'Galley = NotificationFedEndpoint 'OnMLSMessageSentTag
 
+-- used by the backend that owns a conversation to inform this backend of
+-- changes to the conversation
 instance HasNotificationEndpoint 'OnConversationUpdatedTag where
   type Payload 'OnConversationUpdatedTag = ConversationUpdate
   type NotificationPath 'OnConversationUpdatedTag = "on-conversation-updated"
-  type NotificationComponent 'OnConversationUpdatedTag = 'Galley
-
-  -- used by the backend that owns a conversation to inform this backend of
-  -- changes to the conversation
-  type NotificationAPI 'OnConversationUpdatedTag 'Galley = NotificationFedEndpoint 'OnConversationUpdatedTag
 
 instance HasNotificationEndpoint 'OnUserDeletedConversationsTag where
   type Payload 'OnUserDeletedConversationsTag = UserDeletedConversationsNotification
   type NotificationPath 'OnUserDeletedConversationsTag = "on-user-deleted-conversations"
-  type NotificationComponent 'OnUserDeletedConversationsTag = 'Galley
-  type
-    NotificationAPI 'OnUserDeletedConversationsTag 'Galley =
-      NotificationFedEndpointWithMods
-        '[ MakesFederatedCall 'Galley "on-mls-message-sent",
-           MakesFederatedCall 'Galley "on-conversation-updated",
-           MakesFederatedCall 'Brig "api-version"
-         ]
-        (NotificationPath 'OnUserDeletedConversationsTag)
-        (Payload 'OnUserDeletedConversationsTag)
 
 -- | All the notification endpoints return an 'EmptyResponse'.
 type GalleyNotificationAPI =
-  NotificationAPI 'OnClientRemovedTag 'Galley
-    :<|> NotificationAPI 'OnMessageSentTag 'Galley
-    :<|> NotificationAPI 'OnMLSMessageSentTag 'Galley
-    :<|> NotificationAPI 'OnConversationUpdatedTag 'Galley
-    :<|> NotificationAPI 'OnUserDeletedConversationsTag 'Galley
+  NotificationFedEndpoint 'OnClientRemovedTag
+    :<|> NotificationFedEndpoint 'OnMessageSentTag
+    :<|> NotificationFedEndpoint 'OnMLSMessageSentTag
+    :<|> NotificationFedEndpoint 'OnConversationUpdatedTag
+    :<|> NotificationFedEndpoint 'OnUserDeletedConversationsTag
 
 data ClientRemovedRequest = ClientRemovedRequest
   { user :: UserId,
@@ -113,6 +90,8 @@ data ClientRemovedRequest = ClientRemovedRequest
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ClientRemovedRequest)
   deriving (FromJSON, ToJSON) via (CustomEncoded ClientRemovedRequest)
+
+instance ToSchema ClientRemovedRequest
 
 -- Note: this is parametric in the conversation type to allow it to be used
 -- both for conversations with a fixed known domain (e.g. as the argument of the
@@ -133,6 +112,8 @@ data RemoteMessage conv = RemoteMessage
   deriving (Arbitrary) via (GenericUniform (RemoteMessage conv))
   deriving (ToJSON, FromJSON) via (CustomEncodedLensable (RemoteMessage conv))
 
+instance (ToSchema a) => ToSchema (RemoteMessage a)
+
 data RemoteMLSMessage = RemoteMLSMessage
   { time :: UTCTime,
     metadata :: MessageMetadata,
@@ -145,6 +126,8 @@ data RemoteMLSMessage = RemoteMLSMessage
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform RemoteMLSMessage)
   deriving (ToJSON, FromJSON) via (CustomEncoded RemoteMLSMessage)
+
+instance ToSchema RemoteMLSMessage
 
 data ConversationUpdate = ConversationUpdate
   { cuTime :: UTCTime,
@@ -168,6 +151,8 @@ instance ToJSON ConversationUpdate
 
 instance FromJSON ConversationUpdate
 
+instance ToSchema ConversationUpdate
+
 type UserDeletedNotificationMaxConvs = 1000
 
 data UserDeletedConversationsNotification = UserDeletedConversationsNotification
@@ -179,3 +164,5 @@ data UserDeletedConversationsNotification = UserDeletedConversationsNotification
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserDeletedConversationsNotification)
   deriving (FromJSON, ToJSON) via (CustomEncoded UserDeletedConversationsNotification)
+
+instance ToSchema UserDeletedConversationsNotification

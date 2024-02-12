@@ -4,7 +4,6 @@
 # dependencies are added or removed.
 { mkDerivation
 , amazonka
-, amazonka-core
 , amazonka-sqs
 , base
 , base64-bytestring
@@ -14,7 +13,6 @@
 , lib
 , proto-lens
 , resourcet
-, safe
 , text
 , time
 , unliftio
@@ -25,7 +23,6 @@ mkDerivation {
   src = gitignoreSource ./.;
   libraryHaskellDepends = [
     amazonka
-    amazonka-core
     amazonka-sqs
     base
     base64-bytestring
@@ -33,7 +30,6 @@ mkDerivation {
     lens
     proto-lens
     resourcet
-    safe
     text
     time
     unliftio

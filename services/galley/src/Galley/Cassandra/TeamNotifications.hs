@@ -35,6 +35,7 @@ import Data.List1 (List1)
 import Data.Range (Range, fromRange)
 import Data.Sequence (Seq, ViewL (..), ViewR (..), (<|), (><))
 import Data.Sequence qualified as Seq
+import Data.Time (nominalDay, nominalDiffTimeToSeconds)
 import Data.UUID.V1 qualified as UUID
 import Galley.Cassandra.Store
 import Galley.Data.TeamNotifications
@@ -84,8 +85,13 @@ add tid nid (Blob . JSON.encode -> payload) =
       \(?, ?, ?) \
       \USING TTL ?"
 
+-- |
+--
+-- >>> import Data.Time
+-- >>> formatTime defaultTimeLocale "%d days, %H hours, %M minutes, %S seconds" (secondsToNominalDiffTime (fromIntegral notificationTTLSeconds))
+-- "28 days, 0 hours, 0 minutes, 0 seconds"
 notificationTTLSeconds :: Int32
-notificationTTLSeconds = 24192200
+notificationTTLSeconds = round $ nominalDiffTimeToSeconds $ 28 * nominalDay
 
 fetch :: TeamId -> Maybe NotificationId -> Range 1 10000 Int32 -> Client ResultPage
 fetch tid since (fromRange -> size) = do

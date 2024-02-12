@@ -48,7 +48,6 @@
 , filepath
 , fsnotify
 , galley-types
-, geoip2
 , gitignoreSource
 , gundeck-types
 , hashable
@@ -90,7 +89,9 @@
 , pem
 , pipes
 , polysemy
+, polysemy-conc
 , polysemy-plugin
+, polysemy-time
 , polysemy-wire-zoo
 , postie
 , process
@@ -156,6 +157,7 @@
 , warp-tls
 , wire-api
 , wire-api-federation
+, wire-subsystems
 , yaml
 , zauth
 }:
@@ -192,7 +194,6 @@ mkDerivation {
     cql
     cryptobox-haskell
     currency-codes
-    data-default
     data-timeout
     dns
     dns-util
@@ -206,7 +207,6 @@ mkDerivation {
     filepath
     fsnotify
     galley-types
-    geoip2
     gundeck-types
     hashable
     HaskellNet
@@ -239,10 +239,11 @@ mkDerivation {
     openapi3
     optparse-applicative
     polysemy
+    polysemy-conc
     polysemy-plugin
+    polysemy-time
     polysemy-wire-zoo
     proto-lens
-    random
     random-shuffle
     raw-strings-qq
     resource-pool
@@ -288,6 +289,7 @@ mkDerivation {
     wai-utilities
     wire-api
     wire-api-federation
+    wire-subsystems
     yaml
     zauth
   ];

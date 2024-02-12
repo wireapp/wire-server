@@ -41,7 +41,7 @@ import Data.ByteString.Conversion
 import Data.ByteString.Lazy qualified as LB
 import Data.Domain
 import Data.Handle (Handle (Handle))
-import Data.Id hiding (client)
+import Data.Id
 import Data.Kind
 import Data.List1 qualified as List1
 import Data.Misc
@@ -60,8 +60,8 @@ import Test.Tasty.HUnit
 import Util
 import Wire.API.Asset
 import Wire.API.Connection
-import Wire.API.Event.Conversation (EdMemberLeftReason)
 import Wire.API.Event.Conversation qualified as Conv
+import Wire.API.Event.LeaveReason
 import Wire.API.Federation.API.Brig qualified as F
 import Wire.API.Federation.Component
 import Wire.API.Internal.Notification (Notification (..))
@@ -392,7 +392,7 @@ receiveConnectionAction ::
 receiveConnectionAction brig fedBrigClient uid1 quid2 action expectedReaction expectedRel = do
   res <-
     runFedClient @"send-connection-action" fedBrigClient (qDomain quid2) $
-      F.NewConnectionRequest (qUnqualified quid2) uid1 action
+      F.NewConnectionRequest (qUnqualified quid2) Nothing uid1 action
   liftIO $ do
     res @?= F.NewConnectionResponseOk expectedReaction
   assertConnectionQualified brig uid1 quid2 expectedRel
@@ -419,7 +419,7 @@ sendConnectionAction brig opts uid1 quid2 reaction expectedRel = do
     frComponent req @?= Brig
     frRPC req @?= "send-connection-action"
     eitherDecode (frBody req)
-      @?= Right (F.NewConnectionRequest uid1 (qUnqualified quid2) F.RemoteConnect)
+      @?= Right (F.NewConnectionRequest uid1 Nothing (qUnqualified quid2) F.RemoteConnect)
 
   liftIO $ assertBool "postConnectionQualified failed" $ statusCode res `elem` [200, 201]
   assertConnectionQualified brig uid1 quid2 expectedRel
@@ -582,6 +582,19 @@ nonce m brig uid cid =
     ( brig
         . paths ["clients", toByteString' cid, "nonce"]
         . zUser uid
+    )
+
+headNonceNginz ::
+  MonadHttp m =>
+  Nginz ->
+  ZAuth.Token ZAuth.Access ->
+  ClientId ->
+  m ResponseLBS
+headNonceNginz nginz t cid =
+  Bilge.head
+    ( nginz
+        . paths ["clients", toByteString' cid, "nonce"]
+        . header "Authorization" ("Bearer " <> toByteString' t)
     )
 
 createAccessToken :: (MonadHttp m, HasCallStack) => Brig -> UserId -> Text -> ClientId -> Maybe Proof -> m ResponseLBS

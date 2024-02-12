@@ -35,3 +35,5 @@ The table assumes the following:
 - When backend level config says that this feature is enabled, it is illegal to not specify domains at the backend level.
 - When backend level config says that this feature is disabled, the list of domains is ignored.
 - When team level feature is disabled, the accompanying domains are ignored.
+
+**Note:** When enabling this feature, it is important to provide your own domain in the list of domains, too. In the example above, `example.com` is your domain.

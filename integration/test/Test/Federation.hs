@@ -2,17 +2,17 @@
 
 module Test.Federation where
 
-import API.Brig qualified as BrigP
+import qualified API.Brig as BrigP
 import API.Galley
 import Control.Lens
 import Control.Monad.Codensity
 import Control.Monad.Reader
-import Data.ProtoLens qualified as Proto
+import qualified Data.ProtoLens as Proto
 import Data.ProtoLens.Labels ()
 import Notifications
 import Numeric.Lens
-import Proto.Otr qualified as Proto
-import Proto.Otr_Fields qualified as Proto
+import qualified Proto.Otr as Proto
+import qualified Proto.Otr_Fields as Proto
 import SetupHelpers
 import Testlib.Prelude
 import Testlib.ResourcePool
@@ -103,18 +103,18 @@ testNotificationsForOfflineBackends = do
           isDelUserLeaveUpConvNotif = allPreds [isConvLeaveNotif, isNotifConv upBackendConv, isNotifForUser delUser]
 
       do
-        newMsgNotif <- awaitMatch 10 isNewMessageNotif ws
+        newMsgNotif <- awaitMatch isNewMessageNotif ws
         newMsgNotif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject upBackendConv
         newMsgNotif %. "payload.0.data.text" `shouldMatchBase64` "success message for other user"
 
-        void $ awaitMatch 10 isOtherUser2LeaveUpConvNotif ws
-        void $ awaitMatch 10 isDelUserLeaveUpConvNotif ws
+        void $ awaitMatch isOtherUser2LeaveUpConvNotif ws
+        void $ awaitMatch isDelUserLeaveUpConvNotif ws
 
-        delUserDeletedNotif <- nPayload $ awaitMatch 10 isDeleteUserNotif ws
+        delUserDeletedNotif <- nPayload $ awaitMatch isDeleteUserNotif ws
         objQid delUserDeletedNotif `shouldMatch` objQid delUser
 
     runCodensity (startDynamicBackend downBackend mempty) $ \_ -> do
-      newMsgNotif <- awaitNotification downUser1 downClient1 noValue 5 isNewMessageNotif
+      newMsgNotif <- awaitNotification downUser1 downClient1 noValue isNewMessageNotif
       newMsgNotif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject upBackendConv
       newMsgNotif %. "payload.0.data.text" `shouldMatchBase64` "success message for down user"
 
@@ -124,11 +124,11 @@ testNotificationsForOfflineBackends = do
                 isNotifConv downBackendConv,
                 isNotifForUser delUser
               ]
-      void $ awaitNotification downUser1 downClient1 (Just newMsgNotif) 5 isDelUserLeaveDownConvNotif
+      void $ awaitNotification downUser1 downClient1 (Just newMsgNotif) isDelUserLeaveDownConvNotif
 
       -- FUTUREWORK: Uncomment after fixing this bug: https://wearezeta.atlassian.net/browse/WPB-3664
       -- void $ awaitNotification downUser1 downClient1 (Just newMsgNotif) 1 isOtherUser2LeaveUpConvNotif
-      -- void $ awaitNotification otherUser otherClient (Just newMsgNotif) 1 isDelUserLeaveDownConvNotif
+      -- void $ awaitNotification otherUser otherClient (Just newMsgNotif) isDelUserLeaveDownConvNotif
 
-      delUserDeletedNotif <- nPayload $ awaitNotification downUser1 downClient1 (Just newMsgNotif) 5 isDeleteUserNotif
+      delUserDeletedNotif <- nPayload $ awaitNotification downUser1 downClient1 (Just newMsgNotif) isDeleteUserNotif
       objQid delUserDeletedNotif `shouldMatch` objQid delUser

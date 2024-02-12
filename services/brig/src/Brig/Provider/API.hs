@@ -92,7 +92,7 @@ import OpenSSL.PEM qualified as SSL
 import OpenSSL.RSA qualified as SSL
 import OpenSSL.Random (randBytes)
 import Polysemy
-import Servant (NoContent (..), ServerT, (:<|>) (..))
+import Servant (ServerT, (:<|>) (..))
 import Ssl.Util qualified as SSL
 import System.Logger.Class (MonadLogger)
 import UnliftIO.Async (pooledMapConcurrentlyN_)
@@ -113,7 +113,7 @@ import Wire.API.Provider.External qualified as Ext
 import Wire.API.Provider.Service
 import Wire.API.Provider.Service qualified as Public
 import Wire.API.Provider.Service.Tag qualified as Public
-import Wire.API.Routes.Named (UntypedNamed (Named))
+import Wire.API.Routes.Named (Named (Named))
 import Wire.API.Routes.Public.Brig.Bot (BotAPI)
 import Wire.API.Routes.Public.Brig.Provider (ProviderAPI)
 import Wire.API.Routes.Public.Brig.Services (ServicesAPI)
@@ -392,7 +392,7 @@ updateService ::
   ProviderId ->
   ServiceId ->
   Public.UpdateService ->
-  (Handler r) NoContent
+  Handler r ()
 updateService pid sid upd = do
   guardSecondFactorDisabled Nothing
   _ <- wrapClientE (DB.lookupAccount pid) >>= maybeInvalidProvider
@@ -420,14 +420,13 @@ updateService pid sid upd = do
       newAssets
       tagsChange
       (serviceEnabled svc)
-      $> NoContent
 
 updateServiceConn ::
   Member GalleyProvider r =>
   ProviderId ->
   ServiceId ->
   Public.UpdateServiceConn ->
-  (Handler r) NoContent
+  Handler r ()
 updateServiceConn pid sid upd = do
   guardSecondFactorDisabled Nothing
   pass <- wrapClientE (DB.lookupPassword pid) >>= maybeBadCredentials
@@ -461,7 +460,6 @@ updateServiceConn pid sid upd = do
         if sconEnabled scon
           then DB.deleteServiceIndexes pid sid name tags
           else DB.insertServiceIndexes pid sid name tags
-  pure NoContent
 
 -- TODO: Send informational email to provider.
 
@@ -479,6 +477,7 @@ deleteService ::
 deleteService pid sid del = do
   guardSecondFactorDisabled Nothing
   pass <- wrapClientE (DB.lookupPassword pid) >>= maybeBadCredentials
+  -- We don't care about pwd status when deleting things
   unless (verifyPassword (deleteServicePassword del) pass) $
     throwStd (errorToWai @'E.BadCredentials)
   _ <- wrapClientE (DB.lookupService pid sid) >>= maybeServiceNotFound
@@ -523,6 +522,7 @@ deleteAccount pid del = do
   guardSecondFactorDisabled Nothing
   prov <- wrapClientE (DB.lookupAccount pid) >>= maybeInvalidProvider
   pass <- wrapClientE (DB.lookupPassword pid) >>= maybeBadCredentials
+  -- We don't care about pwd status when deleting things
   unless (verifyPassword (deleteProviderPassword del) pass) $
     throwStd (errorToWai @'E.BadCredentials)
   svcs <- wrapClientE $ DB.listServices pid
@@ -675,7 +675,7 @@ addBot zuid zcon cid add = do
   bid <- BotId <$> randomId
   domain <- viewFederationDomain
   btk <- Text.decodeLatin1 . toByteString' <$> ZAuth.newBotToken pid bid cid
-  let bcl = newClientId (fromIntegral (hash bid))
+  let bcl = ClientId (fromIntegral (hash bid))
   -- Ask the external service to create a bot
   let zQualifiedUid = Qualified zuid domain
   let origmem = OtherMember zQualifiedUid Nothing roleNameWireAdmin
@@ -704,7 +704,7 @@ addBot zuid zcon cid add = do
       -- if we want to protect bots against lh, 'addClient' cannot just send lh capability
       -- implicitly in the next line.
       pure $ FutureWork @'UnprotectedBot undefined
-    wrapClientE (User.addClient (botUserId bid) bcl newClt maxPermClients Nothing (Just $ Set.singleton Public.ClientSupportsLegalholdImplicitConsent))
+    wrapClientE (User.addClient (botUserId bid) bcl newClt maxPermClients (Just $ Set.singleton Public.ClientSupportsLegalholdImplicitConsent))
       !>> const (StdError badGateway) -- MalformedPrekeys
 
   -- Add the bot to the conversation

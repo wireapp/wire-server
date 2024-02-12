@@ -398,7 +398,7 @@ targetClientPush = do
     let p = view queuedNotificationPayload (Prelude.head ns)
     assertEqual "Wrong events in notification" (List1.toNonEmpty (pload c)) p
   where
-    pevent c = KeyMap.fromList ["foo" .= client c]
+    pevent c = KeyMap.fromList ["foo" .= clientToText c]
     pload c = List1.singleton (pevent c)
     rcpt u c =
       recipient u RouteAny
@@ -838,9 +838,8 @@ testSharePushToken = do
   gcmTok <- Token . T.decodeUtf8 . toByteString' <$> randomId
   apsTok <- Token . T.decodeUtf8 . B16.encode <$> randomBytes 32
   let tok1 = pushToken GCM "test" gcmTok
-  let tok2 = pushToken APNSVoIP "com.wire.dev.ent" apsTok
-  let tok3 = pushToken APNS "com.wire.int.ent" apsTok
-  forM_ [tok1, tok2, tok3] $ \tk -> do
+  let tok2 = pushToken APNS "com.wire.int.ent" apsTok
+  forM_ [tok1, tok2] $ \tk -> do
     u1 <- randomUser
     u2 <- randomUser
     c1 <- randomClientId
@@ -1213,7 +1212,7 @@ randomConnId =
       pure $ C.pack $ show r
 
 randomClientId :: MonadIO m => m ClientId
-randomClientId = liftIO $ newClientId <$> (randomIO :: IO Word64)
+randomClientId = liftIO $ ClientId <$> (randomIO :: IO Word64)
 
 randomBytes :: MonadIO m => Int -> m ByteString
 randomBytes n = liftIO $ BS.pack <$> replicateM n (randomIO :: IO Word8)

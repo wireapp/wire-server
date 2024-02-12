@@ -32,6 +32,7 @@
   wire-api-federation = hself.callPackage ../libs/wire-api-federation/default.nix { inherit gitignoreSource; };
   wire-api = hself.callPackage ../libs/wire-api/default.nix { inherit gitignoreSource; };
   wire-message-proto-lens = hself.callPackage ../libs/wire-message-proto-lens/default.nix { inherit gitignoreSource; };
+  wire-subsystems = hself.callPackage ../libs/wire-subsystems/default.nix { inherit gitignoreSource; };
   zauth = hself.callPackage ../libs/zauth/default.nix { inherit gitignoreSource; };
   background-worker = hself.callPackage ../services/background-worker/default.nix { inherit gitignoreSource; };
   brig = hself.callPackage ../services/brig/default.nix { inherit gitignoreSource; };
@@ -56,4 +57,5 @@
   rabbitmq-consumer = hself.callPackage ../tools/rabbitmq-consumer/default.nix { inherit gitignoreSource; };
   rex = hself.callPackage ../tools/rex/default.nix { inherit gitignoreSource; };
   stern = hself.callPackage ../tools/stern/default.nix { inherit gitignoreSource; };
+  test-stats = hself.callPackage ../tools/test-stats/default.nix { inherit gitignoreSource; };
 }

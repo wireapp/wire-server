@@ -37,6 +37,7 @@ import Data.UUID.V4 as UUID
 import qualified Galley.Types.Teams as Teams
 import Imports
 import qualified Network.Wai.Utilities as Error
+import Polysemy.Error (runError)
 import qualified SAML2.WebSSO as SAML
 import SAML2.WebSSO.Types (IdPId, idpId)
 import qualified Spar.Intra.BrigApp as Intra
@@ -52,6 +53,7 @@ import qualified Web.Scim.Class.User as Scim
 import qualified Web.Scim.Filter as Filter
 import qualified Web.Scim.Filter as Scim
 import qualified Web.Scim.Schema.Common as Scim
+import qualified Web.Scim.Schema.Error as Scim
 import qualified Web.Scim.Schema.ListResponse as Scim
 import qualified Web.Scim.Schema.Meta as Scim
 import qualified Web.Scim.Schema.PatchOp as Scim.PatchOp
@@ -170,6 +172,19 @@ randomScimUserWithEmail = do
           Scim.User.externalId = Just externalId
         },
       email
+    )
+
+randomScimUserWithNick :: MonadRandom m => m (Scim.User.User SparTag, Text)
+randomScimUserWithNick = do
+  suffix <- cs <$> replicateM 7 (getRandomR ('0', '9'))
+  let nick = "nick" <> suffix
+      externalId = nick
+  pure
+    ( (Scim.User.empty userSchemas ("scimuser_" <> suffix) (ScimUserExtra mempty))
+        { Scim.User.displayName = Just ("ScimUser" <> suffix),
+          Scim.User.externalId = Just externalId
+        },
+      nick
     )
 
 randomScimEmail :: MonadRandom m => m Email.Email
@@ -629,7 +644,7 @@ instance IsUser (WrappedScimUser SparTag) where
   maybeLocale =
     Just
       ( \u ->
-          case Scim.User.preferredLanguage (fromWrappedScimUser u) >>= (\l -> parseLanguage l <&> flip Locale Nothing) of
+          case Scim.User.preferredLanguage (fromWrappedScimUser u) >>= (fmap (flip Locale Nothing) . parseLanguage) of
             -- this should match the default user locale in brig options
             Nothing -> Just (Locale (Language EN) Nothing)
             Just l -> Just l
@@ -691,10 +706,12 @@ userShouldMatch u1 u2 = liftIO $ do
 -- floor.  This function calls the spar functions that do that.  This allows us to express
 -- what we expect a user that comes back from spar to look like in terms of what it looked
 -- like when we sent it there.
-whatSparReturnsFor :: HasCallStack => IdP -> Int -> Scim.User.User SparTag -> Either String (Scim.User.User SparTag)
-whatSparReturnsFor idp richInfoSizeLimit =
-  either (Left . show) (Right . synthesizeScimUser)
-    . validateScimUser' "whatSparReturnsFor" (Just idp) richInfoSizeLimit
+whatSparReturnsFor :: HasCallStack => IdP -> Int -> Scim.User.User SparTag -> TestSpar (Either String (Scim.User.User SparTag))
+whatSparReturnsFor idp richInfoSizeLimit user = do
+  eitherValidatedScimUser <- runSpar $ runError @Scim.ScimError $ validateScimUser' "whatSparReturnsFor" (Just idp) richInfoSizeLimit user
+  pure $ case eitherValidatedScimUser of
+    Left err -> Left (show err)
+    Right validatedScimUser -> Right $ synthesizeScimUser validatedScimUser
 
 setPreferredLanguage :: Language -> Scim.User.User SparTag -> Scim.User.User SparTag
 setPreferredLanguage lang u =

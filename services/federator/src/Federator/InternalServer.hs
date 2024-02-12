@@ -24,8 +24,11 @@ import Control.Monad.Codensity
 import Data.Binary.Builder
 import Data.ByteString qualified as BS
 import Data.Domain
+import Data.Id
 import Data.Metrics.Servant qualified as Metrics
 import Data.Proxy
+import Data.UUID as UUID
+import Data.UUID.V4 as UUID
 import Federator.Env
 import Federator.Error.ServerError
 import Federator.Health qualified as Health
@@ -45,10 +48,11 @@ import Servant.API
 import Servant.API.Extended.Endpath
 import Servant.Server (Tagged (..))
 import Servant.Server.Generic
+import System.Logger (msg, val, (.=), (~~))
 import System.Logger.Class qualified as Log
 import Wire.API.Federation.Component
 import Wire.API.Routes.FederationDomainConfig
-import Wire.Sem.Logger (Logger, debug)
+import Wire.Sem.Logger (Logger, debug, info)
 
 data API mode = API
   { status ::
@@ -62,6 +66,7 @@ data API mode = API
     internalRequest ::
       mode
         :- "rpc"
+          :> Header "Wire-Origin-Request-Id" RequestId
           :> Capture "domain" Domain
           :> Capture "component" Component
           :> Capture "rpc" RPC
@@ -89,8 +94,8 @@ server ::
 server mgr extPort interpreter =
   API
     { status = Health.status mgr "external server" extPort,
-      internalRequest = \remoteDomain component rpc ->
-        Tagged $ \req respond -> runCodensity (interpreter (callOutward remoteDomain component rpc req)) respond
+      internalRequest = \mReqId remoteDomain component rpc ->
+        Tagged $ \req respond -> runCodensity (interpreter (callOutward mReqId remoteDomain component rpc req)) respond
     }
 
 callOutward ::
@@ -102,12 +107,23 @@ callOutward ::
     Member Metrics r,
     Member (Logger (Log.Msg -> Log.Msg)) r
   ) =>
+  Maybe RequestId ->
   Domain ->
   Component ->
   RPC ->
   Wai.Request ->
   Sem r Wai.Response
-callOutward targetDomain component (RPC path) req = do
+callOutward mReqId targetDomain component (RPC path) req = do
+  rid <- case mReqId of
+    Just r -> pure r
+    Nothing -> do
+      localRid <- liftIO $ RequestId . cs . UUID.toText <$> UUID.nextRandom
+      info $
+        "request-id" .= localRid
+          ~~ "method" .= Wai.requestMethod req
+          ~~ "path" .= Wai.rawPathInfo req
+          ~~ msg (val "generated a new request id for local request")
+      pure localRid
   -- only POST is supported
   when (Wai.requestMethod req /= HTTP.methodPost) $
     throw InvalidRoute
@@ -125,6 +141,7 @@ callOutward targetDomain component (RPC path) req = do
       . Log.field "body" body
   resp <-
     discoverAndCall
+      rid
       targetDomain
       component
       path

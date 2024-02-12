@@ -95,7 +95,7 @@ instance Show ClientIdentity where
   show (ClientIdentity dom u c) =
     show u
       <> ":"
-      <> T.unpack (client c)
+      <> T.unpack (clientToText c)
       <> "@"
       <> T.unpack (domainText dom)
 
@@ -129,19 +129,20 @@ instance ParseMLS ClientIdentity where
     uid <-
       maybe (fail "Invalid UUID") (pure . Id) . fromASCIIBytes =<< getByteString 36
     char ':'
-    cid <- newClientId <$> hexadecimal
+    cid <- ClientId <$> hexadecimal
     char '@'
     dom <-
       either fail pure . (mkDomain . T.pack) =<< many' anyChar
     pure $ ClientIdentity dom uid cid
 
+-- format of the x509 client identity: {userid}%21{deviceid}@{host}
 parseX509ClientIdentity :: Get ClientIdentity
 parseX509ClientIdentity = do
   b64uuid <- getByteString 22
   uidBytes <- either fail pure $ B64URL.decodeUnpadded b64uuid
   uid <- maybe (fail "Invalid UUID") (pure . Id) $ fromByteString (L.fromStrict uidBytes)
-  char '/'
-  cid <- newClientId <$> hexadecimal
+  string "%21"
+  cid <- ClientId <$> hexadecimal
   char '@'
   dom <-
     either fail pure . (mkDomain . T.pack) =<< many' anyChar
@@ -151,7 +152,7 @@ instance SerialiseMLS ClientIdentity where
   serialiseMLS cid = do
     putByteString $ toASCIIBytes (toUUID (ciUser cid))
     putCharUtf8 ':'
-    putStringUtf8 $ T.unpack (client (ciClient cid))
+    putStringUtf8 $ T.unpack (clientToText (ciClient cid))
     putCharUtf8 '@'
     putStringUtf8 $ T.unpack (domainText (ciDomain cid))
 

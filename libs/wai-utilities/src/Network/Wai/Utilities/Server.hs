@@ -220,9 +220,9 @@ errorHandlers =
       ZlibException _ ->
         pure . Left $
           Wai.mkError status500 "server-error" "Server Error",
-    Handler $ \(_ :: SomeException) ->
+    Handler $ \(e :: SomeException) ->
       pure . Left $
-        Wai.mkError status500 "server-error" "Server Error"
+        Wai.mkError status500 "server-error" ("Server Error. " <> cs (displayException e))
   ]
 {-# INLINE errorHandlers #-}
 
@@ -392,16 +392,16 @@ logJSONResponse g mr e = do
       | otherwise = Log.debug
 
 logErrorMsg :: Wai.Error -> Msg -> Msg
-logErrorMsg (Wai.Error c l m md) =
+logErrorMsg (Wai.Error c l m md inner) =
   field "code" (statusCode c)
     . field "label" l
     . maybe id logErrorData md
     . msg (val "\"" +++ m +++ val "\"")
+    . maybe id logErrorMsg inner
   where
-    logErrorData (Wai.FederationErrorData d p b) =
+    logErrorData (Wai.FederationErrorData d p) =
       field "domain" (domainText d)
         . field "path" p
-        . field "response" (fromMaybe "" b)
 
 logErrorMsgWithRequest :: Maybe ByteString -> Wai.Error -> Msg -> Msg
 logErrorMsgWithRequest mr e =

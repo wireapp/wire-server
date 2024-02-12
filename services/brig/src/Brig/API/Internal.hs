@@ -19,7 +19,6 @@ module Brig.API.Internal
     servantSitemap,
     BrigIRoutes.API,
     getMLSClients,
-    getFederationRemotes,
   )
 where
 
@@ -38,12 +37,13 @@ import Brig.Code qualified as Code
 import Brig.Data.Activation
 import Brig.Data.Client qualified as Data
 import Brig.Data.Connection qualified as Data
-import Brig.Data.Federation qualified as Data
 import Brig.Data.MLS.KeyPackage qualified as Data
 import Brig.Data.User qualified as Data
 import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
 import Brig.Effects.BlacklistStore (BlacklistStore)
 import Brig.Effects.CodeStore (CodeStore)
+import Brig.Effects.FederationConfigStore (AddFederationRemoteResult (..), AddFederationRemoteTeamResult (..), FederationConfigStore, UpdateFederationResult (..))
+import Brig.Effects.FederationConfigStore qualified as E
 import Brig.Effects.GalleyProvider (GalleyProvider)
 import Brig.Effects.PasswordResetStore (PasswordResetStore)
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
@@ -62,7 +62,8 @@ import Brig.User.API.Search qualified as Search
 import Brig.User.EJPD qualified
 import Brig.User.Search.Index qualified as Index
 import Control.Error hiding (bool)
-import Control.Lens (view, (^.))
+import Control.Lens (view)
+import Data.ByteString.Conversion (toByteString)
 import Data.CommaSeparatedList
 import Data.Domain (Domain)
 import Data.Handle
@@ -75,11 +76,11 @@ import Imports hiding (head)
 import Network.Wai.Routing hiding (toList)
 import Network.Wai.Utilities as Utilities
 import Polysemy
+import Polysemy.TinyLog (TinyLog)
 import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.OpenApi.Internal.Orphans ()
 import System.Logger.Class qualified as Log
-import System.Random (randomRIO)
-import UnliftIO.Async
+import UnliftIO.Async (pooledMapConcurrentlyN)
 import Wire.API.Connection
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
@@ -95,6 +96,8 @@ import Wire.API.User
 import Wire.API.User.Activation
 import Wire.API.User.Client
 import Wire.API.User.RichInfo
+import Wire.NotificationSubsystem
+import Wire.Sem.Concurrency
 
 ---------------------------------------------------------------------------
 -- Sitemap (servant)
@@ -106,7 +109,12 @@ servantSitemap ::
     Member BlacklistPhonePrefixStore r,
     Member PasswordResetStore r,
     Member GalleyProvider r,
-    Member (UserPendingActivationStore p) r
+    Member (UserPendingActivationStore p) r,
+    Member FederationConfigStore r,
+    Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member TinyLog r,
+    Member (Concurrency 'Unsafe) r
   ) =>
   ServerT BrigIRoutes.API (Handler r)
 servantSitemap =
@@ -127,7 +135,7 @@ istatusAPI :: forall r. ServerT BrigIRoutes.IStatusAPI (Handler r)
 istatusAPI = Named @"get-status" (pure NoContent)
 
 ejpdAPI ::
-  (Member GalleyProvider r) =>
+  (Member GalleyProvider r, Member NotificationSubsystem r) =>
   ServerT BrigIRoutes.EJPD_API (Handler r)
 ejpdAPI =
   Brig.User.EJPD.ejpdRequest
@@ -146,7 +154,10 @@ accountAPI ::
     Member BlacklistPhonePrefixStore r,
     Member PasswordResetStore r,
     Member GalleyProvider r,
-    Member (UserPendingActivationStore p) r
+    Member (UserPendingActivationStore p) r,
+    Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member TinyLog r
   ) =>
   ServerT BrigIRoutes.AccountAPI (Handler r)
 accountAPI =
@@ -186,7 +197,11 @@ accountAPI =
 teamsAPI ::
   ( Member GalleyProvider r,
     Member (UserPendingActivationStore p) r,
-    Member BlacklistStore r
+    Member BlacklistStore r,
+    Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member (Concurrency 'Unsafe) r,
+    Member TinyLog r
   ) =>
   ServerT BrigIRoutes.TeamsAPI (Handler r)
 teamsAPI =
@@ -207,122 +222,87 @@ userAPI =
 clientAPI :: ServerT BrigIRoutes.ClientAPI (Handler r)
 clientAPI = Named @"update-client-last-active" updateClientLastActive
 
-authAPI :: (Member GalleyProvider r) => ServerT BrigIRoutes.AuthAPI (Handler r)
+authAPI ::
+  ( Member GalleyProvider r,
+    Member TinyLog r,
+    Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r
+  ) =>
+  ServerT BrigIRoutes.AuthAPI (Handler r)
 authAPI =
   Named @"legalhold-login" (callsFed (exposeAnnotations legalHoldLogin))
     :<|> Named @"sso-login" (callsFed (exposeAnnotations ssoLogin))
     :<|> Named @"login-code" getLoginCode
     :<|> Named @"reauthenticate" reauthenticate
 
-federationRemotesAPI :: ServerT BrigIRoutes.FederationRemotesAPI (Handler r)
+federationRemotesAPI :: (Member FederationConfigStore r) => ServerT BrigIRoutes.FederationRemotesAPI (Handler r)
 federationRemotesAPI =
   Named @"add-federation-remotes" addFederationRemote
     :<|> Named @"get-federation-remotes" getFederationRemotes
     :<|> Named @"update-federation-remotes" updateFederationRemote
+    :<|> Named @"add-federation-remote-team" addFederationRemoteTeam
+    :<|> Named @"get-federation-remote-teams" getFederationRemoteTeams
+    :<|> Named @"delete-federation-remote-team" deleteFederationRemoteTeam
 
-addFederationRemote :: FederationDomainConfig -> ExceptT Brig.API.Error.Error (AppT r) ()
+deleteFederationRemoteTeam :: (Member FederationConfigStore r) => Domain -> TeamId -> (Handler r) ()
+deleteFederationRemoteTeam domain teamId =
+  lift $ liftSem $ E.removeFederationRemoteTeam domain teamId
+
+getFederationRemoteTeams :: (Member FederationConfigStore r) => Domain -> (Handler r) [FederationRemoteTeam]
+getFederationRemoteTeams domain =
+  lift $ liftSem $ E.getFederationRemoteTeams domain
+
+addFederationRemoteTeam :: (Member FederationConfigStore r) => Domain -> FederationRemoteTeam -> (Handler r) ()
+addFederationRemoteTeam domain rt =
+  lift (liftSem $ E.addFederationRemoteTeam domain rt.teamId) >>= \case
+    AddFederationRemoteTeamSuccess -> pure ()
+    AddFederationRemoteTeamDomainNotFound ->
+      throwError . fedError . FederationUnexpectedError $
+        "Federation domain does not exist.  Please add it first."
+    AddFederationRemoteTeamRestrictionAllowAll ->
+      throwError . fedError . FederationUnexpectedError $
+        "Federation is not configured to be restricted by teams. Therefore adding a team to a \
+        \remote domain is not allowed."
+
+getFederationRemotes :: (Member FederationConfigStore r) => (Handler r) FederationDomainConfigs
+getFederationRemotes = lift $ liftSem $ E.getFederationConfigs
+
+addFederationRemote :: (Member FederationConfigStore r) => FederationDomainConfig -> (Handler r) ()
 addFederationRemote fedDomConf = do
-  assertNoDivergingDomainInConfigFiles fedDomConf
-  result <- lift . wrapClient $ Data.addFederationRemote fedDomConf
-  case result of
-    Data.AddFederationRemoteSuccess -> pure ()
-    Data.AddFederationRemoteMaxRemotesReached ->
+  lift (liftSem $ E.addFederationConfig fedDomConf) >>= \case
+    AddFederationRemoteSuccess -> pure ()
+    AddFederationRemoteMaxRemotesReached ->
       throwError . fedError . FederationUnexpectedError $
         "Maximum number of remote backends reached.  If you need to create more connections, \
         \please contact wire.com."
+    AddFederationRemoteDivergingConfig cfg ->
+      throwError . fedError . FederationUnexpectedError $
+        "keeping track of remote domains in the brig config file is deprecated, but as long as we \
+        \do that, adding a domain with different settings than in the config file is not allowed.  want "
+          <> ( "Just "
+                 <> cs (show fedDomConf)
+                 <> "or Nothing, "
+             )
+          <> ( "got "
+                 <> cs (show (Map.lookup (domain fedDomConf) cfg))
+             )
 
--- | Compile config file list into a map indexed by domains.  Use this to make sure the config
--- file is consistent (ie., no two entries for the same domain).
-remotesMapFromCfgFile :: AppT r (Map Domain FederationDomainConfig)
-remotesMapFromCfgFile = do
-  cfg <- asks (fromMaybe [] . setFederationDomainConfigs . view settings)
-  let dict = [(domain cnf, cnf) | cnf <- cfg]
-      merge c c' =
-        if c == c'
-          then c
-          else error $ "error in config file: conflicting parameters on domain: " <> show (c, c')
-  pure $ Map.fromListWith merge dict
-
--- | Return the config file list.  Use this to make sure the config file is consistent (ie.,
--- no two entries for the same domain).  Based on `remotesMapFromCfgFile`.
-remotesListFromCfgFile :: AppT r [FederationDomainConfig]
-remotesListFromCfgFile = Map.elems <$> remotesMapFromCfgFile
-
--- | If remote domain is registered in config file, the version that can be added to the
--- database must be the same.
-assertNoDivergingDomainInConfigFiles :: FederationDomainConfig -> ExceptT Brig.API.Error.Error (AppT r) ()
-assertNoDivergingDomainInConfigFiles fedComConf = do
-  cfg <- lift remotesMapFromCfgFile
-  let diverges = case Map.lookup (domain fedComConf) cfg of
-        Nothing -> False
-        Just fedComConf' -> fedComConf' /= fedComConf
-  when diverges $ do
-    throwError . fedError . FederationUnexpectedError $
-      "keeping track of remote domains in the brig config file is deprecated, but as long as we \
-      \do that, adding a domain with different settings than in the config file is nto allowed.  want "
-        <> ( "Just "
-               <> cs (show fedComConf)
-               <> "or Nothing, "
-           )
-        <> ( "got "
-               <> cs (show (Map.lookup (domain fedComConf) cfg))
-           )
-
-getFederationRemotes :: ExceptT Brig.API.Error.Error (AppT r) FederationDomainConfigs
-getFederationRemotes = lift $ do
-  -- FUTUREWORK: we should solely rely on `db` in the future for remote domains; merging
-  -- remote domains from `cfg` is just for providing an easier, more robust migration path.
-  -- See
-  -- https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections,
-  -- http://docs.wire.com/developer/developer/federation-design-aspects.html#configuring-remote-connections-dev-perspective
-  db <- wrapClient Data.getFederationRemotes
-  (ms :: Maybe FederationStrategy, mf :: [FederationDomainConfig], mu :: Maybe Int) <- do
-    cfg <- ask
-    domcfgs <- remotesListFromCfgFile -- (it's not very elegant to prove the env twice here, but this code is transitory.)
-    pure
-      ( setFederationStrategy (cfg ^. settings),
-        domcfgs,
-        setFederationDomainConfigsUpdateFreq (cfg ^. settings)
-      )
-
-  -- update frequency settings of `<1` are interpreted as `1 second`.  only warn about this every now and
-  -- then, that'll be noise enough for the logs given the traffic on this end-point.
-  unless (maybe True (> 0) mu) $
-    randomRIO (0 :: Int, 1000)
-      >>= \case
-        0 -> Log.warn (Log.msg (Log.val "Invalid brig configuration: setFederationDomainConfigsUpdateFreq must be > 0.  setting to 1 second."))
-        _ -> pure ()
-
-  defFederationDomainConfigs
-    & maybe id (\v cfg -> cfg {strategy = v}) ms
-    & (\cfg -> cfg {remotes = nub $ db <> mf})
-    & maybe id (\v cfg -> cfg {updateInterval = min 1 v}) mu
-    & pure
-
-updateFederationRemote :: Domain -> FederationDomainConfig -> ExceptT Brig.API.Error.Error (AppT r) ()
+updateFederationRemote :: (Member FederationConfigStore r) => Domain -> FederationDomainConfig -> (Handler r) ()
 updateFederationRemote dom fedcfg = do
-  assertDomainIsNotUpdated dom fedcfg
-  assertNoDomainsFromConfigFiles dom
-  (lift . wrapClient . Data.updateFederationRemote $ fedcfg) >>= \case
-    True -> pure ()
-    False ->
+  if (dom /= fedcfg.domain)
+    then
       throwError . fedError . FederationUnexpectedError . cs $
-        "federation domain does not exist and cannot be updated: " <> show (dom, fedcfg)
-
-assertDomainIsNotUpdated :: Domain -> FederationDomainConfig -> ExceptT Brig.API.Error.Error (AppT r) ()
-assertDomainIsNotUpdated dom fedcfg = do
-  when (dom /= domain fedcfg) $
-    throwError . fedError . FederationUnexpectedError . cs $
-      "federation domain of a given peer cannot be changed from " <> show (domain fedcfg) <> " to " <> show dom <> "."
-
--- | FUTUREWORK: should go away in the future; see 'getFederationRemotes'.
-assertNoDomainsFromConfigFiles :: Domain -> ExceptT Brig.API.Error.Error (AppT r) ()
-assertNoDomainsFromConfigFiles dom = do
-  cfg <- asks (fromMaybe [] . setFederationDomainConfigs . view settings)
-  when (dom `elem` (domain <$> cfg)) $ do
-    throwError . fedError . FederationUnexpectedError $
-      "keeping track of remote domains in the brig config file is deprecated, but as long as we \
-      \do that, removing or updating items listed in the config file is not allowed."
+        "federation domain of a given peer cannot be changed from " <> show (domain fedcfg) <> " to " <> show dom <> "."
+    else
+      lift (liftSem (E.updateFederationConfig fedcfg)) >>= \case
+        UpdateFederationSuccess -> pure ()
+        UpdateFederationRemoteNotFound ->
+          throwError . fedError . FederationUnexpectedError . cs $
+            "federation domain does not exist and cannot be updated: " <> show (dom, fedcfg)
+        UpdateFederationRemoteDivergingConfig ->
+          throwError . fedError . FederationUnexpectedError $
+            "keeping track of remote domains in the brig config file is deprecated, but as long as we \
+            \do that, removing or updating items listed in the config file is not allowed."
 
 -- | Responds with 'Nothing' if field is NULL in existing user or user does not exist.
 getAccountConferenceCallingConfig :: UserId -> (Handler r) (ApiFt.WithStatusNoLock ApiFt.ConferenceCallingConfig)
@@ -343,7 +323,7 @@ getMLSClients usr suite = do
   lusr <- qualifyLocal usr
   suiteTag <- maybe (mlsProtocolError "Unknown ciphersuite") pure (cipherSuiteTag suite)
   allClients <- lift (wrapClient (API.lookupUsersClientIds (pure usr))) >>= getResult
-  clientInfo <- lift . wrapClient $ pooledMapConcurrentlyN 16 (\c -> getValidity lusr c suiteTag) (toList allClients)
+  clientInfo <- lift . wrapClient $ UnliftIO.Async.pooledMapConcurrentlyN 16 (\c -> getValidity lusr c suiteTag) (toList allClients)
   pure . Set.fromList . map (uncurry ClientInfo) $ clientInfo
   where
     getResult [] = pure mempty
@@ -387,7 +367,11 @@ sitemap = unsafeCallsFed @'Brig @"on-user-deleted-connections" $ do
 
 -- | Add a client without authentication checks
 addClientInternalH ::
-  (Member GalleyProvider r) =>
+  ( Member GalleyProvider r,
+    Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member TinyLog r
+  ) =>
   UserId ->
   Maybe Bool ->
   NewClient ->
@@ -397,13 +381,26 @@ addClientInternalH usr mSkipReAuth new connId = do
   let policy
         | mSkipReAuth == Just True = \_ _ -> False
         | otherwise = Data.reAuthForNewClients
-  API.addClientWithReAuthPolicy policy usr connId Nothing new !>> clientError
+  API.addClientWithReAuthPolicy policy usr connId new !>> clientError
 
-legalHoldClientRequestedH :: UserId -> LegalHoldClientRequest -> (Handler r) NoContent
+legalHoldClientRequestedH ::
+  ( Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member TinyLog r
+  ) =>
+  UserId ->
+  LegalHoldClientRequest ->
+  (Handler r) NoContent
 legalHoldClientRequestedH targetUser clientRequest = do
   lift $ NoContent <$ API.legalHoldClientRequested targetUser clientRequest
 
-removeLegalHoldClientH :: UserId -> (Handler r) NoContent
+removeLegalHoldClientH ::
+  ( Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member TinyLog r
+  ) =>
+  UserId ->
+  (Handler r) NoContent
 removeLegalHoldClientH uid = do
   lift $ NoContent <$ API.removeLegalHoldClient uid
 
@@ -419,7 +416,10 @@ internalListFullClientsH (UserSet usrs) = lift $ do
 createUserNoVerify ::
   ( Member BlacklistStore r,
     Member GalleyProvider r,
-    Member (UserPendingActivationStore p) r
+    Member (UserPendingActivationStore p) r,
+    Member TinyLog r,
+    Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r
   ) =>
   NewUser ->
   (Handler r) (Either RegisterError SelfProfile)
@@ -437,7 +437,11 @@ createUserNoVerify uData = lift . runExceptT $ do
   pure . SelfProfile $ usr
 
 createUserNoVerifySpar ::
-  (Member GalleyProvider r) =>
+  ( Member GalleyProvider r,
+    Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member TinyLog r
+  ) =>
   NewUserSpar ->
   (Handler r) (Either CreateUserSparError SelfProfile)
 createUserNoVerifySpar uData =
@@ -454,9 +458,15 @@ createUserNoVerifySpar uData =
        in API.activate key code (Just uid) !>> CreateUserSparRegistrationError . activationErrorToRegisterError
     pure . SelfProfile $ usr
 
-deleteUserNoAuthH :: UserId -> (Handler r) DeleteUserResponse
+deleteUserNoAuthH ::
+  ( Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member TinyLog r
+  ) =>
+  UserId ->
+  (Handler r) DeleteUserResponse
 deleteUserNoAuthH uid = do
-  r <- lift $ wrapHttp $ API.ensureAccountDeleted uid
+  r <- lift $ API.ensureAccountDeleted uid
   case r of
     NoUser -> throwStd (errorToWai @'E.UserNotFound)
     AccountAlreadyDeleted -> pure UserResponseAccountAlreadyDeleted
@@ -564,9 +574,17 @@ getPasswordResetCode ::
 getPasswordResetCode emailOrPhone =
   (GetPasswordResetCodeResp <$$> lift (API.lookupPasswordResetCode emailOrPhone)) >>= maybe (throwStd (errorToWai @'E.InvalidPasswordResetKey)) pure
 
-changeAccountStatusH :: UserId -> AccountStatusUpdate -> (Handler r) NoContent
+changeAccountStatusH ::
+  ( Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member TinyLog r
+  ) =>
+  UserId ->
+  AccountStatusUpdate ->
+  (Handler r) NoContent
 changeAccountStatusH usr (suStatus -> status) = do
-  wrapHttpClientE (API.changeSingleAccountStatus usr status) !>> accountStatusError -- FUTUREWORK: use CanThrow and related machinery
+  Log.info $ (Log.msg (Log.val "Change Account Status")) . Log.field "usr" (toByteString usr) . Log.field "status" (show status)
+  API.changeSingleAccountStatus usr status !>> accountStatusError -- FUTUREWORK: use CanThrow and related machinery
   pure NoContent
 
 getAccountStatusH :: UserId -> (Handler r) AccountStatusResp
@@ -601,12 +619,25 @@ getConnectionsStatus (ConnectionsStatusRequestV2 froms mtos mrel) = do
   where
     filterByRelation l rel = filter ((== rel) . csv2Status) l
 
-revokeIdentityH :: Maybe Email -> Maybe Phone -> (Handler r) NoContent
+revokeIdentityH ::
+  ( Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member TinyLog r
+  ) =>
+  Maybe Email ->
+  Maybe Phone ->
+  (Handler r) NoContent
 revokeIdentityH (Just email) Nothing = lift $ NoContent <$ API.revokeIdentity (Left email)
 revokeIdentityH Nothing (Just phone) = lift $ NoContent <$ API.revokeIdentity (Right phone)
 revokeIdentityH bade badp = throwStd (badRequest ("need exactly one of email, phone: " <> Imports.cs (show (bade, badp))))
 
-updateConnectionInternalH :: UpdateConnectionsInternal -> (Handler r) NoContent
+updateConnectionInternalH ::
+  ( Member NotificationSubsystem r,
+    Member TinyLog r,
+    Member (Embed HttpClientIO) r
+  ) =>
+  UpdateConnectionsInternal ->
+  (Handler r) NoContent
 updateConnectionInternalH updateConn = do
   API.updateConnectionInternal updateConn !>> connError
   pure NoContent
@@ -651,21 +682,34 @@ deleteFromPhonePrefixH prefix = lift $ NoContent <$ API.phonePrefixDelete prefix
 addPhonePrefixH :: Member BlacklistPhonePrefixStore r => ExcludedPrefix -> (Handler r) NoContent
 addPhonePrefixH prefix = lift $ NoContent <$ API.phonePrefixInsert prefix
 
-updateSSOIdH :: UserId -> UserSSOId -> (Handler r) UpdateSSOIdResponse
+updateSSOIdH ::
+  ( Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member TinyLog r
+  ) =>
+  UserId ->
+  UserSSOId ->
+  (Handler r) UpdateSSOIdResponse
 updateSSOIdH uid ssoid = do
   success <- lift $ wrapClient $ Data.updateSSOId uid (Just ssoid)
   if success
     then do
-      lift $ wrapHttpClient $ Intra.onUserEvent uid Nothing (UserUpdated ((emptyUserUpdatedData uid) {eupSSOId = Just ssoid}))
+      lift $ liftSem $ Intra.onUserEvent uid Nothing (UserUpdated ((emptyUserUpdatedData uid) {eupSSOId = Just ssoid}))
       pure UpdateSSOIdSuccess
     else pure UpdateSSOIdNotFound
 
-deleteSSOIdH :: UserId -> (Handler r) UpdateSSOIdResponse
+deleteSSOIdH ::
+  ( Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member TinyLog r
+  ) =>
+  UserId ->
+  (Handler r) UpdateSSOIdResponse
 deleteSSOIdH uid = do
   success <- lift $ wrapClient $ Data.updateSSOId uid Nothing
   if success
     then do
-      lift $ wrapHttpClient $ Intra.onUserEvent uid Nothing (UserUpdated ((emptyUserUpdatedData uid) {eupSSOIdRemoved = True}))
+      lift $ liftSem $ Intra.onUserEvent uid Nothing (UserUpdated ((emptyUserUpdatedData uid) {eupSSOIdRemoved = True}))
       pure UpdateSSOIdSuccess
     else pure UpdateSSOIdNotFound
 
@@ -718,13 +762,29 @@ getRichInfoMultiH :: Maybe (CommaSeparatedList UserId) -> (Handler r) [(UserId, 
 getRichInfoMultiH (maybe [] fromCommaSeparatedList -> uids) =
   lift $ wrapClient $ API.lookupRichInfoMultiUsers uids
 
-updateHandleH :: UserId -> HandleUpdate -> (Handler r) NoContent
+updateHandleH ::
+  ( Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member GalleyProvider r,
+    Member TinyLog r
+  ) =>
+  UserId ->
+  HandleUpdate ->
+  (Handler r) NoContent
 updateHandleH uid (HandleUpdate handleUpd) =
   NoContent <$ do
     handle <- validateHandle handleUpd
     API.changeHandle uid Nothing handle API.AllowSCIMUpdates !>> changeHandleError
 
-updateUserNameH :: UserId -> NameUpdate -> (Handler r) NoContent
+updateUserNameH ::
+  ( Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member GalleyProvider r,
+    Member TinyLog r
+  ) =>
+  UserId ->
+  NameUpdate ->
+  (Handler r) NoContent
 updateUserNameH uid (NameUpdate nameUpd) =
   NoContent <$ do
     name <- either (const $ throwStd (errorToWai @'E.InvalidUser)) pure $ mkName nameUpd

@@ -11,6 +11,7 @@ module HTTP2.Client.Manager
     defaultHttp2Manager,
     http2ManagerWithSSLCtx,
     withHTTP2Request,
+    withHTTP2RequestOnSingleUseConn,
     connectIfNotAlreadyConnected,
     ConnectionAlreadyClosed (..),
     disconnectTarget,

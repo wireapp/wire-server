@@ -18,15 +18,26 @@ tags:
 cassandra-migrations:
   imagePullPolicy: {{ .Values.imagePullPolicy }}
   cassandra:
-    host: cassandra-ephemeral
+    host: {{ .Values.cassandraHost }}
     replicationFactor: 1
+    {{- if .Values.useK8ssandraSSL.enabled }}
+    tlsCaSecretRef:
+        name: "cassandra-jks-keystore"
+        key: "ca.crt"
+    {{- end }}
+
 elasticsearch-index:
   imagePullPolicy: {{ .Values.imagePullPolicy }}
   elasticsearch:
     host: elasticsearch-ephemeral
     index: directory_test
   cassandra:
-    host: cassandra-ephemeral
+    host: {{ .Values.cassandraHost }}
+    {{- if .Values.useK8ssandraSSL.enabled }}
+    tlsCaSecretRef:
+        name: "cassandra-jks-keystore"
+        key: "ca.crt"
+    {{- end }}
 
 brig:
   replicaCount: 1
@@ -34,15 +45,20 @@ brig:
   resources:
     requests: {}
     limits:
-      memory: 512Mi
+      memory: 1Gi
   config:
     externalUrls:
       nginz: https://kube-staging-nginz-https.zinfra.io
       teamCreatorWelcome: https://teams.wire.com/login
       teamMemberWelcome: https://wire.com/download
     cassandra:
-      host: cassandra-ephemeral
+      host: {{ .Values.cassandraHost }}
       replicaCount: 1
+    {{- if .Values.useK8ssandraSSL.enabled }}
+      tlsCaSecretRef:
+          name: "cassandra-jks-keystore"
+          key: "ca.crt"
+    {{- end }}
     elasticsearch:
       host: elasticsearch-ephemeral
       index: directory_test
@@ -79,6 +95,7 @@ brig:
       setFederationDomain: integration.example.com
       setFederationStrategy: allowAll
       setFederationDomainConfigsUpdateFreq: 10
+      setDisabledAPIVersions: []
       set2FACodeGenerationDelaySecs: 5
       setNonceTtlSecs: 300
       setDpopMaxSkewSecs: 1
@@ -153,6 +170,8 @@ cannon:
     limits:
       memory: 512Mi
   drainTimeout: 0
+  config:
+    disabledAPIVersions: []
 cargohold:
   replicaCount: 1
   imagePullPolicy: {{ .Values.imagePullPolicy }}
@@ -168,6 +187,7 @@ cargohold:
     settings:
       # See helmfile for the real value
       federationDomain: integration.example.com
+      disabledAPIVersions: []
   secrets:
     awsKeyId: dummykey
     awsSecretKey: dummysecret
@@ -186,8 +206,13 @@ galley:
   imagePullPolicy: {{ .Values.imagePullPolicy }}
   config:
     cassandra:
-      host: cassandra-ephemeral
+      host: {{ .Values.cassandraHost }}
       replicaCount: 1
+    {{- if .Values.useK8ssandraSSL.enabled }}
+      tlsCaSecretRef:
+          name: "cassandra-jks-keystore"
+          key: "ca.crt"
+    {{- end }}
     enableFederation: true # keep in sync with brig.config.enableFederation, cargohold.config.enableFederation and tags.federator!
     settings:
       maxConvAndTeamSize: 16
@@ -197,6 +222,8 @@ galley:
       conversationCodeURI: https://kube-staging-nginz-https.zinfra.io/conversation-join/
       # See helmfile for the real value
       federationDomain: integration.example.com
+      disabledAPIVersions: []
+
       featureFlags:
         sso: disabled-by-default  # this needs to be the default; tests can enable it when needed.
         legalhold: whitelist-teams-and-implicit-consent
@@ -214,6 +241,9 @@ galley:
               usersThreshold: 100
               clientsThreshold: 50
             lockStatus: locked
+        limitedEventFanout:
+            defaults:
+            status: disabled
     journal:
       endpoint: http://fake-aws-sqs:4568
       queueName: integration-team-events.fifo
@@ -248,8 +278,13 @@ gundeck:
       memory: 1024Mi
   config:
     cassandra:
-      host: cassandra-ephemeral
+      host: {{ .Values.cassandraHost }}
       replicaCount: 1
+    {{- if .Values.useK8ssandraSSL.enabled }}
+      tlsCaSecretRef:
+          name: "cassandra-jks-keystore"
+          key: "ca.crt"
+    {{- end }}
     redis:
       host: redis-ephemeral-master
       connectionMode: master
@@ -260,6 +295,7 @@ gundeck:
       queueName: integration-gundeck-events
       sqsEndpoint: http://fake-aws-sqs:4568
       snsEndpoint: http://fake-aws-sns:4575
+    disabledAPIVersions: []
     bulkPush: true
     setMaxConcurrentNativePushes:
       hard: 30
@@ -312,6 +348,8 @@ proxy:
               giphy      = "..."
               spotify    = "Basic ..."
        }
+  config:
+    disabledAPIVersions: []
 spar:
   replicaCount: 1
   imagePullPolicy: {{ .Values.imagePullPolicy }}
@@ -322,7 +360,12 @@ spar:
   config:
     tlsDisableCertValidation: true
     cassandra:
-      host: cassandra-ephemeral
+      host: {{ .Values.cassandraHost }}
+    {{- if .Values.useK8ssandraSSL.enabled }}
+      tlsCaSecretRef:
+          name: "cassandra-jks-keystore"
+          key: "ca.crt"
+    {{- end }}
     logLevel: Debug
     domain: zinfra.io
     appUri: http://spar:8080/
@@ -334,6 +377,7 @@ spar:
     - type: ContactSupport
       company: Example Company
       email: email:backend+spar@wire.com
+    disabledAPIVersions: []
   tests:
     {{- if .Values.uploadXml }}
     config:
@@ -380,8 +424,17 @@ background-worker:
 integration:
   ingress:
     class: "nginx-{{ .Release.Namespace }}"
-  {{- if .Values.uploadXml }}
   config:
+    cassandra:
+      host: {{ .Values.cassandraHost }}
+      port: 9042
+      replicationFactor: 1
+    {{- if .Values.useK8ssandraSSL.enabled }}
+      tlsCaSecretRef:
+        name: cassandra-jks-keystore
+        key: ca.crt
+    {{- end }}
+  {{- if .Values.uploadXml }}
     uploadXml:
       baseUrl: {{ .Values.uploadXml.baseUrl }}
   secrets:

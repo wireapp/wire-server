@@ -21,14 +21,16 @@ module Data.CommaSeparatedList where
 
 import Control.Lens ((?~))
 import Data.Bifunctor qualified as Bifunctor
-import Data.ByteString.Conversion (FromByteString, List, fromList, parser, runParser)
+import Data.ByteString (toStrict)
+import Data.ByteString.Conversion (FromByteString, List (..), ToByteString, builder, fromList, parser, runParser, toByteString)
 import Data.OpenApi
 import Data.Proxy (Proxy (..))
 import Data.Range (Bounds, Range)
 import Data.Text qualified as Text
-import Data.Text.Encoding (encodeUtf8)
+import Data.Text.Encoding (decodeUtf8With, encodeUtf8)
+import Data.Text.Encoding.Error
 import Imports
-import Servant (FromHttpApiData (..))
+import Servant (FromHttpApiData (..), ToHttpApiData (toQueryParam))
 
 newtype CommaSeparatedList a = CommaSeparatedList {fromCommaSeparatedList :: [a]}
   deriving stock (Show, Eq)
@@ -38,6 +40,9 @@ newtype CommaSeparatedList a = CommaSeparatedList {fromCommaSeparatedList :: [a]
 instance FromByteString (List a) => FromHttpApiData (CommaSeparatedList a) where
   parseUrlPiece t =
     CommaSeparatedList . fromList <$> Bifunctor.first Text.pack (runParser parser $ encodeUtf8 t)
+
+instance ToByteString (List a) => ToHttpApiData (CommaSeparatedList a) where
+  toQueryParam (CommaSeparatedList l) = decodeUtf8With lenientDecode $ toStrict $ toByteString $ builder $ List l
 
 instance ToParamSchema (CommaSeparatedList a) where
   toParamSchema _ = mempty & type_ ?~ OpenApiString

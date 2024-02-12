@@ -36,7 +36,7 @@ import Data.Aeson
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (toStrict)
 import Data.Either.Extra (eitherToMaybe)
-import Data.Id hiding (client)
+import Data.Id
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import Data.LegalHold (UserLegalHoldStatus (UserLegalHoldDisabled))
 import Data.Text qualified as Text

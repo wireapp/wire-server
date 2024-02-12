@@ -127,7 +127,7 @@ structuredJSONRenderer _sep _dateFmt _lvlThreshold logElems =
                in case parseLevel buildMsg of
                     Nothing -> o {msgs = builderToText b : msgs o}
                     Just lvl -> o {lvl = Just lvl}
-            Field k v -> o {fields = Map.insertWith (<>) (Key.fromText $ builderToText k) (map builderToText [v]) (fields o)}
+            Field k v -> o {fields = Map.insertWith (<>) (Key.fromText $ builderToText k) ([builderToText v]) (fields o)}
         )
         (StructuredJSONOutput Nothing [] mempty)
 

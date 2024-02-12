@@ -29,7 +29,7 @@ import Control.Monad.Catch (MonadCatch)
 import Data.Aeson hiding (json)
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
-import Data.Id hiding (client)
+import Data.Id
 import Data.Misc (Milliseconds)
 import Data.Range
 import Data.Set qualified as Set
@@ -64,7 +64,7 @@ createPopulatedBindingTeamWithNamesAndHandles ::
   Int ->
   m (TeamId, User, [User])
 createPopulatedBindingTeamWithNamesAndHandles brig numMembers = do
-  names <- forM [1 .. numMembers] $ const randomName
+  names <- replicateM numMembers randomName
   (tid, owner, mems) <- createPopulatedBindingTeamWithNames brig names
   membersWithHandle <- mapM (setRandomHandle brig) mems
   ownerWithHandle <- setRandomHandle brig owner
@@ -76,7 +76,7 @@ createPopulatedBindingTeam ::
   Int ->
   m (TeamId, UserId, [User])
 createPopulatedBindingTeam brig numMembers = do
-  names <- forM [1 .. numMembers] $ const randomName
+  names <- replicateM numMembers randomName
   (tid, owner, others) <- createPopulatedBindingTeamWithNames brig names
   pure (tid, userId owner, others)
 

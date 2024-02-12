@@ -46,17 +46,13 @@ where
 
 import Bilge hiding (Request, header, host, options, port, statusCode, statusMessage)
 import Cassandra hiding (Set)
-import Cassandra qualified as C
-import Cassandra.Settings qualified as C
+import Cassandra.Util (initCassandraForService)
 import Control.Error hiding (err)
 import Control.Lens hiding ((.=))
-import Data.Default (def)
-import Data.List.NonEmpty qualified as NE
 import Data.Metrics.Middleware
 import Data.Misc
 import Data.Qualified
 import Data.Range
-import Data.Text (unpack)
 import Data.Time.Clock
 import Galley.API.Error
 import Galley.Aws qualified as Aws
@@ -96,6 +92,7 @@ import Network.HTTP.Client.OpenSSL
 import Network.Wai.Utilities.JSONResponse
 import OpenSSL.Session as Ssl
 import Polysemy
+import Polysemy.Async
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.Internal (Append)
@@ -107,11 +104,14 @@ import System.Logger qualified as Log
 import System.Logger.Class (Logger)
 import System.Logger.Extended qualified as Logger
 import UnliftIO.Exception qualified as UnliftIO
-import Util.Options
 import Wire.API.Conversation.Protocol
 import Wire.API.Error
 import Wire.API.Federation.Error
 import Wire.API.Team.Feature
+import Wire.GundeckAPIAccess (runGundeckAPIAccess)
+import Wire.NotificationSubsystem.Interpreter (runNotificationSubsystemGundeck)
+import Wire.Rpc
+import Wire.Sem.Delay
 import Wire.Sem.Logger qualified
 import Wire.Sem.Random.IO
 
@@ -124,6 +124,8 @@ type GalleyEffects0 =
      -- federation errors can be thrown by almost every endpoint, so we avoid
      -- having to declare it every single time, and simply handle it here
      Error FederationError,
+     Async,
+     Delay,
      Embed IO,
      Error JSONResponse,
      Resource,
@@ -145,7 +147,7 @@ validateOptions o = do
     (Nothing, Just _) -> error "RabbitMQ config is specified and federator is not, please specify both or none"
     (Just _, Nothing) -> error "Federator is specified and RabbitMQ config is not, please specify both or none"
     _ -> pure ()
-  let mlsFlag = settings' ^. featureFlags . Teams.flagMLS . Teams.unDefaults . Teams.unImplicitLockStatus
+  let mlsFlag = settings' ^. featureFlags . Teams.flagMLS . Teams.unDefaults
       mlsConfig = wsConfig mlsFlag
       migrationStatus = wsStatus $ settings' ^. featureFlags . Teams.flagMlsMigration . Teams.unDefaults
   when (migrationStatus == FeatureStatusEnabled && ProtocolMLSTag `notElem` mlsSupportedProtocols mlsConfig) $
@@ -165,7 +167,7 @@ createEnv m o l = do
   mgr <- initHttpManager o
   h2mgr <- initHttp2Manager
   codeURIcfg <- validateOptions o
-  Env def m o l mgr h2mgr (o ^. O.federator) (o ^. O.brig) cass
+  Env (RequestId "N/A") m o l mgr h2mgr (o ^. O.federator) (o ^. O.brig) cass
     <$> Q.new 16000
     <*> initExtEnv
     <*> maybe (pure Nothing) (fmap Just . Aws.mkEnv l mgr) (o ^. journal)
@@ -174,25 +176,13 @@ createEnv m o l = do
     <*> pure codeURIcfg
 
 initCassandra :: Opts -> Logger -> IO ClientState
-initCassandra o l = do
-  c <-
-    maybe
-      (C.initialContactsPlain (o ^. cassandra . endpoint . host))
-      (C.initialContactsDisco "cassandra_galley" . unpack)
-      (o ^. discoUrl)
-  C.init
-    . C.setLogger (C.mkLogger (Logger.clone (Just "cassandra.galley") l))
-    . C.setContacts (NE.head c) (NE.tail c)
-    . C.setPortNumber (fromIntegral $ o ^. cassandra . endpoint . port)
-    . C.setKeyspace (Keyspace $ o ^. cassandra . keyspace)
-    . C.setMaxConnections 4
-    . C.setMaxStreams 128
-    . C.setPoolStripes 4
-    . C.setSendTimeout 3
-    . C.setResponseTimeout 10
-    . C.setProtocolVersion C.V4
-    . C.setPolicy (C.dcFilterPolicyIfConfigured l (o ^. cassandra . filterNodesByDatacentre))
-    $ C.defSettings
+initCassandra o l =
+  initCassandraForService
+    (o ^. cassandra)
+    "galley"
+    (o ^. discoUrl)
+    Nothing
+    l
 
 initHttpManager :: Opts -> IO Manager
 initHttpManager o = do
@@ -255,6 +245,8 @@ evalGalley e =
     . resourceToIOFinal
     . runError
     . embedToFinal @IO
+    . runDelay
+    . asyncToIOFinal
     . mapError toResponse
     . mapError toResponse
     . mapError toResponse
@@ -293,7 +285,9 @@ evalGalley e =
     . interpretBackendNotificationQueueAccess
     . interpretFederatorAccess
     . interpretExternalAccess
-    . interpretGundeckAccess
+    . runRpcWithHttp (e ^. manager) (e ^. reqId)
+    . runGundeckAPIAccess (e ^. options . gundeck)
+    . runNotificationSubsystemGundeck (notificationSubssystemConfig e)
     . interpretSparAccess
     . interpretBrigAccess
   where

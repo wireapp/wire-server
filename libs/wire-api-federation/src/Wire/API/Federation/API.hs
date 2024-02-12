@@ -40,16 +40,15 @@ import Data.Proxy
 import GHC.TypeLits
 import Imports
 import Network.AMQP
-import Servant
 import Servant.Client
 import Servant.Client.Core
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Cargohold
-import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.BackendNotifications
 import Wire.API.Federation.Client
 import Wire.API.Federation.Component
+import Wire.API.Federation.Endpoint
 import Wire.API.Federation.HasNotificationEndpoint
 import Wire.API.MakesFederatedCall
 import Wire.API.Routes.Named
@@ -71,20 +70,6 @@ type HasFedEndpoint comp api name = (HasUnsafeFedEndpoint comp api name)
 -- you to forget about some federated calls.
 type HasUnsafeFedEndpoint comp api name = 'Just api ~ LookupEndpoint (FedApi comp) name
 
--- | Constrains which endpoints can be used with FedQueueClient.
---
--- Since the servant client implementation underlying FedQueueClient is
--- returning a "fake" response consisting of an empty object, we need to make
--- sure that an API type is compatible with an empty response if we want to
--- invoke it using `fedQueueClient`
-class HasEmptyResponse api
-
-instance HasEmptyResponse (Post '[JSON] EmptyResponse)
-
-instance HasEmptyResponse api => HasEmptyResponse (x :> api)
-
-instance HasEmptyResponse api => HasEmptyResponse (UntypedNamed name api)
-
 -- | Return a client for a named endpoint.
 --
 -- This function introduces an 'AddAnnotation' constraint, which is
@@ -93,27 +78,28 @@ instance HasEmptyResponse api => HasEmptyResponse (UntypedNamed name api)
 -- 'Wire.API.MakesFederatedCall.exposeAnnotations' for a better understanding
 -- of the information flow here.
 fedClient ::
-  forall (comp :: Component) (name :: Symbol) m (showcomp :: Symbol) api x.
-  (AddAnnotation 'Remote showcomp name x, showcomp ~ ShowComponent comp, HasFedEndpoint comp api name, HasClient m api, m ~ FederatorClient comp) =>
+  forall (comp :: Component) name m (showcomp :: Symbol) api x.
+  ( AddAnnotation 'Remote showcomp (FedPath name) x,
+    showcomp ~ ShowComponent comp,
+    HasFedEndpoint comp api name,
+    HasClient m api,
+    m ~ FederatorClient comp
+  ) =>
   Client m api
 fedClient = clientIn (Proxy @api) (Proxy @m)
 
 fedQueueClient ::
-  forall tag api.
+  forall {k} (tag :: k).
   ( HasNotificationEndpoint tag,
-    -- FUTUREWORK: Include this API constraint and get it working
-    -- api ~ NotificationAPI tag (NotificationComponent tag),
-    HasEmptyResponse api,
     KnownSymbol (NotificationPath tag),
-    KnownComponent (NotificationComponent tag),
-    ToJSON (Payload tag),
-    HasFedEndpoint (NotificationComponent tag) api (NotificationPath tag)
+    KnownComponent (NotificationComponent k),
+    ToJSON (Payload tag)
   ) =>
   Payload tag ->
-  FedQueueClient (NotificationComponent tag) ()
+  FedQueueClient (NotificationComponent k) ()
 fedQueueClient payload = do
   env <- ask
-  let notif = fedNotifToBackendNotif @tag env.originDomain payload
+  let notif = fedNotifToBackendNotif @tag env.requestId env.originDomain payload
       msg =
         newMsg
           { msgBody = encode notif,

@@ -131,6 +131,7 @@ type BotAPI =
            ( Summary "Claim users prekeys"
                :> CanThrow 'AccessDenied
                :> CanThrow 'TooManyClients
+               :> CanThrow 'MissingLegalholdConsentOldClients
                :> CanThrow 'MissingLegalholdConsent
                :> ZBot
                :> "bot"

@@ -474,12 +474,12 @@ rmClients = "delete from clients where user = ?"
 
 upsertMemberAddClient :: ClientId -> QueryString W (Identity UserId) ()
 upsertMemberAddClient c =
-  let t = LT.fromStrict (client c)
+  let t = LT.fromStrict (clientToText c)
    in QueryString $ "update clients set clients = clients + {'" <> t <> "'} where user = ?"
 
 upsertMemberRmClient :: ClientId -> QueryString W (Identity UserId) ()
 upsertMemberRmClient c =
-  let t = LT.fromStrict (client c)
+  let t = LT.fromStrict (clientToText c)
    in QueryString $ "update clients set clients = clients - {'" <> t <> "'} where user = ?"
 
 -- MLS Clients --------------------------------------------------------------

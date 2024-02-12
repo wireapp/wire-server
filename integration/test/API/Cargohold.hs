@@ -1,33 +1,56 @@
 module API.Cargohold where
 
-import Codec.MIME.Type qualified as MIME
-import Data.Aeson qualified as Aeson
-import Data.ByteString.Builder
-import Data.ByteString.Lazy qualified as LBS
-import Data.ByteString.Lazy.Char8 qualified as LBSC
-import Data.Text qualified as T
-import Data.Text.Encoding
-import Data.Time.Clock
+import API.Federator
+import qualified Codec.MIME.Type as MIME
+import qualified Data.Aeson as Aeson
+import qualified Data.ByteString.Lazy as LBS
+import qualified Data.ByteString.Lazy.Char8 as LBSC
+import qualified Data.Text as T
 import GHC.Stack
-import Network.HTTP.Client qualified as HTTP
+import Network.HTTP.Client (Request (redirectCount))
+import qualified Network.HTTP.Client as HTTP
+import Test.Cargohold.API.Util
 import Testlib.Prelude
+import UnliftIO (catch)
 
 type LByteString = LBS.ByteString
+
+getFederationAsset :: (HasCallStack, MakesValue asset) => asset -> App Response
+getFederationAsset ga = do
+  req <- rawBaseRequestF OwnDomain cargohold "federation/get-asset"
+  bdy <- make ga
+  submit "POST" $
+    req
+      & addBody (HTTP.RequestBodyLBS $ encode bdy) "application/json"
+
+uploadAssetV3 :: (HasCallStack, MakesValue user, MakesValue assetRetention) => user -> Bool -> assetRetention -> MIME.MIMEType -> LByteString -> App Response
+uploadAssetV3 user isPublic retention mimeType bdy = do
+  uid <- user & objId
+  req <- baseRequest user Cargohold (ExplicitVersion 1) "/assets/v3"
+  body <- buildUploadAssetRequestBody isPublic retention bdy mimeType
+  submit "POST" $
+    req
+      & zUser uid
+      & addBody body multipartMixedMime
+  where
+    multipartMixedMime :: String
+    multipartMixedMime = "multipart/mixed; boundary=" <> multipartBoundary
 
 uploadAsset :: (HasCallStack, MakesValue user) => user -> App Response
 uploadAsset user = do
   uid <- user & objId
   req <- baseRequest user Cargohold Versioned "/assets"
+  bdy <- txtAsset
   submit "POST" $
     req
       & zUser uid
-      & addBody txtAsset multipartMixedMime
+      & addBody bdy multipartMixedMime
   where
-    txtAsset :: HTTP.RequestBody
+    txtAsset :: HasCallStack => App HTTP.RequestBody
     txtAsset =
       buildUploadAssetRequestBody
         True
-        Nothing
+        (Nothing :: Maybe String)
         (LBSC.pack "Hello World!")
         textPlainMime
 
@@ -42,94 +65,57 @@ uploadAsset user = do
 mimeTypeToString :: MIME.MIMEType -> String
 mimeTypeToString = T.unpack . MIME.showMIMEType
 
-buildUploadAssetRequestBody :: Bool -> Maybe NominalDiffTime -> LByteString -> MIME.MIMEType -> HTTP.RequestBody
-buildUploadAssetRequestBody isPublic mbRetention body mimeType =
-  buildMultipartBody header body mimeType
-  where
-    header :: Aeson.Value
-    header =
-      Aeson.object
-        [ "public" .= isPublic,
-          "retention" .= mbRetention
-        ]
+buildUploadAssetRequestBody ::
+  (HasCallStack, MakesValue assetRetention) =>
+  Bool ->
+  assetRetention ->
+  LByteString ->
+  MIME.MIMEType ->
+  App HTTP.RequestBody
+buildUploadAssetRequestBody isPublic retention body mimeType = do
+  mbRetention <- make retention
+  let header' :: Aeson.Value
+      header' =
+        Aeson.object
+          [ "public" .= isPublic,
+            "retention" .= mbRetention
+          ]
+  HTTP.RequestBodyLBS <$> buildMultipartBody header' body mimeType
 
-multipartBoundary :: String
-multipartBoundary = "frontier"
+class IsAssetLocation key where
+  locationPathFragment :: key -> App String
 
--- | Build a complete @multipart/mixed@ request body for a one-shot,
--- non-resumable asset upload.
-buildMultipartBody :: Aeson.Value -> LByteString -> MIME.MIMEType -> HTTP.RequestBody
-buildMultipartBody header body bodyMimeType =
-  HTTP.RequestBodyLBS . toLazyByteString $ render
-  where
-    headerJson = Aeson.encode header
+instance {-# OVERLAPS #-} IsAssetLocation String where
+  locationPathFragment = pure
 
-    render :: Builder
-    render = renderBody <> endMultipartBody
+-- Pick out a path from the value
+instance MakesValue loc => IsAssetLocation loc where
+  locationPathFragment v =
+    qualifiedFrag `catch` (\(_e :: SomeException) -> unqualifiedFrag)
+    where
+      qualifiedFrag = do
+        domain <- v %. "domain" & asString
+        key <- v %. "key" & asString
+        pure $ "v2/assets/" <> domain <> "/" <> key
+      unqualifiedFrag = do
+        key <- asString v
+        pure $ "v1/asssets/v3/" <> key
 
-    endMultipartBody :: Builder
-    endMultipartBody = lineBreak <> boundary <> stringUtf8 "--" <> lineBreak
+noRedirect :: Request -> Request
+noRedirect r = r {redirectCount = 0}
 
-    renderBody :: Builder
-    renderBody = mconcat $ map renderPart multipartContent
-
-    renderPart :: MIME.MIMEValue -> Builder
-    renderPart v =
-      boundary
-        <> lineBreak
-        <> (contentType . MIME.mime_val_type) v
-        <> lineBreak
-        <> (headers . MIME.mime_val_headers) v
-        <> lineBreak
-        <> lineBreak
-        <> (content . MIME.mime_val_content) v
-        <> lineBreak
-
-    boundary :: Builder
-    boundary = stringUtf8 "--" <> stringUtf8 multipartBoundary
-
-    lineBreak :: Builder
-    lineBreak = stringUtf8 "\r\n"
-
-    contentType :: MIME.Type -> Builder
-    contentType t = stringUtf8 "Content-Type: " <> (encodeUtf8Builder . MIME.showType) t
-
-    headers :: [MIME.MIMEParam] -> Builder
-    headers [] = mempty
-    headers (x : xs) = renderHeader x <> headers xs
-
-    renderHeader :: MIME.MIMEParam -> Builder
-    renderHeader p =
-      encodeUtf8Builder (MIME.paramName p)
-        <> stringUtf8 ": "
-        <> encodeUtf8Builder (MIME.paramValue p)
-
-    content :: MIME.MIMEContent -> Builder
-    content (MIME.Single c) = encodeUtf8Builder c
-    content (MIME.Multi _) = error "Not implemented."
-
-    multipartContent :: [MIME.MIMEValue]
-    multipartContent =
-      [ part (MIME.Application (T.pack "json")) headerJson,
-        part bodyMimeType body
-      ]
-
-    part :: MIME.MIMEType -> LByteString -> MIME.MIMEValue
-    part mtype c =
-      MIME.nullMIMEValue
-        { MIME.mime_val_type = MIME.Type mtype [],
-          MIME.mime_val_headers = [MIME.MIMEParam (T.pack "Content-Length") ((T.pack . show . LBS.length) c)],
-          MIME.mime_val_content = MIME.Single ((decodeUtf8 . LBS.toStrict) c)
-        }
+downloadAsset' :: (HasCallStack, MakesValue user, IsAssetLocation loc, IsAssetToken tok) => user -> loc -> tok -> App Response
+downloadAsset' user loc tok = do
+  locPath <- locationPathFragment loc
+  req <- baseRequest user Cargohold Unversioned $ locPath
+  submit "GET" $ req & tokenParam tok & noRedirect
 
 downloadAsset :: (HasCallStack, MakesValue user, MakesValue key, MakesValue assetDomain) => user -> assetDomain -> key -> String -> (HTTP.Request -> HTTP.Request) -> App Response
 downloadAsset user assetDomain key zHostHeader trans = do
-  uid <- objId user
   domain <- objDomain assetDomain
   key' <- asString key
   req <- baseRequest user Cargohold Versioned $ "/assets/" ++ domain ++ "/" ++ key'
   submit "GET" $
     req
-      & zUser uid
       & zHost zHostHeader
       & trans

@@ -25,7 +25,6 @@ module Wire.API.Event.Conversation
     evtType,
     EventType (..),
     EventData (..),
-    EdMemberLeftReason (..),
     AddCodeResult (..),
 
     -- * Event lenses
@@ -87,6 +86,7 @@ import Wire.API.Conversation.Protocol (ProtocolUpdate (unProtocolUpdate))
 import Wire.API.Conversation.Protocol qualified as P
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing
+import Wire.API.Event.LeaveReason
 import Wire.API.MLS.SubConversation
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Version
@@ -163,30 +163,6 @@ instance ToSchema EventType where
           element "conversation.mls-message-add" MLSMessageAdd,
           element "conversation.mls-welcome" MLSWelcome,
           element "conversation.protocol-update" ProtocolUpdate
-        ]
-
---  | The reason for a member to leave
---    There are three reasons
---    - the member has left on their own
---    - the member was removed from the team
---    - the member was removed by another member
-data EdMemberLeftReason
-  = -- | The member has left on their own
-    EdReasonLeft
-  | -- | The member was removed from the team and/or deleted
-    EdReasonDeleted
-  | -- | The member was removed by another member
-    EdReasonRemoved
-  deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via GenericUniform EdMemberLeftReason
-
-instance ToSchema EdMemberLeftReason where
-  schema =
-    enum @Text "EdMemberLeftReason" $
-      mconcat
-        [ element "left" EdReasonLeft,
-          element "user-deleted" EdReasonDeleted,
-          element "removed" EdReasonRemoved
         ]
 
 data EventData

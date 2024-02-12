@@ -10,3 +10,11 @@ data:
     cargohold:
       host: cargohold
       port: {{ .Values.service.internalPort }}
+    {{- if .Values.config.enableFederation }}
+    federator:
+      host: federator
+      port: 8080
+    {{- end }}
+    brig:
+      host: brig
+      port: 8080

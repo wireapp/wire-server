@@ -43,7 +43,7 @@ import Data.ByteString.Lazy.Char8 qualified as LC8
 import Data.Domain
 import Data.Handle (Handle (Handle))
 import Data.HashMap.Strict qualified as HashMap
-import Data.Id hiding (client)
+import Data.Id
 import Data.Json.Util (toBase64Text)
 import Data.List1 (List1)
 import Data.List1 qualified as List1
@@ -86,6 +86,7 @@ import Wire.API.Conversation
 import Wire.API.Conversation.Bot
 import Wire.API.Conversation.Role
 import Wire.API.Event.Conversation
+import Wire.API.Event.LeaveReason
 import Wire.API.Internal.Notification
 import Wire.API.Provider
 import Wire.API.Provider.Bot qualified as Ext
@@ -536,15 +537,13 @@ testDeleteService config db brig galley cannon = withTestService config db brig 
       !!! const 202 === statusCode
     _ <- waitFor (5 # Second) not (isMember galley lbuid1 cid)
     _ <- waitFor (5 # Second) not (isMember galley lbuid2 cid)
-    getBotConv galley bid1 cid !!! const 404 === statusCode
-    getBotConv galley bid2 cid !!! const 404 === statusCode
+    void $ aFewTimes 12 (getBotConv galley bid1 cid) ((== 404) . statusCode)
+    void $ aFewTimes 12 (getBotConv galley bid2 cid) ((== 404) . statusCode)
     wsAssertMemberLeave ws qcid (tUntagged lbuid1) [tUntagged lbuid1]
     wsAssertMemberLeave ws qcid (tUntagged lbuid2) [tUntagged lbuid2]
   -- The service should not be available
-  getService brig pid sid
-    !!! const 404 === statusCode
-  getServiceProfile brig uid1 pid sid
-    !!! const 404 === statusCode
+  void $ aFewTimes 12 (getService brig pid sid) ((== 404) . statusCode)
+  void $ aFewTimes 12 (getServiceProfile brig uid1 pid sid) ((== 404) . statusCode)
 
 testAddRemoveBot :: Config -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
 testAddRemoveBot config db brig galley cannon = withTestService config db brig defServiceApp $ \sref buf -> do

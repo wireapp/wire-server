@@ -24,7 +24,6 @@ library
   other-modules:      Paths_galley_types
   hs-source-dirs:     src
   default-extensions:
-    NoImplicitPrelude
     AllowAmbiguousTypes
     BangPatterns
     ConstraintKinds
@@ -48,6 +47,7 @@ library
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NoImplicitPrelude
     OverloadedRecordDot
     OverloadedStrings
     PackageImports
@@ -76,7 +76,7 @@ library
     , bytestring
     , bytestring-conversion
     , containers             >=0.5
-    , cryptonite
+    , crypton
     , errors
     , imports
     , lens                   >=4.12
@@ -103,7 +103,6 @@ test-suite galley-types-tests
 
   hs-source-dirs:     test/unit
   default-extensions:
-    NoImplicitPrelude
     AllowAmbiguousTypes
     BangPatterns
     ConstraintKinds
@@ -127,6 +126,7 @@ test-suite galley-types-tests
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NoImplicitPrelude
     OverloadedRecordDot
     OverloadedStrings
     PackageImports

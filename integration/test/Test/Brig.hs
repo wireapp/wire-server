@@ -1,30 +1,15 @@
 module Test.Brig where
 
-import API.Brig qualified as BrigP
-import API.BrigInternal qualified as BrigI
-import API.Common qualified as API
-import API.GalleyInternal qualified as GalleyI
-import Control.Concurrent (threadDelay)
+import qualified API.BrigInternal as BrigI
+import API.Common (randomName)
 import Data.Aeson.Types hiding ((.=))
-import Data.Set qualified as Set
 import Data.String.Conversions
-import Data.UUID qualified as UUID
-import Data.UUID.V4 qualified as UUID
+import qualified Data.UUID as UUID
+import qualified Data.UUID.V4 as UUID
 import GHC.Stack
 import SetupHelpers
 import Testlib.Assertions
 import Testlib.Prelude
-
-testSearchContactForExternalUsers :: HasCallStack => App ()
-testSearchContactForExternalUsers = do
-  owner <- randomUser OwnDomain def {BrigI.team = True}
-  partner <- randomUser OwnDomain def {BrigI.team = True}
-
-  bindResponse (GalleyI.putTeamMember partner (partner %. "team") (API.teamRole "partner")) $ \resp ->
-    resp.status `shouldMatchInt` 200
-
-  bindResponse (BrigP.searchContacts partner (owner %. "name") OwnDomain) $ \resp ->
-    resp.status `shouldMatchInt` 403
 
 testCrudFederationRemotes :: HasCallStack => App ()
 testCrudFederationRemotes = do
@@ -55,13 +40,12 @@ testCrudFederationRemotes = do
     dom1 :: String <- (<> ".example.com") . UUID.toString <$> liftIO UUID.nextRandom
 
     let remote1, remote1' :: BrigI.FedConn
-        remote1 = BrigI.FedConn dom1 "no_search"
-        remote1' = remote1 {BrigI.searchStrategy = "full_search"}
+        remote1 = BrigI.FedConn dom1 "no_search" Nothing
+        remote1' = remote1 {BrigI.searchStrategy = "full_search", BrigI.restriction = Just []}
 
         cfgRemotesExpect :: BrigI.FedConn
-        cfgRemotesExpect = BrigI.FedConn (cs otherDomain) "full_search"
+        cfgRemotesExpect = BrigI.FedConn (cs otherDomain) "full_search" Nothing
 
-    liftIO $ threadDelay 5_000_000
     cfgRemotes <- parseFedConns =<< BrigI.readFedConns ownDomain
     cfgRemotes `shouldMatch` ([] @Value)
     -- entries present in the config file can be idempotently added if identical, but cannot be
@@ -96,82 +80,47 @@ testCrudOAuthClient = do
   bindResponse (BrigI.getOAuthClient user clientId) $ \resp -> do
     resp.status `shouldMatchInt` 404
 
--- | See https://docs.wire.com/understand/api-client-perspective/swagger.html
-testSwagger :: HasCallStack => App ()
-testSwagger = do
-  let existingVersions :: [Int]
-      existingVersions = [0, 1, 2, 3, 4, 5]
-
-      internalApis :: [String]
-      internalApis = ["brig", "cannon", "cargohold", "cannon", "spar"]
-
-  bindResponse BrigP.getApiVersions $ \resp -> do
+testCrudFederationRemoteTeams :: HasCallStack => App ()
+testCrudFederationRemoteTeams = do
+  (_, tid, _) <- createTeam OwnDomain 1
+  (_, tid2, _) <- createTeam OwnDomain 1
+  rd <- (\n -> n <> ".wire.com") <$> randomName
+  bindResponse (BrigI.addFederationRemoteTeam' OwnDomain rd tid) $ \resp -> do
+    resp.status `shouldMatchInt` 533
+  void $ BrigI.createFedConn OwnDomain $ BrigI.FedConn rd "full_search" Nothing
+  bindResponse (BrigI.addFederationRemoteTeam' OwnDomain rd tid) $ \resp -> do
+    resp.status `shouldMatchInt` 533
+  void $ BrigI.updateFedConn OwnDomain rd $ BrigI.FedConn rd "full_search" (Just [])
+  bindResponse (BrigI.getFederationRemoteTeams OwnDomain rd) $ \resp -> do
     resp.status `shouldMatchInt` 200
-    actualVersions :: [Int] <- do
-      sup <- resp.json %. "supported" & asListOf asIntegral
-      dev <- resp.json %. "development" & asListOf asIntegral
-      pure $ sup <> dev
-    assertBool ("unexpected actually existing versions: " <> show actualVersions) $
-      -- make sure nobody has added a new version without adding it to `existingVersions`.
-      -- ("subset" because blocked versions like v3 are not actually existing, but still
-      -- documented.)
-      Set.fromList actualVersions `Set.isSubsetOf` Set.fromList existingVersions
-
-  bindResponse BrigP.getSwaggerPublicTOC $ \resp -> do
+    checkAbsence resp [tid, tid2]
+  BrigI.addFederationRemoteTeam OwnDomain rd tid
+  bindResponse (BrigI.getFederationRemoteTeams OwnDomain rd) $ \resp -> do
     resp.status `shouldMatchInt` 200
-    cs resp.body `shouldContainString` "<html>"
+    checkPresence resp [tid]
+    checkAbsence resp [tid2]
+  BrigI.addFederationRemoteTeam OwnDomain rd tid2
+  bindResponse (BrigI.getFederationRemoteTeams OwnDomain rd) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    checkPresence resp [tid, tid2]
+  BrigI.deleteFederationRemoteTeam OwnDomain rd tid
+  bindResponse (BrigI.getFederationRemoteTeams OwnDomain rd) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    checkPresence resp [tid2]
+    checkAbsence resp [tid]
+  BrigI.deleteFederationRemoteTeam OwnDomain rd tid2
+  bindResponse (BrigI.getFederationRemoteTeams OwnDomain rd) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    checkAbsence resp [tid, tid2]
+  where
+    checkAbsence :: Response -> [String] -> App ()
+    checkAbsence resp tids = do
+      l <- resp.json & asList
+      remoteTeams <- forM l (\e -> e %. "team_id" & asString)
+      when (any (\t -> t `elem` remoteTeams) tids) $ assertFailure "Expected response to not contain any of the teams"
 
-  forM_ existingVersions $ \v -> do
-    bindResponse (BrigP.getSwaggerPublicAllUI v) $ \resp -> do
-      resp.status `shouldMatchInt` 200
-      cs resp.body `shouldContainString` "<!DOCTYPE html>"
-    bindResponse (BrigP.getSwaggerPublicAllJson v) $ \resp -> do
-      resp.status `shouldMatchInt` 200
-      void resp.json
-
-  -- !
-  -- FUTUREWORK: Implement BrigP.getSwaggerInternalTOC (including the end-point); make sure
-  -- newly added internal APIs make this test fail if not added to `internalApis`.
-
-  forM_ internalApis $ \api -> do
-    bindResponse (BrigP.getSwaggerInternalUI api) $ \resp -> do
-      resp.status `shouldMatchInt` 200
-      cs resp.body `shouldContainString` "<!DOCTYPE html>"
-    bindResponse (BrigP.getSwaggerInternalJson api) $ \resp -> do
-      resp.status `shouldMatchInt` 200
-      void resp.json
-
-testRemoteUserSearch :: HasCallStack => App ()
-testRemoteUserSearch = do
-  startDynamicBackends [def, def] $ \[d1, d2] -> do
-    void $ BrigI.createFedConn d2 (BrigI.FedConn d1 "full_search")
-
-    u1 <- randomUser d1 def
-    u2 <- randomUser d2 def
-    BrigI.refreshIndex d2
-    uidD2 <- objId u2
-
-    bindResponse (BrigP.searchContacts u1 (u2 %. "name") d2) $ \resp -> do
-      resp.status `shouldMatchInt` 200
-      docs <- resp.json %. "documents" >>= asList
-      case docs of
-        [] -> assertFailure "Expected a non empty result, but got an empty one"
-        doc : _ -> doc %. "id" `shouldMatch` uidD2
-
-testRemoteUserSearchExactHandle :: HasCallStack => App ()
-testRemoteUserSearchExactHandle = do
-  startDynamicBackends [def, def] $ \[d1, d2] -> do
-    void $ BrigI.createFedConn d2 (BrigI.FedConn d1 "exact_handle_search")
-
-    u1 <- randomUser d1 def
-    u2 <- randomUser d2 def
-    u2Handle <- API.randomHandle
-    bindResponse (BrigP.putHandle u2 u2Handle) $ assertSuccess
-    BrigI.refreshIndex d2
-
-    bindResponse (BrigP.searchContacts u1 u2Handle d2) $ \resp -> do
-      resp.status `shouldMatchInt` 200
-      docs <- resp.json %. "documents" >>= asList
-      case docs of
-        [] -> assertFailure "Expected a non empty result, but got an empty one"
-        doc : _ -> objQid doc `shouldMatch` objQid u2
+    checkPresence :: Response -> [String] -> App ()
+    checkPresence resp tids = do
+      l <- resp.json & asList
+      remoteTeams <- forM l (\e -> e %. "team_id" & asString)
+      when (any (\t -> t `notElem` remoteTeams) tids) $ assertFailure "Expected response to contain all of the teams"

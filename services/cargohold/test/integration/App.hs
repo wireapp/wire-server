@@ -20,6 +20,8 @@ tests :: IO TestSetup -> TestTree
 tests s =
   testGroup
     "Configuration sanity checks"
+    -- The way that the `integration` tests are setup means that the error strings these
+    -- tests look for are suppressed in a general time out message when the service can't start.
     [ test s "multiIngress and cloudFront cannot be combined" testMultiIngressCloudFrontFails,
       test s "multiIngress and s3DownloadEndpoint cannot be combined" testMultiIngressS3DownloadEndpointFails
     ]

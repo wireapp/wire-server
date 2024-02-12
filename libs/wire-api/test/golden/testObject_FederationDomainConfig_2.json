@@ -1,0 +1,8 @@
+{
+    "domain": "foo.example.com",
+    "restriction": {
+        "tag": "restrict_by_team",
+        "value": []
+    },
+    "search_policy": "full_search"
+}

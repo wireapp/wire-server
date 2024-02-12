@@ -1,6 +1,7 @@
 {-
 NOTE: Don't import any other Testlib modules here. Use this module to break dependency cycles.
 -}
+
 module Testlib.Types where
 
 import Control.Concurrent (QSemN)
@@ -10,30 +11,31 @@ import Control.Monad.Catch
 import Control.Monad.Reader
 import Control.Monad.Trans.Control
 import Data.Aeson
-import Data.Aeson qualified as Aeson
+import qualified Data.Aeson as Aeson
 import Data.ByteString (ByteString)
-import Data.ByteString qualified as BS
-import Data.ByteString.Char8 qualified as C8
-import Data.ByteString.Lazy qualified as L
-import Data.CaseInsensitive qualified as CI
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Char8 as C8
+import qualified Data.ByteString.Lazy as L
+import qualified Data.CaseInsensitive as CI
+import Data.Char (toLower)
 import Data.Default
 import Data.Functor
 import Data.IORef
 import Data.List
 import Data.Map
-import Data.Map qualified as Map
+import qualified Data.Map as Map
 import Data.Set (Set)
-import Data.Set qualified as Set
+import qualified Data.Set as Set
 import Data.String
-import Data.Text qualified as T
-import Data.Text.Encoding qualified as T
+import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
 import Data.Time
 import Data.Word
 import GHC.Generics (Generic)
 import GHC.Records
 import GHC.Stack
-import Network.HTTP.Client qualified as HTTP
-import Network.HTTP.Types qualified as HTTP
+import qualified Network.HTTP.Client as HTTP
+import qualified Network.HTTP.Types as HTTP
 import Network.URI
 import UnliftIO (MonadUnliftIO)
 import Prelude
@@ -107,7 +109,8 @@ data GlobalEnv = GlobalEnv
     gRemovalKeyPath :: FilePath,
     gBackendResourcePool :: ResourcePool BackendResource,
     gRabbitMQConfig :: RabbitMQConfig,
-    gTempDir :: FilePath
+    gTempDir :: FilePath,
+    gTimeOutSeconds :: Int
   }
 
 data IntegrationConfig = IntegrationConfig
@@ -115,7 +118,7 @@ data IntegrationConfig = IntegrationConfig
     backendTwo :: BackendConfig,
     dynamicBackends :: Map String DynamicBackendConfig,
     rabbitmq :: RabbitMQConfig,
-    cassandra :: HostPort
+    cassandra :: CassandraConfig
   }
   deriving (Show, Generic)
 
@@ -167,6 +170,23 @@ data HostPort = HostPort
 
 instance FromJSON HostPort
 
+data CassandraConfig = CassandraConfig
+  { cassHost :: String,
+    cassPort :: Word16,
+    cassTlsCa :: Maybe FilePath
+  }
+  deriving (Show, Generic)
+
+instance FromJSON CassandraConfig where
+  parseJSON = genericParseJSON defaultOptions {fieldLabelModifier = lowerFirst . dropPrefix}
+    where
+      lowerFirst :: String -> String
+      lowerFirst (x : xs) = toLower x : xs
+      lowerFirst [] = ""
+
+      dropPrefix :: String -> String
+      dropPrefix = Prelude.drop (length "cass")
+
 -- | Initialised once per test.
 data Env = Env
   { serviceMap :: Map String ServiceMap,
@@ -181,7 +201,8 @@ data Env = Env
     lastPrekeys :: IORef [String],
     mls :: IORef MLSState,
     resourcePool :: ResourcePool BackendResource,
-    rabbitMQConfig :: RabbitMQConfig
+    rabbitMQConfig :: RabbitMQConfig,
+    timeOutSeconds :: Int
   }
 
 data Response = Response
@@ -191,7 +212,7 @@ data Response = Response
     headers :: [HTTP.Header],
     request :: HTTP.Request
   }
-  deriving (Show)
+  deriving stock (Show)
 
 instance HasField "json" Response (App Aeson.Value) where
   getField response = maybe (assertFailure "Response has no json body") pure response.jsonBody
@@ -201,7 +222,7 @@ data ClientIdentity = ClientIdentity
     user :: String,
     client :: String
   }
-  deriving (Show, Eq, Ord)
+  deriving stock (Show, Eq, Ord, Generic)
 
 newtype Ciphersuite = Ciphersuite {code :: String}
   deriving (Eq, Ord, Show)
@@ -215,6 +236,9 @@ data ClientGroupState = ClientGroupState
   }
   deriving (Show)
 
+data MLSProtocol = MLSProtocolMLS | MLSProtocolMixed
+  deriving (Eq, Show)
+
 data MLSState = MLSState
   { baseDir :: FilePath,
     members :: Set ClientIdentity,
@@ -224,7 +248,8 @@ data MLSState = MLSState
     convId :: Maybe Value,
     clientGroupState :: Map ClientIdentity ClientGroupState,
     epoch :: Word64,
-    ciphersuite :: Ciphersuite
+    ciphersuite :: Ciphersuite,
+    protocol :: MLSProtocol
   }
   deriving (Show)
 
@@ -259,7 +284,7 @@ instance Exception AssertionFailure where
   displayException (AssertionFailure _ _ msg) = msg
 
 newtype App a = App {unApp :: ReaderT Env IO a}
-  deriving
+  deriving newtype
     ( Functor,
       Applicative,
       Monad,
@@ -290,7 +315,7 @@ appToIOKleisli k = do
 getServiceMap :: HasCallStack => String -> App ServiceMap
 getServiceMap fedDomain = do
   env <- ask
-  assertJust ("Could not find service map for federation domain: " <> fedDomain) (Map.lookup fedDomain (env.serviceMap))
+  assertJust ("Could not find service map for federation domain: " <> fedDomain) (Map.lookup fedDomain env.serviceMap)
 
 getMLSState :: App MLSState
 getMLSState = do

@@ -110,6 +110,8 @@ tests s =
           ),
       test s "MlsMigration feature config" $
         testNonTrivialConfigNoTTL defaultMlsMigrationConfig,
+      test s "EnforceFileDownloadLocation feature config" $
+        testNonTrivialConfigNoTTL (defFeatureStatus @EnforceFileDownloadLocationConfig),
       testGroup
         "Patch"
         [ -- Note: `SSOConfig` and `LegalHoldConfig` may not be able to be reset
@@ -130,8 +132,8 @@ tests s =
             testPatch IgnoreLockStatusChange FeatureStatusEnabled SearchVisibilityAvailableConfig,
           test s (unpack $ featureNameBS @MLSConfig) $
             testPatchWithCustomGen
-              IgnoreLockStatusChange
-              FeatureStatusEnabled
+              AssertLockStatusChange
+              FeatureStatusDisabled
               ( MLSConfig
                   []
                   ProtocolProteusTag
@@ -150,7 +152,10 @@ tests s =
             testPatch AssertLockStatusChange FeatureStatusEnabled (SelfDeletingMessagesConfig 0),
           test s (unpack $ featureNameBS @OutlookCalIntegrationConfig) $
             testPatch AssertLockStatusChange FeatureStatusDisabled OutlookCalIntegrationConfig,
-          test s (unpack $ featureNameBS @MlsE2EIdConfig) $ testPatchWithArbitrary AssertLockStatusChange FeatureStatusDisabled (wsConfig (defFeatureStatus @MlsE2EIdConfig))
+          test s (unpack $ featureNameBS @MlsE2EIdConfig) $
+            testPatchWithArbitrary AssertLockStatusChange FeatureStatusDisabled (wsConfig (defFeatureStatus @MlsE2EIdConfig)),
+          test s (unpack $ featureNameBS @EnforceFileDownloadLocationConfig) $
+            testPatchWithArbitrary AssertLockStatusChange FeatureStatusDisabled (wsConfig (defFeatureStatus @EnforceFileDownloadLocationConfig))
         ],
       testGroup
         "ExposeInvitationURLsToTeamAdmin"
@@ -1057,7 +1062,10 @@ testAllFeatures = do
           afcExposeInvitationURLsToTeamAdmin = withStatus FeatureStatusDisabled LockStatusLocked ExposeInvitationURLsToTeamAdminConfig FeatureTTLUnlimited,
           afcOutlookCalIntegration = withStatus FeatureStatusDisabled LockStatusLocked OutlookCalIntegrationConfig FeatureTTLUnlimited,
           afcMlsE2EId = withStatus FeatureStatusDisabled LockStatusUnlocked (wsConfig defFeatureStatus) FeatureTTLUnlimited,
-          afcMlsMigration = defaultMlsMigrationConfig
+          afcMlsMigration = defaultMlsMigrationConfig,
+          afcEnforceFileDownloadLocation = defaultEnforceFileDownloadLocationConfig,
+          afcLimitedEventFanout =
+            withStatus FeatureStatusDisabled LockStatusUnlocked LimitedEventFanoutConfig FeatureTTLUnlimited
         }
 
 testFeatureConfigConsistency :: TestM ()
@@ -1278,6 +1286,10 @@ testMLS = do
       setForTeamInternal :: HasCallStack => WithStatusNoLock MLSConfig -> TestM ()
       setForTeamInternal = setForTeamInternalWithStatusCode expect2xx
 
+      setLockStatus :: HasCallStack => LockStatus -> TestM ()
+      setLockStatus lockStatus =
+        Util.setLockStatusInternal @MLSConfig galley tid lockStatus !!! statusCode === const 200
+
   let cipherSuite = MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
       defaultConfig =
         WithStatusNoLock
@@ -1302,12 +1314,22 @@ testMLS = do
 
   getViaEndpoints defaultConfig
 
+  -- when the feature is locked it cannot be changed
+  setLockStatus LockStatusLocked
+  setForTeamWithStatusCode 409 config2
+  setLockStatus LockStatusUnlocked
+
   WS.bracketR cannon member $ \ws -> do
     setForTeam config2
     void . liftIO $
       WS.assertMatch (5 # Second) ws $
         wsAssertFeatureConfigUpdate @MLSConfig config2 LockStatusUnlocked
   getViaEndpoints config2
+
+  -- when the feature is locked the default config is returned
+  setLockStatus LockStatusLocked
+  getViaEndpoints defaultConfig
+  setLockStatus LockStatusUnlocked
 
   WS.bracketR cannon member $ \ws -> do
     setForTeamWithStatusCode 400 invalidConfig
@@ -1519,4 +1541,12 @@ defaultMlsMigrationConfig =
       { startTime = fmap fromUTCTimeMillis (readUTCTimeMillis "2029-05-16T10:11:12.123Z"),
         finaliseRegardlessAfter = fmap fromUTCTimeMillis (readUTCTimeMillis "2029-10-17T00:00:00.000Z")
       }
+    FeatureTTLUnlimited
+
+defaultEnforceFileDownloadLocationConfig :: WithStatus EnforceFileDownloadLocationConfig
+defaultEnforceFileDownloadLocationConfig =
+  withStatus
+    FeatureStatusDisabled
+    LockStatusLocked
+    (EnforceFileDownloadLocationConfig Nothing)
     FeatureTTLUnlimited

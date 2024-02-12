@@ -1,7 +1,9 @@
 module API.BrigInternal where
 
+import API.BrigCommon
 import API.Common
-import Data.Aeson qualified as Aeson
+import qualified Data.Aeson as Aeson
+import Data.Aeson.Types (Pair)
 import Data.Function
 import Data.Maybe
 import Testlib.Prelude
@@ -51,17 +53,31 @@ createUser domain cu = do
                ]
         )
 
+-- | https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/#/brig/get_i_users
+getUsersId :: (HasCallStack, MakesValue domain) => domain -> [String] -> App Response
+getUsersId domain ids = do
+  req <- baseRequest domain Brig Unversioned "/i/users"
+  submit "GET" $ req & addQueryParams [("ids", intercalate "," ids)]
+
 data FedConn = FedConn
   { domain :: String,
-    searchStrategy :: String
+    searchStrategy :: String,
+    restriction :: Maybe [String]
   }
   deriving (Eq, Ord, Show)
 
 instance ToJSON FedConn where
-  toJSON (FedConn d s) =
+  toJSON (FedConn d s r) =
     Aeson.object
       [ "domain" .= d,
-        "search_policy" .= s
+        "search_policy" .= s,
+        "restriction"
+          .= maybe
+            (Aeson.object ["tag" .= "allow_all", "value" .= Aeson.Null])
+            ( \teams ->
+                Aeson.object ["tag" .= "restrict_by_team", "value" .= Aeson.toJSON teams]
+            )
+            r
       ]
 
 instance MakesValue FedConn where
@@ -154,3 +170,69 @@ connectWithRemoteUser userFrom userTo = do
       joinHttpPath ["i", "connections", "connection-update"]
   res <- submit "PUT" (req & addJSONObject body)
   res.status `shouldMatchInt` 200
+
+addFederationRemoteTeam :: (HasCallStack, MakesValue domain, MakesValue remoteDomain, MakesValue team) => domain -> remoteDomain -> team -> App ()
+addFederationRemoteTeam domain remoteDomain team = do
+  void $ addFederationRemoteTeam' domain remoteDomain team >>= getBody 200
+
+addFederationRemoteTeam' :: (HasCallStack, MakesValue domain, MakesValue remoteDomain, MakesValue team) => domain -> remoteDomain -> team -> App Response
+addFederationRemoteTeam' domain remoteDomain team = do
+  d <- asString remoteDomain
+  t <- make team
+  req <- baseRequest domain Brig Unversioned $ joinHttpPath ["i", "federation", "remotes", d, "teams"]
+  submit "POST" (req & addJSONObject ["team_id" .= t])
+
+getFederationRemoteTeams :: (HasCallStack, MakesValue domain, MakesValue remoteDomain) => domain -> remoteDomain -> App Response
+getFederationRemoteTeams domain remoteDomain = do
+  d <- asString remoteDomain
+  req <- baseRequest domain Brig Unversioned $ joinHttpPath ["i", "federation", "remotes", d, "teams"]
+  submit "GET" req
+
+deleteFederationRemoteTeam :: (HasCallStack, MakesValue domain, MakesValue remoteDomain, MakesValue team) => domain -> remoteDomain -> team -> App ()
+deleteFederationRemoteTeam domain remoteDomain team = do
+  d <- asString remoteDomain
+  t <- asString team
+  req <- baseRequest domain Brig Unversioned $ joinHttpPath ["i", "federation", "remotes", d, "teams", t]
+  res <- submit "DELETE" req
+  res.status `shouldMatchInt` 200
+
+getConnStatusForUsers :: (HasCallStack, MakesValue users) => users -> Domain -> App Response
+getConnStatusForUsers users domain = do
+  usersList <-
+    asList users >>= \us -> do
+      dom <- us `for` (%. "qualified_id.domain")
+      dom `for_` (`shouldMatch` make domain)
+      us `for` (%. "id")
+  usersJSON <- make usersList
+  getConnStatusInternal ["from" .= usersJSON] domain
+
+getConnStatusInternal :: (HasCallStack) => [Pair] -> Domain -> App Response
+getConnStatusInternal body dom = do
+  req <- baseRequest dom Brig Unversioned do
+    joinHttpPath ["i", "users", "connections-status", "v2"]
+  submit "POST" do
+    req & addJSONObject body
+
+getProviderActivationCodeInternal ::
+  (HasCallStack, MakesValue dom) =>
+  dom ->
+  String ->
+  App Response
+getProviderActivationCodeInternal dom email = do
+  d <- make dom
+  req <-
+    rawBaseRequest d Brig Unversioned $
+      joinHttpPath ["i", "provider", "activation-code"]
+  submit "GET" (addQueryParams [("email", email)] req)
+
+-- | https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/#/brig/post_i_clients__uid_
+addClient ::
+  (HasCallStack, MakesValue user) =>
+  user ->
+  AddClient ->
+  App Response
+addClient user args = do
+  uid <- objId user
+  req <- baseRequest user Brig Unversioned $ "/i/clients/" <> uid
+  val <- mkAddClientValue args
+  submit "POST" $ req & addJSONObject val

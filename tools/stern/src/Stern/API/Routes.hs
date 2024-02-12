@@ -320,7 +320,26 @@ type SternAPI =
                :> Put '[JSON] NoContent
            )
     :<|> Named "get-route-outlook-cal-config" (MkFeatureGetRoute OutlookCalIntegrationConfig)
+    :<|> Named "lock-unlock-route-outlook-cal-config" (MkFeatureLockUnlockRouteTrivialConfigNoTTL OutlookCalIntegrationConfig)
     :<|> Named "put-route-outlook-cal-config" (MkFeaturePutRouteTrivialConfigNoTTL OutlookCalIntegrationConfig)
+    :<|> Named
+           "get-route-enforce-file-download-location"
+           ( Description
+               "<p><b>Custom feature: only supported for some decidated on-prem systems.</b></p>"
+               :> MkFeatureGetRoute EnforceFileDownloadLocationConfig
+           )
+    :<|> Named
+           "lock-unlock-route-enforce-file-download-location"
+           ( Description
+               "<p><b>Custom feature: only supported for some decidated on-prem systems.</b></p>"
+               :> MkFeatureLockUnlockRouteTrivialConfigNoTTL EnforceFileDownloadLocationConfig
+           )
+    :<|> Named
+           "put-route-enforce-file-download-location"
+           ( Description
+               "<p><b>Custom feature: only supported for some dedicated on-prem systems.</b></p>"
+               :> MkFeaturePutRoute EnforceFileDownloadLocationConfig
+           )
     :<|> Named
            "get-team-invoice"
            ( Summary "Get a specific invoice by Number"
@@ -517,6 +536,16 @@ type MkFeaturePutRouteTrivialConfigWithTTL (feature :: Type) =
     :> FeatureSymbol feature
     :> QueryParam' [Required, Strict] "status" FeatureStatus
     :> QueryParam' [Required, Strict, Description "team feature time to live, given in days, or 'unlimited' (default)."] "ttl" FeatureTTLDays
+    :> Put '[JSON] NoContent
+
+type MkFeatureLockUnlockRouteTrivialConfigNoTTL (feature :: Type) =
+  Summary "Lock / unlock status for a given feature / team (en-/disable should happen in team settings)"
+    :> "teams"
+    :> Capture "tid" TeamId
+    :> "features"
+    :> FeatureSymbol feature
+    :> "lockOrUnlock"
+    :> QueryParam' [Required, Strict] "lock-status" LockStatus
     :> Put '[JSON] NoContent
 
 type MkFeaturePutRoute (feature :: Type) =

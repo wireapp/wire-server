@@ -1,0 +1,15 @@
+{{- if .Values.metrics.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "sftd.fullname" . }}
+  labels:
+    {{- include "sftd.labels" . | nindent 4 }}
+spec:
+  endpoints:
+    - port: metrics
+      path: /metrics
+  selector:
+    matchLabels:
+      {{- include "sftd.selectorLabels" . | nindent 6 }}
+{{- end }}

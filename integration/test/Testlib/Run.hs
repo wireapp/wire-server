@@ -7,9 +7,9 @@ import Control.Monad.Codensity
 import Control.Monad.IO.Class
 import Control.Monad.Reader
 import Crypto.Error
-import Crypto.PubKey.Ed25519 qualified as Ed25519
+import qualified Crypto.PubKey.Ed25519 as Ed25519
 import Data.ByteArray (convert)
-import Data.ByteString qualified as B
+import qualified Data.ByteString as B
 import Data.Foldable
 import Data.Function
 import Data.Functor
@@ -112,10 +112,9 @@ createGlobalEnv cfg = do
     liftIO . runAppWithEnv env $ do
       config <- readServiceConfig Galley
       relPath <- config %. "settings.mlsPrivateKeyPaths.removal.ed25519" & asString
-      path <-
-        asks (.servicesCwdBase) <&> \case
-          Nothing -> relPath
-          Just dir -> dir </> "galley" </> relPath
+      path <- asks \env' -> case env'.servicesCwdBase of
+        Nothing -> relPath
+        Just dir -> dir </> "galley" </> relPath
       bs <- liftIO $ B.readFile path
       pems <- case pemParseBS bs of
         Left err -> assertFailure $ "Could not parse removal key PEM: " <> err

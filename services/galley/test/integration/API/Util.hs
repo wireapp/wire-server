@@ -66,8 +66,9 @@ import Data.Serialize (runPut)
 import Data.Set qualified as Set
 import Data.Singletons
 import Data.Text qualified as Text
+import Data.Text.Encoding qualified as T
 import Data.Text.Encoding qualified as Text
-import Data.Text.Lazy.Encoding qualified as T
+import Data.Text.Lazy.Encoding qualified as LT
 import Data.Time (getCurrentTime)
 import Data.Tuple.Extra
 import Data.UUID qualified as UUID
@@ -115,6 +116,7 @@ import Wire.API.Conversation.Typing
 import Wire.API.Event.Conversation
 import Wire.API.Event.Conversation qualified as Conv
 import Wire.API.Event.Federation qualified as Fed
+import Wire.API.Event.LeaveReason
 import Wire.API.Event.Team
 import Wire.API.Event.Team qualified as TE
 import Wire.API.Federation.API
@@ -1738,7 +1740,7 @@ wsAssertClientRemoved cid n = do
   let etype = j ^? key "type" . _String
   let eclient = j ^? key "client" . key "id" . _String
   etype @?= Just "user.client-remove"
-  fmap ClientId eclient @?= Just cid
+  (fromByteString . T.encodeUtf8 =<< eclient) @?= Just cid
 
 wsAssertClientAdded ::
   HasCallStack =>
@@ -1750,7 +1752,7 @@ wsAssertClientAdded cid n = do
   let etype = j ^? key "type" . _String
   let eclient = j ^? key "client" . key "id" . _String
   etype @?= Just "user.client-add"
-  fmap ClientId eclient @?= Just cid
+  (fromByteString . T.encodeUtf8 =<< eclient) @?= Just cid
 
 assertMLSMessageEvent ::
   HasCallStack =>
@@ -1899,7 +1901,10 @@ assertRemoveUpdate req qconvId remover alreadyPresentUsers victim = liftIO $ do
   cuOrigUserId cu @?= remover
   cuConvId cu @?= qUnqualified qconvId
   sort (cuAlreadyPresentUsers cu) @?= sort alreadyPresentUsers
-  cuAction cu @?= SomeConversationAction (sing @'ConversationRemoveMembersTag) (pure victim)
+  cuAction cu
+    @?= SomeConversationAction
+      (sing @'ConversationRemoveMembersTag)
+      (ConversationRemoveMembers (pure victim) EdReasonRemoved)
 
 assertLeaveUpdate :: (MonadIO m, HasCallStack) => FederatedRequest -> Qualified ConvId -> Qualified UserId -> [UserId] -> m ()
 assertLeaveUpdate req qconvId remover alreadyPresentUsers = liftIO $ do
@@ -2419,7 +2424,7 @@ retryWhileN n f m =
 -- | Changing this will break tests; all prekeys and client Id must match the same
 -- fingerprint
 someClientId :: ClientId
-someClientId = ClientId "550d8c614fd20299"
+someClientId = ClientId 0xcc6e640e296e8bba
 
 -- | Changing these will break tests; all prekeys and client Id must match the same
 -- fingerprint
@@ -2695,7 +2700,7 @@ makeFedRequestToServant originDomain server fedRequest = do
       bdy = Wai.simpleBody sresp
   if HTTP.statusIsSuccessful status
     then pure bdy
-    else throw (Mock.MockErrorResponse status (T.decodeUtf8 bdy))
+    else throw (Mock.MockErrorResponse status (LT.decodeUtf8 bdy))
   where
     app :: Application
     app = serve (Proxy @api) server
@@ -2760,22 +2765,22 @@ checkUserDeleteEvent uid timeout_ w = WS.assertMatch_ timeout_ w $ \notif -> do
   euser @?= Just (UUID.toText (toUUID uid))
 
 checkTeamMemberJoin :: HasCallStack => TeamId -> UserId -> WS.WebSocket -> TestM ()
-checkTeamMemberJoin tid uid w = WS.awaitMatch_ checkTimeout w $ \notif -> do
-  ntfTransient notif @?= False
+checkTeamMemberJoin tid uid w = WS.assertMatch_ checkTimeout w $ \notif -> do
+  ntfTransient notif @?= True
   let e = List1.head (WS.unpackPayload notif)
   e ^. eventTeam @?= tid
   e ^. eventData @?= EdMemberJoin uid
 
 checkTeamMemberLeave :: HasCallStack => TeamId -> UserId -> WS.WebSocket -> TestM ()
 checkTeamMemberLeave tid usr w = WS.assertMatch_ checkTimeout w $ \notif -> do
-  ntfTransient notif @?= False
+  ntfTransient notif @?= True
   let e = List1.head (WS.unpackPayload notif)
   e ^. eventTeam @?= tid
   e ^. eventData @?= EdMemberLeave usr
 
 checkTeamUpdateEvent :: (HasCallStack, MonadIO m, MonadCatch m) => TeamId -> TeamUpdateData -> WS.WebSocket -> m ()
 checkTeamUpdateEvent tid upd w = WS.assertMatch_ checkTimeout w $ \notif -> do
-  ntfTransient notif @?= False
+  ntfTransient notif @?= True
   let e = List1.head (WS.unpackPayload notif)
   e ^. eventTeam @?= tid
   e ^. eventData @?= EdTeamUpdate upd
@@ -2847,7 +2852,7 @@ checkConvMemberLeaveEvent cid usr w = WS.assertMatch_ checkTimeout w $ \notif ->
     other -> assertFailure $ "Unexpected event data: " <> show other
 
 checkTimeout :: WS.Timeout
-checkTimeout = 4 # Second
+checkTimeout = 60 # Second
 
 -- | The function is used in conjuction with 'withTempMockFederator' to mock
 -- responses by Brig on the mocked side of federation.
@@ -2939,7 +2944,7 @@ spawn cp minput = do
        in snd <$> concurrently writeInput readOutput
   case (mout, ex) of
     (Just out, ExitSuccess) -> pure out
-    _ -> assertFailure "Failed spawning process"
+    _ -> assertFailure "Process didn't finish successfully"
 
 decodeMLSError :: ParseMLS a => ByteString -> IO a
 decodeMLSError s = case decodeMLS' s of
@@ -2986,7 +2991,7 @@ wsAssertBackendRemoveProposal fromUser cnvOrSubCnv idx n = do
   where
     getMLSMessageData :: Conv.EventData -> ByteString
     getMLSMessageData (EdMLSMessage bs) = bs
-    getMLSMessageData d = error ("Excepected EdMLSMessage, but got " <> show d)
+    getMLSMessageData d = error ("Expected EdMLSMessage, but got " <> show d)
 
 wsAssertAddProposal ::
   HasCallStack =>

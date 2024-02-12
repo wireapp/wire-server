@@ -37,7 +37,8 @@ spec =
         (MessageSendResponse.testObject_MessageSendResponse2, "testObject_MessageSendResponse2.json"),
         (MessageSendResponse.testObject_MessageSendResponse3, "testObject_MessageSendResponse3.json"),
         (MessageSendResponse.testObject_MessageSendResponse4, "testObject_MessageSendResponse4.json"),
-        (MessageSendResponse.testObject_MessageSendResponse5, "testObject_MessageSendResponse5.json")
+        (MessageSendResponse.testObject_MessageSendResponse5, "testObject_MessageSendResponse5.json"),
+        (MessageSendResponse.testObject_MessageSendResponse6, "testObject_MessageSendResponse6.json")
       ]
     testObjects
       [ (MLSMessageSendingStatus.testObject_MLSMessageSendingStatus1, "testObject_MLSMessageSendingStatus1.json"),

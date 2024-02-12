@@ -165,6 +165,15 @@ withHTTP2Request mgr target req k = do
   conn <- getOrMakeConnection mgr target
   sendRequestWithConnection conn req k
 
+-- | Temporary workaround for https://github.com/kazu-yamamoto/http2/issues/102
+withHTTP2RequestOnSingleUseConn :: Http2Manager -> Target -> HTTP2.Request -> (HTTP2.Response -> IO a) -> IO a
+withHTTP2RequestOnSingleUseConn Http2Manager {..} target req k = do
+  sendReqMVar <- newEmptyMVar
+  thread <- liftIO . async $ startPersistentHTTP2Connection sslContext target cacheLimit sslRemoveTrailingDot tcpConnectionTimeout sendReqMVar
+  let newConn = HTTP2Conn thread (putMVar sendReqMVar CloseConnection) sendReqMVar
+  sendRequestWithConnection newConn req $ \resp -> do
+    k resp <* disconnect newConn
+
 -- | Connects to a server if it is not already connected, useful when making
 -- many concurrent requests. This way the first few requests don't have to fight
 -- for making a connection This way the first few requests don't have to fight

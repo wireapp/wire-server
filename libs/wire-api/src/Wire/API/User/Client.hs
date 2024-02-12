@@ -59,10 +59,6 @@ module Wire.API.User.Client
     RmClient (..),
 
     -- * re-exports
-    Location,
-    location,
-    latitude,
-    longitude,
     Latitude (..),
     Longitude (..),
 
@@ -85,7 +81,7 @@ import Data.Domain (Domain)
 import Data.Id
 import Data.Json.Util
 import Data.Map.Strict qualified as Map
-import Data.Misc (Latitude (..), Location, Longitude (..), PlainTextPassword6, latitude, location, longitude)
+import Data.Misc (Latitude (..), Longitude (..), PlainTextPassword6)
 import Data.OpenApi hiding (Schema, ToSchema, nullable, schema)
 import Data.OpenApi qualified as Swagger hiding (nullable)
 import Data.Qualified
@@ -240,7 +236,7 @@ instance ToSchema UserClientPrekeyMap where
             ( Map.singleton
                 (generateExample @UserId)
                 ( Map.singleton
-                    (newClientId 4940483633899001999)
+                    (ClientId 4940483633899001999)
                     (Just (Prekey (PrekeyId 1) "pQABAQECoQBYIOjl7hw0D8YRNq..."))
                 )
             )
@@ -415,8 +411,8 @@ instance ToSchema UserClients where
           & Swagger.schema . Swagger.example
             ?~ toJSON
               ( Map.fromList
-                  [ (generateExample @UserId, [newClientId 1684636986166846496, newClientId 4940483633899001999]),
-                    (generateExample @UserId, [newClientId 6987438498444556166, newClientId 7940473633839002939])
+                  [ (generateExample @UserId, [ClientId 1684636986166846496, ClientId 4940483633899001999]),
+                    (generateExample @UserId, [ClientId 6987438498444556166, ClientId 7940473633839002939])
                   ]
               )
 
@@ -473,7 +469,6 @@ data Client = Client
     clientClass :: Maybe ClientClass,
     clientLabel :: Maybe Text,
     clientCookie :: Maybe CookieLabel,
-    clientLocation :: Maybe Location,
     clientModel :: Maybe Text,
     clientCapabilities :: ClientCapabilityList,
     clientMLSPublicKeys :: MLSPublicKeys,
@@ -513,7 +508,6 @@ instance ToSchema Client where
         <*> clientClass .= maybe_ (optField "class" schema)
         <*> clientLabel .= maybe_ (optField "label" schema)
         <*> clientCookie .= maybe_ (optField "cookie" schema)
-        <*> clientLocation .= maybe_ (optField "location" schema)
         <*> clientModel .= maybe_ (optField "model" schema)
         <*> clientCapabilities .= (fromMaybe mempty <$> optField "capabilities" schema)
         <*> clientMLSPublicKeys .= mlsPublicKeysFieldSchema

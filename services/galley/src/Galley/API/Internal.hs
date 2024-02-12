@@ -16,7 +16,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Galley.API.Internal
-  ( internalSitemap,
+  ( waiInternalSitemap,
     internalAPI,
     InternalAPI,
     deleteLoop,
@@ -27,7 +27,7 @@ where
 import Control.Exception.Safe (catchAny)
 import Control.Lens hiding (Getter, Setter, (.=))
 import Data.Id as Id
-import Data.List1 (maybeList1)
+import Data.Json.Util (ToJSONObject (toJSONObject))
 import Data.Map qualified as Map
 import Data.Qualified
 import Data.Range
@@ -57,11 +57,10 @@ import Galley.Effects.BackendNotificationQueueAccess
 import Galley.Effects.ClientStore
 import Galley.Effects.ConversationStore
 import Galley.Effects.FederatorAccess
-import Galley.Effects.GundeckAccess
 import Galley.Effects.LegalHoldStore as LegalHoldStore
 import Galley.Effects.MemberStore qualified as E
 import Galley.Effects.TeamStore
-import Galley.Intra.Push qualified as Intra
+import Galley.Effects.TeamStore qualified as E
 import Galley.Monad
 import Galley.Options hiding (brig)
 import Galley.Queue qualified as Q
@@ -69,10 +68,10 @@ import Galley.Types.Bot (AddBot, RemoveBot)
 import Galley.Types.Bot.Service
 import Galley.Types.Conversations.Members (RemoteMember (rmId))
 import Galley.Types.UserList
+import Gundeck.Types.Push.V2 qualified as PushV2
 import Imports hiding (head)
 import Network.AMQP qualified as Q
 import Network.Wai.Predicate hiding (Error, err, result, setStatus)
-import Network.Wai.Predicate qualified as Predicate hiding (result)
 import Network.Wai.Routing hiding (App, route, toList)
 import Network.Wai.Utilities hiding (Error)
 import Network.Wai.Utilities.ZAuth
@@ -89,6 +88,7 @@ import Wire.API.CustomBackend
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
+import Wire.API.Event.LeaveReason
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
@@ -98,8 +98,8 @@ import Wire.API.Routes.Internal.Galley
 import Wire.API.Routes.Internal.Galley.TeamsIntra
 import Wire.API.Routes.MultiTablePaging (mtpHasMore, mtpPagingState, mtpResults)
 import Wire.API.Team.Feature hiding (setStatus)
-import Wire.API.Team.Member
 import Wire.API.User.Client
+import Wire.NotificationSubsystem
 import Wire.Sem.Paging
 import Wire.Sem.Paging.Cassandra
 
@@ -116,10 +116,19 @@ internalAPI =
       <@> mkNamedAPI @"upsert-one2one" iUpsertOne2OneConversation
       <@> featureAPI
       <@> federationAPI
+      <@> conversationAPI
 
 federationAPI :: API IFederationAPI GalleyEffects
 federationAPI =
   mkNamedAPI @"get-federation-status" (const getFederationStatus)
+
+conversationAPI :: API IConversationAPI GalleyEffects
+conversationAPI =
+  mkNamedAPI @"conversation-get-member" Query.internalGetMember
+    <@> mkNamedAPI @"conversation-accept-v2" Update.acceptConv
+    <@> mkNamedAPI @"conversation-block" Update.blockConv
+    <@> mkNamedAPI @"conversation-unblock" Update.unblockConv
+    <@> mkNamedAPI @"conversation-meta" Query.getConversationMeta
 
 legalholdWhitelistedTeamsAPI :: API ILegalholdWhitelistedTeamsAPI GalleyEffects
 legalholdWhitelistedTeamsAPI = mkAPI $ \tid -> hoistAPIHandler Imports.id (base tid)
@@ -206,6 +215,7 @@ featureAPI =
     <@> mkNamedAPI @'("iget", MLSConfig) (getFeatureStatus DontDoAuth)
     <@> mkNamedAPI @'("iput", MLSConfig) setFeatureStatusInternal
     <@> mkNamedAPI @'("ipatch", MLSConfig) patchFeatureStatusInternal
+    <@> mkNamedAPI @'("ilock", MLSConfig) (updateLockStatus @MLSConfig)
     <@> mkNamedAPI @'("iget", ExposeInvitationURLsToTeamAdminConfig) (getFeatureStatus DontDoAuth)
     <@> mkNamedAPI @'("iput", ExposeInvitationURLsToTeamAdminConfig) setFeatureStatusInternal
     <@> mkNamedAPI @'("ipatch", ExposeInvitationURLsToTeamAdminConfig) patchFeatureStatusInternal
@@ -224,45 +234,17 @@ featureAPI =
     <@> mkNamedAPI @'("iput", MlsMigrationConfig) setFeatureStatusInternal
     <@> mkNamedAPI @'("ipatch", MlsMigrationConfig) patchFeatureStatusInternal
     <@> mkNamedAPI @'("ilock", MlsMigrationConfig) (updateLockStatus @MlsMigrationConfig)
+    <@> mkNamedAPI @'("iget", EnforceFileDownloadLocationConfig) (getFeatureStatus DontDoAuth)
+    <@> mkNamedAPI @'("iput", EnforceFileDownloadLocationConfig) setFeatureStatusInternal
+    <@> mkNamedAPI @'("ipatch", EnforceFileDownloadLocationConfig) patchFeatureStatusInternal
+    <@> mkNamedAPI @'("ilock", EnforceFileDownloadLocationConfig) (updateLockStatus @EnforceFileDownloadLocationConfig)
+    <@> mkNamedAPI @'("iget", LimitedEventFanoutConfig) (getFeatureStatus DontDoAuth)
+    <@> mkNamedAPI @'("iput", LimitedEventFanoutConfig) setFeatureStatusInternal
+    <@> mkNamedAPI @'("ipatch", LimitedEventFanoutConfig) patchFeatureStatusInternal
     <@> mkNamedAPI @"feature-configs-internal" (maybe getAllFeatureConfigsForServer getAllFeatureConfigsForUser)
 
-internalSitemap :: Routes a (Sem GalleyEffects) ()
-internalSitemap = unsafeCallsFed @'Galley @"on-client-removed" $ unsafeCallsFed @'Galley @"on-mls-message-sent" $ do
-  -- Conversation API (internal) ----------------------------------------
-  put "/i/conversations/:cnv/channel" (continue $ const (pure empty)) $
-    zauthUserId
-      .&. (capture "cnv" :: (HasCaptures r) => Predicate r Predicate.Error ConvId)
-      .&. request
-
-  get "/i/conversations/:cnv/members/:usr" (continue Query.internalGetMemberH) $
-    capture "cnv"
-      .&. capture "usr"
-
-  -- This endpoint can lead to the following events being sent:
-  -- - MemberJoin event to you, if the conversation existed and had < 2 members before
-  -- - MemberJoin event to other, if the conversation existed and only the other was member
-  --   before
-  put "/i/conversations/:cnv/accept/v2" (continueE Update.acceptConvH) $
-    zauthUserId
-      .&. opt zauthConnId
-      .&. capture "cnv"
-
-  put "/i/conversations/:cnv/block" (continueE Update.blockConvH) $
-    zauthUserId
-      .&. capture "cnv"
-
-  -- This endpoint can lead to the following events being sent:
-  -- - MemberJoin event to you, if the conversation existed and had < 2 members before
-  -- - MemberJoin event to other, if the conversation existed and only the other was member
-  --   before
-  put "/i/conversations/:cnv/unblock" (continueE Update.unblockConvH) $
-    zauthUserId
-      .&. opt zauthConnId
-      .&. capture "cnv"
-
-  get "/i/conversations/:cnv/meta" (continue Query.getConversationMetaH) $
-    capture "cnv"
-
+waiInternalSitemap :: Routes a (Sem GalleyEffects) ()
+waiInternalSitemap = unsafeCallsFed @'Galley @"on-client-removed" $ unsafeCallsFed @'Galley @"on-mls-message-sent" $ do
   -- Misc API (internal) ------------------------------------------------
 
   get "/i/users/:uid/team/members" (continueE Teams.getBindingTeamMembersH) $
@@ -315,26 +297,26 @@ rmUser ::
   forall p1 p2 r.
   ( p1 ~ CassandraPaging,
     p2 ~ InternalPaging,
-    ( Member BackendNotificationQueueAccess r,
-      Member BrigAccess r,
-      Member ClientStore r,
-      Member ConversationStore r,
-      Member (Error InternalError) r,
-      Member ExternalAccess r,
-      Member FederatorAccess r,
-      Member GundeckAccess r,
-      Member (Input Env) r,
-      Member (Input (Local ())) r,
-      Member (Input UTCTime) r,
-      Member (ListItems p1 ConvId) r,
-      Member (ListItems p1 (Remote ConvId)) r,
-      Member (ListItems p2 TeamId) r,
-      Member MemberStore r,
-      Member ProposalStore r,
-      Member P.TinyLog r,
-      Member SubConversationStore r,
-      Member TeamStore r
-    )
+    Member BackendNotificationQueueAccess r,
+    Member ClientStore r,
+    Member ConversationStore r,
+    Member (Error DynError) r,
+    Member (Error InternalError) r,
+    Member ExternalAccess r,
+    Member FederatorAccess r,
+    Member NotificationSubsystem r,
+    Member (Input Env) r,
+    Member (Input Opts) r,
+    Member (Input UTCTime) r,
+    Member (ListItems p1 ConvId) r,
+    Member (ListItems p1 (Remote ConvId)) r,
+    Member (ListItems p2 TeamId) r,
+    Member MemberStore r,
+    Member ProposalStore r,
+    Member P.TinyLog r,
+    Member SubConversationStore r,
+    Member TeamFeatureStore r,
+    Member TeamStore r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -360,10 +342,33 @@ rmUser lusr conn = do
         goConvPages range newCids
 
     leaveTeams page = for_ (pageItems page) $ \tid -> do
-      mems <- getTeamMembersForFanout tid
-      uncheckedDeleteTeamMember lusr conn tid (tUnqualified lusr) mems
+      toNotify <-
+        handleImpossibleErrors $
+          getFeatureStatus @LimitedEventFanoutConfig DontDoAuth tid
+            >>= ( \case
+                    FeatureStatusEnabled -> Left <$> E.getTeamAdmins tid
+                    FeatureStatusDisabled -> Right <$> getTeamMembersForFanout tid
+                )
+              . wsStatus
+      uncheckedDeleteTeamMember lusr conn tid (tUnqualified lusr) toNotify
       page' <- listTeams @p2 (tUnqualified lusr) (Just (pageState page)) maxBound
       leaveTeams page'
+
+    -- The @'NotATeamMember@ and @'TeamNotFound@ errors cannot happen at this
+    -- point: the user is a team member because we fetched the list of teams
+    -- they are member of, and conversely the list of teams was fetched exactly
+    -- for this user so it cannot be that the team is not found. Therefore, this
+    -- helper just drops the errors.
+    handleImpossibleErrors ::
+      Sem
+        ( ErrorS 'NotATeamMember
+            ': ErrorS 'TeamNotFound
+            ': r
+        )
+        a ->
+      Sem r a
+    handleImpossibleErrors action =
+      mapToDynamicError @'TeamNotFound (mapToDynamicError @'NotATeamMember action)
 
     leaveLocalConversations :: [ConvId] -> Sem r ()
     leaveLocalConversations ids = do
@@ -376,7 +381,7 @@ rmUser lusr conn = do
         ConnectConv -> E.deleteMembers (Data.convId c) (UserList [tUnqualified lusr] []) $> Nothing
         RegularConv
           | tUnqualified lusr `isMember` Data.convLocalMembers c -> do
-              runError (removeUser (qualifyAs lusr c) (tUntagged lusr)) >>= \case
+              runError (removeUser (qualifyAs lusr c) RemoveUserIncludeMain (tUntagged lusr)) >>= \case
                 Left e -> P.err $ Log.msg ("failed to send remove proposal: " <> internalErrorDescription e)
                 Right _ -> pure ()
               E.deleteMembers (Data.convId c) (UserList [tUnqualified lusr] [])
@@ -389,14 +394,12 @@ rmUser lusr conn = do
                       (EdMembersLeave EdReasonDeleted (QualifiedUserIdList [qUser]))
               for_ (bucketRemote (fmap rmId (Data.convRemoteMembers c))) $ notifyRemoteMembers now qUser (Data.convId c)
               pure $
-                Intra.newPushLocal ListComplete (tUnqualified lusr) (Intra.ConvEvent e) (Intra.recipient <$> Data.convLocalMembers c)
-                  <&> set Intra.pushConn conn
-                    . set Intra.pushRoute Intra.RouteDirect
+                newPushLocal (tUnqualified lusr) (toJSONObject e) (localMemberToRecipient <$> Data.convLocalMembers c)
+                  <&> set pushConn conn
+                    . set pushRoute PushV2.RouteDirect
           | otherwise -> pure Nothing
 
-      for_
-        (maybeList1 (catMaybes pp))
-        Galley.Effects.GundeckAccess.push
+      pushNotifications (catMaybes pp)
 
     -- FUTUREWORK: This could be optimized to reduce the number of RPCs
     -- made. When a team is deleted the burst of RPCs created here could
@@ -472,13 +475,15 @@ guardLegalholdPolicyConflictsH ::
     Member (Input Opts) r,
     Member TeamStore r,
     Member P.TinyLog r,
-    Member (ErrorS 'MissingLegalholdConsent) r
+    Member (ErrorS 'MissingLegalholdConsent) r,
+    Member (ErrorS 'MissingLegalholdConsentOldClients) r
   ) =>
   GuardLegalholdPolicyConflicts ->
   Sem r ()
 guardLegalholdPolicyConflictsH glh = do
   mapError @LegalholdConflicts (const $ Tagged @'MissingLegalholdConsent ()) $
-    guardLegalholdPolicyConflicts (glhProtectee glh) (glhUserClients glh)
+    mapError @LegalholdConflictsOldClients (const $ Tagged @'MissingLegalholdConsentOldClients ()) $
+      guardLegalholdPolicyConflicts (glhProtectee glh) (glhUserClients glh)
 
 -- | Get an MLS conversation client list
 iGetMLSClientListForConv ::

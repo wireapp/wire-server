@@ -27,7 +27,18 @@ import SetupHelpers
 import Testlib.Prelude
 import Testlib.ResourcePool
 
--- @SF.Federation @SF.Separation @TSFI.RESTfulAPI @S2
+-- These two commented out tests exist to test the Setup.hs code.
+-- Both of these tests should not appear in the output.
+
+-- testBar :: HasCallStack => App ()
+-- testBar = pure ()
+
+{-
+testBaz :: HasCallStack => App ()
+testBaz = pure ()
+-}
+
+-- | @SF.Federation @SF.Separation @TSFI.RESTfulAPI @S2
 --
 -- The test asserts that, among others, remote users are removed from a
 -- conversation when an access update occurs that disallows guests from
@@ -115,7 +126,7 @@ testAccessUpdateWithRemotes = do
   withWebSockets [alice, bob, charlie] $ \wss -> do
     void $ updateAccess alice conv update >>= getJSON 200
     for_ wss $ \ws -> do
-      notif <- awaitMatch 10 isConvAccessUpdateNotif ws
+      notif <- awaitMatch isConvAccessUpdateNotif ws
       notif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
       notif %. "payload.0.qualified_from" `shouldMatch` objQidObject alice
       notif %. "payload.0.data.access" `shouldMatch` update_access_value

@@ -66,9 +66,12 @@ import Network.Wai.Utilities.JSONResponse
 import Polysemy
 import Polysemy.Error
 import Servant
+import Servant.Client (HasClient (Client))
+import Servant.Client.Core.HasClient (hoistClientMonad)
+import Servant.Client.Streaming (HasClient (clientWithRoute))
 import Servant.OpenApi
 import Wire.API.Routes.MultiVerb
-import Wire.API.Routes.Named (UntypedNamed)
+import Wire.API.Routes.Named (Named)
 import Wire.API.Routes.Version
 
 -- | Runtime representation of a statically-known error.
@@ -191,6 +194,11 @@ instance
   where
   toOpenApi _ = addToOpenApi @e (toOpenApi (Proxy @api))
 
+instance HasClient m api => HasClient m (CanThrow e :> api) where
+  type Client m (CanThrow e :> api) = Client m api
+  clientWithRoute pm _ = clientWithRoute pm $ Proxy @api
+  hoistClientMonad pm _ = hoistClientMonad pm (Proxy @api)
+
 type instance
   SpecialiseToVersion v (CanThrowMany es :> api) =
     CanThrowMany es :> SpecialiseToVersion v api
@@ -209,7 +217,7 @@ type family DeclaredErrorEffects api :: EffectRow where
   DeclaredErrorEffects (CanThrowMany '(e, es) :> api) =
     DeclaredErrorEffects (CanThrow e :> CanThrowMany es :> api)
   DeclaredErrorEffects (x :> api) = DeclaredErrorEffects api
-  DeclaredErrorEffects (UntypedNamed n api) = DeclaredErrorEffects api
+  DeclaredErrorEffects (Named n api) = DeclaredErrorEffects api
   DeclaredErrorEffects api = '[]
 
 errorResponseSwagger :: forall e. (Typeable e, KnownError e) => S.Response

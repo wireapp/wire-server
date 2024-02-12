@@ -1,36 +1,140 @@
 # How to build wire-server
 
-As a prerequisiste install the [nix package manager](https://nixos.org/) and [direnv](https://direnv.net/). Follow [these instructions](https://wire-server.cachix.org) to setup the Nix cache which will save you many hours of building.
+## Getting up to speed
 
-All following commands expect that you've entered the nix-provided build-environment by running `direnv allow`.
+### nix
 
+0. make sure you have `git` installed. It will be
+   assumed by `nix`. Also make sure to run on an amd64
+   machine, `wire-server` is not yet compatible with arm64.
 
-1. Create a `cabal.project.local`. This file is not included in wire-server because it disables optimization.
+1. Install the [nix package manager](https://nixos.org/download.html).
+   Please follow the install instruction provided on their website.
 
+2. Add the `wire-server` `cachix` cache to your system.
+   This is best done by using the `cachix` executable, which, as soon as you have
+   `nix` itself installed can be run with this (a bit unwieldy) command:
 
-   make cabal.project.local
+   ```bash
+   nix run \
+     --experimental-features 'nix-command flakes' \
+     github:nixos/nixpkgs/nixpkgs-unstable#cachix -- \
+     use wire-server
+   ```
 
+### direnv
 
-   This should be re-run whenver a new local cabal package is added to the cabal project.
+1. Install [`direnv`](https://direnv.net/). See the [installation documentation](https://direnv.net/docs/installation.html)
+   for further details.
 
-Then the following Makefile targets can be used to compile and test wire-server locally:
+### checking out the repo
 
+1. clone the git repo, it can be found at [the wireapp/wire-server github](https://github.com/wireapp/wire-server)
+2. initialize this repo's submodules with
+   ```bash
+   git submodule update --init --recursive
+   ```
 
-    # to compile all binaries to ./dist run
-    make
+### run direnv
 
-    # to build and install all of galley's executables
-    make c package=galley
+Now it's time to let nix fetch all dependencies. Enter the `wire-server` checkout, run
 
-    # also run galley's unit tests
-    make c package=galley test=1
+```bash
+direnv allow
+```
 
+and go and grab a coffee. ☕
+
+Your system will likely not build much, but it will definitely
+spend some time fetching things from different caches.
+
+### initializing the cabal mirrors
+
+There are a few dependencies that are not provided by the nix env, for these, please run
+```bash
+cabal update
+```
+now that you're in the devshell.
+
+### building wire-server
+
+#### with cabal
+
+You can build within the devshell by using the `Makefile` targets and
+cabal.
+The binaries are then dropped into `./dist/<service-name>`
+
+You may build all services in `wire-server` by running
+
+```bash
+make c
+```
+
+you may build a single package by running
+
+```bash
+make c package=brig
+```
+
+you may run the tests by first starting background services with
+
+```bash
+./deploy/dockerephemeral/run.sh
+```
+
+and then executing
+
+```bash
+ulimit 10240 # set your resource limit to some high number
+make ci-safe # run the ci
+```
+If the former command fails, make sure you have a working installation of `docker`
+or continue to the troubleshooting section right below.
+
+#### with nix
+
+you may build each individual service by running
+
+```bash
+nix build -Lv \
+  --experimental-features 'nix-command' \
+  -f ./nix wireServer.<service>
+```
+
+you may build all the libraries that exist locally or are in the closure of `wire-server` by running
+
+```bash
+nix build -Lv \
+  --experimental-features 'nix-command' \
+  -f ./nix wireServer.haskellPackages.<library>
+```
+
+you may build all the images that would be deployed by running 
+
+```bash
+nix build -Lv \
+  --experimental-features 'nix-command' \
+  -f ./nix wireServer.allImages
+```
+
+> ℹ️  Info
+> 
+> if you don't want to pass the `--experimental-features` flag to nix, you may as well
+> add this to your `nix.conf` which is documented [in the nix manual](https://nixos.org/manual/nix/unstable/command-ref/conf-file.html)
+
+`nix` puts all the build outputs into the nix store but leaves a link in the `result` directory
+that will appear in the same directory that you have run the command in. To find out what
+artifacts where build, just run
+
+```bash
+ls -l result
+```
 
 ## Troubleshooting
 
 ### If the PR doesn't pass the CI (read check marks on github)
 
-```
+```bash
 make sanitize-pr
 ```
 
@@ -42,7 +146,7 @@ Haskell Language Server stores its build artifacts in `~/.cache/hie-bios` (equiv
 
 The easiest course of action is to to remove these directories via:
 
-```
+```bash
 make full-clean
 ```
 
@@ -73,7 +177,7 @@ Furthermore, testing federation requires a local DNS server set up with appropri
 
 Setting up these real, but in-memory internal and "fake" external dependencies is done easiest using [`docker-compose`](https://docs.docker.com/compose/install/). Run the following in a separate terminal (it will block that terminal, C-c to shut all these docker images down again):
 
-```
+```bash
 deploy/dockerephemeral/run.sh
 ```
 

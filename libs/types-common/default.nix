@@ -17,9 +17,8 @@
 , containers
 , cryptohash-md5
 , cryptohash-sha1
-, cryptonite
+, crypton
 , currency-codes
-, data-default
 , generic-random
 , gitignoreSource
 , hashable
@@ -73,9 +72,8 @@ mkDerivation {
     containers
     cryptohash-md5
     cryptohash-sha1
-    cryptonite
+    crypton
     currency-codes
-    data-default
     generic-random
     hashable
     http-api-data

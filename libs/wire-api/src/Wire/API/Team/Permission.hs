@@ -117,7 +117,7 @@ serviceWhitelistPermissions =
   Set.fromList
     [ AddTeamMember,
       RemoveTeamMember,
-      DoNotUseDeprecatedAddRemoveConvMember,
+      AddRemoveConvMember,
       SetTeamData
     ]
 
@@ -127,11 +127,20 @@ serviceWhitelistPermissions =
 -- | Team-level permission.  Analog to conversation-level 'Action'.
 data Perm
   = CreateConversation
-  | DoNotUseDeprecatedDeleteConversation -- NOTE: This gets now overruled by conv level checks
+  | -- NOTE: This may get overruled by conv level checks in case those are more restrictive
+    -- We currently cannot get rid of this team-level permission in favor of the conv-level action
+    -- because it is used for e.g. for the team role 'RoleExternalPartner'
+    DeleteConversation
   | AddTeamMember
   | RemoveTeamMember
-  | DoNotUseDeprecatedAddRemoveConvMember -- NOTE: This gets now overruled by conv level checks
-  | DoNotUseDeprecatedModifyConvName -- NOTE: This gets now overruled by conv level checks
+  | -- NOTE: This may get overruled by conv level checks in case those are more restrictive
+    -- We currently cannot get rid of this team-level permission in favor of the conv-level action
+    -- because it is used for e.g. for the team role 'RoleExternalPartner'
+    AddRemoveConvMember
+  | -- NOTE: This may get overruled by conv level checks in case those are more restrictive
+    -- We currently cannot get rid of this team-level permission in favor of the conv-level action
+    -- because it is used for e.g. for the team role 'RoleExternalPartner'
+    ModifyConvName
   | GetBilling
   | SetBilling
   | SetTeamData
@@ -147,6 +156,8 @@ data Perm
   deriving (Arbitrary) via (GenericUniform Perm)
   deriving (FromJSON, ToJSON) via (CustomEncoded Perm)
 
+instance S.ToSchema Perm
+
 permsToInt :: Set Perm -> Word64
 permsToInt = Set.foldr' (\p n -> n .|. permToInt p) 0
 
@@ -157,11 +168,11 @@ intToPerms n =
 
 permToInt :: Perm -> Word64
 permToInt CreateConversation = 0x0001
-permToInt DoNotUseDeprecatedDeleteConversation = 0x0002
+permToInt DeleteConversation = 0x0002
 permToInt AddTeamMember = 0x0004
 permToInt RemoveTeamMember = 0x0008
-permToInt DoNotUseDeprecatedAddRemoveConvMember = 0x0010
-permToInt DoNotUseDeprecatedModifyConvName = 0x0020
+permToInt AddRemoveConvMember = 0x0010
+permToInt ModifyConvName = 0x0020
 permToInt GetBilling = 0x0040
 permToInt SetBilling = 0x0080
 permToInt SetTeamData = 0x0100
@@ -172,11 +183,11 @@ permToInt SetMemberPermissions = 0x1000
 
 intToPerm :: Word64 -> Maybe Perm
 intToPerm 0x0001 = Just CreateConversation
-intToPerm 0x0002 = Just DoNotUseDeprecatedDeleteConversation
+intToPerm 0x0002 = Just DeleteConversation
 intToPerm 0x0004 = Just AddTeamMember
 intToPerm 0x0008 = Just RemoveTeamMember
-intToPerm 0x0010 = Just DoNotUseDeprecatedAddRemoveConvMember
-intToPerm 0x0020 = Just DoNotUseDeprecatedModifyConvName
+intToPerm 0x0010 = Just AddRemoveConvMember
+intToPerm 0x0020 = Just ModifyConvName
 intToPerm 0x0040 = Just GetBilling
 intToPerm 0x0080 = Just SetBilling
 intToPerm 0x0100 = Just SetTeamData

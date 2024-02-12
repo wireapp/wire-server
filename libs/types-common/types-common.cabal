@@ -42,7 +42,6 @@ library
   other-modules:      Paths_types_common
   hs-source-dirs:     src
   default-extensions:
-    NoImplicitPrelude
     AllowAmbiguousTypes
     BangPatterns
     ConstraintKinds
@@ -66,6 +65,7 @@ library
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NoImplicitPrelude
     OverloadedRecordDot
     OverloadedStrings
     PackageImports
@@ -103,9 +103,8 @@ library
     , containers             >=0.5
     , cryptohash-md5         >=0.11.7.2
     , cryptohash-sha1        >=0.11.7.2
-    , cryptonite             >=0.26
+    , crypton                >=0.26
     , currency-codes         >=3.0.0.1
-    , data-default           >=0.5
     , generic-random         >=1.4.0.0
     , hashable               >=1.2
     , http-api-data
@@ -154,7 +153,6 @@ test-suite tests
 
   hs-source-dirs:     test
   default-extensions:
-    NoImplicitPrelude
     AllowAmbiguousTypes
     BangPatterns
     ConstraintKinds
@@ -178,6 +176,7 @@ test-suite tests
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NoImplicitPrelude
     OverloadedRecordDot
     OverloadedStrings
     PackageImports

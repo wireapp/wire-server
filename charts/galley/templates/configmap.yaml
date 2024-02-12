@@ -21,6 +21,9 @@ data:
       {{- if hasKey .cassandra "filterNodesByDatacentre" }}
       filterNodesByDatacentre: {{ .cassandra.filterNodesByDatacentre }}
       {{- end }}
+      {{- if eq (include "useCassandraTLS" .) "true" }}
+      tlsCa: /etc/wire/galley/cassandra/{{- (include "tlsSecretRef" . | fromYaml).key }}
+      {{- end }}
 
     brig:
       host: brig
@@ -76,11 +79,12 @@ data:
         removal:
           ed25519: "/etc/wire/galley/secrets/removal_ed25519.pem"
         {{- end }}
-      {{- end -}}
-      {{- if .settings.disabledAPIVersions }}
-      disabledAPIVersions: {{ .settings.disabledAPIVersions }}
       {{- end }}
+      disabledAPIVersions: {{ toJson .settings.disabledAPIVersions }}
       {{- if .settings.featureFlags }}
+      {{- if .settings.guestLinkTTLSeconds }}
+      guestLinkTTLSeconds: {{ .settings.guestLinkTTLSeconds }}
+      {{- end }}
       featureFlags:
         sso: {{ .settings.featureFlags.sso }}
         legalhold: {{ .settings.featureFlags.legalhold }}
@@ -134,6 +138,10 @@ data:
         {{- if .settings.featureFlags.mlsMigration }}
         mlsMigration:
           {{- toYaml .settings.featureFlags.mlsMigration | nindent 10 }}
+        {{- end }}
+        {{- if .settings.featureFlags.limitedEventFanout }}
+        limitedEventFanout:
+          {{- toYaml .settings.featureFlags.limitedEventFanout | nindent 10 }}
         {{- end }}
       {{- end }}
   {{- end }}

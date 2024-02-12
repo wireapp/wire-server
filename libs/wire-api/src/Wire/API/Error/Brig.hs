@@ -33,6 +33,7 @@ data BrigError
   | CodeAuthenticationFailed
   | CodeAuthenticationRequired
   | MissingLegalholdConsent
+  | MissingLegalholdConsentOldClients
   | ConnectionLimitReached
   | UnknownClient
   | ClientNotFound
@@ -91,6 +92,8 @@ data BrigError
   | VerificationCodeThrottled
   | InvalidProvider
   | ProviderNotFound
+  | TeamsNotFederating
+  | PasswordIsStale
 
 instance (Typeable (MapError e), KnownError (MapError e)) => IsSwaggerError (e :: BrigError) where
   addToOpenApi = addStaticErrorToSwagger @(MapError e)
@@ -140,6 +143,13 @@ type instance MapError 'MalformedPrekeys = 'StaticError 400 "bad-request" "Malfo
 type instance MapError 'CodeAuthenticationFailed = 'StaticError 403 "code-authentication-failed" "Code authentication failed"
 
 type instance MapError 'CodeAuthenticationRequired = 'StaticError 403 "code-authentication-required" "Code authentication is required"
+
+type instance
+  MapError 'MissingLegalholdConsentOldClients =
+    'StaticError
+      403
+      "missing-legalhold-consent-old-clients"
+      "Failed to connect to a user or to invite a user to a group because somebody is under legalhold and somebody else has old clients that do not support legalhold's UI requirements"
 
 type instance
   MapError 'MissingLegalholdConsent =
@@ -272,3 +282,7 @@ type instance MapError 'NotificationNotFound = 'StaticError 404 "not-found" "Not
 type instance MapError 'PendingInvitationNotFound = 'StaticError 404 "not-found" "No pending invitations exists."
 
 type instance MapError 'ConflictingInvitations = 'StaticError 409 "conflicting-invitations" "Multiple conflicting invitations to different teams exists."
+
+type instance MapError 'TeamsNotFederating = 'StaticError 403 "team-not-federating" "The target user is owned by a federated backend, but is not in an allow-listed team"
+
+type instance MapError 'PasswordIsStale = 'StaticError 403 "password-is-stale" "The password is too old, please update your password."

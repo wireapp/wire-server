@@ -89,7 +89,7 @@ cid2Str :: ClientIdentity -> String
 cid2Str cid =
   show cid.ciUser
     <> ":"
-    <> T.unpack cid.ciClient.client
+    <> T.unpack (clientToText cid.ciClient)
     <> "@"
     <> T.unpack (domainText (ciDomain cid))
 
@@ -647,7 +647,7 @@ createApplicationMessage cid messageContent = do
   message <-
     mlscli
       cid
-      ["message", "--group", "<group-in>", messageContent]
+      ["message", "--group-in", "<group-in>", messageContent, "--group-out", "<group-out>"]
       Nothing
 
   pure $

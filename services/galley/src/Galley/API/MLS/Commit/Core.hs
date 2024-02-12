@@ -53,12 +53,15 @@ import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
+import Wire.API.Federation.Endpoint
 import Wire.API.Federation.Error
+import Wire.API.Federation.Version
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Commit
 import Wire.API.MLS.Credential
 import Wire.API.MLS.SubConversation
 import Wire.API.User.Client
+import Wire.NotificationSubsystem
 
 type HasProposalActionEffects r =
   ( Member BackendNotificationQueueAccess r,
@@ -76,7 +79,6 @@ type HasProposalActionEffects r =
     Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
-    Member GundeckAccess r,
     Member (Input Env) r,
     Member (Input Opts) r,
     Member (Input UTCTime) r,
@@ -85,7 +87,8 @@ type HasProposalActionEffects r =
     Member ProposalStore r,
     Member SubConversationStore r,
     Member TeamStore r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member NotificationSubsystem r
   )
 
 getCommitData ::
@@ -148,12 +151,14 @@ getRemoteMLSClients ::
   CipherSuiteTag ->
   Sem r (Either FederationError (Set ClientInfo))
 getRemoteMLSClients rusr suite = do
+  let mcr =
+        MLSClientsRequest
+          { userId = tUnqualified rusr,
+            cipherSuite = tagCipherSuite suite
+          }
   runFederatedEither rusr $
-    fedClient @'Brig @"get-mls-clients" $
-      MLSClientsRequest
-        { userId = tUnqualified rusr,
-          cipherSuite = tagCipherSuite suite
-        }
+    fedClient @'Brig @"get-mls-clients" mcr
+      <|> fedClient @'Brig @(Versioned 'V0 "get-mls-clients") (mlsClientsRequestToV0 mcr)
 
 --------------------------------------------------------------------------------
 -- Error handling of proposal execution

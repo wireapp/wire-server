@@ -58,7 +58,6 @@ library
   other-modules:      Paths_federator
   hs-source-dirs:     src
   default-extensions:
-    NoImplicitPrelude
     AllowAmbiguousTypes
     BangPatterns
     ConstraintKinds
@@ -82,6 +81,7 @@ library
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NoImplicitPrelude
     OverloadedRecordDot
     OverloadedStrings
     PackageImports
@@ -113,7 +113,8 @@ library
     , bytestring
     , bytestring-conversion
     , containers
-    , data-default
+    , crypton-x509
+    , crypton-x509-validation
     , dns
     , dns-util
     , exceptions
@@ -145,13 +146,12 @@ library
     , transformers
     , types-common
     , unix
+    , uuid
     , wai
     , wai-utilities
     , warp
     , wire-api
     , wire-api-federation
-    , x509
-    , x509-validation
 
   default-language:   GHC2021
 
@@ -160,7 +160,6 @@ executable federator
   other-modules:      Paths_federator
   hs-source-dirs:     exec
   default-extensions:
-    NoImplicitPrelude
     AllowAmbiguousTypes
     BangPatterns
     ConstraintKinds
@@ -184,6 +183,7 @@ executable federator
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NoImplicitPrelude
     OverloadedRecordDot
     OverloadedStrings
     PackageImports
@@ -227,7 +227,6 @@ executable federator-integration
 
   hs-source-dirs:     test/integration
   default-extensions:
-    NoImplicitPrelude
     AllowAmbiguousTypes
     BangPatterns
     ConstraintKinds
@@ -251,6 +250,7 @@ executable federator-integration
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NoImplicitPrelude
     OverloadedRecordDot
     OverloadedStrings
     PackageImports
@@ -282,8 +282,8 @@ executable federator-integration
     , binary
     , bytestring
     , bytestring-conversion
-    , connection
-    , cryptonite
+    , crypton
+    , crypton-connection
     , dns-util
     , exceptions
     , federator
@@ -330,7 +330,6 @@ test-suite federator-tests
 
   hs-source-dirs:     test/unit
   default-extensions:
-    NoImplicitPrelude
     AllowAmbiguousTypes
     BangPatterns
     ConstraintKinds
@@ -354,6 +353,7 @@ test-suite federator-tests
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NoImplicitPrelude
     OverloadedRecordDot
     OverloadedStrings
     PackageImports
@@ -383,6 +383,7 @@ test-suite federator-tests
     , bytestring
     , bytestring-conversion
     , containers
+    , crypton-x509-validation
     , data-default
     , dns-util
     , federator
@@ -419,7 +420,6 @@ test-suite federator-tests
     , warp-tls
     , wire-api
     , wire-api-federation
-    , x509-validation
     , yaml
 
   default-language:   GHC2021

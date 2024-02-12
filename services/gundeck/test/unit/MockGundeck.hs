@@ -50,6 +50,7 @@ import Data.Aeson
 import Data.Aeson qualified as Aeson
 import Data.Aeson.Encode.Pretty qualified as Aeson
 import Data.Aeson.KeyMap qualified as KeyMap
+import Data.ByteString.Conversion
 import Data.Id
 import Data.IntMultiSet (IntMultiSet)
 import Data.IntMultiSet qualified as MSet
@@ -297,7 +298,7 @@ genId = do
   pure . Id . fst $ random gen
 
 genClientId :: Gen ClientId
-genClientId = newClientId <$> arbitrary
+genClientId = ClientId <$> arbitrary
 
 genProtoAddress :: HasCallStack => UserId -> ClientId -> Gen Address
 genProtoAddress _addrUser _addrClient = do
@@ -539,7 +540,7 @@ handlePushCass Push {..}
 handlePushCass Push {..} = do
   forM_ (fromRange _pushRecipients) $ \(Recipient uid _ cids) -> do
     let cids' = case cids of
-          RecipientClientsAll -> [ClientId mempty]
+          RecipientClientsAll -> [ClientId 0]
           -- clients are stored in cassandra as a list with a notification.  empty list is
           -- intepreted as "all clients" by 'Gundeck.Notification.Data.toNotif'.  (here, we just
           -- store a specific 'ClientId' that signifies "no client".)
@@ -595,7 +596,7 @@ mockStreamAdd _ (toList -> targets) pay _ =
     clients@(_ : _) -> forM_ clients $ \cid ->
       msCassQueue %= deliver (tgt ^. targetUser, cid) pay
     [] ->
-      msCassQueue %= deliver (tgt ^. targetUser, ClientId mempty) pay
+      msCassQueue %= deliver (tgt ^. targetUser, ClientId 0) pay
 
 mockPushNative ::
   (HasCallStack, m ~ MockGundeck) =>
@@ -783,7 +784,7 @@ fakePresence userId clientId_ = Presence {..}
 
 -- | See also: 'fakePresence'.
 fakeConnId :: ClientId -> ConnId
-fakeConnId = ConnId . cs . client
+fakeConnId = ConnId . cs . clientToText
 
 clientIdFromConnId :: ConnId -> ClientId
-clientIdFromConnId = ClientId . cs . fromConnId
+clientIdFromConnId = fromJust . fromByteString . fromConnId

@@ -67,17 +67,17 @@ cleanupSwagger =
             if "Invalid "
               `T.isPrefixOf` desc
               && resp
-              ^? _Inline
-              . links
-              == pure mempty
+                ^? _Inline
+                  . links
+                == pure mempty
               && resp
-              ^? _Inline
-              . content
-              == pure mempty
+                ^? _Inline
+                  . content
+                == pure mempty
               && resp
-              ^? _Inline
-              . headers
-              == pure mempty
+                ^? _Inline
+                  . headers
+                == pure mempty
               then resps
               else insert code resp resps
           Nothing -> insert code resp resps
@@ -86,17 +86,17 @@ cleanupSwagger =
             if " not found"
               `T.isSuffixOf` desc
               && resp
-              ^? _Inline
-              . links
-              == pure mempty
+                ^? _Inline
+                  . links
+                == pure mempty
               && resp
-              ^? _Inline
-              . content
-              == pure mempty
+                ^? _Inline
+                  . content
+                == pure mempty
               && resp
-              ^? _Inline
-              . headers
-              == pure mempty
+                ^? _Inline
+                  . headers
+                == pure mempty
               then resps
               else insert code resp resps
           Nothing -> insert code resp resps

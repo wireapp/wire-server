@@ -31,7 +31,6 @@ import Galley.API.Util
 import Galley.Data.Services
 import Galley.Effects
 import Galley.Effects.BackendNotificationQueueAccess
-import Galley.Intra.Push.Internal
 import Galley.Types.Conversations.Members
 import Gundeck.Types.Push.V2 (RecipientClients (..))
 import Imports
@@ -47,6 +46,7 @@ import Wire.API.MLS.Message
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
 import Wire.API.Message
+import Wire.NotificationSubsystem
 
 -- | Propagate a message.
 -- The message will not be propagated to the sender client if provided. This is
@@ -54,9 +54,9 @@ import Wire.API.Message
 propagateMessage ::
   ( Member BackendNotificationQueueAccess r,
     Member ExternalAccess r,
-    Member GundeckAccess r,
     Member (Input UTCTime) r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member NotificationSubsystem r
   ) =>
   Qualified UserId ->
   Maybe ClientId ->

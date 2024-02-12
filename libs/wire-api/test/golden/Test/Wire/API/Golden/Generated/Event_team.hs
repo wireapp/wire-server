@@ -233,11 +233,11 @@ testObject_Event_team_18 =
                 { _self =
                     fromList
                       [ CreateConversation,
-                        DoNotUseDeprecatedDeleteConversation,
+                        DeleteConversation,
                         AddTeamMember,
                         RemoveTeamMember,
-                        DoNotUseDeprecatedAddRemoveConvMember,
-                        DoNotUseDeprecatedModifyConvName,
+                        AddRemoveConvMember,
+                        ModifyConvName,
                         GetBilling,
                         SetBilling,
                         SetTeamData,
@@ -249,11 +249,11 @@ testObject_Event_team_18 =
                   _copy =
                     fromList
                       [ CreateConversation,
-                        DoNotUseDeprecatedDeleteConversation,
+                        DeleteConversation,
                         AddTeamMember,
                         RemoveTeamMember,
-                        DoNotUseDeprecatedAddRemoveConvMember,
-                        DoNotUseDeprecatedModifyConvName,
+                        AddRemoveConvMember,
+                        ModifyConvName,
                         GetBilling,
                         GetMemberPermissions,
                         SetMemberPermissions,
@@ -275,10 +275,10 @@ testObject_Event_team_19 =
             ( Permissions
                 { _self =
                     fromList
-                      [ DoNotUseDeprecatedDeleteConversation,
+                      [ DeleteConversation,
                         RemoveTeamMember,
-                        DoNotUseDeprecatedAddRemoveConvMember,
-                        DoNotUseDeprecatedModifyConvName,
+                        AddRemoveConvMember,
+                        ModifyConvName,
                         GetBilling,
                         SetBilling,
                         GetMemberPermissions,
@@ -286,9 +286,9 @@ testObject_Event_team_19 =
                       ],
                   _copy =
                     fromList
-                      [ DoNotUseDeprecatedDeleteConversation,
+                      [ DeleteConversation,
                         RemoveTeamMember,
-                        DoNotUseDeprecatedAddRemoveConvMember,
+                        AddRemoveConvMember,
                         GetBilling,
                         SetBilling,
                         GetMemberPermissions,

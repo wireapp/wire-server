@@ -93,9 +93,9 @@ instance ToSchema LHServiceStatus where
 
 instance ToSchema ViewLegalHoldService where
   schema =
-    object "ViewLegalHoldService"
-      $ toOutput .= recordSchema
-      `withParser` validateViewLegalHoldService
+    object "ViewLegalHoldService" $
+      toOutput .= recordSchema
+        `withParser` validateViewLegalHoldService
     where
       toOutput :: ViewLegalHoldService -> (LHServiceStatus, Maybe ViewLegalHoldServiceInfo)
       toOutput = \case

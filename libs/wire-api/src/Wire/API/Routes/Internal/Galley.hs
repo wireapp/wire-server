@@ -136,6 +136,7 @@ type IFeatureAPI =
     :<|> IFeatureStatusGet MLSConfig
     :<|> IFeatureStatusPut '[] '() MLSConfig
     :<|> IFeatureStatusPatch '[] '() MLSConfig
+    :<|> IFeatureStatusLockStatusPut MLSConfig
     -- ExposeInvitationURLsToTeamAdminConfig
     :<|> IFeatureStatusGet ExposeInvitationURLsToTeamAdminConfig
     :<|> IFeatureStatusPut '[] '() ExposeInvitationURLsToTeamAdminConfig
@@ -159,6 +160,15 @@ type IFeatureAPI =
     :<|> IFeatureStatusPut '[] '() MlsMigrationConfig
     :<|> IFeatureStatusPatch '[] '() MlsMigrationConfig
     :<|> IFeatureStatusLockStatusPut MlsMigrationConfig
+    -- EnforceFileDownloadLocationConfig
+    :<|> IFeatureStatusGetWithDesc EnforceFileDownloadLocationConfig "<p><b>Custom feature: only supported for some decidated on-prem systems.</b></p>"
+    :<|> IFeatureStatusPutWithDesc '[] '() EnforceFileDownloadLocationConfig "<p><b>Custom feature: only supported for some decidated on-prem systems.</b></p>"
+    :<|> IFeatureStatusPatchWithDesc '[] '() EnforceFileDownloadLocationConfig "<p><b>Custom feature: only supported for some decidated on-prem systems.</b></p>"
+    :<|> IFeatureStatusLockStatusPutWithDesc EnforceFileDownloadLocationConfig "<p><b>Custom feature: only supported for some decidated on-prem systems.</b></p>"
+    -- LimitedEventFanoutConfig
+    :<|> IFeatureStatusGet LimitedEventFanoutConfig
+    :<|> IFeatureStatusPut '[] '() LimitedEventFanoutConfig
+    :<|> IFeatureStatusPatch '[] '() LimitedEventFanoutConfig
     -- all feature configs
     :<|> Named
            "feature-configs-internal"
@@ -233,6 +243,7 @@ type InternalAPIBase =
            "guard-legalhold-policy-conflicts"
            ( "guard-legalhold-policy-conflicts"
                :> CanThrow 'MissingLegalholdConsent
+               :> CanThrow 'MissingLegalholdConsentOldClients
                :> ReqBody '[Servant.JSON] GuardLegalholdPolicyConflicts
                :> MultiVerb1 'PUT '[Servant.JSON] (RespondEmpty 200 "Guard Legalhold Policy")
            )
@@ -249,6 +260,7 @@ type InternalAPIBase =
            )
     :<|> IFeatureAPI
     :<|> IFederationAPI
+    :<|> IConversationAPI
 
 type ILegalholdWhitelistedTeamsAPI =
   "legalhold"
@@ -370,11 +382,17 @@ type ITeamsAPIBase =
                     )
          )
 
-type IFeatureStatusGet f = Named '("iget", f) (FeatureStatusBaseGet f)
+type IFeatureStatusGet f = IFeatureStatusGetWithDesc f ""
 
-type IFeatureStatusPut calls errs f = Named '("iput", f) (ApplyMods calls (FeatureStatusBasePutInternal errs f))
+type IFeatureStatusGetWithDesc f desc = Named '("iget", f) (Description desc :> FeatureStatusBaseGet f)
 
-type IFeatureStatusPatch calls errs f = Named '("ipatch", f) (ApplyMods calls (FeatureStatusBasePatchInternal errs f))
+type IFeatureStatusPut calls errs f = IFeatureStatusPutWithDesc calls errs f ""
+
+type IFeatureStatusPutWithDesc calls errs f desc = Named '("iput", f) (ApplyMods calls (Description desc :> FeatureStatusBasePutInternal errs f))
+
+type IFeatureStatusPatch calls errs f = IFeatureStatusPatchWithDesc calls errs f ""
+
+type IFeatureStatusPatchWithDesc calls errs f desc = Named '("ipatch", f) (ApplyMods calls (Description desc :> FeatureStatusBasePatchInternal errs f))
 
 type FeatureStatusBasePutInternal errs featureConfig =
   FeatureStatusBaseInternal
@@ -407,10 +425,13 @@ type FeatureStatusBaseInternal desc errs featureConfig a =
     :> FeatureSymbol featureConfig
     :> a
 
-type IFeatureStatusLockStatusPut featureName =
+type IFeatureStatusLockStatusPut featureName = IFeatureStatusLockStatusPutWithDesc featureName ""
+
+type IFeatureStatusLockStatusPutWithDesc featureName desc =
   Named
     '("ilock", featureName)
     ( Summary (AppendSymbol "(Un-)lock " (FeatureSymbol featureName))
+        :> Description desc
         :> CanThrow 'NotATeamMember
         :> CanThrow 'TeamNotFound
         :> "teams"
@@ -444,6 +465,65 @@ type IFederationAPI =
         :> ReqBody '[Servant.JSON] RemoteDomains
         :> Get '[Servant.JSON] FederationStatus
     )
+
+type IConversationAPI =
+  Named
+    "conversation-get-member"
+    ( "conversations"
+        :> Capture "cnv" ConvId
+        :> "members"
+        :> Capture "usr" UserId
+        :> Get '[Servant.JSON] (Maybe Member)
+    )
+    -- This endpoint can lead to the following events being sent:
+    -- - MemberJoin event to you, if the conversation existed and had < 2 members before
+    -- - MemberJoin event to other, if the conversation existed and only the other was member
+    --   before
+    :<|> Named
+           "conversation-accept-v2"
+           ( CanThrow 'InvalidOperation
+               :> CanThrow 'ConvNotFound
+               :> ZLocalUser
+               :> ZOptConn
+               :> "conversations"
+               :> Capture "cnv" ConvId
+               :> "accept"
+               :> "v2"
+               :> Put '[Servant.JSON] Conversation
+           )
+    :<|> Named
+           "conversation-block"
+           ( CanThrow 'InvalidOperation
+               :> CanThrow 'ConvNotFound
+               :> ZUser
+               :> "conversations"
+               :> Capture "cnv" ConvId
+               :> "block"
+               :> Put '[Servant.JSON] ()
+           )
+    -- This endpoint can lead to the following events being sent:
+    -- - MemberJoin event to you, if the conversation existed and had < 2 members before
+    -- - MemberJoin event to other, if the conversation existed and only the other was member
+    --   before
+    :<|> Named
+           "conversation-unblock"
+           ( CanThrow 'InvalidOperation
+               :> CanThrow 'ConvNotFound
+               :> ZLocalUser
+               :> ZOptConn
+               :> "conversations"
+               :> Capture "cnv" ConvId
+               :> "unblock"
+               :> Put '[Servant.JSON] Conversation
+           )
+    :<|> Named
+           "conversation-meta"
+           ( CanThrow 'ConvNotFound
+               :> "conversations"
+               :> Capture "cnv" ConvId
+               :> "meta"
+               :> Get '[Servant.JSON] ConversationMetadata
+           )
 
 swaggerDoc :: OpenApi
 swaggerDoc =

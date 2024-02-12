@@ -46,12 +46,13 @@ import Control.Lens (view, (.~), (^.))
 import Control.Monad.Catch (MonadCatch, finally)
 import Control.Monad.Random (randomRIO)
 import Data.Aeson qualified as Aeson
-import Data.Default (Default (def))
 import Data.Id (RequestId (..))
 import Data.Metrics.AWS (gaugeTokenRemaing)
 import Data.Metrics.Servant qualified as Metrics
 import Data.Proxy (Proxy (Proxy))
 import Data.Text (unpack)
+import Data.UUID as UUID
+import Data.UUID.V4 as UUID
 import Imports hiding (head)
 import Network.HTTP.Media qualified as HTTPMedia
 import Network.HTTP.Types qualified as HTTP
@@ -66,10 +67,10 @@ import Network.Wai.Utilities.Server qualified as Server
 import Polysemy (Member)
 import Servant (Context ((:.)), (:<|>) (..))
 import Servant qualified
-import System.Logger (msg, val, (.=), (~~))
+import System.Logger (Logger, msg, val, (.=), (~~))
+import System.Logger qualified as Log
 import System.Logger.Class (MonadLogger, err)
 import Util.Options
-import Wire.API.Federation.API
 import Wire.API.Routes.API
 import Wire.API.Routes.Public.Brig
 import Wire.API.Routes.Version
@@ -90,7 +91,7 @@ run o = do
       runBrigToIO e $
         wrapHttpClient $
           Queue.listen (e ^. internalEvents) $
-            unsafeCallsFed @'Brig @"on-user-deleted-connections" Internal.onEvent
+            liftIO . runBrigToIO e . liftSem . Internal.onEvent
   let throttleMillis = fromMaybe defSqsThrottleMillis $ setSqsThrottleMillis (optSettings o)
   emailListener <- for (e ^. awsEnv . sesQueue) $ \q ->
     Async.async $
@@ -124,12 +125,14 @@ mkApp o = do
     middleware :: Env -> (RequestId -> Wai.Application) -> Wai.Application
     middleware e =
       -- this rewrites the request, so it must be at the top (i.e. applied last)
-      versionMiddleware (fold (setDisabledAPIVersions (optSettings o)))
+      versionMiddleware (e ^. disabledVersions)
         . Metrics.servantPlusWAIPrometheusMiddleware (sitemap @BrigCanonicalEffects) (Proxy @ServantCombinedAPI)
         . GZip.gunzip
         . GZip.gzip GZip.def
         . catchErrors (e ^. applog) [Right $ e ^. metrics]
-        . lookupRequestIdMiddleware
+        . lookupRequestIdMiddleware (e ^. applog)
+
+    app :: Env -> Wai.Request -> (Wai.Response -> IO Wai.ResponseReceived) -> IO Wai.ResponseReceived
     app e r k = runHandler e r (Server.route rtree r k) k
 
     -- the servant API wraps the one defined using wai-routing
@@ -156,10 +159,19 @@ type ServantCombinedAPI =
       :<|> Servant.Raw
   )
 
-lookupRequestIdMiddleware :: (RequestId -> Wai.Application) -> Wai.Application
-lookupRequestIdMiddleware mkapp req cont = do
-  let reqid = maybe def RequestId $ lookupRequestId req
-  mkapp reqid req cont
+lookupRequestIdMiddleware :: Logger -> (RequestId -> Wai.Application) -> Wai.Application
+lookupRequestIdMiddleware logger mkapp req cont = do
+  case lookupRequestId req of
+    Just rid -> do
+      mkapp (RequestId rid) req cont
+    Nothing -> do
+      localRid <- RequestId . cs . UUID.toText <$> UUID.nextRandom
+      Log.info logger $
+        "request-id" .= localRid
+          ~~ "method" .= Wai.requestMethod req
+          ~~ "path" .= Wai.rawPathInfo req
+          ~~ msg (val "generated a new request id for local request")
+      mkapp localRid req cont
 
 customFormatters :: Servant.ErrorFormatters
 customFormatters =
@@ -197,16 +209,18 @@ pendingActivationCleanup = do
             )
 
       API.deleteUsersNoVerify $
-        catMaybes
-          ( uids <&> \(isExpired, isPendingInvitation, uid) ->
+        mapMaybe
+          ( \(isExpired, isPendingInvitation, uid) ->
               if isExpired && isPendingInvitation then Just uid else Nothing
           )
+          uids
 
       liftSem . UsersPendingActivationStore.removeMultiple $
-        catMaybes
-          ( uids <&> \(isExpired, _isPendingInvitation, uid) ->
+        mapMaybe
+          ( \(isExpired, _isPendingInvitation, uid) ->
               if isExpired then Just uid else Nothing
           )
+          uids
 
     threadDelayRandom
   where

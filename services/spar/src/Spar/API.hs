@@ -526,7 +526,7 @@ assertNoScimOrNoIdP teamid = do
         "Teams with SCIM tokens can only have at most one IdP"
 
 -- | Check that issuer is not used anywhere in the system ('WireIdPAPIV1', here it is a
--- database keys for finding IdPs), or anywhere in this team ('WireIdPAPIV2'), that request
+-- database key for finding IdPs), or anywhere in this team ('WireIdPAPIV2'), that request
 -- URI is https, that the replacement IdPId, if present, points to our team, and possibly
 -- other things (see source code for the definitive answer).
 --

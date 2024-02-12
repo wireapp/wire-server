@@ -9,7 +9,7 @@ metadata:
     heritage: {{ .Release.Service }}
   annotations:
     "helm.sh/hook": pre-install,pre-upgrade
-    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-weight": "1"
     "helm.sh/hook-delete-policy": "before-hook-creation"
 spec:
   template:
@@ -22,6 +22,27 @@ spec:
       # specifying cassandra-migrations as initContainers executes them sequentially, rather than in parallel
       # to avoid 'Column family ID mismatch' / schema disagreements
       # see https://stackoverflow.com/questions/29030661/creating-new-table-with-cqlsh-on-existing-keyspace-column-family-id-mismatch#40325651 for details.
+      volumes:
+        {{- if eq (include "useTlsGundeck" .) "true" }}
+        - name: gundeck-cassandra-cert
+          secret:
+            secretName: {{ (include "tlsSecretRefGundeck" . | fromYaml).name }}
+        {{- end }}
+        {{- if eq (include "useTlsBrig" .) "true" }}
+        - name: brig-cassandra-cert
+          secret:
+            secretName: {{ (include "tlsSecretRefBrig" . | fromYaml).name }}
+        {{- end }}
+        {{- if eq (include "useTlsGalley" .) "true" }}
+        - name: galley-cassandra-cert
+          secret:
+            secretName: {{ (include "tlsSecretRefGalley" . | fromYaml).name }}
+        {{- end }}
+        {{- if eq (include "useTlsSpar" .) "true" }}
+        - name: spar-cassandra-cert
+          secret:
+            secretName: {{ (include "tlsSecretRefSpar" . | fromYaml).name }}
+        {{- end }}
       initContainers:
         {{- if .Values.enableGundeckMigrations }}
         - name: gundeck-schema
@@ -41,6 +62,16 @@ spec:
             - gundeck
             - {{ template "cassandraGundeckReplicationType" . }}
             - "{{ template "cassandraGundeckReplicationArg" . }}"
+            {{- if eq (include "useTlsGundeck" .) "true" }}
+            - --tls-ca-certificate-file
+            - /certs/gundeck/{{- (include "tlsSecretRefGundeck" . | fromYaml).key }}
+            {{- end }}
+
+          {{- if eq (include "useTlsGundeck" .) "true" }}
+          volumeMounts:
+            - name: gundeck-cassandra-cert
+              mountPath: "/certs/gundeck"
+          {{- end }}
         {{- end }}
 
         {{- if .Values.enableBrigMigrations }}
@@ -61,6 +92,16 @@ spec:
             - brig
             - {{ template "cassandraBrigReplicationType" . }}
             - "{{ template "cassandraBrigReplicationArg" . }}"
+            {{- if eq (include "useTlsBrig" .) "true" }}
+            - --tls-ca-certificate-file
+            - /certs/brig/{{- (include "tlsSecretRefBrig" . | fromYaml).key }}
+            {{- end }}
+
+          {{- if eq (include "useTlsBrig" .) "true" }}
+          volumeMounts:
+            - name: brig-cassandra-cert
+              mountPath: "/certs/brig"
+          {{- end }}
         {{- end }}
 
         {{- if .Values.enableGalleyMigrations }}
@@ -81,6 +122,16 @@ spec:
             - galley
             - {{ template "cassandraGalleyReplicationType" . }}
             - "{{ template "cassandraGalleyReplicationArg" . }}"
+            {{- if eq (include "useTlsGalley" .) "true" }}
+            - --tls-ca-certificate-file
+            - /certs/galley/{{- (include "tlsSecretRefGalley" . | fromYaml).key }}
+            {{- end }}
+
+          {{- if eq (include "useTlsGalley" .) "true" }}
+          volumeMounts:
+            - name: galley-cassandra-cert
+              mountPath: "/certs/galley"
+          {{- end }}
         {{- end }}
 
         {{- if .Values.enableSparMigrations }}
@@ -101,7 +152,17 @@ spec:
             - spar
             - {{ template "cassandraSparReplicationType" . }}
             - "{{ template "cassandraSparReplicationArg" . }}"
-        {{- end }}
+             {{- if eq (include "useTlsSpar" .) "true" }}
+            - --tls-ca-certificate-file
+            - /certs/spar/{{- (include "tlsSecretRefSpar" . | fromYaml).key }}
+            {{- end }}
+
+          {{- if eq (include "useTlsSpar" .) "true" }}
+          volumeMounts:
+            - name: spar-cassandra-cert
+              mountPath: "/certs/spar"
+          {{- end }}
+       {{- end }}
 
       containers:
         - name: job-done

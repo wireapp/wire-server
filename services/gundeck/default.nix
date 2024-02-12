@@ -20,7 +20,6 @@
 , cassandra-util
 , containers
 , criterion
-, data-default
 , errors
 , exceptions
 , extended
@@ -102,7 +101,6 @@ mkDerivation {
     bytestring-conversion
     cassandra-util
     containers
-    data-default
     errors
     exceptions
     extended
@@ -188,6 +186,7 @@ mkDerivation {
     amazonka
     async
     base
+    bytestring-conversion
     containers
     exceptions
     gundeck-types

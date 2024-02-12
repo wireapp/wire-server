@@ -107,6 +107,7 @@ import Wire.API.Conversation
 import Wire.API.Conversation.Role (roleNameWireAdmin)
 import Wire.API.Federation.API
 import Wire.API.Federation.Domain
+import Wire.API.Federation.Version
 import Wire.API.Internal.Notification
 import Wire.API.MLS.SubConversation
 import Wire.API.Routes.MultiTablePaging
@@ -197,7 +198,10 @@ runFedClient (FedClient mgr ep) domain =
       let req' = Servant.defaultMakeClientRequest burl req
        in req'
             { HTTP.requestHeaders =
-                HTTP.requestHeaders req' <> [(originDomainHeaderName, toByteString' originDomain)]
+                HTTP.requestHeaders req'
+                  <> [ (originDomainHeaderName, toByteString' originDomain),
+                       (versionHeader, toByteString' (versionInt (maxBound :: Version)))
+                     ]
             }
 
 instance ToJSON SESBounceType where
@@ -962,7 +966,7 @@ somePrekeys =
 
 -- | The client ID of the first of 'someLastPrekeys'
 someClientId :: ClientId
-someClientId = ClientId "1dbfbe22c8a35cb2"
+someClientId = ClientId 0x1dbfbe22c8a35cb2
 
 someLastPrekeys :: [LastPrekey]
 someLastPrekeys =

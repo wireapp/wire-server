@@ -31,9 +31,11 @@ module Galley.API.Create
   )
 where
 
+import Control.Error (headMay)
 import Control.Lens hiding ((??))
 import Data.Id
-import Data.List1 (list1)
+import Data.Json.Util
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Misc (FutureWork (FutureWork))
 import Data.Qualified
 import Data.Range
@@ -54,16 +56,15 @@ import Galley.Effects
 import Galley.Effects.BrigAccess
 import Galley.Effects.ConversationStore qualified as E
 import Galley.Effects.FederatorAccess qualified as E
-import Galley.Effects.GundeckAccess qualified as E
 import Galley.Effects.MemberStore qualified as E
 import Galley.Effects.TeamStore qualified as E
-import Galley.Intra.Push
 import Galley.Options
 import Galley.Types.Conversations.Members
 import Galley.Types.Teams (notTeamMember)
 import Galley.Types.ToUserRole
 import Galley.Types.UserList
 import Galley.Validation
+import Gundeck.Types.Push.V2 qualified as PushV2
 import Imports hiding ((\\))
 import Polysemy
 import Polysemy.Error
@@ -82,6 +83,7 @@ import Wire.API.Team.LegalHold (LegalholdProtectee (LegalholdPlusFederationNotIm
 import Wire.API.Team.Member
 import Wire.API.Team.Permission hiding (self)
 import Wire.API.User
+import Wire.NotificationSubsystem
 
 ----------------------------------------------------------------------------
 -- Group conversations
@@ -103,7 +105,7 @@ createGroupConversationUpToV3 ::
     Member (ErrorS 'MissingLegalholdConsent) r,
     Member (Error UnreachableBackendsLegacy) r,
     Member FederatorAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input Env) r,
     Member (Input Opts) r,
     Member (Input UTCTime) r,
@@ -142,7 +144,7 @@ createGroupConversation ::
     Member (ErrorS 'MissingLegalholdConsent) r,
     Member (Error UnreachableBackends) r,
     Member FederatorAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input Env) r,
     Member (Input Opts) r,
     Member (Input UTCTime) r,
@@ -155,7 +157,7 @@ createGroupConversation ::
   NewConv ->
   Sem r CreateGroupConversationResponse
 createGroupConversation lusr conn newConv = do
-  let remoteDomains = tDomain <$> snd (partitionQualified lusr $ newConv.newConvQualifiedUsers)
+  let remoteDomains = void <$> snd (partitionQualified lusr $ newConv.newConvQualifiedUsers)
   checkFederationStatus (RemoteDomains $ Set.fromList remoteDomains)
   cnv <-
     createGroupConversationGeneric
@@ -181,7 +183,7 @@ createGroupConversationGeneric ::
     Member (ErrorS 'MissingLegalholdConsent) r,
     Member (Error UnreachableBackends) r,
     Member FederatorAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input Env) r,
     Member (Input Opts) r,
     Member (Input UTCTime) r,
@@ -244,10 +246,14 @@ checkCreateConvPermissions ::
 checkCreateConvPermissions lusr _newConv Nothing allUsers = do
   activated <- listToMaybe <$> lookupActivatedUsers [tUnqualified lusr]
   void $ noteS @OperationDenied activated
+  -- an external partner is not allowed to create group conversations (except 1:1 team conversations that are handled below)
+  tm <- getTeamMember (tUnqualified lusr) Nothing
+  for_ tm $
+    permissionCheck AddRemoveConvMember . Just
   ensureConnected lusr allUsers
 checkCreateConvPermissions lusr newConv (Just tinfo) allUsers = do
   let convTeam = cnvTeamId tinfo
-  zusrMembership <- E.getTeamMember convTeam (tUnqualified lusr)
+  zusrMembership <- getTeamMember (tUnqualified lusr) (Just convTeam)
   void $ permissionCheck CreateConversation zusrMembership
   convLocalMemberships <- mapM (E.getTeamMember convTeam) (ulLocals allUsers)
   ensureAccessRole (accessRoles newConv) (zip (ulLocals allUsers) convLocalMemberships)
@@ -261,13 +267,19 @@ checkCreateConvPermissions lusr newConv (Just tinfo) allUsers = do
   -- Not sure at the moment how to best solve this but it is unlikely
   -- we can ever get rid of the team permission model anyway - the only thing I can
   -- think of is that 'partners' can create convs but not be admins...
-  when (length allUsers > 1) $ do
-    void $ permissionCheck DoNotUseDeprecatedAddRemoveConvMember zusrMembership
+  -- this only applies to proteus conversations, because in MLS we have proper 1:1 conversations,
+  -- so we don't allow an external partner to create an MLS group conversation at all
+  when (length allUsers > 1 || newConv.newConvProtocol == BaseProtocolMLSTag) $ do
+    void $ permissionCheck AddRemoveConvMember zusrMembership
 
   -- Team members are always considered to be connected, so we only check
   -- 'ensureConnected' for non-team-members.
   ensureConnectedToLocals (tUnqualified lusr) (notTeamMember (ulLocals allUsers) (catMaybes convLocalMemberships))
   ensureConnectedToRemotes lusr (ulRemotes allUsers)
+
+getTeamMember :: Member TeamStore r => UserId -> Maybe TeamId -> Sem r (Maybe TeamMember)
+getTeamMember uid (Just tid) = E.getTeamMember tid uid
+getTeamMember uid Nothing = E.getUserTeams uid >>= maybe (pure Nothing) (flip E.getTeamMember uid) . headMay
 
 ----------------------------------------------------------------------------
 -- Other kinds of conversations
@@ -311,7 +323,7 @@ createOne2OneConversation ::
     Member (ErrorS 'NotConnected) r,
     Member (Error UnreachableBackendsLegacy) r,
     Member FederatorAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input UTCTime) r,
     Member TeamStore r,
     Member P.TinyLog r
@@ -379,7 +391,7 @@ createLegacyOne2OneConversationUnchecked ::
     Member (Error InternalError) r,
     Member (Error InvalidInput) r,
     Member FederatorAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input UTCTime) r,
     Member P.TinyLog r
   ) =>
@@ -421,7 +433,7 @@ createOne2OneConversationUnchecked ::
     Member (Error InternalError) r,
     Member (Error UnreachableBackends) r,
     Member FederatorAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input UTCTime) r,
     Member P.TinyLog r
   ) =>
@@ -445,7 +457,7 @@ createOne2OneConversationLocally ::
     Member (Error InternalError) r,
     Member (Error UnreachableBackends) r,
     Member FederatorAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input UTCTime) r,
     Member P.TinyLog r
   ) =>
@@ -498,7 +510,7 @@ createConnectConversation ::
     Member (ErrorS 'InvalidOperation) r,
     Member (Error UnreachableBackends) r,
     Member FederatorAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input UTCTime) r,
     Member MemberStore r,
     Member P.TinyLog r
@@ -520,7 +532,7 @@ createConnectConversation lusr conn j = do
         NewConversation
           { -- We add only one member, second one gets added later,
             -- when the other user accepts the connection request.
-            ncUsers = ulFromLocals (map (toUserRole . tUnqualified) [lusr]),
+            ncUsers = ulFromLocals ([(toUserRole . tUnqualified) lusr]),
             ncProtocol = BaseProtocolProteusTag,
             ncMetadata = meta
           }
@@ -532,11 +544,12 @@ createConnectConversation lusr conn j = do
       now <- input
       let e = Event (tUntagged lcnv) Nothing (tUntagged lusr) now (EdConnect j)
       notifyCreatedConversation lusr conn c
-      for_ (newPushLocal ListComplete (tUnqualified lusr) (ConvEvent e) (recipient <$> Data.convLocalMembers c)) $ \p ->
-        E.push1 $
-          p
-            & pushRoute .~ RouteDirect
-            & pushConn .~ conn
+      for_ (newPushLocal (tUnqualified lusr) (toJSONObject e) (localMemberToRecipient <$> Data.convLocalMembers c)) $ \p ->
+        pushNotifications
+          [ p
+              & pushRoute .~ PushV2.RouteDirect
+              & pushConn .~ conn
+          ]
       conversationCreated lusr c
     update n conv = do
       let mems = Data.convLocalMembers conv
@@ -571,11 +584,12 @@ createConnectConversation lusr conn j = do
             Nothing -> pure $ Data.convName conv
           t <- input
           let e = Event (tUntagged lcnv) Nothing (tUntagged lusr) t (EdConnect j)
-          for_ (newPushLocal ListComplete (tUnqualified lusr) (ConvEvent e) (recipient <$> Data.convLocalMembers conv)) $ \p ->
-            E.push1 $
-              p
-                & pushRoute .~ RouteDirect
-                & pushConn .~ conn
+          for_ (newPushLocal (tUnqualified lusr) (toJSONObject e) (localMemberToRecipient <$> Data.convLocalMembers conv)) $ \p ->
+            pushNotifications
+              [ p
+                  & pushRoute .~ PushV2.RouteDirect
+                  & pushConn .~ conn
+              ]
           pure $ Data.convSetName n' conv
       | otherwise = pure conv
 
@@ -639,7 +653,7 @@ notifyCreatedConversation ::
     Member (Error InternalError) r,
     Member (Error UnreachableBackends) r,
     Member FederatorAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input UTCTime) r,
     Member P.TinyLog r
   ) =>
@@ -657,11 +671,11 @@ notifyCreatedConversation lusr conn c = do
       throw FederationNotConfigured
 
   -- Notify local users
-  E.push =<< mapM (toPush now) (Data.convLocalMembers c)
+  pushNotifications =<< mapM (toPush now) (Data.convLocalMembers c)
   where
     route
-      | Data.convType c == RegularConv = RouteAny
-      | otherwise = RouteDirect
+      | Data.convType c == RegularConv = PushV2.RouteAny
+      | otherwise = PushV2.RouteDirect
     toPush t m = do
       let remoteOthers = remoteMemberToOther <$> Data.convRemoteMembers c
           localOthers = map (localMemberToOther (tDomain lusr)) $ Data.convLocalMembers c
@@ -669,7 +683,7 @@ notifyCreatedConversation lusr conn c = do
       c' <- conversationViewWithCachedOthers remoteOthers localOthers c (qualifyAs lusr (lmId m))
       let e = Event (tUntagged lconv) Nothing (tUntagged lusr) t (EdConversation c')
       pure $
-        newPushLocal1 ListComplete (tUnqualified lusr) (ConvEvent e) (list1 (recipient m) [])
+        newPushLocal1 (tUnqualified lusr) (toJSONObject e) (NonEmpty.singleton (localMemberToRecipient m))
           & pushConn .~ conn
           & pushRoute .~ route
 

@@ -27,6 +27,7 @@ import Data.UUID qualified as UUID (fromString)
 import Imports (read)
 import Wire.API.Conversation.Bot (RemoveBotResponse (..))
 import Wire.API.Event.Conversation
+import Wire.API.Event.LeaveReason
 
 testObject_RemoveBotResponse_user_1 :: RemoveBotResponse
 testObject_RemoveBotResponse_user_1 =

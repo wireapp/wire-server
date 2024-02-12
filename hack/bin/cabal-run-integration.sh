@@ -48,14 +48,14 @@ run_integration_tests() {
   if [[ "$package" = "integration" ]]
   then
     cd "$TOP_LEVEL"
-    "$TOP_LEVEL/services/run-services" \
+    "$TOP_LEVEL/dist/run-services" \
       "$TOP_LEVEL/dist/integration" \
       "${@:2}"
   else
     service_dir="$TOP_LEVEL/services/$package"
 
     cd "$service_dir"
-    "$TOP_LEVEL/services/run-services" \
+    "$TOP_LEVEL/dist/run-services" \
       "$TOP_LEVEL/dist/$package-integration" \
       -s "$service_dir/$package.integration.yaml" \
       -i "$TOP_LEVEL/services/integration.yaml" \

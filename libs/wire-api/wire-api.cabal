@@ -18,7 +18,6 @@ common common-all
     -Wredundant-constraints
 
   default-extensions:
-    NoImplicitPrelude
     AllowAmbiguousTypes
     BangPatterns
     ConstraintKinds
@@ -43,6 +42,7 @@ common common-all
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NoImplicitPrelude
     NumericUnderscores
     OverloadedLabels
     OverloadedRecordDot
@@ -93,6 +93,7 @@ library
     Wire.API.Event.Conversation
     Wire.API.Event.FeatureConfig
     Wire.API.Event.Federation
+    Wire.API.Event.LeaveReason
     Wire.API.Event.Team
     Wire.API.FederationStatus
     Wire.API.FederationUpdate
@@ -122,7 +123,6 @@ library
     Wire.API.MLS.Proposal
     Wire.API.MLS.ProposalTag
     Wire.API.MLS.ProtocolVersion
-    Wire.API.MLS.PublicGroupState
     Wire.API.MLS.Serialisation
     Wire.API.MLS.Servant
     Wire.API.MLS.SubConversation
@@ -190,6 +190,7 @@ library
     Wire.API.Routes.Public.Spar
     Wire.API.Routes.Public.Util
     Wire.API.Routes.QualifiedCapture
+    Wire.API.Routes.SpecialiseToVersion
     Wire.API.Routes.Version
     Wire.API.Routes.Version.Wai
     Wire.API.Routes.Versioned
@@ -257,7 +258,8 @@ library
     , constraints
     , containers                 >=0.5
     , cookie
-    , cryptonite
+    , crypton
+    , crypton-x509
     , currency-codes             >=2.0
     , deriving-aeson             >=0.2
     , deriving-swagger2
@@ -274,6 +276,7 @@ library
     , hscim
     , HsOpenSSL
     , http-api-data
+    , http-client
     , http-media
     , http-types
     , imports
@@ -299,7 +302,6 @@ library
     , saml2-web-sso
     , schema-profunctor
     , scientific
-    , scrypt
     , servant
     , servant-client
     , servant-client-core
@@ -327,7 +329,6 @@ library
     , wai-websockets
     , websockets
     , wire-message-proto-lens
-    , x509
     , zauth
 
   default-language: GHC2021
@@ -567,11 +568,14 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Manual.ConversationCoverView
     Test.Wire.API.Golden.Manual.ConversationEvent
     Test.Wire.API.Golden.Manual.ConversationPagingState
+    Test.Wire.API.Golden.Manual.ConversationRemoveMembers
     Test.Wire.API.Golden.Manual.ConversationsResponse
     Test.Wire.API.Golden.Manual.ConvIdsPage
     Test.Wire.API.Golden.Manual.CreateGroupConversation
     Test.Wire.API.Golden.Manual.CreateScimToken
     Test.Wire.API.Golden.Manual.FeatureConfigEvent
+    Test.Wire.API.Golden.Manual.FederationDomainConfig
+    Test.Wire.API.Golden.Manual.FederationRestriction
     Test.Wire.API.Golden.Manual.FederationStatus
     Test.Wire.API.Golden.Manual.GetPaginatedConversationIds
     Test.Wire.API.Golden.Manual.GroupId
@@ -581,7 +585,6 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Manual.SearchResultContact
     Test.Wire.API.Golden.Manual.SubConversation
     Test.Wire.API.Golden.Manual.TeamSize
-    Test.Wire.API.Golden.Manual.Token
     Test.Wire.API.Golden.Manual.UserClientPrekeyMap
     Test.Wire.API.Golden.Manual.UserIdList
     Test.Wire.API.Golden.Protobuf
@@ -598,6 +601,7 @@ test-suite wire-api-golden-tests
     , bytestring
     , bytestring-conversion
     , containers               >=0.5
+    , crypton
     , currency-codes
     , either
     , imports
@@ -631,6 +635,7 @@ test-suite wire-api-tests
     Test.Wire.API.MLS
     Test.Wire.API.MLS.Group
     Test.Wire.API.OAuth
+    Test.Wire.API.Password
     Test.Wire.API.RawJson
     Test.Wire.API.Roundtrip.Aeson
     Test.Wire.API.Roundtrip.ByteString
@@ -661,7 +666,7 @@ test-suite wire-api-tests
     , bytestring-conversion
     , cassava
     , containers               >=0.5
-    , cryptonite
+    , crypton
     , either
     , filepath
     , hex

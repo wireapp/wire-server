@@ -33,8 +33,7 @@ where
 import Control.Lens (makeLenses, (^.))
 import Data.Configurator
 import Data.Configurator.Types
-import Data.Default (def)
-import Data.Id (RequestId)
+import Data.Id (RequestId (..))
 import Data.Metrics.Middleware (Metrics)
 import Imports
 import Network.HTTP.Client
@@ -66,7 +65,8 @@ createEnv m o = do
         }
   let ac = AutoConfig 60 (reloadError g)
   (c, t) <- autoReload ac [Required $ o ^. secretsConfig]
-  pure $! Env def m o g n c t
+  let rid = RequestId "N/A"
+  pure $! Env rid m o g n c t
   where
     reloadError g x =
       Logger.err g (Logger.msg $ Logger.val "Failed reloading config: " Logger.+++ show x)

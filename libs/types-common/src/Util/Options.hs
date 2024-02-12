@@ -20,10 +20,15 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Util.Options where
+module Util.Options
+  ( module Util.Options,
+    -- TODO: Switch denpendees to the original module?
+    module Cassandra.Options,
+  )
+where
 
+import Cassandra.Options
 import Control.Lens
-import Data.Aeson.TH
 import Data.ByteString.Char8 qualified as BS
 import Data.ByteString.Conversion
 import Data.Text.Encoding (encodeUtf8)
@@ -31,7 +36,6 @@ import Data.Yaml hiding (Parser)
 import Imports
 import Options.Applicative
 import Options.Applicative.Types
-import System.Exit (die)
 import URI.ByteString
 import Util.Options.Common
 
@@ -49,17 +53,17 @@ instance FromByteString AWSEndpoint where
       "https" -> pure True
       "http" -> pure False
       x -> fail ("Unsupported scheme: " ++ show x)
-    host <- case url ^. authorityL <&> view (authorityHostL . hostBSL) of
+    awsHost <- case url ^. authorityL <&> view (authorityHostL . hostBSL) of
       Just h -> pure h
       Nothing -> fail ("No host in: " ++ show url)
-    port <- case urlPort url of
+    awsPort <- case urlPort url of
       Just p -> pure p
       Nothing ->
         pure $
           if secure
             then 443
             else 80
-    pure $ AWSEndpoint host secure port
+    pure $ AWSEndpoint awsHost secure awsPort
 
 instance FromJSON AWSEndpoint where
   parseJSON =
@@ -74,32 +78,6 @@ urlPort u = do
 
 makeLenses ''AWSEndpoint
 
-data Endpoint = Endpoint
-  { _host :: !Text,
-    _port :: !Word16
-  }
-  deriving (Show, Generic)
-
-deriveFromJSON toOptionFieldName ''Endpoint
-
-makeLenses ''Endpoint
-
-data CassandraOpts = CassandraOpts
-  { _endpoint :: !Endpoint,
-    _keyspace :: !Text,
-    -- | If this option is unset, use all available nodes.
-    -- If this option is set, use only cassandra nodes in the given datacentre
-    --
-    -- This option is most likely only necessary during a cassandra DC migration
-    -- FUTUREWORK: remove this option again, or support a datacentre migration feature
-    _filterNodesByDatacentre :: !(Maybe Text)
-  }
-  deriving (Show, Generic)
-
-deriveFromJSON toOptionFieldName ''CassandraOpts
-
-makeLenses ''CassandraOpts
-
 newtype FilePathSecrets = FilePathSecrets FilePath
   deriving (Eq, Show, FromJSON)
 
@@ -111,7 +89,14 @@ loadSecret (FilePathSecrets p) = do
     then over _Left show . decodeEither' <$> BS.readFile path
     else pure (Left "File doesn't exist")
 
+-- | Get configuration options from the command line or configuration file.
+--
+-- This uses the provided optparse-applicative parser, if given. In all cases,
+-- it prepends a `config-file` option to the parser that accepts a file name.
+-- When that option is found, the config file is used to get the options,
+-- instead of the command line.
 getOptions ::
+  forall a.
   FromJSON a =>
   -- | Program description
   String ->
@@ -120,46 +105,40 @@ getOptions ::
   -- | Default config path, can be overridden with @--config-file@
   FilePath ->
   IO a
-getOptions desc pars defaultPath = do
-  path <- parseConfigPath defaultPath mkDesc
-  file <- doesFileExist path
-  case (file, pars) of
-    -- Config exists, we can just take options from there
+getOptions desc mp defaultPath = do
+  (path, mOpts) <-
+    execParser $
+      info
+        (optsOrConfigFile <**> helper)
+        (header desc <> fullDesc)
+  exists <- doesFileExist path
+  case (exists, mOpts) of
+    -- config file exists, take options from there
     (True, _) -> do
-      configFile <- decodeFileEither path
-      case configFile of
+      decodeFileEither path >>= \case
         Left e ->
           fail $
             show e
               <> " while attempting to decode "
-              <> show path
+              <> path
         Right o -> pure o
-    -- Config doesn't exist but at least we have a CLI options parser
-    (False, Just p) -> do
-      execParser (info (helper <*> p) mkDesc)
-    -- No config, no parser :(
-    (False, Nothing) -> do
-      die $ "Config file at " ++ path ++ " does not exist. \n"
+    -- config doesn't exist, take options from command line
+    (False, Just opts) -> pure opts
+    -- no config, no parser, just fail
+    (False, Nothing) ->
+      fail $ "Config file at " <> path <> " does not exist."
   where
-    mkDesc :: InfoMod b
-    mkDesc = header desc <> fullDesc
-
-parseConfigPath :: FilePath -> InfoMod String -> IO String
-parseConfigPath defaultPath desc = do
-  args <- getArgs
-  let result =
-        getParseResult $
-          execParserPure defaultPrefs (info (helper <*> pathParser) desc) args
-  pure $ fromMaybe defaultPath result
-  where
-    pathParser :: Parser String
-    pathParser =
-      strOption $
-        long "config-file"
-          <> short 'c'
-          <> help "Config file to load"
-          <> showDefault
-          <> value defaultPath
+    optsOrConfigFile :: Parser (FilePath, Maybe a)
+    optsOrConfigFile =
+      (,)
+        <$> strOption
+          ( long "config-file"
+              <> short 'c'
+              <> help "Config file to load"
+              <> showDefault
+              <> value defaultPath
+          )
+        <*> sequenceA mp
 
 parseAWSEndpoint :: ReadM AWSEndpoint
 parseAWSEndpoint = readerAsk >>= maybe (error "Could not parse AWS endpoint") pure . fromByteString . fromString

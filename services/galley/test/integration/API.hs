@@ -91,6 +91,7 @@ import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
+import Wire.API.Event.LeaveReason
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Common
@@ -687,7 +688,7 @@ postCryptoMessageNotAuthorizeUnknownClient = do
   -- Unknown client ID => 403
   let ciphertext = toBase64Text "hello bob"
   let m = otrRecipients [(bob, bc, ciphertext)]
-  postProtoOtrMessage alice (ClientId "172618352518396") conv m
+  postProtoOtrMessage alice (ClientId 0x172618352518396) conv m
     !!! const 403 === statusCode
 
 -- @SF.Separation @TSFI.RESTfulAPI @S2

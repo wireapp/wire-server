@@ -86,5 +86,5 @@ removeVersionHeader req =
 addVersionHeader :: Version -> Request -> Request
 addVersionHeader v req =
   req
-    { requestHeaders = (versionHeader, toByteString' (fromEnum v)) : requestHeaders req
+    { requestHeaders = (versionHeader, toByteString' (versionInt v :: Int)) : requestHeaders req
     }

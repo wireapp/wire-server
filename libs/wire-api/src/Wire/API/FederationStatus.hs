@@ -11,12 +11,14 @@ import Data.Aeson qualified as A
 import Data.Aeson.Types qualified as A
 import Data.Domain
 import Data.OpenApi qualified as S
+import Data.Qualified
 import Data.Schema
+import Data.Set qualified as Set
 import Imports
 import Wire.Arbitrary
 
 newtype RemoteDomains = RemoteDomains
-  { rdDomains :: Set Domain
+  { rdDomains :: Set (Remote ())
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform RemoteDomains)
@@ -26,7 +28,8 @@ instance ToSchema RemoteDomains where
   schema =
     objectWithDocModifier "RemoteDomains" (description ?~ "A set of remote domains") $
       RemoteDomains
-        <$> rdDomains .= field "domains" (set schema)
+        <$> (Set.map tDomain . rdDomains)
+          .= field "domains" (Set.map (flip toRemoteUnsafe ()) <$> set schema)
 
 -- | This value expresses if the requested remote domains are fully connected or not.
 -- If not the response will contain the first pair of domains found

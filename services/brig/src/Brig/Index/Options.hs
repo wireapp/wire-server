@@ -29,8 +29,10 @@ module Brig.Index.Options
     esIndexRefreshInterval,
     esDeleteTemplate,
     CassandraSettings,
+    toCassandraOpts,
     cHost,
     cPort,
+    cTlsCa,
     cKeyspace,
     localElasticSettings,
     localCassandraSettings,
@@ -49,6 +51,7 @@ import Brig.Index.Types (CreateIndexSettings (..))
 import Cassandra qualified as C
 import Control.Lens
 import Data.ByteString.Lens
+import Data.Text qualified as Text
 import Data.Text.Strict.Lens
 import Data.Time.Clock (NominalDiffTime)
 import Database.Bloodhound qualified as ES
@@ -56,7 +59,7 @@ import Imports
 import Options.Applicative
 import URI.ByteString
 import URI.ByteString.QQ
-import Util.Options (Endpoint (..))
+import Util.Options (CassandraOpts (..), Endpoint (..))
 
 data Command
   = Create ElasticSettings Endpoint
@@ -82,7 +85,8 @@ data ElasticSettings = ElasticSettings
 data CassandraSettings = CassandraSettings
   { _cHost :: String,
     _cPort :: Word16,
-    _cKeyspace :: C.Keyspace
+    _cKeyspace :: C.Keyspace,
+    _cTlsCa :: Maybe FilePath
   }
   deriving (Show)
 
@@ -99,6 +103,15 @@ makeLenses ''ElasticSettings
 makeLenses ''CassandraSettings
 
 makeLenses ''ReindexFromAnotherIndexSettings
+
+toCassandraOpts :: CassandraSettings -> CassandraOpts
+toCassandraOpts cas =
+  CassandraOpts
+    { _endpoint = Endpoint (Text.pack (cas ^. cHost)) (cas ^. cPort),
+      _keyspace = C.unKeyspace (cas ^. cKeyspace),
+      _filterNodesByDatacentre = Nothing,
+      _tlsCa = cas ^. cTlsCa
+    }
 
 mkCreateIndexSettings :: ElasticSettings -> CreateIndexSettings
 mkCreateIndexSettings es =
@@ -125,7 +138,8 @@ localCassandraSettings =
   CassandraSettings
     { _cHost = "localhost",
       _cPort = 9042,
-      _cKeyspace = C.Keyspace "brig_test"
+      _cKeyspace = C.Keyspace "brig_test",
+      _cTlsCa = Nothing
     }
 
 elasticServerParser :: Parser (URIRef Absolute)
@@ -246,6 +260,11 @@ cassandraSettingsParser =
                   <> value (view (cKeyspace . _Keyspace . unpacked) localCassandraSettings)
                   <> showDefault
               )
+        )
+    <*> ( (optional . strOption)
+            ( long "tls-ca-certificate-file"
+                <> help "Location of a PEM encoded list of CA certificates to be used when verifying the Cassandra server's certificate"
+            )
         )
 
 reindexToAnotherIndexSettingsParser :: Parser ReindexFromAnotherIndexSettings

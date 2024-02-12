@@ -558,7 +558,7 @@ data Settings = Settings
     -- https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections
     -- for details.
     -- default: []
-    setFederationDomainConfigs :: !(Maybe [FederationDomainConfig]),
+    setFederationDomainConfigs :: !(Maybe [ImplicitNoFederationRestriction]),
     -- | In seconds.  Default: 10 seconds.  Values <1 are silently replaced by 1.  See
     -- https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections
     setFederationDomainConfigsUpdateFreq :: !(Maybe Int),
@@ -590,10 +590,8 @@ data Settings = Settings
     setSftListAllServers :: Maybe ListAllSFTServers,
     setEnableMLS :: Maybe Bool,
     setKeyPackageMaximumLifetime :: Maybe NominalDiffTime,
-    -- | When set, development API versions are advertised to clients as supported.
-    setEnableDevelopmentVersions :: Maybe Bool,
     -- | Disabled versions are not advertised and are completely disabled.
-    setDisabledAPIVersions :: Maybe (Set Version),
+    setDisabledAPIVersions :: !(Set VersionExp),
     -- | Minimum delay in seconds between consecutive attempts to generate a new verification code.
     -- use `set2FACodeGenerationDelaySecs` as the getter function which always provides a default value
     set2FACodeGenerationDelaySecsInternal :: !(Maybe Int),
@@ -628,6 +626,21 @@ data Settings = Settings
     setOAuthMaxActiveRefreshTokensInternal :: !(Maybe Word32)
   }
   deriving (Show, Generic)
+
+newtype ImplicitNoFederationRestriction = ImplicitNoFederationRestriction
+  {federationDomainConfig :: FederationDomainConfig}
+  deriving (Show, Eq, Generic)
+
+instance FromJSON ImplicitNoFederationRestriction where
+  parseJSON =
+    Aeson.withObject
+      "ImplicitNoFederationRestriction"
+      ( \obj -> do
+          domain <- obj Aeson..: "domain"
+          searchPolicy <- obj Aeson..: "search_policy"
+          pure . ImplicitNoFederationRestriction $
+            FederationDomainConfig domain searchPolicy FederationRestrictionAllowAll
+      )
 
 defaultTemplateLocale :: Locale
 defaultTemplateLocale = Locale (Language EN) Nothing
@@ -914,7 +927,7 @@ Lens.makeLensesFor
     ("setSftStaticUrl", "sftStaticUrl"),
     ("setSftListAllServers", "sftListAllServers"),
     ("setFederationDomainConfigs", "federationDomainConfigs"),
-    ("setEnableDevelopmentVersions", "enableDevelopmentVersions"),
+    ("setFederationStrategy", "federationStrategy"),
     ("setRestrictUserCreation", "restrictUserCreation"),
     ("setEnableMLS", "enableMLS"),
     ("setOAuthEnabledInternal", "oauthEnabledInternal"),

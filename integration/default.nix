@@ -17,9 +17,10 @@
 , containers
 , cql
 , cql-io
-, cryptonite
+, crypton
 , data-default
 , data-timeout
+, deriving-aeson
 , directory
 , errors
 , exceptions
@@ -27,7 +28,9 @@
 , extra
 , filepath
 , gitignoreSource
+, haskell-src-exts
 , hex
+, HsOpenSSL
 , http-client
 , http-types
 , kan-extensions
@@ -52,6 +55,7 @@
 , scientific
 , split
 , stm
+, streaming-commons
 , string-conversions
 , tagged
 , temporary
@@ -63,6 +67,9 @@
 , unliftio
 , uuid
 , vector
+, wai
+, warp
+, warp-tls
 , websockets
 , wire-message-proto-lens
 , xml
@@ -74,7 +81,14 @@ mkDerivation {
   src = gitignoreSource ./.;
   isLibrary = true;
   isExecutable = true;
-  setupHaskellDepends = [ base Cabal containers directory filepath ];
+  setupHaskellDepends = [
+    base
+    Cabal
+    containers
+    directory
+    filepath
+    haskell-src-exts
+  ];
   libraryHaskellDepends = [
     aeson
     aeson-pretty
@@ -89,9 +103,10 @@ mkDerivation {
     containers
     cql
     cql-io
-    cryptonite
+    crypton
     data-default
     data-timeout
+    deriving-aeson
     directory
     errors
     exceptions
@@ -99,6 +114,7 @@ mkDerivation {
     extra
     filepath
     hex
+    HsOpenSSL
     http-client
     http-types
     kan-extensions
@@ -122,6 +138,7 @@ mkDerivation {
     scientific
     split
     stm
+    streaming-commons
     string-conversions
     tagged
     temporary
@@ -133,6 +150,9 @@ mkDerivation {
     unliftio
     uuid
     vector
+    wai
+    warp
+    warp-tls
     websockets
     wire-message-proto-lens
     xml

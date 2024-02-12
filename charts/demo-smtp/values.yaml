@@ -1,6 +1,6 @@
 fullnameOverride: demo-smtp
 replicaCount: 1
-image: "quay.io/wire/namshi-smtp:aa63b8"
+image: "quay.io/wire/ixdotai-smtp:v0.5.2"
 
 service:
   port: 25
@@ -15,7 +15,7 @@ resources:
 
 # Some relevant environment options can be
 # passed to the SMTP docker image, check
-# https://hub.docker.com/r/namshi/smtp/
+# https://github.com/ix-ai/smtp#readme
 # for more details
 # NOTE: Without an empty dictionary, you will
 # see warnings when overriding envVars
@@ -24,3 +24,18 @@ envVars: {}
 # envVars:
 #   RELAY_NETWORKS: ":x.y.z.w/16"
 #
+#   PORT: "25"
+#   NET_DEV: eth0
+#   OTHER_HOSTNAMES: other.example.com
+#   DISABLE_IPV6: 1
+#   BIND_IP: 0.0.0.0
+#   BIND_IP6: ::0
+#   MAILNAME: mail.example.com
+#   DKIM_KEY_PATH: /etc/exim4/dkim.key
+#   KEY_PATH: /path/to/key.crt
+#   CERTIFICATE_PATH: /path/to/certificate.crt
+#   SMARTHOST_ADDRESS: mail.example.com
+#   SMARTHOST_PORT: "587"
+#   SMARTHOST_USER: exampleuser
+#   SMARTHOST_PASSWORD: secret
+#   SMARTHOST_ALIASES: "*.example.com"

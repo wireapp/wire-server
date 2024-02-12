@@ -20,6 +20,14 @@ config:
   logNetStrings: false
   cassandra:
     host: aws-cassandra
+#   To enable TLS provide a CA:
+#   tlsCa: <CA in PEM format (can be self-signed)>
+#
+#   Or refer to an existing secret (containing the CA):
+#   tlsCaSecretRef:
+#     name: <secret-name>
+#     key: <ca-attribute>
+
   elasticsearch:
     host: elasticsearch-client
     port: 9200
@@ -87,7 +95,7 @@ config:
     # Details: https://github.com/wireapp/wire-server/blob/3d5684023c54fe580ab27c11d7dae8f19a29ddbc/services/brig/src/Brig/Options.hs#L465-L503
     # setCustomerExtensions:
     #   domainsBlockedForRegistration:
-    #   - example.com
+    #   - wire.example
     set2FACodeGenerationDelaySecs: 300 # 5 minutes
     setNonceTtlSecs: 300 # 5 minutes
     setDpopMaxSkewSecs: 1
@@ -99,20 +107,13 @@ config:
     setOAuthMaxActiveRefreshTokens: 10
     # Disable one ore more API versions. Please make sure the configuration value is the same in all these charts:
     # brig, cannon, cargohold, galley, gundeck, proxy, spar.
-    # setDisabledAPIVersions: [ v3 ]
+    setDisabledAPIVersions: [ development ]
     setFederationStrategy: allowNone
     setFederationDomainConfigsUpdateFreq: 10
   smtp:
     passwordFile: /etc/wire/brig/secrets/smtp-password.txt
   proxy: {}
 
-  geoip:
-    # When enabling this, .secrets.geoip.accountId, .secrets.geoip.licenseKey and
-    # .secret.geoip.editionIds must be provided.
-    enabled: false
-    image:
-      repository: docker.io/maxmindinc/geoipupdate
-      tag: v5.1.1
 turnStatic:
   v1:
   - turn:localhost:3478
@@ -122,7 +123,7 @@ turnStatic:
 
 turn:
   serversSource: files # files | dns
-  # baseDomain: turn.example.com # Must be configured if serversSource is dns
+  # baseDomain: turn.wire.example # Must be configured if serversSource is dns
   discoveryIntervalSeconds: 10 # Used only if serversSource is dns
 
 serviceAccount:

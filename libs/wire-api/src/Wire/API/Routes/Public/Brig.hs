@@ -27,7 +27,6 @@ import Data.CommaSeparatedList (CommaSeparatedList)
 import Data.Domain
 import Data.Handle
 import Data.Id as Id
-import Data.Misc (IpAddr)
 import Data.Nonce (Nonce)
 import Data.OpenApi hiding (Contact, Header, Schema, ToSchema)
 import Data.OpenApi qualified as S
@@ -684,9 +683,8 @@ type PrekeyAPI =
     :<|> Named
            "get-multi-user-prekey-bundle-unqualified"
            ( Summary
-               "(deprecated)  Given a map of user IDs to client IDs return a \
-               \prekey for each one. You can't request information for more users than \
-               \maximum conversation size."
+               "(deprecated)  Given a map of user IDs to client IDs return a prekey for each one."
+               :> Description "You can't request information for more users than maximum conversation size."
                :> Until 'V2
                :> ZUser
                :> "users"
@@ -697,9 +695,8 @@ type PrekeyAPI =
     :<|> Named
            "get-multi-user-prekey-bundle-qualified@v3"
            ( Summary
-               "Given a map of domain to (map of user IDs to client IDs) return a \
-               \prekey for each one. You can't request information for more users than \
-               \maximum conversation size."
+               "(deprecated)  Given a map of user IDs to client IDs return a prekey for each one."
+               :> Description "You can't request information for more users than maximum conversation size."
                :> MakesFederatedCall 'Brig "claim-multi-prekey-bundle"
                :> ZUser
                :> Until 'V4
@@ -711,9 +708,8 @@ type PrekeyAPI =
     :<|> Named
            "get-multi-user-prekey-bundle-qualified"
            ( Summary
-               "Given a map of domain to (map of user IDs to client IDs) return a \
-               \prekey for each one. You can't request information for more users than \
-               \maximum conversation size."
+               "(deprecated)  Given a map of user IDs to client IDs return a prekey for each one."
+               :> Description "You can't request information for more users than maximum conversation size."
                :> MakesFederatedCall 'Brig "claim-multi-prekey-bundle"
                :> ZUser
                :> From 'V4
@@ -740,7 +736,6 @@ type UserClientAPI =
         :> ZUser
         :> ZConn
         :> "clients"
-        :> Header "X-Forwarded-For" IpAddr
         :> ReqBody '[JSON] NewClient
         :> Verb 'POST 201 '[JSON] NewClientResponse
     )
@@ -952,6 +947,7 @@ type ConnectionAPI =
     ( Summary "Create a connection to another user"
         :> Until 'V2
         :> MakesFederatedCall 'Brig "send-connection-action"
+        :> CanThrow 'MissingLegalholdConsentOldClients
         :> CanThrow 'MissingLegalholdConsent
         :> CanThrow 'InvalidUser
         :> CanThrow 'ConnectionLimitReached
@@ -974,7 +970,9 @@ type ConnectionAPI =
     :<|> Named
            "create-connection"
            ( Summary "Create a connection to another user"
+               :> MakesFederatedCall 'Brig "get-users-by-ids"
                :> MakesFederatedCall 'Brig "send-connection-action"
+               :> CanThrow 'MissingLegalholdConsentOldClients
                :> CanThrow 'MissingLegalholdConsent
                :> CanThrow 'InvalidUser
                :> CanThrow 'ConnectionLimitReached
@@ -1054,6 +1052,7 @@ type ConnectionAPI =
       ( Summary "Update a connection to another user"
           :> Until 'V2
           :> MakesFederatedCall 'Brig "send-connection-action"
+          :> CanThrow 'MissingLegalholdConsentOldClients
           :> CanThrow 'MissingLegalholdConsent
           :> CanThrow 'InvalidUser
           :> CanThrow 'ConnectionLimitReached
@@ -1081,7 +1080,9 @@ type ConnectionAPI =
     Named
       "update-connection"
       ( Summary "Update a connection to another user"
+          :> MakesFederatedCall 'Brig "get-users-by-ids"
           :> MakesFederatedCall 'Brig "send-connection-action"
+          :> CanThrow 'MissingLegalholdConsentOldClients
           :> CanThrow 'MissingLegalholdConsent
           :> CanThrow 'InvalidUser
           :> CanThrow 'ConnectionLimitReached
@@ -1186,6 +1187,15 @@ type CipherSuiteParam =
     "ciphersuite"
     CipherSuite
 
+type MultipleCipherSuitesParam =
+  QueryParam'
+    [ Optional,
+      Strict,
+      Description "Comma-separated list of ciphersuites in hex format (e.g. 0xf031) - default is 0x0001"
+    ]
+    "ciphersuites"
+    (CommaSeparatedList CipherSuite)
+
 type MLSKeyPackageAPI =
   "key-packages"
     :> ( Named
@@ -1201,6 +1211,20 @@ type MLSKeyPackageAPI =
                :> ReqBody '[JSON] KeyPackageUpload
                :> MultiVerb 'POST '[JSON, MLS] '[RespondEmpty 201 "Key packages uploaded"] ()
            )
+           :<|> Named
+                  "mls-key-packages-replace"
+                  ( "self"
+                      :> Summary "Upload a fresh batch of key packages and replace the old ones"
+                      :> From 'V5
+                      :> Description "The request body should be a json object containing a list of base64-encoded key packages. Use this sparingly."
+                      :> ZLocalUser
+                      :> CanThrow 'MLSProtocolError
+                      :> CanThrow 'MLSIdentityMismatch
+                      :> CaptureClientId "client"
+                      :> MultipleCipherSuitesParam
+                      :> ReqBody '[JSON] KeyPackageUpload
+                      :> MultiVerb 'PUT '[JSON, MLS] '[RespondEmpty 201 "Key packages replaced"] ()
+                  )
            :<|> Named
                   "mls-key-packages-claim"
                   ( "claim"
@@ -1547,10 +1571,10 @@ type TeamsAPI =
            )
     :<|> Named
            "get-team-size"
-           ( Summary
-               "Returns the number of team members as an integer.  \
-               \Can be out of sync by roughly the `refresh_interval` \
-               \of the ES index."
+           ( Summary "Get the number of team members as an integer"
+               :> Description
+                    "Can be out of sync by roughly the `refresh_interval` \
+                    \of the ES index."
                :> CanThrow 'InvalidInvitationCode
                :> ZUser
                :> "teams"

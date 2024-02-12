@@ -177,7 +177,7 @@ MINIO_COMMIT               ?= 118270d76fc90f1e54cd9510cee9688bd717250b
 CASSANDRA_COMMIT           ?= 064fb4e2682bf9c1909e4cb27225fa74862c9086
 
 smtp/Dockerfile:
-	git clone https://github.com/namshi/docker-smtp.git smtp
+	git clone https://github.com/ix-ai/smtp.git smtp
 	cd smtp && git reset --hard $(SMTP_COMMIT)
 
 dynamodb_local/Dockerfile:

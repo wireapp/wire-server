@@ -58,7 +58,11 @@ instance ToSchema CountryCode
 -- FUTUREWORK: Ticket for these changes https://wearezeta.atlassian.net/browse/WPB-3972
 -- Preserve the old prefix semantics for types that are coming from outside of this repo.
 samlSchemaOptions :: SchemaOptions
-samlSchemaOptions = fromAesonOptions $ deriveJSONOptions {A.fieldLabelModifier = fieldMod . dropPrefix}
+samlSchemaOptions =
+  fromAesonOptions $
+    deriveJSONOptions
+      { A.fieldLabelModifier = fieldMod . dropPrefix
+      }
   where
     fieldMod = A.fieldLabelModifier deriveJSONOptions
     dropPrefix = dropWhile (not . isUpper)
@@ -116,9 +120,6 @@ instance HasOpenApi route => HasOpenApi (SM.MultipartForm SM.Mem resp :> route) 
 instance ToSchema SAML.IdPId where
   declareNamedSchema _ = declareNamedSchema (Proxy @UUID)
 
-instance ToSchema SAML.IdPMetadata where
-  declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
-
 instance ToSchema a => ToSchema (SAML.IdPConfig a) where
   declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
 
@@ -133,6 +134,9 @@ instance ToParamSchema URI where
 
 instance ToSchema X509.SignedCertificate where
   declareNamedSchema _ = declareNamedSchema (Proxy @String)
+
+instance ToSchema SAML.IdPMetadata where
+  declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
 
 instance ToSchema Currency.Alpha where
   declareNamedSchema = genericDeclareNamedSchema defaultSchemaOptions

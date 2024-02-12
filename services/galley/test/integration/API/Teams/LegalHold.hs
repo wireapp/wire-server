@@ -33,6 +33,7 @@ import Brig.Types.Intra (UserSet (..))
 import Brig.Types.Test.Arbitrary ()
 import Brig.Types.User.Event qualified as Ev
 import Cassandra.Exec qualified as Cql
+import Control.Category ((>>>))
 import Control.Concurrent.Chan
 import Control.Lens hiding ((#))
 import Data.Id
@@ -68,7 +69,6 @@ import TestSetup
 import Wire.API.Connection (UserConnection)
 import Wire.API.Connection qualified as Conn
 import Wire.API.Conversation.Role (roleNameWireAdmin, roleNameWireMember)
-import Wire.API.Message qualified as Msg
 import Wire.API.Provider.Service
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Team.Feature qualified as Public
@@ -79,7 +79,6 @@ import Wire.API.Team.Member qualified as Team
 import Wire.API.Team.Permission
 import Wire.API.Team.Role
 import Wire.API.User.Client
-import Wire.API.User.Client qualified as Client
 
 onlyIfLhWhitelisted :: TestM () -> TestM ()
 onlyIfLhWhitelisted action = do
@@ -130,7 +129,6 @@ testsPublic s =
         [ testGroup -- FUTUREWORK: ungroup this level
             "teams listed"
             [ test s "happy flow" testInWhitelist,
-              test s "handshake between LH device and user with old clients is blocked" testOldClientsBlockDeviceHandshake,
               testGroup "no-consent" $ do
                 connectFirst <- ("connectFirst",) <$> [False, True]
                 teamPeer <- ("teamPeer",) <$> [False, True]
@@ -163,10 +161,7 @@ testsPublic s =
                     ]
                 ],
               testOnlyIfLhWhitelisted s "Cannot create conversation with both LH activated and non-consenting users" testCannotCreateGroupWithUsersInConflict,
-              test s "bench hack" testBenchHack,
-              test s "User cannot fetch prekeys of LH users if consent is missing" (testClaimKeys TCKConsentMissing),
-              test s "User cannot fetch prekeys of LH users: if user has old client" (testClaimKeys TCKOldClient),
-              test s "User can fetch prekeys of LH users if consent is given and user has only new clients" (testClaimKeys TCKConsentAndNewClients)
+              test s "bench hack" testBenchHack
             ]
         ]
     ]
@@ -697,91 +692,6 @@ testInWhitelist = do
           assertEqual "last_prekey should be set when LH is pending" (Just (head someLastPrekeys)) lastPrekey'
           assertEqual "client.id should be set when LH is pending" (Just someClientId) clientId'
 
-testOldClientsBlockDeviceHandshake :: TestM ()
-testOldClientsBlockDeviceHandshake = do
-  -- "handshake between LH device and user with old devices is blocked"
-  --
-  -- this specifically checks the place that handles otr messages and responds with status
-  -- 412 and a list of missing clients.
-  --
-  -- if any of those clients are LH, this test provodes a "missing-legalhold-consent" error
-  -- instead, without any information about the LH clients.  the condition is actually "has
-  -- old device or has not granted consent", but the latter part is blocked earlier in 1:1 and
-  -- group conversations, and hard to test at the device level.)
-  --
-  -- tracked here: https://wearezeta.atlassian.net/browse/SQSERVICES-454
-
-  (legalholder, tid) <- createBindingTeam
-  legalholder2 <- view Team.userId <$> addUserToTeam legalholder tid
-  (peer, tid2) <-
-    -- has to be a team member, granting LH consent for personal users is not supported.
-    createBindingTeam
-
-  let doEnableLH :: HasCallStack => UserId -> UserId -> TestM ClientId
-      doEnableLH owner uid = do
-        requestLegalHoldDevice owner uid tid !!! testResponse 201 Nothing
-        approveLegalHoldDevice (Just defPassword) uid uid tid !!! testResponse 200 Nothing
-        UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped uid tid
-        liftIO $ assertEqual "approving should change status" UserLegalHoldEnabled userStatus
-        getInternalClientsFull (UserSet $ Set.fromList [uid])
-          <&> userClientsFull
-          <&> Map.elems
-          <&> Set.unions
-          <&> Set.toList
-          <&> (\[x] -> x)
-          <&> clientId
-
-  putLHWhitelistTeam tid !!! const 200 === statusCode
-
-  withDummyTestServiceForTeam legalholder tid $ \_chan -> do
-    legalholderLHDevice <- doEnableLH legalholder legalholder
-    _legalholder2LHDevice <- doEnableLH legalholder legalholder2
-
-    let caps = Set.singleton Client.ClientSupportsLegalholdImplicitConsent
-    legalholderClient <- do
-      clnt <- randomClientWithCaps legalholder (someLastPrekeys !! 1) (Just caps)
-      ensureClientCaps legalholder clnt (Client.ClientCapabilityList caps)
-      pure clnt
-    legalholder2Client <- do
-      clnt <- randomClient legalholder2 (someLastPrekeys !! 3)
-      -- this another way to do it (instead of providing caps during client creation).
-      ensureClientCaps legalholder2 clnt (Client.ClientCapabilityList mempty)
-      upgradeClientToLH legalholder2 clnt
-      ensureClientCaps legalholder2 clnt (Client.ClientCapabilityList caps)
-      pure clnt
-    putLHWhitelistTeam tid2 !!! const 200 === statusCode
-    connectUsers peer (List1.list1 legalholder [legalholder2])
-
-    convId <-
-      decodeConvId
-        <$> ( postConv peer [legalholder, legalholder2] (Just "gossip") [] Nothing Nothing
-                <!! const 201 === statusCode
-            )
-
-    let runit :: HasCallStack => UserId -> ClientId -> TestM ResponseLBS
-        runit sender senderClient = do
-          postOtrMessage id sender senderClient convId rcps
-          where
-            rcps =
-              [ (legalholder, legalholderClient, "ciphered"),
-                (legalholder, legalholderLHDevice, "ciphered"),
-                (legalholder2, legalholder2Client, "ciphered")
-                -- legalholder2 LH device missing
-              ]
-
-    -- LH devices are treated as clients that have the ClientSupportsLegalholdImplicitConsent
-    -- capability (so LH doesn't break for users who have LH devices; it sounds silly, but
-    -- it's good to test this, since it did require adding a few lines of production code in
-    -- 'addClient' about client capabilities).
-    runit legalholder legalholderClient >>= errWith 412 (\(_ :: Msg.ClientMismatch) -> True)
-
-    -- If user has a client without the ClientSupportsLegalholdImplicitConsent
-    -- capability then message sending is prevented to legalhold devices.
-    peerClient <- randomClient peer (someLastPrekeys !! 2)
-    runit peer peerClient >>= errWith 403 (\err -> Error.label err == "missing-legalhold-consent")
-    upgradeClientToLH peer peerClient
-    runit peer peerClient >>= errWith 412 (\(_ :: Msg.ClientMismatch) -> True)
-
 -- If LH is activated for other user in 1:1 conv, 1:1 conv is blocked
 testNoConsentBlockOne2OneConv :: HasCallStack => Bool -> Bool -> Bool -> Bool -> TestM ()
 testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH testPendingConnection = do
@@ -804,14 +714,14 @@ testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH testPendingConnect
         liftIO $ assertEqual "approving should change status" (if approveLH then UserLegalHoldEnabled else UserLegalHoldPending) userStatus
         if approveLH
           then
-            getInternalClientsFull (UserSet $ Set.fromList [legalholder])
-              <&> userClientsFull
-              <&> Map.elems
-              <&> Set.unions
-              <&> Set.toList
-              <&> (\[x] -> x)
-              <&> clientId
-              <&> Just
+            getInternalClientsFull (UserSet $ Set.singleton legalholder)
+              <&> do
+                userClientsFull
+                  >>> Map.elems
+                  >>> Set.unions
+                  >>> Set.toList
+                  >>> listToMaybe
+                  >>> fmap clientId
           else pure Nothing
 
       doDisableLH :: HasCallStack => TestM ()
@@ -1109,68 +1019,6 @@ testCannotCreateGroupWithUsersInConflict = do
 
     createTeamConvAccessRaw userLHNotActivated tid [peer2, legalholder] (Just "corp + us") Nothing Nothing Nothing (Just roleNameWireMember)
       >>= errWith 403 (\err -> Error.label err == "missing-legalhold-consent")
-
-data TestClaimKeys
-  = TCKConsentMissing
-  | TCKOldClient
-  | TCKConsentAndNewClients
-
-testClaimKeys :: TestClaimKeys -> TestM ()
-testClaimKeys testcase = do
-  -- "cannot fetch prekeys of LH users if requester did not give consent or has old clients"
-  (legalholder, tid) <- createBindingTeam
-  (peer, teamPeer) <- createBindingTeam
-
-  let doEnableLH :: HasCallStack => TeamId -> UserId -> UserId -> TestM ClientId
-      doEnableLH team owner uid = do
-        requestLegalHoldDevice owner uid team !!! testResponse 201 Nothing
-        approveLegalHoldDevice (Just defPassword) uid uid team !!! testResponse 200 Nothing
-        UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped uid team
-        liftIO $ assertEqual "approving should change status" UserLegalHoldEnabled userStatus
-        getInternalClientsFull (UserSet $ Set.fromList [uid])
-          <&> userClientsFull
-          <&> Map.elems
-          <&> Set.unions
-          <&> Set.toList
-          <&> (\[x] -> x)
-          <&> clientId
-
-  let makePeerClient :: TestM ()
-      makePeerClient = case testcase of
-        TCKConsentMissing -> do
-          peerClient <- randomClient peer (someLastPrekeys !! 2)
-          upgradeClientToLH peer peerClient
-        TCKOldClient -> do
-          void $ randomClient peer (someLastPrekeys !! 2)
-          putLHWhitelistTeam teamPeer !!! const 200 === statusCode
-        TCKConsentAndNewClients -> do
-          peerClient <- randomClient peer (someLastPrekeys !! 2)
-          upgradeClientToLH peer peerClient
-          putLHWhitelistTeam teamPeer !!! const 200 === statusCode
-
-  let assertResponse' :: Assertions ()
-      assertResponse' = case testcase of
-        TCKConsentMissing -> bad
-        TCKOldClient -> bad
-        TCKConsentAndNewClients -> good
-        where
-          good = testResponse 200 Nothing
-          bad = testResponse 403 (Just "missing-legalhold-consent")
-
-  let fetchKeys :: ClientId -> TestM ()
-      fetchKeys legalholderLHDevice = do
-        getUsersPrekeysClientUnqualified peer legalholder legalholderLHDevice !!! assertResponse'
-        getUsersPrekeyBundleUnqualified peer legalholder !!! assertResponse'
-        let userClients = UserClients (Map.fromList [(legalholder, Set.fromList [legalholderLHDevice])])
-        getMultiUserPrekeyBundleUnqualified peer userClients !!! assertResponse'
-
-  putLHWhitelistTeam tid !!! const 200 === statusCode
-
-  withDummyTestServiceForTeam legalholder tid $ \_chan -> do
-    legalholderLHDevice <- doEnableLH tid legalholder legalholder
-
-    makePeerClient
-    fetchKeys legalholderLHDevice
 
 testBenchHack :: HasCallStack => TestM ()
 testBenchHack = do

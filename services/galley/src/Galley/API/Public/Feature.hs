@@ -65,6 +65,9 @@ featureAPI =
     <@> mkNamedAPI @'("put", MlsE2EIdConfig) (setFeatureStatus . DoAuth)
     <@> mkNamedAPI @'("get", MlsMigrationConfig) (getFeatureStatus . DoAuth)
     <@> mkNamedAPI @'("put", MlsMigrationConfig) (setFeatureStatus . DoAuth)
+    <@> mkNamedAPI @'("get", EnforceFileDownloadLocationConfig) (getFeatureStatus . DoAuth)
+    <@> mkNamedAPI @'("put", EnforceFileDownloadLocationConfig) (setFeatureStatus . DoAuth)
+    <@> mkNamedAPI @'("get", LimitedEventFanoutConfig) (getFeatureStatus . DoAuth)
     <@> mkNamedAPI @"get-all-feature-configs-for-user" getAllFeatureConfigsForUser
     <@> mkNamedAPI @"get-all-feature-configs-for-team" getAllFeatureConfigsForTeam
     <@> mkNamedAPI @'("get-config", LegalholdConfig) getFeatureStatusForUser

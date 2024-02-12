@@ -13,6 +13,11 @@ spec:
     - name: "gundeck-config"
       configMap:
         name: "gundeck"
+    {{- if eq (include "useCassandraTLS" .Values.config) "true" }}
+    - name: "gundeck-cassandra"
+      secret:
+        secretName: {{ (include "tlsSecretRef" .Values.config | fromYaml).name }}
+    {{- end}}
   containers:
   - name: integration
     # TODO: When deployed to staging (or real AWS env), _all_ tests should be run
@@ -54,6 +59,10 @@ spec:
       mountPath: "/etc/wire/integration"
     - name: "gundeck-config"
       mountPath: "/etc/wire/gundeck/conf"
+    {{- if eq (include "useCassandraTLS" .Values.config) "true" }}
+    - name: "gundeck-cassandra"
+      mountPath: "/etc/wire/gundeck/cassandra"
+    {{- end }}
     env:
     # these dummy values are necessary for Amazonka's "Discover"
     - name: AWS_ACCESS_KEY_ID
