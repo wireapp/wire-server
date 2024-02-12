@@ -97,7 +97,7 @@ createBot scon new = do
       extReq scon ["bots"]
         . method POST
         . Bilge.json new
-    onExc ex = lift (extLogError scon ex) >> throwE (ServiceUnavailableWith $ show ex)
+    onExc ex = lift (extLogError scon ex) >> throwE (ServiceUnavailableWith $ displayException ex)
 
 extReq :: ServiceConn -> [ByteString] -> Request -> Request
 extReq scon ps =
