@@ -1,1 +1,0 @@
-Delete `shell.nix`. It has been broken for quite some time. The supported way to get a development nix environment is to use direnv.

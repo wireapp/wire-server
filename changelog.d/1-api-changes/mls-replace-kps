@@ -1,1 +1,0 @@
-New endpoint for replacing MLS key packages in bulk: `PUT /mls/key-packages/self/:client`. It replaces all existing key packages that match the given ciphersuites with the new key packages provided in the body.

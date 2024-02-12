@@ -1,1 +1,0 @@
-Adjust the requested memory and upper bound limit of `nginz` pods in the related Helm chart. (We experienced OOM errors with the old settings.)

@@ -1,1 +1,0 @@
-Events for a member update, join and leave are not sent to everyone in the team any longer. Only team admins get them.

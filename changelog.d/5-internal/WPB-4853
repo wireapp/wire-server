@@ -1,1 +1,0 @@
-The fedcalls tool no longer walks the Swagger/OpenAPI structure when generating call graphs. These graphs are now generated directly from the Servant API types. (#3674, #3691)

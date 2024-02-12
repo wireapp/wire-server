@@ -1,3 +1,0 @@
-Remove apply-refact from CI image
-
-This gets rid of GHC in the image, making the image smaller.

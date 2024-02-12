@@ -1,1 +1,0 @@
-Update coturn image with bugfix to its prestop-hook from https://github.com/wireapp/coturn/pull/10 to allow coturn pods to terminate once their traffic has drained.

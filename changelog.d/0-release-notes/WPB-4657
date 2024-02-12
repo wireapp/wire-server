@@ -1,3 +1,0 @@
-The settings `setDisabledAPIVersions` (brig) and `disabledAPIVersions` (in cannon, cargohold, galley, gundeck, proxy, and spar) are now required.
-The default defined in `charts/<service>/values.yaml` is set to `[ development ]` and disables all development API versions.
-For more information see <https://docs.wire.com/developer/reference/config-options.html#disabling-api-versions>
