@@ -134,19 +134,15 @@ makeBundle payload = do
 type BackendNotificationAPI = Capture "name" Text :> ReqBody '[JSON] RawJson :> Post '[JSON] EmptyResponse
 
 sendNotification :: FederatorClientVersionedEnv -> Component -> Text -> RawJson -> IO (Either FederatorClientError ())
-sendNotification env component path body =
-  -- TODO: use singletons
-  case component of
-    Brig -> go @'Brig
-    Galley -> go @'Galley
-    Cargohold -> go @'Cargohold
+sendNotification env component path body = case someComponent component of
+  SomeComponent p -> go p
   where
     withoutFirstSlash :: Text -> Text
     withoutFirstSlash (Text.stripPrefix "/" -> Just t) = t
     withoutFirstSlash t = t
 
-    go :: forall c. (KnownComponent c) => IO (Either FederatorClientError ())
-    go =
+    go :: forall c. KnownComponent c => Proxy c -> IO (Either FederatorClientError ())
+    go _ =
       lowerCodensity
         . runExceptT
         . runVersionedFederatorClientToCodensity env
