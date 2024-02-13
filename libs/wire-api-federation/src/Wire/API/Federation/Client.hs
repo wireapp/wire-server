@@ -21,8 +21,10 @@
 module Wire.API.Federation.Client
   ( FederatorClientEnv (..),
     FederatorClientVersionedEnv (..),
+    unversionedEnv,
     FederatorClient,
     runFederatorClient,
+    runVersionedFederatorClient,
     runFederatorClientToCodensity,
     runVersionedFederatorClientToCodensity,
     performHTTP2Request,
@@ -84,6 +86,9 @@ data FederatorClientVersionedEnv = FederatorClientVersionedEnv
   { cveEnv :: FederatorClientEnv,
     cveVersion :: Maybe Version
   }
+
+unversionedEnv :: FederatorClientEnv -> FederatorClientVersionedEnv
+unversionedEnv env = FederatorClientVersionedEnv env Nothing
 
 -- | A request to a remote backend. The API version of the remote backend is in
 -- the environment. The 'MaybeT' layer is used to match endpoint versions (via
@@ -305,6 +310,15 @@ runFederatorClient ::
 runFederatorClient env =
   lowerCodensity
     . runFederatorClientToCodensity env
+
+runVersionedFederatorClient ::
+  FederatorClientVersionedEnv ->
+  FederatorClient c a ->
+  IO (Either FederatorClientError a)
+runVersionedFederatorClient venv =
+  lowerCodensity
+    . runExceptT
+    . runVersionedFederatorClientToCodensity venv
 
 runFederatorClientToCodensity ::
   forall c a.
