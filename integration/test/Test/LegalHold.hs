@@ -38,7 +38,7 @@ import qualified Data.Set as Set
 import qualified Data.Text as T
 import GHC.Stack
 import Network.Wai (Request (pathInfo, requestMethod))
-import Notifications (awaitNotification, isUserClientAddNotif, isUserClientRemoveNotif, isUserLegalholdDisabledNotif, isUserLegalholdEnabledNotif, isUserLegalholdRequestNotif)
+import Notifications (awaitNotification, isUserClientAddNotif, isUserClientRemoveNotif, isUserLegalholdDisabledNotif, isUserLegalholdEnabledNotif, isUserLegalholdRequestNotif, awaitNotifications)
 import Numeric.Lens (hex)
 import qualified Proto.Otr as Proto
 import qualified Proto.Otr_Fields as Proto
@@ -531,7 +531,9 @@ testLHDisableForUser =
           mzero
 
       void do
-        awaitNotification bob bobc noValue isUserClientRemoveNotif
-          *> awaitNotification bob bobc noValue isUserLegalholdDisabledNotif
+        -- this is awkward, but it's because the order is not clear
+        notifs <- awaitNotifications bob bobc Nothing 2 \notif -> (||) <$> isUserClientRemoveNotif notif <*> isUserLegalholdDisabledNotif notif
+        assertBool "we have a client remove notif" . not . null =<< filterM isUserClientRemoveNotif notifs
+        assertBool "we have a legalhold disable notif" . not . null =<< filterM isUserLegalholdDisabledNotif notifs
 
 -- TODO(mangoiv): assert zero legalhold devices
