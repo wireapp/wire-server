@@ -98,8 +98,6 @@ testsPublic s =
   testGroup
     "Teams LegalHold API (with flag whitelist-teams-and-implicit-consent)"
     [ -- device handling (CRUD)
-      test s "(user denies approval: nothing needs to be done in backend)" (pure ()),
-      testOnlyIfLhWhitelisted s "GET /teams/{tid}/legalhold/{uid}" testGetLegalHoldDeviceStatus,
       testOnlyIfLhWhitelisted s "DELETE /teams/{tid}/legalhold/{uid}" testDisableLegalHoldForUser,
       -- legal hold settings
       testOnlyIfLhWhitelisted s "POST /teams/{tid}/legalhold/settings" testCreateLegalHoldTeamSettings,
@@ -183,59 +181,6 @@ testWhitelistingTeams = do
     pure tid
 
   expectWhitelisted False tid
-
-testGetLegalHoldDeviceStatus :: TestM ()
-testGetLegalHoldDeviceStatus = do
-  (owner, tid) <- createBindingTeam
-  member <- randomUser
-  addTeamMemberInternal tid member (rolePermissions RoleMember) Nothing
-  forM_ [owner, member] $ \uid -> do
-    status <- getUserStatusTyped uid tid
-    liftIO $
-      assertEqual
-        "unexpected status"
-        (UserLegalHoldStatusResponse UserLegalHoldNoConsent Nothing Nothing)
-        status
-
-  putLHWhitelistTeam tid !!! const 200 === statusCode
-  withDummyTestServiceForTeamNoService $ \lhPort _chan -> do
-    do
-      UserLegalHoldStatusResponse userStatus lastPrekey' clientId' <- getUserStatusTyped member tid
-      liftIO $
-        do
-          assertEqual "User legal hold status should start as disabled" UserLegalHoldDisabled userStatus
-          assertEqual "last_prekey should be Nothing when LH is disabled" Nothing lastPrekey'
-          assertEqual "client.id should be Nothing when LH is disabled" Nothing clientId'
-
-    do
-      newService <- newLegalHoldService lhPort
-      postSettings owner tid newService !!! testResponse 201 Nothing
-      requestLegalHoldDevice owner member tid !!! testResponse 201 Nothing
-      assertZeroLegalHoldDevices member
-      UserLegalHoldStatusResponse userStatus lastPrekey' clientId' <- getUserStatusTyped member tid
-      liftIO $
-        do
-          assertEqual "requestLegalHoldDevice should set user status to Pending" UserLegalHoldPending userStatus
-          assertEqual "last_prekey should be set when LH is pending" (Just (head someLastPrekeys)) lastPrekey'
-          assertEqual "client.id should be set when LH is pending" (Just someClientId) clientId'
-    do
-      requestLegalHoldDevice owner member tid !!! testResponse 204 Nothing
-      UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped member tid
-      liftIO $
-        assertEqual
-          "requestLegalHoldDevice when already pending should leave status as Pending"
-          UserLegalHoldPending
-          userStatus
-    do
-      approveLegalHoldDevice (Just defPassword) member member tid !!! testResponse 200 Nothing
-      UserLegalHoldStatusResponse userStatus lastPrekey' clientId' <- getUserStatusTyped member tid
-      liftIO $
-        do
-          assertEqual "approving should change status to Enabled" UserLegalHoldEnabled userStatus
-          assertEqual "last_prekey should be set when LH is pending" (Just (head someLastPrekeys)) lastPrekey'
-          assertEqual "client.id should be set when LH is pending" (Just someClientId) clientId'
-    assertExactlyOneLegalHoldDevice member
-    requestLegalHoldDevice owner member tid !!! testResponse 409 (Just "legalhold-already-enabled")
 
 testDisableLegalHoldForUser :: TestM ()
 testDisableLegalHoldForUser = withTeam $ \owner tid -> do

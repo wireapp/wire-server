@@ -359,6 +359,9 @@ assertJust :: HasCallStack => String -> Maybe a -> App a
 assertJust _ (Just x) = pure x
 assertJust msg Nothing = assertFailure msg
 
+assertNothing :: (HasCallStack) => Maybe a -> App ()
+assertNothing = maybe (pure ()) $ const $ assertFailure "Maybe value was Just, not Nothing"
+
 addFailureContext :: String -> App a -> App a
 addFailureContext msg = modifyFailureMsg (\m -> m <> "\nThis failure happened in this context:\n" <> msg)
 

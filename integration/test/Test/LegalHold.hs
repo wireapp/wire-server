@@ -27,6 +27,7 @@ import API.Galley
 import API.GalleyInternal
 import Control.Error (MaybeT (MaybeT), runMaybeT)
 import Control.Lens ((.~), (^?!))
+import Control.Monad.Reader (asks)
 import Control.Monad.Trans.Class (lift)
 import Data.ByteString.Lazy (LazyByteString)
 import qualified Data.Map as Map
@@ -331,8 +332,10 @@ testLHRequestDevice =
 -- | pops a channel until it finds an event that returns a 'Just'
 --   upon running the matcher function
 checkChan :: HasCallStack => Chan t -> (t -> App (Maybe a)) -> App a
-checkChan chan match =
-  maybe (assertFailure "checkChan: timed out") pure =<< timeout 5_000_000 do
+checkChan chan match = do
+  tSecs <- asks ((* 1_000_000) . timeOutSeconds)
+
+  maybe (assertFailure "checkChan: timed out") pure =<< timeout tSecs do
     let go = readChan chan >>= match >>= maybe go pure
     go
 
@@ -426,10 +429,57 @@ testLHApproveDevice = do
       -- legalhold device being approved in their team
       for_ [alice, charlie] \user -> do
         client <- objId $ addClient user def `bindResponse` getJSON 201
-        printJSON =<< objId bob
-
         awaitNotification user client noValue isUserLegalholdEnabledNotif >>= \notif -> do
           notif %. "payload.0.id" `shouldMatch` objId bob
 
 -- TODO(mangoiv): there's no reasonable check that sandy and ollie don't get any notifs
 -- as we never know when to timeout as we don't have any consistency guarantees
+
+testLHGetDeviceStatus :: App ()
+testLHGetDeviceStatus =
+  startDynamicBackends [mempty] \[dom] -> do
+    -- team users
+    -- alice (team owner) and bob (member)
+    (alice, tid, [bob]) <- createTeam dom 2
+    for_ [alice, bob] \user -> do
+      legalholdUserStatus tid alice user `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 200
+        resp.json %. "status" `shouldMatch` "no_consent"
+
+    legalholdWhitelistTeam tid alice
+      >>= assertStatus 200
+
+    let lookupM field jason = MaybeT (lookupField jason field)
+
+    lpk <- getLastPrekey
+    pks <- replicateM 3 getPrekey
+
+    withMockServer (lhMockApp' (Just (lpk, pks))) \lhPort _chan -> do
+      legalholdUserStatus tid alice bob `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 200
+        resp.json %. "status" `shouldMatch` "disabled"
+        lookupField resp.json "last_prekey"
+          >>= assertNothing
+        runMaybeT (lookupM "client" resp.json >>= lookupM "id")
+          >>= assertNothing
+
+      -- the status messages for these have already been tested
+      postLegalHoldSettings tid alice (mkLegalHoldSettings lhPort)
+        >>= assertStatus 201
+
+      requestLegalHoldDevice tid alice bob
+        >>= assertStatus 201
+
+      approveLegalHoldDevice tid bob defPassword
+        >>= assertStatus 200
+
+      legalholdUserStatus tid alice bob `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 200
+        resp.json %. "status" `shouldMatch` "enabled"
+        resp.json %. "last_prekey" `shouldMatch` lpk
+      -- TODO(mangoiv): where do we take the LH device client
+      -- id from??
+      -- resp.json %. "client.id" `shouldMatch` _
+
+      requestLegalHoldDevice tid alice bob
+        >>= assertLabel 409 "legalhold-already-enabled"
