@@ -4828,7 +4828,9 @@
       "enum": [
         "GCM",
         "APNS",
-        "APNS_SANDBOX"
+        "APNS_SANDBOX",
+        "APNS_VOIP",
+        "APNS_VOIP_SANDBOX"
       ],
       "type": "string"
     },
