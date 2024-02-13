@@ -61,7 +61,7 @@ type NotificationFedEndpointWithMods (mods :: [Type]) name path input =
 
 type NotificationFedEndpoint tag =
   MkNotificationFedEndpoint
-    '[]
+    (NotificationMods tag)
     (NotificationPath tag)
     (NotificationVersionTag tag)
     (Payload tag)

@@ -37,6 +37,7 @@ import Wire.API.Federation.HasNotificationEndpoint
 import Wire.API.Federation.Version
 import Wire.API.MLS.SubConversation
 import Wire.API.Message
+import Wire.API.Routes.Version (From, Until)
 import Wire.API.Util.Aeson
 import Wire.Arbitrary
 
@@ -55,19 +56,16 @@ instance IsNotificationTag GalleyNotificationTag where
 instance HasNotificationEndpoint 'OnClientRemovedTag where
   type Payload 'OnClientRemovedTag = ClientRemovedRequest
   type NotificationPath 'OnClientRemovedTag = "on-client-removed"
-  versionRange = allVersions
 
 -- used to notify this backend that a new message has been posted to a
 -- remote conversation
 instance HasNotificationEndpoint 'OnMessageSentTag where
   type Payload 'OnMessageSentTag = RemoteMessage ConvId
   type NotificationPath 'OnMessageSentTag = "on-message-sent"
-  versionRange = allVersions
 
 instance HasNotificationEndpoint 'OnMLSMessageSentTag where
   type Payload 'OnMLSMessageSentTag = RemoteMLSMessage
   type NotificationPath 'OnMLSMessageSentTag = "on-mls-message-sent"
-  versionRange = allVersions
 
 -- used by the backend that owns a conversation to inform this backend of
 -- changes to the conversation
@@ -75,18 +73,17 @@ instance HasNotificationEndpoint 'OnConversationUpdatedTagV0 where
   type Payload 'OnConversationUpdatedTagV0 = ConversationUpdateV0
   type NotificationPath 'OnConversationUpdatedTagV0 = "on-conversation-updated"
   type NotificationVersionTag 'OnConversationUpdatedTagV0 = 'Just 'V0
-  versionRange = rangeUntilVersion V1
+  type NotificationMods 'OnConversationUpdatedTagV0 = '[Until 'V1]
 
 instance HasNotificationEndpoint 'OnConversationUpdatedTag where
   type Payload 'OnConversationUpdatedTag = ConversationUpdate
   type NotificationPath 'OnConversationUpdatedTag = "on-conversation-updated"
   type NotificationVersionTag 'OnConversationUpdatedTag = 'Just 'V1
-  versionRange = rangeFromVersion V1
+  type NotificationMods 'OnConversationUpdatedTag = '[From 'V1]
 
 instance HasNotificationEndpoint 'OnUserDeletedConversationsTag where
   type Payload 'OnUserDeletedConversationsTag = UserDeletedConversationsNotification
   type NotificationPath 'OnUserDeletedConversationsTag = "on-user-deleted-conversations"
-  versionRange = allVersions
 
 -- | All the notification endpoints return an 'EmptyResponse'.
 type GalleyNotificationAPI =

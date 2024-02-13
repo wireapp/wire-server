@@ -62,10 +62,11 @@ instance ToSchema BackendNotification where
 -- RabbitMQ queue.
 fedNotifToBackendNotif ::
   forall {k} (tag :: k).
-  HasFedPath tag =>
-  KnownComponent (NotificationComponent k) =>
-  A.ToJSON (Payload tag) =>
-  HasNotificationEndpoint tag =>
+  ( HasFedPath tag,
+    HasVersionRange tag,
+    KnownComponent (NotificationComponent k),
+    A.ToJSON (Payload tag)
+  ) =>
   RequestId ->
   Domain ->
   Payload tag ->
@@ -101,8 +102,8 @@ instance ToSchema (PayloadBundle c) where
 
 toBundle ::
   forall {k} (tag :: k).
-  ( HasNotificationEndpoint tag,
-    HasFedPath tag,
+  ( HasFedPath tag,
+    HasVersionRange tag,
     KnownComponent (NotificationComponent k),
     A.ToJSON (Payload tag)
   ) =>
@@ -117,8 +118,8 @@ toBundle reqId originDomain payload =
 
 makeBundle ::
   forall {k} (tag :: k) c.
-  ( HasNotificationEndpoint tag,
-    HasFedPath tag,
+  ( HasFedPath tag,
+    HasVersionRange tag,
     KnownComponent (NotificationComponent k),
     A.ToJSON (Payload tag),
     c ~ NotificationComponent k

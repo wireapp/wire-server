@@ -31,10 +31,10 @@ spec = do
     it "[..] + [] = null" $ do
       mostRecent (pure allVersions) (Set.fromList []) `shouldBe` Nothing
     it "[0] + [1] = null" $ do
-      mostRecent (pure $ VersionRange V0 (Just V1)) (Set.fromList []) `shouldBe` Nothing
+      mostRecent (pure $ VersionRange V0 (VersionUpperBound V1)) (Set.fromList []) `shouldBe` Nothing
     it "[1] + [0, 1] = 1" $ do
-      fmap snd (mostRecent (pure $ VersionRange V1 Nothing) (Set.fromList [0, 1])) `shouldBe` Just V1
+      fmap snd (mostRecent (pure $ VersionRange V1 Unbounded) (Set.fromList [0, 1])) `shouldBe` Just V1
     it "[0] + [0, 1] = 0" $ do
-      fmap snd (mostRecent (pure $ VersionRange V0 (Just V1)) (Set.fromList [0, 1])) `shouldBe` Just V0
+      fmap snd (mostRecent (pure $ VersionRange V0 (VersionUpperBound V1)) (Set.fromList [0, 1])) `shouldBe` Just V0
     it "[..] + [1] = 1" $ do
-      fmap snd (mostRecent (VersionRange V0 (Just V1) :| [VersionRange V1 Nothing]) (Set.fromList [1])) `shouldBe` Just V1
+      fmap snd (mostRecent (VersionRange V0 (VersionUpperBound V1) :| [VersionRange V1 Unbounded]) (Set.fromList [1])) `shouldBe` Just V1

@@ -19,16 +19,20 @@ module Wire.API.Federation.HasNotificationEndpoint
   ( IsNotificationTag (..),
     HasNotificationEndpoint (..),
     HasFedPath,
+    HasVersionRange,
     fedPath,
+    versionRange,
   )
 where
 
 import Data.Kind
 import Data.Proxy
+import Data.Singletons
 import GHC.TypeLits
 import Imports
 import Wire.API.Federation.Component
 import Wire.API.Federation.Version
+import Wire.API.Routes.Version (From, Until)
 
 class IsNotificationTag k where
   type NotificationComponent k = (c :: Component) | c -> k
@@ -47,10 +51,42 @@ class HasNotificationEndpoint t where
 
   type NotificationVersionTag t = 'Nothing
 
-  -- | The federation API version range this endpoint is supported in.
-  versionRange :: VersionRange
+  type NotificationMods t :: [Type]
+
+  type NotificationMods t = '[]
 
 type HasFedPath t = KnownSymbol (NotificationPath t)
 
+type HasVersionRange t = MkVersionRange (NotificationMods t)
+
 fedPath :: forall t. HasFedPath t => String
 fedPath = symbolVal (Proxy @(NotificationPath t))
+
+-- | Build a version range using any 'Until' and 'From' combinators present in
+-- the endpoint modifiers.
+class MkVersionRange mods where
+  mkVersionRange :: VersionRange
+
+instance MkVersionRange '[] where
+  mkVersionRange = allVersions
+
+instance
+  {-# OVERLAPPING #-}
+  (MkVersionRange mods, SingI v) =>
+  MkVersionRange (From (v :: Version) ': mods)
+  where
+  mkVersionRange = mkVersionRange @mods <> rangeFromVersion (demote @v)
+
+instance
+  {-# OVERLAPPING #-}
+  (MkVersionRange mods, SingI v) =>
+  MkVersionRange (Until (v :: Version) ': mods)
+  where
+  mkVersionRange = mkVersionRange @mods <> rangeUntilVersion (demote @v)
+
+instance {-# OVERLAPPABLE #-} MkVersionRange mods => MkVersionRange (m ': mods) where
+  mkVersionRange = mkVersionRange @mods
+
+-- | The federation API version range this endpoint is supported in.
+versionRange :: forall t. HasVersionRange t => VersionRange
+versionRange = mkVersionRange @(NotificationMods t)

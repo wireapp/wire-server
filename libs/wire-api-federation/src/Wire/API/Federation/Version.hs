@@ -28,6 +28,7 @@ module Wire.API.Federation.Version
     versionInfo,
 
     -- * VersionRange
+    VersionUpperBound (..),
     VersionRange (..),
     fromVersion,
     toVersionExcl,
@@ -92,10 +93,24 @@ versionInfo = VersionInfo (toList supportedVersions)
 
 ----------------------------------------------------------------------
 
+-- | The upper bound of a version range.
+--
+-- The order of constructors here makes the 'Unbounded' value maximum in the
+-- generated lexicographic ordering.
+data VersionUpperBound = VersionUpperBound Version | Unbounded
+  deriving (Eq, Ord, Show)
+
+versionFromUpperBound :: VersionUpperBound -> Maybe Version
+versionFromUpperBound (VersionUpperBound v) = Just v
+versionFromUpperBound Unbounded = Nothing
+
+versionToUpperBound :: Maybe Version -> VersionUpperBound
+versionToUpperBound (Just v) = VersionUpperBound v
+versionToUpperBound Nothing = Unbounded
+
 data VersionRange = VersionRange
   { _fromVersion :: Version,
-    -- | 'Nothing' here means that 'maxBound' is included.
-    _toVersionExcl :: Maybe Version
+    _toVersionExcl :: VersionUpperBound
   }
 
 deriving instance Eq VersionRange
@@ -111,7 +126,8 @@ instance ToSchema VersionRange where
     object "VersionRange" $
       VersionRange
         <$> _fromVersion .= field "from" schema
-        <*> _toVersionExcl .= maybe_ (optFieldWithDocModifier "until_excl" desc schema)
+        <*> (versionFromUpperBound . _toVersionExcl)
+          .= maybe_ (versionToUpperBound <$> optFieldWithDocModifier "until_excl" desc schema)
     where
       desc = description ?~ "exlusive upper version bound"
 
@@ -120,19 +136,24 @@ deriving via Schema VersionRange instance ToJSON VersionRange
 deriving via Schema VersionRange instance FromJSON VersionRange
 
 allVersions :: VersionRange
-allVersions = VersionRange minBound Nothing
+allVersions = VersionRange minBound Unbounded
+
+-- | The semigroup instance of VersionRange is intersection.
+instance Semigroup VersionRange where
+  VersionRange from1 to1 <> VersionRange from2 to2 =
+    VersionRange (max from1 from2) (min to1 to2)
 
 rangeFromVersion :: Version -> VersionRange
-rangeFromVersion v = VersionRange v Nothing
+rangeFromVersion v = VersionRange v Unbounded
 
 rangeUntilVersion :: Version -> VersionRange
-rangeUntilVersion v = VersionRange minBound (Just v)
+rangeUntilVersion v = VersionRange minBound (VersionUpperBound v)
 
 enumVersionRange :: VersionRange -> Set Version
 enumVersionRange =
   Set.fromList . \case
-    (VersionRange l Nothing) -> [l ..]
-    (VersionRange l (Just u)) -> init [l .. u]
+    VersionRange l Unbounded -> [l ..]
+    VersionRange l (VersionUpperBound u) -> init [l .. u]
 
 -- | For a version range of a local backend and for a set of versions that a
 -- remote backend supports, compute the newest version supported by both. The

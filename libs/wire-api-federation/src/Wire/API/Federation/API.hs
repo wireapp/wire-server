@@ -118,7 +118,8 @@ sendBundle bundle = do
 fedQueueClient ::
   forall {k} (tag :: k) c.
   ( HasNotificationEndpoint tag,
-    KnownSymbol (NotificationPath tag),
+    HasVersionRange tag,
+    HasFedPath tag,
     KnownComponent (NotificationComponent k),
     ToJSON (Payload tag),
     c ~ NotificationComponent k
