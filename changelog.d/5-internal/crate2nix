@@ -1,1 +1,0 @@
-For some rust packages (cryptobox and libzauth-c), we now use crate2nix as a build tool, rather than the more coarse and FOD-based nixpkgs `rustPlatform.buildRustPackage` approach.

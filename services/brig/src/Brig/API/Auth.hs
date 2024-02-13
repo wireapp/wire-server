@@ -43,13 +43,19 @@ import Network.HTTP.Types
 import Network.Wai.Utilities ((!>>))
 import Network.Wai.Utilities.Error qualified as Wai
 import Polysemy
+import Polysemy.TinyLog (TinyLog)
 import Wire.API.User
 import Wire.API.User.Auth hiding (access)
 import Wire.API.User.Auth.LegalHold
 import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Auth.Sso
+import Wire.NotificationSubsystem
 
 accessH ::
+  ( Member TinyLog r,
+    Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r
+  ) =>
   Maybe ClientId ->
   [Either Text SomeUserToken] ->
   Maybe (Either Text SomeAccessToken) ->
@@ -61,22 +67,34 @@ accessH mcid ut' mat' = do
     >>= either (uncurry (access mcid)) (uncurry (access mcid))
 
 access ::
-  (TokenPair u a) =>
+  ( TokenPair u a,
+    Member TinyLog r,
+    Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r
+  ) =>
   Maybe ClientId ->
   NonEmpty (Token u) ->
   Maybe (Token a) ->
   Handler r SomeAccess
 access mcid t mt =
   traverse mkUserTokenCookie
-    =<< wrapHttpClientE (Auth.renewAccess (List1 t) mt mcid) !>> zauthError
+    =<< Auth.renewAccess (List1 t) mt mcid !>> zauthError
 
-sendLoginCode :: SendLoginCode -> Handler r LoginCodeTimeout
+sendLoginCode :: (Member TinyLog r) => SendLoginCode -> Handler r LoginCodeTimeout
 sendLoginCode (SendLoginCode phone call force) = do
   checkAllowlist (Right phone)
-  c <- wrapClientE (Auth.sendLoginCode phone call force) !>> sendLoginCodeError
+  c <- Auth.sendLoginCode phone call force !>> sendLoginCodeError
   pure $ LoginCodeTimeout (pendingLoginTimeout c)
 
-login :: (Member GalleyProvider r) => Login -> Maybe Bool -> Handler r SomeAccess
+login ::
+  ( Member GalleyProvider r,
+    Member TinyLog r,
+    Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r
+  ) =>
+  Login ->
+  Maybe Bool ->
+  Handler r SomeAccess
 login l (fromMaybe False -> persist) = do
   let typ = if persist then PersistentCookie else SessionCookie
   c <- Auth.login l typ !>> loginError
@@ -94,7 +112,7 @@ logoutH uts' mat' = do
 
 logout :: TokenPair u a => NonEmpty (Token u) -> Maybe (Token a) -> Handler r ()
 logout _ Nothing = throwStd authMissingToken
-logout uts (Just at) = wrapHttpClientE $ Auth.logout (List1 uts) at !>> zauthError
+logout uts (Just at) = Auth.logout (List1 uts) at !>> zauthError
 
 changeSelfEmailH ::
   Member BlacklistStore r =>
@@ -117,32 +135,46 @@ validateCredentials ::
   Handler r UserId
 validateCredentials _ Nothing = throwStd missingAccessToken
 validateCredentials uts mat =
-  fst <$> wrapHttpClientE (Auth.validateTokens (List1 uts) mat) !>> zauthError
+  fst <$> Auth.validateTokens (List1 uts) mat !>> zauthError
 
 listCookies :: Local UserId -> Maybe (CommaSeparatedList CookieLabel) -> Handler r CookieList
 listCookies lusr (fold -> labels) =
   CookieList
     <$> wrapClientE (Auth.listCookies (tUnqualified lusr) (toList labels))
 
-removeCookies :: Local UserId -> RemoveCookies -> Handler r ()
+removeCookies :: (Member TinyLog r) => Local UserId -> RemoveCookies -> Handler r ()
 removeCookies lusr (RemoveCookies pw lls ids) =
-  wrapClientE (Auth.revokeAccess (tUnqualified lusr) pw ids lls) !>> authError
+  Auth.revokeAccess (tUnqualified lusr) pw ids lls !>> authError
 
-legalHoldLogin :: (Member GalleyProvider r) => LegalHoldLogin -> Handler r SomeAccess
+legalHoldLogin ::
+  ( Member GalleyProvider r,
+    Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member TinyLog r
+  ) =>
+  LegalHoldLogin ->
+  Handler r SomeAccess
 legalHoldLogin lhl = do
   let typ = PersistentCookie -- Session cookie isn't a supported use case here
   c <- Auth.legalHoldLogin lhl typ !>> legalHoldLoginError
   traverse mkUserTokenCookie c
 
-ssoLogin :: SsoLogin -> Maybe Bool -> Handler r SomeAccess
+ssoLogin ::
+  ( Member TinyLog r,
+    Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r
+  ) =>
+  SsoLogin ->
+  Maybe Bool ->
+  Handler r SomeAccess
 ssoLogin l (fromMaybe False -> persist) = do
   let typ = if persist then PersistentCookie else SessionCookie
-  c <- wrapHttpClientE (Auth.ssoLogin l typ) !>> loginError
+  c <- Auth.ssoLogin l typ !>> loginError
   traverse mkUserTokenCookie c
 
-getLoginCode :: Phone -> Handler r PendingLoginCode
+getLoginCode :: (Member TinyLog r) => Phone -> Handler r PendingLoginCode
 getLoginCode phone = do
-  code <- lift $ wrapClient $ Auth.lookupLoginCode phone
+  code <- lift $ Auth.lookupLoginCode phone
   maybe (throwStd loginCodeNotFound) pure code
 
 reauthenticate :: Member GalleyProvider r => UserId -> ReAuthUser -> Handler r ()

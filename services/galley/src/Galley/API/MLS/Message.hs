@@ -81,6 +81,7 @@ import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.Message
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
+import Wire.NotificationSubsystem
 
 -- FUTUREWORK
 -- - Check that the capabilities of a leaf node in an add proposal contains all
@@ -274,7 +275,7 @@ postMLSCommitBundleToRemoteConv ::
     Member (Error UnreachableBackends) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member MemberStore r,
     Member TinyLog r
   ) =>

@@ -48,7 +48,6 @@ module Brig.Calling
   )
 where
 
-import Brig.Effects.Delay
 import Brig.Options (SFTOptions (..), defSftListLength, defSftServiceName, defSrvDiscoveryIntervalSeconds)
 import Brig.Options qualified as Opts
 import Control.Exception.Enclosed (handleAny)
@@ -80,6 +79,7 @@ import UnliftIO.Async qualified as Async
 import Wire.API.Call.Config
 import Wire.Network.DNS.Effect
 import Wire.Network.DNS.SRV
+import Wire.Sem.Delay
 import Wire.Sem.Logger.TinyLog
 
 -- | NOTE SFTServers:

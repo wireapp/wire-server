@@ -1,1 +1,0 @@
-Improved formatting of federation errors. No extra copy of the response body, and nested errors are now part of the JSON structure, not quoted inside the message.

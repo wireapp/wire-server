@@ -19,11 +19,11 @@ import Data.Function
 import Data.Streaming.Network (HostPreference, bindRandomPortTCP)
 import Data.UUID.V1 (nextUUID)
 import Data.UUID.V4 (nextRandom)
+import Debug.Trace (traceM)
 import GHC.Stack
 import qualified Network.Socket as Socket
 import qualified Network.Wai.Handler.Warp as Warp
 import Testlib.Prelude
-import Debug.Trace (traceM)
 
 -- | Helper function to bind a free port and socket with Socket.close as clean-up.
 withFreePortAnyAddr :: (MonadMask m, MonadIO m) => ((Warp.Port, Socket.Socket) -> m a) -> m a

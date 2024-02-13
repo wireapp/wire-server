@@ -48,6 +48,7 @@ import Wire.API.Federation.API.Brig
 import Wire.API.Routes.Internal.Galley.ConversationsIntra (Actor (..), DesiredMembership (..), UpsertOne2OneConversationRequest (..), UpsertOne2OneConversationResponse (uuorConvId))
 import Wire.API.Routes.Public.Util (ResponseForExistedCreated (..))
 import Wire.API.User
+import Wire.NotificationSubsystem
 
 data LocalConnectionAction
   = LocalConnect
@@ -145,6 +146,7 @@ updateOne2OneConv lUsr _mbConn remoteUser mbConvId rel actor = do
 --
 -- Returns the connection, and whether it was updated or not.
 transitionTo ::
+  (Member NotificationSubsystem r) =>
   Local UserId ->
   Maybe ConnId ->
   Remote UserId ->
@@ -185,12 +187,18 @@ transitionTo self mzcon other (Just connection) (Just rel) actor = lift $ do
   pure (Existed connection', True)
 
 -- | Send an event to the local user when the state of a connection changes.
-pushEvent :: Local UserId -> Maybe ConnId -> UserConnection -> (AppT r) ()
+pushEvent ::
+  (Member NotificationSubsystem r) =>
+  Local UserId ->
+  Maybe ConnId ->
+  UserConnection ->
+  AppT r ()
 pushEvent self mzcon connection = do
   let event = ConnectionUpdated connection Nothing Nothing
-  Intra.onConnectionEvent (tUnqualified self) mzcon event
+  liftSem $ Intra.onConnectionEvent (tUnqualified self) mzcon event
 
 performLocalAction ::
+  (Member NotificationSubsystem r) =>
   Local UserId ->
   Maybe ConnId ->
   Remote UserId ->
@@ -246,6 +254,7 @@ performLocalAction self mzcon other mconnection action = do
 -- B connects & A reacts:  Accepted  Accepted
 -- @
 performRemoteAction ::
+  (Member NotificationSubsystem r) =>
   Local UserId ->
   Remote UserId ->
   Maybe UserConnection ->
@@ -263,7 +272,9 @@ performRemoteAction self other mconnection action = do
     reaction _ = Nothing
 
 createConnectionToRemoteUser ::
-  Member FederationConfigStore r =>
+  ( Member FederationConfigStore r,
+    Member NotificationSubsystem r
+  ) =>
   Local UserId ->
   ConnId ->
   Remote UserId ->
@@ -275,7 +286,9 @@ createConnectionToRemoteUser self zcon other = do
   fst <$> performLocalAction self (Just zcon) other mconnection LocalConnect
 
 updateConnectionToRemoteUser ::
-  Member FederationConfigStore r =>
+  ( Member NotificationSubsystem r,
+    Member FederationConfigStore r
+  ) =>
   Local UserId ->
   Remote UserId ->
   Relation ->

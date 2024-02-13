@@ -1,3 +1,0 @@
-Upload bill-of-material (BOM) files directly to the Dependency Tracker via REST.
-This eases the life of the security team and prevents cluttering our release
-artifact page.

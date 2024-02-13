@@ -1,1 +1,0 @@
-The federation API can now be versioned. Multiple versions of an RPC can be defined on the same path. After version negotiation, the federation client now sets the `X-Wire-API-Version` header, and federator propagates it to the destination service.

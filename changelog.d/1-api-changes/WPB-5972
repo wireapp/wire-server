@@ -1,4 +1,0 @@
-* Remove IP request header from add-client endpoint.
-* Remove longitude and latitude response fields from add-client, list-clients, and get-client endpoints.
-
-These are not considered breaking changes, since clients are not using this information.

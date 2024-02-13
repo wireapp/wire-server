@@ -43,7 +43,6 @@ import OpenSSL.EVP.Digest (getDigestByName)
 import Polysemy
 import Polysemy.Error
 import Polysemy.TinyLog
-import System.Logger qualified as Log
 import Test.Brig.Effects.Delay
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -70,15 +69,6 @@ runFakeDNSLookup FakeDNSEnv {..} = interpret $
   \(LookupSRV domain) -> do
     modifyIORef' fakeLookupSrvCalls (++ [domain])
     pure $ fakeLookupSrv domain
-
-newtype LogRecorder = LogRecorder {recordedLogs :: IORef [(Level, LByteString)]}
-
-newLogRecorder :: IO LogRecorder
-newLogRecorder = LogRecorder <$> newIORef []
-
-recordLogs :: Member (Embed IO) r => LogRecorder -> Sem (TinyLog ': r) a -> Sem r a
-recordLogs LogRecorder {..} = interpret $ \(Log lvl msg) ->
-  modifyIORef' recordedLogs (++ [(lvl, Log.render (Log.renderDefault ", ") msg)])
 
 ignoreLogs :: Sem (TinyLog ': r) a -> Sem r a
 ignoreLogs = discardTinyLogs

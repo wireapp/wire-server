@@ -51,6 +51,7 @@ import Wire.API.Conversation hiding (Member)
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Routes.MultiTablePaging
+import Wire.NotificationSubsystem
 import Wire.Sem.Paging.Cassandra (CassandraPaging)
 
 getClientsH ::
@@ -95,7 +96,7 @@ rmClientH ::
       Member ExternalAccess r,
       Member BackendNotificationQueueAccess r,
       Member FederatorAccess r,
-      Member GundeckAccess r,
+      Member NotificationSubsystem r,
       Member (Input Env) r,
       Member (Input (Local ())) r,
       Member (Input UTCTime) r,

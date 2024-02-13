@@ -171,20 +171,24 @@ instance ToJSON RecipientClients where
 -- ApsData
 
 newtype ApsSound = ApsSound {fromSound :: Text}
-  deriving (Eq, Show, ToJSON, FromJSON)
+  deriving (Eq, Show, ToJSON, FromJSON, Arbitrary)
 
 newtype ApsLocKey = ApsLocKey {fromLocKey :: Text}
-  deriving (Eq, Show, ToJSON, FromJSON)
+  deriving (Eq, Show, ToJSON, FromJSON, Arbitrary)
 
 data ApsPreference
   = ApsStdPreference
-  deriving (Eq, Show)
+  | ApsVoIPPreference
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via GenericUniform ApsPreference
 
 instance ToJSON ApsPreference where
+  toJSON ApsVoIPPreference = "voip"
   toJSON ApsStdPreference = "std"
 
 instance FromJSON ApsPreference where
   parseJSON = withText "ApsPreference" $ \case
+    "voip" -> pure ApsVoIPPreference
     "std" -> pure ApsStdPreference
     x -> fail $ "Invalid preference: " ++ show x
 
@@ -195,7 +199,8 @@ data ApsData = ApsData
     _apsPreference :: !(Maybe ApsPreference),
     _apsBadge :: !Bool
   }
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via GenericUniform ApsData
 
 makeLenses ''ApsData
 

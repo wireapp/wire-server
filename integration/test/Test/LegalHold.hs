@@ -165,39 +165,12 @@ testLHMessageExchange (TaggedBool clients1New) (TaggedBool clients2New) (TaggedB
                 (False, False, False, False) ->
                   -- no LH in the picture
                   check 201 Nothing
-                (False, False, False, True) ->
-                  -- sender has old clients and not given consent, recipient has LH device
-                  check 403 (Just "missing-legalhold-consent-old-clients")
-                (False, False, True, False) ->
-                  -- recipient has old clients and not given consent, sender has LH device
-                  check 403 (Just "missing-legalhold-consent-old-clients")
-                (False, False, True, True) ->
-                  -- both sender, recipient have has old clients and LH devices, but given consent
-                  check 403 (Just "missing-legalhold-consent-old-clients")
                 (False, True, False, False) ->
                   -- no LH in the picture
                   check 201 Nothing
-                (False, True, False, True) ->
-                  -- sender has old clients and not given consent, recipient has LH device (and only new clients)
-                  check 403 (Just "missing-legalhold-consent-old-clients")
-                (False, True, True, False) ->
-                  -- sender has old clients but given consent and LH device; recipient has not given consent
-                  check 403 (Just "missing-legalhold-consent-old-clients")
-                (False, True, True, True) ->
-                  -- sender has old clients but given consent and LH device; recipient has LH device (and only new clients)
-                  check 403 (Just "missing-legalhold-consent-old-clients")
                 (True, False, False, False) ->
                   -- no LH in the picture
                   check 201 Nothing
-                (True, False, False, True) ->
-                  -- recipient has given consent and LH device, but old clients (and sender has not given consent)
-                  check 403 (Just "missing-legalhold-consent-old-clients")
-                (True, False, True, False) ->
-                  -- recipient has old clients and not given consent, sender has LH device
-                  check 403 (Just "missing-legalhold-consent-old-clients")
-                (True, False, True, True) ->
-                  -- old clients with recipient, LH devices by all
-                  check 403 (Just "missing-legalhold-consent-old-clients")
                 (True, True, False, False) ->
                   -- no LH in the picture
                   check 201 Nothing
@@ -210,13 +183,13 @@ testLHMessageExchange (TaggedBool clients1New) (TaggedBool clients2New) (TaggedB
                 (True, True, True, True) ->
                   -- everybody happy with LH
                   check 201 Nothing
+                _ -> pure ()
 
           -- _oneWay -- run this if you want to make sure both ways are equivalent, but please don't commit!
           theOtherWay
 
 data TestClaimKeys
   = TCKConsentMissing -- (team not whitelisted, that is)
-  | TCKOldClient
   | TCKConsentAndNewClients
   deriving (Show, Bounded, Enum)
 
@@ -245,10 +218,6 @@ testLHClaimKeys = WithBoundedEnumArg $ \testmode -> do
        in case testmode of
             TCKConsentMissing ->
               addc $ Just ["legalhold-implicit-consent"]
-            TCKOldClient -> do
-              addc Nothing
-              void $ legalholdWhitelistTeam powner ptid >>= assertSuccess
-              void $ legalholdIsTeamInWhitelist powner ptid >>= assertSuccess
             TCKConsentAndNewClients -> do
               addc $ Just ["legalhold-implicit-consent"]
               void $ legalholdWhitelistTeam powner ptid >>= assertSuccess
@@ -270,9 +239,6 @@ testLHClaimKeys = WithBoundedEnumArg $ \testmode -> do
             TCKConsentMissing -> do
               resp.status `shouldMatchInt` 403
               resp.json %. "label" `shouldMatch` "missing-legalhold-consent"
-            TCKOldClient -> do
-              resp.status `shouldMatchInt` 403
-              resp.json %. "label" `shouldMatch` "missing-legalhold-consent-old-clients"
             TCKConsentAndNewClients -> do
               resp.status `shouldMatchInt` 200
 

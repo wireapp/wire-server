@@ -1,1 +1,0 @@
-don't use shell when communicating with mls-test-cli, move flaking brig tests over to new integration testsuite

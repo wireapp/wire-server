@@ -77,6 +77,7 @@ import Data.Set qualified as Set
 import Data.Text.Ascii qualified as Ascii
 import Data.Text.Encoding qualified as Text
 import Data.Text.Lazy qualified as Text
+import Debug.Trace (trace, traceM)
 import GHC.TypeNats
 import Imports
 import Network.HTTP.Types.Status
@@ -129,7 +130,6 @@ import Wire.API.User.Client qualified as Public (Client, ClientCapability (Clien
 import Wire.API.User.Client.Prekey qualified as Public (PrekeyId)
 import Wire.API.User.Identity qualified as Public (Email)
 import Wire.Sem.Concurrency (Concurrency, ConcurrencySafety (Unsafe))
-import Debug.Trace (traceM, trace)
 
 botAPI ::
   ( Member GalleyProvider r,
@@ -937,7 +937,7 @@ rangeChecked :: (KnownNat n, KnownNat m, Within a n m, Monad monad) => a -> (Exc
 rangeChecked = either (throwStd . invalidRange . fromString) pure . checkedEither
 
 badGatewayWith :: String -> Wai.Error
-badGatewayWith ex = Wai.mkError status502 "bad-gateway" ("The upstream service returned an invalid response: " <> Text.pack ex)
+badGatewayWith str = Wai.mkError status502 "bad-gateway" ("The upstream service returned an invalid response: " <> Text.pack str)
 
 tooManyBots :: Wai.Error
 tooManyBots = Wai.mkError status409 "too-many-bots" "Maximum number of bots for the service reached."
@@ -946,8 +946,8 @@ serviceNotWhitelisted :: Wai.Error
 serviceNotWhitelisted = Wai.mkError status403 "service-not-whitelisted" "The desired service is not on the whitelist of allowed services for this team."
 
 serviceError :: RPC.ServiceError -> Wai.Error
+serviceError (RPC.ServiceUnavailableWith str) = badGatewayWith str
 serviceError RPC.ServiceBotConflict = tooManyBots
-serviceError (RPC.ServiceUnavailableWith ex) = badGatewayWith ex
 
 randServiceToken :: MonadIO m => m Public.ServiceToken
 randServiceToken = ServiceToken . Ascii.encodeBase64Url <$> liftIO (randBytes 18)

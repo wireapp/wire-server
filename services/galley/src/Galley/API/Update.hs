@@ -102,11 +102,9 @@ import Galley.Effects.CodeStore qualified as E
 import Galley.Effects.ConversationStore qualified as E
 import Galley.Effects.ExternalAccess qualified as E
 import Galley.Effects.FederatorAccess qualified as E
-import Galley.Effects.GundeckAccess qualified as E
 import Galley.Effects.MemberStore qualified as E
 import Galley.Effects.ServiceStore qualified as E
 import Galley.Effects.WaiRoutes
-import Galley.Intra.Push
 import Galley.Options
 import Galley.Types.Bot hiding (addBot)
 import Galley.Types.Bot.Service (Service)
@@ -142,15 +140,15 @@ import Wire.API.Routes.Public (ZHostValue)
 import Wire.API.Routes.Public.Galley.Messaging
 import Wire.API.Routes.Public.Util (UpdateResult (..))
 import Wire.API.ServantProto (RawProto (..))
-import Wire.API.Team.Member
 import Wire.API.User.Client
+import Wire.NotificationSubsystem
 
 acceptConv ::
   ( Member ConversationStore r,
     Member (Error InternalError) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input UTCTime) r,
     Member MemberStore r,
     Member TinyLog r
@@ -187,7 +185,7 @@ unblockConv ::
     Member (Error InternalError) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input UTCTime) r,
     Member MemberStore r,
     Member TinyLog r
@@ -228,7 +226,7 @@ type UpdateConversationAccessEffects =
      ExternalAccess,
      FederatorAccess,
      FireAndForget,
-     GundeckAccess,
+     NotificationSubsystem,
      Input Env,
      Input UTCTime,
      MemberStore,
@@ -278,7 +276,7 @@ updateConversationReceiptMode ::
     Member (ErrorS 'InvalidOperation) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member MemberStore r,
@@ -311,7 +309,7 @@ updateRemoteConversation ::
   ( Member BrigAccess r,
     Member ExternalAccess r,
     Member FederatorAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member MemberStore r,
     Member TinyLog r,
@@ -352,7 +350,7 @@ updateConversationReceiptModeUnqualified ::
     Member (ErrorS 'InvalidOperation) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member MemberStore r,
@@ -373,7 +371,7 @@ updateConversationMessageTimer ::
     Member (ErrorS 'InvalidOperation) r,
     Member (Error FederationError) r,
     Member ExternalAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input UTCTime) r,
     Member (Logger (Msg -> Msg)) r
   ) =>
@@ -406,7 +404,7 @@ updateConversationMessageTimerUnqualified ::
     Member (ErrorS 'InvalidOperation) r,
     Member (Error FederationError) r,
     Member ExternalAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input UTCTime) r,
     Member (Logger (Msg -> Msg)) r
   ) =>
@@ -429,7 +427,7 @@ deleteLocalConversation ::
     Member (ErrorS 'InvalidOperation) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member SubConversationStore r,
     Member MemberStore r,
     Member ProposalStore r,
@@ -457,7 +455,7 @@ addCodeUnqualifiedWithReqBody ::
     Member (ErrorS 'GuestLinksDisabled) r,
     Member (ErrorS 'CreateConversationCodeConflict) r,
     Member ExternalAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member (Embed IO) r,
@@ -481,7 +479,7 @@ addCodeUnqualified ::
     Member (ErrorS 'GuestLinksDisabled) r,
     Member (ErrorS 'CreateConversationCodeConflict) r,
     Member ExternalAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member (Input Opts) r,
@@ -508,7 +506,7 @@ addCode ::
     Member (ErrorS 'GuestLinksDisabled) r,
     Member (ErrorS 'CreateConversationCodeConflict) r,
     Member ExternalAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input UTCTime) r,
     Member (Input Opts) r,
     Member TeamFeatureStore r,
@@ -558,7 +556,7 @@ rmCodeUnqualified ::
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member ExternalAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r
   ) =>
@@ -576,7 +574,7 @@ rmCode ::
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'ConvNotFound) r,
     Member ExternalAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input UTCTime) r
   ) =>
   Local UserId ->
@@ -661,7 +659,7 @@ updateConversationProtocolWithLocalUser ::
     Member ConversationStore r,
     Member MemberStore r,
     Member TinyLog r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member ProposalStore r,
@@ -706,7 +704,7 @@ joinConversationByReusableCode ::
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS 'TooManyMembers) r,
     Member ExternalAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input Opts) r,
     Member (Input UTCTime) r,
     Member MemberStore r,
@@ -735,7 +733,7 @@ joinConversationById ::
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS 'TooManyMembers) r,
     Member ExternalAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input Opts) r,
     Member (Input UTCTime) r,
     Member MemberStore r,
@@ -759,7 +757,7 @@ joinConversation ::
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS 'TooManyMembers) r,
     Member ExternalAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input Opts) r,
     Member (Input UTCTime) r,
     Member MemberStore r,
@@ -813,7 +811,7 @@ addMembers ::
     Member (Error UnreachableBackends) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input Env) r,
     Member (Input Opts) r,
     Member (Input UTCTime) r,
@@ -854,7 +852,7 @@ addMembersUnqualifiedV2 ::
     Member (Error UnreachableBackends) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input Env) r,
     Member (Input Opts) r,
     Member (Input UTCTime) r,
@@ -895,7 +893,7 @@ addMembersUnqualified ::
     Member (Error UnreachableBackends) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input Env) r,
     Member (Input Opts) r,
     Member (Input UTCTime) r,
@@ -919,7 +917,7 @@ updateSelfMember ::
   ( Member ConversationStore r,
     Member (ErrorS 'ConvNotFound) r,
     Member ExternalAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input UTCTime) r,
     Member MemberStore r
   ) =>
@@ -966,7 +964,7 @@ updateUnqualifiedSelfMember ::
   ( Member ConversationStore r,
     Member (ErrorS 'ConvNotFound) r,
     Member ExternalAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input UTCTime) r,
     Member MemberStore r
   ) =>
@@ -989,7 +987,7 @@ updateOtherMemberLocalConv ::
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'ConvMemberNotFound) r,
     Member ExternalAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input UTCTime) r,
     Member MemberStore r,
     Member (Logger (Msg -> Msg)) r
@@ -1016,7 +1014,7 @@ updateOtherMemberUnqualified ::
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'ConvMemberNotFound) r,
     Member ExternalAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input UTCTime) r,
     Member MemberStore r,
     Member (Logger (Msg -> Msg)) r
@@ -1042,7 +1040,7 @@ updateOtherMember ::
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'ConvMemberNotFound) r,
     Member ExternalAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input UTCTime) r,
     Member MemberStore r,
     Member (Logger (Msg -> Msg)) r
@@ -1077,7 +1075,7 @@ removeMemberUnqualified ::
     Member (ErrorS 'InvalidOperation) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input Env) r,
     Member (Input UTCTime) r,
     Member MemberStore r,
@@ -1105,7 +1103,7 @@ removeMemberQualified ::
     Member (ErrorS 'InvalidOperation) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input Env) r,
     Member (Input UTCTime) r,
     Member MemberStore r,
@@ -1180,7 +1178,7 @@ removeMemberFromLocalConv ::
     Member (ErrorS 'InvalidOperation) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input Env) r,
     Member (Input UTCTime) r,
     Member MemberStore r,
@@ -1216,7 +1214,7 @@ postProteusMessage ::
     Member ConversationStore r,
     Member FederatorAccess r,
     Member BackendNotificationQueueAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member ExternalAccess r,
     Member (Input Opts) r,
     Member (Input UTCTime) r,
@@ -1241,7 +1239,7 @@ postProteusBroadcast ::
     Member (ErrorS 'TeamNotFound) r,
     Member (ErrorS 'NonBindingTeam) r,
     Member (ErrorS 'BroadcastLimitExceeded) r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member ExternalAccess r,
     Member (Input Opts) r,
     Member (Input UTCTime) r,
@@ -1292,7 +1290,7 @@ postBotMessageUnqualified ::
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member BackendNotificationQueueAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member (Input Opts) r,
     Member TeamStore r,
@@ -1321,7 +1319,7 @@ postOtrBroadcastUnqualified ::
     Member (ErrorS 'TeamNotFound) r,
     Member (ErrorS 'NonBindingTeam) r,
     Member (ErrorS 'BroadcastLimitExceeded) r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member ExternalAccess r,
     Member (Input Opts) r,
     Member (Input UTCTime) r,
@@ -1346,7 +1344,7 @@ postOtrMessageUnqualified ::
     Member FederatorAccess r,
     Member BackendNotificationQueueAccess r,
     Member ExternalAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input Opts) r,
     Member (Input UTCTime) r,
     Member TeamStore r,
@@ -1374,7 +1372,7 @@ updateConversationName ::
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
     Member ExternalAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input UTCTime) r,
     Member (Logger (Msg -> Msg)) r,
     Member TeamStore r
@@ -1401,7 +1399,7 @@ updateUnqualifiedConversationName ::
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
     Member ExternalAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input UTCTime) r,
     Member (Logger (Msg -> Msg)) r,
     Member TeamStore r
@@ -1424,7 +1422,7 @@ updateLocalConversationName ::
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
     Member ExternalAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input UTCTime) r,
     Member (Logger (Msg -> Msg)) r,
     Member TeamStore r
@@ -1439,7 +1437,7 @@ updateLocalConversationName lusr zcon lcnv rename =
     updateLocalConversation @'ConversationRenameTag lcnv (tUntagged lusr) (Just zcon) rename
 
 memberTyping ::
-  ( Member GundeckAccess r,
+  ( Member NotificationSubsystem r,
     Member (ErrorS 'ConvNotFound) r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
@@ -1477,7 +1475,7 @@ memberTyping lusr zcon qcnv ts = do
     qcnv
 
 memberTypingUnqualified ::
-  ( Member GundeckAccess r,
+  ( Member NotificationSubsystem r,
     Member (ErrorS 'ConvNotFound) r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
@@ -1522,7 +1520,7 @@ addBotH ::
     Member (ErrorS 'InvalidOperation) r,
     Member (ErrorS 'TooManyMembers) r,
     Member ExternalAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member (Input Opts) r,
     Member (Input UTCTime) r,
@@ -1545,7 +1543,7 @@ addBot ::
     Member (ErrorS 'InvalidOperation) r,
     Member (ErrorS 'TooManyMembers) r,
     Member ExternalAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input Opts) r,
     Member (Input UTCTime) r,
     Member MemberStore r
@@ -1576,8 +1574,8 @@ addBot lusr zcon b = do
                   ]
               )
           )
-  for_ (newPushLocal ListComplete (tUnqualified lusr) (ConvEvent e) (recipient <$> users)) $ \p ->
-    E.push1 $ p & pushConn ?~ zcon
+  for_ (newPushLocal (tUnqualified lusr) (toJSONObject e) (localMemberToRecipient <$> users)) $ \p ->
+    pushNotifications [p & pushConn ?~ zcon]
   E.deliverAsync (map (,e) (bm : bots))
   pure e
   where
@@ -1599,7 +1597,7 @@ rmBotH ::
     Member ConversationStore r,
     Member (ErrorS 'ConvNotFound) r,
     Member ExternalAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member MemberStore r,
@@ -1618,7 +1616,7 @@ rmBot ::
     Member ConversationStore r,
     Member (ErrorS 'ConvNotFound) r,
     Member ExternalAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input UTCTime) r,
     Member MemberStore r,
     Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r
@@ -1648,8 +1646,8 @@ rmBot lusr zcon b = do
       do
         let evd = EdMembersLeaveRemoved (QualifiedUserIdList [tUntagged (qualifyAs lusr (botUserId (b ^. rmBotId)))])
         let e = Event (tUntagged lcnv) Nothing (tUntagged lusr) t evd
-        for_ (newPushLocal ListComplete (tUnqualified lusr) (ConvEvent e) (recipient <$> users)) $ \p ->
-          E.push1 $ p & pushConn .~ zcon
+        for_ (newPushLocal (tUnqualified lusr) (toJSONObject e) (localMemberToRecipient <$> users)) $ \p ->
+          pushNotifications [p & pushConn .~ zcon]
         E.deleteMembers (Data.convId c) (UserList [botUserId (b ^. rmBotId)] [])
         E.deleteClients (botUserId (b ^. rmBotId))
         E.deliverAsync (map (,e) bots)

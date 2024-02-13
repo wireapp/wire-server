@@ -14,16 +14,13 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-{-# OPTIONS_GHC -Wno-unused-matches #-}
 
 module Brig.Effects.GalleyProvider.RPC where
 
 import Bilge hiding (head, options, requestId)
 import Brig.API.Types
 import Brig.Effects.GalleyProvider (GalleyProvider (..))
-import Brig.Effects.ServiceRPC (Service (Galley), ServiceRPC)
-import Brig.Effects.ServiceRPC qualified as ServiceRPC
-import Brig.RPC
+import Brig.RPC hiding (galleyRequest)
 import Brig.Team.Types (ShowOrHideInvitationUrl (..))
 import Control.Error (hush)
 import Control.Lens ((^.))
@@ -43,8 +40,11 @@ import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error qualified as Wai
 import Polysemy
 import Polysemy.Error
+import Polysemy.Input
+import Polysemy.TinyLog
 import Servant.API (toHeader)
-import System.Logger (Msg, field, msg, val)
+import System.Logger (field, msg, val)
+import Util.Options
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
 import Wire.API.Routes.Version
@@ -55,43 +55,51 @@ import Wire.API.Team.Member qualified as Member
 import Wire.API.Team.Member qualified as Team
 import Wire.API.Team.Role
 import Wire.API.Team.SearchVisibility
-import Wire.Sem.Logger
+import Wire.Rpc
 
-interpretGalleyProviderToRPC ::
+interpretGalleyProviderToRpc ::
   ( Member (Error ParseException) r,
-    Member (ServiceRPC 'Galley) r,
-    Member (Logger (Msg -> Msg)) r
+    Member Rpc r,
+    Member TinyLog r
   ) =>
   Set Version ->
+  Endpoint ->
   Sem (GalleyProvider ': r) a ->
   Sem r a
-interpretGalleyProviderToRPC disabledVersions =
+interpretGalleyProviderToRpc disabledVersions galleyEndpoint =
   let v = fromMaybe (error "service can't run with undefined API version") $ maxAvailableVersion disabledVersions
-   in interpret $ \case
-        CreateSelfConv id' -> createSelfConv v id'
-        GetConv id' id'' -> getConv v id' id''
-        GetTeamConv id' id'' id'2 -> getTeamConv v id' id'' id'2
-        NewClient id' ci -> newClient id' ci
-        CheckUserCanJoinTeam id' -> checkUserCanJoinTeam id'
-        AddTeamMember id' id'' x0 -> addTeamMember id' id'' x0
-        CreateTeam id' bnt id'' -> createTeam id' bnt id''
-        GetTeamMember id' id'' -> getTeamMember id' id''
-        GetTeamMembers id' -> getTeamMembers id'
-        GetTeamId id' -> getTeamId id'
-        GetTeam id' -> getTeam id'
-        GetTeamName id' -> getTeamName id'
-        GetTeamLegalHoldStatus id' -> getTeamLegalHoldStatus id'
-        GetTeamSearchVisibility id' -> getTeamSearchVisibility id'
-        ChangeTeamStatus id' ts m_al -> changeTeamStatus id' ts m_al
-        MemberIsTeamOwner id' id'' -> memberIsTeamOwner id' id''
-        GetAllFeatureConfigsForUser m_id' -> getAllFeatureConfigsForUser m_id'
-        GetVerificationCodeEnabled id' -> getVerificationCodeEnabled id'
-        GetExposeInvitationURLsToTeamAdmin id' -> getTeamExposeInvitationURLsToTeamAdmin id'
+   in interpret $
+        runInputConst galleyEndpoint . \case
+          CreateSelfConv id' -> createSelfConv v id'
+          GetConv id' id'' -> getConv v id' id''
+          GetTeamConv id' id'' id'2 -> getTeamConv v id' id'' id'2
+          NewClient id' ci -> newClient id' ci
+          CheckUserCanJoinTeam id' -> checkUserCanJoinTeam id'
+          AddTeamMember id' id'' x0 -> addTeamMember id' id'' x0
+          CreateTeam id' bnt id'' -> createTeam id' bnt id''
+          GetTeamMember id' id'' -> getTeamMember id' id''
+          GetTeamMembers id' -> getTeamMembers id'
+          GetTeamId id' -> getTeamId id'
+          GetTeam id' -> getTeam id'
+          GetTeamName id' -> getTeamName id'
+          GetTeamLegalHoldStatus id' -> getTeamLegalHoldStatus id'
+          GetTeamSearchVisibility id' -> getTeamSearchVisibility id'
+          ChangeTeamStatus id' ts m_al -> changeTeamStatus id' ts m_al
+          MemberIsTeamOwner id' id'' -> memberIsTeamOwner id' id''
+          GetAllFeatureConfigsForUser m_id' -> getAllFeatureConfigsForUser m_id'
+          GetVerificationCodeEnabled id' -> getVerificationCodeEnabled id'
+          GetExposeInvitationURLsToTeamAdmin id' -> getTeamExposeInvitationURLsToTeamAdmin id'
+
+galleyRequest :: (Member Rpc r, Member (Input Endpoint) r) => (Request -> Request) -> Sem r (Response (Maybe LByteString))
+galleyRequest req = do
+  ep <- input
+  rpcWithRetries "galley" ep req
 
 -- | Calls 'Galley.API.createSelfConversationH'.
 createSelfConv ::
-  ( Member (ServiceRPC 'Galley) r,
-    Member (Logger (Msg -> Msg)) r
+  ( Member Rpc r,
+    Member TinyLog r,
+    Member (Input Endpoint) r
   ) =>
   Version ->
   UserId ->
@@ -100,18 +108,19 @@ createSelfConv v u = do
   debug $
     remote "galley"
       . msg (val "Creating self conversation")
-  void $ ServiceRPC.request @'Galley POST req
-  where
-    req =
-      paths [toHeader v, "conversations", "self"]
+  void $
+    galleyRequest $
+      method POST
+        . paths [toHeader v, "conversations", "self"]
         . zUser u
         . expect2xx
 
 -- | Calls 'Galley.API.getConversationH'.
 getConv ::
   ( Member (Error ParseException) r,
-    Member (ServiceRPC 'Galley) r,
-    Member (Logger (Msg -> Msg)) r
+    Member Rpc r,
+    Member (Input Endpoint) r,
+    Member TinyLog r
   ) =>
   Version ->
   UserId ->
@@ -123,26 +132,28 @@ getConv v usr lcnv = do
       . field "domain" (toByteString (tDomain lcnv))
       . field "conv" (toByteString (tUnqualified lcnv))
       . msg (val "Getting conversation")
-  rs <- ServiceRPC.request @'Galley GET req
+  rs <- galleyRequest req
   case Bilge.statusCode rs of
     200 -> Just <$> decodeBodyOrThrow "galley" rs
     _ -> pure Nothing
   where
     req =
-      paths
-        [ toHeader v,
-          "conversations",
-          toByteString' (tDomain lcnv),
-          toByteString' (tUnqualified lcnv)
-        ]
+      method GET
+        . paths
+          [ toHeader v,
+            "conversations",
+            toByteString' (tDomain lcnv),
+            toByteString' (tUnqualified lcnv)
+          ]
         . zUser usr
         . expect [status200, status404]
 
 -- | Calls 'Galley.API.getTeamConversationH'.
 getTeamConv ::
   ( Member (Error ParseException) r,
-    Member (ServiceRPC 'Galley) r,
-    Member (Logger (Msg -> Msg)) r
+    Member Rpc r,
+    Member (Input Endpoint) r,
+    Member TinyLog r
   ) =>
   Version ->
   UserId ->
@@ -154,26 +165,28 @@ getTeamConv v usr tid cnv = do
     remote "galley"
       . field "conv" (toByteString cnv)
       . msg (val "Getting team conversation")
-  rs <- ServiceRPC.request @'Galley GET req
+  rs <- galleyRequest req
   case Bilge.statusCode rs of
     200 -> Just <$> decodeBodyOrThrow "galley" rs
     _ -> pure Nothing
   where
     req =
-      paths
-        [ toHeader v,
-          "teams",
-          toByteString' tid,
-          "conversations",
-          toByteString' cnv
-        ]
+      method GET
+        . paths
+          [ toHeader v,
+            "teams",
+            toByteString' tid,
+            "conversations",
+            toByteString' cnv
+          ]
         . zUser usr
         . expect [status200, status404]
 
 -- | Calls 'Galley.API.addClientH'.
 newClient ::
-  ( Member (ServiceRPC 'Galley) r,
-    Member (Logger (Msg -> Msg)) r
+  ( Member Rpc r,
+    Member (Input Endpoint) r,
+    Member TinyLog r
   ) =>
   UserId ->
   ClientId ->
@@ -184,13 +197,17 @@ newClient u c = do
       . field "user" (toByteString u)
       . field "client" (toByteString c)
       . msg (val "new client")
-  let p = paths ["i", "clients", toByteString' c]
-  void $ ServiceRPC.request @'Galley POST (p . zUser u . expect2xx)
+  void . galleyRequest $
+    method POST
+      . paths ["i", "clients", toByteString' c]
+      . zUser u
+      . expect2xx
 
 -- | Calls 'Galley.API.canUserJoinTeamH'.
 checkUserCanJoinTeam ::
-  ( Member (ServiceRPC 'Galley) r,
-    Member (Logger (Msg -> Msg)) r
+  ( Member Rpc r,
+    Member (Input Endpoint) r,
+    Member TinyLog r
   ) =>
   TeamId ->
   Sem r (Maybe Wai.Error)
@@ -198,7 +215,7 @@ checkUserCanJoinTeam tid = do
   debug $
     remote "galley"
       . msg (val "Check if can add member to team")
-  rs <- ServiceRPC.request @'Galley GET req
+  rs <- galleyRequest req
   pure $ case Bilge.statusCode rs of
     200 -> Nothing
     _ -> case decodeBodyMaybe "galley" rs of
@@ -206,13 +223,15 @@ checkUserCanJoinTeam tid = do
       Nothing -> error ("Invalid response from galley: " <> show rs)
   where
     req =
-      paths ["i", "teams", toByteString' tid, "members", "check"]
+      method GET
+        . paths ["i", "teams", toByteString' tid, "members", "check"]
         . header "Content-Type" "application/json"
 
 -- | Calls 'Galley.API.uncheckedAddTeamMemberH'.
 addTeamMember ::
-  ( Member (ServiceRPC 'Galley) r,
-    Member (Logger (Msg -> Msg)) r
+  ( Member Rpc r,
+    Member (Input Endpoint) r,
+    Member TinyLog r
   ) =>
   UserId ->
   TeamId ->
@@ -222,7 +241,7 @@ addTeamMember u tid (minvmeta, role) = do
   debug $
     remote "galley"
       . msg (val "Adding member to team")
-  rs <- ServiceRPC.request @'Galley POST req
+  rs <- galleyRequest req
   pure $ case Bilge.statusCode rs of
     200 -> True
     _ -> False
@@ -230,7 +249,8 @@ addTeamMember u tid (minvmeta, role) = do
     prm = Team.rolePermissions role
     bdy = Member.mkNewTeamMember u prm minvmeta
     req =
-      paths ["i", "teams", toByteString' tid, "members"]
+      method POST
+        . paths ["i", "teams", toByteString' tid, "members"]
         . header "Content-Type" "application/json"
         . zUser u
         . expect [status200, status403]
@@ -238,8 +258,9 @@ addTeamMember u tid (minvmeta, role) = do
 
 -- | Calls 'Galley.API.createBindingTeamH'.
 createTeam ::
-  ( Member (ServiceRPC 'Galley) r,
-    Member (Logger (Msg -> Msg)) r
+  ( Member Rpc r,
+    Member (Input Endpoint) r,
+    Member TinyLog r
   ) =>
   UserId ->
   BindingNewTeam ->
@@ -249,7 +270,7 @@ createTeam u t@(BindingNewTeam bt) teamid = do
   debug $
     remote "galley"
       . msg (val "Creating Team")
-  r <- ServiceRPC.request @'Galley PUT $ req teamid
+  r <- galleyRequest $ req teamid
   tid <-
     maybe (error "invalid team id") pure $
       fromByteString $
@@ -257,7 +278,8 @@ createTeam u t@(BindingNewTeam bt) teamid = do
   pure (CreateUserTeam tid $ fromRange (bt ^. newTeamName))
   where
     req tid =
-      paths ["i", "teams", toByteString' tid]
+      method PUT
+        . paths ["i", "teams", toByteString' tid]
         . header "Content-Type" "application/json"
         . zUser u
         . expect2xx
@@ -266,8 +288,9 @@ createTeam u t@(BindingNewTeam bt) teamid = do
 -- | Calls 'Galley.API.uncheckedGetTeamMemberH'.
 getTeamMember ::
   ( Member (Error ParseException) r,
-    Member (ServiceRPC 'Galley) r,
-    Member (Logger (Msg -> Msg)) r
+    Member Rpc r,
+    Member (Input Endpoint) r,
+    Member TinyLog r
   ) =>
   UserId ->
   TeamId ->
@@ -276,13 +299,14 @@ getTeamMember u tid = do
   debug $
     remote "galley"
       . msg (val "Get team member")
-  rs <- ServiceRPC.request @'Galley GET req
+  rs <- galleyRequest req
   case Bilge.statusCode rs of
     200 -> Just <$> decodeBodyOrThrow "galley" rs
     _ -> pure Nothing
   where
     req =
-      paths ["i", "teams", toByteString' tid, "members", toByteString' u]
+      method GET
+        . paths ["i", "teams", toByteString' tid, "members", toByteString' u]
         . zUser u
         . expect [status200, status404]
 
@@ -293,131 +317,146 @@ getTeamMember u tid = do
 -- be suspended, and the rest will remain active.
 getTeamMembers ::
   ( Member (Error ParseException) r,
-    Member (ServiceRPC 'Galley) r,
-    Member (Logger (Msg -> Msg)) r
+    Member Rpc r,
+    Member (Input Endpoint) r,
+    Member TinyLog r
   ) =>
   TeamId ->
   Sem r Team.TeamMemberList
 getTeamMembers tid = do
   debug $ remote "galley" . msg (val "Get team members")
-  ServiceRPC.request @'Galley GET req >>= decodeBodyOrThrow "galley"
+  galleyRequest req >>= decodeBodyOrThrow "galley"
   where
     req =
-      paths ["i", "teams", toByteString' tid, "members"]
+      method GET
+        . paths ["i", "teams", toByteString' tid, "members"]
         . expect2xx
 
 memberIsTeamOwner ::
-  Member (ServiceRPC 'Galley) r =>
+  (Member Rpc r, Member (Input Endpoint) r) =>
   TeamId ->
   UserId ->
   Sem r Bool
 memberIsTeamOwner tid uid = do
   r <-
-    ServiceRPC.request @'Galley GET $
-      paths ["i", "teams", toByteString' tid, "is-team-owner", toByteString' uid]
+    galleyRequest $
+      method GET
+        . paths ["i", "teams", toByteString' tid, "is-team-owner", toByteString' uid]
   pure $ responseStatus r /= status403
 
 -- | Calls 'Galley.API.getBindingTeamIdH'.
 getTeamId ::
   ( Member (Error ParseException) r,
-    Member (ServiceRPC 'Galley) r,
-    Member (Logger (Msg -> Msg)) r
+    Member Rpc r,
+    Member (Input Endpoint) r,
+    Member TinyLog r
   ) =>
   UserId ->
   Sem r (Maybe TeamId)
 getTeamId u = do
   debug $ remote "galley" . msg (val "Get team from user")
-  rs <- ServiceRPC.request @'Galley GET req
+  rs <- galleyRequest req
   case Bilge.statusCode rs of
     200 -> Just <$> decodeBodyOrThrow "galley" rs
     _ -> pure Nothing
   where
     req =
-      paths ["i", "users", toByteString' u, "team"]
+      method GET
+        . paths ["i", "users", toByteString' u, "team"]
         . expect [status200, status404]
 
 -- | Calls 'Galley.API.getTeamInternalH'.
 getTeam ::
   ( Member (Error ParseException) r,
-    Member (ServiceRPC 'Galley) r,
-    Member (Logger (Msg -> Msg)) r
+    Member Rpc r,
+    Member (Input Endpoint) r,
+    Member TinyLog r
   ) =>
   TeamId ->
   Sem r Team.TeamData
 getTeam tid = do
   debug $ remote "galley" . msg (val "Get team info")
-  ServiceRPC.request @'Galley GET req >>= decodeBodyOrThrow "galley"
+  galleyRequest req >>= decodeBodyOrThrow "galley"
   where
     req =
-      paths ["i", "teams", toByteString' tid]
+      method GET
+        . paths ["i", "teams", toByteString' tid]
         . expect2xx
 
 -- | Calls 'Galley.API.getTeamInternalH'.
 getTeamName ::
   ( Member (Error ParseException) r,
-    Member (ServiceRPC 'Galley) r,
-    Member (Logger (Msg -> Msg)) r
+    Member Rpc r,
+    Member (Input Endpoint) r,
+    Member TinyLog r
   ) =>
   TeamId ->
   Sem r Team.TeamName
 getTeamName tid = do
   debug $ remote "galley" . msg (val "Get team info")
-  ServiceRPC.request @'Galley GET req >>= decodeBodyOrThrow "galley"
+  galleyRequest req >>= decodeBodyOrThrow "galley"
   where
     req =
-      paths ["i", "teams", toByteString' tid, "name"]
+      method GET
+        . paths ["i", "teams", toByteString' tid, "name"]
         . expect2xx
 
 -- | Calls 'Galley.API.getTeamFeatureStatusH'.
 getTeamLegalHoldStatus ::
   ( Member (Error ParseException) r,
-    Member (ServiceRPC 'Galley) r,
-    Member (Logger (Msg -> Msg)) r
+    Member Rpc r,
+    Member (Input Endpoint) r,
+    Member TinyLog r
   ) =>
   TeamId ->
   Sem r (WithStatus LegalholdConfig)
 getTeamLegalHoldStatus tid = do
   debug $ remote "galley" . msg (val "Get legalhold settings")
-  ServiceRPC.request @'Galley GET req >>= decodeBodyOrThrow "galley"
+  galleyRequest req >>= decodeBodyOrThrow "galley"
   where
     req =
-      paths ["i", "teams", toByteString' tid, "features", featureNameBS @LegalholdConfig]
+      method GET
+        . paths ["i", "teams", toByteString' tid, "features", featureNameBS @LegalholdConfig]
         . expect2xx
 
 -- | Calls 'Galley.API.getSearchVisibilityInternalH'.
 getTeamSearchVisibility ::
   ( Member (Error ParseException) r,
-    Member (ServiceRPC 'Galley) r,
-    Member (Logger (Msg -> Msg)) r
+    Member Rpc r,
+    Member (Input Endpoint) r,
+    Member TinyLog r
   ) =>
   TeamId ->
   Sem r TeamSearchVisibility
 getTeamSearchVisibility tid =
   coerce @TeamSearchVisibilityView @TeamSearchVisibility <$> do
     debug $ remote "galley" . msg (val "Get search visibility settings")
-    ServiceRPC.request @'Galley GET req >>= decodeBodyOrThrow "galley"
+    galleyRequest req >>= decodeBodyOrThrow "galley"
   where
     req =
-      paths ["i", "teams", toByteString' tid, "search-visibility"]
+      method GET
+        . paths ["i", "teams", toByteString' tid, "search-visibility"]
         . expect2xx
 
 getVerificationCodeEnabled ::
   ( Member (Error ParseException) r,
-    Member (ServiceRPC 'Galley) r,
-    Member (Logger (Msg -> Msg)) r
+    Member Rpc r,
+    Member (Input Endpoint) r,
+    Member TinyLog r
   ) =>
   TeamId ->
   Sem r Bool
 getVerificationCodeEnabled tid = do
   debug $ remote "galley" . msg (val "Get snd factor password challenge settings")
-  response <- ServiceRPC.request @'Galley GET req
+  response <- galleyRequest req
   status <- wsStatus <$> decodeBodyOrThrow @(WithStatus SndFactorPasswordChallengeConfig) "galley" response
   case status of
     FeatureStatusEnabled -> pure True
     FeatureStatusDisabled -> pure False
   where
     req =
-      paths ["i", "teams", toByteString' tid, "features", featureNameBS @SndFactorPasswordChallengeConfig]
+      method GET
+        . paths ["i", "teams", toByteString' tid, "features", featureNameBS @SndFactorPasswordChallengeConfig]
         . expect2xx
 
 decodeBodyOrThrow :: forall a r. (Typeable a, FromJSON a, Member (Error ParseException) r) => Text -> Response (Maybe BL.ByteString) -> Sem r a
@@ -433,21 +472,22 @@ decodeBodyMaybe :: (Typeable a, FromJSON a) => Text -> Response (Maybe BL.ByteSt
 decodeBodyMaybe t r = hush $ decodeBody t r
 
 getAllFeatureConfigsForUser ::
-  Member (ServiceRPC 'Galley) r =>
+  (Member Rpc r, Member (Input Endpoint) r) =>
   Maybe UserId ->
   Sem r AllFeatureConfigs
 getAllFeatureConfigsForUser mbUserId =
   responseJsonUnsafe
-    <$> ServiceRPC.request @'Galley
-      GET
-      ( paths ["i", "feature-configs"]
+    <$> galleyRequest
+      ( method GET
+          . paths ["i", "feature-configs"]
           . maybe id (queryItem "user_id" . toByteString') mbUserId
       )
 
 -- | Calls 'Galley.API.updateTeamStatusH'.
 changeTeamStatus ::
-  ( Member (ServiceRPC 'Galley) r,
-    Member (Logger (Msg -> Msg)) r
+  ( Member Rpc r,
+    Member (Input Endpoint) r,
+    Member TinyLog r
   ) =>
   TeamId ->
   Team.TeamStatus ->
@@ -455,29 +495,32 @@ changeTeamStatus ::
   Sem r ()
 changeTeamStatus tid s cur = do
   debug $ remote "galley" . msg (val "Change Team status")
-  void $ ServiceRPC.request @'Galley PUT req
+  void $ galleyRequest req
   where
     req =
-      paths ["i", "teams", toByteString' tid, "status"]
+      method PUT
+        . paths ["i", "teams", toByteString' tid, "status"]
         . header "Content-Type" "application/json"
         . expect2xx
         . lbytes (encode $ Team.TeamStatusUpdate s cur)
 
 getTeamExposeInvitationURLsToTeamAdmin ::
-  ( Member (ServiceRPC 'Galley) r,
+  ( Member Rpc r,
+    Member (Input Endpoint) r,
     Member (Error ParseException) r,
-    Member (Logger (Msg -> Msg)) r
+    Member TinyLog r
   ) =>
   TeamId ->
   Sem r ShowOrHideInvitationUrl
 getTeamExposeInvitationURLsToTeamAdmin tid = do
   debug $ remote "galley" . msg (val "Get expose invitation URLs to team admin settings")
-  response <- ServiceRPC.request @'Galley GET req
+  response <- galleyRequest req
   status <- wsStatus <$> decodeBodyOrThrow @(WithStatus ExposeInvitationURLsToTeamAdminConfig) "galley" response
   case status of
     FeatureStatusEnabled -> pure ShowInvitationUrl
     FeatureStatusDisabled -> pure HideInvitationUrl
   where
     req =
-      paths ["i", "teams", toByteString' tid, "features", featureNameBS @ExposeInvitationURLsToTeamAdminConfig]
+      method GET
+        . paths ["i", "teams", toByteString' tid, "features", featureNameBS @ExposeInvitationURLsToTeamAdminConfig]
         . expect2xx

@@ -19,6 +19,7 @@ build-type:    Simple
 library
   -- cabal-fmt: expand src
   exposed-modules:
+    Data.Time.Clock.DiffTime
     Network.AMQP.Extended
     Network.RabbitMqAdmin
     Options.Applicative.Extended
@@ -101,6 +102,7 @@ library
     , servant-openapi3
     , servant-server
     , text
+    , time
     , tinylog
     , unliftio
     , wai

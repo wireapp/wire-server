@@ -54,6 +54,8 @@ renderText t prio x = case t of
   GCM -> trim "GCM" (jsonString gcmJson)
   APNS -> trim "APNS" (jsonString stdApnsJson)
   APNSSandbox -> trim "APNS_SANDBOX" (jsonString stdApnsJson)
+  APNSVoIP -> trim "APNS_VOIP" (jsonString voipApnsJson)
+  APNSVoIPSandbox -> trim "APNS_VOIP_SANDBOX" (jsonString voipApnsJson)
   where
     gcmJson =
       object
@@ -63,6 +65,11 @@ renderText t prio x = case t of
     stdApnsJson =
       object
         [ "aps" .= apsDict,
+          "data" .= x
+        ]
+    voipApnsJson =
+      object
+        [ "aps" .= object [],
           "data" .= x
         ]
     -- https://developer.apple.com/documentation/usernotifications/modifying_content_in_newly_delivered_notifications
@@ -87,6 +94,8 @@ maxPayloadSize :: Transport -> Int64
 maxPayloadSize GCM = 4096
 maxPayloadSize APNS = 4096
 maxPayloadSize APNSSandbox = 4096
+maxPayloadSize APNSVoIP = 5120
+maxPayloadSize APNSVoIPSandbox = 5120
 
 gcmPriority :: Priority -> Text
 gcmPriority LowPriority = "normal"

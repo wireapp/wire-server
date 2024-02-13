@@ -1,1 +1,0 @@
-Ensure that SCIM can find users even after the team admin has changed the SAML issuer for the user.

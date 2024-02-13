@@ -67,6 +67,7 @@ import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.Validation
 import Wire.API.Message
+import Wire.NotificationSubsystem
 
 data ProposalAction = ProposalAction
   { paAdd :: ClientMap,
@@ -113,6 +114,7 @@ type HasProposalEffects r =
   ( Member BackendNotificationQueueAccess r,
     Member BrigAccess r,
     Member ConversationStore r,
+    Member NotificationSubsystem r,
     Member (Error InternalError) r,
     Member (Error MLSProposalFailure) r,
     Member (Error MLSProtocolError) r,
@@ -123,7 +125,6 @@ type HasProposalEffects r =
     Member (Error UnreachableBackends) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
-    Member GundeckAccess r,
     Member (Input Env) r,
     Member (Input (Local ())) r,
     Member (Input Opts) r,
