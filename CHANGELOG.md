@@ -1,3 +1,5 @@
+# [2024-02-13] (Chart Release 4.41.0)
+
 # [2024-02-12] (Chart Release 4.40.0)
 
 ## Release notes

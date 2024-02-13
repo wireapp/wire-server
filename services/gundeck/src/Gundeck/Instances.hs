@@ -40,11 +40,15 @@ instance Cql Transport where
   toCql GCM = CqlInt 0
   toCql APNS = CqlInt 1
   toCql APNSSandbox = CqlInt 2
+  toCql APNSVoIP = CqlInt 3
+  toCql APNSVoIPSandbox = CqlInt 4
 
   fromCql (CqlInt i) = case i of
     0 -> pure GCM
     1 -> pure APNS
     2 -> pure APNSSandbox
+    3 -> pure APNSVoIP
+    4 -> pure APNSVoIPSandbox
     n -> Left $ "unexpected transport: " ++ show n
   fromCql _ = Left "transport: int expected"
 

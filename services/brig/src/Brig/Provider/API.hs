@@ -76,6 +76,7 @@ import Data.Range
 import Data.Set qualified as Set
 import Data.Text.Ascii qualified as Ascii
 import Data.Text.Encoding qualified as Text
+import Data.Text.Lazy qualified as Text
 import GHC.TypeNats
 import Imports
 import Network.HTTP.Types.Status
@@ -705,7 +706,7 @@ addBot zuid zcon cid add = do
       -- implicitly in the next line.
       pure $ FutureWork @'UnprotectedBot undefined
     wrapClientE (User.addClient (botUserId bid) bcl newClt maxPermClients (Just $ Set.singleton Public.ClientSupportsLegalholdImplicitConsent))
-      !>> const (StdError badGateway) -- MalformedPrekeys
+      !>> const (StdError $ badGatewayWith "MalformedPrekeys")
 
   -- Add the bot to the conversation
   ev <- lift $ RPC.addBotMember zuid zcon cid bid (clientId clt) pid sid
@@ -917,8 +918,8 @@ maybeInvalidUser = maybe (throwStd (errorToWai @'E.InvalidUser)) pure
 rangeChecked :: (KnownNat n, KnownNat m, Within a n m, Monad monad) => a -> (ExceptT Error monad) (Range n m a)
 rangeChecked = either (throwStd . invalidRange . fromString) pure . checkedEither
 
-badGateway :: Wai.Error
-badGateway = Wai.mkError status502 "bad-gateway" "The upstream service returned an invalid response."
+badGatewayWith :: String -> Wai.Error
+badGatewayWith str = Wai.mkError status502 "bad-gateway" ("The upstream service returned an invalid response: " <> Text.pack str)
 
 tooManyBots :: Wai.Error
 tooManyBots = Wai.mkError status409 "too-many-bots" "Maximum number of bots for the service reached."
@@ -927,7 +928,7 @@ serviceNotWhitelisted :: Wai.Error
 serviceNotWhitelisted = Wai.mkError status403 "service-not-whitelisted" "The desired service is not on the whitelist of allowed services for this team."
 
 serviceError :: RPC.ServiceError -> Wai.Error
-serviceError RPC.ServiceUnavailable = badGateway
+serviceError (RPC.ServiceUnavailableWith str) = badGatewayWith str
 serviceError RPC.ServiceBotConflict = tooManyBots
 
 randServiceToken :: MonadIO m => m Public.ServiceToken

@@ -791,6 +791,12 @@ tests =
             ),
             ( Test.Wire.API.Golden.Generated.Push_2eToken_2eTransport_user.testObject_Push_2eToken_2eTransport_user_3,
               "testObject_Push_2eToken_2eTransport_user_3.json"
+            ),
+            ( Test.Wire.API.Golden.Generated.Push_2eToken_2eTransport_user.testObject_Push_2eToken_2eTransport_user_4,
+              "testObject_Push_2eToken_2eTransport_user_4.json"
+            ),
+            ( Test.Wire.API.Golden.Generated.Push_2eToken_2eTransport_user.testObject_Push_2eToken_2eTransport_user_5,
+              "testObject_Push_2eToken_2eTransport_user_5.json"
             )
           ],
       testGroup "Golden: Token_user" $
