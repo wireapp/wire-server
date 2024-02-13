@@ -1,0 +1,2 @@
+Fix integration-cleanup.sh, now only cleans up releases with `test-` prefixes in
+their names.
