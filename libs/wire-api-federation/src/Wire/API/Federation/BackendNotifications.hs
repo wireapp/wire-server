@@ -134,6 +134,7 @@ type BackendNotificationAPI = Capture "name" Text :> ReqBody '[JSON] RawJson :> 
 
 sendNotification :: FederatorClientVersionedEnv -> Component -> Text -> RawJson -> IO (Either FederatorClientError ())
 sendNotification env component path body =
+  -- TODO: use singletons
   case component of
     Brig -> go @'Brig
     Galley -> go @'Galley
