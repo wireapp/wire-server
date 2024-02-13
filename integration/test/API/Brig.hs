@@ -17,6 +17,7 @@ import Data.String.Conversions
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Vector as V
+import Debug.Trace (traceM)
 import GHC.Stack
 import Network.HTTP.Types
 import qualified Network.Socket as Socket
@@ -112,6 +113,27 @@ instance ToJSON NewService where
         "assets" .= Aeson.Array (V.fromList (Aeson.String . T.pack <$> newServiceAssets)),
         "tags" .= Aeson.Array (V.fromList (Aeson.String . T.pack <$> newServiceTags))
       ]
+
+data Prekey = Prekey
+  { prekeyId :: String,
+    key :: String
+  }
+  deriving (Show, Eq, Generic)
+
+instance ToJSON Prekey where
+  toJSON Prekey {..} =
+    Aeson.object
+      [ "id" .= prekeyId,
+        "key" .= key
+      ]
+
+data NewBotResponse = NewBotResponse
+  { prekeys :: [Prekey],
+    lastPrekey :: Prekey
+  }
+  deriving (Show, Eq, Generic)
+
+instance ToJSON NewBotResponse
 
 addUser :: (HasCallStack, MakesValue dom) => dom -> AddUser -> App Response
 addUser dom opts = do
@@ -616,7 +638,7 @@ updateService dom providerId serviceId mAcceptHeader newName = do
   let addHdrs =
         addHeader "Z-Type" "provider"
           . addHeader "Z-Provider" providerId
-          . maybe id (addHeader "Accept") mAcceptHeader
+          . maybe Testlib.Prelude.id (addHeader "Accept") mAcceptHeader
   submit "PUT"
     . addHdrs
     . addJSONObject ["name" .= n | n <- maybeToList newName]
@@ -738,13 +760,16 @@ runService port sock mkApp go = do
   let tlss = Warp.tlsSettingsMemory (cs someCert) (cs somePrivKey)
   let defs = Warp.defaultSettings {Warp.settingsPort = port, Warp.settingsBeforeMainLoop = putMVar serverStarted ()}
   buf <- liftIO newChan
+  print ("has new chan" :: String)
   srv <-
     liftIO . Async.async $
       Warp.runTLSSocket tlss defs sock $
         mkApp buf
   srvMVar <- liftIO $ timeout 5_000_000 (liftIO $ takeMVar serverStarted)
   case srvMVar of
-    Just () -> go buf `finally` liftIO (Async.cancel srv)
+    Just () -> do
+      print ("\n 1. starting server. socket " <> show sock <> " port " <> show port)
+      go buf `finally` liftIO (Async.cancel srv)
     Nothing -> error . show =<< liftIO (Async.poll srv)
 
 data TestBotEvent
@@ -767,14 +792,15 @@ defServiceApp buf =
     ]
   where
     onBotCreate _ _ k = do
+      traceM "\n ---------- ON BOT CREATE"
       writeChan buf TestBotCreated
       -- TODO(elland): fix the responses
-      k $
-        responseLBS
-          status201
-          []
-          ("{\"prekeys\": [], \"last_prekey\": {\"id\": 65535, \"key\": \"pQABARn//wKhAFggnCcZIK1pbtlJf4wRQ44h4w7/sfSgj5oWXMQaUGYAJ/sDoQChAFgglacihnqg/YQJHkuHNFU7QD6Pb3KN4FnubaCF2EVOgRkE9g==\"}}")
+      let pks = [Prekey "124" (head somePrekeys)]
+          lpk = Prekey "65535" (head someLastPrekeys)
+          rsp = NewBotResponse pks lpk
+      k $ responseLBS status201 [] (Aeson.encode rsp)
 
     onBotMessage _ _ k = do
+      traceM "\n ---------- ON BOT MESSAGE"
       writeChan buf (TestBotMessage "msg")
       k $ responseLBS status200 [] "success"

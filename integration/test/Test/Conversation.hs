@@ -271,6 +271,8 @@ testAddMemberBot = do
     aliceId <- alice %. "id" & asString
     conv <- postConversation alice (defProteus {team = Just team}) >>= getJSON 201
     convId <- conv %. "id" & asString
+    conv1 <- getConversation alice conv
+    print conv1
 
     bindResponse (addBotToConv convId aliceId pid sid) $ \resp -> do
       resp.status `shouldMatchInt` 201

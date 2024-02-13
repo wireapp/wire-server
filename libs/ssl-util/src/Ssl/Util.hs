@@ -34,10 +34,12 @@ module Ssl.Util
 where
 
 import Control.Exception
+import Data.ByteString qualified as BS
 import Data.ByteString.Builder
 import Data.Byteable (constEqBytes)
 import Data.Dynamic (fromDynamic)
 import Data.Time.Clock (getCurrentTime)
+import Debug.Trace (traceM)
 import Imports
 import Network.HTTP.Client.Internal
 import OpenSSL.BN (integerToMPI)
@@ -208,6 +210,10 @@ withVerifiedSslConnection verify man reqBuilder act =
       Just ssl -> verify ssl
     -- Make a request using this connection and return it back to the
     -- pool (that's what 'Reuse' is for)
+    unless
+      ("/legalhold/" `BS.isPrefixOf` (path req))
+      (traceM $ "\n ---- req inside ssl conn: " <> show req)
+
     act req {connectionOverride = Just mConn}
   where
     req = reqBuilder defaultRequest

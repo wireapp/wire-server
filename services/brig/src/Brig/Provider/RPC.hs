@@ -81,12 +81,13 @@ createBot scon new = do
           const $
             liftIO $
               withVerifiedSslConnection (verifyFingerprints fprs) man reqBuilder $
-                \req ->
+                \req -> do
+                  traceM $ "\n ------------------------- with verified ssl: " <> show req
                   Http.httpLbs req man
     case Bilge.statusCode rs of
       201 -> decodeBytes "External" (responseBody rs)
       409 -> throwE ServiceBotConflict
-      _ -> lift (extLogError scon rs) >> throwE (ServiceUnavailableWith $ show rs)
+      _ -> lift (extLogError scon rs) >> throwE (ServiceUnavailableWith $ "1. " <> show rs)
   where
     -- we can't use 'responseJsonEither' instead, because we have a @Response ByteString@
     -- here, not a @Response (Maybe ByteString)@.
@@ -97,7 +98,7 @@ createBot scon new = do
       extReq scon ["bots"]
         . method POST
         . Bilge.json new
-    onExc ex = D.trace ("\n ---------- ex: " <> show ex) (lift (extLogError scon ex) >> throwE (ServiceUnavailableWith $ show ex))
+    onExc ex = D.trace ("\n ---------- ex: " <> show ex) (lift (extLogError scon ex) >> throwE (ServiceUnavailableWith $ "2. " <> show ex))
 
 extReq :: ServiceConn -> [ByteString] -> Request -> Request
 extReq scon ps =

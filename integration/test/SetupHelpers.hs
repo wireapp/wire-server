@@ -23,6 +23,7 @@ import GHC.Stack
 import qualified Network.Socket as Socket
 import qualified Network.Wai.Handler.Warp as Warp
 import Testlib.Prelude
+import Debug.Trace (traceM)
 
 -- | Helper function to bind a free port and socket with Socket.close as clean-up.
 withFreePortAnyAddr :: (MonadMask m, MonadIO m) => ((Warp.Port, Socket.Socket) -> m a) -> m a
@@ -334,4 +335,5 @@ withRunningService user team go = withFreePortAnyAddr $ \(port, socket) -> do
 
   -- Finally we run the serviced with a cert, private key, port, socket, a
   -- dummy service function and our continuation.
+  traceM $ "\n --- runService:"
   runService port socket defServiceApp (go sid pid)

@@ -82,7 +82,7 @@ import Imports
 import Network.HTTP.Types.Status
 import Network.Wai (Response)
 import Network.Wai.Predicate (accept)
-import Network.Wai.Routing
+import Network.Wai.Routing hiding (trace)
 import Network.Wai.Utilities.Error ((!>>))
 import Network.Wai.Utilities.Error qualified as Wai
 import Network.Wai.Utilities.Response (json)
@@ -129,6 +129,7 @@ import Wire.API.User.Client qualified as Public (Client, ClientCapability (Clien
 import Wire.API.User.Client.Prekey qualified as Public (PrekeyId)
 import Wire.API.User.Identity qualified as Public (Email)
 import Wire.Sem.Concurrency (Concurrency, ConcurrencySafety (Unsafe))
+import Debug.Trace (traceM, trace)
 
 botAPI ::
   ( Member GalleyProvider r,
@@ -637,14 +638,16 @@ updateServiceWhitelist uid con tid upd = do
 -- Bot API
 
 addBot :: Member GalleyProvider r => UserId -> ConnId -> ConvId -> Public.AddBot -> (Handler r) Public.AddBotResponse
-addBot zuid zcon cid add = do
+addBot zuid zcon cid add = trace ("\n ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ addBot") $ do
   guardSecondFactorDisabled (Just zuid)
   zusr <- lift (wrapClient $ User.lookupUser NoPendingInvitations zuid) >>= maybeInvalidUser
   let pid = addBotProvider add
   let sid = addBotService add
   -- Get the conversation and check preconditions
   lcid <- qualifyLocal cid
+  traceM $ "\n ------------------ 0: " <> show add
   cnv <- lift (liftSem $ GalleyProvider.getConv zuid lcid) >>= maybeConvNotFound
+  traceM $ "\n ------------------ 1: " <> show cnv
   -- Check that the user is a conversation admin and therefore is allowed to add a bot to this conversation.
   -- Note that this precondition is also checked in the internal galley API,
   -- but by having this check here we prevent any (useless) data to be written to the database
@@ -664,12 +667,15 @@ addBot zuid zcon cid add = do
   unless (Set.member ServiceAccessRole (cnvAccessRoles cnv)) $
     throwStd (errorToWai @'E.InvalidConversation)
   -- Lookup the relevant service data
+  traceM "\n ------ 2.: Lookup the relevant service data"
   scon <- wrapClientE (DB.lookupServiceConn pid sid) >>= maybeServiceNotFound
   unless (sconEnabled scon) $
     throwStd (errorToWai @'E.ServiceDisabled)
+  traceM "\n ------ 3: lookup service profile"
   svp <- wrapClientE (DB.lookupServiceProfile pid sid) >>= maybeServiceNotFound
   for_ (cnvTeam cnv) $ \tid -> do
     whitelisted <- wrapClientE $ DB.getServiceWhitelistStatus tid pid sid
+    traceM "\n ------ 3a: lookup service is allow-listed"
     unless whitelisted $
       throwStd serviceNotWhitelisted
   -- Prepare a user ID, client ID and token for the bot.
@@ -685,7 +691,11 @@ addBot zuid zcon cid add = do
   let busr = mkBotUserView zusr
   let bloc = fromMaybe (userLocale zusr) (addBotLocale add)
   let botReq = NewBotRequest bid bcl busr bcnv btk bloc
+  print ("0. Will create bot" :: String)
+  traceM "0. Will create bot"
   rs <- RPC.createBot scon botReq !>> StdError . serviceError
+  print ("1. BOT CREATED" :: String)
+  traceM "1. Bot created"
   -- Insert the bot user and client
   locale <- Opt.setDefaultUserLocale <$> view settings
   let name = fromMaybe (serviceProfileName svp) (Ext.rsNewBotName rs)
@@ -698,7 +708,11 @@ addBot zuid zcon cid add = do
         (newClient PermanentClientType (Ext.rsNewBotLastPrekey rs))
           { newClientPrekeys = Ext.rsNewBotPrekeys rs
           }
+  print ("2. Inserting acc" :: String)
+  traceM "2. Inserting acc"
   lift $ wrapClient $ User.insertAccount (UserAccount usr Active) (Just (cid, cnvTeam cnv)) Nothing True
+  print ("3. Inserted acc" :: String)
+  traceM "3. inserted acc"
   maxPermClients <- fromMaybe Opt.defUserMaxPermClients . Opt.setUserMaxPermClients <$> view settings
   (clt, _, _) <- do
     _ <- do
@@ -708,8 +722,12 @@ addBot zuid zcon cid add = do
     wrapClientE (User.addClient (botUserId bid) bcl newClt maxPermClients (Just $ Set.singleton Public.ClientSupportsLegalholdImplicitConsent))
       !>> const (StdError $ badGatewayWith "MalformedPrekeys")
 
+  print ("4. Will add bot member" :: String)
+  traceM "4. Will add bot member"
   -- Add the bot to the conversation
   ev <- lift $ RPC.addBotMember zuid zcon cid bid (clientId clt) pid sid
+  print ("5. Added bot member" <> show ev)
+  traceM $ "5. Added bot member: " <> show ev
   pure $
     Public.AddBotResponse
       { Public.rsAddBotId = bid,
