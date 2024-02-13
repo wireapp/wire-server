@@ -63,6 +63,44 @@ testMLSOne2OneBlocked otherDomain = do
   void $ getMLSOne2OneConversation alice bob >>= getJSON 403
   void $ getMLSOne2OneConversation bob alice >>= getJSON 403
 
+-- | Alice and Bob are initially connected, but then Alice blocks Bob.
+testMLSOne2OneBlockedAfterConnected :: HasCallStack => Domain -> App ()
+testMLSOne2OneBlockedAfterConnected otherDomain = do
+  [alice, bob] <- createAndConnectUsers [OwnDomain, otherDomain]
+  conv <- getMLSOne2OneConversation alice bob >>= getJSON 200
+  convId <- conv %. "qualified_id"
+  do
+    bobConv <- getMLSOne2OneConversation bob alice >>= getJSON 200
+    convId `shouldMatch` (bobConv %. "qualified_id")
+  convDom <- convId %. "domain"
+
+  [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
+  traverse_ uploadNewKeyPackage [bob1]
+  resetGroup alice1 conv
+  commit <- createAddCommit alice1 [bob]
+  withWebSocket bob1 $ \ws -> do
+    void $ sendAndConsumeCommitBundle commit
+    let isMessage n = nPayload n %. "type" `isEqual` "conversation.mls-welcome"
+    n <- awaitMatch isMessage ws
+    nPayload n %. "data" `shouldMatch` B8.unpack (Base64.encode (fold commit.welcome))
+
+  -- Alice blocks Bob
+  void $ putConnection alice bob "blocked" >>= getBody 200
+
+  do
+    -- Depending on where the 1-to-1 conversation is hosted, Bob can or cannot
+    -- fetch the conversation. The "blocked" connection status update is not
+    -- propagated to Bob.
+    cDom <- asString convDom
+    oDom <- asString OtherDomain
+    let expStatus = if cDom == oDom then 200 else 403
+    void $ getMLSOne2OneConversation bob alice >>= getJSON expStatus
+
+  mp <- createApplicationMessage bob1 "hello, world, again"
+  postMLSMessage bob1 mp.message `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "not-connected"
+
 testGetMLSOne2OneSameTeam :: App ()
 testGetMLSOne2OneSameTeam = do
   (alice, _, _) <- createTeam OwnDomain 1
