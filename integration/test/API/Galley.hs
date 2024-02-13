@@ -593,16 +593,32 @@ enableLegalHold tid ownerid = do
   req <- baseRequest ownerid Galley Versioned (joinHttpPath ["teams", tidStr, "features", "legalhold"])
   submit "PUT" (addJSONObject ["status" .= "enabled", "ttl" .= "unlimited"] req)
 
+-- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/delete_teams__tid__legalhold__uid_
+disableLegalHold ::
+  (HasCallStack, MakesValue tid, MakesValue ownerid, MakesValue uid) =>
+  tid ->
+  ownerid ->
+  uid ->
+  -- | the password for user with $uid$
+  String ->
+  App Response
+disableLegalHold tid ownerid uid pw = do
+  tidStr <- asString tid
+  uidStr <- objId uid
+  req <- baseRequest ownerid Galley Versioned (joinHttpPath ["teams", tidStr, "legalhold", uidStr])
+  submit "DELETE" (addJSONObject ["password" .= pw] req)
+
 -- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/post_teams__tid__legalhold_settings
 postLegalHoldSettings :: (HasCallStack, MakesValue ownerid, MakesValue tid, MakesValue newService) => tid -> ownerid -> newService -> App Response
-postLegalHoldSettings tid owner newSettings = retrying policy only412 $ \_ -> do
-  tidStr <- asString tid
-  req <- baseRequest owner Galley Versioned (joinHttpPath ["teams", tidStr, "legalhold", "settings"])
-  newSettingsObj <- make newSettings
-  submit "POST" (addJSON newSettingsObj req)
+postLegalHoldSettings tid owner newSettings =
+  asks ((* 1_000_000) . timeOutSeconds) >>= \tSecs -> retrying (policy tSecs) only412 $ \_ -> do
+    tidStr <- asString tid
+    req <- baseRequest owner Galley Versioned (joinHttpPath ["teams", tidStr, "legalhold", "settings"])
+    newSettingsObj <- make newSettings
+    submit "POST" (addJSON newSettingsObj req)
   where
-    policy :: RetryPolicy
-    policy = limitRetriesByCumulativeDelay 5_000_000 $ exponentialBackoff 50
+    policy :: Int -> RetryPolicy
+    policy tSecs = limitRetriesByCumulativeDelay tSecs $ exponentialBackoff 50
 
     only412 :: RetryStatus -> Response -> App Bool
     only412 _ resp = pure $ resp.status == 412

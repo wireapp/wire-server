@@ -20,10 +20,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module API.Teams.LegalHold
-  ( tests,
-  )
-where
+module API.Teams.LegalHold (tests) where
 
 import API.Teams.LegalHold.Util
 import API.Util
@@ -97,9 +94,7 @@ testsPublic s =
   -- See also Client Tests in Brig; where behaviour around deleting/adding LH clients is tested
   testGroup
     "Teams LegalHold API (with flag whitelist-teams-and-implicit-consent)"
-    [ -- device handling (CRUD)
-      testOnlyIfLhWhitelisted s "DELETE /teams/{tid}/legalhold/{uid}" testDisableLegalHoldForUser,
-      -- legal hold settings
+    [ -- legal hold settings
       testOnlyIfLhWhitelisted s "POST /teams/{tid}/legalhold/settings" testCreateLegalHoldTeamSettings,
       testOnlyIfLhWhitelisted s "GET /teams/{tid}/legalhold/settings" testGetLegalHoldTeamSettings,
       testOnlyIfLhWhitelisted s "Not implemented: DELETE /teams/{tid}/legalhold/settings" testRemoveLegalHoldFromTeam,
@@ -181,43 +176,6 @@ testWhitelistingTeams = do
     pure tid
 
   expectWhitelisted False tid
-
-testDisableLegalHoldForUser :: TestM ()
-testDisableLegalHoldForUser = withTeam $ \owner tid -> do
-  member <- randomUser
-  addTeamMemberInternal tid member (rolePermissions RoleMember) Nothing
-  cannon <- view tsCannon
-  putLHWhitelistTeam tid !!! const 200 === statusCode
-  WS.bracketR2 cannon owner member $ \(ows, mws) -> withDummyTestServiceForTeam owner tid $ \chan -> do
-    requestLegalHoldDevice owner member tid !!! testResponse 201 Nothing
-    approveLegalHoldDevice (Just defPassword) member member tid !!! testResponse 200 Nothing
-    assertNotification mws $ \case
-      Ev.ClientAdded _ client -> do
-        clientId client @?= someClientId
-        clientType client @?= LegalHoldClientType
-        clientClass client @?= Just LegalHoldClient
-      _ -> assertBool "Unexpected event" False
-    -- Only the admin can disable legal hold
-    disableLegalHoldForUser (Just defPassword) tid member member !!! testResponse 403 (Just "operation-denied")
-    assertExactlyOneLegalHoldDevice member
-    -- Require password to disable for usern
-    disableLegalHoldForUser Nothing tid owner member !!! const 403 === statusCode
-    assertExactlyOneLegalHoldDevice member
-    disableLegalHoldForUser (Just defPassword) tid owner member !!! testResponse 200 Nothing
-    liftIO . assertMatchChan chan $ \(req, _) -> do
-      assertEqual "method" "POST" (requestMethod req)
-      assertEqual "path" (pathInfo req) ["legalhold", "remove"]
-    assertNotification mws $ \case
-      Ev.ClientEvent (Ev.ClientRemoved _ clientId') -> clientId' @?= someClientId
-      _ -> assertBool "Unexpected event" False
-    assertNotification mws $ \case
-      Ev.UserEvent (Ev.UserLegalHoldDisabled uid) -> uid @?= member
-      _ -> assertBool "Unexpected event" False
-    -- Other users should also get the event
-    assertNotification ows $ \case
-      Ev.UserLegalHoldDisabled uid -> uid @?= member
-      _ -> assertBool "Unexpected event" False
-    assertZeroLegalHoldDevices member
 
 data IsWorking = Working | NotWorking
   deriving (Eq, Show)

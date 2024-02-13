@@ -121,11 +121,17 @@ isUserActivateNotif = notifTypeIsEqual "user.activate"
 isUserClientAddNotif :: MakesValue a => a -> App Bool
 isUserClientAddNotif = notifTypeIsEqual "user.client-add"
 
+isUserClientRemoveNotif :: MakesValue a => a -> App Bool
+isUserClientRemoveNotif = notifTypeIsEqual "user.client-remove"
+
 isUserLegalholdRequestNotif :: MakesValue a => a -> App Bool
 isUserLegalholdRequestNotif = notifTypeIsEqual "user.legalhold-request"
 
 isUserLegalholdEnabledNotif :: MakesValue a => a -> App Bool
 isUserLegalholdEnabledNotif = notifTypeIsEqual "user.legalhold-enable"
+
+isUserLegalholdDisabledNotif :: MakesValue a => a -> App Bool
+isUserLegalholdDisabledNotif = notifTypeIsEqual "user.legalhold-disable"
 
 assertLeaveNotification ::
   ( HasCallStack,

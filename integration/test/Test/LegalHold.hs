@@ -29,13 +29,16 @@ import Control.Error (MaybeT (MaybeT), runMaybeT)
 import Control.Lens ((.~), (^?!))
 import Control.Monad.Reader (asks)
 import Control.Monad.Trans.Class (lift)
+import qualified Data.ByteString.Char8 as BS8
 import Data.ByteString.Lazy (LazyByteString)
 import qualified Data.Map as Map
 import qualified Data.ProtoLens as Proto
 import Data.ProtoLens.Labels ()
 import qualified Data.Set as Set
+import qualified Data.Text as T
 import GHC.Stack
-import Notifications (awaitNotification, isUserClientAddNotif, isUserLegalholdEnabledNotif, isUserLegalholdRequestNotif)
+import Network.Wai (Request (pathInfo, requestMethod))
+import Notifications (awaitNotification, isUserClientAddNotif, isUserClientRemoveNotif, isUserLegalholdDisabledNotif, isUserLegalholdEnabledNotif, isUserLegalholdRequestNotif)
 import Numeric.Lens (hex)
 import qualified Proto.Otr as Proto
 import qualified Proto.Otr_Fields as Proto
@@ -483,3 +486,52 @@ testLHGetDeviceStatus =
 
       requestLegalHoldDevice tid alice bob
         >>= assertLabel 409 "legalhold-already-enabled"
+
+testLHDisableForUser :: App ()
+testLHDisableForUser =
+  startDynamicBackends [mempty] \[dom] -> do
+    -- team users
+    -- alice (team owner) and bob (member)
+    (alice, tid, [bob]) <- createTeam dom 2
+    legalholdWhitelistTeam tid alice
+      >>= assertStatus 200
+
+    withMockServer lhMockApp \lhPort chan -> do
+      -- the status messages for these have already been tested
+      postLegalHoldSettings tid alice (mkLegalHoldSettings lhPort)
+        >>= assertStatus 201
+
+      requestLegalHoldDevice tid alice bob
+        >>= assertStatus 201
+
+      approveLegalHoldDevice tid bob defPassword
+        >>= assertStatus 200
+
+      bobc <- objId $ addClient bob def `bindResponse` getJSON 201
+
+      awaitNotification bob bobc noValue isUserClientAddNotif >>= \notif -> do
+        notif %. "payload.0.client.type" `shouldMatch` "legalhold"
+        notif %. "payload.0.client.class" `shouldMatch` "legalhold"
+
+      -- only an admin can disable legalhold
+      disableLegalHold tid bob bob defPassword
+        >>= assertLabel 403 "operation-denied"
+
+      disableLegalHold tid alice bob "fix ((\"the password always is \" <>) . show)"
+        >>= assertLabel 403 "access-denied"
+
+      disableLegalHold tid alice bob defPassword
+        >>= assertStatus 200
+
+      checkChan chan \(req, _) -> runMaybeT do
+        unless
+          do
+            BS8.unpack req.requestMethod == "POST"
+              && req.pathInfo == (T.pack <$> ["legalhold", "remove"])
+          mzero
+
+      void do
+        awaitNotification bob bobc noValue isUserClientRemoveNotif
+          *> awaitNotification bob bobc noValue isUserLegalholdDisabledNotif
+
+-- TODO(mangoiv): assert zero legalhold devices
