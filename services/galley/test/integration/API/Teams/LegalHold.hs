@@ -63,7 +63,6 @@ import Wire.API.Connection qualified as Conn
 import Wire.API.Conversation.Role (roleNameWireAdmin, roleNameWireMember)
 import Wire.API.Provider.Service
 import Wire.API.Routes.Internal.Brig.Connection
-import Wire.API.Team.Feature qualified as Public
 import Wire.API.Team.LegalHold
 import Wire.API.Team.Member
 import Wire.API.Team.Member qualified as Team
@@ -98,7 +97,6 @@ testsPublic s =
       testOnlyIfLhWhitelisted s "POST /teams/{tid}/legalhold/settings" testCreateLegalHoldTeamSettings,
       testOnlyIfLhWhitelisted s "GET /teams/{tid}/legalhold/settings" testGetLegalHoldTeamSettings,
       testOnlyIfLhWhitelisted s "Not implemented: DELETE /teams/{tid}/legalhold/settings" testRemoveLegalHoldFromTeam,
-      testOnlyIfLhWhitelisted s "GET [/i]?/teams/{tid}/legalhold" testEnablePerTeam,
       -- behavior of existing end-points
       testOnlyIfLhWhitelisted s "POST /clients" testCannotCreateLegalHoldDeviceOldAPI,
       testOnlyIfLhWhitelisted s "GET /teams/{tid}/members" testGetTeamMembersIncludesLHStatus,
@@ -290,34 +288,6 @@ testRemoveLegalHoldFromTeam = do
   addTeamMemberInternal tid member noPermissions Nothing
   -- fails if LH for team is disabled
   deleteSettings (Just defPassword) owner tid !!! testResponse 403 (Just "legalhold-disable-unimplemented")
-
-testEnablePerTeam :: TestM ()
-testEnablePerTeam = withTeam $ \owner tid -> do
-  member <- randomUser
-  addTeamMemberInternal tid member (rolePermissions RoleMember) Nothing
-  do
-    status :: Public.WithStatusNoLock Public.LegalholdConfig <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
-    let statusValue = Public.wssStatus status
-    liftIO $ assertEqual "Teams should start with LegalHold disabled" statusValue Public.FeatureStatusDisabled
-
-  putLHWhitelistTeam tid !!! const 200 === statusCode
-
-  do
-    status :: Public.WithStatusNoLock Public.LegalholdConfig <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
-    let statusValue = Public.wssStatus status
-    liftIO $ assertEqual "Calling 'putEnabled True' should enable LegalHold" statusValue Public.FeatureStatusEnabled
-  withDummyTestServiceForTeam owner tid $ \_chan -> do
-    putLHWhitelistTeam tid !!! const 200 === statusCode
-    requestLegalHoldDevice owner member tid !!! const 201 === statusCode
-    approveLegalHoldDevice (Just defPassword) member member tid !!! testResponse 200 Nothing
-    do
-      UserLegalHoldStatusResponse status _ _ <- getUserStatusTyped member tid
-      liftIO $ assertEqual "User legal hold status should be enabled" UserLegalHoldEnabled status
-    do
-      putEnabled' id tid Public.FeatureStatusDisabled !!! testResponse 403 (Just "legalhold-whitelisted-only")
-      status :: Public.WithStatusNoLock Public.LegalholdConfig <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
-      let statusValue = Public.wssStatus status
-      liftIO $ assertEqual "Calling 'putEnabled False' should have no effect." statusValue Public.FeatureStatusEnabled
 
 testAddTeamUserTooLargeWithLegalholdWhitelisted :: HasCallStack => TestM ()
 testAddTeamUserTooLargeWithLegalholdWhitelisted = withTeam $ \owner tid -> do

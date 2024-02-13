@@ -38,7 +38,7 @@ import qualified Data.Set as Set
 import qualified Data.Text as T
 import GHC.Stack
 import Network.Wai (Request (pathInfo, requestMethod))
-import Notifications (awaitNotification, isUserClientAddNotif, isUserClientRemoveNotif, isUserLegalholdDisabledNotif, isUserLegalholdEnabledNotif, isUserLegalholdRequestNotif, awaitNotifications)
+import Notifications (awaitNotification, awaitNotifications, isUserClientAddNotif, isUserClientRemoveNotif, isUserLegalholdDisabledNotif, isUserLegalholdEnabledNotif, isUserLegalholdRequestNotif)
 import Numeric.Lens (hex)
 import qualified Proto.Otr as Proto
 import qualified Proto.Otr_Fields as Proto
@@ -347,6 +347,28 @@ checkChanVal :: HasCallStack => Chan (t, LazyByteString) -> (Value -> MaybeT App
 checkChanVal chan match = checkChan chan \(_, bs) -> runMaybeT do
   MaybeT (pure (decode bs)) >>= match
 
+setUpLHDevice ::
+  (HasCallStack, MakesValue tid, MakesValue owner, MakesValue uid) =>
+  tid ->
+  owner ->
+  uid ->
+  -- | the port the LH service is running on
+  Int ->
+  App ()
+setUpLHDevice tid alice bob lhPort = do
+  legalholdWhitelistTeam tid alice
+    >>= assertStatus 200
+
+  -- the status messages for these have already been tested
+  postLegalHoldSettings tid alice (mkLegalHoldSettings lhPort)
+    >>= assertStatus 201
+
+  requestLegalHoldDevice tid alice bob
+    >>= assertStatus 201
+
+  approveLegalHoldDevice tid bob defPassword
+    >>= assertStatus 200
+
 testLHApproveDevice :: App ()
 testLHApproveDevice = do
   startDynamicBackends [mempty] \[dom] -> do
@@ -449,15 +471,15 @@ testLHGetDeviceStatus =
         resp.status `shouldMatchInt` 200
         resp.json %. "status" `shouldMatch` "no_consent"
 
-    legalholdWhitelistTeam tid alice
-      >>= assertStatus 200
-
     let lookupM field jason = MaybeT (lookupField jason field)
 
     lpk <- getLastPrekey
     pks <- replicateM 3 getPrekey
 
     withMockServer (lhMockApp' (Just (lpk, pks))) \lhPort _chan -> do
+      legalholdWhitelistTeam tid alice
+        >>= assertStatus 200
+
       legalholdUserStatus tid alice bob `bindResponse` \resp -> do
         resp.status `shouldMatchInt` 200
         resp.json %. "status" `shouldMatch` "disabled"
@@ -493,19 +515,9 @@ testLHDisableForUser =
     -- team users
     -- alice (team owner) and bob (member)
     (alice, tid, [bob]) <- createTeam dom 2
-    legalholdWhitelistTeam tid alice
-      >>= assertStatus 200
 
     withMockServer lhMockApp \lhPort chan -> do
-      -- the status messages for these have already been tested
-      postLegalHoldSettings tid alice (mkLegalHoldSettings lhPort)
-        >>= assertStatus 201
-
-      requestLegalHoldDevice tid alice bob
-        >>= assertStatus 201
-
-      approveLegalHoldDevice tid bob defPassword
-        >>= assertStatus 200
+      setUpLHDevice tid alice bob lhPort
 
       bobc <- objId $ addClient bob def `bindResponse` getJSON 201
 
@@ -537,3 +549,32 @@ testLHDisableForUser =
         assertBool "we have a legalhold disable notif" . not . null =<< filterM isUserLegalholdDisabledNotif notifs
 
 -- TODO(mangoiv): assert zero legalhold devices
+
+testLHEnablePerTeam :: App ()
+testLHEnablePerTeam = do
+  startDynamicBackends [mempty] \[dom] -> do
+    -- team users
+    -- alice (team owner) and bob (member)
+    (alice, tid, [bob]) <- createTeam dom 2
+    legalholdIsEnabled tid alice `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      resp.json %. "lockStatus" `shouldMatch` "unlocked"
+      resp.json %. "status" `shouldMatch` "disabled"
+
+    withMockServer lhMockApp \lhPort _chan -> do
+      setUpLHDevice tid alice bob lhPort
+      tidStr <- asString tid
+
+      legalholdUserStatus tid alice bob `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 200
+        resp.json %. "status" `shouldMatch` "enabled"
+
+      baseRequest alice Galley Versioned (joinHttpPath ["teams", tidStr, "features", "legalhold"])
+        >>= submit "PUT"
+          . addJSONObject ["status" .= "disabled", "ttl" .= "unlimited"]
+          `bindResponse` assertLabel 403 "legalhold-whitelisted-only"
+
+      -- the put doesn't have any influence on the status being "enabled"
+      legalholdUserStatus tid alice bob `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 200
+        resp.json %. "status" `shouldMatch` "enabled"

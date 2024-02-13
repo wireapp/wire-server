@@ -85,6 +85,8 @@ contentTypeMixed = addHeader "Content-Type" "multipart/mixed"
 bindResponse :: HasCallStack => App Response -> (Response -> App a) -> App a
 bindResponse m k = m >>= \r -> withResponse r k
 
+infixl 1 `bindResponse`
+
 withResponse :: HasCallStack => Response -> (Response -> App a) -> App a
 withResponse r k = onFailureAddResponse r (k r)
 

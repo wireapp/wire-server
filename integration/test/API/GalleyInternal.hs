@@ -70,3 +70,9 @@ legalholdIsTeamInWhitelist tid uid = do
   tidStr <- asString tid
   req <- baseRequest uid Galley Unversioned $ joinHttpPath ["i", "legalhold", "whitelisted-teams", tidStr]
   submit "GET" req
+
+legalholdIsEnabled :: (HasCallStack, MakesValue tid, MakesValue uid) => tid -> uid -> App Response
+legalholdIsEnabled tid uid = do
+  tidStr <- asString tid
+  baseRequest uid Galley Unversioned do joinHttpPath ["i", "teams", tidStr, "features", "legalhold"]
+    >>= submit "GET"
