@@ -225,7 +225,7 @@ data ClientIdentity = ClientIdentity
   deriving stock (Show, Eq, Ord, Generic)
 
 newtype Ciphersuite = Ciphersuite {code :: String}
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord, Show, Generic)
 
 instance Default Ciphersuite where
   def = Ciphersuite "0x0001"

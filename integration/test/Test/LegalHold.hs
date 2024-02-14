@@ -200,11 +200,11 @@ testLHMessageExchange (TaggedBool clients1New) (TaggedBool clients2New) (TaggedB
 data TestClaimKeys
   = TCKConsentMissing -- (team not whitelisted, that is)
   | TCKConsentAndNewClients
-  deriving (Show, Bounded, Enum)
+  deriving (Show, Generic)
 
 -- | Cannot fetch prekeys of LH users if requester has not given consent or has old clients.
-testLHClaimKeys :: WithBoundedEnumArg TestClaimKeys (App ())
-testLHClaimKeys = WithBoundedEnumArg $ \testmode -> do
+testLHClaimKeys :: TestClaimKeys -> App ()
+testLHClaimKeys testmode = do
   startDynamicBackends [mempty] $ \[dom] -> do
     withMockServer lhMockApp $ \lhPort _chan -> do
       (lowner, ltid, [lmem]) <- createTeam dom 2
@@ -620,3 +620,6 @@ testLHGetMembersIncludesStatus = do
 
       -- bob has accepted the legalhold device
       statusShouldbe "enabled"
+
+testLHNoConsentBlockOne2OneConv :: Bool -> Bool -> Bool -> Bool -> App ()
+testLHNoConsentBlockOne2OneConv = undefined

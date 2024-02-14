@@ -16,6 +16,7 @@ import Data.String
 import Data.String.Conversions (cs)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
+import GHC.Generics
 import GHC.Stack
 import qualified Network.HTTP.Client as HTTP
 import Network.HTTP.Types (hLocation)
@@ -123,6 +124,7 @@ onFailureAddResponse r m = App $ do
     E.throw (AssertionFailure stack (Just r) msg)
 
 data Versioned = Versioned | Unversioned | ExplicitVersion Int
+  deriving stock (Generic)
 
 -- | If you don't know what domain is for or what you should put in there, try `rawBaseRequest
 -- OwnDomain ...`.

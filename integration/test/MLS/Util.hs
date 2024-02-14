@@ -135,10 +135,11 @@ instance MakesValue CredentialType where
   make BasicCredentialType = make "basic"
   make X509CredentialType = make "x509"
 
-instance (HasTests x) => HasTests (CredentialType -> x) where
-  mkTests m n s f x =
-    mkTests m (n <> "[ctype=basic]") s f (x BasicCredentialType)
-      <> mkTests m (n <> "[ctype=x509]") s f (x X509CredentialType)
+instance TestCases CredentialType where
+  testCases =
+    [ MkTestCase "[ctype=basic]" BasicCredentialType,
+      MkTestCase "[ctype=x509]" X509CredentialType
+    ]
 
 data InitMLSClient = InitMLSClient
   {credType :: CredentialType}
