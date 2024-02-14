@@ -150,6 +150,7 @@ pushNotification runningFlag targetDomain (msg, envelope) = do
                     . Log.field "error" (displayException e)
                 throwM e
               Right vi -> pure . Set.fromList . fmap versionInt . vinfoSupported $ vi
+        -- TODO: clean this up
         case mostRecentTuple bodyVersions (notifications bundle) remoteVersions of
           Nothing ->
             Log.fatal $
