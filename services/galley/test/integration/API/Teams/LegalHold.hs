@@ -99,7 +99,6 @@ testsPublic s =
       testOnlyIfLhWhitelisted s "Not implemented: DELETE /teams/{tid}/legalhold/settings" testRemoveLegalHoldFromTeam,
       -- behavior of existing end-points
       testOnlyIfLhWhitelisted s "POST /clients" testCannotCreateLegalHoldDeviceOldAPI,
-      testOnlyIfLhWhitelisted s "GET /teams/{tid}/members" testGetTeamMembersIncludesLHStatus,
       testOnlyIfLhWhitelisted s "POST /register - can add team members above fanout limit when whitelisting is enabled" testAddTeamUserTooLargeWithLegalholdWhitelisted,
       testOnlyIfLhWhitelisted s "GET legalhold status in user profile" testGetLegalholdStatus,
       {- TODO:
@@ -324,39 +323,6 @@ testCannotCreateLegalHoldDeviceOldAPI = do
               . zConn "conn"
       post req !!! const 400 === statusCode
       assertZeroLegalHoldDevices uid
-
-testGetTeamMembersIncludesLHStatus :: TestM ()
-testGetTeamMembersIncludesLHStatus = do
-  (owner, tid) <- createBindingTeam
-  member <- randomUser
-  addTeamMemberInternal tid member (rolePermissions RoleMember) Nothing
-
-  let findMemberStatus :: [TeamMember] -> Maybe UserLegalHoldStatus
-      findMemberStatus ms =
-        ms ^? traversed . filtered (has $ Team.userId . only member) . legalHoldStatus
-
-  let check :: HasCallStack => UserLegalHoldStatus -> String -> TestM ()
-      check status msg = do
-        members' <- view teamMembers <$> getTeamMembers owner tid
-        liftIO $
-          assertEqual
-            ("legal hold status should be " <> msg)
-            (Just status)
-            (findMemberStatus members')
-
-  check UserLegalHoldNoConsent "disabled when it is disabled for the team"
-  withDummyTestServiceForTeamNoService $ \lhPort _chan -> do
-    check UserLegalHoldNoConsent "no_consent on new team members"
-
-    putLHWhitelistTeam tid !!! const 200 === statusCode
-    newService <- newLegalHoldService lhPort
-    postSettings owner tid newService !!! testResponse 201 Nothing
-
-    check UserLegalHoldDisabled "disabled on team members that have granted consent"
-    requestLegalHoldDevice owner member tid !!! testResponse 201 Nothing
-    check UserLegalHoldPending "pending after requesting device"
-    approveLegalHoldDevice (Just defPassword) member member tid !!! testResponse 200 Nothing
-    check UserLegalHoldEnabled "enabled after confirming device"
 
 testInWhitelist :: TestM ()
 testInWhitelist = do

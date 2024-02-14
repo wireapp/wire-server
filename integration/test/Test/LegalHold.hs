@@ -578,3 +578,45 @@ testLHEnablePerTeam = do
       legalholdUserStatus tid alice bob `bindResponse` \resp -> do
         resp.status `shouldMatchInt` 200
         resp.json %. "status" `shouldMatch` "enabled"
+
+testLHGetMembersIncludesStatus :: App ()
+testLHGetMembersIncludesStatus = do
+  startDynamicBackends [mempty] \[dom] -> do
+    -- team users
+    -- alice (team owner) and bob (member)
+    (alice, tid, [bob]) <- createTeam dom 2
+
+    let statusShouldbe :: String -> App ()
+        statusShouldbe status = do
+          getTeamMembers alice tid `bindResponse` \resp -> do
+            resp.status `shouldMatchInt` 200
+            [bobMember] <-
+              resp.json %. "members" & asList >>= filterM \u -> do
+                (==) <$> asString (u %. "user") <*> objId bob
+            bobMember %. "legalhold_status" `shouldMatch` status
+
+    statusShouldbe "no_consent"
+    withMockServer lhMockApp \lhPort _chan -> do
+      statusShouldbe "no_consent"
+
+      legalholdWhitelistTeam tid alice
+        >>= assertStatus 200
+
+      -- the status messages for these have already been tested
+      postLegalHoldSettings tid alice (mkLegalHoldSettings lhPort)
+        >>= assertStatus 201
+
+      -- legalhold has been requested but is disabled
+      statusShouldbe "disabled"
+
+      requestLegalHoldDevice tid alice bob
+        >>= assertStatus 201
+
+      -- legalhold has been set to pending after requesting device
+      statusShouldbe "pending"
+
+      approveLegalHoldDevice tid bob defPassword
+        >>= assertStatus 200
+
+      -- bob has accepted the legalhold device
+      statusShouldbe "enabled"
