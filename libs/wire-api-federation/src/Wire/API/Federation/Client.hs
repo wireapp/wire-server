@@ -357,9 +357,11 @@ versionNegotiation localVersions =
           }
    in withHTTP2StreamingRequest @'Brig HTTP.statusIsSuccessful req $ \resp -> do
         body <- toLazyByteString <$> streamingResponseStrictBody resp
-        remoteVersions <- case Aeson.decode body of
+        allRemoteVersions <- case Aeson.decode body of
           Nothing -> E.throw (FederatorClientVersionNegotiationError InvalidVersionInfo)
-          Just info -> pure (Set.fromList (vinfoSupported info))
+          Just info -> pure (vinfoSupported info)
+        -- ignore versions that don't even exist locally
+        let remoteVersions = Set.fromList $ Imports.mapMaybe intToVersion allRemoteVersions
         case Set.lookupMax (Set.intersection remoteVersions localVersions) of
           Just v -> pure v
           Nothing ->

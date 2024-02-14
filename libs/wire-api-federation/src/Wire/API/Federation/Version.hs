@@ -23,6 +23,7 @@ module Wire.API.Federation.Version
     V0Sym0,
     V1Sym0,
     V2Sym0,
+    intToVersion,
     versionInt,
     supportedVersions,
     VersionInfo (..),
@@ -74,24 +75,24 @@ instance ToSchema Version where
 supportedVersions :: Set Version
 supportedVersions = Set.fromList [minBound .. maxBound]
 
-data VersionInfo = VersionInfo
-  { vinfoSupported :: [Version]
+data VersionInfo v = VersionInfo
+  { vinfoSupported :: [v]
   }
-  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema VersionInfo)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema (VersionInfo v))
 
-instance ToSchema VersionInfo where
+instance ToSchema v => ToSchema (VersionInfo v) where
   schema =
     objectWithDocModifier "VersionInfo" (S.schema . S.example ?~ toJSON example) $
       VersionInfo
         <$> vinfoSupported .= vinfoObjectSchema schema
     where
-      example :: VersionInfo
+      example :: VersionInfo Version
       example =
         VersionInfo
           { vinfoSupported = toList supportedVersions
           }
 
-versionInfo :: VersionInfo
+versionInfo :: VersionInfo Version
 versionInfo = VersionInfo (toList supportedVersions)
 
 ----------------------------------------------------------------------

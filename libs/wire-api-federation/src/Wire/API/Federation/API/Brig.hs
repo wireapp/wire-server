@@ -76,7 +76,7 @@ instance ToSchema SearchResponse
 
 -- | For conventions see /docs/developer/federation-api-conventions.md
 type BrigApi =
-  FedEndpoint "api-version" () VersionInfo
+  FedEndpoint "api-version" () (VersionInfo Version)
     :<|> FedEndpoint "get-user-by-handle" Handle (Maybe UserProfile)
     :<|> FedEndpoint "get-users-by-ids" [UserId] [UserProfile]
     :<|> FedEndpoint "claim-prekey" (UserId, ClientId) (Maybe ClientPrekey)
