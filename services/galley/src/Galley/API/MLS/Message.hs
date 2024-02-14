@@ -421,10 +421,12 @@ postMLSMessageToLocalConv qusr c con msg ctype convOrSubId = do
   -- sender
   when (ctype == One2OneConv) $ do
     let mems = toUserList lConvOrSub . Map.keys . Map.delete qusr $ (tUnqualified lConvOrSub).members
+    -- TODO(md): something is still wrong here when Bob and the 1-1 conv are on b.example.com
     foldQualified
       lConvOrSub
       (\lusr -> ensureConnected lusr mems)
-      (\rusr -> ensureRemoteConnectedToLocals rusr (qualifyAs lConvOrSub <$> ulLocals mems))
+      ( \rusr -> ensureRemoteConnectedToLocals rusr (qualifyAs lConvOrSub <$> ulLocals mems)
+      )
       qusr
 
   propagateMessage qusr (Just c) lConvOrSub con msg.rawMessage (tUnqualified lConvOrSub).members

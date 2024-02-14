@@ -73,6 +73,11 @@ testMLSOne2OneBlockedAfterConnected otherDomain = do
     bobConv <- getMLSOne2OneConversation bob alice >>= getJSON 200
     convId `shouldMatch` (bobConv %. "qualified_id")
   convDom <- convId %. "domain"
+  do
+    bDom <- bob %. "qualified_id.domain"
+    liftIO $ do
+      putStrLn $ "Bob's domain:  " <> show bDom
+      putStrLn $ "Conv's domain: " <> show convDom
 
   [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
   traverse_ uploadNewKeyPackage [bob1]
