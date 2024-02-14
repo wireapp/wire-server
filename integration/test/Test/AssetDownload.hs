@@ -28,16 +28,16 @@ testDownloadAssetMultiIngressS3DownloadUrl = do
   -- multi-ingress disabled
   key <- doUploadAsset user
 
-  bindResponse (downloadAsset user user key "nginz-https.example.com" noRedirects) $ \resp -> do
+  bindResponse (downloadAsset user user key "nginz-https.example.com" noRedirect) $ \resp -> do
     resp.status `shouldMatchInt` 302
 
-  bindResponse (downloadAsset user user key "red.example.com" noRedirects) $ \resp -> do
+  bindResponse (downloadAsset user user key "red.example.com" noRedirect) $ \resp -> do
     resp.status `shouldMatchInt` 302
 
-  bindResponse (downloadAsset user user key "green.example.com" noRedirects) $ \resp -> do
+  bindResponse (downloadAsset user user key "green.example.com" noRedirect) $ \resp -> do
     resp.status `shouldMatchInt` 302
 
-  bindResponse (downloadAsset user user key "unknown.example.com" noRedirects) $ \resp -> do
+  bindResponse (downloadAsset user user key "unknown.example.com" noRedirect) $ \resp -> do
     resp.status `shouldMatchInt` 302
 
   -- multi-ingress enabled
@@ -45,25 +45,22 @@ testDownloadAssetMultiIngressS3DownloadUrl = do
     user' <- randomUser domain def
     key' <- doUploadAsset user'
 
-    bindResponse (downloadAsset user' user' key' "nginz-https.example.com" noRedirects) $ \resp -> do
+    bindResponse (downloadAsset user' user' key' "nginz-https.example.com" noRedirect) $ \resp -> do
       resp.status `shouldMatchInt` 404
       resp.json %. "label" `shouldMatch` "not-found"
 
-    bindResponse (downloadAsset user' user' key' "red.example.com" noRedirects) $ \resp -> do
+    bindResponse (downloadAsset user' user' key' "red.example.com" noRedirect) $ \resp -> do
       resp.status `shouldMatchInt` 302
       locationHeaderHost resp `shouldMatch` "s3-download.red.example.com"
 
-    bindResponse (downloadAsset user' user' key' "green.example.com" noRedirects) $ \resp -> do
+    bindResponse (downloadAsset user' user' key' "green.example.com" noRedirect) $ \resp -> do
       resp.status `shouldMatchInt` 302
       locationHeaderHost resp `shouldMatch` "s3-download.green.example.com"
 
-    bindResponse (downloadAsset user' user' key' "unknown.example.com" noRedirects) $ \resp -> do
+    bindResponse (downloadAsset user' user' key' "unknown.example.com" noRedirect) $ \resp -> do
       resp.status `shouldMatchInt` 404
       resp.json %. "label" `shouldMatch` "not-found"
   where
-    noRedirects :: HTTP.Request -> HTTP.Request
-    noRedirects req = (req {redirectCount = 0})
-
     modifyConfig :: ServiceOverrides
     modifyConfig =
       def
