@@ -5,30 +5,21 @@ module API.Brig where
 import API.BrigCommon
 import API.Common
 import Control.Concurrent
-import qualified Control.Concurrent.Async as Async
-import Control.Monad.Catch hiding (handle)
-import Control.Monad.IO.Class
+import Control.Monad.RWS hiding (pass)
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.CaseInsensitive as CI
 import Data.Foldable
 import Data.Function
-import Data.String.Conversions
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Vector as V
-import Debug.Trace (traceM)
 import GHC.Stack
 import Network.HTTP.Types
-import qualified Network.Socket as Socket
 import Network.Wai (Application, responseLBS)
-import qualified Network.Wai.Handler.Warp as Warp
-import qualified Network.Wai.Handler.Warp.Internal as Warp
-import qualified Network.Wai.Handler.WarpTLS as Warp
 import qualified Network.Wai.Route as Wai
 import Testlib.Prekeys
 import Testlib.Prelude
-import UnliftIO.Timeout (timeout)
 
 data AddUser = AddUser
   { name :: Maybe String,
@@ -115,7 +106,7 @@ instance ToJSON NewService where
       ]
 
 data Prekey = Prekey
-  { prekeyId :: String,
+  { prekeyId :: Word16,
     key :: String
   }
   deriving (Show, Eq, Generic)
@@ -133,7 +124,12 @@ data NewBotResponse = NewBotResponse
   }
   deriving (Show, Eq, Generic)
 
-instance ToJSON NewBotResponse
+instance ToJSON NewBotResponse where
+  toJSON NewBotResponse {..} =
+    Aeson.object
+      [ "prekeys" .= prekeys,
+        "last_prekey" .= lastPrekey
+      ]
 
 addUser :: (HasCallStack, MakesValue dom) => dom -> AddUser -> App Response
 addUser dom opts = do
@@ -601,15 +597,17 @@ loginProvider dom email pass = do
     pure . fromJust . foldMap (\(k, v) -> guard (k == setCookieHeader) $> v) $ hs
 
 newService ::
-  ( HasCallStack
+  ( HasCallStack,
+    MakesValue dom
   ) =>
+  dom ->
   String ->
   NewService ->
   App Value
-newService providerId service = do
+newService dom providerId service = do
   s <- make service
   req <-
-    rawBaseRequest OwnDomain Brig Versioned $
+    rawBaseRequest dom Brig Versioned $
       joinHttpPath ["provider", "services"]
   let addHdrs =
         addHeader "Z-Type" "provider"
@@ -638,7 +636,7 @@ updateService dom providerId serviceId mAcceptHeader newName = do
   let addHdrs =
         addHeader "Z-Type" "provider"
           . addHeader "Z-Provider" providerId
-          . maybe Testlib.Prelude.id (addHeader "Accept") mAcceptHeader
+          . maybe id (addHeader "Accept") mAcceptHeader
   submit "PUT"
     . addHdrs
     . addJSONObject ["name" .= n | n <- maybeToList newName]
@@ -649,20 +647,22 @@ addBotToConv ::
     MakesValue convId,
     MakesValue creatorId,
     MakesValue providerId,
-    MakesValue serviceId
+    MakesValue serviceId,
+    MakesValue dom
   ) =>
+  dom ->
   convId ->
   creatorId ->
   providerId ->
   serviceId ->
   App Response
-addBotToConv convId creatorId providerId serviceId = do
+addBotToConv dom convId creatorId providerId serviceId = do
   convIdS <- asString convId
   serviceIdS <- asString serviceId
   providerIdS <- asString providerId
   creatorIdS <- asString creatorId
   req <-
-    rawBaseRequest OwnDomain Brig Versioned $
+    rawBaseRequest dom Brig Versioned $
       joinHttpPath ["conversations", convIdS, "bots"]
   let addHeaders =
         addHeader "Z-User" creatorIdS
@@ -682,21 +682,23 @@ enableService ::
   ( MakesValue creatorId,
     MakesValue teamId,
     MakesValue providerId,
+    MakesValue dom,
     MakesValue serviceId
   ) =>
+  dom ->
   creatorId ->
   teamId ->
   providerId ->
   serviceId ->
   String ->
   App Response
-enableService creatorId teamId providerId serviceId pwd = do
+enableService dom creatorId teamId providerId serviceId pwd = do
   serviceIdS <- asString serviceId
   providerIdS <- asString providerId
   creatorIdS <- asString creatorId
   teamIdS <- asString teamId
   req <-
-    rawBaseRequest OwnDomain Brig Versioned $
+    rawBaseRequest dom Brig Versioned $
       joinHttpPath ["teams", teamIdS, "services", "whitelist"]
   let addHeaders =
         addHeader "Accept" "text/plain"
@@ -707,7 +709,7 @@ enableService creatorId teamId providerId serviceId pwd = do
       . addJSONObject ["id" .= serviceIdS, "provider" .= providerIdS, "whitelisted" .= True]
       . addHeaders
     $ req
-  updateServiceConn OwnDomain providerIdS serviceIdS
+  updateServiceConn dom providerIdS serviceIdS
   where
     updateServiceConn domain pid sid = do
       req <-
@@ -742,36 +744,6 @@ getMultiUserPrekeyBundle caller userClients = do
   req <- baseRequest caller Brig Versioned $ joinHttpPath ["users", "list-prekeys"]
   submit "POST" (addJSON userClients req)
 
--- | In order to test adding a bot to a conversation we need a running
--- dummy bot that can respond to an SSL handshake. This function runs a TLS
--- socket using the provided cert and private key within an Async context
--- using Async.cancel as clean-up.
-runService ::
-  (MonadIO m, MonadMask m) =>
-  -- FilePath -> -- cert
-  -- FilePath -> -- priv key
-  Warp.Port ->
-  Socket.Socket ->
-  (Chan e -> Application) ->
-  (Chan e -> m a) ->
-  m a
-runService port sock mkApp go = do
-  serverStarted <- liftIO newEmptyMVar
-  let tlss = Warp.tlsSettingsMemory (cs someCert) (cs somePrivKey)
-  let defs = Warp.defaultSettings {Warp.settingsPort = port, Warp.settingsBeforeMainLoop = putMVar serverStarted ()}
-  buf <- liftIO newChan
-  print ("has new chan" :: String)
-  srv <-
-    liftIO . Async.async $
-      Warp.runTLSSocket tlss defs sock $
-        mkApp buf
-  srvMVar <- liftIO $ timeout 5_000_000 (liftIO $ takeMVar serverStarted)
-  case srvMVar of
-    Just () -> do
-      print ("\n 1. starting server. socket " <> show sock <> " port " <> show port)
-      go buf `finally` liftIO (Async.cancel srv)
-    Nothing -> error . show =<< liftIO (Async.poll srv)
-
 data TestBotEvent
   = TestBotCreated
   | TestBotMessage String
@@ -788,19 +760,23 @@ defServiceApp buf =
       ),
       ( "/bots/:bot/messages",
         onBotMessage
+      ),
+      ( "/alive",
+        onAlive
       )
     ]
   where
+    onAlive _ _ k = do
+      k $ responseLBS status200 [] "success"
+
     onBotCreate _ _ k = do
-      traceM "\n ---------- ON BOT CREATE"
       writeChan buf TestBotCreated
-      -- TODO(elland): fix the responses
-      let pks = [Prekey "124" (head somePrekeys)]
-          lpk = Prekey "65535" (head someLastPrekeys)
+      -- TODO(elland): fix the responses?
+      let pks = [Prekey 1 (head somePrekeys)]
+          lpk = Prekey 65535 (head someLastPrekeys)
           rsp = NewBotResponse pks lpk
       k $ responseLBS status201 [] (Aeson.encode rsp)
 
     onBotMessage _ _ k = do
-      traceM "\n ---------- ON BOT MESSAGE"
       writeChan buf (TestBotMessage "msg")
       k $ responseLBS status200 [] "success"

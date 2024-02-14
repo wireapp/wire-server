@@ -42,7 +42,6 @@ import Data.Aeson
 import Data.ByteString.Conversion
 import Data.Id
 import Data.List1 qualified as List1
-import Debug.Trace as D
 import Galley.Types.Bot qualified as Galley
 import Galley.Types.Bot.Service (serviceEnabled)
 import Galley.Types.Bot.Service qualified as Galley
@@ -80,15 +79,14 @@ createBot scon new = do
       wrapHttp $
         recovering x3 httpHandlers $
           const $
-            liftIO $
+            liftIO $ do
               withVerifiedSslConnection (verifyFingerprints fprs) man reqBuilder $
-                \req -> do
-                  traceM $ "\n ------------------------- with verified ssl: " <> show req
+                \req ->
                   Http.httpLbs req man
     case Bilge.statusCode rs of
       201 -> decodeBytes "External" (responseBody rs)
       409 -> throwE ServiceBotConflict
-      _ -> lift (extLogError scon rs) >> throwE (ServiceUnavailableWith $ "1. " <> show rs)
+      _ -> lift (extLogError scon rs) >> throwE (ServiceUnavailableWith $ show rs)
   where
     -- we can't use 'responseJsonEither' instead, because we have a @Response ByteString@
     -- here, not a @Response (Maybe ByteString)@.
@@ -99,7 +97,7 @@ createBot scon new = do
       extReq scon ["bots"]
         . method POST
         . Bilge.json new
-    onExc ex = D.trace ("\n ---------- ex: " <> show ex) (lift (extLogError scon ex) >> throwE (ServiceUnavailableWith $ "2. " <> show ex))
+    onExc ex = (lift (extLogError scon ex) >> throwE (ServiceUnavailableWith $ displayException ex))
 
 extReq :: ServiceConn -> [ByteString] -> Request -> Request
 extReq scon ps =

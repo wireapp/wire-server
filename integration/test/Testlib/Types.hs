@@ -112,8 +112,7 @@ data GlobalEnv = GlobalEnv
     gTempDir :: FilePath,
     gTimeOutSeconds :: Int,
     gProviderCert :: FilePath,
-    gProviderKey :: FilePath,
-    gProviderHost :: String
+    gProviderKey :: FilePath
   }
 
 data IntegrationConfig = IntegrationConfig
@@ -178,8 +177,7 @@ instance FromJSON HostPort
 data ProviderConfig = ProviderConfig
   { privateKey :: FilePath,
     publicKey :: FilePath,
-    cert :: FilePath,
-    botHost :: String
+    cert :: FilePath
   }
   deriving (Show, Generic)
 
@@ -219,8 +217,7 @@ data Env = Env
     rabbitMQConfig :: RabbitMQConfig,
     timeOutSeconds :: Int,
     botKey :: FilePath,
-    botCert :: FilePath,
-    botHost :: String
+    botCert :: FilePath
   }
 
 data Response = Response

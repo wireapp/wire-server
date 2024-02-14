@@ -28,7 +28,7 @@ testUpdateServiceUpdateAcceptHeader = do
   alice <- randomUser OwnDomain def
   provider <- setupProvider alice def {newProviderEmail = email}
   pId <- provider %. "id" & asString
-  service <- newService pId def
+  service <- newService OwnDomain pId def
   sId <- service %. "id"
   void $
     updateService OwnDomain pId sId (Just "application/json") (Just "brand new service")
@@ -38,4 +38,22 @@ testUpdateServiceUpdateAcceptHeader = do
       >>= getBody 200
   void $
     updateService OwnDomain pId sId Nothing (Just "really old service")
+      >>= getBody 200
+
+testUpdateServiceUpdateAcceptHeaderOtherBackend :: HasCallStack => App ()
+testUpdateServiceUpdateAcceptHeaderOtherBackend = startDynamicBackends [mempty] $ \[dom] -> do
+  email <- randomEmail
+  alice <- randomUser dom def
+  provider <- setupProvider alice def {newProviderEmail = email}
+  pId <- provider %. "id" & asString
+  service <- newService dom pId def
+  sId <- service %. "id"
+  void $
+    updateService dom pId sId (Just "application/json") (Just "brand new service")
+      >>= getBody 200
+  void $
+    updateService dom pId sId (Just "text/plain") (Just "even newer service")
+      >>= getBody 200
+  void $
+    updateService dom pId sId Nothing (Just "really old service")
       >>= getBody 200

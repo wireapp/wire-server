@@ -65,7 +65,6 @@ data:
       privateKey: /etc/wire/brig/secrets/provider-privatekey.pem
       publicKey: /etc/wire/brig/secrets/provider-publickey.pem
       cert: /etc/wire/brig/secrets/provider-publiccert.pem
-      botHost: https://localhost
 
     backendTwo:
 

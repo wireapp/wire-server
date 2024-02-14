@@ -93,7 +93,6 @@ mkGlobalEnv cfgFile = do
   timeOutSeconds <-
     liftIO $
       fromMaybe 10 . (readMaybe @Int =<<) <$> (lookupEnv "TEST_TIMEOUT_SECONDS")
-  liftIO $ print $ "->>>>>> config: " <> show intConfig.provider
   pure
     GlobalEnv
       { gServiceMap = sm,
@@ -109,8 +108,7 @@ mkGlobalEnv cfgFile = do
         gTempDir = tempDir,
         gTimeOutSeconds = timeOutSeconds,
         gProviderCert = intConfig.provider.cert,
-        gProviderKey = intConfig.provider.privateKey,
-        gProviderHost = intConfig.provider.botHost
+        gProviderKey = intConfig.provider.privateKey
       }
   where
     createSSLContext :: Maybe FilePath -> IO (Maybe OpenSSL.SSLContext)
@@ -158,8 +156,7 @@ mkEnv ge = do
           rabbitMQConfig = ge.gRabbitMQConfig,
           timeOutSeconds = ge.gTimeOutSeconds,
           botKey = botKey,
-          botCert = botCert,
-          botHost = ge.gProviderHost
+          botCert = botCert
         }
 
 destroy :: IORef (Set BackendResource) -> BackendResource -> IO ()

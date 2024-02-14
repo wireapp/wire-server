@@ -7,7 +7,6 @@ import API.Brig
 import API.BrigInternal
 import API.Common
 import API.Galley
-import Control.Concurrent (Chan)
 import Control.Monad.Catch
 import Control.Monad.Reader
 import Crypto.Random (getRandomBytes)
@@ -16,21 +15,28 @@ import qualified Data.ByteString.Base64.URL as B64Url
 import Data.ByteString.Char8 (unpack)
 import Data.Default
 import Data.Function
-import Data.Streaming.Network (HostPreference, bindRandomPortTCP)
+import Data.Streaming.Network (HostPreference, bindRandomPortGen)
+import Data.String.Conversions
 import Data.UUID.V1 (nextUUID)
 import Data.UUID.V4 (nextRandom)
-import Debug.Trace (traceM)
 import GHC.Stack
 import qualified Network.Socket as Socket
 import qualified Network.Wai.Handler.Warp as Warp
+import qualified Network.Wai.Handler.Warp.Internal as Warp
+import qualified Network.Wai.Handler.WarpTLS as Warp
+import Testlib.Prekeys
 import Testlib.Prelude
+import UnliftIO.Async
+import UnliftIO.Chan
+import UnliftIO.MVar
+import UnliftIO.Timeout (timeout)
 
 -- | Helper function to bind a free port and socket with Socket.close as clean-up.
 withFreePortAnyAddr :: (MonadMask m, MonadIO m) => ((Warp.Port, Socket.Socket) -> m a) -> m a
 withFreePortAnyAddr = bracket bindingPort (liftIO . Socket.close . snd)
   where
     bindingPort :: MonadIO m => m (Warp.Port, Socket.Socket)
-    bindingPort = liftIO $ bindRandomPortTCP (fromString @HostPreference "*")
+    bindingPort = liftIO $ bindRandomPortGen Socket.NoSocketType (fromString @HostPreference "*")
 
 randomUser :: (HasCallStack, MakesValue domain) => domain -> CreateUser -> App Value
 randomUser domain cu = bindResponse (createUser domain cu) $ \resp -> do
@@ -296,8 +302,10 @@ setupProvider u np@(NewProvider {..}) = do
 -- being created here and passed down.
 withRunningService ::
   ( MakesValue user,
-    MakesValue teamId
+    MakesValue teamId,
+    MakesValue dom
   ) =>
+  dom ->
   user ->
   teamId ->
   ( String -> -- ServiceID
@@ -306,34 +314,31 @@ withRunningService ::
     App a
   ) ->
   App a
-withRunningService user team go = withFreePortAnyAddr $ \(port, socket) -> do
-  uid <- user %. "id" & asString
-  email <- randomEmail
-  provider <- setupProvider user def {newProviderEmail = email}
-  ppwd <- provider %. "password" & asString
-  pid <- provider %. "id" & asString
+withRunningService dom user team go = withFreePortAnyAddr $ \(port, _socket) -> do
+  serverStarted <- liftIO newEmptyMVar
+  let tlss = Warp.tlsSettingsMemory (cs someCert) (cs somePrivKey)
+  let defs =
+        Warp.defaultSettings
+          { Warp.settingsPort = port,
+            Warp.settingsBeforeMainLoop = putMVar serverStarted ()
+          }
 
-  botHost <- asks (.botHost)
-  let url = botHost <> ":" <> show port
-  print $ "\n -> BOT URL " <> show url
+  buf <- liftIO newChan
+  srv <- async . liftIO . Warp.runTLS tlss defs $ defServiceApp buf
+  srvMVar <- liftIO $ timeout 5_000_000 (liftIO $ takeMVar serverStarted)
+  case srvMVar of
+    Just () -> do
+      uid <- user %. "id" & asString
+      email <- randomEmail
+      provider <- setupProvider user def {newProviderEmail = email}
+      ppwd <- provider %. "password" & asString
+      pid <- provider %. "id" & asString
 
-  service <- newService pid def {newServiceUrl = url}
-  sid <- service %. "id" & asString
+      let url = "https://127.0.0.1:" <> show port
 
-  void $ enableService uid team pid sid ppwd
+      service <- newService dom pid def {newServiceUrl = url}
+      sid <- service %. "id" & asString
+      void $ enableService dom uid team pid sid ppwd
 
-  -- See Env.hs for details of how these are imported from the environment.
-  -- cert <- asks (.botCert)
-  -- pkey <- asks (.botKey)
-  --
-  -- certF <- readFile cert
-  -- pkeyF <- readFile pkey
-  --
-  -- putStrLn $ "->>>>>>>>>> cert: " <> show certF
-  -- putStrLn $ "->>>>>>>>>> pkey: " <> show pkeyF
-  -- putStrLn $ "->>>>>>>>>> host: " <> show botHost
-
-  -- Finally we run the serviced with a cert, private key, port, socket, a
-  -- dummy service function and our continuation.
-  traceM $ "\n --- runService:"
-  runService port socket defServiceApp (go sid pid)
+      go sid pid buf `finally` liftIO (cancel srv)
+    Nothing -> error . show =<< liftIO (poll srv)
