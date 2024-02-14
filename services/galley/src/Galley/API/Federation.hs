@@ -121,8 +121,8 @@ federationSitemap =
     :<|> Named @"on-client-removed" onClientRemoved
     :<|> Named @"on-message-sent" onMessageSent
     :<|> Named @"on-mls-message-sent" onMLSMessageSent
-    :<|> Named @(Versioned 'V0 "on-conversation-updated") onConversationUpdatedV0
-    :<|> Named @(Versioned 'V1 "on-conversation-updated") onConversationUpdated
+    :<|> Named @(Versioned 'V1 "on-conversation-updated") onConversationUpdatedV1
+    :<|> Named @"on-conversation-updated" onConversationUpdated
     :<|> Named @"on-user-deleted-conversations" onUserDeleted
 
 onClientRemoved ::
@@ -228,7 +228,7 @@ onConversationUpdated requestingDomain cu = do
   void $ updateLocalStateOfRemoteConv rcu Nothing
   pure EmptyResponse
 
-onConversationUpdatedV0 ::
+onConversationUpdatedV1 ::
   ( Member BrigAccess r,
     Member NotificationSubsystem r,
     Member ExternalAccess r,
@@ -237,10 +237,10 @@ onConversationUpdatedV0 ::
     Member P.TinyLog r
   ) =>
   Domain ->
-  ConversationUpdateV0 ->
+  ConversationUpdateV1 ->
   Sem r EmptyResponse
-onConversationUpdatedV0 domain cu =
-  onConversationUpdated domain (conversationUpdateFromV0 cu)
+onConversationUpdatedV1 domain cu =
+  onConversationUpdated domain (conversationUpdateFromV1 cu)
 
 -- as of now this will not generate the necessary events on the leaver's domain
 leaveConversation ::
