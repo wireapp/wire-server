@@ -166,6 +166,16 @@ ensureConnected self others = do
   ensureConnectedToLocals (tUnqualified self) (ulLocals others)
   ensureConnectedToRemotes self (ulRemotes others)
 
+ensureRemoteConnectedToLocals ::
+  ( Member (ErrorS 'NotConnected) r,
+    Member BrigAccess r
+  ) =>
+  Remote UserId ->
+  [Local UserId] ->
+  Sem r ()
+ensureRemoteConnectedToLocals rusr =
+  mapM_ (flip ensureConnectedToRemotes [rusr])
+
 ensureConnectedToLocals ::
   ( Member (ErrorS 'NotConnected) r,
     Member BrigAccess r

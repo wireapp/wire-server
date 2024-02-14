@@ -59,6 +59,7 @@ type MLSMessagingAPI =
         :> CanThrow 'MLSSubConvClientNotInParent
         :> CanThrow 'MLSUnsupportedMessage
         :> CanThrow 'MLSUnsupportedProposal
+        :> CanThrow 'NotConnected
         :> CanThrow MLSProposalFailure
         :> CanThrow NonFederatingBackends
         :> CanThrow UnreachableBackends
@@ -99,6 +100,7 @@ type MLSMessagingAPI =
                :> CanThrow 'MLSUnsupportedMessage
                :> CanThrow 'MLSUnsupportedProposal
                :> CanThrow 'MLSWelcomeMismatch
+               :> CanThrow 'NotConnected
                :> CanThrow MLSProposalFailure
                :> CanThrow NonFederatingBackends
                :> CanThrow UnreachableBackends
