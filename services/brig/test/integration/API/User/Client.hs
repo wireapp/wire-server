@@ -1399,6 +1399,7 @@ data DPoPClaimsSet = DPoPClaimsSet
     claimHtu :: Text,
     claimChal :: Text,
     claimHandle :: Text,
+    claimDisplayName :: Text,
     claimTeamId :: Text
   }
   deriving (Eq, Show, Generic)
@@ -1415,6 +1416,7 @@ instance A.FromJSON DPoPClaimsSet where
       <*> o A..: "htu"
       <*> o A..: "chal"
       <*> o A..: "handle"
+      <*> o A..: "name"
       <*> o A..: "team"
 
 instance A.ToJSON DPoPClaimsSet where
@@ -1424,6 +1426,7 @@ instance A.ToJSON DPoPClaimsSet where
       & ins "htu" (claimHtu s)
       & ins "chal" (claimChal s)
       & ins "handle" (claimHandle s)
+      & ins "name" (claimDisplayName s)
       & ins "team" (claimTeamId s)
     where
       ins k v (Object o) = Object $ M.insert k (A.toJSON v) o
@@ -1460,7 +1463,16 @@ testCreateAccessToken opts n brig = do
           & claimSub ?~ fromMaybe (error "invalid sub claim") ((clientIdentity :: Text) ^? stringOrUri)
           & claimJti ?~ "6fc59e7f-b666-4ffc-b738-4f4760c884ca"
           & claimAud ?~ (maybe (error "invalid sub claim") (Audience . (: [])) (("https://wire.com/acme/challenge/abcd" :: Text) ^? stringOrUri))
-  let dpopClaims = DPoPClaimsSet claimsSet' nonceBs "POST" httpsUrl "wa2VrkCtW1sauJ2D3uKY8rc7y4kl4usH" handle (UUID.toText (toUUID tid))
+  let dpopClaims =
+        DPoPClaimsSet
+          claimsSet'
+          nonceBs
+          "POST"
+          httpsUrl
+          "wa2VrkCtW1sauJ2D3uKY8rc7y4kl4usH"
+          handle
+          (fromName u.userDisplayName)
+          (UUID.toText (toUUID tid))
   signedOrError <- fmap encodeCompact <$> liftIO (signAccessToken dpopClaims)
   case signedOrError of
     Left err -> liftIO $ assertFailure $ "failed to sign claims: " <> show err
