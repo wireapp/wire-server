@@ -404,9 +404,9 @@ testFederationAllowMixedConnectWithRemote =
     defSearchPolicy = "full_search"
 
 testPendingConnectionUserDeleted :: HasCallStack => Domain -> App ()
-testPendingConnectionUserDeleted domain = do
+testPendingConnectionUserDeleted bobsDomain = do
   alice <- randomUser OwnDomain def
-  bob <- randomUser domain def
+  bob <- randomUser bobsDomain def
 
   withWebSockets [bob] $ \[bobWs] -> do
     void $ postConnection alice bob >>= getBody 201

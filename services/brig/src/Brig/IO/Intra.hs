@@ -350,7 +350,7 @@ notifyUserDeletionRemotes deleted = do
     sendCancelledEvent :: Local UserId -> Remote UserConnection -> Sem r ()
     sendCancelledEvent luidDeleted ruc = do
       embed (runExceptT (sendConnectionAction luidDeleted Nothing (qUnqualified . ucTo <$> ruc) RemoteRescind)) >>= \case
-        -- I don't think we want to abort the operation since this is running asynchronously and cannot be retried anyway
+        -- should we abort the whole process if we fail to send the event to a remote backend?
         Left e ->
           Log.err $
             field "error" (show e)
