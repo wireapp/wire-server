@@ -34,6 +34,7 @@ module Brig.Data.Connection
     lookupRemoteConnectionStatuses,
     lookupAllStatuses,
     lookupRemoteConnectedUsersC,
+    lookupRemoteConnectedUsersPaginated,
     countConnections,
     deleteConnections,
     deleteRemoteConnections,
@@ -44,7 +45,6 @@ module Brig.Data.Connection
     remoteConnectionDelete,
     remoteConnectionSelectFromDomain,
     remoteConnectionClear,
-    remoteConnectionsSelectUsers,
 
     -- * Re-exports
     module T,
@@ -268,10 +268,14 @@ lookupAllStatuses lfroms = do
       map (\(d, u, r) -> toConnectionStatusV2 from d u r)
         <$> retry x1 (query remoteRelationsSelectAll (params LocalQuorum (Identity from)))
 
-lookupRemoteConnectedUsersC :: forall m. (MonadClient m) => UserId -> Int32 -> ConduitT () [Remote UserId] m ()
+lookupRemoteConnectedUsersC :: forall m. (MonadClient m) => Local UserId -> Int32 -> ConduitT () [Remote UserConnection] m ()
 lookupRemoteConnectedUsersC u maxResults =
-  paginateC remoteConnectionsSelectUsers (paramsP LocalQuorum (Identity u) maxResults) x1
-    .| C.map (map (uncurry toRemoteUnsafe))
+  paginateC remoteConnectionSelect (paramsP LocalQuorum (Identity (tUnqualified u)) maxResults) x1
+    .| C.map (\xs -> map (\x@(d, _, _, _, _, _) -> toRemoteUnsafe d (toRemoteUserConnection u x)) xs)
+
+lookupRemoteConnectedUsersPaginated :: MonadClient m => Local UserId -> Int32 -> m (Page (Remote UserConnection))
+lookupRemoteConnectedUsersPaginated u maxResults = do
+  (\x@(d, _, _, _, _, _) -> toRemoteUnsafe d (toRemoteUserConnection u x)) <$$> retry x1 (paginate remoteConnectionSelect (paramsP LocalQuorum (Identity (tUnqualified u)) maxResults))
 
 -- | See 'lookupContactListWithRelation'.
 lookupContactList :: (MonadClient m) => UserId -> m [UserId]
@@ -410,9 +414,6 @@ remoteRelationsSelect = "SELECT right_user, status FROM connection_remote WHERE 
 
 remoteRelationsSelectAll :: PrepQuery R (Identity UserId) (Domain, UserId, RelationWithHistory)
 remoteRelationsSelectAll = "SELECT right_domain, right_user, status FROM connection_remote WHERE left = ?"
-
-remoteConnectionsSelectUsers :: PrepQuery R (Identity UserId) (Domain, UserId)
-remoteConnectionsSelectUsers = "SELECT right_domain, right_user FROM connection_remote WHERE left = ?"
 
 -- Conversions
 

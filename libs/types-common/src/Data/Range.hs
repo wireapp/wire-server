@@ -98,7 +98,7 @@ import Test.QuickCheck qualified as QC
 newtype Range (n :: Nat) (m :: Nat) a = Range
   { fromRange :: a
   }
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord, Show, Functor)
 
 toRange :: (n <= x, x <= m, KnownNat x, Num a) => Proxy x -> Range n m a
 toRange = Range . fromIntegral . natVal

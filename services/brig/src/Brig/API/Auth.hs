@@ -24,6 +24,7 @@ import Brig.API.User
 import Brig.App
 import Brig.Data.User qualified as User
 import Brig.Effects.BlacklistStore
+import Brig.Effects.ConnectionStore (ConnectionStore)
 import Brig.Effects.GalleyProvider
 import Brig.Options
 import Brig.User.Auth qualified as Auth
@@ -37,12 +38,14 @@ import Data.List1 (List1 (..))
 import Data.Qualified
 import Data.Text qualified as T
 import Data.Text.Lazy qualified as LT
+import Data.Time.Clock (UTCTime)
 import Data.ZAuth.Token qualified as ZAuth
 import Imports
 import Network.HTTP.Types
 import Network.Wai.Utilities ((!>>))
 import Network.Wai.Utilities.Error qualified as Wai
 import Polysemy
+import Polysemy.Input (Input)
 import Polysemy.TinyLog (TinyLog)
 import Wire.API.User
 import Wire.API.User.Auth hiding (access)
@@ -50,11 +53,15 @@ import Wire.API.User.Auth.LegalHold
 import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Auth.Sso
 import Wire.NotificationSubsystem
+import Wire.Sem.Paging.Cassandra (InternalPaging)
 
 accessH ::
   ( Member TinyLog r,
     Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r
+    Member NotificationSubsystem r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   Maybe ClientId ->
   [Either Text SomeUserToken] ->
@@ -70,7 +77,10 @@ access ::
   ( TokenPair u a,
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r
+    Member NotificationSubsystem r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   Maybe ClientId ->
   NonEmpty (Token u) ->
@@ -90,7 +100,10 @@ login ::
   ( Member GalleyProvider r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r
+    Member NotificationSubsystem r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   Login ->
   Maybe Bool ->
@@ -150,7 +163,10 @@ legalHoldLogin ::
   ( Member GalleyProvider r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   LegalHoldLogin ->
   Handler r SomeAccess
@@ -162,7 +178,10 @@ legalHoldLogin lhl = do
 ssoLogin ::
   ( Member TinyLog r,
     Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r
+    Member NotificationSubsystem r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   SsoLogin ->
   Maybe Bool ->

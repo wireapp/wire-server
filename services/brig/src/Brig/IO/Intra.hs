@@ -52,16 +52,16 @@ import Brig.API.Error (internalServerError)
 import Brig.API.Types
 import Brig.API.Util
 import Brig.App
-import Brig.Data.Connection (lookupContactList)
+import Brig.Data.Connection
 import Brig.Data.Connection qualified as Data
-import Brig.Federation.Client (notifyUserDeleted)
+import Brig.Effects.ConnectionStore (ConnectionStore)
+import Brig.Effects.ConnectionStore qualified as E
+import Brig.Federation.Client (notifyUserDeleted, sendConnectionAction)
 import Brig.IO.Journal qualified as Journal
 import Brig.RPC
 import Brig.Types.User.Event
 import Brig.User.Search.Index qualified as Search
-import Cassandra (MonadClient)
-import Conduit (runConduit, (.|))
-import Control.Error (ExceptT)
+import Control.Error (ExceptT, runExceptT)
 import Control.Lens (view, (.~), (?~), (^.), (^?))
 import Control.Monad.Catch
 import Control.Monad.Trans.Except (throwE)
@@ -70,23 +70,22 @@ import Data.Aeson.KeyMap qualified as KeyMap
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy qualified as BL
-import Data.Conduit.List qualified as C
 import Data.Id
-import Data.Json.Util ((#))
+import Data.Json.Util (toUTCTimeMillis, (#))
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.List1 (List1, singleton)
 import Data.Proxy
 import Data.Qualified
 import Data.Range
-import GHC.TypeLits
+import Data.Time.Clock (UTCTime)
 import Gundeck.Types.Push.V2 (RecipientClients (RecipientClientsAll))
 import Gundeck.Types.Push.V2 qualified as V2
 import Imports
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import Polysemy
+import Polysemy.Input (Input, input)
 import Polysemy.TinyLog (TinyLog)
-import System.Logger.Class (MonadLogger)
 import System.Logger.Message hiding ((.=))
 import Wire.API.Connection
 import Wire.API.Conversation hiding (Member)
@@ -103,6 +102,8 @@ import Wire.API.User.Client
 import Wire.NotificationSubsystem
 import Wire.Rpc
 import Wire.Sem.Logger qualified as Log
+import Wire.Sem.Paging qualified as P
+import Wire.Sem.Paging.Cassandra (InternalPaging)
 
 -----------------------------------------------------------------------------
 -- Event Handlers
@@ -110,7 +111,10 @@ import Wire.Sem.Logger qualified as Log
 onUserEvent ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   UserId ->
   Maybe ConnId ->
@@ -228,7 +232,10 @@ journalEvent orig e = case e of
 dispatchNotifications ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   UserId ->
   Maybe ConnId ->
@@ -252,49 +259,103 @@ dispatchNotifications orig conn e = case e of
     -- n.b. Synchronously fetch the contact list on the current thread.
     -- If done asynchronously, the connections may already have been deleted.
     notifyUserDeletionLocals orig conn event
-    embed $ notifyUserDeletionRemotes orig
+    notifyUserDeletionRemotes orig
   where
     event = singleton $ UserEvent e
 
 notifyUserDeletionLocals ::
+  forall r.
   ( Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r
+    Member NotificationSubsystem r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r
   ) =>
   UserId ->
   Maybe ConnId ->
   List1 Event ->
   Sem r ()
 notifyUserDeletionLocals deleted conn event = do
-  recipients <- (:|) deleted <$> embed (lookupContactList deleted)
-  notify event deleted V2.RouteDirect conn (pure recipients)
+  luid <- qualifyLocal' deleted
+  -- first we send a notification to the deleted user's devices
+  notify event deleted V2.RouteDirect conn (pure (deleted :| []))
+  -- then to all their connections
+  connectionPages Nothing luid (toRange (Proxy @500))
+  where
+    handler :: [UserConnection] -> Sem r ()
+    handler connections = do
+      -- sent event to connections that are accepted
+      case qUnqualified . ucTo <$> filter ((==) Accepted . ucStatus) connections of
+        x : xs -> notify event deleted V2.RouteDirect conn (pure (x :| xs))
+        [] -> pure ()
+      -- also send a connection cancelled event to connections that are pending
+      d <- tDomain <$> input
+      forM_
+        (filter ((==) Sent . ucStatus) connections)
+        ( \uc -> do
+            now <- toUTCTimeMillis <$> input
+            -- because the connections are going to be removed from the database anyway when a user gets deleted
+            -- we don't need to save the updated connection state in the database
+            -- note that we switch from and to users so that the "other" user becomes the recipient of the event
+            let ucCancelled =
+                  UserConnection
+                    (qUnqualified (ucTo uc))
+                    (Qualified (ucFrom uc) d)
+                    Cancelled
+                    now
+                    (ucConvId uc)
+            let e = ConnectionUpdated ucCancelled Nothing Nothing
+            onConnectionEvent deleted conn e
+        )
+
+    connectionPages :: Maybe UserId -> Local UserId -> Range 1 500 Int32 -> Sem r ()
+    connectionPages mbStart user pageSize = do
+      page <- embed $ Data.lookupLocalConnections user mbStart pageSize
+      case resultList page of
+        [] -> pure ()
+        xs -> do
+          handler xs
+          when (Data.resultHasMore page) $
+            connectionPages (Just (maximum (qUnqualified . ucTo <$> xs))) user pageSize
 
 notifyUserDeletionRemotes ::
-  forall m.
-  ( MonadReader Env m,
-    MonadClient m,
-    MonadLogger m,
-    MonadMask m
+  forall r.
+  ( Member (Embed HttpClientIO) r,
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   UserId ->
-  m ()
+  Sem r ()
 notifyUserDeletionRemotes deleted = do
-  runConduit $
-    Data.lookupRemoteConnectedUsersC deleted (fromInteger (natVal (Proxy @UserDeletedNotificationMaxConnections)))
-      .| C.mapM_ fanoutNotifications
+  luid <- qualifyLocal' deleted
+  P.withChunks (\mps -> E.remoteConnectedUsersPaginated luid mps maxBound) fanoutNotifications
   where
-    fanoutNotifications :: [Remote UserId] -> m ()
+    fanoutNotifications :: [Remote UserConnection] -> Sem r ()
     fanoutNotifications = mapM_ notifyBackend . bucketRemote
 
-    notifyBackend :: Remote [UserId] -> m ()
-    notifyBackend uids = do
-      case tUnqualified (checked <$> uids) of
+    notifyBackend :: Remote [UserConnection] -> Sem r ()
+    notifyBackend ucs = do
+      case tUnqualified (checked <$> ucs) of
         Nothing ->
           -- The user IDs cannot be more than 1000, so we can assume the range
           -- check will only fail because there are 0 User Ids.
           pure ()
-        Just rangedUids -> do
-          luidDeleted <- qualifyLocal deleted
-          notifyUserDeleted luidDeleted (qualifyAs uids rangedUids)
+        Just rangedUcs -> do
+          luidDeleted <- qualifyLocal' deleted
+          embed $ notifyUserDeleted luidDeleted (qualifyAs ucs ((fmap (fmap (qUnqualified . ucTo))) rangedUcs))
+          -- also sent connection cancelled events to the connections that are pending
+          let remotePendingConnections = qualifyAs ucs <$> filter ((==) Sent . ucStatus) (fromRange rangedUcs)
+          forM_ remotePendingConnections $ sendCancelledEvent luidDeleted
+
+    sendCancelledEvent :: Local UserId -> Remote UserConnection -> Sem r ()
+    sendCancelledEvent luidDeleted ruc = do
+      embed (runExceptT (sendConnectionAction luidDeleted Nothing (qUnqualified . ucTo <$> ruc) RemoteRescind)) >>= \case
+        -- should we abort the whole process if we fail to send the event to a remote backend?
+        Left e ->
+          Log.err $
+            field "error" (show e)
+              . msg (val "An error occurred while sending a connection cancelled event to a remote backend.")
+        Right _ -> pure ()
 
 -- | (Asynchronously) notifies other users of events.
 notify ::

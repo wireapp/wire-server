@@ -36,6 +36,7 @@ import Brig.Data.UserKey
 import Brig.Data.UserKey qualified as Data
 import Brig.Effects.BlacklistStore (BlacklistStore)
 import Brig.Effects.BlacklistStore qualified as BlacklistStore
+import Brig.Effects.ConnectionStore (ConnectionStore)
 import Brig.Effects.GalleyProvider (GalleyProvider)
 import Brig.Effects.GalleyProvider qualified as GalleyProvider
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
@@ -53,11 +54,14 @@ import Control.Monad.Trans.Except (mapExceptT)
 import Data.ByteString.Conversion (toByteString, toByteString')
 import Data.Id
 import Data.List1 qualified as List1
+import Data.Qualified (Local)
 import Data.Range
+import Data.Time.Clock (UTCTime)
 import Galley.Types.Teams qualified as Team
 import Imports hiding (head)
 import Network.Wai.Utilities hiding (code, message)
 import Polysemy
+import Polysemy.Input (Input)
 import Polysemy.TinyLog (TinyLog)
 import Servant hiding (Handler, JSON, addHeader)
 import System.Logger.Class qualified as Log
@@ -81,6 +85,7 @@ import Wire.API.User hiding (fromEmail)
 import Wire.API.User qualified as Public
 import Wire.NotificationSubsystem
 import Wire.Sem.Concurrency
+import Wire.Sem.Paging.Cassandra (InternalPaging)
 
 servantAPI ::
   ( Member BlacklistStore r,
@@ -312,7 +317,10 @@ suspendTeam ::
     Member NotificationSubsystem r,
     Member (Concurrency 'Unsafe) r,
     Member GalleyProvider r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   TeamId ->
   (Handler r) NoContent
@@ -328,7 +336,10 @@ unsuspendTeam ::
     Member NotificationSubsystem r,
     Member (Concurrency 'Unsafe) r,
     Member GalleyProvider r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   TeamId ->
   (Handler r) NoContent
@@ -345,7 +356,10 @@ changeTeamAccountStatuses ::
     Member NotificationSubsystem r,
     Member (Concurrency 'Unsafe) r,
     Member GalleyProvider r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   TeamId ->
   AccountStatus ->

@@ -53,6 +53,7 @@ import Brig.App
 import Brig.Data.Client qualified as Data
 import Brig.Data.Nonce as Nonce
 import Brig.Data.User qualified as Data
+import Brig.Effects.ConnectionStore (ConnectionStore)
 import Brig.Effects.GalleyProvider (GalleyProvider)
 import Brig.Effects.GalleyProvider qualified as GalleyProvider
 import Brig.Effects.JwtTools (JwtTools)
@@ -86,10 +87,12 @@ import Data.Map.Strict qualified as Map
 import Data.Misc (PlainTextPassword6)
 import Data.Qualified
 import Data.Set qualified as Set
+import Data.Time.Clock (UTCTime)
 import Imports
 import Network.HTTP.Types.Method (StdMethod)
 import Network.Wai.Utilities
 import Polysemy
+import Polysemy.Input (Input)
 import Polysemy.TinyLog
 import Servant (Link, ToHttpApiData (toUrlPiece))
 import System.Logger.Class (field, msg, val, (~~))
@@ -110,6 +113,7 @@ import Wire.NotificationSubsystem
 import Wire.Sem.Concurrency
 import Wire.Sem.FromUTC (FromUTC (fromUTCTime))
 import Wire.Sem.Now as Now
+import Wire.Sem.Paging.Cassandra (InternalPaging)
 
 lookupLocalClient :: UserId -> ClientId -> (AppT r) (Maybe Client)
 lookupLocalClient uid = wrapClient . Data.lookupClient uid
@@ -158,7 +162,10 @@ addClient ::
   ( Member GalleyProvider r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   UserId ->
   Maybe ConnId ->
@@ -173,7 +180,10 @@ addClientWithReAuthPolicy ::
   ( Member GalleyProvider r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   Data.ReAuthPolicy ->
   UserId ->
@@ -475,7 +485,10 @@ pubClient c =
 legalHoldClientRequested ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   UserId ->
   LegalHoldClientRequest ->
@@ -493,7 +506,10 @@ legalHoldClientRequested targetUser (LegalHoldClientRequest _requester lastPreke
 removeLegalHoldClient ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   UserId ->
   AppT r ()
