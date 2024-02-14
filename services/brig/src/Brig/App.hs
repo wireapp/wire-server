@@ -70,6 +70,7 @@ module Brig.App
     AppT (..),
     viewFederationDomain,
     qualifyLocal,
+    qualifyLocal',
 
     -- * Crutches that should be removed once Brig has been completely
 
@@ -140,6 +141,7 @@ import OpenSSL.Session (SSLOption (..))
 import OpenSSL.Session qualified as SSL
 import Polysemy
 import Polysemy.Final
+import Polysemy.Input (Input, input)
 import Ropes.Nexmo qualified as Nexmo
 import Ropes.Twilio qualified as Twilio
 import Ssl.Util
@@ -601,3 +603,6 @@ viewFederationDomain = view (settings . Opt.federationDomain)
 
 qualifyLocal :: (MonadReader Env m) => a -> m (Local a)
 qualifyLocal a = toLocalUnsafe <$> viewFederationDomain <*> pure a
+
+qualifyLocal' :: (Member (Input (Local ()))) r => a -> Sem r (Local a)
+qualifyLocal' a = flip toLocalUnsafe a . tDomain <$> input

@@ -42,6 +42,7 @@ import Brig.Data.User qualified as Data
 import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
 import Brig.Effects.BlacklistStore (BlacklistStore)
 import Brig.Effects.CodeStore (CodeStore)
+import Brig.Effects.ConnectionStore (ConnectionStore)
 import Brig.Effects.FederationConfigStore (AddFederationRemoteResult (..), AddFederationRemoteTeamResult (..), FederationConfigStore, UpdateFederationResult (..))
 import Brig.Effects.FederationConfigStore qualified as E
 import Brig.Effects.GalleyProvider (GalleyProvider)
@@ -71,11 +72,13 @@ import Data.Id as Id
 import Data.Map.Strict qualified as Map
 import Data.Qualified
 import Data.Set qualified as Set
+import Data.Time.Clock (UTCTime)
 import Data.Time.Clock.System
 import Imports hiding (head)
 import Network.Wai.Routing hiding (toList)
 import Network.Wai.Utilities as Utilities
 import Polysemy
+import Polysemy.Input (Input)
 import Polysemy.TinyLog (TinyLog)
 import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.OpenApi.Internal.Orphans ()
@@ -98,6 +101,7 @@ import Wire.API.User.Client
 import Wire.API.User.RichInfo
 import Wire.NotificationSubsystem
 import Wire.Sem.Concurrency
+import Wire.Sem.Paging.Cassandra (InternalPaging)
 
 ---------------------------------------------------------------------------
 -- Sitemap (servant)
@@ -114,7 +118,10 @@ servantSitemap ::
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
     Member TinyLog r,
-    Member (Concurrency 'Unsafe) r
+    Member (Concurrency 'Unsafe) r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   ServerT BrigIRoutes.API (Handler r)
 servantSitemap =
@@ -157,7 +164,10 @@ accountAPI ::
     Member (UserPendingActivationStore p) r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   ServerT BrigIRoutes.AccountAPI (Handler r)
 accountAPI =
@@ -201,7 +211,10 @@ teamsAPI ::
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
     Member (Concurrency 'Unsafe) r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   ServerT BrigIRoutes.TeamsAPI (Handler r)
 teamsAPI =
@@ -226,7 +239,10 @@ authAPI ::
   ( Member GalleyProvider r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r
+    Member NotificationSubsystem r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   ServerT BrigIRoutes.AuthAPI (Handler r)
 authAPI =
@@ -370,7 +386,10 @@ addClientInternalH ::
   ( Member GalleyProvider r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   UserId ->
   Maybe Bool ->
@@ -386,7 +405,10 @@ addClientInternalH usr mSkipReAuth new connId = do
 legalHoldClientRequestedH ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   UserId ->
   LegalHoldClientRequest ->
@@ -397,7 +419,10 @@ legalHoldClientRequestedH targetUser clientRequest = do
 removeLegalHoldClientH ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   UserId ->
   (Handler r) NoContent
@@ -419,7 +444,10 @@ createUserNoVerify ::
     Member (UserPendingActivationStore p) r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r
+    Member NotificationSubsystem r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   NewUser ->
   (Handler r) (Either RegisterError SelfProfile)
@@ -440,7 +468,10 @@ createUserNoVerifySpar ::
   ( Member GalleyProvider r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   NewUserSpar ->
   (Handler r) (Either CreateUserSparError SelfProfile)
@@ -461,7 +492,10 @@ createUserNoVerifySpar uData =
 deleteUserNoAuthH ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   UserId ->
   (Handler r) DeleteUserResponse
@@ -577,7 +611,10 @@ getPasswordResetCode emailOrPhone =
 changeAccountStatusH ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   UserId ->
   AccountStatusUpdate ->
@@ -622,7 +659,10 @@ getConnectionsStatus (ConnectionsStatusRequestV2 froms mtos mrel) = do
 revokeIdentityH ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   Maybe Email ->
   Maybe Phone ->
@@ -685,7 +725,10 @@ addPhonePrefixH prefix = lift $ NoContent <$ API.phonePrefixInsert prefix
 updateSSOIdH ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   UserId ->
   UserSSOId ->
@@ -701,7 +744,10 @@ updateSSOIdH uid ssoid = do
 deleteSSOIdH ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   UserId ->
   (Handler r) UpdateSSOIdResponse
@@ -766,7 +812,10 @@ updateHandleH ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
     Member GalleyProvider r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   UserId ->
   HandleUpdate ->
@@ -780,7 +829,10 @@ updateUserNameH ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
     Member GalleyProvider r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   UserId ->
   NameUpdate ->

@@ -173,6 +173,7 @@ type AccountAPI =
     "createUserNoVerify"
     ( "users"
         :> MakesFederatedCall 'Brig "on-user-deleted-connections"
+        :> MakesFederatedCall 'Brig "send-connection-action"
         :> ReqBody '[Servant.JSON] NewUser
         :> MultiVerb 'POST '[Servant.JSON] RegisterInternalResponses (Either RegisterError SelfProfile)
     )
@@ -181,6 +182,7 @@ type AccountAPI =
            ( "users"
                :> "spar"
                :> MakesFederatedCall 'Brig "on-user-deleted-connections"
+               :> MakesFederatedCall 'Brig "send-connection-action"
                :> ReqBody '[Servant.JSON] NewUserSpar
                :> MultiVerb 'POST '[Servant.JSON] CreateUserSparInternalResponses (Either CreateUserSparError SelfProfile)
            )
@@ -679,6 +681,7 @@ type AuthAPI =
     "legalhold-login"
     ( "legalhold-login"
         :> MakesFederatedCall 'Brig "on-user-deleted-connections"
+        :> MakesFederatedCall 'Brig "send-connection-action"
         :> ReqBody '[JSON] LegalHoldLogin
         :> MultiVerb1 'POST '[JSON] TokenResponse
     )
@@ -686,6 +689,7 @@ type AuthAPI =
            "sso-login"
            ( "sso-login"
                :> MakesFederatedCall 'Brig "on-user-deleted-connections"
+               :> MakesFederatedCall 'Brig "send-connection-action"
                :> ReqBody '[JSON] SsoLogin
                :> QueryParam' [Optional, Strict] "persist" Bool
                :> MultiVerb1 'POST '[JSON] TokenResponse

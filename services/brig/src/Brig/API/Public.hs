@@ -48,6 +48,7 @@ import Brig.Data.UserKey qualified as UserKey
 import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
 import Brig.Effects.BlacklistStore (BlacklistStore)
 import Brig.Effects.CodeStore (CodeStore)
+import Brig.Effects.ConnectionStore (ConnectionStore)
 import Brig.Effects.FederationConfigStore (FederationConfigStore)
 import Brig.Effects.GalleyProvider (GalleyProvider)
 import Brig.Effects.GalleyProvider qualified as GalleyProvider
@@ -94,6 +95,7 @@ import Data.Schema ()
 import Data.Text qualified as Text
 import Data.Text.Ascii qualified as Ascii
 import Data.Text.Lazy (pack)
+import Data.Time.Clock (UTCTime)
 import Data.ZAuth.Token qualified as ZAuth
 import FileEmbedLzma
 import Galley.Types.Teams (HiddenPerm (..), hasPermission)
@@ -101,6 +103,7 @@ import Imports hiding (head)
 import Network.Socket (PortNumber)
 import Network.Wai.Utilities as Utilities
 import Polysemy
+import Polysemy.Input (Input)
 import Polysemy.TinyLog (TinyLog)
 import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant qualified
@@ -155,6 +158,7 @@ import Wire.NotificationSubsystem
 import Wire.Sem.Concurrency
 import Wire.Sem.Jwk (Jwk)
 import Wire.Sem.Now (Now)
+import Wire.Sem.Paging.Cassandra (InternalPaging)
 
 -- User API -----------------------------------------------------------
 
@@ -276,7 +280,10 @@ servantSitemap ::
     Member FederationConfigStore r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =
@@ -563,7 +570,10 @@ addClient ::
   ( Member GalleyProvider r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   UserId ->
   ConnId ->
@@ -686,7 +696,10 @@ createUser ::
     Member (UserPendingActivationStore p) r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r
+    Member NotificationSubsystem r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   Public.NewUserPublic ->
   (Handler r) (Either Public.RegisterError Public.RegisterSuccess)
@@ -878,7 +891,10 @@ updateUser ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
     Member GalleyProvider r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   UserId ->
   ConnId ->
@@ -905,7 +921,10 @@ changePhone u _ (Public.puPhone -> phone) = lift . exceptTToMaybe $ do
 removePhone ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   UserId ->
   ConnId ->
@@ -916,7 +935,10 @@ removePhone self conn =
 removeEmail ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   UserId ->
   ConnId ->
@@ -933,7 +955,10 @@ changePassword u cp = lift . exceptTToMaybe $ API.changePassword u cp
 changeLocale ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   UserId ->
   ConnId ->
@@ -944,7 +969,10 @@ changeLocale u conn l = lift $ API.changeLocale u conn l
 changeSupportedProtocols ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -988,7 +1016,10 @@ changeHandle ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
     Member GalleyProvider r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   UserId ->
   ConnId ->
@@ -1174,7 +1205,10 @@ deleteSelfUser ::
   ( Member GalleyProvider r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r
+    Member NotificationSubsystem r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   UserId ->
   Public.DeleteUser ->
@@ -1185,7 +1219,10 @@ deleteSelfUser u body = do
 verifyDeleteUser ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   Public.VerifyDeleteUser ->
   Handler r ()
@@ -1226,7 +1263,10 @@ activate ::
   ( Member GalleyProvider r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r
+    Member NotificationSubsystem r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   Public.ActivationKey ->
   Public.ActivationCode ->
@@ -1240,7 +1280,10 @@ activateKey ::
   ( Member GalleyProvider r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r
+    Member NotificationSubsystem r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   Public.Activate ->
   (Handler r) ActivationRespWithStatus

@@ -125,6 +125,8 @@ library
     Brig.Effects.BlacklistStore.Cassandra
     Brig.Effects.CodeStore
     Brig.Effects.CodeStore.Cassandra
+    Brig.Effects.ConnectionStore
+    Brig.Effects.ConnectionStore.Cassandra
     Brig.Effects.FederationConfigStore
     Brig.Effects.FederationConfigStore.Cassandra
     Brig.Effects.GalleyProvider
