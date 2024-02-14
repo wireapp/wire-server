@@ -25,7 +25,7 @@ main :: IO ()
 main = hspec $ do
   describe "generateDpopToken FFI when passing valid inputs" $ do
     it "should return an access token with the correct header" $ do
-      actual <- runExceptT $ generateDpopToken proof uid cid handle tid domain nonce uri method maxSkewSecs expires now pem
+      actual <- runExceptT $ generateDpopToken proof uid cid handle displayName tid domain nonce uri method maxSkewSecs expires now pem
       -- The actual payload of the DPoP token is not deterministic as it depends on the current time.
       -- We therefore only check the header, because if the header is correct, it means the token creation was successful.s
       let expectedHeader = "eyJhbGciOiJFZERTQSIsInR5cCI6ImF0K2p3dCIsImp3ayI6eyJrdHkiOiJPS1AiLCJjcnYiOiJFZDI1NTE5IiwieCI6ImRZSTM4VWR4a3NDMEs0UXg2RTlKSzlZZkdtLWVoblkxOG9LbUhMMllzWmsifX0"
@@ -33,7 +33,7 @@ main = hspec $ do
       actualHeader `shouldBe` expectedHeader
   describe "generateDpopToken FFI when passing a wrong nonce value" $ do
     it "should return BackendNonceMismatchError" $ do
-      actual <- runExceptT $ generateDpopToken proof uid cid handle tid domain (Nonce "foobar") uri method maxSkewSecs expires now pem
+      actual <- runExceptT $ generateDpopToken proof uid cid handle displayName tid domain (Nonce "foobar") uri method maxSkewSecs expires now pem
       actual `shouldBe` Left BackendNonceMismatchError
   describe "toResult" $ do
     it "should convert to correct error" $ do
@@ -82,6 +82,7 @@ main = hspec $ do
     nonce = Nonce "mRCv3JA-S424uBr-Y6C1gw"
     expires = ExpiryEpoch 1831823671
     handle = Handle "vlupdypnixvmovvsymgtw"
+    displayName = DisplayName ""
     tid = TeamId "ffa865fa-b24a-4697-aa05-1fc3f3654db9"
 
     now = NowEpoch 1704982162
