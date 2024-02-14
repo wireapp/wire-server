@@ -621,5 +621,75 @@ testLHGetMembersIncludesStatus = do
       -- bob has accepted the legalhold device
       statusShouldbe "enabled"
 
-testLHNoConsentBlockOne2OneConv :: Bool -> Bool -> Bool -> Bool -> App ()
-testLHNoConsentBlockOne2OneConv = undefined
+type TB s = TaggedBool s
+
+ut :: TB s -> Bool
+ut = unTagged
+
+testLHNoConsentBlockOne2OneConv :: TB "connect first" -> TB "team peer" -> TB "approve LH" -> TB "test pending connection" -> App ()
+testLHNoConsentBlockOne2OneConv
+  (ut -> connectFirst)
+  (ut -> teampeer)
+  (ut -> approveLH)
+  (ut -> testPendingConnection) = do
+    startDynamicBackends [mempty, mempty] \[dom1, dom2] -> do
+      -- team users
+      -- alice (team owner) and bob (member)
+      (alice, tid, []) <- createTeam dom1 1
+      alicec <- addClient alice def
+      bob <-
+        if teampeer
+          then do
+            (walice, _tid, []) <- createTeam dom2 1
+            pure walice
+          else randomUser dom1 def
+
+      legalholdWhitelistTeam tid alice
+        >>= assertStatus 200
+
+      let doEnableLH :: HasCallStack => App (Maybe String)
+          doEnableLH = do
+            -- alice requests a legalhold device for herself
+            requestLegalHoldDevice tid alice alice
+              >>= assertStatus 201
+
+            when approveLH do
+              approveLegalHoldDevice tid alice defPassword
+                >>= assertStatus 200
+            legalholdUserStatus tid alice alice `bindResponse` \resp -> do
+              resp.status `shouldMatchInt` 200
+              resp.json
+                %. "status"
+                `shouldMatch` if approveLH then "enabled" else "pending"
+            if approveLH
+              then do
+                aliceId <- objId alice
+                BrigI.getClientsFull alice [aliceId] `bindResponse` \resp -> do
+                  [lhd] <-
+                    resp.json %. aliceId
+                      & asList
+                      >>= filterM \val -> (== "legalhold") <$> (val %. "type" & asString)
+                  lhdid <- lhd %. "id" & asString
+                  pure (Just lhdid)
+              else pure Nothing
+
+          doDisableLH :: HasCallStack => App ()
+          doDisableLH =
+            disableLegalHold tid alice alice defPassword
+              >>= assertStatus 200
+
+      withMockServer lhMockApp \lhPort _chan -> do
+        postLegalHoldSettings tid alice (mkLegalHoldSettings lhPort)
+          >>= assertStatus 201
+
+        if not connectFirst
+          then do
+            void doEnableLH
+            postConnection alice bob
+              >>= assertLabel 403 "missing-legalhold-consent"
+
+            postConnection bob alice
+              >>= assertLabel 403 "missing-legalhold-consent"
+          else
+            postConnection alice bob
+              >>= assertStatus 201

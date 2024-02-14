@@ -415,7 +415,11 @@ testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH testPendingConnect
                   >>> Set.toList
                   >>> listToMaybe
                   >>> fmap clientId
-          else pure Nothing
+          else -- this looks like it's actually incorrect,
+          -- we might either get alices own device or her
+          -- legalhold device, depending on the order in which
+          -- the json is serialised
+            pure Nothing
 
       doDisableLH :: HasCallStack => TestM ()
       doDisableLH = do
