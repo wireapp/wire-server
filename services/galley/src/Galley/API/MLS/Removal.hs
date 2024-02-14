@@ -55,6 +55,7 @@ import Wire.API.MLS.Message
 import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
+import Wire.NotificationSubsystem
 
 -- | Send remove proposals for a set of clients to clients in the ClientMap.
 createAndSendRemoveProposals ::
@@ -62,7 +63,7 @@ createAndSendRemoveProposals ::
     Member TinyLog r,
     Member BackendNotificationQueueAccess r,
     Member ExternalAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member ProposalStore r,
     Member (Input Env) r,
     Foldable t
@@ -109,7 +110,7 @@ removeClientsWithClientMapRecursively ::
     Member TinyLog r,
     Member BackendNotificationQueueAccess r,
     Member ExternalAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member MemberStore r,
     Member ProposalStore r,
     Member SubConversationStore r,
@@ -141,7 +142,7 @@ removeClientsFromSubConvs ::
     Member TinyLog r,
     Member BackendNotificationQueueAccess r,
     Member ExternalAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member MemberStore r,
     Member ProposalStore r,
     Member SubConversationStore r,
@@ -177,7 +178,7 @@ removeClientsFromSubConvs lMlsConv getClients qusr = do
 removeClient ::
   ( Member BackendNotificationQueueAccess r,
     Member ExternalAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input Env) r,
     Member (Input UTCTime) r,
     Member MemberStore r,
@@ -212,7 +213,7 @@ data RemoveUserIncludeMain
 removeUser ::
   ( Member BackendNotificationQueueAccess r,
     Member ExternalAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input Env) r,
     Member (Input UTCTime) r,
     Member MemberStore r,
@@ -257,7 +258,7 @@ listSubConversations' cid = do
 removeExtraneousClients ::
   ( Member BackendNotificationQueueAccess r,
     Member ExternalAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input Env) r,
     Member (Input UTCTime) r,
     Member MemberStore r,

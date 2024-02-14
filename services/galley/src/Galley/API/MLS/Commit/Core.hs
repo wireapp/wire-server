@@ -61,6 +61,7 @@ import Wire.API.MLS.Commit
 import Wire.API.MLS.Credential
 import Wire.API.MLS.SubConversation
 import Wire.API.User.Client
+import Wire.NotificationSubsystem
 
 type HasProposalActionEffects r =
   ( Member BackendNotificationQueueAccess r,
@@ -78,7 +79,6 @@ type HasProposalActionEffects r =
     Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
-    Member GundeckAccess r,
     Member (Input Env) r,
     Member (Input Opts) r,
     Member (Input UTCTime) r,
@@ -87,7 +87,8 @@ type HasProposalActionEffects r =
     Member ProposalStore r,
     Member SubConversationStore r,
     Member TeamStore r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member NotificationSubsystem r
   )
 
 getCommitData ::

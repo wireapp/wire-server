@@ -35,7 +35,8 @@ module Brig.App
     stompEnv,
     cargohold,
     galley,
-    gundeck,
+    galleyEndpoint,
+    gundeckEndpoint,
     federator,
     casClient,
     userTemplates,
@@ -69,6 +70,7 @@ module Brig.App
     AppT (..),
     viewFederationDomain,
     qualifyLocal,
+    qualifyLocal',
 
     -- * Crutches that should be removed once Brig has been completely
 
@@ -80,6 +82,7 @@ module Brig.App
     wrapHttpClientE,
     wrapHttp,
     HttpClientIO (..),
+    runHttpClientIO,
     liftSem,
     lowerAppT,
     temporaryGetEnv,
@@ -137,6 +140,7 @@ import OpenSSL.Session (SSLOption (..))
 import OpenSSL.Session qualified as SSL
 import Polysemy
 import Polysemy.Final
+import Polysemy.Input (Input, input)
 import Ropes.Nexmo qualified as Nexmo
 import Ropes.Twilio qualified as Twilio
 import Ssl.Util
@@ -158,7 +162,8 @@ schemaVersion = Migrations.lastSchemaVersion
 data Env = Env
   { _cargohold :: RPC.Request,
     _galley :: RPC.Request,
-    _gundeck :: RPC.Request,
+    _galleyEndpoint :: Endpoint,
+    _gundeckEndpoint :: Endpoint,
     _federator :: Maybe Endpoint, -- FUTUREWORK: should we use a better type here? E.g. to avoid fresh connections all the time?
     _casClient :: Cas.ClientState,
     _smtpEnv :: Maybe SMTP.SMTP,
@@ -257,7 +262,8 @@ newEnv o = do
     Env
       { _cargohold = mkEndpoint $ Opt.cargohold o,
         _galley = mkEndpoint $ Opt.galley o,
-        _gundeck = mkEndpoint $ Opt.gundeck o,
+        _galleyEndpoint = Opt.galley o,
+        _gundeckEndpoint = Opt.gundeck o,
         _federator = Opt.federatorInternal o,
         _casClient = cas,
         _smtpEnv = emailSMTP,
@@ -305,13 +311,13 @@ newEnv o = do
     mkEndpoint service = RPC.host (encodeUtf8 (service ^. host)) . RPC.port (service ^. port) $ RPC.empty
 
 mkIndexEnv :: Opts -> Logger -> Manager -> Metrics -> Endpoint -> IndexEnv
-mkIndexEnv o lgr mgr mtr galleyEndpoint =
+mkIndexEnv o lgr mgr mtr galleyEp =
   let bhe = ES.mkBHEnv (ES.Server (Opt.url (Opt.elasticsearch o))) mgr
       lgr' = Log.clone (Just "index.brig") lgr
       mainIndex = ES.IndexName $ Opt.index (Opt.elasticsearch o)
       additionalIndex = ES.IndexName <$> Opt.additionalWriteIndex (Opt.elasticsearch o)
       additionalBhe = flip ES.mkBHEnv mgr . ES.Server <$> Opt.additionalWriteIndexUrl (Opt.elasticsearch o)
-   in IndexEnv mtr lgr' bhe Nothing mainIndex additionalIndex additionalBhe galleyEndpoint mgr
+   in IndexEnv mtr lgr' bhe Nothing mainIndex additionalIndex additionalBhe galleyEp mgr
 
 initZAuth :: Opts -> IO ZAuth.Env
 initZAuth o = do
@@ -525,14 +531,12 @@ wrapClientM = mapMaybeT wrapClient
 wrapHttp ::
   HttpClientIO a ->
   AppT r a
-wrapHttp (HttpClientIO m) = do
-  c <- view casClient
+wrapHttp action = do
   env <- ask
-  manager <- view httpManager
-  liftIO . runClient c . runHttpT manager $ runReaderT m env
+  runHttpClientIO env action
 
 newtype HttpClientIO a = HttpClientIO
-  { runHttpClientIO :: ReaderT Env (HttpT Cas.Client) a
+  { unHttpClientIO :: ReaderT Env (HttpT Cas.Client) a
   }
   deriving newtype
     ( Functor,
@@ -548,6 +552,13 @@ newtype HttpClientIO a = HttpClientIO
       MonadUnliftIO,
       MonadIndexIO
     )
+
+runHttpClientIO :: MonadIO m => Env -> HttpClientIO a -> m a
+runHttpClientIO env =
+  runClient (env ^. casClient)
+    . runHttpT (env ^. httpManager)
+    . flip runReaderT env
+    . unHttpClientIO
 
 instance MonadZAuth HttpClientIO where
   liftZAuth za = view zauthEnv >>= flip runZAuth za
@@ -590,3 +601,6 @@ viewFederationDomain = view (settings . Opt.federationDomain)
 
 qualifyLocal :: (MonadReader Env m) => a -> m (Local a)
 qualifyLocal a = toLocalUnsafe <$> viewFederationDomain <*> pure a
+
+qualifyLocal' :: (Member (Input (Local ()))) r => a -> Sem r (Local a)
+qualifyLocal' a = flip toLocalUnsafe a . tDomain <$> input

@@ -1,8 +1,8 @@
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE DeepSubsumption #-}
 
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2024 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -17,26 +17,25 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Effects.GundeckAccess
-  ( -- * Gundeck access effect
-    GundeckAccess (..),
-    push,
-    push1,
-    pushSlowly,
-  )
-where
+module Brig.Effects.ConnectionStore.Cassandra where
 
-import Galley.Intra.Push qualified as G
+import Brig.Data.Connection
+import Brig.Effects.ConnectionStore
+import Cassandra
+import Data.Range
 import Imports
 import Polysemy
+import Polysemy.Internal.Tactics
+import Wire.Sem.Paging.Cassandra
 
-data GundeckAccess m a where
-  Push :: Foldable f => f G.Push -> GundeckAccess m ()
-  PushSlowly :: Foldable f => f G.Push -> GundeckAccess m ()
-
-makeSem ''GundeckAccess
-
--- | Asynchronously send a single push, chunking it into multiple
--- requests if there are more than 128 recipients.
-push1 :: Member GundeckAccess r => G.Push -> Sem r ()
-push1 x = push [x]
+connectionStoreToCassandra ::
+  forall r a.
+  (Member (Embed Client) r) =>
+  Sem (ConnectionStore InternalPaging ': r) a ->
+  Sem r a
+connectionStoreToCassandra =
+  interpretH $
+    liftT . embed @Client . \case
+      RemoteConnectedUsersPaginated uid mps bounds -> case mps of
+        Nothing -> flip mkInternalPage pure =<< lookupRemoteConnectedUsersPaginated uid (fromRange bounds)
+        Just ps -> ipNext ps

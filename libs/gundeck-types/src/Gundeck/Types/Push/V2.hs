@@ -171,14 +171,15 @@ instance ToJSON RecipientClients where
 -- ApsData
 
 newtype ApsSound = ApsSound {fromSound :: Text}
-  deriving (Eq, Show, ToJSON, FromJSON)
+  deriving (Eq, Show, ToJSON, FromJSON, Arbitrary)
 
 newtype ApsLocKey = ApsLocKey {fromLocKey :: Text}
-  deriving (Eq, Show, ToJSON, FromJSON)
+  deriving (Eq, Show, ToJSON, FromJSON, Arbitrary)
 
 data ApsPreference
   = ApsStdPreference
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via GenericUniform ApsPreference
 
 instance ToJSON ApsPreference where
   toJSON ApsStdPreference = "std"
@@ -195,7 +196,8 @@ data ApsData = ApsData
     _apsPreference :: !(Maybe ApsPreference),
     _apsBadge :: !Bool
   }
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via GenericUniform ApsData
 
 makeLenses ''ApsData
 

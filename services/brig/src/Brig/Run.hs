@@ -71,7 +71,6 @@ import System.Logger (Logger, msg, val, (.=), (~~))
 import System.Logger qualified as Log
 import System.Logger.Class (MonadLogger, err)
 import Util.Options
-import Wire.API.Federation.API
 import Wire.API.Routes.API
 import Wire.API.Routes.Public.Brig
 import Wire.API.Routes.Version
@@ -92,7 +91,7 @@ run o = do
       runBrigToIO e $
         wrapHttpClient $
           Queue.listen (e ^. internalEvents) $
-            unsafeCallsFed @'Brig @"on-user-deleted-connections" Internal.onEvent
+            liftIO . runBrigToIO e . liftSem . Internal.onEvent
   let throttleMillis = fromMaybe defSqsThrottleMillis $ setSqsThrottleMillis (optSettings o)
   emailListener <- for (e ^. awsEnv . sesQueue) $ \q ->
     Async.async $

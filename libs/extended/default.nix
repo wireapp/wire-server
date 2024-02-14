@@ -31,6 +31,7 @@
 , servant-server
 , temporary
 , text
+, time
 , tinylog
 , unliftio
 , wai
@@ -63,6 +64,7 @@ mkDerivation {
     servant-openapi3
     servant-server
     text
+    time
     tinylog
     unliftio
     wai

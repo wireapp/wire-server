@@ -1,8 +1,8 @@
 module Test.Brig.Effects.Delay where
 
-import Brig.Effects.Delay
 import Imports
 import Polysemy
+import Wire.Sem.Delay
 
 -- | Ignores the delay time and only progresses when the 'MVar' is empty using
 -- 'putMVar'. This way a test using this interpreter can know when the delay

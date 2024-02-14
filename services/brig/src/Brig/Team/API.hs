@@ -36,6 +36,7 @@ import Brig.Data.UserKey
 import Brig.Data.UserKey qualified as Data
 import Brig.Effects.BlacklistStore (BlacklistStore)
 import Brig.Effects.BlacklistStore qualified as BlacklistStore
+import Brig.Effects.ConnectionStore (ConnectionStore)
 import Brig.Effects.GalleyProvider (GalleyProvider)
 import Brig.Effects.GalleyProvider qualified as GalleyProvider
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
@@ -53,11 +54,15 @@ import Control.Monad.Trans.Except (mapExceptT)
 import Data.ByteString.Conversion (toByteString, toByteString')
 import Data.Id
 import Data.List1 qualified as List1
+import Data.Qualified (Local)
 import Data.Range
+import Data.Time.Clock (UTCTime)
 import Galley.Types.Teams qualified as Team
 import Imports hiding (head)
 import Network.Wai.Utilities hiding (code, message)
-import Polysemy (Member)
+import Polysemy
+import Polysemy.Input (Input)
+import Polysemy.TinyLog (TinyLog)
 import Servant hiding (Handler, JSON, addHeader)
 import System.Logger.Class qualified as Log
 import System.Logger.Message as Log
@@ -78,6 +83,9 @@ import Wire.API.Team.Role
 import Wire.API.Team.Role qualified as Public
 import Wire.API.User hiding (fromEmail)
 import Wire.API.User qualified as Public
+import Wire.NotificationSubsystem
+import Wire.Sem.Concurrency
+import Wire.Sem.Paging.Cassandra (InternalPaging)
 
 servantAPI ::
   ( Member BlacklistStore r,
@@ -158,7 +166,8 @@ createInvitationPublic uid tid body = do
 createInvitationViaScim ::
   ( Member BlacklistStore r,
     Member GalleyProvider r,
-    Member (UserPendingActivationStore p) r
+    Member (UserPendingActivationStore p) r,
+    Member TinyLog r
   ) =>
   TeamId ->
   NewUserScimInvitation ->
@@ -303,7 +312,18 @@ getInvitationByEmail email = do
   inv <- lift $ wrapClient $ DB.lookupInvitationByEmail HideInvitationUrl email
   maybe (throwStd (notFound "Invitation not found")) pure inv
 
-suspendTeam :: (Member GalleyProvider r) => TeamId -> (Handler r) NoContent
+suspendTeam ::
+  ( Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member (Concurrency 'Unsafe) r,
+    Member GalleyProvider r,
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
+  ) =>
+  TeamId ->
+  (Handler r) NoContent
 suspendTeam tid = do
   Log.info $ Log.msg (Log.val "Team suspended") ~~ Log.field "team" (toByteString tid)
   changeTeamAccountStatuses tid Suspended
@@ -312,7 +332,15 @@ suspendTeam tid = do
   pure NoContent
 
 unsuspendTeam ::
-  (Member GalleyProvider r) =>
+  ( Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member (Concurrency 'Unsafe) r,
+    Member GalleyProvider r,
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
+  ) =>
   TeamId ->
   (Handler r) NoContent
 unsuspendTeam tid = do
@@ -324,7 +352,15 @@ unsuspendTeam tid = do
 -- Internal
 
 changeTeamAccountStatuses ::
-  (Member GalleyProvider r) =>
+  ( Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member (Concurrency 'Unsafe) r,
+    Member GalleyProvider r,
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
+  ) =>
   TeamId ->
   AccountStatus ->
   (Handler r) ()
@@ -333,7 +369,7 @@ changeTeamAccountStatuses tid s = do
   unless (team ^. teamBinding == Binding) $
     throwStd noBindingTeam
   uids <- toList1 =<< lift (fmap (view Teams.userId) . view teamMembers <$> liftSem (GalleyProvider.getTeamMembers tid))
-  wrapHttpClientE (API.changeAccountStatus uids s) !>> accountStatusError
+  API.changeAccountStatus uids s !>> accountStatusError
   where
     toList1 (x : xs) = pure $ List1.list1 x xs
     toList1 [] = throwStd (notFound "Team not found or no members")

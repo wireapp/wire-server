@@ -39,6 +39,7 @@ where
 import Control.Lens
 import Data.ByteString.Conversion (toByteString')
 import Data.Id
+import Data.Json.Util
 import Data.Kind
 import Data.Qualified (Local)
 import Data.Schema
@@ -52,12 +53,10 @@ import Galley.API.Util (assertTeamExists, getTeamMembersForFanout, membersToReci
 import Galley.App
 import Galley.Effects
 import Galley.Effects.BrigAccess (updateSearchVisibilityInbound)
-import Galley.Effects.GundeckAccess
 import Galley.Effects.SearchVisibilityStore qualified as SearchVisibilityData
 import Galley.Effects.TeamFeatureStore
 import Galley.Effects.TeamFeatureStore qualified as TeamFeatures
 import Galley.Effects.TeamStore (getLegalHoldFlag, getTeamMember)
-import Galley.Intra.Push (PushEvent (FeatureConfigEvent), newPush)
 import Galley.Types.Teams
 import Imports
 import Polysemy
@@ -72,6 +71,7 @@ import Wire.API.Event.FeatureConfig qualified as Event
 import Wire.API.Federation.Error
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
+import Wire.NotificationSubsystem
 import Wire.Sem.Paging
 import Wire.Sem.Paging.Cassandra
 
@@ -85,7 +85,7 @@ patchFeatureStatusInternal ::
     Member TeamStore r,
     Member TeamFeatureStore r,
     Member (P.Logger (Log.Msg -> Log.Msg)) r,
-    Member GundeckAccess r
+    Member NotificationSubsystem r
   ) =>
   TeamId ->
   WithStatusPatch cfg ->
@@ -119,7 +119,7 @@ setFeatureStatus ::
     Member TeamStore r,
     Member TeamFeatureStore r,
     Member (P.Logger (Log.Msg -> Log.Msg)) r,
-    Member GundeckAccess r
+    Member NotificationSubsystem r
   ) =>
   DoAuth ->
   TeamId ->
@@ -147,7 +147,7 @@ setFeatureStatusInternal ::
     Member TeamStore r,
     Member TeamFeatureStore r,
     Member (P.Logger (Log.Msg -> Log.Msg)) r,
-    Member GundeckAccess r
+    Member NotificationSubsystem r
   ) =>
   TeamId ->
   WithStatusNoLock cfg ->
@@ -177,7 +177,7 @@ persistAndPushEvent ::
     GetConfigForTeamConstraints cfg r,
     Member TeamFeatureStore r,
     Member (P.Logger (Log.Msg -> Log.Msg)) r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member TeamStore r
   ) =>
   TeamId ->
@@ -190,7 +190,7 @@ persistAndPushEvent tid wsnl = do
   pure fs
 
 pushFeatureConfigEvent ::
-  ( Member GundeckAccess r,
+  ( Member NotificationSubsystem r,
     Member TeamStore r,
     Member P.TinyLog r
   ) =>
@@ -199,16 +199,18 @@ pushFeatureConfigEvent ::
   Sem r ()
 pushFeatureConfigEvent tid event = do
   memList <- getTeamMembersForFanout tid
-  when ((memList ^. teamMemberListType) == ListTruncated) $ do
-    P.warn $
-      Log.field "action" (Log.val "Features.pushFeatureConfigEvent")
-        . Log.field "feature" (Log.val (toByteString' . Event._eventFeatureName $ event))
-        . Log.field "team" (Log.val (cs . show $ tid))
-        . Log.msg @Text "Fanout limit exceeded. Some events will not be sent."
-  let recipients = membersToRecipients Nothing (memList ^. teamMembers)
-  for_
-    (newPush (memList ^. teamMemberListType) Nothing (FeatureConfigEvent event) recipients)
-    push1
+  if ((memList ^. teamMemberListType) == ListTruncated)
+    then do
+      P.warn $
+        Log.field "action" (Log.val "Features.pushFeatureConfigEvent")
+          . Log.field "feature" (Log.val (toByteString' . Event._eventFeatureName $ event))
+          . Log.field "team" (Log.val (cs . show $ tid))
+          . Log.msg @Text "Fanout limit exceeded. Events will not be sent."
+    else do
+      let recipients = membersToRecipients Nothing (memList ^. teamMembers)
+      pushNotifications $
+        maybeToList $
+          (newPush Nothing (toJSONObject event) recipients)
 
 guardLockStatus ::
   forall r.
@@ -235,7 +237,7 @@ class GetFeatureConfig cfg => SetFeatureConfig cfg where
       GetConfigForTeamConstraints cfg r,
       ( Member TeamFeatureStore r,
         Member (P.Logger (Log.Msg -> Log.Msg)) r,
-        Member GundeckAccess r,
+        Member NotificationSubsystem r,
         Member TeamStore r
       )
     ) =>
@@ -249,7 +251,7 @@ class GetFeatureConfig cfg => SetFeatureConfig cfg where
       Members
         '[ TeamFeatureStore,
            P.Logger (Log.Msg -> Log.Msg),
-           GundeckAccess,
+           NotificationSubsystem,
            TeamStore
          ]
         r
@@ -305,7 +307,7 @@ instance SetFeatureConfig LegalholdConfig where
         Member ExternalAccess r,
         Member FederatorAccess r,
         Member FireAndForget r,
-        Member GundeckAccess r,
+        Member NotificationSubsystem r,
         Member (Input (Local ())) r,
         Member (Input Env) r,
         Member (Input UTCTime) r,

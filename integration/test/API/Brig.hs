@@ -1,5 +1,6 @@
 module API.Brig where
 
+import API.BrigCommon
 import API.Common
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Base64 as Base64
@@ -148,30 +149,6 @@ deleteUser user = do
   submit "DELETE" $
     req & addJSONObject ["password" .= defPassword]
 
-data AddClient = AddClient
-  { ctype :: String,
-    internal :: Bool,
-    clabel :: String,
-    model :: String,
-    prekeys :: Maybe [Value],
-    lastPrekey :: Maybe Value,
-    password :: String,
-    acapabilities :: Maybe [String]
-  }
-
-instance Default AddClient where
-  def =
-    AddClient
-      { ctype = "permanent",
-        internal = False,
-        clabel = "Test Device",
-        model = "Test Model",
-        prekeys = Nothing,
-        lastPrekey = Nothing,
-        password = defPassword,
-        acapabilities = Just ["legalhold-implicit-consent"]
-      }
-
 -- | https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/#/brig/post_i_clients__uid_
 addClient ::
   (HasCallStack, MakesValue user) =>
@@ -179,21 +156,9 @@ addClient ::
   AddClient ->
   App Response
 addClient user args = do
-  uid <- objId user
-  req <- baseRequest user Brig Unversioned $ "/i/clients/" <> uid
-  pks <- maybe (fmap pure getPrekey) pure args.prekeys
-  lpk <- maybe getLastPrekey pure args.lastPrekey
-  submit "POST" $
-    req
-      & addJSONObject
-        [ "prekeys" .= pks,
-          "lastkey" .= lpk,
-          "type" .= args.ctype,
-          "label" .= args.clabel,
-          "model" .= args.model,
-          "password" .= args.password,
-          "capabilities" .= args.acapabilities
-        ]
+  req <- baseRequest user Brig Versioned $ "/clients"
+  val <- mkAddClientValue args
+  submit "POST" $ req & addJSONObject val
 
 data UpdateClient = UpdateClient
   { prekeys :: [Value],
@@ -230,6 +195,7 @@ updateClient cid args = do
             <> ["mls_public_keys" .= k | k <- toList args.mlsPublicKeys]
         )
 
+-- | https://staging-nginz-https.zinfra.io/v6/api/swagger-ui/#/default/delete_clients__client_
 deleteClient ::
   (HasCallStack, MakesValue user, MakesValue client) =>
   user ->

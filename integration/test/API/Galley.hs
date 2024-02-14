@@ -548,6 +548,37 @@ putAppLockSettings tid caller settings = do
         req
     )
 
+data TeamProperties = TeamProperties
+  { icon :: String,
+    iconKey :: String,
+    name :: String,
+    spashScreen :: String
+  }
+
+instance Default TeamProperties where
+  def = TeamProperties "default" "default" "test" "default"
+
+-- | https://staging-nginz-https.zinfra.io/v6/api/swagger-ui/#/default/put_teams__tid_
+putTeamProperties ::
+  (HasCallStack, MakesValue tid, MakesValue caller) =>
+  tid ->
+  caller ->
+  TeamProperties ->
+  App Response
+putTeamProperties tid caller properties = do
+  tidStr <- asString tid
+  req <- baseRequest caller Galley Versioned (joinHttpPath ["teams", tidStr])
+  submit
+    "PUT"
+    ( addJSONObject
+        [ "icon" .= properties.icon,
+          "icon_key" .= properties.iconKey,
+          "name" .= properties.name,
+          "splash_screen" .= properties.spashScreen
+        ]
+        req
+    )
+
 -- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/post_teams__tid__legalhold_settings
 enableLegalHold :: (HasCallStack, MakesValue tid, MakesValue ownerid) => tid -> ownerid -> App Response
 enableLegalHold tid ownerid = do

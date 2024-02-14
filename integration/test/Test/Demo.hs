@@ -12,17 +12,6 @@ import GHC.Stack
 import SetupHelpers
 import Testlib.Prelude
 
--- | Legalhold clients cannot be deleted.
-testCantDeleteLHClient :: HasCallStack => App ()
-testCantDeleteLHClient = do
-  user <- randomUser OwnDomain def
-  client <-
-    BrigP.addClient user def {BrigP.ctype = "legalhold", BrigP.internal = True}
-      >>= getJSON 201
-
-  bindResponse (BrigP.deleteClient user client) $ \resp -> do
-    resp.status `shouldMatchInt` 400
-
 -- | Deleting unknown clients should fail with 404.
 testDeleteUnknownClient :: HasCallStack => App ()
 testDeleteUnknownClient = do

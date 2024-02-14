@@ -53,6 +53,7 @@ import Brig.App
 import Brig.Data.Client qualified as Data
 import Brig.Data.Nonce as Nonce
 import Brig.Data.User qualified as Data
+import Brig.Effects.ConnectionStore (ConnectionStore)
 import Brig.Effects.GalleyProvider (GalleyProvider)
 import Brig.Effects.GalleyProvider qualified as GalleyProvider
 import Brig.Effects.JwtTools (JwtTools)
@@ -86,10 +87,13 @@ import Data.Map.Strict qualified as Map
 import Data.Misc (PlainTextPassword6)
 import Data.Qualified
 import Data.Set qualified as Set
+import Data.Time.Clock (UTCTime)
 import Imports
 import Network.HTTP.Types.Method (StdMethod)
 import Network.Wai.Utilities
-import Polysemy (Member)
+import Polysemy
+import Polysemy.Input (Input)
+import Polysemy.TinyLog
 import Servant (Link, ToHttpApiData (toUrlPiece))
 import System.Logger.Class (field, msg, val, (~~))
 import System.Logger.Class qualified as Log
@@ -105,9 +109,11 @@ import Wire.API.User.Client
 import Wire.API.User.Client.DPoPAccessToken
 import Wire.API.User.Client.Prekey
 import Wire.API.UserMap (QualifiedUserMap (QualifiedUserMap, qualifiedUserMap), UserMap (userMap))
+import Wire.NotificationSubsystem
 import Wire.Sem.Concurrency
 import Wire.Sem.FromUTC (FromUTC (fromUTCTime))
 import Wire.Sem.Now as Now
+import Wire.Sem.Paging.Cassandra (InternalPaging)
 
 lookupLocalClient :: UserId -> ClientId -> (AppT r) (Maybe Client)
 lookupLocalClient uid = wrapClient . Data.lookupClient uid
@@ -153,7 +159,14 @@ lookupLocalPubClientsBulk :: [UserId] -> ExceptT ClientError (AppT r) (UserMap (
 lookupLocalPubClientsBulk = lift . wrapClient . Data.lookupPubClientsBulk
 
 addClient ::
-  (Member GalleyProvider r) =>
+  ( Member GalleyProvider r,
+    Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
+  ) =>
   UserId ->
   Maybe ConnId ->
   NewClient ->
@@ -164,7 +177,14 @@ addClient = addClientWithReAuthPolicy Data.reAuthForNewClients
 -- a superset of the clients known to galley.
 addClientWithReAuthPolicy ::
   forall r.
-  (Member GalleyProvider r) =>
+  ( Member GalleyProvider r,
+    Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
+  ) =>
   Data.ReAuthPolicy ->
   UserId ->
   Maybe ConnId ->
@@ -191,8 +211,8 @@ addClientWithReAuthPolicy policy u con new = do
   lift $ do
     for_ old $ execDelete u con
     liftSem $ GalleyProvider.newClient u (clientId clt)
-    wrapHttp $ Intra.onClientEvent u con (ClientAdded u clt)
-    when (clientType clt == LegalHoldClientType) $ wrapHttpClient $ Intra.onUserEvent u con (UserLegalHoldEnabled u)
+    liftSem $ Intra.onClientEvent u con (ClientAdded u clt)
+    when (clientType clt == LegalHoldClientType) $ liftSem $ Intra.onUserEvent u con (UserLegalHoldEnabled u)
     when (count > 1) $
       for_ (userEmail usr) $
         \email ->
@@ -462,9 +482,19 @@ pubClient c =
       pubClientClass = clientClass c
     }
 
-legalHoldClientRequested :: UserId -> LegalHoldClientRequest -> (AppT r) ()
+legalHoldClientRequested ::
+  ( Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
+  ) =>
+  UserId ->
+  LegalHoldClientRequest ->
+  AppT r ()
 legalHoldClientRequested targetUser (LegalHoldClientRequest _requester lastPrekey') =
-  wrapHttpClient $ Intra.onUserEvent targetUser Nothing lhClientEvent
+  liftSem $ Intra.onUserEvent targetUser Nothing lhClientEvent
   where
     clientId :: ClientId
     clientId = clientIdFromPrekey $ unpackLastPrekey lastPrekey'
@@ -473,14 +503,23 @@ legalHoldClientRequested targetUser (LegalHoldClientRequest _requester lastPreke
     lhClientEvent :: UserEvent
     lhClientEvent = LegalHoldClientRequested eventData
 
-removeLegalHoldClient :: UserId -> (AppT r) ()
+removeLegalHoldClient ::
+  ( Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
+  ) =>
+  UserId ->
+  AppT r ()
 removeLegalHoldClient uid = do
   clients <- wrapClient $ Data.lookupClients uid
   -- Should only be one; but just in case we'll treat it as a list
   let legalHoldClients = filter ((== LegalHoldClientType) . clientType) clients
   -- maybe log if this isn't the case
   forM_ legalHoldClients (execDelete uid Nothing)
-  wrapHttpClient $ Intra.onUserEvent uid Nothing (UserLegalHoldDisabled uid)
+  liftSem $ Intra.onUserEvent uid Nothing (UserLegalHoldDisabled uid)
 
 createAccessToken ::
   (Member JwtTools r, Member Now r, Member PublicKeyBundle r) =>

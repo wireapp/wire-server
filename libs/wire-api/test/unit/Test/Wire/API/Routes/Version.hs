@@ -3,6 +3,7 @@ module Test.Wire.API.Routes.Version where
 import Data.Aeson as Aeson
 import Data.Binary.Builder
 import Data.ByteString.Conversion
+import Data.Set as Set
 import Imports
 import Servant.API
 import Test.Tasty
@@ -34,6 +35,13 @@ tests =
           testCase "toEncodedUrlPiece" $ tail . show . fromVersionNumber <$> allVersionNumbers @=? cs . toLazyByteString . toEncodedUrlPiece <$> allVersionNumbers,
           testCase "toHeader" $ tail . show . fromVersionNumber <$> allVersionNumbers @=? cs . toHeader <$> allVersionNumbers,
           testCase "toQueryParam" $ tail . show . fromVersionNumber <$> allVersionNumbers @=? cs . toQueryParam <$> allVersionNumbers
+        ],
+      testGroup "Version: maxAvailableVersion" $
+        [ testCase "no version disable" $ maxAvailableVersion mempty @=? Just (maximum allVersions),
+          testCase "all versions disabled" $ maxAvailableVersion (Set.fromList allVersions) @=? Nothing,
+          testCase "all but the min version disabled" $ maxAvailableVersion (Set.fromList (tail allVersions)) @=? Just (minimum allVersions),
+          testCase "all but the max version disabled" $ maxAvailableVersion (Set.fromList (init allVersions)) @=? Just (maximum allVersions),
+          testCase "highest version disabled" $ maxAvailableVersion (Set.singleton (last allVersions)) @=? Just (maximum (init allVersions))
         ]
     ]
 

@@ -58,7 +58,6 @@ import Galley.Effects
 import Galley.Effects.ConversationStore qualified as E
 import Galley.Effects.FireAndForget qualified as E
 import Galley.Effects.MemberStore qualified as E
-import Galley.Intra.Push.Internal hiding (push)
 import Galley.Options
 import Galley.Types.Conversations.Members
 import Galley.Types.Conversations.One2One
@@ -94,6 +93,7 @@ import Wire.API.Message
 import Wire.API.Routes.Named
 import Wire.API.ServantProto
 import Wire.API.User (BaseProtocolTag (..))
+import Wire.NotificationSubsystem
 
 type FederationAPI = "federation" :> FedApi 'Galley
 
@@ -126,7 +126,7 @@ onClientRemoved ::
   ( Member BackendNotificationQueueAccess r,
     Member ConversationStore r,
     Member ExternalAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input Env) r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
@@ -150,7 +150,7 @@ onClientRemoved domain req = do
 
 onConversationCreated ::
   ( Member BrigAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member ExternalAccess r,
     Member (Input (Local ())) r,
     Member MemberStore r,
@@ -211,7 +211,7 @@ getConversations domain (GetConversationsRequest uid cids) = do
 -- or leaving. Finally, push out notifications to local users.
 onConversationUpdated ::
   ( Member BrigAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member ExternalAccess r,
     Member (Input (Local ())) r,
     Member MemberStore r,
@@ -232,7 +232,7 @@ leaveConversation ::
     Member (Error InternalError) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input Env) r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
@@ -301,7 +301,7 @@ leaveConversation requestingDomain lc = do
 -- FUTUREWORK: error handling for missing / mismatched clients
 -- FUTUREWORK: support bots
 onMessageSent ::
-  ( Member GundeckAccess r,
+  ( Member NotificationSubsystem r,
     Member ExternalAccess r,
     Member MemberStore r,
     Member (Input (Local ())) r,
@@ -315,7 +315,7 @@ onMessageSent domain rmUnqualified = do
       convId = tUntagged rm.conversation
       msgMetadata =
         MessageMetadata
-          { mmNativePush = push rm,
+          { mmNativePush = rm.push,
             mmTransient = transient rm,
             mmNativePriority = priority rm,
             mmData = _data rm
@@ -355,7 +355,7 @@ sendMessage ::
     Member (Error InvalidInput) r,
     Member FederatorAccess r,
     Member BackendNotificationQueueAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member (Input Opts) r,
     Member (Input UTCTime) r,
@@ -379,7 +379,7 @@ onUserDeleted ::
     Member ConversationStore r,
     Member FireAndForget r,
     Member ExternalAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member (Input Env) r,
@@ -442,7 +442,7 @@ updateConversation ::
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member (Error InternalError) r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input Env) r,
     Member (Input Opts) r,
     Member (Input UTCTime) r,
@@ -561,7 +561,7 @@ sendMLSCommitBundle ::
     Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member FederatorAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member (Input Env) r,
     Member (Input Opts) r,
@@ -606,7 +606,7 @@ sendMLSMessage ::
     Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member FederatorAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member (Input Env) r,
     Member (Input Opts) r,
@@ -767,7 +767,7 @@ instance
 
 onMLSMessageSent ::
   ( Member ExternalAccess r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member (Input Env) r,
     Member MemberStore r,
@@ -821,7 +821,7 @@ onMLSMessageSent domain rmm =
 
 mlsSendWelcome ::
   ( Member (Error InternalError) r,
-    Member GundeckAccess r,
+    Member NotificationSubsystem r,
     Member ExternalAccess r,
     Member P.TinyLog r,
     Member (Input Env) r,
@@ -873,7 +873,7 @@ queryGroupInfo origDomain req =
         $ state
 
 updateTypingIndicator ::
-  ( Member GundeckAccess r,
+  ( Member NotificationSubsystem r,
     Member FederatorAccess r,
     Member ConversationStore r,
     Member (Input UTCTime) r,
@@ -895,7 +895,7 @@ updateTypingIndicator origDomain TypingDataUpdateRequest {..} = do
   pure (either TypingDataUpdateError TypingDataUpdateSuccess ret)
 
 onTypingIndicatorUpdated ::
-  ( Member GundeckAccess r
+  ( Member NotificationSubsystem r
   ) =>
   Domain ->
   TypingDataUpdated ->

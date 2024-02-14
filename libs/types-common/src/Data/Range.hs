@@ -508,6 +508,9 @@ genRange pack_ gc =
 instance (KnownNat n, KnownNat m, n <= m) => Arbitrary (Range n m Integer) where
   arbitrary = genIntegral
 
+instance (KnownNat n, KnownNat m, n <= m) => Arbitrary (Range n m Int32) where
+  arbitrary = genIntegral
+
 instance (KnownNat n, KnownNat m, n <= m) => Arbitrary (Range n m Word) where
   arbitrary = genIntegral
 

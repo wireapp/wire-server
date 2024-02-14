@@ -1,6 +1,6 @@
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2024 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -14,37 +14,22 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# LANGUAGE TemplateHaskell #-}
 
-module Galley.Intra.Push
-  ( -- * Push
-    Push,
-    newPush,
-    newPushLocal,
-    newConversationEventPush,
-    newPush1,
-    newPushLocal1,
-    PushEvent (..),
+module Brig.Effects.ConnectionStore where
 
-    -- * Push Configuration
-    pushConn,
-    pushTransient,
-    pushRoute,
-    pushNativePriority,
-    pushAsync,
-    pushRecipients,
+import Data.Id
+import Data.Qualified (Local, Remote)
+import Imports
+import Polysemy
+import Wire.API.Connection (UserConnection)
+import Wire.Sem.Paging (Page, PagingBounds, PagingState)
 
-    -- * Push Recipients
-    Recipient,
-    recipient,
-    userRecipient,
-    recipientUserId,
-    recipientClients,
+data ConnectionStore p m a where
+  RemoteConnectedUsersPaginated ::
+    Local UserId ->
+    Maybe (PagingState p (Remote UserConnection)) ->
+    PagingBounds p (Remote UserConnection) ->
+    ConnectionStore p m (Page p (Remote UserConnection))
 
-    -- * Re-Exports
-    Gundeck.Route (..),
-    Gundeck.Priority (..),
-  )
-where
-
-import Galley.Intra.Push.Internal
-import Gundeck.Types.Push.V2 qualified as Gundeck
+makeSem ''ConnectionStore

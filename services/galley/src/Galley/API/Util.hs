@@ -26,6 +26,7 @@ import Data.ByteString.Conversion
 import Data.Code qualified as Code
 import Data.Domain (Domain)
 import Data.Id as Id
+import Data.Json.Util
 import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
 import Data.List.Extra (chunksOf, nubOrd)
 import Data.List.NonEmpty (NonEmpty)
@@ -49,16 +50,15 @@ import Galley.Effects.CodeStore
 import Galley.Effects.ConversationStore
 import Galley.Effects.ExternalAccess
 import Galley.Effects.FederatorAccess
-import Galley.Effects.GundeckAccess
 import Galley.Effects.LegalHoldStore
 import Galley.Effects.MemberStore
 import Galley.Effects.TeamStore
-import Galley.Intra.Push
 import Galley.Options
 import Galley.Types.Conversations.Members
 import Galley.Types.Conversations.Roles
 import Galley.Types.Teams
 import Galley.Types.UserList
+import Gundeck.Types.Push.V2 qualified as PushV2
 import Imports hiding (forkIO)
 import Network.HTTP.Types
 import Network.Wai
@@ -89,6 +89,7 @@ import Wire.API.Team.Member qualified as Mem
 import Wire.API.Team.Role
 import Wire.API.User hiding (userId)
 import Wire.API.User.Auth.ReAuth
+import Wire.NotificationSubsystem
 
 type JSON = Media "application" "json"
 
@@ -315,9 +316,9 @@ acceptOne2One ::
     Member (ErrorS 'ConvNotFound) r,
     Member (Error InternalError) r,
     Member (ErrorS 'InvalidOperation) r,
-    Member GundeckAccess r,
     Member (Input UTCTime) r,
-    Member MemberStore r
+    Member MemberStore r,
+    Member NotificationSubsystem r
   ) =>
   Local UserId ->
   Data.Conversation ->
@@ -344,8 +345,8 @@ acceptOne2One lusr conv conn = do
         let e = memberJoinEvent lusr (tUntagged lcid) now mm []
         conv' <- if isJust (find ((tUnqualified lusr /=) . lmId) mems) then promote else pure conv
         let mems' = mems <> toList mm
-        for_ (newPushLocal ListComplete (tUnqualified lusr) (ConvEvent e) (recipient <$> mems')) $ \p ->
-          push1 $ p & pushConn .~ conn & pushRoute .~ RouteDirect
+        for_ (newPushLocal (tUnqualified lusr) (toJSONObject e) (localMemberToRecipient <$> mems')) $ \p ->
+          pushNotifications [p & pushConn .~ conn & pushRoute .~ PushV2.RouteDirect]
         pure conv' {Data.convLocalMembers = mems'}
     _ -> throwS @'InvalidOperation
   where
@@ -354,6 +355,12 @@ acceptOne2One lusr conv conn = do
     promote = do
       acceptConnectConversation cid
       pure $ Data.convSetType One2OneConv conv
+
+localMemberToRecipient :: LocalMember -> Recipient
+localMemberToRecipient = userRecipient . lmId
+
+userRecipient :: UserId -> Recipient
+userRecipient u = Recipient u PushV2.RecipientClientsAll
 
 memberJoinEvent ::
   Local UserId ->
@@ -630,8 +637,8 @@ canDeleteMember deleter deletee
 
 -- | Send an event to local users and bots
 pushConversationEvent ::
-  ( Member GundeckAccess r,
-    Member ExternalAccess r,
+  ( Member ExternalAccess r,
+    Member NotificationSubsystem r,
     Foldable f
   ) =>
   Maybe ConnId ->
@@ -641,8 +648,13 @@ pushConversationEvent ::
   Sem r ()
 pushConversationEvent conn e lusers bots = do
   for_ (newConversationEventPush e (fmap toList lusers)) $ \p ->
-    push1 $ p & set pushConn conn
+    pushNotifications [p & set pushConn conn]
   deliverAsync (map (,e) (toList bots))
+
+newConversationEventPush :: Event -> Local [UserId] -> Maybe Push
+newConversationEventPush e users =
+  let musr = guard (tDomain users == qDomain (evtFrom e)) $> qUnqualified (evtFrom e)
+   in newPush musr (toJSONObject e) (map userRecipient (tUnqualified users))
 
 verifyReusableCode ::
   ( Member CodeStore r,
@@ -986,8 +998,11 @@ allLegalholdConsentGiven uids = do
       -- a whitelisted team is equivalent to have given consent to be in a
       -- conversation with user under legalhold.
       flip allM (chunksOf 32 uids) $ \uidsPage -> do
-        teamsPage <- nub . Map.elems <$> getUsersTeams uidsPage
-        allM isTeamLegalholdWhitelisted teamsPage
+        teamsPage <- getUsersTeams uidsPage
+        allM (eitherTeamMemberAndLHAllowedOrDefLHStatus teamsPage) uidsPage
+      where
+        eitherTeamMemberAndLHAllowedOrDefLHStatus teamsPage uid = do
+          fromMaybe (consentGiven defUserLegalHoldStatus == ConsentGiven) <$> (for (Map.lookup uid teamsPage) isTeamLegalholdWhitelisted)
 
 -- | Add to every uid the legalhold status
 getLHStatusForUsers ::
