@@ -104,13 +104,25 @@ instance MakesValue loc => IsAssetLocation loc where
 noRedirect :: Request -> Request
 noRedirect r = r {redirectCount = 0}
 
-downloadAsset' :: (HasCallStack, MakesValue user, IsAssetLocation loc, IsAssetToken tok) => user -> loc -> tok -> App Response
+downloadAsset' ::
+  (HasCallStack, MakesValue user, IsAssetLocation loc, IsAssetToken tok) =>
+  user ->
+  loc ->
+  tok ->
+  App Response
 downloadAsset' user loc tok = do
   locPath <- locationPathFragment loc
   req <- baseRequest user Cargohold Unversioned $ locPath
   submit "GET" $ req & tokenParam tok & noRedirect
 
-downloadAsset :: (HasCallStack, MakesValue user, MakesValue key, MakesValue assetDomain) => user -> assetDomain -> key -> String -> (HTTP.Request -> HTTP.Request) -> App Response
+downloadAsset ::
+  (HasCallStack, MakesValue user, MakesValue key, MakesValue assetDomain) =>
+  user ->
+  assetDomain ->
+  key ->
+  String ->
+  (HTTP.Request -> HTTP.Request) ->
+  App Response
 downloadAsset user assetDomain key zHostHeader trans = do
   domain <- objDomain assetDomain
   key' <- asString key
