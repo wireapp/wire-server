@@ -50,7 +50,6 @@ import Data.Schema
 import Data.Set qualified as Set
 import Data.Singletons.Base.TH
 import Imports
-import Wire.API.VersionInfo
 
 data Version = V0 | V1 | V2
   deriving stock (Eq, Ord, Bounded, Enum, Show, Generic)
@@ -75,25 +74,33 @@ instance ToSchema Version where
 supportedVersions :: Set Version
 supportedVersions = Set.fromList [minBound .. maxBound]
 
-data VersionInfo v = VersionInfo
-  { vinfoSupported :: [v]
+data VersionInfo = VersionInfo
+  { vinfoSupported :: [Int]
   }
-  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema (VersionInfo v))
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema VersionInfo)
 
-instance ToSchema v => ToSchema (VersionInfo v) where
+instance ToSchema VersionInfo where
   schema =
     objectWithDocModifier "VersionInfo" (S.schema . S.example ?~ toJSON example) $
       VersionInfo
-        <$> vinfoSupported .= vinfoObjectSchema schema
+        -- if the supported_versions field does not exist, assume an old backend
+        -- that only supports V0
+        <$> vinfoSupported
+          .= fmap
+            (fromMaybe [0])
+            (optField "supported_versions" (array schema))
+        -- legacy field to support older versions of the backend with broken
+        -- version negotiation
+        <* const [0 :: Int, 1] .= field "supported" (array schema)
     where
-      example :: VersionInfo Version
+      example :: VersionInfo
       example =
         VersionInfo
-          { vinfoSupported = toList supportedVersions
+          { vinfoSupported = map versionInt (toList supportedVersions)
           }
 
-versionInfo :: VersionInfo Version
-versionInfo = VersionInfo (toList supportedVersions)
+versionInfo :: VersionInfo
+versionInfo = VersionInfo (map versionInt (toList supportedVersions))
 
 ----------------------------------------------------------------------
 
