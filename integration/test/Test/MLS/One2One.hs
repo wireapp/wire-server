@@ -66,7 +66,12 @@ testMLSOne2OneBlocked otherDomain = do
 -- | Alice and Bob are initially connected, but then Alice blocks Bob.
 testMLSOne2OneBlockedAfterConnected :: HasCallStack => Domain -> App ()
 testMLSOne2OneBlockedAfterConnected otherDomain = do
-  [alice, bob] <- createAndConnectUsers [OwnDomain, otherDomain]
+  [alice, bob] <- createUsers [OwnDomain, otherDomain]
+  proteusId <-
+    postConnection alice bob `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 201
+      resp.json %. "qualified_conversation"
+  void $ putConnection bob alice "accepted" >>= getBody 200
   conv <- getMLSOne2OneConversation alice bob >>= getJSON 200
   convId <- conv %. "qualified_id"
   do
@@ -90,21 +95,26 @@ testMLSOne2OneBlockedAfterConnected otherDomain = do
     nPayload n %. "data" `shouldMatch` B8.unpack (Base64.encode (fold commit.welcome))
 
   -- Alice blocks Bob
-  void $ putConnection alice bob "blocked" >>= getBody 200
+  withWebSocket bob1 $ \ws -> do
+    void $ putConnection alice bob "blocked" >>= getBody 200
+    aId <- alice %. "qualified_id"
+    do
+      n <- awaitMatch isConvLeaveNotif ws
+      nPayload n %. "data" `shouldMatch` [aId]
+      nPayload n %. "data.qualified_conversation" `shouldMatch` convId
+    do
+      -- We currently also have a Proteus 1-to-1 conversation
+      n <- awaitMatch isConvLeaveNotif ws
+      nPayload n %. "data" `shouldMatch` [aId]
+      nPayload n %. "data.qualified_conversation" `shouldMatch` proteusId
 
-  do
-    -- Depending on where the 1-to-1 conversation is hosted, Bob can or cannot
-    -- fetch the conversation. The "blocked" connection status update is not
-    -- propagated to Bob.
-    cDom <- asString convDom
-    oDom <- asString OtherDomain
-    let expStatus = if cDom == oDom then 200 else 403
-    void $ getMLSOne2OneConversation bob alice >>= getJSON expStatus
+  -- void $ getMLSOne2OneConversation bob alice >>= getJSON 200
+  -- void $ getMLSOne2OneConversation alice bob >>= getJSON 403
 
   mp <- createApplicationMessage bob1 "hello, world, again"
-  postMLSMessage bob1 mp.message `bindResponse` \resp -> do
-    resp.status `shouldMatchInt` 403
-    resp.json %. "label" `shouldMatch` "not-connected"
+  withWebSocket alice1 $ \ws -> do
+    void $ sendAndConsumeMessage mp
+    awaitAnyEvent 2 ws `shouldMatch` (Nothing :: Maybe Value)
 
 testGetMLSOne2OneSameTeam :: App ()
 testGetMLSOne2OneSameTeam = do
