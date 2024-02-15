@@ -55,6 +55,7 @@ import Data.Proxy (Proxy (Proxy))
 import Data.Qualified
 import Data.Range
 import Data.UUID.V4 qualified as UUID
+import Galley.Types.Conversations.One2One
 import Imports
 import Polysemy
 import Polysemy.TinyLog
@@ -65,6 +66,7 @@ import Wire.API.Conversation hiding (Member)
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
 import Wire.API.Routes.Public.Util (ResponseForExistedCreated (..))
+import Wire.API.User
 import Wire.NotificationSubsystem
 
 ensureNotSameTeam :: Member GalleyProvider r => Local UserId -> Local UserId -> (ConnectionM r) ()
@@ -332,6 +334,9 @@ updateConnectionToLocalUser self other newStatus conn = do
         logLocalConnection (tUnqualified self) (qUnqualified (ucTo s2o))
           . msg (val "Blocking connection")
       traverse_ (Intra.blockConv self conn) (ucConvId s2o)
+      let mlsConvId = one2OneConvId BaseProtocolMLSTag (tUntagged self) (tUntagged other)
+      -- TODO: We might get an error when there is no MLS one2one conv
+      _ <- Intra.blockConv self conn mlsConvId
       wrapClient $ Just <$> Data.updateConnection s2o BlockedWithHistory
 
     unblock :: UserConnection -> UserConnection -> Relation -> ExceptT ConnectionError (AppT r) (Maybe UserConnection)

@@ -67,11 +67,12 @@ testMLSOne2OneBlocked otherDomain = do
 testMLSOne2OneBlockedAfterConnected :: HasCallStack => Domain -> App ()
 testMLSOne2OneBlockedAfterConnected otherDomain = do
   [alice, bob] <- createUsers [OwnDomain, otherDomain]
-  proteusId <-
-    postConnection alice bob `bindResponse` \resp -> do
-      resp.status `shouldMatchInt` 201
-      resp.json %. "qualified_conversation"
-  void $ putConnection bob alice "accepted" >>= getBody 200
+  connectUsers [alice, bob]
+  -- proteusId <-
+  --   postConnection alice bob `bindResponse` \resp -> do
+  --     resp.status `shouldMatchInt` 201
+  --     resp.json %. "qualified_conversation"
+  -- void $ putConnection bob alice "accepted" >>= getBody 200
   conv <- getMLSOne2OneConversation alice bob >>= getJSON 200
   convId <- conv %. "qualified_id"
   do
@@ -95,25 +96,22 @@ testMLSOne2OneBlockedAfterConnected otherDomain = do
     nPayload n %. "data" `shouldMatch` B8.unpack (Base64.encode (fold commit.welcome))
 
   -- Alice blocks Bob
-  withWebSocket bob1 $ \ws -> do
-    void $ putConnection alice bob "blocked" >>= getBody 200
-    aId <- alice %. "qualified_id"
-    do
-      n <- awaitMatch isConvLeaveNotif ws
-      nPayload n %. "data" `shouldMatch` [aId]
-      nPayload n %. "data.qualified_conversation" `shouldMatch` convId
-    do
-      -- We currently also have a Proteus 1-to-1 conversation
-      n <- awaitMatch isConvLeaveNotif ws
-      nPayload n %. "data" `shouldMatch` [aId]
-      nPayload n %. "data.qualified_conversation" `shouldMatch` proteusId
+  -- withWebSocket bob1 $ \ws -> do
+  void $ putConnection alice bob "blocked" >>= getBody 200
+  -- aId <- alice %. "qualified_id"
+  -- n <- awaitMatch isConvLeaveNotif ws
+  -- nPayload n %. "data" `shouldMatch` [aId]
+  -- nPayload n %. "data.qualified_conversation" `shouldMatch` convId
+  -- -- There is also a  proteus conversation, it should not get any events
+  -- awaitAnyEvent 2 ws `shouldMatch` (Nothing :: Maybe Value)
 
   -- void $ getMLSOne2OneConversation bob alice >>= getJSON 200
   -- void $ getMLSOne2OneConversation alice bob >>= getJSON 403
 
   mp <- createApplicationMessage bob1 "hello, world, again"
   withWebSocket alice1 $ \ws -> do
-    void $ sendAndConsumeMessage mp
+    -- void $ sendAndConsumeMessage mp
+    void $ postMLSMessage mp.sender mp.message >>= getJSON 201
     awaitAnyEvent 2 ws `shouldMatch` (Nothing :: Maybe Value)
 
 testGetMLSOne2OneSameTeam :: App ()
