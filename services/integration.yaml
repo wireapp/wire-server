@@ -142,3 +142,42 @@ rabbitmq:
 cassandra:
   host: 127.0.0.1
   port: 9042
+
+federation-v0:
+  originDomain: federation-v0.example.com
+  brig:
+    host: 127.0.0.1
+    port: 21082
+  cannon:
+    host: 127.0.0.1
+    port: 21083
+  cargohold:
+    host: 127.0.0.1
+    port: 21084
+  federatorInternal:
+    host: 127.0.0.1
+    port: 21097
+  federatorExternal:
+    host: 127.0.0.1
+    port: 21098
+  galley:
+    host: 127.0.0.1
+    port: 21085
+  gundeck:
+    host: 127.0.0.1
+    port: 21086
+  nginz:
+    host: 127.0.0.1
+    port: 21080
+  spar:
+    host: 127.0.0.1
+    port: 21088
+  proxy:
+    host: 127.0.0.1
+    port: 21087
+  backgroundWorker:
+    host: 127.0.0.1
+    port: 21089
+  stern:
+    host: 127.0.0.1
+    port: 21091

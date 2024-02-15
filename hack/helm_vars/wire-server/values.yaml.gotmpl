@@ -393,6 +393,11 @@ federator:
   resources:
     requests: {}
   imagePullPolicy: {{ .Values.imagePullPolicy }}
+  remoteCAContents: {{ .Values.federationCACertificate | b64dec | quote }}
+  tls:
+    useCertManager: true
+    useSharedFederatorSecret: true
+
   config:
     optSettings:
       useSystemCAStore: false
@@ -441,6 +446,9 @@ integration:
     uploadXmlAwsAccessKeyId: {{ .Values.uploadXml.awsAccessKeyId }}
     uploadXmlAwsSecretAccessKey: {{ .Values.uploadXml.awsSecretAccessKey }}
   {{- end }}
+  tls:
+    caNamespace: wire-federation-v0
+
 backoffice:
   tests:
     {{- if .Values.uploadXml }}
