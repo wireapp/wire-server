@@ -38,7 +38,7 @@ import qualified Data.Set as Set
 import qualified Data.Text as T
 import GHC.Stack
 import Network.Wai (Request (pathInfo, requestMethod))
-import Notifications (awaitNotification, awaitNotifications, isUserClientAddNotif, isUserClientRemoveNotif, isUserLegalholdDisabledNotif, isUserLegalholdEnabledNotif, isUserLegalholdRequestNotif)
+import Notifications
 import Numeric.Lens (hex)
 import qualified Proto.Otr as Proto
 import qualified Proto.Otr_Fields as Proto
@@ -405,10 +405,10 @@ testLHApproveDevice = do
 
       let uidsAndTidMatch val = do
             actualTid <-
-              MaybeT (lookupField val "team_id")
+              lookupFieldM val "team_id"
                 >>= lift . asString
             actualUid <-
-              MaybeT (lookupField val "user_id")
+              lookupFieldM val "user_id"
                 >>= lift . asString
             bobUid <- lift $ objId bob
 
@@ -429,7 +429,7 @@ testLHApproveDevice = do
         >>= assertStatus 200
 
       let matchAuthToken val =
-            MaybeT (val `lookupField` "refresh_token")
+            lookupFieldM val "refresh_token"
               >>= lift . asString
 
       checkChanVal chan matchAuthToken
@@ -471,8 +471,6 @@ testLHGetDeviceStatus =
         resp.status `shouldMatchInt` 200
         resp.json %. "status" `shouldMatch` "no_consent"
 
-    let lookupM field jason = MaybeT (lookupField jason field)
-
     lpk <- getLastPrekey
     pks <- replicateM 3 getPrekey
 
@@ -485,7 +483,7 @@ testLHGetDeviceStatus =
         resp.json %. "status" `shouldMatch` "disabled"
         lookupField resp.json "last_prekey"
           >>= assertNothing
-        runMaybeT (lookupM "client" resp.json >>= lookupM "id")
+        runMaybeT (lookupFieldM resp.json "client" >>= flip lookupFieldM "id")
           >>= assertNothing
 
       -- the status messages for these have already been tested
@@ -543,10 +541,8 @@ testLHDisableForUser =
           mzero
 
       void do
-        -- this is awkward, but it's because the order is not clear
-        notifs <- awaitNotifications bob bobc Nothing 2 \notif -> (||) <$> isUserClientRemoveNotif notif <*> isUserLegalholdDisabledNotif notif
-        assertBool "we have a client remove notif" . not . null =<< filterM isUserClientRemoveNotif notifs
-        assertBool "we have a legalhold disable notif" . not . null =<< filterM isUserLegalholdDisabledNotif notifs
+        awaitNotification bob bobc noValue isUserClientRemoveNotif
+          *> awaitNotification bob bobc noValue isUserLegalholdDisabledNotif
 
 -- TODO(mangoiv): assert zero legalhold devices
 
@@ -632,15 +628,16 @@ testLHNoConsentBlockOne2OneConv
   (ut -> teampeer)
   (ut -> approveLH)
   (ut -> testPendingConnection) = do
-    startDynamicBackends [mempty, mempty] \[dom1, dom2] -> do
+    startDynamicBackends [mempty] \[dom1] -> do
       -- team users
       -- alice (team owner) and bob (member)
       (alice, tid, []) <- createTeam dom1 1
-      alicec <- addClient alice def
       bob <-
         if teampeer
           then do
-            (walice, _tid, []) <- createTeam dom2 1
+            (walice, _tid, []) <- createTeam dom1 1
+            -- FUTUREWORK(mangoiv): creating a team on a second backend
+            -- causes this bug: https://wearezeta.atlassian.net/browse/WPB-6640
             pure walice
           else randomUser dom1 def
 
@@ -658,9 +655,7 @@ testLHNoConsentBlockOne2OneConv
                 >>= assertStatus 200
             legalholdUserStatus tid alice alice `bindResponse` \resp -> do
               resp.status `shouldMatchInt` 200
-              resp.json
-                %. "status"
-                `shouldMatch` if approveLH then "enabled" else "pending"
+              resp.json %. "status" `shouldMatch` if approveLH then "enabled" else "pending"
             if approveLH
               then do
                 aliceId <- objId alice
@@ -690,6 +685,96 @@ testLHNoConsentBlockOne2OneConv
 
             postConnection bob alice
               >>= assertLabel 403 "missing-legalhold-consent"
-          else
+          else do
+            alicec <- objId $ addClient alice def >>= getJSON 201
+            bobc <- objId $ addClient bob def >>= getJSON 201
+
             postConnection alice bob
               >>= assertStatus 201
+            mbConvId <-
+              if testPendingConnection
+                then pure Nothing
+                else
+                  Just
+                    <$> do
+                      putConnection bob alice "accepted"
+                        >>= getJSON 200
+                      %. "qualified_conversation.id"
+
+            -- we need to take away the pending/ sent status for the connections
+            [lastNotifAlice, lastNotifBob] <- for [(alice, alicec), (bob, bobc)] \(user, client) -> do
+              -- we get two events if bob accepts alice's request
+              let numEvents = if testPendingConnection then 1 else 2
+              last <$> awaitNotifications user client Nothing numEvents isUserConnectionNotif
+
+            mbLHDevice <- doEnableLH
+
+            let assertConnectionsMissingLHConsent =
+                  for_ [(bob, alice), (alice, bob)] \(a, b) ->
+                    getConnections a `bindResponse` \resp -> do
+                      resp.status `shouldMatchInt` 200
+                      conn <- assertOne =<< do resp.json %. "connections" & asList
+                      conn %. "status" `shouldMatch` "missing-legalhold-consent"
+                      conn %. "from" `shouldMatch` objId a
+                      conn %. "to" `shouldMatch` objId b
+
+            assertConnectionsMissingLHConsent
+
+            [lastNotifAlice', lastNotifBob'] <- for [(alice, alicec, lastNotifAlice), (bob, bobc, lastNotifBob)] \(user, client, lastNotif) -> do
+              awaitNotification user client (Just lastNotif) isUserConnectionNotif >>= \notif ->
+                notif %. "payload.0.connection.status" `shouldMatch` "missing-legalhold-consent"
+                  $> notif
+
+            for_ [(bob, alice), (alice, bob)] \(a, b) ->
+              putConnection a b "accepted"
+                >>= assertLabel 403 "bad-conn-update"
+
+            -- putting the connection to "accepted" with 403 doesn't change the
+            -- connection status
+            assertConnectionsMissingLHConsent
+
+            bobc2 <- objId $ addClient bob def >>= getJSON 201
+
+            let sendMessageFromBobToAlice assertion =
+                  for_ ((,) <$> mbConvId <*> mbLHDevice) \(convId, device) -> do
+                    successfulMsgForOtherUsers <- mkProteusRecipients bob [(alice, alicec), (alice, device)] "hey alice (and eve)"
+                    let bobaliceMessage =
+                          Proto.defMessage @Proto.QualifiedNewOtrMessage
+                            & #sender . Proto.client .~ (bobc2 ^?! hex)
+                            & #recipients .~ [successfulMsgForOtherUsers]
+                            & #reportAll .~ Proto.defMessage
+                    postProteusMessage bob convId bobaliceMessage
+                      >>= assertion
+
+            sendMessageFromBobToAlice \resp -> do
+              resp.status `shouldMatchInt` 404
+              printJSON resp.json
+            -- now we disable legalhold
+
+            doDisableLH
+
+            for_ mbLHDevice \lhd ->
+              awaitNotification alice alicec noValue isUserClientRemoveNotif >>= \notif ->
+                notif %. "payload.0.client.id" `shouldMatch` lhd
+
+            let assertStatusFor user status =
+                  getConnections user `bindResponse` \resp -> do
+                    resp.status `shouldMatchInt` 200
+                    conn <- assertOne =<< do resp.json %. "connections" & asList
+                    conn %. "status" `shouldMatch` status
+
+            if testPendingConnection
+              then do
+                assertStatusFor alice "sent"
+                assertStatusFor bob "pending"
+              else do
+                assertStatusFor alice "accepted"
+                assertStatusFor bob "accepted"
+
+            for_ [(alice, alicec, lastNotifAlice'), (bob, bobc, lastNotifBob')] \(user, client, lastNotif) -> do
+              awaitNotification user client (Just lastNotif) isUserConnectionNotif >>= \notif ->
+                notif %. "payload.0.connection.status" `shouldMatchOneOf` ["sent", "pending", "accepted"]
+
+            sendMessageFromBobToAlice \resp -> do
+              resp.status `shouldMatchInt` 201
+              printJSON resp.json

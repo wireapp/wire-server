@@ -319,9 +319,9 @@ uploadKeyPackages cid kps = do
       "/mls/key-packages/self/" <> cid.client
   submit
     "POST"
-    ( req
+    do
+      req
         & addJSONObject ["key_packages" .= map (T.decodeUtf8 . Base64.encode) kps]
-    )
 
 claimKeyPackagesWithParams :: (MakesValue u, MakesValue v) => Ciphersuite -> u -> v -> [(String, String)] -> App Response
 claimKeyPackagesWithParams suite u v params = do
@@ -333,7 +333,7 @@ claimKeyPackagesWithParams suite u v params = do
     req
       & addQueryParams ([("ciphersuite", suite.code)] <> params)
 
-claimKeyPackages :: (MakesValue u, MakesValue v) => Ciphersuite -> u -> v -> App Response
+claimKeyPackages :: (HasCallStack, MakesValue u, MakesValue v) => Ciphersuite -> u -> v -> App Response
 claimKeyPackages suite u v = claimKeyPackagesWithParams suite u v []
 
 countKeyPackages :: Ciphersuite -> ClientIdentity -> App Response

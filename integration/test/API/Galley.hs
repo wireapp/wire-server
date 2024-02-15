@@ -238,7 +238,7 @@ postProteusMessage user conv msgs = do
   convDomain <- objDomain conv
   convId <- objId conv
   let bytes = Proto.encodeMessage msgs
-  req <- baseRequest user Galley Versioned ("/conversations/" <> convDomain <> "/" <> convId <> "/proteus/messages")
+  req <- baseRequest user Galley Versioned (joinHttpPath ["conversations", convDomain, convId, "proteus", "messages"])
   submit "POST" (addProtobuf bytes req)
 
 mkProteusRecipient :: (HasCallStack, MakesValue user, MakesValue client) => user -> client -> String -> App Proto.QualifiedUserEntry
