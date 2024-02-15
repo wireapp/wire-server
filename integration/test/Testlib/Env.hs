@@ -86,7 +86,8 @@ mkGlobalEnv cfgFile = do
   let sm =
         Map.fromList $
           [ (intConfig.backendOne.originDomain, intConfig.backendOne.beServiceMap),
-            (intConfig.backendTwo.originDomain, intConfig.backendTwo.beServiceMap)
+            (intConfig.backendTwo.originDomain, intConfig.backendTwo.beServiceMap),
+            (intConfig.federationV0.originDomain, intConfig.federationV0.beServiceMap)
           ]
             <> [(berDomain resource, resourceServiceMap resource) | resource <- resources]
   tempDir <- Codensity $ withSystemTempDirectory "test"
@@ -98,6 +99,7 @@ mkGlobalEnv cfgFile = do
       { gServiceMap = sm,
         gDomain1 = intConfig.backendOne.originDomain,
         gDomain2 = intConfig.backendTwo.originDomain,
+        gFederationV0Domain = intConfig.federationV0.originDomain,
         gDynamicDomains = (.domain) <$> Map.elems intConfig.dynamicBackends,
         gDefaultAPIVersion = 6,
         gManager = manager,
@@ -135,6 +137,7 @@ mkEnv ge = do
         { serviceMap = gServiceMap ge,
           domain1 = gDomain1 ge,
           domain2 = gDomain2 ge,
+          federationV0Domain = gFederationV0Domain ge,
           dynamicDomains = gDynamicDomains ge,
           defaultAPIVersion = gDefaultAPIVersion ge,
           manager = gManager ge,

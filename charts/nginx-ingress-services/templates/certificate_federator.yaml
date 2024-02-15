@@ -31,5 +31,5 @@ spec:
     encoding: PKCS1
     rotationPolicy: Always
   dnsNames:
-    - {{ .Values.config.dns.federator }}
+    - "{{ or .Values.config.dns.certificateDomain .Values.config.dns.federator }}"
 {{- end -}}

@@ -19,7 +19,7 @@ metadata:
     nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
     nginx.ingress.kubernetes.io/auth-tls-verify-client: "on"
     nginx.ingress.kubernetes.io/auth-tls-verify-depth: "{{ .Values.tls.verify_depth }}"
-    nginx.ingress.kubernetes.io/auth-tls-secret: "{{ .Release.Namespace }}/federator-ca-secret"
+    nginx.ingress.kubernetes.io/auth-tls-secret: "{{ or $.Values.tls.caNamespace $.Release.Namespace }}/federator-ca-secret"
     nginx.ingress.kubernetes.io/configuration-snippet: |
       proxy_set_header "X-SSL-Certificate" $ssl_client_escaped_cert;
 spec:
