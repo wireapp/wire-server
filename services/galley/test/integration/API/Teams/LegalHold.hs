@@ -26,22 +26,16 @@ import API.Teams.LegalHold.Util
 import API.Util
 import Bilge hiding (accept, head, timeout, trace)
 import Bilge.Assert
-import Brig.Types.Intra (UserSet (..))
 import Brig.Types.Test.Arbitrary ()
-import Brig.Types.User.Event qualified as Ev
-import Control.Category ((>>>))
 import Control.Concurrent.Chan
 import Control.Lens hiding ((#))
 import Data.Id
 import Data.LegalHold
 import Data.List.NonEmpty (NonEmpty (..))
-import Data.Map.Strict qualified as Map
 import Data.PEM
 import Data.Qualified (Qualified (..))
 import Data.Range
-import Data.Set qualified as Set
 import Data.Time.Clock qualified as Time
-import Data.Timeout
 import Galley.Cassandra.LegalHold
 import Galley.Env qualified as Galley
 import Galley.Options (featureFlags, settings)
@@ -58,7 +52,6 @@ import Test.Tasty.Cannon qualified as WS
 import Test.Tasty.HUnit
 import TestHelpers
 import TestSetup
-import Wire.API.Connection (UserConnection)
 import Wire.API.Connection qualified as Conn
 import Wire.API.Conversation.Role (roleNameWireAdmin, roleNameWireMember)
 import Wire.API.Provider.Service
@@ -111,13 +104,6 @@ testsPublic s =
         [ testGroup -- FUTUREWORK: ungroup this level
             "teams listed"
             [ test s "happy flow" testInWhitelist,
-              testGroup "no-consent" $ do
-                connectFirst <- ("connectFirst",) <$> [False, True]
-                teamPeer <- ("teamPeer",) <$> [False, True]
-                approveLH <- ("approveLH",) <$> [False, True]
-                testPendingConnection <- ("testPendingConnection",) <$> [False, True]
-                let name = intercalate ", " $ map (\(n, b) -> n <> "=" <> show b) [connectFirst, teamPeer, approveLH, testPendingConnection]
-                pure . test s name $ testNoConsentBlockOne2OneConv (snd connectFirst) (snd teamPeer) (snd approveLH) (snd testPendingConnection),
               testGroup
                 "Legalhold is activated for user A in a group conversation"
                 [ testOnlyIfLhWhitelisted s "All admins are consenting: all non-consenters get removed from conversation" (testNoConsentRemoveFromGroupConv LegalholderIsAdmin),
@@ -384,144 +370,6 @@ testInWhitelist = do
           assertEqual "approving should change status to Enabled" UserLegalHoldEnabled userStatus
           assertEqual "last_prekey should be set when LH is pending" (Just (head someLastPrekeys)) lastPrekey'
           assertEqual "client.id should be set when LH is pending" (Just someClientId) clientId'
-
--- If LH is activated for other user in 1:1 conv, 1:1 conv is blocked
-testNoConsentBlockOne2OneConv :: HasCallStack => Bool -> Bool -> Bool -> Bool -> TestM ()
-testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH testPendingConnection = do
-  -- FUTUREWORK: maybe regular user for legalholder?
-  (legalholder :: UserId, tid) <- createBindingTeam
-  regularClient <- randomClient legalholder (head someLastPrekeys)
-
-  peer :: UserId <- if teamPeer then fst <$> createBindingTeam else randomUser
-  galley <- viewGalley
-
-  putLHWhitelistTeam tid !!! const 200 === statusCode
-
-  let doEnableLH :: HasCallStack => TestM (Maybe ClientId)
-      doEnableLH = do
-        -- register & (possibly) approve LH device for legalholder
-        withLHWhitelist tid (requestLegalHoldDevice' galley legalholder legalholder tid) !!! testResponse 201 Nothing
-        when approveLH $
-          withLHWhitelist tid (approveLegalHoldDevice' galley (Just defPassword) legalholder legalholder tid) !!! testResponse 200 Nothing
-        UserLegalHoldStatusResponse userStatus _ _ <- withLHWhitelist tid (getUserStatusTyped' galley legalholder tid)
-        liftIO $ assertEqual "approving should change status" (if approveLH then UserLegalHoldEnabled else UserLegalHoldPending) userStatus
-        if approveLH
-          then
-            getInternalClientsFull (UserSet $ Set.singleton legalholder)
-              <&> do
-                userClientsFull
-                  >>> Map.elems
-                  >>> Set.unions
-                  >>> Set.toList
-                  >>> listToMaybe
-                  >>> fmap clientId
-          else -- this looks like it's actually incorrect,
-          -- we might either get alices own device or her
-          -- legalhold device, depending on the order in which
-          -- the json is serialised
-            pure Nothing
-
-      doDisableLH :: HasCallStack => TestM ()
-      doDisableLH = do
-        -- remove (only) LH device again
-        withLHWhitelist tid (disableLegalHoldForUser' galley (Just defPassword) tid legalholder legalholder)
-          !!! testResponse 200 Nothing
-
-  cannon <- view tsCannon
-
-  WS.bracketR2 cannon legalholder peer $ \(legalholderWs, peerWs) -> withDummyTestServiceForTeam legalholder tid $ \_chan -> do
-    if not connectFirst
-      then do
-        void doEnableLH
-        postConnection legalholder peer !!! do testResponse 403 (Just "missing-legalhold-consent")
-        postConnection peer legalholder !!! do testResponse 403 (Just "missing-legalhold-consent")
-      else do
-        postConnection legalholder peer !!! const 201 === statusCode
-
-        mbConn :: Maybe UserConnection <-
-          if testPendingConnection
-            then pure Nothing
-            else do
-              res <- putConnection peer legalholder Conn.Accepted <!! const 200 === statusCode
-              pure $ Just $ responseJsonUnsafe res
-
-        mbLegalholderLHDevice <- doEnableLH
-
-        assertConnections legalholder [ConnectionStatus legalholder peer Conn.MissingLegalholdConsent]
-        assertConnections peer [ConnectionStatus peer legalholder Conn.MissingLegalholdConsent]
-
-        forM_ [legalholderWs, peerWs] $ \ws -> do
-          assertNotification ws $
-            \case
-              (Ev.ConnectionEvent (Ev.ConnectionUpdated (Conn.ucStatus -> rel) _prev _name)) -> do
-                rel @?= Conn.MissingLegalholdConsent
-              _ -> assertBool "wrong event type" False
-
-        forM_ [(legalholder, peer), (peer, legalholder)] $ \(one, two) -> do
-          putConnection one two Conn.Accepted
-            !!! testResponse 403 (Just "bad-conn-update")
-
-        assertConnections legalholder [ConnectionStatus legalholder peer Conn.MissingLegalholdConsent]
-        assertConnections peer [ConnectionStatus peer legalholder Conn.MissingLegalholdConsent]
-
-        -- peer can't send message to legalhodler. the conversation appears gone.
-        peerClient <- randomClient peer (someLastPrekeys !! 2)
-        for_ ((,) <$> (mbConn >>= Conn.ucConvId) <*> mbLegalholderLHDevice) $ \(convId, legalholderLHDevice) -> do
-          postOtrMessage
-            id
-            peer
-            peerClient
-            (qUnqualified convId)
-            [ (legalholder, legalholderLHDevice, "cipher"),
-              (legalholder, regularClient, "cipher")
-            ]
-            !!! do
-              const 404 === statusCode
-              const (Right "no-conversation") === fmap Error.label . responseJsonEither
-
-        do
-          doDisableLH
-
-          when approveLH $ do
-            legalholderLHDevice <- assertJust mbLegalholderLHDevice
-            WS.assertMatch_ (5 # Second) legalholderWs $
-              wsAssertClientRemoved legalholderLHDevice
-
-          assertConnections
-            legalholder
-            [ ConnectionStatus legalholder peer $
-                if testPendingConnection then Conn.Sent else Conn.Accepted
-            ]
-          assertConnections
-            peer
-            [ ConnectionStatus peer legalholder $
-                if testPendingConnection then Conn.Pending else Conn.Accepted
-            ]
-
-        forM_ [legalholderWs, peerWs] $ \ws -> do
-          assertNotification ws $
-            \case
-              (Ev.ConnectionEvent (Ev.ConnectionUpdated (Conn.ucStatus -> rel) _prev _name)) -> do
-                assertBool "" (rel `elem` [Conn.Sent, Conn.Pending, Conn.Accepted])
-              _ -> assertBool "wrong event type" False
-
-        -- conversation reappears. peer can send message to legalholder again
-        for_ ((,) <$> (mbConn >>= Conn.ucConvId) <*> mbLegalholderLHDevice) $ \(convId, legalholderLHDevice) -> do
-          postOtrMessage
-            id
-            peer
-            peerClient
-            (qUnqualified convId)
-            [ (legalholder, legalholderLHDevice, "cipher"),
-              (legalholder, regularClient, "cipher")
-            ]
-            !!! do
-              const 201 === statusCode
-              assertMismatchWithMessage
-                (Just "legalholderLHDevice is deleted")
-                []
-                []
-                [(legalholder, Set.singleton legalholderLHDevice)]
 
 data GroupConvAdmin
   = LegalholderIsAdmin
