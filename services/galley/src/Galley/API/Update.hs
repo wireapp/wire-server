@@ -167,6 +167,7 @@ blockConv ::
   ( Member ConversationStore r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
+    -- Member (Input (Local ())) r,
     Member MemberStore r
   ) =>
   UserId ->
@@ -179,6 +180,11 @@ blockConv zusr cnv = do
   let mems = Data.convLocalMembers conv
   when (zusr `isMember` mems) $
     E.deleteMembers cnv (UserList [zusr] [])
+
+-- loc <- input
+-- self <- qualifyAs loc zusr
+-- void $
+--   removeMemberFromLocalConv (qualifyAs loc conv) self Nothing (tUntagged self)
 
 unblockConv ::
   ( Member ConversationStore r,
