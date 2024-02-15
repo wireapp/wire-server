@@ -33,7 +33,6 @@ import Control.Comonad
 import Data.Domain
 import Data.Id
 import Data.Json.Util
-import Data.Map qualified as Map
 import Data.Qualified
 import Data.Set qualified as Set
 import Data.Text.Lazy qualified as LT
@@ -59,7 +58,6 @@ import Galley.Effects.ConversationStore
 import Galley.Effects.FederatorAccess
 import Galley.Effects.MemberStore
 import Galley.Effects.SubConversationStore
-import Galley.Types.UserList
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -107,8 +105,7 @@ type MLSMessageStaticErrors =
      ErrorS 'MLSSelfRemovalNotAllowed,
      ErrorS 'MLSClientSenderUserMismatch,
      ErrorS 'MLSGroupConversationMismatch,
-     ErrorS 'MLSSubConvClientNotInParent,
-     ErrorS 'NotConnected
+     ErrorS 'MLSSubConvClientNotInParent
    ]
 
 type MLSBundleStaticErrors =
@@ -132,7 +129,6 @@ postMLSMessageFromLocalUser ::
     Member (ErrorS 'MLSStaleMessage) r,
     Member (ErrorS 'MLSUnsupportedMessage) r,
     Member (ErrorS 'MLSSubConvClientNotInParent) r,
-    Member (ErrorS 'NotConnected) r,
     Member SubConversationStore r
   ) =>
   Local UserId ->
@@ -336,7 +332,6 @@ postMLSMessage ::
     Member (ErrorS 'MLSStaleMessage) r,
     Member (ErrorS 'MLSUnsupportedMessage) r,
     Member (ErrorS 'MLSSubConvClientNotInParent) r,
-    Member (ErrorS 'NotConnected) r,
     Member SubConversationStore r
   ) =>
   Local x ->
@@ -379,7 +374,6 @@ postMLSMessageToLocalConv ::
     Member (ErrorS 'MLSClientSenderUserMismatch) r,
     Member (ErrorS 'MLSStaleMessage) r,
     Member (ErrorS 'MLSUnsupportedMessage) r,
-    Member (ErrorS 'NotConnected) r,
     Member SubConversationStore r
   ) =>
   Qualified UserId ->
@@ -417,17 +411,6 @@ postMLSMessageToLocalConv qusr c con msg ctype convOrSubId = do
       when
         (epochInt msg.epoch < epochInt convOrSub.mlsMeta.cnvmlsEpoch - 2)
         $ throwS @'MLSStaleMessage
-  -- reject the messsage if the recipient has blocked the connection with the
-  -- sender
-  when (ctype == One2OneConv) $ do
-    let mems = toUserList lConvOrSub . Map.keys . Map.delete qusr $ (tUnqualified lConvOrSub).members
-    -- TODO(md): something is still wrong here when Bob and the 1-1 conv are on b.example.com
-    foldQualified
-      lConvOrSub
-      (\lusr -> ensureConnected lusr mems)
-      ( \rusr -> ensureRemoteConnectedToLocals rusr (qualifyAs lConvOrSub <$> ulLocals mems)
-      )
-      qusr
 
   propagateMessage qusr (Just c) lConvOrSub con msg.rawMessage (tUnqualified lConvOrSub).members
   pure []
