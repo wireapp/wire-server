@@ -45,6 +45,9 @@ tls:
     # leak a hint about a common origin.
     name: letsencrypt-http01
     kind: Issuer # Issuer | ClusterIssuer
+  # Namespace from which to obtain the secret containing the CA trusted by
+  # federator.
+  # caNamespace: wire-federation-v0
 
 # Name of the ingress.
 #
