@@ -171,9 +171,10 @@ blockConv ::
     Member MemberStore r
   ) =>
   UserId ->
+  Maybe ConnId ->
   ConvId ->
   Sem r ()
-blockConv zusr cnv = do
+blockConv zusr _conn cnv = do
   conv <- E.getConversation cnv >>= noteS @'ConvNotFound
   unless (Data.convType conv `elem` [ConnectConv, One2OneConv]) $
     throwS @'InvalidOperation
