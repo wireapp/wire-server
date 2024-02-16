@@ -64,10 +64,12 @@ testMLSOne2OneBlocked otherDomain = do
   void $ getMLSOne2OneConversation bob alice >>= getJSON 403
 
 -- | Alice and Bob are initially connected, but then Alice blocks Bob.
-testMLSOne2OneBlockedAfterConnected :: HasCallStack => Domain -> App ()
-testMLSOne2OneBlockedAfterConnected otherDomain = do
-  [alice, bob] <- createUsers [OwnDomain, otherDomain]
-  connectUsers [alice, bob]
+testMLSOne2OneBlockedAfterConnected :: HasCallStack => One2OneScenario -> App ()
+testMLSOne2OneBlockedAfterConnected scenario = do
+  alice <- randomUser OwnDomain def
+  let otherDomain = one2OneScenarioDomain scenario
+      convDomain = one2OneScenarioConvDomain scenario
+  bob <- createMLSOne2OnePartner otherDomain alice convDomain
   -- proteusId <-
   --   postConnection alice bob `bindResponse` \resp -> do
   --     resp.status `shouldMatchInt` 201
