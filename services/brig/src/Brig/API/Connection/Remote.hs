@@ -104,7 +104,9 @@ transition (RCA RemoteRescind) Pending = Just Cancelled
 transition (RCA RemoteRescind) Accepted = Just Sent
 transition (RCA RemoteRescind) _ = Nothing
 
--- When user A has made a request -> Only user A's membership in conv is affected -> User A wants to be in one2one conv with B, or User A doesn't want to be in one2one conv with B
+-- When user A has made a request -> Only user A's membership in conv is
+-- affected -> User A wants to be in one2one conv with B, or User A doesn't want
+-- to be in one2one conv with B
 updateOne2OneConv ::
   Local UserId ->
   Maybe ConnId ->
