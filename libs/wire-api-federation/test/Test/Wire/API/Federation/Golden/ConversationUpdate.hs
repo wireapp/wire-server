@@ -16,7 +16,9 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Test.Wire.API.Federation.Golden.ConversationUpdate
-  ( testObject_ConversationUpdate1,
+  ( testObject_ConversationUpdate1V1,
+    testObject_ConversationUpdate2V1,
+    testObject_ConversationUpdate1,
     testObject_ConversationUpdate2,
   )
 where
@@ -31,7 +33,7 @@ import Imports
 import Wire.API.Conversation
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Role (roleNameWireAdmin)
-import Wire.API.Federation.API.Galley (ConversationUpdate (..))
+import Wire.API.Federation.API.Galley
 
 qAlice, qBob :: Qualified UserId
 qAlice =
@@ -46,6 +48,34 @@ qBob =
 chad, dee :: UserId
 chad = Id (fromJust (UUID.fromString "00000fff-0000-0000-0000-000100005007"))
 dee = Id (fromJust (UUID.fromString "00000fff-0000-aaaa-0000-000100005007"))
+
+testObject_ConversationUpdate1V1 :: ConversationUpdateV1
+testObject_ConversationUpdate1V1 =
+  ConversationUpdateV1
+    { cuTime = read "1864-04-12 12:22:43.673 UTC",
+      cuOrigUserId =
+        Qualified
+          (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000007")))
+          (Domain "golden.example.com"),
+      cuConvId =
+        Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000006")),
+      cuAlreadyPresentUsers = [],
+      cuAction = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (qAlice :| [qBob]) roleNameWireAdmin)
+    }
+
+testObject_ConversationUpdate2V1 :: ConversationUpdateV1
+testObject_ConversationUpdate2V1 =
+  ConversationUpdateV1
+    { cuTime = read "1864-04-12 12:22:43.673 UTC",
+      cuOrigUserId =
+        Qualified
+          (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000007")))
+          (Domain "golden.example.com"),
+      cuConvId =
+        Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000006")),
+      cuAlreadyPresentUsers = [chad, dee],
+      cuAction = SomeConversationAction (sing @'ConversationLeaveTag) ()
+    }
 
 testObject_ConversationUpdate1 :: ConversationUpdate
 testObject_ConversationUpdate1 =

@@ -1,5 +1,5 @@
 {
-    "action": {
+    "cuAction": {
         "action": {
             "role": "wire_admin",
             "users": [
@@ -15,11 +15,12 @@
         },
         "tag": "ConversationJoinTag"
     },
-    "alreadyPresentUsers": [],
-    "convId": "00000000-0000-0000-0000-000100000006",
-    "origUserId": {
+    "cuAlreadyPresentUsers": [],
+    "cuConvId": "00000000-0000-0000-0000-000100000006",
+    "cuOrigUserId": {
         "domain": "golden.example.com",
         "id": "00000000-0000-0000-0000-000100000007"
     },
-    "time": "1864-04-12T12:22:43.673Z"
+    "cuTime": "1864-04-12T12:22:43.673Z"
 }
+
