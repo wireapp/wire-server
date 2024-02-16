@@ -333,10 +333,14 @@ updateConnectionToLocalUser self other newStatus conn = do
       Log.info $
         logLocalConnection (tUnqualified self) (qUnqualified (ucTo s2o))
           . msg (val "Blocking connection")
-      let mlsConvId = one2OneConvId BaseProtocolMLSTag (tUntagged self) (tUntagged other)
-      -- TODO: We might get an error when there is no MLS one2one conv
-      _ <- Intra.blockConv self conn mlsConvId
       traverse_ (liftSem . Intra.blockConv self conn) (ucConvId s2o)
+      liftSem $ do
+        -- TODO: do this whole block only if MLS is enabled
+        let mlsConvId = one2OneConvId BaseProtocolMLSTag (tUntagged self) (tUntagged other)
+        -- TODO: Change Intra.'getConversationMember' so it works for a qualified conv ID
+        m <-
+          Intra.getConversationMember self (qualifyAs self (qUnqualified mlsConvId))
+        when (isJust m) $ Intra.blockConv self conn mlsConvId
       wrapClient $ Just <$> Data.updateConnection s2o BlockedWithHistory
 
     unblock :: UserConnection -> UserConnection -> Relation -> ExceptT ConnectionError (AppT r) (Maybe UserConnection)
