@@ -3,6 +3,7 @@
 
 module Wire.BackendNotificationPusher where
 
+import Control.Arrow
 import Control.Monad.Catch
 import Control.Retry
 import Data.Aeson qualified as A
@@ -133,7 +134,6 @@ pushNotification runningFlag targetDomain (msg, envelope) = do
                   ceOriginRequestId =
                     fromMaybe (RequestId "N/A") . (.requestId) . NE.head $ bundle.notifications
                 }
-        -- TODO(md): pull this out into a separate function for redability and testability
         remoteVersions :: Set Int <-
           liftIO
             -- use versioned client with no version set: since we are manually
@@ -150,13 +150,15 @@ pushNotification runningFlag targetDomain (msg, envelope) = do
                     . Log.field "error" (displayException e)
                 throwM e
               Right vi -> pure . Set.fromList . vinfoSupported $ vi
-        -- TODO: clean this up
-        case mostRecentTuple bodyVersions (notifications bundle) remoteVersions of
-          Nothing ->
+
+        -- compute the best usable version in a notification
+        let bestVersion = bodyVersions >=> flip latestCommonVersion remoteVersions
+        case pairedMaximumOn bestVersion (toList (notifications bundle)) of
+          (_, Nothing) ->
             Log.fatal $
               Log.msg (Log.val "No federation API version in common, the notification will be ignored")
                 . Log.field "domain" (domainText targetDomain)
-          Just (notif, Just -> cveVersion) -> do
+          (notif, cveVersion) -> do
             ceFederator <- asks (.federatorInternal)
             ceHttp2Manager <- asks http2Manager
             let ceOriginDomain = notif.ownDomain
@@ -169,6 +171,10 @@ pushNotification runningFlag targetDomain (msg, envelope) = do
             metrics <- asks backendNotificationMetrics
             withLabel metrics.pushedCounter (domainText targetDomain) incCounter
             withLabel metrics.stuckQueuesGauge (domainText targetDomain) (flip setGauge 0)
+
+-- | Find the pair that maximises b.
+pairedMaximumOn :: Ord b => (a -> b) -> [a] -> (a, b)
+pairedMaximumOn f = maximumBy (compare `on` snd) . map (id &&& f)
 
 -- FUTUREWORK: Recosider using 1 channel for many consumers. It shouldn't matter
 -- for a handful of remote domains.

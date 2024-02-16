@@ -38,13 +38,12 @@ module Wire.API.Federation.Version
     latestCommonVersion,
     rangeFromVersion,
     rangeUntilVersion,
-    mostRecentTuple,
+    enumVersionRange,
   )
 where
 
 import Control.Lens (makeLenses, (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
-import Data.List.NonEmpty qualified as NE
 import Data.OpenApi qualified as S
 import Data.Schema
 import Data.Set qualified as Set
@@ -154,6 +153,10 @@ instance Semigroup VersionRange where
   VersionRange from1 to1 <> VersionRange from2 to2 =
     VersionRange (max from1 from2) (min to1 to2)
 
+inVersionRange :: VersionRange -> Version -> Bool
+inVersionRange (VersionRange a b) v =
+  v >= a && VersionUpperBound v < b
+
 rangeFromVersion :: Version -> VersionRange
 rangeFromVersion v = VersionRange v Unbounded
 
@@ -171,24 +174,16 @@ enumVersionRange =
 -- remote versions are given as integers as the range of versions supported by
 -- the remote backend can include a version unknown to the local backend. If
 -- there is no version in common, the return value is 'Nothing'.
-latestCommonVersion :: VersionRange -> Set Int -> Maybe Version
-latestCommonVersion (Set.map versionInt . enumVersionRange -> localVersions) remoteVersions =
-  intToVersion =<< Set.lookupMax (Set.intersection localVersions remoteVersions)
+latestCommonVersion :: Foldable f => VersionRange -> f Int -> Maybe Version
+latestCommonVersion localVersions =
+  safeMaximum
+    . filter (inVersionRange localVersions)
+    . mapMaybe intToVersion
+    . toList
 
-mostRecentTuple :: forall a. (a -> Maybe VersionRange) -> NE.NonEmpty a -> Set Int -> Maybe (a, Version)
-mostRecentTuple pr (NE.toList -> as) remoteVersions = foldl' combine Nothing as
-  where
-    combine :: Maybe (a, Version) -> a -> Maybe (a, Version)
-    combine greatest a =
-      let notifGreatest = pr a >>= flip latestCommonVersion remoteVersions
-       in case (greatest, notifGreatest) of
-            (Nothing, Nothing) -> Nothing
-            (Nothing, Just v) -> Just (a, v)
-            (Just (gn, gv), Nothing) -> Just (gn, gv)
-            (Just (gn, gv), Just v) ->
-              if v > gv
-                then Just (a, v)
-                else Just (gn, gv)
+safeMaximum :: Ord a => [a] -> Maybe a
+safeMaximum [] = Nothing
+safeMaximum as = Just (maximum as)
 
 $(genSingletons [''Version])
 
