@@ -1,5 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
-
 module Galley.Effects.BackendNotificationQueueAccess where
 
 import Data.Qualified

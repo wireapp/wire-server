@@ -683,7 +683,7 @@ sendRemoteMessages ::
 sendRemoteMessages domain now sender senderClient lcnv metadata messages =
   -- FUTUREWORK: a FederationError here just means that queueing did not work.
   -- It should not result in clients ending up in failedToSend.
-  (handle =<<) . runError $ do
+  (handle <=< runError) $ do
     let rcpts =
           foldr
             (\((u, c), t) -> Map.insertWith (<>) u (Map.singleton c t))

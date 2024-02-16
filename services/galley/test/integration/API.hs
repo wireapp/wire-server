@@ -3639,10 +3639,10 @@ removeUser = do
       bConvUpdatesA2 <- assertOne $ filter (\cu -> cu.convId == qUnqualified qconvA2) bConvUpdates
       bConvUpdatesA2.origUserId @?= alexDel
       bConvUpdatesA2.action @?= SomeConversationAction (sing @'ConversationLeaveTag) ()
-      bConvUpdatesA2.alreadyPresentUsers  @?= [qUnqualified berta]
+      bConvUpdatesA2.alreadyPresentUsers @?= [qUnqualified berta]
 
       bConvUpdatesA4 <- assertOne $ filter (\cu -> cu.convId == qUnqualified qconvA4) bConvUpdates
-      bConvUpdatesA4.origUserId  @?= alexDel
+      bConvUpdatesA4.origUserId @?= alexDel
       bConvUpdatesA4.action @?= SomeConversationAction (sing @'ConversationLeaveTag) ()
       bConvUpdatesA4.alreadyPresentUsers @?= [qUnqualified bart]
 
