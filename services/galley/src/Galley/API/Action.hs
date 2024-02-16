@@ -720,7 +720,6 @@ updateLocalConversation ::
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member (Input UTCTime) r,
-    Member (Logger (Log.Msg -> Log.Msg)) r,
     HasConversationActionEffects tag r,
     SingI tag
   ) =>
@@ -760,7 +759,6 @@ updateLocalConversationUnchecked ::
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member (Input UTCTime) r,
-    Member (Logger (Log.Msg -> Log.Msg)) r,
     HasConversationActionEffects tag r
   ) =>
   Local Conversation ->
@@ -861,9 +859,9 @@ notifyConversationAction ::
   forall tag r.
   ( Member BackendNotificationQueueAccess r,
     Member ExternalAccess r,
+    Member (Error FederationError) r,
     Member NotificationSubsystem r,
-    Member (Input UTCTime) r,
-    Member (Logger (Log.Msg -> Log.Msg)) r
+    Member (Input UTCTime) r
   ) =>
   Sing tag ->
   Qualified UserId ->
@@ -884,24 +882,19 @@ notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
           (tUnqualified lcnv)
           uids
           (SomeConversationAction tag action)
-      handleError :: FederationError -> Sem r (Maybe ConversationUpdate)
-      handleError fedErr =
-        logRemoteNotificationError @"on-conversation-updated" fedErr $> Nothing
-
   update <-
-    fmap (fromMaybe (mkUpdate []))
-      . (either handleError (pure . asum . map tUnqualified))
-      <=< enqueueNotificationsConcurrently Q.Persistent (toList (bmRemotes targets))
-      $ \ruids -> do
-        let update = mkUpdate (tUnqualified ruids)
-        -- if notifyOrigDomain is false, filter out user from quid's domain,
-        -- because quid's backend will update local state and notify its users
-        -- itself using the ConversationUpdate returned by this function
-        if notifyOrigDomain || tDomain ruids /= qDomain quid
-          then do
-            makeConversationUpdateBundle update >>= sendBundle
-            pure Nothing
-          else pure (Just update)
+    fmap (fromMaybe (mkUpdate []) . asum . map tUnqualified) $
+      enqueueNotificationsConcurrently Q.Persistent (toList (bmRemotes targets)) $
+        \ruids -> do
+          let update = mkUpdate (tUnqualified ruids)
+          -- if notifyOrigDomain is false, filter out user from quid's domain,
+          -- because quid's backend will update local state and notify its users
+          -- itself using the ConversationUpdate returned by this function
+          if notifyOrigDomain || tDomain ruids /= qDomain quid
+            then do
+              makeConversationUpdateBundle update >>= sendBundle
+              pure Nothing
+            else pure (Just update)
 
   -- notify local participants and bots
   pushConversationEvent con e (qualifyAs lcnv (bmLocals targets)) (bmBots targets)

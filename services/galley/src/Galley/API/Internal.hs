@@ -56,7 +56,6 @@ import Galley.Effects
 import Galley.Effects.BackendNotificationQueueAccess
 import Galley.Effects.ClientStore
 import Galley.Effects.ConversationStore
-import Galley.Effects.FederatorAccess
 import Galley.Effects.LegalHoldStore as LegalHoldStore
 import Galley.Effects.MemberStore qualified as E
 import Galley.Effects.TeamStore
@@ -303,9 +302,9 @@ rmUser ::
     Member ClientStore r,
     Member ConversationStore r,
     Member (Error DynError) r,
+    Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member ExternalAccess r,
-    Member FederatorAccess r,
     Member NotificationSubsystem r,
     Member (Input Env) r,
     Member (Input Opts) r,
@@ -417,10 +416,9 @@ rmUser lusr conn = do
                 alreadyPresentUsers = tUnqualified remotes,
                 action = SomeConversationAction (sing @'ConversationLeaveTag) ()
               }
-      -- TODO: use notification
-      let rpc = fedClient @'Galley @"on-conversation-updated" convUpdate
-      runFederatedEither remotes rpc
-        >>= logAndIgnoreError "Error in onConversationUpdated call" (qUnqualified qUser)
+      enqueueNotification Q.Persistent remotes $ do
+        makeConversationUpdateBundle convUpdate
+          >>= sendBundle
 
     leaveRemoteConversations :: Range 1 UserDeletedNotificationMaxConvs [Remote ConvId] -> Sem r ()
     leaveRemoteConversations cids =
@@ -428,23 +426,6 @@ rmUser lusr conn = do
         let userDelete = UserDeletedConversationsNotification (tUnqualified lusr) (unsafeRange (tUnqualified remoteConvs))
         let rpc = fedQueueClient @'OnUserDeletedConversationsTag userDelete
         enqueueNotification Q.Persistent remoteConvs rpc
-
-    -- FUTUREWORK: Add a retry mechanism if there are federation errrors.
-    -- See https://wearezeta.atlassian.net/browse/SQCORE-1091
-    logAndIgnoreError :: Text -> UserId -> Either FederationError a -> Sem r ()
-    logAndIgnoreError message usr res = do
-      case res of
-        Left federationError ->
-          P.err
-            ( Log.msg
-                ( "Federation error while notifying remote backends of a user deletion (Galley). "
-                    <> message
-                    <> " "
-                    <> (cs . show $ federationError)
-                )
-                . Log.field "user" (show usr)
-            )
-        Right _ -> pure ()
 
 deleteLoop :: App ()
 deleteLoop = do

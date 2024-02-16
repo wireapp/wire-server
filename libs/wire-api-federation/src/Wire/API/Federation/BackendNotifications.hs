@@ -93,7 +93,6 @@ newtype PayloadBundle (c :: Component) = PayloadBundle
   deriving (A.ToJSON, A.FromJSON) via (Schema (PayloadBundle c))
   deriving newtype (Semigroup)
 
--- TODO(md): automatically derive this instance
 instance ToSchema (PayloadBundle c) where
   schema =
     object "PayloadBundle" $

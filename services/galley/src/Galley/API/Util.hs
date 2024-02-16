@@ -876,9 +876,8 @@ registerRemoteConversationMemberships now lusr lc = deleteOnUnreachable $ do
           )
           joined
 
-  r <- enqueueNotificationsConcurrentlyBuckets Q.Persistent joinedCoupled $ \z ->
+  void $ enqueueNotificationsConcurrentlyBuckets Q.Persistent joinedCoupled $ \z ->
     makeConversationUpdateBundle (convUpdateJoin z) >>= sendBundle
-  either throw (void . pure) r
   where
     creator :: Maybe UserId
     creator = cnvmCreator . DataTypes.convMetadata . tUnqualified $ lc

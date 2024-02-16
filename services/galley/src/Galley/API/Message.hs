@@ -680,25 +680,28 @@ sendRemoteMessages ::
   MessageMetadata ->
   Map (UserId, ClientId) Text ->
   Sem r (Set (UserId, ClientId))
-sendRemoteMessages domain now sender senderClient lcnv metadata messages = (handle =<<) $ do
-  let rcpts =
-        foldr
-          (\((u, c), t) -> Map.insertWith (<>) u (Map.singleton c t))
-          mempty
-          (Map.assocs messages)
-      rm =
-        RemoteMessage
-          { time = now,
-            _data = mmData metadata,
-            sender = sender,
-            senderClient = senderClient,
-            conversation = tUnqualified lcnv,
-            priority = mmNativePriority metadata,
-            push = mmNativePush metadata,
-            transient = mmTransient metadata,
-            recipients = UserClientMap rcpts
-          }
-  enqueueNotification Q.Persistent domain (fedQueueClient @'OnMessageSentTag rm)
+sendRemoteMessages domain now sender senderClient lcnv metadata messages =
+  -- FUTUREWORK: a FederationError here just means that queueing did not work.
+  -- It should not result in clients ending up in failedToSend.
+  (handle =<<) . runError $ do
+    let rcpts =
+          foldr
+            (\((u, c), t) -> Map.insertWith (<>) u (Map.singleton c t))
+            mempty
+            (Map.assocs messages)
+        rm =
+          RemoteMessage
+            { time = now,
+              _data = mmData metadata,
+              sender = sender,
+              senderClient = senderClient,
+              conversation = tUnqualified lcnv,
+              priority = mmNativePriority metadata,
+              push = mmNativePush metadata,
+              transient = mmTransient metadata,
+              recipients = UserClientMap rcpts
+            }
+    enqueueNotification Q.Persistent domain (fedQueueClient @'OnMessageSentTag rm)
   where
     handle :: Either FederationError a -> Sem r (Set (UserId, ClientId))
     handle (Right _) = pure mempty

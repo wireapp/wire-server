@@ -129,6 +129,7 @@ onClientRemoved ::
   ( Member BackendNotificationQueueAccess r,
     Member ConversationStore r,
     Member ExternalAccess r,
+    Member (Error FederationError) r,
     Member NotificationSubsystem r,
     Member (Input Env) r,
     Member (Input (Local ())) r,
@@ -395,6 +396,7 @@ onUserDeleted ::
   ( Member BackendNotificationQueueAccess r,
     Member ConversationStore r,
     Member FireAndForget r,
+    Member (Error FederationError) r,
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
@@ -679,6 +681,7 @@ getSubConversationForRemoteUser domain GetSubConversationsRequest {..} =
 
 leaveSubConversation ::
   ( HasLeaveSubConversationEffects r,
+    Member (Error FederationError) r,
     Member (Input (Local ())) r,
     Member Resource r
   ) =>

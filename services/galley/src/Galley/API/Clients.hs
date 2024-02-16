@@ -50,6 +50,7 @@ import Polysemy.TinyLog qualified as P
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
+import Wire.API.Federation.Error
 import Wire.API.Routes.MultiTablePaging
 import Wire.NotificationSubsystem
 import Wire.Sem.Paging.Cassandra (CassandraPaging)
@@ -91,23 +92,22 @@ addClientH (usr ::: clt) = do
 rmClientH ::
   forall p1 r.
   ( p1 ~ CassandraPaging,
-    ( Member ClientStore r,
-      Member ConversationStore r,
-      Member ExternalAccess r,
-      Member BackendNotificationQueueAccess r,
-      Member FederatorAccess r,
-      Member NotificationSubsystem r,
-      Member (Input Env) r,
-      Member (Input (Local ())) r,
-      Member (Input UTCTime) r,
-      Member (ListItems p1 ConvId) r,
-      Member (ListItems p1 (Remote ConvId)) r,
-      Member MemberStore r,
-      Member (Error InternalError) r,
-      Member ProposalStore r,
-      Member SubConversationStore r,
-      Member P.TinyLog r
-    )
+    Member ClientStore r,
+    Member ConversationStore r,
+    Member (Error FederationError) r,
+    Member ExternalAccess r,
+    Member BackendNotificationQueueAccess r,
+    Member NotificationSubsystem r,
+    Member (Input Env) r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ListItems p1 ConvId) r,
+    Member (ListItems p1 (Remote ConvId)) r,
+    Member MemberStore r,
+    Member (Error InternalError) r,
+    Member ProposalStore r,
+    Member SubConversationStore r,
+    Member P.TinyLog r
   ) =>
   UserId ::: ClientId ->
   Sem r Response
