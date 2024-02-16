@@ -42,6 +42,7 @@ import Wire.API.Routes.Named
 import Wire.API.Routes.Public
 import Wire.API.Routes.Public.Galley.Conversation
 import Wire.API.Routes.Public.Galley.Feature
+import Wire.API.Routes.QualifiedCapture
 import Wire.API.Team
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
@@ -492,13 +493,24 @@ type IConversationAPI =
                :> Put '[Servant.JSON] Conversation
            )
     :<|> Named
-           "conversation-block"
+           "conversation-block-unqualified"
            ( CanThrow 'InvalidOperation
                :> CanThrow 'ConvNotFound
                :> ZUser
                :> ZOptConn
                :> "conversations"
                :> Capture "cnv" ConvId
+               :> "block"
+               :> Put '[Servant.JSON] ()
+           )
+    :<|> Named
+           "conversation-block"
+           ( CanThrow 'InvalidOperation
+               :> CanThrow 'ConvNotFound
+               :> ZLocalUser
+               :> ZOptConn
+               :> "conversations"
+               :> QualifiedCapture "cnv" ConvId
                :> "block"
                :> Put '[Servant.JSON] ()
            )

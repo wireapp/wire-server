@@ -643,28 +643,6 @@ acceptConnectConv from conn =
     (liftSem . acceptLocalConnectConv from conn . tUnqualified)
     (const (throwM federationNotImplemented))
 
--- | Calls 'Galley.API.blockConvH'.
-blockLocalConv ::
-  ( Member (Embed HttpClientIO) r,
-    Member TinyLog r
-  ) =>
-  Local UserId ->
-  Maybe ConnId ->
-  ConvId ->
-  Sem r ()
-blockLocalConv lusr conn cnv = do
-  Log.debug $
-    remote "galley"
-      . field "conv" (toByteString cnv)
-      . msg (val "Blocking conversation")
-  embed $ void $ galleyRequest PUT req
-  where
-    req =
-      paths ["/i/conversations", toByteString' cnv, "block"]
-        . zUser (tUnqualified lusr)
-        . maybe id (header "Z-Connection" . fromConnId) conn
-        . expect2xx
-
 blockConv ::
   ( Member (Embed HttpClientIO) r,
     Member TinyLog r
@@ -672,12 +650,26 @@ blockConv ::
   Local UserId ->
   Maybe ConnId ->
   Qualified ConvId ->
-  AppT r ()
-blockConv lusr conn =
-  foldQualified
-    lusr
-    (liftSem . blockLocalConv lusr conn . tUnqualified)
-    (const (throwM federationNotImplemented))
+  Sem r ()
+blockConv lusr conn qcnv = do
+  Log.debug $
+    remote "galley"
+      . field "conv" (toByteString . qUnqualified $ qcnv)
+      . field "domain" (toByteString . qDomain $ qcnv)
+      . msg (val "Blocking conversation")
+  embed . void $ galleyRequest PUT req
+  where
+    req =
+      paths
+        [ "i",
+          "conversations",
+          toByteString' (qDomain qcnv),
+          toByteString' (qUnqualified qcnv),
+          "block"
+        ]
+        . zUser (tUnqualified lusr)
+        . maybe id (header "Z-Connection" . fromConnId) conn
+        . expect2xx
 
 -- | Calls 'Galley.API.unblockConvH'.
 unblockLocalConv ::

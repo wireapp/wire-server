@@ -21,6 +21,7 @@ module Galley.API.Update
   ( -- * Managing Conversations
     acceptConv,
     blockConv,
+    blockConvUnqualified,
     unblockConv,
     checkReusableCode,
     joinConversationByReusableCode,
@@ -167,14 +168,30 @@ blockConv ::
   ( Member ConversationStore r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
-    -- Member (Input (Local ())) r,
+    Member MemberStore r
+  ) =>
+  Local UserId ->
+  Maybe ConnId ->
+  Qualified ConvId ->
+  Sem r ()
+blockConv lusr conn qcnv =
+  foldQualified
+    lusr
+    (\lcnv -> blockConvUnqualified (tUnqualified lusr) conn (tUnqualified lcnv))
+    (\rcnv -> blockRemoteConv lusr conn rcnv)
+    qcnv
+
+blockConvUnqualified ::
+  ( Member ConversationStore r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member (ErrorS 'InvalidOperation) r,
     Member MemberStore r
   ) =>
   UserId ->
   Maybe ConnId ->
   ConvId ->
   Sem r ()
-blockConv zusr _conn cnv = do
+blockConvUnqualified zusr _conn cnv = do
   conv <- E.getConversation cnv >>= noteS @'ConvNotFound
   unless (Data.convType conv `elem` [ConnectConv, One2OneConv]) $
     throwS @'InvalidOperation
@@ -186,6 +203,18 @@ blockConv zusr _conn cnv = do
 -- self <- qualifyAs loc zusr
 -- void $
 --   removeMemberFromLocalConv (qualifyAs loc conv) self Nothing (tUntagged self)
+
+blockRemoteConv ::
+  ( Member (ErrorS 'ConvNotFound) r,
+    Member MemberStore r
+  ) =>
+  Local UserId ->
+  Maybe ConnId ->
+  Remote ConvId ->
+  Sem r ()
+blockRemoteConv (tUnqualified -> usr) _conn rcnv = do
+  unlessM (E.checkLocalMemberRemoteConv usr rcnv) $ throwS @'ConvNotFound
+  E.deleteMembersInRemoteConversation rcnv [usr]
 
 unblockConv ::
   ( Member ConversationStore r,
