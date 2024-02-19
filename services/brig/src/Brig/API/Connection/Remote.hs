@@ -37,6 +37,7 @@ import Control.Error.Util ((??))
 import Control.Monad.Trans.Except
 import Data.Id as Id
 import Data.Qualified
+import Galley.Types.Conversations.One2One (one2OneConvId)
 import Imports
 import Network.Wai.Utilities.Error
 import Polysemy
@@ -45,7 +46,7 @@ import Wire.API.Federation.API.Brig
   ( NewConnectionResponse (..),
     RemoteConnectionAction (..),
   )
-import Wire.API.Routes.Internal.Galley.ConversationsIntra (Actor (..), DesiredMembership (..), UpsertOne2OneConversationRequest (..), UpsertOne2OneConversationResponse (uuorConvId))
+import Wire.API.Routes.Internal.Galley.ConversationsIntra
 import Wire.API.Routes.Public.Util (ResponseForExistedCreated (..))
 import Wire.API.User
 import Wire.NotificationSubsystem
@@ -111,20 +112,20 @@ updateOne2OneConv ::
   Local UserId ->
   Maybe ConnId ->
   Remote UserId ->
-  Maybe (Qualified ConvId) ->
+  Qualified ConvId ->
   Relation ->
   Actor ->
-  (AppT r) (Qualified ConvId)
-updateOne2OneConv lUsr _mbConn remoteUser mbConvId rel actor = do
+  (AppT r) ()
+updateOne2OneConv lUsr _mbConn remoteUser convId rel actor = do
   let request =
         UpsertOne2OneConversationRequest
           { uooLocalUser = lUsr,
             uooRemoteUser = remoteUser,
             uooActor = actor,
             uooActorDesiredMembership = desiredMembership actor rel,
-            uooConvId = mbConvId
+            uooConvId = convId
           }
-  uuorConvId <$> wrapHttp (Intra.upsertOne2OneConversation request)
+  void $ wrapHttp (Intra.upsertOne2OneConversation request)
   where
     desiredMembership :: Actor -> Relation -> DesiredMembership
     desiredMembership a r =
@@ -162,7 +163,8 @@ transitionTo self _ _ Nothing Nothing _ =
   throwE (InvalidTransition (tUnqualified self))
 transitionTo self mzcon other Nothing (Just rel) actor = lift $ do
   -- update 1-1 connection
-  qcnv <- updateOne2OneConv self mzcon other Nothing rel actor
+  let proteusConv = one2OneConvId BaseProtocolProteusTag (tUntagged self) (tUntagged other)
+  updateOne2OneConv self mzcon other proteusConv rel actor
 
   -- create connection
   connection <-
@@ -171,7 +173,7 @@ transitionTo self mzcon other Nothing (Just rel) actor = lift $ do
         self
         (tUntagged other)
         (relationWithHistory rel)
-        qcnv
+        proteusConv
 
   -- send event
   pushEvent self mzcon connection
@@ -179,7 +181,11 @@ transitionTo self mzcon other Nothing (Just rel) actor = lift $ do
 transitionTo _self _zcon _other (Just connection) Nothing _actor = pure (Existed connection, False)
 transitionTo self mzcon other (Just connection) (Just rel) actor = lift $ do
   -- update 1-1 conversation
-  void $ updateOne2OneConv self Nothing other (ucConvId connection) rel actor
+  let convId =
+        fromMaybe
+          (one2OneConvId BaseProtocolProteusTag (tUntagged self) (tUntagged other))
+          $ ucConvId connection
+  updateOne2OneConv self Nothing other convId rel actor
 
   -- update connection
   connection' <- wrapClient $ Data.updateConnection connection (relationWithHistory rel)

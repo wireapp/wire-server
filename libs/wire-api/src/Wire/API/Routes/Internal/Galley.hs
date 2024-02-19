@@ -257,7 +257,7 @@ type InternalAPIBase =
                :> "one2one"
                :> "upsert"
                :> ReqBody '[Servant.JSON] UpsertOne2OneConversationRequest
-               :> Post '[Servant.JSON] UpsertOne2OneConversationResponse
+               :> MultiVerb1 'POST '[Servant.JSON] (RespondEmpty 200 "Upsert One2One Policy")
            )
     :<|> IFeatureAPI
     :<|> IFederationAPI

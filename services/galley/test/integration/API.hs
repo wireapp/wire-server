@@ -3694,16 +3694,11 @@ testAllOne2OneConversationRequests = do
 testOne2OneConversationRequest :: Bool -> Actor -> DesiredMembership -> TestM ()
 testOne2OneConversationRequest shouldBeLocal actor desired = do
   alice <- qTagUnsafe <$> randomQualifiedUser
-  (bob, expectedConvId) <- generateRemoteAndConvId shouldBeLocal alice
+  (bob, convId) <- generateRemoteAndConvId shouldBeLocal alice
 
-  convId <- do
-    let req = UpsertOne2OneConversationRequest alice bob actor desired Nothing
-    res <-
-      iUpsertOne2OneConversation req
-        <!! statusCode === const 200
-    uuorConvId <$> responseJsonError res
-
-  liftIO $ convId @?= expectedConvId
+  do
+    let req = UpsertOne2OneConversationRequest alice bob actor desired convId
+    iUpsertOne2OneConversation req !!! statusCode === const 200
 
   if shouldBeLocal
     then

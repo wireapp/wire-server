@@ -95,7 +95,7 @@ import Wire.API.Event.Conversation (Connect (Connect))
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.Error
 import Wire.API.Properties
-import Wire.API.Routes.Internal.Galley.ConversationsIntra (UpsertOne2OneConversationRequest, UpsertOne2OneConversationResponse)
+import Wire.API.Routes.Internal.Galley.ConversationsIntra
 import Wire.API.Routes.Internal.Galley.TeamsIntra (GuardLegalholdPolicyConflicts (GuardLegalholdPolicyConflicts))
 import Wire.API.Team.LegalHold (LegalholdProtectee)
 import Wire.API.Team.Member qualified as Team
@@ -717,11 +717,11 @@ upsertOne2OneConversation ::
     HasRequestId m
   ) =>
   UpsertOne2OneConversationRequest ->
-  m UpsertOne2OneConversationResponse
+  m ()
 upsertOne2OneConversation urequest = do
   response <- galleyRequest POST req
   case Bilge.statusCode response of
-    200 -> decodeBody "galley" response
+    200 -> pure ()
     _ -> throwM internalServerError
   where
     req =
