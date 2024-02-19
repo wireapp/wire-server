@@ -172,7 +172,7 @@ generateDpopToken dpopProof uid cid handle displayName tid domain nonce uri meth
   -- traceM $ "nonce = Nonce " <> show (_unNonce nonce)
   -- traceM $ "expires = ExpiryEpoch " <> show (_unExpiryEpoch maxExpiration)
   -- traceM $ "handle = Handle " <> show (_unHandle handle)
-  -- traceM $ "display = DisplayName " <> show (_unDisplayName displayName)
+  -- traceM $ "displayName = DisplayName " <> show (_unDisplayName displayName)
   -- traceM $ "tid = TeamId " <> show (_unTeamId tid)
 
   let before =
@@ -372,4 +372,6 @@ data DPoPTokenGenerationError
     DpopHandleMismatch
   | -- Client team does not match the supplied team
     DpopTeamMismatch
+  | --  Client display name does not match the supplied display name
+    DpopDisplayNameMismatch
   deriving (Eq, Show, Generic, Bounded, Enum)

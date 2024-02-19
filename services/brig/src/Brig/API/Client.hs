@@ -499,7 +499,7 @@ createAccessToken luid cid method link proof = do
       (,,)
         <$> note NotATeamUser (userTeam =<< mUser)
         <*> note MissingHandle (userHandle =<< mUser)
-        <*> note (error "todo: implement") (userDisplayName <$> mUser)
+        <*> note MissingName (userDisplayName <$> mUser)
   nonce <- ExceptT $ note NonceNotFound <$> wrapClient (Nonce.lookupAndDeleteNonce uid (cs $ toByteString cid))
   httpsUrl <- except $ note MisconfiguredRequestUrl $ fromByteString $ "https://" <> toByteString' domain <> "/" <> cs (toUrlPiece link)
   maxSkewSeconds <- Opt.setDpopMaxSkewSecs <$> view settings
