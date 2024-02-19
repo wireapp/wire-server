@@ -72,6 +72,7 @@ interpretGalleyProviderToRpc disabledVersions galleyEndpoint =
         runInputConst galleyEndpoint . \case
           CreateSelfConv id' -> createSelfConv v id'
           GetConv id' id'' -> getConv v id' id''
+          GetConvMetadata convId -> getConvMetadata convId
           GetTeamConv id' id'' id'2 -> getTeamConv v id' id'' id'2
           NewClient id' ci -> newClient id' ci
           CheckUserCanJoinTeam id' -> checkUserCanJoinTeam id'
@@ -146,6 +147,35 @@ getConv v usr lcnv = do
             toByteString' (tUnqualified lcnv)
           ]
         . zUser usr
+        . expect [status200, status404]
+
+getConvMetadata ::
+  ( Member (Error ParseException) r,
+    Member Rpc r,
+    Member (Input Endpoint) r,
+    Member TinyLog r
+  ) =>
+  Local ConvId ->
+  Sem r (Maybe ConversationMetadata)
+getConvMetadata lcnv = do
+  debug $
+    remote "galley"
+      . field "domain" (toByteString (tDomain lcnv))
+      . field "conv" (toByteString (tUnqualified lcnv))
+      . msg (val "Getting conversation metadata")
+  rs <- galleyRequest req
+  case Bilge.statusCode rs of
+    200 -> Just <$> decodeBodyOrThrow "galley" rs
+    _ -> pure Nothing
+  where
+    req =
+      method GET
+        . paths
+          [ "i",
+            "conversations",
+            toByteString' (tUnqualified lcnv),
+            "metadata"
+          ]
         . expect [status200, status404]
 
 -- | Calls 'Galley.API.getTeamConversationH'.

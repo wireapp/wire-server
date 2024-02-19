@@ -1131,7 +1131,8 @@ updateConnection ::
   ( Member FederationConfigStore r,
     Member NotificationSubsystem r,
     Member TinyLog r,
-    Member (Embed HttpClientIO) r
+    Member (Embed HttpClientIO) r,
+    Member GalleyProvider r
   ) =>
   UserId ->
   ConnId ->

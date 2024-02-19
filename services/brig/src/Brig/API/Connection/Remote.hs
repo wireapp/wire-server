@@ -29,13 +29,17 @@ import Brig.App
 import Brig.Data.Connection qualified as Data
 import Brig.Data.User qualified as Data
 import Brig.Effects.FederationConfigStore
-import Brig.Federation.Client
+import Brig.Effects.GalleyProvider
+import Brig.Federation.Client as Federation
 import Brig.IO.Intra qualified as Intra
+import Brig.Options
 import Brig.Types.User.Event
 import Control.Comonad
 import Control.Error.Util ((??))
+import Control.Lens (view)
 import Control.Monad.Trans.Except
 import Data.Id as Id
+import Data.List qualified as List
 import Data.Qualified
 import Galley.Types.Conversations.One2One (one2OneConvId)
 import Imports
@@ -46,6 +50,7 @@ import Wire.API.Federation.API.Brig
   ( NewConnectionResponse (..),
     RemoteConnectionAction (..),
   )
+import Wire.API.Federation.API.Galley (GetConversationsResponse (convs), RemoteConversation)
 import Wire.API.Routes.Internal.Galley.ConversationsIntra
 import Wire.API.Routes.Public.Util (ResponseForExistedCreated (..))
 import Wire.API.User
@@ -149,7 +154,7 @@ updateOne2OneConv lUsr _mbConn remoteUser convId rel actor = do
 --
 -- Returns the connection, and whether it was updated or not.
 transitionTo ::
-  (Member NotificationSubsystem r) =>
+  (Member NotificationSubsystem r, Member GalleyProvider r) =>
   Local UserId ->
   Maybe ConnId ->
   Remote UserId ->
@@ -162,7 +167,11 @@ transitionTo self _ _ Nothing Nothing _ =
   -- connection. This shouldn't be possible.
   throwE (InvalidTransition (tUnqualified self))
 transitionTo self mzcon other Nothing (Just rel) actor = lift $ do
-  -- update 1-1 connection
+  -- Create 1-1 proteus conversation.
+  --
+  -- We do nothing here for MLS as haveing no pre-existing connection implies
+  -- there was no conversation. Creating an MLS converstaion is special due to
+  -- key packages, etc. so the clients have to make another call for this.
   let proteusConv = one2OneConvId BaseProtocolProteusTag (tUntagged self) (tUntagged other)
   updateOne2OneConv self mzcon other proteusConv rel actor
 
@@ -179,20 +188,35 @@ transitionTo self mzcon other Nothing (Just rel) actor = lift $ do
   pushEvent self mzcon connection
   pure (Created connection, True)
 transitionTo _self _zcon _other (Just connection) Nothing _actor = pure (Existed connection, False)
-transitionTo self mzcon other (Just connection) (Just rel) actor = lift $ do
+transitionTo self mzcon other (Just connection) (Just rel) actor = do
   -- update 1-1 conversation
-  let convId =
+  let proteusConvId =
         fromMaybe
           (one2OneConvId BaseProtocolProteusTag (tUntagged self) (tUntagged other))
           $ ucConvId connection
-  updateOne2OneConv self Nothing other convId rel actor
+  lift $ updateOne2OneConv self Nothing other proteusConvId rel actor
+  mlsEnabled <- view (settings . enableMLS)
+  when (fromMaybe False mlsEnabled) $ do
+    let mlsConvId = one2OneConvId BaseProtocolProteusTag (tUntagged self) (tUntagged other)
+    mlsConv <-
+      foldQualified
+        self
+        (fmap (void @Maybe) . lift . liftSem . getConvMetadata)
+        (fmap (void @Maybe) . getRemoteConversation self)
+        mlsConvId
+    case mlsConv of
+      Nothing -> pure ()
+      Just _ -> lift $ updateOne2OneConv self Nothing other mlsConvId rel actor
 
   -- update connection
-  connection' <- wrapClient $ Data.updateConnection connection (relationWithHistory rel)
+  connection' <- lift $ wrapClient $ Data.updateConnection connection (relationWithHistory rel)
 
   -- send event
-  pushEvent self mzcon connection'
+  lift $ pushEvent self mzcon connection'
   pure (Existed connection', True)
+
+getRemoteConversation :: Local UserId -> Remote ConvId -> ConnectionM r (Maybe RemoteConversation)
+getRemoteConversation self conv = listToMaybe . convs <$> Federation.getConversations self (fmap List.singleton conv) !>> ConnectFederationError
 
 -- | Send an event to the local user when the state of a connection changes.
 pushEvent ::
@@ -206,7 +230,7 @@ pushEvent self mzcon connection = do
   liftSem $ Intra.onConnectionEvent (tUnqualified self) mzcon event
 
 performLocalAction ::
-  (Member NotificationSubsystem r) =>
+  (Member NotificationSubsystem r, Member GalleyProvider r) =>
   Local UserId ->
   Maybe ConnId ->
   Remote UserId ->
@@ -262,7 +286,7 @@ performLocalAction self mzcon other mconnection action = do
 -- B connects & A reacts:  Accepted  Accepted
 -- @
 performRemoteAction ::
-  (Member NotificationSubsystem r) =>
+  (Member NotificationSubsystem r, Member GalleyProvider r) =>
   Local UserId ->
   Remote UserId ->
   Maybe UserConnection ->
@@ -281,7 +305,8 @@ performRemoteAction self other mconnection action = do
 
 createConnectionToRemoteUser ::
   ( Member FederationConfigStore r,
-    Member NotificationSubsystem r
+    Member NotificationSubsystem r,
+    Member GalleyProvider r
   ) =>
   Local UserId ->
   ConnId ->
@@ -295,7 +320,8 @@ createConnectionToRemoteUser self zcon other = do
 
 updateConnectionToRemoteUser ::
   ( Member NotificationSubsystem r,
-    Member FederationConfigStore r
+    Member FederationConfigStore r,
+    Member GalleyProvider r
   ) =>
   Local UserId ->
   Remote UserId ->

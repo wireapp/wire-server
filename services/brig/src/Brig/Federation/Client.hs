@@ -37,6 +37,7 @@ import Network.AMQP qualified as Q
 import System.Logger.Class qualified as Log
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig as FederatedBrig
+import Wire.API.Federation.API.Galley
 import Wire.API.Federation.BackendNotifications
 import Wire.API.Federation.Client
 import Wire.API.Federation.Error
@@ -141,6 +142,11 @@ sendConnectionAction self mSelfTeam (tUntagged -> other) action = do
   lift $ Log.info $ Log.msg @Text "Brig-federation: sending connection action to remote backend"
   runBrigFederatorClient (qDomain other) $ fedClient @'Brig @"send-connection-action" req
 
+getConversations :: (MonadReader Env m, MonadIO m) => Local UserId -> Remote [ConvId] -> ExceptT FederationError m GetConversationsResponse
+getConversations (tUnqualified -> self) (tUntagged -> remoteConvs) = do
+  let req = GetConversationsRequest self (qUnqualified remoteConvs)
+  runBrigFederatorClient (qDomain remoteConvs) $ fedClient @'Galley @"get-conversations" req
+
 notifyUserDeleted ::
   ( MonadReader Env m,
     MonadIO m,
@@ -195,7 +201,7 @@ instance Exception NoRabbitMqChannel
 runBrigFederatorClient ::
   (MonadReader Env m, MonadIO m) =>
   Domain ->
-  FederatorClient 'Brig a ->
+  FederatorClient component a ->
   ExceptT FederationError m a
 runBrigFederatorClient targetDomain action = do
   ownDomain <- viewFederationDomain

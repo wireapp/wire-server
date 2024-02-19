@@ -44,6 +44,9 @@ data GalleyProvider m a where
     UserId ->
     Local ConvId ->
     GalleyProvider m (Maybe Conversation)
+  GetConvMetadata ::
+    Local ConvId ->
+    GalleyProvider m (Maybe ConversationMetadata)
   GetTeamConv ::
     UserId ->
     TeamId ->
