@@ -1,4 +1,6 @@
 {-# OPTIONS_GHC -Wwarn #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# HLINT ignore "Use :" #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -699,7 +701,7 @@ testLHNoConsentBlockOne2OneConv
                     <$> do
                       putConnection bob alice "accepted"
                         >>= getJSON 200
-                      %. "qualified_conversation.id"
+                      %. "qualified_conversation"
 
             -- we need to take away the pending/ sent status for the connections
             [lastNotifAlice, lastNotifBob] <- for [(alice, alicec), (bob, bobc)] \(user, client) -> do
@@ -735,22 +737,31 @@ testLHNoConsentBlockOne2OneConv
 
             bobc2 <- objId $ addClient bob def >>= getJSON 201
 
-            let sendMessageFromBobToAlice assertion =
+            let sendMessageFromBobToAlice :: HasCallStack => (String -> [String]) -> (Response -> App ()) -> App ()
+                sendMessageFromBobToAlice recipients assertion =
                   for_ ((,) <$> mbConvId <*> mbLHDevice) \(convId, device) -> do
-                    successfulMsgForOtherUsers <- mkProteusRecipients bob [(alice, alicec), (alice, device)] "hey alice (and eve)"
+                    successfulMsgForOtherUsers <-
+                      mkProteusRecipients
+                        bob -- bob is the sender
+                        [(alice, recipients device), (bob, [bobc])]
+                        -- we send to clients of alice, maybe the legalhold device
+                        -- we need to send to our other clients (bobc)
+                        "hey alice (and eve)" -- the message
                     let bobaliceMessage =
                           Proto.defMessage @Proto.QualifiedNewOtrMessage
                             & #sender . Proto.client .~ (bobc2 ^?! hex)
                             & #recipients .~ [successfulMsgForOtherUsers]
                             & #reportAll .~ Proto.defMessage
+                    -- make sure that `convId` is not just the `convId` but also
+                    -- contains the domain because `postProteusMessage` will take the
+                    -- comain from the `convId` json object
                     postProteusMessage bob convId bobaliceMessage
-                      >>= assertion
+                      `bindResponse` assertion
 
-            sendMessageFromBobToAlice \resp -> do
+            sendMessageFromBobToAlice (\device -> [alicec, device]) \resp -> do
               resp.status `shouldMatchInt` 404
-              printJSON resp.json
-            -- now we disable legalhold
 
+            -- now we disable legalhold
             doDisableLH
 
             for_ mbLHDevice \lhd ->
@@ -775,6 +786,8 @@ testLHNoConsentBlockOne2OneConv
               awaitNotification user client (Just lastNotif) isUserConnectionNotif >>= \notif ->
                 notif %. "payload.0.connection.status" `shouldMatchOneOf` ["sent", "pending", "accepted"]
 
-            sendMessageFromBobToAlice \resp -> do
+            sendMessageFromBobToAlice (const [alicec]) \resp -> do
               resp.status `shouldMatchInt` 201
-              printJSON resp.json
+
+            sendMessageFromBobToAlice (\device -> [device]) \resp -> do
+              resp.status `shouldMatchInt` 412
