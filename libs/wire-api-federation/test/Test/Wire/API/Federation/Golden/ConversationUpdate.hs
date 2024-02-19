@@ -16,8 +16,8 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Test.Wire.API.Federation.Golden.ConversationUpdate
-  ( testObject_ConversationUpdate1V1,
-    testObject_ConversationUpdate2V1,
+  ( testObject_ConversationUpdate1V0,
+    testObject_ConversationUpdate2V0,
     testObject_ConversationUpdate1,
     testObject_ConversationUpdate2,
   )
@@ -49,9 +49,9 @@ chad, dee :: UserId
 chad = Id (fromJust (UUID.fromString "00000fff-0000-0000-0000-000100005007"))
 dee = Id (fromJust (UUID.fromString "00000fff-0000-aaaa-0000-000100005007"))
 
-testObject_ConversationUpdate1V1 :: ConversationUpdateV1
-testObject_ConversationUpdate1V1 =
-  ConversationUpdateV1
+testObject_ConversationUpdate1V0 :: ConversationUpdateV0
+testObject_ConversationUpdate1V0 =
+  ConversationUpdateV0
     { cuTime = read "1864-04-12 12:22:43.673 UTC",
       cuOrigUserId =
         Qualified
@@ -63,9 +63,9 @@ testObject_ConversationUpdate1V1 =
       cuAction = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (qAlice :| [qBob]) roleNameWireAdmin)
     }
 
-testObject_ConversationUpdate2V1 :: ConversationUpdateV1
-testObject_ConversationUpdate2V1 =
-  ConversationUpdateV1
+testObject_ConversationUpdate2V0 :: ConversationUpdateV0
+testObject_ConversationUpdate2V0 =
+  ConversationUpdateV0
     { cuTime = read "1864-04-12 12:22:43.673 UTC",
       cuOrigUserId =
         Qualified

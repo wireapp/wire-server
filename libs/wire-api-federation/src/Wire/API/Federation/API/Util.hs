@@ -26,4 +26,4 @@ makeConversationUpdateBundle ::
   ConversationUpdate ->
   FedQueueClient 'Galley (PayloadBundle 'Galley)
 makeConversationUpdateBundle update =
-  (<>) <$> makeBundle update <*> makeBundle (conversationUpdateToV1 update)
+  (<>) <$> makeBundle update <*> makeBundle (conversationUpdateToV0 update)

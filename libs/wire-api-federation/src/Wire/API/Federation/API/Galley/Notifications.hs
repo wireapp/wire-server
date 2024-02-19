@@ -45,7 +45,7 @@ data GalleyNotificationTag
   = OnClientRemovedTag
   | OnMessageSentTag
   | OnMLSMessageSentTag
-  | OnConversationUpdatedTagV1
+  | OnConversationUpdatedTagV0
   | OnConversationUpdatedTag
   | OnUserDeletedConversationsTag
   deriving (Show, Eq, Generic, Bounded, Enum)
@@ -69,16 +69,16 @@ instance HasNotificationEndpoint 'OnMLSMessageSentTag where
 
 -- used by the backend that owns a conversation to inform this backend of
 -- changes to the conversation
-instance HasNotificationEndpoint 'OnConversationUpdatedTagV1 where
-  type Payload 'OnConversationUpdatedTagV1 = ConversationUpdateV1
-  type NotificationPath 'OnConversationUpdatedTagV1 = "on-conversation-updated"
-  type NotificationVersionTag 'OnConversationUpdatedTagV1 = 'Just 'V1
-  type NotificationMods 'OnConversationUpdatedTagV1 = '[Until 'V2]
+instance HasNotificationEndpoint 'OnConversationUpdatedTagV0 where
+  type Payload 'OnConversationUpdatedTagV0 = ConversationUpdateV0
+  type NotificationPath 'OnConversationUpdatedTagV0 = "on-conversation-updated"
+  type NotificationVersionTag 'OnConversationUpdatedTagV0 = 'Just 'V0
+  type NotificationMods 'OnConversationUpdatedTagV0 = '[Until 'V1]
 
 instance HasNotificationEndpoint 'OnConversationUpdatedTag where
   type Payload 'OnConversationUpdatedTag = ConversationUpdate
   type NotificationPath 'OnConversationUpdatedTag = "on-conversation-updated"
-  type NotificationMods 'OnConversationUpdatedTag = '[From 'V2]
+  type NotificationMods 'OnConversationUpdatedTag = '[From 'V1]
 
 instance HasNotificationEndpoint 'OnUserDeletedConversationsTag where
   type Payload 'OnUserDeletedConversationsTag = UserDeletedConversationsNotification
@@ -89,7 +89,7 @@ type GalleyNotificationAPI =
   NotificationFedEndpoint 'OnClientRemovedTag
     :<|> NotificationFedEndpoint 'OnMessageSentTag
     :<|> NotificationFedEndpoint 'OnMLSMessageSentTag
-    :<|> NotificationFedEndpoint 'OnConversationUpdatedTagV1
+    :<|> NotificationFedEndpoint 'OnConversationUpdatedTagV0
     :<|> NotificationFedEndpoint 'OnConversationUpdatedTag
     :<|> NotificationFedEndpoint 'OnUserDeletedConversationsTag
 
@@ -140,7 +140,7 @@ data RemoteMLSMessage = RemoteMLSMessage
 
 instance ToSchema RemoteMLSMessage
 
-data ConversationUpdateV1 = ConversationUpdateV1
+data ConversationUpdateV0 = ConversationUpdateV0
   { cuTime :: UTCTime,
     cuOrigUserId :: Qualified UserId,
     -- | The unqualified ID of the conversation where the update is happening.
@@ -158,11 +158,11 @@ data ConversationUpdateV1 = ConversationUpdateV1
   }
   deriving (Eq, Show, Generic)
 
-instance ToJSON ConversationUpdateV1
+instance ToJSON ConversationUpdateV0
 
-instance FromJSON ConversationUpdateV1
+instance FromJSON ConversationUpdateV0
 
-instance ToSchema ConversationUpdateV1
+instance ToSchema ConversationUpdateV0
 
 data ConversationUpdate = ConversationUpdate
   { time :: UTCTime,
@@ -188,9 +188,9 @@ instance FromJSON ConversationUpdate
 
 instance ToSchema ConversationUpdate
 
-conversationUpdateToV1 :: ConversationUpdate -> ConversationUpdateV1
-conversationUpdateToV1 cu =
-  ConversationUpdateV1
+conversationUpdateToV0 :: ConversationUpdate -> ConversationUpdateV0
+conversationUpdateToV0 cu =
+  ConversationUpdateV0
     { cuTime = cu.time,
       cuOrigUserId = cu.origUserId,
       cuConvId = cu.convId,
@@ -198,8 +198,8 @@ conversationUpdateToV1 cu =
       cuAction = cu.action
     }
 
-conversationUpdateFromV1 :: ConversationUpdateV1 -> ConversationUpdate
-conversationUpdateFromV1 cu =
+conversationUpdateFromV0 :: ConversationUpdateV0 -> ConversationUpdate
+conversationUpdateFromV0 cu =
   ConversationUpdate
     { time = cu.cuTime,
       origUserId = cu.cuOrigUserId,
