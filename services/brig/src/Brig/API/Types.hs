@@ -214,6 +214,7 @@ data CertEnrollmentError
   | ClientIdSyntaxError
   | NotATeamUser
   | MissingHandle
+  | MissingName
 
 -------------------------------------------------------------------------------
 -- Exceptions
