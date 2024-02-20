@@ -263,16 +263,16 @@ testAddMemberV1 domain = do
 
 -- Add a bot to a team conversation.
 testAddMemberBot :: HasCallStack => App ()
-testAddMemberBot = startDynamicBackends [mempty] $ \[dom] -> do
-  (alice, team, _) <- createTeam dom 1
+testAddMemberBot = do
+  (alice, team, _) <- createTeam OwnDomain 1
   aliceId <- alice %. "id" & asString
   conv <- postConversation alice (defProteus {team = Just team}) >>= getJSON 201
   convId <- conv %. "id" & asString
 
   -- given a user with admin permissions and team, run a bot.
   -- see function docs for details.
-  withRunningService dom alice team $ \sid pid _buf -> do
-    bindResponse (addBotToConv dom convId aliceId pid sid) $ \resp -> do
+  withRunningService OwnDomain alice team $ \sid pid _buf -> do
+    bindResponse (addBotToConv OwnDomain convId aliceId pid sid) $ \resp -> do
       resp.status `shouldMatchInt` 201
       resp.json %. "event.type" `shouldMatch` "conversation.member-join"
       resp.json %. "event.qualified_from" `shouldMatch` objQidObject alice

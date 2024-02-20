@@ -57,6 +57,7 @@ module Data.Misc
 
     -- * Typesafe FUTUREWORKS
     FutureWork (..),
+    to64,
     from64,
     readT,
     showT,
@@ -379,3 +380,6 @@ from64 = hush . B64.decode . encodeUtf8
   where
     hush = either (const Nothing) Just
 {-# INLINE from64 #-}
+
+to64 :: ByteString -> String
+to64 = show . B64.encode

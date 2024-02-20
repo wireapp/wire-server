@@ -61,6 +61,8 @@ data:
       host: rabbitmq
       adminPort: 15672
 
+    ownDomain: https://integration.{{ .Release.Namespace }}.svc.cluster.local
+
     provider:
       privateKey: /etc/wire/brig/secrets/provider-privatekey.pem
       publicKey: /etc/wire/brig/secrets/provider-publickey.pem

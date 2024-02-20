@@ -96,6 +96,7 @@ mkGlobalEnv cfgFile = do
   pure
     GlobalEnv
       { gServiceMap = sm,
+        gLocalhost = intConfig.ownDomain,
         gDomain1 = intConfig.backendOne.originDomain,
         gDomain2 = intConfig.backendTwo.originDomain,
         gDynamicDomains = (.domain) <$> Map.elems intConfig.dynamicBackends,
@@ -142,6 +143,7 @@ mkEnv ge = do
     pure
       Env
         { serviceMap = gServiceMap ge,
+          localhost = gLocalhost ge,
           domain1 = gDomain1 ge,
           domain2 = gDomain2 ge,
           dynamicDomains = gDynamicDomains ge,

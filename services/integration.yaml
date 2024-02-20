@@ -43,6 +43,8 @@ stern:
   host: 127.0.0.1
   port: 8091
 
+ownDomain: https://127.0.0.1
+
 # client-API:
 # webapp ---> load balancer  ---> nginx-ingress (TLS termination) ---> nginz ----> brig
 #

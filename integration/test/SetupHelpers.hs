@@ -334,7 +334,9 @@ withRunningService dom user team go = withFreePortAnyAddr $ \(port, _socket) -> 
       ppwd <- provider %. "password" & asString
       pid <- provider %. "id" & asString
 
-      let url = "https://127.0.0.1:" <> show port
+      botHost <- asks localhost
+      print botHost
+      let url = botHost <> ":" <> show port
 
       service <- newService dom pid def {newServiceUrl = url}
       sid <- service %. "id" & asString

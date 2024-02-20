@@ -100,6 +100,7 @@ instance FromJSON RabbitMQConfig where
 -- | Initialised once per testsuite.
 data GlobalEnv = GlobalEnv
   { gServiceMap :: Map String ServiceMap,
+    gLocalhost :: String,
     gDomain1 :: String,
     gDomain2 :: String,
     gDynamicDomains :: [String],
@@ -118,6 +119,7 @@ data GlobalEnv = GlobalEnv
 data IntegrationConfig = IntegrationConfig
   { backendOne :: BackendConfig,
     backendTwo :: BackendConfig,
+    ownDomain :: String,
     dynamicBackends :: Map String DynamicBackendConfig,
     rabbitmq :: RabbitMQConfig,
     cassandra :: CassandraConfig,
@@ -131,6 +133,7 @@ instance FromJSON IntegrationConfig where
       IntegrationConfig
         <$> parseJSON (Object o)
         <*> o .: fromString "backendTwo"
+        <*> o .: fromString "ownDomain"
         <*> o .: fromString "dynamicBackends"
         <*> o .: fromString "rabbitmq"
         <*> o .: fromString "cassandra"
@@ -203,6 +206,7 @@ instance FromJSON CassandraConfig where
 -- | Initialised once per test.
 data Env = Env
   { serviceMap :: Map String ServiceMap,
+    localhost :: String,
     domain1 :: String,
     domain2 :: String,
     dynamicDomains :: [String],
