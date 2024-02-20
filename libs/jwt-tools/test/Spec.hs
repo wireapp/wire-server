@@ -25,7 +25,7 @@ main :: IO ()
 main = hspec $ do
   describe "generateDpopToken FFI when passing valid inputs" $ do
     it "should return an access token with the correct header" $ do
-      actual <- runExceptT $ generateDpopToken proof uid cid handle tid domain nonce uri method maxSkewSecs expires now pem
+      actual <- runExceptT $ generateDpopToken proof uid cid handle displayName tid domain nonce uri method maxSkewSecs expires now pem
       -- The actual payload of the DPoP token is not deterministic as it depends on the current time.
       -- We therefore only check the header, because if the header is correct, it means the token creation was successful.s
       let expectedHeader = "eyJhbGciOiJFZERTQSIsInR5cCI6ImF0K2p3dCIsImp3ayI6eyJrdHkiOiJPS1AiLCJjcnYiOiJFZDI1NTE5IiwieCI6ImRZSTM4VWR4a3NDMEs0UXg2RTlKSzlZZkdtLWVoblkxOG9LbUhMMllzWmsifX0"
@@ -33,7 +33,7 @@ main = hspec $ do
       actualHeader `shouldBe` expectedHeader
   describe "generateDpopToken FFI when passing a wrong nonce value" $ do
     it "should return BackendNonceMismatchError" $ do
-      actual <- runExceptT $ generateDpopToken proof uid cid handle tid domain (Nonce "foobar") uri method maxSkewSecs expires now pem
+      actual <- runExceptT $ generateDpopToken proof uid cid handle displayName tid domain (Nonce "foobar") uri method maxSkewSecs expires now pem
       actual `shouldBe` Left BackendNonceMismatchError
   describe "toResult" $ do
     it "should convert to correct error" $ do
@@ -74,15 +74,41 @@ main = hspec $ do
       toResult (Just 17) (Just token) `shouldBe` Left ExpMismatchError
       toResult (Just 18) Nothing `shouldBe` Left Expired
       toResult (Just 18) (Just token) `shouldBe` Left Expired
+      toResult (Just 19) (Just token) `shouldBe` Left InvalidUserId
+      toResult (Just 20) (Just token) `shouldBe` Left NotYetValid
+      toResult (Just 21) (Just token) `shouldBe` Left JwtSimpleError
+      toResult (Just 22) (Just token) `shouldBe` Left RandError
+      toResult (Just 23) (Just token) `shouldBe` Left Sec1Error
+      toResult (Just 24) (Just token) `shouldBe` Left UrlParseError
+      toResult (Just 25) (Just token) `shouldBe` Left UuidError
+      toResult (Just 26) (Just token) `shouldBe` Left Utf8Error
+      toResult (Just 27) (Just token) `shouldBe` Left Base64DecodeError
+      toResult (Just 28) (Just token) `shouldBe` Left JsonError
+      toResult (Just 29) (Just token) `shouldBe` Left InvalidJsonPath
+      toResult (Just 30) (Just token) `shouldBe` Left JsonPathError
+      toResult (Just 31) (Just token) `shouldBe` Left InvalidJwkThumbprint
+      toResult (Just 32) (Just token) `shouldBe` Left MissingDpopHeader
+      toResult (Just 33) (Just token) `shouldBe` Left MissingIssuer
+      toResult (Just 34) (Just token) `shouldBe` Left DpopChallengeMismatch
+      toResult (Just 35) (Just token) `shouldBe` Left DpopHtuMismatch
+      toResult (Just 36) (Just token) `shouldBe` Left DpopHtmMismatch
+      toResult (Just 37) (Just token) `shouldBe` Left InvalidBackendKeys
+      toResult (Just 38) (Just token) `shouldBe` Left InvalidClientId
+      toResult (Just 39) (Just token) `shouldBe` Left UnsupportedApiVersion
+      toResult (Just 40) (Just token) `shouldBe` Left UnsupportedScope
+      toResult (Just 41) (Just token) `shouldBe` Left DpopHandleMismatch
+      toResult (Just 42) (Just token) `shouldBe` Left DpopTeamMismatch
+      toResult (Just 43) (Just token) `shouldBe` Left DpopDisplayNameMismatch
       toResult Nothing Nothing `shouldBe` Left UnknownError
   where
     token = ""
-    proof = Proof "eyJhbGciOiJFZERTQSIsImp3ayI6eyJjcnYiOiJFZDI1NTE5Iiwia3R5IjoiT0tQIiwieCI6Im5MSkdOLU9hNkpzcTNLY2xaZ2dMbDdVdkFWZG1CMFE2QzNONUJDZ3BoSHcifSwidHlwIjoiZHBvcCtqd3QifQ.eyJhdWQiOiJodHRwczovL3dpcmUuY29tL2FjbWUvY2hhbGxlbmdlL2FiY2QiLCJjaGFsIjoid2EyVnJrQ3RXMXNhdUoyRDN1S1k4cmM3eTRrbDR1c0giLCJleHAiOjE4MzE3MzcyNzEsImhhbmRsZSI6IndpcmVhcHA6Ly8lNDB2bHVwZHlwbml4dm1vdnZzeW1ndHdAZXhhbXBsZS5jb20iLCJodG0iOiJQT1NUIiwiaHR1IjoiaHR0cHM6Ly9leGFtcGxlLmNvbS9jbGllbnRzL2NjNmU2NDBlMjk2ZThiYmEvYWNjZXNzLXRva2VuIiwiaWF0IjoxNzA1NTkzMjcxLCJqdGkiOiI2ZmM1OWU3Zi1iNjY2LTRmZmMtYjczOC00ZjQ3NjBjODg0Y2EiLCJuYmYiOjE3MDU1OTMyNzEsIm5vbmNlIjoibVJDdjNKQS1TNDI0dUJyLVk2QzFndyIsInN1YiI6IndpcmVhcHA6Ly9WNVc3ZnRNeVRJNlBNYlE0Y3ZkazRnIWNjNmU2NDBlMjk2ZThiYmFAZXhhbXBsZS5jb20iLCJ0ZWFtIjoiZmZhODY1ZmEtYjI0YS00Njk3LWFhMDUtMWZjM2YzNjU0ZGI5In0.BVdawX_84Mpmvzbs3v52t3GtCgSKzxgnFDkwf4QK6AusoyfsjhK6grs9GLEe2Lfb1eDrBUJgo-nobeIWmRumBQ"
-    uid = UserId "5795bb7e-d332-4c8e-8f31-b43872f764e2"
-    nonce = Nonce "mRCv3JA-S424uBr-Y6C1gw"
-    expires = ExpiryEpoch 1831823671
-    handle = Handle "vlupdypnixvmovvsymgtw"
-    tid = TeamId "ffa865fa-b24a-4697-aa05-1fc3f3654db9"
+    proof = Proof "eyJhbGciOiJFZERTQSIsImp3ayI6eyJjcnYiOiJFZDI1NTE5Iiwia3R5IjoiT0tQIiwieCI6Im5MSkdOLU9hNkpzcTNLY2xaZ2dMbDdVdkFWZG1CMFE2QzNONUJDZ3BoSHcifSwidHlwIjoiZHBvcCtqd3QifQ.eyJhdWQiOiJodHRwczovL3dpcmUuY29tL2FjbWUvY2hhbGxlbmdlL2FiY2QiLCJjaGFsIjoid2EyVnJrQ3RXMXNhdUoyRDN1S1k4cmM3eTRrbDR1c0giLCJleHAiOjE3Mzk4ODA2NzQsImhhbmRsZSI6IndpcmVhcHA6Ly8lNDB5d2Z5ZG5pZ2Jud2h1b3pldGphZ3FAZXhhbXBsZS5jb20iLCJodG0iOiJQT1NUIiwiaHR1IjoiaHR0cHM6Ly9leGFtcGxlLmNvbS9jbGllbnRzL2NjNmU2NDBlMjk2ZThiYmEvYWNjZXNzLXRva2VuIiwiaWF0IjoxNzA4MzQ0Njc0LCJqdGkiOiI2ZmM1OWU3Zi1iNjY2LTRmZmMtYjczOC00ZjQ3NjBjODg0Y2EiLCJuYW1lIjoi5reB4qqu5KSq5rK255Kh4bKV6re14Y2q6omE6Jy16Iu17ICV54Kb66-v56qp5KqW766M6bGw6oOy6b6m57m15pWJ4LqH54et6rOj54KHIiwibmJmIjoxNzA4MzQ0Njc0LCJub25jZSI6IllWZ2dHdWlTUTZlamhQNTNFX0tPS3ciLCJzdWIiOiJ3aXJlYXBwOi8vSWZ0VzBLeFVSb2F1QWVockRremJiQSFjYzZlNjQwZTI5NmU4YmJhQGV4YW1wbGUuY29tIiwidGVhbSI6ImMxNTE5NzVlLWIxOTMtNDAwOS1hM2QyLTc0N2M5NjFmMjMzMyJ9.SHxpMzOe2yC3y6DP7lEH0l7_eOKrUZZI0OjgtnCKjO4OBD0XqKOi0y_z07-7FWc-KtThlsaZatnBNTB67GhQBw"
+    uid = UserId "21fb56d0-ac54-4686-ae01-e86b0e4cdb6c"
+    nonce = Nonce "YVggGuiSQ6ejhP53E_KOKw"
+    expires = ExpiryEpoch 1739967074
+    handle = Handle "ywfydnigbnwhuozetjagq"
+    displayName = DisplayName "\230\183\129\226\170\174\228\164\170\230\178\182\231\146\161\225\178\149\234\183\181\225\141\170\234\137\132\232\156\181\232\139\181\236\128\149\231\130\155\235\175\175\231\170\169\228\170\150\239\174\140\233\177\176\234\131\178\233\190\166\231\185\181\230\149\137\224\186\135\231\135\173\234\179\163\231\130\135"
+    tid = TeamId "c151975e-b193-4009-a3d2-747c961f2333"
 
     now = NowEpoch 1704982162
     cid = ClientId 14730821443162901434
