@@ -526,11 +526,12 @@ updateEndpoint :: UserId -> PushToken -> EndpointArn -> Aws.SNSEndpoint -> Gunde
 updateEndpoint uid t arn e = do
   env <- view awsEnv
   unless (equalTransport && equalApp) $ do
+    -- We can safely continue after this sanity check: A new entry to
+    -- `user_push` will be written later. And, the old (now invalid) data will
+    -- be cleaned up.
+
     -- TODO: This log entry is lacking the requestId
     Log.err $ logMessage "PushToken does not fit to user_push data: Transport or app mismatch"
-  -- We can safely continue after this sanity check: A new entry to
-  -- `user_push` will be written later. And, the old (now invalid) data will
-  -- be cleaned up.
 
   Log.info $ logMessage "Upserting push token."
   let users = Set.insert uid (e ^. endpointUsers)
