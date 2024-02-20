@@ -100,7 +100,7 @@ service:
   s3:
     externalPort: 9000
     serviceName: fake-aws-s3
-    externallyCreated: false # See note below
+  useFakeS3: false # See note below
   teamSettings:
     externalPort: 8080
   accountPages:
@@ -142,9 +142,8 @@ config:
 #
 # For Services:
 # service:
-#   s3:
-#     externallyCreated: true
-#     ^ externallyCreated might be useful if S3 access is provided by
+#   useFakeS3: true
+#     ^ useFakeS3 might be useful if S3 access is provided by
 #       an external service such as `minio-external`: in such cases
 #       we do not want to create yet another service here but rather
 #       use that service instead in the ingress
