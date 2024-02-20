@@ -525,21 +525,21 @@ addToken uid cid newtok = mpaRunWithBudget 1 (Left Public.AddTokenErrorNoBudget)
 updateEndpoint :: UserId -> PushToken -> EndpointArn -> Aws.SNSEndpoint -> Gundeck ()
 updateEndpoint uid t arn e = do
   env <- view awsEnv
+  requestId <- view reqId
+
   unless (equalTransport && equalApp) $ do
     -- We can safely continue after this sanity check: A new entry to
     -- `user_push` will be written later. And, the old (now invalid) data will
     -- be cleaned up.
+    Log.err $ logMessage requestId "PushToken does not fit to user_push data: Transport or app mismatch"
 
-    -- TODO: This log entry is lacking the requestId
-    Log.err $ logMessage "PushToken does not fit to user_push data: Transport or app mismatch"
-
-  Log.info $ logMessage "Upserting push token."
+  Log.info $ logMessage requestId "Upserting push token."
   let users = Set.insert uid (e ^. endpointUsers)
   Aws.execute env $ Aws.updateEndpoint users (t ^. token) arn
   where
     equalTransport = t ^. tokenTransport == arn ^. snsTopic . endpointTransport
     equalApp = t ^. tokenApp == arn ^. snsTopic . endpointAppName
-    logMessage m =
+    logMessage requestId m =
       "user"
         .= UUID.toASCIIBytes (toUUID uid)
         ~~ "token"
@@ -550,6 +550,8 @@ updateEndpoint uid t arn e = do
           .= show (t ^. tokenApp)
         ~~ "arn"
           .= toText arn
+        ~~ "request"
+          .= unRequestId requestId
         ~~ msg (val m)
 
 deleteToken :: UserId -> Token -> Gundeck (Maybe ())
