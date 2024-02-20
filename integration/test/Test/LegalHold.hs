@@ -1,5 +1,6 @@
-{-# OPTIONS_GHC -Wwarn #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# OPTIONS_GHC -Wwarn #-}
+
 {-# HLINT ignore "Use :" #-}
 
 -- This file is part of the Wire Server implementation.
@@ -29,7 +30,7 @@ import API.Galley
 import API.GalleyInternal
 import Control.Error (MaybeT (MaybeT), runMaybeT)
 import Control.Lens ((.~), (^?!))
-import Control.Monad.Reader (asks)
+import Control.Monad.Reader (asks, local)
 import Control.Monad.Trans.Class (lift)
 import qualified Data.ByteString.Char8 as BS8
 import Data.ByteString.Lazy (LazyByteString)
@@ -509,9 +510,18 @@ testLHGetDeviceStatus =
       requestLegalHoldDevice tid alice bob
         >>= assertLabel 409 "legalhold-already-enabled"
 
+-- | this sets the timeout to a higher number; we need
+--   this because the SQS queue on the brig is super slow
+--   and that's why client.remove events arrive really late
+--
+--   FUTUREWORK(mangoiv): improve the speed of internal
+--   event queuing
+setTimeoutTo :: Int -> Env -> Env
+setTimeoutTo tSecs env = env {timeOutSeconds = tSecs}
+
 testLHDisableForUser :: App ()
 testLHDisableForUser =
-  startDynamicBackends [mempty] \[dom] -> do
+  local (setTimeoutTo 30) $ startDynamicBackends [mempty] \[dom] -> do
     -- team users
     -- alice (team owner) and bob (member)
     (alice, tid, [bob]) <- createTeam dom 2
@@ -629,8 +639,8 @@ testLHNoConsentBlockOne2OneConv
   (ut -> connectFirst)
   (ut -> teampeer)
   (ut -> approveLH)
-  (ut -> testPendingConnection) = do
-    startDynamicBackends [mempty] \[dom1] -> do
+  (ut -> testPendingConnection) =
+    local (setTimeoutTo 30) $ startDynamicBackends [mempty] \[dom1] -> do
       -- team users
       -- alice (team owner) and bob (member)
       (alice, tid, []) <- createTeam dom1 1
