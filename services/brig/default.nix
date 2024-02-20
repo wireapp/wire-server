@@ -31,6 +31,7 @@
 , cookie
 , cql
 , cryptobox-haskell
+, crypton-connection
 , currency-codes
 , data-default
 , data-timeout
@@ -392,15 +393,22 @@ mkDerivation {
     brig-types
     bytestring
     containers
+    crypton-connection
     data-timeout
     dns
     dns-util
     exceptions
     HsOpenSSL
+    http-client
+    http-client-tls
+    http-types
     imports
     lens
+    network
     polysemy
     polysemy-wire-zoo
+    ssl-util
+    streaming-commons
     tasty
     tasty-hunit
     tasty-quickcheck
@@ -410,6 +418,10 @@ mkDerivation {
     unliftio
     uri-bytestring
     uuid
+    wai
+    wai-route
+    warp
+    warp-tls
     wire-api
   ];
   description = "User Service";
