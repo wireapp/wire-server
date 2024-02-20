@@ -527,21 +527,21 @@ updateEndpoint uid t arn e = do
   env <- view awsEnv
   unless (equalTransport && equalApp) $ do
     -- TODO: This log entry is lacking the requestId
-    Log.err $ logMessage uid arn (t ^. token) "Transport or app mismatch"
+    Log.err $ logMessage (t ^. token) "Transport or app mismatch"
     throwM $ mkError status500 "server-error" "Server Error"
-  Log.info $ logMessage uid arn (t ^. token) "Upserting push token."
+  Log.info $ logMessage (t ^. token) "Upserting push token."
   let users = Set.insert uid (e ^. endpointUsers)
   Aws.execute env $ Aws.updateEndpoint users (t ^. token) arn
   where
     equalTransport = t ^. tokenTransport == arn ^. snsTopic . endpointTransport
     equalApp = t ^. tokenApp == arn ^. snsTopic . endpointAppName
-    logMessage a r tk m =
+    logMessage tk m =
       "user"
-        .= UUID.toASCIIBytes (toUUID a)
+        .= UUID.toASCIIBytes (toUUID uid)
         ~~ "token"
           .= Text.take 16 (tokenText tk)
         ~~ "arn"
-          .= toText r
+          .= toText arn
         ~~ msg (val m)
 
 deleteToken :: UserId -> Token -> Gundeck (Maybe ())
