@@ -526,6 +526,7 @@ updateEndpoint :: UserId -> PushToken -> EndpointArn -> Aws.SNSEndpoint -> Gunde
 updateEndpoint uid t arn e = do
   env <- view awsEnv
   unless (equalTransport && equalApp) $ do
+    -- TODO: This log entry is lacking the requestId
     Log.err $ logMessage uid arn (t ^. token) "Transport or app mismatch"
     throwM $ mkError status500 "server-error" "Server Error"
   Log.info $ logMessage uid arn (t ^. token) "Upserting push token."
