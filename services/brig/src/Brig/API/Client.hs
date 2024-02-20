@@ -532,12 +532,13 @@ createAccessToken ::
 createAccessToken luid cid method link proof = do
   let domain = tDomain luid
   let uid = tUnqualified luid
-  (tid, handle) <- do
+  (tid, handle, displayName) <- do
     mUser <- lift $ wrapClient (Data.lookupUser NoPendingInvitations uid)
     except $
-      (,)
+      (,,)
         <$> note NotATeamUser (userTeam =<< mUser)
         <*> note MissingHandle (userHandle =<< mUser)
+        <*> note MissingName (userDisplayName <$> mUser)
   nonce <- ExceptT $ note NonceNotFound <$> wrapClient (Nonce.lookupAndDeleteNonce uid (cs $ toByteString cid))
   httpsUrl <- except $ note MisconfiguredRequestUrl $ fromByteString $ "https://" <> toByteString' domain <> "/" <> cs (toUrlPiece link)
   maxSkewSeconds <- Opt.setDpopMaxSkewSecs <$> view settings
@@ -554,6 +555,7 @@ createAccessToken luid cid method link proof = do
           proof
           (ClientIdentity domain uid cid)
           handle
+          displayName
           tid
           nonce
           httpsUrl
