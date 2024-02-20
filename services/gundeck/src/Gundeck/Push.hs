@@ -540,6 +540,10 @@ updateEndpoint uid t arn e = do
         .= UUID.toASCIIBytes (toUUID uid)
         ~~ "token"
           .= Text.take 16 (t ^. token . to tokenText)
+        ~~ "tokenTransport"
+          .= show (t ^. tokenTransport)
+        ~~ "tokenApp"
+          .= show (t ^. tokenApp)
         ~~ "arn"
           .= toText arn
         ~~ msg (val m)
