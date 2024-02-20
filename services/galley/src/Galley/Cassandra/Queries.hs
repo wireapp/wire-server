@@ -493,6 +493,9 @@ planMLSClientRemoval = "update mls_group_member_client set removal_pending = tru
 removeMLSClient :: PrepQuery W (GroupId, Domain, UserId, ClientId) ()
 removeMLSClient = "delete from mls_group_member_client where group_id = ? and user_domain = ? and user = ? and client = ?"
 
+removeAllMLSClientsOfUser :: PrepQuery W (GroupId, Domain, UserId) ()
+removeAllMLSClientsOfUser = "delete from mls_group_member_client where group_id = ? and user_domain = ? and user = ?"
+
 removeAllMLSClients :: PrepQuery W (Identity GroupId) ()
 removeAllMLSClients = "DELETE FROM mls_group_member_client WHERE group_id = ?"
 

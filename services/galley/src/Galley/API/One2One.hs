@@ -81,10 +81,11 @@ iUpsertOne2OneConversation UpsertOne2OneConversationRequest {..} = do
                 void $ createMember lconvId uooLocalUser
                 unless (null (convRemoteMembers conv)) $
                   acceptConnectConversation (tUnqualified lconvId)
-              (LocalActor, Excluded) ->
+              (LocalActor, Excluded) -> do
                 deleteMembers
                   (tUnqualified lconvId)
                   (UserList [tUnqualified uooLocalUser] [])
+                removeAllMLSClientsOfUser groupId (tUntagged uooLocalUser)
               (RemoteActor, Included) -> do
                 void $ createMembers (tUnqualified lconvId) (UserList [] [uooRemoteUser])
                 unless (null (convLocalMembers conv)) $

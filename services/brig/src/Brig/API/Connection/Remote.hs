@@ -118,33 +118,33 @@ updateOne2OneConv ::
   Maybe ConnId ->
   Remote UserId ->
   Qualified ConvId ->
-  Relation ->
+  DesiredMembership ->
   Actor ->
   (AppT r) ()
-updateOne2OneConv lUsr _mbConn remoteUser convId rel actor = do
+updateOne2OneConv lUsr _mbConn remoteUser convId desiredMem actor = do
   let request =
         UpsertOne2OneConversationRequest
           { uooLocalUser = lUsr,
             uooRemoteUser = remoteUser,
             uooActor = actor,
-            uooActorDesiredMembership = desiredMembership actor rel,
+            uooActorDesiredMembership = desiredMem,
             uooConvId = convId
           }
   void $ wrapHttp (Intra.upsertOne2OneConversation request)
-  where
-    desiredMembership :: Actor -> Relation -> DesiredMembership
-    desiredMembership a r =
-      let isIncluded =
-            a
-              `elem` case r of
-                Accepted -> [LocalActor, RemoteActor]
-                Blocked -> []
-                Pending -> [RemoteActor]
-                Ignored -> [RemoteActor]
-                Sent -> [LocalActor]
-                Cancelled -> []
-                MissingLegalholdConsent -> []
-       in if isIncluded then Included else Excluded
+
+desiredMembership :: Actor -> Relation -> DesiredMembership
+desiredMembership a r =
+  let isIncluded =
+        a
+          `elem` case r of
+            Accepted -> [LocalActor, RemoteActor]
+            Blocked -> []
+            Pending -> [RemoteActor]
+            Ignored -> [RemoteActor]
+            Sent -> [LocalActor]
+            Cancelled -> []
+            MissingLegalholdConsent -> []
+   in if isIncluded then Included else Excluded
 
 -- | Perform a state transition on a connection, handle conversation updates and
 -- push events.
@@ -173,7 +173,7 @@ transitionTo self mzcon other Nothing (Just rel) actor = lift $ do
   -- there was no conversation. Creating an MLS converstaion is special due to
   -- key packages, etc. so the clients have to make another call for this.
   let proteusConv = one2OneConvId BaseProtocolProteusTag (tUntagged self) (tUntagged other)
-  updateOne2OneConv self mzcon other proteusConv rel actor
+  updateOne2OneConv self mzcon other proteusConv (desiredMembership actor rel) actor
 
   -- create connection
   connection <-
@@ -194,19 +194,18 @@ transitionTo self mzcon other (Just connection) (Just rel) actor = do
         fromMaybe
           (one2OneConvId BaseProtocolProteusTag (tUntagged self) (tUntagged other))
           $ ucConvId connection
-  lift $ updateOne2OneConv self Nothing other proteusConvId rel actor
+  lift $ updateOne2OneConv self Nothing other proteusConvId (desiredMembership actor rel) actor
   mlsEnabled <- view (settings . enableMLS)
   when (fromMaybe False mlsEnabled) $ do
-    let mlsConvId = one2OneConvId BaseProtocolProteusTag (tUntagged self) (tUntagged other)
-    mlsConv <-
+    let mlsConvId = one2OneConvId BaseProtocolMLSTag (tUntagged self) (tUntagged other)
+    mlsConvExists <-
       foldQualified
         self
-        (fmap (void @Maybe) . lift . liftSem . getConvMetadata)
-        (fmap (void @Maybe) . getRemoteConversation self)
+        (fmap isJust . lift . liftSem . getConvMetadata)
+        (fmap isJust . getRemoteConversation self)
         mlsConvId
-    case mlsConv of
-      Nothing -> pure ()
-      Just _ -> lift $ updateOne2OneConv self Nothing other mlsConvId rel actor
+    lift . when (mlsConvExists && desiredMembership actor rel == Excluded) $
+      updateOne2OneConv self Nothing other mlsConvId (desiredMembership actor rel) actor
 
   -- update connection
   connection' <- lift $ wrapClient $ Data.updateConnection connection (relationWithHistory rel)

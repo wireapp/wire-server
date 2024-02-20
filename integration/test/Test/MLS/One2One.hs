@@ -100,6 +100,9 @@ testMLSOne2OneBlockedAfterConnected scenario = do
   -- Alice blocks Bob
   -- withWebSocket bob1 $ \ws -> do
   void $ putConnection alice bob "blocked" >>= getBody 200
+  -- do
+  --   bindResponse (getMLSOne2OneConversation bob alice) $ \res ->
+  --     res.json `shouldMatch` (Nothing :: Maybe Value)
   -- aId <- alice %. "qualified_id"
   -- n <- awaitMatch isConvLeaveNotif ws
   -- nPayload n %. "data" `shouldMatch` [aId]
