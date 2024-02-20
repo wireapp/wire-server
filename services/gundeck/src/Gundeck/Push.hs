@@ -34,7 +34,7 @@ where
 import Control.Arrow ((&&&))
 import Control.Error
 import Control.Exception (ErrorCall (ErrorCall))
-import Control.Lens (view, (.~), (^.))
+import Control.Lens (to, view, (.~), (^.))
 import Control.Monad.Catch
 import Data.Aeson as Aeson (Object)
 import Data.Id
@@ -527,19 +527,19 @@ updateEndpoint uid t arn e = do
   env <- view awsEnv
   unless (equalTransport && equalApp) $ do
     -- TODO: This log entry is lacking the requestId
-    Log.err $ logMessage (t ^. token) "Transport or app mismatch"
+    Log.err $ logMessage "Transport or app mismatch"
     throwM $ mkError status500 "server-error" "Server Error"
-  Log.info $ logMessage (t ^. token) "Upserting push token."
+  Log.info $ logMessage "Upserting push token."
   let users = Set.insert uid (e ^. endpointUsers)
   Aws.execute env $ Aws.updateEndpoint users (t ^. token) arn
   where
     equalTransport = t ^. tokenTransport == arn ^. snsTopic . endpointTransport
     equalApp = t ^. tokenApp == arn ^. snsTopic . endpointAppName
-    logMessage tk m =
+    logMessage m =
       "user"
         .= UUID.toASCIIBytes (toUUID uid)
         ~~ "token"
-          .= Text.take 16 (tokenText tk)
+          .= Text.take 16 (t ^. token . to tokenText)
         ~~ "arn"
           .= toText arn
         ~~ msg (val m)
