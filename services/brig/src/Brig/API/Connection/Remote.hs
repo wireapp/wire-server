@@ -41,6 +41,7 @@ import Control.Monad.Trans.Except
 import Data.Id as Id
 import Data.List qualified as List
 import Data.Qualified
+import Debug.Trace
 import Galley.Types.Conversations.One2One (one2OneConvId)
 import Imports
 import Network.Wai.Utilities.Error
@@ -196,6 +197,7 @@ transitionTo self mzcon other (Just connection) (Just rel) actor = do
           $ ucConvId connection
   lift $ updateOne2OneConv self Nothing other proteusConvId (desiredMembership actor rel) actor
   mlsEnabled <- view (settings . enableMLS)
+  traceM $ "is MLS enabled: " <> show mlsEnabled
   when (fromMaybe False mlsEnabled) $ do
     let mlsConvId = one2OneConvId BaseProtocolMLSTag (tUntagged self) (tUntagged other)
     mlsConvExists <-
@@ -204,8 +206,11 @@ transitionTo self mzcon other (Just connection) (Just rel) actor = do
         (fmap isJust . lift . liftSem . getConvMetadata)
         (fmap isJust . getRemoteConversation self)
         mlsConvId
-    lift . when (mlsConvExists && desiredMembership actor rel == Excluded) $
-      updateOne2OneConv self Nothing other mlsConvId (desiredMembership actor rel) actor
+    traceM $ "mlsConvExists = " <> show mlsConvExists
+    let desiredMem = desiredMembership actor rel
+    traceM $ "desiredMembership = " <> show desiredMem
+    lift . when (mlsConvExists && desiredMem == Excluded) $
+      updateOne2OneConv self Nothing other mlsConvId desiredMem actor
 
   -- update connection
   connection' <- lift $ wrapClient $ Data.updateConnection connection (relationWithHistory rel)
