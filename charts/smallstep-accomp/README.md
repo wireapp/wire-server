@@ -1,6 +1,6 @@
-This Helm chart installs a reverse proxy that proxies Certificate Revocation List (CRL) from federating domains. It is required to be installed alongside smallstep helm chart.
+This Helm chart installs a reverse proxy that proxies Certificate Revocation List (CRL) of acmes from federating domains and the own domain. It is required to be installed alongside smallstep helm chart.
 
-The Helm chart defines endpoints and ingresses on `https://<other_acme_domain>/proxyCrl/<other_acme_domain>` path to proxy `http://{other_acme_domain}/crl` (note: http, not https). For example if `upstreams.proxiedHosts` is set to `[acme.alpha.example.com, acme.beta.example.com]` and host for the own smallstep server is `acme.alpha.example.com` this helm chart will forward requests
+The Helm chart defines endpoints and ingresses on `https://<other_acme_domain>/proxyCrl/<other_acme_domain>` path to proxy `http://{other_acme_domain}/crl` (note: http, not https). For example if `upstreams.proxiedHosts` is set to `[acme.alpha.example.com, acme.beta.example.com]` and the host for the smallstep server on the own domain is `acme.alpha.example.com` this helm chart will forward requests
 
 - `https://acme.alpha.example.com/acme.alpha.example.com` to `http://acme.alpha.example.com/crl`
 - `https://acme.alpha.example.com/acme.beta.example.com` to `http://acme.beta.example.com/crl`
