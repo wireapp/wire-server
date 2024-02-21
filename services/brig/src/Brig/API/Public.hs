@@ -1112,7 +1112,8 @@ createConnection self conn target = do
   API.createConnection lself conn target !>> connError
 
 updateLocalConnection ::
-  ( Member NotificationSubsystem r,
+  ( Member GalleyProvider r,
+    Member NotificationSubsystem r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r
   ) =>

@@ -31,7 +31,6 @@ module Brig.IO.Intra
     blockConv,
     unblockConv,
     upsertOne2OneConversation,
-    getConversationMember,
 
     -- * Clients
     rmClient,
@@ -90,7 +89,6 @@ import Polysemy.TinyLog (TinyLog)
 import System.Logger.Message hiding ((.=))
 import Wire.API.Connection
 import Wire.API.Conversation hiding (Member)
-import Wire.API.Conversation qualified as C
 import Wire.API.Event.Conversation (Connect (Connect))
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.Error
@@ -728,22 +726,6 @@ upsertOne2OneConversation urequest = do
       paths ["i", "conversations", "one2one", "upsert"]
         . header "Content-Type" "application/json"
         . lbytes (encode urequest)
-
-getConversationMember ::
-  Member (Embed HttpClientIO) r =>
-  Local UserId ->
-  Local ConvId ->
-  Sem r (Maybe C.Member)
-getConversationMember lusr lcnv = embed $ do
-  response <- galleyRequest GET req
-  case Bilge.statusCode response of
-    200 -> decodeBody "galley" response
-    _ -> throwM internalServerError
-  where
-    cnv = tUnqualified lcnv
-    zusr = tUnqualified lusr
-    req =
-      paths ["i", "conversations", toByteString' cnv, "members", toByteString' zusr]
 
 -------------------------------------------------------------------------------
 -- User management

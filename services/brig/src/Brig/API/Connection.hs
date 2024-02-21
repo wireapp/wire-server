@@ -42,12 +42,14 @@ import Brig.Data.Connection qualified as Data
 import Brig.Data.Types (resultHasMore, resultList)
 import Brig.Data.User qualified as Data
 import Brig.Effects.FederationConfigStore
-import Brig.Effects.GalleyProvider (GalleyProvider)
+import Brig.Effects.GalleyProvider
 import Brig.Effects.GalleyProvider qualified as GalleyProvider
 import Brig.IO.Intra qualified as Intra
+import Brig.Options
 import Brig.Types.Connection
 import Brig.Types.User.Event
 import Control.Error
+import Control.Lens (view)
 import Control.Monad.Catch (throwM)
 import Data.Id as Id
 import Data.LegalHold qualified as LH
@@ -243,9 +245,10 @@ updateConnection self other newStatus conn =
 -- {#RefConnectionTeam}
 updateConnectionToLocalUser ::
   forall r.
-  ( Member NotificationSubsystem r,
-    Member TinyLog r,
-    Member (Embed HttpClientIO) r
+  ( Member (Embed HttpClientIO) r,
+    Member GalleyProvider r,
+    Member NotificationSubsystem r,
+    Member TinyLog r
   ) =>
   -- | From
   Local UserId ->
@@ -335,13 +338,11 @@ updateConnectionToLocalUser self other newStatus conn = do
         logLocalConnection (tUnqualified self) (qUnqualified (ucTo s2o))
           . msg (val "Blocking connection")
       traverse_ (liftSem . Intra.blockConv self conn) (ucConvId s2o)
-      liftSem $ do
-        -- TODO: do this whole block only if MLS is enabled
+      mlsEnabled <- view (settings . enableMLS)
+      liftSem $ when (fromMaybe False mlsEnabled) $ do
         let mlsConvId = one2OneConvId BaseProtocolMLSTag (tUntagged self) (tUntagged other)
-        -- TODO: Change Intra.'getConversationMember' so it works for a qualified conv ID
-        m <-
-          Intra.getConversationMember self (qualifyAs self (qUnqualified mlsConvId))
-        when (isJust m) $ Intra.blockConv self conn mlsConvId
+        mlsConvEstablished <- isMLSOne2OneEstablished self (tUntagged other)
+        when mlsConvEstablished $ Intra.blockConv self conn mlsConvId
       wrapClient $ Just <$> Data.updateConnection s2o BlockedWithHistory
 
     unblock :: UserConnection -> UserConnection -> Relation -> ExceptT ConnectionError (AppT r) (Maybe UserConnection)
