@@ -1,8 +1,3 @@
-{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
-{-# OPTIONS_GHC -Wwarn #-}
-
-{-# HLINT ignore "Use :" #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2023 Wire Swiss GmbH <opensource@wire.com>
@@ -319,14 +314,11 @@ testLHRequestDevice =
       requestLegalHoldDevice tid alice bob >>= assertStatus 201
       statusShouldbe "pending"
 
-      -- FIXME(mangoiv): we send two notifications to the client
-      -- which I'm pretty sure is not correct
-
       -- requesting twice should be idempotent wrt the approval
+      -- mind that requesting twice means two "user.legalhold-request" notifications
+      -- for the clients of the user under legalhold (bob)
       requestLegalHoldDevice tid alice bob >>= assertStatus 204
       statusShouldbe "pending"
-
-      -- TODO(mangoiv): test if prekeys are in cassandra?
 
       [bobc1, bobc2] <- replicateM 2 do
         objId $ addClient bob def `bindResponse` getJSON 201
@@ -380,15 +372,13 @@ testLHApproveDevice = do
     (alice, tid, [bob, charlie]) <- createTeam dom 3
 
     -- ollie the outsider
-    -- ollie <- do
-    --   o <- randomUser dom def
-    --   connectTwoUsers o alice
-    --   pure o
+    ollie <- do
+      o <- randomUser dom def
+      connectTwoUsers o alice
+      pure o
 
     -- sandy the stranger
-    -- sandy <- randomUser dom def
-    --
-    -- for sandy and ollie see below
+    sandy <- randomUser dom def
 
     legalholdWhitelistTeam tid alice >>= assertStatus 200
     -- TODO(mangoiv): it seems like correct behaviour to throw a 412
@@ -439,11 +429,18 @@ testLHApproveDevice = do
         >>= renewToken bob
         >>= assertStatus 200
 
-      -- TODO(mangoiv): more CQL checks?
-      -- also look at whether it makes sense to check the client id of the
-      -- legalhold device...
+      bobId <- objId bob
+      lhdId <-
+        BrigI.getClientsFull bob [bobId] `bindResponse` \resp -> do
+          [lhd] <-
+            resp.json %. bobId
+              & asList
+              >>= filterM \val -> (== "legalhold") <$> (val %. "type" & asString)
+          lhd %. "id" & asString
+
       legalholdUserStatus tid alice bob `bindResponse` \resp -> do
         resp.status `shouldMatchInt` 200
+        resp.json %. "client.id" `shouldMatch` lhdId
         resp.json %. "status" `shouldMatch` "enabled"
 
       replicateM 2 do
@@ -459,9 +456,9 @@ testLHApproveDevice = do
         client <- objId $ addClient user def `bindResponse` getJSON 201
         awaitNotification user client noValue isUserLegalholdEnabledNotif >>= \notif -> do
           notif %. "payload.0.id" `shouldMatch` objId bob
-
--- TODO(mangoiv): there's no reasonable check that sandy and ollie don't get any notifs
--- as we never know when to timeout as we don't have any consistency guarantees
+      for_ [ollie, sandy] \outsider -> do
+        outsiderClient <- objId $ addClient outsider def `bindResponse` getJSON 201
+        assertNoNotifications outsider outsiderClient Nothing isUserLegalholdEnabledNotif
 
 testLHGetDeviceStatus :: App ()
 testLHGetDeviceStatus =
