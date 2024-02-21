@@ -44,9 +44,6 @@ data GalleyProvider m a where
     UserId ->
     Local ConvId ->
     GalleyProvider m (Maybe Conversation)
-  GetConvMetadata ::
-    Local ConvId ->
-    GalleyProvider m (Maybe ConversationMetadata)
   GetTeamConv ::
     UserId ->
     TeamId ->
@@ -109,5 +106,9 @@ data GalleyProvider m a where
   GetExposeInvitationURLsToTeamAdmin ::
     TeamId ->
     GalleyProvider m ShowOrHideInvitationUrl
+  IsMLSOne2OneEstablished ::
+    Local UserId ->
+    Qualified UserId ->
+    GalleyProvider m Bool
 
 makeSem ''GalleyProvider

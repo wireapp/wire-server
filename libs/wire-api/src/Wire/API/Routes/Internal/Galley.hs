@@ -537,6 +537,16 @@ type IConversationAPI =
                :> "meta"
                :> Get '[Servant.JSON] ConversationMetadata
            )
+    :<|> Named
+           "conversation-mls-one-to-one"
+           ( CanThrow 'NotConnected
+               :> CanThrow 'MLSNotEnabled
+               :> "conversations"
+               :> "mls-one2one"
+               :> ZLocalUser
+               :> QualifiedCapture "user" UserId
+               :> Get '[Servant.JSON] Conversation
+           )
 
 swaggerDoc :: OpenApi
 swaggerDoc =

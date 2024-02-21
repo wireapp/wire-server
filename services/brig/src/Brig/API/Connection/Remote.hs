@@ -39,7 +39,6 @@ import Control.Error.Util ((??))
 import Control.Lens (view)
 import Control.Monad.Trans.Except
 import Data.Id as Id
-import Data.List qualified as List
 import Data.Qualified
 import Debug.Trace
 import Galley.Types.Conversations.One2One (one2OneConvId)
@@ -51,7 +50,6 @@ import Wire.API.Federation.API.Brig
   ( NewConnectionResponse (..),
     RemoteConnectionAction (..),
   )
-import Wire.API.Federation.API.Galley (GetConversationsResponse (convs), RemoteConversation)
 import Wire.API.Routes.Internal.Galley.ConversationsIntra
 import Wire.API.Routes.Public.Util (ResponseForExistedCreated (..))
 import Wire.API.User
@@ -198,18 +196,14 @@ transitionTo self mzcon other (Just connection) (Just rel) actor = do
   lift $ updateOne2OneConv self Nothing other proteusConvId (desiredMembership actor rel) actor
   mlsEnabled <- view (settings . enableMLS)
   traceM $ "is MLS enabled: " <> show mlsEnabled
+  traceM $ "The desired relation: " <> show rel
   when (fromMaybe False mlsEnabled) $ do
     let mlsConvId = one2OneConvId BaseProtocolMLSTag (tUntagged self) (tUntagged other)
-    mlsConvExists <-
-      foldQualified
-        self
-        (fmap isJust . lift . liftSem . getConvMetadata)
-        (fmap isJust . getRemoteConversation self)
-        mlsConvId
-    traceM $ "mlsConvExists = " <> show mlsConvExists
+    mlsConvEstablished <- lift . liftSem $ isMLSOne2OneEstablished self (tUntagged other)
+    traceM $ "mlsConvEstablished = " <> show mlsConvEstablished
     let desiredMem = desiredMembership actor rel
     traceM $ "desiredMembership = " <> show desiredMem
-    lift . when (mlsConvExists && desiredMem == Excluded) $
+    lift . when (mlsConvEstablished && desiredMem == Excluded) $
       updateOne2OneConv self Nothing other mlsConvId desiredMem actor
 
   -- update connection
@@ -218,9 +212,6 @@ transitionTo self mzcon other (Just connection) (Just rel) actor = do
   -- send event
   lift $ pushEvent self mzcon connection'
   pure (Existed connection', True)
-
-getRemoteConversation :: Local UserId -> Remote ConvId -> ConnectionM r (Maybe RemoteConversation)
-getRemoteConversation self conv = listToMaybe . convs <$> Federation.getConversations self (fmap List.singleton conv) !>> ConnectFederationError
 
 -- | Send an event to the local user when the state of a connection changes.
 pushEvent ::

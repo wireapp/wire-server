@@ -130,6 +130,7 @@ conversationAPI =
     <@> mkNamedAPI @"conversation-block" Update.blockConv
     <@> mkNamedAPI @"conversation-unblock" Update.unblockConv
     <@> mkNamedAPI @"conversation-meta" Query.getConversationMeta
+    <@> mkNamedAPI @"conversation-mls-one-to-one" Query.getMLSOne2OneConversation
 
 legalholdWhitelistedTeamsAPI :: API ILegalholdWhitelistedTeamsAPI GalleyEffects
 legalholdWhitelistedTeamsAPI = mkAPI $ \tid -> hoistAPIHandler Imports.id (base tid)

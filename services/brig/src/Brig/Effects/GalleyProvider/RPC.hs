@@ -35,6 +35,8 @@ import Data.Qualified
 import Data.Range
 import Galley.Types.Teams qualified as Team
 import Imports
+import Network.HTTP.Client qualified as HTTP
+import Network.HTTP.Types qualified as HTTP
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error qualified as Wai
@@ -46,6 +48,7 @@ import Servant.API (toHeader)
 import System.Logger (field, msg, val)
 import Util.Options
 import Wire.API.Conversation hiding (Member)
+import Wire.API.Conversation.Protocol
 import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
 import Wire.API.Routes.Version
 import Wire.API.Team
@@ -72,7 +75,6 @@ interpretGalleyProviderToRpc disabledVersions galleyEndpoint =
         runInputConst galleyEndpoint . \case
           CreateSelfConv id' -> createSelfConv v id'
           GetConv id' id'' -> getConv v id' id''
-          GetConvMetadata convId -> getConvMetadata convId
           GetTeamConv id' id'' id'2 -> getTeamConv v id' id'' id'2
           NewClient id' ci -> newClient id' ci
           CheckUserCanJoinTeam id' -> checkUserCanJoinTeam id'
@@ -90,6 +92,7 @@ interpretGalleyProviderToRpc disabledVersions galleyEndpoint =
           GetAllFeatureConfigsForUser m_id' -> getAllFeatureConfigsForUser m_id'
           GetVerificationCodeEnabled id' -> getVerificationCodeEnabled id'
           GetExposeInvitationURLsToTeamAdmin id' -> getTeamExposeInvitationURLsToTeamAdmin id'
+          IsMLSOne2OneEstablished lusr qother -> checkMLSOne2OneEstablished lusr qother
 
 galleyRequest :: (Member Rpc r, Member (Input Endpoint) r) => (Request -> Request) -> Sem r (Response (Maybe LByteString))
 galleyRequest req = do
@@ -147,35 +150,6 @@ getConv v usr lcnv = do
             toByteString' (tUnqualified lcnv)
           ]
         . zUser usr
-        . expect [status200, status404]
-
-getConvMetadata ::
-  ( Member (Error ParseException) r,
-    Member Rpc r,
-    Member (Input Endpoint) r,
-    Member TinyLog r
-  ) =>
-  Local ConvId ->
-  Sem r (Maybe ConversationMetadata)
-getConvMetadata lcnv = do
-  debug $
-    remote "galley"
-      . field "domain" (toByteString (tDomain lcnv))
-      . field "conv" (toByteString (tUnqualified lcnv))
-      . msg (val "Getting conversation metadata")
-  rs <- galleyRequest req
-  case Bilge.statusCode rs of
-    200 -> Just <$> decodeBodyOrThrow "galley" rs
-    _ -> pure Nothing
-  where
-    req =
-      method GET
-        . paths
-          [ "i",
-            "conversations",
-            toByteString' (tUnqualified lcnv),
-            "metadata"
-          ]
         . expect [status200, status404]
 
 -- | Calls 'Galley.API.getTeamConversationH'.
@@ -554,3 +528,39 @@ getTeamExposeInvitationURLsToTeamAdmin tid = do
       method GET
         . paths ["i", "teams", toByteString' tid, "features", featureNameBS @ExposeInvitationURLsToTeamAdminConfig]
         . expect2xx
+
+checkMLSOne2OneEstablished ::
+  ( Member (Error ParseException) r,
+    Member (Input Endpoint) r,
+    Member Rpc r,
+    Member TinyLog r
+  ) =>
+  Local UserId ->
+  Qualified UserId ->
+  Sem r Bool
+checkMLSOne2OneEstablished self (Qualified other otherDomain) = do
+  debug $ remote "galley" . msg (val "Get the MLS one-to-one conversation")
+  response <- galleyRequest req
+  case HTTP.statusCode (HTTP.responseStatus response) of
+    403 -> pure False
+    400 -> pure False
+    _ {- 200 is assumed -} -> do
+      conv <- decodeBodyOrThrow @Conversation "galley" response
+      let mEpoch = case cnvProtocol conv of
+            ProtocolProteus -> Nothing
+            ProtocolMLS meta -> Just . cnvmlsEpoch $ meta
+            ProtocolMixed meta -> Just . cnvmlsEpoch $ meta
+      pure $ case mEpoch of
+        Nothing -> False
+        Just (Epoch e) -> e > 0
+  where
+    req =
+      method GET
+        . paths
+          [ "i",
+            "conversations",
+            "mls-one2one",
+            toByteString' otherDomain,
+            toByteString' other
+          ]
+        . zUser (tUnqualified self)
