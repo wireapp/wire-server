@@ -109,4 +109,3 @@ iUpsertOne2OneConversation UpsertOne2OneConversationRequest {..} = do
           (RemoteActor, _) -> pure ()
 
   foldQualified uooLocalUser dolocal doremote uooConvId
-  pure ()

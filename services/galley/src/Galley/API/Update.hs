@@ -199,11 +199,6 @@ blockConvUnqualified zusr _conn cnv = do
   when (zusr `isMember` mems) $
     E.deleteMembers cnv (UserList [zusr] [])
 
--- loc <- input
--- self <- qualifyAs loc zusr
--- void $
---   removeMemberFromLocalConv (qualifyAs loc conv) self Nothing (tUntagged self)
-
 blockRemoteConv ::
   ( Member (ErrorS 'ConvNotFound) r,
     Member MemberStore r
