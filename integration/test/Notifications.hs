@@ -56,7 +56,7 @@ awaitNotifications ::
   (Value -> App Bool) ->
   App [Value]
 awaitNotifications user client since0 n selector = do
-  tSecs <- asks timeOutSeconds
+  tSecs <- asks ((* 1000) . timeOutSeconds)
   assertAwaitResult =<< go tSecs since0 (AwaitResult False n [] [])
   where
     go timeRemaining since res0

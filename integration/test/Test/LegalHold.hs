@@ -518,7 +518,7 @@ setTimeoutTo tSecs env = env {timeOutSeconds = tSecs}
 
 testLHDisableForUser :: App ()
 testLHDisableForUser =
-  local (setTimeoutTo 30) $ startDynamicBackends [mempty] \[dom] -> do
+  startDynamicBackends [mempty] \[dom] -> do
     -- team users
     -- alice (team owner) and bob (member)
     (alice, tid, [bob]) <- createTeam dom 2
@@ -549,7 +549,7 @@ testLHDisableForUser =
               && req.pathInfo == (T.pack <$> ["legalhold", "remove"])
           mzero
 
-      void do
+      void $ local (setTimeoutTo 90) do
         awaitNotification bob bobc noValue isUserClientRemoveNotif
           *> awaitNotification bob bobc noValue isUserLegalholdDisabledNotif
 
@@ -637,7 +637,7 @@ testLHNoConsentBlockOne2OneConv
   (ut -> teampeer)
   (ut -> approveLH)
   (ut -> testPendingConnection) =
-    local (setTimeoutTo 30) $ startDynamicBackends [mempty] \[dom1] -> do
+    startDynamicBackends [mempty] \[dom1] -> do
       -- team users
       -- alice (team owner) and bob (member)
       (alice, tid, []) <- createTeam dom1 1
@@ -772,8 +772,9 @@ testLHNoConsentBlockOne2OneConv
             doDisableLH
 
             for_ mbLHDevice \lhd ->
-              awaitNotification alice alicec noValue isUserClientRemoveNotif >>= \notif ->
-                notif %. "payload.0.client.id" `shouldMatch` lhd
+              local (setTimeoutTo 90) $
+                awaitNotification alice alicec noValue isUserClientRemoveNotif >>= \notif ->
+                  notif %. "payload.0.client.id" `shouldMatch` lhd
 
             let assertStatusFor user status =
                   getConnections user `bindResponse` \resp -> do
