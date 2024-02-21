@@ -51,7 +51,7 @@ pattern TaggedBool a = MkTagged a
 
 {-# COMPLETE TaggedBool #-}
 
--- | only works for toplevel types
+-- | only works for outer-most use of `Tagged` (not: `Maybe (Tagged "bla" Bool)`)
 --
 -- >>> testCases @(Tagged "bla" Bool)
 instance (GEnum (Rep a), KnownSymbol s, Generic a) => TestCases (Tagged s a) where
