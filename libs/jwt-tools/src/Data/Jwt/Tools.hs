@@ -34,6 +34,7 @@ module Data.Jwt.Tools
     NowEpoch (..),
     PemBundle (..),
     Handle (..),
+    DisplayName (..),
     TeamId (..),
   )
 where
@@ -74,12 +75,15 @@ type EpochWord64 = Word64
 
 type BackendBundleCStr = CString
 
+type DisplayNameCStr = CString
+
 foreign import ccall unsafe "generate_dpop_access_token"
   generate_dpop_access_token ::
     ProofCStr ->
     UserIdCStr ->
     ClientIdWord64 ->
     HandleCStr ->
+    DisplayNameCStr ->
     TeamIdCStr ->
     DomainCStr ->
     NonceCStr ->
@@ -102,6 +106,7 @@ generateDpopAccessTokenFfi ::
   UserIdCStr ->
   ClientIdWord64 ->
   HandleCStr ->
+  DisplayNameCStr ->
   TeamIdCStr ->
   DomainCStr ->
   NonceCStr ->
@@ -112,8 +117,8 @@ generateDpopAccessTokenFfi ::
   EpochWord64 ->
   BackendBundleCStr ->
   IO (Maybe (Ptr HsResult))
-generateDpopAccessTokenFfi dpopProof user client handle tid domain nonce uri method maxSkewSecs expiration now backendKeys = do
-  ptr <- generate_dpop_access_token dpopProof user client handle tid domain nonce uri method maxSkewSecs expiration now backendKeys
+generateDpopAccessTokenFfi dpopProof user client handle displayName tid domain nonce uri method maxSkewSecs expiration now backendKeys = do
+  ptr <- generate_dpop_access_token dpopProof user client handle displayName tid domain nonce uri method maxSkewSecs expiration now backendKeys
   if ptr /= nullPtr
     then pure $ Just ptr
     else pure Nothing
@@ -138,6 +143,7 @@ generateDpopToken ::
   UserId ->
   ClientId ->
   Handle ->
+  DisplayName ->
   TeamId ->
   Domain ->
   Nonce ->
@@ -148,10 +154,11 @@ generateDpopToken ::
   NowEpoch ->
   PemBundle ->
   ExceptT DPoPTokenGenerationError m ByteString
-generateDpopToken dpopProof uid cid handle tid domain nonce uri method maxSkewSecs maxExpiration now backendPubkeyBundle = do
+generateDpopToken dpopProof uid cid handle displayName tid domain nonce uri method maxSkewSecs maxExpiration now backendPubkeyBundle = do
   dpopProofCStr <- toCStr dpopProof
   uidCStr <- toCStr uid
   handleCStr <- toCStr handle
+  displayNameCStr <- toCStr displayName
   tidCStr <- toCStr tid
   domainCStr <- toCStr domain
   nonceCStr <- toCStr nonce
@@ -165,6 +172,7 @@ generateDpopToken dpopProof uid cid handle tid domain nonce uri method maxSkewSe
   -- traceM $ "nonce = Nonce " <> show (_unNonce nonce)
   -- traceM $ "expires = ExpiryEpoch " <> show (_unExpiryEpoch maxExpiration)
   -- traceM $ "handle = Handle " <> show (_unHandle handle)
+  -- traceM $ "displayName = DisplayName " <> show (_unDisplayName displayName)
   -- traceM $ "tid = TeamId " <> show (_unTeamId tid)
 
   let before =
@@ -173,6 +181,7 @@ generateDpopToken dpopProof uid cid handle tid domain nonce uri method maxSkewSe
           uidCStr
           (_unClientId cid)
           handleCStr
+          displayNameCStr
           tidCStr
           domainCStr
           nonceCStr
@@ -273,6 +282,10 @@ newtype PemBundle = PemBundle {_unPemBundle :: ByteString}
   deriving (Eq, Show)
   deriving newtype (ToByteString)
 
+newtype DisplayName = DisplayName {_unDisplayName :: ByteString}
+  deriving (Eq, Show)
+  deriving newtype (ToByteString)
+
 data DPoPTokenGenerationError
   = NoError
   | -- | Unmapped error
@@ -359,4 +372,6 @@ data DPoPTokenGenerationError
     DpopHandleMismatch
   | -- Client team does not match the supplied team
     DpopTeamMismatch
+  | --  Client display name does not match the supplied display name
+    DpopDisplayNameMismatch
   deriving (Eq, Show, Generic, Bounded, Enum)

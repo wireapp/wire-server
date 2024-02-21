@@ -19,6 +19,7 @@ import Polysemy
 import Wire.API.MLS.Credential (ClientIdentity (..))
 import Wire.API.MLS.Epoch (Epoch (..))
 import Wire.API.User.Client.DPoPAccessToken (DPoPAccessToken (..), Proof (..))
+import Wire.API.User.Profile (Name (..))
 
 data JwtTools m a where
   GenerateDPoPAccessToken ::
@@ -30,6 +31,8 @@ data JwtTools m a where
     ClientIdentity ->
     -- | The user's handle
     Handle ->
+    -- The user's display name
+    Name ->
     -- | The user's team ID
     TeamId ->
     -- | The most recent DPoP nonce provided by the backend to the current client
@@ -52,7 +55,7 @@ makeSem ''JwtTools
 
 interpretJwtTools :: Member (Embed IO) r => Sem (JwtTools ': r) a -> Sem r a
 interpretJwtTools = interpret $ \case
-  GenerateDPoPAccessToken proof cid handle tid nonce uri method skew ex now pem ->
+  GenerateDPoPAccessToken proof cid handle displayName tid nonce uri method skew ex now pem ->
     mapLeft RustError
       <$> runExceptT
         ( DPoPAccessToken
@@ -61,6 +64,7 @@ interpretJwtTools = interpret $ \case
               (Jwt.UserId (toByteString' (ciUser cid)))
               (Jwt.ClientId (clientToWord64 (ciClient cid)))
               (Jwt.Handle (toByteString' (urlEncode (fromHandle (handle)))))
+              (Jwt.DisplayName (toByteString' (fromName displayName)))
               (Jwt.TeamId (toByteString' tid))
               (Jwt.Domain (toByteString' (ciDomain cid)))
               (Jwt.Nonce (toByteString' nonce))
