@@ -65,7 +65,8 @@ loadEd25519KeyPair path = do
   priv <-
     either (throwIO . MLSPrivateKeyException path) pure $
       decodeEd25519PrivateKey bytes
-  pure (priv, toPublic priv)
+  let pub = toPublic priv
+  pure (priv, pub)
 
 decodeEd25519PrivateKey ::
   LByteString ->

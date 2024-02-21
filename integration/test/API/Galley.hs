@@ -630,3 +630,8 @@ getLegalHoldStatus tid zusr = do
   uidStr <- asString $ zusr %. "id"
   req <- baseRequest zusr Galley Versioned (joinHttpPath ["teams", tidStr, "legalhold", uidStr])
   submit "GET" req
+
+getMLSPublicKeys :: (MakesValue user) => user -> App Response
+getMLSPublicKeys user = do
+  req <- baseRequest user Galley Versioned "mls/public-keys"
+  submit "GET" req
