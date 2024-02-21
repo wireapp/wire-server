@@ -313,7 +313,16 @@ in your wire team:
       mapped on wire's email address, and provisioning works like in
       the team management app with invitation emails.
 
-This means that if you use email/password authentication, you **must**
+5. SCIM's `roles` is mapped to team role.  Only lists of length 0 or 1
+   are allowed.  Valid values are:
+
+   - `[member]` (same as `[]`, `null`, or missing field)
+   - `[admin]`
+   - `[owner]`
+   - `[partner]`
+
+The mapping of `externalId` implies that if you use email/password
+authentication, you **must**
 map an email address to `externalId` on your side.  With `userName`
 and `displayName`, you are more flexible.
 
