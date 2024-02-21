@@ -512,6 +512,7 @@ guard-inotify:
 
 .PHONY: kind-integration-setup
 kind-integration-setup: guard-inotify .local/kind-kubeconfig
+	KUBECONFIG=$(CURDIR)/.local/kind-kubeconfig helmfile sync -f $(CURDIR)/hack/helmfile-federation-v0.yaml
 	HELMFILE_ENV="kind" KUBECONFIG=$(CURDIR)/.local/kind-kubeconfig make kube-integration-setup
 
 .PHONY: kind-integration-test
