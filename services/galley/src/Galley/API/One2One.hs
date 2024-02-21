@@ -25,7 +25,6 @@ where
 
 import Data.Id
 import Data.Qualified
-import Debug.Trace
 import Galley.Data.Conversation
 import Galley.Data.Conversation.Types
 import Galley.Effects.ConversationStore
@@ -84,7 +83,6 @@ iUpsertOne2OneConversation UpsertOne2OneConversationRequest {..} = do
                 unless (null (convRemoteMembers conv)) $
                   acceptConnectConversation (tUnqualified lconvId)
               (LocalActor, Excluded) -> do
-                traceM $ "Removing the local actor from the 1-to-1, both the user and all of its MLS clients"
                 deleteMembers
                   (tUnqualified lconvId)
                   (UserList [tUnqualified uooLocalUser] [])
@@ -92,7 +90,6 @@ iUpsertOne2OneConversation UpsertOne2OneConversationRequest {..} = do
                       ProtocolProteus -> Nothing
                       ProtocolMLS meta -> Just . cnvmlsGroupId $ meta
                       ProtocolMixed meta -> Just . cnvmlsGroupId $ meta
-                traceM $ "  mGroupId = " <> show mGroupId
                 for_ mGroupId $ flip removeAllMLSClientsOfUser (tUntagged uooLocalUser)
               (RemoteActor, Included) -> do
                 void $ createMembers (tUnqualified lconvId) (UserList [] [uooRemoteUser])

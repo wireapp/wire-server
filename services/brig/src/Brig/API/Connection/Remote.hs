@@ -40,7 +40,6 @@ import Control.Lens (view)
 import Control.Monad.Trans.Except
 import Data.Id as Id
 import Data.Qualified
-import Debug.Trace
 import Galley.Types.Conversations.One2One (one2OneConvId)
 import Imports
 import Network.Wai.Utilities.Error
@@ -195,14 +194,10 @@ transitionTo self mzcon other (Just connection) (Just rel) actor = do
           $ ucConvId connection
   lift $ updateOne2OneConv self Nothing other proteusConvId (desiredMembership actor rel) actor
   mlsEnabled <- view (settings . enableMLS)
-  traceM $ "is MLS enabled: " <> show mlsEnabled
-  traceM $ "The desired relation: " <> show rel
   when (fromMaybe False mlsEnabled) $ do
     let mlsConvId = one2OneConvId BaseProtocolMLSTag (tUntagged self) (tUntagged other)
     mlsConvEstablished <- lift . liftSem $ isMLSOne2OneEstablished self (tUntagged other)
-    traceM $ "mlsConvEstablished = " <> show mlsConvEstablished
     let desiredMem = desiredMembership actor rel
-    traceM $ "desiredMembership = " <> show desiredMem
     lift . when (mlsConvEstablished && desiredMem == Excluded) $
       updateOne2OneConv self Nothing other mlsConvId desiredMem actor
 
