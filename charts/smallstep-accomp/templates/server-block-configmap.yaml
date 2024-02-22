@@ -20,6 +20,8 @@ data:
         proxy_redirect off;
         proxy_set_header X-Forwarded-Host $http_host;
         proxy_set_header Host {{ . }};
+        proxy_hide_header Content-Type;
+        add_header Content-Type application/pkix-crl;
         proxy_pass "http://{{ . }}/crl";
       }
 
