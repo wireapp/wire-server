@@ -7,18 +7,36 @@ import API.Brig
 import API.BrigInternal
 import API.Common
 import API.Galley
+import Control.Monad.Catch
 import Control.Monad.Reader
 import Crypto.Random (getRandomBytes)
-import Data.Aeson hiding ((.=))
-import qualified Data.Aeson.Types as Aeson
+import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Base64.URL as B64Url
 import Data.ByteString.Char8 (unpack)
 import Data.Default
 import Data.Function
+import Data.Streaming.Network (HostPreference, bindRandomPortGen)
+import Data.String.Conversions
 import Data.UUID.V1 (nextUUID)
 import Data.UUID.V4 (nextRandom)
 import GHC.Stack
+import qualified Network.Socket as Socket
+import qualified Network.Wai.Handler.Warp as Warp
+import qualified Network.Wai.Handler.Warp.Internal as Warp
+import qualified Network.Wai.Handler.WarpTLS as Warp
+import Testlib.Prekeys
 import Testlib.Prelude
+import UnliftIO.Async
+import UnliftIO.Chan
+import UnliftIO.MVar
+import UnliftIO.Timeout (timeout)
+
+-- | Helper function to bind a free port and socket with Socket.close as clean-up.
+withFreePortAnyAddr :: (MonadMask m, MonadIO m) => ((Warp.Port, Socket.Socket) -> m a) -> m a
+withFreePortAnyAddr = bracket bindingPort (liftIO . Socket.close . snd)
+  where
+    bindingPort :: MonadIO m => m (Warp.Port, Socket.Socket)
+    bindingPort = liftIO $ bindRandomPortGen Socket.NoSocketType (fromString @HostPreference "*")
 
 randomUser :: (HasCallStack, MakesValue domain) => domain -> CreateUser -> App Value
 randomUser domain cu = bindResponse (createUser domain cu) $ \resp -> do
@@ -276,3 +294,53 @@ setupProvider u np@(NewProvider {..}) = do
     pure (k, c)
   activateProvider dom key code
   loginProvider dom newProviderEmail pass $> provider
+
+-- | Allows us to run tests inside a context that contains a
+-- running service (a bot), with a give service and provider id.
+-- It requires the creator user and team to be created ahead and injected.
+-- This gives us more control over team and user setup, instead of having those
+-- being created here and passed down.
+withRunningService ::
+  ( MakesValue user,
+    MakesValue teamId,
+    MakesValue dom
+  ) =>
+  dom ->
+  user ->
+  teamId ->
+  ( String -> -- ServiceID
+    String -> -- ProviderId
+    Chan TestBotEvent ->
+    App a
+  ) ->
+  App a
+withRunningService dom user team go = withFreePortAnyAddr $ \(port, _socket) -> do
+  serverStarted <- liftIO newEmptyMVar
+  let tlss = Warp.tlsSettingsMemory (cs someCert) (cs somePrivKey)
+  let defs =
+        Warp.defaultSettings
+          { Warp.settingsPort = port,
+            Warp.settingsBeforeMainLoop = putMVar serverStarted ()
+          }
+
+  buf <- liftIO newChan
+  srv <- async . liftIO . Warp.runTLS tlss defs $ defServiceApp buf
+  srvMVar <- liftIO $ timeout 5_000_000 (liftIO $ takeMVar serverStarted)
+  case srvMVar of
+    Just () -> do
+      uid <- user %. "id" & asString
+      email <- randomEmail
+      provider <- setupProvider user def {newProviderEmail = email}
+      ppwd <- provider %. "password" & asString
+      pid <- provider %. "id" & asString
+
+      botHost <- asks localhost
+      print botHost
+      let url = botHost <> ":" <> show port
+
+      service <- newService dom pid def {newServiceUrl = url}
+      sid <- service %. "id" & asString
+      void $ enableService dom uid team pid sid ppwd
+
+      go sid pid buf `finally` liftIO (cancel srv)
+    Nothing -> error . show =<< liftIO (poll srv)

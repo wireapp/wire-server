@@ -555,6 +555,7 @@ test-suite brig-tests
     Test.Brig.InternalNotification
     Test.Brig.MLS
     Test.Brig.Roundtrip
+    Test.Brig.SSL
     Test.Brig.User.Search.Index.Types
 
   hs-source-dirs: test/unit
@@ -567,15 +568,22 @@ test-suite brig-tests
     , brig-types
     , bytestring
     , containers
+    , crypton-connection
     , data-timeout
     , dns
     , dns-util
     , exceptions
-    , HsOpenSSL          >=0.10
+    , HsOpenSSL           >=0.10
+    , http-client
+    , http-client-tls
+    , http-types
     , imports
     , lens
+    , network
     , polysemy
     , polysemy-wire-zoo
+    , ssl-util
+    , streaming-commons
     , tasty
     , tasty-hunit
     , tasty-quickcheck
@@ -585,4 +593,8 @@ test-suite brig-tests
     , unliftio
     , uri-bytestring
     , uuid
+    , wai
+    , wai-route
+    , warp
+    , warp-tls
     , wire-api

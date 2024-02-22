@@ -5,6 +5,7 @@ module Testlib.ModService
     startDynamicBackend,
     startDynamicBackends,
     traverseConcurrentlyCodensity,
+    retryRequestUntil,
   )
 where
 

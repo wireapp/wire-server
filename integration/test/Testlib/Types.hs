@@ -100,6 +100,7 @@ instance FromJSON RabbitMQConfig where
 -- | Initialised once per testsuite.
 data GlobalEnv = GlobalEnv
   { gServiceMap :: Map String ServiceMap,
+    gLocalhost :: String,
     gDomain1 :: String,
     gDomain2 :: String,
     gFederationV0Domain :: String,
@@ -111,16 +112,19 @@ data GlobalEnv = GlobalEnv
     gBackendResourcePool :: ResourcePool BackendResource,
     gRabbitMQConfig :: RabbitMQConfig,
     gTempDir :: FilePath,
-    gTimeOutSeconds :: Int
+    gTimeOutSeconds :: Int,
+    gProviderCert :: FilePath,
+    gProviderKey :: FilePath
   }
 
 data IntegrationConfig = IntegrationConfig
   { backendOne :: BackendConfig,
     backendTwo :: BackendConfig,
-    federationV0 :: BackendConfig,
+    ownDomain :: String,
     dynamicBackends :: Map String DynamicBackendConfig,
     rabbitmq :: RabbitMQConfig,
-    cassandra :: CassandraConfig
+    cassandra :: CassandraConfig,
+    provider :: ProviderConfig
   }
   deriving (Show, Generic)
 
@@ -130,10 +134,11 @@ instance FromJSON IntegrationConfig where
       IntegrationConfig
         <$> parseJSON (Object o)
         <*> o .: fromString "backendTwo"
-        <*> o .: fromString "federation-v0"
+        <*> o .: fromString "ownDomain"
         <*> o .: fromString "dynamicBackends"
         <*> o .: fromString "rabbitmq"
         <*> o .: fromString "cassandra"
+        <*> o .: fromString "provider"
 
 data ServiceMap = ServiceMap
   { brig :: HostPort,
@@ -173,6 +178,15 @@ data HostPort = HostPort
 
 instance FromJSON HostPort
 
+data ProviderConfig = ProviderConfig
+  { privateKey :: FilePath,
+    publicKey :: FilePath,
+    cert :: FilePath
+  }
+  deriving (Show, Generic)
+
+instance FromJSON ProviderConfig
+
 data CassandraConfig = CassandraConfig
   { cassHost :: String,
     cassPort :: Word16,
@@ -193,6 +207,7 @@ instance FromJSON CassandraConfig where
 -- | Initialised once per test.
 data Env = Env
   { serviceMap :: Map String ServiceMap,
+    localhost :: String,
     domain1 :: String,
     domain2 :: String,
     federationV0Domain :: String,
@@ -206,7 +221,9 @@ data Env = Env
     mls :: IORef MLSState,
     resourcePool :: ResourcePool BackendResource,
     rabbitMQConfig :: RabbitMQConfig,
-    timeOutSeconds :: Int
+    timeOutSeconds :: Int,
+    botKey :: FilePath,
+    botCert :: FilePath
   }
 
 data Response = Response

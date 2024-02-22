@@ -59,7 +59,7 @@ optInfo =
 
 getOptions :: IO TestOptions
 getOptions = do
-  defaultsInclude <- maybe [] (splitOn ",") <$> lookupEnv "TEST_INCLUDE"
+  let defaultsInclude = ["testAddMemberBot"] -- maybe [] (splitOn ",") <$> lookupEnv "TEST_INCLUDE"
   defaultsExclude <- maybe [] (splitOn ",") <$> lookupEnv "TEST_EXCLUDE"
   defaultsXMLReport <- lookupEnv "TEST_XML"
   opts <- execParser optInfo

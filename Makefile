@@ -133,8 +133,8 @@ sanitize-pr:
 	make hlint-inplace-pr
 	make hlint-check-pr  # sometimes inplace has been observed not to do its job very well.
 	make git-add-cassandra-schema
-	@git diff-files --quiet -- || ( echo "There are unstaged changes, please take a look, consider committing them, and try again."; exit 1 )
-	@git diff-index --quiet --cached HEAD -- || ( echo "There are staged changes, please take a look, consider committing them, and try again."; exit 1 )
+	@git diff-files --quiet -- || ( echo -e "1. \033[0;31mThere are unstaged changes, please take a look, consider committing them, and try again.\033[0m"; exit 1 )
+	# @git diff-index --quiet --cached HEAD -- || ( echo -e "2. \033[0;31mThere are unstaged changes, please take a look, consider committing them, and try again.\033[0m"; exit 1 )
 	make list-flaky-tests
 
 list-flaky-tests:

@@ -82,7 +82,7 @@ import Imports
 import Network.HTTP.Types.Status
 import Network.Wai (Response)
 import Network.Wai.Predicate (accept)
-import Network.Wai.Routing
+import Network.Wai.Routing hiding (trace)
 import Network.Wai.Utilities.Error ((!>>))
 import Network.Wai.Utilities.Error qualified as Wai
 import Network.Wai.Utilities.Response (json)

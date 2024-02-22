@@ -1,7 +1,11 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module API.Brig where
 
 import API.BrigCommon
 import API.Common
+import Control.Concurrent
+import Control.Monad.RWS hiding (pass)
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.CaseInsensitive as CI
@@ -11,6 +15,10 @@ import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Vector as V
 import GHC.Stack
+import Network.HTTP.Types
+import Network.Wai (Application, responseLBS)
+import qualified Network.Wai.Route as Wai
+import Testlib.Prekeys
 import Testlib.Prelude
 
 data AddUser = AddUser
@@ -95,6 +103,32 @@ instance ToJSON NewService where
         "auth_token" .= newServiceToken,
         "assets" .= Aeson.Array (V.fromList (Aeson.String . T.pack <$> newServiceAssets)),
         "tags" .= Aeson.Array (V.fromList (Aeson.String . T.pack <$> newServiceTags))
+      ]
+
+data Prekey = Prekey
+  { prekeyId :: Word16,
+    key :: String
+  }
+  deriving (Show, Eq, Generic)
+
+instance ToJSON Prekey where
+  toJSON Prekey {..} =
+    Aeson.object
+      [ "id" .= prekeyId,
+        "key" .= key
+      ]
+
+data NewBotResponse = NewBotResponse
+  { prekeys :: [Prekey],
+    lastPrekey :: Prekey
+  }
+  deriving (Show, Eq, Generic)
+
+instance ToJSON NewBotResponse where
+  toJSON NewBotResponse {..} =
+    Aeson.object
+      [ "prekeys" .= prekeys,
+        "last_prekey" .= lastPrekey
       ]
 
 addUser :: (HasCallStack, MakesValue dom) => dom -> AddUser -> App Response
@@ -572,9 +606,8 @@ newService ::
   App Value
 newService dom providerId service = do
   s <- make service
-  domain <- asString dom
   req <-
-    rawBaseRequest domain Brig Versioned $
+    rawBaseRequest dom Brig Versioned $
       joinHttpPath ["provider", "services"]
   let addHdrs =
         addHeader "Z-Type" "provider"
@@ -609,6 +642,86 @@ updateService dom providerId serviceId mAcceptHeader newName = do
     . addJSONObject ["name" .= n | n <- maybeToList newName]
     $ req
 
+addBotToConv ::
+  ( HasCallStack,
+    MakesValue convId,
+    MakesValue creatorId,
+    MakesValue providerId,
+    MakesValue serviceId,
+    MakesValue dom
+  ) =>
+  dom ->
+  convId ->
+  creatorId ->
+  providerId ->
+  serviceId ->
+  App Response
+addBotToConv dom convId creatorId providerId serviceId = do
+  convIdS <- asString convId
+  serviceIdS <- asString serviceId
+  providerIdS <- asString providerId
+  creatorIdS <- asString creatorId
+  req <-
+    rawBaseRequest dom Brig Versioned $
+      joinHttpPath ["conversations", convIdS, "bots"]
+  let addHeaders =
+        addHeader "Z-User" creatorIdS
+          . addHeader "Z-Connection" "connId"
+          . addHeader "Z-Type" "access"
+          . addHeader "Accept" "application/json"
+
+  submit "POST"
+    . addHeaders
+    . addJSONObject ["provider" .= providerIdS, "service" .= serviceIdS]
+    $ req
+
+-- | Services need to be enabled (added to an allow-list for a given team)
+-- before they can be accessed / added to conversations. This is part of the
+-- 'add bot to conversation' flow.
+enableService ::
+  ( MakesValue creatorId,
+    MakesValue teamId,
+    MakesValue providerId,
+    MakesValue dom,
+    MakesValue serviceId
+  ) =>
+  dom ->
+  creatorId ->
+  teamId ->
+  providerId ->
+  serviceId ->
+  String ->
+  App Response
+enableService dom creatorId teamId providerId serviceId pwd = do
+  serviceIdS <- asString serviceId
+  providerIdS <- asString providerId
+  creatorIdS <- asString creatorId
+  teamIdS <- asString teamId
+  req <-
+    rawBaseRequest dom Brig Versioned $
+      joinHttpPath ["teams", teamIdS, "services", "whitelist"]
+  let addHeaders =
+        addHeader "Accept" "text/plain"
+          . addHeader "Z-User" creatorIdS
+          . addHeader "Z-Connection" "connId"
+  void
+    $ submit "POST"
+      . addJSONObject ["id" .= serviceIdS, "provider" .= providerIdS, "whitelisted" .= True]
+      . addHeaders
+    $ req
+  updateServiceConn dom providerIdS serviceIdS
+  where
+    updateServiceConn domain pid sid = do
+      req <-
+        rawBaseRequest domain Brig Versioned $
+          joinHttpPath ["provider", "services", sid, "connection"]
+      submit "PUT"
+        . addHeader "Z-Type" "provider"
+        . addHeader "Accept" "application/json"
+        . addHeader "Z-Provider" pid
+        . addJSONObject ["enabled" .= True, "password" .= pwd]
+        $ req
+
 -- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/get_users__uid_domain___uid__prekeys__client_
 getUsersPrekeysClient :: (HasCallStack, MakesValue caller, MakesValue targetUser) => caller -> targetUser -> String -> App Response
 getUsersPrekeysClient caller targetUser targetClient = do
@@ -630,3 +743,40 @@ getMultiUserPrekeyBundle :: (HasCallStack, MakesValue caller, ToJSON userClients
 getMultiUserPrekeyBundle caller userClients = do
   req <- baseRequest caller Brig Versioned $ joinHttpPath ["users", "list-prekeys"]
   submit "POST" (addJSON userClients req)
+
+data TestBotEvent
+  = TestBotCreated
+  | TestBotMessage String
+  deriving (Show, Eq)
+
+-- | This is the default dummy bot, it responds with a hard-coded last_prekey
+-- so as to be properly validated and added to a conversation.
+-- FUTUREWORK: add tests for messaging a bot.
+defServiceApp :: Chan TestBotEvent -> Application
+defServiceApp buf =
+  Wai.route
+    [ ( "/bots",
+        onBotCreate
+      ),
+      ( "/bots/:bot/messages",
+        onBotMessage
+      ),
+      ( "/alive",
+        onAlive
+      )
+    ]
+  where
+    onAlive _ _ k = do
+      k $ responseLBS status200 [] "success"
+
+    onBotCreate _ _ k = do
+      writeChan buf TestBotCreated
+      -- TODO(elland): fix the responses?
+      let pks = [Prekey 1 (head somePrekeys)]
+          lpk = Prekey 65535 (head someLastPrekeys)
+          rsp = NewBotResponse pks lpk
+      k $ responseLBS status201 [] (Aeson.encode rsp)
+
+    onBotMessage _ _ k = do
+      writeChan buf (TestBotMessage "msg")
+      k $ responseLBS status200 [] "success"

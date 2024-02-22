@@ -86,6 +86,7 @@ module Brig.App
     liftSem,
     lowerAppT,
     temporaryGetEnv,
+    verifyCertFingerprint,
   )
 where
 
@@ -390,12 +391,13 @@ initExtGetManager = do
           managerIdleConnectionCount = 512,
           managerResponseTimeout = responseTimeoutMicro 10000000
         }
+  pure (mgr, verifyCertFingerprint)
+
+verifyCertFingerprint :: [Fingerprint Rsa] -> SSL.SSL -> IO ()
+verifyCertFingerprint fprs ssl = do
   Just sha <- getDigestByName "SHA256"
-  pure (mgr, mkVerify sha)
-  where
-    mkVerify sha fprs =
-      let pinset = map toByteString' fprs
-       in verifyRsaFingerprint sha pinset
+  let pinset = map toByteString' fprs
+  verifyRsaFingerprint sha pinset ssl
 
 initCassandra :: Opts -> Logger -> IO Cas.ClientState
 initCassandra o g =

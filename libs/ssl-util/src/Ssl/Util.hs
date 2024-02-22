@@ -198,13 +198,13 @@ withVerifiedSslConnection ::
   --   connection
   (Request -> IO a) ->
   IO a
-withVerifiedSslConnection verify man reqBuilder act =
+withVerifiedSslConnection verify man reqBuilder act = do
   withConnection' req man Reuse $ \mConn -> do
     -- If we see this connection for the first time, verify fingerprints
     let conn = managedResource mConn
         seen = managedReused mConn
     unless seen $ case fromDynamic @SSL (connectionRaw conn) of
-      Nothing -> error ("withVerifiedSslConnection: only SSL allowed: " <> show req)
+      Nothing -> error ("withVerifiedSslConnection: SSL validation failed: " <> show req)
       Just ssl -> verify ssl
     -- Make a request using this connection and return it back to the
     -- pool (that's what 'Reuse' is for)

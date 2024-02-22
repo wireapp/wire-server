@@ -79,7 +79,7 @@ createBot scon new = do
       wrapHttp $
         recovering x3 httpHandlers $
           const $
-            liftIO $
+            liftIO $ do
               withVerifiedSslConnection (verifyFingerprints fprs) man reqBuilder $
                 \req ->
                   Http.httpLbs req man
@@ -97,7 +97,7 @@ createBot scon new = do
       extReq scon ["bots"]
         . method POST
         . Bilge.json new
-    onExc ex = lift (extLogError scon ex) >> throwE (ServiceUnavailableWith $ displayException ex)
+    onExc ex = (lift (extLogError scon ex) >> throwE (ServiceUnavailableWith $ displayException ex))
 
 extReq :: ServiceConn -> [ByteString] -> Request -> Request
 extReq scon ps =

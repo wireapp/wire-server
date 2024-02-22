@@ -24,7 +24,24 @@ import Testlib.Prelude
 
 testUpdateServiceUpdateAcceptHeader :: HasCallStack => App ()
 testUpdateServiceUpdateAcceptHeader = do
-  let dom = OwnDomain
+  email <- randomEmail
+  alice <- randomUser OwnDomain def
+  provider <- setupProvider alice def {newProviderEmail = email}
+  pId <- provider %. "id" & asString
+  service <- newService OwnDomain pId def
+  sId <- service %. "id"
+  void $
+    updateService OwnDomain pId sId (Just "application/json") (Just "brand new service")
+      >>= getBody 200
+  void $
+    updateService OwnDomain pId sId (Just "text/plain") (Just "even newer service")
+      >>= getBody 200
+  void $
+    updateService OwnDomain pId sId Nothing (Just "really old service")
+      >>= getBody 200
+
+testUpdateServiceUpdateAcceptHeaderOtherBackend :: HasCallStack => App ()
+testUpdateServiceUpdateAcceptHeaderOtherBackend = startDynamicBackends [mempty] $ \[dom] -> do
   email <- randomEmail
   alice <- randomUser dom def
   provider <- setupProvider alice def {newProviderEmail = email}

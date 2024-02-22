@@ -97,6 +97,7 @@ mkGlobalEnv cfgFile = do
   pure
     GlobalEnv
       { gServiceMap = sm,
+        gLocalhost = intConfig.ownDomain,
         gDomain1 = intConfig.backendOne.originDomain,
         gDomain2 = intConfig.backendTwo.originDomain,
         gFederationV0Domain = intConfig.federationV0.originDomain,
@@ -108,7 +109,9 @@ mkGlobalEnv cfgFile = do
         gBackendResourcePool = resourcePool,
         gRabbitMQConfig = intConfig.rabbitmq,
         gTempDir = tempDir,
-        gTimeOutSeconds = timeOutSeconds
+        gTimeOutSeconds = timeOutSeconds,
+        gProviderCert = intConfig.provider.cert,
+        gProviderKey = intConfig.provider.privateKey
       }
   where
     createSSLContext :: Maybe FilePath -> IO (Maybe OpenSSL.SSLContext)
@@ -132,9 +135,17 @@ mkEnv ge = do
   liftIO $ do
     pks <- newIORef (zip [1 ..] somePrekeys)
     lpks <- newIORef someLastPrekeys
+    botKey <- case ge.gServicesCwdBase of
+      Nothing -> pure ge.gProviderKey
+      Just _ -> pure $ "integration" </> ge.gProviderKey
+
+    botCert <- case ge.gServicesCwdBase of
+      Nothing -> pure ge.gProviderCert
+      Just _ -> pure $ "integration" </> ge.gProviderCert
     pure
       Env
         { serviceMap = gServiceMap ge,
+          localhost = gLocalhost ge,
           domain1 = gDomain1 ge,
           domain2 = gDomain2 ge,
           federationV0Domain = gFederationV0Domain ge,
@@ -148,7 +159,9 @@ mkEnv ge = do
           mls = mls,
           resourcePool = ge.gBackendResourcePool,
           rabbitMQConfig = ge.gRabbitMQConfig,
-          timeOutSeconds = ge.gTimeOutSeconds
+          timeOutSeconds = ge.gTimeOutSeconds,
+          botKey = botKey,
+          botCert = botCert
         }
 
 destroy :: IORef (Set BackendResource) -> BackendResource -> IO ()
