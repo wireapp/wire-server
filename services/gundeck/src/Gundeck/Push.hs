@@ -528,10 +528,8 @@ updateEndpoint uid t arn e = do
   requestId <- view reqId
 
   unless (equalTransport && equalApp) $ do
-    -- We can safely continue after this sanity check: A new entry to
-    -- `user_push` will be written later. And, the old (now invalid) data will
-    -- be cleaned up.
     Log.err $ logMessage requestId "PushToken does not fit to user_push data: Transport or app mismatch"
+    throwM $ mkError status500 "server-error" "Server Error"
 
   Log.info $ logMessage requestId "Upserting push token."
   let users = Set.insert uid (e ^. endpointUsers)
