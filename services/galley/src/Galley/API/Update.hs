@@ -23,6 +23,7 @@ module Galley.API.Update
     blockConv,
     blockConvUnqualified,
     unblockConv,
+    unblockConvUnqualified,
     checkReusableCode,
     joinConversationByReusableCode,
     joinConversationById,
@@ -219,15 +220,45 @@ unblockConv ::
   ) =>
   Local UserId ->
   Maybe ConnId ->
+  Qualified ConvId ->
+  Sem r ()
+unblockConv lusr conn =
+  foldQualified
+    lusr
+    (void . unblockConvUnqualified lusr conn . tUnqualified)
+    (unblockRemoteConv lusr conn)
+
+unblockConvUnqualified ::
+  ( Member ConversationStore r,
+    Member (Error InternalError) r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member (ErrorS 'InvalidOperation) r,
+    Member NotificationSubsystem r,
+    Member (Input UTCTime) r,
+    Member MemberStore r,
+    Member TinyLog r
+  ) =>
+  Local UserId ->
+  Maybe ConnId ->
   ConvId ->
   Sem r Conversation
-unblockConv lusr conn cnv = do
+unblockConvUnqualified lusr conn cnv = do
   conv <-
     E.getConversation cnv >>= noteS @'ConvNotFound
   unless (Data.convType conv `elem` [ConnectConv, One2OneConv]) $
     throwS @'InvalidOperation
   conv' <- acceptOne2One lusr conv conn
   conversationView lusr conv'
+
+unblockRemoteConv ::
+  ( Member MemberStore r
+  ) =>
+  Local UserId ->
+  Maybe ConnId ->
+  Remote ConvId ->
+  Sem r ()
+unblockRemoteConv lusr _conn rcnv = do
+  E.createMembersInRemoteConversation rcnv [tUnqualified lusr]
 
 -- conversation updates
 

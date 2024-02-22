@@ -517,7 +517,7 @@ type IConversationAPI =
     -- - MemberJoin event to other, if the conversation existed and only the other was member
     --   before
     :<|> Named
-           "conversation-unblock"
+           "conversation-unblock-unqualified"
            ( CanThrow 'InvalidOperation
                :> CanThrow 'ConvNotFound
                :> ZLocalUser
@@ -526,6 +526,21 @@ type IConversationAPI =
                :> Capture "cnv" ConvId
                :> "unblock"
                :> Put '[Servant.JSON] Conversation
+           )
+    -- This endpoint can lead to the following events being sent:
+    -- - MemberJoin event to you, if the conversation existed and had < 2 members before
+    -- - MemberJoin event to other, if the conversation existed and only the other was member
+    --   before
+    :<|> Named
+           "conversation-unblock"
+           ( CanThrow 'InvalidOperation
+               :> CanThrow 'ConvNotFound
+               :> ZLocalUser
+               :> ZOptConn
+               :> "conversations"
+               :> QualifiedCapture "cnv" ConvId
+               :> "unblock"
+               :> Put '[Servant.JSON] ()
            )
     :<|> Named
            "conversation-meta"

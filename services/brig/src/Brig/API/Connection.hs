@@ -353,7 +353,7 @@ updateConnectionToLocalUser self other newStatus conn = do
       lift . Log.info $
         logLocalConnection (tUnqualified self) (qUnqualified (ucTo s2o))
           . msg (val "Unblocking connection")
-      cnv <- lift $ traverse (Intra.unblockConv self conn) (ucConvId s2o)
+      cnv <- lift . liftSem $ traverse (Intra.unblockConv self conn) (ucConvId s2o)
       when (ucStatus o2s == Sent && new == Accepted) . lift $ do
         o2s' <-
           wrapClient $
@@ -480,7 +480,7 @@ updateConnectionInternal = \case
         unblockDirected :: UserConnection -> UserConnection -> ExceptT ConnectionError (AppT r) ()
         unblockDirected uconn uconnRev = do
           lfrom <- qualifyLocal (ucFrom uconnRev)
-          void . lift . for (ucConvId uconn) $ Intra.unblockConv lfrom Nothing
+          void . lift . liftSem . for (ucConvId uconn) $ Intra.unblockConv lfrom Nothing
           uconnRevRel :: RelationWithHistory <- relationWithHistory lfrom (ucTo uconnRev)
           uconnRev' <- lift . wrapClient $ Data.updateConnection uconnRev (undoRelationHistory uconnRevRel)
           connName <- lift . wrapClient $ Data.lookupName (tUnqualified lfrom)

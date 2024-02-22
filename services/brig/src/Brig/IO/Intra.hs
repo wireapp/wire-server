@@ -669,28 +669,6 @@ blockConv lusr qcnv = do
         . zUser (tUnqualified lusr)
         . expect2xx
 
--- | Calls 'Galley.API.unblockConvH'.
-unblockLocalConv ::
-  ( Member (Embed HttpClientIO) r,
-    Member TinyLog r
-  ) =>
-  Local UserId ->
-  Maybe ConnId ->
-  ConvId ->
-  Sem r Conversation
-unblockLocalConv lusr conn cnv = do
-  Log.debug $
-    remote "galley"
-      . field "conv" (toByteString cnv)
-      . msg (val "Unblocking conversation")
-  embed $ galleyRequest PUT req >>= decodeBody "galley"
-  where
-    req =
-      paths ["/i/conversations", toByteString' cnv, "unblock"]
-        . zUser (tUnqualified lusr)
-        . maybe id (header "Z-Connection" . fromConnId) conn
-        . expect2xx
-
 unblockConv ::
   ( Member (Embed HttpClientIO) r,
     Member TinyLog r
@@ -698,12 +676,25 @@ unblockConv ::
   Local UserId ->
   Maybe ConnId ->
   Qualified ConvId ->
-  AppT r Conversation
-unblockConv luid conn =
-  foldQualified
-    luid
-    (liftSem . unblockLocalConv luid conn . tUnqualified)
-    (const (throwM federationNotImplemented))
+  Sem r Conversation
+unblockConv lusr conn (Qualified cnv cdom) = do
+  Log.debug $
+    remote "galley"
+      . field "conv" (toByteString cnv)
+      . field "domain" (toByteString cdom)
+      . msg (val "Unblocking conversation")
+  void . embed $ galleyRequest PUT putReq
+  embed $ galleyRequest GET getReq >>= decodeBody "galley"
+  where
+    putReq =
+      paths ["i", "conversations", toByteString' cdom, toByteString' cnv, "unblock"]
+        . zUser (tUnqualified lusr)
+        . maybe id (header "Z-Connection" . fromConnId) conn
+        . expect2xx
+    getReq =
+      paths ["conversations", toByteString' cdom, toByteString' cnv]
+        . zUser (tUnqualified lusr)
+        . expect2xx
 
 upsertOne2OneConversation ::
   ( MonadReader Env m,

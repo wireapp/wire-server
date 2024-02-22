@@ -127,6 +127,7 @@ conversationAPI =
     <@> mkNamedAPI @"conversation-accept-v2" Update.acceptConv
     <@> mkNamedAPI @"conversation-block-unqualified" Update.blockConvUnqualified
     <@> mkNamedAPI @"conversation-block" Update.blockConv
+    <@> mkNamedAPI @"conversation-unblock-unqualified" Update.unblockConvUnqualified
     <@> mkNamedAPI @"conversation-unblock" Update.unblockConv
     <@> mkNamedAPI @"conversation-meta" Query.getConversationMeta
     <@> mkNamedAPI @"conversation-mls-one-to-one" Query.getMLSOne2OneConversation
