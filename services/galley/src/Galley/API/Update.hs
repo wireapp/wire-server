@@ -175,8 +175,8 @@ blockConv ::
 blockConv lusr qcnv =
   foldQualified
     lusr
-    (\lcnv -> blockConvUnqualified (tUnqualified lusr) (tUnqualified lcnv))
-    (\rcnv -> blockRemoteConv lusr rcnv)
+    (blockConvUnqualified (tUnqualified lusr) . tUnqualified)
+    (blockRemoteConv lusr)
     qcnv
 
 blockConvUnqualified ::
