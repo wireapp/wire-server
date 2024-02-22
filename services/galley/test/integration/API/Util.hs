@@ -2895,23 +2895,18 @@ iUpsertOne2OneConversation req = do
 
 createOne2OneConvWithRemote :: HasCallStack => Local UserId -> Remote UserId -> TestM ()
 createOne2OneConvWithRemote localUser remoteUser = do
-  let mkRequest actor mConvId =
+  let convId = one2OneConvId BaseProtocolProteusTag (tUntagged localUser) (tUntagged remoteUser)
+      mkRequest actor =
         UpsertOne2OneConversationRequest
           { uooLocalUser = localUser,
             uooRemoteUser = remoteUser,
             uooActor = actor,
             uooActorDesiredMembership = Included,
-            uooConvId = mConvId
+            uooConvId = convId
           }
-  ooConvId <-
-    fmap uuorConvId
-      . responseJsonError
-      =<< iUpsertOne2OneConversation (mkRequest LocalActor Nothing)
-        <!! const 200
-          === statusCode
-  iUpsertOne2OneConversation (mkRequest RemoteActor (Just ooConvId))
-    !!! const 200
-      === statusCode
+
+  iUpsertOne2OneConversation (mkRequest LocalActor) !!! const 200 === statusCode
+  iUpsertOne2OneConversation (mkRequest RemoteActor) !!! const 200 === statusCode
 
 generateRemoteAndConvId :: Bool -> Local UserId -> TestM (Remote UserId, Qualified ConvId)
 generateRemoteAndConvId = generateRemoteAndConvIdWithDomain (Domain "far-away.example.com")

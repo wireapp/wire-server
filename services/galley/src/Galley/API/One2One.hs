@@ -35,6 +35,7 @@ import Galley.Types.UserList
 import Imports
 import Polysemy
 import Wire.API.Conversation hiding (Member)
+import Wire.API.Conversation.Protocol
 import Wire.API.Routes.Internal.Galley.ConversationsIntra
 import Wire.API.User
 
@@ -58,17 +59,8 @@ iUpsertOne2OneConversation ::
     Member MemberStore r
   ) =>
   UpsertOne2OneConversationRequest ->
-  Sem r UpsertOne2OneConversationResponse
+  Sem r ()
 iUpsertOne2OneConversation UpsertOne2OneConversationRequest {..} = do
-  let convId =
-        fromMaybe
-          ( one2OneConvId
-              BaseProtocolProteusTag
-              (tUntagged uooLocalUser)
-              (tUntagged uooRemoteUser)
-          )
-          uooConvId
-
   let dolocal :: Local ConvId -> Sem r ()
       dolocal lconvId = do
         mbConv <- getConversation (tUnqualified lconvId)
@@ -90,10 +82,15 @@ iUpsertOne2OneConversation UpsertOne2OneConversationRequest {..} = do
                 void $ createMember lconvId uooLocalUser
                 unless (null (convRemoteMembers conv)) $
                   acceptConnectConversation (tUnqualified lconvId)
-              (LocalActor, Excluded) ->
+              (LocalActor, Excluded) -> do
                 deleteMembers
                   (tUnqualified lconvId)
                   (UserList [tUnqualified uooLocalUser] [])
+                let mGroupId = case convProtocol conv of
+                      ProtocolProteus -> Nothing
+                      ProtocolMLS meta -> Just . cnvmlsGroupId $ meta
+                      ProtocolMixed meta -> Just . cnvmlsGroupId $ meta
+                for_ mGroupId $ flip removeAllMLSClientsOfUser (tUntagged uooLocalUser)
               (RemoteActor, Included) -> do
                 void $ createMembers (tUnqualified lconvId) (UserList [] [uooRemoteUser])
                 unless (null (convLocalMembers conv)) $
@@ -111,5 +108,4 @@ iUpsertOne2OneConversation UpsertOne2OneConversationRequest {..} = do
             deleteMembersInRemoteConversation rconvId [tUnqualified uooLocalUser]
           (RemoteActor, _) -> pure ()
 
-  foldQualified uooLocalUser dolocal doremote convId
-  pure (UpsertOne2OneConversationResponse convId)
+  foldQualified uooLocalUser dolocal doremote uooConvId

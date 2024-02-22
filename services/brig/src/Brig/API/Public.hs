@@ -1081,7 +1081,8 @@ createConnection self conn target = do
   API.createConnection lself conn target !>> connError
 
 updateLocalConnection ::
-  ( Member NotificationSubsystem r,
+  ( Member GalleyProvider r,
+    Member NotificationSubsystem r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r
   ) =>
@@ -1100,7 +1101,8 @@ updateConnection ::
   ( Member FederationConfigStore r,
     Member NotificationSubsystem r,
     Member TinyLog r,
-    Member (Embed HttpClientIO) r
+    Member (Embed HttpClientIO) r,
+    Member GalleyProvider r
   ) =>
   UserId ->
   ConnId ->

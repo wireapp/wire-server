@@ -21,6 +21,7 @@ module Galley.API.Update
   ( -- * Managing Conversations
     acceptConv,
     blockConv,
+    blockConvUnqualified,
     unblockConv,
     checkReusableCode,
     joinConversationByReusableCode,
@@ -169,16 +170,43 @@ blockConv ::
     Member (ErrorS 'InvalidOperation) r,
     Member MemberStore r
   ) =>
+  Local UserId ->
+  Qualified ConvId ->
+  Sem r ()
+blockConv lusr qcnv =
+  foldQualified
+    lusr
+    (\lcnv -> blockConvUnqualified (tUnqualified lusr) (tUnqualified lcnv))
+    (\rcnv -> blockRemoteConv lusr rcnv)
+    qcnv
+
+blockConvUnqualified ::
+  ( Member ConversationStore r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member (ErrorS 'InvalidOperation) r,
+    Member MemberStore r
+  ) =>
   UserId ->
   ConvId ->
   Sem r ()
-blockConv zusr cnv = do
+blockConvUnqualified zusr cnv = do
   conv <- E.getConversation cnv >>= noteS @'ConvNotFound
   unless (Data.convType conv `elem` [ConnectConv, One2OneConv]) $
     throwS @'InvalidOperation
   let mems = Data.convLocalMembers conv
   when (zusr `isMember` mems) $
     E.deleteMembers cnv (UserList [zusr] [])
+
+blockRemoteConv ::
+  ( Member (ErrorS 'ConvNotFound) r,
+    Member MemberStore r
+  ) =>
+  Local UserId ->
+  Remote ConvId ->
+  Sem r ()
+blockRemoteConv (tUnqualified -> usr) rcnv = do
+  unlessM (E.checkLocalMemberRemoteConv usr rcnv) $ throwS @'ConvNotFound
+  E.deleteMembersInRemoteConversation rcnv [usr]
 
 unblockConv ::
   ( Member ConversationStore r,
