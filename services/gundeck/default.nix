@@ -24,6 +24,7 @@
 , exceptions
 , extended
 , extra
+, foldl
 , gitignoreSource
 , gundeck-types
 , hedis
@@ -105,6 +106,7 @@ mkDerivation {
     exceptions
     extended
     extra
+    foldl
     gundeck-types
     hedis
     http-client

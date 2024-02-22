@@ -53,6 +53,7 @@ where
 
 import Amazonka (Region (..))
 import Amazonka.Data
+import Control.Foldl qualified as Foldl
 import Control.Lens
 import Data.Attoparsec.Text
 import Data.Text qualified as Text
@@ -151,9 +152,14 @@ endpointTopicParser :: Parser EndpointTopic
 endpointTopicParser = do
   _ <- string "endpoint"
   t <- char '/' *> transportParser
-  e <- char '/' *> takeTill (== '-')
-  a <- char '-' *> takeTill (== '/')
+  envAndName <- char '/' *> takeTill (== '/')
   i <- char '/' *> takeWhile1 (not . isSpace)
+  let xs = Text.split (== '-') envAndName
+      e = Text.intercalate (Text.pack "-") (init xs)
+  a <- case Foldl.fold Foldl.last xs of
+    Just x -> pure x
+    Nothing -> fail ("Cannot parse appName in " ++ show xs)
+
   pure $ mkEndpointTopic (ArnEnv e) t (AppName a) (EndpointId i)
 
 transportParser :: Parser Transport
