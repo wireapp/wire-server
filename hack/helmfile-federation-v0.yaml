@@ -102,6 +102,7 @@ releases:
         value: '*.wire-federation-v0.svc.cluster.local'
     needs:
       - 'ingress'
+      - 'cert-manager/cert-manager'
 
   - name: wire-server
     namespace: wire-federation-v0
@@ -109,3 +110,6 @@ releases:
     version: 4.38.0-mandarin.14
     values:
       - './helm_vars/wire-federation-v0/values.yaml.gotmpl'
+    needs:
+      - 'cert-manager/cert-manager'
+
