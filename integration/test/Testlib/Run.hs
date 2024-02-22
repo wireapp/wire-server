@@ -132,8 +132,7 @@ createGlobalEnv cfg = do
   pure genv0 {gRemovalKeyPath = removalPath}
 
 runTests :: [(String, x, y, App ())] -> Maybe FilePath -> FilePath -> IO ()
-runTests _tests mXMLOutput cfg = do
-  let tests = ["testAddMemberBot"]
+runTests tests mXMLOutput cfg = do
   output <- newChan
   let displayOutput =
         readChan output >>= \case
