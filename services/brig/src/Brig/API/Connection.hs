@@ -337,12 +337,12 @@ updateConnectionToLocalUser self other newStatus conn = do
       Log.info $
         logLocalConnection (tUnqualified self) (qUnqualified (ucTo s2o))
           . msg (val "Blocking connection")
-      traverse_ (liftSem . Intra.blockConv self conn) (ucConvId s2o)
+      traverse_ (liftSem . Intra.blockConv self) (ucConvId s2o)
       mlsEnabled <- view (settings . enableMLS)
       liftSem $ when (fromMaybe False mlsEnabled) $ do
         let mlsConvId = one2OneConvId BaseProtocolMLSTag (tUntagged self) (tUntagged other)
         mlsConvEstablished <- isMLSOne2OneEstablished self (tUntagged other)
-        when mlsConvEstablished $ Intra.blockConv self conn mlsConvId
+        when mlsConvEstablished $ Intra.blockConv self mlsConvId
       wrapClient $ Just <$> Data.updateConnection s2o BlockedWithHistory
 
     unblock :: UserConnection -> UserConnection -> Relation -> ExceptT ConnectionError (AppT r) (Maybe UserConnection)
@@ -374,7 +374,7 @@ updateConnectionToLocalUser self other newStatus conn = do
         logLocalConnection (tUnqualified self) (qUnqualified (ucTo s2o))
           . msg (val "Cancelling connection")
       lfrom <- qualifyLocal (ucFrom s2o)
-      lift $ traverse_ (liftSem . Intra.blockConv lfrom conn) (ucConvId s2o)
+      lift $ traverse_ (liftSem . Intra.blockConv lfrom) (ucConvId s2o)
       o2s' <- lift . wrapClient $ Data.updateConnection o2s CancelledWithHistory
       let e2o = ConnectionUpdated o2s' (Just $ ucStatus o2s) Nothing
       lift $ liftSem $ Intra.onConnectionEvent (tUnqualified self) conn e2o
@@ -445,7 +445,7 @@ updateConnectionInternal = \case
         o2s <- localConnection other self
         for_ [s2o, o2s] $ \(uconn :: UserConnection) -> lift $ do
           lfrom <- qualifyLocal (ucFrom uconn)
-          traverse_ (liftSem . Intra.blockConv lfrom Nothing) (ucConvId uconn)
+          traverse_ (liftSem . Intra.blockConv lfrom) (ucConvId uconn)
           uconn' <- wrapClient $ Data.updateConnection uconn (mkRelationWithHistory (ucStatus uconn) MissingLegalholdConsent)
           let ev = ConnectionUpdated uconn' (Just $ ucStatus uconn) Nothing
           liftSem $ Intra.onConnectionEvent (tUnqualified self) Nothing ev

@@ -497,7 +497,6 @@ type IConversationAPI =
            ( CanThrow 'InvalidOperation
                :> CanThrow 'ConvNotFound
                :> ZUser
-               :> ZOptConn
                :> "conversations"
                :> Capture "cnv" ConvId
                :> "block"
@@ -508,7 +507,6 @@ type IConversationAPI =
            ( CanThrow 'InvalidOperation
                :> CanThrow 'ConvNotFound
                :> ZLocalUser
-               :> ZOptConn
                :> "conversations"
                :> QualifiedCapture "cnv" ConvId
                :> "block"

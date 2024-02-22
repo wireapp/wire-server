@@ -171,14 +171,13 @@ blockConv ::
     Member MemberStore r
   ) =>
   Local UserId ->
-  Maybe ConnId ->
   Qualified ConvId ->
   Sem r ()
-blockConv lusr conn qcnv =
+blockConv lusr qcnv =
   foldQualified
     lusr
-    (\lcnv -> blockConvUnqualified (tUnqualified lusr) conn (tUnqualified lcnv))
-    (\rcnv -> blockRemoteConv lusr conn rcnv)
+    (\lcnv -> blockConvUnqualified (tUnqualified lusr) (tUnqualified lcnv))
+    (\rcnv -> blockRemoteConv lusr rcnv)
     qcnv
 
 blockConvUnqualified ::
@@ -188,10 +187,9 @@ blockConvUnqualified ::
     Member MemberStore r
   ) =>
   UserId ->
-  Maybe ConnId ->
   ConvId ->
   Sem r ()
-blockConvUnqualified zusr _conn cnv = do
+blockConvUnqualified zusr cnv = do
   conv <- E.getConversation cnv >>= noteS @'ConvNotFound
   unless (Data.convType conv `elem` [ConnectConv, One2OneConv]) $
     throwS @'InvalidOperation
@@ -204,10 +202,9 @@ blockRemoteConv ::
     Member MemberStore r
   ) =>
   Local UserId ->
-  Maybe ConnId ->
   Remote ConvId ->
   Sem r ()
-blockRemoteConv (tUnqualified -> usr) _conn rcnv = do
+blockRemoteConv (tUnqualified -> usr) rcnv = do
   unlessM (E.checkLocalMemberRemoteConv usr rcnv) $ throwS @'ConvNotFound
   E.deleteMembersInRemoteConversation rcnv [usr]
 

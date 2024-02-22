@@ -648,10 +648,9 @@ blockConv ::
     Member TinyLog r
   ) =>
   Local UserId ->
-  Maybe ConnId ->
   Qualified ConvId ->
   Sem r ()
-blockConv lusr conn qcnv = do
+blockConv lusr qcnv = do
   Log.debug $
     remote "galley"
       . field "conv" (toByteString . qUnqualified $ qcnv)
@@ -668,7 +667,6 @@ blockConv lusr conn qcnv = do
           "block"
         ]
         . zUser (tUnqualified lusr)
-        . maybe id (header "Z-Connection" . fromConnId) conn
         . expect2xx
 
 -- | Calls 'Galley.API.unblockConvH'.
