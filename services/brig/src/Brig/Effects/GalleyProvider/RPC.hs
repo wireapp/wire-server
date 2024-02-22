@@ -35,6 +35,8 @@ import Data.Qualified
 import Data.Range
 import Galley.Types.Teams qualified as Team
 import Imports
+import Network.HTTP.Client qualified as HTTP
+import Network.HTTP.Types qualified as HTTP
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error qualified as Wai
@@ -46,6 +48,7 @@ import Servant.API (toHeader)
 import System.Logger (field, msg, val)
 import Util.Options
 import Wire.API.Conversation hiding (Member)
+import Wire.API.Conversation.Protocol
 import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
 import Wire.API.Routes.Version
 import Wire.API.Team
@@ -89,6 +92,7 @@ interpretGalleyProviderToRpc disabledVersions galleyEndpoint =
           GetAllFeatureConfigsForUser m_id' -> getAllFeatureConfigsForUser m_id'
           GetVerificationCodeEnabled id' -> getVerificationCodeEnabled id'
           GetExposeInvitationURLsToTeamAdmin id' -> getTeamExposeInvitationURLsToTeamAdmin id'
+          IsMLSOne2OneEstablished lusr qother -> checkMLSOne2OneEstablished lusr qother
 
 galleyRequest :: (Member Rpc r, Member (Input Endpoint) r) => (Request -> Request) -> Sem r (Response (Maybe LByteString))
 galleyRequest req = do
@@ -524,3 +528,39 @@ getTeamExposeInvitationURLsToTeamAdmin tid = do
       method GET
         . paths ["i", "teams", toByteString' tid, "features", featureNameBS @ExposeInvitationURLsToTeamAdminConfig]
         . expect2xx
+
+checkMLSOne2OneEstablished ::
+  ( Member (Error ParseException) r,
+    Member (Input Endpoint) r,
+    Member Rpc r,
+    Member TinyLog r
+  ) =>
+  Local UserId ->
+  Qualified UserId ->
+  Sem r Bool
+checkMLSOne2OneEstablished self (Qualified other otherDomain) = do
+  debug $ remote "galley" . msg (val "Get the MLS one-to-one conversation")
+  response <- galleyRequest req
+  case HTTP.statusCode (HTTP.responseStatus response) of
+    403 -> pure False
+    400 -> pure False
+    _ {- 200 is assumed -} -> do
+      conv <- decodeBodyOrThrow @Conversation "galley" response
+      let mEpoch = case cnvProtocol conv of
+            ProtocolProteus -> Nothing
+            ProtocolMLS meta -> Just . cnvmlsEpoch $ meta
+            ProtocolMixed meta -> Just . cnvmlsEpoch $ meta
+      pure $ case mEpoch of
+        Nothing -> False
+        Just (Epoch e) -> e > 0
+  where
+    req =
+      method GET
+        . paths
+          [ "i",
+            "conversations",
+            "mls-one2one",
+            toByteString' otherDomain,
+            toByteString' other
+          ]
+        . zUser (tUnqualified self)

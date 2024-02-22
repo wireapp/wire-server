@@ -29,14 +29,18 @@ import Brig.App
 import Brig.Data.Connection qualified as Data
 import Brig.Data.User qualified as Data
 import Brig.Effects.FederationConfigStore
-import Brig.Federation.Client
+import Brig.Effects.GalleyProvider
+import Brig.Federation.Client as Federation
 import Brig.IO.Intra qualified as Intra
+import Brig.Options
 import Brig.Types.User.Event
 import Control.Comonad
 import Control.Error.Util ((??))
+import Control.Lens (view)
 import Control.Monad.Trans.Except
 import Data.Id as Id
 import Data.Qualified
+import Galley.Types.Conversations.One2One (one2OneConvId)
 import Imports
 import Network.Wai.Utilities.Error
 import Polysemy
@@ -45,7 +49,7 @@ import Wire.API.Federation.API.Brig
   ( NewConnectionResponse (..),
     RemoteConnectionAction (..),
   )
-import Wire.API.Routes.Internal.Galley.ConversationsIntra (Actor (..), DesiredMembership (..), UpsertOne2OneConversationRequest (..), UpsertOne2OneConversationResponse (uuorConvId))
+import Wire.API.Routes.Internal.Galley.ConversationsIntra
 import Wire.API.Routes.Public.Util (ResponseForExistedCreated (..))
 import Wire.API.User
 import Wire.NotificationSubsystem
@@ -104,39 +108,41 @@ transition (RCA RemoteRescind) Pending = Just Cancelled
 transition (RCA RemoteRescind) Accepted = Just Sent
 transition (RCA RemoteRescind) _ = Nothing
 
--- When user A has made a request -> Only user A's membership in conv is affected -> User A wants to be in one2one conv with B, or User A doesn't want to be in one2one conv with B
+-- When user A has made a request -> Only user A's membership in conv is
+-- affected -> User A wants to be in one2one conv with B, or User A doesn't want
+-- to be in one2one conv with B
 updateOne2OneConv ::
   Local UserId ->
   Maybe ConnId ->
   Remote UserId ->
-  Maybe (Qualified ConvId) ->
-  Relation ->
+  Qualified ConvId ->
+  DesiredMembership ->
   Actor ->
-  (AppT r) (Qualified ConvId)
-updateOne2OneConv lUsr _mbConn remoteUser mbConvId rel actor = do
+  (AppT r) ()
+updateOne2OneConv lUsr _mbConn remoteUser convId desiredMem actor = do
   let request =
         UpsertOne2OneConversationRequest
           { uooLocalUser = lUsr,
             uooRemoteUser = remoteUser,
             uooActor = actor,
-            uooActorDesiredMembership = desiredMembership actor rel,
-            uooConvId = mbConvId
+            uooActorDesiredMembership = desiredMem,
+            uooConvId = convId
           }
-  uuorConvId <$> wrapHttp (Intra.upsertOne2OneConversation request)
-  where
-    desiredMembership :: Actor -> Relation -> DesiredMembership
-    desiredMembership a r =
-      let isIncluded =
-            a
-              `elem` case r of
-                Accepted -> [LocalActor, RemoteActor]
-                Blocked -> []
-                Pending -> [RemoteActor]
-                Ignored -> [RemoteActor]
-                Sent -> [LocalActor]
-                Cancelled -> []
-                MissingLegalholdConsent -> []
-       in if isIncluded then Included else Excluded
+  void $ wrapHttp (Intra.upsertOne2OneConversation request)
+
+desiredMembership :: Actor -> Relation -> DesiredMembership
+desiredMembership a r =
+  let isIncluded =
+        a
+          `elem` case r of
+            Accepted -> [LocalActor, RemoteActor]
+            Blocked -> []
+            Pending -> [RemoteActor]
+            Ignored -> [RemoteActor]
+            Sent -> [LocalActor]
+            Cancelled -> []
+            MissingLegalholdConsent -> []
+   in if isIncluded then Included else Excluded
 
 -- | Perform a state transition on a connection, handle conversation updates and
 -- push events.
@@ -146,7 +152,7 @@ updateOne2OneConv lUsr _mbConn remoteUser mbConvId rel actor = do
 --
 -- Returns the connection, and whether it was updated or not.
 transitionTo ::
-  (Member NotificationSubsystem r) =>
+  (Member NotificationSubsystem r, Member GalleyProvider r) =>
   Local UserId ->
   Maybe ConnId ->
   Remote UserId ->
@@ -159,8 +165,13 @@ transitionTo self _ _ Nothing Nothing _ =
   -- connection. This shouldn't be possible.
   throwE (InvalidTransition (tUnqualified self))
 transitionTo self mzcon other Nothing (Just rel) actor = lift $ do
-  -- update 1-1 connection
-  qcnv <- updateOne2OneConv self mzcon other Nothing rel actor
+  -- Create 1-1 proteus conversation.
+  --
+  -- We do nothing here for MLS as haveing no pre-existing connection implies
+  -- there was no conversation. Creating an MLS converstaion is special due to
+  -- key packages, etc. so the clients have to make another call for this.
+  let proteusConv = one2OneConvId BaseProtocolProteusTag (tUntagged self) (tUntagged other)
+  updateOne2OneConv self mzcon other proteusConv (desiredMembership actor rel) actor
 
   -- create connection
   connection <-
@@ -169,21 +180,32 @@ transitionTo self mzcon other Nothing (Just rel) actor = lift $ do
         self
         (tUntagged other)
         (relationWithHistory rel)
-        qcnv
+        proteusConv
 
   -- send event
   pushEvent self mzcon connection
   pure (Created connection, True)
 transitionTo _self _zcon _other (Just connection) Nothing _actor = pure (Existed connection, False)
-transitionTo self mzcon other (Just connection) (Just rel) actor = lift $ do
+transitionTo self mzcon other (Just connection) (Just rel) actor = do
   -- update 1-1 conversation
-  void $ updateOne2OneConv self Nothing other (ucConvId connection) rel actor
+  let proteusConvId =
+        fromMaybe
+          (one2OneConvId BaseProtocolProteusTag (tUntagged self) (tUntagged other))
+          $ ucConvId connection
+  lift $ updateOne2OneConv self Nothing other proteusConvId (desiredMembership actor rel) actor
+  mlsEnabled <- view (settings . enableMLS)
+  when (fromMaybe False mlsEnabled) $ do
+    let mlsConvId = one2OneConvId BaseProtocolMLSTag (tUntagged self) (tUntagged other)
+    mlsConvEstablished <- lift . liftSem $ isMLSOne2OneEstablished self (tUntagged other)
+    let desiredMem = desiredMembership actor rel
+    lift . when (mlsConvEstablished && desiredMem == Excluded) $
+      updateOne2OneConv self Nothing other mlsConvId desiredMem actor
 
   -- update connection
-  connection' <- wrapClient $ Data.updateConnection connection (relationWithHistory rel)
+  connection' <- lift $ wrapClient $ Data.updateConnection connection (relationWithHistory rel)
 
   -- send event
-  pushEvent self mzcon connection'
+  lift $ pushEvent self mzcon connection'
   pure (Existed connection', True)
 
 -- | Send an event to the local user when the state of a connection changes.
@@ -198,7 +220,7 @@ pushEvent self mzcon connection = do
   liftSem $ Intra.onConnectionEvent (tUnqualified self) mzcon event
 
 performLocalAction ::
-  (Member NotificationSubsystem r) =>
+  (Member NotificationSubsystem r, Member GalleyProvider r) =>
   Local UserId ->
   Maybe ConnId ->
   Remote UserId ->
@@ -254,7 +276,7 @@ performLocalAction self mzcon other mconnection action = do
 -- B connects & A reacts:  Accepted  Accepted
 -- @
 performRemoteAction ::
-  (Member NotificationSubsystem r) =>
+  (Member NotificationSubsystem r, Member GalleyProvider r) =>
   Local UserId ->
   Remote UserId ->
   Maybe UserConnection ->
@@ -273,7 +295,8 @@ performRemoteAction self other mconnection action = do
 
 createConnectionToRemoteUser ::
   ( Member FederationConfigStore r,
-    Member NotificationSubsystem r
+    Member NotificationSubsystem r,
+    Member GalleyProvider r
   ) =>
   Local UserId ->
   ConnId ->
@@ -287,7 +310,8 @@ createConnectionToRemoteUser self zcon other = do
 
 updateConnectionToRemoteUser ::
   ( Member NotificationSubsystem r,
-    Member FederationConfigStore r
+    Member FederationConfigStore r,
+    Member GalleyProvider r
   ) =>
   Local UserId ->
   Remote UserId ->

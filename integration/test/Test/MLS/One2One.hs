@@ -17,6 +17,7 @@
 
 module Test.MLS.One2One where
 
+import API.Brig
 import API.Galley
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Char8 as B8
@@ -53,6 +54,52 @@ testGetMLSOne2OneUnconnected otherDomain = do
 
   bindResponse (getMLSOne2OneConversation alice bob) $ \resp ->
     resp.status `shouldMatchInt` 403
+
+testMLSOne2OneBlocked :: HasCallStack => Domain -> App ()
+testMLSOne2OneBlocked otherDomain = do
+  [alice, bob] <- for [OwnDomain, otherDomain] $ flip randomUser def
+  void $ postConnection bob alice >>= getBody 201
+  void $ putConnection alice bob "blocked" >>= getBody 200
+  void $ getMLSOne2OneConversation alice bob >>= getJSON 403
+  void $ getMLSOne2OneConversation bob alice >>= getJSON 403
+
+-- | Alice and Bob are initially connected, but then Alice blocks Bob.
+testMLSOne2OneBlockedAfterConnected :: HasCallStack => One2OneScenario -> App ()
+testMLSOne2OneBlockedAfterConnected scenario = do
+  alice <- randomUser OwnDomain def
+  let otherDomain = one2OneScenarioDomain scenario
+      convDomain = one2OneScenarioConvDomain scenario
+  bob <- createMLSOne2OnePartner otherDomain alice convDomain
+  conv <- getMLSOne2OneConversation alice bob >>= getJSON 200
+  convId <- conv %. "qualified_id"
+  do
+    bobConv <- getMLSOne2OneConversation bob alice >>= getJSON 200
+    convId `shouldMatch` (bobConv %. "qualified_id")
+
+  [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
+  traverse_ uploadNewKeyPackage [bob1]
+  resetGroup alice1 conv
+  commit <- createAddCommit alice1 [bob]
+  withWebSocket bob1 $ \ws -> do
+    void $ sendAndConsumeCommitBundle commit
+    let isMessage n = nPayload n %. "type" `isEqual` "conversation.mls-welcome"
+    n <- awaitMatch isMessage ws
+    nPayload n %. "data" `shouldMatch` B8.unpack (Base64.encode (fold commit.welcome))
+
+  withWebSocket bob1 $ \ws -> do
+    -- Alice blocks Bob
+    void $ putConnection alice bob "blocked" >>= getBody 200
+    -- There is also a proteus 1-to-1 conversation. Neither it nor the MLS
+    -- 1-to-1 conversation should get any events.
+    awaitAnyEvent 2 ws `shouldMatch` (Nothing :: Maybe Value)
+    -- Alice is not in the MLS 1-to-1 conversation given that she has blocked
+    -- Bob.
+    void $ getMLSOne2OneConversation alice bob >>= getJSON 403
+
+  mp <- createApplicationMessage bob1 "hello, world, again"
+  withWebSocket alice1 $ \ws -> do
+    void $ postMLSMessage mp.sender mp.message >>= getJSON 201
+    awaitAnyEvent 2 ws `shouldMatch` (Nothing :: Maybe Value)
 
 testGetMLSOne2OneSameTeam :: App ()
 testGetMLSOne2OneSameTeam = do

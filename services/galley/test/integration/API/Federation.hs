@@ -120,12 +120,9 @@ getConversationsAllFound = do
               uooRemoteUser = rAlice,
               uooActor = LocalActor,
               uooActorDesiredMembership = Included,
-              uooConvId = Just cnv1Id
+              uooConvId = cnv1Id
             }
-    UpsertOne2OneConversationResponse cnv1IdReturned <-
-      responseJsonError
-        =<< iUpsertOne2OneConversation createO2O
-    liftIO $ assertEqual "Mismatch in the generated conversation ID" cnv1IdReturned cnv1Id
+    iUpsertOne2OneConversation createO2O !!! const 200 === statusCode
 
   do
     convs <-
