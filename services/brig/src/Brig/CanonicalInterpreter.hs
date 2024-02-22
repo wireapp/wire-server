@@ -28,6 +28,7 @@ import Control.Lens ((^.))
 import Control.Monad.Catch (throwM)
 import Imports
 import Polysemy (Embed, Final, embedToFinal, runFinal)
+import Polysemy.Embed (runEmbedded)
 import Polysemy.Error (Error, mapError, runError)
 import Polysemy.TinyLog (TinyLog)
 import Wire.Sem.Concurrency
@@ -56,6 +57,7 @@ type BrigCanonicalEffects =
      Error ParseException,
      Error SomeException,
      TinyLog,
+     Embed HttpClientIO,
      Embed IO,
      Concurrency 'Unsafe,
      Final IO
@@ -67,6 +69,7 @@ runBrigToIO e (AppT ma) = do
       <=< ( runFinal
               . unsafelyPerformConcurrency
               . embedToFinal
+              . runEmbedded (runHttpClientIO e)
               . loggerToTinyLog (e ^. applog)
               . runError @SomeException
               . mapError @ParseException SomeException

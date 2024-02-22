@@ -42,12 +42,14 @@ import Brig.Data.Connection qualified as Data
 import Brig.Data.Types (resultHasMore, resultList)
 import Brig.Data.User qualified as Data
 import Brig.Effects.FederationConfigStore
-import Brig.Effects.GalleyProvider (GalleyProvider)
+import Brig.Effects.GalleyProvider
 import Brig.Effects.GalleyProvider qualified as GalleyProvider
 import Brig.IO.Intra qualified as Intra
+import Brig.Options
 import Brig.Types.Connection
 import Brig.Types.User.Event
 import Control.Error
+import Control.Lens (view)
 import Control.Monad.Catch (throwM)
 import Data.Id as Id
 import Data.LegalHold qualified as LH
@@ -55,8 +57,10 @@ import Data.Proxy (Proxy (Proxy))
 import Data.Qualified
 import Data.Range
 import Data.UUID.V4 qualified as UUID
+import Galley.Types.Conversations.One2One
 import Imports
-import Polysemy (Member)
+import Polysemy
+import Polysemy.TinyLog (TinyLog)
 import System.Logger.Class qualified as Log
 import System.Logger.Message
 import Wire.API.Connection hiding (relationWithHistory)
@@ -64,6 +68,7 @@ import Wire.API.Conversation hiding (Member)
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
 import Wire.API.Routes.Public.Util (ResponseForExistedCreated (..))
+import Wire.API.User
 
 ensureNotSameTeam :: Member GalleyProvider r => Local UserId -> Local UserId -> (ConnectionM r) ()
 ensureNotSameTeam self target = do
@@ -205,7 +210,11 @@ checkLegalholdPolicyConflict uid1 uid2 = do
   oneway status2 status1
 
 updateConnection ::
-  Member FederationConfigStore r =>
+  ( Member FederationConfigStore r,
+    Member TinyLog r,
+    Member (Embed HttpClientIO) r,
+    Member GalleyProvider r
+  ) =>
   Local UserId ->
   Qualified UserId ->
   Relation ->
@@ -225,6 +234,11 @@ updateConnection self other newStatus conn =
 -- because a connection between two team members can not exist in the first place.
 -- {#RefConnectionTeam}
 updateConnectionToLocalUser ::
+  forall r.
+  ( Member (Embed HttpClientIO) r,
+    Member GalleyProvider r,
+    Member TinyLog r
+  ) =>
   -- | From
   Local UserId ->
   -- | To
@@ -312,7 +326,12 @@ updateConnectionToLocalUser self other newStatus conn = do
       Log.info $
         logLocalConnection (tUnqualified self) (qUnqualified (ucTo s2o))
           . msg (val "Blocking connection")
-      traverse_ (wrapHttp . Intra.blockConv self conn) (ucConvId s2o)
+      traverse_ (liftSem . Intra.blockConv self) (ucConvId s2o)
+      mlsEnabled <- view (settings . enableMLS)
+      liftSem $ when (fromMaybe False mlsEnabled) $ do
+        let mlsConvId = one2OneConvId BaseProtocolMLSTag (tUntagged self) (tUntagged other)
+        mlsConvEstablished <- isMLSOne2OneEstablished self (tUntagged other)
+        when mlsConvEstablished $ Intra.blockConv self mlsConvId
       wrapClient $ Just <$> Data.updateConnection s2o BlockedWithHistory
 
     unblock :: UserConnection -> UserConnection -> Relation -> ExceptT ConnectionError (AppT r) (Maybe UserConnection)
@@ -344,7 +363,7 @@ updateConnectionToLocalUser self other newStatus conn = do
         logLocalConnection (tUnqualified self) (qUnqualified (ucTo s2o))
           . msg (val "Cancelling connection")
       lfrom <- qualifyLocal (ucFrom s2o)
-      lift $ traverse_ (wrapHttp . Intra.blockConv lfrom conn) (ucConvId s2o)
+      lift $ traverse_ (liftSem . Intra.blockConv lfrom) (ucConvId s2o)
       o2s' <- lift . wrapClient $ Data.updateConnection o2s CancelledWithHistory
       let e2o = ConnectionUpdated o2s' (Just $ ucStatus o2s) Nothing
       lift $ Intra.onConnectionEvent (tUnqualified self) conn e2o
@@ -383,6 +402,9 @@ mkRelationWithHistory oldRel = \case
 
 updateConnectionInternal ::
   forall r.
+  ( Member (Embed HttpClientIO) r,
+    Member TinyLog r
+  ) =>
   UpdateConnectionsInternal ->
   ExceptT ConnectionError (AppT r) ()
 updateConnectionInternal = \case
@@ -411,7 +433,7 @@ updateConnectionInternal = \case
         o2s <- localConnection other self
         for_ [s2o, o2s] $ \(uconn :: UserConnection) -> lift $ do
           lfrom <- qualifyLocal (ucFrom uconn)
-          traverse_ (wrapHttp . Intra.blockConv lfrom Nothing) (ucConvId uconn)
+          traverse_ (liftSem . Intra.blockConv lfrom) (ucConvId uconn)
           uconn' <- wrapClient $ Data.updateConnection uconn (mkRelationWithHistory (ucStatus uconn) MissingLegalholdConsent)
           let ev = ConnectionUpdated uconn' (Just $ ucStatus uconn) Nothing
           Intra.onConnectionEvent (tUnqualified self) Nothing ev

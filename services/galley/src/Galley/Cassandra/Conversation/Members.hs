@@ -384,6 +384,11 @@ removeMLSClients groupId (Qualified usr domain) cs = retry x5 . batch $ do
   for_ cs $ \c ->
     addPrepQuery Cql.removeMLSClient (groupId, domain, usr, c)
 
+removeAllMLSClientsOfUser :: GroupId -> Qualified UserId -> Client ()
+removeAllMLSClientsOfUser groupId (Qualified usr domain) =
+  retry x5 $
+    write Cql.removeAllMLSClientsOfUser (params LocalQuorum (groupId, domain, usr))
+
 removeAllMLSClients :: GroupId -> Client ()
 removeAllMLSClients groupId = do
   retry x5 $ write Cql.removeAllMLSClients (params LocalQuorum (Identity groupId))
@@ -416,6 +421,7 @@ interpretMemberStoreToCassandra = interpret $ \case
   AddMLSClients lcnv quid cs -> embedClient $ addMLSClients lcnv quid cs
   PlanClientRemoval lcnv cids -> embedClient $ planMLSClientRemoval lcnv cids
   RemoveMLSClients lcnv quid cs -> embedClient $ removeMLSClients lcnv quid cs
+  RemoveAllMLSClientsOfUser lcnv quid -> embedClient $ removeAllMLSClientsOfUser lcnv quid
   RemoveAllMLSClients gid -> embedClient $ removeAllMLSClients gid
   LookupMLSClients lcnv -> embedClient $ lookupMLSClients lcnv
   LookupMLSClientLeafIndices lcnv -> embedClient $ lookupMLSClientLeafIndices lcnv

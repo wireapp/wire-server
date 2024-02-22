@@ -42,6 +42,7 @@ import Wire.API.Routes.Named
 import Wire.API.Routes.Public
 import Wire.API.Routes.Public.Galley.Conversation
 import Wire.API.Routes.Public.Galley.Feature
+import Wire.API.Routes.QualifiedCapture
 import Wire.API.Team
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
@@ -256,7 +257,7 @@ type InternalAPIBase =
                :> "one2one"
                :> "upsert"
                :> ReqBody '[Servant.JSON] UpsertOne2OneConversationRequest
-               :> Post '[Servant.JSON] UpsertOne2OneConversationResponse
+               :> MultiVerb1 'POST '[Servant.JSON] (RespondEmpty 200 "Upsert One2One Policy")
            )
     :<|> IFeatureAPI
     :<|> IFederationAPI
@@ -492,12 +493,22 @@ type IConversationAPI =
                :> Put '[Servant.JSON] Conversation
            )
     :<|> Named
-           "conversation-block"
+           "conversation-block-unqualified"
            ( CanThrow 'InvalidOperation
                :> CanThrow 'ConvNotFound
                :> ZUser
                :> "conversations"
                :> Capture "cnv" ConvId
+               :> "block"
+               :> Put '[Servant.JSON] ()
+           )
+    :<|> Named
+           "conversation-block"
+           ( CanThrow 'InvalidOperation
+               :> CanThrow 'ConvNotFound
+               :> ZLocalUser
+               :> "conversations"
+               :> QualifiedCapture "cnv" ConvId
                :> "block"
                :> Put '[Servant.JSON] ()
            )
@@ -523,6 +534,16 @@ type IConversationAPI =
                :> Capture "cnv" ConvId
                :> "meta"
                :> Get '[Servant.JSON] ConversationMetadata
+           )
+    :<|> Named
+           "conversation-mls-one-to-one"
+           ( CanThrow 'NotConnected
+               :> CanThrow 'MLSNotEnabled
+               :> "conversations"
+               :> "mls-one2one"
+               :> ZLocalUser
+               :> QualifiedCapture "user" UserId
+               :> Get '[Servant.JSON] Conversation
            )
 
 swaggerDoc :: OpenApi

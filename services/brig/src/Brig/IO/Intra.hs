@@ -90,15 +90,18 @@ import Gundeck.Types.Push.V2 qualified as Push
 import Imports
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
+import Polysemy
+import Polysemy.TinyLog (TinyLog)
+import Polysemy.TinyLog qualified as TinyLog
 import System.Logger.Class as Log hiding (name, (.=))
 import System.Logger.Extended qualified as ExLog
 import Wire.API.Connection
-import Wire.API.Conversation
+import Wire.API.Conversation hiding (Member)
 import Wire.API.Event.Conversation (Connect (Connect))
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.Error
 import Wire.API.Properties
-import Wire.API.Routes.Internal.Galley.ConversationsIntra (UpsertOne2OneConversationRequest, UpsertOne2OneConversationResponse)
+import Wire.API.Routes.Internal.Galley.ConversationsIntra
 import Wire.API.Routes.Internal.Galley.TeamsIntra (GuardLegalholdPolicyConflicts (GuardLegalholdPolicyConflicts))
 import Wire.API.Team.LegalHold (LegalholdProtectee)
 import Wire.API.Team.Member qualified as Team
@@ -734,49 +737,31 @@ acceptConnectConv from conn =
     (wrapHttp . acceptLocalConnectConv from conn . tUnqualified)
     (const (throwM federationNotImplemented))
 
--- | Calls 'Galley.API.blockConvH'.
-blockLocalConv ::
-  ( MonadReader Env m,
-    MonadIO m,
-    MonadMask m,
-    MonadHttp m,
-    HasRequestId m,
-    MonadLogger m
+blockConv ::
+  ( Member (Embed HttpClientIO) r,
+    Member TinyLog r
   ) =>
   Local UserId ->
-  Maybe ConnId ->
-  ConvId ->
-  m ()
-blockLocalConv lusr conn cnv = do
-  debug $
+  Qualified ConvId ->
+  Sem r ()
+blockConv lusr qcnv = do
+  TinyLog.debug $
     remote "galley"
-      . field "conv" (toByteString cnv)
+      . field "conv" (toByteString . qUnqualified $ qcnv)
+      . field "domain" (toByteString . qDomain $ qcnv)
       . msg (val "Blocking conversation")
-  void $ galleyRequest PUT req
+  embed . void $ galleyRequest PUT req
   where
     req =
-      paths ["/i/conversations", toByteString' cnv, "block"]
+      paths
+        [ "i",
+          "conversations",
+          toByteString' (qDomain qcnv),
+          toByteString' (qUnqualified qcnv),
+          "block"
+        ]
         . zUser (tUnqualified lusr)
-        . maybe id (header "Z-Connection" . fromConnId) conn
         . expect2xx
-
-blockConv ::
-  ( MonadReader Env m,
-    MonadIO m,
-    MonadMask m,
-    MonadHttp m,
-    HasRequestId m,
-    MonadLogger m
-  ) =>
-  Local UserId ->
-  Maybe ConnId ->
-  Qualified ConvId ->
-  m ()
-blockConv lusr conn =
-  foldQualified
-    lusr
-    (blockLocalConv lusr conn . tUnqualified)
-    (const (throwM federationNotImplemented))
 
 -- | Calls 'Galley.API.unblockConvH'.
 unblockLocalConv ::
@@ -830,11 +815,11 @@ upsertOne2OneConversation ::
     HasRequestId m
   ) =>
   UpsertOne2OneConversationRequest ->
-  m UpsertOne2OneConversationResponse
+  m ()
 upsertOne2OneConversation urequest = do
   response <- galleyRequest POST req
   case Bilge.statusCode response of
-    200 -> decodeBody "galley" response
+    200 -> pure ()
     _ -> throwM internalServerError
   where
     req =

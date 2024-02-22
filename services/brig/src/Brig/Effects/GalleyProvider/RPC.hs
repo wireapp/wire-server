@@ -38,14 +38,18 @@ import Data.Qualified
 import Data.Range
 import Galley.Types.Teams qualified as Team
 import Imports
+import Network.HTTP.Client qualified as HTTP
+import Network.HTTP.Types qualified as HTTP
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error qualified as Wai
 import Polysemy
 import Polysemy.Error
+import Polysemy.TinyLog
 import Servant.API (toHeader)
 import System.Logger (Msg, field, msg, val)
 import Wire.API.Conversation hiding (Member)
+import Wire.API.Conversation.Protocol
 import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
 import Wire.API.Routes.Version
 import Wire.API.Team
@@ -55,7 +59,6 @@ import Wire.API.Team.Member qualified as Member
 import Wire.API.Team.Member qualified as Team
 import Wire.API.Team.Role
 import Wire.API.Team.SearchVisibility
-import Wire.Sem.Logger
 
 interpretGalleyProviderToRPC ::
   ( Member (Error ParseException) r,
@@ -87,6 +90,7 @@ interpretGalleyProviderToRPC disabledVersions =
         GetAllFeatureConfigsForUser m_id' -> getAllFeatureConfigsForUser m_id'
         GetVerificationCodeEnabled id' -> getVerificationCodeEnabled id'
         GetExposeInvitationURLsToTeamAdmin id' -> getTeamExposeInvitationURLsToTeamAdmin id'
+        IsMLSOne2OneEstablished lusr qother -> checkMLSOne2OneEstablished lusr qother
 
 -- | Calls 'Galley.API.createSelfConversationH'.
 createSelfConv ::
@@ -481,3 +485,37 @@ getTeamExposeInvitationURLsToTeamAdmin tid = do
     req =
       paths ["i", "teams", toByteString' tid, "features", featureNameBS @ExposeInvitationURLsToTeamAdminConfig]
         . expect2xx
+
+checkMLSOne2OneEstablished ::
+  ( Member (Error ParseException) r,
+    Member (ServiceRPC 'Galley) r,
+    Member TinyLog r
+  ) =>
+  Local UserId ->
+  Qualified UserId ->
+  Sem r Bool
+checkMLSOne2OneEstablished self (Qualified other otherDomain) = do
+  debug $ remote "galley" . msg (val "Get the MLS one-to-one conversation")
+  response <- ServiceRPC.request @'Galley GET req
+  case HTTP.statusCode (HTTP.responseStatus response) of
+    403 -> pure False
+    400 -> pure False
+    _ {- 200 is assumed -} -> do
+      conv <- decodeBodyOrThrow @Conversation "galley" response
+      let mEpoch = case cnvProtocol conv of
+            ProtocolProteus -> Nothing
+            ProtocolMLS meta -> Just . cnvmlsEpoch $ meta
+            ProtocolMixed meta -> Just . cnvmlsEpoch $ meta
+      pure $ case mEpoch of
+        Nothing -> False
+        Just (Epoch e) -> e > 0
+  where
+    req =
+      paths
+        [ "i",
+          "conversations",
+          "mls-one2one",
+          toByteString' otherDomain,
+          toByteString' other
+        ]
+        . zUser (tUnqualified self)

@@ -76,6 +76,7 @@ import Imports hiding (head)
 import Network.Wai.Routing hiding (toList)
 import Network.Wai.Utilities as Utilities
 import Polysemy
+import Polysemy.TinyLog (TinyLog)
 import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.OpenApi.Internal.Orphans ()
 import System.Logger.Class qualified as Log
@@ -102,13 +103,15 @@ import Wire.API.User.RichInfo
 
 servantSitemap ::
   forall r p.
-  ( Member BlacklistStore r,
-    Member CodeStore r,
-    Member BlacklistPhonePrefixStore r,
-    Member PasswordResetStore r,
-    Member GalleyProvider r,
+  ( Member (Embed HttpClientIO) r,
     Member (UserPendingActivationStore p) r,
-    Member FederationConfigStore r
+    Member BlacklistPhonePrefixStore r,
+    Member BlacklistStore r,
+    Member CodeStore r,
+    Member FederationConfigStore r,
+    Member GalleyProvider r,
+    Member PasswordResetStore r,
+    Member TinyLog r
   ) =>
   ServerT BrigIRoutes.API (Handler r)
 servantSitemap =
@@ -143,12 +146,14 @@ mlsAPI :: ServerT BrigIRoutes.MLSAPI (Handler r)
 mlsAPI = getMLSClients
 
 accountAPI ::
-  ( Member BlacklistStore r,
-    Member CodeStore r,
+  ( Member (Embed HttpClientIO) r,
+    Member (UserPendingActivationStore p) r,
     Member BlacklistPhonePrefixStore r,
-    Member PasswordResetStore r,
+    Member BlacklistStore r,
+    Member CodeStore r,
     Member GalleyProvider r,
-    Member (UserPendingActivationStore p) r
+    Member PasswordResetStore r,
+    Member TinyLog r
   ) =>
   ServerT BrigIRoutes.AccountAPI (Handler r)
 accountAPI =
@@ -568,7 +573,12 @@ revokeIdentityH (Just email) Nothing = lift $ NoContent <$ API.revokeIdentity (L
 revokeIdentityH Nothing (Just phone) = lift $ NoContent <$ API.revokeIdentity (Right phone)
 revokeIdentityH bade badp = throwStd (badRequest ("need exactly one of email, phone: " <> Imports.cs (show (bade, badp))))
 
-updateConnectionInternalH :: UpdateConnectionsInternal -> (Handler r) NoContent
+updateConnectionInternalH ::
+  ( Member (Embed HttpClientIO) r,
+    Member TinyLog r
+  ) =>
+  UpdateConnectionsInternal ->
+  Handler r NoContent
 updateConnectionInternalH updateConn = do
   API.updateConnectionInternal updateConn !>> connError
   pure NoContent

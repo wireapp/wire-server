@@ -44,6 +44,7 @@ module Galley.Effects.MemberStore
     addMLSClients,
     planClientRemoval,
     removeMLSClients,
+    removeAllMLSClientsOfUser,
     removeAllMLSClients,
     lookupMLSClients,
     lookupMLSClientLeafIndices,
@@ -88,6 +89,7 @@ data MemberStore m a where
   AddMLSClients :: GroupId -> Qualified UserId -> Set (ClientId, LeafIndex) -> MemberStore m ()
   PlanClientRemoval :: Foldable f => GroupId -> f ClientIdentity -> MemberStore m ()
   RemoveMLSClients :: GroupId -> Qualified UserId -> Set ClientId -> MemberStore m ()
+  RemoveAllMLSClientsOfUser :: GroupId -> Qualified UserId -> MemberStore m ()
   RemoveAllMLSClients :: GroupId -> MemberStore m ()
   LookupMLSClients :: GroupId -> MemberStore m ClientMap
   LookupMLSClientLeafIndices :: GroupId -> MemberStore m (ClientMap, IndexMap)

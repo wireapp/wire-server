@@ -28,6 +28,7 @@ module Testlib.Cannon
     awaitNMatchesResult,
     awaitNMatches,
     awaitMatch,
+    awaitAnyEvent,
     awaitAtLeastNMatchesResult,
     awaitAtLeastNMatches,
     awaitNToMMatchesResult,
@@ -282,7 +283,7 @@ printAwaitResult = prettyAwaitResult >=> liftIO . putStrLn
 printAwaitAtLeastResult :: AwaitAtLeastResult -> App ()
 printAwaitAtLeastResult = prettyAwaitAtLeastResult >=> liftIO . putStrLn
 
-awaitAnyEvent :: MonadIO m => Int -> WebSocket -> m (Maybe Value)
+awaitAnyEvent :: Int -> WebSocket -> App (Maybe Value)
 awaitAnyEvent tSecs = liftIO . timeout (tSecs * 1000 * 1000) . atomically . readTChan . wsChan
 
 -- | 'await' an expected number of notification events on the websocket that
