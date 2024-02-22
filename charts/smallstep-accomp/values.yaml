@@ -1,0 +1,29 @@
+upstreams:
+  enable: true
+  # dnsResolver: 9.9.9.9
+  
+  # Note: include the smallstep host of the own domain here as well
+  proxiedHosts: []
+  # proxiedHosts: 
+  #   - acme.alpha.example.com
+  #   - acme.beta.example.com
+  #   - acme.gamma.example.com
+
+nginx:
+  existingServerBlockConfigmap: "smallstep-accomp-server-block"
+
+  service:
+    type: ClusterIP
+
+  ingress:
+    enabled: true
+    # ingressClassName: "nginx"
+
+    # hostname: "acme.alpha.example.com"
+    path: "/proxyCrl"
+    pathType: "Prefix"
+      
+    # extraTls: 
+    #   - 
+    #     hosts: [ "acme.alpha.example.com" ]
+    #     secretName: "smallstep-step-certificates-ingress-cert"
