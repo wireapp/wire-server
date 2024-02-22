@@ -579,6 +579,7 @@ putTeamProperties tid caller properties = do
         req
     )
 
+-- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/get_teams__tid__legalhold__uid_
 legalholdUserStatus :: (HasCallStack, MakesValue tid, MakesValue user, MakesValue owner) => tid -> owner -> user -> App Response
 legalholdUserStatus tid ownerid user = do
   tidS <- asString tid
@@ -638,6 +639,8 @@ approveLegalHoldDevice :: (HasCallStack, MakesValue tid, MakesValue uid) => tid 
 approveLegalHoldDevice tid uid = approveLegalHoldDevice' tid uid uid
 
 -- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/put_teams__tid__legalhold__uid__approve
+--
+--   useful for testing unauthorized requests
 approveLegalHoldDevice' :: (HasCallStack, MakesValue tid, MakesValue uid, MakesValue forUid) => tid -> uid -> forUid -> String -> App Response
 approveLegalHoldDevice' tid uid forUid pwd = do
   tidStr <- asString tid
@@ -659,3 +662,18 @@ getLegalHoldStatus tid zusr = do
   uidStr <- asString $ zusr %. "id"
   req <- baseRequest zusr Galley Versioned (joinHttpPath ["teams", tidStr, "legalhold", uidStr])
   submit "GET" req
+
+-- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/put_teams__tid__features_legalhold
+putLegalholdStatus ::
+  (HasCallStack, MakesValue tid, MakesValue usr) =>
+  tid ->
+  usr ->
+  -- | the status to put to
+  String ->
+  App Response
+putLegalholdStatus tid usr status = do
+  tidStr <- asString tid
+
+  baseRequest usr Galley Versioned (joinHttpPath ["teams", tidStr, "features", "legalhold"])
+    >>= submit "PUT"
+      . addJSONObject ["status" .= status, "ttl" .= "unlimited"]

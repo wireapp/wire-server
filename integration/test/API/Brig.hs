@@ -131,6 +131,7 @@ getUserByHandle user domain handle = do
       joinHttpPath ["users", "by-handle", domainStr, handle]
   submit "GET" req
 
+-- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/get_clients__client_
 getClient ::
   (HasCallStack, MakesValue user, MakesValue client) =>
   user ->
@@ -143,12 +144,14 @@ getClient u cli = do
       joinHttpPath ["clients", c]
   submit "GET" req
 
+-- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/delete_self
 deleteUser :: (HasCallStack, MakesValue user) => user -> App Response
 deleteUser user = do
   req <- baseRequest user Brig Versioned "/self"
   submit "DELETE" $
     req & addJSONObject ["password" .= defPassword]
 
+-- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/post_clients
 addClient ::
   (HasCallStack, MakesValue user) =>
   user ->
@@ -319,9 +322,7 @@ uploadKeyPackages cid kps = do
       "/mls/key-packages/self/" <> cid.client
   submit
     "POST"
-    do
-      req
-        & addJSONObject ["key_packages" .= map (T.decodeUtf8 . Base64.encode) kps]
+    (req & addJSONObject ["key_packages" .= map (T.decodeUtf8 . Base64.encode) kps])
 
 claimKeyPackagesWithParams :: (MakesValue u, MakesValue v) => Ciphersuite -> u -> v -> [(String, String)] -> App Response
 claimKeyPackagesWithParams suite u v params = do

@@ -294,9 +294,9 @@ testLHRequestDevice =
     lpk <- getLastPrekey
     pks <- replicateM 3 getPrekey
 
-    withMockServer (lhMockApp' $ Just (lpk, pks)) \lhPort _chan -> do
-      let statusShouldbe :: String -> App ()
-          statusShouldbe status =
+    withMockServer (lhMockAppWithPrekeys MkCreateMock {nextLastPrey = pure lpk, somePrekeys = pure pks}) \lhPort _chan -> do
+      let statusShouldBe :: String -> App ()
+          statusShouldBe status =
             legalholdUserStatus tid alice bob `bindResponse` \resp -> do
               resp.status `shouldMatchInt` 200
               resp.json %. "status" `shouldMatch` status
@@ -304,21 +304,21 @@ testLHRequestDevice =
       -- the user has not agreed to be under legalhold
       for_ [alice, bob] \requester -> do
         reqNotEnabled requester bob
-        statusShouldbe "no_consent"
+        statusShouldBe "no_consent"
 
       legalholdWhitelistTeam tid alice >>= assertSuccess
       postLegalHoldSettings tid alice (mkLegalHoldSettings lhPort) >>= assertSuccess
 
-      statusShouldbe "disabled"
+      statusShouldBe "disabled"
 
       requestLegalHoldDevice tid alice bob >>= assertStatus 201
-      statusShouldbe "pending"
+      statusShouldBe "pending"
 
       -- requesting twice should be idempotent wrt the approval
       -- mind that requesting twice means two "user.legalhold-request" notifications
       -- for the clients of the user under legalhold (bob)
       requestLegalHoldDevice tid alice bob >>= assertStatus 204
-      statusShouldbe "pending"
+      statusShouldBe "pending"
 
       [bobc1, bobc2] <- replicateM 2 do
         objId $ addClient bob def `bindResponse` getJSON 201
@@ -342,28 +342,6 @@ checkChanVal :: HasCallStack => Chan (t, LazyByteString) -> (Value -> MaybeT App
 checkChanVal chan match = checkChan chan \(_, bs) -> runMaybeT do
   MaybeT (pure (decode bs)) >>= match
 
-setUpLHDevice ::
-  (HasCallStack, MakesValue tid, MakesValue owner, MakesValue uid) =>
-  tid ->
-  owner ->
-  uid ->
-  -- | the port the LH service is running on
-  Int ->
-  App ()
-setUpLHDevice tid alice bob lhPort = do
-  legalholdWhitelistTeam tid alice
-    >>= assertStatus 200
-
-  -- the status messages for these have already been tested
-  postLegalHoldSettings tid alice (mkLegalHoldSettings lhPort)
-    >>= assertStatus 201
-
-  requestLegalHoldDevice tid alice bob
-    >>= assertStatus 201
-
-  approveLegalHoldDevice tid bob defPassword
-    >>= assertStatus 200
-
 testLHApproveDevice :: App ()
 testLHApproveDevice = do
   startDynamicBackends [mempty] \[dom] -> do
@@ -381,10 +359,6 @@ testLHApproveDevice = do
     sandy <- randomUser dom def
 
     legalholdWhitelistTeam tid alice >>= assertStatus 200
-    -- TODO(mangoiv): it seems like correct behaviour to throw a 412
-    -- here, as we can only approve a device if we're in the pending
-    -- state. however, the old tests passed with a 403 which makes
-    -- this suspicious.
     approveLegalHoldDevice tid (bob %. "qualified_id") defPassword
       >>= assertLabel 412 "legalhold-not-pending"
 
@@ -429,14 +403,7 @@ testLHApproveDevice = do
         >>= renewToken bob
         >>= assertStatus 200
 
-      bobId <- objId bob
-      lhdId <-
-        BrigI.getClientsFull bob [bobId] `bindResponse` \resp -> do
-          [lhd] <-
-            resp.json %. bobId
-              & asList
-              >>= filterM \val -> (== "legalhold") <$> (val %. "type" & asString)
-          lhd %. "id" & asString
+      lhdId <- lhDeviceIdOf bob
 
       legalholdUserStatus tid alice bob `bindResponse` \resp -> do
         resp.status `shouldMatchInt` 200
@@ -474,38 +441,39 @@ testLHGetDeviceStatus =
     lpk <- getLastPrekey
     pks <- replicateM 3 getPrekey
 
-    withMockServer (lhMockApp' (Just (lpk, pks))) \lhPort _chan -> do
-      legalholdWhitelistTeam tid alice
-        >>= assertStatus 200
+    withMockServer
+      do lhMockAppWithPrekeys MkCreateMock {nextLastPrey = pure lpk, somePrekeys = pure pks}
+      \lhPort _chan -> do
+        legalholdWhitelistTeam tid alice
+          >>= assertStatus 200
 
-      legalholdUserStatus tid alice bob `bindResponse` \resp -> do
-        resp.status `shouldMatchInt` 200
-        resp.json %. "status" `shouldMatch` "disabled"
-        lookupField resp.json "last_prekey"
-          >>= assertNothing
-        runMaybeT (lookupFieldM resp.json "client" >>= flip lookupFieldM "id")
-          >>= assertNothing
+        legalholdUserStatus tid alice bob `bindResponse` \resp -> do
+          resp.status `shouldMatchInt` 200
+          resp.json %. "status" `shouldMatch` "disabled"
+          lookupField resp.json "last_prekey"
+            >>= assertNothing
+          runMaybeT (lookupFieldM resp.json "client" >>= flip lookupFieldM "id")
+            >>= assertNothing
 
-      -- the status messages for these have already been tested
-      postLegalHoldSettings tid alice (mkLegalHoldSettings lhPort)
-        >>= assertStatus 201
+        -- the status messages for these have already been tested
+        postLegalHoldSettings tid alice (mkLegalHoldSettings lhPort)
+          >>= assertStatus 201
 
-      requestLegalHoldDevice tid alice bob
-        >>= assertStatus 201
+        requestLegalHoldDevice tid alice bob
+          >>= assertStatus 201
 
-      approveLegalHoldDevice tid bob defPassword
-        >>= assertStatus 200
+        approveLegalHoldDevice tid bob defPassword
+          >>= assertStatus 200
 
-      legalholdUserStatus tid alice bob `bindResponse` \resp -> do
-        resp.status `shouldMatchInt` 200
-        resp.json %. "status" `shouldMatch` "enabled"
-        resp.json %. "last_prekey" `shouldMatch` lpk
-      -- TODO(mangoiv): where do we take the LH device client
-      -- id from??
-      -- resp.json %. "client.id" `shouldMatch` _
+        lhdId <- lhDeviceIdOf bob
+        legalholdUserStatus tid alice bob `bindResponse` \resp -> do
+          resp.status `shouldMatchInt` 200
+          resp.json %. "status" `shouldMatch` "enabled"
+          resp.json %. "last_prekey" `shouldMatch` lpk
+          resp.json %. "client.id" `shouldMatch` lhdId
 
-      requestLegalHoldDevice tid alice bob
-        >>= assertLabel 409 "legalhold-already-enabled"
+        requestLegalHoldDevice tid alice bob
+          >>= assertLabel 409 "legalhold-already-enabled"
 
 -- | this sets the timeout to a higher number; we need
 --   this because the SQS queue on the brig is super slow
@@ -553,7 +521,14 @@ testLHDisableForUser =
         awaitNotification bob bobc noValue isUserClientRemoveNotif
           *> awaitNotification bob bobc noValue isUserLegalholdDisabledNotif
 
--- TODO(mangoiv): assert zero legalhold devices
+      bobId <- objId bob
+      lhClients <-
+        BrigI.getClientsFull bob [bobId] `bindResponse` \resp -> do
+          resp.json %. bobId
+            & asList
+            >>= filterM \val -> (== "legalhold") <$> (val %. "type" & asString)
+
+      shouldBeEmpty lhClients
 
 testLHEnablePerTeam :: App ()
 testLHEnablePerTeam = do
@@ -568,15 +543,12 @@ testLHEnablePerTeam = do
 
     withMockServer lhMockApp \lhPort _chan -> do
       setUpLHDevice tid alice bob lhPort
-      tidStr <- asString tid
 
       legalholdUserStatus tid alice bob `bindResponse` \resp -> do
         resp.status `shouldMatchInt` 200
         resp.json %. "status" `shouldMatch` "enabled"
 
-      baseRequest alice Galley Versioned (joinHttpPath ["teams", tidStr, "features", "legalhold"])
-        >>= submit "PUT"
-          . addJSONObject ["status" .= "disabled", "ttl" .= "unlimited"]
+        putLegalholdStatus tid alice "disabled"
           `bindResponse` assertLabel 403 "legalhold-whitelisted-only"
 
       -- the put doesn't have any influence on the status being "enabled"
@@ -591,8 +563,8 @@ testLHGetMembersIncludesStatus = do
     -- alice (team owner) and bob (member)
     (alice, tid, [bob]) <- createTeam dom 2
 
-    let statusShouldbe :: String -> App ()
-        statusShouldbe status = do
+    let statusShouldBe :: String -> App ()
+        statusShouldBe status = do
           getTeamMembers alice tid `bindResponse` \resp -> do
             resp.status `shouldMatchInt` 200
             [bobMember] <-
@@ -600,9 +572,9 @@ testLHGetMembersIncludesStatus = do
                 (==) <$> asString (u %. "user") <*> objId bob
             bobMember %. "legalhold_status" `shouldMatch` status
 
-    statusShouldbe "no_consent"
+    statusShouldBe "no_consent"
     withMockServer lhMockApp \lhPort _chan -> do
-      statusShouldbe "no_consent"
+      statusShouldBe "no_consent"
 
       legalholdWhitelistTeam tid alice
         >>= assertStatus 200
@@ -612,31 +584,28 @@ testLHGetMembersIncludesStatus = do
         >>= assertStatus 201
 
       -- legalhold has been requested but is disabled
-      statusShouldbe "disabled"
+      statusShouldBe "disabled"
 
       requestLegalHoldDevice tid alice bob
         >>= assertStatus 201
 
       -- legalhold has been set to pending after requesting device
-      statusShouldbe "pending"
+      statusShouldBe "pending"
 
       approveLegalHoldDevice tid bob defPassword
         >>= assertStatus 200
 
       -- bob has accepted the legalhold device
-      statusShouldbe "enabled"
+      statusShouldBe "enabled"
 
 type TB s = TaggedBool s
 
-ut :: TB s -> Bool
-ut = unTagged
-
 testLHNoConsentBlockOne2OneConv :: TB "connect first" -> TB "team peer" -> TB "approve LH" -> TB "test pending connection" -> App ()
 testLHNoConsentBlockOne2OneConv
-  (ut -> connectFirst)
-  (ut -> teampeer)
-  (ut -> approveLH)
-  (ut -> testPendingConnection) =
+  (MkTagged connectFirst)
+  (MkTagged teampeer)
+  (MkTagged approveLH)
+  (MkTagged testPendingConnection) =
     startDynamicBackends [mempty] \[dom1] -> do
       -- team users
       -- alice (team owner) and bob (member)
@@ -666,15 +635,7 @@ testLHNoConsentBlockOne2OneConv
               resp.status `shouldMatchInt` 200
               resp.json %. "status" `shouldMatch` if approveLH then "enabled" else "pending"
             if approveLH
-              then do
-                aliceId <- objId alice
-                BrigI.getClientsFull alice [aliceId] `bindResponse` \resp -> do
-                  [lhd] <-
-                    resp.json %. aliceId
-                      & asList
-                      >>= filterM \val -> (== "legalhold") <$> (val %. "type" & asString)
-                  lhdid <- lhd %. "id" & asString
-                  pure (Just lhdid)
+              then Just <$> lhDeviceIdOf alice
               else pure Nothing
 
           doDisableLH :: HasCallStack => App ()
@@ -744,7 +705,21 @@ testLHNoConsentBlockOne2OneConv
 
             bobc2 <- objId $ addClient bob def >>= getJSON 201
 
-            let sendMessageFromBobToAlice :: HasCallStack => (String -> [String]) -> (Response -> App ()) -> App ()
+            let -- \| we send a message from bob to alice, but only if
+                -- we have a conversation id and a legalhold device
+                -- we first create a message that goes to recipients
+                -- chosen by the first callback passed
+                -- then send the message using proteus
+                -- and in the end running the assertino callback to
+                -- verify the result
+                sendMessageFromBobToAlice ::
+                  HasCallStack =>
+                  (String -> [String]) ->
+                  -- \^ if we have the legalhold device registered, this
+                  --   callback will be passed the lh device
+                  (Response -> App ()) ->
+                  -- \^ the callback to verify our response (an assertion)
+                  App ()
                 sendMessageFromBobToAlice recipients assertion =
                   for_ ((,) <$> mbConvId <*> mbLHDevice) \(convId, device) -> do
                     successfulMsgForOtherUsers <-

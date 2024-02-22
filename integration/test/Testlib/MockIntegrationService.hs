@@ -1,4 +1,4 @@
-module Testlib.MockIntegrationService (withMockServer, lhMockApp', lhMockApp, mkLegalHoldSettings) where
+module Testlib.MockIntegrationService (withMockServer, lhMockAppWithPrekeys, lhMockApp, mkLegalHoldSettings, CreateMock (..)) where
 
 import Control.Monad.Catch
 import Control.Monad.Reader
@@ -118,21 +118,33 @@ withMockServer mkApp go = withFreePortAnyAddr $ \(sPort, sock) -> do
     Nothing -> error . show =<< poll srv
 
 lhMockApp :: Chan (Wai.Request, LBS.ByteString) -> LiftedApplication
-lhMockApp = lhMockApp' Nothing
+lhMockApp = lhMockAppWithPrekeys def
+
+data CreateMock f = MkCreateMock
+  { -- | how to obtain the next last prekey of a mock app
+    nextLastPrey :: f Value,
+    -- | how to obtain some prekeys of a mock app
+    somePrekeys :: f [Value]
+  }
+
+instance (App ~ f) => Default (CreateMock f) where
+  def =
+    MkCreateMock
+      { nextLastPrey = getLastPrekey,
+        somePrekeys = replicateM 3 getPrekey
+      }
 
 -- | LegalHold service.  Just fake the API, do not maintain any internal state.
-lhMockApp' :: Maybe (Value, [Value]) -> Chan (Wai.Request, LBS.ByteString) -> LiftedApplication
-lhMockApp' mks ch req cont = withRunInIO \inIO -> do
+lhMockAppWithPrekeys ::
+  CreateMock App -> Chan (Wai.Request, LBS.ByteString) -> LiftedApplication
+lhMockAppWithPrekeys mks ch req cont = withRunInIO \inIO -> do
   reqBody <- Wai.strictRequestBody req
   writeChan ch (req, reqBody)
   inIO do
     (nextLastPrekey, threePrekeys) <-
-      case mks of
-        Nothing ->
-          (,)
-            <$> getLastPrekey
-            <*> replicateM 3 getPrekey
-        Just pks -> pure pks
+      (,)
+        <$> mks.nextLastPrey
+        <*> mks.somePrekeys
     case (cs <$> pathInfo req, cs $ requestMethod req, cs @_ @String <$> getRequestHeader "Authorization" req) of
       (["legalhold", "status"], "GET", _) -> cont respondOk
       (_, _, Nothing) -> cont missingAuth

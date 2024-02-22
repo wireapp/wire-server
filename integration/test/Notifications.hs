@@ -5,7 +5,6 @@ import API.Gundeck
 import Control.Error (lastMay)
 import Control.Monad.Extra
 import Control.Monad.Reader (asks)
-import GHC.Generics ((:.:) (Comp1, unComp1))
 import Testlib.Prelude
 import UnliftIO (timeout)
 import UnliftIO.Concurrent
@@ -175,23 +174,6 @@ isUserLegalholdDisabledNotif = notifTypeIsEqual "user.legalhold-disable"
 
 isUserConnectionNotif :: MakesValue a => a -> App Bool
 isUserConnectionNotif = notifTypeIsEqual "user.connection"
-
--- | compose two predicates on notifications with a boolean relation
-notifBoolRel :: MakesValue a => (Bool -> Bool -> Bool) -> (a -> App Bool) -> (a -> App Bool) -> a -> App Bool
-notifBoolRel rel p1 p2 = unComp1 do
-  rel <$> Comp1 p1 <*> Comp1 p2
-
--- | compose two predicates on notifications with a '(||)'
-notifOr :: MakesValue a => (a -> App Bool) -> (a -> App Bool) -> a -> App Bool
-notifOr = notifBoolRel (||)
-
-infixr 2 `notifOr`
-
--- | compose two predicates on notifications with a '(&&)'
-notifAnd :: MakesValue a => (a -> App Bool) -> (a -> App Bool) -> a -> App Bool
-notifAnd = notifBoolRel (&&)
-
-infixr 3 `notifAnd`
 
 assertLeaveNotification ::
   ( HasCallStack,

@@ -237,6 +237,7 @@ addClient user args = do
   val <- mkAddClientValue args
   submit "POST" $ req & addJSONObject val
 
+-- | https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/#/brig/post_i_clients_full
 getClientsFull :: (HasCallStack, MakesValue users, MakesValue uid) => uid -> users -> App Response
 getClientsFull user users = do
   val <- make users
