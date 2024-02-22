@@ -547,9 +547,13 @@ updateEndpoint uid t arn e = do
         ~~ "tokenTransport"
           .= show (t ^. tokenTransport)
         ~~ "tokenApp"
-          .= show (t ^. tokenApp)
+          .= show (t ^. tokenApp . to appNameText)
         ~~ "arn"
           .= toText arn
+        ~~ "endpointTransport"
+          .= show (arn ^. snsTopic . endpointTransport)
+        ~~ "endpointAppName"
+          .= (arn ^. snsTopic . endpointAppName . to appNameText)
         ~~ "request"
           .= unRequestId requestId
         ~~ msg (val m)
