@@ -2,8 +2,8 @@ This Helm chart installs a reverse proxy that proxies the Certificate Revocation
 
 The Helm chart deploys a nginx server that reverse-proxies `https://<nginx.ingress.hostname>/proxyCrl/<other_acme_domain>` to `http://{other_acme_domain}/crl` (note: http, not https) as well as an ingress for the `/proxyCrl` endpoint. For example if `upstreams.proxiedHosts` is set to `[acme.alpha.example.com, acme.beta.example.com]` and the host for the Smallstep server on the own domain is `acme.alpha.example.com` this helm chart will forward requests
 
-- `https://acme.alpha.example.com/acme.alpha.example.com` to `http://acme.alpha.example.com/crl`
-- `https://acme.alpha.example.com/acme.beta.example.com` to `http://acme.beta.example.com/crl`
+- `https://acme.alpha.example.com/proxyCrl/acme.alpha.example.com` to `http://acme.alpha.example.com/crl`
+- `https://acme.alpha.example.com/proxyCrl/acme.beta.example.com` to `http://acme.beta.example.com/crl`
 
 ## Parameters
 
