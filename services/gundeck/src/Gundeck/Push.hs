@@ -545,7 +545,7 @@ updateEndpoint uid t arn e = do
         ~~ "tokenTransport"
           .= show (t ^. tokenTransport)
         ~~ "tokenApp"
-          .= show (t ^. tokenApp . to appNameText)
+          .= (t ^. tokenApp . to appNameText)
         ~~ "arn"
           .= toText arn
         ~~ "endpointTransport"
