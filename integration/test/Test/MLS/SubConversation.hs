@@ -124,15 +124,11 @@ testDeleteSubConversation otherDomain = do
   sub2' <- getSubConversation alice1 qcnv "conference2" >>= getJSON 200
   sub2 `shouldNotMatch` sub2'
 
-data LeaveSubConvVariant = AliceLeaves | BobLeaves
+data Leaver = Alice | Bob
+  deriving stock (Generic)
 
-instance HasTests x => HasTests (LeaveSubConvVariant -> x) where
-  mkTests m n s f x =
-    mkTests m (n <> "[leaver=alice]") s f (x AliceLeaves)
-      <> mkTests m (n <> "[leaver=bob]") s f (x BobLeaves)
-
-testLeaveSubConv :: HasCallStack => LeaveSubConvVariant -> App ()
-testLeaveSubConv variant = do
+testLeaveSubConv :: HasCallStack => Leaver -> App ()
+testLeaveSubConv leaver = do
   [alice, bob, charlie] <- createAndConnectUsers [OwnDomain, OwnDomain, OtherDomain]
   clients@[alice1, bob1, bob2, charlie1] <- traverse (createMLSClient def) [alice, bob, bob, charlie]
   traverse_ uploadNewKeyPackage [bob1, bob2, charlie1]
@@ -148,9 +144,9 @@ testLeaveSubConv variant = do
   void $ createExternalCommit charlie1 Nothing >>= sendAndConsumeCommitBundle
 
   -- a member leaves the subconversation
-  let (firstLeaver, idxFirstLeaver) = case variant of
-        BobLeaves -> (bob1, 0)
-        AliceLeaves -> (alice1, 1)
+  let (firstLeaver, idxFirstLeaver) = case leaver of
+        Bob -> (bob1, 0)
+        Alice -> (alice1, 1)
   let idxCharlie1 = 3
 
   let others = filter (/= firstLeaver) clients

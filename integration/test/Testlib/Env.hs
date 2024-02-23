@@ -94,7 +94,7 @@ mkGlobalEnv cfgFile = do
   tempDir <- Codensity $ withSystemTempDirectory "test"
   timeOutSeconds <-
     liftIO $
-      fromMaybe 10 . (readMaybe @Int =<<) <$> (lookupEnv "TEST_TIMEOUT_SECONDS")
+      fromMaybe 10 . (readMaybe @Int =<<) <$> lookupEnv "TEST_TIMEOUT_SECONDS"
   pure
     GlobalEnv
       { gServiceMap = sm,

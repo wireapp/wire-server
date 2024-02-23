@@ -3,7 +3,6 @@
 module MLS.Util where
 
 import API.Brig
-import qualified API.BrigCommon as BrigC
 import API.Galley
 import Control.Concurrent.Async hiding (link)
 import Control.Monad
@@ -37,7 +36,6 @@ import System.IO hiding (print, putStrLn)
 import System.IO.Temp
 import System.Posix.Files
 import System.Process
-import Testlib.App
 import Testlib.Assertions
 import Testlib.HTTP
 import Testlib.JSON
@@ -141,15 +139,21 @@ argSubst from to_ s =
 
 createWireClient :: (MakesValue u, HasCallStack) => u -> App ClientIdentity
 createWireClient u = do
-  lpk <- getLastPrekey
-  c <- addClient u def {BrigC.lastPrekey = Just lpk} >>= getJSON 201
-  mkClientIdentity u c
+  addClient u def
+    >>= getJSON 201
+    >>= mkClientIdentity u
 
--- data CredentialType = BasicCredentialType | X509CredentialType
---
--- instance MakesValue CredentialType where
---   make BasicCredentialType = make "basic"
---   make X509CredentialType = make "x509"
+data CredentialType = BasicCredentialType | X509CredentialType
+
+instance MakesValue CredentialType where
+  make BasicCredentialType = make "basic"
+  make X509CredentialType = make "x509"
+
+instance TestCases CredentialType where
+  testCases =
+    [ MkTestCase "[ctype=basic]" BasicCredentialType,
+      MkTestCase "[ctype=x509]" X509CredentialType
+    ]
 
 data InitMLSClient = InitMLSClient
   {credType :: CredentialType}

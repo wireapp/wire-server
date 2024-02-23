@@ -216,11 +216,12 @@ data One2OneScenario
   | -- | One user is remote, conversation is remote
     One2OneScenarioRemoteConv
 
-instance HasTests x => HasTests (One2OneScenario -> x) where
-  mkTests m n s f x =
-    mkTests m (n <> "[domain=own]") s f (x One2OneScenarioLocal)
-      <> mkTests m (n <> "[domain=other;conv=own]") s f (x One2OneScenarioLocalConv)
-      <> mkTests m (n <> "[domain=other;conv=other]") s f (x One2OneScenarioRemoteConv)
+instance TestCases One2OneScenario where
+  testCases =
+    [ MkTestCase "[domain=own]" One2OneScenarioLocal,
+      MkTestCase "[domain=other;conv=own]" One2OneScenarioLocalConv,
+      MkTestCase "[domain=other;conv=other]" One2OneScenarioRemoteConv
+    ]
 
 one2OneScenarioUserDomain :: One2OneScenario -> Domain
 one2OneScenarioUserDomain One2OneScenarioLocal = OwnDomain

@@ -128,7 +128,7 @@ startDynamicBackends beOverrides k = measureM "startDynamicBackends" do
       pure $ map (.berDomain) resources
     k
 
-startDynamicBackend :: HasCallStack => BackendResource -> ServiceOverrides -> Codensity App ()
+startDynamicBackend :: BackendResource -> ServiceOverrides -> Codensity App ()
 startDynamicBackend resource beOverrides = do
   let overrides =
         mconcat

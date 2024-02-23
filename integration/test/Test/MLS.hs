@@ -29,7 +29,7 @@ testSendMessageNoReturnToSender = do
   -- the message
   withWebSockets [alice1, alice2, bob1, bob2] $ \(wsSender : wss) -> do
     mp <- createApplicationMessage alice1 "hello, bob"
-    void . bindResponse (postMLSMessage mp.sender mp.message) $ \resp -> do
+    bindResponse (postMLSMessage mp.sender mp.message) $ \resp -> do
       resp.status `shouldMatchInt` 201
     for_ wss $ \ws -> do
       n <- awaitMatch (\n -> nPayload n %. "type" `isEqual` "conversation.mls-message-add") ws

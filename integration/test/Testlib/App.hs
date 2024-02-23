@@ -10,6 +10,7 @@ import Data.Maybe
 import qualified Data.Text as T
 import qualified Data.Yaml as Yaml
 import GHC.Exception
+import GHC.Generics (Generic)
 import GHC.Stack (HasCallStack)
 import System.FilePath
 import Testlib.JSON
@@ -55,6 +56,7 @@ readServiceConfig' srvName = do
     Right value -> pure value
 
 data Domain = OwnDomain | OtherDomain
+  deriving stock (Eq, Show, Generic)
 
 instance MakesValue Domain where
   make OwnDomain = asks (String . T.pack . (.domain1))

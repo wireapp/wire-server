@@ -58,14 +58,16 @@ getFederationStatus user domains =
           "GET"
           $ req & addJSONObject ["domains" .= domainList]
 
-legalholdWhitelistTeam :: (HasCallStack, MakesValue uid, MakesValue tid) => uid -> tid -> App Response
-legalholdWhitelistTeam uid tid = do
+-- | https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/galley/#/galley/put_i_legalhold_whitelisted_teams__tid_
+legalholdWhitelistTeam :: (HasCallStack, MakesValue uid, MakesValue tid) => tid -> uid -> App Response
+legalholdWhitelistTeam tid uid = do
   tidStr <- asString tid
   req <- baseRequest uid Galley Unversioned $ joinHttpPath ["i", "legalhold", "whitelisted-teams", tidStr]
   submit "PUT" req
 
-legalholdIsTeamInWhitelist :: (HasCallStack, MakesValue uid, MakesValue tid) => uid -> tid -> App Response
-legalholdIsTeamInWhitelist uid tid = do
+-- | https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/galley/#/galley/get_i_legalhold_whitelisted_teams__tid_
+legalholdIsTeamInWhitelist :: (HasCallStack, MakesValue uid, MakesValue tid) => tid -> uid -> App Response
+legalholdIsTeamInWhitelist tid uid = do
   tidStr <- asString tid
   req <- baseRequest uid Galley Unversioned $ joinHttpPath ["i", "legalhold", "whitelisted-teams", tidStr]
   submit "GET" req
@@ -77,3 +79,10 @@ setTeamFeatureConfig versioned domain team featureName payload = do
   p <- make payload
   req <- baseRequest domain Galley versioned $ joinHttpPath ["teams", tid, "features", fn]
   submit "PUT" $ req & addJSON p
+
+-- | https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/galley/#/galley/get_i_teams__tid__features_legalhold
+legalholdIsEnabled :: (HasCallStack, MakesValue tid, MakesValue uid) => tid -> uid -> App Response
+legalholdIsEnabled tid uid = do
+  tidStr <- asString tid
+  baseRequest uid Galley Unversioned do joinHttpPath ["i", "teams", tidStr, "features", "legalhold"]
+    >>= submit "GET"
