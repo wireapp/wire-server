@@ -1,0 +1,3 @@
+The AWS SNS ARN was parsed by accumulating the environment name up to the first
+dash ('-') such that parts of this name spilled over into the app name. Now, we
+accumulate up to the last dash.
