@@ -55,7 +55,7 @@ shouldMatch ::
 a `shouldMatch` b = do
   xa <- make a
   xb <- make b
-  unless (xa == xb) $ do
+  unless (xa == xb) do
     pa <- prettyJSON xa
     pb <- prettyJSON xb
     assertFailure $ "Actual:\n" <> pa <> "\nExpected:\n" <> pb

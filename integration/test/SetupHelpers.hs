@@ -7,6 +7,7 @@ import API.Brig
 import API.BrigInternal
 import API.Common
 import API.Galley
+import API.GalleyInternal (legalholdWhitelistTeam)
 import Control.Monad.Reader
 import Crypto.Random (getRandomBytes)
 import Data.Aeson hiding ((.=))
@@ -18,6 +19,7 @@ import Data.Function
 import Data.UUID.V1 (nextUUID)
 import Data.UUID.V4 (nextRandom)
 import GHC.Stack
+import Testlib.MockIntegrationService (mkLegalHoldSettings)
 import Testlib.Prelude
 
 randomUser :: (HasCallStack, MakesValue domain) => domain -> CreateUser -> App Value
@@ -276,3 +278,39 @@ setupProvider u np@(NewProvider {..}) = do
     pure (k, c)
   activateProvider dom key code
   loginProvider dom newProviderEmail pass $> provider
+
+-- | setup a legalhold device for @uid@, authorised by @owner@
+--   at the specified port
+setUpLHDevice ::
+  (HasCallStack, MakesValue tid, MakesValue owner, MakesValue uid) =>
+  tid ->
+  owner ->
+  uid ->
+  -- | the port the LH service is running on
+  Int ->
+  App ()
+setUpLHDevice tid alice bob lhPort = do
+  legalholdWhitelistTeam tid alice
+    >>= assertStatus 200
+
+  -- the status messages for these have already been tested
+  postLegalHoldSettings tid alice (mkLegalHoldSettings lhPort)
+    >>= assertStatus 201
+
+  requestLegalHoldDevice tid alice bob
+    >>= assertStatus 201
+
+  approveLegalHoldDevice tid bob defPassword
+    >>= assertStatus 200
+
+lhDeviceIdOf :: MakesValue user => user -> App String
+lhDeviceIdOf bob = do
+  bobId <- objId bob
+  getClientsFull bob [bobId] `bindResponse` \resp ->
+    do
+      resp.json %. bobId
+        & asList
+        >>= filterM \val -> (== "legalhold") <$> (val %. "type" & asString)
+      >>= assertOne
+      >>= (%. "id")
+      >>= asString

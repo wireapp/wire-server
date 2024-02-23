@@ -131,6 +131,7 @@ getUserByHandle user domain handle = do
       joinHttpPath ["users", "by-handle", domainStr, handle]
   submit "GET" req
 
+-- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/get_clients__client_
 getClient ::
   (HasCallStack, MakesValue user, MakesValue client) =>
   user ->
@@ -143,13 +144,14 @@ getClient u cli = do
       joinHttpPath ["clients", c]
   submit "GET" req
 
+-- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/delete_self
 deleteUser :: (HasCallStack, MakesValue user) => user -> App Response
 deleteUser user = do
   req <- baseRequest user Brig Versioned "/self"
   submit "DELETE" $
     req & addJSONObject ["password" .= defPassword]
 
--- | https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/#/brig/post_i_clients__uid_
+-- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/post_clients
 addClient ::
   (HasCallStack, MakesValue user) =>
   user ->
@@ -320,9 +322,7 @@ uploadKeyPackages cid kps = do
       "/mls/key-packages/self/" <> cid.client
   submit
     "POST"
-    ( req
-        & addJSONObject ["key_packages" .= map (T.decodeUtf8 . Base64.encode) kps]
-    )
+    (req & addJSONObject ["key_packages" .= map (T.decodeUtf8 . Base64.encode) kps])
 
 claimKeyPackagesWithParams :: (MakesValue u, MakesValue v) => Ciphersuite -> u -> v -> [(String, String)] -> App Response
 claimKeyPackagesWithParams suite u v params = do
@@ -334,7 +334,7 @@ claimKeyPackagesWithParams suite u v params = do
     req
       & addQueryParams ([("ciphersuite", suite.code)] <> params)
 
-claimKeyPackages :: (MakesValue u, MakesValue v) => Ciphersuite -> u -> v -> App Response
+claimKeyPackages :: (HasCallStack, MakesValue u, MakesValue v) => Ciphersuite -> u -> v -> App Response
 claimKeyPackages suite u v = claimKeyPackagesWithParams suite u v []
 
 countKeyPackages :: Ciphersuite -> ClientIdentity -> App Response
@@ -630,3 +630,9 @@ getMultiUserPrekeyBundle :: (HasCallStack, MakesValue caller, ToJSON userClients
 getMultiUserPrekeyBundle caller userClients = do
   req <- baseRequest caller Brig Versioned $ joinHttpPath ["users", "list-prekeys"]
   submit "POST" (addJSON userClients req)
+
+-- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/post_access
+renewToken :: (HasCallStack, MakesValue uid) => uid -> String -> App Response
+renewToken caller cookie = do
+  req <- baseRequest caller Brig Versioned "access"
+  submit "POST" (addHeader "Cookie" ("zuid=" <> cookie) req)

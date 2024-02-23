@@ -1,4 +1,4 @@
-module Testlib.MockIntegrationService (withMockServer, lhMockApp, mkLegalHoldSettings) where
+module Testlib.MockIntegrationService (withMockServer, lhMockAppWithPrekeys, lhMockApp, mkLegalHoldSettings, CreateMock (..)) where
 
 import Control.Monad.Catch
 import Control.Monad.Reader
@@ -13,8 +13,8 @@ import Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Handler.Warp.Internal as Warp
 import qualified Network.Wai.Handler.WarpTLS as Warp
-import Testlib.Prekeys
 import Testlib.Prelude
+import UnliftIO (MonadUnliftIO (withRunInIO))
 import UnliftIO.Async
 import UnliftIO.Chan
 import UnliftIO.MVar
@@ -95,10 +95,12 @@ withFreePortAnyAddr = bracket openFreePortAnyAddr (liftIO . Socket.close . snd)
 openFreePortAnyAddr :: MonadIO m => m (Warp.Port, Socket)
 openFreePortAnyAddr = liftIO $ bindRandomPortTCP (fromString "*")
 
+type LiftedApplication = Request -> (Wai.Response -> App ResponseReceived) -> App ResponseReceived
+
 withMockServer ::
-  HasCallStack =>
+  (HasCallStack) =>
   -- | the mock server
-  (Chan e -> Application) ->
+  (Chan e -> LiftedApplication) ->
   -- | the test
   (Warp.Port -> Chan e -> App a) ->
   App a
@@ -107,30 +109,55 @@ withMockServer mkApp go = withFreePortAnyAddr $ \(sPort, sock) -> do
   let tlss = Warp.tlsSettingsMemory (cs mockServerCert) (cs mockServerPrivKey)
   let defs = Warp.defaultSettings {Warp.settingsPort = sPort, Warp.settingsBeforeMainLoop = putMVar serverStarted ()}
   buf <- newChan
-  srv <- async . liftIO . Warp.runTLSSocket tlss defs sock $ mkApp buf
+  srv <- async $ withRunInIO \inIO -> do
+    Warp.runTLSSocket tlss defs sock \req respond -> do
+      inIO $ mkApp buf req (liftIO . respond)
   srvMVar <- UnliftIO.Timeout.timeout 5_000_000 (takeMVar serverStarted)
   case srvMVar of
     Just () -> go sPort buf `finally` cancel srv
     Nothing -> error . show =<< poll srv
 
+lhMockApp :: Chan (Wai.Request, LBS.ByteString) -> LiftedApplication
+lhMockApp = lhMockAppWithPrekeys def
+
+data CreateMock f = MkCreateMock
+  { -- | how to obtain the next last prekey of a mock app
+    nextLastPrey :: f Value,
+    -- | how to obtain some prekeys of a mock app
+    somePrekeys :: f [Value]
+  }
+
+instance (App ~ f) => Default (CreateMock f) where
+  def =
+    MkCreateMock
+      { nextLastPrey = getLastPrekey,
+        somePrekeys = replicateM 3 getPrekey
+      }
+
 -- | LegalHold service.  Just fake the API, do not maintain any internal state.
-lhMockApp :: Chan (Wai.Request, LBS.ByteString) -> Wai.Application
-lhMockApp ch req cont = do
+lhMockAppWithPrekeys ::
+  CreateMock App -> Chan (Wai.Request, LBS.ByteString) -> LiftedApplication
+lhMockAppWithPrekeys mks ch req cont = withRunInIO \inIO -> do
   reqBody <- Wai.strictRequestBody req
   writeChan ch (req, reqBody)
-  case (cs <$> pathInfo req, cs $ requestMethod req, cs @_ @String <$> getRequestHeader "Authorization" req) of
-    (["legalhold", "status"], "GET", _) -> cont respondOk
-    (_, _, Nothing) -> cont missingAuth
-    (["legalhold", "initiate"], "POST", Just _) -> cont initiateResp
-    (["legalhold", "confirm"], "POST", Just _) -> cont respondOk
-    (["legalhold", "remove"], "POST", Just _) -> cont respondOk
-    _ -> cont respondBad
+  inIO do
+    (nextLastPrekey, threePrekeys) <-
+      (,)
+        <$> mks.nextLastPrey
+        <*> mks.somePrekeys
+    case (cs <$> pathInfo req, cs $ requestMethod req, cs @_ @String <$> getRequestHeader "Authorization" req) of
+      (["legalhold", "status"], "GET", _) -> cont respondOk
+      (_, _, Nothing) -> cont missingAuth
+      (["legalhold", "initiate"], "POST", Just _) -> cont (initiateResp nextLastPrekey threePrekeys)
+      (["legalhold", "confirm"], "POST", Just _) -> cont respondOk
+      (["legalhold", "remove"], "POST", Just _) -> cont respondOk
+      _ -> cont respondBad
   where
-    initiateResp :: Wai.Response
-    initiateResp =
+    initiateResp :: Value -> [Value] -> Wai.Response
+    initiateResp npk pks =
       responseLBS status200 [(hContentType, cs "application/json")] . encode . Data.Aeson.object $
-        [ "prekeys" .= drop 3 somePrekeysRendered,
-          "last_prekey" .= (someLastPrekeysRendered !! 2)
+        [ "prekeys" .= pks,
+          "last_prekey" .= npk
         ]
 
     respondOk :: Wai.Response
