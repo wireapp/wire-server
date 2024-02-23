@@ -392,6 +392,7 @@ test-suite gundeck-tests
   type:               exitcode-stdio-1.0
   main-is:            Main.hs
   other-modules:
+    Aws.Arn
     DelayQueue
     Json
     MockGundeck
@@ -453,6 +454,7 @@ test-suite gundeck-tests
       aeson
     , aeson-pretty
     , amazonka
+    , amazonka-core
     , async
     , base
     , bytestring-conversion

@@ -186,6 +186,7 @@ mkDerivation {
     aeson
     aeson-pretty
     amazonka
+    amazonka-core
     async
     base
     bytestring-conversion
