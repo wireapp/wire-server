@@ -369,8 +369,8 @@ servantSitemap =
 
     userClientAPI :: ServerT UserClientAPI (Handler r)
     userClientAPI =
-      -- Named @"add-client-v5" (callsFed (exposeAnnotations addClient)) :<|>
-      Named @"add-client" (callsFed (exposeAnnotations addClient))
+      Named @"add-client-v5" (callsFed (exposeAnnotations addClient))
+        :<|> Named @"add-client" (callsFed (exposeAnnotations addClient))
         :<|> Named @"update-client" updateClient
         :<|> Named @"delete-client" deleteClient
         :<|> Named @"list-clients" listClients
