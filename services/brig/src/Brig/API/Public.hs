@@ -373,7 +373,9 @@ servantSitemap =
         :<|> Named @"add-client" (callsFed (exposeAnnotations addClient))
         :<|> Named @"update-client" updateClient
         :<|> Named @"delete-client" deleteClient
+        :<|> Named @"list-clients-v5" listClients
         :<|> Named @"list-clients" listClients
+        :<|> Named @"get-client-v5" getClient
         :<|> Named @"get-client" getClient
         :<|> Named @"get-client-capabilities" getClientCapabilities
         :<|> Named @"get-client-prekeys" getClientPrekeys
