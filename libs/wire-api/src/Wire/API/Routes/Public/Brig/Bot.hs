@@ -31,7 +31,7 @@ import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named (Named)
 import Wire.API.Routes.Public
 import Wire.API.Routes.Version
--- import Wire.API.Routes.Versioned
+import Wire.API.Routes.Versioned
 import Wire.API.User
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey (PrekeyId)
@@ -126,7 +126,7 @@ type BotAPI =
                     'GET
                     '[JSON]
                     '[ ErrorResponse 'ClientNotFound,
-                       Respond 200 "Client found" Client
+                       VersionedRespond 'V5 200 "Client found" Client
                      ]
                     (Maybe Client)
            )
