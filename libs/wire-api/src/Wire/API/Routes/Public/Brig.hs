@@ -65,6 +65,7 @@ import Wire.API.Routes.Public.Brig.Services (ServicesAPI)
 import Wire.API.Routes.Public.Util
 import Wire.API.Routes.QualifiedCapture
 import Wire.API.Routes.Version
+import Wire.API.Routes.Versioned
 import Wire.API.SystemSettings
 import Wire.API.Team.Invitation
 import Wire.API.Team.Size
@@ -125,8 +126,6 @@ type CaptureUserId name = Capture' '[Description "User Id"] name UserId
 type QualifiedCaptureUserId name = QualifiedCapture' '[Description "User Id"] name UserId
 
 type CaptureClientId name = Capture' '[Description "ClientId"] name ClientId
-
-type NewClientResponse = Headers '[Header "Location" ClientId] Client
 
 type DeleteSelfResponses =
   '[ RespondEmpty 200 "Deletion is initiated.",
@@ -739,7 +738,7 @@ type UserClientAPI =
   -- - ClientAdded event to self
   -- - ClientRemoved event to self, if removing old clients due to max number
   Named
-    "add-client"
+    "add-client-v5"
     ( Summary "Register a new client"
         :> MakesFederatedCall 'Brig "send-connection-action"
         :> CanThrow 'TooManyClients
@@ -757,9 +756,31 @@ type UserClientAPI =
              ( WithHeaders
                  ClientHeaders
                  Client
-                 (Respond 201 "Client registered" Client)
+                 (VersionedRespond 'V5 201 "Client registered" Client)
              )
     )
+    :<|> Named
+           "add-client"
+           ( Summary "Register a new client"
+               :> MakesFederatedCall 'Brig "send-connection-action"
+               :> CanThrow 'TooManyClients
+               :> CanThrow 'MissingAuth
+               :> CanThrow 'MalformedPrekeys
+               :> CanThrow 'CodeAuthenticationFailed
+               :> CanThrow 'CodeAuthenticationRequired
+               :> ZUser
+               :> ZConn
+               :> "clients"
+               :> ReqBody '[JSON] NewClient
+               :> MultiVerb1
+                    'POST
+                    '[JSON]
+                    ( WithHeaders
+                        ClientHeaders
+                        Client
+                        (Respond 200 "Client registered" Client)
+                    )
+           )
     :<|> Named
            "update-client"
            ( Summary "Update a registered client"
