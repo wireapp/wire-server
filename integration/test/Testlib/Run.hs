@@ -39,7 +39,12 @@ runTest ge action = lowerCodensity $ do
   env <- mkEnv ge
   liftIO $
     (Right <$> runAppWithEnv env action)
-      `E.catches` [ E.Handler -- AssertionFailure
+      `E.catches` [ E.Handler $ \(e :: SomeAsyncException) -> do
+                      -- AsyncExceptions need rethrowing
+                      -- to prevend the last handler from handling async exceptions.
+                      -- This ensures things like UserInterrupt are properly handled.
+                      E.throw e,
+                    E.Handler -- AssertionFailure
                       (fmap Left . printFailureDetails),
                     E.Handler
                       (fmap Left . printExceptionDetails)
