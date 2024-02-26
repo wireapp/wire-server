@@ -85,6 +85,7 @@ import Data.Misc (Latitude (..), Longitude (..), PlainTextPassword6)
 import Data.OpenApi hiding (Schema, ToSchema, nullable, schema)
 import Data.OpenApi qualified as Swagger hiding (nullable)
 import Data.Qualified
+import Data.SOP
 import Data.Schema
 import Data.Set qualified as Set
 import Data.Text.Encoding qualified as Text.E
@@ -98,6 +99,7 @@ import Deriving.Swagger
   )
 import Imports
 import Wire.API.MLS.CipherSuite
+import Wire.API.Routes.MultiVerb
 import Wire.API.User.Auth
 import Wire.API.User.Client.Prekey as Prekey
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..), generateExample, mapOf', setOf')
@@ -373,17 +375,17 @@ instance Swagger.ToSchema UserClientsFull where
 
 instance ToJSON UserClientsFull where
   toJSON =
-    toJSON . Map.foldrWithKey' fn Map.empty . userClientsFull
+    toJSON . Map.foldrWithKey' f Map.empty . userClientsFull
     where
-      fn u c m =
+      f u c m =
         let k = Text.E.decodeLatin1 (toASCIIBytes (toUUID u))
          in Map.insert k c m
 
 instance FromJSON UserClientsFull where
   parseJSON =
-    A.withObject "UserClientsFull" (fmap UserClientsFull . foldrM fn Map.empty . KeyMap.toList)
+    A.withObject "UserClientsFull" (fmap UserClientsFull . foldrM f Map.empty . KeyMap.toList)
     where
-      fn (k, v) m = Map.insert <$> parseJSON (A.String $ Key.toText k) <*> parseJSON v <*> pure m
+      f (k, v) m = Map.insert <$> parseJSON (A.String $ Key.toText k) <*> parseJSON v <*> pure m
 
 instance Arbitrary UserClientsFull where
   arbitrary = UserClientsFull <$> mapOf' arbitrary (setOf' arbitrary)
@@ -515,6 +517,10 @@ instance ToSchema Client where
 
 mlsPublicKeysFieldSchema :: ObjectSchema SwaggerDoc MLSPublicKeys
 mlsPublicKeysFieldSchema = fromMaybe mempty <$> optField "mls_public_keys" mlsPublicKeysSchema
+
+instance AsHeaders '[ClientId] Client Client where
+  toHeaders c = (I (clientId c) :* Nil, c)
+  fromHeaders = snd
 
 --------------------------------------------------------------------------------
 -- ClientList

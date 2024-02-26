@@ -730,9 +730,11 @@ type PrekeyAPI =
                :> Post '[JSON] QualifiedUserClientPrekeyMapV4
            )
 
-type UserClientAPI =
-  -- User Client API ----------------------------------------------------
+-- User Client API ----------------------------------------------------
 
+type ClientHeaders = '[DescHeader "Location" "Client ID" ClientId]
+
+type UserClientAPI =
   -- This endpoint can lead to the following events being sent:
   -- - ClientAdded event to self
   -- - ClientRemoved event to self, if removing old clients due to max number
@@ -749,7 +751,14 @@ type UserClientAPI =
         :> ZConn
         :> "clients"
         :> ReqBody '[JSON] NewClient
-        :> Verb 'POST 201 '[JSON] NewClientResponse
+        :> MultiVerb1
+             'POST
+             '[JSON]
+             ( WithHeaders
+                 ClientHeaders
+                 Client
+                 (Respond 201 "Client registered" Client)
+             )
     )
     :<|> Named
            "update-client"
