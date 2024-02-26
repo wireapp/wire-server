@@ -740,6 +740,7 @@ type UserClientAPI =
   Named
     "add-client-v5"
     ( Summary "Register a new client"
+        :> Until 'V6
         :> MakesFederatedCall 'Brig "send-connection-action"
         :> CanThrow 'TooManyClients
         :> CanThrow 'MissingAuth
@@ -762,6 +763,7 @@ type UserClientAPI =
     :<|> Named
            "add-client"
            ( Summary "Register a new client"
+               :> From 'V6
                :> MakesFederatedCall 'Brig "send-connection-action"
                :> CanThrow 'TooManyClients
                :> CanThrow 'MissingAuth
@@ -778,7 +780,7 @@ type UserClientAPI =
                     ( WithHeaders
                         ClientHeaders
                         Client
-                        (Respond 200 "Client registered" Client)
+                        (Respond 201 "Client registered" Client)
                     )
            )
     :<|> Named
@@ -805,15 +807,40 @@ type UserClientAPI =
           :> MultiVerb 'DELETE '[JSON] '[RespondEmpty 200 "Client deleted"] ()
       )
     :<|> Named
-           "list-clients"
+           "list-clients-v5"
            ( Summary "List the registered clients"
+               :> Until 'V6
                :> ZUser
                :> "clients"
-               :> Get '[JSON] [Client]
+               :> MultiVerb1 'GET '[JSON] (Respond 200 "List of clients" [Client])
+           )
+    :<|> Named
+           "list-clients"
+           ( Summary "List the registered clients"
+               :> From 'V6
+               :> ZUser
+               :> "clients"
+               :> MultiVerb1 'GET '[JSON] (Respond 200 "List of clients" [Client])
+           )
+    :<|> Named
+           "get-client-v5"
+           ( Summary "Get a registered client by ID"
+               :> Until 'V6
+               :> ZUser
+               :> "clients"
+               :> CaptureClientId "client"
+               :> MultiVerb
+                    'GET
+                    '[JSON]
+                    '[ EmptyErrorForLegacyReasons 404 "Client not found",
+                       Respond 200 "Client found" Client
+                     ]
+                    (Maybe Client)
            )
     :<|> Named
            "get-client"
            ( Summary "Get a registered client by ID"
+               :> From 'V6
                :> ZUser
                :> "clients"
                :> CaptureClientId "client"
