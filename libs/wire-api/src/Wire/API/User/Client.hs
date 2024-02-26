@@ -530,6 +530,12 @@ instance ToSchema Client where
 instance ToSchema (Versioned 'V5 Client) where
   schema = Versioned <$> unVersioned .= clientSchema (Just V5)
 
+instance {-# OVERLAPPING #-} ToSchema (Versioned 'V5 [Client]) where
+  schema =
+    Versioned
+      <$> unVersioned
+        .= named "ClientList" (array (clientSchema (Just V5)))
+
 mlsPublicKeysFieldSchema :: ObjectSchema SwaggerDoc MLSPublicKeys
 mlsPublicKeysFieldSchema = fromMaybe mempty <$> optField "mls_public_keys" mlsPublicKeysSchema
 
