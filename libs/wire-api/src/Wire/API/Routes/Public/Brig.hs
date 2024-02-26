@@ -812,7 +812,11 @@ type UserClientAPI =
                :> Until 'V6
                :> ZUser
                :> "clients"
-               :> MultiVerb1 'GET '[JSON] (Respond 200 "List of clients" [Client])
+               :> MultiVerb1
+                    'GET
+                    '[JSON]
+                    ( VersionedRespond 'V5 200 "List of clients" [Client]
+                    )
            )
     :<|> Named
            "list-clients"
@@ -820,7 +824,11 @@ type UserClientAPI =
                :> From 'V6
                :> ZUser
                :> "clients"
-               :> MultiVerb1 'GET '[JSON] (Respond 200 "List of clients" [Client])
+               :> MultiVerb1
+                    'GET
+                    '[JSON]
+                    ( Respond 200 "List of clients" [Client]
+                    )
            )
     :<|> Named
            "get-client-v5"
@@ -833,7 +841,7 @@ type UserClientAPI =
                     'GET
                     '[JSON]
                     '[ EmptyErrorForLegacyReasons 404 "Client not found",
-                       Respond 200 "Client found" Client
+                       VersionedRespond 'V5 200 "Client found" Client
                      ]
                     (Maybe Client)
            )
