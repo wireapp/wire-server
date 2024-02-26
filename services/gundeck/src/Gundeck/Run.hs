@@ -74,7 +74,9 @@ run o = do
   lst <- Async.async $ Aws.execute (e ^. awsEnv) (Aws.listen throttleMillis (runDirect e . onEvent))
   wtbs <- forM (e ^. threadBudgetState) $ \tbs -> Async.async $ runDirect e $ watchThreadBudgetState m tbs 10
   wCollectAuth <- Async.async (collectAuthMetrics m (Aws._awsEnv (Env._awsEnv e)))
-  runSettingsWithShutdown s (middleware e (\requestId -> mkApp (e & reqId .~ requestId))) Nothing `finally` do
+
+  let app = middleware e (\requestId -> mkApp (e & reqId .~ requestId))
+  runSettingsWithShutdown s app Nothing `finally` do
     Log.info l $ Log.msg (Log.val "Shutting down ...")
     shutdown (e ^. cstate)
     Async.cancel lst
@@ -86,14 +88,13 @@ run o = do
     Log.close (e ^. applog)
   where
     middleware :: Env -> (RequestId -> Wai.Application) -> Wai.Application
-    middleware e mkapp =
+    middleware e =
       versionMiddleware (foldMap expandVersionExp (o ^. settings . disabledAPIVersions))
         . waiPrometheusMiddleware sitemap
         . GZip.gunzip
         . GZip.gzip GZip.def
         . catchErrors (e ^. applog) [Right $ e ^. monitor]
         . lookupRequestIdMiddleware (e ^. applog)
-        $ mkapp
 
     lookupRequestIdMiddleware :: Log.Logger -> (RequestId -> Wai.Application) -> Wai.Application
     lookupRequestIdMiddleware logger mkapp req cont = do
