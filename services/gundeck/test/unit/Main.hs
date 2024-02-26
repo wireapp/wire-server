@@ -20,6 +20,7 @@ module Main
   )
 where
 
+import Aws.Arn qualified
 import Data.Metrics.Test (pathsConsistencyCheck)
 import Data.Metrics.WaiRoute (treeToPaths)
 import DelayQueue qualified
@@ -50,5 +51,6 @@ main =
         Native.tests,
         Push.tests,
         ThreadBudget.tests,
-        ParseExistsError.tests
+        ParseExistsError.tests,
+        Aws.Arn.tests
       ]

@@ -24,6 +24,7 @@
 , exceptions
 , extended
 , extra
+, foldl
 , gitignoreSource
 , gundeck-types
 , hedis
@@ -105,6 +106,7 @@ mkDerivation {
     exceptions
     extended
     extra
+    foldl
     gundeck-types
     hedis
     http-client
@@ -184,6 +186,7 @@ mkDerivation {
     aeson
     aeson-pretty
     amazonka
+    amazonka-core
     async
     base
     bytestring-conversion
