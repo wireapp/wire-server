@@ -40,12 +40,8 @@ elasticsearch-index:
     {{- end }}
 
 brig:
-  replicaCount: 1
+  replicaCount: 2
   imagePullPolicy: {{ .Values.imagePullPolicy }}
-  resources:
-    requests: {}
-    limits:
-      memory: 1Gi
   config:
     externalUrls:
       nginz: https://kube-staging-nginz-https.zinfra.io
@@ -165,10 +161,6 @@ brig:
 cannon:
   replicaCount: 2
   imagePullPolicy: {{ .Values.imagePullPolicy }}
-  resources:
-    requests: {}
-    limits:
-      memory: 512Mi
   drainTimeout: 0
   config:
     disabledAPIVersions: []
@@ -202,7 +194,7 @@ cargohold:
     {{- end }}
 
 galley:
-  replicaCount: 1
+  replicaCount: 2
   imagePullPolicy: {{ .Values.imagePullPolicy }}
   config:
     cassandra:
@@ -270,12 +262,8 @@ galley:
     {{- end }}
 
 gundeck:
-  replicaCount: 1
+  replicaCount: 2
   imagePullPolicy: {{ .Values.imagePullPolicy }}
-  resources:
-    requests: {}
-    limits:
-      memory: 1024Mi
   config:
     cassandra:
       host: {{ .Values.cassandraHost }}
@@ -314,7 +302,7 @@ gundeck:
     {{- end }}
 
 nginz:
-  replicaCount: 1
+  replicaCount: 2
   imagePullPolicy: {{ .Values.imagePullPolicy }}
   nginx_conf:
     env: staging
@@ -351,12 +339,8 @@ proxy:
   config:
     disabledAPIVersions: []
 spar:
-  replicaCount: 1
+  replicaCount: 2
   imagePullPolicy: {{ .Values.imagePullPolicy }}
-  resources:
-    requests: {}
-    limits:
-      memory: 1024Mi
   config:
     tlsDisableCertValidation: true
     cassandra:
@@ -412,7 +396,7 @@ federator:
     {{- end }}
 
 background-worker:
-  replicaCount: 1
+  replicaCount: 2
   resources:
     requests: {}
   imagePullPolicy: {{ .Values.imagePullPolicy }}

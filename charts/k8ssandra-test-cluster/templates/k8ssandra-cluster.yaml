@@ -12,15 +12,15 @@ spec:
         enabled: true
     resources:
       requests:
-        cpu: 1
-        memory: "4.0Gi"
+        cpu: 2
+        memory: "6.0Gi"
       limits:
-        memory: "4.0Gi"
+        memory: "6.0Gi"
     config:
       jvmOptions:
         # Intentionally, half of the available memory
-        heap_max_size: "2G"
-        heap_initial_size: "2G"
+        heap_max_size: "3G"
+        heap_initial_size: "3G"
         gc_g1_rset_updating_pause_time_percent: 5
         gc: "G1GC"
         gc_g1_max_gc_pause_ms: 300
