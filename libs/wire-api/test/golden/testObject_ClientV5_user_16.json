@@ -1,5 +1,7 @@
 {
-    "capabilities": [],
+    "capabilities": {
+        "capabilities": []
+    },
     "class": "legalhold",
     "cookie": "U",
     "id": "2",

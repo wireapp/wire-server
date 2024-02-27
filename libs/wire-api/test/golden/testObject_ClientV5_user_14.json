@@ -1,5 +1,7 @@
 {
-    "capabilities": [],
+    "capabilities": {
+        "capabilities": []
+    },
     "class": "tablet",
     "id": "2",
     "label": "x\u000e",
