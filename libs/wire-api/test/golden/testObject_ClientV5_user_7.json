@@ -1,5 +1,7 @@
 {
-    "capabilities": [],
+    "capabilities": {
+        "capabilities": []
+    },
     "class": "phone",
     "id": "4",
     "label": "",
