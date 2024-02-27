@@ -24,14 +24,17 @@ import Cassandra (runClient, shutdown)
 import Cassandra.Schema (versionCheck)
 import Control.Error (ExceptT (ExceptT))
 import Control.Exception (finally)
-import Control.Lens hiding (enum)
+import Control.Lens ((.~), (^.))
 import Control.Monad.Extra
+import Data.Id (RequestId (..))
 import Data.Metrics (Metrics)
 import Data.Metrics.AWS (gaugeTokenRemaing)
 import Data.Metrics.Middleware (metrics)
 import Data.Metrics.Middleware.Prometheus (waiPrometheusMiddleware)
 import Data.Proxy (Proxy (Proxy))
 import Data.Text (unpack)
+import Data.UUID qualified as UUID
+import Data.UUID.V4 qualified as UUID
 import Database.Redis qualified as Redis
 import Gundeck.API (sitemap)
 import Gundeck.API.Public (servantSitemap)
@@ -46,9 +49,11 @@ import Imports hiding (head)
 import Network.Wai as Wai
 import Network.Wai.Middleware.Gunzip qualified as GZip
 import Network.Wai.Middleware.Gzip qualified as GZip
+import Network.Wai.Utilities (lookupRequestId)
 import Network.Wai.Utilities.Server hiding (serverPort)
 import Servant (Handler (Handler), (:<|>) (..))
 import Servant qualified
+import System.Logger ((.=), (~~))
 import System.Logger qualified as Log
 import UnliftIO.Async qualified as Async
 import Util.Options
@@ -69,7 +74,9 @@ run o = do
   lst <- Async.async $ Aws.execute (e ^. awsEnv) (Aws.listen throttleMillis (runDirect e . onEvent))
   wtbs <- forM (e ^. threadBudgetState) $ \tbs -> Async.async $ runDirect e $ watchThreadBudgetState m tbs 10
   wCollectAuth <- Async.async (collectAuthMetrics m (Aws._awsEnv (Env._awsEnv e)))
-  runSettingsWithShutdown s (middleware e $ mkApp e) Nothing `finally` do
+
+  let app = middleware e (\requestId -> mkApp (e & reqId .~ requestId))
+  runSettingsWithShutdown s app Nothing `finally` do
     Log.info l $ Log.msg (Log.val "Shutting down ...")
     shutdown (e ^. cstate)
     Async.cancel lst
@@ -80,13 +87,28 @@ run o = do
     whenJust (e ^. rstateAdditionalWrite) $ (=<<) Redis.disconnect . takeMVar
     Log.close (e ^. applog)
   where
-    middleware :: Env -> Wai.Middleware
+    middleware :: Env -> (RequestId -> Wai.Application) -> Wai.Application
     middleware e =
       versionMiddleware (foldMap expandVersionExp (o ^. settings . disabledAPIVersions))
         . waiPrometheusMiddleware sitemap
         . GZip.gunzip
         . GZip.gzip GZip.def
         . catchErrors (e ^. applog) [Right $ e ^. monitor]
+        . lookupRequestIdMiddleware (e ^. applog)
+
+    lookupRequestIdMiddleware :: Log.Logger -> (RequestId -> Wai.Application) -> Wai.Application
+    lookupRequestIdMiddleware logger mkapp req cont = do
+      case lookupRequestId req of
+        Just rid -> do
+          mkapp (RequestId rid) req cont
+        Nothing -> do
+          localRid <- RequestId . cs . UUID.toText <$> UUID.nextRandom
+          Log.info logger $
+            "request-id" .= localRid
+              ~~ "method" .= Wai.requestMethod req
+              ~~ "path" .= Wai.rawPathInfo req
+              ~~ Log.msg (Log.val "generated a new request id for local request")
+          mkapp localRid req cont
 
 type CombinedAPI = GundeckAPI :<|> Servant.Raw
 
