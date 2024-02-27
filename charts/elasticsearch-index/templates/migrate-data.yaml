@@ -22,8 +22,7 @@ spec:
     spec:
       restartPolicy: OnFailure
       containers:
-        # Creates index in elasticsearch only when it doesn't exist.
-        # Does nothing if the index exists.
+        # Reindexes all users when a new migration is detected.
         - name: brig-index
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
