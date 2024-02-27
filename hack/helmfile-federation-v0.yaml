@@ -59,6 +59,8 @@ releases:
           spec:
             ca:
               secretName: federation-ca
+    needs:
+      - 'cert-manager/cert-manager'
 
   - name: 'fake-aws'
     namespace: wire-federation-v0
@@ -103,6 +105,7 @@ releases:
     needs:
       - 'ingress'
       - 'cert-manager/cert-manager'
+      - 'cert-manager/federation-certs'
 
   - name: wire-server
     namespace: wire-federation-v0
@@ -112,4 +115,5 @@ releases:
       - './helm_vars/wire-federation-v0/values.yaml.gotmpl'
     needs:
       - 'cert-manager/cert-manager'
+      - 'cert-manager/federation-certs'
 
