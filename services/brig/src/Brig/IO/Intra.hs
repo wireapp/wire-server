@@ -29,7 +29,6 @@ module Brig.IO.Intra
     createConnectConv,
     acceptConnectConv,
     blockConv,
-    unblockConv,
     upsertOne2OneConversation,
 
     -- * Clients
@@ -666,33 +665,6 @@ blockConv lusr qcnv = do
           toByteString' (qUnqualified qcnv),
           "block"
         ]
-        . zUser (tUnqualified lusr)
-        . expect2xx
-
-unblockConv ::
-  ( Member (Embed HttpClientIO) r,
-    Member TinyLog r
-  ) =>
-  Local UserId ->
-  Maybe ConnId ->
-  Qualified ConvId ->
-  Sem r Conversation
-unblockConv lusr conn (Qualified cnv cdom) = do
-  Log.debug $
-    remote "galley"
-      . field "conv" (toByteString cnv)
-      . field "domain" (toByteString cdom)
-      . msg (val "Unblocking conversation")
-  void . embed $ galleyRequest PUT putReq
-  embed $ galleyRequest GET getReq >>= decodeBody "galley"
-  where
-    putReq =
-      paths ["i", "conversations", toByteString' cdom, toByteString' cnv, "unblock"]
-        . zUser (tUnqualified lusr)
-        . maybe id (header "Z-Connection" . fromConnId) conn
-        . expect2xx
-    getReq =
-      paths ["conversations", toByteString' cdom, toByteString' cnv]
         . zUser (tUnqualified lusr)
         . expect2xx
 

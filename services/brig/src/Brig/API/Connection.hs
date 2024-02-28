@@ -341,8 +341,8 @@ updateConnectionToLocalUser self other newStatus conn = do
       mlsEnabled <- view (settings . enableMLS)
       liftSem $ when (fromMaybe False mlsEnabled) $ do
         let mlsConvId = one2OneConvId BaseProtocolMLSTag (tUntagged self) (tUntagged other)
-        mlsConvEstablished <- isMLSOne2OneEstablished self (tUntagged other)
-        when mlsConvEstablished $ Intra.blockConv self mlsConvId
+        whenM (isMLSOne2OneEstablished self (tUntagged other)) $
+          Intra.blockConv self mlsConvId
       wrapClient $ Just <$> Data.updateConnection s2o BlockedWithHistory
 
     unblock :: UserConnection -> UserConnection -> Relation -> ExceptT ConnectionError (AppT r) (Maybe UserConnection)
@@ -353,7 +353,12 @@ updateConnectionToLocalUser self other newStatus conn = do
       lift . Log.info $
         logLocalConnection (tUnqualified self) (qUnqualified (ucTo s2o))
           . msg (val "Unblocking connection")
-      cnv <- lift . liftSem $ traverse (Intra.unblockConv self conn) (ucConvId s2o)
+      cnv <- lift . liftSem $ traverse (unblockConversation self conn) (ucConvId s2o)
+      mlsEnabled <- view (settings . enableMLS)
+      lift . liftSem $ when (fromMaybe False mlsEnabled) $ do
+        let mlsConvId = one2OneConvId BaseProtocolMLSTag (tUntagged self) (tUntagged other)
+        whenM (isMLSOne2OneEstablished self (tUntagged other)) . void $
+          unblockConversation self conn mlsConvId
       when (ucStatus o2s == Sent && new == Accepted) . lift $ do
         o2s' <-
           wrapClient $
@@ -413,7 +418,8 @@ mkRelationWithHistory oldRel = \case
 
 updateConnectionInternal ::
   forall r.
-  ( Member NotificationSubsystem r,
+  ( Member GalleyProvider r,
+    Member NotificationSubsystem r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r
   ) =>
@@ -480,7 +486,7 @@ updateConnectionInternal = \case
         unblockDirected :: UserConnection -> UserConnection -> ExceptT ConnectionError (AppT r) ()
         unblockDirected uconn uconnRev = do
           lfrom <- qualifyLocal (ucFrom uconnRev)
-          void . lift . liftSem . for (ucConvId uconn) $ Intra.unblockConv lfrom Nothing
+          void . lift . liftSem . for (ucConvId uconn) $ unblockConversation lfrom Nothing
           uconnRevRel :: RelationWithHistory <- relationWithHistory lfrom (ucTo uconnRev)
           uconnRev' <- lift . wrapClient $ Data.updateConnection uconnRev (undoRelationHistory uconnRevRel)
           connName <- lift . wrapClient $ Data.lookupName (tUnqualified lfrom)

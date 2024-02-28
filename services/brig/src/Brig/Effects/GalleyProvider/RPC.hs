@@ -93,6 +93,7 @@ interpretGalleyProviderToRpc disabledVersions galleyEndpoint =
           GetVerificationCodeEnabled id' -> getVerificationCodeEnabled id'
           GetExposeInvitationURLsToTeamAdmin id' -> getTeamExposeInvitationURLsToTeamAdmin id'
           IsMLSOne2OneEstablished lusr qother -> checkMLSOne2OneEstablished lusr qother
+          UnblockConversation lusr mconn qcnv -> unblockConversation v lusr mconn qcnv
 
 galleyRequest :: (Member Rpc r, Member (Input Endpoint) r) => (Request -> Request) -> Sem r (Response (Maybe LByteString))
 galleyRequest req = do
@@ -564,3 +565,35 @@ checkMLSOne2OneEstablished self (Qualified other otherDomain) = do
             toByteString' other
           ]
         . zUser (tUnqualified self)
+
+unblockConversation ::
+  ( Member (Error ParseException) r,
+    Member (Input Endpoint) r,
+    Member Rpc r,
+    Member TinyLog r
+  ) =>
+  Version ->
+  Local UserId ->
+  Maybe ConnId ->
+  Qualified ConvId ->
+  Sem r Conversation
+unblockConversation v lusr mconn (Qualified cnv cdom) = do
+  debug $
+    remote "galley"
+      . field "conv" (toByteString cnv)
+      . field "domain" (toByteString cdom)
+      . msg (val "Unblocking conversation")
+  void $ galleyRequest putReq
+  galleyRequest getReq >>= decodeBodyOrThrow @Conversation "galley"
+  where
+    putReq =
+      method PUT
+        . paths ["i", "conversations", toByteString' cdom, toByteString' cnv, "unblock"]
+        . zUser (tUnqualified lusr)
+        . maybe id (header "Z-Connection" . fromConnId) mconn
+        . expect2xx
+    getReq =
+      method GET
+        . paths [toHeader v, "conversations", toByteString' cdom, toByteString' cnv]
+        . zUser (tUnqualified lusr)
+        . expect2xx

@@ -677,7 +677,8 @@ revokeIdentityH Nothing (Just phone) = lift $ NoContent <$ API.revokeIdentity (R
 revokeIdentityH bade badp = throwStd (badRequest ("need exactly one of email, phone: " <> Imports.cs (show (bade, badp))))
 
 updateConnectionInternalH ::
-  ( Member NotificationSubsystem r,
+  ( Member GalleyProvider r,
+    Member NotificationSubsystem r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r
   ) =>

@@ -110,5 +110,10 @@ data GalleyProvider m a where
     Local UserId ->
     Qualified UserId ->
     GalleyProvider m Bool
+  UnblockConversation ::
+    Local UserId ->
+    Maybe ConnId ->
+    Qualified ConvId ->
+    GalleyProvider m Conversation
 
 makeSem ''GalleyProvider
