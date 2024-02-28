@@ -270,9 +270,9 @@ withTestServerOnSocket mCtx action (serverPort, listenSock) = do
   bracket (async $ testServerOnSocket mCtx listenSock acceptedConns liveConns) cleanupServer $ \serverThread ->
     action TestServer {..}
 
-allocServerConfig :: Either Socket SSL.SSL -> IO Server.Config
+allocServerConfig :: Either Socket (SSL.SSL, Socket) -> IO Server.Config
 allocServerConfig (Left sock) = HTTP2.allocSimpleConfig sock 4096
-allocServerConfig (Right ssl) = do
+allocServerConfig (Right (ssl, sock)) = do
   buf <- mallocBytes bufsize
   timmgr <- System.TimeManager.initialize $ 30 * 1000000
   -- Sometimes the frame header says that the payload length is 0. Reading 0
@@ -293,6 +293,8 @@ allocServerConfig (Right ssl) = do
                 error "openssl: SSL.read returned more bytes than asked for, this is probably a bug"
             | otherwise ->
                 readData (prevChunk <> chunk) (n - chunkLen)
+  mysa <- getSocketName sock
+  peersa <- getPeerName sock
   pure
     Server.Config
       { Server.confWriteBuffer = buf,
@@ -300,7 +302,9 @@ allocServerConfig (Right ssl) = do
         Server.confSendAll = SSL.write ssl,
         Server.confReadN = readData mempty,
         Server.confPositionReadMaker = Server.defaultPositionReadMaker,
-        Server.confTimeoutManager = timmgr
+        Server.confTimeoutManager = timmgr,
+        Server.confMySockAddr = mysa,
+        Server.confPeerSockAddr = peersa
       }
 
 testServerOnSocket :: Maybe SSL.SSLContext -> Socket -> IORef Int -> IORef (Map Unique (Async ())) -> IO ()
@@ -313,16 +317,16 @@ testServerOnSocket mCtx listenSock connsCounter conns = do
       Just ctx -> do
         ssl <- SSL.connection ctx sock
         SSL.accept ssl
-        pure (Right ssl)
+        pure (Right (ssl, sock))
     connKey <- newUnique
     modifyIORef connsCounter (+ 1)
     let shutdownSSL = case serverCfgParam of
           Left _ -> pure ()
-          Right ssl -> SSL.shutdown ssl SSL.Bidirectional
+          Right (ssl, _sock) -> SSL.shutdown ssl SSL.Bidirectional
         cleanup cfg = do
           Server.freeSimpleConfig cfg `finally` (shutdownSSL `finally` close sock)
     thread <- async $ bracket (allocServerConfig serverCfgParam) cleanup $ \cfg -> do
-      Server.run cfg testServer `finally` modifyIORef conns (Map.delete connKey)
+      Server.run Server.defaultServerConfig cfg testServer `finally` modifyIORef conns (Map.delete connKey)
     modifyIORef conns $ Map.insert connKey thread
 
 testServer :: Server.Request -> Server.Aux -> (Server.Response -> [Server.PushPromise] -> IO ()) -> IO ()

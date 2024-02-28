@@ -43,6 +43,7 @@ library
     , network
     , stm
     , streaming-commons
+    , string-conversions
     , text
     , time-manager
 

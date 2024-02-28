@@ -20,6 +20,7 @@ import Data.Map
 import qualified Data.Map as Map
 import Data.Maybe (fromMaybe)
 import Data.Streaming.Network
+import Data.String.Conversions.Monomorphic (toString)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import Data.Unique
@@ -291,9 +292,9 @@ startPersistentHTTP2Connection ::
 startPersistentHTTP2Connection ctx (tlsEnabled, hostname, port) cl removeTrailingDot tcpConnectTimeout sendReqMVar = do
   liveReqs <- newIORef mempty
   let clientConfig =
-        HTTP2.ClientConfig
+        HTTP2.defaultClientConfig
           { HTTP2.scheme = if tlsEnabled then "https" else "http",
-            HTTP2.authority = hostname,
+            HTTP2.authority = toString hostname,
             HTTP2.cacheLimit = cl
           }
       -- Sends error to requests which show up too late, i.e. after the
@@ -333,7 +334,7 @@ startPersistentHTTP2Connection ctx (tlsEnabled, hostname, port) cl removeTrailin
     bracket connectTCPWithTimeout NS.close $ \sock -> do
       bracket (mkTransport sock transportConfig) cleanupTransport $ \transport ->
         bracket (allocHTTP2Config transport) HTTP2.freeSimpleConfig $ \http2Cfg -> do
-          let runAction = HTTP2.run clientConfig http2Cfg $ \sendReq -> do
+          let runAction = HTTP2.run clientConfig http2Cfg $ \sendReq _aux -> do
                 handleRequests liveReqs sendReq
           -- Any request threads still hanging about after 'runAction' finishes
           -- are canceled with 'ConnectionAlreadyClosed'.
@@ -397,7 +398,7 @@ type SendReqFn = HTTP2.Request -> (HTTP2.Response -> IO ()) -> IO ()
 
 data Transport
   = InsecureTransport NS.Socket
-  | SecureTransport SSL.SSL
+  | SecureTransport SSL.SSL NS.Socket
 
 data TLSParams = TLSParams
   { context :: SSL.SSLContext,
@@ -414,11 +415,11 @@ mkTransport sock (Just TLSParams {..}) = do
   SSL.setTlsextHostName ssl hostnameStr
   SSL.enableHostnameValidation ssl hostnameStr
   SSL.connect ssl
-  pure $ SecureTransport ssl
+  pure $ SecureTransport ssl sock
 
 cleanupTransport :: Transport -> IO ()
 cleanupTransport (InsecureTransport _) = pure ()
-cleanupTransport (SecureTransport ssl) = SSL.shutdown ssl SSL.Unidirectional
+cleanupTransport (SecureTransport ssl _) = SSL.shutdown ssl SSL.Unidirectional
 
 data ConnectionAlreadyClosed = ConnectionAlreadyClosed
   deriving (Show)
@@ -430,7 +431,7 @@ bufsize = 4096
 
 allocHTTP2Config :: Transport -> IO HTTP2.Config
 allocHTTP2Config (InsecureTransport sock) = HTTP2.allocSimpleConfig sock bufsize
-allocHTTP2Config (SecureTransport ssl) = do
+allocHTTP2Config (SecureTransport ssl sock) = do
   buf <- mallocBytes bufsize
   timmgr <- System.TimeManager.initialize $ 30 * 1000000
   -- Sometimes the frame header says that the payload length is 0. Reading 0
@@ -451,6 +452,8 @@ allocHTTP2Config (SecureTransport ssl) = do
                 error "openssl: SSL.read returned more bytes than asked for, this is probably a bug"
             | otherwise ->
                 readData (acc <> chunk) (n - chunkLen)
+  mysa <- NS.getSocketName sock
+  peersa <- NS.getPeerName sock
   pure
     HTTP2.Config
       { HTTP2.confWriteBuffer = buf,
@@ -458,5 +461,7 @@ allocHTTP2Config (SecureTransport ssl) = do
         HTTP2.confSendAll = SSL.write ssl,
         HTTP2.confReadN = readData mempty,
         HTTP2.confPositionReadMaker = HTTP2.defaultPositionReadMaker,
-        HTTP2.confTimeoutManager = timmgr
+        HTTP2.confTimeoutManager = timmgr,
+        HTTP2.confMySockAddr = mysa,
+        HTTP2.confPeerSockAddr = peersa
       }
