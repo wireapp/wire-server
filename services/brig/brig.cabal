@@ -148,6 +148,7 @@ library
     Brig.InternalEvent.Process
     Brig.InternalEvent.Types
     Brig.IO.Intra
+    Brig.IO.Serialisation
     Brig.IO.Journal
     Brig.Locale
     Brig.Options

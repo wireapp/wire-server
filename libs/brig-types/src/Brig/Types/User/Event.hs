@@ -19,10 +19,13 @@
 
 module Brig.Types.User.Event where
 
+import Data.Aeson.KeyMap qualified as KM
 import Data.ByteString.Conversion
 import Data.Handle (Handle)
 import Data.Id
+import Data.Json.Util
 import Data.Qualified
+import Data.Schema
 import Imports
 import System.Logger.Class
 import Wire.API.Connection
@@ -36,6 +39,74 @@ data Event
   | ConnectionEvent !ConnectionEvent
   | PropertyEvent !PropertyEvent
   | ClientEvent !ClientEvent
+
+instance ToJSONObject Event where
+  toJSONObject = KM.fromList . fold . schemaOut eventObjectSchema
+
+eventType :: Event -> EventType
+eventType (UserEvent (UserCreated _)) = EventTypeUserCreated
+eventType (UserEvent (UserActivated _)) = EventTypeUserActivated
+eventType (UserEvent (UserSuspended _)) = EventTypeUserSuspended
+eventType (UserEvent (UserResumed _)) = EventTypeUserResumed
+eventType (UserEvent (UserDeleted _)) = EventTypeUserDeleted
+eventType (UserEvent (UserUpdated _)) = EventTypeUserUpdated
+eventType (UserEvent (UserIdentityUpdated _)) = EventTypeUserUpdated
+eventType (UserEvent (UserIdentityRemoved _)) = EventTypeUserIdentityRemoved
+eventType (UserEvent (UserLegalHoldDisabled _)) = EventTypeUserLegalholdDisabled
+eventType (UserEvent (UserLegalHoldEnabled _)) = EventTypeUserLegalholdEnabled
+eventType (UserEvent (LegalHoldClientRequested _)) = EventTypeUserLegalholdRequested
+eventType (ConnectionEvent _) = EventTypeConnection
+eventType (PropertyEvent (PropertySet _ _ _)) = EventTypePropertiesSet
+eventType (PropertyEvent (PropertyDeleted _ _)) = EventTypePropertiesDeleted
+eventType (PropertyEvent (PropertiesCleared _)) = EventTypePropertiesCleared
+eventType (ClientEvent (ClientAdded _ _)) = EventTypeClientAdded
+eventType (ClientEvent (ClientRemoved _ _)) = EventTypeClientRemoved
+
+eventObjectSchema :: ObjectSchema SwaggerDoc Event
+eventObjectSchema = error "TODO"
+
+data EventType
+  = EventTypeUserCreated
+  | EventTypeUserActivated
+  | EventTypeUserUpdated
+  | EventTypeUserIdentityRemoved
+  | EventTypeUserConnection
+  | EventTypeUserSuspended
+  | EventTypeUserResumed
+  | EventTypeUserDeleted
+  | EventTypeUserLegalholdEnabled
+  | EventTypeUserLegalholdDisabled
+  | EventTypeUserLegalholdRequested
+  | EventTypePropertiesSet
+  | EventTypePropertiesDeleted
+  | EventTypePropertiesCleared
+  | EventTypeClientAdded
+  | EventTypeClientRemoved
+  | EventTypeConnection
+  deriving (Eq)
+
+instance ToSchema EventType where
+  schema =
+    enum @Text "EventType" $
+      mconcat
+        [ element "user.new" EventTypeUserCreated,
+          element "user.activate" EventTypeUserActivated,
+          element "user.update" EventTypeUserUpdated,
+          element "user.identity-remove" EventTypeUserIdentityRemoved,
+          element "user.connection" EventTypeUserConnection,
+          element "user.suspend" EventTypeUserSuspended,
+          element "user.resume" EventTypeUserResumed,
+          element "user.delete" EventTypeUserDeleted,
+          element "user.legalhold-enable" EventTypeUserLegalholdEnabled,
+          element "user.legalhold-disable" EventTypeUserLegalholdDisabled,
+          element "user.legalhold-requested" EventTypeUserLegalholdRequested,
+          element "user.properties-set" EventTypePropertiesSet,
+          element "user.properties-delete" EventTypePropertiesDeleted,
+          element "user.properties-clear" EventTypePropertiesCleared,
+          element "user.client-add" EventTypeClientAdded,
+          element "user.client-remove" EventTypeClientRemoved,
+          element "user.connection" EventTypeConnection
+        ]
 
 data UserEvent
   = UserCreated !User
@@ -179,17 +250,6 @@ propEventUserId :: PropertyEvent -> UserId
 propEventUserId (PropertySet u _ _) = u
 propEventUserId (PropertyDeleted u _) = u
 propEventUserId (PropertiesCleared u) = u
-
-logConnection :: UserId -> Qualified UserId -> Msg -> Msg
-logConnection from (Qualified toUser toDomain) =
-  "connection.from" .= toByteString from
-    ~~ "connection.to" .= toByteString toUser
-    ~~ "connection.to_domain" .= toByteString toDomain
-
-logLocalConnection :: UserId -> UserId -> Msg -> Msg
-logLocalConnection from to =
-  "connection.from" .= toByteString from
-    ~~ "connection.to" .= toByteString to
 
 instance ToBytes Event where
   bytes (UserEvent e) = bytes e
