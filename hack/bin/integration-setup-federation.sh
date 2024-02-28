@@ -44,7 +44,7 @@ export FEDERATION_DOMAIN_BASE_2="$NAMESPACE_2.svc.cluster.local"
 export FEDERATION_DOMAIN_2="federation-test-helper.$FEDERATION_DOMAIN_BASE_2"
 
 echo "Fetch federation-ca secret from cert-manager namespace"
-FEDERATION_CA_CERTIFICATE=$(kubectl -n cert-manager get secrets federation-ca -o json -o jsonpath="{.data['tls\.crt']}")
+FEDERATION_CA_CERTIFICATE=$(kubectl -n cert-manager get secrets federation-ca -o json -o jsonpath="{.data['tls\.crt']} | base64 -d")
 export FEDERATION_CA_CERTIFICATE
 
 echo "Installing charts..."

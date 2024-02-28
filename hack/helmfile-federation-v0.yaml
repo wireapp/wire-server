@@ -8,7 +8,7 @@ helmDefaults:
 environments:
   default:
     values:
-      - federationCACertificate: {{ readFile "../services/nginz/integration-test/conf/nginz/integration-ca.pem" | b64enc | quote }}
+      - federationCACertificate: {{ readFile "../services/nginz/integration-test/conf/nginz/integration-ca.pem" | quote }}
       - rabbitmqUsername: guest
       - rabbitmqPassword: guest
 ---

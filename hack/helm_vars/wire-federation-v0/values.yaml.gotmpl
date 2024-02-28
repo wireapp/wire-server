@@ -283,7 +283,7 @@ federator:
   config:
     optSettings:
       useSystemCAStore: false
-  remoteCAContents: {{ .Values.federationCACertificate | b64dec | quote }}
+  remoteCAContents: {{ .Values.federationCACertificate | quote }}
   tls:
     useCertManager: true
     useSharedFederatorSecret: true

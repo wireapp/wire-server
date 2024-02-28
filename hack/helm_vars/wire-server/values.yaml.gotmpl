@@ -393,7 +393,7 @@ federator:
   resources:
     requests: {}
   imagePullPolicy: {{ .Values.imagePullPolicy }}
-  remoteCAContents: {{ .Values.federationCACertificate | b64dec | quote }}
+  remoteCAContents: {{ .Values.federationCACertificate | quote }}
   tls:
     useCertManager: true
     useSharedFederatorSecret: true
