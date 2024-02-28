@@ -26,7 +26,7 @@ import Brig.API (sitemap)
 import Brig.API.Federation
 import Brig.API.Handler
 import Brig.API.Internal qualified as IAPI
-import Brig.API.Public
+import Brig.API.Public (DocsAPI, docsAPI, servantSitemap)
 import Brig.API.User qualified as API
 import Brig.AWS (amazonkaEnv, sesQueue)
 import Brig.AWS qualified as AWS

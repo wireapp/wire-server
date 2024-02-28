@@ -369,13 +369,10 @@ servantSitemap =
 
     userClientAPI :: ServerT UserClientAPI (Handler r)
     userClientAPI =
-      Named @"add-client-v5" (callsFed (exposeAnnotations addClient))
-        :<|> Named @"add-client" (callsFed (exposeAnnotations addClient))
+      Named @"add-client" (callsFed (exposeAnnotations addClient))
         :<|> Named @"update-client" updateClient
         :<|> Named @"delete-client" deleteClient
-        :<|> Named @"list-clients-v5" listClients
         :<|> Named @"list-clients" listClients
-        :<|> Named @"get-client-v5" getClient
         :<|> Named @"get-client" getClient
         :<|> Named @"get-client-capabilities" getClientCapabilities
         :<|> Named @"get-client-prekeys" getClientPrekeys
@@ -581,13 +578,17 @@ addClient ::
   UserId ->
   ConnId ->
   Public.NewClient ->
-  Handler r Public.Client
+  (Handler r) NewClientResponse
 addClient usr con new = do
   -- Users can't add legal hold clients
   when (Public.newClientType new == Public.LegalHoldClientType) $
     throwE (clientError ClientLegalHoldCannotBeAdded)
-  API.addClient usr (Just con) new
-    !>> clientError
+  clientResponse
+    <$> API.addClient usr (Just con) new
+      !>> clientError
+  where
+    clientResponse :: Public.Client -> NewClientResponse
+    clientResponse client = Servant.addHeader (Public.clientId client) client
 
 deleteClient :: UserId -> ConnId -> ClientId -> Public.RmClient -> (Handler r) ()
 deleteClient usr con clt body =

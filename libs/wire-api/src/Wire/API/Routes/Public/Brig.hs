@@ -65,7 +65,6 @@ import Wire.API.Routes.Public.Brig.Services (ServicesAPI)
 import Wire.API.Routes.Public.Util
 import Wire.API.Routes.QualifiedCapture
 import Wire.API.Routes.Version
-import Wire.API.Routes.Versioned
 import Wire.API.SystemSettings
 import Wire.API.Team.Invitation
 import Wire.API.Team.Size
@@ -126,6 +125,8 @@ type CaptureUserId name = Capture' '[Description "User Id"] name UserId
 type QualifiedCaptureUserId name = QualifiedCapture' '[Description "User Id"] name UserId
 
 type CaptureClientId name = Capture' '[Description "ClientId"] name ClientId
+
+type NewClientResponse = Headers '[Header "Location" ClientId] Client
 
 type DeleteSelfResponses =
   '[ RespondEmpty 200 "Deletion is initiated.",
@@ -729,18 +730,15 @@ type PrekeyAPI =
                :> Post '[JSON] QualifiedUserClientPrekeyMapV4
            )
 
--- User Client API ----------------------------------------------------
-
-type ClientHeaders = '[DescHeader "Location" "Client ID" ClientId]
-
 type UserClientAPI =
+  -- User Client API ----------------------------------------------------
+
   -- This endpoint can lead to the following events being sent:
   -- - ClientAdded event to self
   -- - ClientRemoved event to self, if removing old clients due to max number
   Named
-    "add-client-v5"
+    "add-client"
     ( Summary "Register a new client"
-        :> Until 'V6
         :> MakesFederatedCall 'Brig "send-connection-action"
         :> CanThrow 'TooManyClients
         :> CanThrow 'MissingAuth
@@ -751,38 +749,8 @@ type UserClientAPI =
         :> ZConn
         :> "clients"
         :> ReqBody '[JSON] NewClient
-        :> MultiVerb1
-             'POST
-             '[JSON]
-             ( WithHeaders
-                 ClientHeaders
-                 Client
-                 (VersionedRespond 'V5 201 "Client registered" Client)
-             )
+        :> Verb 'POST 201 '[JSON] NewClientResponse
     )
-    :<|> Named
-           "add-client"
-           ( Summary "Register a new client"
-               :> From 'V6
-               :> MakesFederatedCall 'Brig "send-connection-action"
-               :> CanThrow 'TooManyClients
-               :> CanThrow 'MissingAuth
-               :> CanThrow 'MalformedPrekeys
-               :> CanThrow 'CodeAuthenticationFailed
-               :> CanThrow 'CodeAuthenticationRequired
-               :> ZUser
-               :> ZConn
-               :> "clients"
-               :> ReqBody '[JSON] NewClient
-               :> MultiVerb1
-                    'POST
-                    '[JSON]
-                    ( WithHeaders
-                        ClientHeaders
-                        Client
-                        (Respond 201 "Client registered" Client)
-                    )
-           )
     :<|> Named
            "update-client"
            ( Summary "Update a registered client"
@@ -807,48 +775,15 @@ type UserClientAPI =
           :> MultiVerb 'DELETE '[JSON] '[RespondEmpty 200 "Client deleted"] ()
       )
     :<|> Named
-           "list-clients-v5"
-           ( Summary "List the registered clients"
-               :> Until 'V6
-               :> ZUser
-               :> "clients"
-               :> MultiVerb1
-                    'GET
-                    '[JSON]
-                    ( VersionedRespond 'V5 200 "List of clients" [Client]
-                    )
-           )
-    :<|> Named
            "list-clients"
            ( Summary "List the registered clients"
-               :> From 'V6
                :> ZUser
                :> "clients"
-               :> MultiVerb1
-                    'GET
-                    '[JSON]
-                    ( Respond 200 "List of clients" [Client]
-                    )
-           )
-    :<|> Named
-           "get-client-v5"
-           ( Summary "Get a registered client by ID"
-               :> Until 'V6
-               :> ZUser
-               :> "clients"
-               :> CaptureClientId "client"
-               :> MultiVerb
-                    'GET
-                    '[JSON]
-                    '[ EmptyErrorForLegacyReasons 404 "Client not found",
-                       VersionedRespond 'V5 200 "Client found" Client
-                     ]
-                    (Maybe Client)
+               :> Get '[JSON] [Client]
            )
     :<|> Named
            "get-client"
            ( Summary "Get a registered client by ID"
-               :> From 'V6
                :> ZUser
                :> "clients"
                :> CaptureClientId "client"

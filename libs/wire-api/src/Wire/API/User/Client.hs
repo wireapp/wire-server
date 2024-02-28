@@ -85,11 +85,9 @@ import Data.Misc (Latitude (..), Longitude (..), PlainTextPassword6)
 import Data.OpenApi hiding (Schema, ToSchema, nullable, schema)
 import Data.OpenApi qualified as Swagger hiding (nullable)
 import Data.Qualified
-import Data.SOP
 import Data.Schema
 import Data.Set qualified as Set
-import Data.Text qualified as T
-import Data.Text.Encoding qualified as T
+import Data.Text.Encoding qualified as Text.E
 import Data.Time.Clock
 import Data.UUID (toASCIIBytes)
 import Deriving.Swagger
@@ -100,9 +98,6 @@ import Deriving.Swagger
   )
 import Imports
 import Wire.API.MLS.CipherSuite
-import Wire.API.Routes.MultiVerb
-import Wire.API.Routes.Version
-import Wire.API.Routes.Versioned
 import Wire.API.User.Auth
 import Wire.API.User.Client.Prekey as Prekey
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..), generateExample, mapOf', setOf')
@@ -378,17 +373,17 @@ instance Swagger.ToSchema UserClientsFull where
 
 instance ToJSON UserClientsFull where
   toJSON =
-    toJSON . Map.foldrWithKey' f Map.empty . userClientsFull
+    toJSON . Map.foldrWithKey' fn Map.empty . userClientsFull
     where
-      f u c m =
-        let k = T.decodeLatin1 (toASCIIBytes (toUUID u))
+      fn u c m =
+        let k = Text.E.decodeLatin1 (toASCIIBytes (toUUID u))
          in Map.insert k c m
 
 instance FromJSON UserClientsFull where
   parseJSON =
-    A.withObject "UserClientsFull" (fmap UserClientsFull . foldrM f Map.empty . KeyMap.toList)
+    A.withObject "UserClientsFull" (fmap UserClientsFull . foldrM fn Map.empty . KeyMap.toList)
     where
-      f (k, v) m = Map.insert <$> parseJSON (A.String $ Key.toText k) <*> parseJSON v <*> pure m
+      fn (k, v) m = Map.insert <$> parseJSON (A.String $ Key.toText k) <*> parseJSON v <*> pure m
 
 instance Arbitrary UserClientsFull where
   arbitrary = UserClientsFull <$> mapOf' arbitrary (setOf' arbitrary)
@@ -503,45 +498,23 @@ mlsPublicKeysSchema =
     mapSchema :: ValueSchema SwaggerDoc MLSPublicKeys
     mapSchema = map_ base64Schema
 
-clientSchema :: Maybe Version -> ValueSchema NamedSwaggerDoc Client
-clientSchema mv =
-  object ("Client" <> T.pack (foldMap show mv)) $
-    Client
-      <$> clientId .= field "id" schema
-      <*> clientType .= field "type" schema
-      <*> clientTime .= field "time" schema
-      <*> clientClass .= maybe_ (optField "class" schema)
-      <*> clientLabel .= maybe_ (optField "label" schema)
-      <*> clientCookie .= maybe_ (optField "cookie" schema)
-      <*> clientModel .= maybe_ (optField "model" schema)
-      <*> clientCapabilities .= (fromMaybe mempty <$> caps)
-      <*> clientMLSPublicKeys .= mlsPublicKeysFieldSchema
-      <*> clientLastActive .= maybe_ (optField "last_active" utcTimeSchema)
-  where
-    caps :: ObjectSchemaP SwaggerDoc ClientCapabilityList (Maybe ClientCapabilityList)
-    caps = case mv of
-      -- broken capability serialisation for backwards compatibility
-      Just v | v <= V5 -> optField "capabilities" schema
-      _ -> fmap ClientCapabilityList <$> fromClientCapabilityList .= capabilitiesFieldSchema
-
 instance ToSchema Client where
-  schema = clientSchema Nothing
-
-instance ToSchema (Versioned 'V5 Client) where
-  schema = Versioned <$> unVersioned .= clientSchema (Just V5)
-
-instance {-# OVERLAPPING #-} ToSchema (Versioned 'V5 [Client]) where
   schema =
-    Versioned
-      <$> unVersioned
-        .= named "ClientList" (array (clientSchema (Just V5)))
+    object "Client" $
+      Client
+        <$> clientId .= field "id" schema
+        <*> clientType .= field "type" schema
+        <*> clientTime .= field "time" schema
+        <*> clientClass .= maybe_ (optField "class" schema)
+        <*> clientLabel .= maybe_ (optField "label" schema)
+        <*> clientCookie .= maybe_ (optField "cookie" schema)
+        <*> clientModel .= maybe_ (optField "model" schema)
+        <*> clientCapabilities .= (fromMaybe mempty <$> optField "capabilities" schema)
+        <*> clientMLSPublicKeys .= mlsPublicKeysFieldSchema
+        <*> clientLastActive .= maybe_ (optField "last_active" utcTimeSchema)
 
 mlsPublicKeysFieldSchema :: ObjectSchema SwaggerDoc MLSPublicKeys
 mlsPublicKeysFieldSchema = fromMaybe mempty <$> optField "mls_public_keys" mlsPublicKeysSchema
-
-instance AsHeaders '[ClientId] Client Client where
-  toHeaders c = (I (clientId c) :* Nil, c)
-  fromHeaders = snd
 
 --------------------------------------------------------------------------------
 -- ClientList
