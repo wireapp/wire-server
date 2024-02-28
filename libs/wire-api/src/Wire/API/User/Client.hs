@@ -46,6 +46,7 @@ module Wire.API.User.Client
 
     -- * Client
     Client (..),
+    clientSchema,
     PubClient (..),
     ClientType (..),
     ClientClass (..),
