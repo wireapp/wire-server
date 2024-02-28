@@ -19,7 +19,7 @@ module Brig.Effects.GalleyProvider.RPC where
 
 import Bilge hiding (head, options, requestId)
 import Brig.API.Types
-import Brig.Effects.GalleyProvider (GalleyProvider (..))
+import Brig.Effects.GalleyProvider (GalleyProvider (..), MLSOneToOneEstablished (..))
 import Brig.RPC hiding (galleyRequest)
 import Brig.Team.Types (ShowOrHideInvitationUrl (..))
 import Control.Error (hush)
@@ -48,7 +48,6 @@ import Servant.API (toHeader)
 import System.Logger (field, msg, val)
 import Util.Options
 import Wire.API.Conversation hiding (Member)
-import Wire.API.Conversation.Protocol
 import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
 import Wire.API.Routes.Version
 import Wire.API.Team
@@ -538,22 +537,17 @@ checkMLSOne2OneEstablished ::
   ) =>
   Local UserId ->
   Qualified UserId ->
-  Sem r Bool
+  Sem r MLSOneToOneEstablished
 checkMLSOne2OneEstablished self (Qualified other otherDomain) = do
   debug $ remote "galley" . msg (val "Get the MLS one-to-one conversation")
-  response <- galleyRequest req
-  case HTTP.statusCode (HTTP.responseStatus response) of
-    403 -> pure False
-    400 -> pure False
-    _ {- 200 is assumed -} -> do
-      conv <- decodeBodyOrThrow @Conversation "galley" response
-      let mEpoch = case cnvProtocol conv of
-            ProtocolProteus -> Nothing
-            ProtocolMLS meta -> Just . cnvmlsEpoch $ meta
-            ProtocolMixed meta -> Just . cnvmlsEpoch $ meta
-      pure $ case mEpoch of
-        Nothing -> False
-        Just (Epoch e) -> e > 0
+  responseSelf <- galleyRequest req
+  case HTTP.statusCode (HTTP.responseStatus responseSelf) of
+    200 -> do
+      established <- decodeBodyOrThrow @Bool "galley" responseSelf
+      pure $ if established then Established else NotEstablished
+    403 -> pure NotAMember
+    400 -> pure NotEstablished
+    _ -> pure NotEstablished
   where
     req =
       method GET
@@ -562,7 +556,8 @@ checkMLSOne2OneEstablished self (Qualified other otherDomain) = do
             "conversations",
             "mls-one2one",
             toByteString' otherDomain,
-            toByteString' other
+            toByteString' other,
+            "established"
           ]
         . zUser (tUnqualified self)
 

@@ -341,8 +341,8 @@ updateConnectionToLocalUser self other newStatus conn = do
       mlsEnabled <- view (settings . enableMLS)
       liftSem $ when (fromMaybe False mlsEnabled) $ do
         let mlsConvId = one2OneConvId BaseProtocolMLSTag (tUntagged self) (tUntagged other)
-        whenM (isMLSOne2OneEstablished self (tUntagged other)) $
-          Intra.blockConv self mlsConvId
+        isEstablished <- isMLSOne2OneEstablished self (tUntagged other)
+        when (isEstablished == Established) $ Intra.blockConv self mlsConvId
       wrapClient $ Just <$> Data.updateConnection s2o BlockedWithHistory
 
     unblock :: UserConnection -> UserConnection -> Relation -> ExceptT ConnectionError (AppT r) (Maybe UserConnection)
@@ -357,7 +357,8 @@ updateConnectionToLocalUser self other newStatus conn = do
       mlsEnabled <- view (settings . enableMLS)
       lift . liftSem $ when (fromMaybe False mlsEnabled) $ do
         let mlsConvId = one2OneConvId BaseProtocolMLSTag (tUntagged self) (tUntagged other)
-        whenM (isMLSOne2OneEstablished self (tUntagged other)) . void $
+        isEstablished <- isMLSOne2OneEstablished self (tUntagged other)
+        when (isEstablished == NotAMember || isEstablished == Established) . void $
           unblockConversation self conn mlsConvId
       when (ucStatus o2s == Sent && new == Accepted) . lift $ do
         o2s' <-

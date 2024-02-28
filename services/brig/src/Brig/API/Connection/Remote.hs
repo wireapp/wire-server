@@ -152,7 +152,7 @@ desiredMembership a r =
 --
 -- Returns the connection, and whether it was updated or not.
 transitionTo ::
-  (Member NotificationSubsystem r, Member GalleyProvider r) =>
+  (Member GalleyProvider r, Member NotificationSubsystem r) =>
   Local UserId ->
   Maybe ConnId ->
   Remote UserId ->
@@ -192,14 +192,18 @@ transitionTo self mzcon other (Just connection) (Just rel) actor = do
         fromMaybe
           (one2OneConvId BaseProtocolProteusTag (tUntagged self) (tUntagged other))
           $ ucConvId connection
-  lift $ updateOne2OneConv self Nothing other proteusConvId (desiredMembership actor rel) actor
+      desiredMem = desiredMembership actor rel
+  lift $ updateOne2OneConv self Nothing other proteusConvId desiredMem actor
   mlsEnabled <- view (settings . enableMLS)
   when (fromMaybe False mlsEnabled) $ do
     let mlsConvId = one2OneConvId BaseProtocolMLSTag (tUntagged self) (tUntagged other)
-    mlsConvEstablished <- lift . liftSem $ isMLSOne2OneEstablished self (tUntagged other)
-    let desiredMem = desiredMembership actor rel
-    lift . when (mlsConvEstablished && desiredMem == Excluded) $
-      updateOne2OneConv self Nothing other mlsConvId desiredMem actor
+    isEstablished <- lift . liftSem $ isMLSOne2OneEstablished self (tUntagged other)
+    lift
+      . when
+        ( isEstablished == Established
+            || (isEstablished == NotAMember && ucStatus connection == Blocked && rel == Accepted)
+        )
+      $ updateOne2OneConv self Nothing other mlsConvId desiredMem actor
 
   -- update connection
   connection' <- lift $ wrapClient $ Data.updateConnection connection (relationWithHistory rel)
@@ -220,7 +224,7 @@ pushEvent self mzcon connection = do
   liftSem $ Intra.onConnectionEvent (tUnqualified self) mzcon event
 
 performLocalAction ::
-  (Member NotificationSubsystem r, Member GalleyProvider r) =>
+  (Member GalleyProvider r, Member NotificationSubsystem r) =>
   Local UserId ->
   Maybe ConnId ->
   Remote UserId ->
@@ -276,7 +280,7 @@ performLocalAction self mzcon other mconnection action = do
 -- B connects & A reacts:  Accepted  Accepted
 -- @
 performRemoteAction ::
-  (Member NotificationSubsystem r, Member GalleyProvider r) =>
+  (Member GalleyProvider r, Member NotificationSubsystem r) =>
   Local UserId ->
   Remote UserId ->
   Maybe UserConnection ->
@@ -294,9 +298,9 @@ performRemoteAction self other mconnection action = do
     reaction _ = Nothing
 
 createConnectionToRemoteUser ::
-  ( Member FederationConfigStore r,
-    Member NotificationSubsystem r,
-    Member GalleyProvider r
+  ( Member GalleyProvider r,
+    Member FederationConfigStore r,
+    Member NotificationSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
@@ -309,9 +313,9 @@ createConnectionToRemoteUser self zcon other = do
   fst <$> performLocalAction self (Just zcon) other mconnection LocalConnect
 
 updateConnectionToRemoteUser ::
-  ( Member NotificationSubsystem r,
-    Member FederationConfigStore r,
-    Member GalleyProvider r
+  ( Member GalleyProvider r,
+    Member NotificationSubsystem r,
+    Member FederationConfigStore r
   ) =>
   Local UserId ->
   Remote UserId ->

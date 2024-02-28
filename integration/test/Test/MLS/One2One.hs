@@ -111,8 +111,8 @@ testMLSOne2OneUnblocked scenario = do
       convDomain = one2OneScenarioConvDomain scenario
   bob <- createMLSOne2OnePartner otherDomain alice convDomain
   conv <- getMLSOne2OneConversation alice bob >>= getJSON 200
-  convId <- conv %. "qualified_id"
   do
+    convId <- conv %. "qualified_id"
     bobConv <- getMLSOne2OneConversation bob alice >>= getJSON 200
     convId `shouldMatch` (bobConv %. "qualified_id")
 
@@ -142,10 +142,19 @@ testMLSOne2OneUnblocked scenario = do
   void $ createAddCommit bob1 [bob] >>= sendAndConsumeCommitBundle
 
   -- Alice finally unblocks Bob
-  withWebSocket bob1 $ \_ws -> do
-    void $ putConnection alice bob "accepted" >>= getBody 200
+  void $ putConnection alice bob "accepted" >>= getBody 200
+  void $ getMLSOne2OneConversation alice bob >>= getJSON 200
+
+  -- Alice rejoins via an external commit
+  void $ createExternalCommit alice1 Nothing >>= sendAndConsumeCommitBundle
+
+  -- Check that an application message can get to Bob
+  withWebSocket bob1 $ \ws -> do
     mp <- createApplicationMessage alice1 "hello, I've always been here"
-    void $ postMLSMessage mp.sender mp.message >>= getBody 201
+    void $ sendAndConsumeMessage mp
+    let isMessage n = nPayload n %. "type" `isEqual` "conversation.mls-message-add"
+    n <- awaitMatch isMessage ws
+    nPayload n %. "data" `shouldMatch` B8.unpack (Base64.encode mp.message)
 
 testGetMLSOne2OneSameTeam :: App ()
 testGetMLSOne2OneSameTeam = do

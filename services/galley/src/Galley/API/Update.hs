@@ -226,7 +226,7 @@ unblockConv lusr conn =
   foldQualified
     lusr
     (void . unblockConvUnqualified lusr conn . tUnqualified)
-    (unblockRemoteConv lusr conn)
+    (unblockRemoteConv lusr)
 
 unblockConvUnqualified ::
   ( Member ConversationStore r,
@@ -254,10 +254,9 @@ unblockRemoteConv ::
   ( Member MemberStore r
   ) =>
   Local UserId ->
-  Maybe ConnId ->
   Remote ConvId ->
   Sem r ()
-unblockRemoteConv lusr _conn rcnv = do
+unblockRemoteConv lusr rcnv = do
   E.createMembersInRemoteConversation rcnv [tUnqualified lusr]
 
 -- conversation updates

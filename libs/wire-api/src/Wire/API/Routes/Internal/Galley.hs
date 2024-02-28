@@ -560,6 +560,17 @@ type IConversationAPI =
                :> QualifiedCapture "user" UserId
                :> Get '[Servant.JSON] Conversation
            )
+    :<|> Named
+           "conversation-mls-one-to-one-established"
+           ( CanThrow 'NotConnected
+               :> CanThrow 'MLSNotEnabled
+               :> ZLocalUser
+               :> "conversations"
+               :> "mls-one2one"
+               :> QualifiedCapture "user" UserId
+               :> "established"
+               :> Get '[Servant.JSON] Bool
+           )
 
 swaggerDoc :: OpenApi
 swaggerDoc =
