@@ -102,18 +102,5 @@ self: super: {
     inherit (super) stdenv fetchurl;
   };
 
-  kind = staticBinary {
-    pname = "kind";
-    version = "0.11.0";
-
-    darwinAmd64Url = "https://github.com/kubernetes-sigs/kind/releases/download/v0.11.1/kind-darwin-amd64";
-    darwinAmd64Sha256 = "432bef555a70e9360b44661c759658265b9eaaf7f75f1beec4c4d1e6bbf97ce3";
-
-    linuxAmd64Url = "https://github.com/kubernetes-sigs/kind/releases/download/v0.11.1/kind-linux-amd64";
-    linuxAmd64Sha256 = "949f81b3c30ca03a3d4effdecda04f100fa3edc07a28b19400f72ede7c5f0491";
-
-    inherit (super) stdenv fetchurl;
-  };
-
   rabbitmqadmin = super.callPackage ./pkgs/rabbitmqadmin { };
 }

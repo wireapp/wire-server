@@ -1,0 +1,110 @@
+---
+helmDefaults:
+  wait: true
+  timeout: 600
+  devel: true
+  createNamespace: true
+
+environments:
+  default:
+    values:
+      - federationCACertificate: {{ readFile "../services/nginz/integration-test/conf/nginz/integration-ca.pem" | quote }}
+      - rabbitmqUsername: guest
+      - rabbitmqPassword: guest
+---
+repositories:
+  - name: jetstack
+    url: 'https://charts.jetstack.io'
+
+  - name: bedag
+    url: 'https://bedag.github.io/helm-charts/'
+
+  - name: wire
+    url: 'https://s3-eu-west-1.amazonaws.com/public.wire.com/charts-develop'
+
+releases:
+  - name: 'cert-manager'
+    namespace: cert-manager
+    chart: jetstack/cert-manager
+    set:
+      - name: installCRDs
+        value: true
+
+  - name: 'federation-certs'
+    namespace: cert-manager
+    chart: bedag/raw
+    values:
+      - resources:
+        - apiVersion: v1
+          kind: Secret
+          metadata:
+            name: federation-ca
+            namespace: cert-manager
+          data:
+            tls.crt: {{ readFile "../services/nginz/integration-test/conf/nginz/integration-ca.pem" | b64enc | quote }}
+            tls.key: {{ readFile "../services/nginz/integration-test/conf/nginz/integration-ca-key.pem" | b64enc | quote }}
+        - apiVersion: cert-manager.io/v1
+          kind: ClusterIssuer
+          metadata:
+            name: federation
+          spec:
+            ca:
+              secretName: federation-ca
+    needs:
+      - 'cert-manager/cert-manager'
+
+  - name: 'fake-aws'
+    namespace: wire-federation-v0
+    chart: wire/fake-aws
+    version: 4.38.0-mandarin.14
+    values:
+      - './helm_vars/fake-aws/values.yaml'
+
+  - name: 'databases-ephemeral'
+    namespace: wire-federation-v0
+    chart: 'wire/databases-ephemeral'
+    version: 4.38.0-mandarin.14
+
+  - name: 'rabbitmq'
+    namespace: wire-federation-v0
+    chart: 'wire/rabbitmq'
+    version: 4.38.0-mandarin.14
+    values:
+      - './helm_vars/rabbitmq/values.yaml.gotmpl'
+
+  - name: 'ingress'
+    namespace: wire-federation-v0
+    chart: 'wire/ingress-nginx-controller'
+    version: 4.38.0-mandarin.14
+    values:
+      - './helm_vars/ingress-nginx-controller/values.yaml.gotmpl'
+
+  - name: 'ingress-svc'
+    namespace: wire-federation-v0
+    chart: 'wire/nginx-ingress-services'
+    version: 4.38.0-mandarin.14
+    values:
+      - './helm_vars/nginx-ingress-services/values.yaml.gotmpl'
+    set:
+      # Federation domain is also the SRV record created by the
+      # federation-test-helper service. Maybe we can find a way to make these
+      # differ, so we don't make any silly assumptions in the code.
+      - name: config.dns.federator
+        value: wire-federation-v0.svc.cluster.local
+      - name: config.dns.certificateDomain
+        value: '*.wire-federation-v0.svc.cluster.local'
+    needs:
+      - 'ingress'
+      - 'cert-manager/cert-manager'
+      - 'cert-manager/federation-certs'
+
+  - name: wire-server
+    namespace: wire-federation-v0
+    chart: wire/wire-server
+    version: 4.38.0-mandarin.14
+    values:
+      - './helm_vars/wire-federation-v0/values.yaml.gotmpl'
+    needs:
+      - 'cert-manager/cert-manager'
+      - 'cert-manager/federation-certs'
+

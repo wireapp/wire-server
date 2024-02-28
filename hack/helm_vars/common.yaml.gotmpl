@@ -4,7 +4,7 @@ federationDomainBase1: {{ requiredEnv "FEDERATION_DOMAIN_BASE_1" }}
 namespace2: {{ requiredEnv "NAMESPACE_2" }}
 federationDomain2: {{ requiredEnv "FEDERATION_DOMAIN_2" }}
 federationDomainBase2: {{ requiredEnv "FEDERATION_DOMAIN_BASE_2" }}
-federationCACertificate: {{ requiredEnv "FEDERATION_CA_CERTIFICATE" }}
+federationCACertificate: {{ requiredEnv "FEDERATION_CA_CERTIFICATE" | quote }}
 ingressChart: {{ requiredEnv "INGRESS_CHART" }}
 rabbitmqUsername: guest
 rabbitmqPassword: guest

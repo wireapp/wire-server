@@ -26,4 +26,4 @@ config:
     # certificateDomain: dynamically set by hack/helmfile.yaml
 
 secrets:
-  tlsClientCA: {{ .Values.federationCACertificate }}
+  tlsClientCA: {{ .Values.federationCACertificate | quote }}
