@@ -125,6 +125,25 @@ let
       };
     };
 
+    # We forked to add a handler for the ConnectionIsClosed signal
+    # since it was threated as a halting exception instead of a 
+    # clean exit.
+    http2 = {
+      src = fetchgit {
+        url = "https://github.com/wireapp/http2";
+        rev = "622b79e2e222c0f361cdd25f082c21f1644016bf";
+        sha256 = "sha256-zES22Cg9inyJ4mEBeEfyWAO5VFYSE2wASVMTHkYThzU=";
+      };
+    };
+
+    network-control = {
+      src = fetchgit {
+        url = "https://github.com/kazu-yamamoto/network-control";
+        rev = "v0.0.2";
+        sha256 = "sha256-wgkbs05s4u4+mAFIH6lKflgIZ/jKxVxIqejUIq/uf0Y=";
+      };
+    };
+
     # PR: https://gitlab.com/twittner/cql/-/merge_requests/11
     cql = {
       src = fetchgit {
@@ -217,24 +236,36 @@ let
         hash = "sha256-E35PVxi/4iJFfWts3td52KKZKQt4dj9KFP3SvWG77Cc=";
       };
     };
+
     # PR: https://github.com/yesodweb/wai/pull/958
     warp = {
       src = fetchgit {
         url = "https://github.com/wireapp/wai";
-        rev = "bedd6a835f6d98128880465c30e8115fa986e3f6";
-        sha256 = "sha256-0r/d9YwcKZIZd10EhL2TP+W14Wjk0/S8Q4pVvZuZLaY=";
+        rev = "a48f8f31ad42f26057d7b96d70f897c1a3f69a3c";
+        sha256 = "sha256-fFkiKLlViiV+F1wdQXak3RI454kgWvyRsoDz6g4c5Ks=";
       };
       packages = {
         "warp" = "warp";
+        "warp-tls" = "warp-tls";
+        "wai-app-static" = "wai-app-static";
+        "wai" = "wai";
+        "wai-extra" = "wai-extra";
+        "wai-websockets" = "wai-websockets";
       };
     };
   };
+
   hackagePins = {
     # Major re-write upstream, we should get rid of this dependency rather than
     # adapt to upstream, this will go away when completing servantification.
     wai-route = {
       version = "0.4.0";
       sha256 = "sha256-DSMckKIeVE/buSMg8Mq+mUm1bYPYB7veA11Ns7vTBbc=";
+    };
+
+    network-control = {
+      version = "0.0.2";
+      sha256 = "sha256-0EvnVu7cktMmSRVk9Ufm0oE4JLQrKLSRYpFpgcJguY0=";
     };
 
     # these are not yet in nixpkgs

@@ -18,6 +18,7 @@
 , random
 , stm
 , streaming-commons
+, string-conversions
 , text
 , time-manager
 }:
@@ -35,6 +36,7 @@ mkDerivation {
     network
     stm
     streaming-commons
+    string-conversions
     text
     time-manager
   ];
