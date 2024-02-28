@@ -33,6 +33,7 @@ import Imports
 import System.Logger.Message hiding (field, (.=))
 import Wire.API.Connection
 import Wire.API.Properties
+import Wire.API.Routes.Version
 import Wire.API.User
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
@@ -380,7 +381,7 @@ eventObjectSchema =
               _ClientEvent
               ( tag
                   _ClientAdded
-                  (field "client" schema)
+                  (field "client" (clientSchema (Just V5)))
               )
           EventTypeClientRemoved ->
             tag

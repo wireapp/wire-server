@@ -1,9 +1,11 @@
 {-# OPTIONS -Wno-ambiguous-fields #-}
 module Test.Notifications where
 
+import API.Brig
 import API.Common
 import API.Gundeck
 import API.GundeckInternal
+import Notifications
 import SetupHelpers
 import Testlib.Prelude
 
@@ -89,3 +91,18 @@ testInvalidNotification = do
     void $
       getNotifications user def {since = Just notifId}
         >>= getJSON 404
+
+-- | Check that client-add notifications use the V5 format:
+-- @
+--   "capabilities": { "capabilities": [..] }
+-- @
+testAddClientNotification :: HasCallStack => App ()
+testAddClientNotification = do
+  alice <- randomUser OwnDomain def
+
+  e <- withWebSocket alice $ \ws -> do
+    void $ addClient alice def
+    n <- awaitMatch isUserClientAddNotif ws
+    nPayload n
+
+  void $ e %. "client.capabilities.capabilities" & asList
