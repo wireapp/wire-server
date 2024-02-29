@@ -147,8 +147,7 @@ runTests tests mXMLOutput cfg = do
   runCodensity (createGlobalEnv cfg) $ \genv ->
     withAsync displayOutput $ \displayThread -> do
       cap <- getNumCapabilities
-      print $ "Cap: " <> show cap
-      report <- fmap mconcat $ pooledForConcurrently tests $ \(qname, _, _, action) -> do
+      report <- fmap mconcat $ pooledForConcurrentlyN (min 6 cap) tests $ \(qname, _, _, action) -> do
         (mErr, tm) <- withTime (runTest genv action)
         case mErr of
           Left err -> do
