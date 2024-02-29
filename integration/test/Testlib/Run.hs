@@ -40,7 +40,7 @@ runTest ge action = lowerCodensity $ do
     (Right <$> runAppWithEnv env action)
       `E.catches` [ E.Handler $ \(e :: SomeAsyncException) -> do
                       -- AsyncExceptions need rethrowing
-                      -- to prevend the last handler from handling async exceptions.
+                      -- to prevent the last handler from handling async exceptions.
                       -- This ensures things like UserInterrupt are properly handled.
                       E.throw e,
                     E.Handler -- AssertionFailure
