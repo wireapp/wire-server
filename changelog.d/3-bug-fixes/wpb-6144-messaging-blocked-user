@@ -1,1 +1,1 @@
-Do not deliver MLS one-to-one conversation messages to a user that blocked the sender
+Do not deliver MLS one-to-one conversation messages to a user that blocked the sender (#3889, #3906)
