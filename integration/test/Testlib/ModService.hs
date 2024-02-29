@@ -386,7 +386,7 @@ retryRequestUntil :: HasCallStack => App Bool -> String -> App ()
 retryRequestUntil reqAction err = do
   isUp <-
     retrying
-      (limitRetriesByCumulativeDelay (7 * 1000 * 1000) (fibonacciBackoff (300 * 1000)))
+      (limitRetriesByCumulativeDelay (4 * 1000 * 1000) (fibonacciBackoff (200 * 1000)))
       (\_ isUp -> pure (not isUp))
       (const reqAction)
   unless isUp $
