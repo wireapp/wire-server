@@ -35,7 +35,6 @@ import Galley.Types.UserList
 import Imports
 import Polysemy
 import Wire.API.Conversation hiding (Member)
-import Wire.API.Conversation.Protocol
 import Wire.API.Routes.Internal.Galley.ConversationsIntra
 import Wire.API.User
 
@@ -86,11 +85,6 @@ iUpsertOne2OneConversation UpsertOne2OneConversationRequest {..} = do
                 deleteMembers
                   (tUnqualified lconvId)
                   (UserList [tUnqualified uooLocalUser] [])
-                let mGroupId = case convProtocol conv of
-                      ProtocolProteus -> Nothing
-                      ProtocolMLS meta -> Just . cnvmlsGroupId $ meta
-                      ProtocolMixed meta -> Just . cnvmlsGroupId $ meta
-                for_ mGroupId $ flip removeAllMLSClientsOfUser (tUntagged uooLocalUser)
               (RemoteActor, Included) -> do
                 void $ createMembers (tUnqualified lconvId) (UserList [] [uooRemoteUser])
                 unless (null (convLocalMembers conv)) $
