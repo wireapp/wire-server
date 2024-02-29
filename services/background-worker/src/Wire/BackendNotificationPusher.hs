@@ -82,7 +82,6 @@ pushNotification runningFlag targetDomain (msg, envelope) = do
         UnliftIO.bracket_ (takeMVar runningFlag) (putMVar runningFlag ()) go
   where
     go :: AppT IO ()
-    -- go = case A.eitherDecode @BackendNotification (Q.msgBody msg) of
     go = case A.eitherDecode @(PayloadBundle _) (Q.msgBody msg) of
       Left e -> do
         case A.eitherDecode @BackendNotification (Q.msgBody msg) of
