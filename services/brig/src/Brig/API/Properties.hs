@@ -41,7 +41,7 @@ import Wire.NotificationSubsystem
 setProperty :: (Member NotificationSubsystem r) => UserId -> ConnId -> PropertyKey -> PropertyValue -> ExceptT PropertiesDataError (AppT r) ()
 setProperty u c k v = do
   wrapClientE $ Data.insertProperty u k (propertyRaw v)
-  lift $ liftSem $ Intra.onPropertyEvent u c (PropertySet u k v)
+  lift $ liftSem $ Intra.onPropertyEvent u c (PropertySet u k (propertyValue v))
 
 deleteProperty :: (Member NotificationSubsystem r) => UserId -> ConnId -> PropertyKey -> AppT r ()
 deleteProperty u c k = do

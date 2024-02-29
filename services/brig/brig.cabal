@@ -148,8 +148,8 @@ library
     Brig.InternalEvent.Process
     Brig.InternalEvent.Types
     Brig.IO.Intra
-    Brig.IO.Serialisation
     Brig.IO.Journal
+    Brig.IO.Logging
     Brig.Locale
     Brig.Options
     Brig.Phone

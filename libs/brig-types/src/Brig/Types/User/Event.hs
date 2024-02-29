@@ -1,4 +1,5 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -19,6 +20,8 @@
 
 module Brig.Types.User.Event where
 
+import Control.Lens.TH
+import Data.Aeson qualified as A
 import Data.Aeson.KeyMap qualified as KM
 import Data.ByteString.Conversion
 import Data.Handle (Handle)
@@ -27,7 +30,7 @@ import Data.Json.Util
 import Data.Qualified
 import Data.Schema
 import Imports
-import System.Logger.Class
+import System.Logger.Message hiding (field, (.=))
 import Wire.API.Connection
 import Wire.API.Properties
 import Wire.API.User
@@ -39,9 +42,6 @@ data Event
   | ConnectionEvent !ConnectionEvent
   | PropertyEvent !PropertyEvent
   | ClientEvent !ClientEvent
-
-instance ToJSONObject Event where
-  toJSONObject = KM.fromList . fold . schemaOut eventObjectSchema
 
 eventType :: Event -> EventType
 eventType (UserEvent (UserCreated _)) = EventTypeUserCreated
@@ -62,15 +62,11 @@ eventType (PropertyEvent (PropertiesCleared _)) = EventTypePropertiesCleared
 eventType (ClientEvent (ClientAdded _ _)) = EventTypeClientAdded
 eventType (ClientEvent (ClientRemoved _ _)) = EventTypeClientRemoved
 
-eventObjectSchema :: ObjectSchema SwaggerDoc Event
-eventObjectSchema = error "TODO"
-
 data EventType
   = EventTypeUserCreated
   | EventTypeUserActivated
   | EventTypeUserUpdated
   | EventTypeUserIdentityRemoved
-  | EventTypeUserConnection
   | EventTypeUserSuspended
   | EventTypeUserResumed
   | EventTypeUserDeleted
@@ -83,7 +79,7 @@ data EventType
   | EventTypeClientAdded
   | EventTypeClientRemoved
   | EventTypeConnection
-  deriving (Eq)
+  deriving (Eq, Enum, Bounded)
 
 instance ToSchema EventType where
   schema =
@@ -93,7 +89,6 @@ instance ToSchema EventType where
           element "user.activate" EventTypeUserActivated,
           element "user.update" EventTypeUserUpdated,
           element "user.identity-remove" EventTypeUserIdentityRemoved,
-          element "user.connection" EventTypeUserConnection,
           element "user.suspend" EventTypeUserSuspended,
           element "user.resume" EventTypeUserResumed,
           element "user.delete" EventTypeUserDeleted,
@@ -129,12 +124,11 @@ data UserEvent
 
 data ConnectionEvent = ConnectionUpdated
   { ucConn :: !UserConnection,
-    ucPrev :: !(Maybe Relation),
     ucName :: !(Maybe Name)
   }
 
 data PropertyEvent
-  = PropertySet !UserId !PropertyKey !PropertyValue
+  = PropertySet !UserId !PropertyKey !A.Value
   | PropertyDeleted !UserId !PropertyKey
   | PropertiesCleared !UserId
 
@@ -242,6 +236,161 @@ emptyUserUpdatedData u =
       eupSSOIdRemoved = False,
       eupSupportedProtocols = Nothing
     }
+
+-- Event schema
+
+$(makePrisms ''Event)
+$(makePrisms ''UserEvent)
+$(makePrisms ''PropertyEvent)
+$(makePrisms ''ClientEvent)
+
+eventObjectSchema :: ObjectSchema SwaggerDoc Event
+eventObjectSchema =
+  snd
+    <$> bind
+      (eventType .= field "type" schema)
+      ( dispatch $ \case
+          EventTypeUserCreated ->
+            tag _UserEvent (tag _UserCreated (noId .= userSchema))
+          EventTypeUserActivated ->
+            tag _UserEvent (tag _UserActivated userSchema)
+          EventTypeUserUpdated ->
+            tag
+              _UserEvent
+              ( tag
+                  _UserUpdated
+                  ( UserUpdatedData
+                      <$> eupId .= field "id" schema
+                      <*> eupName .= maybe_ (optField "name" schema)
+                      <*> eupPict .= maybe_ (optField "picture" schema) -- DEPRECATED
+                      <*> eupAccentId .= maybe_ (optField "accent_id" schema)
+                      <*> eupAssets .= maybe_ (optField "assets" (array schema))
+                      <*> eupHandle .= maybe_ (optField "handle" schema)
+                      <*> eupLocale .= maybe_ (optField "locale" schema)
+                      <*> eupManagedBy .= maybe_ (optField "managed_by" schema)
+                      <*> eupSSOId .= maybe_ (optField "sso_id" genericToSchema)
+                      <*> eupSSOIdRemoved .= field "sso_id_deleted" schema
+                      <*> eupSupportedProtocols
+                        .= maybe_
+                          ( optField
+                              "supported_protocols"
+                              (set schema)
+                          )
+                  )
+                  <|> tag
+                    _UserIdentityUpdated
+                    ( UserIdentityUpdatedData
+                        <$> eiuId .= field "id" schema
+                        <*> eiuEmail .= maybe_ (optField "email" schema)
+                        <*> eiuPhone .= maybe_ (optField "phone" schema)
+                    )
+              )
+          EventTypeUserIdentityRemoved ->
+            tag
+              _UserEvent
+              ( tag
+                  _UserIdentityRemoved
+                  ( UserIdentityRemovedData
+                      <$> eirId .= field "id" schema
+                      <*> eirEmail .= maybe_ (optField "email" schema)
+                      <*> eirPhone .= maybe_ (optField "phone" schema)
+                  )
+              )
+          EventTypeUserSuspended -> tag _UserEvent (tag _UserSuspended (field "id" schema))
+          EventTypeUserResumed -> tag _UserEvent (tag _UserResumed (field "id" schema))
+          EventTypeUserDeleted -> tag _UserEvent (tag _UserDeleted (field "id" schema))
+          EventTypeUserLegalholdEnabled ->
+            tag
+              _UserEvent
+              ( tag _UserLegalHoldEnabled (field "id" schema)
+              )
+          EventTypeUserLegalholdDisabled ->
+            tag
+              _UserEvent
+              ( tag _UserLegalHoldDisabled (field "id" schema)
+              )
+          EventTypeUserLegalholdRequested ->
+            tag
+              _UserEvent
+              ( tag
+                  _LegalHoldClientRequested
+                  ( LegalHoldClientRequestedData
+                      <$> lhcTargetUser .= field "id" schema
+                      <*> lhcLastPrekey .= field "last_prekey" schema
+                      <*> lhcClientId .= field "client" schema
+                  )
+              )
+          EventTypePropertiesSet ->
+            tag
+              _PropertyEvent
+              ( tag
+                  _PropertySet
+                  ( (,,)
+                      <$> (\(x, _, _) -> x) .= field "id" schema
+                      <*> (\(_, x, _) -> x) .= field "key" genericToSchema
+                      <*> (\(_, _, x) -> x)
+                        .= field "value" jsonValue
+                  )
+              )
+          EventTypePropertiesDeleted ->
+            tag
+              _PropertyEvent
+              ( tag
+                  _PropertyDeleted
+                  ( (,)
+                      <$> fst .= field "id" schema
+                      <*> snd .= field "key" genericToSchema
+                  )
+              )
+          EventTypePropertiesCleared ->
+            tag
+              _PropertyEvent
+              ( tag
+                  _PropertiesCleared
+                  (field "id" schema)
+              )
+          EventTypeClientAdded ->
+            tag
+              _ClientEvent
+              ( tag
+                  _ClientAdded
+                  ( (,)
+                      <$> fst .= field "id" schema
+                      <*> snd .= field "client" schema
+                  )
+              )
+          EventTypeClientRemoved ->
+            tag
+              _ClientEvent
+              ( tag
+                  _ClientRemoved
+                  ( (,)
+                      <$> fst .= field "id" schema
+                      <*> snd .= field "client" schema
+                  )
+              )
+          EventTypeConnection ->
+            tag
+              _ConnectionEvent
+              ( ConnectionUpdated
+                  <$> ucConn .= field "connection" schema
+                  <*> ucName .= maybe_ (optField "user" (object "UserName" (field "name" schema)))
+              )
+      )
+  where
+    noId :: User -> User
+    noId u = u {userIdentity = Nothing}
+
+    userSchema :: ObjectSchema SwaggerDoc User
+    userSchema = field "user" schema
+
+instance ToJSONObject Event where
+  toJSONObject = KM.fromList . fold . schemaOut eventObjectSchema
+
+instance ToSchema Event where
+  schema = object "UserEvent" eventObjectSchema
+
+-- Logging
 
 connEventUserId :: ConnectionEvent -> UserId
 connEventUserId ConnectionUpdated {..} = ucFrom ucConn

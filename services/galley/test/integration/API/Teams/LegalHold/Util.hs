@@ -542,7 +542,6 @@ instance FromJSON Ev.ConnectionEvent where
         Ev.ConnectionUpdated
           <$> o .: "connection"
           <*> pure Nothing
-          <*> pure Nothing
       x -> fail $ "unspported event type: " ++ show x
 
 assertNotification :: (HasCallStack, FromJSON a, MonadIO m) => WS.WebSocket -> (a -> Assertion) -> m ()

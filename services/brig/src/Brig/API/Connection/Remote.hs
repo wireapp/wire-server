@@ -220,7 +220,7 @@ pushEvent ::
   UserConnection ->
   AppT r ()
 pushEvent self mzcon connection = do
-  let event = ConnectionUpdated connection Nothing Nothing
+  let event = ConnectionUpdated connection Nothing
   liftSem $ Intra.onConnectionEvent (tUnqualified self) mzcon event
 
 performLocalAction ::

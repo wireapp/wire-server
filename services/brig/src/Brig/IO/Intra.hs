@@ -57,6 +57,7 @@ import Brig.Effects.ConnectionStore (ConnectionStore)
 import Brig.Effects.ConnectionStore qualified as E
 import Brig.Federation.Client (notifyUserDeleted, sendConnectionAction)
 import Brig.IO.Journal qualified as Journal
+import Brig.IO.Logging
 import Brig.RPC
 import Brig.Types.User.Event
 import Brig.User.Search.Index qualified as Search
@@ -300,7 +301,7 @@ notifyUserDeletionLocals deleted conn event = do
                     Cancelled
                     now
                     (ucConvId uc)
-            let e = ConnectionUpdated ucCancelled Nothing Nothing
+            let e = ConnectionUpdated ucCancelled Nothing
             onConnectionEvent deleted conn e
         )
 
@@ -421,7 +422,7 @@ notifyContacts events orig route conn = do
     screenMemberList _ = []
 
 toApsData :: Event -> Maybe V2.ApsData
-toApsData (ConnectionEvent (ConnectionUpdated uc _ name)) =
+toApsData (ConnectionEvent (ConnectionUpdated uc name)) =
   case (ucStatus uc, name) of
     (MissingLegalholdConsent, _) -> Nothing
     (Pending, n) -> apsConnRequest <$> n
@@ -441,17 +442,6 @@ toApsData _ = Nothing
 
 -------------------------------------------------------------------------------
 -- Conversation Management
-
-logConnection :: UserId -> Qualified UserId -> Msg -> Msg
-logConnection from (Qualified toUser toDomain) =
-  "connection.from" .= toByteString from
-    ~~ "connection.to" .= toByteString toUser
-    ~~ "connection.to_domain" .= toByteString toDomain
-
-logLocalConnection :: UserId -> UserId -> Msg -> Msg
-logLocalConnection from to =
-  "connection.from" .= toByteString from
-    ~~ "connection.to" .= toByteString to
 
 -- | Calls 'Galley.API.Create.createConnectConversation'.
 createLocalConnectConv ::

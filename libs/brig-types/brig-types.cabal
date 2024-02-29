@@ -83,12 +83,13 @@ library
     , cassandra-util
     , containers             >=0.5
     , imports
+    , lens
     , QuickCheck             >=2.9
+    , schema-profunctor
     , text                   >=0.11
     , tinylog
     , types-common           >=0.16
     , wire-api
-    , schema-profunctor
 
   default-language:   GHC2021
 
