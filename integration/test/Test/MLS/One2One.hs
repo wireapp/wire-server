@@ -68,7 +68,7 @@ testMLSOne2OneBlocked otherDomain = do
 testMLSOne2OneBlockedAfterConnected :: HasCallStack => One2OneScenario -> App ()
 testMLSOne2OneBlockedAfterConnected scenario = do
   alice <- randomUser OwnDomain def
-  let otherDomain = one2OneScenarioDomain scenario
+  let otherDomain = one2OneScenarioUserDomain scenario
       convDomain = one2OneScenarioConvDomain scenario
   bob <- createMLSOne2OnePartner otherDomain alice convDomain
   conv <- getMLSOne2OneConversation alice bob >>= getJSON 200
@@ -107,7 +107,7 @@ testMLSOne2OneBlockedAfterConnected scenario = do
 testMLSOne2OneUnblocked :: HasCallStack => One2OneScenario -> App ()
 testMLSOne2OneUnblocked scenario = do
   alice <- randomUser OwnDomain def
-  let otherDomain = one2OneScenarioDomain scenario
+  let otherDomain = one2OneScenarioUserDomain scenario
       convDomain = one2OneScenarioConvDomain scenario
   bob <- createMLSOne2OnePartner otherDomain alice convDomain
   conv <- getMLSOne2OneConversation alice bob >>= getJSON 200
@@ -168,9 +168,9 @@ instance TestCases One2OneScenario where
       MkTestCase "[domain=other;conv=other]" One2OneScenarioRemoteConv
     ]
 
-one2OneScenarioDomain :: One2OneScenario -> Domain
-one2OneScenarioDomain One2OneScenarioLocal = OwnDomain
-one2OneScenarioDomain _ = OtherDomain
+one2OneScenarioUserDomain :: One2OneScenario -> Domain
+one2OneScenarioUserDomain One2OneScenarioLocal = OwnDomain
+one2OneScenarioUserDomain _ = OtherDomain
 
 one2OneScenarioConvDomain :: One2OneScenario -> Domain
 one2OneScenarioConvDomain One2OneScenarioLocal = OwnDomain
@@ -180,7 +180,7 @@ one2OneScenarioConvDomain One2OneScenarioRemoteConv = OtherDomain
 testMLSOne2One :: HasCallStack => One2OneScenario -> App ()
 testMLSOne2One scenario = do
   alice <- randomUser OwnDomain def
-  let otherDomain = one2OneScenarioDomain scenario
+  let otherDomain = one2OneScenarioUserDomain scenario
       convDomain = one2OneScenarioConvDomain scenario
   bob <- createMLSOne2OnePartner otherDomain alice convDomain
   [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
