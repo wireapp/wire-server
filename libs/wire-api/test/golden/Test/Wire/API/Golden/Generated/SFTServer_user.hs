@@ -19,46 +19,33 @@
 
 module Test.Wire.API.Golden.Generated.SFTServer_user where
 
-import Data.Coerce (coerce)
-import Data.Misc (HttpsUrl (HttpsUrl))
-import Imports (Maybe (Just, Nothing))
+import Data.Coerce
+import Data.Misc
+import Data.Time.Clock
+import Imports
 import URI.ByteString
-  ( Authority
-      ( Authority,
-        authorityHost,
-        authorityPort,
-        authorityUserInfo
-      ),
-    Host (Host, hostBS),
-    Query (Query, queryPairs),
-    Scheme (Scheme, schemeBS),
-    URIRef
-      ( URI,
-        uriAuthority,
-        uriFragment,
-        uriPath,
-        uriQuery,
-        uriScheme
-      ),
-  )
-import Wire.API.Call.Config (SFTServer, sftServer)
+import Wire.API.Call.Config
 
-testObject_SFTServer_user_1 :: SFTServer
+testObject_SFTServer_user_1 :: AuthSFTServer
 testObject_SFTServer_user_1 =
-  sftServer
-    ( coerce
-        URI
-          { uriScheme = Scheme {schemeBS = "https"},
-            uriAuthority =
-              Just
-                ( Authority
-                    { authorityUserInfo = Nothing,
-                      authorityHost = Host {hostBS = "example.com"},
-                      authorityPort = Nothing
-                    }
-                ),
-            uriPath = "",
-            uriQuery = Query {queryPairs = []},
-            uriFragment = Nothing
-          }
+  authSFTServer
+    ( sftServer
+        ( coerce
+            URI
+              { uriScheme = Scheme {schemeBS = "https"},
+                uriAuthority =
+                  Just
+                    ( Authority
+                        { authorityUserInfo = Nothing,
+                          authorityHost = Host {hostBS = "example.com"},
+                          authorityPort = Nothing
+                        }
+                    ),
+                uriPath = "",
+                uriQuery = Query {queryPairs = []},
+                uriFragment = Nothing
+              }
+        )
     )
+    (mkSFTUsername (secondsToNominalDiffTime 12) "username")
+    "credential"

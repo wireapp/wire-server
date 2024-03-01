@@ -21,13 +21,13 @@
 module Test.Brig.Calling (tests) where
 
 import Brig.Calling
-import Brig.Calling.API (CallsConfigVersion (..), NoTurnServers, newConfig)
-import Brig.Calling.Internal (sftServerFromSrvTarget)
+import Brig.Calling.API
+import Brig.Calling.Internal
 import Brig.Effects.SFT
 import Brig.Options
 import Control.Concurrent.Timeout qualified as System
 import Control.Lens ((^.))
-import Control.Monad.Catch (throwM)
+import Control.Monad.Catch
 import Data.Bifunctor
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.List.NonEmpty qualified as NonEmpty
@@ -39,14 +39,14 @@ import Data.Timeout
 import Imports
 import Network.DNS
 import OpenSSL
-import OpenSSL.EVP.Digest (getDigestByName)
+import OpenSSL.EVP.Digest
 import Polysemy
 import Polysemy.Error
 import Polysemy.TinyLog
 import Test.Brig.Effects.Delay
 import Test.Tasty
 import Test.Tasty.HUnit
-import Test.Tasty.QuickCheck (Arbitrary (..), generate)
+import Test.Tasty.QuickCheck
 import URI.ByteString
 import UnliftIO.Async qualified as Async
 import Wire.API.Call.Config
@@ -83,12 +83,12 @@ tests =
             assertEqual
               "should use the service name to form domain"
               "_foo._tcp.example.com."
-              (mkSFTDomain (SFTOptions "example.com" (Just "foo") Nothing Nothing)),
+              (mkSFTDomain (SFTOptions "example.com" (Just "foo") Nothing Nothing Nothing)),
           testCase "when service name is not provided" $
             assertEqual
               "should assume service name to be 'sft'"
               "_sft._tcp.example.com."
-              (mkSFTDomain (SFTOptions "example.com" Nothing Nothing Nothing))
+              (mkSFTDomain (SFTOptions "example.com" Nothing Nothing Nothing Nothing))
         ],
       testGroup "sftDiscoveryLoop" $
         [ testCase "when service can be discovered" $ void testSFTDiscoveryLoopWhenSuccessful
@@ -316,6 +316,7 @@ testSFTStaticV2NoStaticUrl = do
       <*> pure "foo.example.com"
       <*> pure 5
       <*> pure (unsafeRange 1)
+      <*> pure Nothing
   turnUri <- generate arbitrary
   cfg <-
     runM @IO
@@ -325,8 +326,8 @@ testSFTStaticV2NoStaticUrl = do
       $ newConfig env (Discovered turnUri) Nothing (Just sftEnv) (Just . unsafeRange $ 2) ListAllSFTServers CallsConfigV2
   assertEqual
     "when SFT static URL is disabled, sft_servers_all should be from SFT environment"
-    (Just . fmap (sftServerFromSrvTarget . srvTarget) . toList $ servers)
-    (cfg ^. rtcConfSftServersAll)
+    (Just . fmap ((^. sftURL) . sftServerFromSrvTarget . srvTarget) . toList $ servers)
+    ((^. authURL) <$$> cfg ^. rtcConfSftServersAll)
 
 -- The v2 endpoint `GET /calls/config/v2` with an SFT static URL that gives an error
 testSFTStaticV2StaticUrlError :: IO ()
@@ -355,13 +356,13 @@ testSFTStaticV2StaticUrlList = do
   cfg <-
     runM @IO
       . ignoreLogs
-      . interpretSFTInMemory (Map.singleton staticUrl (SFTGetResponse . Right $ servers))
+      . interpretSFTInMemory (Map.singleton staticUrl (SFTGetResponse $ Right servers))
       . throwErrorInIO @_ @NoTurnServers
       $ newConfig env (Discovered turnUri) (Just staticUrl) Nothing (Just . unsafeRange $ 3) ListAllSFTServers CallsConfigV2
   assertEqual
     "when SFT static URL and setSftListAllServers are enabled, sft_servers_all should be from /sft_servers_all.json"
-    (Just servers)
-    (cfg ^. rtcConfSftServersAll)
+    ((^. sftURL) <$$> Just servers)
+    ((^. authURL) <$$> cfg ^. rtcConfSftServersAll)
 
 testSFTStaticV2ListAllServersDisabled :: IO ()
 testSFTStaticV2ListAllServersDisabled = do
