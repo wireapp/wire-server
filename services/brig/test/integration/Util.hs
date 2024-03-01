@@ -50,6 +50,7 @@ import Data.ByteString.Builder (toLazyByteString)
 import Data.ByteString.Char8 (pack)
 import Data.ByteString.Char8 qualified as B8
 import Data.ByteString.Conversion
+import Data.Default
 import Data.Domain (Domain (..), domainText, mkDomain)
 import Data.Handle (Handle (..))
 import Data.Id
@@ -1231,8 +1232,7 @@ withMockedFederatorAndGalley opts _domain fedResp galleyHandler action = do
   result <- assertRight <=< runExceptT $
     withTempMockedService initState galleyHandler $ \galleyMockState ->
       Mock.withTempMockFederator
-        [("Content-Type", "application/json")]
-        ((\r -> pure ("application" // "json", r)) <=< fedResp)
+        def {Mock.handler = (\r -> pure ("application" // "json", r)) <=< fedResp}
         $ \fedMockPort -> do
           let opts' =
                 opts

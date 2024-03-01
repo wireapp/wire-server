@@ -9,6 +9,7 @@ import Control.Monad.Trans.Except
 import Data.Aeson qualified as Aeson
 import Data.ByteString.Builder qualified as Builder
 import Data.ByteString.Lazy qualified as LBS
+import Data.Default
 import Data.Domain
 import Data.Id
 import Data.Range
@@ -52,7 +53,6 @@ spec :: Spec
 spec = do
   describe "pushNotification" $ do
     it "should push notifications" $ do
-      let returnSuccess _ = pure ("application/json", Aeson.encode EmptyResponse)
       let origDomain = Domain "origin.example.com"
           targetDomain = Domain "target.example.com"
       -- Just using 'arbitrary' could generate a very big list, making tests very
@@ -76,7 +76,7 @@ spec = do
               }
       runningFlag <- newMVar ()
       (env, fedReqs) <-
-        withTempMockFederator [] returnSuccess . runTestAppT $ do
+        withTempMockFederator def . runTestAppT $ do
           wait =<< pushNotification runningFlag targetDomain (msg, envelope)
           ask
 
@@ -95,7 +95,6 @@ spec = do
         `shouldReturn` [(domainText targetDomain, 1)]
 
     it "should push notification bundles" $ do
-      let returnSuccess _ = pure ("application/json", Aeson.encode EmptyResponse)
       let origDomain = Domain "origin.example.com"
           targetDomain = Domain "target.example.com"
       -- Just using 'arbitrary' could generate a very big list, making tests very
@@ -113,7 +112,7 @@ spec = do
               }
       runningFlag <- newMVar ()
       (env, fedReqs) <-
-        withTempMockFederator [] returnSuccess . runTestAppT $ do
+        withTempMockFederator def . runTestAppT $ do
           wait =<< pushNotification runningFlag targetDomain (msg, envelope)
           ask
 
@@ -132,7 +131,6 @@ spec = do
         `shouldReturn` [(domainText targetDomain, 1)]
 
     it "should reject invalid notifications" $ do
-      let returnSuccess _ = pure ("application/json", Aeson.encode EmptyResponse)
       envelope <- newMockEnvelope
       let msg =
             Q.newMsg
@@ -141,7 +139,7 @@ spec = do
               }
       runningFlag <- newMVar ()
       (env, fedReqs) <-
-        withTempMockFederator [] returnSuccess . runTestAppT $ do
+        withTempMockFederator def . runTestAppT $ do
           wait =<< pushNotification runningFlag (Domain "target.example.com") (msg, envelope)
           ask
 
@@ -182,7 +180,7 @@ spec = do
       runningFlag <- newMVar ()
       env <- testEnv
       pushThread <-
-        async $ withTempMockFederator [] mockRemote . runTestAppTWithEnv env $ do
+        async $ withTempMockFederator def {handler = mockRemote} . runTestAppTWithEnv env $ do
           wait =<< pushNotification runningFlag targetDomain (msg, envelope)
 
       -- Wait for two calls, so we can be sure that the metric about stuck

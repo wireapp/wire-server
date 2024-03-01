@@ -269,6 +269,7 @@ executable cargohold-integration
     , cargohold
     , cargohold-types
     , containers
+    , data-default
     , federator
     , http-api-data
     , http-client            >=0.7

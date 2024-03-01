@@ -8,6 +8,7 @@
 , base
 , bytestring
 , containers
+, data-default
 , exceptions
 , extended
 , federator
@@ -80,6 +81,7 @@ mkDerivation {
     base
     bytestring
     containers
+    data-default
     extended
     federator
     hspec
