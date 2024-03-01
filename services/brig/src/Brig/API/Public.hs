@@ -436,6 +436,7 @@ servantSitemap =
     callingAPI =
       Named @"get-calls-config" Calling.getCallsConfig
         :<|> Named @"get-calls-config-v2" Calling.getCallsConfigV2
+        :<|> Named @"get-authenticated-calls-config" Calling.getAuthenticatedCallsConfig
 
     systemSettingsAPI :: ServerT SystemSettingsAPI (Handler r)
     systemSettingsAPI =

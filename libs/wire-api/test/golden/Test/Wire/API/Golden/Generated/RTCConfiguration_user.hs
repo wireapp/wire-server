@@ -19,46 +19,15 @@
 
 module Test.Wire.API.Golden.Generated.RTCConfiguration_user where
 
-import Control.Lens ((.~))
-import Data.Coerce (coerce)
-import Data.List.NonEmpty (NonEmpty (..))
-import Data.Misc (HttpsUrl (HttpsUrl), IpAddr (IpAddr))
-import Data.Text.Ascii (AsciiChars (validate))
-import Data.Time (secondsToNominalDiffTime)
-import Imports (Maybe (Just, Nothing), fromRight, read, undefined, (&))
+import Control.Lens
+import Data.Coerce
+import Data.List.NonEmpty
+import Data.Misc
+import Data.Text.Ascii
+import Data.Time
+import Imports
 import URI.ByteString
-  ( Authority
-      ( Authority,
-        authorityHost,
-        authorityPort,
-        authorityUserInfo
-      ),
-    Host (Host, hostBS),
-    Query (Query, queryPairs),
-    Scheme (Scheme, schemeBS),
-    URIRef
-      ( URI,
-        uriAuthority,
-        uriFragment,
-        uriPath,
-        uriQuery,
-        uriScheme
-      ),
-  )
 import Wire.API.Call.Config
-  ( RTCConfiguration,
-    Scheme (SchemeTurn, SchemeTurns),
-    Transport (TransportTCP, TransportUDP),
-    TurnHost (TurnHostIp, TurnHostName),
-    rtcConfiguration,
-    rtcIceServer,
-    sftServer,
-    tuKeyindex,
-    tuT,
-    tuVersion,
-    turnURI,
-    turnUsername,
-  )
 
 testObject_RTCConfiguration_user_1 :: RTCConfiguration
 testObject_RTCConfiguration_user_1 =
@@ -758,22 +727,26 @@ testObject_RTCConfiguration_user_7 =
     Nothing
     2
     ( Just
-        [ sftServer
-            ( coerce
-                URI
-                  { uriScheme = Scheme {schemeBS = "https"},
-                    uriAuthority =
-                      Just
-                        ( Authority
-                            { authorityUserInfo = Nothing,
-                              authorityHost = Host {hostBS = "example.com"},
-                              authorityPort = Nothing
-                            }
-                        ),
-                    uriPath = "",
-                    uriQuery = Query {queryPairs = []},
-                    uriFragment = Nothing
-                  }
+        [ authSFTServer
+            ( sftServer
+                ( coerce
+                    URI
+                      { uriScheme = Scheme {schemeBS = "https"},
+                        uriAuthority =
+                          Just
+                            ( Authority
+                                { authorityUserInfo = Nothing,
+                                  authorityHost = Host {hostBS = "example.com"},
+                                  authorityPort = Nothing
+                                }
+                            ),
+                        uriPath = "",
+                        uriQuery = Query {queryPairs = []},
+                        uriFragment = Nothing
+                      }
+                )
             )
+            (mkSFTUsername (secondsToNominalDiffTime 12) "username")
+            "credential"
         ]
     )
