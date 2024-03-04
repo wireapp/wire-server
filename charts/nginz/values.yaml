@@ -68,6 +68,7 @@ nginx_conf:
     - limit_req_zone $rate_limited_by_addr zone=reqs_per_addr_sso:12m rate=50r/s;
     - limit_req_zone $rate_limited_by_zuser zone=reqs_per_user_signatures:12m rate=10r/m;
     - limit_req_zone $rate_limited_by_zuser_path zone=key_package_claims:12m rate=100r/m;
+    - limit_req_zone $rate_limited_by_zuser zone=one2one_conv:12m rate=3000r/m;
 
   # The origins from which we allow CORS requests. These are combined with
   # 'external_env_domain' and 'additional_external_env_domains' to form a full
@@ -446,6 +447,15 @@ nginx_conf:
       - all
       max_body_size: 40m
       body_buffer_size: 256k
+    - path: /conversations/one2one/
+      envs:
+      - all
+      # During MLS migration, this endpoint gets called _a lot_.
+      specific_user_rate_limit: one2one_conv
+      specific_user_rate_limit_burst: 1000
+      # The name is a little misleading, this just disables default rate
+      # limiting in favour of the specific one defined above.
+      unlimited_requests_endpoint: true
     - path: /conversations/([^/]*)/([^/]*)/protocol
       envs:
       - all
