@@ -35,6 +35,7 @@ module Wire.API.Routes.Internal.Brig.EJPD
         ejpdResponseConversations,
         ejpdResponseAssets
       ),
+    EJPDConvInfo (..),
   )
 where
 
@@ -42,6 +43,7 @@ import Data.Aeson hiding (json)
 import Data.Handle (Handle)
 import Data.Id (ConvId, TeamId, UserId)
 import Data.OpenApi (ToSchema)
+import Data.Schema qualified as S
 import Deriving.Swagger (CamelToSnake, CustomSwagger (..), FieldLabelModifier, StripSuffix)
 import Imports hiding (head)
 import Test.QuickCheck (Arbitrary)
@@ -71,7 +73,7 @@ data EJPDResponseItem = EJPDResponseItem
     ejpdResponsePushTokens :: Set Text, -- 'Wire.API.Push.V2.Token.Token', but that would produce an orphan instance.
     ejpdResponseContacts :: Maybe (Set (Relation, EJPDResponseItem)),
     ejpdResponseTeamContacts :: Maybe (Set EJPDResponseItem, NewListType),
-    ejpdResponseConversations :: Maybe (Set (Text, ConvId)), -- name, id
+    ejpdResponseConversations :: Maybe (Set EJPDConvInfo),
     ejpdResponseAssets :: Maybe (Set Text) -- urls pointing to s3 resources
   }
   deriving stock (Eq, Ord, Show, Generic)
@@ -120,3 +122,15 @@ instance FromJSON EJPDResponseItem where
       <*> obj .:? "ejpd_response_team_contacts"
       <*> obj .:? "ejpd_response_conversations"
       <*> obj .:? "ejpd_response_assets"
+
+data EJPDConvInfo = EJPDConvInfo {ejpdConvName :: Text, ejpdConvId :: ConvId}
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform EJPDConvInfo)
+  deriving (ToJSON, FromJSON, ToSchema) via S.Schema EJPDConvInfo
+
+instance S.ToSchema EJPDConvInfo where
+  schema =
+    S.object "EJPDConvInfo" $
+      EJPDConvInfo
+        <$> ejpdConvName S..= S.field "conv_name" S.schema
+        <*> ejpdConvId S..= S.field "conv_id" S.schema

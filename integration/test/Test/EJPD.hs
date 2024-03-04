@@ -3,6 +3,7 @@ module Test.EJPD (testEJPDRequest) where
 
 import API.Brig
 import qualified API.BrigInternal as BI
+import API.Galley
 import API.Gundeck
 import Control.Lens hiding ((.=))
 import Control.Monad.Reader
@@ -20,7 +21,7 @@ import Testlib.Prelude
 setupEJPD :: HasCallStack => App (A.Value, A.Value, A.Value, A.Value, A.Value)
 setupEJPD =
   do
-    (owner1, _tid1, [usr1, usr2]) <- createTeam OwnDomain 3
+    (owner1, tid1, [usr1, usr2]) <- createTeam OwnDomain 3
     handle1 <- liftIO $ UUID.nextRandom <&> ("usr1-handle-" <>) . UUID.toString
     handle2 <- liftIO $ UUID.nextRandom <&> ("usr2-handle-" <>) . UUID.toString
     void $ putHandle usr1 handle1
@@ -77,8 +78,16 @@ setupEJPD =
       (: []) . snd <$> uploadDownloadProfilePicture usr4
 
     (convs1, convs2, convs4) <- do
-      -- FUTUREWORKI(fisx): implement this (create both team convs and regular convs)
-      pure (Nothing, Nothing, Nothing)
+      conv11 <- postConversation usr1 (defProteus {name = Just "11", qualifiedUsers = [usr2], team = Just tid1}) >>= getJSON 201
+      conv12 <- postConversation usr1 (defMLS {name = Just "12", qualifiedUsers = [], team = Just tid1}) >>= getJSON 201
+      conv31 <- postConversation usr3 (defProteus {name = Just "31", qualifiedUsers = [usr5]}) >>= getJSON 201
+      conv41 <- postConversation usr4 (defProteus {name = Just "41", qualifiedUsers = [usr2, usr5]}) >>= getJSON 201
+      let parse :: Value -> (String, String)
+          parse val =
+            ( cs $ val ^?! key (fromString "name") . _String,
+              cs $ val ^?! key (fromString "id") . _String
+            )
+      pure (Just (parse <$> [conv11, conv12]), Just [parse conv31], Just [parse conv41])
 
     let usr2contacts = Just $ (,"accepted") <$> [ejpd4]
         usr3contacts = Just $ (,"accepted") <$> [ejpd5]

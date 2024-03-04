@@ -59,9 +59,11 @@ import Galley.Effects.BackendNotificationQueueAccess
 import Galley.Effects.ClientStore
 import Galley.Effects.ConversationStore
 import Galley.Effects.LegalHoldStore as LegalHoldStore
+import Galley.Effects.ListItems
 import Galley.Effects.MemberStore qualified as E
 import Galley.Effects.TeamStore
 import Galley.Effects.TeamStore qualified as E
+import Galley.Env qualified
 import Galley.Monad
 import Galley.Options hiding (brig)
 import Galley.Queue qualified as Q
@@ -84,6 +86,7 @@ import Servant hiding (JSON, WithStatus)
 import System.Logger.Class hiding (Path, name)
 import System.Logger.Class qualified as Log
 import Wire.API.Conversation hiding (Member)
+import Wire.API.Conversation qualified
 import Wire.API.Conversation.Action
 import Wire.API.CustomBackend
 import Wire.API.Error
@@ -95,9 +98,11 @@ import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
 import Wire.API.Provider.Service hiding (Service)
 import Wire.API.Routes.API
+import Wire.API.Routes.Internal.Brig.EJPD
 import Wire.API.Routes.Internal.Galley
 import Wire.API.Routes.Internal.Galley.TeamsIntra
 import Wire.API.Routes.MultiTablePaging (mtpHasMore, mtpPagingState, mtpResults)
+import Wire.API.Routes.MultiTablePaging qualified as MTP
 import Wire.API.Team.Feature hiding (setStatus)
 import Wire.API.User.Client
 import Wire.NotificationSubsystem
@@ -118,6 +123,46 @@ internalAPI =
       <@> featureAPI
       <@> federationAPI
       <@> conversationAPI
+      <@> iEJPDAPI
+
+iEJPDAPI :: API IEJPDAPI GalleyEffects
+iEJPDAPI = mkNamedAPI @"get-conversations-by-user" (callsFed (exposeAnnotations ejpdGetConvInfo))
+
+-- | An unpaginated, internal http interface to `Query.conversationIdsPageFrom`.  Used for
+-- EJPD reports.  Called locally with very little data for each conv, so we don't expect
+-- pagination to ever be needed.
+ejpdGetConvInfo ::
+  forall r p.
+  ( p ~ CassandraPaging,
+    Member ConversationStore r,
+    Member (Error InternalError) r,
+    Member (Input Env) r,
+    Member (ListItems p ConvId) r,
+    Member (ListItems p (Remote ConvId)) r,
+    Member P.TinyLog r
+  ) =>
+  UserId ->
+  Sem r [EJPDConvInfo]
+ejpdGetConvInfo uid = do
+  luid <- (`toLocalUnsafe` uid) . view (Galley.Env.options . Galley.Options.settings . federationDomain) <$> input
+  firstPage <- Query.conversationIdsPageFrom luid initialPageRequest
+  getPages luid firstPage
+  where
+    initialPageRequest = mkPageRequest Nothing
+    mkPageRequest = MTP.GetMultiTablePageRequest (toRange (Proxy @1000))
+
+    -- getPages :: Local UserId -> MTP.MultiTablePage name resultsKey MTP.LocalOrRemoteTable (Qualified ConvId) -> Sem r [EJPDConvInfo]
+    getPages luid page = do
+      let convids = MTP.mtpResults page
+      let mk conv = EJPDConvInfo (fromMaybe "n\a" conv.convMetadata.cnvmName) conv.convId
+      renderedPage <- mk <$$> getConversations (qUnqualified <$> convids)
+      if MTP.mtpHasMore page
+        then do
+          newPage <- Query.conversationIdsPageFrom luid (mkPageRequest . Just . MTP.mtpPagingState $ page)
+          morePages <- getPages luid newPage
+          pure $ renderedPage <> morePages
+        else do
+          pure renderedPage
 
 federationAPI :: API IFederationAPI GalleyEffects
 federationAPI =

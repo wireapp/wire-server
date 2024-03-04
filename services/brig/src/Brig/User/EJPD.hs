@@ -34,7 +34,7 @@ import Control.Lens (view, (^.))
 import Data.Aeson qualified as A
 import Data.ByteString.Conversion
 import Data.Handle (Handle)
-import Data.Id (UserId)
+import Data.Id (ConvId, UserId)
 import Data.Set qualified as Set
 import Data.Text qualified as T
 import Imports hiding (head)
@@ -107,8 +107,25 @@ ejpdRequest (fromMaybe False -> includeContacts) (EJPDRequestBody handles) = do
             pure Nothing
 
       mbConversations <- do
-        -- FUTUREWORK(fisx)
-        pure Nothing
+        if reallyIncludeContacts
+          then do
+            {-
+                          CREATE TABLE galley_test.user (
+                              user uuid,
+                              conv uuid
+
+                but that's not exposed to brig in GalleyProvider.  m|
+            -}
+            convs :: [(Text, ConvId)] <- undefined
+            undefined
+          else {-
+                             liftSem $
+                               GalleyProvider.getConv
+                                 _
+                           _
+               -}
+          do
+            pure Nothing
 
       mbAssets <- do
         urls <- forM (userAssets target) $ \(asset :: Asset) -> do
