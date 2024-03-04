@@ -209,7 +209,7 @@ The refresh interval (TTL, `Time To Live <https://en.wikipedia.org/wiki/Time_to_
 
 The configuration contains all available `TURN` servers, credentials to connect to the `TURN` server, and all available transport protocols.
 
-`TURN` servers can be configured to allow any combination out of `UDP`, `TCP`, and `TLS`.
+`TURN` servers can be configured to allow any combination out of `UDP`, `TCP`, and `TCP with TLS`.
 
 They are listening on the following ports:
 
@@ -252,7 +252,7 @@ A typical call configuration for one `TURN` server and all transports, and one `
       }]
       }
 
-In the above example, client `A` would receive a call configuration from the backend that includes `TURN` server A in combination with `UDP`, `TCP`, and `TLS` transport.
+In the above example, client `A` would receive a call configuration from the backend that includes `TURN` server A in combination with `UDP`, `TCP`, and `TCP with TLS` transport.
 
 On the other side, client `B` would receive a similar call configuration from the backend as well that includes `TURN` server B.
 
