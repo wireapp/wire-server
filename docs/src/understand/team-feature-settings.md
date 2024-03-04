@@ -198,6 +198,76 @@ URL_WEBAPP_BASE="https://app.wire.com"
 URL_WEBSITE_BASE="https://wire.com"
 ```
 
+The values are stored inside of the `team-settings` pod in your wire kubernetes installation.
+
+To edit the variables, first you need to find the precise name of the `team-settings` pod.
+
+To get all pods:
+
+```
+d kubectl get pods -owide
+```
+
+To get just the `team-settings` pod:
+
+```
+d kubectl get pods -l app=team-settings
+```
+
+In this example we get:
+
+```
+demo@wiab-22:~/wire-server-deploy$ d kubectl get pods -l app=team-settings 
+NAME                             READY   STATUS    RESTARTS   AGE
+team-settings-6db5b6cb95-dc5s7   1/1     Running   0          18d
+```
+
+So here our `team-settings` pod name is `team-settings-6db5b6cb95-dc5s7`
+
+Next we log into the pod itself:
+
+```
+d kubectl exec -it team-settings-6db5b6cb95-dc5s7 -- /bin/bash
+```
+
+This gives us a prompt into the pod. We can then see the file we want to edit with `ls -lh .env.defaults` :
+
+```
+team-settings-6db5b6cb95-dc5s7:/$ ls -lh .env.defaults 
+-rw-r--r--    1 root     root        6.8K Oct 19 08:39 .env.defaults
+```
+
+Now that we know where the file is, we can edit it using `vi`:
+
+```
+vi .env.defaults
+```
+
+Now that you are inside the file, you can not immediately edit the file as you could with something like `nano`.
+
+In vi, there are different modes for editing and other tasks.
+
+So first, you must enter edit mode by typing `i` on your keyboard.
+
+Now that you are in edit mode, you can navigate as usual using your keyboard arrows and keys to move and edit the values.
+
+Once you have done your changes, you can save them to the file.
+
+You do this by hitting the `Escape` key, followed by `:wq` followed by `Enter`.
+
+This will save the file and exit `vi`.
+
+To finish, you can make sure the saved contents of the file are as you expect using `vi` or type:
+
+```
+cat .env.defaults
+```
+
+You're done, your values are changed, exit the pod by entering:
+
+```
+exit
+```
 
 
 
