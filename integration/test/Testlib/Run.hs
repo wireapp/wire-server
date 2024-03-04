@@ -16,7 +16,6 @@ import Data.Functor
 import Data.List
 import Data.PEM
 import Data.Time.Clock
-import Data.Traversable (for)
 import RunAllTests
 import System.Directory
 import System.Environment
@@ -147,7 +146,8 @@ runTests tests mXMLOutput cfg = do
 
   runCodensity (createGlobalEnv cfg) $ \genv ->
     withAsync displayOutput $ \displayThread -> do
-      report <- fmap mconcat $ for tests $ \(qname, _, _, action) -> do
+      cap <- getNumCapabilities
+      report <- fmap mconcat $ pooledForConcurrentlyN (min 4 cap) tests $ \(qname, _, _, action) -> do
         (mErr, tm) <- withTime (runTest genv action)
         case mErr of
           Left err -> do
