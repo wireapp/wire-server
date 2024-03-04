@@ -121,11 +121,11 @@ Conference calls use an additional server-side component (Selective Forwarding `
 Call signaling
 ..............
 
-All calls are initiated through the `E2EE` session.
+All calls are initiated through the `E2EE` (End to End Encryption) session.
 
 Call signalling parameters to establish a connection between Wire endpoints and negotiating their common capabilities is done by exchanging `SDP` ( `Session Description Protocol <https://en.wikipedia.org/wiki/Session_Description_Protocol>`__ ) messages.
 
-For one-to-one calls, these messages are sent between clients as `E2EE` messages, using the same encryption as text messages.
+For one-to-one calls, these messages are sent between clients as `E2EE` (End to End Encryption) messages, using the same encryption as text messages.
 
 In the case of conference calls, `SDP` messages are sent as `HTTPS` messages between a client `A`nd a Selective Forwarding `TURN` (SFT) server.
 
@@ -278,7 +278,7 @@ Client `A` now is reachable from the outside via the tuple of external IP addres
 
 All data that is sent to this tuple will be forwarded to client `A`.
 
-The next step in the call setup process is to send this allocated tuple to client `B` in a call setup message via an `E2EE` message.
+The next step in the call setup process is to send this allocated tuple to client `B` in a call setup message via an `E2EE` (End to End Encryption)  message.
 
 When client `B` receives the setup message it will run through the same procedure as client `A`.
 
@@ -290,7 +290,7 @@ Client `B` at this point is reachable from the outside via the tuple of external
 
 All data that is sent to this tuple will be forwarded to client `B`.
 
-Client `B` sends this tuple to client `A` in an answer to the call setup message from client `A` via an `E2EE` message.
+Client `B` sends this tuple to client `A` in an answer to the call setup message from client `A` via an `E2EE` (End to End Encryption)  message.
 
 
 Now both clients, client `A` and client `B`, run through a connectivity check where they try to reach the other client on all possible routes.
@@ -310,7 +310,7 @@ Calling in federated environments
 
 A call between two federated participants is not different from a call between two participants on the same domain.
 
-Both participants exchange connection capabilities as `E2EE` messages and setup their connection based on the available connection endpoints.
+Both participants exchange connection capabilities as `E2EE` (End to End Encryption)  messages and setup their connection based on the available connection endpoints.
 
 Federated backends may additionally provide `TURN` servers to provide external connectivity.
 
@@ -324,7 +324,7 @@ This version implements a base-line security that is comparable with other end-t
 
 The goal however is to move to an `sframe`-based solution on top of MLS.
 
-All messages between clients are sent with the selected `E2EE` protocol and inherit the security properties accordingly, i.e. authenticity and end-to-end encryption.
+All messages between clients are sent with the selected `E2EE` (End to End Encryption)  protocol and inherit the security properties accordingly, i.e. authenticity and end-to-end encryption.
 
 Selective Forwarding TURN Server (SFT)
 ......................................
@@ -348,7 +348,7 @@ Calling messages
 
 Wire uses `JSON` for encoding calling messages.
 
-Messages are sent via `HTTPS` post/response, via `E2EE` session or via the data channel between clients and the `SFT`.
+Messages are sent via `HTTPS` post/response, via `E2EE` (End to End Encryption)  session or via the data channel between clients and the `SFT`.
 
 Messages only relevant for current call participants are sent via targeted `E2EE` messages to clients in the ongoing call (only `Proteus` supports targeted messages, `MLS` uses a subgroup to send the message to all actively participating clients).
 
@@ -383,7 +383,7 @@ List of the messages used for establishing calls:
 Starting and joining a call
 ...........................
 
-This next figure shows the `HTTPS` calls (red), `E2EE` messages (black) and data channel messages (green) for a three party call, where client `A` starts the call, then client `B` joins and client `C` joins later.
+This next figure shows the `HTTPS` calls (red), `E2EE` (End to End Encryption)  messages (black) and data channel messages (green) for a three party call, where client `A` starts the call, then client `B` joins and client `C` joins later.
 
 .. figure:: img/sft-starting-and-joining-a-call.png
    :alt: Starting and joining a call.
@@ -453,7 +453,7 @@ Step by step:
 1. Client A leaves the call by sending a `HANGUP` message to the `SFT`.
    The `SFT` responds with a `HANGUP` response and the connection is dropped.
 2. The `SFT` sends an updated `CONFPART` with the participant list [B, C] to the remaining clients.
-3. Client B, seeing that it has become the new key generator, generates a new key and sends it via targeted `E2EE` messages 
+3. Client B, seeing that it has become the new key generator, generates a new key and sends it via targeted `E2EE` (End to End Encryption)  messages 
    (only `Proteus` supports targeted messages, `MLS` sends the message to the whole group) to the clients still in the call (in this case client C).
 4. Client B leaves in the same way.
 5. The `SFT` sends an update `CONFPART` with the participant list [C], client C generates a new key but has no-one to send it to.
@@ -498,7 +498,7 @@ Step by step:
 
 1. After client B joins, the `SFT` sends a `CONFPART` with participant list [A, B] to both clients.
 2. Client A sees a new valid client B and sends the current key in a `CONFKEY` response.
-3. If client B doesn’t receive the key in time, client B will request a key from the current `KeyGenerator` (A) via targeted `E2EE` messages 
+3. If client B doesn’t receive the key in time, client B will request a key from the current `KeyGenerator` (A) via targeted `E2EE` (End to End Encryption)  messages 
    (only `Proteus` supports targeted messages, `MLS` sends the message to the whole group) by sending a `CONFKEY` request.
 4. A receives the request, checks that client B is valid and in the call and if so sends a new `CONFKEY` message.
 
