@@ -106,8 +106,21 @@ ejpdRequest (fromMaybe False -> includeContacts) (EJPDRequestBody handles) = do
             pure Nothing
 
       mbConversations <- do
-        -- FUTUREWORK(fisx)
-        pure Nothing
+        if reallyIncludeContacts
+          then do
+            {-
+                          CREATE TABLE galley_test.user (
+                              user uuid,
+                              conv uuid
+
+                but that's not exposed to brig in GalleyProvider.  m|
+            -}
+            convs :: [(Text, ConvId)] <-
+              liftSem $
+                GalleyProvider.getConv
+                  _
+          else do
+            pure Nothing
 
       mbAssets <- do
         urls <- forM (userAssets target) $ \(asset :: Asset) -> do
