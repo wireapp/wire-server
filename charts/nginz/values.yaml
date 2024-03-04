@@ -67,7 +67,8 @@ nginx_conf:
   user_rate_limit_request_zones:
     - limit_req_zone $rate_limited_by_addr zone=reqs_per_addr_sso:12m rate=50r/s;
     - limit_req_zone $rate_limited_by_zuser zone=reqs_per_user_signatures:12m rate=10r/m;
-    - limit_req_zone $rate_limited_by_zuser_path zone=key_package_claims:12m rate=100r/m;
+    - limit_req_zone $rate_limited_by_zuser zone=key_package_claims_per_user:12m rate=3000r/m;
+    - limit_req_zone $rate_limited_by_zuser_path zone=key_package_claims_per_user_per_target:12m rate=100r/m;
     - limit_req_zone $rate_limited_by_zuser zone=one2one_conv:12m rate=3000r/m;
 
   # The origins from which we allow CORS requests. These are combined with
@@ -214,8 +215,17 @@ nginx_conf:
     - path: /mls/key-packages/claim
       envs:
       - all
-      specific_user_rate_limit: key_package_claims
-      specific_user_rate_limit_burst: 100
+      specific_rate_limits:
+      # This endpoint gets called for every user that will get added to a
+      # conversation. A lot of these are expected during conversation
+      # creation.
+      - zone: key_package_claims_per_user
+        burst: 600
+      - zone: key_package_claims_per_user_per_target
+        burst: 100
+      # The name is a little misleading, this just disables default rate
+      # limiting in favour of the specific one defined above.
+      unlimited_requests_endpoint: true
     - path: /mls/key-packages
       envs:
       - all
