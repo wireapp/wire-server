@@ -38,6 +38,7 @@ import Test.QuickCheck
 import Test.Wire.Util
 import UnliftIO.Async
 import Util.Options
+import Wire.API.Conversation.Action
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Common
@@ -125,6 +126,51 @@ spec = do
                          frComponent = Galley,
                          frRPC = "on-client-removed",
                          frBody = Aeson.encode notifContent
+                       }
+                   ]
+      getVectorWith env.backendNotificationMetrics.pushedCounter getCounter
+        `shouldReturn` [(domainText targetDomain, 1)]
+
+    it "should negotiate the best version" $ do
+      let origDomain = Domain "origin.example.com"
+          targetDomain = Domain "target.example.com"
+      update <- generate $ do
+        now <- arbitrary
+        user <- arbitrary
+        convId <- arbitrary
+        pure
+          ConversationUpdate
+            { time = now,
+              origUserId = user,
+              convId = convId,
+              alreadyPresentUsers = [],
+              action = SomeConversationAction SConversationLeaveTag ()
+            }
+      let update0 = conversationUpdateToV0 update
+      let bundle =
+            toBundle (RequestId "N/A") origDomain update
+              <> toBundle (RequestId "N/A") origDomain update0
+      envelope <- newMockEnvelope
+      let msg =
+            Q.newMsg
+              { Q.msgBody = Aeson.encode bundle,
+                Q.msgContentType = Just "application/json"
+              }
+      runningFlag <- newMVar ()
+      (env, fedReqs) <-
+        withTempMockFederator def {versions = [0, 2]} . runTestAppT $ do
+          wait =<< pushNotification runningFlag targetDomain (msg, envelope)
+          ask
+
+      readIORef envelope.acks `shouldReturn` 1
+      readIORef envelope.rejections `shouldReturn` []
+      fedReqs
+        `shouldBe` [ FederatedRequest
+                       { frTargetDomain = targetDomain,
+                         frOriginDomain = origDomain,
+                         frComponent = Galley,
+                         frRPC = "on-conversation-updated",
+                         frBody = Aeson.encode update0
                        }
                    ]
       getVectorWith env.backendNotificationMetrics.pushedCounter getCounter

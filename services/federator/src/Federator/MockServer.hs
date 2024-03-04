@@ -146,7 +146,7 @@ mockInternalRequest remoteCalls mock targetDomain component (RPC path) req = do
         )
   (ct, resBody) <-
     if path == "api-version"
-      then pure ("application/json", Aeson.encode versionInfo)
+      then pure ("application/json", Aeson.encode (VersionInfo mock.versions))
       else do
         modifyIORef remoteCalls (<> [fedRequest])
         fromException @MockException
@@ -162,14 +162,16 @@ mockInternalRequest remoteCalls mock targetDomain component (RPC path) req = do
 
 data MockFederator = MockFederator
   { headers :: [HTTP.Header],
-    handler :: FederatedRequest -> IO (HTTP.MediaType, LByteString)
+    handler :: FederatedRequest -> IO (HTTP.MediaType, LByteString),
+    versions :: [Int]
   }
 
 instance Default MockFederator where
   def =
     MockFederator
       { headers = [],
-        handler = \_ -> pure ("application/json", Aeson.encode EmptyResponse)
+        handler = \_ -> pure ("application/json", Aeson.encode EmptyResponse),
+        versions = map versionInt (toList supportedVersions)
       }
 
 -- | Spawn a mock federator on a random port and run an action while it is running.
