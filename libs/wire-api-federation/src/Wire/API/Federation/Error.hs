@@ -84,6 +84,7 @@ module Wire.API.Federation.Error
 where
 
 import Data.Aeson qualified as Aeson
+import Data.Domain
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
 import Data.Text.Encoding.Error qualified as T
@@ -97,6 +98,7 @@ import Network.Wai.Utilities.Error qualified as Wai
 import OpenSSL.Session (SomeSSLException)
 import Servant.Client
 import Wire.API.Error
+import Wire.Network.DNS.SRV
 
 -- | Transport-layer errors in federator client.
 data FederatorClientHTTP2Error
@@ -209,27 +211,43 @@ federationClientErrorToWai FederatorClientVersionMismatch =
     "internal-error"
     "Endpoint version mismatch in federation client"
 
-federationRemoteHTTP2Error :: FederatorClientHTTP2Error -> Wai.Error
-federationRemoteHTTP2Error FederatorClientNoStatusCode =
-  Wai.mkError
-    unexpectedFederationResponseStatus
-    "federation-http2-error"
-    "No status code in HTTP2 response"
-federationRemoteHTTP2Error (FederatorClientHTTP2Exception e) =
-  Wai.mkError
-    unexpectedFederationResponseStatus
-    "federation-http2-error"
-    (LT.pack (displayException e))
-federationRemoteHTTP2Error (FederatorClientTLSException e) =
-  Wai.mkError
-    (HTTP.mkStatus 525 "SSL Handshake Failure")
-    "federation-tls-error"
-    (LT.pack (displayException e))
-federationRemoteHTTP2Error (FederatorClientConnectionError e) =
-  Wai.mkError
-    federatorConnectionRefusedStatus
-    "federation-connection-refused"
-    (LT.pack (displayException e))
+federationRemoteHTTP2Error :: SrvTarget -> Text -> FederatorClientHTTP2Error -> Wai.Error
+federationRemoteHTTP2Error target path = \case
+  FederatorClientNoStatusCode ->
+    ( Wai.mkError
+        unexpectedFederationResponseStatus
+        "federation-http2-error"
+        "No status code in HTTP2 response"
+    )
+      & addErrData
+  (FederatorClientHTTP2Exception e) ->
+    ( Wai.mkError
+        unexpectedFederationResponseStatus
+        "federation-http2-error"
+        (LT.pack (displayException e))
+    )
+      & addErrData
+  (FederatorClientTLSException e) ->
+    ( Wai.mkError
+        (HTTP.mkStatus 525 "SSL Handshake Failure")
+        "federation-tls-error"
+        (LT.pack (displayException e))
+    )
+      & addErrData
+  (FederatorClientConnectionError e) ->
+    ( Wai.mkError
+        federatorConnectionRefusedStatus
+        "federation-connection-refused"
+        (LT.pack (displayException e))
+    )
+      & addErrData
+  where
+    addErrData err =
+      err
+        { Wai.errorData =
+            ((mkDomain . cs . srvTargetDomain $ target) :: Either String Domain)
+              & either (const Nothing) (\dom -> Just (Wai.FederationErrorData dom path))
+        }
 
 federationClientHTTP2Error :: FederatorClientHTTP2Error -> Wai.Error
 federationClientHTTP2Error (FederatorClientConnectionError e) =
@@ -243,8 +261,8 @@ federationClientHTTP2Error e =
     "federation-local-error"
     (LT.pack (displayException e))
 
-federationRemoteResponseError :: HTTP.Status -> LByteString -> Wai.Error
-federationRemoteResponseError status body =
+federationRemoteResponseError :: SrvTarget -> Text -> HTTP.Status -> LByteString -> Wai.Error
+federationRemoteResponseError target path status body =
   ( Wai.mkError
       unexpectedFederationResponseStatus
       "federation-remote-error"
@@ -252,7 +270,10 @@ federationRemoteResponseError status body =
           <> LT.pack (show (HTTP.statusCode status))
       )
   )
-    { Wai.innerError =
+    { Wai.errorData =
+        ((mkDomain . cs . srvTargetDomain $ target) :: Either String Domain)
+          & either (const Nothing) (\dom -> Just (Wai.FederationErrorData dom path)),
+      Wai.innerError =
         Just $
           fromMaybe
             ( Wai.mkError
