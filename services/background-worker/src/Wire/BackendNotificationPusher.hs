@@ -24,7 +24,9 @@ import UnliftIO
 import Wire.API.Federation.API
 import Wire.API.Federation.BackendNotifications
 import Wire.API.Federation.Client
+import Wire.API.Federation.Error
 import Wire.API.Federation.Version
+import Wire.API.RawJson
 import Wire.BackgroundWorker.Env
 import Wire.BackgroundWorker.Options
 import Wire.BackgroundWorker.Util
@@ -116,7 +118,7 @@ pushNotification runningFlag targetDomain (msg, envelope) = do
                 cveEnv = FederatorClientEnv {..}
                 cveVersion = Just V0 -- V0 is assumed for non-versioned queue messages
                 fcEnv = FederatorClientVersionedEnv {..}
-            liftIO $ either throwM pure =<< sendNotification fcEnv notif.targetComponent notif.path notif.body
+            sendNotificationIgnoringVersionMismatch fcEnv notif.targetComponent notif.path notif.body
             lift $ ack envelope
             metrics <- asks backendNotificationMetrics
             withLabel metrics.pushedCounter (domainText targetDomain) incCounter
@@ -144,7 +146,7 @@ pushNotification runningFlag targetDomain (msg, envelope) = do
             >>= \case
               Left e -> do
                 Log.err $
-                  Log.msg (Log.val "Failed to get supported API versions, the notification will be ignored")
+                  Log.msg (Log.val "Failed to get supported API versions")
                     . Log.field "domain" (domainText targetDomain)
                     . Log.field "error" (displayException e)
                 throwM e
@@ -165,11 +167,28 @@ pushNotification runningFlag targetDomain (msg, envelope) = do
                 ceOriginRequestId = fromMaybe (RequestId "N/A") notif.requestId
                 cveEnv = FederatorClientEnv {..}
                 fcEnv = FederatorClientVersionedEnv {..}
-            liftIO $ either throwM pure =<< sendNotification fcEnv notif.targetComponent notif.path notif.body
+            sendNotificationIgnoringVersionMismatch fcEnv notif.targetComponent notif.path notif.body
             lift $ ack envelope
             metrics <- asks backendNotificationMetrics
             withLabel metrics.pushedCounter (domainText targetDomain) incCounter
             withLabel metrics.stuckQueuesGauge (domainText targetDomain) (flip setGauge 0)
+
+sendNotificationIgnoringVersionMismatch ::
+  FederatorClientVersionedEnv ->
+  Component ->
+  Text ->
+  RawJson ->
+  AppT IO ()
+sendNotificationIgnoringVersionMismatch env comp path body =
+  liftIO (sendNotification env comp path body) >>= \case
+    Left (FederatorClientVersionNegotiationError v) -> do
+      Log.fatal $
+        Log.msg (Log.val "Federator version negotiation error")
+          . Log.field "domain" (domainText env.cveEnv.ceTargetDomain)
+          . Log.field "error" (show v)
+      pure ()
+    Left e -> throwM e
+    Right () -> pure ()
 
 -- | Find the pair that maximises b.
 pairedMaximumOn :: Ord b => (a -> b) -> [a] -> (a, b)
