@@ -30,7 +30,7 @@ without compromising end-to-end security.
 Architecture
 ------------
 
-The following diagram is centered around `SFT` and its role within a calling setup. Restund is seen
+The following diagram is centered around `SFT` and its role within a calling setup. Restund(/coturn) is seen
 as a mere client proxy and its relation to and interaction with a client is explained
 :ref:`here <understand-restund>`. The diagram shows that a call resides on a single `SFT` instance
 and that the instance allocates at least one port for media transport per participant in the call.
@@ -39,6 +39,10 @@ and that the instance allocates at least one port for media transport per partic
 
     `SFT` signaling, and media sending from the perspective of one caller
 
+.. note::
+
+    Default SFT Port: 8585/tcp (HTTP)
+    SFT Metrics Port: 49090/tcp (HTTP)
 
 Establishing a call
 -------------------
@@ -78,13 +82,13 @@ of the `SFT` server(s) - either directly or through a load balancer sitting in f
 This is only needed for the call initiation/joining part.
 Additionally, for the media connection, clients and `SFT` servers should be able to reach each other
 via UDP (see :ref:`Firewall rules <install-sft-firewall-rules>`).
-If that is not possible, then at least `SFT` servers and Restund servers should be able to reach each
-other via UDP - and clients may connect via UDP and/or TCP to Restund servers
+If that is not possible, then at least `SFT` servers and Restund/Coturn servers should be able to reach each
+other via UDP - and clients may connect via UDP and/or TCP to Restund/Coturn servers
 (see :ref:`Protocols and open ports <understand-restund-protocal-and-ports>`), which in
 `TURN` will connect to the `SFT` server.
 In the unlikely scenario where no UDP is allowed whatsoever or `SFT` servers may not be able to reach
-the Restund servers that clients are using to make themselves reachable, an `SFT` server itself can
-also choose to proxy itself by a Restund server, which could be different from the Restund servers
+the Restund/Coturn servers that clients are using to make themselves reachable, an `SFT` server itself can
+also choose to proxy itself by a Restund/Coturn server, which could be different from the Restund/Coturn servers
 used by clients (see *`TURN` discovery* flag).
 
 The `SFT` may need to receive and send traffic over UDP and TCP on a wide range of ports.
