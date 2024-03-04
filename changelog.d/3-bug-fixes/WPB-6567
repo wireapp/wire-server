@@ -1,0 +1,1 @@
+coturn cert-reloader sidecar config: process name should not contain the path (helm chart)
