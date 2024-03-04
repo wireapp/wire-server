@@ -17,17 +17,17 @@ custom-setup
     , containers
     , directory
     , filepath
+    , haskell-src-exts
 
 common common-all
   default-language:   GHC2021
   ghc-options:
-    -Wall -Wpartial-fields -fwarn-tabs
-    -optP-Wno-nonportable-include-path
+    -Wall -Wpartial-fields -fwarn-tabs -Wno-incomplete-uni-patterns
 
   default-extensions:
-    NoImplicitPrelude
     AllowAmbiguousTypes
     BangPatterns
+    BlockArguments
     ConstraintKinds
     DataKinds
     DefaultSignatures
@@ -50,6 +50,8 @@ common common-all
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NoImplicitPrelude
+    NoImportQualifiedPost
     OverloadedLabels
     OverloadedRecordDot
     PackageImports
@@ -87,6 +89,7 @@ library
   -- cabal-fmt: expand test
   exposed-modules:
     API.Brig
+    API.BrigCommon
     API.BrigInternal
     API.Cargohold
     API.Common
@@ -96,28 +99,55 @@ library
     API.Gundeck
     API.GundeckInternal
     API.Nginz
+    API.Spar
     MLS.Util
     Notifications
     RunAllTests
     SetupHelpers
+    Test.AccessUpdate
     Test.AssetDownload
+    Test.AssetUpload
     Test.B2B
     Test.Brig
+    Test.Cargohold.API
+    Test.Cargohold.API.Federation
+    Test.Cargohold.API.Util
+    Test.Cargohold.API.V3
+    Test.Cargohold.Metrics
     Test.Client
+    Test.Connection
     Test.Conversation
-    Test.Defederation
     Test.Demo
+    Test.Errors
+    Test.ExternalPartner
+    Test.FeatureFlags
     Test.Federation
     Test.Federator
+    Test.LegalHold
+    Test.MessageTimer
+    Test.MLS
+    Test.MLS.KeyPackage
+    Test.MLS.Message
+    Test.MLS.One2One
+    Test.MLS.SubConversation
+    Test.MLS.Unreachable
     Test.Notifications
     Test.Presence
+    Test.Roles
+    Test.Search
+    Test.Services
+    Test.Swagger
+    Test.TeamSettings
     Test.User
+    Test.Version
     Testlib.App
     Testlib.Assertions
     Testlib.Cannon
     Testlib.Env
     Testlib.HTTP
     Testlib.JSON
+    Testlib.Mock
+    Testlib.MockIntegrationService
     Testlib.ModService
     Testlib.One2One
     Testlib.Options
@@ -130,6 +160,7 @@ library
     Testlib.Run
     Testlib.RunServices
     Testlib.Types
+    Testlib.XML
 
   build-depends:
     , aeson
@@ -143,8 +174,12 @@ library
     , bytestring-conversion
     , case-insensitive
     , containers
-    , cryptonite
+    , cql
+    , cql-io
+    , crypton
     , data-default
+    , data-timeout
+    , deriving-aeson
     , directory
     , errors
     , exceptions
@@ -152,6 +187,7 @@ library
     , extra
     , filepath
     , hex
+    , HsOpenSSL
     , http-client
     , http-types
     , kan-extensions
@@ -164,14 +200,18 @@ library
     , network
     , network-uri
     , optparse-applicative
+    , pem
     , process
     , proto-lens
     , random
     , raw-strings-qq
+    , regex-base
+    , regex-tdfa
     , retry
     , scientific
     , split
     , stm
+    , streaming-commons
     , string-conversions
     , tagged
     , temporary
@@ -183,6 +223,10 @@ library
     , unliftio
     , uuid
     , vector
+    , wai
+    , warp
+    , warp-tls
     , websockets
     , wire-message-proto-lens
+    , xml
     , yaml

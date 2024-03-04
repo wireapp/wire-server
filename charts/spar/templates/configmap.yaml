@@ -25,6 +25,9 @@ data:
       {{- if hasKey .cassandra "filterNodesByDatacentre" }}
       filterNodesByDatacentre: {{ .cassandra.filterNodesByDatacentre }}
       {{- end }}
+      {{- if eq (include "useCassandraTLS" .) "true" }}
+      tlsCa: /etc/wire/spar/cassandra/{{- (include "tlsSecretRef" . | fromYaml).key }}
+      {{- end }}
 
     maxttlAuthreq: {{ .maxttlAuthreq }}
     maxttlAuthresp: {{ .maxttlAuthresp }}
@@ -33,9 +36,7 @@ data:
 
     maxScimTokens: {{ .maxScimTokens }}
 
-    {{- if .disabledAPIVersions }}
-    disabledAPIVersions: {{ .disabledAPIVersions }}
-    {{- end }}
+    disabledAPIVersions: {{ toJson .disabledAPIVersions }}
 
     saml:
       version:     SAML2.0

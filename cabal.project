@@ -1,3 +1,6 @@
+repository hackage.haskell.org
+  url: https://hackage.haskell.org/
+index-state: 2023-10-03T15:17:00Z
 packages:
     integration
   , libs/bilge/
@@ -28,6 +31,7 @@ packages:
   , libs/wire-api/
   , libs/wire-api-federation/
   , libs/wire-message-proto-lens/
+  , libs/wire-subsystems/
   , libs/zauth/
   , services/background-worker/
   , services/brig/
@@ -48,8 +52,11 @@ packages:
   , tools/db/repair-brig-clients-table/
   , tools/db/service-backfill/
   , tools/fedcalls/
+  , tools/rabbitmq-consumer
   , tools/rex/
   , tools/stern/
+  , tools/mlsstats/
+  , tools/test-stats/
 
 tests: True
 benchmarks: True
@@ -96,6 +103,8 @@ package hscim
     ghc-options: -Werror
 package http2-manager
     ghc-options: -Werror
+package integration
+    ghc-options: -Werror
 package imports
     ghc-options: -Werror
 package jwt-tools
@@ -106,11 +115,17 @@ package metrics-wai
     ghc-options: -Werror
 package migrate-sso-feature-flag
     ghc-options: -Werror
+package mlsstats
+    ghc-options: -Werror
 package move-team
     ghc-options: -Werror
 package polysemy-wire-zoo
     ghc-options: -Werror
 package proxy
+    ghc-options: -Werror
+package mlsstats
+    ghc-options: -Werror
+package rabbitmq-consumer
     ghc-options: -Werror
 package repair-handles
     ghc-options: -Werror
@@ -132,6 +147,8 @@ package stern
     ghc-options: -Werror
 package tasty-cannon
     ghc-options: -Werror
+package test-stats
+    ghc-options: -Werror
 package types-common
     ghc-options: -Werror
 package types-common-aws
@@ -146,5 +163,20 @@ package wire-api-federation
     ghc-options: -Werror
 package wire-message-proto-lens
     ghc-options: -Werror
+package wire-subsystems
+    ghc-options: -Werror
 package zauth
     ghc-options: -Werror
+package fedcalls
+    ghc-options: -Werror
+
+-- NOTE:
+-- - these packages are not provided by nix, reason being, that
+--   there is a bug in the nixpkgs haskell compatibility which
+--   makes it such that they cannot be installed by the nixpkgs code
+-- - these packages have bounds that are justified with their current
+--   dependency set, however, we have updated their dependencies, such
+--   that they work with newer base and ghc (api) versions
+allow-newer: 
+  , proto-lens-protoc:base
+  , proto-lens-protoc:ghc

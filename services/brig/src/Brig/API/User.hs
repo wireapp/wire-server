@@ -89,11 +89,10 @@ module Brig.API.User
 
     -- * Utilities
     fetchUserIdentity,
+    hackForBlockingHandleChangeForE2EIdTeams,
   )
 where
 
-import Bilge.IO (MonadHttp)
-import Bilge.RPC (HasRequestId)
 import Brig.API.Error qualified as Error
 import Brig.API.Handler qualified as API (Handler, UserNotAllowedToJoinTeam (..))
 import Brig.API.Types
@@ -116,7 +115,8 @@ import Brig.Effects.BlacklistStore (BlacklistStore)
 import Brig.Effects.BlacklistStore qualified as BlacklistStore
 import Brig.Effects.CodeStore (CodeStore)
 import Brig.Effects.CodeStore qualified as E
-import Brig.Effects.GalleyProvider (GalleyProvider)
+import Brig.Effects.ConnectionStore (ConnectionStore)
+import Brig.Effects.GalleyProvider
 import Brig.Effects.GalleyProvider qualified as GalleyProvider
 import Brig.Effects.PasswordResetStore (PasswordResetStore)
 import Brig.Effects.PasswordResetStore qualified as E
@@ -138,7 +138,7 @@ import Brig.User.Email
 import Brig.User.Handle
 import Brig.User.Handle.Blacklist
 import Brig.User.Phone
-import Brig.User.Search.Index (MonadIndexIO, reindex)
+import Brig.User.Search.Index (reindex)
 import Brig.User.Search.TeamSize qualified as TeamSize
 import Cassandra hiding (Set)
 import Control.Arrow ((&&&))
@@ -158,16 +158,18 @@ import Data.Map.Strict qualified as Map
 import Data.Metrics qualified as Metrics
 import Data.Misc
 import Data.Qualified
-import Data.Time.Clock (addUTCTime, diffUTCTime)
+import Data.Time.Clock (UTCTime, addUTCTime, diffUTCTime)
 import Data.UUID.V4 (nextRandom)
 import Galley.Types.Teams qualified as Team
 import Imports hiding (cs)
 import Network.Wai.Utilities
 import Polysemy
+import Polysemy.Input (Input)
+import Polysemy.TinyLog (TinyLog)
+import Polysemy.TinyLog qualified as Log
 import System.Logger.Class (MonadLogger)
-import System.Logger.Class qualified as Log
 import System.Logger.Message
-import UnliftIO.Async
+import UnliftIO.Async (mapConcurrently_)
 import Wire.API.Connection
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
@@ -176,7 +178,7 @@ import Wire.API.Password
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
 import Wire.API.Team hiding (newTeam)
-import Wire.API.Team.Feature (forgetLock)
+import Wire.API.Team.Feature
 import Wire.API.Team.Invitation
 import Wire.API.Team.Invitation qualified as Team
 import Wire.API.Team.Member (TeamMember, legalHoldStatus)
@@ -187,7 +189,9 @@ import Wire.API.User.Activation
 import Wire.API.User.Client
 import Wire.API.User.Password
 import Wire.API.User.RichInfo
+import Wire.NotificationSubsystem
 import Wire.Sem.Concurrency
+import Wire.Sem.Paging.Cassandra (InternalPaging)
 
 data AllowSCIMUpdates
   = AllowSCIMUpdates
@@ -228,7 +232,14 @@ verifyUniquenessAndCheckBlacklist uk = do
 
 createUserSpar ::
   forall r.
-  (Member GalleyProvider r) =>
+  ( Member GalleyProvider r,
+    Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
+  ) =>
   NewUserSpar ->
   ExceptT CreateUserSparError (AppT r) CreateUserResult
 createUserSpar new = do
@@ -249,7 +260,7 @@ createUserSpar new = do
       Just richInfo -> wrapClient $ Data.updateRichInfo uid richInfo
       Nothing -> pure () -- Nothing to do
     liftSem $ GalleyProvider.createSelfConv uid
-    wrapHttpClient $ Intra.onUserEvent uid Nothing (UserCreated (accountUser account))
+    liftSem $ Intra.onUserEvent uid Nothing (UserCreated (accountUser account))
 
     pure account
 
@@ -281,10 +292,11 @@ createUserSpar new = do
       lift $ do
         wrapClient $ activateUser uid ident
         void $ onActivated (AccountActivated account)
-        Log.info $
-          field "user" (toByteString uid)
-            . field "team" (toByteString tid)
-            . msg (val "Added via SSO")
+        liftSem $
+          Log.info $
+            field "user" (toByteString uid)
+              . field "team" (toByteString tid)
+              . msg (val "Added via SSO")
       Team.TeamName nm <- lift $ liftSem $ GalleyProvider.getTeamName tid
       pure $ CreateUserTeam tid nm
 
@@ -293,7 +305,13 @@ createUser ::
   forall r p.
   ( Member BlacklistStore r,
     Member GalleyProvider r,
-    Member (UserPendingActivationStore p) r
+    Member (UserPendingActivationStore p) r,
+    Member TinyLog r,
+    Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   NewUser ->
   ExceptT RegisterError (AppT r) CreateUserResult
@@ -345,12 +363,13 @@ createUser new = do
     (account, pw) <- wrapClient $ newAccount new' mbInv tid mbHandle
 
     let uid = userId (accountUser account)
-    Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.createUser")
-    Log.info $ field "user" (toByteString uid) . msg (val "Creating user")
+    liftSem $ do
+      Log.debug $ field "user" (toByteString uid) . field "action" (val "User.createUser")
+      Log.info $ field "user" (toByteString uid) . msg (val "Creating user")
 
     wrapClient $ Data.insertAccount account Nothing pw False
     liftSem $ GalleyProvider.createSelfConv uid
-    wrapHttpClient $ Intra.onUserEvent uid Nothing (UserCreated (accountUser account))
+    liftSem $ Intra.onUserEvent uid Nothing (UserCreated (accountUser account))
 
     pure account
 
@@ -463,10 +482,11 @@ createUser new = do
       lift $ do
         wrapClient $ activateUser uid ident -- ('insertAccount' sets column activated to False; here it is set to True.)
         void $ onActivated (AccountActivated account)
-        Log.info $
-          field "user" (toByteString uid)
-            . field "team" (toByteString $ Team.iiTeam ii)
-            . msg (val "Accepting invitation")
+        liftSem $
+          Log.info $
+            field "user" (toByteString uid)
+              . field "team" (toByteString $ Team.iiTeam ii)
+              . msg (val "Accepting invitation")
         liftSem $ UserPendingActivationStore.remove uid
         wrapClient $ do
           Team.deleteInvitation (Team.inTeam inv) (Team.inInvitation inv)
@@ -480,10 +500,11 @@ createUser new = do
       lift $ do
         wrapClient $ activateUser uid ident
         void $ onActivated (AccountActivated account)
-        Log.info $
-          field "user" (toByteString uid)
-            . field "team" (toByteString tid)
-            . msg (val "Added via SSO")
+        liftSem $
+          Log.info $
+            field "user" (toByteString uid)
+              . field "team" (toByteString tid)
+              . msg (val "Added via SSO")
       Team.TeamName nm <- lift $ liftSem $ GalleyProvider.getTeamName tid
       pure $ CreateUserTeam tid nm
 
@@ -494,7 +515,7 @@ createUser new = do
         Nothing -> do
           timeout <- setActivationTimeout <$> view settings
           edata <- lift . wrapClient $ Data.newActivation ek timeout (Just uid)
-          lift . Log.info $
+          lift . liftSem . Log.info $
             field "user" (toByteString uid)
               . field "activation.key" (toByteString $ activationKey edata)
               . msg (val "Created email activation key/code pair")
@@ -513,7 +534,7 @@ createUser new = do
         Nothing -> do
           timeout <- setActivationTimeout <$> view settings
           pdata <- lift . wrapClient $ Data.newActivation pk timeout (Just uid)
-          lift . Log.info $
+          lift . liftSem . Log.info $
             field "user" (toByteString uid)
               . field "activation.key" (toByteString $ activationKey pdata)
               . msg (val "Created phone activation key/code pair")
@@ -533,7 +554,8 @@ initAccountFeatureConfig uid = do
 -- users are invited to the team via scim.
 createUserInviteViaScim ::
   ( Member BlacklistStore r,
-    Member (UserPendingActivationStore p) r
+    Member (UserPendingActivationStore p) r,
+    Member TinyLog r
   ) =>
   UserId ->
   NewUserScimInvitation ->
@@ -543,7 +565,7 @@ createUserInviteViaScim uid (NewUserScimInvitation tid loc name rawEmail _) = do
   let emKey = userEmailKey email
   verifyUniquenessAndCheckBlacklist emKey !>> identityErrorToBrigError
   account <- lift . wrapClient $ newAccountInviteViaScim uid tid loc name email
-  lift . Log.debug $ field "user" (toByteString . userId . accountUser $ account) . field "action" (Log.val "User.createUserInviteViaScim")
+  lift . liftSem . Log.debug $ field "user" (toByteString . userId . accountUser $ account) . field "action" (val "User.createUserInviteViaScim")
 
   -- add the expiry table entry first!  (if brig creates an account, and then crashes before
   -- creating the expiry table entry, gc will miss user data.)
@@ -575,7 +597,20 @@ checkRestrictedUserCreation new = do
 -------------------------------------------------------------------------------
 -- Update Profile
 
-updateUser :: UserId -> Maybe ConnId -> UserUpdate -> AllowSCIMUpdates -> ExceptT UpdateProfileError (AppT r) ()
+updateUser ::
+  ( Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member GalleyProvider r,
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
+  ) =>
+  UserId ->
+  Maybe ConnId ->
+  UserUpdate ->
+  AllowSCIMUpdates ->
+  ExceptT UpdateProfileError (AppT r) ()
 updateUser uid mconn uu allowScim = do
   for_ (uupName uu) $ \newName -> do
     mbUser <- lift . wrapClient $ Data.lookupUser WithPendingInvitations uid
@@ -586,38 +621,88 @@ updateUser uid mconn uu allowScim = do
           || allowScim == AllowSCIMUpdates
       )
       $ throwE DisplayNameManagedByScim
+    hasE2EId <- lift . liftSem . userUnderE2EId $ uid
+    when (hasE2EId && newName /= userDisplayName user) $
+      throwE DisplayNameManagedByScim
+
   lift $ do
     wrapClient $ Data.updateUser uid uu
-    wrapHttpClient $ Intra.onUserEvent uid mconn (profileUpdated uid uu)
+    liftSem $ Intra.onUserEvent uid mconn (profileUpdated uid uu)
 
 -------------------------------------------------------------------------------
 -- Update Locale
 
-changeLocale :: UserId -> ConnId -> LocaleUpdate -> (AppT r) ()
+changeLocale ::
+  ( Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
+  ) =>
+  UserId ->
+  ConnId ->
+  LocaleUpdate ->
+  (AppT r) ()
 changeLocale uid conn (LocaleUpdate loc) = do
   wrapClient $ Data.updateLocale uid loc
-  wrapHttpClient $ Intra.onUserEvent uid (Just conn) (localeUpdate uid loc)
+  liftSem $ Intra.onUserEvent uid (Just conn) (localeUpdate uid loc)
 
 -------------------------------------------------------------------------------
 -- Update ManagedBy
 
-changeManagedBy :: UserId -> ConnId -> ManagedByUpdate -> (AppT r) ()
+changeManagedBy ::
+  ( Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
+  ) =>
+  UserId ->
+  ConnId ->
+  ManagedByUpdate ->
+  (AppT r) ()
 changeManagedBy uid conn (ManagedByUpdate mb) = do
   wrapClient $ Data.updateManagedBy uid mb
-  wrapHttpClient $ Intra.onUserEvent uid (Just conn) (managedByUpdate uid mb)
+  liftSem $ Intra.onUserEvent uid (Just conn) (managedByUpdate uid mb)
 
 -------------------------------------------------------------------------------
 -- Update supported protocols
 
-changeSupportedProtocols :: UserId -> ConnId -> Set BaseProtocolTag -> AppT r ()
+changeSupportedProtocols ::
+  ( Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
+  ) =>
+  UserId ->
+  ConnId ->
+  Set BaseProtocolTag ->
+  AppT r ()
 changeSupportedProtocols uid conn prots = do
   wrapClient $ Data.updateSupportedProtocols uid prots
-  wrapHttpClient $ Intra.onUserEvent uid (Just conn) (supportedProtocolUpdate uid prots)
+  liftSem $ Intra.onUserEvent uid (Just conn) (supportedProtocolUpdate uid prots)
 
 --------------------------------------------------------------------------------
 -- Change Handle
 
-changeHandle :: UserId -> Maybe ConnId -> Handle -> AllowSCIMUpdates -> ExceptT ChangeHandleError (AppT r) ()
+changeHandle ::
+  ( Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member GalleyProvider r,
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
+  ) =>
+  UserId ->
+  Maybe ConnId ->
+  Handle ->
+  AllowSCIMUpdates ->
+  ExceptT ChangeHandleError (AppT r) ()
 changeHandle uid mconn hdl allowScim = do
   when (isBlacklistedHandle hdl) $
     throwE ChangeHandleInvalid
@@ -631,6 +716,9 @@ changeHandle uid mconn hdl allowScim = do
             || allowScim == AllowSCIMUpdates
         )
         $ throwE ChangeHandleManagedByScim
+      hasE2EId <- lift . liftSem . userUnderE2EId . userId $ u
+      when (hasE2EId && userHandle u `notElem` [Nothing, Just hdl]) $
+        throwE ChangeHandleManagedByScim
       claim u
   where
     claim u = do
@@ -639,7 +727,7 @@ changeHandle uid mconn hdl allowScim = do
       claimed <- lift . wrapClient $ claimHandle (userId u) (userHandle u) hdl
       unless claimed $
         throwE ChangeHandleExists
-      lift $ wrapHttpClient $ Intra.onUserEvent uid mconn (handleUpdated uid hdl)
+      lift $ liftSem $ Intra.onUserEvent uid mconn (handleUpdated uid hdl)
 
 --------------------------------------------------------------------------------
 -- Check Handle
@@ -773,21 +861,41 @@ changePhone u phone = do
 -------------------------------------------------------------------------------
 -- Remove Email
 
-removeEmail :: UserId -> ConnId -> ExceptT RemoveIdentityError (AppT r) ()
+removeEmail ::
+  ( Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
+  ) =>
+  UserId ->
+  ConnId ->
+  ExceptT RemoveIdentityError (AppT r) ()
 removeEmail uid conn = do
   ident <- lift $ fetchUserIdentity uid
   case ident of
     Just (FullIdentity e _) -> lift $ do
       wrapClient . deleteKey $ userEmailKey e
       wrapClient $ Data.deleteEmail uid
-      wrapHttpClient $ Intra.onUserEvent uid (Just conn) (emailRemoved uid e)
+      liftSem $ Intra.onUserEvent uid (Just conn) (emailRemoved uid e)
     Just _ -> throwE LastIdentity
     Nothing -> throwE NoIdentity
 
 -------------------------------------------------------------------------------
 -- Remove Phone
 
-removePhone :: UserId -> ConnId -> ExceptT RemoveIdentityError (AppT r) ()
+removePhone ::
+  ( Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
+  ) =>
+  UserId ->
+  ConnId ->
+  ExceptT RemoveIdentityError (AppT r) ()
 removePhone uid conn = do
   ident <- lift $ fetchUserIdentity uid
   case ident of
@@ -798,14 +906,24 @@ removePhone uid conn = do
       lift $ do
         wrapClient . deleteKey $ userPhoneKey p
         wrapClient $ Data.deletePhone uid
-        wrapHttpClient $ Intra.onUserEvent uid (Just conn) (phoneRemoved uid p)
+        liftSem $ Intra.onUserEvent uid (Just conn) (phoneRemoved uid p)
     Just _ -> throwE LastIdentity
     Nothing -> throwE NoIdentity
 
 -------------------------------------------------------------------------------
 -- Forcefully revoke a verified identity
 
-revokeIdentity :: Either Email Phone -> AppT r ()
+revokeIdentity ::
+  forall r.
+  ( Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
+  ) =>
+  Either Email Phone ->
+  AppT r ()
 revokeIdentity key = do
   let uk = either userEmailKey userPhoneKey key
   mu <- wrapClient $ Data.lookupKey uk
@@ -830,7 +948,7 @@ revokeIdentity key = do
           (\(_ :: Email) -> Data.deleteEmail u)
           (\(_ :: Phone) -> Data.deletePhone u)
           uk
-      wrapHttpClient $
+      liftSem $
         Intra.onUserEvent u Nothing $
           foldKey
             (emailRemoved u)
@@ -841,57 +959,55 @@ revokeIdentity key = do
 -- Change Account Status
 
 changeAccountStatus ::
-  forall m.
-  ( MonadClient m,
-    MonadLogger m,
-    MonadIndexIO m,
-    MonadReader Env m,
-    MonadMask m,
-    MonadHttp m,
-    HasRequestId m,
-    MonadUnliftIO m
+  forall r.
+  ( Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member (Concurrency 'Unsafe) r,
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   List1 UserId ->
   AccountStatus ->
-  ExceptT AccountStatusError m ()
+  ExceptT AccountStatusError (AppT r) ()
 changeAccountStatus usrs status = do
   ev <- mkUserEvent usrs status
-  lift $ mapConcurrently_ (update ev) usrs
+  lift $ liftSem $ unsafePooledMapConcurrentlyN_ 16 (update ev) usrs
   where
     update ::
       (UserId -> UserEvent) ->
       UserId ->
-      m ()
+      Sem r ()
     update ev u = do
-      Data.updateStatus u status
+      embed $ Data.updateStatus u status
       Intra.onUserEvent u Nothing (ev u)
 
 changeSingleAccountStatus ::
-  forall m.
-  ( MonadClient m,
-    MonadLogger m,
-    MonadIndexIO m,
-    MonadReader Env m,
-    MonadMask m,
-    MonadHttp m,
-    HasRequestId m,
-    MonadUnliftIO m
+  ( Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   UserId ->
   AccountStatus ->
-  ExceptT AccountStatusError m ()
+  ExceptT AccountStatusError (AppT r) ()
 changeSingleAccountStatus uid status = do
-  unlessM (Data.userExists uid) $ throwE AccountNotFound
+  unlessM (wrapClientE $ Data.userExists uid) $ throwE AccountNotFound
   ev <- mkUserEvent (List1.singleton uid) status
   lift $ do
-    Data.updateStatus uid status
-    Intra.onUserEvent uid Nothing (ev uid)
+    wrapClient $ Data.updateStatus uid status
+    liftSem $ Intra.onUserEvent uid Nothing (ev uid)
 
-mkUserEvent :: (MonadUnliftIO m, Traversable t, MonadClient m) => t UserId -> AccountStatus -> ExceptT AccountStatusError m (UserId -> UserEvent)
+mkUserEvent :: (Traversable t) => t UserId -> AccountStatus -> ExceptT AccountStatusError (AppT r) (UserId -> UserEvent)
 mkUserEvent usrs status =
   case status of
     Active -> pure UserResumed
-    Suspended -> lift $ mapConcurrently revokeAllCookies usrs >> pure UserSuspended
+    Suspended -> do
+      lift $ wrapHttpClient (mapConcurrently_ revokeAllCookies usrs)
+      pure UserSuspended
     Deleted -> throwE InvalidAccountStatus
     Ephemeral -> throwE InvalidAccountStatus
     PendingInvitation -> throwE InvalidAccountStatus
@@ -900,7 +1016,14 @@ mkUserEvent usrs status =
 -- Activation
 
 activate ::
-  (Member GalleyProvider r) =>
+  ( Member GalleyProvider r,
+    Member TinyLog r,
+    Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
+  ) =>
   ActivationTarget ->
   ActivationCode ->
   -- | The user for whom to activate the key.
@@ -909,7 +1032,14 @@ activate ::
 activate tgt code usr = activateWithCurrency tgt code usr Nothing
 
 activateWithCurrency ::
-  (Member GalleyProvider r) =>
+  ( Member GalleyProvider r,
+    Member TinyLog r,
+    Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
+  ) =>
   ActivationTarget ->
   ActivationCode ->
   -- | The user for whom to activate the key.
@@ -920,7 +1050,7 @@ activateWithCurrency ::
   ExceptT ActivationError (AppT r) ActivationResult
 activateWithCurrency tgt code usr cur = do
   key <- wrapClientE $ mkActivationKey tgt
-  lift . Log.info $
+  lift . liftSem . Log.info $
     field "activation.key" (toByteString key)
       . field "activation.code" (toByteString code)
       . msg (val "Activating")
@@ -949,19 +1079,28 @@ preverify tgt code = do
   key <- mkActivationKey tgt
   void $ Data.verifyCode key code
 
-onActivated :: ActivationEvent -> (AppT r) (UserId, Maybe UserIdentity, Bool)
-onActivated (AccountActivated account) = do
+onActivated ::
+  ( Member TinyLog r,
+    Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
+  ) =>
+  ActivationEvent ->
+  (AppT r) (UserId, Maybe UserIdentity, Bool)
+onActivated (AccountActivated account) = liftSem $ do
   let uid = userId (accountUser account)
-  Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.onActivated")
+  Log.debug $ field "user" (toByteString uid) . field "action" (val "User.onActivated")
   Log.info $ field "user" (toByteString uid) . msg (val "User activated")
-  wrapHttpClient $ Intra.onUserEvent uid Nothing $ UserActivated (accountUser account)
+  Intra.onUserEvent uid Nothing $ UserActivated (accountUser account)
   pure (uid, userIdentity (accountUser account), True)
 onActivated (EmailActivated uid email) = do
-  wrapHttpClient $ Intra.onUserEvent uid Nothing (emailUpdated uid email)
+  liftSem $ Intra.onUserEvent uid Nothing (emailUpdated uid email)
   wrapHttpClient $ Data.deleteEmailUnvalidated uid
   pure (uid, Just (EmailIdentity email), False)
 onActivated (PhoneActivated uid phone) = do
-  wrapHttpClient $ Intra.onUserEvent uid Nothing (phoneUpdated uid phone)
+  liftSem $ Intra.onUserEvent uid Nothing (phoneUpdated uid phone)
   pure (uid, Just (PhoneIdentity phone), False)
 
 -- docs/reference/user/activation.md {#RefActivationRequest}
@@ -1086,6 +1225,7 @@ changePassword uid cp = do
     (Nothing, _) -> lift . wrapClient $ Data.updatePassword uid newpw
     (Just _, Nothing) -> throwE InvalidCurrentPassword
     (Just pw, Just pw') -> do
+      -- We are updating the pwd here anyway, so we don't care about the pwd status
       unless (verifyPassword pw' pw) $
         throwE InvalidCurrentPassword
       when (verifyPassword newpw pw) $
@@ -1093,13 +1233,15 @@ changePassword uid cp = do
       lift $ wrapClient (Data.updatePassword uid newpw) >> wrapClient (revokeAllCookies uid)
 
 beginPasswordReset ::
-  Member PasswordResetStore r =>
+  ( Member TinyLog r,
+    Member PasswordResetStore r
+  ) =>
   Either Email Phone ->
   ExceptT PasswordResetError (AppT r) (UserId, PasswordResetPair)
 beginPasswordReset target = do
   let key = either userEmailKey userPhoneKey target
   user <- lift (wrapClient $ Data.lookupKey key) >>= maybe (throwE InvalidPasswordResetKey) pure
-  lift . Log.debug $ field "user" (toByteString user) . field "action" (Log.val "User.beginPasswordReset")
+  lift . liftSem . Log.debug $ field "user" (toByteString user) . field "action" (val "User.beginPasswordReset")
   status <- lift . wrapClient $ Data.lookupStatus user
   unless (status == Just Active) $
     throwE InvalidPasswordResetKey
@@ -1110,7 +1252,8 @@ beginPasswordReset target = do
 
 completePasswordReset ::
   ( Member CodeStore r,
-    Member PasswordResetStore r
+    Member PasswordResetStore r,
+    Member TinyLog r
   ) =>
   PasswordResetIdentity ->
   PasswordResetCode ->
@@ -1122,7 +1265,7 @@ completePasswordReset ident code pw = do
   case muid of
     Nothing -> throwE InvalidPasswordResetCode
     Just uid -> do
-      lift . Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.completePasswordReset")
+      lift . liftSem . Log.debug $ field "user" (toByteString uid) . field "action" (val "User.completePasswordReset")
       checkNewIsDifferent uid pw
       lift $ do
         wrapClient $ Data.updatePassword uid pw
@@ -1135,7 +1278,8 @@ checkNewIsDifferent :: UserId -> PlainTextPassword' t -> ExceptT PasswordResetEr
 checkNewIsDifferent uid pw = do
   mcurrpw <- lift . wrapClient $ Data.lookupPassword uid
   case mcurrpw of
-    Just currpw | verifyPassword pw currpw -> throwE ResetPasswordMustDiffer
+    Just currpw
+      | (verifyPassword pw currpw) -> throwE ResetPasswordMustDiffer
     _ -> pure ()
 
 mkPasswordResetKey ::
@@ -1166,7 +1310,14 @@ mkPasswordResetKey ident = case ident of
 -- TODO: communicate deletions of SSO users to SSO service.
 deleteSelfUser ::
   forall r.
-  (Member GalleyProvider r) =>
+  ( Member GalleyProvider r,
+    Member TinyLog r,
+    Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
+  ) =>
   UserId ->
   Maybe PlainTextPassword6 ->
   ExceptT DeleteUserError (AppT r) (Maybe Timeout)
@@ -1200,25 +1351,26 @@ deleteSelfUser uid pwd = do
       Just emailOrPhone -> sendCode a emailOrPhone
       Nothing -> case pwd of
         Just _ -> throwE DeleteUserMissingPassword
-        Nothing -> lift $ wrapHttpClient $ deleteAccount a >> pure Nothing
+        Nothing -> lift . liftSem $ deleteAccount a >> pure Nothing
     byPassword a pw = do
-      lift . Log.info $
+      lift . liftSem . Log.info $
         field "user" (toByteString uid)
           . msg (val "Attempting account deletion with a password")
       actual <- lift . wrapClient $ Data.lookupPassword uid
       case actual of
         Nothing -> throwE DeleteUserInvalidPassword
         Just p -> do
+          -- We're deleting a user, no sense in updating their pwd, so we ignore pwd status
           unless (verifyPassword pw p) $
             throwE DeleteUserInvalidPassword
-          lift $ wrapHttpClient $ deleteAccount a >> pure Nothing
+          lift . liftSem $ deleteAccount a >> pure Nothing
     sendCode a target = do
       gen <- Code.mkGen (either Code.ForEmail Code.ForPhone target)
       pending <- lift . wrapClient $ Code.lookup (Code.genKey gen) Code.AccountDeletion
       case pending of
         Just c -> throwE $! DeleteUserPendingCode (Code.codeTTL c)
         Nothing -> do
-          lift . Log.info $
+          lift . liftSem . Log.info $
             field "user" (toByteString uid)
               . msg (val "Sending verification code for account deletion")
           c <-
@@ -1242,43 +1394,50 @@ deleteSelfUser uid pwd = do
 
 -- | Conclude validation and scheduling of user's deletion request that was initiated in
 -- 'deleteUser'.  Called via @post /delete@.
-verifyDeleteUser :: VerifyDeleteUser -> ExceptT DeleteUserError (AppT r) ()
+verifyDeleteUser ::
+  ( Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
+  ) =>
+  VerifyDeleteUser ->
+  ExceptT DeleteUserError (AppT r) ()
 verifyDeleteUser d = do
   let key = verifyDeleteUserKey d
   let code = verifyDeleteUserCode d
   c <- lift . wrapClient $ Code.verify key Code.AccountDeletion code
   a <- maybe (throwE DeleteUserInvalidCode) pure (Code.codeAccount =<< c)
   account <- lift . wrapClient $ Data.lookupAccount (Id a)
-  for_ account $ lift . wrapHttpClient . deleteAccount
+  for_ account $ lift . liftSem . deleteAccount
   lift . wrapClient $ Code.delete key Code.AccountDeletion
 
 -- | Check if `deleteAccount` succeeded and run it again if needed.
 -- Called via @delete /i/user/:uid@.
 ensureAccountDeleted ::
-  ( MonadLogger m,
-    MonadIndexIO m,
-    MonadMask m,
-    MonadHttp m,
-    HasRequestId m,
-    MonadUnliftIO m,
-    MonadClient m,
-    MonadReader Env m
+  ( Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   UserId ->
-  m DeleteUserResult
+  AppT r DeleteUserResult
 ensureAccountDeleted uid = do
-  mbAcc <- lookupAccount uid
+  mbAcc <- wrapClient $ lookupAccount uid
   case mbAcc of
     Nothing -> pure NoUser
     Just acc -> do
-      probs <- Data.lookupPropertyKeysAndValues uid
+      probs <- wrapClient $ Data.lookupPropertyKeysAndValues uid
 
       let accIsDeleted = accountStatus acc == Deleted
-      clients <- Data.lookupClients uid
+      clients <- wrapClient $ Data.lookupClients uid
 
       localUid <- qualifyLocal uid
-      conCount <- countConnections localUid [(minBound @Relation) .. maxBound]
-      cookies <- listCookies uid []
+      conCount <- wrapClient $ countConnections localUid [(minBound @Relation) .. maxBound]
+      cookies <- wrapClient $ listCookies uid []
 
       if notNull probs
         || not accIsDeleted
@@ -1286,7 +1445,7 @@ ensureAccountDeleted uid = do
         || conCount > 0
         || notNull cookies
         then do
-          deleteAccount acc
+          liftSem $ deleteAccount acc
           pure AccountDeleted
         else pure AccountAlreadyDeleted
 
@@ -1300,36 +1459,36 @@ ensureAccountDeleted uid = do
 -- statements matters! Other functions reason upon some states to imply other
 -- states. Please change this order only with care!
 deleteAccount ::
-  ( MonadLogger m,
-    MonadIndexIO m,
-    MonadReader Env m,
-    MonadMask m,
-    MonadHttp m,
-    HasRequestId m,
-    MonadUnliftIO m,
-    MonadClient m
+  ( Member (Embed HttpClientIO) r,
+    Member NotificationSubsystem r,
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   UserAccount ->
-  m ()
+  Sem r ()
 deleteAccount account@(accountUser -> user) = do
   let uid = userId user
   Log.info $ field "user" (toByteString uid) . msg (val "Deleting account")
-  -- Free unique keys
-  for_ (userEmail user) $ deleteKeyForUser uid . userEmailKey
-  for_ (userPhone user) $ deleteKeyForUser uid . userPhoneKey
-  for_ (userHandle user) $ freeHandle (userId user)
-  -- Wipe data
-  Data.clearProperties uid
-  tombstone <- mkTombstone
-  Data.insertAccount tombstone Nothing Nothing False
+  embed $ do
+    -- Free unique keys
+    for_ (userEmail user) $ deleteKeyForUser uid . userEmailKey
+    for_ (userPhone user) $ deleteKeyForUser uid . userPhoneKey
+    for_ (userHandle user) $ freeHandle (userId user)
+    -- Wipe data
+    Data.clearProperties uid
+    tombstone <- mkTombstone
+    Data.insertAccount tombstone Nothing Nothing False
   Intra.rmUser uid (userAssets user)
-  Data.lookupClients uid >>= mapM_ (Data.rmClient uid . clientId)
-  luid <- qualifyLocal uid
+  embed $ Data.lookupClients uid >>= mapM_ (Data.rmClient uid . clientId)
+  luid <- embed $ qualifyLocal uid
   Intra.onUserEvent uid Nothing (UserDeleted (tUntagged luid))
-  -- Note: Connections can only be deleted afterwards, since
-  --       they need to be notified.
-  Data.deleteConnections uid
-  revokeAllCookies uid
+  embed $ do
+    -- Note: Connections can only be deleted afterwards, since
+    --       they need to be notified.
+    Data.deleteConnections uid
+    revokeAllCookies uid
   where
     mkTombstone = do
       defLoc <- setDefaultUserLocale <$> view settings
@@ -1612,3 +1771,24 @@ phonePrefixDelete = liftSem . BlacklistPhonePrefixStore.delete
 
 phonePrefixInsert :: Member BlacklistPhonePrefixStore r => ExcludedPrefix -> (AppT r) ()
 phonePrefixInsert = liftSem . BlacklistPhonePrefixStore.insert
+
+userUnderE2EId :: Member GalleyProvider r => UserId -> Sem r Bool
+userUnderE2EId uid = do
+  wsStatus . afcMlsE2EId <$> getAllFeatureConfigsForUser (Just uid) <&> \case
+    FeatureStatusEnabled -> True
+    FeatureStatusDisabled -> False
+
+-- | This is a hack!
+--
+-- Background:
+-- - https://wearezeta.atlassian.net/browse/WPB-6189.
+-- - comments in `testUpdateHandle` in `/integration`.
+--
+-- FUTUREWORK: figure out a better way for clients to detect E2EId (V6?)
+hackForBlockingHandleChangeForE2EIdTeams :: Member GalleyProvider r => SelfProfile -> Sem r SelfProfile
+hackForBlockingHandleChangeForE2EIdTeams (SelfProfile user) = do
+  hasE2EId <- userUnderE2EId . userId $ user
+  pure . SelfProfile $
+    if (hasE2EId && isJust (userHandle user))
+      then user {userManagedBy = ManagedByScim}
+      else user

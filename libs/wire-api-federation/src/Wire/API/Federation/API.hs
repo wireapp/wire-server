@@ -33,10 +33,13 @@ module Wire.API.Federation.API
   )
 where
 
+import Data.Aeson
+import Data.Domain
 import Data.Kind
 import Data.Proxy
 import GHC.TypeLits
 import Imports
+import Network.AMQP
 import Servant.Client
 import Servant.Client.Core
 import Wire.API.Federation.API.Brig
@@ -44,6 +47,9 @@ import Wire.API.Federation.API.Cargohold
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.BackendNotifications
 import Wire.API.Federation.Client
+import Wire.API.Federation.Component
+import Wire.API.Federation.Endpoint
+import Wire.API.Federation.HasNotificationEndpoint
 import Wire.API.MakesFederatedCall
 import Wire.API.Routes.Named
 
@@ -72,16 +78,39 @@ type HasUnsafeFedEndpoint comp api name = 'Just api ~ LookupEndpoint (FedApi com
 -- 'Wire.API.MakesFederatedCall.exposeAnnotations' for a better understanding
 -- of the information flow here.
 fedClient ::
-  forall (comp :: Component) (name :: Symbol) m (showcomp :: Symbol) api x.
-  (AddAnnotation 'Remote showcomp name x, showcomp ~ ShowComponent comp, HasFedEndpoint comp api name, HasClient m api, m ~ FederatorClient comp) =>
+  forall (comp :: Component) name m (showcomp :: Symbol) api x.
+  ( AddAnnotation 'Remote showcomp (FedPath name) x,
+    showcomp ~ ShowComponent comp,
+    HasFedEndpoint comp api name,
+    HasClient m api,
+    m ~ FederatorClient comp
+  ) =>
   Client m api
 fedClient = clientIn (Proxy @api) (Proxy @m)
 
 fedQueueClient ::
-  forall (comp :: Component) (name :: Symbol) m api.
-  (HasFedEndpoint comp api name, HasClient m api, m ~ FedQueueClient comp) =>
-  Client m api
-fedQueueClient = clientIn (Proxy @api) (Proxy @m)
+  forall {k} (tag :: k).
+  ( HasNotificationEndpoint tag,
+    KnownSymbol (NotificationPath tag),
+    KnownComponent (NotificationComponent k),
+    ToJSON (Payload tag)
+  ) =>
+  Payload tag ->
+  FedQueueClient (NotificationComponent k) ()
+fedQueueClient payload = do
+  env <- ask
+  let notif = fedNotifToBackendNotif @tag env.requestId env.originDomain payload
+      msg =
+        newMsg
+          { msgBody = encode notif,
+            msgDeliveryMode = Just (env.deliveryMode),
+            msgContentType = Just "application/json"
+          }
+      -- Empty string means default exchange
+      exchange = ""
+  liftIO $ do
+    ensureQueue env.channel env.targetDomain._domainText
+    void $ publishMsg env.channel exchange (routingKey env.targetDomain._domainText) msg
 
 fedClientIn ::
   forall (comp :: Component) (name :: Symbol) m api.

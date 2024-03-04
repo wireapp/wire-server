@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StandaloneKindSignatures #-}
 {-# LANGUAGE TemplateHaskell #-}
@@ -29,10 +30,14 @@ module Wire.API.Routes.Version
 
     -- * Version
     Version (..),
+    versionInt,
     VersionNumber (..),
+    VersionExp (..),
     supportedVersions,
     isDevelopmentVersion,
     developmentVersions,
+    expandVersionExp,
+    maxAvailableVersion,
 
     -- * Servant combinators
     Until,
@@ -44,7 +49,7 @@ module Wire.API.Routes.Version
 where
 
 import Control.Error (note)
-import Control.Lens ((?~))
+import Control.Lens (makePrisms, (?~))
 import Data.Aeson (FromJSON, ToJSON (..))
 import Data.Aeson qualified as Aeson
 import Data.Bifunctor
@@ -52,17 +57,20 @@ import Data.Binary.Builder qualified as Builder
 import Data.ByteString.Conversion (ToByteString (builder), toByteString')
 import Data.ByteString.Lazy qualified as LBS
 import Data.Domain
+import Data.OpenApi qualified as S
 import Data.Schema
+import Data.Set ((\\))
+import Data.Set qualified as Set
 import Data.Singletons.Base.TH
-import Data.Swagger qualified as S
 import Data.Text qualified as Text
 import Data.Text.Encoding as Text
 import GHC.TypeLits
-import Imports
+import Imports hiding ((\\))
 import Servant
 import Servant.API.Extended.RawM
+import Wire.API.Deprecated
 import Wire.API.Routes.MultiVerb
-import Wire.API.Routes.Named
+import Wire.API.Routes.Named hiding (unnamed)
 import Wire.API.VersionInfo
 import Wire.Arbitrary (Arbitrary, GenericUniform (GenericUniform))
 
@@ -74,7 +82,7 @@ import Wire.Arbitrary (Arbitrary, GenericUniform (GenericUniform))
 -- and 'developmentVersions' stay in sync; everything else here should keep working without
 -- change.  See also documentation in the *docs* directory.
 -- https://docs.wire.com/developer/developer/api-versioning.html#version-bump-checklist
-data Version = V0 | V1 | V2 | V3 | V4 | V5
+data Version = V0 | V1 | V2 | V3 | V4 | V5 | V6
   deriving stock (Eq, Ord, Bounded, Enum, Show, Generic)
   deriving (FromJSON, ToJSON) via (Schema Version)
   deriving (Arbitrary) via (GenericUniform Version)
@@ -92,9 +100,13 @@ versionInt V2 = 2
 versionInt V3 = 3
 versionInt V4 = 4
 versionInt V5 = 5
+versionInt V6 = 6
 
 supportedVersions :: [Version]
 supportedVersions = [minBound .. maxBound]
+
+maxAvailableVersion :: Set Version -> Maybe Version
+maxAvailableVersion disabled = Set.lookupMax $ Set.fromList supportedVersions \\ disabled
 
 ----------------------------------------------------------------------
 
@@ -195,10 +207,44 @@ isDevelopmentVersion V1 = False
 isDevelopmentVersion V2 = False
 isDevelopmentVersion V3 = False
 isDevelopmentVersion V4 = False
+isDevelopmentVersion V5 = False
 isDevelopmentVersion _ = True
 
 developmentVersions :: [Version]
 developmentVersions = filter isDevelopmentVersion supportedVersions
+
+-- Version keywords
+
+-- | A version "expression" which can be used when disabling versions in a
+-- configuration file.
+data VersionExp
+  = -- | A fixed version.
+    VersionExpConst Version
+  | -- | All development versions.
+    VersionExpDevelopment
+  deriving (Show, Eq, Ord, Generic)
+
+$(makePrisms ''VersionExp)
+
+instance ToSchema VersionExp where
+  schema =
+    named "VersionExp" $
+      tag _VersionExpConst (unnamed schema)
+        <> tag
+          _VersionExpDevelopment
+          ( unnamed
+              ( enum @Text "VersionExpDevelopment" (element "development" ())
+              )
+          )
+
+deriving via Schema VersionExp instance (FromJSON VersionExp)
+
+deriving via Schema VersionExp instance (ToJSON VersionExp)
+
+-- | Expand a version expression into a set of versions.
+expandVersionExp :: VersionExp -> Set Version
+expandVersionExp (VersionExpConst v) = Set.singleton v
+expandVersionExp VersionExpDevelopment = Set.fromList developmentVersions
 
 -- Version-aware swagger generation
 
@@ -229,6 +275,10 @@ type instance
 type instance
   SpecialiseToVersion v (Summary s :> api) =
     Summary s :> SpecialiseToVersion v api
+
+type instance
+  SpecialiseToVersion v (Deprecated :> api) =
+    Deprecated :> SpecialiseToVersion v api
 
 type instance
   SpecialiseToVersion v (Verb m s t r) =

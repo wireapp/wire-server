@@ -20,6 +20,7 @@ galley:
           ...
 ```
 
+```{note}
 Note that when enabling this feature, it is important to provide your own domain too in the list of domains. 
 
 In the example above, "domain-that-is-classified.link" and "some-other-classified-domain.link" are your domains.
@@ -27,6 +28,8 @@ In the example above, "domain-that-is-classified.link" and "some-other-classifie
 This is not only a `backend` configuration, but also a `team` configuration/feature.
 
 This means that different combinations of configurations will have different results.
+```
+
 
 Here is a table to navigate the possible configurations:
 

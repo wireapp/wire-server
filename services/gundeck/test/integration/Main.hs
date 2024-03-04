@@ -39,7 +39,10 @@ import OpenSSL (withOpenSSL)
 import Options.Applicative
 import System.Logger qualified as Logger
 import Test.Tasty
+import Test.Tasty.Ingredients
 import Test.Tasty.Options
+import Test.Tasty.Runners
+import Test.Tasty.Runners.AntXML
 import TestSetup
 import Util.Options
 import Util.Test
@@ -83,6 +86,8 @@ runTests run = defaultMainWithIngredients ings $
         [ Option (Proxy :: Proxy ServiceConfigFile),
           Option (Proxy :: Proxy IntegrationConfigFile)
         ]
+        : listingTests
+        : composeReporters antXMLRunner consoleTestReporter
         : defaultIngredients
 
 main :: IO ()
@@ -107,11 +112,8 @@ main = withOpenSSL $ runTests go
           c = CannonR . mkRequest $ cannon iConf
           c2 = CannonR . mkRequest $ cannon2 iConf
           b = BrigR $ mkRequest iConf.brig
-          ch = gConf ^. cassandra . endpoint . host
-          cp = gConf ^. cassandra . endpoint . port
-          ck = gConf ^. cassandra . keyspace
       lg <- Logger.new Logger.defSettings
-      db <- defInitCassandra ck ch cp lg
+      db <- defInitCassandra (gConf ^. cassandra) lg
       pure $ TestSetup m g c c2 b db lg gConf (redis2 iConf)
     releaseOpts _ = pure ()
     mkRequest (Endpoint h p) = Bilge.host (encodeUtf8 h) . Bilge.port p

@@ -45,13 +45,15 @@ where
 import Bilge hiding (Request, header, options, statusCode)
 import Bilge.RPC
 import Cassandra
+import Control.Concurrent.Async (AsyncCancelled)
 import Control.Error
 import Control.Exception (throwIO)
-import Control.Lens
+import Control.Lens (view, (.~), (^.))
 import Control.Monad.Catch hiding (tryJust)
 import Data.Aeson (FromJSON)
-import Data.Default (def)
 import Data.Misc (Milliseconds (..))
+import Data.UUID as UUID
+import Data.UUID.V4 as UUID
 import Database.Redis qualified as Redis
 import Gundeck.Env
 import Gundeck.Redis qualified as Redis
@@ -163,23 +165,35 @@ instance HasRequestId Gundeck where
 
 runGundeck :: Env -> Request -> Gundeck ResponseReceived -> IO ResponseReceived
 runGundeck e r m = do
-  let e' = e & reqId .~ lookupReqId r
+  rid <- lookupReqId e._applog r
+  let e' = e & reqId .~ rid
   runDirect e' m
 
 runDirect :: Env -> Gundeck a -> IO a
 runDirect e m =
   runClient (e ^. cstate) (runReaderT (unGundeck m) e)
     `catch` ( \(exception :: SomeException) -> do
-                Log.err (e ^. applog) $
-                  Log.msg ("IO Exception occurred" :: ByteString)
-                    . Log.field "message" (displayException exception)
-                    . Log.field "request" (unRequestId (e ^. reqId))
+                case fromException exception of
+                  Nothing ->
+                    Log.err (e ^. applog) $
+                      Log.msg ("IO Exception occurred" :: ByteString)
+                        . Log.field "message" (displayException exception)
+                        . Log.field "request" (unRequestId (e ^. reqId))
+                  Just (_ :: AsyncCancelled) -> pure ()
                 throwIO exception
             )
 
-lookupReqId :: Request -> RequestId
-lookupReqId = maybe def RequestId . lookup requestIdName . requestHeaders
-{-# INLINE lookupReqId #-}
+lookupReqId :: Logger -> Request -> IO RequestId
+lookupReqId l r = case lookup requestIdName (requestHeaders r) of
+  Just rid -> pure $ RequestId rid
+  Nothing -> do
+    localRid <- RequestId . cs . UUID.toText <$> UUID.nextRandom
+    Log.info l $
+      "request-id" .= localRid
+        ~~ "method" .= requestMethod r
+        ~~ "path" .= rawPathInfo r
+        ~~ msg (val "generated a new request id for local request")
+    pure localRid
 
 fromJsonBody :: FromJSON a => JsonRequest a -> Gundeck a
 fromJsonBody r = exceptT (throwM . mkError status400 "bad-request") pure (parseBody r)

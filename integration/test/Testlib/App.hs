@@ -1,13 +1,13 @@
 module Testlib.App where
 
 import Control.Monad.Reader
-import Control.Retry qualified as Retry
+import qualified Control.Retry as Retry
 import Data.Aeson hiding ((.=))
-import Data.Functor ((<&>))
 import Data.IORef
-import Data.Text qualified as T
-import Data.Yaml qualified as Yaml
+import qualified Data.Text as T
+import qualified Data.Yaml as Yaml
 import GHC.Exception
+import GHC.Generics (Generic)
 import GHC.Stack (HasCallStack)
 import System.FilePath
 import Testlib.JSON
@@ -32,7 +32,7 @@ getLastPrekey = App $ do
   lpk <- liftIO $ atomicModifyIORef pks getPK
   pure $ object ["id" .= lastPrekeyId, "key" .= lpk]
   where
-    getPK [] = error "Out of prekeys"
+    getPK [] = error "No last prekey left"
     getPK (k : ks) = (ks, k)
 
     lastPrekeyId :: Int
@@ -43,10 +43,9 @@ readServiceConfig = readServiceConfig' . configName
 
 readServiceConfig' :: String -> App Value
 readServiceConfig' srvName = do
-  cfgFile <-
-    asks (.servicesCwdBase) <&> \case
-      Nothing -> "/etc/wire" </> srvName </> "conf" </> (srvName <> ".yaml")
-      Just p -> p </> srvName </> (srvName <> ".integration.yaml")
+  cfgFile <- asks \env -> case env.servicesCwdBase of
+    Nothing -> "/etc/wire" </> srvName </> "conf" </> (srvName <> ".yaml")
+    Just p -> p </> srvName </> (srvName <> ".integration.yaml")
 
   eith <- liftIO (Yaml.decodeFileEither cfgFile)
   case eith of
@@ -54,10 +53,16 @@ readServiceConfig' srvName = do
     Right value -> pure value
 
 data Domain = OwnDomain | OtherDomain
+  deriving stock (Eq, Show, Generic)
 
 instance MakesValue Domain where
   make OwnDomain = asks (String . T.pack . (.domain1))
   make OtherDomain = asks (String . T.pack . (.domain2))
+
+data FedDomain = FedV0Domain
+
+instance MakesValue FedDomain where
+  make FedV0Domain = asks (String . T.pack . (.federationV0Domain))
 
 -- | Run an action, `recoverAll`ing with exponential backoff (min step 8ms, total timeout
 -- ~15s).  Search this package for examples how to use it.

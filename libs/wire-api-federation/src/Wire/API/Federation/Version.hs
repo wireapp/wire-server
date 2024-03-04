@@ -21,16 +21,20 @@ module Wire.API.Federation.Version where
 
 import Control.Lens ((?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
+import Data.OpenApi qualified as S
 import Data.Schema
 import Data.Set qualified as Set
-import Data.Singletons.TH
-import Data.Swagger qualified as S
+import Data.Singletons.Base.TH
 import Imports
 import Wire.API.VersionInfo
 
 data Version = V0 | V1
-  deriving stock (Eq, Ord, Bounded, Enum, Show)
+  deriving stock (Eq, Ord, Bounded, Enum, Show, Generic)
   deriving (FromJSON, ToJSON) via (Schema Version)
+
+versionInt :: Version -> Int
+versionInt V0 = 0
+versionInt V1 = 1
 
 instance ToSchema Version where
   schema =
@@ -63,3 +67,5 @@ versionInfo :: VersionInfo
 versionInfo = VersionInfo (toList supportedVersions)
 
 $(genSingletons [''Version])
+
+$(promoteOrdInstances [''Version])

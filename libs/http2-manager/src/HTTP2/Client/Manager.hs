@@ -3,6 +3,7 @@ module HTTP2.Client.Manager
     setCacheLimit,
     setSSLContext,
     setSSLRemoveTrailingDot,
+    setTCPConnectionTimeout,
     TLSEnabled,
     HostName,
     Port,
@@ -10,10 +11,15 @@ module HTTP2.Client.Manager
     defaultHttp2Manager,
     http2ManagerWithSSLCtx,
     withHTTP2Request,
+    withHTTP2RequestOnSingleUseConn,
     connectIfNotAlreadyConnected,
     ConnectionAlreadyClosed (..),
     disconnectTarget,
     disconnectTargetWithTimeout,
+    startPersistentHTTP2Connection,
+    sendRequestWithConnection,
+    HTTP2Conn (..),
+    ConnectionAction (..),
   )
 where
 

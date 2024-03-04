@@ -19,14 +19,15 @@ module Wire.API.Routes.Internal.Galley where
 
 import Control.Lens ((.~))
 import Data.Id as Id
+import Data.OpenApi (OpenApi, info, title)
 import Data.Range
-import Data.Swagger (Swagger, info, title)
 import GHC.TypeLits (AppendSymbol)
 import Imports hiding (head)
 import Servant hiding (JSON, WithStatus)
 import Servant qualified hiding (WithStatus)
-import Servant.Swagger
+import Servant.OpenApi
 import Wire.API.ApplyMods
+import Wire.API.Conversation
 import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
@@ -41,10 +42,12 @@ import Wire.API.Routes.Named
 import Wire.API.Routes.Public
 import Wire.API.Routes.Public.Galley.Conversation
 import Wire.API.Routes.Public.Galley.Feature
+import Wire.API.Routes.QualifiedCapture
 import Wire.API.Team
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
 import Wire.API.Team.SearchVisibility
+import Wire.API.User.Client
 
 type LegalHoldFeatureStatusChangeErrors =
   '( 'ActionDenied 'RemoveConversationMember,
@@ -134,6 +137,7 @@ type IFeatureAPI =
     :<|> IFeatureStatusGet MLSConfig
     :<|> IFeatureStatusPut '[] '() MLSConfig
     :<|> IFeatureStatusPatch '[] '() MLSConfig
+    :<|> IFeatureStatusLockStatusPut MLSConfig
     -- ExposeInvitationURLsToTeamAdminConfig
     :<|> IFeatureStatusGet ExposeInvitationURLsToTeamAdminConfig
     :<|> IFeatureStatusPut '[] '() ExposeInvitationURLsToTeamAdminConfig
@@ -152,6 +156,20 @@ type IFeatureAPI =
     :<|> IFeatureStatusPut '[] '() MlsE2EIdConfig
     :<|> IFeatureStatusPatch '[] '() MlsE2EIdConfig
     :<|> IFeatureStatusLockStatusPut MlsE2EIdConfig
+    -- MlsMigrationConfig
+    :<|> IFeatureStatusGet MlsMigrationConfig
+    :<|> IFeatureStatusPut '[] '() MlsMigrationConfig
+    :<|> IFeatureStatusPatch '[] '() MlsMigrationConfig
+    :<|> IFeatureStatusLockStatusPut MlsMigrationConfig
+    -- EnforceFileDownloadLocationConfig
+    :<|> IFeatureStatusGetWithDesc EnforceFileDownloadLocationConfig "<p><b>Custom feature: only supported for some decidated on-prem systems.</b></p>"
+    :<|> IFeatureStatusPutWithDesc '[] '() EnforceFileDownloadLocationConfig "<p><b>Custom feature: only supported for some decidated on-prem systems.</b></p>"
+    :<|> IFeatureStatusPatchWithDesc '[] '() EnforceFileDownloadLocationConfig "<p><b>Custom feature: only supported for some decidated on-prem systems.</b></p>"
+    :<|> IFeatureStatusLockStatusPutWithDesc EnforceFileDownloadLocationConfig "<p><b>Custom feature: only supported for some decidated on-prem systems.</b></p>"
+    -- LimitedEventFanoutConfig
+    :<|> IFeatureStatusGet LimitedEventFanoutConfig
+    :<|> IFeatureStatusPut '[] '() LimitedEventFanoutConfig
+    :<|> IFeatureStatusPatch '[] '() LimitedEventFanoutConfig
     -- all feature configs
     :<|> Named
            "feature-configs-internal"
@@ -210,10 +228,23 @@ type InternalAPIBase =
                :> ReqBody '[Servant.JSON] Connect
                :> ConversationVerb
            )
+    -- This endpoint is meant for testing membership of a conversation
+    :<|> Named
+           "get-conversation-clients"
+           ( Summary "Get mls conversation client list"
+               :> CanThrow 'ConvNotFound
+               :> "group"
+               :> Capture "gid" GroupId
+               :> MultiVerb1
+                    'GET
+                    '[Servant.JSON]
+                    (Respond 200 "Clients" ClientList)
+           )
     :<|> Named
            "guard-legalhold-policy-conflicts"
            ( "guard-legalhold-policy-conflicts"
                :> CanThrow 'MissingLegalholdConsent
+               :> CanThrow 'MissingLegalholdConsentOldClients
                :> ReqBody '[Servant.JSON] GuardLegalholdPolicyConflicts
                :> MultiVerb1 'PUT '[Servant.JSON] (RespondEmpty 200 "Guard Legalhold Policy")
            )
@@ -226,10 +257,11 @@ type InternalAPIBase =
                :> "one2one"
                :> "upsert"
                :> ReqBody '[Servant.JSON] UpsertOne2OneConversationRequest
-               :> Post '[Servant.JSON] UpsertOne2OneConversationResponse
+               :> MultiVerb1 'POST '[Servant.JSON] (RespondEmpty 200 "Upsert One2One Policy")
            )
     :<|> IFeatureAPI
     :<|> IFederationAPI
+    :<|> IConversationAPI
 
 type ILegalholdWhitelistedTeamsAPI =
   "legalhold"
@@ -351,11 +383,17 @@ type ITeamsAPIBase =
                     )
          )
 
-type IFeatureStatusGet f = Named '("iget", f) (FeatureStatusBaseGet f)
+type IFeatureStatusGet f = IFeatureStatusGetWithDesc f ""
 
-type IFeatureStatusPut calls errs f = Named '("iput", f) (ApplyMods calls (FeatureStatusBasePutInternal errs f))
+type IFeatureStatusGetWithDesc f desc = Named '("iget", f) (Description desc :> FeatureStatusBaseGet f)
 
-type IFeatureStatusPatch calls errs f = Named '("ipatch", f) (ApplyMods calls (FeatureStatusBasePatchInternal errs f))
+type IFeatureStatusPut calls errs f = IFeatureStatusPutWithDesc calls errs f ""
+
+type IFeatureStatusPutWithDesc calls errs f desc = Named '("iput", f) (ApplyMods calls (Description desc :> FeatureStatusBasePutInternal errs f))
+
+type IFeatureStatusPatch calls errs f = IFeatureStatusPatchWithDesc calls errs f ""
+
+type IFeatureStatusPatchWithDesc calls errs f desc = Named '("ipatch", f) (ApplyMods calls (Description desc :> FeatureStatusBasePatchInternal errs f))
 
 type FeatureStatusBasePutInternal errs featureConfig =
   FeatureStatusBaseInternal
@@ -388,10 +426,13 @@ type FeatureStatusBaseInternal desc errs featureConfig a =
     :> FeatureSymbol featureConfig
     :> a
 
-type IFeatureStatusLockStatusPut featureName =
+type IFeatureStatusLockStatusPut featureName = IFeatureStatusLockStatusPutWithDesc featureName ""
+
+type IFeatureStatusLockStatusPutWithDesc featureName desc =
   Named
     '("ilock", featureName)
     ( Summary (AppendSymbol "(Un-)lock " (FeatureSymbol featureName))
+        :> Description desc
         :> CanThrow 'NotATeamMember
         :> CanThrow 'TeamNotFound
         :> "teams"
@@ -426,7 +467,86 @@ type IFederationAPI =
         :> Get '[Servant.JSON] FederationStatus
     )
 
-swaggerDoc :: Swagger
+type IConversationAPI =
+  Named
+    "conversation-get-member"
+    ( "conversations"
+        :> Capture "cnv" ConvId
+        :> "members"
+        :> Capture "usr" UserId
+        :> Get '[Servant.JSON] (Maybe Member)
+    )
+    -- This endpoint can lead to the following events being sent:
+    -- - MemberJoin event to you, if the conversation existed and had < 2 members before
+    -- - MemberJoin event to other, if the conversation existed and only the other was member
+    --   before
+    :<|> Named
+           "conversation-accept-v2"
+           ( CanThrow 'InvalidOperation
+               :> CanThrow 'ConvNotFound
+               :> ZLocalUser
+               :> ZOptConn
+               :> "conversations"
+               :> Capture "cnv" ConvId
+               :> "accept"
+               :> "v2"
+               :> Put '[Servant.JSON] Conversation
+           )
+    :<|> Named
+           "conversation-block-unqualified"
+           ( CanThrow 'InvalidOperation
+               :> CanThrow 'ConvNotFound
+               :> ZUser
+               :> "conversations"
+               :> Capture "cnv" ConvId
+               :> "block"
+               :> Put '[Servant.JSON] ()
+           )
+    :<|> Named
+           "conversation-block"
+           ( CanThrow 'InvalidOperation
+               :> CanThrow 'ConvNotFound
+               :> ZLocalUser
+               :> "conversations"
+               :> QualifiedCapture "cnv" ConvId
+               :> "block"
+               :> Put '[Servant.JSON] ()
+           )
+    -- This endpoint can lead to the following events being sent:
+    -- - MemberJoin event to you, if the conversation existed and had < 2 members before
+    -- - MemberJoin event to other, if the conversation existed and only the other was member
+    --   before
+    :<|> Named
+           "conversation-unblock"
+           ( CanThrow 'InvalidOperation
+               :> CanThrow 'ConvNotFound
+               :> ZLocalUser
+               :> ZOptConn
+               :> "conversations"
+               :> Capture "cnv" ConvId
+               :> "unblock"
+               :> Put '[Servant.JSON] Conversation
+           )
+    :<|> Named
+           "conversation-meta"
+           ( CanThrow 'ConvNotFound
+               :> "conversations"
+               :> Capture "cnv" ConvId
+               :> "meta"
+               :> Get '[Servant.JSON] ConversationMetadata
+           )
+    :<|> Named
+           "conversation-mls-one-to-one"
+           ( CanThrow 'NotConnected
+               :> CanThrow 'MLSNotEnabled
+               :> "conversations"
+               :> "mls-one2one"
+               :> ZLocalUser
+               :> QualifiedCapture "user" UserId
+               :> Get '[Servant.JSON] Conversation
+           )
+
+swaggerDoc :: OpenApi
 swaggerDoc =
-  toSwagger (Proxy @InternalAPI)
+  toOpenApi (Proxy @InternalAPI)
     & info . title .~ "Wire-Server internal galley API"

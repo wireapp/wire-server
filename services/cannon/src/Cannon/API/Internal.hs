@@ -26,7 +26,7 @@ import Cannon.Types
 import Cannon.WS
 import Control.Monad.Catch
 import Data.Aeson (encode)
-import Data.Id hiding (client)
+import Data.Id
 import Imports
 import Network.WebSockets
 import Servant

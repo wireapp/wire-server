@@ -14,6 +14,7 @@ import Data.Streaming.Network (bindRandomPortTCP)
 import Data.Text (unpack)
 import Data.Text.Lazy (fromStrict)
 import Data.Time.Units
+import Debug.Trace (traceIO)
 import Imports
 import Network.Mail.Mime
 import Network.Mail.Postie qualified as Postie
@@ -77,11 +78,13 @@ testSendMailNoReceiver lg = do
     $ \(port, sock) ->
       withMailServer sock (mailStoringApp receivedMailRef) $
         do
+          traceIO "before initSMTP"
           conPool <- initSMTP lg "localhost" (Just port) Nothing Plain
+          traceIO "finished initSMTP"
           caughtException <-
             handle @SomeException
               (const (pure True))
-              (sendMail lg conPool (emptyMail (Address Nothing "foo@example.com")) >> pure False)
+              (sendMail' @Second 1 lg conPool (emptyMail (Address Nothing "foo@example.com")) >> pure False)
           caughtException @? "Expected exception due to missing mail receiver."
 
 testSendMailTransactionFailed :: Logger.Logger -> Bilge.Http ()

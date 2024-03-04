@@ -35,11 +35,16 @@ spec:
       configMap:
         name: "galley"
     - name: "galley-integration-secrets"
-      configMap:
-        name: "galley-integration-secrets"
+      secret:
+        secretName: "galley-integration"
     - name: "galley-secrets"
       secret:
         secretName: "galley"
+    {{- if eq (include "useCassandraTLS" .Values.config) "true" }}
+    - name: "galley-cassandra"
+      secret:
+        secretName: {{ (include "tlsSecretRef" .Values.config | fromYaml).name }}
+    {{- end }}
   containers:
   - name: integration
     image: "{{ .Values.image.repository }}-integration:{{ .Values.image.tag }}"
@@ -47,6 +52,33 @@ spec:
     securityContext:
       {{- toYaml .Values.podSecurityContext | nindent 6 }}
         {{- end }}
+    command:
+    - /bin/bash
+    - -c
+    - |
+      set -euo pipefail
+
+      if galley-integration --xml "$TEST_XML"; then
+        exit_code=$?
+      else
+        exit_code=$?
+      fi
+
+      {{- if .Values.tests.config.uploadXml }}
+      # In case a different S3 compliant storage is used to upload test result.
+      if ! [[ -z "${UPLOAD_XML_AWS_ACCESS_KEY_ID+x}" ]]; then
+        export AWS_ACCESS_KEY_ID="$UPLOAD_XML_AWS_ACCESS_KEY_ID"
+        export AWS_SECRET_ACCESS_KEY="$UPLOAD_XML_AWS_SECRET_ACCESS_KEY"
+      fi
+
+      # The `|| echo ..` ensures that the test isn't seen as failed even if the upload fails.
+      ts=$(date --utc '+%Y%m%d%H%M%S%N')
+      uploadUrl="$UPLOAD_XML_S3_BASE_URL/galley-integration/${ts}.xml"
+      echo "Uploading xml result to: $uploadUrl"
+      aws s3 cp "$TEST_XML" "$uploadUrl" || echo "failed to upload result"
+      {{- end }}
+
+      exit $exit_code
     volumeMounts:
     - name: "galley-integration"
       mountPath: "/etc/wire/integration"
@@ -57,6 +89,10 @@ spec:
       mountPath: "/etc/wire/integration-secrets"
     - name: "galley-secrets"
       mountPath: "/etc/wire/galley/secrets"
+    {{- if eq (include "useCassandraTLS" .Values.config) "true" }}
+    - name: "galley-cassandra"
+      mountPath: "/etc/wire/galley/cassandra"
+    {{- end }}
     env:
     # these dummy values are necessary for Amazonka's "Discover"
     - name: AWS_ACCESS_KEY_ID
@@ -70,6 +106,24 @@ spec:
       value: "guest"
     - name: RABBITMQ_PASSWORD
       value: "guest"
+    {{- end }}
+    - name: TEST_XML
+      value: /tmp/result.xml
+    {{- if .Values.tests.config.uploadXml }}
+    - name: UPLOAD_XML_S3_BASE_URL
+      value: {{ .Values.tests.config.uploadXml.baseUrl }}
+    {{- if .Values.tests.secrets.uploadXmlAwsAccessKeyId }}
+    - name: UPLOAD_XML_AWS_ACCESS_KEY_ID
+      valueFrom:
+        secretKeyRef:
+          name: galley-integration
+          key: uploadXmlAwsAccessKeyId
+    - name: UPLOAD_XML_AWS_SECRET_ACCESS_KEY
+      valueFrom:
+        secretKeyRef:
+          name: galley-integration
+          key: uploadXmlAwsSecretAccessKey
+    {{- end }}
     {{- end }}
     resources:
       requests:

@@ -1,5 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 -- Disabling to stop warnings on HasCallStack
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
 {-# OPTIONS_GHC -fprint-potential-instances #-}
@@ -60,6 +61,7 @@ import Galley.Options (Opts)
 import Imports
 import Network.HTTP.Client qualified as HTTP
 import Proto.TeamEvents (TeamEvent)
+import Servant.Client
 import Servant.Client qualified as Servant
 import Servant.Client.Core qualified as Servant
 import Test.Tasty.HUnit
@@ -67,6 +69,8 @@ import Util.Options
 import Util.Test.SQS qualified as SQS
 import Wire.API.Federation.API
 import Wire.API.Federation.Domain
+import Wire.API.Federation.Version
+import Wire.API.VersionInfo
 
 type GalleyR = Request -> Request
 
@@ -133,11 +137,15 @@ instance MonadHttp TestM where
     manager <- view tsManager
     liftIO $ withResponse req manager handler
 
+instance VersionedMonad v ClientM where
+  guardVersion _ = pure ()
+
 runFedClient ::
   forall (name :: Symbol) comp m api.
   ( HasUnsafeFedEndpoint comp api name,
     Servant.HasClient Servant.ClientM api,
-    MonadIO m
+    MonadIO m,
+    HasCallStack
   ) =>
   FedClient comp ->
   Domain ->
@@ -162,5 +170,8 @@ runFedClient (FedClient mgr ep) domain =
       let req' = Servant.defaultMakeClientRequest burl req
        in req'
             { HTTP.requestHeaders =
-                HTTP.requestHeaders req' <> [(originDomainHeaderName, toByteString' originDomain)]
+                HTTP.requestHeaders req'
+                  <> [ (originDomainHeaderName, toByteString' originDomain),
+                       (versionHeader, toByteString' (versionInt (maxBound :: Version)))
+                     ]
             }

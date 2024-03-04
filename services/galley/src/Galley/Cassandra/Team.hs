@@ -104,6 +104,7 @@ interpretTeamStoreToCassandra lh = interpret $ \case
     menv <- inputs (view aEnv)
     for_ menv $ \env ->
       embed @IO $ Aws.execute env (Aws.enqueue e)
+  SelectTeamMembersPaginated tid uids mps lim -> embedClient $ selectSomeTeamMembersPaginated lh tid uids mps lim
 
 interpretTeamListToCassandra ::
   ( Member (Embed IO) r,
@@ -486,5 +487,17 @@ teamMembersPageFrom ::
   Client (PageWithState TeamMember)
 teamMembersPageFrom lh tid pagingState (fromRange -> max) = do
   page <- paginateWithState Cql.selectTeamMembers (paramsPagingState LocalQuorum (Identity tid) max pagingState)
+  members <- mapM (newTeamMember' lh tid) (pwsResults page)
+  pure $ PageWithState members (pwsState page)
+
+selectSomeTeamMembersPaginated ::
+  FeatureLegalHold ->
+  TeamId ->
+  [UserId] ->
+  Maybe PagingState ->
+  Range 1 HardTruncationLimit Int32 ->
+  Client (PageWithState TeamMember)
+selectSomeTeamMembersPaginated lh tid uids pagingState (fromRange -> max) = do
+  page <- paginateWithState Cql.selectTeamMembers' (paramsPagingState LocalQuorum (tid, uids) max pagingState)
   members <- mapM (newTeamMember' lh tid) (pwsResults page)
   pure $ PageWithState members (pwsState page)

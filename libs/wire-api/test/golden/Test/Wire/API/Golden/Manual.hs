@@ -26,10 +26,13 @@ import Test.Wire.API.Golden.Manual.ConvIdsPage
 import Test.Wire.API.Golden.Manual.ConversationCoverView
 import Test.Wire.API.Golden.Manual.ConversationEvent
 import Test.Wire.API.Golden.Manual.ConversationPagingState
+import Test.Wire.API.Golden.Manual.ConversationRemoveMembers
 import Test.Wire.API.Golden.Manual.ConversationsResponse
 import Test.Wire.API.Golden.Manual.CreateGroupConversation
 import Test.Wire.API.Golden.Manual.CreateScimToken
 import Test.Wire.API.Golden.Manual.FeatureConfigEvent
+import Test.Wire.API.Golden.Manual.FederationDomainConfig
+import Test.Wire.API.Golden.Manual.FederationRestriction
 import Test.Wire.API.Golden.Manual.FederationStatus
 import Test.Wire.API.Golden.Manual.GetPaginatedConversationIds
 import Test.Wire.API.Golden.Manual.GroupId
@@ -37,6 +40,7 @@ import Test.Wire.API.Golden.Manual.ListConversations
 import Test.Wire.API.Golden.Manual.ListUsersById
 import Test.Wire.API.Golden.Manual.QualifiedUserClientPrekeyMap
 import Test.Wire.API.Golden.Manual.SearchResultContact
+import Test.Wire.API.Golden.Manual.SubConversation
 import Test.Wire.API.Golden.Manual.TeamSize
 import Test.Wire.API.Golden.Manual.Token
 import Test.Wire.API.Golden.Manual.UserClientPrekeyMap
@@ -73,7 +77,8 @@ tests =
           ],
       testGroup "ConversationEvent" $
         testObjects
-          [ (testObject_Event_conversation_manual_1, "testObject_Event_conversation_manual_1.json")
+          [ (testObject_Event_conversation_manual_1, "testObject_Event_conversation_manual_1.json"),
+            (testObject_Event_conversation_manual_2, "testObject_Event_conversation_manual_2.json")
           ],
       testGroup "GetPaginatedConversationIds" $
         testObjects
@@ -148,6 +153,11 @@ tests =
             (testObject_TeamSize_2, "testObject_TeamSize_2.json"),
             (testObject_TeamSize_3, "testObject_TeamSize_3.json")
           ],
+      testGroup "PublicSubConversation" $
+        testObjects
+          [ (testObject_PublicSubConversation_1, "testObject_PublicSubConversation_1.json"),
+            (testObject_PublicSubConversation_2, "testObject_PublicSubConversation_2.json")
+          ],
       testGroup "ListUsersById" $
         testObjects
           [ (testObject_ListUsersById_user_1, "testObject_ListUsersById_user_1.json"),
@@ -169,5 +179,23 @@ tests =
         testObjects
           [ (testObject_RemoteDomains_1, "testObject_RemoteDomains_1.json"),
             (testObject_RemoteDomains_2, "testObject_RemoteDomains_2.json")
+          ],
+      testGroup "FederationDomainConfig" $
+        testObjects
+          [ (testObject_FederationDomainConfig_1, "testObject_FederationDomainConfig_1.json"),
+            (testObject_FederationDomainConfig_2, "testObject_FederationDomainConfig_2.json"),
+            (testObject_FederationDomainConfig_3, "testObject_FederationDomainConfig_3.json")
+          ],
+      testGroup "FederationRestriction" $
+        testObjects
+          [ (testObject_FederationRestriction_1, "testObject_FederationRestriction_1.json"),
+            (testObject_FederationRestriction_2, "testObject_FederationRestriction_2.json"),
+            (testObject_FederationRestriction_3, "testObject_FederationRestriction_3.json")
+          ],
+      testGroup "ConversationRemoveMembers" $
+        testObjects
+          [ (testObject_ConversationRemoveMembers_1, "testObject_ConversationRemoveMembers_1.json"),
+            (testObject_ConversationRemoveMembers_2, "testObject_ConversationRemoveMembers_2.json"),
+            (testObject_ConversationRemoveMembers_3, "testObject_ConversationRemoveMembers_3.json")
           ]
     ]

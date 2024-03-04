@@ -42,7 +42,7 @@ module Data.Id
 
     -- * Client IDs
     ClientId (..),
-    newClientId,
+    clientToText,
 
     -- * Other IDs
     ConnId (..),
@@ -65,17 +65,18 @@ import Data.Attoparsec.ByteString ((<?>))
 import Data.Attoparsec.ByteString.Char8 qualified as Atto
 import Data.Bifunctor (first)
 import Data.Binary
+import Data.Binary.Builder qualified as Builder
 import Data.ByteString.Builder (byteString)
+import Data.ByteString.Char8 qualified as B8
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy qualified as L
 import Data.Char qualified as Char
-import Data.Default (Default (..))
 import Data.Hashable (Hashable)
+import Data.OpenApi qualified as S
+import Data.OpenApi.Internal.ParamSchema (ToParamSchema (..))
 import Data.ProtocolBuffers.Internal
 import Data.Proxy
 import Data.Schema
-import Data.Swagger qualified as S
-import Data.Swagger.Internal.ParamSchema (ToParamSchema (..))
 import Data.Text qualified as T
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Text.Lazy (toStrict)
@@ -86,6 +87,7 @@ import Data.UUID qualified as UUID
 import Data.UUID.V4
 import Imports
 import Servant (FromHttpApiData (..), ToHttpApiData (..))
+import System.Logger (ToBytes)
 import Test.QuickCheck
 import Test.QuickCheck.Instances ()
 
@@ -298,45 +300,72 @@ instance S.ToParamSchema ConnId where
 instance FromHttpApiData ConnId where
   parseUrlPiece = Right . ConnId . encodeUtf8
 
+instance Arbitrary ConnId where
+  arbitrary = ConnId . B8.pack <$> resize 10 (listOf arbitraryPrintableChar)
+
 -- ClientId --------------------------------------------------------------------
 
 -- | Handle for a device.  Corresponds to the device fingerprints exposed in the UI.  It is unique
 -- only together with a 'UserId', stored in C*, and used as a handle for end-to-end encryption.  It
 -- lives as long as the device is registered.  See also: 'ConnId'.
 newtype ClientId = ClientId
-  { client :: Text
+  { clientToWord64 :: Word64
   }
-  deriving (Eq, Ord, Show, ToByteString, Hashable, NFData, A.ToJSONKey, Generic)
-  deriving newtype (ToParamSchema, FromHttpApiData, ToHttpApiData, Binary)
+  deriving (Eq, Ord, Show)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema ClientId
 
+instance ToParamSchema ClientId where
+  toParamSchema _ = toParamSchema (Proxy @Text)
+
+instance FromHttpApiData ClientId where
+  parseUrlPiece = first T.pack . runParser parser . encodeUtf8
+
+instance ToHttpApiData ClientId where
+  toUrlPiece = clientToText
+
+clientToText :: ClientId -> Text
+clientToText = toStrict . toLazyText . hexadecimal . clientToWord64
+
 instance ToSchema ClientId where
-  schema = client .= parsedText "ClientId" clientIdFromByteString
+  schema = withParser s parseClientId
+    where
+      s :: ValueSchemaP NamedSwaggerDoc ClientId Text
+      s =
+        clientToText .= schema
+          & doc . S.description
+            ?~ "A 64-bit unsigned integer, represented as a hexadecimal numeral. \
+               \Any valid hexadecimal numeral is accepted, but the backend will only \
+               \produce representations with lowercase digits and no leading zeros"
 
-newClientId :: Word64 -> ClientId
-newClientId = ClientId . toStrict . toLazyText . hexadecimal
-
-clientIdFromByteString :: Text -> Either String ClientId
-clientIdFromByteString txt =
-  if T.length txt <= 20 && T.all isHexDigit txt
-    then Right $ ClientId txt
-    else Left "Invalid ClientId"
+parseClientId :: Text -> A.Parser ClientId
+parseClientId = either fail pure . runParser parser . encodeUtf8
 
 instance FromByteString ClientId where
   parser = do
-    bs <- Atto.takeByteString
-    either fail pure $ clientIdFromByteString (cs bs)
+    num :: Integer <- Atto.hexadecimal
+    guard $ num <= fromIntegral (maxBound :: Word64)
+    pure (ClientId (fromIntegral num))
+
+instance ToByteString ClientId where
+  builder = Builder.fromByteString . encodeUtf8 . clientToText
 
 instance A.FromJSONKey ClientId where
-  fromJSONKey = A.FromJSONKeyTextParser $ either fail pure . clientIdFromByteString
+  fromJSONKey = A.FromJSONKeyTextParser parseClientId
 
-deriving instance Cql ClientId
+instance A.ToJSONKey ClientId where
+  toJSONKey = A.toJSONKeyText clientToText
+
+instance Cql ClientId where
+  ctype = Tagged TextColumn
+  toCql = CqlText . clientToText
+  fromCql (CqlText t) = runParser parser (encodeUtf8 t)
+  fromCql _ = Left "ClientId: expected CqlText"
 
 instance Arbitrary ClientId where
-  arbitrary = newClientId <$> arbitrary
+  arbitrary = ClientId <$> arbitrary
 
 instance EncodeWire ClientId where
-  encodeWire t = encodeWire t . client
+  encodeWire t = encodeWire t . clientToText
 
 instance DecodeWire ClientId where
   decodeWire (DelimitedField _ x) = either fail pure (runParser parser x)
@@ -384,17 +413,14 @@ newtype RequestId = RequestId
       ToByteString,
       Hashable,
       NFData,
-      Generic
+      Generic,
+      ToBytes
     )
 
 instance ToSchema RequestId where
   schema =
     RequestId . encodeUtf8
       <$> (decodeUtf8 . unRequestId) .= text "RequestId"
-
--- | Returns "N/A"
-instance Default RequestId where
-  def = RequestId "N/A"
 
 instance ToJSON RequestId where
   toJSON (RequestId r) = A.String (decodeUtf8 r)
@@ -407,6 +433,9 @@ instance EncodeWire RequestId where
 
 instance DecodeWire RequestId where
   decodeWire = fmap RequestId . decodeWire
+
+instance FromHttpApiData RequestId where
+  parseUrlPiece = Right . RequestId . encodeUtf8
 
 -- Rendering Id values in JSON objects -----------------------------------------
 

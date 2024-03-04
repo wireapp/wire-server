@@ -44,11 +44,12 @@ import SAML2.Util (renderURI)
 import qualified SAML2.WebSSO as SAML
 import qualified SAML2.WebSSO.Types.Email as SAMLEmail
 import Spar.Options
+import qualified Spar.Schema.Run as Migrations
 import Wire.API.User.Saml
 
 -- | A lower bound: @schemaVersion <= whatWeFoundOnCassandra@, not @==@.
 schemaVersion :: Int32
-schemaVersion = 17
+schemaVersion = Migrations.lastSchemaVersion
 
 ----------------------------------------------------------------------
 -- helpers

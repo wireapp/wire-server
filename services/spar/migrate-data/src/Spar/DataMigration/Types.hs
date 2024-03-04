@@ -21,7 +21,9 @@
 module Spar.DataMigration.Types where
 
 import qualified Cassandra as C
+import Cassandra.Options
 import Control.Lens
+import qualified Data.Text as Text
 import Imports
 import Numeric.Natural (Natural)
 import qualified System.Logger as Logger
@@ -62,10 +64,20 @@ data MigratorSettings = MigratorSettings
 data CassandraSettings = CassandraSettings
   { _cHosts :: !String,
     _cPort :: !Word16,
-    _cKeyspace :: !C.Keyspace
+    _cKeyspace :: !C.Keyspace,
+    _cTlsCa :: Maybe FilePath
   }
   deriving (Show)
 
 makeLenses ''MigratorSettings
 
 makeLenses ''CassandraSettings
+
+toCassandraOpts :: CassandraSettings -> CassandraOpts
+toCassandraOpts cas =
+  CassandraOpts
+    { _endpoint = Endpoint (Text.pack (cas ^. cHosts)) (cas ^. cPort),
+      _keyspace = C.unKeyspace (cas ^. cKeyspace),
+      _filterNodesByDatacentre = Nothing,
+      _tlsCa = cas ^. cTlsCa
+    }

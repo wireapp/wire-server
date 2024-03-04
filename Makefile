@@ -7,13 +7,13 @@ DOCKER_TAG            ?= $(USER)
 # default helm chart version must be 0.0.42 for local development (because 42 is the answer to the universe and everything)
 HELM_SEMVER           ?= 0.0.42
 # The list of helm charts needed on internal kubernetes testing environments
-CHARTS_INTEGRATION    := wire-server databases-ephemeral redis-cluster rabbitmq fake-aws ingress-nginx-controller nginx-ingress-controller nginx-ingress-services fluent-bit kibana sftd restund coturn
+CHARTS_INTEGRATION    := wire-server databases-ephemeral redis-cluster rabbitmq fake-aws ingress-nginx-controller nginx-ingress-controller nginx-ingress-services fluent-bit kibana sftd restund coturn k8ssandra-test-cluster
 # The list of helm charts to publish on S3
 # FUTUREWORK: after we "inline local subcharts",
 # (e.g. move charts/brig to charts/wire-server/brig)
 # this list could be generated from the folder names under ./charts/ like so:
 # CHARTS_RELEASE := $(shell find charts/ -maxdepth 1 -type d | xargs -n 1 basename | grep -v charts)
-CHARTS_RELEASE := wire-server redis-ephemeral redis-cluster rabbitmq databases-ephemeral	\
+CHARTS_RELEASE := wire-server redis-ephemeral redis-cluster rabbitmq rabbitmq-external databases-ephemeral	\
 fake-aws fake-aws-s3 fake-aws-sqs aws-ingress fluent-bit kibana backoffice		\
 calling-test demo-smtp elasticsearch-curator elasticsearch-external				\
 elasticsearch-ephemeral minio-external cassandra-external						\
@@ -35,7 +35,7 @@ EXE_SCHEMA := ./dist/$(package)-schema
 # Additionally, if stack is being used with nix, environment variables do not
 # make it into the shell where hspec is run, to tackle that this variable is
 # also exported in stack-deps.nix.
-export HSPEC_OPTIONS ?= --fail-on-focused
+export HSPEC_OPTIONS ?= --fail-on=focused
 
 default: install
 
@@ -61,6 +61,7 @@ full-clean: clean
 clean:
 	cabal clean
 	-rm -rf dist
+	-rm -f "bill-of-materials.$(HELM_SEMVER).json"
 
 .PHONY: clean-hint
 clean-hint:
@@ -77,7 +78,7 @@ cabal.project.local:
 
 # Usage: make c package=brig test=1
 .PHONY: c
-c: cabal-fmt
+c: treefmt
 	cabal build $(WIRE_CABAL_BUILD_OPTIONS) $(package) || ( make clean-hint; false )
 ifeq ($(test), 1)
 	./hack/bin/cabal-run-tests.sh $(package) $(testargs)
@@ -116,7 +117,7 @@ ci:
 # Usage: make crun `OR` make crun package=galley
 .PHONY: cr
 cr: c db-migrate
-	./services/run-services
+	./dist/run-services
 
 # Run integration from new test suite
 # Usage: make devtest
@@ -141,13 +142,9 @@ list-flaky-tests:
 	@git grep -Hne '\bflakyTestCase \"'
 	@git grep -Hne '[^^]\bflakyTest\b'
 
-.PHONY: cabal-fmt
-cabal-fmt:
-	./hack/bin/cabal-fmt.sh $(package)
-
 # Get a ghci environment running for the given package.
 .PHONY: repl
-repl: cabal-fmt
+repl: treefmt
 	cabal repl $(WIRE_CABAL_BUILD_OPTIONS) $(package)
 
 # Use ghcid to watch a particular package.
@@ -158,7 +155,7 @@ ghcid:
 
 # Used by CI
 .PHONY: lint-all
-lint-all: formatc hlint-check-all check-local-nix-derivations treefmt
+lint-all: formatc hlint-check-all check-local-nix-derivations treefmt-check
 
 .PHONY: hlint-check-all
 hlint-check-all:
@@ -228,6 +225,10 @@ add-license:
 .PHONY: treefmt
 treefmt:
 	treefmt
+
+.PHONY: treefmt-check
+treefmt-check:
+	treefmt --fail-on-change
 
 #################################
 ## docker targets
@@ -511,6 +512,7 @@ guard-inotify:
 
 .PHONY: kind-integration-setup
 kind-integration-setup: guard-inotify .local/kind-kubeconfig
+	KUBECONFIG=$(CURDIR)/.local/kind-kubeconfig helmfile sync -f $(CURDIR)/hack/helmfile-federation-v0.yaml
 	HELMFILE_ENV="kind" KUBECONFIG=$(CURDIR)/.local/kind-kubeconfig make kube-integration-setup
 
 .PHONY: kind-integration-test
@@ -542,3 +544,13 @@ kind-restart-%: .local/kind-kubeconfig
 #   make helm-template-wire-server
 helm-template-%: clean-charts charts-integration
 	./hack/bin/helm-template.sh $(*)
+
+# Ask the security team for the `DEPENDENCY_TRACK_API_KEY` (if you need it)
+.PHONY: upload-bombon
+upload-bombon:
+	nix build -f nix wireServer.allLocalPackagesBom -o "bill-of-materials.$(HELM_SEMVER).json"
+	./hack/bin/bombon.hs -- \
+		--bom-filepath "./bill-of-materials.$(HELM_SEMVER).json" \
+		--project-version $(HELM_SEMVER) \
+		--api-key $(DEPENDENCY_TRACK_API_KEY) \
+		--auto-create

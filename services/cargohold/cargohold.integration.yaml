@@ -6,6 +6,10 @@ federator:
   host: 127.0.0.1
   port: 8097
 
+brig:
+  host: 127.0.0.1
+  port: 8082
+
 aws:
   s3Bucket: dummy-bucket # <-- insert-bucket-name-here
   s3Endpoint: http://localhost:4570 # https://s3-eu-west-1.amazonaws.com:443
@@ -23,6 +27,9 @@ settings:
   maxTotalBytes: 27262976
   downloadLinkTTL: 300    # Seconds
   federationDomain: example.com
+  # We explicitly do not disable any API version. Please make sure the configuration value is the same in all these configs:
+  # brig, cannon, cargohold, galley, gundeck, proxy, spar.
+  disabledAPIVersions: []
 
 logLevel: Warn
 logNetStrings: false

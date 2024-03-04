@@ -57,12 +57,13 @@ import Wire.API.Event.Conversation qualified as Conv
 import Wire.API.Provider (httpsUrl)
 import Wire.API.Provider.External
 import Wire.API.Provider.Service qualified as Galley
+import Wire.Rpc
 
 --------------------------------------------------------------------------------
 -- External RPC
 
 data ServiceError
-  = ServiceUnavailable
+  = ServiceUnavailableWith String
   | ServiceBotConflict
 
 -- | Request a new bot to be created by an external service.
@@ -85,7 +86,7 @@ createBot scon new = do
     case Bilge.statusCode rs of
       201 -> decodeBytes "External" (responseBody rs)
       409 -> throwE ServiceBotConflict
-      _ -> lift (extLogError scon rs) >> throwE ServiceUnavailable
+      _ -> lift (extLogError scon rs) >> throwE (ServiceUnavailableWith $ show rs)
   where
     -- we can't use 'responseJsonEither' instead, because we have a @Response ByteString@
     -- here, not a @Response (Maybe ByteString)@.
@@ -96,7 +97,7 @@ createBot scon new = do
       extReq scon ["bots"]
         . method POST
         . Bilge.json new
-    onExc ex = lift (extLogError scon ex) >> throwE ServiceUnavailable
+    onExc ex = lift (extLogError scon ex) >> throwE (ServiceUnavailableWith $ displayException ex)
 
 extReq :: ServiceConn -> [ByteString] -> Request -> Request
 extReq scon ps =

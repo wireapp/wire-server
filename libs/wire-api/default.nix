@@ -25,7 +25,8 @@
 , constraints
 , containers
 , cookie
-, cryptonite
+, crypton
+, crypton-x509
 , currency-codes
 , deriving-aeson
 , deriving-swagger2
@@ -61,9 +62,9 @@
 , metrics-wai
 , mime
 , mtl
+, openapi3
 , pem
 , polysemy
-, pretty
 , process
 , proto-lens
 , protobuf
@@ -71,23 +72,20 @@
 , quickcheck-instances
 , random
 , resourcet
-, retry
 , saml2-web-sso
 , schema-profunctor
 , scientific
-, scrypt
 , servant
 , servant-client
 , servant-client-core
 , servant-conduit
 , servant-multipart
+, servant-openapi3
 , servant-server
-, servant-swagger
 , singletons
 , singletons-base
 , singletons-th
 , sop-core
-, swagger2
 , tagged
 , tasty
 , tasty-hspec
@@ -95,7 +93,6 @@
 , tasty-quickcheck
 , text
 , time
-, tinylog
 , transitive-anns
 , types-common
 , unliftio
@@ -110,7 +107,6 @@
 , wai-websockets
 , websockets
 , wire-message-proto-lens
-, x509
 , zauth
 }:
 mkDerivation {
@@ -136,7 +132,8 @@ mkDerivation {
     constraints
     containers
     cookie
-    cryptonite
+    crypton
+    crypton-x509
     currency-codes
     deriving-aeson
     deriving-swagger2
@@ -167,6 +164,7 @@ mkDerivation {
     metrics-wai
     mime
     mtl
+    openapi3
     pem
     polysemy
     proto-lens
@@ -175,27 +173,23 @@ mkDerivation {
     quickcheck-instances
     random
     resourcet
-    retry
     saml2-web-sso
     schema-profunctor
     scientific
-    scrypt
     servant
     servant-client
     servant-client-core
     servant-conduit
     servant-multipart
+    servant-openapi3
     servant-server
-    servant-swagger
     singletons
     singletons-base
     singletons-th
     sop-core
-    swagger2
     tagged
     text
     time
-    tinylog
     transitive-anns
     types-common
     unordered-containers
@@ -209,7 +203,6 @@ mkDerivation {
     wai-websockets
     websockets
     wire-message-proto-lens
-    x509
     zauth
   ];
   testHaskellDepends = [
@@ -225,7 +218,7 @@ mkDerivation {
     bytestring-conversion
     cassava
     containers
-    cryptonite
+    crypton
     currency-codes
     either
     filepath
@@ -239,15 +232,16 @@ mkDerivation {
     lens
     memory
     metrics-wai
+    openapi3
     pem
-    pretty
     process
     proto-lens
     QuickCheck
+    random
+    saml2-web-sso
     schema-profunctor
     servant
     servant-server
-    swagger2
     tasty
     tasty-hspec
     tasty-hunit

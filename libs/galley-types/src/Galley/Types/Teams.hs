@@ -41,6 +41,9 @@ module Galley.Types.Teams
     flagOutlookCalIntegration,
     flagMLS,
     flagMlsE2EId,
+    flagMlsMigration,
+    flagEnforceFileDownloadLocation,
+    flagLimitedEventFanout,
     Defaults (..),
     ImplicitLockStatus (..),
     unImplicitLockStatus,
@@ -132,9 +135,9 @@ rolePerms RoleAdmin =
 rolePerms RoleMember =
   rolePerms RoleExternalPartner
     <> Set.fromList
-      [ DoNotUseDeprecatedDeleteConversation,
-        DoNotUseDeprecatedAddRemoveConvMember,
-        DoNotUseDeprecatedModifyConvName,
+      [ DeleteConversation,
+        AddRemoveConvMember,
+        ModifyConvName,
         GetMemberPermissions
       ]
 rolePerms RoleExternalPartner =
@@ -161,9 +164,12 @@ data FeatureFlags = FeatureFlags
     _flagsTeamFeatureValidateSAMLEmailsStatus :: !(Defaults (ImplicitLockStatus ValidateSAMLEmailsConfig)),
     _flagTeamFeatureSndFactorPasswordChallengeStatus :: !(Defaults (WithStatus SndFactorPasswordChallengeConfig)),
     _flagTeamFeatureSearchVisibilityInbound :: !(Defaults (ImplicitLockStatus SearchVisibilityInboundConfig)),
-    _flagMLS :: !(Defaults (ImplicitLockStatus MLSConfig)),
+    _flagMLS :: !(Defaults (WithStatus MLSConfig)),
     _flagOutlookCalIntegration :: !(Defaults (WithStatus OutlookCalIntegrationConfig)),
-    _flagMlsE2EId :: !(Defaults (WithStatus MlsE2EIdConfig))
+    _flagMlsE2EId :: !(Defaults (WithStatus MlsE2EIdConfig)),
+    _flagMlsMigration :: !(Defaults (WithStatus MlsMigrationConfig)),
+    _flagEnforceFileDownloadLocation :: !(Defaults (WithStatus EnforceFileDownloadLocationConfig)),
+    _flagLimitedEventFanout :: !(Defaults (ImplicitLockStatus LimitedEventFanoutConfig))
   }
   deriving (Eq, Show, Generic)
 
@@ -212,9 +218,12 @@ instance FromJSON FeatureFlags where
       <*> withImplicitLockStatusOrDefault obj "validateSAMLEmails"
       <*> (fromMaybe (Defaults (defFeatureStatus @SndFactorPasswordChallengeConfig)) <$> (obj .:? "sndFactorPasswordChallenge"))
       <*> withImplicitLockStatusOrDefault obj "searchVisibilityInbound"
-      <*> withImplicitLockStatusOrDefault obj "mls"
+      <*> (fromMaybe (Defaults (defFeatureStatus @MLSConfig)) <$> (obj .:? "mls"))
       <*> (fromMaybe (Defaults (defFeatureStatus @OutlookCalIntegrationConfig)) <$> (obj .:? "outlookCalIntegration"))
       <*> (fromMaybe (Defaults (defFeatureStatus @MlsE2EIdConfig)) <$> (obj .:? "mlsE2EId"))
+      <*> (fromMaybe (Defaults (defFeatureStatus @MlsMigrationConfig)) <$> (obj .:? "mlsMigration"))
+      <*> (fromMaybe (Defaults (defFeatureStatus @EnforceFileDownloadLocationConfig)) <$> (obj .:? "enforceFileDownloadLocation"))
+      <*> withImplicitLockStatusOrDefault obj "limitedEventFanout"
     where
       withImplicitLockStatusOrDefault :: forall cfg. (IsFeatureConfig cfg, Schema.ToSchema cfg) => Object -> Key -> A.Parser (Defaults (ImplicitLockStatus cfg))
       withImplicitLockStatusOrDefault obj fieldName = fromMaybe (Defaults (ImplicitLockStatus (defFeatureStatus @cfg))) <$> obj .:? fieldName
@@ -237,6 +246,9 @@ instance ToJSON FeatureFlags where
         mls
         outlookCalIntegration
         mlsE2EId
+        mlsMigration
+        enforceFileDownloadLocation
+        teamMemberDeletedLimitedEventFanout
       ) =
       object
         [ "sso" .= sso,
@@ -253,7 +265,10 @@ instance ToJSON FeatureFlags where
           "searchVisibilityInbound" .= searchVisibilityInbound,
           "mls" .= mls,
           "outlookCalIntegration" .= outlookCalIntegration,
-          "mlsE2EId" .= mlsE2EId
+          "mlsE2EId" .= mlsE2EId,
+          "mlsMigration" .= mlsMigration,
+          "enforceFileDownloadLocation" .= enforceFileDownloadLocation,
+          "limitedEventFanout" .= teamMemberDeletedLimitedEventFanout
         ]
 
 instance FromJSON FeatureSSO where

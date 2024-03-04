@@ -80,6 +80,9 @@ module Wire.API.Team.Feature
     MLSConfig (..),
     OutlookCalIntegrationConfig (..),
     MlsE2EIdConfig (..),
+    MlsMigrationConfig (..),
+    EnforceFileDownloadLocationConfig (..),
+    LimitedEventFanoutConfig (..),
     AllFeatureConfigs (..),
     unImplicitLockStatus,
     ImplicitLockStatus (..),
@@ -96,23 +99,25 @@ import Data.ByteString.UTF8 qualified as UTF8
 import Data.Domain (Domain)
 import Data.Either.Extra (maybeToEither)
 import Data.Id
+import Data.Json.Util
 import Data.Kind
 import Data.Misc (HttpsUrl)
+import Data.OpenApi qualified as S
 import Data.Proxy
 import Data.Schema
 import Data.Scientific (toBoundedInteger)
-import Data.Swagger qualified as S
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
 import Data.Text.Lazy qualified as TL
-import Data.Time (NominalDiffTime)
+import Data.Time
 import Deriving.Aeson
 import GHC.TypeLits
 import Imports
 import Servant (FromHttpApiData (..), ToHttpApiData (..))
+import Test.QuickCheck (getPrintableString)
 import Test.QuickCheck.Arbitrary (arbitrary)
 import Test.QuickCheck.Gen (suchThat)
-import Wire.API.Conversation.Protocol (ProtocolTag (ProtocolProteusTag))
+import Wire.API.Conversation.Protocol
 import Wire.API.MLS.CipherSuite (CipherSuiteTag (MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519))
 import Wire.API.Routes.Named (RenderableSymbol (renderSymbol))
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
@@ -126,28 +131,33 @@ import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 -- **<NameOfFeature>Config**. If your feature doesn't have a config besides
 -- being enabled/disabled, locked/unlocked, then the config should be a unit
 -- type, e.g. **data MyFeatureConfig = MyFeatureConfig**. Add a singleton for
--- the new data type. Implement type classes 'ToSchema', 'IsFeatureConfig' and
--- 'Arbitrary'. If your feature doesn't have a config implement
--- 'FeatureTrivialConfig'.
+-- the new data type. Implement type classes 'RenderableSymbol', 'ToSchema',
+-- 'IsFeatureConfig' and 'Arbitrary'. If your feature doesn't have a config
+-- implement 'FeatureTrivialConfig'.
 --
--- 2. Add the config to to 'AllFeatureConfigs'.
+-- 2. Add the config to 'AllFeatureConfigs'.
 --
 -- 3. If your feature is configurable on a per-team basis, add a schema
 -- migration in galley and extend 'getFeatureStatus' and similar functions in
 -- Galley.Cassandra.TeamFeatures
 --
 -- 4. Add the feature to the config schema of galley in Galley.Types.Teams.
--- and extend the Arbitrary instance of FeatureConfigs in the unit tests Test.Galley.Types
+-- and extend the Arbitrary instance of FeatureConfigs in the unit tests
+-- Test.Galley.Types
 --
 -- 5. Implement 'GetFeatureConfig' and 'SetFeatureConfig' in
 -- Galley.API.Teams.Features which defines the main business logic for getting
--- and setting (with side-effects). Note that we don't have to check the lockstatus inside 'setConfigForTeam'
--- because the lockstatus is checked in 'setFeatureStatus' before which is the public API for setting the feature status.
+-- and setting (with side-effects). Note that we don't have to check the
+-- lockstatus inside 'setConfigForTeam' because the lockstatus is checked in
+-- 'setFeatureStatus' before which is the public API for setting the feature
+-- status.
 --
--- 6. Add public routes to Wire.API.Routes.Public.Galley.Feature: 'FeatureStatusGet',
--- 'FeatureStatusPut' (optional). Then implement them in Galley.API.Public.Feature.
+-- 6. Add public routes to Wire.API.Routes.Public.Galley.Feature:
+-- 'FeatureStatusGet', 'FeatureStatusPut' (optional). Then implement them in
+-- Galley.API.Public.Feature.
 --
--- 7. Add internal routes in Wire.API.Routes.Internal.Galley
+-- 7. Add internal routes in Wire.API.Routes.Internal.Galley and implement them
+-- in Galley.API.Internal.
 --
 -- 8. If the feature should be configurable via Stern add routes to Stern.API.
 -- Manually check that the swagger looks okay and works.
@@ -157,15 +167,17 @@ import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 -- (https://github.com/wireapp/wire-server/pull/1811,
 -- https://github.com/wireapp/wire-server/pull/1818)
 --
--- 10. Extend the integration tests with cases
+-- 10. Extend the integration tests with cases.
 --
--- 11. Edit/update the configurations:
+-- 11. If applicable, edit/update the configurations:
 --     - optionally add the config for local integration tests to 'galley.integration.yaml'
 --     - add a config mapping to 'charts/galley/templates/configmap.yaml'
 --     - add the defaults to 'charts/galley/values.yaml'
 --     - optionally add config for CI to 'hack/helm_vars/wire-server/values.yaml'
 --
--- 12. Add a section to the documentation at an appropriate place (e.g. 'docs/src/developer/reference/config-options.md' or 'docs/src/understand/team-feature-settings.md')
+-- 12. Add a section to the documentation at an appropriate place
+-- (e.g. 'docs/src/developer/reference/config-options.md' (if applicable) or
+-- 'docs/src/understand/team-feature-settings.md')
 class IsFeatureConfig cfg where
   type FeatureSymbol cfg :: Symbol
   defFeatureStatus :: WithStatus cfg
@@ -195,6 +207,12 @@ data FeatureSingleton cfg where
   FeatureSingletonExposeInvitationURLsToTeamAdminConfig :: FeatureSingleton ExposeInvitationURLsToTeamAdminConfig
   FeatureSingletonOutlookCalIntegrationConfig :: FeatureSingleton OutlookCalIntegrationConfig
   FeatureSingletonMlsE2EIdConfig :: FeatureSingleton MlsE2EIdConfig
+  FeatureSingletonMlsMigration ::
+    -- FUTUREWORK: rename to `FeatureSingletonMlsMigrationConfig` (or drop the `Config` from
+    -- all other constructors)
+    FeatureSingleton MlsMigrationConfig
+  FeatureSingletonEnforceFileDownloadLocationConfig :: FeatureSingleton EnforceFileDownloadLocationConfig
+  FeatureSingletonLimitedEventFanoutConfig :: FeatureSingleton LimitedEventFanoutConfig
 
 class FeatureTrivialConfig cfg where
   trivialConfig :: cfg
@@ -266,7 +284,7 @@ deriving via (Schema (WithStatus cfg)) instance (ToSchema (WithStatus cfg)) => T
 
 deriving via (Schema (WithStatus cfg)) instance (ToSchema (WithStatus cfg)) => FromJSON (WithStatus cfg)
 
-deriving via (Schema (WithStatus cfg)) instance (ToSchema (WithStatus cfg)) => S.ToSchema (WithStatus cfg)
+deriving via (Schema (WithStatus cfg)) instance (ToSchema (WithStatus cfg), Typeable cfg) => S.ToSchema (WithStatus cfg)
 
 instance (ToSchema cfg, IsFeatureConfig cfg) => ToSchema (WithStatus cfg) where
   schema =
@@ -296,7 +314,7 @@ deriving via (Schema (WithStatusPatch cfg)) instance (ToSchema (WithStatusPatch 
 
 deriving via (Schema (WithStatusPatch cfg)) instance (ToSchema (WithStatusPatch cfg)) => FromJSON (WithStatusPatch cfg)
 
-deriving via (Schema (WithStatusPatch cfg)) instance (ToSchema (WithStatusPatch cfg)) => S.ToSchema (WithStatusPatch cfg)
+deriving via (Schema (WithStatusPatch cfg)) instance (ToSchema (WithStatusPatch cfg), Typeable cfg) => S.ToSchema (WithStatusPatch cfg)
 
 wsPatch :: Maybe FeatureStatus -> Maybe LockStatus -> Maybe cfg -> Maybe FeatureTTL -> WithStatusPatch cfg
 wsPatch = WithStatusBase
@@ -452,7 +470,7 @@ instance FromHttpApiData (FeatureTTL' u) where
   parseQueryParam = maybeToEither invalidTTLErrorString . fromByteString . T.encodeUtf8
 
 instance S.ToParamSchema (FeatureTTL' u) where
-  toParamSchema _ = S.toParamSchema (Proxy @Int)
+  toParamSchema _ = S.toParamSchema (Proxy @Text)
 
 instance ToByteString (FeatureTTL' u) where
   builder FeatureTTLUnlimited = "unlimited"
@@ -501,7 +519,8 @@ instance ToSchema LockStatus where
           element "unlocked" LockStatusUnlocked
         ]
 
-instance S.ToParamSchema LockStatus
+instance S.ToParamSchema LockStatus where
+  toParamSchema _ = mempty & S.type_ ?~ S.OpenApiString & S.enum_ ?~ ["locked", "unlocked"]
 
 instance ToByteString LockStatus where
   builder LockStatusLocked = "locked"
@@ -904,7 +923,8 @@ data MLSConfig = MLSConfig
   { mlsProtocolToggleUsers :: [UserId],
     mlsDefaultProtocol :: ProtocolTag,
     mlsAllowedCipherSuites :: [CipherSuiteTag],
-    mlsDefaultCipherSuite :: CipherSuiteTag
+    mlsDefaultCipherSuite :: CipherSuiteTag,
+    mlsSupportedProtocols :: [ProtocolTag]
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform MLSConfig)
@@ -920,11 +940,18 @@ instance ToSchema MLSConfig where
         <*> mlsDefaultProtocol .= field "defaultProtocol" schema
         <*> mlsAllowedCipherSuites .= field "allowedCipherSuites" (array schema)
         <*> mlsDefaultCipherSuite .= field "defaultCipherSuite" schema
+        <*> mlsSupportedProtocols .= field "supportedProtocols" (array schema)
 
 instance IsFeatureConfig MLSConfig where
   type FeatureSymbol MLSConfig = "mls"
   defFeatureStatus =
-    let config = MLSConfig [] ProtocolProteusTag [MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519] MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
+    let config =
+          MLSConfig
+            []
+            ProtocolProteusTag
+            [MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519]
+            MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
+            [ProtocolProteusTag, ProtocolMLSTag]
      in withStatus FeatureStatusDisabled LockStatusUnlocked config FeatureTTLUnlimited
   featureSingleton = FeatureSingletonMLSConfig
   objectSchema = field "config" schema
@@ -1031,6 +1058,95 @@ instance IsFeatureConfig MlsE2EIdConfig where
   objectSchema = field "config" schema
 
 ----------------------------------------------------------------------
+-- MlsMigration
+
+data MlsMigrationConfig = MlsMigrationConfig
+  { startTime :: Maybe UTCTime,
+    finaliseRegardlessAfter :: Maybe UTCTime
+  }
+  deriving stock (Eq, Show, Generic)
+
+instance RenderableSymbol MlsMigrationConfig where
+  renderSymbol = "MlsMigrationConfig"
+
+instance Arbitrary MlsMigrationConfig where
+  arbitrary = do
+    startTime <- fmap fromUTCTimeMillis <$> arbitrary
+    finaliseRegardlessAfter <- fmap fromUTCTimeMillis <$> arbitrary
+    pure
+      MlsMigrationConfig
+        { startTime = startTime,
+          finaliseRegardlessAfter = finaliseRegardlessAfter
+        }
+
+instance ToSchema MlsMigrationConfig where
+  schema =
+    object "MlsMigration" $
+      MlsMigrationConfig
+        <$> startTime .= maybe_ (optField "startTime" utcTimeSchema)
+        <*> finaliseRegardlessAfter .= maybe_ (optField "finaliseRegardlessAfter" utcTimeSchema)
+
+instance IsFeatureConfig MlsMigrationConfig where
+  type FeatureSymbol MlsMigrationConfig = "mlsMigration"
+  defFeatureStatus = withStatus FeatureStatusDisabled LockStatusLocked defValue FeatureTTLUnlimited
+    where
+      defValue = MlsMigrationConfig Nothing Nothing
+  featureSingleton = FeatureSingletonMlsMigration
+  objectSchema = field "config" schema
+
+----------------------------------------------------------------------
+-- EnforceFileDownloadLocationConfig
+
+data EnforceFileDownloadLocationConfig = EnforceFileDownloadLocationConfig
+  { enforcedDownloadLocation :: Maybe Text
+  }
+  deriving stock (Eq, Show, Generic)
+
+instance RenderableSymbol EnforceFileDownloadLocationConfig where
+  renderSymbol = "EnforceFileDownloadLocationConfig"
+
+instance Arbitrary EnforceFileDownloadLocationConfig where
+  arbitrary = EnforceFileDownloadLocationConfig . fmap (cs . getPrintableString) <$> arbitrary
+
+instance ToSchema EnforceFileDownloadLocationConfig where
+  schema =
+    object "EnforceFileDownloadLocation" $
+      EnforceFileDownloadLocationConfig
+        <$> enforcedDownloadLocation .= maybe_ (optField "enforcedDownloadLocation" schema)
+
+instance IsFeatureConfig EnforceFileDownloadLocationConfig where
+  type FeatureSymbol EnforceFileDownloadLocationConfig = "enforceFileDownloadLocation"
+  defFeatureStatus = withStatus FeatureStatusDisabled LockStatusLocked (EnforceFileDownloadLocationConfig Nothing) FeatureTTLUnlimited
+  featureSingleton = FeatureSingletonEnforceFileDownloadLocationConfig
+  objectSchema = field "config" schema
+
+----------------------------------------------------------------------
+-- Guarding the fanout of events when a team member is deleted.
+--
+-- FUTUREWORK: This is a transient flag that is to be removed after about 6
+-- months of its introduction, namely once all clients get a chance to adapt to
+-- a limited event fanout.
+
+data LimitedEventFanoutConfig = LimitedEventFanoutConfig
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform LimitedEventFanoutConfig)
+
+instance RenderableSymbol LimitedEventFanoutConfig where
+  renderSymbol = "LimitedEventFanoutConfig"
+
+instance IsFeatureConfig LimitedEventFanoutConfig where
+  type FeatureSymbol LimitedEventFanoutConfig = "limitedEventFanout"
+  defFeatureStatus = withStatus FeatureStatusEnabled LockStatusUnlocked LimitedEventFanoutConfig FeatureTTLUnlimited
+  featureSingleton = FeatureSingletonLimitedEventFanoutConfig
+  objectSchema = pure LimitedEventFanoutConfig
+
+instance ToSchema LimitedEventFanoutConfig where
+  schema = object "LimitedEventFanoutConfig" objectSchema
+
+instance FeatureTrivialConfig LimitedEventFanoutConfig where
+  trivialConfig = LimitedEventFanoutConfig
+
+----------------------------------------------------------------------
 -- FeatureStatus
 
 data FeatureStatus
@@ -1043,8 +1159,8 @@ data FeatureStatus
 instance S.ToParamSchema FeatureStatus where
   toParamSchema _ =
     mempty
-      { S._paramSchemaType = Just S.SwaggerString,
-        S._paramSchemaEnum = Just (A.String . toQueryParam <$> [(minBound :: FeatureStatus) ..])
+      { S._schemaType = Just S.OpenApiString,
+        S._schemaEnum = Just (A.String . toQueryParam <$> [(minBound :: FeatureStatus) ..])
       }
 
 instance FromHttpApiData FeatureStatus where
@@ -1106,7 +1222,10 @@ data AllFeatureConfigs = AllFeatureConfigs
     afcMLS :: WithStatus MLSConfig,
     afcExposeInvitationURLsToTeamAdmin :: WithStatus ExposeInvitationURLsToTeamAdminConfig,
     afcOutlookCalIntegration :: WithStatus OutlookCalIntegrationConfig,
-    afcMlsE2EId :: WithStatus MlsE2EIdConfig
+    afcMlsE2EId :: WithStatus MlsE2EIdConfig,
+    afcMlsMigration :: WithStatus MlsMigrationConfig,
+    afcEnforceFileDownloadLocation :: WithStatus EnforceFileDownloadLocationConfig,
+    afcLimitedEventFanout :: WithStatus LimitedEventFanoutConfig
   }
   deriving stock (Eq, Show)
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema AllFeatureConfigs)
@@ -1132,6 +1251,9 @@ instance ToSchema AllFeatureConfigs where
         <*> afcExposeInvitationURLsToTeamAdmin .= featureField
         <*> afcOutlookCalIntegration .= featureField
         <*> afcMlsE2EId .= featureField
+        <*> afcMlsMigration .= featureField
+        <*> afcEnforceFileDownloadLocation .= featureField
+        <*> afcLimitedEventFanout .= featureField
     where
       featureField ::
         forall cfg.
@@ -1143,6 +1265,9 @@ instance Arbitrary AllFeatureConfigs where
   arbitrary =
     AllFeatureConfigs
       <$> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
       <*> arbitrary
       <*> arbitrary
       <*> arbitrary

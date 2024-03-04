@@ -8,7 +8,7 @@ set -euo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-releases=$(helm list -A -f 'test-' -o json |
+releases=$(helm list -A -f '^test-' -o json |
     jq -r -f "$DIR/filter-old-releases.jq")
 
 if [ -n "$releases" ]; then

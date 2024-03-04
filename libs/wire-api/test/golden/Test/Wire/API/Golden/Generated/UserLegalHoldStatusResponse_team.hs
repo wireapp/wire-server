@@ -17,7 +17,7 @@
 
 module Test.Wire.API.Golden.Generated.UserLegalHoldStatusResponse_team where
 
-import Data.Id (ClientId (ClientId, client))
+import Data.Id
 import Data.LegalHold
   ( UserLegalHoldStatus
       ( UserLegalHoldDisabled,
@@ -34,7 +34,7 @@ testObject_UserLegalHoldStatusResponse_team_1 =
   UserLegalHoldStatusResponse
     { ulhsrStatus = UserLegalHoldDisabled,
       ulhsrLastPrekey = Just (lastPrekey "\39669\&9\ENQ\1016886\11258\\3\62960x\25215"),
-      ulhsrClientId = Just (ClientId {client = "97"})
+      ulhsrClientId = Just (ClientId 0x97)
     }
 
 testObject_UserLegalHoldStatusResponse_team_2 :: UserLegalHoldStatusResponse
@@ -42,7 +42,7 @@ testObject_UserLegalHoldStatusResponse_team_2 =
   UserLegalHoldStatusResponse
     { ulhsrStatus = UserLegalHoldDisabled,
       ulhsrLastPrekey = Just (lastPrekey "\111141L,"),
-      ulhsrClientId = Just (ClientId {client = "46"})
+      ulhsrClientId = Just (ClientId 0x46)
     }
 
 testObject_UserLegalHoldStatusResponse_team_3 :: UserLegalHoldStatusResponse
@@ -50,7 +50,7 @@ testObject_UserLegalHoldStatusResponse_team_3 =
   UserLegalHoldStatusResponse
     { ulhsrStatus = UserLegalHoldEnabled,
       ulhsrLastPrekey = Just (lastPrekey "W\1042917z\1923\GS"),
-      ulhsrClientId = Just (ClientId {client = "6d"})
+      ulhsrClientId = Just (ClientId 0x6d)
     }
 
 testObject_UserLegalHoldStatusResponse_team_4 :: UserLegalHoldStatusResponse
@@ -62,7 +62,7 @@ testObject_UserLegalHoldStatusResponse_team_5 =
   UserLegalHoldStatusResponse
     { ulhsrStatus = UserLegalHoldEnabled,
       ulhsrLastPrekey = Just (lastPrekey "?\tvSq"),
-      ulhsrClientId = Just (ClientId {client = "12"})
+      ulhsrClientId = Just (ClientId 0x12)
     }
 
 testObject_UserLegalHoldStatusResponse_team_6 :: UserLegalHoldStatusResponse
@@ -70,7 +70,7 @@ testObject_UserLegalHoldStatusResponse_team_6 =
   UserLegalHoldStatusResponse
     { ulhsrStatus = UserLegalHoldEnabled,
       ulhsrLastPrekey = Nothing,
-      ulhsrClientId = Just (ClientId {client = "50"})
+      ulhsrClientId = Just (ClientId 0x50)
     }
 
 testObject_UserLegalHoldStatusResponse_team_7 :: UserLegalHoldStatusResponse
@@ -78,7 +78,7 @@ testObject_UserLegalHoldStatusResponse_team_7 =
   UserLegalHoldStatusResponse
     { ulhsrStatus = UserLegalHoldEnabled,
       ulhsrLastPrekey = Just (lastPrekey ""),
-      ulhsrClientId = Just (ClientId {client = "63"})
+      ulhsrClientId = Just (ClientId 0x63)
     }
 
 testObject_UserLegalHoldStatusResponse_team_8 :: UserLegalHoldStatusResponse
@@ -90,7 +90,7 @@ testObject_UserLegalHoldStatusResponse_team_9 =
   UserLegalHoldStatusResponse
     { ulhsrStatus = UserLegalHoldEnabled,
       ulhsrLastPrekey = Nothing,
-      ulhsrClientId = Just (ClientId {client = "a9"})
+      ulhsrClientId = Just (ClientId 0xa9)
     }
 
 testObject_UserLegalHoldStatusResponse_team_10 :: UserLegalHoldStatusResponse
@@ -98,7 +98,7 @@ testObject_UserLegalHoldStatusResponse_team_10 =
   UserLegalHoldStatusResponse
     { ulhsrStatus = UserLegalHoldPending,
       ulhsrLastPrekey = Nothing,
-      ulhsrClientId = Just (ClientId {client = "2e"})
+      ulhsrClientId = Just (ClientId 0x2e)
     }
 
 testObject_UserLegalHoldStatusResponse_team_11 :: UserLegalHoldStatusResponse
@@ -150,7 +150,7 @@ testObject_UserLegalHoldStatusResponse_team_17 =
   UserLegalHoldStatusResponse
     { ulhsrStatus = UserLegalHoldDisabled,
       ulhsrLastPrekey = Just (lastPrekey "\NAK \GS\1080662\&9,'<\a\8244"),
-      ulhsrClientId = Just (ClientId {client = "7a"})
+      ulhsrClientId = Just (ClientId 0x7a)
     }
 
 testObject_UserLegalHoldStatusResponse_team_18 :: UserLegalHoldStatusResponse
@@ -158,7 +158,7 @@ testObject_UserLegalHoldStatusResponse_team_18 =
   UserLegalHoldStatusResponse
     { ulhsrStatus = UserLegalHoldPending,
       ulhsrLastPrekey = Just (lastPrekey "Z"),
-      ulhsrClientId = Just (ClientId {client = "ba"})
+      ulhsrClientId = Just (ClientId 0xba)
     }
 
 testObject_UserLegalHoldStatusResponse_team_19 :: UserLegalHoldStatusResponse
@@ -166,7 +166,7 @@ testObject_UserLegalHoldStatusResponse_team_19 =
   UserLegalHoldStatusResponse
     { ulhsrStatus = UserLegalHoldEnabled,
       ulhsrLastPrekey = Just (lastPrekey ""),
-      ulhsrClientId = Just (ClientId {client = "88"})
+      ulhsrClientId = Just (ClientId 0x88)
     }
 
 testObject_UserLegalHoldStatusResponse_team_20 :: UserLegalHoldStatusResponse

@@ -15,36 +15,52 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.API.Federation.API.Brig where
+module Wire.API.Federation.API.Brig
+  ( module Notifications,
+    module Wire.API.Federation.API.Brig,
+  )
+where
 
 import Data.Aeson
 import Data.Domain (Domain)
 import Data.Handle (Handle)
 import Data.Id
-import Data.Range
+import Data.OpenApi (OpenApi, ToSchema)
+import Data.Proxy (Proxy (Proxy))
 import Imports
 import Servant.API
+import Servant.OpenApi (HasOpenApi (toOpenApi))
 import Test.QuickCheck (Arbitrary)
-import Wire.API.Federation.API.Common
+import Wire.API.Federation.API.Brig.Notifications as Notifications
 import Wire.API.Federation.Endpoint
 import Wire.API.Federation.Version
-import Wire.API.MLS.Credential
+import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.KeyPackage
+import Wire.API.Routes.SpecialiseToVersion
 import Wire.API.User (UserProfile)
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey (ClientPrekey, PrekeyBundle)
 import Wire.API.User.Search
 import Wire.API.UserMap (UserMap)
 import Wire.API.Util.Aeson (CustomEncoded (..))
+import Wire.API.VersionInfo
 import Wire.Arbitrary (GenericUniform (..))
 
-newtype SearchRequest = SearchRequest {term :: Text}
+data SearchRequest = SearchRequest
+  { term :: Text,
+    -- | The searcher's team ID, used to matched against the remote backend's team federation policy.
+    from :: Maybe TeamId,
+    -- | The remote teams that the calling backend is allowed to federate with.
+    onlyInTeams :: Maybe [TeamId]
+  }
   deriving (Show, Eq, Generic, Typeable)
   deriving (Arbitrary) via (GenericUniform SearchRequest)
 
 instance ToJSON SearchRequest
 
 instance FromJSON SearchRequest
+
+instance ToSchema SearchRequest
 
 data SearchResponse = SearchResponse
   { contacts :: [Contact],
@@ -55,6 +71,8 @@ data SearchResponse = SearchResponse
 instance ToJSON SearchResponse
 
 instance FromJSON SearchResponse
+
+instance ToSchema SearchResponse
 
 -- | For conventions see /docs/developer/federation-api-conventions.md
 type BrigApi =
@@ -68,17 +86,22 @@ type BrigApi =
     -- (handles can be up to 256 chars currently)
     :<|> FedEndpoint "search-users" SearchRequest SearchResponse
     :<|> FedEndpoint "get-user-clients" GetUserClients (UserMap (Set PubClient))
-    :<|> FedEndpoint "get-mls-clients" MLSClientsRequest (Set ClientInfo)
+    :<|> FedEndpointWithMods '[Until V1] (Versioned 'V0 "get-mls-clients") MLSClientsRequestV0 (Set ClientInfo)
+    :<|> FedEndpointWithMods '[From V1] "get-mls-clients" MLSClientsRequest (Set ClientInfo)
     :<|> FedEndpoint "send-connection-action" NewConnectionRequest NewConnectionResponse
-    :<|> FedEndpoint "on-user-deleted-connections" UserDeletedConnectionsNotification EmptyResponse
     :<|> FedEndpoint "claim-key-packages" ClaimKeyPackageRequest (Maybe KeyPackageBundle)
     :<|> FedEndpoint "get-not-fully-connected-backends" DomainSet NonConnectedBackends
+    -- All the notification endpoints that go through the queue-based
+    -- federation client ('fedQueueClient').
+    :<|> BrigNotificationAPI
 
 newtype DomainSet = DomainSet
   { domains :: Set Domain
   }
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via (CustomEncoded DomainSet)
+
+instance ToSchema DomainSet
 
 newtype NonConnectedBackends = NonConnectedBackends
   -- TODO:
@@ -89,18 +112,47 @@ newtype NonConnectedBackends = NonConnectedBackends
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via (CustomEncoded NonConnectedBackends)
 
+instance ToSchema NonConnectedBackends
+
 newtype GetUserClients = GetUserClients
   { users :: [UserId]
   }
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via (CustomEncoded GetUserClients)
 
-data MLSClientsRequest = MLSClientsRequest
+instance ToSchema GetUserClients
+
+data MLSClientsRequestV0 = MLSClientsRequestV0
   { userId :: UserId, -- implicitly qualified by the local domain
     signatureScheme :: SignatureSchemeTag
   }
   deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON) via (CustomEncoded MLSClientsRequestV0)
+
+instance ToSchema MLSClientsRequestV0
+
+data MLSClientsRequest = MLSClientsRequest
+  { userId :: UserId, -- implicitly qualified by the local domain
+    cipherSuite :: CipherSuite
+  }
+  deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via (CustomEncoded MLSClientsRequest)
+
+instance ToSchema MLSClientsRequest
+
+mlsClientsRequestToV0 :: MLSClientsRequest -> MLSClientsRequestV0
+mlsClientsRequestToV0 mcr =
+  MLSClientsRequestV0
+    { userId = mcr.userId,
+      signatureScheme = Ed25519
+    }
+
+mlsClientsRequestFromV0 :: MLSClientsRequestV0 -> MLSClientsRequest
+mlsClientsRequestFromV0 mcr =
+  MLSClientsRequest
+    { userId = mcr.userId,
+      cipherSuite = tagCipherSuite MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
+    }
 
 -- NOTE: ConversationId for remote connections
 --
@@ -121,6 +173,9 @@ data MLSClientsRequest = MLSClientsRequest
 data NewConnectionRequest = NewConnectionRequest
   { -- | The 'from' userId is understood to always have the domain of the backend making the connection request
     from :: UserId,
+    -- | The team ID of the 'from' user. If the user is not in a team, it is set
+    -- to 'Nothing'. It is implicitly qualified the same as the 'from' user.
+    fromTeam :: Maybe TeamId,
     -- | The 'to' userId is understood to always have the domain of the receiving backend.
     to :: UserId,
     action :: RemoteConnectionAction
@@ -129,6 +184,8 @@ data NewConnectionRequest = NewConnectionRequest
   deriving (Arbitrary) via (GenericUniform NewConnectionRequest)
   deriving (FromJSON, ToJSON) via (CustomEncoded NewConnectionRequest)
 
+instance ToSchema NewConnectionRequest
+
 data RemoteConnectionAction
   = RemoteConnect
   | RemoteRescind
@@ -136,32 +193,32 @@ data RemoteConnectionAction
   deriving (Arbitrary) via (GenericUniform RemoteConnectionAction)
   deriving (FromJSON, ToJSON) via (CustomEncoded RemoteConnectionAction)
 
+instance ToSchema RemoteConnectionAction
+
 data NewConnectionResponse
   = NewConnectionResponseUserNotActivated
+  | NewConnectionResponseNotFederating
   | NewConnectionResponseOk (Maybe RemoteConnectionAction)
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform NewConnectionResponse)
   deriving (FromJSON, ToJSON) via (CustomEncoded NewConnectionResponse)
 
-type UserDeletedNotificationMaxConnections = 1000
-
-data UserDeletedConnectionsNotification = UserDeletedConnectionsNotification
-  { -- | This is qualified implicitly by the origin domain
-    user :: UserId,
-    -- | These are qualified implicitly by the target domain
-    connections :: Range 1 UserDeletedNotificationMaxConnections [UserId]
-  }
-  deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform UserDeletedConnectionsNotification)
-  deriving (FromJSON, ToJSON) via (CustomEncoded UserDeletedConnectionsNotification)
+instance ToSchema NewConnectionResponse
 
 data ClaimKeyPackageRequest = ClaimKeyPackageRequest
   { -- | The user making the request, implictly qualified by the origin domain.
     claimant :: UserId,
     -- | The user whose key packages are being claimed, implictly qualified by
     -- the target domain.
-    target :: UserId
+    target :: UserId,
+    -- | The ciphersuite of the key packages being claimed.
+    cipherSuite :: CipherSuite
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ClaimKeyPackageRequest)
   deriving (FromJSON, ToJSON) via (CustomEncoded ClaimKeyPackageRequest)
+
+instance ToSchema ClaimKeyPackageRequest
+
+swaggerDoc :: OpenApi
+swaggerDoc = toOpenApi (Proxy @(SpecialiseToVersion 'V1 BrigApi))

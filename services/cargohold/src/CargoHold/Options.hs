@@ -142,7 +142,7 @@ data Settings = Settings
     -- This is referred to as the 'backend domain' in the public documentation; See
     -- https://docs.wire.com/how-to/install/configure-federation.html#choose-a-backend-domain-name
     _federationDomain :: !Domain,
-    _disabledAPIVersions :: !(Maybe (Set Version))
+    _disabledAPIVersions :: !(Set VersionExp)
   }
   deriving (Show, Generic)
 
@@ -159,6 +159,8 @@ data Opts = Opts
     _settings :: !Settings,
     -- | Federator endpoint
     _federator :: Maybe Endpoint,
+    -- | Brig endpoint
+    _brig :: !Endpoint,
     -- Logging
 
     -- | Log level (Debug, Info, etc)

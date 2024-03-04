@@ -1,26 +1,26 @@
 module Testlib.HTTP where
 
-import Control.Exception qualified as E
+import qualified Control.Exception as E
 import Control.Monad.Reader
-import Data.Aeson qualified as Aeson
-import Data.Aeson.Types qualified as Aeson
+import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Types as Aeson
 import Data.ByteString (ByteString)
-import Data.ByteString.Char8 qualified as C8
-import Data.ByteString.Lazy qualified as L
-import Data.CaseInsensitive qualified as CI
+import qualified Data.ByteString.Char8 as C8
+import qualified Data.ByteString.Lazy as L
+import qualified Data.CaseInsensitive as CI
 import Data.Function
-import Data.Functor ((<&>))
 import Data.List
 import Data.List.Split (splitOn)
 import Data.Maybe
 import Data.String
 import Data.String.Conversions (cs)
-import Data.Text qualified as T
-import Data.Text.Encoding qualified as T
+import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
+import GHC.Generics
 import GHC.Stack
-import Network.HTTP.Client qualified as HTTP
+import qualified Network.HTTP.Client as HTTP
 import Network.HTTP.Types (hLocation)
-import Network.HTTP.Types qualified as HTTP
+import qualified Network.HTTP.Types as HTTP
 import Network.URI (URI (..), URIAuth (..), parseURI)
 import Testlib.Assertions
 import Testlib.Env
@@ -80,26 +80,42 @@ addQueryParams params req =
 contentTypeJSON :: HTTP.Request -> HTTP.Request
 contentTypeJSON = addHeader "Content-Type" "application/json"
 
+contentTypeMixed :: HTTP.Request -> HTTP.Request
+contentTypeMixed = addHeader "Content-Type" "multipart/mixed"
+
 bindResponse :: HasCallStack => App Response -> (Response -> App a) -> App a
 bindResponse m k = m >>= \r -> withResponse r k
+
+infixl 1 `bindResponse`
 
 withResponse :: HasCallStack => Response -> (Response -> App a) -> App a
 withResponse r k = onFailureAddResponse r (k r)
 
 -- | Check response status code, then return body.
 getBody :: HasCallStack => Int -> Response -> App ByteString
-getBody status resp = withResponse resp $ \r -> do
-  r.status `shouldMatch` status
-  pure r.body
+getBody status = flip withResponse \resp -> do
+  resp.status `shouldMatch` status
+  pure resp.body
 
 -- | Check response status code, then return JSON body.
 getJSON :: HasCallStack => Int -> Response -> App Aeson.Value
-getJSON status resp = withResponse resp $ \r -> do
-  r.status `shouldMatch` status
-  r.json
+getJSON status = flip withResponse \resp -> do
+  resp.status `shouldMatch` status
+  resp.json
 
+-- | assert a response code in the 2** range
 assertSuccess :: HasCallStack => Response -> App ()
-assertSuccess resp = withResponse resp $ \r -> r.status `shouldMatchRange` (200, 299)
+assertSuccess = flip withResponse \resp -> resp.status `shouldMatchRange` (200, 299)
+
+-- | assert a response status code
+assertStatus :: HasCallStack => Int -> Response -> App ()
+assertStatus status = flip withResponse \resp -> resp.status `shouldMatchInt` status
+
+-- | assert a failure with some failure code and label
+assertLabel :: HasCallStack => Int -> String -> Response -> App ()
+assertLabel status label resp = do
+  j <- getJSON status resp
+  j %. "label" `shouldMatch` label
 
 onFailureAddResponse :: HasCallStack => Response -> App a -> App a
 onFailureAddResponse r m = App $ do
@@ -108,6 +124,7 @@ onFailureAddResponse r m = App $ do
     E.throw (AssertionFailure stack (Just r) msg)
 
 data Versioned = Versioned | Unversioned | ExplicitVersion Int
+  deriving stock (Generic)
 
 -- | If you don't know what domain is for or what you should put in there, try `rawBaseRequest
 -- OwnDomain ...`.
@@ -173,7 +190,7 @@ locationHeaderHost :: Response -> String
 locationHeaderHost resp =
   let location = C8.unpack . snd . fromJust $ locationHeader resp
       locationURI = fromJust $ parseURI location
-      locationHost = fromJust $ locationURI & uriAuthority <&> uriRegName
+      locationHost = uriRegName (fromJust (locationURI & uriAuthority))
    in locationHost
 
 locationHeader :: Response -> Maybe (HTTP.HeaderName, ByteString)

@@ -7,6 +7,7 @@ let
       # All wire-server specific packages
       (import ./overlay.nix)
       (import ./overlay-docs.nix)
+      (self: super: { lib = super.lib // (import sources.bombon).lib.${super.system}; })
     ];
   };
 
@@ -51,9 +52,17 @@ let
         nativeBuildInputs = docsPkgs ++ [ pkgs.gnumake ];
       }
       ''
-        cp -rH ${pkgs.nix-gitignore.gitignoreSource [] ../docs}/* .
-        chmod -R +w ./src
-        cp ${../CHANGELOG.md} ./src/changelog/changelog.md
+        mkdir docs charts services
+        cp -rH ${pkgs.nix-gitignore.gitignoreSource [] ../docs}/* docs/
+        # GrepInclude snippets in the docs refer to files under ../charts/ and ../services/, 
+        # so we need to copy these too before building.
+        # FUTUREWORK: perhaps there is a nicer way to copy everything that does not need 3 separate lines,
+        # however the statement `../` inside `cp -rH $#{pkgs.nix-gitignore.gitignoreSource [] ../}* .` is not valid.
+        cp -rH ${pkgs.nix-gitignore.gitignoreSource [] ../charts}/* charts/
+        cp -rH ${../services}/* services/
+        chmod -R +w ./docs/src
+        cp ${../CHANGELOG.md} ./docs/src/changelog/changelog.md
+        cd docs
         make docs-all
         mkdir $out
         cp -r build/* $out/

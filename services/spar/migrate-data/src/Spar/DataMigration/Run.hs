@@ -19,8 +19,9 @@
 
 module Spar.DataMigration.Run where
 
+import Cassandra (ClientState)
 import qualified Cassandra as C
-import qualified Cassandra.Settings as C
+import Cassandra.Util (defInitCassandra)
 import Control.Lens
 import Control.Monad.Catch (finally)
 import qualified Data.Text as Text
@@ -64,14 +65,9 @@ mkEnv settings = do
         . Log.setLogLevel
           (if s ^. setDebug == Debug then Log.Debug else Log.Info)
         $ Log.defSettings
-    initCassandra cas l =
-      C.init
-        . C.setLogger (C.mkLogger l)
-        . C.setContacts (cas ^. cHosts) []
-        . C.setPortNumber (fromIntegral $ cas ^. cPort)
-        . C.setKeyspace (cas ^. cKeyspace)
-        . C.setProtocolVersion C.V4
-        $ C.defSettings
+
+    initCassandra :: CassandraSettings -> Log.Logger -> IO ClientState
+    initCassandra cas l = defInitCassandra (toCassandraOpts cas) l
 
 cleanup :: (MonadIO m) => Env -> m ()
 cleanup env = do

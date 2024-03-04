@@ -28,6 +28,9 @@ data:
       {{- if hasKey .cassandra "filterNodesByDatacentre" }}
       filterNodesByDatacentre: {{ .cassandra.filterNodesByDatacentre }}
       {{- end }}
+      {{- if eq (include "useCassandraTLS" .) "true" }}
+      tlsCa: /etc/wire/brig/cassandra/{{- (include "tlsSecretRef" . | fromYaml).key }}
+      {{- end }}
 
     elasticsearch:
       url: http://{{ .elasticsearch.host }}:{{ .elasticsearch.port }}
@@ -203,11 +206,6 @@ data:
     {{- end }}
     {{- end }}
 
-    {{- if .geoip.enabled }}
-    # Shared emptyDir with geoipupdate container
-    geoDb: /usr/share/GeoIP/GeoIP2-City.mmdb
-    {{- end }}
-
     {{- with .optSettings }}
     optSettings:
       setActivationTimeout: {{ .setActivationTimeout }}
@@ -325,9 +323,7 @@ data:
       {{- if .setOAuthEnabled }}
       setOAuthEnabled: {{ .setOAuthEnabled }}
       {{- end }}
-      {{- if .setDisabledAPIVersions }}
-      setDisabledAPIVersions: {{ .setDisabledAPIVersions }}
-      {{- end }}
+      setDisabledAPIVersions: {{ toJson .setDisabledAPIVersions }}
       {{- if .setOAuthRefreshTokenExpirationTimeSecs }}
       setOAuthRefreshTokenExpirationTimeSecs: {{ .setOAuthRefreshTokenExpirationTimeSecs }}
       {{- end }}

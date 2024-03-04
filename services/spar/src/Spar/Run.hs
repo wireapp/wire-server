@@ -30,13 +30,13 @@ where
 
 import qualified Bilge
 import Cassandra as Cas
-import qualified Cassandra.Schema as Cas
-import qualified Cassandra.Settings as Cas
-import Control.Lens
-import Data.Default (def)
-import Data.List.NonEmpty as NE
+import Cassandra.Util (initCassandraForService)
+import Control.Lens (to, (^.))
+import Data.Id
 import Data.Metrics.Servant (servantPrometheusMiddleware)
 import Data.Proxy (Proxy (Proxy))
+import qualified Data.UUID as UUID
+import Data.UUID.V4 as UUID
 import Imports
 import Network.Wai (Application)
 import qualified Network.Wai as Wai
@@ -48,11 +48,13 @@ import Spar.API (SparAPI, app)
 import Spar.App
 import qualified Spar.Data as Data
 import Spar.Data.Instances ()
-import Spar.Options
+import Spar.Options as Opt
 import Spar.Orphans ()
-import System.Logger.Class (Logger)
+import System.Logger (Logger, msg, val, (.=), (~~))
+import qualified System.Logger as Log
 import qualified System.Logger.Extended as Log
-import Util.Options (endpoint, filterNodesByDatacentre, host, keyspace, port)
+import Util.Options
+import Wire.API.Routes.Version (expandVersionExp)
 import Wire.API.Routes.Version.Wai
 import Wire.Sem.Logger.TinyLog
 
@@ -60,29 +62,13 @@ import Wire.Sem.Logger.TinyLog
 -- cassandra
 
 initCassandra :: Opts -> Logger -> IO ClientState
-initCassandra opts lgr = do
-  let cassOpts = cassandra opts
-  connectString <-
-    maybe
-      (Cas.initialContactsPlain (cassOpts ^. endpoint . host))
-      (Cas.initialContactsDisco "cassandra_spar" . cs)
-      (discoUrl opts)
-  cas <-
-    Cas.init $
-      Cas.defSettings
-        & Cas.setLogger (Cas.mkLogger (Log.clone (Just "cassandra.spar") lgr))
-        & Cas.setContacts (NE.head connectString) (NE.tail connectString)
-        & Cas.setPortNumber (fromIntegral $ cassOpts ^. endpoint . port)
-        & Cas.setKeyspace (Keyspace $ cassOpts ^. keyspace)
-        & Cas.setMaxConnections 4
-        & Cas.setMaxStreams 128
-        & Cas.setPoolStripes 4
-        & Cas.setSendTimeout 3
-        & Cas.setResponseTimeout 10
-        & Cas.setProtocolVersion V4
-        & Cas.setPolicy (Cas.dcFilterPolicyIfConfigured lgr (cassOpts ^. filterNodesByDatacentre))
-  runClient cas $ Cas.versionCheck Data.schemaVersion
-  pure cas
+initCassandra opts lgr =
+  initCassandraForService
+    (Opt.cassandra opts)
+    "spar"
+    (Opt.discoUrl opts)
+    (Just Data.schemaVersion)
+    lgr
 
 ----------------------------------------------------------------------
 -- servant / wai / warp
@@ -114,7 +100,7 @@ mkApp sparCtxOpts = do
           . Bilge.port (sparCtxOpts ^. to galley . port)
           $ Bilge.empty
   let wrappedApp =
-        versionMiddleware (fold (disabledAPIVersions sparCtxOpts))
+        versionMiddleware (foldMap expandVersionExp (disabledAPIVersions sparCtxOpts))
           . WU.heavyDebugLogging heavyLogOnly logLevel sparCtxLogger
           . servantPrometheusMiddleware (Proxy @SparAPI)
           . WU.catchErrors sparCtxLogger []
@@ -124,7 +110,7 @@ mkApp sparCtxOpts = do
           -- still here for errors outside the power of the 'Application', like network
           -- outages.
           . SAML.setHttpCachePolicy
-          . lookupRequestIdMiddleware
+          . lookupRequestIdMiddleware sparCtxLogger
           $ \sparCtxRequestId -> app Env {..}
       heavyLogOnly :: (Wai.Request, LByteString) -> Maybe (Wai.Request, LByteString)
       heavyLogOnly out@(req, _) =
@@ -133,7 +119,12 @@ mkApp sparCtxOpts = do
           else Nothing
   pure (wrappedApp, let sparCtxRequestId = Bilge.RequestId "N/A" in Env {..})
 
-lookupRequestIdMiddleware :: (Bilge.RequestId -> Application) -> Application
-lookupRequestIdMiddleware mkapp req cont = do
-  let reqid = maybe def Bilge.RequestId $ lookupRequestId req
-  mkapp reqid req cont
+lookupRequestIdMiddleware :: Logger -> (RequestId -> Wai.Application) -> Wai.Application
+lookupRequestIdMiddleware logger mkapp req cont = do
+  case lookupRequestId req of
+    Just rid -> do
+      mkapp (RequestId rid) req cont
+    Nothing -> do
+      localRid <- RequestId . cs . UUID.toText <$> UUID.nextRandom
+      Log.info logger $ "request-id" .= localRid ~~ "request" .= (show req) ~~ msg (val "generated a new request id for local request")
+      mkapp localRid req cont

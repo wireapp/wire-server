@@ -26,6 +26,7 @@ import Data.ByteString.Conversion
 import Data.Code qualified as Code
 import Data.Domain (Domain)
 import Data.Id as Id
+import Data.Json.Util
 import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
 import Data.List.Extra (chunksOf, nubOrd)
 import Data.List.NonEmpty (NonEmpty)
@@ -37,6 +38,7 @@ import Data.Set qualified as Set
 import Data.Singletons
 import Data.Text qualified as T
 import Data.Time
+import GHC.TypeLits
 import Galley.API.Error
 import Galley.API.Mapping
 import Galley.Data.Conversation qualified as Data
@@ -48,16 +50,15 @@ import Galley.Effects.CodeStore
 import Galley.Effects.ConversationStore
 import Galley.Effects.ExternalAccess
 import Galley.Effects.FederatorAccess
-import Galley.Effects.GundeckAccess
 import Galley.Effects.LegalHoldStore
 import Galley.Effects.MemberStore
 import Galley.Effects.TeamStore
-import Galley.Intra.Push
 import Galley.Options
-import Galley.Types.Conversations.Members (LocalMember (..), RemoteMember (..), localMemberToOther, remoteMemberQualify, remoteMemberToOther)
+import Galley.Types.Conversations.Members
 import Galley.Types.Conversations.Roles
 import Galley.Types.Teams
 import Galley.Types.UserList
+import Gundeck.Types.Push.V2 qualified as PushV2
 import Imports hiding (forkIO)
 import Network.HTTP.Types
 import Network.Wai
@@ -67,6 +68,7 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog qualified as P
+import System.Logger qualified as Log
 import Wire.API.Connection
 import Wire.API.Conversation hiding (Member, cnvAccess, cnvAccessRoles, cnvName, cnvType)
 import Wire.API.Conversation qualified as Public
@@ -79,15 +81,15 @@ import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
-import Wire.API.Password (verifyPassword)
+import Wire.API.Password
 import Wire.API.Routes.Public.Galley.Conversation
 import Wire.API.Routes.Public.Util
 import Wire.API.Team.Member
 import Wire.API.Team.Member qualified as Mem
 import Wire.API.Team.Role
-import Wire.API.User (VerificationAction)
-import Wire.API.User qualified as User
+import Wire.API.User hiding (userId)
 import Wire.API.User.Auth.ReAuth
+import Wire.NotificationSubsystem
 
 type JSON = Media "application" "json"
 
@@ -108,15 +110,30 @@ ensureAccessRole roles users = do
     activated <- lookupActivatedUsers (fst <$> users)
     let guestsExist = length activated /= length users
     unless (not guestsExist || GuestAccessRole `Set.member` roles) $ throwS @'ConvAccessDenied
-    let botsExist = any (isJust . User.userService) activated
+    let botsExist = any (isJust . userService) activated
     unless (not botsExist || ServiceAccessRole `Set.member` roles) $ throwS @'ConvAccessDenied
+
+-- | Check that the given user is either part of the same team as the other
+-- users OR that there is a connection.
+ensureConnectedOrSameTeam ::
+  ( Member BrigAccess r,
+    Member (ErrorS 'NotConnected) r,
+    Member TeamStore r
+  ) =>
+  Local UserId ->
+  [Qualified UserId] ->
+  Sem r ()
+ensureConnectedOrSameTeam lusr others = do
+  let (locals, remotes) = partitionQualified lusr others
+  ensureConnectedToLocalsOrSameTeam lusr locals
+  ensureConnectedToRemotes lusr remotes
 
 -- | Check that the given user is either part of the same team(s) as the other
 -- users OR that there is a connection.
 --
 -- Team members are always considered connected, so we only check 'ensureConnected'
 -- for non-team-members of the _given_ user
-ensureConnectedOrSameTeam ::
+ensureConnectedToLocalsOrSameTeam ::
   ( Member BrigAccess r,
     Member (ErrorS 'NotConnected) r,
     Member TeamStore r
@@ -124,8 +141,8 @@ ensureConnectedOrSameTeam ::
   Local UserId ->
   [UserId] ->
   Sem r ()
-ensureConnectedOrSameTeam _ [] = pure ()
-ensureConnectedOrSameTeam (tUnqualified -> u) uids = do
+ensureConnectedToLocalsOrSameTeam _ [] = pure ()
+ensureConnectedToLocalsOrSameTeam (tUnqualified -> u) uids = do
   uTeams <- getUserTeams u
   -- We collect all the relevant uids from same teams as the origin user
   sameTeamUids <- forM uTeams $ \team ->
@@ -299,9 +316,9 @@ acceptOne2One ::
     Member (ErrorS 'ConvNotFound) r,
     Member (Error InternalError) r,
     Member (ErrorS 'InvalidOperation) r,
-    Member GundeckAccess r,
     Member (Input UTCTime) r,
-    Member MemberStore r
+    Member MemberStore r,
+    Member NotificationSubsystem r
   ) =>
   Local UserId ->
   Data.Conversation ->
@@ -328,8 +345,8 @@ acceptOne2One lusr conv conn = do
         let e = memberJoinEvent lusr (tUntagged lcid) now mm []
         conv' <- if isJust (find ((tUnqualified lusr /=) . lmId) mems) then promote else pure conv
         let mems' = mems <> toList mm
-        for_ (newPushLocal ListComplete (tUnqualified lusr) (ConvEvent e) (recipient <$> mems')) $ \p ->
-          push1 $ p & pushConn .~ conn & pushRoute .~ RouteDirect
+        for_ (newPushLocal (tUnqualified lusr) (toJSONObject e) (localMemberToRecipient <$> mems')) $ \p ->
+          pushNotifications [p & pushConn .~ conn & pushRoute .~ PushV2.RouteDirect]
         pure conv' {Data.convLocalMembers = mems'}
     _ -> throwS @'InvalidOperation
   where
@@ -338,6 +355,12 @@ acceptOne2One lusr conv conn = do
     promote = do
       acceptConnectConversation cid
       pure $ Data.convSetType One2OneConv conv
+
+localMemberToRecipient :: LocalMember -> Recipient
+localMemberToRecipient = userRecipient . lmId
+
+userRecipient :: UserId -> Recipient
+userRecipient u = Recipient u PushV2.RecipientClientsAll
 
 memberJoinEvent ::
   Local UserId ->
@@ -352,6 +375,24 @@ memberJoinEvent lorig qconv t lmems rmems =
   where
     localToSimple u = SimpleMember (tUntagged (qualifyAs lorig (lmId u))) (lmConvRoleName u)
     remoteToSimple u = SimpleMember (tUntagged (rmId u)) (rmConvRoleName u)
+
+convDeleteMembers ::
+  Member MemberStore r =>
+  UserList UserId ->
+  Data.Conversation ->
+  Sem r Data.Conversation
+convDeleteMembers ul conv = do
+  deleteMembers (Data.convId conv) ul
+  let locals = Set.fromList (ulLocals ul)
+      remotes = Set.fromList (ulRemotes ul)
+  -- update in-memory view of the conversation
+  pure $
+    conv
+      { Data.convLocalMembers =
+          filter (\lm -> Set.notMember (lmId lm) locals) (Data.convLocalMembers conv),
+        Data.convRemoteMembers =
+          filter (\rm -> Set.notMember (rmId rm) remotes) (Data.convRemoteMembers conv)
+      }
 
 isMember :: Foldable m => UserId -> m LocalMember -> Bool
 isMember u = isJust . find ((u ==) . lmId)
@@ -529,16 +570,29 @@ getConversationAndCheckMembership ::
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'ConvAccessDenied) r
   ) =>
-  UserId ->
+  Qualified UserId ->
   Local ConvId ->
   Sem r Data.Conversation
-getConversationAndCheckMembership uid lcnv = do
-  (conv, _) <-
-    getConversationAndMemberWithError
-      @'ConvAccessDenied
-      uid
-      lcnv
-  pure conv
+getConversationAndCheckMembership quid lcnv = do
+  foldQualified
+    lcnv
+    ( \lusr -> do
+        (conv, _) <-
+          getConversationAndMemberWithError
+            @'ConvAccessDenied
+            (tUnqualified lusr)
+            lcnv
+        pure conv
+    )
+    ( \rusr -> do
+        (conv, _) <-
+          getConversationAndMemberWithError
+            @'ConvNotFound
+            rusr
+            lcnv
+        pure conv
+    )
+    quid
 
 getConversationWithError ::
   ( Member ConversationStore r,
@@ -583,8 +637,8 @@ canDeleteMember deleter deletee
 
 -- | Send an event to local users and bots
 pushConversationEvent ::
-  ( Member GundeckAccess r,
-    Member ExternalAccess r,
+  ( Member ExternalAccess r,
+    Member NotificationSubsystem r,
     Foldable f
   ) =>
   Maybe ConnId ->
@@ -594,8 +648,13 @@ pushConversationEvent ::
   Sem r ()
 pushConversationEvent conn e lusers bots = do
   for_ (newConversationEventPush e (fmap toList lusers)) $ \p ->
-    push1 $ p & set pushConn conn
-  deliverAsync (toList bots `zip` repeat e)
+    pushNotifications [p & set pushConn conn]
+  deliverAsync (map (,e) (toList bots))
+
+newConversationEventPush :: Event -> Local [UserId] -> Maybe Push
+newConversationEventPush e users =
+  let musr = guard (tDomain users == qDomain (evtFrom e)) $> qUnqualified (evtFrom e)
+   in newPush musr (toJSONObject e) (map userRecipient (tUnqualified users))
 
 verifyReusableCode ::
   ( Member CodeStore r,
@@ -669,14 +728,16 @@ runLocalInput = runInputConst . void
 toConversationCreated ::
   -- | The time stamp the conversation was created at
   UTCTime ->
+  -- | The user that created the conversation
+  Local UserId ->
   -- | The conversation to convert for sending to a remote Galley
   Data.Conversation ->
   -- | The resulting information to be sent to a remote Galley
   ConversationCreated ConvId
-toConversationCreated now Data.Conversation {convMetadata = ConversationMetadata {..}, ..} = do
+toConversationCreated now lusr Data.Conversation {convMetadata = ConversationMetadata {..}, ..} =
   ConversationCreated
     { time = now,
-      origUserId = cnvmCreator,
+      origUserId = tUnqualified lusr,
       cnvId = convId,
       cnvType = cnvmType,
       cnvAccess = cnvmAccess,
@@ -739,7 +800,7 @@ fromConversationCreated loc rc@ConversationCreated {..} =
           { cnvmType = cnvType,
             -- FUTUREWORK: Document this is the same domain as the conversation
             -- domain
-            cnvmCreator = origUserId,
+            cnvmCreator = Just origUserId,
             cnvmAccess = cnvAccess,
             cnvmAccessRoles = cnvAccessRoles,
             cnvmName = cnvName,
@@ -772,11 +833,12 @@ registerRemoteConversationMemberships ::
   ) =>
   -- | The time stamp when the conversation was created
   UTCTime ->
+  Local UserId ->
   Local Data.Conversation ->
   Sem r ()
-registerRemoteConversationMemberships now lc = deleteOnUnreachable $ do
+registerRemoteConversationMemberships now lusr lc = deleteOnUnreachable $ do
   let c = tUnqualified lc
-      rc = toConversationCreated now c
+      rc = toConversationCreated now lusr c
       allRemoteMembers = nubOrd {- (but why would there be duplicates?) -} (Data.convRemoteMembers c)
       allRemoteMembersQualified = remoteMemberQualify <$> allRemoteMembers
       allRemoteBuckets :: [Remote [RemoteMember]] = bucketRemote allRemoteMembersQualified
@@ -816,13 +878,13 @@ registerRemoteConversationMemberships now lc = deleteOnUnreachable $ do
     runFederatedConcurrentlyBucketsEither joinedCoupled $
       fedClient @'Galley @"on-conversation-updated" . convUpdateJoin
   where
-    creator :: UserId
+    creator :: Maybe UserId
     creator = cnvmCreator . DataTypes.convMetadata . tUnqualified $ lc
 
     localNonCreators :: [OtherMember]
     localNonCreators =
       fmap (localMemberToOther . tDomain $ lc)
-        . filter (\lm -> lmId lm /= creator)
+        . filter (\lm -> lmId lm `notElem` creator)
         . Data.convLocalMembers
         . tUnqualified
         $ lc
@@ -835,8 +897,8 @@ registerRemoteConversationMemberships now lc = deleteOnUnreachable $ do
     convUpdateJoin (toNotify, newMembers) =
       ConversationUpdate
         { cuTime = now,
-          cuOrigUserId = tUntagged . qualifyAs lc $ creator,
-          cuConvId = DataTypes.convId . tUnqualified $ lc,
+          cuOrigUserId = tUntagged lusr,
+          cuConvId = DataTypes.convId (tUnqualified lc),
           cuAlreadyPresentUsers = fmap (tUnqualified . rmId) . tUnqualified $ toNotify,
           cuAction =
             SomeConversationAction
@@ -936,8 +998,11 @@ allLegalholdConsentGiven uids = do
       -- a whitelisted team is equivalent to have given consent to be in a
       -- conversation with user under legalhold.
       flip allM (chunksOf 32 uids) $ \uidsPage -> do
-        teamsPage <- nub . Map.elems <$> getUsersTeams uidsPage
-        allM isTeamLegalholdWhitelisted teamsPage
+        teamsPage <- getUsersTeams uidsPage
+        allM (eitherTeamMemberAndLHAllowedOrDefLHStatus teamsPage) uidsPage
+      where
+        eitherTeamMemberAndLHAllowedOrDefLHStatus teamsPage uid = do
+          fromMaybe (consentGiven defUserLegalHoldStatus == ConsentGiven) <$> (for (Map.lookup uid teamsPage) isTeamLegalholdWhitelisted)
 
 -- | Add to every uid the legalhold status
 getLHStatusForUsers ::
@@ -965,10 +1030,12 @@ ensureMemberLimit ::
       Member (Input Opts) r
     )
   ) =>
+  ProtocolTag ->
   [LocalMember] ->
   f a ->
   Sem r ()
-ensureMemberLimit old new = do
+ensureMemberLimit ProtocolMLSTag _ _ = pure ()
+ensureMemberLimit _ old new = do
   o <- input
   let maxSize = fromIntegral (o ^. settings . maxConvSize)
   when (length old + length new > maxSize) $
@@ -1008,3 +1075,13 @@ instance
     if err' == demote @e
       then throwS @e
       else rethrowErrors @effs @r err'
+
+logRemoteNotificationError ::
+  forall rpc r.
+  (Member P.TinyLog r, KnownSymbol rpc) =>
+  FederationError ->
+  Sem r ()
+logRemoteNotificationError e =
+  P.warn $
+    Log.field "federation call" (symbolVal (Proxy @rpc))
+      . Log.msg (displayException e)

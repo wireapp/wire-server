@@ -6,22 +6,16 @@ module Wire.API.Federation.BackendNotifications where
 import Control.Exception
 import Control.Monad.Except
 import Data.Aeson
-import Data.ByteString.Builder qualified as Builder
-import Data.ByteString.Lazy qualified as LBS
 import Data.Domain
+import Data.Id (RequestId)
 import Data.Map qualified as Map
-import Data.Sequence qualified as Seq
 import Data.Text qualified as Text
-import Data.Text.Encoding
 import Data.Text.Lazy.Encoding qualified as TL
 import Imports
 import Network.AMQP qualified as Q
 import Network.AMQP.Types qualified as Q
-import Network.HTTP.Types
 import Servant
-import Servant.Client
 import Servant.Client.Core
-import Servant.Types.SourceT
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.Client
 import Wire.API.Federation.Component
@@ -38,7 +32,8 @@ data BackendNotification = BackendNotification
     -- this body, which could be very large and completely useless to the
     -- pusher. This also makes development less clunky as we don't have to
     -- create a sum type here for all types of notifications that could exist.
-    body :: RawJson
+    body :: RawJson,
+    requestId :: Maybe RequestId
   }
   deriving (Show, Eq)
 
@@ -48,7 +43,8 @@ instance ToJSON BackendNotification where
       [ "ownDomain" .= notif.ownDomain,
         "targetComponent" .= notif.targetComponent,
         "path" .= notif.path,
-        "body" .= TL.decodeUtf8 notif.body.rawJsonBytes
+        "body" .= TL.decodeUtf8 notif.body.rawJsonBytes,
+        "requestId" .= notif.requestId
       ]
 
 instance FromJSON BackendNotification where
@@ -58,6 +54,7 @@ instance FromJSON BackendNotification where
       <*> o .: "targetComponent"
       <*> o .: "path"
       <*> (RawJson . TL.encodeUtf8 <$> o .: "body")
+      <*> o .:? "requestId"
 
 type BackendNotificationAPI = Capture "name" Text :> ReqBody '[JSON] RawJson :> Post '[JSON] EmptyResponse
 
@@ -77,8 +74,8 @@ sendNotification env component path body =
       runFederatorClient env . void $
         clientIn (Proxy @BackendNotificationAPI) (Proxy @(FederatorClient c)) (withoutFirstSlash path) body
 
-enqueue :: Q.Channel -> Domain -> Domain -> Q.DeliveryMode -> FedQueueClient c () -> IO ()
-enqueue channel originDomain targetDomain deliveryMode (FedQueueClient action) =
+enqueue :: Q.Channel -> RequestId -> Domain -> Domain -> Q.DeliveryMode -> FedQueueClient c a -> IO a
+enqueue channel requestId originDomain targetDomain deliveryMode (FedQueueClient action) =
   runReaderT action FedQueueEnv {..}
 
 routingKey :: Text -> Text
@@ -125,7 +122,7 @@ ensureQueue chan queue = do
 -- queue. Perhaps none of this should be servant code anymore. But it is here to
 -- allow smooth transition to RabbitMQ based notification pushing.
 --
--- Use 'Wire.API.Federation.API.fedQueueClient' to create and action and pass it
+-- Use 'Wire.API.Federation.API.fedQueueClient' to create an action and pass it
 -- to 'enqueue'
 newtype FedQueueClient c a = FedQueueClient (ReaderT FedQueueEnv IO a)
   deriving (Functor, Applicative, Monad, MonadIO, MonadReader FedQueueEnv)
@@ -134,49 +131,11 @@ data FedQueueEnv = FedQueueEnv
   { channel :: Q.Channel,
     originDomain :: Domain,
     targetDomain :: Domain,
-    deliveryMode :: Q.DeliveryMode
+    deliveryMode :: Q.DeliveryMode,
+    requestId :: RequestId
   }
 
 data EnqueueError = EnqueueError String
   deriving (Show)
 
 instance Exception EnqueueError
-
-instance (KnownComponent c) => RunClient (FedQueueClient c) where
-  runRequestAcceptStatus :: Maybe [Status] -> Request -> FedQueueClient c Response
-  runRequestAcceptStatus _ req = do
-    env <- ask
-    bodyLBS <- case requestBody req of
-      Just (RequestBodyLBS lbs, _) -> pure lbs
-      Just (RequestBodyBS bs, _) -> pure (LBS.fromStrict bs)
-      Just (RequestBodySource src, _) -> liftIO $ do
-        errOrRes <- runExceptT $ runSourceT src
-        either (throwIO . EnqueueError) (pure . mconcat) errOrRes
-      Nothing -> pure mempty
-    let notif =
-          BackendNotification
-            { ownDomain = env.originDomain,
-              targetComponent = componentVal @c,
-              path = decodeUtf8 $ LBS.toStrict $ Builder.toLazyByteString req.requestPath,
-              body = RawJson bodyLBS
-            }
-    let msg =
-          Q.newMsg
-            { Q.msgBody = encode notif,
-              Q.msgDeliveryMode = Just (env.deliveryMode),
-              Q.msgContentType = Just "application/json"
-            }
-        -- Empty string means default exchange
-        exchange = ""
-    liftIO $ do
-      ensureQueue env.channel env.targetDomain._domainText
-      void $ Q.publishMsg env.channel exchange (routingKey env.targetDomain._domainText) msg
-    pure $
-      Response
-        { responseHttpVersion = http20,
-          responseStatusCode = status200,
-          responseHeaders = Seq.singleton (hContentType, "application/json"),
-          responseBody = "{}"
-        }
-  throwClientError :: ClientError -> FedQueueClient c a
-  throwClientError = liftIO . throwIO

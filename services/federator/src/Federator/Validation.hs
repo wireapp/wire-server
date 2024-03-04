@@ -62,19 +62,19 @@ instance AsWai ValidationError where
   toWai err =
     Wai.mkError (validationErrorStatus err) (validationErrorLabel err)
       . LText.fromStrict
-      $ waiErrorDescription err
+      $ validationErrorDescription err
 
-  waiErrorDescription :: ValidationError -> Text
-  waiErrorDescription NoClientCertificate = "no client certificate provided"
-  waiErrorDescription (CertificateParseError reason) =
-    "certificate parse failure: " <> reason
-  waiErrorDescription (DomainParseError domain) =
-    "domain parse failure for [" <> domain <> "]"
-  waiErrorDescription (AuthenticationFailure errs) =
-    "none of the domain names match the certificate, errors: "
-      <> Text.pack (show (toList errs))
-  waiErrorDescription (FederationDenied domain) =
-    "origin domain [" <> domainText domain <> "] not in the federation allow list"
+validationErrorDescription :: ValidationError -> Text
+validationErrorDescription NoClientCertificate = "no client certificate provided"
+validationErrorDescription (CertificateParseError reason) =
+  "certificate parse failure: " <> reason
+validationErrorDescription (DomainParseError domain) =
+  "domain parse failure for [" <> domain <> "]"
+validationErrorDescription (AuthenticationFailure errs) =
+  "none of the domain names match the certificate, errors: "
+    <> Text.pack (show (toList errs))
+validationErrorDescription (FederationDenied domain) =
+  "origin domain [" <> domainText domain <> "] not in the federation allow list"
 
 validationErrorLabel :: ValidationError -> LText
 validationErrorLabel NoClientCertificate = "no-client-certificate"
@@ -87,7 +87,7 @@ validationErrorStatus :: ValidationError -> HTTP.Status
 -- the FederationDenied case is handled differently, because it may be caused
 -- by wrong input in the original request, so we let this error propagate to the
 -- client
-validationErrorStatus (FederationDenied _) = HTTP.status422
+validationErrorStatus (FederationDenied _) = HTTP.status400
 validationErrorStatus _ = HTTP.status403
 
 -- | Validates an already-parsed domain against the allow list (stored in

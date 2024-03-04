@@ -50,7 +50,7 @@ enqueueUniqueProp (Positive n) = ioProperty $ do
   q <- DelayQueue.new (Clock (pure 1)) (Delay 1) (Limit (n + 1))
   r <- forM [1 .. n] $ \(i :: Int) -> DelayQueue.enqueue q (1 :: Int) i
   l <- DelayQueue.length q
-  pure $ all (== True) r && l == 1
+  pure $ and r && l == 1
 
 enqueueCancelProp :: Int -> Int -> Property
 enqueueCancelProp k v = ioProperty $ do

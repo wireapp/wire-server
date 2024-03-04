@@ -42,7 +42,7 @@ import Data.ISO3166_CountryCodes
         TD
       ),
   )
-import Data.Id (BotId (BotId), ClientId (ClientId, client), Id (Id))
+import Data.Id
 import Data.LanguageCodes qualified
   ( ISO639_1
       ( AB,
@@ -99,7 +99,7 @@ testObject_NewBotRequest_provider_1 :: NewBotRequest
 testObject_NewBotRequest_provider_1 =
   NewBotRequest
     { newBotId = (BotId . Id) (fromJust (UUID.fromString "00000004-0000-0003-0000-000000000000")),
-      newBotClient = ClientId {client = "c"},
+      newBotClient = ClientId 0xc,
       newBotOrigin =
         BotUserView
           { botUserViewId = Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000")),
@@ -155,7 +155,7 @@ testObject_NewBotRequest_provider_2 :: NewBotRequest
 testObject_NewBotRequest_provider_2 =
   NewBotRequest
     { newBotId = (BotId . Id) (fromJust (UUID.fromString "00000000-0000-0003-0000-000100000003")),
-      newBotClient = ClientId {client = "4"},
+      newBotClient = ClientId 4,
       newBotOrigin =
         BotUserView
           { botUserViewId = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000")),
@@ -174,7 +174,7 @@ testObject_NewBotRequest_provider_3 :: NewBotRequest
 testObject_NewBotRequest_provider_3 =
   NewBotRequest
     { newBotId = (BotId . Id) (fromJust (UUID.fromString "00000003-0000-0004-0000-000000000001")),
-      newBotClient = ClientId {client = "7"},
+      newBotClient = ClientId 7,
       newBotOrigin =
         BotUserView
           { botUserViewId = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000")),
@@ -223,7 +223,7 @@ testObject_NewBotRequest_provider_4 :: NewBotRequest
 testObject_NewBotRequest_provider_4 =
   NewBotRequest
     { newBotId = (BotId . Id) (fromJust (UUID.fromString "00000000-0000-0004-0000-000300000000")),
-      newBotClient = ClientId {client = "f"},
+      newBotClient = ClientId 0xf,
       newBotOrigin =
         BotUserView
           { botUserViewId = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001")),
@@ -246,7 +246,7 @@ testObject_NewBotRequest_provider_5 :: NewBotRequest
 testObject_NewBotRequest_provider_5 =
   NewBotRequest
     { newBotId = (BotId . Id) (fromJust (UUID.fromString "00000001-0000-0002-0000-000300000003")),
-      newBotClient = ClientId {client = "4"},
+      newBotClient = ClientId 4,
       newBotOrigin =
         BotUserView
           { botUserViewId = Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000000")),
@@ -270,7 +270,7 @@ testObject_NewBotRequest_provider_6 :: NewBotRequest
 testObject_NewBotRequest_provider_6 =
   NewBotRequest
     { newBotId = (BotId . Id) (fromJust (UUID.fromString "00000000-0000-0004-0000-000400000003")),
-      newBotClient = ClientId {client = "2"},
+      newBotClient = ClientId 2,
       newBotOrigin =
         BotUserView
           { botUserViewId = Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000001")),
@@ -344,7 +344,7 @@ testObject_NewBotRequest_provider_7 :: NewBotRequest
 testObject_NewBotRequest_provider_7 =
   NewBotRequest
     { newBotId = (BotId . Id) (fromJust (UUID.fromString "00000002-0000-0002-0000-000200000000")),
-      newBotClient = ClientId {client = "9"},
+      newBotClient = ClientId 9,
       newBotOrigin =
         BotUserView
           { botUserViewId = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000")),
@@ -363,7 +363,7 @@ testObject_NewBotRequest_provider_8 :: NewBotRequest
 testObject_NewBotRequest_provider_8 =
   NewBotRequest
     { newBotId = (BotId . Id) (fromJust (UUID.fromString "00000004-0000-0004-0000-000100000003")),
-      newBotClient = ClientId {client = "3"},
+      newBotClient = ClientId 3,
       newBotOrigin =
         BotUserView
           { botUserViewId = Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000001")),
@@ -382,7 +382,7 @@ testObject_NewBotRequest_provider_9 :: NewBotRequest
 testObject_NewBotRequest_provider_9 =
   NewBotRequest
     { newBotId = (BotId . Id) (fromJust (UUID.fromString "00000004-0000-0002-0000-000200000003")),
-      newBotClient = ClientId {client = "2"},
+      newBotClient = ClientId 2,
       newBotOrigin =
         BotUserView
           { botUserViewId = Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001")),
@@ -440,7 +440,7 @@ testObject_NewBotRequest_provider_10 :: NewBotRequest
 testObject_NewBotRequest_provider_10 =
   NewBotRequest
     { newBotId = (BotId . Id) (fromJust (UUID.fromString "00000001-0000-0004-0000-000000000004")),
-      newBotClient = ClientId {client = "c"},
+      newBotClient = ClientId 0xc,
       newBotOrigin =
         BotUserView
           { botUserViewId = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001")),
@@ -463,7 +463,7 @@ testObject_NewBotRequest_provider_11 :: NewBotRequest
 testObject_NewBotRequest_provider_11 =
   NewBotRequest
     { newBotId = (BotId . Id) (fromJust (UUID.fromString "00000003-0000-0003-0000-000100000000")),
-      newBotClient = ClientId {client = "8"},
+      newBotClient = ClientId 8,
       newBotOrigin =
         BotUserView
           { botUserViewId = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000")),
@@ -486,7 +486,7 @@ testObject_NewBotRequest_provider_12 :: NewBotRequest
 testObject_NewBotRequest_provider_12 =
   NewBotRequest
     { newBotId = (BotId . Id) (fromJust (UUID.fromString "00000004-0000-0003-0000-000100000003")),
-      newBotClient = ClientId {client = "c"},
+      newBotClient = ClientId 0xc,
       newBotOrigin =
         BotUserView
           { botUserViewId = Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000001")),
@@ -514,7 +514,7 @@ testObject_NewBotRequest_provider_13 :: NewBotRequest
 testObject_NewBotRequest_provider_13 =
   NewBotRequest
     { newBotId = (BotId . Id) (fromJust (UUID.fromString "00000004-0000-0003-0000-000400000001")),
-      newBotClient = ClientId {client = "e"},
+      newBotClient = ClientId 0xe,
       newBotOrigin =
         BotUserView
           { botUserViewId = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001")),
@@ -559,7 +559,7 @@ testObject_NewBotRequest_provider_14 :: NewBotRequest
 testObject_NewBotRequest_provider_14 =
   NewBotRequest
     { newBotId = (BotId . Id) (fromJust (UUID.fromString "00000003-0000-0001-0000-000300000004")),
-      newBotClient = ClientId {client = "a"},
+      newBotClient = ClientId 0xa,
       newBotOrigin =
         BotUserView
           { botUserViewId = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000")),
@@ -582,7 +582,7 @@ testObject_NewBotRequest_provider_15 :: NewBotRequest
 testObject_NewBotRequest_provider_15 =
   NewBotRequest
     { newBotId = (BotId . Id) (fromJust (UUID.fromString "00000003-0000-0002-0000-000000000004")),
-      newBotClient = ClientId {client = "7"},
+      newBotClient = ClientId 7,
       newBotOrigin =
         BotUserView
           { botUserViewId = Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000")),
@@ -605,7 +605,7 @@ testObject_NewBotRequest_provider_16 :: NewBotRequest
 testObject_NewBotRequest_provider_16 =
   NewBotRequest
     { newBotId = (BotId . Id) (fromJust (UUID.fromString "00000003-0000-0004-0000-000200000003")),
-      newBotClient = ClientId {client = "9"},
+      newBotClient = ClientId 9,
       newBotOrigin =
         BotUserView
           { botUserViewId = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000")),
@@ -628,7 +628,7 @@ testObject_NewBotRequest_provider_17 :: NewBotRequest
 testObject_NewBotRequest_provider_17 =
   NewBotRequest
     { newBotId = (BotId . Id) (fromJust (UUID.fromString "00000002-0000-0001-0000-000100000000")),
-      newBotClient = ClientId {client = "1"},
+      newBotClient = ClientId 1,
       newBotOrigin =
         BotUserView
           { botUserViewId = Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000")),
@@ -677,7 +677,7 @@ testObject_NewBotRequest_provider_18 :: NewBotRequest
 testObject_NewBotRequest_provider_18 =
   NewBotRequest
     { newBotId = (BotId . Id) (fromJust (UUID.fromString "00000000-0000-0002-0000-000000000001")),
-      newBotClient = ClientId {client = "4"},
+      newBotClient = ClientId 4,
       newBotOrigin =
         BotUserView
           { botUserViewId = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000")),
@@ -731,7 +731,7 @@ testObject_NewBotRequest_provider_19 :: NewBotRequest
 testObject_NewBotRequest_provider_19 =
   NewBotRequest
     { newBotId = (BotId . Id) (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000")),
-      newBotClient = ClientId {client = "6"},
+      newBotClient = ClientId 6,
       newBotOrigin =
         BotUserView
           { botUserViewId = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000")),
@@ -754,7 +754,7 @@ testObject_NewBotRequest_provider_20 :: NewBotRequest
 testObject_NewBotRequest_provider_20 =
   NewBotRequest
     { newBotId = (BotId . Id) (fromJust (UUID.fromString "00000003-0000-0001-0000-000000000002")),
-      newBotClient = ClientId {client = "5"},
+      newBotClient = ClientId 5,
       newBotOrigin =
         BotUserView
           { botUserViewId = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001")),

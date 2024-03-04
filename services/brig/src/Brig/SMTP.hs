@@ -30,6 +30,7 @@ module Brig.SMTP
   )
 where
 
+import Control.Concurrent.Async (wait, withAsyncWithUnmask)
 import Control.Exception qualified as CE (throw)
 import Control.Lens
 import Control.Monad.Catch
@@ -124,7 +125,7 @@ initSMTP' timeoutDuration lg host port credentials connType = do
         flush lg
         error $ "Failed to close test connection with SMTP server: " ++ show e
     )
-  SMTP <$> createPool create destroy 1 5 5
+  SMTP <$> newPool (setNumStripes (Just 1) (defaultPoolConfig create destroy 5 5))
   where
     ensureTimeout :: IO a -> IO a
     ensureTimeout = ensureSMTPConnectionTimeout timeoutDuration
@@ -158,10 +159,18 @@ initSMTP' timeoutDuration lg host port credentials connType = do
         ("Creating pooled SMTP connection to " ++ unpack host)
         establishConnection
 
+    -- NOTE: because `Data.Pool` masks the async exceptions for the resource deallocation function,
+    --       the timeout function called in `ensureTimeOut` will be masked as well and cannot
+    --       ever terminate, so `destroy` itself never terminates
     destroy :: SMTP.SMTPConnection -> IO ()
     destroy c =
-      logExceptionOrResult lg ("Closing pooled SMTP connection to " ++ unpack host) $
-        (ensureTimeout . SMTP.gracefullyCloseSMTP) c
+      withAsyncWithUnmask
+        do
+          \unmask -> do
+            logExceptionOrResult lg ("Closing pooled SMTP connection to " ++ unpack host) $
+              unmask do
+                ensureTimeout $ SMTP.gracefullyCloseSMTP c
+        do wait
 
 logExceptionOrResult :: (MonadIO m, MonadCatch m) => Logger -> String -> m a -> m a
 logExceptionOrResult lg actionString action = do
@@ -169,24 +178,22 @@ logExceptionOrResult lg actionString action = do
     catches
       action
       [ Handler
-          ( \(e :: SMTPPoolException) -> do
-              let resultLog = case e of
-                    SMTPUnauthorized ->
-                      ("Failed to establish connection, check your credentials." :: String)
-                    SMTPConnectionTimeout -> ("Connection timeout." :: String)
-              doLog Logger.Warn resultLog
-              CE.throw e
-          ),
+          \(e :: SMTPPoolException) -> do
+            let resultLog = case e of
+                  SMTPUnauthorized ->
+                    ("Failed to establish connection, check your credentials." :: String)
+                  SMTPConnectionTimeout -> ("Connection timeout." :: String)
+            doLog Logger.Warn resultLog
+            CE.throw e,
         Handler
-          ( \(e :: SomeException) -> do
-              doLog Logger.Warn ("Caught exception : " ++ show e)
-              CE.throw e
-          )
+          \(e :: SomeException) -> do
+            doLog Logger.Warn ("Caught exception : " ++ show e)
+            CE.throw e
       ]
   doLog Logger.Debug ("Succeeded." :: String)
   pure res
   where
-    doLog :: MonadIO m => Logger.Level -> String -> m ()
+    doLog :: (MonadIO m) => Logger.Level -> String -> m ()
     doLog lvl result =
       let msg' = msg ("SMTP connection result" :: String)
        in Logger.log lg lvl (msg' . field "action" actionString . field "result" result)
@@ -214,14 +221,14 @@ ensureSMTPConnectionTimeout timeoutDuration action =
 -- a timeout happens and on every other network failure.
 --
 -- `defaultTimeoutDuration` is used as timeout duration for all actions.
-sendMail :: MonadIO m => Logger -> SMTP -> Mail -> m ()
+sendMail :: (MonadIO m) => Logger -> SMTP -> Mail -> m ()
 sendMail = sendMail' defaultTimeoutDuration
 
 -- | `sendMail` with configurable timeout duration
 --
 -- This is mostly useful for testing. (We don't want to waste the amount of
 -- `defaultTimeoutDuration` in tests with waiting.)
-sendMail' :: (MonadIO m, TimeUnit t) => t -> Logger -> SMTP -> Mail -> m ()
+sendMail' :: forall t m. (MonadIO m, TimeUnit t) => t -> Logger -> SMTP -> Mail -> m ()
 sendMail' timeoutDuration lg s m = liftIO $ withResource (s ^. pool) sendMail''
   where
     sendMail'' :: SMTP.SMTPConnection -> IO ()

@@ -15,7 +15,6 @@ library
   other-modules:      Paths_deriving_swagger2
   hs-source-dirs:     src
   default-extensions:
-    NoImplicitPrelude
     AllowAmbiguousTypes
     BangPatterns
     ConstraintKinds
@@ -39,6 +38,7 @@ library
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NoImplicitPrelude
     OverloadedRecordDot
     OverloadedStrings
     PackageImports
@@ -62,9 +62,9 @@ library
     -Wredundant-constraints -Wunused-packages
 
   build-depends:
-      base      >=4   && <5
+      base      >=4 && <5
     , extra
     , imports
-    , swagger2  >=0.6
+    , openapi3
 
   default-language:   GHC2021

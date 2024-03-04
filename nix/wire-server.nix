@@ -44,7 +44,7 @@
 # with nixpkgs' dockerTools to make derivations for docker images that we need.
 pkgs:
 let
-  lib = pkgs.lib;
+  inherit (pkgs) lib;
   hlib = pkgs.haskell.lib;
   withCleanedPath = drv:
     hlib.overrideCabal drv (old: {
@@ -84,12 +84,15 @@ let
     zauth = [ "zauth" ];
     background-worker = [ "background-worker" ];
     integration = [ "integration" ];
+    rabbitmq-consumer = [ "rabbitmq-consumer" ];
+    test-stats = [ "test-stats" ];
   };
 
   attrsets = lib.attrsets;
 
   pinnedPackages = import ./haskell-pins.nix {
-    fetchgit = pkgs.fetchgit;
+    inherit pkgs;
+    inherit (pkgs) fetchgit;
     inherit lib;
   };
 
@@ -104,7 +107,10 @@ let
         hsuper
         hself;
 
-      werror = _: hlib.failOnAllWarnings;
+      # append `-Werror` to ghc options for all packages.
+      # failOnAllWarnings implies `-Wall`, which overrides any `-Wno-*` from the package cabal file.
+      # https://github.com/NixOS/nixpkgs/blob/1e411c55166539b130b330dafcc4034152f8d4fd/pkgs/development/haskell-modules/lib/compose.nix#L327
+      werror = _: (drv: hlib.appendConfigureFlag drv "--ghc-option=-Werror");
       opt = _: drv:
         if enableOptimization
         then drv
@@ -121,6 +127,9 @@ let
         then drv
         else hlib.dontHaddock drv;
 
+      bench = _: drv:
+        hlib.doBenchmark drv;
+
       overrideAll = fn: overrides:
         attrsets.mapAttrs fn (overrides);
     in
@@ -129,9 +138,10 @@ let
       opt
       docs
       tests
+      bench
     ];
   manualOverrides = import ./manual-overrides.nix (with pkgs; {
-    inherit hlib libsodium protobuf mls-test-cli fetchpatch;
+    inherit hlib libsodium protobuf mls-test-cli fetchpatch pkgs;
   });
 
   executables = hself: hsuper:
@@ -144,7 +154,7 @@ let
       )
       executablesMap;
 
-  hPkgs = localMods@{ enableOptimization, enableDocs, enableTests }: pkgs.haskell.packages.ghc92.override {
+  hPkgs = localMods@{ enableOptimization, enableDocs, enableTests }: pkgs.haskell.packages.ghc94.override {
     overrides = lib.composeManyExtensions [
       pinnedPackages
       (localPackages localMods)
@@ -213,13 +223,6 @@ let
     checkPhase = "";
   };
 
-  integration-dynamic-backends-sqs = pkgs.writeShellApplication {
-    name = "integration-dynamic-backends-sqs.sh";
-    text = "${builtins.readFile ../integration/scripts/integration-dynamic-backends-sqs.sh}";
-    runtimeInputs = [ pkgs.parallel pkgs.awscli2 ];
-    checkPhase = "";
-  };
-
   integration-dynamic-backends-ses = pkgs.writeShellApplication {
     name = "integration-dynamic-backends-ses.sh";
     text = "${builtins.readFile ../integration/scripts/integration-dynamic-backends-ses.sh}";
@@ -247,8 +250,13 @@ let
   # extraContents :: Map Exe Derivation -> Map Text [Derivation]
   extraContents = exes: {
     brig = [ brig-templates ];
-    brig-integration = [ brig-templates pkgs.mls-test-cli ];
-    galley-integration = [ pkgs.mls-test-cli ];
+    brig-integration = [ brig-templates pkgs.mls-test-cli pkgs.awscli2 ];
+    galley-integration = [ pkgs.mls-test-cli pkgs.awscli2 ];
+    stern-integration = [ pkgs.awscli2 ];
+    gundeck-integration = [ pkgs.awscli2 ];
+    cargohold-integration = [ pkgs.awscli2 ];
+    spar-integration = [ pkgs.awscli2 ];
+    federator-integration = [ pkgs.awscli2 ];
     integration = with exes; [
       brig
       brig-index
@@ -267,13 +275,15 @@ let
       brig-templates
       background-worker
       pkgs.nginz
+      pkgs.mls-test-cli
+      pkgs.awscli2
       integration-dynamic-backends-db-schemas
       integration-dynamic-backends-brig-index
-      integration-dynamic-backends-sqs
       integration-dynamic-backends-ses
       integration-dynamic-backends-s3
       integration-dynamic-backends-vhosts
     ];
+    test-stats = [ pkgs.awscli2 pkgs.jq ];
   };
 
   # useful to poke around a container during a 'kubectl exec'
@@ -287,6 +297,7 @@ let
     gnutar
     gzip
     openssl
+    nix-output-monitor
     which
   ];
 
@@ -371,6 +382,8 @@ let
     };
   };
 
+  ormolu = pkgs.haskell.packages.ghc94.ormolu_0_5_2_0;
+
   # Tools common between CI and developers
   commonTools = [
     pkgs.cabal2nix
@@ -381,12 +394,12 @@ let
     pkgs.kubernetes-helm
     pkgs.helmfile
     pkgs.hlint
-    (hlib.justStaticExecutables pkgs.haskellPackages.apply-refact)
     pkgs.jq
     pkgs.kubectl
     pkgs.kubelogin-oidc
     pkgs.nixpkgs-fmt
-    pkgs.ormolu
+    pkgs.openssl
+    (hlib.justStaticExecutables ormolu)
     pkgs.shellcheck
     pkgs.treefmt
     pkgs.gawk
@@ -416,9 +429,18 @@ let
   };
 
   shell = (hPkgs localModsOnlyTests).shellFor {
+    doBenchmark = true;
     packages = p: builtins.map (e: p.${e}) wireServerPackages;
   };
   ghcWithPackages = shell.nativeBuildInputs ++ shell.buildInputs;
+
+  inherit (pkgs.haskellPackages.override {
+    overrides = _hfinal: hprev: {
+      base-compat = hprev.base-compat_0_13_1;
+      base-compat-batteries = hprev.base-compat-batteries_0_13_1;
+      cabal-plan = hlib.markUnbroken (hlib.doJailbreak hprev.cabal-plan);
+    };
+  }) cabal-plan;
 
   profileEnv = pkgs.writeTextFile {
     name = "profile-env";
@@ -429,10 +451,20 @@ let
       export LOCALE_ARCHIVE=${pkgs.glibcLocales}/lib/locale/locale-archive
     '';
   };
+  allLocalPackages = pkgs.symlinkJoin {
+    name = "all-local-packages";
+    paths = map (e: (hPkgs localModsEnableAll).${e}) wireServerPackages;
+  };
+
+  allImages = pkgs.linkFarm "all-images" (images localModsEnableAll);
+
+  # BOM is an acronym for bill of materials
+  allLocalPackagesBom = lib.buildBom allLocalPackages {
+    includeBuildtimeDependencies = true;
+  };
 in
 {
-
-  inherit ciImage hoogleImage;
+  inherit ciImage hoogleImage allImages allLocalPackages allLocalPackagesBom;
 
   images = images localModsEnableAll;
   imagesUnoptimizedNoDocs = images localModsOnlyTests;
@@ -447,14 +479,17 @@ in
 
   devEnv = pkgs.buildEnv {
     name = "wire-server-dev-env";
+    ignoreCollisions = true;
     paths = commonTools ++ [
       pkgs.bash
+      pkgs.crate2nix
       pkgs.dash
-      (pkgs.haskell-language-server.override { supportedGhcVersions = [ "92" ]; })
+      (pkgs.haskell-language-server.override { supportedGhcVersions = [ "94" ]; })
       pkgs.ghcid
       pkgs.kind
       pkgs.netcat
       pkgs.niv
+      (hlib.justStaticExecutables pkgs.haskellPackages.apply-refact)
       (pkgs.python3.withPackages
         (ps: with ps; [
           black
@@ -462,6 +497,7 @@ in
           flake8
           ipdb
           ipython
+          protobuf
           pylint
           pyyaml
           requests
@@ -474,8 +510,8 @@ in
       pkgs.rabbitmqadmin
 
       pkgs.cabal-install
-      pkgs.haskellPackages.cabal-plan
       pkgs.nix-prefetch-git
+      cabal-plan
       profileEnv
     ]
     ++ ghcWithPackages
@@ -489,4 +525,4 @@ in
   inherit brig-templates;
   haskellPackages = hPkgs localModsEnableAll;
   haskellPackagesUnoptimizedNoDocs = hPkgs localModsOnlyTests;
-} // attrsets.genAttrs (wireServerPackages) (e: hPkgs.${e})
+} // attrsets.genAttrs wireServerPackages (e: (hPkgs localModsEnableAll).${e})

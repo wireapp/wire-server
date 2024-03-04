@@ -26,4 +26,4 @@ testObject_Token_1 =
     APNSVoIPSandbox
     (AppName {appNameText = "j{\110746\SOH_\1084873M"})
     (Token {tokenText = "K"})
-    (ClientId {client = "6"})
+    (ClientId {clientToWord64 = 6})

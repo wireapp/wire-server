@@ -1,3 +1,4 @@
+{-# OPTIONS -Wno-ambiguous-fields #-}
 module Test.Notifications where
 
 import API.Common
@@ -25,18 +26,27 @@ testFetchAllNotifications = do
     bindResponse (postPush user [push]) $ \res ->
       res.status `shouldMatchInt` 200
 
-  let client = "deadbeeef"
-  ns <- getNotifications user client def >>= getJSON 200
+  let c :: Maybe String = Just "deadbeef"
+  ns <- getNotifications user (def {client = c} :: GetNotifications) >>= getJSON 200
 
   expected <- replicateM n (push %. "payload")
   allNotifs <- ns %. "notifications" & asList
   actual <- traverse (%. "payload") allNotifs
   actual `shouldMatch` expected
 
-  firstNotif <- getNotification user client (head allNotifs %. "id") >>= getJSON 200
+  firstNotif <-
+    getNotification
+      user
+      (def {client = c} :: GetNotification)
+      (head allNotifs %. "id")
+      >>= getJSON 200
   firstNotif `shouldMatch` head allNotifs
 
-  lastNotif <- getLastNotification user client >>= getJSON 200
+  lastNotif <-
+    getLastNotification
+      user
+      (def {client = c} :: GetNotification)
+      >>= getJSON 200
   lastNotif `shouldMatch` last allNotifs
 
 testLastNotification :: App ()
@@ -59,24 +69,23 @@ testLastNotification = do
     bindResponse (postPush user [push c]) $ \res ->
       res.status `shouldMatchInt` 200
 
-  lastNotif <- getLastNotification user "c" >>= getJSON 200
+  lastNotif <- getLastNotification user def {client = Just "c"} >>= getJSON 200
   lastNotif %. "payload" `shouldMatch` [object ["client" .= "c"]]
 
 testInvalidNotification :: HasCallStack => App ()
 testInvalidNotification = do
   user <- randomUserId OwnDomain
-  let client = "deadbeef"
 
   -- test uuid v4 as "since"
   do
     notifId <- randomId
     void $
-      getNotifications user client def {since = Just notifId}
+      getNotifications user def {since = Just notifId}
         >>= getJSON 400
 
   -- test arbitrary uuid v1 as "since"
   do
     notifId <- randomUUIDv1
     void $
-      getNotifications user client def {since = Just notifId}
+      getNotifications user def {since = Just notifId}
         >>= getJSON 404

@@ -5,10 +5,12 @@ module Brig.API.Public.Swagger
     SwaggerDocsAPIBase,
     ServiceSwaggerDocsAPIBase,
     DocsAPI,
+    FederationSwaggerDocsAPI,
     pregenSwagger,
     swaggerPregenUIServer,
     eventNotificationSchemas,
     adjustSwaggerForInternalEndpoint,
+    adjustSwaggerForFederationEndpoints,
     emptySwagger,
   )
 where
@@ -18,8 +20,9 @@ import Data.Aeson qualified as A
 import Data.FileEmbed
 import Data.HashMap.Strict.InsOrd qualified as HM
 import Data.HashSet.InsOrd qualified as InsOrdSet
-import Data.Swagger qualified as S
-import Data.Swagger.Declare qualified as S
+import Data.Kind qualified as Kind
+import Data.OpenApi qualified as S
+import Data.OpenApi.Declare qualified as S
 import Data.Text qualified as T
 import FileEmbedLzma
 import GHC.TypeLits
@@ -27,7 +30,7 @@ import Imports hiding (head)
 import Language.Haskell.TH
 import Network.Socket
 import Servant
-import Servant.Swagger.Internal.Orphans ()
+import Servant.OpenApi.Internal.Orphans ()
 import Servant.Swagger.UI
 import Wire.API.Event.Conversation qualified
 import Wire.API.Event.FeatureConfig qualified
@@ -38,6 +41,7 @@ type SwaggerDocsAPIBase = SwaggerSchemaUI "swagger-ui" "swagger.json"
 
 type VersionedSwaggerDocsAPI = "api" :> Header VersionHeader VersionNumber :> SwaggerDocsAPIBase
 
+type ServiceSwaggerDocsAPIBase :: Symbol -> Kind.Type
 type ServiceSwaggerDocsAPIBase service = SwaggerSchemaUI service (AppendSymbol service "-swagger.json")
 
 type VersionedSwaggerDocsAPIBase service = Header VersionHeader VersionNumber :> ServiceSwaggerDocsAPIBase service
@@ -54,7 +58,19 @@ type InternalEndpointsSwaggerDocsAPI =
 
 type NotificationSchemasAPI = "api" :> "event-notification-schemas" :> Get '[JSON] [S.Definitions S.Schema]
 
-type DocsAPI = VersionedSwaggerDocsAPI :<|> NotificationSchemasAPI :<|> InternalEndpointsSwaggerDocsAPI
+type FederationSwaggerDocsAPI =
+  "api-federation"
+    :> "swagger-ui"
+    :> ( ServiceSwaggerDocsAPIBase "brig"
+           :<|> ServiceSwaggerDocsAPIBase "galley"
+           :<|> ServiceSwaggerDocsAPIBase "cargohold"
+       )
+
+type DocsAPI =
+  VersionedSwaggerDocsAPI
+    :<|> NotificationSchemasAPI
+    :<|> InternalEndpointsSwaggerDocsAPI
+    :<|> FederationSwaggerDocsAPI
 
 pregenSwagger :: Version -> Q Exp
 pregenSwagger v =
@@ -68,16 +84,14 @@ swaggerPregenUIServer =
     . fromMaybe A.Null
     . A.decode
 
-adjustSwaggerForInternalEndpoint :: String -> PortNumber -> S.Swagger -> S.Swagger
+adjustSwaggerForInternalEndpoint :: String -> PortNumber -> S.OpenApi -> S.OpenApi
 adjustSwaggerForInternalEndpoint service examplePort swagger =
   swagger
-    & S.info . S.title .~ T.pack ("Wire-Server internal API (" ++ service ++ ")")
+    & S.info . S.title .~ T.pack ("Wire-Server Internal API (" ++ service ++ ")")
     & S.info . S.description ?~ renderedDescription
-    & S.host ?~ S.Host "localhost" (Just examplePort)
     & S.allOperations . S.tags <>~ tag
     -- Enforce HTTP as the services themselves don't understand HTTPS
-    & S.schemes ?~ [S.Http]
-    & S.allOperations . S.schemes ?~ [S.Http]
+    & S.servers .~ [S.Server ("http://localhost:" <> T.pack (show examplePort)) Nothing mempty]
   where
     tag :: InsOrdSet.InsOrdHashSet S.TagName
     tag = InsOrdSet.singleton @S.TagName (T.pack service)
@@ -99,12 +113,21 @@ adjustSwaggerForInternalEndpoint service examplePort swagger =
             ++ " But, the proposed `curl` commands will."
         ]
 
+adjustSwaggerForFederationEndpoints :: String -> S.OpenApi -> S.OpenApi
+adjustSwaggerForFederationEndpoints service swagger =
+  swagger
+    & S.info . S.title .~ T.pack ("Wire-Server Federation API (" ++ service ++ ")")
+    & S.allOperations . S.tags <>~ tag
+  where
+    tag :: InsOrdSet.InsOrdHashSet S.TagName
+    tag = InsOrdSet.singleton @S.TagName (T.pack service)
+
 emptySwagger :: Servant.Server (ServiceSwaggerDocsAPIBase a)
 emptySwagger =
   swaggerSchemaUIServer $
-    mempty @S.Swagger
+    mempty @S.OpenApi
       & S.info . S.description
-        ?~ "There is no Swagger documentation for this version. Please refer to v3 or later."
+        ?~ "There is no Swagger documentation for this version. Please refer to v5 or later."
 
 {- FUTUREWORK(fisx): there are a few things that need to be fixed before this schema collection
    is of any practical use!

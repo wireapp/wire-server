@@ -62,8 +62,8 @@ import Data.ByteString.Builder qualified as BB
 import Data.ByteString.Conversion qualified as BS
 import Data.ByteString.Lazy qualified as L
 import Data.Fixed
+import Data.OpenApi qualified as S
 import Data.Schema
-import Data.Swagger qualified as S
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Data.Text.Encoding.Error qualified as Text
@@ -161,7 +161,7 @@ instance ToJSONObject A.Object where
 
 instance S.ToParamSchema A.Object where
   toParamSchema _ =
-    mempty & S.type_ ?~ S.SwaggerString
+    mempty & S.type_ ?~ S.OpenApiString
 
 instance ToSchema A.Object where
   schema =
@@ -196,7 +196,7 @@ toJSONFieldName = A.defaultOptions {A.fieldLabelModifier = A.camelTo2 '_'}
 -- Some related discussion: <https://github.com/bos/aeson/issues/126>.
 newtype Base64ByteString = Base64ByteString {fromBase64ByteString :: ByteString}
   deriving stock (Eq, Ord, Show)
-  deriving (FromJSON, ToJSON) via Schema Base64ByteString
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema Base64ByteString
   deriving newtype (Arbitrary, IsString)
 
 instance ToSchema Base64ByteString where
@@ -209,7 +209,7 @@ instance ToHttpApiData Base64ByteString where
   toUrlPiece = Text.decodeUtf8With Text.lenientDecode . B64U.encodeUnpadded . fromBase64ByteString
 
 instance S.ToParamSchema Base64ByteString where
-  toParamSchema _ = mempty & S.type_ ?~ S.SwaggerString
+  toParamSchema _ = mempty & S.type_ ?~ S.OpenApiString
 
 -- base64("example") ~> "ZXhhbXBsZQo="
 base64SchemaN :: ValueSchema NamedSwaggerDoc ByteString
@@ -245,7 +245,7 @@ instance ToHttpApiData Base64ByteStringL where
   toUrlPiece = toUrlPiece . base64ToStrict
 
 instance S.ToParamSchema Base64ByteStringL where
-  toParamSchema _ = mempty & S.type_ ?~ S.SwaggerString
+  toParamSchema _ = mempty & S.type_ ?~ S.OpenApiString
 
 base64SchemaLN :: ValueSchema NamedSwaggerDoc LByteString
 base64SchemaLN = L.toStrict .= fmap L.fromStrict base64SchemaN

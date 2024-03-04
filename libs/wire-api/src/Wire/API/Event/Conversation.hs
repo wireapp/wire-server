@@ -71,22 +71,26 @@ import Data.Aeson qualified as A
 import Data.Aeson.KeyMap qualified as KeyMap
 import Data.Id
 import Data.Json.Util
+import Data.OpenApi (deprecated)
+import Data.OpenApi qualified as S
 import Data.Qualified
 import Data.SOP
 import Data.Schema
-import Data.Swagger qualified as S
 import Data.Time
 import Imports
 import Test.QuickCheck qualified as QC
 import URI.ByteString ()
 import Wire.API.Conversation
 import Wire.API.Conversation.Code (ConversationCode (..), ConversationCodeInfo)
+import Wire.API.Conversation.Protocol (ProtocolUpdate (unProtocolUpdate))
+import Wire.API.Conversation.Protocol qualified as P
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing
+import Wire.API.Event.LeaveReason
 import Wire.API.MLS.SubConversation
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Version
-import Wire.API.User (QualifiedUserIdList (..))
+import Wire.API.User (QualifiedUserIdList (..), qualifiedUserIdListObjectSchema)
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
 --------------------------------------------------------------------------------
@@ -133,6 +137,7 @@ data EventType
   | MLSMessageAdd
   | MLSWelcome
   | Typing
+  | ProtocolUpdate
   deriving stock (Eq, Show, Generic, Enum, Bounded, Ord)
   deriving (Arbitrary) via (GenericUniform EventType)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema EventType
@@ -156,12 +161,13 @@ instance ToSchema EventType where
           element "conversation.typing" Typing,
           element "conversation.otr-message-add" OtrMessageAdd,
           element "conversation.mls-message-add" MLSMessageAdd,
-          element "conversation.mls-welcome" MLSWelcome
+          element "conversation.mls-welcome" MLSWelcome,
+          element "conversation.protocol-update" ProtocolUpdate
         ]
 
 data EventData
   = EdMembersJoin SimpleMembers
-  | EdMembersLeave QualifiedUserIdList
+  | EdMembersLeave EdMemberLeftReason QualifiedUserIdList
   | EdConnect Connect
   | EdConvReceiptModeUpdate ConversationReceiptModeUpdate
   | EdConvRename ConversationRename
@@ -176,12 +182,13 @@ data EventData
   | EdOtrMessage OtrMessage
   | EdMLSMessage ByteString
   | EdMLSWelcome ByteString
+  | EdProtocolUpdate P.ProtocolTag
   deriving stock (Eq, Show, Generic)
 
 genEventData :: EventType -> QC.Gen EventData
 genEventData = \case
   MemberJoin -> EdMembersJoin <$> arbitrary
-  MemberLeave -> EdMembersLeave <$> arbitrary
+  MemberLeave -> EdMembersLeave <$> arbitrary <*> arbitrary
   MemberStateUpdate -> EdMemberUpdate <$> arbitrary
   ConvRename -> EdConvRename <$> arbitrary
   ConvAccessUpdate -> EdConvAccessUpdate <$> arbitrary
@@ -196,10 +203,11 @@ genEventData = \case
   MLSMessageAdd -> EdMLSMessage <$> arbitrary
   MLSWelcome -> EdMLSWelcome <$> arbitrary
   ConvDelete -> pure EdConvDelete
+  ProtocolUpdate -> EdProtocolUpdate <$> arbitrary
 
 eventDataType :: EventData -> EventType
 eventDataType (EdMembersJoin _) = MemberJoin
-eventDataType (EdMembersLeave _) = MemberLeave
+eventDataType (EdMembersLeave _ _) = MemberLeave
 eventDataType (EdMemberUpdate _) = MemberStateUpdate
 eventDataType (EdConvRename _) = ConvRename
 eventDataType (EdConvAccessUpdate _) = ConvAccessUpdate
@@ -214,6 +222,7 @@ eventDataType (EdOtrMessage _) = OtrMessageAdd
 eventDataType (EdMLSMessage _) = MLSMessageAdd
 eventDataType (EdMLSWelcome _) = MLSWelcome
 eventDataType EdConvDelete = ConvDelete
+eventDataType (EdProtocolUpdate _) = ProtocolUpdate
 
 --------------------------------------------------------------------------------
 -- Event data helpers
@@ -234,7 +243,9 @@ instance ToSchema SimpleMembers where
           .= optional
             ( fieldWithDocModifier
                 "user_ids"
-                (description ?~ "deprecated")
+                ( (description ?~ "deprecated")
+                    . (deprecated ?~ True)
+                )
                 (array schema)
             )
 
@@ -373,7 +384,7 @@ taggedEventDataSchema =
   where
     edata = dispatch $ \case
       MemberJoin -> tag _EdMembersJoin (unnamed schema)
-      MemberLeave -> tag _EdMembersLeave (unnamed schema)
+      MemberLeave -> tag _EdMembersLeave (unnamed memberLeaveSchema)
       MemberStateUpdate -> tag _EdMemberUpdate (unnamed schema)
       ConvRename -> tag _EdConvRename (unnamed schema)
       -- FUTUREWORK: when V2 is dropped, it is fine to change this schema to
@@ -394,6 +405,12 @@ taggedEventDataSchema =
       Typing -> tag _EdTyping (unnamed schema)
       ConvCodeDelete -> tag _EdConvCodeDelete null_
       ConvDelete -> tag _EdConvDelete null_
+      ProtocolUpdate -> tag _EdProtocolUpdate (unnamed (unProtocolUpdate <$> P.ProtocolUpdate .= schema))
+
+memberLeaveSchema :: ValueSchema NamedSwaggerDoc (EdMemberLeftReason, QualifiedUserIdList)
+memberLeaveSchema =
+  object "QualifiedUserIdList with EdMemberLeftReason" $
+    (,) <$> fst .= field "reason" schema <*> snd .= qualifiedUserIdListObjectSchema
 
 instance ToSchema Event where
   schema = object "Event" eventObjectSchema

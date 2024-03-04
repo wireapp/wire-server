@@ -33,10 +33,13 @@ module Data.Jwt.Tools
     ExpiryEpoch (..),
     NowEpoch (..),
     PemBundle (..),
+    Handle (..),
+    DisplayName (..),
+    TeamId (..),
   )
 where
 
-import Control.Exception
+import Control.Exception hiding (handle)
 import Control.Monad.Trans.Except
 import Data.ByteString.Conversion
 import Foreign.C.String (CString, newCString, peekCString)
@@ -49,6 +52,10 @@ data HsResult
 type ProofCStr = CString
 
 type UserIdCStr = CString
+
+type TeamIdCStr = CString
+
+type HandleCStr = CString
 
 type ClientIdWord64 = Word64
 
@@ -68,11 +75,16 @@ type EpochWord64 = Word64
 
 type BackendBundleCStr = CString
 
+type DisplayNameCStr = CString
+
 foreign import ccall unsafe "generate_dpop_access_token"
   generate_dpop_access_token ::
     ProofCStr ->
     UserIdCStr ->
     ClientIdWord64 ->
+    HandleCStr ->
+    DisplayNameCStr ->
+    TeamIdCStr ->
     DomainCStr ->
     NonceCStr ->
     UrlCStr ->
@@ -93,6 +105,9 @@ generateDpopAccessTokenFfi ::
   ProofCStr ->
   UserIdCStr ->
   ClientIdWord64 ->
+  HandleCStr ->
+  DisplayNameCStr ->
+  TeamIdCStr ->
   DomainCStr ->
   NonceCStr ->
   UrlCStr ->
@@ -102,8 +117,8 @@ generateDpopAccessTokenFfi ::
   EpochWord64 ->
   BackendBundleCStr ->
   IO (Maybe (Ptr HsResult))
-generateDpopAccessTokenFfi dpopProof user client domain nonce uri method maxSkewSecs expiration now backendKeys = do
-  ptr <- generate_dpop_access_token dpopProof user client domain nonce uri method maxSkewSecs expiration now backendKeys
+generateDpopAccessTokenFfi dpopProof user client handle displayName tid domain nonce uri method maxSkewSecs expiration now backendKeys = do
+  ptr <- generate_dpop_access_token dpopProof user client handle displayName tid domain nonce uri method maxSkewSecs expiration now backendKeys
   if ptr /= nullPtr
     then pure $ Just ptr
     else pure Nothing
@@ -127,6 +142,9 @@ generateDpopToken ::
   Proof ->
   UserId ->
   ClientId ->
+  Handle ->
+  DisplayName ->
+  TeamId ->
   Domain ->
   Nonce ->
   Uri ->
@@ -136,20 +154,35 @@ generateDpopToken ::
   NowEpoch ->
   PemBundle ->
   ExceptT DPoPTokenGenerationError m ByteString
-generateDpopToken dpopProof uid cid domain nonce uri method maxSkewSecs maxExpiration now backendPubkeyBundle = do
+generateDpopToken dpopProof uid cid handle displayName tid domain nonce uri method maxSkewSecs maxExpiration now backendPubkeyBundle = do
   dpopProofCStr <- toCStr dpopProof
   uidCStr <- toCStr uid
+  handleCStr <- toCStr handle
+  displayNameCStr <- toCStr displayName
+  tidCStr <- toCStr tid
   domainCStr <- toCStr domain
   nonceCStr <- toCStr nonce
   uriCStr <- toCStr uri
   methodCStr <- liftIO $ newCString $ cs $ methodToBS method
   backendPubkeyBundleCStr <- toCStr backendPubkeyBundle
 
+  -- log all variable inputs (can comment in if need to generate new test data)
+  -- traceM $ "proof = Proof " <> show (_unProof dpopProof)
+  -- traceM $ "uid = UserId " <> show (_unUserId uid)
+  -- traceM $ "nonce = Nonce " <> show (_unNonce nonce)
+  -- traceM $ "expires = ExpiryEpoch " <> show (_unExpiryEpoch maxExpiration)
+  -- traceM $ "handle = Handle " <> show (_unHandle handle)
+  -- traceM $ "displayName = DisplayName " <> show (_unDisplayName displayName)
+  -- traceM $ "tid = TeamId " <> show (_unTeamId tid)
+
   let before =
         generateDpopAccessTokenFfi
           dpopProofCStr
           uidCStr
           (_unClientId cid)
+          handleCStr
+          displayNameCStr
+          tidCStr
           domainCStr
           nonceCStr
           uriCStr
@@ -213,6 +246,14 @@ newtype ClientId = ClientId {_unClientId :: Word64}
   deriving (Eq, Show)
   deriving newtype (ToByteString)
 
+newtype Handle = Handle {_unHandle :: ByteString}
+  deriving (Eq, Show)
+  deriving newtype (ToByteString)
+
+newtype TeamId = TeamId {_unTeamId :: ByteString}
+  deriving (Eq, Show)
+  deriving newtype (ToByteString)
+
 newtype Domain = Domain {_unDomain :: ByteString}
   deriving (Eq, Show)
   deriving newtype (ToByteString)
@@ -238,6 +279,10 @@ newtype NowEpoch = NowEpoch {_unNowEpoch :: Word64}
   deriving newtype (ToByteString)
 
 newtype PemBundle = PemBundle {_unPemBundle :: ByteString}
+  deriving (Eq, Show)
+  deriving newtype (ToByteString)
+
+newtype DisplayName = DisplayName {_unDisplayName :: ByteString}
   deriving (Eq, Show)
   deriving newtype (ToByteString)
 
@@ -323,4 +368,10 @@ data DPoPTokenGenerationError
     UnsupportedApiVersion
   | -- Bubbling up errors
     UnsupportedScope
+  | -- Client handle does not match the supplied handle
+    DpopHandleMismatch
+  | -- Client team does not match the supplied team
+    DpopTeamMismatch
+  | --  Client display name does not match the supplied display name
+    DpopDisplayNameMismatch
   deriving (Eq, Show, Generic, Bounded, Enum)

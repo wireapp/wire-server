@@ -1,3 +1,5 @@
+{-# LANGUAGE RecordWildCards #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -21,12 +23,16 @@ module Wire.Sem.Logger.TinyLog
     stringLoggerToTinyLog,
     discardTinyLogs,
     module Wire.Sem.Logger.Level,
+    LogRecorder (..),
+    newLogRecorder,
+    recordLogs,
   )
 where
 
 import Data.Id
 import Imports
 import Polysemy
+import Polysemy.TinyLog (TinyLog)
 import qualified System.Logger as Log
 import Wire.Sem.Logger
 import Wire.Sem.Logger.Level
@@ -58,3 +64,12 @@ stringLoggerToTinyLog = mapLogger @String Log.msg
 
 discardTinyLogs :: Sem (Logger (Log.Msg -> Log.Msg) ': r) a -> Sem r a
 discardTinyLogs = discardLogs
+
+newtype LogRecorder = LogRecorder {recordedLogs :: IORef [(Level, LByteString)]}
+
+newLogRecorder :: IO LogRecorder
+newLogRecorder = LogRecorder <$> newIORef []
+
+recordLogs :: Member (Embed IO) r => LogRecorder -> Sem (TinyLog ': r) a -> Sem r a
+recordLogs LogRecorder {..} = interpret $ \(Log lvl msg) ->
+  modifyIORef' recordedLogs (++ [(lvl, Log.render (Log.renderDefault ", ") msg)])

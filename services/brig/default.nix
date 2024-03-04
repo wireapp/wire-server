@@ -48,7 +48,6 @@
 , filepath
 , fsnotify
 , galley-types
-, geoip2
 , gitignoreSource
 , gundeck-types
 , hashable
@@ -85,11 +84,14 @@
 , network
 , network-conduit-tls
 , network-uri
+, openapi3
 , optparse-applicative
 , pem
 , pipes
 , polysemy
+, polysemy-conc
 , polysemy-plugin
+, polysemy-time
 , polysemy-wire-zoo
 , postie
 , process
@@ -110,8 +112,8 @@
 , servant
 , servant-client
 , servant-client-core
+, servant-openapi3
 , servant-server
-, servant-swagger
 , servant-swagger-ui
 , sodium-crypto-sign
 , spar
@@ -120,8 +122,8 @@
 , statistics
 , stomp-queue
 , streaming-commons
-, swagger2
 , tasty
+, tasty-ant-xml
 , tasty-cannon
 , tasty-hunit
 , tasty-quickcheck
@@ -155,6 +157,7 @@
 , warp-tls
 , wire-api
 , wire-api-federation
+, wire-subsystems
 , yaml
 , zauth
 }:
@@ -191,7 +194,6 @@ mkDerivation {
     cql
     cryptobox-haskell
     currency-codes
-    data-default
     data-timeout
     dns
     dns-util
@@ -205,7 +207,6 @@ mkDerivation {
     filepath
     fsnotify
     galley-types
-    geoip2
     gundeck-types
     hashable
     HaskellNet
@@ -235,13 +236,16 @@ mkDerivation {
     mwc-random
     network
     network-conduit-tls
+    openapi3
     optparse-applicative
     polysemy
+    polysemy-conc
     polysemy-plugin
+    polysemy-time
     polysemy-wire-zoo
     proto-lens
-    random
     random-shuffle
+    raw-strings-qq
     resource-pool
     resourcet
     retry
@@ -251,15 +255,14 @@ mkDerivation {
     schema-profunctor
     scientific
     servant
+    servant-openapi3
     servant-server
-    servant-swagger
     servant-swagger-ui
     sodium-crypto-sign
     split
     ssl-util
     statistics
     stomp-queue
-    swagger2
     template
     template-haskell
     text
@@ -286,6 +289,7 @@ mkDerivation {
     wai-utilities
     wire-api
     wire-api-federation
+    wire-subsystems
     yaml
     zauth
   ];
@@ -353,6 +357,7 @@ mkDerivation {
     spar
     streaming-commons
     tasty
+    tasty-ant-xml
     tasty-cannon
     tasty-hunit
     temporary
@@ -384,6 +389,7 @@ mkDerivation {
     aeson
     base
     binary
+    brig-types
     bytestring
     containers
     data-timeout

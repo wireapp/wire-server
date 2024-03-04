@@ -20,6 +20,13 @@ config:
   logNetStrings: false
   cassandra:
     host: aws-cassandra
+#   To enable TLS provide a CA:
+#   tlsCa: <CA in PEM format (can be self-signed)>
+#
+#   Or refer to an existing secret (containing the CA):
+#   tlsCaSecretRef:
+#     name: <secret-name>
+#     key: <ca-attribute>
   redis:
     host: redis-ephemeral-master
     port: 6379
@@ -37,7 +44,7 @@ config:
     soft: 1000
   # Disable one ore more API versions. Please make sure the configuration value is the same in all these charts:
   # brig, cannon, cargohold, galley, gundeck, proxy, spar.
-  # disabledAPIVersions: [ v3 ]
+  disabledAPIVersions: [ development ]
 
   # Maximum number of bytes loaded into memory when fetching (referenced) payloads.
   # Gundeck will return a truncated page if the whole page's payload sizes would exceed this limit in total.
@@ -68,3 +75,11 @@ podSecurityContext:
   runAsNonRoot: true
   seccompProfile:
     type: RuntimeDefault
+tests:
+  config: {}
+#  config:
+#   uploadXml:
+#     baseUrl: s3://bucket/path/
+#  secrets:
+#    uploadXmlAwsAccessKeyId: <key-id>
+#    uploadXmlAwsSecretAccessKey: <secret>

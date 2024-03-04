@@ -1,10 +1,10 @@
 replicaCount: 3
 resources:
   requests:
-    memory: "256Mi"
+    memory: "850Mi"
     cpu: "100m"
   limits:
-    memory: "800Mi"
+    memory: "1200Mi"
 metrics:
   serviceMonitor:
     enabled: false
@@ -53,7 +53,10 @@ nginx_conf:
   - /search/top
   - /search/common
 
-  default_client_max_body_size: "256k"
+  # `default_client_max_body_size` is increased from 256k to 512k because
+  # client requests like listing users, conversations, filling or getting prekeys and other various MLS requests
+  # apparently may have bodies larger than 256k.
+  default_client_max_body_size: "512k"
   rate_limit_reqs_per_user: "30r/s"
   rate_limit_reqs_per_addr: "15r/m"
 
@@ -159,6 +162,10 @@ nginx_conf:
       envs:
       - staging
     - path: /api-internal/swagger-ui
+      disable_zauth: true
+      envs:
+      - staging
+    - path: /api-federation/swagger-ui
       disable_zauth: true
       envs:
       - staging
@@ -433,6 +440,9 @@ nginx_conf:
       - all
       max_body_size: 40m
       body_buffer_size: 256k
+    - path: /conversations/([^/]*)/([^/]*)/protocol
+      envs:
+      - all
     - path: /broadcast
       envs:
       - all
@@ -517,6 +527,12 @@ nginx_conf:
     - path: /teams/([^/]*)/features/([^/])*
       envs:
       - all
+    - path: /i/teams/([^/]*)/features/enforceFileDownloadLocation/([^/])*
+      envs:
+      - staging
+      disable_zauth: true
+      basic_auth: true
+      versioned: false
     - path: /i/teams/([^/]*)/features/([^/]*)
       envs:
       - staging
@@ -542,6 +558,8 @@ nginx_conf:
     - path: /mls/commit-bundles
       envs:
       - all
+      max_body_size: 70m
+      body_buffer_size: 256k
     - path: /mls/public-keys
       envs:
       - all

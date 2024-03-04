@@ -31,10 +31,10 @@ import Data.Aeson qualified as A
 import Data.ByteString.Base64.URL qualified as Base64
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (fromStrict, toStrict)
+import Data.OpenApi qualified as S
+import Data.OpenApi.ParamSchema
 import Data.Proxy (Proxy (Proxy))
 import Data.Schema
-import Data.Swagger qualified as S
-import Data.Swagger.ParamSchema
 import Data.UUID as UUID (UUID, fromByteString, toByteString)
 import Data.UUID.V4 (nextRandom)
 import Imports

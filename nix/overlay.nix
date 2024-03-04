@@ -50,7 +50,7 @@ let
     };
 
   sources = import ./sources.nix;
-  pkgsCargo = import sources.nixpkgs-cargo {};
+  pkgsCargo = import sources.nixpkgs-cargo { };
 in
 
 self: super: {
@@ -68,11 +68,20 @@ self: super: {
     zauth = {
       name = "zauth";
       src = ../services/nginz/third_party/nginx-zauth-module;
-      inputs = [ self.pkg-config self.zauth ];
+      inputs = [ self.pkg-config self.zauth.lib ];
+      meta = {
+        license = [ self.lib.licenses.agpl3Only ];
+      };
     };
   };
 
-  nginz = super.nginx.override {
+  nginz = (super.nginx.overrideAttrs rec {
+    version = "1.22.1";
+    src = super.fetchurl {
+      url = "https://nginx.org/download/nginx-${version}.tar.gz";
+      hash = "sha256-nrszOp6CuVKs0+K0rrHU/2QG9ySRurbNn+afDepzfzE=";
+    };
+  }).override {
     modules = [
       self.nginxModules.vts
       self.nginxModules.moreheaders
@@ -89,19 +98,6 @@ self: super: {
 
     linuxAmd64Url = "https://github.com/commercialhaskell/stack/releases/download/v${version}/stack-${version}-linux-x86_64-static.tar.gz";
     linuxAmd64Sha256 = "sha256-xbziTe+isrhvG7sUvtTx7oO+wUxu2fzIEXTVRz+/NFA=";
-
-    inherit (super) stdenv fetchurl;
-  };
-
-  kind = staticBinary {
-    pname = "kind";
-    version = "0.11.0";
-
-    darwinAmd64Url = "https://github.com/kubernetes-sigs/kind/releases/download/v0.11.1/kind-darwin-amd64";
-    darwinAmd64Sha256 = "432bef555a70e9360b44661c759658265b9eaaf7f75f1beec4c4d1e6bbf97ce3";
-
-    linuxAmd64Url = "https://github.com/kubernetes-sigs/kind/releases/download/v0.11.1/kind-linux-amd64";
-    linuxAmd64Sha256 = "949f81b3c30ca03a3d4effdecda04f100fa3edc07a28b19400f72ede7c5f0491";
 
     inherit (super) stdenv fetchurl;
   };

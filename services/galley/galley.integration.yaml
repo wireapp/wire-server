@@ -50,6 +50,10 @@ settings:
   mlsPrivateKeyPaths:
     removal:
       ed25519: test/resources/ed25519.pem
+  guestLinkTTLSeconds: 604800
+  # We explicitly do not disable any API version. Please make sure the configuration value is the same in all these configs:
+  # brig, cannon, cargohold, galley, gundeck, proxy, spar.
+  disabledAPIVersions: []
 
   featureFlags:  # see #RefConfigOptions in `/docs/reference`
     sso: disabled-by-default
@@ -83,6 +87,18 @@ settings:
           verificationExpiration: 86400
           acmeDiscoveryUrl: null
         lockStatus: unlocked
+    mlsMigration:
+      defaults:
+        status: enabled
+        config:
+          startTime: "2029-05-16T10:11:12.123Z"
+          finaliseRegardlessAfter: "2029-10-17T00:00:00.000Z"
+          usersThreshold: 100
+          clientsThreshold: 50
+        lockStatus: locked
+    limitedEventFanout:
+      defaults:
+        status: disabled
 
 logLevel: Warn
 logNetStrings: false

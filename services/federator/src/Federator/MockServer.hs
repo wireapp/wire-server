@@ -81,9 +81,6 @@ instance AsWai MockException where
   toWai (MockErrorResponse status message) = Wai.mkError status "mock-error" message
   toWai (MockUnreachableBackendErrorResponse d) =
     Wai.mkError HTTP.status503 "mock-error" (unreachableMsg d)
-  waiErrorDescription (MockErrorResponse _ message) = LText.toStrict message
-  waiErrorDescription (MockUnreachableBackendErrorResponse d) =
-    LText.toStrict . unreachableMsg $ d
 
 unreachableMsg :: Domain -> LText
 unreachableMsg (LText.fromStrict . domainText -> d) =
@@ -114,7 +111,7 @@ mockServer ::
 mockServer remoteCalls headers resp interpreter =
   Federator.InternalServer.API
     { status = const $ pure NoContent,
-      internalRequest = \targetDomain component rpc ->
+      internalRequest = \_mReqId targetDomain component rpc ->
         Tagged $ \req respond ->
           respond =<< interpreter (mockInternalRequest remoteCalls headers resp targetDomain component rpc req)
     }

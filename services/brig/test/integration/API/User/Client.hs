@@ -44,6 +44,7 @@ import Data.ByteString.Conversion
 import Data.Coerce (coerce)
 import Data.Default
 import Data.Domain (Domain (..))
+import Data.Handle
 import Data.Id
 import Data.List1 qualified as List1
 import Data.Map qualified as Map
@@ -52,9 +53,11 @@ import Data.Qualified (Qualified (..))
 import Data.Range (unsafeRange)
 import Data.Set qualified as Set
 import Data.Text.Ascii (AsciiChars (validate), encodeBase64UrlUnpadded, toText)
+import Data.Text.Encoding qualified as T
 import Data.Time (addUTCTime)
 import Data.Time.Clock.POSIX
 import Data.UUID (toByteString)
+import Data.UUID qualified as UUID
 import Data.Vector qualified as Vec
 import Imports
 import Network.Wai.Utilities.Error qualified as Error
@@ -67,7 +70,7 @@ import Test.Tasty.HUnit
 import UnliftIO (mapConcurrently)
 import Util
 import Wire.API.Internal.Notification
-import Wire.API.MLS.Credential
+import Wire.API.MLS.CipherSuite
 import Wire.API.Team.Feature qualified as Public
 import Wire.API.User
 import Wire.API.User qualified as Public
@@ -82,11 +85,7 @@ tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> DB.ClientState
 tests _cl _at opts p db n b c g =
   testGroup
     "client"
-    [ test p "delete /clients/:client 403 - can't delete legalhold clients" $
-        testCan'tDeleteLegalHoldClient b,
-      test p "post /clients 400 - can't add legalhold clients manually" $
-        testCan'tAddLegalHoldClient b,
-      test p "get /users/:uid/clients - 200" $ testGetUserClientsUnqualified opts b,
+    [ test p "get /users/:uid/clients - 200" $ testGetUserClientsUnqualified opts b,
       test p "get /users/<localdomain>/:uid/clients - 200" $ testGetUserClientsQualified opts b,
       test p "get /users/:uid/prekeys - 200" $ testGetUserPrekeys b,
       test p "get /users/<localdomain>/:uid/prekeys - 200" $ testGetUserPrekeysQualified b opts,
@@ -478,7 +477,9 @@ testClientsWithoutPrekeys brig cannon db opts = do
       let ob = Object $ List1.head (ntfPayload n)
       ob ^? key "type" . _String
         @?= Just "user.client-remove"
-      fmap ClientId (ob ^? key "client" . key "id" . _String)
+      ( fromByteString . T.encodeUtf8
+          =<< (ob ^? key "client" . key "id" . _String)
+        )
         @?= Just (clientId c11)
 
   post
@@ -568,7 +569,7 @@ testClientsWithoutPrekeysV4 brig cannon db opts = do
       let ob = Object $ List1.head (ntfPayload n)
       ob ^? key "type" . _String
         @?= Just "user.client-remove"
-      fmap ClientId (ob ^? key "client" . key "id" . _String)
+      (fromByteString . T.encodeUtf8 =<< (ob ^? key "client" . key "id" . _String))
         @?= Just (clientId c11)
 
   post
@@ -670,7 +671,7 @@ testClientsWithoutPrekeysFailToListV4 brig cannon db opts = do
       let ob = Object $ List1.head (ntfPayload n)
       ob ^? key "type" . _String
         @?= Just "user.client-remove"
-      fmap ClientId (ob ^? key "client" . key "id" . _String)
+      (fromByteString . T.encodeUtf8 =<< (ob ^? key "client" . key "id" . _String))
         @?= Just (clientId c11)
 
   post
@@ -1015,7 +1016,7 @@ testRemoveClient hasPwd brig cannon = do
       let etype = j ^? key "type" . _String
       let eclient = j ^? key "client" . key "id" . _String
       etype @?= Just "user.client-remove"
-      fmap ClientId eclient @?= Just (clientId c)
+      (fromByteString . T.encodeUtf8 =<< eclient) @?= Just (clientId c)
   -- Not found on retry
   deleteClient brig uid (clientId c) Nothing !!! const 404 === statusCode
   -- Prekeys are gone
@@ -1334,7 +1335,7 @@ testAddMultipleTemporary brig galley cannon = do
       let etype = j ^? key "type" . _String
       let eclient = j ^? key "client" . key "id" . _String
       etype @?= Just "user.client-remove"
-      fmap ClientId eclient @?= Just (clientId client)
+      (fromByteString . T.encodeUtf8 =<< eclient) @?= Just (clientId client)
 
   galleyClients2 <- numOfGalleyClients uid
   liftIO $ assertEqual "Too many clients found" (Just 1) galleyClients2
@@ -1375,7 +1376,7 @@ testNewNonce :: Brig -> Http ()
 testNewNonce brig = do
   n1 <- check Util.getNonce 204
   n2 <- check Util.headNonce 200
-  lift $ assertBool "nonces are should not be equal" (n1 /= n2)
+  lift $ assertBool "nonces should not be equal" (n1 /= n2)
   where
     check f status = do
       uid <- userId <$> randomUser brig
@@ -1392,7 +1393,10 @@ data DPoPClaimsSet = DPoPClaimsSet
     claimNonce :: Text,
     claimHtm :: Text,
     claimHtu :: Text,
-    claimChal :: Text
+    claimChal :: Text,
+    claimHandle :: Text,
+    claimDisplayName :: Text,
+    claimTeamId :: Text
   }
   deriving (Eq, Show, Generic)
 
@@ -1407,6 +1411,9 @@ instance A.FromJSON DPoPClaimsSet where
       <*> o A..: "htm"
       <*> o A..: "htu"
       <*> o A..: "chal"
+      <*> o A..: "handle"
+      <*> o A..: "name"
+      <*> o A..: "team"
 
 instance A.ToJSON DPoPClaimsSet where
   toJSON s =
@@ -1414,6 +1421,9 @@ instance A.ToJSON DPoPClaimsSet where
       & ins "htm" (claimHtm s)
       & ins "htu" (claimHtu s)
       & ins "chal" (claimChal s)
+      & ins "handle" (claimHandle s)
+      & ins "name" (claimDisplayName s)
+      & ins "team" (claimTeamId s)
     where
       ins k v (Object o) = Object $ M.insert k (A.toJSON v) o
       ins _ _ a = a
@@ -1421,23 +1431,26 @@ instance A.ToJSON DPoPClaimsSet where
 testCreateAccessToken :: Opts.Opts -> Nginz -> Brig -> Http ()
 testCreateAccessToken opts n brig = do
   let localDomain = opts ^. Opt.optionSettings & Opt.setFederationDomain
-  u <- randomUser brig
+  (u, tid) <- Util.createUserWithTeam' brig
+  handle <- do
+    Just h <- userHandle <$> Util.setRandomHandle brig u
+    pure $ "wireapp://%40" <> fromHandle h <> "@" <> cs (toByteString' localDomain)
   let uid = userId u
+  let Just email = userEmail u
   -- convert the user Id into 16 octets of binary and then base64url
   let uidBS = Data.UUID.toByteString (toUUID uid)
   let uidB64 = encodeBase64UrlUnpadded (cs uidBS)
-  let email = fromMaybe (error "invalid email") $ userEmail u
   rs <-
     login n (defEmailLogin email) PersistentCookie
       <!! const 200 === statusCode
   let t = decodeToken rs
   cid <- createClientForUser brig uid
-  nonceResponse <- Util.headNonce brig uid cid <!! const 200 === statusCode
+  nonceResponse <- Util.headNonceNginz n t cid <!! const 200 === statusCode
   let nonceBs = cs $ fromMaybe (error "invalid nonce") $ getHeader "Replay-Nonce" nonceResponse
   now <- liftIO $ posixSecondsToUTCTime . fromInteger <$> (floor <$> getPOSIXTime)
-  let clientIdentity = cs $ "im:wireapp=" <> cs (toText uidB64) <> "/" <> toByteString' cid <> "@" <> toByteString' localDomain
+  let clientIdentity = cs $ "wireapp://" <> cs (toText uidB64) <> "!" <> toByteString' cid <> "@" <> toByteString' localDomain
   let httpsUrl = cs $ "https://" <> toByteString' localDomain <> "/clients/" <> toByteString' cid <> "/access-token"
-  let expClaim = NumericDate (addUTCTime 10 now)
+  let expClaim = NumericDate $ addUTCTime 10 now
   let claimsSet' =
         emptyClaimsSet
           & claimIat ?~ NumericDate now
@@ -1445,11 +1458,23 @@ testCreateAccessToken opts n brig = do
           & claimNbf ?~ NumericDate now
           & claimSub ?~ fromMaybe (error "invalid sub claim") ((clientIdentity :: Text) ^? stringOrUri)
           & claimJti ?~ "6fc59e7f-b666-4ffc-b738-4f4760c884ca"
-  let dpopClaims = DPoPClaimsSet claimsSet' nonceBs "POST" httpsUrl "wa2VrkCtW1sauJ2D3uKY8rc7y4kl4usH"
+          & claimAud ?~ (maybe (error "invalid sub claim") (Audience . (: [])) (("https://wire.com/acme/challenge/abcd" :: Text) ^? stringOrUri))
+  let dpopClaims =
+        DPoPClaimsSet
+          claimsSet'
+          nonceBs
+          "POST"
+          httpsUrl
+          "wa2VrkCtW1sauJ2D3uKY8rc7y4kl4usH"
+          handle
+          (fromName u.userDisplayName)
+          (UUID.toText (toUUID tid))
   signedOrError <- fmap encodeCompact <$> liftIO (signAccessToken dpopClaims)
   case signedOrError of
     Left err -> liftIO $ assertFailure $ "failed to sign claims: " <> show err
     Right signed -> do
+      let accessControlExposeHeaders = maybe "" cs $ getHeader "Access-Control-Expose-Headers" nonceResponse
+      liftIO $ assertBool "Access-Control-Expose-Headers should contain Replay-Nonce" $ "Replay-Nonce" `isInfixOf` accessControlExposeHeaders
       let proof = Just $ Proof (cs signed)
       response <- Util.createAccessTokenNginz n t cid proof
       let accessToken = fromRight (error $ "failed to create token: " <> show response) $ responseJsonEither response
@@ -1485,7 +1510,9 @@ testCreateAccessTokenMissingProof brig = do
 
 testCreateAccessTokenNoNonce :: Brig -> Http ()
 testCreateAccessTokenNoNonce brig = do
-  uid <- userId <$> randomUser brig
+  (u, _) <- Util.createUserWithTeam' brig
+  void $ Util.setRandomHandle brig u
+  let uid = userId u
   cid <- createClientForUser brig uid
   Util.createAccessToken brig uid "some_host_name" cid (Just $ Proof "xxxx.yyyy.zzzz")
     !!! do
@@ -1495,27 +1522,3 @@ testCreateAccessTokenNoNonce brig = do
 createClientForUser :: Brig -> UserId -> Http ClientId
 createClientForUser brig uid =
   clientId <$> (responseJsonError =<< addClient brig uid (defNewClient PermanentClientType [head somePrekeys] (head someLastPrekeys)))
-
-testCan'tDeleteLegalHoldClient :: Brig -> Http ()
-testCan'tDeleteLegalHoldClient brig = do
-  let hasPassword = False
-  user <- randomUser' hasPassword brig
-  let uid = userId user
-  let pk = head somePrekeys
-  let lk = head someLastPrekeys
-  resp <-
-    addClientInternal brig uid (defNewClient LegalHoldClientType [pk] lk)
-      <!! const 201
-        === statusCode
-  lhClientId <- clientId <$> responseJsonError resp
-  deleteClient brig uid lhClientId Nothing !!! const 400 === statusCode
-
-testCan'tAddLegalHoldClient :: Brig -> Http ()
-testCan'tAddLegalHoldClient brig = do
-  let hasPassword = False
-  user <- randomUser' hasPassword brig
-  let uid = userId user
-  let pk = head somePrekeys
-  let lk = head someLastPrekeys
-  -- Regular users cannot add legalhold clients
-  addClient brig uid (defNewClient LegalHoldClientType [pk] lk) !!! const 400 === statusCode

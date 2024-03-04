@@ -19,10 +19,10 @@ module Wire.API.Routes.Internal.Spar where
 
 import Control.Lens
 import Data.Id
-import Data.Swagger
+import Data.OpenApi
 import Imports
 import Servant
-import Servant.Swagger
+import Servant.OpenApi
 import Wire.API.User
 import Wire.API.User.Saml
 
@@ -34,7 +34,7 @@ type InternalAPI =
            :<|> "scim" :> "userinfos" :> ReqBody '[JSON] UserSet :> Post '[JSON] ScimUserInfos
        )
 
-swaggerDoc :: Swagger
+swaggerDoc :: OpenApi
 swaggerDoc =
-  toSwagger (Proxy @InternalAPI)
+  toOpenApi (Proxy @InternalAPI)
     & info . title .~ "Wire-Server internal spar API"

@@ -59,8 +59,8 @@ import Data.Id (ScimTokenId, TeamId, UserId)
 import Data.Json.Util ((#))
 import Data.Map qualified as Map
 import Data.Misc (PlainTextPassword6)
+import Data.OpenApi hiding (Operation)
 import Data.Proxy
-import Data.Swagger hiding (Operation)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Clock (UTCTime)
 import Imports
@@ -462,7 +462,7 @@ instance ToSchema ScimTokenInfo where
     pure $
       NamedSchema (Just "ScimTokenInfo") $
         mempty
-          & type_ ?~ SwaggerObject
+          & type_ ?~ OpenApiObject
           & properties
             .~ [ ("team", teamSchema),
                  ("id", idSchema),
@@ -478,7 +478,7 @@ instance ToSchema CreateScimToken where
     pure $
       NamedSchema (Just "CreateScimToken") $
         mempty
-          & type_ ?~ SwaggerObject
+          & type_ ?~ OpenApiObject
           & properties
             .~ [ ("description", textSchema),
                  ("password", textSchema),
@@ -493,7 +493,7 @@ instance ToSchema CreateScimTokenResponse where
     pure $
       NamedSchema (Just "CreateScimTokenResponse") $
         mempty
-          & type_ ?~ SwaggerObject
+          & type_ ?~ OpenApiObject
           & properties
             .~ [ ("token", tokenSchema),
                  ("info", infoSchema)
@@ -506,7 +506,7 @@ instance ToSchema ScimTokenList where
     pure $
       NamedSchema (Just "ScimTokenList") $
         mempty
-          & type_ ?~ SwaggerObject
+          & type_ ?~ OpenApiObject
           & properties
             .~ [ ("tokens", infoListSchema)
                ]

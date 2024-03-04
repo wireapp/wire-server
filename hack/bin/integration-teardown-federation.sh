@@ -5,6 +5,7 @@ TOP_LEVEL="$DIR/../.."
 
 set -ex
 
+HELMFILE_ENV=${HELMFILE_ENV:-default}
 NAMESPACE=${NAMESPACE:-test-integration}
 export NAMESPACE_1="$NAMESPACE"
 export NAMESPACE_2="$NAMESPACE-fed2"
@@ -22,7 +23,6 @@ else
 fi
 
 . "$DIR/helm_overrides.sh"
-helmfile --file "${TOP_LEVEL}/hack/helmfile.yaml" destroy --skip-deps --skip-charts --concurrency 0
+helmfile --environment "$HELMFILE_ENV" --file "${TOP_LEVEL}/hack/helmfile.yaml" destroy --skip-deps --skip-charts --concurrency 0 || echo "Failed to delete helm deployments, ignoring this failure as next steps will the destroy namespaces anyway."
 
-kubectl delete namespace "$NAMESPACE_1"
-kubectl delete namespace "$NAMESPACE_2"
+kubectl delete namespace "$NAMESPACE_1" "$NAMESPACE_2"

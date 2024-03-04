@@ -14,15 +14,17 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# LANGUAGE DeriveAnyClass #-}
 
 module Wire.API.Routes.Public.Galley.Messaging where
 
 import Data.Id
+import Data.OpenApi qualified as S
 import Data.SOP
 import Generics.SOP qualified as GSOP
 import Imports
 import Servant hiding (WithStatus)
-import Servant.Swagger.Internal.Orphans ()
+import Servant.OpenApi.Internal.Orphans ()
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as BrigError
 import Wire.API.Error.Galley
@@ -120,18 +122,21 @@ type MessagingAPI =
 data MessageNotSent a
   = MessageNotSentConversationNotFound
   | MessageNotSentUnknownClient
+  | MessageNotSentLegalholdOldClients
   | MessageNotSentLegalhold
   | MessageNotSentClientMissing a
   deriving stock (Eq, Show, Generic, Functor)
   deriving
     (AsUnion (MessageNotSentResponses a))
     via (GenericAsUnion (MessageNotSentResponses a) (MessageNotSent a))
+  deriving anyclass (GSOP.Generic)
 
-instance GSOP.Generic (MessageNotSent a)
+instance S.ToSchema a => S.ToSchema (MessageNotSent a)
 
 type MessageNotSentResponses a =
   '[ ErrorResponse 'ConvNotFound,
      ErrorResponse 'BrigError.UnknownClient,
+     ErrorResponse 'BrigError.MissingLegalholdConsentOldClients,
      ErrorResponse 'BrigError.MissingLegalholdConsent,
      Respond 412 "Missing clients" a
    ]

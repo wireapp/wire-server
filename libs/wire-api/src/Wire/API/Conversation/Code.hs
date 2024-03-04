@@ -40,8 +40,8 @@ import Data.ByteString.Conversion (toByteString')
 -- FUTUREWORK: move content of Data.Code here?
 import Data.Code as Code
 import Data.Misc
+import Data.OpenApi qualified as S
 import Data.Schema
-import Data.Swagger qualified as S
 import Imports
 import URI.ByteString qualified as URI
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))

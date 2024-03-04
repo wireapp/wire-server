@@ -26,7 +26,6 @@ library
   other-modules:      Paths_stern
   hs-source-dirs:     src
   default-extensions:
-    NoImplicitPrelude
     AllowAmbiguousTypes
     BangPatterns
     ConstraintKinds
@@ -50,6 +49,7 @@ library
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NoImplicitPrelude
     OverloadedRecordDot
     OverloadedStrings
     PackageImports
@@ -80,24 +80,23 @@ library
     , bytestring             >=0.10
     , bytestring-conversion  >=0.2
     , containers
-    , data-default           >=0.5
     , errors                 >=1.4
     , exceptions             >=0.6
     , extended
     , galley-types           >=0.81.0
-    , http-client            >=0.4
+    , http-client            >=0.7
     , http-types             >=0.8
     , imports
     , lens                   >=4.4
     , metrics-wai            >=0.3
     , mtl                    >=2.1
+    , openapi3
     , schema-profunctor
     , servant
+    , servant-openapi3
     , servant-server
-    , servant-swagger
     , servant-swagger-ui
     , split                  >=0.2
-    , swagger2
     , text                   >=1.1
     , tinylog                >=0.10
     , transformers           >=0.3
@@ -116,7 +115,6 @@ executable stern
   main-is:            exec/Main.hs
   other-modules:      Paths_stern
   default-extensions:
-    NoImplicitPrelude
     AllowAmbiguousTypes
     BangPatterns
     ConstraintKinds
@@ -140,6 +138,7 @@ executable stern
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NoImplicitPrelude
     OverloadedRecordDot
     OverloadedStrings
     PackageImports
@@ -200,7 +199,6 @@ executable stern-integration
 
   hs-source-dirs:     test/integration
   default-extensions:
-    NoImplicitPrelude
     AllowAmbiguousTypes
     BangPatterns
     ConstraintKinds
@@ -224,6 +222,7 @@ executable stern-integration
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NoImplicitPrelude
     OverloadedRecordDot
     OverloadedStrings
     PackageImports
@@ -270,6 +269,7 @@ executable stern-integration
     , stern
     , tagged
     , tasty                  >=0.8
+    , tasty-ant-xml
     , tasty-hunit            >=0.9
     , text
     , tinylog

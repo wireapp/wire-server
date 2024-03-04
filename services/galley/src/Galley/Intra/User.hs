@@ -165,7 +165,7 @@ check :: [Status] -> Request -> Request
 check allowed r =
   r
     { Http.checkResponse = \rq rs ->
-        when (responseStatus rs `notElem` allowed) $
+        unless (responseStatus rs `elem` allowed) $
           let ex = StatusCodeException (rs {responseBody = ()}) mempty
            in throwM $ HttpExceptionRequest rq ex
     }

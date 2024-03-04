@@ -1,76 +1,70 @@
-{ libsodium, protobuf, hlib, mls-test-cli, fetchpatch }:
+{ libsodium, protobuf, hlib, mls-test-cli, ... }:
 # FUTUREWORK: Figure out a way to detect if some of these packages are not
 # actually marked broken, so we can cleanup this file on every nixpkgs bump.
 hself: hsuper: {
-  aeson = (hlib.doJailbreak hsuper.aeson_2_1_2_1);
+  # ----------------
+  # tests don't pass
+  # (these are in general not fine they need to be investigated)
+  # FUTUREWORK: investigate whether all of these tests need to fail
+  # ----------------
+  amqp = hlib.dontCheck hsuper.amqp_0_22_2;
+  # test suite doesn't compile and needs network access
+  bloodhound = hlib.dontCheck hsuper.bloodhound;
+  # tests need network access, cabal2nix disables haddocks
+  cql-io = hlib.doHaddock (hlib.dontCheck hsuper.cql-io);
+  # PR with fix: https://github.com/freckle/hspec-junit-formatter/pull/23
+  # the PR has been merged, but has not arrived in nixpkgs
+  hspec-junit-formatter = hlib.markUnbroken (hlib.dontCheck hsuper.hspec-junit-formatter);
+  markov-chain-usage-model = hlib.markUnbroken (hlib.dontCheck hsuper.markov-chain-usage-model);
+  openapi3 = hlib.markUnbroken (hlib.dontCheck hsuper.openapi3);
+  quickcheck-state-machine = hlib.dontCheck hsuper.quickcheck-state-machine;
+  saml2-web-sso = hlib.dontCheck hsuper.saml2-web-sso;
+  # one of the tests is flaky
+  transitive-anns = hlib.dontCheck hsuper.transitive-anns;
+  warp = hlib.dontCheck hsuper.warp;
+
+  # ---------------------
+  # need to be jailbroken
+  # (these need to be fixed upstream eventually)
+  # FUTUREWORK: fix the dependency bounds upstream
+  # ---------------------
   binary-parsers = hlib.markUnbroken (hlib.doJailbreak hsuper.binary-parsers);
   bytestring-arbitrary = hlib.markUnbroken (hlib.doJailbreak hsuper.bytestring-arbitrary);
-  cql = hlib.appendPatch (hlib.markUnbroken hsuper.cql) (fetchpatch {
-    url = "https://gitlab.com/twittner/cql/-/merge_requests/11.patch";
-    sha256 = "sha256-qfcCRkKjSS1TEqPRVBU9Ox2DjsdGsYG/F3DrZ5JGoEI=";
-  });
-  hashtables = hsuper.hashtables_1_3;
-  invertible = hlib.markUnbroken hsuper.invertible;
   lens-datetime = hlib.markUnbroken (hlib.doJailbreak hsuper.lens-datetime);
   network-arbitrary = hlib.markUnbroken (hlib.doJailbreak hsuper.network-arbitrary);
-  one-liner = hlib.doJailbreak hsuper.one-liner;
-  polysemy = hlib.doJailbreak hsuper.polysemy;
-  polysemy-check = hlib.markUnbroken (hlib.doJailbreak hsuper.polysemy-check);
-  polysemy-plugin = hlib.doJailbreak hsuper.polysemy-plugin;
-  quickcheck-state-machine = hlib.dontCheck hsuper.quickcheck-state-machine;
-  servant-foreign = hlib.doJailbreak hsuper.servant-foreign;
-  servant-multipart = hlib.doJailbreak hsuper.servant-multipart;
-  servant-swagger-ui = hlib.doJailbreak hsuper.servant-swagger-ui;
-  servant-swagger-ui-core = hlib.doJailbreak hsuper.servant-swagger-ui-core;
+  proto-lens-protoc = hlib.doJailbreak hsuper.proto-lens-protoc;
+  proto-lens-setup = hlib.doJailbreak hsuper.proto-lens-setup;
+  th-desugar = hlib.doJailbreak hsuper.th-desugar;
+
+  # ------------------------------------
+  # okay but marked broken (nixpkgs bug)
+  # (we can unfortunately not do anything here but update nixpkgs)
+  # ------------------------------------
+  bytestring-conversion = hlib.markUnbroken hsuper.bytestring-conversion;
+  template = hlib.markUnbroken hsuper.template;
+  polysemy-test = hlib.markUnbroken hsuper.polysemy-test;
+
+  # -----------------
+  # version overrides
+  # (these are fine but will probably need to be adjusted in a future nixpkgs update)
+  # -----------------
+  hpack = hsuper.hpack_0_36_0;
+  linear-generics = hsuper.linear-generics_0_2_2;
+  network-conduit-tls = hsuper.network-conduit-tls_1_4_0;
+  optparse-generic = hsuper.optparse-generic_1_5_2;
+  th-abstraction = hsuper.th-abstraction_0_5_0_0;
+  tls = hsuper.tls_1_9_0;
+  warp-tls = hsuper.warp-tls_3_4_3;
+
+  # -----------------
+  # flags and patches
+  # (these are fine)
+  # -----------------
+  # Make hoogle static to reduce size of the hoogle image
+  hoogle = hlib.justStaticExecutables hsuper.hoogle;
+  http2-manager = hlib.enableCabalFlag hsuper.http2-manager "-f-test-trailing-dot";
   sodium-crypto-sign = hlib.addPkgconfigDepend hsuper.sodium-crypto-sign libsodium.dev;
-  swagger2 = hlib.doJailbreak hsuper.swagger2;
-  text-icu-translit = hlib.markUnbroken (hlib.dontCheck hsuper.text-icu-translit);
-  text-short = hlib.dontCheck hsuper.text-short;
-  type-errors = hlib.dontCheck hsuper.type-errors;
-  wai-middleware-prometheus = hlib.doJailbreak hsuper.wai-middleware-prometheus;
-  wai-predicates = hlib.markUnbroken hsuper.wai-predicates;
-
-  # Some test seems to be broken
-  hsaml2 = hlib.dontCheck hsuper.hsaml2;
-  saml2-web-sso = hlib.dontCheck hsuper.saml2-web-sso;
-  http2 = hlib.dontCheck hsuper.http2;
-
-
-  # Disable tests because they need network access to a running cassandra
-  #
-  # Explicitly enable haddock because cabal2nix disables it for packages with
-  # internal libraries
-  cql-io = hlib.doHaddock (hlib.dontCheck hsuper.cql-io);
-
-  # Needs network access to running ES
-  # also the test suite doesn't compile https://github.com/NixOS/nixpkgs/pull/167957
-  # due to related broken quickcheck-arbitrary-template
-  bloodhound = hlib.dontCheck hsuper.bloodhound;
-
-  # These tests require newer version on hspec-wai, which doesn't work with some of the wire-server packages.
-  amazonka = hlib.doJailbreak (hlib.dontCheck hsuper.amazonka);
-  amazonka-cloudfront = hlib.dontCheck hsuper.amazonka-cloudfront;
-  amazonka-core = hlib.doJailbreak (hlib.dontCheck hsuper.amazonka-core);
-  amazonka-dynamodb = hlib.dontCheck hsuper.amazonka-dynamodb;
-  amazonka-s3 = hlib.dontCheck hsuper.amazonka-s3;
-  amazonka-ses = hlib.dontCheck hsuper.amazonka-ses;
-  amazonka-sns = hlib.dontCheck hsuper.amazonka-sns;
-  amazonka-sqs = hlib.dontCheck hsuper.amazonka-sqs;
-  amazonka-sso = hlib.dontCheck hsuper.amazonka-sso;
-  amazonka-sts = hlib.dontCheck hsuper.amazonka-sts;
-  servant-server = hlib.dontCheck hsuper.servant-server;
-
-  # Build toool dependencies of local packages
   types-common-journal = hlib.addBuildTool hsuper.types-common-journal protobuf;
   wire-api = hlib.addBuildTool hsuper.wire-api mls-test-cli;
   wire-message-proto-lens = hlib.addBuildTool hsuper.wire-message-proto-lens protobuf;
-
-  # Make hoogle static to reduce size of the hoogle image
-  hoogle = hlib.justStaticExecutables hsuper.hoogle;
-
-  # Postie has been fixed upstream (master)
-  postie = hlib.markUnbroken (hlib.doJailbreak hsuper.postie);
-
-  # This would not be necessary if we could pull revision -r1 from 0.2.2.3
-  kind-generics-th = hlib.doJailbreak hsuper.kind-generics-th;
 }

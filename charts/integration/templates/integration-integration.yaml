@@ -75,17 +75,25 @@ spec:
     - name: "nginz-secrets"
       secret:
         secretName: "nginz"
-
+    {{- if eq (include "useCassandraTLS" .Values.config) "true" }}
+    - name: integration-cassandra
+      secret:
+        secretName: {{ (include "tlsSecretRef" .Values.config | fromYaml).name }}
+    {{- end }}
   restartPolicy: Never
 
   initContainers:
-  # FUTUREWORK: reproduce brig's initContainers (for geoip)
   - name: integration-setup
     image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
         {{- if eq (include "includeSecurityContext" .) "true" }}
     securityContext:
       {{- toYaml .Values.podSecurityContext | nindent 6 }}
         {{- end }}
+    volumeMounts:
+      {{- if eq (include "useCassandraTLS" .Values.config) "true" }}
+      - name: "integration-cassandra"
+        mountPath: "/certs"
+      {{- end }}
     env:
     - name: INTEGRATION_DYNAMIC_BACKENDS_POOLSIZE
       value: "{{ .Values.config.dynamicBackendsPoolsize }}"
@@ -111,9 +119,15 @@ spec:
       - |
         set -euo pipefail
         # FUTUREWORK: Do all of this in the integration test binary
-        integration-dynamic-backends-db-schemas.sh --host {{ .Values.config.cassandra.host }} --port {{ .Values.config.cassandra.port }} --replication-factor {{ .Values.config.cassandra.replicationFactor }}
+        integration-dynamic-backends-db-schemas.sh \
+          --host {{ .Values.config.cassandra.host }} \
+          --port {{ .Values.config.cassandra.port }} \
+          --replication-factor {{ .Values.config.cassandra.replicationFactor }} \
+          {{- if eq (include "useCassandraTLS" .Values.config) "true" }}
+          --tls-ca-certificate-file /certs/{{- (include "tlsSecretRef" .Values.config | fromYaml).key }}
+          {{ end }}
+
         integration-dynamic-backends-brig-index.sh --elasticsearch-server http://{{ .Values.config.elasticsearch.host }}:9200
-        integration-dynamic-backends-sqs.sh {{ .Values.config.sqsEndpointUrl }}
         integration-dynamic-backends-ses.sh {{ .Values.config.sesEndpointUrl }}
         integration-dynamic-backends-s3.sh {{ .Values.config.s3EndpointUrl }}
         {{- range $name, $dynamicBackend := .Values.config.dynamicBackends }}
@@ -131,7 +145,31 @@ spec:
     securityContext:
       {{- toYaml .Values.podSecurityContext | nindent 6 }}
         {{- end }}
-    command: [ "integration", "--config", "/etc/wire/integration/integration.yaml" ]
+    command:
+    - /bin/bash
+    - -c
+    - |
+      set -euo pipefail
+
+      if integration --config /etc/wire/integration/integration.yaml; then
+        exit_code=$?
+      else
+        exit_code=$?
+      fi
+
+      {{- if .Values.config.uploadXml }}
+      # In case a different S3 compliant storage is used to upload test result.
+      if ! [[ -z "${UPLOAD_XML_AWS_ACCESS_KEY_ID+x}" ]]; then
+        export AWS_ACCESS_KEY_ID="$UPLOAD_XML_AWS_ACCESS_KEY_ID"
+        export AWS_SECRET_ACCESS_KEY="$UPLOAD_XML_AWS_SECRET_ACCESS_KEY"
+      fi
+
+      # The `|| echo ..` ensures that the test isn't seen as failed even if the upload fails.
+      ts=$(date --utc '+%Y%m%d%H%M%S%N')
+      aws s3 cp "$TEST_XML" "$UPLOAD_XML_S3_BASE_URL/integration/${ts}.xml" || echo "failed to upload result"
+      {{- end }}
+
+      exit $exit_code
     resources:
       requests:
         memory: "512Mi"
@@ -189,6 +227,23 @@ spec:
     - name: nginz-secrets
       mountPath: /etc/wire/nginz/secrets
 
+    {{- if eq (include "useCassandraTLS" .Values.config) "true" }}
+    - name: "integration-cassandra"
+      mountPath: "/certs"
+
+    - name: "integration-cassandra"
+      mountPath: "/etc/wire/brig/cassandra"
+
+    - name: "integration-cassandra"
+      mountPath: "/etc/wire/galley/cassandra"
+
+    - name: "integration-cassandra"
+      mountPath: "/etc/wire/gundeck/cassandra"
+
+    - name: "integration-cassandra"
+      mountPath: "/etc/wire/spar/cassandra"
+    {{- end }}
+
     env:
     # these dummy values are necessary for Amazonka's "Discover"
     - name: AWS_ACCESS_KEY_ID
@@ -207,3 +262,21 @@ spec:
         secretKeyRef:
           name: brig
           key: rabbitmqPassword
+    - name: TEST_XML
+      value: /tmp/result.xml
+    {{- if .Values.config.uploadXml }}
+    - name: UPLOAD_XML_S3_BASE_URL
+      value: {{ .Values.config.uploadXml.baseUrl }}
+    {{- if .Values.secrets.uploadXmlAwsAccessKeyId }}
+    - name: UPLOAD_XML_AWS_ACCESS_KEY_ID
+      valueFrom:
+        secretKeyRef:
+          name: integration
+          key: uploadXmlAwsAccessKeyId
+    - name: UPLOAD_XML_AWS_SECRET_ACCESS_KEY
+      valueFrom:
+        secretKeyRef:
+          name: integration
+          key: uploadXmlAwsSecretAccessKey
+    {{- end }}
+    {{- end }}

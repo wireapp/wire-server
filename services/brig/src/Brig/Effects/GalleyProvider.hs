@@ -106,5 +106,9 @@ data GalleyProvider m a where
   GetExposeInvitationURLsToTeamAdmin ::
     TeamId ->
     GalleyProvider m ShowOrHideInvitationUrl
+  IsMLSOne2OneEstablished ::
+    Local UserId ->
+    Qualified UserId ->
+    GalleyProvider m Bool
 
 makeSem ''GalleyProvider

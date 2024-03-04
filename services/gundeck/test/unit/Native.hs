@@ -166,7 +166,7 @@ mkAddress t =
     <$> randomId
     <*> pure (mkEndpoint t (AppName "test"))
     <*> pure (ConnId "conn")
-    <*> pure (pushToken t (AppName "test") (Token "test") (ClientId "client"))
+    <*> pure (pushToken t (AppName "test") (Token "test") (ClientId 0x392c82a0f))
 
 mkEndpoint :: Transport -> AppName -> EndpointArn
 mkEndpoint t a = mkSnsArn Ireland (Account "test") topic

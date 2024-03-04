@@ -3,15 +3,15 @@
 # must be regenerated whenever local packages are added or removed, or
 # dependencies are added or removed.
 { mkDerivation
-, aeson
 , base
 , containers
 , gitignoreSource
 , imports
-, insert-ordered-containers
 , language-dot
+, lens
 , lib
-, swagger2
+, mtl
+, servant
 , wire-api
 }:
 mkDerivation {
@@ -21,13 +21,13 @@ mkDerivation {
   isLibrary = false;
   isExecutable = true;
   executableHaskellDepends = [
-    aeson
     base
     containers
     imports
-    insert-ordered-containers
     language-dot
-    swagger2
+    lens
+    mtl
+    servant
     wire-api
   ];
   description = "Generate a dot file from swagger docs representing calls to federated instances";

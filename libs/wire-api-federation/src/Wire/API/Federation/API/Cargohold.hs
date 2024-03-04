@@ -19,8 +19,11 @@ module Wire.API.Federation.API.Cargohold where
 
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Id
+import Data.OpenApi
+import Data.Proxy
 import Imports
 import Servant.API
+import Servant.OpenApi (HasOpenApi (toOpenApi))
 import Wire.API.Asset
 import Wire.API.Federation.Endpoint
 import Wire.API.Routes.AssetBody
@@ -28,9 +31,9 @@ import Wire.API.Util.Aeson
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
 data GetAsset = GetAsset
-  { -- | User requesting the asset. Implictly qualified with the source domain.
+  { -- | User requesting the asset. Implicitly qualified with the source domain.
     user :: UserId,
-    -- | Asset key for the asset to download. Implictly qualified with the
+    -- | Asset key for the asset to download. Implicitly qualified with the
     -- target domain.
     key :: AssetKey,
     -- | Optional asset token.
@@ -40,12 +43,19 @@ data GetAsset = GetAsset
   deriving (Arbitrary) via (GenericUniform GetAsset)
   deriving (ToJSON, FromJSON) via (CustomEncoded GetAsset)
 
+instance ToSchema GetAsset
+
 data GetAssetResponse = GetAssetResponse
   {available :: Bool}
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform GetAssetResponse)
   deriving (ToJSON, FromJSON) via (CustomEncoded GetAssetResponse)
 
+instance ToSchema GetAssetResponse
+
 type CargoholdApi =
   FedEndpoint "get-asset" GetAsset GetAssetResponse
     :<|> StreamingFedEndpoint "stream-asset" GetAsset AssetSource
+
+swaggerDoc :: OpenApi
+swaggerDoc = toOpenApi (Proxy @CargoholdApi)

@@ -1,0 +1,9 @@
+storageClassName: {{ .Values.storageClass }}
+
+client_encryption_options:
+  enabled: true
+  optional: false
+  # This password is used to decrypt the internal Java Keystore. No need to be
+  # careful about it: It's worthless without cluster access and even with it,
+  # you could impersonate as a test cassandra db...
+  keystorePassword: p4ssw0rd

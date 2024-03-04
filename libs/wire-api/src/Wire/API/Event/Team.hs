@@ -42,8 +42,8 @@ import Data.Aeson.KeyMap qualified as KeyMap
 import Data.Aeson.Types (Parser)
 import Data.Id (ConvId, TeamId, UserId)
 import Data.Json.Util
+import Data.OpenApi qualified as S
 import Data.Schema
-import Data.Swagger qualified as S
 import Data.Time (UTCTime)
 import Imports
 import Test.QuickCheck qualified as QC

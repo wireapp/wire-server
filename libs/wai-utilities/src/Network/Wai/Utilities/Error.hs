@@ -31,7 +31,7 @@ import Control.Error
 import Data.Aeson hiding (Error)
 import Data.Aeson.Types (Pair)
 import Data.Domain
-import Data.Text.Lazy.Encoding (decodeUtf8, encodeUtf8)
+import Data.Text.Lazy.Encoding (decodeUtf8)
 import Imports
 import Network.HTTP.Types
 
@@ -39,29 +39,28 @@ data Error = Error
   { code :: !Status,
     label :: !LText,
     message :: !LText,
-    errorData :: Maybe ErrorData
+    errorData :: Maybe ErrorData,
+    innerError :: Maybe Error
   }
   deriving (Eq, Show, Typeable)
 
 mkError :: Status -> LText -> LText -> Error
-mkError c l m = Error c l m Nothing
+mkError c l m = Error c l m Nothing Nothing
 
 instance Exception Error
 
 data ErrorData = FederationErrorData
   { federrDomain :: !Domain,
-    federrPath :: !Text,
-    federrResp :: !(Maybe LByteString)
+    federrPath :: !Text
   }
   deriving (Eq, Show, Typeable)
 
 instance ToJSON ErrorData where
-  toJSON (FederationErrorData d p b) =
-    object
+  toJSON (FederationErrorData d p) =
+    object $
       [ "type" .= ("federation" :: Text),
         "domain" .= d,
-        "path" .= p,
-        "response" .= fmap decodeUtf8 b
+        "path" .= p
       ]
 
 instance FromJSON ErrorData where
@@ -69,20 +68,20 @@ instance FromJSON ErrorData where
     FederationErrorData
       <$> o .: "domain"
       <*> o .: "path"
-      <*> (fmap encodeUtf8 <$> (o .: "response"))
 
 -- | Assumes UTF-8 encoding.
 byteStringError :: Status -> LByteString -> LByteString -> Error
-byteStringError s l m = Error s (decodeUtf8 l) (decodeUtf8 m) Nothing
+byteStringError s l m = mkError s (decodeUtf8 l) (decodeUtf8 m)
 
 instance ToJSON Error where
-  toJSON (Error c l m md) =
+  toJSON (Error c l m md inner) =
     object $
       [ "code" .= statusCode c,
         "label" .= l,
         "message" .= m
       ]
         ++ maybe [] dataFields md
+        ++ ["inner" .= e | e <- toList inner]
     where
       dataFields :: ErrorData -> [Pair]
       dataFields d = ["data" .= d]
@@ -94,6 +93,7 @@ instance FromJSON Error where
       <*> o .: "label"
       <*> o .: "message"
       <*> o .:? "data"
+      <*> o .:? "inner"
 
 -- FIXME: This should not live here.
 infixl 5 !>>

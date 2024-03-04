@@ -46,6 +46,7 @@ module Stern.Intra
     setBlacklistStatus,
     getTeamFeatureFlag,
     setTeamFeatureFlag,
+    setTeamFeatureLockStatus,
     getTeamData,
     getSearchVisibility,
     setSearchVisibility,
@@ -86,15 +87,17 @@ import Data.Id
 import Data.Int
 import Data.List.Split (chunksOf)
 import Data.Map qualified as Map
+import Data.Proxy (Proxy (Proxy))
 import Data.Qualified (qUnqualified)
 import Data.Text (strip)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Text.Lazy (pack)
-import GHC.TypeLits (KnownSymbol)
+import Data.Text.Lazy.Encoding qualified as TL
+import GHC.TypeLits (KnownSymbol, symbolVal)
 import Imports
 import Network.HTTP.Types (urlEncode)
 import Network.HTTP.Types.Method
-import Network.HTTP.Types.Status hiding (statusCode)
+import Network.HTTP.Types.Status hiding (statusCode, statusMessage)
 import Network.Wai.Utilities (Error (..), mkError)
 import Servant.API (toUrlPiece)
 import Stern.App
@@ -454,7 +457,7 @@ getTeamBillingInfo :: TeamId -> Handler (Maybe TeamBillingInfo)
 getTeamBillingInfo tid = do
   info $ msg "Getting team billing info"
   i <- view ibis
-  r <-
+  resp <-
     catchRpcErrors $
       rpc'
         "ibis"
@@ -462,10 +465,10 @@ getTeamBillingInfo tid = do
         ( method GET
             . Bilge.paths ["i", "team", toByteString' tid, "billing"]
         )
-  case Bilge.statusCode r of
-    200 -> Just <$> parseResponse (mkError status502 "bad-upstream") r
+  case Bilge.statusCode resp of
+    200 -> Just <$> parseResponse (mkError status502 "bad-upstream") resp
     404 -> pure Nothing
-    _ -> throwE (mkError status502 "bad-upstream" "bad response")
+    _ -> throwE (mkError status502 "bad-upstream" (errorMessage resp))
 
 setTeamBillingInfo :: TeamId -> TeamBillingInfo -> Handler ()
 setTeamBillingInfo tid tbu = do
@@ -486,19 +489,19 @@ isBlacklisted :: Either Email Phone -> Handler Bool
 isBlacklisted emailOrPhone = do
   info $ msg "Checking blacklist"
   b <- view brig
-  r <-
+  resp <-
     catchRpcErrors $
       rpc'
         "brig"
         b
-        ( method HEAD
+        ( method GET
             . Bilge.path "i/users/blacklist"
             . userKeyToParam emailOrPhone
         )
-  case Bilge.statusCode r of
+  case Bilge.statusCode resp of
     200 -> pure True
     404 -> pure False
-    _ -> throwE (mkError status502 "bad-upstream" "bad response")
+    _ -> throwE (mkError status502 "bad-upstream" (errorMessage resp))
 
 setBlacklistStatus :: Bool -> Either Email Phone -> Handler ()
 setBlacklistStatus status emailOrPhone = do
@@ -535,7 +538,7 @@ getTeamFeatureFlag tid = do
   case Bilge.statusCode resp of
     200 -> pure $ responseJsonUnsafe @(Public.WithStatus cfg) resp
     404 -> throwE (mkError status404 "bad-upstream" "team doesnt exist")
-    _ -> throwE (mkError status502 "bad-upstream" "bad response")
+    _ -> throwE (mkError status502 "bad-upstream" (errorMessage resp))
 
 setTeamFeatureFlag ::
   forall cfg.
@@ -557,9 +560,9 @@ setTeamFeatureFlag tid status = do
   resp <- catchRpcErrors $ rpc' "galley" gly req
   case statusCode resp of
     200 -> pure ()
-    404 -> throwE (mkError status404 "bad-upstream" "team doesnt exist")
+    404 -> throwE (mkError status404 "bad-upstream" "team does not exist")
     403 -> throwE (mkError status403 "bad-upstream" "legal hold config cannot be changed")
-    _ -> throwE (mkError status502 "bad-upstream" "bad response")
+    _ -> throwE (mkError status502 "bad-upstream" (errorMessage resp))
   where
     checkDaysLimit :: FeatureTTL -> Handler ()
     checkDaysLimit = \case
@@ -569,6 +572,34 @@ setTeamFeatureFlag tid status = do
           throwE (mkError status400 "bad-data" (cs $ "ttl limit is " <> show daysLimit <> " days; I got " <> show days <> "."))
       where
         daysLimit = 2000
+
+setTeamFeatureLockStatus ::
+  forall cfg.
+  ( KnownSymbol (Public.FeatureSymbol cfg)
+  ) =>
+  TeamId ->
+  LockStatus ->
+  Handler ()
+setTeamFeatureLockStatus tid lstat = do
+  info $ msg ("Setting lock status: " <> show (symbolVal (Proxy @(Public.FeatureSymbol cfg)), lstat))
+  gly <- view galley
+  fromResponseBody <=< catchRpcErrors $
+    rpc'
+      "galley"
+      gly
+      ( method PUT
+          . Bilge.paths
+            [ "i",
+              "teams",
+              toByteString' tid,
+              "features",
+              Public.featureNameBS @cfg,
+              toByteString' lstat
+            ]
+      )
+  where
+    fromResponseBody :: Response (Maybe LByteString) -> Handler ()
+    fromResponseBody resp = parseResponse (mkError status502 "bad-upstream") resp
 
 getSearchVisibility :: TeamId -> Handler TeamSearchVisibilityView
 getSearchVisibility tid = do
@@ -619,6 +650,9 @@ stripBS = encodeUtf8 . strip . decodeUtf8
 userKeyToParam :: Either Email Phone -> Request -> Request
 userKeyToParam (Left e) = queryItem "email" (stripBS $ toByteString' e)
 userKeyToParam (Right p) = queryItem "phone" (stripBS $ toByteString' p)
+
+errorMessage :: Response (Maybe LByteString) -> LText
+errorMessage = maybe "" TL.decodeUtf8 . responseBody
 
 -- | Run an App and catch any RPCException's which may occur, lifting them to ExceptT
 -- This isn't an ideal set-up; but is required in certain cases because 'ExceptT' isn't

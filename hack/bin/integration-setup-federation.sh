@@ -5,6 +5,7 @@ set -euo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TOP_LEVEL="$DIR/../.."
 export NAMESPACE=${NAMESPACE:-test-integration}
+# Available $HELMFILE_ENV profiles: default, default-ssl, kind, kind-ssl
 HELMFILE_ENV=${HELMFILE_ENV:-default}
 CHARTS_DIR="${TOP_LEVEL}/.local/charts"
 HELM_PARALLELISM=${HELM_PARALLELISM:-1}
@@ -24,9 +25,6 @@ charts=(fake-aws databases-ephemeral redis-cluster rabbitmq wire-server ingress-
 mkdir -p ~/.parallel && touch ~/.parallel/will-cite
 printf '%s\n' "${charts[@]}" | parallel -P "${HELM_PARALLELISM}" "$DIR/update.sh" "$CHARTS_DIR/{}"
 
-# FUTUREWORK: use helm functions instead, see https://wearezeta.atlassian.net/browse/SQPIT-723
-echo "Generating self-signed certificates..."
-
 KUBERNETES_VERSION_MAJOR="$(kubectl version -o json | jq -r .serverVersion.major)"
 KUBERNETES_VERSION_MINOR="$(kubectl version -o json | jq -r .serverVersion.minor)"
 KUBERNETES_VERSION_MINOR="${KUBERNETES_VERSION_MINOR//[!0-9]/}" # some clusters report minor versions as a string like '27+'. Strip any non-digit characters.
@@ -38,14 +36,16 @@ else
 fi
 echo "kubeVersion: $KUBERNETES_VERSION and ingress controller=$INGRESS_CHART"
 export NAMESPACE_1="$NAMESPACE"
-export FEDERATION_DOMAIN_BASE="$NAMESPACE_1.svc.cluster.local"
-export FEDERATION_DOMAIN_1="federation-test-helper.$FEDERATION_DOMAIN_BASE"
-"$DIR/selfsigned-kubernetes.sh" namespace1
+export FEDERATION_DOMAIN_BASE_1="$NAMESPACE_1.svc.cluster.local"
+export FEDERATION_DOMAIN_1="federation-test-helper.$FEDERATION_DOMAIN_BASE_1"
 
 export NAMESPACE_2="$NAMESPACE-fed2"
-export FEDERATION_DOMAIN_BASE="$NAMESPACE_2.svc.cluster.local"
-export FEDERATION_DOMAIN_2="federation-test-helper.$FEDERATION_DOMAIN_BASE"
-"$DIR/selfsigned-kubernetes.sh" namespace2
+export FEDERATION_DOMAIN_BASE_2="$NAMESPACE_2.svc.cluster.local"
+export FEDERATION_DOMAIN_2="federation-test-helper.$FEDERATION_DOMAIN_BASE_2"
+
+echo "Fetch federation-ca secret from cert-manager namespace"
+FEDERATION_CA_CERTIFICATE=$(kubectl -n cert-manager get secrets federation-ca -o json -o jsonpath="{.data['tls\.crt']}" | base64 -d)
+export FEDERATION_CA_CERTIFICATE
 
 echo "Installing charts..."
 

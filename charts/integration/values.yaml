@@ -39,6 +39,11 @@ config:
 
 tls:
   verify_depth: 1
+  # Namespace from which to obtain the secret containing the CA trusted by
+  # federator.
+  # caNamespace: wire-federation-v0
 
 ingress:
   class: nginx
+
+secrets: {}

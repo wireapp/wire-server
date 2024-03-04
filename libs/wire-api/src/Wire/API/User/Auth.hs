@@ -46,6 +46,8 @@ module Wire.API.User.Auth
     SomeUserToken (..),
     SomeAccessToken (..),
     UserTokenCookie (..),
+    ProviderToken (..),
+    ProviderTokenCookie (..),
 
     -- * Access
     AccessWithCookie (..),
@@ -58,7 +60,7 @@ module Wire.API.User.Auth
 where
 
 import Control.Applicative
-import Control.Lens ((?~))
+import Control.Lens ((?~), (^.))
 import Control.Lens.TH
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Aeson.Types qualified as A
@@ -71,14 +73,16 @@ import Data.Handle (Handle)
 import Data.Id
 import Data.Json.Util
 import Data.Misc (PlainTextPassword6)
+import Data.OpenApi qualified as S
 import Data.SOP
 import Data.Schema
-import Data.Swagger qualified as S
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
 import Data.Text.Lazy.Encoding qualified as LT
 import Data.Time.Clock (UTCTime)
+import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
 import Data.Tuple.Extra hiding (first)
+import Data.ZAuth.Token (header, time)
 import Data.ZAuth.Token qualified as ZAuth
 import Imports
 import Servant
@@ -554,7 +558,7 @@ utcToSetCookie c =
     }
 
 instance S.ToParamSchema UserTokenCookie where
-  toParamSchema _ = mempty & S.type_ ?~ S.SwaggerString
+  toParamSchema _ = mempty & S.type_ ?~ S.OpenApiString
 
 instance FromHttpApiData UserTokenCookie where
   parseHeader = utcFromSetCookie . parseSetCookie
@@ -567,6 +571,61 @@ instance ToHttpApiData UserTokenCookie where
       . renderSetCookie
       . utcToSetCookie
   toUrlPiece = T.decodeUtf8 . toHeader
+
+--------------------------------------------------------------------------------
+-- Provider
+
+data ProviderToken = ProviderToken (ZAuth.Token ZAuth.Provider)
+  deriving (Show)
+
+instance FromByteString ProviderToken where
+  parser = ProviderToken <$> parser
+
+data ProviderTokenCookie = ProviderTokenCookie
+  { ptcToken :: ProviderToken,
+    ptcSecure :: Bool
+  }
+
+instance FromHttpApiData ProviderTokenCookie where
+  parseHeader = ptcFromSetCookie . parseSetCookie
+  parseUrlPiece = parseHeader . T.encodeUtf8
+
+ptcFromSetCookie :: SetCookie -> Either Text ProviderTokenCookie
+ptcFromSetCookie c = do
+  v <- first T.pack $ runParser parser (setCookieValue c)
+  pure
+    ProviderTokenCookie
+      { ptcToken = v,
+        ptcSecure = setCookieSecure c
+      }
+
+instance ToHttpApiData ProviderTokenCookie where
+  toHeader =
+    LBS.toStrict
+      . toLazyByteString
+      . renderSetCookie
+      . ptcToSetCookie
+  toUrlPiece = T.decodeUtf8 . toHeader
+
+ptcToSetCookie :: ProviderTokenCookie -> SetCookie
+ptcToSetCookie c =
+  def
+    { setCookieName = "zprovider",
+      setCookieValue = toByteString' (providerToken (ptcToken c)),
+      setCookiePath = Just "/provider",
+      setCookieExpires = Just (tokenExpiresUTC (providerToken (ptcToken c))),
+      setCookieSecure = ptcSecure c,
+      setCookieHttpOnly = True
+    }
+  where
+    providerToken :: ProviderToken -> ZAuth.Token ZAuth.Provider
+    providerToken (ProviderToken t) = t
+
+    tokenExpiresUTC :: ZAuth.Token a -> UTCTime
+    tokenExpiresUTC t = posixSecondsToUTCTime (fromIntegral (t ^. header . time))
+
+instance S.ToParamSchema ProviderTokenCookie where
+  toParamSchema _ = mempty & S.type_ ?~ S.OpenApiString
 
 --------------------------------------------------------------------------------
 -- Servant

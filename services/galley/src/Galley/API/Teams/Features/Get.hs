@@ -115,8 +115,7 @@ getFeatureStatus ::
   forall cfg r.
   ( GetFeatureConfig cfg,
     GetConfigForTeamConstraints cfg r,
-    ( Member (ErrorS OperationDenied) r,
-      Member (ErrorS 'NotATeamMember) r,
+    ( Member (ErrorS 'NotATeamMember) r,
       Member (ErrorS 'TeamNotFound) r,
       Member TeamStore r
     )
@@ -237,6 +236,9 @@ getAllFeatureConfigsForServer =
     <*> getConfigForServer @ExposeInvitationURLsToTeamAdminConfig
     <*> getConfigForServer @OutlookCalIntegrationConfig
     <*> getConfigForServer @MlsE2EIdConfig
+    <*> getConfigForServer @MlsMigrationConfig
+    <*> getConfigForServer @EnforceFileDownloadLocationConfig
+    <*> getConfigForServer @LimitedEventFanoutConfig
 
 getAllFeatureConfigsUser ::
   forall r.
@@ -270,6 +272,9 @@ getAllFeatureConfigsUser uid =
     <*> getConfigForUser @ExposeInvitationURLsToTeamAdminConfig uid
     <*> getConfigForUser @OutlookCalIntegrationConfig uid
     <*> getConfigForUser @MlsE2EIdConfig uid
+    <*> getConfigForUser @MlsMigrationConfig uid
+    <*> getConfigForUser @EnforceFileDownloadLocationConfig uid
+    <*> getConfigForUser @LimitedEventFanoutConfig uid
 
 getAllFeatureConfigsTeam ::
   forall r.
@@ -299,6 +304,9 @@ getAllFeatureConfigsTeam tid =
     <*> getConfigForTeam @ExposeInvitationURLsToTeamAdminConfig tid
     <*> getConfigForTeam @OutlookCalIntegrationConfig tid
     <*> getConfigForTeam @MlsE2EIdConfig tid
+    <*> getConfigForTeam @MlsMigrationConfig tid
+    <*> getConfigForTeam @EnforceFileDownloadLocationConfig tid
+    <*> getConfigForTeam @LimitedEventFanoutConfig tid
 
 -- | Note: this is an internal function which doesn't cover all features, e.g. LegalholdConfig
 genericGetConfigForTeam ::
@@ -452,7 +460,7 @@ instance GetFeatureConfig SearchVisibilityInboundConfig where
 
 instance GetFeatureConfig MLSConfig where
   getConfigForServer =
-    input <&> view (settings . featureFlags . flagMLS . unDefaults . unImplicitLockStatus)
+    input <&> view (settings . featureFlags . flagMLS . unDefaults)
 
 instance GetFeatureConfig ExposeInvitationURLsToTeamAdminConfig where
   getConfigForTeam tid = do
@@ -483,8 +491,22 @@ instance GetFeatureConfig MlsE2EIdConfig where
   getConfigForServer =
     input <&> view (settings . featureFlags . flagMlsE2EId . unDefaults)
 
--- -- | If second factor auth is enabled, make sure that end-points that don't support it, but should, are blocked completely.  (This is a workaround until we have 2FA for those end-points as well.)
--- --
+instance GetFeatureConfig MlsMigrationConfig where
+  getConfigForServer =
+    input <&> view (settings . featureFlags . flagMlsMigration . unDefaults)
+
+instance GetFeatureConfig EnforceFileDownloadLocationConfig where
+  getConfigForServer =
+    input <&> view (settings . featureFlags . flagEnforceFileDownloadLocation . unDefaults)
+
+instance GetFeatureConfig LimitedEventFanoutConfig where
+  getConfigForServer =
+    input <&> view (settings . featureFlags . flagLimitedEventFanout . unDefaults . unImplicitLockStatus)
+
+-- | If second factor auth is enabled, make sure that end-points that don't support it, but
+-- should, are blocked completely.  (This is a workaround until we have 2FA for those
+-- end-points as well.)
+--
 -- This function exists to resolve a cyclic dependency.
 guardSecondFactorDisabled ::
   forall r a.

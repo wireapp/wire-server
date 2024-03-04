@@ -33,6 +33,7 @@ import Brig.Types.Intra (UserSet (..))
 import Brig.Types.Test.Arbitrary ()
 import Brig.Types.User.Event qualified as Ev
 import Cassandra.Exec qualified as Cql
+import Control.Category ((>>>))
 import Control.Concurrent.Chan
 import Control.Lens
 import Data.Id
@@ -628,7 +629,7 @@ testOldClientsBlockDeviceHandshake = do
   -- this specifically checks the place that handles otr messages and responds with status
   -- 412 and a list of missing clients.
   --
-  -- if any of those clients are LH, this test provodes a "missing-legalhold-consent" error
+  -- if any of those clients are LH, this test provides a "missing-legalhold-consent-old-clients" error
   -- instead, without any information about the LH clients.  the condition is actually "has
   -- old device or has not granted consent", but the latter part is blocked earlier in 1:1 and
   -- group conversations, and hard to test at the device level.)
@@ -647,13 +648,14 @@ testOldClientsBlockDeviceHandshake = do
         approveLegalHoldDevice (Just defPassword) uid uid tid !!! testResponse 200 Nothing
         UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped uid tid
         liftIO $ assertEqual "approving should change status" UserLegalHoldEnabled userStatus
-        getInternalClientsFull (UserSet $ Set.fromList [uid])
-          <&> userClientsFull
-          <&> Map.elems
-          <&> Set.unions
-          <&> Set.toList
-          <&> (\[x] -> x)
-          <&> clientId
+        getInternalClientsFull (UserSet $ Set.singleton uid)
+          <&> do
+            userClientsFull
+              >>> Map.elems
+              >>> Set.unions
+              >>> Set.toList
+              >>> head
+              >>> clientId
 
   withDummyTestServiceForTeam' legalholder tid $ \_ _chan -> do
     grantConsent tid legalholder
@@ -703,7 +705,7 @@ testOldClientsBlockDeviceHandshake = do
     -- If user has a client without the ClientSupportsLegalholdImplicitConsent
     -- capability then message sending is prevented to legalhold devices.
     peerClient <- randomClient peer (someLastPrekeys !! 2)
-    runit peer peerClient >>= errWith 403 (\err -> Error.label err == "missing-legalhold-consent")
+    runit peer peerClient >>= errWith 403 (\err -> Error.label err == "missing-legalhold-consent-old-clients")
     upgradeClientToLH peer peerClient
     runit peer peerClient >>= errWith 412 (\(_ :: Msg.ClientMismatch) -> True)
 
@@ -724,13 +726,14 @@ testClaimKeys testcase = do
         approveLegalHoldDevice (Just defPassword) uid uid team !!! testResponse 200 Nothing
         UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped uid team
         liftIO $ assertEqual "approving should change status" UserLegalHoldEnabled userStatus
-        getInternalClientsFull (UserSet $ Set.fromList [uid])
-          <&> userClientsFull
-          <&> Map.elems
-          <&> Set.unions
-          <&> Set.toList
-          <&> (\[x] -> x)
-          <&> clientId
+        getInternalClientsFull (UserSet $ Set.singleton uid)
+          <&> do
+            userClientsFull
+              >>> Map.elems
+              >>> Set.unions
+              >>> Set.toList
+              >>> head
+              >>> clientId
 
   let makePeerClient :: TestM ()
       makePeerClient = case testcase of

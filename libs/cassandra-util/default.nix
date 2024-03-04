@@ -11,6 +11,7 @@
 , cql-io-tinylog
 , exceptions
 , gitignoreSource
+, HsOpenSSL
 , imports
 , lens
 , lens-aeson
@@ -36,6 +37,7 @@ mkDerivation {
     cql-io
     cql-io-tinylog
     exceptions
+    HsOpenSSL
     imports
     lens
     lens-aeson

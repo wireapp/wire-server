@@ -197,8 +197,13 @@ authenticate u pw =
     Just (_, PendingInvitation) -> throwE AuthPendingInvitation
     Just (Nothing, _) -> throwE AuthInvalidCredentials
     Just (Just pw', Active) ->
-      unless (verifyPassword pw pw') $
-        throwE AuthInvalidCredentials
+      case verifyPasswordWithStatus pw pw' of
+        (False, _) -> throwE AuthInvalidCredentials
+        (True, PasswordStatusNeedsUpdate) -> do
+          -- FUTUREWORK(elland): 6char pwd allowed for now
+          -- throwE AuthStalePassword in the future
+          for_ (plainTextPassword8 . fromPlainTextPassword $ pw) (updatePassword u)
+        (True, _) -> pure ()
 
 -- | Password reauthentication. If the account has a password, reauthentication
 -- is mandatory. If the account has no password, or is an SSO user, and no password is given,

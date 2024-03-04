@@ -40,25 +40,6 @@ services/nginz/src
 services/.env
 tools/api-simulations/mailboxes.json
 tools/api-simulations/reports
-brig-schema.yaml
-brig.yaml
-brig.integration-aws.yaml
-cannon.yaml
-cannon.integration-aws.yaml
-cannon2.integration-aws.yaml
-cargohold.yaml
-cargohold.integration-aws.yaml
-galley-schema.yaml
-galley.yaml
-galley.integration-aws.yaml
-gundeck-schema.yaml
-gundeck.yaml
-gundeck.integration-aws.yaml
-proxy.yaml
-proxy.integration-aws.yaml
-spar.yaml
-spar.integration-aws.yaml
-integration-aws.yaml
 DOCKER_ID*
 swagger-ui
 
@@ -105,6 +86,7 @@ result-*
 # Created by .envrc
 .direnv
 .env
+.env-hs-run
 
 # emacs misc
 .dir-locals.el
@@ -114,3 +96,6 @@ result-*
 
 services/nginz/third_party/headers-more-nginx-module
 services/nginz/third_party/nginx-module-vts
+
+# dumped out by running tests in kind
+logs-integration

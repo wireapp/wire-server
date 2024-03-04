@@ -35,7 +35,8 @@ module Brig.App
     stompEnv,
     cargohold,
     galley,
-    gundeck,
+    galleyEndpoint,
+    gundeckEndpoint,
     federator,
     casClient,
     userTemplates,
@@ -50,7 +51,6 @@ module Brig.App
     twilioCreds,
     settings,
     currentTime,
-    geoDb,
     zauthEnv,
     digestSHA256,
     digestMD5,
@@ -64,12 +64,13 @@ module Brig.App
     keyPackageLocalLock,
     rabbitmqChannel,
     fsWatcher,
+    disabledVersions,
 
     -- * App Monad
     AppT (..),
-    locationOf,
     viewFederationDomain,
     qualifyLocal,
+    qualifyLocal',
 
     -- * Crutches that should be removed once Brig has been completely
 
@@ -81,6 +82,7 @@ module Brig.App
     wrapHttpClientE,
     wrapHttp,
     HttpClientIO (..),
+    runHttpClientIO,
     liftSem,
     lowerAppT,
     temporaryGetEnv,
@@ -99,33 +101,27 @@ import Brig.Provider.Template
 import Brig.Queue.Stomp qualified as Stomp
 import Brig.Queue.Types (Queue (..))
 import Brig.SMTP qualified as SMTP
+import Brig.Schema.Run qualified as Migrations
 import Brig.Team.Template
 import Brig.Template (Localised, TemplateBranding, forLocale, genTemplateBranding)
 import Brig.User.Search.Index (IndexEnv (..), MonadIndexIO (..), runIndexIO)
 import Brig.User.Template
 import Brig.ZAuth (MonadZAuth (..), runZAuth)
 import Brig.ZAuth qualified as ZAuth
-import Cassandra (Keyspace (Keyspace), runClient)
+import Cassandra (runClient)
 import Cassandra qualified as Cas
-import Cassandra.Schema (versionCheck)
-import Cassandra.Settings qualified as Cas
+import Cassandra.Util (initCassandraForService)
 import Control.AutoUpdate
 import Control.Error
-import Control.Exception.Enclosed (handleAny)
 import Control.Lens hiding (index, (.=))
 import Control.Monad.Catch
 import Control.Monad.Trans.Resource
 import Data.ByteString.Conversion
-import Data.Default (def)
 import Data.Domain
-import Data.GeoIP2 qualified as GeoIp
-import Data.IP
-import Data.List.NonEmpty qualified as NE
 import Data.Metrics (Metrics)
 import Data.Metrics.Middleware qualified as Metrics
 import Data.Misc
 import Data.Qualified
-import Data.Text (unpack)
 import Data.Text qualified as Text
 import Data.Text.Encoding (encodeUtf8)
 import Data.Text.Encoding qualified as Text
@@ -144,20 +140,21 @@ import OpenSSL.Session (SSLOption (..))
 import OpenSSL.Session qualified as SSL
 import Polysemy
 import Polysemy.Final
+import Polysemy.Input (Input, input)
 import Ropes.Nexmo qualified as Nexmo
 import Ropes.Twilio qualified as Twilio
 import Ssl.Util
 import System.FSNotify qualified as FS
-import System.FilePath qualified as Path
 import System.Logger.Class hiding (Settings, settings)
 import System.Logger.Class qualified as LC
 import System.Logger.Extended qualified as Log
 import Util.Options
+import Wire.API.Routes.Version
 import Wire.API.User.Identity (Email)
 import Wire.API.User.Profile (Locale)
 
 schemaVersion :: Int32
-schemaVersion = 79
+schemaVersion = Migrations.lastSchemaVersion
 
 -------------------------------------------------------------------------------
 -- Environment
@@ -165,7 +162,8 @@ schemaVersion = 79
 data Env = Env
   { _cargohold :: RPC.Request,
     _galley :: RPC.Request,
-    _gundeck :: RPC.Request,
+    _galleyEndpoint :: Endpoint,
+    _gundeckEndpoint :: Endpoint,
     _federator :: Maybe Endpoint, -- FUTUREWORK: should we use a better type here? E.g. to avoid fresh connections all the time?
     _casClient :: Cas.ClientState,
     _smtpEnv :: Maybe SMTP.SMTP,
@@ -186,7 +184,6 @@ data Env = Env
     _settings :: Settings,
     _nexmoCreds :: Nexmo.Credentials,
     _twilioCreds :: Twilio.Credentials,
-    _geoDb :: Maybe (IORef GeoIp.GeoDB),
     _fsWatcher :: FS.WatchManager,
     _turnEnv :: Calling.TurnEnv,
     _sftEnv :: Maybe Calling.SFTEnv,
@@ -197,7 +194,8 @@ data Env = Env
     _indexEnv :: IndexEnv,
     _randomPrekeyLocalLock :: Maybe (MVar ()),
     _keyPackageLocalLock :: MVar (),
-    _rabbitmqChannel :: Maybe (MVar Q.Channel)
+    _rabbitmqChannel :: Maybe (MVar Q.Channel),
+    _disabledVersions :: Set Version
   }
 
 makeLenses ''Env
@@ -231,8 +229,7 @@ newEnv o = do
   clock <- mkAutoUpdate defaultUpdateSettings {updateAction = getCurrentTime}
   w <-
     FS.startManagerConf $
-      FS.defaultConfig {FS.confDebounce = FS.Debounce 0.5, FS.confPollInterval = 10000000}
-  g <- geoSetup lgr w $ Opt.geoDb o
+      FS.defaultConfig {FS.confWatchMode = FS.WatchModeOS}
   let turnOpts = Opt.turn o
   turnSecret <- Text.encodeUtf8 . Text.strip <$> Text.readFile (Opt.secret turnOpts)
   turn <- Calling.mkTurnEnv (Opt.serversSource turnOpts) (Opt.tokenTTL turnOpts) (Opt.configTTL turnOpts) turnSecret sha512
@@ -259,11 +256,14 @@ newEnv o = do
       pure Nothing
   kpLock <- newMVar ()
   rabbitChan <- traverse (Q.mkRabbitMqChannelMVar lgr) o.rabbitmq
+  let allDisabledVersions = foldMap expandVersionExp (Opt.setDisabledAPIVersions sett)
+
   pure $!
     Env
       { _cargohold = mkEndpoint $ Opt.cargohold o,
         _galley = mkEndpoint $ Opt.galley o,
-        _gundeck = mkEndpoint $ Opt.gundeck o,
+        _galleyEndpoint = Opt.galley o,
+        _gundeckEndpoint = Opt.gundeck o,
         _federator = Opt.federatorInternal o,
         _casClient = cas,
         _smtpEnv = emailSMTP,
@@ -273,7 +273,7 @@ newEnv o = do
         _metrics = mtr,
         _applog = lgr,
         _internalEvents = eventsQueue,
-        _requestId = def,
+        _requestId = RequestId "N/A",
         _usrTemplates = utp,
         _provTemplates = ptp,
         _tmTemplates = ttp,
@@ -284,7 +284,6 @@ newEnv o = do
         _settings = sett,
         _nexmoCreds = nxm,
         _twilioCreds = twl,
-        _geoDb = g,
         _turnEnv = turn,
         _sftEnv = mSFTEnv,
         _fsWatcher = w,
@@ -295,7 +294,8 @@ newEnv o = do
         _indexEnv = mkIndexEnv o lgr mgr mtr (Opt.galley o),
         _randomPrekeyLocalLock = prekeyLocalLock,
         _keyPackageLocalLock = kpLock,
-        _rabbitmqChannel = rabbitChan
+        _rabbitmqChannel = rabbitChan,
+        _disabledVersions = allDisabledVersions
       }
   where
     emailConn _ (Opt.EmailAWS aws) = pure (Just aws, Nothing)
@@ -311,36 +311,13 @@ newEnv o = do
     mkEndpoint service = RPC.host (encodeUtf8 (service ^. host)) . RPC.port (service ^. port) $ RPC.empty
 
 mkIndexEnv :: Opts -> Logger -> Manager -> Metrics -> Endpoint -> IndexEnv
-mkIndexEnv o lgr mgr mtr galleyEndpoint =
+mkIndexEnv o lgr mgr mtr galleyEp =
   let bhe = ES.mkBHEnv (ES.Server (Opt.url (Opt.elasticsearch o))) mgr
       lgr' = Log.clone (Just "index.brig") lgr
       mainIndex = ES.IndexName $ Opt.index (Opt.elasticsearch o)
       additionalIndex = ES.IndexName <$> Opt.additionalWriteIndex (Opt.elasticsearch o)
       additionalBhe = flip ES.mkBHEnv mgr . ES.Server <$> Opt.additionalWriteIndexUrl (Opt.elasticsearch o)
-   in IndexEnv mtr lgr' bhe Nothing mainIndex additionalIndex additionalBhe galleyEndpoint mgr
-
-geoSetup :: Logger -> FS.WatchManager -> Maybe FilePath -> IO (Maybe (IORef GeoIp.GeoDB))
-geoSetup _ _ Nothing = pure Nothing
-geoSetup lgr w (Just db) = do
-  path <- canonicalizePath db
-  geodb <- newIORef =<< GeoIp.openGeoDB path
-  startWatching w path (replaceGeoDb lgr geodb)
-  pure $ Just geodb
-
-startWatching :: FS.WatchManager -> FilePath -> FS.Action -> IO ()
-startWatching w p = void . FS.watchDir w (Path.dropFileName p) predicate
-  where
-    predicate (FS.Added f _ _) = Path.equalFilePath f p
-    predicate (FS.Modified f _ _) = Path.equalFilePath f p
-    predicate FS.Removed {} = False
-    predicate FS.Unknown {} = False
-
-replaceGeoDb :: Logger -> IORef GeoIp.GeoDB -> FS.Event -> IO ()
-replaceGeoDb g ref e = do
-  let logErr x = Log.err g (msg $ val "Error loading GeoIP database: " +++ show x)
-  handleAny logErr $ do
-    GeoIp.openGeoDB (FS.eventPath e) >>= atomicWriteIORef ref
-    Log.info g (msg $ val "New GeoIP database loaded.")
+   in IndexEnv mtr lgr' bhe Nothing mainIndex additionalIndex additionalBhe galleyEp mgr
 
 initZAuth :: Opts -> IO ZAuth.Env
 initZAuth o = do
@@ -421,40 +398,26 @@ initExtGetManager = do
        in verifyRsaFingerprint sha pinset
 
 initCassandra :: Opts -> Logger -> IO Cas.ClientState
-initCassandra o g = do
-  c <-
-    maybe
-      (Cas.initialContactsPlain (Opt.cassandra o ^. endpoint . host))
-      (Cas.initialContactsDisco "cassandra_brig" . unpack)
-      (Opt.discoUrl o)
-  p <-
-    Cas.init
-      $ Cas.setLogger (Cas.mkLogger (Log.clone (Just "cassandra.brig") g))
-        . Cas.setContacts (NE.head c) (NE.tail c)
-        . Cas.setPortNumber (fromIntegral (Opt.cassandra o ^. endpoint . port))
-        . Cas.setKeyspace (Keyspace (Opt.cassandra o ^. keyspace))
-        . Cas.setMaxConnections 4
-        . Cas.setPoolStripes 4
-        . Cas.setSendTimeout 3
-        . Cas.setResponseTimeout 10
-        . Cas.setProtocolVersion Cas.V4
-        . Cas.setPolicy (Cas.dcFilterPolicyIfConfigured g (Opt.cassandra o ^. filterNodesByDatacentre))
-      $ Cas.defSettings
-  runClient p $ versionCheck schemaVersion
-  pure p
+initCassandra o g =
+  initCassandraForService
+    (Opt.cassandra o)
+    "brig"
+    (Opt.discoUrl o)
+    (Just schemaVersion)
+    g
 
 initCredentials :: (FromJSON a) => FilePathSecrets -> IO a
 initCredentials secretFile = do
   dat <- loadSecret secretFile
   pure $ either (\e -> error $ "Could not load secrets from " ++ show secretFile ++ ": " ++ e) id dat
 
-userTemplates :: MonadReader Env m => Maybe Locale -> m (Locale, UserTemplates)
+userTemplates :: (MonadReader Env m) => Maybe Locale -> m (Locale, UserTemplates)
 userTemplates l = forLocale l <$> view usrTemplates
 
-providerTemplates :: MonadReader Env m => Maybe Locale -> m (Locale, ProviderTemplates)
+providerTemplates :: (MonadReader Env m) => Maybe Locale -> m (Locale, ProviderTemplates)
 providerTemplates l = forLocale l <$> view provTemplates
 
-teamTemplates :: MonadReader Env m => Maybe Locale -> m (Locale, TeamTemplates)
+teamTemplates :: (MonadReader Env m) => Maybe Locale -> m (Locale, TeamTemplates)
 teamTemplates l = forLocale l <$> view tmTemplates
 
 closeEnv :: Env -> IO ()
@@ -468,7 +431,7 @@ closeEnv e = do
 -- App Monad
 
 newtype AppT r a = AppT
-  { unAppT :: Member (Final IO) r => ReaderT Env (Sem r) a
+  { unAppT :: (Member (Final IO) r) => ReaderT Env (Sem r) a
   }
   deriving
     ( Semigroup,
@@ -476,7 +439,7 @@ newtype AppT r a = AppT
     )
     via (Ap (AppT r) a)
 
-lowerAppT :: Member (Final IO) r => Env -> AppT r a -> Sem r a
+lowerAppT :: (Member (Final IO) r) => Env -> AppT r a -> Sem r a
 lowerAppT env (AppT r) = runReaderT r env
 
 temporaryGetEnv :: AppT r Env
@@ -498,10 +461,10 @@ instance MonadIO (AppT r) where
 instance MonadThrow (AppT r) where
   throwM = liftIO . throwM
 
-instance Member (Final IO) r => MonadThrow (Sem r) where
+instance (Member (Final IO) r) => MonadThrow (Sem r) where
   throwM = embedFinal . throwM @IO
 
-instance Member (Final IO) r => MonadCatch (Sem r) where
+instance (Member (Final IO) r) => MonadCatch (Sem r) where
   catch m handler = withStrategicToFinal @IO $ do
     m' <- runS m
     st <- getInitialStateS
@@ -520,7 +483,7 @@ instance MonadReader Env (AppT r) where
 liftSem :: Sem r a -> AppT r a
 liftSem sem = AppT $ lift sem
 
-instance MonadIO m => MonadLogger (ReaderT Env m) where
+instance (MonadIO m) => MonadLogger (ReaderT Env m) where
   log l m = do
     g <- view applog
     r <- view requestId
@@ -568,14 +531,12 @@ wrapClientM = mapMaybeT wrapClient
 wrapHttp ::
   HttpClientIO a ->
   AppT r a
-wrapHttp (HttpClientIO m) = do
-  c <- view casClient
+wrapHttp action = do
   env <- ask
-  manager <- view httpManager
-  liftIO . runClient c . runHttpT manager $ runReaderT m env
+  runHttpClientIO env action
 
 newtype HttpClientIO a = HttpClientIO
-  { runHttpClientIO :: ReaderT Env (HttpT Cas.Client) a
+  { unHttpClientIO :: ReaderT Env (HttpT Cas.Client) a
   }
   deriving newtype
     ( Functor,
@@ -591,6 +552,13 @@ newtype HttpClientIO a = HttpClientIO
       MonadUnliftIO,
       MonadIndexIO
     )
+
+runHttpClientIO :: MonadIO m => Env -> HttpClientIO a -> m a
+runHttpClientIO env =
+  runClient (env ^. casClient)
+    . runHttpT (env ^. httpManager)
+    . flip runReaderT env
+    . unHttpClientIO
 
 instance MonadZAuth HttpClientIO where
   liftZAuth za = view zauthEnv >>= flip runZAuth za
@@ -612,34 +580,27 @@ wrapHttpClient = wrapHttp
 wrapHttpClientE :: ExceptT e HttpClientIO a -> ExceptT e (AppT r) a
 wrapHttpClientE = mapExceptT wrapHttpClient
 
-instance MonadIO m => MonadIndexIO (ReaderT Env m) where
+instance (MonadIO m) => MonadIndexIO (ReaderT Env m) where
   liftIndexIO m = view indexEnv >>= \e -> runIndexIO e m
 
 instance MonadIndexIO (AppT r) where
   liftIndexIO m = do
     AppT $ mapReaderT (embedToFinal @IO) $ liftIndexIO m
 
-instance MonadIndexIO (AppT r) => MonadIndexIO (ExceptT err (AppT r)) where
+instance (MonadIndexIO (AppT r)) => MonadIndexIO (ExceptT err (AppT r)) where
   liftIndexIO m = view indexEnv >>= \e -> runIndexIO e m
 
 instance HasRequestId (AppT r) where
   getRequestId = view requestId
 
-locationOf :: (MonadIO m, MonadReader Env m) => IP -> m (Maybe Location)
-locationOf ip =
-  view geoDb >>= \case
-    Just g -> do
-      database <- liftIO $ readIORef g
-      pure $! do
-        loc <- GeoIp.geoLocation =<< hush (GeoIp.findGeoData database "en" ip)
-        pure $ location (Latitude $ GeoIp.locationLatitude loc) (Longitude $ GeoIp.locationLongitude loc)
-    Nothing -> pure Nothing
-
 --------------------------------------------------------------------------------
 -- Federation
 
-viewFederationDomain :: MonadReader Env m => m Domain
+viewFederationDomain :: (MonadReader Env m) => m Domain
 viewFederationDomain = view (settings . Opt.federationDomain)
 
-qualifyLocal :: MonadReader Env m => a -> m (Local a)
+qualifyLocal :: (MonadReader Env m) => a -> m (Local a)
 qualifyLocal a = toLocalUnsafe <$> viewFederationDomain <*> pure a
+
+qualifyLocal' :: (Member (Input (Local ()))) r => a -> Sem r (Local a)
+qualifyLocal' a = flip toLocalUnsafe a . tDomain <$> input

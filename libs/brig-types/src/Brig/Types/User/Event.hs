@@ -102,8 +102,11 @@ data UserIdentityRemovedData = UserIdentityRemovedData
   deriving stock (Show)
 
 data LegalHoldClientRequestedData = LegalHoldClientRequestedData
-  { lhcTargetUser :: !UserId,
+  { -- | the user that is under legalhold
+    lhcTargetUser :: !UserId,
+    -- | the last prekey of the user that is under legalhold
     lhcLastPrekey :: !LastPrekey,
+    -- | the client id of the legalhold device
     lhcClientId :: !ClientId
   }
   deriving stock (Show)

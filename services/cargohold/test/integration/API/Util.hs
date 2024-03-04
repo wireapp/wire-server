@@ -15,32 +15,75 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module API.Util where
+module API.Util
+  ( randomUser,
+    uploadSimple,
+    decodeHeaderOrFail,
+    getContentType,
+    applicationText,
+    applicationOctetStream,
+    deleteAssetV3,
+    deleteAsset,
+    downloadAsset,
+    withMockFederator,
+  )
+where
 
 import Bilge hiding (body, host, port)
+import qualified Bilge
 import CargoHold.Options
 import CargoHold.Run
 import qualified Codec.MIME.Parse as MIME
 import qualified Codec.MIME.Type as MIME
-import Control.Lens
+import Control.Lens hiding ((.=))
 import Control.Monad.Codensity
+import Data.Aeson (object, (.=))
 import Data.ByteString.Builder
+import qualified Data.ByteString.Char8 as C
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as Lazy
-import Data.Domain
 import Data.Id
 import Data.Qualified
-import Data.Text.Encoding (decodeLatin1)
+import Data.Text.Encoding (decodeLatin1, encodeUtf8)
 import qualified Data.UUID as UUID
+import Data.UUID.V4 (nextRandom)
 import Federator.MockServer
 import Imports hiding (head)
 import qualified Network.HTTP.Media as HTTP
 import Network.HTTP.Types.Header
 import Network.HTTP.Types.Method
 import Network.Wai.Utilities.MockServer
+import Safe (readNote)
 import TestSetup
 import Util.Options
 import Wire.API.Asset
+
+-- Copied wholesale from gundeck/test/integration/API.hs
+-- This is needed because it sets up the email on the user, verifiying it.
+-- The changes to the asset routes forbidding non-verified users from uploading
+-- assets breaks a lot of existing tests.
+--
+-- FUTUREWORK: Move all the cargohold tests to the new integration test suite.
+-- https://wearezeta.atlassian.net/browse/WPB-5382
+randomUser :: TestM UserId
+randomUser = do
+  (Endpoint (encodeUtf8 -> eHost) ePort) <- view tsBrig
+  e <- liftIO $ mkEmail "success" "simulator.amazonses.com"
+  let p =
+        object
+          [ "name" .= e,
+            "email" .= e,
+            "password" .= ("secret-8-chars-long-at-least" :: Text)
+          ]
+  r <- post (Bilge.host eHost . Bilge.port ePort . path "/i/users" . json p)
+  pure
+    . readNote "unable to parse Location header"
+    . C.unpack
+    $ getHeader' "Location" r
+  where
+    mkEmail loc dom = do
+      uid <- nextRandom
+      pure $ loc <> "+" <> UUID.toText uid <> "@" <> dom
 
 uploadSimple ::
   (Request -> Request) ->
@@ -159,25 +202,6 @@ downloadAsset ::
   tok ->
   TestM (Response (Maybe LByteString))
 downloadAsset = downloadAssetWith id
-
-postToken :: UserId -> AssetKey -> TestM (Response (Maybe LByteString))
-postToken uid key = do
-  c <- viewCargohold
-  post $
-    c
-      . zUser uid
-      . paths ["assets", toByteString' key, "token"]
-
-deleteToken :: UserId -> AssetKey -> TestM (Response (Maybe LByteString))
-deleteToken uid key = do
-  c <- viewCargohold
-  delete $
-    c
-      . zUser uid
-      . paths ["assets", toByteString' key, "token"]
-
-viewFederationDomain :: TestM Domain
-viewFederationDomain = view (tsOpts . settings . federationDomain)
 
 --------------------------------------------------------------------------------
 -- Mocking utilities

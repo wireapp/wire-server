@@ -4,6 +4,7 @@ way that it can be used in multiple contexts. Generality is achieved via the
 """
 
 from base64 import b64encode
+import time
 import json
 import random
 import requests
@@ -134,13 +135,17 @@ def mls_welcome(ctx, user, welcome):
 
 def mls_post_commit_bundle(ctx, client, commit_bundle):
     url = ctx.mkurl("galley", f"/mls/commit-bundles")
-    return ctx.request(
+    tbefore = time.time()
+    res = ctx.request(
         "POST",
         url,
         headers={"Content-Type": "message/mls"},
         client=client,
         data=commit_bundle,
     )
+    tafter = time.time()
+    print(f'posting commit bundle took {tafter-tbefore:.0f} seconds')
+    return res
 
 
 def mls_send_message(ctx, msg, **kwargs):

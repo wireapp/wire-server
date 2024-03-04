@@ -27,6 +27,7 @@ import Data.ByteString qualified as BS
 import Data.ByteString.Builder (Builder, byteString, toLazyByteString)
 import Data.ByteString.Lazy qualified as LBS
 import Data.Domain
+import Data.Id
 import Data.Proxy
 import Data.Text.Encoding qualified as Text
 import Federator.MockServer
@@ -97,7 +98,8 @@ withMockFederatorClient headers resp action = withTempMockFederator headers resp
           { ceOriginDomain = originDomain,
             ceTargetDomain = targetDomain,
             ceFederator = Endpoint "127.0.0.1" (fromIntegral port),
-            ceHttp2Manager = mgr
+            ceHttp2Manager = mgr,
+            ceOriginRequestId = RequestId "N/A"
           }
   a <- runFederatorClient env action
   case a of
@@ -137,7 +139,8 @@ testClientStreaming = withInfiniteMockServer $ \port -> do
           { ceOriginDomain = originDomain,
             ceTargetDomain = targetDomain,
             ceFederator = Endpoint "127.0.0.1" (fromIntegral port),
-            ceHttp2Manager = mgr
+            ceHttp2Manager = mgr,
+            ceOriginRequestId = RequestId "N/A"
           }
       venv = FederatorClientVersionedEnv env Nothing
   let c = clientIn (Proxy @StreamingAPI) (Proxy @(FederatorClient 'Brig))
@@ -203,7 +206,8 @@ testClientConnectionError = do
           { ceOriginDomain = originDomain,
             ceTargetDomain = targetDomain,
             ceFederator = Endpoint "127.0.0.1" 1,
-            ceHttp2Manager = mgr
+            ceHttp2Manager = mgr,
+            ceOriginRequestId = RequestId "N/A"
           }
   result <- runFederatorClient env (fedClient @'Brig @"get-user-by-handle" handle)
   case result of

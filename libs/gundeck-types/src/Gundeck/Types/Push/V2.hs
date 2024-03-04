@@ -86,6 +86,7 @@ import Data.Set qualified as Set
 import Imports hiding (cs)
 import Wire.API.Message (Priority (..))
 import Wire.API.Push.V2.Token
+import Wire.Arbitrary
 
 -----------------------------------------------------------------------------
 -- Route
@@ -97,7 +98,8 @@ data Route
     RouteAny
   | -- | Avoids causing push notification for mobile clients.
     RouteDirect
-  deriving (Eq, Ord, Enum, Bounded, Show)
+  deriving (Eq, Ord, Enum, Bounded, Show, Generic)
+  deriving (Arbitrary) via GenericUniform Route
 
 instance FromJSON Route where
   parseJSON (String "any") = pure RouteAny
@@ -116,14 +118,21 @@ data Recipient = Recipient
     _recipientRoute :: !Route,
     _recipientClients :: !RecipientClients
   }
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Generic)
 
 data RecipientClients
   = -- | All clients of some user
     RecipientClientsAll
   | -- | An explicit list of clients
     RecipientClientsSome (List1 ClientId)
-  deriving (Eq, Show, Ord)
+  deriving (Eq, Show, Ord, Generic)
+  deriving (Arbitrary) via GenericUniform RecipientClients
+
+instance Semigroup RecipientClients where
+  RecipientClientsAll <> _ = RecipientClientsAll
+  _ <> RecipientClientsAll = RecipientClientsAll
+  RecipientClientsSome cs1 <> RecipientClientsSome cs2 =
+    RecipientClientsSome (cs1 <> cs2)
 
 makeLenses ''Recipient
 
@@ -162,15 +171,16 @@ instance ToJSON RecipientClients where
 -- ApsData
 
 newtype ApsSound = ApsSound {fromSound :: Text}
-  deriving (Eq, Show, ToJSON, FromJSON)
+  deriving (Eq, Show, ToJSON, FromJSON, Arbitrary)
 
 newtype ApsLocKey = ApsLocKey {fromLocKey :: Text}
-  deriving (Eq, Show, ToJSON, FromJSON)
+  deriving (Eq, Show, ToJSON, FromJSON, Arbitrary)
 
 data ApsPreference
   = ApsStdPreference
   | ApsVoIPPreference
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via GenericUniform ApsPreference
 
 instance ToJSON ApsPreference where
   toJSON ApsVoIPPreference = "voip"
@@ -189,7 +199,8 @@ data ApsData = ApsData
     _apsPreference :: !(Maybe ApsPreference),
     _apsBadge :: !Bool
   }
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via GenericUniform ApsData
 
 makeLenses ''ApsData
 
@@ -303,9 +314,9 @@ instance ToJSON Push where
         # "origin" .= _pushOrigin p
         # "connections" .= ifNot Set.null (_pushConnections p)
         # "origin_connection" .= _pushOriginConnection p
-        # "transient" .= ifNot (== False) (_pushTransient p)
-        # "native_include_origin" .= ifNot (== True) (_pushNativeIncludeOrigin p)
-        # "native_encrypt" .= ifNot (== True) (_pushNativeEncrypt p)
+        # "transient" .= ifNot not (_pushTransient p)
+        # "native_include_origin" .= ifNot id (_pushNativeIncludeOrigin p)
+        # "native_encrypt" .= ifNot id (_pushNativeEncrypt p)
         # "native_aps" .= _pushNativeAps p
         # "native_priority" .= ifNot (== HighPriority) (_pushNativePriority p)
         # "payload" .= _pushPayload p

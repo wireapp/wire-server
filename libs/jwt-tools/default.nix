@@ -4,6 +4,7 @@
 # dependencies are added or removed.
 { mkDerivation
 , base
+, bytestring
 , bytestring-conversion
 , gitignoreSource
 , hspec
@@ -25,7 +26,7 @@ mkDerivation {
     transformers
   ];
   librarySystemDepends = [ rusty_jwt_tools_ffi ];
-  testHaskellDepends = [ hspec imports transformers ];
+  testHaskellDepends = [ bytestring hspec imports transformers ];
   description = "FFI to rusty-jwt-tools";
   license = lib.licenses.agpl3Only;
 }

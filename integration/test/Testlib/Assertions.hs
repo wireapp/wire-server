@@ -4,21 +4,22 @@ module Testlib.Assertions where
 
 import Control.Exception as E
 import Control.Monad.Reader
-import Data.Aeson qualified as Aeson
-import Data.Aeson.Encode.Pretty qualified as Aeson
-import Data.ByteString.Base64 qualified as B64
-import Data.ByteString.Lazy qualified as BS
+import Data.Aeson (Value)
+import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Encode.Pretty as Aeson
+import qualified Data.ByteString.Base64 as B64
+import qualified Data.ByteString.Lazy as BS
 import Data.Char
 import Data.Foldable
 import Data.Hex
 import Data.List
-import Data.Map qualified as Map
-import Data.Text qualified as Text
-import Data.Text.Encoding qualified as Text
-import Data.Text.Lazy qualified as TL
-import Data.Text.Lazy.Encoding qualified as TL
+import qualified Data.Map as Map
+import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
+import qualified Data.Text.Lazy as TL
+import qualified Data.Text.Lazy.Encoding as TL
 import GHC.Stack as Stack
-import Network.HTTP.Client qualified as HTTP
+import qualified Network.HTTP.Client as HTTP
 import System.FilePath
 import Testlib.JSON
 import Testlib.Printing
@@ -29,9 +30,10 @@ assertBool :: HasCallStack => String -> Bool -> App ()
 assertBool _ True = pure ()
 assertBool msg False = assertFailure msg
 
-assertOne :: HasCallStack => [a] -> App a
-assertOne [x] = pure x
-assertOne xs = assertFailure ("Expected one, but got " <> show (length xs))
+assertOne :: (HasCallStack, Foldable t) => t a -> App a
+assertOne xs = case toList xs of
+  [x] -> pure x
+  other -> assertFailure ("Expected one, but got " <> show (length other))
 
 expectFailure :: HasCallStack => (AssertionFailure -> App ()) -> App a -> App ()
 expectFailure checkFailure action = do
@@ -53,7 +55,7 @@ shouldMatch ::
 a `shouldMatch` b = do
   xa <- make a
   xb <- make b
-  unless (xa == xb) $ do
+  unless (xa == xb) do
     pa <- prettyJSON xa
     pb <- prettyJSON xb
     assertFailure $ "Actual:\n" <> pa <> "\nExpected:\n" <> pb
@@ -112,7 +114,7 @@ shouldMatchRange ::
   (Int, Int) ->
   App ()
 shouldMatchRange a (lower, upper) = do
-  xa :: Int <- asInt a
+  xa :: Int <- asIntegral a
   when (xa < lower || xa > upper) $ do
     pa <- prettyJSON xa
     assertFailure $ "Actual:\n" <> pa <> "\nExpected:\nin range (" <> show lower <> ", " <> show upper <> ") (including bounds)"
@@ -126,6 +128,9 @@ shouldMatchSet a b = do
   la <- fmap sort (asList a)
   lb <- fmap sort (asList b)
   la `shouldMatch` lb
+
+shouldBeEmpty :: (MakesValue a, HasCallStack) => a -> App ()
+shouldBeEmpty a = a `shouldMatch` (mempty :: [Value])
 
 shouldMatchOneOf ::
   (MakesValue a, MakesValue b, HasCallStack) =>

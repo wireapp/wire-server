@@ -18,21 +18,23 @@ library
   exposed-modules:
     Wire.API.Federation.API
     Wire.API.Federation.API.Brig
+    Wire.API.Federation.API.Brig.Notifications
     Wire.API.Federation.API.Cargohold
     Wire.API.Federation.API.Common
     Wire.API.Federation.API.Galley
+    Wire.API.Federation.API.Galley.Notifications
     Wire.API.Federation.BackendNotifications
     Wire.API.Federation.Client
     Wire.API.Federation.Component
     Wire.API.Federation.Domain
     Wire.API.Federation.Endpoint
     Wire.API.Federation.Error
+    Wire.API.Federation.HasNotificationEndpoint
     Wire.API.Federation.Version
 
   other-modules:      Paths_wire_api_federation
   hs-source-dirs:     src
   default-extensions:
-    NoImplicitPrelude
     AllowAmbiguousTypes
     BangPatterns
     ConstraintKinds
@@ -56,6 +58,7 @@ library
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NoImplicitPrelude
     OverloadedRecordDot
     OverloadedStrings
     PackageImports
@@ -82,6 +85,7 @@ library
   build-depends:
       aeson                  >=2.0.1.0
     , amqp
+    , async
     , base                   >=4.6     && <5.0
     , bytestring
     , bytestring-conversion
@@ -97,14 +101,15 @@ library
     , lens
     , metrics-wai
     , mtl
+    , openapi3
     , QuickCheck             >=2.13
     , schema-profunctor
     , servant                >=0.16
     , servant-client
     , servant-client-core
+    , servant-openapi3
     , servant-server
-    , singletons-th
-    , swagger2
+    , singletons-base
     , text                   >=0.11
     , time                   >=1.8
     , transformers
@@ -136,7 +141,6 @@ test-suite spec
 
   hs-source-dirs:     test
   default-extensions:
-    NoImplicitPrelude
     AllowAmbiguousTypes
     BangPatterns
     ConstraintKinds
@@ -160,6 +164,7 @@ test-suite spec
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NoImplicitPrelude
     OverloadedRecordDot
     OverloadedStrings
     PackageImports
@@ -195,6 +200,7 @@ test-suite spec
     , imports
     , QuickCheck           >=2.13
     , singletons
+    , time
     , types-common
     , uuid
     , wire-api

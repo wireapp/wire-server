@@ -36,7 +36,6 @@ module Galley.API.Message
 where
 
 import Control.Lens
-import Control.Monad.Extra (eitherM)
 import Data.Aeson (encode)
 import Data.Bifunctor
 import Data.ByteString.Conversion (toByteString')
@@ -87,6 +86,7 @@ import Wire.API.Team.LegalHold
 import Wire.API.Team.Member
 import Wire.API.User.Client
 import Wire.API.UserMap (UserMap (..))
+import Wire.NotificationSubsystem (NotificationSubsystem)
 
 data UserType = User | Bot
 
@@ -232,10 +232,9 @@ getRemoteClients remoteMembers =
       Map.mapKeys (domain,) . fmap (Set.map pubClientId) . userMap
         <$> fedClient @'Brig @"get-user-clients" (GetUserClients uids)
 
--- FUTUREWORK: sender should be Local UserId
 postRemoteOtrMessage ::
   (Member FederatorAccess r) =>
-  Qualified UserId ->
+  Local UserId ->
   Remote ConvId ->
   ByteString ->
   Sem r (PostOtrResponse MessageSendingStatus)
@@ -243,7 +242,7 @@ postRemoteOtrMessage sender conv rawMsg = do
   let msr =
         ProteusMessageSendRequest
           { convId = tUnqualified conv,
-            sender = qUnqualified sender,
+            sender = qUnqualified (tUntagged sender),
             rawMessage = Base64ByteString rawMsg
           }
       rpc = fedClient @'Galley @"send-message" msr
@@ -255,12 +254,12 @@ postBroadcast ::
     Member (ErrorS 'TeamNotFound) r,
     Member (ErrorS 'NonBindingTeam) r,
     Member (ErrorS 'BroadcastLimitExceeded) r,
-    Member GundeckAccess r,
     Member ExternalAccess r,
     Member (Input Opts) r,
     Member (Input UTCTime) r,
     Member TeamStore r,
-    Member P.TinyLog r
+    Member P.TinyLog r,
+    Member NotificationSubsystem r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -317,14 +316,10 @@ postBroadcast lusr con msg = runError $ do
           (flattenMap $ qualifiedNewOtrRecipients msg)
           (qualifiedNewOtrClientMismatchStrategy msg)
       otrResult = mkMessageSendingStatus (toUTCTimeMillis now) mismatch
-  unless sendMessage $ do
-    let lhProtectee = qualifiedUserToProtectee (tDomain lusr) User (tUntagged lusr)
-        missingClients = qmMissing mismatch
 
-    mapError @LegalholdConflicts @(MessageNotSent MessageSendingStatus)
-      (const MessageNotSentLegalhold)
-      $ runLocalInput lusr
-      $ guardQualifiedLegalholdPolicyConflicts lhProtectee missingClients
+  guardQualifiedLegalholdPolicyConflictsWrapper User (tUntagged lusr) localClients [] lusr
+
+  unless sendMessage $ do
     throw $ MessageNotSentClientMissing otrResult
 
   failedToSend <-
@@ -353,6 +348,7 @@ postBroadcast lusr con msg = runError $ do
       unless (length localUserIdsToLookup <= limit) $
         throwS @'BroadcastLimitExceeded
       selectTeamMembers tid localUserIdsToLookup
+
     maybeFetchAllMembersInTeam ::
       ( Member (ErrorS 'BroadcastLimitExceeded) r,
         Member TeamStore r
@@ -371,12 +367,12 @@ postQualifiedOtrMessage ::
     Member ConversationStore r,
     Member FederatorAccess r,
     Member BackendNotificationQueueAccess r,
-    Member GundeckAccess r,
     Member ExternalAccess r,
     Member (Input Opts) r,
     Member (Input UTCTime) r,
     Member TeamStore r,
-    Member P.TinyLog r
+    Member P.TinyLog r,
+    Member NotificationSubsystem r
   ) =>
   UserType ->
   Qualified UserId ->
@@ -397,7 +393,7 @@ postQualifiedOtrMessage senderType sender mconn lcnv msg =
       let senderClient = qualifiedNewOtrSender msg
 
       conv <- getConversation (tUnqualified lcnv) >>= noteS @'ConvNotFound
-      unless (protocolTag (convProtocol conv) == ProtocolProteusTag) $
+      unless (protocolTag (convProtocol conv) `elem` [ProtocolProteusTag, ProtocolMixedTag]) $
         throwS @'InvalidOperation
 
       let localMemberIds = lmId <$> convLocalMembers conv
@@ -458,17 +454,14 @@ postQualifiedOtrMessage senderType sender mconn lcnv msg =
               (flattenMap $ qualifiedNewOtrRecipients msg)
               (qualifiedNewOtrClientMismatchStrategy msg)
           otrResult = mkMessageSendingStatus nowMillis mismatch
+
+      -- throw error if there is a legalhold policy conflict
+      guardQualifiedLegalholdPolicyConflictsWrapper senderType sender localClients qualifiedRemoteClients lcnv
+
+      -- throw error if clients are missing
       unless sendMessage $ do
-        let lhProtectee = qualifiedUserToProtectee localDomain senderType sender
-            missingClients = qmMissing mismatch
-            legalholdErr = pure MessageNotSentLegalhold
-            clientMissingErr = pure $ MessageNotSentClientMissing otrResult
-        e <-
-          runLocalInput lcnv
-            . eitherM (const legalholdErr) (const clientMissingErr)
-            . runError @LegalholdConflicts
-            $ guardQualifiedLegalholdPolicyConflicts lhProtectee missingClients
-        throw e
+        throw $ MessageNotSentClientMissing otrResult
+
       failedToSend <-
         sendMessages
           now
@@ -533,6 +526,48 @@ postQualifiedOtrMessage senderType sender mconn lcnv msg =
                 qualifiedOtrRecipientsMap $
                   qualifiedNewOtrRecipients msg
 
+guardQualifiedLegalholdPolicyConflictsWrapper ::
+  ( Member BrigAccess r,
+    Member (Error (MessageNotSent MessageSendingStatus)) r,
+    Member (Input Opts) r,
+    Member TeamStore r,
+    Member P.TinyLog r
+  ) =>
+  UserType ->
+  Qualified UserId ->
+  Clients.Clients ->
+  [Either (Remote [UserId], FederationError) (Map (Domain, UserId) (Set ClientId))] ->
+  Local any ->
+  Sem r ()
+guardQualifiedLegalholdPolicyConflictsWrapper senderType sender localClients qualifiedRemoteClients lany = do
+  wrapper $ guardQualifiedLegalholdPolicyConflicts lhProtectee allReceivingClients
+  where
+    localDomain = tDomain lany
+    lhProtectee = qualifiedUserToProtectee localDomain senderType sender
+
+    allReceivingClients = mkQualifiedUserClients $ parseLocal localClients <> parseRemote qualifiedRemoteClients
+      where
+        parseLocal :: Clients.Clients -> QualifiedRecipientSet
+        parseLocal =
+          Set.fromList
+            . mconcat
+            . fmap (\(uid, cids) -> (localDomain,uid,) <$> cids)
+            . Clients.toList
+
+        parseRemote :: [Either (Remote [UserId], FederationError) (Map (Domain, UserId) (Set ClientId))] -> QualifiedRecipientSet
+        parseRemote =
+          Set.fromList
+            . mconcat
+            . fmap (\((dom, uid), Set.toList -> cids) -> (dom,uid,) <$> cids)
+            . mconcat
+            . fmap Map.toList
+            . rights
+
+    wrapper =
+      runLocalInput lany
+        . mapError @LegalholdConflicts @(MessageNotSent MessageSendingStatus) (const MessageNotSentLegalhold)
+        . mapError @LegalholdConflictsOldClients @(MessageNotSent MessageSendingStatus) (const MessageNotSentLegalholdOldClients)
+
 -- FUTUREWORK: This is just a workaround and would not be needed if we had a proper monoid/semigroup instance for Map where the values have a monoid instance.
 collectFailedToSend ::
   Foldable f =>
@@ -547,10 +582,10 @@ makeUserMap keys = (<> Map.fromSet (const mempty) keys)
 -- sending has failed.
 sendMessages ::
   forall r.
-  ( Member GundeckAccess r,
-    Member ExternalAccess r,
+  ( Member ExternalAccess r,
     Member BackendNotificationQueueAccess r,
-    Member P.TinyLog r
+    Member P.TinyLog r,
+    Member NotificationSubsystem r
   ) =>
   UTCTime ->
   Qualified UserId ->
@@ -572,9 +607,9 @@ sendMessages now sender senderClient mconn lcnv botMap metadata messages = do
   mkQualifiedUserClientsByDomain <$> Map.traverseWithKey send messageMap
 
 sendBroadcastMessages ::
-  ( Member GundeckAccess r,
-    Member ExternalAccess r,
-    Member P.TinyLog r
+  ( Member ExternalAccess r,
+    Member P.TinyLog r,
+    Member NotificationSubsystem r
   ) =>
   Local x ->
   UTCTime ->
@@ -599,8 +634,8 @@ byDomain =
 sendLocalMessages ::
   forall r x.
   ( Member ExternalAccess r,
-    Member GundeckAccess r,
-    Member P.TinyLog r
+    Member P.TinyLog r,
+    Member NotificationSubsystem r
   ) =>
   Local x ->
   UTCTime ->
@@ -663,7 +698,7 @@ sendRemoteMessages domain now sender senderClient lcnv metadata messages = (hand
             transient = mmTransient metadata,
             recipients = UserClientMap rcpts
           }
-  let rpc = void $ fedQueueClient @'Galley @"on-message-sent" rm
+  let rpc = void $ fedQueueClient @'OnMessageSentTag rm
   enqueueNotification domain Q.Persistent rpc
   where
     handle :: Either FederationError a -> Sem r (Set (UserId, ClientId))

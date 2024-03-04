@@ -22,20 +22,40 @@ module Wire.API.Federation.Endpoint
 where
 
 import Data.Kind
+import GHC.TypeLits
 import Servant.API
 import Wire.API.ApplyMods
+import Wire.API.Federation.API.Common
 import Wire.API.Federation.Domain
+import Wire.API.Federation.HasNotificationEndpoint
 import Wire.API.Routes.Named
+
+data Versioned v name
+
+instance {-# OVERLAPPING #-} RenderableSymbol a => RenderableSymbol (Versioned v a) where
+  renderSymbol = renderSymbol @a
+
+type family FedPath (name :: k) :: Symbol
+
+type instance FedPath (name :: Symbol) = name
+
+type instance FedPath (Versioned v name) = name
 
 type FedEndpointWithMods (mods :: [Type]) name input output =
   Named
     name
     ( ApplyMods
         mods
-        (name :> OriginDomainHeader :> ReqBody '[JSON] input :> Post '[JSON] output)
+        (FedPath name :> OriginDomainHeader :> ReqBody '[JSON] input :> Post '[JSON] output)
     )
 
+type NotificationFedEndpointWithMods (mods :: [Type]) name input =
+  FedEndpointWithMods mods name input EmptyResponse
+
 type FedEndpoint name input output = FedEndpointWithMods '[] name input output
+
+type NotificationFedEndpoint tag =
+  FedEndpoint (NotificationPath tag) (Payload tag) EmptyResponse
 
 type StreamingFedEndpoint name input output =
   Named

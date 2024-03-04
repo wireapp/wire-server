@@ -157,17 +157,32 @@ instance Exception Error
 --------------------------------------------------------------------------------
 -- Utilities
 
-sendCatch :: (MonadCatch m, AWSRequest r, MonadResource m) => AWS.Env -> r -> m (Either AWS.Error (AWSResponse r))
+sendCatch ::
+  (MonadCatch m, AWSRequest r, MonadResource m, Typeable r, Typeable (AWSResponse r)) =>
+  AWS.Env ->
+  r ->
+  m (Either AWS.Error (AWSResponse r))
 sendCatch env = AWS.trying AWS._Error . AWS.send env
 
-send :: AWSRequest r => AWS.Env -> r -> Amazon (AWSResponse r)
+send ::
+  (AWSRequest r, Typeable r, Typeable (AWSResponse r)) =>
+  AWS.Env ->
+  r ->
+  Amazon (AWSResponse r)
 send env r = throwA =<< sendCatch env r
 
 throwA :: Either AWS.Error a -> Amazon a
 throwA = either (throwM . GeneralError) pure
 
 exec ::
-  (AWSRequest r, Show r, MonadLogger m, MonadIO m, MonadThrow m) =>
+  ( AWSRequest r,
+    Typeable r,
+    Typeable (AWSResponse r),
+    Show r,
+    MonadLogger m,
+    MonadIO m,
+    MonadThrow m
+  ) =>
   Env ->
   (Text -> r) ->
   m (AWSResponse r)
@@ -186,7 +201,11 @@ exec env request = do
     Right r -> pure r
 
 execStream ::
-  (AWSRequest r, Show r) =>
+  ( AWSRequest r,
+    Typeable r,
+    Typeable (AWSResponse r),
+    Show r
+  ) =>
   Env ->
   (Text -> r) ->
   ResourceT IO (AWSResponse r)
@@ -205,7 +224,13 @@ execStream env request = do
     Right r -> pure r
 
 execCatch ::
-  (AWSRequest r, Show r, MonadLogger m, MonadIO m) =>
+  ( AWSRequest r,
+    Typeable r,
+    Typeable (AWSResponse r),
+    Show r,
+    MonadLogger m,
+    MonadIO m
+  ) =>
   Env ->
   (Text -> r) ->
   m (Maybe (AWSResponse r))

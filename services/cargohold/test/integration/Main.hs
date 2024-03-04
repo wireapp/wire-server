@@ -21,16 +21,16 @@ module Main
 where
 
 import qualified API
-import API.Federation (tests)
-import qualified API.V3
 import qualified App
 import Data.Proxy
 import Data.Tagged
 import Imports hiding (local)
-import qualified Metrics
 import Options.Applicative
 import Test.Tasty
+import Test.Tasty.Ingredients
 import Test.Tasty.Options
+import Test.Tasty.Runners
+import Test.Tasty.Runners.AntXML
 import TestSetup
 import Util.Test
 
@@ -64,9 +64,6 @@ main = do
             testGroup
               "Cargohold"
               [ API.tests ts,
-                API.V3.tests ts,
-                Metrics.tests ts,
-                API.Federation.tests ts,
                 App.tests ts
               ]
   where
@@ -75,4 +72,6 @@ main = do
         [ Option (Proxy :: Proxy ServiceConfigFile),
           Option (Proxy :: Proxy IntegrationConfigFile)
         ]
+        : listingTests
+        : composeReporters antXMLRunner consoleTestReporter
         : defaultIngredients

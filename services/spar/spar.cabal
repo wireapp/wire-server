@@ -28,6 +28,25 @@ library
     Spar.Options
     Spar.Orphans
     Spar.Run
+    Spar.Schema.Run
+    Spar.Schema.V0
+    Spar.Schema.V1
+    Spar.Schema.V10
+    Spar.Schema.V11
+    Spar.Schema.V12
+    Spar.Schema.V13
+    Spar.Schema.V14
+    Spar.Schema.V15
+    Spar.Schema.V16
+    Spar.Schema.V17
+    Spar.Schema.V2
+    Spar.Schema.V3
+    Spar.Schema.V4
+    Spar.Schema.V5
+    Spar.Schema.V6
+    Spar.Schema.V7
+    Spar.Schema.V8
+    Spar.Schema.V9
     Spar.Scim
     Spar.Scim.Auth
     Spar.Scim.Types
@@ -80,7 +99,6 @@ library
   other-modules:      Paths_spar
   hs-source-dirs:     src
   default-extensions:
-    NoImplicitPrelude
     AllowAmbiguousTypes
     BangPatterns
     ConstraintKinds
@@ -104,6 +122,7 @@ library
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NoImplicitPrelude
     OverloadedRecordDot
     OverloadedStrings
     PackageImports
@@ -139,8 +158,8 @@ library
     , cassandra-util
     , containers
     , cookie
-    , cryptonite
-    , data-default
+    , crypton
+    , crypton-x509
     , exceptions
     , extended
     , galley-types
@@ -174,7 +193,6 @@ library
     , wai-utilities
     , warp
     , wire-api
-    , x509
     , yaml
 
   default-language:   Haskell2010
@@ -184,7 +202,6 @@ executable spar
   other-modules:      Paths_spar
   hs-source-dirs:     exec
   default-extensions:
-    NoImplicitPrelude
     AllowAmbiguousTypes
     BangPatterns
     ConstraintKinds
@@ -208,6 +225,7 @@ executable spar
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NoImplicitPrelude
     OverloadedRecordDot
     OverloadedStrings
     PackageImports
@@ -262,7 +280,6 @@ executable spar-integration
 
   hs-source-dirs:     test-integration
   default-extensions:
-    NoImplicitPrelude
     AllowAmbiguousTypes
     BangPatterns
     ConstraintKinds
@@ -286,6 +303,7 @@ executable spar-integration
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NoImplicitPrelude
     OverloadedRecordDot
     OverloadedStrings
     PackageImports
@@ -313,6 +331,7 @@ executable spar-integration
   build-depends:
       aeson
     , aeson-qq
+    , async
     , base
     , base64-bytestring
     , bilge
@@ -323,7 +342,7 @@ executable spar-integration
     , cassandra-util
     , cassava
     , cookie
-    , cryptonite
+    , crypton
     , email-validate
     , exceptions
     , extended
@@ -331,6 +350,8 @@ executable spar-integration
     , hscim
     , HsOpenSSL
     , hspec
+    , hspec-core
+    , hspec-junit-formatter
     , hspec-wai
     , http-api-data
     , http-client
@@ -385,7 +406,6 @@ executable spar-migrate-data
 
   hs-source-dirs:     migrate-data/src
   default-extensions:
-    NoImplicitPrelude
     AllowAmbiguousTypes
     BangPatterns
     ConstraintKinds
@@ -409,6 +429,7 @@ executable spar-migrate-data
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NoImplicitPrelude
     OverloadedRecordDot
     OverloadedStrings
     PackageImports
@@ -452,33 +473,9 @@ executable spar-migrate-data
   default-language:   Haskell2010
 
 executable spar-schema
-  main-is:            spar-schema.hs
-
-  -- cabal-fmt: expand schema/src
-  other-modules:
-    Run
-    V0
-    V1
-    V10
-    V11
-    V12
-    V13
-    V14
-    V15
-    V16
-    V17
-    V2
-    V3
-    V4
-    V5
-    V6
-    V7
-    V8
-    V9
-
-  hs-source-dirs:     schema/src schema/exe
+  main-is:            Main.hs
+  hs-source-dirs:     schema/
   default-extensions:
-    NoImplicitPrelude
     AllowAmbiguousTypes
     BangPatterns
     ConstraintKinds
@@ -502,6 +499,7 @@ executable spar-schema
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NoImplicitPrelude
     OverloadedRecordDot
     OverloadedStrings
     PackageImports
@@ -526,12 +524,8 @@ executable spar-schema
     -with-rtsopts=-N -Wredundant-constraints -Wunused-packages
 
   build-depends:
-      base
-    , cassandra-util
-    , extended
-    , imports
-    , raw-strings-qq
-    , types-common
+      imports
+    , spar
 
   default-language:   Haskell2010
 
@@ -555,7 +549,6 @@ test-suite spec
 
   hs-source-dirs:     test
   default-extensions:
-    NoImplicitPrelude
     AllowAmbiguousTypes
     BangPatterns
     ConstraintKinds
@@ -579,6 +572,7 @@ test-suite spec
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    NoImplicitPrelude
     OverloadedRecordDot
     OverloadedStrings
     PackageImports
@@ -618,15 +612,15 @@ test-suite spec
     , metrics-wai
     , mtl
     , network-uri
+    , openapi3
     , polysemy
     , polysemy-plugin
     , polysemy-wire-zoo
     , QuickCheck
     , saml2-web-sso          >=0.19
     , servant
-    , servant-swagger
+    , servant-openapi3
     , spar
-    , swagger2
     , time
     , tinylog
     , types-common

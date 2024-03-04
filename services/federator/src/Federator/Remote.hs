@@ -26,15 +26,14 @@ module Federator.Remote
   )
 where
 
+import Bilge.Request qualified as RPC
 import Control.Exception qualified as E
 import Control.Monad.Codensity
 import Data.Binary.Builder
 import Data.ByteString.Lazy qualified as LBS
 import Data.Domain
-import Data.Text qualified as Text
+import Data.Id
 import Data.Text.Encoding (decodeUtf8)
-import Data.Text.Encoding qualified as Text
-import Data.Text.Encoding.Error qualified as Text
 import Federator.Discovery
 import Federator.Error
 import HTTP2.Client.Manager (Http2Manager)
@@ -64,38 +63,14 @@ data RemoteError
   deriving (Show)
 
 instance AsWai RemoteError where
-  toWai (RemoteError target path e) =
-    let domain = Domain . decodeUtf8 $ target.srvTargetDomain
-     in federationRemoteHTTP2Error domain path e
-  toWai (RemoteErrorResponse target path status resp) =
-    let domain = Domain . decodeUtf8 $ target.srvTargetDomain
-     in federationRemoteResponseError domain path status resp
-
-  waiErrorDescription (RemoteError tgt path e) =
-    "Error while connecting to "
-      <> displayTarget tgt
-      <> " on path "
-      <> path
-      <> ": "
-      <> Text.pack (displayException e)
-  waiErrorDescription (RemoteErrorResponse tgt path status body) =
-    "Federator at "
-      <> displayTarget tgt
-      <> " on path "
-      <> path
-      <> " failed with status code "
-      <> Text.pack (show (HTTP.statusCode status))
-      <> ": "
-      <> Text.decodeUtf8With Text.lenientDecode (LBS.toStrict body)
-
-displayTarget :: SrvTarget -> Text
-displayTarget (SrvTarget hostname port) =
-  Text.decodeUtf8With Text.lenientDecode hostname
-    <> ":"
-    <> Text.pack (show port)
+  toWai (RemoteError _ _ e) =
+    federationRemoteHTTP2Error e
+  toWai (RemoteErrorResponse _ _ status body) =
+    federationRemoteResponseError status body
 
 data Remote m a where
   DiscoverAndCall ::
+    RequestId ->
     Domain ->
     Component ->
     Text ->
@@ -115,21 +90,23 @@ interpretRemote ::
   Sem (Remote ': r) a ->
   Sem r a
 interpretRemote = interpret $ \case
-  DiscoverAndCall domain component rpc headers body -> do
+  DiscoverAndCall rid domain component rpc headers body -> do
     target@(SrvTarget hostname port) <- discoverFederatorWithError domain
     let path =
           LBS.toStrict . toLazyByteString $
             HTTP.encodePathSegments ["federation", componentName component, rpc]
         pathT = decodeUtf8 path
         -- filter out Host header, because the HTTP2 client adds it back
-        headers' = filter ((/= "Host") . fst) headers
+        headers' =
+          filter ((/= "Host") . fst) headers
+            <> [(RPC.requestIdName, unRequestId rid)]
         req' = HTTP2.requestBuilder HTTP.methodPost path headers' body
 
     mgr <- input
     resp <- mapError (RemoteError target pathT) . (fromEither @FederatorClientHTTP2Error =<<) . embed $
       Codensity $ \k ->
         E.catches
-          (H2Manager.withHTTP2Request mgr (True, hostname, fromIntegral port) req' (consumeStreamingResponseWith $ k . Right))
+          (H2Manager.withHTTP2RequestOnSingleUseConn mgr (True, hostname, fromIntegral port) req' (consumeStreamingResponseWith $ k . Right))
           [ E.Handler $ k . Left,
             E.Handler $ k . Left . FederatorClientTLSException,
             E.Handler $ k . Left . FederatorClientHTTP2Exception,

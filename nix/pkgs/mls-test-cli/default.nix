@@ -1,27 +1,25 @@
 { fetchFromGitHub
-, lib
-, libsodium
-, perl
-, pkg-config
 , rustPlatform
-, stdenv
-, gitMinimal
 }:
-
+# TODO: migrate to crate2nix once
+# https://github.com/nix-community/crate2nix/issues/310 is fixed
 rustPlatform.buildRustPackage rec {
-  name = "mls-test-cli-${version}";
-  version = "0.6.0";
-  nativeBuildInputs = [ pkg-config perl gitMinimal ];
-  buildInputs = [ libsodium ];
   src = fetchFromGitHub {
     owner = "wireapp";
     repo = "mls-test-cli";
-    sha256 = "sha256-/XQ/9oQTPkRqgMzDGRm+Oh9jgkdeDM1vRJ6/wEf2+bY=";
-    rev = "c6f80be2839ac1ed2894e96044541d1c3cf6ecdf";
+    rev = "809925460222bac415a67461bfd134d22137f030";
+    sha256 = "sha256-Tc1w8JPajvsiDJcjZPzd6r99U5eNsxtzkc+a77PuBwk=";
+  };
+  pname = "mls-test-cli";
+  version = "0.10.3";
+  cargoLock = {
+    lockFile = "${src}/Cargo.lock";
+    outputHashes = {
+      "hpke-0.10.0" = "sha256-T1+BFwX6allljNZ/8T3mrWhOejnUU27BiWQetqU+0fY=";
+      "openmls-1.0.0" = "sha256-nyIMAlTy7CTV0bVQ0ytamKHpERgtsVKTX4zv7aHzemo=";
+      "safe_pqc_kyber-0.6.2" = "sha256-9t+IIohCJcMIWRtqLA0idyMmjev82BtpST15Tthlge4=";
+      "tls_codec-0.4.0" = "sha256-2wCreWSfduxjUyfkGkXWqawLxZ2yb167msjv5PdGEpw=";
+    };
   };
   doCheck = false;
-  cargoSha256 = "sha256-AlZrxa7f5JwxxrzFBgeFSaYU6QttsUpfLYfq1HzsdbE=";
-  cargoDepsHook = ''
-    mkdir -p mls-test-cli-${version}-vendor.tar.gz/ring/.git
-  '';
 }

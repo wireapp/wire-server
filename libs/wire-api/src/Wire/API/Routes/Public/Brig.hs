@@ -19,6 +19,7 @@
 
 module Wire.API.Routes.Public.Brig where
 
+import Control.Lens ((?~))
 import Data.Aeson qualified as A (FromJSON, ToJSON, Value)
 import Data.ByteString.Conversion
 import Data.Code (Timeout)
@@ -26,28 +27,31 @@ import Data.CommaSeparatedList (CommaSeparatedList)
 import Data.Domain
 import Data.Handle
 import Data.Id as Id
-import Data.Misc (IpAddr)
 import Data.Nonce (Nonce)
+import Data.OpenApi hiding (Contact, Header, Schema, ToSchema)
+import Data.OpenApi qualified as S
 import Data.Qualified (Qualified (..))
 import Data.Range
 import Data.SOP
 import Data.Schema as Schema
-import Data.Swagger hiding (Contact, Header, Schema, ToSchema)
-import Data.Swagger qualified as S
 import Generics.SOP qualified as GSOP
 import Imports hiding (head)
 import Network.Wai.Utilities
 import Servant (JSON)
 import Servant hiding (Handler, JSON, addHeader, respond)
-import Servant.Swagger.Internal.Orphans ()
+import Servant.OpenApi.Internal.Orphans ()
 import Wire.API.Call.Config (RTCConfiguration)
 import Wire.API.Connection hiding (MissingLegalholdConsent)
+import Wire.API.Deprecated
 import Wire.API.Error
 import Wire.API.Error.Brig
 import Wire.API.Error.Empty
+import Wire.API.MLS.CipherSuite
+import Wire.API.MLS.KeyPackage
+import Wire.API.MLS.Servant
 import Wire.API.MakesFederatedCall
 import Wire.API.OAuth
-import Wire.API.Properties
+import Wire.API.Properties (PropertyKey, PropertyKeysAndValues, RawPropertyValue)
 import Wire.API.Routes.API
 import Wire.API.Routes.Bearer
 import Wire.API.Routes.Cookies
@@ -56,6 +60,8 @@ import Wire.API.Routes.Named
 import Wire.API.Routes.Public
 import Wire.API.Routes.Public.Brig.Bot (BotAPI)
 import Wire.API.Routes.Public.Brig.OAuth (OAuthAPI)
+import Wire.API.Routes.Public.Brig.Provider (ProviderAPI)
+import Wire.API.Routes.Public.Brig.Services (ServicesAPI)
 import Wire.API.Routes.Public.Util
 import Wire.API.Routes.QualifiedCapture
 import Wire.API.Routes.Version
@@ -83,6 +89,7 @@ type BrigAPI =
     :<|> UserClientAPI
     :<|> ConnectionAPI
     :<|> PropertiesAPI
+    :<|> MLSAPI
     :<|> UserHandleAPI
     :<|> SearchAPI
     :<|> AuthAPI
@@ -91,6 +98,8 @@ type BrigAPI =
     :<|> SystemSettingsAPI
     :<|> OAuthAPI
     :<|> BotAPI
+    :<|> ServicesAPI
+    :<|> ProviderAPI
 
 data BrigAPITag
 
@@ -307,6 +316,7 @@ type SelfAPI =
                \password, it must be provided. if password is correct, or if neither \
                \a verified identity nor a password exists, account deletion \
                \is scheduled immediately."
+          :> MakesFederatedCall 'Brig "send-connection-action"
           :> CanThrow 'InvalidUser
           :> CanThrow 'InvalidCode
           :> CanThrow 'BadCredentials
@@ -324,6 +334,7 @@ type SelfAPI =
     Named
       "put-self"
       ( Summary "Update your profile."
+          :> MakesFederatedCall 'Brig "send-connection-action"
           :> ZUser
           :> ZConn
           :> "self"
@@ -349,6 +360,7 @@ type SelfAPI =
           :> Description
                "Your phone number can only be removed if you also have an \
                \email address and a password."
+          :> MakesFederatedCall 'Brig "send-connection-action"
           :> ZUser
           :> ZConn
           :> "self"
@@ -364,6 +376,7 @@ type SelfAPI =
           :> Description
                "Your email address can only be removed if you also have a \
                \phone number."
+          :> MakesFederatedCall 'Brig "send-connection-action"
           :> ZUser
           :> ZConn
           :> "self"
@@ -396,6 +409,7 @@ type SelfAPI =
     :<|> Named
            "change-locale"
            ( Summary "Change your locale."
+               :> MakesFederatedCall 'Brig "send-connection-action"
                :> ZUser
                :> ZConn
                :> "self"
@@ -406,6 +420,8 @@ type SelfAPI =
     :<|> Named
            "change-handle"
            ( Summary "Change your handle."
+               :> MakesFederatedCall 'Brig "send-connection-action"
+               :> MakesFederatedCall 'Brig "send-connection-action"
                :> ZUser
                :> ZConn
                :> "self"
@@ -468,6 +484,7 @@ type AccountAPI =
              "If the environment where the registration takes \
              \place is private and a registered email address or phone \
              \number is not whitelisted, a 403 error is returned."
+        :> MakesFederatedCall 'Brig "send-connection-action"
         :> "register"
         :> ReqBody '[JSON] NewUserPublic
         :> MultiVerb 'POST '[JSON] RegisterResponses (Either RegisterError RegisterSuccess)
@@ -478,6 +495,7 @@ type AccountAPI =
     :<|> Named
            "verify-delete"
            ( Summary "Verify account deletion with a code."
+               :> MakesFederatedCall 'Brig "send-connection-action"
                :> CanThrow 'InvalidCode
                :> "delete"
                :> ReqBody '[JSON] VerifyDeleteUser
@@ -489,6 +507,7 @@ type AccountAPI =
     :<|> Named
            "get-activate"
            ( Summary "Activate (i.e. confirm) an email address or phone number."
+               :> MakesFederatedCall 'Brig "send-connection-action"
                :> Description "See also 'POST /activate' which has a larger feature set."
                :> CanThrow 'UserKeyExists
                :> CanThrow 'InvalidActivationCodeWrongUser
@@ -515,6 +534,7 @@ type AccountAPI =
                :> Description
                     "Activation only succeeds once and the number of \
                     \failed attempts for a valid key is limited."
+               :> MakesFederatedCall 'Brig "send-connection-action"
                :> CanThrow 'UserKeyExists
                :> CanThrow 'InvalidActivationCodeWrongUser
                :> CanThrow 'InvalidActivationCodeWrongCode
@@ -564,6 +584,7 @@ type AccountAPI =
     :<|> Named
            "post-password-reset-key-deprecated"
            ( Summary "Complete a password reset."
+               :> Deprecated
                :> CanThrow 'PasswordResetInProgress
                :> CanThrow 'InvalidPasswordResetKey
                :> CanThrow 'InvalidPasswordResetCode
@@ -577,6 +598,7 @@ type AccountAPI =
     :<|> Named
            "onboarding"
            ( Summary "Upload contacts and invoke matching."
+               :> Deprecated
                :> Description
                     "DEPRECATED: the feature has been turned off, the end-point does \
                     \nothing and always returns '{\"results\":[],\"auto-connects\":[]}'."
@@ -598,8 +620,9 @@ data DeprecatedMatchingResult = DeprecatedMatchingResult
 
 instance ToSchema DeprecatedMatchingResult where
   schema =
-    object
+    objectWithDocModifier
       "DeprecatedMatchingResult"
+      (S.deprecated ?~ True)
       $ DeprecatedMatchingResult
         <$ const []
           .= field "results" (array (null_ @SwaggerDoc))
@@ -671,9 +694,8 @@ type PrekeyAPI =
     :<|> Named
            "get-multi-user-prekey-bundle-unqualified"
            ( Summary
-               "(deprecated)  Given a map of user IDs to client IDs return a \
-               \prekey for each one. You can't request information for more users than \
-               \maximum conversation size."
+               "(deprecated)  Given a map of user IDs to client IDs return a prekey for each one."
+               :> Description "You can't request information for more users than maximum conversation size."
                :> Until 'V2
                :> ZUser
                :> "users"
@@ -684,9 +706,8 @@ type PrekeyAPI =
     :<|> Named
            "get-multi-user-prekey-bundle-qualified@v3"
            ( Summary
-               "Given a map of domain to (map of user IDs to client IDs) return a \
-               \prekey for each one. You can't request information for more users than \
-               \maximum conversation size."
+               "(deprecated)  Given a map of user IDs to client IDs return a prekey for each one."
+               :> Description "You can't request information for more users than maximum conversation size."
                :> MakesFederatedCall 'Brig "claim-multi-prekey-bundle"
                :> ZUser
                :> Until 'V4
@@ -698,9 +719,8 @@ type PrekeyAPI =
     :<|> Named
            "get-multi-user-prekey-bundle-qualified"
            ( Summary
-               "Given a map of domain to (map of user IDs to client IDs) return a \
-               \prekey for each one. You can't request information for more users than \
-               \maximum conversation size."
+               "(deprecated)  Given a map of user IDs to client IDs return a prekey for each one."
+               :> Description "You can't request information for more users than maximum conversation size."
                :> MakesFederatedCall 'Brig "claim-multi-prekey-bundle"
                :> ZUser
                :> From 'V4
@@ -719,6 +739,7 @@ type UserClientAPI =
   Named
     "add-client"
     ( Summary "Register a new client"
+        :> MakesFederatedCall 'Brig "send-connection-action"
         :> CanThrow 'TooManyClients
         :> CanThrow 'MissingAuth
         :> CanThrow 'MalformedPrekeys
@@ -727,7 +748,6 @@ type UserClientAPI =
         :> ZUser
         :> ZConn
         :> "clients"
-        :> Header "X-Forwarded-For" IpAddr
         :> ReqBody '[JSON] NewClient
         :> Verb 'POST 201 '[JSON] NewClientResponse
     )
@@ -915,6 +935,7 @@ type ClientAPI =
     :<|> Named
            "list-clients-bulk@v2"
            ( Summary "List all clients for a set of user ids"
+               :> Description "If a backend is unreachable, the clients from that backend will be omitted from the response"
                :> From 'V2
                :> MakesFederatedCall 'Brig "get-user-clients"
                :> ZUser
@@ -938,6 +959,7 @@ type ConnectionAPI =
     ( Summary "Create a connection to another user"
         :> Until 'V2
         :> MakesFederatedCall 'Brig "send-connection-action"
+        :> CanThrow 'MissingLegalholdConsentOldClients
         :> CanThrow 'MissingLegalholdConsent
         :> CanThrow 'InvalidUser
         :> CanThrow 'ConnectionLimitReached
@@ -960,7 +982,9 @@ type ConnectionAPI =
     :<|> Named
            "create-connection"
            ( Summary "Create a connection to another user"
+               :> MakesFederatedCall 'Brig "get-users-by-ids"
                :> MakesFederatedCall 'Brig "send-connection-action"
+               :> CanThrow 'MissingLegalholdConsentOldClients
                :> CanThrow 'MissingLegalholdConsent
                :> CanThrow 'InvalidUser
                :> CanThrow 'ConnectionLimitReached
@@ -1040,6 +1064,7 @@ type ConnectionAPI =
       ( Summary "Update a connection to another user"
           :> Until 'V2
           :> MakesFederatedCall 'Brig "send-connection-action"
+          :> CanThrow 'MissingLegalholdConsentOldClients
           :> CanThrow 'MissingLegalholdConsent
           :> CanThrow 'InvalidUser
           :> CanThrow 'ConnectionLimitReached
@@ -1067,7 +1092,9 @@ type ConnectionAPI =
     Named
       "update-connection"
       ( Summary "Update a connection to another user"
+          :> MakesFederatedCall 'Brig "get-users-by-ids"
           :> MakesFederatedCall 'Brig "send-connection-action"
+          :> CanThrow 'MissingLegalholdConsentOldClients
           :> CanThrow 'MissingLegalholdConsent
           :> CanThrow 'InvalidUser
           :> CanThrow 'ConnectionLimitReached
@@ -1161,6 +1188,93 @@ type PropertiesAPI =
                :> Get '[JSON] PropertyKeysAndValues
            )
 
+-- MLS API ---------------------------------------------------------------------
+
+type CipherSuiteParam =
+  QueryParam'
+    [ Optional,
+      Strict,
+      Description "Ciphersuite in hex format (e.g. 0xf031) - default is 0x0001"
+    ]
+    "ciphersuite"
+    CipherSuite
+
+type MultipleCipherSuitesParam =
+  QueryParam'
+    [ Optional,
+      Strict,
+      Description "Comma-separated list of ciphersuites in hex format (e.g. 0xf031) - default is 0x0001"
+    ]
+    "ciphersuites"
+    (CommaSeparatedList CipherSuite)
+
+type MLSKeyPackageAPI =
+  "key-packages"
+    :> ( Named
+           "mls-key-packages-upload"
+           ( "self"
+               :> Summary "Upload a fresh batch of key packages"
+               :> From 'V5
+               :> Description "The request body should be a json object containing a list of base64-encoded key packages."
+               :> ZLocalUser
+               :> CanThrow 'MLSProtocolError
+               :> CanThrow 'MLSIdentityMismatch
+               :> CaptureClientId "client"
+               :> ReqBody '[JSON] KeyPackageUpload
+               :> MultiVerb 'POST '[JSON, MLS] '[RespondEmpty 201 "Key packages uploaded"] ()
+           )
+           :<|> Named
+                  "mls-key-packages-replace"
+                  ( "self"
+                      :> Summary "Upload a fresh batch of key packages and replace the old ones"
+                      :> From 'V5
+                      :> Description "The request body should be a json object containing a list of base64-encoded key packages. Use this sparingly."
+                      :> ZLocalUser
+                      :> CanThrow 'MLSProtocolError
+                      :> CanThrow 'MLSIdentityMismatch
+                      :> CaptureClientId "client"
+                      :> MultipleCipherSuitesParam
+                      :> ReqBody '[JSON] KeyPackageUpload
+                      :> MultiVerb 'PUT '[JSON, MLS] '[RespondEmpty 201 "Key packages replaced"] ()
+                  )
+           :<|> Named
+                  "mls-key-packages-claim"
+                  ( "claim"
+                      :> Summary "Claim one key package for each client of the given user"
+                      :> From 'V5
+                      :> Description "Only key packages for the specified ciphersuite are claimed. For backwards compatibility, the `ciphersuite` parameter is optional, defaulting to ciphersuite 0x0001 when omitted."
+                      :> ZLocalUser
+                      :> ZOptClient
+                      :> QualifiedCaptureUserId "user"
+                      :> CipherSuiteParam
+                      :> MultiVerb1 'POST '[JSON] (Respond 200 "Claimed key packages" KeyPackageBundle)
+                  )
+           :<|> Named
+                  "mls-key-packages-count"
+                  ( "self"
+                      :> Summary "Return the number of unclaimed key packages for a given ciphersuite and client"
+                      :> From 'V5
+                      :> ZLocalUser
+                      :> CaptureClientId "client"
+                      :> "count"
+                      :> CipherSuiteParam
+                      :> MultiVerb1 'GET '[JSON] (Respond 200 "Number of key packages" KeyPackageCount)
+                  )
+           :<|> Named
+                  "mls-key-packages-delete"
+                  ( "self"
+                      :> From 'V5
+                      :> ZLocalUser
+                      :> CaptureClientId "client"
+                      :> Summary "Delete all key packages for a given ciphersuite and client"
+                      :> CipherSuiteParam
+                      :> ReqBody '[JSON] DeleteKeyPackages
+                      :> MultiVerb1 'DELETE '[JSON] (RespondEmpty 201 "OK")
+                  )
+       )
+
+type MLSAPI = LiftNamed ("mls" :> MLSKeyPackageAPI)
+
 -- Search API -----------------------------------------------------
 
 type SearchAPI =
@@ -1232,6 +1346,7 @@ type AuthAPI =
              \ Every other combination is invalid.\
              \ Access tokens can be given as query parameter or authorisation\
              \ header, with the latter being preferred."
+        :> MakesFederatedCall 'Brig "send-connection-action"
         :> QueryParam "client_id" ClientId
         :> Cookies '["zuid" ::: SomeUserToken]
         :> Bearer SomeAccessToken
@@ -1262,6 +1377,7 @@ type AuthAPI =
            ( "login"
                :> Summary "Authenticate a user to obtain a cookie and first access token"
                :> Description "Logins are throttled at the server's discretion"
+               :> MakesFederatedCall 'Brig "send-connection-action"
                :> ReqBody '[JSON] Login
                :> QueryParam'
                     [ Optional,
@@ -1344,8 +1460,9 @@ type CallingAPI =
   Named
     "get-calls-config"
     ( Summary
-        "[deprecated] Retrieve TURN server addresses and credentials for \
-        \ IP addresses, scheme `turn` and transport `udp` only"
+        "Retrieve TURN server addresses and credentials for \
+        \ IP addresses, scheme `turn` and transport `udp` only (deprecated)"
+        :> Deprecated
         :> ZUser
         :> ZConn
         :> "calls"
@@ -1468,10 +1585,10 @@ type TeamsAPI =
            )
     :<|> Named
            "get-team-size"
-           ( Summary
-               "Returns the number of team members as an integer.  \
-               \Can be out of sync by roughly the `refresh_interval` \
-               \of the ES index."
+           ( Summary "Get the number of team members as an integer"
+               :> Description
+                    "Can be out of sync by roughly the `refresh_interval` \
+                    \of the ES index."
                :> CanThrow 'InvalidInvitationCode
                :> ZUser
                :> "teams"

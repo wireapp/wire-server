@@ -27,10 +27,11 @@
 , servant
 , servant-client
 , servant-client-core
+, servant-openapi3
 , servant-server
-, servant-swagger
 , temporary
 , text
+, time
 , tinylog
 , unliftio
 , wai
@@ -60,9 +61,10 @@ mkDerivation {
     servant
     servant-client
     servant-client-core
+    servant-openapi3
     servant-server
-    servant-swagger
     text
+    time
     tinylog
     unliftio
     wai

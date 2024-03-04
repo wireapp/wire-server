@@ -74,11 +74,11 @@ import Data.ByteString.Conversion
 import Data.ByteString.Lazy qualified as LBS
 import Data.Id
 import Data.Json.Util (UTCTimeMillis (fromUTCTimeMillis), toUTCTimeMillis)
+import Data.OpenApi qualified as S
 import Data.Proxy
 import Data.Qualified
 import Data.SOP
 import Data.Schema
-import Data.Swagger qualified as S
 import Data.Text qualified as T
 import Data.Text.Ascii (AsciiBase64Url)
 import Data.Text.Encoding qualified as T
@@ -109,7 +109,7 @@ deriving via Schema (Asset' key) instance ToSchema (Asset' key) => (ToJSON (Asse
 
 deriving via Schema (Asset' key) instance ToSchema (Asset' key) => (FromJSON (Asset' key))
 
-deriving via Schema (Asset' key) instance ToSchema (Asset' key) => (S.ToSchema (Asset' key))
+deriving via Schema (Asset' key) instance (Typeable key, ToSchema (Asset' key)) => (S.ToSchema (Asset' key))
 
 -- Generate expiry time with millisecond precision
 instance Arbitrary key => Arbitrary (Asset' key) where
@@ -196,7 +196,7 @@ nilAssetKey = AssetKeyV3 (Id UUID.nil) AssetVolatile
 newtype AssetToken = AssetToken {assetTokenAscii :: AsciiBase64Url}
   deriving stock (Eq, Show)
   deriving newtype (FromByteString, ToByteString, Arbitrary)
-  deriving (FromJSON, ToJSON) via (Schema AssetToken)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema AssetToken)
 
 instance ToSchema AssetToken where
   schema =
@@ -394,7 +394,7 @@ instance FromHttpApiData (AssetLocation Absolute) where
 instance S.ToParamSchema (AssetLocation r) where
   toParamSchema _ =
     mempty
-      & S.type_ ?~ S.SwaggerString
+      & S.type_ ?~ S.OpenApiString
       & S.format ?~ "url"
 
 -- | An asset as returned by the download API: if the asset is local, only a

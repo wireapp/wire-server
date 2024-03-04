@@ -42,8 +42,13 @@ spec:
       configMap:
         name: "turn"
     - name: "brig-integration-secrets"
-      configMap:
-        name: "brig-integration-secrets"
+      secret:
+        secretName: "brig-integration"
+    {{- if eq (include "useCassandraTLS" .Values.config) "true" }}
+    - name: "brig-cassandra"
+      secret:
+        secretName: {{ (include "tlsSecretRef" .Values.config | fromYaml).name }}
+    {{- end}}
   containers:
   - name: integration
     image: "{{ .Values.image.repository }}-integration:{{ .Values.image.tag }}"
@@ -58,7 +63,33 @@ spec:
     # same file-system.
     # The other test, "user.auth.cookies.limit", is skipped as it is flaky.
     # This is tracked in https://github.com/zinfra/backend-issues/issues/1150.
-    command: [ "brig-integration", "--pattern", "!/turn/ && !/user.auth.cookies.limit/" ]
+    command:
+    - /bin/bash
+    - -c
+    - |
+      set -euo pipefail
+
+      if brig-integration --xml "$TEST_XML" --pattern "!/turn/ && !/user.auth.cookies.limit/"; then
+        exit_code=$?
+      else
+        exit_code=$?
+      fi
+
+      {{- if .Values.tests.config.uploadXml }}
+      # In case a different S3 compliant storage is used to upload test result.
+      if ! [[ -z "${UPLOAD_XML_AWS_ACCESS_KEY_ID+x}" ]]; then
+        export AWS_ACCESS_KEY_ID="$UPLOAD_XML_AWS_ACCESS_KEY_ID"
+        export AWS_SECRET_ACCESS_KEY="$UPLOAD_XML_AWS_SECRET_ACCESS_KEY"
+      fi
+
+      # The `|| echo ..` ensures that the test isn't seen as failed even if the upload fails.
+      ts=$(date --utc '+%Y%m%d%H%M%S%N')
+      uploadUrl="$UPLOAD_XML_S3_BASE_URL/brig-integration/${ts}.xml"
+      echo "Uploading xml result to: $uploadUrl"
+      aws s3 cp "$TEST_XML" "$uploadUrl" || echo "failed to upload result"
+      {{- end }}
+
+      exit $exit_code
     volumeMounts:
     - name: "brig-integration"
       mountPath: "/etc/wire/integration"
@@ -75,6 +106,10 @@ spec:
       #       non-default locations
       #       (see corresp. TODO in galley.)
       mountPath: "/etc/wire/integration-secrets"
+    {{- if eq (include "useCassandraTLS" .Values.config) "true" }}
+    - name: "brig-cassandra"
+      mountPath: "/etc/wire/brig/cassandra"
+    {{- end }}
 
     env:
     # these dummy values are necessary for Amazonka's "Discover"
@@ -89,6 +124,24 @@ spec:
       value: "guest"
     - name: RABBITMQ_PASSWORD
       value: "guest"
+    {{- end }}
+    - name: TEST_XML
+      value: /tmp/result.xml
+    {{- if .Values.tests.config.uploadXml }}
+    - name: UPLOAD_XML_S3_BASE_URL
+      value: {{ .Values.tests.config.uploadXml.baseUrl }}
+    {{- if .Values.tests.secrets.uploadXmlAwsAccessKeyId }}
+    - name: UPLOAD_XML_AWS_ACCESS_KEY_ID
+      valueFrom:
+        secretKeyRef:
+          name: brig-integration
+          key: uploadXmlAwsAccessKeyId
+    - name: UPLOAD_XML_AWS_SECRET_ACCESS_KEY
+      valueFrom:
+        secretKeyRef:
+          name: brig-integration
+          key: uploadXmlAwsSecretAccessKey
+    {{- end }}
     {{- end }}
     resources:
       requests:

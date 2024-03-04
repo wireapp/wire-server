@@ -23,34 +23,19 @@ where
 import API.Util
 import Bilge hiding (timeout)
 import Bilge.Assert
-import Control.Exception
 import Control.Lens (view)
-import Data.Aeson (eitherDecode)
-import Data.Domain
-import Data.Id
 import Data.List1
-import Data.List1 qualified as List1
 import Data.Misc
 import Data.Qualified
-import Data.Singletons
-import Federator.MockServer
 import Imports hiding (head)
-import Network.HTTP.Types qualified as Http
 import Network.Wai.Utilities.Error
 import Test.Tasty
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
 import Test.Tasty.Cannon qualified as WS
-import Test.Tasty.HUnit
 import TestHelpers
 import TestSetup
 import Wire.API.Conversation
-import Wire.API.Conversation.Action
 import Wire.API.Conversation.Role
-import Wire.API.Event.Conversation
-import Wire.API.Federation.API.Common
-import Wire.API.Federation.API.Galley qualified as F
-import Wire.API.Federation.Component
-import Wire.API.Internal.Notification (Notification (..))
 
 tests :: IO TestSetup -> TestTree
 tests s =
@@ -63,8 +48,6 @@ tests s =
         ],
       test s "timer can be changed" messageTimerChange,
       test s "timer can be changed with the qualified endpoint" messageTimerChangeQualified,
-      test s "timer changes are propagated to remote users" messageTimerChangeWithRemotes,
-      test s "timer changes unavailable remotes" messageTimerUnavailableRemotes,
       test s "timer can't be set by conv member without allowed action" messageTimerChangeWithoutAllowedAction,
       test s "timer can't be set in 1:1 conversations" messageTimerChangeO2O,
       test s "setting the timer generates an event" messageTimerEvent
@@ -81,7 +64,7 @@ messageTimerInit mtimer = do
   rsp <-
     postConv alice [bob, jane] Nothing [] Nothing mtimer
       <!! const 201 === statusCode
-  cid <- assertConv rsp RegularConv alice qalice [qbob, qjane] Nothing mtimer
+  cid <- assertConv rsp RegularConv (Just alice) qalice [qbob, qjane] Nothing mtimer
   -- Check that the timer is indeed what it should be
   getConvQualified jane cid
     !!! const mtimer === (cnvMessageTimer <=< responseJsonUnsafe)
@@ -94,7 +77,7 @@ messageTimerChange = do
   rsp <-
     postConv alice [bob, jane] Nothing [] Nothing Nothing
       <!! const 201 === statusCode
-  qcid <- assertConv rsp RegularConv alice qalice [qbob, qjane] Nothing Nothing
+  qcid <- assertConv rsp RegularConv (Just alice) qalice [qbob, qjane] Nothing Nothing
   let cid = qUnqualified qcid
   -- Set timer to null and observe 204
   putMessageTimerUpdate alice cid (ConversationMessageTimerUpdate Nothing)
@@ -123,7 +106,7 @@ messageTimerChangeQualified = do
   rsp <-
     postConv alice [bob, jane] Nothing [] Nothing Nothing
       <!! const 201 === statusCode
-  qcid <- assertConv rsp RegularConv alice qalice [qbob, qjane] Nothing Nothing
+  qcid <- assertConv rsp RegularConv (Just alice) qalice [qbob, qjane] Nothing Nothing
   -- Set timer to null and observe 204
   putMessageTimerUpdateQualified alice qcid (ConversationMessageTimerUpdate Nothing)
     !!! const 204 === statusCode
@@ -142,86 +125,6 @@ messageTimerChangeQualified = do
     !!! const 200 === statusCode
   getConvQualified jane qcid
     !!! const timer1year === (cnvMessageTimer <=< responseJsonUnsafe)
-
-messageTimerChangeWithRemotes :: TestM ()
-messageTimerChangeWithRemotes = do
-  c <- view tsCannon
-  let remoteDomain = Domain "alice.example.com"
-  qalice <- Qualified <$> randomId <*> pure remoteDomain
-  qbob <- randomQualifiedUser
-  let bob = qUnqualified qbob
-  connectWithRemoteUser bob qalice
-
-  resp <-
-    postConvWithRemoteUsers
-      bob
-      Nothing
-      defNewProteusConv {newConvQualifiedUsers = [qalice]}
-  let qconv = decodeQualifiedConvId resp
-
-  WS.bracketR c bob $ \wsB -> do
-    (_, requests) <-
-      withTempMockFederator' (mockReply EmptyResponse) $
-        putMessageTimerUpdateQualified bob qconv (ConversationMessageTimerUpdate timer1sec)
-          !!! const 200 === statusCode
-
-    req <- assertOne requests
-    liftIO $ do
-      frTargetDomain req @?= remoteDomain
-      frComponent req @?= Galley
-      frRPC req @?= "on-conversation-updated"
-      Right cu <- pure . eitherDecode . frBody $ req
-      F.cuConvId cu @?= qUnqualified qconv
-      F.cuAction cu
-        @?= SomeConversationAction (sing @'ConversationMessageTimerUpdateTag) (ConversationMessageTimerUpdate timer1sec)
-
-    void . liftIO . WS.assertMatch (5 # Second) wsB $ \n -> do
-      let e = List1.head (WS.unpackPayload n)
-      ntfTransient n @?= False
-      evtConv e @?= qconv
-      evtType e @?= ConvMessageTimerUpdate
-      evtFrom e @?= qbob
-      evtData e @?= EdConvMessageTimerUpdate (ConversationMessageTimerUpdate timer1sec)
-
-messageTimerUnavailableRemotes :: TestM ()
-messageTimerUnavailableRemotes = do
-  c <- view tsCannon
-  let remoteDomain = Domain "alice.example.com"
-  qalice <- Qualified <$> randomId <*> pure remoteDomain
-  qbob <- randomQualifiedUser
-  let bob = qUnqualified qbob
-  connectWithRemoteUser bob qalice
-
-  resp <-
-    postConvWithRemoteUsers
-      bob
-      Nothing
-      defNewProteusConv {newConvQualifiedUsers = [qalice]}
-  let qconv = decodeQualifiedConvId resp
-
-  WS.bracketR c bob $ \wsB -> do
-    (_, requests) <-
-      withTempMockFederator' (throw $ MockErrorResponse Http.status503 "Down for maintenance") $
-        putMessageTimerUpdateQualified bob qconv (ConversationMessageTimerUpdate timer1sec)
-          !!! const 200 === statusCode
-
-    req <- assertOne requests
-    liftIO $ do
-      frTargetDomain req @?= remoteDomain
-      frComponent req @?= Galley
-      frRPC req @?= "on-conversation-updated"
-      Right cu <- pure . eitherDecode . frBody $ req
-      F.cuConvId cu @?= qUnqualified qconv
-      F.cuAction cu
-        @?= SomeConversationAction (sing @'ConversationMessageTimerUpdateTag) (ConversationMessageTimerUpdate timer1sec)
-
-    void . liftIO . WS.assertMatch (5 # Second) wsB $ \n -> do
-      let e = List1.head (WS.unpackPayload n)
-      ntfTransient n @?= False
-      evtConv e @?= qconv
-      evtType e @?= ConvMessageTimerUpdate
-      evtFrom e @?= qbob
-      evtData e @?= EdConvMessageTimerUpdate (ConversationMessageTimerUpdate timer1sec)
 
 messageTimerChangeWithoutAllowedAction :: TestM ()
 messageTimerChangeWithoutAllowedAction = do
@@ -256,7 +159,7 @@ messageTimerChangeO2O = do
   rsp <-
     postO2OConv alice bob Nothing
       <!! const 200 === statusCode
-  qcid <- assertConv rsp One2OneConv alice qalice [qbob] Nothing Nothing
+  qcid <- assertConv rsp One2OneConv (Just alice) qalice [qbob] Nothing Nothing
   let cid = qUnqualified qcid
   -- Try to change the timer and observe failure
   putMessageTimerUpdate alice cid (ConversationMessageTimerUpdate timer1sec) !!! do
@@ -274,7 +177,7 @@ messageTimerEvent = do
   rsp <-
     postConv alice [bob] Nothing [] Nothing Nothing
       <!! const 201 === statusCode
-  qcid <- assertConv rsp RegularConv alice qalice [qbob] Nothing Nothing
+  qcid <- assertConv rsp RegularConv (Just alice) qalice [qbob] Nothing Nothing
   let cid = qUnqualified qcid
   -- Set timer to 1 second and check that all participants got the event
   WS.bracketR2 ca alice bob $ \(wsA, wsB) -> do

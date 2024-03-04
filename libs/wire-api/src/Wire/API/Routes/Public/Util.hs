@@ -21,9 +21,10 @@
 module Wire.API.Routes.Public.Util where
 
 import Control.Comonad
+import Data.Maybe
 import Data.SOP (I (..), NS (..))
 import Servant
-import Servant.Swagger.Internal.Orphans ()
+import Servant.OpenApi.Internal.Orphans ()
 import Wire.API.Routes.MultiVerb
 
 instance
@@ -61,6 +62,9 @@ data UpdateResult a
   = Unchanged
   | Updated !a
   deriving (Functor)
+
+mkUpdateResult :: Maybe a -> UpdateResult a
+mkUpdateResult = maybe Unchanged Updated
 
 type UpdateResponses unchangedDesc updatedDesc a =
   '[ RespondEmpty 204 unchangedDesc,

@@ -18,15 +18,26 @@ tags:
 cassandra-migrations:
   imagePullPolicy: {{ .Values.imagePullPolicy }}
   cassandra:
-    host: cassandra-ephemeral
+    host: {{ .Values.cassandraHost }}
     replicationFactor: 1
+    {{- if .Values.useK8ssandraSSL.enabled }}
+    tlsCaSecretRef:
+        name: "cassandra-jks-keystore"
+        key: "ca.crt"
+    {{- end }}
+
 elasticsearch-index:
   imagePullPolicy: {{ .Values.imagePullPolicy }}
   elasticsearch:
     host: elasticsearch-ephemeral
     index: directory_test
   cassandra:
-    host: cassandra-ephemeral
+    host: {{ .Values.cassandraHost }}
+    {{- if .Values.useK8ssandraSSL.enabled }}
+    tlsCaSecretRef:
+        name: "cassandra-jks-keystore"
+        key: "ca.crt"
+    {{- end }}
 
 brig:
   replicaCount: 1
@@ -34,15 +45,20 @@ brig:
   resources:
     requests: {}
     limits:
-      memory: 512Mi
+      memory: 1Gi
   config:
     externalUrls:
       nginz: https://kube-staging-nginz-https.zinfra.io
       teamCreatorWelcome: https://teams.wire.com/login
       teamMemberWelcome: https://wire.com/download
     cassandra:
-      host: cassandra-ephemeral
+      host: {{ .Values.cassandraHost }}
       replicaCount: 1
+    {{- if .Values.useK8ssandraSSL.enabled }}
+      tlsCaSecretRef:
+          name: "cassandra-jks-keystore"
+          key: "ca.crt"
+    {{- end }}
     elasticsearch:
       host: elasticsearch-ephemeral
       index: directory_test
@@ -77,23 +93,9 @@ brig:
       setMaxConvSize: 16
       # See helmfile for the real value
       setFederationDomain: integration.example.com
-      setFederationDomainConfigs:
-        # 'setFederationDomainConfigs' is deprecated as of https://github.com/wireapp/wire-server/pull/3260.  See
-        # https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections
-        # for details.
-        - domain: integration.example.com
-          search_policy: full_search
-        - domain: federation-test-helper.{{ .Release.Namespace }}.svc.cluster.local
-          search_policy: full_search
-        # Remove these after fixing https://wearezeta.atlassian.net/browse/WPB-3796
-        - domain: dyn-backend-1
-          search_policy: full_search
-        - domain: dyn-backend-2
-          search_policy: full_search
-        - domain: dyn-backend-3
-          search_policy: full_search
       setFederationStrategy: allowAll
       setFederationDomainConfigsUpdateFreq: 10
+      setDisabledAPIVersions: []
       set2FACodeGenerationDelaySecs: 5
       setNonceTtlSecs: 300
       setDpopMaxSkewSecs: 1
@@ -151,6 +153,15 @@ brig:
       password: {{ .Values.rabbitmqPassword }}
   tests:
     enableFederationTests: true
+    {{- if .Values.uploadXml }}
+    config:
+      uploadXml:
+        baseUrl: {{ .Values.uploadXml.baseUrl }}
+    secrets:
+      uploadXmlAwsAccessKeyId: {{ .Values.uploadXml.awsAccessKeyId }}
+      uploadXmlAwsSecretAccessKey: {{ .Values.uploadXml.awsSecretAccessKey }}
+    {{- end }}
+
 cannon:
   replicaCount: 2
   imagePullPolicy: {{ .Values.imagePullPolicy }}
@@ -159,6 +170,8 @@ cannon:
     limits:
       memory: 512Mi
   drainTimeout: 0
+  config:
+    disabledAPIVersions: []
 cargohold:
   replicaCount: 1
   imagePullPolicy: {{ .Values.imagePullPolicy }}
@@ -174,16 +187,32 @@ cargohold:
     settings:
       # See helmfile for the real value
       federationDomain: integration.example.com
+      disabledAPIVersions: []
   secrets:
     awsKeyId: dummykey
     awsSecretKey: dummysecret
+  tests:
+    {{- if .Values.uploadXml }}
+    config:
+      uploadXml:
+        baseUrl: {{ .Values.uploadXml.baseUrl }}
+    secrets:
+      uploadXmlAwsAccessKeyId: {{ .Values.uploadXml.awsAccessKeyId }}
+      uploadXmlAwsSecretAccessKey: {{ .Values.uploadXml.awsSecretAccessKey }}
+    {{- end }}
+
 galley:
   replicaCount: 1
   imagePullPolicy: {{ .Values.imagePullPolicy }}
   config:
     cassandra:
-      host: cassandra-ephemeral
+      host: {{ .Values.cassandraHost }}
       replicaCount: 1
+    {{- if .Values.useK8ssandraSSL.enabled }}
+      tlsCaSecretRef:
+          name: "cassandra-jks-keystore"
+          key: "ca.crt"
+    {{- end }}
     enableFederation: true # keep in sync with brig.config.enableFederation, cargohold.config.enableFederation and tags.federator!
     settings:
       maxConvAndTeamSize: 16
@@ -193,6 +222,8 @@ galley:
       conversationCodeURI: https://kube-staging-nginz-https.zinfra.io/conversation-join/
       # See helmfile for the real value
       federationDomain: integration.example.com
+      disabledAPIVersions: []
+
       featureFlags:
         sso: disabled-by-default  # this needs to be the default; tests can enable it when needed.
         legalhold: whitelist-teams-and-implicit-consent
@@ -201,6 +232,18 @@ galley:
           status: enabled
           config:
             domains: ["example.com"]
+        mlsMigration:
+          defaults:
+            status: enabled
+            config:
+              startTime: "2029-05-16T10:11:12.123Z"
+              finaliseRegardlessAfter: "2029-10-17T00:00:00.000Z"
+              usersThreshold: 100
+              clientsThreshold: 50
+            lockStatus: locked
+        limitedEventFanout:
+            defaults:
+            status: disabled
     journal:
       endpoint: http://fake-aws-sqs:4568
       queueName: integration-team-events.fifo
@@ -216,6 +259,15 @@ galley:
     rabbitmq:
       username: {{ .Values.rabbitmqUsername }}
       password: {{ .Values.rabbitmqPassword }}
+  tests:
+    {{- if .Values.uploadXml }}
+    config:
+      uploadXml:
+        baseUrl: {{ .Values.uploadXml.baseUrl }}
+    secrets:
+      uploadXmlAwsAccessKeyId: {{ .Values.uploadXml.awsAccessKeyId }}
+      uploadXmlAwsSecretAccessKey: {{ .Values.uploadXml.awsSecretAccessKey }}
+    {{- end }}
 
 gundeck:
   replicaCount: 1
@@ -226,8 +278,13 @@ gundeck:
       memory: 1024Mi
   config:
     cassandra:
-      host: cassandra-ephemeral
+      host: {{ .Values.cassandraHost }}
       replicaCount: 1
+    {{- if .Values.useK8ssandraSSL.enabled }}
+      tlsCaSecretRef:
+          name: "cassandra-jks-keystore"
+          key: "ca.crt"
+    {{- end }}
     redis:
       host: redis-ephemeral-master
       connectionMode: master
@@ -238,6 +295,7 @@ gundeck:
       queueName: integration-gundeck-events
       sqsEndpoint: http://fake-aws-sqs:4568
       snsEndpoint: http://fake-aws-sns:4575
+    disabledAPIVersions: []
     bulkPush: true
     setMaxConcurrentNativePushes:
       hard: 30
@@ -245,6 +303,16 @@ gundeck:
   secrets:
     awsKeyId: dummykey
     awsSecretKey: dummysecret
+  tests:
+    {{- if .Values.uploadXml }}
+    config:
+      uploadXml:
+        baseUrl: {{ .Values.uploadXml.baseUrl }}
+    secrets:
+      uploadXmlAwsAccessKeyId: {{ .Values.uploadXml.awsAccessKeyId }}
+      uploadXmlAwsSecretAccessKey: {{ .Values.uploadXml.awsSecretAccessKey }}
+    {{- end }}
+
 nginz:
   replicaCount: 1
   imagePullPolicy: {{ .Values.imagePullPolicy }}
@@ -280,6 +348,8 @@ proxy:
               giphy      = "..."
               spotify    = "Basic ..."
        }
+  config:
+    disabledAPIVersions: []
 spar:
   replicaCount: 1
   imagePullPolicy: {{ .Values.imagePullPolicy }}
@@ -290,7 +360,12 @@ spar:
   config:
     tlsDisableCertValidation: true
     cassandra:
-      host: cassandra-ephemeral
+      host: {{ .Values.cassandraHost }}
+    {{- if .Values.useK8ssandraSSL.enabled }}
+      tlsCaSecretRef:
+          name: "cassandra-jks-keystore"
+          key: "ca.crt"
+    {{- end }}
     logLevel: Debug
     domain: zinfra.io
     appUri: http://spar:8080/
@@ -302,15 +377,39 @@ spar:
     - type: ContactSupport
       company: Example Company
       email: email:backend+spar@wire.com
+    disabledAPIVersions: []
+  tests:
+    {{- if .Values.uploadXml }}
+    config:
+      uploadXml:
+        baseUrl: {{ .Values.uploadXml.baseUrl }}
+    secrets:
+      uploadXmlAwsAccessKeyId: {{ .Values.uploadXml.awsAccessKeyId }}
+      uploadXmlAwsSecretAccessKey: {{ .Values.uploadXml.awsSecretAccessKey }}
+    {{- end }}
 
 federator:
   replicaCount: 1
   resources:
     requests: {}
   imagePullPolicy: {{ .Values.imagePullPolicy }}
+  remoteCAContents: {{ .Values.federationCACertificate | quote }}
+  tls:
+    useCertManager: true
+    useSharedFederatorSecret: true
+
   config:
     optSettings:
       useSystemCAStore: false
+  tests:
+    {{- if .Values.uploadXml }}
+    config:
+      uploadXml:
+        baseUrl: {{ .Values.uploadXml.baseUrl }}
+    secrets:
+      uploadXmlAwsAccessKeyId: {{ .Values.uploadXml.awsAccessKeyId }}
+      uploadXmlAwsSecretAccessKey: {{ .Values.uploadXml.awsSecretAccessKey }}
+    {{- end }}
 
 background-worker:
   replicaCount: 1
@@ -321,6 +420,7 @@ background-worker:
     backendNotificationPusher:
       pushBackoffMinWait: 1000 # 1ms
       pushBackoffMaxWait: 500000 # 0.5s
+      remotesRefreshInterval: 1000000 # 1s
   secrets:
     rabbitmq:
       username: {{ .Values.rabbitmqUsername }}
@@ -329,3 +429,33 @@ background-worker:
 integration:
   ingress:
     class: "nginx-{{ .Release.Namespace }}"
+  config:
+    cassandra:
+      host: {{ .Values.cassandraHost }}
+      port: 9042
+      replicationFactor: 1
+    {{- if .Values.useK8ssandraSSL.enabled }}
+      tlsCaSecretRef:
+        name: cassandra-jks-keystore
+        key: ca.crt
+    {{- end }}
+  {{- if .Values.uploadXml }}
+    uploadXml:
+      baseUrl: {{ .Values.uploadXml.baseUrl }}
+  secrets:
+    uploadXmlAwsAccessKeyId: {{ .Values.uploadXml.awsAccessKeyId }}
+    uploadXmlAwsSecretAccessKey: {{ .Values.uploadXml.awsSecretAccessKey }}
+  {{- end }}
+  tls:
+    caNamespace: wire-federation-v0
+
+backoffice:
+  tests:
+    {{- if .Values.uploadXml }}
+    config:
+      uploadXml:
+        baseUrl: {{ .Values.uploadXml.baseUrl }}
+    secrets:
+      uploadXmlAwsAccessKeyId: {{ .Values.uploadXml.awsAccessKeyId }}
+      uploadXmlAwsSecretAccessKey: {{ .Values.uploadXml.awsSecretAccessKey }}
+    {{- end }}

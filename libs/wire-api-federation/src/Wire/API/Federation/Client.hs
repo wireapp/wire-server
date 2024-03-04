@@ -32,6 +32,7 @@ module Wire.API.Federation.Client
   )
 where
 
+import Control.Concurrent.Async
 import Control.Exception qualified as E
 import Control.Monad.Catch
 import Control.Monad.Codensity
@@ -44,6 +45,8 @@ import Data.ByteString.Builder
 import Data.ByteString.Conversion (toByteString')
 import Data.ByteString.Lazy qualified as LBS
 import Data.Domain
+import Data.Id
+import Data.Sequence (pattern (:<|))
 import Data.Sequence qualified as Seq
 import Data.Set qualified as Set
 import Data.Text.Encoding qualified as Text
@@ -58,6 +61,7 @@ import Network.HTTP.Media qualified as HTTP
 import Network.HTTP.Types qualified as HTTP
 import Network.HTTP2.Client qualified as HTTP2
 import Network.Wai.Utilities.Error qualified as Wai
+import OpenSSL.Session qualified as SSL
 import Servant.Client
 import Servant.Client.Core
 import Servant.Types.SourceT
@@ -72,7 +76,8 @@ data FederatorClientEnv = FederatorClientEnv
   { ceOriginDomain :: Domain,
     ceTargetDomain :: Domain,
     ceFederator :: Endpoint,
-    ceHttp2Manager :: Http2Manager
+    ceHttp2Manager :: Http2Manager,
+    ceOriginRequestId :: RequestId
   }
 
 data FederatorClientVersionedEnv = FederatorClientVersionedEnv
@@ -113,13 +118,27 @@ liftCodensity = FederatorClient . lift . lift . lift
 headersFromTable :: HTTP2.HeaderTable -> [HTTP.Header]
 headersFromTable (headerList, _) = flip map headerList $ first HTTP2.tokenKey
 
+-- This opens a new http2 connection. Using a http2-manager leads to this problem https://wearezeta.atlassian.net/browse/WPB-4787
+-- FUTUREWORK: Replace with H2Manager.withHTTP2Request once the bugs are solved.
+withNewHttpRequest :: H2Manager.Target -> HTTP2.Request -> (HTTP2.Response -> IO a) -> IO a
+withNewHttpRequest target req k = do
+  ctx <- SSL.context
+  let cacheLimit = 20
+      sslRemoveTrailingDot = False
+      tcpConnectionTimeout = 30_000_000
+  sendReqMVar <- newEmptyMVar
+  thread <- liftIO . async $ H2Manager.startPersistentHTTP2Connection ctx target cacheLimit sslRemoveTrailingDot tcpConnectionTimeout sendReqMVar
+  let newConn = H2Manager.HTTP2Conn thread (putMVar sendReqMVar H2Manager.CloseConnection) sendReqMVar
+  H2Manager.sendRequestWithConnection newConn req $ \resp -> do
+    k resp <* newConn.disconnect
+
 performHTTP2Request ::
   Http2Manager ->
   H2Manager.Target ->
   HTTP2.Request ->
   IO (Either FederatorClientHTTP2Error (ResponseF Builder))
-performHTTP2Request mgr target req = try $ do
-  H2Manager.withHTTP2Request mgr target req $ consumeStreamingResponseWith $ \resp -> do
+performHTTP2Request _mgr target req = try $ do
+  withNewHttpRequest target req $ consumeStreamingResponseWith $ \resp -> do
     b <-
       fmap (fromRight mempty)
         . runExceptT
@@ -150,7 +169,11 @@ instance KnownComponent c => RunClient (FederatorClient c) where
             (HTTP.statusIsSuccessful status)
             (elem status)
             expectedStatuses
-    withHTTP2StreamingRequest successfulStatus req $ \resp -> do
+
+    v <- asks cveVersion
+    let vreq = req {requestHeaders = (versionHeader, toByteString' (versionInt (fromMaybe V0 v))) :<| requestHeaders req}
+
+    withHTTP2StreamingRequest successfulStatus vreq $ \resp -> do
       bdy <-
         fmap (either (const mempty) (toLazyByteString . foldMap byteString))
           . runExceptT
@@ -199,6 +222,7 @@ withHTTP2StreamingRequest successfulStatus req handleResponse = do
         toList (requestHeaders req)
           <> [(originDomainHeaderName, toByteString' (ceOriginDomain env))]
           <> [(HTTP.hAccept, HTTP.renderHeader (toList $ req.requestAccept))]
+          <> [("Wire-Origin-Request-Id", toByteString' $ ceOriginRequestId env)]
       req' =
         HTTP2.requestBuilder
           (requestMethod req)
@@ -210,7 +234,7 @@ withHTTP2StreamingRequest successfulStatus req handleResponse = do
     either throwError pure <=< liftCodensity $
       Codensity $ \k ->
         E.catches
-          (H2Manager.withHTTP2Request (ceHttp2Manager env) (False, hostname, port) req' (consumeStreamingResponseWith (k . Right)))
+          (withNewHttpRequest (False, hostname, port) req' (consumeStreamingResponseWith (k . Right)))
           [ E.Handler $ k . Left . FederatorClientHTTP2Error,
             E.Handler $ k . Left . FederatorClientHTTP2Error . FederatorClientConnectionError,
             E.Handler $ k . Left . FederatorClientHTTP2Error . FederatorClientHTTP2Exception,
@@ -254,8 +278,7 @@ mkFailureResponse status domain path body
                 { Wai.federrDomain = domain,
                   Wai.federrPath =
                     "/federation"
-                      <> Text.decodeUtf8With Text.lenientDecode (LBS.toStrict path),
-                  Wai.federrResp = pure body
+                      <> Text.decodeUtf8With Text.lenientDecode (LBS.toStrict path)
                 }
         }
   where

@@ -25,8 +25,8 @@ import Cassandra
 import Data.Aeson
 import Data.List.NonEmpty (NonEmpty)
 import Data.List.NonEmpty qualified as N
+import Data.OpenApi qualified as Swagger
 import Data.Schema as S
-import Data.Swagger qualified as Swagger
 import Imports
 import Test.QuickCheck (Arbitrary)
 import Test.QuickCheck.Instances ()
@@ -72,8 +72,8 @@ instance ToSchema a => ToSchema (List1 a) where
 instance Swagger.ToParamSchema (List1 a) where
   toParamSchema _ =
     mempty
-      { Swagger._paramSchemaType = Just Swagger.SwaggerArray,
-        Swagger._paramSchemaMinLength = Just 1
+      { Swagger._schemaType = Just Swagger.OpenApiArray,
+        Swagger._schemaMinLength = Just 1
       }
 
 instance (Cql a) => Cql (List1 a) where

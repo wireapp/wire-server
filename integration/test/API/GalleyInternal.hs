@@ -1,8 +1,8 @@
 module API.GalleyInternal where
 
-import Data.Aeson qualified as Aeson
+import qualified Data.Aeson as Aeson
 import Data.String.Conversions (cs)
-import Data.Vector qualified as Vector
+import qualified Data.Vector as Vector
 import GHC.Stack
 import Testlib.Prelude
 
@@ -12,7 +12,7 @@ putTeamMember user team perms = do
   tid <- asString team
   req <-
     baseRequest
-      OwnDomain
+      user
       Galley
       Unversioned
       ("/i/teams/" <> tid <> "/members")
@@ -37,6 +37,13 @@ getTeamFeature domain_ featureName tid = do
   req <- baseRequest domain_ Galley Unversioned $ joinHttpPath ["i", "teams", tid, "features", featureName]
   submit "GET" $ req
 
+setTeamFeatureStatus :: (HasCallStack, MakesValue domain, MakesValue team) => domain -> team -> String -> String -> App ()
+setTeamFeatureStatus domain team featureName status = do
+  tid <- asString team
+  req <- baseRequest domain Galley Unversioned $ joinHttpPath ["i", "teams", tid, "features", featureName]
+  res <- submit "PATCH" $ req & addJSONObject ["status" .= status]
+  res.status `shouldMatchInt` 200
+
 getFederationStatus ::
   ( HasCallStack,
     MakesValue user
@@ -52,11 +59,23 @@ getFederationStatus user domains =
           "GET"
           $ req & addJSONObject ["domains" .= domainList]
 
-deleteFederationDomain ::
-  ( HasCallStack
-  ) =>
-  String ->
-  App Response
-deleteFederationDomain domain = do
-  req <- rawBaseRequest OwnDomain Galley Unversioned $ joinHttpPath ["i", "federation", domain]
-  submit "DELETE" req
+-- | https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/galley/#/galley/put_i_legalhold_whitelisted_teams__tid_
+legalholdWhitelistTeam :: (HasCallStack, MakesValue uid, MakesValue tid) => tid -> uid -> App Response
+legalholdWhitelistTeam tid uid = do
+  tidStr <- asString tid
+  req <- baseRequest uid Galley Unversioned $ joinHttpPath ["i", "legalhold", "whitelisted-teams", tidStr]
+  submit "PUT" req
+
+-- | https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/galley/#/galley/get_i_legalhold_whitelisted_teams__tid_
+legalholdIsTeamInWhitelist :: (HasCallStack, MakesValue uid, MakesValue tid) => tid -> uid -> App Response
+legalholdIsTeamInWhitelist tid uid = do
+  tidStr <- asString tid
+  req <- baseRequest uid Galley Unversioned $ joinHttpPath ["i", "legalhold", "whitelisted-teams", tidStr]
+  submit "GET" req
+
+-- | https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/galley/#/galley/get_i_teams__tid__features_legalhold
+legalholdIsEnabled :: (HasCallStack, MakesValue tid, MakesValue uid) => tid -> uid -> App Response
+legalholdIsEnabled tid uid = do
+  tidStr <- asString tid
+  baseRequest uid Galley Unversioned do joinHttpPath ["i", "teams", tidStr, "features", "legalhold"]
+    >>= submit "GET"

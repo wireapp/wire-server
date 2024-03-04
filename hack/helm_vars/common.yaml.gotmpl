@@ -1,7 +1,10 @@
 namespace1: {{ requiredEnv "NAMESPACE_1" }}
 federationDomain1: {{ requiredEnv "FEDERATION_DOMAIN_1" }}
+federationDomainBase1: {{ requiredEnv "FEDERATION_DOMAIN_BASE_1" }}
 namespace2: {{ requiredEnv "NAMESPACE_2" }}
 federationDomain2: {{ requiredEnv "FEDERATION_DOMAIN_2" }}
+federationDomainBase2: {{ requiredEnv "FEDERATION_DOMAIN_BASE_2" }}
+federationCACertificate: {{ requiredEnv "FEDERATION_CA_CERTIFICATE" | quote }}
 ingressChart: {{ requiredEnv "INGRESS_CHART" }}
 rabbitmqUsername: guest
 rabbitmqPassword: guest
@@ -9,3 +12,12 @@ rabbitmqPassword: guest
 dynBackendDomain1: dynamic-backend-1.{{ requiredEnv "NAMESPACE_1" }}.svc.cluster.local
 dynBackendDomain2: dynamic-backend-2.{{ requiredEnv "NAMESPACE_1" }}.svc.cluster.local
 dynBackendDomain3: dynamic-backend-3.{{ requiredEnv "NAMESPACE_1" }}.svc.cluster.local
+
+{{- if (eq (env "UPLOAD_XML_S3_BASE_URL") "") }}
+uploadXml: {}
+{{- else }}
+uploadXml:
+  awsAccessKeyId: {{ env "UPLOAD_XML_AWS_ACCESS_KEY_ID" }}
+  awsSecretAccessKey: {{ env "UPLOAD_XML_AWS_SECRET_ACCESS_KEY" }}
+  baseUrl: {{ env "UPLOAD_XML_S3_BASE_URL" }}
+{{- end }}

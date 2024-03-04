@@ -25,6 +25,7 @@ module Wire.API.User
     UserIdList (..),
     UserIds (..),
     QualifiedUserIdList (..),
+    qualifiedUserIdListObjectSchema,
     LimitedQualifiedUserIdList (..),
     ScimUserInfo (..),
     ScimUserInfos (..),
@@ -146,6 +147,7 @@ module Wire.API.User
 
     -- * Protocol preferences
     BaseProtocolTag (..),
+    baseProtocolToProtocol,
     SupportedProtocolUpdate (..),
     defSupportedProtocols,
     protocolSetBits,
@@ -177,13 +179,13 @@ import Data.Json.Util (UTCTimeMillis, (#))
 import Data.LegalHold (UserLegalHoldStatus)
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.Misc (PlainTextPassword6, PlainTextPassword8)
+import Data.OpenApi qualified as S
 import Data.Qualified
 import Data.Range
 import Data.SOP
 import Data.Schema
 import Data.Schema qualified as Schema
 import Data.Set qualified as Set
-import Data.Swagger qualified as S
 import Data.Text qualified as T
 import Data.Text.Ascii
 import Data.Text.Encoding qualified as T
@@ -200,6 +202,7 @@ import Servant (FromHttpApiData (..), ToHttpApiData (..), type (.++))
 import Test.QuickCheck qualified as QC
 import URI.ByteString (serializeURIRef)
 import Web.Cookie qualified as Web
+import Wire.API.Conversation.Protocol
 import Wire.API.Error
 import Wire.API.Error.Brig
 import Wire.API.Error.Brig qualified as E
@@ -546,12 +549,15 @@ newtype QualifiedUserIdList = QualifiedUserIdList {qualifiedUserIdList :: [Quali
 
 instance ToSchema QualifiedUserIdList where
   schema =
-    object "QualifiedUserIdList" $
-      QualifiedUserIdList
-        <$> qualifiedUserIdList
-          .= field "qualified_user_ids" (array schema)
-        <* (fmap qUnqualified . qualifiedUserIdList)
-          .= field "user_ids" (deprecatedSchema "qualified_user_ids" (array schema))
+    object "QualifiedUserIdList" qualifiedUserIdListObjectSchema
+
+qualifiedUserIdListObjectSchema :: ObjectSchema SwaggerDoc QualifiedUserIdList
+qualifiedUserIdListObjectSchema =
+  QualifiedUserIdList
+    <$> qualifiedUserIdList
+      .= field "qualified_user_ids" (array schema)
+    <* (fmap qUnqualified . qualifiedUserIdList)
+      .= field "user_ids" (deprecatedSchema "qualified_user_ids" (array schema))
 
 --------------------------------------------------------------------------------
 -- LimitedQualifiedUserIdList
@@ -1819,7 +1825,7 @@ instance S.ToSchema ListUsersQuery where
     pure $
       S.NamedSchema (Just "ListUsersQuery") $
         mempty
-          & S.type_ ?~ S.SwaggerObject
+          & S.type_ ?~ S.OpenApiObject
           & S.description ?~ "exactly one of qualified_ids or qualified_handles must be provided."
           & S.properties .~ InsOrdHashMap.fromList [("qualified_ids", uids), ("qualified_handles", handles)]
           & S.example ?~ toJSON (ListUsersByIds [Qualified (Id UUID.nil) (Domain "example.com")])
@@ -1896,6 +1902,7 @@ instance Schema.ToSchema UserAccount where
 -- NewUserScimInvitation
 
 data NewUserScimInvitation = NewUserScimInvitation
+  -- FIXME: the TID should be captured in the route as usual
   { newUserScimInvTeamId :: TeamId,
     newUserScimInvLocale :: Maybe Locale,
     newUserScimInvName :: Name,
@@ -1954,8 +1961,8 @@ instance FromByteString VerificationAction where
 instance S.ToParamSchema VerificationAction where
   toParamSchema _ =
     mempty
-      { S._paramSchemaType = Just S.SwaggerString,
-        S._paramSchemaEnum = Just (A.String . toQueryParam <$> [(minBound :: VerificationAction) ..])
+      { S._schemaType = Just S.OpenApiString,
+        S._schemaEnum = Just (A.String . toQueryParam <$> [(minBound :: VerificationAction) ..])
       }
 
 instance FromHttpApiData VerificationAction where
@@ -1996,6 +2003,10 @@ data BaseProtocolTag = BaseProtocolProteusTag | BaseProtocolMLSTag
 baseProtocolMask :: BaseProtocolTag -> Word32
 baseProtocolMask BaseProtocolProteusTag = 1
 baseProtocolMask BaseProtocolMLSTag = 2
+
+baseProtocolToProtocol :: BaseProtocolTag -> ProtocolTag
+baseProtocolToProtocol BaseProtocolProteusTag = ProtocolProteusTag
+baseProtocolToProtocol BaseProtocolMLSTag = ProtocolMLSTag
 
 instance ToSchema BaseProtocolTag where
   schema =

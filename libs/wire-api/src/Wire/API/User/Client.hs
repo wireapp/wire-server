@@ -59,12 +59,11 @@ module Wire.API.User.Client
     RmClient (..),
 
     -- * re-exports
-    Location,
-    location,
-    latitude,
-    longitude,
     Latitude (..),
     Longitude (..),
+
+    -- * List of MLS client ids
+    ClientList (..),
   )
 where
 
@@ -82,12 +81,12 @@ import Data.Domain (Domain)
 import Data.Id
 import Data.Json.Util
 import Data.Map.Strict qualified as Map
-import Data.Misc (Latitude (..), Location, Longitude (..), PlainTextPassword6, latitude, location, longitude)
+import Data.Misc (Latitude (..), Longitude (..), PlainTextPassword6)
+import Data.OpenApi hiding (Schema, ToSchema, nullable, schema)
+import Data.OpenApi qualified as Swagger hiding (nullable)
 import Data.Qualified
 import Data.Schema
 import Data.Set qualified as Set
-import Data.Swagger hiding (Schema, ToSchema, schema)
-import Data.Swagger qualified as Swagger
 import Data.Text.Encoding qualified as Text.E
 import Data.Time.Clock
 import Data.UUID (toASCIIBytes)
@@ -98,8 +97,8 @@ import Deriving.Swagger
     StripPrefix,
   )
 import Imports
-import Wire.API.MLS.Credential
-import Wire.API.User.Auth (CookieLabel)
+import Wire.API.MLS.CipherSuite
+import Wire.API.User.Auth
 import Wire.API.User.Client.Prekey as Prekey
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..), generateExample, mapOf', setOf')
 
@@ -237,7 +236,7 @@ instance ToSchema UserClientPrekeyMap where
             ( Map.singleton
                 (generateExample @UserId)
                 ( Map.singleton
-                    (newClientId 4940483633899001999)
+                    (ClientId 4940483633899001999)
                     (Just (Prekey (PrekeyId 1) "pQABAQECoQBYIOjl7hw0D8YRNq..."))
                 )
             )
@@ -368,7 +367,7 @@ instance Swagger.ToSchema UserClientsFull where
     pure $
       NamedSchema (Just "UserClientsFull") $
         mempty
-          & type_ ?~ SwaggerObject
+          & type_ ?~ OpenApiObject
           & description ?~ "Dictionary object of `Client` objects indexed by `UserId`."
           & example ?~ "{\"1355c55a-0ac8-11ee-97ee-db1a6351f093\": <Client object>, ...}"
 
@@ -412,8 +411,8 @@ instance ToSchema UserClients where
           & Swagger.schema . Swagger.example
             ?~ toJSON
               ( Map.fromList
-                  [ (generateExample @UserId, [newClientId 1684636986166846496, newClientId 4940483633899001999]),
-                    (generateExample @UserId, [newClientId 6987438498444556166, newClientId 7940473633839002939])
+                  [ (generateExample @UserId, [ClientId 1684636986166846496, ClientId 4940483633899001999]),
+                    (generateExample @UserId, [ClientId 6987438498444556166, ClientId 7940473633839002939])
                   ]
               )
 
@@ -470,7 +469,6 @@ data Client = Client
     clientClass :: Maybe ClientClass,
     clientLabel :: Maybe Text,
     clientCookie :: Maybe CookieLabel,
-    clientLocation :: Maybe Location,
     clientModel :: Maybe Text,
     clientCapabilities :: ClientCapabilityList,
     clientMLSPublicKeys :: MLSPublicKeys,
@@ -510,7 +508,6 @@ instance ToSchema Client where
         <*> clientClass .= maybe_ (optField "class" schema)
         <*> clientLabel .= maybe_ (optField "label" schema)
         <*> clientCookie .= maybe_ (optField "cookie" schema)
-        <*> clientLocation .= maybe_ (optField "location" schema)
         <*> clientModel .= maybe_ (optField "model" schema)
         <*> clientCapabilities .= (fromMaybe mempty <$> optField "capabilities" schema)
         <*> clientMLSPublicKeys .= mlsPublicKeysFieldSchema
@@ -518,6 +515,22 @@ instance ToSchema Client where
 
 mlsPublicKeysFieldSchema :: ObjectSchema SwaggerDoc MLSPublicKeys
 mlsPublicKeysFieldSchema = fromMaybe mempty <$> optField "mls_public_keys" mlsPublicKeysSchema
+
+--------------------------------------------------------------------------------
+-- ClientList
+
+-- | Client list for internal API.
+data ClientList = ClientList {clClients :: [ClientId]}
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ClientList)
+  deriving (FromJSON, ToJSON, Swagger.ToSchema) via Schema ClientList
+
+instance ToSchema ClientList where
+  schema =
+    object "ClientList" $
+      ClientList
+        <$> clClients
+          .= field "client_ids" (array schema)
 
 --------------------------------------------------------------------------------
 -- PubClient

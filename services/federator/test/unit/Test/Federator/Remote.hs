@@ -20,6 +20,7 @@ module Test.Federator.Remote where
 import Control.Exception (bracket)
 import Control.Monad.Codensity
 import Data.Domain
+import Data.Id
 import Federator.Discovery
 import Federator.Env (mkHttp2Manager)
 import Federator.Options
@@ -80,7 +81,7 @@ assertNoRemoteError = \case
 
 mkTestCall :: SSLContext -> ByteString -> Int -> Codensity IO (Either RemoteError ())
 mkTestCall sslCtx hostname port = do
-  mgr <- liftIO $ mkHttp2Manager sslCtx
+  mgr <- liftIO $ mkHttp2Manager 1_000_000 sslCtx
   runM
     . runEmbedded @IO @(Codensity IO) liftIO
     . runError @RemoteError
@@ -89,7 +90,7 @@ mkTestCall sslCtx hostname port = do
     . discoverLocalhost hostname port
     . assertNoError @DiscoveryFailure
     . interpretRemote
-    $ discoverAndCall (Domain "localhost") Brig "test" [] mempty
+    $ discoverAndCall (RequestId "N/A") (Domain "localhost") Brig "test" [] mempty
 
 withMockServer :: Warp.TLSSettings -> (Warp.Port -> IO a) -> IO a
 withMockServer tls k =

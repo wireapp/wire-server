@@ -15,8 +15,12 @@
 , Cabal
 , case-insensitive
 , containers
-, cryptonite
+, cql
+, cql-io
+, crypton
 , data-default
+, data-timeout
+, deriving-aeson
 , directory
 , errors
 , exceptions
@@ -24,7 +28,9 @@
 , extra
 , filepath
 , gitignoreSource
+, haskell-src-exts
 , hex
+, HsOpenSSL
 , http-client
 , http-types
 , kan-extensions
@@ -38,14 +44,18 @@
 , network
 , network-uri
 , optparse-applicative
+, pem
 , process
 , proto-lens
 , random
 , raw-strings-qq
+, regex-base
+, regex-tdfa
 , retry
 , scientific
 , split
 , stm
+, streaming-commons
 , string-conversions
 , tagged
 , temporary
@@ -57,8 +67,12 @@
 , unliftio
 , uuid
 , vector
+, wai
+, warp
+, warp-tls
 , websockets
 , wire-message-proto-lens
+, xml
 , yaml
 }:
 mkDerivation {
@@ -67,7 +81,14 @@ mkDerivation {
   src = gitignoreSource ./.;
   isLibrary = true;
   isExecutable = true;
-  setupHaskellDepends = [ base Cabal containers directory filepath ];
+  setupHaskellDepends = [
+    base
+    Cabal
+    containers
+    directory
+    filepath
+    haskell-src-exts
+  ];
   libraryHaskellDepends = [
     aeson
     aeson-pretty
@@ -80,8 +101,12 @@ mkDerivation {
     bytestring-conversion
     case-insensitive
     containers
-    cryptonite
+    cql
+    cql-io
+    crypton
     data-default
+    data-timeout
+    deriving-aeson
     directory
     errors
     exceptions
@@ -89,6 +114,7 @@ mkDerivation {
     extra
     filepath
     hex
+    HsOpenSSL
     http-client
     http-types
     kan-extensions
@@ -101,14 +127,18 @@ mkDerivation {
     network
     network-uri
     optparse-applicative
+    pem
     process
     proto-lens
     random
     raw-strings-qq
+    regex-base
+    regex-tdfa
     retry
     scientific
     split
     stm
+    streaming-commons
     string-conversions
     tagged
     temporary
@@ -120,8 +150,12 @@ mkDerivation {
     unliftio
     uuid
     vector
+    wai
+    warp
+    warp-tls
     websockets
     wire-message-proto-lens
+    xml
     yaml
   ];
   license = lib.licenses.agpl3Only;

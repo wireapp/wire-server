@@ -36,6 +36,7 @@ import Data.Aeson.KeyMap qualified as KeyMap
 import Data.ByteString.Char8 (unpack)
 import Data.Domain (Domain (..))
 import Data.Id
+import Data.Json.Util (fromUTCTimeMillis, readUTCTimeMillis)
 import Data.List1 qualified as List1
 import Data.Schema (ToSchema)
 import Data.Set qualified as Set
@@ -52,7 +53,7 @@ import Test.Tasty.Cannon qualified as WS
 import Test.Tasty.HUnit (assertBool, assertFailure, (@?=))
 import TestHelpers (eventually, test)
 import TestSetup
-import Wire.API.Conversation.Protocol (ProtocolTag (ProtocolMLSTag, ProtocolProteusTag))
+import Wire.API.Conversation.Protocol
 import Wire.API.Event.FeatureConfig qualified as FeatureConfig
 import Wire.API.Internal.Notification (Notification)
 import Wire.API.MLS.CipherSuite
@@ -107,6 +108,10 @@ tests s =
               (wsConfig (defFeatureStatus @MlsE2EIdConfig))
               FeatureTTLUnlimited
           ),
+      test s "MlsMigration feature config" $
+        testNonTrivialConfigNoTTL defaultMlsMigrationConfig,
+      test s "EnforceFileDownloadLocation feature config" $
+        testNonTrivialConfigNoTTL (defFeatureStatus @EnforceFileDownloadLocationConfig),
       testGroup
         "Patch"
         [ -- Note: `SSOConfig` and `LegalHoldConfig` may not be able to be reset
@@ -127,13 +132,14 @@ tests s =
             testPatch IgnoreLockStatusChange FeatureStatusEnabled SearchVisibilityAvailableConfig,
           test s (unpack $ featureNameBS @MLSConfig) $
             testPatchWithCustomGen
-              IgnoreLockStatusChange
-              FeatureStatusEnabled
+              AssertLockStatusChange
+              FeatureStatusDisabled
               ( MLSConfig
                   []
                   ProtocolProteusTag
                   [MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519]
                   MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
+                  [ProtocolProteusTag, ProtocolMLSTag]
               )
               validMLSConfigGen,
           test s (unpack $ featureNameBS @FileSharingConfig) $
@@ -146,7 +152,10 @@ tests s =
             testPatch AssertLockStatusChange FeatureStatusEnabled (SelfDeletingMessagesConfig 0),
           test s (unpack $ featureNameBS @OutlookCalIntegrationConfig) $
             testPatch AssertLockStatusChange FeatureStatusDisabled OutlookCalIntegrationConfig,
-          test s (unpack $ featureNameBS @MlsE2EIdConfig) $ testPatchWithArbitrary AssertLockStatusChange FeatureStatusDisabled (wsConfig (defFeatureStatus @MlsE2EIdConfig))
+          test s (unpack $ featureNameBS @MlsE2EIdConfig) $
+            testPatchWithArbitrary AssertLockStatusChange FeatureStatusDisabled (wsConfig (defFeatureStatus @MlsE2EIdConfig)),
+          test s (unpack $ featureNameBS @EnforceFileDownloadLocationConfig) $
+            testPatchWithArbitrary AssertLockStatusChange FeatureStatusDisabled (wsConfig (defFeatureStatus @EnforceFileDownloadLocationConfig))
         ],
       testGroup
         "ExposeInvitationURLsToTeamAdmin"
@@ -160,12 +169,17 @@ tests s =
 validMLSConfigGen :: Gen (WithStatusPatch MLSConfig)
 validMLSConfigGen =
   arbitrary
-    `suchThat` ( \cfg -> case wspConfig cfg of
-                   Just (MLSConfig us _ cTags ctag) ->
-                     sortedAndNoDuplicates us
-                       && sortedAndNoDuplicates cTags
-                       && elem ctag cTags
-                   _ -> True
+    `suchThat` ( \cfg ->
+                   case wspConfig cfg of
+                     Just (MLSConfig us defProtocol cTags ctag supProtocol) ->
+                       sortedAndNoDuplicates us
+                         && sortedAndNoDuplicates cTags
+                         && elem ctag cTags
+                         && notElem ProtocolMixedTag supProtocol
+                         && elem defProtocol supProtocol
+                         && sortedAndNoDuplicates supProtocol
+                     _ -> True
+                     && Just FeatureStatusEnabled == wspStatus cfg
                )
   where
     sortedAndNoDuplicates xs = (sort . nub) xs == xs
@@ -1043,11 +1057,15 @@ testAllFeatures = do
           afcSelfDeletingMessages = withStatus FeatureStatusEnabled lockStateSelfDeleting (SelfDeletingMessagesConfig 0) FeatureTTLUnlimited,
           afcGuestLink = withStatus FeatureStatusEnabled LockStatusUnlocked GuestLinksConfig FeatureTTLUnlimited,
           afcSndFactorPasswordChallenge = withStatus FeatureStatusDisabled LockStatusLocked SndFactorPasswordChallengeConfig FeatureTTLUnlimited,
-          afcMLS = withStatus FeatureStatusDisabled LockStatusUnlocked (MLSConfig [] ProtocolProteusTag [MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519] MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519) FeatureTTLUnlimited,
+          afcMLS = withStatus FeatureStatusDisabled LockStatusUnlocked (MLSConfig [] ProtocolProteusTag [MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519] MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 [ProtocolProteusTag, ProtocolMLSTag]) FeatureTTLUnlimited,
           afcSearchVisibilityInboundConfig = withStatus FeatureStatusDisabled LockStatusUnlocked SearchVisibilityInboundConfig FeatureTTLUnlimited,
           afcExposeInvitationURLsToTeamAdmin = withStatus FeatureStatusDisabled LockStatusLocked ExposeInvitationURLsToTeamAdminConfig FeatureTTLUnlimited,
           afcOutlookCalIntegration = withStatus FeatureStatusDisabled LockStatusLocked OutlookCalIntegrationConfig FeatureTTLUnlimited,
-          afcMlsE2EId = withStatus FeatureStatusDisabled LockStatusUnlocked (wsConfig defFeatureStatus) FeatureTTLUnlimited
+          afcMlsE2EId = withStatus FeatureStatusDisabled LockStatusUnlocked (wsConfig defFeatureStatus) FeatureTTLUnlimited,
+          afcMlsMigration = defaultMlsMigrationConfig,
+          afcEnforceFileDownloadLocation = defaultEnforceFileDownloadLocationConfig,
+          afcLimitedEventFanout =
+            withStatus FeatureStatusDisabled LockStatusUnlocked LimitedEventFanoutConfig FeatureTTLUnlimited
         }
 
 testFeatureConfigConsistency :: TestM ()
@@ -1181,8 +1199,26 @@ testNonTrivialConfigNoTTL defaultCfg = do
   -- unlock feature
   setLockStatus LockStatusUnlocked
 
+  let defaultMLSConfig =
+        WithStatusNoLock
+          { wssStatus = FeatureStatusEnabled,
+            wssConfig =
+              MLSConfig
+                { mlsProtocolToggleUsers = [],
+                  mlsDefaultProtocol = ProtocolMLSTag,
+                  mlsAllowedCipherSuites = [MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519],
+                  mlsDefaultCipherSuite = MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519,
+                  mlsSupportedProtocols = [ProtocolProteusTag, ProtocolMLSTag]
+                },
+            wssTTL = FeatureTTLUnlimited
+          }
+
   config2 <- liftIO $ generate arbitrary <&> (forgetLock . setTTL FeatureTTLUnlimited)
   config3 <- liftIO $ generate arbitrary <&> (forgetLock . setTTL FeatureTTLUnlimited)
+
+  putTeamFeatureFlagWithGalley @MLSConfig galley owner tid defaultMLSConfig
+    !!! statusCode
+      === const 200
 
   WS.bracketR cannon member $ \ws -> do
     setForTeam config2
@@ -1234,34 +1270,54 @@ testMLS = do
         getForTeamInternal expected
         getForUser expected
 
-      setForTeam :: HasCallStack => WithStatusNoLock MLSConfig -> TestM ()
-      setForTeam wsnl =
+      setForTeamWithStatusCode :: HasCallStack => Int -> WithStatusNoLock MLSConfig -> TestM ()
+      setForTeamWithStatusCode resStatusCode wsnl =
         putTeamFeatureFlagWithGalley @MLSConfig galley owner tid wsnl
           !!! statusCode
-            === const 200
+            === const resStatusCode
+
+      setForTeam :: HasCallStack => WithStatusNoLock MLSConfig -> TestM ()
+      setForTeam = setForTeamWithStatusCode 200
+
+      setForTeamInternalWithStatusCode :: HasCallStack => (Request -> Request) -> WithStatusNoLock MLSConfig -> TestM ()
+      setForTeamInternalWithStatusCode expect wsnl =
+        void $ putTeamFeatureFlagInternal @MLSConfig expect tid wsnl
 
       setForTeamInternal :: HasCallStack => WithStatusNoLock MLSConfig -> TestM ()
-      setForTeamInternal wsnl =
-        void $ putTeamFeatureFlagInternal @MLSConfig expect2xx tid wsnl
+      setForTeamInternal = setForTeamInternalWithStatusCode expect2xx
+
+      setLockStatus :: HasCallStack => LockStatus -> TestM ()
+      setLockStatus lockStatus =
+        Util.setLockStatusInternal @MLSConfig galley tid lockStatus !!! statusCode === const 200
 
   let cipherSuite = MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
-  let defaultConfig =
+      defaultConfig =
         WithStatusNoLock
           FeatureStatusDisabled
-          (MLSConfig [] ProtocolProteusTag [cipherSuite] cipherSuite)
+          (MLSConfig [] ProtocolProteusTag [cipherSuite] cipherSuite [ProtocolProteusTag, ProtocolMLSTag])
           FeatureTTLUnlimited
-  let config2 =
+      config2 =
         WithStatusNoLock
           FeatureStatusEnabled
-          (MLSConfig [member] ProtocolMLSTag [] cipherSuite)
+          (MLSConfig [member] ProtocolMLSTag [] cipherSuite [ProtocolProteusTag, ProtocolMLSTag])
           FeatureTTLUnlimited
-  let config3 =
+      config3 =
         WithStatusNoLock
-          FeatureStatusDisabled
-          (MLSConfig [] ProtocolMLSTag [cipherSuite] cipherSuite)
+          FeatureStatusEnabled
+          (MLSConfig [] ProtocolMLSTag [cipherSuite] cipherSuite [ProtocolMLSTag])
+          FeatureTTLUnlimited
+      invalidConfig =
+        WithStatusNoLock
+          FeatureStatusEnabled
+          (MLSConfig [] ProtocolMLSTag [cipherSuite] cipherSuite [ProtocolProteusTag])
           FeatureTTLUnlimited
 
   getViaEndpoints defaultConfig
+
+  -- when the feature is locked it cannot be changed
+  setLockStatus LockStatusLocked
+  setForTeamWithStatusCode 409 config2
+  setLockStatus LockStatusUnlocked
 
   WS.bracketR cannon member $ \ws -> do
     setForTeam config2
@@ -1270,11 +1326,28 @@ testMLS = do
         wsAssertFeatureConfigUpdate @MLSConfig config2 LockStatusUnlocked
   getViaEndpoints config2
 
+  -- when the feature is locked the default config is returned
+  setLockStatus LockStatusLocked
+  getViaEndpoints defaultConfig
+  setLockStatus LockStatusUnlocked
+
+  WS.bracketR cannon member $ \ws -> do
+    setForTeamWithStatusCode 400 invalidConfig
+    void . liftIO $
+      WS.assertNoEvent (2 # Second) [ws]
+  getViaEndpoints config2
+
   WS.bracketR cannon member $ \ws -> do
     setForTeamInternal config3
     void . liftIO $
       WS.assertMatch (5 # Second) ws $
         wsAssertFeatureConfigUpdate @MLSConfig config3 LockStatusUnlocked
+  getViaEndpoints config3
+
+  WS.bracketR cannon member $ \ws -> do
+    setForTeamInternalWithStatusCode expect4xx invalidConfig
+    void . liftIO $
+      WS.assertNoEvent (2 # Second) [ws]
   getViaEndpoints config3
 
 testExposeInvitationURLsToTeamAdminTeamIdInAllowList :: TestM ()
@@ -1458,3 +1531,22 @@ wsAssertFeatureConfigUpdate config lockStatus notification = do
   FeatureConfig._eventType e @?= FeatureConfig.Update
   FeatureConfig._eventFeatureName e @?= featureName @cfg
   FeatureConfig._eventData e @?= Aeson.toJSON (withLockStatus lockStatus config)
+
+defaultMlsMigrationConfig :: WithStatus MlsMigrationConfig
+defaultMlsMigrationConfig =
+  withStatus
+    FeatureStatusEnabled
+    LockStatusLocked
+    MlsMigrationConfig
+      { startTime = fmap fromUTCTimeMillis (readUTCTimeMillis "2029-05-16T10:11:12.123Z"),
+        finaliseRegardlessAfter = fmap fromUTCTimeMillis (readUTCTimeMillis "2029-10-17T00:00:00.000Z")
+      }
+    FeatureTTLUnlimited
+
+defaultEnforceFileDownloadLocationConfig :: WithStatus EnforceFileDownloadLocationConfig
+defaultEnforceFileDownloadLocationConfig =
+  withStatus
+    FeatureStatusDisabled
+    LockStatusLocked
+    (EnforceFileDownloadLocationConfig Nothing)
+    FeatureTTLUnlimited

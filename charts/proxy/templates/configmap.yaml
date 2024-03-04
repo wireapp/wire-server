@@ -7,9 +7,7 @@ data:
     logFormat: {{ .Values.config.logFormat }}
     logLevel: {{ .Values.config.logLevel }}
     logNetStrings: {{ .Values.config.logNetStrings }}
-    {{- if .Values.config.disabledAPIVersions }}
-    disabledAPIVersions: {{ .Values.config.disabledAPIVersions }}
-    {{- end }}
+    disabledAPIVersions: {{ toJson .Values.config.disabledAPIVersions }}
     host: 0.0.0.0
     port: {{ .Values.service.internalPort }}
     httpPoolSize: 1000

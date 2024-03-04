@@ -1,0 +1,155 @@
+cabal-version: 1.12
+name:          mlsstats
+version:       0.1.0
+description:   collect and provide MLS migration statistics
+category:      Network
+author:        Wire Swiss GmbH
+maintainer:    Wire Swiss GmbH <backend@wire.com>
+copyright:     (c) 2023 Wire Swiss GmbH
+license:       AGPL-3
+license-file:  LICENSE
+build-type:    Simple
+
+flag static
+  description: Enable static linking
+  manual:      True
+  default:     False
+
+library
+  exposed-modules:
+    MlsStats.Options
+    MlsStats.Run
+
+  other-modules:      Paths_mlsstats
+  hs-source-dirs:     src
+  default-extensions:
+    AllowAmbiguousTypes
+    BangPatterns
+    ConstraintKinds
+    DataKinds
+    DefaultSignatures
+    DeriveFunctor
+    DeriveGeneric
+    DeriveLift
+    DeriveTraversable
+    DerivingStrategies
+    DerivingVia
+    DuplicateRecordFields
+    EmptyCase
+    FlexibleContexts
+    FlexibleInstances
+    FunctionalDependencies
+    GADTs
+    InstanceSigs
+    KindSignatures
+    LambdaCase
+    MultiParamTypeClasses
+    MultiWayIf
+    NamedFieldPuns
+    NoImplicitPrelude
+    OverloadedRecordDot
+    OverloadedStrings
+    PackageImports
+    PatternSynonyms
+    PolyKinds
+    QuasiQuotes
+    RankNTypes
+    ScopedTypeVariables
+    StandaloneDeriving
+    TupleSections
+    TypeApplications
+    TypeFamilies
+    TypeFamilyDependencies
+    TypeOperators
+    UndecidableInstances
+    ViewPatterns
+
+  ghc-options:
+    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+    -funbox-strict-fields -Wredundant-constraints -Wunused-packages
+
+  build-depends:
+      aeson
+    , amazonka              >=1.3.7
+    , amazonka-s3           >=1.3.7
+    , base                  >=4.6   && <5
+    , base64-bytestring
+    , bytestring
+    , cassandra-util
+    , conduit
+    , filepath
+    , http-types
+    , imports
+    , lens                  >=4.11
+    , optparse-applicative
+    , schema-profunctor
+    , text
+    , time
+    , tinylog
+    , types-common          >=0.8
+    , wire-api
+
+  default-language:   GHC2021
+
+executable mlsstats
+  main-is:            exec/Main.hs
+  other-modules:      Paths_mlsstats
+  default-extensions:
+    AllowAmbiguousTypes
+    BangPatterns
+    ConstraintKinds
+    DataKinds
+    DefaultSignatures
+    DeriveFunctor
+    DeriveGeneric
+    DeriveLift
+    DeriveTraversable
+    DerivingStrategies
+    DerivingVia
+    DuplicateRecordFields
+    EmptyCase
+    FlexibleContexts
+    FlexibleInstances
+    FunctionalDependencies
+    GADTs
+    InstanceSigs
+    KindSignatures
+    LambdaCase
+    MultiParamTypeClasses
+    MultiWayIf
+    NamedFieldPuns
+    NoImplicitPrelude
+    OverloadedRecordDot
+    OverloadedStrings
+    PackageImports
+    PatternSynonyms
+    PolyKinds
+    QuasiQuotes
+    RankNTypes
+    ScopedTypeVariables
+    StandaloneDeriving
+    TupleSections
+    TypeApplications
+    TypeFamilies
+    TypeFamilyDependencies
+    TypeOperators
+    UndecidableInstances
+    ViewPatterns
+
+  ghc-options:
+    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+    -threaded -rtsopts -with-rtsopts=-T -Wredundant-constraints
+    -Wunused-packages
+
+  build-depends:
+      base
+    , imports
+    , mlsstats
+    , optparse-applicative
+
+  if flag(static)
+    ld-options: -static
+
+  default-language:   GHC2021

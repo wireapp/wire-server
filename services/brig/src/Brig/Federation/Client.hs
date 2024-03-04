@@ -1,7 +1,3 @@
-{-# LANGUAGE AllowAmbiguousTypes #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -22,7 +18,7 @@
 -- FUTUREWORK: Remove this module all together.
 module Brig.Federation.Client where
 
-import Brig.App
+import Brig.App as Brig
 import Control.Lens
 import Control.Monad
 import Control.Monad.Catch (MonadMask, throwM)
@@ -31,7 +27,7 @@ import Control.Retry
 import Control.Timeout
 import Data.Domain
 import Data.Handle
-import Data.Id (ClientId, UserId)
+import Data.Id
 import Data.Qualified
 import Data.Range (Range)
 import Data.Text qualified as T
@@ -131,11 +127,17 @@ getUserClients domain guc = do
 sendConnectionAction ::
   (MonadReader Env m, MonadIO m, Log.MonadLogger m) =>
   Local UserId ->
+  Maybe (Local TeamId) ->
   Remote UserId ->
   RemoteConnectionAction ->
   ExceptT FederationError m NewConnectionResponse
-sendConnectionAction self (tUntagged -> other) action = do
-  let req = NewConnectionRequest (tUnqualified self) (qUnqualified other) action
+sendConnectionAction self mSelfTeam (tUntagged -> other) action = do
+  let req =
+        NewConnectionRequest
+          (tUnqualified self)
+          (tUnqualified <$> mSelfTeam)
+          (qUnqualified other)
+          action
   lift $ Log.info $ Log.msg @Text "Brig-federation: sending connection action to remote backend"
   runBrigFederatorClient (qDomain other) $ fedClient @'Brig @"send-connection-action" req
 
@@ -154,7 +156,9 @@ notifyUserDeleted self remotes = do
       remoteDomain = tDomain remotes
   view rabbitmqChannel >>= \case
     Just chanVar -> do
-      enqueueNotification (tDomain self) remoteDomain Q.Persistent chanVar $ void $ fedQueueClient @'Brig @"on-user-deleted-connections" notif
+      enqueueNotification (tDomain self) remoteDomain Q.Persistent chanVar $
+        void $
+          fedQueueClient @'OnUserDeletedConnectionsTag notif
     Nothing ->
       Log.err $
         Log.msg ("Federation error while notifying remote backends of a user deletion." :: ByteString)
@@ -163,22 +167,25 @@ notifyUserDeleted self remotes = do
           . Log.field "error" (show FederationNotConfigured)
 
 -- | Enqueues notifications in RabbitMQ. Retries 3 times with a delay of 1s.
-enqueueNotification :: (MonadReader Env m, MonadIO m, MonadMask m, Log.MonadLogger m) => Domain -> Domain -> Q.DeliveryMode -> MVar Q.Channel -> FedQueueClient c () -> m ()
+enqueueNotification :: (MonadIO m, MonadMask m, Log.MonadLogger m, MonadReader Env m) => Domain -> Domain -> Q.DeliveryMode -> MVar Q.Channel -> FedQueueClient c () -> m ()
 enqueueNotification ownDomain remoteDomain deliveryMode chanVar action = do
   let policy = limitRetries 3 <> constantDelay 1_000_000
   recovering policy [logRetries (const $ pure True) logError] (const go)
   where
     logError willRetry (SomeException e) status = do
+      rid <- view Brig.requestId
       Log.err $
         Log.msg @Text "failed to enqueue notification in RabbitMQ"
           . Log.field "error" (displayException e)
           . Log.field "willRetry" willRetry
           . Log.field "retryCount" status.rsIterNumber
+          . Log.field "request" rid
     go = do
+      rid <- view Brig.requestId
       mChan <- timeout (1 :: Second) (readMVar chanVar)
       case mChan of
         Nothing -> throwM NoRabbitMqChannel
-        Just chan -> liftIO $ enqueue chan ownDomain remoteDomain deliveryMode action
+        Just chan -> liftIO $ enqueue chan rid ownDomain remoteDomain deliveryMode action
 
 data NoRabbitMqChannel = NoRabbitMqChannel
   deriving (Show)
@@ -194,12 +201,14 @@ runBrigFederatorClient targetDomain action = do
   ownDomain <- viewFederationDomain
   endpoint <- view federator >>= maybe (throwE FederationNotConfigured) pure
   mgr <- view http2Manager
+  rid <- view Brig.requestId
   let env =
         FederatorClientEnv
           { ceOriginDomain = ownDomain,
             ceTargetDomain = targetDomain,
             ceFederator = endpoint,
-            ceHttp2Manager = mgr
+            ceHttp2Manager = mgr,
+            ceOriginRequestId = rid
           }
   liftIO (runFederatorClient env action)
     >>= either (throwE . FederationCallFailure) pure

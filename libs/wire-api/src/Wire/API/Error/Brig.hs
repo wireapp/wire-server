@@ -17,6 +17,7 @@
 
 module Wire.API.Error.Brig where
 
+import Data.Data
 import Wire.API.Error
 
 data BrigError
@@ -32,6 +33,7 @@ data BrigError
   | CodeAuthenticationFailed
   | CodeAuthenticationRequired
   | MissingLegalholdConsent
+  | MissingLegalholdConsentOldClients
   | ConnectionLimitReached
   | UnknownClient
   | ClientNotFound
@@ -85,9 +87,30 @@ data BrigError
   | TooManyConversationMembers
   | ServiceDisabled
   | InvalidBot
+  | InvalidServiceKey
+  | ServiceNotFound
+  | VerificationCodeThrottled
+  | InvalidProvider
+  | ProviderNotFound
+  | TeamsNotFederating
+  | PasswordIsStale
 
-instance KnownError (MapError e) => IsSwaggerError (e :: BrigError) where
-  addToSwagger = addStaticErrorToSwagger @(MapError e)
+instance (Typeable (MapError e), KnownError (MapError e)) => IsSwaggerError (e :: BrigError) where
+  addToOpenApi = addStaticErrorToSwagger @(MapError e)
+
+type instance MapError 'ServiceNotFound = 'StaticError 404 "not-found" "Service not found."
+
+type instance MapError 'InvalidServiceKey = 'StaticError 400 "invalid-service-key" "Invalid service key."
+
+type instance MapError 'ProviderNotFound = 'StaticError 404 "not-found" "Provider not found."
+
+type instance MapError 'InvalidProvider = 'StaticError 403 "invalid-provider" "The provider does not exist."
+
+type instance MapError 'VerificationCodeThrottled = 'StaticError 429 "too-many-requests" "Too many request to generate a verification code."
+
+type instance MapError 'ServiceDisabled = 'StaticError 403 "service-disabled" "The desired service is currently disabled."
+
+type instance MapError 'InvalidBot = 'StaticError 403 "invalid-bot" "The targeted user is not a bot."
 
 type instance MapError 'ServiceDisabled = 'StaticError 403 "service-disabled" "The desired service is currently disabled."
 
@@ -120,6 +143,13 @@ type instance MapError 'MalformedPrekeys = 'StaticError 400 "bad-request" "Malfo
 type instance MapError 'CodeAuthenticationFailed = 'StaticError 403 "code-authentication-failed" "Code authentication failed"
 
 type instance MapError 'CodeAuthenticationRequired = 'StaticError 403 "code-authentication-required" "Code authentication is required"
+
+type instance
+  MapError 'MissingLegalholdConsentOldClients =
+    'StaticError
+      403
+      "missing-legalhold-consent-old-clients"
+      "Failed to connect to a user or to invite a user to a group because somebody is under legalhold and somebody else has old clients that do not support legalhold's UI requirements"
 
 type instance
   MapError 'MissingLegalholdConsent =
@@ -252,3 +282,7 @@ type instance MapError 'NotificationNotFound = 'StaticError 404 "not-found" "Not
 type instance MapError 'PendingInvitationNotFound = 'StaticError 404 "not-found" "No pending invitations exists."
 
 type instance MapError 'ConflictingInvitations = 'StaticError 409 "conflicting-invitations" "Multiple conflicting invitations to different teams exists."
+
+type instance MapError 'TeamsNotFederating = 'StaticError 403 "team-not-federating" "The target user is owned by a federated backend, but is not in an allow-listed team"
+
+type instance MapError 'PasswordIsStale = 'StaticError 403 "password-is-stale" "The password is too old, please update your password."

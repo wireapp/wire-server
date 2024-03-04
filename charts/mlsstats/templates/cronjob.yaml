@@ -1,0 +1,60 @@
+apiVersion: {{ include "batch.apiVersion" . }}
+kind: CronJob
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    app: mlsstats
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  concurrencyPolicy: Forbid
+  schedule: {{ .Values.schedule | quote }}
+  jobTemplate:
+    metadata:
+      labels:
+        app: mlsstats
+        release: {{ .Release.Name }}
+      annotations:
+        # An annotation of the configmap checksum ensures changes to the configmap cause a redeployment upon `helm upgrade`
+        checksum/secret: {{ include (print .Template.BasePath "/secret.yaml") . | sha256sum }}
+    spec:
+      backoffLimit: 0
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: mlsstats
+              image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+              imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
+              args: [ "mlsstats"
+                      , "--brig-cassandra-host", {{ .Values.config.cassandra.brig.host | quote }}
+                      , "--brig-cassandra-port", {{ .Values.config.cassandra.brig.port | quote }}
+                      , "--brig-cassandra-keyspace", {{ .Values.config.cassandra.brig.keyspace | quote }}
+                      , "--galley-cassandra-host", {{ .Values.config.cassandra.galley.host | quote }}
+                      , "--galley-cassandra-port", {{ .Values.config.cassandra.galley.port | quote }}
+                      , "--galley-cassandra-keyspace", {{ .Values.config.cassandra.galley.keyspace | quote }}
+                      , "--cassandra-pagesize", {{ .Values.config.cassandra.pagesize | quote }}
+                      , "--s3-endpoint", {{ .Values.config.s3.endpoint | quote -}}
+                      , "--s3-region", {{ .Values.config.s3.region | quote -}}
+                      , "--s3-addressing-style", {{ .Values.config.s3.addressingStyle | quote }}
+                      , "--s3-bucket-name", {{ .Values.config.s3.bucket.name | quote }}
+                      , "--s3-bucket-dir", {{ .Values.config.s3.bucket.directory | quote }}
+                    ]
+              resources:
+              env:
+              {{- if hasKey .Values.secrets "awsKeyId" }}
+              - name: AWS_ACCESS_KEY_ID
+                valueFrom:
+                  secretKeyRef:
+                    name: mlsstats
+                    key: awsKeyId
+              - name: AWS_SECRET_ACCESS_KEY
+                valueFrom:
+                  secretKeyRef:
+                    name: mlsstats
+                    key: awsSecretKey
+              {{- end }}
+              - name: AWS_REGION
+                value: "{{ .Values.config.s3.region }}"
+{{ toYaml .Values.resources | indent 16 }}

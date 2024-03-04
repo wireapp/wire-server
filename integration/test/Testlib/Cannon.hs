@@ -28,6 +28,7 @@ module Testlib.Cannon
     awaitNMatchesResult,
     awaitNMatches,
     awaitMatch,
+    awaitAnyEvent,
     awaitAtLeastNMatchesResult,
     awaitAtLeastNMatches,
     awaitNToMMatchesResult,
@@ -36,6 +37,7 @@ module Testlib.Cannon
     nPayload,
     printAwaitResult,
     printAwaitAtLeastResult,
+    waitForResponse,
   )
 where
 
@@ -43,10 +45,12 @@ import Control.Concurrent
 import Control.Concurrent.Async
 import Control.Concurrent.STM.TChan
 import Control.Exception (throwIO)
+import qualified Control.Exception as E
 import Control.Monad
 import Control.Monad.Catch hiding (bracket)
-import Control.Monad.Catch qualified as Catch
+import qualified Control.Monad.Catch as Catch
 import Control.Monad.IO.Class
+import Control.Monad.Reader (asks)
 import Control.Monad.STM
 import Data.Aeson (Value (..), decodeStrict')
 import Data.ByteString (ByteString)
@@ -57,9 +61,9 @@ import Data.Maybe
 import Data.Traversable
 import Data.Word
 import GHC.Stack
-import Network.HTTP.Client qualified as HTTP
-import Network.HTTP.Client qualified as Http
-import Network.WebSockets qualified as WS
+import qualified Network.HTTP.Client as HTTP
+import qualified Network.HTTP.Client as Http
+import qualified Network.WebSockets as WS
 import System.Random (randomIO)
 import System.Timeout (timeout)
 import Testlib.App
@@ -69,6 +73,7 @@ import Testlib.HTTP
 import Testlib.JSON
 import Testlib.Printing
 import Testlib.Types
+import UnliftIO (withRunInIO)
 import Prelude
 
 data WebSocket = WebSocket
@@ -278,7 +283,7 @@ printAwaitResult = prettyAwaitResult >=> liftIO . putStrLn
 printAwaitAtLeastResult :: AwaitAtLeastResult -> App ()
 printAwaitAtLeastResult = prettyAwaitAtLeastResult >=> liftIO . putStrLn
 
-awaitAnyEvent :: MonadIO m => Int -> WebSocket -> m (Maybe Value)
+awaitAnyEvent :: Int -> WebSocket -> App (Maybe Value)
 awaitAnyEvent tSecs = liftIO . timeout (tSecs * 1000 * 1000) . atomically . readTChan . wsChan
 
 -- | 'await' an expected number of notification events on the websocket that
@@ -291,13 +296,11 @@ awaitNMatchesResult ::
   HasCallStack =>
   -- | Number of matches
   Int ->
-  -- | Timeout in seconds
-  Int ->
   -- | Selection function. Exceptions are *not* caught.
   (Value -> App Bool) ->
   WebSocket ->
   App AwaitResult
-awaitNMatchesResult nExpected tSecs checkMatch ws = go nExpected [] []
+awaitNMatchesResult nExpected checkMatch ws = go nExpected [] []
   where
     go 0 nonMatches matches = do
       refill nonMatches
@@ -309,6 +312,7 @@ awaitNMatchesResult nExpected tSecs checkMatch ws = go nExpected [] []
             nonMatches = reverse nonMatches
           }
     go nLeft nonMatches matches = do
+      tSecs <- asks timeOutSeconds
       mEvent <- awaitAnyEvent tSecs ws
       case mEvent of
         Just event ->
@@ -332,15 +336,14 @@ awaitAtLeastNMatchesResult ::
   HasCallStack =>
   -- | Minimum number of matches
   Int ->
-  -- | Timeout in seconds
-  Int ->
   -- | Selection function. Exceptions are *not* caught.
   (Value -> App Bool) ->
   WebSocket ->
   App AwaitAtLeastResult
-awaitAtLeastNMatchesResult nExpected tSecs checkMatch ws = go 0 [] []
+awaitAtLeastNMatchesResult nExpected checkMatch ws = go 0 [] []
   where
     go nSeen nonMatches matches = do
+      tSecs <- asks timeOutSeconds
       mEvent <- awaitAnyEvent tSecs ws
       case mEvent of
         Just event ->
@@ -367,15 +370,14 @@ awaitNToMMatchesResult ::
   Int ->
   -- | Maximum number of matches
   Int ->
-  -- | Timeout in seconds
-  Int ->
   -- | Selection function. Exceptions are *not* caught.
   (Value -> App Bool) ->
   WebSocket ->
   App AwaitAtLeastResult
-awaitNToMMatchesResult nMin nMax tSecs checkMatch ws = go 0 [] []
+awaitNToMMatchesResult nMin nMax checkMatch ws = go 0 [] []
   where
     go nSeen nonMatches matches = do
+      tSecs <- asks timeOutSeconds
       mEvent <- awaitAnyEvent tSecs ws
       case mEvent of
         Just event ->
@@ -400,14 +402,12 @@ awaitNMatches ::
   HasCallStack =>
   -- | Number of matches
   Int ->
-  -- | Timeout in seconds
-  Int ->
   -- | Selection function. Should not throw any exceptions
   (Value -> App Bool) ->
   WebSocket ->
   App [Value]
-awaitNMatches nExpected tSecs checkMatch ws = do
-  res <- awaitNMatchesResult nExpected tSecs checkMatch ws
+awaitNMatches nExpected checkMatch ws = do
+  res <- awaitNMatchesResult nExpected checkMatch ws
   assertAwaitResult res
 
 assertAwaitResult :: HasCallStack => AwaitResult -> App [Value]
@@ -423,14 +423,12 @@ awaitAtLeastNMatches ::
   HasCallStack =>
   -- | Minumum number of matches
   Int ->
-  -- | Timeout in seconds
-  Int ->
   -- | Selection function. Should not throw any exceptions
   (Value -> App Bool) ->
   WebSocket ->
   App [Value]
-awaitAtLeastNMatches nExpected tSecs checkMatch ws = do
-  res <- awaitAtLeastNMatchesResult nExpected tSecs checkMatch ws
+awaitAtLeastNMatches nExpected checkMatch ws = do
+  res <- awaitAtLeastNMatchesResult nExpected checkMatch ws
   if res.success
     then pure res.matches
     else do
@@ -444,14 +442,12 @@ awaitNToMMatches ::
   Int ->
   -- | Maximum Number of matches
   Int ->
-  -- | Timeout in seconds
-  Int ->
   -- | Selection function. Should not throw any exceptions
   (Value -> App Bool) ->
   WebSocket ->
   App [Value]
-awaitNToMMatches nMin nMax tSecs checkMatch ws = do
-  res <- awaitNToMMatchesResult nMin nMax tSecs checkMatch ws
+awaitNToMMatches nMin nMax checkMatch ws = do
+  res <- awaitNToMMatchesResult nMin nMax checkMatch ws
   if res.success
     then pure res.matches
     else do
@@ -461,15 +457,27 @@ awaitNToMMatches nMin nMax tSecs checkMatch ws = do
 
 awaitMatch ::
   HasCallStack =>
-  -- | Timeout in seconds
-  Int ->
   -- | Selection function. Should not throw any exceptions
   (Value -> App Bool) ->
   WebSocket ->
   App Value
-awaitMatch tSecs checkMatch ws = head <$> awaitNMatches 1 tSecs checkMatch ws
+awaitMatch checkMatch ws = head <$> awaitNMatches 1 checkMatch ws
 
 nPayload :: MakesValue a => a -> App Value
 nPayload event = do
   payloads <- event %. "payload" & asList
   assertOne payloads
+
+-- | waits for an http response to satisfy a predicate
+waitForResponse :: HasCallStack => App Response -> (Response -> App r) -> App r
+waitForResponse act p = do
+  tSecs <- asks timeOutSeconds
+  r <- withRunInIO \inIO ->
+    timeout (1000 * 1000 * tSecs) do
+      let go = do
+            inIO (bindResponse act p) `E.catch` \(_ :: AssertionFailure) -> do
+              threadDelay 1000
+              go
+      go
+  let err = unwords ["Expected event didn't come true after", show tSecs, "seconds"]
+  maybe (assertFailure err) pure r

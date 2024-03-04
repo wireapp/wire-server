@@ -14,6 +14,7 @@
 , base
 , base64-bytestring
 , bilge
+, binary
 , brig-types
 , bytestring
 , bytestring-conversion
@@ -26,11 +27,11 @@
 , conduit
 , containers
 , cookie
-, cryptonite
+, crypton
+, crypton-x509
 , currency-codes
 , data-default
 , data-timeout
-, directory
 , either
 , enclosed-exceptions
 , errors
@@ -42,9 +43,9 @@
 , galley-types
 , gitignoreSource
 , gundeck-types
-, hex
 , HsOpenSSL
 , hspec
+, http-api-data
 , http-client
 , http-client-openssl
 , http-client-tls
@@ -90,6 +91,7 @@
 , streaming-commons
 , tagged
 , tasty
+, tasty-ant-xml
 , tasty-cannon
 , tasty-hunit
 , tasty-quickcheck
@@ -120,7 +122,7 @@
 , warp-tls
 , wire-api
 , wire-api-federation
-, x509
+, wire-subsystems
 , yaml
 }:
 mkDerivation {
@@ -149,9 +151,9 @@ mkDerivation {
     cereal
     comonad
     containers
-    cryptonite
+    crypton
+    crypton-x509
     currency-codes
-    data-default
     data-timeout
     either
     enclosed-exceptions
@@ -173,6 +175,7 @@ mkDerivation {
     metrics-core
     metrics-wai
     mtl
+    optparse-applicative
     pem
     polysemy
     polysemy-wire-zoo
@@ -212,7 +215,7 @@ mkDerivation {
     wai-utilities
     wire-api
     wire-api-federation
-    x509
+    wire-subsystems
   ];
   executableHaskellDepends = [
     aeson
@@ -221,6 +224,7 @@ mkDerivation {
     base
     base64-bytestring
     bilge
+    binary
     brig-types
     bytestring
     bytestring-conversion
@@ -232,11 +236,9 @@ mkDerivation {
     conduit
     containers
     cookie
-    cryptonite
     currency-codes
     data-default
     data-timeout
-    directory
     errors
     exceptions
     extended
@@ -244,9 +246,9 @@ mkDerivation {
     federator
     filepath
     galley-types
-    hex
     HsOpenSSL
     hspec
+    http-api-data
     http-client
     http-client-openssl
     http-client-tls
@@ -269,7 +271,6 @@ mkDerivation {
     QuickCheck
     quickcheck-instances
     random
-    raw-strings-qq
     retry
     saml2-web-sso
     schema-profunctor
@@ -282,6 +283,7 @@ mkDerivation {
     streaming-commons
     tagged
     tasty
+    tasty-ant-xml
     tasty-cannon
     tasty-hunit
     temporary

@@ -17,32 +17,29 @@
 
 module Wire.API.MLS.Group where
 
-import Crypto.Hash qualified as Crypto
 import Data.Aeson qualified as A
-import Data.ByteArray (convert)
-import Data.ByteString.Conversion
-import Data.Id
 import Data.Json.Util
-import Data.Qualified
+import Data.OpenApi qualified as S
 import Data.Schema
-import Data.Swagger qualified as S
 import Imports
+import Servant
 import Wire.API.MLS.Serialisation
 import Wire.Arbitrary
 
 newtype GroupId = GroupId {unGroupId :: ByteString}
-  deriving (Eq, Show, Generic)
+  deriving (Eq, Show, Generic, Ord)
   deriving (Arbitrary) via (GenericUniform GroupId)
+  deriving (FromHttpApiData, ToHttpApiData, S.ToParamSchema) via Base64ByteString
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema GroupId)
 
 instance IsString GroupId where
   fromString = GroupId . fromString
 
 instance ParseMLS GroupId where
-  parseMLS = GroupId <$> parseMLSBytes @Word8
+  parseMLS = GroupId <$> parseMLSBytes @VarInt
 
 instance SerialiseMLS GroupId where
-  serialiseMLS (GroupId gid) = serialiseMLSBytes @Word8 gid
+  serialiseMLS (GroupId gid) = serialiseMLSBytes @VarInt gid
 
 instance ToSchema GroupId where
   schema =
@@ -50,9 +47,6 @@ instance ToSchema GroupId where
       <$> unGroupId
         .= named "GroupId" (Base64ByteString .= fmap fromBase64ByteString (unnamed schema))
 
--- | Return the group ID associated to a conversation ID. Note that is not
--- assumed to be stable over time or even consistent among different backends.
-convToGroupId :: Local ConvId -> GroupId
-convToGroupId (tUntagged -> qcnv) =
-  GroupId . convert . Crypto.hash @ByteString @Crypto.SHA256 $
-    toByteString' (qUnqualified qcnv) <> toByteString' (qDomain qcnv)
+newtype GroupIdGen = GroupIdGen {unGroupIdGen :: Word32}
+  deriving (Eq, Show, Generic, Ord)
+  deriving (Arbitrary) via (GenericUniform GroupIdGen)

@@ -23,7 +23,6 @@ module Galley.Effects
     BotAccess,
     BrigAccess,
     FederatorAccess,
-    GundeckAccess,
     SparAccess,
 
     -- * External services
@@ -39,8 +38,10 @@ module Galley.Effects
     CustomBackendStore,
     LegalHoldStore,
     MemberStore,
+    ProposalStore,
     SearchVisibilityStore,
     ServiceStore,
+    SubConversationStore,
     TeamFeatureStore,
     TeamMemberStore,
     TeamNotificationStore,
@@ -56,6 +57,9 @@ module Galley.Effects
     -- * Polysemy re-exports
     Member,
     Members,
+
+    -- * Queueing effects
+    BackendNotificationQueueAccess,
   )
 where
 
@@ -69,11 +73,9 @@ import Galley.Effects.ClientStore
 import Galley.Effects.CodeStore
 import Galley.Effects.ConversationStore
 import Galley.Effects.CustomBackendStore
-import Galley.Effects.DefederationNotifications
 import Galley.Effects.ExternalAccess
 import Galley.Effects.FederatorAccess
 import Galley.Effects.FireAndForget
-import Galley.Effects.GundeckAccess
 import Galley.Effects.LegalHoldStore
 import Galley.Effects.ListItems
 import Galley.Effects.MemberStore
@@ -82,6 +84,7 @@ import Galley.Effects.Queue
 import Galley.Effects.SearchVisibilityStore
 import Galley.Effects.ServiceStore
 import Galley.Effects.SparAccess
+import Galley.Effects.SubConversationStore
 import Galley.Effects.TeamFeatureStore
 import Galley.Effects.TeamMemberStore
 import Galley.Effects.TeamNotificationStore
@@ -94,14 +97,19 @@ import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog
 import Wire.API.Error
+import Wire.GundeckAPIAccess
+import Wire.NotificationSubsystem
+import Wire.Rpc
 import Wire.Sem.Paging.Cassandra
+import Wire.Sem.Random
 
 -- All the possible high-level effects.
 type GalleyEffects1 =
   '[ BrigAccess,
      SparAccess,
-     DefederationNotifications,
-     GundeckAccess,
+     NotificationSubsystem,
+     GundeckAPIAccess,
+     Rpc,
      ExternalAccess,
      FederatorAccess,
      BackendNotificationQueueAccess,
@@ -111,6 +119,8 @@ type GalleyEffects1 =
      CodeStore,
      ProposalStore,
      ConversationStore,
+     SubConversationStore,
+     Random,
      CustomBackendStore,
      LegalHoldStore,
      MemberStore,

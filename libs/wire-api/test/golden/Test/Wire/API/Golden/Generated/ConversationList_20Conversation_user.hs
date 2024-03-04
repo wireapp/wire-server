@@ -42,7 +42,7 @@ testObject_ConversationList_20Conversation_user_1 =
               cnvMetadata =
                 ConversationMetadata
                   { cnvmType = RegularConv,
-                    cnvmCreator = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001")),
+                    cnvmCreator = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001"))),
                     cnvmAccess = [],
                     cnvmAccessRoles = Set.empty,
                     cnvmName = Just "",

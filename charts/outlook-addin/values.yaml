@@ -1,0 +1,22 @@
+# Default values for outlook-addin
+#
+#
+containerImage: "quay.io/wire/outlook-addin:0.1.9"
+
+config:
+  ingressClass: nginx
+
+# host: "outlook.example.com"
+# wireApiBaseUrl: "https://nginz-https.example.com"
+# wireAuthorizationEndpoint: "https://webapp.example.com/auth"
+# whitelisting for CORS
+# allowOrigin: "https://webapp.example.com, https://nginz-https.example.com"
+tls: {}
+# {key,crt} and issuerRef are mutally exclusive
+  # key:
+  # crt:
+  # issuerRef:
+  #   name: letsencrypt-http01
+
+# clientId is obtained after registering outlook service with wire OAuth, more details in README
+# clientId: ""

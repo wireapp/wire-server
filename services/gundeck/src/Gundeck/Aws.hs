@@ -64,6 +64,7 @@ import Amazonka.SNS.Lens qualified as SNS
 import Amazonka.SQS qualified as SQS
 import Amazonka.SQS.Lens qualified as SQS
 import Amazonka.SQS.Types
+import Control.Category ((>>>))
 import Control.Error hiding (err, isRight)
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch
@@ -164,8 +165,9 @@ mkEnv lgr opts mgr = do
     mkAwsEnv g sqs sns = do
       baseEnv <-
         AWS.newEnv AWS.discover
-          <&> AWS.configureService sqs
-          <&> AWS.configureService (sns & set AWS.service_timeout (Just (AWS.Seconds 5)))
+          <&> do
+            AWS.configureService sqs
+              >>> AWS.configureService (sns & set AWS.service_timeout (Just (AWS.Seconds 5)))
       pure $
         baseEnv
           { AWS.logger = awsLogger g,
@@ -489,10 +491,18 @@ listen throttleMillis callback = do
 --------------------------------------------------------------------------------
 -- Utilities
 
-sendCatch :: AWSRequest r => AWS.Env -> r -> Amazon (Either AWS.Error (AWSResponse r))
+sendCatch ::
+  (AWSRequest r, Typeable r, Typeable (AWSResponse r)) =>
+  AWS.Env ->
+  r ->
+  Amazon (Either AWS.Error (AWSResponse r))
 sendCatch env = AWS.trying AWS._Error . AWS.send env
 
-send :: AWSRequest r => AWS.Env -> r -> Amazon (AWSResponse r)
+send ::
+  (AWSRequest r, Typeable r, Typeable (AWSResponse r)) =>
+  AWS.Env ->
+  r ->
+  Amazon (AWSResponse r)
 send env r = either (throwM . GeneralError) pure =<< sendCatch env r
 
 is :: AWS.Abbrev -> Int -> AWS.Error -> Bool

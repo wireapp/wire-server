@@ -20,11 +20,11 @@
 , cassandra-util
 , containers
 , criterion
-, data-default
 , errors
 , exceptions
 , extended
 , extra
+, foldl
 , gitignoreSource
 , gundeck-types
 , hedis
@@ -59,6 +59,7 @@
 , servant-server
 , tagged
 , tasty
+, tasty-ant-xml
 , tasty-hunit
 , tasty-quickcheck
 , text
@@ -101,11 +102,11 @@ mkDerivation {
     bytestring-conversion
     cassandra-util
     containers
-    data-default
     errors
     exceptions
     extended
     extra
+    foldl
     gundeck-types
     hedis
     http-client
@@ -119,6 +120,7 @@ mkDerivation {
     mtl
     network-uri
     psqueues
+    raw-strings-qq
     resourcet
     retry
     safe-exceptions
@@ -152,7 +154,6 @@ mkDerivation {
     cassandra-util
     containers
     exceptions
-    extended
     gundeck-types
     HsOpenSSL
     http-client
@@ -166,11 +167,11 @@ mkDerivation {
     network-uri
     optparse-applicative
     random
-    raw-strings-qq
     retry
     safe
     tagged
     tasty
+    tasty-ant-xml
     tasty-hunit
     text
     tinylog
@@ -185,8 +186,10 @@ mkDerivation {
     aeson
     aeson-pretty
     amazonka
+    amazonka-core
     async
     base
+    bytestring-conversion
     containers
     exceptions
     gundeck-types

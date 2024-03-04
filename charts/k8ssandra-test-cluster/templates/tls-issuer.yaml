@@ -1,0 +1,9 @@
+{{- if .Values.client_encryption_options.enabled }}
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: ca-issuer
+  namespace: {{ .Release.Namespace }}
+spec:
+  selfSigned: {}
+{{- end }}

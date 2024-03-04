@@ -123,9 +123,7 @@ mkEnv lgr opts emailOpts mgr = do
     mkAwsEnv g ses dyn sqs = do
       baseEnv <-
         AWS.newEnv AWS.discover
-          <&> maybe id AWS.configureService ses
-          <&> maybe id AWS.configureService dyn
-          <&> AWS.configureService sqs
+          <&> AWS.configureService sqs . maybe id AWS.configureService dyn . maybe id AWS.configureService ses
       pure $
         baseEnv
           { AWS.logger = awsLogger g,
@@ -230,26 +228,34 @@ sendMail m = do
             ^. AWS.serviceError_status
             == status400
             && "Invalid domain name"
-            `Text.isPrefixOf` AWS.toText (se ^. AWS.serviceError_code) ->
+              `Text.isPrefixOf` AWS.toText (se ^. AWS.serviceError_code) ->
             throwM SESInvalidDomain
       _ -> throwM (GeneralError x)
 
 --------------------------------------------------------------------------------
 -- Utilities
 
-sendCatch :: AWSRequest r => r -> Amazon (Either AWS.Error (AWSResponse r))
+sendCatch :: (AWSRequest r, Typeable r, Typeable (AWSResponse r)) => r -> Amazon (Either AWS.Error (AWSResponse r))
 sendCatch req = do
   env <- view amazonkaEnv
   AWS.trying AWS._Error . AWS.send env $ req
 
-send :: AWSRequest r => r -> Amazon (AWSResponse r)
+send ::
+  (AWSRequest r, Typeable r, Typeable (AWSResponse r)) =>
+  r ->
+  Amazon (AWSResponse r)
 send r = throwA =<< sendCatch r
 
 throwA :: Either AWS.Error a -> Amazon a
 throwA = either (throwM . GeneralError) pure
 
 execCatch ::
-  (AWSRequest a, MonadUnliftIO m, MonadCatch m) =>
+  ( AWSRequest a,
+    Typeable a,
+    MonadUnliftIO m,
+    Typeable (AWSResponse a),
+    MonadCatch m
+  ) =>
   AWS.Env ->
   a ->
   m (Either AWS.Error (AWSResponse a))
@@ -259,7 +265,12 @@ execCatch e cmd =
       AWS.send e cmd
 
 exec ::
-  (AWSRequest a, MonadCatch m, MonadIO m) =>
+  ( AWSRequest a,
+    Typeable a,
+    Typeable (AWSResponse a),
+    MonadCatch m,
+    MonadIO m
+  ) =>
   AWS.Env ->
   a ->
   m (AWSResponse a)
