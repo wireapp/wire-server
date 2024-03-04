@@ -1,5 +1,7 @@
 # Classified Domains
 
+(classified-domains)=
+
 As a backend administrator, if you want to control which other backends (identified by their domain) are "classified",
 
 change the following `galley` configuration in the `value.yaml.gotmpl` file of the wire-server chart:
@@ -14,10 +16,20 @@ galley:
       classifiedDomains:
         status: enabled
         config:
-          domains: ["domain-that-is-classified.link"]
+          domains: ["domain-that-is-classified.link", "some-other-classified-domain.link"]
           ...
 ```
-Note: This is only a `backend` level configuration option, the `team` configuration mentioned below only exists for technical reasons and is not actually accessible in any way.
+
+```{note}
+Note that when enabling this feature, it is important to provide your own domain too in the list of domains. 
+
+In the example above, "domain-that-is-classified.link" and "some-other-classified-domain.link" are your domains.
+
+This is not only a `backend` configuration, but also a `team` configuration/feature.
+
+This means that different combinations of configurations will have different results.
+```
+
 
 Here is a table to navigate the possible configurations:
 
@@ -36,4 +48,11 @@ The table assumes the following:
 - When backend level config says that this feature is disabled, the list of domains is ignored.
 - When team level feature is disabled, the accompanying domains are ignored.
 
-**Note:** When enabling this feature, it is important to provide your own domain in the list of domains, too. In the example above, `example.com` is your domain.
+To disable, either omit the entry entirely (it is disabled by default), or provide the following:
+
+```yaml
+  classifiedDomains:
+    status: disabled
+    config:
+      domains: []
+```
