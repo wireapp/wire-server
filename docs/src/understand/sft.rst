@@ -215,7 +215,7 @@ They are listening on the following ports:
 
 * `3478` for `UDP`
 * `3478` for `TCP`
-* `5349` for `TLS`
+* `5349` for `TCP with TLS`
 
 For conference calls the call configuration also contains `URL`s to `SFT` servers.
 
