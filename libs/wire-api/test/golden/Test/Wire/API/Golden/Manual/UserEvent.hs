@@ -157,23 +157,22 @@ testObject_UserEvent_12 =
 testObject_UserEvent_13 :: Event
 testObject_UserEvent_13 =
   PropertyEvent
-    ( PropertySet alice.userId (PropertyKey "a") (toJSON (39 :: Int))
+    ( PropertySet (PropertyKey "a") (toJSON (39 :: Int))
     )
 
 testObject_UserEvent_14 :: Event
 testObject_UserEvent_14 =
   PropertyEvent
-    ( PropertyDeleted alice.userId (PropertyKey "a")
+    ( PropertyDeleted (PropertyKey "a")
     )
 
 testObject_UserEvent_15 :: Event
-testObject_UserEvent_15 = PropertyEvent (PropertiesCleared alice.userId)
+testObject_UserEvent_15 = PropertyEvent PropertiesCleared
 
 testObject_UserEvent_16 :: Event
 testObject_UserEvent_16 =
   ClientEvent
     ( ClientAdded
-        alice.userId
         ( Client
             (ClientId 2839)
             PermanentClientType
@@ -189,7 +188,7 @@ testObject_UserEvent_16 =
     )
 
 testObject_UserEvent_17 :: Event
-testObject_UserEvent_17 = ClientEvent (ClientRemoved alice.userId (ClientId 2839))
+testObject_UserEvent_17 = ClientEvent (ClientRemoved (ClientId 2839))
 
 --------------------------------------------------------------------------------
 

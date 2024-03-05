@@ -63,7 +63,7 @@ onEvent ::
 onEvent n = handleTimeout $ case n of
   DeleteClient clientId uid mcon -> do
     rmClient uid clientId
-    Intra.onClientEvent uid mcon (ClientRemoved uid clientId)
+    Intra.onClientEvent uid mcon (ClientRemoved clientId)
   DeleteUser uid -> do
     Log.info $
       msg (val "Processing user delete event")

@@ -487,26 +487,6 @@ requestLegalHoldDevice' g zusr uid tid = do
 ----------------------------------------------------------------------
 -- test helpers
 
-deriving instance Show Ev.Event
-
-deriving instance Show Ev.UserEvent
-
-deriving instance Show Ev.ClientEvent
-
-deriving instance Show Ev.PropertyEvent
-
-deriving instance Show Ev.ConnectionEvent
-
--- (partial implementation, just good enough to make the tests work)
-instance FromJSON Ev.Event where
-  parseJSON ev = flip (withObject "Ev.Event") ev $ \o -> do
-    typ :: Text <- o .: "type"
-    if
-        | typ `elem` ["user.legalhold-request", "user.legalhold-enable", "user.legalhold-disable"] -> Ev.UserEvent <$> Aeson.parseJSON ev
-        | typ `elem` ["user.client-add", "user.client-remove"] -> Ev.ClientEvent <$> Aeson.parseJSON ev
-        | typ == "user.connection" -> Ev.ConnectionEvent <$> Aeson.parseJSON ev
-        | otherwise -> fail $ "Ev.Event: unsupported event type: " <> show typ
-
 -- (partial implementation, just good enough to make the tests work)
 instance FromJSON Ev.UserEvent where
   parseJSON = withObject "Ev.UserEvent" $ \o -> do
@@ -528,11 +508,9 @@ instance FromJSON Ev.ClientEvent where
   parseJSON = withObject "Ev.ClientEvent" $ \o -> do
     tag :: Text <- o .: "type"
     case tag of
-      "user.client-add" -> Ev.ClientAdded fakeuid <$> o .: "client"
-      "user.client-remove" -> Ev.ClientRemoved fakeuid <$> (o .: "client" >>= withObject "id" (.: "id"))
+      "user.client-add" -> Ev.ClientAdded <$> o .: "client"
+      "user.client-remove" -> Ev.ClientRemoved <$> (o .: "client" >>= withObject "id" (.: "id"))
       x -> fail $ "Ev.ClientEvent: unsupported event type: " ++ show x
-    where
-      fakeuid = read @UserId "6980fb5e-ba64-11eb-a339-0b3625bf01be"
 
 instance FromJSON Ev.ConnectionEvent where
   parseJSON = Aeson.withObject "ConnectionEvent" $ \o -> do

@@ -57,11 +57,11 @@ eventType (UserEvent (UserLegalHoldDisabled _)) = EventTypeUserLegalholdDisabled
 eventType (UserEvent (UserLegalHoldEnabled _)) = EventTypeUserLegalholdEnabled
 eventType (UserEvent (LegalHoldClientRequested _)) = EventTypeUserLegalholdRequested
 eventType (ConnectionEvent _) = EventTypeConnection
-eventType (PropertyEvent (PropertySet _ _ _)) = EventTypePropertiesSet
-eventType (PropertyEvent (PropertyDeleted _ _)) = EventTypePropertiesDeleted
-eventType (PropertyEvent (PropertiesCleared _)) = EventTypePropertiesCleared
-eventType (ClientEvent (ClientAdded _ _)) = EventTypeClientAdded
-eventType (ClientEvent (ClientRemoved _ _)) = EventTypeClientRemoved
+eventType (PropertyEvent (PropertySet _ _)) = EventTypePropertiesSet
+eventType (PropertyEvent (PropertyDeleted _)) = EventTypePropertiesDeleted
+eventType (PropertyEvent PropertiesCleared) = EventTypePropertiesCleared
+eventType (ClientEvent (ClientAdded _)) = EventTypeClientAdded
+eventType (ClientEvent (ClientRemoved _)) = EventTypeClientRemoved
 
 data EventType
   = EventTypeUserCreated
@@ -95,7 +95,7 @@ instance ToSchema EventType where
           element "user.delete" EventTypeUserDeleted,
           element "user.legalhold-enable" EventTypeUserLegalholdEnabled,
           element "user.legalhold-disable" EventTypeUserLegalholdDisabled,
-          element "user.legalhold-requested" EventTypeUserLegalholdRequested,
+          element "user.legalhold-request" EventTypeUserLegalholdRequested,
           element "user.properties-set" EventTypePropertiesSet,
           element "user.properties-delete" EventTypePropertiesDeleted,
           element "user.properties-clear" EventTypePropertiesCleared,
@@ -131,14 +131,14 @@ data ConnectionEvent = ConnectionUpdated
   deriving stock (Eq, Show)
 
 data PropertyEvent
-  = PropertySet !UserId !PropertyKey !A.Value
-  | PropertyDeleted !UserId !PropertyKey
-  | PropertiesCleared !UserId
+  = PropertySet !PropertyKey !A.Value
+  | PropertyDeleted !PropertyKey
+  | PropertiesCleared
   deriving stock (Eq, Show)
 
 data ClientEvent
-  = ClientAdded !UserId !Client
-  | ClientRemoved !UserId !ClientId
+  = ClientAdded !Client
+  | ClientRemoved !ClientId
   deriving stock (Eq, Show)
 
 data UserUpdatedData = UserUpdatedData
@@ -264,30 +264,42 @@ eventObjectSchema =
               _UserEvent
               ( tag
                   _UserUpdated
-                  ( UserUpdatedData
-                      <$> eupId .= field "id" schema
-                      <*> eupName .= maybe_ (optField "name" schema)
-                      <*> eupPict .= maybe_ (optField "picture" schema) -- DEPRECATED
-                      <*> eupAccentId .= maybe_ (optField "accent_id" schema)
-                      <*> eupAssets .= maybe_ (optField "assets" (array schema))
-                      <*> eupHandle .= maybe_ (optField "handle" schema)
-                      <*> eupLocale .= maybe_ (optField "locale" schema)
-                      <*> eupManagedBy .= maybe_ (optField "managed_by" schema)
-                      <*> eupSSOId .= maybe_ (optField "sso_id" genericToSchema)
-                      <*> eupSSOIdRemoved .= field "sso_id_deleted" schema
-                      <*> eupSupportedProtocols
-                        .= maybe_
-                          ( optField
-                              "supported_protocols"
-                              (set schema)
+                  ( field
+                      "user"
+                      ( object
+                          "UserUpdatedData"
+                          ( UserUpdatedData
+                              <$> eupId .= field "id" schema
+                              <*> eupName .= maybe_ (optField "name" schema)
+                              <*> eupPict .= maybe_ (optField "picture" schema) -- DEPRECATED
+                              <*> eupAccentId .= maybe_ (optField "accent_id" schema)
+                              <*> eupAssets .= maybe_ (optField "assets" (array schema))
+                              <*> eupHandle .= maybe_ (optField "handle" schema)
+                              <*> eupLocale .= maybe_ (optField "locale" schema)
+                              <*> eupManagedBy .= maybe_ (optField "managed_by" schema)
+                              <*> eupSSOId .= maybe_ (optField "sso_id" genericToSchema)
+                              <*> eupSSOIdRemoved .= field "sso_id_deleted" schema
+                              <*> eupSupportedProtocols
+                                .= maybe_
+                                  ( optField
+                                      "supported_protocols"
+                                      (set schema)
+                                  )
                           )
+                      )
                   )
                   <|> tag
                     _UserIdentityUpdated
-                    ( UserIdentityUpdatedData
-                        <$> eiuId .= field "id" schema
-                        <*> eiuEmail .= maybe_ (optField "email" schema)
-                        <*> eiuPhone .= maybe_ (optField "phone" schema)
+                    ( field
+                        "user"
+                        ( object
+                            "UserIdentityUpdatedData"
+                            ( UserIdentityUpdatedData
+                                <$> eiuId .= field "id" schema
+                                <*> eiuEmail .= maybe_ (optField "email" schema)
+                                <*> eiuPhone .= maybe_ (optField "phone" schema)
+                            )
+                        )
                     )
               )
           EventTypeUserIdentityRemoved ->
@@ -295,15 +307,29 @@ eventObjectSchema =
               _UserEvent
               ( tag
                   _UserIdentityRemoved
-                  ( UserIdentityRemovedData
-                      <$> eirId .= field "id" schema
-                      <*> eirEmail .= maybe_ (optField "email" schema)
-                      <*> eirPhone .= maybe_ (optField "phone" schema)
+                  ( field
+                      "user"
+                      ( object
+                          "UserIdentityRemovedData"
+                          ( UserIdentityRemovedData
+                              <$> eirId .= field "id" schema
+                              <*> eirEmail .= maybe_ (optField "email" schema)
+                              <*> eirPhone .= maybe_ (optField "phone" schema)
+                          )
+                      )
                   )
               )
           EventTypeUserSuspended -> tag _UserEvent (tag _UserSuspended (field "id" schema))
           EventTypeUserResumed -> tag _UserEvent (tag _UserResumed (field "id" schema))
-          EventTypeUserDeleted -> tag _UserEvent (tag _UserDeleted (field "id" schema))
+          EventTypeUserDeleted ->
+            tag
+              _UserEvent
+              ( tag
+                  _UserDeleted
+                  ( field "qualified_id" schema
+                      <* qUnqualified .= field "id" schema
+                  )
+              )
           EventTypeUserLegalholdEnabled ->
             tag
               _UserEvent
@@ -322,7 +348,7 @@ eventObjectSchema =
                   ( LegalHoldClientRequestedData
                       <$> lhcTargetUser .= field "id" schema
                       <*> lhcLastPrekey .= field "last_prekey" schema
-                      <*> lhcClientId .= field "client" schema
+                      <*> lhcClientId .= field "client" (idObjectSchema schema)
                   )
               )
           EventTypePropertiesSet ->
@@ -330,11 +356,9 @@ eventObjectSchema =
               _PropertyEvent
               ( tag
                   _PropertySet
-                  ( (,,)
-                      <$> (\(x, _, _) -> x) .= field "id" schema
-                      <*> (\(_, x, _) -> x) .= field "key" genericToSchema
-                      <*> (\(_, _, x) -> x)
-                        .= field "value" jsonValue
+                  ( (,)
+                      <$> fst .= field "key" genericToSchema
+                      <*> snd .= field "value" jsonValue
                   )
               )
           EventTypePropertiesDeleted ->
@@ -342,37 +366,28 @@ eventObjectSchema =
               _PropertyEvent
               ( tag
                   _PropertyDeleted
-                  ( (,)
-                      <$> fst .= field "id" schema
-                      <*> snd .= field "key" genericToSchema
-                  )
+                  (field "key" genericToSchema)
               )
           EventTypePropertiesCleared ->
             tag
               _PropertyEvent
               ( tag
                   _PropertiesCleared
-                  (field "id" schema)
+                  (pure ())
               )
           EventTypeClientAdded ->
             tag
               _ClientEvent
               ( tag
                   _ClientAdded
-                  ( (,)
-                      <$> fst .= field "id" schema
-                      <*> snd .= field "client" schema
-                  )
+                  (field "client" schema)
               )
           EventTypeClientRemoved ->
             tag
               _ClientEvent
               ( tag
                   _ClientRemoved
-                  ( (,)
-                      <$> fst .= field "id" schema
-                      <*> snd .= field "client" schema
-                  )
+                  (field "client" (idObjectSchema schema))
               )
           EventTypeConnection ->
             tag
@@ -404,11 +419,6 @@ deriving via (Schema Event) instance A.FromJSON Event
 connEventUserId :: ConnectionEvent -> UserId
 connEventUserId ConnectionUpdated {..} = ucFrom ucConn
 
-propEventUserId :: PropertyEvent -> UserId
-propEventUserId (PropertySet u _ _) = u
-propEventUserId (PropertyDeleted u _) = u
-propEventUserId (PropertiesCleared u) = u
-
 instance ToBytes Event where
   bytes (UserEvent e) = bytes e
   bytes (ConnectionEvent e) = bytes e
@@ -432,10 +442,10 @@ instance ToBytes ConnectionEvent where
   bytes e@ConnectionUpdated {} = val "user.connection: " +++ toByteString (connEventUserId e)
 
 instance ToBytes PropertyEvent where
-  bytes e@PropertySet {} = val "user.properties-set: " +++ toByteString (propEventUserId e)
-  bytes e@PropertyDeleted {} = val "user.properties-delete: " +++ toByteString (propEventUserId e)
-  bytes e@PropertiesCleared {} = val "user.properties-clear: " +++ toByteString (propEventUserId e)
+  bytes PropertySet {} = val "user.properties-set"
+  bytes PropertyDeleted {} = val "user.properties-delete"
+  bytes PropertiesCleared {} = val "user.properties-clear"
 
 instance ToBytes ClientEvent where
-  bytes (ClientAdded u _) = val "user.client-add: " +++ toByteString u
-  bytes (ClientRemoved u _) = val "user.client-remove: " +++ toByteString u
+  bytes (ClientAdded _) = val "user.client-add"
+  bytes (ClientRemoved _) = val "user.client-remove"

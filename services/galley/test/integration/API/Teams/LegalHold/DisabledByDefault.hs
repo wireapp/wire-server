@@ -237,7 +237,7 @@ testApproveLegalHoldDevice = do
           UserLegalHoldEnabled
           userStatus
       let pluck = \case
-            Ev.ClientAdded _ eClient -> do
+            Ev.ClientAdded eClient -> do
               clientId eClient @?= someClientId
               clientType eClient @?= LegalHoldClientType
               clientClass eClient @?= Just LegalHoldClient
@@ -316,7 +316,7 @@ testDisableLegalHoldForUser = do
     requestLegalHoldDevice owner member tid !!! testResponse 201 Nothing
     approveLegalHoldDevice (Just defPassword) member member tid !!! testResponse 200 Nothing
     assertNotification mws $ \case
-      Ev.ClientAdded _ client -> do
+      Ev.ClientAdded client -> do
         clientId client @?= someClientId
         clientType client @?= LegalHoldClientType
         clientClass client @?= Just LegalHoldClient
@@ -332,7 +332,7 @@ testDisableLegalHoldForUser = do
       assertEqual "method" "POST" (requestMethod req)
       assertEqual "path" (pathInfo req) ["legalhold", "remove"]
     assertNotification mws $ \case
-      Ev.ClientEvent (Ev.ClientRemoved _ clientId') -> clientId' @?= someClientId
+      Ev.ClientEvent (Ev.ClientRemoved clientId') -> clientId' @?= someClientId
       _ -> assertBool "Unexpected event" False
     assertNotification mws $ \case
       Ev.UserEvent (Ev.UserLegalHoldDisabled uid) -> uid @?= member
