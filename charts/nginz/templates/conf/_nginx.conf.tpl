@@ -125,6 +125,11 @@ http {
       0 "";
   }
 
+  map $rate_limit $rate_limited_by_zuser_path {
+      1 "$zauth_user$uri";
+      0 "";
+  }
+
   map $http_origin $cors_header {
       default "";
     {{ range $origin := .Values.nginx_conf.allowlisted_origins }}
