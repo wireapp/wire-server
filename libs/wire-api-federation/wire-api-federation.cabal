@@ -90,6 +90,7 @@ library
     , bytestring
     , bytestring-conversion
     , containers
+    , dns-util
     , exceptions
     , HsOpenSSL
     , http-media
