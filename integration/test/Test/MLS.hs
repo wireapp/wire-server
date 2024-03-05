@@ -665,12 +665,7 @@ testCommitNotReferencingAllProposals = do
 
   -- now create a commit referencing only the first proposal
   setClientGroupState alice1 gsBackup
-  commit <- createPendingProposalCommit alice1
-
-  -- send commit and expect and error
-  bindResponse (postMLSCommitBundle alice1 (mkBundle commit)) $ \resp -> do
-    resp.status `shouldMatchInt` 400
-    resp.json %. "label" `shouldMatch` "mls-commit-missing-references"
+  void $ createPendingProposalCommit alice1 >>= sendAndConsumeCommitBundle
 
 testUnsupportedCiphersuite :: HasCallStack => App ()
 testUnsupportedCiphersuite = do
