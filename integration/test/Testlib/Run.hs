@@ -39,7 +39,12 @@ runTest ge action = lowerCodensity $ do
   env <- mkEnv ge
   liftIO $
     (Right <$> runAppWithEnv env action)
-      `E.catches` [ E.Handler -- AssertionFailure
+      `E.catches` [ E.Handler $ \(e :: SomeAsyncException) -> do
+                      -- AsyncExceptions need rethrowing
+                      -- to prevent the last handler from handling async exceptions.
+                      -- This ensures things like UserInterrupt are properly handled.
+                      E.throw e,
+                    E.Handler -- AssertionFailure
                       (fmap Left . printFailureDetails),
                     E.Handler
                       (fmap Left . printExceptionDetails)
@@ -143,23 +148,22 @@ runTests tests mXMLOutput cfg = do
   runCodensity (createGlobalEnv cfg) $ \genv ->
     withAsync displayOutput $ \displayThread -> do
       report <- fmap mconcat $ for tests $ \(qname, _, _, action) -> do
-        do
-          (mErr, tm) <- withTime (runTest genv action)
-          case mErr of
-            Left err -> do
-              writeOutput $
-                "----- "
-                  <> qname
-                  <> colored red " FAIL"
-                  <> " ("
-                  <> printTime tm
-                  <> ") -----\n"
-                  <> err
-                  <> "\n"
-              pure (TestSuiteReport [TestCaseReport qname (TestFailure err) tm])
-            Right _ -> do
-              writeOutput $ qname <> colored green " OK" <> " (" <> printTime tm <> ")" <> "\n"
-              pure (TestSuiteReport [TestCaseReport qname TestSuccess tm])
+        (mErr, tm) <- withTime (runTest genv action)
+        case mErr of
+          Left err -> do
+            writeOutput $
+              "----- "
+                <> qname
+                <> colored red " FAIL"
+                <> " ("
+                <> printTime tm
+                <> ") -----\n"
+                <> err
+                <> "\n"
+            pure (TestSuiteReport [TestCaseReport qname (TestFailure err) tm])
+          Right _ -> do
+            writeOutput $ qname <> colored green " OK" <> " (" <> printTime tm <> ")" <> "\n"
+            pure (TestSuiteReport [TestCaseReport qname TestSuccess tm])
       writeChan output Nothing
       wait displayThread
       printReport report
