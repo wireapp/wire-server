@@ -23,7 +23,6 @@ library
     Brig.Types.Team.LegalHold
     Brig.Types.Test.Arbitrary
     Brig.Types.User
-    Brig.Types.User.Event
 
   other-modules:      Paths_brig_types
   hs-source-dirs:     src
@@ -83,11 +82,8 @@ library
     , cassandra-util
     , containers             >=0.5
     , imports
-    , lens
     , QuickCheck             >=2.9
-    , schema-profunctor
     , text                   >=0.11
-    , tinylog
     , types-common           >=0.16
     , wire-api
 

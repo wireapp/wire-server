@@ -11,7 +11,6 @@ import API.Util
 import Bilge hiding (accept, head, timeout, trace)
 import Bilge.Assert
 import Brig.Types.Test.Arbitrary ()
-import Brig.Types.User.Event qualified as Ev
 import Control.Concurrent.Async qualified as Async
 import Control.Concurrent.Chan
 import Control.Concurrent.Timeout hiding (threadDelay)
@@ -61,6 +60,7 @@ import Wire.API.Team.LegalHold.External
 import Wire.API.Team.Member qualified as Team
 import Wire.API.User (UserProfile (..))
 import Wire.API.User.Client
+import Wire.API.UserEvent qualified as Ev
 
 --------------------------------------------------------------------
 -- setup helpers

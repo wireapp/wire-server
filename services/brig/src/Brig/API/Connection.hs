@@ -48,7 +48,6 @@ import Brig.IO.Intra qualified as Intra
 import Brig.IO.Logging
 import Brig.Options
 import Brig.Types.Connection
-import Brig.Types.User.Event
 import Control.Error
 import Control.Lens (view)
 import Control.Monad.Catch (throwM)
@@ -70,6 +69,7 @@ import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
 import Wire.API.Routes.Public.Util (ResponseForExistedCreated (..))
 import Wire.API.User
+import Wire.API.UserEvent
 import Wire.NotificationSubsystem
 
 ensureNotSameTeam :: Member GalleyProvider r => Local UserId -> Local UserId -> (ConnectionM r) ()

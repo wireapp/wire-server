@@ -33,7 +33,7 @@ import Brig.Effects.GalleyProvider
 import Brig.Federation.Client as Federation
 import Brig.IO.Intra qualified as Intra
 import Brig.Options
-import Brig.Types.User.Event
+import Wire.API.UserEvent
 import Control.Comonad
 import Control.Error.Util ((??))
 import Control.Lens (view)

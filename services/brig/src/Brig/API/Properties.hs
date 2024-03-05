@@ -30,12 +30,12 @@ import Brig.App
 import Brig.Data.Properties (PropertiesDataError)
 import Brig.Data.Properties qualified as Data
 import Brig.IO.Intra qualified as Intra
-import Brig.Types.User.Event
 import Control.Error
 import Data.Id
 import Imports
 import Polysemy
 import Wire.API.Properties
+import Wire.API.UserEvent
 import Wire.NotificationSubsystem
 
 setProperty :: (Member NotificationSubsystem r) => UserId -> ConnId -> PropertyKey -> PropertyValue -> ExceptT PropertiesDataError (AppT r) ()

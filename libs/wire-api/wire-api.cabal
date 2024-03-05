@@ -232,6 +232,7 @@ library
     Wire.API.User.Saml
     Wire.API.User.Scim
     Wire.API.User.Search
+    Wire.API.UserEvent
     Wire.API.UserMap
     Wire.API.Util.Aeson
     Wire.API.VersionInfo
@@ -316,6 +317,7 @@ library
     , tagged
     , text                       >=0.11
     , time                       >=1.4
+    , tinylog
     , transitive-anns
     , types-common               >=0.16
     , unordered-containers       >=0.2

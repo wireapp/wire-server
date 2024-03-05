@@ -59,7 +59,6 @@ import Brig.Federation.Client (notifyUserDeleted, sendConnectionAction)
 import Brig.IO.Journal qualified as Journal
 import Brig.IO.Logging
 import Brig.RPC
-import Brig.Types.User.Event
 import Brig.User.Search.Index qualified as Search
 import Control.Error (ExceptT, runExceptT)
 import Control.Lens (view, (.~), (?~), (^.), (^?))
@@ -97,6 +96,7 @@ import Wire.API.Team.LegalHold (LegalholdProtectee)
 import Wire.API.Team.Member qualified as Team
 import Wire.API.User
 import Wire.API.User.Client
+import Wire.API.UserEvent
 import Wire.NotificationSubsystem
 import Wire.Rpc
 import Wire.Sem.Logger qualified as Log

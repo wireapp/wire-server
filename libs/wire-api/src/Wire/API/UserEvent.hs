@@ -18,7 +18,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.Types.User.Event where
+module Wire.API.UserEvent where
 
 import Control.Lens.TH
 import Data.Aeson qualified as A

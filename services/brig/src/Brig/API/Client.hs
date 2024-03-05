@@ -69,7 +69,6 @@ import Brig.Options qualified as Opt
 import Brig.Queue qualified as Queue
 import Brig.Types.Intra
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
-import Brig.Types.User.Event
 import Brig.User.Auth qualified as UserAuth
 import Brig.User.Auth.Cookie qualified as Auth
 import Brig.User.Email
@@ -108,6 +107,7 @@ import Wire.API.User qualified as Code
 import Wire.API.User.Client
 import Wire.API.User.Client.DPoPAccessToken
 import Wire.API.User.Client.Prekey
+import Wire.API.UserEvent
 import Wire.API.UserMap (QualifiedUserMap (QualifiedUserMap, qualifiedUserMap), UserMap (userMap))
 import Wire.NotificationSubsystem
 import Wire.Sem.Concurrency

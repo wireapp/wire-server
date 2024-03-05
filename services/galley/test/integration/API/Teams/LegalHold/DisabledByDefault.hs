@@ -31,7 +31,6 @@ import Bilge hiding (accept, head, timeout, trace)
 import Bilge.Assert
 import Brig.Types.Intra (UserSet (..))
 import Brig.Types.Test.Arbitrary ()
-import Brig.Types.User.Event qualified as Ev
 import Cassandra.Exec qualified as Cql
 import Control.Category ((>>>))
 import Control.Concurrent.Chan
@@ -71,6 +70,7 @@ import Wire.API.Team.Permission
 import Wire.API.Team.Role
 import Wire.API.User.Client
 import Wire.API.User.Client qualified as Client
+import Wire.API.UserEvent qualified as Ev
 
 tests :: IO TestSetup -> TestTree
 tests s =
