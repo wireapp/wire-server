@@ -280,6 +280,10 @@ http {
         limit_req zone={{ $location.specific_user_rate_limit }}{{ if hasKey $location "specific_user_rate_limit_burst" }} burst={{ $location.specific_user_rate_limit_burst }}{{ end }} nodelay;
             {{- end }}
 
+            {{- range $specific_limit := $location.specific_rate_limits }}
+        limit_req zone={{ $specific_limit.zone }}{{ if hasKey $specific_limit "burst" }} burst={{ $specific_limit.burst }}{{ end }} nodelay;
+            {{- end }}
+
         if ($request_method = 'OPTIONS') {
             add_header 'Access-Control-Allow-Methods' "GET, POST, PUT, DELETE, OPTIONS";
             add_header 'Access-Control-Allow-Headers' "$http_access_control_request_headers, DNT,X-Mx-ReqToken,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type";
