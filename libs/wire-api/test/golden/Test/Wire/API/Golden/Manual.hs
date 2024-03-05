@@ -44,6 +44,7 @@ import Test.Wire.API.Golden.Manual.SubConversation
 import Test.Wire.API.Golden.Manual.TeamSize
 import Test.Wire.API.Golden.Manual.Token
 import Test.Wire.API.Golden.Manual.UserClientPrekeyMap
+import Test.Wire.API.Golden.Manual.UserEvent
 import Test.Wire.API.Golden.Manual.UserIdList
 import Test.Wire.API.Golden.Runner
 import Wire.API.Routes.Version
@@ -197,5 +198,25 @@ tests =
           [ (testObject_ConversationRemoveMembers_1, "testObject_ConversationRemoveMembers_1.json"),
             (testObject_ConversationRemoveMembers_2, "testObject_ConversationRemoveMembers_2.json"),
             (testObject_ConversationRemoveMembers_3, "testObject_ConversationRemoveMembers_3.json")
+          ],
+      testGroup "UserEvent" $
+        testObjects
+          [ (testObject_UserEvent_1, "testObject_UserEvent_1.json"),
+            (testObject_UserEvent_2, "testObject_UserEvent_2.json"),
+            (testObject_UserEvent_3, "testObject_UserEvent_3.json"),
+            (testObject_UserEvent_4, "testObject_UserEvent_4.json"),
+            (testObject_UserEvent_5, "testObject_UserEvent_5.json"),
+            (testObject_UserEvent_6, "testObject_UserEvent_6.json"),
+            (testObject_UserEvent_7, "testObject_UserEvent_7.json"),
+            (testObject_UserEvent_8, "testObject_UserEvent_8.json"),
+            (testObject_UserEvent_9, "testObject_UserEvent_9.json"),
+            (testObject_UserEvent_10, "testObject_UserEvent_10.json"),
+            (testObject_UserEvent_11, "testObject_UserEvent_11.json"),
+            (testObject_UserEvent_12, "testObject_UserEvent_12.json"),
+            (testObject_UserEvent_13, "testObject_UserEvent_13.json"),
+            (testObject_UserEvent_14, "testObject_UserEvent_14.json"),
+            (testObject_UserEvent_15, "testObject_UserEvent_15.json"),
+            (testObject_UserEvent_16, "testObject_UserEvent_16.json"),
+            (testObject_UserEvent_17, "testObject_UserEvent_17.json")
           ]
     ]

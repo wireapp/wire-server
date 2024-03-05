@@ -42,6 +42,7 @@ data Event
   | ConnectionEvent !ConnectionEvent
   | PropertyEvent !PropertyEvent
   | ClientEvent !ClientEvent
+  deriving stock (Eq, Show)
 
 eventType :: Event -> EventType
 eventType (UserEvent (UserCreated _)) = EventTypeUserCreated
@@ -79,7 +80,7 @@ data EventType
   | EventTypeClientAdded
   | EventTypeClientRemoved
   | EventTypeConnection
-  deriving (Eq, Enum, Bounded)
+  deriving stock (Eq, Enum, Bounded)
 
 instance ToSchema EventType where
   schema =
@@ -121,20 +122,24 @@ data UserEvent
   | UserLegalHoldDisabled !UserId
   | UserLegalHoldEnabled !UserId
   | LegalHoldClientRequested LegalHoldClientRequestedData
+  deriving stock (Eq, Show)
 
 data ConnectionEvent = ConnectionUpdated
   { ucConn :: !UserConnection,
     ucName :: !(Maybe Name)
   }
+  deriving stock (Eq, Show)
 
 data PropertyEvent
   = PropertySet !UserId !PropertyKey !A.Value
   | PropertyDeleted !UserId !PropertyKey
   | PropertiesCleared !UserId
+  deriving stock (Eq, Show)
 
 data ClientEvent
   = ClientAdded !UserId !Client
   | ClientRemoved !UserId !ClientId
+  deriving stock (Eq, Show)
 
 data UserUpdatedData = UserUpdatedData
   { eupId :: !UserId,
@@ -150,21 +155,21 @@ data UserUpdatedData = UserUpdatedData
     eupSSOIdRemoved :: Bool,
     eupSupportedProtocols :: !(Maybe (Set BaseProtocolTag))
   }
-  deriving stock (Show)
+  deriving stock (Eq, Show)
 
 data UserIdentityUpdatedData = UserIdentityUpdatedData
   { eiuId :: !UserId,
     eiuEmail :: !(Maybe Email),
     eiuPhone :: !(Maybe Phone)
   }
-  deriving stock (Show)
+  deriving stock (Eq, Show)
 
 data UserIdentityRemovedData = UserIdentityRemovedData
   { eirId :: !UserId,
     eirEmail :: !(Maybe Email),
     eirPhone :: !(Maybe Phone)
   }
-  deriving stock (Show)
+  deriving stock (Eq, Show)
 
 data LegalHoldClientRequestedData = LegalHoldClientRequestedData
   { -- | the user that is under legalhold
@@ -174,7 +179,7 @@ data LegalHoldClientRequestedData = LegalHoldClientRequestedData
     -- | the client id of the legalhold device
     lhcClientId :: !ClientId
   }
-  deriving stock (Show)
+  deriving stock (Eq, Show)
 
 emailRemoved :: UserId -> Email -> UserEvent
 emailRemoved u e =
@@ -389,6 +394,10 @@ instance ToJSONObject Event where
 
 instance ToSchema Event where
   schema = object "UserEvent" eventObjectSchema
+
+deriving via (Schema Event) instance A.ToJSON Event
+
+deriving via (Schema Event) instance A.FromJSON Event
 
 -- Logging
 
