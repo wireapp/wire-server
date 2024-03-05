@@ -33,6 +33,7 @@ import Galley.API.MLS.Commit.Core
 import Galley.API.MLS.Conversation
 import Galley.API.MLS.One2One
 import Galley.API.MLS.Proposal
+import Galley.API.MLS.Removal
 import Galley.API.MLS.Types
 import Galley.API.MLS.Util
 import Galley.API.Util
@@ -40,7 +41,6 @@ import Galley.Data.Conversation.Types hiding (Conversation)
 import Galley.Data.Conversation.Types qualified as Data
 import Galley.Effects
 import Galley.Effects.MemberStore
-import Galley.Effects.ProposalStore
 import Galley.Effects.SubConversationStore
 import Galley.Types.Conversations.Members
 import Imports
@@ -54,9 +54,7 @@ import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.LeaveReason
-import Wire.API.MLS.Commit
 import Wire.API.MLS.Credential
-import Wire.API.MLS.Proposal qualified as Proposal
 import Wire.API.MLS.SubConversation
 import Wire.API.Unreachable
 import Wire.API.User.Client
@@ -65,7 +63,6 @@ processInternalCommit ::
   forall r.
   ( HasProposalEffects r,
     Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'MLSCommitMissingReferences) r,
     Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
     Member (ErrorS 'MLSStaleMessage) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
@@ -77,20 +74,13 @@ processInternalCommit ::
   Local ConvOrSubConv ->
   Epoch ->
   ProposalAction ->
-  Commit ->
   Sem r [LocalConversationUpdate]
-processInternalCommit senderIdentity con lConvOrSub epoch action commit = do
+processInternalCommit senderIdentity con lConvOrSub epoch action = do
   let convOrSub = tUnqualified lConvOrSub
       qusr = cidQualifiedUser senderIdentity
       cm = convOrSub.members
       suite = cnvmlsCipherSuite convOrSub.mlsMeta
       newUserClients = Map.assocs (paAdd action)
-
-  -- check all pending proposals are referenced in the commit
-  allPendingProposals <- getAllPendingProposalRefs (cnvmlsGroupId convOrSub.mlsMeta) epoch
-  let referencedProposals = Set.fromList $ mapMaybe (\x -> preview Proposal._Ref x) commit.proposals
-  unless (all (`Set.member` referencedProposals) allPendingProposals) $
-    throwS @'MLSCommitMissingReferences
 
   withCommitLock (fmap (.id) lConvOrSub) (cnvmlsGroupId convOrSub.mlsMeta) epoch $ do
     -- no client can be directly added to a subconversation
@@ -262,6 +252,18 @@ processInternalCommit senderIdentity con lConvOrSub epoch action commit = do
 
     -- increment epoch number
     for_ lConvOrSub incrementEpoch
+
+    -- fetch backend remove proposals of the previous epoch
+    indicesInRemoveProposals <-
+      (\\ (concat $ Map.elems $ Map.map Map.elems action.paRemove))
+        <$> getPendingBackendRemoveProposals (cnvmlsGroupId convOrSub.mlsMeta) epoch
+
+    -- requeue backend remove proposals for the current epoch
+    createAndSendRemoveProposals
+      lConvOrSub
+      indicesInRemoveProposals
+      (cidQualifiedUser senderIdentity)
+      (tUnqualified lConvOrSub).members
 
     pure events
 

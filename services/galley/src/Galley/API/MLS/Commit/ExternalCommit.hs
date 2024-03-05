@@ -163,7 +163,7 @@ processExternalCommit senderIdentity lConvOrSub epoch action updatePath = do
 
     -- fetch backend remove proposals of the previous epoch
     indicesInRemoveProposals <-
-      -- skip remove proposals of already removed by the external commit
+      -- skip remove proposals of already removed leaf indices by the external commit
       (\\ toList action.remove)
         <$> getPendingBackendRemoveProposals groupId epoch
 

@@ -100,7 +100,6 @@ type MLSMessageStaticErrors =
      ErrorS 'MLSInvalidLeafNodeIndex,
      ErrorS 'MLSClientMismatch,
      ErrorS 'MLSUnsupportedProposal,
-     ErrorS 'MLSCommitMissingReferences,
      ErrorS 'MLSSelfRemovalNotAllowed,
      ErrorS 'MLSClientSenderUserMismatch,
      ErrorS 'MLSGroupConversationMismatch,
@@ -120,7 +119,6 @@ postMLSMessageFromLocalUser ::
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
     Member (ErrorS 'MLSClientSenderUserMismatch) r,
-    Member (ErrorS 'MLSCommitMissingReferences) r,
     Member (ErrorS 'MLSGroupConversationMismatch) r,
     Member (ErrorS 'MLSNotEnabled) r,
     Member (ErrorS 'MLSProposalNotFound) r,
@@ -238,7 +236,6 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
           lConvOrSub
           bundle.epoch
           action
-          bundle.commit.value
       -- the sender client is included in the Add action on the first commit,
       -- but it doesn't need to get a welcome message, so we filter it out here
       let newClients = filter ((/=) senderIdentity) (cmIdentities (paAdd action))
@@ -324,7 +321,6 @@ postMLSMessage ::
     Member (ErrorS 'MLSNotEnabled) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
     Member (ErrorS 'MLSClientSenderUserMismatch) r,
-    Member (ErrorS 'MLSCommitMissingReferences) r,
     Member (ErrorS 'MLSGroupConversationMismatch) r,
     Member (ErrorS 'MLSProposalNotFound) r,
     Member (ErrorS 'MLSSelfRemovalNotAllowed) r,

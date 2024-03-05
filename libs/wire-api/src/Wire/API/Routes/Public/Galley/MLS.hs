@@ -48,7 +48,6 @@ type MLSMessagingAPI =
         :> CanThrow 'MissingLegalholdConsent
         :> CanThrow 'MLSClientMismatch
         :> CanThrow 'MLSClientSenderUserMismatch
-        :> CanThrow 'MLSCommitMissingReferences
         :> CanThrow 'MLSGroupConversationMismatch
         :> CanThrow 'MLSInvalidLeafNodeIndex
         :> CanThrow 'MLSNotEnabled
@@ -87,7 +86,6 @@ type MLSMessagingAPI =
                :> CanThrow 'MissingLegalholdConsent
                :> CanThrow 'MLSClientMismatch
                :> CanThrow 'MLSClientSenderUserMismatch
-               :> CanThrow 'MLSCommitMissingReferences
                :> CanThrow 'MLSGroupConversationMismatch
                :> CanThrow 'MLSInvalidLeafNodeIndex
                :> CanThrow 'MLSNotEnabled
