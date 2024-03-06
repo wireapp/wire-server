@@ -37,6 +37,7 @@ import Data.X509 (SignedCertificate)
 import Imports
 import SAML2.Util (parseURI')
 import qualified SAML2.WebSSO as SAML
+import Spar.Scim.Types (ScimUserCreationStatus (..))
 import Text.XML.DSig (parseKeyInfo, renderKeyInfo)
 import URI.ByteString
 import Wire.API.User.Saml
@@ -117,3 +118,15 @@ instance Cql ScimTokenLookupKey where
   fromCql s@(CqlText _) =
     ScimTokenLookupKeyHashed <$> fromCql s <|> ScimTokenLookupKeyPlaintext <$> fromCql s
   fromCql _ = Left "ScimTokenLookupKey: expected CqlText"
+
+instance Cql ScimUserCreationStatus where
+  ctype = Tagged IntColumn
+
+  toCql ScimUserCreated = CqlInt 0
+  toCql ScimUserCreating = CqlInt 1
+
+  fromCql (CqlInt i) = case i of
+    0 -> pure ScimUserCreated
+    1 -> pure ScimUserCreating
+    n -> Left $ "unexpected ScimUserCreationStatus: " ++ show n
+  fromCql _ = Left "int expected"

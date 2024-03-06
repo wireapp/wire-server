@@ -59,6 +59,7 @@ module Wire.API.User
     CreateUserSparInternalResponses,
     newUserFromSpar,
     urefToExternalId,
+    urefToExternalIdUnsafe,
     urefToEmail,
     ExpiresIn,
     newUserInvitationCode,
@@ -957,6 +958,9 @@ urefToEmail :: SAML.UserRef -> Maybe Email
 urefToEmail uref = case uref ^. SAML.uidSubject . SAML.nameID of
   SAML.UNameIDEmail email -> parseEmail . SAMLEmail.render . CI.original $ email
   _ -> Nothing
+
+urefToExternalIdUnsafe :: SAML.UserRef -> Text
+urefToExternalIdUnsafe = CI.original . SAML.unsafeShowNameID . view SAML.uidSubject
 
 data CreateUserSparError
   = CreateUserSparHandleError ChangeHandleError
@@ -1904,6 +1908,7 @@ instance Schema.ToSchema UserAccount where
 data NewUserScimInvitation = NewUserScimInvitation
   -- FIXME: the TID should be captured in the route as usual
   { newUserScimInvTeamId :: TeamId,
+    newUserScimInvUserId :: UserId,
     newUserScimInvLocale :: Maybe Locale,
     newUserScimInvName :: Name,
     newUserScimInvEmail :: Email,
@@ -1918,6 +1923,7 @@ instance Schema.ToSchema NewUserScimInvitation where
     Schema.object "NewUserScimInvitation" $
       NewUserScimInvitation
         <$> newUserScimInvTeamId Schema..= Schema.field "team_id" Schema.schema
+        <*> newUserScimInvUserId Schema..= Schema.field "user_id" Schema.schema
         <*> newUserScimInvLocale Schema..= maybe_ (optField "locale" Schema.schema)
         <*> newUserScimInvName Schema..= Schema.field "name" Schema.schema
         <*> newUserScimInvEmail Schema..= Schema.field "email" Schema.schema

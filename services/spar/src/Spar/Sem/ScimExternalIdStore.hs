@@ -22,6 +22,8 @@ module Spar.Sem.ScimExternalIdStore
     insert,
     lookup,
     delete,
+    insertStatus,
+    lookupStatus,
   )
 where
 
@@ -29,12 +31,16 @@ import Data.Id (TeamId, UserId)
 import Imports (Maybe, Show)
 import Polysemy
 import Polysemy.Check (deriveGenericK)
+import Spar.Scim.Types
 import Wire.API.User.Identity (Email)
+import Wire.API.User.Scim
 
 data ScimExternalIdStore m a where
   Insert :: TeamId -> Email -> UserId -> ScimExternalIdStore m ()
   Lookup :: TeamId -> Email -> ScimExternalIdStore m (Maybe UserId)
   Delete :: TeamId -> Email -> ScimExternalIdStore m ()
+  InsertStatus :: TeamId -> ValidExternalId -> UserId -> ScimUserCreationStatus -> ScimExternalIdStore m ()
+  LookupStatus :: TeamId -> ValidExternalId -> ScimExternalIdStore m (Maybe (UserId, ScimUserCreationStatus))
 
 deriving instance Show (ScimExternalIdStore m a)
 

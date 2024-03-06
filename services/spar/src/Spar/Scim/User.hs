@@ -45,7 +45,7 @@ where
 import qualified Control.Applicative as Applicative (empty)
 import Control.Lens hiding (op)
 import Control.Monad.Error.Class (MonadError)
-import Control.Monad.Except (throwError)
+import Control.Monad.Except (throwError, withExceptT)
 import Control.Monad.Trans.Except (mapExceptT)
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
 import Crypto.Hash (Digest, SHA256, hashlazy)
@@ -69,9 +69,10 @@ import qualified Spar.App
 import qualified Spar.Intra.BrigApp as Brig
 import Spar.Options
 import Spar.Scim.Auth ()
-import Spar.Scim.Types (normalizeLikeStored)
+import Spar.Scim.Types
 import qualified Spar.Scim.Types as ST
-import Spar.Sem.BrigAccess as BrigAccess
+import Spar.Sem.BrigAccess (BrigAccess)
+import qualified Spar.Sem.BrigAccess as BrigAccess
 import Spar.Sem.GalleyAccess as GalleyAccess
 import Spar.Sem.IdPConfigStore (IdPConfigStore)
 import qualified Spar.Sem.IdPConfigStore as IdPConfigStore
@@ -457,7 +458,8 @@ createValidScimUser ::
     Member BrigAccess r,
     Member ScimExternalIdStore r,
     Member ScimUserTimesStore r,
-    Member SAMLUserStore r
+    Member SAMLUserStore r,
+    Member IdPConfigStore r
   ) =>
   ScimTokenInfo ->
   ST.ValidScimUser ->
@@ -470,37 +472,40 @@ createValidScimUser tokeninfo@ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid
     )
     logScimUserId
     $ do
+      lift (ScimExternalIdStore.lookupStatus stiTeam veid) >>= \case
+        Just (_, ScimUserCreated) ->
+          throwError Scim.conflict {Scim.detail = Just "ExternalId is already taken"}
+        Just (buid, ScimUserCreating) ->
+          incompleteUserCreationCleanUp buid $ Scim.conflict {Scim.detail = Just "ExternalId is already taken"}
+        Nothing -> pure ()
+
       -- ensure uniqueness constraints of all affected identifiers.
       -- {if we crash now, retry POST will just work}
       assertExternalIdUnused stiTeam veid
       assertHandleUnused handl
       -- {if we crash now, retry POST will just work, or user gets told the handle
       -- is already in use and stops POSTing}
+      buid <- lift $ Id <$> Random.uuid
+
+      lift $ ScimExternalIdStore.insertStatus stiTeam veid buid ScimUserCreating
 
       -- Generate a UserId will be used both for scim user in spar and for brig.
-      buid <-
-        lift $ do
-          buid <-
-            ST.runValidExternalIdEither
-              ( \uref ->
-                  do
-                    -- FUTUREWORK: outsource this and some other fragments from
-                    -- `createValidScimUser` into a function `createValidScimUserBrig` similar
-                    -- to `createValidScimUserSpar`?
-                    uid <- Id <$> Random.uuid
-                    BrigAccess.createSAML uref uid stiTeam name ManagedByScim (Just handl) (Just richInfo) language (fromMaybe defaultRole role)
-              )
-              ( \email -> do
-                  buid <- BrigAccess.createNoSAML email stiTeam name language (fromMaybe defaultRole role)
-                  BrigAccess.setHandle buid handl -- FUTUREWORK: possibly do the same one req as we do for saml?
-                  pure buid
-              )
-              veid
+      lift $ do
+        ST.runValidExternalIdEither
+          ( \uref ->
+              -- FUTUREWORK: outsource this and some other fragments from
+              -- `createValidScimUser` into a function `createValidScimUserBrig` similar
+              -- to `createValidScimUserSpar`?
+              void $ BrigAccess.createSAML uref buid stiTeam name ManagedByScim (Just handl) (Just richInfo) language (fromMaybe defaultRole role)
+          )
+          ( \email -> do
+              void $ BrigAccess.createNoSAML email buid stiTeam name language (fromMaybe defaultRole role)
+              BrigAccess.setHandle buid handl -- FUTUREWORK: possibly do the same one req as we do for saml?
+          )
+          veid
+        Logger.debug ("createValidScimUser: brig says " <> show buid)
 
-          Logger.debug ("createValidScimUser: brig says " <> show buid)
-
-          BrigAccess.setRichInfo buid richInfo
-          pure buid
+        BrigAccess.setRichInfo buid richInfo
 
       -- {If we crash now,  a POST retry will fail with 409 user already exists.
       -- Azure at some point will retry with GET /Users?filter=userName eq handle
@@ -530,7 +535,19 @@ createValidScimUser tokeninfo@ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid
         let new = ST.scimActiveFlagToAccountStatus old (Scim.unScimBool <$> active)
             active = Scim.active . Scim.value . Scim.thing $ storedUser
         when (new /= old) $ BrigAccess.setStatus buid new
+
+      lift $ ScimExternalIdStore.insertStatus stiTeam veid buid ScimUserCreated
       pure storedUser
+  where
+    incompleteUserCreationCleanUp :: UserId -> Scim.ScimError -> Scim.ScimHandler (Sem r) ()
+    incompleteUserCreationCleanUp buid e = do
+      -- something went wrong while storing the user in brig
+      -- we can try clean up now, but if brig is down, we can't do much
+      -- maybe retrying the user creation in brig is also an option?
+      -- after clean up we rethrow the error so the handler returns the correct failure
+      lift $ Logger.warn $ Log.msg @Text "An earlier attempt of creating a user with this external ID has failed and left some inconsistent data. Attempting to clean up."
+      withExceptT (const e) $ deleteScimUser undefined buid
+      lift $ Logger.info $ Log.msg @Text "Clean up successful."
 
 -- | Store scim timestamps, saml credentials, scim externalId locally in spar.  Table
 -- `spar.scim_external` gets an entry iff there is no `UserRef`: if there is, we don't do a
@@ -750,6 +767,9 @@ deleteScimUser tokeninfo@ScimTokenInfo {stiTeam, stiIdP} uid =
           -- (because that owner won't be managed by SCIM in the first place), but if it ever becomes
           -- possible, we should do a check here and prohibit it.
           unless (userTeam brigUser == Just stiTeam) $
+            -- users from other teams get you a 404.
+            -- users from other teams get you a 404.
+
             -- users from other teams get you a 404.
             throwError $
               Scim.notFound "user" (idToText uid)
