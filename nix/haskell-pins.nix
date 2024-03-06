@@ -111,8 +111,8 @@ let
     hsaml2 = {
       src = fetchgit {
         url = "https://github.com/wireapp/hsaml2";
-        rev = "723b377fcd759c8be9ad4b2e159a6a06df0d17c9";
-        sha256 = "sha256-rPfztTu+NR/5FuoYWGMCfJFhrMn4o09bMcEKoerNX4A=";
+        rev = "c11ad42e6bd6ef6a1eb298413ab131234b171224";
+        sha256 = "sha256-OYqIxe+9M8YKUpqJPgOeqOTmez7JdOd351J5NgaHrMY=";
       };
     };
 
