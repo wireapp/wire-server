@@ -473,7 +473,6 @@ createValidScimUser tokeninfo@ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid
     )
     logScimUserId
     $ do
-      let externalIdTakenError = Scim.conflict {Scim.detail = Just "ExternalId is already taken"}
       lift (ScimExternalIdStore.lookupStatus stiTeam veid) >>= \case
         Just (buid, ScimUserCreated) ->
           -- If the user has been created, but can't be found in brig anymore,
@@ -560,6 +559,9 @@ createValidScimUser tokeninfo@ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid
       lift $ Logger.warn $ Log.msg @Text "An earlier attempt of creating a user with this external ID has failed and left some inconsistent data. Attempting to clean up."
       withExceptT (const e) $ deleteScimUser undefined buid
       lift $ Logger.info $ Log.msg @Text "Clean up successful."
+
+    externalIdTakenError :: Scim.ScimError
+    externalIdTakenError = Scim.conflict {Scim.detail = Just "ExternalId is already taken"}
 
 -- | Store scim timestamps, saml credentials, scim externalId locally in spar.  Table
 -- `spar.scim_external` gets an entry iff there is no `UserRef`: if there is, we don't do a
