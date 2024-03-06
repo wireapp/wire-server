@@ -557,7 +557,7 @@ createValidScimUser tokeninfo@ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid
       -- maybe retrying the user creation in brig is also an option?
       -- after clean up we rethrow the error so the handler returns the correct failure
       lift $ Logger.warn $ Log.msg @Text "An earlier attempt of creating a user with this external ID has failed and left some inconsistent data. Attempting to clean up."
-      withExceptT (const e) $ deleteScimUser undefined buid
+      withExceptT (const e) $ deleteScimUser tokeninfo buid
       lift $ Logger.info $ Log.msg @Text "Clean up successful."
 
     externalIdTakenError :: Scim.ScimError
