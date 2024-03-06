@@ -66,6 +66,7 @@ import Polysemy.Input
 import qualified SAML2.WebSSO as SAML
 import Spar.App (getUserByUrefUnsafe, getUserByUrefViaOldIssuerUnsafe, getUserIdByScimExternalId)
 import qualified Spar.App
+import Spar.Intra.BrigApp as Intra
 import qualified Spar.Intra.BrigApp as Brig
 import Spar.Options
 import Spar.Scim.Auth ()
@@ -472,11 +473,22 @@ createValidScimUser tokeninfo@ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid
     )
     logScimUserId
     $ do
+      let externalIdTakenError = Scim.conflict {Scim.detail = Just "ExternalId is already taken"}
       lift (ScimExternalIdStore.lookupStatus stiTeam veid) >>= \case
-        Just (_, ScimUserCreated) ->
-          throwError Scim.conflict {Scim.detail = Just "ExternalId is already taken"}
+        Just (buid, ScimUserCreated) ->
+          -- If the user has been created, but can't be found in brig anymore,
+          -- the invitation has timed out and the user has been deleted on brig's side.
+          -- If this is the case we can safely create the user again.
+          -- Otherwise we return a conflict error.
+          lift (BrigAccess.getStatusMaybe buid) >>= \case
+            Just Active -> throwError externalIdTakenError
+            Just Suspended -> throwError externalIdTakenError
+            Just Ephemeral -> throwError externalIdTakenError
+            Just PendingInvitation -> throwError externalIdTakenError
+            Just Deleted -> pure ()
+            Nothing -> pure ()
         Just (buid, ScimUserCreating) ->
-          incompleteUserCreationCleanUp buid $ Scim.conflict {Scim.detail = Just "ExternalId is already taken"}
+          incompleteUserCreationCleanUp buid externalIdTakenError
         Nothing -> pure ()
 
       -- ensure uniqueness constraints of all affected identifiers.
