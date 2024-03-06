@@ -21,7 +21,7 @@ testSparUserCreationInvitationTimeout = do
 
   -- However, if we wait until the invitation timeout has passed
   -- (assuming it is configured to 10s locally and in CI)...
-  liftIO $ threadDelay (10_000_000)
+  liftIO $ threadDelay (11_000_000)
 
   -- ...we should be able to create the user again
   retryT $ bindResponse (createScimUser OwnDomain tok scimUser) $ \res -> do

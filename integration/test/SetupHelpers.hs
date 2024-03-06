@@ -318,7 +318,7 @@ lhDeviceIdOf bob = do
 randomScimUser :: App Value
 randomScimUser = do
   email <- randomEmail
-  handle <- randomHandle' 12 128
+  handle <- randomHandleWithRange 12 128
   pure $
     object
       [ "schemas" .= ["urn:ietf:params:scim:schemas:core:2.0:User"],
