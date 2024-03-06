@@ -31,8 +31,11 @@ randomName = liftIO $ do
     pick = (chars !) <$> randomRIO (Array.bounds chars)
 
 randomHandle :: App String
-randomHandle = liftIO $ do
-  n <- randomRIO (50, 256)
+randomHandle = randomHandle' 50 256
+
+randomHandle' :: Int -> Int -> App String
+randomHandle' min' max' = liftIO $ do
+  n <- randomRIO (min', max')
   replicateM n pick
   where
     chars = mkArray $ ['a' .. 'z'] <> ['0' .. '9'] <> "_-."
