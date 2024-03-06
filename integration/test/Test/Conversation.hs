@@ -851,8 +851,8 @@ testGuestLinksExpired = do
       bindResponse (getJoinCodeConv tm k v) $ \resp -> do
         resp.status `shouldMatchInt` 404
 
-testConversationWithV0 :: HasCallStack => App ()
-testConversationWithV0 = do
+testConversationWithFedV0 :: HasCallStack => App ()
+testConversationWithFedV0 = do
   alice <- randomUser OwnDomain def
   bob <- randomUser FedV0Domain def
   withAPIVersion 4 $ connectTwoUsers alice bob
