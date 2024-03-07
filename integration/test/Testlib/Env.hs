@@ -4,6 +4,7 @@ module Testlib.Env where
 
 import Control.Monad.Codensity
 import Control.Monad.IO.Class
+import Control.Monad.Reader
 import Data.Default
 import Data.Function ((&))
 import Data.Functor
@@ -184,3 +185,6 @@ mkMLSState = Codensity $ \k ->
           ciphersuite = def,
           protocol = MLSProtocolMLS
         }
+
+withAPIVersion :: Int -> App a -> App a
+withAPIVersion v = local $ \e -> e {defaultAPIVersion = v}

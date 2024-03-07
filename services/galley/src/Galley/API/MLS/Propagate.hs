@@ -27,7 +27,6 @@ import Data.Qualified
 import Data.Time
 import Galley.API.MLS.Types
 import Galley.API.Push
-import Galley.API.Util
 import Galley.Data.Services
 import Galley.Effects
 import Galley.Effects.BackendNotificationQueueAccess
@@ -37,11 +36,13 @@ import Gundeck.Types.Push.V2 (RecipientClients (..))
 import Imports
 import Network.AMQP qualified as Q
 import Polysemy
+import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog hiding (trace)
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
+import Wire.API.Federation.Error
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Message
 import Wire.API.MLS.Serialisation
@@ -53,6 +54,7 @@ import Wire.API.Message
 -- a requirement from Core Crypto and the clients.
 propagateMessage ::
   ( Member BackendNotificationQueueAccess r,
+    Member (Error FederationError) r,
     Member ExternalAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
@@ -87,21 +89,23 @@ propagateMessage qusr mSenderClient lConvOrSub con msg cm = do
     newMessagePush botMap con mm (lmems >>= toList . localMemberRecipient mlsConv) e
 
   -- send to remotes
-  (either (logRemoteNotificationError @"on-mls-message-sent") (const (pure ())) <=< enqueueNotificationsConcurrently Q.Persistent (map remoteMemberQualify rmems)) $
-    \rs ->
-      fedQueueClient @'OnMLSMessageSentTag $
-        RemoteMLSMessage
-          { time = now,
-            sender = qusr,
-            metadata = mm,
-            conversation = qUnqualified qcnv,
-            subConversation = sconv,
-            recipients =
-              Map.fromList $
-                tUnqualified rs
-                  >>= toList . remoteMemberMLSClients,
-            message = Base64ByteString msg.raw
-          }
+  void $
+    enqueueNotificationsConcurrently Q.Persistent (map remoteMemberQualify rmems) $
+      \rs ->
+        fedQueueClient
+          @'OnMLSMessageSentTag
+          RemoteMLSMessage
+            { time = now,
+              sender = qusr,
+              metadata = mm,
+              conversation = qUnqualified qcnv,
+              subConversation = sconv,
+              recipients =
+                Map.fromList $
+                  tUnqualified rs
+                    >>= toList . remoteMemberMLSClients,
+              message = Base64ByteString msg.raw
+            }
   where
     cmWithoutSender = maybe cm (flip cmRemoveClient cm . mkClientIdentity qusr) mSenderClient
 

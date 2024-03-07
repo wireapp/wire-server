@@ -1,0 +1,3 @@
+The on-conversation-updated notification is now queued instead of being sent directly. A new version of the notification has been introduced with a different JSON format for the body, mostly for testing purposes of the versioning system.
+
+Since the notification is now sent asynchronously, some error conditions in case of unreachable backends cannot be triggered anymore.

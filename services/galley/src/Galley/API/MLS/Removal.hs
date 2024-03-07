@@ -44,10 +44,12 @@ import Galley.Env
 import Galley.Types.Conversations.Members
 import Imports hiding (cs)
 import Polysemy
+import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog
 import System.Logger qualified as Log
 import Wire.API.Conversation.Protocol
+import Wire.API.Federation.Error
 import Wire.API.MLS.AuthenticatedContent
 import Wire.API.MLS.Credential
 import Wire.API.MLS.LeafNode
@@ -58,7 +60,8 @@ import Wire.API.MLS.SubConversation
 
 -- | Send remove proposals for a set of clients to clients in the ClientMap.
 createAndSendRemoveProposals ::
-  ( Member (Input UTCTime) r,
+  ( Member (Error FederationError) r,
+    Member (Input UTCTime) r,
     Member TinyLog r,
     Member BackendNotificationQueueAccess r,
     Member ExternalAccess r,
@@ -105,7 +108,8 @@ createAndSendRemoveProposals lConvOrSubConv indices qusr cm = do
         propagateMessage qusr Nothing lConvOrSubConv Nothing msg cm
 
 removeClientsWithClientMapRecursively ::
-  ( Member (Input UTCTime) r,
+  ( Member (Error FederationError) r,
+    Member (Input UTCTime) r,
     Member TinyLog r,
     Member BackendNotificationQueueAccess r,
     Member ExternalAccess r,
@@ -137,7 +141,8 @@ removeClientsWithClientMapRecursively lMlsConv getClients qusr = do
   removeClientsFromSubConvs lMlsConv getClients qusr
 
 removeClientsFromSubConvs ::
-  ( Member (Input UTCTime) r,
+  ( Member (Error FederationError) r,
+    Member (Input UTCTime) r,
     Member TinyLog r,
     Member BackendNotificationQueueAccess r,
     Member ExternalAccess r,
@@ -176,6 +181,7 @@ removeClientsFromSubConvs lMlsConv getClients qusr = do
 -- | Send remove proposals for a single client of a user to the local conversation.
 removeClient ::
   ( Member BackendNotificationQueueAccess r,
+    Member (Error FederationError) r,
     Member ExternalAccess r,
     Member GundeckAccess r,
     Member (Input Env) r,
@@ -211,6 +217,7 @@ data RemoveUserIncludeMain
 -- | Send remove proposals for all clients of the user to the local conversation.
 removeUser ::
   ( Member BackendNotificationQueueAccess r,
+    Member (Error FederationError) r,
     Member ExternalAccess r,
     Member GundeckAccess r,
     Member (Input Env) r,
@@ -256,6 +263,7 @@ listSubConversations' cid = do
 -- | Send remove proposals for clients of users that are not part of a conversation
 removeExtraneousClients ::
   ( Member BackendNotificationQueueAccess r,
+    Member (Error FederationError) r,
     Member ExternalAccess r,
     Member GundeckAccess r,
     Member (Input Env) r,

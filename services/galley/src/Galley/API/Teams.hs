@@ -122,7 +122,6 @@ import Polysemy.Input
 import Polysemy.Output
 import Polysemy.TinyLog qualified as P
 import SAML2.WebSSO qualified as SAML
-import System.Logger (Msg)
 import System.Logger qualified as Log
 import Wire.API.Conversation (ConversationRemoveMembers (..))
 import Wire.API.Conversation.Role (wireConvRoles)
@@ -884,6 +883,7 @@ deleteTeamMember ::
     Member BrigAccess r,
     Member ConversationStore r,
     Member (Error AuthenticationError) r,
+    Member (Error FederationError) r,
     Member (Error InvalidInput) r,
     Member (ErrorS 'AccessDenied) r,
     Member (ErrorS 'TeamMemberNotFound) r,
@@ -912,6 +912,7 @@ deleteNonBindingTeamMember ::
     Member BrigAccess r,
     Member ConversationStore r,
     Member (Error AuthenticationError) r,
+    Member (Error FederationError) r,
     Member (Error InvalidInput) r,
     Member (ErrorS 'AccessDenied) r,
     Member (ErrorS 'TeamMemberNotFound) r,
@@ -941,6 +942,7 @@ deleteTeamMember' ::
     Member ConversationStore r,
     Member (Error AuthenticationError) r,
     Member (Error InvalidInput) r,
+    Member (Error FederationError) r,
     Member (ErrorS 'AccessDenied) r,
     Member (ErrorS 'TeamMemberNotFound) r,
     Member (ErrorS 'TeamNotFound) r,
@@ -1008,9 +1010,9 @@ uncheckedDeleteTeamMember ::
   ( Member BackendNotificationQueueAccess r,
     Member ConversationStore r,
     Member GundeckAccess r,
+    Member (Error FederationError) r,
     Member ExternalAccess r,
     Member (Input UTCTime) r,
-    Member (P.Logger (Log.Msg -> Log.Msg)) r,
     Member MemberStore r,
     Member TeamStore r
   ) =>
@@ -1062,10 +1064,10 @@ removeFromConvsAndPushConvLeaveEvent ::
   forall r.
   ( Member BackendNotificationQueueAccess r,
     Member ConversationStore r,
+    Member (Error FederationError) r,
     Member ExternalAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
-    Member (P.Logger (Log.Msg -> Log.Msg)) r,
     Member MemberStore r,
     Member TeamStore r
   ) =>
@@ -1152,8 +1154,7 @@ deleteTeamConversation ::
     Member GundeckAccess r,
     Member (Input UTCTime) r,
     Member SubConversationStore r,
-    Member TeamStore r,
-    Member (P.Logger (Msg -> Msg)) r
+    Member TeamStore r
   ) =>
   Local UserId ->
   ConnId ->

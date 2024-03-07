@@ -58,6 +58,7 @@ import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Protocol
 import Wire.API.Error
 import Wire.API.Error.Galley
+import Wire.API.Federation.Error
 import Wire.API.MLS.AuthenticatedContent
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
@@ -114,6 +115,7 @@ type HasProposalEffects r =
     Member BrigAccess r,
     Member ConversationStore r,
     Member (Error InternalError) r,
+    Member (Error FederationError) r,
     Member (Error MLSProposalFailure) r,
     Member (Error MLSProtocolError) r,
     Member (ErrorS 'MLSClientMismatch) r,

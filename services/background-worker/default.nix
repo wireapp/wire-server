@@ -8,6 +8,7 @@
 , base
 , bytestring
 , containers
+, data-default
 , exceptions
 , extended
 , federator
@@ -50,6 +51,7 @@ mkDerivation {
   libraryHaskellDepends = [
     aeson
     amqp
+    base
     containers
     exceptions
     extended
@@ -70,6 +72,7 @@ mkDerivation {
     types-common
     unliftio
     wai-utilities
+    wire-api
     wire-api-federation
   ];
   executableHaskellDepends = [ HsOpenSSL imports types-common ];
@@ -79,6 +82,7 @@ mkDerivation {
     base
     bytestring
     containers
+    data-default
     extended
     federator
     hspec

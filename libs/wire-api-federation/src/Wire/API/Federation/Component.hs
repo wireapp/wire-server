@@ -21,6 +21,7 @@ module Wire.API.Federation.Component
   )
 where
 
+import Data.Proxy
 import Imports
 import Wire.API.MakesFederatedCall (Component (..))
 
@@ -46,3 +47,11 @@ instance KnownComponent 'Galley where
 
 instance KnownComponent 'Cargohold where
   componentVal = Cargohold
+
+data SomeComponent where
+  SomeComponent :: KnownComponent c => Proxy c -> SomeComponent
+
+someComponent :: Component -> SomeComponent
+someComponent Brig = SomeComponent (Proxy @'Brig)
+someComponent Galley = SomeComponent (Proxy @'Galley)
+someComponent Cargohold = SomeComponent (Proxy @'Cargohold)

@@ -55,7 +55,6 @@ import Data.ByteString.Conversion
 import Data.Domain
 import Data.Proxy
 import Data.Text qualified as Text
-import GHC.TypeLits
 import Galley.Aws qualified as Aws
 import Galley.Options (Opts)
 import Imports
@@ -141,7 +140,7 @@ instance VersionedMonad v ClientM where
   guardVersion _ = pure ()
 
 runFedClient ::
-  forall (name :: Symbol) comp m api.
+  forall name comp m api.
   ( HasUnsafeFedEndpoint comp api name,
     Servant.HasClient Servant.ClientM api,
     MonadIO m,
