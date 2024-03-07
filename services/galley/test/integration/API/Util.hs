@@ -2676,11 +2676,13 @@ withTempMockFederator' ::
   m b ->
   m (b, [FederatedRequest])
 withTempMockFederator' resp action = do
-  let mock = runMock (assertFailure . Text.unpack) $ do
-        r <- resp
-        pure ("application" // "json", r)
+  let mock =
+        def
+          { handler = runMock (assertFailure . Text.unpack) $ do
+              r <- resp
+              pure ("application" // "json", r)
+          }
   Mock.withTempMockFederator
-    [("Content-Type", "application/json")]
     mock
     $ \mockPort -> do
       withSettingsOverrides (\opts -> opts & Opts.federator ?~ Endpoint "127.0.0.1" (fromIntegral mockPort)) action

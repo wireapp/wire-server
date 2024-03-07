@@ -21,8 +21,10 @@
 module Wire.API.Federation.Client
   ( FederatorClientEnv (..),
     FederatorClientVersionedEnv (..),
+    unversionedEnv,
     FederatorClient,
     runFederatorClient,
+    runVersionedFederatorClient,
     runFederatorClientToCodensity,
     runVersionedFederatorClientToCodensity,
     performHTTP2Request,
@@ -84,6 +86,9 @@ data FederatorClientVersionedEnv = FederatorClientVersionedEnv
   { cveEnv :: FederatorClientEnv,
     cveVersion :: Maybe Version
   }
+
+unversionedEnv :: FederatorClientEnv -> FederatorClientVersionedEnv
+unversionedEnv env = FederatorClientVersionedEnv env Nothing
 
 -- | A request to a remote backend. The API version of the remote backend is in
 -- the environment. The 'MaybeT' layer is used to match endpoint versions (via
@@ -171,7 +176,16 @@ instance KnownComponent c => RunClient (FederatorClient c) where
             expectedStatuses
 
     v <- asks cveVersion
-    let vreq = req {requestHeaders = (versionHeader, toByteString' (versionInt (fromMaybe V0 v))) :<| requestHeaders req}
+    let vreq =
+          req
+            { requestHeaders =
+                ( versionHeader,
+                  toByteString'
+                    ( versionInt (fromMaybe V0 v)
+                    )
+                )
+                  :<| requestHeaders req
+            }
 
     withHTTP2StreamingRequest successfulStatus vreq $ \resp -> do
       bdy <-
@@ -297,6 +311,15 @@ runFederatorClient env =
   lowerCodensity
     . runFederatorClientToCodensity env
 
+runVersionedFederatorClient ::
+  FederatorClientVersionedEnv ->
+  FederatorClient c a ->
+  IO (Either FederatorClientError a)
+runVersionedFederatorClient venv =
+  lowerCodensity
+    . runExceptT
+    . runVersionedFederatorClientToCodensity venv
+
 runFederatorClientToCodensity ::
   forall c a.
   FederatorClientEnv ->
@@ -306,7 +329,7 @@ runFederatorClientToCodensity env action = runExceptT $ do
   v <-
     runVersionedFederatorClientToCodensity
       (FederatorClientVersionedEnv env Nothing)
-      versionNegotiation
+      (versionNegotiation supportedVersions)
   runVersionedFederatorClientToCodensity @c
     (FederatorClientVersionedEnv env (Just v))
     action
@@ -323,8 +346,8 @@ runVersionedFederatorClientToCodensity env =
   where
     unmaybe = (maybe (E.throw FederatorClientVersionMismatch) pure =<<)
 
-versionNegotiation :: FederatorClient 'Brig Version
-versionNegotiation =
+versionNegotiation :: Set Version -> FederatorClient 'Brig Version
+versionNegotiation localVersions =
   let req =
         defaultRequest
           { requestPath = "/api-version",
@@ -334,13 +357,15 @@ versionNegotiation =
           }
    in withHTTP2StreamingRequest @'Brig HTTP.statusIsSuccessful req $ \resp -> do
         body <- toLazyByteString <$> streamingResponseStrictBody resp
-        remoteVersions <- case Aeson.decode body of
+        allRemoteVersions <- case Aeson.decode body of
           Nothing -> E.throw (FederatorClientVersionNegotiationError InvalidVersionInfo)
-          Just info -> pure (Set.fromList (vinfoSupported info))
-        case Set.lookupMax (Set.intersection remoteVersions supportedVersions) of
+          Just info -> pure (vinfoSupported info)
+        -- ignore versions that don't even exist locally
+        let remoteVersions = Set.fromList $ Imports.mapMaybe intToVersion allRemoteVersions
+        case Set.lookupMax (Set.intersection remoteVersions localVersions) of
           Just v -> pure v
           Nothing ->
             E.throw . FederatorClientVersionNegotiationError $
-              if Set.lookupMax supportedVersions > Set.lookupMax remoteVersions
+              if Set.lookupMax localVersions > Set.lookupMax remoteVersions
                 then RemoteTooOld
                 else RemoteTooNew

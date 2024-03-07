@@ -965,11 +965,11 @@ receiveOnConvUpdated conv origUser joiner = do
   now <- liftIO getCurrentTime
   let cu =
         ConversationUpdate
-          { cuTime = now,
-            cuOrigUserId = origUser,
-            cuConvId = qUnqualified conv,
-            cuAlreadyPresentUsers = [qUnqualified joiner],
-            cuAction =
+          { time = now,
+            origUserId = origUser,
+            convId = qUnqualified conv,
+            alreadyPresentUsers = [qUnqualified joiner],
+            action =
               SomeConversationAction
                 SConversationJoinTag
                 ConversationJoin

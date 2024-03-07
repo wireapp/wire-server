@@ -373,4 +373,4 @@ testGetUserClientsNotFound fedBrigClient = do
 testAPIVersion :: Brig -> FedClient 'Brig -> Http ()
 testAPIVersion _brig fedBrigClient = do
   vinfo <- runFedClient @"api-version" fedBrigClient (Domain "far-away.example.com") ()
-  liftIO $ vinfoSupported vinfo @?= toList supportedVersions
+  liftIO $ vinfoSupported vinfo @?= map versionInt (toList supportedVersions)

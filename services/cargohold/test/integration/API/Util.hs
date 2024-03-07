@@ -42,6 +42,7 @@ import Data.ByteString.Builder
 import qualified Data.ByteString.Char8 as C
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as Lazy
+import Data.Default
 import Data.Id
 import Data.Qualified
 import Data.Text.Encoding (decodeLatin1, encodeUtf8)
@@ -223,7 +224,7 @@ withMockFederator ::
   TestM a ->
   TestM (a, [FederatedRequest])
 withMockFederator respond action = do
-  withTempMockFederator [] respond $ \p ->
+  withTempMockFederator def {handler = respond} $ \p ->
     withSettingsOverrides
       (federator . _Just %~ setLocalEndpoint (fromIntegral p))
       action

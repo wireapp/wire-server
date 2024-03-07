@@ -102,9 +102,10 @@ runFederatedConcurrentlyEither xs rpc =
     bimap (r,) (qualifyAs r) <$> runFederatedEither r (rpc r)
 
 runFederatedConcurrentlyBucketsEither ::
-  [(Remote [a], y)] ->
-  ((Remote [a], y) -> FederatorClient c b) ->
-  App [Either (Remote [a], FederationError) (Remote b)]
+  Foldable f =>
+  f (Remote x) ->
+  (Remote x -> FederatorClient c b) ->
+  App [Either (Remote x, FederationError) (Remote b)]
 runFederatedConcurrentlyBucketsEither xs rpc =
-  pooledForConcurrentlyN 8 xs $ \(r, v) ->
-    bimap (r,) (qualifyAs r) <$> runFederatedEither r (rpc (r, v))
+  pooledForConcurrentlyN 8 (toList xs) $ \r ->
+    bimap (r,) (qualifyAs r) <$> runFederatedEither r (rpc r)

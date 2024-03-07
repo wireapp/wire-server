@@ -157,8 +157,7 @@ notifyUserDeleted self remotes = do
   view rabbitmqChannel >>= \case
     Just chanVar -> do
       enqueueNotification (tDomain self) remoteDomain Q.Persistent chanVar $
-        void $
-          fedQueueClient @'OnUserDeletedConnectionsTag notif
+        fedQueueClient @'OnUserDeletedConnectionsTag notif
     Nothing ->
       Log.err $
         Log.msg ("Federation error while notifying remote backends of a user deletion." :: ByteString)
