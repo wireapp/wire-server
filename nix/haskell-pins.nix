@@ -145,17 +145,9 @@ let
     # clean exit.
     http2 = {
       src = fetchgit {
-        url = "https://github.com/wireapp/http2";
-        rev = "622b79e2e222c0f361cdd25f082c21f1644016bf";
-        sha256 = "sha256-zES22Cg9inyJ4mEBeEfyWAO5VFYSE2wASVMTHkYThzU=";
-      };
-    };
-
-    network-control = {
-      src = fetchgit {
-        url = "https://github.com/kazu-yamamoto/network-control";
-        rev = "v0.0.2";
-        sha256 = "sha256-wgkbs05s4u4+mAFIH6lKflgIZ/jKxVxIqejUIq/uf0Y=";
+        url = "https://github.com/kazu-yamamoto/http2";
+        rev = "v5.1.2";
+        sha256 = "sha256-9YX+NPW9shwVEsBO3O1MHBS/8isN/doo/L/RlUBraO0=";
       };
     };
 
