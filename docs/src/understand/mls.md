@@ -49,22 +49,19 @@ brig:
       setEnableMLS: true
 ```
 
-Finally, the web applications need to be made aware of *MLS*. This is done by
+Finally, the webapp needs to enable made aware of *MLS*. This is done by
 setting the following environment variable for the web application:
 
 ```yaml
-webapp:
-  envVars:
-    FEATURE_ENABLE_MLS: "true"
+envVars:
+  FEATURE_ENABLE_MLS: "true"
 ```
 
 and for the team settings web application:
 
 ```yaml
-# NOTE: Only relevant if you want team-settings
-team-settings:
-  envVars:
-    FEATURE_ENABLE_MLS: "true"
+envVars:
+  FEATURE_ENABLE_MLS: "true"
 ```
 
 As long as *MLS* is still an opt-in feature, please remember that in order to be able
