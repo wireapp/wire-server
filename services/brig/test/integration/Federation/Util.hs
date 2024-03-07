@@ -35,6 +35,7 @@ import Data.Aeson (FromJSON, Value, decode, (.=))
 import Data.Aeson qualified as Aeson
 import Data.ByteString qualified as BS
 import Data.ByteString.Conversion (toByteString')
+import Data.Default
 import Data.Domain (Domain (Domain))
 import Data.Handle (fromHandle)
 import Data.Id
@@ -79,8 +80,7 @@ import Wire.API.User.Client.Prekey
 withTempMockFederator :: Opt.Opts -> LByteString -> Session a -> IO (a, [Mock.FederatedRequest])
 withTempMockFederator opts resp action =
   Mock.withTempMockFederator
-    [("Content-Type", "application/json")]
-    (const (pure ("application" // "json", resp)))
+    def {Mock.handler = const (pure ("application" // "json", resp))}
     $ \mockPort -> do
       let opts' =
             opts

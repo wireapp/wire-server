@@ -377,6 +377,7 @@ leaveLocalSubConversation ::
     Member (Error MLSProtocolError) r,
     Member (ErrorS 'MLSStaleMessage) r,
     Member (ErrorS 'MLSNotEnabled) r,
+    Member (Error FederationError) r,
     Member Resource r,
     Members LeaveSubConversationStaticErrors r
   ) =>

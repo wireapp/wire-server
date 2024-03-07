@@ -26,6 +26,7 @@ import Data.Bifunctor (first)
 import Data.ByteString qualified as BS
 import Data.ByteString.Builder (Builder, byteString, toLazyByteString)
 import Data.ByteString.Lazy qualified as LBS
+import Data.Default
 import Data.Domain
 import Data.Id
 import Data.Proxy
@@ -60,9 +61,6 @@ targetDomain = Domain "target.example.com"
 originDomain :: Domain
 originDomain = Domain "origin.example.com"
 
-defaultHeaders :: [HTTP.Header]
-defaultHeaders = [("Content-Type", "application/json")]
-
 tests :: TestTree
 tests =
   testGroup
@@ -87,11 +85,10 @@ newtype ResponseFailure = ResponseFailure Wai.Error
   deriving (Show)
 
 withMockFederatorClient ::
-  [HTTP.Header] ->
-  (FederatedRequest -> IO (MediaType, LByteString)) ->
+  MockFederator ->
   FederatorClient c a ->
   IO (Either ResponseFailure a, [FederatedRequest])
-withMockFederatorClient headers resp action = withTempMockFederator headers resp $ \port -> do
+withMockFederatorClient mock action = withTempMockFederator mock $ \port -> do
   mgr <- defaultHttp2Manager
   let env =
         FederatorClientEnv
@@ -114,8 +111,7 @@ testClientSuccess = do
 
   (actualResponse, sentRequests) <-
     withMockFederatorClient
-      defaultHeaders
-      (const (pure ("application/json", Aeson.encode (Just expectedResponse))))
+      def {handler = const (pure ("application/json", Aeson.encode (Just expectedResponse)))}
       $ fedClient @'Brig @"get-user-by-handle" handle
 
   sentRequests
@@ -157,8 +153,7 @@ testClientFailure = do
 
   (actualResponse, _) <-
     withMockFederatorClient
-      defaultHeaders
-      (const (throw (MockErrorResponse HTTP.status422 "wrong domain")))
+      def {handler = const (throw (MockErrorResponse HTTP.status422 "wrong domain"))}
       $ do
         fedClient @'Brig @"get-user-by-handle" handle
 
@@ -174,8 +169,7 @@ testFederatorFailure = do
 
   (actualResponse, _) <-
     withMockFederatorClient
-      defaultHeaders
-      (const (throw (MockErrorResponse HTTP.status403 "invalid path")))
+      def {handler = const (throw (MockErrorResponse HTTP.status403 "invalid path"))}
       $ do
         fedClient @'Brig @"get-user-by-handle" handle
 
@@ -190,7 +184,7 @@ testClientExceptions = do
   handle <- generate arbitrary
 
   (response, _) <-
-    withMockFederatorClient defaultHeaders (const (evaluate (error "unhandled exception"))) $
+    withMockFederatorClient def {handler = const (evaluate (error "unhandled exception"))} $
       fedClient @'Brig @"get-user-by-handle" handle
 
   case response of
@@ -218,8 +212,10 @@ testClientConnectionError = do
 testResponseHeaders :: IO ()
 testResponseHeaders = do
   (r, _) <- withTempMockFederator
-    [("X-Foo", "bar")]
-    (const $ pure ("application" // "json", mempty))
+    def
+      { headers = [("X-Foo", "bar")],
+        handler = const $ pure ("application" // "json", mempty)
+      }
     $ \port -> do
       let req =
             HTTP2.requestBuilder

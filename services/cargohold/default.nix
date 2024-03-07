@@ -19,6 +19,7 @@
 , conduit-extra
 , containers
 , crypton
+, data-default
 , errors
 , exceptions
 , extended
@@ -138,6 +139,7 @@ mkDerivation {
     bytestring-conversion
     cargohold-types
     containers
+    data-default
     federator
     HsOpenSSL
     http-api-data

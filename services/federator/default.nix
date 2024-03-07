@@ -88,6 +88,7 @@ mkDerivation {
     containers
     crypton-x509
     crypton-x509-validation
+    data-default
     dns
     dns-util
     exceptions

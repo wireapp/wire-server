@@ -120,7 +120,6 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog
-import System.Logger (Msg)
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Code
@@ -400,8 +399,7 @@ updateConversationMessageTimer ::
     Member (Error FederationError) r,
     Member ExternalAccess r,
     Member NotificationSubsystem r,
-    Member (Input UTCTime) r,
-    Member (Logger (Msg -> Msg)) r
+    Member (Input UTCTime) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -433,8 +431,7 @@ updateConversationMessageTimerUnqualified ::
     Member (Error FederationError) r,
     Member ExternalAccess r,
     Member NotificationSubsystem r,
-    Member (Input UTCTime) r,
-    Member (Logger (Msg -> Msg)) r
+    Member (Input UTCTime) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -460,8 +457,7 @@ deleteLocalConversation ::
     Member MemberStore r,
     Member ProposalStore r,
     Member (Input UTCTime) r,
-    Member TeamStore r,
-    Member (Logger (Msg -> Msg)) r
+    Member TeamStore r
   ) =>
   Local UserId ->
   ConnId ->
@@ -723,6 +719,7 @@ joinConversationByReusableCode ::
     Member BrigAccess r,
     Member CodeStore r,
     Member ConversationStore r,
+    Member (Error FederationError) r,
     Member (ErrorS 'CodeNotFound) r,
     Member (ErrorS 'InvalidConversationPassword) r,
     Member (ErrorS 'ConvAccessDenied) r,
@@ -737,8 +734,7 @@ joinConversationByReusableCode ::
     Member (Input UTCTime) r,
     Member MemberStore r,
     Member TeamStore r,
-    Member TeamFeatureStore r,
-    Member (Logger (Msg -> Msg)) r
+    Member TeamFeatureStore r
   ) =>
   Local UserId ->
   ConnId ->
@@ -755,6 +751,7 @@ joinConversationById ::
   ( Member BackendNotificationQueueAccess r,
     Member BrigAccess r,
     Member ConversationStore r,
+    Member (Error FederationError) r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
@@ -765,8 +762,7 @@ joinConversationById ::
     Member (Input Opts) r,
     Member (Input UTCTime) r,
     Member MemberStore r,
-    Member TeamStore r,
-    Member (Logger (Msg -> Msg)) r
+    Member TeamStore r
   ) =>
   Local UserId ->
   ConnId ->
@@ -780,6 +776,7 @@ joinConversation ::
   forall r.
   ( Member BackendNotificationQueueAccess r,
     Member BrigAccess r,
+    Member (Error FederationError) r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'InvalidOperation) r,
     Member (ErrorS 'NotATeamMember) r,
@@ -789,8 +786,7 @@ joinConversation ::
     Member (Input Opts) r,
     Member (Input UTCTime) r,
     Member MemberStore r,
-    Member TeamStore r,
-    Member (Logger (Msg -> Msg)) r
+    Member TeamStore r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1017,8 +1013,7 @@ updateOtherMemberLocalConv ::
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member (Input UTCTime) r,
-    Member MemberStore r,
-    Member (Logger (Msg -> Msg)) r
+    Member MemberStore r
   ) =>
   Local ConvId ->
   Local UserId ->
@@ -1044,8 +1039,7 @@ updateOtherMemberUnqualified ::
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member (Input UTCTime) r,
-    Member MemberStore r,
-    Member (Logger (Msg -> Msg)) r
+    Member MemberStore r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1070,8 +1064,7 @@ updateOtherMember ::
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member (Input UTCTime) r,
-    Member MemberStore r,
-    Member (Logger (Msg -> Msg)) r
+    Member MemberStore r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1402,7 +1395,6 @@ updateConversationName ::
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member (Input UTCTime) r,
-    Member (Logger (Msg -> Msg)) r,
     Member TeamStore r
   ) =>
   Local UserId ->
@@ -1429,7 +1421,6 @@ updateUnqualifiedConversationName ::
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member (Input UTCTime) r,
-    Member (Logger (Msg -> Msg)) r,
     Member TeamStore r
   ) =>
   Local UserId ->
@@ -1452,7 +1443,6 @@ updateLocalConversationName ::
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member (Input UTCTime) r,
-    Member (Logger (Msg -> Msg)) r,
     Member TeamStore r
   ) =>
   Local UserId ->

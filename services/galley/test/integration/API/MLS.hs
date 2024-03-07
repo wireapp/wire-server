@@ -880,11 +880,11 @@ testRemoteToRemoteInSub = do
   connectWithRemoteUser alice qbob
   let cu =
         ConversationUpdate
-          { cuTime = now,
-            cuOrigUserId = qbob,
-            cuConvId = conv,
-            cuAlreadyPresentUsers = [],
-            cuAction =
+          { time = now,
+            origUserId = qbob,
+            convId = conv,
+            alreadyPresentUsers = [],
+            action =
               SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qalice) roleNameWireMember)
           }
   void $ runFedClient @"on-conversation-updated" fedGalleyClient bdom cu

@@ -19,6 +19,7 @@
 
 module Federator.MockServer
   ( -- * Federator mock server
+    MockFederator (..),
     MockException (..),
     withTempMockFederator,
     FederatedRequest (..),
@@ -44,6 +45,7 @@ import Control.Monad.Catch hiding (fromException)
 import Control.Monad.Trans.Except
 import Control.Monad.Trans.Maybe
 import Data.Aeson qualified as Aeson
+import Data.Default
 import Data.Domain
 import Data.Text qualified as Text
 import Data.Text.Lazy qualified as LText
@@ -66,6 +68,7 @@ import Servant.API
 import Servant.Server (Tagged (..))
 import Servant.Server.Generic
 import Wire.API.Federation.API (Component)
+import Wire.API.Federation.API.Common
 import Wire.API.Federation.Domain
 import Wire.API.Federation.Version
 import Wire.Sem.Logger.TinyLog
@@ -104,16 +107,15 @@ mockServer ::
     Member (Error ValidationError) r
   ) =>
   IORef [FederatedRequest] ->
-  [HTTP.Header] ->
-  (FederatedRequest -> IO (HTTP.MediaType, LByteString)) ->
+  MockFederator ->
   (Sem r Wai.Response -> IO Wai.Response) ->
   API AsServer
-mockServer remoteCalls headers resp interpreter =
+mockServer remoteCalls mock interpreter =
   Federator.InternalServer.API
     { status = const $ pure NoContent,
       internalRequest = \_mReqId targetDomain component rpc ->
         Tagged $ \req respond ->
-          respond =<< interpreter (mockInternalRequest remoteCalls headers resp targetDomain component rpc req)
+          respond =<< interpreter (mockInternalRequest remoteCalls mock targetDomain component rpc req)
     }
 
 mockInternalRequest ::
@@ -123,14 +125,13 @@ mockInternalRequest ::
     Member (Error ValidationError) r
   ) =>
   IORef [FederatedRequest] ->
-  [HTTP.Header] ->
-  (FederatedRequest -> IO (HTTP.MediaType, LByteString)) ->
+  MockFederator ->
   Domain ->
   Component ->
   RPC ->
   Wai.Request ->
   Sem r Wai.Response
-mockInternalRequest remoteCalls headers resp targetDomain component (RPC path) req = do
+mockInternalRequest remoteCalls mock targetDomain component (RPC path) req = do
   domainTxt <- note NoOriginDomain $ lookup originDomainHeaderName (Wai.requestHeaders req)
   originDomain <- parseDomain domainTxt
   reqBody <- embed $ Wai.lazyRequestBody req
@@ -145,19 +146,33 @@ mockInternalRequest remoteCalls headers resp targetDomain component (RPC path) r
         )
   (ct, resBody) <-
     if path == "api-version"
-      then pure ("application/json", Aeson.encode versionInfo)
+      then pure ("application/json", Aeson.encode (VersionInfo mock.versions))
       else do
         modifyIORef remoteCalls (<> [fedRequest])
         fromException @MockException
           . handle (throw . handleException)
-          $ resp fedRequest
-  let headers' = ("Content-Type", HTTP.renderHeader ct) : headers
-  pure $ Wai.responseLBS HTTP.status200 headers' resBody
+          $ mock.handler fedRequest
+  let headers = ("Content-Type", HTTP.renderHeader ct) : mock.headers
+  pure $ Wai.responseLBS HTTP.status200 headers resBody
   where
     handleException :: SomeException -> MockException
     handleException e = case Exception.fromException e of
       Just mockE -> mockE
       Nothing -> MockErrorResponse HTTP.status500 (LText.pack (displayException e))
+
+data MockFederator = MockFederator
+  { headers :: [HTTP.Header],
+    handler :: FederatedRequest -> IO (HTTP.MediaType, LByteString),
+    versions :: [Int]
+  }
+
+instance Default MockFederator where
+  def =
+    MockFederator
+      { headers = [],
+        handler = \_ -> pure ("application/json", Aeson.encode EmptyResponse),
+        versions = map versionInt (toList supportedVersions)
+      }
 
 -- | Spawn a mock federator on a random port and run an action while it is running.
 --
@@ -166,11 +181,10 @@ mockInternalRequest remoteCalls headers resp targetDomain component (RPC path) r
 -- forwarding them to a remote federator.
 withTempMockFederator ::
   (MonadIO m, MonadMask m) =>
-  [HTTP.Header] ->
-  (FederatedRequest -> IO (HTTP.MediaType, LByteString)) ->
+  MockFederator ->
   (Warp.Port -> m a) ->
   m (a, [FederatedRequest])
-withTempMockFederator headers resp action = do
+withTempMockFederator mock action = do
   remoteCalls <- newIORef []
   let interpreter =
         runM
@@ -180,7 +194,7 @@ withTempMockFederator headers resp action = do
                 ServerError,
                 MockException
               ]
-      app = genericServe (mockServer remoteCalls headers resp interpreter)
+      app = genericServe (mockServer remoteCalls mock interpreter)
   result <-
     bracket
       (liftIO (startMockServer Nothing app))

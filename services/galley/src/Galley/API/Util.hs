@@ -45,6 +45,7 @@ import Galley.Data.Conversation qualified as Data
 import Galley.Data.Services (BotMember, newBotMember)
 import Galley.Data.Types qualified as DataTypes
 import Galley.Effects
+import Galley.Effects.BackendNotificationQueueAccess
 import Galley.Effects.BrigAccess
 import Galley.Effects.CodeStore
 import Galley.Effects.ConversationStore
@@ -60,6 +61,7 @@ import Galley.Types.Teams
 import Galley.Types.UserList
 import Gundeck.Types.Push.V2 qualified as PushV2
 import Imports hiding (forkIO)
+import Network.AMQP qualified as Q
 import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (Error, fromEither)
@@ -823,12 +825,12 @@ ensureNoUnreachableBackends results = do
     throw (UnreachableBackends (map (tDomain . fst) errors))
   pure values
 
--- | Notify remote users of being added to a new conversation. In case a remote
--- domain is unreachable, an exception is thrown, the conversation deleted and
--- the client gets an error response.
+-- | Notify remote users of being added to a new conversation.
 registerRemoteConversationMemberships ::
   ( Member ConversationStore r,
     Member (Error UnreachableBackends) r,
+    Member (Error FederationError) r,
+    Member BackendNotificationQueueAccess r,
     Member FederatorAccess r
   ) =>
   -- | The time stamp when the conversation was created
@@ -861,6 +863,7 @@ registerRemoteConversationMemberships now lusr lc = deleteOnUnreachable $ do
 
   -- reachable members in buckets per remote domain
   let joined :: [Remote [RemoteMember]] = allRemoteBuckets
+      joinedCoupled :: [Remote ([RemoteMember], NonEmpty (Remote UserId))]
       joinedCoupled =
         foldMap
           ( \ruids ->
@@ -869,14 +872,12 @@ registerRemoteConversationMemberships now lusr lc = deleteOnUnreachable $ do
                       filter (\r -> tDomain r /= tDomain ruids) joined
                in case NE.nonEmpty nj of
                     Nothing -> []
-                    Just v -> [(ruids, v)]
+                    Just v -> [fmap (,v) ruids]
           )
           joined
 
-  void . (ensureNoUnreachableBackends =<<) $
-    -- Send an update to remotes about the final list of participants
-    runFederatedConcurrentlyBucketsEither joinedCoupled $
-      fedClient @'Galley @"on-conversation-updated" . convUpdateJoin
+  void $ enqueueNotificationsConcurrentlyBuckets Q.Persistent joinedCoupled $ \z ->
+    makeConversationUpdateBundle (convUpdateJoin z) >>= sendBundle
   where
     creator :: Maybe UserId
     creator = cnvmCreator . DataTypes.convMetadata . tUnqualified $ lc
@@ -893,14 +894,14 @@ registerRemoteConversationMemberships now lusr lc = deleteOnUnreachable $ do
     toMembers :: [RemoteMember] -> Set OtherMember
     toMembers rs = Set.fromList $ localNonCreators <> fmap remoteMemberToOther rs
 
-    convUpdateJoin :: (QualifiedWithTag t [RemoteMember], NonEmpty (QualifiedWithTag t' UserId)) -> ConversationUpdate
-    convUpdateJoin (toNotify, newMembers) =
+    convUpdateJoin :: Remote ([RemoteMember], NonEmpty (Remote UserId)) -> ConversationUpdate
+    convUpdateJoin (tUnqualified -> (toNotify, newMembers)) =
       ConversationUpdate
-        { cuTime = now,
-          cuOrigUserId = tUntagged lusr,
-          cuConvId = DataTypes.convId (tUnqualified lc),
-          cuAlreadyPresentUsers = fmap (tUnqualified . rmId) . tUnqualified $ toNotify,
-          cuAction =
+        { time = now,
+          origUserId = tUntagged lusr,
+          convId = DataTypes.convId (tUnqualified lc),
+          alreadyPresentUsers = fmap (tUnqualified . rmId) toNotify,
+          action =
             SomeConversationAction
               (sing @'ConversationJoinTag)
               -- FUTUREWORK(md): replace the member role with whatever is provided in

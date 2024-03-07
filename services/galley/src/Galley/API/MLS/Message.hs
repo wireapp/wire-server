@@ -115,7 +115,6 @@ type MLSBundleStaticErrors =
 
 postMLSMessageFromLocalUser ::
   ( HasProposalEffects r,
-    Member (Error FederationError) r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'ConvMemberNotFound) r,
     Member (ErrorS 'ConvNotFound) r,
@@ -149,7 +148,6 @@ postMLSMessageFromLocalUser lusr c conn smsg = do
 postMLSCommitBundle ::
   ( HasProposalEffects r,
     Members MLSBundleStaticErrors r,
-    Member (Error FederationError) r,
     Member Resource r,
     Member SubConversationStore r
   ) =>
@@ -171,7 +169,6 @@ postMLSCommitBundle loc qusr c ctype qConvOrSub conn bundle =
 postMLSCommitBundleFromLocalUser ::
   ( HasProposalEffects r,
     Members MLSBundleStaticErrors r,
-    Member (Error FederationError) r,
     Member Resource r,
     Member SubConversationStore r
   ) =>
@@ -318,7 +315,6 @@ postMLSCommitBundleToRemoteConv loc qusr c con bundle ctype rConvOrSubId = do
 
 postMLSMessage ::
   ( HasProposalEffects r,
-    Member (Error FederationError) r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'ConvMemberNotFound) r,
     Member (ErrorS 'ConvNotFound) r,
@@ -417,7 +413,6 @@ postMLSMessageToLocalConv qusr c con msg ctype convOrSubId = do
 
 postMLSMessageToRemoteConv ::
   ( Members MLSMessageStaticErrors r,
-    Member (Error FederationError) r,
     HasProposalEffects r
   ) =>
   Local x ->
