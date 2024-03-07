@@ -26,7 +26,6 @@ import qualified Data.Text.Encoding as Text
 import Data.Unique
 import GHC.IO.Exception
 import qualified Network.HTTP2.Client as HTTP2
-import Network.HTTP2.Frame (WindowSize)
 import qualified Network.Socket as NS
 import qualified OpenSSL.Session as SSL
 import System.IO.Error
@@ -294,8 +293,7 @@ startPersistentHTTP2Connection ctx (tlsEnabled, hostname, port) cl removeTrailin
         HTTP2.defaultClientConfig
           { HTTP2.scheme = if tlsEnabled then "https" else "http",
             HTTP2.authority = UTF8.toString hostname,
-            HTTP2.cacheLimit = cl,
-            HTTP2.connectionWindowSize = properWindowSize
+            HTTP2.cacheLimit = cl
           }
       -- Sends error to requests which show up too late, i.e. after the
       -- connection is already closed
@@ -345,9 +343,6 @@ startPersistentHTTP2Connection ctx (tlsEnabled, hostname, port) cl removeTrailin
             handle cleanupThreadsWith $
               runAction
   where
-    properWindowSize :: WindowSize
-    properWindowSize = 1048575
-
     handleRequests :: IORef LiveReqs -> SendReqFn -> IO ()
     handleRequests liveReqs sendReq = do
       let waitAndFork = do

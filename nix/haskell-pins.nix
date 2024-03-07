@@ -270,6 +270,7 @@ let
       sha256 = "sha256-DSMckKIeVE/buSMg8Mq+mUm1bYPYB7veA11Ns7vTBbc=";
     };
 
+    # http2 now depends on this, might be removable after next nixpkgs bump
     network-control = {
       version = "0.0.2";
       sha256 = "sha256-0EvnVu7cktMmSRVk9Ufm0oE4JLQrKLSRYpFpgcJguY0=";
