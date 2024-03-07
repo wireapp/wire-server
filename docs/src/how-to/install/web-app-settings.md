@@ -6,14 +6,13 @@ Wire desktop app is based on Electron and renders Wire web app in a chromium-bas
 
 When this flag is set to true it will prevent the web app from running in a standard browser and require the Wire desktop app for running Wire web app.
 
-To enforce desktop application only add the following to your Helm overrides in `values/wire-server/values.yaml`:
+To enforce desktop application only add the following to your configuration of the `webapp` chart:
 
 ```yaml
-webapp:
+# ...
+envVars:
   # ...
-  envVars:
-    # ...
-    FEATURE_ENABLE_ENFORCE_DESKTOP_APPLICATION_ONLY: "true"
+  FEATURE_ENABLE_ENFORCE_DESKTOP_APPLICATION_ONLY: "true"
 ```
 
 ## Enforce constant bit rate
@@ -22,40 +21,36 @@ By default Wire users can choose, whether to use constant bit rate (CBR) or vari
 Since there is a theoretical risk of information leakage through packet size analysis when using Opus with variable bitrate encoding during audio calls, CBR can be fully enforced for 1:1 calls in the web app, too.
 
 
-To enforce CBR add the following to your Helm overrides in `values/wire-server/values.yaml`:
+To enforce CBR add the following to your config:
 
 ```yaml
-webapp:
+envVars:
   # ...
-  envVars:
-    # ...
-    FEATURE_ENFORCE_CONSTANT_BITRATE: "true"
+  FEATURE_ENFORCE_CONSTANT_BITRATE: "true"
 ```
 
 ## Disable media plugins
 
 Wire is built for media plugins to be active in the chat windows so that users don't have to click the link and leave the app. In some cases it may be desired that these plugins get disabled by default. With this setting all media plugins, including but not limited to YouTube, Spotify, Soundcloud, and Vimeo can be disabled.
 
-To disable media plugins add the following to your Helm overrides in `values/wire-server/values.yaml`:
+To disable media plugins add the following to your configuration:
 
 ```yaml
-webapp:
+# ...
+envVars:
   # ...
-  envVars:
-    # ...
-    FEATURE_ENABLE_MEDIA_EMBEDS: "false"
+  FEATURE_ENABLE_MEDIA_EMBEDS: "false"
 ```
 
 ## Enable extra entropy (only on Windows)
 
 The Wire desktop application uses system-dependent source of random bits as an internal entropy source when generating cryptographic keys. In certain cases it may be desired to enable externally generated entropy derived from mouse movement. This option only affects Windows users.
 
-To enable additional entropy during client creation add the following to your Helm overrides in `values/wire-server/values.yaml`:
+To enable additional entropy during client creation add the following to your configuration:
 
 ```yaml
-webapp:
+# ...
+envVars:
   # ...
-  envVars:
-    # ...
-    FEATURE_ENABLE_EXTRA_CLIENT_ENTROPY: "true"
+  FEATURE_ENABLE_EXTRA_CLIENT_ENTROPY: "true"
 ```
