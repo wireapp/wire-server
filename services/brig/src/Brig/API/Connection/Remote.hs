@@ -167,7 +167,8 @@ transitionTo self mzcon other Nothing (Just rel) actor = lift $ do
   -- Create 1-1 proteus conversation.
   --
   -- We do nothing here for MLS as having no pre-existing connection implies
-  -- there was no conversation. Creating an MLS converstaion is special due to
+  -- there was no conversation. Creating an MLS conversation is special due to
+``
   -- key packages, etc. so the clients have to make another call for this.
   let proteusConv = one2OneConvId BaseProtocolProteusTag (tUntagged self) (tUntagged other)
   updateOne2OneConv self mzcon other proteusConv (desiredMembership actor rel) actor
