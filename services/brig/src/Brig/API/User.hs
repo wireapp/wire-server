@@ -557,10 +557,9 @@ createUserInviteViaScim ::
     Member (UserPendingActivationStore p) r,
     Member TinyLog r
   ) =>
-  UserId ->
   NewUserScimInvitation ->
   ExceptT Error.Error (AppT r) UserAccount
-createUserInviteViaScim uid (NewUserScimInvitation tid loc name rawEmail _) = do
+createUserInviteViaScim (NewUserScimInvitation tid uid loc name rawEmail _) = do
   email <- either (const . throwE . Error.StdError $ errorToWai @'E.InvalidEmail) pure (validateEmail rawEmail)
   let emKey = userEmailKey email
   verifyUniquenessAndCheckBlacklist emKey !>> identityErrorToBrigError

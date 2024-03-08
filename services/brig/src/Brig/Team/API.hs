@@ -161,7 +161,7 @@ createInvitationPublic uid tid body = do
   fst
     <$> logInvitationRequest
       context
-      (createInvitation' tid inviteeRole (Just (inviterUid inviter)) (inviterEmail inviter) body)
+      (createInvitation' tid Nothing inviteeRole (Just (inviterUid inviter)) (inviterEmail inviter) body)
 
 createInvitationViaScim ::
   ( Member BlacklistStore r,
@@ -172,7 +172,7 @@ createInvitationViaScim ::
   TeamId ->
   NewUserScimInvitation ->
   (Handler r) UserAccount
-createInvitationViaScim tid newUser@(NewUserScimInvitation _tid loc name email role) = do
+createInvitationViaScim tid newUser@(NewUserScimInvitation _tid uid loc name email role) = do
   env <- ask
   let inviteeRole = role
       fromEmail = env ^. emailSender
@@ -190,12 +190,11 @@ createInvitationViaScim tid newUser@(NewUserScimInvitation _tid loc name email r
           . logTeam tid
           . logEmail email
 
-  (inv, _) <-
+  void $
     logInvitationRequest context $
-      createInvitation' tid inviteeRole Nothing fromEmail invreq
-  let uid = Id (toUUID (inInvitation inv))
+      createInvitation' tid (Just uid) inviteeRole Nothing fromEmail invreq
 
-  createUserInviteViaScim uid newUser
+  createUserInviteViaScim newUser
 
 logInvitationRequest :: (Msg -> Msg) -> (Handler r) (Invitation, InvitationCode) -> (Handler r) (Invitation, InvitationCode)
 logInvitationRequest context action =
@@ -214,12 +213,13 @@ createInvitation' ::
     Member GalleyProvider r
   ) =>
   TeamId ->
+  Maybe UserId ->
   Public.Role ->
   Maybe UserId ->
   Email ->
   Public.InvitationRequest ->
   Handler r (Public.Invitation, Public.InvitationCode)
-createInvitation' tid inviteeRole mbInviterUid fromEmail body = do
+createInvitation' tid mUid inviteeRole mbInviterUid fromEmail body = do
   -- FUTUREWORK: These validations are nearly copy+paste from accountCreation and
   --             sendActivationCode. Refactor this to a single place
 
@@ -254,7 +254,7 @@ createInvitation' tid inviteeRole mbInviterUid fromEmail body = do
   showInvitationUrl <- lift $ liftSem $ GalleyProvider.getExposeInvitationURLsToTeamAdmin tid
 
   lift $ do
-    iid <- liftIO DB.mkInvitationId
+    iid <- maybe (liftIO DB.mkInvitationId) (pure . Id . toUUID) mUid
     now <- liftIO =<< view currentTime
     timeout <- setTeamInvitationTimeout <$> view settings
     (newInv, code) <-

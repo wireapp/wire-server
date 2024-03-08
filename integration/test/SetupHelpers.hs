@@ -314,3 +314,15 @@ lhDeviceIdOf bob = do
       >>= assertOne
       >>= (%. "id")
       >>= asString
+
+randomScimUser :: App Value
+randomScimUser = do
+  email <- randomEmail
+  handle <- randomHandleWithRange 12 128
+  pure $
+    object
+      [ "schemas" .= ["urn:ietf:params:scim:schemas:core:2.0:User"],
+        "externalId" .= email,
+        "userName" .= handle,
+        "displayName" .= handle
+      ]

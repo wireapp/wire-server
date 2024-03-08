@@ -24,6 +24,7 @@ import Data.Id
 import Imports
 import Polysemy
 import Polysemy.Check
+import Spar.Scim.Types (ScimUserCreationStatus)
 import qualified Spar.Sem.ScimExternalIdStore as E
 import Test.Hspec
 import Test.Hspec.QuickCheck
@@ -45,15 +46,17 @@ propsForInterpreter interpreter extract lower = do
     prop "insert/lookup" $ prop_insertLookup (Just $ show . void . extract) lower
     prop "insert/insert" $ prop_insertInsert (Just $ show . void . extract) lower
 
+-- FUTUREWORK: Add prop tests for missing operations
+
 -- | All the constraints we need to generalize properties in this module.
 -- A regular type synonym doesn't work due to dreaded impredicative
 -- polymorphism.
 class
-  (Arbitrary UserId, CoArbitrary UserId, Functor f, Member E.ScimExternalIdStore r, forall z. Show z => Show (f z), forall z. Eq z => Eq (f z)) =>
+  (Arbitrary UserId, CoArbitrary UserId, Arbitrary ScimUserCreationStatus, CoArbitrary ScimUserCreationStatus, Functor f, Member E.ScimExternalIdStore r, forall z. Show z => Show (f z), forall z. Eq z => Eq (f z)) =>
   PropConstraints r f
 
 instance
-  (CoArbitrary UserId, Functor f, Member E.ScimExternalIdStore r, forall z. Show z => Show (f z), forall z. Eq z => Eq (f z)) =>
+  (CoArbitrary UserId, CoArbitrary ScimUserCreationStatus, Functor f, Member E.ScimExternalIdStore r, forall z. Show z => Show (f z), forall z. Eq z => Eq (f z)) =>
   PropConstraints r f
 
 prop_insertLookup ::

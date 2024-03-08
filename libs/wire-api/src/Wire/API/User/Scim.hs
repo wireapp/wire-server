@@ -42,7 +42,7 @@
 -- * Request and response types for SCIM-related endpoints.
 module Wire.API.User.Scim where
 
-import Control.Lens (Prism', makeLenses, mapped, prism', (.~), (?~))
+import Control.Lens (Prism', makeLenses, mapped, prism', (.~), (?~), (^.))
 import Control.Monad.Except (throwError)
 import Crypto.Hash (hash)
 import Crypto.Hash.Algorithms (SHA512)
@@ -83,7 +83,8 @@ import Web.Scim.Schema.Schema qualified as Scim
 import Web.Scim.Schema.User qualified as Scim
 import Web.Scim.Schema.User qualified as Scim.User
 import Wire.API.Team.Role (Role)
-import Wire.API.User.Identity (Email)
+import Wire.API.User (emailFromSAMLNameID, urefToExternalIdUnsafe)
+import Wire.API.User.Identity (Email, fromEmail)
 import Wire.API.User.Profile as BT
 import Wire.API.User.RichInfo qualified as RI
 import Wire.API.User.Saml ()
@@ -338,6 +339,15 @@ data ValidExternalId
   | EmailOnly Email
   deriving (Eq, Show, Generic)
 
+instance Arbitrary ValidExternalId where
+  arbitrary = do
+    muref <- QC.arbitrary
+    case muref of
+      Just uref -> case emailFromSAMLNameID $ uref ^. SAML.uidSubject of
+        Just e -> pure $ EmailAndUref e uref
+        Nothing -> pure $ UrefOnly uref
+      Nothing -> EmailOnly <$> QC.arbitrary
+
 -- | Take apart a 'ValidExternalId', using 'SAML.UserRef' if available, otherwise 'Email'.
 runValidExternalIdEither :: (SAML.UserRef -> a) -> (Email -> a) -> ValidExternalId -> a
 runValidExternalIdEither doUref doEmail = \case
@@ -352,6 +362,11 @@ runValidExternalIdBoth merge doUref doEmail = \case
   EmailAndUref eml uref -> doUref uref `merge` doEmail eml
   UrefOnly uref -> doUref uref
   EmailOnly em -> doEmail em
+
+-- | Returns either the extracted `UnqualifiedNameID` if present and not qualified, or the email address.
+-- This throws an exception if there are any qualifiers.
+runValidExternalIdUnsafe :: ValidExternalId -> Text
+runValidExternalIdUnsafe = runValidExternalIdEither urefToExternalIdUnsafe fromEmail
 
 veidUref :: Prism' ValidExternalId SAML.UserRef
 veidUref = prism' UrefOnly $

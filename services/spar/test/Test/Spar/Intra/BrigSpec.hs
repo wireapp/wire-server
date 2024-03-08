@@ -20,7 +20,6 @@
 module Test.Spar.Intra.BrigSpec where
 
 import Arbitrary ()
-import Control.Lens ((^.))
 import Imports
 import SAML2.WebSSO as SAML
 import Spar.Intra.BrigApp
@@ -70,12 +69,3 @@ spec = do
 
     it "roundtrips" . property $
       \(x :: ValidExternalId) -> (veidFromUserSSOId @(Either String) . veidToUserSSOId) x === Right x
-
-instance Arbitrary ValidExternalId where
-  arbitrary = do
-    muref <- arbitrary
-    case muref of
-      Just uref -> case emailFromSAMLNameID $ uref ^. SAML.uidSubject of
-        Just email -> pure $ EmailAndUref email uref
-        Nothing -> pure $ UrefOnly uref
-      Nothing -> EmailOnly <$> arbitrary

@@ -2165,6 +2165,7 @@ CREATE TABLE spar_test.scim_user_times (
 CREATE TABLE spar_test.scim_external (
     team uuid,
     external_id text,
+    creation_status int,
     user uuid,
     PRIMARY KEY (team, external_id)
 ) WITH CLUSTERING ORDER BY (external_id ASC)
