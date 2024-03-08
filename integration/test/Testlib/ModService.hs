@@ -338,7 +338,6 @@ checkServiceIsUp domain srv = do
 withProcess :: BackendResource -> ServiceOverrides -> Service -> Codensity App ()
 withProcess resource overrides service = do
   let domain = berDomain resource
-  sm <- lift $ getServiceMap domain
   getConfig <-
     lift . appToIO $
       readServiceConfig service
@@ -354,8 +353,8 @@ withProcess resource overrides service = do
   startNginzLocalIO <- lift $ appToIO $ startNginzLocal resource
 
   let initProcess = case (service, cwd) of
-        (Nginz, Nothing) -> startNginzK8s domain sm
-        (Nginz, Just _) -> startNginzLocalIO
+        (Nginz, Nothing) -> pure Nothing -- no need to start nginx on CI, as ingresses are started via k8s
+        (Nginz, Just _) -> Just <$> startNginzLocalIO
         _ -> do
           config <- getConfig
           tempFile <- writeTempFile "/tmp" (execName <> "-" <> domain <> "-" <> ".yaml") (cs $ Yaml.encode config)
@@ -364,11 +363,11 @@ withProcess resource overrides service = do
           let colorize = fromMaybe id (lookup execName processColors)
           void $ forkIO $ logToConsole colorize prefix stdoutHdl
           void $ forkIO $ logToConsole colorize prefix stderrHdl
-          pure $ ServiceInstance ph tempFile
+          pure . Just $ ServiceInstance ph tempFile
 
   void $ Codensity $ \k -> do
     iok <- appToIOKleisli k
-    liftIO $ E.bracket initProcess cleanupService iok
+    liftIO $ E.bracket initProcess (maybe (pure ()) cleanupService) iok
 
   lift $ waitUntilServiceIsUp domain service
 
@@ -391,29 +390,6 @@ retryRequestUntil reqAction err = do
       (const reqAction)
   unless isUp $
     failApp ("Timed out waiting for service " <> err <> " to come up")
-
-startNginzK8s :: String -> ServiceMap -> IO ServiceInstance
-startNginzK8s domain sm = do
-  tmpDir <- liftIO $ createTempDirectory "/tmp" ("nginz" <> "-" <> domain)
-  liftIO $
-    copyDirectoryRecursively "/etc/wire/nginz/" tmpDir
-
-  let nginxConfFile = tmpDir </> "conf" </> "nginx.conf"
-      upstreamsCfg = tmpDir </> "upstreams.conf"
-  liftIO $ do
-    conf <- Text.readFile nginxConfFile
-    Text.writeFile nginxConfFile $
-      ( conf
-          & Text.replace "access_log /dev/stdout" "access_log /dev/null"
-          -- TODO: Get these ports out of config
-          & Text.replace ("listen 8080;\n    listen 8081 proxy_protocol;") (cs $ "listen " <> show sm.nginz.port <> ";")
-          & Text.replace ("listen 8082;") (cs $ "listen unix:" <> (tmpDir </> "metrics-socket") <> ";")
-          & Text.replace ("/var/run/nginz.pid") (cs $ tmpDir </> "nginz.pid")
-          & Text.replace ("/etc/wire/nginz/upstreams/upstreams.conf") (cs upstreamsCfg)
-      )
-  createUpstreamsCfg upstreamsCfg sm
-  ph <- startNginz domain nginxConfFile "/"
-  pure $ ServiceInstance ph tmpDir
 
 startNginzLocal :: BackendResource -> App ServiceInstance
 startNginzLocal resource = do
