@@ -1,23 +1,23 @@
 #!/usr/bin/env -S nix -Lv run github:wireapp/ghc-flakr/99fe5a331fdd37d52043f14e5c565ac29a30bcb4
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE LambdaCase #-}
 {-# OPTIONS_GHC -Wall #-}
-{-# LANGUAGE DataKinds, LambdaCase #-}
 
 import Data.Aeson
 import qualified Data.ByteString.Base64.Lazy as Base64
 import qualified Data.ByteString.Lazy.Char8 as BL
 import Data.Proxy
 import Data.Text.Lazy
-import Sbom hiding (main)
 import Data.Text.Lazy.Encoding
 import GHC.Generics
 import qualified Network.HTTP.Client as HTTP
 import Network.HTTP.Client.TLS (tlsManagerSettings)
 import Options.Applicative
+import Sbom hiding (main)
 import Servant.API
-import System.Process
-import System.Exit
 import Servant.Client
-
+import System.Exit
+import System.Process
 
 data Payload = Payload
   { bom :: Text,
@@ -100,10 +100,10 @@ main = do
   manager' <- HTTP.newManager tlsManagerSettings
   buildWire <- spawnCommand "nix -Lv build -f nix wireServer.allLocalPackages -o wire-server"
   buildMeta <- spawnCommand "nix -Lv build -f nix wireServer.toplevel-derivations --impure -o meta"
-  waitForProcess buildWire >>= \case 
+  waitForProcess buildWire >>= \case
     ExitFailure _ -> fail "process for building wire failed"
     ExitSuccess -> putStrLn "finished building Wire"
-  waitForProcess buildMeta >>= \case 
+  waitForProcess buildMeta >>= \case
     ExitFailure _ -> fail "process for building meta for wire failed"
     ExitSuccess -> putStrLn "finished building meta"
 
