@@ -19,12 +19,12 @@ testWelcomeNotification = do
 
   notifId <- notif %. "id" & asString
 
-  void $
+  for_ [bob1, bob2] $ \cid ->
     getNotifications
       bob
       def
         { since = Just notifId,
-          client = Just bob2.client,
+          client = Just cid.client,
           size = Just 10000
         }
       >>= getJSON 200
