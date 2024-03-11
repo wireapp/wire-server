@@ -128,6 +128,7 @@ library
     Test.MLS
     Test.MLS.KeyPackage
     Test.MLS.Message
+    Test.MLS.Notifications
     Test.MLS.One2One
     Test.MLS.SubConversation
     Test.MLS.Unreachable
