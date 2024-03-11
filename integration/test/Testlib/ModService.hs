@@ -203,17 +203,22 @@ startDynamicBackend resource beOverrides = do
     setLogLevel :: ServiceOverrides
     setLogLevel =
       def
-        { sparCfg = setField "saml.logLevel" ("Warn" :: String),
-          brigCfg = setField "logLevel" ("Warn" :: String),
-          cannonCfg = setField "logLevel" ("Warn" :: String),
-          cargoholdCfg = setField "logLevel" ("Warn" :: String),
-          galleyCfg = setField "logLevel" ("Warn" :: String),
-          gundeckCfg = setField "logLevel" ("Warn" :: String),
-          nginzCfg = setField "logLevel" ("Warn" :: String),
-          backgroundWorkerCfg = setField "logLevel" ("Warn" :: String),
-          sternCfg = setField "logLevel" ("Warn" :: String),
-          federatorInternalCfg = setField "logLevel" ("Warn" :: String)
+        { -- NOTE: if you want to set logLevel to "Debug", consider doing it for the service
+          -- you're interested in only.  it's *very* noisy!
+          sparCfg = setField "saml.logLevel" logLevel,
+          brigCfg = setField "logLevel" logLevel,
+          cannonCfg = setField "logLevel" logLevel,
+          cargoholdCfg = setField "logLevel" logLevel,
+          galleyCfg = setField "logLevel" logLevel,
+          gundeckCfg = setField "logLevel" logLevel,
+          nginzCfg = setField "logLevel" logLevel,
+          backgroundWorkerCfg = setField "logLevel" logLevel,
+          sternCfg = setField "logLevel" logLevel,
+          federatorInternalCfg = setField "logLevel" logLevel
         }
+      where
+        logLevel :: String
+        logLevel = "Warn"
 
 updateServiceMapInConfig :: BackendResource -> Service -> Value -> App Value
 updateServiceMapInConfig resource forSrv config =
