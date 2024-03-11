@@ -87,6 +87,7 @@ module Util.Core
     registerTestIdPFrom,
     tryLogin,
     tryLoginFail,
+    tryLoginFail404,
     negotiateAuthnRequest,
     negotiateAuthnRequest',
     getCookie,
@@ -107,6 +108,7 @@ module Util.Core
     callIdpGetAll',
     callIdpCreate,
     callIdpCreate',
+    callIdpCreate'Replaces,
     callIdpCreateRaw,
     callIdpCreateRaw',
     callIdpCreateReplace,
@@ -886,6 +888,21 @@ tryLoginFail privkey idp userSubject bodyShouldContain = do
     let bdy = maybe "" (cs @LByteString @String) (responseBody sparresp)
     bdy `shouldContain` bodyShouldContain
 
+tryLoginFail404 :: HasCallStack => SignPrivCreds -> IdP -> NameID -> TestSpar ()
+tryLoginFail404 privkey idp userSubject = do
+  env <- ask
+  let tid = idp ^. idpExtraInfo . team
+  spmeta <- getTestSPMetadata tid
+  resp <- call $ callAuthnReq' (env ^. teSpar) (idp ^. SAML.idpId)
+  case statusCode resp of
+    404 -> pure ()
+    200 -> do
+      (_, authnreq) <- call $ callAuthnReq (env ^. teSpar) (idp ^. SAML.idpId)
+      idpresp <- runSimpleSP $ mkAuthnResponseWithSubj userSubject privkey idp spmeta authnreq True
+      sparresp <- submitAuthnResponse tid idpresp
+      liftIO $ statusCode sparresp `shouldBe` 404
+    bad -> error $ "tryLoginFail404: " <> show bad
+
 -- | see also: 'callAuthnReq'
 negotiateAuthnRequest ::
   (HasCallStack, MonadIO m, MonadReader TestEnv m) =>
@@ -1079,7 +1096,10 @@ callIdpCreate apiversion sparreq_ muid metadata = do
     responseJsonEither @IdP resp
 
 callIdpCreate' :: (MonadIO m, MonadHttp m) => WireIdPAPIVersion -> SparReq -> Maybe UserId -> SAML.IdPMetadata -> m ResponseLBS
-callIdpCreate' apiversion sparreq_ muid metadata = do
+callIdpCreate' = callIdpCreate'Replaces Nothing
+
+callIdpCreate'Replaces :: (MonadIO m, MonadHttp m) => Maybe SAML.IdPId -> WireIdPAPIVersion -> SparReq -> Maybe UserId -> SAML.IdPMetadata -> m ResponseLBS
+callIdpCreate'Replaces mbReplaces apiversion sparreq_ muid metadata = do
   explicitQueryParam <- do
     -- `&api_version=v1` is implicit and can be omitted from the query, but we want to test
     -- both, and not spend extra time on it.
@@ -1091,6 +1111,10 @@ callIdpCreate' apiversion sparreq_ muid metadata = do
       . ( case apiversion of
             WireIdPAPIV1 -> Bilge.query [("api_version", Just "v1") | explicitQueryParam]
             WireIdPAPIV2 -> Bilge.query [("api_version", Just "v2")]
+        )
+      . ( case mbReplaces of
+            Nothing -> id
+            Just i -> Bilge.query [("replaces", Just $ cs $ show i)]
         )
       . body (RequestBodyLBS . cs $ SAML.encode metadata)
       . header "Content-Type" "application/xml"

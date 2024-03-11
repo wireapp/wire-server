@@ -65,7 +65,7 @@ data WireIdP = WireIdP
   deriving (Eq, Show, Generic)
 
 data WireIdPAPIVersion
-  = -- | initial API
+  = -- | initial API (FUTUREWORK: discontinue this!  requires coordination with team-settings.)
     WireIdPAPIV1
   | -- | support for different SP entityIDs per team
     WireIdPAPIV2

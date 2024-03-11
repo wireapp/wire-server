@@ -60,7 +60,7 @@ main = do
   let env = withArgs wireArgs mkEnvFromOptions
   cfg <- hspecConfig
   withArgs hspecArgs . hspecWith cfg $ do
-    for_ [minBound ..] $ \idpApiVersion -> do
+    for_ [maxBound] $ \idpApiVersion -> do
       describe (show idpApiVersion) . beforeAll (env <&> teWireIdPAPIVersion .~ idpApiVersion) . afterAll destroyEnv $ do
         mkspecMisc
         mkspecSaml

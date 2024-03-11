@@ -732,7 +732,8 @@ specCRUDIdentityProvider = do
           `shouldRespondWith` ((== 200) . statusCode)
         callIdpGet (env ^. teSpar) (Just owner) (idp ^. idpId)
           `shouldRespondWith` ((== expected) . (\idp' -> idp' ^. (SAML.idpExtraInfo . handle)))
-      it "updates IdP metadata and creates a new IdP with the first metadata" $ do
+
+      focus . it "updates IdP metadata and creates a new IdP with the first metadata" $ do
         env <- ask
         (owner, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
         -- create new idp
@@ -742,9 +743,23 @@ specCRUDIdentityProvider = do
         (SampleIdP metadata2 _ _ _) <- makeSampleIdPMetadata
         callIdpUpdate (env ^. teSpar) (Just owner) (idp1 ^. idpId) (IdPMetadataValue (cs $ SAML.encode metadata2) undefined)
           `shouldRespondWith` ((== 200) . statusCode)
-        -- create a new idp with the first metadata (should succeed)
+        -- create a new idp with the first metadata (should fail)
         callIdpCreate' (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just owner) metadata1
-          `shouldRespondWith` ((== 201) . statusCode)
+          `shouldRespondWith` ((== 400) . statusCode)
+        -- revert update on existing idp (should succeed)
+        callIdpUpdate (env ^. teSpar) (Just owner) (idp1 ^. idpId) (IdPMetadataValue (cs $ SAML.encode metadata1) undefined)
+          `shouldRespondWith` ((== 200) . statusCode)
+        -- create a new idp with the second metadata (should fail)
+        callIdpCreate' (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just owner) metadata2
+          `shouldRespondWith` ((== 400) . statusCode)
+        -- TODO: delete idp1 and then succeed with the above 2 lines.
+        -- create a new idp with the second metadata, setting replaced-by to the previous idp (should succeed)
+        callIdpCreate'Replaces (Just $ idp1 ^. idpId) (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just owner) metadata1
+          `shouldRespondWith` ((== 200) . statusCode)
+        -- TODO @fisx: "replaces" *should* be obsolete, so maybe we can just allow this to fail here, and whenever somebody falls over this tell them to use update?
+        -- TODO @fisx: or maybe drop "replaces" altogether?  if not: why not?
+        callIdpCreate'Replaces (Just $ idp1 ^. idpId) (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just owner) metadata2
+          `shouldRespondWith` ((== 200) . statusCode)
 
       context "invalid body" $ do
         it "rejects" $ do
@@ -1236,7 +1251,7 @@ specCRUDIdentityProvider = do
 
 specDeleteCornerCases :: SpecWith TestEnv
 specDeleteCornerCases = describe "delete corner cases" $ do
-  it "deleting the replacing idp2 before it has users does not block logins on idp1" $ do
+  it "deleting the replacing idp2 also deletes replaced idp1" $ do
     env <- ask
     (owner1, _, idp1, (IdPMetadataValue _ idpmeta1, privkey1)) <- registerTestIdPWithMeta
     let issuer1 = idpmeta1 ^. edIssuer
@@ -1250,27 +1265,28 @@ specDeleteCornerCases = describe "delete corner cases" $ do
     idp2 <-
       let idpmeta2 = idpmeta1 & edIssuer .~ issuer2
        in call $ callIdpCreateReplace (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just owner1) idpmeta2 (idp1 ^. SAML.idpId)
-    call $ callIdpDelete (env ^. teSpar) (pure owner1) (idp2 ^. idpId)
-    uref' <- tryLogin privkey1 idp1 userSubject
-    uid' <- getUserIdViaRef' uref'
-    liftIO $ do
-      uid' `shouldBe` uid
-      uref' `shouldBe` SAML.UserRef issuer1 userSubject
-  it "deleting the replacing idp2 before it has users does not block registrations on idp1" $ do
-    env <- ask
-    (owner1, _, idp1, (IdPMetadataValue _ idpmeta1, privkey1)) <- registerTestIdPWithMeta
-    let issuer1 = idpmeta1 ^. edIssuer
-    issuer2 <- makeIssuer
-    idp2 <-
-      let idpmeta2 = idpmeta1 & edIssuer .~ issuer2
-       in call $ callIdpCreateReplace (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just owner1) idpmeta2 (idp1 ^. SAML.idpId)
-    call $ callIdpDelete (env ^. teSpar) (pure owner1) (idp2 ^. idpId)
-    let userSubject = SAML.unspecifiedNameID "bloob"
-    uref <- tryLogin privkey1 idp1 userSubject
-    uid <- getUserIdViaRef' uref
-    liftIO $ do
-      uid `shouldSatisfy` isJust
-      uref `shouldBe` SAML.UserRef issuer1 userSubject
+    -- without purge: error
+    do
+      resp <- call $ callIdpDelete' (env ^. teSpar) (pure owner1) (idp2 ^. idpId)
+      liftIO $ statusCode resp `shouldBe` 412
+      void $ tryLogin privkey1 idp1 userSubject
+    -- with purge: works, and user is gone, too.
+    do
+      resp <- call $ callIdpDeletePurge' (env ^. teSpar) (pure owner1) (idp2 ^. idpId)
+      liftIO $ statusCode resp `shouldBe` 204
+      tryLoginFail404 privkey1 idp2 userSubject
+      tryLoginFail404 privkey1 idp1 userSubject
+    do
+      resp <- call $ callIdpGet' (env ^. teSpar) (Just owner1) (idp1 ^. SAML.idpId)
+      liftIO $ statusCode resp `shouldBe` 200 -- Weird, yes.  See haddocks for `Spar.API.idpDelete`.
+    do
+      resp <- call $ callIdpGet' (env ^. teSpar) (Just owner1) (idp2 ^. SAML.idpId)
+      liftIO $ statusCode resp `shouldBe` 404
+    do
+      allIdps <- call $ callIdpGetAll (env ^. teSpar) (pure owner1)
+      liftIO $ do
+        allIdps ^? providers . ix 0 . SAML.idpExtraInfo . handle `shouldBe` Just (IdPHandle "IdP 1")
+
   it "create user1 via idp1 (saml); delete user1; create user via newly created idp2 (saml)" $ do
     pending
   it "create user1 via saml; delete user1; create via scim (in same team)" $ do

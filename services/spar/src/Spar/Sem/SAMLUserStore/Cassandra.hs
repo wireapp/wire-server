@@ -57,7 +57,11 @@ nextPage' = Cas.liftClient . Cas.nextPage
 -- | Replaces `getSAML{Some,Any}UsersByIssuer`.
 -- Since we currently do not have a team id stored together with the SAML user in user_v2
 -- we must get all and filter manually by asking brig for the team id when deleting an IdP.
--- FUTUREWORK: to migrate to a new table that contains the team id.
+-- (Reason: since WireIdPAPIV2, issuer is no longer scoped in instance, but in team.)
+--
+-- FUTUREWORK: migrate to a new table that contains the team id.  or better yet, don't
+-- index user_v2 by issuer, but by idp id.  this requires an extra lookup, but it's way less
+-- convoluted than what we're doing at the moment.
 getAllSAMLUsersByIssuerPaginated :: (HasCallStack, MonadClient m) => SAML.Issuer -> m (Cas.Page (SAML.UserRef, UserId))
 getAllSAMLUsersByIssuerPaginated issuer = do
   (_1 %~ SAML.UserRef issuer) <$$> retry x1 (paginate getAllByIssuer (paramsP LocalQuorum (Identity issuer) (size + 1)))
