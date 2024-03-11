@@ -198,8 +198,8 @@ conversationMeta conv =
 
 getGroupInfo :: ConvId -> Client (Maybe GroupInfoData)
 getGroupInfo cid = do
-  runIdentity
-    <$$> retry
+  (runIdentity =<<)
+    <$> retry
       x1
       ( query1
           Cql.selectGroupInfo
