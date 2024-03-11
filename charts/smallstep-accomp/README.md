@@ -95,7 +95,7 @@ For references see:
 |-----------------------|-------------------------------------------------------------------------------------------------------|
 | `caPassword.enabled`  | If `true` generate Secret with a name that the `step-certificates` Helm chart will automatically use. |
 |                       | The Helm chart will mount this at `/home/step/secrets/passwords/password`.                            |
-| `caPassword.password` | Password that decrypts the Intermediate CA private key                                                |
+| `caPassword.password` | Password that decrypts the intermediate CA private key                                                |
 
 | Parameter                 | Description                                                                                           |
 |---------------------------|-------------------------------------------------------------------------------------------------------|
