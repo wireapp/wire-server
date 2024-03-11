@@ -15,16 +15,9 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.API.Routes.Internal.Galley.ConversationsIntra
-  ( DesiredMembership (..),
-    Actor (..),
-    UpsertOne2OneConversationRequest (..),
-    UpsertOne2OneConversationResponse (..),
-  )
-where
+module Wire.API.Routes.Internal.Galley.ConversationsIntra where
 
-import Data.Aeson qualified as A
-import Data.Aeson.Types (FromJSON, ToJSON)
+import Data.Aeson (FromJSON, ToJSON)
 import Data.Id (ConvId, UserId)
 import Data.OpenApi qualified as Swagger
 import Data.Qualified
@@ -60,7 +53,7 @@ data UpsertOne2OneConversationRequest = UpsertOne2OneConversationRequest
     uooRemoteUser :: Remote UserId,
     uooActor :: Actor,
     uooActorDesiredMembership :: DesiredMembership,
-    uooConvId :: Maybe (Qualified ConvId)
+    uooConvId :: Qualified ConvId
   }
   deriving (Show, Generic)
   deriving (FromJSON, ToJSON, Swagger.ToSchema) via Schema UpsertOne2OneConversationRequest
@@ -73,16 +66,4 @@ instance ToSchema UpsertOne2OneConversationRequest where
         <*> (tUntagged . uooRemoteUser) .= field "remote_user" (qTagUnsafe <$> schema)
         <*> uooActor .= field "actor" schema
         <*> uooActorDesiredMembership .= field "actor_desired_membership" schema
-        <*> uooConvId .= optField "conversation_id" (maybeWithDefault A.Null schema)
-
-newtype UpsertOne2OneConversationResponse = UpsertOne2OneConversationResponse
-  { uuorConvId :: Qualified ConvId
-  }
-  deriving (Show, Generic)
-  deriving (FromJSON, ToJSON, Swagger.ToSchema) via Schema UpsertOne2OneConversationResponse
-
-instance ToSchema UpsertOne2OneConversationResponse where
-  schema =
-    object "UpsertOne2OneConversationResponse" $
-      UpsertOne2OneConversationResponse
-        <$> uuorConvId .= field "conversation_id" schema
+        <*> uooConvId .= field "conversation_id" schema

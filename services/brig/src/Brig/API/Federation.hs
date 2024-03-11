@@ -110,7 +110,9 @@ getFederationStatus _ request = do
       pure $ NonConnectedBackends (request.domains \\ fedDomains)
 
 sendConnectionAction ::
-  Member FederationConfigStore r =>
+  ( Member FederationConfigStore r,
+    Member GalleyProvider r
+  ) =>
   Domain ->
   NewConnectionRequest ->
   Handler r NewConnectionResponse

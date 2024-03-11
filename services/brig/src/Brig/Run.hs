@@ -64,7 +64,7 @@ import Network.Wai.Routing.Route (App)
 import Network.Wai.Utilities (lookupRequestId)
 import Network.Wai.Utilities.Server
 import Network.Wai.Utilities.Server qualified as Server
-import Polysemy (Member)
+import Polysemy hiding (run)
 import Servant (Context ((:.)), (:<|>) (..))
 import Servant qualified
 import System.Logger (Logger, msg, val, (.=), (~~))

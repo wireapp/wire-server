@@ -101,6 +101,7 @@ import Imports hiding (head)
 import Network.Socket (PortNumber)
 import Network.Wai.Utilities as Utilities
 import Polysemy
+import Polysemy.TinyLog (TinyLog)
 import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant qualified
 import Servant.OpenApi.Internal.Orphans ()
@@ -271,7 +272,9 @@ servantSitemap ::
     Member PublicKeyBundle r,
     Member (UserPendingActivationStore p) r,
     Member Jwk r,
-    Member FederationConfigStore r
+    Member FederationConfigStore r,
+    Member (Embed HttpClientIO) r,
+    Member TinyLog r
   ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =
@@ -1013,6 +1016,10 @@ createConnection self conn target = do
   API.createConnection lself conn target !>> connError
 
 updateLocalConnection ::
+  ( Member GalleyProvider r,
+    Member TinyLog r,
+    Member (Embed HttpClientIO) r
+  ) =>
   UserId ->
   ConnId ->
   UserId ->
@@ -1025,7 +1032,11 @@ updateLocalConnection self conn other (Public.cuStatus -> newStatus) = do
     <$> API.updateConnectionToLocalUser lself lother newStatus (Just conn) !>> connError
 
 updateConnection ::
-  Member FederationConfigStore r =>
+  ( Member FederationConfigStore r,
+    Member TinyLog r,
+    Member (Embed HttpClientIO) r,
+    Member GalleyProvider r
+  ) =>
   UserId ->
   ConnId ->
   Qualified UserId ->

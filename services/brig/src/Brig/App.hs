@@ -80,6 +80,7 @@ module Brig.App
     wrapHttpClientE,
     wrapHttp,
     HttpClientIO (..),
+    runHttpClientIO,
     liftSem,
     lowerAppT,
     temporaryGetEnv,
@@ -529,7 +530,7 @@ wrapHttp (HttpClientIO m) = do
   liftIO . runClient c . runHttpT manager $ runReaderT m env
 
 newtype HttpClientIO a = HttpClientIO
-  { runHttpClientIO :: ReaderT Env (HttpT Cas.Client) a
+  { unHttpClientIO :: ReaderT Env (HttpT Cas.Client) a
   }
   deriving newtype
     ( Functor,
@@ -545,6 +546,13 @@ newtype HttpClientIO a = HttpClientIO
       MonadUnliftIO,
       MonadIndexIO
     )
+
+runHttpClientIO :: MonadIO m => Env -> HttpClientIO a -> m a
+runHttpClientIO env =
+  runClient (env ^. casClient)
+    . runHttpT (env ^. httpManager)
+    . flip runReaderT env
+    . unHttpClientIO
 
 instance MonadZAuth HttpClientIO where
   liftZAuth za = view zauthEnv >>= flip runZAuth za

@@ -58,17 +58,8 @@ iUpsertOne2OneConversation ::
     Member MemberStore r
   ) =>
   UpsertOne2OneConversationRequest ->
-  Sem r UpsertOne2OneConversationResponse
+  Sem r ()
 iUpsertOne2OneConversation UpsertOne2OneConversationRequest {..} = do
-  let convId =
-        fromMaybe
-          ( one2OneConvId
-              BaseProtocolProteusTag
-              (tUntagged uooLocalUser)
-              (tUntagged uooRemoteUser)
-          )
-          uooConvId
-
   let dolocal :: Local ConvId -> Sem r ()
       dolocal lconvId = do
         mbConv <- getConversation (tUnqualified lconvId)
@@ -90,7 +81,7 @@ iUpsertOne2OneConversation UpsertOne2OneConversationRequest {..} = do
                 void $ createMember lconvId uooLocalUser
                 unless (null (convRemoteMembers conv)) $
                   acceptConnectConversation (tUnqualified lconvId)
-              (LocalActor, Excluded) ->
+              (LocalActor, Excluded) -> do
                 deleteMembers
                   (tUnqualified lconvId)
                   (UserList [tUnqualified uooLocalUser] [])
@@ -111,5 +102,4 @@ iUpsertOne2OneConversation UpsertOne2OneConversationRequest {..} = do
             deleteMembersInRemoteConversation rconvId [tUnqualified uooLocalUser]
           (RemoteActor, _) -> pure ()
 
-  foldQualified uooLocalUser dolocal doremote convId
-  pure (UpsertOne2OneConversationResponse convId)
+  foldQualified uooLocalUser dolocal doremote uooConvId
