@@ -34,7 +34,7 @@ where
 import Control.Arrow ((&&&))
 import Control.Error
 import Control.Exception (ErrorCall (ErrorCall))
-import Control.Lens (view, (.~), (^.))
+import Control.Lens (to, view, (.~), (^.))
 import Control.Monad.Catch
 import Data.Aeson as Aeson (Object)
 import Data.Id
@@ -510,22 +510,35 @@ addToken uid cid newtok = mpaRunWithBudget 1 (Left Public.AddTokenErrorNoBudget)
 updateEndpoint :: UserId -> PushToken -> EndpointArn -> Aws.SNSEndpoint -> Gundeck ()
 updateEndpoint uid t arn e = do
   env <- view awsEnv
+  requestId <- view reqId
+
   unless (equalTransport && equalApp) $ do
-    Log.err $ logMessage uid arn (t ^. token) "Transport or app mismatch"
+    Log.err $ logMessage requestId "PushToken does not fit to user_push data: Transport or app mismatch"
     throwM $ mkError status500 "server-error" "Server Error"
-  Log.info $ logMessage uid arn (t ^. token) "Upserting push token."
+
+  Log.info $ logMessage requestId "Upserting push token."
   let users = Set.insert uid (e ^. endpointUsers)
   Aws.execute env $ Aws.updateEndpoint users (t ^. token) arn
   where
     equalTransport = t ^. tokenTransport == arn ^. snsTopic . endpointTransport
     equalApp = t ^. tokenApp == arn ^. snsTopic . endpointAppName
-    logMessage a r tk m =
+    logMessage requestId m =
       "user"
-        .= UUID.toASCIIBytes (toUUID a)
+        .= UUID.toASCIIBytes (toUUID uid)
         ~~ "token"
-          .= Text.take 16 (tokenText tk)
+          .= Text.take 16 (t ^. token . to tokenText)
+        ~~ "tokenTransport"
+          .= show (t ^. tokenTransport)
+        ~~ "tokenApp"
+          .= (t ^. tokenApp . to appNameText)
         ~~ "arn"
-          .= toText r
+          .= toText arn
+        ~~ "endpointTransport"
+          .= show (arn ^. snsTopic . endpointTransport)
+        ~~ "endpointAppName"
+          .= (arn ^. snsTopic . endpointAppName . to appNameText)
+        ~~ "request"
+          .= unRequestId requestId
         ~~ msg (val m)
 
 deleteToken :: UserId -> Token -> Gundeck (Maybe ())
