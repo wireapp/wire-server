@@ -74,8 +74,11 @@ enqueueNotificationsConcurrently ::
   f (Remote x) ->
   (Remote [x] -> FedQueueClient c a) ->
   ExceptT FederationError App [Remote a]
-enqueueNotificationsConcurrently m xs f =
-  enqueueNotificationsConcurrentlyBuckets m (bucketRemote xs) f
+enqueueNotificationsConcurrently m xs f = do
+  chanVar <- getChannel
+  lift $ pooledForConcurrentlyN 8 (bucketRemote xs) $ \r ->
+    qualifyAs r
+      <$> enqueueSingleNotification (tDomain r) m chanVar (f r)
 
 enqueueNotificationsConcurrentlyBuckets ::
   (Foldable f) =>
@@ -84,14 +87,10 @@ enqueueNotificationsConcurrentlyBuckets ::
   (Remote x -> FedQueueClient c a) ->
   ExceptT FederationError App [Remote a]
 enqueueNotificationsConcurrentlyBuckets m xs f = do
-  case toList xs of
-    -- only attempt to get a channel if there is at least one notification to send
-    [] -> pure []
-    _ -> do
-      chanVar <- getChannel
-      lift $ pooledForConcurrentlyN 8 (toList xs) $ \r ->
-        qualifyAs r
-          <$> enqueueSingleNotification (tDomain r) m chanVar (f r)
+  chanVar <- getChannel
+  lift $ pooledForConcurrentlyN 8 (toList xs) $ \r ->
+    qualifyAs r
+      <$> enqueueSingleNotification (tDomain r) m chanVar (f r)
 
 data NoRabbitMqChannel = NoRabbitMqChannel
   deriving (Show)
