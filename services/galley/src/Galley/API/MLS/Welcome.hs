@@ -96,7 +96,7 @@ sendLocalWelcomes qcnv qusr con now welcome lclients = do
         map (\(u, cs) -> Recipient u (RecipientClientsSome (List1 cs)))
           . Map.assocs
           . foldr
-            (uncurry (\u c -> Map.insertWith (<>) u (pure c)))
+            (\(u, c) -> Map.insertWith (<>) u (pure c))
             mempty
           $ tUnqualified lclients
   let e = Event qcnv Nothing qusr now $ EdMLSWelcome welcome.raw
