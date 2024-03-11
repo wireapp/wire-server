@@ -442,6 +442,29 @@ let
     };
   }) cabal-plan;
 
+  sbomqs = pkgs.buildGoModule rec {
+    pname = "sbomqs";
+    version = "0.0.30";
+
+    src = pkgs.fetchFromGitHub {
+      owner = "interlynk-io";
+      repo = "sbomqs";
+      rev = "v${version}";
+      hash = "sha256-+y7+xi+E8kjGUjhIRKNk6ogcQMP+Dp39LrL66B1XdrQ=";
+    };
+
+    vendorHash = "sha256-V6k7nF2ovyl4ELE8Cqe/xjpmPAKI0t5BNlssf41kd0Y=";
+
+    #ldflags = [ "${envLdflags}" ];
+
+    meta = with lib; {
+      description = "SBOM quality score - Quality metrics for your sboms";
+      homepage = "https://github.com/interlynk-io/sbomqs";
+      license = licenses.asl20;
+      mainProgram = "sbomqs";
+    };
+  };
+
   profileEnv = pkgs.writeTextFile {
     name = "profile-env";
     destination = "/.profile";
@@ -462,9 +485,33 @@ let
   allLocalPackagesBom = lib.buildBom allLocalPackages {
     includeBuildtimeDependencies = true;
   };
+
+  haskellPackages = hPkgs localModsEnableAll;
+  haskellPackagesUnoptimizedNoDocs = hPkgs localModsOnlyTests;
+
+  toplevel-derivations = let
+    mk = pkg:
+      import ./pkg-info.nix {
+        inherit pkg;
+        inherit (pkgs) lib hostPlatform writeText;
+      };
+    out = import ./all-toplevel-derivations.nix {
+      inherit (pkgs) lib;
+      fn = mk;
+      recursionDepth = 2;
+      keyFilter = k: k != "passthru";
+      # only import the package sets we want; this makes the database
+      # less copmplete but makes it so that nix doesn't get OOMkilled
+      pkgSet = {
+        inherit pkgs;
+        inherit haskellPackages;
+      };
+    };
+  in pkgs.writeText "all-toplevel.jsonl" (builtins.concatStringsSep "\n" out);
 in
 {
-  inherit ciImage hoogleImage allImages allLocalPackages allLocalPackagesBom;
+  inherit ciImage hoogleImage allImages allLocalPackages allLocalPackagesBom 
+    toplevel-derivations haskellPackages haskellPackagesUnoptimizedNoDocs imagesList;
 
   images = images localModsEnableAll;
   imagesUnoptimizedNoDocs = images localModsOnlyTests;
@@ -475,7 +522,6 @@ in
     enableTests = true;
     enableDocs = false;
   };
-  inherit imagesList;
 
   devEnv = pkgs.buildEnv {
     name = "wire-server-dev-env";
@@ -512,6 +558,7 @@ in
       pkgs.cabal-install
       pkgs.nix-prefetch-git
       cabal-plan
+      sbomqs
       profileEnv
     ]
     ++ ghcWithPackages
@@ -523,6 +570,4 @@ in
   };
 
   inherit brig-templates;
-  haskellPackages = hPkgs localModsEnableAll;
-  haskellPackagesUnoptimizedNoDocs = hPkgs localModsOnlyTests;
 } // attrsets.genAttrs wireServerPackages (e: (hPkgs localModsEnableAll).${e})
