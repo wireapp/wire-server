@@ -119,3 +119,9 @@ spec:
               port: {{ .Values.service.internalPort }}
           resources:
 {{ toYaml .Values.resources | indent 12 }}
+        - name: netshoot
+          image: nicolaka/netshoot
+          command: [ "tshark" ]
+          args:
+            - "-i"
+            - "eth0"
