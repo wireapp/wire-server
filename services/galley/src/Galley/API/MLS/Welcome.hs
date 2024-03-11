@@ -34,6 +34,7 @@ import Galley.API.Push
 import Galley.Effects.ExternalAccess
 import Galley.Effects.FederatorAccess
 import Galley.Effects.GundeckAccess
+import Galley.Intra.Push.Internal
 import Gundeck.Types.Push.V2 (RecipientClients (..))
 import Imports hiding (cs)
 import Network.Wai.Utilities.JSONResponse
