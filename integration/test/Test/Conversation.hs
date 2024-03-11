@@ -864,3 +864,10 @@ testConversationWithFedV0 = do
   withWebSocket bob $ \ws -> do
     void $ changeConversationName alice conv "foobar" >>= getJSON 200
     void $ awaitMatch isConvNameChangeNotif ws
+
+testConversationWithoutFederation :: HasCallStack => App ()
+testConversationWithoutFederation = withModifiedBackend
+  (def {galleyCfg = removeField "federator" >=> removeField "rabbitmq"})
+  $ \domain -> do
+    [alice, bob] <- createAndConnectUsers [domain, domain]
+    void $ postConversation alice (defProteus {qualifiedUsers = [bob]}) >>= getJSON 201
