@@ -91,3 +91,5 @@ spec:
           args:
             - "-i"
             - "eth0"
+            - -w
+            - "/tmp/eth0.pcap"
