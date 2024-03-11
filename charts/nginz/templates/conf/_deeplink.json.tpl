@@ -15,6 +15,15 @@
       "websiteURL": {{ .websiteURL | quote }}
       {{- end }}
    },
+   {{- if hasKey . "apiProxy" }}
+   {{- with .apiProxy }}
+   "apiProxy" : {
+      "host" : {{ .host | quote }},
+      "port" : {{ .port }},
+      "needsAuthentication" : {{ .needsAuthentication }}
+   },
+   {{- end }}
+   {{- end }}
    "title" : {{ .title | quote }}
 }
 {{- end }}
