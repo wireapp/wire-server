@@ -2,7 +2,7 @@
 
 This Helm chart is meant to be installed alongside the [step-certificates Helm
 chart](https://smallstep.github.io/helm-charts) in the same namespace. It has been tested with Helm
-Chart version `1.25.0` and image
+chart version `1.25.0` and image
 
 ```
 image:
