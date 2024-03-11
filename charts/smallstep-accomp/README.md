@@ -77,7 +77,7 @@ For references see:
 | `stepConfig.authority.acme.name`                     | Name of the ACME provisioner. Default: `"keycloakteams"`                                                                          |
 | `stepConfig.authority.acme.claims`                   | See [1]                                                                                                                           |
 | `stepConfig.authority.acme.dpop.key`                 | See [2]. Public half of the DPoP signature key bundle configured of the Wire deployment.                                          |
-|                                                      | Use the same value a `brig.secrets.dpopSigKeyBundle` value of the `wire-server` Helm chart.                                       |
+|                                                      | Use the same value as `brig.secrets.dpopSigKeyBundle` value of the `wire-server` Helm chart.                                       |
 |                                                      | Base64 encoded string of the PEM encoded public key.                                                                              |
 | `stepConfig.authority.acme.dpop.wireDomain`          | Set this to the federation domain of the backend                                                                                  |
 | `stepConfig.authority.acme.oidc.clientId`            | Name of the OIDC client. Default: "wireapp".                                                                                      |
