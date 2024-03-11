@@ -104,21 +104,21 @@ instance ToSchema UTCTimeMillis where
   schema =
     UTCTimeMillis
       <$> showUTCTimeMillis
-        .= ( utcTimeTextSchema
+        .= ( utcTimeTextSchema "UTCTimeMillis"
                & doc . S.schema
                  %~ (S.format ?~ "yyyy-mm-ddThh:MM:ss.qqqZ")
                    . (S.example ?~ "2021-05-12T10:52:02.671Z")
            )
 
-utcTimeTextSchema :: ValueSchemaP NamedSwaggerDoc Text UTCTime
-utcTimeTextSchema =
-  parsedText "UTCTime" (Atto.parseOnly (Atto.utcTime <* Atto.endOfInput))
+utcTimeTextSchema :: Text -> ValueSchemaP NamedSwaggerDoc Text UTCTime
+utcTimeTextSchema name =
+  parsedText name (Atto.parseOnly (Atto.utcTime <* Atto.endOfInput))
     & doc . S.schema
       %~ (S.format ?~ "yyyy-mm-ddThh:MM:ssZ")
         . (S.example ?~ "2021-05-12T10:52:02Z")
 
 utcTimeSchema :: ValueSchema NamedSwaggerDoc UTCTime
-utcTimeSchema = showUTCTime .= utcTimeTextSchema
+utcTimeSchema = showUTCTime .= utcTimeTextSchema "UTCTime"
 
 {-# INLINE toUTCTimeMillis #-}
 toUTCTimeMillis :: UTCTime -> UTCTimeMillis
