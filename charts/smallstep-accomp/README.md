@@ -81,7 +81,7 @@ For references see:
 |                                                      | Base64 encoded string of the PEM encoded public key.                                                                              |
 | `stepConfig.authority.acme.dpop.wireDomain`          | Set this to the federation domain of the backend                                                                                  |
 | `stepConfig.authority.acme.oidc.clientId`            | Name of the OIDC client. Default: "wireapp".                                                                                      |
-| `stepConfig.authority.acme.oidc.discoveryBaseUrl`    | OpenID Connect Discovery endpoint. The OIDC provider must respond with its Configuration when `/.well-known/openid-configuration` |
+| `stepConfig.authority.acme.oidc.discoveryBaseUrl`    | OpenID Connect Discovery endpoint. The OIDC provider must respond with its configuration when `/.well-known/openid-configuration` |
 |                                                      | is appended to the URL. For Keycloak this URL is of format `https://<keycloak-host>/auth/realms/<realm-name>`.                    |
 | `stepConfig.authority.acme.oidc.issuerUrl`           | For Keycloak this must be of the format `https://<keycloak-host>/auth/realms/<realm-name>?client_id=wireapp`                      |
 | `stepConfig.authority.acme.oidc.signatureAlgorithms` | See [2]                                                                                                                           |
