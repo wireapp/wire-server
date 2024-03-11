@@ -107,5 +107,5 @@ For references see:
 |-------------------------|-----------------------------------------------------------------------------------------------------|
 | `existingCerts.enabled` | If `true` generate ConfigMap with a name that the Helm chart will automatically use.               |
 | `existingCerts.data`    | Map from filename to content. Each entry will be mounted as file `/home/step/certs/<filename>`      |
-| `existingCerts.data`    | Use it to make public keys of the Root, Intermediate CA as well as the cross-signed certs available |
+| `existingCerts.data`    | Use it to make public keys of the Root, intermediate CA as well as the cross-signed certs available |
 |                         | to step-ca. Each entry will be mounted as file `/home/step/certs/<filename>`                        |
