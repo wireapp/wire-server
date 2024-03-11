@@ -305,7 +305,7 @@ deleteConv = "delete from conversation using timestamp 32503680000000000 where c
 markConvDeleted :: PrepQuery W (Identity ConvId) ()
 markConvDeleted = {- `IF EXISTS`, but that requires benchmarking -} "update conversation set deleted = true where conv = ?"
 
-selectGroupInfo :: PrepQuery R (Identity ConvId) (Identity GroupInfoData)
+selectGroupInfo :: PrepQuery R (Identity ConvId) (Identity (Maybe GroupInfoData))
 selectGroupInfo = "select public_group_state from conversation where conv = ?"
 
 updateGroupInfo :: PrepQuery W (GroupInfoData, ConvId) ()
