@@ -1,0 +1,1 @@
+Fix crash when enqueing an empty list of notifications and federation is disabled
