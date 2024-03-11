@@ -26,12 +26,15 @@ import Data.Aeson qualified as A
 import Data.Domain
 import Data.Id
 import Data.Json.Util
+import Data.List1
+import Data.Map qualified as Map
 import Data.Qualified
 import Data.Time
 import Galley.API.Push
 import Galley.Effects.ExternalAccess
 import Galley.Effects.FederatorAccess
-import Imports
+import Gundeck.Types.Push.V2 (RecipientClients (..))
+import Imports hiding (cs)
 import Network.Wai.Utilities.JSONResponse
 import Polysemy
 import Polysemy.Input
@@ -49,7 +52,7 @@ import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
 import Wire.API.MLS.Welcome
 import Wire.API.Message
-import Wire.NotificationSubsystem (NotificationSubsystem)
+import Wire.NotificationSubsystem
 
 sendWelcomes ::
   ( Member FederatorAccess r,
@@ -88,9 +91,17 @@ sendLocalWelcomes ::
   Local [(UserId, ClientId)] ->
   Sem r ()
 sendLocalWelcomes qcnv qusr con now welcome lclients = do
+  -- only create one notification per user
+  let rcpts =
+        map (\(u, cs) -> Recipient u (RecipientClientsSome (List1 cs)))
+          . Map.assocs
+          . foldr
+            (\(u, c) -> Map.insertWith (<>) u (pure c))
+            mempty
+          $ tUnqualified lclients
   let e = Event qcnv Nothing qusr now $ EdMLSWelcome welcome.raw
   runMessagePush lclients (Just qcnv) $
-    newMessagePush mempty con defMessageMetadata (tUnqualified lclients) e
+    newMessagePush mempty con defMessageMetadata rcpts e
 
 sendRemoteWelcomes ::
   ( Member FederatorAccess r,
