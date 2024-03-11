@@ -7,7 +7,7 @@ let
       # All wire-server specific packages
       (import ./overlay.nix)
       (import ./overlay-docs.nix)
-      (self: super: { lib = super.lib // (import sources.bombon).lib.${super.system}; })
+      # (self: super: { lib = super.lib // (import sources.bombon).lib.${super.system}; })
     ];
   };
 
@@ -79,7 +79,6 @@ let
         pkgs.entr
       ] ++ docsPkgs;
     };
-  mls-test-cli = pkgs.mls-test-cli;
-  rusty-jwt-tools = pkgs.rusty-jwt-tools;
+  inherit (pkgs) mls-test-cli;
 in
 { inherit pkgs profileEnv wireServer docs docsEnv mls-test-cli nginz nginz-disco; }
