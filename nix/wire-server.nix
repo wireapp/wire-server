@@ -489,28 +489,30 @@ let
   haskellPackages = hPkgs localModsEnableAll;
   haskellPackagesUnoptimizedNoDocs = hPkgs localModsOnlyTests;
 
-  toplevel-derivations = let
-    mk = pkg:
-      import ./pkg-info.nix {
-        inherit pkg;
-        inherit (pkgs) lib hostPlatform writeText;
+  toplevel-derivations =
+    let
+      mk = pkg:
+        import ./pkg-info.nix {
+          inherit pkg;
+          inherit (pkgs) lib hostPlatform writeText;
+        };
+      out = import ./all-toplevel-derivations.nix {
+        inherit (pkgs) lib;
+        fn = mk;
+        recursionDepth = 2;
+        keyFilter = k: k != "passthru";
+        # only import the package sets we want; this makes the database
+        # less copmplete but makes it so that nix doesn't get OOMkilled
+        pkgSet = {
+          inherit pkgs;
+          inherit haskellPackages;
+        };
       };
-    out = import ./all-toplevel-derivations.nix {
-      inherit (pkgs) lib;
-      fn = mk;
-      recursionDepth = 2;
-      keyFilter = k: k != "passthru";
-      # only import the package sets we want; this makes the database
-      # less copmplete but makes it so that nix doesn't get OOMkilled
-      pkgSet = {
-        inherit pkgs;
-        inherit haskellPackages;
-      };
-    };
-  in pkgs.writeText "all-toplevel.jsonl" (builtins.concatStringsSep "\n" out);
+    in
+    pkgs.writeText "all-toplevel.jsonl" (builtins.concatStringsSep "\n" out);
 in
 {
-  inherit ciImage hoogleImage allImages allLocalPackages allLocalPackagesBom 
+  inherit ciImage hoogleImage allImages allLocalPackages allLocalPackagesBom
     toplevel-derivations haskellPackages haskellPackagesUnoptimizedNoDocs imagesList;
 
   images = images localModsEnableAll;
