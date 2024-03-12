@@ -281,23 +281,35 @@ drvAndTlParser =
         <> value "wire-server"
 
 main :: IO ()
-main = parse >>= mainNoParse
+main = parse >>= mainNoParse >>= BSL.writeFile "sbom.json"
 
 -- | by not always parsing, we have an easy time to call directly from haskell
-mainNoParse :: (String, String) -> IO ()
+mainNoParse :: (String, String) -> IO LazyByteString
 mainNoParse (tldFp, drv) = do
   let mkMeta :: LazyByteString -> Maybe Meta
       mkMeta = decodeStrict . BSL.toStrict
   metaDB <- buildMetaDB . mapMaybe mkMeta . C8L.lines <$> BSL.readFile tldFp
   sbom <- discoverSBom drv metaDB
-  BSL.writeFile "sbom.json" =<< serializeSBom defaultSerializeSBom sbom
+  serializeSBom defaultSerializeSBom sbom
 
 -- TODO(mangoiv): replace with legacy command
 pathInfo :: FilePath -> IO PathInfo
 pathInfo path = do
   let nixPathInfo = proc "nix" ["path-info", path, "--json", "--recursive"]
   withCreateProcess nixPathInfo {std_out = CreatePipe} \_in (Just out) _err _ph -> do
-    Just (Object refs) <- decodeStrict @Value <$> C8.hGetContents out
+    Just refs' <- decodeStrict @Value <$> C8.hGetContents out
+    let failureBecauseNixHasZeroContracts = fail "unexpected format: this may be due to the output of `nix path-info` having changed randomly lol"
+        tryFindOutpath :: Value -> IO (Key, Value)
+        tryFindOutpath val
+          | Object pc <- val,
+            Just (String k) <- KM.lookup "path" pc =
+              pure (KM.fromText k, val)
+        tryFindOutpath _ = failureBecauseNixHasZeroContracts
+    refs <- case refs' of
+      Object refs -> pure $ KM.toList refs
+      Array refs -> traverse tryFindOutpath $ toList refs
+      _ -> failureBecauseNixHasZeroContracts
+
     let parseObj :: Value -> Maybe (Text, [Text])
         parseObj info
           | Object mp <- info,
@@ -315,4 +327,4 @@ pathInfo path = do
       -- remove derivations that are just docs
       . filter ((/= "doc") . T.takeEnd 3 . fst)
       . mapMaybe (bitraverse (pure . KM.toText) parseObj)
-      $ KM.toList refs
+      $ refs

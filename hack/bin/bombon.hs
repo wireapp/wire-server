@@ -1,11 +1,11 @@
-#!/usr/bin/env -S nix -Lv run github:wireapp/ghc-flakr/99fe5a331fdd37d52043f14e5c565ac29a30bcb4
+#!/usr/bin/env -S nix -Lv run github:wireapp/ghc-flakr/789e7e3bbb3105a498c7b603c54934f01ce22d80
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE LambdaCase #-}
 {-# OPTIONS_GHC -Wall #-}
 
 import Data.Aeson
 import qualified Data.ByteString.Base64.Lazy as Base64
-import qualified Data.ByteString.Lazy.Char8 as BL
+import Data.ByteString.Lazy
 import Data.Proxy
 import Data.Text.Lazy
 import Data.Text.Lazy.Encoding
@@ -98,8 +98,8 @@ main :: IO ()
 main = do
   options <- execParser fullCliParser
   manager' <- HTTP.newManager tlsManagerSettings
-  buildWire <- spawnCommand "nix -Lv build -f nix wireServer.allLocalPackages -o wire-server"
-  buildMeta <- spawnCommand "nix -Lv build -f nix wireServer.toplevel-derivations --impure -o meta"
+  buildWire <- spawnCommand "nix -Lv build -f ../../nix wireServer.allLocalPackages -o wire-server"
+  buildMeta <- spawnCommand "nix -Lv build -f ../../nix wireServer.toplevel-derivations --impure -o meta"
   waitForProcess buildWire >>= \case
     ExitFailure _ -> fail "process for building wire failed"
     ExitSuccess -> putStrLn "finished building Wire"
@@ -107,8 +107,7 @@ main = do
     ExitFailure _ -> fail "process for building meta for wire failed"
     ExitSuccess -> putStrLn "finished building meta"
 
-  mainNoParse ("./meta", "./wire-server")
-  bom <- readFile "sbom.json"
+  bom <- mainNoParse ("./meta", "./wire-server")
   let payload =
         Payload
           { bom = toBase64Text bom,
@@ -124,5 +123,5 @@ main = do
     Left err -> print $ "Error: " ++ show err
     Right res' -> print res'
 
-toBase64Text :: String -> Text
-toBase64Text = decodeUtf8 . Base64.encode . BL.pack
+toBase64Text :: LazyByteString -> Text
+toBase64Text = decodeUtf8 . Base64.encode
