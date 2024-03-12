@@ -59,18 +59,19 @@ data License = MkLicense
   deriving anyclass (FromJSON, ToJSON)
 
 sadSbomMeta :: Text -> Text -> [Text] -> SBomMeta Identity
-sadSbomMeta drvPath outPath directDeps 
-  = MkSBomMeta 
-  { drvPath = drvPath 
-  , outPath = Identity outPath 
-  , directDeps = Identity directDeps 
-  , description = Nothing 
-  , homepage = Nothing 
-  , licenseSpdxId = []
-  , name = Nothing 
-  , typ = Nothing 
-  , urls = [] 
-  , version = Nothing }
+sadSbomMeta drvPath outPath directDeps =
+  MkSBomMeta
+    { drvPath = drvPath,
+      outPath = Identity outPath,
+      directDeps = Identity directDeps,
+      description = Nothing,
+      homepage = Nothing,
+      licenseSpdxId = [],
+      name = Nothing,
+      typ = Nothing,
+      urls = [],
+      version = Nothing
+    }
 
 data SBomMeta f = MkSBomMeta
   { drvPath :: Text,
@@ -242,9 +243,10 @@ discoverSBom outP metaDb = do
           Nothing -> \x -> do
             T.putStrLn ("no meta found for drv: " <> deriver <> "\ntrying approximate match")
             x >>= maybe
-              do \m -> do 
-                     T.putStrLn ("no approximate match found for: " <> deriver) 
-                     pure $ M.insert k (sadSbomMeta deriver k deps) m
+              do
+                \m -> do
+                  T.putStrLn ("no approximate match found for: " <> deriver)
+                  pure $ M.insert k (sadSbomMeta deriver k deps) m
               do \match -> pure . M.insert k (proxyToIdentity match)
               do approximateMatch deriver metaDb
           Just pmeta -> fmap $ M.insert k $ proxyToIdentity pmeta
