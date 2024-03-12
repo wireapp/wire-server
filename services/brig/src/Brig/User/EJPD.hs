@@ -20,6 +20,8 @@
 -- manually.)
 module Brig.User.EJPD (ejpdRequest) where
 
+import Bilge.Request
+import Bilge.Response
 import Brig.API.Handler
 import Brig.API.User (lookupHandle)
 import Brig.App
@@ -27,50 +29,54 @@ import Brig.Data.Connection qualified as Conn
 import Brig.Data.User (lookupUser)
 import Brig.Effects.GalleyProvider (GalleyProvider)
 import Brig.Effects.GalleyProvider qualified as GalleyProvider
-import Brig.Types.User (HavePendingInvitations (NoPendingInvitations))
 import Control.Error hiding (bool)
 import Control.Lens (view, (^.))
+import Data.Aeson qualified as A
+import Data.ByteString.Conversion
 import Data.Handle (Handle)
 import Data.Id (UserId)
 import Data.Set qualified as Set
 import Imports hiding (head)
-import Polysemy
+import Network.HTTP.Types.Method
+import Polysemy (Member)
 import Servant.OpenApi.Internal.Orphans ()
 import Wire.API.Connection (Relation, RelationWithHistory (..), relationDropHistory)
 import Wire.API.Push.Token qualified as PushTok
 import Wire.API.Routes.Internal.Brig.EJPD (EJPDRequestBody (EJPDRequestBody), EJPDResponseBody (EJPDResponseBody), EJPDResponseItem (EJPDResponseItem))
 import Wire.API.Team.Member qualified as Team
-import Wire.API.User (User, userDisplayName, userEmail, userHandle, userId, userPhone, userTeam)
+import Wire.API.User
 import Wire.NotificationSubsystem
+import Wire.Rpc
 
 ejpdRequest ::
   forall r.
   ( Member GalleyProvider r,
-    Member NotificationSubsystem r
+    Member NotificationSubsystem r,
+    Member Rpc r
   ) =>
   Maybe Bool ->
   EJPDRequestBody ->
-  Handler r EJPDResponseBody
-ejpdRequest includeContacts (EJPDRequestBody handles) = do
-  ExceptT $ Right . EJPDResponseBody . catMaybes <$> forM handles (go1 (fromMaybe False includeContacts))
+  (Handler r) EJPDResponseBody
+ejpdRequest (fromMaybe False -> includeContacts) (EJPDRequestBody handles) = do
+  ExceptT $ Right . EJPDResponseBody . catMaybes <$> forM handles go1
   where
     -- find uid given handle
-    go1 :: Bool -> Handle -> (AppT r) (Maybe EJPDResponseItem)
-    go1 includeContacts' handle = do
+    go1 :: Handle -> (AppT r) (Maybe EJPDResponseItem)
+    go1 handle = do
       mbUid <- wrapClient $ lookupHandle handle
       mbUsr <- maybe (pure Nothing) (wrapClient . lookupUser NoPendingInvitations) mbUid
-      maybe (pure Nothing) (fmap Just . go2 includeContacts') mbUsr
+      maybe (pure Nothing) (fmap Just . go2 includeContacts) mbUsr
 
     -- construct response item given uid
     go2 :: Bool -> User -> (AppT r) EJPDResponseItem
-    go2 includeContacts' target = do
+    go2 reallyIncludeContacts target = do
       let uid = userId target
 
       ptoks <-
         PushTok.tokenText . view PushTok.token <$$> liftSem (getPushTokens uid)
 
       mbContacts <-
-        if includeContacts'
+        if reallyIncludeContacts
           then do
             contacts :: [(UserId, RelationWithHistory)] <-
               wrapClient $ Conn.lookupContactListWithRelation uid
@@ -85,7 +91,7 @@ ejpdRequest includeContacts (EJPDRequestBody handles) = do
             pure Nothing
 
       mbTeamContacts <-
-        case (includeContacts', userTeam target) of
+        case (reallyIncludeContacts, userTeam target) of
           (True, Just tid) -> do
             memberList <- liftSem $ GalleyProvider.getTeamMembers tid
             let members = (view Team.userId <$> (memberList ^. Team.teamMembers)) \\ [uid]
@@ -99,6 +105,28 @@ ejpdRequest includeContacts (EJPDRequestBody handles) = do
           _ -> do
             pure Nothing
 
+      mbConversations <- do
+        -- FUTUREWORK(fisx)
+        pure Nothing
+
+      mbAssets <- do
+        urls <- forM (userAssets target) $ \(asset :: Asset) -> do
+          cgh <- asks (view cargoholdEndpoint)
+          let key = toByteString' $ assetKey asset
+          resp <- liftSem $ rpcWithRetries "cargohold" cgh (method GET . paths ["/i/assets", key])
+          pure $
+            case (statusCode resp, responseJsonEither resp) of
+              (200, Right (A.String loc)) -> loc
+              _ ->
+                cs $
+                  "could not fetch asset: "
+                    <> show key
+                    <> ", error: "
+                    <> show (statusCode resp, responseBody resp)
+        pure $ case urls of
+          [] -> Nothing
+          something -> Just (Set.fromList something)
+
       pure $
         EJPDResponseItem
           uid
@@ -110,3 +138,5 @@ ejpdRequest includeContacts (EJPDRequestBody handles) = do
           (Set.fromList ptoks)
           mbContacts
           mbTeamContacts
+          mbConversations
+          mbAssets

@@ -100,6 +100,7 @@ import Wire.API.User.Activation
 import Wire.API.User.Client
 import Wire.API.User.RichInfo
 import Wire.NotificationSubsystem
+import Wire.Rpc
 import Wire.Sem.Concurrency
 import Wire.Sem.Paging.Cassandra (InternalPaging)
 
@@ -108,20 +109,21 @@ import Wire.Sem.Paging.Cassandra (InternalPaging)
 
 servantSitemap ::
   forall r p.
-  ( Member BlacklistStore r,
+  ( Member BlacklistPhonePrefixStore r,
+    Member BlacklistStore r,
     Member CodeStore r,
-    Member BlacklistPhonePrefixStore r,
-    Member PasswordResetStore r,
-    Member GalleyProvider r,
-    Member (UserPendingActivationStore p) r,
-    Member FederationConfigStore r,
-    Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
-    Member TinyLog r,
     Member (Concurrency 'Unsafe) r,
+    Member (ConnectionStore InternalPaging) r,
+    Member (Embed HttpClientIO) r,
+    Member FederationConfigStore r,
+    Member GalleyProvider r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member NotificationSubsystem r,
+    Member PasswordResetStore r,
+    Member Rpc r,
+    Member TinyLog r,
+    Member (UserPendingActivationStore p) r
   ) =>
   ServerT BrigIRoutes.API (Handler r)
 servantSitemap =
@@ -142,7 +144,10 @@ istatusAPI :: forall r. ServerT BrigIRoutes.IStatusAPI (Handler r)
 istatusAPI = Named @"get-status" (pure NoContent)
 
 ejpdAPI ::
-  (Member GalleyProvider r, Member NotificationSubsystem r) =>
+  ( Member GalleyProvider r,
+    Member NotificationSubsystem r,
+    Member Rpc r
+  ) =>
   ServerT BrigIRoutes.EJPD_API (Handler r)
 ejpdAPI =
   Brig.User.EJPD.ejpdRequest

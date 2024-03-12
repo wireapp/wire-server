@@ -243,3 +243,13 @@ getClientsFull user users = do
   val <- make users
   baseRequest user Brig Unversioned do joinHttpPath ["i", "clients", "full"]
     >>= submit "POST" . addJSONObject ["users" .= val]
+
+-- | https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig/#/brig/post_i_ejpd_request
+getEJPDInfo :: (HasCallStack, MakesValue dom) => dom -> [String] -> String -> App Response
+getEJPDInfo dom handles mode = do
+  req <- rawBaseRequest dom Brig Unversioned "/i/ejpd-request"
+  let query = case mode of
+        "" -> []
+        "include_contacts" -> [("include_contacts", "true")]
+        bad -> error $ show bad
+  submit "POST" $ req & addJSONObject ["ejpd_request" .= handles] & addQueryParams query

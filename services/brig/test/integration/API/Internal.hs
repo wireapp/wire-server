@@ -34,13 +34,13 @@ import Cassandra qualified as Cass
 import Cassandra.Util
 import Control.Exception (ErrorCall (ErrorCall), throwIO)
 import Control.Lens ((^.), (^?!))
+import Data.Aeson qualified as Aeson
 import Data.Aeson.Lens qualified as Aeson
 import Data.Aeson.Types qualified as Aeson
 import Data.ByteString.Conversion (toByteString')
 import Data.Default
 import Data.Id
 import Data.Qualified
-import Data.Set qualified as Set
 import GHC.TypeLits (KnownSymbol)
 import Imports
 import System.IO.Temp
@@ -48,20 +48,16 @@ import Test.Tasty
 import Test.Tasty.HUnit
 import Util
 import Util.Options (Endpoint)
-import Wire.API.Connection qualified as Conn
-import Wire.API.Routes.Internal.Brig
 import Wire.API.Team.Feature
 import Wire.API.Team.Feature qualified as ApiFt
-import Wire.API.Team.Member qualified as Team
 import Wire.API.User
 import Wire.API.User.Client
 
 tests :: Opt.Opts -> Manager -> Cass.ClientState -> Brig -> Endpoint -> Gundeck -> Galley -> IO TestTree
-tests opts mgr db brig brigep gundeck galley = do
+tests opts mgr db brig brigep _gundeck galley = do
   pure $
     testGroup "api/internal" $
-      [ test mgr "ejpd requests" $ testEJPDRequest mgr brig brigep gundeck,
-        test mgr "account features: conferenceCalling" $
+      [ test mgr "account features: conferenceCalling" $
           testFeatureConferenceCallingByAccount opts mgr db brig brigep galley,
         test mgr "suspend and unsuspend user" $ testSuspendUser db brig,
         test mgr "suspend non existing user and verify no db entry" $
@@ -97,54 +93,6 @@ setAccountStatus brig u s =
         . contentJson
         . json (AccountStatusUpdate s)
     )
-
-testEJPDRequest :: (TestConstraints m) => Manager -> Brig -> Endpoint -> Gundeck -> m ()
-testEJPDRequest mgr brig brigep gundeck = do
-  (handle1, mkUsr1, handle2, mkUsr2, mkUsr3) <- scaffolding brig gundeck
-
-  do
-    let req = EJPDRequestBody [handle1]
-        want =
-          EJPDResponseBody
-            [ mkUsr1 Nothing Nothing
-            ]
-    have <- ejpdRequestClient brigep mgr Nothing req
-    liftIO $ assertEqual "" want have
-
-  do
-    let req = EJPDRequestBody [handle1, handle2]
-        want =
-          EJPDResponseBody
-            [ mkUsr1 Nothing Nothing,
-              mkUsr2 Nothing Nothing
-            ]
-    have <- ejpdRequestClient brigep mgr Nothing req
-    liftIO $ assertEqual "" want have
-
-  do
-    let req = EJPDRequestBody [handle2]
-        want =
-          EJPDResponseBody
-            [ mkUsr2
-                (Just (Set.fromList [(Conn.Accepted, mkUsr1 Nothing Nothing)]))
-                Nothing
-            ]
-    have <- ejpdRequestClient brigep mgr (Just True) req
-    liftIO $ assertEqual "" want have
-
-  do
-    let req = EJPDRequestBody [handle1, handle2]
-        want =
-          EJPDResponseBody
-            [ mkUsr1
-                (Just (Set.fromList [(Conn.Accepted, mkUsr2 Nothing Nothing)]))
-                (Just (Set.fromList [mkUsr3 Nothing Nothing], Team.NewListComplete)),
-              mkUsr2
-                (Just (Set.fromList [(Conn.Accepted, mkUsr1 Nothing Nothing)]))
-                Nothing
-            ]
-    have <- ejpdRequestClient brigep mgr (Just True) req
-    liftIO $ assertEqual "" want have
 
 testFeatureConferenceCallingByAccount :: forall m. (TestConstraints m) => Opt.Opts -> Manager -> Cass.ClientState -> Brig -> Endpoint -> Galley -> m ()
 testFeatureConferenceCallingByAccount (Opt.optSettings -> settings) mgr db brig brigep galley = do

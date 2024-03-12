@@ -21,13 +21,26 @@
 module Wire.API.Routes.Internal.Brig.EJPD
   ( EJPDRequestBody (EJPDRequestBody, ejpdRequestBody),
     EJPDResponseBody (EJPDResponseBody, ejpdResponseBody),
-    EJPDResponseItem (EJPDResponseItem, ejpdResponseHandle, ejpdResponsePushTokens, ejpdResponseContacts),
+    EJPDResponseItem
+      ( EJPDResponseItem,
+        ejpdResponseUserId,
+        ejpdResponseTeamId,
+        ejpdResponseName,
+        ejpdResponseHandle,
+        ejpdResponseEmail,
+        ejpdResponsePhone,
+        ejpdResponsePushTokens,
+        ejpdResponseContacts,
+        ejpdResponseTeamContacts,
+        ejpdResponseConversations,
+        ejpdResponseAssets
+      ),
   )
 where
 
 import Data.Aeson hiding (json)
 import Data.Handle (Handle)
-import Data.Id (TeamId, UserId)
+import Data.Id (ConvId, TeamId, UserId)
 import Data.OpenApi (ToSchema)
 import Deriving.Swagger (CamelToSnake, CustomSwagger (..), FieldLabelModifier, StripSuffix)
 import Imports hiding (head)
@@ -57,7 +70,9 @@ data EJPDResponseItem = EJPDResponseItem
     ejpdResponsePhone :: Maybe Phone,
     ejpdResponsePushTokens :: Set Text, -- 'Wire.API.Push.V2.Token.Token', but that would produce an orphan instance.
     ejpdResponseContacts :: Maybe (Set (Relation, EJPDResponseItem)),
-    ejpdResponseTeamContacts :: Maybe (Set EJPDResponseItem, NewListType)
+    ejpdResponseTeamContacts :: Maybe (Set EJPDResponseItem, NewListType),
+    ejpdResponseConversations :: Maybe (Set (Text, ConvId)), -- name, id
+    ejpdResponseAssets :: Maybe (Set Text) -- urls pointing to s3 resources
   }
   deriving stock (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via (GenericUniform EJPDResponseItem)
@@ -86,7 +101,9 @@ instance ToJSON EJPDResponseItem where
         "ejpd_response_phone" .= ejpdResponsePhone rspi,
         "ejpd_response_push_tokens" .= ejpdResponsePushTokens rspi,
         "ejpd_response_contacts" .= ejpdResponseContacts rspi,
-        "ejpd_response_team_contacts" .= ejpdResponseTeamContacts rspi
+        "ejpd_response_team_contacts" .= ejpdResponseTeamContacts rspi,
+        "ejpd_response_conversations" .= ejpdResponseConversations rspi,
+        "ejpd_response_assets" .= ejpdResponseAssets rspi
       ]
 
 instance FromJSON EJPDResponseItem where
@@ -101,3 +118,5 @@ instance FromJSON EJPDResponseItem where
       <*> obj .: "ejpd_response_push_tokens"
       <*> obj .:? "ejpd_response_contacts"
       <*> obj .:? "ejpd_response_team_contacts"
+      <*> obj .:? "ejpd_response_conversations"
+      <*> obj .:? "ejpd_response_assets"

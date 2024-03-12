@@ -18,6 +18,7 @@
 module CargoHold.API.V3
   ( upload,
     download,
+    downloadUnsafe,
     checkMetadata,
     delete,
     renewToken,
@@ -111,6 +112,9 @@ download :: V3.Principal -> V3.AssetKey -> Maybe V3.AssetToken -> Maybe Text -> 
 download own key tok mbHost = runMaybeT $ do
   checkMetadata (Just own) key tok
   lift $ genSignedURL (S3.mkKey key) mbHost
+
+downloadUnsafe :: V3.AssetKey -> Maybe Text -> Handler URI
+downloadUnsafe key mbHost = genSignedURL (S3.mkKey key) mbHost
 
 checkMetadata :: Maybe V3.Principal -> V3.AssetKey -> Maybe V3.AssetToken -> MaybeT Handler ()
 checkMetadata mown key tok = do
