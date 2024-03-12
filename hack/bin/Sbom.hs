@@ -158,7 +158,7 @@ serializeSBom :: SerializeSBom -> SBom -> IO LazyByteString
 serializeSBom settings bom = do
   uuid <- V4.nextRandom
   curTime <- getCurrentTime
-  -- TODO(mangoiv): "tools" (the tools used in the creation of the bom)
+  -- FUTUREWORK(mangoiv): "tools" (the tools used in the creation of the bom)
   let mkDependencies :: SBomMeta Identity -> Array
       mkDependencies meta = do
         let d =
@@ -171,15 +171,14 @@ serializeSBom settings bom = do
       mkComponents meta = do
         let c :: Value
             c =
-              -- TODO(mangoiv): split the outPath in fallback name and hash
-              -- TODO(mangoiv): swid? https://www.iso.org/standard/65666.html
-              -- TODO(mangoiv): CPE?
-              -- TODO(mangoiv): more information in the supplier section
+              -- FUTUREWORK(mangoiv): swid? https://www.iso.org/standard/65666.html
+              -- FUTUREWORK(mangoiv): CPE?
+              -- FUTUREWORK(mangoiv): more information in the supplier section
               object
                 [ "type" .= meta.typ,
                   "bom-ref" .= String (runIdentity meta.outPath),
                   "supplier" .= object ["url" .= nubOrd (maybeToList meta.homepage <> catMaybes meta.urls)],
-                  "name" .= String (fromMaybe (runIdentity meta.outPath) meta.name),
+                  "name" .= String (fromMaybe (st'name $ splitStorePath $ runIdentity meta.outPath) meta.name),
                   "version" .= meta.version,
                   "description" .= meta.description,
                   "scope" .= String "required",
@@ -203,16 +202,15 @@ serializeSBom settings bom = do
                   .= object
                     [ "name" .= String settings.sbom'component,
                       "type" .= String "application"
-                      -- TODO(mangoiv): this should be a choice in the settings above
+                      -- FUTUREWORK(mangoiv): this should be a choice in the settings above
                     ],
-                -- TODO(mangoiv): "manufacture" can also have url
+                -- FUTUREWORK(mangoiv): "manufacture" can also have url
                 "manufacture" .= object ["name" .= String settings.sbom'manufacture],
                 "supplier" .= object ["name" .= String (fromMaybe settings.sbom'manufacture settings.sbom'supplier)],
                 "licenses" .= Array (fromList $ object . (\n -> ["id" .= n]) . String <$> settings.sbom'licenses)
               ],
-          -- TODO(mangoiv): dependencies vs components???
           "components" .= Array components,
-          -- TODO(mangoiv): services: allow to tell the program the name of the services like brig, galley, ...
+          -- FUTUREWORK(mangoiv): services: allow to tell the program the name of the services like brig, galley, ...
           "dependencies" .= Array dependencies
         ]
 
@@ -292,7 +290,6 @@ mainNoParse (tldFp, drv) = do
   sbom <- discoverSBom drv metaDB
   serializeSBom defaultSerializeSBom sbom
 
--- TODO(mangoiv): replace with legacy command
 pathInfo :: FilePath -> IO PathInfo
 pathInfo path = do
   let nixPathInfo = proc "nix" ["path-info", path, "--json", "--recursive"]
