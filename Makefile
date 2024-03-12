@@ -551,9 +551,7 @@ helm-template-%: clean-charts charts-integration
 # directory as the script that is being executed)
 .PHONY: upload-bombon
 upload-bombon:
-	pushd ./hack/bin	 
-	./bombon.hs -- \
+	cd ./hack/bin	&& ./bombon.hs -- \
 		--project-version $(HELM_SEMVER) \
 		--api-key $(DEPENDENCY_TRACK_API_KEY) \
 		--auto-create
-	popd
