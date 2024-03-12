@@ -29,7 +29,6 @@ import Data.ByteString.Lazy (LazyByteString)
 import Data.ByteString.Lazy qualified as BSL
 import Data.ByteString.Lazy.Char8 qualified as C8L
 import Data.Containers.ListUtils (nubOrd, nubOrdOn)
-import Data.Functor
 import Data.Functor.Identity
 import Data.Map (Map)
 import Data.Map qualified as M
@@ -58,6 +57,20 @@ data License = MkLicense
   }
   deriving stock (Eq, Ord, Show, Generic)
   deriving anyclass (FromJSON, ToJSON)
+
+sadSbomMeta :: Text -> Text -> [Text] -> SBomMeta Identity
+sadSbomMeta drvPath outPath directDeps 
+  = MkSBomMeta 
+  { drvPath = drvPath 
+  , outPath = Identity outPath 
+  , directDeps = Identity directDeps 
+  , description = Nothing 
+  , homepage = Nothing 
+  , licenseSpdxId = []
+  , name = Nothing 
+  , typ = Nothing 
+  , urls = [] 
+  , version = Nothing }
 
 data SBomMeta f = MkSBomMeta
   { drvPath :: Text,
@@ -229,7 +242,9 @@ discoverSBom outP metaDb = do
           Nothing -> \x -> do
             T.putStrLn ("no meta found for drv: " <> deriver <> "\ntrying approximate match")
             x >>= maybe
-              do \m -> T.putStrLn ("no approximate match found for: " <> deriver) $> m
+              do \m -> do 
+                     T.putStrLn ("no approximate match found for: " <> deriver) 
+                     pure $ M.insert k (sadSbomMeta deriver k deps) m
               do \match -> pure . M.insert k (proxyToIdentity match)
               do approximateMatch deriver metaDb
           Just pmeta -> fmap $ M.insert k $ proxyToIdentity pmeta
