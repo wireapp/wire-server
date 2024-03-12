@@ -34,7 +34,6 @@ mkDerivation {
     http2
     network
     stm
-    streaming-commons
     text
     time-manager
   ];

@@ -11,24 +11,25 @@ import Control.Concurrent
 import Control.Concurrent.Async
 import Control.Concurrent.STM
 import Control.Exception
+import qualified Control.Exception.Base as E
 import Control.Monad
 import Control.Monad.IO.Class
 import Data.ByteString
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Char8 as BSChar8
 import Data.IORef
 import Data.Map
 import qualified Data.Map as Map
 import Data.Maybe (fromMaybe)
-import Data.Streaming.Network
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import Data.Unique
+import qualified Debug.Trace as Debug
 import Foreign.Marshal.Alloc (mallocBytes)
-import GHC.IO.Exception
 import qualified Network.HTTP2.Client as HTTP2
+import Network.Socket (AddrInfo (addrSocketType))
 import qualified Network.Socket as NS
 import qualified OpenSSL.Session as SSL
-import System.IO.Error
 import qualified System.TimeManager
 import System.Timeout
 import Prelude
@@ -377,19 +378,45 @@ startPersistentHTTP2Connection ctx (tlsEnabled, hostname, port) cl removeTrailin
 
     connectTCPWithTimeout :: IO NS.Socket
     connectTCPWithTimeout = do
-      mSock <- timeout tcpConnectTimeout $ fst <$> getSocketTCP hostname port
+      let strHost = BSChar8.unpack hostname
+          strPort = show port
+          -- TODO: BSChar8.unpack is not the correct thing to do, here for testing
+          hints =
+            NS.defaultHints
+              { addrSocketType = NS.Stream,
+                NS.addrFlags = [NS.AI_NUMERICSERV],
+                NS.addrFamily = NS.AF_INET -- IPV4 only
+              }
+      resolvedAddresses <- NS.getAddrInfo (Just hints) (Just strHost) (Just strPort)
+      addr <- case resolvedAddresses of
+        [] -> throwIO $ AddressResolutionFailure $ "Failed to resolve address: host=" <> strHost <> ", port=" <> strPort
+        [x] -> pure x
+        (x : xs) -> do
+          Debug.traceM $ "Mutiple addresses found for host=" <> strHost <> ", port=" <> strPort <> ", using=" <> show x <> ", ignoring=" <> show xs
+          pure x
+      mSock <- timeout tcpConnectTimeout $ E.bracketOnError (NS.openSocket addr) NS.close $ \sock -> do
+        NS.setSocketOption sock NS.NoDelay 1
+        NS.connect sock $ NS.addrAddress addr
+        return sock
       case mSock of
         Just sock -> pure sock
         Nothing -> do
           let errStr =
-                "TCP connection with "
+                "Failed to open socket "
                   <> Text.unpack (Text.decodeUtf8 hostname)
                   <> ":"
                   <> show port
                   <> " took longer than "
                   <> show tcpConnectTimeout
                   <> " microseconds"
-          throwIO $ mkIOError TimeExpired errStr Nothing Nothing
+          throwIO $ TCPConnectionTimeout errStr
+
+data ConnectionError
+  = TCPConnectionTimeout String
+  | AddressResolutionFailure String
+  deriving (Show)
+
+instance Exception ConnectionError
 
 type LiveReqs = Map Unique (Async (), MVar SomeException)
 
