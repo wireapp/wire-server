@@ -1,4 +1,4 @@
-{{- if and .Values.upstreams.enable .Values.nginx.existingServerBlockConfigmap }}
+{{- if and .Values.upstreams.enabled .Values.nginx.existingServerBlockConfigmap }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -22,7 +22,7 @@ data:
         proxy_set_header Host {{ . }};
         proxy_hide_header Content-Type;
         add_header Content-Type application/pkix-crl;
-        proxy_pass "http://{{ . }}/crl";
+        proxy_pass "https://{{ . }}/crl";
       }
 
       {{- end }}
