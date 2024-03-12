@@ -1,4 +1,4 @@
-#!/usr/bin/env -S nix -Lv run github:wireapp/ghc-flakr/789e7e3bbb3105a498c7b603c54934f01ce22d80
+#!/usr/bin/env -S nix -Lv run github:wireapp/ghc-flakr/6311bb166bf835d4a587fe1661b86c9a1426f212
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE LambdaCase #-}
 {-# OPTIONS_GHC -Wall #-}
