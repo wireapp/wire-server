@@ -1,0 +1,4 @@
+apiVersion: v1
+description: Accompanying chart for Smallstep E2EI support
+name: smallstep-accomp
+version: 1.0.4
