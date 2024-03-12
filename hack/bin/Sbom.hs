@@ -159,11 +159,16 @@ defaultSerializeSBom =
 mkPurl :: SBomMeta Identity -> Text
 mkPurl meta =
   mconcat
-    [ "pkg:nixpkgs",
+    [ "pkg:",
+      repo,
       "/",
       fromMaybe (runIdentity meta.outPath) meta.name,
       maybe "" ("@" <>) meta.version
     ]
+  where
+    repo
+      | any (maybe False (T.isInfixOf "hackage.haskell.org")) meta.urls = "hackage"
+      | otherwise = "nixpkgs"
 
 -- | serializes an SBom to JSON format
 --   conventions:
