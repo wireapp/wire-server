@@ -29,7 +29,6 @@ module Brig.IO.Intra
     createConnectConv,
     acceptConnectConv,
     blockConv,
-    unblockConv,
     upsertOne2OneConversation,
 
     -- * Clients
@@ -762,50 +761,6 @@ blockConv lusr qcnv = do
         ]
         . zUser (tUnqualified lusr)
         . expect2xx
-
--- | Calls 'Galley.API.unblockConvH'.
-unblockLocalConv ::
-  ( MonadReader Env m,
-    MonadIO m,
-    MonadMask m,
-    MonadHttp m,
-    HasRequestId m,
-    MonadLogger m
-  ) =>
-  Local UserId ->
-  Maybe ConnId ->
-  ConvId ->
-  m Conversation
-unblockLocalConv lusr conn cnv = do
-  debug $
-    remote "galley"
-      . field "conv" (toByteString cnv)
-      . msg (val "Unblocking conversation")
-  galleyRequest PUT req >>= decodeBody "galley"
-  where
-    req =
-      paths ["/i/conversations", toByteString' cnv, "unblock"]
-        . zUser (tUnqualified lusr)
-        . maybe id (header "Z-Connection" . fromConnId) conn
-        . expect2xx
-
-unblockConv ::
-  ( MonadReader Env m,
-    MonadIO m,
-    MonadMask m,
-    MonadHttp m,
-    HasRequestId m,
-    MonadLogger m
-  ) =>
-  Local UserId ->
-  Maybe ConnId ->
-  Qualified ConvId ->
-  m Conversation
-unblockConv luid conn =
-  foldQualified
-    luid
-    (unblockLocalConv luid conn . tUnqualified)
-    (const (throwM federationNotImplemented))
 
 upsertOne2OneConversation ::
   ( MonadReader Env m,

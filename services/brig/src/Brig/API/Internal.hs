@@ -575,6 +575,7 @@ revokeIdentityH bade badp = throwStd (badRequest ("need exactly one of email, ph
 
 updateConnectionInternalH ::
   ( Member (Embed HttpClientIO) r,
+    Member GalleyProvider r,
     Member TinyLog r
   ) =>
   UpdateConnectionsInternal ->

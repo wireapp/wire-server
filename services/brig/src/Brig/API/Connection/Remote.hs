@@ -151,7 +151,7 @@ desiredMembership a r =
 --
 -- Returns the connection, and whether it was updated or not.
 transitionTo ::
-  (Member GalleyProvider r) =>
+  Member GalleyProvider r =>
   Local UserId ->
   Maybe ConnId ->
   Remote UserId ->
@@ -192,14 +192,18 @@ transitionTo self mzcon other (Just connection) (Just rel) actor = do
         fromMaybe
           (one2OneConvId BaseProtocolProteusTag (tUntagged self) (tUntagged other))
           $ ucConvId connection
-  lift $ updateOne2OneConv self Nothing other proteusConvId (desiredMembership actor rel) actor
+      desiredMem = desiredMembership actor rel
+  lift $ updateOne2OneConv self Nothing other proteusConvId desiredMem actor
   mlsEnabled <- view (settings . enableMLS)
   when (fromMaybe False mlsEnabled) $ do
     let mlsConvId = one2OneConvId BaseProtocolMLSTag (tUntagged self) (tUntagged other)
-    mlsConvEstablished <- lift . liftSem $ isMLSOne2OneEstablished self (tUntagged other)
-    let desiredMem = desiredMembership actor rel
-    lift . when (mlsConvEstablished && desiredMem == Excluded) $
-      updateOne2OneConv self Nothing other mlsConvId desiredMem actor
+    isEstablished <- lift . liftSem $ isMLSOne2OneEstablished self (tUntagged other)
+    lift
+      . when
+        ( isEstablished == Established
+            || (isEstablished == NotAMember && ucStatus connection == Blocked && rel == Accepted)
+        )
+      $ updateOne2OneConv self Nothing other mlsConvId desiredMem actor
 
   -- update connection
   connection' <- lift $ wrapClient $ Data.updateConnection connection (relationWithHistory rel)
@@ -215,7 +219,7 @@ pushEvent self mzcon connection = do
   Intra.onConnectionEvent (tUnqualified self) mzcon event
 
 performLocalAction ::
-  (Member GalleyProvider r) =>
+  Member GalleyProvider r =>
   Local UserId ->
   Maybe ConnId ->
   Remote UserId ->
@@ -271,7 +275,7 @@ performLocalAction self mzcon other mconnection action = do
 -- B connects & A reacts:  Accepted  Accepted
 -- @
 performRemoteAction ::
-  (Member GalleyProvider r) =>
+  Member GalleyProvider r =>
   Local UserId ->
   Remote UserId ->
   Maybe UserConnection ->

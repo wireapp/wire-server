@@ -20,7 +20,7 @@ module Brig.Effects.GalleyProvider.RPC where
 
 import Bilge hiding (head, options, requestId)
 import Brig.API.Types
-import Brig.Effects.GalleyProvider (GalleyProvider (..))
+import Brig.Effects.GalleyProvider (GalleyProvider (..), MLSOneToOneEstablished (..))
 import Brig.Effects.ServiceRPC (Service (Galley), ServiceRPC)
 import Brig.Effects.ServiceRPC qualified as ServiceRPC
 import Brig.RPC
@@ -49,7 +49,6 @@ import Polysemy.TinyLog
 import Servant.API (toHeader)
 import System.Logger (Msg, field, msg, val)
 import Wire.API.Conversation hiding (Member)
-import Wire.API.Conversation.Protocol
 import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
 import Wire.API.Routes.Version
 import Wire.API.Team
@@ -91,6 +90,7 @@ interpretGalleyProviderToRPC disabledVersions =
         GetVerificationCodeEnabled id' -> getVerificationCodeEnabled id'
         GetExposeInvitationURLsToTeamAdmin id' -> getTeamExposeInvitationURLsToTeamAdmin id'
         IsMLSOne2OneEstablished lusr qother -> checkMLSOne2OneEstablished lusr qother
+        UnblockConversation lusr mconn qcnv -> unblockConversation v lusr mconn qcnv
 
 -- | Calls 'Galley.API.createSelfConversationH'.
 createSelfConv ::
@@ -493,22 +493,17 @@ checkMLSOne2OneEstablished ::
   ) =>
   Local UserId ->
   Qualified UserId ->
-  Sem r Bool
+  Sem r MLSOneToOneEstablished
 checkMLSOne2OneEstablished self (Qualified other otherDomain) = do
   debug $ remote "galley" . msg (val "Get the MLS one-to-one conversation")
-  response <- ServiceRPC.request @'Galley GET req
-  case HTTP.statusCode (HTTP.responseStatus response) of
-    403 -> pure False
-    400 -> pure False
-    _ {- 200 is assumed -} -> do
-      conv <- decodeBodyOrThrow @Conversation "galley" response
-      let mEpoch = case cnvProtocol conv of
-            ProtocolProteus -> Nothing
-            ProtocolMLS meta -> Just . cnvmlsEpoch $ meta
-            ProtocolMixed meta -> Just . cnvmlsEpoch $ meta
-      pure $ case mEpoch of
-        Nothing -> False
-        Just (Epoch e) -> e > 0
+  responseSelf <- ServiceRPC.request @'Galley GET req
+  case HTTP.statusCode (HTTP.responseStatus responseSelf) of
+    200 -> do
+      established <- decodeBodyOrThrow @Bool "galley" responseSelf
+      pure $ if established then Established else NotEstablished
+    403 -> pure NotAMember
+    400 -> pure NotEstablished
+    _ -> pure NotEstablished
   where
     req =
       paths
@@ -516,6 +511,36 @@ checkMLSOne2OneEstablished self (Qualified other otherDomain) = do
           "conversations",
           "mls-one2one",
           toByteString' otherDomain,
-          toByteString' other
+          toByteString' other,
+          "established"
         ]
         . zUser (tUnqualified self)
+
+unblockConversation ::
+  ( Member (Error ParseException) r,
+    Member (ServiceRPC 'Galley) r,
+    Member TinyLog r
+  ) =>
+  Version ->
+  Local UserId ->
+  Maybe ConnId ->
+  Qualified ConvId ->
+  Sem r Conversation
+unblockConversation v lusr mconn (Qualified cnv cdom) = do
+  debug $
+    remote "galley"
+      . field "conv" (toByteString cnv)
+      . field "domain" (toByteString cdom)
+      . msg (val "Unblocking conversation")
+  void $ ServiceRPC.request @'Galley PUT putReq
+  ServiceRPC.request @'Galley GET getReq >>= decodeBodyOrThrow @Conversation "galley"
+  where
+    putReq =
+      paths ["i", "conversations", toByteString' cdom, toByteString' cnv, "unblock"]
+        . zUser (tUnqualified lusr)
+        . maybe id (header "Z-Connection" . fromConnId) mconn
+        . expect2xx
+    getReq =
+      paths [toHeader v, "conversations", toByteString' cdom, toByteString' cnv]
+        . zUser (tUnqualified lusr)
+        . expect2xx
