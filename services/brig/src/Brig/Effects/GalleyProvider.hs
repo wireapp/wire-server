@@ -36,6 +36,12 @@ import Wire.API.Team.Member qualified as Team
 import Wire.API.Team.Role
 import Wire.API.Team.SearchVisibility
 
+data MLSOneToOneEstablished
+  = Established
+  | NotEstablished
+  | NotAMember
+  deriving (Eq, Show)
+
 data GalleyProvider m a where
   CreateSelfConv ::
     UserId ->
@@ -109,6 +115,11 @@ data GalleyProvider m a where
   IsMLSOne2OneEstablished ::
     Local UserId ->
     Qualified UserId ->
-    GalleyProvider m Bool
+    GalleyProvider m MLSOneToOneEstablished
+  UnblockConversation ::
+    Local UserId ->
+    Maybe ConnId ->
+    Qualified ConvId ->
+    GalleyProvider m Conversation
 
 makeSem ''GalleyProvider

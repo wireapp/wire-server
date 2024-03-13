@@ -111,8 +111,8 @@ getFederationStatus _ request = do
 
 sendConnectionAction ::
   ( Member FederationConfigStore r,
-    Member NotificationSubsystem r,
-    Member GalleyProvider r
+    Member GalleyProvider r,
+    Member NotificationSubsystem r
   ) =>
   Domain ->
   NewConnectionRequest ->

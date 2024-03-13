@@ -38,6 +38,7 @@ module Galley.API.Query
     getMLSSelfConversation,
     getMLSSelfConversationWithError,
     getMLSOne2OneConversation,
+    isMLSOne2OneEstablished,
   )
 where
 
@@ -65,6 +66,7 @@ import Galley.API.Mapping qualified as Mapping
 import Galley.API.One2One
 import Galley.API.Util
 import Galley.Data.Conversation qualified as Data
+import Galley.Data.Conversation.Types qualified as Data
 import Galley.Data.Types (Code (codeConversation))
 import Galley.Data.Types qualified as Data
 import Galley.Effects
@@ -89,6 +91,7 @@ import System.Logger.Class qualified as Logger
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation qualified as Public
 import Wire.API.Conversation.Code
+import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Role qualified as Public
 import Wire.API.Error
@@ -792,7 +795,7 @@ getRemoteMLSOne2OneConversation lself qother rconv = do
   -- a conversation can only be remote if it is hosted on the other user's domain
   rother <-
     if qDomain qother == tDomain rconv
-      then pure (toRemoteUnsafe (tDomain rconv) (qUnqualified qother))
+      then pure (qualifyAs rconv (qUnqualified qother))
       else throw (InternalErrorWithDescription "Unexpected 1-1 conversation domain")
 
   resp <-
@@ -805,6 +808,67 @@ getRemoteMLSOne2OneConversation lself qother rconv = do
     GetOne2OneConversationBackendMismatch ->
       throw (FederationUnexpectedBody "Backend mismatch when retrieving a remote 1-1 conversation")
     GetOne2OneConversationNotConnected -> throwS @'NotConnected
+
+-- | Check if an MLS 1-1 conversation has been established, namely if its epoch
+-- is non-zero. The conversation will only be stored in the database when its
+-- first commit arrives.
+--
+-- For the federated case, we do not make the assumption that the other backend
+-- uses the same function to calculate the conversation ID and corresponding
+-- group ID, however we /do/ assume that the two backends agree on which of the
+-- two is responsible for hosting the conversation.
+isMLSOne2OneEstablished ::
+  ( Member ConversationStore r,
+    Member (Input Env) r,
+    Member (Error FederationError) r,
+    Member (Error InternalError) r,
+    Member (ErrorS 'MLSNotEnabled) r,
+    Member (ErrorS 'NotConnected) r,
+    Member FederatorAccess r
+  ) =>
+  Local UserId ->
+  Qualified UserId ->
+  Sem r Bool
+isMLSOne2OneEstablished lself qother = do
+  assertMLSEnabled
+  let convId = one2OneConvId BaseProtocolMLSTag (tUntagged lself) qother
+  foldQualified
+    lself
+    isLocalMLSOne2OneEstablished
+    (isRemoteMLSOne2OneEstablished lself qother)
+    convId
+
+isLocalMLSOne2OneEstablished ::
+  Member ConversationStore r =>
+  Local ConvId ->
+  Sem r Bool
+isLocalMLSOne2OneEstablished lconv = do
+  mconv <- E.getConversation (tUnqualified lconv)
+  pure $ case mconv of
+    Nothing -> False
+    Just conv -> do
+      let meta = fst <$> Data.mlsMetadata conv
+      maybe False ((> 0) . epochNumber . cnvmlsEpoch) meta
+
+isRemoteMLSOne2OneEstablished ::
+  ( Member (ErrorS 'NotConnected) r,
+    Member (Error FederationError) r,
+    Member (Error InternalError) r,
+    Member FederatorAccess r
+  ) =>
+  Local UserId ->
+  Qualified UserId ->
+  Remote conv ->
+  Sem r Bool
+isRemoteMLSOne2OneEstablished lself qother rconv = do
+  conv <- getRemoteMLSOne2OneConversation lself qother rconv
+  pure . (> 0) $ case cnvProtocol conv of
+    ProtocolProteus -> 0
+    ProtocolMLS meta -> ep meta
+    ProtocolMixed meta -> ep meta
+  where
+    ep :: ConversationMLSData -> Word64
+    ep = epochNumber . cnvmlsEpoch
 
 -------------------------------------------------------------------------------
 -- Helpers

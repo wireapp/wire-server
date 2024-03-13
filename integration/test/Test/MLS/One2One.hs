@@ -21,6 +21,7 @@ import API.Brig
 import API.Galley
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Char8 as B8
+import qualified Data.Set as Set
 import MLS.Util
 import Notifications
 import SetupHelpers
@@ -67,7 +68,7 @@ testMLSOne2OneBlocked otherDomain = do
 testMLSOne2OneBlockedAfterConnected :: HasCallStack => One2OneScenario -> App ()
 testMLSOne2OneBlockedAfterConnected scenario = do
   alice <- randomUser OwnDomain def
-  let otherDomain = one2OneScenarioDomain scenario
+  let otherDomain = one2OneScenarioUserDomain scenario
       convDomain = one2OneScenarioConvDomain scenario
   bob <- createMLSOne2OnePartner otherDomain alice convDomain
   conv <- getMLSOne2OneConversation alice bob >>= getJSON 200
@@ -101,6 +102,61 @@ testMLSOne2OneBlockedAfterConnected scenario = do
     void $ postMLSMessage mp.sender mp.message >>= getJSON 201
     awaitAnyEvent 2 ws `shouldMatch` (Nothing :: Maybe Value)
 
+-- | Alice and Bob are initially connected, then Alice blocks Bob, and finally
+-- Alice unblocks Bob.
+testMLSOne2OneUnblocked :: HasCallStack => One2OneScenario -> App ()
+testMLSOne2OneUnblocked scenario = do
+  alice <- randomUser OwnDomain def
+  let otherDomain = one2OneScenarioUserDomain scenario
+      convDomain = one2OneScenarioConvDomain scenario
+  bob <- createMLSOne2OnePartner otherDomain alice convDomain
+  conv <- getMLSOne2OneConversation alice bob >>= getJSON 200
+  do
+    convId <- conv %. "qualified_id"
+    bobConv <- getMLSOne2OneConversation bob alice >>= getJSON 200
+    convId `shouldMatch` (bobConv %. "qualified_id")
+
+  [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
+  traverse_ uploadNewKeyPackage [bob1]
+  resetGroup alice1 conv
+  withWebSocket bob1 $ \ws -> do
+    commit <- createAddCommit alice1 [bob]
+    void $ sendAndConsumeCommitBundle commit
+    let isMessage n = nPayload n %. "type" `isEqual` "conversation.mls-welcome"
+    n <- awaitMatch isMessage ws
+    nPayload n %. "data" `shouldMatch` B8.unpack (Base64.encode (fold commit.welcome))
+
+  -- Alice blocks Bob
+  void $ putConnection alice bob "blocked" >>= getBody 200
+  void $ getMLSOne2OneConversation alice bob >>= getJSON 403
+
+  -- Reset the group membership in the test setup as only 'bob1' is left in
+  -- reality, even though the test state believes 'alice1' is still part of the
+  -- conversation.
+  modifyMLSState $ \s -> s {members = Set.singleton bob1}
+
+  -- Bob creates a new client and adds it to the one-to-one conversation just so
+  -- that the epoch advances.
+  bob2 <- createMLSClient def bob
+  traverse_ uploadNewKeyPackage [bob2]
+  void $ createAddCommit bob1 [bob] >>= sendAndConsumeCommitBundle
+
+  -- Alice finally unblocks Bob
+  void $ putConnection alice bob "accepted" >>= getBody 200
+  void $ getMLSOne2OneConversation alice bob >>= getJSON 200
+
+  -- Alice rejoins via an external commit
+  void $ createExternalCommit alice1 Nothing >>= sendAndConsumeCommitBundle
+
+  -- Check that an application message can get to Bob
+  withWebSockets [bob1, bob2] $ \wss -> do
+    mp <- createApplicationMessage alice1 "hello, I've always been here"
+    void $ sendAndConsumeMessage mp
+    let isMessage n = nPayload n %. "type" `isEqual` "conversation.mls-message-add"
+    forM_ wss $ \ws -> do
+      n <- awaitMatch isMessage ws
+      nPayload n %. "data" `shouldMatch` B8.unpack (Base64.encode mp.message)
+
 testGetMLSOne2OneSameTeam :: App ()
 testGetMLSOne2OneSameTeam = do
   (alice, _, _) <- createTeam OwnDomain 1
@@ -122,9 +178,9 @@ instance TestCases One2OneScenario where
       MkTestCase "[domain=other;conv=other]" One2OneScenarioRemoteConv
     ]
 
-one2OneScenarioDomain :: One2OneScenario -> Domain
-one2OneScenarioDomain One2OneScenarioLocal = OwnDomain
-one2OneScenarioDomain _ = OtherDomain
+one2OneScenarioUserDomain :: One2OneScenario -> Domain
+one2OneScenarioUserDomain One2OneScenarioLocal = OwnDomain
+one2OneScenarioUserDomain _ = OtherDomain
 
 one2OneScenarioConvDomain :: One2OneScenario -> Domain
 one2OneScenarioConvDomain One2OneScenarioLocal = OwnDomain
@@ -134,7 +190,7 @@ one2OneScenarioConvDomain One2OneScenarioRemoteConv = OtherDomain
 testMLSOne2One :: HasCallStack => One2OneScenario -> App ()
 testMLSOne2One scenario = do
   alice <- randomUser OwnDomain def
-  let otherDomain = one2OneScenarioDomain scenario
+  let otherDomain = one2OneScenarioUserDomain scenario
       convDomain = one2OneScenarioConvDomain scenario
   bob <- createMLSOne2OnePartner otherDomain alice convDomain
   [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
