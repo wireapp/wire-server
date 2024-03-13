@@ -137,6 +137,7 @@ library
     Test.Presence
     Test.Roles
     Test.Search
+    Test.SelfTest
     Test.Services
     Test.Spar
     Test.Swagger
@@ -152,6 +153,7 @@ library
     Testlib.Mock
     Testlib.MockIntegrationService
     Testlib.ModService
+    Testlib.ModService.ServiceHandles
     Testlib.One2One
     Testlib.Options
     Testlib.Ports
