@@ -116,6 +116,14 @@ let
       };
     };
 
+    streaming-commons = {
+      src = fetchgit {
+        url = "https://github.com/akshaymankar/streaming-commons";
+        rev = "48c9fc5aa1465ba04cb53b56c1e3c843bc9efef6";
+        sha256 = "sha256-cYjvpkwg6rrvTBZA+tC6HI7qaVh0/KWPq/yI+QjaVxw=";
+      };
+    };
+
     # Our fork because we need to a few special things
     http-client = {
       src = fetchgit {
