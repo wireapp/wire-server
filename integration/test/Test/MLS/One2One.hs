@@ -149,12 +149,13 @@ testMLSOne2OneUnblocked scenario = do
   void $ createExternalCommit alice1 Nothing >>= sendAndConsumeCommitBundle
 
   -- Check that an application message can get to Bob
-  withWebSocket bob1 $ \ws -> do
+  withWebSockets [bob1, bob2] $ \wss -> do
     mp <- createApplicationMessage alice1 "hello, I've always been here"
     void $ sendAndConsumeMessage mp
     let isMessage n = nPayload n %. "type" `isEqual` "conversation.mls-message-add"
-    n <- awaitMatch isMessage ws
-    nPayload n %. "data" `shouldMatch` B8.unpack (Base64.encode mp.message)
+    forM_ wss $ \ws -> do
+      n <- awaitMatch isMessage ws
+      nPayload n %. "data" `shouldMatch` B8.unpack (Base64.encode mp.message)
 
 testGetMLSOne2OneSameTeam :: App ()
 testGetMLSOne2OneSameTeam = do
