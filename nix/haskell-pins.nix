@@ -119,9 +119,9 @@ let
     # Our fork because we need to a few special things
     http-client = {
       src = fetchgit {
-        url = "https://github.com/wireapp/http-client";
-        rev = "37494bb9a89dd52f97a8dc582746c6ff52943934";
-        sha256 = "sha256-z47GlT+tHsSlRX4ApSGQIpOpaZiBeqr72/tWuvzw8tc=";
+        url = "https://github.com/snoyberg/http-client";
+        rev = "a1c5e346d1d3087a0a29442e6856bc1d865063f9";
+        sha256 = "sha256-HoicINw7q/TD0zv4m3W6J+bgbEeNRZXT2sRTb/6249Y=";
       };
       packages = {
         "http-client" = "http-client";
