@@ -85,9 +85,3 @@ spec:
               port: {{ .Values.service.internalFederatorPort }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
-        - name: netshoot
-          image: nicolaka/netshoot
-          command: [ "tshark" ]
-          args:
-            - "-i"
-            - "eth0"
