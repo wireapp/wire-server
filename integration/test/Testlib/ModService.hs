@@ -40,7 +40,7 @@ import System.Process
 import Testlib.App
 import Testlib.HTTP
 import Testlib.JSON
-import Testlib.Printing
+import Testlib.ModService.ServiceHandles
 import Testlib.ResourcePool
 import Testlib.Types
 import Text.RawString.QQ
@@ -285,20 +285,7 @@ ensureBackendReachable domain = do
         pure $ either (\(_e :: HTTP.HttpException) -> False) id eith
 
   when ((domain /= env.domain1) && (domain /= env.domain2)) $ do
-    retryRequestUntil checkServiceIsUpReq "Federator ingress"
-
-processColors :: [(String, String -> String)]
-processColors =
-  [ ("brig", colored green),
-    ("galley", colored yellow),
-    ("gundeck", colored blue),
-    ("cannon", colored orange),
-    ("cargohold", colored purpleish),
-    ("spar", colored orange),
-    ("federator", colored blue),
-    ("background-worker", colored blue),
-    ("nginx", colored purpleish)
-  ]
+    retryRequestUntil checkServiceIsUpReq "Federator ingress" domain Nothing
 
 data ServiceInstance = ServiceInstance
   { handle :: ProcessHandle,
@@ -323,11 +310,13 @@ cleanupService inst = do
   whenM (doesDirectoryExist inst.config) $ removeDirectoryRecursive inst.config
 
 -- | Wait for a service to come up.
-waitUntilServiceIsUp :: String -> Service -> App ()
-waitUntilServiceIsUp domain srv =
+waitUntilServiceIsUp :: String -> Service -> MVar ServiceHandle -> App ()
+waitUntilServiceIsUp domain srv serviceHandleMVar =
   retryRequestUntil
     (checkServiceIsUp domain srv)
     (show srv)
+    domain
+    (Just serviceHandleMVar)
 
 -- | Check if a service is up and running.
 checkServiceIsUp :: String -> Service -> App Bool
@@ -358,6 +347,7 @@ withProcess resource overrides service = do
 
   startNginzLocalIO <- lift $ appToIO $ startNginzLocal resource
 
+  serviceHandleMVar <- liftIO newEmptyMVar
   let initProcess = case (service, cwd) of
         (Nginz, Nothing) -> startNginzK8s domain sm
         (Nginz, Just _) -> startNginzLocalIO
@@ -365,37 +355,46 @@ withProcess resource overrides service = do
           config <- getConfig
           tempFile <- writeTempFile "/tmp" (execName <> "-" <> domain <> "-" <> ".yaml") (cs $ Yaml.encode config)
           (_, Just stdoutHdl, Just stderrHdl, ph) <- createProcess (proc exe ["-c", tempFile]) {cwd = cwd, std_out = CreatePipe, std_err = CreatePipe}
-          let prefix = "[" <> execName <> "@" <> domain <> "] "
-          let colorize = fromMaybe id (lookup execName processColors)
-          void $ forkIO $ logToConsole colorize prefix stdoutHdl
-          void $ forkIO $ logToConsole colorize prefix stderrHdl
+          (out1, out2) <- mkChans stdoutHdl
+          (err1, err2) <- mkChans stderrHdl
+          void $ forkIO $ logChanToConsole execName domain out1
+          void $ forkIO $ logChanToConsole execName domain err1
+          putMVar serviceHandleMVar (out2, err2, ph)
           pure $ ServiceInstance ph tempFile
 
   void $ Codensity $ \k -> do
     iok <- appToIOKleisli k
     liftIO $ E.bracket initProcess cleanupService iok
 
-  lift $ waitUntilServiceIsUp domain service
+  lift $ waitUntilServiceIsUp domain service serviceHandleMVar
 
-logToConsole :: (String -> String) -> String -> Handle -> IO ()
-logToConsole colorize prefix hdl = do
-  let go =
-        do
-          line <- hGetLine hdl
-          putStrLn (colorize (prefix <> line))
-          go
-          `E.catch` (\(_ :: E.IOException) -> pure ())
-  go
-
-retryRequestUntil :: HasCallStack => App Bool -> String -> App ()
-retryRequestUntil reqAction err = do
+retryRequestUntil :: HasCallStack => App Bool -> String -> String -> Maybe (MVar ServiceHandle) -> App ()
+retryRequestUntil reqAction execName domain serviceHandleMVar = do
   isUp <-
     retrying
       (limitRetriesByCumulativeDelay (4 * 1000 * 1000) (fibonacciBackoff (200 * 1000)))
       (\_ isUp -> pure (not isUp))
       (const reqAction)
-  unless isUp $
-    failApp ("Timed out waiting for service " <> err <> " to come up")
+  unless isUp $ do
+    errDetails <- liftIO $ do
+      mbHandlers <- traverse takeMVar serviceHandleMVar
+      case mbHandlers of
+        Nothing -> pure " (no stdout/stderr provided)"
+        Just (outChan, errChan, ph) -> do
+          outStr <- flushChan execName domain outChan
+          errStr <- flushChan execName domain errChan
+          statusStr <- getPid ph <&> maybe "(already closed)" show
+          pure $
+            unlines
+              [ ":",
+                "\n\n=== process pid: ============================================",
+                statusStr,
+                "\n\n=== stdout: ============================================",
+                outStr,
+                "\n\n=== stderr: ============================================",
+                errStr
+              ]
+    assertFailure ("Timed out waiting for service " <> execName <> "@" <> domain <> " to come up" <> errDetails)
 
 startNginzK8s :: String -> ServiceMap -> IO ServiceInstance
 startNginzK8s domain sm = do
@@ -535,9 +534,7 @@ startNginz domain conf workingDir = do
           std_err = CreatePipe
         }
 
-  let prefix = "[" <> "nginz" <> "@" <> domain <> "] "
-  let colorize = fromMaybe id (lookup "nginx" processColors)
-  void $ forkIO $ logToConsole colorize prefix stdoutHdl
-  void $ forkIO $ logToConsole colorize prefix stderrHdl
+  void $ forkIO $ logHandleToConsole "nginz" domain stdoutHdl
+  void $ forkIO $ logHandleToConsole "nginz" domain stderrHdl
 
   pure ph
