@@ -54,7 +54,6 @@ hself: hsuper: {
   optparse-generic = hsuper.optparse-generic_1_5_2;
   th-abstraction = hsuper.th-abstraction_0_5_0_0;
   tls = hsuper.tls_1_9_0;
-  warp-tls = hsuper.warp-tls_3_4_3;
 
   # -----------------
   # flags and patches
