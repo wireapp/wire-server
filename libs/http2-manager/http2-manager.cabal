@@ -43,9 +43,8 @@ library
     , network
     , stm
     , streaming-commons
-    , string-conversions
     , text
-    , time-manager
+    , utf8-string
 
   default-language: Haskell2010
 
@@ -86,4 +85,3 @@ test-suite http2-manager-tests
     , random
     , stm
     , streaming-commons
-    , time-manager

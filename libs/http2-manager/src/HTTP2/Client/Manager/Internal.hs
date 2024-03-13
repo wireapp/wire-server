@@ -15,22 +15,20 @@ import Control.Monad
 import Control.Monad.IO.Class
 import Data.ByteString
 import qualified Data.ByteString as BS
+import Data.ByteString.UTF8 as UTF8
 import Data.IORef
 import Data.Map
 import qualified Data.Map as Map
 import Data.Maybe (fromMaybe)
 import Data.Streaming.Network
-import Data.String.Conversions.Monomorphic (toString)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import Data.Unique
-import Foreign.Marshal.Alloc (mallocBytes)
 import GHC.IO.Exception
 import qualified Network.HTTP2.Client as HTTP2
 import qualified Network.Socket as NS
 import qualified OpenSSL.Session as SSL
 import System.IO.Error
-import qualified System.TimeManager
 import System.Timeout
 import Prelude
 
@@ -294,7 +292,7 @@ startPersistentHTTP2Connection ctx (tlsEnabled, hostname, port) cl removeTrailin
   let clientConfig =
         HTTP2.defaultClientConfig
           { HTTP2.scheme = if tlsEnabled then "https" else "http",
-            HTTP2.authority = toString hostname,
+            HTTP2.authority = UTF8.toString hostname,
             HTTP2.cacheLimit = cl
           }
       -- Sends error to requests which show up too late, i.e. after the
@@ -432,36 +430,28 @@ bufsize = 4096
 allocHTTP2Config :: Transport -> IO HTTP2.Config
 allocHTTP2Config (InsecureTransport sock) = HTTP2.allocSimpleConfig sock bufsize
 allocHTTP2Config (SecureTransport ssl sock) = do
-  buf <- mallocBytes bufsize
-  timmgr <- System.TimeManager.initialize $ 30 * 1000000
-  -- Sometimes the frame header says that the payload length is 0. Reading 0
-  -- bytes multiple times seems to be causing errors in openssl. I cannot figure
-  -- out why. The previous implementation didn't try to read from the socket
-  -- when trying to read 0 bytes, so special handling for 0 maintains that
-  -- behaviour.
-  let readData acc 0 = pure acc
-      readData acc n = do
-        -- Handling SSL.ConnectionAbruptlyTerminated as a stream end
-        -- (some sites terminate SSL connection right after returning the data).
-        chunk <- SSL.read ssl n `catch` \(_ :: SSL.ConnectionAbruptlyTerminated) -> pure mempty
-        let chunkLen = BS.length chunk
-        if
-            | chunkLen == 0 || chunkLen == n ->
-                pure (acc <> chunk)
-            | chunkLen > n ->
-                error "openssl: SSL.read returned more bytes than asked for, this is probably a bug"
-            | otherwise ->
-                readData (acc <> chunk) (n - chunkLen)
-  mysa <- NS.getSocketName sock
-  peersa <- NS.getPeerName sock
-  pure
-    HTTP2.Config
-      { HTTP2.confWriteBuffer = buf,
-        HTTP2.confBufferSize = bufsize,
-        HTTP2.confSendAll = SSL.write ssl,
-        HTTP2.confReadN = readData mempty,
-        HTTP2.confPositionReadMaker = HTTP2.defaultPositionReadMaker,
-        HTTP2.confTimeoutManager = timmgr,
-        HTTP2.confMySockAddr = mysa,
-        HTTP2.confPeerSockAddr = peersa
+  config <- HTTP2.allocSimpleConfig sock bufsize
+  pure $
+    config
+      { HTTP2.confSendAll = SSL.write ssl,
+        HTTP2.confReadN = readData mempty
       }
+  where
+    -- Sometimes the frame header says that the payload length is 0. Reading 0
+    -- bytes multiple times seems to be causing errors in openssl. I cannot figure
+    -- out why. The previous implementation didn't try to read from the socket
+    -- when trying to read 0 bytes, so special handling for 0 maintains that
+    -- behaviour.
+    readData acc 0 = pure acc
+    readData acc n = do
+      -- Handling SSL.ConnectionAbruptlyTerminated as a stream end
+      -- (some sites terminate SSL connection right after returning the data).
+      chunk <- SSL.read ssl n `catch` \(_ :: SSL.ConnectionAbruptlyTerminated) -> pure mempty
+      let chunkLen = BS.length chunk
+      if
+          | chunkLen == 0 || chunkLen == n ->
+              pure (acc <> chunk)
+          | chunkLen > n ->
+              error "openssl: SSL.read returned more bytes than asked for, this is probably a bug"
+          | otherwise ->
+              readData (acc <> chunk) (n - chunkLen)

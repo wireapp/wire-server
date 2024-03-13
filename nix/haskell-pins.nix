@@ -131,16 +131,8 @@ let
     http2 = {
       src = fetchgit {
         url = "https://github.com/wireapp/http2";
-        rev = "622b79e2e222c0f361cdd25f082c21f1644016bf";
-        sha256 = "sha256-zES22Cg9inyJ4mEBeEfyWAO5VFYSE2wASVMTHkYThzU=";
-      };
-    };
-
-    network-control = {
-      src = fetchgit {
-        url = "https://github.com/kazu-yamamoto/network-control";
-        rev = "v0.0.2";
-        sha256 = "sha256-wgkbs05s4u4+mAFIH6lKflgIZ/jKxVxIqejUIq/uf0Y=";
+        rev = "9cad270779bbcd9e6297b9ff05a4a7eb83bca069";
+        sha256 = "sha256-c+PzfZZUxo/tE8oH1ZmKwbUMAq34kGD1OoBWorNLG38=";
       };
     };
 
