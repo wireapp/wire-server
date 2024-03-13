@@ -1,0 +1,30 @@
+{{- if and .Values.upstreams.enabled .Values.nginx.existingServerBlockConfigmap }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.nginx.existingServerBlockConfigmap }}
+  labels:
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+data:
+  server.conf: |
+    resolver {{ .Values.upstreams.dnsResolver }};
+
+    server {
+      listen 0.0.0.0:8080;
+
+      {{- range .Values.upstreams.proxiedHosts }}
+
+      location /proxyCrl/{{ . }} {
+        proxy_redirect off;
+        proxy_set_header X-Forwarded-Host $http_host;
+        proxy_set_header Host {{ . }};
+        proxy_hide_header Content-Type;
+        add_header Content-Type application/pkix-crl;
+        proxy_pass "https://{{ . }}/crl";
+      }
+
+      {{- end }}
+    }
+{{- end }}
