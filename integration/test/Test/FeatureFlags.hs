@@ -29,28 +29,38 @@ import Testlib.Prelude
 --------------------------------------------------------------------------------
 -- Helpers
 
-expectedStatus :: HasCallStack => FeatureStatus -> String -> Aeson.Value
-expectedStatus fs lock =
-  Aeson.object ["lockStatus" .= lock, "status" .= show fs, "ttl" .= "unlimited"]
+expectedStatus :: (ToJSON cfg, HasCallStack) => FeatureStatus -> cfg -> String -> Aeson.Value
+expectedStatus fs cfg lock =
+  Aeson.object ["lockStatus" .= lock, "status" .= show fs, "ttl" .= "unlimited", "config" .= toJSON cfg]
 
 assertFeatureLock ::
-  (HasCallStack, MakesValue user, MakesValue team) =>
+  ( HasCallStack,
+    MakesValue user,
+    MakesValue team,
+    ToJSON cfg
+  ) =>
   String ->
+  cfg ->
+  FeatureStatus ->
   String ->
   user ->
   team ->
-  FeatureStatus ->
   App ()
-assertFeatureLock lock featureName user team expected = do
+assertFeatureLock lock cfg status featureName user team = do
   tf <- getTeamFeature featureName user team
-  assertSuccessMatchBody (expectedStatus expected lock) tf
+  assertSuccessMatchBody (expectedStatus status cfg lock) tf
 
 assertFeature ::
-  (HasCallStack, MakesValue user, MakesValue team) =>
+  ( HasCallStack,
+    MakesValue user,
+    MakesValue team,
+    ToJSON cfg
+  ) =>
+  cfg ->
+  FeatureStatus ->
   String ->
   user ->
   team ->
-  FeatureStatus ->
   App ()
 assertFeature = assertFeatureLock "unlocked"
 
@@ -75,23 +85,25 @@ assertFeatureFromAllLock mLock featureName user expected = do
   for_ mLock (actual %. "lockStatus" `shouldMatch`)
 
 assertFeatureInternalLock ::
-  (HasCallStack, MakesValue domain) =>
+  (HasCallStack, MakesValue domain, ToJSON cfg) =>
   String ->
+  cfg ->
+  FeatureStatus ->
   String ->
   domain ->
   String ->
-  FeatureStatus ->
   App ()
-assertFeatureInternalLock lock featureName dom team expected = do
+assertFeatureInternalLock lock cfg status featureName dom team = do
   tf <- I.getTeamFeature dom featureName team
-  assertSuccessMatchBody (expectedStatus expected lock) tf
+  assertSuccessMatchBody (expectedStatus status cfg lock) tf
 
 assertFeatureInternal ::
-  (HasCallStack, MakesValue domain) =>
+  (HasCallStack, MakesValue domain, ToJSON cfg) =>
+  cfg ->
+  FeatureStatus ->
   String ->
   domain ->
   String ->
-  FeatureStatus ->
   App ()
 assertFeatureInternal = assertFeatureInternalLock "unlocked"
 
@@ -100,16 +112,17 @@ assertFeatureInternal = assertFeatureInternalLock "unlocked"
 testLimitedEventFanout :: HasCallStack => App ()
 testLimitedEventFanout = do
   let featureName = "limitedEventFanout"
+      cfg = ()
   (_alice, team, _) <- createTeam OwnDomain 1
-  assertFeatureInternal featureName OwnDomain team Disabled
+  assertFeatureInternal cfg Disabled featureName OwnDomain team
   I.setTeamFeatureStatus OwnDomain team featureName Enabled
-  assertFeatureInternal featureName OwnDomain team Enabled
+  assertFeatureInternal cfg Enabled featureName OwnDomain team
 
 testSSOPut :: HasCallStack => FeatureStatus -> App ()
 testSSOPut = genericTestSSO putInternal
   where
     putInternal domain team status = do
-      let st = WithStatusNoLock status 0
+      let st = WithStatusNoLock status () 0
       I.putTeamFeatureStatus domain team "sso" st
 
 testSSOPatch :: HasCallStack => FeatureStatus -> App ()
@@ -131,15 +144,15 @@ genericTestSSO setter status = withModifiedBackend cnf $ \domain -> do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "no-team-member"
 
-  assertFeature featureName alex team status
-  assertFeatureInternal featureName domain team status
+  assertFeature cfg status featureName alex team
+  assertFeatureInternal cfg status featureName domain team
   assertFeatureFromAll featureName alex status
 
   when (status == Disabled) $ do
     let opposite = Enabled
     setter domain team opposite
-    assertFeature featureName alex team opposite
-    assertFeatureInternal featureName domain team opposite
+    assertFeature cfg opposite featureName alex team
+    assertFeatureInternal cfg opposite featureName domain team
     assertFeatureFromAll featureName alex opposite
   where
     featureName = "sso"
@@ -150,6 +163,7 @@ genericTestSSO setter status = withModifiedBackend cnf $ \domain -> do
             conf
               & setField setting (show status <> "-by-default")
         }
+    cfg = ()
 
 legalholdAssertions ::
   (HasCallStack, MakesValue user) =>
@@ -158,8 +172,8 @@ legalholdAssertions ::
   user ->
   App ()
 legalholdAssertions domain team mem = do
-  assertFeature featureName mem team Disabled
-  assertFeatureInternal featureName domain team Disabled
+  assertFeature cfg Disabled featureName mem team
+  assertFeatureInternal cfg Disabled featureName domain team
   assertFeatureFromAll featureName mem Disabled
   nonMem <- randomUser domain def
   getTeamFeature featureName nonMem team `bindResponse` \resp -> do
@@ -167,6 +181,7 @@ legalholdAssertions domain team mem = do
     resp.json %. "label" `shouldMatch` "no-team-member"
   where
     featureName = "legalhold"
+    cfg = ()
 
 legalholdDisabledByDefault ::
   HasCallStack =>
@@ -176,8 +191,8 @@ legalholdDisabledByDefault setter = withModifiedBackend cnf $ \domain -> do
   (_alice, team, alex : _) <- createTeam domain 2
   legalholdAssertions domain team alex
   setter domain team Enabled
-  assertFeature featureName alex team Enabled
-  assertFeatureInternal featureName domain team Enabled
+  assertFeature cfg Enabled featureName alex team
+  assertFeatureInternal cfg Enabled featureName domain team
   assertFeatureFromAll featureName alex Enabled
   where
     cnf =
@@ -189,12 +204,13 @@ legalholdDisabledByDefault setter = withModifiedBackend cnf $ \domain -> do
         }
     setting = "settings.featureFlags." <> featureName
     featureName = "legalhold"
+    cfg = ()
 
 testLegalholdDisabledByDefaultPut :: HasCallStack => App ()
 testLegalholdDisabledByDefaultPut = legalholdDisabledByDefault putInternal
   where
     putInternal domain team status = do
-      let st = WithStatusNoLock status 0
+      let st = WithStatusNoLock status () 0
       I.putTeamFeatureStatus domain team "legalhold" st
 
 testLegalholdDisabledByDefaultPatch :: HasCallStack => App ()
@@ -234,7 +250,7 @@ testLegalholdDisabledPermanentlyPut =
   legalholdFailToEnable putInternal "disabled-permanently"
   where
     putInternal domain team status = do
-      let st = WithStatusNoLock status 0
+      let st = WithStatusNoLock status () 0
       I.failToPutTeamFeatureStatus domain team "legalhold" st
 
 testLegalholdWhitelistImplicitConsentPatch :: HasCallStack => App ()
@@ -249,7 +265,7 @@ testLegalholdWhitelistImplicitConsentPut =
   legalholdFailToEnable putInternal "whitelist-teams-and-implicit-consent"
   where
     putInternal domain team status = do
-      let st = WithStatusNoLock status 0
+      let st = WithStatusNoLock status () 0
       I.failToPutTeamFeatureStatus domain team "legalhold" st
 
 genericSearchVisibility ::
@@ -264,19 +280,19 @@ genericSearchVisibility setter status = withModifiedBackend cnf $ \domain -> do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "no-team-member"
 
-  assertFeature featurePath alice team status
-  assertFeatureInternal featurePath domain team status
+  assertFeature cfg status featurePath alice team
+  assertFeatureInternal cfg status featurePath domain team
   assertFeatureFromAll featurePath alex status
 
   let opposite = oppositeStatus status
   setter domain team opposite
-  assertFeature featurePath alice team opposite
-  assertFeatureInternal featurePath domain team opposite
+  assertFeature cfg opposite featurePath alice team
+  assertFeatureInternal cfg opposite featurePath domain team
   assertFeatureFromAll featurePath alex opposite
 
   setter domain team status
-  assertFeature featurePath alice team status
-  assertFeatureInternal featurePath domain team status
+  assertFeature cfg status featurePath alice team
+  assertFeatureInternal cfg status featurePath domain team
   assertFeatureFromAll featurePath alex status
   where
     cnf =
@@ -288,6 +304,7 @@ genericSearchVisibility setter status = withModifiedBackend cnf $ \domain -> do
     setting = "settings.featureFlags." <> featureName
     featureName = "teamSearchVisibility"
     featurePath = "searchVisibility"
+    cfg = ()
 
 testSearchVisibilityDisabledPatch :: HasCallStack => App ()
 testSearchVisibilityDisabledPatch =
@@ -303,7 +320,7 @@ testSearchVisibilityDisabledPut =
   where
     featurePath = "searchVisibility"
     putInternal domain team status = do
-      let st = WithStatusNoLock status 0
+      let st = WithStatusNoLock status () 0
       I.putTeamFeatureStatus domain team featurePath st
 
 testSearchVisibilityEnabledPatch :: HasCallStack => App ()
@@ -320,7 +337,7 @@ testSearchVisibilityEnabledPut =
   where
     featurePath = "searchVisibility"
     putInternal domain team status = do
-      let st = WithStatusNoLock status 0
+      let st = WithStatusNoLock status () 0
       I.putTeamFeatureStatus domain team featurePath st
 
 checkSimpleFlag ::
@@ -331,7 +348,8 @@ checkSimpleFlag ::
   App ()
 checkSimpleFlag path name defStatus = do
   let domain = OwnDomain
-  let opposite = oppositeStatus defStatus
+      opposite = oppositeStatus defStatus
+      cfg = ()
   (owner, team, mem : _) <- createTeam domain 2
   do
     nonMem <- randomUser domain def
@@ -340,8 +358,8 @@ checkSimpleFlag path name defStatus = do
       resp.json %. "label" `shouldMatch` "no-team-member"
   do
     let status = defStatus
-    assertFeature path owner team status
-    assertFeatureInternal path domain team status
+    assertFeature cfg status path owner team
+    assertFeatureInternal cfg status path domain team
     assertFeatureFromAll path mem status
   do
     let expStatus =
@@ -357,8 +375,8 @@ checkSimpleFlag path name defStatus = do
       n %. "payload.0.data" `shouldMatch` expStatus
   do
     let status = opposite
-    assertFeature path owner team status
-    assertFeatureInternal path domain team status
+    assertFeature cfg status path owner team
+    assertFeatureInternal cfg status path domain team
     assertFeatureFromAll path mem status
 
 checkSimpleFlagWithLockStatus ::
@@ -370,10 +388,11 @@ checkSimpleFlagWithLockStatus ::
   App ()
 checkSimpleFlagWithLockStatus path name featStatus lockStatus = do
   let domain = OwnDomain
+      cfg = ()
   (owner, team, mem : _) <- createTeam domain 2
   let assertFlag st lock = do
-        assertFeatureLock lock path owner team st
-        assertFeatureInternalLock lock path domain team st
+        assertFeatureLock lock cfg st path owner team
+        assertFeatureInternalLock lock cfg st path domain team
         assertFeatureFromAllLock (Just lock) path mem st
   do
     nonMem <- randomUser domain def
@@ -387,7 +406,7 @@ checkSimpleFlagWithLockStatus path name featStatus lockStatus = do
 
   let opposite = oppositeStatus featStatus
   withWebSocket mem $ \ws -> do
-    let st = WithStatusNoLock opposite 0
+    let st = WithStatusNoLock opposite () 0
     void $ setTeamFeature path owner team st >>= getBody 200
     let expStatus =
           Aeson.object

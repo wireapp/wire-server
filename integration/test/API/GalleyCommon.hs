@@ -1,26 +1,29 @@
 module API.GalleyCommon where
 
 import qualified Data.Aeson as Aeson
+import Data.Kind
 import qualified Data.Text as T
 import Testlib.JSON
 import Testlib.Prelude
 
-data WithStatusNoLock = WithStatusNoLock
+data WithStatusNoLock (cfg :: Type) = WithStatusNoLock
   { status :: FeatureStatus,
+    config :: cfg,
     ttl :: Word
   }
 
-instance MakesValue WithStatusNoLock where
+instance ToJSON cfg => MakesValue (WithStatusNoLock cfg) where
   make = pure . toJSON
 
-instance ToJSON WithStatusNoLock where
-  toJSON (WithStatusNoLock s t) =
-    Aeson.object
+instance ToJSON cfg => ToJSON (WithStatusNoLock cfg) where
+  toJSON (WithStatusNoLock s cfg t) =
+    Aeson.object $
       [ "status" .= s,
         "ttl" .= case t of
           0 -> "unlimited"
           n -> show n
-      ]
+      ] -- NOTE(md): The "config" part should probably be absent in case of a trivial config
+        <> ["config" .= toJSON cfg]
 
 data FeatureStatus = Disabled | Enabled
   deriving (Eq, Generic)

@@ -100,11 +100,16 @@ setTeamFeatureStatus ::
 setTeamFeatureStatus = patchTeamFeatureStatus
 
 putTeamFeatureStatus ::
-  (HasCallStack, MakesValue domain, MakesValue team) =>
+  forall cfg domain team.
+  ( HasCallStack,
+    MakesValue domain,
+    MakesValue team,
+    ToJSON cfg
+  ) =>
   domain ->
   team ->
   String ->
-  WithStatusNoLock ->
+  WithStatusNoLock cfg ->
   App ()
 putTeamFeatureStatus domain team featureName status = do
   tid <- asString team
@@ -116,11 +121,15 @@ putTeamFeatureStatus domain team featureName status = do
   res.status `shouldMatchInt` 200
 
 failToPutTeamFeatureStatus ::
-  (HasCallStack, MakesValue domain, MakesValue team) =>
+  ( HasCallStack,
+    MakesValue domain,
+    MakesValue team,
+    ToJSON cfg
+  ) =>
   domain ->
   team ->
   String ->
-  WithStatusNoLock ->
+  WithStatusNoLock cfg ->
   App ()
 failToPutTeamFeatureStatus domain team featureName status = do
   tid <- asString team

@@ -539,11 +539,15 @@ getTeamFeature featureName user tid = do
   submit "GET" req
 
 setTeamFeature ::
-  (HasCallStack, MakesValue tid, MakesValue user) =>
+  ( HasCallStack,
+    MakesValue tid,
+    MakesValue user,
+    ToJSON cfg
+  ) =>
   String ->
   user ->
   tid ->
-  WithStatusNoLock ->
+  WithStatusNoLock cfg ->
   App Response
 setTeamFeature featureName user tid status = do
   tidStr <- asString tid
