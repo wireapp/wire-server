@@ -49,7 +49,7 @@ import Imports
 import Network.HTTP.Client qualified as Http
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
-import Ssl.Util (withVerifiedSslConnection)
+-- import Ssl.Util (withVerifiedSslConnection)
 import System.Logger.Class (MonadLogger, field, msg, val, (~~))
 import System.Logger.Class qualified as Log
 import URI.ByteString
@@ -73,16 +73,17 @@ data ServiceError
 createBot :: ServiceConn -> NewBotRequest -> ExceptT ServiceError (AppT r) NewBotResponse
 createBot scon new = do
   let fprs = toList (sconFingerprints scon)
-  (man, verifyFingerprints) <- view extGetManager
+  manF <- view extGetManager
+  man <- liftIO $ manF fprs
   extHandleAll onExc $ do
+    let req = reqBuilder Http.defaultRequest
     rs <- lift $
       wrapHttp $
         recovering x3 httpHandlers $
           const $
             liftIO $
-              withVerifiedSslConnection (verifyFingerprints fprs) man reqBuilder $
-                \req ->
-                  Http.httpLbs req man
+              Http.withConnection req man $
+                \_conn -> Http.httpLbs req man
     case Bilge.statusCode rs of
       201 -> decodeBytes "External" (responseBody rs)
       409 -> throwE ServiceBotConflict

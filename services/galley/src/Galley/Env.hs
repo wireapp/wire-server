@@ -1,5 +1,6 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeApplications #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -22,11 +23,12 @@ module Galley.Env where
 
 import Cassandra
 import Control.Lens hiding ((.=))
-import Data.ByteString.Conversion (toByteString')
+import Data.Byteable (constEqBytes)
 import Data.Id
 import Data.Metrics.Middleware
-import Data.Misc (Fingerprint, HttpsUrl, Rsa)
+import Data.Misc (Fingerprint, HttpsUrl, Rsa, fingerprintBytes)
 import Data.Range
+import Data.Time (getCurrentTime)
 import Data.Time.Clock.DiffTime (millisecondsToDiffTime)
 import Galley.Aws qualified as Aws
 import Galley.Options
@@ -38,7 +40,12 @@ import Network.AMQP qualified as Q
 import Network.HTTP.Client
 import Network.HTTP.Client.OpenSSL
 import OpenSSL.EVP.Digest
+import OpenSSL.EVP.PKey
+import OpenSSL.EVP.Verify (VerifyStatus (..))
+import OpenSSL.RSA
 import OpenSSL.Session as Ssl
+import OpenSSL.X509
+import OpenSSL.X509.Store
 import Ssl.Util
 import System.Logger
 import Util.Options
@@ -62,45 +69,60 @@ data Env = Env
     _brig :: Endpoint, -- FUTUREWORK: see _federator
     _cstate :: ClientState,
     _deleteQueue :: Q.Queue DeleteItem,
-    _extEnv :: ExtEnv,
+    _extGetManager :: [Fingerprint Rsa] -> IO Manager,
     _aEnv :: Maybe Aws.Env,
     _mlsKeys :: SignaturePurpose -> MLSKeys,
     _rabbitmqChannel :: Maybe (MVar Q.Channel),
     _convCodeURI :: Either HttpsUrl (Map Text HttpsUrl)
   }
 
--- | Environment specific to the communication with external
--- service providers.
-data ExtEnv = ExtEnv
-  { _extGetManager :: (Manager, [Fingerprint Rsa] -> Ssl.SSL -> IO ())
-  }
-
 makeLenses ''Env
 
-makeLenses ''ExtEnv
-
 -- TODO: somewhat duplicates Brig.App.initExtGetManager
-initExtEnv :: IO ExtEnv
-initExtEnv = do
+initExtEnv :: [Fingerprint Rsa] -> IO Manager
+initExtEnv fingerprints = do
   ctx <- Ssl.context
-  Ssl.contextSetVerificationMode ctx Ssl.VerifyNone
   Ssl.contextAddOption ctx SSL_OP_NO_SSLv2
   Ssl.contextAddOption ctx SSL_OP_NO_SSLv3
   Ssl.contextAddOption ctx SSL_OP_NO_TLSv1
   Ssl.contextSetCiphers ctx rsaCiphers
   Ssl.contextSetDefaultVerifyPaths ctx
-  mgr <-
-    newManager
-      (opensslManagerSettings (pure ctx))
-        { managerResponseTimeout = responseTimeoutMicro 10000000,
-          managerConnCount = 100
-        }
-  Just sha <- getDigestByName "SHA256"
-  pure $ ExtEnv (mgr, mkVerify sha)
+  Ssl.contextSetVerificationMode
+    ctx
+    Ssl.VerifyPeer
+      { vpFailIfNoPeerCert = True,
+        vpClientOnce = False,
+        vpCallback = Just $ const extEnvCallback
+      }
+  newManager
+    (opensslManagerSettings (pure ctx))
+      { managerResponseTimeout = responseTimeoutMicro 10000000,
+        managerConnCount = 100
+      }
   where
-    mkVerify sha fprs =
-      let pinset = map toByteString' fprs
-       in verifyRsaFingerprint sha pinset
+    extEnvCallback :: X509StoreCtx -> IO Bool
+    extEnvCallback store = do
+      Just sha <- getDigestByName "SHA256"
+      cert <- getStoreCtxCert store
+      pk <- getPublicKey cert
+      case toPublicKey @RSAPubKey pk of
+        Nothing -> pure False
+        Just k -> do
+          fp <- rsaFingerprint sha k
+          -- find at least one matching fingerprint to continue
+          if not (any (constEqBytes fp . fingerprintBytes) fingerprints)
+            then pure False
+            else do
+              -- Check if the certificate is self-signed.
+              self <- verifyX509 cert pk
+              if (self /= VerifySuccess)
+                then pure False
+                else do
+                  -- For completeness, perform a date check as well.
+                  now <- getCurrentTime
+                  notBefore <- getNotBefore cert
+                  notAfter <- getNotAfter cert
+                  pure (now >= notBefore && now <= notAfter)
 
 reqIdMsg :: RequestId -> Msg -> Msg
 reqIdMsg = ("request" .=) . unRequestId

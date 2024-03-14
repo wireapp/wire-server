@@ -39,7 +39,6 @@ import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status (status410)
 import Polysemy
 import Polysemy.Input
-import Ssl.Util (withVerifiedSslConnection)
 import System.Logger.Class qualified as Log
 import System.Logger.Message (field, msg, val, (~~))
 import URI.ByteString
@@ -151,8 +150,10 @@ urlPort (HttpsUrl u) = do
 
 sendMessage :: [Fingerprint Rsa] -> (Request -> Request) -> App ()
 sendMessage fprs reqBuilder = do
-  (man, verifyFingerprints) <- view (extEnv . extGetManager)
-  liftIO . withVerifiedSslConnection (verifyFingerprints fprs) man reqBuilder $ \req ->
+  mkMgr <- view extGetManager
+  man <- liftIO $ mkMgr fprs
+  let req = reqBuilder Http.defaultRequest
+  liftIO $ Http.withConnection req man $ \_conn ->
     Http.withResponse req man (const $ pure ())
 
 x3 :: RetryPolicy
