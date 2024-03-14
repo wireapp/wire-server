@@ -16,7 +16,11 @@ nginx:
     #   - 
     #     hosts: [ "acme.alpha.example.com" ]
     #     secretName: "smallstep-step-certificates-ingress-cert"
-    #
+    
+    # annotations:
+    #     nginx.ingress.kubernetes.io/cors-allow-origin: https://webapp.acme.alpha.example.com
+    #     nginx.ingress.kubernetes.io/cors-expose-headers: Replay-Nonce, Location
+    #     nginx.ingress.kubernetes.io/enable-cors: 'true'
 
 upstreams:
   enabled: true
