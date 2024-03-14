@@ -146,9 +146,8 @@ runTests tests mXMLOutput cfg = do
 
   runCodensity (createGlobalEnv cfg) $ \genv ->
     withAsync displayOutput $ \displayThread -> do
-      cap <- getNumCapabilities
-      let n = min cap 4
-      report <- fmap mconcat $ pooledForConcurrentlyN n tests $ \(qname, _, _, action) -> do
+      -- Currently 4 seems to be stable, more seems to create more timeouts.
+      report <- fmap mconcat $ pooledForConcurrentlyN 4 tests $ \(qname, _, _, action) -> do
         (mErr, tm) <- withTime (runTest genv action)
         case mErr of
           Left err -> do
