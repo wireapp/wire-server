@@ -146,8 +146,8 @@ let
     http2 = {
       src = fetchgit {
         url = "https://github.com/wireapp/http2";
-        rev = "2dd6dd15f71f1ec110271d827379505878d372dd";
-        sha256 = "sha256-pz/gRiEPcZOSumTeqFoTko0PTtnCDiD+pVklEayW+Wg=";
+        rev = "9cad270779bbcd9e6297b9ff05a4a7eb83bca069";
+        sha256 = "sha256-c+PzfZZUxo/tE8oH1ZmKwbUMAq34kGD1OoBWorNLG38=";
       };
     };
 
