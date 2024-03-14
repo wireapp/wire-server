@@ -64,8 +64,7 @@ tests :: IO TestSetup -> TestTree
 tests s =
   testGroup
     "Feature Config API and Team Features API"
-    [ test s "Classified Domains (enabled)" testClassifiedDomainsEnabled,
-      test s "Classified Domains (disabled)" testClassifiedDomainsDisabled,
+    [ test s "Classified Domains (disabled)" testClassifiedDomainsDisabled,
       test s "All features" testAllFeatures,
       test s "Feature Configs / Team Features Consistency" testFeatureConfigConsistency,
       test s "ConferenceCalling" $ testSimpleFlag @ConferenceCallingConfig FeatureStatusEnabled,
@@ -292,26 +291,6 @@ getClassifiedDomainsInternal ::
 getClassifiedDomainsInternal tid =
   assertFlagWithConfig @ClassifiedDomainsConfig $
     getTeamFeatureFlagInternal @ClassifiedDomainsConfig tid
-
-testClassifiedDomainsEnabled :: TestM ()
-testClassifiedDomainsEnabled = do
-  (_owner, tid, member : _) <- createBindingTeamWithNMembers 1
-  let expected =
-        WithStatusNoLock FeatureStatusEnabled (ClassifiedDomainsConfig [Domain "example.com"]) FeatureTTLUnlimited
-
-  let getClassifiedDomainsFeatureConfig ::
-        (HasCallStack, HasGalley m, MonadIO m, MonadHttp m, MonadCatch m) =>
-        UserId ->
-        WithStatusNoLock ClassifiedDomainsConfig ->
-        m ()
-      getClassifiedDomainsFeatureConfig uid expected' = do
-        result <- Util.getFeatureConfig @ClassifiedDomainsConfig uid
-        liftIO $ wsStatus result @?= wssStatus expected'
-        liftIO $ wsConfig result @?= wssConfig expected'
-
-  getClassifiedDomains member tid expected
-  getClassifiedDomainsInternal tid expected
-  getClassifiedDomainsFeatureConfig member expected
 
 testClassifiedDomainsDisabled :: TestM ()
 testClassifiedDomainsDisabled = do

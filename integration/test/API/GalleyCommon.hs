@@ -3,6 +3,7 @@ module API.GalleyCommon where
 import qualified Data.Aeson as Aeson
 import Data.Kind
 import qualified Data.Text as T
+import qualified Data.Vector as Vector
 import Testlib.JSON
 import Testlib.Prelude
 
@@ -39,3 +40,16 @@ instance ToJSON FeatureStatus where
 oppositeStatus :: FeatureStatus -> FeatureStatus
 oppositeStatus Disabled = Enabled
 oppositeStatus Enabled = Disabled
+
+--------------------------------------------------------------------------------
+-- Feature configurations
+
+data ClassifiedDomainsConfig = ClassifiedDomainsConfig
+  { classifiedDomainsDomains :: [T.Text]
+  }
+  deriving stock (Show, Eq)
+
+instance ToJSON ClassifiedDomainsConfig where
+  toJSON (ClassifiedDomainsConfig ds) =
+    Aeson.object $
+      ["domains" .= Aeson.Array (Vector.fromList (Aeson.String <$> ds))]
