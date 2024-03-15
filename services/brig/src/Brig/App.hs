@@ -315,7 +315,8 @@ newEnv o = do
 
 mkIndexEnv :: Opts -> Logger -> Manager -> Metrics -> Endpoint -> IndexEnv
 mkIndexEnv o lgr mgr mtr galleyEp =
-  let bhe = ES.mkBHEnv (ES.Server (Opt.url (Opt.elasticsearch o))) mgr
+  -- TODO(leif): add basic auth if credentials are provided (also for additional write index)
+  let bhe = (ES.mkBHEnv (ES.Server (Opt.url (Opt.elasticsearch o))) mgr) -- {ES.bhRequestHook = ES.basicAuthHook (ES.EsUsername "elastic") (ES.EsPassword "QuiM1ieW")}
       lgr' = Log.clone (Just "index.brig") lgr
       mainIndex = ES.IndexName $ Opt.index (Opt.elasticsearch o)
       additionalIndex = ES.IndexName <$> Opt.additionalWriteIndex (Opt.elasticsearch o)

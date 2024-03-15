@@ -330,5 +330,8 @@ data:
       {{- if .setOAuthMaxActiveRefreshTokens }}
       setOAuthMaxActiveRefreshTokens: {{ .setOAuthMaxActiveRefreshTokens }}
       {{- end }}
+      {{- if $.Values.secrets.elasticsearch }}
+      setElasticsearchCredentials: /etc/wire/brig/secrets/elasticsearch-credentials.yaml
+      {{- end }}
     {{- end }}
   {{- end }}
