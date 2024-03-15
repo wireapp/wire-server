@@ -122,10 +122,10 @@ createConnectionToLocalUser self conn target = do
     Just rs -> rs
     Nothing -> do
       checkLimit self
-      Created <$> insert Nothing Nothing
+      Created <$> insert
   where
-    insert :: Maybe UserConnection -> Maybe UserConnection -> ExceptT ConnectionError (AppT r) UserConnection
-    insert _s2o _o2s = lift $ do
+    insert :: ExceptT ConnectionError (AppT r) UserConnection
+    insert = lift $ do
       Log.info $
         logConnection (tUnqualified self) (tUntagged target)
           . msg (val "Creating connection")
@@ -149,9 +149,9 @@ createConnectionToLocalUser self conn target = do
       (_, Blocked) -> change s2o SentWithHistory
       (_, Sent) -> accept s2o o2s
       (_, Accepted) -> accept s2o o2s
-      (_, Ignored) -> resend s2o o2s
-      (_, Pending) -> resend s2o o2s
-      (_, Cancelled) -> resend s2o o2s
+      (_, Ignored) -> resend s2o
+      (_, Pending) -> resend s2o
+      (_, Cancelled) -> resend s2o
 
     accept :: UserConnection -> UserConnection -> ExceptT ConnectionError (AppT r) (ResponseForExistedCreated UserConnection)
     accept s2o o2s = do
@@ -174,14 +174,14 @@ createConnectionToLocalUser self conn target = do
       lift $ liftSem $ mapM_ (Intra.onConnectionEvent (tUnqualified self) (Just conn)) [e2o, e2s]
       pure $ Existed s2o'
 
-    resend :: UserConnection -> UserConnection -> ExceptT ConnectionError (AppT r) (ResponseForExistedCreated UserConnection)
-    resend s2o o2s = do
+    resend :: UserConnection -> ExceptT ConnectionError (AppT r) (ResponseForExistedCreated UserConnection)
+    resend s2o = do
       unless (ucStatus s2o `elem` [Sent, Accepted]) $
         checkLimit self
       lift . Log.info $
         logLocalConnection (tUnqualified self) (qUnqualified (ucTo s2o))
           . msg (val "Resending connection request")
-      s2o' <- insert (Just s2o) (Just o2s)
+      s2o' <- insert
       pure $ Existed s2o'
 
     change :: UserConnection -> RelationWithHistory -> ExceptT ConnectionError (AppT r) (ResponseForExistedCreated UserConnection)
