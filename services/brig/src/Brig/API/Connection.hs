@@ -181,8 +181,7 @@ createConnectionToLocalUser self conn target = do
       lift . Log.info $
         logLocalConnection (tUnqualified self) (qUnqualified (ucTo s2o))
           . msg (val "Resending connection request")
-      s2o' <- insert
-      pure $ Existed s2o'
+      Existed <$> insert
 
     change :: UserConnection -> RelationWithHistory -> ExceptT ConnectionError (AppT r) (ResponseForExistedCreated UserConnection)
     change c s = Existed <$> lift (wrapClient $ Data.updateConnection c s)
