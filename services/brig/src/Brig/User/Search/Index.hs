@@ -99,7 +99,6 @@ import Wire.API.Team.Feature (SearchVisibilityInboundConfig, featureNameBS)
 import Wire.API.User
 import Wire.API.User qualified as User
 import Wire.API.User.Search (Sso (..))
-import Debug.Trace (traceM)
 
 --------------------------------------------------------------------------------
 -- IndexIO Monad
@@ -296,9 +295,7 @@ updateSearchVisibilityInbound status = liftIndexIO $ do
 refreshIndex :: MonadIndexIO m => m ()
 refreshIndex = liftIndexIO $ do
   idx <- asks idxName
-  reply <- ES.refreshIndex idx
-  traceM "================================================================"
-  traceM (show reply)
+  void $ ES.refreshIndex idx
 
 
 createIndexIfNotPresent ::

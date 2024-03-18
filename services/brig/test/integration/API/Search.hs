@@ -69,7 +69,6 @@ import Wire.API.Team.SearchVisibility
 import Wire.API.User
 import Wire.API.User.Search
 import Wire.API.User.Search qualified as Search
-import Debug.Trace (traceM)
 
 tests :: Opt.Opts -> Manager -> Galley -> Brig -> IO TestTree
 tests opts mgr galley brig = do
@@ -375,14 +374,12 @@ testOrderHandle :: TestConstraints m => Brig -> m ()
 testOrderHandle brig = do
   searcher <- userId <$> randomUser brig
   searchedWord <- randomHandle
-  putStrLn $ "searchedWord: " <> show searchedWord
   handleMatch <- userQualifiedId <$> createUser' True "handle match" brig
   void $ putHandle brig (qUnqualified handleMatch) searchedWord
   handlePrefixMatch <- userQualifiedId <$> createUser' True "handle prefix match" brig
-  putHandle brig (qUnqualified handlePrefixMatch) (searchedWord <> "suffix") >>= traceM . show
+  vpod $ putHandle brig (qUnqualified handlePrefixMatch) (searchedWord <> "suffix")
   refreshIndex brig
   results <- searchResults <$> executeSearch brig searcher searchedWord
-  putStrLn $ "results: " <> show results
   let resultUIds = map contactQualifiedId results
   let expectedOrder = [handleMatch, handlePrefixMatch]
   liftIO $
@@ -629,6 +626,7 @@ testMigrationToNewIndex mgr opts brig = do
             & Opt.elasticsearchL . Opt.additionalWriteIndexL ?~ (opts ^. Opt.elasticsearchL . Opt.indexL)
             & Opt.elasticsearchL . Opt.additionalWriteIndexUrlL ?~ (opts ^. Opt.elasticsearchL . Opt.urlL)
     (phase2NonTeamUser, phase2TeamUser) <- withSettingsOverrides phase2OptsWhile $ do
+      _ -- fixme (the following line fails)
       phase2NonTeamUser <- randomUser brig
       phase2TeamUser <- inviteAndRegisterUser teamOwner tid brig
       refreshIndex brig
@@ -773,7 +771,7 @@ runBH :: MonadIO m => Opt.Opts -> ES.BH m a -> m a
 runBH opts action = do
   let esURL = opts ^. Opt.elasticsearchL . Opt.urlL
   mgr <- liftIO $ HTTP.newManager HTTP.defaultManagerSettings
-  let bEnv = (ES.mkBHEnv (ES.Server esURL) mgr){ES.bhRequestHook = ES.basicAuthHook (ES.EsUsername "elastic") (ES.EsPassword "QuiM1ieW")}
+  let bEnv = (ES.mkBHEnv (ES.Server esURL) mgr){ES.bhRequestHook = ES.basicAuthHook (ES.EsUsername "elastic") (ES.EsPassword "changeme")}
   ES.runBH bEnv action
 
 -- | This was copied from at Brig.User.Search.Index at commit 3242aa26

@@ -100,10 +100,8 @@ runCommand l = \case
         <*> pure galleyEndpoint
         <*> pure mgr
     initES esURI mgr =
-      -- ES.mkBHEnv (toESServer esURI) mgr
       -- TODO(leif): add basic auth if credentials are provided
-      (ES.mkBHEnv (toESServer esURI) mgr) {ES.bhRequestHook = ES.basicAuthHook (ES.EsUsername "elastic") (ES.EsPassword "QuiM1ieW")}
-      -- (ES.mkBHEnv (toESServer esURI) mgr) {ES.bhRequestHook = \r -> pure $ setQueryString [("include_type_names", Just "true")] r }
+      (ES.mkBHEnv (toESServer esURI) mgr) {ES.bhRequestHook = ES.basicAuthHook (ES.EsUsername "elastic") (ES.EsPassword "changeme")}
     initDb cas = defInitCassandra (toCassandraOpts cas) l
 
 waitForTaskToComplete :: forall a m. (ES.MonadBH m, MonadThrow m, FromJSON a) => Int -> ES.TaskNodeId -> m ()

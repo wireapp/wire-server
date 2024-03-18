@@ -159,7 +159,16 @@ services:
 
   elasticsearch:
     container_name: demo_wire_elasticsearch
-    image: elasticsearch:6.8.23
+    #image: elasticsearch:5.6
+    # image: julialongtin/elasticsearch:0.0.9-amd64
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM julialongtin/elasticsearch:0.0.9-amd64
+        RUN /usr/share/elasticsearch/bin/elasticsearch-plugin install x-pack -b
+        RUN rm -rf /usr/share/elasticsearch/plugins/x-pack/platform/linux-x86_64
+    # https://hub.docker.com/_/elastic is deprecated, but 6.2.4 did not work without further changes.
+    # image: docker.elastic.co/elasticsearch/elasticsearch:6.2.4
     ulimits:
       nofile:
         soft: 65536
@@ -168,11 +177,14 @@ services:
       - "127.0.0.1:9200:9200"
       - "127.0.0.1:9300:9300"
     environment:
-      - discovery.type=single-node
+      - "xpack.ml.enabled=false"
       - "xpack.security.enabled=true"
-      - "ES_JAVA_OPTS=-Xmx512m -Xms512m"
-      - "ELASTIC_USERNAME=elastic"
-      - "ELASTIC_PASSWORD=QuiM1ieW"
+      - "bootstrap.system_call_filter=false"
+# ES_JVM_OPTIONS is reserved, so...
+# what's present in the jvm.options file by default.
+#      - "JVM_OPTIONS_ES=-Xmx2g -Xms2g"
+      - "JVM_OPTIONS_ES=-Xmx512m -Xms512m"
+      - "discovery.type=single-node"
     networks:
       - demo_wire
 
