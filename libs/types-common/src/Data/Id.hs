@@ -38,6 +38,7 @@ module Data.Id
     ScimTokenId,
     parseIdFromText,
     idToText,
+    idObjectSchema,
     IdObject (..),
 
     -- * Client IDs
@@ -444,7 +445,7 @@ newtype IdObject a = IdObject {fromIdObject :: a}
   deriving (ToJSON, FromJSON, S.ToSchema) via Schema (IdObject a)
 
 instance ToSchema a => ToSchema (IdObject a) where
-  schema =
-    object "Id" $
-      IdObject
-        <$> fromIdObject .= field "id" schema
+  schema = idObjectSchema (IdObject <$> fromIdObject .= schema)
+
+idObjectSchema :: ValueSchemaP NamedSwaggerDoc a b -> ValueSchemaP NamedSwaggerDoc a b
+idObjectSchema sch = object "Id" (field "id" sch)

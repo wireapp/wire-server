@@ -132,7 +132,6 @@ import Brig.Team.Types (ShowOrHideInvitationUrl (..))
 import Brig.Types.Activation (ActivationPair)
 import Brig.Types.Connection
 import Brig.Types.Intra
-import Brig.Types.User.Event
 import Brig.User.Auth.Cookie (listCookies, revokeAllCookies)
 import Brig.User.Email
 import Brig.User.Handle
@@ -189,6 +188,7 @@ import Wire.API.User.Activation
 import Wire.API.User.Client
 import Wire.API.User.Password
 import Wire.API.User.RichInfo
+import Wire.API.UserEvent
 import Wire.NotificationSubsystem
 import Wire.Sem.Concurrency
 import Wire.Sem.Paging.Cassandra (InternalPaging)

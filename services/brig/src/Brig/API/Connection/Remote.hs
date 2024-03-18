@@ -33,7 +33,6 @@ import Brig.Effects.GalleyProvider
 import Brig.Federation.Client as Federation
 import Brig.IO.Intra qualified as Intra
 import Brig.Options
-import Brig.Types.User.Event
 import Control.Comonad
 import Control.Error.Util ((??))
 import Control.Lens (view)
@@ -52,6 +51,7 @@ import Wire.API.Federation.API.Brig
 import Wire.API.Routes.Internal.Galley.ConversationsIntra
 import Wire.API.Routes.Public.Util (ResponseForExistedCreated (..))
 import Wire.API.User
+import Wire.API.UserEvent
 import Wire.NotificationSubsystem
 
 data LocalConnectionAction
@@ -220,7 +220,7 @@ pushEvent ::
   UserConnection ->
   AppT r ()
 pushEvent self mzcon connection = do
-  let event = ConnectionUpdated connection Nothing Nothing
+  let event = ConnectionUpdated connection Nothing
   liftSem $ Intra.onConnectionEvent (tUnqualified self) mzcon event
 
 performLocalAction ::

@@ -1,0 +1,6 @@
+{
+    "client": {
+        "id": "b17"
+    },
+    "type": "user.client-remove"
+}

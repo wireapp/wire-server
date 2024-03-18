@@ -58,7 +58,6 @@ import Brig.Types.Connection
 import Brig.Types.Intra
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
 import Brig.Types.User
-import Brig.Types.User.Event (UserEvent (UserUpdated), UserUpdatedData (eupSSOId, eupSSOIdRemoved), emptyUserUpdatedData)
 import Brig.User.API.Search qualified as Search
 import Brig.User.EJPD qualified
 import Brig.User.Search.Index qualified as Index
@@ -99,6 +98,7 @@ import Wire.API.User
 import Wire.API.User.Activation
 import Wire.API.User.Client
 import Wire.API.User.RichInfo
+import Wire.API.UserEvent
 import Wire.NotificationSubsystem
 import Wire.Rpc
 import Wire.Sem.Concurrency

@@ -1,0 +1,8 @@
+{
+    "id": "78f9ba2e-a6b0-48c6-a644-662617bb8bcc",
+    "qualified_id": {
+        "domain": "bar.example.com",
+        "id": "78f9ba2e-a6b0-48c6-a644-662617bb8bcc"
+    },
+    "type": "user.delete"
+}

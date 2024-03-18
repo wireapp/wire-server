@@ -1,0 +1,16 @@
+{
+    "connection": {
+        "from": "284d1c86-5117-4c58-aa18-c0068f3f7d8c",
+        "last_update": "2007-02-03T10:51:17.329Z",
+        "qualified_to": {
+            "domain": "baz.example.com",
+            "id": "284d1c86-5117-4c58-aa18-c0068f3f7d8c"
+        },
+        "status": "accepted",
+        "to": "284d1c86-5117-4c58-aa18-c0068f3f7d8c"
+    },
+    "type": "user.connection",
+    "user": {
+        "name": "hi bob"
+    }
+}

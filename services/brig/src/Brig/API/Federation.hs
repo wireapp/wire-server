@@ -36,7 +36,6 @@ import Brig.Effects.FederationConfigStore qualified as E
 import Brig.Effects.GalleyProvider (GalleyProvider)
 import Brig.IO.Intra (notify)
 import Brig.Options
-import Brig.Types.User.Event
 import Brig.User.API.Handle
 import Brig.User.Search.SearchIndex qualified as Q
 import Control.Error.Util
@@ -69,6 +68,7 @@ import Wire.API.User (UserProfile)
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
 import Wire.API.User.Search hiding (searchPolicy)
+import Wire.API.UserEvent
 import Wire.API.UserMap (UserMap)
 import Wire.NotificationSubsystem
 import Wire.Sem.Concurrency

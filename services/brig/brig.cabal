@@ -149,6 +149,7 @@ library
     Brig.InternalEvent.Types
     Brig.IO.Intra
     Brig.IO.Journal
+    Brig.IO.Logging
     Brig.Locale
     Brig.Options
     Brig.Phone

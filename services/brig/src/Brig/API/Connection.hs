@@ -45,9 +45,9 @@ import Brig.Effects.FederationConfigStore
 import Brig.Effects.GalleyProvider
 import Brig.Effects.GalleyProvider qualified as GalleyProvider
 import Brig.IO.Intra qualified as Intra
+import Brig.IO.Logging
 import Brig.Options
 import Brig.Types.Connection
-import Brig.Types.User.Event
 import Control.Error
 import Control.Lens (view)
 import Control.Monad.Catch (throwM)
@@ -69,6 +69,7 @@ import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
 import Wire.API.Routes.Public.Util (ResponseForExistedCreated (..))
 import Wire.API.User
+import Wire.API.UserEvent
 import Wire.NotificationSubsystem
 
 ensureNotSameTeam :: Member GalleyProvider r => Local UserId -> Local UserId -> (ConnectionM r) ()
@@ -121,10 +122,10 @@ createConnectionToLocalUser self conn target = do
     Just rs -> rs
     Nothing -> do
       checkLimit self
-      Created <$> insert Nothing Nothing
+      Created <$> insert
   where
-    insert :: Maybe UserConnection -> Maybe UserConnection -> ExceptT ConnectionError (AppT r) UserConnection
-    insert s2o o2s = lift $ do
+    insert :: ExceptT ConnectionError (AppT r) UserConnection
+    insert = lift $ do
       Log.info $
         logConnection (tUnqualified self) (tUntagged target)
           . msg (val "Creating connection")
@@ -132,9 +133,8 @@ createConnectionToLocalUser self conn target = do
       s2o' <- wrapClient $ Data.insertConnection self (tUntagged target) SentWithHistory qcnv
       o2s' <- wrapClient $ Data.insertConnection target (tUntagged self) PendingWithHistory qcnv
       e2o <-
-        ConnectionUpdated o2s' (ucStatus <$> o2s)
-          <$> wrapClient (Data.lookupName (tUnqualified self))
-      let e2s = ConnectionUpdated s2o' (ucStatus <$> s2o) Nothing
+        ConnectionUpdated o2s' <$> wrapClient (Data.lookupName (tUnqualified self))
+      let e2s = ConnectionUpdated s2o' Nothing
       liftSem $ mapM_ (Intra.onConnectionEvent (tUnqualified self) (Just conn)) [e2o, e2s]
       pure s2o'
 
@@ -149,9 +149,9 @@ createConnectionToLocalUser self conn target = do
       (_, Blocked) -> change s2o SentWithHistory
       (_, Sent) -> accept s2o o2s
       (_, Accepted) -> accept s2o o2s
-      (_, Ignored) -> resend s2o o2s
-      (_, Pending) -> resend s2o o2s
-      (_, Cancelled) -> resend s2o o2s
+      (_, Ignored) -> resend s2o
+      (_, Pending) -> resend s2o
+      (_, Cancelled) -> resend s2o
 
     accept :: UserConnection -> UserConnection -> ExceptT ConnectionError (AppT r) (ResponseForExistedCreated UserConnection)
     accept s2o o2s = do
@@ -169,21 +169,19 @@ createConnectionToLocalUser self conn target = do
             else Data.updateConnection o2s AcceptedWithHistory
       e2o <-
         lift . wrapClient $
-          ConnectionUpdated o2s' (Just $ ucStatus o2s)
-            <$> Data.lookupName (tUnqualified self)
-      let e2s = ConnectionUpdated s2o' (Just $ ucStatus s2o) Nothing
+          ConnectionUpdated o2s' <$> Data.lookupName (tUnqualified self)
+      let e2s = ConnectionUpdated s2o' Nothing
       lift $ liftSem $ mapM_ (Intra.onConnectionEvent (tUnqualified self) (Just conn)) [e2o, e2s]
       pure $ Existed s2o'
 
-    resend :: UserConnection -> UserConnection -> ExceptT ConnectionError (AppT r) (ResponseForExistedCreated UserConnection)
-    resend s2o o2s = do
+    resend :: UserConnection -> ExceptT ConnectionError (AppT r) (ResponseForExistedCreated UserConnection)
+    resend s2o = do
       unless (ucStatus s2o `elem` [Sent, Accepted]) $
         checkLimit self
       lift . Log.info $
         logLocalConnection (tUnqualified self) (qUnqualified (ucTo s2o))
           . msg (val "Resending connection request")
-      s2o' <- insert (Just s2o) (Just o2s)
-      pure $ Existed s2o'
+      Existed <$> insert
 
     change :: UserConnection -> RelationWithHistory -> ExceptT ConnectionError (AppT r) (ResponseForExistedCreated UserConnection)
     change c s = Existed <$> lift (wrapClient $ Data.updateConnection c s)
@@ -305,7 +303,7 @@ updateConnectionToLocalUser self other newStatus conn = do
     _ -> throwE $ InvalidTransition (tUnqualified self)
   let s2oUserConn = s2o'
   lift . liftSem . for_ s2oUserConn $ \c ->
-    let e2s = ConnectionUpdated c (Just $ ucStatus s2o) Nothing
+    let e2s = ConnectionUpdated c Nothing
      in Intra.onConnectionEvent (tUnqualified self) conn e2s
   pure s2oUserConn
   where
@@ -327,7 +325,7 @@ updateConnectionToLocalUser self other newStatus conn = do
               then Data.updateConnection o2s AcceptedWithHistory
               else Data.updateConnection o2s BlockedWithHistory
         e2o <-
-          ConnectionUpdated o2s' (Just $ ucStatus o2s)
+          ConnectionUpdated o2s'
             <$> wrapClient (Data.lookupName (tUnqualified self))
         liftSem $ Intra.onConnectionEvent (tUnqualified self) conn e2o
       lift . wrapClient $ Just <$> Data.updateConnection s2o AcceptedWithHistory
@@ -368,7 +366,7 @@ updateConnectionToLocalUser self other newStatus conn = do
               else Data.updateConnection o2s BlockedWithHistory
         e2o :: ConnectionEvent <-
           wrapClient $
-            ConnectionUpdated o2s' (Just $ ucStatus o2s)
+            ConnectionUpdated o2s'
               <$> Data.lookupName (tUnqualified self)
         -- TODO: is this correct? shouldnt o2s be sent to other?
         liftSem $ Intra.onConnectionEvent (tUnqualified self) conn e2o
@@ -382,7 +380,7 @@ updateConnectionToLocalUser self other newStatus conn = do
       lfrom <- qualifyLocal (ucFrom s2o)
       lift $ traverse_ (liftSem . Intra.blockConv lfrom) (ucConvId s2o)
       o2s' <- lift . wrapClient $ Data.updateConnection o2s CancelledWithHistory
-      let e2o = ConnectionUpdated o2s' (Just $ ucStatus o2s) Nothing
+      let e2o = ConnectionUpdated o2s' Nothing
       lift $ liftSem $ Intra.onConnectionEvent (tUnqualified self) conn e2o
       change s2o Cancelled
 
@@ -454,7 +452,7 @@ updateConnectionInternal = \case
           lfrom <- qualifyLocal (ucFrom uconn)
           traverse_ (liftSem . Intra.blockConv lfrom) (ucConvId uconn)
           uconn' <- wrapClient $ Data.updateConnection uconn (mkRelationWithHistory (ucStatus uconn) MissingLegalholdConsent)
-          let ev = ConnectionUpdated uconn' (Just $ ucStatus uconn) Nothing
+          let ev = ConnectionUpdated uconn' Nothing
           liftSem $ Intra.onConnectionEvent (tUnqualified self) Nothing ev
 
     removeLHBlocksInvolving :: Local UserId -> ExceptT ConnectionError (AppT r) ()
@@ -494,7 +492,6 @@ updateConnectionInternal = \case
           let connEvent =
                 ConnectionUpdated
                   { ucConn = uconnRev',
-                    ucPrev = Just $ ucStatus uconnRev,
                     ucName = connName
                   }
           lift $ liftSem $ Intra.onConnectionEvent (ucFrom uconn) Nothing connEvent

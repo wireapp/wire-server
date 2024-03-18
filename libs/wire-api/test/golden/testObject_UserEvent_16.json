@@ -1,0 +1,15 @@
+{
+    "client": {
+        "capabilities": {
+            "capabilities": []
+        },
+        "class": "desktop",
+        "id": "b17",
+        "label": "%*",
+        "mls_public_keys": {},
+        "model": "bazz",
+        "time": "2007-02-03T10:51:17.329Z",
+        "type": "permanent"
+    },
+    "type": "user.client-add"
+}

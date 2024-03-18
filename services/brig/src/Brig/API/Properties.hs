@@ -30,25 +30,25 @@ import Brig.App
 import Brig.Data.Properties (PropertiesDataError)
 import Brig.Data.Properties qualified as Data
 import Brig.IO.Intra qualified as Intra
-import Brig.Types.User.Event
 import Control.Error
 import Data.Id
 import Imports
 import Polysemy
 import Wire.API.Properties
+import Wire.API.UserEvent
 import Wire.NotificationSubsystem
 
 setProperty :: (Member NotificationSubsystem r) => UserId -> ConnId -> PropertyKey -> PropertyValue -> ExceptT PropertiesDataError (AppT r) ()
 setProperty u c k v = do
   wrapClientE $ Data.insertProperty u k (propertyRaw v)
-  lift $ liftSem $ Intra.onPropertyEvent u c (PropertySet u k v)
+  lift $ liftSem $ Intra.onPropertyEvent u c (PropertySet k (propertyValue v))
 
 deleteProperty :: (Member NotificationSubsystem r) => UserId -> ConnId -> PropertyKey -> AppT r ()
 deleteProperty u c k = do
   wrapClient $ Data.deleteProperty u k
-  liftSem $ Intra.onPropertyEvent u c (PropertyDeleted u k)
+  liftSem $ Intra.onPropertyEvent u c (PropertyDeleted k)
 
 clearProperties :: (Member NotificationSubsystem r) => UserId -> ConnId -> AppT r ()
 clearProperties u c = do
   wrapClient $ Data.clearProperties u
-  liftSem $ Intra.onPropertyEvent u c (PropertiesCleared u)
+  liftSem $ Intra.onPropertyEvent u c PropertiesCleared
