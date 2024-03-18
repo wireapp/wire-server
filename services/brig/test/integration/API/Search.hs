@@ -69,6 +69,7 @@ import Wire.API.Team.SearchVisibility
 import Wire.API.User
 import Wire.API.User.Search
 import Wire.API.User.Search qualified as Search
+import Debug.Trace (traceM)
 
 tests :: Opt.Opts -> Manager -> Galley -> Brig -> IO TestTree
 tests opts mgr galley brig = do
@@ -374,12 +375,14 @@ testOrderHandle :: TestConstraints m => Brig -> m ()
 testOrderHandle brig = do
   searcher <- userId <$> randomUser brig
   searchedWord <- randomHandle
+  putStrLn $ "searchedWord: " <> show searchedWord
   handleMatch <- userQualifiedId <$> createUser' True "handle match" brig
   void $ putHandle brig (qUnqualified handleMatch) searchedWord
   handlePrefixMatch <- userQualifiedId <$> createUser' True "handle prefix match" brig
-  void $ putHandle brig (qUnqualified handlePrefixMatch) (searchedWord <> "suffix")
+  putHandle brig (qUnqualified handlePrefixMatch) (searchedWord <> "suffix") >>= traceM . show
   refreshIndex brig
   results <- searchResults <$> executeSearch brig searcher searchedWord
+  putStrLn $ "results: " <> show results
   let resultUIds = map contactQualifiedId results
   let expectedOrder = [handleMatch, handlePrefixMatch]
   liftIO $
@@ -766,10 +769,12 @@ deleteIndex opts name = do
   let indexName = ES.IndexName name
   void $ runBH opts $ ES.deleteIndex indexName
 
-runBH :: MonadIO m => Opt.Opts -> ES.BH IO a -> m a
-runBH opts =
+runBH :: MonadIO m => Opt.Opts -> ES.BH m a -> m a
+runBH opts action = do
   let esURL = opts ^. Opt.elasticsearchL . Opt.urlL
-   in liftIO . ES.withBH HTTP.defaultManagerSettings (ES.Server esURL)
+  mgr <- liftIO $ HTTP.newManager HTTP.defaultManagerSettings
+  let bEnv = (ES.mkBHEnv (ES.Server esURL) mgr){ES.bhRequestHook = ES.basicAuthHook (ES.EsUsername "elastic") (ES.EsPassword "QuiM1ieW")}
+  ES.runBH bEnv action
 
 -- | This was copied from at Brig.User.Search.Index at commit 3242aa26
 analysisSettings :: ES.Analysis

@@ -64,7 +64,9 @@ testCreateIndexWhenNotPresent brigOpts = do
               & IndexOpts.esIndexRefreshInterval .~ refreshInterval
       devNullLogger <- Log.create (Log.Path "/dev/null")
       IndexEval.runCommand devNullLogger (IndexOpts.Create esSettings (galley brigOpts))
-      ES.withBH HTTP.defaultManagerSettings (ES.Server esURL) $ do
+      mgr <- liftIO $ HTTP.newManager HTTP.defaultManagerSettings
+      let bEnv = (ES.mkBHEnv (ES.Server esURL) mgr){ES.bhRequestHook = ES.basicAuthHook (ES.EsUsername "elastic") (ES.EsPassword "QuiM1ieW")}
+      ES.runBH bEnv $ do
         indexExists <- ES.indexExists indexName
         lift $
           assertBool "Index should exist" indexExists
@@ -84,7 +86,10 @@ testCreateIndexWhenPresent brigOpts = do
     Left e -> fail $ "Invalid ES URL: " <> show esURL <> "\nerror: " <> show e
     Right esURI -> do
       indexName <- ES.IndexName . Text.pack <$> replicateM 20 (Random.randomRIO ('a', 'z'))
-      ES.withBH HTTP.defaultManagerSettings (ES.Server esURL) $ do
+      mgr <- liftIO $ HTTP.newManager HTTP.defaultManagerSettings
+      -- TODO(leif): add creds
+      let bEnv = (ES.mkBHEnv (ES.Server esURL) mgr){ES.bhRequestHook = ES.basicAuthHook (ES.EsUsername "elastic") (ES.EsPassword "QuiM1ieW")}
+      ES.runBH bEnv $ do
         _ <- ES.createIndex (ES.IndexSettings (ES.ShardCount 1) (ES.ReplicaCount 1)) indexName
         indexExists <- ES.indexExists indexName
         lift $
@@ -101,7 +106,7 @@ testCreateIndexWhenPresent brigOpts = do
               & IndexOpts.esIndexRefreshInterval .~ refreshInterval
       devNullLogger <- Log.create (Log.Path "/dev/null")
       IndexEval.runCommand devNullLogger (IndexOpts.Create esSettings (galley brigOpts))
-      ES.withBH HTTP.defaultManagerSettings (ES.Server esURL) $ do
+      ES.runBH bEnv $ do
         indexExists <- ES.indexExists indexName
         lift $
           assertBool "Index should still exist" indexExists
