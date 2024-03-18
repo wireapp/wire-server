@@ -159,7 +159,7 @@ services:
 
   elasticsearch:
     container_name: demo_wire_elasticsearch
-    image: elasticsearch:7.17.18
+    image: elasticsearch:6.8.23
     ulimits:
       nofile:
         soft: 65536
@@ -169,11 +169,10 @@ services:
       - "127.0.0.1:9300:9300"
     environment:
       - discovery.type=single-node
-      - "xpack.security.enabled=false"
-      # - "bootstrap.system_call_filter=false"
-      - "ES_JAVA_OPTS=-Xms5g -Xmx5g"
-      # - "ELASTIC_USERNAME=elastic"
-      # - "ELASTIC_PASSWORD=QuiM1ieW"
+      - "xpack.security.enabled=true"
+      - "ES_JAVA_OPTS=-Xmx512m -Xms512m"
+      - "ELASTIC_USERNAME=elastic"
+      - "ELASTIC_PASSWORD=QuiM1ieW"
     networks:
       - demo_wire
 

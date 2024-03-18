@@ -135,6 +135,7 @@ import Imports
 import Network.AMQP qualified as Q
 import Network.AMQP.Extended qualified as Q
 import Network.HTTP.Client (responseTimeoutMicro)
+-- import Network.HTTP.Client (responseTimeoutMicro, setQueryString)
 import Network.HTTP.Client.OpenSSL
 import OpenSSL.EVP.Digest (Digest, getDigestByName)
 import OpenSSL.Session (SSLOption (..))
@@ -316,7 +317,8 @@ newEnv o = do
 mkIndexEnv :: Opts -> Logger -> Manager -> Metrics -> Endpoint -> IndexEnv
 mkIndexEnv o lgr mgr mtr galleyEp =
   -- TODO(leif): add basic auth if credentials are provided (also for additional write index)
-  let bhe = (ES.mkBHEnv (ES.Server (Opt.url (Opt.elasticsearch o))) mgr) -- {ES.bhRequestHook = ES.basicAuthHook (ES.EsUsername "elastic") (ES.EsPassword "QuiM1ieW")}
+  -- let bhe = (ES.mkBHEnv (ES.Server (Opt.url (Opt.elasticsearch o))) mgr) {ES.bhRequestHook = \r -> pure $ setQueryString [("include_type_names", Just "true")] r }-- {ES.bhRequestHook = ES.basicAuthHook (ES.EsUsername "elastic") (ES.EsPassword "QuiM1ieW")}
+  let bhe = (ES.mkBHEnv (ES.Server (Opt.url (Opt.elasticsearch o))) mgr) {ES.bhRequestHook = ES.basicAuthHook (ES.EsUsername "elastic") (ES.EsPassword "QuiM1ieW")}
       lgr' = Log.clone (Just "index.brig") lgr
       mainIndex = ES.IndexName $ Opt.index (Opt.elasticsearch o)
       additionalIndex = ES.IndexName <$> Opt.additionalWriteIndex (Opt.elasticsearch o)
