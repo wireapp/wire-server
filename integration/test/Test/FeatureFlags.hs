@@ -215,7 +215,6 @@ legalholdDisabledByDefault setter = withModifiedBackend cnf $ \domain -> do
       def
         { galleyCfg = \conf ->
             conf
-              -- & setField setting ("whitelist-teams-and-implicit-consent")
               & setField setting ("disabled-by-default")
         }
     setting = "settings.featureFlags." <> featureName
@@ -452,20 +451,46 @@ testValidateSAMLEmails :: HasCallStack => App ()
 testValidateSAMLEmails = do
   checkSimpleFlag "validateSAMLemails" "validateSAMLemails" Enabled
 
-testClassifiedDomainsEnabled :: HasCallStack => App ()
-testClassifiedDomainsEnabled = do
-  let domain = OwnDomain
+genericClassifiedDomains ::
+  HasCallStack =>
+  FeatureStatus ->
+  ClassifiedDomainsConfig ->
+  App ()
+genericClassifiedDomains status config = withModifiedBackend cnf $ \domain -> do
   (_owner, team, mem : _) <- createTeam domain 2
 
-  getClassifiedDomains mem team st
-  getClassifiedDomainsInternal mem team st
-  getClassifiedDomainsFeatureConfig mem st
+  getClassifiedDomains mem team status
+  getClassifiedDomainsInternal mem team status
+  getClassifiedDomainsFeatureConfig mem status
   where
-    cfg = ClassifiedDomainsConfig [T.pack "example.com"]
-    st = Enabled
-    ws s = WithStatusNoLock s cfg 0
-    feature = "classifiedDomains"
-    getClassifiedDomains u t s = assertFeature (ws s) feature u t
-    getClassifiedDomainsInternal u t s = assertFeatureInternal (ws s) feature u t
+    ws s = WithStatusNoLock s config 0
+    featureName = "classifiedDomains"
+    setting = "settings.featureFlags." <> featureName
+    cnf =
+      def
+        { galleyCfg = \conf ->
+            conf
+              & setField
+                setting
+                ( object
+                    [ "status" .= show status,
+                      "config" .= toJSON config
+                    ]
+                )
+        }
+    getClassifiedDomains u t s = assertFeature (ws s) featureName u t
+    getClassifiedDomainsInternal u t s = assertFeatureInternal (ws s) featureName u t
     getClassifiedDomainsFeatureConfig mem s =
-      assertFeatureFromAllLock Nothing (Just . toJSON $ cfg) s feature mem
+      assertFeatureFromAllLock Nothing (Just . toJSON $ config) s featureName mem
+
+testClassifiedDomainsEnabled :: HasCallStack => App ()
+testClassifiedDomainsEnabled =
+  genericClassifiedDomains
+    Enabled
+    (ClassifiedDomainsConfig [T.pack "example.com"])
+
+testClassifiedDomainsDisabled :: HasCallStack => App ()
+testClassifiedDomainsDisabled =
+  genericClassifiedDomains
+    Disabled
+    (ClassifiedDomainsConfig [])
