@@ -126,7 +126,8 @@ testSFTDiscoveryLoopWhenSuccessful = do
   fakeDNSEnv <- newFakeDNSEnv (\_ -> SrvAvailable returnedEntries)
   let intervalInSeconds = 0.001
       intervalInMicroseconds = 1000
-  sftEnv <- mkSFTEnv $ SFTOptions "foo.example.com" Nothing (Just intervalInSeconds) Nothing
+  Just sha512 <- getDigestByName "SHA512"
+  sftEnv <- mkSFTEnv sha512 $ SFTOptions "foo.example.com" Nothing (Just intervalInSeconds) Nothing Nothing
 
   tick <- newEmptyMVar
   delayCallsTVar <- newTVarIO []
