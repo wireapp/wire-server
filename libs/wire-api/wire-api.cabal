@@ -109,6 +109,7 @@ library
     Wire.API.MLS.CommitBundle
     Wire.API.MLS.Context
     Wire.API.MLS.Credential
+    Wire.API.MLS.ECDSA
     Wire.API.MLS.Epoch
     Wire.API.MLS.Extension
     Wire.API.MLS.Group
