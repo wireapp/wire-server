@@ -94,7 +94,7 @@ assertFeatureFromAllLock ::
   user ->
   App ()
 assertFeatureFromAllLock mLock meConfig eStatus featureName user = do
-  actual <- extractTeamFeatureFromAll featureName user
+  actual <- extractTeamFeatureFromAllPersonal featureName user
   actual %. "status" `shouldMatch` show eStatus
   for_ meConfig (actual %. "config" `shouldMatch`)
   for_ mLock (actual %. "lockStatus" `shouldMatch`)

@@ -557,17 +557,21 @@ setTeamFeature featureName user tid status = do
       joinHttpPath ["teams", tidStr, "features", featureName]
   submit "PUT" $ addJSON st req
 
-extractTeamFeatureFromAll ::
+-- | A function where only the user info is used for authentication, and no team
+-- association.
+extractTeamFeatureFromAllPersonal ::
   (HasCallStack, MakesValue user) =>
   String ->
   user ->
   App Value
-extractTeamFeatureFromAll featureName user = do
-  cfgs <- getAllFeatureConfigs user >>= getJSON 200
+extractTeamFeatureFromAllPersonal featureName user = do
+  cfgs <- getAllFeatureConfigsPersonal user >>= getJSON 200
   cfgs %. featureName
 
-getAllFeatureConfigs :: (HasCallStack, MakesValue user) => user -> App Response
-getAllFeatureConfigs user = do
+-- | An endpoint where only the user info is used for authentication, and no
+-- team association.
+getAllFeatureConfigsPersonal :: (HasCallStack, MakesValue user) => user -> App Response
+getAllFeatureConfigsPersonal user = do
   req <- baseRequest user Galley Versioned "feature-configs"
   submit "GET" req
 
