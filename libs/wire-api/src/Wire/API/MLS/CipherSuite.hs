@@ -46,6 +46,7 @@ import Cassandra.CQL
 import Control.Applicative
 import Control.Error (note)
 import Control.Lens ((?~))
+import Crypto.ECC
 import Crypto.Error
 import Crypto.Hash (hashWith)
 import Crypto.Hash.Algorithms
@@ -70,6 +71,7 @@ import Data.Text.Lazy.Builder.Int qualified as LT
 import Data.Word
 import Imports
 import Web.HttpApiData
+import Wire.API.MLS.ECDSA qualified as ECDSA
 import Wire.API.MLS.Serialisation
 import Wire.Arbitrary
 
@@ -107,6 +109,7 @@ instance FromByteString CipherSuite where
 
 data CipherSuiteTag
   = MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
+  | MLS_128_DHKEMP256_AES128GCM_SHA256_P256
   | MLS_128_X25519Kyber768Draft00_AES128GCM_SHA256_Ed25519
   deriving stock (Bounded, Enum, Eq, Show, Generic, Ord)
   deriving (Arbitrary) via (GenericUniform CipherSuiteTag)
@@ -154,11 +157,13 @@ cipherSuiteTag cs = listToMaybe $ do
 
 -- | Inverse of 'cipherSuiteTag'
 tagCipherSuite :: CipherSuiteTag -> CipherSuite
-tagCipherSuite MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 = CipherSuite 1
+tagCipherSuite MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 = CipherSuite 0x1
+tagCipherSuite MLS_128_DHKEMP256_AES128GCM_SHA256_P256 = CipherSuite 0x2
 tagCipherSuite MLS_128_X25519Kyber768Draft00_AES128GCM_SHA256_Ed25519 = CipherSuite 0xf031
 
 csHash :: CipherSuiteTag -> ByteString -> RawMLS a -> ByteString
 csHash MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 = sha256Hash
+csHash MLS_128_DHKEMP256_AES128GCM_SHA256_P256 = sha256Hash
 csHash MLS_128_X25519Kyber768Draft00_AES128GCM_SHA256_Ed25519 = sha256Hash
 
 sha256Hash :: ByteString -> RawMLS a -> ByteString
@@ -166,6 +171,7 @@ sha256Hash ctx value = convert . hashWith SHA256 . encodeMLS' $ RefHashInput ctx
 
 csVerifySignature :: CipherSuiteTag -> ByteString -> RawMLS a -> ByteString -> Bool
 csVerifySignature MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 = ed25519VerifySignature
+csVerifySignature MLS_128_DHKEMP256_AES128GCM_SHA256_P256 = ECDSA.verifySignature (Proxy @Curve_P256R1)
 csVerifySignature MLS_128_X25519Kyber768Draft00_AES128GCM_SHA256_Ed25519 = ed25519VerifySignature
 
 ed25519VerifySignature :: ByteString -> RawMLS a -> ByteString -> Bool
@@ -215,6 +221,7 @@ signWithLabel sigLabel priv pub x = BA.convert $ Ed25519.sign priv pub (encodeML
 
 csSignatureScheme :: CipherSuiteTag -> SignatureSchemeTag
 csSignatureScheme MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 = Ed25519
+csSignatureScheme MLS_128_DHKEMP256_AES128GCM_SHA256_P256 = Ecdsa_secp256r1_sha256
 csSignatureScheme MLS_128_X25519Kyber768Draft00_AES128GCM_SHA256_Ed25519 = Ed25519
 
 -- | A TLS signature scheme.
@@ -227,7 +234,7 @@ newtype SignatureScheme = SignatureScheme {unSignatureScheme :: Word16}
 signatureScheme :: SignatureSchemeTag -> SignatureScheme
 signatureScheme = SignatureScheme . signatureSchemeNumber
 
-data SignatureSchemeTag = Ed25519
+data SignatureSchemeTag = Ed25519 | Ecdsa_secp256r1_sha256
   deriving stock (Bounded, Enum, Eq, Ord, Show, Generic)
   deriving (Arbitrary) via GenericUniform SignatureSchemeTag
 
@@ -241,9 +248,11 @@ instance Cql SignatureSchemeTag where
 
 signatureSchemeNumber :: SignatureSchemeTag -> Word16
 signatureSchemeNumber Ed25519 = 0x807
+signatureSchemeNumber Ecdsa_secp256r1_sha256 = 0x403
 
 signatureSchemeName :: SignatureSchemeTag -> Text
 signatureSchemeName Ed25519 = "ed25519"
+signatureSchemeName Ecdsa_secp256r1_sha256 = "ecdsa_secp256r1_sha256"
 
 signatureSchemeTag :: SignatureScheme -> Maybe SignatureSchemeTag
 signatureSchemeTag (SignatureScheme n) = getAlt $
