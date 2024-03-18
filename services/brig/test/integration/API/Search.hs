@@ -377,7 +377,7 @@ testOrderHandle brig = do
   handleMatch <- userQualifiedId <$> createUser' True "handle match" brig
   void $ putHandle brig (qUnqualified handleMatch) searchedWord
   handlePrefixMatch <- userQualifiedId <$> createUser' True "handle prefix match" brig
-  vpod $ putHandle brig (qUnqualified handlePrefixMatch) (searchedWord <> "suffix")
+  void $ putHandle brig (qUnqualified handlePrefixMatch) (searchedWord <> "suffix")
   refreshIndex brig
   results <- searchResults <$> executeSearch brig searcher searchedWord
   let resultUIds = map contactQualifiedId results
@@ -626,7 +626,6 @@ testMigrationToNewIndex mgr opts brig = do
             & Opt.elasticsearchL . Opt.additionalWriteIndexL ?~ (opts ^. Opt.elasticsearchL . Opt.indexL)
             & Opt.elasticsearchL . Opt.additionalWriteIndexUrlL ?~ (opts ^. Opt.elasticsearchL . Opt.urlL)
     (phase2NonTeamUser, phase2TeamUser) <- withSettingsOverrides phase2OptsWhile $ do
-      _ -- fixme (the following line fails)
       phase2NonTeamUser <- randomUser brig
       phase2TeamUser <- inviteAndRegisterUser teamOwner tid brig
       refreshIndex brig
@@ -771,7 +770,7 @@ runBH :: MonadIO m => Opt.Opts -> ES.BH m a -> m a
 runBH opts action = do
   let esURL = opts ^. Opt.elasticsearchL . Opt.urlL
   mgr <- liftIO $ HTTP.newManager HTTP.defaultManagerSettings
-  let bEnv = (ES.mkBHEnv (ES.Server esURL) mgr){ES.bhRequestHook = ES.basicAuthHook (ES.EsUsername "elastic") (ES.EsPassword "changeme")}
+  let bEnv = (ES.mkBHEnv (ES.Server esURL) mgr) {ES.bhRequestHook = ES.basicAuthHook (ES.EsUsername "elastic") (ES.EsPassword "changeme")}
   ES.runBH bEnv action
 
 -- | This was copied from at Brig.User.Search.Index at commit 3242aa26

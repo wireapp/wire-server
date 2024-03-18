@@ -297,7 +297,6 @@ refreshIndex = liftIndexIO $ do
   idx <- asks idxName
   void $ ES.refreshIndex idx
 
-
 createIndexIfNotPresent ::
   MonadIndexIO m =>
   CreateIndexSettings ->
