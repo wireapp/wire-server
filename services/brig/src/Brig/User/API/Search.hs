@@ -59,6 +59,7 @@ import Wire.API.Team.Permission qualified as Public
 import Wire.API.Team.SearchVisibility (TeamSearchVisibility (..))
 import Wire.API.User.Search
 import Wire.API.User.Search qualified as Public
+import Debug.Trace (traceM)
 
 -- FUTUREWORK: Consider augmenting 'SearchResult' with full user profiles
 -- for all results. This is tracked in https://wearezeta.atlassian.net/browse/SQCORE-599
@@ -130,7 +131,10 @@ searchLocally searcherId searchTerm maybeMaxResults = do
 
   esResult <-
     if esMaxResults > 0
-      then Q.searchIndex (Q.LocalSearch searcherId searcherTeamId teamSearchInfo) searchTerm esMaxResults
+      then do
+        x <- Q.searchIndex (Q.LocalSearch searcherId searcherTeamId teamSearchInfo) searchTerm esMaxResults
+        traceM $ "searchLocally: " ++ show x
+        pure x
       else pure $ SearchResult 0 0 0 [] FullSearch Nothing Nothing
 
   -- Prepend results matching exact handle and results from ES.
