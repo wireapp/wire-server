@@ -338,12 +338,12 @@ createIndex' failIfExists (CreateIndexSettings settings shardCount mbDeleteTempl
 
     cr <- traceES "Create index" $ ES.createIndexWith fullSettings shardCount idx
     unless (ES.isSuccess cr) $
-      throwM (IndexError $ "Index creation failed." <> cs (show cr))
+      throwM (IndexError "Index creation failed.")
     mr <-
       traceES "Put mapping" $
         ES.putMapping idx (ES.MappingName "user") indexMapping
-    unless (ES.isSuccess mr) $ do
-      throwM (IndexError $ "Put Mapping failed." <> cs (show mr))
+    unless (ES.isSuccess mr) $
+      throwM (IndexError "Put Mapping failed.")
 
 analysisSettings :: ES.Analysis
 analysisSettings =

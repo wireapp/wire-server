@@ -79,7 +79,12 @@ urlPort u = do
 makeLenses ''AWSEndpoint
 
 newtype FilePathSecrets = FilePathSecrets FilePath
-  deriving (Eq, Show, FromJSON)
+  deriving (Eq, Show, FromJSON, IsString)
+
+initCredentials :: (FromJSON a) => FilePathSecrets -> IO a
+initCredentials secretFile = do
+  dat <- loadSecret secretFile
+  pure $ either (\e -> error $ "Could not load secrets from " ++ show secretFile ++ ": " ++ e) id dat
 
 loadSecret :: FromJSON a => FilePathSecrets -> IO (Either String a)
 loadSecret (FilePathSecrets p) = do

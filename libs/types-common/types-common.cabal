@@ -15,6 +15,7 @@ library
   exposed-modules:
     Data.Code
     Data.CommaSeparatedList
+    Data.Credentials
     Data.Domain
     Data.ETag
     Data.Handle

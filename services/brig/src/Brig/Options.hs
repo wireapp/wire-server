@@ -624,6 +624,7 @@ data Settings = Settings
     -- | The maximum number of active OAuth refresh tokens a user is allowed to have.
     -- use `setOAuthMaxActiveRefreshTokens` as the getter function which always provides a default value
     setOAuthMaxActiveRefreshTokensInternal :: !(Maybe Word32),
+    -- | Elasticsearch credentials
     setElasticsearchCredentials :: !(Maybe FilePathSecrets)
   }
   deriving (Show, Generic)

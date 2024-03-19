@@ -32,37 +32,45 @@ import Control.Monad.Catch
 import Control.Retry
 import Data.Aeson (FromJSON)
 import Data.Aeson qualified as Aeson
+import Data.Credentials (Credentials (..))
 import Data.Metrics qualified as Metrics
 import Database.Bloodhound qualified as ES
 import Imports
 import Network.HTTP.Client as HTTP
 import System.Logger qualified as Log
 import System.Logger.Class (Logger, MonadLogger (..))
+import Util.Options (initCredentials)
 
 runCommand :: Logger -> Command -> IO ()
 runCommand l = \case
   Create es galley -> do
-    e <- initIndex es galley
+    mCreds <- for (es ^. esCredentials) initCredentials
+    e <- initIndex es mCreds galley
     runIndexIO e $ createIndexIfNotPresent (mkCreateIndexSettings es)
   Reset es galley -> do
-    e <- initIndex es galley
+    mCreds <- for (es ^. esCredentials) initCredentials
+    e <- initIndex es mCreds galley
     runIndexIO e $ resetIndex (mkCreateIndexSettings es)
   Reindex es cas galley -> do
-    e <- initIndex es galley
+    mCreds <- for (es ^. esCredentials) initCredentials
+    e <- initIndex es mCreds galley
     c <- initDb cas
     runReindexIO e c reindexAll
   ReindexSameOrNewer es cas galley -> do
-    e <- initIndex es galley
+    mCreds <- for (es ^. esCredentials) initCredentials
+    e <- initIndex es mCreds galley
     c <- initDb cas
     runReindexIO e c reindexAllIfSameOrNewer
-  UpdateMapping esURI indexName galley -> do
-    e <- initIndex' esURI indexName galley
+  UpdateMapping esURI indexName mSecretPath galley -> do
+    mCreds <- for mSecretPath initCredentials
+    e <- initIndex' esURI indexName mCreds galley
     runIndexIO e updateMapping
   Migrate es cas galley -> do
     migrate l es cas galley
   ReindexFromAnotherIndex reindexSettings -> do
     mgr <- newManager defaultManagerSettings
-    let bhEnv = initES (view reindexEsServer reindexSettings) mgr
+    mCreds <- for (view reindexCredentials reindexSettings) initCredentials
+    let bhEnv = initES (view reindexEsServer reindexSettings) mgr mCreds
     ES.runBH bhEnv $ do
       let src = view reindexSrcIndex reindexSettings
           dest = view reindexDestIndex reindexSettings
@@ -85,23 +93,26 @@ runCommand l = \case
           waitForTaskToComplete @ES.ReindexResponse timeoutSeconds taskNodeId
           Log.info l $ Log.msg ("Finished reindexing" :: ByteString)
   where
-    initIndex es gly =
-      initIndex' (es ^. esServer) (es ^. esIndex) gly
-    initIndex' esURI indexName galleyEndpoint = do
+    initIndex es mCreds gly =
+      initIndex' (es ^. esServer) (es ^. esIndex) mCreds gly
+
+    initIndex' esURI indexName mCreds galleyEndpoint = do
       mgr <- newManager defaultManagerSettings
       IndexEnv
         <$> Metrics.metrics
         <*> pure l
-        <*> pure (initES esURI mgr)
+        <*> pure (initES esURI mgr mCreds)
         <*> pure Nothing
         <*> pure indexName
         <*> pure Nothing
         <*> pure Nothing
         <*> pure galleyEndpoint
         <*> pure mgr
-    initES esURI mgr =
-      -- TODO(leif): add basic auth if credentials are provided
-      (ES.mkBHEnv (toESServer esURI) mgr) {ES.bhRequestHook = ES.basicAuthHook (ES.EsUsername "elastic") (ES.EsPassword "changeme")}
+
+    initES esURI mgr mCreds =
+      let env = ES.mkBHEnv (toESServer esURI) mgr
+       in maybe env (\(creds :: Credentials) -> env {ES.bhRequestHook = ES.basicAuthHook (ES.EsUsername creds.username) (ES.EsPassword creds.password)}) mCreds
+
     initDb cas = defInitCassandra (toCassandraOpts cas) l
 
 waitForTaskToComplete :: forall a m. (ES.MonadBH m, MonadThrow m, FromJSON a) => Int -> ES.TaskNodeId -> m ()
