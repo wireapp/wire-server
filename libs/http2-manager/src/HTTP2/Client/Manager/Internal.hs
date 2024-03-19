@@ -89,7 +89,7 @@ defaultHttp2Manager = do
   SSL.contextSetVerificationMode ctx $
     SSL.VerifyPeer
       { vpFailIfNoPeerCert = True,
-        -- Only relvant when running as server
+        -- Only relevant when running as server
         vpClientOnce = False,
         vpCallback = Nothing
       }
