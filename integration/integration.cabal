@@ -137,7 +137,6 @@ library
     Test.Presence
     Test.Roles
     Test.Search
-    Test.SelfTest
     Test.Services
     Test.Spar
     Test.Swagger
