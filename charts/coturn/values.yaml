@@ -108,3 +108,7 @@ livenessProbe:
 readinessProbe:
   timeoutSeconds: 5
   failureThreshold: 5
+
+# If you need to specify which IP Coturn should bind to.
+# This will typically be the IP of the kubenode.
+# coturnTurnListenIP: "182.168.22.133"
