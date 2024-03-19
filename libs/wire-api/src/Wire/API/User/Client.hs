@@ -86,7 +86,7 @@ import Data.Misc (Latitude (..), Longitude (..), PlainTextPassword6)
 import Data.OpenApi hiding (Schema, ToSchema, nullable, schema)
 import Data.OpenApi qualified as Swagger hiding (nullable)
 import Data.Qualified
-import Data.SOP
+import Data.SOP hiding (fn)
 import Data.Schema
 import Data.Set qualified as Set
 import Data.Text qualified as T
@@ -379,17 +379,17 @@ instance Swagger.ToSchema UserClientsFull where
 
 instance ToJSON UserClientsFull where
   toJSON =
-    toJSON . Map.foldrWithKey' f Map.empty . userClientsFull
+    toJSON . Map.foldrWithKey' fn Map.empty . userClientsFull
     where
-      f u c m =
+      fn u c m =
         let k = T.decodeLatin1 (toASCIIBytes (toUUID u))
          in Map.insert k c m
 
 instance FromJSON UserClientsFull where
   parseJSON =
-    A.withObject "UserClientsFull" (fmap UserClientsFull . foldrM f Map.empty . KeyMap.toList)
+    A.withObject "UserClientsFull" (fmap UserClientsFull . foldrM fn Map.empty . KeyMap.toList)
     where
-      f (k, v) m = Map.insert <$> parseJSON (A.String $ Key.toText k) <*> parseJSON v <*> pure m
+      fn (k, v) m = Map.insert <$> parseJSON (A.String $ Key.toText k) <*> parseJSON v <*> pure m
 
 instance Arbitrary UserClientsFull where
   arbitrary = UserClientsFull <$> mapOf' arbitrary (setOf' arbitrary)
