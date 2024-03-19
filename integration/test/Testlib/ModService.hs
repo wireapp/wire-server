@@ -38,7 +38,7 @@ import System.IO.Temp (createTempDirectory, writeTempFile)
 import Testlib.App
 import Testlib.HTTP
 import Testlib.JSON
-import Testlib.ModService.ServiceHandles
+import Testlib.ModService.ServiceInstance
 import Testlib.ResourcePool
 import Testlib.Types
 import Text.RawString.QQ

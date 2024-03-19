@@ -1,4 +1,4 @@
-module Testlib.ModService.ServiceHandles
+module Testlib.ModService.ServiceInstance
   ( ServiceInstance,
     startServiceInstance,
     cleanupService,
