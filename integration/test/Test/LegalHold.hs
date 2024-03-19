@@ -791,8 +791,7 @@ testLHNoConsentRemoveFromGroup admin =
     (bob, tidBob, []) <- createTeam dom 1
     legalholdWhitelistTeam tidAlice alice >>= assertStatus 200
     withMockServer lhMockApp \lhPort _chan -> do
-      postLegalHoldSettings tidAlice alice (mkLegalHoldSettings lhPort)
-        >>= assertStatus 201
+      postLegalHoldSettings tidAlice alice (mkLegalHoldSettings lhPort) >>= assertStatus 201
       withWebSockets [alice, bob] \[aws, bws] -> do
         connectTwoUsers alice bob
         (convId, qConvId) <- do
@@ -833,3 +832,46 @@ testLHNoConsentRemoveFromGroup admin =
             for_ [aws, bws] do awaitMatch (isConvLeaveNotifWithLeaver bob)
             getConversation alice qConvId >>= assertStatus 200
             getConversation bob qConvId >>= assertLabel 403 "access-denied"
+
+testLHHappyFlow :: App ()
+testLHHappyFlow = startDynamicBackends [mempty] \[dom] ->  do 
+  (alice, tid, [bob]) <- createTeam dom 2
+  let statusShouldBe :: String -> App ()
+      statusShouldBe status =
+        legalholdUserStatus tid alice bob `bindResponse` \resp -> do
+          resp.status `shouldMatchInt` 200
+          resp.json %. "status" `shouldMatch` status
+
+  legalholdWhitelistTeam tid alice >>= assertStatus 200
+  lpk <- getLastPrekey
+  pks <- replicateM 3 getPrekey
+
+  withMockServer (lhMockAppWithPrekeys MkCreateMock {nextLastPrey = pure lpk, somePrekeys = pure pks}) \lhPort _chan -> do
+    postLegalHoldSettings tid alice (mkLegalHoldSettings lhPort) >>= assertStatus 201
+
+    -- implicit consent
+    statusShouldBe "disabled"
+    -- whitelisting is idempotent
+    legalholdWhitelistTeam tid alice >>= assertStatus 200
+    statusShouldBe "disabled"
+
+    -- memmbers cannot request LH devices 
+    requestLegalHoldDevice tid bob alice >>= assertLabel 403 "operation-denied"
+
+    -- owners can; bob should now have a pending request
+    requestLegalHoldDevice tid alice bob >>= assertStatus 201
+    statusShouldBe "pending"
+
+    -- owner cannot approve on behalf on user under legalhold
+    approveLegalHoldDevice' tid alice bob defPassword >>= assertLabel 403 "access-denied"
+    
+    -- user can approve the request, however
+    approveLegalHoldDevice tid bob defPassword `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+
+    legalholdUserStatus tid alice bob `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      resp.json %. "status" `shouldMatch` "enabled"
+      _ <- resp.json `lookupField` "client.id" 
+        >>= assertJust "client id is present" 
+      resp.json %. "last_prekey" `shouldMatch` lpk

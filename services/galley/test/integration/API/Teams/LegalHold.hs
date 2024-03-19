@@ -48,7 +48,6 @@ import Network.Wai.Utilities.Error qualified as Error
 import System.IO (hPutStrLn)
 import Test.QuickCheck.Instances ()
 import Test.Tasty
-import Test.Tasty.Cannon qualified as WS
 import Test.Tasty.HUnit
 import TestHelpers
 import TestSetup
@@ -57,7 +56,6 @@ import Wire.API.Conversation.Role (roleNameWireAdmin, roleNameWireMember)
 import Wire.API.Provider.Service
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Team.LegalHold
-import Wire.API.Team.Member
 import Wire.API.Team.Member qualified as Team
 import Wire.API.Team.Permission
 import Wire.API.Team.Role
@@ -103,8 +101,7 @@ testsPublic s =
         "settings.legalholdEnabledTeams" -- FUTUREWORK: ungroup this level
         [ testGroup -- FUTUREWORK: ungroup this level
             "teams listed"
-            [ test s "happy flow" testInWhitelist,
-              testGroup
+            [ testGroup
                 "Users are invited to a group conversation."
                 [ testGroup
                     "At least one invited user has activated legalhold. At least one admin of the group has given consent."
@@ -303,67 +300,6 @@ testCannotCreateLegalHoldDeviceOldAPI = do
               . zConn "conn"
       post req !!! const 400 === statusCode
       assertZeroLegalHoldDevices uid
-
-testInWhitelist :: TestM ()
-testInWhitelist = do
-  g <- viewGalley
-  (owner, tid) <- createBindingTeam
-  member <- randomUser
-  addTeamMemberInternal tid member (rolePermissions RoleMember) Nothing
-  cannon <- view tsCannon
-
-  putLHWhitelistTeam tid !!! const 200 === statusCode
-
-  WS.bracketR2 cannon member member $ \(_ws, _ws') -> withDummyTestServiceForTeam owner tid $ \_chan -> do
-    do
-      -- members have granted consent (implicitly)...
-      lhs <- view legalHoldStatus <$> withLHWhitelist tid (getTeamMember' g member tid member)
-      liftIO $ assertEqual "" lhs UserLegalHoldDisabled
-
-      -- ... and can do so again (idempotency).
-      _ <- withLHWhitelist tid (void $ putLHWhitelistTeam' g tid)
-      lhs' <- withLHWhitelist tid $ view legalHoldStatus <$> getTeamMember' g member tid member
-      liftIO $ assertEqual "" lhs' UserLegalHoldDisabled
-
-    do
-      -- members can't request LH devices
-      withLHWhitelist tid (requestLegalHoldDevice' g member member tid) !!! testResponse 403 (Just "operation-denied")
-      UserLegalHoldStatusResponse userStatus _ _ <- withLHWhitelist tid (getUserStatusTyped' g member tid)
-      liftIO $
-        assertEqual
-          "User with insufficient permissions should be unable to start flow"
-          UserLegalHoldDisabled
-          userStatus
-    do
-      -- owners can
-      withLHWhitelist tid (requestLegalHoldDevice' g owner member tid) !!! testResponse 201 Nothing
-      UserLegalHoldStatusResponse userStatus _ _ <- withLHWhitelist tid (getUserStatusTyped' g member tid)
-      liftIO $
-        assertEqual
-          "requestLegalHoldDevice should set user status to Pending"
-          UserLegalHoldPending
-          userStatus
-    do
-      -- request device is idempotent
-      withLHWhitelist tid (requestLegalHoldDevice' g owner member tid) !!! testResponse 204 Nothing
-      UserLegalHoldStatusResponse userStatus _ _ <- withLHWhitelist tid (getUserStatusTyped' g member tid)
-      liftIO $
-        assertEqual
-          "requestLegalHoldDevice when already pending should leave status as Pending"
-          UserLegalHoldPending
-          userStatus
-    do
-      -- owner cannot approve legalhold device
-      withLHWhitelist tid (approveLegalHoldDevice' g (Just defPassword) owner member tid) !!! testResponse 403 (Just "access-denied")
-    do
-      -- approve works
-      withLHWhitelist tid (approveLegalHoldDevice' g (Just defPassword) member member tid) !!! testResponse 200 Nothing
-      UserLegalHoldStatusResponse userStatus lastPrekey' clientId' <- withLHWhitelist tid (getUserStatusTyped' g member tid)
-      liftIO $
-        do
-          assertEqual "approving should change status to Enabled" UserLegalHoldEnabled userStatus
-          assertEqual "last_prekey should be set when LH is pending" (Just (head someLastPrekeys)) lastPrekey'
-          assertEqual "client.id should be set when LH is pending" (Just someClientId) clientId'
 
 data GroupConvInvCase = InviteOnlyConsenters | InviteAlsoNonConsenters
   deriving (Show, Eq, Ord, Bounded, Enum)
