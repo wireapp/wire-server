@@ -30,10 +30,15 @@ function wire_logout () {
     "{$WIRE_HOST}/access/logout"
 }
 
-export RESP=$(wire_login)
+export RESP
+RESP=$(wire_login)
 echo "[$RESP]"
-export BEARER=$(echo $RESP | jq -r .access_token)
-#cat $WIRE_COOKIEJAR
+
+export BEARER
+BEARER=$(echo "$RESP" | jq -r .access_token)
 echo "Authorization: Bearer $BEARER"
-#export RESP=$(wire_logout)
+
+#cat $WIRE_COOKIEJAR
+#export RESP
+#RESP=$(wire_logout)
 #echo "[$RESP]"
