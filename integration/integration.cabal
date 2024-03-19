@@ -152,7 +152,7 @@ library
     Testlib.Mock
     Testlib.MockIntegrationService
     Testlib.ModService
-    Testlib.ModService.ServiceHandles
+    Testlib.ModService.ServiceInstance
     Testlib.One2One
     Testlib.Options
     Testlib.Ports

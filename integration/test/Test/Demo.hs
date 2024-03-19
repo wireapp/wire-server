@@ -13,7 +13,7 @@ import Data.Function
 import Data.Maybe
 import GHC.Stack
 import SetupHelpers
-import Testlib.ModService.ServiceHandles
+import Testlib.ModService.ServiceInstance
 import Testlib.Prelude
 import UnliftIO.Directory
 
