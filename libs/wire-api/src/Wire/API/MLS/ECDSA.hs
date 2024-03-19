@@ -17,19 +17,18 @@
 
 module Wire.API.MLS.ECDSA where
 
-import Crypto.ECC
 import Crypto.Error
 import Crypto.Hash
 import Crypto.PubKey.ECDSA
-import Data.Binary.Get
-import Data.ByteString.Lazy qualified as BL
+import Data.ASN1.BinaryEncoding
+import Data.ASN1.Encoding
+import Data.ASN1.Prim
 import Data.Proxy
+import Debug.Trace
 import Imports
 import Wire.API.MLS.Serialisation
 
 -- | Decode an ECDSA signature.
---
--- See https://www.rfc-editor.org/rfc/rfc8032.html#section-3.3
 decodeSignature ::
   forall curve.
   EllipticCurveECDSA curve =>
@@ -37,21 +36,10 @@ decodeSignature ::
   ByteString ->
   Maybe (Signature curve)
 decodeSignature p bs = do
-  let b = curveOrderBits p
-  let parser = (,) <$> decodeInteger b <*> decodeInteger b
-  ints <- case runGetOrFail parser (BL.fromStrict bs) of
-    Right (remainder, _, x) | BL.null remainder -> pure x
-    _ -> Nothing
+  ints <- case decodeASN1' DER bs of
+    Right ([Start Sequence, IntVal r, IntVal s, End Sequence]) -> pure (r, s)
+    e -> traceShow e Nothing
   maybeCryptoError $ signatureFromIntegers p ints
-
--- | Parser for an integer with the given number of bits. The number of bits
--- must be a multiple of 8.
---
--- See https://www.rfc-editor.org/rfc/rfc8032.html#section-5.1.2
-decodeInteger :: Int -> Get Integer
-decodeInteger bits =
-  foldr (\d n -> d + n * 256) 0
-    <$> replicateM (bits `div` 8) (fromIntegral <$> getWord8)
 
 verifySignature ::
   forall curve a.
