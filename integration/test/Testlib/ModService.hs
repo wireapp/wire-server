@@ -288,7 +288,9 @@ ensureBackendReachable domain = do
     retryRequestUntil checkServiceIsUpReq "Federator ingress" domain Nothing
 
 data ServiceInstance = ServiceInstance
-  { handle :: ProcessHandle,
+  { processHandle :: ProcessHandle,
+    stdoutChan :: Chan LineOrEOF,
+    stderrChan :: Chan LineOrEOF,
     config :: FilePath
   }
 
@@ -299,13 +301,13 @@ cleanupService :: ServiceInstance -> IO ()
 cleanupService inst = do
   let ignoreExceptions action = E.catch action $ \(_ :: E.SomeException) -> pure ()
   ignoreExceptions $ do
-    mPid <- getPid inst.handle
+    mPid <- getPid inst.processHandle
     for_ mPid (signalProcess keyboardSignal)
-    timeout 50000 (waitForProcess inst.handle) >>= \case
+    timeout 50000 (waitForProcess inst.processHandle) >>= \case
       Just _ -> pure ()
       Nothing -> do
         for_ mPid (signalProcess killProcess)
-        void $ waitForProcess inst.handle
+        void $ waitForProcess inst.processHandle
   whenM (doesFileExist inst.config) $ removeFile inst.config
   whenM (doesDirectoryExist inst.config) $ removeDirectoryRecursive inst.config
 
@@ -360,7 +362,13 @@ withProcess resource overrides service = do
           void $ forkIO $ logChanToConsole execName domain out1
           void $ forkIO $ logChanToConsole execName domain err1
           putMVar serviceHandleMVar (out2, err2, ph)
-          pure $ ServiceInstance ph tempFile
+          pure $
+            ServiceInstance
+              { processHandle = ph,
+                stdoutChan = out2,
+                stderrChan = err2,
+                config = tempFile
+              }
 
   void $ Codensity $ \k -> do
     iok <- appToIOKleisli k
@@ -416,8 +424,7 @@ startNginzK8s domain sm = do
           & Text.replace ("/etc/wire/nginz/upstreams/upstreams.conf") (cs upstreamsCfg)
       )
   createUpstreamsCfg upstreamsCfg sm
-  ph <- startNginz domain nginxConfFile "/"
-  pure $ ServiceInstance ph tmpDir
+  startNginz domain nginxConfFile tmpDir
 
 startNginzLocal :: BackendResource -> App ServiceInstance
 startNginzLocal resource = do
@@ -490,10 +497,7 @@ server 127.0.0.1:{port} max_fails=3 weight=1;
     writeFile pidConfigFile (cs $ "pid " <> pid <> ";")
 
   -- start service
-  ph <- liftIO $ startNginz domain nginxConfFile tmpDir
-
-  -- return handle and nginx tmp dir path
-  pure $ ServiceInstance ph tmpDir
+  liftIO $ startNginz domain nginxConfFile tmpDir
 
 createUpstreamsCfg :: String -> ServiceMap -> IO ()
 createUpstreamsCfg upstreamsCfg sm = do
@@ -524,7 +528,7 @@ server 127.0.0.1:{port} max_fails=3 weight=1;
                 & Text.replace "{port}" (cs $ show p)
         liftIO $ appendFile upstreamsCfg (cs upstream)
 
-startNginz :: String -> FilePath -> FilePath -> IO ProcessHandle
+startNginz :: String -> FilePath -> FilePath -> IO ServiceInstance
 startNginz domain conf workingDir = do
   (_, Just stdoutHdl, Just stderrHdl, ph) <-
     createProcess
@@ -534,7 +538,15 @@ startNginz domain conf workingDir = do
           std_err = CreatePipe
         }
 
-  void $ forkIO $ logHandleToConsole "nginz" domain stdoutHdl
-  void $ forkIO $ logHandleToConsole "nginz" domain stderrHdl
+  (out1, out2) <- mkChans stdoutHdl
+  (err1, err2) <- mkChans stderrHdl
+  void $ forkIO $ logChanToConsole "nginz" domain out1
+  void $ forkIO $ logChanToConsole "nginz" domain err1
 
-  pure ph
+  pure $
+    ServiceInstance
+      { processHandle = ph,
+        stdoutChan = out2,
+        stderrChan = err2,
+        config = workingDir
+      }
