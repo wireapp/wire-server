@@ -225,9 +225,9 @@ getConnection mgr target = do
         Nothing -> pure (Just conn)
         Just _ -> do
           -- Maybe there is value in logging any exceptions we
-          -- recieve here. But logging in STM will be tricky, and the threads
+          -- receive here. But logging in STM will be tricky, and the threads
           -- running requests on the connection which got an exception would've
-          -- anyway recieved the exception, so maybe it is not as valueable.
+          -- anyway received the exception, so maybe it is not as valuable.
           writeTVar (connections mgr) $ Map.delete target conns
           pure Nothing
 
@@ -430,33 +430,34 @@ bufsize = 4096
 
 allocHTTP2Config :: Transport -> IO HTTP2.Config
 allocHTTP2Config (InsecureTransport sock) = HTTP2.allocSimpleConfig sock bufsize
-allocHTTP2Config (SecureTransport ssl) = do
-  buf <- mallocBytes bufsize
-  timmgr <- System.TimeManager.initialize $ 30 * 1000000
-  -- Sometimes the frame header says that the payload length is 0. Reading 0
-  -- bytes multiple times seems to be causing errors in openssl. I cannot figure
-  -- out why. The previous implementation didn't try to read from the socket
-  -- when trying to read 0 bytes, so special handling for 0 maintains that
-  -- behaviour.
-  let readData acc 0 = pure acc
-      readData acc n = do
-        -- Handling SSL.ConnectionAbruptlyTerminated as a stream end
-        -- (some sites terminate SSL connection right after returning the data).
-        chunk <- SSL.read ssl n `catch` \(_ :: SSL.ConnectionAbruptlyTerminated) -> pure mempty
-        let chunkLen = BS.length chunk
-        if
-            | chunkLen == 0 || chunkLen == n ->
-                pure (acc <> chunk)
-            | chunkLen > n ->
-                error "openssl: SSL.read returned more bytes than asked for, this is probably a bug"
-            | otherwise ->
-                readData (acc <> chunk) (n - chunkLen)
-  pure
-    HTTP2.Config
-      { HTTP2.confWriteBuffer = buf,
-        HTTP2.confBufferSize = bufsize,
-        HTTP2.confSendAll = SSL.write ssl,
-        HTTP2.confReadN = readData mempty,
-        HTTP2.confPositionReadMaker = HTTP2.defaultPositionReadMaker,
-        HTTP2.confTimeoutManager = timmgr
+allocHTTP2Config (SecureTransport ssl sock) = do
+  config <- HTTP2.allocSimpleConfig sock bufsize
+  pure $
+    config
+      { HTTP2.confSendAll = SSL.write ssl,
+        HTTP2.confReadN = readData
       }
+  where
+    -- Sometimes the frame header says that the payload length is 0. Reading 0
+    -- bytes multiple times seems to be causing errors in openssl. I cannot figure
+    -- out why. The previous implementation didn't try to read from the socket
+    -- when trying to read 0 bytes, so special handling for 0 maintains that
+    -- behaviour.
+    readData :: Int -> IO ByteString
+    readData 0 = pure mempty
+    readData n = loop mempty n
+
+    loop :: ByteString -> Int -> IO ByteString
+    loop acc 0 = pure acc
+    loop acc n = do
+      -- Handling SSL.ConnectionAbruptlyTerminated as a stream end
+      -- (some sites terminate SSL connection right after returning the data).
+      chunk <- SSL.read ssl n `catch` \(_ :: SSL.ConnectionAbruptlyTerminated) -> pure mempty
+      let chunkLen = BS.length chunk
+      if
+          | chunkLen == 0 || chunkLen == n ->
+              pure (acc <> chunk)
+          | chunkLen > n ->
+              error "openssl: SSL.read returned more bytes than asked for, this is probably a bug"
+          | otherwise ->
+              loop (acc <> chunk) (n - chunkLen)
