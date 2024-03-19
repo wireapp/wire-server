@@ -86,7 +86,6 @@ mkDerivation {
     uuid
     wai
     wai-extra
-    warp
   ];
   executableHaskellDepends = [
     base
