@@ -31,12 +31,10 @@ import Data.Traversable
 import qualified Data.Yaml as Yaml
 import GHC.Stack
 import qualified Network.HTTP.Client as HTTP
-import System.Directory (copyFile, createDirectoryIfMissing, doesDirectoryExist, doesFileExist, listDirectory, removeDirectoryRecursive, removeFile)
+import System.Directory (copyFile, createDirectoryIfMissing, doesDirectoryExist, doesFileExist, listDirectory, removeFile)
 import System.FilePath
 import System.IO
 import System.IO.Temp (createTempDirectory, writeTempFile)
-import System.Posix (keyboardSignal, killProcess, signalProcess)
-import System.Process
 import Testlib.App
 import Testlib.HTTP
 import Testlib.JSON
@@ -44,6 +42,7 @@ import Testlib.ModService.ServiceHandles
 import Testlib.ResourcePool
 import Testlib.Types
 import Text.RawString.QQ
+import qualified UnliftIO
 import Prelude
 
 withModifiedBackend :: HasCallStack => ServiceOverrides -> (HasCallStack => String -> App a) -> App a
@@ -287,38 +286,14 @@ ensureBackendReachable domain = do
   when ((domain /= env.domain1) && (domain /= env.domain2)) $ do
     retryRequestUntil checkServiceIsUpReq "Federator ingress" domain Nothing
 
-data ServiceInstance = ServiceInstance
-  { processHandle :: ProcessHandle,
-    stdoutChan :: Chan LineOrEOF,
-    stderrChan :: Chan LineOrEOF,
-    config :: FilePath
-  }
-
-timeout :: Int -> IO a -> IO (Maybe a)
-timeout usecs action = either (const Nothing) Just <$> race (threadDelay usecs) action
-
-cleanupService :: ServiceInstance -> IO ()
-cleanupService inst = do
-  let ignoreExceptions action = E.catch action $ \(_ :: E.SomeException) -> pure ()
-  ignoreExceptions $ do
-    mPid <- getPid inst.processHandle
-    for_ mPid (signalProcess keyboardSignal)
-    timeout 50000 (waitForProcess inst.processHandle) >>= \case
-      Just _ -> pure ()
-      Nothing -> do
-        for_ mPid (signalProcess killProcess)
-        void $ waitForProcess inst.processHandle
-  whenM (doesFileExist inst.config) $ removeFile inst.config
-  whenM (doesDirectoryExist inst.config) $ removeDirectoryRecursive inst.config
-
 -- | Wait for a service to come up.
-waitUntilServiceIsUp :: String -> Service -> MVar ServiceHandle -> App ()
-waitUntilServiceIsUp domain srv serviceHandleMVar =
+waitUntilServiceIsUp :: String -> Service -> ServiceInstance -> App ()
+waitUntilServiceIsUp domain srv serviceInstance =
   retryRequestUntil
     (checkServiceIsUp domain srv)
     (show srv)
     domain
-    (Just serviceHandleMVar)
+    (Just serviceInstance)
 
 -- | Check if a service is up and running.
 checkServiceIsUp :: String -> Service -> App Bool
@@ -349,35 +324,21 @@ withProcess resource overrides service = do
 
   startNginzLocalIO <- lift $ appToIO $ startNginzLocal resource
 
-  serviceHandleMVar <- liftIO newEmptyMVar
-  let initProcess = case (service, cwd) of
+  let initProcess = liftIO $ case (service, cwd) of
         (Nginz, Nothing) -> startNginzK8s domain sm
         (Nginz, Just _) -> startNginzLocalIO
         _ -> do
           config <- getConfig
           tempFile <- writeTempFile "/tmp" (execName <> "-" <> domain <> "-" <> ".yaml") (cs $ Yaml.encode config)
-          (_, Just stdoutHdl, Just stderrHdl, ph) <- createProcess (proc exe ["-c", tempFile]) {cwd = cwd, std_out = CreatePipe, std_err = CreatePipe}
-          (out1, out2) <- mkChans stdoutHdl
-          (err1, err2) <- mkChans stderrHdl
-          void $ forkIO $ logChanToConsole execName domain out1
-          void $ forkIO $ logChanToConsole execName domain err1
-          putMVar serviceHandleMVar (out2, err2, ph)
-          pure $
-            ServiceInstance
-              { processHandle = ph,
-                stdoutChan = out2,
-                stderrChan = err2,
-                config = tempFile
-              }
+          startServiceInstance exe ["-c", tempFile] cwd tempFile execName domain
 
   void $ Codensity $ \k -> do
-    iok <- appToIOKleisli k
-    liftIO $ E.bracket initProcess cleanupService iok
+    UnliftIO.bracket initProcess cleanupService $ \serviceInstance -> do
+      waitUntilServiceIsUp domain service serviceInstance
+      k serviceInstance
 
-  lift $ waitUntilServiceIsUp domain service serviceHandleMVar
-
-retryRequestUntil :: HasCallStack => App Bool -> String -> String -> Maybe (MVar ServiceHandle) -> App ()
-retryRequestUntil reqAction execName domain serviceHandleMVar = do
+retryRequestUntil :: HasCallStack => App Bool -> String -> String -> Maybe ServiceInstance -> App ()
+retryRequestUntil reqAction execName domain mServiceInstance = do
   isUp <-
     retrying
       (limitRetriesByCumulativeDelay (4 * 1000 * 1000) (fibonacciBackoff (200 * 1000)))
@@ -385,23 +346,11 @@ retryRequestUntil reqAction execName domain serviceHandleMVar = do
       (const reqAction)
   unless isUp $ do
     errDetails <- liftIO $ do
-      mbHandlers <- traverse takeMVar serviceHandleMVar
-      case mbHandlers of
-        Nothing -> pure " (no stdout/stderr provided)"
-        Just (outChan, errChan, ph) -> do
-          outStr <- flushChan execName domain outChan
-          errStr <- flushChan execName domain errChan
-          statusStr <- getPid ph <&> maybe "(already closed)" show
-          pure $
-            unlines
-              [ ":",
-                "\n\n=== process pid: ============================================",
-                statusStr,
-                "\n\n=== stdout: ============================================",
-                outStr,
-                "\n\n=== stderr: ============================================",
-                errStr
-              ]
+      case mServiceInstance of
+        Nothing -> pure ""
+        Just serviceInstance -> do
+          outStr <- flushProcessState serviceInstance
+          pure $ unlines [":", outStr]
     assertFailure ("Timed out waiting for service " <> execName <> "@" <> domain <> " to come up" <> errDetails)
 
 startNginzK8s :: String -> ServiceMap -> IO ServiceInstance
@@ -529,24 +478,11 @@ server 127.0.0.1:{port} max_fails=3 weight=1;
         liftIO $ appendFile upstreamsCfg (cs upstream)
 
 startNginz :: String -> FilePath -> FilePath -> IO ServiceInstance
-startNginz domain conf workingDir = do
-  (_, Just stdoutHdl, Just stderrHdl, ph) <-
-    createProcess
-      (proc "nginx" ["-c", conf, "-g", "daemon off;", "-e", "/dev/stdout"])
-        { cwd = Just workingDir,
-          std_out = CreatePipe,
-          std_err = CreatePipe
-        }
-
-  (out1, out2) <- mkChans stdoutHdl
-  (err1, err2) <- mkChans stderrHdl
-  void $ forkIO $ logChanToConsole "nginz" domain out1
-  void $ forkIO $ logChanToConsole "nginz" domain err1
-
-  pure $
-    ServiceInstance
-      { processHandle = ph,
-        stdoutChan = out2,
-        stderrChan = err2,
-        config = workingDir
-      }
+startNginz domain conf configDir = do
+  startServiceInstance
+    "nginx"
+    ["-c", conf, "-g", "daemon off;", "-e", "/dev/stdout"]
+    (Just configDir)
+    configDir
+    "nginz"
+    domain
