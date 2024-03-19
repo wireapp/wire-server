@@ -494,3 +494,201 @@ testClassifiedDomainsDisabled =
   genericClassifiedDomains
     Disabled
     (ClassifiedDomainsConfig [])
+
+-- | Call 'GET /teams/:tid/features' and 'GET /feature-configs', and check if all
+-- features are there.
+testAllFeatures :: HasCallStack => App ()
+testAllFeatures = do
+  let domain = OwnDomain
+  (_owner, team, mem : _) <- createTeam domain 2
+  defLockStatus <-
+    readServiceConfig Galley
+      & (%. "settings.featureFlags.selfDeletingMessages.defaults.lockStatus")
+      & asText
+  getAllTeamFeatures mem team `bindResponse` \resp -> do
+    bdy <- getJSON 200 resp
+    bdy `shouldMatch` expected Enabled defLockStatus {- determined by default in galley -}
+
+  -- This block catches potential errors in the logic that reverts to default if there is a distinction made between
+  -- 1. there is no row for a team_id in galley.team_features
+  -- 2. there is a row for team_id in galley.team_features but the feature has a no entry (null value)
+  let st = WithStatusNoLock Enabled () 0
+   in -- this sets the guest links config to its default value thereby creating a row for the team in galley.team_features
+      I.putTeamFeatureStatus domain team "conversationGuestLinks" st
+  getAllTeamFeatures mem team `bindResponse` \resp -> do
+    bdy <- getJSON 200 resp
+    bdy `shouldMatch` expected Enabled defLockStatus {- determined by default in galley -}
+  getAllFeatureConfigsPersonal mem `bindResponse` \resp -> do
+    bdy <- getJSON 200 resp
+    bdy `shouldMatch` expected Enabled defLockStatus {- determined by default in galley -}
+  nonMember <- randomUser domain def
+  getAllFeatureConfigsPersonal nonMember `bindResponse` \resp -> do
+    bdy <- getJSON 200 resp
+    bdy `shouldMatch` expected Enabled defLockStatus {- determined by 'getAfcConferenceCallingDefNew' in brig -}
+  where
+    expected confCalling lockStateSelfDeleting =
+      Aeson.object $
+        [ "appLock"
+            .= ( Aeson.object
+                   [ "config"
+                       .= Aeson.object
+                         [ "enforceAppLock" .= toJSON False,
+                           "inactivityTimeoutSecs" .= Aeson.Number 60
+                         ],
+                     "lockStatus" .= toJSON LockStatusUnlocked,
+                     "status" .= toJSON Enabled,
+                     "ttl" .= "unlimited"
+                   ]
+               ),
+          "classifiedDomains"
+            .= ( Aeson.object
+                   [ "config" .= toJSON (ClassifiedDomainsConfig [T.pack "example.com"]),
+                     "lockStatus" .= toJSON LockStatusUnlocked,
+                     "status" .= toJSON Enabled,
+                     "ttl" .= "unlimited"
+                   ]
+               ),
+          "conferenceCalling"
+            .= ( Aeson.object
+                   [ "lockStatus" .= toJSON LockStatusUnlocked,
+                     "status" .= toJSON confCalling,
+                     "ttl" .= "unlimited"
+                   ]
+               ),
+          "conversationGuestLinks"
+            .= ( Aeson.object
+                   [ "lockStatus" .= toJSON LockStatusUnlocked,
+                     "status" .= toJSON Enabled,
+                     "ttl" .= "unlimited"
+                   ]
+               ),
+          "digitalSignatures"
+            .= ( Aeson.object
+                   [ "lockStatus" .= toJSON LockStatusUnlocked,
+                     "status" .= toJSON Disabled,
+                     "ttl" .= "unlimited"
+                   ]
+               ),
+          "enforceFileDownloadLocation"
+            .= ( Aeson.object
+                   [ "config" .= Aeson.object [],
+                     "lockStatus" .= toJSON LockStatusLocked,
+                     "status" .= toJSON Disabled,
+                     "ttl" .= "unlimited"
+                   ]
+               ),
+          "exposeInvitationURLsToTeamAdmin"
+            .= ( Aeson.object
+                   [ "lockStatus" .= toJSON LockStatusLocked,
+                     "status" .= toJSON Disabled,
+                     "ttl" .= "unlimited"
+                   ]
+               ),
+          "fileSharing"
+            .= ( Aeson.object
+                   [ "lockStatus" .= toJSON LockStatusUnlocked,
+                     "status" .= toJSON Enabled,
+                     "ttl" .= "unlimited"
+                   ]
+               ),
+          "legalhold"
+            .= ( Aeson.object
+                   [ "lockStatus" .= toJSON LockStatusUnlocked,
+                     "status" .= toJSON Disabled,
+                     "ttl" .= "unlimited"
+                   ]
+               ),
+          "limitedEventFanout"
+            .= ( Aeson.object
+                   [ "lockStatus" .= toJSON LockStatusUnlocked,
+                     "status" .= toJSON Disabled,
+                     "ttl" .= "unlimited"
+                   ]
+               ),
+          "mls"
+            .= ( Aeson.object
+                   [ "config"
+                       .= Aeson.object
+                         [ "allowedCipherSuites" .= Aeson.Array (Vector.fromList [Aeson.Number 1]),
+                           "defaultCipherSuite" .= Aeson.Number 1,
+                           "defaultProtocol" .= "proteus",
+                           "protocolToggleUsers" .= Aeson.Array Vector.empty,
+                           "supportedProtocols"
+                             .= Aeson.Array (Aeson.String . T.pack <$> Vector.fromList ["proteus", "mls"])
+                         ],
+                     "lockStatus" .= toJSON LockStatusUnlocked,
+                     "status" .= toJSON Disabled,
+                     "ttl" .= "unlimited"
+                   ]
+               ),
+          "mlsE2EId"
+            .= ( Aeson.object
+                   [ "config" .= Aeson.object ["verificationExpiration" .= Aeson.Number 86400],
+                     "lockStatus" .= toJSON LockStatusUnlocked,
+                     "status" .= toJSON Disabled,
+                     "ttl" .= "unlimited"
+                   ]
+               ),
+          "mlsMigration"
+            .= ( Aeson.object
+                   [ "config"
+                       .= Aeson.object
+                         [ "finaliseRegardlessAfter" .= "2029-10-17T00:00:00Z",
+                           "startTime" .= "2029-05-16T10:11:12.123Z"
+                         ],
+                     "lockStatus" .= toJSON LockStatusLocked,
+                     "status" .= toJSON Enabled,
+                     "ttl" .= "unlimited"
+                   ]
+               ),
+          "outlookCalIntegration"
+            .= ( Aeson.object
+                   [ "lockStatus" .= toJSON LockStatusLocked,
+                     "status" .= toJSON Disabled,
+                     "ttl" .= "unlimited"
+                   ]
+               ),
+          "searchVisibility"
+            .= ( Aeson.object
+                   [ "lockStatus" .= toJSON LockStatusUnlocked,
+                     "status" .= toJSON Disabled,
+                     "ttl" .= "unlimited"
+                   ]
+               ),
+          "searchVisibilityInbound"
+            .= ( Aeson.object
+                   [ "lockStatus" .= toJSON LockStatusUnlocked,
+                     "status" .= toJSON Disabled,
+                     "ttl" .= "unlimited"
+                   ]
+               ),
+          "selfDeletingMessages"
+            .= ( Aeson.object
+                   [ "config" .= Aeson.object ["enforcedTimeoutSeconds" .= Aeson.Number 0],
+                     "lockStatus" .= toJSON lockStateSelfDeleting,
+                     "status" .= toJSON Enabled,
+                     "ttl" .= "unlimited"
+                   ]
+               ),
+          "sndFactorPasswordChallenge"
+            .= ( Aeson.object
+                   [ "lockStatus" .= toJSON LockStatusLocked,
+                     "status" .= toJSON Disabled,
+                     "ttl" .= "unlimited"
+                   ]
+               ),
+          "sso"
+            .= ( Aeson.object
+                   [ "lockStatus" .= toJSON LockStatusUnlocked,
+                     "status" .= toJSON Disabled,
+                     "ttl" .= "unlimited"
+                   ]
+               ),
+          "validateSAMLemails"
+            .= ( Aeson.object
+                   [ "lockStatus" .= toJSON LockStatusUnlocked,
+                     "status" .= toJSON Enabled,
+                     "ttl" .= "unlimited"
+                   ]
+               )
+        ]

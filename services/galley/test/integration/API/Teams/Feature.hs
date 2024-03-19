@@ -34,7 +34,6 @@ import Data.Aeson qualified as Aeson
 import Data.Aeson.Key qualified as AesonKey
 import Data.Aeson.KeyMap qualified as KeyMap
 import Data.ByteString.Char8 (unpack)
-import Data.Domain (Domain (..))
 import Data.Id
 import Data.Json.Util (fromUTCTimeMillis, readUTCTimeMillis)
 import Data.List1 qualified as List1
@@ -64,8 +63,7 @@ tests :: IO TestSetup -> TestTree
 tests s =
   testGroup
     "Feature Config API and Team Features API"
-    [ test s "All features" testAllFeatures,
-      test s "Feature Configs / Team Features Consistency" testFeatureConfigConsistency,
+    [ test s "Feature Configs / Team Features Consistency" testFeatureConfigConsistency,
       test s "ConferenceCalling" $ testSimpleFlag @ConferenceCallingConfig FeatureStatusEnabled,
       test s "SelfDeletingMessages" testSelfDeletingMessages,
       test s "ConversationGuestLinks - public API" testGuestLinksPublic,
@@ -771,71 +769,6 @@ testGuestLinks getStatus putStatus setLockStatusInternal = do
   checkSetLockStatusInternal LockStatusUnlocked
   checkGet FeatureStatusDisabled LockStatusUnlocked
 
--- | Call 'GET /teams/:tid/features' and 'GET /feature-configs', and check if all
--- features are there.
-testAllFeatures :: TestM ()
-testAllFeatures = do
-  defLockStatus :: LockStatus <-
-    view
-      ( tsGConf
-          . settings
-          . featureFlags
-          . flagSelfDeletingMessages
-          . unDefaults
-          . to wsLockStatus
-      )
-
-  (_owner, tid, member : _) <- createBindingTeamWithNMembers 1
-  getAllTeamFeatures member tid !!! do
-    statusCode === const 200
-    responseJsonMaybe === const (Just (expected FeatureStatusEnabled defLockStatus {- determined by default in galley -}))
-
-  -- This block catches potential errors in the logic that reverts to default if there is a distinction made between
-  -- 1. there is no row for a team_id in galley.team_features
-  -- 2. there is a row for team_id in galley.team_features but the feature has a no entry (null value)
-  galley <- viewGalley
-  -- this sets the guest links config to its default value thereby creating a row for the team in galley.team_features
-  putTeamFeatureFlagInternal @GuestLinksConfig galley tid (WithStatusNoLock FeatureStatusEnabled GuestLinksConfig FeatureTTLUnlimited)
-    !!! statusCode
-      === const 200
-  getAllTeamFeatures member tid !!! do
-    statusCode === const 200
-    responseJsonMaybe === const (Just (expected FeatureStatusEnabled defLockStatus {- determined by default in galley -}))
-
-  getAllTeamFeaturesPersonal member !!! do
-    statusCode === const 200
-    responseJsonMaybe === const (Just (expected FeatureStatusEnabled defLockStatus {- determined by default in galley -}))
-
-  randomPersonalUser <- randomUser
-  getAllTeamFeaturesPersonal randomPersonalUser !!! do
-    statusCode === const 200
-    responseJsonMaybe === const (Just (expected FeatureStatusEnabled defLockStatus {- determined by 'getAfcConferenceCallingDefNew' in brig -}))
-  where
-    expected confCalling lockStateSelfDeleting =
-      AllFeatureConfigs
-        { afcLegalholdStatus = withStatus FeatureStatusDisabled LockStatusUnlocked LegalholdConfig FeatureTTLUnlimited,
-          afcSSOStatus = withStatus FeatureStatusDisabled LockStatusUnlocked SSOConfig FeatureTTLUnlimited,
-          afcTeamSearchVisibilityAvailable = withStatus FeatureStatusDisabled LockStatusUnlocked SearchVisibilityAvailableConfig FeatureTTLUnlimited,
-          afcValidateSAMLEmails = withStatus FeatureStatusEnabled LockStatusUnlocked ValidateSAMLEmailsConfig FeatureTTLUnlimited,
-          afcDigitalSignatures = withStatus FeatureStatusDisabled LockStatusUnlocked DigitalSignaturesConfig FeatureTTLUnlimited,
-          afcAppLock = withStatus FeatureStatusEnabled LockStatusUnlocked (AppLockConfig (EnforceAppLock False) (60 :: Int32)) FeatureTTLUnlimited,
-          afcFileSharing = withStatus FeatureStatusEnabled LockStatusUnlocked FileSharingConfig FeatureTTLUnlimited,
-          afcClassifiedDomains = withStatus FeatureStatusEnabled LockStatusUnlocked (ClassifiedDomainsConfig [Domain "example.com"]) FeatureTTLUnlimited,
-          afcConferenceCalling = withStatus confCalling LockStatusUnlocked ConferenceCallingConfig FeatureTTLUnlimited,
-          afcSelfDeletingMessages = withStatus FeatureStatusEnabled lockStateSelfDeleting (SelfDeletingMessagesConfig 0) FeatureTTLUnlimited,
-          afcGuestLink = withStatus FeatureStatusEnabled LockStatusUnlocked GuestLinksConfig FeatureTTLUnlimited,
-          afcSndFactorPasswordChallenge = withStatus FeatureStatusDisabled LockStatusLocked SndFactorPasswordChallengeConfig FeatureTTLUnlimited,
-          afcMLS = withStatus FeatureStatusDisabled LockStatusUnlocked (MLSConfig [] ProtocolProteusTag [MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519] MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 [ProtocolProteusTag, ProtocolMLSTag]) FeatureTTLUnlimited,
-          afcSearchVisibilityInboundConfig = withStatus FeatureStatusDisabled LockStatusUnlocked SearchVisibilityInboundConfig FeatureTTLUnlimited,
-          afcExposeInvitationURLsToTeamAdmin = withStatus FeatureStatusDisabled LockStatusLocked ExposeInvitationURLsToTeamAdminConfig FeatureTTLUnlimited,
-          afcOutlookCalIntegration = withStatus FeatureStatusDisabled LockStatusLocked OutlookCalIntegrationConfig FeatureTTLUnlimited,
-          afcMlsE2EId = withStatus FeatureStatusDisabled LockStatusUnlocked (wsConfig defFeatureStatus) FeatureTTLUnlimited,
-          afcMlsMigration = defaultMlsMigrationConfig,
-          afcEnforceFileDownloadLocation = defaultEnforceFileDownloadLocationConfig,
-          afcLimitedEventFanout =
-            withStatus FeatureStatusDisabled LockStatusUnlocked LimitedEventFanoutConfig FeatureTTLUnlimited
-        }
-
 testFeatureConfigConsistency :: TestM ()
 testFeatureConfigConsistency = do
   (_owner, tid, member : _) <- createBindingTeamWithNMembers 1
@@ -1309,12 +1242,4 @@ defaultMlsMigrationConfig =
       { startTime = fmap fromUTCTimeMillis (readUTCTimeMillis "2029-05-16T10:11:12.123Z"),
         finaliseRegardlessAfter = fmap fromUTCTimeMillis (readUTCTimeMillis "2029-10-17T00:00:00.000Z")
       }
-    FeatureTTLUnlimited
-
-defaultEnforceFileDownloadLocationConfig :: WithStatus EnforceFileDownloadLocationConfig
-defaultEnforceFileDownloadLocationConfig =
-  withStatus
-    FeatureStatusDisabled
-    LockStatusLocked
-    (EnforceFileDownloadLocationConfig Nothing)
     FeatureTTLUnlimited

@@ -538,6 +538,18 @@ getTeamFeature featureName user tid = do
       joinHttpPath ["teams", tidStr, "features", featureName]
   submit "GET" req
 
+getAllTeamFeatures ::
+  (HasCallStack, MakesValue tid, MakesValue user) =>
+  user ->
+  tid ->
+  App Response
+getAllTeamFeatures user tid = do
+  tidStr <- asString tid
+  req <-
+    baseRequest user Galley Versioned $
+      joinHttpPath ["teams", tidStr, "features"]
+  submit "GET" req
+
 setTeamFeature ::
   ( HasCallStack,
     MakesValue tid,

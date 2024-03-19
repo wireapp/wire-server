@@ -2,6 +2,7 @@ module API.GalleyCommon where
 
 import qualified Data.Aeson as Aeson
 import Data.Kind
+import qualified Data.Schema as Schema
 import qualified Data.Text as T
 import qualified Data.Vector as Vector
 import Testlib.JSON
@@ -53,3 +54,15 @@ instance ToJSON ClassifiedDomainsConfig where
   toJSON (ClassifiedDomainsConfig ds) =
     Aeson.object $
       ["domains" .= Aeson.Array (Vector.fromList (Aeson.String <$> ds))]
+
+data LockStatus = LockStatusLocked | LockStatusUnlocked
+  deriving stock (Eq, Show)
+  deriving (ToJSON, FromJSON) via (Schema.Schema LockStatus)
+
+instance Schema.ToSchema LockStatus where
+  schema =
+    Schema.enum @T.Text (T.pack "LockStatus") $
+      mconcat
+        [ Schema.element (T.pack "locked") LockStatusLocked,
+          Schema.element (T.pack "unlocked") LockStatusUnlocked
+        ]

@@ -99,6 +99,12 @@ settings:
     limitedEventFanout:
       defaults:
         status: disabled
+    selfDeletingMessages:
+      defaults:
+        config:
+          enforcedTimeoutSeconds: 0
+        lockStatus: unlocked
+        status: enabled
 
 logLevel: Warn
 logNetStrings: false

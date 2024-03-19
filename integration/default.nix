@@ -53,6 +53,7 @@
 , regex-base
 , regex-tdfa
 , retry
+, schema-profunctor
 , scientific
 , split
 , stm
@@ -138,6 +139,7 @@ mkDerivation {
     regex-base
     regex-tdfa
     retry
+    schema-profunctor
     scientific
     split
     stm

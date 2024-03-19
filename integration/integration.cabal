@@ -213,6 +213,7 @@ library
     , regex-base
     , regex-tdfa
     , retry
+    , schema-profunctor
     , scientific
     , split
     , stm
