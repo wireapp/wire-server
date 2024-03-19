@@ -333,5 +333,8 @@ data:
       {{- if $.Values.secrets.elasticsearch }}
       setElasticsearchCredentials: /etc/wire/brig/secrets/elasticsearch-credentials.yaml
       {{- end }}
+      {{- if $.Values.secrets.elasticsearchAdditional }}
+      setElasticsearchAdditionalCredentials: /etc/wire/brig/secrets/elasticsearch-additional-credentials.yaml
+      {{- end }}
     {{- end }}
   {{- end }}

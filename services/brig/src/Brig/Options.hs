@@ -625,7 +625,9 @@ data Settings = Settings
     -- use `setOAuthMaxActiveRefreshTokens` as the getter function which always provides a default value
     setOAuthMaxActiveRefreshTokensInternal :: !(Maybe Word32),
     -- | Elasticsearch credentials
-    setElasticsearchCredentials :: !(Maybe FilePathSecrets)
+    setElasticsearchCredentials :: !(Maybe FilePathSecrets),
+    -- | Credentials for additional ES index (maily used for migrations)
+    setElasticsearchAdditionalCredentials :: !(Maybe FilePathSecrets)
   }
   deriving (Show, Generic)
 

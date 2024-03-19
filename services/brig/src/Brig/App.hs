@@ -260,6 +260,7 @@ newEnv o = do
   rabbitChan <- traverse (Q.mkRabbitMqChannelMVar lgr) o.rabbitmq
   let allDisabledVersions = foldMap expandVersionExp (Opt.setDisabledAPIVersions sett)
   mEsCreds <- for (Opt.setElasticsearchCredentials sett) initCredentials
+  mEsAddCreds <- for (Opt.setElasticsearchAdditionalCredentials sett) initCredentials
 
   pure $!
     Env
@@ -295,7 +296,7 @@ newEnv o = do
         _zauthEnv = zau,
         _digestMD5 = md5,
         _digestSHA256 = sha256,
-        _indexEnv = mkIndexEnv o lgr mgr mtr mEsCreds (Opt.galley o),
+        _indexEnv = mkIndexEnv o lgr mgr mtr mEsCreds mEsAddCreds (Opt.galley o),
         _randomPrekeyLocalLock = prekeyLocalLock,
         _keyPackageLocalLock = kpLock,
         _rabbitmqChannel = rabbitChan,
@@ -314,17 +315,16 @@ newEnv o = do
       pure (Nothing, Just smtp)
     mkEndpoint service = RPC.host (encodeUtf8 (service ^. host)) . RPC.port (service ^. port) $ RPC.empty
 
-mkIndexEnv :: Opts -> Logger -> Manager -> Metrics -> Maybe Credentials -> Endpoint -> IndexEnv
-mkIndexEnv o lgr mgr mtr mCreds galleyEp =
-  let bhe =
-        let e = ES.mkBHEnv (ES.Server (Opt.url (Opt.elasticsearch o))) mgr
-         in maybe e (\creds -> e {ES.bhRequestHook = ES.basicAuthHook (ES.EsUsername creds.username) (ES.EsPassword creds.password)}) mCreds
+mkIndexEnv :: Opts -> Logger -> Manager -> Metrics -> Maybe Credentials -> Maybe Credentials -> Endpoint -> IndexEnv
+mkIndexEnv o lgr mgr mtr mCreds mAddCreds galleyEp =
+  let mkBhe url mcs =
+        let bhe = ES.mkBHEnv (ES.Server url) mgr
+         in maybe bhe (\creds -> bhe {ES.bhRequestHook = ES.basicAuthHook (ES.EsUsername creds.username) (ES.EsPassword creds.password)}) mcs
       lgr' = Log.clone (Just "index.brig") lgr
       mainIndex = ES.IndexName $ Opt.index (Opt.elasticsearch o)
       additionalIndex = ES.IndexName <$> Opt.additionalWriteIndex (Opt.elasticsearch o)
-      -- TODO(leif): add credentials from the options if provided
-      additionalBhe = (\url -> (ES.mkBHEnv (ES.Server url) mgr) {ES.bhRequestHook = ES.basicAuthHook (ES.EsUsername "elastic") (ES.EsPassword "changeme")}) <$> Opt.additionalWriteIndexUrl (Opt.elasticsearch o)
-   in IndexEnv mtr lgr' bhe Nothing mainIndex additionalIndex additionalBhe galleyEp mgr
+      additionalBhe = flip mkBhe mAddCreds <$> Opt.additionalWriteIndexUrl (Opt.elasticsearch o)
+   in IndexEnv mtr lgr' (mkBhe (Opt.url (Opt.elasticsearch o)) mCreds) Nothing mainIndex additionalIndex additionalBhe galleyEp mgr
 
 initZAuth :: Opts -> IO ZAuth.Env
 initZAuth o = do

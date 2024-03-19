@@ -217,6 +217,7 @@ optSettings:
   setOAuthRefreshTokenExpirationTimeSecs: 14515200 # 24 weeks
   setOAuthMaxActiveRefreshTokens: 10
   setElasticsearchCredentials: test/resources/elasticsearch-credentials.yaml
+  setElasticsearchAdditionalCredentials: test/resources/elasticsearch-credentials.yaml
 
 logLevel: Warn
 logNetStrings: false
