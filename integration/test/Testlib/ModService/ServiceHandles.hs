@@ -122,9 +122,7 @@ mkChans hdl = do
   let go = do
         packet <- catchEOF (hGetLine hdl)
         writeList2Chan chn1 packet
-        if EOF `elem` packet
-          then pure ()
-          else go
+        unless (EOF `elem` packet) go
   void $ forkIO go
   pure (chn1, chn2)
 
