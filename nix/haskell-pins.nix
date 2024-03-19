@@ -141,7 +141,7 @@ let
     };
 
     # We forked to add a handler for the ConnectionIsClosed signal
-    # since it was threated as a halting exception instead of a 
+    # since it was threated as a halting exception instead of a
     # clean exit.
     http2 = {
       src = fetchgit {
@@ -285,7 +285,7 @@ let
       version = "5.0.18.4";
       sha256 = "sha256-gIc4hpdUfTS33rZPfzwLfVcXkQaglmsljqViyYdihdk=";
     };
-    # dependency of hoogle 
+    # dependency of hoogle
     safe = {
       version = "0.3.20";
       sha256 = "sha256-PGwjhrRnkH8cLhd7fHTZFd6ts9abp0w5sLlV8ke1yXU=";
