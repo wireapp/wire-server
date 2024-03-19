@@ -492,7 +492,6 @@ executable galley-integration
     , galley
     , galley-types
     , HsOpenSSL
-    , hspec
     , http-api-data
     , http-client
     , http-client-openssl

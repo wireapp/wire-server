@@ -21,6 +21,9 @@ import API.Galley
 import API.GalleyCommon
 import qualified API.GalleyInternal as I
 import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Key as Aeson
+import qualified Data.Aeson.KeyMap as Aeson
+import qualified Data.Set as Set
 import qualified Data.Text as T
 import qualified Data.Vector as Vector
 import Notifications
@@ -692,3 +695,22 @@ testAllFeatures = do
                    ]
                )
         ]
+
+testFeatureConfigConsistency :: HasCallStack => App ()
+testFeatureConfigConsistency = do
+  let domain = OwnDomain
+  (_owner, team, mem : _) <- createTeam domain 2
+  allFeaturesRes <-
+    getAllFeatureConfigsPersonal mem `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      getJSON 200 resp >>= parseObjectKeys
+  allTeamFeaturesRes <-
+    getAllTeamFeatures mem team `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      getJSON 200 resp >>= parseObjectKeys
+  unless (allTeamFeaturesRes `Set.isSubsetOf` allFeaturesRes) $
+    assertFailure (show allTeamFeaturesRes <> " is not a subset of " <> show allFeaturesRes)
+  where
+    parseObjectKeys = \case
+      Aeson.Object hm -> pure . Set.fromList . map Aeson.toText . Aeson.keys $ hm
+      x -> assertFailure ("JSON was not an object, but " <> show x)
