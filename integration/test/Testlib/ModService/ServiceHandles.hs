@@ -1,51 +1,107 @@
 module Testlib.ModService.ServiceHandles
-  ( logHandleToConsole,
-    logChanToConsole,
-    flushChan,
-    mkChans,
-    LineOrEOF (..),
-    ServiceHandle,
+  ( ServiceInstance,
+    startServiceInstance,
+    cleanupService,
+    flushProcessState,
   )
 where
 
 import Control.Concurrent
+import Control.Concurrent.Async (race)
 import qualified Control.Exception as E
 import Control.Monad.Extra
+import Control.Monad.IO.Class
+import Data.Foldable
 import Data.Function
 import Data.Functor
 import Data.Maybe
 import Data.Monoid
 import Data.String
-import qualified GHC.IO.Exception as E (IOErrorType (EOF), ioe_type)
+import System.Directory
 import System.IO
+import qualified System.IO.Error as E
+import System.Posix
 import System.Process
 import Testlib.Printing
+import Testlib.Types
 import Prelude
 
-type ServiceHandle = (Chan LineOrEOF, Chan LineOrEOF, ProcessHandle)
+data ServiceInstance = ServiceInstance
+  { name :: String,
+    domain :: String,
+    processHandle :: ProcessHandle,
+    stdoutChan :: Chan LineOrEOF,
+    stderrChan :: Chan LineOrEOF,
+    cleanupPath :: FilePath
+  }
+
+startServiceInstance :: FilePath -> [String] -> Maybe FilePath -> FilePath -> String -> String -> IO ServiceInstance
+startServiceInstance exe args workingDir pathToCleanup execName execDomain = do
+  (_, Just stdoutHdl, Just stderrHdl, ph) <-
+    createProcess
+      (proc exe args)
+        { cwd = workingDir,
+          std_out = CreatePipe,
+          std_err = CreatePipe
+        }
+  (out1, out2) <- mkChans stdoutHdl
+  (err1, err2) <- mkChans stderrHdl
+  void $ forkIO $ logChanToConsole execName execDomain out1
+  void $ forkIO $ logChanToConsole execName execDomain err1
+  pure $
+    ServiceInstance
+      { name = execName,
+        domain = execDomain,
+        processHandle = ph,
+        stdoutChan = out2,
+        stderrChan = err2,
+        cleanupPath = pathToCleanup
+      }
+
+cleanupService :: ServiceInstance -> App ()
+cleanupService inst = liftIO $ do
+  let ignoreExceptions action = E.catch action $ \(_ :: E.SomeException) -> pure ()
+  ignoreExceptions $ do
+    mPid <- getPid inst.processHandle
+    for_ mPid (signalProcess keyboardSignal)
+    timeout 50000 (waitForProcess inst.processHandle) >>= \case
+      Just _ -> pure ()
+      Nothing -> do
+        for_ mPid (signalProcess killProcess)
+        void $ waitForProcess inst.processHandle
+  whenM (doesFileExist inst.cleanupPath) $ removeFile inst.cleanupPath
+  whenM (doesDirectoryExist inst.cleanupPath) $ removeDirectoryRecursive inst.cleanupPath
+
+timeout :: Int -> IO a -> IO (Maybe a)
+timeout usecs action = either (const Nothing) Just <$> race (threadDelay usecs) action
+
+flushProcessState :: ServiceInstance -> IO String
+flushProcessState serviceInstance = do
+  outStr <- flushChan serviceInstance.name serviceInstance.domain serviceInstance.stdoutChan
+  errStr <- flushChan serviceInstance.name serviceInstance.domain serviceInstance.stderrChan
+  statusStr <- getPid serviceInstance.processHandle <&> maybe "(already closed)" show
+  pure $
+    unlines
+      [ "=== process pid: =======================================",
+        statusStr,
+        "\n\n=== stdout: ============================================",
+        outStr,
+        "\n\n=== stderr: ============================================",
+        errStr
+      ]
 
 data LineOrEOF = Line String | EOF
   deriving (Eq, Show)
 
-logHandleToConsole :: String -> String -> Handle -> IO ()
-logHandleToConsole execName domain hdl = do
-  lns <- catchEOF (hGetLine hdl)
-  logToConsoleWithEOF execName domain `mapM_` (pure <$> lns)
-
 logChanToConsole :: String -> String -> Chan LineOrEOF -> IO ()
-logChanToConsole execName domain chan =
-  logToConsoleWithEOF execName domain (readChan chan)
-
--- | Shared implementation of 'log{Handle,Chan}ToConsole'.
-logToConsoleWithEOF :: String -> String -> IO LineOrEOF -> IO ()
-logToConsoleWithEOF execName domain feed = do
-  let go =
-        feed >>= \case
-          Line line -> do
-            putStrLn (decorateLine execName domain line)
-            go
-          EOF -> pure ()
-  go
+logChanToConsole execName domain chan = go
+  where
+    go =
+      readChan chan >>= \case
+        Line line -> do
+          putStrLn (decorateLine execName domain line)
+          go
+        EOF -> pure ()
 
 -- | Read everything from a channel and return it as a decorated multi-line String.
 flushChan :: String -> String -> Chan LineOrEOF -> IO String
@@ -82,7 +138,7 @@ catchEOF feed =
   where
     handleEOF :: E.IOException -> IO [LineOrEOF]
     handleEOF e =
-      if E.ioe_type e == E.EOF
+      if E.isEOFError e
         then pure [EOF]
         else renderErr e
 

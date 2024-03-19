@@ -18,48 +18,43 @@
 module Test.SelfTest where
 
 import Control.Concurrent
-import Control.Monad.Extra
 import Data.Function
 import Data.Maybe
-import System.Process
-import System.Timeout
 import Testlib.ModService.ServiceHandles
 import Testlib.Prelude
+import UnliftIO.Directory
 
 testServiceHandles :: App ()
 testServiceHandles = do
-  (stdo, stde) <- liftIO runTestServiceHandles
-  stdo
-    `shouldContainString` "[/tmp/tmp-42956614-e50a-11ee-8c4b-6b596d54b36b@local] 0\n\
-                          \[/tmp/tmp-42956614-e50a-11ee-8c4b-6b596d54b36b@local] 1\n\
-                          \[/tmp/tmp-42956614-e50a-11ee-8c4b-6b596d54b36b@local] 2\n\
-                          \[/tmp/tmp-42956614-e50a-11ee-8c4b-6b596d54b36b@local] 3\n\
-                          \[/tmp/tmp-42956614-e50a-11ee-8c4b-6b596d54b36b@local] 4\n\
-                          \[/tmp/tmp-42956614-e50a-11ee-8c4b-6b596d54b36b@local] 5\n\
-                          \[/tmp/tmp-42956614-e50a-11ee-8c4b-6b596d54b36b@local] 6\n\
-                          \[/tmp/tmp-42956614-e50a-11ee-8c4b-6b596d54b36b@local] 7\n"
-  stde `shouldMatch` "[/tmp/tmp-42956614-e50a-11ee-8c4b-6b596d54b36b@local] errmsg\n"
-
-runTestServiceHandles :: IO (String, String)
-runTestServiceHandles = fmap (fromMaybe (error "*** timeout")) . timeout 4_000_000 $ do
+  -- The name was generated with a roll of a fair dice
   let exe = "/tmp/tmp-42956614-e50a-11ee-8c4b-6b596d54b36b"
-      dom = "local"
-      noisy = False
+      execName = "test-exec"
+      dom = "test-domain"
 
-  writeFile exe "#!/bin/bash\necho errmsg >&2\nfor i in `seq 0 100`; do echo $i; sleep 0.1; done\n"
-  _ <- system $ "chmod +x " <> exe
-  (_, Just stdoutHdl, Just stderrHdl, ph) <- createProcess (proc exe []) {std_out = CreatePipe, std_err = CreatePipe}
-
-  (out1, out2) <- mkChans stdoutHdl
-  (err1, err2) <- mkChans stderrHdl
-
-  when noisy $ do
-    void $ forkIO $ logChanToConsole exe dom out1
-    void $ forkIO $ logChanToConsole exe dom err1
-
-  threadDelay 1_000_000
-  terminateProcess ph
-
-  (,)
-    <$> flushChan exe dom out2
-    <*> flushChan exe dom err2
+  writeFile
+    exe
+    "#!/usr/bin/env bash\n\
+    \echo errmsg >&2\n\
+    \for i in `seq 0 100`; do\n\
+    \  echo $i\n\
+    \  sleep 0.1\n\
+    \done\n"
+  perms <- getPermissions exe
+  setPermissions exe (setOwnerExecutable True perms)
+  serviceInstance <- liftIO $ startServiceInstance exe [] Nothing exe execName dom
+  liftIO $ threadDelay 1_000_000
+  cleanupService serviceInstance
+  processState <- liftIO $ flushProcessState serviceInstance
+  processState
+    `shouldContainString` "=== stdout: ============================================\n\
+                          \[test-exec@test-domain] 0\n\
+                          \[test-exec@test-domain] 1\n\
+                          \[test-exec@test-domain] 2\n\
+                          \[test-exec@test-domain] 3\n\
+                          \[test-exec@test-domain] 4\n\
+                          \[test-exec@test-domain] 5\n\
+                          \[test-exec@test-domain] 6\n\
+                          \[test-exec@test-domain] 7\n"
+  processState
+    `shouldContainString` "=== stderr: ============================================\n\
+                          \[/tmp/tmp-42956614-e50a-11ee-8c4b-6b596d54b36b@local] errmsg\n"
