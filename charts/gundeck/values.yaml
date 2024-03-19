@@ -57,7 +57,8 @@ config:
   # the database if notifications have inlined payloads.
   internalPageSize: 100
 
-  # TTL of stored notifications in Seconds.
+  # TTL of stored notifications in Seconds. After this period, notifications
+  # will be deleted and thus not delivered.
   # The default is 28 days.
   notificationTTL: 2419200
 
