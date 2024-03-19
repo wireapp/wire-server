@@ -170,7 +170,7 @@ emptyClientGroupState :: ClientGroupState
 emptyClientGroupState = ClientGroupState Nothing Nothing
 
 allCiphersuites :: [Ciphersuite]
-allCiphersuites = map Ciphersuite ["0x0001", "0xf031"]
+allCiphersuites = map Ciphersuite ["0x0001", "0xf031", "0x0002"]
 
 mkMLSState :: Codensity IO MLSState
 mkMLSState = Codensity $ \k ->
