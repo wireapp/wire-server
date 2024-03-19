@@ -714,3 +714,7 @@ testFeatureConfigConsistency = do
     parseObjectKeys = \case
       Aeson.Object hm -> pure . Set.fromList . map Aeson.toText . Aeson.keys $ hm
       x -> assertFailure ("JSON was not an object, but " <> show x)
+
+testConferenceCalling :: HasCallStack => App ()
+testConferenceCalling = do
+  checkSimpleFlag "conferenceCalling" "conferenceCalling" Enabled
