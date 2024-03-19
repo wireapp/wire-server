@@ -148,6 +148,7 @@ runTests tests mXMLOutput cfg = do
   runCodensity (createGlobalEnv cfg) $ \genv ->
     withAsync displayOutput $ \displayThread -> do
       report <- fmap mconcat $ for tests $ \(qname, _, _, action) -> do
+        writeOutput $ qname <> colored yellow " RUNNING" <> "\n"
         (mErr, tm) <- withTime (runTest genv action)
         case mErr of
           Left err -> do
