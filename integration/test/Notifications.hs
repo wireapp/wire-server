@@ -5,6 +5,7 @@ import API.Gundeck
 import Control.Error (lastMay)
 import Control.Monad.Extra
 import Control.Monad.Reader (asks)
+import Control.Monad.Trans.Maybe (MaybeT (..))
 import Testlib.Prelude
 import UnliftIO (timeout)
 import UnliftIO.Concurrent
@@ -115,6 +116,13 @@ isMemberJoinNotif n = fieldEquals n "payload.0.type" "conversation.member-join"
 isConvLeaveNotif :: MakesValue a => a -> App Bool
 isConvLeaveNotif n = fieldEquals n "payload.0.type" "conversation.member-leave"
 
+isConvLeaveNotifWithLeaver :: (MakesValue user, MakesValue a) => user -> a -> App Bool
+isConvLeaveNotifWithLeaver user n =
+  fieldEquals n "payload.0.type" "conversation.member-leave"
+    &&~ (n %. "payload.0.data.user_ids.0") `isEqual` (user %. "id")
+
+-- fieldEquals n "payload.0.data.user_ids" users
+
 isNotifConv :: (MakesValue conv, MakesValue a, HasCallStack) => conv -> a -> App Bool
 isNotifConv conv n = fieldEquals n "payload.0.qualified_conversation" (objQidObject conv)
 
@@ -144,6 +152,12 @@ isConvAccessUpdateNotif n =
 
 isConvCreateNotif :: MakesValue a => a -> App Bool
 isConvCreateNotif n = fieldEquals n "payload.0.type" "conversation.create"
+
+-- | like 'isConvCreateNotif' but excludes self conversations
+isConvCreateNotifNotSelf :: MakesValue a => a -> App Bool
+isConvCreateNotifNotSelf n =
+  fieldEquals n "payload.0.type" "conversation.create"
+    &&~ do not <$> fieldEquals n "payload.0.data.access" ["private"]
 
 isConvDeleteNotif :: MakesValue a => a -> App Bool
 isConvDeleteNotif n = fieldEquals n "payload.0.type" "conversation.delete"
@@ -177,9 +191,36 @@ isUserConnectionNotif = notifTypeIsEqual "user.connection"
 
 isConnectionNotif :: MakesValue a => String -> a -> App Bool
 isConnectionNotif status n =
-  (&&)
-    <$> nPayload n %. "type" `isEqual` "user.connection"
-    <*> nPayload n %. "connection.status" `isEqual` status
+  nPayload n %. "type" `isEqual` "user.connection"
+    &&~ nPayload n %. "connection.status" `isEqual` status
+
+-- NB:
+-- (&&) <$> (print "hello" *> pure False) <*> fail "bla" === _|_
+-- runMaybeT $  (lift (print "hello") *> MaybeT (pure Nothing)) *> lift (fail "bla") === pure Nothing
+
+-- | make Bool lazy
+liftBool :: Functor f => f Bool -> BoolT f
+liftBool = MaybeT . fmap (bool Nothing (Just ()))
+
+-- | make Bool strict
+unliftBool :: Functor f => BoolT f -> f Bool
+unliftBool = fmap isJust . runMaybeT
+
+-- | lazy (&&)
+(&&~) :: App Bool -> App Bool -> App Bool
+b1 &&~ b2 = unliftBool $ liftBool b1 *> liftBool b2
+
+infixr 3 &&~
+
+-- | lazy (||)
+(||~) :: App Bool -> App Bool -> App Bool
+b1 ||~ b2 = unliftBool $ liftBool b1 <|> liftBool b2
+
+infixr 2 ||~
+
+-- | lazy (&&): (*>)
+--   lazy (||): (<|>)
+type BoolT f = MaybeT f ()
 
 assertLeaveNotification ::
   ( HasCallStack,

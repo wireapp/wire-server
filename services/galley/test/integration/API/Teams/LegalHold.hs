@@ -105,12 +105,6 @@ testsPublic s =
             "teams listed"
             [ test s "happy flow" testInWhitelist,
               testGroup
-                "Legalhold is activated for user A in a group conversation"
-                [ testOnlyIfLhWhitelisted s "All admins are consenting: all non-consenters get removed from conversation" (testNoConsentRemoveFromGroupConv LegalholderIsAdmin),
-                  testOnlyIfLhWhitelisted s "Some admins are consenting: all non-consenters get removed from conversation" (testNoConsentRemoveFromGroupConv BothAreAdmins),
-                  testOnlyIfLhWhitelisted s "No admins are consenting: all LH activated/pending users get removed from conversation" (testNoConsentRemoveFromGroupConv PeerIsAdmin)
-                ],
-              testGroup
                 "Users are invited to a group conversation."
                 [ testGroup
                     "At least one invited user has activated legalhold. At least one admin of the group has given consent."
@@ -370,72 +364,6 @@ testInWhitelist = do
           assertEqual "approving should change status to Enabled" UserLegalHoldEnabled userStatus
           assertEqual "last_prekey should be set when LH is pending" (Just (head someLastPrekeys)) lastPrekey'
           assertEqual "client.id should be set when LH is pending" (Just someClientId) clientId'
-
-data GroupConvAdmin
-  = LegalholderIsAdmin
-  | PeerIsAdmin
-  | BothAreAdmins
-  deriving (Show, Eq, Ord, Bounded, Enum)
-
-testNoConsentRemoveFromGroupConv :: GroupConvAdmin -> HasCallStack => TestM ()
-testNoConsentRemoveFromGroupConv whoIsAdmin = do
-  (legalholder :: UserId, tid) <- createBindingTeam
-  qLegalHolder <- Qualified legalholder <$> viewFederationDomain
-  (peer :: UserId, teamPeer) <- createBindingTeam
-  qPeer <- Qualified peer <$> viewFederationDomain
-  galley <- viewGalley
-
-  let enableLHForLegalholder :: HasCallStack => TestM ()
-      enableLHForLegalholder = do
-        requestLegalHoldDevice legalholder legalholder tid !!! testResponse 201 Nothing
-        approveLegalHoldDevice (Just defPassword) legalholder legalholder tid !!! testResponse 200 Nothing
-        UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped' galley legalholder tid
-        liftIO $ assertEqual "approving should change status" UserLegalHoldEnabled userStatus
-
-  cannon <- view tsCannon
-
-  putLHWhitelistTeam tid !!! const 200 === statusCode
-  WS.bracketR2 cannon legalholder peer $ \(legalholderWs, peerWs) -> withDummyTestServiceForTeam legalholder tid $ \_chan -> do
-    postConnection legalholder peer !!! const 201 === statusCode
-    void $ putConnection peer legalholder Conn.Accepted <!! const 200 === statusCode
-
-    convId <- do
-      let (inviter, tidInviter, invitee, inviteeRole) =
-            case whoIsAdmin of
-              LegalholderIsAdmin -> (qLegalHolder, tid, qPeer, roleNameWireMember)
-              PeerIsAdmin -> (qPeer, teamPeer, qLegalHolder, roleNameWireMember)
-              BothAreAdmins -> (qLegalHolder, tid, qPeer, roleNameWireAdmin)
-
-      convId <- createTeamConvWithRole (qUnqualified inviter) tidInviter [qUnqualified invitee] (Just "group chat with external peer") Nothing Nothing inviteeRole
-      mapM_ (assertConvMemberWithRole roleNameWireAdmin convId) ([inviter] <> [invitee | whoIsAdmin == BothAreAdmins])
-      mapM_ (assertConvMemberWithRole roleNameWireMember convId) [invitee | whoIsAdmin /= BothAreAdmins]
-      pure convId
-    qconvId <- Qualified convId <$> viewFederationDomain
-
-    checkConvCreateEvent convId legalholderWs
-    checkConvCreateEvent convId peerWs
-
-    assertConvMember qLegalHolder convId
-    assertConvMember qPeer convId
-
-    void enableLHForLegalholder
-
-    case whoIsAdmin of
-      LegalholderIsAdmin -> do
-        assertConvMember qLegalHolder convId
-        assertNotConvMember peer convId
-        checkConvMemberLeaveEvent qconvId qPeer legalholderWs
-        checkConvMemberLeaveEvent qconvId qPeer peerWs
-      PeerIsAdmin -> do
-        assertConvMember qPeer convId
-        assertNotConvMember legalholder convId
-        checkConvMemberLeaveEvent qconvId qLegalHolder legalholderWs
-        checkConvMemberLeaveEvent qconvId qLegalHolder peerWs
-      BothAreAdmins -> do
-        assertConvMember qLegalHolder convId
-        assertNotConvMember peer convId
-        checkConvMemberLeaveEvent qconvId qPeer legalholderWs
-        checkConvMemberLeaveEvent qconvId qPeer peerWs
 
 data GroupConvInvCase = InviteOnlyConsenters | InviteAlsoNonConsenters
   deriving (Show, Eq, Ord, Bounded, Enum)
