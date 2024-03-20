@@ -80,13 +80,13 @@ setTeamFeatureLockStatus ::
   domain ->
   team ->
   String ->
-  String ->
+  LockStatus ->
   App Response
 setTeamFeatureLockStatus domain team featureName lockStatus = do
   tid <- asString team
   req <-
     baseRequest domain Galley Unversioned $
-      joinHttpPath ["i", "teams", tid, "features", featureName, lockStatus]
+      joinHttpPath ["i", "teams", tid, "features", featureName, show lockStatus]
   submit "PUT" req
 
 -- | An alias for 'patchTeamFeatureStatus'
