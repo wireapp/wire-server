@@ -587,13 +587,12 @@ team-settings:
     IS_SELF_HOSTED: "true"
 ```
 
-Second, also set the option under the `account-pages` section:
+Second, also set the option for `account-pages` helm chart:
 
 ```yaml
-# NOTE: Only relevant if you want account-pages
 account-pages:
-  envVars:
-    IS_SELF_HOSTED: "true"
+envVars:
+  IS_SELF_HOSTED: "true"
 ```
 
 (auth-cookie-config)=

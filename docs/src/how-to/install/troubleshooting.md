@@ -7,22 +7,21 @@ If you have installed wire-server, but the web application page in your browser 
 In the file that you use as override when running `helm install/update -f <override values.yaml>` (using the webapp as an example):
 
 ```yaml
-webapp:
-   # ... other settings...
-   envVars:
-     # ... other environment variables ...
-     CSP_EXTRA_CONNECT_SRC: "https://*.example.com, wss://*.example.com"
-     CSP_EXTRA_IMG_SRC: "https://*.example.com"
-     CSP_EXTRA_SCRIPT_SRC: "https://*.example.com"
-     CSP_EXTRA_DEFAULT_SRC: "https://*.example.com"
-     CSP_EXTRA_FONT_SRC: "https://*.example.com"
-     CSP_EXTRA_FRAME_SRC: "https://*.example.com"
-     CSP_EXTRA_MANIFEST_SRC: "https://*.example.com"
-     CSP_EXTRA_OBJECT_SRC: "https://*.example.com"
-     CSP_EXTRA_MEDIA_SRC: "https://*.example.com"
-     CSP_EXTRA_PREFETCH_SRC: "https://*.example.com"
-     CSP_EXTRA_STYLE_SRC: "https://*.example.com"
-     CSP_EXTRA_WORKER_SRC: "https://*.example.com"
+# ... other settings...
+envVars:
+  # ... other environment variables ...
+  CSP_EXTRA_CONNECT_SRC: "https://*.example.com, wss://*.example.com"
+  CSP_EXTRA_IMG_SRC: "https://*.example.com"
+  CSP_EXTRA_SCRIPT_SRC: "https://*.example.com"
+  CSP_EXTRA_DEFAULT_SRC: "https://*.example.com"
+  CSP_EXTRA_FONT_SRC: "https://*.example.com"
+  CSP_EXTRA_FRAME_SRC: "https://*.example.com"
+  CSP_EXTRA_MANIFEST_SRC: "https://*.example.com"
+  CSP_EXTRA_OBJECT_SRC: "https://*.example.com"
+  CSP_EXTRA_MEDIA_SRC: "https://*.example.com"
+  CSP_EXTRA_PREFETCH_SRC: "https://*.example.com"
+  CSP_EXTRA_STYLE_SRC: "https://*.example.com"
+  CSP_EXTRA_WORKER_SRC: "https://*.example.com"
 ```
 
 For more info, you can have a look at respective charts values files, i.e.:
