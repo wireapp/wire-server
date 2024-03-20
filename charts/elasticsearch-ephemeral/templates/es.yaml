@@ -32,6 +32,8 @@ spec:
           value: "single-node"
         - name: "action.auto_create_index"
           value: ".watches,.triggered_watches,.watcher-history-*,pod-*,node-*"
+        - name: "xpack.security.enabled"
+          value: "true"
         ports:
         - containerPort: 9200
           name: http
