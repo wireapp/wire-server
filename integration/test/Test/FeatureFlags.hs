@@ -889,3 +889,13 @@ testGuestLinksInternal =
   where
     domain = OwnDomain
     featureName = "conversationGuestLinks"
+
+testGuestLinksPublic :: HasCallStack => App ()
+testGuestLinksPublic =
+  genericGuestLinks
+    domain
+    (getTeamFeature featureName)
+    (setTeamFeature featureName)
+  where
+    domain = OwnDomain
+    featureName = "conversationGuestLinks"

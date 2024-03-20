@@ -58,8 +58,7 @@ tests :: IO TestSetup -> TestTree
 tests s =
   testGroup
     "Feature Config API and Team Features API"
-    [ test s "ConversationGuestLinks - public API" testGuestLinksPublic,
-      test s "ConversationGuestLinks - lock status" $ testSimpleFlagWithLockStatus @GuestLinksConfig FeatureStatusEnabled LockStatusUnlocked,
+    [ test s "ConversationGuestLinks - lock status" $ testSimpleFlagWithLockStatus @GuestLinksConfig FeatureStatusEnabled LockStatusUnlocked,
       test s "SndFactorPasswordChallenge - lock status" $ testSimpleFlagWithLockStatus @SndFactorPasswordChallengeConfig FeatureStatusDisabled LockStatusLocked,
       test s "SearchVisibilityInbound - internal API" testSearchVisibilityInbound,
       test s "SearchVisibilityInbound - internal multi team API" testFeatureNoConfigMultiSearchVisibilityInbound,
@@ -606,51 +605,6 @@ testSimpleFlagWithLockStatus defaultStatus defaultLockStatus = do
   setFlagWithGalley defaultStatus
   setLockStatus defaultLockStatus
   getFlags defaultStatus defaultLockStatus
-
-testGuestLinksPublic :: TestM ()
-testGuestLinksPublic = do
-  galley <- viewGalley
-  testGuestLinks
-    (getTeamFeatureFlagWithGalley @GuestLinksConfig galley)
-    (putTeamFeatureFlagWithGalley @GuestLinksConfig galley)
-    (Util.setLockStatusInternal @GuestLinksConfig galley)
-
-testGuestLinks ::
-  (UserId -> TeamId -> TestM ResponseLBS) ->
-  (UserId -> TeamId -> WithStatusNoLock GuestLinksConfig -> TestM ResponseLBS) ->
-  (TeamId -> LockStatus -> TestM ResponseLBS) ->
-  TestM ()
-testGuestLinks getStatus putStatus setLockStatusInternal = do
-  (owner, tid, []) <- createBindingTeamWithNMembers 0
-  let checkGet :: HasCallStack => FeatureStatus -> LockStatus -> TestM ()
-      checkGet status lock =
-        getStatus owner tid !!! do
-          statusCode === const 200
-          responseJsonEither === const (Right (withStatus status lock GuestLinksConfig FeatureTTLUnlimited))
-
-      checkSet :: HasCallStack => FeatureStatus -> Int -> TestM ()
-      checkSet status expectedStatusCode =
-        putStatus owner tid (WithStatusNoLock status GuestLinksConfig FeatureTTLUnlimited) !!! statusCode === const expectedStatusCode
-
-      checkSetLockStatusInternal :: HasCallStack => LockStatus -> TestM ()
-      checkSetLockStatusInternal lockStatus =
-        setLockStatusInternal tid lockStatus !!! statusCode === const 200
-
-  checkGet FeatureStatusEnabled LockStatusUnlocked
-  checkSet FeatureStatusDisabled 200
-  checkGet FeatureStatusDisabled LockStatusUnlocked
-  checkSet FeatureStatusEnabled 200
-  checkGet FeatureStatusEnabled LockStatusUnlocked
-  checkSet FeatureStatusDisabled 200
-  checkGet FeatureStatusDisabled LockStatusUnlocked
-  -- when locks status is locked the team default feature status should be returned
-  -- and the team feature status can not be changed
-  checkSetLockStatusInternal LockStatusLocked
-  checkGet FeatureStatusEnabled LockStatusLocked
-  checkSet FeatureStatusDisabled 409
-  -- when lock status is unlocked again the previously set feature status is restored
-  checkSetLockStatusInternal LockStatusUnlocked
-  checkGet FeatureStatusDisabled LockStatusUnlocked
 
 testSearchVisibilityInbound :: TestM ()
 testSearchVisibilityInbound = do
