@@ -87,7 +87,7 @@ testsPublic s =
                 "Users are invited to a group conversation."
                 [ testGroup
                     "The group conversation contains legalhold activated users."
-                    [ testOnlyIfLhWhitelisted s "If any user in the invite has not given consent then the invite fails" testNoConsentCannotBeInvited ]
+                    [testOnlyIfLhWhitelisted s "If any user in the invite has not given consent then the invite fails" testNoConsentCannotBeInvited]
                 ],
               test s "bench hack" testBenchHack
             ]
