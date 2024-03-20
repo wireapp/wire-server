@@ -140,17 +140,6 @@ let
       };
     };
 
-    # We forked to add a handler for the ConnectionIsClosed signal
-    # since it was threated as a halting exception instead of a 
-    # clean exit.
-    http2 = {
-      src = fetchgit {
-        url = "https://github.com/wireapp/http2";
-        rev = "9cad270779bbcd9e6297b9ff05a4a7eb83bca069";
-        sha256 = "sha256-c+PzfZZUxo/tE8oH1ZmKwbUMAq34kGD1OoBWorNLG38=";
-      };
-    };
-
     # PR: https://gitlab.com/twittner/cql/-/merge_requests/11
     cql = {
       src = fetchgit {
@@ -243,37 +232,24 @@ let
         hash = "sha256-E35PVxi/4iJFfWts3td52KKZKQt4dj9KFP3SvWG77Cc=";
       };
     };
-
     # PR: https://github.com/yesodweb/wai/pull/958
     warp = {
       src = fetchgit {
         url = "https://github.com/wireapp/wai";
-        rev = "a48f8f31ad42f26057d7b96d70f897c1a3f69a3c";
-        sha256 = "sha256-fFkiKLlViiV+F1wdQXak3RI454kgWvyRsoDz6g4c5Ks=";
+        rev = "bedd6a835f6d98128880465c30e8115fa986e3f6";
+        sha256 = "sha256-0r/d9YwcKZIZd10EhL2TP+W14Wjk0/S8Q4pVvZuZLaY=";
       };
       packages = {
         "warp" = "warp";
-        "warp-tls" = "warp-tls";
-        "wai-app-static" = "wai-app-static";
-        "wai" = "wai";
-        "wai-extra" = "wai-extra";
-        "wai-websockets" = "wai-websockets";
       };
     };
   };
-
   hackagePins = {
     # Major re-write upstream, we should get rid of this dependency rather than
     # adapt to upstream, this will go away when completing servantification.
     wai-route = {
       version = "0.4.0";
       sha256 = "sha256-DSMckKIeVE/buSMg8Mq+mUm1bYPYB7veA11Ns7vTBbc=";
-    };
-
-    # http2 now depends on this, might be removable after next nixpkgs bump
-    network-control = {
-      version = "0.0.2";
-      sha256 = "sha256-0EvnVu7cktMmSRVk9Ufm0oE4JLQrKLSRYpFpgcJguY0=";
     };
 
     # these are not yet in nixpkgs
@@ -285,7 +261,7 @@ let
       version = "5.0.18.4";
       sha256 = "sha256-gIc4hpdUfTS33rZPfzwLfVcXkQaglmsljqViyYdihdk=";
     };
-    # dependency of hoogle 
+    # dependency of hoogle
     safe = {
       version = "0.3.20";
       sha256 = "sha256-PGwjhrRnkH8cLhd7fHTZFd6ts9abp0w5sLlV8ke1yXU=";

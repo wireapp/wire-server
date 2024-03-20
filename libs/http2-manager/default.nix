@@ -19,7 +19,7 @@
 , stm
 , streaming-commons
 , text
-, utf8-string
+, time-manager
 }:
 mkDerivation {
   pname = "http2-manager";
@@ -36,7 +36,7 @@ mkDerivation {
     stm
     streaming-commons
     text
-    utf8-string
+    time-manager
   ];
   testHaskellDepends = [
     async
@@ -51,6 +51,7 @@ mkDerivation {
     random
     stm
     streaming-commons
+    time-manager
   ];
   testToolDepends = [ hspec-discover ];
   description = "Managed connection pool for HTTP2";
