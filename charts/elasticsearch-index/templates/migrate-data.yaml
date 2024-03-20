@@ -21,6 +21,9 @@ spec:
         chart: "{{.Chart.Name}}-{{.Chart.Version}}"
     spec:
       restartPolicy: OnFailure
+        - name: elasticsearch-index-secrets
+          secret:
+            secretName: elasticsearch-index
       containers:
         # Creates index in elasticsearch only when it doesn't exist.
         # Does nothing if the index exists.
@@ -47,13 +50,18 @@ spec:
             - --tls-ca-certificate-file
             - /certs/{{- (include "tlsSecretRef" .Values | fromYaml).key }}
             {{- end }}
-          {{- if eq (include "useCassandraTLS" .Values) "true" }}
           volumeMounts:
+            - name: "elasticsearch-index-secrets"
+              mountPath: "/etc/wire/elasticsearch-index/secrets"
+          {{- if eq (include "useCassandraTLS" .Values) "true" }}
             - name: elasticsearch-index-migrate-cassandra-client-ca
               mountPath: "/certs"
           {{- end }}
-      {{- if eq (include "useCassandraTLS" .Values) "true" }}
       volumes:
+        - name: elasticsearch-index-secrets
+          secret:
+            secretName: elasticsearch-index
+      {{- if eq (include "useCassandraTLS" .Values) "true" }}
         - name: elasticsearch-index-migrate-cassandra-client-ca
           secret:
             secretName: {{ (include "tlsSecretRef" .Values | fromYaml).name }}
