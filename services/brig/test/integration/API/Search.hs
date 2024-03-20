@@ -770,7 +770,7 @@ runBH :: MonadIO m => Opt.Opts -> ES.BH m a -> m a
 runBH opts action = do
   let esURL = opts ^. Opt.elasticsearchL . Opt.urlL
   mgr <- liftIO $ HTTP.newManager HTTP.defaultManagerSettings
-  let bEnv = (ES.mkBHEnv (ES.Server esURL) mgr) {ES.bhRequestHook = ES.basicAuthHook (ES.EsUsername "elastic") (ES.EsPassword "changeme")}
+  let bEnv = mkBHEnv esURL mgr
   ES.runBH bEnv action
 
 -- | This was copied from at Brig.User.Search.Index at commit 3242aa26

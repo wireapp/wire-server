@@ -17,6 +17,7 @@
 
 module Index.Create where
 
+import API.Search.Util (mkBHEnv)
 import Brig.Index.Eval qualified as IndexEval
 import Brig.Index.Options qualified as IndexOpts
 import Brig.Options (Opts (galley))
@@ -65,7 +66,7 @@ testCreateIndexWhenNotPresent brigOpts = do
       devNullLogger <- Log.create (Log.Path "/dev/null")
       IndexEval.runCommand devNullLogger (IndexOpts.Create esSettings (galley brigOpts))
       mgr <- liftIO $ HTTP.newManager HTTP.defaultManagerSettings
-      let bEnv = (ES.mkBHEnv (ES.Server esURL) mgr) {ES.bhRequestHook = ES.basicAuthHook (ES.EsUsername "elastic") (ES.EsPassword "changeme")}
+      let bEnv = mkBHEnv esURL mgr
       ES.runBH bEnv $ do
         indexExists <- ES.indexExists indexName
         lift $
@@ -87,7 +88,7 @@ testCreateIndexWhenPresent brigOpts = do
     Right esURI -> do
       indexName <- ES.IndexName . Text.pack <$> replicateM 20 (Random.randomRIO ('a', 'z'))
       mgr <- liftIO $ HTTP.newManager HTTP.defaultManagerSettings
-      let bEnv = (ES.mkBHEnv (ES.Server esURL) mgr) {ES.bhRequestHook = ES.basicAuthHook (ES.EsUsername "elastic") (ES.EsPassword "changeme")}
+      let bEnv = mkBHEnv esURL mgr
       ES.runBH bEnv $ do
         _ <- ES.createIndex (ES.IndexSettings (ES.ShardCount 1) (ES.ReplicaCount 1)) indexName
         indexExists <- ES.indexExists indexName
