@@ -1,0 +1,1 @@
+The "addClient" internal endpoint of galley has been changed. This can cause temporary failures during upgrades if brig attempts to use this endpoint on a different version of galley.

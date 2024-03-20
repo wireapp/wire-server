@@ -1,5 +1,7 @@
 {
-    "capabilities": [],
+    "capabilities": {
+        "capabilities": []
+    },
     "cookie": "0",
     "id": "2",
     "label": "",

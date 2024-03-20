@@ -1,5 +1,7 @@
 {
-    "capabilities": [],
+    "capabilities": {
+        "capabilities": []
+    },
     "class": "phone",
     "cookie": "\u000c^󷋏",
     "id": "2",
