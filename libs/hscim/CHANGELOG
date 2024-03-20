@@ -1,3 +1,6 @@
+0.4.0:
+  - update dependencies
+
 0.3.6:
   - fix serialization: json attributes in scim are case-insensitive
 
