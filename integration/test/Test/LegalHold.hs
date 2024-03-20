@@ -834,7 +834,7 @@ testLHNoConsentRemoveFromGroup admin =
             getConversation bob qConvId >>= assertLabel 403 "access-denied"
 
 testLHHappyFlow :: App ()
-testLHHappyFlow = startDynamicBackends [mempty] \[dom] ->  do 
+testLHHappyFlow = startDynamicBackends [mempty] \[dom] -> do
   (alice, tid, [bob]) <- createTeam dom 2
   let statusShouldBe :: String -> App ()
       statusShouldBe status =
@@ -855,7 +855,7 @@ testLHHappyFlow = startDynamicBackends [mempty] \[dom] ->  do
     legalholdWhitelistTeam tid alice >>= assertStatus 200
     statusShouldBe "disabled"
 
-    -- memmbers cannot request LH devices 
+    -- memmbers cannot request LH devices
     requestLegalHoldDevice tid bob alice >>= assertLabel 403 "operation-denied"
 
     -- owners can; bob should now have a pending request
@@ -864,7 +864,7 @@ testLHHappyFlow = startDynamicBackends [mempty] \[dom] ->  do
 
     -- owner cannot approve on behalf on user under legalhold
     approveLegalHoldDevice' tid alice bob defPassword >>= assertLabel 403 "access-denied"
-    
+
     -- user can approve the request, however
     approveLegalHoldDevice tid bob defPassword `bindResponse` \resp -> do
       resp.status `shouldMatchInt` 200
@@ -872,18 +872,19 @@ testLHHappyFlow = startDynamicBackends [mempty] \[dom] ->  do
     legalholdUserStatus tid alice bob `bindResponse` \resp -> do
       resp.status `shouldMatchInt` 200
       resp.json %. "status" `shouldMatch` "enabled"
-      _ <- resp.json `lookupField` "client.id" 
-        >>= assertJust "client id is present" 
+      _ <-
+        resp.json `lookupField` "client.id"
+          >>= assertJust "client id is present"
       resp.json %. "last_prekey" `shouldMatch` lpk
 
 testLHGetStatus :: App ()
-testLHGetStatus = startDynamicBackends [mempty] \[dom] ->  do 
+testLHGetStatus = startDynamicBackends [mempty] \[dom] -> do
   (alice, tid, [bob]) <- createTeam dom 2
   (charlie, _tidCharlie, [debora]) <- createTeam dom 2
   emil <- randomUser dom def
 
   let check :: HasCallStack => (MakesValue getter, MakesValue target) => getter -> target -> String -> App ()
-      check getter target status = do 
+      check getter target status = do
         profile <- getUser getter target >>= getJSON 200
         pStatus <- profile %. "legalhold_status" & asString
         status `shouldMatch` pStatus
@@ -900,4 +901,3 @@ testLHGetStatus = startDynamicBackends [mempty] \[dom] ->  do
     check debora bob "pending"
     approveLegalHoldDevice tid bob defPassword >>= assertStatus 200
     check debora bob "enabled"
-
