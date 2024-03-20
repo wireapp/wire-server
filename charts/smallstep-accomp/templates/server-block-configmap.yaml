@@ -26,6 +26,11 @@ data:
         proxy_set_header Host $backend;
         proxy_hide_header Content-Type;
         add_header Content-Type application/pkix-crl;
+        # Prevent caching on client side
+        add_header Cache-Control 'no-cache, no-store, must-revalidate';
+        add_header Pragma 'no-cache';
+        add_header Expires '0';
+
         proxy_pass "https://$backend/crl";
       }
 
