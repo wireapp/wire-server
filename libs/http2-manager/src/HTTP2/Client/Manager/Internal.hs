@@ -15,7 +15,6 @@ import Control.Monad
 import Control.Monad.IO.Class
 import Data.ByteString
 import qualified Data.ByteString as BS
-import Data.ByteString.UTF8 as UTF8
 import Data.IORef
 import Data.Map
 import qualified Data.Map as Map
@@ -24,11 +23,13 @@ import Data.Streaming.Network
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import Data.Unique
+import Foreign.Marshal.Alloc (mallocBytes)
 import GHC.IO.Exception
 import qualified Network.HTTP2.Client as HTTP2
 import qualified Network.Socket as NS
 import qualified OpenSSL.Session as SSL
 import System.IO.Error
+import qualified System.TimeManager
 import System.Timeout
 import Prelude
 
@@ -290,9 +291,9 @@ startPersistentHTTP2Connection ::
 startPersistentHTTP2Connection ctx (tlsEnabled, hostname, port) cl removeTrailingDot tcpConnectTimeout sendReqMVar = do
   liveReqs <- newIORef mempty
   let clientConfig =
-        HTTP2.defaultClientConfig
+        HTTP2.ClientConfig
           { HTTP2.scheme = if tlsEnabled then "https" else "http",
-            HTTP2.authority = UTF8.toString hostname,
+            HTTP2.authority = hostname,
             HTTP2.cacheLimit = cl
           }
       -- Sends error to requests which show up too late, i.e. after the
@@ -332,7 +333,7 @@ startPersistentHTTP2Connection ctx (tlsEnabled, hostname, port) cl removeTrailin
     bracket connectTCPWithTimeout NS.close $ \sock -> do
       bracket (mkTransport sock transportConfig) cleanupTransport $ \transport ->
         bracket (allocHTTP2Config transport) HTTP2.freeSimpleConfig $ \http2Cfg -> do
-          let runAction = HTTP2.run clientConfig http2Cfg $ \sendReq _aux -> do
+          let runAction = HTTP2.run clientConfig http2Cfg $ \sendReq -> do
                 handleRequests liveReqs sendReq
           -- Any request threads still hanging about after 'runAction' finishes
           -- are canceled with 'ConnectionAlreadyClosed'.
@@ -396,7 +397,7 @@ type SendReqFn = HTTP2.Request -> (HTTP2.Response -> IO ()) -> IO ()
 
 data Transport
   = InsecureTransport NS.Socket
-  | SecureTransport SSL.SSL NS.Socket
+  | SecureTransport SSL.SSL
 
 data TLSParams = TLSParams
   { context :: SSL.SSLContext,
@@ -413,11 +414,11 @@ mkTransport sock (Just TLSParams {..}) = do
   SSL.setTlsextHostName ssl hostnameStr
   SSL.enableHostnameValidation ssl hostnameStr
   SSL.connect ssl
-  pure $ SecureTransport ssl sock
+  pure $ SecureTransport ssl
 
 cleanupTransport :: Transport -> IO ()
 cleanupTransport (InsecureTransport _) = pure ()
-cleanupTransport (SecureTransport ssl _) = SSL.shutdown ssl SSL.Unidirectional
+cleanupTransport (SecureTransport ssl) = SSL.shutdown ssl SSL.Unidirectional
 
 data ConnectionAlreadyClosed = ConnectionAlreadyClosed
   deriving (Show)
@@ -429,29 +430,33 @@ bufsize = 4096
 
 allocHTTP2Config :: Transport -> IO HTTP2.Config
 allocHTTP2Config (InsecureTransport sock) = HTTP2.allocSimpleConfig sock bufsize
-allocHTTP2Config (SecureTransport ssl sock) = do
-  config <- HTTP2.allocSimpleConfig sock bufsize
-  pure $
-    config
-      { HTTP2.confSendAll = SSL.write ssl,
-        HTTP2.confReadN = readData mempty
+allocHTTP2Config (SecureTransport ssl) = do
+  buf <- mallocBytes bufsize
+  timmgr <- System.TimeManager.initialize $ 30 * 1000000
+  -- Sometimes the frame header says that the payload length is 0. Reading 0
+  -- bytes multiple times seems to be causing errors in openssl. I cannot figure
+  -- out why. The previous implementation didn't try to read from the socket
+  -- when trying to read 0 bytes, so special handling for 0 maintains that
+  -- behaviour.
+  let readData acc 0 = pure acc
+      readData acc n = do
+        -- Handling SSL.ConnectionAbruptlyTerminated as a stream end
+        -- (some sites terminate SSL connection right after returning the data).
+        chunk <- SSL.read ssl n `catch` \(_ :: SSL.ConnectionAbruptlyTerminated) -> pure mempty
+        let chunkLen = BS.length chunk
+        if
+            | chunkLen == 0 || chunkLen == n ->
+                pure (acc <> chunk)
+            | chunkLen > n ->
+                error "openssl: SSL.read returned more bytes than asked for, this is probably a bug"
+            | otherwise ->
+                readData (acc <> chunk) (n - chunkLen)
+  pure
+    HTTP2.Config
+      { HTTP2.confWriteBuffer = buf,
+        HTTP2.confBufferSize = bufsize,
+        HTTP2.confSendAll = SSL.write ssl,
+        HTTP2.confReadN = readData mempty,
+        HTTP2.confPositionReadMaker = HTTP2.defaultPositionReadMaker,
+        HTTP2.confTimeoutManager = timmgr
       }
-  where
-    -- Sometimes the frame header says that the payload length is 0. Reading 0
-    -- bytes multiple times seems to be causing errors in openssl. I cannot figure
-    -- out why. The previous implementation didn't try to read from the socket
-    -- when trying to read 0 bytes, so special handling for 0 maintains that
-    -- behaviour.
-    readData acc 0 = pure acc
-    readData acc n = do
-      -- Handling SSL.ConnectionAbruptlyTerminated as a stream end
-      -- (some sites terminate SSL connection right after returning the data).
-      chunk <- SSL.read ssl n `catch` \(_ :: SSL.ConnectionAbruptlyTerminated) -> pure mempty
-      let chunkLen = BS.length chunk
-      if
-          | chunkLen == 0 || chunkLen == n ->
-              pure (acc <> chunk)
-          | chunkLen > n ->
-              error "openssl: SSL.read returned more bytes than asked for, this is probably a bug"
-          | otherwise ->
-              readData (acc <> chunk) (n - chunkLen)
