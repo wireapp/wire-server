@@ -853,3 +853,25 @@ accessible to services (and not the private key.)
 
 The corresponding Cassandra options are described in Cassandra's documentation:
 [client_encryption_options](https://cassandra.apache.org/doc/stable/cassandra/configuration/cass_yaml_file.html#client_encryption_options)
+
+## Configure Elasticsearch basic authentication
+
+When the wire backend is configured to work against a custom Elasticsearch instance, it may be desired to enable basic authentication for the internal communication between the wire backend and the ES instance. To do so the Elasticsearch credentials can be set in wire-server's secrets as follows:
+
+```yaml
+brig:
+  secrets:
+    elasticsearch:
+      username: elastic
+      password: changeme
+```
+
+In some cases an additional Elasticsearch instance is needed (e.g. for index migrations). To configure credentials for the additional ES instance add the secret as follows:
+
+```yaml
+brig:
+  secrets:
+    elasticsearchAdditional:
+      username: elastic
+      password: changeme
+```
