@@ -424,7 +424,7 @@ checkSimpleFlagWithLockStatus path name featStatus lockStatus = do
   assertFlag featStatus lockStatus
   -- unlock feature if it is locked
   when (lockStatus == "locked") . void $
-    I.setTeamFeatureLockStatusInternal domain team path "unlocked" >>= getBody 200
+    I.setTeamFeatureLockStatus domain team path "unlocked" >>= getBody 200
 
   let opposite = oppositeStatus featStatus
   withWebSocket mem $ \ws -> do
@@ -718,3 +718,117 @@ testFeatureConfigConsistency = do
 testConferenceCalling :: HasCallStack => App ()
 testConferenceCalling = do
   checkSimpleFlag "conferenceCalling" "conferenceCalling" Enabled
+
+testSelfDeletingMessages :: HasCallStack => App ()
+testSelfDeletingMessages = do
+  defLockStatus <- do
+    v <-
+      readServiceConfig Galley
+        & (%. "settings.featureFlags.selfDeletingMessages.defaults.lockStatus")
+    case fromJSON v of
+      Error e ->
+        assertFailure $ "The lock status of self deleting messages cannot be parsed: " <> show e
+      Success r -> pure r
+  do
+    nonMem <- randomUser domain def
+    result <- extractTeamFeatureFromAllPersonal featureName nonMem
+    result `shouldMatch` settingWithLockStatus Enabled 0 defLockStatus
+
+  (owner, team, []) <- createTeam domain 1
+  -- test that the default lock status comes from `galley.yaml`.
+  -- use this to change `galley.integration.yaml` locally and manually test that conf file
+  -- parsing works as expected.
+  checkGet owner team Enabled 0 defLockStatus
+
+  case defLockStatus of
+    LockStatusLocked -> do
+      checkSet team Disabled 0 409
+    LockStatusUnlocked -> do
+      checkSet team Disabled 0 200
+      checkGet owner team Disabled 0 LockStatusUnlocked
+      checkSet team Enabled 0 200
+      checkGet owner team Enabled 0 LockStatusUnlocked
+
+  -- now don't worry about what's in the config, write something to cassandra, and test with that.
+  checkSetLockStatus team LockStatusLocked
+  checkGet owner team Enabled 0 LockStatusLocked
+  checkSet team Disabled 0 409
+  checkGet owner team Enabled 0 LockStatusLocked
+  checkSet team Enabled 30 409
+  checkGet owner team Enabled 0 LockStatusLocked
+  checkSetLockStatus team LockStatusUnlocked
+  checkGet owner team Enabled 0 LockStatusUnlocked
+  checkSet team Disabled 0 200
+  checkGet owner team Disabled 0 LockStatusUnlocked
+  checkSet team Enabled 30 200
+  checkGet owner team Enabled 30 LockStatusUnlocked
+  checkSet team Disabled 30 200
+  checkGet owner team Disabled 30 LockStatusUnlocked
+  checkSetLockStatus team LockStatusLocked
+  checkGet owner team Enabled 0 LockStatusLocked
+  checkSet team Enabled 50 409
+  checkSetLockStatus team LockStatusUnlocked
+  checkGet owner team Disabled 30 LockStatusUnlocked
+  where
+    domain = OwnDomain
+    featureName = "selfDeletingMessages"
+    -- personal users
+    settingWithoutLockStatus ::
+      HasCallStack =>
+      FeatureStatus ->
+      Int32 ->
+      WithStatusNoLock SelfDeletingMessagesConfig
+    settingWithoutLockStatus stat tout =
+      WithStatusNoLock
+        stat
+        (SelfDeletingMessagesConfig tout)
+        FeatureTTLUnlimited
+
+    settingWithLockStatus ::
+      HasCallStack =>
+      FeatureStatus ->
+      Int32 ->
+      LockStatus ->
+      WithStatus SelfDeletingMessagesConfig
+    settingWithLockStatus stat tout lockStatus =
+      WithStatus
+        stat
+        lockStatus
+        (SelfDeletingMessagesConfig tout)
+        FeatureTTLUnlimited
+
+    -- internal, public (/team/:tid/features), and team-agnostic (/feature-configs).
+    checkGet ::
+      (HasCallStack, MakesValue user, MakesValue team) =>
+      user ->
+      team ->
+      FeatureStatus ->
+      Int32 ->
+      LockStatus ->
+      App ()
+    checkGet user team stat tout lockStatus = do
+      let expected = toJSON $ settingWithLockStatus stat tout lockStatus
+      teamStr <- asString team
+      forM_
+        [ I.getTeamFeature domain featureName teamStr,
+          getTeamFeature featureName user team
+        ]
+        $ \r -> r `bindResponse` \resp -> resp.json `shouldMatch` expected
+      result <- extractTeamFeatureFromAllPersonal featureName user
+      result `shouldMatch` expected
+
+    checkSet ::
+      (HasCallStack, MakesValue team) =>
+      team ->
+      FeatureStatus ->
+      Int32 ->
+      Int ->
+      App ()
+    checkSet team stat tout expectedHttpCode = do
+      let st = settingWithoutLockStatus stat tout
+      I.putTeamFeatureStatusRaw domain team featureName st `bindResponse` \resp ->
+        resp.status `shouldMatchInt` expectedHttpCode
+
+    checkSetLockStatus :: (HasCallStack, MakesValue team) => team -> LockStatus -> App ()
+    checkSetLockStatus team status =
+      void $ I.setTeamFeatureLockStatus domain team featureName (show status) >>= getBody 200

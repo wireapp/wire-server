@@ -34,8 +34,13 @@ oppositeStatus Disabled = Enabled
 oppositeStatus Enabled = Disabled
 
 data LockStatus = LockStatusLocked | LockStatusUnlocked
-  deriving stock (Eq, Show)
+  deriving stock (Eq)
   deriving (ToJSON, FromJSON) via (Schema.Schema LockStatus)
+
+instance Show LockStatus where
+  show = \case
+    LockStatusLocked -> "locked"
+    LockStatusUnlocked -> "unlocked"
 
 instance Schema.ToSchema LockStatus where
   schema =
@@ -101,9 +106,44 @@ instance ToJSON cfg => ToJSON (WithStatusNoLock cfg) where
       ] -- NOTE(md): The "config" part should probably be absent in case of a trivial config
         <> ["config" .= toJSON cfg]
 
+data WithStatus (cfg :: Type) = WithStatus
+  { wsbStatus :: FeatureStatus,
+    wsbLockStatus :: LockStatus,
+    wsbConfig :: cfg,
+    wsbTTL :: FeatureTTL
+  }
+
+deriving instance (Eq cfg) => Eq (WithStatus cfg)
+
+deriving instance (Show cfg) => Show (WithStatus cfg)
+
+deriving via (Schema.Schema (WithStatus cfg)) instance (Schema.ToSchema (WithStatus cfg)) => ToJSON (WithStatus cfg)
+
+instance (Schema.ToSchema cfg, IsFeatureConfig cfg) => Schema.ToSchema (WithStatus cfg) where
+  schema =
+    Schema.object sn $
+      WithStatus
+        <$> wsbStatus
+        Schema..= Schema.field (T.pack "status") Schema.schema
+        <*> wsbLockStatus
+        Schema..= Schema.field (T.pack "lockStatus") Schema.schema
+        <*> wsbConfig
+        Schema..= objectSchema @cfg
+        <*> wsbTTL
+        Schema..= (fromMaybe FeatureTTLUnlimited <$> Schema.optField (T.pack "ttl") Schema.schema)
+    where
+      inner = Schema.schema @cfg
+      sn = fromMaybe (T.pack "") (Schema.getName (Schema.schemaDoc inner)) <> (T.pack ".WithStatus")
 
 --------------------------------------------------------------------------------
 -- Feature configurations
+
+class IsFeatureConfig cfg where
+  objectSchema ::
+    -- | Should be "pure MyFeatureConfig" if the feature doesn't have config,
+    -- which results in a trivial empty schema and the "config" field being
+    -- omitted/ignored in the JSON encoder / parser.
+    Schema.ObjectSchema Schema.SwaggerDoc cfg
 
 data ClassifiedDomainsConfig = ClassifiedDomainsConfig
   { classifiedDomainsDomains :: [T.Text]
@@ -115,5 +155,18 @@ instance ToJSON ClassifiedDomainsConfig where
     Aeson.object $
       ["domains" .= Aeson.Array (Vector.fromList (Aeson.String <$> ds))]
 
+newtype SelfDeletingMessagesConfig = SelfDeletingMessagesConfig
+  { sdmEnforcedTimeoutSeconds :: Int32
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (FromJSON, ToJSON) via (Schema.Schema SelfDeletingMessagesConfig)
 
+instance Schema.ToSchema SelfDeletingMessagesConfig where
   schema =
+    Schema.object (T.pack "SelfDeletingMessagesConfig") $
+      SelfDeletingMessagesConfig
+        <$> sdmEnforcedTimeoutSeconds
+        Schema..= Schema.field (T.pack "enforcedTimeoutSeconds") Schema.schema
+
+instance IsFeatureConfig SelfDeletingMessagesConfig where
+  objectSchema = Schema.field (T.pack "config") Schema.schema

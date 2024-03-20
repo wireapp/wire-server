@@ -75,14 +75,14 @@ failToPatchTeamFeatureStatus domain team featureName status = do
   res <- submit "PATCH" $ addJSONObject ["status" .= show status] req
   res.status `shouldMatchRange` (400, 499)
 
-setTeamFeatureLockStatusInternal ::
+setTeamFeatureLockStatus ::
   (HasCallStack, MakesValue domain, MakesValue team) =>
   domain ->
   team ->
   String ->
   String ->
   App Response
-setTeamFeatureLockStatusInternal domain team featureName lockStatus = do
+setTeamFeatureLockStatus domain team featureName lockStatus = do
   tid <- asString team
   req <-
     baseRequest domain Galley Unversioned $
@@ -99,6 +99,26 @@ setTeamFeatureStatus ::
   App ()
 setTeamFeatureStatus = patchTeamFeatureStatus
 
+putTeamFeatureStatusRaw ::
+  forall cfg domain team.
+  ( HasCallStack,
+    MakesValue domain,
+    MakesValue team,
+    ToJSON cfg
+  ) =>
+  domain ->
+  team ->
+  String ->
+  WithStatusNoLock cfg ->
+  App Response
+putTeamFeatureStatusRaw domain team featureName status = do
+  tid <- asString team
+  body <- make status
+  req <-
+    baseRequest domain Galley Unversioned $
+      joinHttpPath ["i", "teams", tid, "features", featureName]
+  submit "PUT" $ addJSON body req
+
 putTeamFeatureStatus ::
   forall cfg domain team.
   ( HasCallStack,
@@ -111,14 +131,10 @@ putTeamFeatureStatus ::
   String ->
   WithStatusNoLock cfg ->
   App ()
-putTeamFeatureStatus domain team featureName status = do
-  tid <- asString team
-  body <- make status
-  req <-
-    baseRequest domain Galley Unversioned $
-      joinHttpPath ["i", "teams", tid, "features", featureName]
-  res <- submit "PUT" $ addJSON body req
-  res.status `shouldMatchInt` 200
+putTeamFeatureStatus domain team featureName status =
+  void $
+    putTeamFeatureStatusRaw domain team featureName status
+      >>= getBody 200
 
 failToPutTeamFeatureStatus ::
   ( HasCallStack,
