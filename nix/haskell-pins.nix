@@ -140,6 +140,17 @@ let
       };
     };
 
+    # We forked to add a handler for the ConnectionIsClosed signal
+    # since it was threated as a halting exception instead of a 
+    # clean exit.
+    http2 = {
+      src = fetchgit {
+        url = "https://github.com/wireapp/http2";
+        rev = "0de6a08e211e13c3d7c7e93fc2467d4589862eda";
+        sha256 = "sha256-qUd0O9EgPzh2E6aLtE73Bo83qGH10uRd7NsuwdUs+ls=";
+      };
+    };
+
     # PR: https://gitlab.com/twittner/cql/-/merge_requests/11
     cql = {
       src = fetchgit {
