@@ -21,9 +21,6 @@ spec:
         chart: "{{.Chart.Name}}-{{.Chart.Version}}"
     spec:
       restartPolicy: OnFailure
-        - name: elasticsearch-index-secrets
-          secret:
-            secretName: elasticsearch-index
       containers:
         # Creates index in elasticsearch only when it doesn't exist.
         # Does nothing if the index exists.
@@ -34,6 +31,10 @@ spec:
             - migrate-data
             - --elasticsearch-server
             - "http://{{ required "missing elasticsearch-index.elasticsearch.host!" .Values.elasticsearch.host }}:{{ .Values.elasticsearch.port }}"
+            {{- if hasKey .Values.secrets "elasticsearch" }}
+            - --elasticsearch-credentials
+            - "/etc/wire/elasticsearch-index/secrets/elasticsearch-credentials.yaml"
+            {{- end }}
             - --elasticsearch-index
             - "{{ or (.Values.elasticsearch.additionalWriteIndex) (.Values.elasticsearch.index) }}"
             - --cassandra-host
