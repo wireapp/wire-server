@@ -152,11 +152,11 @@ brig:
       username: {{ .Values.rabbitmqUsername }}
       password: {{ .Values.rabbitmqPassword }}
     elasticsearch:
-      username: elastic
-      password: changeme
+      username: "elastic"
+      password: "changeme"
     elasticsearchAdditional:
-      username: elastic
-      password: changeme
+      username: "elastic"
+      password: "changeme"
   tests:
     enableFederationTests: true
     {{- if .Values.uploadXml }}
