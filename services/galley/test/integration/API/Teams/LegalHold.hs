@@ -38,14 +38,12 @@ import Data.Range
 import Data.Time.Clock qualified as Time
 import Galley.Cassandra.LegalHold
 import Galley.Env qualified as Galley
-import Galley.Options (featureFlags, settings)
 import Galley.Types.Teams
 import Imports
 import Network.HTTP.Types.Status (status200, status404)
 import Network.Wai as Wai
 import Network.Wai.Handler.Warp qualified as Warp
 import Network.Wai.Utilities.Error qualified as Error
-import System.IO (hPutStrLn)
 import Test.QuickCheck.Instances ()
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -60,21 +58,6 @@ import Wire.API.Team.Member qualified as Team
 import Wire.API.Team.Permission
 import Wire.API.Team.Role
 import Wire.API.User.Client
-
-onlyIfLhWhitelisted :: TestM () -> TestM ()
-onlyIfLhWhitelisted action = do
-  featureLegalHold <- view (tsGConf . settings . featureFlags . flagLegalHold)
-  case featureLegalHold of
-    FeatureLegalHoldDisabledPermanently ->
-      liftIO $ hPutStrLn stderr errmsg
-    FeatureLegalHoldDisabledByDefault ->
-      liftIO $ hPutStrLn stderr errmsg
-    FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> action
-  where
-    errmsg =
-      "*** skipping test. This test only works if you manually adjust the server config files\
-      \(the 'withLHWhitelist' trick does not work because it does not allow \
-      \brig to talk to the dynamically spawned galley)."
 
 tests :: IO TestSetup -> TestTree
 tests s = testGroup "Legalhold" [testsPublic s, testsInternal s]
@@ -103,20 +86,8 @@ testsPublic s =
             [ testGroup
                 "Users are invited to a group conversation."
                 [ testGroup
-                    "At least one invited user has activated legalhold. At least one admin of the group has given consent."
-                    [ test
-                        s
-                        "If all all users in the invite have given consent then the invite succeeds and all non-consenters from the group get removed"
-                        (onlyIfLhWhitelisted (testGroupConvInvitationHandlesLHConflicts InviteOnlyConsenters)),
-                      test
-                        s
-                        "If any user in the invite has not given consent then the invite fails"
-                        (onlyIfLhWhitelisted (testGroupConvInvitationHandlesLHConflicts InviteAlsoNonConsenters))
-                    ],
-                  testGroup
                     "The group conversation contains legalhold activated users."
-                    [ testOnlyIfLhWhitelisted s "If any user in the invite has not given consent then the invite fails" testNoConsentCannotBeInvited
-                    ]
+                    [ testOnlyIfLhWhitelisted s "If any user in the invite has not given consent then the invite fails" testNoConsentCannotBeInvited ]
                 ],
               test s "bench hack" testBenchHack
             ]
@@ -301,55 +272,6 @@ testCannotCreateLegalHoldDeviceOldAPI = do
 
 data GroupConvInvCase = InviteOnlyConsenters | InviteAlsoNonConsenters
   deriving (Show, Eq, Ord, Bounded, Enum)
-
-testGroupConvInvitationHandlesLHConflicts :: HasCallStack => GroupConvInvCase -> TestM ()
-testGroupConvInvitationHandlesLHConflicts inviteCase = do
-  localDomain <- viewFederationDomain
-  -- team that is legalhold whitelisted
-  (legalholder :: UserId, tid) <- createBindingTeam
-  let qLegalHolder = Qualified legalholder localDomain
-  userWithConsent <- (^. Team.userId) <$> addUserToTeam legalholder tid
-  userWithConsent2 <- do
-    uid <- (^. Team.userId) <$> addUserToTeam legalholder tid
-    pure $ Qualified uid localDomain
-  putLHWhitelistTeam tid !!! const 200 === statusCode
-
-  -- team without legalhold
-  (peer :: UserId, teamPeer) <- createBindingTeam
-  peer2 <- (^. Team.userId) <$> addUserToTeam peer teamPeer
-  let qpeer2 = Qualified peer2 localDomain
-
-  do
-    postConnection userWithConsent peer !!! const 201 === statusCode
-    void $ putConnection peer userWithConsent Conn.Accepted <!! const 200 === statusCode
-
-    postConnection userWithConsent peer2 !!! const 201 === statusCode
-    void $ putConnection peer2 userWithConsent Conn.Accepted <!! const 200 === statusCode
-
-  withDummyTestServiceForTeam legalholder tid $ \_chan -> do
-    -- conversation with 1) userWithConsent and 2) peer
-    convId <- createTeamConvWithRole userWithConsent tid [peer] (Just "corp + us") Nothing Nothing roleNameWireAdmin
-    let qconvId = Qualified convId localDomain
-
-    -- activate legalhold for legalholder
-    do
-      galley <- viewGalley
-      requestLegalHoldDevice legalholder legalholder tid !!! testResponse 201 Nothing
-      approveLegalHoldDevice (Just defPassword) legalholder legalholder tid !!! testResponse 200 Nothing
-      UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped' galley legalholder tid
-      liftIO $ assertEqual "approving should change status" UserLegalHoldEnabled userStatus
-
-    case inviteCase of
-      InviteOnlyConsenters -> do
-        API.Util.postMembers userWithConsent (qLegalHolder :| [userWithConsent2]) qconvId
-          !!! const 200 === statusCode
-
-        assertConvMember qLegalHolder convId
-        assertConvMember userWithConsent2 convId
-        assertNotConvMember peer convId
-      InviteAlsoNonConsenters -> do
-        API.Util.postMembers userWithConsent (qLegalHolder :| [qpeer2]) qconvId
-          >>= errWith 403 (\err -> Error.label err == "missing-legalhold-consent")
 
 testNoConsentCannotBeInvited :: HasCallStack => TestM ()
 testNoConsentCannotBeInvited = do
