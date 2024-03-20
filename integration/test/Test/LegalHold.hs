@@ -875,3 +875,29 @@ testLHHappyFlow = startDynamicBackends [mempty] \[dom] ->  do
       _ <- resp.json `lookupField` "client.id" 
         >>= assertJust "client id is present" 
       resp.json %. "last_prekey" `shouldMatch` lpk
+
+testLHGetStatus :: App ()
+testLHGetStatus = startDynamicBackends [mempty] \[dom] ->  do 
+  (alice, tid, [bob]) <- createTeam dom 2
+  (charlie, _tidCharlie, [debora]) <- createTeam dom 2
+  emil <- randomUser dom def
+
+  let check :: HasCallStack => (MakesValue getter, MakesValue target) => getter -> target -> String -> App ()
+      check getter target status = do 
+        profile <- getUser getter target >>= getJSON 200
+        pStatus <- profile %. "legalhold_status" & asString
+        status `shouldMatch` pStatus
+
+  for_ [alice, bob, charlie, debora, emil] \u -> do
+    check u bob "no_consent"
+    check u emil "no_consent"
+  legalholdWhitelistTeam tid alice >>= assertStatus 200
+  withMockServer lhMockApp \lhPort _chan -> do
+    postLegalHoldSettings tid alice (mkLegalHoldSettings lhPort) >>= assertStatus 201
+    for_ [alice, bob, charlie, debora, emil] \u -> do
+      check u bob "disabled"
+    requestLegalHoldDevice tid alice bob >>= assertStatus 201
+    check debora bob "pending"
+    approveLegalHoldDevice tid bob defPassword >>= assertStatus 200
+    check debora bob "enabled"
+
