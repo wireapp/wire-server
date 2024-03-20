@@ -14,18 +14,36 @@ import Testlib.Prelude
 
 data FeatureStatus = Disabled | Enabled
   deriving (Eq, Generic)
+  deriving (ToJSON) via (Schema.Schema FeatureStatus)
+
+instance Schema.ToSchema FeatureStatus where
+  schema =
+    Schema.enum @T.Text (T.pack "FeatureStatus") $
+      mconcat
+        [ Schema.element (T.pack "enabled") Enabled,
+          Schema.element (T.pack "disabled") Disabled
+        ]
 
 instance Show FeatureStatus where
   show = \case
     Disabled -> "disabled"
     Enabled -> "enabled"
 
-instance ToJSON FeatureStatus where
-  toJSON = Aeson.String . T.pack . show
-
 oppositeStatus :: FeatureStatus -> FeatureStatus
 oppositeStatus Disabled = Enabled
 oppositeStatus Enabled = Disabled
+
+data LockStatus = LockStatusLocked | LockStatusUnlocked
+  deriving stock (Eq, Show)
+  deriving (ToJSON, FromJSON) via (Schema.Schema LockStatus)
+
+instance Schema.ToSchema LockStatus where
+  schema =
+    Schema.enum @T.Text (T.pack "LockStatus") $
+      mconcat
+        [ Schema.element (T.pack "locked") LockStatusLocked,
+          Schema.element (T.pack "unlocked") LockStatusUnlocked
+        ]
 
 -- Using Word to avoid dealing with negative numbers.
 -- Ideally we would also not support zero.
@@ -97,14 +115,5 @@ instance ToJSON ClassifiedDomainsConfig where
     Aeson.object $
       ["domains" .= Aeson.Array (Vector.fromList (Aeson.String <$> ds))]
 
-data LockStatus = LockStatusLocked | LockStatusUnlocked
-  deriving stock (Eq, Show)
-  deriving (ToJSON, FromJSON) via (Schema.Schema LockStatus)
 
-instance Schema.ToSchema LockStatus where
   schema =
-    Schema.enum @T.Text (T.pack "LockStatus") $
-      mconcat
-        [ Schema.element (T.pack "locked") LockStatusLocked,
-          Schema.element (T.pack "unlocked") LockStatusUnlocked
-        ]
