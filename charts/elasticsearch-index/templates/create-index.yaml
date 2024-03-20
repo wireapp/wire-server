@@ -35,6 +35,10 @@ spec:
             - create
             - --elasticsearch-server
             - "http://{{ required "missing elasticsearch-index.elasticsearch.host!" .Values.elasticsearch.host }}:{{ .Values.elasticsearch.port }}"
+            {{- if hasKey .Values.secrets "elasticsearch" }}
+            - --elasticsearch-credentials
+            - "/etc/wire/elasticsearch-index/secrets/elasticsearch-credentials.yaml"
+            {{- end }}
             - --elasticsearch-index
             - "{{ or (.Values.elasticsearch.additionalWriteIndex) (.Values.elasticsearch.index) }}"
             - --elasticsearch-shards=5
@@ -56,5 +60,9 @@ spec:
             - update-mapping
             - --elasticsearch-server
             - "http://{{ required "missing elasticsearch-index.elasticsearch.host!" .Values.elasticsearch.host }}:{{ .Values.elasticsearch.port }}"
+            {{- if hasKey .Values.secrets "elasticsearch" }}
+            - --elasticsearch-credentials
+            - "/etc/wire/elasticsearch-index/secrets/elasticsearch-credentials.yaml"
+            {{- end }}
             - --elasticsearch-index
             - "{{ or (.Values.elasticsearch.additionalWriteIndex) (.Values.elasticsearch.index) }}"
