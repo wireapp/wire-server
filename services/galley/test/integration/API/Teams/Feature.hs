@@ -59,7 +59,6 @@ tests s =
   testGroup
     "Feature Config API and Team Features API"
     [ test s "ConversationGuestLinks - public API" testGuestLinksPublic,
-      test s "ConversationGuestLinks - internal API" testGuestLinksInternal,
       test s "ConversationGuestLinks - lock status" $ testSimpleFlagWithLockStatus @GuestLinksConfig FeatureStatusEnabled LockStatusUnlocked,
       test s "SndFactorPasswordChallenge - lock status" $ testSimpleFlagWithLockStatus @SndFactorPasswordChallengeConfig FeatureStatusDisabled LockStatusLocked,
       test s "SearchVisibilityInbound - internal API" testSearchVisibilityInbound,
@@ -607,14 +606,6 @@ testSimpleFlagWithLockStatus defaultStatus defaultLockStatus = do
   setFlagWithGalley defaultStatus
   setLockStatus defaultLockStatus
   getFlags defaultStatus defaultLockStatus
-
-testGuestLinksInternal :: TestM ()
-testGuestLinksInternal = do
-  galley <- viewGalley
-  testGuestLinks
-    (const $ getTeamFeatureFlagInternal @GuestLinksConfig)
-    (const $ putTeamFeatureFlagInternal @GuestLinksConfig galley)
-    (Util.setLockStatusInternal @GuestLinksConfig galley)
 
 testGuestLinksPublic :: TestM ()
 testGuestLinksPublic = do

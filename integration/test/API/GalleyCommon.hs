@@ -170,3 +170,13 @@ instance Schema.ToSchema SelfDeletingMessagesConfig where
 
 instance IsFeatureConfig SelfDeletingMessagesConfig where
   objectSchema = Schema.field (T.pack "config") Schema.schema
+
+data GuestLinksConfig = GuestLinksConfig
+  deriving stock (Show, Eq)
+  deriving (ToJSON) via (Schema.Schema GuestLinksConfig)
+
+instance IsFeatureConfig GuestLinksConfig where
+  objectSchema = pure GuestLinksConfig
+
+instance Schema.ToSchema GuestLinksConfig where
+  schema = Schema.object (T.pack "GuestLinksConfig") objectSchema

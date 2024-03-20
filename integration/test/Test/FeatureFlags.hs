@@ -832,3 +832,60 @@ testSelfDeletingMessages = do
     checkSetLockStatus :: (HasCallStack, MakesValue team) => team -> LockStatus -> App ()
     checkSetLockStatus team status =
       void $ I.setTeamFeatureLockStatus domain team featureName status >>= getBody 200
+
+genericGuestLinks ::
+  HasCallStack =>
+  Domain ->
+  (Value -> String -> App Response) ->
+  (Value -> String -> WithStatusNoLock GuestLinksConfig -> App Response) ->
+  App ()
+genericGuestLinks domain getStatus putStatus = do
+  (owner, team, []) <- createTeam domain 1
+  checkGet owner team Enabled LockStatusUnlocked
+  checkSet owner team Disabled 200
+  checkGet owner team Disabled LockStatusUnlocked
+  checkSet owner team Enabled 200
+  checkGet owner team Enabled LockStatusUnlocked
+  checkSet owner team Disabled 200
+  checkGet owner team Disabled LockStatusUnlocked
+  -- when locks status is locked the team default feature status should be returned
+  -- and the team feature status can not be changed
+  checkSetLockStatusInternal team LockStatusLocked
+  checkGet owner team Enabled LockStatusLocked
+  checkSet owner team Disabled 409
+  -- when lock status is unlocked again the previously set feature status is restored
+  checkSetLockStatusInternal team LockStatusUnlocked
+  checkGet owner team Disabled LockStatusUnlocked
+  where
+    featureName = "conversationGuestLinks"
+    checkGet ::
+      HasCallStack =>
+      Value ->
+      String ->
+      FeatureStatus ->
+      LockStatus ->
+      App ()
+    checkGet owner team status lock = do
+      getStatus owner team `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 200
+        resp.json `shouldMatch` (WithStatus status lock GuestLinksConfig FeatureTTLUnlimited)
+
+    checkSet :: HasCallStack => Value -> String -> FeatureStatus -> Int -> App ()
+    checkSet owner team status httpStatusCode =
+      void $
+        putStatus owner team (WithStatusNoLock status GuestLinksConfig FeatureTTLUnlimited)
+          >>= getBody httpStatusCode
+
+    checkSetLockStatusInternal :: HasCallStack => String -> LockStatus -> App ()
+    checkSetLockStatusInternal team lockStatus =
+      void $ I.setTeamFeatureLockStatus domain team featureName lockStatus >>= getBody 200
+
+testGuestLinksInternal :: HasCallStack => App ()
+testGuestLinksInternal =
+  genericGuestLinks
+    domain
+    (\_user team -> I.getTeamFeature domain featureName team)
+    (\_user team ws -> I.putTeamFeatureStatusRaw domain team featureName ws)
+  where
+    domain = OwnDomain
+    featureName = "conversationGuestLinks"
