@@ -44,7 +44,7 @@ expectedStatus WithStatusNoLock {..} lock =
    in Aeson.object $
         [ "lockStatus" .= lock,
           "status" .= show status,
-          "ttl" .= if ttl == 0 then "unlimited" else show ttl
+          "ttl" .= toJSON ttl
         ]
           <> ( guard (cfg /= Aeson.Array Vector.empty)
                  $> "config"
@@ -129,7 +129,7 @@ testLimitedEventFanout :: HasCallStack => App ()
 testLimitedEventFanout = do
   let featureName = "limitedEventFanout"
       cfg = ()
-      ws s = WithStatusNoLock s cfg 0
+      ws s = WithStatusNoLock s cfg FeatureTTLUnlimited
   (_alice, team, _) <- createTeam OwnDomain 1
   assertFeatureInternal (ws Disabled) featureName OwnDomain team
   I.setTeamFeatureStatus OwnDomain team featureName Enabled
@@ -139,7 +139,7 @@ testSSOPut :: HasCallStack => FeatureStatus -> App ()
 testSSOPut = genericTestSSO putInternal
   where
     putInternal domain team status = do
-      let st = WithStatusNoLock status () 0
+      let st = WithStatusNoLock status () FeatureTTLUnlimited
       I.putTeamFeatureStatus domain team "sso" st
 
 testSSOPatch :: HasCallStack => FeatureStatus -> App ()
@@ -181,7 +181,7 @@ genericTestSSO setter status = withModifiedBackend cnf $ \domain -> do
               & setField setting (show status <> "-by-default")
         }
     cfg = ()
-    ws s = WithStatusNoLock s cfg 0
+    ws s = WithStatusNoLock s cfg FeatureTTLUnlimited
 
 legalholdAssertions ::
   (HasCallStack, MakesValue user) =>
@@ -200,7 +200,7 @@ legalholdAssertions domain team mem = do
   where
     featureName = "legalhold"
     cfg = ()
-    ws = WithStatusNoLock Disabled cfg 0
+    ws = WithStatusNoLock Disabled cfg FeatureTTLUnlimited
 
 legalholdDisabledByDefault ::
   HasCallStack =>
@@ -223,13 +223,13 @@ legalholdDisabledByDefault setter = withModifiedBackend cnf $ \domain -> do
     setting = "settings.featureFlags." <> featureName
     featureName = "legalhold"
     cfg = ()
-    ws = WithStatusNoLock Enabled cfg 0
+    ws = WithStatusNoLock Enabled cfg FeatureTTLUnlimited
 
 testLegalholdDisabledByDefaultPut :: HasCallStack => App ()
 testLegalholdDisabledByDefaultPut = legalholdDisabledByDefault putInternal
   where
     putInternal domain team status = do
-      let st = WithStatusNoLock status () 0
+      let st = WithStatusNoLock status () FeatureTTLUnlimited
       I.putTeamFeatureStatus domain team "legalhold" st
 
 testLegalholdDisabledByDefaultPatch :: HasCallStack => App ()
@@ -269,7 +269,7 @@ testLegalholdDisabledPermanentlyPut =
   legalholdFailToEnable putInternal "disabled-permanently"
   where
     putInternal domain team status = do
-      let st = WithStatusNoLock status () 0
+      let st = WithStatusNoLock status () FeatureTTLUnlimited
       I.failToPutTeamFeatureStatus domain team "legalhold" st
 
 testLegalholdWhitelistImplicitConsentPatch :: HasCallStack => App ()
@@ -284,7 +284,7 @@ testLegalholdWhitelistImplicitConsentPut =
   legalholdFailToEnable putInternal "whitelist-teams-and-implicit-consent"
   where
     putInternal domain team status = do
-      let st = WithStatusNoLock status () 0
+      let st = WithStatusNoLock status () FeatureTTLUnlimited
       I.failToPutTeamFeatureStatus domain team "legalhold" st
 
 genericSearchVisibility ::
@@ -324,7 +324,7 @@ genericSearchVisibility setter status = withModifiedBackend cnf $ \domain -> do
     featureName = "teamSearchVisibility"
     featurePath = "searchVisibility"
     cfg = ()
-    ws s = WithStatusNoLock s cfg 0
+    ws s = WithStatusNoLock s cfg FeatureTTLUnlimited
 
 testSearchVisibilityDisabledPatch :: HasCallStack => App ()
 testSearchVisibilityDisabledPatch =
@@ -340,7 +340,7 @@ testSearchVisibilityDisabledPut =
   where
     featurePath = "searchVisibility"
     putInternal domain team status = do
-      let st = WithStatusNoLock status () 0
+      let st = WithStatusNoLock status () FeatureTTLUnlimited
       I.putTeamFeatureStatus domain team featurePath st
 
 testSearchVisibilityEnabledPatch :: HasCallStack => App ()
@@ -357,7 +357,7 @@ testSearchVisibilityEnabledPut =
   where
     featurePath = "searchVisibility"
     putInternal domain team status = do
-      let st = WithStatusNoLock status () 0
+      let st = WithStatusNoLock status () FeatureTTLUnlimited
       I.putTeamFeatureStatus domain team featurePath st
 
 checkSimpleFlag ::
@@ -370,7 +370,7 @@ checkSimpleFlag path name defStatus = do
   let domain = OwnDomain
       opposite = oppositeStatus defStatus
       cfg = ()
-      withStatus s = WithStatusNoLock s cfg 0
+      withStatus s = WithStatusNoLock s cfg FeatureTTLUnlimited
   (owner, team, mem : _) <- createTeam domain 2
   do
     nonMem <- randomUser domain def
@@ -410,7 +410,7 @@ checkSimpleFlagWithLockStatus ::
 checkSimpleFlagWithLockStatus path name featStatus lockStatus = do
   let domain = OwnDomain
       cfg = ()
-      withStatus s = WithStatusNoLock s cfg 0
+      withStatus s = WithStatusNoLock s cfg FeatureTTLUnlimited
   (owner, team, mem : _) <- createTeam domain 2
   let assertFlag st lock = do
         assertFeatureLock lock (withStatus st) path owner team
@@ -428,7 +428,7 @@ checkSimpleFlagWithLockStatus path name featStatus lockStatus = do
 
   let opposite = oppositeStatus featStatus
   withWebSocket mem $ \ws -> do
-    let st = WithStatusNoLock opposite () 0
+    let st = WithStatusNoLock opposite () FeatureTTLUnlimited
     void $ setTeamFeature path owner team st >>= getBody 200
     let expStatus =
           Aeson.object
@@ -466,7 +466,7 @@ genericClassifiedDomains status config = withModifiedBackend cnf $ \domain -> do
   getClassifiedDomainsInternal mem team status
   getClassifiedDomainsFeatureConfig mem status
   where
-    ws s = WithStatusNoLock s config 0
+    ws s = WithStatusNoLock s config FeatureTTLUnlimited
     featureName = "classifiedDomains"
     setting = "settings.featureFlags." <> featureName
     cnf =
@@ -515,7 +515,7 @@ testAllFeatures = do
   -- This block catches potential errors in the logic that reverts to default if there is a distinction made between
   -- 1. there is no row for a team_id in galley.team_features
   -- 2. there is a row for team_id in galley.team_features but the feature has a no entry (null value)
-  let st = WithStatusNoLock Enabled () 0
+  let st = WithStatusNoLock Enabled () FeatureTTLUnlimited
    in -- this sets the guest links config to its default value thereby creating a row for the team in galley.team_features
       I.putTeamFeatureStatus domain team "conversationGuestLinks" st
   getAllTeamFeatures mem team `bindResponse` \resp -> do

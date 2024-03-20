@@ -44,6 +44,7 @@
 , mtl
 , network
 , network-uri
+, openapi3
 , optparse-applicative
 , pem
 , process
@@ -130,6 +131,7 @@ mkDerivation {
     mtl
     network
     network-uri
+    openapi3
     optparse-applicative
     pem
     process

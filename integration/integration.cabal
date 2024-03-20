@@ -204,6 +204,7 @@ library
     , mtl
     , network
     , network-uri
+    , openapi3
     , optparse-applicative
     , pem
     , process
