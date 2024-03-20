@@ -30,3 +30,5 @@ podSecurityContext:
   runAsNonRoot: true
   seccompProfile:
     type: RuntimeDefault
+
+secrets: {}
