@@ -92,7 +92,6 @@ tests s =
       testOnlyIfLhEnabled s "POST /clients" testCannotCreateLegalHoldDeviceOldAPI,
       testOnlyIfLhEnabled s "GET /teams/{tid}/members" testGetTeamMembersIncludesLHStatus,
       testOnlyIfLhEnabled s "POST /register - cannot add team members above fanout limit" testAddTeamUserTooLargeWithLegalhold,
-      testOnlyIfLhEnabled s "GET legalhold status in user profile" testGetLegalholdStatus,
       {- TODO:
           conversations/{cnv}/otr/messages - possibly show the legal hold device (if missing) as a different device type (or show that on device level, depending on how client teams prefer)
           GET /team/{tid}/members - show legal hold status of all members
