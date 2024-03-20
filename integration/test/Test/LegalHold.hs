@@ -901,3 +901,24 @@ testLHGetStatus = startDynamicBackends [mempty] \[dom] -> do
     check debora bob "pending"
     approveLegalHoldDevice tid bob defPassword >>= assertStatus 200
     check debora bob "enabled"
+
+testLHCannotCreateGroupWithUsersInConflict :: App ()
+testLHCannotCreateGroupWithUsersInConflict = startDynamicBackends [mempty] \[dom] -> do
+  (alice, tidAlice, [bob]) <- createTeam dom 2
+  (charlie, _tidCharlie, [debora]) <- createTeam dom 2
+  legalholdWhitelistTeam tidAlice alice >>= assertStatus 200
+  connectTwoUsers bob charlie
+  connectTwoUsers bob debora
+  withMockServer lhMockApp \lhPort _chan -> do
+    postLegalHoldSettings tidAlice alice (mkLegalHoldSettings lhPort) >>= assertStatus 201
+    postConversation bob defProteus {qualifiedUsers = [charlie, alice], newUsersRole = "wire_member"}
+      >>= assertStatus 201
+
+    requestLegalHoldDevice alice alice tidAlice >>= assertStatus 201
+    approveLegalHoldDevice tidAlice alice defPassword >>= assertStatus 200
+    legalholdUserStatus tidAlice alice alice `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      resp.json %. "status" `shouldMatch` "enabled"
+
+    postConversation bob defProteus {qualifiedUsers = [debora, alice], newUsersRole = "wire_member"}
+      >>= assertLabel 403 "missing-legalhold-consent"

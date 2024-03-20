@@ -52,7 +52,7 @@ import Test.Tasty.HUnit
 import TestHelpers
 import TestSetup
 import Wire.API.Connection qualified as Conn
-import Wire.API.Conversation.Role (roleNameWireAdmin, roleNameWireMember)
+import Wire.API.Conversation.Role (roleNameWireAdmin)
 import Wire.API.Provider.Service
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Team.LegalHold
@@ -118,7 +118,6 @@ testsPublic s =
                     [ testOnlyIfLhWhitelisted s "If any user in the invite has not given consent then the invite fails" testNoConsentCannotBeInvited
                     ]
                 ],
-              testOnlyIfLhWhitelisted s "Cannot create conversation with both LH activated and non-consenting users" testCannotCreateGroupWithUsersInConflict,
               test s "bench hack" testBenchHack
             ]
         ]
@@ -393,39 +392,6 @@ testNoConsentCannotBeInvited = do
 
     localdomain <- viewFederationDomain
     API.Util.postQualifiedMembers userLHNotActivated (Qualified peer2 localdomain :| []) qconvId
-      >>= errWith 403 (\err -> Error.label err == "missing-legalhold-consent")
-
-testCannotCreateGroupWithUsersInConflict :: HasCallStack => TestM ()
-testCannotCreateGroupWithUsersInConflict = do
-  -- team that is legalhold whitelisted
-  (legalholder :: UserId, tid) <- createBindingTeam
-  userLHNotActivated <- (^. Team.userId) <$> addUserToTeam legalholder tid
-  putLHWhitelistTeam tid !!! const 200 === statusCode
-
-  -- team without legalhold
-  (peer :: UserId, teamPeer) <- createBindingTeam
-  peer2 <- (^. Team.userId) <$> addUserToTeam peer teamPeer
-
-  do
-    postConnection userLHNotActivated peer !!! const 201 === statusCode
-    void $ putConnection peer userLHNotActivated Conn.Accepted <!! const 200 === statusCode
-
-    postConnection userLHNotActivated peer2 !!! const 201 === statusCode
-    void $ putConnection peer2 userLHNotActivated Conn.Accepted <!! const 200 === statusCode
-
-  withDummyTestServiceForTeam legalholder tid $ \_chan -> do
-    createTeamConvAccessRaw userLHNotActivated tid [peer, legalholder] (Just "corp + us") Nothing Nothing Nothing (Just roleNameWireMember)
-      !!! const 201 === statusCode
-
-    -- activate legalhold for legalholder
-    do
-      galley <- viewGalley
-      requestLegalHoldDevice legalholder legalholder tid !!! testResponse 201 Nothing
-      approveLegalHoldDevice (Just defPassword) legalholder legalholder tid !!! testResponse 200 Nothing
-      UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped' galley legalholder tid
-      liftIO $ assertEqual "approving should change status" UserLegalHoldEnabled userStatus
-
-    createTeamConvAccessRaw userLHNotActivated tid [peer2, legalholder] (Just "corp + us") Nothing Nothing Nothing (Just roleNameWireMember)
       >>= errWith 403 (\err -> Error.label err == "missing-legalhold-consent")
 
 testBenchHack :: HasCallStack => TestM ()
