@@ -52,18 +52,22 @@ spec:
             - /certs/{{- (include "tlsSecretRef" .Values | fromYaml).key }}
             {{- end }}
           volumeMounts:
+          {{- if hasKey .Values.secrets "elasticsearch" }}
             - name: "elasticsearch-index-secrets"
               mountPath: "/etc/wire/elasticsearch-index/secrets"
+          {{- end }}
           {{- if eq (include "useCassandraTLS" .Values) "true" }}
             - name: elasticsearch-index-migrate-cassandra-client-ca
               mountPath: "/certs"
           {{- end }}
       volumes:
+        {{- if hasKey .Values.secrets "elasticsearch" }}
         - name: elasticsearch-index-secrets
           secret:
             secretName: elasticsearch-index
-      {{- if eq (include "useCassandraTLS" .Values) "true" }}
+        {{- end }}
+        {{- if eq (include "useCassandraTLS" .Values) "true" }}
         - name: elasticsearch-index-migrate-cassandra-client-ca
           secret:
             secretName: {{ (include "tlsSecretRef" .Values | fromYaml).name }}
-      {{- end}}
+        {{- end}}
