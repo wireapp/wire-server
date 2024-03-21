@@ -34,12 +34,12 @@ import Testlib.Prelude
 --------------------------------------------------------------------------------
 -- Helpers
 
-expectedStatus ::
+expectedWithStatus ::
   (ToJSON cfg, HasCallStack) =>
   WithStatusNoLock cfg ->
   LockStatus ->
   Aeson.Value
-expectedStatus WithStatusNoLock {..} lock =
+expectedWithStatus WithStatusNoLock {..} lock =
   let cfg = toJSON config
    in Aeson.object $
         [ "lockStatus" .= lock,
@@ -65,7 +65,7 @@ assertFeatureLock ::
   App ()
 assertFeatureLock lock ws featureName user team = do
   tf <- getTeamFeature featureName user team
-  assertSuccessMatchBody (expectedStatus ws lock) tf
+  assertSuccessMatchBody (expectedWithStatus ws lock) tf
 
 assertFeature ::
   ( HasCallStack,
@@ -112,7 +112,7 @@ assertFeatureInternalLock ::
   App ()
 assertFeatureInternalLock lock ws featureName dom team = do
   tf <- I.getTeamFeature dom featureName team
-  assertSuccessMatchBody (expectedStatus ws lock) tf
+  assertSuccessMatchBody (expectedWithStatus ws lock) tf
 
 assertFeatureInternal ::
   (HasCallStack, MakesValue domain, ToJSON cfg) =>
