@@ -109,10 +109,10 @@ instance ToJSON cfg => ToJSON (WithStatusNoLock cfg) where
         <> ["config" .= toJSON cfg]
 
 data WithStatus (cfg :: Type) = WithStatus
-  { wsbStatus :: FeatureStatus,
-    wsbLockStatus :: LockStatus,
-    wsbConfig :: cfg,
-    wsbTTL :: FeatureTTL
+  { wsStatus :: FeatureStatus,
+    wsLockStatus :: LockStatus,
+    wsConfig :: cfg,
+    wsTTL :: FeatureTTL
   }
 
 deriving instance (Eq cfg) => Eq (WithStatus cfg)
@@ -125,13 +125,13 @@ instance (Schema.ToSchema cfg, IsFeatureConfig cfg) => Schema.ToSchema (WithStat
   schema =
     Schema.object sn $
       WithStatus
-        <$> wsbStatus
+        <$> wsStatus
         Schema..= Schema.field "status" Schema.schema
-        <*> wsbLockStatus
+        <*> wsLockStatus
         Schema..= Schema.field "lockStatus" Schema.schema
-        <*> wsbConfig
+        <*> wsConfig
         Schema..= objectSchema @cfg
-        <*> wsbTTL
+        <*> wsTTL
         Schema..= (fromMaybe FeatureTTLUnlimited <$> Schema.optField "ttl" Schema.schema)
     where
       inner = Schema.schema @cfg
