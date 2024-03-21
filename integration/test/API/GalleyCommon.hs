@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module API.GalleyCommon where
 
 import Control.Lens ((?~))
@@ -18,10 +20,10 @@ data FeatureStatus = Disabled | Enabled
 
 instance Schema.ToSchema FeatureStatus where
   schema =
-    Schema.enum @T.Text (T.pack "FeatureStatus") $
+    Schema.enum @T.Text "FeatureStatus" $
       mconcat
-        [ Schema.element (T.pack "enabled") Enabled,
-          Schema.element (T.pack "disabled") Disabled
+        [ Schema.element "enabled" Enabled,
+          Schema.element "disabled" Disabled
         ]
 
 instance Show FeatureStatus where
@@ -44,10 +46,10 @@ instance Show LockStatus where
 
 instance Schema.ToSchema LockStatus where
   schema =
-    Schema.enum @T.Text (T.pack "LockStatus") $
+    Schema.enum @T.Text "LockStatus" $
       mconcat
-        [ Schema.element (T.pack "locked") LockStatusLocked,
-          Schema.element (T.pack "unlocked") LockStatusUnlocked
+        [ Schema.element "locked" LockStatusLocked,
+          Schema.element "unlocked" LockStatusUnlocked
         ]
 
 -- Using Word to avoid dealing with negative numbers.
@@ -73,7 +75,7 @@ instance Schema.ToSchema FeatureTTL where
       parseUnlimited =
         Aeson.withText "FeatureTTL" $
           \t ->
-            if t == (T.pack "unlimited") || t == (T.pack "0")
+            if t == "unlimited" || t == "0"
               then pure FeatureTTLUnlimited
               else Aeson.parseFail "Expected ''unlimited' or '0'."
 
@@ -124,16 +126,16 @@ instance (Schema.ToSchema cfg, IsFeatureConfig cfg) => Schema.ToSchema (WithStat
     Schema.object sn $
       WithStatus
         <$> wsbStatus
-        Schema..= Schema.field (T.pack "status") Schema.schema
+        Schema..= Schema.field "status" Schema.schema
         <*> wsbLockStatus
-        Schema..= Schema.field (T.pack "lockStatus") Schema.schema
+        Schema..= Schema.field "lockStatus" Schema.schema
         <*> wsbConfig
         Schema..= objectSchema @cfg
         <*> wsbTTL
-        Schema..= (fromMaybe FeatureTTLUnlimited <$> Schema.optField (T.pack "ttl") Schema.schema)
+        Schema..= (fromMaybe FeatureTTLUnlimited <$> Schema.optField "ttl" Schema.schema)
     where
       inner = Schema.schema @cfg
-      sn = fromMaybe (T.pack "") (Schema.getName (Schema.schemaDoc inner)) <> (T.pack ".WithStatus")
+      sn = fromMaybe "" (Schema.getName (Schema.schemaDoc inner)) <> ".WithStatus"
 
 --------------------------------------------------------------------------------
 -- Feature configurations
@@ -163,13 +165,13 @@ newtype SelfDeletingMessagesConfig = SelfDeletingMessagesConfig
 
 instance Schema.ToSchema SelfDeletingMessagesConfig where
   schema =
-    Schema.object (T.pack "SelfDeletingMessagesConfig") $
+    Schema.object "SelfDeletingMessagesConfig" $
       SelfDeletingMessagesConfig
         <$> sdmEnforcedTimeoutSeconds
-        Schema..= Schema.field (T.pack "enforcedTimeoutSeconds") Schema.schema
+        Schema..= Schema.field "enforcedTimeoutSeconds" Schema.schema
 
 instance IsFeatureConfig SelfDeletingMessagesConfig where
-  objectSchema = Schema.field (T.pack "config") Schema.schema
+  objectSchema = Schema.field "config" Schema.schema
 
 data GuestLinksConfig = GuestLinksConfig
   deriving stock (Show, Eq)
@@ -179,4 +181,4 @@ instance IsFeatureConfig GuestLinksConfig where
   objectSchema = pure GuestLinksConfig
 
 instance Schema.ToSchema GuestLinksConfig where
-  schema = Schema.object (T.pack "GuestLinksConfig") objectSchema
+  schema = Schema.object "GuestLinksConfig" objectSchema
