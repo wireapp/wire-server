@@ -856,10 +856,16 @@ The corresponding Cassandra options are described in Cassandra's documentation:
 
 ## Configure Elasticsearch basic authentication
 
-When the Wire backend is configured to work against a custom Elasticsearch instance, it may be desired to enable basic authentication for the internal communication between the Wire backend and the ES instance. To do so the Elasticsearch credentials can be set in wire-server's secrets as follows:
+When the Wire backend is configured to work against a custom Elasticsearch instance, it may be desired to enable basic authentication for the internal communication between the Wire backend and the ES instance. To do so the Elasticsearch credentials can be set in wire-server's secrets for `brig` and `elasticsearch-index` as follows:
 
 ```yaml
 brig:
+  secrets:
+    elasticsearch: |-
+      username: elastic
+      password: changeme
+
+elasticsearch-index:
   secrets:
     elasticsearch: |-
       username: elastic
