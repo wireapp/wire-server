@@ -60,7 +60,7 @@ data FeatureTTL
     FeatureTTLSeconds Word
   | FeatureTTLUnlimited
   deriving stock (Eq, Show, Generic)
-  deriving (ToJSON) via (Schema.Schema FeatureTTL)
+  deriving (FromJSON, ToJSON) via (Schema.Schema FeatureTTL)
 
 instance Schema.ToSchema FeatureTTL where
   schema = Schema.mkSchema ttlDoc toTTL fromTTL

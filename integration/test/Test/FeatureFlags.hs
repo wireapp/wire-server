@@ -20,6 +20,7 @@ module Test.FeatureFlags where
 import API.Galley
 import API.GalleyCommon
 import qualified API.GalleyInternal as I
+import Control.Concurrent
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as Aeson
 import qualified Data.Aeson.KeyMap as Aeson
@@ -389,20 +390,58 @@ checkSimpleFlag ::
   String ->
   FeatureStatus ->
   App ()
-checkSimpleFlag path name defStatus = do
-  let domain = OwnDomain
-      opposite = oppositeStatus defStatus
-      cfg = ()
-      withStatus s = WithStatusNoLock s cfg FeatureTTLUnlimited
-  (owner, team, mem : _) <- createTeam domain 2
+checkSimpleFlag = checkSimpleFlagTTL FeatureTTLUnlimited
+
+checkSimpleFlagTTL ::
+  HasCallStack =>
+  FeatureTTL ->
+  String ->
+  String ->
+  FeatureStatus ->
+  App ()
+checkSimpleFlagTTL ttl path name defStatus = do
+  (_owner, team, [mem]) <- createTeam domain 2
+  let assertUnlimited :: HasCallStack => App ()
+      assertUnlimited =
+        I.getTeamFeature domain name team `bindResponse` \resp -> do
+          resp.status `shouldMatchInt` 200
+          val <- resp.json %. "ttl"
+          case fromJSON @FeatureTTL val of
+            Error e -> assertFailure $ "Could not parse a TTL value: " <> show e
+            Success (FeatureTTLSeconds v) ->
+              let msg = "The obtained TTL is limited, but expected an unlimited TTL: " <> show v
+               in assertFailure msg
+            Success FeatureTTLUnlimited -> pure ()
+
+      assertLimited :: HasCallStack => Word -> App ()
+      assertLimited upperTTL = do
+        I.getTeamFeature domain name team `bindResponse` \resp -> do
+          resp.status `shouldMatchInt` 200
+          val <- resp.json %. "ttl"
+          case fromJSON @FeatureTTL val of
+            Error e -> assertFailure $ "Could not parse a TTL value: " <> show e
+            Success FeatureTTLUnlimited ->
+              let msg = "The obtained TTL is unlimited, but expected a limited TTL: " <> show upperTTL
+               in assertFailure msg
+            Success (FeatureTTLSeconds v) ->
+              let msg =
+                    unlines
+                      [ "The obtained TTL of ",
+                        show v,
+                        " s is above the expected value of ",
+                        show upperTTL,
+                        " s"
+                      ]
+               in assertBool msg (v <= upperTTL)
+        liftIO $ threadDelay (fromIntegral upperTTL * 1000000)
+        assertUnlimited
+
   do
     nonMem <- randomUser domain def
-    getTeamFeature path nonMem team `bindResponse` \resp -> do
-      resp.status `shouldMatchInt` 403
-      resp.json %. "label" `shouldMatch` "no-team-member"
+    assertFlagForbidden $ getTeamFeature path nonMem team
   do
     let status = defStatus
-    assertFeature (withStatus status) path owner team
+    assertFeature (withStatus status) path mem team
     assertFeatureInternal (withStatus status) path domain team
     assertFeatureFromAll status path mem
   do
@@ -410,18 +449,38 @@ checkSimpleFlag path name defStatus = do
           Aeson.object
             [ "status" .= opposite,
               "lockStatus" .= LockStatusUnlocked,
-              "ttl" .= FeatureTTLUnlimited
+              "ttl" .= ttl
             ]
-    withWebSocket owner $ \ws -> do
-      I.setTeamFeatureStatus domain team path opposite
+    withWebSocket mem $ \ws -> do
+      let st = WithStatusNoLock opposite cfg ttl
+       in I.putTeamFeatureStatus domain team name st
       n <- awaitMatch isFeatureConfigUpdateNotif ws
       n %. "payload.0.name" `shouldMatch` name
       n %. "payload.0.data" `shouldMatch` expStatus
   do
     let status = opposite
-    assertFeature (withStatus status) path owner team
-    assertFeatureInternal (withStatus status) path domain team
+    assertFeature (WithStatusNoLock status cfg ttl) path mem team
+    assertFeatureInternal (WithStatusNoLock status cfg ttl) path domain team
     assertFeatureFromAll status path mem
+
+  case ttl of
+    FeatureTTLSeconds d -> do
+      -- should revert back after TTL expires
+      assertLimited d
+      assertFeature (withStatus defStatus) path mem team
+    FeatureTTLUnlimited -> do
+      -- TTL should be NULL inside cassandra
+      assertUnlimited
+
+  -- Clean up
+  let st = WithStatusNoLock defStatus cfg FeatureTTLUnlimited
+   in I.putTeamFeatureStatus domain team name st
+  assertFeature (withStatus defStatus) path mem team
+  where
+    domain = OwnDomain
+    opposite = oppositeStatus defStatus
+    cfg = ()
+    withStatus s = WithStatusNoLock s cfg FeatureTTLUnlimited
 
 checkSimpleFlagWithLockStatus ::
   HasCallStack =>

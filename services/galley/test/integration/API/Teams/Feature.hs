@@ -255,20 +255,6 @@ testPatch' testLockStatusChange rndFeatureConfig defStatus defConfig = do
           wsLockStatus actual @?= fromMaybe (wsLockStatus original) (wspLockStatus rndFeatureConfig)
         wsConfig actual @?= fromMaybe (wsConfig original) (wspConfig rndFeatureConfig)
 
-testSimpleFlag ::
-  forall cfg.
-  ( HasCallStack,
-    Typeable cfg,
-    IsFeatureConfig cfg,
-    KnownSymbol (FeatureSymbol cfg),
-    FeatureTrivialConfig cfg,
-    ToSchema cfg,
-    FromJSON (WithStatusNoLock cfg)
-  ) =>
-  FeatureStatus ->
-  TestM ()
-testSimpleFlag defaultValue = testSimpleFlagTTL @cfg defaultValue FeatureTTLUnlimited
-
 testSimpleFlagTTLOverride ::
   forall cfg.
   ( HasCallStack,
