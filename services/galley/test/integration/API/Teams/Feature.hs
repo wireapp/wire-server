@@ -58,8 +58,7 @@ tests :: IO TestSetup -> TestTree
 tests s =
   testGroup
     "Feature Config API and Team Features API"
-    [ test s "SndFactorPasswordChallenge - lock status" $ testSimpleFlagWithLockStatus @SndFactorPasswordChallengeConfig FeatureStatusDisabled LockStatusLocked,
-      test s "SearchVisibilityInbound - internal API" testSearchVisibilityInbound,
+    [ test s "SearchVisibilityInbound - internal API" testSearchVisibilityInbound,
       test s "SearchVisibilityInbound - internal multi team API" testFeatureNoConfigMultiSearchVisibilityInbound,
       test s "OutlookCalIntegration" $ testSimpleFlagWithLockStatus @OutlookCalIntegrationConfig FeatureStatusDisabled LockStatusLocked,
       testGroup

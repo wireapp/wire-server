@@ -1010,3 +1010,7 @@ genericSimpleFlagWithLockStatus featureName defaultStatus defaultLockStatus = do
 testGuestLinksLockStatus :: HasCallStack => App ()
 testGuestLinksLockStatus =
   genericSimpleFlagWithLockStatus "conversationGuestLinks" Enabled LockStatusUnlocked
+
+testSndFactorPasswordChallenge :: HasCallStack => App ()
+testSndFactorPasswordChallenge =
+  genericSimpleFlagWithLockStatus "sndFactorPasswordChallenge" Disabled LockStatusLocked
