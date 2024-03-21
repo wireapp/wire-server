@@ -132,9 +132,8 @@ putTeamFeatureStatus ::
   WithStatusNoLock cfg ->
   App ()
 putTeamFeatureStatus domain team featureName status =
-  void $
-    putTeamFeatureStatusRaw domain team featureName status
-      >>= getBody 200
+  putTeamFeatureStatusRaw domain team featureName status
+    >>= assertStatus 200
 
 failToPutTeamFeatureStatus ::
   ( HasCallStack,
