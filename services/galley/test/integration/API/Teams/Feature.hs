@@ -73,7 +73,6 @@ tests s =
           test s "Unlimited to unlimited" $ testSimpleFlagTTLOverride @ConferenceCallingConfig FeatureStatusEnabled FeatureTTLUnlimited FeatureTTLUnlimited
         ],
       test s "MLS feature config" testMLS,
-      test s "SearchVisibilityInbound" $ testSimpleFlag @SearchVisibilityInboundConfig FeatureStatusDisabled,
       test s "MlsE2EId feature config" $
         testNonTrivialConfigNoTTL
           ( withStatus

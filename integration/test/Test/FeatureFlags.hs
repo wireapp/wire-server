@@ -409,7 +409,7 @@ checkSimpleFlag path name defStatus = do
     let expStatus =
           Aeson.object
             [ "status" .= opposite,
-              "lockStatus" .= "unlocked",
+              "lockStatus" .= LockStatusUnlocked,
               "ttl" .= FeatureTTLUnlimited
             ]
     withWebSocket owner $ \ws -> do
@@ -1020,25 +1020,5 @@ testOutlookCalIntegration =
   genericSimpleFlagWithLockStatus "outlookCalIntegration" Disabled LockStatusLocked
 
 testSearchVisibilityInbound :: HasCallStack => App ()
-testSearchVisibilityInbound = do
-  let defaultValue = Disabled
-  (_owner, team, []) <- createTeam domain 1
-  let getFlagInternal :: HasCallStack => FeatureStatus -> App ()
-      getFlagInternal expected =
-        let ws = WithStatusNoLock expected () FeatureTTLUnlimited
-         in assertFeatureInternal ws featureName domain team
-
-      setFlagInternal :: HasCallStack => FeatureStatus -> App ()
-      setFlagInternal status =
-        let ws = WithStatusNoLock status () FeatureTTLUnlimited
-         in I.putTeamFeatureStatus domain team featureName ws
-
-  let opposite = oppositeStatus defaultValue
-
-  -- Initial value should be the default value
-  getFlagInternal defaultValue
-  setFlagInternal opposite
-  getFlagInternal opposite
-  where
-    domain = OwnDomain
-    featureName = "searchVisibility"
+testSearchVisibilityInbound =
+  checkSimpleFlag "searchVisibility" "searchVisibility" Disabled
