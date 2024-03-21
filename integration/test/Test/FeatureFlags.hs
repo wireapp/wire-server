@@ -1014,3 +1014,7 @@ testGuestLinksLockStatus =
 testSndFactorPasswordChallenge :: HasCallStack => App ()
 testSndFactorPasswordChallenge =
   genericSimpleFlagWithLockStatus "sndFactorPasswordChallenge" Disabled LockStatusLocked
+
+testOutlookCalIntegration :: HasCallStack => App ()
+testOutlookCalIntegration =
+  genericSimpleFlagWithLockStatus "outlookCalIntegration" Disabled LockStatusLocked
