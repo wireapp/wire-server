@@ -146,8 +146,8 @@ let
     http2 = {
       src = fetchgit {
         url = "https://github.com/wireapp/http2";
-        rev = "0de6a08e211e13c3d7c7e93fc2467d4589862eda";
-        sha256 = "sha256-qUd0O9EgPzh2E6aLtE73Bo83qGH10uRd7NsuwdUs+ls=";
+        rev = "eb5831a64e5d99d58f65626025503ac287492542";
+        sha256 = "sha256-bTLaq7p7qeXpBTcLvgjic0KhJYR6aU2+UuNmJILiDgg=";
       };
     };
 
@@ -247,20 +247,31 @@ let
     warp = {
       src = fetchgit {
         url = "https://github.com/wireapp/wai";
-        rev = "bedd6a835f6d98128880465c30e8115fa986e3f6";
-        sha256 = "sha256-0r/d9YwcKZIZd10EhL2TP+W14Wjk0/S8Q4pVvZuZLaY=";
+        rev = "a48f8f31ad42f26057d7b96d70f897c1a3f69a3c";
+        sha256 = "sha256-fFkiKLlViiV+F1wdQXak3RI454kgWvyRsoDz6g4c5Ks=";
       };
       packages = {
         "warp" = "warp";
+        "warp-tls" = "warp-tls";
+        "wai-app-static" = "wai-app-static";
+        "wai" = "wai";
+        "wai-extra" = "wai-extra";
+        "wai-websockets" = "wai-websockets";
       };
     };
   };
+
   hackagePins = {
     # Major re-write upstream, we should get rid of this dependency rather than
     # adapt to upstream, this will go away when completing servantification.
     wai-route = {
       version = "0.4.0";
       sha256 = "sha256-DSMckKIeVE/buSMg8Mq+mUm1bYPYB7veA11Ns7vTBbc=";
+    };
+
+    network-control = {
+      version = "0.0.2";
+      sha256 = "sha256-0EvnVu7cktMmSRVk9Ufm0oE4JLQrKLSRYpFpgcJguY0=";
     };
 
     # these are not yet in nixpkgs

@@ -44,7 +44,7 @@ library
     , stm
     , streaming-commons
     , text
-    , time-manager
+    , utf8-string
 
   default-language: Haskell2010
 

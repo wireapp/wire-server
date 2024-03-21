@@ -15,6 +15,7 @@ import Control.Monad
 import Control.Monad.IO.Class
 import Data.ByteString
 import qualified Data.ByteString as BS
+import Data.ByteString.UTF8 as UTF8
 import Data.IORef
 import Data.Map
 import qualified Data.Map as Map
@@ -23,13 +24,11 @@ import Data.Streaming.Network
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import Data.Unique
-import Foreign.Marshal.Alloc (mallocBytes)
 import GHC.IO.Exception
 import qualified Network.HTTP2.Client as HTTP2
 import qualified Network.Socket as NS
 import qualified OpenSSL.Session as SSL
 import System.IO.Error
-import qualified System.TimeManager
 import System.Timeout
 import Prelude
 
@@ -291,9 +290,9 @@ startPersistentHTTP2Connection ::
 startPersistentHTTP2Connection ctx (tlsEnabled, hostname, port) cl removeTrailingDot tcpConnectTimeout sendReqMVar = do
   liveReqs <- newIORef mempty
   let clientConfig =
-        HTTP2.ClientConfig
+        HTTP2.defaultClientConfig
           { HTTP2.scheme = if tlsEnabled then "https" else "http",
-            HTTP2.authority = hostname,
+            HTTP2.authority = UTF8.toString hostname,
             HTTP2.cacheLimit = cl
           }
       -- Sends error to requests which show up too late, i.e. after the
@@ -333,7 +332,7 @@ startPersistentHTTP2Connection ctx (tlsEnabled, hostname, port) cl removeTrailin
     bracket connectTCPWithTimeout NS.close $ \sock -> do
       bracket (mkTransport sock transportConfig) cleanupTransport $ \transport ->
         bracket (allocHTTP2Config transport) HTTP2.freeSimpleConfig $ \http2Cfg -> do
-          let runAction = HTTP2.run clientConfig http2Cfg $ \sendReq -> do
+          let runAction = HTTP2.run clientConfig http2Cfg $ \sendReq _aux -> do
                 handleRequests liveReqs sendReq
           -- Any request threads still hanging about after 'runAction' finishes
           -- are canceled with 'ConnectionAlreadyClosed'.
@@ -397,7 +396,7 @@ type SendReqFn = HTTP2.Request -> (HTTP2.Response -> IO ()) -> IO ()
 
 data Transport
   = InsecureTransport NS.Socket
-  | SecureTransport SSL.SSL
+  | SecureTransport SSL.SSL NS.Socket
 
 data TLSParams = TLSParams
   { context :: SSL.SSLContext,
@@ -414,11 +413,11 @@ mkTransport sock (Just TLSParams {..}) = do
   SSL.setTlsextHostName ssl hostnameStr
   SSL.enableHostnameValidation ssl hostnameStr
   SSL.connect ssl
-  pure $ SecureTransport ssl
+  pure $ SecureTransport ssl sock
 
 cleanupTransport :: Transport -> IO ()
 cleanupTransport (InsecureTransport _) = pure ()
-cleanupTransport (SecureTransport ssl) = SSL.shutdown ssl SSL.Unidirectional
+cleanupTransport (SecureTransport ssl _) = SSL.shutdown ssl SSL.Unidirectional
 
 data ConnectionAlreadyClosed = ConnectionAlreadyClosed
   deriving (Show)
