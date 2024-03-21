@@ -38,6 +38,10 @@ elasticsearch-index:
         name: "cassandra-jks-keystore"
         key: "ca.crt"
     {{- end }}
+  secrets:
+    elasticsearch: |-
+      username: "elastic"
+      password: "changeme"
 
 brig:
   replicaCount: 1
