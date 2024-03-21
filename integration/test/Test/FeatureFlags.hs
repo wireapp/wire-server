@@ -123,6 +123,29 @@ assertFeatureInternal ::
   App ()
 assertFeatureInternal = assertFeatureInternalLock LockStatusUnlocked
 
+assertFlagForbidden :: HasCallStack => App Response -> App ()
+assertFlagForbidden res =
+  res `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "no-team-member"
+
+assertFlagNoConfigWithLockStatus ::
+  HasCallStack =>
+  App Response ->
+  FeatureStatus ->
+  LockStatus ->
+  App ()
+assertFlagNoConfigWithLockStatus res expectedStatus expectedLockStatus =
+  let ws =
+        WithStatus
+          expectedStatus
+          expectedLockStatus
+          TrivialConfig
+          FeatureTTLUnlimited
+   in res `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 200
+        resp.json `shouldMatch` ws
+
 --------------------------------------------------------------------------------
 
 testLimitedEventFanout :: HasCallStack => App ()
@@ -423,13 +446,13 @@ checkSimpleFlagWithLockStatus path name featStatus lockStatus = do
       resp.json %. "label" `shouldMatch` "no-team-member"
   assertFlag featStatus lockStatus
   -- unlock feature if it is locked
-  when (lockStatus == LockStatusLocked) . void $
-    I.setTeamFeatureLockStatus domain team path LockStatusUnlocked >>= getBody 200
+  when (lockStatus == LockStatusLocked) $
+    I.setTeamFeatureLockStatus domain team path LockStatusUnlocked >>= assertStatus 200
 
   let opposite = oppositeStatus featStatus
   withWebSocket mem $ \ws -> do
     let st = WithStatusNoLock opposite () FeatureTTLUnlimited
-    void $ setTeamFeature path owner team st >>= getBody 200
+    setTeamFeature path owner team st >>= assertStatus 200
     let expStatus =
           Aeson.object
             [ "status" .= opposite,
@@ -831,7 +854,7 @@ testSelfDeletingMessages = do
 
     checkSetLockStatus :: (HasCallStack, MakesValue team) => team -> LockStatus -> App ()
     checkSetLockStatus team status =
-      void $ I.setTeamFeatureLockStatus domain team featureName status >>= getBody 200
+      I.setTeamFeatureLockStatus domain team featureName status >>= assertStatus 200
 
 genericGuestLinks ::
   HasCallStack =>
@@ -878,7 +901,7 @@ genericGuestLinks domain getStatus putStatus = do
 
     checkSetLockStatusInternal :: HasCallStack => String -> LockStatus -> App ()
     checkSetLockStatusInternal team lockStatus =
-      void $ I.setTeamFeatureLockStatus domain team featureName lockStatus >>= getBody 200
+      I.setTeamFeatureLockStatus domain team featureName lockStatus >>= assertStatus 200
 
 testGuestLinksInternal :: HasCallStack => App ()
 testGuestLinksInternal =
@@ -899,3 +922,91 @@ testGuestLinksPublic =
   where
     domain = OwnDomain
     featureName = "conversationGuestLinks"
+
+genericSimpleFlagWithLockStatus ::
+  HasCallStack =>
+  String ->
+  FeatureStatus ->
+  LockStatus ->
+  App ()
+genericSimpleFlagWithLockStatus featureName defaultStatus defaultLockStatus = do
+  (owner, team, [mem]) <- createTeam domain 2
+  nonMem <- randomUser domain def
+  assertFlagForbidden $ getTeamFeature featureName nonMem team
+
+  let getFlag :: HasCallStack => FeatureStatus -> LockStatus -> App ()
+      getFlag expectedStatus expectedLockStatus = do
+        let flag = getTeamFeature featureName mem team
+        assertFlagNoConfigWithLockStatus flag expectedStatus expectedLockStatus
+
+      getFlagInternal :: HasCallStack => FeatureStatus -> LockStatus -> App ()
+      getFlagInternal expectedStatus expectedLockStatus = do
+        let flag = I.getTeamFeature domain featureName team
+        assertFlagNoConfigWithLockStatus flag expectedStatus expectedLockStatus
+
+      getFeatureConfig :: HasCallStack => FeatureStatus -> LockStatus -> App ()
+      getFeatureConfig expectedStatus expectedLockStatus = do
+        actual <- extractTeamFeatureFromAllPersonal featureName mem
+        actual %. "status" `shouldMatch` expectedStatus
+        actual %. "lockStatus" `shouldMatch` expectedLockStatus
+
+      getFlags :: HasCallStack => FeatureStatus -> LockStatus -> App ()
+      getFlags expectedStatus expectedLockStatus = do
+        getFlag expectedStatus expectedLockStatus
+        getFeatureConfig expectedStatus expectedLockStatus
+        getFlagInternal expectedStatus expectedLockStatus
+
+      setLockStatus :: HasCallStack => LockStatus -> App ()
+      setLockStatus lockStatus =
+        I.setTeamFeatureLockStatus domain team featureName lockStatus
+          >>= assertStatus 200
+
+      setFlag :: HasCallStack => FeatureStatus -> App ()
+      setFlag status =
+        let st = (WithStatusNoLock status TrivialConfig FeatureTTLUnlimited)
+         in setTeamFeature featureName owner team st >>= assertStatus 200
+
+      assertSetStatusForbidden :: HasCallStack => FeatureStatus -> App ()
+      assertSetStatusForbidden status =
+        let ws = WithStatusNoLock status TrivialConfig FeatureTTLUnlimited
+         in setTeamFeature featureName owner team ws >>= assertStatus 409
+
+  let opposite = oppositeStatus defaultStatus
+
+  -- Initial status and lock status should be the defaults
+  getFlags defaultStatus defaultLockStatus
+
+  -- unlock feature if it is locked
+  when (defaultLockStatus == LockStatusLocked) $ setLockStatus LockStatusUnlocked
+
+  -- setting should work. The member should receive an event
+  withWebSocket mem $ \ws -> do
+    setFlag opposite
+    let expected =
+          WithStatus opposite LockStatusUnlocked TrivialConfig FeatureTTLUnlimited
+    n <- awaitMatch isFeatureConfigUpdateNotif ws
+    n %. "payload.0.name" `shouldMatch` featureName
+    n %. "payload.0.data" `shouldMatch` expected
+
+  getFlags opposite LockStatusUnlocked
+
+  -- lock feature
+  setLockStatus LockStatusLocked
+  -- feature status should now be the default again
+  getFlags defaultStatus LockStatusLocked
+  assertSetStatusForbidden defaultStatus
+  -- unlock feature
+  setLockStatus LockStatusUnlocked
+  -- feature status should be the previously set value
+  getFlags opposite LockStatusUnlocked
+
+  -- clean up
+  setFlag defaultStatus
+  setLockStatus defaultLockStatus
+  getFlags defaultStatus defaultLockStatus
+  where
+    domain = OwnDomain
+
+testGuestLinksLockStatus :: HasCallStack => App ()
+testGuestLinksLockStatus =
+  genericSimpleFlagWithLockStatus "conversationGuestLinks" Enabled LockStatusUnlocked

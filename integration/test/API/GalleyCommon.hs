@@ -147,6 +147,15 @@ class IsFeatureConfig cfg where
     -- omitted/ignored in the JSON encoder / parser.
     Schema.ObjectSchema Schema.SwaggerDoc cfg
 
+data TrivialConfig = TrivialConfig
+  deriving (ToJSON) via (Schema.Schema TrivialConfig)
+
+instance Schema.ToSchema TrivialConfig where
+  schema = Schema.object "TrivialConfig" objectSchema
+
+instance IsFeatureConfig TrivialConfig where
+  objectSchema = pure TrivialConfig
+
 data ClassifiedDomainsConfig = ClassifiedDomainsConfig
   { classifiedDomainsDomains :: [T.Text]
   }
