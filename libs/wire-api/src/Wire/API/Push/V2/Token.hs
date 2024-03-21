@@ -115,8 +115,6 @@ data Transport
   = GCM
   | APNS
   | APNSSandbox
-  | APNSVoIP
-  | APNSVoIPSandbox
   deriving stock (Eq, Ord, Show, Bounded, Enum, Generic)
   deriving (Arbitrary) via (GenericUniform Transport)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema Transport)
@@ -127,9 +125,7 @@ instance ToSchema Transport where
       mconcat
         [ element "GCM" GCM,
           element "APNS" APNS,
-          element "APNS_SANDBOX" APNSSandbox,
-          element "APNS_VOIP" APNSVoIP,
-          element "APNS_VOIP_SANDBOX" APNSVoIPSandbox
+          element "APNS_SANDBOX" APNSSandbox
         ]
 
 instance FromByteString Transport where
@@ -138,8 +134,6 @@ instance FromByteString Transport where
       "GCM" -> pure GCM
       "APNS" -> pure APNS
       "APNS_SANDBOX" -> pure APNSSandbox
-      "APNS_VOIP" -> pure APNSVoIP
-      "APNS_VOIP_SANDBOX" -> pure APNSVoIPSandbox
       x -> fail $ "Invalid push transport: " <> show x
 
 newtype Token = Token
