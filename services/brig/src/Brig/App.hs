@@ -66,6 +66,7 @@ module Brig.App
     rabbitmqChannel,
     fsWatcher,
     disabledVersions,
+    enableFederation,
 
     -- * App Monad
     AppT (..),
@@ -197,7 +198,8 @@ data Env = Env
     _randomPrekeyLocalLock :: Maybe (MVar ()),
     _keyPackageLocalLock :: MVar (),
     _rabbitmqChannel :: Maybe (MVar Q.Channel),
-    _disabledVersions :: Set Version
+    _disabledVersions :: Set Version,
+    _enableFederation :: Bool
   }
 
 makeLenses ''Env
@@ -300,7 +302,8 @@ newEnv o = do
         _randomPrekeyLocalLock = prekeyLocalLock,
         _keyPackageLocalLock = kpLock,
         _rabbitmqChannel = rabbitChan,
-        _disabledVersions = allDisabledVersions
+        _disabledVersions = allDisabledVersions,
+        _enableFederation = Opt.enableFederation o
       }
   where
     emailConn _ (Opt.EmailAWS aws) = pure (Just aws, Nothing)

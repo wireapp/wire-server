@@ -27,6 +27,7 @@ module Wire.API.Call.Config
     rtcConfSftServers,
     rtcConfSftServersAll,
     rtcConfTTL,
+    rtcConfIsFederating,
 
     -- * RTCIceServer
     RTCIceServer,
@@ -123,7 +124,8 @@ data RTCConfiguration = RTCConfiguration
   { _rtcConfIceServers :: NonEmpty RTCIceServer,
     _rtcConfSftServers :: Maybe (NonEmpty SFTServer),
     _rtcConfTTL :: Word32,
-    _rtcConfSftServersAll :: Maybe [AuthSFTServer]
+    _rtcConfSftServersAll :: Maybe [AuthSFTServer],
+    _rtcConfIsFederating :: Maybe Bool
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform RTCConfiguration)
@@ -134,6 +136,7 @@ rtcConfiguration ::
   Maybe (NonEmpty SFTServer) ->
   Word32 ->
   Maybe [AuthSFTServer] ->
+  Maybe Bool ->
   RTCConfiguration
 rtcConfiguration = RTCConfiguration
 
@@ -149,6 +152,8 @@ instance ToSchema RTCConfiguration where
           .= fieldWithDocModifier "ttl" (description ?~ "Number of seconds after which the configuration should be refreshed (advisory)") schema
         <*> _rtcConfSftServersAll
           .= maybe_ (optFieldWithDocModifier "sft_servers_all" (description ?~ "Array of all SFT servers") (array schema))
+        <*> _rtcConfIsFederating
+          .= maybe_ (optFieldWithDocModifier "is_federating" (description ?~ "True if the client should connect to an SFT in the sft_servers_all and request it to federate") schema)
 
 --------------------------------------------------------------------------------
 -- SFTServer
