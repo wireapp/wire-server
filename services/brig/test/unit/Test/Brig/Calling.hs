@@ -24,6 +24,7 @@ import Brig.Calling
 import Brig.Calling.API
 import Brig.Calling.Internal
 import Brig.Effects.SFT
+import Brig.Effects.SFTStore.Cassandra
 import Brig.Options
 import Control.Concurrent.Timeout qualified as System
 import Control.Lens ((^.))
@@ -296,6 +297,7 @@ testSFTStaticDeprecatedEndpoint = do
       . ignoreLogs
       . interpretSFTInMemory mempty
       . throwErrorInIO @_ @NoTurnServers
+      . interpretSFTStoreToConstant
       $ newConfig env (Discovered turnUri) Nothing Nothing Nothing HideAllSFTServers CallsConfigDeprecated
   assertEqual
     "when SFT static URL is disabled, sft_servers should be empty."
@@ -323,6 +325,7 @@ testSFTStaticV2NoStaticUrl = do
       . ignoreLogs
       . interpretSFTInMemory mempty
       . throwErrorInIO @_ @NoTurnServers
+      . interpretSFTStoreToConstant
       $ newConfig env (Discovered turnUri) Nothing (Just sftEnv) (Just . unsafeRange $ 2) ListAllSFTServers CallsConfigV2
   assertEqual
     "when SFT static URL is disabled, sft_servers_all should be from SFT environment"
@@ -339,6 +342,7 @@ testSFTStaticV2StaticUrlError = do
       . ignoreLogs
       . interpretSFTInMemory mempty -- an empty lookup map, meaning there was an error
       . throwErrorInIO @_ @NoTurnServers
+      . interpretSFTStoreToConstant
       $ newConfig env (Discovered turnUri) (Just staticUrl) Nothing (Just . unsafeRange $ 2) ListAllSFTServers CallsConfigV2
   assertEqual
     "when SFT static URL is enabled (and setSftListAllServers is enabled), but returns error, sft_servers_all should be omitted"
@@ -358,6 +362,7 @@ testSFTStaticV2StaticUrlList = do
       . ignoreLogs
       . interpretSFTInMemory (Map.singleton staticUrl (SFTGetResponse $ Right servers))
       . throwErrorInIO @_ @NoTurnServers
+      . interpretSFTStoreToConstant
       $ newConfig env (Discovered turnUri) (Just staticUrl) Nothing (Just . unsafeRange $ 3) ListAllSFTServers CallsConfigV2
   assertEqual
     "when SFT static URL and setSftListAllServers are enabled, sft_servers_all should be from /sft_servers_all.json"
@@ -376,6 +381,7 @@ testSFTStaticV2ListAllServersDisabled = do
       . ignoreLogs
       . interpretSFTInMemory (Map.singleton staticUrl (SFTGetResponse . Right $ servers))
       . throwErrorInIO @_ @NoTurnServers
+      . interpretSFTStoreToConstant
       $ newConfig env (Discovered turnUri) (Just staticUrl) Nothing (Just . unsafeRange $ 3) HideAllSFTServers CallsConfigV2
   assertEqual
     "when SFT static URL is enabled and setSftListAllServers is \"disabled\" then sft_servers_all is missing"

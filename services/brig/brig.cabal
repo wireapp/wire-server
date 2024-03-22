@@ -136,6 +136,8 @@ library
     Brig.Effects.PasswordResetStore.CodeStore
     Brig.Effects.PublicKeyBundle
     Brig.Effects.SFT
+    Brig.Effects.SFTStore
+    Brig.Effects.SFTStore.Cassandra
     Brig.Effects.UserPendingActivationStore
     Brig.Effects.UserPendingActivationStore.Cassandra
     Brig.Email
@@ -203,6 +205,7 @@ library
     Brig.Schema.V79_ConnectionRemoteIndex
     Brig.Schema.V80_KeyPackageCiphersuite
     Brig.Schema.V81_AddFederationRemoteTeams
+    Brig.Schema.V82_AddSFTCredentials
     Brig.Schema.V_FUTUREWORK
     Brig.SMTP
     Brig.Team.API

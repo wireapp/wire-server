@@ -55,6 +55,8 @@ import Brig.Effects.GalleyProvider qualified as GalleyProvider
 import Brig.Effects.JwtTools (JwtTools)
 import Brig.Effects.PasswordResetStore (PasswordResetStore)
 import Brig.Effects.PublicKeyBundle (PublicKeyBundle)
+import Brig.Effects.SFT
+import Brig.Effects.SFTStore
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import Brig.Options hiding (internalEvents, sesQueue)
 import Brig.Provider.API
@@ -270,20 +272,23 @@ servantSitemap ::
     Member BlacklistStore r,
     Member CodeStore r,
     Member (Concurrency 'Unsafe) r,
+    Member (ConnectionStore InternalPaging) r,
+    Member (Embed HttpClientIO) r,
+    Member (Embed IO) r,
+    Member FederationConfigStore r,
     Member GalleyProvider r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member Jwk r,
     Member JwtTools r,
+    Member NotificationSubsystem r,
     Member Now r,
     Member PasswordResetStore r,
     Member PublicKeyBundle r,
-    Member (UserPendingActivationStore p) r,
-    Member Jwk r,
-    Member FederationConfigStore r,
-    Member (Embed HttpClientIO) r,
-    Member NotificationSubsystem r,
+    Member SFT r,
+    Member SFTStore r,
     Member TinyLog r,
-    Member (Input (Local ())) r,
-    Member (Input UTCTime) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (UserPendingActivationStore p) r
   ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =
