@@ -27,6 +27,7 @@ import Cassandra.Util (defInitCassandra)
 import Control.Lens (view, (^.))
 import Control.Monad.Catch (MonadThrow, catchAll, finally, throwM)
 import Data.Aeson (Value, object, (.=))
+import Data.Credentials (Credentials (..))
 import Data.Metrics qualified as Metrics
 import Data.Text qualified as Text
 import Database.Bloodhound qualified as ES
@@ -37,9 +38,9 @@ import System.Logger.Class qualified as Log
 import System.Logger.Extended (runWithLogger)
 import Util.Options qualified as Options
 
-migrate :: Logger -> Opts.ElasticSettings -> Opts.CassandraSettings -> Options.Endpoint -> IO ()
-migrate l es cas galleyEndpoint = do
-  env <- mkEnv l es cas galleyEndpoint
+migrate :: Logger -> Maybe Credentials -> Opts.ElasticSettings -> Opts.CassandraSettings -> Options.Endpoint -> IO ()
+migrate l mCreds es cas galleyEndpoint = do
+  env <- mkEnv l mCreds es cas galleyEndpoint
   finally (go env `catchAll` logAndThrowAgain) (cleanup env)
   where
     go :: Env -> IO ()
@@ -74,10 +75,12 @@ indexMapping =
           ["migration_version" .= object ["index" .= True, "type" .= ("integer" :: Text)]]
     ]
 
-mkEnv :: Logger -> Opts.ElasticSettings -> Opts.CassandraSettings -> Options.Endpoint -> IO Env
-mkEnv l es cas galleyEndpoint = do
+mkEnv :: Logger -> Maybe Credentials -> Opts.ElasticSettings -> Opts.CassandraSettings -> Options.Endpoint -> IO Env
+mkEnv l mCreds es cas galleyEndpoint = do
   mgr <- HTTP.newManager HTTP.defaultManagerSettings
-  Env (ES.mkBHEnv (Opts.toESServer (es ^. Opts.esServer)) mgr)
+  let env = ES.mkBHEnv (Opts.toESServer (es ^. Opts.esServer)) mgr
+  let envWithAuth = maybe env (\(creds :: Credentials) -> env {ES.bhRequestHook = ES.basicAuthHook (ES.EsUsername creds.username) (ES.EsPassword creds.password)}) mCreds
+  Env envWithAuth
     <$> initCassandra
     <*> initLogger
     <*> Metrics.metrics

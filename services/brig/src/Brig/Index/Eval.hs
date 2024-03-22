@@ -66,7 +66,8 @@ runCommand l = \case
     e <- initIndex' esURI indexName mCreds galley
     runIndexIO e updateMapping
   Migrate es cas galley -> do
-    migrate l es cas galley
+    mCreds <- for (es ^. esCredentials) initCredentials
+    migrate l mCreds es cas galley
   ReindexFromAnotherIndex reindexSettings -> do
     mgr <- newManager defaultManagerSettings
     mCreds <- for (view reindexCredentials reindexSettings) initCredentials
