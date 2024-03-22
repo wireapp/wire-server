@@ -189,7 +189,8 @@ data SFTTokenEnv = SFTTokenEnv
   { sftTokenTTL :: Word32,
     sftTokenSecret :: ByteString,
     sftTokenPRNG :: GenIO,
-    sftTokenSHA :: Digest
+    sftTokenSHA :: Digest,
+    sftTokenSecondsBeforeNew :: Int32
   }
 
 mkSFTDomain :: SFTOptions -> DNS.Domain
@@ -215,6 +216,7 @@ mkSFTTokenEnv digest opts =
     <$> BS.readFile (Opts.sttSecret opts)
     <*> createSystemRandom
     <*> pure digest
+    <*> pure (Opts.sttSecondsBeforeNew opts)
 
 -- | Start SFT service discovery synchronously
 startSFTServiceDiscovery :: Log.Logger -> SFTEnv -> IO ()
