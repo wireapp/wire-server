@@ -57,6 +57,7 @@ data:
       host: gundeck
       port: 8080
 
+    enableFederation: {{ .enableFederation }}
     {{- if .enableFederation }}
     # TODO remove this
     federator:

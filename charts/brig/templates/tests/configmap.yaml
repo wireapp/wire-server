@@ -33,6 +33,8 @@ data:
       host: spar
       port: 8080
 
+    enableFederation: true
+
     # TODO remove this
     federator:
       host: federator

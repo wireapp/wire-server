@@ -424,6 +424,8 @@ data Opts = Opts
     cassandra :: !CassandraOpts,
     -- | ElasticSearch settings
     elasticsearch :: !ElasticSearchOpts,
+    -- | Federation
+    enableFederation :: !Bool,
     -- | RabbitMQ settings, required when federation is enabled.
     rabbitmq :: !(Maybe RabbitMqOpts),
     -- | AWS settings

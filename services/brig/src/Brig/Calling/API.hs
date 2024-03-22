@@ -157,7 +157,7 @@ getCallsConfig _ _ = do
 data CallsConfigVersion
   = CallsConfigDeprecated
   | CallsConfigV2
-  | AuthenticatedCallsConfig UserId ClientId
+  | AuthenticatedCallsConfig UserId ClientId Bool
 
 data NoTurnServers = NoTurnServers
   deriving (Show)
@@ -207,6 +207,11 @@ newConfig env discoveredServers sftStaticUrl mSftEnv limit listAllServers versio
       let subsetLength = Calling.sftListLength actualSftEnv
       mapM (getRandomElements subsetLength) allSrvEntries
 
+  let enableFederation' = case version of
+        CallsConfigDeprecated -> Nothing
+        CallsConfigV2 -> Nothing
+        AuthenticatedCallsConfig _ _ fed -> Just fed
+
   mSftServersAll <-
     case version of
       CallsConfigDeprecated -> pure Nothing
@@ -215,14 +220,14 @@ newConfig env discoveredServers sftStaticUrl mSftEnv limit listAllServers versio
           (HideAllSFTServers, _) -> pure Nothing
           (ListAllSFTServers, Nothing) -> pure . pure $ Public.nauthSFTServer . sftServerFromSrvTarget . srvTarget <$> maybe [] toList allSrvEntries
           (ListAllSFTServers, Just url) -> Public.nauthSFTServer <$$$> (hush . unSFTGetResponse <$> sftGetAllServers url)
-      AuthenticatedCallsConfig u c ->
+      AuthenticatedCallsConfig u c _ ->
         case (listAllServers, sftStaticUrl) of
           (HideAllSFTServers, _) -> pure Nothing
           (ListAllSFTServers, Nothing) -> mapM (mapM $ authenticate u c) . pure $ sftServerFromSrvTarget . srvTarget <$> maybe [] toList allSrvEntries
           (ListAllSFTServers, Just url) -> mapM (mapM $ authenticate u c) . hush . unSFTGetResponse =<< sftGetAllServers url
 
   let mSftServers = staticSft <|> sftServerFromSrvTarget . srvTarget <$$> srvEntries
-  pure $ Public.rtcConfiguration srvs mSftServers (env ^. turnConfigTTL) mSftServersAll
+  pure $ Public.rtcConfiguration srvs mSftServers (env ^. turnConfigTTL) mSftServersAll enableFederation'
   where
     limitedList :: NonEmpty Public.TurnURI -> Range 1 10 Int -> NonEmpty Public.TurnURI
     limitedList uris lim =
