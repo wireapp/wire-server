@@ -1081,3 +1081,32 @@ testOutlookCalIntegration =
 testSearchVisibilityInbound :: HasCallStack => App ()
 testSearchVisibilityInbound =
   checkSimpleFlag "searchVisibility" "searchVisibility" Disabled
+
+testFeatureNoConfigMultiSearchVisibilityInbound :: HasCallStack => App ()
+testFeatureNoConfigMultiSearchVisibilityInbound = do
+  (_owner1, team1, []) <- createTeam domain 1
+  (_owner2, team2, []) <- createTeam domain 1
+  t1 <- make team1
+  t2 <- make team2
+
+  let ws = WithStatusNoLock Enabled TrivialConfig FeatureTTLUnlimited
+   in I.putTeamFeatureStatus domain team2 featureName ws
+
+  I.TeamFeatureNoConfigMultiResponse statuses <-
+    I.getFeatureStatusMulti domain featureName (I.TeamFeatureNoConfigMultiRequest [t1, t2])
+      `bindResponse` \resp -> do
+        bdy <- getJSON 200 resp
+        case fromJSON @I.TeamFeatureNoConfigMultiResponse bdy of
+          Error e -> assertFailure $ "Could not parse response from an internal endpoint: " <> show e
+          Success v -> pure v
+
+  (length statuses) `shouldMatchInt` 2
+
+  I.TeamStatus _ team1Status <- assertOne (filter ((== t1) . I.tsTeam) statuses)
+  team1Status `shouldMatch` Disabled
+
+  I.TeamStatus _ team2Status <- assertOne (filter ((== t2) . I.tsTeam) statuses)
+  team2Status `shouldMatch` Enabled
+  where
+    domain = OwnDomain
+    featureName = "searchVisibilityInbound"

@@ -51,15 +51,13 @@ import Wire.API.Conversation.Protocol
 import Wire.API.Event.FeatureConfig qualified as FeatureConfig
 import Wire.API.Internal.Notification (Notification)
 import Wire.API.MLS.CipherSuite
-import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Multi
 import Wire.API.Team.Feature hiding (setLockStatus)
 
 tests :: IO TestSetup -> TestTree
 tests s =
   testGroup
     "Feature Config API and Team Features API"
-    [ test s "SearchVisibilityInbound - internal multi team API" testFeatureNoConfigMultiSearchVisibilityInbound,
-      testGroup
+    [ testGroup
         "TTL / Conference calling"
         [ test s "ConferenceCalling unlimited TTL" $ testSimpleFlagTTL @ConferenceCallingConfig FeatureStatusEnabled FeatureTTLUnlimited,
           test s "ConferenceCalling 2s TTL" $ testSimpleFlagTTL @ConferenceCallingConfig FeatureStatusEnabled (FeatureTTLSeconds 2)
@@ -489,33 +487,6 @@ testSimpleFlagTTL defaultValue ttl = do
   -- Clean up
   setFlagInternal defaultValue FeatureTTLUnlimited
   getFlag defaultValue
-
-testFeatureNoConfigMultiSearchVisibilityInbound :: TestM ()
-testFeatureNoConfigMultiSearchVisibilityInbound = do
-  (_owner1, team1, _) <- createBindingTeamWithNMembers 0
-  (_owner2, team2, _) <- createBindingTeamWithNMembers 0
-
-  let setFlagInternal :: TeamId -> FeatureStatus -> TestM ()
-      setFlagInternal tid statusValue =
-        void $ putTeamFeatureFlagInternal @SearchVisibilityInboundConfig expect2xx tid (WithStatusNoLock statusValue SearchVisibilityInboundConfig FeatureTTLUnlimited)
-
-  setFlagInternal team2 FeatureStatusEnabled
-
-  r <-
-    getFeatureStatusMulti @SearchVisibilityInboundConfig (Multi.TeamFeatureNoConfigMultiRequest [team1, team2])
-      <!! statusCode
-        === const 200
-
-  Multi.TeamFeatureNoConfigMultiResponse teamsStatuses :: Multi.TeamFeatureNoConfigMultiResponse SearchVisibilityInboundConfig <- responseJsonError r
-
-  liftIO $ do
-    length teamsStatuses @?= 2
-
-    Multi.TeamStatus _ team1Status <- assertOne (filter ((== team1) . Multi.team) teamsStatuses)
-    team1Status @?= FeatureStatusDisabled
-
-    Multi.TeamStatus _ team2Status <- assertOne (filter ((== team2) . Multi.team) teamsStatuses)
-    team2Status @?= FeatureStatusEnabled
 
 testNonTrivialConfigNoTTL ::
   forall cfg.

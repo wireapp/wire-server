@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module API.GalleyInternal where
 
 import API.GalleyCommon
@@ -190,3 +192,49 @@ legalholdIsEnabled tid uid = do
   tidStr <- asString tid
   baseRequest uid Galley Unversioned do joinHttpPath ["i", "teams", tidStr, "features", "legalhold"]
     >>= submit "GET"
+
+newtype TeamFeatureNoConfigMultiRequest = TeamFeatureNoConfigMultiRequest
+  { teams :: [Value]
+  }
+  deriving (Show, Eq)
+
+instance Aeson.ToJSON TeamFeatureNoConfigMultiRequest where
+  toJSON (TeamFeatureNoConfigMultiRequest ts) =
+    Aeson.object $ ["teams" .= Aeson.Array (Vector.fromList ts)]
+
+getFeatureStatusMulti ::
+  (HasCallStack, MakesValue domain) =>
+  domain ->
+  String ->
+  TeamFeatureNoConfigMultiRequest ->
+  App Response
+getFeatureStatusMulti domain featureName payload = do
+  bdy <- make payload
+  req <-
+    baseRequest domain Galley Unversioned $
+      joinHttpPath ["i", "features-multi-teams", featureName]
+  submit "POST" $ addJSON bdy req
+
+newtype TeamFeatureNoConfigMultiResponse = TeamFeatureNoConfigMultiResponse
+  { teamStatuses :: [TeamStatus]
+  }
+  deriving (Show, Eq)
+
+instance FromJSON TeamFeatureNoConfigMultiResponse where
+  parseJSON =
+    withObject "TeamFeatureNoConfigMultiResponse" $ \ob ->
+      TeamFeatureNoConfigMultiResponse
+        <$> ob .: "default_status"
+
+data TeamStatus = TeamStatus
+  { tsTeam :: Value,
+    tsStatus :: FeatureStatus
+  }
+  deriving (Show, Eq)
+
+instance FromJSON TeamStatus where
+  parseJSON =
+    withObject "TeamStatus" $ \ob ->
+      TeamStatus
+        <$> ob .: "team"
+        <*> ob .: "status"

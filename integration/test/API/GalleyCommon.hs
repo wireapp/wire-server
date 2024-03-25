@@ -16,7 +16,7 @@ import Testlib.Prelude
 
 data FeatureStatus = Disabled | Enabled
   deriving (Eq, Generic)
-  deriving (ToJSON) via (Schema.Schema FeatureStatus)
+  deriving (FromJSON, ToJSON) via (Schema.Schema FeatureStatus)
 
 instance Schema.ToSchema FeatureStatus where
   schema =
