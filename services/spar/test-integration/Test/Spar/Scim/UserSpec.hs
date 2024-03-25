@@ -124,7 +124,9 @@ specImportToScimFromSAML =
   where
     check :: Bool -> Bool -> Feature.FeatureStatus -> SpecWith TestEnv
     check sameHandle sameDisplayName valemail = it (show (sameHandle, sameDisplayName, valemail)) $ do
-      (_ownerid, teamid, idp, (_, privCreds)) <- registerTestIdPWithMeta
+      env <- ask
+      (owner, teamid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+      (idp, (_, privCreds)) <- registerTestIdPWithMeta owner
       setSamlEmailValidation teamid valemail
 
       -- saml-auto-provision a new user
@@ -376,7 +378,9 @@ specSuspend = do
   describe "suspend" $ do
     let checkPreExistingUser :: Bool -> TestSpar ()
         checkPreExistingUser isActive = do
-          (_, teamid, idp, (_, privCreds)) <- registerTestIdPWithMeta
+          env <- ask
+          (owner, teamid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+          (idp, (_, privCreds)) <- registerTestIdPWithMeta owner
           member <- loginSsoUserFirstTime idp privCreds
           -- NOTE: once SCIM is enabled, SSO Auto-provisioning is disabled
           tok <- registerScimToken teamid (Just (idp ^. SAML.idpId))
@@ -1021,7 +1025,9 @@ testRichInfo = do
 -- @spar.user@; create it via scim.  This should work despite the dangling database entry.
 testScimCreateVsUserRef :: TestSpar ()
 testScimCreateVsUserRef = do
-  (_ownerid, teamid, idp, (_, privCreds)) <- registerTestIdPWithMeta
+  env <- ask
+  (owner, teamid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+  (idp, (_, privCreds)) <- registerTestIdPWithMeta owner
   (usr, uname) :: (Scim.User.User SparTag, SAML.UnqualifiedNameID) <-
     randomScimUserWithSubject
   let uref = SAML.UserRef tenant subj
@@ -1189,7 +1195,9 @@ testFindProvisionedUser = do
 -- The user is migrated by using the email as the externalId
 testFindSamlAutoProvisionedUserMigratedWithEmailInTeamWithSSO :: TestSpar ()
 testFindSamlAutoProvisionedUserMigratedWithEmailInTeamWithSSO = do
-  (_owner, teamid, idp, (_, privCreds)) <- registerTestIdPWithMeta
+  env <- ask
+  (owner, teamid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+  (idp, (_, privCreds)) <- registerTestIdPWithMeta owner
 
   -- auto-provision user via saml
   memberWithSSO <- do
@@ -1372,7 +1380,9 @@ shouldBeManagedBy uid flag = do
 -- the issue here.
 testGetNonScimSAMLUser :: TestSpar ()
 testGetNonScimSAMLUser = do
-  (_, tid, idp, (_, privcreds)) <- registerTestIdPWithMeta
+  env <- ask
+  (owner, tid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+  (idp, (_, privcreds)) <- registerTestIdPWithMeta owner
   -- NOTE: once SCIM is enabled SSO Auto-provisioning is disabled, so we register the scim token later.
 
   uidSso <- loginSsoUserFirstTime idp privcreds
@@ -1414,7 +1424,9 @@ testGetNonScimInviteUserNoIdP = do
 
 testGetUserWithNoHandle :: TestSpar ()
 testGetUserWithNoHandle = do
-  (_, tid, idp, (_, privcreds)) <- registerTestIdPWithMeta
+  env <- ask
+  (owner, tid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+  (idp, (_, privcreds)) <- registerTestIdPWithMeta owner
   -- NOTE: once SCIM is enabled SSO Auto-provisioning is disabled, so we register the scim token later.
   uid <- loginSsoUserFirstTime idp privcreds
   tok <- registerScimToken tid (Just (idp ^. SAML.idpId))
