@@ -16,6 +16,7 @@ import Data.Functor
 import Data.Maybe
 import Data.Monoid
 import Data.String
+import Debug.TimeStats
 import System.Directory
 import System.IO
 import qualified System.IO.Error as E

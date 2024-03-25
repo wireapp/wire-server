@@ -16,6 +16,7 @@ import Data.Functor
 import Data.List
 import Data.PEM
 import Data.Time.Clock
+import Debug.TimeStats (printTimeStats)
 import RunAllTests
 import System.Directory
 import System.Environment
@@ -106,6 +107,9 @@ main = do
              in (qualifiedName, summary, full, action)
 
   if opts.listTests then doListTests tests else runTests tests opts.xmlReport cfg
+
+  putStrLn "output from timestats library: (use `DEBUG_TIMESTATS_ENABLE=1` to enable)"
+  printTimeStats
 
 createGlobalEnv :: FilePath -> Codensity IO GlobalEnv
 createGlobalEnv cfg = do
