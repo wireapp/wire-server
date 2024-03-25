@@ -861,13 +861,13 @@ When the Wire backend is configured to work against a custom Elasticsearch insta
 ```yaml
 brig:
   secrets:
-    elasticsearch: |-
+    elasticsearch:
       username: elastic
       password: changeme
 
 elasticsearch-index:
   secrets:
-    elasticsearch: |-
+    elasticsearch:
       username: elastic
       password: changeme
 ```
@@ -877,7 +877,7 @@ In some cases an additional Elasticsearch instance is needed (e.g. for index mig
 ```yaml
 brig:
   secrets:
-    elasticsearchAdditional: |-
+    elasticsearchAdditional:
       username: elastic
       password: changeme
 ```
