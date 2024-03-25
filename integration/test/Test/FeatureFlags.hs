@@ -1114,3 +1114,7 @@ testFeatureNoConfigMultiSearchVisibilityInbound = do
 testConferenceCallingUnlimitedTTL :: HasCallStack => App ()
 testConferenceCallingUnlimitedTTL =
   checkSimpleFlagTTL FeatureTTLUnlimited "conferenceCalling" "conferenceCalling" Enabled
+
+testConferenceCalling2secTTL :: HasCallStack => App ()
+testConferenceCalling2secTTL =
+  checkSimpleFlagTTL (FeatureTTLSeconds 2) "conferenceCalling" "conferenceCalling" Enabled
