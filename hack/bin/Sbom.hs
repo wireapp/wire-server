@@ -15,37 +15,37 @@
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 {-
-- the only place that has the data we need about the package is the evaluated nix code, i.e. before 
-  writhing the derivation; this is where we have `meta` and friends to get the data we need 
-- say we now want to build a dependency tree; the issue is to find all dependencies of the derivation. 
-  this is hard because 
-  - there are normal input attrs that the builder will have a look at but also 
-  - string contexts like 
-    ```nix 
-    x = /* bash */ '' 
-      cp ${pkgs.bla}/bin $out 
+- the only place that has the data we need about the package is the evaluated nix code, i.e. before
+  writhing the derivation; this is where we have `meta` and friends to get the data we need
+- say we now want to build a dependency tree; the issue is to find all dependencies of the derivation.
+  this is hard because
+  - there are normal input attrs that the builder will have a look at but also
+  - string contexts like
+    ```nix
+    x = /* bash */ ''
+      cp ${pkgs.bla}/bin $out
     '';
     ```
     would ignore dependencies on `pkgs.bla`
-- we can build the dependency graph independently (without knowing about the meta) but we somehow need 
+- we can build the dependency graph independently (without knowing about the meta) but we somehow need
   to obtain the meta itself
-- people don't always have a complete package set but more commonly are hand assembling things; we need 
+- people don't always have a complete package set but more commonly are hand assembling things; we need
   to give the possibility to build meta "databases" from package sets
-- we need to trace which dependencies are missing when querying the meta database against them 
-- collecting the meta also poses some issue 
+- we need to trace which dependencies are missing when querying the meta database against them
+- collecting the meta also poses some issue
   - nixpkgs is not a tree, but a more general graph
-  - it also not a DAG but it has loops 
-  - this means more specifically that we cannot without care recurse into it 
-  - even if we only recurse very shallowly, we soon start running out of memory, this means we probably need 
+  - it also not a DAG but it has loops
+  - this means more specifically that we cannot without care recurse into it
+  - even if we only recurse very shallowly, we soon start running out of memory, this means we probably need
     to do some on the fly filtering by "actual" dependencies
-  - this is similarly and issue, because it means that for every package we have to evaluate the entirety 
-    of the package set instead of being able to keep and persist the database 
-  - a more clean solution would probably be to at each time we recurse, a derivation that does the evaluation 
+  - this is similarly and issue, because it means that for every package we have to evaluate the entirety
+    of the package set instead of being able to keep and persist the database
+  - a more clean solution would probably be to at each time we recurse, a derivation that does the evaluation
     and outputs a JSON that can later be read
 
-how this relates to bombon: 
+how this relates to bombon:
 - bombon uses  a more coarse grained approach
-- this builds a metadata "database" i.e. is two pass 
+- this builds a metadata "database" i.e. is two pass
 - see the corresponding nix code in ./nix
 -}
 
@@ -132,22 +132,14 @@ type Meta = SBomMeta Proxy
 instance FromJSON Meta where
   parseJSON (Object val) =
     MkSBomMeta
-      <$> val
-      .: "drvPath"
-      <*> val
-      .: "description"
-      <*> val
-      .: "homepage"
-      <*> val
-      .: "licenseSpdxId"
-      <*> val
-      .: "name"
-      <*> val
-      .: "type"
-      <*> val
-      .: "urls"
-      <*> val
-      .: "version"
+      <$> do val .: "drvPath"
+      <*> do val .: "description"
+      <*> do val .: "homepage"
+      <*> do val .: "licenseSpdxId"
+      <*> do val .: "name"
+      <*> do val .: "type"
+      <*> do val .: "urls"
+      <*> do val .: "version"
       <*> pure Proxy
       <*> pure Proxy
   parseJSON invalid = typeMismatch "Object" invalid
