@@ -475,8 +475,8 @@ specCreateUser = describe "POST /Users" $ do
       testCreateUserNoIdPNoEmail
     it "doesn't list users that exceed their invitation period, and allows recreating them" $ do
       testCreateUserTimeout
-  focus . context "team has one SAML IdP" $ do
-    it "creates a user in an existing team" $ do
+  context "team has one SAML IdP" $ do
+    focus . it "creates a user in an existing team" $ do
       testCreateUserWithSamlIdP
     it "adds a Wire scheme to the user record" $ testSchemaIsAdded
     it "set locale to default and update to de" $ testCreateUserWithSamlIdPWithPreferredLanguage Nothing (Just (Locale (Language DE) Nothing))
