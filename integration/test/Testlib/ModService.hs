@@ -351,7 +351,7 @@ retryRequestUntil reqAction execName domain mServiceInstance = do
         Just serviceInstance -> do
           outStr <- flushProcessState serviceInstance
           pure $ unlines [":", outStr]
-    assertFailure ("Timed out waiting for service " <> execName <> "@" <> domain <> " to come up" <> errDetails)
+    failApp ("Timed out waiting for service " <> execName <> "@" <> domain <> " to come up" <> errDetails)
 
 startNginzK8s :: String -> ServiceMap -> IO ServiceInstance
 startNginzK8s domain sm = do
