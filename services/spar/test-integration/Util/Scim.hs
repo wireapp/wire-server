@@ -71,14 +71,20 @@ import Wire.API.User.Scim
 -- the IdP is registered with the team; the SCIM token can be used to manipulate the team.
 registerIdPAndScimToken :: HasCallStack => TestSpar (ScimToken, (UserId, TeamId, IdP))
 registerIdPAndScimToken = do
-  team@(_owner, teamid, idp) <- registerTestIdP
+  env <- ask
+  (owner, teamid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+  idp <- registerTestIdP owner
+  let team = (owner, teamid, idp)
   (,team) <$> registerScimToken teamid (Just (idp ^. idpId))
 
 -- | Call 'registerTestIdPWithMeta', then 'registerScimToken'.  The user returned is the owner of the team;
 -- the IdP is registered with the team; the SCIM token can be used to manipulate the team.
 registerIdPAndScimTokenWithMeta :: HasCallStack => TestSpar (ScimToken, (UserId, TeamId, IdP, (IdPMetadataInfo, SAML.SignPrivCreds)))
 registerIdPAndScimTokenWithMeta = do
-  team@(_owner, teamid, idp, _) <- registerTestIdPWithMeta
+  env <- ask
+  (owner, teamid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+  (idp, meta) <- registerTestIdPWithMeta owner
+  let team = (owner, teamid, idp, meta)
   (,team) <$> registerScimToken teamid (Just (idp ^. idpId))
 
 -- | Create a fresh SCIM token and register it for the team.

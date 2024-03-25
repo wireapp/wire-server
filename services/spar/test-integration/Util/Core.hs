@@ -805,36 +805,35 @@ getTestSPMetadata tid = do
 -- | See 'registerTestIdPWithMeta'
 registerTestIdP ::
   (HasCallStack, MonadRandom m, MonadIO m, MonadReader TestEnv m) =>
-  m (UserId, TeamId, IdP)
-registerTestIdP = do
-  (uid, tid, idp, _) <- registerTestIdPWithMeta
-  pure (uid, tid, idp)
+  UserId ->
+  m IdP
+registerTestIdP owner = do
+  (idp, _) <- registerTestIdPWithMeta owner
+  pure idp
 
--- | Create a fresh 'IdPMetadata' suitable for testing.  Call 'createUserWithTeam' and create the
--- idp in the resulting team.  The user returned is the owner of the team.
+-- | Create a fresh 'IdPMetadata' suitable for testing.
 registerTestIdPWithMeta ::
   (HasCallStack, MonadRandom m, MonadIO m, MonadReader TestEnv m) =>
-  m (UserId, TeamId, IdP, (IdPMetadataInfo, SAML.SignPrivCreds))
-registerTestIdPWithMeta = do
+  UserId ->
+  m (IdP, (IdPMetadataInfo, SAML.SignPrivCreds))
+registerTestIdPWithMeta owner = do
   SampleIdP idpmeta privkey _ _ <- makeSampleIdPMetadata
   env <- ask
-  (uid, tid, idp) <- registerTestIdPFrom idpmeta (env ^. teMgr) (env ^. teBrig) (env ^. teGalley) (env ^. teSpar)
-  pure (uid, tid, idp, (IdPMetadataValue (cs $ SAML.encode idpmeta) idpmeta, privkey))
+  idp <- registerTestIdPFrom idpmeta (env ^. teMgr) owner (env ^. teSpar)
+  pure (idp, (IdPMetadataValue (cs $ SAML.encode idpmeta) idpmeta, privkey))
 
 -- | Helper for 'registerTestIdP'.
 registerTestIdPFrom ::
   (HasCallStack, MonadIO m, MonadReader TestEnv m) =>
   IdPMetadata ->
   Manager ->
-  BrigReq ->
-  GalleyReq ->
+  UserId ->
   SparReq ->
-  m (UserId, TeamId, IdP)
-registerTestIdPFrom metadata mgr brig galley spar = do
+  m IdP
+registerTestIdPFrom metadata mgr owner spar = do
   apiVer <- view teWireIdPAPIVersion
   liftIO . runHttpT mgr $ do
-    (uid, tid) <- createUserWithTeam brig galley
-    (uid,tid,) <$> callIdpCreate apiVer spar (Just uid) metadata
+    callIdpCreate apiVer spar (Just owner) metadata
 
 getCookie :: KnownSymbol name => proxy name -> ResponseLBS -> Either String (SAML.SimpleSetCookie name)
 getCookie proxy rsp = do

@@ -52,7 +52,9 @@ spec = describe "accessVerdict" $ do
         pending
     context "denied" $ do
       it "responds with status 200 and a valid html page with constant expected title." $ do
-        (_, _, idp) <- registerTestIdP
+        env <- ask
+        (owner, _teamId) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+        idp <- registerTestIdP owner
         (Nothing, outcome, _, _) <- requestAccessVerdict idp False mkAuthnReqWeb
         liftIO $ do
           Servant.errHTTPCode outcome `shouldBe` 200
@@ -63,7 +65,9 @@ spec = describe "accessVerdict" $ do
             `shouldSatisfy` (isRight . snd)
     context "granted" $ do
       it "responds with status 200 and a valid html page with constant expected title." $ do
-        (_, _, idp) <- registerTestIdP
+        env <- ask
+        (owner, _teamId) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+        idp <- registerTestIdP owner
         (Just _, outcome, _, _) <- requestAccessVerdict idp True mkAuthnReqWeb
         liftIO $ do
           Servant.errHTTPCode outcome `shouldBe` 200
@@ -80,7 +84,9 @@ spec = describe "accessVerdict" $ do
         pending
     context "denied" $ do
       it "responds with status 303 with appropriate details." $ do
-        (_, _, idp) <- registerTestIdP
+        env <- ask
+        (owner, _teamId) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+        idp <- registerTestIdP owner
         (Nothing, outcome, loc, qry) <- requestAccessVerdict idp False mkAuthnReqMobile
         liftIO $ do
           Servant.errHTTPCode outcome `shouldBe` 303
@@ -92,7 +98,9 @@ spec = describe "accessVerdict" $ do
           List.lookup "label" qry `shouldBe` Just "forbidden"
     context "granted" $ do
       it "responds with status 303 with appropriate details." $ do
-        (_, _, idp) <- registerTestIdP
+        env <- ask
+        (owner, _teamId) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+        idp <- registerTestIdP owner
         (Just uid, outcome, loc, qry) <- requestAccessVerdict idp True mkAuthnReqMobile
         liftIO $ do
           Servant.errHTTPCode outcome `shouldBe` 303
