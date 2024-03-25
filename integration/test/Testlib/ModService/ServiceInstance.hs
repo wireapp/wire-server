@@ -7,7 +7,6 @@ module Testlib.ModService.ServiceInstance
 where
 
 import Control.Concurrent
-import Control.Concurrent.Async (race)
 import qualified Control.Exception as E
 import Control.Monad.Extra
 import Control.Monad.IO.Class
@@ -22,6 +21,7 @@ import System.IO
 import qualified System.IO.Error as E
 import System.Posix
 import System.Process
+import System.Timeout.Lifted
 import Testlib.Printing
 import Testlib.Types
 import Prelude
@@ -71,9 +71,6 @@ cleanupService inst = liftIO $ do
         void $ waitForProcess inst.processHandle
   whenM (doesFileExist inst.cleanupPath) $ removeFile inst.cleanupPath
   whenM (doesDirectoryExist inst.cleanupPath) $ removeDirectoryRecursive inst.cleanupPath
-
-timeout :: Int -> IO a -> IO (Maybe a)
-timeout usecs action = either (const Nothing) Just <$> race (threadDelay usecs) action
 
 flushProcessState :: ServiceInstance -> IO String
 flushProcessState serviceInstance = do
