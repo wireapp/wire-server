@@ -121,8 +121,6 @@ isConvLeaveNotifWithLeaver user n =
   fieldEquals n "payload.0.type" "conversation.member-leave"
     &&~ (n %. "payload.0.data.user_ids.0") `isEqual` (user %. "id")
 
--- fieldEquals n "payload.0.data.user_ids" users
-
 isNotifConv :: (MakesValue conv, MakesValue a, HasCallStack) => conv -> a -> App Bool
 isNotifConv conv n = fieldEquals n "payload.0.qualified_conversation" (objQidObject conv)
 
