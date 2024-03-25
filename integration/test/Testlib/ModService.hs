@@ -29,6 +29,7 @@ import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import Data.Traversable
 import qualified Data.Yaml as Yaml
+import Debug.TimeStats (measureM)
 import GHC.Stack
 import qualified Network.HTTP.Client as HTTP
 import System.Directory (copyFile, createDirectoryIfMissing, doesDirectoryExist, doesFileExist, listDirectory, removeFile)
@@ -46,7 +47,7 @@ import qualified UnliftIO
 import Prelude
 
 withModifiedBackend :: HasCallStack => ServiceOverrides -> (HasCallStack => String -> App a) -> App a
-withModifiedBackend overrides k =
+withModifiedBackend overrides k = measureM "withModifiedBackend" $ do
   startDynamicBackends [overrides] (\domains -> k (head domains))
 
 copyDirectoryRecursively :: FilePath -> FilePath -> IO ()
@@ -117,7 +118,7 @@ traverseConcurrentlyCodensity f args = do
     pure result
 
 startDynamicBackends :: [ServiceOverrides] -> ([String] -> App a) -> App a
-startDynamicBackends beOverrides k =
+startDynamicBackends beOverrides k = measureM "startDynamicBackends" do
   runCodensity
     do
       when (Prelude.length beOverrides > 3) $ lift $ failApp "Too many backends. Currently only 3 are supported."
@@ -250,12 +251,12 @@ startBackend ::
   BackendResource ->
   ServiceOverrides ->
   Codensity App ()
-startBackend resource overrides = do
+startBackend resource overrides = measureM "startBackend" do
   traverseConcurrentlyCodensity (withProcess resource overrides) allServices
   lift $ ensureBackendReachable resource.berDomain
 
 ensureBackendReachable :: String -> App ()
-ensureBackendReachable domain = do
+ensureBackendReachable domain = measureM "ensureBackendReachable" do
   env <- ask
   let checkServiceIsUpReq = do
         req <-
@@ -288,7 +289,7 @@ ensureBackendReachable domain = do
 
 -- | Wait for a service to come up.
 waitUntilServiceIsUp :: String -> Service -> ServiceInstance -> App ()
-waitUntilServiceIsUp domain srv serviceInstance =
+waitUntilServiceIsUp domain srv serviceInstance = measureM "waitUntilServiceUp" do
   retryRequestUntil
     (checkServiceIsUp domain srv)
     (show srv)
@@ -298,7 +299,7 @@ waitUntilServiceIsUp domain srv serviceInstance =
 -- | Check if a service is up and running.
 checkServiceIsUp :: String -> Service -> App Bool
 checkServiceIsUp _ Nginz = pure True
-checkServiceIsUp domain srv = do
+checkServiceIsUp domain srv = measureM "checkServiceIsUp" do
   req <- baseRequest domain srv Unversioned "/i/status"
   checkStatus <- appToIO $ do
     res <- submit "GET" req
@@ -338,7 +339,7 @@ withProcess resource overrides service = do
       k serviceInstance
 
 retryRequestUntil :: HasCallStack => App Bool -> String -> String -> Maybe ServiceInstance -> App ()
-retryRequestUntil reqAction execName domain mServiceInstance = do
+retryRequestUntil reqAction execName domain mServiceInstance = measureM "retryRequestUntil" do
   isUp <-
     retrying
       (limitRetriesByCumulativeDelay (4 * 1000 * 1000) (fibonacciBackoff (200 * 1000)))

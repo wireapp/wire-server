@@ -63,6 +63,7 @@
 , temporary
 , text
 , time
+, timestats
 , transformers
 , transformers-base
 , unix
@@ -149,6 +150,7 @@ mkDerivation {
     temporary
     text
     time
+    timestats
     transformers
     transformers-base
     unix

@@ -16,6 +16,7 @@ import Data.Functor
 import Data.Maybe
 import Data.Monoid
 import Data.String
+import Debug.TimeStats
 import System.Directory
 import System.IO
 import qualified System.IO.Error as E
@@ -36,7 +37,7 @@ data ServiceInstance = ServiceInstance
   }
 
 startServiceInstance :: FilePath -> [String] -> Maybe FilePath -> FilePath -> String -> String -> IO ServiceInstance
-startServiceInstance exe args workingDir pathToCleanup execName execDomain = do
+startServiceInstance exe args workingDir pathToCleanup execName execDomain = measureM "startServiceInstance" do
   (_, Just stdoutHdl, Just stderrHdl, ph) <-
     createProcess
       (proc exe args)
@@ -59,7 +60,7 @@ startServiceInstance exe args workingDir pathToCleanup execName execDomain = do
       }
 
 cleanupService :: ServiceInstance -> App ()
-cleanupService inst = liftIO $ do
+cleanupService inst = measureM "cleanupService" . liftIO $ do
   let ignoreExceptions action = E.catch action $ \(_ :: E.SomeException) -> pure ()
   ignoreExceptions $ do
     mPid <- getPid inst.processHandle
@@ -73,7 +74,7 @@ cleanupService inst = liftIO $ do
   whenM (doesDirectoryExist inst.cleanupPath) $ removeDirectoryRecursive inst.cleanupPath
 
 flushProcessState :: ServiceInstance -> IO String
-flushProcessState serviceInstance = do
+flushProcessState serviceInstance = measureM "flushProcessState" do
   outStr <- flushChan serviceInstance.name serviceInstance.domain serviceInstance.stdoutChan
   errStr <- flushChan serviceInstance.name serviceInstance.domain serviceInstance.stderrChan
   statusStr <- getPid serviceInstance.processHandle <&> maybe "(already closed)" show
@@ -102,7 +103,7 @@ logChanToConsole execName domain chan = go
 
 -- | Read everything from a channel and return it as a decorated multi-line String.
 flushChan :: String -> String -> Chan LineOrEOF -> IO String
-flushChan execName domain chan = do
+flushChan execName domain chan = measureM "flushChan" do
   let go lns =
         readChan chan >>= \case
           Line ln -> go (ln : lns)
