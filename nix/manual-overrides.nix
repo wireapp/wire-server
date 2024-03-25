@@ -23,6 +23,9 @@ hself: hsuper: {
   transitive-anns = hlib.dontCheck hsuper.transitive-anns;
   warp = hlib.dontCheck hsuper.warp;
 
+  # Tests require a running redis
+  hedis = hlib.dontCheck hsuper.hedis;
+
   # ---------------------
   # need to be jailbroken
   # (these need to be fixed upstream eventually)
