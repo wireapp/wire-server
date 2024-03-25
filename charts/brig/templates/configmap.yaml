@@ -38,6 +38,12 @@ data:
       {{- if .elasticsearch.additionalWriteIndex }}
       additionalWriteIndex: {{ .elasticsearch.additionalWriteIndex }}
       {{- end }}
+      {{- if $.Values.secrets.elasticsearch }}
+      credentials: /etc/wire/brig/secrets/elasticsearch-credentials.yaml
+      {{- end }}
+      {{- if $.Values.secrets.elasticsearchAdditional }}
+      additionalCredentials: /etc/wire/brig/secrets/elasticsearch-additional-credentials.yaml
+      {{- end }}
 
     cargohold:
       host: cargohold

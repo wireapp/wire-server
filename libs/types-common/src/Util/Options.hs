@@ -79,14 +79,19 @@ urlPort u = do
 makeLenses ''AWSEndpoint
 
 newtype FilePathSecrets = FilePathSecrets FilePath
-  deriving (Eq, Show, FromJSON)
+  deriving (Eq, Show, FromJSON, IsString)
 
-loadSecret :: FromJSON a => FilePathSecrets -> IO (Either String a)
+initCredentials :: (MonadIO m, FromJSON a) => FilePathSecrets -> m a
+initCredentials secretFile = do
+  dat <- loadSecret secretFile
+  pure $ either (\e -> error $ "Could not load secrets from " ++ show secretFile ++ ": " ++ e) id dat
+
+loadSecret :: (MonadIO m, FromJSON a) => FilePathSecrets -> m (Either String a)
 loadSecret (FilePathSecrets p) = do
   path <- canonicalizePath p
   exists <- doesFileExist path
   if exists
-    then over _Left show . decodeEither' <$> BS.readFile path
+    then liftIO $ over _Left show . decodeEither' <$> BS.readFile path
     else pure (Left "File doesn't exist")
 
 -- | Get configuration options from the command line or configuration file.

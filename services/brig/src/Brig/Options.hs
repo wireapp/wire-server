@@ -90,7 +90,11 @@ data ElasticSearchOpts = ElasticSearchOpts
     -- new instace of ES. It is necessary to provide 'additionalWriteIndex' for
     -- this to be used. If this is 'Nothing' and 'additionalWriteIndex' is
     -- configured, the 'url' field will be used.
-    additionalWriteIndexUrl :: !(Maybe Text)
+    additionalWriteIndexUrl :: !(Maybe Text),
+    -- | Elasticsearch credentials
+    credentials :: !(Maybe FilePathSecrets),
+    -- | Credentials for additional ES index (maily used for migrations)
+    additionalCredentials :: !(Maybe FilePathSecrets)
   }
   deriving (Show, Generic)
 

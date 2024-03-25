@@ -31,6 +31,10 @@ spec:
             - migrate-data
             - --elasticsearch-server
             - "http://{{ required "missing elasticsearch-index.elasticsearch.host!" .Values.elasticsearch.host }}:{{ .Values.elasticsearch.port }}"
+            {{- if hasKey .Values.secrets "elasticsearch" }}
+            - --elasticsearch-credentials
+            - "/etc/wire/elasticsearch-index/secrets/elasticsearch-credentials.yaml"
+            {{- end }}
             - --elasticsearch-index
             - "{{ or (.Values.elasticsearch.additionalWriteIndex) (.Values.elasticsearch.index) }}"
             - --cassandra-host
@@ -47,14 +51,23 @@ spec:
             - --tls-ca-certificate-file
             - /certs/{{- (include "tlsSecretRef" .Values | fromYaml).key }}
             {{- end }}
-          {{- if eq (include "useCassandraTLS" .Values) "true" }}
           volumeMounts:
+          {{- if hasKey .Values.secrets "elasticsearch" }}
+            - name: "elasticsearch-index-secrets"
+              mountPath: "/etc/wire/elasticsearch-index/secrets"
+          {{- end }}
+          {{- if eq (include "useCassandraTLS" .Values) "true" }}
             - name: elasticsearch-index-migrate-cassandra-client-ca
               mountPath: "/certs"
           {{- end }}
-      {{- if eq (include "useCassandraTLS" .Values) "true" }}
       volumes:
+        {{- if hasKey .Values.secrets "elasticsearch" }}
+        - name: elasticsearch-index-secrets
+          secret:
+            secretName: elasticsearch-index
+        {{- end }}
+        {{- if eq (include "useCassandraTLS" .Values) "true" }}
         - name: elasticsearch-index-migrate-cassandra-client-ca
           secret:
             secretName: {{ (include "tlsSecretRef" .Values | fromYaml).name }}
-      {{- end}}
+        {{- end}}

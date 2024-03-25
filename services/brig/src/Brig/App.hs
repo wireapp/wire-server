@@ -96,7 +96,7 @@ import Bilge.IO
 import Bilge.RPC (HasRequestId (..))
 import Brig.AWS qualified as AWS
 import Brig.Calling qualified as Calling
-import Brig.Options (Opts, Settings)
+import Brig.Options (Opts, Settings (..))
 import Brig.Options qualified as Opt
 import Brig.Provider.Template
 import Brig.Queue.Stomp qualified as Stomp
@@ -118,6 +118,7 @@ import Control.Lens hiding (index, (.=))
 import Control.Monad.Catch
 import Control.Monad.Trans.Resource
 import Data.ByteString.Conversion
+import Data.Credentials (Credentials (..))
 import Data.Domain
 import Data.Metrics (Metrics)
 import Data.Metrics.Middleware qualified as Metrics
@@ -128,7 +129,6 @@ import Data.Text.Encoding (encodeUtf8)
 import Data.Text.Encoding qualified as Text
 import Data.Text.IO qualified as Text
 import Data.Time.Clock
-import Data.Yaml (FromJSON)
 import Database.Bloodhound qualified as ES
 import HTTP2.Client.Manager (Http2Manager, http2ManagerWithSSLCtx)
 import Imports
@@ -259,6 +259,8 @@ newEnv o = do
   kpLock <- newMVar ()
   rabbitChan <- traverse (Q.mkRabbitMqChannelMVar lgr) o.rabbitmq
   let allDisabledVersions = foldMap expandVersionExp (Opt.setDisabledAPIVersions sett)
+  mEsCreds <- for (Opt.credentials (Opt.elasticsearch o)) initCredentials
+  mEsAddCreds <- for (Opt.additionalCredentials (Opt.elasticsearch o)) initCredentials
 
   pure $!
     Env
@@ -294,7 +296,7 @@ newEnv o = do
         _zauthEnv = zau,
         _digestMD5 = md5,
         _digestSHA256 = sha256,
-        _indexEnv = mkIndexEnv o lgr mgr mtr (Opt.galley o),
+        _indexEnv = mkIndexEnv o lgr mgr mtr mEsCreds mEsAddCreds (Opt.galley o),
         _randomPrekeyLocalLock = prekeyLocalLock,
         _keyPackageLocalLock = kpLock,
         _rabbitmqChannel = rabbitChan,
@@ -313,14 +315,16 @@ newEnv o = do
       pure (Nothing, Just smtp)
     mkEndpoint service = RPC.host (encodeUtf8 (service ^. host)) . RPC.port (service ^. port) $ RPC.empty
 
-mkIndexEnv :: Opts -> Logger -> Manager -> Metrics -> Endpoint -> IndexEnv
-mkIndexEnv o lgr mgr mtr galleyEp =
-  let bhe = ES.mkBHEnv (ES.Server (Opt.url (Opt.elasticsearch o))) mgr
+mkIndexEnv :: Opts -> Logger -> Manager -> Metrics -> Maybe Credentials -> Maybe Credentials -> Endpoint -> IndexEnv
+mkIndexEnv o lgr mgr mtr mCreds mAddCreds galleyEp =
+  let mkBhe url mcs =
+        let bhe = ES.mkBHEnv (ES.Server url) mgr
+         in maybe bhe (\creds -> bhe {ES.bhRequestHook = ES.basicAuthHook (ES.EsUsername creds.username) (ES.EsPassword creds.password)}) mcs
       lgr' = Log.clone (Just "index.brig") lgr
       mainIndex = ES.IndexName $ Opt.index (Opt.elasticsearch o)
       additionalIndex = ES.IndexName <$> Opt.additionalWriteIndex (Opt.elasticsearch o)
-      additionalBhe = flip ES.mkBHEnv mgr . ES.Server <$> Opt.additionalWriteIndexUrl (Opt.elasticsearch o)
-   in IndexEnv mtr lgr' bhe Nothing mainIndex additionalIndex additionalBhe galleyEp mgr
+      additionalBhe = flip mkBhe mAddCreds <$> Opt.additionalWriteIndexUrl (Opt.elasticsearch o)
+   in IndexEnv mtr lgr' (mkBhe (Opt.url (Opt.elasticsearch o)) mCreds) Nothing mainIndex additionalIndex additionalBhe galleyEp mgr
 
 initZAuth :: Opts -> IO ZAuth.Env
 initZAuth o = do
@@ -408,11 +412,6 @@ initCassandra o g =
     (Opt.discoUrl o)
     (Just schemaVersion)
     g
-
-initCredentials :: (FromJSON a) => FilePathSecrets -> IO a
-initCredentials secretFile = do
-  dat <- loadSecret secretFile
-  pure $ either (\e -> error $ "Could not load secrets from " ++ show secretFile ++ ": " ++ e) id dat
 
 userTemplates :: (MonadReader Env m) => Maybe Locale -> m (Locale, UserTemplates)
 userTemplates l = forLocale l <$> view usrTemplates

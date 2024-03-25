@@ -766,10 +766,12 @@ deleteIndex opts name = do
   let indexName = ES.IndexName name
   void $ runBH opts $ ES.deleteIndex indexName
 
-runBH :: MonadIO m => Opt.Opts -> ES.BH IO a -> m a
-runBH opts =
+runBH :: MonadIO m => Opt.Opts -> ES.BH m a -> m a
+runBH opts action = do
   let esURL = opts ^. Opt.elasticsearchL . Opt.urlL
-   in liftIO . ES.withBH HTTP.defaultManagerSettings (ES.Server esURL)
+  mgr <- liftIO $ HTTP.newManager HTTP.defaultManagerSettings
+  let bEnv = mkBHEnv esURL mgr
+  ES.runBH bEnv action
 
 -- | This was copied from at Brig.User.Search.Index at commit 3242aa26
 analysisSettings :: ES.Analysis

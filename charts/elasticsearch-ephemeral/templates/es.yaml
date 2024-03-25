@@ -32,6 +32,11 @@ spec:
           value: "single-node"
         - name: "action.auto_create_index"
           value: ".watches,.triggered_watches,.watcher-history-*,pod-*,node-*"
+        - name: "xpack.security.enabled"
+          value: "true"
+        # setting the password here is ok, as this chart is only used for integration tests on CI
+        - name: "ELASTIC_PASSWORD"
+          value: "changeme"
         ports:
         - containerPort: 9200
           name: http

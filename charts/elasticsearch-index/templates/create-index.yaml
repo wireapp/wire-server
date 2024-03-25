@@ -21,20 +21,34 @@ spec:
         chart: "{{.Chart.Name}}-{{.Chart.Version}}"
     spec:
       restartPolicy: OnFailure
+      {{- if hasKey .Values.secrets "elasticsearch" }}
+      volumes:
+        - name: elasticsearch-index-secrets
+          secret:
+            secretName: elasticsearch-index
+      {{- end }}
       initContainers:
         # Creates index in elasticsearch only when it doesn't exist.
         # Does nothing if the index exists.
         - name: brig-index-create
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-          imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
-        {{- if eq (include "includeSecurityContext" .) "true" }}
+          {{- if hasKey .Values.secrets "elasticsearch" }}
+          volumeMounts:
+            - name: "elasticsearch-index-secrets"
+              mountPath: "/etc/wire/elasticsearch-index/secrets"
+          {{- end }}
+          {{- if eq (include "includeSecurityContext" .) "true" }}
           securityContext:
             {{- toYaml .Values.podSecurityContext | nindent 12 }}
-        {{- end }}
+          {{- end }}
           args:
             - create
             - --elasticsearch-server
             - "http://{{ required "missing elasticsearch-index.elasticsearch.host!" .Values.elasticsearch.host }}:{{ .Values.elasticsearch.port }}"
+            {{- if hasKey .Values.secrets "elasticsearch" }}
+            - --elasticsearch-credentials
+            - "/etc/wire/elasticsearch-index/secrets/elasticsearch-credentials.yaml"
+            {{- end }}
             - --elasticsearch-index
             - "{{ or (.Values.elasticsearch.additionalWriteIndex) (.Values.elasticsearch.index) }}"
             - --elasticsearch-shards=5
@@ -48,13 +62,22 @@ spec:
         - name: brig-index-update-mapping
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
-        {{- if eq (include "includeSecurityContext" .) "true" }}
+          {{- if hasKey .Values.secrets "elasticsearch" }}
+          volumeMounts:
+            - name: "elasticsearch-index-secrets"
+              mountPath: "/etc/wire/elasticsearch-index/secrets"
+          {{- end }}
+          {{- if eq (include "includeSecurityContext" .) "true" }}
           securityContext:
             {{- toYaml .Values.podSecurityContext | nindent 12 }}
-        {{- end }}
+          {{- end }}
           args:
             - update-mapping
             - --elasticsearch-server
             - "http://{{ required "missing elasticsearch-index.elasticsearch.host!" .Values.elasticsearch.host }}:{{ .Values.elasticsearch.port }}"
+            {{- if hasKey .Values.secrets "elasticsearch" }}
+            - --elasticsearch-credentials
+            - "/etc/wire/elasticsearch-index/secrets/elasticsearch-credentials.yaml"
+            {{- end }}
             - --elasticsearch-index
             - "{{ or (.Values.elasticsearch.additionalWriteIndex) (.Values.elasticsearch.index) }}"

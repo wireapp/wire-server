@@ -38,6 +38,10 @@ elasticsearch-index:
         name: "cassandra-jks-keystore"
         key: "ca.crt"
     {{- end }}
+  secrets:
+    elasticsearch:
+      username: "elastic"
+      password: "changeme"
 
 brig:
   replicaCount: 1
@@ -151,6 +155,12 @@ brig:
     rabbitmq:
       username: {{ .Values.rabbitmqUsername }}
       password: {{ .Values.rabbitmqPassword }}
+    elasticsearch:
+      username: "elastic"
+      password: "changeme"
+    elasticsearchAdditional:
+      username: "elastic"
+      password: "changeme"
   tests:
     enableFederationTests: true
     {{- if .Values.uploadXml }}

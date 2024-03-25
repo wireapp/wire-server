@@ -28,6 +28,7 @@ module Brig.Index.Options
     esIndexReplicas,
     esIndexRefreshInterval,
     esDeleteTemplate,
+    esCredentials,
     CassandraSettings,
     toCassandraOpts,
     cHost,
@@ -44,6 +45,7 @@ module Brig.Index.Options
     reindexSrcIndex,
     reindexEsServer,
     reindexTimeoutSeconds,
+    reindexCredentials,
   )
 where
 
@@ -59,7 +61,7 @@ import Imports
 import Options.Applicative
 import URI.ByteString
 import URI.ByteString.QQ
-import Util.Options (CassandraOpts (..), Endpoint (..))
+import Util.Options (CassandraOpts (..), Endpoint (..), FilePathSecrets)
 
 data Command
   = Create ElasticSettings Endpoint
@@ -67,7 +69,7 @@ data Command
   | Reindex ElasticSettings CassandraSettings Endpoint
   | ReindexSameOrNewer ElasticSettings CassandraSettings Endpoint
   | -- | 'ElasticSettings' has shards and other settings that are not needed here.
-    UpdateMapping (URIRef Absolute) ES.IndexName Endpoint
+    UpdateMapping (URIRef Absolute) ES.IndexName (Maybe FilePathSecrets) Endpoint
   | Migrate ElasticSettings CassandraSettings Endpoint
   | ReindexFromAnotherIndex ReindexFromAnotherIndexSettings
   deriving (Show)
@@ -78,7 +80,8 @@ data ElasticSettings = ElasticSettings
     _esIndexShardCount :: Int,
     _esIndexReplicas :: ES.ReplicaCount,
     _esIndexRefreshInterval :: NominalDiffTime,
-    _esDeleteTemplate :: Maybe ES.TemplateName
+    _esDeleteTemplate :: Maybe ES.TemplateName,
+    _esCredentials :: Maybe FilePathSecrets
   }
   deriving (Show)
 
@@ -94,7 +97,8 @@ data ReindexFromAnotherIndexSettings = ReindexFromAnotherIndexSettings
   { _reindexEsServer :: URIRef Absolute,
     _reindexSrcIndex :: ES.IndexName,
     _reindexDestIndex :: ES.IndexName,
-    _reindexTimeoutSeconds :: Int
+    _reindexTimeoutSeconds :: Int,
+    _reindexCredentials :: Maybe FilePathSecrets
   }
   deriving (Show)
 
@@ -130,7 +134,8 @@ localElasticSettings =
       _esIndexShardCount = 1,
       _esIndexReplicas = ES.ReplicaCount 1,
       _esIndexRefreshInterval = 1,
-      _esDeleteTemplate = Nothing
+      _esDeleteTemplate = Nothing,
+      _esCredentials = Nothing
     }
 
 localCassandraSettings :: CassandraSettings
@@ -168,10 +173,12 @@ restrictedElasticSettingsParser = do
           <> value "directory"
           <> showDefault
       )
+  mCreds <- credentialsPathParser
   pure $
     localElasticSettings
       & esServer .~ server
       & esIndex .~ ES.IndexName (prefix <> "_test")
+      & esCredentials .~ mCreds
 
 indexNameParser :: Parser ES.IndexName
 indexNameParser =
@@ -193,6 +200,7 @@ elasticSettingsParser =
     <*> indexReplicaCountParser
     <*> indexRefreshIntervalParser
     <*> templateParser
+    <*> credentialsPathParser
   where
     indexShardCountParser =
       option
@@ -233,6 +241,16 @@ elasticSettingsParser =
                   <> help "Delete this ES template before creating a new index"
               )
           )
+
+credentialsPathParser :: Parser (Maybe FilePathSecrets)
+credentialsPathParser =
+  optional
+    ( strOption
+        ( long "elasticsearch-credentials"
+            <> metavar "FILE"
+            <> help "Location of a file containing the Elasticsearch credentials"
+        )
+    )
 
 cassandraSettingsParser :: Parser CassandraSettings
 cassandraSettingsParser =
@@ -293,6 +311,7 @@ reindexToAnotherIndexSettingsParser =
           <> value 600
           <> showDefault
       )
+    <*> credentialsPathParser
 
 galleyEndpointParser :: Parser Endpoint
 galleyEndpointParser =
@@ -325,7 +344,7 @@ commandParser =
         <> command
           "update-mapping"
           ( info
-              (UpdateMapping <$> elasticServerParser <*> indexNameParser <*> galleyEndpointParser)
+              (UpdateMapping <$> elasticServerParser <*> indexNameParser <*> credentialsPathParser <*> galleyEndpointParser)
               (progDesc "Update mapping of the user index.")
           )
         <> command

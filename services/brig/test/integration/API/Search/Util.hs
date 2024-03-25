@@ -27,7 +27,9 @@ import Data.Id
 import Data.Qualified (Qualified (..))
 import Data.Range (Range)
 import Data.Text.Encoding (encodeUtf8)
+import Database.Bloodhound qualified as ES
 import Imports
+import Network.HTTP.Client qualified as HTTP
 import Test.Tasty.HUnit
 import Util
 import Wire.API.User
@@ -147,3 +149,7 @@ executeTeamUserSearchWithMaybeState brig teamid self mbSearchText mRoleFilter mS
       <!! const 200
         === statusCode
   responseJsonError r
+
+mkBHEnv :: Text -> HTTP.Manager -> ES.BHEnv
+mkBHEnv url mgr = do
+  (ES.mkBHEnv (ES.Server url) mgr) {ES.bhRequestHook = ES.basicAuthHook (ES.EsUsername "elastic") (ES.EsPassword "changeme")}
