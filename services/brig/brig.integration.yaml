@@ -12,6 +12,8 @@ cassandra:
 elasticsearch:
   url: http://127.0.0.1:9200
   index: directory_test
+  credentials: test/resources/elasticsearch-credentials.yaml
+  additionalCredentials: test/resources/elasticsearch-credentials.yaml
 
 rabbitmq:
   host: 127.0.0.1
@@ -216,8 +218,6 @@ optSettings:
   setOAuthEnabled: true
   setOAuthRefreshTokenExpirationTimeSecs: 14515200 # 24 weeks
   setOAuthMaxActiveRefreshTokens: 10
-  setElasticsearchCredentials: test/resources/elasticsearch-credentials.yaml
-  setElasticsearchAdditionalCredentials: test/resources/elasticsearch-credentials.yaml
 
 logLevel: Warn
 logNetStrings: false

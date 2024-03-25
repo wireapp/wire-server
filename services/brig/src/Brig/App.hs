@@ -259,8 +259,8 @@ newEnv o = do
   kpLock <- newMVar ()
   rabbitChan <- traverse (Q.mkRabbitMqChannelMVar lgr) o.rabbitmq
   let allDisabledVersions = foldMap expandVersionExp (Opt.setDisabledAPIVersions sett)
-  mEsCreds <- for (Opt.setElasticsearchCredentials sett) initCredentials
-  mEsAddCreds <- for (Opt.setElasticsearchAdditionalCredentials sett) initCredentials
+  mEsCreds <- for (Opt.credentials (Opt.elasticsearch o)) initCredentials
+  mEsAddCreds <- for (Opt.additionalCredentials (Opt.elasticsearch o)) initCredentials
 
   pure $!
     Env

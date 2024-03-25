@@ -90,7 +90,11 @@ data ElasticSearchOpts = ElasticSearchOpts
     -- new instace of ES. It is necessary to provide 'additionalWriteIndex' for
     -- this to be used. If this is 'Nothing' and 'additionalWriteIndex' is
     -- configured, the 'url' field will be used.
-    additionalWriteIndexUrl :: !(Maybe Text)
+    additionalWriteIndexUrl :: !(Maybe Text),
+    -- | Elasticsearch credentials
+    credentials :: !(Maybe FilePathSecrets),
+    -- | Credentials for additional ES index (maily used for migrations)
+    additionalCredentials :: !(Maybe FilePathSecrets)
   }
   deriving (Show, Generic)
 
@@ -623,11 +627,7 @@ data Settings = Settings
     setOAuthRefreshTokenExpirationTimeSecsInternal :: !(Maybe Word64),
     -- | The maximum number of active OAuth refresh tokens a user is allowed to have.
     -- use `setOAuthMaxActiveRefreshTokens` as the getter function which always provides a default value
-    setOAuthMaxActiveRefreshTokensInternal :: !(Maybe Word32),
-    -- | Elasticsearch credentials
-    setElasticsearchCredentials :: !(Maybe FilePathSecrets),
-    -- | Credentials for additional ES index (maily used for migrations)
-    setElasticsearchAdditionalCredentials :: !(Maybe FilePathSecrets)
+    setOAuthMaxActiveRefreshTokensInternal :: !(Maybe Word32)
   }
   deriving (Show, Generic)
 

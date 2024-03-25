@@ -49,7 +49,7 @@ spec brigOpts =
 testCreateIndexWhenNotPresent :: BrigOpts.Opts -> Assertion
 testCreateIndexWhenNotPresent brigOpts = do
   let esURL = brigOpts ^. BrigOpts.elasticsearchL . BrigOpts.urlL
-  let mCreds = BrigOpts.setElasticsearchCredentials . BrigOpts.optSettings $ brigOpts
+  let mCreds = BrigOpts.credentials . BrigOpts.elasticsearch $ brigOpts
   case parseURI strictURIParserOptions (Text.encodeUtf8 esURL) of
     Left e -> fail $ "Invalid ES URL: " <> show esURL <> "\nerror: " <> show e
     Right esURI -> do
@@ -85,7 +85,7 @@ testCreateIndexWhenNotPresent brigOpts = do
 testCreateIndexWhenPresent :: BrigOpts.Opts -> Assertion
 testCreateIndexWhenPresent brigOpts = do
   let esURL = brigOpts ^. BrigOpts.elasticsearchL . BrigOpts.urlL
-  let mCreds = BrigOpts.setElasticsearchCredentials . BrigOpts.optSettings $ brigOpts
+  let mCreds = BrigOpts.credentials . BrigOpts.elasticsearch $ brigOpts
   case parseURI strictURIParserOptions (Text.encodeUtf8 esURL) of
     Left e -> fail $ "Invalid ES URL: " <> show esURL <> "\nerror: " <> show e
     Right esURI -> do
