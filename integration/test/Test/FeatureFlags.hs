@@ -1110,3 +1110,7 @@ testFeatureNoConfigMultiSearchVisibilityInbound = do
   where
     domain = OwnDomain
     featureName = "searchVisibilityInbound"
+
+testConferenceCallingUnlimitedTTL :: HasCallStack => App ()
+testConferenceCallingUnlimitedTTL =
+  checkSimpleFlagTTL FeatureTTLUnlimited "conferenceCalling" "conferenceCalling" Enabled
