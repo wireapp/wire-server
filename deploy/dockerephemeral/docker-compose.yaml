@@ -77,6 +77,14 @@ services:
     networks:
       - demo_wire
 
+  redis:
+    container_name: demo_wire_redis
+    image: redis:6.2.14-alpine
+    ports:
+      - "127.0.0.1:6379:6379"
+    networks:
+      - demo_wire
+
   redis-cluster:
     image: 'redis:6.0-alpine'
     command: redis-cli --cluster create 172.20.0.31:6373 172.20.0.32:6374 172.20.0.33:6375 172.20.0.34:6376 172.20.0.35:6377 172.20.0.36:6378 --cluster-replicas 1 --cluster-yes
