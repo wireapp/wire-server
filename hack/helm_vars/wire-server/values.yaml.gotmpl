@@ -39,7 +39,7 @@ elasticsearch-index:
         key: "ca.crt"
     {{- end }}
   secrets:
-    elasticsearch: |-
+    elasticsearch:
       username: "elastic"
       password: "changeme"
 
@@ -155,10 +155,10 @@ brig:
     rabbitmq:
       username: {{ .Values.rabbitmqUsername }}
       password: {{ .Values.rabbitmqPassword }}
-    elasticsearch: |-
+    elasticsearch:
       username: "elastic"
       password: "changeme"
-    elasticsearchAdditional: |-
+    elasticsearchAdditional:
       username: "elastic"
       password: "changeme"
   tests:
