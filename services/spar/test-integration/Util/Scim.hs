@@ -78,12 +78,11 @@ registerIdPAndScimToken = do
   let brig = env ^. teBrig
       spar = env ^. teSpar
       galley = env ^. teGalley
-  (owner, teamid) <- createUserWithTeam brig galley
+  (owner, teamid) <- call $ createUserWithTeam brig galley
   tok <- registerScimToken teamid Nothing
   idp <- do
     SAML.SampleIdP idpmeta _ _ _ <- SAML.makeSampleIdPMetadata
-    let metadata = IdPMetadataValue (cs $ SAML.encode idpmeta) idpmeta
-    callIdpCreate WireIdPAPIV2 spar (Just owner) metadata
+    call $ callIdpCreate WireIdPAPIV2 spar (Just owner) idpmeta
   pure (tok, (owner, teamid, idp))
 
 -- | Call 'registerTestIdPWithMeta', then 'registerScimToken'.  The user returned is the owner of the team;
