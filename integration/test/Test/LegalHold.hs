@@ -911,14 +911,14 @@ testLHCannotCreateGroupWithUsersInConflict = startDynamicBackends [mempty] \[dom
   connectTwoUsers bob debora
   withMockServer lhMockApp \lhPort _chan -> do
     postLegalHoldSettings tidAlice alice (mkLegalHoldSettings lhPort) >>= assertStatus 201
-    postConversation bob defProteus {qualifiedUsers = [charlie, alice], newUsersRole = "wire_member"}
+    postConversation bob defProteus {qualifiedUsers = [charlie, alice], newUsersRole = "wire_member", team = Just tidAlice}
       >>= assertStatus 201
 
-    requestLegalHoldDevice alice alice tidAlice >>= assertStatus 201
+    requestLegalHoldDevice tidAlice alice alice >>= assertStatus 201
     approveLegalHoldDevice tidAlice alice defPassword >>= assertStatus 200
     legalholdUserStatus tidAlice alice alice `bindResponse` \resp -> do
       resp.status `shouldMatchInt` 200
       resp.json %. "status" `shouldMatch` "enabled"
 
-    postConversation bob defProteus {qualifiedUsers = [debora, alice], newUsersRole = "wire_member"}
+    postConversation bob defProteus {qualifiedUsers = [debora, alice], newUsersRole = "wire_member", team = Just tidAlice}
       >>= assertLabel 403 "missing-legalhold-consent"
