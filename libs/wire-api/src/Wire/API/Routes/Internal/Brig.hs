@@ -21,7 +21,6 @@ module Wire.API.Routes.Internal.Brig
     brigInternalClient,
     runBrigInternalClient,
     IStatusAPI,
-    EJPD_API,
     AccountAPI,
     MLSAPI,
     TeamsAPI,
@@ -156,27 +155,23 @@ type GetAllConnections =
     :> ReqBody '[Servant.JSON] ConnectionsStatusRequestV2
     :> Post '[Servant.JSON] [ConnectionStatusV2]
 
-type EJPD_API =
-  ( EJPDRequest
-      :<|> Named "get-account-conference-calling-config" GetAccountConferenceCallingConfig
-      :<|> PutAccountConferenceCallingConfig
-      :<|> DeleteAccountConferenceCallingConfig
-      :<|> GetAllConnectionsUnqualified
-      :<|> GetAllConnections
-  )
-
 type AccountAPI =
-  -- This endpoint can lead to the following events being sent:
-  -- - UserActivated event to created user, if it is a team invitation or user has an SSO ID
-  -- - UserIdentityUpdated event to created user, if email or phone get activated
-  Named
-    "createUserNoVerify"
-    ( "users"
-        :> MakesFederatedCall 'Brig "on-user-deleted-connections"
-        :> MakesFederatedCall 'Brig "send-connection-action"
-        :> ReqBody '[Servant.JSON] NewUser
-        :> MultiVerb 'POST '[Servant.JSON] RegisterInternalResponses (Either RegisterError SelfProfile)
-    )
+  Named "get-account-conference-calling-config" GetAccountConferenceCallingConfig
+    :<|> PutAccountConferenceCallingConfig
+    :<|> DeleteAccountConferenceCallingConfig
+    :<|> GetAllConnectionsUnqualified
+    :<|> GetAllConnections
+    :<|> Named
+           "createUserNoVerify"
+           -- This endpoint can lead to the following events being sent:
+           -- - UserActivated event to created user, if it is a team invitation or user has an SSO ID
+           -- - UserIdentityUpdated event to created user, if email or phone get activated
+           ( "users"
+               :> MakesFederatedCall 'Brig "on-user-deleted-connections"
+               :> MakesFederatedCall 'Brig "send-connection-action"
+               :> ReqBody '[Servant.JSON] NewUser
+               :> MultiVerb 'POST '[Servant.JSON] RegisterInternalResponses (Either RegisterError SelfProfile)
+           )
     :<|> Named
            "createUserNoVerifySpar"
            ( "users"
@@ -532,7 +527,7 @@ type GetVerificationCode =
 type API =
   "i"
     :> ( IStatusAPI
-           :<|> EJPD_API
+           :<|> EJPDRequest
            :<|> AccountAPI
            :<|> MLSAPI
            :<|> GetVerificationCode
