@@ -49,6 +49,7 @@ spec brigOpts =
 testCreateIndexWhenNotPresent :: BrigOpts.Opts -> Assertion
 testCreateIndexWhenNotPresent brigOpts = do
   let esURL = brigOpts ^. BrigOpts.elasticsearchL . BrigOpts.urlL
+  let mCreds = BrigOpts.setElasticsearchCredentials . BrigOpts.optSettings $ brigOpts
   case parseURI strictURIParserOptions (Text.encodeUtf8 esURL) of
     Left e -> fail $ "Invalid ES URL: " <> show esURL <> "\nerror: " <> show e
     Right esURI -> do
@@ -63,10 +64,11 @@ testCreateIndexWhenNotPresent brigOpts = do
               & IndexOpts.esIndexReplicas .~ ES.ReplicaCount replicas
               & IndexOpts.esIndexShardCount .~ shards
               & IndexOpts.esIndexRefreshInterval .~ refreshInterval
+              & IndexOpts.esCredentials .~ mCreds
       devNullLogger <- Log.create (Log.Path "/dev/null")
       IndexEval.runCommand devNullLogger (IndexOpts.Create esSettings (galley brigOpts))
       mgr <- liftIO $ HTTP.newManager HTTP.defaultManagerSettings
-      let bEnv = mkBHEnv esURL mgr
+      let bEnv = (mkBHEnv esURL mgr) {ES.bhRequestHook = ES.basicAuthHook (ES.EsUsername "elastic") (ES.EsPassword "changeme")}
       ES.runBH bEnv $ do
         indexExists <- ES.indexExists indexName
         lift $
@@ -78,17 +80,18 @@ testCreateIndexWhenNotPresent brigOpts = do
             Right indexSettings -> do
               assertEqual "Shard count should be set" (ES.ShardCount replicas) (ES.indexShards . ES.sSummaryFixedSettings $ indexSettings)
               assertEqual "Replica count should be set" (ES.ReplicaCount replicas) (ES.indexReplicas . ES.sSummaryFixedSettings $ indexSettings)
-              assertEqual "Refresh internval should be set" [ES.RefreshInterval refreshInterval] (ES.sSummaryUpdateable indexSettings)
+              assertEqual "Refresh interval should be set" [ES.RefreshInterval refreshInterval] (ES.sSummaryUpdateable indexSettings)
 
 testCreateIndexWhenPresent :: BrigOpts.Opts -> Assertion
 testCreateIndexWhenPresent brigOpts = do
   let esURL = brigOpts ^. BrigOpts.elasticsearchL . BrigOpts.urlL
+  let mCreds = BrigOpts.setElasticsearchCredentials . BrigOpts.optSettings $ brigOpts
   case parseURI strictURIParserOptions (Text.encodeUtf8 esURL) of
     Left e -> fail $ "Invalid ES URL: " <> show esURL <> "\nerror: " <> show e
     Right esURI -> do
       indexName <- ES.IndexName . Text.pack <$> replicateM 20 (Random.randomRIO ('a', 'z'))
       mgr <- liftIO $ HTTP.newManager HTTP.defaultManagerSettings
-      let bEnv = mkBHEnv esURL mgr
+      let bEnv = (mkBHEnv esURL mgr) {ES.bhRequestHook = ES.basicAuthHook (ES.EsUsername "elastic") (ES.EsPassword "changeme")}
       ES.runBH bEnv $ do
         _ <- ES.createIndex (ES.IndexSettings (ES.ShardCount 1) (ES.ReplicaCount 1)) indexName
         indexExists <- ES.indexExists indexName
@@ -104,6 +107,7 @@ testCreateIndexWhenPresent brigOpts = do
               & IndexOpts.esIndexReplicas .~ ES.ReplicaCount replicas
               & IndexOpts.esIndexShardCount .~ shards
               & IndexOpts.esIndexRefreshInterval .~ refreshInterval
+              & IndexOpts.esCredentials .~ mCreds
       devNullLogger <- Log.create (Log.Path "/dev/null")
       IndexEval.runCommand devNullLogger (IndexOpts.Create esSettings (galley brigOpts))
       ES.runBH bEnv $ do
@@ -117,4 +121,4 @@ testCreateIndexWhenPresent brigOpts = do
             Right indexSettings -> do
               assertEqual "Shard count should not be updated" (ES.ShardCount 1) (ES.indexShards . ES.sSummaryFixedSettings $ indexSettings)
               assertEqual "Replica count should not be updated" (ES.ReplicaCount 1) (ES.indexReplicas . ES.sSummaryFixedSettings $ indexSettings)
-              assertEqual "Refresh internval should not be updated" [] (ES.sSummaryUpdateable indexSettings)
+              assertEqual "Refresh interval should not be updated" [] (ES.sSummaryUpdateable indexSettings)
