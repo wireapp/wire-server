@@ -475,7 +475,7 @@ specCreateUser = describe "POST /Users" $ do
       testCreateUserNoIdPNoEmail
     it "doesn't list users that exceed their invitation period, and allows recreating them" $ do
       testCreateUserTimeout
-  context "team has one SAML IdP" $ do
+  focus . context "team has one SAML IdP" $ do
     it "creates a user in an existing team" $ do
       testCreateUserWithSamlIdP
     it "adds a Wire scheme to the user record" $ testSchemaIsAdded

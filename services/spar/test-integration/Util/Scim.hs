@@ -39,6 +39,8 @@ import Imports
 import qualified Network.Wai.Utilities as Error
 import Polysemy.Error (runError)
 import qualified SAML2.WebSSO as SAML
+import SAML2.WebSSO.Test.Util.TestSP as SAML
+import SAML2.WebSSO.Test.Util.Types as SAML
 import SAML2.WebSSO.Types (IdPId, idpId)
 import qualified Spar.Intra.BrigApp as Intra
 import Spar.Scim.User (synthesizeScimUser, validateScimUser')
@@ -72,8 +74,17 @@ import Wire.API.User.Scim
 -- the IdP is registered with the team; the SCIM token can be used to manipulate the team.
 registerIdPAndScimToken :: HasCallStack => TestSpar (ScimToken, (UserId, TeamId, IdP))
 registerIdPAndScimToken = do
-  team@(_owner, teamid, idp) <- registerTestIdP
-  (,team) <$> registerScimToken teamid (Just (idp ^. idpId))
+  env <- ask
+  let brig = env ^. teBrig
+      spar = env ^. teSpar
+      galley = env ^. teGalley
+  (owner, teamid) <- createUserWithTeam brig galley
+  tok <- registerScimToken teamid Nothing
+  idp <- do
+    SAML.SampleIdP idpmeta _ _ _ <- SAML.makeSampleIdPMetadata
+    let metadata = IdPMetadataValue (cs $ SAML.encode idpmeta) idpmeta
+    callIdpCreate WireIdPAPIV2 spar (Just owner) metadata
+  pure (tok, (owner, teamid, idp))
 
 -- | Call 'registerTestIdPWithMeta', then 'registerScimToken'.  The user returned is the owner of the team;
 -- the IdP is registered with the team; the SCIM token can be used to manipulate the team.

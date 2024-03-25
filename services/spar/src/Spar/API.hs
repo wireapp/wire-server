@@ -504,6 +504,7 @@ idpCreateXML zusr raw idpmeta mReplaces (fromMaybe defWireIdPAPIVersion -> apive
   IdPConfigStore.insertConfig idp
   forM_ mReplaces $ \replaces ->
     IdPConfigStore.setReplacedBy (Replaced replaces) (Replacing (idp ^. SAML.idpId))
+  -- TODO: update scim token if exists, and link it to idp!!
   pure idp
 
 -- | In teams with a scim access token, only one IdP is allowed.  The reason is that scim user
