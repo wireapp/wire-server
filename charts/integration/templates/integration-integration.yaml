@@ -127,7 +127,7 @@ spec:
           --tls-ca-certificate-file /certs/{{- (include "tlsSecretRef" .Values.config | fromYaml).key }}
           {{ end }}
 
-        integration-dynamic-backends-brig-index.sh --elasticsearch-server http://{{ .Values.config.elasticsearch.host }}:9200
+        integration-dynamic-backends-brig-index.sh --elasticsearch-server http://elastic:changeme@{{ .Values.config.elasticsearch.host }}:9200
         integration-dynamic-backends-ses.sh {{ .Values.config.sesEndpointUrl }}
         integration-dynamic-backends-s3.sh {{ .Values.config.s3EndpointUrl }}
         {{- range $name, $dynamicBackend := .Values.config.dynamicBackends }}
