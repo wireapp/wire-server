@@ -198,6 +198,7 @@ library
     , kan-extensions
     , lens
     , lens-aeson
+    , lifted-base
     , memory
     , mime
     , monad-control

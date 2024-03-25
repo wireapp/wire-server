@@ -38,6 +38,7 @@
 , lens
 , lens-aeson
 , lib
+, lifted-base
 , memory
 , mime
 , monad-control
@@ -123,6 +124,7 @@ mkDerivation {
     kan-extensions
     lens
     lens-aeson
+    lifted-base
     memory
     mime
     monad-control
