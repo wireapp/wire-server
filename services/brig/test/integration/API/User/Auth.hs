@@ -25,7 +25,6 @@ module API.User.Auth
 where
 
 import API.Team.Util
-import API.User.Util qualified as Util
 import Bilge hiding (body)
 import Bilge qualified as Http
 import Bilge.Assert hiding (assert)
@@ -38,7 +37,6 @@ import Cassandra hiding (Value)
 import Cassandra qualified as DB
 import Control.Arrow ((&&&))
 import Control.Lens (set, (^.))
-import Control.Monad.Catch (MonadCatch)
 import Control.Retry
 import Data.Aeson as Aeson hiding (json)
 import Data.ByteString qualified as BS
@@ -49,9 +47,7 @@ import Data.Id
 import Data.Misc (PlainTextPassword6, plainTextPassword6, plainTextPassword6Unsafe)
 import Data.Proxy
 import Data.Qualified
-import Data.Range (unsafeRange)
 import Data.Text qualified as Text
-import Data.Text.Ascii (AsciiChars (validate))
 import Data.Text.IO (hPutStrLn)
 import Data.Text.Lazy qualified as Lazy
 import Data.Time.Clock
@@ -67,8 +63,8 @@ import UnliftIO.Async hiding (wait)
 import Util
 import Wire.API.Conversation (Conversation (..))
 import Wire.API.Password (Password, mkSafePassword)
-import Wire.API.Team.Feature qualified as Public
 import Wire.API.User as Public
+import Wire.API.User.Auth
 import Wire.API.User.Auth as Auth
 import Wire.API.User.Auth.LegalHold
 import Wire.API.User.Auth.ReAuth
@@ -130,15 +126,6 @@ tests conf m z db b g n =
             [ test m "nginz-login" (testNginz b n),
               test m "nginz-legalhold-login" (onlyIfLhWhitelisted (testNginzLegalHold b g n)),
               test m "nginz-login-multiple-cookies" (testNginzMultipleCookies conf b n)
-            ],
-          testGroup
-            "snd-factor-password-challenge"
-            [ test m "test-login-verify6-digit-email-code-success" $ testLoginVerify6DigitEmailCodeSuccess b g db,
-              test m "test-login-verify6-digit-wrong-code-fails" $ testLoginVerify6DigitWrongCodeFails b g,
-              test m "test-login-verify6-digit-missing-code-fails" $ testLoginVerify6DigitMissingCodeFails b g,
-              test m "test-login-verify6-digit-expired-code-fails" $ testLoginVerify6DigitExpiredCodeFails conf b g db,
-              test m "test-login-verify6-digit-resend-code-success-and-rate-limiting" $ testLoginVerify6DigitResendCodeSuccessAndRateLimiting b g conf db,
-              test m "test-login-verify6-digit-limit-retries" $ testLoginVerify6DigitLimitRetries b g conf db
             ]
         ],
       testGroup
@@ -435,157 +422,6 @@ testSendLoginCode brig = do
   -- Timeout is reset
   let _timeout = fromLoginCodeTimeout <$> responseJsonMaybe rsp2
   liftIO $ assertEqual "timeout" (Just (Code.Timeout 600)) _timeout
-
-testLoginVerify6DigitEmailCodeSuccess :: Brig -> Galley -> DB.ClientState -> Http ()
-testLoginVerify6DigitEmailCodeSuccess brig galley db = do
-  (u, tid) <- createUserWithTeam' brig
-  let Just email = userEmail u
-  let checkLoginSucceeds body = login brig body PersistentCookie !!! const 200 === statusCode
-  Util.setTeamFeatureLockStatus @Public.SndFactorPasswordChallengeConfig galley tid Public.LockStatusUnlocked
-  Util.setTeamSndFactorPasswordChallenge galley tid Public.FeatureStatusEnabled
-  Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
-  key <- Code.mkKey (Code.ForEmail email)
-  Just vcode <- Util.lookupCode db key Code.AccountLogin
-  checkLoginSucceeds $
-    PasswordLogin $
-      PasswordLoginData
-        (LoginByEmail email)
-        defPassword
-        (Just defCookieLabel)
-        (Just $ Code.codeValue vcode)
-
-testLoginVerify6DigitResendCodeSuccessAndRateLimiting :: Brig -> Galley -> Opts.Opts -> DB.ClientState -> Http ()
-testLoginVerify6DigitResendCodeSuccessAndRateLimiting brig galley _opts db = do
-  (u, tid) <- createUserWithTeam' brig
-  let Just email = userEmail u
-  let checkLoginSucceeds body = login brig body PersistentCookie !!! const 200 === statusCode
-  let getCodeFromDb = do
-        key <- Code.mkKey (Code.ForEmail email)
-        Just c <- Util.lookupCode db key Code.AccountLogin
-        pure c
-
-  Util.setTeamFeatureLockStatus @Public.SndFactorPasswordChallengeConfig galley tid Public.LockStatusUnlocked
-  Util.setTeamSndFactorPasswordChallenge galley tid Public.FeatureStatusEnabled
-
-  Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
-  fstCode <- getCodeFromDb
-
-  let tooManyRequests = 429
-  Util.generateVerificationCodeExpect tooManyRequests brig (Public.SendVerificationCode Public.Login email)
-
-  void $ retryWhileN 10 ((==) 429 . statusCode) $ Util.generateVerificationCode' brig (Public.SendVerificationCode Public.Login email)
-  mostRecentCode <- getCodeFromDb
-
-  checkLoginFails brig $
-    PasswordLogin $
-      PasswordLoginData
-        (LoginByEmail email)
-        defPassword
-        (Just defCookieLabel)
-        (Just $ Code.codeValue fstCode)
-  checkLoginSucceeds $
-    PasswordLogin $
-      PasswordLoginData
-        (LoginByEmail email)
-        defPassword
-        (Just defCookieLabel)
-        (Just $ Code.codeValue mostRecentCode)
-
-testLoginVerify6DigitLimitRetries :: Brig -> Galley -> Opts.Opts -> DB.ClientState -> Http ()
-testLoginVerify6DigitLimitRetries brig galley _opts db = do
-  (u, tid) <- createUserWithTeam' brig
-  let Just email = userEmail u
-  Util.setTeamFeatureLockStatus @Public.SndFactorPasswordChallengeConfig galley tid Public.LockStatusUnlocked
-  Util.setTeamSndFactorPasswordChallenge galley tid Public.FeatureStatusEnabled
-  Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
-  key <- Code.mkKey (Code.ForEmail email)
-  Just correctCode <- Util.lookupCode db key Code.AccountLogin
-  let wrongCode = Code.Value $ unsafeRange (fromRight undefined (validate "123456"))
-  -- login with wrong code should fail 3 times
-  forM_ [1 .. 3] $ \(_ :: Int) ->
-    checkLoginFails brig $
-      PasswordLogin $
-        PasswordLoginData
-          (LoginByEmail email)
-          defPassword
-          (Just defCookieLabel)
-          (Just wrongCode)
-  -- after 3 failed attempts, login with correct code should fail as well
-  checkLoginFails brig $
-    PasswordLogin $
-      PasswordLoginData
-        (LoginByEmail email)
-        defPassword
-        (Just defCookieLabel)
-        (Just (Code.codeValue correctCode))
-
--- @SF.Channel @TSFI.RESTfulAPI @S2
---
--- Test that login fails with wrong second factor email verification code
-testLoginVerify6DigitWrongCodeFails :: Brig -> Galley -> Http ()
-testLoginVerify6DigitWrongCodeFails brig galley = do
-  (u, tid) <- createUserWithTeam' brig
-  let Just email = userEmail u
-  Util.setTeamFeatureLockStatus @Public.SndFactorPasswordChallengeConfig galley tid Public.LockStatusUnlocked
-  Util.setTeamSndFactorPasswordChallenge galley tid Public.FeatureStatusEnabled
-  Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
-  let wrongCode = Code.Value $ unsafeRange (fromRight undefined (validate "123456"))
-  checkLoginFails brig $
-    PasswordLogin $
-      PasswordLoginData
-        (LoginByEmail email)
-        defPassword
-        (Just defCookieLabel)
-        (Just wrongCode)
-
--- @END
-
--- @SF.Channel @TSFI.RESTfulAPI @S2
---
--- Test that login without verification code fails if SndFactorPasswordChallenge feature is enabled in team
-testLoginVerify6DigitMissingCodeFails :: Brig -> Galley -> Http ()
-testLoginVerify6DigitMissingCodeFails brig galley = do
-  (u, tid) <- createUserWithTeam' brig
-  let Just email = userEmail u
-  Util.setTeamFeatureLockStatus @Public.SndFactorPasswordChallengeConfig galley tid Public.LockStatusUnlocked
-  Util.setTeamSndFactorPasswordChallenge galley tid Public.FeatureStatusEnabled
-  Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
-  let body =
-        PasswordLogin $
-          PasswordLoginData
-            (LoginByEmail email)
-            defPassword
-            (Just defCookieLabel)
-            Nothing
-  login brig body PersistentCookie !!! do
-    const 403 === statusCode
-    const (Just "code-authentication-required") === errorLabel
-
--- @END
-
--- @SF.Channel @TSFI.RESTfulAPI @S2
---
--- Test that login fails with expired second factor email verification code
-testLoginVerify6DigitExpiredCodeFails :: Opts.Opts -> Brig -> Galley -> DB.ClientState -> Http ()
-testLoginVerify6DigitExpiredCodeFails opts brig galley db = do
-  (u, tid) <- createUserWithTeam' brig
-  let Just email = userEmail u
-  Util.setTeamFeatureLockStatus @Public.SndFactorPasswordChallengeConfig galley tid Public.LockStatusUnlocked
-  Util.setTeamSndFactorPasswordChallenge galley tid Public.FeatureStatusEnabled
-  Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
-  key <- Code.mkKey (Code.ForEmail email)
-  Just vcode <- Util.lookupCode db key Code.AccountLogin
-  let verificationTimeout = round (Opts.setVerificationTimeout (Opts.optSettings opts))
-  threadDelay $ ((verificationTimeout + 1) * 1000_000)
-  checkLoginFails brig $
-    PasswordLogin $
-      PasswordLoginData
-        (LoginByEmail email)
-        defPassword
-        (Just defCookieLabel)
-        (Just $ Code.codeValue vcode)
-
--- @END
 
 -- The testLoginFailure test conforms to the following testing standards:
 -- @SF.Provisioning @TSFI.RESTfulAPI @S2
@@ -1513,9 +1349,3 @@ remJson p l ids =
 
 wait :: MonadIO m => m ()
 wait = liftIO $ threadDelay 1000000
-
-checkLoginFails :: (MonadHttp m, MonadIO m, MonadCatch m) => Brig -> Login -> m ()
-checkLoginFails brig body = do
-  login brig body PersistentCookie !!! do
-    const 403 === statusCode
-    const (Just "code-authentication-failed") === errorLabel
