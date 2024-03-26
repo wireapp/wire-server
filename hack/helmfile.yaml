@@ -67,9 +67,15 @@ releases:
     chart: '../.local/charts/fake-aws'
     values:
       - './helm_vars/fake-aws/values.yaml'
+
   - name: 'databases-ephemeral'
     namespace: '{{ .Values.namespace1 }}'
     chart: '../.local/charts/databases-ephemeral'
+    values:
+      - redis-ephemeral:
+          redis-ephemeral:
+            usePassword: true
+            password: very-secure-redis-master-password
 
   # Required for testing redis migration
   - name: 'redis-ephemeral-2'
@@ -78,10 +84,17 @@ releases:
     values:
       - redis-ephemeral:
           nameOverride: redis-ephemeral-2
+          usePassword: true
+          password: very-secure-redis-master-password-2
 
   - name: 'databases-ephemeral'
     namespace: '{{ .Values.namespace2 }}'
     chart: '../.local/charts/databases-ephemeral'
+    values:
+      - redis-ephemeral:
+          redis-ephemeral:
+            usePassword: true
+            password: very-secure-redis-master-password
 
   - name: k8ssandra-test-cluster
     chart: '../.local/charts/k8ssandra-test-cluster'
