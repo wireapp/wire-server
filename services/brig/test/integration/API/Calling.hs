@@ -62,7 +62,8 @@ tests m b opts turn turnV2 = do
             test m "SFT servers /calls/config/v2 - 200 - SFT does not respond as expected" $ testSFTUnavailable b opts "https://example.com",
             test m "SFT servers /calls/config/v2 - 200 - SFT DNS does not resolve" $ testSFTUnavailable b opts "https://sft.example.com",
             test m "SFT crendentials with SFT secret /calls/config/authenticated - 200" $ testSFTCredentials b opts,
-            test m "No SFT crendentials without SFT secret /calls/config/authenticated - 200" $ testSFTNoCredentials b opts
+            test m "No SFT crendentials without SFT secret /calls/config/authenticated - 200" $ testSFTNoCredentials b opts,
+            test m "SFT federation /calls/config/authenticated - 200" $ testSFTFederation b opts
           ]
       ]
 
@@ -187,6 +188,46 @@ testSFTNoCredentials b opts = do
         assertBool
           "when SFT secret is defined, a credential should be returned for each SFT server"
           (all (isNothing . (^. authCredential)) allSFTServers)
+
+-- | This test relies on pre-created public DNS records. Code here:
+-- https://github.com/zinfra/cailleach/blob/fb4caacaca02e6e28d68dc0cdebbbc987f5e31da/targets/misc/wire-server-integration-tests/dns.tf
+testSFTFederation :: Brig -> Opts.Opts -> Http ()
+testSFTFederation b opts = do
+  uid <- userId <$> randomUser b
+  cid <- randomClient
+  withSettingsOverrides
+    ( opts
+        & Opts.multiSFTL .~ Nothing
+        & Opts.sftL ?~ Opts.SFTOptions "integration-tests.zinfra.io" Nothing (Just 0.001) Nothing Nothing
+    )
+    $ do
+      isFederating <- (^. rtcConfIsFederating) <$> retryWhileN 10 (isNothing . view rtcConfSftServers) (getTurnConfigurationAuthenticated uid cid b)
+      liftIO $
+        assertBool
+          "SFT federation is not defined"
+          (isNothing isFederating)
+  withSettingsOverrides
+    ( opts
+        & Opts.multiSFTL ?~ True
+        & Opts.sftL ?~ Opts.SFTOptions "integration-tests.zinfra.io" Nothing (Just 0.001) Nothing Nothing
+    )
+    $ do
+      isFederating <- (^. rtcConfIsFederating) <$> retryWhileN 10 (isNothing . view rtcConfSftServers) (getTurnConfigurationAuthenticated uid cid b)
+      liftIO $
+        assertBool
+          "SFT federation is defined and true"
+          (fromMaybe False isFederating)
+  withSettingsOverrides
+    ( opts
+        & Opts.multiSFTL ?~ False
+        & Opts.sftL ?~ Opts.SFTOptions "integration-tests.zinfra.io" Nothing (Just 0.001) Nothing Nothing
+    )
+    $ do
+      isFederating <- (^. rtcConfIsFederating) <$> retryWhileN 10 (isNothing . view rtcConfSftServers) (getTurnConfigurationAuthenticated uid cid b)
+      liftIO $
+        assertBool
+          "SFT federation is defined and false"
+          (not $ fromMaybe False isFederating)
 
 testSFTUnavailable :: Brig -> Opts.Opts -> String -> Http ()
 testSFTUnavailable b opts domain = do
