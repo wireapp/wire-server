@@ -15,12 +15,14 @@ argument.
 Where feasible and if there is time, rules should be enforced
 automatically.
 
+
 ### Integer literals
 
 Integer literals are spelled `50_000` (not `50 * 1000` and not
 `50000`).  (NB: ghc allows to write things like `40_0000`, which makes
 sense eg. in Chinese.  This is illegal in this code base for obvious
 reasons.)
+
 
 ### Libraries and dependencies
 
@@ -47,3 +49,11 @@ All modules must have explicit export lists.  Reasons:
 - This is good documentation;
 - it helps with identifying dead code (if it's not exported and not used, we get a compiler warning); and
 - prevents us from using functions that aren't part of a module's interface by accident: if we *want* to use them, we can always add them, but then we are transparent about changing the interface.
+
+
+### TODO
+
+Import (relevant parts of) our internal C&D logs:
+
+- https://wearezeta.atlassian.net/wiki/spaces/BAC/pages/824148311/Archive+up+to+2023-09-27
+- https://wearezeta.atlassian.net/wiki/spaces/BAC/pages/384928204/Cuss+Discuss+How+Stuff+Works+meeting+minutes
