@@ -89,7 +89,11 @@ legalholdIsEnabled tid uid = do
 
 generateVerificationCode :: (HasCallStack, MakesValue domain, MakesValue email) => domain -> email -> App ()
 generateVerificationCode domain email = do
+  res <- generateVerificationCode' domain email
+  res.status `shouldMatchInt` 200
+
+generateVerificationCode' :: (HasCallStack, MakesValue domain, MakesValue email) => domain -> email -> App Response
+generateVerificationCode' domain email = do
   req <- baseRequest domain Brig Versioned "/verification-code/send"
   emailStr <- asString email
-  res <- submit "POST" $ req & addJSONObject ["email" .= emailStr, "action" .= "login"]
-  res.status `shouldMatchInt` 200
+  submit "POST" $ req & addJSONObject ["email" .= emailStr, "action" .= "login"]

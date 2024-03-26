@@ -86,3 +86,44 @@ testLoginVerify6DigitExpiredCodeFails = do
         resp.json %. "label" `shouldMatch` "code-authentication-failed"
 
 -- @END
+
+testLoginVerify6DigitResendCodeSuccessAndRateLimiting :: HasCallStack => App ()
+testLoginVerify6DigitResendCodeSuccessAndRateLimiting = do
+  (owner, team, []) <- createTeam OwnDomain 0
+  email <- owner %. "email"
+  setTeamFeatureLockStatus owner team "sndFactorPasswordChallenge" "unlocked"
+  setTeamFeatureStatus owner team "sndFactorPasswordChallenge" "enabled"
+  generateVerificationCode owner email
+  fstCode <- getVerificationCode owner "login" >>= getJSON 200 >>= asString
+  bindResponse (generateVerificationCode' owner email) $ \resp -> do
+    resp.status `shouldMatchInt` 429
+  mostRecentCode <- retryT $ do
+    resp <- generateVerificationCode' owner email
+    resp.status `shouldMatchInt` 200
+    getVerificationCode owner "login" >>= getJSON 200 >>= asString
+
+  bindResponse (loginWith2ndFactor owner email defPassword fstCode) \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "code-authentication-failed"
+
+  bindResponse (loginWith2ndFactor owner email defPassword mostRecentCode) \resp -> do
+    resp.status `shouldMatchInt` 200
+
+testLoginVerify6DigitLimitRetries :: HasCallStack => App ()
+testLoginVerify6DigitLimitRetries = do
+  (owner, team, []) <- createTeam OwnDomain 0
+  email <- owner %. "email"
+  setTeamFeatureLockStatus owner team "sndFactorPasswordChallenge" "unlocked"
+  setTeamFeatureStatus owner team "sndFactorPasswordChallenge" "enabled"
+  generateVerificationCode owner email
+  correctCode <- getVerificationCode owner "login" >>= getJSON 200 >>= asString
+  let wrongCode = "123456"
+  -- try login with wrong code should fail 3 times
+  forM_ [1 .. 3] $ \(_ :: Int) -> do
+    bindResponse (loginWith2ndFactor owner email defPassword wrongCode) \resp -> do
+      resp.status `shouldMatchInt` 403
+      resp.json %. "label" `shouldMatch` "code-authentication-failed"
+  -- after 3 failed attempts, login with correct code should fail as well
+  bindResponse (loginWith2ndFactor owner email defPassword correctCode) \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "code-authentication-failed"
