@@ -38,7 +38,7 @@ Instead of the standard `Prelude`, we use the module `Imports` from
 
 All libraries that are or want to be on hackage also cannot depend on `/libs/import`, namely:
 
-- `/libs/http2-manager`-
+- `/libs/http2-manager`
 - `/libs/hscim`
 
 `string-conversions` is forbidden for production code, since some of
