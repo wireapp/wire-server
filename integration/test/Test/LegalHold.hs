@@ -14,7 +14,6 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-
 module Test.LegalHold where
 
 import API.Brig
@@ -774,3 +773,150 @@ testLHNoConsentBlockOne2OneConv
 
             sendMessageFromBobToAlice (\device -> [device]) \resp -> do
               resp.status `shouldMatchInt` 412
+
+data GroupConvAdmin
+  = LegalholderIsAdmin
+  | PeerIsAdmin
+  | BothAreAdmins
+  deriving (Show, Generic)
+
+testLHNoConsentRemoveFromGroup :: GroupConvAdmin -> App ()
+testLHNoConsentRemoveFromGroup admin =
+  startDynamicBackends [mempty] \[dom] -> do
+    -- team users
+    -- alice (team owner) and bob (member)
+    (alice, tidAlice, []) <- createTeam dom 1
+    (bob, tidBob, []) <- createTeam dom 1
+    legalholdWhitelistTeam tidAlice alice >>= assertStatus 200
+    withMockServer lhMockApp \lhPort _chan -> do
+      postLegalHoldSettings tidAlice alice (mkLegalHoldSettings lhPort) >>= assertStatus 201
+      withWebSockets [alice, bob] \[aws, bws] -> do
+        connectTwoUsers alice bob
+        (convId, qConvId) <- do
+          let (inviter, tidInviter, invitee, inviteeRole) = case admin of
+                LegalholderIsAdmin -> (alice, tidAlice, bob, "wire_member")
+                BothAreAdmins -> (alice, tidAlice, bob, "wire_admin")
+                PeerIsAdmin -> (bob, tidBob, alice, "wire_member")
+
+          let createConv = defProteus {qualifiedUsers = [invitee], newUsersRole = inviteeRole, team = Just tidInviter}
+          postConversation inviter createConv `bindResponse` \resp -> do
+            resp.json %. "members.self.conversation_role" `shouldMatch` "wire_admin"
+            case admin of
+              BothAreAdmins -> resp.json %. "members.others.0.conversation_role" `shouldMatch` "wire_admin"
+              _ -> resp.json %. "members.others.0.conversation_role" `shouldMatch` "wire_member"
+            (,) <$> resp.json %. "id" <*> resp.json %. "qualified_id"
+        for_ [aws, bws] \ws -> do
+          awaitMatch isConvCreateNotifNotSelf ws >>= \pl -> pl %. "payload.0.conversation" `shouldMatch` convId
+
+        for_ [alice, bob] \user ->
+          getConversation user qConvId >>= assertStatus 200
+
+        requestLegalHoldDevice tidAlice alice alice >>= assertStatus 201
+        approveLegalHoldDevice tidAlice alice defPassword >>= assertStatus 200
+        legalholdUserStatus tidAlice alice alice `bindResponse` \resp -> do
+          resp.json %. "status" `shouldMatch` "enabled"
+          resp.status `shouldMatchInt` 200
+
+        case admin of
+          LegalholderIsAdmin -> do
+            for_ [aws, bws] do awaitMatch (isConvLeaveNotifWithLeaver bob)
+            getConversation alice qConvId >>= assertStatus 200
+            getConversation bob qConvId >>= assertLabel 403 "access-denied"
+          PeerIsAdmin -> do
+            for_ [aws, bws] do awaitMatch (isConvLeaveNotifWithLeaver alice)
+            getConversation bob qConvId >>= assertStatus 200
+            getConversation alice qConvId >>= assertLabel 403 "access-denied"
+          BothAreAdmins -> do
+            for_ [aws, bws] do awaitMatch (isConvLeaveNotifWithLeaver bob)
+            getConversation alice qConvId >>= assertStatus 200
+            getConversation bob qConvId >>= assertLabel 403 "access-denied"
+
+testLHHappyFlow :: App ()
+testLHHappyFlow = startDynamicBackends [mempty] \[dom] -> do
+  (alice, tid, [bob]) <- createTeam dom 2
+  let statusShouldBe :: String -> App ()
+      statusShouldBe status =
+        legalholdUserStatus tid alice bob `bindResponse` \resp -> do
+          resp.status `shouldMatchInt` 200
+          resp.json %. "status" `shouldMatch` status
+
+  legalholdWhitelistTeam tid alice >>= assertStatus 200
+  lpk <- getLastPrekey
+  pks <- replicateM 3 getPrekey
+
+  withMockServer (lhMockAppWithPrekeys MkCreateMock {nextLastPrey = pure lpk, somePrekeys = pure pks}) \lhPort _chan -> do
+    postLegalHoldSettings tid alice (mkLegalHoldSettings lhPort) >>= assertStatus 201
+
+    -- implicit consent
+    statusShouldBe "disabled"
+    -- whitelisting is idempotent
+    legalholdWhitelistTeam tid alice >>= assertStatus 200
+    statusShouldBe "disabled"
+
+    -- memmbers cannot request LH devices
+    requestLegalHoldDevice tid bob alice >>= assertLabel 403 "operation-denied"
+
+    -- owners can; bob should now have a pending request
+    requestLegalHoldDevice tid alice bob >>= assertStatus 201
+    statusShouldBe "pending"
+
+    -- owner cannot approve on behalf on user under legalhold
+    approveLegalHoldDevice' tid alice bob defPassword >>= assertLabel 403 "access-denied"
+
+    -- user can approve the request, however
+    approveLegalHoldDevice tid bob defPassword `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+
+    legalholdUserStatus tid alice bob `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      resp.json %. "status" `shouldMatch` "enabled"
+      _ <-
+        resp.json `lookupField` "client.id"
+          >>= assertJust "client id is present"
+      resp.json %. "last_prekey" `shouldMatch` lpk
+
+testLHGetStatus :: App ()
+testLHGetStatus = startDynamicBackends [mempty] \[dom] -> do
+  (alice, tid, [bob]) <- createTeam dom 2
+  (charlie, _tidCharlie, [debora]) <- createTeam dom 2
+  emil <- randomUser dom def
+
+  let check :: HasCallStack => (MakesValue getter, MakesValue target) => getter -> target -> String -> App ()
+      check getter target status = do
+        profile <- getUser getter target >>= getJSON 200
+        pStatus <- profile %. "legalhold_status" & asString
+        status `shouldMatch` pStatus
+
+  for_ [alice, bob, charlie, debora, emil] \u -> do
+    check u bob "no_consent"
+    check u emil "no_consent"
+  legalholdWhitelistTeam tid alice >>= assertStatus 200
+  withMockServer lhMockApp \lhPort _chan -> do
+    postLegalHoldSettings tid alice (mkLegalHoldSettings lhPort) >>= assertStatus 201
+    for_ [alice, bob, charlie, debora, emil] \u -> do
+      check u bob "disabled"
+    requestLegalHoldDevice tid alice bob >>= assertStatus 201
+    check debora bob "pending"
+    approveLegalHoldDevice tid bob defPassword >>= assertStatus 200
+    check debora bob "enabled"
+
+testLHCannotCreateGroupWithUsersInConflict :: App ()
+testLHCannotCreateGroupWithUsersInConflict = startDynamicBackends [mempty] \[dom] -> do
+  (alice, tidAlice, [bob]) <- createTeam dom 2
+  (charlie, _tidCharlie, [debora]) <- createTeam dom 2
+  legalholdWhitelistTeam tidAlice alice >>= assertStatus 200
+  connectTwoUsers bob charlie
+  connectTwoUsers bob debora
+  withMockServer lhMockApp \lhPort _chan -> do
+    postLegalHoldSettings tidAlice alice (mkLegalHoldSettings lhPort) >>= assertStatus 201
+    postConversation bob defProteus {qualifiedUsers = [charlie, alice], newUsersRole = "wire_member", team = Just tidAlice}
+      >>= assertStatus 201
+
+    requestLegalHoldDevice tidAlice alice alice >>= assertStatus 201
+    approveLegalHoldDevice tidAlice alice defPassword >>= assertStatus 200
+    legalholdUserStatus tidAlice alice alice `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      resp.json %. "status" `shouldMatch` "enabled"
+
+    postConversation bob defProteus {qualifiedUsers = [debora, alice], newUsersRole = "wire_member", team = Just tidAlice}
+      >>= assertLabel 403 "missing-legalhold-consent"

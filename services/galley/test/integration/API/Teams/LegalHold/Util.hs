@@ -25,7 +25,6 @@ import Data.ByteString.Char8 qualified as BS
 import Data.ByteString.Conversion
 import Data.CallStack
 import Data.Id
-import Data.LegalHold
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.List1 qualified as List1
 import Data.Misc (PlainTextPassword6)
@@ -57,8 +56,6 @@ import Wire.API.Provider.Service
 import Wire.API.Team.Feature qualified as Public
 import Wire.API.Team.LegalHold
 import Wire.API.Team.LegalHold.External
-import Wire.API.Team.Member qualified as Team
-import Wire.API.User (UserProfile (..))
 import Wire.API.User.Client
 import Wire.API.UserEvent qualified as Ev
 
@@ -220,60 +217,6 @@ publicKeyNotMatchingService =
             "-----END PUBLIC KEY-----"
           ]
    in k
-
-testGetLegalholdStatus :: TestM ()
-testGetLegalholdStatus = do
-  (owner1, tid1) <- createBindingTeam
-  member1 <- view Team.userId <$> addUserToTeam owner1 tid1
-
-  (owner2, tid2) <- createBindingTeam
-  member2 <- view Team.userId <$> addUserToTeam owner2 tid2
-
-  personal <- randomUser
-
-  let check :: HasCallStack => UserId -> UserId -> Maybe TeamId -> UserLegalHoldStatus -> TestM ()
-      check getter targetUser targetTeam stat = do
-        profile <- getUserProfile getter targetUser
-        when (profileLegalholdStatus profile /= stat) $ do
-          meminfo <- getUserStatusTyped targetUser `mapM` targetTeam
-
-          liftIO . forM_ meminfo $ \mem -> do
-            assertEqual "member LH status" stat (ulhsrStatus mem)
-            assertEqual "team id in brig user record" targetTeam (profileTeam profile)
-
-          liftIO $ assertEqual "user profile status info" stat (profileLegalholdStatus profile)
-
-      requestDev :: HasCallStack => UserId -> UserId -> TeamId -> TestM ()
-      requestDev requestor target tid = do
-        requestLegalHoldDevice requestor target tid !!! testResponse 201 Nothing
-
-      approveDev :: HasCallStack => UserId -> TeamId -> TestM ()
-      approveDev target tid = do
-        approveLegalHoldDevice (Just defPassword) target target tid !!! testResponse 200 Nothing
-
-  check owner1 member1 (Just tid1) UserLegalHoldNoConsent
-  check member1 member1 (Just tid1) UserLegalHoldNoConsent
-  check owner2 member1 (Just tid1) UserLegalHoldNoConsent
-  check member2 member1 (Just tid1) UserLegalHoldNoConsent
-  check personal member1 (Just tid1) UserLegalHoldNoConsent
-  check owner1 personal Nothing UserLegalHoldNoConsent
-  check member1 personal Nothing UserLegalHoldNoConsent
-  check owner2 personal Nothing UserLegalHoldNoConsent
-  check member2 personal Nothing UserLegalHoldNoConsent
-  check personal personal Nothing UserLegalHoldNoConsent
-
-  putLHWhitelistTeam tid1 !!! const 200 === statusCode
-
-  withDummyTestServiceForTeam owner1 tid1 $ \_chan -> do
-    check owner1 member1 (Just tid1) UserLegalHoldDisabled
-    check member2 member1 (Just tid1) UserLegalHoldDisabled
-    check personal member1 (Just tid1) UserLegalHoldDisabled
-
-    requestDev owner1 member1 tid1
-    check personal member1 (Just tid1) UserLegalHoldPending
-
-    approveDev member1 tid1
-    check personal member1 (Just tid1) UserLegalHoldEnabled
 
 ----------------------------------------------------------------------
 -- API helpers
