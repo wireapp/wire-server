@@ -46,18 +46,6 @@ the transformations throw impure exceptions (notably `ByteString` to
 `Text`).  It's ok to use it in test code.
 
 
-
-
-### Module boundaries
-
-All modules must have explicit export lists.  Reasons:
-
-- It helps the compiler with optimizations across module boundaries;
-- it is good documentation;
-- it helps with identifying dead code (if it's not exported and not used, we get a compiler warning); and
-- prevents us from using functions that aren't part of a module's interface by accident: if we *want* to use them, we can always add them, but then we are transparent about changing the interface.
-
-
 ### TODO
 
 Import (relevant parts of) our internal C&D logs:
