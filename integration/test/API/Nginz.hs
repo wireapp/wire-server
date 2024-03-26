@@ -14,6 +14,14 @@ login domain email pw = do
   pwStr <- make pw >>= asString
   submit "POST" (req & addJSONObject ["email" .= emailStr, "password" .= pwStr, "label" .= "auth"])
 
+loginWith2ndFactor :: (HasCallStack, MakesValue domain, MakesValue email, MakesValue password, MakesValue sndFactor) => domain -> email -> password -> sndFactor -> App Response
+loginWith2ndFactor domain email pw sf = do
+  req <- rawBaseRequest domain Nginz Unversioned "/login"
+  emailStr <- make email >>= asString
+  pwStr <- make pw >>= asString
+  sfStr <- make sf >>= asString
+  submit "POST" (req & addJSONObject ["email" .= emailStr, "password" .= pwStr, "label" .= "auth", "verification_code" .= sfStr])
+
 access :: (HasCallStack, MakesValue domain, MakesValue cookie) => domain -> cookie -> App Response
 access domain cookie = do
   req <- rawBaseRequest domain Nginz Unversioned "/access"
