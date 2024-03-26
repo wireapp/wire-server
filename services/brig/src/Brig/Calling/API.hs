@@ -77,7 +77,7 @@ getAuthenticatedCallsConfig u c _ limit = do
   staticUrl <- view $ settings . Opt.sftStaticUrl
   sftListAllServers <- fromMaybe Opt.HideAllSFTServers <$> view (settings . Opt.sftListAllServers)
   sftEnv' <- view sftEnv
-  enableFederation' <- view enableFederation
+  sftFederation <- view enableSFTFederation
   discoveredServers <- turnServersV2 (env ^. turnServers)
   eitherConfig <-
     lift
@@ -90,7 +90,7 @@ getAuthenticatedCallsConfig u c _ limit = do
         sftEnv'
         limit
         sftListAllServers
-        (AuthenticatedCallsConfig u c enableFederation')
+        (AuthenticatedCallsConfig u c sftFederation)
   handleNoTurnServers eitherConfig
 
 -- | ('UserId', 'ConnId' are required as args here to make sure this is an authenticated end-point.)
@@ -157,7 +157,7 @@ getCallsConfig _ _ = do
 data CallsConfigVersion
   = CallsConfigDeprecated
   | CallsConfigV2
-  | AuthenticatedCallsConfig UserId ClientId Bool
+  | AuthenticatedCallsConfig UserId ClientId (Maybe Bool)
 
 data NoTurnServers = NoTurnServers
   deriving (Show)
@@ -207,10 +207,10 @@ newConfig env discoveredServers sftStaticUrl mSftEnv limit listAllServers versio
       let subsetLength = Calling.sftListLength actualSftEnv
       mapM (getRandomElements subsetLength) allSrvEntries
 
-  let enableFederation' = case version of
+  let sftFederation' = case version of
         CallsConfigDeprecated -> Nothing
         CallsConfigV2 -> Nothing
-        AuthenticatedCallsConfig _ _ fed -> Just fed
+        AuthenticatedCallsConfig _ _ fed -> fed
 
   mSftServersAll <-
     case version of
@@ -227,7 +227,7 @@ newConfig env discoveredServers sftStaticUrl mSftEnv limit listAllServers versio
           (ListAllSFTServers, Just url) -> mapM (mapM $ authenticate u c) . hush . unSFTGetResponse =<< sftGetAllServers url
 
   let mSftServers = staticSft <|> sftServerFromSrvTarget . srvTarget <$$> srvEntries
-  pure $ Public.rtcConfiguration srvs mSftServers (env ^. turnConfigTTL) mSftServersAll enableFederation'
+  pure $ Public.rtcConfiguration srvs mSftServers (env ^. turnConfigTTL) mSftServersAll sftFederation'
   where
     limitedList :: NonEmpty Public.TurnURI -> Range 1 10 Int -> NonEmpty Public.TurnURI
     limitedList uris lim =

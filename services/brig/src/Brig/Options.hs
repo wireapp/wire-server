@@ -424,8 +424,8 @@ data Opts = Opts
     cassandra :: !CassandraOpts,
     -- | ElasticSearch settings
     elasticsearch :: !ElasticSearchOpts,
-    -- | Federation
-    enableFederation :: !Bool,
+    -- | SFT Federation
+    multiSFT :: !(Maybe Bool),
     -- | RabbitMQ settings, required when federation is enabled.
     rabbitmq :: !(Maybe RabbitMqOpts),
     -- | AWS settings
@@ -934,7 +934,8 @@ Lens.makeLensesFor
   [ ("optSettings", "optionSettings"),
     ("elasticsearch", "elasticsearchL"),
     ("sft", "sftL"),
-    ("turn", "turnL")
+    ("turn", "turnL"),
+    ("multiSFT", "multiSFTL")
   ]
   ''Opts
 

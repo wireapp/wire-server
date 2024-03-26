@@ -36,7 +36,7 @@ federatorInternal:
   host: 127.0.0.1
   port: 8097
 
-enableFederation: true
+multiSFT: false
 
 # You can set up local SQS/Dynamo running e.g. `../../deploy/dockerephemeral/run.sh`
 aws:
