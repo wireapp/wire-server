@@ -87,20 +87,23 @@ assertFeatureStatusFromAll ::
   String ->
   user ->
   App ()
-assertFeatureStatusFromAll = assertFeatureStatusFromAllLock Nothing Nothing
+assertFeatureStatusFromAll st =
+  assertFeatureStatusFromAllLock Nothing (WithStatusNoLock st () FeatureTTLUnlimited)
 
 assertFeatureStatusFromAllLock ::
-  (HasCallStack, MakesValue user) =>
+  (HasCallStack, MakesValue user, ToJSON cfg) =>
   Maybe LockStatus ->
-  Maybe Value ->
-  FeatureStatus ->
+  WithStatusNoLock cfg ->
   String ->
   user ->
   App ()
-assertFeatureStatusFromAllLock mLock meConfig eStatus featureName user = do
+assertFeatureStatusFromAllLock mLock (WithStatusNoLock st cfg ttl) featureName user = do
   actual <- extractTeamFeatureFromAllPersonal featureName user
-  actual %. "status" `shouldMatch` show eStatus
-  for_ meConfig (actual %. "config" `shouldMatch`)
+  actual %. "status" `shouldMatch` show st
+  -- The "config" key is present only for non-trivial feature configurations
+  when (toJSON cfg /= Aeson.Array Vector.empty) $
+    actual %. "config" `shouldMatch` (toJSON cfg)
+  actual %. "ttl" `shouldMatch` ttl
   for_ mLock (actual %. "lockStatus" `shouldMatch`)
 
 assertFeatureInternalLock ::
@@ -497,7 +500,7 @@ checkSimpleFlagWithLockStatus path name featStatus lockStatus = do
   let assertFlag st lock = do
         assertFeatureLock lock (withStatus st) path owner team
         assertFeatureInternalLock lock (withStatus st) path domain team
-        assertFeatureStatusFromAllLock (Just lock) Nothing st path mem
+        assertFeatureStatusFromAllLock (Just lock) (withStatus st) path mem
   do
     nonMem <- randomUser domain def
     getTeamFeature path nonMem team `bindResponse` \resp -> do
@@ -566,7 +569,7 @@ genericClassifiedDomains status config = withModifiedBackend cnf $ \domain -> do
     getClassifiedDomains u t s = assertFeature (ws s) featureName u t
     getClassifiedDomainsInternal u t s = assertFeatureInternal (ws s) featureName u t
     getClassifiedDomainsFeatureConfig mem s =
-      assertFeatureStatusFromAllLock Nothing (Just . toJSON $ config) s featureName mem
+      assertFeatureStatusFromAllLock Nothing (ws s) featureName mem
 
 testClassifiedDomainsEnabled :: HasCallStack => App ()
 testClassifiedDomainsEnabled =
