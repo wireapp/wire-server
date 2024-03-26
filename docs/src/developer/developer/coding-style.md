@@ -48,7 +48,8 @@ also go through the C&D history and pick details on that, and other decisions.
 
 All modules must have explicit export lists.  Reasons:
 
-- This is good documentation;
+- It helps the compiler with optimizations across module boundaries;
+- it is good documentation;
 - it helps with identifying dead code (if it's not exported and not used, we get a compiler warning); and
 - prevents us from using functions that aren't part of a module's interface by accident: if we *want* to use them, we can always add them, but then we are transparent about changing the interface.
 
