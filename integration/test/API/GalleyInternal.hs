@@ -44,6 +44,13 @@ setTeamFeatureStatus domain team featureName status = do
   res <- submit "PATCH" $ req & addJSONObject ["status" .= status]
   res.status `shouldMatchInt` 200
 
+setTeamFeatureLockStatus :: (HasCallStack, MakesValue domain, MakesValue team) => domain -> team -> String -> String -> App ()
+setTeamFeatureLockStatus domain team featureName status = do
+  tid <- asString team
+  req <- baseRequest domain Galley Unversioned $ joinHttpPath ["i", "teams", tid, "features", featureName, status]
+  res <- submit "PUT" $ req
+  res.status `shouldMatchInt` 200
+
 getFederationStatus ::
   ( HasCallStack,
     MakesValue user
@@ -79,3 +86,10 @@ legalholdIsEnabled tid uid = do
   tidStr <- asString tid
   baseRequest uid Galley Unversioned do joinHttpPath ["i", "teams", tidStr, "features", "legalhold"]
     >>= submit "GET"
+
+generateVerificationCode :: (HasCallStack, MakesValue domain, MakesValue email) => domain -> email -> App ()
+generateVerificationCode domain email = do
+  req <- baseRequest domain Brig Versioned "/verification-code/send"
+  emailStr <- asString email
+  res <- submit "POST" $ req & addJSONObject ["email" .= emailStr, "action" .= "login"]
+  res.status `shouldMatchInt` 200

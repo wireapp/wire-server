@@ -332,10 +332,8 @@ verify :: MonadClient m => Key -> Scope -> Value -> m (Maybe Code)
 verify k s v = lookup k s >>= maybe (pure Nothing) continue
   where
     continue c
-      | codeValue c == v && codeRetries c > 0 = pure (Just c)
-      | codeRetries c > 0 = do
-          insertInternal (c {codeRetries = codeRetries c - 1})
-          pure Nothing
+      | codeValue c == v && codeRetries c > 0 = delete k s >> pure (Just c)
+      | codeRetries c > 0 = insertInternal (c {codeRetries = codeRetries c - 1}) $> Nothing
       | otherwise = pure Nothing
 
 -- | Delete a code associated with the given key and scope.
