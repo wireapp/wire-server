@@ -46,7 +46,6 @@ the transformations throw impure exceptions (notably `ByteString` to
 `Text`).  It's ok to use it in test code.
 
 
-also go through the C&D history and pick details on that, and other decisions.
 
 
 ### Module boundaries
