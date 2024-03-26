@@ -4,6 +4,7 @@
 module API.Galley where
 
 import API.Common
+import API.GalleyCommon
 import Control.Lens hiding ((.=))
 import Control.Monad.Reader
 import Control.Retry
@@ -523,6 +524,68 @@ data AppLockSettings = AppLockSettings
 
 instance Default AppLockSettings where
   def = AppLockSettings "disabled" False 60
+
+getTeamFeature ::
+  (HasCallStack, MakesValue tid, MakesValue user) =>
+  String ->
+  user ->
+  tid ->
+  App Response
+getTeamFeature featureName user tid = do
+  tidStr <- asString tid
+  req <-
+    baseRequest user Galley Versioned $
+      joinHttpPath ["teams", tidStr, "features", featureName]
+  submit "GET" req
+
+getAllTeamFeatures ::
+  (HasCallStack, MakesValue tid, MakesValue user) =>
+  user ->
+  tid ->
+  App Response
+getAllTeamFeatures user tid = do
+  tidStr <- asString tid
+  req <-
+    baseRequest user Galley Versioned $
+      joinHttpPath ["teams", tidStr, "features"]
+  submit "GET" req
+
+setTeamFeature ::
+  ( HasCallStack,
+    MakesValue tid,
+    MakesValue user,
+    ToJSON cfg
+  ) =>
+  String ->
+  user ->
+  tid ->
+  WithStatusNoLock cfg ->
+  App Response
+setTeamFeature featureName user tid status = do
+  tidStr <- asString tid
+  st <- make status
+  req <-
+    baseRequest user Galley Versioned $
+      joinHttpPath ["teams", tidStr, "features", featureName]
+  submit "PUT" $ addJSON st req
+
+-- | A function where only the user info is used for authentication, and no team
+-- association.
+extractTeamFeatureFromAllPersonal ::
+  (HasCallStack, MakesValue user) =>
+  String ->
+  user ->
+  App Value
+extractTeamFeatureFromAllPersonal featureName user = do
+  cfgs <- getAllFeatureConfigsPersonal user >>= getJSON 200
+  cfgs %. featureName
+
+-- | An endpoint where only the user info is used for authentication, and no
+-- team association.
+getAllFeatureConfigsPersonal :: (HasCallStack, MakesValue user) => user -> App Response
+getAllFeatureConfigsPersonal user = do
+  req <- baseRequest user Galley Versioned "feature-configs"
+  submit "GET" req
 
 -- | https://staging-nginz-https.zinfra.io/v6/api/swagger-ui/#/default/put_teams__tid__features_appLock
 putAppLockSettings ::

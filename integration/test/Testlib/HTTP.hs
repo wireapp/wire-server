@@ -117,6 +117,10 @@ assertLabel status label resp = do
   j <- getJSON status resp
   j %. "label" `shouldMatch` label
 
+assertSuccessMatchBody :: HasCallStack => Aeson.Value -> Response -> App ()
+assertSuccessMatchBody bdy resp = withResponse resp $ \r ->
+  getJSON 200 r `shouldMatch` bdy
+
 onFailureAddResponse :: HasCallStack => Response -> App a -> App a
 onFailureAddResponse r m = App $ do
   e <- ask

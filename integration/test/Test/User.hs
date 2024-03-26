@@ -4,6 +4,7 @@ module Test.User where
 
 import API.Brig
 import API.BrigInternal
+import API.GalleyCommon
 import API.GalleyInternal
 import API.Spar
 import qualified Data.UUID as UUID
@@ -66,7 +67,7 @@ testUpdateHandle = do
   bindResponse (getTeamFeature owner featureName team) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "status" `shouldMatch` "disabled"
-  setTeamFeatureStatus owner team featureName "enabled"
+  setTeamFeatureStatus owner team featureName Enabled
   bindResponse (getTeamFeature owner featureName team) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "status" `shouldMatch` "enabled"
@@ -129,7 +130,7 @@ testUpdateSelf (MkTagged mode) = do
   bindResponse (getTeamFeature owner featureName team) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "status" `shouldMatch` "disabled"
-  setTeamFeatureStatus owner team featureName "enabled"
+  setTeamFeatureStatus owner team featureName Enabled
   bindResponse (getTeamFeature owner featureName team) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "status" `shouldMatch` "enabled"

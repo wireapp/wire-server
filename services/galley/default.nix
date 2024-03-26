@@ -44,7 +44,6 @@
 , gitignoreSource
 , gundeck-types
 , HsOpenSSL
-, hspec
 , http-api-data
 , http-client
 , http-client-openssl
@@ -247,7 +246,6 @@ mkDerivation {
     filepath
     galley-types
     HsOpenSSL
-    hspec
     http-api-data
     http-client
     http-client-openssl

@@ -44,6 +44,7 @@
 , mtl
 , network
 , network-uri
+, openapi3
 , optparse-applicative
 , pem
 , process
@@ -53,6 +54,7 @@
 , regex-base
 , regex-tdfa
 , retry
+, schema-profunctor
 , scientific
 , split
 , stm
@@ -129,6 +131,7 @@ mkDerivation {
     mtl
     network
     network-uri
+    openapi3
     optparse-applicative
     pem
     process
@@ -138,6 +141,7 @@ mkDerivation {
     regex-base
     regex-tdfa
     retry
+    schema-profunctor
     scientific
     split
     stm

@@ -95,6 +95,7 @@ library
     API.Common
     API.Federator
     API.Galley
+    API.GalleyCommon
     API.GalleyInternal
     API.Gundeck
     API.GundeckInternal
@@ -203,6 +204,7 @@ library
     , mtl
     , network
     , network-uri
+    , openapi3
     , optparse-applicative
     , pem
     , process
@@ -212,6 +214,7 @@ library
     , regex-base
     , regex-tdfa
     , retry
+    , schema-profunctor
     , scientific
     , split
     , stm

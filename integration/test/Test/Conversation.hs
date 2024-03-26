@@ -22,6 +22,7 @@ module Test.Conversation where
 import API.Brig
 import qualified API.BrigInternal as BrigI
 import API.Galley
+import API.GalleyCommon
 import API.GalleyInternal
 import Control.Applicative
 import Control.Concurrent (threadDelay)
@@ -681,7 +682,7 @@ testDeleteTeamMemberLimitedEventFanout = do
 
   -- Only the team admins will get the team-level event about Alex being removed
   -- from the team
-  setTeamFeatureStatus OwnDomain team "limitedEventFanout" "enabled"
+  setTeamFeatureStatus OwnDomain team "limitedEventFanout" Enabled
 
   withWebSockets [alice, amy, bob, alison, ana] $
     \[wsAlice, wsAmy, wsBob, wsAlison, wsAna] -> do

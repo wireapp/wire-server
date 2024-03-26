@@ -1,5 +1,8 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module API.GalleyInternal where
 
+import API.GalleyCommon
 import qualified Data.Aeson as Aeson
 import Data.String.Conversions (cs)
 import qualified Data.Vector as Vector
@@ -32,17 +35,127 @@ putTeamMember user team perms = do
       ]
       req
 
-getTeamFeature :: (HasCallStack, MakesValue domain_) => domain_ -> String -> String -> App Response
-getTeamFeature domain_ featureName tid = do
-  req <- baseRequest domain_ Galley Unversioned $ joinHttpPath ["i", "teams", tid, "features", featureName]
-  submit "GET" $ req
+getTeamFeature ::
+  (HasCallStack, MakesValue domain) =>
+  domain ->
+  String ->
+  String ->
+  App Response
+getTeamFeature domain featureName tid = do
+  req <-
+    baseRequest domain Galley Unversioned $
+      joinHttpPath ["i", "teams", tid, "features", featureName]
+  submit "GET" req
 
-setTeamFeatureStatus :: (HasCallStack, MakesValue domain, MakesValue team) => domain -> team -> String -> String -> App ()
-setTeamFeatureStatus domain team featureName status = do
+patchTeamFeatureStatus ::
+  (HasCallStack, MakesValue domain, MakesValue team) =>
+  domain ->
+  team ->
+  String ->
+  FeatureStatus ->
+  App ()
+patchTeamFeatureStatus domain team featureName status = do
   tid <- asString team
-  req <- baseRequest domain Galley Unversioned $ joinHttpPath ["i", "teams", tid, "features", featureName]
-  res <- submit "PATCH" $ req & addJSONObject ["status" .= status]
+  req <-
+    baseRequest domain Galley Unversioned $
+      joinHttpPath ["i", "teams", tid, "features", featureName]
+  res <- submit "PATCH" $ addJSONObject ["status" .= show status] req
   res.status `shouldMatchInt` 200
+
+failToPatchTeamFeatureStatus ::
+  (HasCallStack, MakesValue domain, MakesValue team) =>
+  domain ->
+  team ->
+  String ->
+  FeatureStatus ->
+  App ()
+failToPatchTeamFeatureStatus domain team featureName status = do
+  tid <- asString team
+  req <-
+    baseRequest domain Galley Unversioned $
+      joinHttpPath ["i", "teams", tid, "features", featureName]
+  res <- submit "PATCH" $ addJSONObject ["status" .= show status] req
+  res.status `shouldMatchRange` (400, 499)
+
+setTeamFeatureLockStatus ::
+  (HasCallStack, MakesValue domain, MakesValue team) =>
+  domain ->
+  team ->
+  String ->
+  LockStatus ->
+  App Response
+setTeamFeatureLockStatus domain team featureName lockStatus = do
+  tid <- asString team
+  req <-
+    baseRequest domain Galley Unversioned $
+      joinHttpPath ["i", "teams", tid, "features", featureName, show lockStatus]
+  submit "PUT" req
+
+-- | An alias for 'patchTeamFeatureStatus'
+setTeamFeatureStatus ::
+  (HasCallStack, MakesValue domain, MakesValue team) =>
+  domain ->
+  team ->
+  String ->
+  FeatureStatus ->
+  App ()
+setTeamFeatureStatus = patchTeamFeatureStatus
+
+putTeamFeatureStatusRaw ::
+  forall cfg domain team.
+  ( HasCallStack,
+    MakesValue domain,
+    MakesValue team,
+    ToJSON cfg
+  ) =>
+  domain ->
+  team ->
+  String ->
+  WithStatusNoLock cfg ->
+  App Response
+putTeamFeatureStatusRaw domain team featureName status = do
+  tid <- asString team
+  body <- make status
+  req <-
+    baseRequest domain Galley Unversioned $
+      joinHttpPath ["i", "teams", tid, "features", featureName]
+  submit "PUT" $ addJSON body req
+
+putTeamFeatureStatus ::
+  forall cfg domain team.
+  ( HasCallStack,
+    MakesValue domain,
+    MakesValue team,
+    ToJSON cfg
+  ) =>
+  domain ->
+  team ->
+  String ->
+  WithStatusNoLock cfg ->
+  App ()
+putTeamFeatureStatus domain team featureName status =
+  putTeamFeatureStatusRaw domain team featureName status
+    >>= assertStatus 200
+
+failToPutTeamFeatureStatus ::
+  ( HasCallStack,
+    MakesValue domain,
+    MakesValue team,
+    ToJSON cfg
+  ) =>
+  domain ->
+  team ->
+  String ->
+  WithStatusNoLock cfg ->
+  App ()
+failToPutTeamFeatureStatus domain team featureName status = do
+  tid <- asString team
+  body <- make status
+  req <-
+    baseRequest domain Galley Unversioned $
+      joinHttpPath ["i", "teams", tid, "features", featureName]
+  res <- submit "PUT" $ addJSON body req
+  res.status `shouldMatchRange` (400, 499)
 
 getFederationStatus ::
   ( HasCallStack,
@@ -79,3 +192,49 @@ legalholdIsEnabled tid uid = do
   tidStr <- asString tid
   baseRequest uid Galley Unversioned do joinHttpPath ["i", "teams", tidStr, "features", "legalhold"]
     >>= submit "GET"
+
+newtype TeamFeatureNoConfigMultiRequest = TeamFeatureNoConfigMultiRequest
+  { teams :: [Value]
+  }
+  deriving (Show, Eq)
+
+instance Aeson.ToJSON TeamFeatureNoConfigMultiRequest where
+  toJSON (TeamFeatureNoConfigMultiRequest ts) =
+    Aeson.object $ ["teams" .= Aeson.Array (Vector.fromList ts)]
+
+getFeatureStatusMulti ::
+  (HasCallStack, MakesValue domain) =>
+  domain ->
+  String ->
+  TeamFeatureNoConfigMultiRequest ->
+  App Response
+getFeatureStatusMulti domain featureName payload = do
+  bdy <- make payload
+  req <-
+    baseRequest domain Galley Unversioned $
+      joinHttpPath ["i", "features-multi-teams", featureName]
+  submit "POST" $ addJSON bdy req
+
+newtype TeamFeatureNoConfigMultiResponse = TeamFeatureNoConfigMultiResponse
+  { teamStatuses :: [TeamStatus]
+  }
+  deriving (Show, Eq)
+
+instance FromJSON TeamFeatureNoConfigMultiResponse where
+  parseJSON =
+    withObject "TeamFeatureNoConfigMultiResponse" $ \ob ->
+      TeamFeatureNoConfigMultiResponse
+        <$> ob .: "default_status"
+
+data TeamStatus = TeamStatus
+  { tsTeam :: Value,
+    tsStatus :: FeatureStatus
+  }
+  deriving (Show, Eq)
+
+instance FromJSON TeamStatus where
+  parseJSON =
+    withObject "TeamStatus" $ \ob ->
+      TeamStatus
+        <$> ob .: "team"
+        <*> ob .: "status"
