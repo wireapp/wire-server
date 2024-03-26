@@ -148,14 +148,9 @@ ejpdAPI ::
     Member NotificationSubsystem r,
     Member Rpc r
   ) =>
-  ServerT BrigIRoutes.EJPD_API (Handler r)
+  ServerT BrigIRoutes.EJPDRequest (Handler r)
 ejpdAPI =
   Brig.User.EJPD.ejpdRequest
-    :<|> Named @"get-account-conference-calling-config" getAccountConferenceCallingConfig
-    :<|> putAccountConferenceCallingConfig
-    :<|> deleteAccountConferenceCallingConfig
-    :<|> getConnectionsStatusUnqualified
-    :<|> getConnectionsStatus
 
 mlsAPI :: ServerT BrigIRoutes.MLSAPI (Handler r)
 mlsAPI = getMLSClients
@@ -176,7 +171,12 @@ accountAPI ::
   ) =>
   ServerT BrigIRoutes.AccountAPI (Handler r)
 accountAPI =
-  Named @"createUserNoVerify" (callsFed (exposeAnnotations createUserNoVerify))
+  Named @"get-account-conference-calling-config" getAccountConferenceCallingConfig
+    :<|> putAccountConferenceCallingConfig
+    :<|> deleteAccountConferenceCallingConfig
+    :<|> getConnectionsStatusUnqualified
+    :<|> getConnectionsStatus
+    :<|> Named @"createUserNoVerify" (callsFed (exposeAnnotations createUserNoVerify))
     :<|> Named @"createUserNoVerifySpar" (callsFed (exposeAnnotations createUserNoVerifySpar))
     :<|> Named @"putSelfEmail" changeSelfEmailMaybeSendH
     :<|> Named @"iDeleteUser" deleteUserNoAuthH
