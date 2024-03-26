@@ -13,7 +13,9 @@ doing things, whoever can point to a rule in this document wins the
 argument.
 
 Where feasible and if there is time, rules should be enforced
-automatically.
+automatically.  What we can enforce in code does not need to be
+covered here.  The style guide is for things we don't (yet) enforce in
+other ways.
 
 
 ### Integer literals
