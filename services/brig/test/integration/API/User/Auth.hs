@@ -64,6 +64,7 @@ import Util
 import Wire.API.Conversation (Conversation (..))
 import Wire.API.Password (Password, mkSafePassword)
 import Wire.API.User as Public
+import Wire.API.User.Auth
 import Wire.API.User.Auth as Auth
 import Wire.API.User.Auth.LegalHold
 import Wire.API.User.Auth.ReAuth
