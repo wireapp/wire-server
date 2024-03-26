@@ -36,6 +36,11 @@ Instead of the standard `Prelude`, we use the module `Imports` from
 - `/libs/imports` (there is some ongoing debate whether that exception should be removed, though.)
 - `/libs/wire-api` (compiling wire-api takes longer, and there was a small majority in favor of testing serialization here, not (only) in golden tests.)
 
+All libraries that are or want to be on hackage also cannot depend on `/libs/import`, namely:
+
+- `/libs/http2-manager`-
+- `/libs/hscim`
+
 `string-conversions` is forbidden for production code, since some of
 the transformations throw impure exceptions (notably `ByteString` to
 `Text`).  It's ok to use it in test code.
