@@ -71,6 +71,14 @@ releases:
     namespace: '{{ .Values.namespace1 }}'
     chart: '../.local/charts/databases-ephemeral'
 
+  # Required for testing redis migration
+  - name: 'redis-ephemeral-2'
+    namespace: '{{ .Values.namespace1 }}'
+    chart: '../.local/charts/redis-ephemeral'
+    values:
+      - redis-ephemeral:
+          nameOverride: redis-ephemeral-2
+
   - name: 'databases-ephemeral'
     namespace: '{{ .Values.namespace2 }}'
     chart: '../.local/charts/databases-ephemeral'
