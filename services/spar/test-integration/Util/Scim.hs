@@ -73,9 +73,16 @@ registerIdPAndScimToken :: HasCallStack => TestSpar (ScimToken, (UserId, TeamId,
 registerIdPAndScimToken = do
   env <- ask
   (owner, teamid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+  token <- registerScimToken teamid Nothing
   idp <- registerTestIdP owner
+  -- current plan: make registerTestIdP always take its idpId, look up whether a scim token exists for ??? (how to associate these)
+  -- and then insert its own idp id 
+  --
+  -- updateScimTokenInfo token \case
+  --   Just info -> info {stiIdP = Just (idp ^. idpId)}
+  --   Nothing -> error "expected token to exist in cassandra"
   let team = (owner, teamid, idp)
-  (,team) <$> registerScimToken teamid (Just (idp ^. idpId))
+  pure (token, team)
 
 -- | Call 'registerTestIdPWithMeta', then 'registerScimToken'.  The user returned is the owner of the team;
 -- the IdP is registered with the team; the SCIM token can be used to manipulate the team.
@@ -87,13 +94,19 @@ registerIdPAndScimTokenWithMeta = do
   let team = (owner, teamid, idp, meta)
   (,team) <$> registerScimToken teamid (Just (idp ^. idpId))
 
+-- | upserts a new scim token info
+updateScimTokenInfo :: ScimToken -> (Maybe ScimTokenInfo -> ScimTokenInfo) -> TestSpar ()
+updateScimTokenInfo tok fn = runSpar do
+  oldInfo <- ScimTokenStore.lookup tok
+  ScimTokenStore.insert tok (fn oldInfo)
+
 -- | Create a fresh SCIM token and register it for the team.
 registerScimToken :: HasCallStack => TeamId -> Maybe IdPId -> TestSpar ScimToken
 registerScimToken teamid midpid = do
   tok <-
     ScimToken <$> do
       code <- liftIO UUID.nextRandom
-      pure $ "scim-test-token/" <> "team=" <> idToText teamid <> "/code=" <> UUID.toText code
+      pure $ "scim-test-token/team=" <> idToText teamid <> "/code=" <> UUID.toText code
   scimTokenId <- randomId
   now <- liftIO getCurrentTime
   runSpar $

@@ -193,12 +193,12 @@ apiIDP ::
   ) =>
   ServerT APIIDP (Sem r)
 apiIDP =
-  idpGet
-    :<|> idpGetRaw
-    :<|> idpGetAll
-    :<|> idpCreate
-    :<|> idpUpdate
-    :<|> idpDelete
+  idpGet -- get, json, captures idp id
+    :<|> idpGetRaw -- get, raw xml, capture idp id
+    :<|> idpGetAll -- get, json
+    :<|> idpCreate -- post, created
+    :<|> idpUpdate -- put, okay
+    :<|> idpDelete -- delete, no content
 
 apiINTERNAL ::
   ( Member ScimTokenStore r,
@@ -493,18 +493,29 @@ idpCreateXML ::
   Maybe WireIdPAPIVersion ->
   Maybe (Range 1 32 Text) ->
   Sem r IdP
-idpCreateXML zusr raw idpmeta mReplaces (fromMaybe defWireIdPAPIVersion -> apiversion) mHandle = withDebugLog "idpCreateXML" (Just . show . (^. SAML.idpId)) $ do
+idpCreateXML zusr rawIdpMetadata idpmeta mReplaces (fromMaybe defWireIdPAPIVersion -> apiversion) mHandle = withDebugLog "idpCreateXML" (Just . show . (^. SAML.idpId)) $ do
   teamid <- Brig.getZUsrCheckPerm zusr CreateUpdateDeleteIdp
   GalleyAccess.assertSSOEnabled teamid
   assertNoScimOrNoIdP teamid
   idp <-
     maybe (IdPConfigStore.newHandle teamid) (pure . IdPHandle . fromRange) mHandle
       >>= validateNewIdP apiversion idpmeta teamid mReplaces
-  IdPRawMetadataStore.store (idp ^. SAML.idpId) raw
+  IdPRawMetadataStore.store (idp ^. SAML.idpId) rawIdpMetadata
   IdPConfigStore.insertConfig idp
   forM_ mReplaces $ \replaces ->
     IdPConfigStore.setReplacedBy (Replaced replaces) (Replacing (idp ^. SAML.idpId))
+  lookupAndLinkScimTokenToIdp teamid
   pure idp
+
+-- | if a scim token exists when creating a saml IdP 
+-- - this IdP is the only IdP that may ever be created
+-- - all scim tokens must belong to that IdP
+-- - i.e. each scim token is linked to that one IdP
+lookupAndLinkScimTokenToIdp :: (Member ScimTokenStore r) => TeamId -> Sem r ()
+lookupAndLinkScimTokenToIdp tid = do 
+  scimTokens <- ScimTokenStore.lookupByTeam tid
+  undefined
+  
 
 -- | In teams with a scim access token, only one IdP is allowed.  The reason is that scim user
 -- data contains no information about the idp issuer, only the user name, so no valid saml
@@ -521,9 +532,7 @@ assertNoScimOrNoIdP teamid = do
   numTokens <- length <$> ScimTokenStore.lookupByTeam teamid
   numIdps <- length <$> IdPConfigStore.getConfigsByTeam teamid
   when (numTokens > 0 && numIdps > 0) $
-    throwSparSem $
-      SparProvisioningMoreThanOneIdP
-        "Teams with SCIM tokens can only have at most one IdP"
+    throwSparSem $ SparProvisioningMoreThanOneIdP ScimTokenAndSecondIdpForbidden
 
 -- | Check that issuer is not used anywhere in the system ('WireIdPAPIV1', here it is a
 -- database key for finding IdPs), or anywhere in this team ('WireIdPAPIV2'), that request
@@ -720,7 +729,7 @@ authorizeIdP (Just zusr) idp = do
 enforceHttps :: Member (Error SparError) r => URI.URI -> Sem r ()
 enforceHttps uri =
   unless ((uri ^. URI.uriSchemeL . URI.schemeBSL) == "https") $ do
-    throwSparSem . SparNewIdPWantHttps . cs . SAML.renderURI $ uri
+    throwSparSem . SparNewIdPWantHttps . T.fromStrict . SAML.renderURI $ uri
 
 ----------------------------------------------------------------------------
 -- Internal API

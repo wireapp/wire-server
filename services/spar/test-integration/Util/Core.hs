@@ -164,6 +164,7 @@ import Data.Range
 import Data.Text (pack)
 import qualified Data.Text.Ascii as Ascii
 import Data.Text.Encoding (encodeUtf8)
+import qualified Data.Text.Lazy.Encoding as LT
 import Data.UUID as UUID hiding (fromByteString, null)
 import Data.UUID.V4 as UUID (nextRandom)
 import qualified Data.Yaml as Yaml
@@ -807,9 +808,7 @@ registerTestIdP ::
   (HasCallStack, MonadRandom m, MonadIO m, MonadReader TestEnv m) =>
   UserId ->
   m IdP
-registerTestIdP owner = do
-  (idp, _) <- registerTestIdPWithMeta owner
-  pure idp
+registerTestIdP owner = fst <$> registerTestIdPWithMeta owner
 
 -- | Create a fresh 'IdPMetadata' suitable for testing.
 registerTestIdPWithMeta ::
@@ -1089,7 +1088,7 @@ callIdpCreate' apiversion sparreq_ muid metadata = do
             WireIdPAPIV1 -> Bilge.query [("api_version", Just "v1") | explicitQueryParam]
             WireIdPAPIV2 -> Bilge.query [("api_version", Just "v2")]
         )
-      . body (RequestBodyLBS . cs $ SAML.encode metadata)
+      . body (RequestBodyLBS . LT.encodeUtf8 $ SAML.encode metadata)
       . header "Content-Type" "application/xml"
 
 callIdpCreateRaw :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> ByteString -> LByteString -> m IdP

@@ -95,7 +95,7 @@ import Web.Scim.Schema.User.Phone (Phone)
 import Web.Scim.Schema.User.Photo (Photo)
 import Web.Scim.Schema.UserTypes
 
--- | SCIM user record, parametrized with type-level tag @t@ (see 'UserTypes').
+-- | SCIM user record, parametrized with type-level @tag@ (see 'UserTypes').
 data User tag = User
   { schemas :: [Schema],
     -- Mandatory fields

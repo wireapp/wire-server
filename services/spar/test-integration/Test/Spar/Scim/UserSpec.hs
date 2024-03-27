@@ -3,7 +3,7 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
-{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns -Wwarn #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -480,8 +480,7 @@ specCreateUser = describe "POST /Users" $ do
     it "doesn't list users that exceed their invitation period, and allows recreating them" $ do
       testCreateUserTimeout
   context "team has one SAML IdP" $ do
-    it "creates a user in an existing team" $ do
-      testCreateUserWithSamlIdP
+    focus . it "creates a user in an existing team" $ testCreateUserWithSamlIdP
     it "adds a Wire scheme to the user record" $ testSchemaIsAdded
     it "set locale to default and update to de" $ testCreateUserWithSamlIdPWithPreferredLanguage Nothing (Just (Locale (Language DE) Nothing))
     it "set locale to fr and update to de" $ testCreateUserWithSamlIdPWithPreferredLanguage (Just (Locale (Language FR) Nothing)) (Just (Locale (Language DE) Nothing))
@@ -771,6 +770,7 @@ testCreateUserWithSamlIdP = do
           . path "/self"
           . expect2xx
       )
+  print brigUser
   brigUser `userShouldMatch` WrappedScimStoredUser scimStoredUser
   accStatus <- aFewTimes (runSpar $ BrigAccess.getStatus (userId brigUser)) (== Active)
   liftIO $ accStatus `shouldBe` Active
@@ -779,7 +779,7 @@ testCreateUserWithSamlIdP = do
   let uid = userId brigUser
       eid = Scim.User.externalId user
       sml :: HasCallStack => UserSSOId
-      sml = fromJust $ userIdentity >=> ssoIdentity $ brigUser
+      sml = fromJust $ ssoIdentity =<< userIdentity brigUser
    in testCsvData tid owner uid eid (Just sml) True
 
   -- members table contains an entry
