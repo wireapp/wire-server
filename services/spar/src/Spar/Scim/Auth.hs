@@ -157,7 +157,7 @@ createScimToken zusr Api.CreateScimToken {..} = do
     -- NB: if the following case does not result in errors, 'validateScimUser' needs to
     -- be changed.  currently, it relies on the fact that there is never more than one IdP.
     -- https://wearezeta.atlassian.net/browse/SQSERVICES-165
-    _ -> throwSparSem $ E.SparProvisioningMoreThanOneIdP E.TwoIdpsAndScimTokenForbidden 
+    _ -> throwSparSem $ E.SparProvisioningMoreThanOneIdP E.TwoIdpsAndScimTokenForbidden
 
 -- | > docs/reference/provisioning/scim-token.md {#RefScimTokenDelete}
 --

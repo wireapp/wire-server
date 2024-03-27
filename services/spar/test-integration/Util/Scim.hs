@@ -76,7 +76,7 @@ registerIdPAndScimToken = do
   token <- registerScimToken teamid Nothing
   idp <- registerTestIdP owner
   -- current plan: make registerTestIdP always take its idpId, look up whether a scim token exists for ??? (how to associate these)
-  -- and then insert its own idp id 
+  -- and then insert its own idp id
   --
   -- updateScimTokenInfo token \case
   --   Just info -> info {stiIdP = Just (idp ^. idpId)}
