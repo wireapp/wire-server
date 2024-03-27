@@ -72,6 +72,9 @@ library
     Wire.NotificationSubsystem
     Wire.NotificationSubsystem.Interpreter
     Wire.Rpc
+    Wire.UserStore
+    Wire.UserSubsystem
+    Wire.UserSubsystem.Interpreter
 
   hs-source-dirs:   src
   build-depends:
@@ -110,6 +113,7 @@ test-suite wire-subsystems-tests
   other-modules:
     Spec
     Wire.NotificationSubsystem.InterpreterSpec
+    Wire.UserSubsystem.InterpreterSpec
 
   build-tool-depends: hspec-discover:hspec-discover
   build-depends:
