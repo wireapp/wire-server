@@ -887,3 +887,33 @@ brig:
       username: elastic
       password: changeme
 ```
+
+## Configure Redis authentication
+
+If the redis used needs authentication with either username and password or just
+password (legacy auth), it can be configured like this:
+
+```yaml
+gundeck:
+  secrets:
+    redisUsername: <username>
+    redisPassword: <password>
+```
+
+**NOTE**: When using redis < 6, the `redisUsername` must not be set at all (not
+even set to `null` or empty string, they key must be absent from the config).
+When using redis >= 6 and using legacy auth, the `redisUsername` must either be
+not set at all or set to `"default"`.
+
+While doing migrations to another redis instance, the credentials for the
+addtional redis can be set as follows:
+
+```yaml
+gundeck:
+  secrets:
+    redisAdditionalWriteUsername: <username>  # Do not set this at all when using legacy auth
+    redisAdditionalWritePassword: <password>
+```
+
+**NOTE**: `redisAddtiionalWriteUsername` follows same restrictions as
+`redisUsername` when using legacy auth.
