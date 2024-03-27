@@ -1,0 +1,35 @@
+There is a new optional Boolean option, `multiSFT.enabled`, in `brig.yaml`,
+allowing calls between federated SFT servers. If provided, the field
+`is_federating` in the response of `/calls/config/authenticated` will reflect
+`multiSFT.enabled`'s value.
+
+Example:
+
+```
+# [brig.yaml]
+multiSFT:
+  enabled: true
+```
+
+Also, the optional object `sftToken` with its fields `ttl`, `secret`, and
+`secondsBeforeNew` define whether an SFT credential would be rendered in the
+response of `/calls/config/authenticated`. The field `ttl` determines the
+seconds for the credential to be valid, `secondsBeforeNew` determines the amount
+of time which has to pass before a new token will be generated, preventing one
+client to create too many new credentials, and `secret` is the path to the
+secret shared with SFT to create credentials.
+
+Example:
+
+```
+# [brig.yaml]
+sft:
+  sftBaseDomain: sft.wire.example.com
+  sftSRVServiceName: sft
+  sftDiscoveryIntervalSeconds: 10
+  sftListLength: 20
+  sftToken:
+    ttl: 120
+    secret: /path/to/secret
+    secondsBeforeNew: 60
+```
