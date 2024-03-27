@@ -43,6 +43,9 @@
 , galley-types
 , gitignoreSource
 , gundeck-types
+, hs-opentelemetry-instrumentation-http-client
+, hs-opentelemetry-instrumentation-wai
+, hs-opentelemetry-sdk
 , HsOpenSSL
 , hspec
 , http-api-data
@@ -163,6 +166,9 @@ mkDerivation {
     extra
     galley-types
     gundeck-types
+    hs-opentelemetry-instrumentation-http-client
+    hs-opentelemetry-instrumentation-wai
+    hs-opentelemetry-sdk
     HsOpenSSL
     http-client
     http-client-openssl

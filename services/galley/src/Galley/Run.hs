@@ -28,7 +28,7 @@ import Bilge.Request (requestIdName)
 import Cassandra (runClient, shutdown)
 import Cassandra.Schema (versionCheck)
 import Control.Concurrent.Async qualified as Async
-import Control.Exception (finally)
+import Control.Exception (bracket, finally)
 import Control.Lens (view, (.~), (^.))
 import Control.Monad.Codensity
 import Data.Aeson qualified as Aeson
@@ -58,7 +58,9 @@ import Network.HTTP.Types qualified as HTTP
 import Network.Wai
 import Network.Wai.Middleware.Gunzip qualified as GZip
 import Network.Wai.Middleware.Gzip qualified as GZip
-import Network.Wai.Utilities.Server
+import Network.Wai.Utilities.Server hiding (Server)
+import OpenTelemetry.Instrumentation.Wai qualified as OTel
+import OpenTelemetry.Trace
 import Servant hiding (route)
 import System.Logger (Logger, msg, val, (.=), (~~))
 import System.Logger qualified as Log
@@ -71,22 +73,32 @@ import Wire.API.Routes.Version.Wai
 
 run :: Opts -> IO ()
 run opts = lowerCodensity $ do
+  tracer <- withTracer "galley" <*> pure tracerOptions
   (app, env) <- mkApp opts
+
   settings' <-
     lift $
-      newSettings $
-        defaultServer
-          (unpack $ opts ^. galley . host)
-          (portNumber $ fromIntegral $ opts ^. galley . port)
-          (env ^. App.applog)
-          (env ^. monitor)
+      inSpan tracer "settings" defaultSpanArguments $
+        newSettings $
+          defaultServer
+            (unpack $ opts ^. galley . host)
+            (portNumber $ fromIntegral $ opts ^. galley . port)
+            (env ^. App.applog)
+            (env ^. monitor)
 
   forM_ (env ^. aEnv) $ \aws ->
     void $ Codensity $ Async.withAsync $ collectAuthMetrics (env ^. monitor) (aws ^. awsEnv)
 
-  void $ Codensity $ Async.withAsync $ runApp env deleteLoop
-  void $ Codensity $ Async.withAsync $ runApp env refreshMetrics
-  lift $ finally (runSettingsWithShutdown settings' app Nothing) (closeApp env)
+  void $ Codensity $ Async.withAsync $ inSpan tracer "deleteLoop" defaultSpanArguments $ runApp env deleteLoop
+  void $ Codensity $ Async.withAsync $ inSpan tracer "refreshMetrics" defaultSpanArguments $ runApp env refreshMetrics
+  lift $ inSpan tracer "galley" defaultSpanArguments {kind = Server} (runSettingsWithShutdown settings' app Nothing) `finally` closeApp env
+  where
+    withTracer :: InstrumentationLibrary -> Codensity IO (TracerOptions -> Tracer)
+    withTracer name = Codensity \k ->
+      bracket
+        do putStrLn "starting tracer" *> initializeGlobalTracerProvider
+        do \a -> putStrLn "killing tracer" *> shutdownTracerProvider a
+        \tp -> k $ makeTracer tp name
 
 mkApp :: Opts -> Codensity IO (Application, Env)
 mkApp opts =
@@ -94,10 +106,12 @@ mkApp opts =
     logger <- lift $ mkLogger (opts ^. logLevel) (opts ^. logNetStrings) (opts ^. logFormat)
     metrics <- lift $ M.metrics
     env <- lift $ App.createEnv metrics opts logger
+    otelMiddleware <- lift OTel.newOpenTelemetryWaiMiddleware
     lift $ runClient (env ^. cstate) $ versionCheck schemaVersion
     let middlewares =
           versionMiddleware (foldMap expandVersionExp (opts ^. settings . disabledAPIVersions))
             . servantPlusWAIPrometheusMiddleware API.waiSitemap (Proxy @CombinedAPI)
+            . otelMiddleware
             . GZip.gunzip
             . GZip.gzip GZip.def
             . catchErrors logger [Right metrics]
