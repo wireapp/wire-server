@@ -901,7 +901,7 @@ gundeck:
 ```
 
 **NOTE**: When using redis < 6, the `redisUsername` must not be set at all (not
-even set to `null` or empty string, they key must be absent from the config).
+even set to `null` or empty string, the key must be absent from the config).
 When using redis >= 6 and using legacy auth, the `redisUsername` must either be
 not set at all or set to `"default"`.
 
