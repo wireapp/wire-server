@@ -61,7 +61,7 @@ import Data.Map qualified as Map
 import Data.Misc (PlainTextPassword6)
 import Data.OpenApi hiding (Operation)
 import Data.Proxy
-import Data.Text.Encoding (encodeUtf8)
+import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Time.Clock (UTCTime)
 import Imports
 import SAML2.WebSSO qualified as SAML
@@ -129,7 +129,7 @@ data ScimTokenLookupKey
 hashScimToken :: ScimToken -> ScimTokenHash
 hashScimToken token =
   let digest = hash @ByteString @SHA512 (encodeUtf8 (fromScimToken token))
-   in ScimTokenHash (cs @ByteString @Text (convertToBase Base64 digest))
+   in ScimTokenHash (decodeUtf8 (convertToBase Base64 digest))
 
 -- | Metadata that we store about each token.
 data ScimTokenInfo = ScimTokenInfo

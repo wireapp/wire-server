@@ -3,7 +3,7 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
-{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns -Wwarn #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -124,7 +124,9 @@ specImportToScimFromSAML =
   where
     check :: Bool -> Bool -> Feature.FeatureStatus -> SpecWith TestEnv
     check sameHandle sameDisplayName valemail = it (show (sameHandle, sameDisplayName, valemail)) $ do
-      (_ownerid, teamid, idp, (_, privCreds)) <- registerTestIdPWithMeta
+      env <- ask
+      (owner, teamid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+      (idp, (_, privCreds)) <- registerTestIdPWithMeta owner
       setSamlEmailValidation teamid valemail
 
       -- saml-auto-provision a new user
@@ -376,7 +378,9 @@ specSuspend = do
   describe "suspend" $ do
     let checkPreExistingUser :: Bool -> TestSpar ()
         checkPreExistingUser isActive = do
-          (_, teamid, idp, (_, privCreds)) <- registerTestIdPWithMeta
+          env <- ask
+          (owner, teamid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+          (idp, (_, privCreds)) <- registerTestIdPWithMeta owner
           member <- loginSsoUserFirstTime idp privCreds
           -- NOTE: once SCIM is enabled, SSO Auto-provisioning is disabled
           tok <- registerScimToken teamid (Just (idp ^. SAML.idpId))
@@ -476,8 +480,7 @@ specCreateUser = describe "POST /Users" $ do
     it "doesn't list users that exceed their invitation period, and allows recreating them" $ do
       testCreateUserTimeout
   context "team has one SAML IdP" $ do
-    it "creates a user in an existing team" $ do
-      testCreateUserWithSamlIdP
+    focus . it "creates a user in an existing team" $ testCreateUserWithSamlIdP
     it "adds a Wire scheme to the user record" $ testSchemaIsAdded
     it "set locale to default and update to de" $ testCreateUserWithSamlIdPWithPreferredLanguage Nothing (Just (Locale (Language DE) Nothing))
     it "set locale to fr and update to de" $ testCreateUserWithSamlIdPWithPreferredLanguage (Just (Locale (Language FR) Nothing)) (Just (Locale (Language DE) Nothing))
@@ -767,6 +770,7 @@ testCreateUserWithSamlIdP = do
           . path "/self"
           . expect2xx
       )
+  print brigUser
   brigUser `userShouldMatch` WrappedScimStoredUser scimStoredUser
   accStatus <- aFewTimes (runSpar $ BrigAccess.getStatus (userId brigUser)) (== Active)
   liftIO $ accStatus `shouldBe` Active
@@ -775,7 +779,7 @@ testCreateUserWithSamlIdP = do
   let uid = userId brigUser
       eid = Scim.User.externalId user
       sml :: HasCallStack => UserSSOId
-      sml = fromJust $ userIdentity >=> ssoIdentity $ brigUser
+      sml = fromJust $ ssoIdentity =<< userIdentity brigUser
    in testCsvData tid owner uid eid (Just sml) True
 
   -- members table contains an entry
@@ -1021,7 +1025,9 @@ testRichInfo = do
 -- @spar.user@; create it via scim.  This should work despite the dangling database entry.
 testScimCreateVsUserRef :: TestSpar ()
 testScimCreateVsUserRef = do
-  (_ownerid, teamid, idp, (_, privCreds)) <- registerTestIdPWithMeta
+  env <- ask
+  (owner, teamid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+  (idp, (_, privCreds)) <- registerTestIdPWithMeta owner
   (usr, uname) :: (Scim.User.User SparTag, SAML.UnqualifiedNameID) <-
     randomScimUserWithSubject
   let uref = SAML.UserRef tenant subj
@@ -1189,7 +1195,9 @@ testFindProvisionedUser = do
 -- The user is migrated by using the email as the externalId
 testFindSamlAutoProvisionedUserMigratedWithEmailInTeamWithSSO :: TestSpar ()
 testFindSamlAutoProvisionedUserMigratedWithEmailInTeamWithSSO = do
-  (_owner, teamid, idp, (_, privCreds)) <- registerTestIdPWithMeta
+  env <- ask
+  (owner, teamid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+  (idp, (_, privCreds)) <- registerTestIdPWithMeta owner
 
   -- auto-provision user via saml
   memberWithSSO <- do
@@ -1372,7 +1380,9 @@ shouldBeManagedBy uid flag = do
 -- the issue here.
 testGetNonScimSAMLUser :: TestSpar ()
 testGetNonScimSAMLUser = do
-  (_, tid, idp, (_, privcreds)) <- registerTestIdPWithMeta
+  env <- ask
+  (owner, tid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+  (idp, (_, privcreds)) <- registerTestIdPWithMeta owner
   -- NOTE: once SCIM is enabled SSO Auto-provisioning is disabled, so we register the scim token later.
 
   uidSso <- loginSsoUserFirstTime idp privcreds
@@ -1414,7 +1424,9 @@ testGetNonScimInviteUserNoIdP = do
 
 testGetUserWithNoHandle :: TestSpar ()
 testGetUserWithNoHandle = do
-  (_, tid, idp, (_, privcreds)) <- registerTestIdPWithMeta
+  env <- ask
+  (owner, tid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+  (idp, (_, privcreds)) <- registerTestIdPWithMeta owner
   -- NOTE: once SCIM is enabled SSO Auto-provisioning is disabled, so we register the scim token later.
   uid <- loginSsoUserFirstTime idp privcreds
   tok <- registerScimToken tid (Just (idp ^. SAML.idpId))
