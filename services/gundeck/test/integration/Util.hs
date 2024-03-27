@@ -32,6 +32,20 @@ withSettingsOverrides f action = do
   where
     mkRequest p = Bilge.host "127.0.0.1" . Bilge.port p
 
+withEnvOverrides :: forall m a. (MonadIO m, MonadMask m) => [(String, String)] -> m a -> m a
+withEnvOverrides envOverrides action = do
+  bracket (setEnvVars envOverrides) (resetEnvVars) $ const action
+  where
+    setEnvVars :: [(String, String)] -> m [(String, Maybe String)]
+    setEnvVars newVars = liftIO $ do
+      oldVars <- mapM (\(k, _) -> (k,) <$> lookupEnv k) newVars
+      mapM_ (uncurry setEnv) newVars
+      pure oldVars
+
+    resetEnvVars :: [(String, Maybe String)] -> m ()
+    resetEnvVars =
+      mapM_ (\(k, mV) -> maybe (unsetEnv k) (setEnv k) mV)
+
 runRedisProxy :: Text -> Word16 -> Word16 -> IO ()
 runRedisProxy redisHost redisPort proxyPort = do
   (servAddr : _) <- getAddrInfo Nothing (Just $ Text.unpack redisHost) (Just $ show redisPort)

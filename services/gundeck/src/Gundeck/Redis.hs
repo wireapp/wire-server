@@ -61,7 +61,7 @@ connectRobust ::
 connectRobust l retryStrategy connectLowLevel = do
   robustConnection <- newEmptyMVar @IO @Connection
   thread <-
-    async $ safeForever $ do
+    async $ safeForever l $ do
       Log.info l $ Log.msg (Log.val "connecting to Redis")
       conn <- retry connectLowLevel
       Log.info l $ Log.msg (Log.val "successfully connected to Redis")
@@ -117,9 +117,11 @@ instance Exception PingException
 safeForever ::
   forall m.
   (MonadUnliftIO m) =>
+  Logger ->
   m () ->
   m ()
-safeForever action =
+safeForever l action =
   forever $
-    action `catchAny` \_ -> do
+    action `catchAny` \e -> do
+      Log.err l $ Log.msg (Log.val "Uncaught exception while connecting to redis") . Log.field "error" (displayException e)
       threadDelay 1e6 -- pause to keep worst-case noise in logs manageable

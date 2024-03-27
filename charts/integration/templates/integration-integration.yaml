@@ -262,6 +262,20 @@ spec:
         secretKeyRef:
           name: brig
           key: rabbitmqPassword
+    {{- if hasKey .Values.secrets "redisUsername" }}
+    - name: REDIS_USERNAME
+      valueFrom:
+        secretKeyRef:
+          name: integration
+          key: redisUsername
+    {{- end }}
+    {{- if hasKey .Values.secrets "redisPassword" }}
+    - name: REDIS_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: integration
+          key: redisPassword
+    {{- end }}
     - name: TEST_XML
       value: /tmp/result.xml
     {{- if .Values.config.uploadXml }}
