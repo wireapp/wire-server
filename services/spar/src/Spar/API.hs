@@ -507,15 +507,14 @@ idpCreateXML zusr rawIdpMetadata idpmeta mReplaces (fromMaybe defWireIdPAPIVersi
   lookupAndLinkScimTokenToIdp teamid
   pure idp
 
--- | if a scim token exists when creating a saml IdP 
+-- | if a scim token exists when creating a saml IdP
 -- - this IdP is the only IdP that may ever be created
 -- - all scim tokens must belong to that IdP
 -- - i.e. each scim token is linked to that one IdP
 lookupAndLinkScimTokenToIdp :: (Member ScimTokenStore r) => TeamId -> Sem r ()
-lookupAndLinkScimTokenToIdp tid = do 
+lookupAndLinkScimTokenToIdp tid = do
   scimTokens <- ScimTokenStore.lookupByTeam tid
   undefined
-  
 
 -- | In teams with a scim access token, only one IdP is allowed.  The reason is that scim user
 -- data contains no information about the idp issuer, only the user name, so no valid saml
@@ -532,7 +531,8 @@ assertNoScimOrNoIdP teamid = do
   numTokens <- length <$> ScimTokenStore.lookupByTeam teamid
   numIdps <- length <$> IdPConfigStore.getConfigsByTeam teamid
   when (numTokens > 0 && numIdps > 0) $
-    throwSparSem $ SparProvisioningMoreThanOneIdP ScimTokenAndSecondIdpForbidden
+    throwSparSem $
+      SparProvisioningMoreThanOneIdP ScimTokenAndSecondIdpForbidden
 
 -- | Check that issuer is not used anywhere in the system ('WireIdPAPIV1', here it is a
 -- database key for finding IdPs), or anywhere in this team ('WireIdPAPIV2'), that request
