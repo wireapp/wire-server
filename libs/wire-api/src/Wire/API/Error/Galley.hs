@@ -57,7 +57,7 @@ import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as BrigError
 import Wire.API.Routes.API
-import Wire.API.Team.Member
+import Wire.API.Team.HardTruncationLimit
 import Wire.API.Team.Permission
 import Wire.API.Unreachable
 import Wire.API.Util.Aeson (CustomEncoded (..))
