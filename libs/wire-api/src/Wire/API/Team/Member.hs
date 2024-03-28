@@ -83,6 +83,7 @@ import Imports
 import Wire.API.Routes.MultiTablePaging (MultiTablePage (..))
 import Wire.API.Routes.MultiTablePaging.State
 import Wire.API.Team.Permission (Permissions)
+import Wire.API.Team.HardTruncationLimit
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
 data PermissionTag = Required | Optional
@@ -270,11 +271,6 @@ instance ToSchema (TeamMember' tag) => ToSchema (TeamMemberList' tag) where
           .= fieldWithDocModifier "members" (description ?~ "the array of team members") (array schema)
         <*> _teamMemberListType
           .= fieldWithDocModifier "hasMore" (description ?~ "true if 'members' doesn't contain all team members") schema
-
-type HardTruncationLimit = (2000 :: Nat)
-
-hardTruncationLimit :: Integral a => a
-hardTruncationLimit = fromIntegral $ natVal (Proxy @HardTruncationLimit)
 
 -- | Like 'ListType', but without backwards-compatible and boolean-blind json serialization.
 data NewListType
