@@ -210,6 +210,14 @@ data:
       {{- if .sftDiscoveryIntervalSeconds }}
       sftDiscoveryIntervalSeconds: {{ .sftDiscoveryIntervalSeconds }}
       {{- end }}
+      {{- if .sftToken }}
+      sftToken:
+        {{- with .sftToken }}
+        ttl: {{ .ttl }}
+        secret: {{ .secret }}
+        secondsBeforeNew: {{ .secondsBeforeNew }}
+        {{- end }}
+      {{- end }}
     {{- end }}
     {{- end }}
 
