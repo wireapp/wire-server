@@ -35,6 +35,7 @@ import Data.Misc (Port (..), mkHttpsUrl)
 import Data.Set qualified as Set
 import Imports
 import System.FilePath ((</>))
+import System.IO (hPutStr)
 import Test.Tasty
 import Test.Tasty.HUnit
 import URI.ByteString (laxURIParserOptions, parseURI)
@@ -123,35 +124,38 @@ testSFTCredentials b opts = do
   cid <- randomClient
   let ttl = 60
       secondsToNew = 30
-  withSettingsOverrides
-    ( opts
-        & Opts.sftL
-          ?~ Opts.SFTOptions
-            "integration-tests.zinfra.io"
-            Nothing
-            (Just 0.001)
-            Nothing
-            (Just $ Opts.SFTTokenOptions ttl "test/resources/turn/secret.txt" secondsToNew)
-        & Opts.optionSettings . Opts.sftListAllServers ?~ Opts.ListAllSFTServers
-    )
-    $ do
-      allSFTServers <- fromMaybe [] . (^. rtcConfSftServersAll) <$> retryWhileN 10 (isNothing . view rtcConfSftServers) (getTurnConfigurationAuthenticated uid cid b)
-      -- These values are controlled by https://github.com/zinfra/cailleach/tree/77ca2d23cf2959aa183dd945d0a0b13537a8950d/environments/dns-integration-tests
-      let Right server1 = mkHttpsUrl =<< first show (parseURI laxURIParserOptions "https://sft01.integration-tests.zinfra.io:443")
-      let Right server2 = mkHttpsUrl =<< first show (parseURI laxURIParserOptions "https://sft02.integration-tests.zinfra.io:8443")
-      liftIO $
-        assertEqual
-          "when list_all_sft_servers is enabled, sft_servers_all should be returned"
-          (Set.fromList [server1, server2])
-          (Set.fromList $ map (^. authURL) allSFTServers)
-      liftIO $
-        assertBool
-          "when SFT secret is defined, a username should be returned for each SFT server"
-          (all (isJust . (^. authUsername)) allSFTServers)
-      liftIO $
-        assertBool
-          "when SFT secret is defined, a credential should be returned for each SFT server"
-          (all (isJust . (^. authCredential)) allSFTServers)
+  liftIO $ Temp.withSystemTempFile "sft-secret" $ \secretFile secretHandle -> do
+    hPutStr secretHandle "xMtZyTpu=Leb?YKCoq#BXQR:gG^UrE83dNWzFJ2VcD"
+    hClose secretHandle
+    withSettingsOverrides
+      ( opts
+          & Opts.sftL
+            ?~ Opts.SFTOptions
+              "integration-tests.zinfra.io"
+              Nothing
+              (Just 0.001)
+              Nothing
+              (Just $ Opts.SFTTokenOptions ttl secretFile secondsToNew)
+          & Opts.optionSettings . Opts.sftListAllServers ?~ Opts.ListAllSFTServers
+      )
+      $ do
+        allSFTServers <- fromMaybe [] . (^. rtcConfSftServersAll) <$> retryWhileN 10 (isNothing . view rtcConfSftServers) (getTurnConfigurationAuthenticated uid cid b)
+        -- These values are controlled by https://github.com/zinfra/cailleach/tree/77ca2d23cf2959aa183dd945d0a0b13537a8950d/environments/dns-integration-tests
+        let Right server1 = mkHttpsUrl =<< first show (parseURI laxURIParserOptions "https://sft01.integration-tests.zinfra.io:443")
+        let Right server2 = mkHttpsUrl =<< first show (parseURI laxURIParserOptions "https://sft02.integration-tests.zinfra.io:8443")
+        liftIO $
+          assertEqual
+            "when list_all_sft_servers is enabled, sft_servers_all should be returned"
+            (Set.fromList [server1, server2])
+            (Set.fromList $ map (^. authURL) allSFTServers)
+        liftIO $
+          assertBool
+            "when SFT secret is defined, a username should be returned for each SFT server"
+            (all (isJust . (^. authUsername)) allSFTServers)
+        liftIO $
+          assertBool
+            "when SFT secret is defined, a credential should be returned for each SFT server"
+            (all (isJust . (^. authCredential)) allSFTServers)
 
 -- | This test relies on pre-created public DNS records. Code here:
 -- https://github.com/zinfra/cailleach/blob/fb4caacaca02e6e28d68dc0cdebbbc987f5e31da/targets/misc/wire-server-integration-tests/dns.tf
