@@ -47,7 +47,6 @@ import Galley.Cassandra.LegalHold
 import Galley.Cassandra.LegalHold qualified as LegalHoldData
 import Galley.Env qualified as Galley
 import Galley.Types.Clients qualified as Clients
-import Galley.Types.Teams
 import Imports
 import Network.HTTP.Types.Status (status200, status404)
 import Network.Wai as Wai

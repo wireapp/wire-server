@@ -27,7 +27,6 @@ import Control.Error
 import Control.Lens
 import Data.Id
 import Data.Set qualified as Set
-import Galley.Types.Teams
 import Imports
 import Polysemy (Member)
 import Wire.API.Team.Member

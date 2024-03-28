@@ -90,7 +90,6 @@ import Galley.Effects.TeamStore qualified as E
 import Galley.Env (Env)
 import Galley.Options
 import Galley.Types.Conversations.Members
-import Galley.Types.Teams (IsPerm (hasPermission))
 import Galley.Types.UserList
 import Galley.Validation
 import Gundeck.Types.Push.V2 qualified as PushV2

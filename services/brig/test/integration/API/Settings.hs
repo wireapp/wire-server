@@ -30,11 +30,11 @@ import Data.ByteString.Char8 qualified as C8
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Set qualified as Set
-import Galley.Types.Teams qualified as Team
 import Imports
 import Test.Tasty hiding (Timeout)
 import Test.Tasty.HUnit
 import Util
+import Wire.API.Team.Member (rolePermissions)
 import Wire.API.Team.Permission
 import Wire.API.Team.Role
 import Wire.API.User
@@ -171,6 +171,6 @@ setup brig galley viewingUserIs = do
   nonTeamUser <- createUser "joe" brig
   viewerId <- case viewingUserIs of
     Creator -> pure creatorId
-    Member -> userId <$> createTeamMember brig galley creatorId tid (Team.rolePermissions RoleOwner)
-    Guest -> userId <$> createTeamMember brig galley creatorId tid (Team.rolePermissions RoleExternalPartner)
+    Member -> userId <$> createTeamMember brig galley creatorId tid (rolePermissions RoleOwner)
+    Guest -> userId <$> createTeamMember brig galley creatorId tid (rolePermissions RoleExternalPartner)
   pure (viewerId, userA, userB, nonTeamUser)

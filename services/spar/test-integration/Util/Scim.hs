@@ -34,7 +34,6 @@ import qualified Data.Text.Lazy as Lazy
 import Data.Time
 import Data.UUID as UUID
 import Data.UUID.V4 as UUID
-import qualified Galley.Types.Teams as Teams
 import Imports
 import qualified Network.Wai.Utilities as Error
 import Polysemy.Error (runError)
@@ -747,4 +746,4 @@ getDefaultUserLocale = do
 checkTeamMembersRole :: HasCallStack => TeamId -> UserId -> UserId -> Role -> TestSpar ()
 checkTeamMembersRole tid owner uid role = do
   [member] <- filter ((== uid) . (^. Member.userId)) <$> getTeamMembers owner tid
-  liftIO $ (member ^. Member.permissions . to Teams.permissionsRole) `shouldBe` Just role
+  liftIO $ (member ^. Member.permissions . to Member.permissionsRole) `shouldBe` Just role

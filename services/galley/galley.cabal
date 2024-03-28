@@ -575,7 +575,6 @@ executable galley-migrate-data
     , containers
     , exceptions
     , extended
-    , galley-types
     , imports
     , lens
     , optparse-applicative

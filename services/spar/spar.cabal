@@ -163,7 +163,6 @@ library
     , crypton-x509
     , exceptions
     , extended
-    , galley-types
     , hscim
     , hspec
     , http-types
@@ -347,7 +346,6 @@ executable spar-integration
     , email-validate
     , exceptions
     , extended
-    , galley-types
     , hscim
     , HsOpenSSL
     , hspec

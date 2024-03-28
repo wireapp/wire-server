@@ -34,7 +34,6 @@ import Data.OpenApi qualified as Swagger
 import Data.Proxy
 import Data.Range
 import Data.Schema qualified as S
-import Galley.Types.Teams
 import Imports
 import Servant.API
 import Wire.API.Properties

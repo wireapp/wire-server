@@ -52,7 +52,6 @@ import Data.ByteString.Conversion
 import qualified Data.CaseInsensitive as CI
 import Data.Handle (Handle (Handle))
 import Data.Id (TeamId, UserId)
-import Galley.Types.Teams (HiddenPerm (CreateReadDeleteScimToken), IsPerm)
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -62,6 +61,7 @@ import Spar.Sem.BrigAccess (BrigAccess)
 import qualified Spar.Sem.BrigAccess as BrigAccess
 import Spar.Sem.GalleyAccess (GalleyAccess)
 import qualified Spar.Sem.GalleyAccess as GalleyAccess
+import Wire.API.Team.Member (HiddenPerm (CreateReadDeleteScimToken), IsPerm)
 import Wire.API.User
 import Wire.API.User.Scim (ValidExternalId (..), runValidExternalIdEither)
 

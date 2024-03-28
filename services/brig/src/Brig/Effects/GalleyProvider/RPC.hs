@@ -33,7 +33,6 @@ import Data.Id
 import Data.Json.Util (UTCTimeMillis)
 import Data.Qualified
 import Data.Range
-import Galley.Types.Teams qualified as Team
 import Imports
 import Network.HTTP.Client qualified as HTTP
 import Network.HTTP.Types qualified as HTTP
@@ -53,8 +52,7 @@ import Wire.API.Routes.Version
 import Wire.API.Team
 import Wire.API.Team.Conversation qualified as Conv
 import Wire.API.Team.Feature
-import Wire.API.Team.Member qualified as Member
-import Wire.API.Team.Member qualified as Team
+import Wire.API.Team.Member as Member
 import Wire.API.Team.Role
 import Wire.API.Team.SearchVisibility
 import Wire.Rpc
@@ -250,7 +248,7 @@ addTeamMember u tid (minvmeta, role) = do
     200 -> True
     _ -> False
   where
-    prm = Team.rolePermissions role
+    prm = Member.rolePermissions role
     bdy = Member.mkNewTeamMember u prm minvmeta
     req =
       method POST
@@ -298,7 +296,7 @@ getTeamMember ::
   ) =>
   UserId ->
   TeamId ->
-  Sem r (Maybe Team.TeamMember)
+  Sem r (Maybe TeamMember)
 getTeamMember u tid = do
   debug $
     remote "galley"
@@ -326,7 +324,7 @@ getTeamMembers ::
     Member TinyLog r
   ) =>
   TeamId ->
-  Sem r Team.TeamMemberList
+  Sem r TeamMemberList
 getTeamMembers tid = do
   debug $ remote "galley" . msg (val "Get team members")
   galleyRequest req >>= decodeBodyOrThrow "galley"

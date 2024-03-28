@@ -98,7 +98,6 @@ import Data.Text.Lazy (pack)
 import Data.Time.Clock (UTCTime)
 import Data.ZAuth.Token qualified as ZAuth
 import FileEmbedLzma
-import Galley.Types.Teams (HiddenPerm (..), hasPermission)
 import Imports hiding (head)
 import Network.Socket (PortNumber)
 import Network.Wai.Utilities as Utilities
@@ -142,6 +141,7 @@ import Wire.API.SwaggerHelper (cleanupSwagger)
 import Wire.API.SystemSettings
 import Wire.API.Team qualified as Public
 import Wire.API.Team.LegalHold (LegalholdProtectee (..))
+import Wire.API.Team.Member (HiddenPerm (..), hasPermission)
 import Wire.API.User (RegisterError (RegisterErrorAllowlistError))
 import Wire.API.User qualified as Public
 import Wire.API.User.Activation qualified as Public

@@ -44,7 +44,6 @@ import qualified Data.UUID as UUID hiding (fromByteString, null)
 import qualified Data.UUID.V4 as UUID (nextRandom)
 import qualified Data.Vector as Vec
 import qualified Data.ZAuth.Token as ZAuth
-import qualified Galley.Types.Teams as Galley
 import Imports hiding (head)
 import Network.HTTP.Types (status200, status202)
 import SAML2.WebSSO
@@ -90,7 +89,7 @@ import qualified Web.Scim.Class.User as Scim
 import qualified Web.Scim.Schema.Common as Scim
 import qualified Web.Scim.Schema.Meta as Scim
 import qualified Web.Scim.Schema.User as Scim
-import Wire.API.Team.Member (newTeamMemberDeleteData)
+import Wire.API.Team.Member (newTeamMemberDeleteData, rolePermissions)
 import Wire.API.Team.Permission hiding (self)
 import Wire.API.Team.Role
 import Wire.API.User
@@ -657,7 +656,7 @@ specCRUDIdentityProvider = do
         (_, tid, (^. idpId) -> idpid) <- registerTestIdP
         let mkUser :: Role -> TestSpar UserId
             mkUser role = do
-              let perms = Galley.rolePermissions role
+              let perms = rolePermissions role
               call $ createTeamMember (env ^. teBrig) (env ^. teGalley) tid perms
         admin <- mkUser RoleAdmin
         member <- mkUser RoleMember
@@ -1607,7 +1606,7 @@ specSparUserMigration = do
         let issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
         pure (issuer, subj)
 
-      memberUid <- call $ createTeamMember (env ^. teBrig) (env ^. teGalley) tid (Galley.rolePermissions RoleMember)
+      memberUid <- call $ createTeamMember (env ^. teBrig) (env ^. teGalley) tid (rolePermissions RoleMember)
 
       do
         -- insert to legacy tale

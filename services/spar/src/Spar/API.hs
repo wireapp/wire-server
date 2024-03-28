@@ -56,7 +56,6 @@ import Data.Proxy
 import Data.Range
 import qualified Data.Set as Set
 import Data.Time
-import Galley.Types.Teams (HiddenPerm (CreateUpdateDeleteIdp, ReadIdp))
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -101,6 +100,7 @@ import System.Logger (Msg)
 import qualified URI.ByteString as URI
 import Wire.API.Routes.Internal.Spar
 import Wire.API.Routes.Public.Spar
+import Wire.API.Team.Member (HiddenPerm (CreateUpdateDeleteIdp, ReadIdp))
 import Wire.API.User
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml

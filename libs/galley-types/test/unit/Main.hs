@@ -21,15 +21,8 @@ module Main
 where
 
 import Imports
-import Test.Galley.Permissions qualified
 import Test.Galley.Types qualified
 import Test.Tasty
 
 main :: IO ()
-main =
-  defaultMain $
-    testGroup
-      "Tests"
-      [ Test.Galley.Types.tests,
-        Test.Galley.Permissions.tests
-      ]
+main = defaultMain $ testGroup "Tests" [Test.Galley.Types.tests]
