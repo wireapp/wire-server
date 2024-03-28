@@ -61,8 +61,8 @@ tests m b opts turn turnV2 = do
           [ test m "SFT servers /calls/config/v2 - 200" $ testSFT b opts,
             test m "SFT servers /calls/config/v2 - 200 - SFT does not respond as expected" $ testSFTUnavailable b opts "https://example.com",
             test m "SFT servers /calls/config/v2 - 200 - SFT DNS does not resolve" $ testSFTUnavailable b opts "https://sft.example.com",
-            test m "SFT crendentials with SFT secret /calls/config/authenticated - 200" $ testSFTCredentials b opts,
-            test m "No SFT crendentials without SFT secret /calls/config/authenticated - 200" $ testSFTNoCredentials b opts,
+            test m "SFT credentials with SFT secret /calls/config/authenticated - 200" $ testSFTCredentials b opts,
+            test m "No SFT credentials without SFT secret /calls/config/authenticated - 200" $ testSFTNoCredentials b opts,
             test m "SFT federation /calls/config/authenticated - 200" $ testSFTFederation b opts
           ]
       ]
