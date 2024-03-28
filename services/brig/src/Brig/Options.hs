@@ -424,6 +424,8 @@ data Opts = Opts
     cassandra :: !CassandraOpts,
     -- | ElasticSearch settings
     elasticsearch :: !ElasticSearchOpts,
+    -- | SFT Federation
+    multiSFT :: !(Maybe Bool),
     -- | RabbitMQ settings, required when federation is enabled.
     rabbitmq :: !(Maybe RabbitMqOpts),
     -- | AWS settings
@@ -836,7 +838,8 @@ data SFTOptions = SFTOptions
   { sftBaseDomain :: !DNS.Domain,
     sftSRVServiceName :: !(Maybe ByteString), -- defaults to defSftServiceName if unset
     sftDiscoveryIntervalSeconds :: !(Maybe DiffTime), -- defaults to defSftDiscoveryIntervalSeconds
-    sftListLength :: !(Maybe (Range 1 100 Int)) -- defaults to defSftListLength
+    sftListLength :: !(Maybe (Range 1 100 Int)), -- defaults to defSftListLength
+    sftTokenOptions :: !(Maybe SFTTokenOptions)
   }
   deriving (Show, Generic)
 
@@ -847,6 +850,21 @@ instance FromJSON SFTOptions where
       <*> (mapM asciiOnly =<< o .:? "sftSRVServiceName")
       <*> (secondsToDiffTime <$$> o .:? "sftDiscoveryIntervalSeconds")
       <*> (o .:? "sftListLength")
+      <*> (o .:? "sftToken")
+
+data SFTTokenOptions = SFTTokenOptions
+  { sttTTL :: !Word32,
+    sttSecret :: !FilePath,
+    sttSecondsBeforeNew :: !Int32
+  }
+  deriving (Show, Generic)
+
+instance FromJSON SFTTokenOptions where
+  parseJSON = Y.withObject "SFTTokenOptions" $ \o ->
+    SFTTokenOptions
+      <$> (o .: "ttl")
+      <*> (o .: "secret")
+      <*> (o .: "secondsBeforeNew")
 
 asciiOnly :: Text -> Y.Parser ByteString
 asciiOnly t =
@@ -916,7 +934,8 @@ Lens.makeLensesFor
   [ ("optSettings", "optionSettings"),
     ("elasticsearch", "elasticsearchL"),
     ("sft", "sftL"),
-    ("turn", "turnL")
+    ("turn", "turnL"),
+    ("multiSFT", "multiSFTL")
   ]
   ''Opts
 

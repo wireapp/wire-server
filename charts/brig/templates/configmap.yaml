@@ -57,6 +57,7 @@ data:
       host: gundeck
       port: 8080
 
+    multiSFT: {{ .multiSFT.enabled }}
     {{- if .enableFederation }}
     # TODO remove this
     federator:
@@ -208,6 +209,14 @@ data:
       {{- end }}
       {{- if .sftDiscoveryIntervalSeconds }}
       sftDiscoveryIntervalSeconds: {{ .sftDiscoveryIntervalSeconds }}
+      {{- end }}
+      {{- if .sftToken }}
+      sftToken:
+        {{- with .sftToken }}
+        ttl: {{ .ttl }}
+        secret: {{ .secret }}
+        secondsBeforeNew: {{ .secondsBeforeNew }}
+        {{- end }}
       {{- end }}
     {{- end }}
     {{- end }}

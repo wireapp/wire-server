@@ -33,6 +33,8 @@ data:
       host: spar
       port: 8080
 
+    multiSFT: false
+
     # TODO remove this
     federator:
       host: federator
