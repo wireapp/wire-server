@@ -49,8 +49,7 @@ import Wire.API.User
 testObject_User_user_1 :: User
 testObject_User_user_1 =
   User
-    { userId = Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000")),
-      userQualifiedId =
+    { userQualifiedId =
         Qualified
           { qUnqualified = Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000200000002")),
             qDomain = Domain {_domainText = "s-f4.s"}
@@ -73,8 +72,7 @@ testObject_User_user_1 =
 testObject_User_user_2 :: User
 testObject_User_user_2 =
   User
-    { userId = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001")),
-      userQualifiedId =
+    { userQualifiedId =
         Qualified
           { qUnqualified = Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000200000001")),
             qDomain = Domain {_domainText = "k.vbg.p"}
@@ -111,8 +109,7 @@ testObject_User_user_2 =
 testObject_User_user_3 :: User
 testObject_User_user_3 =
   User
-    { userId = Id (fromJust (UUID.fromString "00000002-0000-0000-0000-000100000000")),
-      userQualifiedId =
+    { userQualifiedId =
         Qualified
           { qUnqualified = Id (fromJust (UUID.fromString "00000002-0000-0000-0000-000100000002")),
             qDomain = Domain {_domainText = "dt.n"}
@@ -142,8 +139,7 @@ testObject_User_user_3 =
 testObject_User_user_4 :: User
 testObject_User_user_4 =
   User
-    { userId = Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000100000002")),
-      userQualifiedId =
+    { userQualifiedId =
         Qualified
           { qUnqualified = Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000200000002")),
             qDomain = Domain {_domainText = "28b.cqb"}
@@ -183,8 +179,7 @@ testObject_User_user_4 =
 testObject_User_user_5 :: User
 testObject_User_user_5 =
   User
-    { userId = Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000100000002")),
-      userQualifiedId =
+    { userQualifiedId =
         Qualified
           { qUnqualified = Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000200000002")),
             qDomain = Domain {_domainText = "28b.cqb"}

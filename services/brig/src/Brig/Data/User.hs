@@ -159,7 +159,7 @@ newAccount u inv tid mbHandle = do
     locale defLoc = fromMaybe defLoc (newUserLocale u)
     managedBy = fromMaybe defaultManagedBy (newUserManagedBy u)
     prots = fromMaybe defSupportedProtocols (newUserSupportedProtocols u)
-    user uid domain l e = User uid (Qualified uid domain) ident name pict assets colour False l Nothing mbHandle e tid managedBy prots
+    user uid domain l e = User (Qualified uid domain) ident name pict assets colour False l Nothing mbHandle e tid managedBy prots
 
 newAccountInviteViaScim :: MonadReader Env m => UserId -> TeamId -> Maybe Locale -> Name -> Email -> m UserAccount
 newAccountInviteViaScim uid tid locale name email = do
@@ -170,7 +170,6 @@ newAccountInviteViaScim uid tid locale name email = do
   where
     user domain loc =
       User
-        uid
         (Qualified uid domain)
         (Just $ EmailIdentity email)
         name
@@ -721,7 +720,6 @@ toUserAccount
         svc = newServiceRef <$> sid <*> pid
      in UserAccount
           ( User
-              uid
               (Qualified uid domain)
               ident
               name
@@ -797,7 +795,6 @@ toUsers domain defaultLocale havePendingInvitations = fmap mk . filter fp
             loc = toLocale defaultLocale (lan, con)
             svc = newServiceRef <$> sid <*> pid
          in User
-              uid
               (Qualified uid domain)
               ident
               name

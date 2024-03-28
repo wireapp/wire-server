@@ -47,10 +47,9 @@ import UnliftIO.Retry (limitRetries, recoverAll)
 import Web.Cookie
 import Wire.API.Team
 import Wire.API.Team.Invitation
-import Wire.API.Team.Member
-import Wire.API.Team.Member qualified as Team
+import Wire.API.Team.Member as Team
 import Wire.API.Team.Role
-import Wire.API.User
+import Wire.API.User as User
 
 eventually :: (MonadIO m, MonadMask m, MonadUnliftIO m) => m a -> m a
 eventually = recoverAll (limitRetries 7 <> exponentialBackoff 50000) . const
@@ -65,7 +64,7 @@ createTeamWithNMembers n = do
 
 createBindingTeam :: HasCallStack => TestM (UserId, TeamId)
 createBindingTeam = do
-  first (.userId) <$> createBindingTeam'
+  first User.userId <$> createBindingTeam'
 
 createBindingTeam' :: HasCallStack => TestM (User, TeamId)
 createBindingTeam' = do
@@ -109,13 +108,13 @@ randomPhone = liftIO $ do
   pure $ fromMaybe (error "Invalid random phone#") phone
 
 randomEmailUser :: HasCallStack => TestM (UserId, Email)
-randomEmailUser = randomUserProfile'' False False True <&> bimap ((.userId) . selfUser) fst
+randomEmailUser = randomUserProfile'' False False True <&> bimap (User.userId . selfUser) fst
 
 randomPhoneUser :: HasCallStack => TestM (UserId, Phone)
-randomPhoneUser = randomUserProfile'' False False True <&> bimap ((.userId) . selfUser) snd
+randomPhoneUser = randomUserProfile'' False False True <&> bimap (User.userId . selfUser) snd
 
 randomEmailPhoneUser :: HasCallStack => TestM (UserId, (Email, Phone))
-randomEmailPhoneUser = randomUserProfile'' False False True <&> first ((.userId) . selfUser)
+randomEmailPhoneUser = randomUserProfile'' False False True <&> first (User.userId . selfUser)
 
 defPassword :: PlainTextPassword8
 defPassword = plainTextPassword8Unsafe "topsecretdefaultpassword"
@@ -153,7 +152,7 @@ addUserToTeamWithRole :: HasCallStack => Maybe Role -> UserId -> TeamId -> TestM
 addUserToTeamWithRole role inviter tid = do
   (inv, rsp2) <- addUserToTeamWithRole' role inviter tid
   let invitee :: User = responseJsonUnsafe rsp2
-      inviteeId = invitee.userId
+      inviteeId = User.userId invitee
   let invmeta = Just (inviter, inCreatedAt inv)
   mem <- getTeamMember inviter tid inviteeId
   liftIO $ assertEqual "Member has no/wrong invitation metadata" invmeta (mem ^. Team.invitation)

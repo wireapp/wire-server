@@ -731,9 +731,10 @@ createUser (Public.NewUserPublic new) = lift . runExceptT $ do
             )
   lift . Log.info $ context . Log.msg @Text "Sucessfully created user"
 
-  let Public.User {userLocale, userDisplayName, userId} = usr
-  let userEmail = Public.userEmail usr
-  let userPhone = Public.userPhone usr
+  let Public.User {userLocale, userDisplayName} = usr
+      userEmail = Public.userEmail usr
+      userPhone = Public.userPhone usr
+      userId = Public.userId usr
   lift $ do
     for_ (liftM2 (,) userEmail epair) $ \(e, p) ->
       sendActivationEmail e userDisplayName p (Just userLocale) newUserTeam

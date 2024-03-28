@@ -36,8 +36,7 @@ testObject_SelfProfile_user_1 =
   SelfProfile
     { selfUser =
         User
-          { userId = Id (fromJust (UUID.fromString "00000002-0000-0002-0000-000200000002")),
-            userQualifiedId =
+          { userQualifiedId =
               Qualified
                 { qUnqualified = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000002")),
                   qDomain = Domain {_domainText = "n0-994.m-226.f91.vg9p-mj-j2"}

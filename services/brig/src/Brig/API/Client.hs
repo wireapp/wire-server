@@ -225,10 +225,10 @@ addClientWithReAuthPolicy policy u con new = do
       Maybe Code.Value ->
       UserId ->
       ExceptT ClientError (AppT r) ()
-    verifyCode mbCode userId =
+    verifyCode mbCode uid =
       -- this only happens inside the login flow (in particular, when logging in from a new device)
       -- the code obtained for logging in is used a second time for adding the device
-      UserAuth.verifyCode mbCode Code.Login userId `catchE` \case
+      UserAuth.verifyCode mbCode Code.Login uid `catchE` \case
         VerificationCodeRequired -> throwE ClientCodeAuthenticationRequired
         VerificationCodeNoPendingCode -> throwE ClientCodeAuthenticationFailed
         VerificationCodeNoEmail -> throwE ClientCodeAuthenticationFailed

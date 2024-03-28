@@ -1413,16 +1413,16 @@ specProvisionScimAndSAMLUserWithRole = do
             scimUser <- do
               u <- ScimT.randomScimUser
               pure $ u {Scim.roles = [cs $ toByteString $ role]}
-            userId <- ScimT.scimUserId <$> ScimT.createUser tok scimUser
-            ScimT.checkTeamMembersRole tid owner userId role
+            uid <- ScimT.scimUserId <$> ScimT.createUser tok scimUser
+            ScimT.checkTeamMembersRole tid owner uid role
       mapM_ testCreateUserWithRole [minBound .. maxBound]
     it "create user - default to member if no role given" $ do
       (tok, (owner, tid, _idp, (_, _privcreds))) <- ScimT.registerIdPAndScimTokenWithMeta
       scimUser <- do
         u <- ScimT.randomScimUser
         pure $ u {Scim.roles = []}
-      userId <- ScimT.scimUserId <$> ScimT.createUser tok scimUser
-      ScimT.checkTeamMembersRole tid owner userId RoleMember
+      uid <- ScimT.scimUserId <$> ScimT.createUser tok scimUser
+      ScimT.checkTeamMembersRole tid owner uid RoleMember
     it "create user - fail if more than one role given" $ do
       (tok, _) <- ScimT.registerIdPAndScimTokenWithMeta
       scimUser <- do
@@ -1442,11 +1442,11 @@ specProvisionScimAndSAMLUserWithRole = do
     it "update user" $ do
       (tok, (owner, tid, _idp, (_, _privcreds))) <- ScimT.registerIdPAndScimTokenWithMeta
       scimUserWithDefaultRole <- ScimT.randomScimUser
-      userId <- ScimT.scimUserId <$> ScimT.createUser tok scimUserWithDefaultRole
+      uid <- ScimT.scimUserId <$> ScimT.createUser tok scimUserWithDefaultRole
       let testUpdateUserWithRole role = do
             let scimUserWithRole = scimUserWithDefaultRole {Scim.roles = [cs $ toByteString $ role]}
-            _ <- ScimT.updateUser tok userId scimUserWithRole
-            ScimT.checkTeamMembersRole tid owner userId role
+            _ <- ScimT.updateUser tok uid scimUserWithRole
+            ScimT.checkTeamMembersRole tid owner uid role
       mapM_ testUpdateUserWithRole [minBound .. maxBound]
     it "update user - do not change current role if no role given" $ do
       (tok, (owner, tid, _idp, (_, _privcreds))) <- ScimT.registerIdPAndScimTokenWithMeta
@@ -1455,22 +1455,22 @@ specProvisionScimAndSAMLUserWithRole = do
             scimUser <- do
               u <- ScimT.randomScimUser
               pure $ u {Scim.roles = [cs $ toByteString $ role]}
-            userId <- ScimT.scimUserId <$> ScimT.createUser tok scimUser
-            _ <- ScimT.updateUser tok userId (scimUser {Scim.roles = []})
-            ScimT.checkTeamMembersRole tid owner userId role
+            uid <- ScimT.scimUserId <$> ScimT.createUser tok scimUser
+            _ <- ScimT.updateUser tok uid (scimUser {Scim.roles = []})
+            ScimT.checkTeamMembersRole tid owner uid role
       mapM_ testUpdateUserWithDefaultRole [minBound .. maxBound]
     it "updated user - fail if more than one role given" $ do
       (tok, _) <- ScimT.registerIdPAndScimTokenWithMeta
       scimUser <- ScimT.randomScimUser
-      userId <- ScimT.scimUserId <$> ScimT.createUser tok scimUser
-      ScimT.updateUser' tok userId (scimUser {Scim.roles = ["admin", "member"]}) !!! do
+      uid <- ScimT.scimUserId <$> ScimT.createUser tok scimUser
+      ScimT.updateUser' tok uid (scimUser {Scim.roles = ["admin", "member"]}) !!! do
         const 400 === statusCode
         const (Just "A user cannot have more than one role.") =~= responseBody
     it "updated user - fail if role name cannot be parsed correctly" $ do
       (tok, _) <- ScimT.registerIdPAndScimTokenWithMeta
       scimUser <- ScimT.randomScimUser
-      userId <- ScimT.scimUserId <$> ScimT.createUser tok scimUser
-      ScimT.updateUser' tok userId (scimUser {Scim.roles = ["hamlet"]}) !!! do
+      uid <- ScimT.scimUserId <$> ScimT.createUser tok scimUser
+      ScimT.updateUser' tok uid (scimUser {Scim.roles = ["hamlet"]}) !!! do
         const 400 === statusCode
         const (Just "The role 'hamlet' is not valid. Valid roles are owner, admin, member, partner.") =~= responseBody
 

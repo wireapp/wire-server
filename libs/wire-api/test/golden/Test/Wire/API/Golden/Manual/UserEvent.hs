@@ -87,7 +87,7 @@ testObject_UserEvent_6 =
   UserEvent
     ( UserUpdated
         ( UserUpdatedData
-            alice.userId
+            (userId alice)
             (Just alice.userDisplayName)
             (Just alice.userPict)
             (Just alice.userAccentId)
@@ -106,7 +106,7 @@ testObject_UserEvent_7 =
   UserEvent
     ( UserIdentityUpdated
         ( UserIdentityUpdatedData
-            alice.userId
+            (userId alice)
             (Just (Email "alice" "foo.example.com"))
             Nothing
         )
@@ -117,24 +117,24 @@ testObject_UserEvent_8 =
   UserEvent
     ( UserIdentityRemoved
         ( UserIdentityRemovedData
-            alice.userId
+            (userId alice)
             (Just (Email "alice" "foo.example.com"))
             Nothing
         )
     )
 
 testObject_UserEvent_9 :: Event
-testObject_UserEvent_9 = UserEvent (UserLegalHoldDisabled alice.userId)
+testObject_UserEvent_9 = UserEvent (UserLegalHoldDisabled (userId alice))
 
 testObject_UserEvent_10 :: Event
-testObject_UserEvent_10 = UserEvent (UserLegalHoldEnabled alice.userId)
+testObject_UserEvent_10 = UserEvent (UserLegalHoldEnabled (userId alice))
 
 testObject_UserEvent_11 :: Event
 testObject_UserEvent_11 =
   UserEvent
     ( LegalHoldClientRequested
         ( LegalHoldClientRequestedData
-            alice.userId
+            (userId alice)
             (lastPrekey "foo")
             (ClientId 3728)
         )
@@ -145,7 +145,7 @@ testObject_UserEvent_12 =
   ConnectionEvent
     ( ConnectionUpdated
         ( UserConnection
-            bob.userId
+            (userId bob)
             bob.userQualifiedId
             Accepted
             (fromJust (readUTCTimeMillis "2007-02-03T10:51:17.329Z"))
@@ -195,8 +195,7 @@ testObject_UserEvent_17 = ClientEvent (ClientRemoved (ClientId 2839))
 alice :: User
 alice =
   User
-    { userId = Id (fromJust (UUID.fromString "539d9183-32a5-4fc4-ba5c-4634454e7585")),
-      userQualifiedId =
+    { userQualifiedId =
         Qualified
           { qUnqualified = Id (fromJust (UUID.fromString "539d9183-32a5-4fc4-ba5c-4634454e7585")),
             qDomain = Domain {_domainText = "foo.example.com"}
@@ -223,8 +222,7 @@ alice =
 bob :: User
 bob =
   User
-    { userId = Id (fromJust (UUID.fromString "284d1c86-5117-4c58-aa18-c0068f3f7d8c")),
-      userQualifiedId =
+    { userQualifiedId =
         Qualified
           { qUnqualified = Id (fromJust (UUID.fromString "284d1c86-5117-4c58-aa18-c0068f3f7d8c")),
             qDomain = Domain {_domainText = "baz.example.com"}
