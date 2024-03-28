@@ -42,8 +42,7 @@ module Wire.API.User
     userSCIMExternalId,
     scimExternalId,
     ssoIssuerAndNameId,
-    connectedProfile,
-    publicProfile,
+    mkUserProfile,
     userObjectSchema,
 
     -- * NewUser
@@ -137,6 +136,9 @@ module Wire.API.User
     UpdateSSOIdResponse (..),
     CheckHandleResponse (..),
     UpdateConnectionsInternal (..),
+    EmailVisibility (..),
+    EmailVisibilityConfig,
+    EmailVisibilityConfigWithViewer,
 
     -- * re-exports
     module Wire.API.User.Identity,
@@ -160,7 +162,7 @@ import Control.Applicative
 import Control.Arrow ((&&&))
 import Control.Error.Safe (rightMay)
 import Control.Lens (makePrisms, over, view, (.~), (?~), (^.))
-import Data.Aeson (FromJSON (..), ToJSON (..))
+import Data.Aeson (FromJSON (..), ToJSON (..), withText)
 import Data.Aeson.Types qualified as A
 import Data.Attoparsec.ByteString qualified as Parser
 import Data.Attoparsec.Text qualified as TParser
@@ -210,6 +212,8 @@ import Wire.API.Error.Brig qualified as E
 import Wire.API.Provider.Service (ServiceRef)
 import Wire.API.Routes.MultiVerb
 import Wire.API.Team (BindingNewTeam, bindingNewTeamObjectSchema)
+import Wire.API.Team.Member (TeamMember)
+import Wire.API.Team.Member qualified as TeamMember
 import Wire.API.Team.Role
 import Wire.API.User.Activation (ActivationCode, ActivationKey)
 import Wire.API.User.Auth (CookieLabel)
@@ -767,60 +771,54 @@ userIssuer user = userSSOId user >>= fromSSOId
     fromSSOId (UserSSOId (SAML.UserRef issuer _)) = Just issuer
     fromSSOId _ = Nothing
 
-connectedProfile :: User -> UserLegalHoldStatus -> UserProfile
-connectedProfile u legalHoldStatus =
-  UserProfile
-    { profileQualifiedId = userQualifiedId u,
-      profileHandle = userHandle u,
-      profileName = userDisplayName u,
-      profilePict = userPict u,
-      profileAssets = userAssets u,
-      profileAccentId = userAccentId u,
-      profileService = userService u,
-      profileDeleted = userDeleted u,
-      profileExpire = userExpire u,
-      profileTeam = userTeam u,
-      -- We don't want to show the email by default;
-      -- However we do allow adding it back in intentionally later.
-      profileEmail = Nothing,
-      profileLegalholdStatus = legalHoldStatus,
-      profileSupportedProtocols = userSupportedProtocols u
-    }
+-- | Configurations for whether to show a user's email to others.
+data EmailVisibility a
+  = -- | Anyone can see the email of someone who is on ANY team.
+    --         This may sound strange; but certain on-premise hosters have many different teams
+    --         and still want them to see each-other's emails.
+    EmailVisibleIfOnTeam
+  | -- | Anyone on your team with at least 'Member' privileges can see your email address.
+    EmailVisibleIfOnSameTeam a
+  | -- | Show your email only to yourself
+    EmailVisibleToSelf
+  deriving (Eq, Show)
 
--- FUTUREWORK: should public and conect profile be separate types?
-publicProfile :: User -> UserLegalHoldStatus -> UserProfile
-publicProfile u legalHoldStatus =
-  -- Note that we explicitly unpack and repack the types here rather than using
-  -- RecordWildCards or something similar because we want changes to the public profile
-  -- to be EXPLICIT and INTENTIONAL so we don't accidentally leak sensitive data.
-  let UserProfile
-        { profileQualifiedId,
-          profileHandle,
-          profileName,
-          profilePict,
-          profileAssets,
-          profileAccentId,
-          profileService,
-          profileDeleted,
-          profileExpire,
-          profileTeam,
-          profileLegalholdStatus,
-          profileSupportedProtocols
-        } = connectedProfile u legalHoldStatus
-   in UserProfile
-        { profileEmail = Nothing,
-          profileQualifiedId,
-          profileHandle,
-          profileName,
-          profilePict,
-          profileAssets,
-          profileAccentId,
-          profileService,
-          profileDeleted,
-          profileExpire,
-          profileTeam,
-          profileLegalholdStatus,
-          profileSupportedProtocols
+type EmailVisibilityConfig = EmailVisibility ()
+
+type EmailVisibilityConfigWithViewer = EmailVisibility (Maybe (TeamId, TeamMember))
+
+instance FromJSON (EmailVisibility ()) where
+  parseJSON = withText "EmailVisibility" $ \case
+    "visible_if_on_team" -> pure EmailVisibleIfOnTeam
+    "visible_if_on_same_team" -> pure $ EmailVisibleIfOnSameTeam ()
+    "visible_to_self" -> pure EmailVisibleToSelf
+    _ -> fail "unexpected value for EmailVisibility settings"
+
+mkUserProfile :: EmailVisibilityConfigWithViewer -> User -> UserLegalHoldStatus -> UserProfile
+mkUserProfile emailVisibilityConfigAndViewer u legalHoldStatus =
+  let isEmailVisible = case emailVisibilityConfigAndViewer of
+        EmailVisibleToSelf -> False
+        EmailVisibleIfOnTeam -> isJust (userTeam u)
+        EmailVisibleIfOnSameTeam Nothing -> False
+        EmailVisibleIfOnSameTeam (Just (viewerTeamId, viewerMembership)) ->
+          Just viewerTeamId == userTeam u
+            && TeamMember.hasPermission viewerMembership TeamMember.ViewSameTeamEmails
+   in -- This profile would be visible to any other user. When a new field is
+      -- added, please make sure it is OK for other users to have access to it.
+      UserProfile
+        { profileQualifiedId = userQualifiedId u,
+          profileHandle = userHandle u,
+          profileName = userDisplayName u,
+          profilePict = userPict u,
+          profileAssets = userAssets u,
+          profileAccentId = userAccentId u,
+          profileService = userService u,
+          profileDeleted = userDeleted u,
+          profileExpire = userExpire u,
+          profileTeam = userTeam u,
+          profileEmail = if isEmailVisible then userEmail u else Nothing,
+          profileLegalholdStatus = legalHoldStatus,
+          profileSupportedProtocols = userSupportedProtocols u
         }
 
 --------------------------------------------------------------------------------

@@ -140,7 +140,6 @@ import Brig.User.Phone
 import Brig.User.Search.Index (reindex)
 import Brig.User.Search.TeamSize qualified as TeamSize
 import Cassandra hiding (Set)
-import Control.Arrow ((&&&))
 import Control.Error
 import Control.Lens (view, (^.))
 import Control.Monad.Catch
@@ -153,13 +152,11 @@ import Data.Json.Util
 import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
 import Data.List.Extra
 import Data.List1 as List1 (List1, singleton)
-import Data.Map.Strict qualified as Map
 import Data.Metrics qualified as Metrics
 import Data.Misc
 import Data.Qualified
 import Data.Time.Clock (UTCTime, addUTCTime, diffUTCTime)
 import Data.UUID.V4 (nextRandom)
-import Galley.Types.Teams qualified as Team
 import Imports hiding (cs)
 import Network.Wai.Utilities
 import Polysemy
@@ -174,7 +171,6 @@ import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
 import Wire.API.Federation.Error
 import Wire.API.Password
-import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
 import Wire.API.Team hiding (newTeam)
 import Wire.API.Team.Feature
@@ -1660,22 +1656,17 @@ lookupLocalProfiles ::
   AppT r [UserProfile]
 lookupLocalProfiles requestingUser others = do
   users <- wrapHttpClient $ Data.lookupUsers NoPendingInvitations others >>= mapM userGC
-  css <- case requestingUser of
-    Just localReqUser -> toMap <$> wrapHttpClient (Data.lookupConnectionStatus (map userId users) [localReqUser])
-    Nothing -> pure mempty
-  emailVisibility' <- view (settings . emailVisibility)
-  emailVisibility'' <- case emailVisibility' of
-    EmailVisibleIfOnTeam -> pure EmailVisibleIfOnTeam'
-    EmailVisibleIfOnSameTeam -> case requestingUser of
-      Just localReqUser -> EmailVisibleIfOnSameTeam' <$> getSelfInfo localReqUser
-      Nothing -> pure EmailVisibleToSelf'
-    EmailVisibleToSelf -> pure EmailVisibleToSelf'
+  emailVisibilityConfig <- view (settings . emailVisibility)
+  emailVisibilityConfigWithViewer <-
+    case emailVisibilityConfig of
+      EmailVisibleIfOnTeam -> pure EmailVisibleIfOnTeam
+      EmailVisibleToSelf -> pure EmailVisibleToSelf
+      EmailVisibleIfOnSameTeam () ->
+        EmailVisibleIfOnSameTeam . join @Maybe
+          <$> traverse getSelfInfo requestingUser
   usersAndStatus <- liftSem $ for users $ \u -> (u,) <$> getLegalHoldStatus' u
-  pure $ map (toProfile emailVisibility'' css) usersAndStatus
+  pure $ map (uncurry $ mkUserProfile emailVisibilityConfigWithViewer) usersAndStatus
   where
-    toMap :: [ConnectionStatus] -> Map UserId Relation
-    toMap = Map.fromList . map (csFrom &&& csStatus)
-
     getSelfInfo :: UserId -> AppT r (Maybe (TeamId, TeamMember))
     getSelfInfo selfId = do
       -- FUTUREWORK: it is an internal error for the two lookups (for 'User' and 'TeamMember')
@@ -1685,16 +1676,6 @@ lookupLocalProfiles requestingUser others = do
       case userTeam =<< mUser of
         Nothing -> pure Nothing
         Just tid -> (tid,) <$$> liftSem (GalleyProvider.getTeamMember selfId tid)
-
-    toProfile :: EmailVisibility' -> Map UserId Relation -> (User, UserLegalHoldStatus) -> UserProfile
-    toProfile emailVisibility'' css (u, userLegalHold) =
-      let cs = Map.lookup (userId u) css
-          profileEmail' = getEmailForProfile u emailVisibility''
-          baseProfile =
-            if Just (userId u) == requestingUser || cs == Just Accepted || cs == Just Sent
-              then connectedProfile u userLegalHold
-              else publicProfile u userLegalHold
-       in baseProfile {profileEmail = profileEmail'}
 
 getLegalHoldStatus ::
   Member GalleyProvider r =>
@@ -1712,28 +1693,6 @@ getLegalHoldStatus' user =
     Just tid -> do
       teamMember <- GalleyProvider.getTeamMember (userId user) tid
       pure $ maybe defUserLegalHoldStatus (^. legalHoldStatus) teamMember
-
-data EmailVisibility'
-  = EmailVisibleIfOnTeam'
-  | EmailVisibleIfOnSameTeam' (Maybe (TeamId, TeamMember))
-  | EmailVisibleToSelf'
-
--- | Gets the email if it's visible to the requester according to configured settings
-getEmailForProfile ::
-  User ->
-  EmailVisibility' ->
-  Maybe Email
-getEmailForProfile profileOwner EmailVisibleIfOnTeam' =
-  if isJust (userTeam profileOwner)
-    then userEmail profileOwner
-    else Nothing
-getEmailForProfile profileOwner (EmailVisibleIfOnSameTeam' (Just (viewerTeamId, viewerTeamMember))) =
-  if Just viewerTeamId == userTeam profileOwner
-    && Team.hasPermission viewerTeamMember Team.ViewSameTeamEmails
-    then userEmail profileOwner
-    else Nothing
-getEmailForProfile _ (EmailVisibleIfOnSameTeam' Nothing) = Nothing
-getEmailForProfile _ EmailVisibleToSelf' = Nothing
 
 -- | Find user accounts for a given identity, both activated and those
 -- currently pending activation.
