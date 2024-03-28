@@ -47,7 +47,7 @@ import Wire.API.Federation.API.Brig
 import Wire.API.Federation.Component
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.MultiTablePaging
-import Wire.API.User
+import Wire.API.User as User
 
 tests ::
   ConnectionLimit ->
@@ -101,7 +101,7 @@ tests cl _at p b _c g fedBrigClient db =
 
 testCreateConnectionInvalidUser :: Brig -> Http ()
 testCreateConnectionInvalidUser brig = do
-  uid1 <- (.userId) <$> randomUser brig
+  uid1 <- User.userId <$> randomUser brig
   -- user does not exist
   uid2 <- Id <$> liftIO UUID.nextRandom
   postConnection brig uid1 uid2 !!! do
@@ -130,14 +130,14 @@ testCreateConnectionInvalidUserQualified brig = do
 
 testCreateManualConnections :: Brig -> Http ()
 testCreateManualConnections brig = do
-  uid1 <- (.userId) <$> randomUser brig
-  uid2 <- (.userId) <$> randomUser brig
+  uid1 <- User.userId <$> randomUser brig
+  uid2 <- User.userId <$> randomUser brig
   postConnection brig uid1 uid2 !!! const 201 === statusCode
   assertConnections brig uid1 [ConnectionStatus uid1 uid2 Sent]
   assertConnections brig uid2 [ConnectionStatus uid2 uid1 Pending]
   -- Test that no connections to anonymous users can be created,
   -- as well as that anonymous users cannot create connections.
-  uid3 <- (.userId) <$> createAnonUser "foo3" brig
+  uid3 <- User.userId <$> createAnonUser "foo3" brig
   postConnection brig uid1 uid3 !!! const 400 === statusCode
   postConnection brig uid3 uid1 !!! const 403 === statusCode
 
@@ -156,8 +156,8 @@ testCreateManualConnectionsQualified brig = do
 
 testCreateMutualConnections :: Brig -> Galley -> Http ()
 testCreateMutualConnections brig galley = do
-  uid1 <- (.userId) <$> randomUser brig
-  uid2 <- (.userId) <$> randomUser brig
+  uid1 <- User.userId <$> randomUser brig
+  uid2 <- User.userId <$> randomUser brig
   postConnection brig uid1 uid2 !!! const 201 === statusCode
   assertConnections brig uid1 [ConnectionStatus uid1 uid2 Sent]
   assertConnections brig uid2 [ConnectionStatus uid2 uid1 Pending]
@@ -198,8 +198,8 @@ testCreateMutualConnectionsQualified brig galley = do
 
 testAcceptConnection :: Brig -> Http ()
 testAcceptConnection brig = do
-  uid1 <- (.userId) <$> randomUser brig
-  uid2 <- (.userId) <$> randomUser brig
+  uid1 <- User.userId <$> randomUser brig
+  uid2 <- User.userId <$> randomUser brig
   -- Initiate a new connection (A -> B)
   postConnection brig uid1 uid2 !!! const 201 === statusCode
   -- B accepts
@@ -207,7 +207,7 @@ testAcceptConnection brig = do
   assertConnections brig uid1 [ConnectionStatus uid1 uid2 Accepted]
   assertConnections brig uid2 [ConnectionStatus uid2 uid1 Accepted]
   -- Mutual connection request with a user C
-  uid3 <- (.userId) <$> randomUser brig
+  uid3 <- User.userId <$> randomUser brig
   postConnection brig uid1 uid3 !!! const 201 === statusCode
   postConnection brig uid3 uid1 !!! const 200 === statusCode
   assertConnections brig uid1 [ConnectionStatus uid1 uid3 Accepted]
@@ -226,8 +226,8 @@ testAcceptConnectionQualified brig = do
 
 testIgnoreConnection :: Brig -> Http ()
 testIgnoreConnection brig = do
-  uid1 <- (.userId) <$> randomUser brig
-  uid2 <- (.userId) <$> randomUser brig
+  uid1 <- User.userId <$> randomUser brig
+  uid2 <- User.userId <$> randomUser brig
   -- Initiate a new connection (A -> B)
   postConnection brig uid1 uid2 !!! const 201 === statusCode
   -- B ignores A
@@ -255,8 +255,8 @@ testIgnoreConnectionQualified brig = do
 
 testCancelConnection :: Brig -> Http ()
 testCancelConnection brig = do
-  uid1 <- (.userId) <$> randomUser brig
-  uid2 <- (.userId) <$> randomUser brig
+  uid1 <- User.userId <$> randomUser brig
+  uid2 <- User.userId <$> randomUser brig
   -- Initiate a new connection (A -> B)
   postConnection brig uid1 uid2 !!! const 201 === statusCode
   -- A cancels the request
@@ -284,8 +284,8 @@ testCancelConnectionQualified brig = do
 
 testCancelConnection2 :: Brig -> Galley -> Http ()
 testCancelConnection2 brig galley = do
-  uid1 <- (.userId) <$> randomUser brig
-  uid2 <- (.userId) <$> randomUser brig
+  uid1 <- User.userId <$> randomUser brig
+  uid2 <- User.userId <$> randomUser brig
   -- Initiate a new connection (A -> B)
   postConnection brig uid1 uid2 !!! const 201 === statusCode
   -- A cancels the request
@@ -361,8 +361,8 @@ testBlockConnection :: Brig -> Http ()
 testBlockConnection brig = do
   u1 <- randomUser brig
   u2 <- randomUser brig
-  let uid1 = u1.userId
-  let uid2 = u2.userId
+  let uid1 = User.userId u1
+  let uid2 = User.userId u2
   -- Initiate a new connection (A -> B)
   postConnection brig uid1 uid2 !!! const 201 === statusCode
   -- Even connected users cannot see each other's email
@@ -406,8 +406,8 @@ testBlockConnectionQualified :: Brig -> Http ()
 testBlockConnectionQualified brig = do
   u1 <- randomUser brig
   u2 <- randomUser brig
-  let uid1 = u1.userId
-      uid2 = u2.userId
+  let uid1 = User.userId u1
+      uid2 = User.userId u2
       quid1 = userQualifiedId u1
       quid2 = userQualifiedId u2
   -- Initiate a new connection (A -> B)
@@ -453,8 +453,8 @@ testBlockAndResendConnection :: Brig -> Galley -> Http ()
 testBlockAndResendConnection brig galley = do
   u1 <- randomUser brig
   u2 <- randomUser brig
-  let uid1 = u1.userId
-  let uid2 = u2.userId
+  let uid1 = User.userId u1
+  let uid2 = User.userId u2
   -- Initiate a new connection (A -> B)
   postConnection brig uid1 uid2 !!! const 201 === statusCode
   -- B blocks A
@@ -504,8 +504,8 @@ testBlockAndResendConnectionQualified brig galley = do
 
 testUnblockPendingConnection :: Brig -> Http ()
 testUnblockPendingConnection brig = do
-  u1 <- (.userId) <$> randomUser brig
-  u2 <- (.userId) <$> randomUser brig
+  u1 <- User.userId <$> randomUser brig
+  u2 <- User.userId <$> randomUser brig
   postConnection brig u1 u2 !!! const 201 === statusCode
   putConnection brig u1 u2 Blocked !!! const 200 === statusCode
   assertConnections brig u1 [ConnectionStatus u1 u2 Blocked]
@@ -527,8 +527,8 @@ testUnblockPendingConnectionQualified brig = do
 
 testAcceptWhileBlocked :: Brig -> Http ()
 testAcceptWhileBlocked brig = do
-  u1 <- (.userId) <$> randomUser brig
-  u2 <- (.userId) <$> randomUser brig
+  u1 <- User.userId <$> randomUser brig
+  u2 <- User.userId <$> randomUser brig
   postConnection brig u1 u2 !!! const 201 === statusCode
   putConnection brig u1 u2 Blocked !!! const 200 === statusCode
   assertConnections brig u1 [ConnectionStatus u1 u2 Blocked]
@@ -564,8 +564,8 @@ testUpdateConnectionNoopQualified brig = do
 
 testBadUpdateConnection :: Brig -> Http ()
 testBadUpdateConnection brig = do
-  uid1 <- (.userId) <$> randomUser brig
-  uid2 <- (.userId) <$> randomUser brig
+  uid1 <- User.userId <$> randomUser brig
+  uid2 <- User.userId <$> randomUser brig
   postConnection brig uid1 uid2 !!! const 201 === statusCode
   assertBadUpdate uid1 uid2 Pending
   assertBadUpdate uid1 uid2 Ignored
@@ -594,9 +594,9 @@ testBadUpdateConnectionQualified brig = do
 
 testLocalConnectionsPaging :: Brig -> Http ()
 testLocalConnectionsPaging b = do
-  u <- (.userId) <$> randomUser b
+  u <- User.userId <$> randomUser b
   replicateM_ total $ do
-    u2 <- (.userId) <$> randomUser b
+    u2 <- User.userId <$> randomUser b
     postConnection b u u2 !!! const 201 === statusCode
   foldM_ (next u 2) (0, Nothing) [2, 2, 1, 0]
   foldM_ (next u total) (0, Nothing) [total, 0]
@@ -660,21 +660,21 @@ testAllConnectionsPaging b db = do
 
 testConnectionLimit :: Brig -> ConnectionLimit -> Http ()
 testConnectionLimit brig (ConnectionLimit l) = do
-  uid1 <- (.userId) <$> randomUser brig
+  uid1 <- User.userId <$> randomUser brig
   (uid2 : _) <- replicateM (fromIntegral l) (newConn uid1)
-  uidX <- (.userId) <$> randomUser brig
+  uidX <- User.userId <$> randomUser brig
   postConnection brig uid1 uidX !!! assertLimited
   -- blocked connections do not count towards the limit
   putConnection brig uid1 uid2 Blocked !!! const 200 === statusCode
   postConnection brig uid1 uidX !!! const 201 === statusCode
   -- the next send/accept hits the limit again
-  uidY <- (.userId) <$> randomUser brig
+  uidY <- User.userId <$> randomUser brig
   postConnection brig uid1 uidY !!! assertLimited
   -- (re-)sending an already accepted connection does not affect the limit
   postConnection brig uid1 uidX !!! const 200 === statusCode
   where
     newConn from = do
-      to <- (.userId) <$> randomUser brig
+      to <- User.userId <$> randomUser brig
       postConnection brig from to !!! const 201 === statusCode
       pure to
     assertLimited = do
@@ -725,7 +725,7 @@ testConnectOK brig galley fedBrigClient = do
 testConnectWithAnon :: Brig -> FedClient 'Brig -> Http ()
 testConnectWithAnon brig fedBrigClient = do
   fromUser <- randomId
-  toUser <- (.userId) <$> createAnonUser "anon1234" brig
+  toUser <- User.userId <$> createAnonUser "anon1234" brig
   res <-
     runFedClient @"send-connection-action" fedBrigClient (Domain "far-away.example.com") $
       NewConnectionRequest fromUser Nothing toUser RemoteConnect
@@ -734,7 +734,7 @@ testConnectWithAnon brig fedBrigClient = do
 
 testConnectFromAnon :: Brig -> Http ()
 testConnectFromAnon brig = do
-  anonUser <- (.userId) <$> createAnonUser "anon1234" brig
+  anonUser <- User.userId <$> createAnonUser "anon1234" brig
   remoteUser <- fakeRemoteUser
   postConnectionQualified brig anonUser remoteUser !!! const 403 === statusCode
 

@@ -628,7 +628,7 @@ postMessageRejectIfMissingClients = do
   checkSendWitMissingClientsShouldFail
   where
     mkMsg :: ByteString -> (UserId, ClientId) -> (UserId, ClientId, Text)
-    mkMsg text (userId, clientId) = (userId, clientId, toBase64Text text)
+    mkMsg text (uid, clientId) = (uid, clientId, toBase64Text text)
 
 -- @END
 

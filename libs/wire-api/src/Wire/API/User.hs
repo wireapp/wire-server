@@ -35,6 +35,7 @@ module Wire.API.User
     SelfProfile (..),
     -- User (should not be here)
     User (..),
+    userId,
     userEmail,
     userPhone,
     userSSOId,
@@ -665,8 +666,7 @@ instance FromJSON SelfProfile where
 
 -- | The data of an existing user.
 data User = User
-  { userId :: UserId,
-    userQualifiedId :: Qualified UserId,
+  { userQualifiedId :: Qualified UserId,
     -- | User identity. For endpoints like @/self@, it will be present in the response iff
     -- the user is activated, and the email/phone contained in it will be guaranteedly
     -- verified. {#RefActivation}
@@ -697,6 +697,9 @@ data User = User
   deriving (Arbitrary) via (GenericUniform User)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema User)
 
+userId :: User -> UserId
+userId = qUnqualified . userQualifiedId
+
 -- -- FUTUREWORK:
 -- -- disentangle json serializations for 'User', 'NewUser', 'UserIdentity', 'NewUserOrigin'.
 instance ToSchema User where
@@ -705,10 +708,10 @@ instance ToSchema User where
 userObjectSchema :: ObjectSchema SwaggerDoc User
 userObjectSchema =
   User
-    <$> userId
-      .= field "id" schema
-    <*> userQualifiedId
+    <$> userQualifiedId
       .= field "qualified_id" schema
+    <* userId
+      .= optional (field "id" (deprecatedSchema "qualified_id" schema))
     <*> userIdentity
       .= maybeUserIdentityObjectSchema
     <*> userDisplayName

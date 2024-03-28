@@ -66,7 +66,7 @@ import Util
 import Wire.API.Federation.API.Brig (SearchResponse (SearchResponse))
 import Wire.API.Team.Feature
 import Wire.API.Team.SearchVisibility
-import Wire.API.User
+import Wire.API.User as User
 import Wire.API.User.Search
 import Wire.API.User.Search qualified as Search
 
@@ -236,23 +236,23 @@ testSearchCJK brig = do
   user' <- createUser' True "さおり" brig
   user'' <- createUser' True "ジョン" brig
   refreshIndex brig
-  assertCanFind brig searcher.userId user.userQualifiedId "藤崎詩織"
+  assertCanFind brig (User.userId searcher) user.userQualifiedId "藤崎詩織"
 
-  assertCanFind brig searcher.userId user'.userQualifiedId "saori"
-  assertCanFind brig searcher.userId user'.userQualifiedId "さおり"
-  assertCanFind brig searcher.userId user'.userQualifiedId "サオリ"
+  assertCanFind brig (User.userId searcher) user'.userQualifiedId "saori"
+  assertCanFind brig (User.userId searcher) user'.userQualifiedId "さおり"
+  assertCanFind brig (User.userId searcher) user'.userQualifiedId "サオリ"
 
-  assertCanFind brig searcher.userId user''.userQualifiedId "jon"
-  assertCanFind brig searcher.userId user''.userQualifiedId "ジョン"
-  assertCanFind brig searcher.userId user''.userQualifiedId "じょん"
+  assertCanFind brig (User.userId searcher) user''.userQualifiedId "jon"
+  assertCanFind brig (User.userId searcher) user''.userQualifiedId "ジョン"
+  assertCanFind brig (User.userId searcher) user''.userQualifiedId "じょん"
 
 testSearchWithUmlaut :: TestConstraints m => Brig -> m ()
 testSearchWithUmlaut brig = do
   searcher <- randomUser brig
   user <- createUser' True "Özi Müller" brig
   refreshIndex brig
-  assertCanFind brig searcher.userId user.userQualifiedId "ozi muller"
-  assertCanFind brig searcher.userId user.userQualifiedId "Özi Müller"
+  assertCanFind brig (User.userId searcher) user.userQualifiedId "ozi muller"
+  assertCanFind brig (User.userId searcher) user.userQualifiedId "Özi Müller"
 
 testSearchByHandle :: TestConstraints m => Brig -> m ()
 testSearchByHandle brig = do
