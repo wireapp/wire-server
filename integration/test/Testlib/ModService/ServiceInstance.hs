@@ -22,7 +22,6 @@ import System.IO
 import qualified System.IO.Error as E
 import System.Posix
 import System.Process
-import System.Timeout.Lifted
 import Testlib.Printing
 import Testlib.Types
 import Prelude
