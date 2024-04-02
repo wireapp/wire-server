@@ -48,7 +48,7 @@ import Wire.API.User
 -- without journaling arguments for user updates
 
 userActivate :: (MonadReader Env m, MonadIO m) => User -> m ()
-userActivate u@User {..} = journalEvent UserEvent'USER_ACTIVATE userId (userEmail u) (Just userLocale) userTeam (Just userDisplayName)
+userActivate u@User {..} = journalEvent UserEvent'USER_ACTIVATE (userId u) (userEmail u) (Just userLocale) userTeam (Just userDisplayName)
 
 userUpdate :: (MonadReader Env m, MonadIO m) => UserId -> Maybe Email -> Maybe Locale -> Maybe Name -> m ()
 userUpdate uid em loc = journalEvent UserEvent'USER_UPDATE uid em loc Nothing

@@ -33,7 +33,7 @@ import System.Random.Shuffle (shuffleM)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (assertBool, assertEqual, (@?=))
 import Util (Brig, Galley, randomEmail, test, withSettingsOverrides)
-import Wire.API.User (User (..), userEmail)
+import Wire.API.User (User (..), userEmail, userId)
 import Wire.API.User.Identity
 import Wire.API.User.Search
 

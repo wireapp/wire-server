@@ -58,7 +58,7 @@ import Wire.API.Conversation.Code (CreateConversationCodeRequest (CreateConversa
 import Wire.API.Conversation.Role qualified as Role
 import Wire.API.OAuth
 import Wire.API.Routes.Bearer (Bearer (Bearer, unBearer))
-import Wire.API.User
+import Wire.API.User as User
 import Wire.API.User.Auth (CookieType (PersistentCookie))
 import Wire.Sem.Jwk (readJwk)
 
@@ -185,7 +185,7 @@ testCreateAccessTokenSuccess opts brig = do
   user <- createUser "alice" brig
   let redirectUrl = mkUrl "https://example.com"
   let scopes = OAuthScopes $ Set.singleton ReadSelf
-  (cid, code) <- generateOAuthClientAndAuthorizationCode brig user.userId scopes redirectUrl
+  (cid, code) <- generateOAuthClientAndAuthorizationCode brig (User.userId user) scopes redirectUrl
   let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid verifier code redirectUrl
   resp <- createOAuthAccessToken brig accessTokenRequest
   -- authorization code should be deleted and can only be used once
@@ -203,7 +203,7 @@ testCreateAccessTokenSuccess opts brig = do
     claims.scope @?= scopes
     (view claimIss $ claims) @?= (expectedDomain ^? stringOrUri @Text)
     (view claimAud $ claims) @?= (Audience . (: []) <$> expectedDomain ^? stringOrUri @Text)
-    (view claimSub $ claims) @?= (idToText user.userId ^? stringOrUri)
+    (view claimSub $ claims) @?= (idToText (User.userId user) ^? stringOrUri)
     let expTime = (\(NumericDate x) -> x) . fromMaybe (error "exp claim missing") . view claimExp $ claims
     diffUTCTime expTime now > 0 @?= True
     let issuingTime = (\(NumericDate x) -> x) . fromMaybe (error "iat claim missing") . view claimIat $ claims
@@ -361,7 +361,7 @@ testAccessResourceSuccessNginz brig nginz = do
   -- with Authorization header containing an OAuth bearer token
   let redirectUrl = mkUrl "https://example.com"
   let scopes = OAuthScopes $ Set.fromList [ReadSelf]
-  (cid, code) <- generateOAuthClientAndAuthorizationCode brig user.userId scopes redirectUrl
+  (cid, code) <- generateOAuthClientAndAuthorizationCode brig (User.userId user) scopes redirectUrl
   let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid verifier code redirectUrl
   resp <- createOAuthAccessToken brig accessTokenRequest
   self' <- responseJsonError =<< get (nginz . paths ["self"] . authHeader resp.accessToken) <!! const 200 === statusCode
@@ -372,7 +372,7 @@ testAccessResourceInsufficientScope brig nginz = do
   user <- createUser "alice" brig
   let redirectUrl = mkUrl "https://example.com"
   let scopes = OAuthScopes $ Set.fromList [WriteConversations]
-  (cid, code) <- generateOAuthClientAndAuthorizationCode brig user.userId scopes redirectUrl
+  (cid, code) <- generateOAuthClientAndAuthorizationCode brig (User.userId user) scopes redirectUrl
   let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid verifier code redirectUrl
   resp <- createOAuthAccessToken brig accessTokenRequest
   get (nginz . paths ["self"] . authHeader resp.accessToken) !!! do
@@ -384,7 +384,7 @@ testAccessResourceExpiredToken brig nginz = do
   user <- createUser "alice" brig
   let redirectUrl = mkUrl "https://example.com"
   let scopes = OAuthScopes $ Set.fromList [ReadSelf]
-  (cid, code) <- generateOAuthClientAndAuthorizationCode brig user.userId scopes redirectUrl
+  (cid, code) <- generateOAuthClientAndAuthorizationCode brig (User.userId user) scopes redirectUrl
   let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid verifier code redirectUrl
   resp <- createOAuthAccessToken brig accessTokenRequest
   liftIO $ threadDelay (5 * 1000 * 1000)
@@ -409,7 +409,7 @@ testAccessResourceInvalidSignature opts brig nginz = do
   user <- createUser "alice" brig
   let redirectUrl = mkUrl "https://example.com"
   let scopes = OAuthScopes $ Set.fromList [ReadSelf]
-  (cid, code) <- generateOAuthClientAndAuthorizationCode brig user.userId scopes redirectUrl
+  (cid, code) <- generateOAuthClientAndAuthorizationCode brig (User.userId user) scopes redirectUrl
   let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid verifier code redirectUrl
   resp <- createOAuthAccessToken brig accessTokenRequest
   key <- liftIO $ readJwk (fromMaybe "path to jwk not set" (Opt.setOAuthJwkKeyPair $ Opt.optSettings opts)) <&> fromMaybe (error "invalid key")
@@ -483,7 +483,7 @@ testRefreshTokenRetrieveAccessToken brig nginz = do
   user <- createUser "alice" brig
   let redirectUrl = mkUrl "https://example.com"
   let scopes = OAuthScopes $ Set.fromList [ReadSelf]
-  (cid, code) <- generateOAuthClientAndAuthorizationCode brig user.userId scopes redirectUrl
+  (cid, code) <- generateOAuthClientAndAuthorizationCode brig (User.userId user) scopes redirectUrl
   let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid verifier code redirectUrl
   resp <- createOAuthAccessToken brig accessTokenRequest
   get (nginz . paths ["self"] . authHeader (resp.accessToken)) !!! const 200 === statusCode
@@ -498,7 +498,7 @@ testRefreshTokenWrongSignature opts brig = do
   user <- createUser "alice" brig
   let redirectUrl = mkUrl "https://example.com"
   let scopes = OAuthScopes $ Set.fromList [ReadSelf]
-  (cid, code) <- generateOAuthClientAndAuthorizationCode brig user.userId scopes redirectUrl
+  (cid, code) <- generateOAuthClientAndAuthorizationCode brig (User.userId user) scopes redirectUrl
   let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid verifier code redirectUrl
   resp <- createOAuthAccessToken brig accessTokenRequest
   key <- liftIO $ readJwk (fromMaybe "path to jwk not set" (Opt.setOAuthJwkKeyPair $ Opt.optSettings opts)) <&> fromMaybe (error "invalid key")
@@ -515,7 +515,7 @@ testRefreshTokenNoTokenId opts brig = do
   user <- createUser "alice" brig
   let redirectUrl = mkUrl "https://example.com"
   let scopes = OAuthScopes $ Set.fromList [ReadSelf]
-  (cid, _) <- generateOAuthClientAndAuthorizationCode brig user.userId scopes redirectUrl
+  (cid, _) <- generateOAuthClientAndAuthorizationCode brig (User.userId user) scopes redirectUrl
   key <- liftIO $ readJwk (fromMaybe "path to jwk not set" (Opt.setOAuthJwkKeyPair $ Opt.optSettings opts)) <&> fromMaybe (error "invalid key")
   badRefreshToken <- liftIO $ OAuthToken <$> signRefreshToken key emptyClaimsSet
   let refreshAccessTokenRequest = OAuthRefreshAccessTokenRequest OAuthGrantTypeRefreshToken cid badRefreshToken
@@ -528,7 +528,7 @@ testRefreshTokenNonExistingId opts brig = do
   user <- createUser "alice" brig
   let redirectUrl = mkUrl "https://example.com"
   let scopes = OAuthScopes $ Set.fromList [ReadSelf]
-  (cid, code) <- generateOAuthClientAndAuthorizationCode brig user.userId scopes redirectUrl
+  (cid, code) <- generateOAuthClientAndAuthorizationCode brig (User.userId user) scopes redirectUrl
   let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid verifier code redirectUrl
   resp <- createOAuthAccessToken brig accessTokenRequest
   key <- liftIO $ readJwk (fromMaybe "path to jwk not set" (Opt.setOAuthJwkKeyPair $ Opt.optSettings opts)) <&> fromMaybe (error "invalid key")
@@ -550,7 +550,7 @@ testRefreshTokenWrongClientId brig = do
   user <- createUser "alice" brig
   let redirectUrl = mkUrl "https://example.com"
   let scopes = OAuthScopes $ Set.fromList [ReadSelf]
-  (cid, code) <- generateOAuthClientAndAuthorizationCode brig user.userId scopes redirectUrl
+  (cid, code) <- generateOAuthClientAndAuthorizationCode brig (User.userId user) scopes redirectUrl
   let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid verifier code redirectUrl
   resp <- createOAuthAccessToken brig accessTokenRequest
   badCid <- randomId
@@ -564,7 +564,7 @@ testRefreshTokenWrongGrantType brig = do
   user <- createUser "alice" brig
   let redirectUrl = mkUrl "https://example.com"
   let scopes = OAuthScopes $ Set.fromList [ReadSelf]
-  (cid, code) <- generateOAuthClientAndAuthorizationCode brig user.userId scopes redirectUrl
+  (cid, code) <- generateOAuthClientAndAuthorizationCode brig (User.userId user) scopes redirectUrl
   let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid verifier code redirectUrl
   resp <- createOAuthAccessToken brig accessTokenRequest
   let refreshAccessTokenRequest = OAuthRefreshAccessTokenRequest OAuthGrantTypeAuthorizationCode cid resp.refreshToken
@@ -579,7 +579,7 @@ testRefreshTokenExpiredToken opts brig =
     user <- createUser "alice" brig
     let redirectUrl = mkUrl "https://example.com"
     let scopes = OAuthScopes $ Set.fromList [ReadSelf]
-    (cid, code) <- generateOAuthClientAndAuthorizationCode brig user.userId scopes redirectUrl
+    (cid, code) <- generateOAuthClientAndAuthorizationCode brig (User.userId user) scopes redirectUrl
     let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid verifier code redirectUrl
     resp <- createOAuthAccessToken brig accessTokenRequest
     let refreshAccessTokenRequest = OAuthRefreshAccessTokenRequest OAuthGrantTypeRefreshToken cid resp.refreshToken
@@ -593,7 +593,7 @@ testRefreshTokenRevokedToken brig = do
   user <- createUser "alice" brig
   let redirectUrl = mkUrl "https://example.com"
   let scopes = OAuthScopes $ Set.fromList [ReadSelf]
-  (cid, code) <- generateOAuthClientAndAuthorizationCode brig user.userId scopes redirectUrl
+  (cid, code) <- generateOAuthClientAndAuthorizationCode brig (User.userId user) scopes redirectUrl
   let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid verifier code redirectUrl
   resp <- createOAuthAccessToken brig accessTokenRequest
   let refreshAccessTokenRequest = OAuthRefreshAccessTokenRequest OAuthGrantTypeRefreshToken cid resp.refreshToken
@@ -607,45 +607,45 @@ testListApplicationsWithAccountAccess brig = do
   alice <- createUser "alice" brig
   bob <- createUser "bob" brig
   do
-    apps <- listOAuthApplications brig alice.userId
+    apps <- listOAuthApplications brig (User.userId alice)
     liftIO $ assertEqual "apps" 0 (length apps)
-  void $ createOAuthApplicationWithAccountAccess brig alice.userId
-  void $ createOAuthApplicationWithAccountAccess brig alice.userId
+  void $ createOAuthApplicationWithAccountAccess brig (User.userId alice)
+  void $ createOAuthApplicationWithAccountAccess brig (User.userId alice)
   do
-    aliceApps <- listOAuthApplications brig alice.userId
+    aliceApps <- listOAuthApplications brig (User.userId alice)
     liftIO $ assertEqual "apps" 2 (length aliceApps)
-    bobsApps <- listOAuthApplications brig bob.userId
+    bobsApps <- listOAuthApplications brig (User.userId bob)
     liftIO $ assertEqual "apps" 0 (length bobsApps)
-  void $ createOAuthApplicationWithAccountAccess brig alice.userId
-  void $ createOAuthApplicationWithAccountAccess brig bob.userId
+  void $ createOAuthApplicationWithAccountAccess brig (User.userId alice)
+  void $ createOAuthApplicationWithAccountAccess brig (User.userId bob)
   do
-    aliceApps <- listOAuthApplications brig alice.userId
+    aliceApps <- listOAuthApplications brig (User.userId alice)
     liftIO $ assertEqual "apps" 3 (length aliceApps)
-    bobsApps <- listOAuthApplications brig bob.userId
+    bobsApps <- listOAuthApplications brig (User.userId bob)
     liftIO $ assertEqual "apps" 1 (length bobsApps)
 
 testRevokeApplicationAccountAccess :: Brig -> Http ()
 testRevokeApplicationAccountAccess brig = do
   user <- createUser "alice" brig
   do
-    apps <- listOAuthApplications brig user.userId
+    apps <- listOAuthApplications brig (User.userId user)
     liftIO $ assertEqual "apps" 0 (length apps)
-  for_ [1 .. 3 :: Int] $ const $ createOAuthApplicationWithAccountAccess brig user.userId
-  cids <- fmap applicationId <$> listOAuthApplications brig user.userId
+  for_ [1 .. 3 :: Int] $ const $ createOAuthApplicationWithAccountAccess brig (User.userId user)
+  cids <- fmap applicationId <$> listOAuthApplications brig (User.userId user)
   liftIO $ assertEqual "apps" 3 (length cids)
   case cids of
     [cid1, cid2, cid3] -> do
-      revokeOAuthApplicationAccess brig user.userId cid1
+      revokeOAuthApplicationAccess brig (User.userId user) cid1
       do
-        apps <- listOAuthApplications brig user.userId
+        apps <- listOAuthApplications brig (User.userId user)
         liftIO $ assertEqual "apps" 2 (length apps)
-      revokeOAuthApplicationAccess brig user.userId cid2
+      revokeOAuthApplicationAccess brig (User.userId user) cid2
       do
-        apps <- listOAuthApplications brig user.userId
+        apps <- listOAuthApplications brig (User.userId user)
         liftIO $ assertEqual "apps" 1 (length apps)
-      revokeOAuthApplicationAccess brig user.userId cid3
+      revokeOAuthApplicationAccess brig (User.userId user) cid3
       do
-        apps <- listOAuthApplications brig user.userId
+        apps <- listOAuthApplications brig (User.userId user)
         liftIO $ assertEqual "apps" 0 (length apps)
     _ -> liftIO $ assertFailure "unexpected number of apps"
 
