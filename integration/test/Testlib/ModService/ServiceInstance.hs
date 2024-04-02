@@ -64,12 +64,8 @@ cleanupService inst = measureM "cleanupService" . liftIO $ do
   let ignoreExceptions action = E.catch action $ \(_ :: E.SomeException) -> pure ()
   ignoreExceptions $ do
     mPid <- getPid inst.processHandle
-    for_ mPid (signalProcess keyboardSignal)
-    timeout 50000 (waitForProcess inst.processHandle) >>= \case
-      Just _ -> pure ()
-      Nothing -> do
-        for_ mPid (signalProcess killProcess)
-        void $ waitForProcess inst.processHandle
+    for_ mPid (signalProcess killProcess)
+    void $ waitForProcess inst.processHandle
   whenM (doesFileExist inst.cleanupPath) $ removeFile inst.cleanupPath
   whenM (doesDirectoryExist inst.cleanupPath) $ removeDirectoryRecursive inst.cleanupPath
 
