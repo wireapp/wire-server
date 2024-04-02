@@ -15,7 +15,6 @@
 , exceptions
 , extended
 , extra
-, galley-types
 , gitignoreSource
 , HsOpenSSL
 , http-client
@@ -70,7 +69,6 @@ mkDerivation {
     errors
     exceptions
     extended
-    galley-types
     http-client
     http-types
     imports
