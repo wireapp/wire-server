@@ -232,8 +232,8 @@ testServiceHandles = do
   setPermissions exe (setOwnerExecutable True perms)
   serviceInstance <- liftIO $ startServiceInstance exe [] Nothing exe execName dom
   liftIO $ threadDelay 1_000_000
-  cleanupService serviceInstance
-  processState <- liftIO $ flushProcessState serviceInstance
+  cleanupServiceInstance serviceInstance
+  processState <- liftIO $ flushServiceInstanceOutput serviceInstance
   processState
     `shouldContainString` "=== stdout: ============================================\n\
                           \[test-exec@test-domain] 0\n\

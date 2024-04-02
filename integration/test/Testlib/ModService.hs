@@ -334,7 +334,7 @@ withProcess resource overrides service = do
           startServiceInstance exe ["-c", tempFile] cwd tempFile execName domain
 
   void $ Codensity $ \k -> do
-    UnliftIO.bracket initProcess cleanupService $ \serviceInstance -> do
+    UnliftIO.bracket initProcess cleanupServiceInstance $ \serviceInstance -> do
       waitUntilServiceIsUp domain service serviceInstance
       k serviceInstance
 
@@ -350,7 +350,7 @@ retryRequestUntil reqAction execName domain mServiceInstance = measureM "retryRe
       case mServiceInstance of
         Nothing -> pure ""
         Just serviceInstance -> do
-          outStr <- flushProcessState serviceInstance
+          outStr <- flushServiceInstanceOutput serviceInstance
           pure $ unlines [":", outStr]
     failApp ("Timed out waiting for service " <> execName <> "@" <> domain <> " to come up" <> errDetails)
 

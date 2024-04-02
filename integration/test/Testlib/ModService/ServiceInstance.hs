@@ -1,8 +1,8 @@
 module Testlib.ModService.ServiceInstance
   ( ServiceInstance,
     startServiceInstance,
-    cleanupService,
-    flushProcessState,
+    cleanupServiceInstance,
+    flushServiceInstanceOutput,
   )
 where
 
@@ -59,8 +59,8 @@ startServiceInstance exe args workingDir pathToCleanup execName execDomain = mea
         cleanupPath = pathToCleanup
       }
 
-cleanupService :: ServiceInstance -> App ()
-cleanupService inst = measureM "cleanupService" . liftIO $ do
+cleanupServiceInstance :: ServiceInstance -> App ()
+cleanupServiceInstance inst = measureM "cleanupService" . liftIO $ do
   let ignoreExceptions action = E.catch action $ \(_ :: E.SomeException) -> pure ()
   ignoreExceptions $ do
     mPid <- getPid inst.processHandle
@@ -69,8 +69,8 @@ cleanupService inst = measureM "cleanupService" . liftIO $ do
   whenM (doesFileExist inst.cleanupPath) $ removeFile inst.cleanupPath
   whenM (doesDirectoryExist inst.cleanupPath) $ removeDirectoryRecursive inst.cleanupPath
 
-flushProcessState :: ServiceInstance -> IO String
-flushProcessState serviceInstance = measureM "flushProcessState" do
+flushServiceInstanceOutput :: ServiceInstance -> IO String
+flushServiceInstanceOutput serviceInstance = measureM "flushProcessState" do
   outStr <- flushChan serviceInstance.name serviceInstance.domain serviceInstance.stdoutChan
   errStr <- flushChan serviceInstance.name serviceInstance.domain serviceInstance.stderrChan
   statusStr <- getPid serviceInstance.processHandle <&> maybe "(already closed)" show
