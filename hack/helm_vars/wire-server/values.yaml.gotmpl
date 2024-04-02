@@ -313,15 +313,19 @@ gundeck:
   secrets:
     awsKeyId: dummykey
     awsSecretKey: dummysecret
+    redisPassword: very-secure-redis-master-password
   tests:
     {{- if .Values.uploadXml }}
     config:
       uploadXml:
         baseUrl: {{ .Values.uploadXml.baseUrl }}
+    {{- end }}
     secrets:
+      {{- if .Values.uploadXml }}
       uploadXmlAwsAccessKeyId: {{ .Values.uploadXml.awsAccessKeyId }}
       uploadXmlAwsSecretAccessKey: {{ .Values.uploadXml.awsSecretAccessKey }}
-    {{- end }}
+      {{- end }}
+      redisAdditionalWritePassword: very-secure-redis-master-password-2
 
 nginz:
   replicaCount: 1
@@ -444,18 +448,21 @@ integration:
       host: {{ .Values.cassandraHost }}
       port: 9042
       replicationFactor: 1
-    {{- if .Values.useK8ssandraSSL.enabled }}
+      {{- if .Values.useK8ssandraSSL.enabled }}
       tlsCaSecretRef:
         name: cassandra-jks-keystore
         key: ca.crt
-    {{- end }}
-  {{- if .Values.uploadXml }}
+      {{- end }}
+    {{- if .Values.uploadXml }}
     uploadXml:
       baseUrl: {{ .Values.uploadXml.baseUrl }}
+    {{- end }}
   secrets:
+    {{- if .Values.uploadXml }}
     uploadXmlAwsAccessKeyId: {{ .Values.uploadXml.awsAccessKeyId }}
     uploadXmlAwsSecretAccessKey: {{ .Values.uploadXml.awsSecretAccessKey }}
-  {{- end }}
+    {{- end }}
+    redisPassword: very-secure-redis-master-password
   tls:
     caNamespace: wire-federation-v0
 

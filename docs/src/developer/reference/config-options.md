@@ -856,7 +856,11 @@ The corresponding Cassandra options are described in Cassandra's documentation:
 
 ## Configure Elasticsearch basic authentication
 
-When the Wire backend is configured to work against a custom Elasticsearch instance, it may be desired to enable basic authentication for the internal communication between the Wire backend and the ES instance. To do so the Elasticsearch credentials can be set in wire-server's secrets for `brig` and `elasticsearch-index` as follows:
+When the Wire backend is configured to work against a custom Elasticsearch
+instance, it may be desired to enable basic authentication for the internal
+communication between the Wire backend and the ES instance. To do so the
+Elasticsearch credentials can be set in wire-server's secrets for `brig` and
+`elasticsearch-index` as follows:
 
 ```yaml
 brig:
@@ -872,7 +876,9 @@ elasticsearch-index:
       password: changeme
 ```
 
-In some cases an additional Elasticsearch instance is needed (e.g. for index migrations). To configure credentials for the additional ES instance add the secret as follows:
+In some cases an additional Elasticsearch instance is needed (e.g. for index
+migrations). To configure credentials for the additional ES instance add the
+secret as follows:
 
 ```yaml
 brig:
@@ -881,3 +887,33 @@ brig:
       username: elastic
       password: changeme
 ```
+
+## Configure Redis authentication
+
+If the redis used needs authentication with either username and password or just
+password (legacy auth), it can be configured like this:
+
+```yaml
+gundeck:
+  secrets:
+    redisUsername: <username>
+    redisPassword: <password>
+```
+
+**NOTE**: When using redis < 6, the `redisUsername` must not be set at all (not
+even set to `null` or empty string, the key must be absent from the config).
+When using redis >= 6 and using legacy auth, the `redisUsername` must either be
+not set at all or set to `"default"`.
+
+While doing migrations to another redis instance, the credentials for the
+addtional redis can be set as follows:
+
+```yaml
+gundeck:
+  secrets:
+    redisAdditionalWriteUsername: <username>  # Do not set this at all when using legacy auth
+    redisAdditionalWritePassword: <password>
+```
+
+**NOTE**: `redisAddtiionalWriteUsername` follows same restrictions as
+`redisUsername` when using legacy auth.

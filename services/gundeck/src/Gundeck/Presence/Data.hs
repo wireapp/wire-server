@@ -25,13 +25,14 @@ where
 
 import Control.Monad.Catch
 import Control.Monad.Except
-import Data.Aeson
+import Data.Aeson as Aeson
 import Data.ByteString qualified as Strict
 import Data.ByteString.Builder (byteString)
 import Data.ByteString.Char8 qualified as StrictChars
 import Data.ByteString.Conversion hiding (fromList)
 import Data.ByteString.Lazy qualified as Lazy
 import Data.Id
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Misc (Milliseconds)
 import Database.Redis
 import Gundeck.Monad (Gundeck, posixTime, runWithAdditionalRedis)
@@ -61,10 +62,10 @@ add p = do
   now <- posixTime
   let k = toKey (userId p)
   let v = toField (connId p)
-  let d = Lazy.toStrict $ encode $ PresenceData (resource p) (clientId p) now
+  let d = Lazy.toStrict $ Aeson.encode $ PresenceData p.resource p.clientId now
   runWithAdditionalRedis . retry x3 $ do
     void . fromTxResult <=< (liftRedis . multiExec) $ do
-      void $ hset k v d
+      void $ hset k (NonEmpty.singleton (v, d))
       -- nb. All presences of a user are expired 'maxIdleTime' after the
       -- last presence was registered. A client who keeps a presence
       -- (i.e. websocket) connected for longer than 'maxIdleTime' will be

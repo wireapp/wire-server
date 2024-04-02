@@ -116,6 +116,15 @@ let
       };
     };
 
+    # PR: https://github.com/informatikr/hedis/pull/224
+    hedis = {
+      src = fetchgit {
+        url = "https://github.com/wireapp/hedis";
+        rev = "81cdd8a2350b96168a06662c2601a41141a19f2d";
+        sha256 = "sha256-0g6x9UOUq7s5ClnxMXvjYR2AsWNA6ymv1tYlQC44hGs=";
+      };
+    };
+
     # Our fork because we need to a few special things
     http-client = {
       src = fetchgit {
