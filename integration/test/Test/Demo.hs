@@ -7,10 +7,15 @@ import qualified API.Brig as BrigP
 import qualified API.BrigInternal as BrigI
 import qualified API.GalleyInternal as GalleyI
 import qualified API.Nginz as Nginz
+import Control.Concurrent
 import Control.Monad.Cont
+import Data.Function
+import Data.Maybe
 import GHC.Stack
 import SetupHelpers
+import Testlib.ModService.ServiceInstance
 import Testlib.Prelude
+import UnliftIO.Directory
 
 -- | Legalhold clients cannot be deleted.
 testCantDeleteLHClient :: HasCallStack => App ()
@@ -218,3 +223,38 @@ testFedV0Federation = do
 
   bob' <- BrigP.getUser alice bob >>= getJSON 200
   bob' %. "qualified_id" `shouldMatch` (bob %. "qualified_id")
+
+testServiceHandles :: App ()
+testServiceHandles = do
+  -- The name was generated with a roll of a fair dice
+  let exe = "/tmp/tmp-42956614-e50a-11ee-8c4b-6b596d54b36b"
+      execName = "test-exec"
+      dom = "test-domain"
+
+  writeFile
+    exe
+    "#!/usr/bin/env bash\n\
+    \echo errmsg >&2\n\
+    \for i in `seq 0 100`; do\n\
+    \  echo $i\n\
+    \  sleep 0.1\n\
+    \done\n"
+  perms <- getPermissions exe
+  setPermissions exe (setOwnerExecutable True perms)
+  serviceInstance <- liftIO $ startServiceInstance exe [] Nothing exe execName dom
+  liftIO $ threadDelay 1_000_000
+  cleanupServiceInstance serviceInstance
+  processState <- liftIO $ flushServiceInstanceOutput serviceInstance
+  processState
+    `shouldContainString` "=== stdout: ============================================\n\
+                          \[test-exec@test-domain] 0\n\
+                          \[test-exec@test-domain] 1\n\
+                          \[test-exec@test-domain] 2\n\
+                          \[test-exec@test-domain] 3\n\
+                          \[test-exec@test-domain] 4\n\
+                          \[test-exec@test-domain] 5\n\
+                          \[test-exec@test-domain] 6\n\
+                          \[test-exec@test-domain] 7\n"
+  processState
+    `shouldContainString` "=== stderr: ============================================\n\
+                          \[test-exec@test-domain] errmsg\n"
