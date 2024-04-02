@@ -97,6 +97,7 @@ library
     , retry
     , text
     , tinylog
+    , transformers
     , types-common
     , wire-api
 
