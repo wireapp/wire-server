@@ -244,6 +244,11 @@ data ClientGroupState = ClientGroupState
   }
   deriving (Show)
 
+csSignatureScheme :: Ciphersuite -> String
+csSignatureScheme (Ciphersuite code) = case code of
+  "0x0002" -> "ecdsa_secp256r1_sha256"
+  _ -> "ed25519"
+
 data MLSProtocol = MLSProtocolMLS | MLSProtocolMixed
   deriving (Eq, Show)
 

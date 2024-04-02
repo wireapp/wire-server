@@ -163,12 +163,13 @@ createMLSClient opts u = do
 
   -- set public key
   pkey <- mlscli cid ["public-key"] Nothing
+  ciphersuite <- (.ciphersuite) <$> getMLSState
   bindResponse
     ( updateClient
         cid
         def
           { mlsPublicKeys =
-              Just (object ["ed25519" .= T.decodeUtf8 (Base64.encode pkey)])
+              Just (object [csSignatureScheme ciphersuite .= T.decodeUtf8 (Base64.encode pkey)])
           }
     )
     $ \resp -> resp.status `shouldMatchInt` 200
