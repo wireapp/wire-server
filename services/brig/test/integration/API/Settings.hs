@@ -30,14 +30,17 @@ import Data.ByteString.Char8 qualified as C8
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Set qualified as Set
-import Galley.Types.Teams qualified as Team
 import Imports
 import Test.Tasty hiding (Timeout)
 import Test.Tasty.HUnit
 import Util
+import Wire.API.Team.Member (rolePermissions)
 import Wire.API.Team.Permission
 import Wire.API.Team.Role
 import Wire.API.User
+
+allEmailVisibilities :: [EmailVisibilityConfig]
+allEmailVisibilities = [EmailVisibleIfOnTeam, EmailVisibleIfOnSameTeam (), EmailVisibleToSelf]
 
 tests :: Opts -> Manager -> Brig -> Galley -> IO TestTree
 tests defOpts manager brig galley = pure $ do
@@ -47,14 +50,14 @@ tests defOpts manager brig galley = pure $ do
         "setEmailVisibility"
         [ testGroup
             "/users/"
-            $ ((,) <$> [minBound ..] <*> [minBound ..])
+            $ ((,) <$> [minBound ..] <*> allEmailVisibilities)
               <&> \(viewingUserIs, visibility) -> do
                 testCase (show (viewingUserIs, visibility))
                   . runHttpT manager
                   $ testUsersEmailVisibleIffExpected defOpts brig galley viewingUserIs visibility,
           testGroup
             "/users/:uid"
-            $ ((,) <$> [minBound ..] <*> [minBound ..])
+            $ ((,) <$> [minBound ..] <*> allEmailVisibilities)
               <&> \(viewingUserIs, visibility) -> do
                 testCase (show (viewingUserIs, visibility))
                   . runHttpT manager
@@ -70,13 +73,13 @@ data ViewedUserIs = SameTeam | DifferentTeam | NoTeam
 data ViewingUserIs = Creator | Member | Guest
   deriving (Eq, Show, Enum, Bounded)
 
-expectEmailVisible :: Opt.EmailVisibility -> ViewingUserIs -> ViewedUserIs -> Bool
-expectEmailVisible Opt.EmailVisibleIfOnTeam = \case
+expectEmailVisible :: EmailVisibilityConfig -> ViewingUserIs -> ViewedUserIs -> Bool
+expectEmailVisible EmailVisibleIfOnTeam = \case
   _ -> \case
     SameTeam -> True
     DifferentTeam -> True
     NoTeam -> False
-expectEmailVisible Opt.EmailVisibleIfOnSameTeam = \case
+expectEmailVisible (EmailVisibleIfOnSameTeam _) = \case
   Creator -> \case
     SameTeam -> True
     DifferentTeam -> False
@@ -89,7 +92,7 @@ expectEmailVisible Opt.EmailVisibleIfOnSameTeam = \case
     SameTeam -> False
     DifferentTeam -> False
     NoTeam -> False
-expectEmailVisible Opt.EmailVisibleToSelf = \case
+expectEmailVisible EmailVisibleToSelf = \case
   _ -> \case
     SameTeam -> False
     DifferentTeam -> False
@@ -98,7 +101,7 @@ expectEmailVisible Opt.EmailVisibleToSelf = \case
 jsonField :: FromJSON a => Key -> Value -> Maybe a
 jsonField f u = u ^? key f >>= maybeFromJSON
 
-testUsersEmailVisibleIffExpected :: Opts -> Brig -> Galley -> ViewingUserIs -> Opt.EmailVisibility -> Http ()
+testUsersEmailVisibleIffExpected :: Opts -> Brig -> Galley -> ViewingUserIs -> EmailVisibilityConfig -> Http ()
 testUsersEmailVisibleIffExpected opts brig galley viewingUserIs visibilitySetting = do
   (viewerId, userA, userB, nonTeamUser) <- setup brig galley viewingUserIs
   let uids =
@@ -131,7 +134,7 @@ testUsersEmailVisibleIffExpected opts brig galley viewingUserIs visibilitySettin
   where
     result r = Set.fromList . map (jsonField "id" &&& jsonField "email") <$> responseJsonMaybe r
 
-testGetUserEmailShowsEmailsIffExpected :: Opts -> Brig -> Galley -> ViewingUserIs -> Opt.EmailVisibility -> Http ()
+testGetUserEmailShowsEmailsIffExpected :: Opts -> Brig -> Galley -> ViewingUserIs -> EmailVisibilityConfig -> Http ()
 testGetUserEmailShowsEmailsIffExpected opts brig galley viewingUserIs visibilitySetting = do
   (viewerId, userA, userB, nonTeamUser) <- setup brig galley viewingUserIs
   let expectations :: [(UserId, Maybe Email)]
@@ -171,6 +174,6 @@ setup brig galley viewingUserIs = do
   nonTeamUser <- createUser "joe" brig
   viewerId <- case viewingUserIs of
     Creator -> pure creatorId
-    Member -> userId <$> createTeamMember brig galley creatorId tid (Team.rolePermissions RoleOwner)
-    Guest -> userId <$> createTeamMember brig galley creatorId tid (Team.rolePermissions RoleExternalPartner)
+    Member -> userId <$> createTeamMember brig galley creatorId tid (rolePermissions RoleOwner)
+    Guest -> userId <$> createTeamMember brig galley creatorId tid (rolePermissions RoleExternalPartner)
   pure (viewerId, userA, userB, nonTeamUser)

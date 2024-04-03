@@ -29,7 +29,6 @@ module Spar.Sem.GalleyAccess
 where
 
 import Data.Id (TeamId, UserId)
-import Galley.Types.Teams (IsPerm)
 import Imports
 import Polysemy
 import Wire.API.Team.Member

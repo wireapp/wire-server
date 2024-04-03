@@ -57,7 +57,6 @@ import Data.List1 qualified as List1
 import Data.Qualified (Local)
 import Data.Range
 import Data.Time.Clock (UTCTime)
-import Galley.Types.Teams qualified as Team
 import Imports hiding (head)
 import Network.Wai.Utilities hiding (code, message)
 import Polysemy
@@ -147,7 +146,7 @@ createInvitationPublic ::
 createInvitationPublic uid tid body = do
   let inviteeRole = fromMaybe defaultRole . irRole $ body
   inviter <- do
-    let inviteePerms = Team.rolePermissions inviteeRole
+    let inviteePerms = Teams.rolePermissions inviteeRole
     idt <- maybe (throwStd (errorToWai @'E.NoIdentity)) pure =<< lift (fetchUserIdentity uid)
     from <- maybe (throwStd (errorToWai @'E.NoEmail)) pure (emailIdentity idt)
     ensurePermissionToAddUser uid tid inviteePerms

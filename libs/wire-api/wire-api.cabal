@@ -203,6 +203,7 @@ library
     Wire.API.Team.Conversation
     Wire.API.Team.Export
     Wire.API.Team.Feature
+    Wire.API.Team.HardTruncationLimit
     Wire.API.Team.Invitation
     Wire.API.Team.LegalHold
     Wire.API.Team.LegalHold.External
@@ -677,6 +678,7 @@ test-suite wire-api-tests
     , hspec-wai
     , http-types
     , imports
+    , lens
     , memory
     , metrics-wai
     , openapi3

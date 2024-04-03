@@ -40,7 +40,6 @@ import Data.Range (unsafeRange)
 import Data.Text.Ascii (AsciiChars (validate))
 import Data.Time (UTCTime)
 import Data.Time.Clock (getCurrentTime)
-import qualified Galley.Types.Teams as Galley
 import Imports
 import OpenSSL.Random (randBytes)
 import qualified SAML2.WebSSO as SAML
@@ -50,6 +49,7 @@ import Text.RawString.QQ (r)
 import Util
 import Wire.API.Team.Feature (featureNameBS)
 import qualified Wire.API.Team.Feature as Public
+import Wire.API.Team.Member (rolePermissions)
 import Wire.API.Team.Role
 import Wire.API.User (userEmail)
 import qualified Wire.API.User as Public
@@ -233,7 +233,7 @@ testCreateTokenAuthorizesOnlyAdmins = do
             (env ^. teBrig)
             (env ^. teGalley)
             teamId
-            (Galley.rolePermissions role)
+            (rolePermissions role)
 
   let createToken' uid =
         createToken_

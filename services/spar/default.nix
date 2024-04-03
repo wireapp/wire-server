@@ -23,7 +23,6 @@
 , email-validate
 , exceptions
 , extended
-, galley-types
 , gitignoreSource
 , hscim
 , HsOpenSSL
@@ -101,7 +100,6 @@ mkDerivation {
     crypton-x509
     exceptions
     extended
-    galley-types
     hscim
     hspec
     http-types
@@ -154,7 +152,6 @@ mkDerivation {
     email-validate
     exceptions
     extended
-    galley-types
     hscim
     HsOpenSSL
     hspec

@@ -57,7 +57,6 @@ import Data.Id (Id (..), TeamId, UserId, idToText)
 import Data.Json.Util (UTCTimeMillis, fromUTCTimeMillis, toUTCTimeMillis)
 import qualified Data.Text as Text
 import qualified Data.UUID as UUID
-import qualified Galley.Types.Teams as Galley
 import Imports
 import Network.URI (URI, parseURI)
 import Polysemy
@@ -991,7 +990,7 @@ synthesizeStoredUser usr veid =
   where
     getRole :: Sem r Role
     getRole = do
-      let tmRoleOrDefault m = fromMaybe defaultRole $ m >>= \member -> member ^. Member.permissions . to Galley.permissionsRole
+      let tmRoleOrDefault m = fromMaybe defaultRole $ m >>= \member -> member ^. Member.permissions . to Member.permissionsRole
       maybe (pure defaultRole) (\tid -> tmRoleOrDefault <$> GalleyAccess.getTeamMember tid (userId $ accountUser usr)) (userTeam $ accountUser usr)
 
 synthesizeStoredUser' ::

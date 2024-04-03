@@ -81,7 +81,6 @@ import Galley.Intra.User (chunkify)
 import Galley.Options qualified as Opts
 import Galley.Run qualified as Run
 import Galley.Types.Conversations.One2One
-import Galley.Types.Teams qualified as Team
 import Galley.Types.UserList
 import Imports
 import Network.HTTP.Client qualified as HTTP

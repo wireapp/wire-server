@@ -30,7 +30,7 @@ import Brig.User.Auth.Cookie.Limit
 import Brig.ZAuth qualified as ZAuth
 import Control.Applicative
 import Control.Lens qualified as Lens
-import Data.Aeson (defaultOptions, fieldLabelModifier, genericParseJSON, withText)
+import Data.Aeson (defaultOptions, fieldLabelModifier, genericParseJSON)
 import Data.Aeson qualified as A
 import Data.Aeson qualified as Aeson
 import Data.Aeson.Types (typeMismatch)
@@ -363,34 +363,6 @@ instance FromJSON TurnDnsOpts where
       <$> (asciiOnly =<< o .: "baseDomain")
       <*> o .:? "discoveryIntervalSeconds"
 
--- | Configurations for whether to show a user's email to others.
-data EmailVisibility
-  = -- | Anyone can see the email of someone who is on ANY team.
-    --         This may sound strange; but certain on-premise hosters have many different teams
-    --         and still want them to see each-other's emails.
-    EmailVisibleIfOnTeam
-  | -- | Anyone on your team with at least 'Member' privileges can see your email address.
-    EmailVisibleIfOnSameTeam
-  | -- | Show your email only to yourself
-    EmailVisibleToSelf
-  deriving (Eq, Show, Bounded, Enum)
-
-instance FromJSON EmailVisibility where
-  parseJSON = withText "EmailVisibility" $ \case
-    "visible_if_on_team" -> pure EmailVisibleIfOnTeam
-    "visible_if_on_same_team" -> pure EmailVisibleIfOnSameTeam
-    "visible_to_self" -> pure EmailVisibleToSelf
-    _ ->
-      fail $
-        "unexpected value for EmailVisibility settings: "
-          <> "expected one of "
-          <> show (Aeson.encode <$> [(minBound :: EmailVisibility) ..])
-
-instance ToJSON EmailVisibility where
-  toJSON EmailVisibleIfOnTeam = "visible_if_on_team"
-  toJSON EmailVisibleIfOnSameTeam = "visible_if_on_same_team"
-  toJSON EmailVisibleToSelf = "visible_to_self"
-
 data ListAllSFTServers
   = ListAllSFTServers
   | HideAllSFTServers
@@ -532,7 +504,7 @@ data Settings = Settings
     --   the given provider id
     setProviderSearchFilter :: !(Maybe ProviderId),
     -- | Whether to expose user emails and to whom
-    setEmailVisibility :: !EmailVisibility,
+    setEmailVisibility :: !EmailVisibilityConfig,
     setPropertyMaxKeyLen :: !(Maybe Int64),
     setPropertyMaxValueLen :: !(Maybe Int64),
     -- | How long, in milliseconds, to wait

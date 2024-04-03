@@ -168,8 +168,6 @@ import Data.UUID as UUID hiding (fromByteString, null)
 import Data.UUID.V4 as UUID (nextRandom)
 import qualified Data.Yaml as Yaml
 import GHC.TypeLits
-import Galley.Types.Teams (rolePermissions)
-import qualified Galley.Types.Teams as Teams
 import Imports hiding (head)
 import Network.HTTP.Client.MultipartFormData
 import qualified Network.Wai.Handler.Warp as Warp
@@ -207,7 +205,7 @@ import Wire.API.Team (Icon (..))
 import qualified Wire.API.Team as Galley
 import Wire.API.Team.Feature (FeatureStatus (..), FeatureTTL' (..), FeatureTrivialConfig (trivialConfig), SSOConfig, WithStatusNoLock (WithStatusNoLock))
 import qualified Wire.API.Team.Invitation as TeamInvitation
-import Wire.API.Team.Member (NewTeamMember, TeamMemberList)
+import Wire.API.Team.Member (NewTeamMember, TeamMemberList, rolePermissions)
 import qualified Wire.API.Team.Member as Member
 import qualified Wire.API.Team.Member as Team
 import Wire.API.Team.Permission
@@ -1374,7 +1372,7 @@ checkChangeRoleOfTeamMember :: TeamId -> UserId -> UserId -> TestSpar ()
 checkChangeRoleOfTeamMember tid adminId targetId = forM_ [minBound ..] $ \role -> do
   updateTeamMemberRole tid adminId targetId role
   [member'] <- filter ((== targetId) . (^. Member.userId)) <$> getTeamMembers adminId tid
-  liftIO $ (member' ^. Member.permissions . to Teams.permissionsRole) `shouldBe` Just role
+  liftIO $ (member' ^. Member.permissions . to Member.permissionsRole) `shouldBe` Just role
 
 eventually :: HasCallStack => TestSpar a -> TestSpar a
 eventually = recoverAll (limitRetries 3 <> exponentialBackoff 100000) . const
