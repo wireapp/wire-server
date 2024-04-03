@@ -29,6 +29,7 @@ import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import Data.Traversable
 import qualified Data.Yaml as Yaml
+import Debug.Trace (traceM)
 import GHC.Stack
 import qualified Network.HTTP.Client as HTTP
 import System.Directory (copyFile, createDirectoryIfMissing, doesDirectoryExist, doesFileExist, listDirectory, removeDirectoryRecursive, removeFile)
@@ -130,6 +131,9 @@ startDynamicBackends beOverrides k =
 
 startDynamicBackend :: BackendResource -> ServiceOverrides -> Codensity App ()
 startDynamicBackend resource beOverrides = do
+  traceM $ "1. " <> show resource.berName
+  traceM $ "2. " <> show resource.berDomain
+  traceM $ "3. " <> show resource.berVHost
   let overrides =
         mconcat
           [ setKeyspace,
@@ -358,6 +362,9 @@ withProcess resource overrides service = do
         (Nginz, Just _) -> startNginzLocalIO
         _ -> do
           config <- getConfig
+          when
+            (service == Galley)
+            (traceM $ "\n4. " <> show config <> "\n")
           tempFile <- writeTempFile "/tmp" (execName <> "-" <> domain <> "-" <> ".yaml") (cs $ Yaml.encode config)
           (_, Just stdoutHdl, Just stderrHdl, ph) <- createProcess (proc exe ["-c", tempFile]) {cwd = cwd, std_out = CreatePipe, std_err = CreatePipe}
           let prefix = "[" <> execName <> "@" <> domain <> "] "

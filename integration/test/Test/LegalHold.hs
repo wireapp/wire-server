@@ -484,50 +484,50 @@ setTimeoutTo :: Int -> Env -> Env
 setTimeoutTo tSecs env = env {timeOutSeconds = tSecs}
 
 testLHDisableForUser :: App ()
-testLHDisableForUser =
-  startDynamicBackends [mempty] \[dom] -> do
-    -- team users
-    -- alice (team owner) and bob (member)
-    (alice, tid, [bob]) <- createTeam dom 2
+testLHDisableForUser = do
+  let dom = OwnDomain
+  -- team users
+  -- alice (team owner) and bob (member)
+  (alice, tid, [bob]) <- createTeam dom 2
 
-    withMockServer lhMockApp \lhPort chan -> do
-      setUpLHDevice tid alice bob lhPort
+  withMockServer lhMockApp \lhPort chan -> do
+    setUpLHDevice tid alice bob lhPort
 
-      bobc <- objId $ addClient bob def `bindResponse` getJSON 201
+    bobc <- objId $ addClient bob def `bindResponse` getJSON 201
 
-      awaitNotification bob bobc noValue isUserClientAddNotif >>= \notif -> do
-        notif %. "payload.0.client.type" `shouldMatch` "legalhold"
-        notif %. "payload.0.client.class" `shouldMatch` "legalhold"
+    awaitNotification bob bobc noValue isUserClientAddNotif >>= \notif -> do
+      notif %. "payload.0.client.type" `shouldMatch` "legalhold"
+      notif %. "payload.0.client.class" `shouldMatch` "legalhold"
 
-      -- only an admin can disable legalhold
-      disableLegalHold tid bob bob defPassword
-        >>= assertLabel 403 "operation-denied"
+    -- only an admin can disable legalhold
+    disableLegalHold tid bob bob defPassword
+      >>= assertLabel 403 "operation-denied"
 
-      disableLegalHold tid alice bob "fix ((\"the password always is \" <>) . show)"
-        >>= assertLabel 403 "access-denied"
+    disableLegalHold tid alice bob "fix ((\"the password always is \" <>) . show)"
+      >>= assertLabel 403 "access-denied"
 
-      disableLegalHold tid alice bob defPassword
-        >>= assertStatus 200
+    disableLegalHold tid alice bob defPassword
+      >>= assertStatus 200
 
-      checkChan chan \(req, _) -> runMaybeT do
-        unless
-          do
-            BS8.unpack req.requestMethod == "POST"
-              && req.pathInfo == (T.pack <$> ["legalhold", "remove"])
-          mzero
+    checkChan chan \(req, _) -> runMaybeT do
+      unless
+        do
+          BS8.unpack req.requestMethod == "POST"
+            && req.pathInfo == (T.pack <$> ["legalhold", "remove"])
+        mzero
 
-      void $ local (setTimeoutTo 90) do
-        awaitNotification bob bobc noValue isUserClientRemoveNotif
-          *> awaitNotification bob bobc noValue isUserLegalholdDisabledNotif
+    void $ local (setTimeoutTo 90) do
+      awaitNotification bob bobc noValue isUserClientRemoveNotif
+        *> awaitNotification bob bobc noValue isUserLegalholdDisabledNotif
 
-      bobId <- objId bob
-      lhClients <-
-        BrigI.getClientsFull bob [bobId] `bindResponse` \resp -> do
-          resp.json %. bobId
-            & asList
-            >>= filterM \val -> (== "legalhold") <$> (val %. "type" & asString)
+    bobId <- objId bob
+    lhClients <-
+      BrigI.getClientsFull bob [bobId] `bindResponse` \resp -> do
+        resp.json %. bobId
+          & asList
+          >>= filterM \val -> (== "legalhold") <$> (val %. "type" & asString)
 
-      shouldBeEmpty lhClients
+    shouldBeEmpty lhClients
 
 testLHEnablePerTeam :: App ()
 testLHEnablePerTeam = do
@@ -781,55 +781,53 @@ data GroupConvAdmin
   deriving (Show, Generic)
 
 testLHNoConsentRemoveFromGroup :: GroupConvAdmin -> App ()
-testLHNoConsentRemoveFromGroup admin =
-  startDynamicBackends [mempty] \[dom] -> do
-    -- team users
-    -- alice (team owner) and bob (member)
-    (alice, tidAlice, []) <- createTeam dom 1
-    (bob, tidBob, []) <- createTeam dom 1
-    legalholdWhitelistTeam tidAlice alice >>= assertStatus 200
-    withMockServer lhMockApp \lhPort _chan -> do
-      postLegalHoldSettings tidAlice alice (mkLegalHoldSettings lhPort) >>= assertStatus 201
-      withWebSockets [alice, bob] \[aws, bws] -> do
-        connectTwoUsers alice bob
-        (convId, qConvId) <- do
-          let (inviter, tidInviter, invitee, inviteeRole) = case admin of
-                LegalholderIsAdmin -> (alice, tidAlice, bob, "wire_member")
-                BothAreAdmins -> (alice, tidAlice, bob, "wire_admin")
-                PeerIsAdmin -> (bob, tidBob, alice, "wire_member")
+testLHNoConsentRemoveFromGroup admin = do
+  let dom = OwnDomain
+  (alice, tidAlice, []) <- createTeam dom 1
+  (bob, tidBob, []) <- createTeam dom 1
+  legalholdWhitelistTeam tidAlice alice >>= assertStatus 200
+  withMockServer lhMockApp \lhPort _chan -> do
+    postLegalHoldSettings tidAlice alice (mkLegalHoldSettings lhPort) >>= assertStatus 201
+    withWebSockets [alice, bob] \[aws, bws] -> do
+      connectTwoUsers alice bob
+      (convId, qConvId) <- do
+        let (inviter, tidInviter, invitee, inviteeRole) = case admin of
+              LegalholderIsAdmin -> (alice, tidAlice, bob, "wire_member")
+              BothAreAdmins -> (alice, tidAlice, bob, "wire_admin")
+              PeerIsAdmin -> (bob, tidBob, alice, "wire_member")
 
-          let createConv = defProteus {qualifiedUsers = [invitee], newUsersRole = inviteeRole, team = Just tidInviter}
-          postConversation inviter createConv `bindResponse` \resp -> do
-            resp.json %. "members.self.conversation_role" `shouldMatch` "wire_admin"
-            case admin of
-              BothAreAdmins -> resp.json %. "members.others.0.conversation_role" `shouldMatch` "wire_admin"
-              _ -> resp.json %. "members.others.0.conversation_role" `shouldMatch` "wire_member"
-            (,) <$> resp.json %. "id" <*> resp.json %. "qualified_id"
-        for_ [aws, bws] \ws -> do
-          awaitMatch isConvCreateNotifNotSelf ws >>= \pl -> pl %. "payload.0.conversation" `shouldMatch` convId
+        let createConv = defProteus {qualifiedUsers = [invitee], newUsersRole = inviteeRole, team = Just tidInviter}
+        postConversation inviter createConv `bindResponse` \resp -> do
+          resp.json %. "members.self.conversation_role" `shouldMatch` "wire_admin"
+          case admin of
+            BothAreAdmins -> resp.json %. "members.others.0.conversation_role" `shouldMatch` "wire_admin"
+            _ -> resp.json %. "members.others.0.conversation_role" `shouldMatch` "wire_member"
+          (,) <$> resp.json %. "id" <*> resp.json %. "qualified_id"
+      for_ [aws, bws] \ws -> do
+        awaitMatch isConvCreateNotifNotSelf ws >>= \pl -> pl %. "payload.0.conversation" `shouldMatch` convId
 
-        for_ [alice, bob] \user ->
-          getConversation user qConvId >>= assertStatus 200
+      for_ [alice, bob] \user ->
+        getConversation user qConvId >>= assertStatus 200
 
-        requestLegalHoldDevice tidAlice alice alice >>= assertStatus 201
-        approveLegalHoldDevice tidAlice alice defPassword >>= assertStatus 200
-        legalholdUserStatus tidAlice alice alice `bindResponse` \resp -> do
-          resp.json %. "status" `shouldMatch` "enabled"
-          resp.status `shouldMatchInt` 200
+      requestLegalHoldDevice tidAlice alice alice >>= assertStatus 201
+      approveLegalHoldDevice tidAlice alice defPassword >>= assertStatus 200
+      legalholdUserStatus tidAlice alice alice `bindResponse` \resp -> do
+        resp.json %. "status" `shouldMatch` "enabled"
+        resp.status `shouldMatchInt` 200
 
-        case admin of
-          LegalholderIsAdmin -> do
-            for_ [aws, bws] do awaitMatch (isConvLeaveNotifWithLeaver bob)
-            getConversation alice qConvId >>= assertStatus 200
-            getConversation bob qConvId >>= assertLabel 403 "access-denied"
-          PeerIsAdmin -> do
-            for_ [aws, bws] do awaitMatch (isConvLeaveNotifWithLeaver alice)
-            getConversation bob qConvId >>= assertStatus 200
-            getConversation alice qConvId >>= assertLabel 403 "access-denied"
-          BothAreAdmins -> do
-            for_ [aws, bws] do awaitMatch (isConvLeaveNotifWithLeaver bob)
-            getConversation alice qConvId >>= assertStatus 200
-            getConversation bob qConvId >>= assertLabel 403 "access-denied"
+      case admin of
+        LegalholderIsAdmin -> do
+          for_ [aws, bws] do awaitMatch (isConvLeaveNotifWithLeaver bob)
+          getConversation alice qConvId >>= assertStatus 200
+          getConversation bob qConvId >>= assertLabel 403 "access-denied"
+        PeerIsAdmin -> do
+          for_ [aws, bws] do awaitMatch (isConvLeaveNotifWithLeaver alice)
+          getConversation bob qConvId >>= assertStatus 200
+          getConversation alice qConvId >>= assertLabel 403 "access-denied"
+        BothAreAdmins -> do
+          for_ [aws, bws] do awaitMatch (isConvLeaveNotifWithLeaver bob)
+          getConversation alice qConvId >>= assertStatus 200
+          getConversation bob qConvId >>= assertLabel 403 "access-denied"
 
 testLHHappyFlow :: App ()
 testLHHappyFlow = startDynamicBackends [mempty] \[dom] -> do

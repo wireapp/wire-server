@@ -86,9 +86,6 @@ mockServerCert =
   \T45GXxRd18neXtuYa/OoAw9UQFDN5XfXN0g=\n\
   \-----END CERTIFICATE-----"
 
-botHost :: String
-botHost = "localhost"
-
 withFreePortAnyAddr :: (MonadMask m, MonadIO m) => ((Warp.Port, Socket) -> m a) -> m a
 withFreePortAnyAddr = bracket openFreePortAnyAddr (liftIO . Socket.close . snd)
 
@@ -175,7 +172,7 @@ lhMockAppWithPrekeys mks ch req cont = withRunInIO \inIO -> do
 mkLegalHoldSettings :: Warp.Port -> Value
 mkLegalHoldSettings lhPort =
   object
-    [ "base_url" .= ("https://" <> botHost <> ":" <> show lhPort <> "/legalhold"),
+    [ "base_url" .= ("https://wire-server-integration-integration" <> ":" <> show lhPort <> "/legalhold"),
       "public_key" .= mockServerPubKey,
       "auth_token" .= "tok"
     ]
