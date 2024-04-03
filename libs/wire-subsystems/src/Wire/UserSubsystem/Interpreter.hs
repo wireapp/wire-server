@@ -22,29 +22,26 @@ data UserSubsystemConfig = UserSubsystemConfig
     defaultLocale :: Locale
   }
 
-getUserProfileImpl ::
+getLocalUserProfileImpl ::
   forall r.
   ( Member UserStore r,
     Member (Input UserSubsystemConfig) r,
     Member GalleyAPIAccess r
   ) =>
   UserId ->
-  Qualified UserId ->
+  UserId ->
   Sem r (Maybe UserProfile)
-getUserProfileImpl requestingUser quid = do
+getLocalUserProfileImpl requestingUser uid = do
   emailVisibilityConfig <- inputs emailVisibilityConfig
   emailVisibilityConfigWithViewer <-
-    case emailVisibilityConfig of
-      EmailVisibleIfOnTeam -> pure EmailVisibleIfOnTeam
-      EmailVisibleToSelf -> pure EmailVisibleToSelf
-      EmailVisibleIfOnSameTeam () ->
-        EmailVisibleIfOnSameTeam <$> getSelfInfo requestingUser
+    traverse
+      (const (getSelfInfo requestingUser))
+      emailVisibilityConfig
   domain <- inputs defaultDomain
   locale <- inputs defaultLocale
   user <- runMaybeT $ do
-    u <- MaybeT $ getUser (qUnqualified quid)
+    u <- MaybeT $ getUser uid
     maybe mzero pure $ mkUserFromStored domain locale NoPendingInvitations u
-  -- user <- (mkUserFromStored domain locale NoPendingInvitations =<<) <$> getUser (qUnqualified quid)
   pure $ (\u -> mkUserProfile emailVisibilityConfigWithViewer u UserLegalHoldDisabled) <$> user
   where
     getSelfInfo :: UserId -> Sem r (Maybe (TeamId, TeamMember))

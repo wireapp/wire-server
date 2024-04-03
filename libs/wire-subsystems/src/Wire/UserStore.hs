@@ -8,6 +8,7 @@ import Data.Json.Util
 import Imports
 import Polysemy
 import Wire.API.User
+import Wire.Arbitrary
 
 data StoredUser = StoredUser
   { id_ :: UserId,
@@ -30,6 +31,8 @@ data StoredUser = StoredUser
     managedBy :: Maybe ManagedBy,
     supportedProtocols :: Maybe (Set BaseProtocolTag)
   }
+  deriving (Show, Eq, Generic)
+  deriving (Arbitrary) via (GenericUniform StoredUser)
 
 data UserStore m a where
   GetUser :: UserId -> UserStore m (Maybe StoredUser)
