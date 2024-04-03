@@ -78,10 +78,12 @@ library
     Wire.UserStore
     Wire.UserSubsystem
     Wire.UserSubsystem.Interpreter
+    Wire.FederationAPIAccess
 
   hs-source-dirs:   src
   build-depends:
     , aeson
+    , wire-api-federation
     , async
     , base
     , bilge
