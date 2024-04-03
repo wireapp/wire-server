@@ -50,8 +50,6 @@ import Brig.Effects.BlacklistStore (BlacklistStore)
 import Brig.Effects.CodeStore (CodeStore)
 import Brig.Effects.ConnectionStore (ConnectionStore)
 import Brig.Effects.FederationConfigStore (FederationConfigStore)
-import Brig.Effects.GalleyProvider (GalleyProvider)
-import Brig.Effects.GalleyProvider qualified as GalleyProvider
 import Brig.Effects.JwtTools (JwtTools)
 import Brig.Effects.PasswordResetStore (PasswordResetStore)
 import Brig.Effects.PublicKeyBundle (PublicKeyBundle)
@@ -158,6 +156,8 @@ import Wire.API.User.Password qualified as Public
 import Wire.API.User.RichInfo qualified as Public
 import Wire.API.UserMap qualified as Public
 import Wire.API.Wrapped qualified as Public
+import Wire.GalleyAPIAccess (GalleyAPIAccess)
+import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.NotificationSubsystem
 import Wire.Sem.Concurrency
 import Wire.Sem.Jwk (Jwk)
@@ -282,10 +282,10 @@ servantSitemap ::
     Member (Embed HttpClientIO) r,
     Member (Embed IO) r,
     Member FederationConfigStore r,
-    Member GalleyProvider r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member Jwk r,
+    Member GalleyAPIAccess r,
     Member JwtTools r,
     Member NotificationSubsystem r,
     Member Now r,
@@ -580,7 +580,7 @@ getMultiUserPrekeyBundleH zusr qualUserClients = do
   API.claimMultiPrekeyBundles (ProtectedUser zusr) qualUserClients !>> clientError
 
 addClient ::
-  ( Member GalleyProvider r,
+  ( Member GalleyAPIAccess r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
     Member TinyLog r,
@@ -661,7 +661,7 @@ getRichInfo self user = do
   wrapClientE $ fromMaybe mempty <$> API.lookupRichInfo user
 
 getSupportedProtocols ::
-  Member GalleyProvider r =>
+  Member GalleyAPIAccess r =>
   Local UserId ->
   Qualified UserId ->
   Handler r (Set Public.BaseProtocolTag)
@@ -701,7 +701,7 @@ createAccessToken method luid cid proof = do
 -- | docs/reference/user/registration.md {#RefRegistration}
 createUser ::
   ( Member BlacklistStore r,
-    Member GalleyProvider r,
+    Member GalleyAPIAccess r,
     Member (UserPendingActivationStore p) r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
@@ -781,14 +781,14 @@ createUser (Public.NewUserPublic new) = lift . runExceptT $ do
       Public.NewTeamMemberSSO _ ->
         Team.sendMemberWelcomeMail e t n l
 
-getSelf :: Member GalleyProvider r => UserId -> (Handler r) Public.SelfProfile
+getSelf :: Member GalleyAPIAccess r => UserId -> (Handler r) Public.SelfProfile
 getSelf self =
   lift (API.lookupSelfProfile self)
     >>= ifNothing (errorToWai @'E.UserNotFound)
     >>= lift . liftSem . API.hackForBlockingHandleChangeForE2EIdTeams
 
 getUserUnqualifiedH ::
-  (Member GalleyProvider r) =>
+  (Member GalleyAPIAccess r) =>
   UserId ->
   UserId ->
   (Handler r) (Maybe Public.UserProfile)
@@ -797,7 +797,7 @@ getUserUnqualifiedH self uid = do
   getUser self (Qualified uid domain)
 
 getUser ::
-  (Member GalleyProvider r) =>
+  (Member GalleyAPIAccess r) =>
   UserId ->
   Qualified UserId ->
   (Handler r) (Maybe Public.UserProfile)
@@ -807,7 +807,7 @@ getUser self qualifiedUserId = do
 
 -- FUTUREWORK: Make servant understand that at least one of these is required
 listUsersByUnqualifiedIdsOrHandles ::
-  ( Member GalleyProvider r,
+  ( Member GalleyAPIAccess r,
     Member (Concurrency 'Unsafe) r
   ) =>
   UserId ->
@@ -842,7 +842,7 @@ listUsersByIdsOrHandlesGetUsers lself hs = do
 
 listUsersByIdsOrHandlesV3 ::
   forall r.
-  ( Member GalleyProvider r,
+  ( Member GalleyAPIAccess r,
     Member (Concurrency 'Unsafe) r
   ) =>
   UserId ->
@@ -867,7 +867,7 @@ listUsersByIdsOrHandlesV3 self q = do
 -- using a new return type
 listUsersByIdsOrHandles ::
   forall r.
-  ( Member GalleyProvider r,
+  ( Member GalleyAPIAccess r,
     Member (Concurrency 'Unsafe) r
   ) =>
   UserId ->
@@ -900,7 +900,7 @@ instance ToJSON GetActivationCodeResp where
 updateUser ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member GalleyProvider r,
+    Member GalleyAPIAccess r,
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
@@ -1012,7 +1012,7 @@ checkHandles _ (Public.CheckHandles hs num) = do
 -- 'Handle.getHandleInfo') returns UserProfile to reduce traffic between backends
 -- in a federated scenario.
 getHandleInfoUnqualifiedH ::
-  ( Member GalleyProvider r
+  ( Member GalleyAPIAccess r
   ) =>
   UserId ->
   Handle ->
@@ -1025,7 +1025,7 @@ getHandleInfoUnqualifiedH self handle = do
 changeHandle ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member GalleyProvider r,
+    Member GalleyAPIAccess r,
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
@@ -1066,7 +1066,7 @@ completePasswordReset req = do
 sendActivationCode ::
   ( Member BlacklistStore r,
     Member BlacklistPhonePrefixStore r,
-    Member GalleyProvider r
+    Member GalleyAPIAccess r
   ) =>
   Public.SendActivationCode ->
   (Handler r) ()
@@ -1092,7 +1092,7 @@ customerExtensionCheckBlockedDomains email = do
             customerExtensionBlockedDomain domain
 
 createConnectionUnqualified ::
-  ( Member GalleyProvider r,
+  ( Member GalleyAPIAccess r,
     Member NotificationSubsystem r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r
@@ -1108,7 +1108,7 @@ createConnectionUnqualified self conn cr = do
 
 createConnection ::
   ( Member FederationConfigStore r,
-    Member GalleyProvider r,
+    Member GalleyAPIAccess r,
     Member NotificationSubsystem r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r
@@ -1122,7 +1122,7 @@ createConnection self conn target = do
   API.createConnection lself conn target !>> connError
 
 updateLocalConnection ::
-  ( Member GalleyProvider r,
+  ( Member GalleyAPIAccess r,
     Member NotificationSubsystem r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r
@@ -1143,7 +1143,7 @@ updateConnection ::
     Member NotificationSubsystem r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
-    Member GalleyProvider r
+    Member GalleyAPIAccess r
   ) =>
   UserId ->
   ConnId ->
@@ -1214,7 +1214,7 @@ getConnection self other = do
   lift . wrapClient $ Data.lookupConnection lself other
 
 deleteSelfUser ::
-  ( Member GalleyProvider r,
+  ( Member GalleyAPIAccess r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
@@ -1243,7 +1243,7 @@ verifyDeleteUser body = API.verifyDeleteUser body !>> deleteUserError
 updateUserEmail ::
   forall r.
   ( Member BlacklistStore r,
-    Member GalleyProvider r
+    Member GalleyAPIAccess r
   ) =>
   UserId ->
   UserId ->
@@ -1266,13 +1266,13 @@ updateUserEmail zuserId emailOwnerId (Public.EmailUpdate email) = do
       where
         check = runMaybeT $ do
           teamId <- hoistMaybe maybeTeamId
-          teamMember <- MaybeT $ lift $ liftSem $ GalleyProvider.getTeamMember zuserId teamId
+          teamMember <- MaybeT $ lift $ liftSem $ GalleyAPIAccess.getTeamMember zuserId teamId
           pure $ teamMember `hasPermission` ChangeTeamMemberProfiles
 
 -- activation
 
 activate ::
-  ( Member GalleyProvider r,
+  ( Member GalleyAPIAccess r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
@@ -1289,7 +1289,7 @@ activate k c = do
 
 -- docs/reference/user/activation.md {#RefActivationSubmit}
 activateKey ::
-  ( Member GalleyProvider r,
+  ( Member GalleyAPIAccess r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
@@ -1314,7 +1314,7 @@ activateKey (Public.Activate tgt code dryrun)
 
 sendVerificationCode ::
   forall r.
-  Member GalleyProvider r =>
+  Member GalleyAPIAccess r =>
   Public.SendVerificationCode ->
   (Handler r) ()
 sendVerificationCode req = do
@@ -1351,7 +1351,7 @@ sendVerificationCode req = do
 
     getFeatureStatus :: Maybe UserAccount -> (Handler r) Bool
     getFeatureStatus mbAccount = do
-      mbStatusEnabled <- lift $ liftSem $ GalleyProvider.getVerificationCodeEnabled `traverse` (Public.userTeam <$> accountUser =<< mbAccount)
+      mbStatusEnabled <- lift $ liftSem $ GalleyAPIAccess.getVerificationCodeEnabled `traverse` (Public.userTeam <$> accountUser =<< mbAccount)
       pure $ fromMaybe False mbStatusEnabled
 
 getSystemSettings :: (Handler r) SystemSettingsPublic

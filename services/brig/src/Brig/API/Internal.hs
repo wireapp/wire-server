@@ -43,7 +43,6 @@ import Brig.Effects.CodeStore (CodeStore)
 import Brig.Effects.ConnectionStore (ConnectionStore)
 import Brig.Effects.FederationConfigStore (AddFederationRemoteResult (..), AddFederationRemoteTeamResult (..), FederationConfigStore, UpdateFederationResult (..))
 import Brig.Effects.FederationConfigStore qualified as E
-import Brig.Effects.GalleyProvider (GalleyProvider)
 import Brig.Effects.PasswordResetStore (PasswordResetStore)
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import Brig.IO.Intra qualified as Intra
@@ -51,7 +50,6 @@ import Brig.Options hiding (internalEvents, sesQueue)
 import Brig.Provider.API qualified as Provider
 import Brig.Team.API qualified as Team
 import Brig.Team.DB (lookupInvitationByEmail)
-import Brig.Team.Types (ShowOrHideInvitationUrl (..))
 import Brig.Types.Connection
 import Brig.Types.Intra
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
@@ -98,6 +96,7 @@ import Wire.API.User.Activation
 import Wire.API.User.Client
 import Wire.API.User.RichInfo
 import Wire.API.UserEvent
+import Wire.GalleyAPIAccess (GalleyAPIAccess, ShowOrHideInvitationUrl (..))
 import Wire.NotificationSubsystem
 import Wire.Rpc
 import Wire.Sem.Concurrency
@@ -112,7 +111,7 @@ servantSitemap ::
     Member (ConnectionStore InternalPaging) r,
     Member (Embed HttpClientIO) r,
     Member FederationConfigStore r,
-    Member GalleyProvider r,
+    Member GalleyAPIAccess r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member NotificationSubsystem r,
@@ -141,7 +140,7 @@ istatusAPI :: forall r. ServerT BrigIRoutes.IStatusAPI (Handler r)
 istatusAPI = Named @"get-status" (pure NoContent)
 
 ejpdAPI ::
-  ( Member GalleyProvider r,
+  ( Member GalleyAPIAccess r,
     Member NotificationSubsystem r,
     Member Rpc r
   ) =>
@@ -157,7 +156,7 @@ accountAPI ::
     Member CodeStore r,
     Member BlacklistPhonePrefixStore r,
     Member PasswordResetStore r,
-    Member GalleyProvider r,
+    Member GalleyAPIAccess r,
     Member (UserPendingActivationStore p) r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
@@ -207,7 +206,7 @@ accountAPI =
     :<|> Named @"iLegalholdDeleteClient" removeLegalHoldClientH
 
 teamsAPI ::
-  ( Member GalleyProvider r,
+  ( Member GalleyAPIAccess r,
     Member (UserPendingActivationStore p) r,
     Member BlacklistStore r,
     Member (Embed HttpClientIO) r,
@@ -238,7 +237,7 @@ clientAPI :: ServerT BrigIRoutes.ClientAPI (Handler r)
 clientAPI = Named @"update-client-last-active" updateClientLastActive
 
 authAPI ::
-  ( Member GalleyProvider r,
+  ( Member GalleyAPIAccess r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
@@ -375,7 +374,7 @@ internalSearchIndexAPI =
 
 -- | Add a client without authentication checks
 addClientInternalH ::
-  ( Member GalleyProvider r,
+  ( Member GalleyAPIAccess r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
     Member TinyLog r,
@@ -432,7 +431,7 @@ internalListFullClientsH (UserSet usrs) = lift $ do
 
 createUserNoVerify ::
   ( Member BlacklistStore r,
-    Member GalleyProvider r,
+    Member GalleyAPIAccess r,
     Member (UserPendingActivationStore p) r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
@@ -457,7 +456,7 @@ createUserNoVerify uData = lift . runExceptT $ do
   pure . SelfProfile $ usr
 
 createUserNoVerifySpar ::
-  ( Member GalleyProvider r,
+  ( Member GalleyAPIAccess r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
     Member TinyLog r,
@@ -678,7 +677,7 @@ revokeIdentityH bade badp =
     )
 
 updateConnectionInternalH ::
-  ( Member GalleyProvider r,
+  ( Member GalleyAPIAccess r,
     Member NotificationSubsystem r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r
@@ -830,7 +829,7 @@ getRichInfoMultiH (maybe [] fromCommaSeparatedList -> uids) =
 updateHandleH ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member GalleyProvider r,
+    Member GalleyAPIAccess r,
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
@@ -847,7 +846,7 @@ updateHandleH uid (HandleUpdate handleUpd) =
 updateUserNameH ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member GalleyProvider r,
+    Member GalleyAPIAccess r,
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,

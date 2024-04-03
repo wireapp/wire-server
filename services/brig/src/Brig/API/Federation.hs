@@ -33,7 +33,6 @@ import Brig.Data.Connection qualified as Data
 import Brig.Data.User qualified as Data
 import Brig.Effects.FederationConfigStore (FederationConfigStore)
 import Brig.Effects.FederationConfigStore qualified as E
-import Brig.Effects.GalleyProvider (GalleyProvider)
 import Brig.IO.Intra (notify)
 import Brig.Options
 import Brig.User.API.Handle
@@ -70,13 +69,14 @@ import Wire.API.User.Client.Prekey
 import Wire.API.User.Search hiding (searchPolicy)
 import Wire.API.UserEvent
 import Wire.API.UserMap (UserMap)
+import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.NotificationSubsystem
 import Wire.Sem.Concurrency
 
 type FederationAPI = "federation" :> BrigApi
 
 federationSitemap ::
-  ( Member GalleyProvider r,
+  ( Member GalleyAPIAccess r,
     Member (Concurrency 'Unsafe) r,
     Member FederationConfigStore r,
     Member NotificationSubsystem r
@@ -111,7 +111,7 @@ getFederationStatus _ request = do
 
 sendConnectionAction ::
   ( Member FederationConfigStore r,
-    Member GalleyProvider r,
+    Member GalleyAPIAccess r,
     Member NotificationSubsystem r
   ) =>
   Domain ->
@@ -134,7 +134,7 @@ sendConnectionAction originDomain NewConnectionRequest {..} = do
     else pure NewConnectionResponseNotFederating
 
 getUserByHandle ::
-  ( Member GalleyProvider r,
+  ( Member GalleyAPIAccess r,
     Member FederationConfigStore r
   ) =>
   Domain ->
@@ -159,7 +159,7 @@ getUserByHandle domain handle = do
           listToMaybe <$> API.lookupLocalProfiles Nothing [ownerId]
 
 getUsersByIds ::
-  Member GalleyProvider r =>
+  Member GalleyAPIAccess r =>
   Domain ->
   [UserId] ->
   ExceptT Error (AppT r) [UserProfile]
@@ -195,7 +195,7 @@ fedClaimKeyPackages domain ckpr =
 -- | Searching for federated users on a remote backend
 searchUsers ::
   forall r.
-  ( Member GalleyProvider r,
+  ( Member GalleyAPIAccess r,
     Member FederationConfigStore r
   ) =>
   Domain ->

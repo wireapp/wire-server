@@ -205,7 +205,6 @@ library
     Brig.Team.DB
     Brig.Team.Email
     Brig.Team.Template
-    Brig.Team.Types
     Brig.Team.Util
     Brig.Template
     Brig.Unique

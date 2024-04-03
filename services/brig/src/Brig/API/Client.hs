@@ -54,8 +54,6 @@ import Brig.Data.Client qualified as Data
 import Brig.Data.Nonce as Nonce
 import Brig.Data.User qualified as Data
 import Brig.Effects.ConnectionStore (ConnectionStore)
-import Brig.Effects.GalleyProvider (GalleyProvider)
-import Brig.Effects.GalleyProvider qualified as GalleyProvider
 import Brig.Effects.JwtTools (JwtTools)
 import Brig.Effects.JwtTools qualified as JwtTools
 import Brig.Effects.PublicKeyBundle (PublicKeyBundle)
@@ -112,6 +110,8 @@ import Wire.API.User.Client.DPoPAccessToken
 import Wire.API.User.Client.Prekey
 import Wire.API.UserEvent
 import Wire.API.UserMap (QualifiedUserMap (QualifiedUserMap, qualifiedUserMap), UserMap (userMap))
+import Wire.GalleyAPIAccess (GalleyAPIAccess)
+import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.NotificationSubsystem
 import Wire.Sem.Concurrency
 import Wire.Sem.FromUTC (FromUTC (fromUTCTime))
@@ -162,7 +162,7 @@ lookupLocalPubClientsBulk :: [UserId] -> ExceptT ClientError (AppT r) (UserMap (
 lookupLocalPubClientsBulk = lift . wrapClient . Data.lookupPubClientsBulk
 
 addClient ::
-  ( Member GalleyProvider r,
+  ( Member GalleyAPIAccess r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
     Member TinyLog r,
@@ -180,7 +180,7 @@ addClient = addClientWithReAuthPolicy Data.reAuthForNewClients
 -- a superset of the clients known to galley.
 addClientWithReAuthPolicy ::
   forall r.
-  ( Member GalleyProvider r,
+  ( Member GalleyAPIAccess r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
     Member TinyLog r,
@@ -213,7 +213,7 @@ addClientWithReAuthPolicy policy u con new = do
   let usr = accountUser acc
   lift $ do
     for_ old $ execDelete u con
-    liftSem $ GalleyProvider.newClient u (clientId clt)
+    liftSem $ GalleyAPIAccess.newClient u (clientId clt)
     liftSem $ Intra.onClientEvent u con (ClientAdded clt)
     when (clientType clt == LegalHoldClientType) $ liftSem $ Intra.onUserEvent u con (UserLegalHoldEnabled u)
     when (count > 1) $

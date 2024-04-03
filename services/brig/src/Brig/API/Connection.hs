@@ -42,8 +42,6 @@ import Brig.Data.Connection qualified as Data
 import Brig.Data.Types (resultHasMore, resultList)
 import Brig.Data.User qualified as Data
 import Brig.Effects.FederationConfigStore
-import Brig.Effects.GalleyProvider
-import Brig.Effects.GalleyProvider qualified as GalleyProvider
 import Brig.IO.Intra qualified as Intra
 import Brig.IO.Logging
 import Brig.Options
@@ -70,18 +68,20 @@ import Wire.API.Error.Brig qualified as E
 import Wire.API.Routes.Public.Util (ResponseForExistedCreated (..))
 import Wire.API.User
 import Wire.API.UserEvent
+import Wire.GalleyAPIAccess
+import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.NotificationSubsystem
 
-ensureNotSameTeam :: Member GalleyProvider r => Local UserId -> Local UserId -> (ConnectionM r) ()
+ensureNotSameTeam :: Member GalleyAPIAccess r => Local UserId -> Local UserId -> (ConnectionM r) ()
 ensureNotSameTeam self target = do
-  selfTeam <- lift $ liftSem $ GalleyProvider.getTeamId (tUnqualified self)
-  targetTeam <- lift $ liftSem $ GalleyProvider.getTeamId (tUnqualified target)
+  selfTeam <- lift $ liftSem $ GalleyAPIAccess.getTeamId (tUnqualified self)
+  targetTeam <- lift $ liftSem $ GalleyAPIAccess.getTeamId (tUnqualified target)
   when (isJust selfTeam && selfTeam == targetTeam) $
     throwE ConnectSameBindingTeamUsers
 
 createConnection ::
   ( Member FederationConfigStore r,
-    Member GalleyProvider r,
+    Member GalleyAPIAccess r,
     Member NotificationSubsystem r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r
@@ -100,7 +100,7 @@ createConnection self con target = do
 
 createConnectionToLocalUser ::
   forall r.
-  ( Member GalleyProvider r,
+  ( Member GalleyAPIAccess r,
     Member NotificationSubsystem r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r
@@ -191,7 +191,7 @@ createConnectionToLocalUser self conn target = do
 -- FUTUREWORK: we may want to move this to the LH application logic, so we can recycle it for
 -- group conv creation and possibly other situations.
 checkLegalholdPolicyConflict ::
-  Member GalleyProvider r =>
+  Member GalleyAPIAccess r =>
   UserId ->
   UserId ->
   ExceptT ConnectionError (AppT r) ()
@@ -221,7 +221,7 @@ updateConnection ::
     Member NotificationSubsystem r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
-    Member GalleyProvider r
+    Member GalleyAPIAccess r
   ) =>
   Local UserId ->
   Qualified UserId ->
@@ -244,7 +244,7 @@ updateConnection self other newStatus conn =
 updateConnectionToLocalUser ::
   forall r.
   ( Member (Embed HttpClientIO) r,
-    Member GalleyProvider r,
+    Member GalleyAPIAccess r,
     Member NotificationSubsystem r,
     Member TinyLog r
   ) =>
@@ -417,7 +417,7 @@ mkRelationWithHistory oldRel = \case
 
 updateConnectionInternal ::
   forall r.
-  ( Member GalleyProvider r,
+  ( Member GalleyAPIAccess r,
     Member NotificationSubsystem r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r

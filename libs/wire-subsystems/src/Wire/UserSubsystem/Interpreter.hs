@@ -22,6 +22,9 @@ data UserSubsystemConfig = UserSubsystemConfig
     defaultLocale :: Locale
   }
 
+getRemoteUserProfile :: UserId -> Remote UserId -> Sem r (Maybe UserProfile)
+getRemoteUserProfile = undefined
+
 getLocalUserProfile ::
   forall r.
   ( Member UserStore r,

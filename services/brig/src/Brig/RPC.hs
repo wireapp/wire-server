@@ -27,11 +27,11 @@ import Control.Monad.Catch
 import Control.Retry
 import Data.Aeson
 import Data.ByteString.Lazy qualified as BL
-import Data.Text qualified as Text
 import Data.Text.Lazy qualified as LT
 import Imports
 import Network.HTTP.Types.Method
 import System.Logger.Class hiding (name, (.=))
+import Wire.ParseException
 import Wire.Rpc (x3)
 
 remote :: ByteString -> Msg -> Msg
