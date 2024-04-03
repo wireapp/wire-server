@@ -35,7 +35,6 @@ import Data.Misc (Port (..), mkHttpsUrl)
 import Data.Set qualified as Set
 import Imports
 import System.FilePath ((</>))
-import System.IO (hPutStr)
 import Test.Tasty
 import Test.Tasty.HUnit
 import URI.ByteString (laxURIParserOptions, parseURI)
@@ -61,10 +60,7 @@ tests m b opts turn turnV2 = do
           "sft"
           [ test m "SFT servers /calls/config/v2 - 200" $ testSFT b opts,
             test m "SFT servers /calls/config/v2 - 200 - SFT does not respond as expected" $ testSFTUnavailable b opts "https://example.com",
-            test m "SFT servers /calls/config/v2 - 200 - SFT DNS does not resolve" $ testSFTUnavailable b opts "https://sft.example.com",
-            test m "SFT credentials with SFT secret /calls/config/authenticated - 200" $ testSFTCredentials b opts,
-            test m "No SFT credentials without SFT secret /calls/config/authenticated - 200" $ testSFTNoCredentials b opts,
-            test m "SFT federation /calls/config/authenticated - 200" $ testSFTFederation b opts
+            test m "SFT servers /calls/config/v2 - 200 - SFT DNS does not resolve" $ testSFTUnavailable b opts "https://sft.example.com"
           ]
       ]
 
@@ -115,123 +111,6 @@ testSFT b opts = do
         "when SFT discovery is enabled, sft_servers should be returned"
         (Set.fromList [sftServer server1, sftServer server2])
         (Set.fromList $ maybe [] NonEmpty.toList $ cfg1 ^. rtcConfSftServers)
-
--- | This test relies on pre-created public DNS records. Code here:
--- https://github.com/zinfra/cailleach/blob/fb4caacaca02e6e28d68dc0cdebbbc987f5e31da/targets/misc/wire-server-integration-tests/dns.tf
-testSFTCredentials :: Brig -> Opts.Opts -> Http ()
-testSFTCredentials b opts = do
-  uid <- userId <$> randomUser b
-  cid <- randomClient
-  let ttl = 60
-      secondsToNew = 30
-  liftIO $ Temp.withSystemTempFile "sft-secret" $ \secretFile secretHandle -> do
-    hPutStr secretHandle "xMtZyTpu=Leb?YKCoq#BXQR:gG^UrE83dNWzFJ2VcD"
-    hClose secretHandle
-    withSettingsOverrides
-      ( opts
-          & Opts.sftL
-            ?~ Opts.SFTOptions
-              "integration-tests.zinfra.io"
-              Nothing
-              (Just 0.001)
-              Nothing
-              (Just $ Opts.SFTTokenOptions ttl secretFile secondsToNew)
-          & Opts.optionSettings . Opts.sftListAllServers ?~ Opts.ListAllSFTServers
-      )
-      $ do
-        allSFTServers <- fromMaybe [] . (^. rtcConfSftServersAll) <$> retryWhileN 10 (isNothing . view rtcConfSftServers) (getTurnConfigurationAuthenticated uid cid b)
-        -- These values are controlled by https://github.com/zinfra/cailleach/tree/77ca2d23cf2959aa183dd945d0a0b13537a8950d/environments/dns-integration-tests
-        let Right server1 = mkHttpsUrl =<< first show (parseURI laxURIParserOptions "https://sft01.integration-tests.zinfra.io:443")
-        let Right server2 = mkHttpsUrl =<< first show (parseURI laxURIParserOptions "https://sft02.integration-tests.zinfra.io:8443")
-        liftIO $
-          assertEqual
-            "when list_all_sft_servers is enabled, sft_servers_all should be returned"
-            (Set.fromList [server1, server2])
-            (Set.fromList $ map (^. authURL) allSFTServers)
-        liftIO $
-          assertBool
-            "when SFT secret is defined, a username should be returned for each SFT server"
-            (all (isJust . (^. authUsername)) allSFTServers)
-        liftIO $
-          assertBool
-            "when SFT secret is defined, a credential should be returned for each SFT server"
-            (all (isJust . (^. authCredential)) allSFTServers)
-
--- | This test relies on pre-created public DNS records. Code here:
--- https://github.com/zinfra/cailleach/blob/fb4caacaca02e6e28d68dc0cdebbbc987f5e31da/targets/misc/wire-server-integration-tests/dns.tf
-testSFTNoCredentials :: Brig -> Opts.Opts -> Http ()
-testSFTNoCredentials b opts = do
-  uid <- userId <$> randomUser b
-  cid <- randomClient
-  withSettingsOverrides
-    ( opts
-        & Opts.sftL
-          ?~ Opts.SFTOptions
-            "integration-tests.zinfra.io"
-            Nothing
-            (Just 0.001)
-            Nothing
-            Nothing
-        & Opts.optionSettings . Opts.sftListAllServers ?~ Opts.ListAllSFTServers
-    )
-    $ do
-      allSFTServers <- fromMaybe [] . (^. rtcConfSftServersAll) <$> retryWhileN 10 (isNothing . view rtcConfSftServers) (getTurnConfigurationAuthenticated uid cid b)
-      -- These values are controlled by https://github.com/zinfra/cailleach/tree/77ca2d23cf2959aa183dd945d0a0b13537a8950d/environments/dns-integration-tests
-      let Right server1 = mkHttpsUrl =<< first show (parseURI laxURIParserOptions "https://sft01.integration-tests.zinfra.io:443")
-      let Right server2 = mkHttpsUrl =<< first show (parseURI laxURIParserOptions "https://sft02.integration-tests.zinfra.io:8443")
-      liftIO $
-        assertEqual
-          "when list_all_sft_servers is enabled, sft_servers_all should be returned"
-          (Set.fromList [server1, server2])
-          (Set.fromList $ map (^. authURL) allSFTServers)
-      liftIO $
-        assertBool
-          "when SFT secret is defined, a username should be returned for each SFT server"
-          (all (isNothing . (^. authUsername)) allSFTServers)
-      liftIO $
-        assertBool
-          "when SFT secret is defined, a credential should be returned for each SFT server"
-          (all (isNothing . (^. authCredential)) allSFTServers)
-
--- | This test relies on pre-created public DNS records. Code here:
--- https://github.com/zinfra/cailleach/blob/fb4caacaca02e6e28d68dc0cdebbbc987f5e31da/targets/misc/wire-server-integration-tests/dns.tf
-testSFTFederation :: Brig -> Opts.Opts -> Http ()
-testSFTFederation b opts = do
-  uid <- userId <$> randomUser b
-  cid <- randomClient
-  withSettingsOverrides
-    ( opts
-        & Opts.multiSFTL .~ Nothing
-        & Opts.sftL ?~ Opts.SFTOptions "integration-tests.zinfra.io" Nothing (Just 0.001) Nothing Nothing
-    )
-    $ do
-      isFederating <- (^. rtcConfIsFederating) <$> retryWhileN 10 (isNothing . view rtcConfSftServers) (getTurnConfigurationAuthenticated uid cid b)
-      liftIO $
-        assertBool
-          "SFT federation is not defined"
-          (isNothing isFederating)
-  withSettingsOverrides
-    ( opts
-        & Opts.multiSFTL ?~ True
-        & Opts.sftL ?~ Opts.SFTOptions "integration-tests.zinfra.io" Nothing (Just 0.001) Nothing Nothing
-    )
-    $ do
-      isFederating <- (^. rtcConfIsFederating) <$> retryWhileN 10 (isNothing . view rtcConfSftServers) (getTurnConfigurationAuthenticated uid cid b)
-      liftIO $
-        assertBool
-          "SFT federation is defined and true"
-          (fromMaybe False isFederating)
-  withSettingsOverrides
-    ( opts
-        & Opts.multiSFTL ?~ False
-        & Opts.sftL ?~ Opts.SFTOptions "integration-tests.zinfra.io" Nothing (Just 0.001) Nothing Nothing
-    )
-    $ do
-      isFederating <- (^. rtcConfIsFederating) <$> retryWhileN 10 (isNothing . view rtcConfSftServers) (getTurnConfigurationAuthenticated uid cid b)
-      liftIO $
-        assertBool
-          "SFT federation is defined and false"
-          (not $ fromMaybe False isFederating)
 
 testSFTUnavailable :: Brig -> Opts.Opts -> String -> Http ()
 testSFTUnavailable b opts domain = do
@@ -300,7 +179,7 @@ testCallsConfigSRV b opts = do
   config <-
     withSettingsOverrides (opts & Opts.turnL . Opts.serversSourceL .~ dnsOpts) $
       responseJsonError
-        =<< ( retryWhileN 10 (\r -> statusCode r /= 200) (getTurnConfiguration "" uid Nothing b)
+        =<< ( retryWhileN 10 (\r -> statusCode r /= 200) (getTurnConfiguration "" uid b)
                 <!! const 200 === statusCode
             )
   assertConfiguration
@@ -318,7 +197,7 @@ testCallsConfigV2SRV b opts = do
   config <-
     withSettingsOverrides (opts & Opts.turnL . Opts.serversSourceL .~ dnsOpts) $
       responseJsonError
-        =<< ( retryWhileN 10 (\r -> statusCode r /= 200) (getTurnConfiguration "v2" uid Nothing b)
+        =<< ( retryWhileN 10 (\r -> statusCode r /= 200) (getTurnConfiguration "v2" uid b)
                 <!! const 200 === statusCode
             )
   assertConfiguration
@@ -338,27 +217,23 @@ assertConfiguration cfg expected = do
   liftIO $ assertEqual "Expected adverstised TURN servers to match actual ones" (sort $ toList expected) (sort actual)
 
 getTurnConfigurationV1 :: UserId -> Brig -> Http RTCConfiguration
-getTurnConfigurationV1 = flip (getAndValidateTurnConfiguration "") Nothing
+getTurnConfigurationV1 = getAndValidateTurnConfiguration ""
 
 getTurnConfigurationV2 :: HasCallStack => UserId -> Brig -> ((MonadHttp m, MonadIO m, MonadCatch m) => m RTCConfiguration)
-getTurnConfigurationV2 = flip (getAndValidateTurnConfiguration "v2") Nothing
+getTurnConfigurationV2 = getAndValidateTurnConfiguration "v2"
 
-getTurnConfigurationAuthenticated :: HasCallStack => UserId -> ClientId -> Brig -> ((MonadHttp m, MonadIO m, MonadCatch m) => m RTCConfiguration)
-getTurnConfigurationAuthenticated u = getAndValidateTurnConfiguration "authenticated" u . Just
-
-getTurnConfiguration :: ByteString -> UserId -> Maybe ClientId -> Brig -> (MonadHttp m => m (Response (Maybe LB.ByteString)))
-getTurnConfiguration suffix u mc b =
+getTurnConfiguration :: ByteString -> UserId -> Brig -> (MonadHttp m => m (Response (Maybe LB.ByteString)))
+getTurnConfiguration suffix u b =
   get
     ( b
         . paths ["/calls/config", suffix]
         . zUser u
-        . maybe id zClient mc
         . zConn "conn"
     )
 
-getAndValidateTurnConfiguration :: HasCallStack => ByteString -> UserId -> Maybe ClientId -> Brig -> ((MonadIO m, MonadHttp m, MonadCatch m) => m RTCConfiguration)
-getAndValidateTurnConfiguration suffix u mc b =
-  responseJsonError =<< (getTurnConfiguration suffix u mc b <!! const 200 === statusCode)
+getAndValidateTurnConfiguration :: HasCallStack => ByteString -> UserId -> Brig -> ((MonadIO m, MonadHttp m, MonadCatch m) => m RTCConfiguration)
+getAndValidateTurnConfiguration suffix u b =
+  responseJsonError =<< (getTurnConfiguration suffix u b <!! const 200 === statusCode)
 
 getTurnConfigurationV2Limit :: Int -> UserId -> Brig -> Http (Response (Maybe LB.ByteString))
 getTurnConfigurationV2Limit limit u b =

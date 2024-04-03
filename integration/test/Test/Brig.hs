@@ -1,15 +1,19 @@
 module Test.Brig where
 
+import API.Brig (getCallsConfigAuthenticated)
 import qualified API.BrigInternal as BrigI
-import API.Common (randomName)
+import API.Common
 import Data.Aeson.Types hiding ((.=))
+import Data.List.Split
 import Data.String.Conversions
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
 import GHC.Stack
 import SetupHelpers
+import System.IO.Extra
 import Testlib.Assertions
 import Testlib.Prelude
+import UnliftIO.Temporary
 
 testCrudFederationRemotes :: HasCallStack => App ()
 testCrudFederationRemotes = do
@@ -124,3 +128,111 @@ testCrudFederationRemoteTeams = do
       l <- resp.json & asList
       remoteTeams <- forM l (\e -> e %. "team_id" & asString)
       when (any (\t -> t `notElem` remoteTeams) tids) $ assertFailure "Expected response to contain all of the teams"
+
+testSFTCredentials :: HasCallStack => App ()
+testSFTCredentials = do
+  let ttl = (60 :: Int)
+      secondsToNew = (30 :: Int)
+  withSystemTempFile "sft-secret" $ \secretFile secretHandle -> do
+    liftIO $ do
+      hPutStr secretHandle "xMtZyTpu=Leb?YKCoq#BXQR:gG^UrE83dNWzFJ2VcD"
+      hClose secretHandle
+    withModifiedBackend
+      ( def
+          { brigCfg =
+              ( setField "sft.sftBaseDomain" "integration-tests.zinfra.io"
+                  . setField "sft.sftToken.ttl" ttl
+                  . setField "sft.sftToken.secret" secretFile
+                  . setField "sft.sftToken.secondsBeforeNew" secondsToNew
+                  . setField "optSettings.setSftListAllServers" "enabled"
+              )
+          }
+      )
+      $ \domain -> do
+        user <- randomUser domain def
+        client <- randomClientId
+        bindResponse (getCallsConfigAuthenticated user client) \resp -> do
+          sftServersAll <- resp.json %. "sft_servers_all" & asList
+          when (null sftServersAll) $ assertFailure "sft_servers_all missing"
+          for_ sftServersAll $ \s -> do
+            cred <- s %. "credential" & asString
+            when (null cred) $ assertFailure "credential missing"
+            usr <- s %. "username" & asString
+            let parts = splitOn "." usr
+            when (length parts /= 5) $ assertFailure "username should have 5 parts"
+            when (take 2 (head parts) /= "d=") $ assertFailure "missing expiry time identifier"
+            when (take 2 (parts !! 1) /= "v=") $ assertFailure "missing version identifier"
+            when (take 2 (parts !! 2) /= "k=") $ assertFailure "missing key ID identifier"
+            when (take 2 (parts !! 3) /= "s=") $ assertFailure "missing federation identifier"
+            when (take 2 (parts !! 4) /= "r=") $ assertFailure "missing random data identifier"
+            for_ parts $ \part -> when (length part < 3) $ assertFailure ("value missing for " <> part)
+
+testSFTNoCredentials :: HasCallStack => App ()
+testSFTNoCredentials = withModifiedBackend
+  ( def
+      { brigCfg =
+          ( setField "sft.sftBaseDomain" "integration-tests.zinfra.io"
+              . setField "optSettings.setSftListAllServers" "enabled"
+          )
+      }
+  )
+  $ \domain -> do
+    user <- randomUser domain def
+    client <- randomClientId
+    bindResponse (getCallsConfigAuthenticated user client) \resp -> do
+      sftServersAll <- resp.json %. "sft_servers_all" & asList
+      when (null sftServersAll) $ assertFailure "sft_servers_all missing"
+      for_ sftServersAll $ \s -> do
+        credM <- lookupField s "credential"
+        when (isJust credM) $ assertFailure "should not generate credential"
+        usrM <- lookupField s "username"
+        when (isJust usrM) $ assertFailure "should not generate username"
+
+testSFTFederation :: HasCallStack => App ()
+testSFTFederation = do
+  withModifiedBackend
+    ( def
+        { brigCfg =
+            ( setField "sft.sftBaseDomain" "integration-tests.zinfra.io"
+                . removeField "multiSFT"
+            )
+        }
+    )
+    $ \domain -> do
+      user <- randomUser domain def
+      client <- randomClientId
+      bindResponse (getCallsConfigAuthenticated user client) \resp -> do
+        isFederatingM <- lookupField resp.json "is_federating"
+        when (isJust isFederatingM) $ assertFailure "is_federating should not be present"
+  withModifiedBackend
+    ( def
+        { brigCfg =
+            ( setField "sft.sftBaseDomain" "integration-tests.zinfra.io"
+                . setField "multiSFT" True
+            )
+        }
+    )
+    $ \domain -> do
+      user <- randomUser domain def
+      client <- randomClientId
+      bindResponse (getCallsConfigAuthenticated user client) \resp -> do
+        isFederating <-
+          maybe (assertFailure "is_federating missing") asBool
+            =<< lookupField resp.json "is_federating"
+        unless isFederating $ assertFailure "is_federating should be true"
+  withModifiedBackend
+    ( def
+        { brigCfg =
+            ( setField "sft.sftBaseDomain" "integration-tests.zinfra.io"
+                . setField "multiSFT" False
+            )
+        }
+    )
+    $ \domain -> do
+      user <- randomUser domain def
+      client <- randomClientId
+      bindResponse (getCallsConfigAuthenticated user client) \resp -> do
+        isFederating <-
+          maybe (assertFailure "is_federating missing") asBool
+            =<< lookupField resp.json "is_federating"
+        when isFederating $ assertFailure "is_federating should be false"
