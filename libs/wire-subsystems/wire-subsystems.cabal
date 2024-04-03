@@ -68,9 +68,12 @@ library
 
   -- cabal-fmt: expand src
   exposed-modules:
+    Wire.GalleyAPIAccess
+    Wire.GalleyAPIAccess.Rpc
     Wire.GundeckAPIAccess
     Wire.NotificationSubsystem
     Wire.NotificationSubsystem.Interpreter
+    Wire.ParseException
     Wire.Rpc
     Wire.UserStore
     Wire.UserSubsystem
@@ -82,8 +85,11 @@ library
     , async
     , base
     , bilge
+    , bytestring
     , bytestring-conversion
     , containers
+    , currency-codes
+    , errors
     , exceptions
     , extended
     , gundeck-types
@@ -95,10 +101,12 @@ library
     , polysemy-wire-zoo
     , QuickCheck
     , retry
+    , servant
     , text
     , tinylog
     , transformers
     , types-common
+    , wai-utilities
     , wire-api
 
   default-language: GHC2021

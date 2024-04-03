@@ -76,18 +76,3 @@ serviceRequestImpl nm service m r = do
   recovering x3 rpcHandlers $
     const $
       rpc' nm service (method m . r)
-
--- | Failed to parse a response from another service.
-data ParseException = ParseException
-  { _parseExceptionRemote :: !Text,
-    _parseExceptionMsg :: String
-  }
-
-instance Show ParseException where
-  show (ParseException r m) =
-    "Failed to parse response from remote "
-      ++ Text.unpack r
-      ++ " with message: "
-      ++ m
-
-instance Exception ParseException

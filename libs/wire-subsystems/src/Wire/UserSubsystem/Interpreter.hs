@@ -2,6 +2,7 @@
 
 module Wire.UserSubsystem.Interpreter where
 
+import Control.Monad.Trans.Maybe
 import Data.Domain
 import Data.Id
 import Data.LegalHold
@@ -9,8 +10,10 @@ import Data.Qualified
 import Imports
 import Polysemy
 import Polysemy.Input
+import Wire.API.Provider.Service
 import Wire.API.Team.Member
 import Wire.API.User
+import Wire.GalleyAPIAccess
 import Wire.UserStore
 
 data UserSubsystemConfig = UserSubsystemConfig
@@ -20,8 +23,10 @@ data UserSubsystemConfig = UserSubsystemConfig
   }
 
 getUserProfileImpl ::
+  forall r.
   ( Member UserStore r,
-    Member (Input UserSubsystemConfig) r
+    Member (Input UserSubsystemConfig) r,
+    Member GalleyAPIAccess r
   ) =>
   UserId ->
   Qualified UserId ->
@@ -38,7 +43,7 @@ getUserProfileImpl requestingUser quid = do
   locale <- inputs defaultLocale
   user <- runMaybeT $ do
     u <- MaybeT $ getUser (qUnqualified quid)
-    maybe pure mempty $ mkUserFromStored domain locale NoPendingInvitations u
+    maybe mzero pure $ mkUserFromStored domain locale NoPendingInvitations u
   -- user <- (mkUserFromStored domain locale NoPendingInvitations =<<) <$> getUser (qUnqualified quid)
   pure $ (\u -> mkUserProfile emailVisibilityConfigWithViewer u UserLegalHoldDisabled) <$> user
   where
@@ -51,35 +56,36 @@ getUserProfileImpl requestingUser quid = do
       let mUserNotPending = case mUser of
             Nothing -> Nothing
             Just user -> if user.status /= Just PendingInvitation then Just user else Nothing
-      case mUserNotPending.teamId of
+      case mUserNotPending >>= (.teamId) of
         Nothing -> pure Nothing
-        Just tid -> (tid,) <$$> liftSem (GalleyProvider.getTeamMember selfId tid)
+        Just tid -> (tid,) <$$> getTeamMember selfId tid
 
 mkUserFromStored :: Domain -> Locale -> HavePendingInvitations -> StoredUser -> Maybe User
 mkUserFromStored domain defaultLocale havePendingInvitations storedUser =
   if havePendingInvitations == NoPendingInvitations && storedUser.status == Just PendingInvitation
     then Nothing
     else
-      let ident = toIdentity storedUser.activated storedUser.email storedUser.phone storedUser.ssoid
+      let ident = toIdentity storedUser.activated storedUser.email storedUser.phone storedUser.ssoId
           deleted = Just Deleted == storedUser.status
-          expiration = if status == Just Ephemeral then expires else Nothing
+          expiration = if storedUser.status == Just Ephemeral then storedUser.expires else Nothing
           loc = toLocale defaultLocale (storedUser.language, storedUser.country)
-          svc = newServiceRef <$> sid <*> pid
-       in User
-            (Qualified uid domain)
-            ident
-            name
-            (fromMaybe noPict pict)
-            (fromMaybe [] assets)
-            accent
-            deleted
-            loc
-            svc
-            handle
-            expiration
-            tid
-            (fromMaybe ManagedByWire managed_by)
-            (fromMaybe defSupportedProtocols prots)
+          svc = newServiceRef <$> storedUser.serviceId <*> storedUser.providerId
+       in Just $
+            User
+              (Qualified storedUser.id_ domain)
+              ident
+              storedUser.name
+              (fromMaybe noPict storedUser.pict)
+              (fromMaybe [] storedUser.assets)
+              storedUser.accentId
+              deleted
+              loc
+              svc
+              storedUser.handle
+              expiration
+              storedUser.teamId
+              (fromMaybe ManagedByWire storedUser.managedBy)
+              (fromMaybe defSupportedProtocols storedUser.supportedProtocols)
 
 toLocale :: Locale -> (Maybe Language, Maybe Country) -> Locale
 toLocale _ (Just l, c) = Locale l c

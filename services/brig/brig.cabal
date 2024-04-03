@@ -127,8 +127,6 @@ library
     Brig.Effects.ConnectionStore.Cassandra
     Brig.Effects.FederationConfigStore
     Brig.Effects.FederationConfigStore.Cassandra
-    Brig.Effects.GalleyProvider
-    Brig.Effects.GalleyProvider.RPC
     Brig.Effects.JwtTools
     Brig.Effects.PasswordResetStore
     Brig.Effects.PasswordResetStore.CodeStore
