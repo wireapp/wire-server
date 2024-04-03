@@ -172,7 +172,7 @@ lhMockAppWithPrekeys mks ch req cont = withRunInIO \inIO -> do
 mkLegalHoldSettings :: Warp.Port -> Value
 mkLegalHoldSettings lhPort =
   object
-    [ "base_url" .= ("https://wire-server-integration-integration" <> ":" <> show lhPort <> "/legalhold"),
+    [ "base_url" .= ("https://10.244.0.146" <> ":" <> show lhPort <> "/legalhold"),
       "public_key" .= mockServerPubKey,
       "auth_token" .= "tok"
     ]
