@@ -25,28 +25,22 @@ data UserSubsystemConfig = UserSubsystemConfig
 getRemoteUserProfile :: UserId -> Remote UserId -> Sem r (Maybe UserProfile)
 getRemoteUserProfile = undefined
 
-getLocalUserProfile ::
+getLocalUserProfiles ::
   forall r.
   ( Member UserStore r,
     Member (Input UserSubsystemConfig) r,
     Member GalleyAPIAccess r
   ) =>
   UserId ->
-  UserId ->
-  Sem r (Maybe UserProfile)
-getLocalUserProfile requestingUser uid = do
-  emailVisibilityConfig <- inputs emailVisibilityConfig
+  [UserId] ->
+  Sem r [UserProfile]
+getLocalUserProfiles requestingUser uids = do
+  emailVisibility <- inputs emailVisibilityConfig
   emailVisibilityConfigWithViewer <-
     traverse
       (const (getSelfInfo requestingUser))
-      emailVisibilityConfig
-  domain <- inputs defaultDomain
-  locale <- inputs defaultLocale
-  user <- runMaybeT $ do
-    u <- MaybeT $ getUser uid
-    guard $ not (hasPendingInvitation u)
-    pure $ mkUserFromStored domain locale u
-  pure $ (\u -> mkUserProfile emailVisibilityConfigWithViewer u UserLegalHoldDisabled) <$> user
+      emailVisibility
+  catMaybes <$> traverse (getLocalUserProfile emailVisibilityConfigWithViewer) uids
   where
     getSelfInfo :: UserId -> Sem r (Maybe (TeamId, TeamMember))
     getSelfInfo selfId = do
@@ -61,6 +55,23 @@ getLocalUserProfile requestingUser uid = do
       case mUserNotPending >>= (.teamId) of
         Nothing -> pure Nothing
         Just tid -> (tid,) <$$> getTeamMember selfId tid
+
+getLocalUserProfile ::
+  forall r.
+  ( Member UserStore r,
+    Member (Input UserSubsystemConfig) r
+  ) =>
+  EmailVisibilityConfigWithViewer ->
+  UserId ->
+  Sem r (Maybe UserProfile)
+getLocalUserProfile emailVisibilityConfigWithViewer uid = do
+  domain <- inputs defaultDomain
+  locale <- inputs defaultLocale
+  runMaybeT $ do
+    storedUser <- MaybeT $ getUser uid
+    guard $ not (hasPendingInvitation storedUser)
+    let user = mkUserFromStored domain locale storedUser
+    pure $ mkUserProfile emailVisibilityConfigWithViewer user UserLegalHoldDisabled
 
 hasPendingInvitation :: StoredUser -> Bool
 hasPendingInvitation u = u.status == Just PendingInvitation

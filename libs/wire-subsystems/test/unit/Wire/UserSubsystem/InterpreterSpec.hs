@@ -18,14 +18,14 @@ spec :: Spec
 spec = describe "UserSubsystem.Interpreter" do
   describe "getUserProfile" do
     prop "returns Nothing when the user doesn't exist" $
-      \viewer targetUserId visibility domain locale ->
+      \viewer targetUserIds visibility domain locale ->
         let retrievedProfile =
               run
                 . runInputConst (UserSubsystemConfig visibility domain locale)
                 . staticUserStoreInterpreter []
                 . emptyGalleyAPIAccess
-                $ getLocalUserProfile viewer targetUserId
-         in retrievedProfile === Nothing
+                $ getLocalUserProfiles viewer targetUserIds
+         in retrievedProfile === []
 
     prop "gets a local user profile when the user exists and both user and viewer have accepted their invitations" $
       \(NotPendingStoredUser viewer) (NotPendingStoredUser targetUserNoTeam) visibility domain locale sameTeam ->
@@ -36,14 +36,13 @@ spec = describe "UserSubsystem.Interpreter" do
                 . runInputConst (UserSubsystemConfig visibility domain locale)
                 . staticUserStoreInterpreter [targetUser, viewer]
                 . fakeGalleyAPIAccess teamMember
-                $ getLocalUserProfile viewer.id_ targetUser.id_
+                $ getLocalUserProfiles viewer.id_ [targetUser.id_]
          in retrievedProfile
-              === Just
-                ( mkUserProfile
-                    (fmap (const $ (,) <$> viewer.teamId <*> Just teamMember) visibility)
-                    (mkUserFromStored domain locale targetUser)
-                    UserLegalHoldDisabled
-                )
+              === [ mkUserProfile
+                      (fmap (const $ (,) <$> viewer.teamId <*> Just teamMember) visibility)
+                      (mkUserFromStored domain locale targetUser)
+                      UserLegalHoldDisabled
+                  ]
     prop "gets Nothing when the target user exists and has accepted their invitation but the viewer has not accepted their invitation" $
       \(PendingStoredUser viewer) (NotPendingStoredUser targetUserNoTeam) visibility domain locale sameTeam ->
         let teamMember = mkTeamMember viewer.id_ fullPermissions Nothing UserLegalHoldDisabled
@@ -53,14 +52,13 @@ spec = describe "UserSubsystem.Interpreter" do
                 . runInputConst (UserSubsystemConfig visibility domain locale)
                 . staticUserStoreInterpreter [targetUser, viewer]
                 . fakeGalleyAPIAccess teamMember
-                $ getLocalUserProfile viewer.id_ targetUser.id_
+                $ getLocalUserProfiles viewer.id_ [targetUser.id_]
          in retrievedProfile
-              === Just
-                ( mkUserProfile
-                    (fmap (const Nothing) visibility)
-                    (mkUserFromStored domain locale targetUser)
-                    UserLegalHoldDisabled
-                )
+              === [ mkUserProfile
+                      (fmap (const Nothing) visibility)
+                      (mkUserFromStored domain locale targetUser)
+                      UserLegalHoldDisabled
+                  ]
 
     prop "returns Nothing if the target user has not accepted their invitation yet" $
       \viewerId (PendingStoredUser targetUser) visibility domain locale ->
@@ -70,8 +68,8 @@ spec = describe "UserSubsystem.Interpreter" do
                 . runInputConst (UserSubsystemConfig visibility domain locale)
                 . staticUserStoreInterpreter [targetUser]
                 . fakeGalleyAPIAccess teamMember
-                $ getLocalUserProfile viewerId targetUser.id_
-         in retrievedProfile === Nothing
+                $ getLocalUserProfiles viewerId [targetUser.id_]
+         in retrievedProfile === []
   describe "mkUserFromStored" $ do
     prop "user identity" $ \domain defaultLocale storedUser ->
       let user = mkUserFromStored domain defaultLocale storedUser
