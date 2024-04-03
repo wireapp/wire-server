@@ -22,7 +22,7 @@ data UserSubsystemConfig = UserSubsystemConfig
     defaultLocale :: Locale
   }
 
-getLocalUserProfileImpl ::
+getLocalUserProfile ::
   forall r.
   ( Member UserStore r,
     Member (Input UserSubsystemConfig) r,
@@ -31,7 +31,7 @@ getLocalUserProfileImpl ::
   UserId ->
   UserId ->
   Sem r (Maybe UserProfile)
-getLocalUserProfileImpl requestingUser uid = do
+getLocalUserProfile requestingUser uid = do
   emailVisibilityConfig <- inputs emailVisibilityConfig
   emailVisibilityConfigWithViewer <-
     traverse
@@ -41,7 +41,8 @@ getLocalUserProfileImpl requestingUser uid = do
   locale <- inputs defaultLocale
   user <- runMaybeT $ do
     u <- MaybeT $ getUser uid
-    maybe mzero pure $ mkUserFromStored domain locale NoPendingInvitations u
+    guard $ not (hasPendingInvitation u)
+    pure $ mkUserFromStored domain locale u
   pure $ (\u -> mkUserProfile emailVisibilityConfigWithViewer u UserLegalHoldDisabled) <$> user
   where
     getSelfInfo :: UserId -> Sem r (Maybe (TeamId, TeamMember))
@@ -50,51 +51,51 @@ getLocalUserProfileImpl requestingUser uid = do
       -- to return 'Nothing'.  we could throw errors here if that happens, rather than just
       -- returning an empty profile list from 'lookupProfiles'.
       mUser <- getUser selfId
-      let mUserNotPending = case mUser of
-            Nothing -> Nothing
-            Just user -> if user.status /= Just PendingInvitation then Just user else Nothing
+      let mUserNotPending = do
+            user <- mUser
+            guard $ not (hasPendingInvitation user)
+            pure user
       case mUserNotPending >>= (.teamId) of
         Nothing -> pure Nothing
         Just tid -> (tid,) <$$> getTeamMember selfId tid
 
-mkUserFromStored :: Domain -> Locale -> HavePendingInvitations -> StoredUser -> Maybe User
-mkUserFromStored domain defaultLocale havePendingInvitations storedUser =
-  if havePendingInvitations == NoPendingInvitations && storedUser.status == Just PendingInvitation
-    then Nothing
-    else
-      let ident = toIdentity storedUser.activated storedUser.email storedUser.phone storedUser.ssoId
-          deleted = Just Deleted == storedUser.status
-          expiration = if storedUser.status == Just Ephemeral then storedUser.expires else Nothing
-          loc = toLocale defaultLocale (storedUser.language, storedUser.country)
-          svc = newServiceRef <$> storedUser.serviceId <*> storedUser.providerId
-       in Just $
-            User
-              (Qualified storedUser.id_ domain)
-              ident
-              storedUser.name
-              (fromMaybe noPict storedUser.pict)
-              (fromMaybe [] storedUser.assets)
-              storedUser.accentId
-              deleted
-              loc
-              svc
-              storedUser.handle
-              expiration
-              storedUser.teamId
-              (fromMaybe ManagedByWire storedUser.managedBy)
-              (fromMaybe defSupportedProtocols storedUser.supportedProtocols)
+hasPendingInvitation :: StoredUser -> Bool
+hasPendingInvitation u = u.status == Just PendingInvitation
+
+mkUserFromStored :: Domain -> Locale -> StoredUser -> User
+mkUserFromStored domain defaultLocale storedUser =
+  let ident = toIdentity storedUser.activated storedUser.email storedUser.phone storedUser.ssoId
+      deleted = Just Deleted == storedUser.status
+      expiration = if storedUser.status == Just Ephemeral then storedUser.expires else Nothing
+      loc = toLocale defaultLocale (storedUser.language, storedUser.country)
+      svc = newServiceRef <$> storedUser.serviceId <*> storedUser.providerId
+   in User
+        { userQualifiedId = (Qualified storedUser.id_ domain),
+          userIdentity = ident,
+          userDisplayName = storedUser.name,
+          userPict = (fromMaybe noPict storedUser.pict),
+          userAssets = (fromMaybe [] storedUser.assets),
+          userAccentId = storedUser.accentId,
+          userDeleted = deleted,
+          userLocale = loc,
+          userService = svc,
+          userHandle = storedUser.handle,
+          userExpire = expiration,
+          userTeam = storedUser.teamId,
+          userManagedBy = (fromMaybe ManagedByWire storedUser.managedBy),
+          userSupportedProtocols = (fromMaybe defSupportedProtocols storedUser.supportedProtocols)
+        }
 
 toLocale :: Locale -> (Maybe Language, Maybe Country) -> Locale
 toLocale _ (Just l, c) = Locale l c
 toLocale l _ = l
 
+-- | If the user is not activated, 'toIdentity' will return 'Nothing' as a
+-- precaution, because elsewhere we rely on the fact that a non-empty
+-- 'UserIdentity' means that the user is activated.
 --
--- If the user is not activated, 'toIdentity' will return 'Nothing' as a precaution, because
--- elsewhere we rely on the fact that a non-empty 'UserIdentity' means that the user is
--- activated.
---
--- The reason it's just a "precaution" is that we /also/ have an invariant that having an
--- email or phone in the database means the user has to be activated.
+-- The reason it's just a "precaution" is that we /also/ have an invariant that
+-- having an email or phone in the database means the user has to be activated.
 toIdentity ::
   -- | Whether the user is activated
   Bool ->
