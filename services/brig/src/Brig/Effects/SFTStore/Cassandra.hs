@@ -59,7 +59,7 @@ interpretSFTStoreToConstant =
 
 checkTransSuccess :: [Row] -> Bool
 checkTransSuccess [] = False
-checkTransSuccess (row : _) = fromMaybe False . hush $ fromRow 0 row
+checkTransSuccess (row : _) = either (const False) (fromMaybe False) $ fromRow 0 row
 
 storeCredential :: MonadClient m => UserId -> ClientId -> SFTUsername -> AsciiBase64 -> Int32 -> m Bool
 storeCredential u c username credential ttl =

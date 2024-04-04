@@ -26,7 +26,6 @@ where
 import Cassandra
 import Cassandra.Settings
 import Control.Arrow
-import Control.Error
 import Data.Time
 import Galley.API.MLS.Types
 import Galley.Cassandra.Queries qualified as Cql
@@ -64,7 +63,7 @@ releaseCommitLock groupId epoch =
 
 checkTransSuccess :: [Row] -> Bool
 checkTransSuccess [] = False
-checkTransSuccess (row : _) = fromMaybe False . hush $ fromRow 0 row
+checkTransSuccess (row : _) = either (const False) (fromMaybe False) $ fromRow 0 row
 
 lookupMLSClientLeafIndices :: GroupId -> Client (ClientMap, IndexMap)
 lookupMLSClientLeafIndices groupId = do
