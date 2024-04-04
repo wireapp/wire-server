@@ -77,6 +77,7 @@ library
     Wire.NotificationSubsystem.Interpreter
     Wire.ParseException
     Wire.Rpc
+    Wire.StoredUser
     Wire.UserStore
     Wire.UserSubsystem
     Wire.UserSubsystem.Interpreter
@@ -127,6 +128,7 @@ test-suite wire-subsystems-tests
   other-modules:
     Spec
     Wire.NotificationSubsystem.InterpreterSpec
+    Wire.UserStoreSpec
     Wire.UserSubsystem.InterpreterSpec
 
   build-tool-depends: hspec-discover:hspec-discover

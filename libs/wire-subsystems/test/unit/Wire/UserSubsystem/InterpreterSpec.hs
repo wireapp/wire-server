@@ -11,6 +11,7 @@ import Wire.API.Team.Member
 import Wire.API.Team.Permission
 import Wire.API.User
 import Wire.GalleyAPIAccess
+import Wire.StoredUser
 import Wire.UserStore
 import Wire.UserSubsystem.Interpreter
 
@@ -70,37 +71,6 @@ spec = describe "UserSubsystem.Interpreter" do
                 . fakeGalleyAPIAccess teamMember
                 $ getLocalUserProfiles viewerId [targetUser.id_]
          in retrievedProfile === []
-  describe "mkUserFromStored" $ do
-    prop "user identity" $ \domain defaultLocale storedUser ->
-      let user = mkUserFromStored domain defaultLocale storedUser
-       in if storedUser.activated == False
-            then user.userIdentity === Nothing
-            else
-              (emailIdentity =<< user.userIdentity) === storedUser.email
-                .&&. (phoneIdentity =<< user.userIdentity) === storedUser.phone
-                .&&. (ssoIdentity =<< user.userIdentity) === storedUser.ssoId
-
-    prop "user deleted" $ \domain defaultLocale storedUser ->
-      let user = mkUserFromStored domain defaultLocale storedUser
-       in user.userDeleted === (storedUser.status == Just Deleted)
-
-    prop "user expires" $ \domain defaultLocale storedUser ->
-      let user = mkUserFromStored domain defaultLocale storedUser
-       in if storedUser.status == Just Ephemeral
-            then user.userExpire === storedUser.expires
-            else user.userExpire === Nothing
-
-    prop "user expires" $ \domain defaultLocale storedUser ->
-      let user = mkUserFromStored domain defaultLocale storedUser
-       in if storedUser.status == Just Ephemeral
-            then user.userExpire === storedUser.expires
-            else user.userExpire === Nothing
-
-    prop "user locale" $ \domain defaultLocale storedUser ->
-      let user = mkUserFromStored domain defaultLocale storedUser
-       in if (isJust storedUser.language)
-            then user.userLocale === Locale (fromJust storedUser.language) storedUser.country
-            else user.userLocale === defaultLocale
 
 newtype PendingStoredUser = PendingStoredUser StoredUser
   deriving (Show, Eq)
