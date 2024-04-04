@@ -40,6 +40,7 @@ The following needs to be done, as part of a PR adding endpoints or changing end
 
  - [ ] Update nginz config in helm: `charts/nginz/values.yaml`
  - [ ] Update nginz config for the local integration tests: `services/nginz/integration-test/conf/nginz/nginx.conf`
+ - [ ] Update the API change documentation on Confluece for the correct version, e.g., [v5 -> v6](https://wearezeta.atlassian.net/wiki/spaces/ENGINEERIN/pages/1035632650/API+changes+v5+v6)
 
 ### Helm configuration
 
