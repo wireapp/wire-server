@@ -1,5 +1,3 @@
-{-# OPTIONS_GHC -Wwarn #-}
-
 module Wire.UserSubsystem.Interpreter where
 
 import Control.Monad.Trans.Maybe
