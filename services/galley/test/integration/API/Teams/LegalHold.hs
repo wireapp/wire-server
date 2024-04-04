@@ -38,7 +38,6 @@ import Data.Range
 import Data.Time.Clock qualified as Time
 import Galley.Cassandra.LegalHold
 import Galley.Env qualified as Galley
-import Galley.Types.Teams
 import Imports
 import Network.HTTP.Types.Status (status200, status404)
 import Network.Wai as Wai
@@ -54,6 +53,7 @@ import Wire.API.Conversation.Role (roleNameWireAdmin)
 import Wire.API.Provider.Service
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Team.LegalHold
+import Wire.API.Team.Member
 import Wire.API.Team.Member qualified as Team
 import Wire.API.Team.Permission
 import Wire.API.Team.Role
