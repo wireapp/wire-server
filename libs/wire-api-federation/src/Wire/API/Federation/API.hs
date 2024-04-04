@@ -26,6 +26,7 @@ module Wire.API.Federation.API
     fedQueueClient,
     sendBundle,
     fedClientIn,
+    fedClientGeneral,
     unsafeFedClientIn,
     module Wire.API.MakesFederatedCall,
 
@@ -90,6 +91,16 @@ fedClient ::
   ) =>
   Client m api
 fedClient = clientIn (Proxy @api) (Proxy @m)
+
+fedClientGeneral ::
+  forall (comp :: Component) name m (showcomp :: Symbol) api x.
+  ( AddAnnotation 'Remote showcomp (FedPath name) x,
+    showcomp ~ ShowComponent comp,
+    HasFedEndpoint comp api name,
+    HasClient m api
+  ) =>
+  Client m api
+fedClientGeneral = clientIn (Proxy @api) (Proxy @m)
 
 fedClientIn ::
   forall (comp :: Component) (name :: Symbol) m api.

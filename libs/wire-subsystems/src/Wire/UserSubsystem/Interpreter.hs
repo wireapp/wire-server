@@ -9,6 +9,7 @@ import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
+import Servant.Client.Core
 import Wire.API.Federation.API
 import Wire.API.Federation.Error
 import Wire.API.Team.Member
@@ -31,9 +32,10 @@ getUserProfiles ::
   ( Member GalleyAPIAccess r,
     Member (Concurrency 'Unsafe) r,
     Member (Error FederationError) r,
-    Member FederationAPIAccess r,
+    Member (FederationAPIAccess fedM) r,
     Member (Input UserSubsystemConfig) r,
-    Member UserStore r
+    Member UserStore r,
+    RunClient (fedM 'Brig)
   ) =>
   -- | User 'self' on whose behalf the profiles are requested.
   Local UserId ->
@@ -51,8 +53,9 @@ getUserProfilesFromDomain ::
   ( Member GalleyAPIAccess r,
     Member (Error FederationError) r,
     Member (Input UserSubsystemConfig) r,
-    Member FederationAPIAccess r,
-    Member UserStore r
+    Member (FederationAPIAccess fedM) r,
+    Member UserStore r,
+    RunClient (fedM 'Brig)
   ) =>
   Local UserId ->
   Qualified [UserId] ->
@@ -64,13 +67,14 @@ getUserProfilesFromDomain self =
     getRemoteUserProfiles
 
 getRemoteUserProfiles ::
-  ( Member FederationAPIAccess r,
-    Member (Error FederationError) r
+  ( Member (FederationAPIAccess fedM) r,
+    Member (Error FederationError) r,
+    RunClient (fedM 'Brig)
   ) =>
   Remote [UserId] ->
   Sem r [UserProfile]
 getRemoteUserProfiles ruids = do
-  runFederated ruids $ fedClient @'Brig @"get-users-by-ids" (tUnqualified ruids)
+  runFederated @'Brig ruids $ fedClientGeneral @'Brig @"get-users-by-ids" (tUnqualified ruids)
 
 getLocalUserProfiles ::
   forall r.

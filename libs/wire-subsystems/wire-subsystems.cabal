@@ -70,6 +70,7 @@ library
   -- cabal-fmt: expand src
   exposed-modules:
     Wire.FederationAPIAccess
+    Wire.FederationAPIAccess.Interpreter
     Wire.GalleyAPIAccess
     Wire.GalleyAPIAccess.Rpc
     Wire.GundeckAPIAccess
@@ -98,6 +99,7 @@ library
     , gundeck-types
     , http-client
     , http-types
+    , http2-manager
     , imports
     , lens
     , polysemy
@@ -106,6 +108,7 @@ library
     , QuickCheck
     , retry
     , servant
+    , servant-client-core
     , text
     , tinylog
     , transformers
@@ -123,6 +126,7 @@ test-suite wire-subsystems-tests
   default-language:   GHC2021
   hs-source-dirs:     test/unit
   main-is:            ../Main.hs
+  ghc-options:      -fplugin=Polysemy.Plugin
 
   -- cabal-fmt: expand test/unit
   other-modules:
@@ -144,10 +148,12 @@ test-suite wire-subsystems-tests
     , hspec
     , imports
     , polysemy
+    , polysemy-plugin
     , polysemy-wire-zoo
     , QuickCheck
     , quickcheck-instances
-    , string-conversions
+    , servant-client-core
     , types-common
     , wire-api
+    , wire-api-federation
     , wire-subsystems
