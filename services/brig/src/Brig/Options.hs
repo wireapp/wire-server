@@ -416,8 +416,6 @@ data Opts = Opts
 
     -- | Disco URL
     discoUrl :: !(Maybe Text),
-    -- | GeoDB file path
-    geoDb :: !(Maybe FilePath),
     -- | Event queue for
     --   Brig-generated events (e.g.
     --   user deletion)

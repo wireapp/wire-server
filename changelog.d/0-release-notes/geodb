@@ -1,0 +1,1 @@
+Removed the deprecated and unused field `geoDb` from Brig's config.
