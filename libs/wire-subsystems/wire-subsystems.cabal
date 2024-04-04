@@ -65,9 +65,11 @@ common common-all
 
 library
   import:           common-all
+  ghc-options:      -fplugin=Polysemy.Plugin -fplugin=TransitiveAnns.Plugin
 
   -- cabal-fmt: expand src
   exposed-modules:
+    Wire.FederationAPIAccess
     Wire.GalleyAPIAccess
     Wire.GalleyAPIAccess.Rpc
     Wire.GundeckAPIAccess
@@ -78,12 +80,10 @@ library
     Wire.UserStore
     Wire.UserSubsystem
     Wire.UserSubsystem.Interpreter
-    Wire.FederationAPIAccess
 
   hs-source-dirs:   src
   build-depends:
     , aeson
-    , wire-api-federation
     , async
     , base
     , bilge
@@ -100,6 +100,7 @@ library
     , imports
     , lens
     , polysemy
+    , polysemy-plugin
     , polysemy-wire-zoo
     , QuickCheck
     , retry
@@ -107,9 +108,11 @@ library
     , text
     , tinylog
     , transformers
+    , transitive-anns
     , types-common
     , wai-utilities
     , wire-api
+    , wire-api-federation
 
   default-language: GHC2021
 
