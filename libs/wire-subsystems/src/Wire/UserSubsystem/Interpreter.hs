@@ -50,8 +50,7 @@ getUserProfiles self others =
       (bucketQualified others)
 
 getUserProfilesFromDomain ::
-  ( Member (Concurrency 'Unsafe) r,
-    Member GalleyAPIAccess r,
+  ( Member GalleyAPIAccess r,
     Member (Error FederationError) r,
     Member (Input UserSubsystemConfig) r,
     Member FederationAPIAccess r,
@@ -68,7 +67,6 @@ getUserProfilesFromDomain self =
 
 getRemoteUserProfiles ::
   ( Member FederationAPIAccess r,
-    Member (Concurrency 'Unsafe) r,
     Member (Error FederationError) r
   ) =>
   Remote [UserId] ->
