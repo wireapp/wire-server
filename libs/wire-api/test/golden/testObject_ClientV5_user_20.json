@@ -1,7 +1,9 @@
 {
-    "capabilities": [
-        "legalhold-implicit-consent"
-    ],
+    "capabilities": {
+        "capabilities": [
+            "legalhold-implicit-consent"
+        ]
+    },
     "class": "phone",
     "cookie": "",
     "id": "1",

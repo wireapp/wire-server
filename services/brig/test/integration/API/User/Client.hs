@@ -71,6 +71,8 @@ import UnliftIO (mapConcurrently)
 import Util
 import Wire.API.Internal.Notification
 import Wire.API.MLS.CipherSuite
+import Wire.API.Routes.Version
+import Wire.API.Routes.Versioned
 import Wire.API.Team.Feature qualified as Public
 import Wire.API.User
 import Wire.API.User qualified as Public
@@ -257,7 +259,7 @@ testAddGetClient params brig cannon = do
       let etype = j ^? key "type" . _String
       let eclient = j ^? key "client"
       etype @?= Just "user.client-add"
-      fmap fromJSON eclient @?= Just (Success c)
+      fmap fromJSON eclient @?= Just (Success (Versioned @'V5 c))
     pure c
   liftIO $ clientMLSPublicKeys c @?= keys
   getClient brig uid (clientId c) !!! do
