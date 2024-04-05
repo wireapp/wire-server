@@ -201,7 +201,7 @@ testKeyPackageCount cs = do
 
 testUnsupportedCiphersuite :: HasCallStack => App ()
 testUnsupportedCiphersuite = do
-  let suite = Ciphersuite "0x0002"
+  let suite = Ciphersuite "0x0003"
   setMLSCiphersuite suite
   bob <- randomUser OwnDomain def
   bob1 <- createMLSClient def bob
