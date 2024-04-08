@@ -1,4 +1,4 @@
-module Testlib.MockIntegrationService (withMockServer, lhMockAppWithPrekeys, lhMockApp, mkLegalHoldSettings, CreateMock (..), resolveBotHost) where
+module Testlib.MockIntegrationService (withMockServer, lhMockAppWithPrekeys, lhMockApp, mkLegalHoldSettings, CreateMock (..)) where
 
 import Control.Monad.Catch
 import Control.Monad.Reader
@@ -13,7 +13,7 @@ import Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Handler.Warp.Internal as Warp
 import qualified Network.Wai.Handler.WarpTLS as Warp
-import Testlib.Prelude
+import Testlib.Prelude hiding (IntegrationConfig (integrationTestHostName))
 import UnliftIO (MonadUnliftIO (withRunInIO))
 import UnliftIO.Async
 import UnliftIO.Chan
@@ -104,7 +104,7 @@ withMockServer ::
   App a
 withMockServer mkApp go = withFreePortAnyAddr \(sPort, sock) -> do
   serverStarted <- newEmptyMVar
-  host <- resolveBotHost
+  host <- asks integrationTestHostName
   let tlss = Warp.tlsSettingsMemory (cs mockServerCert) (cs mockServerPrivKey)
   let defs = Warp.defaultSettings {Warp.settingsPort = sPort, Warp.settingsBeforeMainLoop = putMVar serverStarted ()}
   buf <- newChan
@@ -170,16 +170,6 @@ lhMockAppWithPrekeys mks ch req cont = withRunInIO \inIO -> do
 
     getRequestHeader :: String -> Wai.Request -> Maybe ByteString
     getRequestHeader name = lookup (fromString name) . requestHeaders
-
--- FIXME(mangoiv): this should come from a config file
-resolveBotHost :: App String
-resolveBotHost = do
-  dom <- asks domain1
-  putStrLn dom
-  pure
-    if dom == "example.com"
-      then "localhost"
-      else dom
 
 -- check whether we're running on kubernetes
 -- namespace <- lookupEnv "NAMESPACE"

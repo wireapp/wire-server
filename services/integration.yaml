@@ -180,3 +180,5 @@ federation-v0:
   stern:
     host: 127.0.0.1
     port: 21091
+
+integrationTestHostName: "localhost"

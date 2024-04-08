@@ -163,4 +163,5 @@ data:
         port: 8080
       stern:
         host: stern.wire-federation-v0.svc.cluster.local
-        port: 8080
+        port: 8080 
+    integrationTestHostName: wire-server-integration-integration.{{ .Release.Namespace }}.pod.cluster.local
