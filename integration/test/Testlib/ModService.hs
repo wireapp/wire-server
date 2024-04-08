@@ -252,7 +252,7 @@ startBackend ::
   ServiceOverrides ->
   Codensity App ()
 startBackend resource overrides = measureM "startBackend" do
-  traverseConcurrentlyCodensity (withProcess resource overrides) allServices
+  traverseConcurrentlyCodensity (withServiceInstance resource overrides) allServices
   lift $ ensureBackendReachable resource.berDomain
 
 ensureBackendReachable :: String -> App ()
@@ -307,8 +307,8 @@ checkServiceIsUp domain srv = measureM "checkServiceIsUp" do
   eith <- liftIO (E.try checkStatus)
   pure $ either (\(_e :: HTTP.HttpException) -> False) id eith
 
-withProcess :: BackendResource -> ServiceOverrides -> Service -> Codensity App ()
-withProcess resource overrides service = do
+withServiceInstance :: BackendResource -> ServiceOverrides -> Service -> Codensity App ()
+withServiceInstance resource overrides service = do
   let domain = berDomain resource
   sm <- lift $ getServiceMap domain
   getConfig <-
