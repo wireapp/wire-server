@@ -166,9 +166,6 @@ create ioRef =
         Nothing -> error "No resources available"
         Just (r, s') -> (s', r)
 
-emptyClientGroupState :: ClientGroupState
-emptyClientGroupState = ClientGroupState Nothing Nothing
-
 allCiphersuites :: [Ciphersuite]
 allCiphersuites = map Ciphersuite ["0x0001", "0xf031", "0x0002"]
 

@@ -674,7 +674,7 @@ testCommitNotReferencingAllProposals = do
 
 testUnsupportedCiphersuite :: HasCallStack => App ()
 testUnsupportedCiphersuite = do
-  setMLSCiphersuite (Ciphersuite "0x0002")
+  setMLSCiphersuite (Ciphersuite "0x0003")
   alice <- randomUser OwnDomain def
   alice1 <- createMLSClient def alice
   void $ createNewGroup alice1

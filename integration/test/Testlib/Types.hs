@@ -225,6 +225,9 @@ data Response = Response
 instance HasField "json" Response (App Aeson.Value) where
   getField response = maybe (assertFailure "Response has no json body") pure response.jsonBody
 
+data CredentialType = BasicCredentialType | X509CredentialType
+  deriving (Eq, Show)
+
 data ClientIdentity = ClientIdentity
   { domain :: String,
     user :: String,
@@ -240,9 +243,19 @@ instance Default Ciphersuite where
 
 data ClientGroupState = ClientGroupState
   { group :: Maybe ByteString,
-    keystore :: Maybe ByteString
+    -- | mls-test-cli stores by signature scheme
+    keystore :: Map String ByteString,
+    credType :: CredentialType
   }
   deriving (Show)
+
+instance Default ClientGroupState where
+  def =
+    ClientGroupState
+      { group = Nothing,
+        keystore = mempty,
+        credType = BasicCredentialType
+      }
 
 csSignatureScheme :: Ciphersuite -> String
 csSignatureScheme (Ciphersuite code) = case code of
