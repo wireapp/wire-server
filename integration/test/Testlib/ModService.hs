@@ -332,9 +332,12 @@ withProcess resource overrides service = do
           config <- getConfig
           tempFile <- writeTempFile "/tmp" (execName <> "-" <> domain <> "-" <> ".yaml") (cs $ Yaml.encode config)
           startServiceInstance exe ["-c", tempFile] cwd tempFile execName domain
+      cleanupProcess = case service of
+        Nginz -> cleanupServiceInstanceSafe
+        _ -> cleanupServiceInstance
 
   void $ Codensity $ \k -> do
-    UnliftIO.bracket initProcess cleanupServiceInstance $ \serviceInstance -> do
+    UnliftIO.bracket initProcess cleanupProcess $ \serviceInstance -> do
       waitUntilServiceIsUp domain service serviceInstance
       k serviceInstance
 
@@ -480,7 +483,7 @@ server 127.0.0.1:{port} max_fails=3 weight=1;
 
 startNginz :: String -> FilePath -> FilePath -> IO ServiceInstance
 startNginz domain conf configDir = do
-  startServiceInstance
+  startServiceInstanceSafe
     "nginx"
     ["-c", conf, "-g", "daemon off;", "-e", "/dev/stdout"]
     (Just configDir)

@@ -1,6 +1,8 @@
 module Testlib.ModService.ServiceInstance
   ( ServiceInstance,
+    startServiceInstanceSafe, -- see haddocks!
     startServiceInstance,
+    cleanupServiceInstanceSafe, -- see haddocks!
     cleanupServiceInstance,
     flushServiceInstanceOutput,
   )
@@ -22,6 +24,7 @@ import System.IO
 import qualified System.IO.Error as E
 import System.Posix
 import System.Process
+import System.Timeout.Lifted
 import Testlib.Printing
 import Testlib.Types
 import Prelude
@@ -34,6 +37,57 @@ data ServiceInstance = ServiceInstance
     stderrChan :: Chan LineOrEOF,
     cleanupPath :: FilePath
   }
+
+-- | Use this for nginz over `startServiceInstance`, use `startServiceInstance` for everything
+-- else in `Service`.  This shouldn't exist, and we should use `startServiceInstance` for
+-- better logging, but something is wrong with the latter, and nginz won't get cleaned up
+-- properly if we use it.
+startServiceInstanceSafe :: FilePath -> [String] -> Maybe FilePath -> FilePath -> String -> String -> IO ServiceInstance
+startServiceInstanceSafe exe args workingDir pathToCleanup execName execDomain = measureM "startServiceInstanceSafe" do
+  (_, Just stdoutHdl, Just stderrHdl, ph) <-
+    createProcess
+      (proc exe args)
+        { cwd = workingDir,
+          std_out = CreatePipe,
+          std_err = CreatePipe
+        }
+  void $ forkIO $ logToConsole stdoutHdl
+  void $ forkIO $ logToConsole stderrHdl
+  pure
+    ServiceInstance
+      { name = execName,
+        domain = execDomain,
+        processHandle = ph,
+        stdoutChan = undefined,
+        stderrChan = undefined,
+        cleanupPath = pathToCleanup
+      }
+  where
+    logToConsole :: Handle -> IO ()
+    logToConsole hdl = do
+      let go =
+            do
+              line <- hGetLine hdl
+              putStrLn (decorateLine execName execDomain line)
+              go
+              `E.catch` (\(_ :: E.IOException) -> pure ())
+      go
+
+-- | see `cleanupServiceSafe`
+cleanupServiceInstanceSafe :: ServiceInstance -> App ()
+cleanupServiceInstanceSafe inst = liftIO $ do
+  let ignoreExceptions action = E.catch action $ \(_ :: E.SomeException) -> pure ()
+  ignoreExceptions $ do
+    mPid <- getPid inst.processHandle
+    for_ mPid (signalProcess keyboardSignal)
+    timeout 50000 (waitForProcess inst.processHandle) >>= \case
+      -- FUTUREWORK: this call to `timeout` can be deadlocked by `waitForProcess`.
+      Just _ -> pure ()
+      Nothing -> do
+        for_ mPid (signalProcess killProcess)
+        void $ waitForProcess inst.processHandle
+  whenM (doesFileExist inst.cleanupPath) $ removeFile inst.cleanupPath
+  whenM (doesDirectoryExist inst.cleanupPath) $ removeDirectoryRecursive inst.cleanupPath
 
 startServiceInstance :: FilePath -> [String] -> Maybe FilePath -> FilePath -> String -> String -> IO ServiceInstance
 startServiceInstance exe args workingDir pathToCleanup execName execDomain = measureM "startServiceInstance" do
@@ -63,7 +117,7 @@ cleanupServiceInstance inst = measureM "cleanupService" . liftIO $ do
   let ignoreExceptions action = E.catch action $ \(_ :: E.SomeException) -> pure ()
   ignoreExceptions $ do
     mPid <- getPid inst.processHandle
-    for_ mPid (signalProcess killProcess)
+    for_ mPid (signalProcess keyboardSignal)
     void $ waitForProcess inst.processHandle
   whenM (doesFileExist inst.cleanupPath) $ removeFile inst.cleanupPath
   whenM (doesDirectoryExist inst.cleanupPath) $ removeDirectoryRecursive inst.cleanupPath
