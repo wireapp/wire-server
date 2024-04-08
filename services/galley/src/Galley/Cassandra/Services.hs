@@ -22,6 +22,7 @@ import Control.Lens
 import Data.Id
 import Galley.Cassandra.Queries
 import Galley.Cassandra.Store
+import Galley.Cassandra.Util
 import Galley.Data.Services
 import Galley.Effects.ServiceStore hiding (deleteService)
 import Galley.Types.Bot.Service qualified as Bot
@@ -29,6 +30,7 @@ import Galley.Types.Conversations.Members (lmService, newMember)
 import Imports
 import Polysemy
 import Polysemy.Input
+import Polysemy.TinyLog
 import Wire.API.Provider.Service hiding (DeleteService)
 
 -- FUTUREWORK: support adding bots to a remote conversation
@@ -49,14 +51,21 @@ addBotMember s bot cnv = do
 
 interpretServiceStoreToCassandra ::
   ( Member (Embed IO) r,
-    Member (Input ClientState) r
+    Member (Input ClientState) r,
+    Member TinyLog r
   ) =>
   Sem (ServiceStore ': r) a ->
   Sem r a
 interpretServiceStoreToCassandra = interpret $ \case
-  CreateService s -> embedClient $ insertService s
-  GetService sr -> embedClient $ lookupService sr
-  DeleteService sr -> embedClient $ deleteService sr
+  CreateService s -> do
+    logEffect "ServiceStore.CreateService"
+    embedClient $ insertService s
+  GetService sr -> do
+    logEffect "ServiceStore.GetService"
+    embedClient $ lookupService sr
+  DeleteService sr -> do
+    logEffect "ServiceStore.DeleteService"
+    embedClient $ deleteService sr
 
 insertService :: MonadClient m => Bot.Service -> m ()
 insertService s = do

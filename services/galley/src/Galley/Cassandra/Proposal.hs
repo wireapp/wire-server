@@ -25,10 +25,12 @@ import Cassandra
 import Data.Timeout
 import Galley.Cassandra.Instances ()
 import Galley.Cassandra.Store
+import Galley.Cassandra.Util
 import Galley.Effects.ProposalStore
 import Imports
 import Polysemy
 import Polysemy.Input
+import Polysemy.TinyLog
 import Wire.API.MLS.Epoch
 import Wire.API.MLS.Group
 import Wire.API.MLS.Proposal
@@ -40,24 +42,28 @@ defaultTTL = 28 # Day
 
 interpretProposalStoreToCassandra ::
   ( Member (Embed IO) r,
-    Member (Input ClientState) r
+    Member (Input ClientState) r,
+    Member TinyLog r
   ) =>
   Sem (ProposalStore ': r) a ->
   Sem r a
-interpretProposalStoreToCassandra =
-  interpret $
-    embedClient . \case
-      StoreProposal groupId epoch ref origin raw ->
-        retry x5 $
-          write (storeQuery defaultTTL) (params LocalQuorum (groupId, epoch, ref, origin, raw))
-      GetProposal groupId epoch ref ->
-        runIdentity <$$> retry x1 (query1 getQuery (params LocalQuorum (groupId, epoch, ref)))
-      GetAllPendingProposalRefs groupId epoch ->
-        runIdentity <$$> retry x1 (query getAllPendingRef (params LocalQuorum (groupId, epoch)))
-      GetAllPendingProposals groupId epoch ->
-        retry x1 (query getAllPending (params LocalQuorum (groupId, epoch)))
-      DeleteAllProposals groupId ->
-        retry x5 (write deleteAllProposalsForGroup (params LocalQuorum (Identity groupId)))
+interpretProposalStoreToCassandra = interpret $ \case
+  StoreProposal groupId epoch ref origin raw -> do
+    logEffect "ProposalStore.StoreProposal"
+    embedClient . retry x5 $
+      write (storeQuery defaultTTL) (params LocalQuorum (groupId, epoch, ref, origin, raw))
+  GetProposal groupId epoch ref -> do
+    logEffect "ProposalStore.GetProposal"
+    embedClient (runIdentity <$$> retry x1 (query1 getQuery (params LocalQuorum (groupId, epoch, ref))))
+  GetAllPendingProposalRefs groupId epoch -> do
+    logEffect "ProposalStore.GetAllPendingProposalRefs"
+    embedClient (runIdentity <$$> retry x1 (query getAllPendingRef (params LocalQuorum (groupId, epoch))))
+  GetAllPendingProposals groupId epoch -> do
+    logEffect "ProposalStore.GetAllPendingProposals"
+    embedClient $ retry x1 (query getAllPending (params LocalQuorum (groupId, epoch)))
+  DeleteAllProposals groupId -> do
+    logEffect "ProposalStore.DeleteAllProposals"
+    embedClient $ retry x5 (write deleteAllProposalsForGroup (params LocalQuorum (Identity groupId)))
 
 storeQuery :: Timeout -> PrepQuery W (GroupId, Epoch, ProposalRef, ProposalOrigin, RawMLS Proposal) ()
 storeQuery ttl =

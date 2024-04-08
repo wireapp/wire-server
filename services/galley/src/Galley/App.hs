@@ -64,12 +64,12 @@ import Galley.Cassandra.LegalHold
 import Galley.Cassandra.Proposal
 import Galley.Cassandra.SearchVisibility
 import Galley.Cassandra.Services
-import Galley.Cassandra.SubConversation (interpretSubConversationStoreToCassandra)
+import Galley.Cassandra.SubConversation
 import Galley.Cassandra.Team
 import Galley.Cassandra.TeamFeatures
 import Galley.Cassandra.TeamNotifications
 import Galley.Effects
-import Galley.Effects.FireAndForget (interpretFireAndForget)
+import Galley.Effects.FireAndForget
 import Galley.Effects.WaiRoutes.IO
 import Galley.Env
 import Galley.External

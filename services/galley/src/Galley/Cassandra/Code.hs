@@ -26,6 +26,7 @@ import Data.Code
 import Data.Map qualified as Map
 import Galley.Cassandra.Queries qualified as Cql
 import Galley.Cassandra.Store
+import Galley.Cassandra.Util
 import Galley.Data.Types
 import Galley.Data.Types qualified as Code
 import Galley.Effects.CodeStore (CodeStore (..))
@@ -33,22 +34,35 @@ import Galley.Env
 import Imports
 import Polysemy
 import Polysemy.Input
+import Polysemy.TinyLog
 import Wire.API.Password
 
 interpretCodeStoreToCassandra ::
   ( Member (Embed IO) r,
     Member (Input ClientState) r,
-    Member (Input Env) r
+    Member (Input Env) r,
+    Member TinyLog r
   ) =>
   Sem (CodeStore ': r) a ->
   Sem r a
 interpretCodeStoreToCassandra = interpret $ \case
-  GetCode k s -> embedClient $ lookupCode k s
-  CreateCode code mPw -> embedClient $ insertCode code mPw
-  DeleteCode k s -> embedClient $ deleteCode k s
-  MakeKey cid -> Code.mkKey cid
-  GenerateCode cid s t -> Code.generate cid s t
+  GetCode k s -> do
+    logEffect "CodeStore.GetCode"
+    embedClient $ lookupCode k s
+  CreateCode code mPw -> do
+    logEffect "CodeStore.CreateCode"
+    embedClient $ insertCode code mPw
+  DeleteCode k s -> do
+    logEffect "CodeStore.DeleteCode"
+    embedClient $ deleteCode k s
+  MakeKey cid -> do
+    logEffect "CodeStore.MakeKey"
+    Code.mkKey cid
+  GenerateCode cid s t -> do
+    logEffect "CodeStore.GenerateCode"
+    Code.generate cid s t
   GetConversationCodeURI mbHost -> do
+    logEffect "CodeStore.GetConversationCodeURI"
     env <- input
     case env ^. convCodeURI of
       Left uri -> pure (Just uri)
