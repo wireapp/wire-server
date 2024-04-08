@@ -153,6 +153,7 @@ library
     Testlib.Mock
     Testlib.MockIntegrationService
     Testlib.ModService
+    Testlib.ModService.ServiceInstance
     Testlib.One2One
     Testlib.Options
     Testlib.Ports
@@ -198,6 +199,7 @@ library
     , kan-extensions
     , lens
     , lens-aeson
+    , lifted-base
     , memory
     , mime
     , monad-control
@@ -222,6 +224,7 @@ library
     , temporary
     , text
     , time
+    , timestats
     , transformers
     , transformers-base
     , unix
