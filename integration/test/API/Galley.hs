@@ -18,6 +18,7 @@ import Data.ProtoLens.Labels ()
 import qualified Data.UUID as UUID
 import Numeric.Lens
 import Proto.Otr as Proto
+import Testlib.MockIntegrationService (resolveBotHost)
 import Testlib.Prelude
 
 data CreateConv = CreateConv
@@ -610,12 +611,12 @@ disableLegalHold tid ownerid uid pw = do
   submit "DELETE" (addJSONObject ["password" .= pw] req)
 
 -- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/post_teams__tid__legalhold_settings
-postLegalHoldSettings :: (HasCallStack, MakesValue ownerid, MakesValue tid, MakesValue newService) => tid -> ownerid -> newService -> App Response
+postLegalHoldSettings :: (HasCallStack, MakesValue ownerid, MakesValue tid, MakesValue newService) => tid -> ownerid -> (String -> newService) -> App Response
 postLegalHoldSettings tid owner newSettings =
   asks ((* 1_000_000) . timeOutSeconds) >>= \tSecs -> retrying (policy tSecs) only412 $ \_ -> do
     tidStr <- asString tid
     req <- baseRequest owner Galley Versioned (joinHttpPath ["teams", tidStr, "legalhold", "settings"])
-    newSettingsObj <- make newSettings
+    newSettingsObj <- make . newSettings =<< resolveBotHost
     submit "POST" (addJSON newSettingsObj req)
   where
     policy :: Int -> RetryPolicy

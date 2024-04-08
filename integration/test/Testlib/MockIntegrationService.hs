@@ -1,4 +1,4 @@
-module Testlib.MockIntegrationService (withMockServer, lhMockAppWithPrekeys, lhMockApp, mkLegalHoldSettings, CreateMock (..)) where
+module Testlib.MockIntegrationService (withMockServer, lhMockAppWithPrekeys, lhMockApp, mkLegalHoldSettings, CreateMock (..), resolveBotHost) where
 
 import Control.Monad.Catch
 import Control.Monad.Reader
@@ -17,6 +17,7 @@ import Testlib.Prelude
 import UnliftIO (MonadUnliftIO (withRunInIO))
 import UnliftIO.Async
 import UnliftIO.Chan
+import UnliftIO.Environment (lookupEnv)
 import UnliftIO.MVar
 import UnliftIO.Timeout (timeout)
 
@@ -90,7 +91,7 @@ withFreePortAnyAddr :: (MonadMask m, MonadIO m) => ((Warp.Port, Socket) -> m a) 
 withFreePortAnyAddr = bracket openFreePortAnyAddr (liftIO . Socket.close . snd)
 
 openFreePortAnyAddr :: MonadIO m => m (Warp.Port, Socket)
-openFreePortAnyAddr = liftIO $ bindRandomPortTCP (fromString "*")
+openFreePortAnyAddr = liftIO $ bindRandomPortTCP (fromString "*6")
 
 type LiftedApplication = Request -> (Wai.Response -> App ResponseReceived) -> App ResponseReceived
 
@@ -101,7 +102,7 @@ withMockServer ::
   -- | the test
   (Warp.Port -> Chan e -> App a) ->
   App a
-withMockServer mkApp go = withFreePortAnyAddr $ \(sPort, sock) -> do
+withMockServer mkApp go = withFreePortAnyAddr \(sPort, sock) -> do
   serverStarted <- newEmptyMVar
   let tlss = Warp.tlsSettingsMemory (cs mockServerCert) (cs mockServerPrivKey)
   let defs = Warp.defaultSettings {Warp.settingsPort = sPort, Warp.settingsBeforeMainLoop = putMVar serverStarted ()}
@@ -169,10 +170,21 @@ lhMockAppWithPrekeys mks ch req cont = withRunInIO \inIO -> do
     getRequestHeader :: String -> Wai.Request -> Maybe ByteString
     getRequestHeader name = lookup (fromString name) . requestHeaders
 
-mkLegalHoldSettings :: Warp.Port -> Value
-mkLegalHoldSettings lhPort =
+-- FIXME(mangoiv): this should come from a config file
+resolveBotHost :: MonadIO m => m String
+resolveBotHost = do
+  -- check whether we're running on kubernetes
+  namespace <- lookupEnv "NAMESPACE"
+  pure case namespace of
+    -- if yes, then choose the local pod
+    Just ns -> "wire-server-integration-integration." <> ns <> ".pod.cluster.local"
+    -- of not, then choose the localhost
+    Nothing -> "localhost"
+
+mkLegalHoldSettings :: Warp.Port -> String -> Value
+mkLegalHoldSettings lhPort botHost =
   object
-    [ "base_url" .= ("https://10.244.0.146" <> ":" <> show lhPort <> "/legalhold"),
+    [ "base_url" .= ("https://" <> botHost <> ":" <> show lhPort <> "/legalhold"),
       "public_key" .= mockServerPubKey,
       "auth_token" .= "tok"
     ]

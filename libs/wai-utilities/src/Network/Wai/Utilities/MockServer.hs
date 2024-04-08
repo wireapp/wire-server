@@ -20,7 +20,7 @@
 module Network.Wai.Utilities.MockServer where
 
 import Control.Concurrent.Async qualified as Async
-import Control.Exception (throw)
+import Control.Exception (throwIO)
 import Control.Exception qualified as E
 import Control.Monad.Catch
 import Control.Monad.Codensity
@@ -83,10 +83,10 @@ startMockServer mtlsSettings app = do
         me <- Async.poll serverThread
         case me of
           Nothing -> Async.cancel serverThread
-          Just (Left e) -> throw e
+          Just (Left e) -> throwIO e
           Just (Right a) -> pure a
   case serverStartedSignal of
     Nothing -> do
       Async.cancel serverThread
-      throw (MockTimeout port)
+      throwIO (MockTimeout port)
     Just _ -> pure (closeMock, port)

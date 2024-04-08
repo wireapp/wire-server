@@ -787,6 +787,7 @@ testLHNoConsentRemoveFromGroup admin = do
   (bob, tidBob, []) <- createTeam dom 1
   legalholdWhitelistTeam tidAlice alice >>= assertStatus 200
   withMockServer lhMockApp \lhPort _chan -> do
+    putStrLn ((mconcat (replicate 5 "===============\n")) <> show lhPort)
     postLegalHoldSettings tidAlice alice (mkLegalHoldSettings lhPort) >>= assertStatus 201
     withWebSockets [alice, bob] \[aws, bws] -> do
       connectTwoUsers alice bob

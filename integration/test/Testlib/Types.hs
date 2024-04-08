@@ -445,7 +445,17 @@ lookupConfigOverride overrides = \case
   Stern -> overrides.sternCfg
   FederatorInternal -> overrides.federatorInternalCfg
 
-data Service = Brig | Galley | Cannon | Gundeck | Cargohold | Nginz | Spar | BackgroundWorker | Stern | FederatorInternal
+data Service
+  = Brig
+  | Galley
+  | Cannon
+  | Gundeck
+  | Cargohold
+  | Nginz
+  | Spar
+  | BackgroundWorker
+  | Stern
+  | FederatorInternal
   deriving
     ( Show,
       Eq,
