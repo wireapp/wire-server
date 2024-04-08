@@ -47,6 +47,7 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog qualified as P
+import System.Logger.Message
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
@@ -112,12 +113,20 @@ rmClientH ::
   UserId ::: ClientId ->
   Sem r Response
 rmClientH (usr ::: cid) = do
-  lusr <- qualifyLocal usr
-  let nRange1000 = toRange (Proxy @1000) :: Range 1 1000 Int32
-  firstConvIds <- Query.conversationIdsPageFrom lusr (GetPaginatedConversationIds Nothing nRange1000)
-  goConvs nRange1000 firstConvIds lusr
-
-  E.deleteClient usr cid
+  clients <- E.getClients [usr]
+  if (cid `elem` clientIds usr clients)
+    then do
+      lusr <- qualifyLocal usr
+      let nRange1000 = toRange (Proxy @1000) :: Range 1 1000 Int32
+      firstConvIds <- Query.conversationIdsPageFrom lusr (GetPaginatedConversationIds Nothing nRange1000)
+      goConvs nRange1000 firstConvIds lusr
+      E.deleteClient usr cid
+    else
+      P.debug
+        ( field "user" (idToText usr)
+            . field "client" (clientToText cid)
+            . msg (val "rmClientH: client already gone")
+        )
   pure empty
   where
     goConvs :: Range 1 1000 Int32 -> ConvIdsPage -> Local UserId -> Sem r ()

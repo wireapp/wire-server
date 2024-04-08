@@ -29,10 +29,12 @@ import Data.Misc (HttpsUrl)
 import Data.Time
 import Galley.Cassandra.Instances ()
 import Galley.Cassandra.Store
+import Galley.Cassandra.Util
 import Galley.Effects.TeamFeatureStore qualified as TFS
 import Imports
 import Polysemy
 import Polysemy.Input
+import Polysemy.TinyLog
 import UnliftIO.Async (pooledMapConcurrentlyN)
 import Wire.API.Conversation.Protocol (ProtocolTag)
 import Wire.API.MLS.CipherSuite
@@ -40,16 +42,27 @@ import Wire.API.Team.Feature
 
 interpretTeamFeatureStoreToCassandra ::
   ( Member (Embed IO) r,
-    Member (Input ClientState) r
+    Member (Input ClientState) r,
+    Member TinyLog r
   ) =>
   Sem (TFS.TeamFeatureStore ': r) a ->
   Sem r a
 interpretTeamFeatureStoreToCassandra = interpret $ \case
-  TFS.GetFeatureConfig sing tid -> embedClient $ getFeatureConfig sing tid
-  TFS.GetFeatureConfigMulti sing tids -> embedClient $ getFeatureConfigMulti sing tids
-  TFS.SetFeatureConfig sing tid wsnl -> embedClient $ setFeatureConfig sing tid wsnl
-  TFS.GetFeatureLockStatus sing tid -> embedClient $ getFeatureLockStatus sing tid
-  TFS.SetFeatureLockStatus sing tid ls -> embedClient $ setFeatureLockStatus sing tid ls
+  TFS.GetFeatureConfig sing tid -> do
+    logEffect "TeamFeatureStore.GetFeatureConfig"
+    embedClient $ getFeatureConfig sing tid
+  TFS.GetFeatureConfigMulti sing tids -> do
+    logEffect "TeamFeatureStore.GetFeatureConfigMulti"
+    embedClient $ getFeatureConfigMulti sing tids
+  TFS.SetFeatureConfig sing tid wsnl -> do
+    logEffect "TeamFeatureStore.SetFeatureConfig"
+    embedClient $ setFeatureConfig sing tid wsnl
+  TFS.GetFeatureLockStatus sing tid -> do
+    logEffect "TeamFeatureStore.GetFeatureLockStatus"
+    embedClient $ getFeatureLockStatus sing tid
+  TFS.SetFeatureLockStatus sing tid ls -> do
+    logEffect "TeamFeatureStore.SetFeatureLockStatus"
+    embedClient $ setFeatureLockStatus sing tid ls
 
 getFeatureConfig :: MonadClient m => FeatureSingleton cfg -> TeamId -> m (Maybe (WithStatusNoLock cfg))
 getFeatureConfig FeatureSingletonLegalholdConfig tid = getTrivialConfigC "legalhold_status" tid

@@ -26,6 +26,7 @@ import Data.ByteString.Conversion.To
 import Data.Id
 import Data.Misc
 import Galley.Cassandra.Services
+import Galley.Cassandra.Util
 import Galley.Data.Services (BotMember, botMemId, botMemService)
 import Galley.Effects
 import Galley.Effects.ExternalAccess (ExternalAccess (..))
@@ -39,6 +40,7 @@ import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status (status410)
 import Polysemy
 import Polysemy.Input
+import Polysemy.TinyLog
 import Ssl.Util (withVerifiedSslConnection)
 import System.Logger.Class qualified as Log
 import System.Logger.Message (field, msg, val, (~~))
@@ -49,14 +51,21 @@ import Wire.API.Provider.Service (serviceRefId, serviceRefProvider)
 
 interpretExternalAccess ::
   ( Member (Embed IO) r,
-    Member (Input Env) r
+    Member (Input Env) r,
+    Member TinyLog r
   ) =>
   Sem (ExternalAccess ': r) a ->
   Sem r a
 interpretExternalAccess = interpret $ \case
-  Deliver pp -> embedApp $ deliver (toList pp)
-  DeliverAsync pp -> embedApp $ deliverAsync (toList pp)
-  DeliverAndDeleteAsync cid pp -> embedApp $ deliverAndDeleteAsync cid (toList pp)
+  Deliver pp -> do
+    logEffect "ExternalAccess.Deliver"
+    embedApp $ deliver (toList pp)
+  DeliverAsync pp -> do
+    logEffect "ExternalAccess.DeliverAsync"
+    embedApp $ deliverAsync (toList pp)
+  DeliverAndDeleteAsync cid pp -> do
+    logEffect "ExternalAccess.DeliverAndDeleteAsync"
+    embedApp $ deliverAndDeleteAsync cid (toList pp)
 
 -- | Like deliver, but ignore orphaned bots and return immediately.
 --

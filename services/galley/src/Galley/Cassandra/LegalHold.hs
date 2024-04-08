@@ -38,6 +38,7 @@ import Data.Misc
 import Galley.Cassandra.Instances ()
 import Galley.Cassandra.Queries qualified as Q
 import Galley.Cassandra.Store
+import Galley.Cassandra.Util
 import Galley.Effects.LegalHoldStore (LegalHoldStore (..))
 import Galley.Env
 import Galley.External.LegalHoldService.Internal
@@ -50,6 +51,7 @@ import OpenSSL.PEM qualified as SSL
 import OpenSSL.RSA qualified as SSL
 import Polysemy
 import Polysemy.Input
+import Polysemy.TinyLog
 import Ssl.Util qualified as SSL
 import Wire.API.Provider.Service
 import Wire.API.User.Client.Prekey
@@ -57,28 +59,53 @@ import Wire.API.User.Client.Prekey
 interpretLegalHoldStoreToCassandra ::
   ( Member (Embed IO) r,
     Member (Input ClientState) r,
-    Member (Input Env) r
+    Member (Input Env) r,
+    Member TinyLog r
   ) =>
   FeatureLegalHold ->
   Sem (LegalHoldStore ': r) a ->
   Sem r a
 interpretLegalHoldStoreToCassandra lh = interpret $ \case
-  CreateSettings s -> embedClient $ createSettings s
-  GetSettings tid -> embedClient $ getSettings tid
-  RemoveSettings tid -> embedClient $ removeSettings tid
-  InsertPendingPrekeys uid pkeys -> embedClient $ insertPendingPrekeys uid pkeys
-  SelectPendingPrekeys uid -> embedClient $ selectPendingPrekeys uid
-  DropPendingPrekeys uid -> embedClient $ dropPendingPrekeys uid
-  SetUserLegalHoldStatus tid uid st -> embedClient $ setUserLegalHoldStatus tid uid st
-  SetTeamLegalholdWhitelisted tid -> embedClient $ setTeamLegalholdWhitelisted tid
-  UnsetTeamLegalholdWhitelisted tid -> embedClient $ unsetTeamLegalholdWhitelisted tid
-  IsTeamLegalholdWhitelisted tid -> embedClient $ isTeamLegalholdWhitelisted lh tid
+  CreateSettings s -> do
+    logEffect "LegalHoldStore.CreateSettings"
+    embedClient $ createSettings s
+  GetSettings tid -> do
+    logEffect "LegalHoldStore.GetSettings"
+    embedClient $ getSettings tid
+  RemoveSettings tid -> do
+    logEffect "LegalHoldStore.RemoveSettings"
+    embedClient $ removeSettings tid
+  InsertPendingPrekeys uid pkeys -> do
+    logEffect "LegalHoldStore.InsertPendingPrekeys"
+    embedClient $ insertPendingPrekeys uid pkeys
+  SelectPendingPrekeys uid -> do
+    logEffect "LegalHoldStore.SelectPendingPrekeys"
+    embedClient $ selectPendingPrekeys uid
+  DropPendingPrekeys uid -> do
+    logEffect "LegalHoldStore.DropPendingPrekeys"
+    embedClient $ dropPendingPrekeys uid
+  SetUserLegalHoldStatus tid uid st -> do
+    logEffect "LegalHoldStore.SetUserLegalHoldStatus"
+    embedClient $ setUserLegalHoldStatus tid uid st
+  SetTeamLegalholdWhitelisted tid -> do
+    logEffect "LegalHoldStore.SetTeamLegalholdWhitelisted"
+    embedClient $ setTeamLegalholdWhitelisted tid
+  UnsetTeamLegalholdWhitelisted tid -> do
+    logEffect "LegalHoldStore.UnsetTeamLegalholdWhitelisted"
+    embedClient $ unsetTeamLegalholdWhitelisted tid
+  IsTeamLegalholdWhitelisted tid -> do
+    logEffect "LegalHoldStore.IsTeamLegalholdWhitelisted"
+    embedClient $ isTeamLegalholdWhitelisted lh tid
   -- FUTUREWORK: should this action be part of a separate effect?
-  MakeVerifiedRequestFreshManager fpr url r ->
+  MakeVerifiedRequestFreshManager fpr url r -> do
+    logEffect "LegalHoldStore.MakeVerifiedRequestFreshManager"
     embedApp $ makeVerifiedRequestFreshManager fpr url r
-  MakeVerifiedRequest fpr url r ->
+  MakeVerifiedRequest fpr url r -> do
+    logEffect "LegalHoldStore.MakeVerifiedRequest"
     embedApp $ makeVerifiedRequest fpr url r
-  ValidateServiceKey sk -> embed @IO $ validateServiceKey sk
+  ValidateServiceKey sk -> do
+    logEffect "LegalHoldStore.ValidateServiceKey"
+    embed @IO $ validateServiceKey sk
 
 -- | Returns 'False' if legal hold is not enabled for this team
 -- The Caller is responsible for checking whether legal hold is enabled for this team
