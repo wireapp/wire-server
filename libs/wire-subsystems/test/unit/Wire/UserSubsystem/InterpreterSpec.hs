@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wwarn #-}
+
 module Wire.UserSubsystem.InterpreterSpec (spec) where
 
 import Data.ByteString.Builder qualified as Builder
@@ -118,6 +120,15 @@ instance KnownComponent c => RunClient (FakeFederation c) where
       (component, rpc) -> error $ "Unexpected federated call: " <> show (component, rpc)
 
   throwClientError err = error $ "Unexpected federation client error: " <> displayException err
+
+instance FederationMonad FakeFederation where
+  fedClientWithProxy _ _ = some_pattern_matching_and_unsafe_coerce_magic
+
+data SomeEndpoint where
+  SomeEndpoint :: forall (comp :: Component) api name. HasFedEndpoint comp api name => SomeEndpoint
+
+class FakeFederationImpl comp name where
+  fakeFederationImpl :: HasFedEndpoint comp name api => Client (FakeFederation comp) api
 
 runFakeFederation :: Map Domain [UserProfile] -> FakeFederation c a -> a
 runFakeFederation users (FakeFederation action) = runIdentity $ runReaderT action users

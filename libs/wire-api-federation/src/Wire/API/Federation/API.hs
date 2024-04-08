@@ -22,11 +22,11 @@ module Wire.API.Federation.API
   ( FedApi,
     HasFedEndpoint,
     HasUnsafeFedEndpoint,
+    FederationMonad (..),
     fedClient,
     fedQueueClient,
     sendBundle,
     fedClientIn,
-    fedClientGeneral,
     unsafeFedClientIn,
     module Wire.API.MakesFederatedCall,
 
@@ -74,6 +74,22 @@ type HasFedEndpoint comp api name = (HasUnsafeFedEndpoint comp api name)
 -- you to forget about some federated calls.
 type HasUnsafeFedEndpoint comp api name = 'Just api ~ LookupEndpoint (FedApi comp) name
 
+class FederationMonad (fedM :: Component -> Type -> Type) where
+  type FederationMonadConstraint fedM (comp :: Component) (name :: k) :: Constraint
+  fedClientWithProxy ::
+    forall (comp :: Component) name api.
+    ( HasClient (fedM comp) api,
+      HasFedEndpoint comp api name,
+      FederationMonadConstraint fedM comp name
+    ) =>
+    Proxy api ->
+    Proxy (fedM comp) ->
+    Client (fedM comp) api
+
+instance FederationMonad FederatorClient where
+  type FederationMonadConstraint FederatorClient comp name = ()
+  fedClientWithProxy = clientIn
+
 -- | Return a client for a named endpoint.
 --
 -- This function introduces an 'AddAnnotation' constraint, which is
@@ -82,25 +98,16 @@ type HasUnsafeFedEndpoint comp api name = 'Just api ~ LookupEndpoint (FedApi com
 -- 'Wire.API.MakesFederatedCall.exposeAnnotations' for a better understanding
 -- of the information flow here.
 fedClient ::
-  forall (comp :: Component) name m (showcomp :: Symbol) api x.
+  forall (comp :: Component) name fedM (showcomp :: Symbol) api x.
   ( AddAnnotation 'Remote showcomp (FedPath name) x,
     showcomp ~ ShowComponent comp,
     HasFedEndpoint comp api name,
-    HasClient m api,
-    m ~ FederatorClient comp
+    FederationMonadConstraint fedM comp name,
+    HasClient (fedM comp) api,
+    FederationMonad fedM
   ) =>
-  Client m api
-fedClient = clientIn (Proxy @api) (Proxy @m)
-
-fedClientGeneral ::
-  forall (comp :: Component) name m (showcomp :: Symbol) api x.
-  ( AddAnnotation 'Remote showcomp (FedPath name) x,
-    showcomp ~ ShowComponent comp,
-    HasFedEndpoint comp api name,
-    HasClient m api
-  ) =>
-  Client m api
-fedClientGeneral = clientIn (Proxy @api) (Proxy @m)
+  Client (fedM comp) api
+fedClient = fedClientWithProxy @_ @_ @name (Proxy @api) (Proxy @(fedM comp))
 
 fedClientIn ::
   forall (comp :: Component) (name :: Symbol) m api.
