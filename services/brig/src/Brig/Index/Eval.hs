@@ -109,6 +109,7 @@ runCommand l = \case
         <*> pure Nothing
         <*> pure galleyEndpoint
         <*> pure mgr
+        <*> pure mCreds
 
     initES esURI mgr mCreds =
       let env = ES.mkBHEnv (toESServer esURI) mgr
