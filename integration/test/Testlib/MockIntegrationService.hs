@@ -17,7 +17,7 @@ import Testlib.Prelude
 import UnliftIO (MonadUnliftIO (withRunInIO))
 import UnliftIO.Async
 import UnliftIO.Chan
-import UnliftIO.Environment (lookupEnv)
+-- import UnliftIO.Environment (lookupEnv)
 import UnliftIO.MVar
 import UnliftIO.Timeout (timeout)
 
@@ -171,15 +171,22 @@ lhMockAppWithPrekeys mks ch req cont = withRunInIO \inIO -> do
     getRequestHeader name = lookup (fromString name) . requestHeaders
 
 -- FIXME(mangoiv): this should come from a config file
-resolveBotHost :: MonadIO m => m String
+resolveBotHost :: App String
 resolveBotHost = do
-  -- check whether we're running on kubernetes
-  namespace <- lookupEnv "NAMESPACE"
-  pure case namespace of
-    -- if yes, then choose the local pod
-    Just ns -> "wire-server-integration-integration." <> ns <> ".pod.cluster.local"
-    -- of not, then choose the localhost
-    Nothing -> "localhost"
+  dom <- asks domain1
+  putStrLn dom
+  pure
+    if dom == "example.com"
+      then "localhost"
+      else dom
+
+-- check whether we're running on kubernetes
+-- namespace <- lookupEnv "NAMESPACE"
+-- pure case namespace of
+--   -- if yes, then choose the local pod
+--   Just ns -> "wire-server-integration-integration." <> ns <> ".pod.cluster.local"
+--   -- of not, then choose the localhost
+--   Nothing -> "localhost"
 
 mkLegalHoldSettings :: Warp.Port -> String -> Value
 mkLegalHoldSettings lhPort botHost =
