@@ -15,7 +15,7 @@ fluent-bit:
     @INCLUDE fluent-bit-filter.conf
     @INCLUDE fluent-bit-output.conf
 
-    # Uncomment the following if you want to enable and configure logging to syslog
+    # Uncomment the following if you want to enable and configure logging of kubernetes logs to a remote syslog server
     #[OUTPUT]
     #  name                 syslog
     #  match                *
