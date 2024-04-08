@@ -289,8 +289,8 @@ setUpLHDevice ::
   tid ->
   owner ->
   uid ->
-  -- | the port the LH service is running on
-  Int ->
+  -- | the host and port the LH service is running on
+  (String, Int) ->
   App ()
 setUpLHDevice tid alice bob lhPort = do
   legalholdWhitelistTeam tid alice

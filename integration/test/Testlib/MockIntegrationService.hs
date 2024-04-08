@@ -100,10 +100,11 @@ withMockServer ::
   -- | the mock server
   (Chan e -> LiftedApplication) ->
   -- | the test
-  (Warp.Port -> Chan e -> App a) ->
+  ((String, Warp.Port) -> Chan e -> App a) ->
   App a
 withMockServer mkApp go = withFreePortAnyAddr \(sPort, sock) -> do
   serverStarted <- newEmptyMVar
+  host <- resolveBotHost
   let tlss = Warp.tlsSettingsMemory (cs mockServerCert) (cs mockServerPrivKey)
   let defs = Warp.defaultSettings {Warp.settingsPort = sPort, Warp.settingsBeforeMainLoop = putMVar serverStarted ()}
   buf <- newChan
@@ -112,7 +113,7 @@ withMockServer mkApp go = withFreePortAnyAddr \(sPort, sock) -> do
       inIO $ mkApp buf req (liftIO . respond)
   srvMVar <- UnliftIO.Timeout.timeout 5_000_000 (takeMVar serverStarted)
   case srvMVar of
-    Just () -> go sPort buf `finally` cancel srv
+    Just () -> go (host, sPort) buf `finally` cancel srv
     Nothing -> error . show =<< poll srv
 
 lhMockApp :: Chan (Wai.Request, LBS.ByteString) -> LiftedApplication
@@ -188,8 +189,8 @@ resolveBotHost = do
 --   -- of not, then choose the localhost
 --   Nothing -> "localhost"
 
-mkLegalHoldSettings :: Warp.Port -> String -> Value
-mkLegalHoldSettings lhPort botHost =
+mkLegalHoldSettings :: (String, Warp.Port) -> Value
+mkLegalHoldSettings (botHost, lhPort) =
   object
     [ "base_url" .= ("https://" <> botHost <> ":" <> show lhPort <> "/legalhold"),
       "public_key" .= mockServerPubKey,
