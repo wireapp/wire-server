@@ -4,8 +4,11 @@ module Wire.UserSubsystem.InterpreterSpec (spec) where
 
 import Data.ByteString.Builder qualified as Builder
 import Data.Domain
+import Data.Id
 import Data.LegalHold (UserLegalHoldStatus (UserLegalHoldDisabled))
+import Data.Proxy
 import Data.Qualified
+import GHC.TypeLits
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -14,6 +17,7 @@ import Servant.Client.Core
 import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
+import Unsafe.Coerce
 import Wire.API.Federation.API
 import Wire.API.Federation.Component
 import Wire.API.Federation.Error
@@ -109,32 +113,24 @@ type GetUserProfileEffects =
     (Concurrency 'Unsafe)
   ]
 
-newtype FakeFederation (c :: Component) a = FakeFederation (ReaderT (Map Domain [UserProfile]) Identity a)
+newtype FakeFederation comp a = FakeFederation (ReaderT (Map Domain [UserProfile]) Identity a)
   deriving newtype (Functor, Applicative, Monad)
 
-instance KnownComponent c => RunClient (FakeFederation c) where
-  runRequestAcceptStatus _acceptableStatuses req = do
-    case (componentVal @c, Builder.toLazyByteString req.requestPath) of
-      -- TODO: Create a fake servant server and call that
-      (Brig, "/get-users-by-ids") -> undefined
-      (component, rpc) -> error $ "Unexpected federated call: " <> show (component, rpc)
-
-  throwClientError err = error $ "Unexpected federation client error: " <> displayException err
+instance RunClient (FakeFederation comp) where
+  runRequestAcceptStatus _acceptableStatuses _req = error "FakeFederation does not support servant client"
+  throwClientError _err = error "FakeFederation does not support servant client"
 
 instance FederationMonad FakeFederation where
-  fedClientWithProxy _ _ = some_pattern_matching_and_unsafe_coerce_magic
+  fedClientWithProxy (_ :: Proxy comp) (_ :: Proxy name) _ _ =
+    case (componentVal @comp, nameVal @_ @name) of
+      (Brig, "get-users-by-ids") -> unsafeCoerce fakeGetUsersByIds
+      _ -> undefined
 
-data SomeEndpoint where
-  SomeEndpoint :: forall (comp :: Component) api name. HasFedEndpoint comp api name => SomeEndpoint
-
-class FakeFederationImpl comp name where
-  fakeFederationImpl :: HasFedEndpoint comp name api => Client (FakeFederation comp) api
+fakeGetUsersByIds :: [UserId] -> FakeFederation 'Brig [UserProfile]
+fakeGetUsersByIds _ = pure []
 
 runFakeFederation :: Map Domain [UserProfile] -> FakeFederation c a -> a
 runFakeFederation users (FakeFederation action) = runIdentity $ runReaderT action users
-
--- fakeGetUsersById :: Request -> FakeFederation c Response
--- fakeGetUsersById req = do
 
 runFederationStack ::
   Map Domain [UserProfile] ->

@@ -72,8 +72,7 @@ getRemoteUserProfiles ::
   ( Member (FederationAPIAccess fedM) r,
     Member (Error FederationError) r,
     RunClient (fedM 'Brig),
-    FederationMonad fedM,
-    FederationMonadConstraint fedM 'Brig "get-users-by-ids"
+    FederationMonad fedM
   ) =>
   Remote [UserId] ->
   Sem r [UserProfile]

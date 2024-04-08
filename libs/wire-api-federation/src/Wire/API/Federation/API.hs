@@ -23,6 +23,7 @@ module Wire.API.Federation.API
     HasFedEndpoint,
     HasUnsafeFedEndpoint,
     FederationMonad (..),
+    IsNamed (..),
     fedClient,
     fedQueueClient,
     sendBundle,
@@ -40,6 +41,8 @@ import Data.Aeson
 import Data.Domain
 import Data.Kind
 import Data.Proxy
+import Data.Singletons
+import Data.Text qualified as Text
 import GHC.TypeLits
 import Imports
 import Network.AMQP
@@ -54,6 +57,7 @@ import Wire.API.Federation.Client
 import Wire.API.Federation.Component
 import Wire.API.Federation.Endpoint
 import Wire.API.Federation.HasNotificationEndpoint
+import Wire.API.Federation.Version
 import Wire.API.MakesFederatedCall
 import Wire.API.Routes.Named
 
@@ -74,21 +78,31 @@ type HasFedEndpoint comp api name = (HasUnsafeFedEndpoint comp api name)
 -- you to forget about some federated calls.
 type HasUnsafeFedEndpoint comp api name = 'Just api ~ LookupEndpoint (FedApi comp) name
 
+class IsNamed (name :: k) where
+  nameVal :: Text
+
+instance KnownSymbol name => IsNamed (name :: Symbol) where
+  nameVal = Text.pack (symbolVal (Proxy @name))
+
+instance (IsNamed name, SingI v) => IsNamed (Versioned (v :: Version) name) where
+  nameVal = versionText (demote @v) <> "-" <> nameVal @_ @name
+
 class FederationMonad (fedM :: Component -> Type -> Type) where
-  type FederationMonadConstraint fedM (comp :: Component) (name :: k) :: Constraint
   fedClientWithProxy ::
     forall (comp :: Component) name api.
     ( HasClient (fedM comp) api,
       HasFedEndpoint comp api name,
-      FederationMonadConstraint fedM comp name
+      KnownComponent comp,
+      IsNamed name
     ) =>
+    Proxy comp ->
+    Proxy name ->
     Proxy api ->
     Proxy (fedM comp) ->
     Client (fedM comp) api
 
 instance FederationMonad FederatorClient where
-  type FederationMonadConstraint FederatorClient comp name = ()
-  fedClientWithProxy = clientIn
+  fedClientWithProxy _ _ = clientIn
 
 -- | Return a client for a named endpoint.
 --
@@ -102,12 +116,13 @@ fedClient ::
   ( AddAnnotation 'Remote showcomp (FedPath name) x,
     showcomp ~ ShowComponent comp,
     HasFedEndpoint comp api name,
-    FederationMonadConstraint fedM comp name,
     HasClient (fedM comp) api,
+    KnownComponent comp,
+    IsNamed name,
     FederationMonad fedM
   ) =>
   Client (fedM comp) api
-fedClient = fedClientWithProxy @_ @_ @name (Proxy @api) (Proxy @(fedM comp))
+fedClient = fedClientWithProxy (Proxy @comp) (Proxy @name) (Proxy @api) (Proxy @(fedM comp))
 
 fedClientIn ::
   forall (comp :: Component) (name :: Symbol) m api.
