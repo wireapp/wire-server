@@ -261,9 +261,7 @@ newEnv o = do
   kpLock <- newMVar ()
   rabbitChan <- traverse (Q.mkRabbitMqChannelMVar lgr) o.rabbitmq
   let allDisabledVersions = foldMap expandVersionExp (Opt.setDisabledAPIVersions sett)
-  mEsCreds <- for (Opt.credentials (Opt.elasticsearch o)) initCredentials
-  mEsAddCreds <- for (Opt.additionalCredentials (Opt.elasticsearch o)) initCredentials
-
+  idxEnv <- mkIndexEnv o lgr mtr (Opt.galley o) mgr
   pure $!
     Env
       { _cargohold = mkEndpoint $ Opt.cargohold o,
@@ -298,7 +296,7 @@ newEnv o = do
         _zauthEnv = zau,
         _digestMD5 = md5,
         _digestSHA256 = sha256,
-        _indexEnv = mkIndexEnv o lgr mgr mtr mEsCreds mEsAddCreds (Opt.galley o),
+        _indexEnv = idxEnv,
         _randomPrekeyLocalLock = prekeyLocalLock,
         _keyPackageLocalLock = kpLock,
         _rabbitmqChannel = rabbitChan,
@@ -318,16 +316,23 @@ newEnv o = do
       pure (Nothing, Just smtp)
     mkEndpoint service = RPC.host (encodeUtf8 (service ^. host)) . RPC.port (service ^. port) $ RPC.empty
 
-mkIndexEnv :: Opts -> Logger -> Manager -> Metrics -> Maybe Credentials -> Maybe Credentials -> Endpoint -> IndexEnv
-mkIndexEnv o lgr mgr mtr mCreds mAddCreds galleyEp =
-  let mkBhe url mcs =
+mkIndexEnv :: Opts -> Logger -> Metrics -> Endpoint -> Manager -> IO IndexEnv
+mkIndexEnv opts logger metricsStorage galleyEp rpcHttpManager = do
+  mEsCreds :: Maybe Credentials <- for opts.elasticsearch.credentials initCredentials
+  mEsAddCreds :: Maybe Credentials <- for opts.elasticsearch.additionalCredentials initCredentials
+
+  let mkBhEnv verifyTls mCustomCa mCreds url = do
+        mgr <- initHttpManagerWithTLSConfig verifyTls mCustomCa
         let bhe = ES.mkBHEnv (ES.Server url) mgr
-         in maybe bhe (\creds -> bhe {ES.bhRequestHook = ES.basicAuthHook (ES.EsUsername creds.username) (ES.EsPassword creds.password)}) mcs
-      lgr' = Log.clone (Just "index.brig") lgr
-      mainIndex = ES.IndexName $ Opt.index (Opt.elasticsearch o)
-      additionalIndex = ES.IndexName <$> Opt.additionalWriteIndex (Opt.elasticsearch o)
-      additionalBhe = flip mkBhe mAddCreds <$> Opt.additionalWriteIndexUrl (Opt.elasticsearch o)
-   in IndexEnv mtr lgr' (mkBhe (Opt.url (Opt.elasticsearch o)) mCreds) Nothing mainIndex additionalIndex additionalBhe galleyEp mgr mCreds
+        pure $ maybe bhe (\creds -> bhe {ES.bhRequestHook = ES.basicAuthHook (ES.EsUsername creds.username) (ES.EsPassword creds.password)}) mCreds
+      esLogger = Log.clone (Just "index.brig") logger
+      mainIndex = ES.IndexName opts.elasticsearch.index
+      additionalIndex = ES.IndexName <$> opts.elasticsearch.additionalWriteIndex
+  bhEnv <- mkBhEnv opts.elasticsearch.verifyTls opts.elasticsearch.caCert mEsCreds opts.elasticsearch.url
+  additionalBhEnv <-
+    for opts.elasticsearch.additionalWriteIndexUrl $
+      mkBhEnv opts.elasticsearch.additionalVerifyTls opts.elasticsearch.additionalCaCert mEsAddCreds
+  pure $ IndexEnv metricsStorage esLogger bhEnv Nothing mainIndex additionalIndex additionalBhEnv galleyEp rpcHttpManager mEsCreds
 
 initZAuth :: Opts -> IO ZAuth.Env
 initZAuth o = do
@@ -343,14 +348,21 @@ initZAuth o = do
 
 initHttpManager :: IO Manager
 initHttpManager = do
+  initHttpManagerWithTLSConfig False Nothing
+
+initHttpManagerWithTLSConfig :: Bool -> Maybe FilePath -> IO Manager
+initHttpManagerWithTLSConfig verifyTls mCustomCa = do
   -- See Note [SSL context]
   ctx <- SSL.context
   SSL.contextAddOption ctx SSL_OP_NO_SSLv2
   SSL.contextAddOption ctx SSL_OP_NO_SSLv3
   SSL.contextSetCiphers ctx "HIGH"
-  SSL.contextSetVerificationMode ctx $
-    SSL.VerifyPeer True True Nothing
-  SSL.contextSetDefaultVerifyPaths ctx
+  when verifyTls $
+    SSL.contextSetVerificationMode ctx $
+      SSL.VerifyPeer True True Nothing
+  case mCustomCa of
+    Nothing -> SSL.contextSetDefaultVerifyPaths ctx
+    Just customCa -> SSL.contextSetCAFile ctx customCa
   -- Unfortunately, there are quite some AWS services we talk to
   -- (e.g. SES, Dynamo) that still only support TLSv1.
   -- Ideally: SSL.contextAddOption ctx SSL_OP_NO_TLSv1

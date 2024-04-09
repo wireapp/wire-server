@@ -114,7 +114,8 @@ data IndexEnv = IndexEnv
     idxAdditionalName :: Maybe ES.IndexName,
     idxAdditionalElastic :: Maybe ES.BHEnv,
     idxGalley :: Endpoint,
-    idxHttpManager :: Manager,
+    -- | Used to make RPC calls to other wire-server serivces
+    idxRpcHttpManager :: Manager,
     -- credentials for reindexing have to be passed via the env because bulk API requests are not supported by bloodhound
     idxCredentials :: Maybe Credentials
   }
@@ -154,7 +155,7 @@ instance ES.MonadBH IndexIO where
 
 instance MonadHttp IndexIO where
   handleRequestWithCont req handler = do
-    manager <- asks idxHttpManager
+    manager <- asks idxRpcHttpManager
     liftIO $ withResponse req manager handler
 
 withDefaultESUrl :: (MonadIndexIO m) => ES.BH m a -> m a
