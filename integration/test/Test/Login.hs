@@ -10,6 +10,7 @@ import Control.Concurrent (threadDelay)
 import qualified Data.Aeson as Aeson
 import SetupHelpers
 import Testlib.Prelude
+import Text.Printf (printf)
 
 testLoginVerify6DigitEmailCodeSuccess :: HasCallStack => App ()
 testLoginVerify6DigitEmailCodeSuccess = do
@@ -33,7 +34,7 @@ testLoginVerify6DigitWrongCodeFails = do
   setTeamFeatureStatus owner team "sndFactorPasswordChallenge" "enabled"
   generateVerificationCode owner email
   correctCode <- getVerificationCode owner "login" >>= getJSON 200 >>= asString
-  let wrongCode = show $ (read @Int correctCode) + 1 `mod` 1000000
+  let wrongCode :: String = printf "%06d" $ (read @Int correctCode) + 1 `mod` 1000000
   bindResponse (loginWith2ndFactor owner email defPassword wrongCode) $ \resp -> do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "code-authentication-failed"
@@ -106,7 +107,7 @@ testLoginVerify6DigitLimitRetries = do
   setTeamFeatureStatus owner team "sndFactorPasswordChallenge" "enabled"
   generateVerificationCode owner email
   correctCode <- getVerificationCode owner "login" >>= getJSON 200 >>= asString
-  let wrongCode = show $ (read @Int correctCode) + 1 `mod` 1000000
+  let wrongCode :: String = printf "%06d" $ (read @Int correctCode) + 1 `mod` 1000000
   -- try login with wrong code should fail 3 times
   forM_ [1 .. 3] $ \(_ :: Int) -> do
     bindResponse (loginWith2ndFactor owner email defPassword wrongCode) \resp -> do
