@@ -110,6 +110,7 @@ instance FromByteString CipherSuite where
 data CipherSuiteTag
   = MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
   | MLS_128_DHKEMP256_AES128GCM_SHA256_P256
+  | MLS_256_DHKEMP384_AES256GCM_SHA384_P384
   | MLS_128_X25519Kyber768Draft00_AES128GCM_SHA256_Ed25519
   deriving stock (Bounded, Enum, Eq, Show, Generic, Ord)
   deriving (Arbitrary) via (GenericUniform CipherSuiteTag)
@@ -159,19 +160,26 @@ cipherSuiteTag cs = listToMaybe $ do
 tagCipherSuite :: CipherSuiteTag -> CipherSuite
 tagCipherSuite MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 = CipherSuite 0x1
 tagCipherSuite MLS_128_DHKEMP256_AES128GCM_SHA256_P256 = CipherSuite 0x2
+tagCipherSuite MLS_256_DHKEMP384_AES256GCM_SHA384_P384 = CipherSuite 0x7
 tagCipherSuite MLS_128_X25519Kyber768Draft00_AES128GCM_SHA256_Ed25519 = CipherSuite 0xf031
 
-csHash :: CipherSuiteTag -> ByteString -> RawMLS a -> ByteString
-csHash MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 = sha256Hash
-csHash MLS_128_DHKEMP256_AES128GCM_SHA256_P256 = sha256Hash
-csHash MLS_128_X25519Kyber768Draft00_AES128GCM_SHA256_Ed25519 = sha256Hash
+data SomeHashAlgorithm where
+  SomeHashAlgorithm :: HashAlgorithm a => a -> SomeHashAlgorithm
 
-sha256Hash :: ByteString -> RawMLS a -> ByteString
-sha256Hash ctx value = convert . hashWith SHA256 . encodeMLS' $ RefHashInput ctx value
+csHashAlgorithm :: CipherSuiteTag -> SomeHashAlgorithm
+csHashAlgorithm MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 = SomeHashAlgorithm SHA256
+csHashAlgorithm MLS_128_DHKEMP256_AES128GCM_SHA256_P256 = SomeHashAlgorithm SHA256
+csHashAlgorithm MLS_256_DHKEMP384_AES256GCM_SHA384_P384 = SomeHashAlgorithm SHA384
+csHashAlgorithm MLS_128_X25519Kyber768Draft00_AES128GCM_SHA256_Ed25519 = SomeHashAlgorithm SHA256
+
+csHash :: CipherSuiteTag -> ByteString -> RawMLS a -> ByteString
+csHash cs ctx value = case csHashAlgorithm cs of
+  SomeHashAlgorithm a -> convert . hashWith a . encodeMLS' $ RefHashInput ctx value
 
 csVerifySignature :: CipherSuiteTag -> ByteString -> RawMLS a -> ByteString -> Bool
 csVerifySignature MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 = ed25519VerifySignature
 csVerifySignature MLS_128_DHKEMP256_AES128GCM_SHA256_P256 = ECDSA.verifySignature (Proxy @Curve_P256R1)
+csVerifySignature MLS_256_DHKEMP384_AES256GCM_SHA384_P384 = ECDSA.verifySignature (Proxy @Curve_P384R1)
 csVerifySignature MLS_128_X25519Kyber768Draft00_AES128GCM_SHA256_Ed25519 = ed25519VerifySignature
 
 ed25519VerifySignature :: ByteString -> RawMLS a -> ByteString -> Bool
@@ -222,6 +230,7 @@ signWithLabel sigLabel priv pub x = BA.convert $ Ed25519.sign priv pub (encodeML
 csSignatureScheme :: CipherSuiteTag -> SignatureSchemeTag
 csSignatureScheme MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 = Ed25519
 csSignatureScheme MLS_128_DHKEMP256_AES128GCM_SHA256_P256 = Ecdsa_secp256r1_sha256
+csSignatureScheme MLS_256_DHKEMP384_AES256GCM_SHA384_P384 = Ecdsa_secp384r1_sha384
 csSignatureScheme MLS_128_X25519Kyber768Draft00_AES128GCM_SHA256_Ed25519 = Ed25519
 
 -- | A TLS signature scheme.
@@ -234,7 +243,7 @@ newtype SignatureScheme = SignatureScheme {unSignatureScheme :: Word16}
 signatureScheme :: SignatureSchemeTag -> SignatureScheme
 signatureScheme = SignatureScheme . signatureSchemeNumber
 
-data SignatureSchemeTag = Ed25519 | Ecdsa_secp256r1_sha256
+data SignatureSchemeTag = Ed25519 | Ecdsa_secp256r1_sha256 | Ecdsa_secp384r1_sha384
   deriving stock (Bounded, Enum, Eq, Ord, Show, Generic)
   deriving (Arbitrary) via GenericUniform SignatureSchemeTag
 
@@ -249,10 +258,12 @@ instance Cql SignatureSchemeTag where
 signatureSchemeNumber :: SignatureSchemeTag -> Word16
 signatureSchemeNumber Ed25519 = 0x807
 signatureSchemeNumber Ecdsa_secp256r1_sha256 = 0x403
+signatureSchemeNumber Ecdsa_secp384r1_sha384 = 0x503
 
 signatureSchemeName :: SignatureSchemeTag -> Text
 signatureSchemeName Ed25519 = "ed25519"
 signatureSchemeName Ecdsa_secp256r1_sha256 = "ecdsa_secp256r1_sha256"
+signatureSchemeName Ecdsa_secp384r1_sha384 = "ecdsa_secp384r1_sha384"
 
 signatureSchemeTag :: SignatureScheme -> Maybe SignatureSchemeTag
 signatureSchemeTag (SignatureScheme n) = getAlt $
