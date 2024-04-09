@@ -47,4 +47,8 @@ cp "$OUTPUTNAME_CA.pem" "$ROOT_DIR/deploy/dockerephemeral/federation-v0/"
 cp "$OUTPUTNAME_LEAF_CERT.pem" "$ROOT_DIR/deploy/dockerephemeral/federation-v0/"
 cp "$OUTPUTNAME_LEAF_CERT-key.pem" "$ROOT_DIR/deploy/dockerephemeral/federation-v0/"
 
+cp "$OUTPUTNAME_CA.pem" "$ROOT_DIR/deploy/dockerephemeral/docker/elasticsearch-ca.pem"
+cp "$OUTPUTNAME_LEAF_CERT.pem" "$ROOT_DIR/deploy/dockerephemeral/docker/elasticsearch-cert.pem"
+cp "$OUTPUTNAME_LEAF_CERT-key.pem" "$ROOT_DIR/deploy/dockerephemeral/docker/elasticsearch-key.pem"
+
 rm -rf "$TEMP"
