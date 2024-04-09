@@ -17,7 +17,6 @@ import Testlib.Prelude hiding (IntegrationConfig (integrationTestHostName))
 import UnliftIO (MonadUnliftIO (withRunInIO))
 import UnliftIO.Async
 import UnliftIO.Chan
--- import UnliftIO.Environment (lookupEnv)
 import UnliftIO.MVar
 import UnliftIO.Timeout (timeout)
 
@@ -170,14 +169,6 @@ lhMockAppWithPrekeys mks ch req cont = withRunInIO \inIO -> do
 
     getRequestHeader :: String -> Wai.Request -> Maybe ByteString
     getRequestHeader name = lookup (fromString name) . requestHeaders
-
--- check whether we're running on kubernetes
--- namespace <- lookupEnv "NAMESPACE"
--- pure case namespace of
---   -- if yes, then choose the local pod
---   Just ns -> "wire-server-integration-integration." <> ns <> ".pod.cluster.local"
---   -- of not, then choose the localhost
---   Nothing -> "localhost"
 
 mkLegalHoldSettings :: (String, Warp.Port) -> Value
 mkLegalHoldSettings (botHost, lhPort) =

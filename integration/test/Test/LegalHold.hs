@@ -768,6 +768,12 @@ data GroupConvAdmin
   | BothAreAdmins
   deriving (Show, Generic)
 
+-- | If a member of an existing conversation is assigned a LH device, users are removed from
+-- the conversation until policy conflicts are resolved.
+--
+-- As to who gets to stay:
+-- - admins will stay over members
+-- - local members will stay over remote members.
 testLHNoConsentRemoveFromGroup :: GroupConvAdmin -> App ()
 testLHNoConsentRemoveFromGroup admin = do
   (alice, tidAlice, []) <- createTeam OwnDomain 1
@@ -786,9 +792,10 @@ testLHNoConsentRemoveFromGroup admin = do
         let createConv = defProteus {qualifiedUsers = [invitee], newUsersRole = inviteeRole, team = Just tidInviter}
         postConversation inviter createConv `bindResponse` \resp -> do
           resp.json %. "members.self.conversation_role" `shouldMatch` "wire_admin"
-          case admin of
-            BothAreAdmins -> resp.json %. "members.others.0.conversation_role" `shouldMatch` "wire_admin"
-            _ -> resp.json %. "members.others.0.conversation_role" `shouldMatch` "wire_member"
+          resp.json %. "members.others.0.conversation_role" `shouldMatch` case admin of
+            BothAreAdmins -> "wire_admin"
+            PeerIsAdmin -> "wire_member"
+            LegalholderIsAdmin -> "wire_member"
           (,) <$> resp.json %. "id" <*> resp.json %. "qualified_id"
       for_ [aws, bws] \ws -> do
         awaitMatch isConvCreateNotifNotSelf ws >>= \pl -> pl %. "payload.0.conversation" `shouldMatch` convId

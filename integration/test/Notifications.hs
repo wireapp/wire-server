@@ -189,12 +189,11 @@ isUserConnectionNotif = notifTypeIsEqual "user.connection"
 
 isConnectionNotif :: MakesValue a => String -> a -> App Bool
 isConnectionNotif status n =
+  -- NB:
+  -- (&&) <$> (print "hello" *> pure False) <*> fail "bla" === _|_
+  -- runMaybeT $  (lift (print "hello") *> MaybeT (pure Nothing)) *> lift (fail "bla") === pure Nothing
   nPayload n %. "type" `isEqual` "user.connection"
     &&~ nPayload n %. "connection.status" `isEqual` status
-
--- NB:
--- (&&) <$> (print "hello" *> pure False) <*> fail "bla" === _|_
--- runMaybeT $  (lift (print "hello") *> MaybeT (pure Nothing)) *> lift (fail "bla") === pure Nothing
 
 -- | make Bool lazy
 liftBool :: Functor f => f Bool -> BoolT f
