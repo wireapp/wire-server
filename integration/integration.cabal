@@ -125,6 +125,7 @@ library
     Test.Federation
     Test.Federator
     Test.LegalHold
+    Test.Login
     Test.MessageTimer
     Test.MLS
     Test.MLS.KeyPackage
