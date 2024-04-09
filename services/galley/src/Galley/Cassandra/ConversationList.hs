@@ -29,10 +29,12 @@ import Data.Range
 import Galley.Cassandra.Instances ()
 import Galley.Cassandra.Queries qualified as Cql
 import Galley.Cassandra.Store
+import Galley.Cassandra.Util
 import Galley.Effects.ListItems
 import Imports hiding (max)
 import Polysemy
 import Polysemy.Input
+import Polysemy.TinyLog
 import Wire.Sem.Paging.Cassandra
 
 -- | Deprecated, use 'localConversationIdsPageFrom'
@@ -66,27 +68,36 @@ remoteConversationIdsPageFrom usr pagingState max =
 
 interpretConversationListToCassandra ::
   ( Member (Embed IO) r,
-    Member (Input ClientState) r
+    Member (Input ClientState) r,
+    Member TinyLog r
   ) =>
   Sem (ListItems CassandraPaging ConvId ': r) a ->
   Sem r a
 interpretConversationListToCassandra = interpret $ \case
-  ListItems uid ps max -> embedClient $ localConversationIdsPageFrom uid ps max
+  ListItems uid ps max -> do
+    logEffect "ConversationList.ListItems"
+    embedClient $ localConversationIdsPageFrom uid ps max
 
 interpretRemoteConversationListToCassandra ::
   ( Member (Embed IO) r,
-    Member (Input ClientState) r
+    Member (Input ClientState) r,
+    Member TinyLog r
   ) =>
   Sem (ListItems CassandraPaging (Remote ConvId) ': r) a ->
   Sem r a
 interpretRemoteConversationListToCassandra = interpret $ \case
-  ListItems uid ps max -> embedClient $ remoteConversationIdsPageFrom uid ps (fromRange max)
+  ListItems uid ps max -> do
+    logEffect "RemoteConversationList.ListItems"
+    embedClient $ remoteConversationIdsPageFrom uid ps (fromRange max)
 
 interpretLegacyConversationListToCassandra ::
   ( Member (Embed IO) r,
-    Member (Input ClientState) r
+    Member (Input ClientState) r,
+    Member TinyLog r
   ) =>
   Sem (ListItems LegacyPaging ConvId ': r) a ->
   Sem r a
 interpretLegacyConversationListToCassandra = interpret $ \case
-  ListItems uid ps max -> embedClient $ conversationIdsFrom uid ps max
+  ListItems uid ps max -> do
+    logEffect "LegacyConversationList.ListItems"
+    embedClient $ conversationIdsFrom uid ps max
