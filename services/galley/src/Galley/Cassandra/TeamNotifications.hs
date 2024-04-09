@@ -38,6 +38,7 @@ import Data.Sequence qualified as Seq
 import Data.Time (nominalDay, nominalDiffTimeToSeconds)
 import Data.UUID.V1 qualified as UUID
 import Galley.Cassandra.Store
+import Galley.Cassandra.Util
 import Galley.Data.TeamNotifications
 import Galley.Effects
 import Galley.Effects.TeamNotificationStore (TeamNotificationStore (..))
@@ -46,18 +47,26 @@ import Network.HTTP.Types
 import Network.Wai.Utilities hiding (Error)
 import Polysemy
 import Polysemy.Input
+import Polysemy.TinyLog hiding (err)
 import Wire.API.Internal.Notification
 
 interpretTeamNotificationStoreToCassandra ::
   ( Member (Embed IO) r,
-    Member (Input ClientState) r
+    Member (Input ClientState) r,
+    Member TinyLog r
   ) =>
   Sem (TeamNotificationStore ': r) a ->
   Sem r a
 interpretTeamNotificationStoreToCassandra = interpret $ \case
-  CreateTeamNotification tid nid objs -> embedClient $ add tid nid objs
-  GetTeamNotifications tid mnid lim -> embedClient $ fetch tid mnid lim
-  MkNotificationId -> embed mkNotificationId
+  CreateTeamNotification tid nid objs -> do
+    logEffect "TeamNotificationStore.CreateTeamNotification"
+    embedClient $ add tid nid objs
+  GetTeamNotifications tid mnid lim -> do
+    logEffect "TeamNotificationStore.GetTeamNotifications"
+    embedClient $ fetch tid mnid lim
+  MkNotificationId -> do
+    logEffect "TeamNotificationStore.MkNotificationId"
+    embed mkNotificationId
 
 -- | 'Data.UUID.V1.nextUUID' is sometimes unsuccessful, so we try a few times.
 mkNotificationId :: IO NotificationId

@@ -24,22 +24,31 @@ import Data.Domain (Domain)
 import Galley.Cassandra.Instances ()
 import Galley.Cassandra.Queries qualified as Cql
 import Galley.Cassandra.Store
+import Galley.Cassandra.Util
 import Galley.Effects.CustomBackendStore (CustomBackendStore (..))
 import Imports
 import Polysemy
 import Polysemy.Input
+import Polysemy.TinyLog
 import Wire.API.CustomBackend
 
 interpretCustomBackendStoreToCassandra ::
   ( Member (Embed IO) r,
-    Member (Input ClientState) r
+    Member (Input ClientState) r,
+    Member TinyLog r
   ) =>
   Sem (CustomBackendStore ': r) a ->
   Sem r a
 interpretCustomBackendStoreToCassandra = interpret $ \case
-  GetCustomBackend dom -> embedClient $ getCustomBackend dom
-  SetCustomBackend dom b -> embedClient $ setCustomBackend dom b
-  DeleteCustomBackend dom -> embedClient $ deleteCustomBackend dom
+  GetCustomBackend dom -> do
+    logEffect "CustomBackendStore.GetCustomBackend"
+    embedClient $ getCustomBackend dom
+  SetCustomBackend dom b -> do
+    logEffect "CustomBackendStore.SetCustomBackend"
+    embedClient $ setCustomBackend dom b
+  DeleteCustomBackend dom -> do
+    logEffect "CustomBackendStore.DeleteCustomBackend"
+    embedClient $ deleteCustomBackend dom
 
 getCustomBackend :: MonadClient m => Domain -> m (Maybe CustomBackend)
 getCustomBackend domain =

@@ -28,6 +28,7 @@ import Data.Id
 import Data.List.Split (chunksOf)
 import Galley.Cassandra.Queries qualified as Cql
 import Galley.Cassandra.Store
+import Galley.Cassandra.Util
 import Galley.Effects.ClientStore (ClientStore (..))
 import Galley.Env
 import Galley.Monad
@@ -37,6 +38,7 @@ import Galley.Types.Clients qualified as Clients
 import Imports
 import Polysemy
 import Polysemy.Input
+import Polysemy.TinyLog
 import UnliftIO qualified
 
 updateClient :: Bool -> UserId -> ClientId -> Client ()
@@ -60,13 +62,24 @@ eraseClients user = retry x5 (write Cql.rmClients (params LocalQuorum (Identity 
 interpretClientStoreToCassandra ::
   ( Member (Embed IO) r,
     Member (Input ClientState) r,
-    Member (Input Env) r
+    Member (Input Env) r,
+    Member TinyLog r
   ) =>
   Sem (ClientStore ': r) a ->
   Sem r a
 interpretClientStoreToCassandra = interpret $ \case
-  GetClients uids -> embedClient $ lookupClients uids
-  CreateClient uid cid -> embedClient $ updateClient True uid cid
-  DeleteClient uid cid -> embedClient $ updateClient False uid cid
-  DeleteClients uid -> embedClient $ eraseClients uid
-  UseIntraClientListing -> embedApp . view $ options . settings . intraListing
+  GetClients uids -> do
+    logEffect "ClientStore.GetClients"
+    embedClient $ lookupClients uids
+  CreateClient uid cid -> do
+    logEffect "ClientStore.CreateClient"
+    embedClient $ updateClient True uid cid
+  DeleteClient uid cid -> do
+    logEffect "ClientStore.DeleteClient"
+    embedClient $ updateClient False uid cid
+  DeleteClients uid -> do
+    logEffect "ClientStore.DeleteClients"
+    embedClient $ eraseClients uid
+  UseIntraClientListing -> do
+    logEffect "ClientStore.UseIntraClientListing"
+    embedApp . view $ options . settings . intraListing

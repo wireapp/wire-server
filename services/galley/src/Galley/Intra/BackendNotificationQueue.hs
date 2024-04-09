@@ -8,6 +8,7 @@ import Control.Monad.Trans.Except
 import Control.Retry
 import Data.Domain
 import Data.Qualified
+import Galley.Cassandra.Util
 import Galley.Effects.BackendNotificationQueueAccess (BackendNotificationQueueAccess (..))
 import Galley.Env
 import Galley.Monad
@@ -16,6 +17,7 @@ import Imports
 import Network.AMQP qualified as Q
 import Polysemy
 import Polysemy.Input
+import Polysemy.TinyLog
 import System.Logger.Class qualified as Log
 import UnliftIO
 import Wire.API.Federation.BackendNotifications
@@ -23,16 +25,20 @@ import Wire.API.Federation.Error
 
 interpretBackendNotificationQueueAccess ::
   ( Member (Embed IO) r,
-    Member (Input Env) r
+    Member (Input Env) r,
+    Member TinyLog r
   ) =>
   Sem (BackendNotificationQueueAccess ': r) a ->
   Sem r a
 interpretBackendNotificationQueueAccess = interpret $ \case
   EnqueueNotification deliveryMode remote action -> do
+    logEffect "BackendNotificationQueueAccess.EnqueueNotification"
     embedApp . runExceptT $ enqueueNotification deliveryMode (tDomain remote) action
   EnqueueNotificationsConcurrently m xs rpc -> do
+    logEffect "BackendNotificationQueueAccess.EnqueueNotificationsConcurrently"
     embedApp . runExceptT $ enqueueNotificationsConcurrently m xs rpc
   EnqueueNotificationsConcurrentlyBuckets m xs rpc -> do
+    logEffect "BackendNotificationQueueAccess.EnqueueNotificationsConcurrentlyBuckets"
     embedApp . runExceptT $ enqueueNotificationsConcurrentlyBuckets m xs rpc
 
 getChannel :: ExceptT FederationError App (MVar Q.Channel)

@@ -44,6 +44,7 @@ import Galley.Cassandra.Conversation qualified as C
 import Galley.Cassandra.LegalHold (isTeamLegalholdWhitelisted)
 import Galley.Cassandra.Queries qualified as Cql
 import Galley.Cassandra.Store
+import Galley.Cassandra.Util
 import Galley.Effects.ListItems
 import Galley.Effects.TeamMemberStore
 import Galley.Effects.TeamStore (TeamStore (..))
@@ -54,6 +55,7 @@ import Galley.Types.Teams
 import Imports hiding (Set, max)
 import Polysemy
 import Polysemy.Input
+import Polysemy.TinyLog
 import UnliftIO qualified
 import Wire.API.Routes.Internal.Galley.TeamsIntra
 import Wire.API.Team
@@ -65,92 +67,160 @@ import Wire.Sem.Paging.Cassandra
 interpretTeamStoreToCassandra ::
   ( Member (Embed IO) r,
     Member (Input Env) r,
-    Member (Input ClientState) r
+    Member (Input ClientState) r,
+    Member TinyLog r
   ) =>
   FeatureLegalHold ->
   Sem (TeamStore ': r) a ->
   Sem r a
 interpretTeamStoreToCassandra lh = interpret $ \case
-  CreateTeamMember tid mem -> embedClient $ addTeamMember tid mem
-  SetTeamMemberPermissions perm0 tid uid perm1 ->
-    embedClient $ updateTeamMember perm0 tid uid perm1
-  CreateTeam t uid n i k b -> embedClient $ createTeam t uid n i k b
-  DeleteTeamMember tid uid -> embedClient $ removeTeamMember tid uid
-  GetBillingTeamMembers tid -> embedClient $ listBillingTeamMembers tid
-  GetTeamAdmins tid -> embedClient $ listTeamAdmins tid
-  GetTeam tid -> embedClient $ team tid
-  GetTeamName tid -> embedClient $ getTeamName tid
-  GetTeamConversation tid cid -> embedClient $ teamConversation tid cid
-  GetTeamConversations tid -> embedClient $ getTeamConversations tid
-  SelectTeams uid tids -> embedClient $ teamIdsOf uid tids
-  GetTeamMember tid uid -> embedClient $ teamMember lh tid uid
-  GetTeamMembersWithLimit tid n -> embedClient $ teamMembersWithLimit lh tid n
-  GetTeamMembers tid -> embedClient $ teamMembersCollectedWithPagination lh tid
-  SelectTeamMembers tid uids -> embedClient $ teamMembersLimited lh tid uids
-  GetUserTeams uid -> embedClient $ userTeams uid
-  GetUsersTeams uids -> embedClient $ usersTeams uids
-  GetOneUserTeam uid -> embedClient $ oneUserTeam uid
-  GetTeamsBindings tid -> embedClient $ getTeamsBindings tid
-  GetTeamBinding tid -> embedClient $ getTeamBinding tid
-  GetTeamCreationTime tid -> embedClient $ teamCreationTime tid
-  DeleteTeam tid -> embedClient $ deleteTeam tid
-  DeleteTeamConversation tid cid -> embedClient $ removeTeamConv tid cid
-  SetTeamData tid upd -> embedClient $ updateTeam tid upd
-  SetTeamStatus tid st -> embedClient $ updateTeamStatus tid st
-  FanoutLimit -> embedApp $ currentFanoutLimit <$> view options
-  GetLegalHoldFlag ->
+  CreateTeamMember tid mem -> do
+    logEffect "TeamStore.CreateTeamMember"
+    embedClient (addTeamMember tid mem)
+  SetTeamMemberPermissions perm0 tid uid perm1 -> do
+    logEffect "TeamStore.SetTeamMemberPermissions"
+    embedClient (updateTeamMember perm0 tid uid perm1)
+  CreateTeam t uid n i k b -> do
+    logEffect "TeamStore.CreateTeam"
+    embedClient (createTeam t uid n i k b)
+  DeleteTeamMember tid uid -> do
+    logEffect "TeamStore.DeleteTeamMember"
+    embedClient (removeTeamMember tid uid)
+  GetBillingTeamMembers tid -> do
+    logEffect "TeamStore.GetBillingTeamMembers"
+    embedClient (listBillingTeamMembers tid)
+  GetTeamAdmins tid -> do
+    logEffect "TeamStore.GetTeamAdmins"
+    embedClient (listTeamAdmins tid)
+  GetTeam tid -> do
+    logEffect "TeamStore.GetTeam"
+    embedClient (team tid)
+  GetTeamName tid -> do
+    logEffect "TeamStore.GetTeamName"
+    embedClient (getTeamName tid)
+  GetTeamConversation tid cid -> do
+    logEffect "TeamStore.GetTeamConversation"
+    embedClient (teamConversation tid cid)
+  GetTeamConversations tid -> do
+    logEffect "TeamStore.GetTeamConversations"
+    embedClient (getTeamConversations tid)
+  SelectTeams uid tids -> do
+    logEffect "TeamStore.SelectTeams"
+    embedClient (teamIdsOf uid tids)
+  GetTeamMember tid uid -> do
+    logEffect "TeamStore.GetTeamMember"
+    embedClient (teamMember lh tid uid)
+  GetTeamMembersWithLimit tid n -> do
+    logEffect "TeamStore.GetTeamMembersWithLimit"
+    embedClient (teamMembersWithLimit lh tid n)
+  GetTeamMembers tid -> do
+    logEffect "TeamStore.GetTeamMembers"
+    embedClient (teamMembersCollectedWithPagination lh tid)
+  SelectTeamMembers tid uids -> do
+    logEffect "TeamStore.SelectTeamMembers"
+    embedClient (teamMembersLimited lh tid uids)
+  GetUserTeams uid -> do
+    logEffect "TeamStore.GetUserTeams"
+    embedClient (userTeams uid)
+  GetUsersTeams uids -> do
+    logEffect "TeamStore.GetUsersTeams"
+    embedClient (usersTeams uids)
+  GetOneUserTeam uid -> do
+    logEffect "TeamStore.GetOneUserTeam"
+    embedClient (oneUserTeam uid)
+  GetTeamsBindings tid -> do
+    logEffect "TeamStore.GetTeamsBindings"
+    embedClient (getTeamsBindings tid)
+  GetTeamBinding tid -> do
+    logEffect "TeamStore.GetTeamBinding"
+    embedClient (getTeamBinding tid)
+  GetTeamCreationTime tid -> do
+    logEffect "TeamStore.GetTeamCreationTime"
+    embedClient (teamCreationTime tid)
+  DeleteTeam tid -> do
+    logEffect "TeamStore.DeleteTeam"
+    embedClient (deleteTeam tid)
+  DeleteTeamConversation tid cid -> do
+    logEffect "TeamStore.DeleteTeamConversation"
+    embedClient (removeTeamConv tid cid)
+  SetTeamData tid upd -> do
+    logEffect "TeamStore.SetTeamData"
+    embedClient (updateTeam tid upd)
+  SetTeamStatus tid st -> do
+    logEffect "TeamStore.SetTeamStatus"
+    embedClient (updateTeamStatus tid st)
+  FanoutLimit -> do
+    logEffect "TeamStore.FanoutLimit"
+    embedApp (currentFanoutLimit <$> view options)
+  GetLegalHoldFlag -> do
+    logEffect "TeamStore.GetLegalHoldFlag"
     view (options . settings . featureFlags . flagLegalHold) <$> input
   EnqueueTeamEvent e -> do
+    logEffect "TeamStore.EnqueueTeamEvent"
     menv <- inputs (view aEnv)
     for_ menv $ \env ->
-      embed @IO $ Aws.execute env (Aws.enqueue e)
-  SelectTeamMembersPaginated tid uids mps lim -> embedClient $ selectSomeTeamMembersPaginated lh tid uids mps lim
+      embed @IO (Aws.execute env (Aws.enqueue e))
+  SelectTeamMembersPaginated tid uids mps lim -> do
+    logEffect "TeamStore.SelectTeamMembersPaginated"
+    embedClient (selectSomeTeamMembersPaginated lh tid uids mps lim)
 
 interpretTeamListToCassandra ::
   ( Member (Embed IO) r,
-    Member (Input ClientState) r
+    Member (Input ClientState) r,
+    Member TinyLog r
   ) =>
   Sem (ListItems LegacyPaging TeamId ': r) a ->
   Sem r a
 interpretTeamListToCassandra = interpret $ \case
-  ListItems uid ps lim -> embedClient $ teamIdsFrom uid ps lim
+  ListItems uid ps lim -> do
+    logEffect "TeamList.ListItems"
+    embedClient $ teamIdsFrom uid ps lim
 
 interpretInternalTeamListToCassandra ::
   ( Member (Embed IO) r,
-    Member (Input ClientState) r
+    Member (Input ClientState) r,
+    Member TinyLog r
   ) =>
   Sem (ListItems InternalPaging TeamId ': r) a ->
   Sem r a
 interpretInternalTeamListToCassandra = interpret $ \case
-  ListItems uid mps lim -> embedClient $ case mps of
-    Nothing -> do
-      page <- teamIdsForPagination uid Nothing lim
-      mkInternalPage page pure
-    Just ps -> ipNext ps
+  ListItems uid mps lim -> do
+    logEffect "InternalTeamList.ListItems"
+    embedClient $ case mps of
+      Nothing -> do
+        page <- teamIdsForPagination uid Nothing lim
+        mkInternalPage page pure
+      Just ps -> ipNext ps
 
 interpretTeamMemberStoreToCassandra ::
   ( Member (Embed IO) r,
-    Member (Input ClientState) r
+    Member (Input ClientState) r,
+    Member TinyLog r
   ) =>
   FeatureLegalHold ->
   Sem (TeamMemberStore InternalPaging ': r) a ->
   Sem r a
 interpretTeamMemberStoreToCassandra lh = interpret $ \case
-  ListTeamMembers tid mps lim -> embedClient $ case mps of
-    Nothing -> do
-      page <- teamMembersForPagination tid Nothing lim
-      mkInternalPage page (newTeamMember' lh tid)
-    Just ps -> ipNext ps
+  ListTeamMembers tid mps lim -> do
+    logEffect "TeamMemberStore.ListTeamMembers"
+    embedClient $ case mps of
+      Nothing -> do
+        page <- teamMembersForPagination tid Nothing lim
+        mkInternalPage page (newTeamMember' lh tid)
+      Just ps -> ipNext ps
 
 interpretTeamMemberStoreToCassandraWithPaging ::
   ( Member (Embed IO) r,
-    Member (Input ClientState) r
+    Member (Input ClientState) r,
+    Member TinyLog r
   ) =>
   FeatureLegalHold ->
   Sem (TeamMemberStore CassandraPaging ': r) a ->
   Sem r a
 interpretTeamMemberStoreToCassandraWithPaging lh = interpret $ \case
-  ListTeamMembers tid mps lim -> embedClient $ teamMembersPageFrom lh tid mps lim
+  ListTeamMembers tid mps lim -> do
+    logEffect "TeamMemberStore.ListTeamMembers"
+    embedClient $ teamMembersPageFrom lh tid mps lim
 
 createTeam ::
   Maybe TeamId ->
