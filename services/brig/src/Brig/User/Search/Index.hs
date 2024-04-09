@@ -114,7 +114,7 @@ data IndexEnv = IndexEnv
     idxAdditionalElastic :: Maybe ES.BHEnv,
     idxGalley :: Endpoint,
     idxHttpManager :: Manager,
-    -- credentials for reindexing have to be passed via the env because the bulk API requests are not supported by bloodhound
+    -- credentials for reindexing have to be passed via the env because bulk API requests are not supported by bloodhound
     idxCredentials :: Maybe Credentials
   }
 
