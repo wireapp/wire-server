@@ -32,12 +32,10 @@ import Control.Arrow
 import Control.Error
 import Control.Lens
 import Control.Monad.Random (randomRIO)
-import Data.Functor
 import Data.Id
 import Data.Qualified
 import Data.Time.Clock
 import Data.Time.Clock.POSIX
-import Imports
 import UnliftIO.Async
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.KeyPackage

@@ -36,9 +36,9 @@ import Data.Handle (Handle (fromHandle))
 import Data.Id
 import Data.Qualified (Qualified (Qualified))
 import Database.Bloodhound qualified as ES
-import Imports hiding (log, searchable)
 import Wire.API.User (ColourId (..), Name (fromName))
 import Wire.API.User.Search
+import Prelude hiding (log, searchable)
 
 -- | User that is performing the search
 -- Team of user that is performing the search

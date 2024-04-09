@@ -20,7 +20,6 @@ module Brig.Effects.CodeStore where
 
 import Data.Id
 import Data.Time.Clock
-import Imports
 import Polysemy
 import Wire.API.User.Password
 

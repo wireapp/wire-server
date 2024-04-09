@@ -21,7 +21,6 @@ import Brig.InternalEvent.Types (InternalNotification (..))
 import Data.Aeson qualified as A
 import Data.ByteString.Lazy as BSL
 import Data.Id (clientToText)
-import Imports
 import Test.Tasty
 import Test.Tasty.HUnit
 

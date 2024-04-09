@@ -23,7 +23,6 @@ module Brig.Schema.V_FUTUREWORK
 where
 
 import Cassandra.Schema
-import Imports
 import Text.RawString.QQ
 
 -- user_keys_hash usage was removed in https://github.com/wireapp/wire-server/pull/2902

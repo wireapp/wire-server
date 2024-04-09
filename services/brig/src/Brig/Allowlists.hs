@@ -27,7 +27,6 @@ where
 
 import Data.Aeson
 import Data.Text qualified as Text
-import Imports
 import Wire.API.User.Identity
 
 -- | A service providing a whitelist of allowed email addresses and phone numbers

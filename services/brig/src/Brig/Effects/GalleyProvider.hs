@@ -24,7 +24,6 @@ import Data.Currency qualified as Currency
 import Data.Id
 import Data.Json.Util (UTCTimeMillis)
 import Data.Qualified
-import Imports
 import Network.Wai.Utilities.Error qualified as Wai
 import Polysemy
 import Wire.API.Conversation

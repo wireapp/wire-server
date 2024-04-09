@@ -28,7 +28,6 @@ import Brig.Options qualified as Opt
 import Data.Aeson
 import Data.ByteString.Char8 qualified as C
 import Data.Text qualified as T
-import Imports
 import Network.Wai.Utilities.Error qualified as Error
 import Test.Tasty hiding (Timeout)
 import Util

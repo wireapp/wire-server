@@ -48,7 +48,6 @@ import Data.Metrics.WaiRoute (treeToPaths)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Yaml (decodeFileEither)
 import Federation.End2end qualified
-import Imports hiding (local)
 import Index.Create qualified
 import Network.HTTP.Client qualified as HTTP
 import Network.HTTP.Client.TLS (tlsManagerSettings)
@@ -71,6 +70,7 @@ import Util.Test.SQS qualified as SQS
 import Web.HttpApiData
 import Wire.API.Federation.API
 import Wire.API.Routes.Version
+import Prelude hiding (local)
 
 data BackendConf = BackendConf
   { remoteBrig :: Endpoint,

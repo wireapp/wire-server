@@ -26,7 +26,6 @@ import Control.Lens ((.~), (^.))
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Database.Bloodhound qualified as ES
-import Imports
 import Network.HTTP.Client qualified as HTTP
 import System.Logger.Class qualified as Log
 import System.Random as Random

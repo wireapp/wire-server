@@ -157,7 +157,6 @@ import Data.Misc
 import Data.Qualified
 import Data.Time.Clock (UTCTime, addUTCTime, diffUTCTime)
 import Data.UUID.V4 (nextRandom)
-import Imports hiding (cs)
 import Network.Wai.Utilities
 import Polysemy
 import Polysemy.Input (Input)
@@ -188,6 +187,7 @@ import Wire.API.UserEvent
 import Wire.NotificationSubsystem
 import Wire.Sem.Concurrency
 import Wire.Sem.Paging.Cassandra (InternalPaging)
+import Prelude hiding (cs)
 
 data AllowSCIMUpdates
   = AllowSCIMUpdates

@@ -35,7 +35,6 @@ import Data.Aeson qualified as Aeson
 import Data.Credentials (Credentials (..))
 import Data.Metrics qualified as Metrics
 import Database.Bloodhound qualified as ES
-import Imports
 import Network.HTTP.Client as HTTP
 import System.Logger qualified as Log
 import System.Logger.Class (Logger, MonadLogger (..))

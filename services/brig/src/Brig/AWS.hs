@@ -64,7 +64,6 @@ import Data.ByteString.Lazy qualified as BL
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Data.UUID hiding (null)
-import Imports hiding (group)
 import Network.HTTP.Client (HttpException (..), HttpExceptionContent (..), Manager)
 import Network.HTTP.Types.Status (status400)
 import Network.Mail.Mime
@@ -73,6 +72,7 @@ import System.Logger.Class
 import UnliftIO.Async
 import UnliftIO.Exception
 import Util.Options
+import Prelude hiding (group)
 
 data Env = Env
   { _logger :: !Logger,

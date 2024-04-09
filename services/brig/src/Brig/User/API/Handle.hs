@@ -35,7 +35,6 @@ import Control.Lens (view)
 import Data.Handle (Handle, fromHandle)
 import Data.Id (UserId)
 import Data.Qualified
-import Imports
 import Network.Wai.Utilities ((!>>))
 import Polysemy
 import System.Logger.Class qualified as Log

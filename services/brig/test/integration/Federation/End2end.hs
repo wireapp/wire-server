@@ -38,7 +38,6 @@ import Data.Qualified
 import Data.Range (checked)
 import Data.Set qualified as Set
 import Federation.Util
-import Imports hiding (cs)
 import System.IO.Temp
 import System.Logger qualified as Log
 import Test.Tasty
@@ -60,6 +59,7 @@ import Wire.API.Routes.MultiTablePaging
 import Wire.API.User hiding (assetKey)
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
+import Prelude hiding (cs)
 
 -- NOTE: These federation tests require deploying two sets of (some) services
 -- This might be best left to a kubernetes setup.
@@ -119,7 +119,7 @@ spec _brigOpts mg brig galley cargohold cannon _federator brigTwo galleyTwo carg
 testGetUsersById :: Brig -> Brig -> Http ()
 testGetUsersById brig1 brig2 = do
   users <- traverse randomUser [brig1, brig2]
-  let self = Imports.head users
+  let self = Prelude.head users
       q = ListUsersByIds (map userQualifiedId users)
       expected = sort (map userQualifiedId users)
   post
@@ -142,9 +142,9 @@ testClaimPrekeySuccess :: Brig -> Brig -> Http ()
 testClaimPrekeySuccess brig1 brig2 = do
   self <- randomUser brig1
   user <- randomUser brig2
-  let new = defNewClient TemporaryClientType (take 1 somePrekeys) (Imports.head someLastPrekeys)
+  let new = defNewClient TemporaryClientType (take 1 somePrekeys) (Prelude.head someLastPrekeys)
   c <- responseJsonError =<< addClient brig2 (userId user) new
-  let cpk = ClientPrekey (clientId c) (Imports.head somePrekeys)
+  let cpk = ClientPrekey (clientId c) (Prelude.head somePrekeys)
   let quser = userQualifiedId user
   get
     ( brig1
@@ -410,7 +410,7 @@ testSendMessage brig1 brig2 galley2 cannon1 = do
       <$> addClient
         brig1
         (userId alice)
-        (defNewClient PermanentClientType [] (Imports.head someLastPrekeys))
+        (defNewClient PermanentClientType [] (Prelude.head someLastPrekeys))
 
   -- create bob user and client on domain 2
   bob <- randomUser brig2
@@ -474,7 +474,7 @@ testSendMessageToRemoteConv brig1 brig2 galley1 galley2 cannon1 = do
   alice <- randomUser brig1
   aliceClient <-
     fmap clientId . responseJsonError
-      =<< addClient brig1 (userId alice) (defNewClient PermanentClientType [] (Imports.head someLastPrekeys))
+      =<< addClient brig1 (userId alice) (defNewClient PermanentClientType [] (Prelude.head someLastPrekeys))
         <!! const 201 === statusCode
 
   -- create bob user and client on domain 2

@@ -24,7 +24,6 @@ import Bilge
 import Brig.Types.User (RichInfoUpdate (RichInfoUpdate))
 import Data.ByteString.Conversion
 import Data.Id
-import Imports
 import Util
 import Wire.API.User.RichInfo
 

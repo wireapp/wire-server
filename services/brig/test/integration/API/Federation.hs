@@ -33,7 +33,6 @@ import Data.Qualified
 import Data.Set qualified as Set
 import Data.UUID.V4 qualified as UUIDv4
 import Federation.Util (generateClientPrekeys)
-import Imports
 import Network.Wai.Test qualified as WaiTest
 import Test.QuickCheck hiding ((===))
 import Test.Tasty

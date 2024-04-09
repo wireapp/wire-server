@@ -18,7 +18,6 @@
 module Brig.Schema.V63_AddUsersPendingActivation (migration) where
 
 import Cassandra.Schema
-import Imports
 import Text.RawString.QQ
 
 migration :: Migration

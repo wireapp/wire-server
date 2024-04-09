@@ -32,7 +32,6 @@ import Data.ByteString.Conversion
 import Data.Map qualified as Map
 import Data.Misc
 import Data.Schema
-import Imports hiding (fromException, intercalate)
 import Network.HTTP.Client
 import Polysemy
 import Polysemy.Error hiding (try)
@@ -40,6 +39,7 @@ import Polysemy.TinyLog
 import System.Logger qualified as Log
 import URI.ByteString (uriPath)
 import Wire.API.Call.Config
+import Prelude hiding (fromException, intercalate)
 
 newtype SFTError = SFTError {unSFTError :: String}
   deriving (Eq, Show)

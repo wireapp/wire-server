@@ -20,7 +20,6 @@ module Run
   )
 where
 
-import Imports
 import Test.Brig.Calling qualified
 import Test.Brig.Calling.Internal qualified
 import Test.Brig.InternalNotification qualified

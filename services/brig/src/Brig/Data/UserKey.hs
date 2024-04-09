@@ -39,7 +39,6 @@ import Brig.Email
 import Brig.Phone
 import Cassandra
 import Data.Id
-import Imports
 import Wire.API.User (fromEmail)
 
 -- | A natural identifier (i.e. unique key) of a user.

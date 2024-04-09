@@ -28,7 +28,6 @@ import Data.Id ()
 import Data.Misc ()
 import Data.Range ()
 import Data.Text.Ascii ()
-import Imports
 import Wire.API.User.Auth
 
 deriving instance Cql CookieLabel

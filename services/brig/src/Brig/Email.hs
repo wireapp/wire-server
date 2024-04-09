@@ -44,7 +44,6 @@ import Brig.App (Env, applog, awsEnv, smtpEnv)
 import Brig.SMTP qualified as SMTP
 import Control.Lens (view)
 import Data.Text qualified as Text
-import Imports
 import Network.Mail.Mime
 import Wire.API.User
 

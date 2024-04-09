@@ -18,7 +18,6 @@
 module Brig.Index.Types where
 
 import Database.Bloodhound qualified as ES
-import Imports
 
 data CreateIndexSettings = CreateIndexSettings
   { _cisIndexSettings :: [ES.UpdatableIndexSetting],

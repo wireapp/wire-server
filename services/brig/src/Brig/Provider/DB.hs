@@ -29,7 +29,6 @@ import Data.Misc
 import Data.Range (Range, fromRange, rcast, rnil)
 import Data.Set qualified as Set
 import Data.Text qualified as Text
-import Imports
 import UnliftIO (mapConcurrently)
 import Wire.API.Password
 import Wire.API.Provider

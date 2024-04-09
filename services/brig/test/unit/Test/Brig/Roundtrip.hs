@@ -20,7 +20,6 @@ module Test.Brig.Roundtrip (tests) where
 import Brig.Options qualified as Options
 import Data.Aeson (FromJSON, ToJSON, parseJSON, toJSON)
 import Data.Aeson.Types (parseEither)
-import Imports
 import Test.Tasty qualified as T
 import Test.Tasty.QuickCheck (Arbitrary, counterexample, testProperty, (===))
 import Type.Reflection (typeRep)

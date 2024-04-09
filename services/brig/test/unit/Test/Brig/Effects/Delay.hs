@@ -1,6 +1,5 @@
 module Test.Brig.Effects.Delay where
 
-import Imports
 import Polysemy
 import Wire.Sem.Delay
 

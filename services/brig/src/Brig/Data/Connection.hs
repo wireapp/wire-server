@@ -65,10 +65,10 @@ import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import Data.Qualified
 import Data.Range
 import Data.Time (getCurrentTime)
-import Imports hiding (local)
 import UnliftIO.Async (pooledForConcurrentlyN_, pooledMapConcurrentlyN, pooledMapConcurrentlyN_)
 import Wire.API.Connection
 import Wire.API.Routes.Internal.Brig.Connection
+import Prelude hiding (local)
 
 insertConnection ::
   (MonadClient m) =>

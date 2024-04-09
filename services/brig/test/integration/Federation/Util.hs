@@ -47,7 +47,6 @@ import Database.Bloodhound qualified as ES
 import Federator.MockServer qualified as Mock
 import Foreign.C.Error (Errno (..), eCONNREFUSED)
 import GHC.IO.Exception (IOException (ioe_errno))
-import Imports
 import Network.HTTP.Client qualified as HTTP
 import Network.HTTP.Media
 import Network.Socket

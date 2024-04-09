@@ -40,7 +40,6 @@ import Control.Monad.Trans.Except
 import Data.Id as Id
 import Data.Qualified
 import Galley.Types.Conversations.One2One (one2OneConvId)
-import Imports
 import Network.Wai.Utilities.Error
 import Polysemy
 import Wire.API.Connection

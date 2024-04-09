@@ -19,6 +19,13 @@ extra-source-files:
   docs/swagger.md
 
 common common-all
+  -- NOTE(mangoiv): we cannot use the -Wunused-packages here because 
+  -- cabal doesn't recognise that we need `base` to be able  to 
+  -- hide it
+  mixins: 
+    , base hiding (Prelude)
+    , imports (Imports as Prelude)
+    , imports
   default-language:   GHC2021
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
@@ -51,7 +58,6 @@ common common-all
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
-    NoImplicitPrelude
     NumericUnderscores
     OverloadedLabels
     OverloadedRecordDot
@@ -234,12 +240,10 @@ library
     Brig.Version
     Brig.ZAuth
 
-  other-modules:   Paths_brig
   hs-source-dirs:  src
   ghc-options:
     -funbox-strict-fields -fplugin=Polysemy.Plugin
     -fplugin=TransitiveAnns.Plugin -Wredundant-constraints
-    -Wunused-packages
 
   build-depends:
     , aeson                      >=2.0.1.0
@@ -252,7 +256,6 @@ library
     , async                      >=2.1
     , auto-update                >=0.1
     , base                       >=4       && <5
-    , base-prelude
     , base16-bytestring          >=0.1
     , base64-bytestring          >=1.0
     , bilge                      >=0.21.1
@@ -370,10 +373,9 @@ library
 executable brig
   import:        common-all
   main-is:       exec/Main.hs
-  other-modules: Paths_brig
   ghc-options:
     -funbox-strict-fields -threaded -with-rtsopts=-N -with-rtsopts=-T
-    -rtsopts -Wredundant-constraints -Wunused-packages
+    -rtsopts -Wredundant-constraints
 
   build-depends:
     , base
@@ -385,7 +387,6 @@ executable brig
 executable brig-index
   import:        common-all
   main-is:       index/src/Main.hs
-  other-modules: Paths_brig
   ghc-options:   -funbox-strict-fields -threaded -with-rtsopts=-N
   build-depends:
     , base

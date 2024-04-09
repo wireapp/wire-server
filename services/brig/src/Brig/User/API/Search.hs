@@ -45,7 +45,6 @@ import Data.Domain (Domain)
 import Data.Handle (parseHandle)
 import Data.Id
 import Data.Range
-import Imports
 import Network.Wai.Utilities ((!>>))
 import Polysemy
 import System.Logger (field, msg)

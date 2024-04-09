@@ -33,7 +33,6 @@ import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Misc (Port (..), mkHttpsUrl)
 import Data.Set qualified as Set
-import Imports
 import System.FilePath ((</>))
 import Test.Tasty
 import Test.Tasty.HUnit

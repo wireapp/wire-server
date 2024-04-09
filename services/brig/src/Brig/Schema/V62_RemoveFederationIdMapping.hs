@@ -21,7 +21,6 @@ module Brig.Schema.V62_RemoveFederationIdMapping
 where
 
 import Cassandra.Schema
-import Imports
 import Text.RawString.QQ
 
 -- | We decided avoid storing this mapping, handling the transition on the API level instead.

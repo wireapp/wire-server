@@ -73,7 +73,6 @@ import Data.Qualified
 import Data.Set qualified as Set
 import Data.Time.Clock (UTCTime)
 import Data.Time.Clock.System
-import Imports hiding (head)
 import Network.Wai.Routing hiding (toList)
 import Network.Wai.Utilities as Utilities
 import Polysemy
@@ -103,6 +102,7 @@ import Wire.NotificationSubsystem
 import Wire.Rpc
 import Wire.Sem.Concurrency
 import Wire.Sem.Paging.Cassandra (InternalPaging)
+import Prelude hiding (head)
 
 ---------------------------------------------------------------------------
 -- Sitemap (servant)
@@ -586,7 +586,7 @@ listActivatedAccounts elh includePendingInvitations = do
 getActivationCodeH :: Maybe Email -> Maybe Phone -> (Handler r) GetActivationCodeResp
 getActivationCodeH (Just email) Nothing = getActivationCode (Left email)
 getActivationCodeH Nothing (Just phone) = getActivationCode (Right phone)
-getActivationCodeH bade badp = throwStd (badRequest ("need exactly one of email, phone: " <> Imports.cs (show (bade, badp))))
+getActivationCodeH bade badp = throwStd (badRequest ("need exactly one of email, phone: " <> Prelude.cs (show (bade, badp))))
 
 getActivationCode :: Either Email Phone -> (Handler r) GetActivationCodeResp
 getActivationCode emailOrPhone = do
@@ -602,7 +602,7 @@ getPasswordResetCodeH ::
   (Handler r) GetPasswordResetCodeResp
 getPasswordResetCodeH (Just email) Nothing = getPasswordResetCode (Left email)
 getPasswordResetCodeH Nothing (Just phone) = getPasswordResetCode (Right phone)
-getPasswordResetCodeH bade badp = throwStd (badRequest ("need exactly one of email, phone: " <> Imports.cs (show (bade, badp))))
+getPasswordResetCodeH bade badp = throwStd (badRequest ("need exactly one of email, phone: " <> Prelude.cs (show (bade, badp))))
 
 getPasswordResetCode ::
   ( Member CodeStore r,
@@ -674,7 +674,7 @@ revokeIdentityH ::
   (Handler r) NoContent
 revokeIdentityH (Just email) Nothing = lift $ NoContent <$ API.revokeIdentity (Left email)
 revokeIdentityH Nothing (Just phone) = lift $ NoContent <$ API.revokeIdentity (Right phone)
-revokeIdentityH bade badp = throwStd (badRequest ("need exactly one of email, phone: " <> Imports.cs (show (bade, badp))))
+revokeIdentityH bade badp = throwStd (badRequest ("need exactly one of email, phone: " <> Prelude.cs (show (bade, badp))))
 
 updateConnectionInternalH ::
   ( Member GalleyProvider r,
@@ -691,7 +691,7 @@ updateConnectionInternalH updateConn = do
 checkBlacklistH :: Member BlacklistStore r => Maybe Email -> Maybe Phone -> (Handler r) CheckBlacklistResponse
 checkBlacklistH (Just email) Nothing = checkBlacklist (Left email)
 checkBlacklistH Nothing (Just phone) = checkBlacklist (Right phone)
-checkBlacklistH bade badp = throwStd (badRequest ("need exactly one of email, phone: " <> Imports.cs (show (bade, badp))))
+checkBlacklistH bade badp = throwStd (badRequest ("need exactly one of email, phone: " <> Prelude.cs (show (bade, badp))))
 
 checkBlacklist :: Member BlacklistStore r => Either Email Phone -> (Handler r) CheckBlacklistResponse
 checkBlacklist emailOrPhone = lift $ bool NotBlacklisted YesBlacklisted <$> API.isBlacklisted emailOrPhone
@@ -699,7 +699,7 @@ checkBlacklist emailOrPhone = lift $ bool NotBlacklisted YesBlacklisted <$> API.
 deleteFromBlacklistH :: Member BlacklistStore r => Maybe Email -> Maybe Phone -> (Handler r) NoContent
 deleteFromBlacklistH (Just email) Nothing = deleteFromBlacklist (Left email)
 deleteFromBlacklistH Nothing (Just phone) = deleteFromBlacklist (Right phone)
-deleteFromBlacklistH bade badp = throwStd (badRequest ("need exactly one of email, phone: " <> Imports.cs (show (bade, badp))))
+deleteFromBlacklistH bade badp = throwStd (badRequest ("need exactly one of email, phone: " <> Prelude.cs (show (bade, badp))))
 
 deleteFromBlacklist :: Member BlacklistStore r => Either Email Phone -> (Handler r) NoContent
 deleteFromBlacklist emailOrPhone = lift $ NoContent <$ API.blacklistDelete emailOrPhone
@@ -707,7 +707,7 @@ deleteFromBlacklist emailOrPhone = lift $ NoContent <$ API.blacklistDelete email
 addBlacklistH :: Member BlacklistStore r => Maybe Email -> Maybe Phone -> (Handler r) NoContent
 addBlacklistH (Just email) Nothing = addBlacklist (Left email)
 addBlacklistH Nothing (Just phone) = addBlacklist (Right phone)
-addBlacklistH bade badp = throwStd (badRequest ("need exactly one of email, phone: " <> Imports.cs (show (bade, badp))))
+addBlacklistH bade badp = throwStd (badRequest ("need exactly one of email, phone: " <> Prelude.cs (show (bade, badp))))
 
 addBlacklist :: Member BlacklistStore r => Either Email Phone -> (Handler r) NoContent
 addBlacklist emailOrPhone = lift $ NoContent <$ API.blacklistInsert emailOrPhone

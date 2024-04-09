@@ -116,7 +116,6 @@ import Control.AutoUpdate
 import Control.Error
 import Control.Lens hiding (index, (.=))
 import Control.Monad.Catch
-import Control.Monad.Trans.Resource
 import Data.ByteString.Conversion
 import Data.Credentials (Credentials (..))
 import Data.Domain
@@ -131,7 +130,6 @@ import Data.Text.IO qualified as Text
 import Data.Time.Clock
 import Database.Bloodhound qualified as ES
 import HTTP2.Client.Manager (Http2Manager, http2ManagerWithSSLCtx)
-import Imports
 import Network.AMQP qualified as Q
 import Network.AMQP.Extended qualified as Q
 import Network.HTTP.Client (responseTimeoutMicro)

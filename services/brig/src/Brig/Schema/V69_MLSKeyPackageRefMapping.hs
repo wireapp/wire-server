@@ -23,7 +23,6 @@ module Brig.Schema.V69_MLSKeyPackageRefMapping
 where
 
 import Cassandra.Schema
-import Imports
 import Text.RawString.QQ
 
 -- FUTUREWORK: remove this table

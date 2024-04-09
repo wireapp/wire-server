@@ -61,7 +61,6 @@ import Brig.ZAuth qualified as ZAuth
 import Cassandra
 import Control.Error hiding (bool)
 import Control.Lens (to, view)
-import Control.Monad.Except
 import Data.ByteString.Conversion (toByteString)
 import Data.Handle (Handle)
 import Data.Id
@@ -72,7 +71,6 @@ import Data.Misc (PlainTextPassword6)
 import Data.Qualified (Local)
 import Data.Time.Clock (UTCTime)
 import Data.ZAuth.Token qualified as ZAuth
-import Imports
 import Network.Wai.Utilities.Error ((!>>))
 import Polysemy
 import Polysemy.Input (Input)

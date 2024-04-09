@@ -17,7 +17,5 @@
 
 module Brig.Team.Types where
 
-import Imports
-
 data ShowOrHideInvitationUrl = ShowInvitationUrl | HideInvitationUrl
   deriving (Eq, Show)

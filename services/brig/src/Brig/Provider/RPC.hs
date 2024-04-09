@@ -45,7 +45,6 @@ import Data.List1 qualified as List1
 import Galley.Types.Bot qualified as Galley
 import Galley.Types.Bot.Service (serviceEnabled)
 import Galley.Types.Bot.Service qualified as Galley
-import Imports
 import Network.HTTP.Client qualified as Http
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status

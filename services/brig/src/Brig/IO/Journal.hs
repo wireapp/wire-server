@@ -38,7 +38,6 @@ import Data.Proto.Id
 import Data.ProtoLens (defMessage)
 import Data.ProtoLens.Encoding (encodeMessage)
 import Data.UUID.V4 (nextRandom)
-import Imports
 import Proto.UserEvents (UserEvent, UserEvent'EventType (..))
 import Proto.UserEvents_Fields qualified as U
 import Wire.API.User

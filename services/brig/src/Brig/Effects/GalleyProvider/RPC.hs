@@ -33,7 +33,6 @@ import Data.Id
 import Data.Json.Util (UTCTimeMillis)
 import Data.Qualified
 import Data.Range
-import Imports
 import Network.HTTP.Client qualified as HTTP
 import Network.HTTP.Types qualified as HTTP
 import Network.HTTP.Types.Method
@@ -465,7 +464,7 @@ decodeBodyOrThrow :: forall a r. (Typeable a, FromJSON a, Member (Error ParseExc
 decodeBodyOrThrow t r =
   case decodeBody @a t r of
     Left a ->
-      case Imports.fromException a of
+      case Prelude.fromException a of
         Just pe -> throw @ParseException pe
         Nothing -> error "impossible: something other than ParseExceptionNothing was thrown by decodeBody"
     Right b -> pure b

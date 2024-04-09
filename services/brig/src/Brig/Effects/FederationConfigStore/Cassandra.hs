@@ -26,14 +26,12 @@ import Brig.Data.Instances ()
 import Brig.Effects.FederationConfigStore
 import Cassandra
 import Control.Exception (ErrorCall (ErrorCall))
-import Control.Lens
 import Control.Monad.Catch (throwM)
 import Data.Domain
 import Data.Id
 import Data.Map qualified as Map
 import Data.Qualified
 import Database.CQL.Protocol (SerialConsistency (LocalSerialConsistency), serialConsistency)
-import Imports
 import Polysemy
 import Wire.API.Routes.FederationDomainConfig
 import Wire.API.User.Search

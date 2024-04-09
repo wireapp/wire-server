@@ -9,7 +9,6 @@ import Brig.Effects.UserPendingActivationStore
 import Cassandra
 import Data.Id (UserId)
 import Data.Time (UTCTime)
-import Imports
 import Polysemy
 import Polysemy.Internal.Tactics
 import Wire.Sem.Paging.Cassandra qualified as PC

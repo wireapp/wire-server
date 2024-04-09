@@ -33,7 +33,6 @@ import Control.Lens (view)
 import Control.Monad.Trans.Except
 import Data.Id (UserId)
 import Data.Qualified
-import Imports
 import Wire.API.Connection (Relation (..))
 
 type ConnectionM r = ExceptT ConnectionError (AppT r)

@@ -15,7 +15,6 @@ import Data.Text (unpack)
 import Data.Text.Lazy (fromStrict)
 import Data.Time.Units
 import Debug.Trace (traceIO)
-import Imports
 import Network.Mail.Mime
 import Network.Mail.Postie qualified as Postie
 import Network.Socket

@@ -25,7 +25,6 @@ import Data.Id
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Data.UUID qualified as UUID
-import Imports
 import Proto.UserEvents qualified as PU
 import Proto.UserEvents_Fields qualified as PU
 import Test.Tasty.HUnit

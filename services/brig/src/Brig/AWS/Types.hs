@@ -23,7 +23,6 @@ module Brig.AWS.Types
 where
 
 import Data.Aeson
-import Imports
 import Wire.API.User.Identity
 
 -------------------------------------------------------------------------------

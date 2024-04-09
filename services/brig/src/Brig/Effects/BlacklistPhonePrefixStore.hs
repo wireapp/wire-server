@@ -4,7 +4,6 @@ module Brig.Effects.BlacklistPhonePrefixStore where
 
 import Brig.Phone (Phone)
 import Brig.Types.Common (ExcludedPrefix, PhonePrefix)
-import Imports
 import Polysemy
 
 data BlacklistPhonePrefixStore m a where

@@ -35,7 +35,6 @@ import Data.Code
 import Data.Id
 import Data.Text qualified as T
 import Data.Time.Clock
-import Imports
 import OpenSSL.BN (randIntegerZeroToNMinusOne)
 import Text.Printf (printf)
 import Wire.API.User.Auth

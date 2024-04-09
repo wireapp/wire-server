@@ -20,7 +20,6 @@
 module Brig.Schema.V76_AddSupportedProtocols (migration) where
 
 import Cassandra.Schema
-import Imports
 import Text.RawString.QQ
 
 migration :: Migration

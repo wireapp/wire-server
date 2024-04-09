@@ -26,7 +26,6 @@ import Data.ByteString.Conversion
 import Data.Domain (Domain)
 import Data.Jwt.Tools (DPoPTokenGenerationError (..))
 import Data.ZAuth.Validation qualified as ZAuth
-import Imports
 import Network.HTTP.Types.Header
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error qualified as Wai

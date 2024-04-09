@@ -4,7 +4,6 @@ module Brig.Effects.UserPendingActivationStore where
 
 import Data.Id
 import Data.Time.Clock
-import Imports
 import Polysemy
 import Wire.Sem.Paging
 

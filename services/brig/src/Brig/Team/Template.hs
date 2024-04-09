@@ -31,7 +31,6 @@ where
 
 import Brig.Options
 import Brig.Template
-import Imports
 import Wire.API.User.Identity
 
 data InvitationEmailTemplate = InvitationEmailTemplate

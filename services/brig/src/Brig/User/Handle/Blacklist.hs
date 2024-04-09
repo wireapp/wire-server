@@ -22,7 +22,6 @@ where
 
 import Data.Handle (Handle (Handle))
 import Data.HashSet qualified as HashSet
-import Imports
 
 -- | A blacklisted handle cannot be chosen by a (regular) user.
 isBlacklistedHandle :: Handle -> Bool

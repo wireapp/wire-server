@@ -30,7 +30,6 @@ import Brig.Options qualified as Opt
 import Data.CaseInsensitive qualified as CI
 import Data.List1 qualified as List1
 import Data.Text qualified as Text
-import Imports
 import Test.Tasty hiding (Timeout)
 import Test.Tasty.HUnit
 import Util

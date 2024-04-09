@@ -40,7 +40,6 @@ import Data.Misc
 import Data.Set qualified as Set
 import Data.Text.Ascii
 import Data.Time
-import Imports hiding (exp)
 import OpenSSL.Random (randBytes)
 import Polysemy (Member)
 import Servant hiding (Handler, Tagged)
@@ -54,6 +53,7 @@ import Wire.Sem.Jwk
 import Wire.Sem.Jwk qualified as Jwk
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
+import Prelude hiding (exp)
 
 --------------------------------------------------------------------------------
 -- API Internal

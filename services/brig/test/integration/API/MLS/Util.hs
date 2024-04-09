@@ -29,7 +29,6 @@ import Data.Map qualified as Map
 import Data.Qualified
 import Data.Text qualified as Text
 import Data.Timeout
-import Imports
 import System.FilePath
 import System.Process
 import Test.Tasty.HUnit

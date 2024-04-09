@@ -21,7 +21,6 @@ module Brig.Schema.V60_AddFederationIdMapping
 where
 
 import Cassandra.Schema
-import Imports
 import Text.RawString.QQ
 
 -- | See <https://github.com/wearezeta/documentation/blob/master/topics/federation/federation-design.md#namespaces-and-user-identity>.

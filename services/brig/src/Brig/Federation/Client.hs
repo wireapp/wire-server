@@ -20,7 +20,6 @@ module Brig.Federation.Client where
 
 import Brig.App as Brig
 import Control.Lens
-import Control.Monad
 import Control.Monad.Catch (MonadMask, throwM)
 import Control.Monad.Trans.Except (ExceptT (..), throwE)
 import Control.Retry
@@ -32,7 +31,6 @@ import Data.Qualified
 import Data.Range (Range)
 import Data.Text qualified as T
 import Data.Time.Units
-import Imports
 import Network.AMQP qualified as Q
 import System.Logger.Class qualified as Log
 import Wire.API.Federation.API

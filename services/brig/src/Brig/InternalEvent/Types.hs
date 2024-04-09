@@ -20,7 +20,6 @@ module Brig.InternalEvent.Types
   )
 where
 
-import BasePrelude
 import Data.Aeson
 import Data.Aeson.Types
 import Data.Id

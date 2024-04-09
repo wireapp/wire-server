@@ -38,8 +38,8 @@ import Data.Id (TeamId, idToText)
 import Data.Range (Range (..))
 import Data.Text.Ascii (decodeBase64Url, encodeBase64Url)
 import Database.Bloodhound qualified as ES
-import Imports hiding (log, searchable)
 import Wire.API.User.Search
+import Prelude hiding (log, searchable)
 
 teamUserSearch ::
   (HasCallStack, MonadIndexIO m) =>

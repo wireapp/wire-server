@@ -23,7 +23,6 @@ import Brig.Data.Connection
 import Brig.Effects.ConnectionStore
 import Cassandra
 import Data.Range
-import Imports
 import Polysemy
 import Polysemy.Internal.Tactics
 import Wire.Sem.Paging.Cassandra

@@ -24,7 +24,6 @@ import Control.Lens
 import Data.ByteString.Char8 qualified as BS
 import Data.ByteString.Conversion (toByteString')
 import Data.Id
-import Imports
 import Network.Wai.Test as WaiTest
 import Test.Tasty
 import Test.Tasty.HUnit

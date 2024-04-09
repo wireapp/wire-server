@@ -59,7 +59,6 @@ import Brig.Schema.V81_AddFederationRemoteTeams qualified as V81_AddFederationRe
 import Cassandra.MigrateSchema (migrateSchema)
 import Cassandra.Schema
 import Control.Exception (finally)
-import Imports
 import System.Logger.Extended qualified as Log
 import Util.Options
 

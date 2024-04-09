@@ -50,9 +50,9 @@ import Data.Text.Lazy qualified as Lazy
 import Data.Text.Template (Template, template)
 import Data.Text.Template qualified as Template
 import HTMLEntities.Text qualified as HTML
-import Imports hiding (readFile)
 import System.IO.Error (isDoesNotExistError)
 import Wire.API.User
+import Prelude hiding (readFile)
 
 -- | See 'genTemplateBranding'.
 type TemplateBranding = Text -> Text

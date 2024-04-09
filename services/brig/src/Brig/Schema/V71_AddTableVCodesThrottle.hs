@@ -23,7 +23,6 @@ module Brig.Schema.V71_AddTableVCodesThrottle
 where
 
 import Cassandra.Schema
-import Imports
 import Text.RawString.QQ
 
 -- | We need the initial_delay column because we can only retrieve the TTL value from a column that is not part of the PK.

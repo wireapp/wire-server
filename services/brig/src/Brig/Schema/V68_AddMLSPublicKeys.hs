@@ -21,7 +21,6 @@ module Brig.Schema.V68_AddMLSPublicKeys
 where
 
 import Cassandra.Schema
-import Imports
 import Text.RawString.QQ
 
 migration :: Migration

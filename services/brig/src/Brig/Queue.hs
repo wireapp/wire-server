@@ -36,7 +36,6 @@ import Data.Aeson
 import Data.ByteString.Base16 qualified as B16
 import Data.ByteString.Lazy qualified as BL
 import Data.Text.Encoding qualified as T
-import Imports
 import OpenSSL.EVP.Digest (Digest, digestLBS)
 import System.Logger.Class as Log hiding (settings)
 

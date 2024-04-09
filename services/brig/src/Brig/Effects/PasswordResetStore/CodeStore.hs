@@ -25,12 +25,12 @@ import Brig.Effects.PasswordResetStore
 import Brig.Types.User (PasswordResetPair)
 import Data.Id
 import Data.Time
-import Imports hiding (lookup)
 import Polysemy
 import Wire.API.User.Identity
 import Wire.API.User.Password
 import Wire.Sem.Now
 import Wire.Sem.Now qualified as Now
+import Prelude hiding (lookup)
 
 passwordResetStoreToCodeStore ::
   forall r a.

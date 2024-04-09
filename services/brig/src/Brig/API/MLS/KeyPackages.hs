@@ -42,7 +42,6 @@ import Data.CommaSeparatedList
 import Data.Id
 import Data.Qualified
 import Data.Set qualified as Set
-import Imports
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
 import Wire.API.MLS.CipherSuite

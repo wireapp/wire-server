@@ -56,7 +56,6 @@ import Data.Text.Encoding
 import Data.Text.Lazy (toStrict)
 import Data.Time.Clock
 import Data.UUID.V4
-import Imports
 import OpenSSL.Random (randBytes)
 import System.Logger.Class qualified as Log
 import URI.ByteString

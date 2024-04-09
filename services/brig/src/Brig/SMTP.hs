@@ -40,7 +40,6 @@ import Data.Aeson.TH
 import Data.Pool
 import Data.Text (unpack)
 import Data.Time.Units
-import Imports
 import Network.HaskellNet.SMTP qualified as SMTP
 import Network.HaskellNet.SMTP.SSL qualified as SMTP
 import Network.Mail.Mime

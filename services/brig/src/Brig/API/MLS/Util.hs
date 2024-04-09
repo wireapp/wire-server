@@ -24,7 +24,6 @@ import Brig.Data.Client
 import Brig.Options
 import Control.Error
 import Control.Lens (view)
-import Imports
 
 isMLSEnabled :: Handler r Bool
 isMLSEnabled = fromMaybe False . setEnableMLS <$> view settings

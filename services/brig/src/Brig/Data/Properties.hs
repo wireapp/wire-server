@@ -30,7 +30,6 @@ import Brig.Data.Instances ()
 import Cassandra
 import Control.Error
 import Data.Id
-import Imports
 import Wire.API.Properties
 
 maxProperties :: Int64

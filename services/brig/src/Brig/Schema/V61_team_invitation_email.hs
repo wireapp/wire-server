@@ -24,7 +24,6 @@ module Brig.Schema.V61_team_invitation_email
 where
 
 import Cassandra.Schema
-import Imports
 import Text.RawString.QQ
 
 migration :: Migration

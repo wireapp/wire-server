@@ -36,7 +36,6 @@ import Control.Lens (view)
 import Data.Id (TeamId, idToText)
 import Data.Text.Ascii qualified as Ascii
 import Data.Text.Lazy (toStrict)
-import Imports
 import Wire.API.User
 
 -------------------------------------------------------------------------------

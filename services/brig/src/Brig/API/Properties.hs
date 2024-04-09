@@ -32,7 +32,6 @@ import Brig.Data.Properties qualified as Data
 import Brig.IO.Intra qualified as Intra
 import Control.Error
 import Data.Id
-import Imports
 import Polysemy
 import Wire.API.Properties
 import Wire.API.UserEvent

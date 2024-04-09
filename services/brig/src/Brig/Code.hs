@@ -71,13 +71,13 @@ import Data.Text qualified as Text
 import Data.Text.Ascii qualified as Ascii
 import Data.Text.Encoding qualified as Text
 import Data.UUID (UUID)
-import Imports hiding (lookup)
 import OpenSSL.BN (randIntegerZeroToNMinusOne)
 import OpenSSL.EVP.Digest (Digest, digestBS, getDigestByName)
 import OpenSSL.Random (randBytes)
 import Text.Printf (printf)
 import Wire.API.User qualified as User
 import Wire.API.User.Identity
+import Prelude hiding (lookup)
 
 --------------------------------------------------------------------------------
 -- Code

@@ -50,7 +50,6 @@ import Data.Range
 import Data.Text qualified as Text
 import Data.Text.Ascii qualified as Ascii
 import Data.Text.Lazy (toStrict)
-import Imports
 import Ropes.Nexmo qualified as Nexmo
 import System.Logger.Class qualified as Log
 import Wire.API.User

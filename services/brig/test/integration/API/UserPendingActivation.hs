@@ -39,7 +39,6 @@ import Data.Range (unsafeRange)
 import Data.Text.Encoding (encodeUtf8)
 import Data.UUID qualified as UUID
 import Data.UUID.V4 qualified as UUID
-import Imports
 import SAML2.WebSSO qualified as SAML
 import Spar.Scim (CreateScimTokenResponse (..), SparTag, userSchemas)
 import Test.QuickCheck (generate)

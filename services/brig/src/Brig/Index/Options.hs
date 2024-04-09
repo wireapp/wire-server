@@ -57,7 +57,6 @@ import Data.Text qualified as Text
 import Data.Text.Strict.Lens
 import Data.Time.Clock (NominalDiffTime)
 import Database.Bloodhound qualified as ES
-import Imports
 import Options.Applicative
 import URI.ByteString
 import URI.ByteString.QQ

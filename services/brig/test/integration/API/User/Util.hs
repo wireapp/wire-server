@@ -53,7 +53,6 @@ import Data.ZAuth.Token qualified as ZAuth
 import Federation.Util (withTempMockFederator)
 import Federator.MockServer (FederatedRequest (..))
 import GHC.TypeLits (KnownSymbol)
-import Imports
 import Polysemy
 import Test.Tasty.Cannon qualified as WS
 import Test.Tasty.HUnit

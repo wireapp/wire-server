@@ -57,7 +57,6 @@ import Data.List1 qualified as List1
 import Data.Qualified (Local)
 import Data.Range
 import Data.Time.Clock (UTCTime)
-import Imports hiding (head)
 import Network.Wai.Utilities hiding (code, message)
 import Polysemy
 import Polysemy.Input (Input)
@@ -85,6 +84,7 @@ import Wire.API.User qualified as Public
 import Wire.NotificationSubsystem
 import Wire.Sem.Concurrency
 import Wire.Sem.Paging.Cassandra (InternalPaging)
+import Prelude hiding (head)
 
 servantAPI ::
   ( Member BlacklistStore r,

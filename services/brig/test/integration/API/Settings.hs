@@ -30,7 +30,6 @@ import Data.ByteString.Char8 qualified as C8
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Set qualified as Set
-import Imports
 import Test.Tasty hiding (Timeout)
 import Test.Tasty.HUnit
 import Util

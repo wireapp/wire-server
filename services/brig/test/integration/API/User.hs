@@ -36,7 +36,6 @@ import Brig.Options qualified as Opt
 import Brig.ZAuth qualified as ZAuth
 import Cassandra qualified as DB
 import Data.List.NonEmpty (NonEmpty ((:|)))
-import Imports
 import Test.Tasty hiding (Timeout)
 import Util
 import Util.AWS (UserJournalWatcher)

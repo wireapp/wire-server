@@ -19,10 +19,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module API.User.Auth
-  ( tests,
-  )
-where
+module API.User.Auth (tests) where
 
 import API.Team.Util
 import API.User.Util qualified as Util
@@ -57,7 +54,6 @@ import Data.Text.Lazy qualified as Lazy
 import Data.Time.Clock
 import Data.UUID.V4 qualified as UUID
 import Data.ZAuth.Token qualified as ZAuth
-import Imports hiding (cs)
 import Network.HTTP.Client (equivCookie)
 import Network.Wai.Utilities.Error qualified as Error
 import Test.Tasty
@@ -74,6 +70,7 @@ import Wire.API.User.Auth.LegalHold
 import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Auth.Sso
 import Wire.API.User.Client
+import Prelude hiding (cs)
 
 -- | FUTUREWORK: Implement this function. This wrapper should make sure that
 -- wrapped tests run only when the feature flag 'legalhold' is set to
@@ -1047,7 +1044,7 @@ testAccessWithClientId brig = do
       =<< addClient
         brig
         (userId u)
-        (defNewClient PermanentClientType [] (Imports.head someLastPrekeys))
+        (defNewClient PermanentClientType [] (Prelude.head someLastPrekeys))
         <!! const 201 === statusCode
   r <-
     post
@@ -1098,7 +1095,7 @@ testAccessWithClientIdAndOldToken brig = do
       =<< addClient
         brig
         (userId u)
-        (defNewClient PermanentClientType [] (Imports.head someLastPrekeys))
+        (defNewClient PermanentClientType [] (Prelude.head someLastPrekeys))
         <!! const 201 === statusCode
   r <-
     post
@@ -1137,7 +1134,7 @@ testAccessWithIncorrectClientId brig = do
   addClient
     brig
     (userId u)
-    (defNewClient PermanentClientType [] (Imports.head someLastPrekeys))
+    (defNewClient PermanentClientType [] (Prelude.head someLastPrekeys))
     !!! const 201 === statusCode
   post
     ( unversioned
@@ -1167,7 +1164,7 @@ testAccessWithExistingClientId brig = do
       =<< addClient
         brig
         (userId u)
-        (defNewClient PermanentClientType [] (Imports.head someLastPrekeys))
+        (defNewClient PermanentClientType [] (Prelude.head someLastPrekeys))
         <!! const 201 === statusCode
   now <- liftIO getCurrentTime
 

@@ -46,10 +46,8 @@ import Control.Monad.Trans.Except
 import Data.Bifunctor
 import Data.Handle (Handle, parseHandle)
 import Data.Id
-import Data.Maybe
 import Data.Qualified
 import Data.Text.Ascii (AsciiText (toText))
-import Imports
 import Polysemy
 import Polysemy.Error qualified as E
 import System.Logger (Msg)

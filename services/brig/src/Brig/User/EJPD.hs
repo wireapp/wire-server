@@ -36,7 +36,6 @@ import Data.ByteString.Conversion
 import Data.Handle (Handle)
 import Data.Id (UserId)
 import Data.Set qualified as Set
-import Imports hiding (head)
 import Network.HTTP.Types.Method
 import Polysemy (Member)
 import Servant.OpenApi.Internal.Orphans ()
@@ -47,6 +46,7 @@ import Wire.API.Team.Member qualified as Team
 import Wire.API.User
 import Wire.NotificationSubsystem
 import Wire.Rpc
+import Prelude hiding (head)
 
 ejpdRequest ::
   forall r.

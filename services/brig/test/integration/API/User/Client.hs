@@ -59,7 +59,6 @@ import Data.Time.Clock.POSIX
 import Data.UUID (toByteString)
 import Data.UUID qualified as UUID
 import Data.Vector qualified as Vec
-import Imports
 import Network.Wai.Utilities.Error qualified as Error
 import System.Logger qualified as Log
 import Test.QuickCheck (arbitrary, generate)

@@ -42,7 +42,6 @@ import Data.Default
 import Data.Id
 import Data.Qualified
 import GHC.TypeLits (KnownSymbol)
-import Imports
 import System.IO.Temp
 import Test.Tasty
 import Test.Tasty.HUnit

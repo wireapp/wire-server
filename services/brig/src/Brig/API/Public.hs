@@ -98,7 +98,6 @@ import Data.Text.Lazy (pack)
 import Data.Time.Clock (UTCTime)
 import Data.ZAuth.Token qualified as ZAuth
 import FileEmbedLzma
-import Imports hiding (head)
 import Network.Socket (PortNumber)
 import Network.Wai.Utilities as Utilities
 import Polysemy
@@ -159,6 +158,7 @@ import Wire.Sem.Concurrency
 import Wire.Sem.Jwk (Jwk)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Paging.Cassandra (InternalPaging)
+import Prelude hiding (head)
 
 -- User API -----------------------------------------------------------
 

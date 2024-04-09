@@ -28,7 +28,6 @@ import Brig.Queue.Types (Queue (..))
 import Brig.SMTP (SMTPConnType (..))
 import Brig.User.Auth.Cookie.Limit
 import Brig.ZAuth qualified as ZAuth
-import Control.Applicative
 import Control.Lens qualified as Lens
 import Data.Aeson (defaultOptions, fieldLabelModifier, genericParseJSON)
 import Data.Aeson qualified as A
@@ -50,7 +49,6 @@ import Data.Time.Clock (DiffTime, NominalDiffTime, secondsToDiffTime)
 import Data.Yaml (FromJSON (..), ToJSON (..), (.:), (.:?))
 import Data.Yaml qualified as Y
 import Galley.Types.Teams (unImplicitLockStatus)
-import Imports
 import Network.AMQP.Extended
 import Network.DNS qualified as DNS
 import System.Logger.Extended (Level, LogFormat)

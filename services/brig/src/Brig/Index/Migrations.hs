@@ -31,7 +31,6 @@ import Data.Credentials (Credentials (..))
 import Data.Metrics qualified as Metrics
 import Data.Text qualified as Text
 import Database.Bloodhound qualified as ES
-import Imports
 import Network.HTTP.Client qualified as HTTP
 import System.Logger.Class (Logger)
 import System.Logger.Class qualified as Log

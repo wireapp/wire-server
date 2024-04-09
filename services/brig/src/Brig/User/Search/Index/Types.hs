@@ -32,7 +32,6 @@ import Data.Text.ICU.Translit (trans, transliterate)
 import Data.Time (UTCTime)
 import Database.Bloodhound hiding (key)
 import Database.Bloodhound.Internal.Client (DocVersion (DocVersion))
-import Imports
 import Wire.API.Team.Role (Role)
 import Wire.API.User
 import Wire.API.User.Search (Sso (..))

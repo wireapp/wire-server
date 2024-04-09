@@ -41,7 +41,6 @@ where
 
 import Brig.Options qualified as Opt
 import Brig.Template
-import Imports
 import Wire.API.User.Identity
 
 data UserTemplates = UserTemplates

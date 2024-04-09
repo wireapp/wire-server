@@ -5,7 +5,6 @@ module Brig.Effects.FederationConfigStore where
 import Data.Domain
 import Data.Id
 import Data.Qualified
-import Imports
 import Polysemy
 import Wire.API.Routes.FederationDomainConfig
 

@@ -6,7 +6,6 @@ where
 import Brig.Effects.BlacklistPhonePrefixStore
 import Brig.Types.Common
 import Cassandra
-import Imports
 import Polysemy
 import Wire.API.User.Identity
 

@@ -21,7 +21,6 @@ module Brig.Queue.Types
 where
 
 import Data.Aeson
-import Imports
 
 -- | A remote queue that you can publish to and listen from.
 data Queue = StompQueue Text | SqsQueue Text

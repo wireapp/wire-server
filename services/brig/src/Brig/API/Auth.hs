@@ -40,7 +40,6 @@ import Data.Text qualified as T
 import Data.Text.Lazy qualified as LT
 import Data.Time.Clock (UTCTime)
 import Data.ZAuth.Token qualified as ZAuth
-import Imports
 import Network.HTTP.Types
 import Network.Wai.Utilities ((!>>))
 import Network.Wai.Utilities.Error qualified as Wai

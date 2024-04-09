@@ -6,7 +6,6 @@ where
 import Brig.Data.UserKey
 import Brig.Effects.BlacklistStore (BlacklistStore (..))
 import Cassandra
-import Imports
 import Polysemy
 
 interpretBlacklistStoreToCassandra ::

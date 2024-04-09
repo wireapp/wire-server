@@ -43,7 +43,6 @@ import Data.Id
 import Data.Jwt.Tools (DPoPTokenGenerationError (..))
 import Data.Qualified
 import Data.RetryAfter
-import Imports
 import Network.Wai.Utilities.Error qualified as Wai
 import Wire.API.Federation.Error
 import Wire.API.User

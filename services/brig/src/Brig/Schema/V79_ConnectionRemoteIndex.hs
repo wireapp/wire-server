@@ -7,7 +7,6 @@ module Brig.Schema.V79_ConnectionRemoteIndex
 where
 
 import Cassandra.Schema
-import Imports
 import Text.RawString.QQ
 
 migration :: Migration

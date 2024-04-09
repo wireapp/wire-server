@@ -93,7 +93,6 @@ import Data.Qualified
 import Data.Range (fromRange)
 import Data.Time (addUTCTime)
 import Data.UUID.V4
-import Imports
 import Wire.API.Password
 import Wire.API.Provider.Service
 import Wire.API.Team.Feature qualified as ApiFt

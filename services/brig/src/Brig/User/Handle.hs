@@ -32,7 +32,6 @@ import Brig.Unique
 import Cassandra
 import Data.Handle (Handle, fromHandle)
 import Data.Id
-import Imports
 
 -- | Claim a new handle for an existing 'User'.
 claimHandle :: (MonadClient m, MonadReader Env m) => UserId -> Maybe Handle -> Handle -> m Bool

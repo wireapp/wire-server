@@ -31,7 +31,6 @@ import Control.Lens ((^.))
 import Control.Monad.Catch (MonadCatch)
 import Data.Id
 import Data.Proxy (Proxy (Proxy))
-import Imports
 import Servant.API ((:>))
 import Servant.API.ContentTypes (NoContent)
 import Servant.Client qualified as Client

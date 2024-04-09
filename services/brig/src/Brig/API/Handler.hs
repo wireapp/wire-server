@@ -51,7 +51,6 @@ import Data.Aeson qualified as Aeson
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Data.ZAuth.Validation qualified as ZV
-import Imports
 import Network.HTTP.Types (Status (statusCode, statusMessage))
 import Network.Wai (Request, ResponseReceived)
 import Network.Wai.Predicate (Media)

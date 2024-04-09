@@ -49,7 +49,6 @@ import Data.Range
 import Data.Text.Ascii (AsciiBase64, encodeBase64)
 import Data.Text.Strict.Lens
 import Data.Time.Clock.POSIX (getPOSIXTime)
-import Imports hiding (head)
 import OpenSSL.EVP.Digest (Digest, hmacBS)
 import Polysemy
 import Polysemy.Error qualified as Polysemy
@@ -59,6 +58,7 @@ import Wire.API.Call.Config (SFTServer)
 import Wire.API.Call.Config qualified as Public
 import Wire.Network.DNS.SRV (srvTarget)
 import Wire.Sem.Logger.TinyLog (loggerToTinyLog)
+import Prelude hiding (head)
 
 -- | ('UserId', 'ConnId' are required as args here to make sure this is an authenticated end-point.)
 getCallsConfigV2 :: UserId -> ConnId -> Maybe (Range 1 10 Int) -> (Handler r) Public.RTCConfiguration

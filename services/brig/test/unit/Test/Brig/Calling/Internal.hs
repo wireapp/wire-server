@@ -21,7 +21,6 @@ module Test.Brig.Calling.Internal where
 
 import Brig.Calling.Internal
 import Data.Misc (mkHttpsUrl)
-import Imports
 import Test.Tasty
 import Test.Tasty.HUnit
 import URI.ByteString.QQ as URI

@@ -78,7 +78,6 @@ import Data.Range
 import Data.Time.Clock (UTCTime)
 import Gundeck.Types.Push.V2 (RecipientClients (RecipientClientsAll))
 import Gundeck.Types.Push.V2 qualified as V2
-import Imports
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import Polysemy

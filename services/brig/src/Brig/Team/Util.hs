@@ -27,7 +27,6 @@ import Control.Error
 import Control.Lens
 import Data.Id
 import Data.Set qualified as Set
-import Imports
 import Polysemy (Member)
 import Wire.API.Team.Member
 import Wire.API.Team.Permission

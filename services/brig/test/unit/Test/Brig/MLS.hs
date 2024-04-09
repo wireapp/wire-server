@@ -21,7 +21,6 @@ import Brig.API.MLS.KeyPackages.Validation
 import Data.Binary
 import Data.Either
 import Data.Time.Clock
-import Imports
 import Test.Tasty
 import Test.Tasty.QuickCheck
 import Wire.API.MLS.Lifetime

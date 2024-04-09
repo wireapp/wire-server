@@ -20,7 +20,6 @@ module Brig.Calling.Internal where
 import Control.Lens ((?~))
 import Data.ByteString.Char8 qualified as BS
 import Data.Misc (ensureHttpsUrl)
-import Imports
 import URI.ByteString qualified as URI
 import URI.ByteString.QQ qualified as URI
 import Wire.API.Call.Config qualified as Public

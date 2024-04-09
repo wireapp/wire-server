@@ -49,7 +49,6 @@ import Data.Qualified
 import Data.Range
 import Data.Set (fromList, (\\))
 import Gundeck.Types.Push qualified as Push
-import Imports hiding ((\\))
 import Network.Wai.Utilities.Error ((!>>))
 import Polysemy
 import Servant (ServerT)
@@ -72,6 +71,7 @@ import Wire.API.UserEvent
 import Wire.API.UserMap (UserMap)
 import Wire.NotificationSubsystem
 import Wire.Sem.Concurrency
+import Prelude hiding ((\\))
 
 type FederationAPI = "federation" :> BrigApi
 

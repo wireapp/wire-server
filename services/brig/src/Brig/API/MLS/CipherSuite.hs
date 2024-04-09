@@ -19,7 +19,6 @@ module Brig.API.MLS.CipherSuite (getCipherSuite, getCipherSuites) where
 
 import Brig.API.Handler
 import Brig.API.MLS.KeyPackages.Validation
-import Imports
 import Wire.API.MLS.CipherSuite
 
 getOneCipherSuite :: CipherSuite -> Handler r CipherSuiteTag

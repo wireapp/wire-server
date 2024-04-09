@@ -53,7 +53,6 @@ import Data.Proxy (Proxy (Proxy))
 import Data.Text (unpack)
 import Data.UUID as UUID
 import Data.UUID.V4 as UUID
-import Imports hiding (head)
 import Network.HTTP.Media qualified as HTTPMedia
 import Network.HTTP.Types qualified as HTTP
 import Network.Wai qualified as Wai
@@ -77,6 +76,7 @@ import Wire.API.Routes.Version
 import Wire.API.Routes.Version.Wai
 import Wire.API.User (AccountStatus (PendingInvitation))
 import Wire.Sem.Paging qualified as P
+import Prelude hiding (head)
 
 -- FUTUREWORK: If any of these async threads die, we will have no clue about it
 -- and brig could start misbehaving. We should ensure that brig dies whenever a

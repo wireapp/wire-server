@@ -28,7 +28,6 @@ import Data.Json.Util
 import Data.Time.Clock
 import Data.Time.Clock.POSIX
 import Data.UUID
-import Imports
 import Test.Tasty
 import Test.Tasty.HUnit
 import Wire.API.Team.Role

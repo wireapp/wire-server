@@ -26,7 +26,6 @@ module Brig.Queue.Stomp
   )
 where
 
-import BasePrelude hiding (Handler, throwIO)
 import Brig.Options qualified as Opts
 import Codec.MIME.Type qualified as MIME
 import Control.Monad.Catch (Handler (..), MonadMask)
@@ -38,7 +37,8 @@ import Data.Text
 import Data.Text.Encoding
 import Network.Mom.Stompl.Client.Queue hiding (try)
 import System.Logger.Class as Log
-import UnliftIO (MonadUnliftIO, throwIO, withRunInIO)
+import UnliftIO (throwIO, timeout, try)
+import Prelude hiding (withReader)
 
 data Env = Env
   { -- | STOMP broker that we're using
@@ -95,7 +95,7 @@ enqueue b q m =
     retryPolicy = limitRetries 5 <> exponentialBackoff 50000
     enqueueAction =
       liftIO $
-        try @StomplException $
+        try @_ @StomplException $
           stompTimeout "enqueue" 500000 $
             withConnection' b $
               \conn ->

@@ -21,10 +21,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module API.Search
-  ( tests,
-  )
-where
+module API.Search (tests) where
 
 import API.Search.Util
 import API.Team.Util
@@ -47,7 +44,6 @@ import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Database.Bloodhound qualified as ES
 import Federation.Util
-import Imports
 import Network.HTTP.Client qualified as HTTP
 import Network.HTTP.ReverseProxy (waiProxyTo)
 import Network.HTTP.ReverseProxy qualified as Wai
@@ -296,7 +292,7 @@ testSearchSize brig exactHandleInTeam = do
     assertEqual
       ("first match should be exact handle: " <> show searchTerm <> ", but got: \n" <> show res)
       (userQualifiedId handleMatch)
-      (contactQualifiedId $ Imports.head res)
+      (contactQualifiedId $ Prelude.head res)
     assertEqual
       ("exact handle: " <> show searchTerm <> " should only be present once, but got \n" <> show res)
       Nothing

@@ -18,11 +18,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module API.Provider
-  ( tests,
-    Config,
-  )
-where
+module API.Provider (tests, Config) where
 
 import API.Team.Util qualified as Team
 import Bilge hiding (accept, head, timeout)
@@ -62,7 +58,6 @@ import Data.Time.Clock
 import Data.Timeout (TimedOut (..), Timeout, TimeoutUnit (..), (#))
 import Data.UUID qualified as UUID
 import Data.ZAuth.Token qualified as ZAuth
-import Imports hiding (threadDelay)
 import Network.HTTP.Types.Status (status200, status201, status400)
 import Network.Socket
 import Network.Socket qualified as Socket
@@ -100,6 +95,7 @@ import Wire.API.User as User hiding (EmailUpdate, PasswordChange, mkName)
 import Wire.API.User.Auth (CookieType (..))
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
+import Prelude hiding (threadDelay)
 
 tests :: Domain -> Config -> Manager -> DB.ClientState -> Brig -> Cannon -> Galley -> Nginz -> IO TestTree
 tests dom conf p db b c g n = do
@@ -580,7 +576,7 @@ testClaimUserPrekeys config db brig galley = withTestService config db brig defS
     pure cid
   addBotResponse :: AddBotResponse <- responseJsonError =<< addBot brig (User.userId u1) pid sid cid <!! const 201 === statusCode
   let bid = addBotResponse.rsAddBotId
-  let new = defNewClient TemporaryClientType (take 1 somePrekeys) (Imports.head someLastPrekeys)
+  let new = defNewClient TemporaryClientType (take 1 somePrekeys) (Prelude.head someLastPrekeys)
   c :: Client <- responseJsonError =<< addClient brig (User.userId u1) new
 
   let userClients = UserClients $ Map.fromList [((User.userId u1), Set.fromList [c.clientId])]
@@ -589,7 +585,7 @@ testClaimUserPrekeys config db brig galley = withTestService config db brig defS
   let expected =
         UserClientPrekeyMap $
           UserClientMap $
-            Map.fromList [((User.userId u1), Map.fromList [(c.clientId, Just (Imports.head somePrekeys))])]
+            Map.fromList [((User.userId u1), Map.fromList [(c.clientId, Just (Prelude.head somePrekeys))])]
 
   liftIO $ assertEqual "claim prekeys" expected actual
 
@@ -616,7 +612,7 @@ testGetUserClients config db brig galley = withTestService config db brig defSer
     pure cid
   addBotResponse :: AddBotResponse <- responseJsonError =<< addBot brig (User.userId u1) pid sid cid <!! const 201 === statusCode
   let bid = addBotResponse.rsAddBotId
-  let new = defNewClient TemporaryClientType (take 1 somePrekeys) (Imports.head someLastPrekeys)
+  let new = defNewClient TemporaryClientType (take 1 somePrekeys) (Prelude.head someLastPrekeys)
   expected :: Client <- responseJsonError =<< addClient brig (User.userId u1) new
   [actual] :: [PubClient] <- responseJsonError =<< getUserClients brig bid (User.userId u1) <!! const 200 === statusCode
   liftIO $ actual.pubClientId @?= expected.clientId

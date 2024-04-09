@@ -17,10 +17,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module API.User.Account
-  ( tests,
-  )
-where
+module API.User.Account (tests) where
 
 import API.Search.Util qualified as Search
 import API.Team.Util
@@ -65,8 +62,6 @@ import Data.Time.Clock (diffUTCTime)
 import Data.UUID qualified as UUID
 import Data.UUID.V4 qualified as UUID
 import Federator.MockServer (FederatedRequest (..), MockException (..))
-import Imports hiding (head)
-import Imports qualified
 import Network.HTTP.Types qualified as HTTP
 import Network.HTTP.Types qualified as Http
 import Network.Wai qualified as Wai
@@ -95,6 +90,8 @@ import Wire.API.User.Activation
 import Wire.API.User.Auth
 import Wire.API.User.Auth qualified as Auth
 import Wire.API.User.Client
+import Prelude hiding (head)
+import Prelude qualified
 
 tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> CargoHold -> Galley -> AWS.Env -> UserJournalWatcher -> TestTree
 tests _ at opts p b c ch g aws userJournalWatcher =
@@ -1375,7 +1372,7 @@ testDeleteUserByPassword brig cannon userJournalWatcher = do
   con32 <- putConnection brig uid3 uid2 Accepted <!! const 200 === statusCode
   con23 <- getConnection brig uid2 uid3 <!! const 200 === statusCode
   -- Register a client
-  addClient brig uid1 (defNewClient PermanentClientType [Imports.head somePrekeys] (Imports.head someLastPrekeys))
+  addClient brig uid1 (defNewClient PermanentClientType [Prelude.head somePrekeys] (Prelude.head someLastPrekeys))
     !!! const 201 === statusCode
   -- Initial login
   login brig (defEmailLogin email) PersistentCookie
@@ -1416,7 +1413,7 @@ testDeleteUserWithLegalHold brig cannon userJournalWatcher = do
   user <- randomUser brig
   let uid = userId user
   -- Register a legalhold client
-  addClientInternal brig uid (defNewClient LegalHoldClientType [Imports.head somePrekeys] (Imports.head someLastPrekeys))
+  addClientInternal brig uid (defNewClient LegalHoldClientType [Prelude.head somePrekeys] (Prelude.head someLastPrekeys))
     !!! const 201 === statusCode
   Util.assertUserActivateJournaled userJournalWatcher user "user activate testDeleteInternal1: "
   setHandleAndDeleteUser brig cannon user [] userJournalWatcher $

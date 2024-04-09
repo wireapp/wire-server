@@ -58,7 +58,6 @@ import Data.Qualified
 import Data.Range
 import Data.UUID.V4 qualified as UUID
 import Galley.Types.Conversations.One2One
-import Imports
 import Polysemy
 import Polysemy.TinyLog
 import System.Logger.Class qualified as Log

@@ -21,7 +21,6 @@ module Brig.Schema.V47
 where
 
 import Cassandra.Schema
-import Imports
 import Text.RawString.QQ
 
 migration :: Migration

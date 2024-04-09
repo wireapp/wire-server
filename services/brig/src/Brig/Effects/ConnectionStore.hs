@@ -20,7 +20,6 @@ module Brig.Effects.ConnectionStore where
 
 import Data.Id
 import Data.Qualified (Local, Remote)
-import Imports
 import Polysemy
 import Wire.API.Connection (UserConnection)
 import Wire.Sem.Paging (Page, PagingBounds, PagingState)

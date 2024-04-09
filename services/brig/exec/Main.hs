@@ -21,7 +21,6 @@ module Main
 where
 
 import Brig.Run (run)
-import Imports
 import OpenSSL (withOpenSSL)
 import Util.Options
 

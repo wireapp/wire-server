@@ -23,7 +23,6 @@ module Brig.Schema.V80_KeyPackageCiphersuite
 where
 
 import Cassandra.Schema
-import Imports
 import Text.RawString.QQ
 
 -- Index key packages by ciphersuite as well as user and client.

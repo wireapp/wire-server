@@ -3,7 +3,6 @@
 module Brig.Effects.BlacklistStore where
 
 import Brig.Data.UserKey
-import Imports
 import Polysemy
 
 data BlacklistStore m a where

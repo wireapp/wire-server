@@ -45,7 +45,6 @@ import Data.Text.Encoding (encodeUtf8)
 import Data.Time (addUTCTime, getCurrentTime)
 import Data.UUID qualified as UUID (fromString)
 import Data.UUID.V4 qualified as UUID
-import Imports
 import Network.HTTP.Types qualified as HTTP
 import Network.Wai qualified as Wai
 import Network.Wai.Test qualified as WaiTest

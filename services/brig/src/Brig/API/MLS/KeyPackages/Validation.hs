@@ -34,7 +34,6 @@ import Data.ByteString qualified as LBS
 import Data.Qualified
 import Data.Time.Clock
 import Data.Time.Clock.POSIX
-import Imports hiding (cs)
 import Wire.API.Error
 import Wire.API.Error.Brig
 import Wire.API.MLS.CipherSuite
@@ -43,6 +42,7 @@ import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Lifetime
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.Validation
+import Prelude hiding (cs)
 
 validateUploadedKeyPackage ::
   ClientIdentity ->

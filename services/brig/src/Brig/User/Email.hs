@@ -46,7 +46,6 @@ import Data.Json.Util (fromUTCTimeMillis)
 import Data.Range
 import Data.Text.Ascii qualified as Ascii
 import Data.Text.Lazy (toStrict)
-import Imports
 import Wire.API.User
 import Wire.API.User.Activation
 import Wire.API.User.Client

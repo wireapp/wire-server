@@ -86,7 +86,6 @@ import Data.Text.Lazy.Builder.Int (decimal)
 import Data.Text.Lens hiding (text)
 import Data.UUID qualified as UUID
 import Database.Bloodhound qualified as ES
-import Imports hiding (log, searchable)
 import Network.HTTP.Client hiding (host, path, port)
 import Network.HTTP.Types (StdMethod (POST), hContentType, statusCode)
 import SAML2.WebSSO.Types qualified as SAML
@@ -99,6 +98,7 @@ import Wire.API.Team.Feature (SearchVisibilityInboundConfig, featureNameBS)
 import Wire.API.User
 import Wire.API.User qualified as User
 import Wire.API.User.Search (Sso (..))
+import Prelude hiding (log, searchable)
 
 --------------------------------------------------------------------------------
 -- IndexIO Monad

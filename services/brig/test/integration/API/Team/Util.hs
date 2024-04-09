@@ -34,7 +34,6 @@ import Data.Misc (Milliseconds)
 import Data.Range
 import Data.Set qualified as Set
 import Data.Text.Encoding qualified as T
-import Imports
 import Network.Wai.Utilities.Error qualified as Error
 import Test.Tasty.HUnit
 import Util

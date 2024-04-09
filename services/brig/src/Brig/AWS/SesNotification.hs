@@ -25,7 +25,6 @@ import Brig.App
 import Brig.Data.UserKey (userEmailKey)
 import Brig.Effects.BlacklistStore (BlacklistStore)
 import Brig.Effects.BlacklistStore qualified as BlacklistStore
-import Imports
 import Polysemy (Member)
 import System.Logger.Class (field, msg, (~~))
 import System.Logger.Class qualified as Log

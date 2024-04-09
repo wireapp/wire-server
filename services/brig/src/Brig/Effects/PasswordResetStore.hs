@@ -20,7 +20,6 @@ module Brig.Effects.PasswordResetStore where
 
 import Brig.Types.User (PasswordResetPair)
 import Data.Id
-import Imports
 import Polysemy
 import Wire.API.User.Identity
 import Wire.API.User.Password

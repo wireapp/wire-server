@@ -34,7 +34,6 @@ import Cassandra as C
 import Control.Concurrent.Timeout
 import Data.Id
 import Data.Timeout
-import Imports
 
 -- | Obtain a (temporary) exclusive claim on a 'Text' value for some
 -- 'Id'entifier. The claim expires after the provided timeout, whether

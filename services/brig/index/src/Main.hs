@@ -22,7 +22,6 @@ where
 
 import Brig.Index.Eval
 import Brig.Index.Options
-import Imports
 import Options.Applicative
 import System.Exit
 import System.Logger.Class qualified as Log

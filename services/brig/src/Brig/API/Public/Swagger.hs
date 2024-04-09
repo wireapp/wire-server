@@ -26,7 +26,6 @@ import Data.OpenApi.Declare qualified as S
 import Data.Text qualified as T
 import FileEmbedLzma
 import GHC.TypeLits
-import Imports hiding (head)
 import Language.Haskell.TH
 import Network.Socket
 import Servant
@@ -36,6 +35,7 @@ import Wire.API.Event.Conversation qualified
 import Wire.API.Event.FeatureConfig qualified
 import Wire.API.Event.Team qualified
 import Wire.API.Routes.Version
+import Prelude hiding (head)
 
 type SwaggerDocsAPIBase = SwaggerSchemaUI "swagger-ui" "swagger.json"
 
@@ -98,7 +98,7 @@ adjustSwaggerForInternalEndpoint service examplePort swagger =
 
     renderedDescription :: Text
     renderedDescription =
-      T.pack . Imports.unlines $
+      T.pack . Prelude.unlines $
         [ "To have access to this *internal* endpoint, create a port forwarding to `"
             ++ service
             ++ "` into the Kubernetes cluster. E.g.:",

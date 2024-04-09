@@ -72,7 +72,6 @@ import Data.ZAuth.Token qualified as ZAuth
 import Federator.MockServer qualified as Mock
 import GHC.TypeLits
 import Galley.Types.Conversations.One2One (one2OneConvId)
-import Imports
 import Network.HTTP.Client qualified as HTTP
 import Network.HTTP.Media.MediaType
 import Network.HTTP.Media.RenderHeader (renderHeader)

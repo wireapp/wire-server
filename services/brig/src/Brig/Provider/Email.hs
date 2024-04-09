@@ -37,7 +37,6 @@ import Data.Text (pack)
 import Data.Text.Ascii qualified as Ascii
 import Data.Text.Encoding qualified as Text
 import Data.Text.Lazy qualified as LT
-import Imports
 import Wire.API.Provider
 import Wire.API.User
 

@@ -64,7 +64,6 @@ import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Data.Text.IO qualified as Text
 import Data.Time.Clock (DiffTime, diffTimeToPicoseconds)
-import Imports
 import Network.DNS qualified as DNS
 import OpenSSL.EVP.Digest (Digest)
 import Polysemy

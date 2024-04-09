@@ -18,10 +18,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.Data.Instances
-  (
-  )
-where
+module Brig.Data.Instances () where
 
 import Brig.Types.Common
 import Brig.Types.Search
@@ -36,7 +33,6 @@ import Data.Id ()
 import Data.Range ()
 import Data.Text.Ascii ()
 import Data.Text.Encoding (encodeUtf8)
-import Imports
 import Wire.API.Asset (AssetKey, assetKeyToText, nilAssetKey)
 import Wire.API.Connection (RelationWithHistory (..))
 import Wire.API.MLS.CipherSuite
@@ -301,7 +297,7 @@ instance Cql FederatedUserSearchPolicy where
   fromCql (CqlInt 2) = pure FullSearch
   fromCql n = Left $ "Unexpected SearchVisibilityInbound: " ++ show n
 
-instance Cql (Imports.Set BaseProtocolTag) where
+instance Cql (Prelude.Set BaseProtocolTag) where
   ctype = Tagged IntColumn
 
   toCql = CqlInt . fromIntegral . protocolSetBits

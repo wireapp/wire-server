@@ -81,7 +81,6 @@ import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.Time.Clock
 import Data.UUID qualified as UUID
-import Imports
 import System.CryptoBox (Result (Success))
 import System.CryptoBox qualified as CryptoBox
 import System.Logger.Class (field, msg, val)
@@ -123,7 +122,7 @@ addClient ::
   ClientId ->
   NewClient ->
   Int ->
-  Maybe (Imports.Set ClientCapability) ->
+  Maybe (Prelude.Set ClientCapability) ->
   ExceptT ClientDataError m (Client, [Client], Word)
 addClient = addClientWithReAuthPolicy reAuthForNewClients
 
@@ -134,7 +133,7 @@ addClientWithReAuthPolicy ::
   ClientId ->
   NewClient ->
   Int ->
-  Maybe (Imports.Set ClientCapability) ->
+  Maybe (Prelude.Set ClientCapability) ->
   ExceptT ClientDataError m (Client, [Client], Word)
 addClientWithReAuthPolicy reAuthPolicy u newId c maxPermClients cps = do
   clients <- lookupClients u
@@ -191,20 +190,20 @@ lookupClient u c = do
   fmap (toClient keys)
     <$> retry x1 (query1 selectClient (params LocalQuorum (u, c)))
 
-lookupClientsBulk :: (MonadClient m) => [UserId] -> m (Map UserId (Imports.Set Client))
+lookupClientsBulk :: (MonadClient m) => [UserId] -> m (Map UserId (Prelude.Set Client))
 lookupClientsBulk uids = liftClient $ do
   userClientTuples <- pooledMapConcurrentlyN 50 getClientSetWithUser uids
   pure $ Map.fromList userClientTuples
   where
-    getClientSetWithUser :: MonadClient m => UserId -> m (UserId, Imports.Set Client)
+    getClientSetWithUser :: MonadClient m => UserId -> m (UserId, Prelude.Set Client)
     getClientSetWithUser u = fmap ((u,) . Set.fromList) . lookupClients $ u
 
-lookupPubClientsBulk :: (MonadClient m) => [UserId] -> m (UserMap (Imports.Set PubClient))
+lookupPubClientsBulk :: (MonadClient m) => [UserId] -> m (UserMap (Prelude.Set PubClient))
 lookupPubClientsBulk uids = liftClient $ do
   userClientTuples <- pooledMapConcurrentlyN 50 getClientSetWithUser uids
   pure $ UserMap $ Map.fromList userClientTuples
   where
-    getClientSetWithUser :: MonadClient m => UserId -> m (UserId, Imports.Set PubClient)
+    getClientSetWithUser :: MonadClient m => UserId -> m (UserId, Prelude.Set PubClient)
     getClientSetWithUser u = (u,) . Set.fromList . map toPubClient <$> executeQuery u
 
     executeQuery :: MonadClient m => UserId -> m [(ClientId, Maybe ClientClass)]
@@ -259,7 +258,7 @@ rmClient u c = do
 updateClientLabel :: MonadClient m => UserId -> ClientId -> Maybe Text -> m ()
 updateClientLabel u c l = retry x5 $ write updateClientLabelQuery (params LocalQuorum (l, u, c))
 
-updateClientCapabilities :: MonadClient m => UserId -> ClientId -> Maybe (Imports.Set ClientCapability) -> m ()
+updateClientCapabilities :: MonadClient m => UserId -> ClientId -> Maybe (Prelude.Set ClientCapability) -> m ()
 updateClientCapabilities u c fs = retry x5 $ write updateClientCapabilitiesQuery (params LocalQuorum (C.Set . Set.toList <$> fs, u, c))
 
 -- | If the update fails, which can happen if device does not exist, then ignore the error silently.

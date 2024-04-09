@@ -23,7 +23,6 @@ module Brig.Schema.V77_FederationRemotes
 where
 
 import Cassandra.Schema
-import Imports
 import Text.RawString.QQ
 
 migration :: Migration

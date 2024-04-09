@@ -29,7 +29,6 @@ import Bilge.Assert
 import Brig.Options qualified as Opt
 import Data.Attoparsec.Text
 import Data.ByteString.Conversion
-import Imports
 import Test.Tasty
 import Test.Tasty.HUnit
 import Util

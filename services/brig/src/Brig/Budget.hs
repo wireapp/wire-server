@@ -30,7 +30,6 @@ where
 
 import Cassandra
 import Data.Time.Clock
-import Imports
 
 data Budget = Budget
   { budgetTimeout :: !NominalDiffTime,

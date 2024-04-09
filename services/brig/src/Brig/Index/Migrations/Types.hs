@@ -26,7 +26,6 @@ import Control.Monad.Catch (MonadThrow)
 import Data.Aeson (FromJSON (..), ToJSON (..), object, withObject, (.:), (.=))
 import Data.Metrics (Metrics)
 import Database.Bloodhound qualified as ES
-import Imports
 import Network.HTTP.Client (Manager)
 import Numeric.Natural (Natural)
 import System.Logger qualified as Logger

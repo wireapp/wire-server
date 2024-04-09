@@ -56,13 +56,13 @@ import Data.Metrics qualified as Metrics
 import Data.Proxy
 import Data.RetryAfter
 import Data.Time.Clock
-import Imports hiding (cs)
 import Network.Wai (Response)
 import Network.Wai.Utilities.Response (addHeader)
 import System.Logger.Class (field, msg, val, (~~))
 import System.Logger.Class qualified as Log
 import Web.Cookie qualified as WebCookie
 import Wire.API.User.Auth
+import Prelude hiding (cs)
 
 --------------------------------------------------------------------------------
 -- Basic Cookie Management
