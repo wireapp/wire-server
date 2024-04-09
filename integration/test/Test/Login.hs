@@ -31,7 +31,10 @@ testLoginVerify6DigitWrongCodeFails = do
   email <- owner %. "email"
   setTeamFeatureLockStatus owner team "sndFactorPasswordChallenge" "unlocked"
   setTeamFeatureStatus owner team "sndFactorPasswordChallenge" "enabled"
-  bindResponse (loginWith2ndFactor owner email defPassword "123456") $ \resp -> do
+  generateVerificationCode owner email
+  correctCode <- getVerificationCode owner "login" >>= getJSON 200 >>= asString
+  let wrongCode = show $ (read @Int correctCode) + 1 `mod` 1000000
+  bindResponse (loginWith2ndFactor owner email defPassword wrongCode) $ \resp -> do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "code-authentication-failed"
 
@@ -58,7 +61,7 @@ testLoginVerify6DigitMissingCodeFails = do
 testLoginVerify6DigitExpiredCodeFails :: HasCallStack => App ()
 testLoginVerify6DigitExpiredCodeFails = do
   withModifiedBackend
-    (def {brigCfg = setField "optSettings.setVerificationTimeout" (Aeson.Number 2)})
+    (def {brigCfg = setField "optSettings.setVerificationTimeout" (Aeson.Number 1)})
     $ \domain -> do
       (owner, team, []) <- createTeam domain 0
       email <- owner %. "email"
@@ -103,7 +106,7 @@ testLoginVerify6DigitLimitRetries = do
   setTeamFeatureStatus owner team "sndFactorPasswordChallenge" "enabled"
   generateVerificationCode owner email
   correctCode <- getVerificationCode owner "login" >>= getJSON 200 >>= asString
-  let wrongCode = "123456"
+  let wrongCode = show $ (read @Int correctCode) + 1 `mod` 1000000
   -- try login with wrong code should fail 3 times
   forM_ [1 .. 3] $ \(_ :: Int) -> do
     bindResponse (loginWith2ndFactor owner email defPassword wrongCode) \resp -> do
