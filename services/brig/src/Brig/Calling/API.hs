@@ -21,7 +21,6 @@
 module Brig.Calling.API
   ( getCallsConfig,
     getCallsConfigV2,
-    getAuthenticatedCallsConfig,
 
     -- * Exposed for testing purposes
     newConfig,
@@ -37,7 +36,6 @@ import Brig.Calling
 import Brig.Calling qualified as Calling
 import Brig.Calling.Internal
 import Brig.Effects.SFT
-import Brig.Effects.SFTStore
 import Brig.Options (ListAllSFTServers (..))
 import Brig.Options qualified as Opt
 import Control.Error (hush, throwE)
@@ -62,42 +60,9 @@ import Wire.API.Call.Config qualified as Public
 import Wire.Network.DNS.SRV (srvTarget)
 
 -- | ('UserId', 'ConnId' are required as args here to make sure this is an authenticated end-point.)
-getAuthenticatedCallsConfig ::
-  ( Member (Embed IO) r,
-    Member SFT r,
-    Member SFTStore r
-  ) =>
-  UserId ->
-  ClientId ->
-  ConnId ->
-  Maybe (Range 1 10 Int) ->
-  (Handler r) Public.RTCConfiguration
-getAuthenticatedCallsConfig u c _ limit = do
-  env <- view turnEnv
-  staticUrl <- view $ settings . Opt.sftStaticUrl
-  sftListAllServers <- fromMaybe Opt.HideAllSFTServers <$> view (settings . Opt.sftListAllServers)
-  sftEnv' <- view sftEnv
-  sftFederation <- view enableSFTFederation
-  discoveredServers <- turnServersV2 (env ^. turnServers)
-  eitherConfig <-
-    lift
-      . liftSem
-      . Polysemy.runError
-      $ newConfig
-        env
-        discoveredServers
-        staticUrl
-        sftEnv'
-        limit
-        sftListAllServers
-        (AuthenticatedCallsConfig u c sftFederation)
-  handleNoTurnServers eitherConfig
-
--- | ('UserId', 'ConnId' are required as args here to make sure this is an authenticated end-point.)
 getCallsConfigV2 ::
   ( Member (Embed IO) r,
-    Member SFT r,
-    Member SFTStore r
+    Member SFT r
   ) =>
   UserId ->
   ConnId ->
@@ -108,12 +73,13 @@ getCallsConfigV2 _ _ limit = do
   staticUrl <- view $ settings . Opt.sftStaticUrl
   sftListAllServers <- fromMaybe Opt.HideAllSFTServers <$> view (settings . Opt.sftListAllServers)
   sftEnv' <- view sftEnv
+  sftFederation <- view enableSFTFederation
   discoveredServers <- turnServersV2 (env ^. turnServers)
   eitherConfig <-
     lift
       . liftSem
       . Polysemy.runError
-      $ newConfig env discoveredServers staticUrl sftEnv' limit sftListAllServers CallsConfigV2
+      $ newConfig env discoveredServers staticUrl sftEnv' limit sftListAllServers (CallsConfigV2 sftFederation)
   handleNoTurnServers eitherConfig
 
 -- | Throws '500 Internal Server Error' when no turn servers are found. This is
@@ -130,8 +96,7 @@ handleNoTurnServers (Left NoTurnServers) = do
 
 getCallsConfig ::
   ( Member (Embed IO) r,
-    Member SFT r,
-    Member SFTStore r
+    Member SFT r
   ) =>
   UserId ->
   ConnId ->
@@ -156,8 +121,7 @@ getCallsConfig _ _ = do
 
 data CallsConfigVersion
   = CallsConfigDeprecated
-  | CallsConfigV2
-  | AuthenticatedCallsConfig UserId ClientId (Maybe Bool)
+  | CallsConfigV2 (Maybe Bool)
 
 data NoTurnServers = NoTurnServers
   deriving (Show)
@@ -172,7 +136,6 @@ instance Exception NoTurnServers
 newConfig ::
   ( Member (Embed IO) r,
     Member SFT r,
-    Member SFTStore r,
     Member (Polysemy.Error NoTurnServers) r
   ) =>
   Calling.TurnEnv ->
@@ -209,22 +172,16 @@ newConfig env discoveredServers sftStaticUrl mSftEnv limit listAllServers versio
 
   let sftFederation' = case version of
         CallsConfigDeprecated -> Nothing
-        CallsConfigV2 -> Nothing
-        AuthenticatedCallsConfig _ _ fed -> fed
+        CallsConfigV2 fed -> fed
 
   mSftServersAll <-
     case version of
       CallsConfigDeprecated -> pure Nothing
-      CallsConfigV2 ->
+      CallsConfigV2 _ ->
         case (listAllServers, sftStaticUrl) of
           (HideAllSFTServers, _) -> pure Nothing
-          (ListAllSFTServers, Nothing) -> pure . pure $ Public.nauthSFTServer . sftServerFromSrvTarget . srvTarget <$> maybe [] toList allSrvEntries
-          (ListAllSFTServers, Just url) -> Public.nauthSFTServer <$$$> (hush . unSFTGetResponse <$> sftGetAllServers url)
-      AuthenticatedCallsConfig u c _ ->
-        case (listAllServers, sftStaticUrl) of
-          (HideAllSFTServers, _) -> pure Nothing
-          (ListAllSFTServers, Nothing) -> mapM (mapM $ authenticate u c) . pure $ sftServerFromSrvTarget . srvTarget <$> maybe [] toList allSrvEntries
-          (ListAllSFTServers, Just url) -> mapM (mapM $ authenticate u c) . hush . unSFTGetResponse =<< sftGetAllServers url
+          (ListAllSFTServers, Nothing) -> mapM (mapM authenticate) . pure $ sftServerFromSrvTarget . srvTarget <$> maybe [] toList allSrvEntries
+          (ListAllSFTServers, Just url) -> mapM (mapM authenticate) . hush . unSFTGetResponse =<< sftGetAllServers url
 
   let mSftServers = staticSft <|> sftServerFromSrvTarget . srvTarget <$$> srvEntries
   pure $ Public.rtcConfiguration srvs mSftServers (env ^. turnConfigTTL) mSftServersAll sftFederation'
@@ -249,23 +206,15 @@ newConfig env discoveredServers sftStaticUrl mSftEnv limit listAllServers versio
     computeCred :: ToByteString a => Digest -> ByteString -> a -> AsciiBase64
     computeCred dig secret = encodeBase64 . hmacBS dig secret . toByteString'
     authenticate ::
-      ( Member (Embed IO) r,
-        Member SFTStore r
-      ) =>
-      UserId ->
-      ClientId ->
+      Member (Embed IO) r =>
       Public.SFTServer ->
       Sem r Public.AuthSFTServer
-    authenticate u c =
+    authenticate =
       maybe
         (pure . Public.nauthSFTServer)
         ( \SFTTokenEnv {..} sftsvr -> do
             username <- liftIO $ genSFTUsername sftTokenTTL sftTokenPRNG
             let credential = computeCred sftTokenSHA sftTokenSecret username
-            void $ sftStoreCredential u c username credential sftTokenSecondsBeforeNew
-            maybe
-              (Public.nauthSFTServer sftsvr)
-              (uncurry (Public.authSFTServer sftsvr))
-              <$> sftGetCredential u c
+            pure $ Public.authSFTServer sftsvr username credential
         )
         (sftToken =<< mSftEnv)

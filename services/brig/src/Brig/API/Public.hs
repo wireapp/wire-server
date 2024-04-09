@@ -56,7 +56,6 @@ import Brig.Effects.JwtTools (JwtTools)
 import Brig.Effects.PasswordResetStore (PasswordResetStore)
 import Brig.Effects.PublicKeyBundle (PublicKeyBundle)
 import Brig.Effects.SFT
-import Brig.Effects.SFTStore
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import Brig.Options hiding (internalEvents, sesQueue)
 import Brig.Provider.API
@@ -286,7 +285,6 @@ servantSitemap ::
     Member PasswordResetStore r,
     Member PublicKeyBundle r,
     Member SFT r,
-    Member SFTStore r,
     Member TinyLog r,
     Member (UserPendingActivationStore p) r
   ) =>
@@ -441,7 +439,6 @@ servantSitemap =
     callingAPI =
       Named @"get-calls-config" Calling.getCallsConfig
         :<|> Named @"get-calls-config-v2" Calling.getCallsConfigV2
-        :<|> Named @"get-authenticated-calls-config" Calling.getAuthenticatedCallsConfig
 
     systemSettingsAPI :: ServerT SystemSettingsAPI (Handler r)
     systemSettingsAPI =

@@ -54,7 +54,7 @@ module Wire.API.Call.Config
     suExpiresAt,
     suVersion,
     suKeyindex,
-    suS,
+    suShared,
     suRandom,
 
     -- * TurnUsername
@@ -453,7 +453,7 @@ data SFTUsername = SFTUsername
     -- | seems to large, but uint32_t is used in C
     _suKeyindex :: Word32,
     -- | whether the user is allowed to initialise an SFT conference
-    _suS :: Bool,
+    _suShared :: Bool,
     -- | [a-z0-9]+
     _suRandom :: Text
   }
@@ -467,7 +467,7 @@ mkSFTUsername expires rnd =
     { _suExpiresAt = expires,
       _suVersion = 1,
       _suKeyindex = 0,
-      _suS = True,
+      _suShared = True,
       _suRandom = rnd
     }
 
@@ -489,7 +489,7 @@ instance BC.ToByteString SFTUsername where
       <> shortByteString ".k="
       <> word32Dec (_suKeyindex su)
       <> shortByteString ".s="
-      <> wordDec (boolToWord $ _suS su)
+      <> wordDec (boolToWord $ _suShared su)
       <> shortByteString ".r="
       <> byteString (view (re utf8) (_suRandom su))
     where

@@ -1548,22 +1548,6 @@ type CallingAPI =
                :> QueryParam' '[Optional, Strict, Description "Limit resulting list. Allowed values [1..10]"] "limit" (Range 1 10 Int)
                :> Get '[JSON] RTCConfiguration
            )
-    :<|> Named
-           "get-authenticated-calls-config"
-           ( Summary
-               "Retrieve all TURN server addresses and credentials. \
-               \Clients are expected to do a DNS lookup to resolve \
-               \the IP addresses of the given hostnames "
-               :> From 'V6
-               :> ZUser
-               :> ZClient
-               :> ZConn
-               :> "calls"
-               :> "config"
-               :> "authenticated"
-               :> QueryParam' '[Optional, Strict, Description "Limit resulting list. Allowed values [1..10]"] "limit" (Range 1 10 Int)
-               :> Get '[JSON] RTCConfiguration
-           )
 
 -- Teams API -----------------------------------------------------
 

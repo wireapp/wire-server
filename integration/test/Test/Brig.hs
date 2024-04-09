@@ -1,6 +1,6 @@
 module Test.Brig where
 
-import API.Brig (getCallsConfigAuthenticated)
+import API.Brig
 import qualified API.BrigInternal as BrigI
 import API.Common
 import Data.Aeson.Types hiding ((.=))
@@ -132,7 +132,6 @@ testCrudFederationRemoteTeams = do
 testSFTCredentials :: HasCallStack => App ()
 testSFTCredentials = do
   let ttl = (60 :: Int)
-      secondsToNew = (30 :: Int)
   withSystemTempFile "sft-secret" $ \secretFile secretHandle -> do
     liftIO $ do
       hPutStr secretHandle "xMtZyTpu=Leb?YKCoq#BXQR:gG^UrE83dNWzFJ2VcD"
@@ -143,15 +142,13 @@ testSFTCredentials = do
               ( setField "sft.sftBaseDomain" "integration-tests.zinfra.io"
                   . setField "sft.sftToken.ttl" ttl
                   . setField "sft.sftToken.secret" secretFile
-                  . setField "sft.sftToken.secondsBeforeNew" secondsToNew
                   . setField "optSettings.setSftListAllServers" "enabled"
               )
           }
       )
       $ \domain -> do
         user <- randomUser domain def
-        client <- randomClientId
-        bindResponse (getCallsConfigAuthenticated user client) \resp -> do
+        bindResponse (getCallsConfigV2 user) \resp -> do
           sftServersAll <- resp.json %. "sft_servers_all" & asList
           when (null sftServersAll) $ assertFailure "sft_servers_all missing"
           for_ sftServersAll $ \s -> do
@@ -178,8 +175,7 @@ testSFTNoCredentials = withModifiedBackend
   )
   $ \domain -> do
     user <- randomUser domain def
-    client <- randomClientId
-    bindResponse (getCallsConfigAuthenticated user client) \resp -> do
+    bindResponse (getCallsConfigV2 user) \resp -> do
       sftServersAll <- resp.json %. "sft_servers_all" & asList
       when (null sftServersAll) $ assertFailure "sft_servers_all missing"
       for_ sftServersAll $ \s -> do
@@ -200,8 +196,7 @@ testSFTFederation = do
     )
     $ \domain -> do
       user <- randomUser domain def
-      client <- randomClientId
-      bindResponse (getCallsConfigAuthenticated user client) \resp -> do
+      bindResponse (getCallsConfigV2 user) \resp -> do
         isFederatingM <- lookupField resp.json "is_federating"
         when (isJust isFederatingM) $ assertFailure "is_federating should not be present"
   withModifiedBackend
@@ -214,8 +209,7 @@ testSFTFederation = do
     )
     $ \domain -> do
       user <- randomUser domain def
-      client <- randomClientId
-      bindResponse (getCallsConfigAuthenticated user client) \resp -> do
+      bindResponse (getCallsConfigV2 user) \resp -> do
         isFederating <-
           maybe (assertFailure "is_federating missing") asBool
             =<< lookupField resp.json "is_federating"
@@ -230,8 +224,7 @@ testSFTFederation = do
     )
     $ \domain -> do
       user <- randomUser domain def
-      client <- randomClientId
-      bindResponse (getCallsConfigAuthenticated user client) \resp -> do
+      bindResponse (getCallsConfigV2 user) \resp -> do
         isFederating <-
           maybe (assertFailure "is_federating missing") asBool
             =<< lookupField resp.json "is_federating"

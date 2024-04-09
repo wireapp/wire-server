@@ -638,8 +638,7 @@ renewToken caller cookie = do
   submit "POST" (addHeader "Cookie" ("zuid=" <> cookie) req)
 
 -- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/get_calls_config_v2
-getCallsConfigAuthenticated :: (HasCallStack, MakesValue user, MakesValue client) => user -> client -> App Response
-getCallsConfigAuthenticated user client = do
-  cli <- client & objId
-  req <- baseRequest user Brig Versioned $ joinHttpPath ["calls", "config", "authenticated"]
-  submit "GET" $ zClient cli req
+getCallsConfigV2 :: (HasCallStack, MakesValue user) => user -> App Response
+getCallsConfigV2 user = do
+  req <- baseRequest user Brig Versioned $ joinHttpPath ["calls", "config", "v2"]
+  submit "GET" req

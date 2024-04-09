@@ -824,8 +824,7 @@ instance FromJSON SFTOptions where
 
 data SFTTokenOptions = SFTTokenOptions
   { sttTTL :: !Word32,
-    sttSecret :: !FilePath,
-    sttSecondsBeforeNew :: !Int32
+    sttSecret :: !FilePath
   }
   deriving (Show, Generic)
 
@@ -834,7 +833,6 @@ instance FromJSON SFTTokenOptions where
     SFTTokenOptions
       <$> (o .: "ttl")
       <*> (o .: "secret")
-      <*> (o .: "secondsBeforeNew")
 
 asciiOnly :: Text -> Y.Parser ByteString
 asciiOnly t =

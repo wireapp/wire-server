@@ -517,7 +517,7 @@ This setting assumes that the sft load balancer has been deployed with the `sftd
 
 Additionally if `setSftListAllServers` is set to `enabled` (disabled by default) then the `/calls/config/v2` endpoint will include a list of all servers that are load balanced by `setSftStaticUrl` at field `sft_servers_all`. This is required to enable calls between federated instances of Wire.
 
-Calls between federated SFT servers can be enabled using the optional boolean `multiSFT.enabled`. If provided, the field `is_federating` in the response of `/calls/config/authenticated` will reflect `multiSFT.enabled`'s value.
+Calls between federated SFT servers can be enabled using the optional boolean `multiSFT.enabled`. If provided, the field `is_federating` in the response of `/calls/config/v2` will reflect `multiSFT.enabled`'s value.
 
 ```
 # [brig.yaml]
@@ -525,7 +525,7 @@ multiSFT:
   enabled: true
 ```
 
-Also, the optional object `sftToken` with its fields `ttl`, `secret`, and `secondsBeforeNew` define whether an SFT credential would be rendered in the response of `/calls/config/authenticated`. The field `ttl` determines the seconds for the credential to be valid, `secondsBeforeNew` determines the amount of time which has to pass before a new token will be generated, preventing one client to create too many new credentials, and `secret` is the path to the secret shared with SFT to create credentials.
+Also, the optional object `sftToken` with its fields `ttl` and `secret` define whether an SFT credential would be rendered in the response of `/calls/config/v2`. The field `ttl` determines the seconds for the credential to be valid and `secret` is the path to the secret shared with SFT to create credentials.
 
 Example:
 
@@ -539,7 +539,6 @@ sft:
   sftToken:
     ttl: 120
     secret: /path/to/secret
-    secondsBeforeNew: 60
 ```
 
 ### Locale
