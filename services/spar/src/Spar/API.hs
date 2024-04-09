@@ -55,6 +55,7 @@ import Data.Id
 import Data.Proxy
 import Data.Range
 import qualified Data.Set as Set
+import qualified Data.Text.Lazy as T
 import Data.Time
 import Imports
 import Polysemy
@@ -476,6 +477,15 @@ idpCreate ::
 idpCreate zusr (IdPMetadataValue raw xml) = idpCreateXML zusr raw xml
 
 -- | We generate a new UUID for each IdP used as IdPConfig's path, thereby ensuring uniqueness.
+--
+-- NOTE(mangoiv): currently registering an IdP and scim token works as follows:
+-- - an owner creates a team with some teamId
+-- - the owner registers and IdP
+-- - the owner registers a scim token and passes the idp id along to associate
+--   the scim token with the IdP
+--
+-- This is bad  because now there's no way to pre-emptively register a scim token and
+-- then associate an IdP with it
 idpCreateXML ::
   ( Member Random r,
     Member (Logger String) r,
@@ -504,17 +514,7 @@ idpCreateXML zusr rawIdpMetadata idpmeta mReplaces (fromMaybe defWireIdPAPIVersi
   IdPConfigStore.insertConfig idp
   forM_ mReplaces $ \replaces ->
     IdPConfigStore.setReplacedBy (Replaced replaces) (Replacing (idp ^. SAML.idpId))
-  lookupAndLinkScimTokenToIdp teamid
   pure idp
-
--- | if a scim token exists when creating a saml IdP
--- - this IdP is the only IdP that may ever be created
--- - all scim tokens must belong to that IdP
--- - i.e. each scim token is linked to that one IdP
-lookupAndLinkScimTokenToIdp :: (Member ScimTokenStore r) => TeamId -> Sem r ()
-lookupAndLinkScimTokenToIdp tid = do
-  scimTokens <- ScimTokenStore.lookupByTeam tid
-  undefined
 
 -- | In teams with a scim access token, only one IdP is allowed.  The reason is that scim user
 -- data contains no information about the idp issuer, only the user name, so no valid saml

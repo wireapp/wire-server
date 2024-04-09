@@ -73,14 +73,8 @@ registerIdPAndScimToken :: HasCallStack => TestSpar (ScimToken, (UserId, TeamId,
 registerIdPAndScimToken = do
   env <- ask
   (owner, teamid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
-  token <- registerScimToken teamid Nothing
   idp <- registerTestIdP owner
-  -- current plan: make registerTestIdP always take its idpId, look up whether a scim token exists for ??? (how to associate these)
-  -- and then insert its own idp id
-  --
-  -- updateScimTokenInfo token \case
-  --   Just info -> info {stiIdP = Just (idp ^. idpId)}
-  --   Nothing -> error "expected token to exist in cassandra"
+  token <- registerScimToken teamid (Just (idp ^. idpId))
   let team = (owner, teamid, idp)
   pure (token, team)
 
@@ -101,6 +95,9 @@ updateScimTokenInfo tok fn = runSpar do
   ScimTokenStore.insert tok (fn oldInfo)
 
 -- | Create a fresh SCIM token and register it for the team.
+--
+-- FUTUREWORK(mangoiv): this is an integration test, it should use the
+-- API, and not directly manipulate the database
 registerScimToken :: HasCallStack => TeamId -> Maybe IdPId -> TestSpar ScimToken
 registerScimToken teamid midpid = do
   tok <-
