@@ -324,7 +324,7 @@ mkIndexEnv o lgr mgr mtr mCreds mAddCreds galleyEp =
       mainIndex = ES.IndexName $ Opt.index (Opt.elasticsearch o)
       additionalIndex = ES.IndexName <$> Opt.additionalWriteIndex (Opt.elasticsearch o)
       additionalBhe = flip mkBhe mAddCreds <$> Opt.additionalWriteIndexUrl (Opt.elasticsearch o)
-   in IndexEnv mtr lgr' (mkBhe (Opt.url (Opt.elasticsearch o)) mCreds) Nothing mainIndex additionalIndex additionalBhe galleyEp mgr
+   in IndexEnv mtr lgr' (mkBhe (Opt.url (Opt.elasticsearch o)) mCreds) Nothing mainIndex additionalIndex additionalBhe galleyEp mgr mCreds
 
 initZAuth :: Opts -> IO ZAuth.Env
 initZAuth o = do

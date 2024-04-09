@@ -74,6 +74,7 @@ import Data.ByteString.Builder (Builder, toLazyByteString)
 import Data.ByteString.Conversion (toByteString')
 import Data.ByteString.Conversion qualified as Bytes
 import Data.ByteString.Lazy qualified as BL
+import Data.Credentials
 import Data.Handle (Handle)
 import Data.Id
 import Data.Map qualified as Map
@@ -112,7 +113,9 @@ data IndexEnv = IndexEnv
     idxAdditionalName :: Maybe ES.IndexName,
     idxAdditionalElastic :: Maybe ES.BHEnv,
     idxGalley :: Endpoint,
-    idxHttpManager :: Manager
+    idxHttpManager :: Manager,
+    -- credentials for reindexing have to be passed via the env because bulk API requests are not supported by bloodhound
+    idxCredentials :: Maybe Credentials
   }
 
 newtype IndexIO a = IndexIO (ReaderT IndexEnv IO a)
@@ -210,12 +213,13 @@ updateIndex (IndexUpdateUsers updateType ius) = liftIndexIO $ do
   let (ES.MappingName mpp) = mappingName
   let (ES.Server base) = ES.bhServer bhe
   req <- parseRequest (view unpacked $ base <> "/" <> idx <> "/" <> mpp <> "/_bulk")
+  authHeaders <- mkAuthHeaders
   res <-
     liftIO $
       httpLbs
         req
           { method = "POST",
-            requestHeaders = [(hContentType, "application/x-ndjson")], -- sic
+            requestHeaders = [(hContentType, "application/x-ndjson")] <> authHeaders, -- sic
             requestBody = RequestBodyLBS (toLazyByteString (foldMap bulkEncode ius))
           }
         (ES.bhManager bhe)
@@ -229,6 +233,10 @@ updateIndex (IndexUpdateUsers updateType ius) = liftIndexIO $ do
       (path ("user.index.update.bulk.status." <> review builder (decimal s)))
       m
   where
+    mkAuthHeaders = do
+      creds <- asks idxCredentials
+      pure $ maybe [] ((: []) . mkBasicAuthHeader) creds
+
     encodeJSONToString :: ToJSON a => a -> Builder
     encodeJSONToString = fromEncoding . toEncoding
     bulkEncode iu =

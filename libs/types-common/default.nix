@@ -23,6 +23,7 @@
 , gitignoreSource
 , hashable
 , http-api-data
+, http-types
 , imports
 , iproute
 , iso3166-country-codes
@@ -77,6 +78,7 @@ mkDerivation {
     generic-random
     hashable
     http-api-data
+    http-types
     imports
     iproute
     iso3166-country-codes

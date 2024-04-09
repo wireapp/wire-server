@@ -85,6 +85,7 @@ mkEnv l mCreds es cas galleyEndpoint = do
     <*> initLogger
     <*> Metrics.metrics
     <*> pure (view Opts.esIndex es)
+    <*> pure mCreds
     <*> pure mgr
     <*> pure galleyEndpoint
   where
