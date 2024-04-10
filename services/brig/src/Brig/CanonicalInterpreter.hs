@@ -17,6 +17,7 @@ import Brig.Effects.JwtTools
 import Brig.Effects.PasswordResetStore (PasswordResetStore)
 import Brig.Effects.PasswordResetStore.CodeStore (passwordResetStoreToCodeStore)
 import Brig.Effects.PublicKeyBundle
+import Brig.Effects.SFT (SFT, interpretSFT)
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import Brig.Effects.UserPendingActivationStore.Cassandra (userPendingActivationStoreToCassandra)
 import Brig.Options (ImplicitNoFederationRestriction (federationDomainConfig), federationDomainConfigs, federationStrategy)
@@ -49,7 +50,8 @@ import Wire.Sem.Now.IO (nowToIOAction)
 import Wire.Sem.Paging.Cassandra (InternalPaging)
 
 type BrigCanonicalEffects =
-  '[ ConnectionStore InternalPaging,
+  '[ SFT,
+     ConnectionStore InternalPaging,
      Input UTCTime,
      Input (Local ()),
      NotificationSubsystem,
@@ -110,6 +112,7 @@ runBrigToIO e (AppT ma) = do
               . runInputConst (toLocalUnsafe (e ^. settings . Opt.federationDomain) ())
               . runInputSem (embed getCurrentTime)
               . connectionStoreToCassandra
+              . interpretSFT (e ^. httpManager)
           )
     )
     $ runReaderT ma e

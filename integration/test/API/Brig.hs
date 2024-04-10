@@ -636,3 +636,9 @@ renewToken :: (HasCallStack, MakesValue uid) => uid -> String -> App Response
 renewToken caller cookie = do
   req <- baseRequest caller Brig Versioned "access"
   submit "POST" (addHeader "Cookie" ("zuid=" <> cookie) req)
+
+-- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/get_calls_config_v2
+getCallsConfigV2 :: (HasCallStack, MakesValue user) => user -> App Response
+getCallsConfigV2 user = do
+  req <- baseRequest user Brig Versioned $ joinHttpPath ["calls", "config", "v2"]
+  submit "GET" req

@@ -11,14 +11,6 @@
             "username": "d=2.v=0.k=0.t=󷁝.r=tj"
         }
     ],
-    "sft_servers_all": [
-        {
-            "credential": "credential",
-            "urls": [
-                "https://example.com"
-            ],
-            "username": "d=12.v=1.k=0.s=1.r=username"
-        }
-    ],
+    "is_federating": true,
     "ttl": 2
 }

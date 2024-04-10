@@ -66,6 +66,7 @@ module Brig.App
     rabbitmqChannel,
     fsWatcher,
     disabledVersions,
+    enableSFTFederation,
 
     -- * App Monad
     AppT (..),
@@ -197,7 +198,8 @@ data Env = Env
     _randomPrekeyLocalLock :: Maybe (MVar ()),
     _keyPackageLocalLock :: MVar (),
     _rabbitmqChannel :: Maybe (MVar Q.Channel),
-    _disabledVersions :: Set Version
+    _disabledVersions :: Set Version,
+    _enableSFTFederation :: Maybe Bool
   }
 
 makeLenses ''Env
@@ -248,7 +250,7 @@ newEnv o = do
   eventsQueue <- case Opt.internalEventsQueue (Opt.internalEvents o) of
     StompQueue q -> pure (StompQueue q)
     SqsQueue q -> SqsQueue <$> AWS.getQueueUrl (aws ^. AWS.amazonkaEnv) q
-  mSFTEnv <- mapM Calling.mkSFTEnv $ Opt.sft o
+  mSFTEnv <- mapM (Calling.mkSFTEnv sha512) $ Opt.sft o
   prekeyLocalLock <- case Opt.randomPrekeys o of
     Just True -> do
       Log.info lgr $ Log.msg (Log.val "randomPrekeys: active")
@@ -300,7 +302,8 @@ newEnv o = do
         _randomPrekeyLocalLock = prekeyLocalLock,
         _keyPackageLocalLock = kpLock,
         _rabbitmqChannel = rabbitChan,
-        _disabledVersions = allDisabledVersions
+        _disabledVersions = allDisabledVersions,
+        _enableSFTFederation = Opt.multiSFT o
       }
   where
     emailConn _ (Opt.EmailAWS aws) = pure (Just aws, Nothing)

@@ -40,6 +40,8 @@ config:
   # -- If set to false,  'dynamoDBEndpoint' _must_ be set.
   randomPrekeys: true
   useSES: true
+  multiSFT:
+    enabled: false # keep multiSFT default in sync with sft chart's multiSFT.enabled
   enableFederation: false # keep enableFederation default in sync with galley and cargohold chart's config.enableFederation as well as wire-server chart's tags.federation
   # Not used if enableFederation is false
   rabbitmq:
