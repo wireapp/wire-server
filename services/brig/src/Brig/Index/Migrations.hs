@@ -20,6 +20,7 @@ module Brig.Index.Migrations
   )
 where
 
+import Brig.App (initHttpManagerWithTLSConfig)
 import Brig.Index.Migrations.Types
 import Brig.Index.Options qualified as Opts
 import Brig.User.Search.Index qualified as Search
@@ -77,17 +78,19 @@ indexMapping =
 
 mkEnv :: Logger -> Opts.ElasticSettings -> Opts.CassandraSettings -> Options.Endpoint -> IO Env
 mkEnv l es cas galleyEndpoint = do
-  mgr <- HTTP.newManager HTTP.defaultManagerSettings
+  env <- do
+    esMgr <- initHttpManagerWithTLSConfig (es ^. Opts.esConnection . to Opts.esInsecureSkipVerifyTls) (es ^. Opts.esConnection . to Opts.esCaCert)
+    pure $ ES.mkBHEnv (Opts.toESServer (es ^. Opts.esConnection . to Opts.esServer)) esMgr
   mCreds <- for (es ^. Opts.esConnection . to Opts.esCredentials) Options.initCredentials
-  let env = ES.mkBHEnv (Opts.toESServer (es ^. Opts.esConnection . to Opts.esServer)) mgr
-      envWithAuth = maybe env (\(creds :: Credentials) -> env {ES.bhRequestHook = ES.basicAuthHook (ES.EsUsername creds.username) (ES.EsPassword creds.password)}) mCreds
+  let envWithAuth = maybe env (\(creds :: Credentials) -> env {ES.bhRequestHook = ES.basicAuthHook (ES.EsUsername creds.username) (ES.EsPassword creds.password)}) mCreds
+  rpcMgr <- HTTP.newManager HTTP.defaultManagerSettings
   Env envWithAuth
     <$> initCassandra
     <*> initLogger
     <*> Metrics.metrics
     <*> pure (view (Opts.esConnection . to Opts.esIndex) es)
     <*> pure mCreds
-    <*> pure mgr
+    <*> pure rpcMgr
     <*> pure galleyEndpoint
   where
     initCassandra = defInitCassandra (Opts.toCassandraOpts cas) l

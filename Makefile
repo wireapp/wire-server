@@ -264,26 +264,29 @@ db-migrate-package:
 .PHONY: db-reset
 db-reset: c
 	@echo "Make sure you have ./deploy/dockerephemeral/run.sh running in another window!"
-	./dist/brig-schema --keyspace brig_test --replication-factor 1 --reset
-	./dist/galley-schema --keyspace galley_test --replication-factor 1 --reset
-	./dist/gundeck-schema --keyspace gundeck_test --replication-factor 1 --reset
-	./dist/spar-schema --keyspace spar_test --replication-factor 1 --reset
-	./dist/brig-schema --keyspace brig_test2 --replication-factor 1 --reset
-	./dist/galley-schema --keyspace galley_test2 --replication-factor 1 --reset
-	./dist/gundeck-schema --keyspace gundeck_test2 --replication-factor 1 --reset
-	./dist/spar-schema --keyspace spar_test2 --replication-factor 1 --reset
-	./integration/scripts/integration-dynamic-backends-db-schemas.sh --replication-factor 1 --reset
+	# ./dist/brig-schema --keyspace brig_test --replication-factor 1 --reset
+	# ./dist/galley-schema --keyspace galley_test --replication-factor 1 --reset
+	# ./dist/gundeck-schema --keyspace gundeck_test --replication-factor 1 --reset
+	# ./dist/spar-schema --keyspace spar_test --replication-factor 1 --reset
+	# ./dist/brig-schema --keyspace brig_test2 --replication-factor 1 --reset
+	# ./dist/galley-schema --keyspace galley_test2 --replication-factor 1 --reset
+	# ./dist/gundeck-schema --keyspace gundeck_test2 --replication-factor 1 --reset
+	# ./dist/spar-schema --keyspace spar_test2 --replication-factor 1 --reset
+	# ./integration/scripts/integration-dynamic-backends-db-schemas.sh --replication-factor 1 --reset
 	./dist/brig-index reset \
 		--elasticsearch-index-prefix directory \
 		--elasticsearch-server https://localhost:9200 \
-		--elasticsearch-credentials ./services/brig/test/resources/elasticsearch-credentials.yaml > /dev/null
+		--elasticsearch-credentials ./services/brig/test/resources/elasticsearch-credentials.yaml
+		--elasticsearch-insecure-skip-tls-verify true > /dev/null
 	./dist/brig-index reset \
 		--elasticsearch-index-prefix directory2 \
 		--elasticsearch-server https://localhost:9200 \
-		--elasticsearch-credentials ./services/brig/test/resources/elasticsearch-credentials.yaml > /dev/null
-	./integration/scripts/integration-dynamic-backends-brig-index.sh \
-		--elasticsearch-server https://localhost:9200 \
-		--elasticsearch-credentials ./services/brig/test/resources/elasticsearch-credentials.yaml > /dev/null
+		--elasticsearch-credentials ./services/brig/test/resources/elasticsearch-credentials.yaml
+		--elasticsearch-insecure-skip-tls-verify true > /dev/null
+	# ./integration/scripts/integration-dynamic-backends-brig-index.sh \
+	# 	--elasticsearch-server https://localhost:9200 \
+	# 	--elasticsearch-credentials ./services/brig/test/resources/elasticsearch-credentials.yaml
+	# 	--elasticsearch-insecure-skip-tls-verify true > /dev/null
 
 
 
@@ -302,14 +305,17 @@ db-migrate: c
 	./dist/brig-index reset \
 		--elasticsearch-index-prefix directory \
 		--elasticsearch-server https://localhost:9200 \
-		--elasticsearch-credentials ./services/brig/test/resources/elasticsearch-credentials.yaml > /dev/null
+		--elasticsearch-credentials ./services/brig/test/resources/elasticsearch-credentials.yaml
+		--elasticsearch-insecure-skip-tls-verify true > /dev/null
 	./dist/brig-index reset \
 		--elasticsearch-index-prefix directory2 \
 		--elasticsearch-server https://localhost:9200 \
-		--elasticsearch-credentials ./services/brig/test/resources/elasticsearch-credentials.yaml > /dev/null
+		--elasticsearch-credentials ./services/brig/test/resources/elasticsearch-credentials.yaml
+		--elasticsearch-insecure-skip-tls-verify true > /dev/null
 	./integration/scripts/integration-dynamic-backends-brig-index.sh \
 		--elasticsearch-server https://localhost:9200 \
-		--elasticsearch-credentials ./services/brig/test/resources/elasticsearch-credentials.yaml > /dev/null
+		--elasticsearch-credentials ./services/brig/test/resources/elasticsearch-credentials.yaml
+		--elasticsearch-insecure-skip-tls-verify true > /dev/null
 
 #################################
 ## dependencies

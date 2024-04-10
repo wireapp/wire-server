@@ -19,6 +19,7 @@ module Index.Create where
 
 import API.Search.Util (mkBHEnv)
 import Brig.Index.Eval qualified as IndexEval
+import Brig.Index.Options
 import Brig.Index.Options qualified as IndexOpts
 import Brig.Options (Opts (galley))
 import Brig.Options qualified as BrigOpts
@@ -48,7 +49,7 @@ spec brigOpts =
 
 testCreateIndexWhenNotPresent :: BrigOpts.Opts -> Assertion
 testCreateIndexWhenNotPresent brigOpts = do
-  let esURL = brigOpts ^. BrigOpts.elasticsearchL . BrigOpts.urlL
+  let (ES.Server esURL) = brigOpts ^. BrigOpts.elasticsearchL . BrigOpts.urlL
   let mCreds = BrigOpts.credentials . BrigOpts.elasticsearch $ brigOpts
   case parseURI strictURIParserOptions (Text.encodeUtf8 esURL) of
     Left e -> fail $ "Invalid ES URL: " <> show esURL <> "\nerror: " <> show e
@@ -57,14 +58,20 @@ testCreateIndexWhenNotPresent brigOpts = do
       let replicas = 2
           shards = 2
           refreshInterval = 5
+      let connSettings =
+            ESConnectionSettings
+              { esServer = esURI,
+                esIndex = indexName,
+                esCaCert = Nothing,
+                esInsecureSkipVerifyTls = False,
+                esCredentials = mCreds
+              }
       let esSettings =
             IndexOpts.localElasticSettings
-              & IndexOpts.esServer .~ esURI
-              & IndexOpts.esIndex .~ indexName
+              & IndexOpts.esConnection .~ connSettings
               & IndexOpts.esIndexReplicas .~ ES.ReplicaCount replicas
               & IndexOpts.esIndexShardCount .~ shards
               & IndexOpts.esIndexRefreshInterval .~ refreshInterval
-              & IndexOpts.esCredentials .~ mCreds
       devNullLogger <- Log.create (Log.Path "/dev/null")
       IndexEval.runCommand devNullLogger (IndexOpts.Create esSettings (galley brigOpts))
       mgr <- liftIO $ HTTP.newManager HTTP.defaultManagerSettings
@@ -84,7 +91,7 @@ testCreateIndexWhenNotPresent brigOpts = do
 
 testCreateIndexWhenPresent :: BrigOpts.Opts -> Assertion
 testCreateIndexWhenPresent brigOpts = do
-  let esURL = brigOpts ^. BrigOpts.elasticsearchL . BrigOpts.urlL
+  let (ES.Server esURL) = brigOpts ^. BrigOpts.elasticsearchL . BrigOpts.urlL
   let mCreds = BrigOpts.credentials . BrigOpts.elasticsearch $ brigOpts
   case parseURI strictURIParserOptions (Text.encodeUtf8 esURL) of
     Left e -> fail $ "Invalid ES URL: " <> show esURL <> "\nerror: " <> show e
@@ -100,14 +107,20 @@ testCreateIndexWhenPresent brigOpts = do
       let replicas = 2
           shards = 2
           refreshInterval = 5
+      let connSettings =
+            ESConnectionSettings
+              { esServer = esURI,
+                esIndex = indexName,
+                esCaCert = Nothing,
+                esInsecureSkipVerifyTls = False,
+                esCredentials = mCreds
+              }
       let esSettings =
             IndexOpts.localElasticSettings
-              & IndexOpts.esServer .~ esURI
-              & IndexOpts.esIndex .~ indexName
+              & IndexOpts.esConnection .~ connSettings
               & IndexOpts.esIndexReplicas .~ ES.ReplicaCount replicas
               & IndexOpts.esIndexShardCount .~ shards
               & IndexOpts.esIndexRefreshInterval .~ refreshInterval
-              & IndexOpts.esCredentials .~ mCreds
       devNullLogger <- Log.create (Log.Path "/dev/null")
       IndexEval.runCommand devNullLogger (IndexOpts.Create esSettings (galley brigOpts))
       ES.runBH bEnv $ do

@@ -96,9 +96,9 @@ data ElasticSearchOpts = ElasticSearchOpts
     credentials :: !(Maybe FilePathSecrets),
     -- | Credentials for additional ES index (maily used for migrations)
     additionalCredentials :: !(Maybe FilePathSecrets),
-    verifyTls :: Bool,
+    insecureSkipVerifyTls :: Bool,
     caCert :: Maybe FilePath,
-    additionalVerifyTls :: Bool,
+    additionalInsecureSkipVerifyTls :: Bool,
     additionalCaCert :: Maybe FilePath
   }
   deriving (Show, Generic)

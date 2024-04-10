@@ -613,8 +613,8 @@ testMigrationToNewIndex mgr opts brig = do
   withOldESProxy opts mgr $ \oldESUrl oldESIndex -> do
     let optsOldIndex =
           opts
-            & Opt.elasticsearchL . Opt.indexL .~ oldESIndex
-            & Opt.elasticsearchL . Opt.urlL .~ oldESUrl
+            & Opt.elasticsearchL . Opt.indexL .~ (ES.IndexName oldESIndex)
+            & Opt.elasticsearchL . Opt.urlL .~ (ES.Server oldESUrl)
     -- Phase 1: Using old index only
     (phase1NonTeamUser, teamOwner, phase1TeamUser1, phase1TeamUser2, tid) <- withSettingsOverrides optsOldIndex $ do
       nonTeamUser <- randomUser brig
@@ -650,7 +650,7 @@ testMigrationToNewIndex mgr opts brig = do
     assertCanFindByName brig phase1TeamUser1 phase2TeamUser
 
     -- Run Migrations
-    let newIndexName = ES.IndexName $ opts ^. Opt.elasticsearchL . Opt.indexL
+    let newIndexName = opts ^. Opt.elasticsearchL . Opt.indexL
     taskNodeId <- assertRight =<< runBH opts (ES.reindexAsync $ ES.mkReindexRequest (ES.IndexName oldESIndex) newIndexName)
     runBH opts $ waitForTaskToComplete @ES.ReindexResponse taskNodeId
 
@@ -698,7 +698,8 @@ withOldESProxy opts mgr f = do
 
 indexProxyServer :: Text -> Opt.Opts -> Manager -> Wai.Application
 indexProxyServer idx opts mgr =
-  let proxyURI = either (error . show) id $ URI.parseURI URI.strictURIParserOptions (Text.encodeUtf8 (Opts.url (Opts.elasticsearch opts)))
+  let toUri (ES.Server url) = either (error . show) id $ URI.parseURI URI.strictURIParserOptions (Text.encodeUtf8 url)
+      proxyURI = toUri (Opts.url (Opts.elasticsearch opts))
       proxyToHost = URI.hostBS . URI.authorityHost . fromMaybe (error "No Host") . URI.uriAuthority $ proxyURI
       proxyToPort = URI.portNumber . fromMaybe (URI.Port 9200) . URI.authorityPort . fromMaybe (error "No Host") . URI.uriAuthority $ proxyURI
       proxyApp req =
@@ -742,14 +743,14 @@ withOldIndex :: MonadIO m => Opt.Opts -> WaiTest.Session a -> m a
 withOldIndex opts f = do
   indexName <- randomHandle
   createIndexWithMapping opts indexName oldMapping
-  let newOpts = opts & Opt.elasticsearchL . Opt.indexL .~ indexName
+  let newOpts = opts & Opt.elasticsearchL . Opt.indexL .~ (ES.IndexName indexName)
   withSettingsOverrides newOpts f <* deleteIndex opts indexName
 
 optsForOldIndex :: MonadIO m => Opt.Opts -> m (Opt.Opts, Text)
 optsForOldIndex opts = do
   indexName <- randomHandle
   createIndexWithMapping opts indexName oldMapping
-  pure (opts & Opt.elasticsearchL . Opt.indexL .~ indexName, indexName)
+  pure (opts & Opt.elasticsearchL . Opt.indexL .~ (ES.IndexName indexName), indexName)
 
 createIndexWithMapping :: MonadIO m => Opt.Opts -> Text -> Value -> m ()
 createIndexWithMapping opts name val = do
@@ -769,7 +770,7 @@ deleteIndex opts name = do
 
 runBH :: MonadIO m => Opt.Opts -> ES.BH m a -> m a
 runBH opts action = do
-  let esURL = opts ^. Opt.elasticsearchL . Opt.urlL
+  let (ES.Server esURL) = opts ^. Opt.elasticsearchL . Opt.urlL
   mgr <- liftIO $ HTTP.newManager HTTP.defaultManagerSettings
   let bEnv = mkBHEnv esURL mgr
   ES.runBH bEnv action

@@ -87,6 +87,7 @@ module Brig.App
     liftSem,
     lowerAppT,
     temporaryGetEnv,
+    initHttpManagerWithTLSConfig,
   )
 where
 
@@ -320,17 +321,28 @@ mkIndexEnv esOpts logger metricsStorage galleyEp rpcHttpManager = do
   mEsCreds :: Maybe Credentials <- for esOpts.credentials initCredentials
   mEsAddCreds :: Maybe Credentials <- for esOpts.additionalCredentials initCredentials
 
-  let mkBhEnv verifyTls mCustomCa mCreds url = do
-        mgr <- initHttpManagerWithTLSConfig verifyTls mCustomCa
+  let mkBhEnv skipVerifyTls mCustomCa mCreds url = do
+        mgr <- initHttpManagerWithTLSConfig skipVerifyTls mCustomCa
         let bhe = ES.mkBHEnv url mgr
         pure $ maybe bhe (\creds -> bhe {ES.bhRequestHook = ES.basicAuthHook (ES.EsUsername creds.username) (ES.EsPassword creds.password)}) mCreds
       esLogger = Log.clone (Just "index.brig") logger
-  bhEnv <- mkBhEnv esOpts.verifyTls esOpts.caCert mEsCreds esOpts.url
+  bhEnv <- mkBhEnv esOpts.insecureSkipVerifyTls esOpts.caCert mEsCreds esOpts.url
   additionalBhEnv <-
     for esOpts.additionalWriteIndexUrl $
-      mkBhEnv esOpts.additionalVerifyTls esOpts.additionalCaCert mEsAddCreds
-  -- TODO: use costructor with {...}
-  pure $ IndexEnv metricsStorage esLogger bhEnv Nothing esOpts.index esOpts.additionalWriteIndex additionalBhEnv galleyEp rpcHttpManager mEsCreds
+      mkBhEnv esOpts.additionalInsecureSkipVerifyTls esOpts.additionalCaCert mEsAddCreds
+  pure $
+    IndexEnv
+      { idxMetrics = metricsStorage,
+        idxLogger = esLogger,
+        idxElastic = bhEnv,
+        idxRequest = Nothing,
+        idxName = esOpts.index,
+        idxAdditionalName = esOpts.additionalWriteIndex,
+        idxAdditionalElastic = additionalBhEnv,
+        idxGalley = galleyEp,
+        idxRpcHttpManager = rpcHttpManager,
+        idxCredentials = mEsCreds
+      }
 
 initZAuth :: Opts -> IO ZAuth.Env
 initZAuth o = do
@@ -346,16 +358,16 @@ initZAuth o = do
 
 initHttpManager :: IO Manager
 initHttpManager = do
-  initHttpManagerWithTLSConfig False Nothing
+  initHttpManagerWithTLSConfig True Nothing
 
 initHttpManagerWithTLSConfig :: Bool -> Maybe FilePath -> IO Manager
-initHttpManagerWithTLSConfig verifyTls mCustomCa = do
+initHttpManagerWithTLSConfig skipTlsVerify mCustomCa = do
   -- See Note [SSL context]
   ctx <- SSL.context
   SSL.contextAddOption ctx SSL_OP_NO_SSLv2
   SSL.contextAddOption ctx SSL_OP_NO_SSLv3
   SSL.contextSetCiphers ctx "HIGH"
-  when verifyTls $
+  unless skipTlsVerify $
     SSL.contextSetVerificationMode ctx $
       SSL.VerifyPeer True True Nothing
   case mCustomCa of

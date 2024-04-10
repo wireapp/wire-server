@@ -114,7 +114,7 @@ data IndexEnv = IndexEnv
     idxAdditionalName :: Maybe ES.IndexName,
     idxAdditionalElastic :: Maybe ES.BHEnv,
     idxGalley :: Endpoint,
-    -- | Used to make RPC calls to other wire-server serivces
+    -- | Used to make RPC calls to other wire-server services
     idxRpcHttpManager :: Manager,
     -- credentials for reindexing have to be passed via the env because bulk API requests are not supported by bloodhound
     idxCredentials :: Maybe Credentials

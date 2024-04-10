@@ -41,10 +41,8 @@ module Brig.Index.Options
     toESServer,
     ReindexFromAnotherIndexSettings,
     reindexDestIndex,
-    reindexSrcIndex,
-    reindexEsServer,
     reindexTimeoutSeconds,
-    reindexCredentials,
+    reindexEsConnection,
   )
 where
 
@@ -68,7 +66,7 @@ data Command
   | Reindex ElasticSettings CassandraSettings Endpoint
   | ReindexSameOrNewer ElasticSettings CassandraSettings Endpoint
   | -- | 'ElasticSettings' has shards and other settings that are not needed here.
-    UpdateMapping (URIRef Absolute) ES.IndexName (Maybe FilePathSecrets) Endpoint
+    UpdateMapping ESConnectionSettings Endpoint
   | Migrate ElasticSettings CassandraSettings Endpoint
   | ReindexFromAnotherIndex ReindexFromAnotherIndexSettings
   deriving (Show)
@@ -77,7 +75,7 @@ data ESConnectionSettings = ESConnectionSettings
   { esServer :: URIRef Absolute,
     esIndex :: ES.IndexName,
     esCaCert :: Maybe FilePath,
-    esVerifyTls :: Bool,
+    esInsecureSkipVerifyTls :: Bool,
     esCredentials :: Maybe FilePathSecrets
   }
   deriving (Show)
@@ -100,11 +98,9 @@ data CassandraSettings = CassandraSettings
   deriving (Show)
 
 data ReindexFromAnotherIndexSettings = ReindexFromAnotherIndexSettings
-  { _reindexEsServer :: URIRef Absolute,
-    _reindexSrcIndex :: ES.IndexName,
+  { _reindexEsConnection :: ESConnectionSettings,
     _reindexDestIndex :: ES.IndexName,
-    _reindexTimeoutSeconds :: Int,
-    _reindexCredentials :: Maybe FilePathSecrets
+    _reindexTimeoutSeconds :: Int
   }
   deriving (Show)
 
@@ -140,8 +136,8 @@ localElasticSettings =
           { esServer = [uri|http://localhost:9200|],
             esIndex = ES.IndexName "directory_test",
             esCaCert = Nothing,
-            esVerifyTls = True,
-            esCredentials = Nothing
+            esInsecureSkipVerifyTls = False,
+            esCredentials = Just "test/resources/elasticsearch-credentials.yaml"
           },
       _esIndexShardCount = 1,
       _esIndexReplicas = ES.ReplicaCount 1,
@@ -206,22 +202,15 @@ indexNameParser =
           <> showDefault
       )
 
-elasticSettingsParser :: Parser ElasticSettings
-elasticSettingsParser =
-  ElasticSettings
-    <$> connParser
-    <*> indexShardCountParser
-    <*> indexReplicaCountParser
-    <*> indexRefreshIntervalParser
-    <*> templateParser
+connectionSettingsParser :: Parser ESConnectionSettings
+connectionSettingsParser =
+  ESConnectionSettings
+    <$> elasticServerParser
+    <*> indexNameParser
+    <*> caCertParser
+    <*> verifyCaParser
+    <*> credentialsPathParser
   where
-    connParser =
-      ESConnectionSettings
-        <$> elasticServerParser
-        <*> indexNameParser
-        <*> caCertParser
-        <*> verifyCaParser
-        <*> credentialsPathParser
     caCertParser =
       optional
         ( option
@@ -233,11 +222,21 @@ elasticSettingsParser =
         )
     verifyCaParser =
       flag
+        False -- the default is False
         True
-        False
-        ( long "elasticserch-insecure-skip-tls-verify"
+        ( long "elasticsearch-insecure-skip-tls-verify"
             <> help "Skip TLS verification when connecting to Elasticsearch (not recommended)"
         )
+
+elasticSettingsParser :: Parser ElasticSettings
+elasticSettingsParser =
+  ElasticSettings
+    <$> connectionSettingsParser
+    <*> indexShardCountParser
+    <*> indexReplicaCountParser
+    <*> indexRefreshIntervalParser
+    <*> templateParser
+  where
     indexShardCountParser =
       option
         auto
@@ -325,14 +324,7 @@ cassandraSettingsParser =
 reindexToAnotherIndexSettingsParser :: Parser ReindexFromAnotherIndexSettings
 reindexToAnotherIndexSettingsParser =
   ReindexFromAnotherIndexSettings
-    <$> elasticServerParser
-    <*> ( ES.IndexName . view packed
-            <$> strOption
-              ( long "source-index"
-                  <> metavar "STRING"
-                  <> help "Elasticsearch index name to reindex from"
-              )
-        )
+    <$> connectionSettingsParser
     <*> ( ES.IndexName . view packed
             <$> strOption
               ( long "destination-index"
@@ -348,7 +340,6 @@ reindexToAnotherIndexSettingsParser =
           <> value 600
           <> showDefault
       )
-    <*> credentialsPathParser
 
 galleyEndpointParser :: Parser Endpoint
 galleyEndpointParser =
@@ -381,7 +372,7 @@ commandParser =
         <> command
           "update-mapping"
           ( info
-              (UpdateMapping <$> elasticServerParser <*> indexNameParser <*> credentialsPathParser <*> galleyEndpointParser)
+              (UpdateMapping <$> connectionSettingsParser <*> galleyEndpointParser)
               (progDesc "Update mapping of the user index.")
           )
         <> command
