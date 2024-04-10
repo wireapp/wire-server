@@ -484,8 +484,11 @@ idpCreate zusr (IdPMetadataValue raw xml) = idpCreateXML zusr raw xml
 -- - the owner registers a scim token and passes the idp id along to associate
 --   the scim token with the IdP
 --
--- This is bad  because now there's no way to pre-emptively register a scim token and
--- then associate an IdP with it
+-- This doesn't support some flows we may want to support, like: (1) register
+-- a scim token and then associate an IdP with it; (2) have scim token and
+-- create an idp that is *not* associated with it; ...
+--
+-- Related internal docs: https://wearezeta.atlassian.net/wiki/spaces/PAD/pages/1107001440/2024-03-27+scim+user+provisioning+and+saml2+sso+associating+scim+peers+and+saml2+idps
 idpCreateXML ::
   ( Member Random r,
     Member (Logger String) r,
