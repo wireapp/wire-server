@@ -1,9 +1,13 @@
 module Testlib.App where
 
+import Control.Applicative ((<|>))
 import Control.Monad.Reader
+import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
 import qualified Control.Retry as Retry
 import Data.Aeson hiding ((.=))
+import Data.Bool (bool)
 import Data.IORef
+import Data.Maybe (isJust)
 import qualified Data.Text as T
 import qualified Data.Yaml as Yaml
 import GHC.Exception
@@ -72,3 +76,27 @@ instance MakesValue FedDomain where
 -- backwards-compatible way so everybody can benefit.
 retryT :: App a -> App a
 retryT action = Retry.recoverAll (Retry.exponentialBackoff 8000 <> Retry.limitRetries 10) (const action)
+
+-- | make Bool lazy
+liftBool :: Functor f => f Bool -> BoolT f
+liftBool = MaybeT . fmap (bool Nothing (Just ()))
+
+-- | make Bool strict
+unliftBool :: Functor f => BoolT f -> f Bool
+unliftBool = fmap isJust . runMaybeT
+
+-- | lazy (&&)
+(&&~) :: App Bool -> App Bool -> App Bool
+b1 &&~ b2 = unliftBool $ liftBool b1 *> liftBool b2
+
+infixr 3 &&~
+
+-- | lazy (||)
+(||~) :: App Bool -> App Bool -> App Bool
+b1 ||~ b2 = unliftBool $ liftBool b1 <|> liftBool b2
+
+infixr 2 ||~
+
+-- | lazy (&&): (*>)
+--   lazy (||): (<|>)
+type BoolT f = MaybeT f ()

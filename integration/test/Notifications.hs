@@ -5,7 +5,6 @@ import API.Gundeck
 import Control.Error (lastMay)
 import Control.Monad.Extra
 import Control.Monad.Reader (asks)
-import Control.Monad.Trans.Maybe (MaybeT (..))
 import Testlib.Prelude
 import UnliftIO (timeout)
 import UnliftIO.Concurrent
@@ -194,30 +193,6 @@ isConnectionNotif status n =
   -- runMaybeT $  (lift (print "hello") *> MaybeT (pure Nothing)) *> lift (fail "bla") === pure Nothing
   nPayload n %. "type" `isEqual` "user.connection"
     &&~ nPayload n %. "connection.status" `isEqual` status
-
--- | make Bool lazy
-liftBool :: Functor f => f Bool -> BoolT f
-liftBool = MaybeT . fmap (bool Nothing (Just ()))
-
--- | make Bool strict
-unliftBool :: Functor f => BoolT f -> f Bool
-unliftBool = fmap isJust . runMaybeT
-
--- | lazy (&&)
-(&&~) :: App Bool -> App Bool -> App Bool
-b1 &&~ b2 = unliftBool $ liftBool b1 *> liftBool b2
-
-infixr 3 &&~
-
--- | lazy (||)
-(||~) :: App Bool -> App Bool -> App Bool
-b1 ||~ b2 = unliftBool $ liftBool b1 <|> liftBool b2
-
-infixr 2 ||~
-
--- | lazy (&&): (*>)
---   lazy (||): (<|>)
-type BoolT f = MaybeT f ()
 
 assertLeaveNotification ::
   ( HasCallStack,
