@@ -136,7 +136,7 @@ localElasticSettings =
           { esServer = [uri|http://localhost:9200|],
             esIndex = ES.IndexName "directory_test",
             esCaCert = Nothing,
-            esInsecureSkipVerifyTls = False,
+            esInsecureSkipVerifyTls = True,
             esCredentials = Just "test/resources/elasticsearch-credentials.yaml"
           },
       _esIndexShardCount = 1,
