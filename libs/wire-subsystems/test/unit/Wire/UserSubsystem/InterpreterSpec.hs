@@ -2,14 +2,12 @@
 
 module Wire.UserSubsystem.InterpreterSpec (spec) where
 
-import Data.ByteString.Builder qualified as BuilderType
 import Data.Domain
 import Data.Id
 import Data.LegalHold (UserLegalHoldStatus (UserLegalHoldDisabled))
 import Data.Proxy
 import Data.Qualified
 import Data.Type.Equality
-import GHC.TypeLits
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -19,7 +17,6 @@ import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
 import Type.Reflection
-import Unsafe.Coerce
 import Wire.API.Federation.API
 import Wire.API.Federation.Component
 import Wire.API.Federation.Error
@@ -38,6 +35,13 @@ import Wire.UserSubsystem.Interpreter
 spec :: Spec
 spec = describe "UserSubsystem.Interpreter" do
   describe "getUserProfile" do
+    focus $ prop
+      "returns nothing (remove this test)"
+      \viewer targetUserIds visibility domain remoteDomain locale -> do
+        let retrievedProfiles =
+              runFederationStack mempty mempty Nothing (UserSubsystemConfig visibility domain locale) $
+                getUserProfiles (toLocalUnsafe domain viewer) (map (`Qualified` remoteDomain) targetUserIds)
+        remoteDomain /= domain ==> retrievedProfiles === []
     prop "returns nothing when the none of the users exist" $
       \viewer targetUserIds visibility domain locale ->
         let config = UserSubsystemConfig visibility domain locale
@@ -115,7 +119,7 @@ type GetUserProfileEffects =
     (Concurrency 'Unsafe)
   ]
 
-newtype FakeFederation comp a = FakeFederation (ReaderT (Map Domain [UserProfile]) Identity a)
+newtype FakeFederation comp a = FakeFederation (Reader (Map Domain [UserProfile]) a)
   deriving newtype (Functor, Applicative, Monad)
 
 instance RunClient (FakeFederation comp) where
@@ -124,41 +128,46 @@ instance RunClient (FakeFederation comp) where
 
 data TypeableTypes where
   TNil :: TypeableTypes
-  (:::) :: Typeable a => a -> TypeableTypes -> TypeableTypes
+  (:::) :: Typeable a => (Component, Text, a) -> TypeableTypes -> TypeableTypes
 
 infixr 5 :::
 
 tryAll ::
   Typeable a =>
   -- | The type to compare to
-  a ->
-  -- | a continuation that is supplied a proof that two types match
-  --   and the value with the matching type
-  (forall b. (a ~~ b) => b -> r) ->
+  (Component, Text, a) ->
   -- | what to return when none of the types match
-  r ->
+  a ->
   -- | the types to try
   TypeableTypes ->
-  r
-tryAll t k a = \case
+  a
+tryAll goal@(goalComp, goalRoute, goalType) a = \case
   TNil -> a
-  x ::: xs -> case eqTypeRep (typeOf t) (typeOf x) of
-    Just HRefl -> k x
-    Nothing -> tryAll t k a xs
+  (comp, route, client) ::: xs -> case eqTypeRep (typeOf goalType) (typeOf client) of
+    Just HRefl | comp == goalComp && route == goalRoute -> client
+    _ -> tryAll goal a xs
 
 instance FederationMonad FakeFederation where
-  fedClientWithProxy (_ :: Proxy comp) (_ :: Proxy name) (pa :: Proxy api) (pm :: Proxy (FakeFederation comp)) =
+  fedClientWithProxy (_ :: Proxy name) (pa :: Proxy api) (pm :: Proxy (FakeFederation comp)) =
     -- TODO(mangoiv): checking the type of the Client alone is not enough; we also want to check that
     -- the route is correct; this has yet to be implemented by storing an existential of the route
     -- or, more easily a `Text` that represents it
     tryAll
-      do clientWithRoute pm pa undefined
-      id
-      do error "not the correct type"
-      do fakeGetUsersByIds ::: TNil
+      do (componentVal @comp, nameVal @name, clientWithRoute pm pa undefined)
+      do
+        error
+          "The testsuite has evaluated a tuple of component, route and client that is\
+          \ not covered by the FakeFederation implementation of FederationMonad"
+      do
+        (Brig, "get-users-by-ids", fakeGetUsersByIds)
+          ::: (Brig, "get-user-by-id", fakeGetUserById)
+          ::: TNil
 
 fakeGetUsersByIds :: [UserId] -> FakeFederation 'Brig [UserProfile]
 fakeGetUsersByIds _ = pure []
+
+fakeGetUserById :: UserId -> FakeFederation 'Brig (Maybe UserProfile)
+fakeGetUserById _ = pure Nothing
 
 runFakeFederation :: Map Domain [UserProfile] -> FakeFederation c a -> a
 runFakeFederation users (FakeFederation action) = runIdentity $ runReaderT action users

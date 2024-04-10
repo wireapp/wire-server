@@ -24,6 +24,7 @@ module Wire.API.Federation.API
     HasUnsafeFedEndpoint,
     FederationMonad (..),
     IsNamed (..),
+    nameVal,
     fedClient,
     fedQueueClient,
     sendBundle,
@@ -78,14 +79,17 @@ type HasFedEndpoint comp api name = (HasUnsafeFedEndpoint comp api name)
 -- you to forget about some federated calls.
 type HasUnsafeFedEndpoint comp api name = 'Just api ~ LookupEndpoint (FedApi comp) name
 
+nameVal :: forall {k} (name :: k). IsNamed name => Text
+nameVal = nameVal' @k @name
+
 class IsNamed (name :: k) where
-  nameVal :: Text
+  nameVal' :: Text
 
 instance KnownSymbol name => IsNamed (name :: Symbol) where
-  nameVal = Text.pack (symbolVal (Proxy @name))
+  nameVal' = Text.pack (symbolVal (Proxy @name))
 
 instance (IsNamed name, SingI v) => IsNamed (Versioned (v :: Version) name) where
-  nameVal = versionText (demote @v) <> "-" <> nameVal @_ @name
+  nameVal' = versionText (demote @v) <> "-" <> nameVal @name
 
 class FederationMonad (fedM :: Component -> Type -> Type) where
   fedClientWithProxy ::
@@ -96,14 +100,13 @@ class FederationMonad (fedM :: Component -> Type -> Type) where
       IsNamed name,
       Typeable (Client (fedM comp) api)
     ) =>
-    Proxy comp ->
     Proxy name ->
     Proxy api ->
     Proxy (fedM comp) ->
     Client (fedM comp) api
 
 instance FederationMonad FederatorClient where
-  fedClientWithProxy _ _ = clientIn
+  fedClientWithProxy _ = clientIn
 
 -- | Return a client for a named endpoint.
 --
@@ -124,7 +127,7 @@ fedClient ::
     Typeable (Client (fedM comp) api)
   ) =>
   Client (fedM comp) api
-fedClient = fedClientWithProxy (Proxy @comp) (Proxy @name) (Proxy @api) (Proxy @(fedM comp))
+fedClient = fedClientWithProxy (Proxy @name) (Proxy @api) (Proxy @(fedM comp))
 
 fedClientIn ::
   forall (comp :: Component) (name :: Symbol) m api.
