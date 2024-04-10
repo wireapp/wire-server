@@ -71,23 +71,33 @@ import Wire.API.User.Scim
 -- the IdP is registered with the team; the SCIM token can be used to manipulate the team.
 registerIdPAndScimToken :: HasCallStack => TestSpar (ScimToken, (UserId, TeamId, IdP))
 registerIdPAndScimToken = do
-  team@(_owner, teamid, idp) <- registerTestIdP
-  (,team) <$> registerScimToken teamid (Just (idp ^. idpId))
+  env <- ask
+  (owner, teamid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+  idp <- registerTestIdP owner
+  token <- registerScimToken teamid (Just (idp ^. idpId))
+  let team = (owner, teamid, idp)
+  pure (token, team)
 
 -- | Call 'registerTestIdPWithMeta', then 'registerScimToken'.  The user returned is the owner of the team;
 -- the IdP is registered with the team; the SCIM token can be used to manipulate the team.
 registerIdPAndScimTokenWithMeta :: HasCallStack => TestSpar (ScimToken, (UserId, TeamId, IdP, (IdPMetadataInfo, SAML.SignPrivCreds)))
 registerIdPAndScimTokenWithMeta = do
-  team@(_owner, teamid, idp, _) <- registerTestIdPWithMeta
+  env <- ask
+  (owner, teamid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+  (idp, meta) <- registerTestIdPWithMeta owner
+  let team = (owner, teamid, idp, meta)
   (,team) <$> registerScimToken teamid (Just (idp ^. idpId))
 
 -- | Create a fresh SCIM token and register it for the team.
+--
+-- FUTUREWORK(mangoiv): this is an integration test, it should use the
+-- API, and not directly manipulate the database
 registerScimToken :: HasCallStack => TeamId -> Maybe IdPId -> TestSpar ScimToken
 registerScimToken teamid midpid = do
   tok <-
     ScimToken <$> do
       code <- liftIO UUID.nextRandom
-      pure $ "scim-test-token/" <> "team=" <> idToText teamid <> "/code=" <> UUID.toText code
+      pure $ "scim-test-token/team=" <> idToText teamid <> "/code=" <> UUID.toText code
   scimTokenId <- randomId
   now <- liftIO getCurrentTime
   runSpar $

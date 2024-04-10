@@ -1,1 +1,1 @@
-port more of the legalhold test-suite from galley-integration to /integration and get rid of the need for startDynamicBackends
+some small refactorings to make it more clear in code what is happening when registering a scim token and an IdP

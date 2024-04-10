@@ -164,6 +164,7 @@ import Data.Range
 import Data.Text (pack)
 import qualified Data.Text.Ascii as Ascii
 import Data.Text.Encoding (encodeUtf8)
+import qualified Data.Text.Lazy.Encoding as LT
 import Data.UUID as UUID hiding (fromByteString, null)
 import Data.UUID.V4 as UUID (nextRandom)
 import qualified Data.Yaml as Yaml
@@ -805,36 +806,33 @@ getTestSPMetadata tid = do
 -- | See 'registerTestIdPWithMeta'
 registerTestIdP ::
   (HasCallStack, MonadRandom m, MonadIO m, MonadReader TestEnv m) =>
-  m (UserId, TeamId, IdP)
-registerTestIdP = do
-  (uid, tid, idp, _) <- registerTestIdPWithMeta
-  pure (uid, tid, idp)
+  UserId ->
+  m IdP
+registerTestIdP owner = fst <$> registerTestIdPWithMeta owner
 
--- | Create a fresh 'IdPMetadata' suitable for testing.  Call 'createUserWithTeam' and create the
--- idp in the resulting team.  The user returned is the owner of the team.
+-- | Create a fresh 'IdPMetadata' suitable for testing.
 registerTestIdPWithMeta ::
   (HasCallStack, MonadRandom m, MonadIO m, MonadReader TestEnv m) =>
-  m (UserId, TeamId, IdP, (IdPMetadataInfo, SAML.SignPrivCreds))
-registerTestIdPWithMeta = do
+  UserId ->
+  m (IdP, (IdPMetadataInfo, SAML.SignPrivCreds))
+registerTestIdPWithMeta owner = do
   SampleIdP idpmeta privkey _ _ <- makeSampleIdPMetadata
   env <- ask
-  (uid, tid, idp) <- registerTestIdPFrom idpmeta (env ^. teMgr) (env ^. teBrig) (env ^. teGalley) (env ^. teSpar)
-  pure (uid, tid, idp, (IdPMetadataValue (cs $ SAML.encode idpmeta) idpmeta, privkey))
+  idp <- registerTestIdPFrom idpmeta (env ^. teMgr) owner (env ^. teSpar)
+  pure (idp, (IdPMetadataValue (cs $ SAML.encode idpmeta) idpmeta, privkey))
 
 -- | Helper for 'registerTestIdP'.
 registerTestIdPFrom ::
   (HasCallStack, MonadIO m, MonadReader TestEnv m) =>
   IdPMetadata ->
   Manager ->
-  BrigReq ->
-  GalleyReq ->
+  UserId ->
   SparReq ->
-  m (UserId, TeamId, IdP)
-registerTestIdPFrom metadata mgr brig galley spar = do
+  m IdP
+registerTestIdPFrom metadata mgr owner spar = do
   apiVer <- view teWireIdPAPIVersion
   liftIO . runHttpT mgr $ do
-    (uid, tid) <- createUserWithTeam brig galley
-    (uid,tid,) <$> callIdpCreate apiVer spar (Just uid) metadata
+    callIdpCreate apiVer spar (Just owner) metadata
 
 getCookie :: KnownSymbol name => proxy name -> ResponseLBS -> Either String (SAML.SimpleSetCookie name)
 getCookie proxy rsp = do
@@ -1090,7 +1088,7 @@ callIdpCreate' apiversion sparreq_ muid metadata = do
             WireIdPAPIV1 -> Bilge.query [("api_version", Just "v1") | explicitQueryParam]
             WireIdPAPIV2 -> Bilge.query [("api_version", Just "v2")]
         )
-      . body (RequestBodyLBS . cs $ SAML.encode metadata)
+      . body (RequestBodyLBS . LT.encodeUtf8 $ SAML.encode metadata)
       . header "Content-Type" "application/xml"
 
 callIdpCreateRaw :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> ByteString -> LByteString -> m IdP

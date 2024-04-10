@@ -27,6 +27,7 @@
 module Spar.Error
   ( SparError,
     SparCustomError (..),
+    SparProvisioningMoreThanOneIdP (..),
     IdpDbError (..),
     throwSpar,
     sparToServerErrorWithLogging,
@@ -96,7 +97,8 @@ data SparCustomError
   | SparIdPIssuerInUse
   | SparIdPCannotDeleteOwnIdp
   | IdpDbError IdpDbError
-  | SparProvisioningMoreThanOneIdP LText
+  | -- | scim tokens can only be created in case where there's at most one idp
+    SparProvisioningMoreThanOneIdP SparProvisioningMoreThanOneIdP
   | SparProvisioningTokenLimitReached
   | -- | FUTUREWORK(fisx): This constructor is used in exactly one place (see
     -- "Spar.Sem.SAML2.Library"), for an error that immediately gets caught.
@@ -106,6 +108,13 @@ data SparCustomError
     SparInternalError LText
   | -- | All errors returned from SCIM handlers are wrapped into 'SparScimError'
     SparScimError Scim.ScimError
+  deriving (Eq, Show)
+
+data SparProvisioningMoreThanOneIdP
+  = -- | a scim token and an idp exist; it is forbidden to create a second IdP
+    ScimTokenAndSecondIdpForbidden
+  | -- | two IdPs exist and a scim token is forbidden to create
+    TwoIdpsAndScimTokenForbidden
   deriving (Eq, Show)
 
 data IdpDbError
@@ -191,7 +200,11 @@ renderSparError (SAML.CustomError (IdpDbError IdpNonUnique)) = Right $ Wai.mkErr
 renderSparError (SAML.CustomError (IdpDbError IdpWrongTeam)) = Right $ Wai.mkError status409 "idp-wrong-team" "The IdP is not part of this team."
 renderSparError (SAML.CustomError (IdpDbError IdpNotFound)) = renderSparError (SAML.CustomError (SparIdPNotFound ""))
 -- Errors related to provisioning
-renderSparError (SAML.CustomError (SparProvisioningMoreThanOneIdP msg)) = Right $ Wai.mkError status400 "more-than-one-idp" ("Team can have at most one IdP configured: " <> msg)
+renderSparError (SAML.CustomError (SparProvisioningMoreThanOneIdP msg)) = Right $
+  Wai.mkError status400 "more-than-one-idp" do
+    "Team can have at most one IdP configured: " <> case msg of
+      ScimTokenAndSecondIdpForbidden -> "teams with SCIM tokens can only have at most one IdP"
+      TwoIdpsAndScimTokenForbidden -> "SCIM tokens can only be created for a team with at most one IdP"
 renderSparError (SAML.CustomError SparProvisioningTokenLimitReached) = Right $ Wai.mkError status403 "token-limit-reached" "The limit of provisioning tokens per team has been reached"
 -- SCIM errors
 renderSparError (SAML.CustomError (SparScimError err)) = Left $ Scim.scimToServerError err

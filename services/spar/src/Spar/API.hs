@@ -55,6 +55,7 @@ import Data.Id
 import Data.Proxy
 import Data.Range
 import qualified Data.Set as Set
+import qualified Data.Text.Lazy as T
 import Data.Time
 import Imports
 import Polysemy
@@ -193,12 +194,12 @@ apiIDP ::
   ) =>
   ServerT APIIDP (Sem r)
 apiIDP =
-  idpGet
-    :<|> idpGetRaw
-    :<|> idpGetAll
-    :<|> idpCreate
-    :<|> idpUpdate
-    :<|> idpDelete
+  idpGet -- get, json, captures idp id
+    :<|> idpGetRaw -- get, raw xml, capture idp id
+    :<|> idpGetAll -- get, json
+    :<|> idpCreate -- post, created
+    :<|> idpUpdate -- put, okay
+    :<|> idpDelete -- delete, no content
 
 apiINTERNAL ::
   ( Member ScimTokenStore r,
@@ -476,6 +477,18 @@ idpCreate ::
 idpCreate zusr (IdPMetadataValue raw xml) = idpCreateXML zusr raw xml
 
 -- | We generate a new UUID for each IdP used as IdPConfig's path, thereby ensuring uniqueness.
+--
+-- NOTE(mangoiv): currently registering an IdP and scim token works as follows:
+-- - an owner creates a team with some teamId
+-- - the owner registers and IdP
+-- - the owner registers a scim token and passes the idp id along to associate
+--   the scim token with the IdP
+--
+-- This doesn't support some flows we may want to support, like: (1) register
+-- a scim token and then associate an IdP with it; (2) have scim token and
+-- create an idp that is *not* associated with it; ...
+--
+-- Related internal docs: https://wearezeta.atlassian.net/wiki/spaces/PAD/pages/1107001440/2024-03-27+scim+user+provisioning+and+saml2+sso+associating+scim+peers+and+saml2+idps
 idpCreateXML ::
   ( Member Random r,
     Member (Logger String) r,
@@ -493,14 +506,14 @@ idpCreateXML ::
   Maybe WireIdPAPIVersion ->
   Maybe (Range 1 32 Text) ->
   Sem r IdP
-idpCreateXML zusr raw idpmeta mReplaces (fromMaybe defWireIdPAPIVersion -> apiversion) mHandle = withDebugLog "idpCreateXML" (Just . show . (^. SAML.idpId)) $ do
+idpCreateXML zusr rawIdpMetadata idpmeta mReplaces (fromMaybe defWireIdPAPIVersion -> apiversion) mHandle = withDebugLog "idpCreateXML" (Just . show . (^. SAML.idpId)) $ do
   teamid <- Brig.getZUsrCheckPerm zusr CreateUpdateDeleteIdp
   GalleyAccess.assertSSOEnabled teamid
   assertNoScimOrNoIdP teamid
   idp <-
     maybe (IdPConfigStore.newHandle teamid) (pure . IdPHandle . fromRange) mHandle
       >>= validateNewIdP apiversion idpmeta teamid mReplaces
-  IdPRawMetadataStore.store (idp ^. SAML.idpId) raw
+  IdPRawMetadataStore.store (idp ^. SAML.idpId) rawIdpMetadata
   IdPConfigStore.insertConfig idp
   forM_ mReplaces $ \replaces ->
     IdPConfigStore.setReplacedBy (Replaced replaces) (Replacing (idp ^. SAML.idpId))
@@ -522,8 +535,7 @@ assertNoScimOrNoIdP teamid = do
   numIdps <- length <$> IdPConfigStore.getConfigsByTeam teamid
   when (numTokens > 0 && numIdps > 0) $
     throwSparSem $
-      SparProvisioningMoreThanOneIdP
-        "Teams with SCIM tokens can only have at most one IdP"
+      SparProvisioningMoreThanOneIdP ScimTokenAndSecondIdpForbidden
 
 -- | Check that issuer is not used anywhere in the system ('WireIdPAPIV1', here it is a
 -- database key for finding IdPs), or anywhere in this team ('WireIdPAPIV2'), that request
@@ -720,7 +732,7 @@ authorizeIdP (Just zusr) idp = do
 enforceHttps :: Member (Error SparError) r => URI.URI -> Sem r ()
 enforceHttps uri =
   unless ((uri ^. URI.uriSchemeL . URI.schemeBSL) == "https") $ do
-    throwSparSem . SparNewIdPWantHttps . cs . SAML.renderURI $ uri
+    throwSparSem . SparNewIdPWantHttps . T.fromStrict . SAML.renderURI $ uri
 
 ----------------------------------------------------------------------------
 -- Internal API
