@@ -260,6 +260,8 @@ instance Default ClientGroupState where
 csSignatureScheme :: Ciphersuite -> String
 csSignatureScheme (Ciphersuite code) = case code of
   "0x0002" -> "ecdsa_secp256r1_sha256"
+  "0x0005" -> "ecdsa_secp521r1_sha512"
+  "0x0007" -> "ecdsa_secp384r1_sha384"
   _ -> "ed25519"
 
 data MLSProtocol = MLSProtocolMLS | MLSProtocolMixed

@@ -91,6 +91,9 @@ mlscli cid args mbstdin = do
       pure (argSubst "<group-in>" fn)
   store <- case Map.lookup scheme gs.keystore of
     Nothing -> do
+      bd <- getBaseDir
+      liftIO $ createDirectory (bd </> cid2Str cid)
+
       -- initialise new keystore
       path <- randomFileName
       ctype <- make gs.credType & asString
@@ -146,17 +149,11 @@ data InitMLSClient = InitMLSClient
 instance Default InitMLSClient where
   def = InitMLSClient {credType = BasicCredentialType}
 
-initMLSClient :: HasCallStack => ClientIdentity -> App ()
-initMLSClient cid = do
-  bd <- getBaseDir
-  mls <- getMLSState
-  liftIO $ createDirectory (bd </> cid2Str cid)
-
 -- | Create new mls client and register with backend.
 createMLSClient :: (MakesValue u, HasCallStack) => InitMLSClient -> u -> App ClientIdentity
 createMLSClient opts u = do
   cid <- createWireClient u
-  initMLSClient cid
+  setClientGroupState cid def {credType = opts.credType}
 
   -- set public key
   pkey <- mlscli cid ["public-key"] Nothing

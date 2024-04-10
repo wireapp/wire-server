@@ -18,13 +18,12 @@
 module Wire.API.MLS.ECDSA where
 
 import Crypto.Error
-import Crypto.Hash
+import Crypto.Hash hiding (hash)
 import Crypto.PubKey.ECDSA
 import Data.ASN1.BinaryEncoding
 import Data.ASN1.Encoding
 import Data.ASN1.Prim
 import Data.Proxy
-import Debug.Trace
 import Imports
 import Wire.API.MLS.Serialisation
 
@@ -38,19 +37,23 @@ decodeSignature ::
 decodeSignature p bs = do
   ints <- case decodeASN1' DER bs of
     Right ([Start Sequence, IntVal r, IntVal s, End Sequence]) -> pure (r, s)
-    e -> traceShow e Nothing
+    e -> Nothing
   maybeCryptoError $ signatureFromIntegers p ints
 
 verifySignature ::
-  forall curve a.
-  EllipticCurveECDSA curve =>
+  forall curve a hash.
+  ( EllipticCurveECDSA curve,
+    HashAlgorithm hash
+  ) =>
   Proxy curve ->
+  hash ->
   ByteString ->
   RawMLS a ->
   ByteString ->
   Bool
-verifySignature p pub x sig =
+verifySignature curve hash pub x sig =
   fromMaybe False $ do
-    sig' <- decodeSignature p sig
-    pub' <- maybeCryptoError $ decodePublic p pub
-    pure $ verify p SHA256 pub' sig' x.raw
+    sig' <- decodeSignature curve sig
+    pub' <- maybeCryptoError $ decodePublic curve pub
+    let valid = verify curve hash pub' sig' x.raw
+    pure valid

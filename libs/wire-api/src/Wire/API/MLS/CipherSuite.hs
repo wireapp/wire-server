@@ -181,9 +181,12 @@ csHash cs ctx value = case csHashAlgorithm cs of
 
 csVerifySignature :: CipherSuiteTag -> ByteString -> RawMLS a -> ByteString -> Bool
 csVerifySignature MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 = ed25519VerifySignature
-csVerifySignature MLS_128_DHKEMP256_AES128GCM_SHA256_P256 = ECDSA.verifySignature (Proxy @Curve_P256R1)
-csVerifySignature MLS_256_DHKEMP384_AES256GCM_SHA384_P384 = ECDSA.verifySignature (Proxy @Curve_P384R1)
-csVerifySignature MLS_256_DHKEMP521_AES256GCM_SHA512_P521 = ECDSA.verifySignature (Proxy @Curve_P521R1)
+csVerifySignature MLS_128_DHKEMP256_AES128GCM_SHA256_P256 =
+  ECDSA.verifySignature (Proxy @Curve_P256R1) SHA256
+csVerifySignature MLS_256_DHKEMP384_AES256GCM_SHA384_P384 =
+  ECDSA.verifySignature (Proxy @Curve_P384R1) SHA384
+csVerifySignature MLS_256_DHKEMP521_AES256GCM_SHA512_P521 =
+  ECDSA.verifySignature (Proxy @Curve_P521R1) SHA512
 csVerifySignature MLS_128_X25519Kyber768Draft00_AES128GCM_SHA256_Ed25519 = ed25519VerifySignature
 
 ed25519VerifySignature :: ByteString -> RawMLS a -> ByteString -> Bool
