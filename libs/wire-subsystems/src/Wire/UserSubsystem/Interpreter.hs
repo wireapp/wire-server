@@ -36,7 +36,8 @@ getUserProfiles ::
     Member (Input UserSubsystemConfig) r,
     Member UserStore r,
     RunClient (fedM 'Brig),
-    FederationMonad fedM
+    FederationMonad fedM,
+    Typeable fedM
   ) =>
   -- | User 'self' on whose behalf the profiles are requested.
   Local UserId ->
@@ -57,7 +58,8 @@ getUserProfilesFromDomain ::
     Member (FederationAPIAccess fedM) r,
     Member UserStore r,
     RunClient (fedM 'Brig),
-    FederationMonad fedM
+    FederationMonad fedM,
+    Typeable fedM
   ) =>
   Local UserId ->
   Qualified [UserId] ->
@@ -72,7 +74,8 @@ getRemoteUserProfiles ::
   ( Member (FederationAPIAccess fedM) r,
     Member (Error FederationError) r,
     RunClient (fedM 'Brig),
-    FederationMonad fedM
+    FederationMonad fedM,
+    Typeable fedM
   ) =>
   Remote [UserId] ->
   Sem r [UserProfile]

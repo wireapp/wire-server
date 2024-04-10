@@ -794,7 +794,7 @@ data EmailVisibility a
   | -- | Show your email only to yourself
     EmailVisibleToSelf
   deriving (Eq, Show, Generic, Functor, Foldable, Traversable)
-  deriving Arbitrary via (GenericUniform (EmailVisibility a))
+  deriving (Arbitrary) via (GenericUniform (EmailVisibility a))
 
 type EmailVisibilityConfig = EmailVisibility ()
 

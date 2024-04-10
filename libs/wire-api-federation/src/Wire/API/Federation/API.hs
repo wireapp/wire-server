@@ -93,7 +93,8 @@ class FederationMonad (fedM :: Component -> Type -> Type) where
     ( HasClient (fedM comp) api,
       HasFedEndpoint comp api name,
       KnownComponent comp,
-      IsNamed name
+      IsNamed name,
+      Typeable (Client (fedM comp) api)
     ) =>
     Proxy comp ->
     Proxy name ->
@@ -119,7 +120,8 @@ fedClient ::
     HasClient (fedM comp) api,
     KnownComponent comp,
     IsNamed name,
-    FederationMonad fedM
+    FederationMonad fedM,
+    Typeable (Client (fedM comp) api)
   ) =>
   Client (fedM comp) api
 fedClient = fedClientWithProxy (Proxy @comp) (Proxy @name) (Proxy @api) (Proxy @(fedM comp))

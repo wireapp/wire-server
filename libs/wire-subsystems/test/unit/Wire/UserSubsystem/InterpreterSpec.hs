@@ -2,12 +2,13 @@
 
 module Wire.UserSubsystem.InterpreterSpec (spec) where
 
-import Data.ByteString.Builder qualified as Builder
+import Data.ByteString.Builder qualified as BuilderType
 import Data.Domain
 import Data.Id
 import Data.LegalHold (UserLegalHoldStatus (UserLegalHoldDisabled))
 import Data.Proxy
 import Data.Qualified
+import Data.Type.Equality
 import GHC.TypeLits
 import Imports
 import Polysemy
@@ -17,6 +18,7 @@ import Servant.Client.Core
 import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
+import Type.Reflection
 import Unsafe.Coerce
 import Wire.API.Federation.API
 import Wire.API.Federation.Component
@@ -120,11 +122,40 @@ instance RunClient (FakeFederation comp) where
   runRequestAcceptStatus _acceptableStatuses _req = error "FakeFederation does not support servant client"
   throwClientError _err = error "FakeFederation does not support servant client"
 
+data TypeableTypes where
+  TNil :: TypeableTypes
+  (:::) :: Typeable a => a -> TypeableTypes -> TypeableTypes
+
+infixr 5 :::
+
+tryAll ::
+  Typeable a =>
+  -- | The type to compare to
+  a ->
+  -- | a continuation that is supplied a proof that two types match
+  --   and the value with the matching type
+  (forall b. (a ~~ b) => b -> r) ->
+  -- | what to return when none of the types match
+  r ->
+  -- | the types to try
+  TypeableTypes ->
+  r
+tryAll t k a = \case
+  TNil -> a
+  x ::: xs -> case eqTypeRep (typeOf t) (typeOf x) of
+    Just HRefl -> k x
+    Nothing -> tryAll t k a xs
+
 instance FederationMonad FakeFederation where
-  fedClientWithProxy (_ :: Proxy comp) (_ :: Proxy name) _ _ =
-    case (componentVal @comp, nameVal @_ @name) of
-      (Brig, "get-users-by-ids") -> unsafeCoerce fakeGetUsersByIds
-      _ -> undefined
+  fedClientWithProxy (_ :: Proxy comp) (_ :: Proxy name) (pa :: Proxy api) (pm :: Proxy (FakeFederation comp)) =
+    -- TODO(mangoiv): checking the type of the Client alone is not enough; we also want to check that
+    -- the route is correct; this has yet to be implemented by storing an existential of the route
+    -- or, more easily a `Text` that represents it
+    tryAll
+      do clientWithRoute pm pa undefined
+      id
+      do error "not the correct type"
+      do fakeGetUsersByIds ::: TNil
 
 fakeGetUsersByIds :: [UserId] -> FakeFederation 'Brig [UserProfile]
 fakeGetUsersByIds _ = pure []
