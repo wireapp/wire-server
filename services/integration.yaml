@@ -61,7 +61,7 @@ federatorExternal:
   host: 127.0.0.1
   port: 8098
 
-# This domain is configured using coredns runing along with the rest of
+# This domain is configured using coredns running along with the rest of
 # docker-ephemeral setup. There is only an SRV record for
 # _wire-server-federator._tcp.example.com
 originDomain: example.com
@@ -117,7 +117,6 @@ backendTwo:
     port: 9091
 
   originDomain: b.example.com
-
 
 redis2:
   host: 127.0.0.1
@@ -181,3 +180,5 @@ federation-v0:
   stern:
     host: 127.0.0.1
     port: 21091
+
+integrationTestHostName: "localhost"

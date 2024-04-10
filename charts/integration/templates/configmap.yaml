@@ -164,3 +164,4 @@ data:
       stern:
         host: stern.wire-federation-v0.svc.cluster.local
         port: 8080
+    integrationTestHostName: integration-headless.{{ .Release.Namespace }}.svc.cluster.local

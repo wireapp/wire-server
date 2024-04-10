@@ -102,6 +102,7 @@ data GlobalEnv = GlobalEnv
   { gServiceMap :: Map String ServiceMap,
     gDomain1 :: String,
     gDomain2 :: String,
+    gIntegrationTestHostName :: String,
     gFederationV0Domain :: String,
     gDynamicDomains :: [String],
     gDefaultAPIVersion :: Int,
@@ -118,6 +119,7 @@ data IntegrationConfig = IntegrationConfig
   { backendOne :: BackendConfig,
     backendTwo :: BackendConfig,
     federationV0 :: BackendConfig,
+    integrationTestHostName :: String,
     dynamicBackends :: Map String DynamicBackendConfig,
     rabbitmq :: RabbitMQConfig,
     cassandra :: CassandraConfig
@@ -131,6 +133,7 @@ instance FromJSON IntegrationConfig where
         <$> parseJSON (Object o)
         <*> o .: fromString "backendTwo"
         <*> o .: fromString "federation-v0"
+        <*> o .: fromString "integrationTestHostName"
         <*> o .: fromString "dynamicBackends"
         <*> o .: fromString "rabbitmq"
         <*> o .: fromString "cassandra"
@@ -195,6 +198,7 @@ data Env = Env
   { serviceMap :: Map String ServiceMap,
     domain1 :: String,
     domain2 :: String,
+    integrationTestHostName :: String,
     federationV0Domain :: String,
     dynamicDomains :: [String],
     defaultAPIVersion :: Int,
@@ -445,7 +449,17 @@ lookupConfigOverride overrides = \case
   Stern -> overrides.sternCfg
   FederatorInternal -> overrides.federatorInternalCfg
 
-data Service = Brig | Galley | Cannon | Gundeck | Cargohold | Nginz | Spar | BackgroundWorker | Stern | FederatorInternal
+data Service
+  = Brig
+  | Galley
+  | Cannon
+  | Gundeck
+  | Cargohold
+  | Nginz
+  | Spar
+  | BackgroundWorker
+  | Stern
+  | FederatorInternal
   deriving
     ( Show,
       Eq,

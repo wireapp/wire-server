@@ -13,7 +13,7 @@ import Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Handler.Warp.Internal as Warp
 import qualified Network.Wai.Handler.WarpTLS as Warp
-import Testlib.Prelude
+import Testlib.Prelude hiding (IntegrationConfig (integrationTestHostName))
 import UnliftIO (MonadUnliftIO (withRunInIO))
 import UnliftIO.Async
 import UnliftIO.Chan
@@ -86,14 +86,11 @@ mockServerCert =
   \T45GXxRd18neXtuYa/OoAw9UQFDN5XfXN0g=\n\
   \-----END CERTIFICATE-----"
 
-botHost :: String
-botHost = "localhost"
-
 withFreePortAnyAddr :: (MonadMask m, MonadIO m) => ((Warp.Port, Socket) -> m a) -> m a
 withFreePortAnyAddr = bracket openFreePortAnyAddr (liftIO . Socket.close . snd)
 
 openFreePortAnyAddr :: MonadIO m => m (Warp.Port, Socket)
-openFreePortAnyAddr = liftIO $ bindRandomPortTCP (fromString "*")
+openFreePortAnyAddr = liftIO $ bindRandomPortTCP (fromString "*6")
 
 type LiftedApplication = Request -> (Wai.Response -> App ResponseReceived) -> App ResponseReceived
 
@@ -102,10 +99,11 @@ withMockServer ::
   -- | the mock server
   (Chan e -> LiftedApplication) ->
   -- | the test
-  (Warp.Port -> Chan e -> App a) ->
+  ((String, Warp.Port) -> Chan e -> App a) ->
   App a
-withMockServer mkApp go = withFreePortAnyAddr $ \(sPort, sock) -> do
+withMockServer mkApp go = withFreePortAnyAddr \(sPort, sock) -> do
   serverStarted <- newEmptyMVar
+  host <- asks integrationTestHostName
   let tlss = Warp.tlsSettingsMemory (cs mockServerCert) (cs mockServerPrivKey)
   let defs = Warp.defaultSettings {Warp.settingsPort = sPort, Warp.settingsBeforeMainLoop = putMVar serverStarted ()}
   buf <- newChan
@@ -114,7 +112,7 @@ withMockServer mkApp go = withFreePortAnyAddr $ \(sPort, sock) -> do
       inIO $ mkApp buf req (liftIO . respond)
   srvMVar <- UnliftIO.Timeout.timeout 5_000_000 (takeMVar serverStarted)
   case srvMVar of
-    Just () -> go sPort buf `finally` cancel srv
+    Just () -> go (host, sPort) buf `finally` cancel srv
     Nothing -> error . show =<< poll srv
 
 lhMockApp :: Chan (Wai.Request, LBS.ByteString) -> LiftedApplication
@@ -172,8 +170,8 @@ lhMockAppWithPrekeys mks ch req cont = withRunInIO \inIO -> do
     getRequestHeader :: String -> Wai.Request -> Maybe ByteString
     getRequestHeader name = lookup (fromString name) . requestHeaders
 
-mkLegalHoldSettings :: Warp.Port -> Value
-mkLegalHoldSettings lhPort =
+mkLegalHoldSettings :: (String, Warp.Port) -> Value
+mkLegalHoldSettings (botHost, lhPort) =
   object
     [ "base_url" .= ("https://" <> botHost <> ":" <> show lhPort <> "/legalhold"),
       "public_key" .= mockServerPubKey,
