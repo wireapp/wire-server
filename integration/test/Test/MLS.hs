@@ -323,9 +323,12 @@ testAddUserSimple :: HasCallStack => Ciphersuite -> CredentialType -> App ()
 testAddUserSimple suite ctype = do
   setMLSCiphersuite suite
   [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
-  [alice1, bob1, bob2] <- traverse (createMLSClient def {credType = ctype}) [alice, bob, bob]
 
-  traverse_ uploadNewKeyPackage [bob1, bob2]
+  bob1 <- createMLSClient def {credType = ctype} bob
+  void $ uploadNewKeyPackage bob1
+  [alice1, bob2] <- traverse (createMLSClient def {credType = ctype}) [alice, bob]
+
+  traverse_ uploadNewKeyPackage [bob2]
   (_, qcnv) <- createNewGroup alice1
 
   resp <- createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle

@@ -37,7 +37,7 @@ decodeSignature ::
 decodeSignature p bs = do
   ints <- case decodeASN1' DER bs of
     Right ([Start Sequence, IntVal r, IntVal s, End Sequence]) -> pure (r, s)
-    e -> Nothing
+    _ -> Nothing
   maybeCryptoError $ signatureFromIntegers p ints
 
 verifySignature ::
