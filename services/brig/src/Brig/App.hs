@@ -67,6 +67,7 @@ module Brig.App
     fsWatcher,
     disabledVersions,
     enableSFTFederation,
+    mkIndexEnv,
 
     -- * App Monad
     AppT (..),
@@ -74,9 +75,7 @@ module Brig.App
     qualifyLocal,
     qualifyLocal',
 
-    -- * Crutches that should be removed once Brig has been completely
-
-    -- * transitioned to Polysemy
+    -- * Crutches that should be removed once Brig has been completely transitioned to Polysemy
     wrapClient,
     wrapClientE,
     wrapClientM,
@@ -97,7 +96,7 @@ import Bilge.IO
 import Bilge.RPC (HasRequestId (..))
 import Brig.AWS qualified as AWS
 import Brig.Calling qualified as Calling
-import Brig.Options (Opts, Settings (..))
+import Brig.Options (ElasticSearchOpts, Opts, Settings (..))
 import Brig.Options qualified as Opt
 import Brig.Provider.Template
 import Brig.Queue.Stomp qualified as Stomp
@@ -261,7 +260,7 @@ newEnv o = do
   kpLock <- newMVar ()
   rabbitChan <- traverse (Q.mkRabbitMqChannelMVar lgr) o.rabbitmq
   let allDisabledVersions = foldMap expandVersionExp (Opt.setDisabledAPIVersions sett)
-  idxEnv <- mkIndexEnv o lgr mtr (Opt.galley o) mgr
+  idxEnv <- mkIndexEnv o.elasticsearch lgr mtr (Opt.galley o) mgr
   pure $!
     Env
       { _cargohold = mkEndpoint $ Opt.cargohold o,
@@ -316,23 +315,22 @@ newEnv o = do
       pure (Nothing, Just smtp)
     mkEndpoint service = RPC.host (encodeUtf8 (service ^. host)) . RPC.port (service ^. port) $ RPC.empty
 
-mkIndexEnv :: Opts -> Logger -> Metrics -> Endpoint -> Manager -> IO IndexEnv
-mkIndexEnv opts logger metricsStorage galleyEp rpcHttpManager = do
-  mEsCreds :: Maybe Credentials <- for opts.elasticsearch.credentials initCredentials
-  mEsAddCreds :: Maybe Credentials <- for opts.elasticsearch.additionalCredentials initCredentials
+mkIndexEnv :: ElasticSearchOpts -> Logger -> Metrics -> Endpoint -> Manager -> IO IndexEnv
+mkIndexEnv esOpts logger metricsStorage galleyEp rpcHttpManager = do
+  mEsCreds :: Maybe Credentials <- for esOpts.credentials initCredentials
+  mEsAddCreds :: Maybe Credentials <- for esOpts.additionalCredentials initCredentials
 
   let mkBhEnv verifyTls mCustomCa mCreds url = do
         mgr <- initHttpManagerWithTLSConfig verifyTls mCustomCa
-        let bhe = ES.mkBHEnv (ES.Server url) mgr
+        let bhe = ES.mkBHEnv url mgr
         pure $ maybe bhe (\creds -> bhe {ES.bhRequestHook = ES.basicAuthHook (ES.EsUsername creds.username) (ES.EsPassword creds.password)}) mCreds
       esLogger = Log.clone (Just "index.brig") logger
-      mainIndex = ES.IndexName opts.elasticsearch.index
-      additionalIndex = ES.IndexName <$> opts.elasticsearch.additionalWriteIndex
-  bhEnv <- mkBhEnv opts.elasticsearch.verifyTls opts.elasticsearch.caCert mEsCreds opts.elasticsearch.url
+  bhEnv <- mkBhEnv esOpts.verifyTls esOpts.caCert mEsCreds esOpts.url
   additionalBhEnv <-
-    for opts.elasticsearch.additionalWriteIndexUrl $
-      mkBhEnv opts.elasticsearch.additionalVerifyTls opts.elasticsearch.additionalCaCert mEsAddCreds
-  pure $ IndexEnv metricsStorage esLogger bhEnv Nothing mainIndex additionalIndex additionalBhEnv galleyEp rpcHttpManager mEsCreds
+    for esOpts.additionalWriteIndexUrl $
+      mkBhEnv esOpts.additionalVerifyTls esOpts.additionalCaCert mEsAddCreds
+  -- TODO: use costructor with {...}
+  pure $ IndexEnv metricsStorage esLogger bhEnv Nothing esOpts.index esOpts.additionalWriteIndex additionalBhEnv galleyEp rpcHttpManager mEsCreds
 
 initZAuth :: Opts -> IO ZAuth.Env
 initZAuth o = do

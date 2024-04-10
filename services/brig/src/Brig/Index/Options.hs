@@ -22,13 +22,12 @@
 module Brig.Index.Options
   ( Command (..),
     ElasticSettings,
-    esServer,
-    esIndex,
+    ESConnectionSettings (..),
+    esConnection,
     esIndexShardCount,
     esIndexReplicas,
     esIndexRefreshInterval,
     esDeleteTemplate,
-    esCredentials,
     CassandraSettings,
     toCassandraOpts,
     cHost,
@@ -74,14 +73,21 @@ data Command
   | ReindexFromAnotherIndex ReindexFromAnotherIndexSettings
   deriving (Show)
 
+data ESConnectionSettings = ESConnectionSettings
+  { esServer :: URIRef Absolute,
+    esIndex :: ES.IndexName,
+    esCaCert :: Maybe FilePath,
+    esVerifyTls :: Bool,
+    esCredentials :: Maybe FilePathSecrets
+  }
+  deriving (Show)
+
 data ElasticSettings = ElasticSettings
-  { _esServer :: URIRef Absolute,
-    _esIndex :: ES.IndexName,
+  { _esConnection :: ESConnectionSettings,
     _esIndexShardCount :: Int,
     _esIndexReplicas :: ES.ReplicaCount,
     _esIndexRefreshInterval :: NominalDiffTime,
-    _esDeleteTemplate :: Maybe ES.TemplateName,
-    _esCredentials :: Maybe FilePathSecrets
+    _esDeleteTemplate :: Maybe ES.TemplateName
   }
   deriving (Show)
 
@@ -129,13 +135,18 @@ mkCreateIndexSettings es =
 localElasticSettings :: ElasticSettings
 localElasticSettings =
   ElasticSettings
-    { _esServer = [uri|http://localhost:9200|],
-      _esIndex = ES.IndexName "directory_test",
+    { _esConnection =
+        ESConnectionSettings
+          { esServer = [uri|http://localhost:9200|],
+            esIndex = ES.IndexName "directory_test",
+            esCaCert = Nothing,
+            esVerifyTls = True,
+            esCredentials = Nothing
+          },
       _esIndexShardCount = 1,
       _esIndexReplicas = ES.ReplicaCount 1,
       _esIndexRefreshInterval = 1,
-      _esDeleteTemplate = Nothing,
-      _esCredentials = Nothing
+      _esDeleteTemplate = Nothing
     }
 
 localCassandraSettings :: CassandraSettings
@@ -154,7 +165,7 @@ elasticServerParser =
     ( long "elasticsearch-server"
         <> metavar "URL"
         <> help "Base URL of the Elasticsearch Server."
-        <> value (view esServer localElasticSettings)
+        <> value localElasticSettings._esConnection.esServer
         <> showDefaultWith (view unpackedChars . serializeURIRef')
     )
   where
@@ -176,9 +187,13 @@ restrictedElasticSettingsParser = do
   mCreds <- credentialsPathParser
   pure $
     localElasticSettings
-      & esServer .~ server
-      & esIndex .~ ES.IndexName (prefix <> "_test")
-      & esCredentials .~ mCreds
+      { _esConnection =
+          localElasticSettings._esConnection
+            { esServer = server,
+              esIndex = ES.IndexName (prefix <> "_test"),
+              esCredentials = mCreds
+            }
+      }
 
 indexNameParser :: Parser ES.IndexName
 indexNameParser =
@@ -187,21 +202,42 @@ indexNameParser =
       ( long "elasticsearch-index"
           <> metavar "STRING"
           <> help "Elasticsearch Index Name."
-          <> value (view (esIndex . _IndexName . unpacked) localElasticSettings)
+          <> value (view (_IndexName . unpacked) localElasticSettings._esConnection.esIndex)
           <> showDefault
       )
 
 elasticSettingsParser :: Parser ElasticSettings
 elasticSettingsParser =
   ElasticSettings
-    <$> elasticServerParser
-    <*> indexNameParser
+    <$> connParser
     <*> indexShardCountParser
     <*> indexReplicaCountParser
     <*> indexRefreshIntervalParser
     <*> templateParser
-    <*> credentialsPathParser
   where
+    connParser =
+      ESConnectionSettings
+        <$> elasticServerParser
+        <*> indexNameParser
+        <*> caCertParser
+        <*> verifyCaParser
+        <*> credentialsPathParser
+    caCertParser =
+      optional
+        ( option
+            str
+            ( long "elasticsearch-ca-cert"
+                <> metavar "FILE"
+                <> help "Path to CA Certitificate for TLS validation, system CA bundle is used when unspecified"
+            )
+        )
+    verifyCaParser =
+      flag
+        True
+        False
+        ( long "elasticserch-insecure-skip-tls-verify"
+            <> help "Skip TLS verification when connecting to Elasticsearch (not recommended)"
+        )
     indexShardCountParser =
       option
         auto
@@ -280,7 +316,8 @@ cassandraSettingsParser =
               )
         )
     <*> ( (optional . strOption)
-            ( long "tls-ca-certificate-file"
+            ( -- TODO: Rename this to --cassasndra-ca-cert
+              long "tls-ca-certificate-file"
                 <> help "Location of a PEM encoded list of CA certificates to be used when verifying the Cassandra server's certificate"
             )
         )

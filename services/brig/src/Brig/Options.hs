@@ -49,6 +49,7 @@ import Data.Text.Encoding qualified as Text
 import Data.Time.Clock (DiffTime, NominalDiffTime, secondsToDiffTime)
 import Data.Yaml (FromJSON (..), ToJSON (..), (.:), (.:?))
 import Data.Yaml qualified as Y
+import Database.Bloodhound.Types qualified as ES
 import Galley.Types.Teams (unImplicitLockStatus)
 import Imports
 import Network.AMQP.Extended
@@ -74,9 +75,9 @@ instance Read Timeout where
 
 data ElasticSearchOpts = ElasticSearchOpts
   { -- | ElasticSearch URL
-    url :: !Text,
+    url :: !ES.Server,
     -- | The name of the ElasticSearch user index
-    index :: !Text,
+    index :: !ES.IndexName,
     -- | An additional index to write user data, useful while migrating to a new
     -- index.
     -- There is a bug hidden when using this option. Sometimes a user won't get
@@ -85,12 +86,12 @@ data ElasticSearchOpts = ElasticSearchOpts
     -- tools/db/find-undead which can be used to find the undead users right
     -- after the migration, if they exist, we can run the reindexing to get data
     -- in elasticsearch in a consistent state.
-    additionalWriteIndex :: !(Maybe Text),
+    additionalWriteIndex :: !(Maybe ES.IndexName),
     -- | An additional ES URL to write user data, useful while migrating to a
     -- new instace of ES. It is necessary to provide 'additionalWriteIndex' for
     -- this to be used. If this is 'Nothing' and 'additionalWriteIndex' is
     -- configured, the 'url' field will be used.
-    additionalWriteIndexUrl :: !(Maybe Text),
+    additionalWriteIndexUrl :: !(Maybe ES.Server),
     -- | Elasticsearch credentials
     credentials :: !(Maybe FilePathSecrets),
     -- | Credentials for additional ES index (maily used for migrations)

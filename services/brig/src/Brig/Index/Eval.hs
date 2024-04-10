@@ -22,8 +22,10 @@ module Brig.Index.Eval
   )
 where
 
+import Brig.App (mkIndexEnv)
 import Brig.Index.Migrations
 import Brig.Index.Options
+import Brig.Options
 import Brig.User.Search.Index
 import Cassandra qualified as C
 import Cassandra.Util (defInitCassandra)
@@ -45,21 +47,17 @@ import Util.Options (initCredentials)
 runCommand :: Logger -> Command -> IO ()
 runCommand l = \case
   Create es galley -> do
-    mCreds <- for (es ^. esCredentials) initCredentials
-    e <- initIndex es mCreds galley
+    e <- initIndex es galley
     runIndexIO e $ createIndexIfNotPresent (mkCreateIndexSettings es)
   Reset es galley -> do
-    mCreds <- for (es ^. esCredentials) initCredentials
-    e <- initIndex es mCreds galley
+    e <- initIndex es galley
     runIndexIO e $ resetIndex (mkCreateIndexSettings es)
   Reindex es cas galley -> do
-    mCreds <- for (es ^. esCredentials) initCredentials
-    e <- initIndex es mCreds galley
+    e <- initIndex es galley
     c <- initDb cas
     runReindexIO e c reindexAll
   ReindexSameOrNewer es cas galley -> do
-    mCreds <- for (es ^. esCredentials) initCredentials
-    e <- initIndex es mCreds galley
+    e <- initIndex es galley
     c <- initDb cas
     runReindexIO e c reindexAllIfSameOrNewer
   UpdateMapping esURI indexName mSecretPath galley -> do
@@ -95,8 +93,25 @@ runCommand l = \case
           waitForTaskToComplete @ES.ReindexResponse timeoutSeconds taskNodeId
           Log.info l $ Log.msg ("Finished reindexing" :: ByteString)
   where
-    initIndex es mCreds gly =
-      initIndex' (es ^. esServer) (es ^. esIndex) mCreds gly
+    initIndex es gly = do
+      mgr <- newManager defaultManagerSettings
+      let esOpts =
+            ElasticSearchOpts
+              { url = toESServer $ es.esServer,
+                index = es.esIndex,
+                credentials = es.esCredentials,
+                verifyTls = es.esVerifyTls,
+                caCert = es.esCaCert,
+                additionalWriteIndex = Nothing,
+                additionalWriteIndexUrl = Nothing,
+                additionalCredentials = Nothing,
+                additionalVerifyTls = True,
+                additionalCaCert = Nothing
+              }
+
+      metricsStorage <- Metrics.metrics
+      mkIndexEnv esOpts l metricsStorage gly mgr
+    -- initIndex' (es ^. esServer) (es ^. esIndex) mCreds gly
 
     initIndex' esURI indexName mCreds galleyEndpoint = do
       mgr <- newManager defaultManagerSettings
