@@ -144,9 +144,12 @@ test-suite wire-subsystems-tests
     , bytestring
     , containers
     , extended
+    , data-default
     , gundeck-types
     , hspec
     , imports
+    , iso639
+    , transformers
     , polysemy
     , polysemy-plugin
     , polysemy-wire-zoo

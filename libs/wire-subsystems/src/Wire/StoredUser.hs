@@ -11,7 +11,7 @@ import Wire.API.User
 import Wire.Arbitrary
 
 data StoredUser = StoredUser
-  { id_ :: UserId,
+  { id :: UserId,
     name :: Name,
     pict :: Maybe Pict,
     email :: Maybe Email,
@@ -31,7 +31,7 @@ data StoredUser = StoredUser
     managedBy :: Maybe ManagedBy,
     supportedProtocols :: Maybe (Set BaseProtocolTag)
   }
-  deriving (Show, Eq, Generic)
+  deriving (Show, Eq, Ord, Generic)
   deriving (Arbitrary) via (GenericUniform StoredUser)
 
 hasPendingInvitation :: StoredUser -> Bool
@@ -45,7 +45,7 @@ mkUserFromStored domain defaultLocale storedUser =
       loc = toLocale defaultLocale (storedUser.language, storedUser.country)
       svc = newServiceRef <$> storedUser.serviceId <*> storedUser.providerId
    in User
-        { userQualifiedId = (Qualified storedUser.id_ domain),
+        { userQualifiedId = (Qualified storedUser.id domain),
           userIdentity = ident,
           userDisplayName = storedUser.name,
           userPict = (fromMaybe noPict storedUser.pict),

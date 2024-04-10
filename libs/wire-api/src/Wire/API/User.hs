@@ -44,6 +44,7 @@ module Wire.API.User
     scimExternalId,
     ssoIssuerAndNameId,
     mkUserProfile,
+    mkUserProfileWithEmail,
     userObjectSchema,
 
     -- * NewUser
@@ -807,8 +808,28 @@ instance FromJSON (EmailVisibility ()) where
     "visible_to_self" -> pure EmailVisibleToSelf
     _ -> fail "unexpected value for EmailVisibility settings"
 
-mkUserProfile :: EmailVisibilityConfigWithViewer -> User -> UserLegalHoldStatus -> UserProfile
-mkUserProfile emailVisibilityConfigAndViewer u legalHoldStatus =
+mkUserProfileWithEmail :: Maybe Email -> UserLegalHoldStatus -> User -> UserProfile
+mkUserProfileWithEmail memail legalHoldStatus u =
+  -- This profile would be visible to any other user. When a new field is
+  -- added, please make sure it is OK for other users to have access to it.
+  UserProfile
+    { profileQualifiedId = userQualifiedId u,
+      profileHandle = userHandle u,
+      profileName = userDisplayName u,
+      profilePict = userPict u,
+      profileAssets = userAssets u,
+      profileAccentId = userAccentId u,
+      profileService = userService u,
+      profileDeleted = userDeleted u,
+      profileExpire = userExpire u,
+      profileTeam = userTeam u,
+      profileEmail = memail,
+      profileLegalholdStatus = legalHoldStatus,
+      profileSupportedProtocols = userSupportedProtocols u
+    }
+
+mkUserProfile :: EmailVisibilityConfigWithViewer -> UserLegalHoldStatus -> User -> UserProfile
+mkUserProfile emailVisibilityConfigAndViewer legalHoldStatus u =
   let isEmailVisible = case emailVisibilityConfigAndViewer of
         EmailVisibleToSelf -> False
         EmailVisibleIfOnTeam -> isJust (userTeam u)
@@ -816,23 +837,7 @@ mkUserProfile emailVisibilityConfigAndViewer u legalHoldStatus =
         EmailVisibleIfOnSameTeam (Just (viewerTeamId, viewerMembership)) ->
           Just viewerTeamId == userTeam u
             && TeamMember.hasPermission viewerMembership TeamMember.ViewSameTeamEmails
-   in -- This profile would be visible to any other user. When a new field is
-      -- added, please make sure it is OK for other users to have access to it.
-      UserProfile
-        { profileQualifiedId = userQualifiedId u,
-          profileHandle = userHandle u,
-          profileName = userDisplayName u,
-          profilePict = userPict u,
-          profileAssets = userAssets u,
-          profileAccentId = userAccentId u,
-          profileService = userService u,
-          profileDeleted = userDeleted u,
-          profileExpire = userExpire u,
-          profileTeam = userTeam u,
-          profileEmail = if isEmailVisible then userEmail u else Nothing,
-          profileLegalholdStatus = legalHoldStatus,
-          profileSupportedProtocols = userSupportedProtocols u
-        }
+   in mkUserProfileWithEmail (if isEmailVisible then userEmail u else Nothing) legalHoldStatus u
 
 --------------------------------------------------------------------------------
 -- NewUser
@@ -1863,7 +1868,7 @@ data AccountStatus
     -- allowing scim to find users that have not accepted their invitation yet after
     -- creating via scim.
     PendingInvitation
-  deriving (Eq, Show, Generic)
+  deriving (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via (GenericUniform AccountStatus)
   deriving (ToJSON, FromJSON, S.ToSchema) via Schema.Schema AccountStatus
 

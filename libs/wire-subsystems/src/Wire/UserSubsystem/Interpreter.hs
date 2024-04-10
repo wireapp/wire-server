@@ -22,7 +22,7 @@ import Wire.UserStore
 
 data UserSubsystemConfig = UserSubsystemConfig
   { emailVisibilityConfig :: EmailVisibilityConfig,
-    defaultDomain :: Domain,
+    localDomain :: Domain,
     defaultLocale :: Locale
   }
 
@@ -122,10 +122,10 @@ getLocalUserProfile ::
   UserId ->
   Sem r (Maybe UserProfile)
 getLocalUserProfile emailVisibilityConfigWithViewer uid = do
-  domain <- inputs defaultDomain
+  domain <- inputs localDomain
   locale <- inputs defaultLocale
   runMaybeT $ do
     storedUser <- MaybeT $ getUser uid
     guard $ not (hasPendingInvitation storedUser)
     let user = mkUserFromStored domain locale storedUser
-    pure $ mkUserProfile emailVisibilityConfigWithViewer user UserLegalHoldDisabled
+    pure $ mkUserProfile emailVisibilityConfigWithViewer UserLegalHoldDisabled user

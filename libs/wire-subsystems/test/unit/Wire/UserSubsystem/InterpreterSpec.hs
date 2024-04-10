@@ -1,17 +1,23 @@
+{-# LANGUAGE OverloadedLists #-}
 {-# OPTIONS_GHC -Wwarn #-}
 
 module Wire.UserSubsystem.InterpreterSpec (spec) where
 
+import Data.Default (Default (def))
 import Data.Domain
 import Data.Id
+import Data.LanguageCodes (ISO639_1 (EN))
 import Data.LegalHold (UserLegalHoldStatus (UserLegalHoldDisabled))
+import Data.Map.Strict qualified as M
 import Data.Proxy
 import Data.Qualified
+import Data.Set qualified as S
 import Data.Type.Equality
 import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
+import Polysemy.State
 import Servant.Client.Core
 import Test.Hspec
 import Test.Hspec.QuickCheck
@@ -36,12 +42,26 @@ spec :: Spec
 spec = describe "UserSubsystem.Interpreter" do
   describe "getUserProfile" do
     focus $ prop
-      "returns nothing (remove this test)"
-      \viewer targetUserIds visibility domain remoteDomain locale -> do
-        let retrievedProfiles =
-              runFederationStack mempty mempty Nothing (UserSubsystemConfig visibility domain locale) $
-                getUserProfiles (toLocalUnsafe domain viewer) (map (`Qualified` remoteDomain) targetUserIds)
-        remoteDomain /= domain ==> retrievedProfiles === []
+      "all users on federating backends"
+      \viewer targetUsers visibility domain remoteDomain -> do
+        let localBackend = def {users = [viewer]}
+            remoteBackend = def {users = targetUsers}
+            federation = [(domain, localBackend), (remoteDomain, remoteBackend)]
+            retrievedProfiles =
+              runFederationStack federation Nothing (UserSubsystemConfig visibility domain miniLocale) $
+                getUserProfiles
+                  (toLocalUnsafe domain viewer.id)
+                  ( map (flip Qualified remoteDomain . (.id)) $
+                      S.toList targetUsers
+                  )
+        remoteDomain /= domain ==>
+          retrievedProfiles
+            === [ mkUserProfileWithEmail
+                    Nothing
+                    UserLegalHoldDisabled
+                    (mkUserFromStored remoteDomain miniLocale targetUser)
+                  | targetUser <- S.toList targetUsers
+                ]
     prop "returns nothing when the none of the users exist" $
       \viewer targetUserIds visibility domain locale ->
         let config = UserSubsystemConfig visibility domain locale
@@ -52,40 +72,40 @@ spec = describe "UserSubsystem.Interpreter" do
 
     prop "gets a local user profile when the user exists and both user and viewer have accepted their invitations" $
       \(NotPendingStoredUser viewer) (NotPendingStoredUser targetUserNoTeam) visibility domain locale sameTeam ->
-        let teamMember = mkTeamMember viewer.id_ fullPermissions Nothing UserLegalHoldDisabled
+        let teamMember = mkTeamMember viewer.id fullPermissions Nothing UserLegalHoldDisabled
             targetUser = if sameTeam then targetUserNoTeam {teamId = viewer.teamId} else targetUserNoTeam
             config = UserSubsystemConfig visibility domain locale
             retrievedProfile =
               runNoFederationStack [targetUser, viewer] (Just teamMember) config $
-                getUserProfiles (toLocalUnsafe domain viewer.id_) [Qualified targetUser.id_ domain]
+                getUserProfiles (toLocalUnsafe domain viewer.id) [Qualified targetUser.id domain]
          in retrievedProfile
               === [ mkUserProfile
                       (fmap (const $ (,) <$> viewer.teamId <*> Just teamMember) visibility)
-                      (mkUserFromStored domain locale targetUser)
                       UserLegalHoldDisabled
+                      (mkUserFromStored domain locale targetUser)
                   ]
     prop "gets Nothing when the target user exists and has accepted their invitation but the viewer has not accepted their invitation" $
       \(PendingStoredUser viewer) (NotPendingStoredUser targetUserNoTeam) visibility domain locale sameTeam ->
-        let teamMember = mkTeamMember viewer.id_ fullPermissions Nothing UserLegalHoldDisabled
+        let teamMember = mkTeamMember viewer.id fullPermissions Nothing UserLegalHoldDisabled
             targetUser = if sameTeam then targetUserNoTeam {teamId = viewer.teamId} else targetUserNoTeam
             config = UserSubsystemConfig visibility domain locale
             retrievedProfile =
               runNoFederationStack [targetUser, viewer] (Just teamMember) config $
-                getUserProfiles (toLocalUnsafe domain viewer.id_) [Qualified targetUser.id_ domain]
+                getUserProfiles (toLocalUnsafe domain viewer.id) [Qualified targetUser.id domain]
          in retrievedProfile
               === [ mkUserProfile
                       (fmap (const Nothing) visibility)
-                      (mkUserFromStored domain locale targetUser)
                       UserLegalHoldDisabled
+                      (mkUserFromStored domain locale targetUser)
                   ]
 
     prop "returns Nothing if the target user has not accepted their invitation yet" $
       \viewer (PendingStoredUser targetUser) visibility domain locale ->
-        let teamMember = mkTeamMember viewer.id_ fullPermissions Nothing UserLegalHoldDisabled
+        let teamMember = mkTeamMember viewer.id fullPermissions Nothing UserLegalHoldDisabled
             config = UserSubsystemConfig visibility domain locale
             retrievedProfile =
               runNoFederationStack [targetUser, viewer] (Just teamMember) config $
-                getLocalUserProfiles viewer.id_ [targetUser.id_]
+                getLocalUserProfiles viewer.id [targetUser.id]
          in retrievedProfile === []
 
 -- prop "returns the profiles returned by remote backends" $
@@ -115,16 +135,38 @@ type GetUserProfileEffects =
     UserStore,
     (Input UserSubsystemConfig),
     (Error FederationError),
-    (FederationAPIAccess FakeFederation),
+    (FederationAPIAccess MiniFederationMonad),
     (Concurrency 'Unsafe)
   ]
 
-newtype FakeFederation comp a = FakeFederation (Reader (Map Domain [UserProfile]) a)
+-- | a type representing the state of a single backend
+data MiniBackend = MkMiniBackend
+  { -- | this is morally the same as the users stored in the actual backend
+    --   invariant: for each key, the user.id and the key are the same
+    users :: Set StoredUser
+  }
+
+instance Default MiniBackend where
+  def = MkMiniBackend {users = mempty}
+
+-- | represents an entire federated, stateful world of backends
+newtype MiniFederation = MkMiniFederation
+  { -- | represens the state of the backends, mapped from their domains
+    backends :: Map Domain MiniBackend
+  }
+
+data MiniContext = MkMiniContext
+  { -- | the domain that is receiving the request
+    ownDomain :: Domain
+  }
+
+newtype MiniFederationMonad comp a = MkMiniFederationMonad
+  {unMiniFederation :: Sem [Input MiniContext, State MiniFederation] a}
   deriving newtype (Functor, Applicative, Monad)
 
-instance RunClient (FakeFederation comp) where
-  runRequestAcceptStatus _acceptableStatuses _req = error "FakeFederation does not support servant client"
-  throwClientError _err = error "FakeFederation does not support servant client"
+instance RunClient (MiniFederationMonad comp) where
+  runRequestAcceptStatus _acceptableStatuses _req = error "MiniFederation does not support servant client"
+  throwClientError _err = error "MiniFederation does not support servant client"
 
 data TypeableTypes where
   TNil :: TypeableTypes
@@ -135,58 +177,96 @@ infixr 5 :::
 tryAll ::
   Typeable a =>
   -- | The type to compare to
-  (Component, Text, a) ->
+  (Component, Text, Proxy a) ->
   -- | what to return when none of the types match
   a ->
   -- | the types to try
   TypeableTypes ->
   a
-tryAll goal@(goalComp, goalRoute, goalType) a = \case
+tryAll goal@(goalComp, goalRoute, Proxy @goalType) a = \case
   TNil -> a
-  (comp, route, client) ::: xs -> case eqTypeRep (typeOf goalType) (typeOf client) of
+  (comp, route, client) ::: xs -> case eqTypeRep (typeRep @goalType) (typeOf client) of
     Just HRefl | comp == goalComp && route == goalRoute -> client
     _ -> tryAll goal a xs
 
-instance FederationMonad FakeFederation where
-  fedClientWithProxy (_ :: Proxy name) (pa :: Proxy api) (pm :: Proxy (FakeFederation comp)) =
+instance FederationMonad MiniFederationMonad where
+  fedClientWithProxy (Proxy @name) (Proxy @api) (_ :: Proxy (MiniFederationMonad comp)) =
     -- TODO(mangoiv): checking the type of the Client alone is not enough; we also want to check that
     -- the route is correct; this has yet to be implemented by storing an existential of the route
     -- or, more easily a `Text` that represents it
     tryAll
-      do (componentVal @comp, nameVal @name, clientWithRoute pm pa undefined)
+      (componentVal @comp, nameVal @name, Proxy @(Client (MiniFederationMonad comp) api))
       do
         error
           "The testsuite has evaluated a tuple of component, route and client that is\
-          \ not covered by the FakeFederation implementation of FederationMonad"
+          \ not covered by the MiniFederation implementation of FederationMonad"
       do
-        (Brig, "get-users-by-ids", fakeGetUsersByIds)
-          ::: (Brig, "get-user-by-id", fakeGetUserById)
+        (Brig, "get-users-by-ids", miniGetUsersByIds)
+          ::: (Brig, "get-user-by-id", miniGetUserById)
           ::: TNil
 
-fakeGetUsersByIds :: [UserId] -> FakeFederation 'Brig [UserProfile]
-fakeGetUsersByIds _ = pure []
+miniLocale :: Locale
+miniLocale =
+  Locale
+    { lLanguage = Language EN,
+      lCountry = Nothing
+    }
 
-fakeGetUserById :: UserId -> FakeFederation 'Brig (Maybe UserProfile)
-fakeGetUserById _ = pure Nothing
+-- | runs a stateful backend, returns the state and puts it back into the
+--   federated global state
+runOnOwnBackend :: Sem '[Input Domain, State MiniBackend] a -> MiniFederationMonad comp a
+runOnOwnBackend act = MkMiniFederationMonad do
+  ownDomain <- inputs (.ownDomain)
+  ownBackend <-
+    fromMaybe (error "tried to lookup domain that is not part of the backends' state")
+      <$> gets (M.lookup ownDomain . backends)
+  let (newBackend, res) = run $ runState ownBackend $ runInputConst ownDomain act
+  modify (\minifed -> minifed {backends = M.insert ownDomain newBackend (minifed.backends)})
+  pure res
 
-runFakeFederation :: Map Domain [UserProfile] -> FakeFederation c a -> a
-runFakeFederation users (FakeFederation action) = runIdentity $ runReaderT action users
+miniGetUsersByIds :: [UserId] -> MiniFederationMonad 'Brig [UserProfile]
+miniGetUsersByIds userIds = runOnOwnBackend do
+  -- TODO(mangoiv): we probably want to have a lens that gets and sets
+  -- some specific backend instead of all backends
+
+  usersById :: Map UserId StoredUser <-
+    gets (M.fromList . map (\user -> (user.id, user)) . S.toList . users)
+  let lookedUpUsers = mapMaybe (flip M.lookup usersById) userIds
+  dom <- input
+  pure $
+    map
+      do
+        mkUserProfileWithEmail
+          Nothing
+          UserLegalHoldDisabled
+          . mkUserFromStored dom miniLocale
+      lookedUpUsers
+
+miniGetUserById :: UserId -> MiniFederationMonad 'Brig (Maybe UserProfile)
+miniGetUserById _ = pure Nothing
+
+runMiniFederation :: Domain -> Map Domain MiniBackend -> MiniFederationMonad c a -> a
+runMiniFederation ownDomain backends =
+  run
+    . evalState MkMiniFederation {backends = backends}
+    . runInputConst MkMiniContext {ownDomain = ownDomain}
+    . unMiniFederation
 
 runFederationStack ::
-  Map Domain [UserProfile] ->
-  [StoredUser] ->
+  Map Domain MiniBackend ->
   Maybe TeamMember ->
   UserSubsystemConfig ->
   Sem GetUserProfileEffects a ->
   a
-runFederationStack fedUsers localUsers teamMember config =
+runFederationStack fedBackends teamMember config =
   run
     . sequentiallyPerformConcurrency
-    . fakeFederationAPIAccess fedUsers
+    . miniFederationAPIAccess fedBackends
     . runErrorUnsafe
     . runInputConst config
-    . staticUserStoreInterpreter localUsers
-    . fakeGalleyAPIAccess teamMember
+    . staticUserStoreInterpreter do
+      maybe [] (S.toList . (.users)) $ M.lookup (config.localDomain) fedBackends
+    . miniGalleyAPIAccess teamMember
 
 runNoFederationStack ::
   [StoredUser] ->
@@ -201,7 +281,7 @@ runNoFederationStack allUsers teamMember config =
     . runErrorUnsafe
     . runInputConst config
     . staticUserStoreInterpreter allUsers
-    . fakeGalleyAPIAccess teamMember
+    . miniGalleyAPIAccess teamMember
 
 runErrorUnsafe :: Exception e => InterpreterFor (Error e) r
 runErrorUnsafe action = do
@@ -210,21 +290,21 @@ runErrorUnsafe action = do
     Left e -> error $ "Unexpected error: " <> displayException e
     Right x -> pure x
 
-emptyFederationAPIAcesss :: InterpreterFor (FederationAPIAccess FakeFederation) r
+emptyFederationAPIAcesss :: InterpreterFor (FederationAPIAccess MiniFederationMonad) r
 emptyFederationAPIAcesss = interpret $ \case
   _ -> error "uninterpreted effect: FederationAPIAccess"
 
-fakeFederationAPIAccess :: forall r. Member (Concurrency 'Unsafe) r => Map Domain [UserProfile] -> InterpreterFor (FederationAPIAccess FakeFederation) r
-fakeFederationAPIAccess userProfiles =
-  let runner :: FederatedActionRunner FakeFederation r
-      runner _domain rpc = pure . Right $ runFakeFederation userProfiles rpc
+miniFederationAPIAccess :: forall r. Member (Concurrency 'Unsafe) r => Map Domain MiniBackend -> InterpreterFor (FederationAPIAccess MiniFederationMonad) r
+miniFederationAPIAccess userProfiles =
+  let runner :: FederatedActionRunner MiniFederationMonad r
+      runner domain rpc = pure . Right $ runMiniFederation domain userProfiles rpc
    in interpretFederationAPIAccessGeneral runner (pure True)
 
 staticUserStoreInterpreter :: [StoredUser] -> InterpreterFor UserStore r
 staticUserStoreInterpreter allUsers = interpret $ \case
-  GetUser uid -> pure $ find (\user -> user.id_ == uid) allUsers
+  GetUser uid -> pure $ find (\user -> user.id == uid) allUsers
 
-fakeGalleyAPIAccess :: Maybe TeamMember -> InterpreterFor GalleyAPIAccess r
-fakeGalleyAPIAccess member = interpret $ \case
+miniGalleyAPIAccess :: Maybe TeamMember -> InterpreterFor GalleyAPIAccess r
+miniGalleyAPIAccess member = interpret $ \case
   GetTeamMember _ _ -> pure member
   _ -> error "uninterpreted effect: GalleyAPIAccess"
