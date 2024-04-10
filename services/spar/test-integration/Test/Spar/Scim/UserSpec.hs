@@ -771,7 +771,6 @@ testCreateUserWithSamlIdP = do
           . path "/self"
           . expect2xx
       )
-  print brigUser
   brigUser `userShouldMatch` WrappedScimStoredUser scimStoredUser
   accStatus <- aFewTimes (runSpar $ BrigAccess.getStatus (userId brigUser)) (== Active)
   liftIO $ accStatus `shouldBe` Active
