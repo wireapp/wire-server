@@ -481,6 +481,7 @@ in
     name = "wire-server-dev-env";
     ignoreCollisions = true;
     paths = commonTools ++ [
+      pkgs.zipkin
       pkgs.bash
       pkgs.crate2nix
       pkgs.dash
