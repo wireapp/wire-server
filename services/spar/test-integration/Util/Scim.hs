@@ -88,12 +88,6 @@ registerIdPAndScimTokenWithMeta = do
   let team = (owner, teamid, idp, meta)
   (,team) <$> registerScimToken teamid (Just (idp ^. idpId))
 
--- | upserts a new scim token info
-updateScimTokenInfo :: ScimToken -> (Maybe ScimTokenInfo -> ScimTokenInfo) -> TestSpar ()
-updateScimTokenInfo tok fn = runSpar do
-  oldInfo <- ScimTokenStore.lookup tok
-  ScimTokenStore.insert tok (fn oldInfo)
-
 -- | Create a fresh SCIM token and register it for the team.
 --
 -- FUTUREWORK(mangoiv): this is an integration test, it should use the
