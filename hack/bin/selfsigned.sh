@@ -90,4 +90,11 @@ cp "$ELASTICSEARCH_LEAF_CERT-key.pem" "$ROOT_DIR/deploy/dockerephemeral/docker/e
 cp "$ELASTICSEARCH_CA.pem" "$ROOT_DIR/hack/helm_vars/elasticsearch-certs/elasticsearch-ca.pem"
 cp "$ELASTICSEARCH_CA-key.pem" "$ROOT_DIR/hack/helm_vars/elasticsearch-certs/elasticsearch-ca-key.pem"
 
+cp "$OUTPUTNAME_CA.pem" "$ROOT_DIR/deploy/dockerephemeral/docker/redis-ca.pem"
+for redis_node in $(seq 1 6); do
+    cp "$OUTPUTNAME_LEAF_CERT.pem" "$ROOT_DIR/deploy/dockerephemeral/docker/redis-node-${redis_node}-cert.pem"
+    cp "$OUTPUTNAME_LEAF_CERT-key.pem" "$ROOT_DIR/deploy/dockerephemeral/docker/redis-node-${redis_node}-key.pem"
+    chmod 0644 "$ROOT_DIR/deploy/dockerephemeral/docker/redis-node-${redis_node}-key.pem"
+done
+
 rm -rf "$TEMP"
