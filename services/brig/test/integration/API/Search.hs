@@ -31,6 +31,7 @@ import API.Team.Util
 import API.User.Util
 import Bilge
 import Bilge.Assert
+import Brig.App (initHttpManagerWithTLSConfig)
 import Brig.Options qualified as Opt
 import Brig.Options qualified as Opts
 import Control.Lens ((.~), (?~), (^.))
@@ -49,7 +50,6 @@ import Data.Text.Encoding qualified as Text
 import Database.Bloodhound qualified as ES
 import Federation.Util
 import Imports
-import Network.HTTP.Client qualified as HTTP
 import Network.HTTP.ReverseProxy (waiProxyTo)
 import Network.HTTP.ReverseProxy qualified as Wai
 import Network.HTTP.Types qualified as HTTP
@@ -705,7 +705,7 @@ indexProxyServer idx opts mgr =
       proxyApp req =
         pure $
           if headMay (Wai.pathInfo req) == Just idx
-            then Wai.WPRProxyDest (Wai.ProxyDest proxyToHost proxyToPort)
+            then Wai.WPRProxyDestSecure (Wai.ProxyDest proxyToHost proxyToPort)
             else Wai.WPRResponse (Wai.responseLBS HTTP.status400 [] $ "Refusing to proxy to path=" <> cs (Wai.rawPathInfo req))
    in waiProxyTo proxyApp Wai.defaultOnExc mgr
 
@@ -771,7 +771,7 @@ deleteIndex opts name = do
 runBH :: MonadIO m => Opt.Opts -> ES.BH m a -> m a
 runBH opts action = do
   let (ES.Server esURL) = opts ^. Opt.elasticsearchL . Opt.urlL
-  mgr <- liftIO $ HTTP.newManager HTTP.defaultManagerSettings
+  mgr <- liftIO $ initHttpManagerWithTLSConfig True Nothing
   let bEnv = mkBHEnv esURL mgr
   ES.runBH bEnv action
 

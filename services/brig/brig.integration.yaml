@@ -10,10 +10,12 @@ cassandra:
   # filterNodesByDatacentre: datacenter1
 
 elasticsearch:
-  url: http://127.0.0.1:9200
+  url: https://127.0.0.1:9200
   index: directory_test
   credentials: test/resources/elasticsearch-credentials.yaml
+  insecureSkipVerifyTls: true
   additionalCredentials: test/resources/elasticsearch-credentials.yaml
+  additionalInsecureSkipVerifyTls: true
 
 rabbitmq:
   host: 127.0.0.1

@@ -36,6 +36,7 @@ import API.UserPendingActivation qualified as UserPendingActivation
 import Bilge hiding (header, host, port)
 import Bilge qualified
 import Brig.AWS qualified as AWS
+import Brig.App (initHttpManagerWithTLSConfig)
 import Brig.Options qualified as Opts
 import Cassandra.Util (defInitCassandra)
 import Control.Lens
@@ -47,7 +48,6 @@ import Federation.End2end qualified
 import Imports hiding (local)
 import Index.Create qualified
 import Network.HTTP.Client qualified as HTTP
-import Network.HTTP.Client.TLS (tlsManagerSettings)
 import Network.URI (pathSegments)
 import OpenSSL (withOpenSSL)
 import Options.Applicative hiding (action)
@@ -127,7 +127,7 @@ runTests iConf brigOpts otherArgs = do
       awsOpts = Opts.aws brigOpts
   lg <- Logger.new Logger.defSettings -- TODO: use mkLogger'?
   db <- defInitCassandra (brigOpts.cassandra) lg
-  mg <- newManager tlsManagerSettings
+  mg <- initHttpManagerWithTLSConfig True Nothing
   let fedBrigClient = FedClient @'Brig mg (brig iConf)
   emailAWSOpts <- parseEmailAWSOpts
   awsEnv <- AWS.mkEnv lg awsOpts emailAWSOpts mg
