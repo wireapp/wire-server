@@ -8,6 +8,7 @@ import Data.Domain
 import Data.Id
 import Data.LanguageCodes (ISO639_1 (EN))
 import Data.LegalHold (UserLegalHoldStatus (UserLegalHoldDisabled))
+import Data.Map.Lazy qualified as LM
 import Data.Map.Strict qualified as M
 import Data.Proxy
 import Data.Qualified
@@ -226,23 +227,27 @@ runOnOwnBackend' act = do
   modify (\minifed -> minifed {backends = M.insert ownDomain newBackend (minifed.backends)})
   pure res
 
-miniGetUsersByIds :: [UserId] -> MiniFederationMonad 'Brig [UserProfile]
-miniGetUsersByIds userIds = runOnOwnBackend do
-  usersById :: Map UserId StoredUser <-
-    gets (M.fromList . map (\user -> (user.id, user)) . S.toList . users)
-  let lookedUpUsers = mapMaybe (flip M.lookup usersById) userIds
+miniGetAllProfiles ::
+  (Member (Input Domain) r, Member (State MiniBackend) r) =>
+  Sem r [UserProfile]
+miniGetAllProfiles = do
+  users <- gets (.users)
   dom <- input
   pure $
     map
-      do
-        mkUserProfileWithEmail
-          Nothing
-          UserLegalHoldDisabled
-          . mkUserFromStored dom miniLocale
-      lookedUpUsers
+      (mkUserProfileWithEmail Nothing UserLegalHoldDisabled . mkUserFromStored dom miniLocale)
+      (S.toList users)
+
+miniGetUsersByIds :: [UserId] -> MiniFederationMonad 'Brig [UserProfile]
+miniGetUsersByIds userIds = runOnOwnBackend do
+  usersById :: LM.Map UserId UserProfile <-
+    M.fromList . map (\user -> (user.profileQualifiedId.qUnqualified, user)) <$> miniGetAllProfiles
+  pure $ mapMaybe (flip M.lookup usersById) userIds
 
 miniGetUserById :: UserId -> MiniFederationMonad 'Brig (Maybe UserProfile)
-miniGetUserById _ = pure Nothing
+miniGetUserById uid =
+  runOnOwnBackend $
+    find (\u -> u.profileQualifiedId.qUnqualified == uid) <$> miniGetAllProfiles
 
 runMiniFederation :: Domain -> Map Domain MiniBackend -> MiniFederationMonad c a -> a
 runMiniFederation ownDomain backends =
