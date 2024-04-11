@@ -48,7 +48,7 @@ generate() {
     fi
 }
 
-generate cert and key based on CA given comma-separated hostnames as SANs
+# generate cert and key based on CA given comma-separated hostnames as SANs
 generate "localhost" "$OUTPUTNAME_LOCALHOST_CERT"
 generate "localhost.example.com" "$OUTPUTNAME_EXAMPLE_COM_CERT"
 
