@@ -109,7 +109,7 @@ remoteMLSOne2OneConversation lself rother rc =
   let members =
         ConvMembers
           { cmSelf = defMember (tUntagged lself),
-            cmOthers = []
+            cmOthers = rc.members.others
           }
    in Conversation
         { cnvQualifiedId = tUntagged (qualifyAs rother rc.id),
