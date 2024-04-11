@@ -44,6 +44,16 @@ data:
       {{- if $.Values.secrets.elasticsearchAdditional }}
       additionalCredentials: /etc/wire/brig/secrets/elasticsearch-additional-credentials.yaml
       {{- end }}
+      {{- if hasKey .elasticsearch "insecureSkipVerifyTls" }}
+      insecureSkipVerifyTls: {{ .elasticsearch.insecureSkipVerifyTls }}
+      {{- else }}
+      insecureSkipVerifyTls: False
+      {{- end }}
+      {{- if hasKey .elasticsearch "additionalInsecureSkipVerifyTls" }}
+      additionalInsecureSkipVerifyTls: {{ .elasticsearch.additionalInsecureSkipVerifyTls }}
+      {{- else}}
+      additionalInsecureSkipVerifyTls: False
+      {{- end }}
 
     cargohold:
       host: cargohold

@@ -64,6 +64,8 @@ brig:
     elasticsearch:
       host: elasticsearch-ephemeral
       index: directory_test
+      insecureSkipVerifyTls: True
+      additionalInsecureSkipVerifyTls: True
     authSettings:
       userTokenTimeout: 120
       sessionTokenTimeout: 20
