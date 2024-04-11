@@ -16,7 +16,7 @@
 
 {-
 - the only place that has the data we need about the package is the evaluated nix code, i.e. before
-  writhing the derivation; this is where we have `meta` and friends to get the data we need
+  writing the derivation; this is where we have `meta` and friends to get the data we need
 - say we now want to build a dependency tree; the issue is to find all dependencies of the derivation.
   this is hard because
   - there are normal input attrs that the builder will have a look at but also
@@ -38,13 +38,13 @@
   - this means more specifically that we cannot without care recurse into it
   - even if we only recurse very shallowly, we soon start running out of memory, this means we probably need
     to do some on the fly filtering by "actual" dependencies
-  - this is similarly and issue, because it means that for every package we have to evaluate the entirety
+  - this is similarly an issue, because it means that for every package we have to evaluate the entirety
     of the package set instead of being able to keep and persist the database
   - a more clean solution would probably be to at each time we recurse, a derivation that does the evaluation
     and outputs a JSON that can later be read
 
 how this relates to bombon:
-- bombon uses  a more coarse grained approach
+- bombon uses a more coarse grained approach
 - this builds a metadata "database" i.e. is two pass
 - see the corresponding nix code in ./nix
 -}
