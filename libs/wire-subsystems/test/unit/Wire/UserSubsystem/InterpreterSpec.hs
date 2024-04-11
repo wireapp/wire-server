@@ -41,7 +41,7 @@ import Wire.UserSubsystem.Interpreter
 spec :: Spec
 spec = describe "UserSubsystem.Interpreter" do
   describe "getUserProfile" do
-    focus $ prop
+    prop
       "all users on federating backends"
       \viewer targetUsers visibility domain remoteDomain -> do
         let localBackend = def {users = [viewer]}
@@ -107,11 +107,6 @@ spec = describe "UserSubsystem.Interpreter" do
               runNoFederationStack [targetUser, viewer] (Just teamMember) config $
                 getLocalUserProfiles viewer.id [targetUser.id]
          in retrievedProfile === []
-
--- prop "returns the profiles returned by remote backends" $
---   \viewerId targetUser visibility domain locale ->
---     let config = UserSubsystemConfig visibility domain locale
---         retrievedProfile =
 
 newtype PendingStoredUser = PendingStoredUser StoredUser
   deriving (Show, Eq)
@@ -215,20 +210,24 @@ miniLocale =
 -- | runs a stateful backend, returns the state and puts it back into the
 --   federated global state
 runOnOwnBackend :: Sem '[Input Domain, State MiniBackend] a -> MiniFederationMonad comp a
-runOnOwnBackend act = MkMiniFederationMonad do
+runOnOwnBackend = MkMiniFederationMonad . runOnOwnBackend' . subsume_
+
+-- | Runs action in the context of a single backend, without access to others.
+runOnOwnBackend' ::
+  (Member (Input MiniContext) r, Member (State MiniFederation) r) =>
+  Sem (Input Domain ': State MiniBackend ': r) a ->
+  Sem r a
+runOnOwnBackend' act = do
   ownDomain <- inputs (.ownDomain)
   ownBackend <-
     fromMaybe (error "tried to lookup domain that is not part of the backends' state")
       <$> gets (M.lookup ownDomain . backends)
-  let (newBackend, res) = run $ runState ownBackend $ runInputConst ownDomain act
+  (newBackend, res) <- runState ownBackend $ runInputConst ownDomain act
   modify (\minifed -> minifed {backends = M.insert ownDomain newBackend (minifed.backends)})
   pure res
 
 miniGetUsersByIds :: [UserId] -> MiniFederationMonad 'Brig [UserProfile]
 miniGetUsersByIds userIds = runOnOwnBackend do
-  -- TODO(mangoiv): we probably want to have a lens that gets and sets
-  -- some specific backend instead of all backends
-
   usersById :: Map UserId StoredUser <-
     gets (M.fromList . map (\user -> (user.id, user)) . S.toList . users)
   let lookedUpUsers = mapMaybe (flip M.lookup usersById) userIds

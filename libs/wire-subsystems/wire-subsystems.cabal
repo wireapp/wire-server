@@ -143,19 +143,19 @@ test-suite wire-subsystems-tests
     , bilge
     , bytestring
     , containers
-    , extended
     , data-default
+    , extended
     , gundeck-types
     , hspec
     , imports
     , iso639
-    , transformers
     , polysemy
     , polysemy-plugin
     , polysemy-wire-zoo
     , QuickCheck
     , quickcheck-instances
     , servant-client-core
+    , transformers
     , types-common
     , wire-api
     , wire-api-federation
