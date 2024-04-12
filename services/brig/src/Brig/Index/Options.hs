@@ -133,7 +133,7 @@ localElasticSettings =
   ElasticSettings
     { _esConnection =
         ESConnectionSettings
-          { esServer = [uri|http://localhost:9200|],
+          { esServer = [uri|https://localhost:9200|],
             esIndex = ES.IndexName "directory_test",
             esCaCert = Nothing,
             esInsecureSkipVerifyTls = True,
