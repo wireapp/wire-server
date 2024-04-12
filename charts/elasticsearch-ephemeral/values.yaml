@@ -14,3 +14,6 @@ resources:
   requests:
     cpu: "250m"
     memory: "500Mi"
+
+secrets:
+  password: "changeme"

@@ -34,9 +34,8 @@ spec:
           value: ".watches,.triggered_watches,.watcher-history-*,pod-*,node-*"
         - name: "xpack.security.enabled"
           value: "true"
-        # setting the password here is ok, as this chart is only used for integration tests on CI
         - name: "ELASTIC_PASSWORD"
-          value: "changeme"
+          value: {{ .Values.secrets.password }}
         ports:
         - containerPort: 9200
           name: http
