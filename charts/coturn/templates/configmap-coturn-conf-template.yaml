@@ -27,7 +27,7 @@ data:
     no-cli
 
     ## turn, stun.
-    listening-ip={{ .Values.coturnTurnListenIP }}  # was: __COTURN_EXT_IP__
+    listening-ip={{ default "__COTURN_EXT_IP__" .Values.coturnTurnListenIP }}
     listening-port={{ .Values.coturnTurnListenPort }}
     relay-ip=__COTURN_EXT_IP__
     realm=dummy.io
