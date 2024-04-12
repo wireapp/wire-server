@@ -179,7 +179,7 @@ library
     , polysemy-wire-zoo
     , QuickCheck
     , raw-strings-qq
-    , saml2-web-sso          >=0.19
+    , saml2-web-sso          >=0.20
     , servant-multipart
     , servant-server
     , text
@@ -372,7 +372,7 @@ executable spar-integration
     , random
     , raw-strings-qq
     , retry
-    , saml2-web-sso          >=0.19
+    , saml2-web-sso          >=0.20
     , servant
     , servant-server
     , silently
@@ -465,7 +465,7 @@ executable spar-migrate-data
     , imports
     , lens
     , optparse-applicative
-    , saml2-web-sso         >=0.19
+    , saml2-web-sso         >=0.20
     , spar
     , text
     , time
@@ -622,7 +622,7 @@ test-suite spec
     , polysemy-plugin
     , polysemy-wire-zoo
     , QuickCheck
-    , saml2-web-sso          >=0.19
+    , saml2-web-sso          >=0.20
     , servant
     , servant-openapi3
     , spar

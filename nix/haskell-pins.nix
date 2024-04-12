@@ -82,8 +82,8 @@ let
     saml2-web-sso = {
       src = fetchgit {
         url = "https://github.com/wireapp/saml2-web-sso";
-        rev = "d50bddadf9bd9a96dd6036dad0e2dda27567ec1a";
-        sha256 = "sha256-IKovI1h2Wkm3Y7Sz6XsxLOv654SgUasaWsDX6gi9hZw=";
+        rev = "0cf23a87b140ba5b960a848ecad3976e6fdaac88";
+        sha256 = "sha256-Gm58Yjt5ZGh74cfEjcZSx6jvwkpFC324xTPLhLS29r0=";
       };
     };
 
@@ -110,9 +110,9 @@ let
 
     hsaml2 = {
       src = fetchgit {
-        url = "https://github.com/wireapp/hsaml2";
-        rev = "c11ad42e6bd6ef6a1eb298413ab131234b171224";
-        sha256 = "sha256-OYqIxe+9M8YKUpqJPgOeqOTmez7JdOd351J5NgaHrMY=";
+        url = "https://github.com/dylex/hsaml2";
+        rev = "95d9dc7502c2533f7927de00cbc2bd20ad989ace";
+        sha256 = "sha256-z3s/ZkkCd2ThVBsu72pS/+XygHImuffz/HVy3hkQ6eo=";
       };
     };
 
