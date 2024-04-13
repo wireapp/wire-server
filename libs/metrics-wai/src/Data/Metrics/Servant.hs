@@ -67,7 +67,7 @@ servantPlusWAIPrometheusMiddlewareLegacy mbRoutes _ = do
 
     paths =
       let Paths servantPaths = routesToPaths @api
-          Paths waiPaths = maybe mempty (treeToPaths . prepare) mbRoutes
+          Paths waiPaths = foldMap (treeToPaths . prepare) mbRoutes
        in Paths (meltTree (servantPaths <> waiPaths))
 
 conf :: PrometheusSettings
