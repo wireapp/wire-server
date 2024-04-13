@@ -72,8 +72,6 @@ import Galley.Types.UserList
 import Gundeck.Types.Push.V2 qualified as PushV2
 import Imports hiding (head)
 import Network.AMQP qualified as Q
-import Network.Wai.Predicate hiding (Error, err, result, setStatus)
-import Network.Wai.Routing hiding (App, route, toList)
 import Network.Wai.Utilities hiding (Error)
 import Network.Wai.Utilities.ZAuth
 import Polysemy
@@ -118,6 +116,7 @@ internalAPI =
       <@> featureAPI
       <@> federationAPI
       <@> conversationAPI
+      <@> miscInternalAPI
 
 federationAPI :: API IFederationAPI GalleyEffects
 federationAPI =
@@ -248,55 +247,99 @@ featureAPI =
     <@> mkNamedAPI @'("ipatch", LimitedEventFanoutConfig) patchFeatureStatusInternal
     <@> mkNamedAPI @"feature-configs-internal" (maybe getAllFeatureConfigsForServer getAllFeatureConfigsForUser)
 
-waiInternalSitemap :: Routes a (Sem GalleyEffects) ()
-waiInternalSitemap = unsafeCallsFed @'Galley @"on-client-removed" $ unsafeCallsFed @'Galley @"on-mls-message-sent" $ do
-  -- Misc API (internal) ------------------------------------------------
+miscInternalAPI :: API MiscInternalAPI GalleyEffects
+miscInternalAPI =
+  Named @"i-get-team-members" Teams.getBindingTeamMembersH
+    :<|> Named @"i-get-team" Teams.getBindingTeamIdH
+    :<|> Named @"i-test-get-clients" Clients.getClientsH
+    :<|> Named @"i-test-post-client" Clients.addClientH
+    :<|> Named @"i-test-delete-client" Clients.rmClientH
+    :<|> Named @"i-add-service" Update.addServiceH
+    :<|> Named @"i-delete-service" Update.rmServiceH
+    :<|> Named @"i-add-bot" Update.addBotH
+    :<|> Named @"i-delete-bot" Update.rmBotH
+    :<|> Named @"i-put-custom-backend" CustomBackend.internalPutCustomBackendByDomainH
+    :<|> Named @"i-delete-custom-backend" CustomBackend.internalDeleteCustomBackendByDomainH
 
-  get "/i/users/:uid/team/members" (continueE Teams.getBindingTeamMembersH) $
-    capture "uid"
-
-  get "/i/users/:uid/team" (continueE Teams.getBindingTeamIdH) $
-    capture "uid"
-
-  get "/i/test/clients" (continueE Clients.getClientsH) $
-    zauthUserId
-  -- eg. https://github.com/wireapp/wire-server/blob/3bdca5fc8154e324773802a0deb46d884bd09143/services/brig/test/integration/API/User/Client.hs#L319
-
-  post "/i/clients/:client" (continue Clients.addClientH) $
-    zauthUserId
-      .&. capture "client"
-
-  delete "/i/clients/:client" (continue Clients.rmClientH) $
-    zauthUserId
-      .&. capture "client"
-
-  post "/i/services" (continue Update.addServiceH) $
-    jsonRequest @Service
-
-  delete "/i/services" (continue Update.rmServiceH) $
-    jsonRequest @ServiceRef
-
-  -- This endpoint can lead to the following events being sent:
-  -- - MemberJoin event to members
-  post "/i/bots" (continueE Update.addBotH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. jsonRequest @AddBot
-
-  -- This endpoint can lead to the following events being sent:
-  -- - MemberLeave event to members
-  delete "/i/bots" (continueE Update.rmBotH) $
-    zauthUserId
-      .&. opt zauthConnId
-      .&. jsonRequest @RemoveBot
-
-  put "/i/custom-backend/by-domain/:domain" (continue CustomBackend.internalPutCustomBackendByDomainH) $
-    capture "domain"
-      .&. jsonRequest @CustomBackend
-
-  delete "/i/custom-backend/by-domain/:domain" (continue CustomBackend.internalDeleteCustomBackendByDomainH) $
-    capture "domain"
-      .&. accept "application" "json"
+-- | TODO: move to wire-api
+type MiscInternalAPI =
+  Named "i-get-team-members"
+    :> ( "users"
+           :> Capture "uid" UserId
+           :> "team"
+           :> "members"
+           :> Get '[JSON] Int
+       )
+    :<|> Named "i-get-team"
+      :> ( "users"
+             :> Capture "uid" UserId
+             :> "team"
+             :> Get '[JSON] Int
+         )
+    :<|> Named "i-test-get-clients"
+      :> ( -- eg. https://github.com/wireapp/wire-server/blob/3bdca5fc8154e324773802a0deb46d884bd09143/services/brig/test/integration/API/User/Client.hs#L319
+           "test"
+             :> "clients"
+             :> ZLocalUser
+             :> Get '[JSON] Int
+         )
+    :<|> Named "i-test-post-client"
+      :> ( "clients"
+             :> Capture "cid" ClientId
+             :> ZLocalUser
+             :> Post '[JSON] Int
+         )
+    :<|> Named "i-test-delete-client"
+      :> ( "clients"
+             :> Capture "cid" ClientId
+             :> ZLocalUser
+             :> Delete '[JSON] Int
+         )
+    :<|> Named "i-add-service"
+      :> ( "services"
+             :> RequestBodyLBS Service
+             :> Post '[JSON] Int
+         )
+    :<|> Named "i-delete-service"
+      :> ( "services"
+             :> RequestBodyLBS ServiceRef
+             :> Post '[JSON] Int
+         )
+    :<|> Named "i-add-bot"
+      :> ( -- This endpoint can lead to the following events being sent:
+           -- - MemberJoin event to members
+           "bots"
+             :> RequestBodyLBS AddBot
+             :> ZLocalUser
+             :> ZConn
+             :> Post '[JSON] Int
+         )
+    :<|> Named "i-delete-bot"
+      :> ( -- This endpoint can lead to the following events being sent:
+           -- - MemberLeave event to members
+           "bots"
+             :> RequestBodyLBS RemoveBot
+             :> ZLocalUser
+             :> ZConn
+             :> Post '[JSON] Int
+         )
+    :<|> Named "i-put-custom-backend"
+      :> ( -- This endpoint can lead to the following events being sent:
+           -- - MemberLeave event to members
+           "custom-backend"
+             :> "by-domain"
+             :> Capture "dom" Domain
+             :> RequestBodyLBS CustomBackend
+             :> Put '[JSON] Int
+         )
+    :<|> Named "i-delete-custom-backend"
+      :> ( -- This endpoint can lead to the following events being sent:
+           -- - MemberLeave event to members
+           "custom-backend"
+             :> "by-domain"
+             :> Capture "dom" Domain
+             :> Delete '[JSON] Int
+         )
 
 rmUser ::
   forall p1 p2 r.

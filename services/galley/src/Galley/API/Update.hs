@@ -106,7 +106,6 @@ import Galley.Effects.ExternalAccess qualified as E
 import Galley.Effects.FederatorAccess qualified as E
 import Galley.Effects.MemberStore qualified as E
 import Galley.Effects.ServiceStore qualified as E
-import Galley.Effects.WaiRoutes
 import Galley.Options
 import Galley.Types.Bot hiding (addBot)
 import Galley.Types.Bot.Service (Service)
@@ -114,13 +113,12 @@ import Galley.Types.Conversations.Members (LocalMember (..))
 import Galley.Types.UserList
 import Imports hiding (forkIO)
 import Network.HTTP.Types
-import Network.Wai
-import Network.Wai.Predicate hiding (Error, and, failure, setStatus, _1, _2)
 import Network.Wai.Utilities hiding (Error)
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog
+import Servant.API
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Code
@@ -260,11 +258,6 @@ unblockRemoteConv lusr rcnv = do
   E.createMembersInRemoteConversation rcnv [tUnqualified lusr]
 
 -- conversation updates
-
-handleUpdateResult :: UpdateResult Event -> Response
-handleUpdateResult = \case
-  Updated ev -> json ev & setStatus status200
-  Unchanged -> empty & setStatus status204
 
 type UpdateConversationAccessEffects =
   '[ BackendNotificationQueueAccess,
@@ -1541,48 +1534,22 @@ memberTypingUnqualified lusr zcon cnv ts = do
   memberTyping lusr zcon (tUntagged lcnv) ts
 
 addServiceH ::
-  ( Member ServiceStore r,
-    Member WaiRoutes r
+  ( Member ServiceStore r
   ) =>
-  JsonRequest Service ->
-  Sem r Response
+  Service ->
+  Sem r NoContent
 addServiceH req = do
-  E.createService =<< fromJsonBody req
-  pure empty
+  NoContent <$ E.createService req
 
 rmServiceH ::
-  ( Member ServiceStore r,
-    Member WaiRoutes r
+  ( Member ServiceStore r
   ) =>
-  JsonRequest ServiceRef ->
-  Sem r Response
+  ServiceRef ->
+  Sem r NoContent
 rmServiceH req = do
-  E.deleteService =<< fromJsonBody req
-  pure empty
+  NoContent <$ E.deleteService req
 
 addBotH ::
-  ( Member ClientStore r,
-    Member ConversationStore r,
-    Member (ErrorS ('ActionDenied 'AddConversationMember)) r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'InvalidOperation) r,
-    Member (ErrorS 'TooManyMembers) r,
-    Member ExternalAccess r,
-    Member NotificationSubsystem r,
-    Member (Input (Local ())) r,
-    Member (Input Opts) r,
-    Member (Input UTCTime) r,
-    Member MemberStore r,
-    Member WaiRoutes r
-  ) =>
-  UserId ::: ConnId ::: JsonRequest AddBot ->
-  Sem r Response
-addBotH (zusr ::: zcon ::: req) = do
-  bot <- fromJsonBody req
-  lusr <- qualifyLocal zusr
-  json <$> addBot lusr zcon bot
-
-addBot ::
   forall r.
   ( Member ClientStore r,
     Member ConversationStore r,
@@ -1594,17 +1561,19 @@ addBot ::
     Member NotificationSubsystem r,
     Member (Input Opts) r,
     Member (Input UTCTime) r,
+    Member (Input (Local ())) r,
     Member MemberStore r
   ) =>
-  Local UserId ->
+  UserId ->
   ConnId ->
   AddBot ->
   Sem r Event
-addBot lusr zcon b = do
+addBotH zusr zcon b = do
+  lusr <- qualifyLocal zusr
   c <-
     E.getConversation (b ^. addBotConv) >>= noteS @'ConvNotFound
   -- Check some preconditions on adding bots to a conversation
-  (bots, users) <- regularConvChecks c
+  (bots, users) <- regularConvChecks lusr c
   t <- input
   E.createClient (botUserId (b ^. addBotId)) (b ^. addBotClient)
   bm <- E.createBotMember (b ^. addBotService) (b ^. addBotId) (b ^. addBotConv)
@@ -1627,7 +1596,7 @@ addBot lusr zcon b = do
   E.deliverAsync (map (,e) (bm : bots))
   pure e
   where
-    regularConvChecks c = do
+    regularConvChecks lusr c = do
       let (bots, users) = localBotsAndUsers (Data.convLocalMembers c)
       unless (tUnqualified lusr `isMember` users) $ throwS @'ConvNotFound
       ensureGroupConversation c
@@ -1649,15 +1618,17 @@ rmBotH ::
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member MemberStore r,
-    Member WaiRoutes r,
     Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r
   ) =>
-  UserId ::: Maybe ConnId ::: JsonRequest RemoveBot ->
-  Sem r Response
-rmBotH (zusr ::: zcon ::: req) = do
+  UserId ->
+  Maybe ConnId ->
+  RemoveBot ->
+  Sem r NoContent
+rmBotH zusr zcon bot = do
   lusr <- qualifyLocal zusr
-  bot <- fromJsonBody req
-  handleUpdateResult <$> rmBot lusr zcon bot
+  rmBot lusr zcon bot <&> \case
+    Updated ev -> undefined $ json ev & setStatus status200
+    Unchanged -> undefined $ empty & setStatus status204
 
 rmBot ::
   ( Member ClientStore r,

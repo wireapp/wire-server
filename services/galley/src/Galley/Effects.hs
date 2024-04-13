@@ -52,7 +52,6 @@ module Galley.Effects
 
     -- * Other effects
     Queue,
-    WaiRoutes,
 
     -- * Polysemy re-exports
     Member,
@@ -89,7 +88,6 @@ import Galley.Effects.TeamFeatureStore
 import Galley.Effects.TeamMemberStore
 import Galley.Effects.TeamNotificationStore
 import Galley.Effects.TeamStore
-import Galley.Effects.WaiRoutes
 import Galley.Env
 import Galley.Options
 import Galley.Types.Teams (FeatureLegalHold)
@@ -143,7 +141,6 @@ type GalleyEffects1 =
      Input (Maybe [TeamId], FeatureLegalHold),
      Input (Local ()),
      Input Opts,
-     WaiRoutes,
      Input UTCTime,
      Queue DeleteItem,
      TinyLog,

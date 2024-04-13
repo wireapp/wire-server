@@ -31,8 +31,6 @@ import Galley.Effects qualified as E
 import Galley.Options
 import Imports hiding (head)
 import Network.Wai
-import Network.Wai.Predicate hiding (Error, or, result, setStatus)
-import Network.Wai.Routing hiding (route)
 import Network.Wai.Utilities.ZAuth hiding (ZAuthUser)
 import Polysemy
 import Polysemy.Error
@@ -42,9 +40,10 @@ import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Team qualified as Public ()
+import Wire.API.Provider.Bot qualified as Bot
 import Wire.API.Routes.API
 
--- These are all the errors that can be thrown by wai-routing handlers.
+-- | These are all the errors that can be thrown by wai-routing handlers.
 -- We don't do any static checks on these errors, so we simply remap them to
 -- dynamic errors. See 'continueE'.
 type ErrorEffects =
@@ -75,6 +74,7 @@ type ErrorEffects =
      Error AuthenticationError
    ]
 
+{-
 -- Wrapper of 'continue' that remaps all static errors to dynamic ones.
 continueE ::
   forall a r.
@@ -84,6 +84,7 @@ continueE ::
   Continue (Sem r) ->
   Sem r ResponseReceived
 continueE h = continue (interpretServerEffects @ErrorEffects . h)
+-}
 
 sitemap :: Routes () (Sem GalleyEffects) ()
 sitemap = do
@@ -94,6 +95,15 @@ sitemap = do
       .&> zauthBotId
         .&. zauthConvId
         .&. accept "application" "json"
+
+type GetBotConversationH =
+  Named
+    "get-bot-conversation"
+    ( "bot"
+        :> "conversation"
+        :> ZBot
+        :> ZConversation
+    )
 
 getBotConversationH ::
   forall r.
@@ -108,9 +118,8 @@ getBotConversationH ::
     Member (ErrorS 'TeamNotFound) r,
     Member TeamStore r
   ) =>
-  BotId ::: ConvId ::: JSON ->
-  Sem r Response
-getBotConversationH arg@(bid ::: cid ::: _) =
-  Features.guardSecondFactorDisabled (botUserId bid) cid (Query.getBotConversationH arg)
-
-type JSON = Media "application" "json"
+  BotId ->
+  ConvId ->
+  Sem r Bot.BotConvView
+getBotConversationH bid cid =
+  Features.guardSecondFactorDisabled (botUserId bid) cid (Query.getBotConversationH bid cid)

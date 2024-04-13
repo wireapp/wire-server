@@ -24,15 +24,10 @@ module Galley.API.CustomBackend
 where
 
 import Data.Domain (Domain)
-import Galley.API.Util
 import Galley.Effects.CustomBackendStore
-import Galley.Effects.WaiRoutes
 import Imports hiding ((\\))
-import Network.HTTP.Types
-import Network.Wai
-import Network.Wai.Predicate hiding (Error, setStatus)
-import Network.Wai.Utilities hiding (Error)
 import Polysemy
+import Servant.API
 import Wire.API.CustomBackend
 import Wire.API.CustomBackend qualified as Public
 import Wire.API.Error
@@ -53,19 +48,8 @@ getCustomBackendByDomain domain =
 
 -- INTERNAL -------------------------------------------------------------------
 
-internalPutCustomBackendByDomainH ::
-  ( Member CustomBackendStore r,
-    Member WaiRoutes r
-  ) =>
-  Domain ::: JsonRequest CustomBackend ->
-  Sem r Response
-internalPutCustomBackendByDomainH (domain ::: req) = do
-  customBackend <- fromJsonBody req
-  -- simple enough to not need a separate function
-  setCustomBackend domain customBackend
-  pure (empty & setStatus status201)
+internalPutCustomBackendByDomainH :: Member CustomBackendStore r => Domain -> CustomBackend -> Sem r NoContent
+internalPutCustomBackendByDomainH dom be = NoContent <$ setCustomBackend dom be
 
-internalDeleteCustomBackendByDomainH :: Member CustomBackendStore r => Domain ::: JSON -> Sem r Response
-internalDeleteCustomBackendByDomainH (domain ::: _) = do
-  deleteCustomBackend domain
-  pure (empty & setStatus status200)
+internalDeleteCustomBackendByDomainH :: Member CustomBackendStore r => Domain -> Sem r NoContent
+internalDeleteCustomBackendByDomainH dom = NoContent <$ deleteCustomBackend dom

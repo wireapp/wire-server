@@ -41,12 +41,12 @@ import Galley.Types.Clients (clientIds, fromUserClients)
 import Imports
 import Network.AMQP qualified as Q
 import Network.Wai
-import Network.Wai.Predicate hiding (Error, setStatus)
 import Network.Wai.Utilities hiding (Error)
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog qualified as P
+import Servant.API
 import System.Logger.Message
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Federation.API
@@ -81,11 +81,11 @@ getClients usr = do
 
 addClientH ::
   Member ClientStore r =>
-  UserId ::: ClientId ->
-  Sem r Response
-addClientH (usr ::: clt) = do
-  E.createClient usr clt
-  pure empty
+  UserId ->
+  ClientId ->
+  Sem r NoContent
+addClientH usr clt = do
+  NoContent <$ E.createClient usr clt
 
 -- | Remove a client from conversations it is part of according to the
 -- conversation protocol (Proteus or MLS). In addition, remove the client from
@@ -110,9 +110,10 @@ rmClientH ::
     Member SubConversationStore r,
     Member P.TinyLog r
   ) =>
-  UserId ::: ClientId ->
-  Sem r Response
-rmClientH (usr ::: cid) = do
+  UserId ->
+  ClientId ->
+  Sem r NoContent
+rmClientH usr cid = do
   clients <- E.getClients [usr]
   if (cid `elem` clientIds usr clients)
     then do
@@ -127,7 +128,7 @@ rmClientH (usr ::: cid) = do
             . field "client" (clientToText cid)
             . msg (val "rmClientH: client already gone")
         )
-  pure empty
+  pure NoContent
   where
     goConvs :: Range 1 1000 Int32 -> ConvIdsPage -> Local UserId -> Sem r ()
     goConvs range page lusr = do

@@ -22,7 +22,6 @@
 , case-insensitive
 , cassandra-util
 , cassava
-, cereal
 , comonad
 , conduit
 , containers
@@ -70,7 +69,6 @@
 , polysemy-wire-zoo
 , process
 , proto-lens
-, protobuf
 , QuickCheck
 , quickcheck-instances
 , random
@@ -118,8 +116,6 @@
 , wai
 , wai-extra
 , wai-middleware-gunzip
-, wai-predicates
-, wai-routing
 , wai-utilities
 , warp
 , warp-tls
@@ -151,7 +147,6 @@ mkDerivation {
     case-insensitive
     cassandra-util
     cassava
-    cereal
     comonad
     containers
     cql
@@ -184,7 +179,6 @@ mkDerivation {
     polysemy
     polysemy-wire-zoo
     proto-lens
-    protobuf
     raw-strings-qq
     resourcet
     retry
@@ -215,8 +209,6 @@ mkDerivation {
     wai
     wai-extra
     wai-middleware-gunzip
-    wai-predicates
-    wai-routing
     wai-utilities
     wire-api
     wire-api-federation
@@ -237,7 +229,6 @@ mkDerivation {
     case-insensitive
     cassandra-util
     cassava
-    cereal
     conduit
     containers
     cookie
@@ -272,7 +263,6 @@ mkDerivation {
     pem
     process
     proto-lens
-    protobuf
     QuickCheck
     quickcheck-instances
     random

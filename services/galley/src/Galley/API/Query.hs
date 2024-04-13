@@ -79,10 +79,6 @@ import Galley.Env
 import Galley.Options
 import Galley.Types.Conversations.Members
 import Galley.Types.Teams
-import Imports
-import Network.Wai
-import Network.Wai.Predicate hiding (Error, result, setStatus)
-import Network.Wai.Utilities hiding (Error)
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
@@ -111,11 +107,10 @@ getBotConversationH ::
     Member (ErrorS 'ConvNotFound) r,
     Member (Input (Local ())) r
   ) =>
-  BotId ::: ConvId ::: JSON ->
-  Sem r Response
-getBotConversationH (zbot ::: zcnv ::: _) = do
-  lcnv <- qualifyLocal zcnv
-  json <$> getBotConversation zbot lcnv
+  BotId ->
+  ConvId ->
+  Sem r Public.BotConvView
+getBotConversationH zbot zcnv = getBotConversation zbot =<< qualifyLocal zcnv
 
 getBotConversation ::
   ( Member ConversationStore r,
