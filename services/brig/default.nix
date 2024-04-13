@@ -149,9 +149,7 @@
 , wai
 , wai-extra
 , wai-middleware-gunzip
-, wai-predicates
 , wai-route
-, wai-routing
 , wai-utilities
 , warp
 , warp-tls
@@ -284,8 +282,6 @@ mkDerivation {
     wai
     wai-extra
     wai-middleware-gunzip
-    wai-predicates
-    wai-routing
     wai-utilities
     wire-api
     wire-api-federation

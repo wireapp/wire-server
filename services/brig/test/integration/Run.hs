@@ -35,16 +35,12 @@ import API.User qualified as User
 import API.UserPendingActivation qualified as UserPendingActivation
 import Bilge hiding (header, host, port)
 import Bilge qualified
-import Brig.API (sitemap)
 import Brig.AWS qualified as AWS
-import Brig.CanonicalInterpreter
 import Brig.Options qualified as Opts
 import Cassandra.Util (defInitCassandra)
 import Control.Lens
 import Data.Aeson
 import Data.ByteString.Char8 qualified as B8
-import Data.Metrics.Test (pathsConsistencyCheck)
-import Data.Metrics.WaiRoute (treeToPaths)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Yaml (decodeFileEither)
 import Federation.End2end qualified
@@ -53,14 +49,12 @@ import Index.Create qualified
 import Network.HTTP.Client qualified as HTTP
 import Network.HTTP.Client.TLS (tlsManagerSettings)
 import Network.URI (pathSegments)
-import Network.Wai.Utilities.Server (compile)
 import OpenSSL (withOpenSSL)
 import Options.Applicative hiding (action)
 import SMTP qualified
 import System.Environment (withArgs)
 import System.Logger qualified as Logger
 import Test.Tasty
-import Test.Tasty.HUnit
 import Test.Tasty.Ingredients
 import Test.Tasty.Runners
 import Test.Tasty.Runners.AntXML
@@ -159,12 +153,7 @@ runTests iConf brigOpts otherArgs = do
   withArgs otherArgs . defaultMainWithIngredients (listingTests : (composeReporters antXMLRunner consoleTestReporter) : defaultIngredients)
     $ testGroup
       "Brig API Integration"
-    $ [ testCase "sitemap" $
-          assertEqual
-            "inconcistent sitemap"
-            mempty
-            (pathsConsistencyCheck . treeToPaths . compile $ Brig.API.sitemap @BrigCanonicalEffects),
-        userApi,
+    $ [ userApi,
         providerApi,
         searchApis,
         teamApis,

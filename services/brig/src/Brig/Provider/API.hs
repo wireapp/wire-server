@@ -17,10 +17,11 @@
 
 module Brig.Provider.API
   ( -- * Main stuff
-    routesInternal,
     botAPI,
     servicesAPI,
     providerAPI,
+    InternalProviderAPI,
+    internalProviderAPI,
 
     -- * Event handlers
     finishDeleteService,
@@ -79,21 +80,16 @@ import Data.Text.Encoding qualified as Text
 import Data.Text.Lazy qualified as Text
 import GHC.TypeNats
 import Imports
-import Network.HTTP.Types.Status
-import Network.Wai (Response)
-import Network.Wai.Predicate (accept)
-import Network.Wai.Routing
+import Network.HTTP.Types
 import Network.Wai.Utilities.Error ((!>>))
 import Network.Wai.Utilities.Error qualified as Wai
-import Network.Wai.Utilities.Response (json)
-import Network.Wai.Utilities.ZAuth
 import OpenSSL.EVP.Digest qualified as SSL
 import OpenSSL.EVP.PKey qualified as SSL
 import OpenSSL.PEM qualified as SSL
 import OpenSSL.RSA qualified as SSL
 import OpenSSL.Random (randBytes)
 import Polysemy
-import Servant (ServerT, (:<|>) (..))
+import Servant (JSON, QueryParam', Required, ServerT, Strict, Summary, (:<|>) (..), (:>))
 import Ssl.Util qualified as SSL
 import System.Logger.Class (MonadLogger)
 import UnliftIO.Async (pooledMapConcurrentlyN_)
@@ -114,6 +110,7 @@ import Wire.API.Provider.External qualified as Ext
 import Wire.API.Provider.Service
 import Wire.API.Provider.Service qualified as Public
 import Wire.API.Provider.Service.Tag qualified as Public
+import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named (Named (Named))
 import Wire.API.Routes.Public.Brig.Bot (BotAPI)
 import Wire.API.Routes.Public.Brig.Provider (ProviderAPI)
@@ -177,11 +174,23 @@ providerAPI =
     :<|> Named @"provider-get-account" getAccount
     :<|> Named @"provider-get-profile" getProviderProfile
 
-routesInternal :: Member GalleyProvider r => Routes a (Handler r) ()
-routesInternal = do
-  get "/i/provider/activation-code" (continue getActivationCodeH) $
-    accept "application" "json"
-      .&> param "email"
+type InternalProviderAPI =
+  -- (This was introduced here to get rid of wai-routing and wai-predicate.  It would normally
+  -- go into wire-api, but it depends on "Brig.Code", and the required module restructuring
+  -- can wait, other stuff to do.)
+  "i"
+    :> ( Named
+           "provider-internal-get-activation-code"
+           ( Summary "Retrieve activation code via api instead of email (for testing only)"
+               :> "provider"
+               :> "activation-code"
+               :> QueryParam' '[Required, Strict] "email" Public.Email
+               :> MultiVerb1 'GET '[JSON] (Respond 200 "" FoundActivationCode)
+           )
+       )
+
+internalProviderAPI :: Member GalleyProvider r => ServerT InternalProviderAPI (Handler r)
+internalProviderAPI = Named @"provider-internal-get-activation-code" getActivationCodeH
 
 --------------------------------------------------------------------------------
 -- Public API (Unauthenticated)
@@ -242,26 +251,21 @@ activateAccountKey key val = do
       lift $ sendApprovalConfirmMail name email
       pure . Just $ Public.ProviderActivationResponse email
 
-getActivationCodeH :: Member GalleyProvider r => Public.Email -> (Handler r) Response
+getActivationCodeH :: Member GalleyProvider r => Public.Email -> (Handler r) FoundActivationCode
 getActivationCodeH e = do
   guardSecondFactorDisabled Nothing
-  json <$> getActivationCode e
-
-getActivationCode :: Public.Email -> (Handler r) FoundActivationCode
-getActivationCode e = do
   email <- case validateEmail e of
     Right em -> pure em
     Left _ -> throwStd (errorToWai @'E.InvalidEmail)
   gen <- Code.mkGen (Code.ForEmail email)
   code <- wrapClientE $ Code.lookup (Code.genKey gen) Code.IdentityVerification
-  maybe (throwStd activationKeyNotFound) (pure . FoundActivationCode) code
+  maybe (throwStd activationKeyNotFound) (pure . mkFoundActivationCode) code
 
-newtype FoundActivationCode = FoundActivationCode Code.Code
+newtype FoundActivationCode = FoundActivationCode Code.KeyValuePair
+  deriving newtype (ToJSON, FromJSON)
 
-instance ToJSON FoundActivationCode where
-  toJSON (FoundActivationCode vcode) =
-    toJSON $
-      Code.KeyValuePair (Code.codeKey vcode) (Code.codeValue vcode)
+mkFoundActivationCode :: Code.Code -> FoundActivationCode
+mkFoundActivationCode vcode = FoundActivationCode $ Code.KeyValuePair (Code.codeKey vcode) (Code.codeValue vcode)
 
 login :: Member GalleyProvider r => ProviderLogin -> Handler r ProviderTokenCookie
 login l = do
