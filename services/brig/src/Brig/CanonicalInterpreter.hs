@@ -1,5 +1,6 @@
 module Brig.CanonicalInterpreter where
 
+import Brig.API.Error qualified as E
 import Brig.App
 import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
 import Brig.Effects.BlacklistPhonePrefixStore.Cassandra (interpretBlacklistPhonePrefixStoreToCassandra)
@@ -26,13 +27,16 @@ import Control.Monad.Catch (throwM)
 import Data.Qualified (Local, toLocalUnsafe)
 import Data.Time.Clock (UTCTime, getCurrentTime)
 import Imports
-import Polysemy (Embed, Final, embed, embedToFinal, runFinal)
+import Polysemy (Embed, Final, Member, Sem, embed, embedToFinal, runFinal)
 import Polysemy.Async
 import Polysemy.Conc
 import Polysemy.Embed (runEmbedded)
 import Polysemy.Error (Error, mapError, runError)
 import Polysemy.Input (Input, runInputConst, runInputSem)
 import Polysemy.TinyLog (TinyLog)
+import Wire.API.Federation.Client qualified
+import Wire.API.Federation.Error qualified
+import Wire.FederationAPIAccess qualified
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess.Rpc
 import Wire.GundeckAPIAccess
@@ -48,11 +52,15 @@ import Wire.Sem.Logger.TinyLog (loggerToTinyLog)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now.IO (nowToIOAction)
 import Wire.Sem.Paging.Cassandra (InternalPaging)
+import Wire.UserStore
 import Wire.UserSubsystem
 import Wire.UserSubsystem.Interpreter
 
 type BrigCanonicalEffects =
   '[ UserSubsystem,
+     Error Wire.API.Federation.Error.FederationError,
+     Wire.FederationAPIAccess.FederationAPIAccess Wire.API.Federation.Client.FederatorClient,
+     UserStore,
      SFT,
      ConnectionStore InternalPaging,
      Input UTCTime,
@@ -116,7 +124,19 @@ runBrigToIO e (AppT ma) = do
               . runInputSem (embed getCurrentTime)
               . connectionStoreToCassandra
               . interpretSFT (e ^. httpManager)
+              . runUserStore
+              . runFederationAPIAccess
+              . throwLeftAsWaiError undefined
               . runUserSubsystem undefined
           )
     )
     $ runReaderT ma e
+
+throwLeftAsWaiError :: forall e a r. (Member (Final IO) r) => (e -> E.Error) -> Sem (Error e ': r) a -> Sem r a
+throwLeftAsWaiError = undefined
+
+runFederationAPIAccess :: forall r a. (Member (Final IO) r) => Sem (Wire.FederationAPIAccess.FederationAPIAccess Wire.API.Federation.Client.FederatorClient ': r) a -> Sem r a
+runFederationAPIAccess = undefined
+
+runUserStore :: forall r a. Sem (UserStore ': r) a -> Sem r a
+runUserStore = undefined
