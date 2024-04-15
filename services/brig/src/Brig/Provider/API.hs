@@ -58,7 +58,6 @@ import Control.Exception.Enclosed (handleAny)
 import Control.Lens (view, (^.))
 import Control.Monad.Catch (MonadMask)
 import Control.Monad.Except
-import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy.Char8 qualified as LC8
 import Data.CommaSeparatedList (CommaSeparatedList (fromCommaSeparatedList))
@@ -244,9 +243,6 @@ getActivationCodeH e = do
   gen <- Code.mkGen (Code.ForEmail email)
   code <- wrapClientE $ Code.lookup (Code.genKey gen) Code.IdentityVerification
   maybe (throwStd activationKeyNotFound) (pure . Code.codeToKeyValuePair) code
-
-newtype FoundActivationCode = FoundActivationCode Code.KeyValuePair
-  deriving newtype (ToJSON, FromJSON)
 
 login :: Member GalleyProvider r => ProviderLogin -> Handler r ProviderTokenCookie
 login l = do
