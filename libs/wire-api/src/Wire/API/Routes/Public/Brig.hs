@@ -30,7 +30,7 @@ import Data.Id as Id
 import Data.Nonce (Nonce)
 import Data.OpenApi hiding (Contact, Header, Schema, ToSchema)
 import Data.OpenApi qualified as S
-import Data.Qualified (Qualified (..))
+import Data.Qualified (Local, Qualified (..))
 import Data.Range
 import Data.SOP
 import Data.Schema as Schema
@@ -155,7 +155,7 @@ type UserAPI =
     ( Summary "Get a user by UserId"
         :> MakesFederatedCall 'Brig "get-users-by-ids"
         :> Until 'V2
-        :> ZUser
+        :> Local ZUser
         :> "users"
         :> CaptureUserId "uid"
         :> GetUserVerb
@@ -166,7 +166,7 @@ type UserAPI =
       "get-user-qualified"
       ( Summary "Get a user by Domain and UserId"
           :> MakesFederatedCall 'Brig "get-users-by-ids"
-          :> ZUser
+          :> Local ZUser
           :> "users"
           :> QualifiedCaptureUserId "uid"
           :> GetUserVerb
