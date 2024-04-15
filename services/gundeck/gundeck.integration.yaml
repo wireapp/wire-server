@@ -14,9 +14,12 @@ cassandra:
   # filterNodesByDatacentre: datacenter1
 
 redis:
-  host: 127.0.0.1
+  host: localhost
   port: 6377
   connectionMode: cluster # master | cluster
+  enableTls: true
+  tlsCa: ../../deploy/dockerephemeral/docker/redis-ca.pem
+  verifyTls: false
 
 # redisAdditionalWrite:
 #   host: 127.0.0.1

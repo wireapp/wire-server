@@ -110,7 +110,13 @@ deriveJSON defaultOptions {constructorTagModifier = map toLower} ''RedisConnecti
 data RedisEndpoint = RedisEndpoint
   { _host :: !Text,
     _port :: !Word16,
-    _connectionMode :: !RedisConnectionMode
+    _connectionMode :: !RedisConnectionMode,
+    _enableTls :: !Bool,
+    -- | When not specified, use system CA bundle
+    _tlsCa :: !(Maybe FilePath),
+    -- | When 'False', uses TLS but does not verify hostname or CA or validity
+    -- of the cert. Not recommended to set to 'False'.
+    _verifyTls :: !Bool
   }
   deriving (Show, Generic)
 

@@ -29,9 +29,10 @@ import Control.Retry (capDelay, exponentialBackoff)
 import Data.ByteString.Char8 qualified as BSChar8
 import Data.Metrics.Middleware (Metrics)
 import Data.Misc (Milliseconds (..))
-import Data.Text (unpack)
+import Data.Text qualified as Text
 import Data.Time.Clock
 import Data.Time.Clock.POSIX
+import Data.X509.CertificateStore as CertStore
 import Database.Redis qualified as Redis
 import Gundeck.Aws qualified as Aws
 import Gundeck.Options as Opt hiding (host, port)
@@ -42,6 +43,8 @@ import Gundeck.ThreadBudget
 import Imports
 import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.TLS (tlsManagerSettings)
+import Network.TLS as TLS
+import Network.TLS.Extra qualified as TLS
 import System.Logger qualified as Log
 import System.Logger.Extended qualified as Logger
 
@@ -108,16 +111,58 @@ reqIdMsg :: RequestId -> Logger.Msg -> Logger.Msg
 reqIdMsg = ("request" Logger..=) . unRequestId
 {-# INLINE reqIdMsg #-}
 
+testConnInfo :: Redis.ConnectInfo
+testConnInfo =
+  let tlsParams =
+        (defaultParamsClient "localhost" "")
+          { clientHooks = (defaultParamsClient "" "").clientHooks {onServerCertificate = \_ _ _ _ -> pure []},
+            clientSupported = (defaultParamsClient "" "").clientSupported {supportedVersions = [TLS.TLS12], supportedCiphers = TLS.ciphersuite_strong},
+            clientDebug = (defaultParamsClient "" "").clientDebug {debugKeyLogger = appendFile "/tmp/redis-tls-debug" . (<> "\n")}
+          }
+   in Redis.defaultConnectInfo
+        { Redis.connectHost = "localhost",
+          Redis.connectPort = Redis.PortNumber 6377,
+          Redis.connectUsername = Nothing,
+          Redis.connectAuth = Just "very-secure-redis-cluster-password",
+          Redis.connectTimeout = Just (secondsToNominalDiffTime 5),
+          Redis.connectMaxConnections = 100,
+          Redis.connectTLSParams = Just tlsParams
+        }
+
 createRedisPool :: Logger.Logger -> RedisEndpoint -> Maybe ByteString -> Maybe ByteString -> ByteString -> IO (Async (), Redis.RobustConnection)
 createRedisPool l ep username password identifier = do
+  customCertStore <-
+    case ep._tlsCa of
+      Nothing -> pure Nothing
+      Just caPath -> CertStore.readCertificateStore caPath
+  let tlsParams = do
+        guard ep._enableTls
+        defClientParams <- Just $ defaultParamsClient (Text.unpack ep._host) ""
+        pure $
+          defClientParams
+            { clientHooks =
+                if ep._verifyTls
+                  then defClientParams.clientHooks
+                  else defClientParams.clientHooks {onServerCertificate = \_ _ _ _ -> pure []},
+              clientShared =
+                case customCertStore of
+                  Nothing -> defClientParams.clientShared
+                  Just sharedCAStore -> defClientParams.clientShared {sharedCAStore},
+              clientSupported =
+                defClientParams.clientSupported
+                  { supportedVersions = [TLS.TLS13, TLS.TLS12],
+                    supportedCiphers = TLS.ciphersuite_strong
+                  }
+            }
   let redisConnInfo =
         Redis.defaultConnectInfo
-          { Redis.connectHost = unpack $ ep ^. O.host,
+          { Redis.connectHost = Text.unpack $ ep ^. O.host,
             Redis.connectPort = Redis.PortNumber (fromIntegral $ ep ^. O.port),
             Redis.connectUsername = username,
             Redis.connectAuth = password,
             Redis.connectTimeout = Just (secondsToNominalDiffTime 5),
-            Redis.connectMaxConnections = 100
+            Redis.connectMaxConnections = 100,
+            Redis.connectTLSParams = tlsParams
           }
 
   Log.info l $
