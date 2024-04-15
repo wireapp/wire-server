@@ -54,7 +54,6 @@ servantPrometheusMiddleware _ = Promth.prometheus conf . instrument promthNormal
     -- See Note [Raw Response]
     instrument = Promth.instrumentHandlerValueWithFilter Promth.ignoreRawResponses
 
--- | Consider using `servantPlusWAIPrometheusMiddleware` instead.
 servantPlusWAIPrometheusMiddleware :: forall proxy api a m b. (RoutesToPaths api, Monad m) => Routes a m b -> proxy api -> Wai.Middleware
 servantPlusWAIPrometheusMiddleware routes _ = do
   Promth.prometheus conf . instrument (normalizeWaiRequestRoute paths)
