@@ -131,6 +131,7 @@ library
     Galley.Aws
     Galley.Cassandra
     Galley.Cassandra.Access
+    Galley.Cassandra.AllFeatureConfigsRow
     Galley.Cassandra.Client
     Galley.Cassandra.Code
     Galley.Cassandra.Conversation
@@ -302,6 +303,7 @@ library
     , cereal                 >=0.4
     , comonad
     , containers             >=0.5
+    , cql
     , crypton
     , crypton-x509
     , currency-codes         >=2.0

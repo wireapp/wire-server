@@ -1,3 +1,5 @@
+{-# LANGUAGE TemplateHaskell #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -63,6 +65,7 @@ interpretTeamFeatureStoreToCassandra = interpret $ \case
   TFS.SetFeatureLockStatus sing tid ls -> do
     logEffect "TeamFeatureStore.SetFeatureLockStatus"
     embedClient $ setFeatureLockStatus sing tid ls
+  TFS.GetAllFeatureConfigs _tid -> undefined
 
 getFeatureConfig :: MonadClient m => FeatureSingleton cfg -> TeamId -> m (Maybe (WithStatusNoLock cfg))
 getFeatureConfig FeatureSingletonLegalholdConfig tid = getTrivialConfigC "legalhold_status" tid
@@ -185,70 +188,48 @@ getFeatureConfig FeatureSingletonEnforceFileDownloadLocationConfig tid = do
 getFeatureConfig FeatureSingletonLimitedEventFanoutConfig tid =
   getTrivialConfigC "limited_event_fanout_status" tid
 
-getAllFeatureConfigs :: MonadClient m => TeamId -> m (Maybe AllFeatureConfigs)
-getAllFeatureConfigs = undefined
-  where
-    {- ORMOLU_DISABLE -}
-    select ::
-      PrepQuery
-        R
-        (Identity TeamId)
-        (
-          -- legalhold_status
-          Maybe FeatureStatus,
-          -- sso_status
-          Maybe FeatureStatus,
-          -- search_visibility_status
-          Maybe FeatureStatus,
-          -- validate_saml_emails
-          Maybe FeatureStatus,
-          -- digital_signatures
-          Maybe FeatureStatus,
-          -- app lock
-          Maybe FeatureStatus, Maybe EnforceAppLock, Maybe Int32,
-          Maybe FeatureStatus,
-          Maybe FeatureStatus, Maybe Int32,
-          Maybe FeatureStatus, Maybe FeatureTTL
-          Maybe FeatureStatus,
-          Maybe FeatureStatus,
-          Maybe FeatureStatus,
-          Maybe FeatureStatus, Maybe ProtocolTag, Maybe (C.Set UserId), Maybe (C.Set CipherSuiteTag),
-          Maybe CipherSuiteTag, Maybe (C.Set ProtocolTag),
-          Maybe FeatureStatus, Maybe Int32, Maybe HttpsUrl,
-          Maybe FeatureStatus, Maybe UTCTime, Maybe UTCTime
-          Maybe FeatureStatus,
-          Maybe FeatureStatus,
-          Maybe FeatureStatus, Maybe Text,
-          Maybe FeatureStatus,
-        )
-    {- ORMOLU_ENABLE -}
-    select =
-      "select \
-      \legalhold_status, \
-      \sso_status, \
-      \search_visibility_status, \
-      \validate_saml_emails, \
-      \digital_signatures, \
-      \app_lock_status, app_lock_enforce, app_lock_inactivity_timeout_secs, \
-      \file_sharing, file_sharing_lock_status, \
-      \self_deleting_messages_status, self_deleting_messages_ttl, self_deleting_messages_lock_status, \
-      \conference_calling, ttl(conference_calling), \
-      \guest_links_status, guest_links_lock_status, \
-      \snd_factor_password_challenge_status, snd_factor_password_challenge_lock_status, \
-      \\
-      \mls_status, mls_default_protocol, mls_protocol_toggle_users, mls_allowed_ciphersuites, \
-      \mls_default_ciphersuite, mls_supported_protocols, mls_lock_status, \
-      \\
-      \mls_e2eid_status, mls_e2eid_grace_period, mls_e2eid_acme_discovery_url, mls_e2eid_lock_status, \
-      \\
-      \mls_migration_status, mls_migration_start_time, mls_migration_finalise_regardless_after, \
-      \mls_migration_lock_status, \
-      \\
-      \expose_invitation_urls_to_team_admin, \
-      \outlook_cal_integration_status, outlook_cal_integration_lock_status, \
-      \enforce_file_download_location_status, enforce_file_download_location, enforce_file_download_location_lock_status, \
-      \limited_event_fanout_status \
-      \from team_features where team_id = ?"
+{- ORMOLU_DISABLE -}
+type  Foo =
+  (
+    -- legalhold
+    Maybe FeatureStatus,
+    -- sso
+    Maybe FeatureStatus,
+    -- search visibility
+    Maybe FeatureStatus,
+    -- validate saml emails
+    Maybe FeatureStatus,
+    -- digital signatures
+    Maybe FeatureStatus,
+    -- app lock
+    Maybe FeatureStatus, Maybe EnforceAppLock, Maybe Int32,
+    -- file sharing
+    Maybe FeatureStatus, Maybe LockStatus,
+    -- self deleting messages
+    Maybe FeatureStatus, Maybe Int32, Maybe LockStatus,
+    -- conference calling
+    Maybe FeatureStatus, Maybe FeatureTTL,
+    -- guest links
+    Maybe FeatureStatus, Maybe LockStatus,
+    -- snd factor
+    Maybe FeatureStatus, Maybe LockStatus,
+    -- mls
+    Maybe FeatureStatus, Maybe ProtocolTag, Maybe (C.Set UserId), Maybe (C.Set CipherSuiteTag),
+    Maybe CipherSuiteTag, Maybe (C.Set ProtocolTag), Maybe LockStatus,
+    -- mls e2eid
+    Maybe FeatureStatus, Maybe Int32, Maybe HttpsUrl, Maybe LockStatus,
+    -- mls migration
+    Maybe FeatureStatus, Maybe UTCTime, Maybe UTCTime, Maybe LockStatus,
+    -- expore invitation urls
+    Maybe FeatureStatus,
+    -- outlook calendar integration
+    Maybe FeatureStatus, Maybe LockStatus,
+    -- enforce download location
+    Maybe FeatureStatus, Maybe Text, Maybe LockStatus,
+    -- limit event fanout
+    Maybe FeatureStatus
+  )
+{- ORMOLU_ENABLE -}
 
 setFeatureConfig :: MonadClient m => FeatureSingleton cfg -> TeamId -> WithStatusNoLock cfg -> m ()
 setFeatureConfig FeatureSingletonLegalholdConfig tid statusNoLock = setFeatureStatusC "legalhold_status" tid (wssStatus statusNoLock)
