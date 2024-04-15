@@ -154,7 +154,6 @@ import Util.Options
 import Wire.API.Routes.Version
 import Wire.API.User.Identity (Email)
 import Wire.API.User.Profile (Locale)
-import Debug.Trace (traceM)
 
 schemaVersion :: Int32
 schemaVersion = Migrations.lastSchemaVersion
@@ -375,7 +374,6 @@ initHttpManagerWithTLSConfig skipTlsVerify mCustomCa = do
     Nothing -> SSL.contextSetDefaultVerifyPaths ctx
     Just customCa -> do
       filePath <- canonicalizePath customCa
-      traceM $ "Using custom CA file: " ++ filePath
       SSL.contextSetCAFile ctx filePath
   -- Unfortunately, there are quite some AWS services we talk to
   -- (e.g. SES, Dynamo) that still only support TLSv1.

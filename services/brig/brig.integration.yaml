@@ -10,7 +10,7 @@ cassandra:
   # filterNodesByDatacentre: datacenter1
 
 elasticsearch:
-  url: https://127.0.0.1:9200
+  url: https://localhost:9200
   index: directory_test
   credentials: test/resources/elasticsearch-credentials.yaml
   caCert: test/resources/elasticsearch-ca.pem
