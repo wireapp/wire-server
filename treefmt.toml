@@ -13,6 +13,10 @@ excludes = [ "dist-newstyle/" ]
 command = "ormolu"
 includes = ["*.hs"]
 excludes = [ "dist*" ]
+options = [
+  "--mode", "inplace", 
+  "--check-idempotence",
+]
 
 [formatter.hlint]
 command = "hlint"
