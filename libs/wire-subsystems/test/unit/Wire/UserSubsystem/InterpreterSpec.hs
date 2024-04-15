@@ -41,73 +41,76 @@ import Wire.UserSubsystem.Interpreter
 
 spec :: Spec
 spec = describe "UserSubsystem.Interpreter" do
-  describe "getUserProfile" do
-    prop
-      "all users on federating backends"
-      \viewer targetUsers visibility domain remoteDomain -> do
-        let localBackend = def {users = [viewer]}
-            remoteBackend = def {users = targetUsers}
-            federation = [(domain, localBackend), (remoteDomain, remoteBackend)]
-            retrievedProfiles =
-              runFederationStack federation Nothing (UserSubsystemConfig visibility domain miniLocale) $
-                getUserProfiles
-                  (toLocalUnsafe domain viewer.id)
-                  ( map (flip Qualified remoteDomain . (.id)) $
-                      S.toList targetUsers
-                  )
-        remoteDomain /= domain ==>
-          retrievedProfiles
-            === [ mkUserProfileWithEmail
-                    Nothing
-                    (mkUserFromStored remoteDomain miniLocale targetUser)
-                    UserLegalHoldDisabled
-                  | targetUser <- S.toList targetUsers
-                ]
-    prop "returns nothing when the none of the users exist" $
-      \viewer targetUserIds visibility domain locale ->
-        let config = UserSubsystemConfig visibility domain locale
-            retrievedProfile =
-              runNoFederationStack [] Nothing config $
-                getUserProfiles (toLocalUnsafe domain viewer) (map (`Qualified` domain) targetUserIds)
-         in retrievedProfile === []
-
-    prop "gets a local user profile when the user exists and both user and viewer have accepted their invitations" $
-      \(NotPendingStoredUser viewer) (NotPendingStoredUser targetUserNoTeam) visibility domain locale sameTeam ->
-        let teamMember = mkTeamMember viewer.id fullPermissions Nothing UserLegalHoldDisabled
-            targetUser = if sameTeam then targetUserNoTeam {teamId = viewer.teamId} else targetUserNoTeam
-            config = UserSubsystemConfig visibility domain locale
-            retrievedProfile =
-              runNoFederationStack [targetUser, viewer] (Just teamMember) config $
-                getUserProfiles (toLocalUnsafe domain viewer.id) [Qualified targetUser.id domain]
-         in retrievedProfile
-              === [ mkUserProfile
-                      (fmap (const $ (,) <$> viewer.teamId <*> Just teamMember) visibility)
-                      (mkUserFromStored domain locale targetUser)
+  describe "getUserProfiles" do
+    describe "[prod interpreter]" do
+      prop
+        "all users on federating backends"
+        \viewer targetUsers visibility domain remoteDomain -> do
+          let localBackend = def {users = [viewer]}
+              remoteBackend = def {users = targetUsers}
+              federation = [(domain, localBackend), (remoteDomain, remoteBackend)]
+              retrievedProfiles =
+                runFederationStack federation Nothing (UserSubsystemConfig visibility domain miniLocale) $
+                  getUserProfiles
+                    (toLocalUnsafe domain viewer.id)
+                    ( map (flip Qualified remoteDomain . (.id)) $
+                        S.toList targetUsers
+                    )
+          remoteDomain /= domain ==>
+            retrievedProfiles
+              === [ mkUserProfileWithEmail
+                      Nothing
+                      (mkUserFromStored remoteDomain miniLocale targetUser)
                       UserLegalHoldDisabled
-                  ]
-    prop "gets Nothing when the target user exists and has accepted their invitation but the viewer has not accepted their invitation" $
-      \(PendingStoredUser viewer) (NotPendingStoredUser targetUserNoTeam) visibility domain locale sameTeam ->
-        let teamMember = mkTeamMember viewer.id fullPermissions Nothing UserLegalHoldDisabled
-            targetUser = if sameTeam then targetUserNoTeam {teamId = viewer.teamId} else targetUserNoTeam
-            config = UserSubsystemConfig visibility domain locale
-            retrievedProfile =
-              runNoFederationStack [targetUser, viewer] (Just teamMember) config $
-                getUserProfiles (toLocalUnsafe domain viewer.id) [Qualified targetUser.id domain]
-         in retrievedProfile
-              === [ mkUserProfile
-                      (fmap (const Nothing) visibility)
-                      (mkUserFromStored domain locale targetUser)
-                      UserLegalHoldDisabled
+                    | targetUser <- S.toList targetUsers
                   ]
 
-    prop "returns Nothing if the target user has not accepted their invitation yet" $
-      \viewer (PendingStoredUser targetUser) visibility domain locale ->
-        let teamMember = mkTeamMember viewer.id fullPermissions Nothing UserLegalHoldDisabled
-            config = UserSubsystemConfig visibility domain locale
-            retrievedProfile =
-              runNoFederationStack [targetUser, viewer] (Just teamMember) config $
-                getLocalUserProfiles viewer.id [targetUser.id]
-         in retrievedProfile === []
+    describe "[mini interpreter]" do
+      prop "returns nothing when the none of the users exist" $
+        \viewer targetUserIds visibility domain locale ->
+          let config = UserSubsystemConfig visibility domain locale
+              retrievedProfile =
+                runNoFederationStack [] Nothing config $
+                  getUserProfiles (toLocalUnsafe domain viewer) (map (`Qualified` domain) targetUserIds)
+           in retrievedProfile === []
+
+      prop "gets a local user profile when the user exists and both user and viewer have accepted their invitations" $
+        \(NotPendingStoredUser viewer) (NotPendingStoredUser targetUserNoTeam) visibility domain locale sameTeam ->
+          let teamMember = mkTeamMember viewer.id fullPermissions Nothing UserLegalHoldDisabled
+              targetUser = if sameTeam then targetUserNoTeam {teamId = viewer.teamId} else targetUserNoTeam
+              config = UserSubsystemConfig visibility domain locale
+              retrievedProfile =
+                runNoFederationStack [targetUser, viewer] (Just teamMember) config $
+                  getUserProfiles (toLocalUnsafe domain viewer.id) [Qualified targetUser.id domain]
+           in retrievedProfile
+                === [ mkUserProfile
+                        (fmap (const $ (,) <$> viewer.teamId <*> Just teamMember) visibility)
+                        (mkUserFromStored domain locale targetUser)
+                        UserLegalHoldDisabled
+                    ]
+      prop "gets Nothing when the target user exists and has accepted their invitation but the viewer has not accepted their invitation" $
+        \(PendingStoredUser viewer) (NotPendingStoredUser targetUserNoTeam) visibility domain locale sameTeam ->
+          let teamMember = mkTeamMember viewer.id fullPermissions Nothing UserLegalHoldDisabled
+              targetUser = if sameTeam then targetUserNoTeam {teamId = viewer.teamId} else targetUserNoTeam
+              config = UserSubsystemConfig visibility domain locale
+              retrievedProfile =
+                runNoFederationStack [targetUser, viewer] (Just teamMember) config $
+                  getUserProfiles (toLocalUnsafe domain viewer.id) [Qualified targetUser.id domain]
+           in retrievedProfile
+                === [ mkUserProfile
+                        (fmap (const Nothing) visibility)
+                        (mkUserFromStored domain locale targetUser)
+                        UserLegalHoldDisabled
+                    ]
+
+      prop "returns Nothing if the target user has not accepted their invitation yet" $
+        \viewer (PendingStoredUser targetUser) visibility domain locale ->
+          let teamMember = mkTeamMember viewer.id fullPermissions Nothing UserLegalHoldDisabled
+              config = UserSubsystemConfig visibility domain locale
+              retrievedProfile =
+                runNoFederationStack [targetUser, viewer] (Just teamMember) config $
+                  getLocalUserProfiles viewer.id [targetUser.id]
+           in retrievedProfile === []
 
 newtype PendingStoredUser = PendingStoredUser StoredUser
   deriving (Show, Eq)
