@@ -172,6 +172,7 @@ test-suite extended-tests
     , extended
     , hspec
     , imports
+    , string-conversions
     , temporary
 
   default-language:   GHC2021

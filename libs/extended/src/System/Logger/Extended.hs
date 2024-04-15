@@ -37,9 +37,12 @@ import Control.Monad.Catch
 import Data.Aeson as Aeson
 import Data.Aeson.Encoding (list, pair, text)
 import Data.Aeson.Key qualified as Key
+import Data.ByteString (toStrict)
 import Data.ByteString.Builder qualified as B
 import Data.ByteString.Lazy.Char8 qualified as L
 import Data.Map.Lazy qualified as Map
+import Data.Text.Encoding
+import Data.Text.Encoding.Error
 import GHC.Generics
 import Imports
 import System.Logger as Log
@@ -65,7 +68,14 @@ elementToEncoding :: Element' -> Encoding
 elementToEncoding (Element' fields msgs) = pairs $ fields <> msgsToSeries msgs
   where
     msgsToSeries :: [Builder] -> Series
-    msgsToSeries = pair "msgs" . list (text . cs . eval)
+    msgsToSeries =
+      pair "msgs"
+        . list
+          ( text
+              . decodeUtf8With lenientDecode
+              . toStrict
+              . eval
+          )
 
 collect :: [Element] -> Element'
 collect = foldr go (Element' mempty [])
@@ -74,7 +84,14 @@ collect = foldr go (Element' mempty [])
     go (Bytes b) (Element' f m) =
       Element' f (b : m)
     go (Field k v) (Element' f m) =
-      Element' (f <> pair (Key.fromText . cs . eval $ k) (text . cs . eval $ v)) m
+      Element'
+        ( f
+            <> pair
+              (Key.fromText . dec . toStrict . eval $ k)
+              (text . dec . toStrict . eval $ v)
+        )
+        m
+    dec = decodeUtf8With lenientDecode
 
 jsonRenderer :: Renderer
 jsonRenderer _sep _dateFormat _logLevel = fromEncoding . elementToEncoding . collect
@@ -105,7 +122,7 @@ structuredJSONRenderer _sep _dateFmt _lvlThreshold logElems =
     renderTextList xs = toJSON xs
 
     builderToText :: Builder -> Text
-    builderToText = cs . eval
+    builderToText = decodeUtf8With lenientDecode . toStrict . eval
 
     -- We need to do this to work around https://gitlab.com/twittner/tinylog/-/issues/5
     parseLevel :: Text -> Maybe Level
