@@ -136,6 +136,7 @@ library
     , unix
     , unordered-containers   >=0.2
     , uri-bytestring         >=0.2
+    , utf8-string
     , uuid                   >=1.3.11
     , yaml                   >=0.8.22
 
@@ -209,6 +210,7 @@ test-suite tests
     , cereal
     , imports
     , protobuf
+    , string-conversions
     , tasty
     , tasty-hunit
     , tasty-quickcheck

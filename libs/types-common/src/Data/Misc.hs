@@ -79,7 +79,8 @@ import Data.OpenApi qualified as S
 import Data.Range
 import Data.Schema
 import Data.Text qualified as Text
-import Data.Text.Encoding (decodeUtf8, encodeUtf8)
+import Data.Text.Encoding
+import Data.Text.Encoding.Error
 import GHC.TypeLits (Nat)
 import GHC.TypeNats (KnownNat)
 import Imports
@@ -139,10 +140,13 @@ instance ToSchema IpAddr where
   schema = toText .= parsedText "IpAddr" fromText
     where
       toText :: IpAddr -> Text
-      toText = cs . toByteString
+      toText = decodeUtf8With lenientDecode . toStrict . toByteString
 
       fromText :: Text -> Either String IpAddr
-      fromText = maybe (Left "Failed parsing IP address.") Right . fromByteString . cs
+      fromText =
+        maybe (Left "Failed parsing IP address.") Right
+          . fromByteString
+          . encodeUtf8
 
 instance ToSchema Port where
   schema = Port <$> portNumber .= schema

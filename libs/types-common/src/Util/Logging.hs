@@ -29,7 +29,7 @@ import System.Logger.Message (Msg)
 sha256String :: Text -> Text
 sha256String t =
   let digest = hash @ByteString @SHA256 (encodeUtf8 t)
-   in cs . show $ digest
+   in T.pack . show $ digest
 
 logHandle :: Handle -> (Msg -> Msg)
 logHandle handl =
@@ -44,7 +44,7 @@ logFunction fn = Log.field "fn" fn . Log.field "module" (getModule fn)
       x -> T.intercalate "." (init x)
 
 logUser :: UserId -> (Msg -> Msg)
-logUser uid = Log.field "user" (cs @_ @Text . show $ uid)
+logUser uid = Log.field "user" (T.pack . show $ uid)
 
 logTeam :: TeamId -> (Msg -> Msg)
-logTeam tid = Log.field "team" (cs @_ @Text . show $ tid)
+logTeam tid = Log.field "team" (T.pack . show $ tid)

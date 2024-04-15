@@ -82,7 +82,7 @@ instance FromByteString Domain where
   parser = domainParser
 
 instance ToByteString Domain where
-  builder = Builder.lazyByteString . cs @Text @LByteString . _domainText
+  builder = Builder.lazyByteString . BS.Char8.fromStrict . Text.E.encodeUtf8 . _domainText
 
 instance FromHttpApiData Domain where
   parseUrlPiece = first Text.pack . mkDomain
