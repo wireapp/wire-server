@@ -17,9 +17,12 @@
 
 module Network.Wai.Utilities.Headers where
 
+import Data.ByteString
 import Data.ByteString.Conversion (FromByteString (..), ToByteString (..), fromByteString', toByteString')
 import Data.OpenApi.ParamSchema (ToParamSchema (..))
 import Data.Text as T
+import Data.Text.Encoding
+import Data.Text.Encoding.Error
 import Imports
 import Servant (FromHttpApiData (..), Proxy (Proxy), ToHttpApiData (..))
 
@@ -37,10 +40,14 @@ instance FromByteString CacheControl where
       _ -> fail $ "Invalid CacheControl type: " ++ show t
 
 instance ToHttpApiData CacheControl where
-  toQueryParam = cs . toByteString'
+  toQueryParam = decodeUtf8With lenientDecode . toByteString'
 
 instance FromHttpApiData CacheControl where
-  parseQueryParam = maybe (Left "Invalid CacheControl") Right . fromByteString' . cs
+  parseQueryParam =
+    maybe (Left "Invalid CacheControl") Right
+      . fromByteString'
+      . fromStrict
+      . encodeUtf8
 
 instance ToParamSchema CacheControl where
   toParamSchema _ = toParamSchema (Proxy @Text)
