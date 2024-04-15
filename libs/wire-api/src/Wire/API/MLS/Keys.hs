@@ -18,33 +18,46 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.API.MLS.Keys
-  ( MLSKeys (..),
+  ( KeyPair,
+    MLSKeys (..),
+    mkMLSKeys,
     MLSPublicKeys (..),
     mlsKeysToPublic,
   )
 where
 
-import Crypto.PubKey.Ed25519
+import Crypto.ECC (Curve_P256R1, Curve_P384R1, Curve_P521R1)
+import Crypto.PubKey.ECDSA qualified as ECDSA
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.ByteArray
 import Data.Json.Util
 import Data.Map qualified as Map
+import Data.Monoid
 import Data.OpenApi qualified as S
+import Data.Proxy
 import Data.Schema
-import Imports
+import GHC.Generics
+import Imports hiding (First)
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
 
 data MLSKeys = MLSKeys
-  { mlsKeyPair_ed25519 :: Maybe (SecretKey, PublicKey)
+  { mlsKeyPair_ed25519 :: First (KeyPair Ed25519),
+    mlsKeyPair_ecdsa_secp256r1_sha256 :: First (KeyPair Ecdsa_secp256r1_sha256),
+    mlsKeyPair_ecdsa_secp384r1_sha384 :: First (KeyPair Ecdsa_secp384r1_sha384),
+    mlsKeyPair_ecdsa_secp521r1_sha512 :: First (KeyPair Ecdsa_secp521r1_sha512)
   }
+  deriving (Generic)
+  deriving (Semigroup, Monoid) via Generically MLSKeys
 
-instance Semigroup MLSKeys where
-  MLSKeys Nothing <> MLSKeys ed2 = MLSKeys ed2
-  MLSKeys ed1 <> MLSKeys _ = MLSKeys ed1
-
-instance Monoid MLSKeys where
-  mempty = MLSKeys Nothing
+mkMLSKeys ::
+  Maybe (KeyPair Ed25519) ->
+  Maybe (KeyPair Ecdsa_secp256r1_sha256) ->
+  Maybe (KeyPair Ecdsa_secp384r1_sha384) ->
+  Maybe (KeyPair Ecdsa_secp521r1_sha512) ->
+  MLSKeys
+mkMLSKeys ed ec256 ec384 ec521 =
+  MLSKeys (First ed) (First ec256) (First ec384) (First ec521)
 
 newtype MLSPublicKeys = MLSPublicKeys
   { unMLSPublicKeys :: Map SignaturePurpose (Map SignatureSchemeTag ByteString)
@@ -60,8 +73,18 @@ instance ToSchema MLSPublicKeys where
           .= map_ (map_ base64Schema)
 
 mlsKeysToPublic1 :: MLSKeys -> Map SignatureSchemeTag ByteString
-mlsKeysToPublic1 (MLSKeys mEd25519key) =
-  foldMap (Map.singleton Ed25519 . convert . snd) mEd25519key
+mlsKeysToPublic1 (MLSKeys mEd mEc256 mEc384 mEc521) =
+  Map.fromList $
+    [(Ed25519, convert ed) | (_, ed) <- toList mEd]
+      <> [ (Ecdsa_secp256r1_sha256, ECDSA.encodePublic (Proxy @Curve_P256R1) ec)
+           | (_, ec) <- toList mEc256
+         ]
+      <> [ (Ecdsa_secp384r1_sha384, ECDSA.encodePublic (Proxy @Curve_P384R1) ec)
+           | (_, ec) <- toList mEc384
+         ]
+      <> [ (Ecdsa_secp521r1_sha512, ECDSA.encodePublic (Proxy @Curve_P521R1) ec)
+           | (_, ec) <- toList mEc521
+         ]
 
 mlsKeysToPublic :: (SignaturePurpose -> MLSKeys) -> MLSPublicKeys
 mlsKeysToPublic f = flip foldMap [minBound .. maxBound] $ \purpose ->

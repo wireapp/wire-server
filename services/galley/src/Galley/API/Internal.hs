@@ -318,6 +318,7 @@ rmUser ::
     Member MemberStore r,
     Member ProposalStore r,
     Member P.TinyLog r,
+    Member Random r,
     Member SubConversationStore r,
     Member TeamFeatureStore r,
     Member TeamStore r

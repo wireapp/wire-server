@@ -27,11 +27,16 @@ module Wire.API.MLS.CipherSuite
 
     -- * MLS signature schemes
     SignatureScheme (..),
+    IsSignatureScheme,
     SignatureSchemeTag (..),
+    SignatureSchemeCurve,
     signatureScheme,
     signatureSchemeName,
     signatureSchemeTag,
     csSignatureScheme,
+
+    -- * Key pairs
+    KeyPair,
 
     -- * Utilities
     csHash,
@@ -46,11 +51,13 @@ import Cassandra.CQL
 import Control.Applicative
 import Control.Error (note)
 import Control.Lens ((?~))
-import Crypto.ECC
+import Crypto.ECC hiding (KeyPair)
 import Crypto.Error
 import Crypto.Hash (hashWith)
 import Crypto.Hash.Algorithms
+import Crypto.PubKey.ECDSA qualified as ECDSA
 import Crypto.PubKey.Ed25519 qualified as Ed25519
+import Crypto.Random.Types
 import Data.Aeson qualified as Aeson
 import Data.Aeson.Types (FromJSON (..), FromJSONKey (..), ToJSON (..), ToJSONKey (..))
 import Data.Aeson.Types qualified as Aeson
@@ -230,9 +237,14 @@ csVerifySignatureWithLabel ::
 csVerifySignatureWithLabel cs pub label x sig =
   csVerifySignature cs pub (mkRawMLS (mkSignContent label x)) sig
 
--- FUTUREWORK: generalise to arbitrary ciphersuites
-signWithLabel :: ByteString -> Ed25519.SecretKey -> Ed25519.PublicKey -> RawMLS a -> ByteString
-signWithLabel sigLabel priv pub x = BA.convert $ Ed25519.sign priv pub (encodeMLS' (mkSignContent sigLabel x))
+signWithLabel ::
+  forall ss a m.
+  (IsSignatureScheme ss, MonadRandom m) =>
+  ByteString ->
+  KeyPair ss ->
+  RawMLS a ->
+  m ByteString
+signWithLabel sigLabel kp x = sign @ss kp (encodeMLS' (mkSignContent sigLabel x))
 
 csSignatureScheme :: CipherSuiteTag -> SignatureSchemeTag
 csSignatureScheme MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 = Ed25519
@@ -240,6 +252,28 @@ csSignatureScheme MLS_128_DHKEMP256_AES128GCM_SHA256_P256 = Ecdsa_secp256r1_sha2
 csSignatureScheme MLS_256_DHKEMP384_AES256GCM_SHA384_P384 = Ecdsa_secp384r1_sha384
 csSignatureScheme MLS_256_DHKEMP521_AES256GCM_SHA512_P521 = Ecdsa_secp521r1_sha512
 csSignatureScheme MLS_128_X25519Kyber768Draft00_AES128GCM_SHA256_Ed25519 = Ed25519
+
+type family PrivateKey (ss :: SignatureSchemeTag)
+
+type instance PrivateKey Ed25519 = Ed25519.SecretKey
+
+type instance PrivateKey Ecdsa_secp256r1_sha256 = ECDSA.PrivateKey Curve_P256R1
+
+type instance PrivateKey Ecdsa_secp384r1_sha384 = ECDSA.PrivateKey Curve_P384R1
+
+type instance PrivateKey Ecdsa_secp521r1_sha512 = ECDSA.PrivateKey Curve_P521R1
+
+type family PublicKey (ss :: SignatureSchemeTag)
+
+type instance PublicKey Ed25519 = Ed25519.PublicKey
+
+type instance PublicKey Ecdsa_secp256r1_sha256 = ECDSA.PublicKey Curve_P256R1
+
+type instance PublicKey Ecdsa_secp384r1_sha384 = ECDSA.PublicKey Curve_P384R1
+
+type instance PublicKey Ecdsa_secp521r1_sha512 = ECDSA.PublicKey Curve_P521R1
+
+type KeyPair (ss :: SignatureSchemeTag) = (PrivateKey ss, PublicKey ss)
 
 -- | A TLS signature scheme.
 --
@@ -258,6 +292,35 @@ data SignatureSchemeTag
   | Ecdsa_secp521r1_sha512
   deriving stock (Bounded, Enum, Eq, Ord, Show, Generic)
   deriving (Arbitrary) via GenericUniform SignatureSchemeTag
+
+class IsSignatureScheme (ss :: SignatureSchemeTag) where
+  sign :: MonadRandom m => KeyPair ss -> ByteString -> m ByteString
+
+instance IsSignatureScheme 'Ed25519 where
+  sign (priv, pub) = pure . BA.convert . Ed25519.sign priv pub
+
+instance IsSignatureScheme 'Ecdsa_secp256r1_sha256 where
+  sign (priv, _) =
+    fmap (ECDSA.encodeSignature (Proxy @Curve_P256R1))
+      . ECDSA.sign (Proxy @Curve_P256R1) priv SHA256
+
+instance IsSignatureScheme 'Ecdsa_secp384r1_sha384 where
+  sign (priv, _) =
+    fmap (ECDSA.encodeSignature (Proxy @Curve_P384R1))
+      . ECDSA.sign (Proxy @Curve_P384R1) priv SHA256
+
+instance IsSignatureScheme 'Ecdsa_secp521r1_sha512 where
+  sign (priv, _) =
+    fmap (ECDSA.encodeSignature (Proxy @Curve_P521R1))
+      . ECDSA.sign (Proxy @Curve_P521R1) priv SHA256
+
+type family SignatureSchemeCurve (ss :: SignatureSchemeTag)
+
+type instance SignatureSchemeCurve 'Ecdsa_secp256r1_sha256 = Curve_P256R1
+
+type instance SignatureSchemeCurve 'Ecdsa_secp384r1_sha384 = Curve_P384R1
+
+type instance SignatureSchemeCurve 'Ecdsa_secp521r1_sha512 = Curve_P521R1
 
 instance Cql SignatureSchemeTag where
   ctype = Tagged TextColumn

@@ -45,6 +45,7 @@ import Data.Domain
 import Data.Id
 import Data.Json.Util hiding ((#))
 import Data.Map qualified as Map
+import Data.Monoid
 import Data.Qualified
 import Data.Set qualified as Set
 import Data.Text qualified as T
@@ -55,7 +56,7 @@ import Data.UUID.V4 qualified as UUIDV4
 import Galley.Keys
 import Galley.Options
 import Galley.Options qualified as Opts
-import Imports hiding (getSymbolicLinkTarget)
+import Imports hiding (getFirst, getSymbolicLinkTarget)
 import System.FilePath
 import System.IO.Temp
 import System.Posix hiding (createDirectory)
@@ -197,7 +198,7 @@ saveRemovalKey :: FilePath -> TestM ()
 saveRemovalKey fp = do
   keys <- fromJust <$> view (tsGConf . settings . mlsPrivateKeyPaths)
   keysByPurpose <- liftIO $ loadAllMLSKeys keys
-  let (_, pub) = fromJust (mlsKeyPair_ed25519 (keysByPurpose RemovalPurpose))
+  let (_, pub) = fromJust (getFirst (mlsKeyPair_ed25519 (keysByPurpose RemovalPurpose)))
   liftIO $ BS.writeFile fp (BA.convert pub)
 
 data MLSState = MLSState

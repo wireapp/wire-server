@@ -28,9 +28,11 @@ import Polysemy
 import Polysemy.Input
 import Wire.API.Error
 import Wire.API.Error.Galley
+import Wire.API.MLS.CipherSuite
 
 isMLSEnabled :: Member (Input Env) r => Sem r Bool
-isMLSEnabled = isJust <$> getMLSRemovalKey
+-- TODO: check all removal keys
+isMLSEnabled = isJust <$> getMLSRemovalKey Ed25519
 
 -- | Fail if MLS is not enabled. Only use this function at the beginning of an
 -- MLS endpoint, NOT in utility functions.

@@ -40,6 +40,15 @@ decodeSignature p bs = do
     _ -> Nothing
   maybeCryptoError $ signatureFromIntegers p ints
 
+-- Encode an ECDSA signature.
+encodeSignature ::
+  forall curve.
+  -- EllipticCurveECDSA curve =>
+  Proxy curve ->
+  Signature curve ->
+  ByteString
+encodeSignature _p _sig = error "TODO"
+
 verifySignature ::
   forall curve a hash.
   ( EllipticCurveECDSA curve,

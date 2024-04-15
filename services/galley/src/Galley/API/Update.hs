@@ -288,6 +288,7 @@ type UpdateConversationAccessEffects =
      Input UTCTime,
      MemberStore,
      ProposalStore,
+     Random,
      SubConversationStore,
      TeamStore,
      TinyLog
@@ -716,6 +717,7 @@ updateConversationProtocolWithLocalUser ::
     Member NotificationSubsystem r,
     Member ExternalAccess r,
     Member FederatorAccess r,
+    Member Random r,
     Member ProposalStore r,
     Member SubConversationStore r,
     Member TeamFeatureStore r,
@@ -872,6 +874,7 @@ addMembers ::
     Member LegalHoldStore r,
     Member MemberStore r,
     Member ProposalStore r,
+    Member Random r,
     Member SubConversationStore r,
     Member TeamStore r,
     Member TinyLog r
@@ -913,6 +916,7 @@ addMembersUnqualifiedV2 ::
     Member LegalHoldStore r,
     Member MemberStore r,
     Member ProposalStore r,
+    Member Random r,
     Member SubConversationStore r,
     Member TeamStore r,
     Member TinyLog r
@@ -954,6 +958,7 @@ addMembersUnqualified ::
     Member LegalHoldStore r,
     Member MemberStore r,
     Member ProposalStore r,
+    Member Random r,
     Member SubConversationStore r,
     Member TeamStore r,
     Member TinyLog r
@@ -1131,6 +1136,7 @@ removeMemberUnqualified ::
     Member (Input UTCTime) r,
     Member MemberStore r,
     Member ProposalStore r,
+    Member Random r,
     Member SubConversationStore r,
     Member TinyLog r
   ) =>
@@ -1159,6 +1165,7 @@ removeMemberQualified ::
     Member (Input UTCTime) r,
     Member MemberStore r,
     Member ProposalStore r,
+    Member Random r,
     Member SubConversationStore r,
     Member TinyLog r
   ) =>
@@ -1234,6 +1241,7 @@ removeMemberFromLocalConv ::
     Member (Input UTCTime) r,
     Member MemberStore r,
     Member ProposalStore r,
+    Member Random r,
     Member SubConversationStore r,
     Member TinyLog r
   ) =>
