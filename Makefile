@@ -129,6 +129,7 @@ devtest:
 .PHONY: sanitize-pr
 sanitize-pr:
 	./hack/bin/generate-local-nix-packages.sh
+	make hlint-inplace-pr
 	make format
 	make git-add-cassandra-schema
 	@git diff-files --quiet -- || ( echo "There are unstaged changes, please take a look, consider committing them, and try again."; exit 1 )
@@ -154,6 +155,18 @@ ghcid:
 # Used by CI
 .PHONY: lint-all
 lint-all: treefmt-check check-local-nix-derivations
+
+.PHONY: hlint-inplace-all
+hlint-inplace-all:
+	./tools/hlint.sh -f all -m inplace
+
+.PHONY: hlint-inplace-pr
+hlint-inplace-pr:
+	./tools/hlint.sh -f pr -m inplace
+
+.PHONY: hlint-inplace
+hlint-inplace:
+	./tools/hlint.sh -f changeset -m inplace
 
 regen-local-nix-derivations:
 	./hack/bin/generate-local-nix-packages.sh
