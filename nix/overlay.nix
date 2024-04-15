@@ -103,4 +103,6 @@ self: super: {
   };
 
   rabbitmqadmin = super.callPackage ./pkgs/rabbitmqadmin { };
+
+  sbomqs = super.callPackage ./pkgs/sbomqs { };
 }
