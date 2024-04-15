@@ -48,9 +48,12 @@ import Wire.Sem.Logger.TinyLog (loggerToTinyLog)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now.IO (nowToIOAction)
 import Wire.Sem.Paging.Cassandra (InternalPaging)
+import Wire.UserSubsystem
+import Wire.UserSubsystem.Interpreter
 
 type BrigCanonicalEffects =
-  '[ SFT,
+  '[ UserSubsystem,
+     SFT,
      ConnectionStore InternalPaging,
      Input UTCTime,
      Input (Local ()),
@@ -113,6 +116,7 @@ runBrigToIO e (AppT ma) = do
               . runInputSem (embed getCurrentTime)
               . connectionStoreToCassandra
               . interpretSFT (e ^. httpManager)
+              . runUserSubsystem undefined
           )
     )
     $ runReaderT ma e

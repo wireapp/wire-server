@@ -163,6 +163,7 @@ import Wire.Sem.Concurrency
 import Wire.Sem.Jwk (Jwk)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Paging.Cassandra (InternalPaging)
+import Wire.UserSubsystem
 
 -- User API -----------------------------------------------------------
 
@@ -288,6 +289,7 @@ servantSitemap ::
     Member GalleyAPIAccess r,
     Member JwtTools r,
     Member NotificationSubsystem r,
+    Member UserSubsystem r,
     Member Now r,
     Member PasswordResetStore r,
     Member PublicKeyBundle r,
@@ -320,7 +322,7 @@ servantSitemap =
     userAPI :: ServerT UserAPI (Handler r)
     userAPI =
       Named @"get-user-unqualified" (callsFed (exposeAnnotations getUserUnqualifiedH))
-        :<|> Named @"get-user-qualified" (callsFed (exposeAnnotations getUser))
+        :<|> Named @"get-user-qualified" (callsFed (exposeAnnotations (\u us -> lift . liftSem $ getUserProfile u us)))
         :<|> Named @"update-user-email" updateUserEmail
         :<|> Named @"get-handle-info-unqualified" (callsFed (exposeAnnotations getHandleInfoUnqualifiedH))
         :<|> Named @"get-user-by-handle-qualified" (callsFed (exposeAnnotations Handle.getHandleInfo))
@@ -788,22 +790,13 @@ getSelf self =
     >>= lift . liftSem . API.hackForBlockingHandleChangeForE2EIdTeams
 
 getUserUnqualifiedH ::
-  (Member GalleyAPIAccess r) =>
-  UserId ->
+  (Member UserSubsystem r) =>
+  Local UserId ->
   UserId ->
   (Handler r) (Maybe Public.UserProfile)
 getUserUnqualifiedH self uid = do
   domain <- viewFederationDomain
-  getUser self (Qualified uid domain)
-
-getUser ::
-  (Member GalleyAPIAccess r) =>
-  UserId ->
-  Qualified UserId ->
-  (Handler r) (Maybe Public.UserProfile)
-getUser self qualifiedUserId = do
-  lself <- qualifyLocal self
-  API.lookupProfile lself qualifiedUserId !>> fedError
+  lift . liftSem $ getUserProfile self (Qualified uid domain)
 
 -- FUTUREWORK: Make servant understand that at least one of these is required
 listUsersByUnqualifiedIdsOrHandles ::

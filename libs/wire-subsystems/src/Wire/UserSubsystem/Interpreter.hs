@@ -19,6 +19,7 @@ import Wire.GalleyAPIAccess
 import Wire.Sem.Concurrency
 import Wire.StoredUser
 import Wire.UserStore
+import Wire.UserSubsystem (UserSubsystem (..))
 
 data UserSubsystemConfig = UserSubsystemConfig
   { emailVisibilityConfig :: EmailVisibilityConfig,
@@ -26,15 +27,48 @@ data UserSubsystemConfig = UserSubsystemConfig
     defaultLocale :: Locale
   }
 
+runUserSubsystem ::
+  ( Member GalleyAPIAccess r,
+    Member UserStore r,
+    Member (Concurrency 'Unsafe) r,
+    Member (Error FederationError) r,
+    Member (FederationAPIAccess fedM) r,
+    RunClient (fedM 'Brig),
+    FederationMonad fedM,
+    Typeable fedM
+  ) =>
+  UserSubsystemConfig ->
+  Sem (UserSubsystem : r) a ->
+  Sem r a
+runUserSubsystem cfg = interpret $ \case
+  GetUserProfile self other -> runInputConst cfg $ getUserProfile self other
+  GetUserProfiles self others -> runInputConst cfg $ getUserProfiles self others
+
+getUserProfile ::
+  ( Member GalleyAPIAccess r,
+    Member (Input UserSubsystemConfig) r,
+    Member UserStore r,
+    Member (Concurrency 'Unsafe) r,
+    Member (Error FederationError) r,
+    Member (FederationAPIAccess fedM) r,
+    RunClient (fedM 'Brig),
+    FederationMonad fedM,
+    Typeable fedM
+  ) =>
+  Local UserId ->
+  Qualified UserId ->
+  Sem r (Maybe UserProfile)
+getUserProfile self other = listToMaybe <$> getUserProfiles self [other]
+
 -- | Obtain user profiles for a list of users as they can be seen by
 -- a given user 'self'. If 'self' is an unknown 'UserId', return '[]'.
 getUserProfiles ::
   ( Member GalleyAPIAccess r,
+    Member (Input UserSubsystemConfig) r,
+    Member UserStore r,
     Member (Concurrency 'Unsafe) r,
     Member (Error FederationError) r,
     Member (FederationAPIAccess fedM) r,
-    Member (Input UserSubsystemConfig) r,
-    Member UserStore r,
     RunClient (fedM 'Brig),
     FederationMonad fedM,
     Typeable fedM

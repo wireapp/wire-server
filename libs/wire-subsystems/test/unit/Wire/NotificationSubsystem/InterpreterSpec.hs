@@ -266,6 +266,7 @@ spec = describe "NotificationSubsystem.Interpreter" do
     it "respects the chunkSize limit" $ property \limit pushes ->
       all ((<= limit) . sizeOfChunks) (chunkPushes limit pushes)
 
+-- TODO: rename to "mini"?  in any case make it consistent.
 runMockStack :: NotificationSubsystemConfig -> Sem [Input NotificationSubsystemConfig, Delay, GundeckAPIAccess, Embed IO, Async, Final IO] a -> IO (a, [[V2.Push]])
 runMockStack mockConfig action = do
   actualPushesRef <- newIORef []

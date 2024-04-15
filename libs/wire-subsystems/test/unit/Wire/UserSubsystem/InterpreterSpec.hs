@@ -112,6 +112,9 @@ spec = describe "UserSubsystem.Interpreter" do
                   getLocalUserProfiles viewer.id [targetUser.id]
            in retrievedProfile === []
 
+      prop "gets a remote user profile when the user exists and both user and viewer have accepted their invitations" $
+        pending
+
 newtype PendingStoredUser = PendingStoredUser StoredUser
   deriving (Show, Eq)
 
