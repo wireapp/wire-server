@@ -20,7 +20,6 @@ module Brig.Provider.API
     botAPI,
     servicesAPI,
     providerAPI,
-    InternalProviderAPI,
     internalProviderAPI,
 
     -- * Event handlers
@@ -89,7 +88,7 @@ import OpenSSL.PEM qualified as SSL
 import OpenSSL.RSA qualified as SSL
 import OpenSSL.Random (randBytes)
 import Polysemy
-import Servant (JSON, QueryParam', Required, ServerT, Strict, Summary, (:<|>) (..), (:>))
+import Servant (ServerT, (:<|>) (..))
 import Ssl.Util qualified as SSL
 import System.Logger.Class (MonadLogger)
 import UnliftIO.Async (pooledMapConcurrentlyN_)
@@ -110,7 +109,7 @@ import Wire.API.Provider.External qualified as Ext
 import Wire.API.Provider.Service
 import Wire.API.Provider.Service qualified as Public
 import Wire.API.Provider.Service.Tag qualified as Public
-import Wire.API.Routes.MultiVerb
+import Wire.API.Routes.Internal.Brig qualified as BrigIRoutes
 import Wire.API.Routes.Named (Named (Named))
 import Wire.API.Routes.Public.Brig.Bot (BotAPI)
 import Wire.API.Routes.Public.Brig.Provider (ProviderAPI)
@@ -174,23 +173,8 @@ providerAPI =
     :<|> Named @"provider-get-account" getAccount
     :<|> Named @"provider-get-profile" getProviderProfile
 
-type InternalProviderAPI =
-  -- (This was introduced here to get rid of wai-routing and wai-predicate.  It would normally
-  -- go into wire-api, but it depends on "Brig.Code", and the required module restructuring
-  -- can wait, other stuff to do.)
-  "i"
-    :> ( Named
-           "provider-internal-get-activation-code"
-           ( Summary "Retrieve activation code via api instead of email (for testing only)"
-               :> "provider"
-               :> "activation-code"
-               :> QueryParam' '[Required, Strict] "email" Public.Email
-               :> MultiVerb1 'GET '[JSON] (Respond 200 "" FoundActivationCode)
-           )
-       )
-
-internalProviderAPI :: Member GalleyProvider r => ServerT InternalProviderAPI (Handler r)
-internalProviderAPI = Named @"provider-internal-get-activation-code" getActivationCodeH
+internalProviderAPI :: Member GalleyProvider r => ServerT BrigIRoutes.ProviderAPI (Handler r)
+internalProviderAPI = Named @"get-provider-activation-code" getActivationCodeH
 
 --------------------------------------------------------------------------------
 -- Public API (Unauthenticated)
@@ -251,7 +235,7 @@ activateAccountKey key val = do
       lift $ sendApprovalConfirmMail name email
       pure . Just $ Public.ProviderActivationResponse email
 
-getActivationCodeH :: Member GalleyProvider r => Public.Email -> (Handler r) FoundActivationCode
+getActivationCodeH :: Member GalleyProvider r => Public.Email -> (Handler r) Code.KeyValuePair
 getActivationCodeH e = do
   guardSecondFactorDisabled Nothing
   email <- case validateEmail e of
@@ -259,13 +243,10 @@ getActivationCodeH e = do
     Left _ -> throwStd (errorToWai @'E.InvalidEmail)
   gen <- Code.mkGen (Code.ForEmail email)
   code <- wrapClientE $ Code.lookup (Code.genKey gen) Code.IdentityVerification
-  maybe (throwStd activationKeyNotFound) (pure . mkFoundActivationCode) code
+  maybe (throwStd activationKeyNotFound) (pure . Code.codeToKeyValuePair) code
 
 newtype FoundActivationCode = FoundActivationCode Code.KeyValuePair
   deriving newtype (ToJSON, FromJSON)
-
-mkFoundActivationCode :: Code.Code -> FoundActivationCode
-mkFoundActivationCode vcode = FoundActivationCode $ Code.KeyValuePair (Code.codeKey vcode) (Code.codeValue vcode)
 
 login :: Member GalleyProvider r => ProviderLogin -> Handler r ProviderTokenCookie
 login l = do

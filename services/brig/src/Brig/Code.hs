@@ -40,6 +40,7 @@ module Brig.Code
     codeForPhone,
     codeKey,
     codeValue,
+    codeToKeyValuePair,
     codeTTL,
     codeAccount,
     scopeFromAction,
@@ -113,6 +114,9 @@ scopeFromAction = \case
   User.CreateScimToken -> CreateScimToken
   User.Login -> AccountLogin
   User.DeleteTeam -> DeleteTeam
+
+codeToKeyValuePair :: Code -> KeyValuePair
+codeToKeyValuePair code = KeyValuePair code.codeKey code.codeValue
 
 -- | The same 'Key' can exist with different 'Value's in different
 -- 'Scope's at the same time.

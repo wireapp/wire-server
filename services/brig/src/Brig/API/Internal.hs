@@ -16,7 +16,6 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 module Brig.API.Internal
   ( servantSitemap,
-    API,
     getMLSClients,
   )
 where
@@ -102,8 +101,6 @@ import Wire.Rpc
 import Wire.Sem.Concurrency
 import Wire.Sem.Paging.Cassandra (InternalPaging)
 
-type API = BrigIRoutes.API :<|> Provider.InternalProviderAPI
-
 servantSitemap ::
   forall r p.
   ( Member BlacklistPhonePrefixStore r,
@@ -122,21 +119,20 @@ servantSitemap ::
     Member TinyLog r,
     Member (UserPendingActivationStore p) r
   ) =>
-  ServerT API (Handler r)
+  ServerT BrigIRoutes.API (Handler r)
 servantSitemap =
-  ( istatusAPI
-      :<|> ejpdAPI
-      :<|> accountAPI
-      :<|> mlsAPI
-      :<|> getVerificationCode
-      :<|> teamsAPI
-      :<|> userAPI
-      :<|> clientAPI
-      :<|> authAPI
-      :<|> internalOauthAPI
-      :<|> internalSearchIndexAPI
-      :<|> federationRemotesAPI
-  )
+  istatusAPI
+    :<|> ejpdAPI
+    :<|> accountAPI
+    :<|> mlsAPI
+    :<|> getVerificationCode
+    :<|> teamsAPI
+    :<|> userAPI
+    :<|> clientAPI
+    :<|> authAPI
+    :<|> internalOauthAPI
+    :<|> internalSearchIndexAPI
+    :<|> federationRemotesAPI
     :<|> Provider.internalProviderAPI
 
 istatusAPI :: forall r. ServerT BrigIRoutes.IStatusAPI (Handler r)

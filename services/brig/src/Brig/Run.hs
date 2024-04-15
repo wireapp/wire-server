@@ -69,6 +69,7 @@ import System.Logger qualified as Log
 import System.Logger.Class (MonadLogger, err)
 import Util.Options
 import Wire.API.Routes.API
+import Wire.API.Routes.Internal.Brig qualified as IAPI
 import Wire.API.Routes.Public.Brig
 import Wire.API.Routes.Version
 import Wire.API.Routes.Version.Wai
