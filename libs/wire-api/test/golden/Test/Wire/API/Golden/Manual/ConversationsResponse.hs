@@ -134,9 +134,13 @@ conv2 =
         ProtocolMLS
           ( ConversationMLSData
               (GroupId "test_group")
-              (Epoch 42)
-              (Just timestamp)
-              MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
+              ( Just
+                  ( ActiveMLSConversationData
+                      (Epoch 42)
+                      timestamp
+                      MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
+                  )
+              )
           )
     }
   where

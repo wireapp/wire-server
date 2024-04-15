@@ -21,6 +21,7 @@
 
 module Wire.API.MLS.SubConversation where
 
+import Control.Applicative
 import Control.Lens (makePrisms, (?~))
 import Control.Lens.Tuple (_1)
 import Control.Monad.Except
@@ -28,19 +29,16 @@ import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Aeson qualified as A
 import Data.ByteString.Conversion
 import Data.Id
-import Data.Json.Util
 import Data.OpenApi qualified as S
 import Data.Qualified
 import Data.Schema hiding (HasField)
 import Data.Text qualified as T
-import Data.Time.Clock
 import GHC.Records
 import Imports
 import Servant (FromHttpApiData (..), ToHttpApiData (toQueryParam))
 import Test.QuickCheck
-import Wire.API.MLS.CipherSuite
+import Wire.API.Conversation.Protocol
 import Wire.API.MLS.Credential
-import Wire.API.MLS.Epoch
 import Wire.API.MLS.Group
 import Wire.Arbitrary
 
@@ -75,11 +73,7 @@ data PublicSubConversation = PublicSubConversation
   { pscParentConvId :: Qualified ConvId,
     pscSubConvId :: SubConvId,
     pscGroupId :: GroupId,
-    pscEpoch :: Epoch,
-    -- | It is 'Nothing' when the epoch is 0, and otherwise a timestamp when the
-    -- epoch was bumped, i.e., it is a timestamp of the most recent commit.
-    pscEpochTimestamp :: Maybe UTCTime,
-    pscCipherSuite :: CipherSuiteTag,
+    pscActiveData :: Maybe ActiveMLSConversationData,
     pscMembers :: [ClientIdentity]
   }
   deriving (Eq, Show)
@@ -94,14 +88,8 @@ instance ToSchema PublicSubConversation where
         <$> pscParentConvId .= field "parent_qualified_id" schema
         <*> pscSubConvId .= field "subconv_id" schema
         <*> pscGroupId .= field "group_id" schema
-        <*> pscEpoch .= field "epoch" schema
-        <*> pscEpochTimestamp .= field "epoch_timestamp" schemaEpochTimestamp
-        <*> pscCipherSuite .= field "cipher_suite" schema
+        <*> pscActiveData .= maybe_ (optional activeMLSConversationDataSchema)
         <*> pscMembers .= field "members" (array schema)
-
-schemaEpochTimestamp :: ValueSchema NamedSwaggerDoc (Maybe UTCTime)
-schemaEpochTimestamp =
-  named "Epoch Timestamp" . nullable . unnamed $ utcTimeSchema
 
 data ConvOrSubTag = ConvTag | SubConvTag
   deriving (Eq, Enum, Bounded)

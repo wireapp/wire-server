@@ -31,13 +31,18 @@ module Wire.API.Conversation.Protocol
     conversationMLSData,
     protocolSchema,
     ConversationMLSData (..),
+    ActiveMLSConversationData (..),
+    activeMLSConversationDataSchema,
+    cnvmlsEpoch,
     ProtocolUpdate (..),
   )
 where
 
+import Control.Applicative
 import Control.Arrow
 import Control.Lens (Traversal', makePrisms, (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
+import Data.Json.Util
 import Data.OpenApi qualified as S
 import Data.Schema
 import Data.Time.Clock
@@ -46,7 +51,6 @@ import Wire.API.Conversation.Action.Tag
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Epoch
 import Wire.API.MLS.Group
-import Wire.API.MLS.SubConversation
 import Wire.Arbitrary
 
 data ProtocolTag = ProtocolProteusTag | ProtocolMLSTag | ProtocolMixedTag
@@ -58,16 +62,15 @@ instance S.ToSchema ProtocolTag
 data ConversationMLSData = ConversationMLSData
   { -- | The MLS group ID associated to the conversation.
     cnvmlsGroupId :: GroupId,
-    -- | The current epoch number of the corresponding MLS group.
-    cnvmlsEpoch :: Epoch,
-    -- | The time stamp of the epoch.
-    cnvmlsEpochTimestamp :: Maybe UTCTime,
-    -- | The cipher suite to be used in the MLS group.
-    cnvmlsCipherSuite :: CipherSuiteTag
+    -- | Information available once the conversation is active (epoch > 0).
+    cnvmlsActiveData :: Maybe ActiveMLSConversationData
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via GenericUniform ConversationMLSData
   deriving (ToJSON, FromJSON) via Schema ConversationMLSData
+
+cnvmlsEpoch :: ConversationMLSData -> Epoch
+cnvmlsEpoch = maybe (Epoch 0) (.epoch) . cnvmlsActiveData
 
 mlsDataSchema :: ObjectSchema SwaggerDoc ConversationMLSData
 mlsDataSchema =
@@ -77,24 +80,45 @@ mlsDataSchema =
         "group_id"
         (description ?~ "A base64-encoded MLS group ID")
         schema
-    <*> cnvmlsEpoch
+    <*> cnvmlsActiveData .= maybe_ (optional activeMLSConversationDataSchema)
+
+instance ToSchema ConversationMLSData where
+  schema = object "ConversationMLSData" mlsDataSchema
+
+-- TODO: Fix API compatibility
+data ActiveMLSConversationData = ActiveMLSConversationData
+  { -- | The current epoch number of the corresponding MLS group.
+    epoch :: Epoch,
+    -- | The time stamp of the epoch.
+    epochTimestamp :: UTCTime,
+    -- | The cipher suite to be used in the MLS group.
+    ciphersuite :: CipherSuiteTag
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via GenericUniform ActiveMLSConversationData
+  deriving (ToJSON, FromJSON) via Schema ActiveMLSConversationData
+
+instance ToSchema ActiveMLSConversationData where
+  schema = object "ActiveMLSConversationData" activeMLSConversationDataSchema
+
+activeMLSConversationDataSchema :: ObjectSchema SwaggerDoc ActiveMLSConversationData
+activeMLSConversationDataSchema =
+  ActiveMLSConversationData
+    <$> (.epoch)
       .= fieldWithDocModifier
         "epoch"
         (description ?~ "The epoch number of the corresponding MLS group")
         schema
-    <*> cnvmlsEpochTimestamp
+    <*> (.epochTimestamp)
       .= fieldWithDocModifier
         "epoch_timestamp"
         (description ?~ "The timestamp of the epoch number")
-        schemaEpochTimestamp
-    <*> cnvmlsCipherSuite
+        utcTimeSchema
+    <*> (.ciphersuite)
       .= fieldWithDocModifier
         "cipher_suite"
         (description ?~ "The cipher suite of the corresponding MLS group")
         schema
-
-instance ToSchema ConversationMLSData where
-  schema = object "ConversationMLSData" mlsDataSchema
 
 -- | Conversation protocol and protocol-specific data.
 data Protocol
