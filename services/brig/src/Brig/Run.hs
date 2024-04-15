@@ -120,7 +120,7 @@ mkApp o = do
     middleware e =
       -- this rewrites the request, so it must be at the top (i.e. applied last)
       versionMiddleware (e ^. disabledVersions)
-        . Metrics.servantPlusWAIPrometheusMiddleware (Proxy @ServantCombinedAPI)
+        . Metrics.servantPrometheusMiddleware (Proxy @ServantCombinedAPI)
         . GZip.gunzip
         . GZip.gzip GZip.def
         . catchErrors (e ^. applog) [Right $ e ^. metrics]

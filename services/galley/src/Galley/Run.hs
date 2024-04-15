@@ -36,7 +36,7 @@ import Data.Id
 import Data.Metrics (Metrics)
 import Data.Metrics.AWS (gaugeTokenRemaing)
 import Data.Metrics.Middleware qualified as M
-import Data.Metrics.Servant (servantPlusWAIPrometheusMiddlewareLegacy)
+import Data.Metrics.Servant (servantPlusWAIPrometheusMiddleware)
 import Data.Misc (portNumber)
 import Data.Singletons
 import Data.Text (unpack)
@@ -97,7 +97,7 @@ mkApp opts =
     lift $ runClient (env ^. cstate) $ versionCheck schemaVersion
     let middlewares =
           versionMiddleware (foldMap expandVersionExp (opts ^. settings . disabledAPIVersions))
-            . servantPlusWAIPrometheusMiddlewareLegacy (Just API.waiSitemap) (Proxy @CombinedAPI)
+            . servantPlusWAIPrometheusMiddleware API.waiSitemap (Proxy @CombinedAPI)
             . GZip.gunzip
             . GZip.gzip GZip.def
             . catchErrors logger [Right metrics]

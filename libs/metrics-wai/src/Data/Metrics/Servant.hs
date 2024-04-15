@@ -54,12 +54,9 @@ servantPrometheusMiddleware _ = Promth.prometheus conf . instrument promthNormal
     -- See Note [Raw Response]
     instrument = Promth.instrumentHandlerValueWithFilter Promth.ignoreRawResponses
 
-servantPlusWAIPrometheusMiddleware :: forall proxy api. (RoutesToPaths api) => proxy api -> Wai.Middleware
-servantPlusWAIPrometheusMiddleware = servantPlusWAIPrometheusMiddlewareLegacy @proxy @api @_ @Identity Nothing
-
 -- | Consider using `servantPlusWAIPrometheusMiddleware` instead.
-servantPlusWAIPrometheusMiddlewareLegacy :: forall proxy api a m b. (RoutesToPaths api, Monad m) => Maybe (Routes a m b) -> proxy api -> Wai.Middleware
-servantPlusWAIPrometheusMiddlewareLegacy mbRoutes _ = do
+servantPlusWAIPrometheusMiddleware :: forall proxy api a m b. (RoutesToPaths api, Monad m) => Routes a m b -> proxy api -> Wai.Middleware
+servantPlusWAIPrometheusMiddleware routes _ = do
   Promth.prometheus conf . instrument (normalizeWaiRequestRoute paths)
   where
     -- See Note [Raw Response]
@@ -67,7 +64,7 @@ servantPlusWAIPrometheusMiddlewareLegacy mbRoutes _ = do
 
     paths =
       let Paths servantPaths = routesToPaths @api
-          Paths waiPaths = foldMap (treeToPaths . prepare) mbRoutes
+          Paths waiPaths = treeToPaths (prepare routes)
        in Paths (meltTree (servantPaths <> waiPaths))
 
 conf :: PrometheusSettings
