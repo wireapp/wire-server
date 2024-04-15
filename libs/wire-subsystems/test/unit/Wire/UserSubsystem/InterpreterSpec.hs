@@ -66,29 +66,30 @@ spec = describe "UserSubsystem.Interpreter" do
                   ]
 
     describe "[mini interpreter]" do
-      prop "returns nothing when the none of the users exist" $
+      prop "returns nothing when none of the users exist" $
         \viewer targetUserIds visibility domain locale ->
           let config = UserSubsystemConfig visibility domain locale
-              retrievedProfile =
+              retrievedProfiles =
                 runNoFederationStack [] Nothing config $
                   getUserProfiles (toLocalUnsafe domain viewer) (map (`Qualified` domain) targetUserIds)
-           in retrievedProfile === []
+           in retrievedProfiles === []
 
       prop "gets a local user profile when the user exists and both user and viewer have accepted their invitations" $
         \(NotPendingStoredUser viewer) (NotPendingStoredUser targetUserNoTeam) visibility domain locale sameTeam ->
           let teamMember = mkTeamMember viewer.id fullPermissions Nothing UserLegalHoldDisabled
               targetUser = if sameTeam then targetUserNoTeam {teamId = viewer.teamId} else targetUserNoTeam
               config = UserSubsystemConfig visibility domain locale
-              retrievedProfile =
+              retrievedProfiles =
                 runNoFederationStack [targetUser, viewer] (Just teamMember) config $
                   getUserProfiles (toLocalUnsafe domain viewer.id) [Qualified targetUser.id domain]
-           in retrievedProfile
+           in retrievedProfiles
                 === [ mkUserProfile
                         (fmap (const $ (,) <$> viewer.teamId <*> Just teamMember) visibility)
                         (mkUserFromStored domain locale targetUser)
                         UserLegalHoldDisabled
                     ]
-      prop "gets Nothing when the target user exists and has accepted their invitation but the viewer has not accepted their invitation" $
+
+      prop "gets a local user profile when the target user exists and has accepted their invitation but the viewer has not accepted their invitation" $
         \(PendingStoredUser viewer) (NotPendingStoredUser targetUserNoTeam) visibility domain locale sameTeam ->
           let teamMember = mkTeamMember viewer.id fullPermissions Nothing UserLegalHoldDisabled
               targetUser = if sameTeam then targetUserNoTeam {teamId = viewer.teamId} else targetUserNoTeam
