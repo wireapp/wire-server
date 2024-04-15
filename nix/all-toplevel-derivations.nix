@@ -1,3 +1,11 @@
+# this tries to recurse into pkgs to collect metadata about packages within nixpkgs 
+# it needs a recusionDepth, because pkgs is actually not a tree but a graph so you 
+# will go around in circles; also it helps bounding the memory needed to build this 
+# we also pass a keyFilter to ignore certain package names 
+# else, this just goes through the packages, tries to evaluate them, if that succeeds 
+# it goes on and remembers their metadata
+# there's a lot of obfuscation caused by the fact that everything needs to be tryEval'd 
+# reason being that there's not a single thing in nixpkgs that is reliably evaluatable
 { lib
 , pkgSet
 , fn
@@ -8,12 +16,12 @@
 let
   go = depth: set':
     let
-      canSet = builtins.tryEval set';
+      evaluateableSet = builtins.tryEval set';
     in
-    if canSet.success && builtins.isAttrs canSet.value
+    if evaluateableSet.success && builtins.isAttrs evaluateableSet.value
     then
       let
-        set = canSet.value;
+        set = evaluateableSet.value;
       in
       (
         if (builtins.tryEval (lib.isDerivation set)).value
