@@ -26,11 +26,14 @@
 -- | Given a servant API type, this module gives you a 'Paths' for 'withPathTemplate'.
 module Data.Metrics.Servant where
 
+import Data.ByteString.UTF8 qualified as UTF8
 import Data.Metrics.Middleware.Prometheus (normalizeWaiRequestRoute)
 import Data.Metrics.Types
 import Data.Metrics.Types qualified as Metrics
 import Data.Metrics.WaiRoute (treeToPaths)
 import Data.Proxy
+import Data.Text.Encoding
+import Data.Text.Encoding.Error
 import Data.Tree
 import GHC.TypeLits
 import Imports
@@ -48,8 +51,8 @@ servantPrometheusMiddleware _ = Promth.prometheus conf . instrument promthNormal
     promthNormalize :: Wai.Request -> Text
     promthNormalize req = pathInfo
       where
-        mPathInfo = Metrics.treeLookup (routesToPaths @api) $ cs <$> Wai.pathInfo req
-        pathInfo = cs $ fromMaybe "N/A" mPathInfo
+        mPathInfo = Metrics.treeLookup (routesToPaths @api) $ encodeUtf8 <$> Wai.pathInfo req
+        pathInfo = decodeUtf8With lenientDecode $ fromMaybe "N/A" mPathInfo
 
     -- See Note [Raw Response]
     instrument = Promth.instrumentHandlerValueWithFilter Promth.ignoreRawResponses
@@ -85,14 +88,14 @@ instance
   (KnownSymbol seg, RoutesToPaths segs) =>
   RoutesToPaths (seg :> segs)
   where
-  getRoutes = [Node (Right . cs $ symbolVal (Proxy @seg)) (getRoutes @segs)]
+  getRoutes = [Node (Right . UTF8.fromString $ symbolVal (Proxy @seg)) (getRoutes @segs)]
 
 -- <capture> :> routes
 instance
   (KnownSymbol capture, RoutesToPaths segs) =>
   RoutesToPaths (Capture' mods capture a :> segs)
   where
-  getRoutes = [Node (Left (cs (":" <> symbolVal (Proxy @capture)))) (getRoutes @segs)]
+  getRoutes = [Node (Left (UTF8.fromString (":" <> symbolVal (Proxy @capture)))) (getRoutes @segs)]
 
 instance
   (RoutesToPaths rest) =>
