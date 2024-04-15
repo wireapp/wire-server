@@ -49,6 +49,39 @@ testGetMLSOne2One otherDomain = do
   conv2 %. "qualified_id" `shouldMatch` convId
   conv2 %. "epoch" `shouldMatch` (conv %. "epoch")
 
+testMLSOne2OneOtherMember :: HasCallStack => One2OneScenario -> App ()
+testMLSOne2OneOtherMember scenario = do
+  alice <- randomUser OwnDomain def
+  let otherDomain = one2OneScenarioUserDomain scenario
+      convDomain = one2OneScenarioConvDomain scenario
+  bob <- createMLSOne2OnePartner otherDomain alice convDomain
+  conv <- getMLSOne2OneConversation alice bob >>= getJSON 200
+  do
+    convId <- conv %. "qualified_id"
+    bobConv <- getMLSOne2OneConversation bob alice >>= getJSON 200
+    convId `shouldMatch` (bobConv %. "qualified_id")
+
+  [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
+  traverse_ uploadNewKeyPackage [bob1]
+  resetGroup alice1 conv
+  withWebSocket bob1 $ \ws -> do
+    commit <- createAddCommit alice1 [bob]
+    void $ sendAndConsumeCommitBundle commit
+    let isMessage n = nPayload n %. "type" `isEqual` "conversation.mls-welcome"
+    n <- awaitMatch isMessage ws
+    nPayload n %. "data" `shouldMatch` B8.unpack (Base64.encode (fold commit.welcome))
+
+  -- Make sure the membership info is OK both for the MLS 1-to-1 endpoint and
+  -- for the general conversation fetching endpoint.
+  let assertOthers other resp = do
+        bdy <- getJSON 200 resp
+        othersObj <- bdy %. "members.others" & asList
+        otherActual <- assertOne othersObj
+        otherActual %. "qualified_id" `shouldMatch` (other %. "qualified_id")
+  forM_ [(alice, bob), (bob, alice)] $ \(self, other) -> do
+    getMLSOne2OneConversation self other `bindResponse` assertOthers other
+    getConversation self conv `bindResponse` assertOthers other
+
 testGetMLSOne2OneUnconnected :: HasCallStack => Domain -> App ()
 testGetMLSOne2OneUnconnected otherDomain = do
   [alice, bob] <- for [OwnDomain, otherDomain] $ \domain -> randomUser domain def
