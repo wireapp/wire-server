@@ -59,8 +59,8 @@ spec = describe "UserSubsystem.Interpreter" do
           retrievedProfiles
             === [ mkUserProfileWithEmail
                     Nothing
-                    UserLegalHoldDisabled
                     (mkUserFromStored remoteDomain miniLocale targetUser)
+                    UserLegalHoldDisabled
                   | targetUser <- S.toList targetUsers
                 ]
     prop "returns nothing when the none of the users exist" $
@@ -82,8 +82,8 @@ spec = describe "UserSubsystem.Interpreter" do
          in retrievedProfile
               === [ mkUserProfile
                       (fmap (const $ (,) <$> viewer.teamId <*> Just teamMember) visibility)
-                      UserLegalHoldDisabled
                       (mkUserFromStored domain locale targetUser)
+                      UserLegalHoldDisabled
                   ]
     prop "gets Nothing when the target user exists and has accepted their invitation but the viewer has not accepted their invitation" $
       \(PendingStoredUser viewer) (NotPendingStoredUser targetUserNoTeam) visibility domain locale sameTeam ->
@@ -96,8 +96,8 @@ spec = describe "UserSubsystem.Interpreter" do
          in retrievedProfile
               === [ mkUserProfile
                       (fmap (const Nothing) visibility)
-                      UserLegalHoldDisabled
                       (mkUserFromStored domain locale targetUser)
+                      UserLegalHoldDisabled
                   ]
 
     prop "returns Nothing if the target user has not accepted their invitation yet" $
@@ -235,7 +235,7 @@ miniGetAllProfiles = do
   dom <- input
   pure $
     map
-      (mkUserProfileWithEmail Nothing UserLegalHoldDisabled . mkUserFromStored dom miniLocale)
+      (\u -> mkUserProfileWithEmail Nothing (mkUserFromStored dom miniLocale u) UserLegalHoldDisabled)
       (S.toList users)
 
 miniGetUsersByIds :: [UserId] -> MiniFederationMonad 'Brig [UserProfile]

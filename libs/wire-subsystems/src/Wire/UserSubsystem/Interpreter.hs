@@ -128,4 +128,4 @@ getLocalUserProfile emailVisibilityConfigWithViewer uid = do
     storedUser <- MaybeT $ getUser uid
     guard $ not (hasPendingInvitation storedUser)
     let user = mkUserFromStored domain locale storedUser
-    pure $ mkUserProfile emailVisibilityConfigWithViewer UserLegalHoldDisabled user
+    pure $ mkUserProfile emailVisibilityConfigWithViewer user UserLegalHoldDisabled

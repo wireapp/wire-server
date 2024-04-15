@@ -808,8 +808,8 @@ instance FromJSON (EmailVisibility ()) where
     "visible_to_self" -> pure EmailVisibleToSelf
     _ -> fail "unexpected value for EmailVisibility settings"
 
-mkUserProfileWithEmail :: Maybe Email -> UserLegalHoldStatus -> User -> UserProfile
-mkUserProfileWithEmail memail legalHoldStatus u =
+mkUserProfileWithEmail :: Maybe Email -> User -> UserLegalHoldStatus -> UserProfile
+mkUserProfileWithEmail memail u legalHoldStatus =
   -- This profile would be visible to any other user. When a new field is
   -- added, please make sure it is OK for other users to have access to it.
   UserProfile
@@ -828,8 +828,8 @@ mkUserProfileWithEmail memail legalHoldStatus u =
       profileSupportedProtocols = userSupportedProtocols u
     }
 
-mkUserProfile :: EmailVisibilityConfigWithViewer -> UserLegalHoldStatus -> User -> UserProfile
-mkUserProfile emailVisibilityConfigAndViewer legalHoldStatus u =
+mkUserProfile :: EmailVisibilityConfigWithViewer -> User -> UserLegalHoldStatus -> UserProfile
+mkUserProfile emailVisibilityConfigAndViewer u legalHoldStatus =
   let isEmailVisible = case emailVisibilityConfigAndViewer of
         EmailVisibleToSelf -> False
         EmailVisibleIfOnTeam -> isJust (userTeam u)
@@ -837,7 +837,7 @@ mkUserProfile emailVisibilityConfigAndViewer legalHoldStatus u =
         EmailVisibleIfOnSameTeam (Just (viewerTeamId, viewerMembership)) ->
           Just viewerTeamId == userTeam u
             && TeamMember.hasPermission viewerMembership TeamMember.ViewSameTeamEmails
-   in mkUserProfileWithEmail (if isEmailVisible then userEmail u else Nothing) legalHoldStatus u
+   in mkUserProfileWithEmail (if isEmailVisible then userEmail u else Nothing) u legalHoldStatus
 
 --------------------------------------------------------------------------------
 -- NewUser
