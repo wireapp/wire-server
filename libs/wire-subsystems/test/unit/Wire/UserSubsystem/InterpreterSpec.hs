@@ -42,9 +42,8 @@ import Wire.UserSubsystem.Interpreter
 spec :: Spec
 spec = describe "UserSubsystem.Interpreter" do
   describe "getUserProfiles" do
-    describe "[prod interpreter]" do
-      prop
-        "all users on federating backends"
+    describe "[with federation]" do
+      prop "all users on federating backends" $
         \viewer targetUsers visibility domain remoteDomain -> do
           let localBackend = def {users = [viewer]}
               remoteBackend = def {users = targetUsers}
@@ -65,7 +64,7 @@ spec = describe "UserSubsystem.Interpreter" do
                     | targetUser <- S.toList targetUsers
                   ]
 
-    describe "[mini interpreter]" do
+    describe "[without federation]" do
       prop "returns nothing when none of the users exist" $
         \viewer targetUserIds visibility domain locale ->
           let config = UserSubsystemConfig visibility domain locale
