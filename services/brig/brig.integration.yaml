@@ -16,7 +16,8 @@ elasticsearch:
   caCert: test/resources/elasticsearch-ca.pem
   insecureSkipVerifyTls: false
   additionalCredentials: test/resources/elasticsearch-credentials.yaml
-  additionalInsecureSkipVerifyTls: true
+  additionalCaCert: test/resources/elasticsearch-ca.pem
+  additionalInsecureSkipVerifyTls: false
 
 rabbitmq:
   host: 127.0.0.1
