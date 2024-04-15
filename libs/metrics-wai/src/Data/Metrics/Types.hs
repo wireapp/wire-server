@@ -40,7 +40,7 @@ newtype PathTemplate = PathTemplate Text
 -- | A 'Forest' of path segments.  A path segment is 'Left' if it captures a value
 -- (e.g. user id).
 newtype Paths = Paths (Forest PathSegment)
-  deriving (Eq, Show, Monoid, Semigroup)
+  deriving (Eq, Show)
 
 type PathSegment = Either ByteString ByteString
 
