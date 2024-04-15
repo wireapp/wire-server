@@ -1680,10 +1680,10 @@ testRegisterProvider db' brig = do
       activateProvider brig (Code.codeKey vcode) (Code.codeValue vcode)
         !!! const 200 === statusCode
     Nothing -> do
-      _rs <-
+      rs <-
         getProviderActivationCodeInternal brig email
           <!! const 200 === statusCode
-      let Just pair = responseJsonMaybe _rs :: Maybe Code.KeyValuePair
+      let Just pair = responseJsonMaybe rs :: Maybe Code.KeyValuePair
       activateProvider brig (Code.key pair) (Code.code pair)
         !!! const 200 === statusCode
   -- Login succeeds after activation (due to auto-approval)
