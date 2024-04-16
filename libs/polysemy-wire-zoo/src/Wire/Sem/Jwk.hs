@@ -5,6 +5,7 @@ module Wire.Sem.Jwk where
 import Control.Exception
 import Crypto.JOSE.JWK
 import Data.Aeson
+import Data.ByteString (fromStrict)
 import qualified Data.ByteString as BS
 import Imports
 import Polysemy
@@ -18,4 +19,8 @@ interpretJwk :: Members '[Embed IO] r => Sem (Jwk ': r) a -> Sem r a
 interpretJwk = interpret $ \(Get fp) -> liftIO $ readJwk fp
 
 readJwk :: FilePath -> IO (Maybe JWK)
-readJwk fp = try @IOException (BS.readFile fp) <&> either (const Nothing) (decode . cs)
+readJwk fp =
+  try @IOException (BS.readFile fp)
+    <&> either
+      (const Nothing)
+      (decode . fromStrict)
