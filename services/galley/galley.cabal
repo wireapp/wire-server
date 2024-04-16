@@ -131,7 +131,6 @@ library
     Galley.Aws
     Galley.Cassandra
     Galley.Cassandra.Access
-    Galley.Cassandra.AllFeatureConfigsRow
     Galley.Cassandra.Client
     Galley.Cassandra.Code
     Galley.Cassandra.Conversation
@@ -139,6 +138,7 @@ library
     Galley.Cassandra.Conversation.MLS
     Galley.Cassandra.ConversationList
     Galley.Cassandra.CustomBackend
+    Galley.Cassandra.GetAllTeamFeatureConfigs
     Galley.Cassandra.Instances
     Galley.Cassandra.LegalHold
     Galley.Cassandra.Proposal

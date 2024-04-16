@@ -1,5 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -29,6 +27,7 @@ import Control.Monad.Trans.Maybe
 import Data.Id
 import Data.Misc (HttpsUrl)
 import Data.Time
+import Galley.Cassandra.GetAllTeamFeatureConfigs
 import Galley.Cassandra.Instances ()
 import Galley.Cassandra.Store
 import Galley.Cassandra.Util
@@ -45,6 +44,7 @@ import Wire.API.Team.Feature
 interpretTeamFeatureStoreToCassandra ::
   ( Member (Embed IO) r,
     Member (Input ClientState) r,
+    Member (Input AllFeatureConfigs) r,
     Member TinyLog r
   ) =>
   Sem (TFS.TeamFeatureStore ': r) a ->
@@ -65,7 +65,10 @@ interpretTeamFeatureStoreToCassandra = interpret $ \case
   TFS.SetFeatureLockStatus sing tid ls -> do
     logEffect "TeamFeatureStore.SetFeatureLockStatus"
     embedClient $ setFeatureLockStatus sing tid ls
-  TFS.GetAllFeatureConfigs _tid -> undefined
+  TFS.GetAllFeatureConfigs tid -> do
+    logEffect "TeamFeatureStore.GetAllFeatureConfigs"
+    serverConfigs <- input
+    embedClient $ getAllFeatureConfigs serverConfigs tid
 
 getFeatureConfig :: MonadClient m => FeatureSingleton cfg -> TeamId -> m (Maybe (WithStatusNoLock cfg))
 getFeatureConfig FeatureSingletonLegalholdConfig tid = getTrivialConfigC "legalhold_status" tid
@@ -108,7 +111,12 @@ getFeatureConfig FeatureSingletonConferenceCallingConfig tid = do
   retry x1 q <&> \case
     Nothing -> Nothing
     Just (Nothing, _) -> Nothing
-    Just (Just status, mTtl) -> Just . forgetLock . setStatus status . setWsTTL (fromMaybe FeatureTTLUnlimited mTtl) $ defFeatureStatus
+    Just (Just status, mTtl) ->
+      Just
+        . forgetLock
+        . setStatus status
+        . setWsTTL (fromMaybe FeatureTTLUnlimited mTtl)
+        $ defFeatureStatus
   where
     select :: PrepQuery R (Identity TeamId) (Maybe FeatureStatus, Maybe FeatureTTL)
     select =
@@ -187,49 +195,6 @@ getFeatureConfig FeatureSingletonEnforceFileDownloadLocationConfig tid = do
     select = "select enforce_file_download_location_status, enforce_file_download_location from team_features where team_id = ?"
 getFeatureConfig FeatureSingletonLimitedEventFanoutConfig tid =
   getTrivialConfigC "limited_event_fanout_status" tid
-
-{- ORMOLU_DISABLE -}
-type  Foo =
-  (
-    -- legalhold
-    Maybe FeatureStatus,
-    -- sso
-    Maybe FeatureStatus,
-    -- search visibility
-    Maybe FeatureStatus,
-    -- validate saml emails
-    Maybe FeatureStatus,
-    -- digital signatures
-    Maybe FeatureStatus,
-    -- app lock
-    Maybe FeatureStatus, Maybe EnforceAppLock, Maybe Int32,
-    -- file sharing
-    Maybe FeatureStatus, Maybe LockStatus,
-    -- self deleting messages
-    Maybe FeatureStatus, Maybe Int32, Maybe LockStatus,
-    -- conference calling
-    Maybe FeatureStatus, Maybe FeatureTTL,
-    -- guest links
-    Maybe FeatureStatus, Maybe LockStatus,
-    -- snd factor
-    Maybe FeatureStatus, Maybe LockStatus,
-    -- mls
-    Maybe FeatureStatus, Maybe ProtocolTag, Maybe (C.Set UserId), Maybe (C.Set CipherSuiteTag),
-    Maybe CipherSuiteTag, Maybe (C.Set ProtocolTag), Maybe LockStatus,
-    -- mls e2eid
-    Maybe FeatureStatus, Maybe Int32, Maybe HttpsUrl, Maybe LockStatus,
-    -- mls migration
-    Maybe FeatureStatus, Maybe UTCTime, Maybe UTCTime, Maybe LockStatus,
-    -- expore invitation urls
-    Maybe FeatureStatus,
-    -- outlook calendar integration
-    Maybe FeatureStatus, Maybe LockStatus,
-    -- enforce download location
-    Maybe FeatureStatus, Maybe Text, Maybe LockStatus,
-    -- limit event fanout
-    Maybe FeatureStatus
-  )
-{- ORMOLU_ENABLE -}
 
 setFeatureConfig :: MonadClient m => FeatureSingleton cfg -> TeamId -> WithStatusNoLock cfg -> m ()
 setFeatureConfig FeatureSingletonLegalholdConfig tid statusNoLock = setFeatureStatusC "legalhold_status" tid (wssStatus statusNoLock)
