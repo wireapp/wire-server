@@ -30,6 +30,7 @@ import Bilge
 import Cassandra as Cas
 import qualified Control.Monad.Catch as Catch
 import Control.Monad.Except
+import qualified Data.Text.Lazy as LText
 import Imports hiding (log)
 import Polysemy
 import Polysemy.Error
@@ -57,7 +58,13 @@ interpretClientToIO ctx = interpret $ \case
   Embed action -> withStrategicToFinal @IO $ do
     action' <- liftS $ runClient ctx action
     st <- getInitialStateS
-    handler' <- bindS $ throw @SparError . SAML.CustomError . SparCassandraError . cs . show @SomeException
+    handler' <-
+      bindS $
+        throw @SparError
+          . SAML.CustomError
+          . SparCassandraError
+          . LText.pack
+          . show @SomeException
     pure $ action' `Catch.catch` \e -> handler' $ e <$ st
 
 ttlErrorToSparError :: Member (Error SparError) r => Sem (Error TTLError ': r) a -> Sem r a

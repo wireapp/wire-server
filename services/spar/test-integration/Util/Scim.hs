@@ -30,6 +30,7 @@ import qualified Data.ByteString.Lazy as Lazy
 import Data.Handle (Handle (Handle))
 import Data.Id
 import Data.LanguageCodes (ISO639_1 (EN))
+import Data.String.Conversions
 import qualified Data.Text.Lazy as Lazy
 import Data.Time
 import Data.UUID as UUID

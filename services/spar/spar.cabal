@@ -189,6 +189,7 @@ library
     , transformers
     , types-common
     , uri-bytestring
+    , utf8-string
     , uuid
     , wai
     , wai-utilities
@@ -377,6 +378,7 @@ executable spar-integration
     , servant-server
     , silently
     , spar
+    , string-conversions
     , tasty-hunit
     , text
     , time
@@ -472,6 +474,7 @@ executable spar-migrate-data
     , tinylog
     , types-common
     , uri-bytestring
+    , utf8-string
 
   default-language:   Haskell2010
 
@@ -626,6 +629,7 @@ test-suite spec
     , servant
     , servant-openapi3
     , spar
+    , string-conversions
     , time
     , tinylog
     , types-common

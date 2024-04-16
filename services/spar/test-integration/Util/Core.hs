@@ -161,6 +161,7 @@ import Data.Id
 import Data.Misc (PlainTextPassword6, plainTextPassword6Unsafe)
 import Data.Proxy
 import Data.Range
+import Data.String.Conversions
 import Data.Text (pack)
 import qualified Data.Text.Ascii as Ascii
 import Data.Text.Encoding (encodeUtf8)

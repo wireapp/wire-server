@@ -26,6 +26,7 @@ import Control.Lens
 import Control.Monad.Except
 import Data.ByteString.Conversion
 import Data.Id (TeamId, UserId)
+import qualified Data.Text.Lazy as LText
 import Imports
 import Network.HTTP.Types.Method
 import Spar.Error
@@ -85,7 +86,7 @@ assertHasPermission tid perm uid = do
         . paths ["i", "teams", toByteString' tid, "members", toByteString' uid]
   case (statusCode resp, parseResponse @TeamMember "galley" resp) of
     (200, Right member) | hasPermission member perm -> pure ()
-    _ -> throwSpar (SparNoPermission (cs $ show perm))
+    _ -> throwSpar (SparNoPermission (LText.pack $ show perm))
 
 assertSSOEnabled ::
   (HasCallStack, MonadError SparError m, MonadSparToGalley m) =>

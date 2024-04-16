@@ -59,6 +59,7 @@
 , servant-openapi3
 , servant-server
 , silently
+, string-conversions
 , tasty-hunit
 , text
 , text-latin1
@@ -67,6 +68,7 @@
 , transformers
 , types-common
 , uri-bytestring
+, utf8-string
 , uuid
 , vector
 , wai
@@ -125,6 +127,7 @@ mkDerivation {
     transformers
     types-common
     uri-bytestring
+    utf8-string
     uuid
     wai
     wai-utilities
@@ -179,6 +182,7 @@ mkDerivation {
     servant
     servant-server
     silently
+    string-conversions
     tasty-hunit
     text
     time
@@ -186,6 +190,7 @@ mkDerivation {
     transformers
     types-common
     uri-bytestring
+    utf8-string
     uuid
     vector
     wai-extra
@@ -220,6 +225,7 @@ mkDerivation {
     saml2-web-sso
     servant
     servant-openapi3
+    string-conversions
     time
     tinylog
     types-common

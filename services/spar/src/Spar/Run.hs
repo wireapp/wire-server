@@ -35,6 +35,7 @@ import Control.Lens (to, (^.))
 import Data.Id
 import Data.Metrics.Servant (servantPrometheusMiddleware)
 import Data.Proxy (Proxy (Proxy))
+import Data.Text.Encoding
 import qualified Data.UUID as UUID
 import Data.UUID.V4 as UUID
 import Imports
@@ -92,11 +93,11 @@ mkApp sparCtxOpts = do
   sparCtxCas <- initCassandra sparCtxOpts sparCtxLogger
   sparCtxHttpManager <- Bilge.newManager Bilge.defaultManagerSettings
   let sparCtxHttpBrig =
-        Bilge.host (sparCtxOpts ^. to brig . host . to cs)
+        Bilge.host (sparCtxOpts ^. to brig . host . to encodeUtf8)
           . Bilge.port (sparCtxOpts ^. to brig . port)
           $ Bilge.empty
   let sparCtxHttpGalley =
-        Bilge.host (sparCtxOpts ^. to galley . host . to cs)
+        Bilge.host (sparCtxOpts ^. to galley . host . to encodeUtf8)
           . Bilge.port (sparCtxOpts ^. to galley . port)
           $ Bilge.empty
   let wrappedApp =
@@ -125,6 +126,6 @@ lookupRequestIdMiddleware logger mkapp req cont = do
     Just rid -> do
       mkapp (RequestId rid) req cont
     Nothing -> do
-      localRid <- RequestId . cs . UUID.toText <$> UUID.nextRandom
+      localRid <- RequestId . encodeUtf8 . UUID.toText <$> UUID.nextRandom
       Log.info logger $ "request-id" .= localRid ~~ "request" .= (show req) ~~ msg (val "generated a new request id for local request")
       mkapp localRid req cont
