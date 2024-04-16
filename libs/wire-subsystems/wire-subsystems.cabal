@@ -127,6 +127,7 @@ test-suite wire-subsystems-tests
     , polysemy-wire-zoo
     , QuickCheck
     , quickcheck-instances
+    , string-conversions
     , types-common
     , wire-api
     , wire-subsystems
