@@ -39,7 +39,7 @@ import Data.Sequence qualified as Seq
 import Gundeck.Env
 import Gundeck.Options (NotificationTTL (..), internalPageSize, maxPayloadLoadSize, settings)
 import Gundeck.Push.Native.Serialise ()
-import Imports hiding (cs)
+import Imports
 import UnliftIO (pooledForConcurrentlyN_)
 import UnliftIO.Async (pooledMapConcurrentlyN)
 import Wire.API.Internal.Notification

@@ -61,6 +61,7 @@ import Data.Misc (Milliseconds (Ms))
 import Data.Range
 import Data.Scientific qualified as Scientific
 import Data.Set qualified as Set
+import Data.String.Conversions
 import Gundeck.Aws.Arn as Aws
 import Gundeck.Options
 import Gundeck.Push

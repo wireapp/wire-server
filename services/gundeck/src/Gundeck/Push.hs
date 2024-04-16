@@ -62,7 +62,7 @@ import Gundeck.ThreadBudget
 import Gundeck.Types
 import Gundeck.Types.Presence qualified as Presence
 import Gundeck.Util
-import Imports hiding (cs)
+import Imports
 import Network.HTTP.Types
 import Network.Wai.Utilities
 import System.Logger.Class (msg, val, (+++), (.=), (~~))
