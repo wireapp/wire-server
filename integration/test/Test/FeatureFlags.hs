@@ -35,19 +35,52 @@ testLimitedEventFanout = do
     resp.status `shouldMatchInt` 200
     resp.json %. "status" `shouldMatch` "enabled"
 
-testLegalhold :: HasCallStack => App ()
-testLegalhold = do
-  (owner, tid, _) <- createTeam OwnDomain 1
-  let expected = object ["lockStatus" .= "unlocked", "status" .= "disabled", "ttl" .= "unlimited"]
-  bindResponse (Internal.getTeamFeature OwnDomain tid "legalhold") $ \resp -> do
+disabled :: Value
+disabled = object ["lockStatus" .= "unlocked", "status" .= "disabled", "ttl" .= "unlimited"]
+
+enabled :: Value
+enabled = object ["lockStatus" .= "unlocked", "status" .= "enabled", "ttl" .= "unlimited"]
+
+checkLegalholdStatus :: (HasCallStack, MakesValue user, MakesValue tid) => String -> user -> tid -> Value -> App ()
+checkLegalholdStatus domain user tid expected = do
+  tidStr <- asString tid
+  bindResponse (Internal.getTeamFeature domain tidStr "legalhold") $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json `shouldMatch` expected
-  bindResponse (Public.getFeatureConfigs owner) $ \resp -> do
+  bindResponse (Public.getFeatureConfigs user) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "legalhold" `shouldMatch` expected
-  bindResponse (Public.getTeamFeatures owner tid) $ \resp -> do
+  bindResponse (Public.getTeamFeatures user tid) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "legalhold" `shouldMatch` expected
-  bindResponse (Public.getTeamFeature owner tid "legalhold") $ \resp -> do
+  bindResponse (Public.getTeamFeature user tid "legalhold") $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json `shouldMatch` expected
+
+-- always disabled
+testLegalholdDisabledPermanently :: HasCallStack => App ()
+testLegalholdDisabledPermanently = do
+  withModifiedBackend
+    (def {galleyCfg = setField "settings.featureFlags.legalhold" "disabled-permanently"})
+    $ \domain -> do
+      (owner, tid, _) <- createTeam domain 1
+      let expected = object ["lockStatus" .= "unlocked", "status" .= "disabled", "ttl" .= "unlimited"]
+      checkLegalholdStatus domain owner tid expected
+      Internal.setTeamFeatureStatusExpectHttpStatus domain tid "legalhold" "enabled" 403
+
+-- can be enabled for a team, disabled if unset
+testLegalholdDisabledByDefault :: HasCallStack => App ()
+testLegalholdDisabledByDefault = do
+  withModifiedBackend
+    (def {galleyCfg = setField "settings.featureFlags.legalhold" "disabled-by-default"})
+    $ \domain -> do
+      (owner, tid, _) <- createTeam domain 1
+      checkLegalholdStatus domain owner tid disabled
+      Internal.setTeamFeatureStatus domain tid "legalhold" "enabled"
+      checkLegalholdStatus domain owner tid enabled
+      Internal.setTeamFeatureStatus domain tid "legalhold" "disabled"
+      checkLegalholdStatus domain owner tid disabled
+
+-- enabled if team is allow listed, disabled in any other case
+testLegalholdWhitelistTeamsAndImplicitConsent :: HasCallStack => App ()
+testLegalholdWhitelistTeamsAndImplicitConsent = undefined
