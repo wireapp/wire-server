@@ -62,14 +62,19 @@ testLoginVerify6DigitMissingCodeFails = do
 testLoginVerify6DigitExpiredCodeFails :: HasCallStack => App ()
 testLoginVerify6DigitExpiredCodeFails = do
   withModifiedBackend
-    (def {brigCfg = setField "optSettings.setVerificationTimeout" (Aeson.Number 1)})
+    (def {brigCfg = setField "optSettings.setVerificationTimeout" (Aeson.Number 2)})
     $ \domain -> do
       (owner, team, []) <- createTeam domain 0
       email <- owner %. "email"
       setTeamFeatureLockStatus owner team "sndFactorPasswordChallenge" "unlocked"
       setTeamFeatureStatus owner team "sndFactorPasswordChallenge" "enabled"
+      bindResponse (getTeamFeature domain "sndFactorPasswordChallenge" team) $ \resp -> do
+        resp.status `shouldMatchInt` 200
+        resp.json %. "status" `shouldMatch` "enabled"
       generateVerificationCode owner email
-      code <- getVerificationCode owner "login" >>= getJSON 200 >>= asString
+      code <- bindResponse (getVerificationCode owner "login") $ \resp -> do
+        resp.status `shouldMatchInt` 200
+        asString resp.json
       liftIO $ threadDelay 2_000_100
       bindResponse (loginWith2ndFactor owner email defPassword code) \resp -> do
         resp.status `shouldMatchInt` 403
