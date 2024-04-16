@@ -259,6 +259,7 @@ evalGalley e =
     . interpretWaiRoutes
     . runInputConst (e ^. options)
     . runInputConst (toLocalUnsafe (e ^. options . settings . federationDomain) ())
+    . runInputSem getAllFeatureConfigsForServer
     . interpretInternalTeamListToCassandra
     . interpretTeamListToCassandra
     . interpretLegacyConversationListToCassandra

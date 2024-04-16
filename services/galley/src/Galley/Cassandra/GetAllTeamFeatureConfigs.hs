@@ -259,10 +259,10 @@ allFeatureConfigsFromRow serverConfigs row =
 
     downloadLocationConfig = Just $ EnforceFileDownloadLocationConfig row.enforceDownloadLocation_Location
 
-getAllFeatureConfigs :: MonadClient m => AllFeatureConfigs -> TeamId -> m (Maybe AllFeatureConfigs)
+getAllFeatureConfigs :: MonadClient m => AllFeatureConfigs -> TeamId -> m AllFeatureConfigs
 getAllFeatureConfigs serverConfigs tid = do
   row <- retry x1 $ query1 select (params LocalQuorum (Identity tid))
-  pure $ allFeatureConfigsFromRow serverConfigs . asRecord <$> row
+  pure $ maybe serverConfigs (allFeatureConfigsFromRow serverConfigs . asRecord) row
   where
     select ::
       PrepQuery

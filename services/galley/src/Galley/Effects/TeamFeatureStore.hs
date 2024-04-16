@@ -49,6 +49,6 @@ data TeamFeatureStore m a where
     TeamFeatureStore m ()
   GetAllFeatureConfigs ::
     TeamId ->
-    TeamFeatureStore m (Maybe AllFeatureConfigs)
+    TeamFeatureStore m AllFeatureConfigs
 
 makeSem ''TeamFeatureStore

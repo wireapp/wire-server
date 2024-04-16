@@ -18,6 +18,7 @@
 module Galley.Cassandra.TeamFeatures
   ( interpretTeamFeatureStoreToCassandra,
     getFeatureConfigMulti,
+    getAllFeatureConfigsForServer,
   )
 where
 
@@ -27,6 +28,7 @@ import Control.Monad.Trans.Maybe
 import Data.Id
 import Data.Misc (HttpsUrl)
 import Data.Time
+import Galley.API.Teams.Features.Get
 import Galley.Cassandra.GetAllTeamFeatureConfigs
 import Galley.Cassandra.Instances ()
 import Galley.Cassandra.Store
