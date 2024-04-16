@@ -33,7 +33,7 @@ putTeamMember user team perms = do
       req
 
 getTeamFeature :: (HasCallStack, MakesValue domain_) => domain_ -> String -> String -> App Response
-getTeamFeature domain_ featureName tid = do
+getTeamFeature domain_ tid featureName = do
   req <- baseRequest domain_ Galley Unversioned $ joinHttpPath ["i", "teams", tid, "features", featureName]
   submit "GET" $ req
 

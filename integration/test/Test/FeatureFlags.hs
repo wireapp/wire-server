@@ -17,7 +17,8 @@
 
 module Test.FeatureFlags where
 
-import API.GalleyInternal
+import qualified API.Galley as Public
+import qualified API.GalleyInternal as Internal
 import SetupHelpers
 import Testlib.Prelude
 
@@ -26,10 +27,27 @@ testLimitedEventFanout = do
   let featureName = "limitedEventFanout"
   (_alice, team, _) <- createTeam OwnDomain 1
   -- getTeamFeatureStatus OwnDomain team "limitedEventFanout" "enabled"
-  bindResponse (getTeamFeature OwnDomain featureName team) $ \resp -> do
+  bindResponse (Internal.getTeamFeature OwnDomain team featureName) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "status" `shouldMatch` "disabled"
-  setTeamFeatureStatus OwnDomain team featureName "enabled"
-  bindResponse (getTeamFeature OwnDomain featureName team) $ \resp -> do
+  Internal.setTeamFeatureStatus OwnDomain team featureName "enabled"
+  bindResponse (Internal.getTeamFeature OwnDomain team featureName) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "status" `shouldMatch` "enabled"
+
+testLegalhold :: HasCallStack => App ()
+testLegalhold = do
+  (owner, tid, _) <- createTeam OwnDomain 1
+  let expected = object ["lockStatus" .= "unlocked", "status" .= "disabled", "ttl" .= "unlimited"]
+  bindResponse (Internal.getTeamFeature OwnDomain tid "legalhold") $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json `shouldMatch` expected
+  bindResponse (Public.getFeatureConfigs owner) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "legalhold" `shouldMatch` expected
+  bindResponse (Public.getTeamFeatures owner tid) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "legalhold" `shouldMatch` expected
+  bindResponse (Public.getTeamFeature owner tid "legalhold") $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json `shouldMatch` expected
