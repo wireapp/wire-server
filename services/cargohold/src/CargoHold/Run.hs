@@ -104,7 +104,7 @@ mkApp o = Codensity $ \k ->
     lookupReqId l r = case lookup requestIdName $ Wai.requestHeaders r of
       Just rid -> pure $ RequestId rid
       Nothing -> do
-        localRid <- RequestId . cs . UUID.toText <$> UUID.nextRandom
+        localRid <- RequestId . UUID.toASCIIBytes <$> UUID.nextRandom
         Log.info l $
           "request-id" .= localRid
             ~~ "method" .= Wai.requestMethod r
