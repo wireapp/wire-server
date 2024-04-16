@@ -24,6 +24,7 @@ import Data.ByteString qualified as BS
 import Data.Default
 import Data.Domain
 import Data.Sequence as Seq
+import Data.String.Conversions
 import Data.Text.Encoding qualified as Text
 import Federator.Discovery
 import Federator.Error.ServerError (ServerError (..))

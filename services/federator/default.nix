@@ -52,6 +52,7 @@
 , servant-client
 , servant-client-core
 , servant-server
+, string-conversions
 , tasty
 , tasty-hunit
 , tasty-quickcheck
@@ -61,6 +62,7 @@
 , transformers
 , types-common
 , unix
+, utf8-string
 , uuid
 , wai
 , wai-extra
@@ -120,6 +122,7 @@ mkDerivation {
     transformers
     types-common
     unix
+    utf8-string
     uuid
     wai
     wai-utilities
@@ -154,6 +157,7 @@ mkDerivation {
     QuickCheck
     random
     servant-client-core
+    string-conversions
     tasty-hunit
     text
     types-common
@@ -188,6 +192,7 @@ mkDerivation {
     servant-client
     servant-client-core
     servant-server
+    string-conversions
     tasty
     tasty-hunit
     tasty-quickcheck

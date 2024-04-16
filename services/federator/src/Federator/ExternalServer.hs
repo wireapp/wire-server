@@ -148,7 +148,7 @@ callInward component (RPC rpc) mReqId originDomain (CertHeader cert) wreq = do
   rid <- case mReqId of
     Just r -> pure r
     Nothing -> do
-      localRid <- liftIO $ RequestId . cs . UUID.toText <$> UUID.nextRandom
+      localRid <- liftIO $ RequestId . Text.encodeUtf8 . UUID.toText <$> UUID.nextRandom
       info $
         "request-id" .= localRid
           ~~ "method" .= Wai.requestMethod wreq
