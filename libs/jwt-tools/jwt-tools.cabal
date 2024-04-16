@@ -68,6 +68,7 @@ library
     , http-types
     , imports
     , transformers
+    , utf8-string
 
   default-language:   GHC2021
   other-extensions:   ForeignFunctionInterface
@@ -83,6 +84,7 @@ test-suite jwt-tools-tests
     , hspec
     , imports
     , jwt-tools
+    , string-conversions
     , transformers
 
   hs-source-dirs:     test

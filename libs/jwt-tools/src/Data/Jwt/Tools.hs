@@ -42,6 +42,7 @@ where
 import Control.Exception hiding (handle)
 import Control.Monad.Trans.Except
 import Data.ByteString.Conversion
+import Data.ByteString.UTF8 qualified as UTF8
 import Foreign.C.String (CString, newCString, peekCString)
 import Foreign.Ptr (Ptr, nullPtr)
 import Imports
@@ -163,7 +164,7 @@ generateDpopToken dpopProof uid cid handle displayName tid domain nonce uri meth
   domainCStr <- toCStr domain
   nonceCStr <- toCStr nonce
   uriCStr <- toCStr uri
-  methodCStr <- liftIO $ newCString $ cs $ methodToBS method
+  methodCStr <- liftIO $ newCString $ UTF8.toString $ methodToBS method
   backendPubkeyBundleCStr <- toCStr backendPubkeyBundle
 
   -- log all variable inputs (can comment in if need to generate new test data)
@@ -205,7 +206,7 @@ generateDpopToken dpopProof uid cid handle displayName tid domain nonce uri meth
     toCStr = liftIO . newCString . toStr
       where
         toStr :: a -> String
-        toStr = cs . toByteString'
+        toStr = UTF8.toString . toByteString'
 
     methodToBS :: StdMethod -> ByteString
     methodToBS = \case
@@ -221,8 +222,8 @@ generateDpopToken dpopProof uid cid handle displayName tid domain nonce uri meth
 
 toResult :: Maybe Word8 -> Maybe String -> Either DPoPTokenGenerationError ByteString
 -- the only valid cases are when the error=0 (meaning no error) or nothing and the token is not null
-toResult (Just 0) (Just token) = Right $ cs token
-toResult Nothing (Just token) = Right $ cs token
+toResult (Just 0) (Just token) = Right $ UTF8.fromString token
+toResult Nothing (Just token) = Right $ UTF8.fromString token
 -- errors
 toResult (Just errNo) _ = Left $ fromInt (fromIntegral errNo)
   where
