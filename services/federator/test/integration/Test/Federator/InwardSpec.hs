@@ -33,7 +33,6 @@ import Data.Text.Encoding
 import Federator.Options hiding (federatorExternal)
 import Imports
 import Network.HTTP.Types qualified as HTTP
-import Network.Wai.Utilities.Error qualified as E
 import Test.Federator.Util
 import Test.Hspec
 import Test.QuickCheck (arbitrary, generate)
@@ -99,11 +98,10 @@ spec env =
 
     it "should return 404 'no-endpoint' response from Brig" $
       runTestFederator env $ do
-        err <-
-          responseJsonError
-            =<< inwardCall "/federation/brig/this-endpoint-does-not-exist" (encode Aeson.emptyObject)
-              <!! const 404 === statusCode
-        liftIO $ E.label err `shouldBe` "no-endpoint"
+        resp <-
+          inwardCall "/federation/brig/this-endpoint-does-not-exist" (encode Aeson.emptyObject)
+            <!! const 404 === statusCode
+        liftIO $ resp.responseBody `shouldBe` Nothing
 
     -- Note: most tests for forbidden endpoints are in the unit tests of ExternalService
     -- The integration tests are just another safeguard.
