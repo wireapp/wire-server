@@ -22,6 +22,8 @@ import Data.Aeson
 import Data.Aeson.Encode.Pretty
 import Data.ByteString.Lazy.Char8 qualified as BL
 import Data.Domain (Domain)
+import Data.Text qualified as T
+import Data.Text.Lazy qualified as TL
 import Data.Text.Lazy.Encoding qualified as TL
 import Imports
 import Network.AMQP
@@ -86,8 +88,8 @@ main = do
     displayMessage opts msg =
       intercalate
         "\n"
-        [ "vhost: " <> cs opts.vhost,
-          "queue: " <> cs opts.queue,
+        [ "vhost: " <> T.unpack opts.vhost,
+          "queue: " <> T.unpack opts.queue,
           "timestamp: " <> show msg.msgTimestamp,
           "received message: \n" <> BL.unpack (maybe msg.msgBody encodePretty (decode @BackendNotification' msg.msgBody))
         ]
@@ -215,7 +217,9 @@ instance FromJSON Body where
     Body . bodyToValue . TL.encodeUtf8 <$> parseJSON v
     where
       bodyToValue :: BL.ByteString -> Value
-      bodyToValue bs = fromMaybe (String $ cs $ TL.decodeUtf8 bs) $ decode @Value bs
+      bodyToValue bs =
+        fromMaybe (String . TL.toStrict . TL.decodeUtf8 $ bs) $
+          decode @Value bs
 
 -- | A variant of 'BackendNotification' with a FromJSON instance for the body field
 -- that converts its BL.ByteString content to a JSON value so that it can be pretty printed
