@@ -245,7 +245,9 @@ federationRemoteHTTP2Error target path = \case
     addErrData err =
       err
         { Wai.errorData =
-            ((mkDomain . cs . srvTargetDomain $ target) :: Either String Domain)
+            ( (mkDomain . T.decodeUtf8With T.lenientDecode . srvTargetDomain $ target) ::
+                Either String Domain
+            )
               & either (const Nothing) (\dom -> Just (Wai.FederationErrorData dom path))
         }
 
@@ -271,7 +273,9 @@ federationRemoteResponseError target path status body =
       )
   )
     { Wai.errorData =
-        ((mkDomain . cs . srvTargetDomain $ target) :: Either String Domain)
+        ( (mkDomain . T.decodeUtf8With T.lenientDecode . srvTargetDomain $ target) ::
+            Either String Domain
+        )
           & either (const Nothing) (\dom -> Just (Wai.FederationErrorData dom path)),
       Wai.innerError =
         Just $
