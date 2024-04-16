@@ -133,7 +133,7 @@ ciObject name sch = mkSchema s r w
         desc = S.description ?~ ("json object with case-insensitive fields." :: Text)
 
     r :: A.Value -> A.Parser b
-    r = A.withObject (cs name) f
+    r = A.withObject (Text.unpack name) f
       where
         f :: A.Object -> A.Parser b
         f = schemaIn sch . g
@@ -350,8 +350,8 @@ instance ToSchema RichField where
 instance Arbitrary RichField where
   arbitrary =
     RichField
-      <$> (CI.mk . cs . QC.getPrintableString <$> arbitrary)
-      <*> (cs . QC.getPrintableString <$> arbitrary)
+      <$> (CI.mk . Text.pack . QC.getPrintableString <$> arbitrary)
+      <*> (Text.pack . QC.getPrintableString <$> arbitrary)
   shrink (RichField k v) = RichField <$> QC.shrink k <*> QC.shrink v
 
 --------------------------------------------------------------------------------

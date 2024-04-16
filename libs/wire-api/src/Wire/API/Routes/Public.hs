@@ -39,6 +39,7 @@ module Wire.API.Routes.Public
 where
 
 import Control.Lens ((%~), (<>~))
+import Data.ByteString (toStrict)
 import Data.ByteString.Conversion (toByteString)
 import Data.Domain
 import Data.HashMap.Strict.InsOrd qualified as InsOrdHashMap
@@ -48,6 +49,8 @@ import Data.Metrics.Servant
 import Data.OpenApi hiding (HasServer, Header, Server)
 import Data.OpenApi qualified as S
 import Data.Qualified
+import Data.Text.Encoding
+import Data.Text.Encoding.Error
 import GHC.Base (Symbol)
 import GHC.TypeLits (KnownSymbol)
 import Imports hiding (All, head)
@@ -339,7 +342,18 @@ instance
   toOpenApi _ = addScopeDescription @scope (toOpenApi (Proxy @api))
 
 addScopeDescription :: forall scope. OAuth.IsOAuthScope scope => OpenApi -> OpenApi
-addScopeDescription = allOperations . description %~ Just . (<> "\nOAuth scope: `" <> cs (toByteString (OAuth.toOAuthScope @scope)) <> "`") . fold
+addScopeDescription =
+  allOperations
+    . description
+    %~ Just
+    . ( <>
+          "\nOAuth scope: `"
+            <> ( decodeUtf8With lenientDecode . toStrict . toByteString $
+                   OAuth.toOAuthScope @scope
+               )
+            <> "`"
+      )
+    . fold
 
 instance (HasServer api ctx) => HasServer (DescriptionOAuthScope scope :> api) ctx where
   type ServerT (DescriptionOAuthScope scope :> api) m = ServerT api m

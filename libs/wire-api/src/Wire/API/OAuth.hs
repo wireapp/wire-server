@@ -26,7 +26,7 @@ import Data.Aeson.KeyMap qualified as M
 import Data.Aeson.Types qualified as A
 import Data.ByteArray (convert)
 import Data.ByteString.Conversion
-import Data.ByteString.Lazy (toStrict)
+import Data.ByteString.Lazy (fromStrict, toStrict)
 import Data.Either.Combinators (mapLeft)
 import Data.HashMap.Strict qualified as HM
 import Data.Id as Id
@@ -115,8 +115,8 @@ instance ToSchema OAuthClientConfig where
     where
       applicationNameDescription = description ?~ "The name of the application. This will be shown to the user when they are asked to authorize the application. The name must be between " <> minL <> " and " <> maxL <> " characters long."
       redirectUrlDescription = description ?~ "The URL to redirect to after the user has authorized the application."
-      minL = cs @String @Text $ symbolVal $ Proxy @(Show_ OAuthApplicationNameMinLength)
-      maxL = cs @String @Text $ symbolVal $ Proxy @(Show_ OAuthApplicationNameMaxLength)
+      minL = T.pack $ symbolVal $ Proxy @(Show_ OAuthApplicationNameMinLength)
+      maxL = T.pack $ symbolVal $ Proxy @(Show_ OAuthApplicationNameMaxLength)
 
 newtype OAuthClientPlainTextSecret = OAuthClientPlainTextSecret {unOAuthClientPlainTextSecret :: AsciiBase16}
   deriving (Eq, Generic, Arbitrary)
@@ -130,7 +130,7 @@ instance ToSchema OAuthClientPlainTextSecret where
   schema = (toText . unOAuthClientPlainTextSecret) .= parsedText "OAuthClientPlainTextSecret" (fmap OAuthClientPlainTextSecret . validateBase16)
 
 instance FromHttpApiData OAuthClientPlainTextSecret where
-  parseQueryParam = bimap cs OAuthClientPlainTextSecret . validateBase16 . cs
+  parseQueryParam = bimap T.pack OAuthClientPlainTextSecret . validateBase16
 
 instance ToHttpApiData OAuthClientPlainTextSecret where
   toQueryParam = toText . unOAuthClientPlainTextSecret
@@ -236,11 +236,17 @@ instance ToSchema OAuthScopes where
   schema = OAuthScopes <$> (oauthScopesToText . unOAuthScopes) .= withParser schema oauthScopeParser
     where
       oauthScopesToText :: Set OAuthScope -> Text
-      oauthScopesToText = T.intercalate " " . fmap (cs . toByteString') . Set.toList
+      oauthScopesToText =
+        T.intercalate " "
+          . fmap (TE.decodeUtf8With lenientDecode . toByteString')
+          . Set.toList
 
       oauthScopeParser :: Text -> A.Parser (Set OAuthScope)
       oauthScopeParser scope =
-        pure $ (not . T.null) `filter` T.splitOn " " scope & maybe Set.empty Set.fromList . mapM (fromByteString' . cs)
+        pure $
+          (not . T.null) `filter` T.splitOn " " scope
+            & maybe Set.empty Set.fromList
+              . mapM (fromByteString' . fromStrict . TE.encodeUtf8)
 
 data CodeChallengeMethod = S256
   deriving (Eq, Show, Generic)
@@ -265,7 +271,7 @@ instance ToSchema OAuthCodeVerifier where
   schema = OAuthCodeVerifier <$> unOAuthCodeVerifier .= schema
 
 instance FromHttpApiData OAuthCodeVerifier where
-  parseQueryParam = fmap OAuthCodeVerifier . mapLeft cs . checkedEither
+  parseQueryParam = fmap OAuthCodeVerifier . mapLeft T.pack . checkedEither
 
 instance ToHttpApiData OAuthCodeVerifier where
   toQueryParam = fromRange . unOAuthCodeVerifier
@@ -294,7 +300,7 @@ mkChallenge =
     . encodeBase64UrlUnpadded
     . convert
     . Crypto.hash @ByteString @Crypto.SHA256
-    . cs
+    . TE.encodeUtf8
     . fromRange
     . unOAuthCodeVerifier
 
@@ -347,7 +353,7 @@ instance FromByteString OAuthAuthorizationCode where
   parser = OAuthAuthorizationCode <$> parser
 
 instance FromHttpApiData OAuthAuthorizationCode where
-  parseQueryParam = bimap cs OAuthAuthorizationCode . validateBase16 . cs
+  parseQueryParam = bimap T.pack OAuthAuthorizationCode . validateBase16
 
 instance ToHttpApiData OAuthAuthorizationCode where
   toQueryParam = toText . unOAuthAuthorizationCode
@@ -379,10 +385,10 @@ instance ToByteString OAuthGrantType where
     OAuthGrantTypeRefreshToken -> "refresh_token"
 
 instance FromHttpApiData OAuthGrantType where
-  parseQueryParam = maybe (Left "invalid OAuthGrantType") pure . fromByteString . cs
+  parseQueryParam = maybe (Left "invalid OAuthGrantType") pure . fromByteString . TE.encodeUtf8
 
 instance ToHttpApiData OAuthGrantType where
-  toQueryParam = cs . toByteString
+  toQueryParam = TE.decodeUtf8With lenientDecode . toStrict . toByteString
 
 data OAuthAccessTokenRequest = OAuthAccessTokenRequest
   { grantType :: OAuthGrantType,
@@ -454,20 +460,27 @@ instance ToByteString (OAuthToken a) where
 instance FromByteString (OAuthToken a) where
   parser = do
     t <- parser @Text
-    case decodeCompact (cs (TE.encodeUtf8 t)) of
+    case decodeCompact (fromStrict (TE.encodeUtf8 t)) of
       Left (err :: JWTError) -> fail $ show err
       Right jwt -> pure $ OAuthToken jwt
 
 instance ToHttpApiData (OAuthToken a) where
   toHeader = toByteString'
-  toUrlPiece = cs . toHeader
+  toUrlPiece = TE.decodeUtf8With lenientDecode . toHeader
 
 instance FromHttpApiData (OAuthToken a) where
-  parseHeader = either (Left . cs) pure . runParser parser . cs
-  parseUrlPiece = parseHeader . cs
+  parseHeader = either (Left . T.pack) pure . runParser parser
+  parseUrlPiece = parseHeader . TE.encodeUtf8
 
 instance ToSchema (OAuthToken a) where
-  schema = (TE.decodeUtf8 . toByteString') .= withParser schema (either fail pure . runParser parser . cs)
+  schema =
+    (TE.decodeUtf8 . toByteString')
+      .= withParser
+        schema
+        ( either fail pure
+            . runParser parser
+            . TE.encodeUtf8
+        )
 
 type OAuthAccessToken = OAuthToken 'Access
 
@@ -686,8 +699,11 @@ instance Cql OAuthAuthorizationCode where
 
 instance Cql OAuthScope where
   ctype = Tagged TextColumn
-  toCql = CqlText . cs . toByteString'
-  fromCql (CqlText t) = maybe (Left "invalid oauth scope") Right $ fromByteString' (cs t)
+  toCql = CqlText . TE.decodeUtf8With lenientDecode . toByteString'
+  fromCql (CqlText t) =
+    maybe (Left "invalid oauth scope") Right $
+      fromByteString' . fromStrict . TE.encodeUtf8 $
+        t
   fromCql _ = Left "OAuthScope: Text expected"
 
 instance Cql OAuthCodeChallenge where

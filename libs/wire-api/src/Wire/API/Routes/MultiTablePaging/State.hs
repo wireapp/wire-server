@@ -64,7 +64,9 @@ instance PagingTable tables => ToHttpApiData (MultiTablePagingState name tables)
   toQueryParam = (Text.decodeUtf8 . Base64Url.encode) . encodePagingState
 
 instance PagingTable tables => FromHttpApiData (MultiTablePagingState name tables) where
-  parseQueryParam = mapLeft cs . (parsePagingState <=< (Base64Url.decode . Text.encodeUtf8))
+  parseQueryParam =
+    mapLeft Text.pack
+      . (parsePagingState <=< (Base64Url.decode . Text.encodeUtf8))
 
 -- | A class for values that can be encoded with a single byte. Used to add a
 -- byte of extra information to the paging state in order to recover the table

@@ -73,7 +73,7 @@ instance ToParamSchema PagingState where
   toParamSchema _ = toParamSchema (Proxy @Text)
 
 instance FromHttpApiData PagingState where
-  parseQueryParam s = mapLeft cs $ PagingState <$> validateBase64Url s
+  parseQueryParam s = mapLeft T.pack $ PagingState <$> validateBase64Url s
 
 instance ToHttpApiData PagingState where
   toQueryParam = toText . unPagingState

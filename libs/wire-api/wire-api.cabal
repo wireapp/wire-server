@@ -614,6 +614,7 @@ test-suite wire-api-golden-tests
     , lens
     , pem
     , proto-lens
+    , string-conversions
     , tasty
     , tasty-hunit
     , text
@@ -689,6 +690,7 @@ test-suite wire-api-tests
     , schema-profunctor
     , servant
     , servant-server
+    , string-conversions
     , tasty
     , tasty-hspec
     , tasty-hunit

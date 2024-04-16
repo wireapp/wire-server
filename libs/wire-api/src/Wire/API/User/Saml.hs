@@ -28,11 +28,14 @@ import Control.Lens (makeLenses)
 import Control.Monad.Except
 import Data.Aeson hiding (fieldLabelModifier)
 import Data.Aeson.TH hiding (fieldLabelModifier)
+import Data.ByteString (toStrict)
 import Data.ByteString.Builder qualified as Builder
 import Data.Id (UserId)
 import Data.OpenApi
 import Data.Proxy (Proxy (Proxy))
 import Data.Text qualified as T
+import Data.Text.Encoding
+import Data.Text.Encoding.Error
 import Data.Time
 import GHC.TypeLits (KnownSymbol, symbolVal)
 import GHC.Types (Symbol)
@@ -66,8 +69,15 @@ deriveJSON deriveJSONOptions ''VerdictFormat
 mkVerdictGrantedFormatMobile :: MonadError String m => URI -> SetCookie -> UserId -> m URI
 mkVerdictGrantedFormatMobile before cky uid =
   parseURI'
-    . substituteVar "cookie" (cs . Builder.toLazyByteString . renderSetCookie $ cky)
-    . substituteVar "userid" (cs . show $ uid)
+    . substituteVar
+      "cookie"
+      ( decodeUtf8With lenientDecode
+          . toStrict
+          . Builder.toLazyByteString
+          . renderSetCookie
+          $ cky
+      )
+    . substituteVar "userid" (T.pack . show $ uid)
     $ renderURI before
 
 mkVerdictDeniedFormatMobile :: MonadError String m => URI -> Text -> m URI

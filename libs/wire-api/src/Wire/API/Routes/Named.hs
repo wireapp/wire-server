@@ -25,6 +25,7 @@ import Data.Metrics.Servant
 import Data.OpenApi.Lens hiding (HasServer)
 import Data.OpenApi.Operation
 import Data.Proxy
+import Data.Text qualified as T
 import GHC.TypeLits
 import Imports
 import Servant
@@ -42,7 +43,7 @@ class RenderableSymbol a where
   renderSymbol :: Text
 
 instance {-# OVERLAPPABLE #-} KnownSymbol a => RenderableSymbol a where
-  renderSymbol = cs . show $ symbolVal (Proxy @a)
+  renderSymbol = T.pack . show $ symbolVal (Proxy @a)
 
 instance {-# OVERLAPPING #-} (RenderableSymbol a, RenderableSymbol b) => RenderableSymbol '(a, b) where
   renderSymbol = "(" <> (renderSymbol @a) <> ", " <> (renderSymbol @b) <> ")"
@@ -55,7 +56,7 @@ instance (HasOpenApi api, RenderableSymbol name) => HasOpenApi (Named name api) 
       dscr :: Text
       dscr =
         " [<a href=\"https://docs.wire.com/developer/developer/servant.html#named-and-internal-route-ids\">internal route ID:</a> "
-          <> cs (renderSymbol @name)
+          <> renderSymbol @name
           <> "]"
 
 instance HasServer api ctx => HasServer (Named name api) ctx where

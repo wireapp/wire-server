@@ -170,6 +170,7 @@ import Data.Attoparsec.ByteString qualified as Parser
 import Data.Attoparsec.Text qualified as TParser
 import Data.Bifunctor qualified as Bifunctor
 import Data.Bits
+import Data.ByteString (toStrict)
 import Data.ByteString.Builder (toLazyByteString)
 import Data.ByteString.Conversion
 import Data.CaseInsensitive qualified as CI
@@ -194,6 +195,7 @@ import Data.Set qualified as Set
 import Data.Text qualified as T
 import Data.Text.Ascii
 import Data.Text.Encoding qualified as T
+import Data.Text.Encoding.Error
 import Data.Time.Clock (NominalDiffTime)
 import Data.UUID (UUID, nil)
 import Data.UUID qualified as UUID
@@ -329,7 +331,7 @@ newtype PhonePrefix = PhonePrefix {fromPhonePrefix :: Text}
 instance Arbitrary PhonePrefix where
   arbitrary = do
     digits <- take 8 <$> QC.listOf1 (QC.elements ['0' .. '9'])
-    pure . PhonePrefix . cs $ "+" <> digits
+    pure . PhonePrefix . T.pack $ "+" <> digits
 
 instance ToSchema PhonePrefix where
   schema = fromPhonePrefix .= parsedText "PhonePrefix" phonePrefixParser
@@ -344,7 +346,7 @@ instance ToByteString PhonePrefix where
   builder = builder . fromPhonePrefix
 
 instance FromHttpApiData PhonePrefix where
-  parseUrlPiece = Bifunctor.first cs . phonePrefixParser
+  parseUrlPiece = Bifunctor.first T.pack . phonePrefixParser
 
 deriving instance C.Cql PhonePrefix
 
@@ -766,7 +768,11 @@ scimExternalId ManagedByWire (UserSSOId _) = Nothing
 ssoIssuerAndNameId :: UserSSOId -> Maybe (Text, Text)
 ssoIssuerAndNameId (UserSSOId (SAML.UserRef (SAML.Issuer uri) nameIdXML)) = Just (fromUri uri, fromNameId nameIdXML)
   where
-    fromUri = cs . toLazyByteString . serializeURIRef
+    fromUri =
+      T.decodeUtf8With lenientDecode
+        . toStrict
+        . toLazyByteString
+        . serializeURIRef
     fromNameId = CI.original . SAML.unsafeShowNameID
 ssoIssuerAndNameId (UserScimExternalId _) = Nothing
 
@@ -1360,10 +1366,14 @@ instance S.ToParamSchema InvitationCode where
   toParamSchema _ = S.toParamSchema (Proxy @Text)
 
 instance FromHttpApiData InvitationCode where
-  parseQueryParam = bimap cs InvitationCode . validateBase64Url
+  parseQueryParam = bimap T.pack InvitationCode . validateBase64Url
 
 instance ToHttpApiData InvitationCode where
-  toQueryParam = cs . toByteString . fromInvitationCode
+  toQueryParam =
+    T.decodeUtf8With lenientDecode
+      . toStrict
+      . toByteString
+      . fromInvitationCode
 
 deriving instance C.Cql InvitationCode
 
@@ -1996,10 +2006,13 @@ instance S.ToParamSchema VerificationAction where
       }
 
 instance FromHttpApiData VerificationAction where
-  parseUrlPiece = maybeToEither "Invalid verification action" . fromByteString . cs
+  parseUrlPiece =
+    maybeToEither "Invalid verification action"
+      . fromByteString
+      . T.encodeUtf8
 
 instance ToHttpApiData VerificationAction where
-  toQueryParam a = cs (toByteString' a)
+  toQueryParam a = T.decodeUtf8With lenientDecode (toByteString' a)
 
 data SendVerificationCode = SendVerificationCode
   { svcAction :: VerificationAction,

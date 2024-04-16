@@ -104,6 +104,7 @@ import Data.Range (Range, fromRange, rangedSchema)
 import Data.SOP
 import Data.Schema
 import Data.Set qualified as Set
+import Data.Text qualified as Text
 import Data.UUID qualified as UUID
 import Data.UUID.V5 qualified as UUIDV5
 import Imports
@@ -724,7 +725,7 @@ newConvSchema sch =
       \to be part of this conversation"
     usersRoleDesc :: Text
     usersRoleDesc =
-      cs $
+      Text.pack $
         "The conversation permissions the users \
         \added in this request should have. \
         \Optional, defaults to '"
