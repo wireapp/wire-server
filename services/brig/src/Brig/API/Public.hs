@@ -78,8 +78,10 @@ import Control.Monad.Catch (throwM)
 import Control.Monad.Except
 import Data.Aeson hiding (json)
 import Data.Bifunctor
+import Data.ByteString (fromStrict, toStrict)
 import Data.ByteString.Lazy qualified as Lazy
 import Data.ByteString.Lazy.Char8 qualified as LBS
+import Data.ByteString.UTF8 qualified as UTF8
 import Data.CommaSeparatedList
 import Data.Domain
 import Data.FileEmbed
@@ -95,6 +97,7 @@ import Data.Range
 import Data.Schema ()
 import Data.Text qualified as Text
 import Data.Text.Ascii qualified as Ascii
+import Data.Text.Encoding qualified as Text
 import Data.Text.Lazy (pack)
 import Data.Time.Clock (UTCTime)
 import Data.ZAuth.Token qualified as ZAuth
@@ -217,7 +220,7 @@ versionedSwaggerDocsAPI Nothing = allroutes (throwError listAllVersionsResp)
       Servant.Server (SwaggerSchemaUI "swagger-ui" "swagger.json")
     allroutes action =
       -- why?  see 'SwaggerSchemaUI' type.
-      action :<|> action :<|> action :<|> error (cs listAllVersionsHTML)
+      action :<|> action :<|> action :<|> error (UTF8.toString . toStrict $ listAllVersionsHTML)
 
     listAllVersionsResp :: ServerError
     listAllVersionsResp = ServerError 200 mempty listAllVersionsHTML [("Content-Type", "text/html;charset=utf-8")]
@@ -227,7 +230,11 @@ versionedSwaggerDocsAPI Nothing = allroutes (throwError listAllVersionsResp)
       "<html><head></head><body><h2>please pick an api version</h2>"
         <> mconcat
           [ let url = "/" <> toQueryParam v <> "/api/swagger-ui/"
-             in "<a href=\"" <> cs url <> "\">" <> cs url <> "</a><br>"
+             in "<a href=\""
+                  <> (fromStrict . Text.encodeUtf8 $ url)
+                  <> "\">"
+                  <> (fromStrict . Text.encodeUtf8 $ url)
+                  <> "</a><br>"
             | v <- [minBound :: Version ..]
           ]
         <> "</body>"

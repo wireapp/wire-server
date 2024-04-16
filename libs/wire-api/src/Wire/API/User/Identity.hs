@@ -60,6 +60,7 @@ import Data.Aeson qualified as A
 import Data.Aeson.Types qualified as A
 import Data.Attoparsec.Text
 import Data.Bifunctor (first)
+import Data.ByteString (fromStrict, toStrict)
 import Data.ByteString.Conversion
 import Data.ByteString.UTF8 qualified as UTF8
 import Data.CaseInsensitive qualified as CI
@@ -334,12 +335,12 @@ data UserSSOId
 instance C.Cql UserSSOId where
   ctype = C.Tagged C.TextColumn
 
-  fromCql (C.CqlText t) = case A.eitherDecode $ cs t of
+  fromCql (C.CqlText t) = case A.eitherDecode $ fromStrict (encodeUtf8 t) of
     Right i -> pure i
     Left msg -> Left $ "fromCql: Invalid UserSSOId: " ++ msg
   fromCql _ = Left "fromCql: UserSSOId: CqlText expected"
 
-  toCql = C.toCql . cs @LByteString @Text . A.encode
+  toCql = C.toCql . decodeUtf8With lenientDecode . toStrict . A.encode
 
 -- | FUTUREWORK: This schema should ideally be a choice of either tenant+subject, or scim_external_id
 -- but this is currently not possible to derive in swagger2

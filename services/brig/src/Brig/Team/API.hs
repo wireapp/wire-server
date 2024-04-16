@@ -56,6 +56,7 @@ import Data.Id
 import Data.List1 qualified as List1
 import Data.Qualified (Local)
 import Data.Range
+import Data.Text.Lazy qualified as LT
 import Data.Time.Clock (UTCTime)
 import Imports hiding (head)
 import Network.Wai.Utilities hiding (code, message)
@@ -201,7 +202,12 @@ logInvitationRequest context action =
     eith <- action'
     case eith of
       Left err' -> do
-        Log.warn $ context . Log.msg @Text ("Failed to create invitation, label: " <> (cs . errorLabel) err')
+        Log.warn $
+          context
+            . Log.msg @Text
+              ( "Failed to create invitation, label: "
+                  <> (LT.toStrict . errorLabel) err'
+              )
         pure (Left err')
       Right result@(_, code) -> do
         Log.info $ (context . logInvitationCode code) . Log.msg @Text "Successfully created invitation"

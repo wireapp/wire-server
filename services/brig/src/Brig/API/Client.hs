@@ -76,6 +76,7 @@ import Cassandra (MonadClient)
 import Control.Error
 import Control.Lens (view)
 import Control.Monad.Trans.Except (except)
+import Data.ByteString (toStrict)
 import Data.ByteString.Conversion
 import Data.Code as Code
 import Data.Domain
@@ -86,6 +87,8 @@ import Data.Map.Strict qualified as Map
 import Data.Misc (PlainTextPassword6)
 import Data.Qualified
 import Data.Set qualified as Set
+import Data.Text.Encoding qualified as T
+import Data.Text.Encoding.Error
 import Data.Time.Clock (UTCTime)
 import Imports
 import Network.HTTP.Types.Method (StdMethod)
@@ -539,8 +542,19 @@ createAccessToken luid cid method link proof = do
         <$> note NotATeamUser (userTeam =<< mUser)
         <*> note MissingHandle (userHandle =<< mUser)
         <*> note MissingName (userDisplayName <$> mUser)
-  nonce <- ExceptT $ note NonceNotFound <$> wrapClient (Nonce.lookupAndDeleteNonce uid (cs $ toByteString cid))
-  httpsUrl <- except $ note MisconfiguredRequestUrl $ fromByteString $ "https://" <> toByteString' domain <> "/" <> cs (toUrlPiece link)
+  nonce <-
+    ExceptT $
+      note NonceNotFound
+        <$> wrapClient
+          ( Nonce.lookupAndDeleteNonce
+              uid
+              (T.decodeUtf8With lenientDecode . toStrict $ toByteString cid)
+          )
+  httpsUrl <-
+    except $
+      note MisconfiguredRequestUrl $
+        fromByteString $
+          "https://" <> toByteString' domain <> "/" <> T.encodeUtf8 (toUrlPiece link)
   maxSkewSeconds <- Opt.setDpopMaxSkewSecs <$> view settings
   expiresIn <- Opt.setDpopTokenExpirationTimeSecs <$> view settings
   now <- fromUTCTime <$> lift (liftSem Now.get)

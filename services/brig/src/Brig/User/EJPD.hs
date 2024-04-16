@@ -36,6 +36,7 @@ import Data.ByteString.Conversion
 import Data.Handle (Handle)
 import Data.Id (UserId)
 import Data.Set qualified as Set
+import Data.Text qualified as T
 import Imports hiding (head)
 import Network.HTTP.Types.Method
 import Polysemy (Member)
@@ -118,7 +119,7 @@ ejpdRequest (fromMaybe False -> includeContacts) (EJPDRequestBody handles) = do
             case (statusCode resp, responseJsonEither resp) of
               (200, Right (A.String loc)) -> loc
               _ ->
-                cs $
+                T.pack $
                   "could not fetch asset: "
                     <> show key
                     <> ", error: "

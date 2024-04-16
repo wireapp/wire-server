@@ -52,6 +52,7 @@ import Data.Nonce (isValidBase64UrlEncodedUUID)
 import Data.Qualified (Qualified (..))
 import Data.Range (unsafeRange)
 import Data.Set qualified as Set
+import Data.String.Conversions
 import Data.Text.Ascii (AsciiChars (validate), encodeBase64UrlUnpadded, toText)
 import Data.Text.Encoding qualified as T
 import Data.Time (addUTCTime)

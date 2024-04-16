@@ -63,6 +63,7 @@ import Data.Misc
 import Data.Range
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
+import Data.Text.Encoding.Error
 import Data.Text.IO qualified as Text
 import Data.Time.Clock (DiffTime, diffTimeToPicoseconds)
 import Imports
@@ -343,7 +344,15 @@ startDNSBasedTurnDiscovery logger opts deprecatedUdpRef udpRef tcpRef tlsRef = d
 
 turnURIFromSRV :: Scheme -> Maybe Transport -> SrvEntry -> TurnURI
 turnURIFromSRV sch mtr SrvEntry {..} =
-  turnURI sch (TurnHostName . cs . stripDot $ srvTargetDomain srvTarget) (Port $ srvTargetPort srvTarget) mtr
+  turnURI
+    sch
+    ( TurnHostName
+        . Text.decodeUtf8With lenientDecode
+        . stripDot
+        $ srvTargetDomain srvTarget
+    )
+    (Port $ srvTargetPort srvTarget)
+    mtr
   where
     stripDot h
       | "." `BS.isSuffixOf` h = BS.take (BS.length h - 1) h
