@@ -80,6 +80,7 @@ library
     Wire.Rpc
     Wire.StoredUser
     Wire.UserStore
+    Wire.UserStore.Cassandra
     Wire.UserSubsystem
     Wire.UserSubsystem.Interpreter
 
