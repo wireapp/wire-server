@@ -26,7 +26,7 @@ import Data.Aeson (ToJSON, object, (.=))
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
 import Data.Text.Lazy.IO qualified as TIO
-import Imports hiding (cs)
+import Imports
 import Options.Applicative qualified as OA
 import System.Environment (withArgs)
 import System.Exit (exitFailure)
