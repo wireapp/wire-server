@@ -3,7 +3,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE TemplateHaskell #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -27,10 +26,8 @@ module Data.Code where
 
 import Cassandra hiding (Value)
 import Data.Aeson qualified as A
-import Data.Aeson.TH
 import Data.Bifunctor (Bifunctor (first))
 import Data.ByteString.Conversion
-import Data.Json.Util
 import Data.OpenApi qualified as S
 import Data.OpenApi.ParamSchema
 import Data.Proxy (Proxy (Proxy))
@@ -123,5 +120,11 @@ data KeyValuePair = KeyValuePair
     code :: !Value
   }
   deriving (Eq, Generic, Show)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema KeyValuePair
 
-deriveJSON toJSONFieldName ''KeyValuePair
+instance ToSchema KeyValuePair where
+  schema =
+    object "KeyValuePair" $
+      KeyValuePair
+        <$> key .= field "key" schema
+        <*> code .= field "code" schema

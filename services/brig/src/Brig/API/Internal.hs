@@ -15,9 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 module Brig.API.Internal
-  ( sitemap,
-    servantSitemap,
-    BrigIRoutes.API,
+  ( servantSitemap,
     getMLSClients,
   )
 where
@@ -74,7 +72,6 @@ import Data.Set qualified as Set
 import Data.Time.Clock (UTCTime)
 import Data.Time.Clock.System
 import Imports hiding (head)
-import Network.Wai.Routing hiding (toList)
 import Network.Wai.Utilities as Utilities
 import Polysemy
 import Polysemy.Input (Input)
@@ -103,9 +100,6 @@ import Wire.NotificationSubsystem
 import Wire.Rpc
 import Wire.Sem.Concurrency
 import Wire.Sem.Paging.Cassandra (InternalPaging)
-
----------------------------------------------------------------------------
--- Sitemap (servant)
 
 servantSitemap ::
   forall r p.
@@ -139,6 +133,7 @@ servantSitemap =
     :<|> internalOauthAPI
     :<|> internalSearchIndexAPI
     :<|> federationRemotesAPI
+    :<|> Provider.internalProviderAPI
 
 istatusAPI :: forall r. ServerT BrigIRoutes.IStatusAPI (Handler r)
 istatusAPI = Named @"get-status" (pure NoContent)
@@ -372,16 +367,6 @@ internalSearchIndexAPI =
   Named @"indexRefresh" (NoContent <$ lift (wrapClient Search.refreshIndex))
     :<|> Named @"indexReindex" (NoContent <$ lift (wrapClient Search.reindexAll))
     :<|> Named @"indexReindexIfSameOrNewer" (NoContent <$ lift (wrapClient Search.reindexAllIfSameOrNewer))
-
----------------------------------------------------------------------------
--- Sitemap (wai-route)
-
-sitemap ::
-  ( Member GalleyProvider r
-  ) =>
-  Routes a (Handler r) ()
-sitemap = unsafeCallsFed @'Brig @"on-user-deleted-connections" $ do
-  Provider.routesInternal
 
 ---------------------------------------------------------------------------
 -- Handlers

@@ -77,7 +77,6 @@ library
   -- cabal-fmt: expand src
   exposed-modules:
     Brig.Allowlists
-    Brig.API
     Brig.API.Auth
     Brig.API.Client
     Brig.API.Connection
@@ -358,8 +357,6 @@ library
     , wai                        >=3.0
     , wai-extra                  >=3.0
     , wai-middleware-gunzip      >=0.0.2
-    , wai-predicates             >=0.8
-    , wai-routing                >=0.12
     , wai-utilities              >=0.16
     , wire-api
     , wire-api-federation
