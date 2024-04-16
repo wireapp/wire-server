@@ -123,23 +123,3 @@ data WorkError
 instance Exception WorkError
 
 type Name = Text
-
--- FUTUREWORK: you can avoid this by loading brig-the-service as a library:
--- @"services/brig/src/Brig/Data/Instances.hs:165:instance Cql AccountStatus where"@
-instance Cql AccountStatus where
-  ctype = Tagged IntColumn
-
-  toCql Active = CqlInt 0
-  toCql Suspended = CqlInt 1
-  toCql Deleted = CqlInt 2
-  toCql Ephemeral = CqlInt 3
-  toCql PendingInvitation = CqlInt 4
-
-  fromCql (CqlInt i) = case i of
-    0 -> pure Active
-    1 -> pure Suspended
-    2 -> pure Deleted
-    3 -> pure Ephemeral
-    4 -> pure PendingInvitation
-    n -> Left $ "unexpected account status: " ++ show n
-  fromCql _ = Left "account status: int expected"

@@ -33,9 +33,6 @@ import Imports
 import System.Logger (Logger)
 import System.Logger qualified as Log
 import UnliftIO.Async (pooledMapConcurrentlyN_)
-import Wire.API.User
-
-deriving instance Cql Name
 
 runCommand :: Logger -> ClientState -> IO ()
 runCommand l brig = runClient brig $ do

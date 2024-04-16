@@ -68,7 +68,7 @@ module Wire.API.User.Client
   )
 where
 
-import Cassandra qualified as Cql
+import Cassandra qualified as C
 import Control.Applicative
 import Control.Lens hiding (element, enum, set, (#), (.=))
 import Data.Aeson (FromJSON (..), ToJSON (..))
@@ -157,12 +157,12 @@ instance ToSchema ClientCapability where
     enum @Text "ClientCapability" $
       element "legalhold-implicit-consent" ClientSupportsLegalholdImplicitConsent
 
-instance Cql.Cql ClientCapability where
-  ctype = Cql.Tagged Cql.IntColumn
+instance C.Cql ClientCapability where
+  ctype = C.Tagged C.IntColumn
 
-  toCql ClientSupportsLegalholdImplicitConsent = Cql.CqlInt 1
+  toCql ClientSupportsLegalholdImplicitConsent = C.CqlInt 1
 
-  fromCql (Cql.CqlInt i) = case i of
+  fromCql (C.CqlInt i) = case i of
     1 -> pure ClientSupportsLegalholdImplicitConsent
     n -> Left $ "Unexpected ClientCapability value: " ++ show n
   fromCql _ = Left "ClientCapability value: int expected"
@@ -614,6 +614,17 @@ instance ToSchema ClientType where
         <> element "permanent" PermanentClientType
         <> element "legalhold" LegalHoldClientType
 
+instance C.Cql ClientType where
+  ctype = C.Tagged C.IntColumn
+  toCql TemporaryClientType = C.CqlInt 0
+  toCql PermanentClientType = C.CqlInt 1
+  toCql LegalHoldClientType = C.CqlInt 2
+
+  fromCql (C.CqlInt 0) = pure TemporaryClientType
+  fromCql (C.CqlInt 1) = pure PermanentClientType
+  fromCql (C.CqlInt 2) = pure LegalHoldClientType
+  fromCql _ = Left "ClientType: Int [0, 2] expected"
+
 data ClientClass
   = PhoneClient
   | TabletClient
@@ -630,6 +641,19 @@ instance ToSchema ClientClass where
         <> element "tablet" TabletClient
         <> element "desktop" DesktopClient
         <> element "legalhold" LegalHoldClient
+
+instance C.Cql ClientClass where
+  ctype = C.Tagged C.IntColumn
+  toCql PhoneClient = C.CqlInt 0
+  toCql TabletClient = C.CqlInt 1
+  toCql DesktopClient = C.CqlInt 2
+  toCql LegalHoldClient = C.CqlInt 3
+
+  fromCql (C.CqlInt 0) = pure PhoneClient
+  fromCql (C.CqlInt 1) = pure TabletClient
+  fromCql (C.CqlInt 2) = pure DesktopClient
+  fromCql (C.CqlInt 3) = pure LegalHoldClient
+  fromCql _ = Left "ClientClass: Int [0, 3] expected"
 
 --------------------------------------------------------------------------------
 -- NewClient

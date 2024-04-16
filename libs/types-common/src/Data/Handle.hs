@@ -25,6 +25,7 @@ module Data.Handle
   )
 where
 
+import Cassandra qualified as C
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Attoparsec.ByteString.Char8 qualified as Atto
 import Data.Bifunctor (Bifunctor (first))
@@ -64,6 +65,8 @@ instance ToHttpApiData Handle where
 
 instance FromByteString Handle where
   parser = handleParser
+
+deriving instance C.Cql Handle
 
 parseHandle :: Text -> Maybe Handle
 parseHandle = either (const Nothing) Just . parseHandleEither

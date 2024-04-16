@@ -164,12 +164,6 @@ instance Cql TeamSearchVisibility where
   toCql SearchVisibilityStandard = CqlInt 0
   toCql SearchVisibilityNoNameOutsideTeam = CqlInt 1
 
-instance Cql Domain where
-  ctype = Tagged TextColumn
-  toCql = CqlText . domainText
-  fromCql (CqlText txt) = mkDomain txt
-  fromCql _ = Left "Domain: Text expected"
-
 instance Cql Public.EnforceAppLock where
   ctype = Tagged IntColumn
   toCql (Public.EnforceAppLock False) = CqlInt 0
@@ -214,7 +208,7 @@ instance Cql Icon where
   fromCql (CqlText txt) = pure . fromRight DefaultIcon . runParser parser . T.encodeUtf8 $ txt
   fromCql _ = Left "Icon: Text expected"
 
-instance Cql AssetKey where
+instance Cql AssetKey where -- TODO: brig has a different instance (catches left and returns a null asset key).  this is probably bad and should be stream-lined / fixed?
   ctype = Tagged TextColumn
   toCql = CqlText . assetKeyToText
   fromCql (CqlText txt) = runParser parser . T.encodeUtf8 $ txt

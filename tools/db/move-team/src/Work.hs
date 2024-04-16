@@ -46,9 +46,6 @@ import System.IO qualified as IO
 import System.Logger qualified as Log
 import System.Process (system)
 import Types
-import Wire.API.User
-
-deriving instance Cql Name
 
 assertTargetDirEmpty :: Env -> IO ()
 assertTargetDirEmpty Env {..} = do

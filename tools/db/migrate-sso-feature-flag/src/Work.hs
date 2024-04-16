@@ -35,9 +35,6 @@ import System.Logger (Logger)
 import System.Logger qualified as Log
 import UnliftIO.Async (pooledMapConcurrentlyN)
 import Wire.API.Team.Feature
-import Wire.API.User
-
-deriving instance Cql Name
 
 runCommand :: Logger -> ClientState -> ClientState -> IO ()
 runCommand l spar galley = do
