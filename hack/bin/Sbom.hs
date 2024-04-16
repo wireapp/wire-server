@@ -267,7 +267,7 @@ discoverSBom :: FilePath -> MetaDB -> IO SBom
 discoverSBom outP metaDb = do
   canonicalOutP <- canonicalizePath =<< getSymbolicLinkTarget outP
   info <- pathInfo canonicalOutP
-  let go :: PathInfo -> IO SBom -> IO SBom
+  let go :: (Text, (Text, [Text])) -> IO SBom -> IO SBom
       go (k, (deriver, deps)) = do
         let proxyToIdentity :: SBomMeta Proxy -> SBomMeta Identity
             proxyToIdentity (MkSBomMeta {..}) = MkSBomMeta {directDeps = Identity deps, outPath = Identity k, ..}
