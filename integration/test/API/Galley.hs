@@ -677,3 +677,22 @@ putLegalholdStatus tid usr status = do
   baseRequest usr Galley Versioned (joinHttpPath ["teams", tidStr, "features", "legalhold"])
     >>= submit "PUT"
       . addJSONObject ["status" .= status, "ttl" .= "unlimited"]
+
+-- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/get_feature_configs
+getFeatureConfigs :: (HasCallStack, MakesValue user) => user -> App Response
+getFeatureConfigs user = do
+  req <- baseRequest user Galley Versioned "/feature-configs"
+  submit "GET" req
+
+-- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/get_teams__tid__features
+getTeamFeatures :: (HasCallStack, MakesValue user, MakesValue tid) => user -> tid -> App Response
+getTeamFeatures user tid = do
+  tidStr <- asString tid
+  req <- baseRequest user Galley Versioned (joinHttpPath ["teams", tidStr, "features"])
+  submit "GET" req
+
+getTeamFeature :: (HasCallStack, MakesValue user, MakesValue tid) => user -> tid -> String -> App Response
+getTeamFeature user tid featureName = do
+  tidStr <- asString tid
+  req <- baseRequest user Galley Versioned (joinHttpPath ["teams", tidStr, "features", featureName])
+  submit "GET" req

@@ -63,11 +63,11 @@ testUpdateHandle = do
   mem1id <- asString $ mem1 %. "id"
 
   let featureName = "mlsE2EId"
-  bindResponse (getTeamFeature owner featureName team) $ \resp -> do
+  bindResponse (getTeamFeature owner team featureName) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "status" `shouldMatch` "disabled"
   setTeamFeatureStatus owner team featureName "enabled"
-  bindResponse (getTeamFeature owner featureName team) $ \resp -> do
+  bindResponse (getTeamFeature owner team featureName) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "status" `shouldMatch` "enabled"
 
@@ -126,11 +126,11 @@ testUpdateSelf (MkTagged mode) = do
   (owner, team, [mem1]) <- createTeam OwnDomain 2
 
   let featureName = "mlsE2EId"
-  bindResponse (getTeamFeature owner featureName team) $ \resp -> do
+  bindResponse (getTeamFeature owner team featureName) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "status" `shouldMatch` "disabled"
   setTeamFeatureStatus owner team featureName "enabled"
-  bindResponse (getTeamFeature owner featureName team) $ \resp -> do
+  bindResponse (getTeamFeature owner team featureName) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "status" `shouldMatch` "enabled"
 
