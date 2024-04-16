@@ -54,7 +54,7 @@ runCommand l brig inconsistenciesFile = do
               pure userKeys
           )
         .| C.mapM (liftIO . pooledMapConcurrentlyN 48 (\(key, uid, claimTime) -> checkUser l brig key uid claimTime False))
-        .| C.map ((<> "\n") . BS.intercalate "\n" . map (cs . Aeson.encode) . catMaybes)
+        .| C.map ((<> "\n") . BS.intercalate "\n" . map (BS.toStrict . Aeson.encode) . catMaybes)
         .| sinkFile inconsistenciesFile
 
 runRepair :: Logger -> ClientState -> FilePath -> FilePath -> Bool -> IO ()
@@ -71,7 +71,7 @@ runRepair l brig inputFile outputFile repairData = do
                 Log.info l (Log.field "keysProcesses" i)
               liftIO $ checkKey l brig key repairData
           )
-        .| C.map ((<> "\n") . cs . Aeson.encode)
+        .| C.map ((<> "\n") . BS.toStrict . Aeson.encode)
         .| sinkFile outputFile
 
 pageSize :: Int32
