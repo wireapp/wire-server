@@ -42,7 +42,7 @@ import Galley.Effects.ProposalStore
 import Galley.Effects.SubConversationStore
 import Galley.Env
 import Galley.Types.Conversations.Members
-import Imports hiding (cs)
+import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input

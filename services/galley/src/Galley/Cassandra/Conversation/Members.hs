@@ -44,7 +44,7 @@ import Galley.Effects.MemberStore (MemberStore (..))
 import Galley.Types.Conversations.Members
 import Galley.Types.ToUserRole
 import Galley.Types.UserList
-import Imports hiding (Set, cs)
+import Imports hiding (Set)
 import Polysemy
 import Polysemy.Input
 import Polysemy.TinyLog

@@ -34,7 +34,7 @@ import Galley.API.Push
 import Galley.Effects.ExternalAccess
 import Galley.Effects.FederatorAccess
 import Gundeck.Types.Push.V2 (RecipientClients (..))
-import Imports hiding (cs)
+import Imports
 import Network.Wai.Utilities.JSONResponse
 import Polysemy
 import Polysemy.Input

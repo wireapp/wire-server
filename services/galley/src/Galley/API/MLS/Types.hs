@@ -27,7 +27,7 @@ import Data.Qualified
 import GHC.Records (HasField (..))
 import Galley.Data.Conversation.Types
 import Galley.Types.Conversations.Members
-import Imports hiding (cs)
+import Imports
 import Wire.API.Conversation
 import Wire.API.Conversation.Protocol
 import Wire.API.MLS.CipherSuite

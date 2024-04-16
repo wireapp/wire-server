@@ -357,6 +357,7 @@ library
     , types-common-journal   >=0.1
     , unliftio               >=0.2
     , uri-bytestring         >=0.2
+    , utf8-string
     , uuid                   >=1.3
     , wai                    >=3.0
     , wai-extra              >=3.0
@@ -527,6 +528,7 @@ executable galley-integration
     , sop-core
     , ssl-util
     , streaming-commons
+    , string-conversions
     , tagged
     , tasty                  >=0.8
     , tasty-ant-xml

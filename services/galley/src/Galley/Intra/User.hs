@@ -46,6 +46,7 @@ import Data.ByteString.Char8 qualified as BSC
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Qualified
+import Data.Text qualified as Text
 import Data.Text.Lazy qualified as Lazy
 import Galley.API.Error
 import Galley.Env
@@ -253,11 +254,11 @@ runHereClientM action = do
   mgr <- view manager
   brigep <- view brig
   let env = Client.mkClientEnv mgr baseurl
-      baseurl = Client.BaseUrl Client.Http (cs $ brigep ^. host) (fromIntegral $ brigep ^. port) ""
+      baseurl = Client.BaseUrl Client.Http (Text.unpack $ brigep ^. host) (fromIntegral $ brigep ^. port) ""
   liftIO $ Client.runClientM action env
 
 handleServantResp ::
   Either Client.ClientError a ->
   App a
 handleServantResp (Right cfg) = pure cfg
-handleServantResp (Left errmsg) = throwM . internalErrorWithDescription . cs . show $ errmsg
+handleServantResp (Left errmsg) = throwM . internalErrorWithDescription . Lazy.pack . show $ errmsg
