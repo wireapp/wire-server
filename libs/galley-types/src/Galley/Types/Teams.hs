@@ -62,6 +62,8 @@ where
 import Control.Lens (makeLenses, view)
 import Data.Aeson
 import Data.Aeson.Types qualified as A
+import Data.ByteString (toStrict)
+import Data.ByteString.UTF8 qualified as UTF8
 import Data.Id (UserId)
 import Data.Schema qualified as Schema
 import Data.Set qualified as Set
@@ -199,7 +201,7 @@ instance ToJSON FeatureFlags where
 instance FromJSON FeatureSSO where
   parseJSON (String "enabled-by-default") = pure FeatureSSOEnabledByDefault
   parseJSON (String "disabled-by-default") = pure FeatureSSODisabledByDefault
-  parseJSON bad = fail $ "FeatureSSO: " <> cs (encode bad)
+  parseJSON bad = fail $ "FeatureSSO: " <> (UTF8.toString . toStrict . encode $ bad)
 
 instance ToJSON FeatureSSO where
   toJSON FeatureSSOEnabledByDefault = String "enabled-by-default"
@@ -209,7 +211,7 @@ instance FromJSON FeatureLegalHold where
   parseJSON (String "disabled-permanently") = pure $ FeatureLegalHoldDisabledPermanently
   parseJSON (String "disabled-by-default") = pure $ FeatureLegalHoldDisabledByDefault
   parseJSON (String "whitelist-teams-and-implicit-consent") = pure FeatureLegalHoldWhitelistTeamsAndImplicitConsent
-  parseJSON bad = fail $ "FeatureLegalHold: " <> cs (encode bad)
+  parseJSON bad = fail $ "FeatureLegalHold: " <> (UTF8.toString . toStrict . encode $ bad)
 
 instance ToJSON FeatureLegalHold where
   toJSON FeatureLegalHoldDisabledPermanently = String "disabled-permanently"
@@ -219,7 +221,7 @@ instance ToJSON FeatureLegalHold where
 instance FromJSON FeatureTeamSearchVisibilityAvailability where
   parseJSON (String "enabled-by-default") = pure FeatureTeamSearchVisibilityAvailableByDefault
   parseJSON (String "disabled-by-default") = pure FeatureTeamSearchVisibilityUnavailableByDefault
-  parseJSON bad = fail $ "FeatureSearchVisibility: " <> cs (encode bad)
+  parseJSON bad = fail $ "FeatureSearchVisibility: " <> (UTF8.toString . toStrict . encode $ bad)
 
 instance ToJSON FeatureTeamSearchVisibilityAvailability where
   toJSON FeatureTeamSearchVisibilityAvailableByDefault = String "enabled-by-default"
