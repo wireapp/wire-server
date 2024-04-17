@@ -19,8 +19,11 @@ module Test.FeatureFlags where
 
 import qualified API.Galley as Public
 import qualified API.GalleyInternal as Internal
+import Control.Monad.Codensity (Codensity (runCodensity))
+import Control.Monad.Reader
 import SetupHelpers
 import Testlib.Prelude
+import Testlib.ResourcePool (acquireResources)
 
 testLimitedEventFanout :: HasCallStack => App ()
 testLimitedEventFanout = do
@@ -60,13 +63,33 @@ checkLegalholdStatus domain user tid expected = do
 -- always disabled
 testLegalholdDisabledPermanently :: HasCallStack => App ()
 testLegalholdDisabledPermanently = do
-  withModifiedBackend
-    (def {galleyCfg = setField "settings.featureFlags.legalhold" "disabled-permanently"})
-    $ \domain -> do
+  let cfgLhDisabledPermanently =
+        def
+          { galleyCfg = setField "settings.featureFlags.legalhold" "disabled-permanently"
+          }
+      cfgLhDisabledByDefault =
+        def
+          { galleyCfg = setField "settings.featureFlags.legalhold" "disabled-by-default"
+          }
+  withModifiedBackend cfgLhDisabledPermanently $ \domain -> do
+    (owner, tid, _) <- createTeam domain 1
+    checkLegalholdStatus domain owner tid disabled
+    Internal.setTeamFeatureStatusExpectHttpStatus domain tid "legalhold" "enabled" 403
+
+  -- Let's see if it works even if the feature flags table thinks LH is enabled,
+  -- but galley config says its disabled permanently.
+  resourcePool <- asks (.resourcePool)
+  runCodensity (acquireResources 1 resourcePool) $ \[testBackend] -> do
+    let domain = testBackend.berDomain
+    (owner, tid) <- runCodensity (startDynamicBackend testBackend cfgLhDisabledByDefault) $ \_ -> do
       (owner, tid, _) <- createTeam domain 1
-      let expected = object ["lockStatus" .= "unlocked", "status" .= "disabled", "ttl" .= "unlimited"]
-      checkLegalholdStatus domain owner tid expected
-      Internal.setTeamFeatureStatusExpectHttpStatus domain tid "legalhold" "enabled" 403
+      checkLegalholdStatus domain owner tid disabled
+      Internal.setTeamFeatureStatusExpectHttpStatus domain tid "legalhold" "enabled" 200
+      checkLegalholdStatus domain owner tid enabled
+      pure (owner, tid)
+
+    runCodensity (startDynamicBackend testBackend cfgLhDisabledPermanently) $ \_ -> do
+      checkLegalholdStatus domain owner tid disabled
 
 -- can be enabled for a team, disabled if unset
 testLegalholdDisabledByDefault :: HasCallStack => App ()
@@ -81,6 +104,6 @@ testLegalholdDisabledByDefault = do
       Internal.setTeamFeatureStatus domain tid "legalhold" "disabled"
       checkLegalholdStatus domain owner tid disabled
 
--- enabled if team is allow listed, disabled in any other case
-testLegalholdWhitelistTeamsAndImplicitConsent :: HasCallStack => App ()
-testLegalholdWhitelistTeamsAndImplicitConsent = undefined
+-- -- enabled if team is allow listed, disabled in any other case
+-- testLegalholdWhitelistTeamsAndImplicitConsent :: HasCallStack => App ()
+-- testLegalholdWhitelistTeamsAndImplicitConsent = undefined
