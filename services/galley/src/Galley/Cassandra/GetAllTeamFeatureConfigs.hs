@@ -272,7 +272,7 @@ allFeatureConfigsFromRow ourteam allowListForExposeInvitationURLs serverConfigs 
       WithStatus ExposeInvitationURLsToTeamAdminConfig
     mutateExposeInvitationURLsToTeamAdmin dynamicCfg =
       if ourteam `elem` fromMaybe [] allowListForExposeInvitationURLs
-        then dynamicCfg -- TODO: LockStatusUnlocked
+        then dynamicCfg & setLockStatus LockStatusUnlocked
         else serverConfigs.afcExposeInvitationURLsToTeamAdmin
 
 getAllFeatureConfigs :: MonadClient m => Maybe [TeamId] -> AllFeatureConfigs -> TeamId -> m AllFeatureConfigs

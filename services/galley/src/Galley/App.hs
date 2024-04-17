@@ -260,7 +260,7 @@ evalGalley e =
     . interpretWaiRoutes
     . runInputConst (e ^. options)
     . runInputConst (toLocalUnsafe (e ^. options . settings . federationDomain) ())
-    . interpretTeamFeatureSpecialContext
+    . interpretTeamFeatureSpecialContext e
     . runInputSem getAllFeatureConfigsForServer
     . interpretInternalTeamListToCassandra
     . interpretTeamListToCassandra
@@ -296,5 +296,5 @@ evalGalley e =
   where
     lh = view (options . settings . featureFlags . Teams.flagLegalHold) e
 
-interpretTeamFeatureSpecialContext :: Sem (Input (Maybe [TeamId]) ': r) a -> Sem r a
-interpretTeamFeatureSpecialContext = undefined
+interpretTeamFeatureSpecialContext :: Env -> Sem (Input (Maybe [TeamId]) ': r) a -> Sem r a
+interpretTeamFeatureSpecialContext e = runInputConst (e ^. options . settings . exposeInvitationURLsTeamAllowlist)
