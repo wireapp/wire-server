@@ -19,7 +19,6 @@
 
 module Work where
 
-import Brig.Data.Instances ()
 import Cassandra hiding (Set)
 import Cassandra qualified as Cas
 import Cassandra.Settings qualified as Cas

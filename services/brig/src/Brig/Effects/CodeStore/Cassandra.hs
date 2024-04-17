@@ -22,7 +22,6 @@ module Brig.Effects.CodeStore.Cassandra
   )
 where
 
-import Brig.Data.Instances ()
 import Brig.Effects.CodeStore
 import Cassandra
 import Data.ByteString.Conversion (toByteString')

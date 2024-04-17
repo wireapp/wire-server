@@ -56,7 +56,6 @@ import Amazonka.DynamoDB.Lens qualified as AWS
 import Bilge.Retry (httpHandlers)
 import Brig.AWS
 import Brig.App
-import Brig.Data.Instances ()
 import Brig.Data.User (AuthError (..), ReAuthError (..))
 import Brig.Data.User qualified as User
 import Brig.Types.Instances ()

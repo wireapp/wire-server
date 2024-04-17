@@ -75,6 +75,5 @@ executable service-backfill
     , tinylog
     , types-common
     , unliftio
-    , wire-api
 
   default-language:   GHC2021

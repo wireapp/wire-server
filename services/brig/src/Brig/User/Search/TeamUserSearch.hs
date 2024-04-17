@@ -29,7 +29,6 @@ module Brig.User.Search.TeamUserSearch
   )
 where
 
-import Brig.Data.Instances ()
 import Brig.User.Search.Index
 import Control.Error (lastMay)
 import Control.Monad.Catch (MonadThrow (throwM))

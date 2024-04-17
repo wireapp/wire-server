@@ -21,7 +21,6 @@
 
 module EmailLessUsers where
 
-import Brig.Data.Instances ()
 import Brig.Data.UserKey
 import Brig.Email
 import Cassandra

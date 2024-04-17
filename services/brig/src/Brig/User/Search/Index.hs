@@ -56,7 +56,6 @@ import Bilge.RPC (RPCException (RPCException))
 import Bilge.Request qualified as RPC (empty, host, method, port)
 import Bilge.Response (responseJsonThrow)
 import Bilge.Retry (rpcHandlers)
-import Brig.Data.Instances ()
 import Brig.Index.Types (CreateIndexSettings (..))
 import Brig.Types.Search (SearchVisibilityInbound, defaultSearchVisibilityInbound, searchVisibilityInboundFromFeatureStatus)
 import Brig.User.Search.Index.Types as Types

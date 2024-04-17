@@ -67,7 +67,6 @@ executable repair-handles
 
   build-depends:
       base
-    , brig
     , cassandra-util
     , conduit
     , containers

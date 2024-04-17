@@ -41,6 +41,7 @@ module Wire.API.MLS.CipherSuite
   )
 where
 
+import Cassandra qualified as C
 import Cassandra.CQL
 import Control.Applicative
 import Control.Error (note)
@@ -133,6 +134,16 @@ instance ToSchema CipherSuiteTag where
           (fail "Not a valid index number of a ciphersuite. See https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol.html#table-5.")
           pure
           (cipherSuiteTag (CipherSuite index))
+
+instance C.Cql CipherSuiteTag where
+  ctype = Tagged IntColumn
+  toCql = CqlInt . fromIntegral . cipherSuiteNumber . tagCipherSuite
+
+  fromCql (CqlInt index) =
+    case cipherSuiteTag (CipherSuite (fromIntegral index)) of
+      Just t -> Right t
+      Nothing -> Left "CipherSuiteTag: unexpected index"
+  fromCql _ = Left "CipherSuiteTag: int expected"
 
 -- | See https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol.html#table-5.
 cipherSuiteTag :: CipherSuite -> Maybe CipherSuiteTag

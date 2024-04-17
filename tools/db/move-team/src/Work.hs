@@ -1,9 +1,7 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE StandaloneDeriving #-}
 {-# OPTIONS_GHC -Wno-orphans -Wno-unused-imports #-}
 
 -- This file is part of the Wire Server implementation.
@@ -46,9 +44,6 @@ import System.IO qualified as IO
 import System.Logger qualified as Log
 import System.Process (system)
 import Types
-import Wire.API.User
-
-deriving instance Cql Name
 
 assertTargetDirEmpty :: Env -> IO ()
 assertTargetDirEmpty Env {..} = do

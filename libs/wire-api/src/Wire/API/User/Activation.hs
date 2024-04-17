@@ -35,6 +35,7 @@ module Wire.API.User.Activation
   )
 where
 
+import Cassandra qualified as C
 import Control.Lens ((?~))
 import Data.Aeson qualified as A
 import Data.Aeson.Types (Parser)
@@ -82,6 +83,8 @@ instance ToParamSchema ActivationKey where
 instance FromHttpApiData ActivationKey where
   parseUrlPiece = fmap ActivationKey . parseUrlPiece
 
+deriving instance C.Cql ActivationKey
+
 --------------------------------------------------------------------------------
 -- ActivationCode
 
@@ -99,6 +102,8 @@ instance ToParamSchema ActivationCode where
 
 instance FromHttpApiData ActivationCode where
   parseQueryParam = fmap ActivationCode . parseUrlPiece
+
+deriving instance C.Cql ActivationCode
 
 --------------------------------------------------------------------------------
 -- Activate

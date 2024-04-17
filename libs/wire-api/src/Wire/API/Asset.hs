@@ -31,7 +31,6 @@ module Wire.API.Asset
     -- * AssetKey
     AssetKey (..),
     assetKeyToText,
-    nilAssetKey,
 
     -- * AssetToken
     AssetToken (..),
@@ -63,6 +62,7 @@ module Wire.API.Asset
   )
 where
 
+import Cassandra qualified as C
 import Codec.MIME.Type qualified as MIME
 import Control.Lens (makeLenses, (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
@@ -186,8 +186,11 @@ instance S.ToParamSchema AssetKey where
 instance FromHttpApiData AssetKey where
   parseUrlPiece = first T.pack . runParser parser . T.encodeUtf8
 
-nilAssetKey :: AssetKey
-nilAssetKey = AssetKeyV3 (Id UUID.nil) AssetVolatile
+instance C.Cql AssetKey where
+  ctype = C.Tagged C.TextColumn
+  toCql = C.CqlText . assetKeyToText
+  fromCql (C.CqlText txt) = runParser parser . T.encodeUtf8 $ txt
+  fromCql _ = Left "AssetKey: Text expected"
 
 --------------------------------------------------------------------------------
 -- AssetToken

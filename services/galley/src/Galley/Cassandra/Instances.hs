@@ -27,13 +27,11 @@ import Cassandra.CQL
 import Control.Error (note)
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy qualified as LBS
-import Data.Domain (Domain, domainText, mkDomain)
 import Data.Either.Combinators hiding (fromRight)
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
 import Galley.Types.Bot ()
 import Imports
-import Wire.API.Asset (AssetKey, assetKeyToText)
 import Wire.API.Conversation
 import Wire.API.Conversation.Protocol
 import Wire.API.MLS.CipherSuite
@@ -164,12 +162,6 @@ instance Cql TeamSearchVisibility where
   toCql SearchVisibilityStandard = CqlInt 0
   toCql SearchVisibilityNoNameOutsideTeam = CqlInt 1
 
-instance Cql Domain where
-  ctype = Tagged TextColumn
-  toCql = CqlText . domainText
-  fromCql (CqlText txt) = mkDomain txt
-  fromCql _ = Left "Domain: Text expected"
-
 instance Cql Public.EnforceAppLock where
   ctype = Tagged IntColumn
   toCql (Public.EnforceAppLock False) = CqlInt 0
@@ -214,27 +206,11 @@ instance Cql Icon where
   fromCql (CqlText txt) = pure . fromRight DefaultIcon . runParser parser . T.encodeUtf8 $ txt
   fromCql _ = Left "Icon: Text expected"
 
-instance Cql AssetKey where
-  ctype = Tagged TextColumn
-  toCql = CqlText . assetKeyToText
-  fromCql (CqlText txt) = runParser parser . T.encodeUtf8 $ txt
-  fromCql _ = Left "AssetKey: Text expected"
-
 instance Cql Epoch where
   ctype = Tagged BigIntColumn
   toCql = CqlBigInt . fromIntegral . epochNumber
   fromCql (CqlBigInt n) = pure (Epoch (fromIntegral n))
   fromCql _ = Left "epoch: bigint expected"
-
-instance Cql CipherSuiteTag where
-  ctype = Tagged IntColumn
-  toCql = CqlInt . fromIntegral . cipherSuiteNumber . tagCipherSuite
-
-  fromCql (CqlInt index) =
-    case cipherSuiteTag (CipherSuite (fromIntegral index)) of
-      Just tag -> Right tag
-      Nothing -> Left "CipherSuiteTag: unexpected index"
-  fromCql _ = Left "CipherSuiteTag: int expected"
 
 instance Cql ProposalRef where
   ctype = Tagged BlobColumn
