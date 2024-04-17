@@ -120,7 +120,7 @@ testLegalholdWhitelistTeamsAndImplicitConsent = do
       checkFeature "legalhold" owner tid enabled
       pure (owner, tid)
 
-    -- Inteteresting case: The team had LH disabled before backend config was
+    -- Interesting case: The team had LH disabled before backend config was
     -- changed to "whitelist-teams-and-implicit-consent". It should still show
     -- enabled when the config gets changed.
     runCodensity (startDynamicBackend testBackend cfgLhDisabledByDefault) $ \_ -> do
@@ -142,28 +142,28 @@ testExposeInvitationURLsToTeamAdminConfig = do
     let domain = testBackend.berDomain
 
     -- Happy case: DB has no config for the team
-    runCodensity (startDynamicBackend testBackend $ cfgExposeInvitationURLsTeamAllowlist ([] :: [String])) $ \_ -> do
-      (owner, tid, _) <- createTeam domain 1
-      checkFeature "exposeInvitationURLsToTeamAdmin" owner tid disabledLocked
+    let testNoAllowlistEntry = runCodensity (startDynamicBackend testBackend $ cfgExposeInvitationURLsTeamAllowlist ([] :: [String])) $ \_ -> do
+          (owner, tid, _) <- createTeam domain 1
+          checkFeature "exposeInvitationURLsToTeamAdmin" owner tid disabledLocked
+          -- here we get a response with HTTP status 200 and feature status unchanged (disabled), which we find weird, but we're just testing the current behavior
+          Internal.setTeamFeatureStatusExpectHttpStatus domain tid "exposeInvitationURLsToTeamAdmin" "enabled" 200
+          Internal.setTeamFeatureStatusExpectHttpStatus domain tid "exposeInvitationURLsToTeamAdmin" "disabled" 200
+          pure (owner, tid)
 
--- Internal.legalholdWhitelistTeam tid owner >>= assertSuccess
--- checkFeature "legalhold" owner tid enabled
+    (owner, tid) <- testNoAllowlistEntry
 
--- -- Disabling it doesn't work
--- Internal.setTeamFeatureStatusExpectHttpStatus domain tid "legalhold" "disabled" 403
--- checkFeature "legalhold" owner tid enabled
--- pure (owner, tid)
+    -- Interesting case: The team is in the allow list
+    runCodensity (startDynamicBackend testBackend $ cfgExposeInvitationURLsTeamAllowlist [tid]) $ \_ -> do
+      checkFeature "exposeInvitationURLsToTeamAdmin" owner tid disabled
+      Internal.setTeamFeatureStatusExpectHttpStatus domain tid "exposeInvitationURLsToTeamAdmin" "enabled" 200
+      checkFeature "exposeInvitationURLsToTeamAdmin" owner tid enabled
+      Internal.setTeamFeatureStatusExpectHttpStatus domain tid "exposeInvitationURLsToTeamAdmin" "disabled" 200
+      checkFeature "exposeInvitationURLsToTeamAdmin" owner tid disabled
+      Internal.setTeamFeatureStatusExpectHttpStatus domain tid "exposeInvitationURLsToTeamAdmin" "enabled" 200
+      checkFeature "exposeInvitationURLsToTeamAdmin" owner tid enabled
 
--- -- Inteteresting case: The team had LH disabled before backend config was
--- -- changed to "whitelist-teams-and-implicit-consent". It should still show
--- -- enabled when the config gets changed.
--- runCodensity (startDynamicBackend testBackend cfgLhDisabledByDefault) $ \_ -> do
---   checkFeature "legalhold" owner tid disabled
---   Internal.setTeamFeatureStatusExpectHttpStatus domain tid "legalhold" "disabled" 200
---   checkFeature "legalhold" owner tid disabled
-
--- runCodensity (startDynamicBackend testBackend cfgLhWhitelistTeamsAndImplicitConsent) $ \_ -> do
---   checkFeature "legalhold" owner tid enabled
+    -- Interesting case: The team had the feature enabled but is not in allow list
+    void testNoAllowlistEntry
 
 checkFeature :: (HasCallStack, MakesValue user, MakesValue tid) => String -> user -> tid -> Value -> App ()
 checkFeature feature user tid expected = do
