@@ -43,7 +43,9 @@ import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Keys
 
-type MLSPrivateKeyPaths = Map SignaturePurpose (Map SignatureSchemeTag FilePath)
+newtype MLSPrivateKeyPaths = MLSPrivateKeyPaths
+  { removal :: MLSKeysGeneric FilePath
+  }
 
 data MLSPrivateKeyException = MLSPrivateKeyException
   { mpkePath :: FilePath,
@@ -54,19 +56,19 @@ data MLSPrivateKeyException = MLSPrivateKeyException
 instance Exception MLSPrivateKeyException where
   displayException e = mpkePath e <> ": " <> mpkeMsg e
 
-mapToFunction :: (Ord k, Monoid m) => Map k m -> k -> m
-mapToFunction m x = Map.findWithDefault mempty x m
-
 loadAllMLSKeys :: MLSPrivateKeyPaths -> IO (SignaturePurpose -> MLSKeys)
-loadAllMLSKeys = fmap mapToFunction . traverse loadMLSKeys
+loadAllMLSKeys paths = do
+  removalKeys <- loadMLSKeys paths.removal
+  pure $ \case
+    RemovalPurpose -> removalKeys
 
-loadMLSKeys :: Map SignatureSchemeTag FilePath -> IO MLSKeys
-loadMLSKeys m =
-  mkMLSKeys
-    <$> traverse (loadKeyPair @Ed25519) (Map.lookup Ed25519 m)
-    <*> traverse (loadKeyPair @Ecdsa_secp256r1_sha256) (Map.lookup Ecdsa_secp256r1_sha256 m)
-    <*> traverse (loadKeyPair @Ecdsa_secp384r1_sha384) (Map.lookup Ecdsa_secp384r1_sha384 m)
-    <*> traverse (loadKeyPair @Ecdsa_secp521r1_sha512) (Map.lookup Ecdsa_secp521r1_sha512 m)
+loadMLSKeys :: MLSRemovalPrivateKeyPaths -> IO MLSKeys
+loadMLSKeys paths =
+  MLSKeys
+    <$> loadKeyPair @Ed25519 paths.ed25519
+    <*> loadKeyPair @Ecdsa_secp256r1_sha256 paths.ecdsa_secp256r1_sha256
+    <*> loadKeyPair @Ecdsa_secp384r1_sha384 paths.ecdsa_secp384r1_sha384
+    <*> loadKeyPair @Ecdsa_secp521r1_sha512 paths.ecdsa_secp521r1_sha512
 
 class LoadKeyPair (ss :: SignatureSchemeTag) where
   loadKeyPair :: FilePath -> IO (KeyPair ss)

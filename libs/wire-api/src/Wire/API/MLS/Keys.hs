@@ -17,14 +17,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.API.MLS.Keys
-  ( KeyPair,
-    MLSKeys (..),
-    mkMLSKeys,
-    MLSPublicKeys (..),
-    mlsKeysToPublic,
-  )
-where
+module Wire.API.MLS.Keys where
 
 import Crypto.ECC (Curve_P256R1, Curve_P384R1, Curve_P521R1)
 import Crypto.PubKey.ECDSA qualified as ECDSA
@@ -36,56 +29,63 @@ import Data.Monoid
 import Data.OpenApi qualified as S
 import Data.Proxy
 import Data.Schema hiding (HasField)
-import GHC.Generics
 import Imports hiding (First, getFirst)
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
 
+data MLSKeysGeneric a = MLSKeysGeneric
+  { ed25519 :: a,
+    ecdsa_secp256r1_sha256 :: a,
+    ecdsa_secp384r1_sha384 :: a,
+    ecdsa_secp521r1_sha512 :: a
+  }
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema (MLSKeysGeneric a)
+
+instance ToSchema a => ToSchema (MLSKeysGeneric a) where
+  schema =
+    object "MLSKeysGeneric" $
+      MLSKeysGeneric
+        <$> ed25519 .= field "ed25519" schema
+        <*> ecdsa_secp256r1_sha256 .= field "ecdsa_secp256r1_sha256" schema
+        <*> ecdsa_secp384r1_sha384 .= field "ecdsa_secp384r1_sha384" schema
+        <*> ecdsa_secp521r1_sha512 .= field "ecdsa_secp521r1_sha512" schema
+
 data MLSKeys = MLSKeys
-  { mlsKeyPair_ed25519 :: First (KeyPair Ed25519),
-    mlsKeyPair_ecdsa_secp256r1_sha256 :: First (KeyPair Ecdsa_secp256r1_sha256),
-    mlsKeyPair_ecdsa_secp384r1_sha384 :: First (KeyPair Ecdsa_secp384r1_sha384),
-    mlsKeyPair_ecdsa_secp521r1_sha512 :: First (KeyPair Ecdsa_secp521r1_sha512)
+  { mlsKeyPair_ed25519 :: KeyPair Ed25519,
+    mlsKeyPair_ecdsa_secp256r1_sha256 :: KeyPair Ecdsa_secp256r1_sha256,
+    mlsKeyPair_ecdsa_secp384r1_sha384 :: KeyPair Ecdsa_secp384r1_sha384,
+    mlsKeyPair_ecdsa_secp521r1_sha512 :: KeyPair Ecdsa_secp521r1_sha512
   }
-  deriving (Generic)
-  deriving (Semigroup, Monoid) via Generically MLSKeys
 
-mkMLSKeys ::
-  Maybe (KeyPair Ed25519) ->
-  Maybe (KeyPair Ecdsa_secp256r1_sha256) ->
-  Maybe (KeyPair Ecdsa_secp384r1_sha384) ->
-  Maybe (KeyPair Ecdsa_secp521r1_sha512) ->
-  MLSKeys
-mkMLSKeys ed ec256 ec384 ec521 =
-  MLSKeys (First ed) (First ec256) (First ec384) (First ec521)
-
-newtype MLSPublicKeys = MLSPublicKeys
-  { unMLSPublicKeys :: Map SignaturePurpose (Map SignatureSchemeTag ByteString)
+newtype MLSPublicKeysByPurpose = MLSPublicKeysByPurpose
+  { unMLSPublicKeysByPurpose :: Map SignaturePurpose MLSPublicKeys
   }
-  deriving (FromJSON, ToJSON, S.ToSchema) via Schema MLSPublicKeys
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema MLSPublicKeysByPurpose
   deriving newtype (Semigroup, Monoid)
 
-instance ToSchema MLSPublicKeys where
+instance ToSchema MLSPublicKeysByPurpose where
   schema =
     named "MLSKeys" $
-      MLSPublicKeys
-        <$> unMLSPublicKeys
-          .= map_ (map_ base64Schema)
+      MLSPublicKeysByPurpose
+        <$> unMLSPublicKeysByPurpose
+          .= map_ schema
 
-mlsKeysToPublic1 :: MLSKeys -> Map SignatureSchemeTag ByteString
-mlsKeysToPublic1 (MLSKeys mEd mEc256 mEc384 mEc521) =
-  Map.fromList $
-    [(Ed25519, convert ed) | (_, ed) <- toList mEd]
-      <> [ (Ecdsa_secp256r1_sha256, ECDSA.encodePublic (Proxy @Curve_P256R1) ec)
-           | (_, ec) <- toList mEc256
-         ]
-      <> [ (Ecdsa_secp384r1_sha384, ECDSA.encodePublic (Proxy @Curve_P384R1) ec)
-           | (_, ec) <- toList mEc384
-         ]
-      <> [ (Ecdsa_secp521r1_sha512, ECDSA.encodePublic (Proxy @Curve_P521R1) ec)
-           | (_, ec) <- toList mEc521
-         ]
+type MLSPublicKeys = MLSKeysGeneric MLSPublicKey
 
-mlsKeysToPublic :: (SignaturePurpose -> MLSKeys) -> MLSPublicKeys
-mlsKeysToPublic f = flip foldMap [minBound .. maxBound] $ \purpose ->
-  MLSPublicKeys (Map.singleton purpose (mlsKeysToPublic1 (f purpose)))
+newtype MLSPublicKey = MLSPublicKey {unwrapMLSPublicKey :: ByteString}
+
+instance ToSchema MLSPublicKey where
+  schema = named "MLSPublicKey" $ MLSPublicKey <$> unwrapMLSPublicKey .= base64Schema
+
+mlsKeysToRemovalPublic :: MLSKeys -> MLSPublicKeys
+mlsKeysToRemovalPublic (MLSKeys (_, ed) (_, ec256) (_, ec384) (_, ec521)) =
+  MLSKeysGeneric
+    { ed25519 = MLSPublicKey $ convert ed,
+      ecdsa_secp256r1_sha256 = MLSPublicKey $ ECDSA.encodePublic (Proxy @Curve_P256R1) ec256,
+      ecdsa_secp384r1_sha384 = MLSPublicKey $ ECDSA.encodePublic (Proxy @Curve_P384R1) ec384,
+      ecdsa_secp521r1_sha512 = MLSPublicKey $ ECDSA.encodePublic (Proxy @Curve_P521R1) ec521
+    }
+
+mlsKeysToPublic :: (SignaturePurpose -> MLSKeys) -> MLSPublicKeysByPurpose
+mlsKeysToPublic f =
+  MLSPublicKeysByPurpose (Map.singleton RemovalPurpose (mlsKeysToRemovalPublic (f RemovalPurpose)))
