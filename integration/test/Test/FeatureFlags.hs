@@ -71,16 +71,18 @@ testLegalholdDisabledPermanently = do
         def
           { galleyCfg = setField "settings.featureFlags.legalhold" "disabled-by-default"
           }
-  withModifiedBackend cfgLhDisabledPermanently $ \domain -> do
-    (owner, tid, _) <- createTeam domain 1
-    checkLegalholdStatus domain owner tid disabled
-    Internal.setTeamFeatureStatusExpectHttpStatus domain tid "legalhold" "enabled" 403
-
-  -- Let's see if it works even if the feature flags table thinks LH is enabled,
-  -- but galley config says its disabled permanently.
   resourcePool <- asks (.resourcePool)
   runCodensity (acquireResources 1 resourcePool) $ \[testBackend] -> do
     let domain = testBackend.berDomain
+
+    -- Happy case: DB has no config for the team
+    runCodensity (startDynamicBackend testBackend cfgLhDisabledPermanently) $ \_ -> do
+      (owner, tid, _) <- createTeam domain 1
+      checkLegalholdStatus domain owner tid disabled
+      Internal.setTeamFeatureStatusExpectHttpStatus domain tid "legalhold" "enabled" 403
+
+    -- Inteteresting case: The team had LH enabled before backend config was
+    -- changed to disabled-permanently
     (owner, tid) <- runCodensity (startDynamicBackend testBackend cfgLhDisabledByDefault) $ \_ -> do
       (owner, tid, _) <- createTeam domain 1
       checkLegalholdStatus domain owner tid disabled
