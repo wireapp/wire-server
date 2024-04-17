@@ -439,6 +439,7 @@ instance GetFeatureConfig ExposeInvitationURLsToTeamAdminConfig where
       computeConfigForTeam teamAllowed teamDbStatus =
         if teamAllowed
           then makeConfig LockStatusUnlocked teamDbStatus
+          -- FUTUREWORK: use default feature status instead
           else makeConfig LockStatusLocked FeatureStatusDisabled
 
       makeConfig :: LockStatus -> FeatureStatus -> WithStatus ExposeInvitationURLsToTeamAdminConfig
