@@ -186,11 +186,12 @@ instance S.ToParamSchema AssetKey where
 instance FromHttpApiData AssetKey where
   parseUrlPiece = first T.pack . runParser parser . T.encodeUtf8
 
-instance C.Cql AssetKey where 
+instance C.Cql AssetKey where
   ctype = C.Tagged C.TextColumn
   toCql = C.CqlText . assetKeyToText
   fromCql (C.CqlText txt) = runParser parser . T.encodeUtf8 $ txt
   fromCql _ = Left "AssetKey: Text expected"
+
 -- instance C.Cql AssetKey where
 --   ctype = C.Tagged C.TextColumn
 --   toCql = C.CqlText . assetKeyToText

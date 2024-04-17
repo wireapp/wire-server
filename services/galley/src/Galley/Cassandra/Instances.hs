@@ -207,9 +207,9 @@ instance Cql Icon where
   fromCql _ = Left "Icon: Text expected"
 
 -- TODO: brig has a different instance (catches left and returns
--- a null asset key).  this is probably bad and should 
+-- a null asset key).  this is probably bad and should
 -- be stream-lined / fixed?
--- instance Cql AssetKey where 
+-- instance Cql AssetKey where
 --   ctype = Tagged TextColumn
 --   toCql = CqlText . assetKeyToText
 --   fromCql (CqlText txt) = runParser parser . T.encodeUtf8 $ txt
