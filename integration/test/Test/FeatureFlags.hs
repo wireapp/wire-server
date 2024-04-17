@@ -109,9 +109,20 @@ testLegalholdDisabledByDefault = do
 -- enabled if team is allow listed, disabled in any other case
 testLegalholdWhitelistTeamsAndImplicitConsent :: HasCallStack => App ()
 testLegalholdWhitelistTeamsAndImplicitConsent = do
-  withModifiedBackend
-    (def {galleyCfg = setField "settings.featureFlags.legalhold" "whitelist-teams-and-implicit-consent"})
-    $ \domain -> do
+  let cfgLhWhitelistTeamsAndImplicitConsent =
+        def
+          { galleyCfg = setField "settings.featureFlags.legalhold" "whitelist-teams-and-implicit-consent"
+          }
+      cfgLhDisabledByDefault =
+        def
+          { galleyCfg = setField "settings.featureFlags.legalhold" "disabled-by-default"
+          }
+  resourcePool <- asks (.resourcePool)
+  runCodensity (acquireResources 1 resourcePool) $ \[testBackend] -> do
+    let domain = testBackend.berDomain
+
+    -- Happy case: DB has no config for the team
+    (owner, tid) <- runCodensity (startDynamicBackend testBackend cfgLhWhitelistTeamsAndImplicitConsent) $ \_ -> do
       (owner, tid, _) <- createTeam domain 1
       checkLegalholdStatus domain owner tid disabled
       Internal.legalholdWhitelistTeam tid owner >>= assertSuccess
@@ -119,4 +130,16 @@ testLegalholdWhitelistTeamsAndImplicitConsent = do
 
       -- Disabling it doesn't work
       Internal.setTeamFeatureStatusExpectHttpStatus domain tid "legalhold" "disabled" 403
+      checkLegalholdStatus domain owner tid enabled
+      pure (owner, tid)
+
+    -- Inteteresting case: The team had LH disabled before backend config was
+    -- changed to "whitelist-teams-and-implicit-consent". It should still show
+    -- enabled when the config gets changed.
+    runCodensity (startDynamicBackend testBackend cfgLhDisabledByDefault) $ \_ -> do
+      checkLegalholdStatus domain owner tid disabled
+      Internal.setTeamFeatureStatusExpectHttpStatus domain tid "legalhold" "disabled" 200
+      checkLegalholdStatus domain owner tid disabled
+
+    runCodensity (startDynamicBackend testBackend cfgLhWhitelistTeamsAndImplicitConsent) $ \_ -> do
       checkLegalholdStatus domain owner tid enabled
