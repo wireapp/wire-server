@@ -78,8 +78,15 @@ data AllTeamFeatureConfigsRow = AllTeamFeatureConfigsRow
 
 recordInstance ''AllTeamFeatureConfigsRow
 
-allFeatureConfigsFromRow :: AllFeatureConfigs -> AllTeamFeatureConfigsRow -> AllFeatureConfigs
-allFeatureConfigsFromRow serverConfigs row =
+allFeatureConfigsFromRow ::
+  -- id of team of which we want to see the feature
+  TeamId ->
+  -- team id list is from "settings.exposeInvitationURLsTeamAllowlist"
+  Maybe [TeamId] ->
+  AllFeatureConfigs ->
+  AllTeamFeatureConfigsRow ->
+  AllFeatureConfigs
+allFeatureConfigsFromRow ourteam allowListForExposeInvitationURLs serverConfigs row =
   AllFeatureConfigs
     { afcLegalholdStatus =
         computeConfig
@@ -175,12 +182,13 @@ allFeatureConfigsFromRow serverConfigs row =
           mlsConfig
           serverConfigs.afcMLS,
       afcExposeInvitationURLsToTeamAdmin =
-        computeConfig
-          row.exposeInvitationUrls
-          Nothing
-          FeatureTTLUnlimited
-          (Just ExposeInvitationURLsToTeamAdminConfig)
-          serverConfigs.afcExposeInvitationURLsToTeamAdmin,
+        mutateExposeInvitationURLsToTeamAdmin $
+          computeConfig
+            row.exposeInvitationUrls
+            Nothing
+            FeatureTTLUnlimited
+            (Just ExposeInvitationURLsToTeamAdminConfig)
+            serverConfigs.afcExposeInvitationURLsToTeamAdmin,
       afcOutlookCalIntegration =
         computeConfig
           row.outlookCalIntegration
@@ -259,10 +267,18 @@ allFeatureConfigsFromRow serverConfigs row =
 
     downloadLocationConfig = Just $ EnforceFileDownloadLocationConfig row.enforceDownloadLocation_Location
 
-getAllFeatureConfigs :: MonadClient m => AllFeatureConfigs -> TeamId -> m AllFeatureConfigs
-getAllFeatureConfigs serverConfigs tid = do
+    mutateExposeInvitationURLsToTeamAdmin ::
+      WithStatus ExposeInvitationURLsToTeamAdminConfig ->
+      WithStatus ExposeInvitationURLsToTeamAdminConfig
+    mutateExposeInvitationURLsToTeamAdmin dynamicCfg =
+      if ourteam `elem` fromMaybe [] allowListForExposeInvitationURLs
+        then dynamicCfg -- TODO: LockStatusUnlocked
+        else serverConfigs.afcExposeInvitationURLsToTeamAdmin
+
+getAllFeatureConfigs :: MonadClient m => Maybe [TeamId] -> AllFeatureConfigs -> TeamId -> m AllFeatureConfigs
+getAllFeatureConfigs allowListForExposeInvitationURLs serverConfigs tid = do
   row <- retry x1 $ query1 select (params LocalQuorum (Identity tid))
-  pure $ maybe serverConfigs (allFeatureConfigsFromRow serverConfigs . asRecord) row
+  pure $ maybe serverConfigs (allFeatureConfigsFromRow tid allowListForExposeInvitationURLs serverConfigs . asRecord) row
   where
     select ::
       PrepQuery

@@ -92,6 +92,7 @@ import Galley.Effects.TeamStore
 import Galley.Effects.WaiRoutes
 import Galley.Env
 import Galley.Options
+import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
@@ -138,6 +139,7 @@ type GalleyEffects1 =
      ListItems LegacyPaging TeamId,
      ListItems InternalPaging TeamId,
      Input AllFeatureConfigs,
+     Input (Maybe [TeamId]),
      Input (Local ()),
      Input Opts,
      WaiRoutes,

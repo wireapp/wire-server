@@ -47,6 +47,7 @@ interpretTeamFeatureStoreToCassandra ::
   ( Member (Embed IO) r,
     Member (Input ClientState) r,
     Member (Input AllFeatureConfigs) r,
+    Member (Input (Maybe [TeamId])) r,
     Member TinyLog r
   ) =>
   Sem (TFS.TeamFeatureStore ': r) a ->
@@ -70,7 +71,8 @@ interpretTeamFeatureStoreToCassandra = interpret $ \case
   TFS.GetAllFeatureConfigs tid -> do
     logEffect "TeamFeatureStore.GetAllFeatureConfigs"
     serverConfigs <- input
-    embedClient $ getAllFeatureConfigs serverConfigs tid
+    allowListForExposeInvitationURLs <- input
+    embedClient $ getAllFeatureConfigs allowListForExposeInvitationURLs serverConfigs tid
 
 getFeatureConfig :: MonadClient m => FeatureSingleton cfg -> TeamId -> m (Maybe (WithStatusNoLock cfg))
 getFeatureConfig FeatureSingletonLegalholdConfig tid = getTrivialConfigC "legalhold_status" tid

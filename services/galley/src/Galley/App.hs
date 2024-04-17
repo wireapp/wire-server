@@ -49,6 +49,7 @@ import Cassandra hiding (Set)
 import Cassandra.Util (initCassandraForService)
 import Control.Error hiding (err)
 import Control.Lens hiding ((.=))
+import Data.Id
 import Data.Metrics.Middleware
 import Data.Misc
 import Data.Qualified
@@ -259,6 +260,7 @@ evalGalley e =
     . interpretWaiRoutes
     . runInputConst (e ^. options)
     . runInputConst (toLocalUnsafe (e ^. options . settings . federationDomain) ())
+    . interpretTeamFeatureSpecialContext
     . runInputSem getAllFeatureConfigsForServer
     . interpretInternalTeamListToCassandra
     . interpretTeamListToCassandra
@@ -293,3 +295,6 @@ evalGalley e =
     . interpretBrigAccess
   where
     lh = view (options . settings . featureFlags . Teams.flagLegalHold) e
+
+interpretTeamFeatureSpecialContext :: Sem (Input (Maybe [TeamId]) ': r) a -> Sem r a
+interpretTeamFeatureSpecialContext = undefined
