@@ -104,6 +104,17 @@ testLegalholdDisabledByDefault = do
       Internal.setTeamFeatureStatus domain tid "legalhold" "disabled"
       checkLegalholdStatus domain owner tid disabled
 
--- -- enabled if team is allow listed, disabled in any other case
--- testLegalholdWhitelistTeamsAndImplicitConsent :: HasCallStack => App ()
--- testLegalholdWhitelistTeamsAndImplicitConsent = undefined
+-- enabled if team is allow listed, disabled in any other case
+testLegalholdWhitelistTeamsAndImplicitConsent :: HasCallStack => App ()
+testLegalholdWhitelistTeamsAndImplicitConsent = do
+  withModifiedBackend
+    (def {galleyCfg = setField "settings.featureFlags.legalhold" "whitelist-teams-and-implicit-consent"})
+    $ \domain -> do
+      (owner, tid, _) <- createTeam domain 1
+      checkLegalholdStatus domain owner tid disabled
+      Internal.legalholdWhitelistTeam tid owner >>= assertSuccess
+      checkLegalholdStatus domain owner tid enabled
+
+      -- Disabling it doesn't work
+      Internal.setTeamFeatureStatusExpectHttpStatus domain tid "legalhold" "disabled" 403
+      checkLegalholdStatus domain owner tid enabled
