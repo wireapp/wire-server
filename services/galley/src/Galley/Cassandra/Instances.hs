@@ -206,15 +206,6 @@ instance Cql Icon where
   fromCql (CqlText txt) = pure . fromRight DefaultIcon . runParser parser . T.encodeUtf8 $ txt
   fromCql _ = Left "Icon: Text expected"
 
--- TODO: brig has a different instance (catches left and returns
--- a null asset key).  this is probably bad and should
--- be stream-lined / fixed?
--- instance Cql AssetKey where
---   ctype = Tagged TextColumn
---   toCql = CqlText . assetKeyToText
---   fromCql (CqlText txt) = runParser parser . T.encodeUtf8 $ txt
---   fromCql _ = Left "AssetKey: Text expected"
-
 instance Cql Epoch where
   ctype = Tagged BigIntColumn
   toCql = CqlBigInt . fromIntegral . epochNumber
