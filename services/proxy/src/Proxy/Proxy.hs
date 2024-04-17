@@ -17,11 +17,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Proxy.Proxy
-  ( Proxy,
-    runProxy,
-  )
-where
+module Proxy.Proxy (Proxy, runProxy) where
 
 import Bilge.Request (requestIdName)
 import Control.Lens hiding ((.=))
@@ -40,7 +36,7 @@ import System.Logger.Class hiding (Error, info)
 newtype Proxy a = Proxy
   { unProxy :: ReaderT Env IO a
   }
-  deriving
+  deriving newtype
     ( Functor,
       Applicative,
       Monad,
@@ -68,7 +64,7 @@ lookupReqId :: Logger -> Request -> IO RequestId
 lookupReqId l r = case lookup requestIdName (requestHeaders r) of
   Just rid -> pure $ RequestId rid
   Nothing -> do
-    localRid <- RequestId . cs . UUID.toText <$> UUID.nextRandom
+    localRid <- RequestId . UUID.toASCIIBytes <$> UUID.nextRandom
     Log.info l $
       "request-id" .= localRid
         ~~ "method" .= requestMethod r

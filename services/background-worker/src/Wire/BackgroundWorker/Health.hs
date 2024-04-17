@@ -1,5 +1,6 @@
 module Wire.BackgroundWorker.Health where
 
+import Data.ByteString.Lazy.UTF8 qualified as UTF8
 import Data.Map.Strict qualified as Map
 import Imports
 import Servant
@@ -17,7 +18,7 @@ statusWorkersImpl = do
   notWorkingWorkers <- Map.keys . Map.filter not <$> (readIORef =<< asks statuses)
   if null notWorkingWorkers
     then pure NoContent
-    else lift $ throwError err500 {errBody = "These workers are not working: " <> cs (show notWorkingWorkers)}
+    else lift $ throwError err500 {errBody = "These workers are not working: " <> UTF8.fromString (show notWorkingWorkers)}
 
 api :: Env -> HealthAPI AsServer
 api env = fromServant $ hoistServer (Proxy @(ToServant HealthAPI AsApi)) (runAppT env) (toServant apiInAppT)
