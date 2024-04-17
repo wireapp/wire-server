@@ -38,9 +38,6 @@ where
 import Control.Lens hiding (Strict, (.=))
 import qualified Data.ByteString.Base64 as ES
 import Data.Id (ScimTokenId, UserId)
--- FUTUREWORK: these imports are not very handy.  split up Spar.Scim into
--- Spar.Scim.{Core,User,Group} to avoid at least some of the hscim name clashes?
-
 import qualified Data.Text.Encoding as T
 import Data.Text.Encoding.Error
 import Imports
