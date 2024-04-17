@@ -76,7 +76,6 @@ module Brig.Data.User
 where
 
 import Brig.App (Env, currentTime, settings, viewFederationDomain, zauthEnv)
-import Brig.Data.Instances ()
 import Brig.Options
 import Brig.Types.Intra
 import Brig.ZAuth qualified as ZAuth

@@ -27,7 +27,6 @@ module Brig.Data.LoginCode
 where
 
 import Brig.App (Env, currentTime)
-import Brig.Data.Instances ()
 import Brig.User.Auth.DB.Instances ()
 import Cassandra
 import Control.Lens (view)

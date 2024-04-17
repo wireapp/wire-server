@@ -17,7 +17,6 @@
 
 module Options where
 
-import Brig.Data.Instances ()
 import Cassandra hiding (Set)
 import Data.Id
 import Data.UUID

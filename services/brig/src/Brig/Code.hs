@@ -60,7 +60,6 @@ module Brig.Code
   )
 where
 
-import Brig.Data.Instances ()
 import Brig.Email (emailKeyUniq, mkEmailKey)
 import Brig.Phone (mkPhoneKey, phoneKeyUniq)
 import Cassandra hiding (Value)
