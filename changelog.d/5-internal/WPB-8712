@@ -1,1 +1,1 @@
-move formatting and linting of haskell files to treefmt, remove some of the now unneded rules
+move formatting and linting of haskell files to treefmt, remove some of the now unneeded rules

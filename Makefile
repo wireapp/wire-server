@@ -181,7 +181,7 @@ services: init install
 
 # formats everything according to treefmt rules
 # this may take a while (5 minutes) on first run but should be instant on 
-# any subsequent run
+# any subsequent run except after you have changed files.
 .PHONY: format
 format:
 	treefmt
