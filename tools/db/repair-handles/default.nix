@@ -4,7 +4,6 @@
 # dependencies are added or removed.
 { mkDerivation
 , base
-, brig
 , cassandra-util
 , conduit
 , containers
@@ -27,7 +26,6 @@ mkDerivation {
   isExecutable = true;
   executableHaskellDepends = [
     base
-    brig
     cassandra-util
     conduit
     containers
