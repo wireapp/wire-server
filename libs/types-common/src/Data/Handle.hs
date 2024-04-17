@@ -51,6 +51,8 @@ newtype Handle = Handle
   deriving newtype (ToByteString, Hashable, S.ToParamSchema)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema Handle
 
+deriving instance C.Cql Handle
+
 instance ToSchema Handle where
   schema = fromHandle .= parsedText "Handle" p
     where
@@ -65,8 +67,6 @@ instance ToHttpApiData Handle where
 
 instance FromByteString Handle where
   parser = handleParser
-
-deriving instance C.Cql Handle
 
 parseHandle :: Text -> Maybe Handle
 parseHandle = either (const Nothing) Just . parseHandleEither

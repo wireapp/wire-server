@@ -78,5 +78,6 @@ executable migrate-sso-feature-flag
     , tinylog
     , types-common
     , unliftio
+    , wire-api
 
   default-language:   GHC2021

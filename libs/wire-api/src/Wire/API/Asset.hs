@@ -31,7 +31,6 @@ module Wire.API.Asset
     -- * AssetKey
     AssetKey (..),
     assetKeyToText,
-    nilAssetKey,
 
     -- * AssetToken
     AssetToken (..),
@@ -187,16 +186,18 @@ instance S.ToParamSchema AssetKey where
 instance FromHttpApiData AssetKey where
   parseUrlPiece = first T.pack . runParser parser . T.encodeUtf8
 
-nilAssetKey :: AssetKey
-nilAssetKey = AssetKeyV3 (Id UUID.nil) AssetVolatile
-
-instance C.Cql AssetKey where
+instance C.Cql AssetKey where 
   ctype = C.Tagged C.TextColumn
   toCql = C.CqlText . assetKeyToText
-
-  -- if the asset key is invalid we will return the nil asset key (`3-1-00000000-0000-0000-0000-000000000000`)
-  fromCql (C.CqlText txt) = pure $ fromRight nilAssetKey $ runParser parser $ T.encodeUtf8 txt
-  fromCql _ = Left "AssetKey: Expected CqlText"
+  fromCql (C.CqlText txt) = runParser parser . T.encodeUtf8 $ txt
+  fromCql _ = Left "AssetKey: Text expected"
+-- instance C.Cql AssetKey where
+--   ctype = C.Tagged C.TextColumn
+--   toCql = C.CqlText . assetKeyToText
+--
+--   -- if the asset key is invalid we will return the nil asset key (`3-1-00000000-0000-0000-0000-000000000000`)
+--   fromCql (C.CqlText txt) = pure $ fromRight nilAssetKey $ runParser parser $ T.encodeUtf8 txt
+--   fromCql _ = Left "AssetKey: Expected CqlText"
 
 --------------------------------------------------------------------------------
 -- AssetToken
