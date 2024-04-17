@@ -34,20 +34,28 @@ decodeSignature ::
   Proxy curve ->
   ByteString ->
   Maybe (Signature curve)
-decodeSignature p bs = do
+decodeSignature curve bs = do
   ints <- case decodeASN1' DER bs of
     Right ([Start Sequence, IntVal r, IntVal s, End Sequence]) -> pure (r, s)
     _ -> Nothing
-  maybeCryptoError $ signatureFromIntegers p ints
+  maybeCryptoError $ signatureFromIntegers curve ints
 
 -- Encode an ECDSA signature.
 encodeSignature ::
   forall curve.
-  -- EllipticCurveECDSA curve =>
+  EllipticCurveECDSA curve =>
   Proxy curve ->
   Signature curve ->
   ByteString
-encodeSignature _p _sig = error "TODO"
+encodeSignature curve sig = case signatureToIntegers curve sig of
+  (r, s) ->
+    encodeASN1'
+      DER
+      [ Start Sequence,
+        IntVal r,
+        IntVal s,
+        End Sequence
+      ]
 
 verifySignature ::
   forall curve a hash.
