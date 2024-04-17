@@ -239,8 +239,11 @@ resetGroup cid conv = do
 
 resetClientGroup :: ClientIdentity -> String -> App ()
 resetClientGroup cid gid = do
-  removalKeyPath <- asks (.removalKeyPath)
   mls <- getMLSState
+  removalKeyPaths <- asks (.removalKeyPaths)
+  removalKeyPath <-
+    assertOne $
+      Map.lookup (csSignatureScheme mls.ciphersuite) removalKeyPaths
   void $
     mlscli
       cid

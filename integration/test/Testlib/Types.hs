@@ -108,7 +108,7 @@ data GlobalEnv = GlobalEnv
     gDefaultAPIVersion :: Int,
     gManager :: HTTP.Manager,
     gServicesCwdBase :: Maybe FilePath,
-    gRemovalKeyPath :: FilePath,
+    gRemovalKeyPaths :: Map String FilePath,
     gBackendResourcePool :: ResourcePool BackendResource,
     gRabbitMQConfig :: RabbitMQConfig,
     gTempDir :: FilePath,
@@ -204,7 +204,8 @@ data Env = Env
     defaultAPIVersion :: Int,
     manager :: HTTP.Manager,
     servicesCwdBase :: Maybe FilePath,
-    removalKeyPath :: FilePath,
+    -- | paths to removal keys by signature scheme
+    removalKeyPaths :: Map String FilePath,
     prekeys :: IORef [(Int, String)],
     lastPrekeys :: IORef [String],
     mls :: IORef MLSState,

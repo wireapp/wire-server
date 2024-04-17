@@ -307,12 +307,12 @@ instance IsSignatureScheme 'Ecdsa_secp256r1_sha256 where
 instance IsSignatureScheme 'Ecdsa_secp384r1_sha384 where
   sign (priv, _) =
     fmap (ECDSA.encodeSignature (Proxy @Curve_P384R1))
-      . ECDSA.sign (Proxy @Curve_P384R1) priv SHA256
+      . ECDSA.sign (Proxy @Curve_P384R1) priv SHA384
 
 instance IsSignatureScheme 'Ecdsa_secp521r1_sha512 where
   sign (priv, _) =
     fmap (ECDSA.encodeSignature (Proxy @Curve_P521R1))
-      . ECDSA.sign (Proxy @Curve_P521R1) priv SHA256
+      . ECDSA.sign (Proxy @Curve_P521R1) priv SHA512
 
 type family SignatureSchemeCurve (ss :: SignatureSchemeTag)
 

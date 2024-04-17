@@ -91,7 +91,8 @@ mkGlobalEnv cfgFile = do
             (intConfig.federationV0.originDomain, intConfig.federationV0.beServiceMap)
           ]
             <> [(berDomain resource, resourceServiceMap resource) | resource <- resources]
-  tempDir <- Codensity $ withSystemTempDirectory "test"
+  -- tempDir <- Codensity $ withSystemTempDirectory "test"
+  let tempDir = "/tmp/wire"
   timeOutSeconds <-
     liftIO $
       fromMaybe 10 . (readMaybe @Int =<<) <$> lookupEnv "TEST_TIMEOUT_SECONDS"
@@ -106,7 +107,7 @@ mkGlobalEnv cfgFile = do
         gDefaultAPIVersion = 6,
         gManager = manager,
         gServicesCwdBase = devEnvProjectRoot <&> (</> "services"),
-        gRemovalKeyPath = error "Uninitialised removal key path",
+        gRemovalKeyPaths = mempty,
         gBackendResourcePool = resourcePool,
         gRabbitMQConfig = intConfig.rabbitmq,
         gTempDir = tempDir,
@@ -145,7 +146,7 @@ mkEnv ge = do
           defaultAPIVersion = gDefaultAPIVersion ge,
           manager = gManager ge,
           servicesCwdBase = gServicesCwdBase ge,
-          removalKeyPath = gRemovalKeyPath ge,
+          removalKeyPaths = gRemovalKeyPaths ge,
           prekeys = pks,
           lastPrekeys = lpks,
           mls = mls,
