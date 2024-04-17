@@ -35,9 +35,9 @@ import Data.Map qualified as Map
 import Data.Monoid
 import Data.OpenApi qualified as S
 import Data.Proxy
-import Data.Schema
+import Data.Schema hiding (HasField)
 import GHC.Generics
-import Imports hiding (First)
+import Imports hiding (First, getFirst)
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
 

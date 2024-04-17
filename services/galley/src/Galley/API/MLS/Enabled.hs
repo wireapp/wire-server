@@ -21,18 +21,25 @@ module Galley.API.MLS.Enabled
   )
 where
 
-import Galley.API.MLS.Keys
+import Control.Lens (view)
+import Data.Monoid
 import Galley.Env
-import Imports
+import Imports hiding (getFirst)
 import Polysemy
 import Polysemy.Input
 import Wire.API.Error
 import Wire.API.Error.Galley
-import Wire.API.MLS.CipherSuite
+import Wire.API.MLS.Credential
+import Wire.API.MLS.Keys
 
 isMLSEnabled :: Member (Input Env) r => Sem r Bool
--- TODO: check all removal keys
-isMLSEnabled = isJust <$> getMLSRemovalKey Ed25519
+isMLSEnabled = do
+  keys <- inputs (view mlsKeys) <*> pure RemovalPurpose
+  pure $
+    isJust (getFirst (mlsKeyPair_ed25519 keys))
+      && isJust (getFirst (mlsKeyPair_ecdsa_secp256r1_sha256 keys))
+      && isJust (getFirst (mlsKeyPair_ecdsa_secp384r1_sha384 keys))
+      && isJust (getFirst (mlsKeyPair_ecdsa_secp521r1_sha512 keys))
 
 -- | Fail if MLS is not enabled. Only use this function at the beginning of an
 -- MLS endpoint, NOT in utility functions.
