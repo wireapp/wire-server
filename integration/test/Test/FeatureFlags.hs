@@ -41,24 +41,11 @@ testLimitedEventFanout = do
 disabled :: Value
 disabled = object ["lockStatus" .= "unlocked", "status" .= "disabled", "ttl" .= "unlimited"]
 
+disabledLocked :: Value
+disabledLocked = object ["lockStatus" .= "locked", "status" .= "disabled", "ttl" .= "unlimited"]
+
 enabled :: Value
 enabled = object ["lockStatus" .= "unlocked", "status" .= "enabled", "ttl" .= "unlimited"]
-
-checkLegalholdStatus :: (HasCallStack, MakesValue user, MakesValue tid) => String -> user -> tid -> Value -> App ()
-checkLegalholdStatus domain user tid expected = do
-  tidStr <- asString tid
-  bindResponse (Internal.getTeamFeature domain tidStr "legalhold") $ \resp -> do
-    resp.status `shouldMatchInt` 200
-    resp.json `shouldMatch` expected
-  bindResponse (Public.getFeatureConfigs user) $ \resp -> do
-    resp.status `shouldMatchInt` 200
-    resp.json %. "legalhold" `shouldMatch` expected
-  bindResponse (Public.getTeamFeatures user tid) $ \resp -> do
-    resp.status `shouldMatchInt` 200
-    resp.json %. "legalhold" `shouldMatch` expected
-  bindResponse (Public.getTeamFeature user tid "legalhold") $ \resp -> do
-    resp.status `shouldMatchInt` 200
-    resp.json `shouldMatch` expected
 
 -- always disabled
 testLegalholdDisabledPermanently :: HasCallStack => App ()
@@ -78,20 +65,20 @@ testLegalholdDisabledPermanently = do
     -- Happy case: DB has no config for the team
     runCodensity (startDynamicBackend testBackend cfgLhDisabledPermanently) $ \_ -> do
       (owner, tid, _) <- createTeam domain 1
-      checkLegalholdStatus domain owner tid disabled
+      checkFeature "legalhold" owner tid disabled
       Internal.setTeamFeatureStatusExpectHttpStatus domain tid "legalhold" "enabled" 403
 
     -- Inteteresting case: The team had LH enabled before backend config was
     -- changed to disabled-permanently
     (owner, tid) <- runCodensity (startDynamicBackend testBackend cfgLhDisabledByDefault) $ \_ -> do
       (owner, tid, _) <- createTeam domain 1
-      checkLegalholdStatus domain owner tid disabled
+      checkFeature "legalhold" owner tid disabled
       Internal.setTeamFeatureStatusExpectHttpStatus domain tid "legalhold" "enabled" 200
-      checkLegalholdStatus domain owner tid enabled
+      checkFeature "legalhold" owner tid enabled
       pure (owner, tid)
 
     runCodensity (startDynamicBackend testBackend cfgLhDisabledPermanently) $ \_ -> do
-      checkLegalholdStatus domain owner tid disabled
+      checkFeature "legalhold" owner tid disabled
 
 -- can be enabled for a team, disabled if unset
 testLegalholdDisabledByDefault :: HasCallStack => App ()
@@ -100,11 +87,11 @@ testLegalholdDisabledByDefault = do
     (def {galleyCfg = setField "settings.featureFlags.legalhold" "disabled-by-default"})
     $ \domain -> do
       (owner, tid, _) <- createTeam domain 1
-      checkLegalholdStatus domain owner tid disabled
+      checkFeature "legalhold" owner tid disabled
       Internal.setTeamFeatureStatus domain tid "legalhold" "enabled"
-      checkLegalholdStatus domain owner tid enabled
+      checkFeature "legalhold" owner tid enabled
       Internal.setTeamFeatureStatus domain tid "legalhold" "disabled"
-      checkLegalholdStatus domain owner tid disabled
+      checkFeature "legalhold" owner tid disabled
 
 -- enabled if team is allow listed, disabled in any other case
 testLegalholdWhitelistTeamsAndImplicitConsent :: HasCallStack => App ()
@@ -124,22 +111,73 @@ testLegalholdWhitelistTeamsAndImplicitConsent = do
     -- Happy case: DB has no config for the team
     (owner, tid) <- runCodensity (startDynamicBackend testBackend cfgLhWhitelistTeamsAndImplicitConsent) $ \_ -> do
       (owner, tid, _) <- createTeam domain 1
-      checkLegalholdStatus domain owner tid disabled
+      checkFeature "legalhold" owner tid disabled
       Internal.legalholdWhitelistTeam tid owner >>= assertSuccess
-      checkLegalholdStatus domain owner tid enabled
+      checkFeature "legalhold" owner tid enabled
 
       -- Disabling it doesn't work
       Internal.setTeamFeatureStatusExpectHttpStatus domain tid "legalhold" "disabled" 403
-      checkLegalholdStatus domain owner tid enabled
+      checkFeature "legalhold" owner tid enabled
       pure (owner, tid)
 
     -- Inteteresting case: The team had LH disabled before backend config was
     -- changed to "whitelist-teams-and-implicit-consent". It should still show
     -- enabled when the config gets changed.
     runCodensity (startDynamicBackend testBackend cfgLhDisabledByDefault) $ \_ -> do
-      checkLegalholdStatus domain owner tid disabled
+      checkFeature "legalhold" owner tid disabled
       Internal.setTeamFeatureStatusExpectHttpStatus domain tid "legalhold" "disabled" 200
-      checkLegalholdStatus domain owner tid disabled
+      checkFeature "legalhold" owner tid disabled
 
     runCodensity (startDynamicBackend testBackend cfgLhWhitelistTeamsAndImplicitConsent) $ \_ -> do
-      checkLegalholdStatus domain owner tid enabled
+      checkFeature "legalhold" owner tid enabled
+
+testExposeInvitationURLsToTeamAdminConfig :: HasCallStack => App ()
+testExposeInvitationURLsToTeamAdminConfig = do
+  let cfgExposeInvitationURLsTeamAllowlist tids =
+        def
+          { galleyCfg = setField "settings.exposeInvitationURLsTeamAllowlist" tids
+          }
+  resourcePool <- asks (.resourcePool)
+  runCodensity (acquireResources 1 resourcePool) $ \[testBackend] -> do
+    let domain = testBackend.berDomain
+
+    -- Happy case: DB has no config for the team
+    runCodensity (startDynamicBackend testBackend $ cfgExposeInvitationURLsTeamAllowlist ([] :: [String])) $ \_ -> do
+      (owner, tid, _) <- createTeam domain 1
+      checkFeature "exposeInvitationURLsToTeamAdmin" owner tid disabledLocked
+
+-- Internal.legalholdWhitelistTeam tid owner >>= assertSuccess
+-- checkFeature "legalhold" owner tid enabled
+
+-- -- Disabling it doesn't work
+-- Internal.setTeamFeatureStatusExpectHttpStatus domain tid "legalhold" "disabled" 403
+-- checkFeature "legalhold" owner tid enabled
+-- pure (owner, tid)
+
+-- -- Inteteresting case: The team had LH disabled before backend config was
+-- -- changed to "whitelist-teams-and-implicit-consent". It should still show
+-- -- enabled when the config gets changed.
+-- runCodensity (startDynamicBackend testBackend cfgLhDisabledByDefault) $ \_ -> do
+--   checkFeature "legalhold" owner tid disabled
+--   Internal.setTeamFeatureStatusExpectHttpStatus domain tid "legalhold" "disabled" 200
+--   checkFeature "legalhold" owner tid disabled
+
+-- runCodensity (startDynamicBackend testBackend cfgLhWhitelistTeamsAndImplicitConsent) $ \_ -> do
+--   checkFeature "legalhold" owner tid enabled
+
+checkFeature :: (HasCallStack, MakesValue user, MakesValue tid) => String -> user -> tid -> Value -> App ()
+checkFeature feature user tid expected = do
+  tidStr <- asString tid
+  domain <- objDomain user
+  bindResponse (Internal.getTeamFeature domain tidStr feature) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json `shouldMatch` expected
+  bindResponse (Public.getFeatureConfigs user) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. feature `shouldMatch` expected
+  bindResponse (Public.getTeamFeatures user tid) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. feature `shouldMatch` expected
+  bindResponse (Public.getTeamFeature user tid feature) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json `shouldMatch` expected
