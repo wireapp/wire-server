@@ -80,7 +80,6 @@ library
     Wire.Rpc
     Wire.StoredUser
     Wire.UserStore
-    Wire.UserStore.Cassandra
     Wire.UserSubsystem
     Wire.UserSubsystem.Interpreter
 
@@ -156,6 +155,7 @@ test-suite wire-subsystems-tests
     , QuickCheck
     , quickcheck-instances
     , servant-client-core
+    , string-conversions
     , transformers
     , types-common
     , wire-api
