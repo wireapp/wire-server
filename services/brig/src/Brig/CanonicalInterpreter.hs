@@ -53,6 +53,7 @@ import Wire.Sem.Now (Now)
 import Wire.Sem.Now.IO (nowToIOAction)
 import Wire.Sem.Paging.Cassandra (InternalPaging)
 import Wire.UserStore
+import Wire.UserStore.Cassandra
 import Wire.UserSubsystem
 import Wire.UserSubsystem.Interpreter
 
@@ -124,7 +125,7 @@ runBrigToIO e (AppT ma) = do
               . runInputSem (embed getCurrentTime)
               . connectionStoreToCassandra
               . interpretSFT (e ^. httpManager)
-              . runUserStore
+              . interpretUserStoreCassandra (e ^. casClient)
               . runFederationAPIAccess
               . throwLeftAsWaiError undefined
               . runUserSubsystem undefined
@@ -137,6 +138,3 @@ throwLeftAsWaiError = undefined
 
 runFederationAPIAccess :: Sem (Wire.FederationAPIAccess.FederationAPIAccess Wire.API.Federation.Client.FederatorClient ': r) a -> Sem r a
 runFederationAPIAccess = undefined
-
-runUserStore :: forall r a. Sem (UserStore ': r) a -> Sem r a
-runUserStore = undefined

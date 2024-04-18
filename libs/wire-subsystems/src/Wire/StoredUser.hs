@@ -1,3 +1,5 @@
+{-# LANGUAGE TemplateHaskell #-}
+
 module Wire.StoredUser where
 
 import Data.Domain
@@ -5,6 +7,7 @@ import Data.Handle
 import Data.Id
 import Data.Json.Util
 import Data.Qualified
+import Database.CQL.Protocol (Record (..), TupleType, recordInstance)
 import Imports
 import Wire.API.Provider.Service
 import Wire.API.User
@@ -33,6 +36,8 @@ data StoredUser = StoredUser
   }
   deriving (Show, Eq, Ord, Generic)
   deriving (Arbitrary) via (GenericUniform StoredUser)
+
+recordInstance ''StoredUser
 
 hasPendingInvitation :: StoredUser -> Bool
 hasPendingInvitation u = u.status == Just PendingInvitation
