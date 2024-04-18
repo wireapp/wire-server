@@ -33,7 +33,7 @@ import Wire.API.MLS.CipherSuite
 data MLSKeysByPurpose a = MLSKeysByPurpose
   { removal :: a
   }
-  deriving (Show, Functor, Foldable, Traversable)
+  deriving (Eq, Show, Functor, Foldable, Traversable)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema (MLSKeysByPurpose a)
 
 instance ToSchema a => ToSchema (MLSKeysByPurpose a) where
@@ -48,7 +48,7 @@ data MLSKeys a = MLSKeys
     ecdsa_secp384r1_sha384 :: a,
     ecdsa_secp521r1_sha512 :: a
   }
-  deriving (Show)
+  deriving (Eq, Show)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema (MLSKeys a)
 
 instance ToSchema a => ToSchema (MLSKeys a) where
@@ -70,6 +70,7 @@ data MLSPrivateKeys = MLSPrivateKeys
 type MLSPublicKeys = MLSKeys MLSPublicKey
 
 newtype MLSPublicKey = MLSPublicKey {unwrapMLSPublicKey :: ByteString}
+  deriving (Eq, Show)
 
 instance ToSchema MLSPublicKey where
   schema = named "MLSPublicKey" $ MLSPublicKey <$> unwrapMLSPublicKey .= base64Schema
