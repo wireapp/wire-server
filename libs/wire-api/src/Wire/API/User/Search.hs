@@ -33,6 +33,7 @@ module Wire.API.User.Search
   )
 where
 
+import Cassandra qualified as C
 import Control.Error
 import Control.Lens (makePrisms, (?~))
 import Data.Aeson hiding (object, (.=))
@@ -316,5 +317,17 @@ instance ToSchema FederatedUserSearchPolicy where
       element "no_search" NoSearch
         <> element "exact_handle_search" ExactHandleSearch
         <> element "full_search" FullSearch
+
+instance C.Cql FederatedUserSearchPolicy where
+  ctype = C.Tagged C.IntColumn
+
+  toCql NoSearch = C.CqlInt 0
+  toCql ExactHandleSearch = C.CqlInt 1
+  toCql FullSearch = C.CqlInt 2
+
+  fromCql (C.CqlInt 0) = pure NoSearch
+  fromCql (C.CqlInt 1) = pure ExactHandleSearch
+  fromCql (C.CqlInt 2) = pure FullSearch
+  fromCql n = Left $ "Unexpected SearchVisibilityInbound: " ++ show n
 
 makePrisms ''FederatedUserSearchPolicy

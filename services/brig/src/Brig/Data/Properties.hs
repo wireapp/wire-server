@@ -26,7 +26,6 @@ module Brig.Data.Properties
   )
 where
 
-import Brig.Data.Instances ()
 import Cassandra
 import Control.Error
 import Data.Id

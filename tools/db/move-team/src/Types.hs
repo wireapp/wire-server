@@ -29,7 +29,6 @@ import Cassandra
 import Data.Aeson (FromJSON (..), ToJSON (..), Value (String), withArray, withText)
 import Data.Aeson.Types (Value (Array))
 import Data.ByteString.Lazy (fromStrict, toStrict)
-import Data.Handle
 import Data.IP (IP (..))
 import Data.Id
 import Data.Text qualified as T
@@ -38,7 +37,6 @@ import Data.Vector qualified as V
 import Galley.Cassandra.Instances ()
 import Imports
 import System.Logger (Logger)
-import Wire.API.User.Password (PasswordResetKey (..))
 
 data Env = Env
   { envLogger :: Logger,
@@ -97,10 +95,6 @@ instance FromJSON IP where
     case (read . T.unpack) str of
       Nothing -> fail "not a formatted IP address"
       Just ip -> pure ip
-
-deriving instance Cql Handle
-
-deriving instance Cql PasswordResetKey
 
 deriving instance ToJSON Ascii
 

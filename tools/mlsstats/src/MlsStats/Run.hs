@@ -249,9 +249,3 @@ instance Cql GroupId where
 
   fromCql (CqlBlob b) = Right . GroupId . LBS.toStrict $ b
   fromCql _ = Left "group_id: blob expected"
-
-instance Cql Domain where
-  ctype = Tagged TextColumn
-  toCql = CqlText . domainText
-  fromCql (CqlText txt) = mkDomain txt
-  fromCql _ = Left "Domain: Text expected"

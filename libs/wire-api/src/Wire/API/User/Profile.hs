@@ -49,6 +49,7 @@ module Wire.API.User.Profile
   )
 where
 
+import Cassandra qualified as C
 import Control.Applicative (optional)
 import Control.Error (hush, note)
 import Data.Aeson (FromJSON (..), ToJSON (..))
@@ -85,6 +86,8 @@ mkName txt = Name . fromRange <$> checkedEitherMsg @_ @1 @128 "Name" txt
 instance ToSchema Name where
   schema = Name <$> fromName .= untypedRangedSchema 1 128 schema
 
+deriving instance C.Cql Name
+
 --------------------------------------------------------------------------------
 -- Colour
 
@@ -95,6 +98,8 @@ newtype ColourId = ColourId {fromColourId :: Int32}
 
 defaultAccentId :: ColourId
 defaultAccentId = ColourId 0
+
+deriving instance C.Cql ColourId
 
 --------------------------------------------------------------------------------
 -- Asset
@@ -121,6 +126,45 @@ instance ToSchema Asset where
         enum @Text @NamedSwaggerDoc "AssetType" $
           element "image" ()
 
+instance C.Cql Asset where
+  -- Note: Type name and column names and types must match up with the
+  --       Cassandra schema definition. New fields may only be added
+  --       (appended) but no fields may be removed.
+  ctype =
+    C.Tagged
+      ( C.UdtColumn
+          "asset"
+          [ ("typ", C.IntColumn),
+            ("key", C.TextColumn),
+            ("size", C.MaybeColumn C.IntColumn)
+          ]
+      )
+
+  fromCql (C.CqlUdt fs) = do
+    t <- required "typ"
+    k <- required "key"
+    s <- notrequired "size"
+    case (t :: Int32) of
+      0 -> pure $! ImageAsset k s
+      _ -> Left $ "unexpected user asset type: " ++ show t
+    where
+      required :: C.Cql r => Text -> Either String r
+      required f =
+        maybe
+          (Left ("Asset: Missing required field '" ++ show f ++ "'"))
+          C.fromCql
+          (lookup f fs)
+      notrequired f = maybe (Right Nothing) C.fromCql (lookup f fs)
+  fromCql _ = Left "UserAsset: UDT expected"
+
+  -- Note: Order must match up with the 'ctype' definition.
+  toCql (ImageAsset k s) =
+    C.CqlUdt
+      [ ("typ", C.CqlInt 0),
+        ("key", C.toCql k),
+        ("size", C.toCql s)
+      ]
+
 data AssetSize = AssetComplete | AssetPreview
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform AssetSize)
@@ -133,6 +177,16 @@ instance ToSchema AssetSize where
         [ element "preview" AssetPreview,
           element "complete" AssetComplete
         ]
+
+instance C.Cql AssetSize where
+  ctype = C.Tagged C.IntColumn
+
+  fromCql (C.CqlInt 0) = pure AssetPreview
+  fromCql (C.CqlInt 1) = pure AssetComplete
+  fromCql n = Left $ "Unexpected asset size: " ++ show n
+
+  toCql AssetPreview = C.CqlInt 0
+  toCql AssetComplete = C.CqlInt 1
 
 --------------------------------------------------------------------------------
 -- Locale
@@ -172,6 +226,15 @@ newtype Language = Language {fromLanguage :: ISO639_1}
   deriving stock (Eq, Ord, Show, Generic)
   deriving newtype (Arbitrary, S.ToSchema)
 
+instance C.Cql Language where
+  ctype = C.Tagged C.AsciiColumn
+  toCql = C.toCql . lan2Text
+
+  fromCql (C.CqlAscii l) = case parseLanguage l of
+    Just l' -> pure l'
+    Nothing -> Left "Language: ISO 639-1 expected."
+  fromCql _ = Left "Language: ASCII expected"
+
 languageParser :: Parser Language
 languageParser = codeParser "language" $ fmap Language . checkAndConvert isLower
 
@@ -187,6 +250,15 @@ parseLanguage = hush . parseOnly languageParser
 newtype Country = Country {fromCountry :: CountryCode}
   deriving stock (Eq, Ord, Show, Generic)
   deriving newtype (Arbitrary, S.ToSchema)
+
+instance C.Cql Country where
+  ctype = C.Tagged C.AsciiColumn
+  toCql = C.toCql . con2Text
+
+  fromCql (C.CqlAscii c) = case parseCountry c of
+    Just c' -> pure c'
+    Nothing -> Left "Country: ISO 3166-1-alpha2 expected."
+  fromCql _ = Left "Country: ASCII expected"
 
 countryParser :: Parser Country
 countryParser = codeParser "country" $ fmap Country . checkAndConvert isUpper
@@ -243,6 +315,16 @@ instance FromByteString ManagedBy where
       "scim" -> pure ManagedByScim
       x -> fail $ "Invalid ManagedBy value: " <> show x
 
+instance C.Cql ManagedBy where
+  ctype = C.Tagged C.IntColumn
+
+  fromCql (C.CqlInt 0) = pure ManagedByWire
+  fromCql (C.CqlInt 1) = pure ManagedByScim
+  fromCql n = Left $ "Unexpected ManagedBy: " ++ show n
+
+  toCql ManagedByWire = C.CqlInt 0
+  toCql ManagedByScim = C.CqlInt 1
+
 defaultManagedBy :: ManagedBy
 defaultManagedBy = ManagedByWire
 
@@ -261,6 +343,17 @@ instance ToSchema Pict where
 
 instance Arbitrary Pict where
   arbitrary = pure $ Pict []
+
+instance C.Cql Pict where
+  ctype = C.Tagged (C.ListColumn C.BlobColumn)
+
+  fromCql (C.CqlList l) = do
+    vs <- map (\(C.Blob lbs) -> lbs) <$> mapM C.fromCql l
+    as <- mapM (note "Failed to read asset" . A.decode) vs
+    pure $ Pict as
+  fromCql _ = pure noPict
+
+  toCql = C.toCql . map (C.Blob . A.encode) . fromPict
 
 noPict :: Pict
 noPict = Pict []

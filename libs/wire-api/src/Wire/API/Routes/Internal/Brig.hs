@@ -30,6 +30,7 @@ module Wire.API.Routes.Internal.Brig
     FederationRemotesAPI,
     EJPDRequest,
     ISearchIndexAPI,
+    ProviderAPI,
     GetAccountConferenceCallingConfig,
     PutAccountConferenceCallingConfig,
     DeleteAccountConferenceCallingConfig,
@@ -538,6 +539,7 @@ type API =
            :<|> OAuthAPI
            :<|> ISearchIndexAPI
            :<|> FederationRemotesAPI
+           :<|> ProviderAPI
        )
 
 type IStatusAPI =
@@ -765,6 +767,17 @@ type FederationRemotesAPI =
                :> Capture "team" TeamId
                :> Delete '[JSON] ()
            )
+
+type ProviderAPI =
+  ( Named
+      "get-provider-activation-code"
+      ( Summary "Retrieve activation code via api instead of email (for testing only)"
+          :> "provider"
+          :> "activation-code"
+          :> QueryParam' '[Required, Strict] "email" Email
+          :> MultiVerb1 'GET '[JSON] (Respond 200 "" Code.KeyValuePair)
+      )
+  )
 
 type FederationRemotesAPIDescription =
   "See https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections for background. "

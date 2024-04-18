@@ -19,6 +19,7 @@
 
 module Data.Domain where
 
+import Cassandra
 import Control.Lens ((?~))
 import Data.Aeson (FromJSON, FromJSONKey, FromJSONKeyFunction (FromJSONKeyTextParser), ToJSON, ToJSONKey (toJSONKey))
 import Data.Aeson qualified as Aeson
@@ -177,3 +178,9 @@ instance Arbitrary DomainText where
           [ (1, pure ""),
             (5, x) -- to get longer labels
           ]
+
+instance Cql Domain where
+  ctype = Tagged TextColumn
+  toCql = CqlText . domainText
+  fromCql (CqlText txt) = mkDomain txt
+  fromCql _ = Left "Domain: Text expected"

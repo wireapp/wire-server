@@ -25,7 +25,6 @@ module Brig.User.Search.SearchIndex
 where
 
 import Brig.App (Env, viewFederationDomain)
-import Brig.Data.Instances ()
 import Brig.Types.Search
 import Brig.User.Search.Index
 import Control.Lens hiding (setting, (#), (.=))

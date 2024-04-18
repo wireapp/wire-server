@@ -159,6 +159,7 @@ module Wire.API.User
   )
 where
 
+import Cassandra qualified as C
 import Control.Applicative
 import Control.Arrow ((&&&))
 import Control.Error.Safe (rightMay)
@@ -344,6 +345,8 @@ instance ToByteString PhonePrefix where
 
 instance FromHttpApiData PhonePrefix where
   parseUrlPiece = Bifunctor.first cs . phonePrefixParser
+
+deriving instance C.Cql PhonePrefix
 
 phonePrefixParser :: Text -> Either String PhonePrefix
 phonePrefixParser p = maybe err pure (parsePhonePrefix p)
@@ -1362,6 +1365,8 @@ instance FromHttpApiData InvitationCode where
 instance ToHttpApiData InvitationCode where
   toQueryParam = cs . toByteString . fromInvitationCode
 
+deriving instance C.Cql InvitationCode
+
 --------------------------------------------------------------------------------
 -- NewTeamUser
 
@@ -1862,6 +1867,24 @@ instance Schema.ToSchema AccountStatus where
           Schema.element "pending-invitation" PendingInvitation
         ]
 
+instance C.Cql AccountStatus where
+  ctype = C.Tagged C.IntColumn
+
+  toCql Active = C.CqlInt 0
+  toCql Suspended = C.CqlInt 1
+  toCql Deleted = C.CqlInt 2
+  toCql Ephemeral = C.CqlInt 3
+  toCql PendingInvitation = C.CqlInt 4
+
+  fromCql (C.CqlInt i) = case i of
+    0 -> pure Active
+    1 -> pure Suspended
+    2 -> pure Deleted
+    3 -> pure Ephemeral
+    4 -> pure PendingInvitation
+    n -> Left $ "unexpected account status: " ++ show n
+  fromCql _ = Left "account status: int expected"
+
 data AccountStatusResp = AccountStatusResp {fromAccountStatusResp :: AccountStatus}
   deriving (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform AccountStatusResp)
@@ -2006,6 +2029,13 @@ data BaseProtocolTag = BaseProtocolProteusTag | BaseProtocolMLSTag
   deriving stock (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via (GenericUniform BaseProtocolTag)
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema BaseProtocolTag)
+
+instance C.Cql (Imports.Set BaseProtocolTag) where
+  ctype = C.Tagged C.IntColumn
+
+  toCql = C.CqlInt . fromIntegral . protocolSetBits
+  fromCql (C.CqlInt bits) = pure $ protocolSetFromBits (fromIntegral bits)
+  fromCql _ = Left "Protocol set: Int expected"
 
 baseProtocolMask :: BaseProtocolTag -> Word32
 baseProtocolMask BaseProtocolProteusTag = 1

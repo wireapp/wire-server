@@ -52,7 +52,6 @@ module Brig.Data.Connection
 where
 
 import Brig.App
-import Brig.Data.Instances ()
 import Brig.Data.Types as T
 import Cassandra
 import Control.Monad.Morph

@@ -22,7 +22,6 @@ module Brig.Effects.FederationConfigStore.Cassandra
   )
 where
 
-import Brig.Data.Instances ()
 import Brig.Effects.FederationConfigStore
 import Cassandra
 import Control.Exception (ErrorCall (ErrorCall))

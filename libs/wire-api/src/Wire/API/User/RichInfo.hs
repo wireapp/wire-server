@@ -43,6 +43,7 @@ module Wire.API.User.RichInfo
   )
 where
 
+import Cassandra qualified as C
 import Control.Lens ((%~), (?~), _1)
 import Data.Aeson qualified as A
 import Data.Aeson.Key qualified as A
@@ -318,6 +319,12 @@ validateRichInfoAssocList version fields = do
 instance Arbitrary RichInfoAssocList where
   arbitrary = mkRichInfoAssocList <$> arbitrary
   shrink (RichInfoAssocList things) = mkRichInfoAssocList <$> QC.shrink things
+
+instance C.Cql RichInfoAssocList where
+  ctype = C.Tagged C.BlobColumn
+  toCql = C.toCql . C.Blob . A.encode
+  fromCql (C.CqlBlob v) = A.eitherDecode v
+  fromCql _ = Left "RichInfo: Blob expected"
 
 --------------------------------------------------------------------------------
 -- RichField

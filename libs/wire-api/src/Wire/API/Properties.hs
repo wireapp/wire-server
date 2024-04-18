@@ -25,6 +25,7 @@ module Wire.API.Properties
   )
 where
 
+import Cassandra qualified as C
 import Control.Lens ((?~))
 import Data.Aeson (FromJSON (..), ToJSON (..), Value)
 import Data.Aeson qualified as A
@@ -67,8 +68,16 @@ instance S.ToParamSchema PropertyKey where
       & S.type_ ?~ S.OpenApiString
       & S.format ?~ "printable"
 
+deriving instance C.Cql PropertyKey
+
 -- | A raw, unparsed property value.
 newtype RawPropertyValue = RawPropertyValue {rawPropertyBytes :: LByteString}
+
+instance C.Cql RawPropertyValue where
+  ctype = C.Tagged C.BlobColumn
+  toCql = C.toCql . C.Blob . rawPropertyBytes
+  fromCql (C.CqlBlob v) = pure (RawPropertyValue v)
+  fromCql _ = Left "PropertyValue: Blob expected"
 
 instance {-# OVERLAPPING #-} MimeUnrender JSON RawPropertyValue where
   mimeUnrender _ = pure . RawPropertyValue

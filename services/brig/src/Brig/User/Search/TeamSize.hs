@@ -22,7 +22,6 @@ module Brig.User.Search.TeamSize
   )
 where
 
-import Brig.Data.Instances ()
 import Brig.Types.Team (TeamSize (..))
 import Brig.User.Search.Index
 import Control.Monad.Catch (throwM)

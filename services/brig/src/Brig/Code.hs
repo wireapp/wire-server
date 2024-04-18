@@ -40,6 +40,7 @@ module Brig.Code
     codeForPhone,
     codeKey,
     codeValue,
+    codeToKeyValuePair,
     codeTTL,
     codeAccount,
     scopeFromAction,
@@ -59,7 +60,6 @@ module Brig.Code
   )
 where
 
-import Brig.Data.Instances ()
 import Brig.Email (emailKeyUniq, mkEmailKey)
 import Brig.Phone (mkPhoneKey, phoneKeyUniq)
 import Cassandra hiding (Value)
@@ -113,6 +113,9 @@ scopeFromAction = \case
   User.CreateScimToken -> CreateScimToken
   User.Login -> AccountLogin
   User.DeleteTeam -> DeleteTeam
+
+codeToKeyValuePair :: Code -> KeyValuePair
+codeToKeyValuePair code = KeyValuePair code.codeKey code.codeValue
 
 -- | The same 'Key' can exist with different 'Value's in different
 -- 'Scope's at the same time.

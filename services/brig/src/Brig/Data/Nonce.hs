@@ -21,7 +21,6 @@ module Brig.Data.Nonce
   )
 where
 
-import Brig.Data.Instances ()
 import Cassandra
 import Control.Lens hiding (from)
 import Data.Id (UserId)

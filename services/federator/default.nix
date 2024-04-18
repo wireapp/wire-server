@@ -158,7 +158,6 @@ mkDerivation {
     text
     types-common
     uuid
-    wai-utilities
     wire-api
     wire-api-federation
     yaml

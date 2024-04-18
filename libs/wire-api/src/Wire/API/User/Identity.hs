@@ -52,6 +52,7 @@ module Wire.API.User.Identity
   )
 where
 
+import Cassandra qualified as C
 import Control.Applicative (optional)
 import Control.Lens (dimap, over, (.~), (?~), (^.))
 import Data.Aeson (FromJSON (..), ToJSON (..))
@@ -199,6 +200,16 @@ instance Arbitrary Email where
     domain <- Text.filter (/= '@') <$> arbitrary
     pure $ Email localPart domain
 
+instance C.Cql Email where
+  ctype = C.Tagged C.TextColumn
+
+  fromCql (C.CqlText t) = case parseEmail t of
+    Just e -> pure e
+    Nothing -> Left "fromCql: Invalid email"
+  fromCql _ = Left "fromCql: email: CqlText expected"
+
+  toCql = C.toCql . fromEmail
+
 fromEmail :: Email -> Text
 fromEmail (Email loc dom) = loc <> "@" <> dom
 
@@ -283,6 +294,8 @@ instance Arbitrary Phone where
       maxi <- mkdigits =<< QC.chooseInt (0, 7)
       pure $ '+' : mini <> maxi
 
+deriving instance C.Cql Phone
+
 -- | Parses a phone number in E.164 format with a mandatory leading '+'.
 parsePhone :: Text -> Maybe Phone
 parsePhone p
@@ -314,6 +327,16 @@ data UserSSOId
   | UserScimExternalId Text
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserSSOId)
+
+instance C.Cql UserSSOId where
+  ctype = C.Tagged C.TextColumn
+
+  fromCql (C.CqlText t) = case A.eitherDecode $ cs t of
+    Right i -> pure i
+    Left msg -> Left $ "fromCql: Invalid UserSSOId: " ++ msg
+  fromCql _ = Left "fromCql: UserSSOId: CqlText expected"
+
+  toCql = C.toCql . cs @LByteString @Text . A.encode
 
 -- | FUTUREWORK: This schema should ideally be a choice of either tenant+subject, or scim_external_id
 -- but this is currently not possible to derive in swagger2

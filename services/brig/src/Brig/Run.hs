@@ -22,7 +22,6 @@ module Brig.Run
 where
 
 import AWS.Util (readAuthExpiration)
-import Brig.API (sitemap)
 import Brig.API.Federation
 import Brig.API.Handler
 import Brig.API.Internal qualified as IAPI
@@ -59,8 +58,6 @@ import Network.HTTP.Types qualified as HTTP
 import Network.Wai qualified as Wai
 import Network.Wai.Middleware.Gunzip qualified as GZip
 import Network.Wai.Middleware.Gzip qualified as GZip
-import Network.Wai.Routing (Tree)
-import Network.Wai.Routing.Route (App)
 import Network.Wai.Utilities (lookupRequestId)
 import Network.Wai.Utilities.Server
 import Network.Wai.Utilities.Server qualified as Server
@@ -72,6 +69,7 @@ import System.Logger qualified as Log
 import System.Logger.Class (MonadLogger, err)
 import Util.Options
 import Wire.API.Routes.API
+import Wire.API.Routes.Internal.Brig qualified as IAPI
 import Wire.API.Routes.Public.Brig
 import Wire.API.Routes.Version
 import Wire.API.Routes.Version.Wai
@@ -119,21 +117,15 @@ mkApp o = do
   e <- newEnv o
   pure (middleware e $ \reqId -> servantApp (e & requestId .~ reqId), e)
   where
-    rtree :: Tree (App (Handler BrigCanonicalEffects))
-    rtree = compile sitemap
-
     middleware :: Env -> (RequestId -> Wai.Application) -> Wai.Application
     middleware e =
       -- this rewrites the request, so it must be at the top (i.e. applied last)
       versionMiddleware (e ^. disabledVersions)
-        . Metrics.servantPlusWAIPrometheusMiddleware (sitemap @BrigCanonicalEffects) (Proxy @ServantCombinedAPI)
+        . Metrics.servantPrometheusMiddleware (Proxy @ServantCombinedAPI)
         . GZip.gunzip
         . GZip.gzip GZip.def
         . catchErrors (e ^. applog) [Right $ e ^. metrics]
         . lookupRequestIdMiddleware (e ^. applog)
-
-    app :: Env -> Wai.Request -> (Wai.Response -> IO Wai.ResponseReceived) -> IO Wai.ResponseReceived
-    app e r k = runHandler e r (Server.route rtree r k) k
 
     -- the servant API wraps the one defined using wai-routing
     servantApp :: Env -> Wai.Application
@@ -147,7 +139,6 @@ mkApp o = do
                 :<|> hoistServerWithDomain @IAPI.API (toServantHandler e) IAPI.servantSitemap
                 :<|> hoistServerWithDomain @FederationAPI (toServantHandler e) federationSitemap
                 :<|> hoistServerWithDomain @VersionAPI (toServantHandler e) versionAPI
-                :<|> Servant.Tagged (app e)
             )
 
 type ServantCombinedAPI =
@@ -156,7 +147,6 @@ type ServantCombinedAPI =
       :<|> IAPI.API
       :<|> FederationAPI
       :<|> VersionAPI
-      :<|> Servant.Raw
   )
 
 lookupRequestIdMiddleware :: Logger -> (RequestId -> Wai.Application) -> Wai.Application

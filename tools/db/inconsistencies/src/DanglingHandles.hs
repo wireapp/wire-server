@@ -21,7 +21,6 @@
 
 module DanglingHandles where
 
-import Brig.Data.Instances ()
 import Cassandra
 import Cassandra.Util
 import Conduit

@@ -152,7 +152,6 @@ testExposeInvitationURLsToTeamAdminConfig = do
 
     (owner, tid) <- testNoAllowlistEntry
     putStrLn $ "=====================> tid: " <> show tid
-
     -- Interesting case: The team is in the allow list
     runCodensity (startDynamicBackend testBackend $ cfgExposeInvitationURLsTeamAllowlist [tid]) $ \_ -> do
       checkFeature "exposeInvitationURLsToTeamAdmin" owner tid disabled
