@@ -37,7 +37,7 @@ testModifiedGalley = do
 
   let getFeatureStatus :: (MakesValue domain) => domain -> String -> App Value
       getFeatureStatus domain team = do
-        bindResponse (GalleyI.getTeamFeature domain "searchVisibility" team) $ \res -> do
+        bindResponse (GalleyI.getTeamFeature domain team "searchVisibility") $ \res -> do
           res.status `shouldMatchInt` 200
           res.json %. "status"
 
@@ -75,7 +75,7 @@ testModifiedServices = do
 
   withModifiedBackend serviceMap $ \domain -> do
     (_user, tid, _) <- createTeam domain 1
-    bindResponse (GalleyI.getTeamFeature domain "searchVisibility" tid) $ \res -> do
+    bindResponse (GalleyI.getTeamFeature domain tid "searchVisibility") $ \res -> do
       res.status `shouldMatchInt` 200
       res.json %. "status" `shouldMatch` "enabled"
 

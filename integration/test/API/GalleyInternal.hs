@@ -33,23 +33,27 @@ putTeamMember user team perms = do
       req
 
 getTeamFeature :: (HasCallStack, MakesValue domain_) => domain_ -> String -> String -> App Response
-getTeamFeature domain_ featureName tid = do
+getTeamFeature domain_ tid featureName = do
   req <- baseRequest domain_ Galley Unversioned $ joinHttpPath ["i", "teams", tid, "features", featureName]
   submit "GET" $ req
 
 setTeamFeatureStatus :: (HasCallStack, MakesValue domain, MakesValue team) => domain -> team -> String -> String -> App ()
 setTeamFeatureStatus domain team featureName status = do
+  setTeamFeatureStatusExpectHttpStatus domain team featureName status 200
+
+setTeamFeatureStatusExpectHttpStatus :: (HasCallStack, MakesValue domain, MakesValue team) => domain -> team -> String -> String -> Int -> App ()
+setTeamFeatureStatusExpectHttpStatus domain team featureName status httpStatus = do
   tid <- asString team
   req <- baseRequest domain Galley Unversioned $ joinHttpPath ["i", "teams", tid, "features", featureName]
-  res <- submit "PATCH" $ req & addJSONObject ["status" .= status]
-  res.status `shouldMatchInt` 200
+  bindResponse (submit "PATCH" $ req & addJSONObject ["status" .= status]) $ \res ->
+    res.status `shouldMatchInt` httpStatus
 
 setTeamFeatureLockStatus :: (HasCallStack, MakesValue domain, MakesValue team) => domain -> team -> String -> String -> App ()
 setTeamFeatureLockStatus domain team featureName status = do
   tid <- asString team
   req <- baseRequest domain Galley Unversioned $ joinHttpPath ["i", "teams", tid, "features", featureName, status]
-  res <- submit "PUT" $ req
-  res.status `shouldMatchInt` 200
+  bindResponse (submit "PUT" $ req) $ \res ->
+    res.status `shouldMatchInt` 200
 
 getFederationStatus ::
   ( HasCallStack,

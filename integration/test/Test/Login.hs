@@ -68,7 +68,7 @@ testLoginVerify6DigitExpiredCodeFails = do
       email <- owner %. "email"
       setTeamFeatureLockStatus owner team "sndFactorPasswordChallenge" "unlocked"
       setTeamFeatureStatus owner team "sndFactorPasswordChallenge" "enabled"
-      bindResponse (getTeamFeature domain "sndFactorPasswordChallenge" team) $ \resp -> do
+      bindResponse (getTeamFeature owner team "sndFactorPasswordChallenge") $ \resp -> do
         resp.status `shouldMatchInt` 200
         resp.json %. "status" `shouldMatch` "enabled"
       generateVerificationCode owner email
