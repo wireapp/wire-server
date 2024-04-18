@@ -19,7 +19,7 @@ to name a few.
 There's another inherent problem to `cs` in that context, namely **readability**; a `TL.fromStict` immediately tells 
 you what the code does; `cs`, however, says nothing; you know there's *some* conversion going on but not which.
 
-We have hence decided to not use the error-prone and hard-to-read `cs` in production code; i.e. in all libraries that 
-and services and instead only allow for use in `test-suite`s in general and `integration/` more specifically.
+We have hence decided to not use the error-prone and hard-to-read `cs` in production code, i.e., in all libraries
+and services, and instead only allow for use in test suites in general and `integration/` more specifically.
 
 As a consequence we also decided to drop `cs` from `Imports`.
