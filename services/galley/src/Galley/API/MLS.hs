@@ -44,5 +44,4 @@ getMLSPublicKeys ::
   Local UserId ->
   Sem r (MLSKeysByPurpose MLSPublicKeys)
 getMLSPublicKeys _ = do
-  keys <- getMLSPrivateKeys
-  pure $ fmap mlsKeysToPublic keys
+  fmap mlsKeysToPublic <$> getMLSPrivateKeys
