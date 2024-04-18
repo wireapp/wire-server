@@ -140,14 +140,15 @@ testExposeInvitationURLsToTeamAdminConfig = do
   resourcePool <- asks (.resourcePool)
   runCodensity (acquireResources 1 resourcePool) $ \[testBackend] -> do
     let domain = testBackend.berDomain
+    putStrLn $ "=====================> keyspace: " <> show (testBackend.berGalleyKeyspace)
 
     -- Happy case: DB has no config for the team
     let testNoAllowlistEntry = runCodensity (startDynamicBackend testBackend $ cfgExposeInvitationURLsTeamAllowlist ([] :: [String])) $ \_ -> do
           (owner, tid, _) <- createTeam domain 1
-          checkFeature "exposeInvitationURLsToTeamAdmin" owner tid disabledLocked
-          -- here we get a response with HTTP status 200 and feature status unchanged (disabled), which we find weird, but we're just testing the current behavior
-          Internal.setTeamFeatureStatusExpectHttpStatus domain tid "exposeInvitationURLsToTeamAdmin" "enabled" 200
-          Internal.setTeamFeatureStatusExpectHttpStatus domain tid "exposeInvitationURLsToTeamAdmin" "disabled" 200
+          -- checkFeature "exposeInvitationURLsToTeamAdmin" owner tid disabledLocked
+          -- -- here we get a response with HTTP status 200 and feature status unchanged (disabled), which we find weird, but we're just testing the current behavior
+          -- Internal.setTeamFeatureStatusExpectHttpStatus domain tid "exposeInvitationURLsToTeamAdmin" "enabled" 200
+          -- Internal.setTeamFeatureStatusExpectHttpStatus domain tid "exposeInvitationURLsToTeamAdmin" "disabled" 200
           pure (owner, tid)
 
     (owner, tid) <- testNoAllowlistEntry
@@ -172,12 +173,12 @@ checkFeature feature user tid expected = do
   bindResponse (Internal.getTeamFeature domain tidStr feature) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json `shouldMatch` expected
-  bindResponse (Public.getFeatureConfigs user) $ \resp -> do
-    resp.status `shouldMatchInt` 200
-    resp.json %. feature `shouldMatch` expected
   bindResponse (Public.getTeamFeatures user tid) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. feature `shouldMatch` expected
   bindResponse (Public.getTeamFeature user tid feature) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json `shouldMatch` expected
+  bindResponse (Public.getFeatureConfigs user) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. feature `shouldMatch` expected

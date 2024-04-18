@@ -8,6 +8,7 @@ import Data.Id
 import Data.Misc (HttpsUrl)
 import Data.Time
 import Database.CQL.Protocol
+import Debug.Trace
 import Galley.Cassandra.Instances ()
 import Imports
 import Wire.API.Conversation.Protocol (ProtocolTag)
@@ -75,8 +76,55 @@ data AllTeamFeatureConfigsRow = AllTeamFeatureConfigsRow
     -- limit event fanout
     limitEventFanout :: Maybe FeatureStatus
   }
+  deriving (Generic, Show)
 
 recordInstance ''AllTeamFeatureConfigsRow
+
+emptyRow :: AllTeamFeatureConfigsRow
+emptyRow =
+  AllTeamFeatureConfigsRow
+    { legalhold = Nothing,
+      sso = Nothing,
+      searchVisibility = Nothing,
+      validateSamlEmails = Nothing,
+      digitalSignatures = Nothing,
+      appLock = Nothing,
+      appLockEnforce = Nothing,
+      appLockInactivityTimeoutSecs = Nothing,
+      fileSharing = Nothing,
+      fileSharingLock = Nothing,
+      selfDeletingMessages = Nothing,
+      selfDeletingMessagesTtl = Nothing,
+      selfDeletingMessagesLock = Nothing,
+      conferenceCalling = Nothing,
+      conferenceCallingTtl = Nothing,
+      guestLinks = Nothing,
+      guestLinksLock = Nothing,
+      sndFactor = Nothing,
+      sndFactorLock = Nothing,
+      mls = Nothing,
+      mlsDefaultProtocol = Nothing,
+      mlsToggleUsers = Nothing,
+      mlsAllowedCipherSuites = Nothing,
+      mlsDefaultCipherSuite = Nothing,
+      mlsSupportedProtocols = Nothing,
+      mlsLock = Nothing,
+      mlsE2eid = Nothing,
+      mlsE2eidGracePeriod = Nothing,
+      mlsE2eidAcmeDiscoverUrl = Nothing,
+      mlsE2eidLock = Nothing,
+      mlsMigration = Nothing,
+      mlsMigrationStartTime = Nothing,
+      mlsMigrationFinalizeRegardlessAfter = Nothing,
+      mlsMigrationLock = Nothing,
+      exposeInvitationUrls = Nothing,
+      outlookCalIntegration = Nothing,
+      outlookCalIntegrationLock = Nothing,
+      enforceDownloadLocation = Nothing,
+      enforceDownloadLocation_Location = Nothing,
+      enforceDownloadLocationLock = Nothing,
+      limitEventFanout = Nothing
+    }
 
 allFeatureConfigsFromRow ::
   -- id of team of which we want to see the feature
@@ -87,144 +135,145 @@ allFeatureConfigsFromRow ::
   AllTeamFeatureConfigsRow ->
   AllFeatureConfigs
 allFeatureConfigsFromRow ourteam allowListForExposeInvitationURLs serverConfigs row =
-  AllFeatureConfigs
-    { afcLegalholdStatus =
-        computeConfig
-          row.legalhold
-          Nothing
-          FeatureTTLUnlimited
-          (Just LegalholdConfig)
-          serverConfigs.afcLegalholdStatus,
-      afcSSOStatus =
-        computeConfig
-          row.sso
-          Nothing
-          FeatureTTLUnlimited
-          (Just SSOConfig)
-          serverConfigs.afcSSOStatus,
-      afcTeamSearchVisibilityAvailable =
-        computeConfig
-          row.searchVisibility
-          Nothing
-          FeatureTTLUnlimited
-          (Just SearchVisibilityAvailableConfig)
-          serverConfigs.afcTeamSearchVisibilityAvailable,
-      afcSearchVisibilityInboundConfig =
-        computeConfig
-          row.searchVisibility
-          Nothing
-          FeatureTTLUnlimited
-          (Just SearchVisibilityInboundConfig)
-          serverConfigs.afcSearchVisibilityInboundConfig,
-      afcValidateSAMLEmails =
-        computeConfig
-          row.validateSamlEmails
-          Nothing
-          FeatureTTLUnlimited
-          (Just ValidateSAMLEmailsConfig)
-          serverConfigs.afcValidateSAMLEmails,
-      afcDigitalSignatures =
-        computeConfig
-          row.digitalSignatures
-          Nothing
-          FeatureTTLUnlimited
-          (Just DigitalSignaturesConfig)
-          serverConfigs.afcDigitalSignatures,
-      afcAppLock =
-        computeConfig
-          row.appLock
-          Nothing
-          FeatureTTLUnlimited
-          appLockConfig
-          serverConfigs.afcAppLock,
-      afcFileSharing =
-        computeConfig
-          row.fileSharing
-          row.fileSharingLock
-          FeatureTTLUnlimited
-          (Just FileSharingConfig)
-          serverConfigs.afcFileSharing,
-      afcClassifiedDomains =
-        computeConfig Nothing Nothing FeatureTTLUnlimited Nothing serverConfigs.afcClassifiedDomains,
-      afcConferenceCalling =
-        computeConfig
-          row.conferenceCalling
-          Nothing
-          (fromMaybe FeatureTTLUnlimited row.conferenceCallingTtl)
-          (Just ConferenceCallingConfig)
-          serverConfigs.afcConferenceCalling,
-      afcSelfDeletingMessages =
-        computeConfig
-          row.selfDeletingMessages
-          row.selfDeletingMessagesLock
-          FeatureTTLUnlimited
-          selfDeletingMessagesConfig
-          serverConfigs.afcSelfDeletingMessages,
-      afcGuestLink =
-        computeConfig
-          row.guestLinks
-          row.guestLinksLock
-          FeatureTTLUnlimited
-          (Just GuestLinksConfig)
-          serverConfigs.afcGuestLink,
-      afcSndFactorPasswordChallenge =
-        computeConfig
-          row.sndFactor
-          row.sndFactorLock
-          FeatureTTLUnlimited
-          (Just SndFactorPasswordChallengeConfig)
-          serverConfigs.afcSndFactorPasswordChallenge,
-      afcMLS =
-        computeConfig
-          row.mls
-          row.mlsLock
-          FeatureTTLUnlimited
-          mlsConfig
-          serverConfigs.afcMLS,
-      afcExposeInvitationURLsToTeamAdmin =
-        mutateExposeInvitationURLsToTeamAdmin $
-          computeConfig
-            row.exposeInvitationUrls
-            Nothing
-            FeatureTTLUnlimited
-            (Just ExposeInvitationURLsToTeamAdminConfig)
-            serverConfigs.afcExposeInvitationURLsToTeamAdmin,
-      afcOutlookCalIntegration =
-        computeConfig
-          row.outlookCalIntegration
-          row.outlookCalIntegrationLock
-          FeatureTTLUnlimited
-          (Just OutlookCalIntegrationConfig)
-          serverConfigs.afcOutlookCalIntegration,
-      afcMlsE2EId =
-        computeConfig
-          row.mlsE2eid
-          row.mlsE2eidLock
-          FeatureTTLUnlimited
-          mlsE2eidConfig
-          serverConfigs.afcMlsE2EId,
-      afcMlsMigration =
-        computeConfig
-          row.mlsMigration
-          row.mlsMigrationLock
-          FeatureTTLUnlimited
-          mlsMigrationConfig
-          serverConfigs.afcMlsMigration,
-      afcEnforceFileDownloadLocation =
-        computeConfig
-          row.enforceDownloadLocation
-          row.enforceDownloadLocationLock
-          FeatureTTLUnlimited
-          downloadLocationConfig
-          serverConfigs.afcEnforceFileDownloadLocation,
-      afcLimitedEventFanout =
-        computeConfig
-          row.limitEventFanout
-          Nothing
-          FeatureTTLUnlimited
-          (Just LimitedEventFanoutConfig)
-          serverConfigs.afcLimitedEventFanout
-    }
+  let _ = trace ("==============> exposeInvitationUrls: " <> show row.exposeInvitationUrls) row.exposeInvitationUrls
+   in AllFeatureConfigs
+        { afcLegalholdStatus =
+            computeConfig
+              row.legalhold
+              Nothing
+              FeatureTTLUnlimited
+              (Just LegalholdConfig)
+              serverConfigs.afcLegalholdStatus,
+          afcSSOStatus =
+            computeConfig
+              row.sso
+              Nothing
+              FeatureTTLUnlimited
+              (Just SSOConfig)
+              serverConfigs.afcSSOStatus,
+          afcTeamSearchVisibilityAvailable =
+            computeConfig
+              row.searchVisibility
+              Nothing
+              FeatureTTLUnlimited
+              (Just SearchVisibilityAvailableConfig)
+              serverConfigs.afcTeamSearchVisibilityAvailable,
+          afcSearchVisibilityInboundConfig =
+            computeConfig
+              row.searchVisibility
+              Nothing
+              FeatureTTLUnlimited
+              (Just SearchVisibilityInboundConfig)
+              serverConfigs.afcSearchVisibilityInboundConfig,
+          afcValidateSAMLEmails =
+            computeConfig
+              row.validateSamlEmails
+              Nothing
+              FeatureTTLUnlimited
+              (Just ValidateSAMLEmailsConfig)
+              serverConfigs.afcValidateSAMLEmails,
+          afcDigitalSignatures =
+            computeConfig
+              row.digitalSignatures
+              Nothing
+              FeatureTTLUnlimited
+              (Just DigitalSignaturesConfig)
+              serverConfigs.afcDigitalSignatures,
+          afcAppLock =
+            computeConfig
+              row.appLock
+              Nothing
+              FeatureTTLUnlimited
+              appLockConfig
+              serverConfigs.afcAppLock,
+          afcFileSharing =
+            computeConfig
+              row.fileSharing
+              row.fileSharingLock
+              FeatureTTLUnlimited
+              (Just FileSharingConfig)
+              serverConfigs.afcFileSharing,
+          afcClassifiedDomains =
+            computeConfig Nothing Nothing FeatureTTLUnlimited Nothing serverConfigs.afcClassifiedDomains,
+          afcConferenceCalling =
+            computeConfig
+              row.conferenceCalling
+              Nothing
+              (fromMaybe FeatureTTLUnlimited row.conferenceCallingTtl)
+              (Just ConferenceCallingConfig)
+              serverConfigs.afcConferenceCalling,
+          afcSelfDeletingMessages =
+            computeConfig
+              row.selfDeletingMessages
+              row.selfDeletingMessagesLock
+              FeatureTTLUnlimited
+              selfDeletingMessagesConfig
+              serverConfigs.afcSelfDeletingMessages,
+          afcGuestLink =
+            computeConfig
+              row.guestLinks
+              row.guestLinksLock
+              FeatureTTLUnlimited
+              (Just GuestLinksConfig)
+              serverConfigs.afcGuestLink,
+          afcSndFactorPasswordChallenge =
+            computeConfig
+              row.sndFactor
+              row.sndFactorLock
+              FeatureTTLUnlimited
+              (Just SndFactorPasswordChallengeConfig)
+              serverConfigs.afcSndFactorPasswordChallenge,
+          afcMLS =
+            computeConfig
+              row.mls
+              row.mlsLock
+              FeatureTTLUnlimited
+              mlsConfig
+              serverConfigs.afcMLS,
+          afcExposeInvitationURLsToTeamAdmin =
+            mutateExposeInvitationURLsToTeamAdmin $
+              computeConfig
+                (trace ("==============> exposeInvitationUrls: " <> show row.exposeInvitationUrls) row.exposeInvitationUrls)
+                Nothing
+                FeatureTTLUnlimited
+                (Just ExposeInvitationURLsToTeamAdminConfig)
+                serverConfigs.afcExposeInvitationURLsToTeamAdmin,
+          afcOutlookCalIntegration =
+            computeConfig
+              row.outlookCalIntegration
+              row.outlookCalIntegrationLock
+              FeatureTTLUnlimited
+              (Just OutlookCalIntegrationConfig)
+              serverConfigs.afcOutlookCalIntegration,
+          afcMlsE2EId =
+            computeConfig
+              row.mlsE2eid
+              row.mlsE2eidLock
+              FeatureTTLUnlimited
+              mlsE2eidConfig
+              serverConfigs.afcMlsE2EId,
+          afcMlsMigration =
+            computeConfig
+              row.mlsMigration
+              row.mlsMigrationLock
+              FeatureTTLUnlimited
+              mlsMigrationConfig
+              serverConfigs.afcMlsMigration,
+          afcEnforceFileDownloadLocation =
+            computeConfig
+              row.enforceDownloadLocation
+              row.enforceDownloadLocationLock
+              FeatureTTLUnlimited
+              downloadLocationConfig
+              serverConfigs.afcEnforceFileDownloadLocation,
+          afcLimitedEventFanout =
+            computeConfig
+              row.limitEventFanout
+              Nothing
+              FeatureTTLUnlimited
+              (Just LimitedEventFanoutConfig)
+              serverConfigs.afcLimitedEventFanout
+        }
   where
     computeConfig :: Maybe FeatureStatus -> Maybe LockStatus -> FeatureTTL -> Maybe cfg -> WithStatus cfg -> WithStatus cfg
     computeConfig mDbStatus mDbLock dbTtl mDbCfg serverCfg =
@@ -277,8 +326,13 @@ allFeatureConfigsFromRow ourteam allowListForExposeInvitationURLs serverConfigs 
 
 getAllFeatureConfigs :: MonadClient m => Maybe [TeamId] -> AllFeatureConfigs -> TeamId -> m AllFeatureConfigs
 getAllFeatureConfigs allowListForExposeInvitationURLs serverConfigs tid = do
-  row <- retry x1 $ query1 select (params LocalQuorum (Identity tid))
-  pure $ maybe serverConfigs (allFeatureConfigsFromRow tid allowListForExposeInvitationURLs serverConfigs . asRecord) row
+  traceM $ "getAllFeatureConfigs: " <> show tid
+  mRow <- retry x1 $ query1 select (params LocalQuorum (Identity tid))
+  let rowRecord :: Maybe AllTeamFeatureConfigsRow = asRecord <$> mRow
+  traceM $ "==============================> getAllFeatureConfigs is just?: " <> show rowRecord
+  let afcs = allFeatureConfigsFromRow tid allowListForExposeInvitationURLs serverConfigs $ fromMaybe emptyRow rowRecord
+  traceM $ "==============================> getAllFeatureConfigs afcs: " <> show afcs
+  pure afcs
   where
     select ::
       PrepQuery
