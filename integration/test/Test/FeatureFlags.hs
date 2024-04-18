@@ -140,19 +140,18 @@ testExposeInvitationURLsToTeamAdminConfig = do
   resourcePool <- asks (.resourcePool)
   runCodensity (acquireResources 1 resourcePool) $ \[testBackend] -> do
     let domain = testBackend.berDomain
-    putStrLn $ "=====================> keyspace: " <> show (testBackend.berGalleyKeyspace)
 
-    -- Happy case: DB has no config for the team
     let testNoAllowlistEntry = runCodensity (startDynamicBackend testBackend $ cfgExposeInvitationURLsTeamAllowlist ([] :: [String])) $ \_ -> do
           (owner, tid, _) <- createTeam domain 1
-          -- checkFeature "exposeInvitationURLsToTeamAdmin" owner tid disabledLocked
-          -- -- here we get a response with HTTP status 200 and feature status unchanged (disabled), which we find weird, but we're just testing the current behavior
-          -- Internal.setTeamFeatureStatusExpectHttpStatus domain tid "exposeInvitationURLsToTeamAdmin" "enabled" 200
-          -- Internal.setTeamFeatureStatusExpectHttpStatus domain tid "exposeInvitationURLsToTeamAdmin" "disabled" 200
+          checkFeature "exposeInvitationURLsToTeamAdmin" owner tid disabledLocked
+          -- here we get a response with HTTP status 200 and feature status unchanged (disabled), which we find weird, but we're just testing the current behavior
+          Internal.setTeamFeatureStatusExpectHttpStatus domain tid "exposeInvitationURLsToTeamAdmin" "enabled" 200
+          Internal.setTeamFeatureStatusExpectHttpStatus domain tid "exposeInvitationURLsToTeamAdmin" "disabled" 200
           pure (owner, tid)
 
+    -- Happy case: DB has no config for the team
     (owner, tid) <- testNoAllowlistEntry
-    putStrLn $ "=====================> tid: " <> show tid
+
     -- Interesting case: The team is in the allow list
     runCodensity (startDynamicBackend testBackend $ cfgExposeInvitationURLsTeamAllowlist [tid]) $ \_ -> do
       checkFeature "exposeInvitationURLsToTeamAdmin" owner tid disabled
