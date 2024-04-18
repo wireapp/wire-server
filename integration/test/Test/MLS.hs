@@ -736,3 +736,14 @@ testPublicKeys = do
   bindResponse (getMLSPublicKeys alice) $ \resp -> do
     resp.status `shouldMatchInt` 200
     (KM.keys <$> asObject (resp.json %. "removal")) `shouldMatchSet` expectedKeys
+
+testPublicKeysMLSNotEnabled :: HasCallStack => App ()
+testPublicKeysMLSNotEnabled = withModifiedBackend
+  def
+    { galleyCfg = removeField "settings.mlsPrivateKeyPaths"
+    }
+  $ \domain -> do
+    alice <- randomUserId domain
+    bindResponse (getMLSPublicKeys alice) $ \resp -> do
+      resp.status `shouldMatchInt` 400
+      resp.json %. "label" `shouldMatch` "mls-not-enabled"
