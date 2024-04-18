@@ -45,11 +45,10 @@ spec = describe "UserSubsystem.Interpreter" do
     describe "[with federation]" do
       prop "all users on federating backends" $
         \viewer targetUsers visibility domain remoteDomain -> do
-          let localBackend = def {users = [viewer]}
-              remoteBackend = def {users = targetUsers}
-              federation = [(domain, localBackend), (remoteDomain, remoteBackend)]
+          let remoteBackend = def {users = targetUsers}
+              federation = [(remoteDomain, remoteBackend)]
               retrievedProfiles =
-                runFederationStack federation Nothing (UserSubsystemConfig visibility domain miniLocale) $
+                runFederationStack [viewer] federation Nothing (UserSubsystemConfig visibility miniLocale) $
                   getUserProfiles
                     (toLocalUnsafe domain viewer.id)
                     ( map (flip Qualified remoteDomain . (.id)) $
@@ -67,7 +66,7 @@ spec = describe "UserSubsystem.Interpreter" do
     describe "[without federation]" do
       prop "returns nothing when none of the users exist" $
         \viewer targetUserIds visibility domain locale ->
-          let config = UserSubsystemConfig visibility domain locale
+          let config = UserSubsystemConfig visibility locale
               retrievedProfiles =
                 runNoFederationStack [] Nothing config $
                   getUserProfiles (toLocalUnsafe domain viewer) (map (`Qualified` domain) targetUserIds)
@@ -77,7 +76,7 @@ spec = describe "UserSubsystem.Interpreter" do
         \(NotPendingStoredUser viewer) (NotPendingStoredUser targetUserNoTeam) visibility domain locale sameTeam ->
           let teamMember = mkTeamMember viewer.id fullPermissions Nothing UserLegalHoldDisabled
               targetUser = if sameTeam then targetUserNoTeam {teamId = viewer.teamId} else targetUserNoTeam
-              config = UserSubsystemConfig visibility domain locale
+              config = UserSubsystemConfig visibility locale
               retrievedProfiles =
                 runNoFederationStack [targetUser, viewer] (Just teamMember) config $
                   getUserProfiles (toLocalUnsafe domain viewer.id) [Qualified targetUser.id domain]
@@ -92,7 +91,7 @@ spec = describe "UserSubsystem.Interpreter" do
         \(PendingStoredUser viewer) (NotPendingStoredUser targetUserNoTeam) visibility domain locale sameTeam ->
           let teamMember = mkTeamMember viewer.id fullPermissions Nothing UserLegalHoldDisabled
               targetUser = if sameTeam then targetUserNoTeam {teamId = viewer.teamId} else targetUserNoTeam
-              config = UserSubsystemConfig visibility domain locale
+              config = UserSubsystemConfig visibility locale
               retrievedProfile =
                 runNoFederationStack [targetUser, viewer] (Just teamMember) config $
                   getUserProfiles (toLocalUnsafe domain viewer.id) [Qualified targetUser.id domain]
@@ -106,10 +105,10 @@ spec = describe "UserSubsystem.Interpreter" do
       prop "returns Nothing if the target user has not accepted their invitation yet" $
         \viewer (PendingStoredUser targetUser) visibility domain locale ->
           let teamMember = mkTeamMember viewer.id fullPermissions Nothing UserLegalHoldDisabled
-              config = UserSubsystemConfig visibility domain locale
+              config = UserSubsystemConfig visibility locale
               retrievedProfile =
                 runNoFederationStack [targetUser, viewer] (Just teamMember) config $
-                  getLocalUserProfiles viewer.id [targetUser.id]
+                  getLocalUserProfiles (toLocalUnsafe domain viewer.id) (toLocalUnsafe domain [targetUser.id])
            in retrievedProfile === []
 
       prop "gets a remote user profile when the user exists and both user and viewer have accepted their invitations" $
@@ -263,19 +262,19 @@ runMiniFederation ownDomain backends =
     . unMiniFederation
 
 runFederationStack ::
+  [StoredUser] ->
   Map Domain MiniBackend ->
   Maybe TeamMember ->
   UserSubsystemConfig ->
   Sem GetUserProfileEffects a ->
   a
-runFederationStack fedBackends teamMember config =
+runFederationStack allLocalUsers fedBackends teamMember config =
   run
     . sequentiallyPerformConcurrency
     . miniFederationAPIAccess fedBackends
     . runErrorUnsafe
     . runInputConst config
-    . staticUserStoreInterpreter do
-      maybe [] (S.toList . (.users)) $ M.lookup (config.localDomain) fedBackends
+    . staticUserStoreInterpreter allLocalUsers
     . miniGalleyAPIAccess teamMember
 
 runNoFederationStack ::

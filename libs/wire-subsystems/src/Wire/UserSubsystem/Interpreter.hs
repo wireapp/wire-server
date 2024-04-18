@@ -1,7 +1,6 @@
 module Wire.UserSubsystem.Interpreter where
 
 import Control.Monad.Trans.Maybe
-import Data.Domain
 import Data.Id
 import Data.LegalHold
 import Data.Qualified
@@ -23,7 +22,6 @@ import Wire.UserSubsystem (UserSubsystem (..))
 
 data UserSubsystemConfig = UserSubsystemConfig
   { emailVisibilityConfig :: EmailVisibilityConfig,
-    localDomain :: Domain,
     defaultLocale :: Locale
   }
 
@@ -101,7 +99,7 @@ getUserProfilesFromDomain ::
 getUserProfilesFromDomain self =
   foldQualified
     self
-    (getLocalUserProfiles (tUnqualified self) . tUnqualified)
+    (getLocalUserProfiles self)
     getRemoteUserProfiles
 
 getRemoteUserProfiles ::
@@ -122,30 +120,29 @@ getLocalUserProfiles ::
     Member (Input UserSubsystemConfig) r,
     Member GalleyAPIAccess r
   ) =>
-  UserId ->
-  [UserId] ->
+  Local UserId ->
+  Local [UserId] ->
   Sem r [UserProfile]
-getLocalUserProfiles requestingUser uids = do
+getLocalUserProfiles requestingUser luids = do
   emailVisibility <- inputs emailVisibilityConfig
   emailVisibilityConfigWithViewer <-
-    traverse
-      (const (getSelfInfo requestingUser))
-      emailVisibility
-  catMaybes <$> traverse (getLocalUserProfile emailVisibilityConfigWithViewer) uids
+    traverse (const getRequestingUserInfo) emailVisibility
+  -- FUTUREWORK: Does it make sense to pull these parallely?
+  catMaybes <$> traverse (getLocalUserProfile emailVisibilityConfigWithViewer) (sequence luids)
   where
-    getSelfInfo :: UserId -> Sem r (Maybe (TeamId, TeamMember))
-    getSelfInfo selfId = do
+    getRequestingUserInfo :: Sem r (Maybe (TeamId, TeamMember))
+    getRequestingUserInfo = do
       -- FUTUREWORK: it is an internal error for the two lookups (for 'User' and 'TeamMember')
       -- to return 'Nothing'.  we could throw errors here if that happens, rather than just
       -- returning an empty profile list from 'lookupProfiles'.
-      mUser <- getUser selfId
+      mUser <- getUser $ tUnqualified requestingUser
       let mUserNotPending = do
             user <- mUser
             guard $ not (hasPendingInvitation user)
             pure user
       case mUserNotPending >>= (.teamId) of
         Nothing -> pure Nothing
-        Just tid -> (tid,) <$$> getTeamMember selfId tid
+        Just tid -> (tid,) <$$> getTeamMember (tUnqualified requestingUser) tid
 
 getLocalUserProfile ::
   forall r.
@@ -153,13 +150,13 @@ getLocalUserProfile ::
     Member (Input UserSubsystemConfig) r
   ) =>
   EmailVisibilityConfigWithViewer ->
-  UserId ->
+  Local UserId ->
   Sem r (Maybe UserProfile)
-getLocalUserProfile emailVisibilityConfigWithViewer uid = do
-  domain <- inputs localDomain
+getLocalUserProfile emailVisibilityConfigWithViewer luid = do
+  let domain = tDomain luid
   locale <- inputs defaultLocale
   runMaybeT $ do
-    storedUser <- MaybeT $ getUser uid
+    storedUser <- MaybeT $ getUser (tUnqualified luid)
     guard $ not (hasPendingInvitation storedUser)
     let user = mkUserFromStored domain locale storedUser
     pure $ mkUserProfile emailVisibilityConfigWithViewer user UserLegalHoldDisabled
