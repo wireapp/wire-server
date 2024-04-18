@@ -198,8 +198,8 @@ saveRemovalKey :: FilePath -> TestM ()
 saveRemovalKey fp = do
   keys <- fromJust <$> view (tsGConf . settings . mlsPrivateKeyPaths)
   keysByPurpose <- liftIO $ loadAllMLSKeys keys
-  let (_, pub) = fromJust (getFirst (mlsKeyPair_ed25519 (keysByPurpose RemovalPurpose)))
-  liftIO $ BS.writeFile fp (BA.convert pub)
+  let pub = (mlsKeysToPublic keysByPurpose.removal).ed25519
+  liftIO $ BS.writeFile fp (BA.convert $ unwrapMLSPublicKey pub)
 
 data MLSState = MLSState
   { mlsBaseDir :: FilePath,
