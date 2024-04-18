@@ -8,8 +8,8 @@ import Data.Id
 import Data.Misc (HttpsUrl)
 import Data.Time
 import Database.CQL.Protocol
-import Debug.Trace
 import Galley.Cassandra.Instances ()
+import Galley.Types.Teams (FeatureLegalHold (..))
 import Imports
 import Wire.API.Conversation.Protocol (ProtocolTag)
 import Wire.API.MLS.CipherSuite
@@ -131,18 +131,14 @@ allFeatureConfigsFromRow ::
   TeamId ->
   -- team id list is from "settings.exposeInvitationURLsTeamAllowlist"
   Maybe [TeamId] ->
+  FeatureLegalHold ->
+  Bool ->
   AllFeatureConfigs ->
   AllTeamFeatureConfigsRow ->
   AllFeatureConfigs
-allFeatureConfigsFromRow ourteam allowListForExposeInvitationURLs serverConfigs row =
+allFeatureConfigsFromRow ourteam allowListForExposeInvitationURLs featureLH hasTeamImplicitLegalhold serverConfigs row =
   AllFeatureConfigs
-    { afcLegalholdStatus =
-        computeConfig
-          row.legalhold
-          Nothing
-          FeatureTTLUnlimited
-          (Just LegalholdConfig)
-          serverConfigs.afcLegalholdStatus,
+    { afcLegalholdStatus = legalholdComputeFeatureStatus row.legalhold,
       afcSSOStatus =
         computeConfig
           row.sso
@@ -229,9 +225,7 @@ allFeatureConfigsFromRow ourteam allowListForExposeInvitationURLs serverConfigs 
           FeatureTTLUnlimited
           mlsConfig
           serverConfigs.afcMLS,
-      afcExposeInvitationURLsToTeamAdmin =
-        exposeUrlComputeFeatureStatus $
-          row.exposeInvitationUrls,
+      afcExposeInvitationURLsToTeamAdmin = exposeUrlComputeFeatureStatus row.exposeInvitationUrls,
       afcOutlookCalIntegration =
         computeConfig
           row.outlookCalIntegration
@@ -321,14 +315,30 @@ allFeatureConfigsFromRow ourteam allowListForExposeInvitationURLs serverConfigs 
             & setLockStatus LockStatusUnlocked
         else serverConfigs.afcExposeInvitationURLsToTeamAdmin
 
-getAllFeatureConfigs :: MonadClient m => Maybe [TeamId] -> AllFeatureConfigs -> TeamId -> m AllFeatureConfigs
-getAllFeatureConfigs allowListForExposeInvitationURLs serverConfigs tid = do
+    legalholdComputeFeatureStatus :: Maybe FeatureStatus -> WithStatus LegalholdConfig
+    legalholdComputeFeatureStatus mStatusValue = setStatus status defFeatureStatus
+      where
+        status =
+          if isLegalHoldEnabledForTeam
+            then FeatureStatusEnabled
+            else FeatureStatusDisabled
+        isLegalHoldEnabledForTeam =
+          case featureLH of
+            FeatureLegalHoldDisabledPermanently -> False
+            FeatureLegalHoldDisabledByDefault -> maybe False ((==) FeatureStatusEnabled) mStatusValue
+            FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> hasTeamImplicitLegalhold
+
+getAllFeatureConfigs :: MonadClient m => Maybe [TeamId] -> FeatureLegalHold -> Bool -> AllFeatureConfigs -> TeamId -> m AllFeatureConfigs
+getAllFeatureConfigs allowListForExposeInvitationURLs featureLH hasTeamImplicitLegalhold serverConfigs tid = do
   mRow <- retry x1 $ query1 select (params LocalQuorum (Identity tid))
-  let rowRecord :: Maybe AllTeamFeatureConfigsRow = asRecord <$> mRow
-  traceM $ "==============================> getAllFeatureConfigs is just?: " <> show rowRecord
-  let afcs = allFeatureConfigsFromRow tid allowListForExposeInvitationURLs serverConfigs $ fromMaybe emptyRow rowRecord
-  traceM $ "==============================> getAllFeatureConfigs afcs: " <> show afcs
-  pure afcs
+  pure
+    $ allFeatureConfigsFromRow
+      tid
+      allowListForExposeInvitationURLs
+      featureLH
+      hasTeamImplicitLegalhold
+      serverConfigs
+    $ maybe emptyRow asRecord mRow
   where
     select ::
       PrepQuery

@@ -33,7 +33,10 @@ import Galley.Cassandra.GetAllTeamFeatureConfigs
 import Galley.Cassandra.Instances ()
 import Galley.Cassandra.Store
 import Galley.Cassandra.Util
+import Galley.Effects (LegalHoldStore)
+import Galley.Effects.LegalHoldStore qualified as LH
 import Galley.Effects.TeamFeatureStore qualified as TFS
+import Galley.Types.Teams (FeatureLegalHold)
 import Imports
 import Polysemy
 import Polysemy.Input
@@ -47,7 +50,8 @@ interpretTeamFeatureStoreToCassandra ::
   ( Member (Embed IO) r,
     Member (Input ClientState) r,
     Member (Input AllFeatureConfigs) r,
-    Member (Input (Maybe [TeamId])) r,
+    Member (Input (Maybe [TeamId], FeatureLegalHold)) r,
+    Member LegalHoldStore r,
     Member TinyLog r
   ) =>
   Sem (TFS.TeamFeatureStore ': r) a ->
@@ -71,8 +75,15 @@ interpretTeamFeatureStoreToCassandra = interpret $ \case
   TFS.GetAllFeatureConfigs tid -> do
     logEffect "TeamFeatureStore.GetAllFeatureConfigs"
     serverConfigs <- input
-    allowListForExposeInvitationURLs <- input
-    embedClient $ getAllFeatureConfigs allowListForExposeInvitationURLs serverConfigs tid
+    (allowListForExposeInvitationURLs, featureLH) <- input
+    hasTeamImplicitLegalhold <- LH.isTeamLegalholdWhitelisted tid
+    embedClient $
+      getAllFeatureConfigs
+        allowListForExposeInvitationURLs
+        featureLH
+        hasTeamImplicitLegalhold
+        serverConfigs
+        tid
 
 getFeatureConfig :: MonadClient m => FeatureSingleton cfg -> TeamId -> m (Maybe (WithStatusNoLock cfg))
 getFeatureConfig FeatureSingletonLegalholdConfig tid = getTrivialConfigC "legalhold_status" tid

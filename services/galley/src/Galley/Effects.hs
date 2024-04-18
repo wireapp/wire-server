@@ -92,6 +92,7 @@ import Galley.Effects.TeamStore
 import Galley.Effects.WaiRoutes
 import Galley.Env
 import Galley.Options
+import Galley.Types.Teams (FeatureLegalHold)
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -124,11 +125,11 @@ type GalleyEffects1 =
      SubConversationStore,
      Random,
      CustomBackendStore,
+     TeamFeatureStore,
      LegalHoldStore,
      MemberStore,
      SearchVisibilityStore,
      ServiceStore,
-     TeamFeatureStore,
      TeamNotificationStore,
      TeamStore,
      TeamMemberStore InternalPaging,
@@ -139,7 +140,7 @@ type GalleyEffects1 =
      ListItems LegacyPaging TeamId,
      ListItems InternalPaging TeamId,
      Input AllFeatureConfigs,
-     Input (Maybe [TeamId]),
+     Input (Maybe [TeamId], FeatureLegalHold),
      Input (Local ()),
      Input Opts,
      WaiRoutes,
