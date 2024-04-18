@@ -22,7 +22,7 @@ import Brig.Effects.UserPendingActivationStore.Cassandra (userPendingActivationS
 import Brig.Options (ImplicitNoFederationRestriction (federationDomainConfig), federationDomainConfigs, federationStrategy)
 import Brig.Options qualified as Opt
 import Cassandra qualified as Cas
-import Control.Lens ((^.))
+import Control.Lens (to, (^.))
 import Control.Monad.Catch (throwM)
 import Data.Qualified (Local, toLocalUnsafe)
 import Data.Time.Clock (UTCTime, getCurrentTime)
@@ -95,6 +95,11 @@ type BrigCanonicalEffects =
 
 runBrigToIO :: Env -> AppT BrigCanonicalEffects a -> IO a
 runBrigToIO e (AppT ma) = do
+  let userSubsystemConfig =
+        UserSubsystemConfig
+          { emailVisibilityConfig = e ^. settings . Opt.emailVisibility,
+            defaultLocale = e ^. settings . to Opt.setDefaultUserLocale
+          }
   ( either throwM pure
       <=< ( runFinal
               . unsafelyPerformConcurrency
@@ -128,7 +133,7 @@ runBrigToIO e (AppT ma) = do
               . interpretUserStoreCassandra (e ^. casClient)
               . runFederationAPIAccess
               . throwLeftAsWaiError undefined
-              . runUserSubsystem undefined
+              . runUserSubsystem userSubsystemConfig
           )
     )
     $ runReaderT ma e
