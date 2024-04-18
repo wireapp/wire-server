@@ -19,7 +19,6 @@ module Galley.API.MLS.Keys (getMLSRemovalKey, SomeKeyPair (..)) where
 
 import Control.Error.Util (hush)
 import Control.Lens (view)
-import Data.Monoid
 import Data.Proxy
 import Galley.Env
 import Imports hiding (getFirst)
@@ -27,7 +26,6 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Wire.API.MLS.CipherSuite
-import Wire.API.MLS.Credential (SignaturePurpose (RemovalPurpose))
 import Wire.API.MLS.Keys
 
 data SomeKeyPair where
@@ -38,21 +36,22 @@ getMLSRemovalKey ::
   SignatureSchemeTag ->
   Sem r (Maybe SomeKeyPair)
 getMLSRemovalKey ss = fmap hush . runError @() $ do
-  keys <- inputs (view mlsKeys) <*> pure RemovalPurpose
+  keysByPurpose <- note () =<< inputs (view mlsKeys)
+  let keys = keysByPurpose.removal
   case ss of
-    Ed25519 -> note () $ fmap (SomeKeyPair (Proxy @Ed25519)) (getFirst (mlsKeyPair_ed25519 keys))
+    Ed25519 -> pure $ SomeKeyPair (Proxy @Ed25519) (mlsKeyPair_ed25519 keys)
     Ecdsa_secp256r1_sha256 ->
-      note () $
-        fmap
-          (SomeKeyPair (Proxy @Ecdsa_secp256r1_sha256))
-          (getFirst (mlsKeyPair_ecdsa_secp256r1_sha256 keys))
+      pure $
+        SomeKeyPair
+          (Proxy @Ecdsa_secp256r1_sha256)
+          (mlsKeyPair_ecdsa_secp256r1_sha256 keys)
     Ecdsa_secp384r1_sha384 ->
-      note () $
-        fmap
-          (SomeKeyPair (Proxy @Ecdsa_secp384r1_sha384))
-          (getFirst (mlsKeyPair_ecdsa_secp384r1_sha384 keys))
+      pure $
+        SomeKeyPair
+          (Proxy @Ecdsa_secp384r1_sha384)
+          (mlsKeyPair_ecdsa_secp384r1_sha384 keys)
     Ecdsa_secp521r1_sha512 ->
-      note () $
-        fmap
-          (SomeKeyPair (Proxy @Ecdsa_secp521r1_sha512))
-          (getFirst (mlsKeyPair_ecdsa_secp521r1_sha512 keys))
+      pure $
+        SomeKeyPair
+          (Proxy @Ecdsa_secp521r1_sha512)
+          (mlsKeyPair_ecdsa_secp521r1_sha512 keys)

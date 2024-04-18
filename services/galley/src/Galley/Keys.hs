@@ -34,18 +34,14 @@ import Data.ASN1.Encoding
 import Data.ASN1.Types
 import Data.Bifunctor
 import Data.ByteString.Lazy qualified as LBS
-import Data.Map qualified as Map
 import Data.PEM
 import Data.Proxy
 import Data.X509
 import Imports
 import Wire.API.MLS.CipherSuite
-import Wire.API.MLS.Credential
 import Wire.API.MLS.Keys
 
-newtype MLSPrivateKeyPaths = MLSPrivateKeyPaths
-  { removal :: MLSKeysGeneric FilePath
-  }
+type MLSPrivateKeyPaths = MLSKeysByPurpose (MLSKeys FilePath)
 
 data MLSPrivateKeyException = MLSPrivateKeyException
   { mpkePath :: FilePath,
@@ -56,15 +52,12 @@ data MLSPrivateKeyException = MLSPrivateKeyException
 instance Exception MLSPrivateKeyException where
   displayException e = mpkePath e <> ": " <> mpkeMsg e
 
-loadAllMLSKeys :: MLSPrivateKeyPaths -> IO (SignaturePurpose -> MLSKeys)
-loadAllMLSKeys paths = do
-  removalKeys <- loadMLSKeys paths.removal
-  pure $ \case
-    RemovalPurpose -> removalKeys
+loadAllMLSKeys :: MLSPrivateKeyPaths -> IO (MLSKeysByPurpose MLSPrivateKeys)
+loadAllMLSKeys = traverse loadMLSKeys
 
-loadMLSKeys :: MLSRemovalPrivateKeyPaths -> IO MLSKeys
+loadMLSKeys :: MLSKeys FilePath -> IO MLSPrivateKeys
 loadMLSKeys paths =
-  MLSKeys
+  MLSPrivateKeys
     <$> loadKeyPair @Ed25519 paths.ed25519
     <*> loadKeyPair @Ecdsa_secp256r1_sha256 paths.ecdsa_secp256r1_sha256
     <*> loadKeyPair @Ecdsa_secp384r1_sha384 paths.ecdsa_secp384r1_sha384
