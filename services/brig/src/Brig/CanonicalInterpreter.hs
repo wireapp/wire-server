@@ -27,7 +27,7 @@ import Control.Monad.Catch (throwM)
 import Data.Qualified (Local, toLocalUnsafe)
 import Data.Time.Clock (UTCTime, getCurrentTime)
 import Imports
-import Polysemy (Embed, Final, Member, Sem, embed, embedToFinal, runFinal)
+import Polysemy (Embed, Final, Sem, embed, embedToFinal, runFinal)
 import Polysemy.Async
 import Polysemy.Conc
 import Polysemy.Embed (runEmbedded)
@@ -132,10 +132,10 @@ runBrigToIO e (AppT ma) = do
     )
     $ runReaderT ma e
 
-throwLeftAsWaiError :: forall e a r. (Member (Final IO) r) => (e -> E.Error) -> Sem (Error e ': r) a -> Sem r a
+throwLeftAsWaiError :: (e -> E.Error) -> Sem (Error e ': r) a -> Sem r a
 throwLeftAsWaiError = undefined
 
-runFederationAPIAccess :: forall r a. (Member (Final IO) r) => Sem (Wire.FederationAPIAccess.FederationAPIAccess Wire.API.Federation.Client.FederatorClient ': r) a -> Sem r a
+runFederationAPIAccess :: Sem (Wire.FederationAPIAccess.FederationAPIAccess Wire.API.Federation.Client.FederatorClient ': r) a -> Sem r a
 runFederationAPIAccess = undefined
 
 runUserStore :: forall r a. Sem (UserStore ': r) a -> Sem r a
