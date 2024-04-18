@@ -17,12 +17,8 @@
 
 module Wire.API.MLS.Credential where
 
-import Control.Error.Util
 import Control.Lens ((?~))
-import Data.Aeson (FromJSON (..), FromJSONKey (..), ToJSON (..), ToJSONKey (..))
-import Data.Aeson qualified as Aeson
-import Data.Aeson.Types qualified as Aeson
-import Data.Bifunctor
+import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Binary
 import Data.Binary.Get
 import Data.Binary.Parser
@@ -158,42 +154,3 @@ instance SerialiseMLS ClientIdentity where
 
 mkClientIdentity :: Qualified UserId -> ClientId -> ClientIdentity
 mkClientIdentity (Qualified uid domain) = ClientIdentity domain uid
-
--- | Possible uses of a private key in the context of MLS.
-data SignaturePurpose
-  = -- | Creating external remove proposals.
-    RemovalPurpose
-  deriving (Eq, Ord, Show, Bounded, Enum)
-
-signaturePurposeName :: SignaturePurpose -> Text
-signaturePurposeName RemovalPurpose = "removal"
-
-signaturePurposeFromName :: Text -> Either String SignaturePurpose
-signaturePurposeFromName name =
-  note ("Unsupported signature purpose " <> T.unpack name)
-    . getAlt
-    $ flip foldMap [minBound .. maxBound]
-    $ \s ->
-      guard (signaturePurposeName s == name) $> s
-
-instance FromJSON SignaturePurpose where
-  parseJSON =
-    Aeson.withText "SignaturePurpose" $
-      either fail pure . signaturePurposeFromName
-
-instance FromJSONKey SignaturePurpose where
-  fromJSONKey =
-    Aeson.FromJSONKeyTextParser $
-      either fail pure . signaturePurposeFromName
-
-instance S.ToParamSchema SignaturePurpose where
-  toParamSchema _ = mempty & S.type_ ?~ S.OpenApiString
-
-instance FromHttpApiData SignaturePurpose where
-  parseQueryParam = first T.pack . signaturePurposeFromName
-
-instance ToJSON SignaturePurpose where
-  toJSON = Aeson.String . signaturePurposeName
-
-instance ToJSONKey SignaturePurpose where
-  toJSONKey = Aeson.toJSONKeyText signaturePurposeName
