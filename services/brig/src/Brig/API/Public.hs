@@ -795,7 +795,7 @@ getUserUnqualifiedH ::
   UserId ->
   (Handler r) (Maybe Public.UserProfile)
 getUserUnqualifiedH self uid = do
-  domain <- viewFederationDomain
+  let domain = tDomain self
   lift . liftSem $ getUserProfile self (Qualified uid domain)
 
 -- FUTUREWORK: Make servant understand that at least one of these is required

@@ -12,7 +12,7 @@ spec = do
   describe "mkUserFromStored" $ do
     prop "user identity" $ \domain defaultLocale storedUser ->
       let user = mkUserFromStored domain defaultLocale storedUser
-       in if storedUser.activated == False
+       in if not storedUser.activated
             then user.userIdentity === Nothing
             else
               (emailIdentity =<< user.userIdentity) === storedUser.email

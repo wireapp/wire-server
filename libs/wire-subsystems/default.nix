@@ -9,7 +9,12 @@
 , bilge
 , bytestring
 , bytestring-conversion
+, cassandra-util
 , containers
+, cql
+, currency-codes
+, data-default
+, errors
 , exceptions
 , extended
 , gitignoreSource
@@ -18,19 +23,28 @@
 , hspec-discover
 , http-client
 , http-types
+, http2-manager
 , imports
+, iso639
 , lens
 , lib
 , polysemy
+, polysemy-plugin
 , polysemy-wire-zoo
 , QuickCheck
 , quickcheck-instances
 , retry
+, servant
+, servant-client-core
 , string-conversions
 , text
 , tinylog
+, transformers
+, transitive-anns
 , types-common
+, wai-utilities
 , wire-api
+, wire-api-federation
 }:
 mkDerivation {
   pname = "wire-subsystems";
@@ -41,23 +55,36 @@ mkDerivation {
     async
     base
     bilge
+    bytestring
     bytestring-conversion
+    cassandra-util
     containers
+    cql
+    currency-codes
+    errors
     exceptions
     extended
     gundeck-types
     http-client
     http-types
+    http2-manager
     imports
     lens
     polysemy
+    polysemy-plugin
     polysemy-wire-zoo
     QuickCheck
     retry
+    servant
+    servant-client-core
     text
     tinylog
+    transformers
+    transitive-anns
     types-common
+    wai-utilities
     wire-api
+    wire-api-federation
   ];
   testHaskellDepends = [
     aeson
@@ -66,17 +93,23 @@ mkDerivation {
     bilge
     bytestring
     containers
+    data-default
     extended
     gundeck-types
     hspec
     imports
+    iso639
     polysemy
+    polysemy-plugin
     polysemy-wire-zoo
     QuickCheck
     quickcheck-instances
+    servant-client-core
     string-conversions
+    transformers
     types-common
     wire-api
+    wire-api-federation
   ];
   testToolDepends = [ hspec-discover ];
   license = lib.licenses.agpl3Only;
