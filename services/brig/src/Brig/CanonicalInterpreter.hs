@@ -1,7 +1,6 @@
 module Brig.CanonicalInterpreter where
 
-import Brig.API.Error qualified as E
-import Brig.App
+import Brig.App as App
 import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
 import Brig.Effects.BlacklistPhonePrefixStore.Cassandra (interpretBlacklistPhonePrefixStoreToCassandra)
 import Brig.Effects.BlacklistStore (BlacklistStore)
@@ -27,16 +26,17 @@ import Control.Monad.Catch (throwM)
 import Data.Qualified (Local, toLocalUnsafe)
 import Data.Time.Clock (UTCTime, getCurrentTime)
 import Imports
-import Polysemy (Embed, Final, Sem, embed, embedToFinal, runFinal)
+import Polysemy
 import Polysemy.Async
 import Polysemy.Conc
 import Polysemy.Embed (runEmbedded)
-import Polysemy.Error (Error, mapError, runError)
+import Polysemy.Error (Error, errorToIOFinal, mapError, runError)
 import Polysemy.Input (Input, runInputConst, runInputSem)
 import Polysemy.TinyLog (TinyLog)
 import Wire.API.Federation.Client qualified
-import Wire.API.Federation.Error qualified
+import Wire.API.Federation.Error
 import Wire.FederationAPIAccess qualified
+import Wire.FederationAPIAccess.Interpreter (FederationAPIAccessConfig (..), interpretFederationAPIAccess)
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess.Rpc
 import Wire.GundeckAPIAccess
@@ -100,6 +100,13 @@ runBrigToIO e (AppT ma) = do
           { emailVisibilityConfig = e ^. settings . Opt.emailVisibility,
             defaultLocale = e ^. settings . to Opt.setDefaultUserLocale
           }
+      federationApiAccessConfig =
+        FederationAPIAccessConfig
+          { ownDomain = e ^. settings . Opt.federationDomain,
+            federatorEndpoint = e ^. federator,
+            http2Manager = e ^. App.http2Manager,
+            requestId = e ^. App.requestId
+          }
   ( either throwM pure
       <=< ( runFinal
               . unsafelyPerformConcurrency
@@ -111,7 +118,7 @@ runBrigToIO e (AppT ma) = do
               . runError @SomeException
               . mapError @ParseException SomeException
               . interpretClientToIO (e ^. casClient)
-              . runRpcWithHttp (e ^. httpManager) (e ^. requestId)
+              . runRpcWithHttp (e ^. httpManager) (e ^. App.requestId)
               . interpretGalleyAPIAccessToRpc (e ^. disabledVersions) (e ^. galleyEndpoint)
               . codeStoreToCassandra @Cas.Client
               . runDelay
@@ -125,21 +132,22 @@ runBrigToIO e (AppT ma) = do
               . interpretJwk
               . interpretFederationDomainConfig (e ^. settings . federationStrategy) (foldMap (remotesMapFromCfgFile . fmap (.federationDomainConfig)) (e ^. settings . federationDomainConfigs))
               . runGundeckAPIAccess (e ^. gundeckEndpoint)
-              . runNotificationSubsystemGundeck (defaultNotificationSubsystemConfig (e ^. requestId))
+              . runNotificationSubsystemGundeck (defaultNotificationSubsystemConfig (e ^. App.requestId))
               . runInputConst (toLocalUnsafe (e ^. settings . Opt.federationDomain) ())
               . runInputSem (embed getCurrentTime)
               . connectionStoreToCassandra
               . interpretSFT (e ^. httpManager)
               . interpretUserStoreCassandra (e ^. casClient)
-              . runFederationAPIAccess
-              . throwLeftAsWaiError undefined
+              . interpretFederationAPIAccess federationApiAccessConfig
+              . throwFederationErrorAsWaiError
               . runUserSubsystem userSubsystemConfig
           )
     )
     $ runReaderT ma e
 
-throwLeftAsWaiError :: (e -> E.Error) -> Sem (Error e ': r) a -> Sem r a
-throwLeftAsWaiError = undefined
-
-runFederationAPIAccess :: Sem (Wire.FederationAPIAccess.FederationAPIAccess Wire.API.Federation.Client.FederatorClient ': r) a -> Sem r a
-runFederationAPIAccess = undefined
+throwFederationErrorAsWaiError :: Member (Final IO) r => InterpreterFor (Error FederationError) r
+throwFederationErrorAsWaiError action = do
+  eithError <- errorToIOFinal action
+  case eithError of
+    Left err -> embedToFinal $ throwM $ federationErrorToWai err
+    Right a -> pure a
