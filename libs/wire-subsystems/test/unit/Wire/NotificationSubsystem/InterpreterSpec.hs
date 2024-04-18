@@ -82,7 +82,7 @@ spec = describe "NotificationSubsystem.Interpreter" do
               largePush
             ]
 
-      (_, actualPushes) <- runMockStack mockConfig $ pushImpl pushes
+      (_, actualPushes) <- runMiniStack mockConfig $ pushImpl pushes
 
       let expectedPushes =
             map toV2Push
@@ -136,7 +136,7 @@ spec = describe "NotificationSubsystem.Interpreter" do
               pushSmallerThanFanoutLimit
             ]
 
-      (_, actualPushes) <- runMockStack mockConfig $ pushImpl pushes
+      (_, actualPushes) <- runMiniStack mockConfig $ pushImpl pushes
 
       let expectedPushes =
             map toV2Push
@@ -191,7 +191,7 @@ spec = describe "NotificationSubsystem.Interpreter" do
       delayControl <- newEmptyMVar
       slowPushThread <-
         async $
-          runMockStackWithControlledDelay mockConfig delayControl actualPushesRef $
+          runMiniStackWithControlledDelay mockConfig delayControl actualPushesRef $
             pushSlowlyImpl pushes
 
       putMVar delayControl (diffTimeToFullMicroseconds mockConfig.slowPushDelay)
@@ -229,7 +229,7 @@ spec = describe "NotificationSubsystem.Interpreter" do
                 _pushApsData = Nothing
               }
           pushes = [push1]
-      (_, attemptedPushes, logs) <- runMockStackAsync mockConfig $ do
+      (_, attemptedPushes, logs) <- runMiniStackAsync mockConfig $ do
         thread <- pushAsyncImpl pushes
         await thread
 
@@ -266,9 +266,8 @@ spec = describe "NotificationSubsystem.Interpreter" do
     it "respects the chunkSize limit" $ property \limit pushes ->
       all ((<= limit) . sizeOfChunks) (chunkPushes limit pushes)
 
--- TODO: rename to "mini"?  in any case make it consistent.
-runMockStack :: NotificationSubsystemConfig -> Sem [Input NotificationSubsystemConfig, Delay, GundeckAPIAccess, Embed IO, Async, Final IO] a -> IO (a, [[V2.Push]])
-runMockStack mockConfig action = do
+runMiniStack :: NotificationSubsystemConfig -> Sem [Input NotificationSubsystemConfig, Delay, GundeckAPIAccess, Embed IO, Async, Final IO] a -> IO (a, [[V2.Push]])
+runMiniStack mockConfig action = do
   actualPushesRef <- newIORef []
   x <-
     runFinal
@@ -280,8 +279,8 @@ runMockStack mockConfig action = do
       $ action
   (x,) <$> readIORef actualPushesRef
 
-runMockStackAsync :: NotificationSubsystemConfig -> Sem [Input NotificationSubsystemConfig, Delay, GundeckAPIAccess, P.TinyLog, Embed IO, Async, Final IO] a -> IO (a, [[V2.Push]], [(Level, LByteString)])
-runMockStackAsync mockConfig action = do
+runMiniStackAsync :: NotificationSubsystemConfig -> Sem [Input NotificationSubsystemConfig, Delay, GundeckAPIAccess, P.TinyLog, Embed IO, Async, Final IO] a -> IO (a, [[V2.Push]], [(Level, LByteString)])
+runMiniStackAsync mockConfig action = do
   actualPushesRef <- newIORef []
   lr <- newLogRecorder
   x <-
@@ -295,13 +294,13 @@ runMockStackAsync mockConfig action = do
       $ action
   (x,,) <$> readIORef actualPushesRef <*> readIORef lr.recordedLogs
 
-runMockStackWithControlledDelay ::
+runMiniStackWithControlledDelay ::
   NotificationSubsystemConfig ->
   MVar Int ->
   IORef [[V2.Push]] ->
   Sem [Input NotificationSubsystemConfig, Delay, GundeckAPIAccess, Embed IO, Async, Final IO] a ->
   IO a
-runMockStackWithControlledDelay mockConfig delayControl actualPushesRef = do
+runMiniStackWithControlledDelay mockConfig delayControl actualPushesRef = do
   runFinal
     . asyncToIOFinal
     . embedToFinal @IO

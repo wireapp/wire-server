@@ -169,33 +169,33 @@ instance RunClient (MiniFederationMonad comp) where
   runRequestAcceptStatus _acceptableStatuses _req = error "MiniFederation does not support servant client"
   throwClientError _err = error "MiniFederation does not support servant client"
 
-data TypeableTypes where
-  TNil :: TypeableTypes
-  (:::) :: Typeable a => (Component, Text, a) -> TypeableTypes -> TypeableTypes
+data SubsystemOperationList where
+  TNil :: SubsystemOperationList
+  (:::) :: Typeable a => (Component, Text, a) -> SubsystemOperationList -> SubsystemOperationList
 
 infixr 5 :::
 
-tryAll ::
+lookupSubsystemOperation ::
   Typeable a =>
   -- | The type to compare to
   (Component, Text, Proxy a) ->
   -- | what to return when none of the types match
   a ->
   -- | the types to try
-  TypeableTypes ->
+  SubsystemOperationList ->
   a
-tryAll goal@(goalComp, goalRoute, Proxy @goalType) a = \case
+lookupSubsystemOperation goal@(goalComp, goalRoute, Proxy @goalType) a = \case
   TNil -> a
   (comp, route, client) ::: xs -> case eqTypeRep (typeRep @goalType) (typeOf client) of
     Just HRefl | comp == goalComp && route == goalRoute -> client
-    _ -> tryAll goal a xs
+    _ -> lookupSubsystemOperation goal a xs
 
 instance FederationMonad MiniFederationMonad where
   fedClientWithProxy (Proxy @name) (Proxy @api) (_ :: Proxy (MiniFederationMonad comp)) =
     -- TODO(mangoiv): checking the type of the Client alone is not enough; we also want to check that
     -- the route is correct; this has yet to be implemented by storing an existential of the route
     -- or, more easily a `Text` that represents it
-    tryAll
+    lookupSubsystemOperation
       (componentVal @comp, nameVal @name, Proxy @(Client (MiniFederationMonad comp) api))
       do
         error

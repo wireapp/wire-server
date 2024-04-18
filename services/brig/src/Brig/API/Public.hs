@@ -322,7 +322,7 @@ servantSitemap =
     userAPI :: ServerT UserAPI (Handler r)
     userAPI =
       Named @"get-user-unqualified" (callsFed (exposeAnnotations getUserUnqualifiedH))
-        :<|> Named @"get-user-qualified" (callsFed (exposeAnnotations (\u us -> lift . liftSem $ getUserProfile u us)))
+        :<|> Named @"get-user-qualified" (callsFed (exposeAnnotations getUserProfileH))
         :<|> Named @"update-user-email" updateUserEmail
         :<|> Named @"get-handle-info-unqualified" (callsFed (exposeAnnotations getHandleInfoUnqualifiedH))
         :<|> Named @"get-user-by-handle-qualified" (callsFed (exposeAnnotations Handle.getHandleInfo))
@@ -788,6 +788,13 @@ getSelf self =
   lift (API.lookupSelfProfile self)
     >>= ifNothing (errorToWai @'E.UserNotFound)
     >>= lift . liftSem . API.hackForBlockingHandleChangeForE2EIdTeams
+
+getUserProfileH ::
+  (Member UserSubsystem r) =>
+  Local UserId ->
+  Qualified UserId ->
+  (Handler r) (Maybe Public.UserProfile)
+getUserProfileH u us = (lift . liftSem) $ getUserProfile u us
 
 getUserUnqualifiedH ::
   (Member UserSubsystem r) =>
