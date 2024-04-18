@@ -135,7 +135,7 @@ allFeatureConfigsFromRow ::
   AllTeamFeatureConfigsRow ->
   AllFeatureConfigs
 allFeatureConfigsFromRow ourteam allowListForExposeInvitationURLs serverConfigs row =
-  let _ = trace ("==============> exposeInvitationUrls: " <> show row.exposeInvitationUrls) row.exposeInvitationUrls
+  let _ = trace ("==============> exposeInvitationUrls: " <> show row.exposeInvitationUrls) ()
    in AllFeatureConfigs
         { afcLegalholdStatus =
             computeConfig
