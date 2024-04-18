@@ -35,7 +35,8 @@ import Data.Range
 import Data.Schema
 import Data.Text (pack)
 import Data.Text.Ascii
-import Data.Text.Encoding (encodeUtf8)
+import Data.Text.Encoding
+import Data.Text.Encoding.Error
 import Data.Time.Clock
 import Imports
 import Servant (FromHttpApiData (..), ToHttpApiData (..))
@@ -62,7 +63,7 @@ instance FromHttpApiData Key where
     first pack $ runParser parser (encodeUtf8 s)
 
 instance ToHttpApiData Key where
-  toQueryParam key = cs (toByteString' key)
+  toQueryParam key = decodeUtf8With lenientDecode (toByteString' key)
 
 -- | A secret value bound to a 'Key' and a 'Timeout'.
 newtype Value = Value {asciiValue :: Range 6 20 AsciiBase64Url}
@@ -85,7 +86,7 @@ instance FromHttpApiData Value where
     first pack $ runParser parser (encodeUtf8 s)
 
 instance ToHttpApiData Value where
-  toQueryParam key = cs (toByteString' key)
+  toQueryParam key = decodeUtf8With lenientDecode (toByteString' key)
 
 -- | A 'Timeout' is rendered in/parsed from JSON as an integer representing the
 -- number of seconds remaining.

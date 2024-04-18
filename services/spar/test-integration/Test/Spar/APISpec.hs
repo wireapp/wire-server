@@ -34,6 +34,7 @@ import Data.Id
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Misc
 import Data.Proxy
+import Data.String.Conversions
 import qualified Data.Text as ST
 import qualified Data.Text as T
 import Data.Text.Ascii (decodeBase64, validateBase64)

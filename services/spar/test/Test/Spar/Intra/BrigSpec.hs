@@ -20,6 +20,7 @@
 module Test.Spar.Intra.BrigSpec where
 
 import Arbitrary ()
+import Data.String.Conversions
 import Imports
 import SAML2.WebSSO as SAML
 import Spar.Intra.BrigApp

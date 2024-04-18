@@ -21,6 +21,7 @@
 , tasty-quickcheck
 , text
 , types-common
+, utf8-string
 , uuid
 , wire-api
 }:
@@ -43,6 +44,7 @@ mkDerivation {
     schema-profunctor
     text
     types-common
+    utf8-string
     uuid
     wire-api
   ];

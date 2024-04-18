@@ -29,6 +29,7 @@ where
 import Data.Kind
 import Data.Qualified
 import Data.SOP
+import Data.String.Conversions
 import GHC.TypeLits
 import Imports
 import Servant

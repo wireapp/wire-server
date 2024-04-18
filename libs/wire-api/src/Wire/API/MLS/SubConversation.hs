@@ -35,7 +35,7 @@ import Data.Schema hiding (HasField)
 import Data.Text qualified as T
 import Data.Time.Clock
 import GHC.Records
-import Imports hiding (cs)
+import Imports
 import Servant (FromHttpApiData (..), ToHttpApiData (toQueryParam))
 import Test.QuickCheck
 import Wire.API.MLS.CipherSuite

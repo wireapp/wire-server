@@ -48,6 +48,7 @@ import Data.Handle (Handle, parseHandle)
 import Data.Id
 import Data.Maybe
 import Data.Qualified
+import Data.Text qualified as T
 import Data.Text.Ascii (AsciiText (toText))
 import Imports
 import Polysemy
@@ -88,7 +89,7 @@ validateHandle = maybe (throwStd (errorToWai @'InvalidHandle)) pure . parseHandl
 
 logEmail :: Email -> (Msg -> Msg)
 logEmail email =
-  Log.field "email_sha256" (sha256String . cs . show $ email)
+  Log.field "email_sha256" (sha256String . T.pack . show $ email)
 
 logInvitationCode :: InvitationCode -> (Msg -> Msg)
 logInvitationCode code = Log.field "invitation_code" (toText $ fromInvitationCode code)

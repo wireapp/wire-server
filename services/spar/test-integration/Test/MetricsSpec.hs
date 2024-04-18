@@ -25,6 +25,7 @@ where
 
 import Bilge
 import Control.Lens
+import Data.String.Conversions
 import Imports
 import Util
 

@@ -102,7 +102,7 @@ run o = do
         Just rid -> do
           mkapp (RequestId rid) req cont
         Nothing -> do
-          localRid <- RequestId . cs . UUID.toText <$> UUID.nextRandom
+          localRid <- RequestId . UUID.toASCIIBytes <$> UUID.nextRandom
           Log.info logger $
             "request-id" .= localRid
               ~~ "method" .= Wai.requestMethod req

@@ -32,6 +32,7 @@ import Control.Monad.Catch
 import Control.Retry
 import Data.Aeson (FromJSON)
 import Data.Aeson qualified as Aeson
+import Data.ByteString.Lazy.UTF8 qualified as UTF8
 import Data.Credentials (Credentials (..))
 import Data.Metrics qualified as Metrics
 import Database.Bloodhound qualified as ES
@@ -130,7 +131,7 @@ waitForTaskToComplete timeoutSeconds taskNodeId = do
     throwM $
       ReindexFromAnotherIndexError $
         "Task failed with error: "
-          <> cs (Aeson.encode $ ES.taskResponseError task)
+          <> UTF8.toString (Aeson.encode $ ES.taskResponseError task)
   where
     isTaskComplete :: Either ES.EsError (ES.TaskResponse a) -> m Bool
     isTaskComplete (Left e) = throwM $ ReindexFromAnotherIndexError $ "Error response while getting task: " <> show e

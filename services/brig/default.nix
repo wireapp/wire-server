@@ -122,6 +122,7 @@
 , statistics
 , stomp-queue
 , streaming-commons
+, string-conversions
 , tasty
 , tasty-ant-xml
 , tasty-cannon
@@ -144,6 +145,7 @@
 , unliftio
 , unordered-containers
 , uri-bytestring
+, utf8-string
 , uuid
 , vector
 , wai
@@ -277,6 +279,7 @@ mkDerivation {
     unliftio
     unordered-containers
     uri-bytestring
+    utf8-string
     uuid
     vector
     wai
@@ -352,6 +355,7 @@ mkDerivation {
     servant-client-core
     spar
     streaming-commons
+    string-conversions
     tasty
     tasty-ant-xml
     tasty-cannon

@@ -69,6 +69,8 @@ import Data.Id as Id
 import Data.Map.Strict qualified as Map
 import Data.Qualified
 import Data.Set qualified as Set
+import Data.Text qualified as T
+import Data.Text.Lazy qualified as LT
 import Data.Time.Clock (UTCTime)
 import Data.Time.Clock.System
 import Imports hiding (head)
@@ -296,24 +298,24 @@ addFederationRemote fedDomConf = do
         "keeping track of remote domains in the brig config file is deprecated, but as long as we \
         \do that, adding a domain with different settings than in the config file is not allowed.  want "
           <> ( "Just "
-                 <> cs (show fedDomConf)
+                 <> T.pack (show fedDomConf)
                  <> "or Nothing, "
              )
           <> ( "got "
-                 <> cs (show (Map.lookup (domain fedDomConf) cfg))
+                 <> T.pack (show (Map.lookup (domain fedDomConf) cfg))
              )
 
 updateFederationRemote :: (Member FederationConfigStore r) => Domain -> FederationDomainConfig -> (Handler r) ()
 updateFederationRemote dom fedcfg = do
   if (dom /= fedcfg.domain)
     then
-      throwError . fedError . FederationUnexpectedError . cs $
+      throwError . fedError . FederationUnexpectedError . T.pack $
         "federation domain of a given peer cannot be changed from " <> show (domain fedcfg) <> " to " <> show dom <> "."
     else
       lift (liftSem (E.updateFederationConfig fedcfg)) >>= \case
         UpdateFederationSuccess -> pure ()
         UpdateFederationRemoteNotFound ->
-          throwError . fedError . FederationUnexpectedError . cs $
+          throwError . fedError . FederationUnexpectedError . T.pack $
             "federation domain does not exist and cannot be updated: " <> show (dom, fedcfg)
         UpdateFederationRemoteDivergingConfig ->
           throwError . fedError . FederationUnexpectedError $
@@ -571,7 +573,13 @@ listActivatedAccounts elh includePendingInvitations = do
 getActivationCodeH :: Maybe Email -> Maybe Phone -> (Handler r) GetActivationCodeResp
 getActivationCodeH (Just email) Nothing = getActivationCode (Left email)
 getActivationCodeH Nothing (Just phone) = getActivationCode (Right phone)
-getActivationCodeH bade badp = throwStd (badRequest ("need exactly one of email, phone: " <> Imports.cs (show (bade, badp))))
+getActivationCodeH bade badp =
+  throwStd
+    ( badRequest
+        ( "need exactly one of email, phone: "
+            <> LT.pack (show (bade, badp))
+        )
+    )
 
 getActivationCode :: Either Email Phone -> (Handler r) GetActivationCodeResp
 getActivationCode emailOrPhone = do
@@ -587,7 +595,11 @@ getPasswordResetCodeH ::
   (Handler r) GetPasswordResetCodeResp
 getPasswordResetCodeH (Just email) Nothing = getPasswordResetCode (Left email)
 getPasswordResetCodeH Nothing (Just phone) = getPasswordResetCode (Right phone)
-getPasswordResetCodeH bade badp = throwStd (badRequest ("need exactly one of email, phone: " <> Imports.cs (show (bade, badp))))
+getPasswordResetCodeH bade badp =
+  throwStd
+    ( badRequest
+        ("need exactly one of email, phone: " <> LT.pack (show (bade, badp)))
+    )
 
 getPasswordResetCode ::
   ( Member CodeStore r,
@@ -659,7 +671,11 @@ revokeIdentityH ::
   (Handler r) NoContent
 revokeIdentityH (Just email) Nothing = lift $ NoContent <$ API.revokeIdentity (Left email)
 revokeIdentityH Nothing (Just phone) = lift $ NoContent <$ API.revokeIdentity (Right phone)
-revokeIdentityH bade badp = throwStd (badRequest ("need exactly one of email, phone: " <> Imports.cs (show (bade, badp))))
+revokeIdentityH bade badp =
+  throwStd
+    ( badRequest
+        ("need exactly one of email, phone: " <> LT.pack (show (bade, badp)))
+    )
 
 updateConnectionInternalH ::
   ( Member GalleyProvider r,
@@ -676,7 +692,11 @@ updateConnectionInternalH updateConn = do
 checkBlacklistH :: Member BlacklistStore r => Maybe Email -> Maybe Phone -> (Handler r) CheckBlacklistResponse
 checkBlacklistH (Just email) Nothing = checkBlacklist (Left email)
 checkBlacklistH Nothing (Just phone) = checkBlacklist (Right phone)
-checkBlacklistH bade badp = throwStd (badRequest ("need exactly one of email, phone: " <> Imports.cs (show (bade, badp))))
+checkBlacklistH bade badp =
+  throwStd
+    ( badRequest
+        ("need exactly one of email, phone: " <> LT.pack (show (bade, badp)))
+    )
 
 checkBlacklist :: Member BlacklistStore r => Either Email Phone -> (Handler r) CheckBlacklistResponse
 checkBlacklist emailOrPhone = lift $ bool NotBlacklisted YesBlacklisted <$> API.isBlacklisted emailOrPhone
@@ -684,7 +704,11 @@ checkBlacklist emailOrPhone = lift $ bool NotBlacklisted YesBlacklisted <$> API.
 deleteFromBlacklistH :: Member BlacklistStore r => Maybe Email -> Maybe Phone -> (Handler r) NoContent
 deleteFromBlacklistH (Just email) Nothing = deleteFromBlacklist (Left email)
 deleteFromBlacklistH Nothing (Just phone) = deleteFromBlacklist (Right phone)
-deleteFromBlacklistH bade badp = throwStd (badRequest ("need exactly one of email, phone: " <> Imports.cs (show (bade, badp))))
+deleteFromBlacklistH bade badp =
+  throwStd
+    ( badRequest
+        ("need exactly one of email, phone: " <> LT.pack (show (bade, badp)))
+    )
 
 deleteFromBlacklist :: Member BlacklistStore r => Either Email Phone -> (Handler r) NoContent
 deleteFromBlacklist emailOrPhone = lift $ NoContent <$ API.blacklistDelete emailOrPhone
@@ -692,7 +716,11 @@ deleteFromBlacklist emailOrPhone = lift $ NoContent <$ API.blacklistDelete email
 addBlacklistH :: Member BlacklistStore r => Maybe Email -> Maybe Phone -> (Handler r) NoContent
 addBlacklistH (Just email) Nothing = addBlacklist (Left email)
 addBlacklistH Nothing (Just phone) = addBlacklist (Right phone)
-addBlacklistH bade badp = throwStd (badRequest ("need exactly one of email, phone: " <> Imports.cs (show (bade, badp))))
+addBlacklistH bade badp =
+  throwStd
+    ( badRequest
+        ("need exactly one of email, phone: " <> LT.pack (show (bade, badp)))
+    )
 
 addBlacklist :: Member BlacklistStore r => Either Email Phone -> (Handler r) NoContent
 addBlacklist emailOrPhone = lift $ NoContent <$ API.blacklistInsert emailOrPhone

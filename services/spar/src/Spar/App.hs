@@ -43,11 +43,17 @@ import Control.Lens hiding ((.=))
 import Control.Monad.Except
 import Data.Aeson as Aeson (encode, object, (.=))
 import Data.Aeson.Text as Aeson (encodeToLazyText)
+import Data.ByteString (toStrict)
 import qualified Data.ByteString.Builder as Builder
+import qualified Data.ByteString.UTF8 as UTF8
 import qualified Data.CaseInsensitive as CI
 import Data.Id
+import qualified Data.Text as Text
 import Data.Text.Ascii (encodeBase64, toText)
+import qualified Data.Text.Encoding as Text
+import Data.Text.Encoding.Error
 import qualified Data.Text.Lazy as LText
+import qualified Data.Text.Lazy.Encoding as LText
 import Imports hiding (MonadReader, asks, log)
 import qualified Network.HTTP.Types.Status as Http
 import qualified Network.Wai.Utilities.Error as Wai
@@ -182,7 +188,9 @@ createSamlUserWithId ::
   Role ->
   Sem r ()
 createSamlUserWithId teamid buid suid role = do
-  uname <- either (throwSparSem . SparBadUserName . cs) pure $ Intra.mkUserName Nothing (UrefOnly suid)
+  uname <-
+    either (throwSparSem . SparBadUserName . LText.pack) pure $
+      Intra.mkUserName Nothing (UrefOnly suid)
   buid' <- BrigAccess.createSAML suid buid teamid uname ManagedByWire Nothing Nothing Nothing role
   assert (buid == buid') $ pure ()
   SAMLUserStore.insert suid buid
@@ -212,7 +220,7 @@ autoprovisionSamlUser idp buid suid = do
     guardReplacedIdP :: Sem r ()
     guardReplacedIdP = do
       unless (isNothing $ idp ^. idpExtraInfo . replacedBy) $ do
-        throwSparSem $ SparCannotCreateUsersOnReplacedIdP (cs . SAML.idPIdToST $ idp ^. idpId)
+        throwSparSem $ SparCannotCreateUsersOnReplacedIdP (LText.fromStrict . SAML.idPIdToST $ idp ^. idpId)
 
     -- IdPs in teams with scim tokens are not allowed to auto-provision.
     guardScimTokens :: Sem r ()
@@ -284,7 +292,7 @@ verdictHandler aresp verdict idp = do
   -- <SubjectConfirmation> [...] If the containing message is in response to an <AuthnRequest>, then
   -- the InResponseTo attribute MUST match the request's ID.
   Logger.log Logger.Debug $ "entering verdictHandler: " <> show (aresp, verdict)
-  reqid <- either (throwSparSem . SparNoRequestRefInResponse . cs) pure $ SAML.rspInResponseTo aresp
+  reqid <- either (throwSparSem . SparNoRequestRefInResponse . LText.pack) pure $ SAML.rspInResponseTo aresp
   format :: Maybe VerdictFormat <- VerdictFormatStore.get reqid
   resp <- case format of
     Just VerdictFormatWeb ->
@@ -337,8 +345,17 @@ catchVerdictErrors = (`catch` hndlr)
     hndlr err = do
       waiErr <- renderSparErrorWithLogging err
       pure $ case waiErr of
-        Right (werr :: Wai.Error) -> VerifyHandlerError (cs $ Wai.label werr) (cs $ Wai.message werr)
-        Left (serr :: ServerError) -> VerifyHandlerError "unknown-error" (cs (errReasonPhrase serr) <> " " <> cs (errBody serr))
+        Right (werr :: Wai.Error) ->
+          VerifyHandlerError
+            (LText.toStrict $ Wai.label werr)
+            (LText.toStrict $ Wai.message werr)
+        Left (serr :: ServerError) ->
+          VerifyHandlerError
+            "unknown-error"
+            ( Text.pack (errReasonPhrase serr)
+                <> " "
+                <> (Text.decodeUtf8With lenientDecode . toStrict . errBody $ serr)
+            )
 
 -- | If a user attempts to login presenting a new IdP issuer, but there is no entry in
 -- @"spar.user"@ for her: lookup @"old_issuers"@ from @"spar.idp"@ for the new IdP, and
@@ -397,7 +414,7 @@ verdictHandlerResultCore idp = \case
   SAML.AccessGranted uref -> do
     uid :: UserId <- do
       let team' = idp ^. idpExtraInfo . team
-          err = SparUserRefInNoOrMultipleTeams . cs . show $ uref
+          err = SparUserRefInNoOrMultipleTeams . LText.pack . show $ uref
       getUserByUrefUnsafe uref >>= \case
         Just usr -> do
           if userTeam usr == Just team'
@@ -438,12 +455,12 @@ verdictHandlerWeb =
     forbiddenPage errlbl reasons =
       ServerError
         { errHTTPCode = 200,
-          errReasonPhrase = cs errlbl, -- (not sure what this is used for)
+          errReasonPhrase = Text.unpack errlbl, -- (not sure what this is used for)
           errBody =
             easyHtml $
               "<head>"
                 <> "  <title>wire:sso:error:"
-                <> cs errlbl
+                <> LText.fromStrict errlbl
                 <> "</title>"
                 <> "   <script type=\"text/javascript\">"
                 <> "       const receiverOrigin = '*';"
@@ -482,13 +499,13 @@ verdictHandlerWeb =
                 <> "</head>",
           errHeaders =
             [ ("Content-Type", "text/html;charset=utf-8"),
-              ("Set-Cookie", cs . Builder.toLazyByteString . renderSetCookie $ cky)
+              ("Set-Cookie", toStrict . Builder.toLazyByteString . renderSetCookie $ cky)
             ]
         }
 
 easyHtml :: LText -> LByteString
 easyHtml doc =
-  cs $
+  LText.encodeUtf8 $
     "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
       <> "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\" \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">"
       <> "<html xml:lang=\"en\" xmlns=\"http://www.w3.org/1999/xhtml\">"
@@ -503,25 +520,25 @@ verdictHandlerMobile granted denied = \case
   VerifyHandlerGranted cky uid ->
     mkVerdictGrantedFormatMobile granted cky uid
       & either
-        (throwSparSem . SparCouldNotSubstituteSuccessURI . cs)
+        (throwSparSem . SparCouldNotSubstituteSuccessURI . LText.pack)
         (pure . successPage cky)
   VerifyHandlerDenied reasons ->
     mkVerdictDeniedFormatMobile denied "forbidden"
       & either
-        (throwSparSem . SparCouldNotSubstituteFailureURI . cs)
+        (throwSparSem . SparCouldNotSubstituteFailureURI . LText.pack)
         (pure . forbiddenPage "forbidden" (explainDeniedReason <$> reasons))
   VerifyHandlerError lbl msg ->
     mkVerdictDeniedFormatMobile denied lbl
       & either
-        (throwSparSem . SparCouldNotSubstituteFailureURI . cs)
+        (throwSparSem . SparCouldNotSubstituteFailureURI . LText.pack)
         (pure . forbiddenPage lbl [msg])
   where
     forbiddenPage :: Text -> [Text] -> URI.URI -> SAML.ResponseVerdict
     forbiddenPage errlbl errs uri =
       err303
-        { errReasonPhrase = cs errlbl,
+        { errReasonPhrase = Text.unpack errlbl,
           errHeaders =
-            [ ("Location", cs $ renderURI uri),
+            [ ("Location", Text.encodeUtf8 $ renderURI uri),
               ("Content-Type", "application/json")
             ],
           errBody = Aeson.encode errs
@@ -531,8 +548,8 @@ verdictHandlerMobile granted denied = \case
       err303
         { errReasonPhrase = "success",
           errHeaders =
-            [ ("Location", cs $ renderURI uri),
-              ("Set-Cookie", cs . Builder.toLazyByteString . renderSetCookie $ cky)
+            [ ("Location", Text.encodeUtf8 $ renderURI uri),
+              ("Set-Cookie", toStrict . Builder.toLazyByteString . renderSetCookie $ cky)
             ]
         }
 
@@ -542,22 +559,34 @@ errorPage :: SparError -> [Multipart.Input] -> ServerError
 errorPage err mpInputs =
   ServerError
     { errHTTPCode = Http.statusCode $ Wai.code werr,
-      errReasonPhrase = cs $ Wai.label werr,
+      errReasonPhrase = LText.unpack $ Wai.label werr,
       errBody = easyHtml $ LText.intercalate "\n" errbody,
       errHeaders = [("Content-Type", "text/html")]
     }
   where
     werr = either forceWai id $ renderSparError err
-    forceWai ServerError {..} = Wai.mkError (Http.Status errHTTPCode "") (cs errReasonPhrase) (cs errBody)
+    forceWai ServerError {..} =
+      Wai.mkError
+        (Http.Status errHTTPCode "")
+        (LText.pack errReasonPhrase)
+        (LText.decodeUtf8With lenientDecode errBody)
     errbody :: [LText]
     errbody =
       [ "<head>",
-        "  <title>wire:sso:error:" <> cs (Wai.label werr) <> "</title>",
+        "  <title>wire:sso:error:" <> Wai.label werr <> "</title>",
         "</head>",
         "</body>",
         "  sorry, something went wrong :(<br>",
         "  please copy the following debug information to your clipboard and provide it when opening an issue in our customer support.<br><br>",
-        "  <pre>" <> (cs . toText . encodeBase64 . cs . show $ (err, mpInputs)) <> "</pre>",
+        "  <pre>"
+          <> ( LText.fromStrict
+                 . toText
+                 . encodeBase64
+                 . UTF8.fromString
+                 . show
+                 $ (err, mpInputs)
+             )
+          <> "</pre>",
         "</body>"
       ]
 

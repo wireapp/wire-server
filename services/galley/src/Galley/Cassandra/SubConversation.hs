@@ -33,7 +33,7 @@ import Galley.Cassandra.Queries qualified as Cql
 import Galley.Cassandra.Store (embedClient)
 import Galley.Cassandra.Util
 import Galley.Effects.SubConversationStore (SubConversationStore (..))
-import Imports hiding (cs)
+import Imports
 import Polysemy
 import Polysemy.Input
 import Polysemy.TinyLog

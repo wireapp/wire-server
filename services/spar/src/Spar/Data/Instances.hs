@@ -32,7 +32,12 @@ module Spar.Data.Instances
 where
 
 import Cassandra as Cas
+import Data.ByteString (toStrict)
 import Data.ByteString.Conversion (fromByteString, toByteString)
+import qualified Data.Text.Encoding as T
+import Data.Text.Encoding.Error
+import qualified Data.Text.Lazy as LT
+import Data.Text.Lazy.Encoding as LT
 import Data.X509 (SignedCertificate)
 import Imports
 import SAML2.Util (parseURI')
@@ -52,9 +57,9 @@ instance Cql SAML.XmlText where
 
 instance Cql SignedCertificate where
   ctype = Tagged BlobColumn
-  toCql = CqlBlob . cs . renderKeyInfo
+  toCql = CqlBlob . LT.encodeUtf8 . renderKeyInfo
 
-  fromCql (CqlBlob t) = parseKeyInfo False (cs t)
+  fromCql (CqlBlob t) = parseKeyInfo False (LT.decodeUtf8With lenientDecode t)
   fromCql _ = Left "SignedCertificate: expected CqlBlob"
 
 instance Cql (URIRef Absolute) where
@@ -66,9 +71,9 @@ instance Cql (URIRef Absolute) where
 
 instance Cql SAML.NameID where
   ctype = Tagged TextColumn
-  toCql = CqlText . cs . SAML.encodeElem
+  toCql = CqlText . LT.toStrict . SAML.encodeElem
 
-  fromCql (CqlText t) = SAML.decodeElem (cs t)
+  fromCql (CqlText t) = SAML.decodeElem (LT.fromStrict t)
   fromCql _ = Left "NameID: expected CqlText"
 
 deriving instance Cql SAML.Issuer
@@ -106,8 +111,12 @@ deriving instance Cql ScimToken
 
 instance Cql ScimTokenHash where
   ctype = Tagged TextColumn
-  toCql = CqlText . cs . toByteString
-  fromCql (CqlText t) = maybe (Left "ScimTokenHash: parse error") Right (fromByteString . cs $ t)
+  toCql = CqlText . T.decodeUtf8With lenientDecode . toStrict . toByteString
+  fromCql (CqlText t) =
+    maybe
+      (Left "ScimTokenHash: parse error")
+      Right
+      (fromByteString . T.encodeUtf8 $ t)
   fromCql _ = Left "ScimTokenHash: expected CqlText"
 
 instance Cql ScimTokenLookupKey where

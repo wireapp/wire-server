@@ -26,6 +26,7 @@ where
 
 import Control.Exception.Safe (catchAny)
 import Control.Lens hiding (Getter, Setter, (.=))
+import Data.ByteString.UTF8 qualified as UTF8
 import Data.Id as Id
 import Data.Json.Util (ToJSONObject (toJSONObject))
 import Data.Map qualified as Map
@@ -453,7 +454,7 @@ safeForever :: String -> App () -> App ()
 safeForever funName action =
   forever $
     action `catchAny` \exc -> do
-      err $ "error" .= show exc ~~ msg (val $ cs funName <> " failed")
+      err $ "error" .= show exc ~~ msg (val $ UTF8.fromString funName <> " failed")
       threadDelay 60000000 -- pause to keep worst-case noise in logs manageable
 
 guardLegalholdPolicyConflictsH ::

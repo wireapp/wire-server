@@ -49,6 +49,7 @@ library
     , transformers-base
     , types-common
     , unliftio
+    , utf8-string
     , wai-utilities
     , wire-api
     , wire-api-federation

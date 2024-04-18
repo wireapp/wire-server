@@ -52,6 +52,7 @@ import Control.Error.Util ((?:))
 import Control.Exception (throw)
 import Control.Monad.Catch hiding (onError, onException)
 import Data.Aeson (decode, encode)
+import Data.ByteString (toStrict)
 import Data.ByteString qualified as BS
 import Data.ByteString.Builder
 import Data.ByteString.Char8 qualified as C
@@ -61,6 +62,7 @@ import Data.Metrics.GC (spawnGCMetricsCollector)
 import Data.Metrics.Middleware
 import Data.Streaming.Zlib (ZlibException (..))
 import Data.Text.Encoding.Error (lenientDecode)
+import Data.Text.Lazy qualified as LT
 import Data.Text.Lazy.Encoding qualified as LT
 import Imports
 import Network.HTTP.Types.Status
@@ -222,7 +224,7 @@ errorHandlers =
           Wai.mkError status500 "server-error" "Server Error",
     Handler $ \(e :: SomeException) ->
       pure . Left $
-        Wai.mkError status500 "server-error" ("Server Error. " <> cs (displayException e))
+        Wai.mkError status500 "server-error" ("Server Error. " <> LT.pack (displayException e))
   ]
 {-# INLINE errorHandlers #-}
 
@@ -290,7 +292,7 @@ heavyDebugLogging sanitizeReq lvl lgr app = \req cont -> do
 -- >>>         pure $ fromMaybe "" nextChunk
 emitLByteString :: LByteString -> IO (IO ByteString)
 emitLByteString lbs = do
-  tvar <- newTVarIO (cs lbs)
+  tvar <- newTVarIO (toStrict lbs)
   -- Emit the bytestring on the first read, then always return "" on subsequent reads
   pure . atomically $ swapTVar tvar mempty
 
@@ -323,7 +325,7 @@ rethrow5xx logger app req k = app req k'
 wrapError :: Status -> LByteString -> Wai.Error
 wrapError st body =
   decode body ?:
-    Wai.mkError st "server-error" (cs body)
+    Wai.mkError st "server-error" (LT.decodeUtf8With lenientDecode body)
 
 -- | This flushes the response!  If you want to keep using the response, you need to construct
 -- a new one with a fresh body stream.

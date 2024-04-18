@@ -147,6 +147,7 @@ library
     , transformers
     , types-common
     , unix
+    , utf8-string
     , uuid
     , wai
     , wai-utilities
@@ -303,6 +304,7 @@ executable federator-integration
     , QuickCheck
     , random
     , servant-client-core
+    , string-conversions
     , tasty-hunit
     , text
     , types-common
@@ -404,6 +406,7 @@ test-suite federator-tests
     , servant-client
     , servant-client-core
     , servant-server
+    , string-conversions
     , tasty
     , tasty-hunit
     , tasty-quickcheck

@@ -28,11 +28,15 @@ import Data.Aeson.Types (parseMaybe)
 import Data.Attoparsec.ByteString qualified as AP
 import Data.Binary.Builder qualified as BSB
 import Data.ByteString.Conversion qualified as BSC
+import Data.ByteString.Lazy (fromStrict, toStrict)
 import Data.HashMap.Strict.InsOrd (InsOrdHashMap)
 import Data.HashMap.Strict.InsOrd qualified as InsOrdHashMap
 import Data.Id (TeamId)
 import Data.OpenApi
 import Data.Proxy (Proxy (Proxy))
+import Data.Text.Encoding
+import Data.Text.Encoding.Error
+import Data.Text.Lazy qualified as LT
 import Imports
 import Network.HTTP.Media ((//))
 import SAML2.WebSSO (IdPConfig)
@@ -98,12 +102,14 @@ instance BSC.FromByteString WireIdPAPIVersion where
       <|> (AP.string "v2" >> pure WireIdPAPIV2)
 
 instance FromHttpApiData WireIdPAPIVersion where
-  parseQueryParam txt = maybe err Right $ BSC.fromByteString' (cs txt)
+  parseQueryParam txt =
+    maybe err Right $
+      (BSC.fromByteString' . fromStrict . encodeUtf8) txt
     where
       err = Left $ "FromHttpApiData WireIdPAPIVersion: " <> txt
 
 instance ToHttpApiData WireIdPAPIVersion where
-  toQueryParam = cs . BSC.toByteString'
+  toQueryParam = decodeUtf8With lenientDecode . BSC.toByteString'
 
 instance ToParamSchema WireIdPAPIVersion where
   toParamSchema Proxy =
@@ -153,10 +159,13 @@ instance Accept RawXML where
   contentType Proxy = "application" // "xml"
 
 instance MimeUnrender RawXML IdPMetadataInfo where
-  mimeUnrender Proxy raw = IdPMetadataValue (cs raw) <$> mimeUnrender (Proxy @SAML.XML) raw
+  mimeUnrender Proxy raw =
+    IdPMetadataValue
+      (decodeUtf8With lenientDecode . toStrict $ raw)
+      <$> mimeUnrender (Proxy @SAML.XML) raw
 
 instance MimeRender RawXML RawIdPMetadata where
-  mimeRender Proxy (RawIdPMetadata raw) = cs raw
+  mimeRender Proxy (RawIdPMetadata raw) = fromStrict . encodeUtf8 $ raw
 
 newtype RawIdPMetadata = RawIdPMetadata Text
   deriving (Eq, Show, Generic)
@@ -164,7 +173,7 @@ newtype RawIdPMetadata = RawIdPMetadata Text
 instance FromJSON IdPMetadataInfo where
   parseJSON = withObject "IdPMetadataInfo" $ \obj -> do
     raw <- obj .: "value"
-    either fail (pure . IdPMetadataValue raw) (SAML.decode (cs raw))
+    either fail (pure . IdPMetadataValue raw) (SAML.decode (LT.fromStrict raw))
 
 instance ToJSON IdPMetadataInfo where
   toJSON (IdPMetadataValue _ x) =

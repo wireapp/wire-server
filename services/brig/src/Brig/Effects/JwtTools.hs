@@ -12,6 +12,8 @@ import Data.Jwt.Tools qualified as Jwt
 import Data.Misc (HttpsUrl)
 import Data.Nonce (Nonce)
 import Data.PEMKeys
+import Data.Text.Encoding
+import Data.Text.Encoding.Error
 import Imports
 import Network.HTTP.Types (StdMethod (..))
 import Network.HTTP.Types qualified as HTTP
@@ -77,4 +79,4 @@ interpretJwtTools = interpret $ \case
         )
   where
     urlEncode :: Text -> Text
-    urlEncode = cs . HTTP.urlEncode False . cs
+    urlEncode = decodeUtf8With lenientDecode . HTTP.urlEncode False . encodeUtf8

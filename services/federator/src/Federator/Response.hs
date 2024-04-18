@@ -29,6 +29,7 @@ import Control.Lens
 import Control.Monad.Codensity
 import Data.ByteString.Builder
 import Data.Kind
+import Data.Text qualified as T
 import Federator.Discovery
 import Federator.Env
 import Federator.Error
@@ -172,7 +173,7 @@ getFederationDomainConfigs :: Env -> IO FedUp.FederationDomainConfigs
 getFederationDomainConfigs env = do
   let mgr = env ^. httpManager
       Endpoint h p = env ^. service $ Brig
-      baseurl = BaseUrl Http (cs h) (fromIntegral p) ""
+      baseurl = BaseUrl Http (T.unpack h) (fromIntegral p) ""
       clientEnv = mkClientEnv mgr baseurl
   FedUp.getFederationDomainConfigs clientEnv >>= \case
     Right v -> pure v

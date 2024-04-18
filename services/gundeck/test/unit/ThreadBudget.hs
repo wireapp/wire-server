@@ -30,6 +30,7 @@ import Control.Concurrent.Async
 import Control.Lens
 import Control.Monad.Catch (MonadCatch, catch)
 import Data.Metrics.Middleware (metrics)
+import Data.String.Conversions
 import Data.Time
 import GHC.Generics
 import Gundeck.Options

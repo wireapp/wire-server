@@ -53,7 +53,7 @@ import Data.Text.Lazy qualified as Lazy
 import Data.Time.Clock
 import Data.UUID.V4 qualified as UUID
 import Data.ZAuth.Token qualified as ZAuth
-import Imports hiding (cs)
+import Imports
 import Network.HTTP.Client (equivCookie)
 import Network.Wai.Utilities.Error qualified as Error
 import Test.Tasty

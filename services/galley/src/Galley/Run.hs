@@ -32,6 +32,7 @@ import Control.Exception (finally)
 import Control.Lens (view, (.~), (^.))
 import Control.Monad.Codensity
 import Data.Aeson qualified as Aeson
+import Data.ByteString.UTF8 qualified as UTF8
 import Data.Id
 import Data.Metrics (Metrics)
 import Data.Metrics.AWS (gaugeTokenRemaing)
@@ -133,7 +134,7 @@ mkApp opts =
     lookupReqId l r = case lookup requestIdName $ requestHeaders r of
       Just rid -> pure $ RequestId rid
       Nothing -> do
-        localRid <- RequestId . cs . UUID.toText <$> UUID.nextRandom
+        localRid <- RequestId . UUID.toASCIIBytes <$> UUID.nextRandom
         Log.info l $
           "request-id" .= localRid
             ~~ "method" .= requestMethod r
@@ -155,7 +156,7 @@ bodyParserErrorFormatter' :: Servant.ErrorFormatter
 bodyParserErrorFormatter' _ _ errMsg =
   Servant.ServerError
     { Servant.errHTTPCode = HTTP.statusCode HTTP.status400,
-      Servant.errReasonPhrase = cs $ HTTP.statusMessage HTTP.status400,
+      Servant.errReasonPhrase = UTF8.toString $ HTTP.statusMessage HTTP.status400,
       Servant.errBody =
         Aeson.encode $
           Aeson.object

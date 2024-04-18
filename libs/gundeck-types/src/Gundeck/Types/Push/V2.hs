@@ -83,7 +83,7 @@ import Data.List1 qualified as List1
 import Data.Range
 import Data.Range qualified as Range
 import Data.Set qualified as Set
-import Imports hiding (cs)
+import Imports
 import Wire.API.Message (Priority (..))
 import Wire.API.Push.V2.Token
 import Wire.Arbitrary

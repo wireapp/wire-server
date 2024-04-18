@@ -85,6 +85,7 @@ library
     , schema-profunctor
     , text                   >=0.11
     , types-common           >=0.16
+    , utf8-string
     , uuid
     , wire-api
 

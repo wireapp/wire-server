@@ -61,6 +61,7 @@ import Data.Proxy
 import Data.Qualified hiding (isLocal)
 import Data.Range
 import Data.Sequence qualified as Seq
+import Data.String.Conversions
 import Data.Text qualified as T
 import Data.Text qualified as Text
 import Data.Text.Ascii qualified as Ascii

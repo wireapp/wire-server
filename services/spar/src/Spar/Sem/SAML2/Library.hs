@@ -24,6 +24,7 @@ module Spar.Sem.SAML2.Library (saml2ToSaml2WebSso) where
 import qualified Control.Monad.Catch as Catch
 import Control.Monad.Except
 import Data.Id (TeamId)
+import qualified Data.Text.Lazy as LText
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -53,7 +54,13 @@ wrapMonadClientSPImpl ::
   SPImpl r a
 wrapMonadClientSPImpl action =
   SPImpl action
-    `Catch.catch` (SPImpl . throw . SAML.CustomError . SparCassandraError . cs . show @SomeException)
+    `Catch.catch` ( SPImpl
+                      . throw
+                      . SAML.CustomError
+                      . SparCassandraError
+                      . LText.pack
+                      . show @SomeException
+                  )
 
 instance Member (Final IO) r => Catch.MonadThrow (SPImpl r) where
   throwM = SPImpl . embedFinal . Catch.throwM @IO

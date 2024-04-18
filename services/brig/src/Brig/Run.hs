@@ -45,11 +45,13 @@ import Control.Lens (view, (.~), (^.))
 import Control.Monad.Catch (MonadCatch, finally)
 import Control.Monad.Random (randomRIO)
 import Data.Aeson qualified as Aeson
+import Data.ByteString.UTF8 qualified as UTF8
 import Data.Id (RequestId (..))
 import Data.Metrics.AWS (gaugeTokenRemaing)
 import Data.Metrics.Servant qualified as Metrics
 import Data.Proxy (Proxy (Proxy))
 import Data.Text (unpack)
+import Data.Text.Encoding
 import Data.UUID as UUID
 import Data.UUID.V4 as UUID
 import Imports hiding (head)
@@ -155,7 +157,7 @@ lookupRequestIdMiddleware logger mkapp req cont = do
     Just rid -> do
       mkapp (RequestId rid) req cont
     Nothing -> do
-      localRid <- RequestId . cs . UUID.toText <$> UUID.nextRandom
+      localRid <- RequestId . encodeUtf8 . UUID.toText <$> UUID.nextRandom
       Log.info logger $
         "request-id" .= localRid
           ~~ "method" .= Wai.requestMethod req
@@ -173,7 +175,7 @@ bodyParserErrorFormatter :: Servant.ErrorFormatter
 bodyParserErrorFormatter _ _ errMsg =
   Servant.ServerError
     { Servant.errHTTPCode = HTTP.statusCode HTTP.status400,
-      Servant.errReasonPhrase = cs $ HTTP.statusMessage HTTP.status400,
+      Servant.errReasonPhrase = UTF8.toString $ HTTP.statusMessage HTTP.status400,
       Servant.errBody =
         Aeson.encode $
           Aeson.object
@@ -218,7 +220,7 @@ pendingActivationCleanup = do
     safeForever funName action =
       forever $
         action `catchAny` \exc -> do
-          err $ "error" .= show exc ~~ msg (val $ cs funName <> " failed")
+          err $ "error" .= show exc ~~ msg (val $ UTF8.fromString funName <> " failed")
           -- pause to keep worst-case noise in logs manageable
           threadDelay 60_000_000
 

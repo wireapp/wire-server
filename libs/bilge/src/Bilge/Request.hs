@@ -82,7 +82,7 @@ import Data.ByteString.Lazy qualified as Lazy
 import Data.ByteString.Lazy.Char8 qualified as LC
 import Data.CaseInsensitive (original)
 import Data.Id (RequestId (..))
-import Imports hiding (cs, intercalate)
+import Imports hiding (intercalate)
 import Network.HTTP.Client (Cookie, GivesPopper, Request, RequestBody (..))
 import Network.HTTP.Client qualified as Rq
 import Network.HTTP.Client.Internal (CookieJar (..), brReadSome, throwHttp)

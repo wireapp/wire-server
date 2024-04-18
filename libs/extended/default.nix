@@ -29,6 +29,7 @@
 , servant-client-core
 , servant-openapi3
 , servant-server
+, string-conversions
 , temporary
 , text
 , time
@@ -69,7 +70,14 @@ mkDerivation {
     unliftio
     wai
   ];
-  testHaskellDepends = [ aeson base hspec imports temporary ];
+  testHaskellDepends = [
+    aeson
+    base
+    hspec
+    imports
+    string-conversions
+    temporary
+  ];
   testToolDepends = [ hspec-discover ];
   description = "Extended versions of common modules";
   license = lib.licenses.agpl3Only;

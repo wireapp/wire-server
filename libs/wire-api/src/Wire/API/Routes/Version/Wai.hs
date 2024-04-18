@@ -21,6 +21,7 @@ import Control.Monad.Except (throwError)
 import Data.ByteString.Conversion
 import Data.EitherR (fmapL)
 import Data.Text qualified as T
+import Data.Text.Lazy (fromStrict)
 import Imports
 import Network.HTTP.Types qualified as HTTP
 import Network.Wai
@@ -44,7 +45,7 @@ versionMiddleware disabledAPIVersions app req k = case parseVersion (removeVersi
     err :: Text -> IO ResponseReceived
     err v =
       k . errorRs' . mkError HTTP.status404 "unsupported-version" $
-        "Version " <> cs v <> " is not supported"
+        "Version " <> fromStrict v <> " is not supported"
 
     errint :: IO ResponseReceived
     errint =

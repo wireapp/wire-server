@@ -19,6 +19,7 @@
 -- errors instead of plaintext.
 module Servant.API.Extended where
 
+import Data.ByteString
 import Data.ByteString.Lazy qualified as BL
 import Data.EitherR (fmapL)
 import Data.Kind
@@ -92,7 +93,7 @@ instance
               fromMaybe "application/octet-stream" $
                 lookup hContentType $
                   requestHeaders request
-        case canHandleCTypeH (Proxy :: Proxy list) (cs contentTypeH) :: Maybe (BL.ByteString -> Either String a) of
+        case canHandleCTypeH (Proxy :: Proxy list) (fromStrict contentTypeH) :: Maybe (BL.ByteString -> Either String a) of
           Nothing -> delayedFail err415
           Just f -> pure f
       -- Body check, we get a body parsing functions as the first argument.

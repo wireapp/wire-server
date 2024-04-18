@@ -5,6 +5,7 @@ module Wire.BackgroundWorker where
 import Data.Domain
 import Data.Map.Strict qualified as Map
 import Data.Metrics.Servant qualified as Metrics
+import Data.Text qualified as T
 import Imports
 import Network.AMQP qualified as Q
 import Network.Wai.Utilities.Server
@@ -47,7 +48,7 @@ run opts = do
           -- Close the channel. `extended` will then close the connection, flushing messages to the server.
           Log.info l $ Log.msg $ Log.val "Closing RabbitMQ channel"
           Q.closeChannel chan
-  let server = defaultServer (cs $ opts.backgroundWorker._host) opts.backgroundWorker._port env.logger env.metrics
+  let server = defaultServer (T.unpack $ opts.backgroundWorker._host) opts.backgroundWorker._port env.logger env.metrics
   settings <- newSettings server
   -- Additional cleanup when shutting down via signals.
   runSettingsWithCleanup cleanup settings (servantApp env) Nothing

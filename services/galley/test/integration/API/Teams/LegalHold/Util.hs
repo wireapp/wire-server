@@ -30,6 +30,7 @@ import Data.List1 qualified as List1
 import Data.Misc (PlainTextPassword6)
 import Data.PEM
 import Data.Streaming.Network (bindRandomPortTCP)
+import Data.String.Conversions
 import Data.Tagged
 import Data.Text.Encoding (encodeUtf8)
 import Galley.Options

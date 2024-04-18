@@ -51,6 +51,7 @@ import Data.OpenApi (ToParamSchema (..))
 import Data.OpenApi qualified as S
 import Data.SOP
 import Data.Schema
+import Data.Text.Encoding
 import Data.Time.Clock (UTCTime)
 import Data.UUID qualified as UUID
 import Imports
@@ -150,7 +151,7 @@ newtype RawNotificationId = RawNotificationId {unRawNotificationId :: ByteString
   deriving stock (Eq, Show, Generic)
 
 instance FromHttpApiData RawNotificationId where
-  parseUrlPiece = pure . RawNotificationId . cs
+  parseUrlPiece = pure . RawNotificationId . encodeUtf8
 
 instance ToParamSchema RawNotificationId where
   toParamSchema _ = toParamSchema (Proxy @Text)

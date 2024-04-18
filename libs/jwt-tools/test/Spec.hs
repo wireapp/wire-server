@@ -18,6 +18,7 @@
 import Control.Monad.Trans.Except
 import Data.ByteString.Char8 (split)
 import Data.Jwt.Tools
+import Data.String.Conversions
 import Imports
 import Test.Hspec
 

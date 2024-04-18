@@ -75,7 +75,6 @@ library
     , deepseq
     , extra
     , mtl
-    , string-conversions
     , text
     , transformers
     , unliftio

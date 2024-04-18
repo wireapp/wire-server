@@ -94,6 +94,7 @@ import Control.Lens (makeLenses, (?~))
 import Data.Aeson qualified as A
 import Data.Aeson.Types qualified as A
 import Data.Attoparsec.ByteString qualified as Parser
+import Data.ByteString (fromStrict)
 import Data.ByteString.Conversion
 import Data.ByteString.UTF8 qualified as UTF8
 import Data.Domain (Domain)
@@ -108,6 +109,7 @@ import Data.Schema
 import Data.Scientific (toBoundedInteger)
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
+import Data.Text.Encoding.Error
 import Data.Text.Lazy qualified as TL
 import Data.Time
 import Deriving.Aeson
@@ -509,7 +511,7 @@ data LockStatus = LockStatusLocked | LockStatusUnlocked
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema LockStatus)
 
 instance FromHttpApiData LockStatus where
-  parseUrlPiece = maybeToEither "Invalid lock status" . fromByteString . cs
+  parseUrlPiece = maybeToEither "Invalid lock status" . fromByteString . T.encodeUtf8
 
 instance ToSchema LockStatus where
   schema =
@@ -1106,7 +1108,7 @@ instance RenderableSymbol EnforceFileDownloadLocationConfig where
   renderSymbol = "EnforceFileDownloadLocationConfig"
 
 instance Arbitrary EnforceFileDownloadLocationConfig where
-  arbitrary = EnforceFileDownloadLocationConfig . fmap (cs . getPrintableString) <$> arbitrary
+  arbitrary = EnforceFileDownloadLocationConfig . fmap (T.pack . getPrintableString) <$> arbitrary
 
 instance ToSchema EnforceFileDownloadLocationConfig where
   schema =
@@ -1164,10 +1166,14 @@ instance S.ToParamSchema FeatureStatus where
       }
 
 instance FromHttpApiData FeatureStatus where
-  parseUrlPiece = maybe (Left "must be 'enabled' or 'disabled'") Right . fromByteString' . cs
+  parseUrlPiece =
+    maybe (Left "must be 'enabled' or 'disabled'") Right
+      . fromByteString'
+      . fromStrict
+      . T.encodeUtf8
 
 instance ToHttpApiData FeatureStatus where
-  toUrlPiece = cs . toByteString'
+  toUrlPiece = T.decodeUtf8With lenientDecode . toByteString'
 
 instance ToSchema FeatureStatus where
   schema =

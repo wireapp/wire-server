@@ -86,6 +86,7 @@
 , singletons-base
 , singletons-th
 , sop-core
+, string-conversions
 , tagged
 , tasty
 , tasty-hspec
@@ -244,6 +245,7 @@ mkDerivation {
     schema-profunctor
     servant
     servant-server
+    string-conversions
     tasty
     tasty-hspec
     tasty-hunit

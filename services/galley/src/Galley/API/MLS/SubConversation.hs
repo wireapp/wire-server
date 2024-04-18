@@ -50,7 +50,7 @@ import Galley.Effects
 import Galley.Effects.FederatorAccess
 import Galley.Effects.MemberStore qualified as Eff
 import Galley.Effects.SubConversationStore qualified as Eff
-import Imports hiding (cs)
+import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input

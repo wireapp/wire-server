@@ -93,6 +93,7 @@ import Data.Aeson qualified as A hiding ((<?>))
 import Data.Aeson.Types qualified as A
 import Data.Attoparsec.Text hiding (Parser, parse)
 import Data.Attoparsec.Text qualified as Text
+import Data.ByteString (toStrict)
 import Data.ByteString.Builder
 import Data.ByteString.Conversion (toByteString)
 import Data.ByteString.Conversion qualified as BC
@@ -104,6 +105,7 @@ import Data.Schema
 import Data.Text qualified as Text
 import Data.Text.Ascii
 import Data.Text.Encoding qualified as TE
+import Data.Text.Encoding.Error
 import Data.Text.Strict.Lens (utf8)
 import Data.Time.Clock.POSIX
 import Imports
@@ -264,7 +266,9 @@ data TurnURI = TurnURI
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema TurnURI)
 
 instance ToSchema TurnURI where
-  schema = (cs . toByteString) .= parsedText "TurnURI" parseTurnURI
+  schema =
+    (TE.decodeUtf8With lenientDecode . toStrict . toByteString)
+      .= parsedText "TurnURI" parseTurnURI
 
 turnURI :: Scheme -> TurnHost -> Port -> Maybe Transport -> TurnURI
 turnURI = TurnURI
@@ -478,7 +482,7 @@ instance ToSchema SFTUsername where
       fromText = parseOnly (parseSFTUsername <* endOfInput)
 
       toText :: SFTUsername -> Text
-      toText = cs . toByteString
+      toText = TE.decodeUtf8With lenientDecode . toStrict . toByteString
 
 instance BC.ToByteString SFTUsername where
   builder su =
@@ -555,7 +559,7 @@ instance ToSchema TurnUsername where
       fromText = parseOnly (parseTurnUsername <* endOfInput)
 
       toText :: TurnUsername -> Text
-      toText = cs . toByteString
+      toText = TE.decodeUtf8With lenientDecode . toStrict . toByteString
 
 instance BC.ToByteString TurnUsername where
   builder tu =

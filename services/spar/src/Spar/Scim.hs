@@ -62,6 +62,10 @@ module Spar.Scim
   )
 where
 
+import Data.ByteString (toStrict)
+import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
+import Data.Text.Encoding.Error
 import Imports
 import Polysemy
 import Polysemy.Error (Error, fromExceptionSem, runError, throw, try)
@@ -153,7 +157,7 @@ apiScim =
           -- We caught an exception that's not a Spar exception at all. It is wrapped into
           -- Scim.serverError.
           throw . SAML.CustomError . SparScimError $
-            Scim.serverError (cs (displayException someException))
+            Scim.serverError (T.pack (displayException someException))
         Right (Left err@(SAML.CustomError (SparScimError _))) ->
           -- We caught a 'SparScimError' exception. It is left as-is.
           throw err
@@ -166,7 +170,9 @@ apiScim =
               { schemas = [Scim.Schema.Error20],
                 status = Scim.Status $ errHTTPCode err,
                 scimType = Nothing,
-                detail = Just . cs $ errBody err
+                detail =
+                  Just . T.decodeUtf8With lenientDecode . toStrict . errBody $
+                    err
               }
         Right (Right x) -> do
           -- No exceptions! Good.

@@ -69,6 +69,7 @@ import Control.Retry (RetryPolicy, exponentialBackoff, limitRetries, recovering)
 import Data.Aeson as Aeson
 import Data.Aeson.Encoding
 import Data.Aeson.Lens
+import Data.ByteString (toStrict)
 import Data.ByteString.Builder (Builder, toLazyByteString)
 import Data.ByteString.Conversion (toByteString')
 import Data.ByteString.Conversion qualified as Bytes
@@ -80,7 +81,8 @@ import Data.Map qualified as Map
 import Data.Metrics
 import Data.Text qualified as T
 import Data.Text qualified as Text
-import Data.Text.Encoding (decodeUtf8, encodeUtf8)
+import Data.Text.Encoding
+import Data.Text.Encoding.Error
 import Data.Text.Lazy qualified as LT
 import Data.Text.Lazy.Builder.Int (decimal)
 import Data.Text.Lens hiding (text)
@@ -339,7 +341,12 @@ createIndex' failIfExists (CreateIndexSettings settings shardCount mbDeleteTempl
     for_ mbDeleteTemplate $ \templateName@(ES.TemplateName tname) -> do
       tExists <- ES.templateExists templateName
       when tExists $ do
-        dr <- traceES (cs ("Delete index template " <> "\"" <> tname <> "\"")) $ ES.deleteTemplate templateName
+        dr <-
+          traceES
+            ( encodeUtf8
+                ("Delete index template " <> "\"" <> tname <> "\"")
+            )
+            $ ES.deleteTemplate templateName
         unless (ES.isSuccess dr) $
           throwM (IndexError "Deleting index template failed.")
 
@@ -895,7 +902,11 @@ reindexRowToIndexUser
       idpUrl (UserScimExternalId _) = Nothing
 
       fromUri :: URI -> Text
-      fromUri = cs . toLazyByteString . serializeURIRef
+      fromUri =
+        decodeUtf8With lenientDecode
+          . toStrict
+          . toLazyByteString
+          . serializeURIRef
 
       sso :: UserSSOId -> Maybe Sso
       sso userSsoId = do

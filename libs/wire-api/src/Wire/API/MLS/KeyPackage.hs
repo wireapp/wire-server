@@ -49,7 +49,7 @@ import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
 import Data.X509 qualified as X509
 import GHC.Records
-import Imports hiding (cs)
+import Imports
 import Test.QuickCheck
 import Web.HttpApiData
 import Wire.API.MLS.CipherSuite

@@ -43,6 +43,7 @@ import Data.Handle (fromHandle)
 import Data.Id
 import Data.Map.Strict qualified as Map
 import Data.Qualified (Qualified (qDomain, qUnqualified))
+import Data.String.Conversions
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Database.Bloodhound qualified as ES

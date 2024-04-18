@@ -21,6 +21,7 @@ module Test.LoggingSpec
 where
 
 import Control.Lens
+import Data.String.Conversions
 import Imports
 import Network.HTTP.Types.Status (statusCode)
 import qualified Network.Wai.Test as HW

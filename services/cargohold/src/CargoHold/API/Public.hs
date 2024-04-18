@@ -33,6 +33,8 @@ import Data.Domain
 import Data.Id
 import Data.Kind
 import Data.Qualified
+import Data.Text.Encoding
+import Data.Text.Encoding.Error
 import Imports hiding (head)
 import qualified Network.HTTP.Types as HTTP
 import Servant.API
@@ -88,7 +90,11 @@ iDownloadAssetV3 key = do
   where
     -- (NB: don't use HttpsUrl here, as in some test environments we legitimately use "http"!)
     render :: URI.URI -> Text
-    render = cs . Builder.toLazyByteString . URI.serializeURIRef
+    render =
+      decodeUtf8With lenientDecode
+        . LBS.toStrict
+        . Builder.toLazyByteString
+        . URI.serializeURIRef
 
 class HasLocation (tag :: PrincipalTag) where
   assetLocation :: Local AssetKey -> [Text]

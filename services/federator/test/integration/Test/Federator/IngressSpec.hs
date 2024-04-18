@@ -25,6 +25,7 @@ import Data.Binary.Builder
 import Data.Domain
 import Data.Id
 import Data.LegalHold (UserLegalHoldStatus (UserLegalHoldNoConsent))
+import Data.String.Conversions
 import Data.Text.Encoding qualified as Text
 import Federator.Discovery
 import Federator.Monitor (FederationSetupError)

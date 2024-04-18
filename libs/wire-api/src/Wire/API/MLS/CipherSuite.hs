@@ -68,7 +68,7 @@ import Data.Text.Lazy qualified as LT
 import Data.Text.Lazy.Builder qualified as LT
 import Data.Text.Lazy.Builder.Int qualified as LT
 import Data.Word
-import Imports hiding (cs)
+import Imports
 import Web.HttpApiData
 import Wire.API.MLS.Serialisation
 import Wire.Arbitrary

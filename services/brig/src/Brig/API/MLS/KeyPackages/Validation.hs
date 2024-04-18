@@ -34,7 +34,7 @@ import Data.ByteString qualified as LBS
 import Data.Qualified
 import Data.Time.Clock
 import Data.Time.Clock.POSIX
-import Imports hiding (cs)
+import Imports
 import Wire.API.Error
 import Wire.API.Error.Brig
 import Wire.API.MLS.CipherSuite

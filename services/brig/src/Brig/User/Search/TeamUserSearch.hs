@@ -33,6 +33,7 @@ import Brig.User.Search.Index
 import Control.Error (lastMay)
 import Control.Monad.Catch (MonadThrow (throwM))
 import Data.Aeson (decode', encode)
+import Data.ByteString (fromStrict, toStrict)
 import Data.Id (TeamId, idToText)
 import Data.Range (Range (..))
 import Data.Text.Ascii (decodeBase64Url, encodeBase64Url)
@@ -66,10 +67,10 @@ teamUserSearch tid mbSearchText mRoleFilter mSortBy mSortOrder (fromRange -> siz
   either (throwM . IndexLookupError) (pure . mkResult) r
   where
     toSearchAfterKey :: PagingState -> Maybe ES.SearchAfterKey
-    toSearchAfterKey ps = decode' . cs =<< (decodeBase64Url . unPagingState $ ps)
+    toSearchAfterKey ps = decode' . fromStrict =<< (decodeBase64Url . unPagingState $ ps)
 
     fromSearchAfterKey :: ES.SearchAfterKey -> PagingState
-    fromSearchAfterKey = PagingState . encodeBase64Url . cs . encode
+    fromSearchAfterKey = PagingState . encodeBase64Url . toStrict . encode
 
     mkResult es =
       let hitsPlusOne = ES.hits . ES.searchHits $ es

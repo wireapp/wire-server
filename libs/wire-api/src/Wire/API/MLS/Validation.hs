@@ -29,7 +29,7 @@ import Data.Text.Lazy qualified as LT
 import Data.Text.Lazy.Builder qualified as LT
 import Data.Text.Lazy.Builder.Int qualified as LT
 import Data.X509 qualified as X509
-import Imports hiding (cs)
+import Imports
 import Wire.API.MLS.Capabilities
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential

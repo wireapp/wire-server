@@ -61,6 +61,7 @@ import Data.ByteString.Base64.URL qualified as B64U
 import Data.ByteString.Builder qualified as BB
 import Data.ByteString.Conversion qualified as BS
 import Data.ByteString.Lazy qualified as L
+import Data.ByteString.UTF8 qualified as UTF8
 import Data.Fixed
 import Data.OpenApi qualified as S
 import Data.Schema
@@ -141,7 +142,7 @@ instance Show UTCTimeMillis where
   showsPrec d = showParen (d > 10) . showString . Text.unpack . showUTCTimeMillis
 
 instance BS.ToByteString UTCTimeMillis where
-  builder = BB.byteString . cs . show
+  builder = BB.byteString . UTF8.fromString . show
 
 instance BS.FromByteString UTCTimeMillis where
   parser = maybe (fail "UTCTimeMillis") pure . readUTCTimeMillis =<< BS.parser

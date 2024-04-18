@@ -51,7 +51,7 @@ readHandleMap Env {..} =
     insertAndLog :: (HandleMap, Int) -> [(Maybe UserId, Maybe Handle)] -> IO (HandleMap, Int)
     insertAndLog (hmap, nTotal) pairs = do
       let n = length pairs
-      Log.info envLogger $ Log.msg @Text $ "handles loaded: " <> (cs . show $ nTotal + n)
+      Log.info envLogger $ Log.msg @Text $ "handles loaded: " <> (T.pack . show $ nTotal + n)
       pure (foldl' insert hmap pairs, nTotal + n)
 
     insert :: HandleMap -> (Maybe UserId, Maybe Handle) -> HandleMap
@@ -167,7 +167,7 @@ runCommand env@Env {..} = do
     handleAction :: Env -> ActionResult -> IO ()
     handleAction _env (Left err) = Log.err envLogger (Log.msg . show $ err)
     handleAction _env (Right action) = do
-      Log.debug envLogger $ Log.msg @Text (cs . show $ action)
+      Log.debug envLogger $ Log.msg (show $ action)
       unless (envSettings ^. setDryRun) $
         executeAction env action
 
@@ -189,7 +189,7 @@ runCommand env@Env {..} = do
       where
         mark :: Text -> Int -> Maybe Text
         mark msg n
-          | n > 0 = Just $ msg <> ": " <> cs (show n)
+          | n > 0 = Just $ msg <> ": " <> T.pack (show n)
           | otherwise = Nothing
 
         tally :: (Int, Int, Int, Int) -> ActionResult -> (Int, Int, Int, Int)

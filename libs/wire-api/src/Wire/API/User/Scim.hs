@@ -61,6 +61,7 @@ import Data.Map qualified as Map
 import Data.Misc (PlainTextPassword6)
 import Data.OpenApi hiding (Operation)
 import Data.Proxy
+import Data.Text qualified as T
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Time.Clock (UTCTime)
 import Imports
@@ -252,8 +253,8 @@ instance QC.Arbitrary (Scim.User SparTag) where
     where
       addFields :: Scim.User.User tag -> QC.Gen (Scim.User.User tag)
       addFields usr = do
-        gexternalId <- cs . QC.getPrintableString <$$> QC.arbitrary
-        gdisplayName <- cs . QC.getPrintableString <$$> QC.arbitrary
+        gexternalId <- T.pack . QC.getPrintableString <$$> QC.arbitrary
+        gdisplayName <- T.pack . QC.getPrintableString <$$> QC.arbitrary
         gactive <- Just . Scim.ScimBool <$> QC.arbitrary -- (`Nothing` maps on `Just True` and was in the way of a unit test.)
         gemails <- catMaybes <$> (A.decode <$$> QC.listOf (QC.elements ["a@b.c", "x@y,z", "roland@st.uv"]))
         pure
@@ -268,7 +269,7 @@ instance QC.Arbitrary (Scim.User SparTag) where
       genSchemas = QC.listOf1 $ QC.elements Scim.fakeEnumSchema
 
       genUserName :: QC.Gen Text
-      genUserName = cs . QC.getPrintableString <$> QC.arbitrary
+      genUserName = T.pack . QC.getPrintableString <$> QC.arbitrary
 
       genExtra :: QC.Gen ScimUserExtra
       genExtra = QC.arbitrary

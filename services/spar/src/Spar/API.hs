@@ -55,7 +55,9 @@ import Data.Id
 import Data.Proxy
 import Data.Range
 import qualified Data.Set as Set
+import Data.Text.Encoding.Error
 import qualified Data.Text.Lazy as T
+import Data.Text.Lazy.Encoding
 import Data.Time
 import Imports
 import Polysemy
@@ -357,7 +359,7 @@ idpGetRaw zusr idpid = do
   _ <- authorizeIdP zusr idp
   IdPRawMetadataStore.get idpid >>= \case
     Just txt -> pure $ RawIdPMetadata txt
-    Nothing -> throwSparSem $ SparIdPNotFound (cs $ show idpid)
+    Nothing -> throwSparSem $ SparIdPNotFound (T.pack $ show idpid)
 
 idpGetAll ::
   ( Member Random r,
@@ -702,7 +704,10 @@ validateIdPUpdate zusr _idpMetadata _idpId = withDebugLog "validateIdPUpdate" (J
   where
     errUnknownIdP = SAML.UnknownIdP $ enc uri
       where
-        enc = cs . toLazyByteString . URI.serializeURIRef
+        enc =
+          decodeUtf8With lenientDecode
+            . toLazyByteString
+            . URI.serializeURIRef
         uri = _idpMetadata ^. SAML.edIssuer . SAML.fromIssuer
 
 withDebugLog :: Member (Logger String) r => String -> (a -> Maybe String) -> Sem r a -> Sem r a
@@ -723,7 +728,11 @@ authorizeIdP ::
   Maybe UserId ->
   IdP ->
   Sem r (UserId, TeamId)
-authorizeIdP Nothing _ = throw (SAML.CustomError $ SparNoPermission (cs $ show CreateUpdateDeleteIdp))
+authorizeIdP Nothing _ =
+  throw
+    ( SAML.CustomError $
+        SparNoPermission (T.pack $ show CreateUpdateDeleteIdp)
+    )
 authorizeIdP (Just zusr) idp = do
   let teamid = idp ^. SAML.idpExtraInfo . team
   GalleyAccess.assertHasPermission teamid CreateUpdateDeleteIdp zusr

@@ -67,7 +67,7 @@ instance ToNamedRecord TeamExportUser where
         ("managed_by", secureCsvFieldToByteString (tExportManagedBy row)),
         ("saml_name_id", secureCsvFieldToByteString (tExportSAMLNamedId row)),
         ("scim_external_id", secureCsvFieldToByteString (tExportSCIMExternalId row)),
-        ("scim_rich_info", maybe "" (cs . Aeson.encode) (tExportSCIMRichInfo row)),
+        ("scim_rich_info", maybe "" (C.toStrict . Aeson.encode) (tExportSCIMRichInfo row)),
         ("user_id", secureCsvFieldToByteString (tExportUserId row)),
         ("num_devices", secureCsvFieldToByteString (tExportNumDevices row))
       ]
@@ -100,7 +100,7 @@ allowEmpty p str = Just <$> p str
 
 parseByteString :: forall a. FromByteString a => ByteString -> Parser a
 parseByteString bstr =
-  case parseOnly (parser @a) (cs (unquoted bstr)) of
+  case parseOnly (parser @a) (C.fromStrict (unquoted bstr)) of
     Left err -> fail err
     Right thing -> pure thing
 
@@ -117,7 +117,13 @@ instance FromNamedRecord TeamExportUser where
       <*> (nrec .: "managed_by" >>= parseByteString)
       <*> (nrec .: "saml_name_id" >>= parseByteString)
       <*> (nrec .: "scim_external_id" >>= parseByteString)
-      <*> (nrec .: "scim_rich_info" >>= allowEmpty (maybe (fail "failed to decode RichInfo") pure . Aeson.decode . cs))
+      <*> ( nrec .: "scim_rich_info"
+              >>= allowEmpty
+                ( maybe (fail "failed to decode RichInfo") pure
+                    . Aeson.decode
+                    . C.fromStrict
+                )
+          )
       <*> (nrec .: "user_id" >>= parseByteString)
       <*> (nrec .: "num_devices" >>= parseByteString)
 

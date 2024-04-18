@@ -25,6 +25,7 @@ import Data.Aeson.KeyMap qualified as KeyMap
 import Data.ByteString.Conversion
 import Data.Domain (Domain)
 import Data.Jwt.Tools (DPoPTokenGenerationError (..))
+import Data.Text.Lazy as LT
 import Data.ZAuth.Validation qualified as ZAuth
 import Imports
 import Network.HTTP.Types.Header
@@ -447,7 +448,7 @@ customerExtensionBlockedDomain domain = Wai.mkError (mkStatus 451 "Unavailable F
   where
     msg =
       "[Customer extension] the email domain "
-        <> cs (show domain)
+        <> LT.pack (show domain)
         <> " that you are attempting to register a user with has been \
            \blocked for creating wire users.  Please contact your IT department."
 

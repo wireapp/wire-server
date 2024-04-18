@@ -16,6 +16,7 @@
 , servant
 , servant-multipart
 , text
+, utf8-string
 , wai
 , wai-middleware-prometheus
 , wai-route
@@ -35,6 +36,7 @@ mkDerivation {
     servant
     servant-multipart
     text
+    utf8-string
     wai
     wai-middleware-prometheus
     wai-route

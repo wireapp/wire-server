@@ -28,6 +28,7 @@ import Data.ByteString.Conversion (toByteString)
 import Data.Handle (fromHandle)
 import Data.Id (TeamId, UserId)
 import Data.Range (unsafeRange)
+import Data.String.Conversions
 import Imports
 import System.Random.Shuffle (shuffleM)
 import Test.Tasty (TestTree, testGroup)

@@ -26,6 +26,7 @@ import Data.Domain (Domain)
 import Data.Id
 import Data.Qualified (Qualified (..))
 import Data.Range (Range)
+import Data.String.Conversions
 import Data.Text.Encoding (encodeUtf8)
 import Database.Bloodhound qualified as ES
 import Imports
