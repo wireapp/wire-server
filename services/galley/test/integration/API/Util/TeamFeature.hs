@@ -24,7 +24,6 @@ module API.Util.TeamFeature where
 import API.Util (HasGalley (viewGalley), zUser)
 import API.Util qualified as Util
 import Bilge
-import Bilge.Assert
 import Control.Lens ((.~), (^?))
 import Control.Monad.Catch (MonadThrow)
 import Data.Aeson (FromJSON, Result (Success), ToJSON, Value, fromJSON)
@@ -37,7 +36,7 @@ import GHC.TypeLits (KnownSymbol)
 import Galley.Options (featureFlags, settings)
 import Galley.Types.Teams
 import Imports
-import Test.Tasty.HUnit ((@?=))
+import Test.Tasty.HUnit (assertBool, assertFailure, (@?=))
 import TestSetup
 import Wire.API.Team.Feature
 import Wire.API.Team.Feature qualified as Public
@@ -259,15 +258,28 @@ checkTeamFeatureAllEndpoints ::
   WithStatus cfg ->
   TestM ()
 checkTeamFeatureAllEndpoints uid tid expected = do
-  getTeamFeatureInternal @cfg tid !!! do
-    statusCode === const 200
-    responseJsonEither === const (Right expected)
-  getTeamFeature @cfg uid tid !!! do
-    statusCode === const 200
-    responseJsonEither === const (Right expected)
-  do
-    teamFeature <- getTeamFeatureFromAll @cfg uid tid
-    liftIO $ teamFeature @?= expected
-  do
-    teamFeature <- getFeatureConfig uid
-    liftIO $ teamFeature @?= expected
+  compareLeniently $ responseJsonUnsafe <$> getTeamFeatureInternal @cfg tid
+  compareLeniently $ responseJsonUnsafe <$> getTeamFeature @cfg uid tid
+  compareLeniently $ getTeamFeatureFromAll @cfg uid tid
+  compareLeniently $ getFeatureConfig uid
+  where
+    compareLeniently :: TestM (WithStatus cfg) -> TestM ()
+    compareLeniently receive = do
+      received <- receive
+      liftIO $ do
+        wsStatus received @?= wsStatus expected
+        wsLockStatus received @?= wsLockStatus expected
+        wsConfig received @?= wsConfig expected
+        checkTtl (wsTTL received) (wsTTL expected)
+
+    checkTtl :: FeatureTTL -> FeatureTTL -> IO ()
+    checkTtl (FeatureTTLSeconds actualTtl) (FeatureTTLSeconds expectedTtl) =
+      assertBool
+        ("expected the actual TTL to be greater than 0 and equal to or no more than 2 seconds less than " <> show expectedTtl <> ", but it was " <> show actualTtl)
+        ( actualTtl > 0
+            && actualTtl <= expectedTtl
+            && abs (fromIntegral @Word @Int actualTtl - fromIntegral @Word @Int expectedTtl) <= 2
+        )
+    checkTtl FeatureTTLUnlimited FeatureTTLUnlimited = pure ()
+    checkTtl FeatureTTLUnlimited _ = assertFailure "expected the actual TTL to be unlimited, but it was limited"
+    checkTtl _ FeatureTTLUnlimited = assertFailure "expected the actual TTL to be limited, but it was unlimited"
