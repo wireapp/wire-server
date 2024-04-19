@@ -193,15 +193,13 @@ getAllFeatureConfigsForUser zusr = do
     maybe (throwS @'NotATeamMember) (const $ pure ()) zusrMembership
   case mbTeam of
     Just tid ->
-      getAllFeatureConfigsTeam tid
+      TeamFeatures.getAllFeatureConfigs tid
     Nothing ->
       getAllFeatureConfigsUser zusr
 
 getAllFeatureConfigsForTeam ::
   forall r.
   ( Member (ErrorS 'NotATeamMember) r,
-    Member (Input Opts) r,
-    Member LegalHoldStore r,
     Member TeamFeatureStore r,
     Member TeamStore r
   ) =>
@@ -211,7 +209,7 @@ getAllFeatureConfigsForTeam ::
 getAllFeatureConfigsForTeam luid tid = do
   zusrMembership <- getTeamMember tid (tUnqualified luid)
   maybe (throwS @'NotATeamMember) (const $ pure ()) zusrMembership
-  getAllFeatureConfigsTeam tid
+  TeamFeatures.getAllFeatureConfigs tid
 
 getAllFeatureConfigsForServer ::
   forall r.
@@ -275,38 +273,6 @@ getAllFeatureConfigsUser uid =
     <*> getConfigForUser @MlsMigrationConfig uid
     <*> getConfigForUser @EnforceFileDownloadLocationConfig uid
     <*> getConfigForUser @LimitedEventFanoutConfig uid
-
-getAllFeatureConfigsTeam ::
-  forall r.
-  ( Member (Input Opts) r,
-    Member LegalHoldStore r,
-    Member TeamFeatureStore r,
-    Member TeamStore r
-  ) =>
-  TeamId ->
-  Sem r AllFeatureConfigs
-getAllFeatureConfigsTeam tid =
-  AllFeatureConfigs
-    <$> getConfigForTeam @LegalholdConfig tid
-    <*> getConfigForTeam @SSOConfig tid
-    <*> getConfigForTeam @SearchVisibilityAvailableConfig tid
-    <*> getConfigForTeam @SearchVisibilityInboundConfig tid
-    <*> getConfigForTeam @ValidateSAMLEmailsConfig tid
-    <*> getConfigForTeam @DigitalSignaturesConfig tid
-    <*> getConfigForTeam @AppLockConfig tid
-    <*> getConfigForTeam @FileSharingConfig tid
-    <*> getConfigForTeam @ClassifiedDomainsConfig tid
-    <*> getConfigForTeam @ConferenceCallingConfig tid
-    <*> getConfigForTeam @SelfDeletingMessagesConfig tid
-    <*> getConfigForTeam @GuestLinksConfig tid
-    <*> getConfigForTeam @SndFactorPasswordChallengeConfig tid
-    <*> getConfigForTeam @MLSConfig tid
-    <*> getConfigForTeam @ExposeInvitationURLsToTeamAdminConfig tid
-    <*> getConfigForTeam @OutlookCalIntegrationConfig tid
-    <*> getConfigForTeam @MlsE2EIdConfig tid
-    <*> getConfigForTeam @MlsMigrationConfig tid
-    <*> getConfigForTeam @EnforceFileDownloadLocationConfig tid
-    <*> getConfigForTeam @LimitedEventFanoutConfig tid
 
 -- | Note: this is an internal function which doesn't cover all features, e.g. LegalholdConfig
 genericGetConfigForTeam ::

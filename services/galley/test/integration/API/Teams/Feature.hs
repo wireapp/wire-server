@@ -50,8 +50,8 @@ import Test.Hspec (expectationFailure)
 import Test.QuickCheck (Gen, generate, suchThat)
 import Test.Tasty
 import Test.Tasty.Cannon qualified as WS
-import Test.Tasty.HUnit (assertBool, assertFailure, (@?=))
-import TestHelpers (eventually, test)
+import Test.Tasty.HUnit (assertFailure, (@?=))
+import TestHelpers (test)
 import TestSetup
 import Wire.API.Conversation.Protocol
 import Wire.API.Event.FeatureConfig qualified as FeatureConfig
@@ -267,10 +267,10 @@ testPatch' ::
   cfg ->
   TestM ()
 testPatch' testLockStatusChange rndFeatureConfig defStatus defConfig = do
-  (_, tid) <- createBindingTeam
-  Just original <- responseJsonMaybe <$> getFeatureStatusInternal @cfg tid
-  patchFeatureStatusInternal tid rndFeatureConfig !!! statusCode === const 200
-  Just actual <- responseJsonMaybe <$> getFeatureStatusInternal @cfg tid
+  (uid, tid) <- createBindingTeam
+  Just original <- responseJsonMaybe <$> getTeamFeatureInternal @cfg tid
+  patchTeamFeatureInternal tid rndFeatureConfig !!! statusCode === const 200
+  Just actual <- responseJsonMaybe <$> getTeamFeatureInternal @cfg tid
   liftIO $
     if wsLockStatus actual == LockStatusLocked
       then do
@@ -281,83 +281,55 @@ testPatch' testLockStatusChange rndFeatureConfig defStatus defConfig = do
         when (testLockStatusChange == AssertLockStatusChange) $
           wsLockStatus actual @?= fromMaybe (wsLockStatus original) (wspLockStatus rndFeatureConfig)
         wsConfig actual @?= fromMaybe (wsConfig original) (wspConfig rndFeatureConfig)
+  checkTeamFeatureAllEndpoints uid tid actual
 
 testSSO :: (TeamId -> FeatureStatus -> TestM ()) -> TestM ()
 testSSO setSSOFeature = do
   (_owner, tid, member : _) <- createBindingTeamWithNMembers 1
   nonMember <- randomUser
 
-  let getSSO :: HasCallStack => FeatureStatus -> TestM ()
-      getSSO = assertFlagNoConfig @SSOConfig $ getTeamFeatureFlag @SSOConfig member tid
-      getSSOFeatureConfig :: HasCallStack => FeatureStatus -> TestM ()
-      getSSOFeatureConfig expectedStatus = do
-        actual <- Util.getFeatureConfig @SSOConfig member
-        liftIO $ wsStatus actual @?= expectedStatus
-      getSSOInternal :: HasCallStack => FeatureStatus -> TestM ()
-      getSSOInternal = assertFlagNoConfig @SSOConfig $ getTeamFeatureFlagInternal @SSOConfig tid
-
-  assertFlagForbidden $ getTeamFeatureFlag @SSOConfig nonMember tid
+  assertFlagForbidden $ getTeamFeature @SSOConfig nonMember tid
 
   featureSSO <- view (tsGConf . settings . featureFlags . flagSSO)
   case featureSSO of
     FeatureSSODisabledByDefault -> do
       -- Test default
-      getSSO FeatureStatusDisabled
-      getSSOInternal FeatureStatusDisabled
-      getSSOFeatureConfig FeatureStatusDisabled
+      checkTeamFeatureAllEndpoints member tid (withStatus FeatureStatusDisabled LockStatusUnlocked SSOConfig FeatureTTLUnlimited)
 
       -- Test override
       setSSOFeature tid FeatureStatusEnabled
-      getSSO FeatureStatusEnabled
-      getSSOInternal FeatureStatusEnabled
-      getSSOFeatureConfig FeatureStatusEnabled
+      checkTeamFeatureAllEndpoints member tid (withStatus FeatureStatusEnabled LockStatusUnlocked SSOConfig FeatureTTLUnlimited)
     FeatureSSOEnabledByDefault -> do
       -- since we don't allow to disable (see 'disableSsoNotImplemented'), we can't test
       -- much here.  (disable failure is covered in "enable/disable SSO" above.)
-      getSSO FeatureStatusEnabled
-      getSSOInternal FeatureStatusEnabled
-      getSSOFeatureConfig FeatureStatusEnabled
+      checkTeamFeatureAllEndpoints member tid (withStatus FeatureStatusEnabled LockStatusUnlocked SSOConfig FeatureTTLUnlimited)
 
 putSSOInternal :: HasCallStack => TeamId -> FeatureStatus -> TestM ()
 putSSOInternal tid =
   void
-    . putTeamFeatureFlagInternal @SSOConfig expect2xx tid
+    . putTeamFeatureInternal @SSOConfig expect2xx tid
     . (\st -> WithStatusNoLock st SSOConfig FeatureTTLUnlimited)
 
 patchSSOInternal :: HasCallStack => TeamId -> FeatureStatus -> TestM ()
-patchSSOInternal tid status = void $ patchFeatureStatusInternalWithMod @SSOConfig expect2xx tid (withStatus' (Just status) Nothing Nothing (Just FeatureTTLUnlimited))
+patchSSOInternal tid status = void $ patchTeamFeatureInternalWithMod @SSOConfig expect2xx tid (withStatus' (Just status) Nothing Nothing (Just FeatureTTLUnlimited))
 
 testLegalHold :: ((Request -> Request) -> TeamId -> FeatureStatus -> TestM ()) -> TestM ()
 testLegalHold setLegalHoldInternal = do
   (_owner, tid, member : _) <- createBindingTeamWithNMembers 1
   nonMember <- randomUser
-  let getLegalHold :: HasCallStack => FeatureStatus -> TestM ()
-      getLegalHold = assertFlagNoConfig @LegalholdConfig $ getTeamFeatureFlag @LegalholdConfig member tid
-      getLegalHoldInternal :: HasCallStack => FeatureStatus -> TestM ()
-      getLegalHoldInternal = assertFlagNoConfig @LegalholdConfig $ getTeamFeatureFlagInternal @LegalholdConfig tid
-      getLegalHoldFeatureConfig expectedStatus = do
-        actual <- Util.getFeatureConfig @LegalholdConfig member
-        liftIO $ wsStatus actual @?= expectedStatus
-
-  getLegalHold FeatureStatusDisabled
-  getLegalHoldInternal FeatureStatusDisabled
-
-  assertFlagForbidden $ getTeamFeatureFlag @LegalholdConfig nonMember tid
+  checkTeamFeatureAllEndpoints member tid (withStatus FeatureStatusDisabled LockStatusUnlocked LegalholdConfig FeatureTTLUnlimited)
+  assertFlagForbidden $ getTeamFeature @LegalholdConfig nonMember tid
 
   -- FUTUREWORK: run two galleys, like below for custom search visibility.
   featureLegalHold <- view (tsGConf . settings . featureFlags . flagLegalHold)
   case featureLegalHold of
     FeatureLegalHoldDisabledByDefault -> do
       -- Test default
-      getLegalHold FeatureStatusDisabled
-      getLegalHoldInternal FeatureStatusDisabled
-      getLegalHoldFeatureConfig FeatureStatusDisabled
+      checkTeamFeatureAllEndpoints member tid (withStatus FeatureStatusDisabled LockStatusUnlocked LegalholdConfig FeatureTTLUnlimited)
 
       -- Test override
       setLegalHoldInternal expect2xx tid FeatureStatusEnabled
-      getLegalHold FeatureStatusEnabled
-      getLegalHoldInternal FeatureStatusEnabled
-      getLegalHoldFeatureConfig FeatureStatusEnabled
+      checkTeamFeatureAllEndpoints member tid (withStatus FeatureStatusEnabled LockStatusUnlocked LegalholdConfig FeatureTTLUnlimited)
 
     -- turned off for instance
     FeatureLegalHoldDisabledPermanently -> do
@@ -370,139 +342,65 @@ testLegalHold setLegalHoldInternal = do
 putLegalHoldInternal :: HasCallStack => (Request -> Request) -> TeamId -> FeatureStatus -> TestM ()
 putLegalHoldInternal expectation tid =
   void
-    . putTeamFeatureFlagInternal @LegalholdConfig expectation tid
+    . putTeamFeatureInternal @LegalholdConfig expectation tid
     . (\st -> WithStatusNoLock st LegalholdConfig FeatureTTLUnlimited)
 
 patchLegalHoldInternal :: HasCallStack => (Request -> Request) -> TeamId -> FeatureStatus -> TestM ()
-patchLegalHoldInternal expectation tid status = void $ patchFeatureStatusInternalWithMod @LegalholdConfig expectation tid (withStatus' (Just status) Nothing Nothing (Just FeatureTTLUnlimited))
+patchLegalHoldInternal expectation tid status = void $ patchTeamFeatureInternalWithMod @LegalholdConfig expectation tid (withStatus' (Just status) Nothing Nothing (Just FeatureTTLUnlimited))
 
 testSearchVisibility :: TestM ()
 testSearchVisibility = do
-  let getTeamSearchVisibility :: TeamId -> UserId -> FeatureStatus -> TestM ()
-      getTeamSearchVisibility teamid uid expected = do
-        g <- viewGalley
-        getTeamSearchVisibilityAvailable g uid teamid !!! do
-          statusCode === const 200
-          responseJsonEither === const (Right (WithStatusNoLock expected SearchVisibilityAvailableConfig FeatureTTLUnlimited))
-
-  let getTeamSearchVisibilityInternal :: TeamId -> FeatureStatus -> TestM ()
-      getTeamSearchVisibilityInternal teamid expected = do
-        g <- viewGalley
-        getTeamSearchVisibilityAvailableInternal g teamid !!! do
-          statusCode === const 200
-          responseJsonEither === const (Right (WithStatusNoLock expected SearchVisibilityAvailableConfig FeatureTTLUnlimited))
-
-  let getTeamSearchVisibilityFeatureConfig :: UserId -> FeatureStatus -> TestM ()
-      getTeamSearchVisibilityFeatureConfig uid expected = do
-        actual <- Util.getFeatureConfig @SearchVisibilityAvailableConfig uid
-        liftIO $ wsStatus actual @?= expected
-
   let setTeamSearchVisibilityInternal :: TeamId -> FeatureStatus -> TestM ()
       setTeamSearchVisibilityInternal teamid val = do
-        g <- viewGalley
-        putTeamSearchVisibilityAvailableInternal g teamid val
+        putTeamSearchVisibilityAvailableInternal teamid val
 
-  (owner, tid, [member]) <- createBindingTeamWithNMembers 1
+  (_, tid, [member]) <- createBindingTeamWithNMembers 1
   nonMember <- randomUser
 
-  assertFlagForbidden $ getTeamFeatureFlag @SearchVisibilityAvailableConfig nonMember tid
+  assertFlagForbidden $ getTeamFeature @SearchVisibilityAvailableConfig nonMember tid
 
   withCustomSearchFeature FeatureTeamSearchVisibilityUnavailableByDefault $ do
-    getTeamSearchVisibility tid owner FeatureStatusDisabled
-    getTeamSearchVisibilityInternal tid FeatureStatusDisabled
-    getTeamSearchVisibilityFeatureConfig member FeatureStatusDisabled
+    checkTeamFeatureAllEndpoints member tid (withStatus FeatureStatusDisabled LockStatusUnlocked SearchVisibilityAvailableConfig FeatureTTLUnlimited)
 
     setTeamSearchVisibilityInternal tid FeatureStatusEnabled
-    getTeamSearchVisibility tid owner FeatureStatusEnabled
-    getTeamSearchVisibilityInternal tid FeatureStatusEnabled
-    getTeamSearchVisibilityFeatureConfig member FeatureStatusEnabled
+    checkTeamFeatureAllEndpoints member tid (withStatus FeatureStatusEnabled LockStatusUnlocked SearchVisibilityAvailableConfig FeatureTTLUnlimited)
 
     setTeamSearchVisibilityInternal tid FeatureStatusDisabled
-    getTeamSearchVisibility tid owner FeatureStatusDisabled
-    getTeamSearchVisibilityInternal tid FeatureStatusDisabled
-    getTeamSearchVisibilityFeatureConfig member FeatureStatusDisabled
+    checkTeamFeatureAllEndpoints member tid (withStatus FeatureStatusDisabled LockStatusUnlocked SearchVisibilityAvailableConfig FeatureTTLUnlimited)
 
-  (owner2, tid2, team2member : _) <- createBindingTeamWithNMembers 1
+  (_, tid2, team2member : _) <- createBindingTeamWithNMembers 1
 
   withCustomSearchFeature FeatureTeamSearchVisibilityAvailableByDefault $ do
-    getTeamSearchVisibility tid2 owner2 FeatureStatusEnabled
-    getTeamSearchVisibilityInternal tid2 FeatureStatusEnabled
-    getTeamSearchVisibilityFeatureConfig team2member FeatureStatusEnabled
+    checkTeamFeatureAllEndpoints team2member tid2 (withStatus FeatureStatusEnabled LockStatusUnlocked SearchVisibilityAvailableConfig FeatureTTLUnlimited)
 
     setTeamSearchVisibilityInternal tid2 FeatureStatusDisabled
-    getTeamSearchVisibility tid2 owner2 FeatureStatusDisabled
-    getTeamSearchVisibilityInternal tid2 FeatureStatusDisabled
-    getTeamSearchVisibilityFeatureConfig team2member FeatureStatusDisabled
+    checkTeamFeatureAllEndpoints team2member tid2 (withStatus FeatureStatusDisabled LockStatusUnlocked SearchVisibilityAvailableConfig FeatureTTLUnlimited)
 
     setTeamSearchVisibilityInternal tid2 FeatureStatusEnabled
-    getTeamSearchVisibility tid2 owner2 FeatureStatusEnabled
-    getTeamSearchVisibilityInternal tid2 FeatureStatusEnabled
-    getTeamSearchVisibilityFeatureConfig team2member FeatureStatusEnabled
-
-getClassifiedDomains ::
-  (HasCallStack, HasGalley m, MonadIO m, MonadHttp m, MonadCatch m) =>
-  UserId ->
-  TeamId ->
-  WithStatusNoLock ClassifiedDomainsConfig ->
-  m ()
-getClassifiedDomains member tid =
-  assertFlagWithConfig @ClassifiedDomainsConfig $
-    getTeamFeatureFlag @ClassifiedDomainsConfig member tid
-
-getClassifiedDomainsInternal ::
-  (HasCallStack, HasGalley m, MonadIO m, MonadHttp m, MonadCatch m) =>
-  TeamId ->
-  WithStatusNoLock ClassifiedDomainsConfig ->
-  m ()
-getClassifiedDomainsInternal tid =
-  assertFlagWithConfig @ClassifiedDomainsConfig $
-    getTeamFeatureFlagInternal @ClassifiedDomainsConfig tid
+    checkTeamFeatureAllEndpoints team2member tid2 (withStatus FeatureStatusEnabled LockStatusUnlocked SearchVisibilityAvailableConfig FeatureTTLUnlimited)
 
 testClassifiedDomainsEnabled :: TestM ()
 testClassifiedDomainsEnabled = do
-  (_owner, tid, member : _) <- createBindingTeamWithNMembers 1
+  (_, tid, member : _) <- createBindingTeamWithNMembers 1
   let expected =
-        WithStatusNoLock FeatureStatusEnabled (ClassifiedDomainsConfig [Domain "example.com"]) FeatureTTLUnlimited
+        withStatus FeatureStatusEnabled LockStatusUnlocked (ClassifiedDomainsConfig [Domain "example.com"]) FeatureTTLUnlimited
 
-  let getClassifiedDomainsFeatureConfig ::
-        (HasCallStack, HasGalley m, MonadIO m, MonadHttp m, MonadCatch m) =>
-        UserId ->
-        WithStatusNoLock ClassifiedDomainsConfig ->
-        m ()
-      getClassifiedDomainsFeatureConfig uid expected' = do
-        result <- Util.getFeatureConfig @ClassifiedDomainsConfig uid
-        liftIO $ wsStatus result @?= wssStatus expected'
-        liftIO $ wsConfig result @?= wssConfig expected'
-
-  getClassifiedDomains member tid expected
-  getClassifiedDomainsInternal tid expected
-  getClassifiedDomainsFeatureConfig member expected
+  checkTeamFeatureAllEndpoints member tid expected
 
 testClassifiedDomainsDisabled :: TestM ()
 testClassifiedDomainsDisabled = do
   (_owner, tid, member : _) <- createBindingTeamWithNMembers 1
   let expected =
-        WithStatusNoLock FeatureStatusDisabled (ClassifiedDomainsConfig []) FeatureTTLUnlimited
-
-  let getClassifiedDomainsFeatureConfig ::
-        (HasCallStack, HasGalley m, MonadIO m, MonadHttp m, MonadCatch m) =>
-        UserId ->
-        WithStatusNoLock ClassifiedDomainsConfig ->
-        m ()
-      getClassifiedDomainsFeatureConfig uid expected' = do
-        result <- Util.getFeatureConfig @ClassifiedDomainsConfig uid
-        liftIO $ wsStatus result @?= wssStatus expected'
-        liftIO $ wsConfig result @?= wssConfig expected'
+        withStatus FeatureStatusDisabled LockStatusUnlocked (ClassifiedDomainsConfig []) FeatureTTLUnlimited
 
   let classifiedDomainsDisabled opts =
         opts
           & over
             (settings . featureFlags . flagClassifiedDomains)
             (\(ImplicitLockStatus s) -> ImplicitLockStatus (s & setStatus FeatureStatusDisabled & setConfig (ClassifiedDomainsConfig [])))
-  withSettingsOverrides classifiedDomainsDisabled $ do
-    getClassifiedDomains member tid expected
-    getClassifiedDomainsInternal tid expected
-    getClassifiedDomainsFeatureConfig member expected
+
+  withSettingsOverrides classifiedDomainsDisabled $
+    checkTeamFeatureAllEndpoints member tid expected
 
 testSimpleFlag ::
   forall cfg.
@@ -526,7 +424,8 @@ testSimpleFlagTTLOverride ::
     KnownSymbol (FeatureSymbol cfg),
     FeatureTrivialConfig cfg,
     ToSchema cfg,
-    FromJSON (WithStatusNoLock cfg)
+    Eq cfg,
+    Show cfg
   ) =>
   FeatureStatus ->
   FeatureTTL ->
@@ -536,23 +435,9 @@ testSimpleFlagTTLOverride defaultValue ttl ttlAfter = do
   (_owner, tid, member : _) <- createBindingTeamWithNMembers 1
   nonMember <- randomUser
 
-  let getFlag :: HasCallStack => FeatureStatus -> TestM ()
-      getFlag expected = eventually $ do
-        flip (assertFlagNoConfig @cfg) expected $ getTeamFeatureFlag @cfg member tid
-
-      getFeatureConfig :: HasCallStack => FeatureStatus -> FeatureTTL -> TestM ()
-      getFeatureConfig expectedStatus expectedTtl = eventually $ do
-        actual <- Util.getFeatureConfig @cfg member
-        liftIO $ wsStatus actual @?= expectedStatus
-        liftIO $ checkTtl (wsTTL actual) expectedTtl
-
-      getFlagInternal :: HasCallStack => FeatureStatus -> TestM ()
-      getFlagInternal expected = eventually $ do
-        flip (assertFlagNoConfig @cfg) expected $ getTeamFeatureFlagInternal @cfg tid
-
-      setFlagInternal :: FeatureStatus -> FeatureTTL -> TestM ()
+  let setFlagInternal :: FeatureStatus -> FeatureTTL -> TestM ()
       setFlagInternal statusValue ttl' =
-        void $ putTeamFeatureFlagInternalTTL @cfg expect2xx tid (WithStatusNoLock statusValue (trivialConfig @cfg) ttl')
+        void $ putTeamFeatureInternal @cfg expect2xx tid (WithStatusNoLock statusValue (trivialConfig @cfg) ttl')
 
       select :: PrepQuery R (Identity TeamId) (Identity (Maybe FeatureTTL))
       select = fromString "select ttl(conference_calling) from team_features where team_id = ?"
@@ -577,37 +462,21 @@ testSimpleFlagTTLOverride defaultValue ttl ttlAfter = do
                 Just (FeatureTTLSeconds i) -> i <= upper
           unless check $ error ("expected ttl <= " <> show upper <> ", got " <> show storedTTL)
 
-      checkTtl :: FeatureTTL -> FeatureTTL -> IO ()
-      checkTtl (FeatureTTLSeconds actualTtl) (FeatureTTLSeconds expectedTtl) =
-        assertBool
-          ("expected the actual TTL to be greater than 0 and equal to or no more than 2 seconds less than " <> show expectedTtl <> ", but it was " <> show actualTtl)
-          ( actualTtl > 0
-              && actualTtl <= expectedTtl
-              && abs (fromIntegral @Word @Int actualTtl - fromIntegral @Word @Int expectedTtl) <= 2
-          )
-      checkTtl FeatureTTLUnlimited FeatureTTLUnlimited = pure ()
-      checkTtl FeatureTTLUnlimited _ = assertFailure "expected the actual TTL to be unlimited, but it was limited"
-      checkTtl _ FeatureTTLUnlimited = assertFailure "expected the actual TTL to be limited, but it was unlimited"
-
       toMicros :: Word -> Int
       toMicros secs = fromIntegral secs * 1000000
 
-  assertFlagForbidden $ getTeamFeatureFlag @cfg nonMember tid
+  assertFlagForbidden $ getTeamFeature @cfg nonMember tid
 
   let otherValue = case defaultValue of
         FeatureStatusDisabled -> FeatureStatusEnabled
         FeatureStatusEnabled -> FeatureStatusDisabled
 
   -- Initial value should be the default value
-  getFlag defaultValue
-  getFlagInternal defaultValue
-  getFeatureConfig defaultValue FeatureTTLUnlimited
+  checkTeamFeatureAllEndpoints member tid (defFeatureStatus @cfg & setStatus defaultValue)
 
   -- Setting should work
   setFlagInternal otherValue ttl
-  getFlag otherValue
-  getFeatureConfig otherValue ttl
-  getFlagInternal otherValue
+  checkTeamFeatureAllEndpoints member tid (defFeatureStatus @cfg & setStatus otherValue & setTTL ttl)
 
   case (ttl, ttlAfter) of
     (FeatureTTLSeconds d, FeatureTTLSeconds d') -> do
@@ -616,47 +485,32 @@ testSimpleFlagTTLOverride defaultValue ttl ttlAfter = do
       liftIO $ threadDelay (toMicros d `div` 2) -- waiting half of TTL
       setFlagInternal otherValue ttlAfter
       -- value is still correct
-      getFlag otherValue
+      checkTeamFeatureAllEndpoints member tid (defFeatureStatus @cfg & setStatus otherValue & setTTL ttlAfter)
 
       liftIO $ threadDelay (toMicros d') -- waiting for new TTL
-      getFlag defaultValue
-      assertUnlimited -- TTL should be NULL after expiration.
+      checkTeamFeatureAllEndpoints member tid (defFeatureStatus @cfg & setStatus defaultValue)
     (FeatureTTLSeconds d, FeatureTTLUnlimited) -> do
       assertLimited d -- TTL should be NULL after expiration.
       -- wait less than expiration, override and recheck.
       liftIO $ threadDelay (fromIntegral d `div` 2) -- waiting half of TTL
       setFlagInternal otherValue ttlAfter
       -- value is still correct
-      getFlag otherValue
-      assertUnlimited
+      checkTeamFeatureAllEndpoints member tid (defFeatureStatus @cfg & setStatus otherValue & setTTL ttlAfter)
     (FeatureTTLUnlimited, FeatureTTLUnlimited) -> do
       assertUnlimited
 
       -- overriding in this case should have no effect.
       setFlagInternal otherValue ttl
-      getFlag otherValue
-      getFeatureConfig otherValue ttl
-      getFlagInternal otherValue
-
-      assertUnlimited
+      checkTeamFeatureAllEndpoints member tid (defFeatureStatus @cfg & setStatus otherValue & setTTL ttl)
     (FeatureTTLUnlimited, FeatureTTLSeconds d) -> do
       assertUnlimited
 
       setFlagInternal otherValue ttlAfter
-      getFlag otherValue
-      getFeatureConfig otherValue ttlAfter
-      getFlagInternal otherValue
+      checkTeamFeatureAllEndpoints member tid (defFeatureStatus @cfg & setStatus otherValue & setTTL ttlAfter)
 
       liftIO $ threadDelay (toMicros d) -- waiting it out
       -- value reverts back
-      getFlag defaultValue
-      -- TTL should be NULL inside cassandra
-      assertUnlimited
-
-  -- Clean up
-  setFlagInternal defaultValue FeatureTTLUnlimited
-  assertUnlimited
-  getFlag defaultValue
+      checkTeamFeatureAllEndpoints member tid (defFeatureStatus @cfg & setStatus defaultValue & setTTL ttl)
 
 testSimpleFlagTTL ::
   forall cfg.
@@ -677,7 +531,7 @@ testSimpleFlagTTL defaultValue ttl = do
 
   let getFlag :: HasCallStack => FeatureStatus -> TestM ()
       getFlag expected =
-        flip (assertFlagNoConfig @cfg) expected $ getTeamFeatureFlag @cfg member tid
+        flip (assertFlagNoConfig @cfg) expected $ getTeamFeature @cfg member tid
 
       getFeatureConfig :: HasCallStack => FeatureStatus -> TestM ()
       getFeatureConfig expected = do
@@ -686,11 +540,11 @@ testSimpleFlagTTL defaultValue ttl = do
 
       getFlagInternal :: HasCallStack => FeatureStatus -> TestM ()
       getFlagInternal expected =
-        flip (assertFlagNoConfig @cfg) expected $ getTeamFeatureFlagInternal @cfg tid
+        flip (assertFlagNoConfig @cfg) expected $ getTeamFeatureInternal @cfg tid
 
       setFlagInternal :: FeatureStatus -> FeatureTTL -> TestM ()
       setFlagInternal statusValue ttl' =
-        void $ putTeamFeatureFlagInternalTTL @cfg expect2xx tid (WithStatusNoLock statusValue (trivialConfig @cfg) ttl')
+        void $ putTeamFeatureInternal @cfg expect2xx tid (WithStatusNoLock statusValue (trivialConfig @cfg) ttl')
 
       select :: PrepQuery R (Identity TeamId) (Identity (Maybe FeatureTTL))
       select = fromString "select ttl(conference_calling) from team_features where team_id = ?"
@@ -715,7 +569,7 @@ testSimpleFlagTTL defaultValue ttl = do
                 Just (FeatureTTLSeconds i) -> i <= upper
           unless check $ error ("expected ttl <= " <> show upper <> ", got " <> show storedTTL)
 
-  assertFlagForbidden $ getTeamFeatureFlag @cfg nonMember tid
+  assertFlagForbidden $ getTeamFeature @cfg nonMember tid
 
   let otherValue = case defaultValue of
         FeatureStatusDisabled -> FeatureStatusEnabled
@@ -775,7 +629,7 @@ testSimpleFlagWithLockStatus defaultStatus defaultLockStatus = do
 
   let getFlag :: HasCallStack => FeatureStatus -> LockStatus -> TestM ()
       getFlag expectedStatus expectedLockStatus = do
-        let flag = getTeamFeatureFlag @cfg member tid
+        let flag = getTeamFeature @cfg member tid
         assertFlagNoConfigWithLockStatus @cfg flag expectedStatus expectedLockStatus
 
       getFeatureConfig :: HasCallStack => FeatureStatus -> LockStatus -> TestM ()
@@ -786,7 +640,7 @@ testSimpleFlagWithLockStatus defaultStatus defaultLockStatus = do
 
       getFlagInternal :: HasCallStack => FeatureStatus -> LockStatus -> TestM ()
       getFlagInternal expectedStatus expectedLockStatus = do
-        let flag = getTeamFeatureFlagInternal @cfg tid
+        let flag = getTeamFeatureInternal @cfg tid
         assertFlagNoConfigWithLockStatus @cfg flag expectedStatus expectedLockStatus
 
       getFlags expectedStatus expectedLockStatus = do
@@ -796,13 +650,13 @@ testSimpleFlagWithLockStatus defaultStatus defaultLockStatus = do
 
       setFlagWithGalley :: FeatureStatus -> TestM ()
       setFlagWithGalley statusValue =
-        putTeamFeatureFlagWithGalley @cfg galley owner tid (WithStatusNoLock statusValue (trivialConfig @cfg) FeatureTTLUnlimited)
+        putTeamFeature @cfg owner tid (WithStatusNoLock statusValue (trivialConfig @cfg) FeatureTTLUnlimited)
           !!! statusCode
             === const 200
 
       assertSetStatusForbidden :: FeatureStatus -> TestM ()
       assertSetStatusForbidden statusValue =
-        putTeamFeatureFlagWithGalley @cfg galley owner tid (WithStatusNoLock statusValue (trivialConfig @cfg) FeatureTTLUnlimited)
+        putTeamFeature @cfg owner tid (WithStatusNoLock statusValue (trivialConfig @cfg) FeatureTTLUnlimited)
           !!! statusCode
             === const 409
 
@@ -812,7 +666,7 @@ testSimpleFlagWithLockStatus defaultStatus defaultLockStatus = do
           !!! statusCode
             === const 200
 
-  assertFlagForbidden $ getTeamFeatureFlag @cfg nonMember tid
+  assertFlagForbidden $ getTeamFeature @cfg nonMember tid
 
   let otherStatus = case defaultStatus of
         FeatureStatusDisabled -> FeatureStatusEnabled
@@ -889,7 +743,7 @@ testSelfDeletingMessages = do
   let checkSet :: FeatureStatus -> Int32 -> Int -> TestM ()
       checkSet stat tout expectedStatusCode =
         do
-          putTeamFeatureFlagInternal @SelfDeletingMessagesConfig
+          putTeamFeatureInternal @SelfDeletingMessagesConfig
             galley
             tid
             (settingWithoutLockStatus stat tout)
@@ -901,8 +755,8 @@ testSelfDeletingMessages = do
       checkGet stat tout lockStatus = do
         let expected = settingWithLockStatus stat tout lockStatus
         forM_
-          [ getTeamFeatureFlagInternal @SelfDeletingMessagesConfig tid,
-            getTeamFeatureFlagWithGalley @SelfDeletingMessagesConfig galley owner tid
+          [ getTeamFeatureInternal @SelfDeletingMessagesConfig tid,
+            getTeamFeature @SelfDeletingMessagesConfig owner tid
           ]
           (!!! responseJsonEither === const (Right expected))
         result <- Util.getFeatureConfig @SelfDeletingMessagesConfig owner
@@ -954,16 +808,16 @@ testGuestLinksInternal :: TestM ()
 testGuestLinksInternal = do
   galley <- viewGalley
   testGuestLinks
-    (const $ getTeamFeatureFlagInternal @GuestLinksConfig)
-    (const $ putTeamFeatureFlagInternal @GuestLinksConfig galley)
+    (const $ getTeamFeatureInternal @GuestLinksConfig)
+    (const $ putTeamFeatureInternal @GuestLinksConfig galley)
     (Util.setLockStatusInternal @GuestLinksConfig galley)
 
 testGuestLinksPublic :: TestM ()
 testGuestLinksPublic = do
   galley <- viewGalley
   testGuestLinks
-    (getTeamFeatureFlagWithGalley @GuestLinksConfig galley)
-    (putTeamFeatureFlagWithGalley @GuestLinksConfig galley)
+    (getTeamFeature @GuestLinksConfig)
+    (putTeamFeature @GuestLinksConfig)
     (Util.setLockStatusInternal @GuestLinksConfig galley)
 
 testGuestLinks ::
@@ -1027,19 +881,19 @@ testAllFeatures = do
   -- 2. there is a row for team_id in galley.team_features but the feature has a no entry (null value)
   galley <- viewGalley
   -- this sets the guest links config to its default value thereby creating a row for the team in galley.team_features
-  putTeamFeatureFlagInternal @GuestLinksConfig galley tid (WithStatusNoLock FeatureStatusEnabled GuestLinksConfig FeatureTTLUnlimited)
+  putTeamFeatureInternal @GuestLinksConfig galley tid (WithStatusNoLock FeatureStatusEnabled GuestLinksConfig FeatureTTLUnlimited)
     !!! statusCode
       === const 200
   getAllTeamFeatures member tid !!! do
     statusCode === const 200
     responseJsonMaybe === const (Just (expected FeatureStatusEnabled defLockStatus {- determined by default in galley -}))
 
-  getAllTeamFeaturesPersonal member !!! do
+  getAllFeatureConfigs member !!! do
     statusCode === const 200
     responseJsonMaybe === const (Just (expected FeatureStatusEnabled defLockStatus {- determined by default in galley -}))
 
   randomPersonalUser <- randomUser
-  getAllTeamFeaturesPersonal randomPersonalUser !!! do
+  getAllFeatureConfigs randomPersonalUser !!! do
     statusCode === const 200
     responseJsonMaybe === const (Just (expected FeatureStatusEnabled defLockStatus {- determined by 'getAfcConferenceCallingDefNew' in brig -}))
   where
@@ -1096,11 +950,11 @@ testSearchVisibilityInbound = do
 
   let getFlagInternal :: HasCallStack => FeatureStatus -> TestM ()
       getFlagInternal expected =
-        flip (assertFlagNoConfig @SearchVisibilityInboundConfig) expected $ getTeamFeatureFlagInternal @SearchVisibilityInboundConfig tid
+        flip (assertFlagNoConfig @SearchVisibilityInboundConfig) expected $ getTeamFeatureInternal @SearchVisibilityInboundConfig tid
 
       setFlagInternal :: FeatureStatus -> TestM ()
       setFlagInternal statusValue =
-        void $ putTeamFeatureFlagInternal @SearchVisibilityInboundConfig expect2xx tid (WithStatusNoLock statusValue SearchVisibilityInboundConfig FeatureTTLUnlimited)
+        void $ putTeamFeatureInternal @SearchVisibilityInboundConfig expect2xx tid (WithStatusNoLock statusValue SearchVisibilityInboundConfig FeatureTTLUnlimited)
 
   let otherValue = case defaultValue of
         FeatureStatusDisabled -> FeatureStatusEnabled
@@ -1118,7 +972,7 @@ testFeatureNoConfigMultiSearchVisibilityInbound = do
 
   let setFlagInternal :: TeamId -> FeatureStatus -> TestM ()
       setFlagInternal tid statusValue =
-        void $ putTeamFeatureFlagInternal @SearchVisibilityInboundConfig expect2xx tid (WithStatusNoLock statusValue SearchVisibilityInboundConfig FeatureTTLUnlimited)
+        void $ putTeamFeatureInternal @SearchVisibilityInboundConfig expect2xx tid (WithStatusNoLock statusValue SearchVisibilityInboundConfig FeatureTTLUnlimited)
 
   setFlagInternal team2 FeatureStatusEnabled
 
@@ -1159,11 +1013,11 @@ testNonTrivialConfigNoTTL defaultCfg = do
 
   let getForTeam :: HasCallStack => WithStatusNoLock cfg -> TestM ()
       getForTeam expected =
-        flip assertFlagWithConfig expected $ getTeamFeatureFlag @cfg member tid
+        flip assertFlagWithConfig expected $ getTeamFeature @cfg member tid
 
       getForTeamInternal :: HasCallStack => WithStatusNoLock cfg -> TestM ()
       getForTeamInternal expected =
-        flip assertFlagWithConfig expected $ getTeamFeatureFlagInternal @cfg tid
+        flip assertFlagWithConfig expected $ getTeamFeatureInternal @cfg tid
 
       getForUser :: HasCallStack => WithStatusNoLock cfg -> TestM ()
       getForUser expected = do
@@ -1179,20 +1033,20 @@ testNonTrivialConfigNoTTL defaultCfg = do
 
       setForTeam :: HasCallStack => WithStatusNoLock cfg -> TestM ()
       setForTeam wsnl =
-        putTeamFeatureFlagWithGalley @cfg galley owner tid wsnl
+        putTeamFeature @cfg owner tid wsnl
           !!! statusCode
             === const 200
 
       setForTeamInternal :: HasCallStack => WithStatusNoLock cfg -> TestM ()
       setForTeamInternal wsnl =
-        void $ putTeamFeatureFlagInternal @cfg expect2xx tid wsnl
+        void $ putTeamFeatureInternal @cfg expect2xx tid wsnl
       setLockStatus :: LockStatus -> TestM ()
       setLockStatus lockStatus =
         Util.setLockStatusInternal @cfg galley tid lockStatus
           !!! statusCode
             === const 200
 
-  assertFlagForbidden $ getTeamFeatureFlag @cfg nonMember tid
+  assertFlagForbidden $ getTeamFeature @cfg nonMember tid
 
   getViaEndpoints (forgetLock defaultCfg)
 
@@ -1216,7 +1070,7 @@ testNonTrivialConfigNoTTL defaultCfg = do
   config2 <- liftIO $ generate arbitrary <&> (forgetLock . setTTL FeatureTTLUnlimited)
   config3 <- liftIO $ generate arbitrary <&> (forgetLock . setTTL FeatureTTLUnlimited)
 
-  putTeamFeatureFlagWithGalley @MLSConfig galley owner tid defaultMLSConfig
+  putTeamFeature @MLSConfig owner tid defaultMLSConfig
     !!! statusCode
       === const 200
 
@@ -1252,11 +1106,11 @@ testMLS = do
 
   let getForTeam :: HasCallStack => WithStatusNoLock MLSConfig -> TestM ()
       getForTeam expected =
-        flip assertFlagWithConfig expected $ getTeamFeatureFlag @MLSConfig member tid
+        flip assertFlagWithConfig expected $ getTeamFeature @MLSConfig member tid
 
       getForTeamInternal :: HasCallStack => WithStatusNoLock MLSConfig -> TestM ()
       getForTeamInternal expected =
-        flip assertFlagWithConfig expected $ getTeamFeatureFlagInternal @MLSConfig tid
+        flip assertFlagWithConfig expected $ getTeamFeatureInternal @MLSConfig tid
 
       getForUser :: HasCallStack => WithStatusNoLock MLSConfig -> TestM ()
       getForUser expected = do
@@ -1272,7 +1126,7 @@ testMLS = do
 
       setForTeamWithStatusCode :: HasCallStack => Int -> WithStatusNoLock MLSConfig -> TestM ()
       setForTeamWithStatusCode resStatusCode wsnl =
-        putTeamFeatureFlagWithGalley @MLSConfig galley owner tid wsnl
+        putTeamFeature @MLSConfig owner tid wsnl
           !!! statusCode
             === const resStatusCode
 
@@ -1281,7 +1135,7 @@ testMLS = do
 
       setForTeamInternalWithStatusCode :: HasCallStack => (Request -> Request) -> WithStatusNoLock MLSConfig -> TestM ()
       setForTeamInternalWithStatusCode expect wsnl =
-        void $ putTeamFeatureFlagInternal @MLSConfig expect tid wsnl
+        void $ putTeamFeatureInternal @MLSConfig expect tid wsnl
 
       setForTeamInternal :: HasCallStack => WithStatusNoLock MLSConfig -> TestM ()
       setForTeamInternal = setForTeamInternalWithStatusCode expect2xx
@@ -1357,11 +1211,10 @@ testExposeInvitationURLsToTeamAdminTeamIdInAllowList = do
   assertTeamActivate "create team" tid
   void $
     withSettingsOverrides (\opts -> opts & settings . exposeInvitationURLsTeamAllowlist ?~ [tid]) $ do
-      g <- viewGalley
       assertExposeInvitationURLsToTeamAdminConfigStatus owner tid FeatureStatusDisabled LockStatusUnlocked
       let enabled = WithStatusNoLock FeatureStatusEnabled ExposeInvitationURLsToTeamAdminConfig FeatureTTLUnlimited
       void $
-        putTeamFeatureFlagWithGalley @ExposeInvitationURLsToTeamAdminConfig g owner tid enabled !!! do
+        putTeamFeature @ExposeInvitationURLsToTeamAdminConfig owner tid enabled !!! do
           const 200 === statusCode
       assertExposeInvitationURLsToTeamAdminConfigStatus owner tid FeatureStatusEnabled LockStatusUnlocked
 
@@ -1372,11 +1225,10 @@ testExposeInvitationURLsToTeamAdminEmptyAllowList = do
   assertTeamActivate "create team" tid
   void $
     withSettingsOverrides (\opts -> opts & settings . exposeInvitationURLsTeamAllowlist .~ Nothing) $ do
-      g <- viewGalley
       assertExposeInvitationURLsToTeamAdminConfigStatus owner tid FeatureStatusDisabled LockStatusLocked
       let enabled = WithStatusNoLock FeatureStatusEnabled ExposeInvitationURLsToTeamAdminConfig FeatureTTLUnlimited
       void $
-        putTeamFeatureFlagWithGalley @ExposeInvitationURLsToTeamAdminConfig g owner tid enabled !!! do
+        putTeamFeature @ExposeInvitationURLsToTeamAdminConfig owner tid enabled !!! do
           const 409 === statusCode
       assertExposeInvitationURLsToTeamAdminConfigStatus owner tid FeatureStatusDisabled LockStatusLocked
 
@@ -1393,27 +1245,24 @@ testExposeInvitationURLsToTeamAdminServerConfigTakesPrecedence = do
   assertTeamActivate "create team" tid
   void $
     withSettingsOverrides (\opts -> opts & settings . exposeInvitationURLsTeamAllowlist ?~ [tid]) $ do
-      g <- viewGalley
       assertExposeInvitationURLsToTeamAdminConfigStatus owner tid FeatureStatusDisabled LockStatusUnlocked
       let enabled = WithStatusNoLock FeatureStatusEnabled ExposeInvitationURLsToTeamAdminConfig FeatureTTLUnlimited
       void $
-        putTeamFeatureFlagWithGalley @ExposeInvitationURLsToTeamAdminConfig g owner tid enabled !!! do
+        putTeamFeature @ExposeInvitationURLsToTeamAdminConfig owner tid enabled !!! do
           const 200 === statusCode
       assertExposeInvitationURLsToTeamAdminConfigStatus owner tid FeatureStatusEnabled LockStatusUnlocked
   void $
     withSettingsOverrides (\opts -> opts & settings . exposeInvitationURLsTeamAllowlist .~ Nothing) $ do
-      g <- viewGalley
       assertExposeInvitationURLsToTeamAdminConfigStatus owner tid FeatureStatusDisabled LockStatusLocked
       let enabled = WithStatusNoLock FeatureStatusEnabled ExposeInvitationURLsToTeamAdminConfig FeatureTTLUnlimited
       void $
-        putTeamFeatureFlagWithGalley @ExposeInvitationURLsToTeamAdminConfig g owner tid enabled !!! do
+        putTeamFeature @ExposeInvitationURLsToTeamAdminConfig owner tid enabled !!! do
           const 409 === statusCode
       assertExposeInvitationURLsToTeamAdminConfigStatus owner tid FeatureStatusDisabled LockStatusLocked
 
 assertExposeInvitationURLsToTeamAdminConfigStatus :: UserId -> TeamId -> FeatureStatus -> LockStatus -> TestM ()
 assertExposeInvitationURLsToTeamAdminConfigStatus owner tid fStatus lStatus = do
-  g <- viewGalley
-  Util.getTeamFeatureFlagWithGalley @ExposeInvitationURLsToTeamAdminConfig g owner tid !!! do
+  getTeamFeature @ExposeInvitationURLsToTeamAdminConfig owner tid !!! do
     const 200 === statusCode
     const (Right (withStatus fStatus lStatus ExposeInvitationURLsToTeamAdminConfig FeatureTTLUnlimited)) === responseJsonEither
 

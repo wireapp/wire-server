@@ -49,6 +49,7 @@ import Cassandra hiding (Set)
 import Cassandra.Util (initCassandraForService)
 import Control.Error hiding (err)
 import Control.Lens hiding ((.=))
+import Data.Id
 import Data.Metrics.Middleware
 import Data.Misc
 import Data.Qualified
@@ -83,6 +84,7 @@ import Galley.Options hiding (brig, endpoint, federator)
 import Galley.Options qualified as O
 import Galley.Queue
 import Galley.Queue qualified as Q
+import Galley.Types.Teams (FeatureLegalHold)
 import Galley.Types.Teams qualified as Teams
 import HTTP2.Client.Manager (Http2Manager, http2ManagerWithSSLCtx)
 import Imports hiding (forkIO)
@@ -259,6 +261,8 @@ evalGalley e =
     . interpretWaiRoutes
     . runInputConst (e ^. options)
     . runInputConst (toLocalUnsafe (e ^. options . settings . federationDomain) ())
+    . interpretTeamFeatureSpecialContext e
+    . runInputSem getAllFeatureConfigsForServer
     . interpretInternalTeamListToCassandra
     . interpretTeamListToCassandra
     . interpretLegacyConversationListToCassandra
@@ -268,11 +272,11 @@ evalGalley e =
     . interpretTeamMemberStoreToCassandra lh
     . interpretTeamStoreToCassandra lh
     . interpretTeamNotificationStoreToCassandra
-    . interpretTeamFeatureStoreToCassandra
     . interpretServiceStoreToCassandra
     . interpretSearchVisibilityStoreToCassandra
     . interpretMemberStoreToCassandra
     . interpretLegalHoldStoreToCassandra lh
+    . interpretTeamFeatureStoreToCassandra
     . interpretCustomBackendStoreToCassandra
     . randomToIO
     . interpretSubConversationStoreToCassandra
@@ -292,3 +296,10 @@ evalGalley e =
     . interpretBrigAccess
   where
     lh = view (options . settings . featureFlags . Teams.flagLegalHold) e
+
+interpretTeamFeatureSpecialContext :: Env -> Sem (Input (Maybe [TeamId], FeatureLegalHold) ': r) a -> Sem r a
+interpretTeamFeatureSpecialContext e =
+  runInputConst
+    ( e ^. options . settings . exposeInvitationURLsTeamAllowlist,
+      e ^. options . settings . featureFlags . Teams.flagLegalHold
+    )

@@ -45,7 +45,7 @@ setTeamFeatureStatusExpectHttpStatus :: (HasCallStack, MakesValue domain, MakesV
 setTeamFeatureStatusExpectHttpStatus domain team featureName status httpStatus = do
   tid <- asString team
   req <- baseRequest domain Galley Unversioned $ joinHttpPath ["i", "teams", tid, "features", featureName]
-  bindResponse (submit "PATCH" $ req & addJSONObject ["status" .= status]) $ \res ->
+  bindResponse (submit "PATCH" $ req & addJSONObject ["status" .= status]) $ \res -> do
     res.status `shouldMatchInt` httpStatus
 
 setTeamFeatureLockStatus :: (HasCallStack, MakesValue domain, MakesValue team) => domain -> team -> String -> String -> App ()
