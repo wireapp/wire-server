@@ -50,7 +50,7 @@ putTeamSearchVisibilityAvailableInternal ::
   (MonadIO m, MonadHttp m, HasGalley m) => m ()
 putTeamSearchVisibilityAvailableInternal tid statusValue =
   void $
-    putTeamFeatureFlagInternal
+    putTeamFeatureInternal
       @Public.SearchVisibilityAvailableConfig
       expect2xx
       tid
@@ -145,7 +145,7 @@ getFeatureConfig uid = do
     fromResult (Success b) = Just b
     fromResult _ = Nothing
 
-putTeamFeatureFlag ::
+putTeamFeature ::
   forall cfg.
   ( HasCallStack,
     KnownSymbol (Public.FeatureSymbol cfg),
@@ -155,7 +155,7 @@ putTeamFeatureFlag ::
   TeamId ->
   Public.WithStatusNoLock cfg ->
   TestM ResponseLBS
-putTeamFeatureFlag uid tid status = do
+putTeamFeature uid tid status = do
   galley <- viewGalley
   put $
     galley
@@ -163,7 +163,7 @@ putTeamFeatureFlag uid tid status = do
       . json status
       . zUser uid
 
-putTeamFeatureFlagInternal ::
+putTeamFeatureInternal ::
   forall cfg m.
   ( Monad m,
     HasGalley m,
@@ -176,7 +176,7 @@ putTeamFeatureFlagInternal ::
   TeamId ->
   Public.WithStatusNoLock cfg ->
   m ResponseLBS
-putTeamFeatureFlagInternal reqmod tid status = do
+putTeamFeatureInternal reqmod tid status = do
   galley <- viewGalley
   put $
     galley
@@ -200,7 +200,7 @@ setLockStatusInternal reqmod tid lockStatus = do
       . paths ["i", "teams", toByteString' tid, "features", Public.featureNameBS @cfg, toByteString' lockStatus]
       . reqmod
 
-patchFeatureStatusInternal ::
+patchTeamFeatureInternal ::
   forall cfg.
   ( HasCallStack,
     KnownSymbol (Public.FeatureSymbol cfg),
@@ -209,14 +209,9 @@ patchFeatureStatusInternal ::
   TeamId ->
   Public.WithStatusPatch cfg ->
   TestM ResponseLBS
-patchFeatureStatusInternal tid reqBody = do
-  galley <- viewGalley
-  patch $
-    galley
-      . paths ["i", "teams", toByteString' tid, "features", Public.featureNameBS @cfg]
-      . json reqBody
+patchTeamFeatureInternal = patchTeamFeatureInternalWithMod id
 
-patchFeatureStatusInternalWithMod ::
+patchTeamFeatureInternalWithMod ::
   forall cfg.
   ( HasCallStack,
     KnownSymbol (Public.FeatureSymbol cfg),
@@ -226,7 +221,7 @@ patchFeatureStatusInternalWithMod ::
   TeamId ->
   Public.WithStatusPatch cfg ->
   TestM ResponseLBS
-patchFeatureStatusInternalWithMod reqmod tid reqBody = do
+patchTeamFeatureInternalWithMod reqmod tid reqBody = do
   galley <- viewGalley
   patch $
     galley

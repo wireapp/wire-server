@@ -1737,7 +1737,7 @@ newTeamMember' perms uid = Member.mkTeamMember uid perms Nothing LH.defUserLegal
 
 -- NOTE: all client functions calling @{/i,}/teams/*/features/*@ can be replaced by
 -- hypothetical functions 'getTeamFeature', 'getTeamFeatureInternal',
--- 'putTeamFeatureFlagInternal'.  Since these functions all work in slightly different monads
+-- 'putTeamFeatureInternal'.  Since these functions all work in slightly different monads
 -- and with different kinds of internal checks, it's quite tedious to do so.
 
 getSSOEnabledInternal :: HasCallStack => TeamId -> TestM ResponseLBS
@@ -1745,7 +1745,7 @@ getSSOEnabledInternal = Util.getTeamFeatureInternal @Public.SSOConfig
 
 putSSOEnabledInternal :: HasCallStack => TeamId -> Public.FeatureStatus -> TestM ()
 putSSOEnabledInternal tid statusValue =
-  void $ Util.putTeamFeatureFlagInternal @Public.SSOConfig expect2xx tid (Public.WithStatusNoLock statusValue Public.SSOConfig Public.FeatureTTLUnlimited)
+  void $ Util.putTeamFeatureInternal @Public.SSOConfig expect2xx tid (Public.WithStatusNoLock statusValue Public.SSOConfig Public.FeatureTTLUnlimited)
 
 getSearchVisibility :: HasCallStack => (Request -> Request) -> UserId -> TeamId -> MonadHttp m => m ResponseLBS
 getSearchVisibility g uid tid = do
