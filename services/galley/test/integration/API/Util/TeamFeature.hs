@@ -24,6 +24,7 @@ module API.Util.TeamFeature where
 import API.Util (HasGalley (viewGalley), zUser)
 import API.Util qualified as Util
 import Bilge
+import Bilge.Assert
 import Control.Lens ((.~), (^?))
 import Control.Monad.Catch (MonadThrow)
 import Data.Aeson (FromJSON, Result (Success), ToJSON, Value, fromJSON)
@@ -36,7 +37,9 @@ import GHC.TypeLits (KnownSymbol)
 import Galley.Options (featureFlags, settings)
 import Galley.Types.Teams
 import Imports
+import Test.Tasty.HUnit ((@?=))
 import TestSetup
+import Wire.API.Team.Feature
 import Wire.API.Team.Feature qualified as Public
 
 withCustomSearchFeature :: FeatureTeamSearchVisibilityAvailability -> TestM () -> TestM ()
@@ -240,3 +243,31 @@ getGuestLinkStatus galley u cid =
     galley
       . paths ["conversations", toByteString' cid, "features", Public.featureNameBS @Public.GuestLinksConfig]
       . zUser u
+
+checkTeamFeatureAllEndpoints ::
+  forall cfg.
+  ( HasCallStack,
+    IsFeatureConfig cfg,
+    ToSchema cfg,
+    Typeable cfg,
+    Eq cfg,
+    Show cfg,
+    KnownSymbol (FeatureSymbol cfg)
+  ) =>
+  UserId ->
+  TeamId ->
+  WithStatus cfg ->
+  TestM ()
+checkTeamFeatureAllEndpoints uid tid expected = do
+  getTeamFeatureInternal @cfg tid !!! do
+    statusCode === const 200
+    responseJsonEither === const (Right expected)
+  getTeamFeature @cfg uid tid !!! do
+    statusCode === const 200
+    responseJsonEither === const (Right expected)
+  do
+    teamFeature <- getTeamFeatureFromAll @cfg uid tid
+    liftIO $ teamFeature @?= expected
+  do
+    teamFeature <- getFeatureConfig uid
+    liftIO $ teamFeature @?= expected
