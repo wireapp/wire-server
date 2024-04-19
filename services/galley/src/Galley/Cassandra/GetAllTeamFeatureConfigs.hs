@@ -225,7 +225,7 @@ allFeatureConfigsFromRow ourteam allowListForExposeInvitationURLs featureLH hasT
           FeatureTTLUnlimited
           mlsConfig
           serverConfigs.afcMLS,
-      afcExposeInvitationURLsToTeamAdmin = exposeUrlComputeFeatureStatus row.exposeInvitationUrls,
+      afcExposeInvitationURLsToTeamAdmin = exposeInvitationURLsComputeFeatureStatus row.exposeInvitationUrls,
       afcOutlookCalIntegration =
         computeConfig
           row.outlookCalIntegration
@@ -276,7 +276,8 @@ allFeatureConfigsFromRow ourteam allowListForExposeInvitationURLs featureLH hasT
             _ -> Nothing
        in computeFeatureConfigForTeamUser withStatusNoLock mDbLock serverCfg
 
-    -- TODO: Deduplicate this code, its mostly copied from getFeatureConfig
+    -- FUTUREWORK: the following lines are duplicated in
+    -- "Galley.Cassandra.TeamFeatures"; make sure the pairs don't diverge!
     appLockConfig = AppLockConfig <$> row.appLockEnforce <*> row.appLockInactivityTimeoutSecs
 
     selfDeletingMessagesConfig = SelfDeletingMessagesConfig <$> row.selfDeletingMessagesTtl
@@ -294,9 +295,9 @@ allFeatureConfigsFromRow ourteam allowListForExposeInvitationURLs featureLH hasT
         MlsE2EIdConfig
           (toGracePeriodOrDefault row.mlsE2eidGracePeriod)
           row.mlsE2eidAcmeDiscoverUrl
-
-    toGracePeriodOrDefault :: Maybe Int32 -> NominalDiffTime
-    toGracePeriodOrDefault = maybe (verificationExpiration $ wsConfig defFeatureStatus) fromIntegral
+      where
+        toGracePeriodOrDefault :: Maybe Int32 -> NominalDiffTime
+        toGracePeriodOrDefault = maybe (verificationExpiration $ wsConfig defFeatureStatus) fromIntegral
 
     mlsMigrationConfig =
       Just $
@@ -307,10 +308,11 @@ allFeatureConfigsFromRow ourteam allowListForExposeInvitationURLs featureLH hasT
 
     downloadLocationConfig = Just $ EnforceFileDownloadLocationConfig row.enforceDownloadLocation_Location
 
-    exposeUrlComputeFeatureStatus ::
+    -- FUTUREWORK: this duplicates logic hidden elsewhere for the other getters and setters.  do not change lightly!
+    exposeInvitationURLsComputeFeatureStatus ::
       Maybe FeatureStatus ->
       WithStatus ExposeInvitationURLsToTeamAdminConfig
-    exposeUrlComputeFeatureStatus mFeatureStatus =
+    exposeInvitationURLsComputeFeatureStatus mFeatureStatus =
       if ourteam `elem` fromMaybe [] allowListForExposeInvitationURLs
         then
           serverConfigs.afcExposeInvitationURLsToTeamAdmin
@@ -318,6 +320,7 @@ allFeatureConfigsFromRow ourteam allowListForExposeInvitationURLs featureLH hasT
             & setLockStatus LockStatusUnlocked
         else serverConfigs.afcExposeInvitationURLsToTeamAdmin
 
+    -- FUTUREWORK: this duplicates logic hidden elsewhere for the other getters and setters.  do not change lightly!
     legalholdComputeFeatureStatus :: Maybe FeatureStatus -> WithStatus LegalholdConfig
     legalholdComputeFeatureStatus mStatusValue = setStatus status defFeatureStatus
       where

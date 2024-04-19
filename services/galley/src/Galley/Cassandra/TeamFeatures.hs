@@ -100,6 +100,8 @@ getFeatureConfig FeatureSingletonAppLockConfig tid = runMaybeT $ do
     WithStatusNoLock
       <$> mStatus
       <*> (AppLockConfig <$> mEnforce <*> mTimeout)
+      -- FUTUREWORK: the above line is duplicated in
+      -- "Galley.Cassandra.GetAllTeamFeatureConfigs"; make sure the two don't diverge!
       <*> Just FeatureTTLUnlimited
   where
     select :: PrepQuery R (Identity TeamId) (Maybe FeatureStatus, Maybe EnforceAppLock, Maybe Int32)
@@ -115,6 +117,8 @@ getFeatureConfig FeatureSingletonSelfDeletingMessagesConfig tid = runMaybeT $ do
     WithStatusNoLock
       <$> mEnabled
       <*> fmap SelfDeletingMessagesConfig mTimeout
+      -- FUTUREWORK: the above line is duplicated in
+      -- "Galley.Cassandra.GetAllTeamFeatureConfigs"; make sure the two don't diverge!
       <*> Just FeatureTTLUnlimited
   where
     select :: PrepQuery R (Identity TeamId) (Maybe FeatureStatus, Maybe Int32)
@@ -147,7 +151,9 @@ getFeatureConfig FeatureSingletonMLSConfig tid = do
     Just (status, defaultProtocol, protocolToggleUsers, allowedCipherSuites, defaultCipherSuite, supportedProtocols) ->
       WithStatusNoLock
         <$> status
-        <*> ( MLSConfig
+        <*> ( -- FUTUREWORK: this block is duplicated in
+              -- "Galley.Cassandra.GetAllTeamFeatureConfigs"; make sure the two don't diverge!
+              MLSConfig
                 <$> maybe (Just []) (Just . C.fromSet) protocolToggleUsers
                 <*> defaultProtocol
                 <*> maybe (Just []) (Just . C.fromSet) allowedCipherSuites
@@ -169,7 +175,10 @@ getFeatureConfig FeatureSingletonMlsE2EIdConfig tid = do
       Just $
         WithStatusNoLock
           fs
-          (MlsE2EIdConfig (toGracePeriodOrDefault mGracePeriod) mUrl)
+          ( -- FUTUREWORK: this block is duplicated in
+            -- "Galley.Cassandra.GetAllTeamFeatureConfigs"; make sure the two don't diverge!
+            MlsE2EIdConfig (toGracePeriodOrDefault mGracePeriod) mUrl
+          )
           FeatureTTLUnlimited
   where
     toGracePeriodOrDefault :: Maybe Int32 -> NominalDiffTime
@@ -188,6 +197,8 @@ getFeatureConfig FeatureSingletonMlsMigration tid = do
       Just $
         WithStatusNoLock
           fs
+          -- FUTUREWORK: the following expression is duplicated in
+          -- "Galley.Cassandra.GetAllTeamFeatureConfigs"; make sure the two don't diverge!
           MlsMigrationConfig
             { startTime = startTime,
               finaliseRegardlessAfter = finaliseRegardlessAfter
