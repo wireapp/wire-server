@@ -17,15 +17,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Effects.TeamFeatureStore
-  ( TeamFeatureStore (..),
-    getFeatureConfig,
-    getFeatureConfigMulti,
-    setFeatureConfig,
-    getFeatureLockStatus,
-    setFeatureLockStatus,
-  )
-where
+module Galley.Effects.TeamFeatureStore where
 
 import Data.Id
 import Imports
@@ -55,5 +47,8 @@ data TeamFeatureStore m a where
     TeamId ->
     LockStatus ->
     TeamFeatureStore m ()
+  GetAllFeatureConfigs ::
+    TeamId ->
+    TeamFeatureStore m AllFeatureConfigs
 
 makeSem ''TeamFeatureStore

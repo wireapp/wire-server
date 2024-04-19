@@ -27,6 +27,7 @@
 , conduit
 , containers
 , cookie
+, cql
 , crypton
 , crypton-x509
 , currency-codes
@@ -150,6 +151,7 @@ mkDerivation {
     cereal
     comonad
     containers
+    cql
     crypton
     crypton-x509
     currency-codes

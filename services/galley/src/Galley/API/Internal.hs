@@ -51,6 +51,7 @@ import Galley.API.Teams.Features
 import Galley.API.Update qualified as Update
 import Galley.API.Util
 import Galley.App
+import Galley.Cassandra.TeamFeatures (getAllFeatureConfigsForServer)
 import Galley.Data.Conversation qualified as Data
 import Galley.Effects
 import Galley.Effects.BackendNotificationQueueAccess
