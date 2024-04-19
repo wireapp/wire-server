@@ -278,7 +278,9 @@ allFeatureConfigsFromRow ourteam allowListForExposeInvitationURLs featureLH hasT
 
     -- TODO: Deduplicate this code, its mostly copied from getFeatureConfig
     appLockConfig = AppLockConfig <$> row.appLockEnforce <*> row.appLockInactivityTimeoutSecs
+
     selfDeletingMessagesConfig = SelfDeletingMessagesConfig <$> row.selfDeletingMessagesTtl
+
     mlsConfig =
       MLSConfig
         <$> maybe (Just []) (Just . C.fromSet) row.mlsToggleUsers
@@ -292,6 +294,7 @@ allFeatureConfigsFromRow ourteam allowListForExposeInvitationURLs featureLH hasT
         MlsE2EIdConfig
           (toGracePeriodOrDefault row.mlsE2eidGracePeriod)
           row.mlsE2eidAcmeDiscoverUrl
+
     toGracePeriodOrDefault :: Maybe Int32 -> NominalDiffTime
     toGracePeriodOrDefault = maybe (verificationExpiration $ wsConfig defFeatureStatus) fromIntegral
 
