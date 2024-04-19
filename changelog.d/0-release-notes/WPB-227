@@ -1,12 +1,17 @@
-There is a new optional Boolean option, `multiSFT.enabled`, in `brig.yaml`,
-allowing calls between federated SFT servers. If provided, the field
-`is_federating` in the response of `/calls/config/v2` will reflect
-`multiSFT.enabled`'s value.
+There is a new optional Boolean in Brig's Helm chart, `config.multiSFT.enabled`,
+signalling whether calls between federated SFT servers are allowed.
+
+IMPORTANT: The value of this new option needs be set to the value of
+`multiSFT.enabled` in SFT's Helm chart. Otherwise federated SFT servers won't
+work.
+
+If provided, the field `is_federating` in the response of `/calls/config/v2`
+will reflect `multiSFT.enabled`'s value.
 
 Example:
 
 ```
-# [brig.yaml]
+# [brig/values.yaml]
 multiSFT:
   enabled: true
 ```
