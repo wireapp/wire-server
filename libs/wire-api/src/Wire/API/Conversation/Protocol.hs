@@ -47,6 +47,7 @@ import Data.OpenApi qualified as S
 import Data.Schema
 import Data.Time.Clock
 import Imports
+import Test.QuickCheck
 import Wire.API.Conversation.Action.Tag
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Epoch
@@ -68,8 +69,19 @@ data ConversationMLSData = ConversationMLSData
     cnvmlsActiveData :: Maybe ActiveMLSConversationData
   }
   deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via GenericUniform ConversationMLSData
   deriving (ToJSON, FromJSON) via Schema ConversationMLSData
+
+arbitraryActiveData :: Gen (Maybe ActiveMLSConversationData)
+arbitraryActiveData = do
+  epoch <- arbitrary
+  if epoch == Epoch 0
+    then pure Nothing
+    else
+      fmap Just $
+        ActiveMLSConversationData epoch <$> arbitrary <*> arbitrary
+
+instance Arbitrary ConversationMLSData where
+  arbitrary = ConversationMLSData <$> arbitrary <*> arbitraryActiveData
 
 cnvmlsEpoch :: ConversationMLSData -> Epoch
 cnvmlsEpoch = maybe (Epoch 0) (.epoch) . cnvmlsActiveData
