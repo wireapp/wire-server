@@ -151,6 +151,15 @@ tests =
             (testObject_TeamSize_2, "testObject_TeamSize_2.json"),
             (testObject_TeamSize_3, "testObject_TeamSize_3.json")
           ],
+      testGroup "PublicSubConversationV5" $
+        testObjects
+          [ ( Versioned @'V5 testObject_PublicSubConversation_1,
+              "testObject_PublicSubConversation_v5_1.json"
+            ),
+            ( Versioned @'V5 testObject_PublicSubConversation_2,
+              "testObject_PublicSubConversation_v5_2.json"
+            )
+          ],
       testGroup "PublicSubConversation" $
         testObjects
           [ (testObject_PublicSubConversation_1, "testObject_PublicSubConversation_1.json"),

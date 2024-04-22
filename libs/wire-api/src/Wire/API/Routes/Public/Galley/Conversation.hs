@@ -48,7 +48,7 @@ import Wire.API.Routes.Version
 import Wire.API.Routes.Versioned
 import Wire.API.Team.Feature
 
--- | A type similar to 'ConversationResponse' introduced to allow for a failure
+-- | A type similar to 'ResponseForExistedCreated' introduced to allow for a failure
 -- to add remote members while creating a conversation or due to involved
 -- backends forming an incomplete graph.
 data CreateGroupConversationResponse
@@ -86,7 +86,7 @@ type ConversationVerb v r =
          (VersionedRespond v 200 "Conversation existed" Conversation),
        WithHeaders
          ConversationHeaders
-         Conversation
+         r
          (VersionedRespond v 201 "Conversation created" r)
      ]
     (ConversationResponse r)
@@ -423,7 +423,7 @@ type ConversationAPI =
                :> ConversationVerb 'V3 Conversation
            )
     :<|> Named
-           "create-group-conversation@v4"
+           "create-group-conversation@v5"
            ( Summary "Create a new conversation"
                :> MakesFederatedCall 'Brig "api-version"
                :> MakesFederatedCall 'Brig "get-not-fully-connected-backends"
@@ -445,7 +445,7 @@ type ConversationAPI =
                :> ZOptConn
                :> "conversations"
                :> ReqBody '[Servant.JSON] NewConv
-               :> ConversationVerb 'V4 CreateGroupConversation
+               :> ConversationVerb 'V5 CreateGroupConversation
            )
     :<|> Named
            "create-group-conversation"

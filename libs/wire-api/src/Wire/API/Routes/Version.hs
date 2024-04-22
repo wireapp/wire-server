@@ -31,6 +31,7 @@ module Wire.API.Routes.Version
     -- * Version
     Version (..),
     versionInt,
+    versionText,
     VersionNumber (..),
     VersionExp (..),
     supportedVersions,

@@ -40,6 +40,8 @@ import Test.QuickCheck
 import Wire.API.Conversation.Protocol
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Group
+import Wire.API.Routes.Version
+import Wire.API.Routes.Versioned
 import Wire.Arbitrary
 
 -- | An MLS subconversation ID, which identifies a subconversation within a
@@ -79,17 +81,23 @@ data PublicSubConversation = PublicSubConversation
   deriving (Eq, Show)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema PublicSubConversation)
 
+publicSubConversationSchema :: Maybe Version -> ValueSchema NamedSwaggerDoc PublicSubConversation
+publicSubConversationSchema v =
+  objectWithDocModifier
+    ("PublicSubConversation" <> maybe mempty (T.toUpper . versionText) v)
+    (description ?~ "An MLS subconversation")
+    $ PublicSubConversation
+      <$> pscParentConvId .= field "parent_qualified_id" schema
+      <*> pscSubConvId .= field "subconv_id" schema
+      <*> pscGroupId .= field "group_id" schema
+      <*> pscActiveData .= optionalActiveMLSConversationDataSchema v
+      <*> pscMembers .= field "members" (array schema)
+
 instance ToSchema PublicSubConversation where
-  schema =
-    objectWithDocModifier
-      "PublicSubConversation"
-      (description ?~ "An MLS subconversation")
-      $ PublicSubConversation
-        <$> pscParentConvId .= field "parent_qualified_id" schema
-        <*> pscSubConvId .= field "subconv_id" schema
-        <*> pscGroupId .= field "group_id" schema
-        <*> pscActiveData .= maybe_ (optional activeMLSConversationDataSchema)
-        <*> pscMembers .= field "members" (array schema)
+  schema = publicSubConversationSchema Nothing
+
+instance ToSchema (Versioned 'V5 PublicSubConversation) where
+  schema = Versioned <$> unVersioned .= publicSubConversationSchema (Just V5)
 
 data ConvOrSubTag = ConvTag | SubConvTag
   deriving (Eq, Enum, Bounded)

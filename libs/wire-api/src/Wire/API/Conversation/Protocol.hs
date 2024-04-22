@@ -32,7 +32,7 @@ module Wire.API.Conversation.Protocol
     protocolSchema,
     ConversationMLSData (..),
     ActiveMLSConversationData (..),
-    activeMLSConversationDataSchema,
+    optionalActiveMLSConversationDataSchema,
     cnvmlsEpoch,
     ProtocolUpdate (..),
   )
@@ -74,7 +74,7 @@ data ConversationMLSData = ConversationMLSData
 cnvmlsEpoch :: ConversationMLSData -> Epoch
 cnvmlsEpoch = maybe (Epoch 0) (.epoch) . cnvmlsActiveData
 
-mlsDataSchema :: Version -> ObjectSchema SwaggerDoc ConversationMLSData
+mlsDataSchema :: Maybe Version -> ObjectSchema SwaggerDoc ConversationMLSData
 mlsDataSchema v =
   ConversationMLSData
     <$> cnvmlsGroupId
@@ -82,27 +82,35 @@ mlsDataSchema v =
         "group_id"
         (description ?~ "A base64-encoded MLS group ID")
         schema
-    <*> if v > V5
-      then cnvmlsActiveData .= maybe_ (optional activeMLSConversationDataSchema)
-      else
-        mkActiveMLSConversationData
-          <$> (fromMaybe (Epoch 0) . fmap (.epoch) . cnvmlsActiveData)
-            .= fieldWithDocModifier
-              "epoch"
-              (description ?~ "The epoch number of the corresponding MLS group")
-              schema
-          <*> (fmap (.epochTimestamp) . cnvmlsActiveData)
-            .= maybe_
-              ( optFieldWithDocModifier
-                  "epoch_timestamp"
-                  (description ?~ "The timestamp of the epoch number")
-                  utcTimeSchema
-              )
-          <*> (fromMaybe MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 . fmap (.ciphersuite) . cnvmlsActiveData)
-            .= fieldWithDocModifier
-              "cipher_suite"
-              (description ?~ "The cipher suite of the corresponding MLS group")
-              schema
+    <*> cnvmlsActiveData .= optionalActiveMLSConversationDataSchema v
+
+optionalActiveMLSConversationDataSchema ::
+  Maybe Version ->
+  ObjectSchema SwaggerDoc (Maybe ActiveMLSConversationData)
+optionalActiveMLSConversationDataSchema (Just v)
+  | v < V6 =
+      -- legacy serialisation
+      mkActiveMLSConversationData
+        <$> maybe (Epoch 0) (.epoch)
+          .= fieldWithDocModifier
+            "epoch"
+            (description ?~ "The epoch number of the corresponding MLS group")
+            schema
+        <*> fmap (.epochTimestamp)
+          .= maybe_
+            ( optFieldWithDocModifier
+                "epoch_timestamp"
+                (description ?~ "The timestamp of the epoch number")
+                utcTimeSchema
+            )
+        <*> maybe MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 (.ciphersuite)
+          .= fieldWithDocModifier
+            "cipher_suite"
+            (description ?~ "The cipher suite of the corresponding MLS group")
+            schema
+optionalActiveMLSConversationDataSchema _ =
+  maybe_
+    (optional activeMLSConversationDataSchema)
 
 -- | Used when parsing legacy ConversationMLSData (v < V6)
 mkActiveMLSConversationData :: Epoch -> Maybe UTCTime -> CipherSuiteTag -> Maybe ActiveMLSConversationData
@@ -113,10 +121,10 @@ mkActiveMLSConversationData epoch ts cs =
     <*> pure cs
 
 instance ToSchema ConversationMLSData where
-  schema = object "ConversationMLSData" (mlsDataSchema V6)
+  schema = object "ConversationMLSData" (mlsDataSchema Nothing)
 
 instance ToSchema (Versioned 'V5 ConversationMLSData) where
-  schema = Versioned <$> object "ConversationMLSDataV5" (unVersioned .= mlsDataSchema V5)
+  schema = Versioned <$> object "ConversationMLSDataV5" (unVersioned .= mlsDataSchema (Just V5))
 
 -- TODO: Fix API compatibility
 data ActiveMLSConversationData = ActiveMLSConversationData
@@ -202,7 +210,7 @@ deriving via (Schema ProtocolTag) instance ToJSON ProtocolTag
 protocolTagSchema :: ObjectSchema SwaggerDoc ProtocolTag
 protocolTagSchema = fmap (fromMaybe ProtocolProteusTag) (optField "protocol" schema)
 
-protocolSchema :: Version -> ObjectSchema SwaggerDoc Protocol
+protocolSchema :: Maybe Version -> ObjectSchema SwaggerDoc Protocol
 protocolSchema v =
   snd
     <$> (protocolTag &&& id)
@@ -211,7 +219,7 @@ protocolSchema v =
         (snd .= dispatch (protocolDataSchema v))
 
 instance ToSchema Protocol where
-  schema = object "Protocol" (protocolSchema V6)
+  schema = object "Protocol" (protocolSchema Nothing)
 
 deriving via (Schema Protocol) instance FromJSON Protocol
 
@@ -219,7 +227,7 @@ deriving via (Schema Protocol) instance ToJSON Protocol
 
 deriving via (Schema Protocol) instance S.ToSchema Protocol
 
-protocolDataSchema :: Version -> ProtocolTag -> ObjectSchema SwaggerDoc Protocol
+protocolDataSchema :: Maybe Version -> ProtocolTag -> ObjectSchema SwaggerDoc Protocol
 protocolDataSchema _ ProtocolProteusTag = tag _ProtocolProteus (pure ())
 protocolDataSchema v ProtocolMLSTag = tag _ProtocolMLS (mlsDataSchema v)
 protocolDataSchema v ProtocolMixedTag = tag _ProtocolMixed (mlsDataSchema v)
