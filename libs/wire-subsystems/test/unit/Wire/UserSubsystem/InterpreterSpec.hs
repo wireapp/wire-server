@@ -8,13 +8,12 @@ import Data.Domain
 import Data.Id
 import Data.LanguageCodes (ISO639_1 (EN))
 import Data.LegalHold (UserLegalHoldStatus (UserLegalHoldDisabled))
-import Polysemy.Time
 import Data.Map.Lazy qualified as LM
 import Data.Map.Strict qualified as M
 import Data.Proxy
 import Data.Qualified
 import Data.Set qualified as S
-import Data.Time.Clock
+import Data.Time
 import Data.Type.Equality
 import Imports
 import Polysemy
@@ -32,21 +31,16 @@ import Wire.API.Federation.Error
 import Wire.API.Team.Member
 import Wire.API.Team.Permission
 import Wire.API.User
+import Wire.DeleteQueue
 import Wire.FederationAPIAccess
 import Wire.FederationAPIAccess.Interpreter
 import Wire.GalleyAPIAccess
 import Wire.Sem.Concurrency
 import Wire.Sem.Concurrency.Sequential
+import Wire.Sem.Now
 import Wire.StoredUser
 import Wire.UserStore
 import Wire.UserSubsystem.Interpreter
-import Wire.DeleteQueue
-import Wire.Sem.Now
-import Wire.Sem.Now.IO
-import Wire.Sem.Now.Input (nowToInput)
-import Data.Time
-import Polysemy.IO
-import Polysemy.Embed
 
 spec :: Spec
 spec = describe "UserSubsystem.Interpreter" do
@@ -144,10 +138,11 @@ type GetUserProfileEffects =
   [ GalleyAPIAccess,
     UserStore,
     DeleteQueue,
-    (Input UserSubsystemConfig),
-    (Error FederationError),
-    (FederationAPIAccess MiniFederationMonad),
-    (Concurrency 'Unsafe)
+    Input UserSubsystemConfig,
+    Now,
+    Error FederationError,
+    FederationAPIAccess MiniFederationMonad,
+    Concurrency 'Unsafe
   ]
 
 -- | a type representing the state of a single backend
@@ -271,6 +266,13 @@ runMiniFederation ownDomain backends =
     . runInputConst MkMiniContext {ownDomain = ownDomain}
     . unMiniFederation
 
+interpretNowConst ::
+  UTCTime ->
+  Sem (Now : r) a ->
+  Sem r a
+interpretNowConst time = interpret \case
+  Wire.Sem.Now.Get -> pure time
+
 runFederationStack ::
   [StoredUser] ->
   Map Domain MiniBackend ->
@@ -283,6 +285,7 @@ runFederationStack allLocalUsers fedBackends teamMember config =
     . sequentiallyPerformConcurrency
     . miniFederationAPIAccess fedBackends
     . runErrorUnsafe
+    . interpretNowConst (UTCTime (ModifiedJulianDay 0) 0)
     . runInputConst config
     . inMemoryDeleteQueueInterpreter
     . staticUserStoreInterpreter allLocalUsers
@@ -295,11 +298,12 @@ runNoFederationStack ::
   Sem GetUserProfileEffects a ->
   a
 runNoFederationStack allUsers teamMember config =
-  run
-    . nowToInput 
+  undefined
+    run
     . sequentiallyPerformConcurrency
     . emptyFederationAPIAcesss
     . runErrorUnsafe
+    . interpretNowConst (UTCTime (ModifiedJulianDay 0) 0)
     . runInputConst config
     . inMemoryDeleteQueueInterpreter
     . staticUserStoreInterpreter allUsers
