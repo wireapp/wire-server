@@ -1,38 +1,51 @@
 module Wire.DeleteQueue.Interpreter (runDeleteQueue) where
 
+import Amazonka.SQS.Lens
 import Control.Exception (ErrorCall (..))
-import Control.Monad.Catch
+import Control.Lens
 import Data.Aeson
 import Data.ByteString.Base16 qualified as B16
 import Data.ByteString.Lazy qualified as BL
+import Data.Id
 import Data.Text as T
 import Data.Text.Encoding qualified as T
 import Imports
-import OpenSSL.EVP.Digest
+import OpenSSL.EVP.Digest hiding (digest)
 import Polysemy
-import System.Logger.Class
-import System.Logger.Class as Log hiding (settings)
+import Polysemy.Error
+import Polysemy.Input
+import System.Logger.Class qualified as Log
 import Wire.DeleteQueue
 import Wire.InternalEvent
 import Wire.Queue
 import Wire.Queue.AWS qualified as AWS
 import Wire.Queue.Stomp qualified as Stomp
+import Wire.Sem.Logger
 
-runDeleteQueue :: InterpreterFor DeleteQueue r
+runDeleteQueue ::
+  Member (Input Queue) r =>
+  Member (Embed IO) r =>
+  Member (Logger (Log.Msg -> Log.Msg)) r =>
+  Member (Error ErrorCall) r =>
+  InterpreterFor DeleteQueue r
 runDeleteQueue = interpret $ \case
   EnqueueUserDeletion userId -> enqueueUserDeletionImp userId
   EnqueueClientDeletion clientId userId mConnId -> enqueueClientDeletionImp clientId userId mConnId
   EnqueueServiceDeletion providerId serviceId -> enqueueServiceDeletionImp providerId serviceId
 
-enqueueUserDeletionImp :: a
+enqueueUserDeletionImp ::
+  Member (Input Queue) r =>
+  Member (Embed IO) r =>
+  Member (Logger (Log.Msg -> Log.Msg)) r =>
+  Member (Error ErrorCall) r =>
+  UserId ->
+  Sem r ()
 enqueueUserDeletionImp uid = do
-  queue <- asks internalEventsQueue
-  embed @IO $ enqueue queue (DeleteUser uid)
+  queue <- input
+  enqueue undefined queue (DeleteUser uid)
 
-enqueueClientDeletionImp :: a
 enqueueClientDeletionImp = undefined
 
-enqueueServiceDeletionImp :: a
 enqueueServiceDeletionImp = undefined
 
 -- Note [queue refactoring] -- 2018-08-16
@@ -64,38 +77,37 @@ data Env = Env
 --
 -- Throws an error in case of failure.
 enqueue ::
-  ( MonadReader Env m,
-    ToJSON a,
-    MonadIO m,
-    MonadLogger m,
-    MonadThrow m
-  ) =>
+  Member (Embed IO) r =>
+  Member (Logger (Log.Msg -> Log.Msg)) r =>
+  Member (Error ErrorCall) r =>
+  ToJSON a =>
+  Env ->
   Queue ->
   a ->
-  m ()
-enqueue (StompQueue queue) message =
-  asks broker >>= \case
-    Just broker -> Stomp.enqueue broker queue message
+  Sem r ()
+enqueue env (StompQueue queue) message =
+  case env.broker of
+    Just broker -> embed @IO $ Stomp.enqueue broker queue message
     Nothing -> do
-      Log.err $
-        msg (val "Tried to publish a message but STOMP is not configured")
-          . field "StompQueue" (show queue)
-      throwM (ErrorCall "The server couldn't access a queue")
-enqueue (SqsQueue queue) message =
-  asks awsEnv >>= \case
+      err $
+        Log.msg (Log.val "Tried to publish a message but STOMP is not configured")
+          . Log.field "StompQueue" (show queue)
+      throw (ErrorCall "The server couldn't access a queue")
+enqueue env (SqsQueue queue) message =
+  case env.awsEnv of
     Nothing -> undefined -- throw an error, copy over from prev implementation
-    Just env -> do
+    Just awsEnv -> do
       let body = encode message
-      md5 <- liftIO $ getDigestByName "MD5"
+      md5 <- embed @IO $ getDigestByName "MD5"
       let bodyMD5 = fmap (flip digest body) md5
-      resp <- AWS.execute env (AWS.enqueueStandard queue body)
-      unless (resp.sendMessageResponse_mD5OfMessageBody == bodyMD5) $ do
-        Log.err $
-          msg (val "Returned hash (MD5) doesn't match message hash")
-            . field "SqsQueue" (show queue)
-            . field "returned_hash" (show (resp.sendMessageResponse_mD5OfMessageBody))
-            . field "message_hash" (show (Just bodyMD5))
-        throwM (ErrorCall "The server couldn't access a queue")
+      resp <- embed @IO $ AWS.execute awsEnv (AWS.enqueueStandard queue body)
+      unless (resp ^. sendMessageResponse_mD5OfMessageBody == bodyMD5) $ do
+        err $
+          Log.msg (Log.val "Returned hash (MD5) doesn't match message hash")
+            . Log.field "SqsQueue" (show queue)
+            . Log.field "returned_hash" (show (resp ^. sendMessageResponse_mD5OfMessageBody))
+            . Log.field "message_hash" (show (Just bodyMD5))
+        throw (ErrorCall "The server couldn't access a queue")
   where
     digest :: Digest -> BL.ByteString -> Text
     digest d = T.decodeLatin1 . B16.encode . digestLBS d
