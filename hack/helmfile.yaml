@@ -166,6 +166,12 @@ releases:
     needs:
       - 'ingress'
 
+  - name: 'elasticsearch-certs'
+    namespace: '{{ .Values.namespace1 }}'
+    chart: bedag/raw
+    values:
+      - './helm_vars/elasticsearch-certs/es-cert-issuer.yaml.gotmpl'
+
   # Note that wire-server depends on databases-ephemeral being up; and in some
   # cases on nginx-ingress also being up. If installing helm charts in a
   # parallel way, it's expected to see some wire-server pods (namely the

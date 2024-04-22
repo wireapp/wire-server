@@ -62,6 +62,7 @@ brig:
           key: "ca.crt"
     {{- end }}
     elasticsearch:
+      scheme: https
       host: elasticsearch-ephemeral
       index: directory_test
       insecureSkipVerifyTls: True
