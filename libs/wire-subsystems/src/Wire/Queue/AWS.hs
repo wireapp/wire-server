@@ -1,5 +1,5 @@
+{-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE TemplateHaskell #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -18,42 +18,37 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.AWS
-  ( -- * Monad
-    Env,
-    mkEnv,
-    Amazon,
-    amazonkaEnv,
-    execute,
-    sesQueue,
-    userJournalQueue,
-    prekeyTable,
-    Error (..),
+module Wire.Queue.AWS where
 
-    -- * SES
-    sendMail,
+-- ( -- * Monad
+--   Env,
+--   mkEnv,
+--   Amazon,
+--   amazonkaEnv,
+--   execute,
+--   sesQueue,
+--   userJournalQueue,
+--   prekeyTable,
+--   Error (..),
 
-    -- * SQS
-    listen,
-    enqueueFIFO,
-    enqueueStandard,
-    getQueueUrl,
+--   -- * SES
+--   sendMail,
 
-    -- * AWS
-    exec,
-    execCatch,
-  )
-where
+--   -- * SQS
+--   listen,
+--   enqueueFIFO,
+--   enqueueStandard,
+--   getQueueUrl,
+
+--   -- * AWS
+--   exec,
+--   execCatch,
+-- )
 
 import Amazonka (AWSRequest, AWSResponse)
 import Amazonka qualified as AWS
-import Amazonka.Data.Text qualified as AWS
-import Amazonka.DynamoDB qualified as DDB
-import Amazonka.SES qualified as SES
-import Amazonka.SES.Lens qualified as SES
 import Amazonka.SQS qualified as SQS
 import Amazonka.SQS.Lens qualified as SQS
-import Brig.Options qualified as Opt
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch
 import Control.Monad.Trans.Resource
@@ -61,13 +56,10 @@ import Control.Retry
 import Data.Aeson hiding ((.=))
 import Data.ByteString.Builder (toLazyByteString)
 import Data.ByteString.Lazy qualified as BL
-import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Data.UUID hiding (null)
 import Imports hiding (group)
 import Network.HTTP.Client (HttpException (..), HttpExceptionContent (..), Manager)
-import Network.HTTP.Types.Status (status400)
-import Network.Mail.Mime
 import System.Logger qualified as Logger
 import System.Logger.Class
 import UnliftIO.Async
@@ -75,14 +67,21 @@ import UnliftIO.Exception
 import Util.Options
 
 data Env = Env
-  { _logger :: !Logger,
-    _sesQueue :: !(Maybe Text),
-    _userJournalQueue :: !(Maybe Text),
-    _prekeyTable :: !Text,
-    _amazonkaEnv :: !AWS.Env
+  { logger :: !Logger,
+    userJournalQueue :: !(Maybe Text),
+    amazonkaEnv :: !AWS.Env
   }
 
-makeLenses ''Env
+data AWSOpts = AWSOpts
+  { -- | Event journal queue for user events
+    --   (e.g. user deletion)
+    userJournalQueue :: !(Maybe Text),
+    -- | AWS SQS endpoint
+    sqsEndpoint :: !AWSEndpoint
+  }
+  deriving (Show, Generic)
+
+instance FromJSON AWSOpts
 
 newtype Amazon a = Amazon
   { unAmazon :: ReaderT Env (ResourceT IO) a
@@ -101,29 +100,25 @@ newtype Amazon a = Amazon
     )
 
 instance MonadLogger Amazon where
-  log l m = view logger >>= \g -> Logger.log g l m
+  log l m = do
+    env <- ask
+    Logger.log env.logger l m
 
-mkEnv :: Logger -> Opt.AWSOpts -> Maybe Opt.EmailAWSOpts -> Manager -> IO Env
-mkEnv lgr opts emailOpts mgr = do
+mkEnv :: Logger -> AWSOpts -> Manager -> IO Env
+mkEnv lgr opts mgr = do
   let g = Logger.clone (Just "aws.brig") lgr
-  let pk = Opt.prekeyTable opts
-  let sesEndpoint = mkEndpoint SES.defaultService . Opt.sesEndpoint <$> emailOpts
-  let dynamoEndpoint = mkEndpoint DDB.defaultService <$> Opt.dynamoDBEndpoint opts
   e <-
     mkAwsEnv
       g
-      sesEndpoint
-      dynamoEndpoint
-      (mkEndpoint SQS.defaultService (Opt.sqsEndpoint opts))
-  sq <- maybe (pure Nothing) (fmap Just . getQueueUrl e . Opt.sesQueue) emailOpts
-  jq <- maybe (pure Nothing) (fmap Just . getQueueUrl e) (Opt.userJournalQueue opts)
-  pure (Env g sq jq pk e)
+      (mkEndpoint SQS.defaultService (sqsEndpoint opts))
+  jq <- maybe (pure Nothing) (fmap Just . getQueueUrl e) (opts.userJournalQueue)
+  pure (Env g jq e)
   where
     mkEndpoint svc e = AWS.setEndpoint (e ^. awsSecure) (e ^. awsHost) (e ^. awsPort) svc
-    mkAwsEnv g ses dyn sqs = do
+    mkAwsEnv g sqs = do
       baseEnv <-
         AWS.newEnv AWS.discover
-          <&> AWS.configureService sqs . maybe id AWS.configureService dyn . maybe id AWS.configureService ses
+          <&> AWS.configureService sqs
       pure $
         baseEnv
           { AWS.logger = awsLogger g,
@@ -202,42 +197,12 @@ enqueueFIFO url group dedup m = retrying retry5x (const canRetry) (const (sendCa
         & SQS.sendMessage_messageGroupId ?~ group
         & SQS.sendMessage_messageDeduplicationId ?~ toText dedup
 
--------------------------------------------------------------------------------
--- SES
-
-sendMail :: Mail -> Amazon ()
-sendMail m = do
-  body <- liftIO $ BL.toStrict <$> renderMail' m
-  let raw =
-        SES.newSendRawEmail (SES.newRawMessage body)
-          & SES.sendRawEmail_destinations ?~ fmap addressEmail (mailTo m)
-          & SES.sendRawEmail_source ?~ addressEmail (mailFrom m)
-  resp <- retrying retry5x (const canRetry) $ const (sendCatch raw)
-  void $ either check pure resp
-  where
-    check x = case x of
-      -- To map rejected domain names by SES to 400 responses, in order
-      -- not to trigger false 5xx alerts. Upfront domain name validation
-      -- is only according to the syntax rules of RFC5322 but additional
-      -- constraints may be applied by email servers (in this case SES).
-      -- Since such additional constraints are neither standardised nor
-      -- documented in the cases of SES, we can only handle the errors
-      -- after the fact.
-      AWS.ServiceError se
-        | se
-            ^. AWS.serviceError_status
-            == status400
-            && "Invalid domain name"
-              `Text.isPrefixOf` AWS.toText (se ^. AWS.serviceError_code) ->
-            throwM SESInvalidDomain
-      _ -> throwM (GeneralError x)
-
 --------------------------------------------------------------------------------
 -- Utilities
 
 sendCatch :: (AWSRequest r, Typeable r, Typeable (AWSResponse r)) => r -> Amazon (Either AWS.Error (AWSResponse r))
 sendCatch req = do
-  env <- view amazonkaEnv
+  env <- asks amazonkaEnv
   AWS.trying AWS._Error . AWS.send env $ req
 
 send ::

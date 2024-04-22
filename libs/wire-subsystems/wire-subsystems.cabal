@@ -76,9 +76,13 @@ library
     Wire.GalleyAPIAccess
     Wire.GalleyAPIAccess.Rpc
     Wire.GundeckAPIAccess
+    Wire.InternalEvent
     Wire.NotificationSubsystem
     Wire.NotificationSubsystem.Interpreter
     Wire.ParseException
+    Wire.Queue
+    Wire.Queue.AWS
+    Wire.Queue.Stomp
     Wire.Rpc
     Wire.StoredUser
     Wire.UserStore
@@ -89,6 +93,10 @@ library
   hs-source-dirs:   src
   build-depends:
     , aeson
+    , amazonka
+    , amazonka-core
+    , amazonka-sqs
+    , base16-bytestring
     , async
     , base
     , bilge
@@ -102,24 +110,32 @@ library
     , exceptions
     , extended
     , gundeck-types
+    , HsOpenSSL
     , http-client
     , http-types
     , http2-manager
     , imports
     , lens
+    , mime
+    , mime-mail
+    , network-conduit-tls
     , polysemy
     , polysemy-plugin
     , polysemy-wire-zoo
     , QuickCheck
+    , resourcet
     , retry
     , servant
     , servant-client-core
+    , stomp-queue
     , text
     , time
     , tinylog
     , transformers
     , transitive-anns
     , types-common
+    , unliftio
+    , uuid
     , wai-utilities
     , wire-api
     , wire-api-federation

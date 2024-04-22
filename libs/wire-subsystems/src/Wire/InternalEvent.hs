@@ -15,15 +15,15 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.InternalEvent.Types
+module Wire.InternalEvent
   ( InternalNotification (..),
   )
 where
 
-import BasePrelude
 import Data.Aeson
 import Data.Aeson.Types
 import Data.Id
+import Imports
 
 data InternalNotification
   = DeleteClient !ClientId !UserId !(Maybe ConnId)
