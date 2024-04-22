@@ -1,0 +1,2 @@
+Upgraded fluent-bit chart to version 0.46.2
+Added example values for fluent-bit helm chart for output to syslog server
