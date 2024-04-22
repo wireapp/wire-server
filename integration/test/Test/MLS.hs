@@ -426,13 +426,10 @@ testSelfConversation v = withVersion5 v $ do
   creator : others <- traverse (createMLSClient def) (replicate 3 alice)
   traverse_ uploadNewKeyPackage others
   (_, conv) <- createSelfGroup creator
+  conv %. "epoch" `shouldMatchInt` 0
   case v of
-    Version5 -> do
-      conv %. "epoch" `shouldMatchInt` 0
-      conv %. "cipher_suite" `shouldMatchInt` 1
-    NoVersion5 -> do
-      assertFieldMissing conv "epoch"
-      assertFieldMissing conv "cipher_suite"
+    Version5 -> conv %. "cipher_suite" `shouldMatchInt` 1
+    NoVersion5 -> assertFieldMissing conv "cipher_suite"
 
   void $ createAddCommit creator [alice] >>= sendAndConsumeCommitBundle
 

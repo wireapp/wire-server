@@ -102,7 +102,7 @@ optionalActiveMLSConversationDataSchema ::
 optionalActiveMLSConversationDataSchema (Just v)
   | v < V6 =
       -- legacy serialisation
-      mkActiveMLSConversationData
+      mk
         <$> maybe (Epoch 0) (.epoch)
           .= fieldWithDocModifier
             "epoch"
@@ -120,17 +120,35 @@ optionalActiveMLSConversationDataSchema (Just v)
             "cipher_suite"
             (description ?~ "The cipher suite of the corresponding MLS group")
             schema
+  where
+    mk :: Epoch -> Maybe UTCTime -> CipherSuiteTag -> Maybe ActiveMLSConversationData
+    mk (Epoch 0) _ _ = Nothing
+    mk epoch ts cs = ActiveMLSConversationData epoch <$> ts <*> pure cs
 optionalActiveMLSConversationDataSchema _ =
-  maybe_
-    (optional activeMLSConversationDataSchema)
-
--- | Used when parsing legacy ConversationMLSData (v < V6)
-mkActiveMLSConversationData :: Epoch -> Maybe UTCTime -> CipherSuiteTag -> Maybe ActiveMLSConversationData
-mkActiveMLSConversationData (Epoch 0) _ _ = Nothing
-mkActiveMLSConversationData epoch ts cs =
-  ActiveMLSConversationData epoch
-    <$> ts
-    <*> pure cs
+  mk
+    <$> maybe (Epoch 0) (.epoch)
+      .= fieldWithDocModifier
+        "epoch"
+        (description ?~ "The epoch number of the corresponding MLS group")
+        schema
+    <*> fmap (.epochTimestamp)
+      .= maybe_
+        ( optFieldWithDocModifier
+            "epoch_timestamp"
+            (description ?~ "The timestamp of the epoch number")
+            utcTimeSchema
+        )
+    <*> fmap (.ciphersuite)
+      .= maybe_
+        ( optFieldWithDocModifier
+            "cipher_suite"
+            (description ?~ "The cipher suite of the corresponding MLS group")
+            schema
+        )
+  where
+    mk :: Epoch -> Maybe UTCTime -> Maybe CipherSuiteTag -> Maybe ActiveMLSConversationData
+    mk (Epoch 0) _ _ = Nothing
+    mk epoch ts cs = ActiveMLSConversationData epoch <$> ts <*> cs
 
 instance ToSchema ConversationMLSData where
   schema = object "ConversationMLSData" (mlsDataSchema Nothing)

@@ -32,13 +32,11 @@ testGetMLSOne2One :: HasCallStack => Version5 -> Domain -> App ()
 testGetMLSOne2One v otherDomain = withVersion5 v $ do
   [alice, bob] <- createAndConnectUsers [OwnDomain, otherDomain]
 
-  let assertConvData conv = case v of
-        Version5 -> do
-          conv %. "epoch" `shouldMatchInt` 0
-          conv %. "cipher_suite" `shouldMatchInt` 1
-        NoVersion5 -> do
-          assertFieldMissing conv "epoch"
-          assertFieldMissing conv "cipher_suite"
+  let assertConvData conv = do
+        conv %. "epoch" `shouldMatchInt` 0
+        case v of
+          Version5 -> conv %. "cipher_suite" `shouldMatchInt` 1
+          NoVersion5 -> assertFieldMissing conv "cipher_suite"
 
   conv <- getMLSOne2OneConversation alice bob >>= getJSON 200
   conv %. "type" `shouldMatchInt` 2
