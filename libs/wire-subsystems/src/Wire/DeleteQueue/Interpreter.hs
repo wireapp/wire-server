@@ -34,11 +34,11 @@ runDeleteQueue ::
   Member (Error ErrorCall) r =>
   InterpreterFor DeleteQueue r
 runDeleteQueue = interpret $ \case
-  EnqueueUserDeletion userId -> enqueueUserDeletionImp userId
-  EnqueueClientDeletion clientId userId mConnId -> enqueueClientDeletionImp clientId userId mConnId
-  EnqueueServiceDeletion providerId serviceId -> enqueueServiceDeletionImp providerId serviceId
+  EnqueueUserDeletion userId -> enqueueUserDeletionImpl userId
+  EnqueueClientDeletion clientId userId mConnId -> enqueueClientDeletionImpl clientId userId mConnId
+  EnqueueServiceDeletion providerId serviceId -> enqueueServiceDeletionImpl providerId serviceId
 
-enqueueUserDeletionImp ::
+enqueueUserDeletionImpl ::
   Member (Input Queue) r =>
   Member (Input Env) r =>
   Member (Embed IO) r =>
@@ -46,14 +46,39 @@ enqueueUserDeletionImp ::
   Member (Error ErrorCall) r =>
   UserId ->
   Sem r ()
-enqueueUserDeletionImp uid = do
+enqueueUserDeletionImpl uid = do
   queue <- input
   env <- input
   enqueue env queue (DeleteUser uid)
 
-enqueueClientDeletionImp = undefined
+enqueueClientDeletionImpl ::
+  Member (Input Queue) r =>
+  Member (Input Env) r =>
+  Member (Embed IO) r =>
+  Member (Logger (Log.Msg -> Log.Msg)) r =>
+  Member (Error ErrorCall) r =>
+  ClientId ->
+  UserId ->
+  Maybe ConnId ->
+  Sem r ()
+enqueueClientDeletionImpl cid uid mConnId = do
+  queue <- input
+  env <- input
+  enqueue env queue (DeleteClient cid uid mConnId)
 
-enqueueServiceDeletionImp = undefined
+enqueueServiceDeletionImpl ::
+  Member (Input Queue) r =>
+  Member (Input Env) r =>
+  Member (Embed IO) r =>
+  Member (Logger (Log.Msg -> Log.Msg)) r =>
+  Member (Error ErrorCall) r =>
+  ProviderId ->
+  ServiceId ->
+  Sem r ()
+enqueueServiceDeletionImpl pid sid = do
+  queue <- input
+  env <- input
+  enqueue env queue (DeleteService pid sid)
 
 -- Note [queue refactoring] -- 2018-08-16
 -- ~~~~~~~~~~~~~~~~
