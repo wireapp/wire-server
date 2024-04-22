@@ -104,6 +104,7 @@ import Data.Range (Range, fromRange, rangedSchema)
 import Data.SOP
 import Data.Schema
 import Data.Set qualified as Set
+import Data.Singletons
 import Data.Text qualified as Text
 import Data.UUID qualified as UUID
 import Data.UUID.V5 qualified as UUIDV5
@@ -266,10 +267,10 @@ cnvReceiptMode :: Conversation -> Maybe ReceiptMode
 cnvReceiptMode = cnvmReceiptMode . cnvMetadata
 
 instance ToSchema Conversation where
-  schema = conversationSchema V3
+  schema = conversationSchema V6
 
-instance ToSchema (Versioned 'V2 Conversation) where
-  schema = Versioned <$> unVersioned .= conversationSchema V2
+instance SingI v => ToSchema (Versioned v Conversation) where
+  schema = Versioned <$> unVersioned .= conversationSchema (demote @v)
 
 conversationObjectSchema :: Version -> ObjectSchema SwaggerDoc Conversation
 conversationObjectSchema v =
@@ -279,7 +280,7 @@ conversationObjectSchema v =
       .= optional (field "id" (deprecatedSchema "qualified_id" schema))
     <*> cnvMetadata .= conversationMetadataObjectSchema (accessRolesVersionedSchema v)
     <*> cnvMembers .= field "members" schema
-    <*> cnvProtocol .= protocolSchema
+    <*> cnvProtocol .= protocolSchema v
 
 conversationSchema ::
   Version ->
@@ -443,8 +444,8 @@ conversationsResponseSchema v =
 instance ToSchema ConversationsResponse where
   schema = conversationsResponseSchema V3
 
-instance ToSchema (Versioned 'V2 ConversationsResponse) where
-  schema = Versioned <$> unVersioned .= conversationsResponseSchema V2
+instance SingI v => ToSchema (Versioned v ConversationsResponse) where
+  schema = Versioned <$> unVersioned .= conversationsResponseSchema (demote @v)
 
 --------------------------------------------------------------------------------
 -- Conversation properties
