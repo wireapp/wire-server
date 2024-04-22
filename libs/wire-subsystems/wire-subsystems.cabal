@@ -69,6 +69,8 @@ library
 
   -- cabal-fmt: expand src
   exposed-modules:
+    Wire.DeleteQueue
+    Wire.DeleteQueue.Interpreter
     Wire.FederationAPIAccess
     Wire.FederationAPIAccess.Interpreter
     Wire.GalleyAPIAccess
@@ -78,8 +80,6 @@ library
     Wire.NotificationSubsystem.Interpreter
     Wire.ParseException
     Wire.Rpc
-    Wire.DeleteQueue.Interpreter
-    Wire.DeleteQueue
     Wire.StoredUser
     Wire.UserStore
     Wire.UserStore.Cassandra
@@ -115,6 +115,7 @@ library
     , servant
     , servant-client-core
     , text
+    , time
     , tinylog
     , transformers
     , transitive-anns

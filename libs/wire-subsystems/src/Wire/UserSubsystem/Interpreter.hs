@@ -2,8 +2,10 @@ module Wire.UserSubsystem.Interpreter where
 
 import Control.Monad.Trans.Maybe
 import Data.Id
+import Data.Json.Util
 import Data.LegalHold
 import Data.Qualified
+import Data.Time.Clock
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -13,9 +15,12 @@ import Wire.API.Federation.API
 import Wire.API.Federation.Error
 import Wire.API.Team.Member
 import Wire.API.User
+import Wire.DeleteQueue
 import Wire.FederationAPIAccess
 import Wire.GalleyAPIAccess
 import Wire.Sem.Concurrency
+import Wire.Sem.Now (Now)
+import Wire.Sem.Now qualified as Now
 import Wire.StoredUser
 import Wire.UserStore
 import Wire.UserSubsystem (UserSubsystem (..))
@@ -31,6 +36,8 @@ runUserSubsystem ::
     Member (Concurrency 'Unsafe) r,
     Member (Error FederationError) r,
     Member (FederationAPIAccess fedM) r,
+    Member DeleteQueue r,
+    Member Now r,
     RunClient (fedM 'Brig),
     FederationMonad fedM,
     Typeable fedM
@@ -49,6 +56,8 @@ getUserProfile ::
     Member (Concurrency 'Unsafe) r,
     Member (Error FederationError) r,
     Member (FederationAPIAccess fedM) r,
+    Member DeleteQueue r,
+    Member Now r,
     RunClient (fedM 'Brig),
     FederationMonad fedM,
     Typeable fedM
@@ -67,6 +76,8 @@ getUserProfiles ::
     Member (Concurrency 'Unsafe) r,
     Member (Error FederationError) r,
     Member (FederationAPIAccess fedM) r,
+    Member DeleteQueue r,
+    Member Now r,
     RunClient (fedM 'Brig),
     FederationMonad fedM,
     Typeable fedM
@@ -88,6 +99,8 @@ getUserProfilesFromDomain ::
     Member (Error FederationError) r,
     Member (Input UserSubsystemConfig) r,
     Member (FederationAPIAccess fedM) r,
+    Member DeleteQueue r,
+    Member Now r,
     Member UserStore r,
     RunClient (fedM 'Brig),
     FederationMonad fedM,
@@ -118,6 +131,8 @@ getLocalUserProfiles ::
   forall r.
   ( Member UserStore r,
     Member (Input UserSubsystemConfig) r,
+    Member DeleteQueue r,
+    Member Now r,
     Member GalleyAPIAccess r
   ) =>
   Local UserId ->
@@ -147,7 +162,8 @@ getLocalUserProfiles requestingUser luids = do
 getLocalUserProfile ::
   forall r.
   ( Member UserStore r,
-    Member DeleteQueueEffect r,
+    Member DeleteQueue r,
+    Member Now r,
     Member (Input UserSubsystemConfig) r
   ) =>
   EmailVisibilityConfigWithViewer ->
@@ -159,14 +175,15 @@ getLocalUserProfile emailVisibilityConfigWithViewer luid = do
   runMaybeT $ do
     storedUser <- MaybeT $ getUser (tUnqualified luid)
     guard $ not (hasPendingInvitation storedUser)
-    let user = mkUserFromStored domain locale storedUser >>= mkUserProfile emailVisibilityConfigWithViewer user UserLegalHoldDisabled
-    pure _
-    -- TODO: Garbage collect expired users
-    -- case user.userExpire of
-    --   Nothing -> pure user
-    --   Just (fromUTCTimeMillis -> e) -> do
-    --     now <- liftIO =<< view currentTime
-    --     -- ephemeral users past their expiry date are deleted
-    --     when (diffUTCTime e now < 0) $
-    --       enqueueUserDeletion user.userId
-    --     pure user
+    let user = mkUserFromStored domain locale storedUser
+        usrProfile = mkUserProfile emailVisibilityConfigWithViewer user UserLegalHoldDisabled
+    case user.userExpire of
+      Nothing -> pure usrProfile
+      Just (fromUTCTimeMillis -> e) -> do
+        t <- lift $ Now.get
+        -- ephemeral users past their expiry date are deleted
+        when (diffUTCTime e t < 0) $
+          lift $
+            enqueueUserDeletion . qUnqualified $
+              user.userQualifiedId
+        pure usrProfile
