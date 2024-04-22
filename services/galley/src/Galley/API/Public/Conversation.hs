@@ -34,6 +34,7 @@ conversationAPI =
   mkNamedAPI @"get-unqualified-conversation" getUnqualifiedConversation
     <@> mkNamedAPI @"get-unqualified-conversation-legalhold-alias" getUnqualifiedConversation
     <@> mkNamedAPI @"get-conversation@v2" (callsFed (exposeAnnotations getConversation))
+    <@> mkNamedAPI @"get-conversation@v5" (callsFed (exposeAnnotations getConversation))
     <@> mkNamedAPI @"get-conversation" (callsFed (exposeAnnotations getConversation))
     <@> mkNamedAPI @"get-conversation-roles" getConversationRoles
     <@> mkNamedAPI @"get-group-info" (callsFed (exposeAnnotations getGroupInfo))
@@ -43,13 +44,17 @@ conversationAPI =
     <@> mkNamedAPI @"get-conversations" getConversations
     <@> mkNamedAPI @"list-conversations@v1" (callsFed (exposeAnnotations listConversations))
     <@> mkNamedAPI @"list-conversations@v2" (callsFed (exposeAnnotations listConversations))
+    <@> mkNamedAPI @"list-conversations@v5" (callsFed (exposeAnnotations listConversations))
     <@> mkNamedAPI @"list-conversations" (callsFed (exposeAnnotations listConversations))
     <@> mkNamedAPI @"get-conversation-by-reusable-code" getConversationByReusableCode
     <@> mkNamedAPI @"create-group-conversation@v2" (callsFed (exposeAnnotations createGroupConversationUpToV3))
     <@> mkNamedAPI @"create-group-conversation@v3" (callsFed (exposeAnnotations createGroupConversationUpToV3))
+    <@> mkNamedAPI @"create-group-conversation@v5" (callsFed (exposeAnnotations createGroupConversation))
     <@> mkNamedAPI @"create-group-conversation" (callsFed (exposeAnnotations createGroupConversation))
     <@> mkNamedAPI @"create-self-conversation@v2" createProteusSelfConversation
+    <@> mkNamedAPI @"create-self-conversation@v5" createProteusSelfConversation
     <@> mkNamedAPI @"create-self-conversation" createProteusSelfConversation
+    <@> mkNamedAPI @"get-mls-self-conversation@v5" getMLSSelfConversationWithError
     <@> mkNamedAPI @"get-mls-self-conversation" getMLSSelfConversationWithError
     <@> mkNamedAPI @"get-subconversation" (callsFed getSubConversation)
     <@> mkNamedAPI @"leave-subconversation" (callsFed leaveSubConversation)
