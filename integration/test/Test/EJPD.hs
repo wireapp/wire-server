@@ -31,7 +31,8 @@ setupEJPD =
     email5 <- liftIO $ UUID.nextRandom <&> \uuid -> "usr5-" <> UUID.toString uuid <> "@example.com"
     usr3 <- randomUser OwnDomain def {BI.email = Just email3, BI.name = Just "usr3"}
     usr4 <- randomUser OwnDomain def {BI.email = Just email4, BI.name = Just "usr4"}
-    usr5 <- randomUser OwnDomain def {BI.email = Just email5, BI.name = Just "usr5"}
+    -- user 5 lives on a remote domain
+    usr5 <- randomUser OtherDomain def {BI.email = Just email5, BI.name = Just "usr5"}
     handle3 <- liftIO $ UUID.nextRandom <&> ("usr3-handle-" <>) . UUID.toString
     handle4 <- liftIO $ UUID.nextRandom <&> ("usr4-handle-" <>) . UUID.toString
     handle5 <- liftIO $ UUID.nextRandom <&> ("usr5-handle-" <>) . UUID.toString

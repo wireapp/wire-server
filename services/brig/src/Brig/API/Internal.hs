@@ -143,7 +143,10 @@ istatusAPI = Named @"get-status" (pure NoContent)
 ejpdAPI ::
   ( Member GalleyProvider r,
     Member NotificationSubsystem r,
-    Member Rpc r
+    Member Rpc r,
+    Member TinyLog r,
+    Member (Input (Local ())) r,
+    Member (ConnectionStore InternalPaging) r
   ) =>
   ServerT BrigIRoutes.EJPDRequest (Handler r)
 ejpdAPI =
