@@ -87,8 +87,8 @@ setupEJPD =
       conv1 <- parse =<< postConversation usr1 (defMLS {name = Just "11", qualifiedUsers = [], team = Just tid1})
       conv12 <- parse =<< postConversation usr1 (defProteus {name = Just "12", qualifiedUsers = [usr2], team = Just tid1})
       conv35 <- parse =<< postConversation usr3 (defProteus {name = Just "35", qualifiedUsers = [usr5]})
-      conv425 <- parse =<< postConversation usr4 (defProteus {name = Just "425", qualifiedUsers = [usr2, usr5]})
-      pure (Just ([conv1, conv12]), Just ([conv12, conv425]), Just [conv35], Just [conv425], Just [conv425, conv35])
+      conv524 <- parse =<< postConversation usr5 (defProteus {name = Just "524", qualifiedUsers = [usr2, usr4]})
+      pure (Just ([conv1, conv12]), Just ([conv12, conv524]), Just [conv35], Just [conv524], Just [conv524, conv35])
 
     let usr2contacts = Just $ (,"accepted") <$> [ejpd4]
         usr3contacts = Just $ (,"accepted") <$> [ejpd5]
