@@ -1,4 +1,8 @@
-module Wire.DeleteQueue.Interpreter (runDeleteQueue) where
+module Wire.DeleteQueue.Interpreter
+  ( runDeleteQueue,
+    mkEnv,
+  )
+where
 
 import Amazonka.SQS.Lens
 import Control.Exception (ErrorCall (..))
@@ -25,6 +29,7 @@ import Wire.Sem.Logger
 runDeleteQueue ::
   Member (Input Queue) r =>
   Member (Embed IO) r =>
+  Member (Input Env) r =>
   Member (Logger (Log.Msg -> Log.Msg)) r =>
   Member (Error ErrorCall) r =>
   InterpreterFor DeleteQueue r
@@ -35,6 +40,7 @@ runDeleteQueue = interpret $ \case
 
 enqueueUserDeletionImp ::
   Member (Input Queue) r =>
+  Member (Input Env) r =>
   Member (Embed IO) r =>
   Member (Logger (Log.Msg -> Log.Msg)) r =>
   Member (Error ErrorCall) r =>
@@ -42,7 +48,8 @@ enqueueUserDeletionImp ::
   Sem r ()
 enqueueUserDeletionImp uid = do
   queue <- input
-  enqueue undefined queue (DeleteUser uid)
+  env <- input
+  enqueue env queue (DeleteUser uid)
 
 enqueueClientDeletionImp = undefined
 
@@ -72,6 +79,9 @@ data Env = Env
   { broker :: Maybe Stomp.Broker,
     awsEnv :: Maybe AWS.Env
   }
+
+mkEnv :: Maybe Stomp.Broker -> Maybe AWS.Env -> Env
+mkEnv = Env
 
 -- | Enqueue a message.
 --
