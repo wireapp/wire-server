@@ -88,7 +88,7 @@ data ElasticSearchOpts = ElasticSearchOpts
     -- in elasticsearch in a consistent state.
     additionalWriteIndex :: !(Maybe ES.IndexName),
     -- | An additional ES URL to write user data, useful while migrating to a
-    -- new instace of ES. It is necessary to provide 'additionalWriteIndex' for
+    -- new instance of ES. It is necessary to provide 'additionalWriteIndex' for
     -- this to be used. If this is 'Nothing' and 'additionalWriteIndex' is
     -- configured, the 'url' field will be used.
     additionalWriteIndexUrl :: !(Maybe ES.Server),

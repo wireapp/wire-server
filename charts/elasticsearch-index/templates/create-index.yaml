@@ -44,7 +44,7 @@ spec:
           args:
             - create
             - --elasticsearch-server
-            - "http://{{ required "missing elasticsearch-index.elasticsearch.host!" .Values.elasticsearch.host }}:{{ .Values.elasticsearch.port }}"
+            - "{{ .Values.elasticsearch.scheme }}://{{ required "missing elasticsearch-index.elasticsearch.host!" .Values.elasticsearch.host }}:{{ .Values.elasticsearch.port }}"
             {{- if hasKey .Values.secrets "elasticsearch" }}
             - --elasticsearch-credentials
             - "/etc/wire/elasticsearch-index/secrets/elasticsearch-credentials.yaml"
@@ -74,7 +74,7 @@ spec:
           args:
             - update-mapping
             - --elasticsearch-server
-            - "http://{{ required "missing elasticsearch-index.elasticsearch.host!" .Values.elasticsearch.host }}:{{ .Values.elasticsearch.port }}"
+            - "{{ .Values.elasticsearch.scheme }}://{{ required "missing elasticsearch-index.elasticsearch.host!" .Values.elasticsearch.host }}:{{ .Values.elasticsearch.port }}"
             {{- if hasKey .Values.secrets "elasticsearch" }}
             - --elasticsearch-credentials
             - "/etc/wire/elasticsearch-index/secrets/elasticsearch-credentials.yaml"

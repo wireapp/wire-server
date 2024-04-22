@@ -29,10 +29,13 @@ config:
 #     key: <ca-attribute>
 
   elasticsearch:
+    scheme: http
     host: elasticsearch-client
     port: 9200
     index: directory
     insecureSkipVerifyTls: False
+    additionalWriteScheme: http
+    additionalWritePort: 9200
     additionalInsecureSkipVerifyTls: False
   aws:
     region: "eu-west-1"

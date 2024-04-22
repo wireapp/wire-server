@@ -1,5 +1,6 @@
 # Default values for elasticsearch-index
 elasticsearch:
+  scheme: http
   #host:  # elasticsearch-client|elasticsearch-ephemeral
   port: 9200
   index: directory

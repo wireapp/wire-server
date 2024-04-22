@@ -33,8 +33,11 @@ data:
       {{- end }}
 
     elasticsearch:
-      url: http://{{ .elasticsearch.host }}:{{ .elasticsearch.port }}
+      url: {{ .elasticsearch.scheme }}://{{ .elasticsearch.host }}:{{ .elasticsearch.port }}
       index: {{ .elasticsearch.index }}
+      {{- if .elasticsearch.additionalWriteHost }}
+      additionalWriteIndexUrl: {{ .elasticsearch.additionalWriteScheme }}://{{ .elasticsearch.additionalWriteHost }}:{{ .elasticsearch.additionalWritePort }}
+      {{- end }}
       {{- if .elasticsearch.additionalWriteIndex }}
       additionalWriteIndex: {{ .elasticsearch.additionalWriteIndex }}
       {{- end }}
