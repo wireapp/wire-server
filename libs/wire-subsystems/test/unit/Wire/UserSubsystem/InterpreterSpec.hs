@@ -8,11 +8,13 @@ import Data.Domain
 import Data.Id
 import Data.LanguageCodes (ISO639_1 (EN))
 import Data.LegalHold (UserLegalHoldStatus (UserLegalHoldDisabled))
+import Polysemy.Time
 import Data.Map.Lazy qualified as LM
 import Data.Map.Strict qualified as M
 import Data.Proxy
 import Data.Qualified
 import Data.Set qualified as S
+import Data.Time.Clock
 import Data.Type.Equality
 import Imports
 import Polysemy
@@ -38,6 +40,13 @@ import Wire.Sem.Concurrency.Sequential
 import Wire.StoredUser
 import Wire.UserStore
 import Wire.UserSubsystem.Interpreter
+import Wire.DeleteQueue
+import Wire.Sem.Now
+import Wire.Sem.Now.IO
+import Wire.Sem.Now.Input (nowToInput)
+import Data.Time
+import Polysemy.IO
+import Polysemy.Embed
 
 spec :: Spec
 spec = describe "UserSubsystem.Interpreter" do
@@ -134,6 +143,7 @@ instance Arbitrary NotPendingStoredUser where
 type GetUserProfileEffects =
   [ GalleyAPIAccess,
     UserStore,
+    DeleteQueue,
     (Input UserSubsystemConfig),
     (Error FederationError),
     (FederationAPIAccess MiniFederationMonad),
@@ -274,6 +284,7 @@ runFederationStack allLocalUsers fedBackends teamMember config =
     . miniFederationAPIAccess fedBackends
     . runErrorUnsafe
     . runInputConst config
+    . inMemoryDeleteQueueInterpreter
     . staticUserStoreInterpreter allLocalUsers
     . miniGalleyAPIAccess teamMember
 
@@ -285,12 +296,17 @@ runNoFederationStack ::
   a
 runNoFederationStack allUsers teamMember config =
   run
+    . nowToInput 
     . sequentiallyPerformConcurrency
     . emptyFederationAPIAcesss
     . runErrorUnsafe
     . runInputConst config
+    . inMemoryDeleteQueueInterpreter
     . staticUserStoreInterpreter allUsers
     . miniGalleyAPIAccess teamMember
+
+inMemoryDeleteQueueInterpreter :: InterpreterFor DeleteQueue r
+inMemoryDeleteQueueInterpreter = undefined
 
 runErrorUnsafe :: Exception e => InterpreterFor (Error e) r
 runErrorUnsafe action = do
