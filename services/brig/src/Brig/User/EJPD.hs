@@ -116,7 +116,7 @@ ejpdRequest (fromMaybe False -> includeContacts) (EJPDRequestBody handles) = do
 
                 but that's not exposed to brig in GalleyProvider.  m|
             -}
-            convs :: [(Text, ConvId)] <- undefined
+            convs :: [(Text, ConvId)] <- _
             undefined
           else {-
                              liftSem $

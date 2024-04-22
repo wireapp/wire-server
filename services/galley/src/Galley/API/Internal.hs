@@ -86,7 +86,6 @@ import Servant hiding (JSON, WithStatus)
 import System.Logger.Class hiding (Path, name)
 import System.Logger.Class qualified as Log
 import Wire.API.Conversation hiding (Member)
-import Wire.API.Conversation qualified
 import Wire.API.Conversation.Action
 import Wire.API.CustomBackend
 import Wire.API.Error
@@ -155,13 +154,14 @@ ejpdGetConvInfo uid = do
     getPages luid page = do
       let convids = MTP.mtpResults page
       let mk conv = EJPDConvInfo (fromMaybe "n\a" conv.convMetadata.cnvmName) conv.convId
-      renderedPage <- mk <$$> getConversations (qUnqualified <$> convids)
+      renderedPage <- mk <$$> getConversations (qUnqualified <$> convids) -- TODO: this doesn't work with federation!
       if MTP.mtpHasMore page
         then do
           newPage <- Query.conversationIdsPageFrom luid (mkPageRequest . Just . MTP.mtpPagingState $ page)
           morePages <- getPages luid newPage
           pure $ renderedPage <> morePages
         else do
+          -- TODO: does initialPageRequest work without data?
           pure renderedPage
 
 federationAPI :: API IFederationAPI GalleyEffects
