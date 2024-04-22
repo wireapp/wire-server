@@ -25,11 +25,20 @@ import qualified Data.Set as Set
 import MLS.Util
 import Notifications
 import SetupHelpers
+import Test.Version
 import Testlib.Prelude
 
-testGetMLSOne2One :: HasCallStack => Domain -> App ()
-testGetMLSOne2One otherDomain = do
+testGetMLSOne2One :: HasCallStack => Version5 -> Domain -> App ()
+testGetMLSOne2One v otherDomain = withVersion5 v $ do
   [alice, bob] <- createAndConnectUsers [OwnDomain, otherDomain]
+
+  let assertConvData conv = case v of
+        Version5 -> do
+          conv %. "epoch" `shouldMatchInt` 0
+          conv %. "cipher_suite" `shouldMatchInt` 1
+        NoVersion5 -> do
+          assertFieldMissing conv "epoch"
+          assertFieldMissing conv "cipher_suite"
 
   conv <- getMLSOne2OneConversation alice bob >>= getJSON 200
   conv %. "type" `shouldMatchInt` 2
@@ -37,7 +46,7 @@ testGetMLSOne2One otherDomain = do
 
   conv %. "members.self.conversation_role" `shouldMatch` "wire_member"
   conv %. "members.self.qualified_id" `shouldMatch` (alice %. "qualified_id")
-  assertFieldMissing conv "epoch"
+  assertConvData conv
 
   convId <- conv %. "qualified_id"
 
@@ -48,7 +57,7 @@ testGetMLSOne2One otherDomain = do
 
   conv2 %. "type" `shouldMatchInt` 2
   conv2 %. "qualified_id" `shouldMatch` convId
-  assertFieldMissing conv2 "epoch"
+  assertConvData conv2
 
 testMLSOne2OneOtherMember :: HasCallStack => One2OneScenario -> App ()
 testMLSOne2OneOtherMember scenario = do
