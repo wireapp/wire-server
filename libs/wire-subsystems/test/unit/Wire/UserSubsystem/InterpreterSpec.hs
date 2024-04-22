@@ -298,8 +298,7 @@ runNoFederationStack ::
   Sem GetUserProfileEffects a ->
   a
 runNoFederationStack allUsers teamMember config =
-  undefined
-    run
+  run
     . sequentiallyPerformConcurrency
     . emptyFederationAPIAcesss
     . runErrorUnsafe
