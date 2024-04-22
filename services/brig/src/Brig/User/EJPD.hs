@@ -34,7 +34,7 @@ import Control.Lens (view, (^.))
 import Data.Aeson qualified as A
 import Data.ByteString.Conversion
 import Data.Handle (Handle)
-import Data.Id (ConvId, UserId)
+import Data.Id (UserId)
 import Data.Set qualified as Set
 import Data.Text qualified as T
 import Imports hiding (head)
@@ -59,18 +59,18 @@ ejpdRequest ::
   EJPDRequestBody ->
   (Handler r) EJPDResponseBody
 ejpdRequest (fromMaybe False -> includeContacts) (EJPDRequestBody handles) = do
-  ExceptT $ Right . EJPDResponseBody . catMaybes <$> forM handles go1
+  ExceptT $ Right . EJPDResponseBody . catMaybes <$> forM handles responseItemForHandle
   where
     -- find uid given handle
-    go1 :: Handle -> (AppT r) (Maybe EJPDResponseItem)
-    go1 handle = do
-      mbUid <- wrapClient $ lookupHandle handle
+    responseItemForHandle :: Handle -> (AppT r) (Maybe EJPDResponseItem)
+    responseItemForHandle hdl = do
+      mbUid <- wrapClient $ lookupHandle hdl
       mbUsr <- maybe (pure Nothing) (wrapClient . lookupUser NoPendingInvitations) mbUid
-      maybe (pure Nothing) (fmap Just . go2 includeContacts) mbUsr
+      maybe (pure Nothing) (fmap Just . responseItemForExistingUser includeContacts) mbUsr
 
     -- construct response item given uid
-    go2 :: Bool -> User -> (AppT r) EJPDResponseItem
-    go2 reallyIncludeContacts target = do
+    responseItemForExistingUser :: Bool -> User -> (AppT r) EJPDResponseItem
+    responseItemForExistingUser reallyIncludeContacts target = do
       let uid = userId target
 
       ptoks <-
@@ -85,7 +85,7 @@ ejpdRequest (fromMaybe False -> includeContacts) (EJPDRequestBody handles) = do
             contactsFull :: [Maybe (Relation, EJPDResponseItem)] <-
               forM contacts $ \(uid', relationDropHistory -> rel) -> do
                 mbUsr <- wrapClient $ lookupUser NoPendingInvitations uid'
-                maybe (pure Nothing) (fmap (Just . (rel,)) . go2 False) mbUsr
+                maybe (pure Nothing) (fmap (Just . (rel,)) . responseItemForExistingUser False) mbUsr
 
             pure . Just . Set.fromList . catMaybes $ contactsFull
           else do
@@ -100,32 +100,16 @@ ejpdRequest (fromMaybe False -> includeContacts) (EJPDRequestBody handles) = do
             contactsFull :: [Maybe EJPDResponseItem] <-
               forM members $ \uid' -> do
                 mbUsr <- wrapClient $ lookupUser NoPendingInvitations uid'
-                maybe (pure Nothing) (fmap Just . go2 False) mbUsr
+                maybe (pure Nothing) (fmap Just . responseItemForExistingUser False) mbUsr
 
             pure . Just . (,Team.toNewListType (memberList ^. Team.teamMemberListType)) . Set.fromList . catMaybes $ contactsFull
           _ -> do
             pure Nothing
 
-      mbConversations <- do
+      mbConversations <-
         if reallyIncludeContacts
-          then do
-            {-
-                          CREATE TABLE galley_test.user (
-                              user uuid,
-                              conv uuid
-
-                but that's not exposed to brig in GalleyProvider.  m|
-            -}
-            convs :: [(Text, ConvId)] <- _
-            undefined
-          else {-
-                             liftSem $
-                               GalleyProvider.getConv
-                                 _
-                           _
-               -}
-          do
-            pure Nothing
+          then liftSem $ Just . Set.fromList <$> GalleyProvider.getEJPDConvInfo uid
+          else pure Nothing
 
       mbAssets <- do
         urls <- forM (userAssets target) $ \(asset :: Asset) -> do

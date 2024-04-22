@@ -70,24 +70,24 @@ setupEJPD =
       a1 <- uploadDownloadProfilePicture usr1
       a2 <- uploadDownloadProfilePicture usr1
       pure $ snd <$> [a1, a2]
-    assets2 <- do
-      (: []) . snd <$> uploadDownloadProfilePicture usr2
-    assets3 <- do
-      (: []) . snd <$> uploadDownloadProfilePicture usr3
-    assets4 <- do
-      (: []) . snd <$> uploadDownloadProfilePicture usr4
+    assets2 <- (: []) . snd <$> uploadDownloadProfilePicture usr2
+    assets3 <- (: []) . snd <$> uploadDownloadProfilePicture usr3
+    assets4 <- (: []) . snd <$> uploadDownloadProfilePicture usr4
 
-    (convs1, convs2, convs4) <- do
-      conv11 <- postConversation usr1 (defProteus {name = Just "11", qualifiedUsers = [usr2], team = Just tid1}) >>= getJSON 201
-      conv12 <- postConversation usr1 (defMLS {name = Just "12", qualifiedUsers = [], team = Just tid1}) >>= getJSON 201
-      conv31 <- postConversation usr3 (defProteus {name = Just "31", qualifiedUsers = [usr5]}) >>= getJSON 201
-      conv41 <- postConversation usr4 (defProteus {name = Just "41", qualifiedUsers = [usr2, usr5]}) >>= getJSON 201
-      let parse :: Value -> (String, String)
-          parse val =
-            ( cs $ val ^?! key (fromString "name") . _String,
-              cs $ val ^?! key (fromString "id") . _String
-            )
-      pure (Just (parse <$> [conv11, conv12]), Just [parse conv31], Just [parse conv41])
+    (convs1, convs2, convs3, convs4, convs5) <- do
+      let parse :: Response -> App Value
+          parse resp =
+            getJSON 201 resp <&> \val ->
+              object
+                [ "conv_name" .= (val ^?! key (fromString "name") . _String),
+                  "conv_id" .= (val ^?! key (fromString "id") . _String)
+                ]
+
+      conv1 <- parse =<< postConversation usr1 (defMLS {name = Just "11", qualifiedUsers = [], team = Just tid1})
+      conv12 <- parse =<< postConversation usr1 (defProteus {name = Just "12", qualifiedUsers = [usr2], team = Just tid1})
+      conv35 <- parse =<< postConversation usr3 (defProteus {name = Just "35", qualifiedUsers = [usr5]})
+      conv425 <- parse =<< postConversation usr4 (defProteus {name = Just "425", qualifiedUsers = [usr2, usr5]})
+      pure (Just ([conv1, conv12]), Just ([conv12, conv425]), Just [conv35], Just [conv425], Just [conv425, conv35])
 
     let usr2contacts = Just $ (,"accepted") <$> [ejpd4]
         usr3contacts = Just $ (,"accepted") <$> [ejpd5]
@@ -97,9 +97,9 @@ setupEJPD =
         ejpd0 = mkUsr owner1 Nothing [] Nothing (Just ([ejpd1, ejpd2], "list_complete")) Nothing Nothing
         ejpd1 = mkUsr usr1 (Just handle1) toks1 Nothing (Just ([ejpd0, ejpd2], "list_complete")) convs1 (Just assets1)
         ejpd2 = mkUsr usr2 (Just handle2) toks2 usr2contacts (Just ([ejpd0, ejpd1], "list_complete")) convs2 (Just assets2)
-        ejpd3 = mkUsr usr3 (Just handle3) [] usr3contacts Nothing Nothing (Just assets3)
+        ejpd3 = mkUsr usr3 (Just handle3) [] usr3contacts Nothing convs3 (Just assets3)
         ejpd4 = mkUsr usr4 (Just handle4) toks4 usr4contacts Nothing convs4 (Just assets4)
-        ejpd5 = mkUsr usr5 (Just handle5) [] usr5contacts Nothing Nothing Nothing
+        ejpd5 = mkUsr usr5 (Just handle5) [] usr5contacts Nothing convs5 Nothing
 
     pure (ejpd1, ejpd2, ejpd3, ejpd4, ejpd5)
   where
@@ -111,7 +111,7 @@ setupEJPD =
       [String {- push tokens -}] ->
       Maybe [(A.Value {- ejpd response item of contact -}, String {- relation -})] ->
       Maybe ([A.Value {- ejpd response item -}], String {- pagination flag -}) ->
-      Maybe [(String {- conv name -}, String {- conv id -})] ->
+      Maybe [A.Value] ->
       Maybe [String {- asset url -}] ->
       A.Value
     mkUsr usr handle toks contacts teamContacts convs assets = result

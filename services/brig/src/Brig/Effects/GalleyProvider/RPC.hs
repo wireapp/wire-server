@@ -14,6 +14,7 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# LANGUAGE PartialTypeSignatures #-}
 
 module Brig.Effects.GalleyProvider.RPC where
 
@@ -47,6 +48,7 @@ import Servant.API (toHeader)
 import System.Logger (field, msg, val)
 import Util.Options
 import Wire.API.Conversation hiding (Member)
+import Wire.API.Routes.Internal.Brig.EJPD (EJPDConvInfo)
 import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
 import Wire.API.Routes.Version
 import Wire.API.Team
@@ -91,6 +93,7 @@ interpretGalleyProviderToRpc disabledVersions galleyEndpoint =
           GetExposeInvitationURLsToTeamAdmin id' -> getTeamExposeInvitationURLsToTeamAdmin id'
           IsMLSOne2OneEstablished lusr qother -> checkMLSOne2OneEstablished lusr qother
           UnblockConversation lusr mconn qcnv -> unblockConversation v lusr mconn qcnv
+          GetEJPDConvInfo uid -> getEJPDConvInfo uid
 
 galleyRequest :: (Member Rpc r, Member (Input Endpoint) r) => (Request -> Request) -> Sem r (Response (Maybe LByteString))
 galleyRequest req = do
@@ -467,7 +470,7 @@ decodeBodyOrThrow t r =
     Left a ->
       case Imports.fromException a of
         Just pe -> throw @ParseException pe
-        Nothing -> error "impossible: something other than ParseExceptionNothing was thrown by decodeBody"
+        Nothing -> error "impossible: something other than ParseException was thrown by decodeBody"
     Right b -> pure b
 
 decodeBodyMaybe :: (Typeable a, FromJSON a) => Text -> Response (Maybe BL.ByteString) -> Maybe a
@@ -590,3 +593,22 @@ unblockConversation v lusr mconn (Qualified cnv cdom) = do
         . paths [toHeader v, "conversations", toByteString' cdom, toByteString' cnv]
         . zUser (tUnqualified lusr)
         . expect2xx
+
+getEJPDConvInfo ::
+  forall r.
+  ( Member TinyLog r,
+    Member (Error ParseException) r,
+    Member (Input Endpoint) r,
+    Member Rpc r
+  ) =>
+  UserId ->
+  Sem r [EJPDConvInfo]
+getEJPDConvInfo uid = do
+  debug $
+    remote "galley"
+      . msg (val "get conversation info for ejpd")
+  decodeBodyOrThrow "galley" =<< galleyRequest getReq
+  where
+    getReq =
+      method GET
+        . paths ["i", "user", toByteString' uid, "all-conversations"]

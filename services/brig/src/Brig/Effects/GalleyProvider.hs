@@ -28,6 +28,7 @@ import Imports
 import Network.Wai.Utilities.Error qualified as Wai
 import Polysemy
 import Wire.API.Conversation
+import Wire.API.Routes.Internal.Brig.EJPD (EJPDConvInfo)
 import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
 import Wire.API.Team
 import Wire.API.Team.Conversation qualified as Conv
@@ -121,5 +122,8 @@ data GalleyProvider m a where
     Maybe ConnId ->
     Qualified ConvId ->
     GalleyProvider m Conversation
+  GetEJPDConvInfo ::
+    UserId ->
+    GalleyProvider m [EJPDConvInfo]
 
 makeSem ''GalleyProvider

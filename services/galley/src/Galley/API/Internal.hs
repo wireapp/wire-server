@@ -14,7 +14,6 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-
 module Galley.API.Internal
   ( waiInternalSitemap,
     internalAPI,
@@ -59,7 +58,6 @@ import Galley.Effects.BackendNotificationQueueAccess
 import Galley.Effects.ClientStore
 import Galley.Effects.ConversationStore
 import Galley.Effects.LegalHoldStore as LegalHoldStore
-import Galley.Effects.ListItems
 import Galley.Effects.MemberStore qualified as E
 import Galley.Effects.TeamStore
 import Galley.Effects.TeamStore qualified as E
@@ -150,19 +148,28 @@ ejpdGetConvInfo uid = do
     initialPageRequest = mkPageRequest Nothing
     mkPageRequest = MTP.GetMultiTablePageRequest (toRange (Proxy @1000))
 
-    -- getPages :: Local UserId -> MTP.MultiTablePage name resultsKey MTP.LocalOrRemoteTable (Qualified ConvId) -> Sem r [EJPDConvInfo]
+    getPages :: Local UserId -> ConvIdsPage -> Sem r [EJPDConvInfo]
     getPages luid page = do
       let convids = MTP.mtpResults page
-      let mk conv = EJPDConvInfo (fromMaybe "n\a" conv.convMetadata.cnvmName) conv.convId
-      renderedPage <- mk <$$> getConversations (qUnqualified <$> convids) -- TODO: this doesn't work with federation!
+          mk :: Data.Conversation -> Maybe EJPDConvInfo
+          mk conv = do
+            let convType = conv.convMetadata.cnvmType
+                ejpdConvInfo = EJPDConvInfo (fromMaybe "n/a" conv.convMetadata.cnvmName) conv.convId
+            -- we don't want self conversations as they don't tell us anything about connections
+            -- we don't want connect conversations, because the peer has not responded yet
+            case convType of
+              RegularConv -> Just ejpdConvInfo
+              -- FUTUREWORK(mangoiv): with GHC 9.12 we can refactor this to or-patterns
+              One2OneConv -> Nothing
+              SelfConv -> Nothing
+              ConnectConv -> Nothing
+      renderedPage <- mapMaybe mk <$> getConversations (qUnqualified <$> convids) -- TODO: this doesn't work with federation!
       if MTP.mtpHasMore page
         then do
           newPage <- Query.conversationIdsPageFrom luid (mkPageRequest . Just . MTP.mtpPagingState $ page)
           morePages <- getPages luid newPage
           pure $ renderedPage <> morePages
-        else do
-          -- TODO: does initialPageRequest work without data?
-          pure renderedPage
+        else pure renderedPage
 
 federationAPI :: API IFederationAPI GalleyEffects
 federationAPI =
