@@ -68,6 +68,12 @@ releases:
     values:
       - './helm_vars/fake-aws/values.yaml'
 
+  - name: 'elasticsearch-certs'
+    namespace: '{{ .Values.namespace1 }}'
+    chart: bedag/raw
+    values:
+      - './helm_vars/elasticsearch-certs/es-cert-issuer.yaml.gotmpl'
+
   - name: 'databases-ephemeral'
     namespace: '{{ .Values.namespace1 }}'
     chart: '../.local/charts/databases-ephemeral'
@@ -76,6 +82,14 @@ releases:
           redis-ephemeral:
             usePassword: true
             password: very-secure-redis-master-password
+        elasticsearch-ephemeral:
+          tls:
+            enabled: true
+            issuerRef:
+              name: elasticsearch
+              kind: Issuer
+    needs:
+      - elasticsearch-certs
 
   # Required for testing redis migration
   - name: 'redis-ephemeral-2'
@@ -87,6 +101,12 @@ releases:
           usePassword: true
           password: very-secure-redis-master-password-2
 
+  - name: 'elasticsearch-certs'
+    namespace: '{{ .Values.namespace2 }}'
+    chart: bedag/raw
+    values:
+      - './helm_vars/elasticsearch-certs/es-cert-issuer.yaml.gotmpl'
+
   - name: 'databases-ephemeral'
     namespace: '{{ .Values.namespace2 }}'
     chart: '../.local/charts/databases-ephemeral'
@@ -95,6 +115,14 @@ releases:
           redis-ephemeral:
             usePassword: true
             password: very-secure-redis-master-password
+        elasticsearch-ephemeral:
+          tls:
+            enabled: true
+            issuerRef:
+              name: elasticsearch
+              kind: Issuer
+    needs:
+      - elasticsearch-certs
 
   - name: k8ssandra-test-cluster
     chart: '../.local/charts/k8ssandra-test-cluster'
@@ -165,12 +193,6 @@ releases:
         value: '*.{{ .Values.federationDomainBase2 }}'
     needs:
       - 'ingress'
-
-  - name: 'elasticsearch-certs'
-    namespace: '{{ .Values.namespace1 }}'
-    chart: bedag/raw
-    values:
-      - './helm_vars/elasticsearch-certs/es-cert-issuer.yaml.gotmpl'
 
   # Note that wire-server depends on databases-ephemeral being up; and in some
   # cases on nginx-ingress also being up. If installing helm charts in a

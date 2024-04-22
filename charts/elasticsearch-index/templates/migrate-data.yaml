@@ -48,7 +48,14 @@ spec:
             - "{{ required "missing elasticsearch-index.galley.port!" .Values.galley.port }}"
             {{- if eq (include "useCassandraTLS" .Values) "true" }}
             - --tls-ca-certificate-file
-            - /certs/{{- (include "tlsSecretRef" .Values | fromYaml).key }}
+            - /certs/cassandra/{{- include "cassandraTlsSecretKey" .Values }}
+            {{- end }}
+            {{- if eq (include "useElasticsearchTLS" .Values) "true" }}
+            - --elasticsearch-ca-cert
+            - /certs/elasticsearch/{{- include "elasticsearchTlsSecretKey" .Values}}
+            {{- end }}
+            {{- if .Values.elasticsearch.insecureSkipTLSVerify }}
+            - --elasticsearch-insecure-skip-tls-verify
             {{- end }}
           volumeMounts:
           {{- if hasKey .Values.secrets "elasticsearch" }}
@@ -57,7 +64,11 @@ spec:
           {{- end }}
           {{- if eq (include "useCassandraTLS" .Values) "true" }}
             - name: elasticsearch-index-migrate-cassandra-client-ca
-              mountPath: "/certs"
+              mountPath: "/certs/cassandra"
+          {{- end }}
+          {{- if eq (include "useElasticsearchTLS" .Values) "true" }}
+            - name: elasticsearch-ca
+              mountPath: "/certs/elasticsearch"
           {{- end }}
       volumes:
         {{- if hasKey .Values.secrets "elasticsearch" }}
@@ -68,5 +79,10 @@ spec:
         {{- if eq (include "useCassandraTLS" .Values) "true" }}
         - name: elasticsearch-index-migrate-cassandra-client-ca
           secret:
-            secretName: {{ (include "tlsSecretRef" .Values | fromYaml).name }}
-        {{- end}}
+            secretName: {{ include "cassandraTlsSecretName" .Values }}
+        {{- end }}
+        {{- if eq (include "useElasticsearchTLS" .Values) "true" }}
+        - name: elasticsearch-ca
+          secret:
+            secretName: {{ include "elasticsearchTlsSecretName" .Values }}
+        {{- end }}

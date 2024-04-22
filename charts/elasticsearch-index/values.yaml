@@ -5,6 +5,14 @@ elasticsearch:
   port: 9200
   index: directory
   delete_template: directory
+#  To enable TLS provide a CA:
+#  tlsCa: <CA in PEM format (can be self-signed)>
+#
+#  Or refer to an existing secret (containing the CA):
+#  tlsCaSecretRef:
+#    name: <secret-name>
+#    key: <ca-attribute>
+  insecureSkipTLSVerify: false
 cassandra:
   # host:
   port: 9042

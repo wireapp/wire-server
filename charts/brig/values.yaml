@@ -33,10 +33,26 @@ config:
     host: elasticsearch-client
     port: 9200
     index: directory
-    insecureSkipVerifyTls: False
+    insecureSkipVerifyTls: false
+#   To configure custom TLS CA, please provide one of these:
+#   tlsCa: <CA in PEM format (can be self-signed)>
+#
+#   Or refer to an existing secret (containing the CA):
+#   tlsCaSecretRef:
+#     name: <secret-name>
+#     key: <ca-attribute>
     additionalWriteScheme: http
+    # additionalWriteHost: <host>
     additionalWritePort: 9200
-    additionalInsecureSkipVerifyTls: False
+    # additionalWriteIndex: <index>
+    additionalInsecureSkipVerifyTls: false
+#   To configure custom TLS CA, please provide one of these:
+#   additionalTlsCa: <CA in PEM format (can be self-signed)>
+#
+#   Or refer to an existing secret (containing the CA):
+#   additionalTlsCaSecretRef:
+#     name: <secret-name>
+#     key: <ca-attribute>
   aws:
     region: "eu-west-1"
     sesEndpoint: https://email.eu-west-1.amazonaws.com

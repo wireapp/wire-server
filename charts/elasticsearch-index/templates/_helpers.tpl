@@ -16,10 +16,39 @@
 This is used to switch between provided secret (e.g. by cert-manager) and
 created one (in case the CA is provided as PEM string.)
 */}}
-{{- define "tlsSecretRef" -}}
+
+{{- define "cassandraTlsSecretName" -}}
 {{- if .cassandra.tlsCaSecretRef -}}
-{{ .cassandra.tlsCaSecretRef | toYaml }}
+{{ .cassandra.tlsCaSecretRef.name }}
 {{- else }}
-{{- dict "name" "elasticsearch-index-migrate-cassandra-client-ca" "key" "ca.pem" | toYaml -}}
+{{- print "elasticsearch-index-migrate-cassandra-client-ca" -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "cassandraTlsSecretKey" -}}
+{{- if .cassandra.tlsCaSecretRef -}}
+{{ .cassandra.tlsCaSecretRef.key }}
+{{- else }}
+{{- print "ca.pem" -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "useElasticsearchTLS" -}}
+{{ or (hasKey .elasticsearch "tlsCa") (hasKey .elasticsearch "tlsCaSecretRef") }}
+{{- end -}}
+
+{{- define "elasticsearchTlsSecretName" -}}
+{{- if .elasticsearch.tlsCaSecretRef -}}
+{{ .elasticsearch.tlsCaSecretRef.name }}
+{{- else }}
+{{- printf "%s-ca" (include "fullname" .) -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "elasticsearchTlsSecretKey" -}}
+{{- if .elasticsearch.tlsCaSecretRef -}}
+{{ .elasticsearch.tlsCaSecretRef.key }}
+{{- else }}
+{{- print "ca.pem" -}}
 {{- end -}}
 {{- end -}}

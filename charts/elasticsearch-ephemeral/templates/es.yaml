@@ -36,6 +36,12 @@ spec:
           value: "true"
         - name: "ELASTIC_PASSWORD"
           value: {{ .Values.secrets.password }}
+        {{- if .Values.tls.enabled }}
+        - name: "xpack.ssl.certificate"
+          value: "certs/tls.crt"
+        - name: "xpack.ssl.key"
+          value: "certs/tls.key"
+        {{- end }}
         ports:
         - containerPort: 9200
           name: http
@@ -46,9 +52,18 @@ spec:
         volumeMounts:
         - name: storage
           mountPath: /data
+        {{- if .Values.tls.enabled }}
+        - name: certificate
+          mountPath: /usr/share/elasticsearch/config/certs
+        {{- end }}
         resources:
 {{ toYaml .Values.resources | indent 12 }}
       volumes:
         - emptyDir:
             medium: ""
           name: "storage"
+        {{- if .Values.tls.enabled }}
+        - name: certificate
+          secret:
+            name: {{ template "fullname" . }}-certificate
+        {{- end }}
