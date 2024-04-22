@@ -202,7 +202,7 @@ createNewGroup cid = do
 createSelfGroup :: (HasCallStack) => ClientIdentity -> App (String, Value)
 createSelfGroup cid = do
   conv <- getSelfConversation cid >>= getJSON 200
-  conv %. "epoch" `shouldMatchInt` 0
+  assertFieldMissing conv "epoch"
   groupId <- conv %. "group_id" & asString
   convId <- conv %. "qualified_id"
   createGroup cid conv

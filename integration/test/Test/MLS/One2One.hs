@@ -37,6 +37,7 @@ testGetMLSOne2One otherDomain = do
 
   conv %. "members.self.conversation_role" `shouldMatch` "wire_member"
   conv %. "members.self.qualified_id" `shouldMatch` (alice %. "qualified_id")
+  assertFieldMissing conv "epoch"
 
   convId <- conv %. "qualified_id"
 
@@ -47,7 +48,7 @@ testGetMLSOne2One otherDomain = do
 
   conv2 %. "type" `shouldMatchInt` 2
   conv2 %. "qualified_id" `shouldMatch` convId
-  conv2 %. "epoch" `shouldMatch` (conv %. "epoch")
+  assertFieldMissing conv2 "epoch"
 
 testMLSOne2OneOtherMember :: HasCallStack => One2OneScenario -> App ()
 testMLSOne2OneOtherMember scenario = do
