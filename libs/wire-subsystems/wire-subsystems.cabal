@@ -78,6 +78,8 @@ library
     Wire.NotificationSubsystem.Interpreter
     Wire.ParseException
     Wire.Rpc
+    Wire.DeleteQueue.Interpreter
+    Wire.DeleteQueue
     Wire.StoredUser
     Wire.UserStore
     Wire.UserStore.Cassandra

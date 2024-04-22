@@ -861,19 +861,19 @@ testCreateUserAnonExpiry :: Brig -> Http ()
 testCreateUserAnonExpiry b = do
   u1 <- randomUser b
   alice <- randomUser b
-  now <- liftIO getCurrentTime
   bob <- createAnonUserExpiry (Just 2) "bob" b
   liftIO $ assertBool "expiry not set on regular creation" (isNothing (userExpire alice))
-  ensureExpiry now (fromUTCTimeMillis <$> userExpire bob) "bob/register"
+  ensureExpiry (fromUTCTimeMillis <$> userExpire bob) "bob/register"
   resAlice <- getProfile (userId u1) (userId alice)
   resBob <- getProfile (userId u1) (userId bob)
   selfBob <- get (b . zUser (userId bob) . path "self") <!! const 200 === statusCode
   liftIO $ assertBool "Bob must not be in a deleted state initially" (maybe True not (deleted selfBob))
   liftIO $ assertBool "Regular user should not have any expiry" (null $ expire resAlice)
-  ensureExpiry now (expire resBob) "bob/public"
-  ensureExpiry now (expire selfBob) "bob/self"
+  ensureExpiry (expire resBob) "bob/public"
+  ensureExpiry (expire selfBob) "bob/self"
   awaitExpiry 5 (userId u1) (userId bob)
   resBob' <- getProfile (userId u1) (userId bob)
+  print $ "\n -------- bob: " <> show resBob'
   liftIO $ assertBool "Bob must be in deleted state" (fromMaybe False $ deleted resBob')
   where
     getProfile :: UserId -> UserId -> Http ResponseLBS
@@ -885,15 +885,17 @@ testCreateUserAnonExpiry b = do
       when (statusCode r == 200 && isNothing (deleted r) && n > 0) $ do
         liftIO $ threadDelay 1000000
         awaitExpiry (n - 1) zusr uid
-    ensureExpiry :: UTCTime -> Maybe UTCTime -> String -> Http ()
-    ensureExpiry now expiry s = case expiry of
-      Nothing -> liftIO $ assertFailure ("user must have an expiry" <> s)
-      Just a -> do
-        let diff = diffUTCTime a now
-            minExp = 1 :: Integer -- 1 second
-            maxExp = 60 * 60 * 24 * 10 :: Integer -- 10 days
-        liftIO $ assertBool "expiry must in be the future" (diff >= fromIntegral minExp)
-        liftIO $ assertBool "expiry must be less than 10 days" (diff < fromIntegral maxExp)
+    ensureExpiry :: Maybe UTCTime -> String -> Http ()
+    ensureExpiry expiry s = do
+      now <- liftIO getCurrentTime
+      case expiry of
+        Nothing -> liftIO $ assertFailure ("user must have an expiry" <> s)
+        Just a -> do
+          let diff = diffUTCTime a now
+              minExp = 1 :: Integer -- 1 second
+              maxExp = 60 * 60 * 24 * 10 :: Integer -- 10 days
+          liftIO $ assertBool "expiry must in be the future" (diff >= fromIntegral minExp)
+          liftIO $ assertBool "expiry must be less than 10 days" (diff < fromIntegral maxExp)
     expire :: ResponseLBS -> Maybe UTCTime
     expire r = field "expires_at" =<< responseJsonMaybe r
     deleted :: ResponseLBS -> Maybe Bool

@@ -147,6 +147,7 @@ getLocalUserProfiles requestingUser luids = do
 getLocalUserProfile ::
   forall r.
   ( Member UserStore r,
+    Member DeleteQueueEffect r,
     Member (Input UserSubsystemConfig) r
   ) =>
   EmailVisibilityConfigWithViewer ->
@@ -158,5 +159,14 @@ getLocalUserProfile emailVisibilityConfigWithViewer luid = do
   runMaybeT $ do
     storedUser <- MaybeT $ getUser (tUnqualified luid)
     guard $ not (hasPendingInvitation storedUser)
-    let user = mkUserFromStored domain locale storedUser
-    pure $ mkUserProfile emailVisibilityConfigWithViewer user UserLegalHoldDisabled
+    let user = mkUserFromStored domain locale storedUser >>= mkUserProfile emailVisibilityConfigWithViewer user UserLegalHoldDisabled
+    pure _
+    -- TODO: Garbage collect expired users
+    -- case user.userExpire of
+    --   Nothing -> pure user
+    --   Just (fromUTCTimeMillis -> e) -> do
+    --     now <- liftIO =<< view currentTime
+    --     -- ephemeral users past their expiry date are deleted
+    --     when (diffUTCTime e now < 0) $
+    --       enqueueUserDeletion user.userId
+    --     pure user
