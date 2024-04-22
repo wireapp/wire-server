@@ -22,17 +22,11 @@ where
 
 import Data.Domain
 import Data.Id (Id (Id))
-import Data.Misc
 import Data.Qualified
-import Data.Set qualified as Set
-import Data.Time.Calendar
-import Data.Time.Clock
 import Data.UUID qualified as UUID
 import Imports
+import Test.Wire.API.Golden.Generated.Conversation_user
 import Wire.API.Conversation
-import Wire.API.Conversation.Protocol
-import Wire.API.Conversation.Role
-import Wire.API.MLS.CipherSuite
 
 domain :: Domain
 domain = Domain "golden.example.com"
@@ -40,7 +34,7 @@ domain = Domain "golden.example.com"
 testObject_ConversationsResponse_1 :: ConversationsResponse
 testObject_ConversationsResponse_1 =
   ConversationsResponse
-    { crFound = [conv1, conv2],
+    { crFound = [testObject_Conversation_user_5, testObject_Conversation_user_3],
       crNotFound =
         [ Qualified (Id (fromJust (UUID.fromString "00000018-0000-0020-0000-000e00000002"))) domain,
           Qualified (Id (fromJust (UUID.fromString "00000018-0000-0020-0000-111111111112"))) (Domain "golden2.example.com")
@@ -50,99 +44,3 @@ testObject_ConversationsResponse_1 =
           Qualified (Id (fromJust (UUID.fromString "99999999-0000-0020-0000-111111111112"))) (Domain "golden3.example.com")
         ]
     }
-
-conv1 :: Conversation
-conv1 =
-  Conversation
-    { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000"))) domain,
-      cnvMetadata =
-        ConversationMetadata
-          { cnvmType = One2OneConv,
-            cnvmCreator = Just (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000200000001"))),
-            cnvmAccess = [],
-            cnvmAccessRoles = Set.empty,
-            cnvmName = Just " 0",
-            cnvmTeam = Just (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000002"))),
-            cnvmMessageTimer = Nothing,
-            cnvmReceiptMode = Just (ReceiptMode {unReceiptMode = -2})
-          },
-      cnvMembers =
-        ConvMembers
-          { cmSelf =
-              Member
-                { memId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000"))) domain,
-                  memService = Nothing,
-                  memOtrMutedStatus = Nothing,
-                  memOtrMutedRef = Nothing,
-                  memOtrArchived = False,
-                  memOtrArchivedRef = Just "",
-                  memHidden = False,
-                  memHiddenRef = Just "",
-                  memConvRoleName = fromJust (parseRoleName "rhhdzf0j0njilixx0g0vzrp06b_5us")
-                },
-            cmOthers = []
-          },
-      cnvProtocol = ProtocolProteus
-    }
-
-conv2 :: Conversation
-conv2 =
-  Conversation
-    { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000002"))) domain,
-      cnvMetadata =
-        ConversationMetadata
-          { cnvmType = SelfConv,
-            cnvmCreator = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000200000001"))),
-            cnvmAccess =
-              [ InviteAccess,
-                InviteAccess,
-                CodeAccess,
-                LinkAccess,
-                InviteAccess,
-                PrivateAccess,
-                LinkAccess,
-                CodeAccess,
-                CodeAccess,
-                LinkAccess,
-                PrivateAccess,
-                InviteAccess
-              ],
-            cnvmAccessRoles = Set.fromList [TeamMemberAccessRole, GuestAccessRole, ServiceAccessRole],
-            cnvmName = Just "",
-            cnvmTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000200000000"))),
-            cnvmMessageTimer = Just (Ms {ms = 1319272593797015}),
-            cnvmReceiptMode = Just (ReceiptMode {unReceiptMode = 2})
-          },
-      cnvMembers =
-        ConvMembers
-          { cmSelf =
-              Member
-                { memId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001"))) domain,
-                  memService = Nothing,
-                  memOtrMutedStatus = Just (MutedStatus {fromMutedStatus = -1}),
-                  memOtrMutedRef = Nothing,
-                  memOtrArchived = False,
-                  memOtrArchivedRef = Nothing,
-                  memHidden = True,
-                  memHiddenRef = Just "",
-                  memConvRoleName =
-                    fromJust (parseRoleName "9b2d3thyqh4ptkwtq2n2v9qsni_ln1ca66et_z8dlhfs9oamp328knl3rj9kcj")
-                },
-            cmOthers = []
-          },
-      cnvProtocol =
-        ProtocolMLS
-          ( ConversationMLSData
-              (GroupId "test_group")
-              ( Just
-                  ( ActiveMLSConversationData
-                      (Epoch 42)
-                      timestamp
-                      MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
-                  )
-              )
-          )
-    }
-  where
-    timestamp :: UTCTime
-    timestamp = UTCTime (fromGregorian 2023 1 17) (secondsToDiffTime 42)
