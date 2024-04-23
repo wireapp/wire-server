@@ -2100,8 +2100,8 @@ testDeleteSubConvStale = do
     pure (qcnv, sub)
 
   -- the commit was made, yet the epoch for the request body is old
-  let Just activeData = pscActiveData sub
-  let dsc = DeleteSubConversationRequest (pscGroupId sub) activeData.epoch
+  let epoch = maybe (Epoch 0) (.epoch) (pscActiveData sub)
+  let dsc = DeleteSubConversationRequest (pscGroupId sub) epoch
   deleteSubConv (qUnqualified alice) qcnv sconv dsc
     !!! do const 409 === statusCode
 
