@@ -17,7 +17,6 @@
 
 module Galley.API.Clients
   ( getClients,
-    addClientH,
     rmClientH,
   )
 where
@@ -56,6 +55,7 @@ import Wire.API.Routes.MultiTablePaging
 import Wire.NotificationSubsystem
 import Wire.Sem.Paging.Cassandra (CassandraPaging)
 
+-- TODO: refactor
 getClients ::
   ( Member BrigAccess r,
     Member ClientStore r
@@ -69,14 +69,6 @@ getClients usr = do
       then fromUserClients <$> E.lookupClients [usr]
       else E.getClients [usr]
   pure (clientIds usr clts)
-
-addClientH ::
-  Member ClientStore r =>
-  UserId ::: ClientId ->
-  Sem r Response
-addClientH (usr ::: clt) = do
-  E.createClient usr clt
-  pure empty
 
 -- | Remove a client from conversations it is part of according to the
 -- conversation protocol (Proteus or MLS). In addition, remove the client from

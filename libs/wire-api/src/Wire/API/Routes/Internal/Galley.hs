@@ -601,6 +601,16 @@ type IMiscAPI =
                :> ZUser
                :> Get '[JSON] [ClientId]
            )
+    :<|> Named
+           "test-add-client"
+           ( "clients"
+               :> ZUser
+               :> Capture "cid" ClientId
+               :> MultiVerb1
+                    'POST
+                    '[JSON]
+                    (RespondEmpty 200 "OK")
+           )
 
 swaggerDoc :: OpenApi
 swaggerDoc =
