@@ -38,7 +38,7 @@ spec:
           value: {{ .Values.secrets.password }}
         {{- if .Values.tls.enabled }}
         - name: "xpack.security.http.ssl.enabled"
-          vakue: "true"
+          value: "true"
         - name: "xpack.security.http.ssl.certificate"
           value: "certs/tls.crt"
         - name: "xpack.security.http.ssl.key"
