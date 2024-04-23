@@ -47,7 +47,7 @@ spec:
     {{- if eq (include "useElasticsearchTLS" .Values.config) "true" }}
     - name: elasticsearch-ca
       secret:
-        secretName: {{ include elasticsearchTlsSecretName "true" }}
+        secretName: {{ include "elasticsearchTlsSecretName" .Values.config }}
     {{- end}}
     {{- if eq (include "useCassandraTLS" .Values.config) "true" }}
     - name: "brig-cassandra"
