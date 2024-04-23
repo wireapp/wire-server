@@ -43,9 +43,12 @@ import Wire.API.User qualified as Public
 import Wire.API.User.Search
 import Wire.API.User.Search qualified as Public
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
+import Wire.UserSubsystem
 
 getHandleInfo ::
-  (Member GalleyAPIAccess r) =>
+  ( Member GalleyAPIAccess r,
+    Member UserSubsystem r
+  ) =>
   UserId ->
   Qualified Handle ->
   (Handler r) (Maybe Public.UserProfile)
@@ -65,7 +68,9 @@ getRemoteHandleInfo handle = do
   Federation.getUserHandleInfo handle !>> fedError
 
 getLocalHandleInfo ::
-  (Member GalleyAPIAccess r) =>
+  ( Member GalleyAPIAccess r,
+    Member UserSubsystem r
+  ) =>
   Local UserId ->
   Handle ->
   (Handler r) (Maybe Public.UserProfile)
@@ -76,7 +81,9 @@ getLocalHandleInfo self handle = do
     Nothing -> pure Nothing
     Just ownerId -> do
       domain <- viewFederationDomain
-      ownerProfile <- API.lookupProfile self (Qualified ownerId domain) !>> fedError
+      ownerProfile <-
+        (lift . liftSem $ getUserProfile self (Qualified ownerId domain))
+          !>> fedError
       owner <- filterHandleResults self (maybeToList ownerProfile)
       pure $ listToMaybe owner
 

@@ -25,7 +25,6 @@ import Brig.App
 import Brig.Effects.ConnectionStore
 import Brig.IO.Intra (rmClient)
 import Brig.IO.Intra qualified as Intra
-import Brig.InternalEvent.Types
 import Brig.Options (defDeleteThrottleMillis, setDeleteThrottleMillis)
 import Brig.Provider.API qualified as API
 import Control.Lens (view)
@@ -41,6 +40,7 @@ import Polysemy.Time
 import Polysemy.TinyLog as Log
 import System.Logger.Class (field, msg, val, (~~))
 import Wire.API.UserEvent
+import Wire.InternalEvent
 import Wire.NotificationSubsystem
 import Wire.Sem.Delay
 import Wire.Sem.Paging.Cassandra (InternalPaging)

@@ -39,14 +39,12 @@ import Brig.Code qualified as Code
 import Brig.Data.Client qualified as User
 import Brig.Data.User qualified as User
 import Brig.Email (mkEmailKey)
-import Brig.InternalEvent.Types qualified as Internal
 import Brig.Options (Settings (..))
 import Brig.Options qualified as Opt
 import Brig.Provider.DB (ServiceConn (..))
 import Brig.Provider.DB qualified as DB
 import Brig.Provider.Email
 import Brig.Provider.RPC qualified as RPC
-import Brig.Queue qualified as Queue
 import Brig.Team.Util
 import Brig.Types.User
 import Brig.ZAuth qualified as ZAuth
@@ -121,13 +119,15 @@ import Wire.API.User.Client
 import Wire.API.User.Client qualified as Public (Client, ClientCapability (ClientSupportsLegalholdImplicitConsent), PubClient (..), UserClientPrekeyMap, UserClients, userClients)
 import Wire.API.User.Client.Prekey qualified as Public (PrekeyId)
 import Wire.API.User.Identity qualified as Public (Email)
+import Wire.DeleteQueue
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.Sem.Concurrency (Concurrency, ConcurrencySafety (Unsafe))
 
 botAPI ::
   ( Member GalleyAPIAccess r,
-    Member (Concurrency 'Unsafe) r
+    Member (Concurrency 'Unsafe) r,
+    Member DeleteQueue r
   ) =>
   ServerT BotAPI (Handler r)
 botAPI =
@@ -143,7 +143,9 @@ botAPI =
     :<|> Named @"bot-list-users" botListUserProfiles
     :<|> Named @"bot-get-user-clients" botGetUserClients
 
-servicesAPI :: (Member GalleyAPIAccess r) => ServerT ServicesAPI (Handler r)
+servicesAPI ::
+  (Member GalleyAPIAccess r, Member DeleteQueue r) =>
+  ServerT ServicesAPI (Handler r)
 servicesAPI =
   Named @"post-provider-services" addService
     :<|> Named @"get-provider-services" listServices
@@ -452,7 +454,9 @@ updateServiceConn pid sid upd = do
 -- disabled and then creates an event that will, when processed, actually
 -- delete the service. See 'finishDeleteService'.
 deleteService ::
-  Member GalleyAPIAccess r =>
+  ( Member GalleyAPIAccess r,
+    Member DeleteQueue r
+  ) =>
   ProviderId ->
   ServiceId ->
   Public.DeleteService ->
@@ -467,8 +471,7 @@ deleteService pid sid del = do
   -- Disable the service
   wrapClientE $ DB.updateServiceConn pid sid Nothing Nothing Nothing (Just False)
   -- Create an event
-  queue <- view internalEvents
-  lift $ Queue.enqueue queue (Internal.DeleteService pid sid)
+  lift . liftSem $ enqueueServiceDeletion pid sid
 
 finishDeleteService ::
   ( MonadReader Env m,
@@ -759,7 +762,10 @@ botUpdatePrekeys bot upd = do
       wrapClientE (User.updatePrekeys (botUserId bot) (clientId c) pks) !>> clientDataError
 
 botClaimUsersPrekeys ::
-  (Member (Concurrency 'Unsafe) r, Member GalleyAPIAccess r) =>
+  ( Member (Concurrency 'Unsafe) r,
+    Member GalleyAPIAccess r,
+    Member DeleteQueue r
+  ) =>
   BotId ->
   Public.UserClients ->
   Handler r Public.UserClientPrekeyMap

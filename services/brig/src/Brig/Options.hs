@@ -24,7 +24,7 @@
 module Brig.Options where
 
 import Brig.Allowlists (AllowlistEmailDomains (..), AllowlistPhonePrefixes (..))
-import Brig.Queue.Types (Queue (..))
+import Wire.Queue
 import Brig.SMTP (SMTPConnType (..))
 import Brig.User.Auth.Cookie.Limit
 import Brig.ZAuth qualified as ZAuth

@@ -59,12 +59,14 @@ import Wire.API.User.Search
 import Wire.API.User.Search qualified as Public
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
+import Wire.UserSubsystem
 
 -- FUTUREWORK: Consider augmenting 'SearchResult' with full user profiles
 -- for all results. This is tracked in https://wearezeta.atlassian.net/browse/SQCORE-599
 search ::
   ( Member GalleyAPIAccess r,
-    Member FederationConfigStore r
+    Member FederationConfigStore r,
+    Member UserSubsystem r
   ) =>
   UserId ->
   Text ->
@@ -113,7 +115,9 @@ searchRemotely domain mTid searchTerm = do
 
 searchLocally ::
   forall r.
-  (Member GalleyAPIAccess r) =>
+  ( Member GalleyAPIAccess r,
+    Member UserSubsystem r
+  ) =>
   UserId ->
   Text ->
   Maybe (Range 1 500 Int32) ->

@@ -4,8 +4,12 @@
 # dependencies are added or removed.
 { mkDerivation
 , aeson
+, amazonka
+, amazonka-core
+, amazonka-sqs
 , async
 , base
+, base16-bytestring
 , bilge
 , bytestring
 , bytestring-conversion
@@ -19,6 +23,7 @@
 , extended
 , gitignoreSource
 , gundeck-types
+, HsOpenSSL
 , hspec
 , hspec-discover
 , http-client
@@ -28,20 +33,29 @@
 , iso639
 , lens
 , lib
+, mime
+, mime-mail
+, network-conduit-tls
 , polysemy
 , polysemy-plugin
+, polysemy-time
 , polysemy-wire-zoo
 , QuickCheck
 , quickcheck-instances
+, resourcet
 , retry
 , servant
 , servant-client-core
+, stomp-queue
 , string-conversions
 , text
+, time
 , tinylog
 , transformers
 , transitive-anns
 , types-common
+, unliftio
+, uuid
 , wai-utilities
 , wire-api
 , wire-api-federation
@@ -52,8 +66,12 @@ mkDerivation {
   src = gitignoreSource ./.;
   libraryHaskellDepends = [
     aeson
+    amazonka
+    amazonka-core
+    amazonka-sqs
     async
     base
+    base16-bytestring
     bilge
     bytestring
     bytestring-conversion
@@ -65,23 +83,33 @@ mkDerivation {
     exceptions
     extended
     gundeck-types
+    HsOpenSSL
     http-client
     http-types
     http2-manager
     imports
     lens
+    mime
+    mime-mail
+    network-conduit-tls
     polysemy
     polysemy-plugin
+    polysemy-time
     polysemy-wire-zoo
     QuickCheck
+    resourcet
     retry
     servant
     servant-client-core
+    stomp-queue
     text
+    time
     tinylog
     transformers
     transitive-anns
     types-common
+    unliftio
+    uuid
     wai-utilities
     wire-api
     wire-api-federation
@@ -101,11 +129,13 @@ mkDerivation {
     iso639
     polysemy
     polysemy-plugin
+    polysemy-time
     polysemy-wire-zoo
     QuickCheck
     quickcheck-instances
     servant-client-core
     string-conversions
+    time
     transformers
     types-common
     wire-api

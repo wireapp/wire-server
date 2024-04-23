@@ -156,6 +156,7 @@ import Wire.API.User.Password qualified as Public
 import Wire.API.User.RichInfo qualified as Public
 import Wire.API.UserMap qualified as Public
 import Wire.API.Wrapped qualified as Public
+import Wire.DeleteQueue
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.NotificationSubsystem
@@ -278,6 +279,7 @@ servantSitemap ::
   ( Member BlacklistPhonePrefixStore r,
     Member BlacklistStore r,
     Member CodeStore r,
+    Member DeleteQueue r,
     Member (Concurrency 'Unsafe) r,
     Member (ConnectionStore InternalPaging) r,
     Member (Embed HttpClientIO) r,
@@ -520,12 +522,22 @@ listPropertyKeysAndValues u = do
   keysAndVals <- fmap Map.fromList . lift $ wrapClient (API.lookupPropertyKeysAndValues u)
   Public.PropertyKeysAndValues <$> traverse parseStoredPropertyValue keysAndVals
 
-getPrekeyUnqualifiedH :: UserId -> UserId -> ClientId -> (Handler r) Public.ClientPrekey
+getPrekeyUnqualifiedH ::
+  Member DeleteQueue r =>
+  UserId ->
+  UserId ->
+  ClientId ->
+  (Handler r) Public.ClientPrekey
 getPrekeyUnqualifiedH zusr user client = do
   domain <- viewFederationDomain
   getPrekeyH zusr (Qualified user domain) client
 
-getPrekeyH :: UserId -> Qualified UserId -> ClientId -> (Handler r) Public.ClientPrekey
+getPrekeyH ::
+  Member DeleteQueue r =>
+  UserId ->
+  Qualified UserId ->
+  ClientId ->
+  (Handler r) Public.ClientPrekey
 getPrekeyH zusr (Qualified user domain) client = do
   mPrekey <- API.claimPrekey (ProtectedUser zusr) user domain client !>> clientError
   ifNothing (notFound "prekey not found") mPrekey
@@ -540,7 +552,9 @@ getPrekeyBundleH zusr (Qualified uid domain) =
   API.claimPrekeyBundle (ProtectedUser zusr) domain uid !>> clientError
 
 getMultiUserPrekeyBundleUnqualifiedH ::
-  Member (Concurrency 'Unsafe) r =>
+  ( Member (Concurrency 'Unsafe) r,
+    Member DeleteQueue r
+  ) =>
   UserId ->
   Public.UserClients ->
   Handler r Public.UserClientPrekeyMap
@@ -564,7 +578,9 @@ getMultiUserPrekeyBundleHInternal qualUserClients = do
     throwStd (errorToWai @'E.TooManyClients)
 
 getMultiUserPrekeyBundleHV3 ::
-  Member (Concurrency 'Unsafe) r =>
+  ( Member (Concurrency 'Unsafe) r,
+    Member DeleteQueue r
+  ) =>
   UserId ->
   Public.QualifiedUserClients ->
   (Handler r) Public.QualifiedUserClientPrekeyMap
@@ -573,7 +589,9 @@ getMultiUserPrekeyBundleHV3 zusr qualUserClients = do
   API.claimMultiPrekeyBundlesV3 (ProtectedUser zusr) qualUserClients !>> clientError
 
 getMultiUserPrekeyBundleH ::
-  Member (Concurrency 'Unsafe) r =>
+  ( Member (Concurrency 'Unsafe) r,
+    Member DeleteQueue r
+  ) =>
   UserId ->
   Public.QualifiedUserClients ->
   (Handler r) Public.QualifiedUserClientPrekeyMapV4
@@ -584,6 +602,7 @@ getMultiUserPrekeyBundleH zusr qualUserClients = do
 addClient ::
   ( Member GalleyAPIAccess r,
     Member (Embed HttpClientIO) r,
+    Member DeleteQueue r,
     Member NotificationSubsystem r,
     Member TinyLog r,
     Member (Input (Local ())) r,
@@ -601,7 +620,13 @@ addClient usr con new = do
   API.addClient usr (Just con) new
     !>> clientError
 
-deleteClient :: UserId -> ConnId -> ClientId -> Public.RmClient -> (Handler r) ()
+deleteClient ::
+  Member DeleteQueue r =>
+  UserId ->
+  ConnId ->
+  ClientId ->
+  Public.RmClient ->
+  (Handler r) ()
 deleteClient usr con clt body =
   API.rmClient usr con clt (Public.rmPassword body) !>> clientError
 
@@ -663,12 +688,14 @@ getRichInfo self user = do
   wrapClientE $ fromMaybe mempty <$> API.lookupRichInfo user
 
 getSupportedProtocols ::
-  Member GalleyAPIAccess r =>
+  ( Member GalleyAPIAccess r,
+    Member UserSubsystem r
+  ) =>
   Local UserId ->
   Qualified UserId ->
   Handler r (Set Public.BaseProtocolTag)
 getSupportedProtocols lself quid = do
-  muser <- API.lookupProfile lself quid !>> fedError
+  muser <- (lift . liftSem $ getUserProfile lself quid) !>> fedError
   user <- maybe (throwStd (errorToWai @'E.UserNotFound)) pure muser
   pure (Public.profileSupportedProtocols user)
 
@@ -808,7 +835,8 @@ getUserUnqualifiedH self uid = do
 -- FUTUREWORK: Make servant understand that at least one of these is required
 listUsersByUnqualifiedIdsOrHandles ::
   ( Member GalleyAPIAccess r,
-    Member (Concurrency 'Unsafe) r
+    Member (Concurrency 'Unsafe) r,
+    Member UserSubsystem r
   ) =>
   UserId ->
   Maybe (CommaSeparatedList UserId) ->
@@ -843,6 +871,7 @@ listUsersByIdsOrHandlesGetUsers lself hs = do
 listUsersByIdsOrHandlesV3 ::
   forall r.
   ( Member GalleyAPIAccess r,
+    Member UserSubsystem r,
     Member (Concurrency 'Unsafe) r
   ) =>
   UserId ->
@@ -861,7 +890,7 @@ listUsersByIdsOrHandlesV3 self q = do
     _ -> pure foundUsers
   where
     byIds :: Local UserId -> [Qualified UserId] -> (Handler r) [Public.UserProfile]
-    byIds lself uids = API.lookupProfiles lself uids !>> fedError
+    byIds lself uids = (lift . liftSem $ getUserProfiles lself uids) !>> fedError
 
 -- Similar to listUsersByIdsOrHandlesV3, except that it allows partial successes
 -- using a new return type
@@ -1012,7 +1041,8 @@ checkHandles _ (Public.CheckHandles hs num) = do
 -- 'Handle.getHandleInfo') returns UserProfile to reduce traffic between backends
 -- in a federated scenario.
 getHandleInfoUnqualifiedH ::
-  ( Member GalleyAPIAccess r
+  ( Member GalleyAPIAccess r,
+    Member UserSubsystem r
   ) =>
   UserId ->
   Handle ->

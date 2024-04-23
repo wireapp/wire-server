@@ -72,6 +72,7 @@ import Wire.API.UserMap (UserMap)
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.NotificationSubsystem
 import Wire.Sem.Concurrency
+import Wire.UserSubsystem (UserSubsystem)
 
 type FederationAPI = "federation" :> BrigApi
 
@@ -135,7 +136,8 @@ sendConnectionAction originDomain NewConnectionRequest {..} = do
 
 getUserByHandle ::
   ( Member GalleyAPIAccess r,
-    Member FederationConfigStore r
+    Member FederationConfigStore r,
+    Member UserSubsystem r
   ) =>
   Domain ->
   Handle ->
@@ -155,8 +157,7 @@ getUserByHandle domain handle = do
       case maybeOwnerId of
         Nothing ->
           pure Nothing
-        Just ownerId ->
-          listToMaybe <$> API.lookupLocalProfiles Nothing [ownerId]
+        Just ownerId -> getLocalUserProfile ownerId
 
 getUsersByIds ::
   Member GalleyAPIAccess r =>

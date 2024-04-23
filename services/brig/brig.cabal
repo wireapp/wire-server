@@ -142,7 +142,6 @@ library
     Brig.Index.Options
     Brig.Index.Types
     Brig.InternalEvent.Process
-    Brig.InternalEvent.Types
     Brig.IO.Intra
     Brig.IO.Journal
     Brig.IO.Logging
@@ -154,9 +153,6 @@ library
     Brig.Provider.Email
     Brig.Provider.RPC
     Brig.Provider.Template
-    Brig.Queue
-    Brig.Queue.Stomp
-    Brig.Queue.Types
     Brig.RPC
     Brig.Run
     Brig.Schema.Run
@@ -247,8 +243,6 @@ library
     , async                      >=2.1
     , auto-update                >=0.1
     , base                       >=4       && <5
-    , base-prelude
-    , base16-bytestring          >=0.1
     , base64-bytestring          >=1.0
     , bilge                      >=0.21.1
     , bloodhound                 >=0.13
@@ -297,14 +291,12 @@ library
     , lens-aeson                 >=1.0
     , metrics-core               >=0.3
     , metrics-wai                >=0.3
-    , mime
     , mime-mail                  >=0.4
     , mmorph
     , MonadRandom                >=0.5
     , mtl                        >=2.1
     , mwc-random
     , network                    >=2.4
-    , network-conduit-tls
     , openapi3
     , optparse-applicative       >=0.11
     , polysemy
@@ -331,7 +323,6 @@ library
     , split                      >=0.2
     , ssl-util
     , statistics                 >=0.13
-    , stomp-queue                >=0.3
     , template                   >=0.2
     , template-haskell
     , text                       >=0.11
@@ -436,7 +427,6 @@ executable brig-integration
     , async
     , attoparsec
     , base
-    , base16-bytestring
     , bilge
     , bloodhound
     , brig

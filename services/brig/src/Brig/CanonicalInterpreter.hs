@@ -35,6 +35,8 @@ import Polysemy.Input (Input, runInputConst, runInputSem)
 import Polysemy.TinyLog (TinyLog)
 import Wire.API.Federation.Client qualified
 import Wire.API.Federation.Error
+import Wire.DeleteQueue
+import Wire.DeleteQueue.Interpreter as DQ
 import Wire.FederationAPIAccess qualified
 import Wire.FederationAPIAccess.Interpreter (FederationAPIAccessConfig (..), interpretFederationAPIAccess)
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
@@ -43,6 +45,7 @@ import Wire.GundeckAPIAccess
 import Wire.NotificationSubsystem
 import Wire.NotificationSubsystem.Interpreter (defaultNotificationSubsystemConfig, runNotificationSubsystemGundeck)
 import Wire.ParseException
+import Wire.Queue qualified as Q
 import Wire.Rpc
 import Wire.Sem.Concurrency
 import Wire.Sem.Concurrency.IO
@@ -56,9 +59,13 @@ import Wire.UserStore
 import Wire.UserStore.Cassandra
 import Wire.UserSubsystem
 import Wire.UserSubsystem.Interpreter
+import Control.Exception (ErrorCall)
 
 type BrigCanonicalEffects =
   '[ UserSubsystem,
+     DeleteQueue,
+     Input Q.Queue,
+     Input DQ.Env,
      Error Wire.API.Federation.Error.FederationError,
      Wire.FederationAPIAccess.FederationAPIAccess Wire.API.Federation.Client.FederatorClient,
      UserStore,
@@ -83,6 +90,7 @@ type BrigCanonicalEffects =
      Rpc,
      Embed Cas.Client,
      Error ParseException,
+     Error ErrorCall,
      Error SomeException,
      TinyLog,
      Embed HttpClientIO,
@@ -93,7 +101,7 @@ type BrigCanonicalEffects =
      Final IO
    ]
 
-runBrigToIO :: Env -> AppT BrigCanonicalEffects a -> IO a
+runBrigToIO :: App.Env -> AppT BrigCanonicalEffects a -> IO a
 runBrigToIO e (AppT ma) = do
   let userSubsystemConfig =
         UserSubsystemConfig
@@ -116,6 +124,7 @@ runBrigToIO e (AppT ma) = do
               . runEmbedded (runHttpClientIO e)
               . loggerToTinyLog (e ^. applog)
               . runError @SomeException
+              . mapError @ErrorCall SomeException
               . mapError @ParseException SomeException
               . interpretClientToIO (e ^. casClient)
               . runRpcWithHttp (e ^. httpManager) (e ^. App.requestId)
@@ -140,6 +149,9 @@ runBrigToIO e (AppT ma) = do
               . interpretUserStoreCassandra (e ^. casClient)
               . interpretFederationAPIAccess federationApiAccessConfig
               . throwFederationErrorAsWaiError
+              . runInputConst (mkEnv Nothing Nothing)
+              . runInputConst (e ^. internalEvents)
+              . runDeleteQueue
               . runUserSubsystem userSubsystemConfig
           )
     )

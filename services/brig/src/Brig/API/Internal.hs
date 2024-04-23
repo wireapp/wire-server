@@ -96,7 +96,9 @@ import Wire.API.User.Activation
 import Wire.API.User.Client
 import Wire.API.User.RichInfo
 import Wire.API.UserEvent
+import Wire.DeleteQueue
 import Wire.GalleyAPIAccess (GalleyAPIAccess, ShowOrHideInvitationUrl (..))
+import Wire.InternalEvent
 import Wire.NotificationSubsystem
 import Wire.Rpc
 import Wire.Sem.Concurrency
@@ -106,6 +108,7 @@ servantSitemap ::
   forall r p.
   ( Member BlacklistPhonePrefixStore r,
     Member BlacklistStore r,
+    Member DeleteQueue r,
     Member CodeStore r,
     Member (Concurrency 'Unsafe) r,
     Member (ConnectionStore InternalPaging) r,
@@ -157,6 +160,7 @@ accountAPI ::
     Member BlacklistPhonePrefixStore r,
     Member PasswordResetStore r,
     Member GalleyAPIAccess r,
+    Member DeleteQueue r,
     Member (UserPendingActivationStore p) r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
@@ -377,6 +381,7 @@ addClientInternalH ::
   ( Member GalleyAPIAccess r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
+    Member DeleteQueue r,
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
@@ -410,6 +415,7 @@ legalHoldClientRequestedH targetUser clientRequest = do
 removeLegalHoldClientH ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
+    Member DeleteQueue r,
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
@@ -517,6 +523,7 @@ changeSelfEmailMaybeSend u DoNotSendEmail email allowScim = do
 -- handler allows up to 4 lists of various user keys, and returns the union of the lookups.
 -- Empty list is forbidden for backwards compatibility.
 listActivatedAccountsH ::
+  Member DeleteQueue r =>
   Maybe (CommaSeparatedList UserId) ->
   Maybe (CommaSeparatedList Handle) ->
   Maybe (CommaSeparatedList Email) ->
@@ -538,7 +545,11 @@ listActivatedAccountsH
       u4 <- (\phone -> API.lookupAccountsByIdentity (Right phone) includePendingInvitations) `mapM` phones
       pure $ u1 <> u2 <> join u3 <> join u4
 
-listActivatedAccounts :: Either [UserId] [Handle] -> Bool -> (AppT r) [UserAccount]
+listActivatedAccounts ::
+  Member DeleteQueue r =>
+  Either [UserId] [Handle] ->
+  Bool ->
+  (AppT r) [UserAccount]
 listActivatedAccounts elh includePendingInvitations = do
   Log.debug (Log.msg $ "listActivatedAccounts: " <> show (elh, includePendingInvitations))
   case elh of
@@ -547,10 +558,10 @@ listActivatedAccounts elh includePendingInvitations = do
       us <- mapM (wrapClient . API.lookupHandle) hs
       byIds (catMaybes us)
   where
-    byIds :: [UserId] -> (AppT r) [UserAccount]
+    byIds :: Member DeleteQueue r => [UserId] -> (AppT r) [UserAccount]
     byIds uids = wrapClient (API.lookupAccounts uids) >>= filterM accountValid
 
-    accountValid :: UserAccount -> (AppT r) Bool
+    accountValid :: Member DeleteQueue r => UserAccount -> (AppT r) Bool
     accountValid account = case userIdentity . accountUser $ account of
       Nothing -> pure False
       Just ident ->
@@ -560,7 +571,7 @@ listActivatedAccounts elh includePendingInvitations = do
             hasInvitation <- isJust <$> wrapClient (lookupInvitationByEmail HideInvitationUrl email)
             unless hasInvitation $ do
               -- user invited via scim should expire together with its invitation
-              API.deleteUserNoVerify (userId . accountUser $ account)
+              liftSem $ API.deleteUserNoVerify (userId . accountUser $ account)
             pure hasInvitation
           (PendingInvitation, True, Nothing) ->
             pure True -- cannot happen, user invited via scim always has an email

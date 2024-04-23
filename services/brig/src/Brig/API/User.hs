@@ -39,10 +39,7 @@ module Brig.API.User
     Data.lookupAccount,
     Data.lookupStatus,
     lookupAccountsByIdentity,
-    lookupProfile,
-    lookupProfiles,
     lookupProfilesV3,
-    lookupLocalProfiles,
     getLegalHoldStatus,
     Data.lookupName,
     Data.lookupLocale,
@@ -120,11 +117,8 @@ import Brig.Effects.PasswordResetStore (PasswordResetStore)
 import Brig.Effects.PasswordResetStore qualified as E
 import Brig.Effects.UserPendingActivationStore (UserPendingActivation (..), UserPendingActivationStore)
 import Brig.Effects.UserPendingActivationStore qualified as UserPendingActivationStore
-import Brig.Federation.Client qualified as Federation
 import Brig.IO.Intra qualified as Intra
-import Brig.InternalEvent.Types qualified as Internal
 import Brig.Options hiding (Timeout, internalEvents)
-import Brig.Queue qualified as Queue
 import Brig.Team.DB qualified as Team
 import Brig.Types.Activation (ActivationPair)
 import Brig.Types.Connection
@@ -153,7 +147,7 @@ import Data.Metrics qualified as Metrics
 import Data.Misc
 import Data.Qualified
 import Data.Range
-import Data.Time.Clock (UTCTime, addUTCTime, diffUTCTime)
+import Data.Time.Clock (UTCTime, addUTCTime)
 import Data.UUID.V4 (nextRandom)
 import Imports
 import Network.Wai.Utilities
@@ -161,7 +155,6 @@ import Polysemy
 import Polysemy.Input (Input)
 import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as Log
-import System.Logger.Class (MonadLogger)
 import System.Logger.Message
 import UnliftIO.Async (mapConcurrently_)
 import Wire.API.Connection
@@ -174,7 +167,7 @@ import Wire.API.Team hiding (newTeam)
 import Wire.API.Team.Feature
 import Wire.API.Team.Invitation
 import Wire.API.Team.Invitation qualified as Team
-import Wire.API.Team.Member (TeamMember, legalHoldStatus)
+import Wire.API.Team.Member (legalHoldStatus)
 import Wire.API.Team.Role
 import Wire.API.Team.Size
 import Wire.API.User
@@ -183,6 +176,7 @@ import Wire.API.User.Client
 import Wire.API.User.Password
 import Wire.API.User.RichInfo
 import Wire.API.UserEvent
+import Wire.DeleteQueue
 import Wire.GalleyAPIAccess as GalleyAPIAccess
 import Wire.NotificationSubsystem
 import Wire.Sem.Concurrency
@@ -1532,73 +1526,24 @@ lookupPasswordResetCode emailOrPhone = do
       pure $ (k,) <$> c
 
 deleteUserNoVerify ::
-  ( MonadReader Env m,
-    MonadIO m,
-    MonadLogger m,
-    MonadThrow m
-  ) =>
+  Member DeleteQueue r =>
   UserId ->
-  m ()
+  Sem r ()
 deleteUserNoVerify uid = do
-  queue <- view internalEvents
-  Queue.enqueue queue (Internal.DeleteUser uid)
+  enqueueUserDeletion uid
 
-deleteUsersNoVerify :: [UserId] -> (AppT r) ()
+deleteUsersNoVerify ::
+  ( Member DeleteQueue r,
+    MonadReader Env (Sem r),
+    Member (Embed IO) r
+  ) =>
+  [UserId] ->
+  Sem r ()
 deleteUsersNoVerify uids = do
   for_ uids deleteUserNoVerify
   m <- view metrics
   Metrics.counterAdd (fromIntegral . length $ uids) (Metrics.path "user.enqueue_multi_delete_total") m
   Metrics.counterIncr (Metrics.path "user.enqueue_multi_delete_calls_total") m
-
--- | Garbage collect users if they're ephemeral and they have expired.
--- Always returns the user (deletion itself is delayed)
-userGC ::
-  ( MonadIO m,
-    MonadReader Env m,
-    MonadLogger m,
-    MonadThrow m
-  ) =>
-  User ->
-  m User
-userGC u = case userExpire u of
-  Nothing -> pure u
-  (Just (fromUTCTimeMillis -> e)) -> do
-    now <- liftIO =<< view currentTime
-    -- ephemeral users past their expiry date are deleted
-    when (diffUTCTime e now < 0) $
-      deleteUserNoVerify (userId u)
-    pure u
-
-lookupProfile ::
-  (Member GalleyAPIAccess r) =>
-  Local UserId ->
-  Qualified UserId ->
-  ExceptT FederationError (AppT r) (Maybe UserProfile)
-lookupProfile self other =
-  listToMaybe
-    <$> lookupProfilesFromDomain
-      self
-      (fmap pure other)
-
--- | Obtain user profiles for a list of users as they can be seen by
--- a given user 'self'. User 'self' can see the 'FullProfile' of any other user 'other',
--- if the reverse relation (other -> self) is either 'Accepted' or 'Sent'.
--- Otherwise only the 'PublicProfile' is accessible for user 'self'.
--- If 'self' is an unknown 'UserId', return '[]'.
-lookupProfiles ::
-  ( Member GalleyAPIAccess r,
-    Member (Concurrency 'Unsafe) r
-  ) =>
-  -- | User 'self' on whose behalf the profiles are requested.
-  Local UserId ->
-  -- | The users ('others') for which to obtain the profiles.
-  [Qualified UserId] ->
-  ExceptT FederationError (AppT r) [UserProfile]
-lookupProfiles self others =
-  concat
-    <$> traverseConcurrentlyWithErrorsAppT
-      (lookupProfilesFromDomain self)
-      (bucketQualified others)
 
 -- | Similar to lookupProfiles except it returns all results and all errors
 -- allowing for partial success.
@@ -1611,71 +1556,17 @@ lookupProfilesV3 ::
   -- | The users ('others') for which to obtain the profiles.
   [Qualified UserId] ->
   AppT r ([(Qualified UserId, FederationError)], [UserProfile])
-lookupProfilesV3 self others = do
-  t <-
-    traverseConcurrentlyAppT
-      (lookupProfilesFromDomain self)
-      (bucketQualified others)
-  let (l, r) = partitionEithers t
-  pure (l >>= flattenUsers, join r)
-  where
-    flattenUsers :: (Qualified [UserId], FederationError) -> [(Qualified UserId, FederationError)]
-    flattenUsers (l, e) = (,e) <$> sequenceA l
+lookupProfilesV3 self others = undefined
 
-lookupProfilesFromDomain ::
-  (Member GalleyAPIAccess r) =>
-  Local UserId ->
-  Qualified [UserId] ->
-  ExceptT FederationError (AppT r) [UserProfile]
-lookupProfilesFromDomain self =
-  foldQualified
-    self
-    (lift . lookupLocalProfiles (Just (tUnqualified self)) . tUnqualified)
-    (mapExceptT wrapHttp . lookupRemoteProfiles)
-
-lookupRemoteProfiles ::
-  ( MonadIO m,
-    MonadReader Env m,
-    MonadLogger m
-  ) =>
-  Remote [UserId] ->
-  ExceptT FederationError m [UserProfile]
-lookupRemoteProfiles (tUntagged -> Qualified uids domain) =
-  Federation.getUsersByIds domain uids
-
--- FUTUREWORK: This function encodes a few business rules about exposing email
--- ids, but it is also very complex. Maybe this can be made easy by extracting a
--- pure function and writing tests for that.
-lookupLocalProfiles ::
-  forall r.
-  Member GalleyAPIAccess r =>
-  -- | This is present only when an authenticated user is requesting access.
-  Maybe UserId ->
-  -- | The users ('others') for which to obtain the profiles.
-  [UserId] ->
-  AppT r [UserProfile]
-lookupLocalProfiles requestingUser others = do
-  users <- wrapHttpClient $ Data.lookupUsers NoPendingInvitations others >>= mapM userGC
-  emailVisibilityConfig <- view (settings . emailVisibility)
-  emailVisibilityConfigWithViewer <-
-    case emailVisibilityConfig of
-      EmailVisibleIfOnTeam -> pure EmailVisibleIfOnTeam
-      EmailVisibleToSelf -> pure EmailVisibleToSelf
-      EmailVisibleIfOnSameTeam () ->
-        EmailVisibleIfOnSameTeam . join @Maybe
-          <$> traverse getSelfInfo requestingUser
-  usersAndStatus <- liftSem $ for users $ \u -> (u,) <$> getLegalHoldStatus' u
-  pure $ map (uncurry $ mkUserProfile emailVisibilityConfigWithViewer) usersAndStatus
-  where
-    getSelfInfo :: UserId -> AppT r (Maybe (TeamId, TeamMember))
-    getSelfInfo selfId = do
-      -- FUTUREWORK: it is an internal error for the two lookups (for 'User' and 'TeamMember')
-      -- to return 'Nothing'.  we could throw errors here if that happens, rather than just
-      -- returning an empty profile list from 'lookupProfiles'.
-      mUser <- wrapHttp $ Data.lookupUser NoPendingInvitations selfId
-      case userTeam =<< mUser of
-        Nothing -> pure Nothing
-        Just tid -> (tid,) <$$> liftSem (GalleyAPIAccess.getTeamMember selfId tid)
+-- t <-
+--   liftSem $ traverseConcurrentlyAppT
+--     (getUserProfiles self)
+--     (bucketQualified others)
+-- let (l, r) = partitionEithers t
+-- pure (l >>= flattenUsers, join r)
+-- where
+--   flattenUsers :: (Qualified [UserId], FederationError) -> [(Qualified UserId, FederationError)]
+--   flattenUsers (l, e) = (,e) <$> sequenceA l
 
 getLegalHoldStatus ::
   Member GalleyAPIAccess r =>
