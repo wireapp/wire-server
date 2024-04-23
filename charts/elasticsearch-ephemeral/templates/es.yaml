@@ -37,6 +37,8 @@ spec:
         - name: "ELASTIC_PASSWORD"
           value: {{ .Values.secrets.password }}
         {{- if .Values.tls.enabled }}
+        - name: "xpack.security.http.ssl.enabled"
+          vakue: "true"
         - name: "xpack.ssl.certificate"
           value: "certs/tls.crt"
         - name: "xpack.ssl.key"
