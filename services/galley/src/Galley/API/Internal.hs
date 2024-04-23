@@ -133,7 +133,7 @@ ejpdGetConvInfo ::
   ( p ~ CassandraPaging,
     Member ConversationStore r,
     Member (Error InternalError) r,
-    Member (Input Env) r,
+    Member (Input (Local ())) r,
     Member (ListItems p ConvId) r,
     Member (ListItems p (Remote ConvId)) r,
     Member P.TinyLog r
@@ -141,7 +141,7 @@ ejpdGetConvInfo ::
   UserId ->
   Sem r [EJPDConvInfo]
 ejpdGetConvInfo uid = do
-  luid <- (`toLocalUnsafe` uid) . view (Galley.Env.options . Galley.Options.settings . federationDomain) <$> input
+  luid <- qualifyLocal uid
   firstPage <- Query.conversationIdsPageFrom luid initialPageRequest
   getPages luid firstPage
   where

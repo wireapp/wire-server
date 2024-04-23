@@ -43,6 +43,7 @@ import Data.Aeson hiding (json)
 import Data.Handle (Handle)
 import Data.Id (ConvId, TeamId, UserId)
 import Data.OpenApi (ToSchema)
+import Data.Qualified
 import Data.Schema qualified as S
 import Deriving.Swagger (CamelToSnake, CustomSwagger (..), FieldLabelModifier, StripSuffix)
 import Imports hiding (head)
@@ -64,7 +65,7 @@ newtype EJPDResponseBody = EJPDResponseBody {ejpdResponseBody :: [EJPDResponseIt
   deriving (ToSchema) via CustomSwagger '[FieldLabelModifier (CamelToSnake, StripSuffix "_body")] EJPDResponseBody
 
 data EJPDResponseItem = EJPDResponseItem
-  { ejpdResponseUserId :: UserId,
+  { ejpdResponseUserId :: Qualified UserId,
     ejpdResponseTeamId :: Maybe TeamId,
     ejpdResponseName :: Name,
     ejpdResponseHandle :: Maybe Handle,
@@ -123,7 +124,7 @@ instance FromJSON EJPDResponseItem where
       <*> obj .:? "ejpd_response_conversations"
       <*> obj .:? "ejpd_response_assets"
 
-data EJPDConvInfo = EJPDConvInfo {ejpdConvName :: Text, ejpdConvId :: ConvId}
+data EJPDConvInfo = EJPDConvInfo {ejpdConvName :: Text, ejpdConvId :: Qualified ConvId}
   deriving stock (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via (GenericUniform EJPDConvInfo)
   deriving (ToJSON, FromJSON, ToSchema) via S.Schema EJPDConvInfo

@@ -64,6 +64,7 @@ ejpdRequest ::
     Member Rpc r,
     Member (ConnectionStore InternalPaging) r,
     Member (Input (Local ())) r,
+    Member (Input Env) r,
     Member TinyLog r
   ) =>
   Maybe Bool ->
@@ -83,7 +84,7 @@ ejpdRequest (fromMaybe False -> includeContacts) (EJPDRequestBody handles) = do
     responseItemForExistingUser :: Bool -> User -> (AppT r) EJPDResponseItem
     responseItemForExistingUser reallyIncludeContacts target = do
       let uid = userId target
-      luid :: Local UserId <- flip toLocalUnsafe uid . tDomain <$> liftSem input
+      luid <- qualifyLocal uid
 
       ptoks <-
         PushTok.tokenText . view PushTok.token <$$> liftSem (getPushTokens uid)
