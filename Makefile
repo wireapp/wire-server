@@ -302,13 +302,16 @@ db-migrate: c
 	./dist/brig-index reset \
 		--elasticsearch-index-prefix directory \
 		--elasticsearch-server https://localhost:9200 \
+	  --elasticsearch-ca-cert ./services/brig/test/resources/elasticsearch-ca.pem \
 		--elasticsearch-credentials ./services/brig/test/resources/elasticsearch-credentials.yaml > /dev/null
 	./dist/brig-index reset \
 		--elasticsearch-index-prefix directory2 \
 		--elasticsearch-server https://localhost:9200 \
+	  --elasticsearch-ca-cert ./services/brig/test/resources/elasticsearch-ca.pem \
 		--elasticsearch-credentials ./services/brig/test/resources/elasticsearch-credentials.yaml > /dev/null
 	./integration/scripts/integration-dynamic-backends-brig-index.sh \
 		--elasticsearch-server https://localhost:9200 \
+	  --elasticsearch-ca-cert ./services/brig/test/resources/elasticsearch-ca.pem \
 		--elasticsearch-credentials ./services/brig/test/resources/elasticsearch-credentials.yaml > /dev/null
 
 #################################
