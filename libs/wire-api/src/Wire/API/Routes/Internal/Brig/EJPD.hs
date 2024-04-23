@@ -35,7 +35,7 @@ import Control.Lens (makePrisms)
 import Data.Aeson qualified as Aeson
 import Data.Handle (Handle)
 import Data.Id (ConvId, TeamId, UserId)
-import Data.OpenApi qualified as OpenAPI (ToSchema)
+import Data.OpenApi qualified as OpenAPI
 import Data.Qualified
 import Data.Schema
 import Deriving.Swagger qualified as S (CamelToSnake, CustomSwagger (..), FieldLabelModifier, StripSuffix)
@@ -84,14 +84,14 @@ instance ToSchema EJPDConvInfo where
         <$> ejpdConvName .= field "conv_name" schema
         <*> ejpdConvId .= field "conv_id" schema
 
+-- ejpdContactError :: FederationError,
+-- (^ we could include that, but we don't want to import wire-federation-api, or mess
+-- around with type arguments all over the place.)
+
 data EJPDContact
   = -- | looking up the remote profile page containing this uid failed with FederationError
     EJPDContactRemoteError {ejpdContactErrorUid :: Qualified UserId}
-  | -- ejpdContactError :: FederationError,
-    -- (^ we could do that, but we don't want to import wire-federation-api, or mess
-    -- around with type arguments all over the place.)
-
-    -- | local or remote contact with relation
+  | -- | local or remote contact with relation
     EJPDContactFound
       { ejpdContactRelation :: Relation,
         ejpdContactFound :: EJPDResponseItem
@@ -102,9 +102,16 @@ data EJPDContact
 $(makePrisms ''EJPDContact)
 
 instance ToSchema EJPDContact where
-  schema =
-    -- do it as in taggedEventDataSchema
-    undefined
+  schema = named "EJDPContact" do
+    tag _EJPDContactRemoteError remoteErrorSchema
+      <> tag _EJPDContactFound contactFoundSchema
+    where
+      remoteErrorSchema :: ValueSchema SwaggerDoc (Qualified UserId)
+      remoteErrorSchema = unnamed schema
+
+      contactFoundSchema :: ValueSchema SwaggerDoc (Relation, EJPDResponseItem)
+      contactFoundSchema = unnamed $ object "Object" do
+        (,) <$> fst .= field "contact_item" schema <*> snd .= field "contact_relation" schema
 
 deriving via Schema EJPDContact instance Aeson.ToJSON EJPDContact
 
@@ -121,6 +128,13 @@ deriving via
   S.CustomSwagger '[S.FieldLabelModifier (S.CamelToSnake, S.StripSuffix "_body")] EJPDResponseBody
   instance
     OpenAPI.ToSchema EJPDResponseBody
+
+-- FUTUREWORK(mangoiv): we probably want to write a proper schema for this; the issue here was that
+-- (a, b) was serialized/ deserialized as Array with Aeson; schema-profunctor lacks support for this
+-- but it should be added eventually (similaly to object, there should be a list / array combinator
+-- that just wraps into Array or uses the Aeson parser to deserialize from a list)
+instance ToSchema EJPDResponseItem where
+  schema = mkSchema (swaggerDoc @EJPDResponseItem) (Aeson.parseJSON) (Just . Aeson.toJSON)
 
 instance Aeson.ToJSON EJPDResponseItem where
   toJSON rspi =
