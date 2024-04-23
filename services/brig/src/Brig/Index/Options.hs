@@ -135,8 +135,8 @@ localElasticSettings =
         ESConnectionSettings
           { esServer = [uri|https://localhost:9200|],
             esIndex = ES.IndexName "directory_test",
-            esCaCert = Nothing,
-            esInsecureSkipVerifyTls = True,
+            esCaCert = Just "test/resources/elasticsearch-ca.pem",
+            esInsecureSkipVerifyTls = False,
             esCredentials = Just "test/resources/elasticsearch-credentials.yaml"
           },
       _esIndexShardCount = 1,
@@ -181,13 +181,17 @@ restrictedElasticSettingsParser = do
           <> showDefault
       )
   mCreds <- credentialsPathParser
+  mCaCert <- caCertParser
+  verifyCa <- verifyCaParser
   pure $
     localElasticSettings
       { _esConnection =
           localElasticSettings._esConnection
             { esServer = server,
               esIndex = ES.IndexName (prefix <> "_test"),
-              esCredentials = mCreds
+              esCredentials = mCreds,
+              esCaCert = mCaCert,
+              esInsecureSkipVerifyTls = verifyCa
             }
       }
 
@@ -210,23 +214,26 @@ connectionSettingsParser =
     <*> caCertParser
     <*> verifyCaParser
     <*> credentialsPathParser
-  where
-    caCertParser =
-      optional
-        ( option
-            str
-            ( long "elasticsearch-ca-cert"
-                <> metavar "FILE"
-                <> help "Path to CA Certitificate for TLS validation, system CA bundle is used when unspecified"
-            )
+
+caCertParser :: Parser (Maybe FilePath)
+caCertParser =
+  optional
+    ( option
+        str
+        ( long "elasticsearch-ca-cert"
+            <> metavar "FILE"
+            <> help "Path to CA Certitificate for TLS validation, system CA bundle is used when unspecified"
         )
-    verifyCaParser =
-      flag
-        False -- the default is False
-        True
-        ( long "elasticsearch-insecure-skip-tls-verify"
-            <> help "Skip TLS verification when connecting to Elasticsearch (not recommended)"
-        )
+    )
+
+verifyCaParser :: Parser Bool
+verifyCaParser =
+  flag
+    False -- the default is False
+    True
+    ( long "elasticsearch-insecure-skip-tls-verify"
+        <> help "Skip TLS verification when connecting to Elasticsearch (not recommended)"
+    )
 
 elasticSettingsParser :: Parser ElasticSettings
 elasticSettingsParser =
