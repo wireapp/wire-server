@@ -109,6 +109,7 @@ library
     , errors
     , exceptions
     , extended
+    , extra
     , gundeck-types
     , HsOpenSSL
     , http-client

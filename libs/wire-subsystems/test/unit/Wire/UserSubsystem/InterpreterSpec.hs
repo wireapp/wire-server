@@ -117,6 +117,32 @@ spec = describe "UserSubsystem.Interpreter" do
       prop "gets a remote user profile when the user exists and both user and viewer have accepted their invitations" $
         pending
 
+  describe "getUserProfilesWithErrors" $ do
+    prop "If no errors, same behavior as getUserProfiles" $
+      \viewer targetUsers visibility domain remoteDomain -> do
+        let remoteBackend = def {users = targetUsers}
+            federation = [(remoteDomain, remoteBackend)]
+            retrievedProfilesWithErrors :: ([(Qualified UserId, FederationError)], [UserProfile]) =
+              runFederationStack [viewer] federation Nothing (UserSubsystemConfig visibility miniLocale) $
+                getUserProfilesWithErrors
+                  (toLocalUnsafe domain viewer.id)
+                  ( map (flip Qualified remoteDomain . (.id)) $
+                      S.toList targetUsers
+                  )
+            retrievedProfiles :: [UserProfile] =
+              runFederationStack [viewer] federation Nothing (UserSubsystemConfig visibility miniLocale) $
+                getUserProfiles
+                  (toLocalUnsafe domain viewer.id)
+                  ( map (flip Qualified remoteDomain . (.id)) $
+                      S.toList targetUsers
+                  )
+        remoteDomain /= domain ==>
+          length (fst retrievedProfilesWithErrors) === 0
+            .&&. snd retrievedProfilesWithErrors === retrievedProfiles
+
+    prop "If we get errors, the non-failing user profiles are returned together with errors for failing ones" $
+      \viewer (PendingStoredUser targetUser) visibility domain locale -> undefined
+
 newtype PendingStoredUser = PendingStoredUser StoredUser
   deriving (Show, Eq)
 

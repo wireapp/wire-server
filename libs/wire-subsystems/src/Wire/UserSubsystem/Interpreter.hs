@@ -1,6 +1,7 @@
 module Wire.UserSubsystem.Interpreter where
 
 import Control.Monad.Trans.Maybe
+import Data.Either.Extra
 import Data.Id
 import Data.Json.Util
 import Data.LegalHold
@@ -33,7 +34,7 @@ data UserSubsystemConfig = UserSubsystemConfig
 runUserSubsystem ::
   ( Member GalleyAPIAccess r,
     Member UserStore r,
-    Member (Concurrency 'Unsafe) r,
+    Member (Concurrency 'Unsafe) r, -- TODO: subsystems should implement concurrency inside interpreters, not depend on this dangerous effect.
     Member (Error FederationError) r,
     Member (FederationAPIAccess fedM) r,
     Member DeleteQueue r,
@@ -48,12 +49,15 @@ runUserSubsystem ::
 runUserSubsystem cfg = interpret $ \case
   GetUserProfile self other -> runInputConst cfg $ getUserProfile self other
   GetUserProfiles self others -> runInputConst cfg $ getUserProfiles self others
+  GetLocalUserProfile others -> undefined others -- :: [UserId] -> UserSubsystem m (Maybe UserProfile)
+  GetLocalUserProfiles others -> undefined others -- :: [UserId] -> UserSubsystem m [UserProfile]
+  GetUserProfilesWithErrors self others -> runInputConst cfg $ getUserProfilesWithErrors self others
 
 getUserProfile ::
   ( Member GalleyAPIAccess r,
     Member (Input UserSubsystemConfig) r,
     Member UserStore r,
-    Member (Concurrency 'Unsafe) r,
+    Member (Concurrency 'Unsafe) r, -- TODO: subsystems should implement concurrency inside interpreters, not depend on this dangerous effect.
     Member (Error FederationError) r,
     Member (FederationAPIAccess fedM) r,
     Member DeleteQueue r,
@@ -73,7 +77,7 @@ getUserProfiles ::
   ( Member GalleyAPIAccess r,
     Member (Input UserSubsystemConfig) r,
     Member UserStore r,
-    Member (Concurrency 'Unsafe) r,
+    Member (Concurrency 'Unsafe) r, -- TODO: subsystems should implement concurrency inside interpreters, not depend on this dangerous effect.
     Member (Error FederationError) r,
     Member (FederationAPIAccess fedM) r,
     Member DeleteQueue r,
@@ -188,3 +192,37 @@ getLocalUserProfile emailVisibilityConfigWithViewer luid = do
             enqueueUserDeletion . qUnqualified $
               user.userQualifiedId
         pure usrProfile
+
+getUserProfilesWithErrors ::
+  forall r fedM.
+  ( Member UserStore r,
+    Member (Concurrency 'Unsafe) r, -- TODO: subsystems should implement concurrency inside interpreters, not depend on this dangerous effect.
+    Member (Input UserSubsystemConfig) r,
+    Member (FederationAPIAccess fedM) r,
+    Member GalleyAPIAccess r,
+    Member DeleteQueue r,
+    Member Now r,
+    RunClient (fedM 'Brig),
+    FederationMonad fedM,
+    Typeable fedM
+  ) =>
+  Local UserId ->
+  [Qualified UserId] ->
+  Sem r ([(Qualified UserId, FederationError)], [UserProfile])
+getUserProfilesWithErrors self others = do
+  aggregate ([], []) <$> unsafePooledMapConcurrentlyN 8 go (bucketQualified others)
+  where
+    go :: Qualified [UserId] -> Sem r (Either (FederationError, Qualified [UserId]) [UserProfile])
+    go bucket = runError (getUserProfilesFromDomain self bucket) <&> mapLeft (,bucket)
+
+    aggregate ::
+      ( inp ~ [Either (FederationError, Qualified [UserId]) [UserProfile]],
+        outp ~ ([(Qualified UserId, FederationError)], [UserProfile])
+      ) =>
+      (outp -> inp -> outp)
+    aggregate acc [] = acc
+    aggregate (accL, accR) (Right prof : buckets) = aggregate (accL, prof <> accR) buckets
+    aggregate (accL, accR) (Left err : buckets) = aggregate (renderBucketError err <> accL, accR) buckets
+
+    renderBucketError :: (FederationError, Qualified [UserId]) -> [(Qualified UserId, FederationError)]
+    renderBucketError (err, qlist) = (,err) . (flip Qualified (qDomain qlist)) <$> qUnqualified qlist

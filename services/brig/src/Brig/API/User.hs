@@ -1547,6 +1547,9 @@ deleteUsersNoVerify uids = do
 
 -- | Similar to lookupProfiles except it returns all results and all errors
 -- allowing for partial success.
+--
+-- FUTUREWORK(fisx): this function is a wrapper around 'getUserProfiles' from the user subsystem,
+-- and the type doesn't fit very well.
 lookupProfilesV3 ::
   ( Member GalleyAPIAccess r,
     Member (Concurrency 'Unsafe) r
