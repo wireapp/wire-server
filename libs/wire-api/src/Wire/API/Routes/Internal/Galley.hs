@@ -593,6 +593,14 @@ type IMiscAPI =
                :> "team"
                :> Get '[JSON] TeamId
            )
+    :<|> Named
+           "test-get-clients"
+           ( -- eg. https://github.com/wireapp/wire-server/blob/3bdca5fc8154e324773802a0deb46d884bd09143/services/brig/test/integration/API/User/Client.hs#L319
+             "test"
+               :> "clients"
+               :> ZUser
+               :> Get '[JSON] [ClientId]
+           )
 
 swaggerDoc :: OpenApi
 swaggerDoc =

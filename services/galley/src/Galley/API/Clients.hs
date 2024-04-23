@@ -16,7 +16,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Galley.API.Clients
-  ( getClientsH,
+  ( getClients,
     addClientH,
     rmClientH,
   )
@@ -55,15 +55,6 @@ import Wire.API.Federation.Error
 import Wire.API.Routes.MultiTablePaging
 import Wire.NotificationSubsystem
 import Wire.Sem.Paging.Cassandra (CassandraPaging)
-
-getClientsH ::
-  ( Member BrigAccess r,
-    Member ClientStore r
-  ) =>
-  UserId ->
-  Sem r Response
-getClientsH usr = do
-  json <$> getClients usr
 
 getClients ::
   ( Member BrigAccess r,

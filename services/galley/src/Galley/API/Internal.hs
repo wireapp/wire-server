@@ -178,6 +178,7 @@ miscAPI :: API IMiscAPI GalleyEffects
 miscAPI =
   mkNamedAPI @"get-team-members" Teams.getBindingTeamMembers
     <@> mkNamedAPI @"get-team-id" lookupBindingTeam
+    <@> mkNamedAPI @"test-get-clients" Clients.getClients
 
 featureAPI :: API IFeatureAPI GalleyEffects
 featureAPI =
@@ -257,11 +258,6 @@ featureAPI =
 waiInternalSitemap :: Routes a (Sem GalleyEffects) ()
 waiInternalSitemap = unsafeCallsFed @'Galley @"on-client-removed" $ unsafeCallsFed @'Galley @"on-mls-message-sent" $ do
   -- Misc API (internal) ------------------------------------------------
-
-  get "/i/test/clients" (continueE Clients.getClientsH) $
-    zauthUserId
-  -- eg. https://github.com/wireapp/wire-server/blob/3bdca5fc8154e324773802a0deb46d884bd09143/services/brig/test/integration/API/User/Client.hs#L319
-
   post "/i/clients/:client" (continue Clients.addClientH) $
     zauthUserId
       .&. capture "client"
