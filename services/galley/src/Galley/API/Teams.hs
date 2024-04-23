@@ -24,7 +24,6 @@ module Galley.API.Teams
     getTeamH,
     getTeamInternalH,
     getTeamNameInternalH,
-    getBindingTeamIdH,
     getBindingTeamMembers,
     getManyTeams,
     deleteTeam,
@@ -114,7 +113,6 @@ import Galley.Types.Teams
 import Galley.Types.UserList
 import Imports hiding (forkIO)
 import Network.Wai
-import Network.Wai.Utilities hiding (Error)
 import Polysemy
 import Polysemy.Error
 import Polysemy.Final
@@ -1364,15 +1362,6 @@ finishCreateTeam team owner others zcon = do
     [ newPushLocal1 zusr (toJSONObject e) (userRecipient zusr :| r)
         & pushConn .~ zcon
     ]
-
-getBindingTeamIdH ::
-  ( Member (ErrorS 'TeamNotFound) r,
-    Member (ErrorS 'NonBindingTeam) r,
-    Member TeamStore r
-  ) =>
-  UserId ->
-  Sem r Response
-getBindingTeamIdH = fmap json . E.lookupBindingTeam
 
 getBindingTeamMembers ::
   ( Member (ErrorS 'TeamNotFound) r,

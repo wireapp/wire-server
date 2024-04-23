@@ -584,6 +584,15 @@ type IMiscAPI =
         :> "members"
         :> Get '[JSON] TeamMemberList
     )
+    :<|> Named
+           "get-team-id"
+           ( CanThrow 'NonBindingTeam
+               :> CanThrow 'TeamNotFound
+               :> "users"
+               :> Capture "uid" UserId
+               :> "team"
+               :> Get '[JSON] TeamId
+           )
 
 swaggerDoc :: OpenApi
 swaggerDoc =
