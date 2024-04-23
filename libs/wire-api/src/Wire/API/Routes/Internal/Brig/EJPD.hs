@@ -1,4 +1,6 @@
+-- see https://gitlab.haskell.org/ghc/ghc/-/issues/24710
 {-# LANGUAGE TemplateHaskell #-}
+{-# OPTIONS_GHC -Wno-partial-fields #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -23,33 +25,20 @@
 module Wire.API.Routes.Internal.Brig.EJPD
   ( EJPDRequestBody (EJPDRequestBody, ejpdRequestBody),
     EJPDResponseBody (EJPDResponseBody, ejpdResponseBody),
-    EJPDResponseItem
-      ( EJPDResponseItem,
-        ejpdResponseUserId,
-        ejpdResponseTeamId,
-        ejpdResponseName,
-        ejpdResponseHandle,
-        ejpdResponseEmail,
-        ejpdResponsePhone,
-        ejpdResponsePushTokens,
-        ejpdResponseContacts,
-        ejpdResponseTeamContacts,
-        ejpdResponseConversations,
-        ejpdResponseAssets
-      ),
+    EJPDResponseItem (..),
     EJPDConvInfo (..),
     EJPDContact,
   )
 where
 
 import Control.Lens (makePrisms)
-import Data.Aeson hiding (json)
+import Data.Aeson qualified as Aeson
 import Data.Handle (Handle)
 import Data.Id (ConvId, TeamId, UserId)
-import Data.OpenApi (ToSchema)
+import Data.OpenApi qualified as OpenAPI (ToSchema)
 import Data.Qualified
-import Data.Schema qualified as S
-import Deriving.Swagger (CamelToSnake, CustomSwagger (..), FieldLabelModifier, StripSuffix)
+import Data.Schema
+import Deriving.Swagger qualified as S (CamelToSnake, CustomSwagger (..), FieldLabelModifier, StripSuffix)
 import Imports hiding (head)
 import Test.QuickCheck (Arbitrary)
 import Wire.API.Connection (Relation)
@@ -61,7 +50,7 @@ import Wire.Arbitrary (GenericUniform (..))
 newtype EJPDRequestBody = EJPDRequestBody {ejpdRequestBody :: [Handle]}
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform EJPDRequestBody)
-  deriving (ToSchema) via CustomSwagger '[FieldLabelModifier (CamelToSnake, StripSuffix "_body")] EJPDRequestBody
+  deriving (OpenAPI.ToSchema) via S.CustomSwagger '[S.FieldLabelModifier (S.CamelToSnake, S.StripSuffix "_body")] EJPDRequestBody
 
 newtype EJPDResponseBody = EJPDResponseBody {ejpdResponseBody :: [EJPDResponseItem]}
   deriving stock (Eq, Show, Generic)
@@ -86,24 +75,23 @@ data EJPDResponseItem = EJPDResponseItem
 data EJPDConvInfo = EJPDConvInfo {ejpdConvName :: Text, ejpdConvId :: Qualified ConvId}
   deriving stock (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via (GenericUniform EJPDConvInfo)
-  deriving (ToJSON, FromJSON, ToSchema) via S.Schema EJPDConvInfo
+  deriving (Aeson.ToJSON, Aeson.FromJSON, OpenAPI.ToSchema) via Schema EJPDConvInfo
 
-instance S.ToSchema EJPDConvInfo where
+instance ToSchema EJPDConvInfo where
   schema =
-    S.object "EJPDConvInfo" $
+    object "EJPDConvInfo" $
       EJPDConvInfo
-        <$> ejpdConvName S..= S.field "conv_name" S.schema
-        <*> ejpdConvId S..= S.field "conv_id" S.schema
+        <$> ejpdConvName .= field "conv_name" schema
+        <*> ejpdConvId .= field "conv_id" schema
 
 data EJPDContact
   = -- | looking up the remote profile page containing this uid failed with FederationError
-    EJPDContactRemoteError
-      { -- ejpdContactError :: FederationError,
-        -- (^ we could do that, but we don't want to import wire-federation-api, or mess
-        -- around with type arguments all over the place.)
-        ejpdContactErrorUid :: Qualified UserId
-      }
-  | -- | local or remote contact with relation
+    EJPDContactRemoteError {ejpdContactErrorUid :: Qualified UserId}
+  | -- ejpdContactError :: FederationError,
+    -- (^ we could do that, but we don't want to import wire-federation-api, or mess
+    -- around with type arguments all over the place.)
+
+    -- | local or remote contact with relation
     EJPDContactFound
       { ejpdContactRelation :: Relation,
         ejpdContactFound :: EJPDResponseItem
@@ -113,60 +101,66 @@ data EJPDContact
 
 $(makePrisms ''EJPDContact)
 
-instance S.ToSchema EJPDContact where
+instance ToSchema EJPDContact where
   schema =
     -- do it as in taggedEventDataSchema
     undefined
 
-deriving via S.Schema EJPDContact instance ToJSON EJPDContact
+deriving via Schema EJPDContact instance Aeson.ToJSON EJPDContact
 
-deriving via S.Schema EJPDContact instance FromJSON EJPDContact
+deriving via Schema EJPDContact instance Aeson.FromJSON EJPDContact
 
-deriving via S.Schema EJPDContact instance ToSchema EJPDContact
+deriving via Schema EJPDContact instance OpenAPI.ToSchema EJPDContact
 
-deriving via CustomSwagger '[FieldLabelModifier CamelToSnake] EJPDResponseItem instance ToSchema EJPDResponseItem
+deriving via
+  S.CustomSwagger '[S.FieldLabelModifier S.CamelToSnake] EJPDResponseItem
+  instance
+    OpenAPI.ToSchema EJPDResponseItem
 
-deriving via CustomSwagger '[FieldLabelModifier (CamelToSnake, StripSuffix "_body")] EJPDResponseBody instance ToSchema EJPDResponseBody
+deriving via
+  S.CustomSwagger '[S.FieldLabelModifier (S.CamelToSnake, S.StripSuffix "_body")] EJPDResponseBody
+  instance
+    OpenAPI.ToSchema EJPDResponseBody
 
-instance ToJSON EJPDResponseItem where
+instance Aeson.ToJSON EJPDResponseItem where
   toJSON rspi =
-    object
-      [ "ejpd_response_user_id" .= ejpdResponseUserId rspi,
-        "ejpd_response_team_id" .= ejpdResponseTeamId rspi,
-        "ejpd_response_name" .= ejpdResponseName rspi,
-        "ejpd_response_handle" .= ejpdResponseHandle rspi,
-        "ejpd_response_email" .= ejpdResponseEmail rspi,
-        "ejpd_response_phone" .= ejpdResponsePhone rspi,
-        "ejpd_response_push_tokens" .= ejpdResponsePushTokens rspi,
-        "ejpd_response_contacts" .= ejpdResponseContacts rspi,
-        "ejpd_response_team_contacts" .= ejpdResponseTeamContacts rspi,
-        "ejpd_response_conversations" .= ejpdResponseConversations rspi,
-        "ejpd_response_assets" .= ejpdResponseAssets rspi
+    Aeson.object
+      [ "ejpd_response_user_id" Aeson..= ejpdResponseUserId rspi,
+        "ejpd_response_team_id" Aeson..= ejpdResponseTeamId rspi,
+        "ejpd_response_name" Aeson..= ejpdResponseName rspi,
+        "ejpd_response_handle" Aeson..= ejpdResponseHandle rspi,
+        "ejpd_response_email" Aeson..= ejpdResponseEmail rspi,
+        "ejpd_response_phone" Aeson..= ejpdResponsePhone rspi,
+        "ejpd_response_push_tokens" Aeson..= ejpdResponsePushTokens rspi,
+        "ejpd_response_contacts" Aeson..= ejpdResponseContacts rspi,
+        "ejpd_response_team_contacts" Aeson..= ejpdResponseTeamContacts rspi,
+        "ejpd_response_conversations" Aeson..= ejpdResponseConversations rspi,
+        "ejpd_response_assets" Aeson..= ejpdResponseAssets rspi
       ]
 
-instance FromJSON EJPDResponseItem where
-  parseJSON = withObject "EJPDResponseItem" $ \obj ->
+instance Aeson.FromJSON EJPDResponseItem where
+  parseJSON = Aeson.withObject "EJPDResponseItem" $ \obj ->
     EJPDResponseItem
-      <$> obj .: "ejpd_response_user_id"
-      <*> obj .:? "ejpd_response_team_id"
-      <*> obj .: "ejpd_response_name"
-      <*> obj .:? "ejpd_response_handle"
-      <*> obj .:? "ejpd_response_email"
-      <*> obj .:? "ejpd_response_phone"
-      <*> obj .: "ejpd_response_push_tokens"
-      <*> obj .:? "ejpd_response_contacts"
-      <*> obj .:? "ejpd_response_team_contacts"
-      <*> obj .:? "ejpd_response_conversations"
-      <*> obj .:? "ejpd_response_assets"
+      <$> obj Aeson..: "ejpd_response_user_id"
+      <*> obj Aeson..:? "ejpd_response_team_id"
+      <*> obj Aeson..: "ejpd_response_name"
+      <*> obj Aeson..:? "ejpd_response_handle"
+      <*> obj Aeson..:? "ejpd_response_email"
+      <*> obj Aeson..:? "ejpd_response_phone"
+      <*> obj Aeson..: "ejpd_response_push_tokens"
+      <*> obj Aeson..:? "ejpd_response_contacts"
+      <*> obj Aeson..:? "ejpd_response_team_contacts"
+      <*> obj Aeson..:? "ejpd_response_conversations"
+      <*> obj Aeson..:? "ejpd_response_assets"
 
-instance ToJSON EJPDRequestBody where
-  toJSON (EJPDRequestBody hs) = object ["ejpd_request" .= hs]
+instance Aeson.ToJSON EJPDRequestBody where
+  toJSON (EJPDRequestBody hs) = Aeson.object ["ejpd_request" Aeson..= hs]
 
-instance FromJSON EJPDRequestBody where
-  parseJSON = withObject "EJPDRequestBody" $ EJPDRequestBody <$$> (.: "ejpd_request")
+instance Aeson.FromJSON EJPDRequestBody where
+  parseJSON = Aeson.withObject "EJPDRequestBody" $ EJPDRequestBody <$$> (Aeson..: "ejpd_request")
 
-instance ToJSON EJPDResponseBody where
-  toJSON (EJPDResponseBody is) = object ["ejpd_response" .= is]
+instance Aeson.ToJSON EJPDResponseBody where
+  toJSON (EJPDResponseBody is) = Aeson.object ["ejpd_response" Aeson..= is]
 
-instance FromJSON EJPDResponseBody where
-  parseJSON = withObject "EJPDResponseBody" $ EJPDResponseBody <$$> (.: "ejpd_response")
+instance Aeson.FromJSON EJPDResponseBody where
+  parseJSON = Aeson.withObject "EJPDResponseBody" $ EJPDResponseBody <$$> (Aeson..: "ejpd_response")
