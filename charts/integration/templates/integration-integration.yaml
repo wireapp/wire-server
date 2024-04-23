@@ -78,7 +78,7 @@ spec:
 
     - name: elasticsearch-ca
       secret:
-        secretName: {{ .Values.config.elasticsearch.tlsCaSecretRef }}
+        secretName: {{ .Values.config.elasticsearch.tlsCaSecretRef.name }}
 
     {{- if eq (include "useCassandraTLS" .Values.config) "true" }}
     - name: integration-cassandra
