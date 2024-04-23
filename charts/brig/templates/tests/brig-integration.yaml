@@ -44,6 +44,11 @@ spec:
     - name: "brig-integration-secrets"
       secret:
         secretName: "brig-integration"
+    {{- if eq (include "useElasticsearchTLS" .Values.config) "true" }}
+    - name: elasticsearch-ca
+      secret:
+        secretName: {{ include elasticsearchTlsSecretName "true" }}
+    {{- end}}
     {{- if eq (include "useCassandraTLS" .Values.config) "true" }}
     - name: "brig-cassandra"
       secret:
@@ -106,6 +111,10 @@ spec:
       #       non-default locations
       #       (see corresp. TODO in galley.)
       mountPath: "/etc/wire/integration-secrets"
+    {{- if eq (include "useElasticsearchTLS" .Values.config) "true" }}
+    - name: elasticsearch-ca
+      mountPath: "/etc/wire/brig/elasticsearch-ca"
+    {{- end}}
     {{- if eq (include "useCassandraTLS" .Values.config) "true" }}
     - name: "brig-cassandra"
       mountPath: "/etc/wire/brig/cassandra"
