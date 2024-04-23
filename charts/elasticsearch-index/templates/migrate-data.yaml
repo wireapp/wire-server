@@ -47,7 +47,7 @@ spec:
             - --galley-port
             - "{{ required "missing elasticsearch-index.galley.port!" .Values.galley.port }}"
             {{- if eq (include "useCassandraTLS" .Values) "true" }}
-            - --tls-ca-certificate-file
+            - --cassandra-ca-cert
             - /certs/cassandra/{{- include "cassandraTlsSecretKey" .Values }}
             {{- end }}
             {{- if eq (include "useElasticsearchTLS" .Values) "true" }}

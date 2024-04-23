@@ -315,8 +315,8 @@ cassandraSettingsParser =
               )
         )
     <*> ( (optional . strOption)
-            ( -- TODO: Rename this to --cassasndra-ca-cert
-              long "tls-ca-certificate-file"
+            ( long "cassandra-ca-cert"
+                <> metavar "FILE"
                 <> help "Location of a PEM encoded list of CA certificates to be used when verifying the Cassandra server's certificate"
             )
         )
