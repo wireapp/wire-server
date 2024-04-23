@@ -50,7 +50,10 @@ export FEDERATION_CA_CERTIFICATE
 echo "Installing charts..."
 
 set +e
-helmfile --environment "$HELMFILE_ENV" --file "${TOP_LEVEL}/hack/helmfile.yaml" sync --concurrency 0
+# This exists becasue we need to run `helmfile` with `--skip-deps`, without that it doesn't work.
+helm repo add bedag https://bedag.github.io/helm-charts/
+
+helmfile --environment "$HELMFILE_ENV" --file "${TOP_LEVEL}/hack/helmfile.yaml" sync --skip-deps --concurrency 0
 EXIT_CODE=$?
 
 if (( EXIT_CODE > 0)); then
