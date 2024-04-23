@@ -228,8 +228,9 @@ one2OneScenarioConvDomain One2OneScenarioLocal = OwnDomain
 one2OneScenarioConvDomain One2OneScenarioLocalConv = OwnDomain
 one2OneScenarioConvDomain One2OneScenarioRemoteConv = OtherDomain
 
-testMLSOne2One :: HasCallStack => One2OneScenario -> App ()
-testMLSOne2One scenario = do
+testMLSOne2One :: HasCallStack => Ciphersuite -> One2OneScenario -> App ()
+testMLSOne2One suite scenario = do
+  setMLSCiphersuite suite
   alice <- randomUser OwnDomain def
   let otherDomain = one2OneScenarioUserDomain scenario
       convDomain = one2OneScenarioConvDomain scenario
