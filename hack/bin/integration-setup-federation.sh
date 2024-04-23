@@ -50,7 +50,7 @@ export FEDERATION_CA_CERTIFICATE
 echo "Installing charts..."
 
 set +e
-helmfile --environment "$HELMFILE_ENV" --file "${TOP_LEVEL}/hack/helmfile.yaml" sync --skip-deps --concurrency 0
+helmfile --environment "$HELMFILE_ENV" --file "${TOP_LEVEL}/hack/helmfile.yaml" sync --concurrency 0
 EXIT_CODE=$?
 
 if (( EXIT_CODE > 0)); then
