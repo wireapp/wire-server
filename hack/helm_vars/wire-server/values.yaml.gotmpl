@@ -486,6 +486,10 @@ integration:
         name: cassandra-jks-keystore
         key: ca.crt
       {{- end }}
+    elasticsearch:
+      tlsCaSecretRef:
+        name: "elasticsearch-ephemeral-certificate"
+        key: "ca.crt"
     {{- if .Values.uploadXml }}
     uploadXml:
       baseUrl: {{ .Values.uploadXml.baseUrl }}
