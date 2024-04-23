@@ -21,16 +21,18 @@ spec:
         chart: "{{.Chart.Name}}-{{.Chart.Version}}"
     spec:
       restartPolicy: OnFailure
-      {{- if hasKey .Values.secrets "elasticsearch" }}
+      {{- if or (eq (include "useElasticsearchTLS" .Values) "true") (hasKey .Values.secrets "elasticsearch") }}
       volumes:
+        {{- if hasKey .Values.secrets "elasticsearch" }}
         - name: elasticsearch-index-secrets
           secret:
             secretName: elasticsearch-index
-      {{- end }}
-      {{- if eq (include "useElasticsearchTLS" .Values) "true" }}
-      - name: elasticsearch-ca
-        secret:
-          secretName: {{ include "elasticsearchTlsSecretName" .Values }}
+        {{- end }}
+        {{- if eq (include "useElasticsearchTLS" .Values) "true" }}
+        - name: elasticsearch-ca
+          secret:
+            secretName: {{ include "elasticsearchTlsSecretName" .Values }}
+        {{- end }}
       {{- end }}
       initContainers:
         # Creates index in elasticsearch only when it doesn't exist.

@@ -65,5 +65,5 @@ spec:
         {{- if .Values.tls.enabled }}
         - name: certificate
           secret:
-            name: {{ template "fullname" . }}-certificate
+            secretName: {{ template "fullname" . }}-certificate
         {{- end }}

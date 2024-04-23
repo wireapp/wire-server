@@ -10,7 +10,7 @@ metadata:
     release: "{{ .Release.Name }}"
     heritage: "{{ .Release.Service }}"
 spec:
-  issuerRef: {{ required "Please specify .Values.tls.issuerRef when .Values.tls.enabled is true" .Values.tls.issuerRef | toJSON }}
+  issuerRef: {{ required "Please specify .Values.tls.issuerRef when .Values.tls.enabled is true" .Values.tls.issuerRef | toJson }}
   usages:
     - server auth
   duration: 2160h     # 90d
