@@ -7,6 +7,7 @@ import Data.Qualified
 import HTTP2.Client.Manager
 import Imports
 import Polysemy
+import Polysemy.Error
 import Util.Options
 import Wire.API.Federation.Client
 import Wire.API.Federation.Error
@@ -58,6 +59,18 @@ interpretFederationAPIAccessGeneral runFedM isFederationConfigured =
       RunFederatedConcurrently remotes rpc -> runFederatedConcurrently runFedM remotes rpc
       RunFederatedBucketed remotes rpc -> runFederatedBucketed runFedM remotes rpc
       IsFederationConfigured -> isFederationConfigured
+
+interpretfederationAPIAccessFails ::
+  forall fedM r.
+  Member (Error FederationError) r =>
+  FederatedActionRunner fedM r ->
+  (Sem r Bool) ->
+  InterpreterFor (FederationAPIAccess fedM) r
+interpretfederationAPIAccessFails _runFedM isFederationConfigured = interpret $ \case
+  RunFederatedEither _remote _rpc -> throw $ FederationUnexpectedError "RunFederatedEither"
+  RunFederatedConcurrently _remotes _rpc -> throw $ FederationUnexpectedError "RunFederatedConcurrently"
+  RunFederatedBucketed _remotes _rpc -> throw $ FederationUnexpectedError "RunFederatedBucketed"
+  IsFederationConfigured -> isFederationConfigured
 
 runFederatedEither ::
   FederatedActionRunner fedM r ->

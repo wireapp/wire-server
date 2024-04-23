@@ -30,11 +30,12 @@ import Wire.API.Federation.Component
 import Wire.API.Federation.Error
 import Wire.API.Team.Member
 import Wire.API.Team.Permission
-import Wire.API.User
+import Wire.API.User hiding (DeleteUser)
 import Wire.DeleteQueue
 import Wire.FederationAPIAccess
 import Wire.FederationAPIAccess.Interpreter
 import Wire.GalleyAPIAccess
+import Wire.InternalEvent
 import Wire.Sem.Concurrency
 import Wire.Sem.Concurrency.Sequential
 import Wire.Sem.Now
@@ -139,9 +140,30 @@ spec = describe "UserSubsystem.Interpreter" do
         remoteDomain /= domain ==>
           length (fst retrievedProfilesWithErrors) === 0
             .&&. snd retrievedProfilesWithErrors === retrievedProfiles
+            .&&. (length $ snd retrievedProfilesWithErrors) === length targetUsers
 
     prop "If we get errors, the non-failing user profiles are returned together with errors for failing ones" $
-      \viewer (PendingStoredUser targetUser) visibility domain locale -> undefined
+      \viewer targetUsers visibility domain remoteDomain -> do
+        let remoteBackend = def {users = targetUsers}
+            federation = [(remoteDomain, remoteBackend)]
+            retrievedProfilesWithErrors :: ([(Qualified UserId, FederationError)], [UserProfile]) =
+              runFederationStackFails [viewer] federation Nothing (UserSubsystemConfig visibility miniLocale) $
+                getUserProfilesWithErrors
+                  (toLocalUnsafe domain viewer.id)
+                  ( map (flip Qualified remoteDomain . (.id)) $
+                      S.toList targetUsers
+                  )
+            retrievedProfiles :: [UserProfile] =
+              runFederationStack [viewer] federation Nothing (UserSubsystemConfig visibility miniLocale) $
+                getUserProfiles
+                  (toLocalUnsafe domain viewer.id)
+                  ( map (flip Qualified remoteDomain . (.id)) $
+                      S.toList targetUsers
+                  )
+        remoteDomain /= domain ==>
+          length (fst retrievedProfilesWithErrors) === length targetUsers
+            .&&. snd retrievedProfilesWithErrors === retrievedProfiles
+            .&&. (length $ snd retrievedProfilesWithErrors) === 0
 
 newtype PendingStoredUser = PendingStoredUser StoredUser
   deriving (Show, Eq)
@@ -164,11 +186,12 @@ type GetUserProfileEffects =
   [ GalleyAPIAccess,
     UserStore,
     DeleteQueue,
+    State [InternalNotification],
     Input UserSubsystemConfig,
     Now,
-    Error FederationError,
     FederationAPIAccess MiniFederationMonad,
-    Concurrency 'Unsafe
+    Concurrency 'Unsafe,
+    Error FederationError
   ]
 
 -- | a type representing the state of a single backend
@@ -206,6 +229,7 @@ data SubsystemOperationList where
 
 infixr 5 :::
 
+{- ORMOLU_DISABLE -}
 lookupSubsystemOperation ::
   Typeable a =>
   -- | The type to compare to
@@ -236,6 +260,7 @@ instance FederationMonad MiniFederationMonad where
         (Brig, "get-users-by-ids", miniGetUsersByIds)
           ::: (Brig, "get-user-by-id", miniGetUserById)
           ::: TNil
+{- ORMOLU_ENABLE -}
 
 miniLocale :: Locale
 miniLocale =
@@ -308,11 +333,31 @@ runFederationStack ::
   a
 runFederationStack allLocalUsers fedBackends teamMember config =
   run
+    . runErrorUnsafe
     . sequentiallyPerformConcurrency
     . miniFederationAPIAccess fedBackends
-    . runErrorUnsafe
     . interpretNowConst (UTCTime (ModifiedJulianDay 0) 0)
     . runInputConst config
+    . evalState []
+    . inMemoryDeleteQueueInterpreter
+    . staticUserStoreInterpreter allLocalUsers
+    . miniGalleyAPIAccess teamMember
+
+runFederationStackFails ::
+  [StoredUser] ->
+  Map Domain MiniBackend ->
+  Maybe TeamMember ->
+  UserSubsystemConfig ->
+  Sem GetUserProfileEffects a ->
+  Either FederationError a
+runFederationStackFails allLocalUsers fedBackends teamMember config =
+  run
+    . runError @FederationError -- TODO: fix this, so that our failing test can pass
+    . sequentiallyPerformConcurrency
+    . miniFederationAPIAccessFails fedBackends
+    . interpretNowConst (UTCTime (ModifiedJulianDay 0) 0)
+    . runInputConst config
+    . evalState []
     . inMemoryDeleteQueueInterpreter
     . staticUserStoreInterpreter allLocalUsers
     . miniGalleyAPIAccess teamMember
@@ -325,17 +370,21 @@ runNoFederationStack ::
   a
 runNoFederationStack allUsers teamMember config =
   run
+    . runErrorUnsafe
     . sequentiallyPerformConcurrency
     . emptyFederationAPIAcesss
-    . runErrorUnsafe
     . interpretNowConst (UTCTime (ModifiedJulianDay 0) 0)
     . runInputConst config
+    . evalState []
     . inMemoryDeleteQueueInterpreter
     . staticUserStoreInterpreter allUsers
     . miniGalleyAPIAccess teamMember
 
-inMemoryDeleteQueueInterpreter :: InterpreterFor DeleteQueue r
-inMemoryDeleteQueueInterpreter = undefined
+inMemoryDeleteQueueInterpreter :: Member (State [InternalNotification]) r => InterpreterFor DeleteQueue r
+inMemoryDeleteQueueInterpreter = interpret $ \case
+  EnqueueUserDeletion uid -> modify (\l -> DeleteUser uid : l)
+  EnqueueClientDeletion cid uid mConnId -> modify (\l -> DeleteClient cid uid mConnId : l)
+  EnqueueServiceDeletion pid sid -> modify (\l -> DeleteService pid sid : l)
 
 runErrorUnsafe :: Exception e => InterpreterFor (Error e) r
 runErrorUnsafe action = do
@@ -348,11 +397,25 @@ emptyFederationAPIAcesss :: InterpreterFor (FederationAPIAccess MiniFederationMo
 emptyFederationAPIAcesss = interpret $ \case
   _ -> error "uninterpreted effect: FederationAPIAccess"
 
-miniFederationAPIAccess :: forall r. Member (Concurrency 'Unsafe) r => Map Domain MiniBackend -> InterpreterFor (FederationAPIAccess MiniFederationMonad) r
+miniFederationAPIAccess ::
+  forall r.
+  ( Member (Concurrency 'Unsafe) r
+  ) =>
+  Map Domain MiniBackend ->
+  InterpreterFor (FederationAPIAccess MiniFederationMonad) r
 miniFederationAPIAccess userProfiles =
   let runner :: FederatedActionRunner MiniFederationMonad r
       runner domain rpc = pure . Right $ runMiniFederation domain userProfiles rpc
    in interpretFederationAPIAccessGeneral runner (pure True)
+
+miniFederationAPIAccessFails ::
+  forall r.
+  Map Domain MiniBackend ->
+  InterpreterFor (FederationAPIAccess MiniFederationMonad) r
+miniFederationAPIAccessFails userProfiles =
+  let runner :: FederatedActionRunner MiniFederationMonad r
+      runner domain rpc = pure . Right $ runMiniFederation domain userProfiles rpc
+   in interpretfederationAPIAccessFails runner (pure True)
 
 staticUserStoreInterpreter :: [StoredUser] -> InterpreterFor UserStore r
 staticUserStoreInterpreter allUsers = interpret $ \case
