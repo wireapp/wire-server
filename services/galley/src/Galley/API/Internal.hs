@@ -61,7 +61,6 @@ import Galley.Effects.LegalHoldStore as LegalHoldStore
 import Galley.Effects.MemberStore qualified as E
 import Galley.Effects.TeamStore
 import Galley.Effects.TeamStore qualified as E
-import Galley.Env qualified
 import Galley.Monad
 import Galley.Options hiding (brig)
 import Galley.Queue qualified as Q
@@ -134,6 +133,7 @@ ejpdGetConvInfo ::
     Member ConversationStore r,
     Member (Error InternalError) r,
     Member (Input (Local ())) r,
+    Member (Input Env) r,
     Member (ListItems p ConvId) r,
     Member (ListItems p (Remote ConvId)) r,
     Member P.TinyLog r
@@ -154,7 +154,7 @@ ejpdGetConvInfo uid = do
           mk :: Data.Conversation -> Maybe EJPDConvInfo
           mk conv = do
             let convType = conv.convMetadata.cnvmType
-                ejpdConvInfo = EJPDConvInfo (fromMaybe "n/a" conv.convMetadata.cnvmName) conv.convId
+                ejpdConvInfo = EJPDConvInfo (fromMaybe "n/a" conv.convMetadata.cnvmName) (tUntagged $ qualifyAs luid conv.convId)
             -- we don't want self conversations as they don't tell us anything about connections
             -- we don't want connect conversations, because the peer has not responded yet
             case convType of

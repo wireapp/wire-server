@@ -27,7 +27,7 @@ module Wire.API.Routes.Internal.Brig.EJPD
     EJPDResponseBody (EJPDResponseBody, ejpdResponseBody),
     EJPDResponseItem (..),
     EJPDConvInfo (..),
-    EJPDContact,
+    EJPDContact (..),
   )
 where
 

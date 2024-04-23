@@ -115,6 +115,7 @@ servantSitemap ::
     Member GalleyProvider r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
+    Member (Final IO) r,
     Member NotificationSubsystem r,
     Member PasswordResetStore r,
     Member Rpc r,
@@ -145,7 +146,8 @@ ejpdAPI ::
     Member NotificationSubsystem r,
     Member Rpc r,
     Member TinyLog r,
-    Member (Input (Local ())) r,
+    Member (Concurrency 'Unsafe) r,
+    Member (Final IO) r,
     Member (ConnectionStore InternalPaging) r
   ) =>
   ServerT BrigIRoutes.EJPDRequest (Handler r)

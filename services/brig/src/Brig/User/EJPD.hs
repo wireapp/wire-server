@@ -31,20 +31,20 @@ import Brig.Data.User (lookupUser)
 import Brig.Effects.ConnectionStore
 import Brig.Effects.GalleyProvider (GalleyProvider)
 import Brig.Effects.GalleyProvider qualified as GalleyProvider
+import Control.Arrow
 import Control.Error hiding (bool)
 import Control.Lens (view, (^.))
 import Data.Aeson qualified as A
 import Data.ByteString.Conversion
 import Data.Handle (Handle)
 import Data.Id (UserId)
+import Data.Map qualified as Map
 import Data.Qualified
 import Data.Set qualified as Set
 import Data.Text qualified as T
 import Imports hiding (head)
 import Network.HTTP.Types.Method
 import Polysemy
-import Polysemy.Error (fromEither)
-import Polysemy.Input
 import Polysemy.TinyLog
 import Servant.OpenApi.Internal.Orphans ()
 import System.Logger.Message qualified as Log
@@ -68,7 +68,6 @@ ejpdRequest ::
     Member (ConnectionStore InternalPaging) r,
     Member (Concurrency 'Unsafe) r,
     Member (Final IO) r, -- 'lookupProfiles' has ExceptT and ReaderT in its return type.
-    Member (Input Env) r,
     Member TinyLog r
   ) =>
   Maybe Bool ->
@@ -96,15 +95,16 @@ ejpdRequest (fromMaybe False -> includeContacts) (EJPDRequestBody handles) = do
       mbContacts <-
         if reallyIncludeContacts
           then do
+            env <- ask
             contacts :: [(UserId, RelationWithHistory)] <-
               wrapClient $ -- FUTUREWORK: use polysemy effect, not wrapClient
                 Conn.lookupContactListWithRelation uid
 
-            localContacts :: [(Relation, EJPDResponseItem)] <-
+            localContacts :: [EJPDContact] <-
               catMaybes <$> do
                 forM contacts $ \(uid', relationDropHistory -> rel) -> do
                   mbUsr <- wrapClient $ lookupUser NoPendingInvitations uid' -- FUTUREWORK: use polysemy effect, not wrapClient
-                  maybe (pure Nothing) (fmap (Just . (rel,)) . responseItemForExistingUser False) mbUsr
+                  maybe (pure Nothing) (fmap (Just . EJPDContactFound rel) . responseItemForExistingUser False) mbUsr
 
             remoteContacts :: [EJPDContact] <- liftSem do
               let getPage = flip (remoteConnectedUsersPaginated luid) maxBound
@@ -112,18 +112,39 @@ ejpdRequest (fromMaybe False -> includeContacts) (EJPDRequestBody handles) = do
 
               let userProfiles :: (Page InternalPaging (Remote UserConnection)) -> Sem r [EJPDContact]
                   userProfiles pg = do
-                    let qualifiedRemoteContactIds :: [Qualified UserId]
-                        qualifiedRemoteContactIds = ucTo . qUnqualified . tUntagged <$> pageItems pg
+                    let qualifiedRemoteContactIds :: [(Qualified UserId, Relation)]
+                        qualifiedRemoteContactIds = (ucTo &&& ucStatus) . qUnqualified . tUntagged <$> pageItems pg
+                        userRelationMap = Map.fromList qualifiedRemoteContactIds
+
+                        mkItem :: UserProfile -> Maybe EJPDContact
+                        mkItem up = do
+                          rel <- Map.lookup up.profileQualifiedId userRelationMap
+                          pure $
+                            EJPDContactFound rel $
+                              EJPDResponseItem
+                                { ejpdResponseUserId = up.profileQualifiedId,
+                                  ejpdResponseTeamId = up.profileTeam,
+                                  ejpdResponseName = up.profileName,
+                                  ejpdResponseHandle = up.profileHandle,
+                                  ejpdResponseEmail = up.profileEmail,
+                                  ejpdResponsePhone = Nothing,
+                                  ejpdResponsePushTokens = mempty,
+                                  -- this is already a contact of the requested subject, so we don't need to fetch contacts recursively
+                                  ejpdResponseContacts = Nothing,
+                                  -- same as above
+                                  ejpdResponseTeamContacts = Nothing,
+                                  -- same as above
+                                  ejpdResponseConversations = Nothing,
+                                  ejpdResponseAssets = Nothing
+                                }
 
                         logErr :: FederationError -> Sem r ()
-                        logErr err = undefined
+                        logErr e = warn $ Log.msg $ "error fetching remote contact profile:\n" <> displayException e
 
-                    env :: Env <- input
-                    profs :: Either FederationError [UserProfile] <- runReaderT (unAppT (runExceptT (lookupProfiles luid qualifiedRemoteContactIds))) env
-                    b (rel,) <$> (either (\err -> logErr err $> (Left <$> qualifiedRemoteContactIds)) (pure . Right . map mkItem) profs)
+                    profs :: Either FederationError [UserProfile] <-
+                      runReaderT (unAppT (runExceptT (lookupProfiles luid (map fst qualifiedRemoteContactIds)))) env
 
-                  mkItem :: UserProfile -> EJPDContact
-                  mkItem = undefined
+                    either (\e -> logErr e $> (map (EJPDContactRemoteError . fst) qualifiedRemoteContactIds)) (pure . mapMaybe mkItem) profs
 
                   go :: InternalPage (QualifiedWithTag 'QRemote UserConnection) -> Sem r [EJPDContact]
                   go page =
