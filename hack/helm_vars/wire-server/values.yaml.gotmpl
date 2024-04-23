@@ -27,8 +27,12 @@ cassandra-migrations:
 elasticsearch-index:
   imagePullPolicy: {{ .Values.imagePullPolicy }}
   elasticsearch:
+    scheme: https
     host: elasticsearch-ephemeral
     index: directory_test
+    tlsCaSecretRef:
+      name: "elasticsearch-ephemeral-certificate"
+      key: "ca.crt"
   cassandra:
     host: {{ .Values.cassandraHost }}
     {{- if .Values.useK8ssandraSSL.enabled }}
@@ -65,8 +69,12 @@ brig:
       scheme: https
       host: elasticsearch-ephemeral
       index: directory_test
-      insecureSkipVerifyTls: True
-      additionalInsecureSkipVerifyTls: True
+      tlsCaSecretRef:
+        name: "elasticsearch-ephemeral-certificate"
+        key: "ca.crt"
+      additionalTlsCaSecretRef:
+        name: "elasticsearch-ephemeral-certificate"
+        key: "ca.crt"
     authSettings:
       userTokenTimeout: 120
       sessionTokenTimeout: 20
