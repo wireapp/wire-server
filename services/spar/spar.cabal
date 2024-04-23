@@ -192,11 +192,11 @@ library
     , utf8-string
     , uuid
     , wai
+    , wai-middleware-gunzip
     , wai-utilities
     , warp
     , wire-api
     , yaml
-    , wai-middleware-gunzip
 
   default-language:   Haskell2010
 
