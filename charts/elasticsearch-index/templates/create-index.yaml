@@ -76,7 +76,7 @@ spec:
             - --elasticsearch-ca-cert
             - /certs/elasticsearch/{{- include "elasticsearchTlsSecretKey" .Values}}
             {{- end }}
-            {{- if .Values.elasticsearch.insecureSkipTLSVerify }}
+            {{- if .Values.elasticsearch.insecureSkipTlsVerify }}
             - --elasticsearch-insecure-skip-tls-verify
             {{- end }}
       containers:
@@ -113,6 +113,6 @@ spec:
             - --elasticsearch-ca-cert
             - /certs/elasticsearch/{{- include "elasticsearchTlsSecretKey" .Values}}
             {{- end }}
-            {{- if .Values.elasticsearch.insecureSkipTLSVerify }}
+            {{- if .Values.elasticsearch.insecureSkipTlsVerify }}
             - --elasticsearch-insecure-skip-tls-verify
             {{- end }}

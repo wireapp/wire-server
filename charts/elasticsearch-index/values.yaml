@@ -12,7 +12,7 @@ elasticsearch:
 #  tlsCaSecretRef:
 #    name: <secret-name>
 #    key: <ca-attribute>
-  insecureSkipTLSVerify: false
+  insecureSkipTlsVerify: false
 cassandra:
   # host:
   port: 9042
