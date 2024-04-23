@@ -180,6 +180,7 @@ miscAPI =
     <@> mkNamedAPI @"get-team-id" lookupBindingTeam
     <@> mkNamedAPI @"test-get-clients" Clients.getClients
     <@> mkNamedAPI @"test-add-client" createClient
+    <@> mkNamedAPI @"test-delete-client" Clients.rmClient
 
 featureAPI :: API IFeatureAPI GalleyEffects
 featureAPI =
@@ -259,10 +260,6 @@ featureAPI =
 waiInternalSitemap :: Routes a (Sem GalleyEffects) ()
 waiInternalSitemap = unsafeCallsFed @'Galley @"on-client-removed" $ unsafeCallsFed @'Galley @"on-mls-message-sent" $ do
   -- Misc API (internal) ------------------------------------------------
-
-  delete "/i/clients/:client" (continue Clients.rmClientH) $
-    zauthUserId
-      .&. capture "client"
 
   post "/i/services" (continue Update.addServiceH) $
     jsonRequest @Service

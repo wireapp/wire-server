@@ -611,6 +611,16 @@ type IMiscAPI =
                     '[JSON]
                     (RespondEmpty 200 "OK")
            )
+    :<|> Named
+           "test-delete-client"
+           ( "clients"
+               :> ZUser
+               :> Capture "cid" ClientId
+               :> MultiVerb1
+                    'DELETE
+                    '[JSON]
+                    (RespondEmpty 200 "OK")
+           )
 
 swaggerDoc :: OpenApi
 swaggerDoc =
