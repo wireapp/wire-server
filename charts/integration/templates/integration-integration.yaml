@@ -236,6 +236,9 @@ spec:
     - name: nginz-secrets
       mountPath: /etc/wire/nginz/secrets
 
+    - name: elasticsearch-ca
+      mountPath: /etc/wire/brig/elasticsearch-ca
+
     {{- if eq (include "useCassandraTLS" .Values.config) "true" }}
     - name: "integration-cassandra"
       mountPath: "/certs"
