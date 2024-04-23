@@ -55,6 +55,9 @@ repositories:
   - name: ingress
     url: 'https://kubernetes.github.io/ingress-nginx'
 
+  - name: bedag
+    url: 'https://bedag.github.io/helm-charts/'
+
 releases:
   - name: 'fake-aws'
     namespace: '{{ .Values.namespace1 }}'
