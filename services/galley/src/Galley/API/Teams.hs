@@ -25,7 +25,7 @@ module Galley.API.Teams
     getTeamInternalH,
     getTeamNameInternalH,
     getBindingTeamIdH,
-    getBindingTeamMembersH,
+    getBindingTeamMembers,
     getManyTeams,
     deleteTeam,
     uncheckedDeleteTeam,
@@ -1373,15 +1373,6 @@ getBindingTeamIdH ::
   UserId ->
   Sem r Response
 getBindingTeamIdH = fmap json . E.lookupBindingTeam
-
-getBindingTeamMembersH ::
-  ( Member (ErrorS 'TeamNotFound) r,
-    Member (ErrorS 'NonBindingTeam) r,
-    Member TeamStore r
-  ) =>
-  UserId ->
-  Sem r Response
-getBindingTeamMembersH = fmap json . getBindingTeamMembers
 
 getBindingTeamMembers ::
   ( Member (ErrorS 'TeamNotFound) r,

@@ -23,8 +23,7 @@ import Data.OpenApi (OpenApi, info, title)
 import Data.Range
 import GHC.TypeLits (AppendSymbol)
 import Imports hiding (head)
-import Servant hiding (JSON, WithStatus)
-import Servant qualified hiding (WithStatus)
+import Servant hiding (WithStatus)
 import Servant.OpenApi
 import Wire.API.ApplyMods
 import Wire.API.Conversation
@@ -186,7 +185,7 @@ type IFeatureAPI =
                     ]
                     "user_id"
                     UserId
-               :> Get '[Servant.JSON] AllFeatureConfigs
+               :> Get '[JSON] AllFeatureConfigs
            )
 
 type InternalAPI = "i" :> InternalAPIBase
@@ -194,7 +193,7 @@ type InternalAPI = "i" :> InternalAPIBase
 type InternalAPIBase =
   Named
     "status"
-    ( "status" :> MultiVerb 'GET '[Servant.JSON] '[RespondEmpty 200 "OK"] ()
+    ( "status" :> MultiVerb 'GET '[JSON] '[RespondEmpty 200 "OK"] ()
     )
     -- This endpoint can lead to the following events being sent:
     -- - MemberLeave event to members for all conversations the user was in
@@ -207,7 +206,7 @@ type InternalAPIBase =
                :> ZLocalUser
                :> ZOptConn
                :> "user"
-               :> MultiVerb 'DELETE '[Servant.JSON] '[RespondEmpty 200 "Remove a user from Galley"] ()
+               :> MultiVerb 'DELETE '[JSON] '[RespondEmpty 200 "Remove a user from Galley"] ()
            )
     -- This endpoint can lead to the following events being sent:
     -- - ConvCreate event to self, if conversation did not exist before
@@ -226,7 +225,7 @@ type InternalAPIBase =
                :> ZOptConn
                :> "conversations"
                :> "connect"
-               :> ReqBody '[Servant.JSON] Connect
+               :> ReqBody '[JSON] Connect
                :> ConversationVerb 'V6 Conversation
            )
     -- This endpoint is meant for testing membership of a conversation
@@ -238,7 +237,7 @@ type InternalAPIBase =
                :> Capture "gid" GroupId
                :> MultiVerb1
                     'GET
-                    '[Servant.JSON]
+                    '[JSON]
                     (Respond 200 "Clients" ClientList)
            )
     :<|> Named
@@ -246,19 +245,20 @@ type InternalAPIBase =
            ( "guard-legalhold-policy-conflicts"
                :> CanThrow 'MissingLegalholdConsent
                :> CanThrow 'MissingLegalholdConsentOldClients
-               :> ReqBody '[Servant.JSON] GuardLegalholdPolicyConflicts
-               :> MultiVerb1 'PUT '[Servant.JSON] (RespondEmpty 200 "Guard Legalhold Policy")
+               :> ReqBody '[JSON] GuardLegalholdPolicyConflicts
+               :> MultiVerb1 'PUT '[JSON] (RespondEmpty 200 "Guard Legalhold Policy")
            )
     :<|> ILegalholdWhitelistedTeamsAPI
     :<|> ITeamsAPI
+    :<|> IMiscAPI
     :<|> Named
            "upsert-one2one"
            ( Summary "Create or Update a connect or one2one conversation."
                :> "conversations"
                :> "one2one"
                :> "upsert"
-               :> ReqBody '[Servant.JSON] UpsertOne2OneConversationRequest
-               :> MultiVerb1 'POST '[Servant.JSON] (RespondEmpty 200 "Upsert One2One Policy")
+               :> ReqBody '[JSON] UpsertOne2OneConversationRequest
+               :> MultiVerb1 'POST '[JSON] (RespondEmpty 200 "Upsert One2One Policy")
            )
     :<|> IFeatureAPI
     :<|> IFederationAPI
@@ -273,15 +273,15 @@ type ILegalholdWhitelistedTeamsAPI =
 type ILegalholdWhitelistedTeamsAPIBase =
   Named
     "set-team-legalhold-whitelisted"
-    (MultiVerb1 'PUT '[Servant.JSON] (RespondEmpty 200 "Team Legalhold Whitelisted"))
+    (MultiVerb1 'PUT '[JSON] (RespondEmpty 200 "Team Legalhold Whitelisted"))
     :<|> Named
            "unset-team-legalhold-whitelisted"
-           (MultiVerb1 'DELETE '[Servant.JSON] (RespondEmpty 204 "Team Legalhold un-Whitelisted"))
+           (MultiVerb1 'DELETE '[JSON] (RespondEmpty 204 "Team Legalhold un-Whitelisted"))
     :<|> Named
            "get-team-legalhold-whitelisted"
            ( MultiVerb
                'GET
-               '[Servant.JSON]
+               '[JSON]
                '[ RespondEmpty 404 "Team not Legalhold Whitelisted",
                   RespondEmpty 200 "Team Legalhold Whitelisted"
                 ]
@@ -291,14 +291,14 @@ type ILegalholdWhitelistedTeamsAPIBase =
 type ITeamsAPI = "teams" :> Capture "tid" TeamId :> ITeamsAPIBase
 
 type ITeamsAPIBase =
-  Named "get-team-internal" (CanThrow 'TeamNotFound :> Get '[Servant.JSON] TeamData)
+  Named "get-team-internal" (CanThrow 'TeamNotFound :> Get '[JSON] TeamData)
     :<|> Named
            "create-binding-team"
            ( ZUser
-               :> ReqBody '[Servant.JSON] BindingNewTeam
+               :> ReqBody '[JSON] BindingNewTeam
                :> MultiVerb1
                     'PUT
-                    '[Servant.JSON]
+                    '[JSON]
                     ( WithHeaders
                         '[Header "Location" TeamId]
                         TeamId
@@ -312,16 +312,16 @@ type ITeamsAPIBase =
                :> CanThrow 'DeleteQueueFull
                :> CanThrow 'TeamNotFound
                :> QueryFlag "force"
-               :> MultiVerb1 'DELETE '[Servant.JSON] (RespondEmpty 202 "OK")
+               :> MultiVerb1 'DELETE '[JSON] (RespondEmpty 202 "OK")
            )
-    :<|> Named "get-team-name" ("name" :> CanThrow 'TeamNotFound :> Get '[Servant.JSON] TeamName)
+    :<|> Named "get-team-name" ("name" :> CanThrow 'TeamNotFound :> Get '[JSON] TeamName)
     :<|> Named
            "update-team-status"
            ( "status"
                :> CanThrow 'TeamNotFound
                :> CanThrow 'InvalidTeamStatusUpdate
-               :> ReqBody '[Servant.JSON] TeamStatusUpdate
-               :> MultiVerb1 'PUT '[Servant.JSON] (RespondEmpty 200 "OK")
+               :> ReqBody '[JSON] TeamStatusUpdate
+               :> MultiVerb1 'PUT '[JSON] (RespondEmpty 200 "OK")
            )
     :<|> "members"
       :> ( Named
@@ -329,25 +329,25 @@ type ITeamsAPIBase =
              ( CanThrow 'TooManyTeamMembers
                  :> CanThrow 'TooManyTeamMembersOnTeamWithLegalhold
                  :> CanThrow 'TooManyTeamAdmins
-                 :> ReqBody '[Servant.JSON] NewTeamMember
-                 :> MultiVerb1 'POST '[Servant.JSON] (RespondEmpty 200 "OK")
+                 :> ReqBody '[JSON] NewTeamMember
+                 :> MultiVerb1 'POST '[JSON] (RespondEmpty 200 "OK")
              )
              :<|> Named
                     "unchecked-get-team-members"
                     ( QueryParam' '[Strict] "maxResults" (Range 1 HardTruncationLimit Int32)
-                        :> Get '[Servant.JSON] TeamMemberList
+                        :> Get '[JSON] TeamMemberList
                     )
              :<|> Named
                     "unchecked-get-team-member"
                     ( Capture "uid" UserId
                         :> CanThrow 'TeamMemberNotFound
-                        :> Get '[Servant.JSON] TeamMember
+                        :> Get '[JSON] TeamMember
                     )
              :<|> Named
                     "can-user-join-team"
                     ( "check"
                         :> CanThrow 'TooManyTeamMembersOnTeamWithLegalhold
-                        :> MultiVerb1 'GET '[Servant.JSON] (RespondEmpty 200 "User can join")
+                        :> MultiVerb1 'GET '[JSON] (RespondEmpty 200 "User can join")
                     )
              :<|> Named
                     "unchecked-update-team-member"
@@ -358,8 +358,8 @@ type ITeamsAPIBase =
                         :> CanThrow 'TooManyTeamAdmins
                         :> CanThrow 'NotATeamMember
                         :> CanThrow OperationDenied
-                        :> ReqBody '[Servant.JSON] NewTeamMember
-                        :> MultiVerb1 'PUT '[Servant.JSON] (RespondEmpty 200 "")
+                        :> ReqBody '[JSON] NewTeamMember
+                        :> MultiVerb1 'PUT '[JSON] (RespondEmpty 200 "")
                     )
          )
     :<|> Named
@@ -369,18 +369,18 @@ type ITeamsAPIBase =
                :> CanThrow 'AccessDenied
                :> CanThrow 'TeamMemberNotFound
                :> CanThrow 'NotATeamMember
-               :> MultiVerb1 'GET '[Servant.JSON] (RespondEmpty 200 "User is team owner")
+               :> MultiVerb1 'GET '[JSON] (RespondEmpty 200 "User is team owner")
            )
     :<|> "search-visibility"
-      :> ( Named "get-search-visibility-internal" (Get '[Servant.JSON] TeamSearchVisibilityView)
+      :> ( Named "get-search-visibility-internal" (Get '[JSON] TeamSearchVisibilityView)
              :<|> Named
                     "set-search-visibility-internal"
                     ( CanThrow 'TeamSearchVisibilityNotEnabled
                         :> CanThrow OperationDenied
                         :> CanThrow 'NotATeamMember
                         :> CanThrow 'TeamNotFound
-                        :> ReqBody '[Servant.JSON] TeamSearchVisibilityView
-                        :> MultiVerb1 'PUT '[Servant.JSON] (RespondEmpty 204 "OK")
+                        :> ReqBody '[JSON] TeamSearchVisibilityView
+                        :> MultiVerb1 'PUT '[JSON] (RespondEmpty 204 "OK")
                     )
          )
 
@@ -401,8 +401,8 @@ type FeatureStatusBasePutInternal errs featureConfig =
     (AppendSymbol "Put config for " (FeatureSymbol featureConfig))
     errs
     featureConfig
-    ( ReqBody '[Servant.JSON] (WithStatusNoLock featureConfig)
-        :> Put '[Servant.JSON] (WithStatus featureConfig)
+    ( ReqBody '[JSON] (WithStatusNoLock featureConfig)
+        :> Put '[JSON] (WithStatus featureConfig)
     )
 
 type FeatureStatusBasePatchInternal errs featureConfig =
@@ -410,8 +410,8 @@ type FeatureStatusBasePatchInternal errs featureConfig =
     (AppendSymbol "Patch config for " (FeatureSymbol featureConfig))
     errs
     featureConfig
-    ( ReqBody '[Servant.JSON] (WithStatusPatch featureConfig)
-        :> Patch '[Servant.JSON] (WithStatus featureConfig)
+    ( ReqBody '[JSON] (WithStatusPatch featureConfig)
+        :> Patch '[JSON] (WithStatus featureConfig)
     )
 
 type FeatureStatusBaseInternal desc errs featureConfig a =
@@ -441,7 +441,7 @@ type IFeatureStatusLockStatusPutWithDesc featureName desc =
         :> "features"
         :> FeatureSymbol featureName
         :> Capture "lockStatus" LockStatus
-        :> Put '[Servant.JSON] LockStatusResponse
+        :> Put '[JSON] LockStatusResponse
     )
 
 type FeatureNoConfigMultiGetBase featureName =
@@ -449,8 +449,8 @@ type FeatureNoConfigMultiGetBase featureName =
     (AppendSymbol "Get team feature status in bulk for feature " (FeatureSymbol featureName))
     :> "features-multi-teams"
     :> FeatureSymbol featureName
-    :> ReqBody '[Servant.JSON] TeamFeatureNoConfigMultiRequest
-    :> Post '[Servant.JSON] (TeamFeatureNoConfigMultiResponse featureName)
+    :> ReqBody '[JSON] TeamFeatureNoConfigMultiRequest
+    :> Post '[JSON] (TeamFeatureNoConfigMultiResponse featureName)
 
 type IFeatureNoConfigMultiGet f =
   Named
@@ -464,8 +464,8 @@ type IFederationAPI =
         :> CanThrow UnreachableBackends
         :> ZLocalUser
         :> "federation-status"
-        :> ReqBody '[Servant.JSON] RemoteDomains
-        :> Get '[Servant.JSON] FederationStatus
+        :> ReqBody '[JSON] RemoteDomains
+        :> Get '[JSON] FederationStatus
     )
 
 type IConversationAPI =
@@ -475,7 +475,7 @@ type IConversationAPI =
         :> Capture "cnv" ConvId
         :> "members"
         :> Capture "usr" UserId
-        :> Get '[Servant.JSON] (Maybe Member)
+        :> Get '[JSON] (Maybe Member)
     )
     -- This endpoint can lead to the following events being sent:
     -- - MemberJoin event to you, if the conversation existed and had < 2 members before
@@ -491,7 +491,7 @@ type IConversationAPI =
                :> Capture "cnv" ConvId
                :> "accept"
                :> "v2"
-               :> Put '[Servant.JSON] Conversation
+               :> Put '[JSON] Conversation
            )
     :<|> Named
            "conversation-block-unqualified"
@@ -501,7 +501,7 @@ type IConversationAPI =
                :> "conversations"
                :> Capture "cnv" ConvId
                :> "block"
-               :> Put '[Servant.JSON] ()
+               :> Put '[JSON] ()
            )
     :<|> Named
            "conversation-block"
@@ -511,7 +511,7 @@ type IConversationAPI =
                :> "conversations"
                :> QualifiedCapture "cnv" ConvId
                :> "block"
-               :> Put '[Servant.JSON] ()
+               :> Put '[JSON] ()
            )
     -- This endpoint can lead to the following events being sent:
     -- - MemberJoin event to you, if the conversation existed and had < 2 members before
@@ -526,7 +526,7 @@ type IConversationAPI =
                :> "conversations"
                :> Capture "cnv" ConvId
                :> "unblock"
-               :> Put '[Servant.JSON] Conversation
+               :> Put '[JSON] Conversation
            )
     -- This endpoint can lead to the following events being sent:
     -- - MemberJoin event to you, if the conversation existed and had < 2 members before
@@ -541,7 +541,7 @@ type IConversationAPI =
                :> "conversations"
                :> QualifiedCapture "cnv" ConvId
                :> "unblock"
-               :> Put '[Servant.JSON] ()
+               :> Put '[JSON] ()
            )
     :<|> Named
            "conversation-meta"
@@ -549,7 +549,7 @@ type IConversationAPI =
                :> "conversations"
                :> Capture "cnv" ConvId
                :> "meta"
-               :> Get '[Servant.JSON] ConversationMetadata
+               :> Get '[JSON] ConversationMetadata
            )
     :<|> Named
            "conversation-mls-one-to-one"
@@ -559,7 +559,7 @@ type IConversationAPI =
                :> "mls-one2one"
                :> ZLocalUser
                :> QualifiedCapture "user" UserId
-               :> Get '[Servant.JSON] Conversation
+               :> Get '[JSON] Conversation
            )
     :<|> Named
            "conversation-mls-one-to-one-established"
@@ -570,8 +570,20 @@ type IConversationAPI =
                :> "mls-one2one"
                :> QualifiedCapture "user" UserId
                :> "established"
-               :> Get '[Servant.JSON] Bool
+               :> Get '[JSON] Bool
            )
+
+type IMiscAPI =
+  Named
+    "get-team-members"
+    ( CanThrow 'NonBindingTeam
+        :> CanThrow 'TeamNotFound
+        :> "users"
+        :> Capture "uid" UserId
+        :> "team"
+        :> "members"
+        :> Get '[JSON] TeamMemberList
+    )
 
 swaggerDoc :: OpenApi
 swaggerDoc =

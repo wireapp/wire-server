@@ -114,6 +114,7 @@ internalAPI =
       <@> mkNamedAPI @"guard-legalhold-policy-conflicts" guardLegalholdPolicyConflictsH
       <@> legalholdWhitelistedTeamsAPI
       <@> iTeamsAPI
+      <@> miscAPI
       <@> mkNamedAPI @"upsert-one2one" iUpsertOne2OneConversation
       <@> featureAPI
       <@> federationAPI
@@ -172,6 +173,9 @@ iTeamsAPI = mkAPI $ \tid -> hoistAPIHandler Imports.id (base tid)
           ( mkNamedAPI @"get-search-visibility-internal" (Teams.getSearchVisibilityInternal tid)
               <@> mkNamedAPI @"set-search-visibility-internal" (Teams.setSearchVisibilityInternal (featureEnabledForTeam @SearchVisibilityAvailableConfig) tid)
           )
+
+miscAPI :: API IMiscAPI GalleyEffects
+miscAPI = mkNamedAPI @"get-team-members" Teams.getBindingTeamMembers
 
 featureAPI :: API IFeatureAPI GalleyEffects
 featureAPI =
@@ -251,9 +255,6 @@ featureAPI =
 waiInternalSitemap :: Routes a (Sem GalleyEffects) ()
 waiInternalSitemap = unsafeCallsFed @'Galley @"on-client-removed" $ unsafeCallsFed @'Galley @"on-mls-message-sent" $ do
   -- Misc API (internal) ------------------------------------------------
-
-  get "/i/users/:uid/team/members" (continueE Teams.getBindingTeamMembersH) $
-    capture "uid"
 
   get "/i/users/:uid/team" (continueE Teams.getBindingTeamIdH) $
     capture "uid"
