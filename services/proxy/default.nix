@@ -27,6 +27,7 @@
 , unliftio-core
 , uuid
 , wai
+, wai-middleware-gunzip
 , wai-predicates
 , wai-routing
 , wai-utilities
@@ -61,6 +62,7 @@ mkDerivation {
     unliftio-core
     uuid
     wai
+    wai-middleware-gunzip
     wai-predicates
     wai-routing
     wai-utilities
