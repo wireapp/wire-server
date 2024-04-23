@@ -142,7 +142,8 @@ getLocalUserProfiles requestingUser luids = do
   emailVisibility <- inputs emailVisibilityConfig
   emailVisibilityConfigWithViewer <-
     traverse (const getRequestingUserInfo) emailVisibility
-  -- FUTUREWORK: Does it make sense to pull these parallely?
+  -- FUTUREWORK: (in the interpreters where it makes sense) pull paginated lists from the DB,
+  -- not just single rows.
   catMaybes <$> traverse (getLocalUserProfile emailVisibilityConfigWithViewer) (sequence luids)
   where
     getRequestingUserInfo :: Sem r (Maybe (TeamId, TeamMember))
