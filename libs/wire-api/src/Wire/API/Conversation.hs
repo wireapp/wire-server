@@ -286,7 +286,7 @@ conversationSchema ::
   ValueSchema NamedSwaggerDoc Conversation
 conversationSchema v =
   objectWithDocModifier
-    ("Conversation" <> maybe mempty (Text.toUpper . versionText) v)
+    ("Conversation" <> foldMap (Text.toUpper . versionText) v)
     (description ?~ "A conversation object as returned from the server")
     (conversationObjectSchema v)
 
@@ -439,7 +439,7 @@ conversationsResponseSchema v =
   let notFoundDoc = description ?~ "These conversations either don't exist or are deleted."
       failedDoc = description ?~ "The server failed to fetch these conversations, most likely due to network issues while contacting a remote server"
    in objectWithDocModifier
-        ("ConversationsResponse" <> maybe mempty (Text.toUpper . versionText) v)
+        ("ConversationsResponse" <> foldMap (Text.toUpper . versionText) v)
         (description ?~ "Response object for getting metadata of a list of conversations")
         $ ConversationsResponse
           <$> crFound .= field "found" (array (conversationSchema v))
@@ -677,7 +677,7 @@ newConvSchema ::
   ValueSchema NamedSwaggerDoc NewConv
 newConvSchema v sch =
   objectWithDocModifier
-    ("NewConv" <> maybe mempty (Text.toUpper . versionText) v)
+    ("NewConv" <> foldMap (Text.toUpper . versionText) v)
     (description ?~ "JSON object to create a new conversation. When using 'qualified_users' (preferred), you can omit 'users'")
     $ NewConv
       <$> newConvUsers
@@ -840,7 +840,7 @@ data ConversationAccessData = ConversationAccessData
 
 conversationAccessDataSchema :: Maybe Version -> ValueSchema NamedSwaggerDoc ConversationAccessData
 conversationAccessDataSchema v =
-  object ("ConversationAccessData" <> maybe mempty (Text.toUpper . versionText) v) $
+  object ("ConversationAccessData" <> foldMap (Text.toUpper . versionText) v) $
     ConversationAccessData
       <$> cupAccess .= field "access" (set schema)
       <*> cupAccessRoles .= accessRolesVersionedSchema v

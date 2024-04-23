@@ -84,7 +84,7 @@ data PublicSubConversation = PublicSubConversation
 publicSubConversationSchema :: Maybe Version -> ValueSchema NamedSwaggerDoc PublicSubConversation
 publicSubConversationSchema v =
   objectWithDocModifier
-    ("PublicSubConversation" <> maybe mempty (T.toUpper . versionText) v)
+    ("PublicSubConversation" <> foldMap (T.toUpper . versionText) v)
     (description ?~ "An MLS subconversation")
     $ PublicSubConversation
       <$> pscParentConvId .= field "parent_qualified_id" schema
