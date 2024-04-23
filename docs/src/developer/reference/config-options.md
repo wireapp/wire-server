@@ -924,6 +924,81 @@ brig:
       password: changeme
 ```
 
+## Configure TLS for Elasticsearch
+
+If the elasticsearch instance requires TLS, it can be configured like this:
+
+```yaml
+brig:
+  config:
+    elasticsearch:
+      scheme: https
+
+elasticsearch-index:
+  elasticsearch:
+    scheme: https
+```
+
+In case a custom CA certificate is required it can be provided like this:
+
+```yaml
+brig:
+  config:
+    elasticsearch:
+      tlsCa: <PEM encoded CA certificates>
+elasticsearch-index:
+  elasticsearch:
+    tlsCa: <PEM encoded CA certificates>
+```
+
+There is another way to provide this, in case there already exists a kubernetes
+secret containing the CA certificate(s):
+
+```yaml
+brig:
+  config:
+    elasticsearch:
+      tlsCaSecretRef:
+        name: <Name of the secret>
+        key: <Key in the secret containing pem encoded CA Cert>
+elasticsearch-index:
+  elasticsearch:
+    tlsCaSecretRef:
+      name: <Name of the secret>
+      key: <Key in the secret containing pem encoded CA Cert>
+```
+
+For configuring `addtionalWriteIndex` in brig (this is required during a
+migration from one index to another or one ES instance to another), the settings
+need to be like this:
+
+```yaml
+brig:
+  config:
+    elasticsearch:
+      additionalWriteScheme: https
+      # One or none of these:
+      # addtionalTlsCa: <similar to tlsCa>
+      # addtionalTlsCaSecretRef: <similar to tlsCaSecretRef>
+```
+
+
+**WARNING:** Please do this only if you know what you're doing.
+
+In case it is not possible to verify TLS certificate of the elasticsearch
+server, it can be turned off without tuning off TLS like this:
+
+```yaml
+brig:
+  config:
+    elasticsearch:
+      insecureSkipVerifyTls: true
+      addtionalInsecureSkipVerifyTls: true # only required when addtional index is being used.
+elasticsearch-index:
+  elasticsearch:
+    insecureSkipVerifyTls: true
+```
+
 ## Configure Redis authentication
 
 If the redis used needs authentication with either username and password or just
