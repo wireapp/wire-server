@@ -24,21 +24,17 @@ module Brig.User.EJPD (ejpdRequest) where
 import Bilge.Request
 import Bilge.Response
 import Brig.API.Handler
-import Brig.API.User (lookupHandle, lookupProfiles)
+import Brig.API.User (lookupHandle)
 import Brig.App
 import Brig.Data.Connection qualified as Conn
 import Brig.Data.User (lookupUser)
-import Brig.Effects.ConnectionStore
 import Brig.Effects.GalleyProvider (GalleyProvider)
 import Brig.Effects.GalleyProvider qualified as GalleyProvider
-import Control.Arrow
 import Control.Error hiding (bool)
 import Control.Lens (view, (^.))
 import Data.Aeson qualified as A
 import Data.ByteString.Conversion
 import Data.Handle (Handle)
-import Data.Id (UserId)
-import Data.Map qualified as Map
 import Data.Qualified
 import Data.Set qualified as Set
 import Data.Text qualified as T
@@ -48,26 +44,19 @@ import Polysemy
 import Polysemy.TinyLog
 import Servant.OpenApi.Internal.Orphans ()
 import System.Logger.Message qualified as Log
-import Wire.API.Connection (Relation, RelationWithHistory (..), UserConnection (..), relationDropHistory)
-import Wire.API.Federation.Error
+import Wire.API.Connection
 import Wire.API.Push.Token qualified as PushTok
 import Wire.API.Routes.Internal.Brig.EJPD
 import Wire.API.Team.Member qualified as Team
 import Wire.API.User
 import Wire.NotificationSubsystem
 import Wire.Rpc
-import Wire.Sem.Concurrency
-import Wire.Sem.Paging
-import Wire.Sem.Paging.Cassandra
 
 ejpdRequest ::
   forall r.
   ( Member GalleyProvider r,
     Member NotificationSubsystem r,
     Member Rpc r,
-    Member (ConnectionStore InternalPaging) r,
-    Member (Concurrency 'Unsafe) r,
-    Member (Final IO) r, -- running the AppT monad requires Final IO
     Member TinyLog r
   ) =>
   Maybe Bool ->
@@ -95,69 +84,17 @@ ejpdRequest (fromMaybe False -> includeContacts) (EJPDRequestBody handles) = do
       mbContacts <-
         if reallyIncludeContacts
           then do
-            env <- ask
-            contacts :: [(UserId, RelationWithHistory)] <-
+            contacts <-
               wrapClient $ -- FUTUREWORK: use polysemy effect, not wrapClient
                 Conn.lookupContactListWithRelation uid
 
-            localContacts :: [EJPDContact] <-
+            localContacts <-
               catMaybes <$> do
                 forM contacts $ \(uid', relationDropHistory -> rel) -> do
                   mbUsr <- wrapClient $ lookupUser NoPendingInvitations uid' -- FUTUREWORK: use polysemy effect, not wrapClient
                   maybe (pure Nothing) (fmap (Just . EJPDContactFound rel) . responseItemForExistingUser False) mbUsr
 
-            remoteContacts :: [EJPDContact] <- liftSem do
-              let getPage = flip (remoteConnectedUsersPaginated luid) maxBound
-              firstPage <- getPage Nothing
-
-              let userProfiles :: Page InternalPaging (Remote UserConnection) -> Sem r [EJPDContact]
-                  userProfiles pg = do
-                    let qualifiedRemoteContactIds :: [(Qualified UserId, Relation)]
-                        qualifiedRemoteContactIds = (ucTo &&& ucStatus) . qUnqualified . tUntagged <$> pageItems pg
-                        userRelationMap = Map.fromList qualifiedRemoteContactIds
-
-                        mkItem :: UserProfile -> Maybe EJPDContact
-                        mkItem up = do
-                          rel <- Map.lookup up.profileQualifiedId userRelationMap
-                          pure $
-                            EJPDContactFound rel $
-                              EJPDResponseItem
-                                { ejpdResponseUserId = up.profileQualifiedId,
-                                  ejpdResponseTeamId = up.profileTeam,
-                                  ejpdResponseName = up.profileName,
-                                  ejpdResponseHandle = up.profileHandle,
-                                  ejpdResponseEmail = up.profileEmail,
-                                  ejpdResponsePhone = Nothing,
-                                  ejpdResponsePushTokens = mempty,
-                                  -- this is already a contact of the requested subject, so we don't need to fetch contacts recursively
-                                  ejpdResponseContacts = Nothing,
-                                  -- same as above
-                                  ejpdResponseTeamContacts = Nothing,
-                                  -- same as above
-                                  ejpdResponseConversations = Nothing,
-                                  ejpdResponseAssets = Nothing
-                                }
-
-                        logErr :: FederationError -> Sem r ()
-                        logErr e = warn $ Log.msg $ "error fetching remote contact profile:\n" <> displayException e
-
-                    profs :: Either FederationError [UserProfile] <-
-                      runReaderT (unAppT (runExceptT (lookupProfiles luid (map fst qualifiedRemoteContactIds)))) env
-
-                    either (\e -> logErr e $> (map (EJPDContactRemoteError . fst) qualifiedRemoteContactIds)) (pure . mapMaybe mkItem) profs
-
-                  go :: InternalPage (QualifiedWithTag 'QRemote UserConnection) -> Sem r [EJPDContact]
-                  go page =
-                    if pageHasMore page
-                      then do
-                        newPage <- getPage $ Just $ pageState page
-                        pis <- userProfiles page
-                        (pis <>) <$> go newPage
-                      else userProfiles page
-
-              go firstPage
-
-            pure . Just . Set.fromList $ localContacts <> remoteContacts
+            pure . Just . Set.fromList $ localContacts
           else do
             pure Nothing
 
@@ -167,7 +104,7 @@ ejpdRequest (fromMaybe False -> includeContacts) (EJPDRequestBody handles) = do
             memberList <- liftSem $ GalleyProvider.getTeamMembers tid
             let members = (view Team.userId <$> (memberList ^. Team.teamMembers)) \\ [uid]
 
-            contactsFull :: [Maybe EJPDResponseItem] <-
+            contactsFull <-
               forM members $ \uid' -> do
                 mbUsr <- wrapClient $ lookupUser NoPendingInvitations uid'
                 maybe (pure Nothing) (fmap Just . responseItemForExistingUser False) mbUsr

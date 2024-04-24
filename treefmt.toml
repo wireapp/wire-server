@@ -1,7 +1,7 @@
 [formatter.nix]
 command = "nixpkgs-fmt"
 includes = ["*.nix"]
-excludes = [ "nix/sources.nix"] # managed by niv. 
+excludes = [ "nix/sources.nix"] # managed by niv.
 
 [formatter.cabal-fmt]
 command = "cabal-fmt"
@@ -14,7 +14,7 @@ command = "ormolu"
 includes = ["*.hs"]
 excludes = [ "dist*" ]
 options = [
-  "--mode", "inplace", 
+  "--mode", "inplace",
   "--check-idempotence",
 ]
 

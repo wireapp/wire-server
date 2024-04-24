@@ -151,11 +151,10 @@ ejpdGetConvInfo uid = do
     getPages :: Local UserId -> ConvIdsPage -> Sem r [EJPDConvInfo]
     getPages luid page = do
       let convids = MTP.mtpResults page
-          mk :: Qualified Data.Conversation -> Maybe EJPDConvInfo
-          mk qconv = do
-            let conv = qUnqualified qconv
-                convType = conv.convMetadata.cnvmType
-                ejpdConvInfo = EJPDConvInfo (fromMaybe "n/a" conv.convMetadata.cnvmName) (fmap (.convId) qconv)
+          mk :: Data.Conversation -> Maybe EJPDConvInfo
+          mk conv = do
+            let convType = conv.convMetadata.cnvmType
+                ejpdConvInfo = EJPDConvInfo (fromMaybe "n/a" conv.convMetadata.cnvmName) (tUntagged $ qualifyAs luid conv.convId)
             -- we don't want self conversations as they don't tell us anything about connections
             -- we don't want connect conversations, because the peer has not responded yet
             case convType of
@@ -165,7 +164,7 @@ ejpdGetConvInfo uid = do
               SelfConv -> Nothing
               ConnectConv -> Nothing
       -- TODO(mangoiv): instead of getConversations use something that can do federation (list-converstations endpoint)
-      renderedPage <- mapMaybe mk <$> _ convids
+      renderedPage <- mapMaybe mk <$> getConversations (qUnqualified <$> convids)
       if MTP.mtpHasMore page
         then do
           newPage <- Query.conversationIdsPageFrom luid (mkPageRequest . Just . MTP.mtpPagingState $ page)

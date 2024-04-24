@@ -574,8 +574,6 @@ type IConversationAPI =
                :> Get '[Servant.JSON] Bool
            )
 
--- | @(I)nternal (E)idgenössisches (J)ustiz- und (P)olizei(D)epartement API@
---   @internal   confederate       justice-  and police   departement   API@
 type IEJPDAPI =
   Named
     "get-conversations-by-user"
