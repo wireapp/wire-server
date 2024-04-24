@@ -627,6 +627,8 @@ testMigrationToNewIndex mgr opts brig = do
           optsOldIndex
             & Opt.elasticsearchL . Opt.additionalWriteIndexL ?~ (opts ^. Opt.elasticsearchL . Opt.indexL)
             & Opt.elasticsearchL . Opt.additionalWriteIndexUrlL ?~ (opts ^. Opt.elasticsearchL . Opt.urlL)
+            & Opt.elasticsearchL . Opt.additionalCaCertL .~ (opts ^. Opt.elasticsearchL . Opt.caCertL)
+            & Opt.elasticsearchL . Opt.additionalInsecureSkipVerifyTlsL .~ (opts ^. Opt.elasticsearchL . Opt.insecureSkipVerifyTlsL)
     (phase2NonTeamUser, phase2TeamUser) <- withSettingsOverrides phase2OptsWhile $ do
       phase2NonTeamUser <- randomUser brig
       phase2TeamUser <- inviteAndRegisterUser teamOwner tid brig

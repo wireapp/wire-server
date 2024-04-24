@@ -938,8 +938,12 @@ Lens.makeLensesFor
 Lens.makeLensesFor
   [ ("url", "urlL"),
     ("index", "indexL"),
+    ("caCert", "caCertL"),
+    ("insecureSkipVerifyTls", "insecureSkipVerifyTlsL"),
     ("additionalWriteIndex", "additionalWriteIndexL"),
-    ("additionalWriteIndexUrl", "additionalWriteIndexUrlL")
+    ("additionalWriteIndexUrl", "additionalWriteIndexUrlL"),
+    ("additionalCaCert", "additionalCaCertL"),
+    ("additionalInsecureSkipVerifyTls", "additionalInsecureSkipVerifyTlsL")
   ]
   ''ElasticSearchOpts
 
