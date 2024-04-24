@@ -90,7 +90,7 @@ tests opts mgr galley brig = do
         testWithBothIndices opts mgr "Non ascii names" $ testSearchNonAsciiNames brig,
         testWithBothIndices opts mgr "user with umlaut" $ testSearchWithUmlaut brig,
         testWithBothIndices opts mgr "user with japanese name" $ testSearchCJK brig,
-        test mgr "migration to new index" $ testMigrationToNewIndex mgr opts brig,
+        test mgr "migration to new index" $ testMigrationToNewIndex opts brig,
         testGroup "team A: SearchVisibilityStandard (= unrestricted outbound search)" $
           [ testGroup "team A: SearchableByOwnTeam (= restricted inbound search)" $
               [ testWithBothIndices opts mgr "  I. non-team user cannot find team A member by display name" $ testSearchTeamMemberAsNonMemberDisplayName mgr brig galley FeatureStatusDisabled,
@@ -608,10 +608,9 @@ testSearchOtherDomain opts brig = do
 -- cluster. This test spins up a proxy server to pass requests to our only ES
 -- server. The proxy server ensures that only requests to the 'old' index go
 -- through.
-testMigrationToNewIndex :: (TestConstraints m, MonadUnliftIO m) => Manager -> Opt.Opts -> Brig -> m ()
-testMigrationToNewIndex mgr opts brig = do
-  -- (optsOldIndex, ES.IndexName -> oldIndexName) <- optsForOldIndex opts
-  withOldESProxy opts mgr $ \oldESUrl oldESIndex -> do
+testMigrationToNewIndex :: (TestConstraints m, MonadUnliftIO m) => Opt.Opts -> Brig -> m ()
+testMigrationToNewIndex opts brig = do
+  withOldESProxy opts $ \oldESUrl oldESIndex -> do
     let optsOldIndex =
           opts
             & Opt.elasticsearchL . Opt.indexL .~ (ES.IndexName oldESIndex)
@@ -689,10 +688,11 @@ testMigrationToNewIndex mgr opts brig = do
     assertCanFindByName brig phase1TeamUser1 phase3NonTeamUser
     assertCanFindByName brig phase1TeamUser1 phase3TeamUser
 
-withOldESProxy :: (TestConstraints m, MonadUnliftIO m, HasCallStack) => Opt.Opts -> Manager -> (Text -> Text -> m a) -> m a
-withOldESProxy opts mgr f = do
+withOldESProxy :: (TestConstraints m, MonadUnliftIO m, HasCallStack) => Opt.Opts -> (Text -> Text -> m a) -> m a
+withOldESProxy opts f = do
   indexName <- randomHandle
   createIndexWithMapping opts indexName oldMapping
+  mgr <- liftIO $ initHttpManagerWithTLSConfig opts.elasticsearch.insecureSkipVerifyTls opts.elasticsearch.caCert
   (proxyPort, sock) <- liftIO Warp.openFreePort
   bracket
     (async $ liftIO $ Warp.runSettingsSocket Warp.defaultSettings sock $ indexProxyServer indexName opts mgr)
