@@ -60,13 +60,13 @@ import Galley.Effects.ClientStore
 import Galley.Effects.ConversationStore
 import Galley.Effects.LegalHoldStore as LegalHoldStore
 import Galley.Effects.MemberStore qualified as E
+import Galley.Effects.ServiceStore
 import Galley.Effects.TeamStore
 import Galley.Effects.TeamStore qualified as E
 import Galley.Monad
 import Galley.Options hiding (brig)
 import Galley.Queue qualified as Q
 import Galley.Types.Bot (AddBot, RemoveBot)
-import Galley.Types.Bot.Service
 import Galley.Types.Conversations.Members (RemoteMember (rmId))
 import Galley.Types.UserList
 import Gundeck.Types.Push.V2 qualified as PushV2
@@ -181,6 +181,7 @@ miscAPI =
     <@> mkNamedAPI @"test-get-clients" Clients.getClients
     <@> mkNamedAPI @"test-add-client" createClient
     <@> mkNamedAPI @"test-delete-client" Clients.rmClient
+    <@> mkNamedAPI @"add-service" createService
 
 featureAPI :: API IFeatureAPI GalleyEffects
 featureAPI =
@@ -260,9 +261,6 @@ featureAPI =
 waiInternalSitemap :: Routes a (Sem GalleyEffects) ()
 waiInternalSitemap = unsafeCallsFed @'Galley @"on-client-removed" $ unsafeCallsFed @'Galley @"on-mls-message-sent" $ do
   -- Misc API (internal) ------------------------------------------------
-
-  post "/i/services" (continue Update.addServiceH) $
-    jsonRequest @Service
 
   delete "/i/services" (continue Update.rmServiceH) $
     jsonRequest @ServiceRef

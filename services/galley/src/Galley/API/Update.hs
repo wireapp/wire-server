@@ -66,7 +66,6 @@ module Galley.API.Update
     memberTyping,
 
     -- * External Services
-    addServiceH,
     rmServiceH,
     Galley.API.Update.addBotH,
     rmBotH,
@@ -109,7 +108,6 @@ import Galley.Effects.ServiceStore qualified as E
 import Galley.Effects.WaiRoutes
 import Galley.Options
 import Galley.Types.Bot hiding (addBot)
-import Galley.Types.Bot.Service (Service)
 import Galley.Types.Conversations.Members (LocalMember (..))
 import Galley.Types.UserList
 import Imports hiding (forkIO)
@@ -1547,16 +1545,6 @@ memberTypingUnqualified ::
 memberTypingUnqualified lusr zcon cnv ts = do
   lcnv <- qualifyLocal cnv
   memberTyping lusr zcon (tUntagged lcnv) ts
-
-addServiceH ::
-  ( Member ServiceStore r,
-    Member WaiRoutes r
-  ) =>
-  JsonRequest Service ->
-  Sem r Response
-addServiceH req = do
-  E.createService =<< fromJsonBody req
-  pure empty
 
 rmServiceH ::
   ( Member ServiceStore r,

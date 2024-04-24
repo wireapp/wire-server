@@ -25,12 +25,12 @@ import Galley.Cassandra.Store
 import Galley.Cassandra.Util
 import Galley.Data.Services
 import Galley.Effects.ServiceStore hiding (deleteService)
-import Galley.Types.Bot.Service qualified as Bot
 import Galley.Types.Conversations.Members (lmService, newMember)
 import Imports
 import Polysemy
 import Polysemy.Input
 import Polysemy.TinyLog
+import Wire.API.Bot.Service qualified as Bot
 import Wire.API.Provider.Service hiding (DeleteService)
 
 -- FUTUREWORK: support adding bots to a remote conversation

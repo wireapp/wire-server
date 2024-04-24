@@ -26,6 +26,7 @@ import Imports hiding (head)
 import Servant hiding (WithStatus)
 import Servant.OpenApi
 import Wire.API.ApplyMods
+import Wire.API.Bot.Service
 import Wire.API.Conversation
 import Wire.API.Conversation.Role
 import Wire.API.Error
@@ -618,6 +619,15 @@ type IMiscAPI =
                :> Capture "cid" ClientId
                :> MultiVerb1
                     'DELETE
+                    '[JSON]
+                    (RespondEmpty 200 "OK")
+           )
+    :<|> Named
+           "add-service"
+           ( "services"
+               :> ReqBody '[JSON] Service
+               :> MultiVerb1
+                    'POST
                     '[JSON]
                     (RespondEmpty 200 "OK")
            )
