@@ -127,7 +127,7 @@ runTests iConf brigOpts otherArgs = do
       awsOpts = Opts.aws brigOpts
   lg <- Logger.new Logger.defSettings -- TODO: use mkLogger'?
   db <- defInitCassandra (brigOpts.cassandra) lg
-  mg <- initHttpManagerWithTLSConfig True Nothing
+  mg <- initHttpManagerWithTLSConfig False Nothing
   let fedBrigClient = FedClient @'Brig mg (brig iConf)
   emailAWSOpts <- parseEmailAWSOpts
   awsEnv <- AWS.mkEnv lg awsOpts emailAWSOpts mg
