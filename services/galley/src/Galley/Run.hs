@@ -43,9 +43,9 @@ import Data.Singletons
 import Data.Text (unpack)
 import Data.UUID as UUID
 import Data.UUID.V4 as UUID
-import Galley.API qualified as API
 import Galley.API.Federation
 import Galley.API.Internal
+import Galley.API.Public.Servant
 import Galley.App
 import Galley.App qualified as App
 import Galley.Aws (awsEnv)
@@ -59,7 +59,9 @@ import Network.HTTP.Types qualified as HTTP
 import Network.Wai
 import Network.Wai.Middleware.Gunzip qualified as GZip
 import Network.Wai.Middleware.Gzip qualified as GZip
+import Network.Wai.Routing (Routes)
 import Network.Wai.Utilities.Server
+import Polysemy (Sem)
 import Servant hiding (route)
 import System.Logger (Logger, msg, val, (.=), (~~))
 import System.Logger qualified as Log
@@ -98,7 +100,7 @@ mkApp opts =
     lift $ runClient (env ^. cstate) $ versionCheck schemaVersion
     let middlewares =
           versionMiddleware (foldMap expandVersionExp (opts ^. settings . disabledAPIVersions))
-            . servantPlusWAIPrometheusMiddleware API.waiSitemap (Proxy @CombinedAPI)
+            . servantPlusWAIPrometheusMiddleware waiSitemap (Proxy @CombinedAPI)
             . GZip.gunzip
             . GZip.gzip GZip.def
             . catchErrors logger [Right metrics]
@@ -108,7 +110,10 @@ mkApp opts =
       Log.close logger
     pure (middlewares $ servantApp env, env)
   where
-    rtree = compile API.waiSitemap
+    waiSitemap :: Routes () (Sem GalleyEffects) ()
+    waiSitemap = pure ()
+
+    rtree = compile waiSitemap
     runGalley e r k = evalGalleyToIO e (route rtree r k)
 
     -- the servant API wraps the one defined using wai-routing
@@ -122,7 +127,7 @@ mkApp opts =
             :. customFormatters
             :. Servant.EmptyContext
         )
-        ( hoistAPIHandler (toServantHandler e) API.servantSitemap
+        ( hoistAPIHandler (toServantHandler e) servantSitemap
             :<|> hoistAPIHandler (toServantHandler e) internalAPI
             :<|> hoistServerWithDomain @FederationAPI (toServantHandler e) federationSitemap
             :<|> Servant.Tagged (runGalley e)

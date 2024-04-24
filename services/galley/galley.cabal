@@ -72,7 +72,6 @@ library
 
   -- cabal-fmt: expand src
   exposed-modules:
-    Galley.API
     Galley.API.Action
     Galley.API.Clients
     Galley.API.Create
@@ -106,7 +105,6 @@ library
     Galley.API.MLS.Util
     Galley.API.MLS.Welcome
     Galley.API.One2One
-    Galley.API.Public
     Galley.API.Public.Bot
     Galley.API.Public.Conversation
     Galley.API.Public.CustomBackend
@@ -508,7 +506,6 @@ executable galley-integration
     , lens
     , lens-aeson
     , memory
-    , metrics-wai
     , mtl
     , network
     , network-uri
