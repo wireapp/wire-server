@@ -163,8 +163,7 @@ ejpdGetConvInfo uid = do
               One2OneConv -> Nothing
               SelfConv -> Nothing
               ConnectConv -> Nothing
-      -- TODO(mangoiv): instead of getConversations use something that can do federation (list-converstations endpoint)
-      renderedPage <- mapMaybe mk <$> getConversations (qUnqualified <$> convids)
+      renderedPage <- mapMaybe mk <$> getConversations (fst $ partitionQualified luid convids)
       if MTP.mtpHasMore page
         then do
           newPage <- Query.conversationIdsPageFrom luid (mkPageRequest . Just . MTP.mtpPagingState $ page)
