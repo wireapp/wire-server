@@ -73,6 +73,7 @@
 , vector
 , wai
 , wai-extra
+, wai-middleware-gunzip
 , wai-utilities
 , warp
 , wire-api
@@ -130,6 +131,7 @@ mkDerivation {
     utf8-string
     uuid
     wai
+    wai-middleware-gunzip
     wai-utilities
     warp
     wire-api

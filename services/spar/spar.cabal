@@ -192,6 +192,7 @@ library
     , utf8-string
     , uuid
     , wai
+    , wai-middleware-gunzip
     , wai-utilities
     , warp
     , wire-api

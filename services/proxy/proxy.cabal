@@ -74,31 +74,32 @@ library
     -funbox-strict-fields -Wredundant-constraints -Wunused-packages
 
   build-depends:
-      aeson               >=2.0.1.0
-    , base                >=4.6     && <5
-    , bilge               >=0.21
-    , bytestring          >=0.10
-    , case-insensitive    >=1.2
-    , configurator        >=0.3
-    , exceptions          >=0.8
+      aeson                  >=2.0.1.0
+    , base                   >=4.6     && <5
+    , bilge                  >=0.21
+    , bytestring             >=0.10
+    , case-insensitive       >=1.2
+    , configurator           >=0.3
+    , exceptions             >=0.8
     , extended
-    , http-client         >=0.7
-    , http-client-tls     >=0.3
-    , http-reverse-proxy  >=0.4
-    , http-types          >=0.9
+    , http-client            >=0.7
+    , http-client-tls        >=0.3
+    , http-reverse-proxy     >=0.4
+    , http-types             >=0.9
     , imports
-    , lens                >=4.11
-    , metrics-wai         >=0.5
-    , retry               >=0.7
-    , text                >=1.2
-    , tinylog             >=0.12
-    , types-common        >=0.8
+    , lens                   >=4.11
+    , metrics-wai            >=0.5
+    , retry                  >=0.7
+    , text                   >=1.2
+    , tinylog                >=0.12
+    , types-common           >=0.8
     , unliftio-core
     , uuid
-    , wai                 >=3.2
-    , wai-predicates      >=0.8
-    , wai-routing         >=0.12
-    , wai-utilities       >=0.14.3
+    , wai                    >=3.2
+    , wai-middleware-gunzip
+    , wai-predicates         >=0.8
+    , wai-routing            >=0.12
+    , wai-utilities          >=0.14.3
     , wire-api
 
   default-language:   GHC2021
