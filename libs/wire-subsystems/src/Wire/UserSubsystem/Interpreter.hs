@@ -1,4 +1,4 @@
-module Wire.UserSubsystem.Interpreter (runUserSubsystem, UserSubsystemConfig (..)) where
+module Wire.UserSubsystem.Interpreter where
 
 import Control.Monad.Trans.Maybe
 import Data.Either.Extra
@@ -9,7 +9,7 @@ import Data.Qualified
 import Data.Time.Clock
 import Imports hiding (local)
 import Polysemy
-import Polysemy.Error
+import Polysemy.Error hiding (try)
 import Polysemy.Input
 import Servant.Client.Core
 import Wire.API.Federation.API
