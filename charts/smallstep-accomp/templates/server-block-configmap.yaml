@@ -1,4 +1,4 @@
-{{- if and .Values.upstreams.enable .Values.nginx.existingServerBlockConfigmap }}
+{{- if and .Values.upstreams.enabled .Values.nginx.existingServerBlockConfigmap }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
