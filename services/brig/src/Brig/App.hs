@@ -367,9 +367,11 @@ initHttpManagerWithTLSConfig skipTlsVerify mCustomCa = do
   SSL.contextAddOption ctx SSL_OP_NO_SSLv2
   SSL.contextAddOption ctx SSL_OP_NO_SSLv3
   SSL.contextSetCiphers ctx "HIGH"
-  unless skipTlsVerify $
-    SSL.contextSetVerificationMode ctx $
-      SSL.VerifyPeer True True Nothing
+  if skipTlsVerify
+    then SSL.contextSetVerificationMode ctx SSL.VerifyNone
+    else
+      SSL.contextSetVerificationMode ctx $
+        SSL.VerifyPeer True True Nothing
   case mCustomCa of
     Nothing -> SSL.contextSetDefaultVerifyPaths ctx
     Just customCa -> do
