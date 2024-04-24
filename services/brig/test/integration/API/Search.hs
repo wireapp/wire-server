@@ -3,6 +3,7 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -686,7 +687,7 @@ testMigrationToNewIndex mgr opts brig = do
     assertCanFindByName brig phase1TeamUser1 phase3NonTeamUser
     assertCanFindByName brig phase1TeamUser1 phase3TeamUser
 
-withOldESProxy :: (TestConstraints m, MonadUnliftIO m) => Opt.Opts -> Manager -> (Text -> Text -> m a) -> m a
+withOldESProxy :: (TestConstraints m, MonadUnliftIO m, HasCallStack) => Opt.Opts -> Manager -> (Text -> Text -> m a) -> m a
 withOldESProxy opts mgr f = do
   indexName <- randomHandle
   createIndexWithMapping opts indexName oldMapping
@@ -729,7 +730,7 @@ testWithBothIndices opts mgr name f = do
       test mgr "old-index" $ withOldIndex opts f
     ]
 
-testWithBothIndicesAndOpts :: Opt.Opts -> Manager -> TestName -> (Opt.Opts -> Http ()) -> TestTree
+testWithBothIndicesAndOpts :: Opt.Opts -> Manager -> TestName -> (HasCallStack => Opt.Opts -> Http ()) -> TestTree
 testWithBothIndicesAndOpts opts mgr name f =
   testGroup
     name
@@ -739,20 +740,20 @@ testWithBothIndicesAndOpts opts mgr name f =
         f newOpts <* deleteIndex opts indexName
     ]
 
-withOldIndex :: MonadIO m => Opt.Opts -> WaiTest.Session a -> m a
+withOldIndex :: (MonadIO m, HasCallStack) => Opt.Opts -> WaiTest.Session a -> m a
 withOldIndex opts f = do
   indexName <- randomHandle
   createIndexWithMapping opts indexName oldMapping
   let newOpts = opts & Opt.elasticsearchL . Opt.indexL .~ (ES.IndexName indexName)
   withSettingsOverrides newOpts f <* deleteIndex opts indexName
 
-optsForOldIndex :: MonadIO m => Opt.Opts -> m (Opt.Opts, Text)
+optsForOldIndex :: (MonadIO m, HasCallStack) => Opt.Opts -> m (Opt.Opts, Text)
 optsForOldIndex opts = do
   indexName <- randomHandle
   createIndexWithMapping opts indexName oldMapping
   pure (opts & Opt.elasticsearchL . Opt.indexL .~ (ES.IndexName indexName), indexName)
 
-createIndexWithMapping :: MonadIO m => Opt.Opts -> Text -> Value -> m ()
+createIndexWithMapping :: (MonadIO m, HasCallStack) => Opt.Opts -> Text -> Value -> m ()
 createIndexWithMapping opts name val = do
   let indexName = ES.IndexName name
   createReply <- runBH opts $ ES.createIndexWith [ES.AnalysisSetting analysisSettings] 1 indexName
@@ -763,12 +764,12 @@ createIndexWithMapping opts name val = do
     liftIO $ assertFailure $ "failed to create mapping: " <> show name
 
 -- | This doesn't fail if ES returns error because we don't really want to fail the tests for this
-deleteIndex :: MonadIO m => Opt.Opts -> Text -> m ()
+deleteIndex :: (MonadIO m, HasCallStack) => Opt.Opts -> Text -> m ()
 deleteIndex opts name = do
   let indexName = ES.IndexName name
   void $ runBH opts $ ES.deleteIndex indexName
 
-runBH :: MonadIO m => Opt.Opts -> ES.BH m a -> m a
+runBH :: (MonadIO m, HasCallStack) => Opt.Opts -> ES.BH m a -> m a
 runBH opts action = do
   let (ES.Server esURL) = opts ^. Opt.elasticsearchL . Opt.urlL
   mgr <- liftIO $ initHttpManagerWithTLSConfig True Nothing
