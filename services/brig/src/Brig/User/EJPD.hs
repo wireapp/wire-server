@@ -14,7 +14,6 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-{-# OPTIONS_GHC -Wwarn #-}
 
 -- | Identify users for law enforcement.  (Wire has legal requirements to cooperate with the
 -- authorities.  The wire backend operations team uses this to answer identification requests
@@ -41,9 +40,7 @@ import Data.Text qualified as T
 import Imports hiding (head)
 import Network.HTTP.Types.Method
 import Polysemy
-import Polysemy.TinyLog
 import Servant.OpenApi.Internal.Orphans ()
-import System.Logger.Message qualified as Log
 import Wire.API.Connection
 import Wire.API.Push.Token qualified as PushTok
 import Wire.API.Routes.Internal.Brig.EJPD
@@ -56,8 +53,7 @@ ejpdRequest ::
   forall r.
   ( Member GalleyProvider r,
     Member NotificationSubsystem r,
-    Member Rpc r,
-    Member TinyLog r
+    Member Rpc r
   ) =>
   Maybe Bool ->
   EJPDRequestBody ->
@@ -108,7 +104,6 @@ ejpdRequest (fromMaybe False -> includeContacts) (EJPDRequestBody handles) = do
               forM members $ \uid' -> do
                 mbUsr <- wrapClient $ lookupUser NoPendingInvitations uid'
                 maybe (pure Nothing) (fmap Just . responseItemForExistingUser False) mbUsr
-            liftSem $ warn $ Log.msg ("userid: " <> show uid <> ", contacts: \n" <> show contactsFull)
 
             pure . Just . (,Team.toNewListType (memberList ^. Team.teamMemberListType)) . Set.fromList . catMaybes $ contactsFull
           _ -> do

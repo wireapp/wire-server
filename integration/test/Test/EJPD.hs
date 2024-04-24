@@ -1,9 +1,4 @@
 {-# OPTIONS -Wno-ambiguous-fields #-}
--- REMOVE
-{-# OPTIONS_GHC -Wno-unused-local-binds #-}
-{-# OPTIONS_GHC -Wno-unused-matches #-}
-
---
 
 module Test.EJPD
   ( testEJPDRequest,
@@ -212,7 +207,7 @@ testEJPDRequest = do
 testEJPDRequestRemote :: HasCallStack => App ()
 testEJPDRequestRemote = do
   usrRemote <- randomUser OtherDomain def {BI.email = Nothing, BI.name = Just "usrRemote"}
-  handleRemote <- liftIO $ UUID.nextRandom <&> ("usrRemote-handle-" <>) . UUID.toString
+  handleRemote <- liftIO $ UUID.nextRandom <&> UUID.toString
   void $ putHandle usrRemote handleRemote
 
   have <- BI.getEJPDInfo OwnDomain [handleRemote] "include_contacts"
