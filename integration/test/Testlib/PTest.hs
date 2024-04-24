@@ -24,3 +24,8 @@ instance HasTests x => HasTests (Ciphersuite -> x) where
       [ mkTests m (n <> "[suite=" <> suite.code <> "]") s f (x suite)
         | suite <- allCiphersuites
       ]
+
+instance (HasTests x) => HasTests (CredentialType -> x) where
+  mkTests m n s f x =
+    mkTests m (n <> "[ctype=basic]") s f (x BasicCredentialType)
+      <> mkTests m (n <> "[ctype=x509]") s f (x X509CredentialType)

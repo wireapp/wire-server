@@ -75,10 +75,11 @@ data:
       federationDomain: {{ .settings.federationDomain }}
       {{- if $.Values.secrets.mlsPrivateKeys }}
       mlsPrivateKeyPaths:
-        {{- if $.Values.secrets.mlsPrivateKeys.removal.ed25519 }}
         removal:
           ed25519: "/etc/wire/galley/secrets/removal_ed25519.pem"
-        {{- end }}
+          ecdsa_secp256r1_sha256: "/etc/wire/galley/secrets/removal_ecdsa_secp256r1_sha256.pem"
+          ecdsa_secp384r1_sha384: "/etc/wire/galley/secrets/removal_ecdsa_secp384r1_sha384.pem"
+          ecdsa_secp521r1_sha512: "/etc/wire/galley/secrets/removal_ecdsa_secp521r1_sha512.pem"
       {{- end }}
       disabledAPIVersions: {{ toJson .settings.disabledAPIVersions }}
       {{- if .settings.featureFlags }}

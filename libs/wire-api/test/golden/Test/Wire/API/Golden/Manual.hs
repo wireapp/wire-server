@@ -38,6 +38,7 @@ import Test.Wire.API.Golden.Manual.GetPaginatedConversationIds
 import Test.Wire.API.Golden.Manual.GroupId
 import Test.Wire.API.Golden.Manual.ListConversations
 import Test.Wire.API.Golden.Manual.ListUsersById
+import Test.Wire.API.Golden.Manual.MLSKeys
 import Test.Wire.API.Golden.Manual.QualifiedUserClientPrekeyMap
 import Test.Wire.API.Golden.Manual.SearchResultContact
 import Test.Wire.API.Golden.Manual.SubConversation
@@ -193,5 +194,13 @@ tests =
           [ (testObject_ConversationRemoveMembers_1, "testObject_ConversationRemoveMembers_1.json"),
             (testObject_ConversationRemoveMembers_2, "testObject_ConversationRemoveMembers_2.json"),
             (testObject_ConversationRemoveMembers_3, "testObject_ConversationRemoveMembers_3.json")
+          ],
+      testGroup "MLSPublicKeys" $
+        testObjects
+          [ (testObject_MLSPublicKeys1, "testObject_MLSPublicKeys_1.json")
+          ],
+      testGroup "MLSKeysByPurpose" $
+        testObjects
+          [ (testObject_MLSKeysByPurpose1, "testObject_MLSKeysByPurpose_1.json")
           ]
     ]

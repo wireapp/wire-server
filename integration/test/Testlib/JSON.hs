@@ -412,3 +412,7 @@ instance MakesValue ClientIdentity where
           "id" .= cid.user,
           "client_id" .= cid.client
         ]
+
+instance MakesValue CredentialType where
+  make BasicCredentialType = make "basic"
+  make X509CredentialType = make "x509"

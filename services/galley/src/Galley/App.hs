@@ -162,7 +162,7 @@ createEnv m o l = do
     <$> Q.new 16000
     <*> pure initExtEnv
     <*> maybe (pure Nothing) (fmap Just . Aws.mkEnv l mgr) (o ^. journal)
-    <*> loadAllMLSKeys (fold (o ^. settings . mlsPrivateKeyPaths))
+    <*> traverse loadAllMLSKeys (o ^. settings . mlsPrivateKeyPaths)
     <*> traverse (mkRabbitMqChannelMVar l) (o ^. rabbitmq)
     <*> pure codeURIcfg
 

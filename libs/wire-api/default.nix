@@ -7,6 +7,7 @@
 , aeson-diff
 , aeson-pretty
 , aeson-qq
+, asn1-encoding
 , async
 , attoparsec
 , base
@@ -115,6 +116,7 @@ mkDerivation {
   src = gitignoreSource ./.;
   libraryHaskellDepends = [
     aeson
+    asn1-encoding
     async
     attoparsec
     base

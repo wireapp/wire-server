@@ -44,7 +44,6 @@ import Data.UUID.Tagged qualified as U
 import Galley.API.Action
 import Galley.API.Error
 import Galley.API.MLS
-import Galley.API.MLS.Keys (getMLSRemovalKey)
 import Galley.API.Mapping
 import Galley.API.One2One
 import Galley.API.Util
@@ -206,8 +205,6 @@ createGroupConversationGeneric lusr conn newConv = do
   when (newConvProtocol newConv == BaseProtocolMLSTag) $ do
     -- Here we fail early in order to notify users of this misconfiguration
     assertMLSEnabled
-    unlessM (isJust <$> getMLSRemovalKey) $
-      throw (InternalErrorWithDescription "No backend removal key is configured (See 'mlsPrivateKeyPaths' in galley's config). Refusing to create MLS conversation.")
 
   lcnv <- traverse (const E.createConversationId) lusr
   do

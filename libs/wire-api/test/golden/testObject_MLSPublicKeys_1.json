@@ -1,0 +1,6 @@
+{
+    "ecdsa_secp256r1_sha256": "ArUTSywmqya1wAGwrK+pJuA7KSpKm06y3eZq8Py2NMM=",
+    "ecdsa_secp384r1_sha384": "7pKiTLf72OfpQIeVeXF0mJKfWsBnhTtMUy0zuKasYjlTQUW5fGtcyAFXinM3FahV",
+    "ecdsa_secp521r1_sha512": "9twvhZ57ytiujWXFtSmxd8I5r9iZjgdCtGtReJT3yQL2BCGZ80Vzq/MrmV+O0i7lZEI1gqbr8vL1xKk+2h2LyQ==",
+    "ed25519": "7C8PpP91rzMnD4VHuWTI3yNuInfbzIk937uF0Cg/Piw="
+}

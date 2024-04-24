@@ -24,14 +24,25 @@ For example:
   mlsPrivateKeyPaths:
     removal:
       ed25519: /etc/secrets/ed25519.pem
+      ecdsa_secp256r1_sha256: /etc/secrets/ecdsa_secp256r1_sha256
+      ecdsa_secp384r1_sha384: /etc/secrets/ecdsa_secp384r1_sha384
+      ecdsa_secp521r1_sha512: /etc/secrets/ecdsa_secp521r1_sha512
 ```
 
 A simple way to generate an ed25519 private key, discarding the corresponding
 certificate, is to run the following command:
 
 ```
-openssl req -nodes -newkey ed25519 -keyout ed25519.pem -out /dev/null -subj /
+openssl genpkey -algorithm ed25519
 ```
+
+ECDSA private keys can be generated with:
+
+```
+openssl genpkey -algorithm ec -genparam dsa -pkeyopt ec_paramgen_curve:P-256
+```
+
+and similar (replace `P-256` with `P-384` or `P-521`).
 
 ## Feature flags
 

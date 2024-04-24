@@ -22,9 +22,11 @@ module Wire.Sem.Random
     bytes,
     uuid,
     scimTokenId,
+    liftRandom,
   )
 where
 
+import Crypto.Random.Types
 import Data.Id (ScimTokenId)
 import Data.UUID (UUID)
 import Imports
@@ -34,5 +36,6 @@ data Random m a where
   Bytes :: Int -> Random m ByteString
   Uuid :: Random m UUID
   ScimTokenId :: Random m ScimTokenId
+  LiftRandom :: (forall mr. MonadRandom mr => mr a) -> Random m a
 
 makeSem ''Random

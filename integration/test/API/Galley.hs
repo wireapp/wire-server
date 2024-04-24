@@ -223,6 +223,11 @@ listConversations user cnvs = do
     req
       & addJSONObject ["qualified_ids" .= cnvs]
 
+getMLSPublicKeys :: (HasCallStack, MakesValue user) => user -> App Response
+getMLSPublicKeys user = do
+  req <- baseRequest user Galley Versioned "/mls/public-keys"
+  submit "GET" req
+
 postMLSMessage :: HasCallStack => ClientIdentity -> ByteString -> App Response
 postMLSMessage cid msg = do
   req <- baseRequest cid Galley Versioned "/mls/messages"

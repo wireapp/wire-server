@@ -70,7 +70,8 @@ processInternalCommit ::
     Member (ErrorS 'MLSStaleMessage) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
     Member SubConversationStore r,
-    Member Resource r
+    Member Resource r,
+    Member Random r
   ) =>
   ClientIdentity ->
   Maybe ConnId ->

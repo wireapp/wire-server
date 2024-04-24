@@ -317,7 +317,8 @@ instance SetFeatureConfig LegalholdConfig where
         Member TeamFeatureStore r,
         Member TeamStore r,
         Member (TeamMemberStore InternalPaging) r,
-        Member P.TinyLog r
+        Member P.TinyLog r,
+        Member Random r
       )
 
   -- we're good to update the status now.

@@ -80,6 +80,8 @@ mlscli :: (HasCallStack) => ClientIdentity -> [String] -> Maybe ByteString -> Ap
 mlscli cid args mbstdin = do
   groupOut <- randomFileName
   let substOut = argSubst "<group-out>" groupOut
+  cs <- (.ciphersuite) <$> getMLSState
+  let scheme = csSignatureScheme cs
 
   gs <- getClientGroupState cid
 
@@ -88,23 +90,24 @@ mlscli cid args mbstdin = do
     Just groupData -> do
       fn <- toRandomFile groupData
       pure (argSubst "<group-in>" fn)
-  store <- maybe randomFileName toRandomFile gs.keystore
+  store <- case Map.lookup scheme gs.keystore of
+    Nothing -> do
+      bd <- getBaseDir
+      liftIO $ createDirectory (bd </> cid2Str cid)
+
+      -- initialise new keystore
+      path <- randomFileName
+      ctype <- make gs.credType & asString
+      void $ runCli path ["init", "--ciphersuite", cs.code, "-t", ctype, cid2Str cid] Nothing
+      pure path
+    Just s -> toRandomFile s
 
   let args' = map (substIn . substOut) args
   for_ args' $ \arg ->
     when (arg `elem` ["<group-in>", "<group-out>"]) $
       assertFailure ("Unbound arg: " <> arg)
 
-  out <-
-    spawn
-      ( proc
-          "mls-test-cli"
-          ( ["--store", store]
-              <> args'
-          )
-      )
-      mbstdin
-
+  out <- runCli store args' mbstdin
   setGroup <- do
     groupOutWritten <- liftIO $ doesFileExist groupOut
     if groupOutWritten
@@ -114,11 +117,22 @@ mlscli cid args mbstdin = do
       else pure id
   setStore <- do
     storeData <- liftIO (BS.readFile store)
-    pure $ \x -> x {keystore = Just storeData}
+    pure $ \x -> x {keystore = Map.insert scheme storeData x.keystore}
 
-  setClientGroupState cid ((setGroup . setStore) gs)
+  setClientGroupState cid (setGroup (setStore gs))
 
   pure out
+
+runCli :: HasCallStack => FilePath -> [String] -> Maybe ByteString -> App ByteString
+runCli store args mStdin =
+  spawn
+    ( proc
+        "mls-test-cli"
+        ( ["--store", store]
+            <> args
+        )
+    )
+    mStdin
 
 argSubst :: String -> String -> String -> String
 argSubst from to_ s =
@@ -130,16 +144,11 @@ createWireClient u = do
   c <- addClient u def {lastPrekey = Just lpk} >>= getJSON 201
   mkClientIdentity u c
 
-data CredentialType = BasicCredentialType | X509CredentialType
-
-instance MakesValue CredentialType where
-  make BasicCredentialType = make "basic"
-  make X509CredentialType = make "x509"
-
-instance (HasTests x) => HasTests (CredentialType -> x) where
-  mkTests m n s f x =
-    mkTests m (n <> "[ctype=basic]") s f (x BasicCredentialType)
-      <> mkTests m (n <> "[ctype=x509]") s f (x X509CredentialType)
+-- data CredentialType = BasicCredentialType | X509CredentialType
+--
+-- instance MakesValue CredentialType where
+--   make BasicCredentialType = make "basic"
+--   make X509CredentialType = make "x509"
 
 data InitMLSClient = InitMLSClient
   {credType :: CredentialType}
@@ -147,28 +156,21 @@ data InitMLSClient = InitMLSClient
 instance Default InitMLSClient where
   def = InitMLSClient {credType = BasicCredentialType}
 
-initMLSClient :: (HasCallStack) => InitMLSClient -> ClientIdentity -> App ()
-initMLSClient opts cid = do
-  bd <- getBaseDir
-  mls <- getMLSState
-  liftIO $ createDirectory (bd </> cid2Str cid)
-  ctype <- make opts.credType & asString
-  void $ mlscli cid ["init", "--ciphersuite", mls.ciphersuite.code, "-t", ctype, cid2Str cid] Nothing
-
 -- | Create new mls client and register with backend.
 createMLSClient :: (MakesValue u, HasCallStack) => InitMLSClient -> u -> App ClientIdentity
 createMLSClient opts u = do
   cid <- createWireClient u
-  initMLSClient opts cid
+  setClientGroupState cid def {credType = opts.credType}
 
   -- set public key
   pkey <- mlscli cid ["public-key"] Nothing
+  ciphersuite <- (.ciphersuite) <$> getMLSState
   bindResponse
     ( updateClient
         cid
         def
           { mlsPublicKeys =
-              Just (object ["ed25519" .= T.decodeUtf8 (Base64.encode pkey)])
+              Just (object [csSignatureScheme ciphersuite .= T.decodeUtf8 (Base64.encode pkey)])
           }
     )
     $ \resp -> resp.status `shouldMatchInt` 200
@@ -177,8 +179,7 @@ createMLSClient opts u = do
 -- | create and upload to backend
 uploadNewKeyPackage :: (HasCallStack) => ClientIdentity -> App String
 uploadNewKeyPackage cid = do
-  mls <- getMLSState
-  (kp, ref) <- generateKeyPackage cid mls.ciphersuite
+  (kp, ref) <- generateKeyPackage cid
 
   -- upload key package
   bindResponse (uploadKeyPackages cid [kp]) $ \resp ->
@@ -186,8 +187,9 @@ uploadNewKeyPackage cid = do
 
   pure ref
 
-generateKeyPackage :: (HasCallStack) => ClientIdentity -> Ciphersuite -> App (ByteString, String)
-generateKeyPackage cid suite = do
+generateKeyPackage :: HasCallStack => ClientIdentity -> App (ByteString, String)
+generateKeyPackage cid = do
+  suite <- (.ciphersuite) <$> getMLSState
   kp <- mlscli cid ["key-package", "create", "--ciphersuite", suite.code] Nothing
   ref <- B8.unpack . Base64.encode <$> mlscli cid ["key-package", "ref", "-"] (Just kp)
   fp <- keyPackageFile cid ref
@@ -244,8 +246,11 @@ resetGroup cid conv = do
 
 resetClientGroup :: ClientIdentity -> String -> App ()
 resetClientGroup cid gid = do
-  removalKeyPath <- asks (.removalKeyPath)
   mls <- getMLSState
+  removalKeyPaths <- asks (.removalKeyPaths)
+  removalKeyPath <-
+    assertOne $
+      Map.lookup (csSignatureScheme mls.ciphersuite) removalKeyPaths
   void $
     mlscli
       cid
@@ -706,7 +711,7 @@ spawn cp minput = do
 getClientGroupState :: (HasCallStack) => ClientIdentity -> App ClientGroupState
 getClientGroupState cid = do
   mls <- getMLSState
-  pure $ Map.findWithDefault emptyClientGroupState cid mls.clientGroupState
+  pure $ Map.findWithDefault def cid mls.clientGroupState
 
 setClientGroupState :: (HasCallStack) => ClientIdentity -> ClientGroupState -> App ()
 setClientGroupState cid g =
@@ -761,6 +766,17 @@ createApplicationMessage cid messageContent = do
 setMLSCiphersuite :: Ciphersuite -> App ()
 setMLSCiphersuite suite = modifyMLSState $ \mls -> mls {ciphersuite = suite}
 
+withCiphersuite :: HasCallStack => Ciphersuite -> App a -> App a
+withCiphersuite suite action = do
+  suite0 <- (.ciphersuite) <$> getMLSState
+  setMLSCiphersuiteIO <- appToIOKleisli setMLSCiphersuite
+  actionIO <- appToIO action
+  liftIO $
+    bracket
+      (setMLSCiphersuiteIO suite)
+      (const (setMLSCiphersuiteIO suite0))
+      (const actionIO)
+
 leaveCurrentConv ::
   (HasCallStack) =>
   ClientIdentity ->
@@ -778,7 +794,7 @@ leaveCurrentConv cid = do
           { members = Set.difference mls.members (Set.singleton cid)
           }
 
-getCurrentConv :: (HasCallStack) => ClientIdentity -> App Value
+getCurrentConv :: HasCallStack => ClientIdentity -> App Value
 getCurrentConv cid = do
   mls <- getMLSState
   (conv, mSubId) <- objSubConv mls.convId
