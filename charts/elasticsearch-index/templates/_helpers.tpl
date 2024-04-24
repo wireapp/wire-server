@@ -33,7 +33,7 @@ created one (in case the CA is provided as PEM string.)
 {{- end -}}
 {{- end -}}
 
-{{- define "useElasticsearchTLS" -}}
+{{- define "configureElasticsearchCa" -}}
 {{ or (hasKey .elasticsearch "tlsCa") (hasKey .elasticsearch "tlsCaSecretRef") }}
 {{- end -}}
 
