@@ -22,6 +22,24 @@ fluent-bit:
           Retry_Limit False
           Trace_Error On
           Replace_Dots On
+      # syslog output reference - https://docs.fluentbit.io/manual/pipeline/outputs/syslog
+      # Uncomment this section to enable syslog output
+      # [OUTPUT]
+      #     name                 syslog
+      #     match                *
+      #     host                 syslog.yourserver.com
+      #     port                 514
+      #     mode                 udp
+      #     syslog_format        rfc5424
+      #     syslog_maxsize       2048
+      #     syslog_message_key   message
+      #     syslog_hostname_key  hostname
+      #     syslog_appname_key   appname
+      #     # syslog_severity_key  severity
+      #     # syslog_facility_key  facility
+      #     # syslog_procid_key    procid
+      #     # syslog_msgid_key     msgid
+      #     # syslog_sd_key        sd
     ## https://docs.fluentbit.io/manual/pipeline/parsers
     customParsers: |
       [PARSER]
