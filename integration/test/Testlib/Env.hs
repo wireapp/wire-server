@@ -91,8 +91,7 @@ mkGlobalEnv cfgFile = do
             (intConfig.federationV0.originDomain, intConfig.federationV0.beServiceMap)
           ]
             <> [(berDomain resource, resourceServiceMap resource) | resource <- resources]
-  -- tempDir <- Codensity $ withSystemTempDirectory "test"
-  let tempDir = "/tmp/wire"
+  tempDir <- Codensity $ withSystemTempDirectory "test"
   timeOutSeconds <-
     liftIO $
       fromMaybe 10 . (readMaybe @Int =<<) <$> lookupEnv "TEST_TIMEOUT_SECONDS"
