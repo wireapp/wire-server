@@ -125,6 +125,11 @@ http {
       0 "";
   }
 
+  map $rate_limit $rate_limited_by_zuser_path {
+      1 "$zauth_user$uri";
+      0 "";
+  }
+
   map $http_origin $cors_header {
       default "";
     {{ range $origin := .Values.nginx_conf.allowlisted_origins }}
@@ -273,6 +278,10 @@ http {
 
             {{- if hasKey $location "specific_user_rate_limit" }}
         limit_req zone={{ $location.specific_user_rate_limit }}{{ if hasKey $location "specific_user_rate_limit_burst" }} burst={{ $location.specific_user_rate_limit_burst }}{{ end }} nodelay;
+            {{- end }}
+
+            {{- range $specific_limit := $location.specific_rate_limits }}
+        limit_req zone={{ $specific_limit.zone }}{{ if hasKey $specific_limit "burst" }} burst={{ $specific_limit.burst }}{{ end }} nodelay;
             {{- end }}
 
         if ($request_method = 'OPTIONS') {

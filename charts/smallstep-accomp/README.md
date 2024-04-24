@@ -32,13 +32,15 @@ own domain is `acme.alpha.example.com` this helm chart will forward requests
 - `https://acme.alpha.example.com/proxyCrl/acme.alpha.example.com` to `https://acme.alpha.example.com/crl`
 - `https://acme.alpha.example.com/proxyCrl/acme.beta.example.com` to `https://acme.beta.example.com/crl`
 
-| Name                      | Description                                                                               |
-| ------------------------- | ----------------------------------------------------------------------------------------- |
-| `upstreams.enable`        | Set to `false` in case you want to write custom nginx server block for the upstream rules |
-| `upstreams.dnsResolver`   | DNS server that nginx uses to resolve the proxied hostnames                               |
-| `upstreams.proxiedHosts`  | List of smallstep hostnames to proxy. Please also include the own smallstep host here     |
-| `nginx.ingress.enable`    | Set to `false` in case you'd like to define a custom ingress for the /proxyCrl endpoint   |
-| `nginx.ingress.hostname`  | Hostname of the step-ca server                                                            |
+| Name                       | Description                                                                                               |
+| -------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `upstreams.enable`         | Set to `false` in case you want to write custom nginx server block for the upstream rules                 |
+| `upstreams.dnsResolver`    | DNS server that nginx uses to resolve the proxied hostnames                                               |
+| `upstreams.proxiedHosts`   | List of remote (federated) step-ca hostnames to proxy. Also include the own step-ca host here.            |
+| `nginx.ingress.enable`     | Set to `false` if you need to define a custom ingress for the /proxyCrl endpoint. Make sure CORS is set.  |
+| `nginx.ingress.hostname`   | Hostname of the step-ca server                                                                            |
+| `nginx.ingress.extraTls`   | The TLS configuration                                                                                     |
+| `nginx.ingress.annotations`| CORS config for the ingress, set the hostname of the step-ca server here                                  |
 
 For more details on `nginx.*` parameters see README.md documentation in the `nginx` dependency chart.
 

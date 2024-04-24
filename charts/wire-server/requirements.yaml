@@ -77,26 +77,6 @@ dependencies:
   tags:
     - nginz
     - services
-- name: webapp
-  version: "0.0.42"
-  repository: "file://../webapp"
-  tags:
-    - web
-    - webapp
-- name: team-settings
-  version: "0.0.42"
-  repository: "file://../team-settings"
-  tags:
-    - web
-    - team-settings
-    - private
-- name: account-pages
-  version: "0.0.42"
-  repository: "file://../account-pages"
-  tags:
-    - web
-    - account-pages
-    - private
 - name: legalhold
   version: "0.0.42"
   repository: "file://../legalhold"
@@ -119,11 +99,6 @@ dependencies:
     - federation
     - haskellServices
     - services
-- name: sftd
-  version: "0.0.42"
-  repository: "file://../sftd"
-  tags:
-    - sftd
 - name: integration
   version: "0.0.42"
   repository: "file://../integration"
