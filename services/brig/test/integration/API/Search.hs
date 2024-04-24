@@ -774,7 +774,7 @@ deleteIndex opts name = do
 runBH :: (MonadIO m, HasCallStack) => Opt.Opts -> ES.BH m a -> m a
 runBH opts action = do
   let (ES.Server esURL) = opts ^. Opt.elasticsearchL . Opt.urlL
-  mgr <- liftIO $ initHttpManagerWithTLSConfig True Nothing
+  mgr <- liftIO $ initHttpManagerWithTLSConfig opts.elasticsearch.insecureSkipVerifyTls opts.elasticsearch.caCert
   let bEnv = mkBHEnv esURL mgr
   ES.runBH bEnv action
 
