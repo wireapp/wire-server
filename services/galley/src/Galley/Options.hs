@@ -135,11 +135,6 @@ data Settings = Settings
     --     - wire.com
     --     - example.com
     _federationDomain :: !Domain,
-    -- | When true, galley will assume data in `billing_team_member` table is
-    -- consistent and use it for billing.
-    -- When false, billing information for large teams is not guaranteed to have all
-    -- the owners.
-    -- Defaults to false.
     _mlsPrivateKeyPaths :: !(Maybe MLSPrivateKeyPaths),
     -- | FUTUREWORK: 'setFeatureFlags' should be renamed to 'setFeatureConfigs' in all types.
     _featureFlags :: !FeatureFlags,

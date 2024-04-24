@@ -108,7 +108,7 @@ data GlobalEnv = GlobalEnv
     gDefaultAPIVersion :: Int,
     gManager :: HTTP.Manager,
     gServicesCwdBase :: Maybe FilePath,
-    gRemovalKeyPath :: FilePath,
+    gRemovalKeyPaths :: Map String FilePath,
     gBackendResourcePool :: ResourcePool BackendResource,
     gRabbitMQConfig :: RabbitMQConfig,
     gTempDir :: FilePath,
@@ -204,7 +204,8 @@ data Env = Env
     defaultAPIVersion :: Int,
     manager :: HTTP.Manager,
     servicesCwdBase :: Maybe FilePath,
-    removalKeyPath :: FilePath,
+    -- | paths to removal keys by signature scheme
+    removalKeyPaths :: Map String FilePath,
     prekeys :: IORef [(Int, String)],
     lastPrekeys :: IORef [String],
     mls :: IORef MLSState,
@@ -225,6 +226,9 @@ data Response = Response
 instance HasField "json" Response (App Aeson.Value) where
   getField response = maybe (assertFailure "Response has no json body") pure response.jsonBody
 
+data CredentialType = BasicCredentialType | X509CredentialType
+  deriving (Eq, Show)
+
 data ClientIdentity = ClientIdentity
   { domain :: String,
     user :: String,
@@ -240,9 +244,26 @@ instance Default Ciphersuite where
 
 data ClientGroupState = ClientGroupState
   { group :: Maybe ByteString,
-    keystore :: Maybe ByteString
+    -- | mls-test-cli stores by signature scheme
+    keystore :: Map String ByteString,
+    credType :: CredentialType
   }
   deriving (Show)
+
+instance Default ClientGroupState where
+  def =
+    ClientGroupState
+      { group = Nothing,
+        keystore = mempty,
+        credType = BasicCredentialType
+      }
+
+csSignatureScheme :: Ciphersuite -> String
+csSignatureScheme (Ciphersuite code) = case code of
+  "0x0002" -> "ecdsa_secp256r1_sha256"
+  "0x0005" -> "ecdsa_secp521r1_sha512"
+  "0x0007" -> "ecdsa_secp384r1_sha384"
+  _ -> "ed25519"
 
 data MLSProtocol = MLSProtocolMLS | MLSProtocolMixed
   deriving (Eq, Show)

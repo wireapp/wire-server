@@ -236,15 +236,15 @@ testRemoveProposalMessageSignature = withSystemTempDirectory "mls" $ \tmp -> do
   void $ spawn (cli qcid tmp ["member", "add", "--group", tmp </> groupFilename, "--in-place", tmp </> qcid2]) Nothing
 
   let proposal = mkRawMLS (RemoveProposal 1)
-      pmessage =
-        mkSignedPublicMessage
-          secretKey
-          publicKey
-          gid
-          (Epoch 1)
-          (TaggedSenderExternal 0)
-          (FramedContentProposal proposal)
-      message = mkMessage $ MessagePublic pmessage
+  pmessage <-
+    mkSignedPublicMessage
+      @Ed25519
+      (secretKey, publicKey)
+      gid
+      (Epoch 1)
+      (TaggedSenderExternal 0)
+      (FramedContentProposal proposal)
+  let message = mkMessage $ MessagePublic pmessage
       messageFilename = "signed-message.mls"
 
   BS.writeFile (tmp </> messageFilename) (raw (mkRawMLS message))

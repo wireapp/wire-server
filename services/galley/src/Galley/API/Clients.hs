@@ -107,6 +107,7 @@ rmClientH ::
     Member MemberStore r,
     Member (Error InternalError) r,
     Member ProposalStore r,
+    Member Random r,
     Member SubConversationStore r,
     Member P.TinyLog r
   ) =>

@@ -35,3 +35,4 @@ randomToIO = interpret $ \case
   Bytes i -> embed $ randBytes i
   Uuid -> embed $ UUID.nextRandom
   ScimTokenId -> embed $ randomId @IO
+  LiftRandom m -> embed @IO $ m

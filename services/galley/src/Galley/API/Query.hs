@@ -58,7 +58,6 @@ import Data.Range
 import Data.Set qualified as Set
 import Galley.API.Error
 import Galley.API.MLS
-import Galley.API.MLS.Keys
 import Galley.API.MLS.One2One
 import Galley.API.MLS.Types
 import Galley.API.Mapping
@@ -437,9 +436,7 @@ conversationIdsPageFrom lusr state = do
   -- backend removal key is a proxy for it) the self-conversation is not
   -- returned or attempted to be created; in that case we skip anything related
   -- to it.
-  whenM (isJust <$> getMLSRemovalKey)
-    . void
-    $ getMLSSelfConversation lusr
+  whenM isMLSEnabled $ void $ getMLSSelfConversation lusr
   conversationIdsPageFromV2 ListGlobalSelf lusr state
 
 getConversations ::

@@ -27,11 +27,12 @@ where
 import Data.Bifunctor
 import Data.Id
 import Data.Map qualified as Map
+import Data.Proxy
 import Data.Qualified
 import Data.Set qualified as Set
 import Data.Time
 import Galley.API.MLS.Conversation
-import Galley.API.MLS.Keys (getMLSRemovalKey)
+import Galley.API.MLS.Keys
 import Galley.API.MLS.Propagate
 import Galley.API.MLS.Types
 import Galley.Data.Conversation.Types
@@ -51,6 +52,7 @@ import System.Logger qualified as Log
 import Wire.API.Conversation.Protocol
 import Wire.API.Federation.Error
 import Wire.API.MLS.AuthenticatedContent
+import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
 import Wire.API.MLS.LeafNode
 import Wire.API.MLS.Message
@@ -58,9 +60,11 @@ import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
 import Wire.NotificationSubsystem
+import Wire.Sem.Random
 
 -- | Send remove proposals for a set of clients to clients in the ClientMap.
 createAndSendRemoveProposals ::
+  forall r t.
   ( Member (Error FederationError) r,
     Member (Input UTCTime) r,
     Member TinyLog r,
@@ -69,6 +73,7 @@ createAndSendRemoveProposals ::
     Member NotificationSubsystem r,
     Member ProposalStore r,
     Member (Input Env) r,
+    Member Random r,
     Foldable t
   ) =>
   Local ConvOrSubConv ->
@@ -84,22 +89,22 @@ createAndSendRemoveProposals ::
   Sem r ()
 createAndSendRemoveProposals lConvOrSubConv indices qusr cm = do
   let meta = (tUnqualified lConvOrSubConv).mlsMeta
-  mKeyPair <- getMLSRemovalKey
+  mKeyPair <- getMLSRemovalKey (csSignatureScheme (cnvmlsCipherSuite meta))
   case mKeyPair of
     Nothing -> do
       warn $ Log.msg ("No backend removal key is configured (See 'mlsPrivateKeyPaths' in galley's config). Not able to remove client from MLS conversation." :: Text)
-    Just (secKey, pubKey) -> do
+    Just (SomeKeyPair (_ :: Proxy ss) kp) -> do
       for_ indices $ \idx -> do
         let proposal = mkRawMLS (RemoveProposal idx)
-            pmsg =
-              mkSignedPublicMessage
-                secKey
-                pubKey
-                (cnvmlsGroupId meta)
-                (cnvmlsEpoch meta)
-                (TaggedSenderExternal 0)
-                (FramedContentProposal proposal)
-            msg = mkRawMLS (mkMessage (MessagePublic pmsg))
+        pmsg <-
+          liftRandom $
+            mkSignedPublicMessage @ss
+              kp
+              (cnvmlsGroupId meta)
+              (cnvmlsEpoch meta)
+              (TaggedSenderExternal 0)
+              (FramedContentProposal proposal)
+        let msg = mkRawMLS (mkMessage (MessagePublic pmsg))
         storeProposal
           (cnvmlsGroupId meta)
           (cnvmlsEpoch meta)
@@ -119,6 +124,7 @@ removeClientsWithClientMapRecursively ::
     Member ProposalStore r,
     Member SubConversationStore r,
     Member (Input Env) r,
+    Member Random r,
     Functor f,
     Foldable f
   ) =>
@@ -152,6 +158,7 @@ removeClientsFromSubConvs ::
     Member ProposalStore r,
     Member SubConversationStore r,
     Member (Input Env) r,
+    Member Random r,
     Functor f,
     Foldable f
   ) =>
@@ -189,6 +196,7 @@ removeClient ::
     Member (Input UTCTime) r,
     Member MemberStore r,
     Member ProposalStore r,
+    Member Random r,
     Member SubConversationStore r,
     Member TinyLog r
   ) =>
@@ -225,6 +233,7 @@ removeUser ::
     Member (Input UTCTime) r,
     Member MemberStore r,
     Member ProposalStore r,
+    Member Random r,
     Member SubConversationStore r,
     Member TinyLog r
   ) =>
@@ -271,6 +280,7 @@ removeExtraneousClients ::
     Member (Input UTCTime) r,
     Member MemberStore r,
     Member ProposalStore r,
+    Member Random r,
     Member SubConversationStore r,
     Member TinyLog r
   ) =>

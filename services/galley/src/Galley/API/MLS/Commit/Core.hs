@@ -88,7 +88,8 @@ type HasProposalActionEffects r =
     Member SubConversationStore r,
     Member TeamStore r,
     Member TinyLog r,
-    Member NotificationSubsystem r
+    Member NotificationSubsystem r,
+    Member Random r
   )
 
 getCommitData ::
