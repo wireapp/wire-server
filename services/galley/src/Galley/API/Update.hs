@@ -66,7 +66,7 @@ module Galley.API.Update
     memberTyping,
 
     -- * External Services
-    Galley.API.Update.addBotH,
+    addBot,
     rmBotH,
     postBotMessageUnqualified,
   )
@@ -105,7 +105,6 @@ import Galley.Effects.FederatorAccess qualified as E
 import Galley.Effects.MemberStore qualified as E
 import Galley.Effects.WaiRoutes
 import Galley.Options
-import Galley.Types.Bot hiding (addBot)
 import Galley.Types.Conversations.Members (LocalMember (..))
 import Galley.Types.UserList
 import Imports hiding (forkIO)
@@ -117,6 +116,7 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog
+import Wire.API.Bot hiding (addBot)
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Code
@@ -1542,28 +1542,6 @@ memberTypingUnqualified ::
 memberTypingUnqualified lusr zcon cnv ts = do
   lcnv <- qualifyLocal cnv
   memberTyping lusr zcon (tUntagged lcnv) ts
-
-addBotH ::
-  ( Member ClientStore r,
-    Member ConversationStore r,
-    Member (ErrorS ('ActionDenied 'AddConversationMember)) r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'InvalidOperation) r,
-    Member (ErrorS 'TooManyMembers) r,
-    Member ExternalAccess r,
-    Member NotificationSubsystem r,
-    Member (Input (Local ())) r,
-    Member (Input Opts) r,
-    Member (Input UTCTime) r,
-    Member MemberStore r,
-    Member WaiRoutes r
-  ) =>
-  UserId ::: ConnId ::: JsonRequest AddBot ->
-  Sem r Response
-addBotH (zusr ::: zcon ::: req) = do
-  bot <- fromJsonBody req
-  lusr <- qualifyLocal zusr
-  json <$> addBot lusr zcon bot
 
 addBot ::
   forall r.

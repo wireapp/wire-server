@@ -66,7 +66,6 @@ import Galley.Effects.TeamStore qualified as E
 import Galley.Monad
 import Galley.Options hiding (brig)
 import Galley.Queue qualified as Q
-import Galley.Types.Bot (AddBot, RemoveBot)
 import Galley.Types.Conversations.Members (RemoteMember (rmId))
 import Galley.Types.UserList
 import Gundeck.Types.Push.V2 qualified as PushV2
@@ -83,6 +82,7 @@ import Polysemy.TinyLog qualified as P
 import Servant hiding (JSON, WithStatus)
 import System.Logger.Class hiding (Path, name)
 import System.Logger.Class qualified as Log
+import Wire.API.Bot
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Action
 import Wire.API.CustomBackend
@@ -182,6 +182,7 @@ miscAPI =
     <@> mkNamedAPI @"test-delete-client" Clients.rmClient
     <@> mkNamedAPI @"add-service" createService
     <@> mkNamedAPI @"delete-service" deleteService
+    <@> mkNamedAPI @"add-bot" Update.addBot
 
 featureAPI :: API IFeatureAPI GalleyEffects
 featureAPI =
@@ -261,13 +262,6 @@ featureAPI =
 waiInternalSitemap :: Routes a (Sem GalleyEffects) ()
 waiInternalSitemap = unsafeCallsFed @'Galley @"on-client-removed" $ unsafeCallsFed @'Galley @"on-mls-message-sent" $ do
   -- Misc API (internal) ------------------------------------------------
-
-  -- This endpoint can lead to the following events being sent:
-  -- - MemberJoin event to members
-  post "/i/bots" (continueE Update.addBotH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. jsonRequest @AddBot
 
   -- This endpoint can lead to the following events being sent:
   -- - MemberLeave event to members

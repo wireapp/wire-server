@@ -26,6 +26,7 @@ import Imports hiding (head)
 import Servant hiding (WithStatus)
 import Servant.OpenApi
 import Wire.API.ApplyMods
+import Wire.API.Bot
 import Wire.API.Bot.Service
 import Wire.API.Conversation
 import Wire.API.Conversation.Role
@@ -640,6 +641,20 @@ type IMiscAPI =
                     'DELETE
                     '[JSON]
                     (RespondEmpty 200 "OK")
+           )
+    :<|> Named
+           "add-bot"
+           ( -- This endpoint can lead to the following events being sent:
+             -- - MemberJoin event to members
+             CanThrow ('ActionDenied 'AddConversationMember)
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'InvalidOperation
+               :> CanThrow 'TooManyMembers
+               :> "bots"
+               :> ZLocalUser
+               :> ZConn
+               :> ReqBody '[JSON] AddBot
+               :> Post '[JSON] Event
            )
 
 swaggerDoc :: OpenApi
