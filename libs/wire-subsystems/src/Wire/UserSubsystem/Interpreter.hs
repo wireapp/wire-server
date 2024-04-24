@@ -1,4 +1,4 @@
-module Wire.UserSubsystem.Interpreter where
+module Wire.UserSubsystem.Interpreter (runUserSubsystem, UserSubsystemConfig (..)) where
 
 import Control.Monad.Trans.Maybe
 import Data.Either.Extra
@@ -44,16 +44,15 @@ runUserSubsystem ::
     Typeable fedM
   ) =>
   UserSubsystemConfig ->
-  Sem (UserSubsystem : r) a ->
-  Sem r a
+  InterpreterFor UserSubsystem a
 runUserSubsystem cfg = interpret $ \case
-  GetUserProfile self other -> runInputConst cfg $ getUserProfile self other
-  GetUserProfiles self others -> runInputConst cfg $ getUserProfiles self others
+  GetUserProfile self other -> runInputConst cfg $ getUserProfileImpl self other
+  GetUserProfiles self others -> runInputConst cfg $ getUserProfilesImpl self others
   GetLocalUserProfile others -> undefined others -- :: [UserId] -> UserSubsystem m (Maybe UserProfile)
   GetLocalUserProfiles others -> undefined others -- :: [UserId] -> UserSubsystem m [UserProfile]
-  GetUserProfilesWithErrors self others -> runInputConst cfg $ getUserProfilesWithErrors self others
+  GetUserProfilesWithErrors self others -> runInputConst cfg $ getUserProfilesWithErrorsImpl self others
 
-getUserProfile ::
+getUserProfileImpl ::
   ( Member GalleyAPIAccess r,
     Member (Input UserSubsystemConfig) r,
     Member UserStore r,
@@ -69,11 +68,11 @@ getUserProfile ::
   Local UserId ->
   Qualified UserId ->
   Sem r (Maybe UserProfile)
-getUserProfile self other = listToMaybe <$> getUserProfiles self [other]
+getUserProfileImpl self other = listToMaybe <$> getUserProfilesImpl self [other]
 
 -- | Obtain user profiles for a list of users as they can be seen by
 -- a given user 'self'. If 'self' is an unknown 'UserId', return '[]'.
-getUserProfiles ::
+getUserProfilesImpl ::
   ( Member GalleyAPIAccess r,
     Member (Input UserSubsystemConfig) r,
     Member UserStore r,
@@ -91,7 +90,7 @@ getUserProfiles ::
   -- | The users ('others') for which to obtain the profiles.
   [Qualified UserId] ->
   Sem r [UserProfile]
-getUserProfiles self others =
+getUserProfilesImpl self others =
   concat
     <$> unsafePooledMapConcurrentlyN
       8
@@ -116,10 +115,10 @@ getUserProfilesFromDomain ::
 getUserProfilesFromDomain self =
   foldQualified
     self
-    (getLocalUserProfiles self)
-    getRemoteUserProfiles
+    (getUserProfilesLocalPart self)
+    getUserProfilesRemotePart
 
-getRemoteUserProfiles ::
+getUserProfilesRemotePart ::
   ( Member (FederationAPIAccess fedM) r,
     Member (Error FederationError) r,
     RunClient (fedM 'Brig),
@@ -128,10 +127,10 @@ getRemoteUserProfiles ::
   ) =>
   Remote [UserId] ->
   Sem r [UserProfile]
-getRemoteUserProfiles ruids = do
+getUserProfilesRemotePart ruids = do
   runFederated ruids $ fedClient @'Brig @"get-users-by-ids" (tUnqualified ruids)
 
-getLocalUserProfiles ::
+getUserProfilesLocalPart ::
   forall r.
   ( Member UserStore r,
     Member (Input UserSubsystemConfig) r,
@@ -142,7 +141,7 @@ getLocalUserProfiles ::
   Local UserId ->
   Local [UserId] ->
   Sem r [UserProfile]
-getLocalUserProfiles requestingUser luids = do
+getUserProfilesLocalPart requestingUser luids = do
   emailVisibility <- inputs emailVisibilityConfig
   emailVisibilityConfigWithViewer <-
     traverse (const getRequestingUserInfo) emailVisibility
@@ -193,7 +192,7 @@ getLocalUserProfile emailVisibilityConfigWithViewer luid = do
               user.userQualifiedId
         pure usrProfile
 
-getUserProfilesWithErrors ::
+getUserProfilesWithErrorsImpl ::
   forall r fedM.
   ( Member UserStore r,
     Member (Concurrency 'Unsafe) r, -- TODO: subsystems should implement concurrency inside interpreters, not depend on this dangerous effect.
@@ -209,7 +208,7 @@ getUserProfilesWithErrors ::
   Local UserId ->
   [Qualified UserId] ->
   Sem r ([(Qualified UserId, FederationError)], [UserProfile])
-getUserProfilesWithErrors self others = do
+getUserProfilesWithErrorsImpl self others = do
   aggregate ([], []) <$> unsafePooledMapConcurrentlyN 8 go (bucketQualified others)
   where
     go :: Qualified [UserId] -> Sem r (Either (FederationError, Qualified [UserId]) [UserProfile])
